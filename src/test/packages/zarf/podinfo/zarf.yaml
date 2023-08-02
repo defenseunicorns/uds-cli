@@ -1,0 +1,24 @@
+kind: ZarfPackageConfig
+metadata:
+  name: podinfo
+  version: 0.0.1
+
+components:
+  - name: podinfo-kustomize
+    required: true
+    manifests:
+      - name: simple-podinfo-deployment
+        namespace: podinfo
+        kustomizations:
+          - github.com/stefanprodan/podinfo//kustomize?ref=6.4.0
+    actions:
+      onDeploy:
+        after:
+          - wait:
+              cluster:
+                kind: deployment
+                name: podinfo
+                namespace: podinfo
+                condition: available
+    images:
+      - ghcr.io/stefanprodan/podinfo:6.4.0
