@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
-// Package bundler contains functions for interacting with, managing and deploying Zarf bundles.
+// Package bundler contains functions for interacting with, managing and deploying UDS packages
 package bundler
 
 import (
@@ -25,7 +25,10 @@ var (
 	BundleAlwaysPull = []string{BundleYAML, BundleYAMLSignature}
 )
 
-var defaultZarfInitOptions types.ZarfInitOptions = types.ZarfInitOptions{
+// need to set these in the case of deploying a Zarf init pkg
+// typically these are set as part of Zarf's Viper config, which we don't use in UDS
+// could technically remove, but it doesn't hurt anything for now
+var defaultZarfInitOptions = types.ZarfInitOptions{
 	GitServer: types.GitServerInfo{
 		PushUsername: config.ZarfGitPushUser,
 	},
