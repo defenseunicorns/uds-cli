@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
-// Package bundler contains functions for interacting with, managing and deploying Zarf bundles.
+// Package bundler contains functions for interacting with, managing and deploying UDS bundles.
 package bundler
 
 import (
