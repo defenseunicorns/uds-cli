@@ -16,5 +16,8 @@ build-cli-mac-intel:
 build-cli-mac-apple:
 	GOOS=darwin GOARCH=arm64 go build -ldflags="$(BUILD_ARGS)" -o build/uds-mac-apple main.go
 
+test:
+	cd src/test && go test -failfast -v -timeout 30m
+
 clean:
 	rm -rf build

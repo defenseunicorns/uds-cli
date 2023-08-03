@@ -1,6 +1,6 @@
 module github.com/defenseunicorns/uds-cli
 
-go 1.20
+go 1.19
 
 replace github.com/defenseunicorns/zarf => github.com/defenseunicorns/zarf v0.28.4-0.20230802134247-d8d73edf8889
 
