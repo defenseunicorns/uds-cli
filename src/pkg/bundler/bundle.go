@@ -22,7 +22,7 @@ import (
 )
 
 // Bundle publishes the given bundle w/ optional signature to the remote repository.
-func Bundle(r *oci.OrasRemote, bundle *types.UDSPackage, signature []byte) error {
+func Bundle(r *oci.OrasRemote, bundle *types.UDSBundle, signature []byte) error {
 	if bundle.Metadata.Architecture == "" {
 		return fmt.Errorf("architecture is required for bundling")
 	}
@@ -140,7 +140,7 @@ func Bundle(r *oci.OrasRemote, bundle *types.UDSPackage, signature []byte) error
 	}
 
 	// push the manifest config
-	// todo: dig into this, is the manifest the UDSPackage manifest or a Zarf pkg manifest?
+	// todo: dig into this, is the manifest the UDSBundle manifest or a Zarf pkg manifest?
 	// todo: make joint types? should this actually be explicitly Zarf types? need to distinguish between Zarf pkg and UDS pkg
 	configDesc, err := r.PushManifestConfigFromMetadata((*zarfTypes.ZarfMetadata)(&bundle.Metadata), (*zarfTypes.ZarfBuildData)(&bundle.Build))
 	if err != nil {

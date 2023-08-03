@@ -1,7 +1,7 @@
-kind: UDSPackage
+kind: UDSBundle
 metadata:
   name: example
-  description: an example UDS pkg
+  description: an example UDS bundle
   version: 0.0.1
 
 zarf-packages:

@@ -4,10 +4,10 @@
 // Package types contains all the types used by UDS.
 package types
 
-// UDSPackage is the top-level structure of a UDS package file.
-type UDSPackage struct {
-	Kind         string              `json:"kind" jsonschema:"description=The kind of UDS package,enum=UDSPackage"`
-	Metadata     UDSMetadata         `json:"metadata" jsonschema:"description=UDSPackage metadata"`
+// UDSBundle is the top-level structure of a UDS package file.
+type UDSBundle struct {
+	Kind         string              `json:"kind" jsonschema:"description=The kind of UDS package,enum=UDSBundle"`
+	Metadata     UDSMetadata         `json:"metadata" jsonschema:"description=UDSBundle metadata"`
 	Build        UDSBuildData        `json:"build,omitempty" jsonschema:"description=Generated bundle build data"`
 	ZarfPackages []ZarfPackageImport `json:"zarf-packages" jsonschema:"description=List of Zarf packages"`
 }

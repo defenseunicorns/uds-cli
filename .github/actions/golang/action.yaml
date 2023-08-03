@@ -7,4 +7,3 @@ runs:
     - uses: actions/setup-go@v4
       with:
         go-version: 1.19.x
-        cache: true

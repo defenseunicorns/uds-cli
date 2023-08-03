@@ -140,7 +140,7 @@ func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
 		return nil, err
 	}
 
-	var bundle types.UDSPackage
+	var bundle types.UDSBundle
 
 	if err := goyaml.Unmarshal(b, &bundle); err != nil {
 		return nil, err

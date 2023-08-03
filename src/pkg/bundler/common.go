@@ -29,7 +29,7 @@ type Bundler struct {
 	// cfg is the Bundler's configuration options
 	cfg *types.BundlerConfig
 	// bundle is the bundle's metadata read into memory
-	bundle types.UDSPackage
+	bundle types.UDSBundle
 	// tmp is the temporary directory used by the Bundler cleaned up with ClearPaths()
 	tmp string
 }
@@ -76,7 +76,7 @@ func (b *Bundler) ClearPaths() {
 }
 
 // ValidateBundleResources validates the bundle's metadata and package references
-func (b *Bundler) ValidateBundleResources(bundle *types.UDSPackage) error {
+func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 	// TODO: need to validate arch of local OS
 	if bundle.Metadata.Architecture == "" {
 		// ValidateBundle was erroneously called before CalculateBuildInfo
