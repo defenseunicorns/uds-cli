@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"io"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
@@ -139,10 +138,8 @@ func Bundle(r *oci.OrasRemote, bundle *types.UDSBundle, signature []byte) error 
 		message.Debug("Pushed", BundleYAMLSignature+":", message.JSONValue(zarfBundleYamlSigDesc))
 	}
 
-	// push the manifest config
-	// todo: dig into this, is the manifest the UDSBundle manifest or a Zarf pkg manifest?
-	// todo: make joint types? should this actually be explicitly Zarf types? need to distinguish between Zarf pkg and UDS pkg
-	configDesc, err := r.PushManifestConfigFromMetadata((*zarfTypes.ZarfMetadata)(&bundle.Metadata), (*zarfTypes.ZarfBuildData)(&bundle.Build))
+	// push the bundle manifest config
+	configDesc, err := pushManifestConfigFromMetadata(r, &bundle.Metadata, &bundle.Build)
 	if err != nil {
 		return err
 	}
@@ -153,7 +150,7 @@ func Bundle(r *oci.OrasRemote, bundle *types.UDSBundle, signature []byte) error 
 
 	manifest.SchemaVersion = 2
 
-	manifest.Annotations = r.ManifestAnnotationsFromMetadata((*zarfTypes.ZarfMetadata)(&bundle.Metadata))
+	manifest.Annotations = manifestAnnotationsFromMetadata(&bundle.Metadata)
 	b, err := json.Marshal(manifest)
 	if err != nil {
 		return err
@@ -179,4 +176,47 @@ func Bundle(r *oci.OrasRemote, bundle *types.UDSBundle, signature []byte) error 
 	message.Command("bundle pull oci://%s %s", ref, flags)
 
 	return nil
+}
+
+// copied from: https://github.com/defenseunicorns/zarf/blob/main/src/pkg/oci/push.go
+func pushManifestConfigFromMetadata(r *oci.OrasRemote, metadata *types.UDSMetadata, build *types.UDSBuildData) (ocispec.Descriptor, error) {
+	annotations := map[string]string{
+		ocispec.AnnotationTitle:       metadata.Name,
+		ocispec.AnnotationDescription: metadata.Description,
+	}
+	manifestConfig := oci.ConfigPartial{
+		Architecture: build.Architecture,
+		OCIVersion:   "1.0.1",
+		Annotations:  annotations,
+	}
+	manifestConfigBytes, err := json.Marshal(manifestConfig)
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
+	return r.PushLayer(manifestConfigBytes, ocispec.MediaTypeImageConfig)
+}
+
+// copied from: https://github.com/defenseunicorns/zarf/blob/main/src/pkg/oci/push.go
+func manifestAnnotationsFromMetadata(metadata *types.UDSMetadata) map[string]string {
+	annotations := map[string]string{
+		ocispec.AnnotationDescription: metadata.Description,
+	}
+
+	if url := metadata.URL; url != "" {
+		annotations[ocispec.AnnotationURL] = url
+	}
+	if authors := metadata.Authors; authors != "" {
+		annotations[ocispec.AnnotationAuthors] = authors
+	}
+	if documentation := metadata.Documentation; documentation != "" {
+		annotations[ocispec.AnnotationDocumentation] = documentation
+	}
+	if source := metadata.Source; source != "" {
+		annotations[ocispec.AnnotationSource] = source
+	}
+	if vendor := metadata.Vendor; vendor != "" {
+		annotations[ocispec.AnnotationVendor] = vendor
+	}
+
+	return annotations
 }

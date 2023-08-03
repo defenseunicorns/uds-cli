@@ -5,9 +5,13 @@
 package bundler
 
 import (
+	"errors"
 	"fmt"
+	"github.com/defenseunicorns/uds-cli/src/types"
+	"oras.land/oras-go/v2/registry"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/zarf/src/config"
@@ -15,7 +19,8 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/types"
+	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+
 	"github.com/pterm/pterm"
 )
 
@@ -84,7 +89,7 @@ func (b *Bundler) Create() error {
 	}
 
 	// set the remote's reference from the bundle's metadata
-	ref, err := oci.ReferenceFromMetadata(b.cfg.CreateOpts.Output, (*types.ZarfMetadata)(&b.bundle.Metadata), b.bundle.Metadata.Architecture)
+	ref, err := referenceFromMetadata(b.cfg.CreateOpts.Output, &b.bundle.Metadata, b.bundle.Metadata.Architecture)
 	if err != nil {
 		return err
 	}
@@ -111,7 +116,7 @@ func (b *Bundler) templateBundleYaml() error {
 	for key := range yamlTemplates {
 		_, present := setFromCLIConfig[key]
 		if !present && !config.CommonOptions.Confirm {
-			setVal, err := interactive.PromptVariable(types.ZarfPackageVariable{
+			setVal, err := interactive.PromptVariable(zarfTypes.ZarfPackageVariable{
 				Name:    key,
 				Default: "",
 			})
@@ -159,4 +164,30 @@ func (b *Bundler) confirmBundleCreation() (confirm bool) {
 		return false
 	}
 	return true
+}
+
+// copied from: https://github.com/defenseunicorns/zarf/blob/main/src/pkg/oci/utils.go
+func referenceFromMetadata(registryLocation string, metadata *types.UDSMetadata, suffix string) (string, error) {
+	ver := metadata.Version
+	if len(ver) == 0 {
+		return "", errors.New("version is required for publishing")
+	}
+
+	if !strings.HasSuffix(registryLocation, "/") {
+		registryLocation = registryLocation + "/"
+	}
+	registryLocation = strings.TrimPrefix(registryLocation, utils.OCIURLPrefix)
+
+	format := "%s%s:%s-%s"
+
+	raw := fmt.Sprintf(format, registryLocation, metadata.Name, ver, suffix)
+
+	message.Debug("Raw OCI reference from metadata:", raw)
+
+	ref, err := registry.ParseReference(raw)
+	if err != nil {
+		return "", err
+	}
+
+	return ref.String(), nil
 }

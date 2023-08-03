@@ -2,7 +2,7 @@ module github.com/defenseunicorns/uds-cli
 
 go 1.19
 
-replace github.com/defenseunicorns/zarf => github.com/defenseunicorns/zarf v0.28.4-0.20230802134247-d8d73edf8889
+replace github.com/defenseunicorns/zarf => github.com/defenseunicorns/zarf v0.28.4-0.20230803174709-3cda37d2a2af
 
 // TODO (@WSTARR) remove this temporary replacement of oras-go 1.2.2 with defenseunicorns version due to upgraded docker lib
 replace oras.land/oras-go v1.2.2 => github.com/defenseunicorns/oras-go v1.2.4-0.20230605015028-85c595ed4b64
@@ -77,7 +77,7 @@ require (
 	github.com/anchore/go-struct-converter v0.0.0-20221118182256-c68fdcfa2092 // indirect
 	github.com/anchore/go-version v1.2.2-0.20200701162849-18adb9c92b9b // indirect
 	github.com/anchore/packageurl-go v0.1.1-0.20230104203445-02e0a6721501 // indirect
-	github.com/anchore/stereoscope v0.0.0-20230627195312-cd49355d934e // indirect
+	github.com/anchore/stereoscope v0.0.0-20230727211946-d1f3d766295e // indirect
 	github.com/anchore/syft v0.84.0 // indirect
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect

@@ -20,20 +20,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate:
+  test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
 
       - name: Setup golang
         uses: ./.github/actions/golang
 
       - name: Install Zarf
-        uses: defenseunicorns/setup-zarf@main
-        with:
-          # renovate: datasource=github-tags depName=defenseunicorns/zarf versioning=semver
-          version: v0.28.3
+        uses: ./.github/actions/zarf
 
       - name: Build UDS-CLI binary
         run: make build-cli-linux-amd ARCH=amd64
