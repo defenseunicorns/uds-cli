@@ -11,11 +11,11 @@ import (
 
 const (
 	// BundleYAML is the name of the bundle's metadata file
-	BundleYAML = "uds-pkg.yaml"
+	BundleYAML = "uds-bundle.yaml"
 	// BundleYAMLSignature is the name of the bundle's metadata signature file
-	BundleYAMLSignature = "uds-pkg.yaml.sig"
+	BundleYAMLSignature = "uds-bundle.yaml.sig"
 	// BundlePrefix is the prefix for all bundle files
-	BundlePrefix = "uds-pkg-"
+	BundlePrefix = "uds-bundle-"
 	// PublicKeyFile is the name of the public key file
 	PublicKeyFile = "public.key"
 )

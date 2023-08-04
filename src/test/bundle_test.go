@@ -55,7 +55,7 @@ func TestBundle(t *testing.T) {
 		Reference:  fmt.Sprintf("0.0.1-%s", e2e.Arch),
 	}
 
-	tarballPath := filepath.Join("build", fmt.Sprintf("uds-pkg-example-%s-0.0.1.tar.zst", e2e.Arch))
+	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-example-%s-0.0.1.tar.zst", e2e.Arch))
 
 	create(t, bundleRef.Registry)
 
@@ -67,7 +67,7 @@ func TestBundle(t *testing.T) {
 }
 
 func create(t *testing.T, reg string) {
-	dir := "src/test/packages/01-uds-pkg"
+	dir := "src/test/packages/01-uds-bundle"
 	cmd := strings.Split(fmt.Sprintf("bundle create %s -o oci://%s --set INIT_VERSION=%s --confirm --insecure", dir, reg, zarfVersion), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)

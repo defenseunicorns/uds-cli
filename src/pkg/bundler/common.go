@@ -307,6 +307,6 @@ func IsValidTarballPath(path string) bool {
 	if !strings.HasPrefix(name, BundlePrefix) {
 		return false
 	}
-	re := regexp.MustCompile(`^uds-pkg-.*-.*.tar(.zst)?$`)
+	re := regexp.MustCompile(`^uds-bundle-.*-.*.tar(.zst)?$`)
 	return re.MatchString(name)
 }
