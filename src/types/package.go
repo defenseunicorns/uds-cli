@@ -4,7 +4,7 @@
 // Package types contains all the types used by UDS.
 package types
 
-// UDSMetadata lists information about the current ZarfPackage.
+// UDSMetadata lists information about the current UDS Bundle.
 type UDSMetadata struct {
 	Name              string `json:"name" jsonschema:"description=Name to identify this Zarf package,pattern=^[a-z0-9\\-]+$"`
 	Description       string `json:"description,omitempty" jsonschema:"description=Additional information about this package"`
@@ -19,13 +19,11 @@ type UDSMetadata struct {
 	AggregateChecksum string `json:"aggregateChecksum,omitempty" jsonschema:"description=Checksum of a checksums.txt file that contains checksums all the layers within the package."`
 }
 
-// UDSBuildData is written during the packager.Create() operation to track details of the created package.
+// UDSBuildData is written during the bundle.Create() operation to track details of the created package.
 type UDSBuildData struct {
-	Terminal               string            `json:"terminal" jsonschema:"description=The machine name that created this package"`
-	User                   string            `json:"user" jsonschema:"description=The username who created this package"`
-	Architecture           string            `json:"architecture" jsonschema:"description=The architecture this package was created on"`
-	Timestamp              string            `json:"timestamp" jsonschema:"description=The timestamp when this package was created"`
-	Version                string            `json:"version" jsonschema:"description=The version of Zarf used to build this package"`
-	OCIImportedComponents  map[string]string `json:"OCIImportedComponents,omitempty" jsonschema:"description=Map of components that were imported via OCI. The keys are OCI Package URLs and values are the component names"`
-	LastNonBreakingVersion string            `json:"lastNonBreakingVersion,omitempty" jsonschema:"description=The minimum version of Zarf that does not have breaking package structure changes"`
+	Terminal     string `json:"terminal" jsonschema:"description=The machine name that created this package"`
+	User         string `json:"user" jsonschema:"description=The username who created this package"`
+	Architecture string `json:"architecture" jsonschema:"description=The architecture this package was created on"`
+	Timestamp    string `json:"timestamp" jsonschema:"description=The timestamp when this package was created"`
+	Version      string `json:"version" jsonschema:"description=The version of Zarf used to build this package"`
 }

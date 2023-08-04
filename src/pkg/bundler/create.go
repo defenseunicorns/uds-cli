@@ -108,7 +108,7 @@ func (b *Bundler) templateBundleYaml() error {
 
 	templateMap := map[string]string{}
 	setFromCLIConfig := b.cfg.CreateOpts.SetVariables
-	yamlTemplates, err := utils.FindYamlTemplates(&b.bundle, "###ZARF_BNDL_TMPL_", "###")
+	yamlTemplates, err := utils.FindYamlTemplates(&b.bundle, "###BNDL_TMPL_", "###")
 	if err != nil {
 		return err
 	}
@@ -131,10 +131,10 @@ func (b *Bundler) templateBundleYaml() error {
 		}
 	}
 	for key, value := range setFromCLIConfig {
-		templateMap[fmt.Sprintf("###ZARF_BNDL_TMPL_%s###", key)] = value
+		templateMap[fmt.Sprintf("###BNDL_TMPL_%s###", key)] = value
 	}
 
-	templateMap["###ZARF_BNDL_ARCH###"] = b.bundle.Metadata.Architecture
+	templateMap["###BNDL_ARCH###"] = b.bundle.Metadata.Architecture
 
 	return utils.ReloadYamlTemplate(&b.bundle, templateMap)
 }
@@ -153,7 +153,7 @@ func (b *Bundler) confirmBundleCreation() (confirm bool) {
 	}
 
 	prompt := &survey.Confirm{
-		Message: "Create this Zarf bundle?",
+		Message: "Create this UDS Bundle?",
 	}
 
 	pterm.Println()

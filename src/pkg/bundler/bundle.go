@@ -110,32 +110,32 @@ func Bundle(r *oci.OrasRemote, bundle *types.UDSBundle, signature []byte) error 
 	}
 
 	// push the bundle's metadata
-	zarfBundleYamlBytes, err := goyaml.Marshal(bundle)
+	bundleYamlBytes, err := goyaml.Marshal(bundle)
 	if err != nil {
 		return err
 	}
-	zarfBundleYamlDesc, err := r.PushLayer(zarfBundleYamlBytes, oci.ZarfLayerMediaTypeBlob)
+	bundleYamlDesc, err := r.PushLayer(bundleYamlBytes, oci.ZarfLayerMediaTypeBlob)
 	if err != nil {
 		return err
 	}
-	zarfBundleYamlDesc.Annotations = map[string]string{
+	bundleYamlDesc.Annotations = map[string]string{
 		ocispec.AnnotationTitle: BundleYAML,
 	}
 
-	message.Debug("Pushed", BundleYAML+":", message.JSONValue(zarfBundleYamlDesc))
-	manifest.Layers = append(manifest.Layers, zarfBundleYamlDesc)
+	message.Debug("Pushed", BundleYAML+":", message.JSONValue(bundleYamlDesc))
+	manifest.Layers = append(manifest.Layers, bundleYamlDesc)
 
 	// push the bundle's signature
 	if len(signature) > 0 {
-		zarfBundleYamlSigDesc, err := r.PushLayer(signature, oci.ZarfLayerMediaTypeBlob)
+		bundleYamlSigDesc, err := r.PushLayer(signature, oci.ZarfLayerMediaTypeBlob)
 		if err != nil {
 			return err
 		}
-		zarfBundleYamlSigDesc.Annotations = map[string]string{
+		bundleYamlSigDesc.Annotations = map[string]string{
 			ocispec.AnnotationTitle: BundleYAMLSignature,
 		}
-		manifest.Layers = append(manifest.Layers, zarfBundleYamlSigDesc)
-		message.Debug("Pushed", BundleYAMLSignature+":", message.JSONValue(zarfBundleYamlSigDesc))
+		manifest.Layers = append(manifest.Layers, bundleYamlSigDesc)
+		message.Debug("Pushed", BundleYAMLSignature+":", message.JSONValue(bundleYamlSigDesc))
 	}
 
 	// push the bundle manifest config

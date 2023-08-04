@@ -105,7 +105,7 @@ func (e2e *UDSE2ETest) TeardownRegistry(t *testing.T, port int) {
 	require.NoError(t, err)
 }
 
-// GetUdsVersion returns the current build/zarf version
+// GetUdsVersion returns the current build version
 func (e2e *UDSE2ETest) GetUdsVersion(t *testing.T) string {
 	// Get the version of the CLI
 	stdOut, stdErr, err := e2e.UDS("version")

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
-// Package types contains all the types used by Zarf.
+// Package types contains all the types used by UDS.
 package types
 
 // BundlerConfig is the main struct that the bundler uses to hold high-level options.

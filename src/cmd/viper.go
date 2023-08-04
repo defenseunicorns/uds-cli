@@ -24,12 +24,6 @@ const (
 	V_TMP_DIR      = "tmp_dir"
 	V_INSECURE     = "insecure"
 
-	// Package create config keys
-	V_PKG_CREATE_SET = "package.create.set"
-
-	// Package deploy config keys
-	V_PKG_DEPLOY_SET = "package.deploy.set"
-
 	// Bundle config keys
 	V_BNDL_OCI_CONCURRENCY = "bundle.oci_concurrency"
 
@@ -68,27 +62,25 @@ func initViper() {
 	}
 
 	// Specify an alternate config file
-	cfgFile := os.Getenv("ZARF_CONFIG")
+	cfgFile := os.Getenv("UDS_CONFIG")
 
 	// Don't forget to read config either from cfgFile or from home directory!
 	if cfgFile != "" {
 		// Use config file from the flag.
 		v.SetConfigFile(cfgFile)
 	} else {
-		// Search config paths in the current directory and $HOME/.zarf.
+		// Search config paths (order matters!)
 		v.AddConfigPath(".")
-		v.AddConfigPath("$HOME/.zarf")
-		v.SetConfigName("zarf-config")
+		v.AddConfigPath("$HOME/.uds")
+		v.SetConfigName("uds-config")
 	}
 
-	// E.g. ZARF_LOG_LEVEL=debug
-	v.SetEnvPrefix("zarf")
+	// E.g. UDS_LOG_LEVEL=debug
+	v.SetEnvPrefix("uds")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
-	// Optional, so ignore errors
 	err := v.ReadInConfig()
-
 	if err != nil {
 		// Config file not found; ignore
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {

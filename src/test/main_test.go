@@ -69,11 +69,11 @@ func doAllTheThings(m *testing.M) (int, error) {
 
 	isCi := os.Getenv("CI") == "true"
 	if isCi {
-		pterm.Println("::notice::Zarf Command Log")
+		pterm.Println("::notice::UDS Command Log")
 		// Print out the command history
-		pterm.Println("::group::Zarf Command Log")
+		pterm.Println("::group::UDS Command Log")
 		for _, cmd := range e2e.CommandLog {
-			message.ZarfCommand(cmd)
+			message.ZarfCommand(cmd) // todo: it's a UDS cmd but this links up with pterm in Zarf
 		}
 		pterm.Println("::endgroup::")
 	}

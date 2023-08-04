@@ -8,7 +8,6 @@ import (
 	"context"
 
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
-	// ocistore "oras.land/oras-go/v2/content/oci"
 )
 
 // Inspect pulls/unpacks a bundle's metadata and shows it

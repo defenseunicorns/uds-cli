@@ -26,7 +26,7 @@ type ociProvider struct {
 	src string
 	dst string
 	*oci.OrasRemote
-	manifest *oci.ZarfOCIManifest
+	manifest *oci.ZarfOCIManifest // todo: UDSBundleOCIManifest?
 }
 
 func (op *ociProvider) getBundleManifest() error {

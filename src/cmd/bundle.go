@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
-// Package cmd contains the CLI commands for Zarf.
+// Package cmd contains the CLI commands for UDS.
 package cmd
 
 import (
@@ -36,7 +36,7 @@ var bundleCreateCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		bundleCfg.CreateOpts.SourceDirectory = args[0]
 
-		bundleCfg.CreateOpts.SetVariables = bundler.MergeVariables(v.GetStringMapString(V_PKG_CREATE_SET), bundleCfg.CreateOpts.SetVariables)
+		bundleCfg.CreateOpts.SetVariables = bundler.MergeVariables(v.GetStringMapString(V_BNDL_CREATE_SET), bundleCfg.CreateOpts.SetVariables)
 
 		bndlClient := bundler.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
@@ -57,7 +57,7 @@ var bundleDeployCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		bundleCfg.DeployOpts.Source = args[0]
 
-		bundleCfg.DeployOpts.SetVariables = bundler.MergeVariables(v.GetStringMapString(V_PKG_DEPLOY_SET), bundleCfg.DeployOpts.SetVariables)
+		bundleCfg.DeployOpts.SetVariables = bundler.MergeVariables(v.GetStringMapString(V_BNDL_DEPLOY_SET), bundleCfg.DeployOpts.SetVariables)
 
 		bndlClient := bundler.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
