@@ -1,0 +1,10 @@
+name: install-zarf
+description: "installs Zarf binary"
+
+runs:
+  using: composite
+  steps:
+    - uses: defenseunicorns/setup-zarf@main
+      with:
+        # renovate: datasource=github-tags depName=defenseunicorns/zarf versioning=semver
+        version: v0.28.3
