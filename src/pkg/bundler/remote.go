@@ -105,7 +105,7 @@ func (op *ociProvider) LoadBundleMetadata() (PathMap, error) {
 	if err := utils.CreateDirectory(filepath.Join(op.dst, blobsDir), 0700); err != nil {
 		return nil, err
 	}
-	layers, err := op.PullMultipleFiles(BundleAlwaysPull, filepath.Join(op.dst, blobsDir))
+	layers, err := op.PullPackagePaths(BundleAlwaysPull, filepath.Join(op.dst, blobsDir))
 	if err != nil {
 		return nil, err
 	}

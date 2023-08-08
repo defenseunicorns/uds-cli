@@ -425,8 +425,8 @@ github.com/daviddengcn/go-colortext v1.0.0 h1:ANqDyC0ys6qCSvuEK7l3g5RaehL/Xck9EX
 github.com/daviddengcn/go-colortext v1.0.0/go.mod h1:zDqEI5NVUop5QPpVJUxE9UO10hRnmkD5G4Pmri9+m4c=
 github.com/defenseunicorns/oras-go v1.2.4-0.20230605015028-85c595ed4b64 h1:SCwmnKa2RSZtW50bKudiPdYUucX3xqlbbUt8AJiu5SA=
 github.com/defenseunicorns/oras-go v1.2.4-0.20230605015028-85c595ed4b64/go.mod h1:9YC1InrDJmkX0HhBLTXIixGH+l8bsPjRURmmaI2TvBk=
-github.com/defenseunicorns/zarf v0.28.4-0.20230803174709-3cda37d2a2af h1:oLmNYI0TXK9bnUAx9rru9f4eyujh+kqFN3G4KfDFL8k=
-github.com/defenseunicorns/zarf v0.28.4-0.20230803174709-3cda37d2a2af/go.mod h1:HWDPqdoHGNSRWdzdXcVEUaKlcX9vIzLq4A5b+bzLjUQ=
+github.com/defenseunicorns/zarf v0.28.5-0.20230807195025-fd6c92bc3f9a h1:b8s0mOMGnsYkaSCpVS9/M0nuklRseXdEWN4gArBOqBA=
+github.com/defenseunicorns/zarf v0.28.5-0.20230807195025-fd6c92bc3f9a/go.mod h1:HWDPqdoHGNSRWdzdXcVEUaKlcX9vIzLq4A5b+bzLjUQ=
 github.com/deitch/magic v0.0.0-20230404182410-1ff89d7342da h1:ZOjWpVsFZ06eIhnh4mkaceTiVoktdU67+M7KDHJ268M=
 github.com/deitch/magic v0.0.0-20230404182410-1ff89d7342da/go.mod h1:B3tI9iGHi4imdLi4Asdha1Sc6feLMTfPLXh9IUYmysk=
 github.com/denisenkom/go-mssqldb v0.9.0/go.mod h1:xbL0rPBG9cCiLr28tMa8zpbdarY27NDyej4t/EjAShU=
