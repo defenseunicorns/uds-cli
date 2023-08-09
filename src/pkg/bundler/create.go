@@ -88,18 +88,20 @@ func (b *Bundler) Create() error {
 		signatureBytes = bytes
 	}
 
-	// set the remote's reference from the bundle's metadata
-	ref, err := referenceFromMetadata(b.cfg.CreateOpts.Output, &b.bundle.Metadata, b.bundle.Metadata.Architecture)
-	if err != nil {
-		return err
-	}
-	remote, err := oci.NewOrasRemote(ref)
-	if err != nil {
-		return err
+	if b.cfg.CreateOpts.Output != "" {
+		// set the remote's reference from the bundle's metadata
+		ref, err := referenceFromMetadata(b.cfg.CreateOpts.Output, &b.bundle.Metadata, b.bundle.Metadata.Architecture)
+		if err != nil {
+			return err
+		}
+		remote, err := oci.NewOrasRemote(ref)
+		if err != nil {
+			return err
+		}
+		return BundleAndPublish(remote, &b.bundle, signatureBytes)
 	}
 
-	// create + publish the bundle
-	return Bundle(remote, &b.bundle, signatureBytes)
+	return Bundle(b, signatureBytes)
 }
 
 // adapted from p.fillActiveTemplate

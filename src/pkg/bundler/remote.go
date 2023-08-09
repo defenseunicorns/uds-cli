@@ -130,7 +130,7 @@ func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
 		return nil, err
 	}
 
-	loaded, err := op.LoadBundleMetadata()
+	loaded, err := op.LoadBundleMetadata() // todo: remove? this seems redundant, can we pass the "loaded" var in
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +147,7 @@ func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
 	}
 
 	for _, pkg := range bundle.ZarfPackages {
-		sha := strings.Split(pkg.Ref, "@sha256:")[1]
+		sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
 		manifestDesc := op.manifest.Locate(sha)
 		manifestDesc.MediaType = ocispec.MediaTypeImageManifest
 		if err != nil {

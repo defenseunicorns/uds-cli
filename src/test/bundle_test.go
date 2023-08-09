@@ -48,6 +48,31 @@ func TestBundle(t *testing.T) {
 	pkg = fmt.Sprintf("src/test/packages/zarf/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
 	zarfPublish(t, pkg, "localhost:889")
 
+	bundleDir := "src/test/packages/01-uds-bundle"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-example-%s-0.0.1.tar.zst", e2e.Arch))
+
+	create(t, bundleDir) // todo: allow creating from both the folder containing and direct reference to uds-bundle.yaml
+	inspect(t, bundlePath)
+	deployAndRemove(t, bundlePath)
+}
+
+func TestRemoteBundle(t *testing.T) {
+	e2e.SetupWithCluster(t)
+
+	e2e.DownloadZarfInitPkg(t, zarfVersion)
+	e2e.CreateZarfPkg(t, "src/test/packages/zarf/podinfo")
+
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+	e2e.SetupDockerRegistry(t, 889)
+	defer e2e.TeardownRegistry(t, 889)
+
+	pkg := fmt.Sprintf("src/test/packages/zarf/zarf-init-%s-%s.tar.zst", e2e.Arch, zarfVersion)
+	zarfPublish(t, pkg, "localhost:888")
+
+	pkg = fmt.Sprintf("src/test/packages/zarf/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
+	zarfPublish(t, pkg, "localhost:889")
+
 	bundleRef := registry.Reference{
 		Registry: "localhost:888",
 		// this info is derived from the bundle's metadata
@@ -56,35 +81,59 @@ func TestBundle(t *testing.T) {
 	}
 
 	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-example-%s-0.0.1.tar.zst", e2e.Arch))
+	bundlePath := "src/test/packages/01-uds-bundle"
 
-	create(t, bundleRef.Registry)
-
+	createRemote(t, bundlePath, bundleRef.Registry)
 	pull(t, bundleRef.String(), tarballPath)
 
-	inspect(t, bundleRef.String(), tarballPath)
+	inspectRemote(t, bundleRef.String())
 
-	deployAndRemove(t, bundleRef.String(), tarballPath)
+	deployAndRemoveRemote(t, bundleRef.String(), tarballPath)
 }
 
-func create(t *testing.T, reg string) {
-	dir := "src/test/packages/01-uds-bundle"
-	cmd := strings.Split(fmt.Sprintf("bundle create %s -o oci://%s --set INIT_VERSION=%s --confirm --insecure", dir, reg, zarfVersion), " ")
+func create(t *testing.T, bundlePath string) {
+	cmd := strings.Split(fmt.Sprintf("bundle create %s --set INIT_VERSION=%s --confirm --insecure", bundlePath, zarfVersion), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
 
-func inspect(t *testing.T, ref string, tarballPath string) {
+func createRemote(t *testing.T, bundlePath string, reg string) {
+	cmd := strings.Split(fmt.Sprintf("bundle create %s -o oci://%s --set INIT_VERSION=%s --confirm --insecure", bundlePath, reg, zarfVersion), " ")
+	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+}
+
+func inspectRemote(t *testing.T, ref string) {
 	cmd := strings.Split(fmt.Sprintf("bundle inspect oci://%s --insecure", ref), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
-	cmd = strings.Split(fmt.Sprintf("bundle inspect %s", tarballPath), " ")
-	_, _, err = e2e.UDS(cmd...)
+}
+
+func inspect(t *testing.T, tarballPath string) {
+	cmd := strings.Split(fmt.Sprintf("bundle inspect %s", tarballPath), " ")
+	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
 
-func deployAndRemove(t *testing.T, ref string, tarballPath string) {
+func deployAndRemove(t *testing.T, tarballPath string) {
 	var cmd []string
+	t.Run(
+		"deploy+remove bundle via local tarball",
+		func(t *testing.T) {
+			cmd = strings.Split(fmt.Sprintf("bundle deploy %s --confirm", tarballPath), " ")
+			_, _, err := e2e.UDS(cmd...)
+			require.NoError(t, err)
 
+			cmd = strings.Split(fmt.Sprintf("bundle remove %s --confirm --insecure", tarballPath), " ")
+			_, _, err = e2e.UDS(cmd...)
+			require.NoError(t, err)
+		},
+	)
+}
+
+func deployAndRemoveRemote(t *testing.T, ref string, tarballPath string) {
+	var cmd []string
+	// test both paths because we want to test that the pulled tarball works as well
 	t.Run(
 		"deploy+remove bundle via OCI",
 		func(t *testing.T) {
@@ -119,6 +168,7 @@ func shasMatch(t *testing.T, path string, expected string) {
 }
 
 func pull(t *testing.T, ref string, tarballPath string) {
+	// todo: output somewhere other than build?
 	cmd := strings.Split(fmt.Sprintf("bundle pull oci://%s -o build --insecure --oci-concurrency=10", ref), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
