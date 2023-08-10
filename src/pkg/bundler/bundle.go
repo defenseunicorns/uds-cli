@@ -334,6 +334,7 @@ func manifestAnnotationsFromMetadata(metadata *types.UDSMetadata) map[string]str
 	return annotations
 }
 
+// pushBundleYamlToStore pushes the uds-bundle.yaml to a provided OCI store
 func pushBundleYamlToStore(ctx context.Context, store *ocistore.Store, bundle *types.UDSBundle) (ocispec.Descriptor, error) {
 	bundleYamlBytes, err := goyaml.Marshal(bundle)
 	if err != nil {
@@ -351,6 +352,7 @@ func pushBundleYamlToStore(ctx context.Context, store *ocistore.Store, bundle *t
 	return bundleYamlDesc, err
 }
 
+// pushZarfYamlToStore pushes a zarf.yaml to a provided OCI store
 func pushZarfYamlToStore(ctx context.Context, store *ocistore.Store, manifest *oci.ZarfOCIManifest) (ocispec.Descriptor, error) {
 	pkgManifestBytes, err := json.Marshal(manifest)
 	if err != nil {
@@ -364,6 +366,7 @@ func pushZarfYamlToStore(ctx context.Context, store *ocistore.Store, manifest *o
 	return zarfYamlDesc, err
 }
 
+// createManifestConfig creates a manifest config based on the uds-bundle.yaml
 func createManifestConfig(metadata types.UDSMetadata, build types.UDSBuildData) (ocispec.Descriptor, error) {
 	annotations := map[string]string{
 		ocispec.AnnotationTitle:       metadata.Name,
@@ -382,6 +385,7 @@ func createManifestConfig(metadata types.UDSMetadata, build types.UDSBuildData) 
 	return manifestConfigDesc, err
 }
 
+// getZarfLayers grabs the necessary Zarf pkg layers from a remote OCI registry
 func getZarfLayers(remote *oci.OrasRemote, pkg types.ZarfPackageImport, pkgRootManifest *oci.ZarfOCIManifest) ([]ocispec.Descriptor, error) {
 	layersFromComponents, err := remote.LayersFromRequestedComponents(pkg.OptionalComponents)
 	if err != nil {
@@ -401,6 +405,7 @@ func getZarfLayers(remote *oci.OrasRemote, pkg types.ZarfPackageImport, pkgRootM
 	return layersToCopy, err
 }
 
+// writeTarball builds and writes a bundle tarball to disk based on a file map
 func writeTarball(bundle *types.UDSBundle, artifactPathMap PathMap) error {
 	format := archiver.CompressedArchive{
 		Compression: archiver.Zstd{},
