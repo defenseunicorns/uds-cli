@@ -25,7 +25,7 @@ const (
 	CmdBundleRemoveShort       = "Remove a bundle that has been deployed already"
 	CmdBundleRemoveFlagConfirm = "REQUIRED. Confirm the removal action to prevent accidental deletions"
 
-	CmdBundlePullShort      = "Pull a bundle from a remote reigstry and save to the local file system"
+	CmdBundlePullShort      = "Pull a bundle from a remote registry and save to the local file system"
 	CmdBundlePullFlagOutput = "Specify the output directory for the pulled bundle"
 	CmdBundlePullFlagKey    = "Path to a public key file that will be used to validate a signed bundle"
 )
