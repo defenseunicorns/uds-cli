@@ -1,4 +1,4 @@
-name: Test K3d Cluster
+name: E2E Tests
 on:
   pull_request:
     paths-ignore:
@@ -38,8 +38,8 @@ jobs:
       - name: Setup K3d
         uses: ./.github/actions/k3d
 
-      - name: Run tests
-        run: make test
+      - name: Run E2E tests
+        run: make test-e2e
 
       - name: Save logs
         if: always()

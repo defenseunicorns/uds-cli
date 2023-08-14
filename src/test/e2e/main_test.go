@@ -6,6 +6,7 @@ package test
 
 import (
 	"fmt"
+	"github.com/defenseunicorns/uds-cli/src/test"
 	"os"
 	"path"
 	"testing"
@@ -16,7 +17,7 @@ import (
 )
 
 var (
-	e2e UDSE2ETest //nolint:gochecknoglobals
+	e2e test.UDSE2ETest //nolint:gochecknoglobals
 )
 
 const (
@@ -28,7 +29,7 @@ const (
 // TestMain lets us customize the test run. See https://medium.com/goingogo/why-use-testmain-for-testing-in-go-dafb52b406bc.
 func TestMain(m *testing.M) {
 	// Work from the root directory of the project
-	os.Chdir("../../")
+	os.Chdir("../../../")
 
 	// K3d use the intern package, which requires this to be set in go 1.19
 	os.Setenv("ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH", "go1.19")
@@ -52,7 +53,7 @@ func doAllTheThings(m *testing.M) (int, error) {
 
 	// Set up constants in the global variable that all the tests are able to access
 	e2e.Arch = config.GetArch()
-	e2e.UdsBinPath = path.Join("build", GetCLIName())
+	e2e.UdsBinPath = path.Join("build", test.GetCLIName())
 	e2e.ApplianceMode = os.Getenv(applianceModeEnvVar) == "true"
 	e2e.ApplianceModeKeep = os.Getenv(applianceModeKeepEnvVar) == "true"
 	e2e.RunClusterTests = os.Getenv(skipK8sEnvVar) != "true"

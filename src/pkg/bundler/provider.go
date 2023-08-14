@@ -7,9 +7,9 @@ package bundler
 import (
 	"context"
 	"fmt"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
 )
 
 // Provider is an interface for processing bundles
@@ -49,7 +49,7 @@ type PathMap map[string]string
 
 // NewProvider returns a new bundler Provider based on the source type
 func NewProvider(ctx context.Context, source, destination string) (Provider, error) {
-	if utils.IsOCIURL(source) {
+	if helpers.IsOCIURL(source) {
 		provider := ociProvider{ctx: ctx, src: source, dst: destination}
 		remote, err := oci.NewOrasRemote(source)
 		if err != nil {

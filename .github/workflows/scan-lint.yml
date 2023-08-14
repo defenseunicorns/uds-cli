@@ -16,6 +16,6 @@ jobs:
         with:
           config: revive.toml
           # Exclude patterns, separated by semicolons (optional)
-          exclude: "src/cmd/viper.go"
+          exclude: "src/cmd/viper.go;src/config/lang/lang.go"
           # Path pattern (default: ./...)
           path: "./src/..."

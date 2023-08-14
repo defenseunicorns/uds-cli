@@ -24,9 +24,14 @@ type BundlerCreateOptions struct {
 
 // BundlerDeployOptions is the options for the bundler.Deploy() function
 type BundlerDeployOptions struct {
-	Source        string
-	PublicKeyPath string
-	SetVariables  map[string]string
+	Source               string
+	PublicKeyPath        string
+	ZarfPackageVariables map[string]SetVariables
+}
+
+// SetVariables is a map of variables
+type SetVariables struct {
+	Set map[string]string
 }
 
 // BundlerInspectOptions is the options for the bundler.Inspect() function

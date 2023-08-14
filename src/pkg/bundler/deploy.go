@@ -7,6 +7,7 @@ package bundler
 import (
 	"context"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	"golang.org/x/exp/maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,7 +52,8 @@ func (b *Bundler) Deploy() error {
 		return err
 	}
 
-	// TODO: state sharing? variable scoping?
+	// map of Zarf pkgs and their vars
+	bundleExportedVars := make(map[string]map[string]string)
 
 	// deploy each package
 	for _, pkg := range b.bundle.ZarfPackages {
@@ -76,11 +78,22 @@ func (b *Bundler) Deploy() error {
 			publicKeyPath = ""
 		}
 
+		// grab vars from Viper config and bundle-level var store
+		pkgVars := make(map[string]string)
+		for name, val := range b.cfg.DeployOpts.ZarfPackageVariables[pkg.Name].Set {
+			pkgVars[strings.ToUpper(name)] = val
+		}
+		pkgImportedVars := make(map[string]string)
+		for _, imp := range pkg.Imports {
+			pkgImportedVars[strings.ToUpper(imp.Name)] = bundleExportedVars[imp.Package][imp.Name]
+		}
+		maps.Copy(pkgVars, pkgImportedVars)
+
 		opts := zarfTypes.ZarfPackageOptions{
-			PackagePath:   pkgTmp,
-			Components:    strings.Join(pkg.OptionalComponents, ","),
-			PublicKeyPath: publicKeyPath,
-			// TODO: SetVariables...
+			PackagePath:        pkgTmp,
+			OptionalComponents: strings.Join(pkg.OptionalComponents, ","),
+			PublicKeyPath:      publicKeyPath,
+			SetVariables:       pkgVars,
 		}
 		pkgCfg := zarfTypes.PackagerConfig{
 			PkgOpts:  opts,
@@ -97,6 +110,13 @@ func (b *Bundler) Deploy() error {
 		if err := pkgClient.Deploy(); err != nil {
 			return err
 		}
+
+		// save exported vars
+		pkgExportedVars := make(map[string]string)
+		for _, exp := range pkg.Exports {
+			pkgExportedVars[strings.ToUpper(exp.Name)] = pkgCfg.SetVariableMap[exp.Name].Value
+		}
+		bundleExportedVars[pkg.Name] = pkgExportedVars
 	}
 	return nil
 }

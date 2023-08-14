@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	"oras.land/oras-go/v2/registry"
 	"os"
 	"path/filepath"
@@ -178,7 +179,7 @@ func referenceFromMetadata(registryLocation string, metadata *types.UDSMetadata,
 	if !strings.HasSuffix(registryLocation, "/") {
 		registryLocation = registryLocation + "/"
 	}
-	registryLocation = strings.TrimPrefix(registryLocation, utils.OCIURLPrefix)
+	registryLocation = strings.TrimPrefix(registryLocation, helpers.OCIURLPrefix)
 
 	format := "%s%s:%s-%s"
 

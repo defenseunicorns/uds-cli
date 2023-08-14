@@ -6,6 +6,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
@@ -57,7 +58,19 @@ var bundleDeployCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		bundleCfg.DeployOpts.Source = args[0]
 
-		bundleCfg.DeployOpts.SetVariables = bundler.MergeVariables(v.GetStringMapString(V_BNDL_DEPLOY_SET), bundleCfg.DeployOpts.SetVariables)
+		// read config file and unmarshal
+		if v.ConfigFileUsed() != "" {
+			err := v.ReadInConfig()
+			if err != nil {
+				message.Fatalf(err, "Failed to read config: %s", err.Error())
+				return
+			}
+			err = v.UnmarshalKey(V_BNDL_DEPLOY_ZARF_PACKAGES, &bundleCfg.DeployOpts.ZarfPackageVariables)
+			if err != nil {
+				message.Fatalf(err, "Failed to unmarshal config: %s", err.Error())
+				return
+			}
+		}
 
 		bndlClient := bundler.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
@@ -136,7 +149,7 @@ func firstArgIsEitherOCIorTarball(_ *cobra.Command, args []string) {
 	if bundler.IsValidTarballPath(args[0]) {
 		return
 	}
-	if !utils.IsOCIURL(args[0]) && !bundler.IsValidTarballPath(args[0]) {
+	if !helpers.IsOCIURL(args[0]) && !bundler.IsValidTarballPath(args[0]) {
 		errString = fmt.Sprintf("First argument (%q) must either be a valid OCI URL or a valid path to a bundle tarball", args[0])
 	} else {
 		err = oci.ValidateReference(args[0])
@@ -161,7 +174,7 @@ func init() {
 	bundleCreateCmd.Flags().StringToStringVarP(&bundleCfg.CreateOpts.SetVariables, "set", "s", v.GetStringMapString(V_BNDL_CREATE_SET), lang.CmdBundleCreateFlagSet)
 
 	bundleCmd.AddCommand(bundleDeployCmd)
-	bundleDeployCmd.Flags().StringToStringVarP(&bundleCfg.DeployOpts.SetVariables, "set", "s", v.GetStringMapString(V_BNDL_DEPLOY_SET), lang.CmdBundleDeployFlagSet)
+	// todo: add "set" flag on deploy for high-level bundle configs?
 	bundleDeployCmd.Flags().BoolVarP(&config.CommonOptions.Confirm, "confirm", "c", false, lang.CmdBundleDeployFlagConfirm)
 
 	bundleCmd.AddCommand(bundleInspectCmd)

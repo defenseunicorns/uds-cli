@@ -31,6 +31,33 @@ func zarfPublish(t *testing.T, path string, reg string) {
 
 const zarfVersion = "v0.28.3"
 
+func TestBundleVariables(t *testing.T) {
+	e2e.DownloadZarfInitPkg(t, zarfVersion)
+	zarfPkgPath1 := "src/test/packages/zarf/no-cluster/output-var"
+	zarfPkgPath2 := "src/test/packages/zarf/no-cluster/receive-var"
+	e2e.CreateZarfPkg(t, zarfPkgPath1)
+	e2e.CreateZarfPkg(t, zarfPkgPath2)
+
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+
+	pkg := filepath.Join(zarfPkgPath1, fmt.Sprintf("zarf-package-output-var-%s-0.0.1.tar.zst", e2e.Arch))
+	zarfPublish(t, pkg, "localhost:888")
+
+	pkg = filepath.Join(zarfPkgPath2, fmt.Sprintf("zarf-package-receive-var-%s-0.0.1.tar.zst", e2e.Arch))
+	zarfPublish(t, pkg, "localhost:888")
+
+	bundleDir := "src/test/packages/02-simple-vars"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-simple-vars-%s-0.0.1.tar.zst", e2e.Arch))
+
+	os.Setenv("UDS_CONFIG", filepath.Join("src/test/packages/02-simple-vars", "uds-config.yaml"))
+
+	create(t, bundleDir)
+	_, stderr := deploy(t, bundlePath)
+
+	require.Contains(t, stderr, "Received the following message: Unicorns are the national animal of Wales")
+}
+
 func TestBundle(t *testing.T) {
 	e2e.SetupWithCluster(t)
 
@@ -53,7 +80,8 @@ func TestBundle(t *testing.T) {
 
 	create(t, bundleDir) // todo: allow creating from both the folder containing and direct reference to uds-bundle.yaml
 	inspect(t, bundlePath)
-	deployAndRemove(t, bundlePath)
+	deploy(t, bundlePath)
+	remove(t, bundlePath)
 }
 
 func TestRemoteBundle(t *testing.T) {
@@ -85,9 +113,7 @@ func TestRemoteBundle(t *testing.T) {
 
 	createRemote(t, bundlePath, bundleRef.Registry)
 	pull(t, bundleRef.String(), tarballPath)
-
 	inspectRemote(t, bundleRef.String())
-
 	deployAndRemoveRemote(t, bundleRef.String(), tarballPath)
 }
 
@@ -115,20 +141,17 @@ func inspect(t *testing.T, tarballPath string) {
 	require.NoError(t, err)
 }
 
-func deployAndRemove(t *testing.T, tarballPath string) {
-	var cmd []string
-	t.Run(
-		"deploy+remove bundle via local tarball",
-		func(t *testing.T) {
-			cmd = strings.Split(fmt.Sprintf("bundle deploy %s --confirm", tarballPath), " ")
-			_, _, err := e2e.UDS(cmd...)
-			require.NoError(t, err)
+func deploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
+	cmd := strings.Split(fmt.Sprintf("bundle deploy %s --confirm -l=debug", tarballPath), " ")
+	stdout, stderr, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	return stdout, stderr
+}
 
-			cmd = strings.Split(fmt.Sprintf("bundle remove %s --confirm --insecure", tarballPath), " ")
-			_, _, err = e2e.UDS(cmd...)
-			require.NoError(t, err)
-		},
-	)
+func remove(t *testing.T, tarballPath string) {
+	cmd := strings.Split(fmt.Sprintf("bundle remove %s --confirm --insecure", tarballPath), " ")
+	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
 }
 
 func deployAndRemoveRemote(t *testing.T, ref string, tarballPath string) {
