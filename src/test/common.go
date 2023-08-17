@@ -113,11 +113,10 @@ func (e2e *UDSE2ETest) GetUdsVersion(t *testing.T) string {
 	return strings.Trim(stdOut, "\n")
 }
 
-// todo: put in Makefile?
-// DownloadZarfInitPkg downloads the zarf init pkg used for testing if it doesn't already exist
+// DownloadZarfInitPkg downloads the zarf init pkg used for testing if it doesn't already exist (todo: makefile?)
 func (e2e *UDSE2ETest) DownloadZarfInitPkg(t *testing.T, zarfVersion string) {
 	filename := fmt.Sprintf("zarf-init-%s-%s.tar.zst", e2e.Arch, zarfVersion)
-	zarfReleaseUrl := fmt.Sprintf("https://github.com/defenseunicorns/zarf/releases/download/%s/%s", zarfVersion, filename)
+	zarfReleaseURL := fmt.Sprintf("https://github.com/defenseunicorns/zarf/releases/download/%s/%s", zarfVersion, filename)
 	outputDir := "src/test/packages/zarf"
 
 	// Check if the file already exists
@@ -127,12 +126,11 @@ func (e2e *UDSE2ETest) DownloadZarfInitPkg(t *testing.T, zarfVersion string) {
 		return
 	}
 
-	err := downloadFile(zarfReleaseUrl, outputDir)
+	err := downloadFile(zarfReleaseURL, outputDir)
 	require.NoError(t, err)
 }
 
-// todo: put in Makefile?
-// CreateZarfPkg creates a Zarf in the given path (uses system Zarf binary)
+// CreateZarfPkg creates a Zarf in the given path (uses system Zarf binary) (todo: makefile?)
 func (e2e *UDSE2ETest) CreateZarfPkg(t *testing.T, path string) {
 	//  check if pkg already exists
 	pattern := fmt.Sprintf("%s/*-%s-*.tar.zst", path, e2e.Arch)

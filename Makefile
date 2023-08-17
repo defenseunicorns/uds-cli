@@ -16,8 +16,14 @@ build-cli-mac-intel:
 build-cli-mac-apple:
 	GOOS=darwin GOARCH=arm64 go build -ldflags="$(BUILD_ARGS)" -o build/uds-mac-apple main.go
 
-test:
-	cd src/test && go test -failfast -v -timeout 30m
+test-unit:
+	cd src/pkg && go test ./... -failfast -v -timeout 5m
+
+test-e2e:
+	cd src/test/e2e && go test -failfast -v -timeout 30m
+
+local-registry:
+	docker run -p 5000:5000 --restart=always --name registry registry:2
 
 clean:
 	rm -rf build

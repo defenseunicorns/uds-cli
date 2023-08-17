@@ -6,6 +6,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/zarf/src/cmd/common"
 	"github.com/defenseunicorns/zarf/src/cmd/tools"
 	"github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/config/lang"
@@ -24,13 +25,16 @@ var (
 
 	// Viper instance used by the cmd package
 	v *viper.Viper
+
+	// holds any error from reading in Viper config
+	vConfigError error
 )
 
 var rootCmd = &cobra.Command{
 	Use: "uds COMMAND",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Skip for vendor-only commands
-		if tools.CheckVendorOnlyFromPath(cmd) {
+		if common.CheckVendorOnlyFromPath(cmd) {
 			return
 		}
 
@@ -66,7 +70,7 @@ func init() {
 	tools.Include(rootCmd)
 
 	// Skip for vendor-only commands
-	if tools.CheckVendorOnlyFromArgs() {
+	if common.CheckVendorOnlyFromArgs() {
 		return
 	}
 
@@ -96,6 +100,8 @@ func cliSetup() {
 		"debug": message.DebugLevel,
 		"trace": message.TraceLevel,
 	}
+
+	printViperConfigUsed()
 
 	// No log level set, so use the default
 	if logLevel != "" {

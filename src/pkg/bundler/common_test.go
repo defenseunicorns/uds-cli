@@ -1,0 +1,68 @@
+package bundler
+
+import (
+	"github.com/defenseunicorns/uds-cli/src/types"
+	"testing"
+)
+
+func Test_validateBundleVars(t *testing.T) {
+	type args struct {
+		packages []types.ZarfPackage
+	}
+	tests := []struct {
+		name        string
+		description string
+		args        args
+		wantErr     bool
+	}{
+		{
+			name:        "ImportMatchesExport",
+			description: "import matches export",
+			args: args{
+				packages: []types.ZarfPackage{
+					{Name: "foo", Exports: []types.BundleVariable{{Name: "foo"}}},
+					{Name: "bar", Imports: []types.BundleVariable{{Name: "foo", Package: "foo"}}},
+				},
+			},
+			wantErr: false,
+		}, {
+			name:        "ImportDoesntMatchExport",
+			description: "error when import doesn't match export",
+			args: args{
+				packages: []types.ZarfPackage{
+					{Name: "foo", Exports: []types.BundleVariable{{Name: "foo"}}},
+					{Name: "bar", Imports: []types.BundleVariable{{Name: "bar", Package: "foo"}}},
+				},
+			},
+			wantErr: true,
+		}, {
+			name:        "FirstPkgHasImport",
+			description: "error when first pkg has an import",
+			args: args{
+				packages: []types.ZarfPackage{
+					{Name: "foo", Imports: []types.BundleVariable{{Name: "foo", Package: "foo"}}},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name:        "PackageNamesMustMatch",
+			description: "error when package name doesn't match",
+			args: args{
+				packages: []types.ZarfPackage{
+					{Name: "foo", Exports: []types.BundleVariable{{Name: "foo"}}},
+					{Name: "bar", Imports: []types.BundleVariable{{Name: "foo", Package: "baz"}}},
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := validateBundleVars(tt.args.packages); (err != nil) != tt.wantErr {
+				t.Errorf("validateBundleVars() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

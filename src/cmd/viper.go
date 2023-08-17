@@ -5,11 +5,11 @@
 package cmd
 
 import (
+	"github.com/defenseunicorns/uds-cli/src/config/lang"
+	"github.com/defenseunicorns/zarf/src/cmd/common"
 	"os"
 	"strings"
 
-	"github.com/defenseunicorns/zarf/src/cmd/tools"
-	"github.com/defenseunicorns/zarf/src/config/lang"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/spf13/viper"
 )
@@ -34,8 +34,7 @@ const (
 	V_BNDL_CREATE_SET                  = "bundle.create.set"
 
 	// Bundle deploy config keys
-	V_BNDL_DEPLOY_PACKAGES = "bundle.deploy.packages"
-	V_BNDL_DEPLOY_SET      = "bundle.deploy.set"
+	V_BNDL_DEPLOY_ZARF_PACKAGES = "bundle.deploy.zarf-packages"
 
 	// Bundle inspect config keys
 	V_BNDL_INSPECT_KEY = "bundle.inspect.key"
@@ -57,7 +56,7 @@ func initViper() {
 	v = viper.New()
 
 	// Skip for vendor-only commands
-	if tools.CheckVendorOnlyFromArgs() {
+	if common.CheckVendorOnlyFromArgs() {
 		return
 	}
 
@@ -80,11 +79,21 @@ func initViper() {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
-	err := v.ReadInConfig()
-	if err != nil {
+	vConfigError = v.ReadInConfig()
+	if vConfigError != nil {
 		// Config file not found; ignore
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			message.WarnErrorf(err, lang.CmdViperErrLoadingConfigFile, err.Error())
+		if _, ok := vConfigError.(viper.ConfigFileNotFoundError); !ok {
+			message.WarnErrorf(vConfigError, lang.CmdViperErrLoadingConfigFile, vConfigError.Error())
+		}
+	}
+}
+
+func printViperConfigUsed() {
+	// Optional, so ignore file not found errors
+	if vConfigError != nil {
+		// Config file not found; ignore
+		if _, ok := vConfigError.(viper.ConfigFileNotFoundError); !ok {
+			message.WarnErrorf(vConfigError, lang.CmdViperErrLoadingConfigFile, vConfigError.Error())
 		}
 	} else {
 		message.Notef(lang.CmdViperInfoUsingConfigFile, v.ConfigFileUsed())

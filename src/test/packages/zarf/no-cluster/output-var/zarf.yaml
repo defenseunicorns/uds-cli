@@ -1,0 +1,20 @@
+kind: ZarfPackageConfig
+metadata:
+  name: output-var
+  description: |
+    Demonstrates a variable set from a uds-config.yaml and then outputted
+  version: 0.0.1
+
+variables:
+  - name: COUNTRY
+    default: Scotland # todo: remove in favor of coming from uds-config.yaml
+
+components:
+  - name: echo
+    required: true
+    actions:
+      onDeploy:
+        after:
+          - cmd: echo "Unicorns are the national animal of "${ZARF_VAR_COUNTRY}""
+            setVariables:
+              - name: OUTPUT

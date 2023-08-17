@@ -93,9 +93,15 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 	if bundle.Metadata.Name == "" {
 		return fmt.Errorf("%s is missing required field: metadata.name", BundleYAML)
 	}
+
 	if len(bundle.ZarfPackages) == 0 {
 		return fmt.Errorf("%s is missing required list: packages", BundleYAML)
 	}
+
+	if err := validateBundleVars(bundle.ZarfPackages); err != nil {
+		return fmt.Errorf("error validating bundle vars: %s", err)
+	}
+
 	// validate access to packages as well as components referenced in the package
 	for idx, pkg := range bundle.ZarfPackages {
 		url := fmt.Sprintf("%s:%s-%s", pkg.Repository, pkg.Ref, bundle.Metadata.Architecture)
@@ -223,6 +229,32 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 				if c.Only.Cluster.Architecture != "" && c.Only.Cluster.Architecture != bundle.Metadata.Architecture {
 					return fmt.Errorf("%s .packages[%s].components[%s] does not support architecture: %s", BundleYAML, pkg.Repository, component, bundle.Metadata.Architecture)
 				}
+			}
+		}
+	}
+	return nil
+}
+
+// validateBundleVars ensures imports and exports between Zarf pkgs match up
+func validateBundleVars(packages []types.ZarfPackage) error {
+	exports := make(map[string]string)
+	for i, pkg := range packages {
+		if i == 0 && pkg.Imports != nil {
+			return fmt.Errorf("first package in bundle cannot have imports")
+		}
+		// capture exported vars from all Zarf pkgs
+		if pkg.Exports != nil {
+			for _, v := range pkg.Exports {
+				exports[v.Name] = pkg.Name // save off pkg.Name to check when importing
+			}
+		}
+		// ensure imports have a matching export
+		if pkg.Imports != nil {
+			for _, v := range pkg.Imports {
+				if _, ok := exports[v.Name]; ok && v.Package == exports[v.Name] {
+					continue
+				}
+				return fmt.Errorf("import var %s does not have a matching export", v.Name)
 			}
 		}
 	}

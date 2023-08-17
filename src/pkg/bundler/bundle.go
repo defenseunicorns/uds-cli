@@ -83,6 +83,10 @@ func Bundle(b *Bundler, signature []byte) error {
 
 		// pull layers from remote and write to OCI artifact dir
 		for _, layer := range layersToCopy {
+			if layer.Digest == "" {
+				// skip
+				continue
+			}
 			digest = strings.Split(layer.Digest.String(), "sha256:")[1]
 			filePath := filepath.Join(tmpDir, blobsDir, digest)
 			artifactPathMap[filepath.Join(tmpDir, blobsDir, digest)] = filepath.Join(blobsDir, digest)
@@ -151,6 +155,7 @@ func BundleAndPublish(r *oci.OrasRemote, bundle *types.UDSBundle, signature []by
 		return fmt.Errorf("architecture is required for bundling")
 	}
 	ref := r.Repo().Reference
+	ctx := context.TODO()
 	message.Debug("Bundling", bundle.Metadata.Name, "to", ref)
 
 	rootManifest := ocispec.Manifest{}
@@ -200,7 +205,7 @@ func BundleAndPublish(r *oci.OrasRemote, bundle *types.UDSBundle, signature []by
 				return false
 			}
 
-			if err := oci.CopyPackage(remote, r, filterLayers, config.CommonOptions.OCIConcurrency); err != nil {
+			if err := oci.CopyPackage(ctx, remote, r, filterLayers, config.CommonOptions.OCIConcurrency); err != nil {
 				return err
 			}
 		} else {
@@ -211,8 +216,8 @@ func BundleAndPublish(r *oci.OrasRemote, bundle *types.UDSBundle, signature []by
 			for _, layer := range layersToCopy {
 				spinner.Updatef("Mounting %s", layer.Digest.Encoded())
 				// layer is the descriptor!! Verbiage "fetch" or "pull" refers to the actual layers
-				if err := r.Repo().Mount(context.TODO(), layer, pkgRef.Repository, func() (io.ReadCloser, error) {
-					return remote.Repo().Fetch(context.TODO(), layer)
+				if err := r.Repo().Mount(ctx, layer, pkgRef.Repository, func() (io.ReadCloser, error) {
+					return remote.Repo().Fetch(ctx, layer)
 				}); err != nil {
 					return err
 				}
@@ -386,12 +391,11 @@ func createManifestConfig(metadata types.UDSMetadata, build types.UDSBuildData) 
 }
 
 // getZarfLayers grabs the necessary Zarf pkg layers from a remote OCI registry
-func getZarfLayers(remote *oci.OrasRemote, pkg types.ZarfPackageImport, pkgRootManifest *oci.ZarfOCIManifest) ([]ocispec.Descriptor, error) {
+func getZarfLayers(remote *oci.OrasRemote, pkg types.ZarfPackage, pkgRootManifest *oci.ZarfOCIManifest) ([]ocispec.Descriptor, error) {
 	layersFromComponents, err := remote.LayersFromRequestedComponents(pkg.OptionalComponents)
 	if err != nil {
 		return nil, err
 	}
-
 	// get the layers that are always pulled
 	var metadataLayers []ocispec.Descriptor
 	for _, path := range oci.PackageAlwaysPull {
