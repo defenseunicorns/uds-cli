@@ -69,6 +69,6 @@ Variables that you want to make available to other package are in the `export` b
 In the example above, the `OUTPUT` variable is created as part of a Zarf Action in the [output-var](src/test/packages/zarf/no-cluster/output-var) package, and the [receive-var](src/test/packages/zarf/no-cluster/receive-var) package expects a variable called `OUTPUT`.
 
 ## Bundle Anatomy
-A UDS Bundle is an artifact with the following form:
+A UDS Bundle is an OCI artifact with the following form:
 
 ![](docs/.images/uds-bundle.png)

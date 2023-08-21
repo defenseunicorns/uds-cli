@@ -5,9 +5,11 @@ metadata:
   version: 0.0.1
 
 zarf-packages:
-  - repository: localhost:888/init
+  - name: init
+    repository: localhost:888/init
     ref: "###BNDL_TMPL_INIT_VERSION###"
     optional-components:
       - git-server
-  - repository: localhost:889/podinfo
+  - name: podinfo
+    repository: localhost:889/podinfo
     ref: 0.0.1

@@ -29,7 +29,7 @@ func zarfPublish(t *testing.T, path string, reg string) {
 	require.NoError(t, err)
 }
 
-const zarfVersion = "v0.28.3"
+const zarfVersion = "v0.29.0"
 
 func TestBundleVariables(t *testing.T) {
 	e2e.DownloadZarfInitPkg(t, zarfVersion)
