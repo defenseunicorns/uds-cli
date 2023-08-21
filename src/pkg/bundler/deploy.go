@@ -100,6 +100,9 @@ func (b *Bundler) Deploy() error {
 			InitOpts: defaultZarfInitOptions,
 		}
 
+		// change once https://github.com/defenseunicorns/zarf/issues/1972 is resolved
+		config.CLIVersion = "UnknownVersion"
+
 		pkgClient, err := packager.New(&pkgCfg)
 		if err != nil {
 			return err
