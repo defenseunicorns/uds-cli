@@ -2,7 +2,11 @@
 # SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
 ARCH ?= amd64
-BUILD_ARGS := -s -w # remove debugging info
+CLI_VERSION ?= $(if $(shell git describe --tags),$(shell git describe --tags),"UnknownVersion")
+BUILD_ARGS := -s -w -X 'github.com/defenseunicorns/uds-cli/src/config.CLIVersion=$(CLI_VERSION)'
+
+tmp:
+	echo $(CLI_VERSION)
 
 .PHONY: help
 help: ## Display this help information

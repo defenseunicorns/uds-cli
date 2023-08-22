@@ -33,4 +33,8 @@ const (
 	// cmd viper setup
 	CmdViperErrLoadingConfigFile = "failed to load config file: %s"
 	CmdViperInfoUsingConfigFile  = "Using config file %s"
+
+	// uds-cli version
+	CmdVersionShort = "Shows the version of the running UDS-CLI binary"
+	CmdVersionLong  = "Displays the version of the UDS-CLI release that the current binary was built from."
 )

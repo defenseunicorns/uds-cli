@@ -8,3 +8,7 @@ const (
 	ZarfYAML = "zarf.yaml"
 	BlobsDir = "blobs/sha256"
 )
+
+var (
+	CLIVersion = "unset"
+)
