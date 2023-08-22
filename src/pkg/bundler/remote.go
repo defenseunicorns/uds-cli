@@ -7,6 +7,7 @@ package bundler
 import (
 	"context"
 	"fmt"
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"os"
 	"path/filepath"
 	"strings"
@@ -102,18 +103,18 @@ func (op *ociProvider) LoadPackage(sha, destinationDir string, concurrency int) 
 
 // LoadBundleMetadata loads a remote bundle's metadata
 func (op *ociProvider) LoadBundleMetadata() (PathMap, error) {
-	if err := utils.CreateDirectory(filepath.Join(op.dst, blobsDir), 0700); err != nil {
+	if err := utils.CreateDirectory(filepath.Join(op.dst, config.BlobsDir), 0700); err != nil {
 		return nil, err
 	}
-	layers, err := op.PullPackagePaths(BundleAlwaysPull, filepath.Join(op.dst, blobsDir))
+	layers, err := op.PullPackagePaths(BundleAlwaysPull, filepath.Join(op.dst, config.BlobsDir))
 	if err != nil {
 		return nil, err
 	}
 	loaded := make(PathMap)
 	for _, layer := range layers {
 		rel := layer.Annotations[ocispec.AnnotationTitle]
-		abs := filepath.Join(op.dst, blobsDir, rel)
-		absSha := filepath.Join(op.dst, blobsDir, layer.Digest.Encoded())
+		abs := filepath.Join(op.dst, config.BlobsDir, rel)
+		absSha := filepath.Join(op.dst, config.BlobsDir, layer.Digest.Encoded())
 		if err := os.Rename(abs, absSha); err != nil {
 			return nil, err
 		}
@@ -189,7 +190,7 @@ func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
 
 	for _, layer := range layersToPull {
 		sha := layer.Digest.Encoded()
-		loaded[sha] = filepath.Join(op.dst, blobsDir, sha)
+		loaded[sha] = filepath.Join(op.dst, config.BlobsDir, sha)
 	}
 	loaded["index.json"] = filepath.Join(op.dst, "index.json")
 

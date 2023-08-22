@@ -12,10 +12,10 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 )
 
-// Provider is an interface for processing bundles
+// BundleProvider is an interface for processing bundles
 //
 // operations that are common no matter the source should be implemented on bundler
-type Provider interface {
+type BundleProvider interface {
 	// LoadBundleMetadata loads a bundle's metadata and signature into the temporary directory and returns a map of the bundle's metadata files
 	//
 	// these two files are placed in the `dst` directory
@@ -47,8 +47,8 @@ type Provider interface {
 // PathMap is a map of either absolute paths to relative paths or relative paths to absolute paths
 type PathMap map[string]string
 
-// NewProvider returns a new bundler Provider based on the source type
-func NewProvider(ctx context.Context, source, destination string) (Provider, error) {
+// NewBundleProvider returns a new bundler BundleProvider based on the source type
+func NewBundleProvider(ctx context.Context, source, destination string) (BundleProvider, error) {
 	if helpers.IsOCIURL(source) {
 		provider := ociProvider{ctx: ctx, src: source, dst: destination}
 		remote, err := oci.NewOrasRemote(source)
@@ -61,5 +61,5 @@ func NewProvider(ctx context.Context, source, destination string) (Provider, err
 	if !IsValidTarballPath(source) {
 		return nil, fmt.Errorf("invalid tarball path: %s", source)
 	}
-	return &tarballProvider{ctx: ctx, src: source, dst: destination}, nil
+	return &tarballBundleProvider{ctx: ctx, src: source, dst: destination}, nil
 }

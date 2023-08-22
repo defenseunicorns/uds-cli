@@ -8,10 +8,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"os"
 	"path/filepath"
 
-	"github.com/defenseunicorns/zarf/src/config"
+	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -21,13 +22,13 @@ import (
 
 // Pull pulls a bundle and saves it locally + caches it
 func (b *Bundler) Pull() error {
-	cacheDir := filepath.Join(config.GetAbsCachePath(), "packages")
+	cacheDir := filepath.Join(zarfConfig.GetAbsCachePath(), "packages")
 	// create the cache directory if it doesn't exist
 	if err := utils.CreateDirectory(cacheDir, 0755); err != nil {
 		return err
 	}
 
-	provider, err := NewProvider(context.TODO(), b.cfg.PullOpts.Source, cacheDir)
+	provider, err := NewBundleProvider(context.TODO(), b.cfg.PullOpts.Source, cacheDir)
 	if err != nil {
 		return err
 	}
@@ -44,7 +45,7 @@ func (b *Bundler) Pull() error {
 	}
 
 	// pull the bundle
-	loaded, err := provider.LoadBundle(config.CommonOptions.OCIConcurrency)
+	loaded, err := provider.LoadBundle(zarfConfig.CommonOptions.OCIConcurrency)
 	if err != nil {
 		return err
 	}
@@ -112,7 +113,7 @@ func (b *Bundler) Pull() error {
 		if sha == BundleYAML || sha == BundleYAMLSignature {
 			sha = filepath.Base(abs)
 		}
-		pathMap[abs] = filepath.Join(blobsDir, sha)
+		pathMap[abs] = filepath.Join(config.BlobsDir, sha)
 	}
 
 	files, err := archiver.FilesFromDisk(nil, pathMap)

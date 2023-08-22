@@ -6,8 +6,6 @@ package bundler
 
 import (
 	"context"
-	"strings"
-
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/types"
@@ -21,7 +19,7 @@ import (
 func (b *Bundler) Remove() error {
 	ctx := context.TODO()
 	// create a new provider
-	provider, err := NewProvider(ctx, b.cfg.RemoveOpts.Source, b.tmp)
+	provider, err := NewBundleProvider(ctx, b.cfg.RemoveOpts.Source, b.tmp)
 	if err != nil {
 		return err
 	}
@@ -38,8 +36,7 @@ func (b *Bundler) Remove() error {
 	}
 
 	for _, pkg := range b.bundle.ZarfPackages {
-		split := strings.Split(pkg.Repository, "/")
-		name := split[len(split)-1]
+		name := pkg.Name
 		pkgTmp, err := utils.MakeTempDir()
 		if err != nil {
 			return err

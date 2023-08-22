@@ -14,7 +14,7 @@ import (
 func (b *Bundler) Inspect() error {
 	ctx := context.TODO()
 	// create a new provider
-	provider, err := NewProvider(ctx, b.cfg.InspectOpts.Source, b.tmp)
+	provider, err := NewBundleProvider(ctx, b.cfg.InspectOpts.Source, b.tmp)
 	if err != nil {
 		return err
 	}

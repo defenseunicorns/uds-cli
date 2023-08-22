@@ -31,7 +31,7 @@ func (b *Bundler) Deploy() error {
 	ctx := context.TODO()
 
 	// create a new provider
-	provider, err := NewProvider(ctx, b.cfg.DeployOpts.Source, b.tmp)
+	provider, err := NewBundleProvider(ctx, b.cfg.DeployOpts.Source, b.tmp)
 	if err != nil {
 		return err
 	}
@@ -57,7 +57,7 @@ func (b *Bundler) Deploy() error {
 
 	// deploy each package
 	for _, pkg := range b.bundle.ZarfPackages {
-		sha := strings.Split(pkg.Ref, "@sha256:")[1]
+		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 		pkgTmp, err := utils.MakeTempDir()
 		if err != nil {
 			return err

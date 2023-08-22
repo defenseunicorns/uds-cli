@@ -9,10 +9,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/zarf"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/config"
+	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
+	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -30,16 +33,111 @@ func Bundle(b *Bundler, signature []byte) error {
 		return fmt.Errorf("architecture is required for bundling")
 	}
 	bundle := &b.bundle
-	tmpDir := b.tmp
 	ctx := context.TODO()
-	message.Debug("Bundling", bundle.Metadata.Name, "to", tmpDir)
-	store, err := ocistore.NewWithContext(context.TODO(), tmpDir)
+	message.Debug("Bundling", bundle.Metadata.Name, "to", b.tmp)
+	store, err := ocistore.NewWithContext(context.TODO(), b.tmp)
+	if err != nil {
+		return err
+	}
 
 	artifactPathMap := make(PathMap)
 
 	// create root manifest for OCI artifact, will populate with refs to uds-bundle.yaml and zarf.yamls
 	rootManifest := ocispec.Manifest{}
 	rootManifest.MediaType = ocispec.MediaTypeImageManifest
+
+	// grab all Zarf pkgs from OCI and put blobs in OCI store
+	for i, pkg := range bundle.ZarfPackages {
+		if pkg.Repository != "" {
+			url := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
+			remote, err := oci.NewOrasRemote(url)
+			if err != nil {
+				return err
+			}
+			// fetch the root manifest for this zarf.yaml
+			pkgRootManifest, err := remote.FetchRoot()
+			if err != nil {
+				return err
+			}
+
+			zarfYamlDesc, err := pushZarfYamlToStore(ctx, store, pkgRootManifest)
+			if err != nil {
+				return err
+			}
+
+			// append zarf pkg manifest to root manifest and grab path for archiving
+			rootManifest.Layers = append(rootManifest.Layers, zarfYamlDesc)
+			digest := strings.Split(zarfYamlDesc.Digest.String(), "sha256:")[1]
+			artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
+
+			message.Debugf("Pushed %s sub-manifest into %s: %s", url, b.tmp, message.JSONValue(zarfYamlDesc))
+
+			// get only the layers that are required by the components
+			layersToCopy, err := getZarfLayers(remote, pkg, pkgRootManifest)
+			spinner := message.NewProgressSpinner("Fetching layers from %s", remote.Repo().Reference.Repository)
+
+			// pull layers from remote and write to OCI artifact dir
+			for _, layer := range layersToCopy {
+				if layer.Digest == "" {
+					// skip
+					continue
+				}
+				digest = strings.Split(layer.Digest.String(), "sha256:")[1]
+				filePath := filepath.Join(b.tmp, config.BlobsDir, digest)
+				artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
+
+				if _, err := os.Stat(filePath); err == nil {
+					continue
+				}
+				spinner.Updatef("Fetching %s", layer.Digest.Encoded())
+				layerBytes, err := remote.FetchLayer(layer)
+				if err != nil {
+					return err
+				}
+				layerDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, layerBytes)
+				if err := store.Push(ctx, layerDesc, bytes.NewReader(layerBytes)); err != nil {
+					return err
+				}
+			}
+		} else if pkg.Path != "" {
+			pkgTmp, err := utils.MakeTempDir()
+			defer os.RemoveAll(pkgTmp)
+			if err != nil {
+				return err
+			}
+
+			localTarballProvider, err := zarf.NewPackageProvider(pkg, pkgTmp)
+			if err != nil {
+				return err
+			}
+
+			err = localTarballProvider.Extract()
+			if err != nil {
+				return err
+			}
+
+			zarfPkg, err := localTarballProvider.Load()
+			if err != nil {
+				return err
+			}
+
+			zarfPkgDesc, err := localTarballProvider.ToBundle(store, zarfPkg, artifactPathMap, b.tmp, pkgTmp)
+			if err != nil {
+				return err
+			}
+
+			// put digest in uds-bundle.yaml to reference during deploy
+			bundle.ZarfPackages[i].Ref = bundle.ZarfPackages[i].Ref + "-" + bundle.Metadata.Architecture + "@sha256:" + zarfPkgDesc.Digest.Encoded()
+
+			// append zarf.yaml layer to root manifest and grab path for archiving
+			rootManifest.Layers = append(rootManifest.Layers, zarfPkgDesc)
+			digest := strings.Split(zarfPkgDesc.Digest.String(), "sha256:")[1]
+			artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
+
+		} else {
+			return fmt.Errorf("todo: haven't we already validated that Path or Repository is valid")
+		}
+	}
 
 	// push uds-bundle.yaml to OCI store
 	bundleYamlDesc, err := pushBundleYamlToStore(ctx, store, bundle)
@@ -50,62 +148,7 @@ func Bundle(b *Bundler, signature []byte) error {
 	// append uds-bundle.yaml layer to rootManifest and grab path for archiving
 	rootManifest.Layers = append(rootManifest.Layers, bundleYamlDesc)
 	digest := strings.Split(bundleYamlDesc.Digest.String(), "sha256:")[1]
-	artifactPathMap[filepath.Join(tmpDir, blobsDir, digest)] = filepath.Join(blobsDir, digest)
-
-	// grab all Zarf pkgs from OCI and put blobs in OCI store
-	for _, pkg := range bundle.ZarfPackages {
-		url := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
-		remote, err := oci.NewOrasRemote(url)
-		if err != nil {
-			return err
-		}
-		// fetch the root manifest for this zarf.yaml
-		pkgRootManifest, err := remote.FetchRoot()
-		if err != nil {
-			return err
-		}
-
-		zarfYamlDesc, err := pushZarfYamlToStore(ctx, store, pkgRootManifest)
-		if err != nil {
-			return err
-		}
-
-		// append zarf.yaml layer to root manifest and grab path for archiving
-		rootManifest.Layers = append(rootManifest.Layers, zarfYamlDesc)
-		digest := strings.Split(zarfYamlDesc.Digest.String(), "sha256:")[1]
-		artifactPathMap[filepath.Join(tmpDir, blobsDir, digest)] = filepath.Join(blobsDir, digest)
-
-		message.Debugf("Pushed %s sub-manifest into %s: %s", url, tmpDir, message.JSONValue(zarfYamlDesc))
-
-		// get only the layers that are required by the components
-		layersToCopy, err := getZarfLayers(remote, pkg, pkgRootManifest)
-		spinner := message.NewProgressSpinner("Fetching layers from %s", remote.Repo().Reference.Repository)
-
-		// pull layers from remote and write to OCI artifact dir
-		for _, layer := range layersToCopy {
-			if layer.Digest == "" {
-				// skip
-				continue
-			}
-			digest = strings.Split(layer.Digest.String(), "sha256:")[1]
-			filePath := filepath.Join(tmpDir, blobsDir, digest)
-			artifactPathMap[filepath.Join(tmpDir, blobsDir, digest)] = filepath.Join(blobsDir, digest)
-
-			if _, err := os.Stat(filePath); err == nil {
-				continue
-			}
-			spinner.Updatef("Fetching %s", layer.Digest.Encoded())
-			layerBytes, err := remote.FetchLayer(layer)
-			if err != nil {
-				return err
-			}
-			layerDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, layerBytes)
-			err = store.Push(ctx, layerDesc, bytes.NewReader(layerBytes))
-			if err != nil {
-				return err
-			}
-		}
-	}
+	artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 
 	// create and push bundle manifest config
 	manifestConfigDesc, err := createManifestConfig(bundle.Metadata, bundle.Build)
@@ -120,15 +163,17 @@ func Bundle(b *Bundler, signature []byte) error {
 		return err
 	}
 	manifestDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, manifestBytes)
-	err = store.Push(ctx, manifestDesc, bytes.NewReader(manifestBytes))
+	if err := store.Push(ctx, manifestDesc, bytes.NewReader(manifestBytes)); err != nil {
+		return err
+	}
 
 	// build index.json
 	digest = strings.Split(manifestDesc.Digest.String(), "sha256:")[1]
-	artifactPathMap[filepath.Join(tmpDir, blobsDir, digest)] = filepath.Join(blobsDir, digest)
-	artifactPathMap[filepath.Join(tmpDir, "index.json")] = "index.json"
+	artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
+	artifactPathMap[filepath.Join(b.tmp, "index.json")] = "index.json"
 
 	// grab oci-layout
-	artifactPathMap[filepath.Join(tmpDir, "oci-layout")] = "oci-layout"
+	artifactPathMap[filepath.Join(b.tmp, "oci-layout")] = "oci-layout"
 
 	// push the bundle's signature todo: need to understand functionality and add tests
 	if len(signature) > 0 {
@@ -205,7 +250,7 @@ func BundleAndPublish(r *oci.OrasRemote, bundle *types.UDSBundle, signature []by
 				return false
 			}
 
-			if err := oci.CopyPackage(ctx, remote, r, filterLayers, config.CommonOptions.OCIConcurrency); err != nil {
+			if err := oci.CopyPackage(ctx, remote, r, filterLayers, zarfConfig.CommonOptions.OCIConcurrency); err != nil {
 				return err
 			}
 		} else {
@@ -285,7 +330,7 @@ func BundleAndPublish(r *oci.OrasRemote, bundle *types.UDSBundle, signature []by
 
 	message.HorizontalRule()
 	flags := ""
-	if config.CommonOptions.Insecure {
+	if zarfConfig.CommonOptions.Insecure {
 		flags = "--insecure"
 	}
 	message.Title("To inspect/deploy/pull:", "")
@@ -391,7 +436,7 @@ func createManifestConfig(metadata types.UDSMetadata, build types.UDSBuildData) 
 }
 
 // getZarfLayers grabs the necessary Zarf pkg layers from a remote OCI registry
-func getZarfLayers(remote *oci.OrasRemote, pkg types.ZarfPackage, pkgRootManifest *oci.ZarfOCIManifest) ([]ocispec.Descriptor, error) {
+func getZarfLayers(remote *oci.OrasRemote, pkg types.BundleZarfPackage, pkgRootManifest *oci.ZarfOCIManifest) ([]ocispec.Descriptor, error) {
 	layersFromComponents, err := remote.LayersFromRequestedComponents(pkg.OptionalComponents)
 	if err != nil {
 		return nil, err

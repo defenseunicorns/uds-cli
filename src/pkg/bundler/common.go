@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/defenseunicorns/uds-cli/src/pkg/zarf"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
@@ -102,47 +103,83 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 		return fmt.Errorf("error validating bundle vars: %s", err)
 	}
 
+	tmp, err := utils.MakeTempDir()
+	if err != nil {
+		return err
+	}
+
 	// validate access to packages as well as components referenced in the package
 	for idx, pkg := range bundle.ZarfPackages {
+		if pkg.Name == "" {
+			return fmt.Errorf("%s is missing required field: name", pkg)
+		}
+
 		url := fmt.Sprintf("%s:%s-%s", pkg.Repository, pkg.Ref, bundle.Metadata.Architecture)
 
 		if strings.Contains(pkg.Ref, "@sha256:") {
 			url = fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
 		}
 
-		remote, err := oci.NewOrasRemote(url)
-		if err != nil {
-			return err
+		if pkg.Repository == "" && pkg.Path == "" {
+			return fmt.Errorf("zarf pkg %s must have either a repository or path field", pkg.Name)
 		}
 
-		manifestDesc, err := remote.ResolveRoot()
-		if err != nil {
-			return err
+		if pkg.Repository != "" && pkg.Path != "" {
+			return fmt.Errorf("zarf pkg %s cannot have both a repository and a path", pkg.Name)
 		}
 
-		// mutate the ref to <tag>-<arch>@sha256:<digest> so we can reference it later
-		if err := remote.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
-			bundle.ZarfPackages[idx].Ref = pkg.Ref + "-" + bundle.Metadata.Architecture + "@sha256:" + manifestDesc.Digest.Encoded()
-		}
-
-		message.Debug("Validating package:", message.JSONValue(pkg))
-
-		tmp, err := utils.MakeTempDir()
-		if err != nil {
-			return err
-		}
-		defer os.RemoveAll(tmp)
-
-		if pkg.Repository == "" {
-			return fmt.Errorf("%s .packages[%d] is missing required field: repository", BundleYAML, idx)
-		}
 		if pkg.Ref == "" {
 			return fmt.Errorf("%s .packages[%s] is missing required field: ref", BundleYAML, pkg.Repository)
 		}
 
-		if _, err := remote.PullPackageMetadata(tmp); err != nil {
-			return err
+		zarfYAML := zarfTypes.ZarfPackage{}
+		// if using a remote repository
+		if pkg.Repository != "" {
+			remote, err := oci.NewOrasRemote(url)
+			if err != nil {
+				return err
+			}
+
+			manifestDesc, err := remote.ResolveRoot()
+			if err != nil {
+				return err
+			}
+			// mutate the ref to <tag>-<arch>@sha256:<digest> so we can reference it later
+			if err := remote.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
+				bundle.ZarfPackages[idx].Ref = pkg.Ref + "-" + bundle.Metadata.Architecture + "@sha256:" + manifestDesc.Digest.Encoded()
+			}
+
+			if _, err := remote.PullPackageMetadata(tmp); err != nil {
+				return err
+			}
+
+			zarfYAMLPath := filepath.Join(tmp, config.ZarfYAML)
+			err = utils.ReadYaml(zarfYAMLPath, &zarfYAML)
+			if err != nil {
+				return err
+			}
+		} else {
+			var fullPkgName string
+			if pkg.Name == "init" {
+				fullPkgName = fmt.Sprintf("zarf-%s-%s-%s.tar.zst", pkg.Name, bundle.Metadata.Architecture, pkg.Ref)
+			} else {
+				fullPkgName = fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", pkg.Name, bundle.Metadata.Architecture, pkg.Ref)
+			}
+			path := filepath.Join(pkg.Path, fullPkgName)
+			bundle.ZarfPackages[idx].Path = path
+			p, err := zarf.NewPackageProvider(pkg, tmp)
+			if err != nil {
+				return err
+			}
+			zarfYAML, err = p.GetMetadata(path, tmp)
+			if err != nil {
+				return err
+			}
 		}
+
+		message.Debug("Validating package:", message.JSONValue(pkg))
+
+		defer os.RemoveAll(tmp)
 
 		publicKeyPath := filepath.Join(b.tmp, PublicKeyFile)
 		if pkg.PublicKey != "" {
@@ -164,9 +201,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 					return fmt.Errorf("%s .packages[%s].optional-components[%d] wildcard '*' must be first and only item", BundleYAML, pkg.Repository, idx)
 				}
 			}
-			zarfYAML := zarfTypes.ZarfPackage{}
-			zarfYAMLPath := filepath.Join(tmp, config.ZarfYAML)
-			err := utils.ReadYaml(zarfYAMLPath, &zarfYAML)
+
 			if err != nil {
 				return err
 			}
@@ -236,7 +271,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 }
 
 // validateBundleVars ensures imports and exports between Zarf pkgs match up
-func validateBundleVars(packages []types.ZarfPackage) error {
+func validateBundleVars(packages []types.BundleZarfPackage) error {
 	exports := make(map[string]string)
 	for i, pkg := range packages {
 		if i == 0 && pkg.Imports != nil {

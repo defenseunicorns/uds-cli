@@ -7,7 +7,7 @@ import (
 
 func Test_validateBundleVars(t *testing.T) {
 	type args struct {
-		packages []types.ZarfPackage
+		packages []types.BundleZarfPackage
 	}
 	tests := []struct {
 		name        string
@@ -19,7 +19,7 @@ func Test_validateBundleVars(t *testing.T) {
 			name:        "ImportMatchesExport",
 			description: "import matches export",
 			args: args{
-				packages: []types.ZarfPackage{
+				packages: []types.BundleZarfPackage{
 					{Name: "foo", Exports: []types.BundleVariable{{Name: "foo"}}},
 					{Name: "bar", Imports: []types.BundleVariable{{Name: "foo", Package: "foo"}}},
 				},
@@ -29,7 +29,7 @@ func Test_validateBundleVars(t *testing.T) {
 			name:        "ImportDoesntMatchExport",
 			description: "error when import doesn't match export",
 			args: args{
-				packages: []types.ZarfPackage{
+				packages: []types.BundleZarfPackage{
 					{Name: "foo", Exports: []types.BundleVariable{{Name: "foo"}}},
 					{Name: "bar", Imports: []types.BundleVariable{{Name: "bar", Package: "foo"}}},
 				},
@@ -39,7 +39,7 @@ func Test_validateBundleVars(t *testing.T) {
 			name:        "FirstPkgHasImport",
 			description: "error when first pkg has an import",
 			args: args{
-				packages: []types.ZarfPackage{
+				packages: []types.BundleZarfPackage{
 					{Name: "foo", Imports: []types.BundleVariable{{Name: "foo", Package: "foo"}}},
 				},
 			},
@@ -49,7 +49,7 @@ func Test_validateBundleVars(t *testing.T) {
 			name:        "PackageNamesMustMatch",
 			description: "error when package name doesn't match",
 			args: args{
-				packages: []types.ZarfPackage{
+				packages: []types.BundleZarfPackage{
 					{Name: "foo", Exports: []types.BundleVariable{{Name: "foo"}}},
 					{Name: "bar", Imports: []types.BundleVariable{{Name: "foo", Package: "baz"}}},
 				},

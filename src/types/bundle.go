@@ -6,17 +6,18 @@ package types
 
 // UDSBundle is the top-level structure of a UDS bundle
 type UDSBundle struct {
-	Name         string        `json:"name" jsonschema:"name=Name of the UDS Bundle"`
-	Kind         string        `json:"kind" jsonschema:"description=The kind of UDS package,enum=UDSBundle"`
-	Metadata     UDSMetadata   `json:"metadata" jsonschema:"description=UDSBundle metadata"`
-	Build        UDSBuildData  `json:"build,omitempty" jsonschema:"description=Generated bundle build data"`
-	ZarfPackages []ZarfPackage `json:"zarf-packages" jsonschema:"description=List of Zarf packages"`
+	Name         string              `json:"name" jsonschema:"name=Name of the UDS Bundle"`
+	Kind         string              `json:"kind" jsonschema:"description=The kind of UDS package,enum=UDSBundle"`
+	Metadata     UDSMetadata         `json:"metadata" jsonschema:"description=UDSBundle metadata"`
+	Build        UDSBuildData        `json:"build,omitempty" jsonschema:"description=Generated bundle build data"`
+	ZarfPackages []BundleZarfPackage `json:"zarf-packages" jsonschema:"description=List of Zarf packages"`
 }
 
-// ZarfPackage represents a Zarf package in a UDS bundle
-type ZarfPackage struct {
+// BundleZarfPackage represents a Zarf package in a UDS bundle
+type BundleZarfPackage struct {
 	Name               string           `json:"name" jsonschema:"name=Name of the Zarf package"`
-	Repository         string           `json:"repository" jsonschema:"description=The repository to import the package from"`
+	Repository         string           `json:"repository,omitempty" jsonschema:"description=The repository to import the package from"`
+	Path               string           `json:"path,omitempty" jsonschema:"description=The local path to import the package from"`
 	Ref                string           `json:"ref" jsonschema:"description=Ref (tag) of the Zarf package"`
 	OptionalComponents []string         `json:"optional-components,omitempty" jsonschema:"description=List of optional components to include from the package (required components are always included)"`
 	PublicKey          string           `json:"public-key,omitempty" jsonschema:"description=The public key to use to verify the package"`
