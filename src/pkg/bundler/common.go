@@ -159,6 +159,10 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 				return err
 			}
 		} else {
+			// atm we don't support outputting a bundle with local pkgs outputting to OCI
+			if b.cfg.CreateOpts.Output != "" {
+				return fmt.Errorf("detected local Zarf package: %s, outputting to an OCI registry is not supported when using local Zarf packages", pkg.Name)
+			}
 			var fullPkgName string
 			if pkg.Name == "init" {
 				fullPkgName = fmt.Sprintf("zarf-%s-%s-%s.tar.zst", pkg.Name, bundle.Metadata.Architecture, pkg.Ref)
