@@ -1,0 +1,18 @@
+kind: UDSBundle
+metadata:
+  name: global-vars
+  description: show how global vars work
+  version: 0.0.1
+
+# var precedence: uds config pkg var / global var / default var in Zarf pkg
+global-vars:
+  - name: COUNTRY
+    value: Wales
+
+zarf-packages:
+  - name: output-var
+    path: "../zarf/no-cluster/output-var"
+    ref: 0.0.1
+  - name: global-var
+    path: "../zarf/no-cluster/global-var"
+    ref: 0.0.1

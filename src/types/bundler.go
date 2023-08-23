@@ -27,6 +27,7 @@ type BundlerDeployOptions struct {
 	Source               string
 	PublicKeyPath        string
 	ZarfPackageVariables map[string]SetVariables
+	GlobalVars           SetVariables
 }
 
 // SetVariables is a map of variables

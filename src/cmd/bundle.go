@@ -82,6 +82,7 @@ var bundleDeployCmd = &cobra.Command{
 				return
 			}
 			err = v.UnmarshalKey(V_BNDL_DEPLOY_ZARF_PACKAGES, &bundleCfg.DeployOpts.ZarfPackageVariables)
+			err = v.UnmarshalKey(V_BNDL_DEPLOY_GLOBAL_VARS, &bundleCfg.DeployOpts.GlobalVars)
 			if err != nil {
 				message.Fatalf(err, "Failed to unmarshal config: %s", err.Error())
 				return

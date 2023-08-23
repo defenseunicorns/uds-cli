@@ -33,8 +33,11 @@ const (
 	V_BNDL_CREATE_SIGNING_KEY_PASSWORD = "bundle.create.signing_key_password"
 	V_BNDL_CREATE_SET                  = "bundle.create.set"
 
-	// Bundle deploy config keys
+	// Bundle Zarf package key
 	V_BNDL_DEPLOY_ZARF_PACKAGES = "bundle.deploy.zarf-packages"
+
+	// Bundle global vars
+	V_BNDL_DEPLOY_GLOBAL_VARS = "bundle.deploy.global-vars"
 
 	// Bundle inspect config keys
 	V_BNDL_INSPECT_KEY = "bundle.inspect.key"

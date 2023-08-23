@@ -1,0 +1,14 @@
+kind: UDSBundle
+metadata:
+  name: variable-specificity
+  description: demonstrate variable specificity
+  version: 0.0.1
+
+global-vars:
+  - name: COUNTRY
+    value: Estonia # expect Scotland from the output-var pkg to take precedence over the global var
+
+zarf-packages:
+  - name: output-var
+    path: "../zarf/no-cluster/output-var"
+    ref: 0.0.1

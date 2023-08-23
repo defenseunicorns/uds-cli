@@ -1,8 +1,8 @@
 kind: ZarfPackageConfig
 metadata:
-  name: output-var
+  name: global-var
   description: |
-    Demonstrates a variable set from a uds-config.yaml and then outputted
+    Demonstrates global var COUNTRY being set from the bundle
   version: 0.0.1
 
 variables:
@@ -15,6 +15,6 @@ components:
     actions:
       onDeploy:
         after:
-          - cmd: echo "Unicorns are the national animal of "${ZARF_VAR_COUNTRY}""
+          - cmd: echo "The Red Dragon is the heraldic symbol of "${ZARF_VAR_COUNTRY}""
             setVariables:
               - name: OUTPUT
