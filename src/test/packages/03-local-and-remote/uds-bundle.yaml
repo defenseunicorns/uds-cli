@@ -1,0 +1,15 @@
+kind: UDSBundle
+metadata:
+  name: local-and-remote
+  description: building from local and remote Zarf pkgs
+  version: 0.0.1
+
+zarf-packages:
+  - name: init
+    repository: localhost:888/init
+    ref: "###BNDL_TMPL_INIT_VERSION###"
+    optional-components:
+      - git-server
+  - name: podinfo
+    path: "../zarf/podinfo"
+    ref: 0.0.1 

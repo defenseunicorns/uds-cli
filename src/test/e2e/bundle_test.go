@@ -58,6 +58,48 @@ func TestBundleVariables(t *testing.T) {
 	require.Contains(t, stderr, "Received the following message: Unicorns are the national animal of Wales")
 }
 
+func TestBundleWithLocalInitPkg(t *testing.T) {
+	e2e.SetupWithCluster(t)
+
+	e2e.DownloadZarfInitPkg(t, zarfVersion)
+	e2e.CreateZarfPkg(t, "src/test/packages/zarf/podinfo")
+
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+
+	pkg := fmt.Sprintf("src/test/packages/zarf/zarf-init-%s-%s.tar.zst", e2e.Arch, zarfVersion)
+	zarfPublish(t, pkg, "localhost:888")
+
+	bundleDir := "src/test/packages/04-local-init"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-local-init-%s-0.0.1.tar.zst", e2e.Arch))
+
+	create(t, bundleDir)
+	inspect(t, bundlePath)
+	deploy(t, bundlePath)
+	remove(t, bundlePath)
+}
+
+func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
+	e2e.SetupWithCluster(t)
+
+	e2e.DownloadZarfInitPkg(t, zarfVersion)
+	e2e.CreateZarfPkg(t, "src/test/packages/zarf/podinfo")
+
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+
+	pkg := fmt.Sprintf("src/test/packages/zarf/zarf-init-%s-%s.tar.zst", e2e.Arch, zarfVersion)
+	zarfPublish(t, pkg, "localhost:888")
+
+	bundleDir := "src/test/packages/03-local-and-remote"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
+
+	create(t, bundleDir)
+	inspect(t, bundlePath)
+	deploy(t, bundlePath)
+	remove(t, bundlePath)
+}
+
 func TestBundle(t *testing.T) {
 	e2e.SetupWithCluster(t)
 

@@ -7,8 +7,9 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/defenseunicorns/zarf/src/config"
-	"github.com/defenseunicorns/zarf/src/config/lang"
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/config/lang"
+	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/spf13/cobra"
 )
 
@@ -16,7 +17,7 @@ var versionCmd = &cobra.Command{
 	Use:     "version",
 	Aliases: []string{"v"},
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		config.SkipLogFile = true
+		zarfConfig.SkipLogFile = true
 		cliSetup()
 	},
 	Short: lang.CmdVersionShort,

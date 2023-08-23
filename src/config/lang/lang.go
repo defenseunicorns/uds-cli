@@ -5,6 +5,16 @@
 package lang
 
 const (
+	// root UDS-CLI cmds
+	RootCmdShort              = "CLI for UDS Bundles"
+	RootCmdFlagSkipLogFile    = "Disable log file creation"
+	RootCmdFlagNoProgress     = "Disable fancy UI progress bars, spinners, logos, etc"
+	RootCmdFlagCachePath      = "Specify the location of the Zarf cache directory"
+	RootCmdFlagTempDir        = "Specify the temporary directory to use for intermediate files"
+	RootCmdFlagInsecure       = "Allow access to insecure registries and disable other recommended security enforcements such as package checksum and signature validation. This flag should only be used if you have a specific reason and accept the reduced security posture."
+	RootCmdFlagLogLevel       = "Log level when running UDS-CLI. Valid options are: warn, info, debug, trace"
+	RootCmdErrInvalidLogLevel = "Invalid log level. Valid options are: warn, info, debug, trace."
+
 	// bundle
 	CmdBundleShort           = "Commands for creating, deploying, removing, pulling, and inspecting bundles"
 	CmdBundleFlagConcurrency = "Number of concurrent layer operations to perform when interacting with a remote bundle."
@@ -33,4 +43,8 @@ const (
 	// cmd viper setup
 	CmdViperErrLoadingConfigFile = "failed to load config file: %s"
 	CmdViperInfoUsingConfigFile  = "Using config file %s"
+
+	// uds-cli version
+	CmdVersionShort = "Shows the version of the running UDS-CLI binary"
+	CmdVersionLong  = "Displays the version of the UDS-CLI release that the current binary was built from."
 )

@@ -1,5 +1,6 @@
 paths-ignore:
   - src/config/lang/lang.go
+  - src/config/config.go
   - docs-website/**
   - build/**
 

@@ -101,7 +101,6 @@ func (b *Bundler) Create() error {
 		}
 		return BundleAndPublish(remote, &b.bundle, signatureBytes)
 	}
-
 	return Bundle(b, signatureBytes)
 }
 
