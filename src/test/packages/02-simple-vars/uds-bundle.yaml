@@ -6,7 +6,7 @@ metadata:
 
 zarf-packages:
   - name: output-var
-    repository: localhost:888/output-var # todo: don't repeat name here
+    repository: localhost:888/output-var
     ref: 0.0.1
     exports:
       - name: OUTPUT
