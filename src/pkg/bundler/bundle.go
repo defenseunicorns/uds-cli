@@ -64,14 +64,14 @@ func Bundle(b *Bundler, signature []byte) error {
 			if err != nil {
 				return err
 			}
-
+			//// hack media type??
+			//zarfYamlDesc.MediaType = ocispec.MediaTypeImageManifest
 			// append zarf pkg manifest to root manifest and grab path for archiving
 			rootManifest.Layers = append(rootManifest.Layers, zarfYamlDesc)
 			digest := strings.Split(zarfYamlDesc.Digest.String(), "sha256:")[1]
 			artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 
 			message.Debugf("Pushed %s sub-manifest into %s: %s", url, b.tmp, message.JSONValue(zarfYamlDesc))
-
 			// get only the layers that are required by the components
 			layersToCopy, err := getZarfLayers(remote, pkg, pkgRootManifest)
 			spinner := message.NewProgressSpinner("Fetching layers from %s", remote.Repo().Reference.Repository)
