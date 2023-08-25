@@ -1,0 +1,30 @@
+kind: UDSBundle
+metadata:
+  name: software-factory-k3d
+  description: A UDS bundle for deploying a software factory to k3d
+  version: 0.0.1
+  architecture: amd64
+
+zarf-packages:
+#  - name: init
+#    path: build
+#    ref: v0.28.4
+#    optional-components:
+#      - git-server
+
+  - name: dubbd-k3d
+    repository: ghcr.io/defenseunicorns/packages/dubbd-k3d
+#    repository: localhost:5000/dubbd-k3d
+    ref: 0.7.0
+
+#  - name: gitlab
+#    repository: ghcr.io/defenseunicorns/uds-capability/gitlab
+#    ref: 0.0.6
+#
+#  - name: gitlab-runner
+#    repository: ghcr.io/defenseunicorns/uds-capability/gitlab-runner
+#    ref: 0.0.4
+#
+#  - name: sonarqube
+#    repository: ghcr.io/defenseunicorns/uds-capability/sonarqube
+#    ref: 0.0.4
