@@ -2,6 +2,8 @@ module github.com/defenseunicorns/uds-cli
 
 go 1.19
 
+replace github.com/defenseunicorns/zarf => github.com/defenseunicorns/zarf v0.29.1-0.20230825161338-d03c3e539b87
+
 // TODO (@WSTARR) remove this temporary replacement of oras-go 1.2.2 with defenseunicorns version due to upgraded docker lib
 replace oras.land/oras-go v1.2.3 => github.com/defenseunicorns/oras-go v1.2.4-0.20230605015028-85c595ed4b64
 
