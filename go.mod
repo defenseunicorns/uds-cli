@@ -9,6 +9,7 @@ replace oras.land/oras-go v1.2.3 => github.com/defenseunicorns/oras-go v1.2.4-0.
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
+	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
 	github.com/defenseunicorns/zarf v0.29.0
 	github.com/goccy/go-yaml v1.11.0
 	github.com/mholt/archiver/v3 v3.5.1
@@ -233,6 +234,7 @@ require (
 	github.com/hashicorp/vault/sdk v0.6.0 // indirect
 	github.com/hashicorp/yamux v0.1.1 // indirect
 	github.com/huandu/xstrings v1.4.0 // indirect
+	github.com/iancoleman/orderedmap v0.0.0-20190318233801-ac98e3ecb4b0 // indirect
 	github.com/imdario/mergo v0.3.15 // indirect
 	github.com/in-toto/in-toto-golang v0.3.4-0.20220709202702-fa494aaa0add // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

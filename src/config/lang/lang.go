@@ -47,4 +47,9 @@ const (
 	// uds-cli version
 	CmdVersionShort = "Shows the version of the running UDS-CLI binary"
 	CmdVersionLong  = "Displays the version of the UDS-CLI release that the current binary was built from."
+
+	// uds-cli internal
+	CmdInternalShort             = "Internal cmds used by UDS-CLI"
+	CmdInternalConfigSchemaShort = "Generates a JSON schema for the uds-bundle.yaml configuration"
+	CmdInternalConfigSchemaErr   = "Unable to generate the uds-bundle.yaml schema"
 )

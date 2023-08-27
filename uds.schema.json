@@ -1,0 +1,207 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "$ref": "#/definitions/UDSBundle",
+  "definitions": {
+    "BundleVariable": {
+      "required": [
+        "name",
+        "package",
+        "description"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "package": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "BundleZarfPackage": {
+      "required": [
+        "name",
+        "ref"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string",
+          "description": "The repository to import the package from"
+        },
+        "path": {
+          "type": "string",
+          "description": "The local path to import the package from"
+        },
+        "ref": {
+          "type": "string",
+          "description": "Ref (tag) of the Zarf package"
+        },
+        "optional-components": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "List of optional components to include from the package (required components are always included)"
+        },
+        "public-key": {
+          "type": "string",
+          "description": "The public key to use to verify the package"
+        },
+        "imports": {
+          "items": {
+            "$schema": "http://json-schema.org/draft-04/schema#",
+            "$ref": "#/definitions/BundleVariable"
+          },
+          "type": "array",
+          "description": "List of Zarf variables to import from another Zarf package"
+        },
+        "exports": {
+          "items": {
+            "$ref": "#/definitions/BundleVariable"
+          },
+          "type": "array",
+          "description": "List of Zarf variables to export from the Zarf package"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "UDSBuildData": {
+      "required": [
+        "terminal",
+        "user",
+        "architecture",
+        "timestamp",
+        "version"
+      ],
+      "properties": {
+        "terminal": {
+          "type": "string",
+          "description": "The machine name that created this package"
+        },
+        "user": {
+          "type": "string",
+          "description": "The username who created this package"
+        },
+        "architecture": {
+          "type": "string",
+          "description": "The architecture this package was created on"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The timestamp when this package was created"
+        },
+        "version": {
+          "type": "string",
+          "description": "The version of Zarf used to build this package"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "UDSBundle": {
+      "required": [
+        "kind",
+        "metadata",
+        "zarf-packages"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "UDSBundle"
+          ],
+          "type": "string",
+          "description": "The kind of UDS package"
+        },
+        "metadata": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/UDSMetadata",
+          "description": "UDSBundle metadata"
+        },
+        "build": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/UDSBuildData",
+          "description": "Generated bundle build data"
+        },
+        "zarf-packages": {
+          "items": {
+            "$schema": "http://json-schema.org/draft-04/schema#",
+            "$ref": "#/definitions/BundleZarfPackage"
+          },
+          "type": "array",
+          "description": "List of Zarf packages"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "UDSMetadata": {
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "pattern": "^[a-z0-9\\-]+$",
+          "type": "string",
+          "description": "Name to identify this Zarf package"
+        },
+        "description": {
+          "type": "string",
+          "description": "Additional information about this package"
+        },
+        "version": {
+          "type": "string",
+          "description": "Generic string set by a package author to track the package version"
+        },
+        "url": {
+          "type": "string",
+          "description": "Link to package information when online"
+        },
+        "uncompressed": {
+          "type": "boolean",
+          "description": "Disable compression of this package"
+        },
+        "architecture": {
+          "type": "string",
+          "description": "The target cluster architecture for this package",
+          "examples": [
+            "arm64",
+            "amd64"
+          ]
+        },
+        "authors": {
+          "type": "string",
+          "description": "Comma-separated list of package authors (including contact info)",
+          "examples": [
+            "Doug \u0026#60;hello@defenseunicorns.com\u0026#62;\u0026#44; Pepr \u0026#60;hello@defenseunicorns.com\u0026#62;"
+          ]
+        },
+        "documentation": {
+          "type": "string",
+          "description": "Link to package documentation when online"
+        },
+        "source": {
+          "type": "string",
+          "description": "Link to package source code when online"
+        },
+        "vendor": {
+          "type": "string",
+          "description": "Name of the distributing entity, organization or individual."
+        },
+        "aggregateChecksum": {
+          "type": "string",
+          "description": "Checksum of a checksums.txt file that contains checksums all the layers within the package."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  }
+}

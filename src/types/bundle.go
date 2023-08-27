@@ -6,7 +6,6 @@ package types
 
 // UDSBundle is the top-level structure of a UDS bundle
 type UDSBundle struct {
-	Name         string              `json:"name" jsonschema:"name=Name of the UDS Bundle"`
 	Kind         string              `json:"kind" jsonschema:"description=The kind of UDS package,enum=UDSBundle"`
 	Metadata     UDSMetadata         `json:"metadata" jsonschema:"description=UDSBundle metadata"`
 	Build        UDSBuildData        `json:"build,omitempty" jsonschema:"description=Generated bundle build data"`
