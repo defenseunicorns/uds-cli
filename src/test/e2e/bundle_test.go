@@ -55,6 +55,7 @@ func TestBundleVariables(t *testing.T) {
 	create(t, bundleDir)
 	_, stderr := deploy(t, bundlePath)
 
+	require.NotContains(t, stderr, "CLIVersion is set to 'unset' which can cause issues with package creation and deployment")
 	require.Contains(t, stderr, "Received the following message: Unicorns are the national animal of Wales")
 }
 

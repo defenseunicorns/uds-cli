@@ -10,6 +10,7 @@ import (
 	"golang.org/x/exp/maps"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 
 	"github.com/defenseunicorns/zarf/src/config"
@@ -100,8 +101,14 @@ func (b *Bundler) Deploy() error {
 			InitOpts: defaultZarfInitOptions,
 		}
 
-		// change once https://github.com/defenseunicorns/zarf/issues/1972 is resolved
-		config.CLIVersion = "UnknownVersion"
+		// grab Zarf version to make Zarf library checks happy
+		if buildInfo, ok := debug.ReadBuildInfo(); ok {
+			for _, dep := range buildInfo.Deps {
+				if dep.Path == "github.com/defenseunicorns/zarf" {
+					config.CLIVersion = strings.Split(dep.Version, "v")[1]
+				}
+			}
+		}
 
 		pkgClient, err := packager.New(&pkgCfg)
 		if err != nil {
