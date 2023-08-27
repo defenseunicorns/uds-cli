@@ -1,0 +1,23 @@
+name: Validate Schema
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
+
+      - name: Setup golang
+        uses: ./.github/actions/golang
+
+      - name: Docs and schemas
+        run: "make test-schema"
+
+      - name: Save logs
+        if: always()
+        uses: ./.github/actions/save-logs

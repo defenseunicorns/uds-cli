@@ -29,6 +29,13 @@ test-unit: ## Run Unit Tests
 test-e2e: ## Run End to End (e2e) tests
 	cd src/test/e2e && go test -failfast -v -timeout 30m
 
+schema: ## Update JSON schema for uds-bundle.yaml
+	./hack/generate-schema.sh
+
+test-schema: ## Test if the schema has been modified
+	$(MAKE) schema
+	./hack/test-generate-schema.sh
+
 local-registry: ## Run a local docker registry
 	docker run -p 5000:5000 --restart=always --name registry registry:2
 
