@@ -7,6 +7,7 @@ package bundler
 import (
 	"errors"
 	"fmt"
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	"oras.land/oras-go/v2/registry"
@@ -15,7 +16,6 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/interactive"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
@@ -40,7 +40,7 @@ func (b *Bundler) Create() error {
 	defer os.Chdir(cwd)
 
 	// read the bundle's metadata into memory
-	if err := utils.ReadYaml(BundleYAML, &b.bundle); err != nil {
+	if err := utils.ReadYaml(config.BundleYAML, &b.bundle); err != nil {
 		return err
 	}
 
@@ -69,7 +69,7 @@ func (b *Bundler) Create() error {
 	// sign the bundle if a signing key was provided
 	if b.cfg.CreateOpts.SigningKeyPath != "" {
 		// write the bundle to disk so we can sign it
-		bundlePath := filepath.Join(b.tmp, BundleYAML)
+		bundlePath := filepath.Join(b.tmp, config.BundleYAML)
 		if err := utils.WriteYaml(bundlePath, &b.bundle, 0600); err != nil {
 			return err
 		}
@@ -106,7 +106,7 @@ func (b *Bundler) Create() error {
 
 // adapted from p.fillActiveTemplate
 func (b *Bundler) templateBundleYaml() error {
-	message.Debug("Templating", BundleYAML, "w/:", message.JSONValue(b.cfg.CreateOpts.SetVariables))
+	message.Debug("Templating", config.BundleYAML, "w/:", message.JSONValue(b.cfg.CreateOpts.SetVariables))
 
 	templateMap := map[string]string{}
 	setFromCLIConfig := b.cfg.CreateOpts.SetVariables

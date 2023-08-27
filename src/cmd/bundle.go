@@ -6,13 +6,13 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
-
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
-	"github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+	"os"
 
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/spf13/cobra"
@@ -27,11 +27,14 @@ var bundleCmd = &cobra.Command{
 var bundleCreateCmd = &cobra.Command{
 	Use:     "create [DIRECTORY]",
 	Aliases: []string{"c"},
-	Args:    cobra.ExactArgs(1),
+	Args:    cobra.MaximumNArgs(1),
 	Short:   lang.CmdBundleCreateShort,
 	PreRun: func(cmd *cobra.Command, args []string) {
-		if !utils.IsDir(args[0]) {
+		if len(args) > 0 && !utils.IsDir(args[0]) {
 			message.Fatalf(nil, "first argument (%q) must be a valid path to a directory", args[0])
+		}
+		if _, err := os.Stat(config.BundleYAML); err != nil {
+			message.Fatalf(err, "%s not found in directory", config.BundleYAML)
 		}
 	},
 	Run: func(cmd *cobra.Command, args []string) {

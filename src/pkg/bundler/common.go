@@ -10,13 +10,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"time"
 
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/zarf"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/config"
+	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
@@ -73,7 +73,7 @@ func NewOrDie(cfg *types.BundlerConfig) *Bundler {
 // ClearPaths clears out the paths used by Bundler
 func (b *Bundler) ClearPaths() {
 	_ = os.RemoveAll(b.tmp)
-	_ = os.RemoveAll(config.ZarfSBOMDir)
+	_ = os.RemoveAll(zarfConfig.ZarfSBOMDir)
 }
 
 // ValidateBundleResources validates the bundle's metadata and package references
@@ -89,14 +89,14 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 		}
 	}
 	if bundle.Metadata.Version == "" {
-		return fmt.Errorf("%s is missing required field: metadata.version", BundleYAML)
+		return fmt.Errorf("%s is missing required field: metadata.version", config.BundleYAML)
 	}
 	if bundle.Metadata.Name == "" {
-		return fmt.Errorf("%s is missing required field: metadata.name", BundleYAML)
+		return fmt.Errorf("%s is missing required field: metadata.name", config.BundleYAML)
 	}
 
 	if len(bundle.ZarfPackages) == 0 {
-		return fmt.Errorf("%s is missing required list: packages", BundleYAML)
+		return fmt.Errorf("%s is missing required list: packages", config.BundleYAML)
 	}
 
 	if err := validateBundleVars(bundle.ZarfPackages); err != nil {
@@ -129,7 +129,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 		}
 
 		if pkg.Ref == "" {
-			return fmt.Errorf("%s .packages[%s] is missing required field: ref", BundleYAML, pkg.Repository)
+			return fmt.Errorf("%s .packages[%s] is missing required field: ref", config.BundleYAML, pkg.Repository)
 		}
 
 		zarfYAML := zarfTypes.ZarfPackage{}
@@ -202,7 +202,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 			// make sure if a wildcard is given, it is the first and only element
 			for idx, component := range pkg.OptionalComponents {
 				if (component == "*" && idx != 0) || (component == "*" && len(pkg.OptionalComponents) > 1) {
-					return fmt.Errorf("%s .packages[%s].optional-components[%d] wildcard '*' must be first and only item", BundleYAML, pkg.Repository, idx)
+					return fmt.Errorf("%s .packages[%s].optional-components[%d] wildcard '*' must be first and only item", config.BundleYAML, pkg.Repository, idx)
 				}
 			}
 
@@ -262,11 +262,11 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 				})
 				// make sure the component exists
 				if c.Name == "" {
-					return fmt.Errorf("%s .packages[%s].components[%s] does not exist in upstream: %s", BundleYAML, pkg.Repository, component, url)
+					return fmt.Errorf("%s .packages[%s].components[%s] does not exist in upstream: %s", config.BundleYAML, pkg.Repository, component, url)
 				}
 				// make sure the component supports the bundle's target architecture
 				if c.Only.Cluster.Architecture != "" && c.Only.Cluster.Architecture != bundle.Metadata.Architecture {
-					return fmt.Errorf("%s .packages[%s].components[%s] does not support architecture: %s", BundleYAML, pkg.Repository, component, bundle.Metadata.Architecture)
+					return fmt.Errorf("%s .packages[%s].components[%s] does not support architecture: %s", config.BundleYAML, pkg.Repository, component, bundle.Metadata.Architecture)
 				}
 			}
 		}
@@ -305,15 +305,7 @@ func validateBundleVars(packages []types.BundleZarfPackage) error {
 // this is mainly mirrored from packager.writeYaml()
 func (b *Bundler) CalculateBuildInfo() error {
 	now := time.Now()
-
-	// Just use $USER env variable to avoid CGO issue.
-	// https://groups.google.com/g/golang-dev/c/ZFDDX3ZiJ84.
-	// Record the name of the user creating the package.
-	if runtime.GOOS == "windows" {
-		b.bundle.Build.User = os.Getenv("USERNAME")
-	} else {
-		b.bundle.Build.User = os.Getenv("USER")
-	}
+	b.bundle.Build.User = os.Getenv("USER")
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -335,7 +327,7 @@ func (b *Bundler) CalculateBuildInfo() error {
 // ValidateBundleSignature validates the bundle signature
 func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string) error {
 	if utils.InvalidPath(bundleYAMLPath) {
-		return fmt.Errorf("path for %s at %s does not exist", BundleYAML, bundleYAMLPath)
+		return fmt.Errorf("path for %s at %s does not exist", config.BundleYAML, bundleYAMLPath)
 	}
 	// The package is not signed, and no public key was provided
 	if signaturePath == "" && publicKeyPath == "" {

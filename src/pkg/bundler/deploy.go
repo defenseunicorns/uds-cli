@@ -13,7 +13,7 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/defenseunicorns/zarf/src/config"
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 )
@@ -44,12 +44,12 @@ func (b *Bundler) Deploy() error {
 	}
 
 	// validate the sig (if present)
-	if err := ValidateBundleSignature(loaded[BundleYAML], loaded[BundleYAMLSignature], b.cfg.DeployOpts.PublicKeyPath); err != nil {
+	if err := ValidateBundleSignature(loaded[config.BundleYAML], loaded[BundleYAMLSignature], b.cfg.DeployOpts.PublicKeyPath); err != nil {
 		return err
 	}
 
 	// read the bundle's metadata into memory
-	if err := utils.ReadYaml(loaded[BundleYAML], &b.bundle); err != nil {
+	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
 

@@ -282,10 +282,10 @@ func BundleAndPublish(r *oci.OrasRemote, bundle *types.UDSBundle, signature []by
 		return err
 	}
 	bundleYamlDesc.Annotations = map[string]string{
-		ocispec.AnnotationTitle: BundleYAML,
+		ocispec.AnnotationTitle: config.BundleYAML,
 	}
 
-	message.Debug("Pushed", BundleYAML+":", message.JSONValue(bundleYamlDesc))
+	message.Debug("Pushed", config.BundleYAML+":", message.JSONValue(bundleYamlDesc))
 	rootManifest.Layers = append(rootManifest.Layers, bundleYamlDesc)
 
 	// push the bundle's signature
@@ -392,13 +392,13 @@ func pushBundleYamlToStore(ctx context.Context, store *ocistore.Store, bundle *t
 	}
 	bundleYamlDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, bundleYamlBytes)
 	bundleYamlDesc.Annotations = map[string]string{
-		ocispec.AnnotationTitle: BundleYAML,
+		ocispec.AnnotationTitle: config.BundleYAML,
 	}
 	err = store.Push(ctx, bundleYamlDesc, bytes.NewReader(bundleYamlBytes))
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
-	message.Debug("Pushed", BundleYAML+":", message.JSONValue(bundleYamlDesc))
+	message.Debug("Pushed", config.BundleYAML+":", message.JSONValue(bundleYamlDesc))
 	return bundleYamlDesc, err
 }
 

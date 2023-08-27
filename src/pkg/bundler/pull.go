@@ -9,15 +9,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/defenseunicorns/uds-cli/src/config"
-	"os"
-	"path/filepath"
-
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"os"
+	"path/filepath"
 )
 
 // Pull pulls a bundle and saves it locally + caches it
@@ -40,7 +39,7 @@ func (b *Bundler) Pull() error {
 	}
 
 	// validate the sig (if present)
-	if err := ValidateBundleSignature(loadedMetadata[BundleYAML], loadedMetadata[BundleYAMLSignature], b.cfg.PullOpts.PublicKeyPath); err != nil {
+	if err := ValidateBundleSignature(loadedMetadata[config.BundleYAML], loadedMetadata[BundleYAMLSignature], b.cfg.PullOpts.PublicKeyPath); err != nil {
 		return err
 	}
 
@@ -79,7 +78,7 @@ func (b *Bundler) Pull() error {
 	}
 
 	// read the metadata into memory
-	if err := utils.ReadYaml(loaded[BundleYAML], &b.bundle); err != nil {
+	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
 
@@ -110,7 +109,7 @@ func (b *Bundler) Pull() error {
 
 	// re-map the paths to be relative to the cache directory
 	for sha, abs := range loaded {
-		if sha == BundleYAML || sha == BundleYAMLSignature {
+		if sha == config.BundleYAML || sha == BundleYAMLSignature {
 			sha = filepath.Base(abs)
 		}
 		pathMap[abs] = filepath.Join(config.BlobsDir, sha)
