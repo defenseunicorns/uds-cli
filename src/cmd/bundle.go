@@ -6,13 +6,16 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
+	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	"os"
+	"path/filepath"
 
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/spf13/cobra"
@@ -31,14 +34,21 @@ var bundleCreateCmd = &cobra.Command{
 	Short:   lang.CmdBundleCreateShort,
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if len(args) > 0 && !utils.IsDir(args[0]) {
-			message.Fatalf(nil, "first argument (%q) must be a valid path to a directory", args[0])
+			message.Fatalf(nil, "(%q) is not a valid path to a directory", args[0])
 		}
-		if _, err := os.Stat(config.BundleYAML); err != nil {
+		if _, err := os.Stat(config.BundleYAML); len(args) == 0 && err != nil {
 			message.Fatalf(err, "%s not found in directory", config.BundleYAML)
 		}
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		bundleCfg.CreateOpts.SourceDirectory = args[0]
+		srcDir, err := os.Getwd()
+		if err != nil {
+			message.Fatalf(err, "error reading the current working directory")
+		}
+		if len(args) > 0 {
+			srcDir = args[0]
+		}
+		bundleCfg.CreateOpts.SourceDirectory = srcDir
 
 		bundleCfg.CreateOpts.SetVariables = bundler.MergeVariables(v.GetStringMapString(V_BNDL_CREATE_SET), bundleCfg.CreateOpts.SetVariables)
 
@@ -56,10 +66,11 @@ var bundleDeployCmd = &cobra.Command{
 	Use:     "deploy [BUNDLE_TARBALL|OCI_REF]",
 	Aliases: []string{"d"},
 	Short:   lang.CmdBundleDeployShort,
-	Args:    cobra.ExactArgs(1),
+	Args:    cobra.MaximumNArgs(1),
 	PreRun:  firstArgIsEitherOCIorTarball,
 	Run: func(cmd *cobra.Command, args []string) {
-		bundleCfg.DeployOpts.Source = args[0]
+		bundleCfg.DeployOpts.Source = choosePackage(args)
+		configureZarf()
 
 		// read config file and unmarshal
 		if v.ConfigFileUsed() != "" {
@@ -74,7 +85,6 @@ var bundleDeployCmd = &cobra.Command{
 				return
 			}
 		}
-
 		bndlClient := bundler.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
 
@@ -89,10 +99,11 @@ var bundleInspectCmd = &cobra.Command{
 	Use:     "inspect [BUNDLE_TARBALL|OCI_REF]",
 	Aliases: []string{"i"},
 	Short:   lang.CmdBundleInspectShort,
-	Args:    cobra.ExactArgs(1),
+	Args:    cobra.MaximumNArgs(1),
 	PreRun:  firstArgIsEitherOCIorTarball,
 	Run: func(cmd *cobra.Command, args []string) {
-		bundleCfg.InspectOpts.Source = args[0]
+		bundleCfg.InspectOpts.Source = choosePackage(args)
+		configureZarf()
 
 		bndlClient := bundler.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
@@ -112,6 +123,7 @@ var bundleRemoveCmd = &cobra.Command{
 	PreRun:  firstArgIsEitherOCIorTarball,
 	Run: func(cmd *cobra.Command, args []string) {
 		bundleCfg.RemoveOpts.Source = args[0]
+		configureZarf()
 
 		bndlClient := bundler.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
@@ -135,7 +147,7 @@ var bundlePullCmd = &cobra.Command{
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		bundleCfg.PullOpts.Source = args[0]
-
+		configureZarf()
 		bndlClient := bundler.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
 
@@ -147,6 +159,9 @@ var bundlePullCmd = &cobra.Command{
 }
 
 func firstArgIsEitherOCIorTarball(_ *cobra.Command, args []string) {
+	if len(args) == 0 {
+		return
+	}
 	var errString string
 	var err error
 	if bundler.IsValidTarballPath(args[0]) {
@@ -191,4 +206,40 @@ func init() {
 	bundleCmd.AddCommand(bundlePullCmd)
 	bundlePullCmd.Flags().StringVarP(&bundleCfg.PullOpts.OutputDirectory, "output", "o", v.GetString(V_BNDL_PULL_OUTPUT), lang.CmdBundlePullFlagOutput)
 	bundlePullCmd.Flags().StringVarP(&bundleCfg.PullOpts.PublicKeyPath, "key", "k", v.GetString(V_BNDL_PULL_KEY), lang.CmdBundlePullFlagKey)
+}
+
+// configureZarf copies configs from UDS-CLI to Zarf
+// todo: make a PR to Zarf to get rid of this: https://github.com/defenseunicorns/uds-cli/pull/26#discussion_r1307945876
+func configureZarf() {
+	zarfConfig.CommonOptions.Insecure = config.CommonOptions.Insecure
+	zarfConfig.CommonOptions.TempDirectory = config.CommonOptions.TempDirectory
+	zarfConfig.CommonOptions.OCIConcurrency = config.CommonOptions.OCIConcurrency
+	zarfConfig.CommonOptions.Confirm = config.CommonOptions.Confirm
+	zarfConfig.CommonOptions.CachePath = config.CommonOptions.CachePath
+}
+
+// choosePackage provides a file picker when users don't specify a file
+func choosePackage(args []string) string {
+	if len(args) > 0 {
+		return args[0]
+	}
+	var path string
+	prompt := &survey.Input{
+		Message: lang.CmdPackageChoose,
+		Suggest: func(toComplete string) []string {
+			files, _ := filepath.Glob(config.BundlePrefix + toComplete + "*.tar")
+			gzFiles, _ := filepath.Glob(config.BundlePrefix + toComplete + "*.tar.zst")
+			partialFiles, _ := filepath.Glob(config.BundlePrefix + toComplete + "*.part000")
+
+			files = append(files, gzFiles...)
+			files = append(files, partialFiles...)
+			return files
+		},
+	}
+
+	if err := survey.AskOne(prompt, &path, survey.WithValidator(survey.Required)); err != nil {
+		message.Fatalf(nil, lang.CmdPackageChooseErr, err.Error())
+	}
+
+	return path
 }

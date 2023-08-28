@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	"oras.land/oras-go/v2/registry"
 	"os"
@@ -58,6 +59,9 @@ func (b *Bundler) Create() error {
 	if err := b.CalculateBuildInfo(); err != nil {
 		return err
 	}
+
+	// populate Zarf config
+	zarfConfig.CommonOptions.Insecure = config.CommonOptions.Insecure
 
 	// validate bundle / verify access to all repositories
 	if err := b.ValidateBundleResources(&b.bundle); err != nil {

@@ -52,7 +52,7 @@ type BundlerRemoveOptions struct {
 	Source string
 }
 
-// ZarfCommonOptions tracks the user-defined preferences used across commands.
+// BundlerCommonOptions tracks the user-defined preferences used across commands.
 type BundlerCommonOptions struct {
 	Confirm        bool   `json:"confirm" jsonschema:"description=Verify that Zarf should perform an action"`
 	Insecure       bool   `json:"insecure" jsonschema:"description=Allow insecure connections for remote packages"`

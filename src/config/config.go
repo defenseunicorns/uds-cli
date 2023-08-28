@@ -10,9 +10,10 @@ import (
 )
 
 const (
-	ZarfYAML   = "zarf.yaml"
-	BlobsDir   = "blobs/sha256"
-	BundleYAML = "uds-bundle.yaml"
+	ZarfYAML     = "zarf.yaml"
+	BlobsDir     = "blobs/sha256"
+	BundleYAML   = "uds-bundle.yaml"
+	BundlePrefix = "uds-bundle-"
 )
 
 var (

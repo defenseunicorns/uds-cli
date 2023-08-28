@@ -12,7 +12,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/zarf"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -250,14 +249,14 @@ func BundleAndPublish(r *oci.OrasRemote, bundle *types.UDSBundle, signature []by
 				return false
 			}
 
-			if err := oci.CopyPackage(ctx, remote, r, filterLayers, zarfConfig.CommonOptions.OCIConcurrency); err != nil {
+			if err := oci.CopyPackage(ctx, remote, r, filterLayers, config.CommonOptions.OCIConcurrency); err != nil {
 				return err
 			}
 		} else {
 			// blob mount if same registry
 			message.Debugf("Performing a cross repository blob mount on %s from %s --> %s", ref, ref.Repository, ref.Repository)
 			spinner := message.NewProgressSpinner("Mounting layers from %s", pkgRef.Repository)
-			layersToCopy = append(layersToCopy, pkgRootManifest.Config) // why do we need root.Config in this case?
+			layersToCopy = append(layersToCopy, pkgRootManifest.Config)
 			for _, layer := range layersToCopy {
 				spinner.Updatef("Mounting %s", layer.Digest.Encoded())
 				// layer is the descriptor!! Verbiage "fetch" or "pull" refers to the actual layers
@@ -330,7 +329,7 @@ func BundleAndPublish(r *oci.OrasRemote, bundle *types.UDSBundle, signature []by
 
 	message.HorizontalRule()
 	flags := ""
-	if zarfConfig.CommonOptions.Insecure {
+	if config.CommonOptions.Insecure {
 		flags = "--insecure"
 	}
 	message.Title("To inspect/deploy/pull:", "")

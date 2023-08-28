@@ -36,7 +36,6 @@ func NewPackageProvider(pkg types.BundleZarfPackage, tmpDir string) (PackageProv
 		return nil, nil // todo: implement remote
 	} else if pkg.Path != "" {
 		return &tarballPkgProvider{tarballSrc: pkg.Path, extractedDst: tmpDir, ctx: context.TODO()}, nil
-	} else {
-		return nil, fmt.Errorf("zarf pkg %s must have either a repository or path field", pkg.Name)
 	}
+	return nil, fmt.Errorf("zarf pkg %s must have either a repository or path field", pkg.Name)
 }

@@ -6,6 +6,7 @@ package bundler
 
 import (
 	"context"
+	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"golang.org/x/exp/maps"
 	"os"
@@ -105,7 +106,7 @@ func (b *Bundler) Deploy() error {
 		if buildInfo, ok := debug.ReadBuildInfo(); ok {
 			for _, dep := range buildInfo.Deps {
 				if dep.Path == "github.com/defenseunicorns/zarf" {
-					config.CLIVersion = strings.Split(dep.Version, "v")[1]
+					zarfConfig.CLIVersion = strings.Split(dep.Version, "v")[1]
 				}
 			}
 		}
