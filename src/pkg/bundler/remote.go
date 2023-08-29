@@ -1,198 +1,127 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
-// Package bundler contains functions for interacting with, managing and deploying UDS packages
 package bundler
 
 import (
+	"bytes"
 	"context"
-	"fmt"
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"os"
-	"path/filepath"
-	"strings"
-
+	"encoding/json"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
-	goyaml "github.com/goccy/go-yaml"
+	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"oras.land/oras-go/v2/content/file"
+	"oras.land/oras-go/v2/content"
 	ocistore "oras.land/oras-go/v2/content/oci"
+	"path/filepath"
+	"strings"
 )
 
-type ociProvider struct {
-	ctx context.Context
-	src string
-	dst string
-	*oci.OrasRemote
-	manifest *oci.ZarfOCIManifest // todo: UDSBundleOCIManifest?
+type RemotePkg struct {
+	ctx             context.Context
+	pkg             types.BundleZarfPackage
+	PkgRootManifest *oci.ZarfOCIManifest
+	RemoteSrc       *oci.OrasRemote
+	localStore      *ocistore.Store
 }
 
-func (op *ociProvider) getBundleManifest() error {
-	if op.manifest != nil {
-		return nil
-	}
-	root, err := op.FetchRoot()
+func NewRemotePkg(pkg types.BundleZarfPackage, url string, dst *ocistore.Store) (RemotePkg, error) {
+	src, err := oci.NewOrasRemote(url)
 	if err != nil {
-		return err
+		return RemotePkg{}, err
 	}
-	op.manifest = root
-	return nil
+	pkgRootManifest, err := src.FetchRoot()
+	if err != nil {
+		return RemotePkg{}, err
+	}
+	return RemotePkg{RemoteSrc: src, localStore: dst, PkgRootManifest: pkgRootManifest, pkg: pkg}, err
 }
 
-// LoadPackage loads a package from a remote bundle
-func (op *ociProvider) LoadPackage(sha, destinationDir string, concurrency int) (PathMap, error) {
-	if destinationDir == op.dst {
-		return nil, fmt.Errorf("destination directory cannot be the same as the bundle directory")
+func (r *RemotePkg) GetMetadata(url string, tmpDir string) (zarfTypes.ZarfPackage, error) {
+	remote, err := oci.NewOrasRemote(url)
+	r.RemoteSrc = remote
+	if err != nil {
+		return zarfTypes.ZarfPackage{}, err
 	}
 
-	if err := op.getBundleManifest(); err != nil {
-		return nil, err
+	if _, err := remote.PullPackageMetadata(tmpDir); err != nil {
+		return zarfTypes.ZarfPackage{}, err
 	}
-	pkgManifestDesc := op.manifest.Locate(sha)
-	if oci.IsEmptyDescriptor(pkgManifestDesc) {
-		return nil, fmt.Errorf("package %s does not exist in this bundle", sha)
+	zarfYAML := zarfTypes.ZarfPackage{}
+	zarfYAMLPath := filepath.Join(tmpDir, config.ZarfYAML)
+	err = utils.ReadYaml(zarfYAMLPath, &zarfYAML)
+	if err != nil {
+		return zarfTypes.ZarfPackage{}, err
 	}
-	pkgManifest, err := op.FetchManifest(pkgManifestDesc)
+	return zarfYAML, err
+}
+
+func (r *RemotePkg) PushManifest() (ocispec.Descriptor, error) {
+	pkgManifestBytes, err := json.Marshal(r.PkgRootManifest)
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
+	zarfYamlDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, pkgManifestBytes)
+	err = r.localStore.Push(r.ctx, zarfYamlDesc, bytes.NewReader(pkgManifestBytes))
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
+	return zarfYamlDesc, err
+}
+
+func (r *RemotePkg) PushLayers() ([]string, error) {
+	// get only the layers that are required by the components
+	spinner := message.NewProgressSpinner("Fetching layers from %s", r.RemoteSrc.Repo().Reference.Repository)
+	layersToCopy, err := getZarfLayers(r.RemoteSrc, r.pkg, r.PkgRootManifest)
 	if err != nil {
 		return nil, err
 	}
-	// including the package manifest uses some ORAs FindSuccessors hackery to expand the manifest into all layers
-	// as oras.Copy was designed for resolving layers via a manifest reference, not a manifest embedded inside of another
-	// image
-	layersToPull := []ocispec.Descriptor{pkgManifestDesc}
-	for _, layer := range pkgManifest.Layers {
-		// only fetch layers that exist
-		// since optional-components exists, there will be layers that don't exist
-		// as the package's preserved manifest will contain all layers for all components
-		ok, _ := op.Repo().Blobs().Exists(op.ctx, layer)
-		if ok {
-			layersToPull = append(layersToPull, layer)
+	var digests []string
+	// pull layers from remote and write to OCI artifact dir
+	for _, layer := range layersToCopy {
+		if layer.Digest == "" {
+			continue
 		}
-	}
-
-	store, err := file.New(destinationDir)
-	if err != nil {
-		return nil, err
-	}
-	defer store.Close()
-
-	copyOpts := op.CopyOpts
-	copyOpts.Concurrency = concurrency
-
-	preCopy := func(_ context.Context, desc ocispec.Descriptor) error {
-		message.Debug("Copying", message.JSONValue(desc), "to", destinationDir)
-		return nil
-	}
-
-	copyOpts.PreCopy = preCopy
-
-	if err := op.CopyWithProgress(layersToPull, store, &copyOpts, destinationDir); err != nil {
-		return nil, err
-	}
-
-	loaded := make(PathMap)
-	for _, layer := range layersToPull {
-		rel := layer.Annotations[ocispec.AnnotationTitle]
-		loaded[rel] = filepath.Join(destinationDir, rel)
-	}
-	return loaded, nil
-}
-
-// LoadBundleMetadata loads a remote bundle's metadata
-func (op *ociProvider) LoadBundleMetadata() (PathMap, error) {
-	if err := utils.CreateDirectory(filepath.Join(op.dst, config.BlobsDir), 0700); err != nil {
-		return nil, err
-	}
-	layers, err := op.PullPackagePaths(BundleAlwaysPull, filepath.Join(op.dst, config.BlobsDir))
-	if err != nil {
-		return nil, err
-	}
-	loaded := make(PathMap)
-	for _, layer := range layers {
-		rel := layer.Annotations[ocispec.AnnotationTitle]
-		abs := filepath.Join(op.dst, config.BlobsDir, rel)
-		absSha := filepath.Join(op.dst, config.BlobsDir, layer.Digest.Encoded())
-		if err := os.Rename(abs, absSha); err != nil {
+		// check if layer already exists
+		if exists, err := r.localStore.Exists(r.ctx, layer); !exists {
+			continue
+		} else if err != nil {
 			return nil, err
 		}
-		loaded[rel] = absSha
-	}
-	return loaded, nil
-}
 
-// LoadBundle loads a bundle from a remote source
-func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
-	layersToPull := []ocispec.Descriptor{}
-
-	if err := op.getBundleManifest(); err != nil {
-		return nil, err
-	}
-
-	loaded, err := op.LoadBundleMetadata() // todo: remove? this seems redundant, can we pass the "loaded" var in
-	if err != nil {
-		return nil, err
-	}
-
-	b, err := os.ReadFile(loaded[config.BundleYAML])
-	if err != nil {
-		return nil, err
-	}
-
-	var bundle types.UDSBundle
-
-	if err := goyaml.Unmarshal(b, &bundle); err != nil {
-		return nil, err
-	}
-
-	for _, pkg := range bundle.ZarfPackages {
-		sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
-		manifestDesc := op.manifest.Locate(sha)
-		manifestDesc.MediaType = ocispec.MediaTypeImageManifest
+		digest := strings.Split(layer.Digest.String(), "sha256:")[1]
+		digests = append(digests, digest)
+		spinner.Updatef("Fetching %s", layer.Digest.Encoded())
+		layerBytes, err := r.RemoteSrc.FetchLayer(layer)
 		if err != nil {
 			return nil, err
 		}
-		manifest, err := op.FetchManifest(manifestDesc)
-		if err != nil {
+		layerDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, layerBytes)
+		if err := r.localStore.Push(r.ctx, layerDesc, bytes.NewReader(layerBytes)); err != nil {
 			return nil, err
 		}
-		layersToPull = append(layersToPull, manifestDesc)
-		for _, layer := range manifest.Layers {
-			ok, err := op.Repo().Blobs().Exists(op.ctx, layer)
-			if err != nil {
-				return nil, err
-			}
-			if ok {
-				layersToPull = append(layersToPull, layer)
-			}
+	}
+	return digests, err
+}
+
+// getZarfLayers grabs the necessary Zarf pkg layers from a remote OCI registry
+func getZarfLayers(remote *oci.OrasRemote, pkg types.BundleZarfPackage, pkgRootManifest *oci.ZarfOCIManifest) ([]ocispec.Descriptor, error) {
+	layersFromComponents, err := remote.LayersFromRequestedComponents(pkg.OptionalComponents)
+	if err != nil {
+		return nil, err
+	}
+	// get the layers that are always pulled
+	var metadataLayers []ocispec.Descriptor
+	for _, path := range oci.PackageAlwaysPull {
+		layer := pkgRootManifest.Locate(path)
+		if !oci.IsEmptyDescriptor(layer) {
+			metadataLayers = append(metadataLayers, layer)
 		}
 	}
-
-	copyOpts := op.CopyOpts
-	copyOpts.Concurrency = concurrency
-
-	store, err := ocistore.NewWithContext(op.ctx, op.dst)
-	if err != nil {
-		return nil, err
-	}
-
-	rootDesc, err := op.ResolveRoot()
-	if err != nil {
-		return nil, err
-	}
-	layersToPull = append(layersToPull, rootDesc)
-
-	if err := op.CopyWithProgress(layersToPull, store, &copyOpts, op.dst); err != nil {
-		return nil, err
-	}
-
-	for _, layer := range layersToPull {
-		sha := layer.Digest.Encoded()
-		loaded[sha] = filepath.Join(op.dst, config.BlobsDir, sha)
-	}
-	loaded["index.json"] = filepath.Join(op.dst, "index.json")
-
-	return loaded, nil
+	layersToCopy := append(layersFromComponents, metadataLayers...)
+	layersToCopy = append(layersToCopy, pkgRootManifest.Config)
+	return layersToCopy, err
 }

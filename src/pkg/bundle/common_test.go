@@ -1,4 +1,4 @@
-package bundler
+package bundle
 
 import (
 	"github.com/defenseunicorns/uds-cli/src/types"

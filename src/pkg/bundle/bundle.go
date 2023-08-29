@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
 // Package bundler contains functions for interacting with, managing and deploying UDS packages
-package bundler
+package bundle
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/pkg/zarf"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
@@ -63,8 +63,6 @@ func Bundle(b *Bundler, signature []byte) error {
 			if err != nil {
 				return err
 			}
-			//// hack media type??
-			//zarfYamlDesc.MediaType = ocispec.MediaTypeImageManifest
 			// append zarf pkg manifest to root manifest and grab path for archiving
 			rootManifest.Layers = append(rootManifest.Layers, zarfYamlDesc)
 			digest := strings.Split(zarfYamlDesc.Digest.String(), "sha256:")[1]
@@ -105,7 +103,7 @@ func Bundle(b *Bundler, signature []byte) error {
 				return err
 			}
 
-			localTarballProvider, err := zarf.NewPackageProvider(pkg, pkgTmp)
+			localTarballProvider := bundler.NewLocalPackage(pkg.Path, pkgTmp)
 			if err != nil {
 				return err
 			}

@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
 // Package bundler contains functions for interacting with, managing and deploying UDS packages
-package bundler
+package bundle
 
 import (
 	"context"

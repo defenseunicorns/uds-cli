@@ -9,7 +9,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
-	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
@@ -17,7 +17,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -33,7 +34,7 @@ var bundleCreateCmd = &cobra.Command{
 	Args:    cobra.MaximumNArgs(1),
 	Short:   lang.CmdBundleCreateShort,
 	PreRun: func(cmd *cobra.Command, args []string) {
-		if len(args) > 0 && !utils.IsDir(args[0]) {
+		if len(args) > 0 && !zarfUtils.IsDir(args[0]) {
 			message.Fatalf(nil, "(%q) is not a valid path to a directory", args[0])
 		}
 		if _, err := os.Stat(config.BundleYAML); len(args) == 0 && err != nil {
@@ -50,9 +51,9 @@ var bundleCreateCmd = &cobra.Command{
 		}
 		bundleCfg.CreateOpts.SourceDirectory = srcDir
 
-		bundleCfg.CreateOpts.SetVariables = bundler.MergeVariables(v.GetStringMapString(V_BNDL_CREATE_SET), bundleCfg.CreateOpts.SetVariables)
+		bundleCfg.CreateOpts.SetVariables = utils.MergeVariables(v.GetStringMapString(V_BNDL_CREATE_SET), bundleCfg.CreateOpts.SetVariables)
 
-		bndlClient := bundler.NewOrDie(&bundleCfg)
+		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
 
 		if err := bndlClient.Create(); err != nil {
@@ -85,7 +86,7 @@ var bundleDeployCmd = &cobra.Command{
 				return
 			}
 		}
-		bndlClient := bundler.NewOrDie(&bundleCfg)
+		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
 
 		if err := bndlClient.Deploy(); err != nil {
@@ -105,7 +106,7 @@ var bundleInspectCmd = &cobra.Command{
 		bundleCfg.InspectOpts.Source = choosePackage(args)
 		configureZarf()
 
-		bndlClient := bundler.NewOrDie(&bundleCfg)
+		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
 
 		if err := bndlClient.Inspect(); err != nil {
@@ -125,7 +126,7 @@ var bundleRemoveCmd = &cobra.Command{
 		bundleCfg.RemoveOpts.Source = args[0]
 		configureZarf()
 
-		bndlClient := bundler.NewOrDie(&bundleCfg)
+		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
 
 		if err := bndlClient.Remove(); err != nil {
@@ -148,7 +149,7 @@ var bundlePullCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		bundleCfg.PullOpts.Source = args[0]
 		configureZarf()
-		bndlClient := bundler.NewOrDie(&bundleCfg)
+		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
 
 		if err := bndlClient.Pull(); err != nil {
@@ -164,10 +165,10 @@ func firstArgIsEitherOCIorTarball(_ *cobra.Command, args []string) {
 	}
 	var errString string
 	var err error
-	if bundler.IsValidTarballPath(args[0]) {
+	if utils.IsValidTarballPath(args[0]) {
 		return
 	}
-	if !helpers.IsOCIURL(args[0]) && !bundler.IsValidTarballPath(args[0]) {
+	if !helpers.IsOCIURL(args[0]) && !utils.IsValidTarballPath(args[0]) {
 		errString = fmt.Sprintf("First argument (%q) must either be a valid OCI URL or a valid path to a bundle tarball", args[0])
 	} else {
 		err = oci.ValidateReference(args[0])
