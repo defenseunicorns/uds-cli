@@ -10,9 +10,16 @@ import (
 )
 
 const (
-	ZarfYAML     = "zarf.yaml"
-	BlobsDir     = "blobs/sha256"
-	BundleYAML   = "uds-bundle.yaml"
+	// ZarfYAML is the string for zarf.yaml
+	ZarfYAML = "zarf.yaml"
+
+	// BlobsDir is the string for the blobs/sha256 dir in an OCI artifact
+	BlobsDir = "blobs/sha256"
+
+	// BundleYAML is the string for zarf.yaml
+	BundleYAML = "uds-bundle.yaml"
+
+	// BundlePrefix is the prefix for compiled uds bundles
 	BundlePrefix = "uds-bundle-"
 )
 
