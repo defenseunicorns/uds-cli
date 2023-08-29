@@ -8,17 +8,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
-	"os"
-	"path/filepath"
-	"strings"
-	"testing"
-
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/registry"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
 )
 
 func zarfPublish(t *testing.T, path string, reg string) {
@@ -31,8 +31,33 @@ func zarfPublish(t *testing.T, path string, reg string) {
 
 const zarfVersion = "v0.29.0"
 
+func TestCreateAndDeployWithNoPath(t *testing.T) {
+	zarfPkgPath1 := "src/test/packages/zarf/no-cluster/output-var"
+	zarfPkgPath2 := "src/test/packages/zarf/no-cluster/receive-var"
+	e2e.CreateZarfPkg(t, zarfPkgPath1)
+	e2e.CreateZarfPkg(t, zarfPkgPath2)
+
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+
+	pkg := filepath.Join(zarfPkgPath1, fmt.Sprintf("zarf-package-output-var-%s-0.0.1.tar.zst", e2e.Arch))
+	zarfPublish(t, pkg, "localhost:888")
+
+	pkg = filepath.Join(zarfPkgPath2, fmt.Sprintf("zarf-package-receive-var-%s-0.0.1.tar.zst", e2e.Arch))
+	zarfPublish(t, pkg, "localhost:888")
+
+	err := os.Link(fmt.Sprintf("src/test/packages/02-simple-vars/%s", config.BundleYAML), config.BundleYAML)
+	require.NoError(t, err)
+	defer os.Remove(config.BundleYAML)
+	defer os.Remove(fmt.Sprintf("uds-bundle-simple-vars-%s-0.0.1.tar.zst", e2e.Arch))
+
+	// create
+	cmd := strings.Split(fmt.Sprintf("bundle create --confirm --insecure"), " ")
+	_, _, err = e2e.UDS(cmd...)
+	require.NoError(t, err)
+}
+
 func TestBundleVariables(t *testing.T) {
-	e2e.DownloadZarfInitPkg(t, zarfVersion)
 	zarfPkgPath1 := "src/test/packages/zarf/no-cluster/output-var"
 	zarfPkgPath2 := "src/test/packages/zarf/no-cluster/receive-var"
 	e2e.CreateZarfPkg(t, zarfPkgPath1)

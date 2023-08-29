@@ -11,7 +11,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/defenseunicorns/zarf/src/config"
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/pterm/pterm"
 )

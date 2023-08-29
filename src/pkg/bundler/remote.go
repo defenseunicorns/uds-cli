@@ -136,7 +136,7 @@ func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
 		return nil, err
 	}
 
-	b, err := os.ReadFile(loaded[BundleYAML])
+	b, err := os.ReadFile(loaded[config.BundleYAML])
 	if err != nil {
 		return nil, err
 	}

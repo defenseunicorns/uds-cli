@@ -5,11 +5,12 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/cmd/common"
 	"github.com/defenseunicorns/zarf/src/cmd/tools"
-	"github.com/defenseunicorns/zarf/src/config"
+	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
 	"github.com/spf13/cobra"
@@ -80,7 +81,7 @@ func init() {
 	v.SetDefault(V_NO_LOG_FILE, false)
 	v.SetDefault(V_NO_PROGRESS, false)
 	v.SetDefault(V_INSECURE, false)
-	v.SetDefault(V_ZARF_CACHE, config.ZarfDefaultCachePath) // todo: Zarf vs UDS cache
+	v.SetDefault(V_ZARF_CACHE, zarfConfig.ZarfDefaultCachePath)
 	v.SetDefault(V_TMP_DIR, "")
 
 	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "l", v.GetString(V_LOG_LEVEL), lang.RootCmdFlagLogLevel)

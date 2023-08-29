@@ -6,6 +6,7 @@ package bundler
 
 import (
 	"context"
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/types"
@@ -31,7 +32,7 @@ func (b *Bundler) Remove() error {
 	}
 
 	// read the bundle's metadata into memory
-	if err := utils.ReadYaml(loaded[BundleYAML], &b.bundle); err != nil {
+	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
 

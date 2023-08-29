@@ -5,13 +5,12 @@
 package bundler
 
 import (
-	"github.com/defenseunicorns/zarf/src/config"
-	"github.com/defenseunicorns/zarf/src/types"
+	"github.com/defenseunicorns/uds-cli/src/config"
+	zarfConfig "github.com/defenseunicorns/zarf/src/config"
+	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 )
 
 const (
-	// BundleYAML is the name of the bundle's metadata file
-	BundleYAML = "uds-bundle.yaml"
 	// BundleYAMLSignature is the name of the bundle's metadata signature file
 	BundleYAMLSignature = "uds-bundle.yaml.sig"
 	// BundlePrefix is the prefix for all bundle files
@@ -22,17 +21,17 @@ const (
 
 var (
 	// BundleAlwaysPull is a list of paths that will always be pulled from the remote repository.
-	BundleAlwaysPull = []string{BundleYAML, BundleYAMLSignature}
+	BundleAlwaysPull = []string{config.BundleYAML, BundleYAMLSignature}
 )
 
 // need to set these in the case of deploying a Zarf init pkg
 // typically these are set as part of Zarf's Viper config, which we don't use in UDS
 // could technically remove, but it doesn't hurt anything for now
-var defaultZarfInitOptions = types.ZarfInitOptions{
-	GitServer: types.GitServerInfo{
-		PushUsername: config.ZarfGitPushUser,
+var defaultZarfInitOptions = zarfTypes.ZarfInitOptions{
+	GitServer: zarfTypes.GitServerInfo{
+		PushUsername: zarfConfig.ZarfGitPushUser,
 	},
-	RegistryInfo: types.RegistryInfo{
-		PushUsername: config.ZarfRegistryPushUser,
+	RegistryInfo: zarfTypes.RegistryInfo{
+		PushUsername: zarfConfig.ZarfRegistryPushUser,
 	},
 }
