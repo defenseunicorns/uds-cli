@@ -2,15 +2,13 @@ module github.com/defenseunicorns/uds-cli
 
 go 1.19
 
-replace github.com/defenseunicorns/zarf => github.com/defenseunicorns/zarf v0.29.1-0.20230825161338-d03c3e539b87
-
 // TODO (@WSTARR) remove this temporary replacement of oras-go 1.2.2 with defenseunicorns version due to upgraded docker lib
 replace oras.land/oras-go v1.2.3 => github.com/defenseunicorns/oras-go v1.2.4-0.20230605015028-85c595ed4b64
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
-	github.com/defenseunicorns/zarf v0.29.0
+	github.com/defenseunicorns/zarf v0.29.1
 	github.com/goccy/go-yaml v1.11.0
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/mholt/archiver/v4 v4.0.0-alpha.8
@@ -189,6 +187,7 @@ require (
 	github.com/go-playground/validator/v10 v10.11.0 // indirect
 	github.com/go-restruct/restruct v1.2.0-alpha // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
+	github.com/gofrs/flock v0.8.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
 	github.com/golang/glog v1.1.0 // indirect
