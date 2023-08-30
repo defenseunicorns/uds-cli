@@ -32,10 +32,12 @@ type LocalBundler struct {
 	extractedDst string
 }
 
+// NewLocalBundler creates a bundler for bundling local Zarf pkgs
 func NewLocalBundler(src, dest string) LocalBundler {
 	return LocalBundler{tarballSrc: src, extractedDst: dest, ctx: context.TODO()}
 }
 
+// GetMetadata grabs metadata from a local Zarf package's zarf.yaml
 func (b *LocalBundler) GetMetadata(pathToTarball string, tmpDir string) (zarfTypes.ZarfPackage, error) {
 	zarfTarball, err := os.Open(pathToTarball)
 	if err != nil {

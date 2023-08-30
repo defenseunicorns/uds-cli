@@ -18,7 +18,6 @@ import (
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"io"
 	"oras.land/oras-go/v2/content"
 	ocistore "oras.land/oras-go/v2/content/oci"
 	"os"
@@ -115,14 +114,14 @@ func Bundle(b *Bundler, signature []byte) error {
 	}
 
 	// push uds-bundle.yaml to OCI store
-	bundleYamlDesc, err := pushBundleYamlToStore(ctx, store, bundle)
+	bundleManifestDesc, err := pushBundleManifestToStore(ctx, store, bundle)
 	if err != nil {
 		return err
 	}
 
 	// append uds-bundle.yaml layer to rootManifest and grab path for archiving
-	rootManifest.Layers = append(rootManifest.Layers, bundleYamlDesc)
-	digest := bundleYamlDesc.Digest.Encoded()
+	rootManifest.Layers = append(rootManifest.Layers, bundleManifestDesc)
+	digest := bundleManifestDesc.Digest.Encoded()
 	artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 
 	// create and push bundle manifest config
@@ -175,83 +174,32 @@ func BundleAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 		return fmt.Errorf("architecture is required for bundling")
 	}
 	dstRef := remoteDst.Repo().Reference
-	ctx := context.TODO()
 	message.Debug("Bundling", bundle.Metadata.Name, "to", dstRef)
 
 	rootManifest := ocispec.Manifest{}
 
 	for _, pkg := range bundle.ZarfPackages {
 		url := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
-		//remoteBundler, err := bundler.NewRemoteBundler(pkg, url, nil, remoteDst)
+		remoteBundler, err := bundler.NewRemoteBundler(pkg, url, nil, remoteDst)
 
-		remote, err := oci.NewOrasRemote(url)
-		if err != nil {
-			return err
-		}
-
-		pkgRef := remote.Repo().Reference
-		// fetch the root manifest so we can push it into the bundle
-		pkgRootManifest, err := remote.FetchRoot()
+		zarfManifestDesc, err := remoteBundler.PushManifest()
 		if err != nil {
 			return err
 		}
 
-		//zarfManifestDesc, err := remoteBundler.PushManifest()
-		if err != nil {
-			return err
-		}
+		// hack the media type to be a manifest and append to bundle root manifest
+		zarfManifestDesc.MediaType = ocispec.MediaTypeImageManifest
+		message.Debugf("Pushed %s sub-manifest into %s: %s", url, dstRef, message.JSONValue(zarfManifestDesc))
+		rootManifest.Layers = append(rootManifest.Layers, zarfManifestDesc)
 
-		zarfYamlDesc, err := json.Marshal(pkgRootManifest)
-		if err != nil {
-			return err
-		}
-		// push the manifest into the bundle
-		manifestDesc, err := remoteDst.PushLayer(zarfYamlDesc, oci.ZarfLayerMediaTypeBlob)
-		if err != nil {
-			return err
-		}
 		// hack the media type to be a manifest
-		manifestDesc.MediaType = ocispec.MediaTypeImageManifest
-		message.Debugf("Pushed %s sub-manifest into %s: %s", url, dstRef, message.JSONValue(manifestDesc))
-		rootManifest.Layers = append(rootManifest.Layers, manifestDesc)
+		zarfManifestDesc.MediaType = ocispec.MediaTypeImageManifest
+		message.Debugf("Pushed %s sub-manifest into %s: %s", url, dstRef, message.JSONValue(zarfManifestDesc))
+		rootManifest.Layers = append(rootManifest.Layers, zarfManifestDesc)
 
-		// get only the layers that are required by the components
-		layersToCopy, err := getZarfLayers(remote, pkg, pkgRootManifest)
-
-		// stream copy if different registry
-		if remote.Repo().Reference.Registry != dstRef.Registry {
-			message.Debugf("Streaming layers from %s --> %s", pkgRef, dstRef)
-
-			// filterLayers returns true if the layer is in the list of layers to copy, this allows for
-			// copying only the layers that are required by the required + specified optional components
-			filterLayers := func(d ocispec.Descriptor) bool {
-				for _, layer := range layersToCopy {
-					if layer.Digest == d.Digest {
-						return true
-					}
-				}
-				return false
-			}
-
-			if err := oci.CopyPackage(ctx, remote, remoteDst, filterLayers, config.CommonOptions.OCIConcurrency); err != nil {
-				return err
-			}
-		} else {
-			// blob mount if same registry
-			message.Debugf("Performing a cross repository blob mount on %s from %s --> %s", dstRef, dstRef.Repository, dstRef.Repository)
-			spinner := message.NewProgressSpinner("Mounting layers from %s", pkgRef.Repository)
-			layersToCopy = append(layersToCopy, pkgRootManifest.Config)
-			for _, layer := range layersToCopy {
-				spinner.Updatef("Mounting %s", layer.Digest.Encoded())
-				// layer is the descriptor!! Verbiage "fetch" or "pull" refers to the actual layers
-				if err := remoteDst.Repo().Mount(ctx, layer, pkgRef.Repository, func() (io.ReadCloser, error) {
-					return remote.Repo().Fetch(ctx, layer)
-				}); err != nil {
-					return err
-				}
-			}
-
-			spinner.Successf("Mounted %d layers", len(layersToCopy))
+		_, err = remoteBundler.PushLayers()
+		if err != nil {
+			return err
 		}
 	}
 
@@ -367,17 +315,17 @@ func manifestAnnotationsFromMetadata(metadata *types.UDSMetadata) map[string]str
 	return annotations
 }
 
-// pushBundleYamlToStore pushes the uds-bundle.yaml to a provided OCI store
-func pushBundleYamlToStore(ctx context.Context, store *ocistore.Store, bundle *types.UDSBundle) (ocispec.Descriptor, error) {
-	bundleYamlBytes, err := goyaml.Marshal(bundle)
+// pushBundleManifestToStore pushes the uds-bundle.yaml to a provided OCI store
+func pushBundleManifestToStore(ctx context.Context, store *ocistore.Store, bundle *types.UDSBundle) (ocispec.Descriptor, error) {
+	bundleManifestBytes, err := goyaml.Marshal(bundle)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
-	bundleYamlDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, bundleYamlBytes)
+	bundleYamlDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, bundleManifestBytes)
 	bundleYamlDesc.Annotations = map[string]string{
 		ocispec.AnnotationTitle: config.BundleYAML,
 	}
-	err = store.Push(ctx, bundleYamlDesc, bytes.NewReader(bundleYamlBytes))
+	err = store.Push(ctx, bundleYamlDesc, bytes.NewReader(bundleManifestBytes))
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
@@ -402,25 +350,6 @@ func createManifestConfig(metadata types.UDSMetadata, build types.UDSBuildData) 
 	}
 	manifestConfigDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, manifestConfigBytes)
 	return manifestConfigDesc, err
-}
-
-// getZarfLayers grabs the necessary Zarf pkg layers from a remote OCI registry
-func getZarfLayers(remote *oci.OrasRemote, pkg types.BundleZarfPackage, pkgRootManifest *oci.ZarfOCIManifest) ([]ocispec.Descriptor, error) {
-	layersFromComponents, err := remote.LayersFromRequestedComponents(pkg.OptionalComponents)
-	if err != nil {
-		return nil, err
-	}
-	// get the layers that are always pulled
-	var metadataLayers []ocispec.Descriptor
-	for _, path := range oci.PackageAlwaysPull {
-		layer := pkgRootManifest.Locate(path)
-		if !oci.IsEmptyDescriptor(layer) {
-			metadataLayers = append(metadataLayers, layer)
-		}
-	}
-	layersToCopy := append(layersFromComponents, metadataLayers...)
-	layersToCopy = append(layersToCopy, pkgRootManifest.Config)
-	return layersToCopy, err
 }
 
 // writeTarball builds and writes a bundle tarball to disk based on a file map

@@ -14,6 +14,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"os"
 	"path/filepath"
 
@@ -210,13 +211,14 @@ func init() {
 }
 
 // configureZarf copies configs from UDS-CLI to Zarf
-// todo: make a PR to Zarf to get rid of this: https://github.com/defenseunicorns/uds-cli/pull/26#discussion_r1307945876
 func configureZarf() {
-	zarfConfig.CommonOptions.Insecure = config.CommonOptions.Insecure
-	zarfConfig.CommonOptions.TempDirectory = config.CommonOptions.TempDirectory
-	zarfConfig.CommonOptions.OCIConcurrency = config.CommonOptions.OCIConcurrency
-	zarfConfig.CommonOptions.Confirm = config.CommonOptions.Confirm
-	zarfConfig.CommonOptions.CachePath = config.CommonOptions.CachePath
+	zarfConfig.CommonOptions = zarfTypes.ZarfCommonOptions{
+		Insecure:       config.CommonOptions.Insecure,
+		TempDirectory:  config.CommonOptions.TempDirectory,
+		OCIConcurrency: config.CommonOptions.OCIConcurrency,
+		Confirm:        config.CommonOptions.Confirm,
+		CachePath:      config.CommonOptions.CachePath,
+	}
 }
 
 // choosePackage provides a file picker when users don't specify a file
