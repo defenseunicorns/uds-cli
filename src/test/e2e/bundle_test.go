@@ -191,8 +191,8 @@ func create(t *testing.T, bundlePath string) {
 	require.NoError(t, err)
 }
 
-func createRemote(t *testing.T, bundlePath string, reg string) {
-	cmd := strings.Split(fmt.Sprintf("bundle create %s -o oci://%s --set INIT_VERSION=%s --confirm --insecure", bundlePath, reg, zarfVersion), " ")
+func createRemote(t *testing.T, bundlePath string, registry string) {
+	cmd := strings.Split(fmt.Sprintf("bundle create %s -o oci://%s --set INIT_VERSION=%s --confirm --insecure", bundlePath, registry, zarfVersion), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }

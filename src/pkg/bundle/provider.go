@@ -2,11 +2,12 @@
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
 // Package bundler contains functions for interacting with, managing and deploying UDS packages
-package bundler
+package bundle
 
 import (
 	"context"
 	"fmt"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
@@ -58,7 +59,7 @@ func NewBundleProvider(ctx context.Context, source, destination string) (BundleP
 		provider.OrasRemote = remote
 		return &provider, nil
 	}
-	if !IsValidTarballPath(source) {
+	if !utils.IsValidTarballPath(source) {
 		return nil, fmt.Errorf("invalid tarball path: %s", source)
 	}
 	return &tarballBundleProvider{ctx: ctx, src: source, dst: destination}, nil

@@ -2,11 +2,12 @@
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
 // Package bundler contains functions for interacting with, managing and deploying UDS packages
-package bundler
+package bundle
 
 import (
 	"errors"
 	"fmt"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -14,11 +15,9 @@ import (
 	"time"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/pkg/zarf"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
@@ -114,12 +113,6 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 			return fmt.Errorf("%s is missing required field: name", pkg)
 		}
 
-		url := fmt.Sprintf("%s:%s-%s", pkg.Repository, pkg.Ref, bundle.Metadata.Architecture)
-
-		if strings.Contains(pkg.Ref, "@sha256:") {
-			url = fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
-		}
-
 		if pkg.Repository == "" && pkg.Path == "" {
 			return fmt.Errorf("zarf pkg %s must have either a repository or path field", pkg.Name)
 		}
@@ -131,30 +124,23 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 		if pkg.Ref == "" {
 			return fmt.Errorf("%s .packages[%s] is missing required field: ref", config.BundleYAML, pkg.Repository)
 		}
-
 		zarfYAML := zarfTypes.ZarfPackage{}
+		var url string
 		// if using a remote repository
 		if pkg.Repository != "" {
-			remote, err := oci.NewOrasRemote(url)
+			url = fmt.Sprintf("%s:%s-%s", pkg.Repository, pkg.Ref, bundle.Metadata.Architecture)
+			if strings.Contains(pkg.Ref, "@sha256:") {
+				url = fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
+			}
+			remotePkg, err := bundler.NewRemoteBundler(pkg, url, nil, nil)
 			if err != nil {
 				return err
 			}
-
-			manifestDesc, err := remote.ResolveRoot()
-			if err != nil {
-				return err
-			}
-			// mutate the ref to <tag>-<arch>@sha256:<digest> so we can reference it later
-			if err := remote.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
+			if err := remotePkg.RemoteSrc.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
+				manifestDesc, _ := remotePkg.RemoteSrc.ResolveRoot()
 				bundle.ZarfPackages[idx].Ref = pkg.Ref + "-" + bundle.Metadata.Architecture + "@sha256:" + manifestDesc.Digest.Encoded()
 			}
-
-			if _, err := remote.PullPackageMetadata(tmp); err != nil {
-				return err
-			}
-
-			zarfYAMLPath := filepath.Join(tmp, config.ZarfYAML)
-			err = utils.ReadYaml(zarfYAMLPath, &zarfYAML)
+			zarfYAML, err = remotePkg.GetMetadata(url, tmp)
 			if err != nil {
 				return err
 			}
@@ -171,7 +157,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 			}
 			path := filepath.Join(pkg.Path, fullPkgName)
 			bundle.ZarfPackages[idx].Path = path
-			p, err := zarf.NewPackageProvider(pkg, tmp)
+			p := bundler.NewLocalBundler(pkg.Path, tmp)
 			if err != nil {
 				return err
 			}
@@ -344,32 +330,4 @@ func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string
 
 	// The package is signed, and a public key was provided
 	return utils.CosignVerifyBlob(bundleYAMLPath, signaturePath, publicKeyPath)
-}
-
-// MergeVariables merges the variables from the config file and the CLI
-//
-// TODO: move this to helpers.MergeAndTransformMap
-func MergeVariables(left map[string]string, right map[string]string) map[string]string {
-	// Ensure uppercase keys from viper and CLI --set
-	leftUpper := helpers.TransformMapKeys(left, strings.ToUpper)
-	rightUpper := helpers.TransformMapKeys(right, strings.ToUpper)
-
-	// Merge the viper config file variables and provided CLI flag variables (CLI takes precedence))
-	return helpers.MergeMap(leftUpper, rightUpper)
-}
-
-// IsValidTarballPath returns true if the path is a valid tarball path to a bundle tarball
-func IsValidTarballPath(path string) bool {
-	if utils.InvalidPath(path) || utils.IsDir(path) {
-		return false
-	}
-	name := filepath.Base(path)
-	if name == "" {
-		return false
-	}
-	if !strings.HasPrefix(name, BundlePrefix) {
-		return false
-	}
-	re := regexp.MustCompile(`^uds-bundle-.*-.*.tar(.zst)?$`)
-	return re.MatchString(name)
 }

@@ -1,291 +1,255 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
-// Package bundler contains functions for interacting with, managing and deploying UDS packages
+// Package bundler defines behavior for bundling packages
 package bundler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/defenseunicorns/uds-cli/src/config"
-	"io"
-	"os"
-	"path/filepath"
-
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
-	"github.com/mholt/archiver/v3"
+	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	goyaml "github.com/goccy/go-yaml"
+	av3 "github.com/mholt/archiver/v3"
 	av4 "github.com/mholt/archiver/v4"
+	"github.com/opencontainers/image-spec/specs-go"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"io"
+	"oras.land/oras-go/v2/content"
+	"oras.land/oras-go/v2/content/file"
 	ocistore "oras.land/oras-go/v2/content/oci"
+	"os"
+	"path/filepath"
 )
 
-type tarballBundleProvider struct {
-	ctx      context.Context
-	src      string
-	dst      string
-	manifest *oci.ZarfOCIManifest
+type LocalBundler struct {
+	ctx          context.Context
+	tarballSrc   string
+	extractedDst string
 }
 
-func extractJSON(j any) func(context.Context, av4.File) error {
-	return func(_ context.Context, file av4.File) error {
-		stream, err := file.Open()
+// NewLocalBundler creates a bundler for bundling local Zarf pkgs
+func NewLocalBundler(src, dest string) LocalBundler {
+	return LocalBundler{tarballSrc: src, extractedDst: dest, ctx: context.TODO()}
+}
+
+// GetMetadata grabs metadata from a local Zarf package's zarf.yaml
+func (b *LocalBundler) GetMetadata(pathToTarball string, tmpDir string) (zarfTypes.ZarfPackage, error) {
+	zarfTarball, err := os.Open(pathToTarball)
+	if err != nil {
+		return zarfTypes.ZarfPackage{}, err
+	}
+	format := av4.CompressedArchive{
+		Compression: av4.Zstd{},
+		Archival:    av4.Tar{},
+	}
+	if err := format.Extract(context.TODO(), zarfTarball, []string{config.ZarfYAML}, func(_ context.Context, fileInArchive av4.File) error {
+		// write zarf.yaml to tmp for checking optional components later on
+		dst := filepath.Join(tmpDir, fileInArchive.NameInArchive)
+		outFile, err := os.Create(dst)
+		if err != nil {
+			return err
+		}
+		stream, err := fileInArchive.Open()
 		if err != nil {
 			return err
 		}
 		defer stream.Close()
-
-		bytes, err := io.ReadAll(stream)
+		_, err = io.Copy(outFile, io.Reader(stream))
 		if err != nil {
 			return err
 		}
-		return json.Unmarshal(bytes, &j)
+		return nil
+	}); err != nil {
+		zarfTarball.Close()
+		return zarfTypes.ZarfPackage{}, err
 	}
+	zarfYAML := zarfTypes.ZarfPackage{}
+	zarfYAMLPath := filepath.Join(tmpDir, config.ZarfYAML)
+	err = utils.ReadYaml(zarfYAMLPath, &zarfYAML)
+	if err != nil {
+		return zarfTypes.ZarfPackage{}, err
+	}
+	return zarfYAML, err
 }
 
-func (tp *tarballBundleProvider) getBundleManifest() error {
-	if tp.manifest != nil {
-		return nil
-	}
-
-	if err := archiver.Extract(tp.src, "index.json", tp.dst); err != nil {
-		return fmt.Errorf("failed to extract index.json from %s: %w", tp.src, err)
-	}
-
-	indexPath := filepath.Join(tp.dst, "index.json")
-
-	defer os.Remove(indexPath)
-
-	bytes, err := os.ReadFile(indexPath)
+// Extract extracts a compressed Zarf archive into a directory
+func (b *LocalBundler) Extract() error {
+	err := av3.Unarchive(b.tarballSrc, b.extractedDst) // todo: awkward to use old version of mholt/archiver
 	if err != nil {
 		return err
 	}
-
-	var index ocispec.Index
-
-	if err := json.Unmarshal(bytes, &index); err != nil {
-		return err
-	}
-
-	// due to logic during the bundle pull process, this index.json should only have one manifest
-	bundleManifestDesc := index.Manifests[0]
-
-	if len(index.Manifests) > 1 {
-		return fmt.Errorf("expected only one manifest in index.json, found %d", len(index.Manifests))
-	}
-
-	manifestRelativePath := filepath.Join(config.BlobsDir, bundleManifestDesc.Digest.Encoded())
-
-	if err := archiver.Extract(tp.src, manifestRelativePath, tp.dst); err != nil {
-		return fmt.Errorf("failed to extract %s from %s: %w", bundleManifestDesc.Digest.Encoded(), tp.src, err)
-	}
-
-	manifestPath := filepath.Join(tp.dst, manifestRelativePath)
-
-	defer os.Remove(manifestPath)
-
-	if err := utils.SHAsMatch(manifestPath, bundleManifestDesc.Digest.Encoded()); err != nil {
-		return err
-	}
-
-	bytes, err = os.ReadFile(manifestPath)
-	if err != nil {
-		return err
-	}
-
-	var manifest *oci.ZarfOCIManifest
-
-	if err := json.Unmarshal(bytes, &manifest); err != nil {
-		return err
-	}
-
-	tp.manifest = manifest
 	return nil
 }
 
-// LoadBundle loads a bundle from a tarball
-func (tp *tarballBundleProvider) LoadBundle(_ int) (PathMap, error) {
-	loaded := make(PathMap)
-
-	if err := tp.getBundleManifest(); err != nil {
-		return nil, err
-	}
-
-	store, err := ocistore.NewWithContext(tp.ctx, tp.dst)
+// Load loads a zarf.yaml into a Zarf object
+func (b *LocalBundler) Load() (zarfTypes.ZarfPackage, error) {
+	// grab zarf.yaml from extracted archive
+	p, err := os.ReadFile(filepath.Join(b.extractedDst, config.ZarfYAML))
 	if err != nil {
-		return nil, err
+		return zarfTypes.ZarfPackage{}, err
 	}
-
-	layersToExtract := []ocispec.Descriptor{}
-
-	format := av4.CompressedArchive{
-		Compression: av4.Zstd{},
-		Archival:    av4.Tar{},
+	var pkg zarfTypes.ZarfPackage
+	if err := goyaml.Unmarshal(p, &pkg); err != nil {
+		return zarfTypes.ZarfPackage{}, err
 	}
-
-	sourceArchive, err := os.Open(tp.src)
-	if err != nil {
-		return nil, err
-	}
-
-	defer sourceArchive.Close()
-
-	for _, layer := range tp.manifest.Layers {
-		if layer.MediaType == ocispec.MediaTypeImageManifest {
-			var manifest oci.ZarfOCIManifest
-			if err := format.Extract(tp.ctx, sourceArchive, []string{filepath.Join(config.BlobsDir, layer.Digest.Encoded())}, extractJSON(&manifest)); err != nil {
-				return nil, err
-			}
-			layersToExtract = append(layersToExtract, layer)
-			layersToExtract = append(layersToExtract, manifest.Layers...)
-		} else if layer.MediaType == oci.ZarfLayerMediaTypeBlob {
-			rel := layer.Annotations[ocispec.AnnotationTitle]
-			layersToExtract = append(layersToExtract, layer)
-			loaded[rel] = filepath.Join(tp.dst, config.BlobsDir, layer.Digest.Encoded())
-		}
-	}
-
-	cacheFunc := func(ctx context.Context, file av4.File) error {
-		desc := helpers.Find(layersToExtract, func(layer ocispec.Descriptor) bool {
-			return layer.Digest.Encoded() == filepath.Base(file.NameInArchive)
-		})
-		r, err := file.Open()
-		if err != nil {
-			return err
-		}
-		defer r.Close()
-		return store.Push(ctx, desc, r)
-	}
-
-	pathsInArchive := []string{}
-	for _, layer := range layersToExtract {
-		sha := layer.Digest.Encoded()
-		if layer.MediaType == oci.ZarfLayerMediaTypeBlob {
-			pathsInArchive = append(pathsInArchive, filepath.Join(config.BlobsDir, sha))
-			loaded[sha] = filepath.Join(tp.dst, config.BlobsDir, sha)
-		}
-	}
-
-	if err := format.Extract(tp.ctx, sourceArchive, pathsInArchive, cacheFunc); err != nil {
-		return nil, err
-	}
-
-	return loaded, nil
+	return pkg, err
 }
 
-// LoadPackage loads a package from a tarball
-func (tp *tarballBundleProvider) LoadPackage(sha, destinationDir string, _ int) (PathMap, error) {
-	if err := tp.getBundleManifest(); err != nil {
-		return nil, err
-	}
-
-	format := av4.CompressedArchive{
-		Compression: av4.Zstd{},
-		Archival:    av4.Tar{},
-	}
-
-	sourceArchive, err := os.Open(tp.src)
+// ToBundle transfers a Zarf package to a given Bundle
+func (b *LocalBundler) ToBundle(bundleStore *ocistore.Store, pkg zarfTypes.ZarfPackage, artifactPathMap map[string]string, bundleTmpDir string, packageTmpDir string) (ocispec.Descriptor, error) {
+	// todo: only grab components that are required + specified in optional-components
+	ctx := b.ctx
+	src, err := file.New(packageTmpDir)
 	if err != nil {
-		return nil, err
+		return ocispec.Descriptor{}, err
 	}
-
-	var manifest oci.ZarfOCIManifest
-
-	if err := format.Extract(tp.ctx, sourceArchive, []string{filepath.Join(config.BlobsDir, sha)}, extractJSON(&manifest)); err != nil {
-		sourceArchive.Close()
-		return nil, err
-	}
-
-	if err := sourceArchive.Close(); err != nil {
-		return nil, err
-	}
-
-	extractLayer := func(_ context.Context, file av4.File) error {
-		if file.IsDir() {
-			return nil
-		}
-		stream, err := file.Open()
+	// Grab Zarf layers
+	paths := []string{}
+	err = filepath.Walk(packageTmpDir, func(path string, info os.FileInfo, err error) error {
+		// Catch any errors that happened during the walk
 		if err != nil {
 			return err
 		}
-		defer stream.Close()
 
-		desc := helpers.Find(manifest.Layers, func(layer ocispec.Descriptor) bool {
-			return layer.Digest.Encoded() == filepath.Base(file.NameInArchive)
-		})
-
-		path := desc.Annotations[ocispec.AnnotationTitle]
-
-		size := desc.Size
-
-		dst := filepath.Join(destinationDir, path)
-
-		if err := utils.CreateDirectory(filepath.Dir(dst), 0700); err != nil {
-			return err
+		// Add any resource that is not a directory to the paths of objects we will include into the package
+		if !info.IsDir() {
+			paths = append(paths, path)
 		}
-
-		target, err := os.Create(dst)
-		if err != nil {
-			return err
-		}
-		defer target.Close()
-
-		written, err := io.Copy(target, stream)
-		if err != nil {
-			return err
-		}
-		if written != size {
-			return fmt.Errorf("expected to write %d bytes to %s, wrote %d", size, path, written)
-		}
-
 		return nil
-	}
-
-	layersToExtract := []string{}
-	loaded := make(PathMap)
-
-	for _, layer := range manifest.Layers {
-		layersToExtract = append(layersToExtract, filepath.Join(config.BlobsDir, layer.Digest.Encoded()))
-		loaded[layer.Annotations[ocispec.AnnotationTitle]] = filepath.Join(destinationDir, config.BlobsDir, layer.Digest.Encoded())
-	}
-
-	sourceArchive, err = os.Open(tp.src)
+	})
 	if err != nil {
-		return nil, err
-	}
-	defer sourceArchive.Close()
-
-	if err := format.Extract(tp.ctx, sourceArchive, layersToExtract, extractLayer); err != nil {
-		return nil, err
+		return ocispec.Descriptor{}, fmt.Errorf("unable to get the layers in the package to publish: %w", err)
 	}
 
-	return loaded, nil
+	var descs []ocispec.Descriptor
+	for _, path := range paths {
+		name, err := filepath.Rel(packageTmpDir, path)
+		if err != nil {
+			return ocispec.Descriptor{}, err
+		}
+
+		mediaType := oci.ZarfLayerMediaTypeBlob
+
+		// get descriptor, push bytes
+		desc, err := src.Add(ctx, name, mediaType, path)
+		if err != nil {
+			return ocispec.Descriptor{}, err
+		}
+		layer, err := src.Fetch(ctx, desc)
+		if err != nil {
+			return ocispec.Descriptor{}, err
+		}
+
+		// push if layer doesn't already exist in bundleStore
+		if exists, err := bundleStore.Exists(ctx, desc); !exists && err == nil {
+			if err := bundleStore.Push(ctx, desc, layer); err != nil {
+				return ocispec.Descriptor{}, err
+			}
+		} else if err != nil {
+			return ocispec.Descriptor{}, err
+		}
+
+		digest := desc.Digest.Encoded()
+		artifactPathMap[filepath.Join(bundleTmpDir, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
+		descs = append(descs, desc)
+	}
+	// push the manifest config
+	manifestConfigDesc, err := pushZarfManifestConfigFromMetadata(bundleStore, &pkg.Metadata, &pkg.Build)
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
+	// push the manifest
+	rootManifest, err := generatePackManifest(bundleStore, descs, manifestConfigDesc, &pkg.Metadata)
+
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
+	return rootManifest, err
 }
 
-// LoadBundleMetadata loads a bundle's metadata from a tarball
-func (tp *tarballBundleProvider) LoadBundleMetadata() (PathMap, error) {
-	if err := tp.getBundleManifest(); err != nil {
-		return nil, err
+// manifestAnnotationsFromMetadata returns the annotations for the manifest from the given metadata.
+func zarfAnnotationsFromMetadata(metadata *zarfTypes.ZarfMetadata) map[string]string {
+	annotations := map[string]string{
+		ocispec.AnnotationDescription: metadata.Description,
 	}
-	pathsToExtract := BundleAlwaysPull
 
-	loaded := make(PathMap)
-
-	for _, path := range pathsToExtract {
-		layer := tp.manifest.Locate(path)
-		if !oci.IsEmptyDescriptor(layer) {
-			pathInTarball := filepath.Join(config.BlobsDir, layer.Digest.Encoded())
-			abs := filepath.Join(tp.dst, pathInTarball)
-			loaded[path] = abs
-			if !utils.InvalidPath(abs) && utils.SHAsMatch(abs, layer.Digest.Encoded()) == nil {
-				continue
-			}
-			if err := archiver.Extract(tp.src, pathInTarball, tp.dst); err != nil {
-				return nil, fmt.Errorf("failed to extract %s from %s: %w", path, tp.src, err)
-			}
-		}
+	if url := metadata.URL; url != "" {
+		annotations[ocispec.AnnotationURL] = url
 	}
-	return loaded, nil
+	if authors := metadata.Authors; authors != "" {
+		annotations[ocispec.AnnotationAuthors] = authors
+	}
+	if documentation := metadata.Documentation; documentation != "" {
+		annotations[ocispec.AnnotationDocumentation] = documentation
+	}
+	if source := metadata.Source; source != "" {
+		annotations[ocispec.AnnotationSource] = source
+	}
+	if vendor := metadata.Vendor; vendor != "" {
+		annotations[ocispec.AnnotationVendor] = vendor
+	}
+
+	return annotations
+}
+
+// todo: clean up code the following which comes from Zarf
+func pushZarfManifestConfigFromMetadata(store *ocistore.Store, metadata *zarfTypes.ZarfMetadata, build *zarfTypes.ZarfBuildData) (ocispec.Descriptor, error) {
+	ctx := context.TODO()
+	annotations := map[string]string{
+		ocispec.AnnotationTitle:       metadata.Name,
+		ocispec.AnnotationDescription: metadata.Description,
+	}
+	manifestConfig := oci.ConfigPartial{
+		Architecture: build.Architecture,
+		OCIVersion:   "1.0.1",
+		Annotations:  annotations,
+	}
+	manifestConfigBytes, err := json.Marshal(manifestConfig)
+	manifestConfigDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageConfig, manifestConfigBytes)
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
+	if err := store.Push(ctx, manifestConfigDesc, bytes.NewReader(manifestConfigBytes)); err != nil {
+		return ocispec.Descriptor{}, err
+	}
+
+	return manifestConfigDesc, err
+}
+
+func generatePackManifest(store *ocistore.Store, descs []ocispec.Descriptor, configDesc ocispec.Descriptor, metadata *zarfTypes.ZarfMetadata) (ocispec.Descriptor, error) {
+	ctx := context.TODO()
+
+	// adopted from oras.Pack fn
+	// manually  build the manifest and push to store and save reference
+	manifest := ocispec.Manifest{
+		Versioned: specs.Versioned{
+			SchemaVersion: 2, // historical value. does not pertain to OCI or docker version
+		},
+		Config:      configDesc,
+		MediaType:   oci.ZarfLayerMediaTypeBlob,
+		Layers:      descs,
+		Annotations: zarfAnnotationsFromMetadata(metadata),
+	}
+	manifestJSON, err := json.Marshal(manifest)
+	if err != nil {
+		return ocispec.Descriptor{}, fmt.Errorf("failed to marshal manifest: %w", err)
+	}
+	manifestDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, manifestJSON)
+	manifestDesc.ArtifactType = manifest.Config.MediaType
+	manifestDesc.Annotations = manifest.Annotations
+
+	// push manifest
+	if err := store.Push(ctx, manifestDesc, bytes.NewReader(manifestJSON)); err != nil {
+		return ocispec.Descriptor{}, err
+	}
+
+	// todo: hack manifestDesc back into ocispec.MediaTypeImageManifest??
+	manifestDesc.MediaType = ocispec.MediaTypeImageManifest
+
+	return manifestDesc, nil
 }
