@@ -24,20 +24,19 @@ import (
 	ocistore "oras.land/oras-go/v2/content/oci"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
-type LocalPackage struct {
+type LocalBundler struct {
 	ctx          context.Context
 	tarballSrc   string
 	extractedDst string
 }
 
-func NewLocalPackage(src, dest string) LocalPackage {
-	return LocalPackage{tarballSrc: src, extractedDst: dest, ctx: context.TODO()}
+func NewLocalBundler(src, dest string) LocalBundler {
+	return LocalBundler{tarballSrc: src, extractedDst: dest, ctx: context.TODO()}
 }
 
-func (tp *LocalPackage) GetMetadata(pathToTarball string, tmpDir string) (zarfTypes.ZarfPackage, error) {
+func (b *LocalBundler) GetMetadata(pathToTarball string, tmpDir string) (zarfTypes.ZarfPackage, error) {
 	zarfTarball, err := os.Open(pathToTarball)
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, err
@@ -77,8 +76,8 @@ func (tp *LocalPackage) GetMetadata(pathToTarball string, tmpDir string) (zarfTy
 }
 
 // Extract extracts a compressed Zarf archive into a directory
-func (tp *LocalPackage) Extract() error {
-	err := av3.Unarchive(tp.tarballSrc, tp.extractedDst) // todo: awkward to use old version of mholt/archiver
+func (b *LocalBundler) Extract() error {
+	err := av3.Unarchive(b.tarballSrc, b.extractedDst) // todo: awkward to use old version of mholt/archiver
 	if err != nil {
 		return err
 	}
@@ -86,9 +85,9 @@ func (tp *LocalPackage) Extract() error {
 }
 
 // Load loads a zarf.yaml into a Zarf object
-func (tp *LocalPackage) Load() (zarfTypes.ZarfPackage, error) {
+func (b *LocalBundler) Load() (zarfTypes.ZarfPackage, error) {
 	// grab zarf.yaml from extracted archive
-	p, err := os.ReadFile(filepath.Join(tp.extractedDst, config.ZarfYAML))
+	p, err := os.ReadFile(filepath.Join(b.extractedDst, config.ZarfYAML))
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, err
 	}
@@ -100,9 +99,9 @@ func (tp *LocalPackage) Load() (zarfTypes.ZarfPackage, error) {
 }
 
 // ToBundle transfers a Zarf package to a given Bundle
-func (tp *LocalPackage) ToBundle(bundleStore *ocistore.Store, pkg zarfTypes.ZarfPackage, artifactPathMap map[string]string, bundleTmpDir string, packageTmpDir string) (ocispec.Descriptor, error) {
+func (b *LocalBundler) ToBundle(bundleStore *ocistore.Store, pkg zarfTypes.ZarfPackage, artifactPathMap map[string]string, bundleTmpDir string, packageTmpDir string) (ocispec.Descriptor, error) {
 	// todo: only grab components that are required + specified in optional-components
-	ctx := tp.ctx
+	ctx := b.ctx
 	src, err := file.New(packageTmpDir)
 	if err != nil {
 		return ocispec.Descriptor{}, err
@@ -153,7 +152,7 @@ func (tp *LocalPackage) ToBundle(bundleStore *ocistore.Store, pkg zarfTypes.Zarf
 			return ocispec.Descriptor{}, err
 		}
 
-		digest := strings.Split(desc.Digest.String(), "sha256:")[1]
+		digest := desc.Digest.Encoded()
 		artifactPathMap[filepath.Join(bundleTmpDir, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 		descs = append(descs, desc)
 	}

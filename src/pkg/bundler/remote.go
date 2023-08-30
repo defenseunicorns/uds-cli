@@ -17,32 +17,35 @@ import (
 	"oras.land/oras-go/v2/content"
 	ocistore "oras.land/oras-go/v2/content/oci"
 	"path/filepath"
-	"strings"
 )
 
-type RemotePkg struct {
+type RemoteBundler struct {
 	ctx             context.Context
 	pkg             types.BundleZarfPackage
 	PkgRootManifest *oci.ZarfOCIManifest
 	RemoteSrc       *oci.OrasRemote
-	localStore      *ocistore.Store
+	localDst        *ocistore.Store
+	remoteDst       *oci.OrasRemote
 }
 
-func NewRemotePkg(pkg types.BundleZarfPackage, url string, dst *ocistore.Store) (RemotePkg, error) {
+func NewRemoteBundler(pkg types.BundleZarfPackage, url string, localDst *ocistore.Store, remoteDst *oci.OrasRemote) (RemoteBundler, error) {
 	src, err := oci.NewOrasRemote(url)
 	if err != nil {
-		return RemotePkg{}, err
+		return RemoteBundler{}, err
 	}
 	pkgRootManifest, err := src.FetchRoot()
 	if err != nil {
-		return RemotePkg{}, err
+		return RemoteBundler{}, err
 	}
-	return RemotePkg{RemoteSrc: src, localStore: dst, PkgRootManifest: pkgRootManifest, pkg: pkg}, err
+	if localDst != nil {
+		return RemoteBundler{RemoteSrc: src, localDst: localDst, PkgRootManifest: pkgRootManifest, pkg: pkg}, err
+	}
+	return RemoteBundler{RemoteSrc: src, remoteDst: remoteDst, PkgRootManifest: pkgRootManifest, pkg: pkg}, err
 }
 
-func (r *RemotePkg) GetMetadata(url string, tmpDir string) (zarfTypes.ZarfPackage, error) {
+func (b *RemoteBundler) GetMetadata(url string, tmpDir string) (zarfTypes.ZarfPackage, error) {
 	remote, err := oci.NewOrasRemote(url)
-	r.RemoteSrc = remote
+	b.RemoteSrc = remote
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, err
 	}
@@ -59,52 +62,51 @@ func (r *RemotePkg) GetMetadata(url string, tmpDir string) (zarfTypes.ZarfPackag
 	return zarfYAML, err
 }
 
-func (r *RemotePkg) PushManifest() (ocispec.Descriptor, error) {
-	pkgManifestBytes, err := json.Marshal(r.PkgRootManifest)
+func (b *RemoteBundler) PushManifest() (ocispec.Descriptor, error) {
+	pkgManifestBytes, err := json.Marshal(b.PkgRootManifest)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
-	zarfYamlDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, pkgManifestBytes)
-	err = r.localStore.Push(r.ctx, zarfYamlDesc, bytes.NewReader(pkgManifestBytes))
+	zarfManifestDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, pkgManifestBytes)
+	err = b.localDst.Push(b.ctx, zarfManifestDesc, bytes.NewReader(pkgManifestBytes))
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
-	return zarfYamlDesc, err
+	return zarfManifestDesc, err
 }
 
-func (r *RemotePkg) PushLayers() ([]string, error) {
+func (b *RemoteBundler) PushLayers() ([]ocispec.Descriptor, error) {
 	// get only the layers that are required by the components
-	spinner := message.NewProgressSpinner("Fetching layers from %s", r.RemoteSrc.Repo().Reference.Repository)
-	layersToCopy, err := getZarfLayers(r.RemoteSrc, r.pkg, r.PkgRootManifest)
+	spinner := message.NewProgressSpinner("Fetching layers from %s", b.RemoteSrc.Repo().Reference.Repository)
+	layersToCopy, err := getZarfLayers(b.RemoteSrc, b.pkg, b.PkgRootManifest)
 	if err != nil {
 		return nil, err
 	}
-	var digests []string
+	var layerDescs []ocispec.Descriptor
 	// pull layers from remote and write to OCI artifact dir
 	for _, layer := range layersToCopy {
 		if layer.Digest == "" {
 			continue
 		}
 		// check if layer already exists
-		if exists, err := r.localStore.Exists(r.ctx, layer); !exists {
+		if exists, err := b.localDst.Exists(b.ctx, layer); exists {
 			continue
 		} else if err != nil {
 			return nil, err
 		}
 
-		digest := strings.Split(layer.Digest.String(), "sha256:")[1]
-		digests = append(digests, digest)
 		spinner.Updatef("Fetching %s", layer.Digest.Encoded())
-		layerBytes, err := r.RemoteSrc.FetchLayer(layer)
+		layerBytes, err := b.RemoteSrc.FetchLayer(layer)
 		if err != nil {
 			return nil, err
 		}
 		layerDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, layerBytes)
-		if err := r.localStore.Push(r.ctx, layerDesc, bytes.NewReader(layerBytes)); err != nil {
+		if err := b.localDst.Push(b.ctx, layerDesc, bytes.NewReader(layerBytes)); err != nil {
 			return nil, err
 		}
+		layerDescs = append(layerDescs, layerDesc)
 	}
-	return digests, err
+	return layerDescs, err
 }
 
 // getZarfLayers grabs the necessary Zarf pkg layers from a remote OCI registry

@@ -132,7 +132,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 			if strings.Contains(pkg.Ref, "@sha256:") {
 				url = fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
 			}
-			remotePkg, err := bundler.NewRemotePkg(pkg, url, nil)
+			remotePkg, err := bundler.NewRemoteBundler(pkg, url, nil, nil)
 			if err != nil {
 				return err
 			}
@@ -157,7 +157,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 			}
 			path := filepath.Join(pkg.Path, fullPkgName)
 			bundle.ZarfPackages[idx].Path = path
-			p := bundler.NewLocalPackage(pkg.Path, tmp)
+			p := bundler.NewLocalBundler(pkg.Path, tmp)
 			if err != nil {
 				return err
 			}
