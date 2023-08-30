@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
-// Package bundler contains functions for interacting with, managing and deploying UDS packages
+// Package bundle contains functions for interacting with, managing and deploying UDS packages
 package bundle
 
 import (
@@ -24,8 +24,8 @@ import (
 	"path/filepath"
 )
 
-// Bundle creates the bundle and outputs to a local tarball
-func Bundle(b *Bundler, signature []byte) error {
+// Create creates the bundle and outputs to a local tarball
+func Create(b *Bundler, signature []byte) error {
 	if b.bundle.Metadata.Architecture == "" {
 		return fmt.Errorf("architecture is required for bundling")
 	}
@@ -168,8 +168,8 @@ func Bundle(b *Bundler, signature []byte) error {
 	return nil
 }
 
-// BundleAndPublish creates the bundle in an OCI registry publishes w/ optional signature to the remote repository.
-func BundleAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signature []byte) error {
+// CreateAndPublish creates the bundle in an OCI registry publishes w/ optional signature to the remote repository.
+func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signature []byte) error {
 	if bundle.Metadata.Architecture == "" {
 		return fmt.Errorf("architecture is required for bundling")
 	}
@@ -188,11 +188,6 @@ func BundleAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 		}
 
 		// hack the media type to be a manifest and append to bundle root manifest
-		zarfManifestDesc.MediaType = ocispec.MediaTypeImageManifest
-		message.Debugf("Pushed %s sub-manifest into %s: %s", url, dstRef, message.JSONValue(zarfManifestDesc))
-		rootManifest.Layers = append(rootManifest.Layers, zarfManifestDesc)
-
-		// hack the media type to be a manifest
 		zarfManifestDesc.MediaType = ocispec.MediaTypeImageManifest
 		message.Debugf("Pushed %s sub-manifest into %s: %s", url, dstRef, message.JSONValue(zarfManifestDesc))
 		rootManifest.Layers = append(rootManifest.Layers, zarfManifestDesc)
@@ -379,7 +374,7 @@ func writeTarball(bundle *types.UDSBundle, artifactPathMap PathMap) error {
 	if err := format.Archive(context.TODO(), out, files); err != nil {
 		return err
 	}
-	message.Infof("Bundle tarball saved to %s", dst)
+	message.Infof("Create tarball saved to %s", dst)
 	return nil
 }
 
