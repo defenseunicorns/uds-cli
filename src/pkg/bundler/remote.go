@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 )
 
+// RemoteBundler contains methods for pulling remote Zarf packages into a bundle
 type RemoteBundler struct {
 	ctx             context.Context
 	pkg             types.BundleZarfPackage
@@ -100,11 +101,10 @@ func (b *RemoteBundler) PushLayers() ([]ocispec.Descriptor, error) {
 		}
 		// return layer descriptor so we can copy them into the tarball path map
 		return layerDescs, err
-	} else {
-		err = handleRemoteCopy(b, layersToCopy)
-		if err != nil {
-			return nil, err
-		}
+	}
+	err = handleRemoteCopy(b, layersToCopy)
+	if err != nil {
+		return nil, err
 	}
 	return nil, err
 }
@@ -137,6 +137,9 @@ func handleRemoteCopy(b *RemoteBundler, layersToCopy []ocispec.Descriptor) error
 		spinner := message.NewProgressSpinner("Mounting layers from %s", srcRef.Repository)
 		layersToCopy = append(layersToCopy, b.PkgRootManifest.Config)
 		for _, layer := range layersToCopy {
+			if layer.Digest == "" {
+				continue
+			}
 			spinner.Updatef("Mounting %s", layer.Digest.Encoded())
 			if err := b.RemoteDst.Repo().Mount(b.ctx, layer, srcRef.Repository, func() (io.ReadCloser, error) {
 				return b.RemoteSrc.Repo().Fetch(b.ctx, layer)

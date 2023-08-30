@@ -78,6 +78,7 @@ func TestBundleVariables(t *testing.T) {
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/packages/02-simple-vars", "uds-config.yaml"))
 
 	create(t, bundleDir)
+	createRemote(t, bundleDir, "localhost:888")
 	_, stderr := deploy(t, bundlePath)
 
 	require.NotContains(t, stderr, "CLIVersion is set to 'unset' which can cause issues with package creation and deployment")

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
-// Package bundler contains functions for interacting with, managing and deploying UDS packages
+// Package bundle contains functions for interacting with, managing and deploying UDS packages
 package bundle
 
 import (
@@ -13,10 +13,10 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 )
 
-// BundleProvider is an interface for processing bundles
+// Provider is an interface for processing bundles
 //
 // operations that are common no matter the source should be implemented on bundler
-type BundleProvider interface {
+type Provider interface {
 	// LoadBundleMetadata loads a bundle's metadata and signature into the temporary directory and returns a map of the bundle's metadata files
 	//
 	// these two files are placed in the `dst` directory
@@ -48,8 +48,8 @@ type BundleProvider interface {
 // PathMap is a map of either absolute paths to relative paths or relative paths to absolute paths
 type PathMap map[string]string
 
-// NewBundleProvider returns a new bundler BundleProvider based on the source type
-func NewBundleProvider(ctx context.Context, source, destination string) (BundleProvider, error) {
+// NewBundleProvider returns a new bundler Provider based on the source type
+func NewBundleProvider(ctx context.Context, source, destination string) (Provider, error) {
 	if helpers.IsOCIURL(source) {
 		provider := ociProvider{ctx: ctx, src: source, dst: destination}
 		remote, err := oci.NewOrasRemote(source)

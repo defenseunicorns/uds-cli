@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 )
 
+// LocalBundler contains methods for loading local Zarf packages into a bundle
 type LocalBundler struct {
 	ctx          context.Context
 	tarballSrc   string

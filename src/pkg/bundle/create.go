@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
-// Package bundler contains functions for interacting with, managing and deploying UDS packages
+// Package bundle contains functions for interacting with, managing and deploying UDS packages
 package bundle
 
 import (
@@ -103,9 +103,9 @@ func (b *Bundler) Create() error {
 		if err != nil {
 			return err
 		}
-		return BundleAndPublish(remote, &b.bundle, signatureBytes)
+		return CreateAndPublish(remote, &b.bundle, signatureBytes)
 	}
-	return Bundle(b, signatureBytes)
+	return Create(b, signatureBytes)
 }
 
 // adapted from p.fillActiveTemplate
@@ -159,7 +159,7 @@ func (b *Bundler) confirmBundleCreation() (confirm bool) {
 	}
 
 	prompt := &survey.Confirm{
-		Message: "Create this UDS Bundle?",
+		Message: "Create this UDS Create?",
 	}
 
 	pterm.Println()
