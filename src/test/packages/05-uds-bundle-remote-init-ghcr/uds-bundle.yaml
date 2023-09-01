@@ -1,0 +1,12 @@
+kind: UDSBundle
+metadata:
+  name: remote-init-ghcr
+  description: an example init bundle from ghcr.io
+  version: 0.0.1
+
+zarf-packages:
+  - name: init
+    repository: ghcr.io/defenseunicorns/packages/init
+    ref: "###BNDL_TMPL_INIT_VERSION###"
+    optional-components:
+      - git-server

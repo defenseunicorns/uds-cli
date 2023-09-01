@@ -8,6 +8,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
@@ -15,10 +20,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/registry"
-	"os"
-	"path/filepath"
-	"strings"
-	"testing"
 )
 
 func zarfPublish(t *testing.T, path string, reg string) {
@@ -106,6 +107,19 @@ func TestBundleWithLocalInitPkg(t *testing.T) {
 	remove(t, bundlePath)
 }
 
+func TestBundleWithRemoteInitGhcrPkg(t *testing.T) {
+	e2e.SetupWithCluster(t)
+
+	bundleDir := "src/test/packages/05-uds-bundle-remote-init-ghcr"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-init-ghcr-%s-0.0.1.tar.zst", e2e.Arch))
+
+	ghcrLogin(t)
+	create(t, bundleDir)
+	inspect(t, bundlePath)
+	deploy(t, bundlePath)
+	remove(t, bundlePath)
+}
+
 func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 	e2e.SetupWithCluster(t)
 
@@ -184,6 +198,12 @@ func TestRemoteBundle(t *testing.T) {
 	pull(t, bundleRef.String(), tarballPath)
 	inspectRemote(t, bundleRef.String())
 	deployAndRemoveRemote(t, bundleRef.String(), tarballPath)
+}
+
+func ghcrLogin(t *testing.T) {
+	cmd := strings.Split(fmt.Sprintf("tools registry login ghcr.io -u %s -p %s", os.Getenv("GHCR_USERNAME"), os.Getenv("GHCR_PASSWORD")), " ")
+	_, _, err := e2e.UDSNoLog(cmd...)
+	require.NoError(t, err)
 }
 
 func create(t *testing.T, bundlePath string) {
