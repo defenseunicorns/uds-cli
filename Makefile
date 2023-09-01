@@ -10,8 +10,10 @@ ifeq ($(UNAME_M), x86_64)
     ARCH := amd64
 	ifeq ($(UNAME_S), darwin)
         OUTPUT := build/uds-mac-intel
+	else ifeq ($(UNAME_S), linux)
+        OUTPUT := build/uds
 	else
-        $(error Unsupported system: $(UNAME_S))
+	    $(error Unsupported system: $(UNAME_S))
 	endif
 else ifeq ($(UNAME_M), amd64)
     ARCH := amd64
