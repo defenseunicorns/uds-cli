@@ -1,7 +1,38 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
-ARCH ?= amd64
+# Figure what operating system and arch we are on.
+# Set some variables used to build the apporpriate binary
+CGO ?= 0
+UNAME_S := $(shell uname -s | tr 'A-Z' 'a-z')
+UNAME_M := $(shell uname -m)
+ifeq ($(UNAME_M), x86_64)
+    ARCH := amd64
+	ifeq ($(UNAME_S), darwin)
+        OUTPUT := build/uds-mac-intel
+	else
+        $(error Unsupported system: $(UNAME_S))
+	endif
+else ifeq ($(UNAME_M), amd64)
+    ARCH := amd64
+	ifeq ($(UNAME_S), linux)
+        OUTPUT := build/uds
+	else
+        $(error Unsupported system: $(UNAME_S))
+	endif
+else ifeq ($(UNAME_M), arm64)
+    ARCH := arm64
+	ifeq ($(UNAME_S), linux)
+        OUTPUT := build/uds-arm
+	else ifeq ($(UNAME_S), darwin)
+        OUTPUT := build/uds-mac-apple
+	else
+	    $(error Unsupported system: $(UNAME_S))
+	endif
+else
+    $(error Unsupported architecture: $(UNAME_M))
+endif
+
 CLI_VERSION ?= $(if $(shell git describe --tags),$(shell git describe --tags),"UnknownVersion")
 BUILD_ARGS := -s -w -X 'github.com/defenseunicorns/uds-cli/src/config.CLIVersion=$(CLI_VERSION)'
 
@@ -11,17 +42,8 @@ help: ## Display this help information
 	  | sort | awk 'BEGIN {FS = ":.*?## "}; \
 	  {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-build-cli-linux-amd: ## Build the CLI for Linux AMD64
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="$(BUILD_ARGS)" -o build/uds main.go
-
-build-cli-linux-arm: ## Build the CLI for Linux ARM64
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="$(BUILD_ARGS)" -o build/uds-arm main.go
-
-build-cli-mac-intel: ## Build the CLI for Mac Intel
-	GOOS=darwin GOARCH=amd64 go build -ldflags="$(BUILD_ARGS)" -o build/uds-mac-intel main.go
-
-build-cli-mac-apple: ## Build the CLI for Mac Apple
-	GOOS=darwin GOARCH=arm64 go build -ldflags="$(BUILD_ARGS)" -o build/uds-mac-apple main.go
+build-cli: ## Build the CLI
+	CGO_ENABLED="${CGO}" GOOS="${UNAME_S}" GOARCH="${ARCH}" go build -ldflags="$(BUILD_ARGS)" -o "${OUTPUT}" main.go
 
 test-unit: ## Run Unit Tests
 	cd src/pkg && go test ./... -failfast -v -timeout 5m
