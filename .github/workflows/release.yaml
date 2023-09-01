@@ -25,7 +25,7 @@ jobs:
 
       - name: Build CLI
         run: |
-          make build-cli-linux-amd
+          make build-cli
 
       # Upload the contents of the build directory for later stages to use
       - name: Upload build artifacts

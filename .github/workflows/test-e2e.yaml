@@ -33,7 +33,7 @@ jobs:
         uses: ./.github/actions/zarf
 
       - name: Build UDS-CLI binary
-        run: make build-cli-linux-amd ARCH=amd64
+        run: make build-cli
 
       - name: Setup K3d
         uses: ./.github/actions/k3d
