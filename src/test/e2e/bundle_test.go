@@ -30,7 +30,7 @@ func zarfPublish(t *testing.T, path string, reg string) {
 	require.NoError(t, err)
 }
 
-const zarfVersion = "v0.29.0"
+const zarfVersion = "v0.29.1"
 
 func TestCreateAndDeployWithNoPath(t *testing.T) {
 	zarfPkgPath1 := "src/test/packages/zarf/no-cluster/output-var"
@@ -111,7 +111,7 @@ func TestBundleWithRemoteInitGhcrPkg(t *testing.T) {
 	e2e.SetupWithCluster(t)
 
 	bundleDir := "src/test/packages/05-uds-bundle-remote-init-ghcr"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-init-ghcr-%s-0.0.1.tar.zst", e2e.Arch))
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-remote-init-ghcr-%s-0.0.1.tar.zst", e2e.Arch))
 
 	ghcrLogin(t)
 	create(t, bundleDir)
