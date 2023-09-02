@@ -8,29 +8,29 @@ UNAME_S := $(shell uname -s | tr 'A-Z' 'a-z')
 UNAME_M := $(shell uname -m)
 ifeq ($(UNAME_M), x86_64)
     ARCH := amd64
-	ifeq ($(UNAME_S), darwin)
+    ifeq ($(UNAME_S), darwin)
         OUTPUT := build/uds-mac-intel
-	else ifeq ($(UNAME_S), linux)
+    else ifeq ($(UNAME_S), linux)
         OUTPUT := build/uds
-	else
-	    $(error Unsupported system: $(UNAME_S))
+    else
+        $(error Unsupported system: $(UNAME_S), $(UNAME_M))
 	endif
 else ifeq ($(UNAME_M), amd64)
     ARCH := amd64
-	ifeq ($(UNAME_S), linux)
+    ifeq ($(UNAME_S), linux)
         OUTPUT := build/uds
-	else
-        $(error Unsupported system: $(UNAME_S))
-	endif
+    else
+        $(error Unsupported system: $(UNAME_S), $(UNAME_M))
+    endif
 else ifeq ($(UNAME_M), arm64)
     ARCH := arm64
-	ifeq ($(UNAME_S), linux)
+    ifeq ($(UNAME_S), linux)
         OUTPUT := build/uds-arm
-	else ifeq ($(UNAME_S), darwin)
+    else ifeq ($(UNAME_S), darwin)
         OUTPUT := build/uds-mac-apple
-	else
-	    $(error Unsupported system: $(UNAME_S))
-	endif
+    else
+        $(error Unsupported system: $(UNAME_S), $(UNAME_M))
+    endif
 else
     $(error Unsupported architecture: $(UNAME_M))
 endif
