@@ -39,6 +39,9 @@ jobs:
         uses: ./.github/actions/k3d
 
       - name: Run E2E tests
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: make test-e2e
 
       - name: Save logs
