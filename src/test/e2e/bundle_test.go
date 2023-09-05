@@ -31,7 +31,7 @@ func zarfPublish(t *testing.T, path string, reg string) {
 
 const zarfVersion = "v0.29.0"
 
-func TestCreateAndDeployWithNoPath(t *testing.T) {
+func TestCreateWithNoPath(t *testing.T) {
 	zarfPkgPath1 := "src/test/packages/zarf/no-cluster/output-var"
 	zarfPkgPath2 := "src/test/packages/zarf/no-cluster/receive-var"
 	e2e.CreateZarfPkg(t, zarfPkgPath1)
@@ -149,6 +149,7 @@ func TestBundle(t *testing.T) {
 
 	create(t, bundleDir) // todo: allow creating from both the folder containing and direct reference to uds-bundle.yaml
 	inspect(t, bundlePath)
+	inspectAndSBOMExtract(t, bundlePath)
 	deploy(t, bundlePath)
 	remove(t, bundlePath)
 }
@@ -183,6 +184,7 @@ func TestRemoteBundle(t *testing.T) {
 	createRemote(t, bundlePath, bundleRef.Registry)
 	pull(t, bundleRef.String(), tarballPath)
 	inspectRemote(t, bundleRef.String())
+	inspectRemoteAndSBOMExtract(t, bundleRef.String())
 	deployAndRemoveRemote(t, bundleRef.String(), tarballPath)
 }
 
@@ -199,14 +201,41 @@ func createRemote(t *testing.T, bundlePath string, registry string) {
 }
 
 func inspectRemote(t *testing.T, ref string) {
-	cmd := strings.Split(fmt.Sprintf("bundle inspect oci://%s --insecure", ref), " ")
+	cmd := strings.Split(fmt.Sprintf("bundle inspect oci://%s --insecure --sbom", ref), " ")
 	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	_, err = os.Stat(config.BundleSBOMTar)
+	require.NoError(t, err)
+	err = os.Remove(config.BundleSBOMTar)
+	require.NoError(t, err)
+}
+func inspectRemoteAndSBOMExtract(t *testing.T, ref string) {
+	cmd := strings.Split(fmt.Sprintf("bundle inspect oci://%s --insecure --sbom --extract", ref), " ")
+	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	_, err = os.Stat(config.BundleSBOM)
+	require.NoError(t, err)
+	err = os.RemoveAll(config.BundleSBOM)
 	require.NoError(t, err)
 }
 
 func inspect(t *testing.T, tarballPath string) {
-	cmd := strings.Split(fmt.Sprintf("bundle inspect %s", tarballPath), " ")
+	cmd := strings.Split(fmt.Sprintf("bundle inspect %s --sbom", tarballPath), " ")
 	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	_, err = os.Stat(config.BundleSBOMTar)
+	require.NoError(t, err)
+	err = os.Remove(config.BundleSBOMTar)
+	require.NoError(t, err)
+}
+
+func inspectAndSBOMExtract(t *testing.T, tarballPath string) {
+	cmd := strings.Split(fmt.Sprintf("bundle inspect %s --sbom --extract", tarballPath), " ")
+	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	_, err = os.Stat(config.BundleSBOM)
+	require.NoError(t, err)
+	err = os.RemoveAll(config.BundleSBOM)
 	require.NoError(t, err)
 }
 

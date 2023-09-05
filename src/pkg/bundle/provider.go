@@ -42,6 +42,9 @@ type Provider interface {
 	// (currently only the remote provider utilizes the concurrency parameter)
 	LoadBundle(concurrency int) (PathMap, error)
 
+	// CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
+	CreateBundleSBOM(extractSBOM bool) error
+
 	getBundleManifest() error
 }
 

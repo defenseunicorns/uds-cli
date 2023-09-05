@@ -156,7 +156,7 @@ func Create(b *Bundler, signature []byte) error {
 			return err
 		}
 		rootManifest.Layers = append(rootManifest.Layers, signatureDesc)
-		message.Debug("Pushed", BundleYAMLSignature+":", message.JSONValue(signatureDesc))
+		message.Debug("Pushed", config.BundleYAMLSignature+":", message.JSONValue(signatureDesc))
 	}
 
 	// tarball the bundle
@@ -221,10 +221,10 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 			return err
 		}
 		bundleYamlSigDesc.Annotations = map[string]string{
-			ocispec.AnnotationTitle: BundleYAMLSignature,
+			ocispec.AnnotationTitle: config.BundleYAMLSignature,
 		}
 		rootManifest.Layers = append(rootManifest.Layers, bundleYamlSigDesc)
-		message.Debug("Pushed", BundleYAMLSignature+":", message.JSONValue(bundleYamlSigDesc))
+		message.Debug("Pushed", config.BundleYAMLSignature+":", message.JSONValue(bundleYamlSigDesc))
 	}
 
 	// push the bundle manifest config
@@ -353,7 +353,7 @@ func writeTarball(bundle *types.UDSBundle, artifactPathMap PathMap) error {
 		Compression: archiver.Zstd{},
 		Archival:    archiver.Tar{},
 	}
-	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", BundlePrefix, bundle.Metadata.Name, bundle.Metadata.Architecture, bundle.Metadata.Version)
+	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, bundle.Metadata.Name, bundle.Metadata.Architecture, bundle.Metadata.Version)
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
@@ -385,7 +385,7 @@ func pushBundleSignature(ctx context.Context, store *ocistore.Store, signature [
 		return ocispec.Descriptor{}, err
 	}
 	signatureDesc.Annotations = map[string]string{
-		ocispec.AnnotationTitle: BundleYAMLSignature,
+		ocispec.AnnotationTitle: config.BundleYAMLSignature,
 	}
 	return signatureDesc, err
 }

@@ -19,17 +19,24 @@ func (b *Bundler) Inspect() error {
 		return err
 	}
 
-	// pull the bundle's metadata + sig
+	// pull the bundle's metadata + sig + sboms (optional)
 	loaded, err := provider.LoadBundleMetadata()
 	if err != nil {
 		return err
 	}
 
 	// validate the sig (if present)
-	if err := ValidateBundleSignature(loaded[config.BundleYAML], loaded[BundleYAMLSignature], b.cfg.InspectOpts.PublicKeyPath); err != nil {
+	if err := ValidateBundleSignature(loaded[config.BundleYAML], loaded[config.BundleYAMLSignature], b.cfg.InspectOpts.PublicKeyPath); err != nil {
 		return err
 	}
 
+	// pull sbom
+	if b.cfg.InspectOpts.IncludeSBOM {
+		err := provider.CreateBundleSBOM(b.cfg.InspectOpts.ExtractSBOM)
+		if err != nil {
+			return err
+		}
+	}
 	// read the bundle's metadata into memory
 	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
@@ -38,7 +45,6 @@ func (b *Bundler) Inspect() error {
 	// show the bundle's metadata
 	utils.ColorPrintYAML(b.bundle, nil, false)
 
-	// TODO: showing SBOMs?
 	// TODO: showing package metadata?
 	// TODO: could be cool to have an interactive mode that lets you select a package and show its metadata
 	return nil
