@@ -39,7 +39,7 @@ func (b *Bundler) Pull() error {
 	}
 
 	// validate the sig (if present)
-	if err := ValidateBundleSignature(loadedMetadata[config.BundleYAML], loadedMetadata[BundleYAMLSignature], b.cfg.PullOpts.PublicKeyPath); err != nil {
+	if err := ValidateBundleSignature(loadedMetadata[config.BundleYAML], loadedMetadata[config.BundleYAMLSignature], b.cfg.PullOpts.PublicKeyPath); err != nil {
 		return err
 	}
 
@@ -83,7 +83,7 @@ func (b *Bundler) Pull() error {
 	}
 
 	// tarball the bundle
-	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", BundlePrefix, b.bundle.Metadata.Name, b.bundle.Metadata.Architecture, b.bundle.Metadata.Version)
+	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, b.bundle.Metadata.Name, b.bundle.Metadata.Architecture, b.bundle.Metadata.Version)
 	dst := filepath.Join(b.cfg.PullOpts.OutputDirectory, filename)
 
 	_ = os.RemoveAll(dst)
@@ -109,7 +109,7 @@ func (b *Bundler) Pull() error {
 
 	// re-map the paths to be relative to the cache directory
 	for sha, abs := range loaded {
-		if sha == config.BundleYAML || sha == BundleYAMLSignature {
+		if sha == config.BundleYAML || sha == config.BundleYAMLSignature {
 			sha = filepath.Base(abs)
 		}
 		pathMap[abs] = filepath.Join(config.BlobsDir, sha)

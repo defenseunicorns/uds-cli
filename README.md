@@ -41,6 +41,18 @@ There are 2 ways to deploy Bundles:
 1. From an OCI registry: `uds bundle deploy oci://localhost:5000/<name>:<tag> --insecure --confirm`
 1. From your local filesystem: `uds bundle deploy uds-bundle-<name>.tar.zst --confirm`
 
+### Bundle Inspect
+Inspect the `uds-bundle.yaml` of a bundle
+1. From an OCI registry: `uds bundle inspect oci://localhost:5000/<name>:<tag> --insecure`
+1. From your local filesystem: `uds bundle inspect uds-bundle-<name>.tar.zst`
+
+#### Viewing SBOMs
+There are 2 additional flags for the `uds bundle inspect` command you can use to extract and view SBOMs:
+- Output the SBOMs as a tar file: `uds bundle inspect ... --sbom`
+- Output SBOMs into a directory as files: `uds bundle inspect ... --sbom --extract`
+
+This functionality will use the `sboms.tar` of the  underlying Zarf packages to create new a `bundle-sboms.tar` artifact containing all SBOMs from the Zarf packages in the bundle.
+
 ## Variables
 In addition to setting Bundle templates (`###BNDL_TMPL_###`) in the `uds-bundle.yaml`, you can also pass variables between Zarf packages
 ```yaml

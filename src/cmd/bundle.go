@@ -102,7 +102,12 @@ var bundleInspectCmd = &cobra.Command{
 	Aliases: []string{"i"},
 	Short:   lang.CmdBundleInspectShort,
 	Args:    cobra.MaximumNArgs(1),
-	PreRun:  firstArgIsEitherOCIorTarball,
+	PreRun: func(cmd *cobra.Command, args []string) {
+		firstArgIsEitherOCIorTarball(nil, args)
+		if cmd.Flag("extract").Value.String() == "true" && cmd.Flag("sbom").Value.String() == "false" {
+			message.Fatal(nil, "cannot use 'extract' flag without 'sbom' flag")
+		}
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		bundleCfg.InspectOpts.Source = choosePackage(args)
 		configureZarf()
@@ -144,7 +149,7 @@ var bundlePullCmd = &cobra.Command{
 	Args:    cobra.ExactArgs(1),
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if err := oci.ValidateReference(args[0]); err != nil {
-			message.Fatalf(err, "First agument (%q) must be a valid OCI URL: %s", args[0], err.Error())
+			message.Fatalf(err, "First argument (%q) must be a valid OCI URL: %s", args[0], err.Error())
 		}
 	},
 	Run: func(cmd *cobra.Command, args []string) {
@@ -186,6 +191,7 @@ func init() {
 	v.SetDefault(V_BNDL_OCI_CONCURRENCY, 3)
 	bundleCmd.PersistentFlags().IntVar(&config.CommonOptions.OCIConcurrency, "oci-concurrency", v.GetInt(V_BNDL_OCI_CONCURRENCY), lang.CmdBundleFlagConcurrency)
 
+	// create cmd flags
 	bundleCmd.AddCommand(bundleCreateCmd)
 	bundleCreateCmd.Flags().BoolVarP(&config.CommonOptions.Confirm, "confirm", "c", false, lang.CmdBundleRemoveFlagConfirm)
 	bundleCreateCmd.Flags().StringVarP(&bundleCfg.CreateOpts.Output, "output", "o", v.GetString(V_BNDL_CREATE_OUTPUT), lang.CmdBundleCreateFlagOutput)
@@ -193,18 +199,24 @@ func init() {
 	bundleCreateCmd.Flags().StringVarP(&bundleCfg.CreateOpts.SigningKeyPassword, "signing-key-password", "p", v.GetString(V_BNDL_CREATE_SIGNING_KEY_PASSWORD), lang.CmdBundleCreateFlagSigningKeyPassword)
 	bundleCreateCmd.Flags().StringToStringVarP(&bundleCfg.CreateOpts.SetVariables, "set", "s", v.GetStringMapString(V_BNDL_CREATE_SET), lang.CmdBundleCreateFlagSet)
 
+	// deploy cmd flags
 	bundleCmd.AddCommand(bundleDeployCmd)
 	// todo: add "set" flag on deploy for high-level bundle configs?
 	bundleDeployCmd.Flags().BoolVarP(&config.CommonOptions.Confirm, "confirm", "c", false, lang.CmdBundleDeployFlagConfirm)
 
+	// inspect cmd flags
 	bundleCmd.AddCommand(bundleInspectCmd)
+	bundleInspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.IncludeSBOM, "sbom", "s", false, lang.CmdPackageInspectFlagSBOM)
+	bundleInspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.ExtractSBOM, "extract", "e", false, lang.CmdPackageInspectFlagExtractSBOM)
 	bundleInspectCmd.Flags().StringVarP(&bundleCfg.InspectOpts.PublicKeyPath, "key", "k", v.GetString(V_BNDL_INSPECT_KEY), lang.CmdBundleInspectFlagKey)
 
+	// remove cmd flags
 	bundleCmd.AddCommand(bundleRemoveCmd)
 	// confirm does not use the Viper config
 	bundleRemoveCmd.Flags().BoolVarP(&config.CommonOptions.Confirm, "confirm", "c", false, lang.CmdBundleRemoveFlagConfirm)
 	_ = bundleRemoveCmd.MarkFlagRequired("confirm")
 
+	// pull cmd flags
 	bundleCmd.AddCommand(bundlePullCmd)
 	bundlePullCmd.Flags().StringVarP(&bundleCfg.PullOpts.OutputDirectory, "output", "o", v.GetString(V_BNDL_PULL_OUTPUT), lang.CmdBundlePullFlagOutput)
 	bundlePullCmd.Flags().StringVarP(&bundleCfg.PullOpts.PublicKeyPath, "key", "k", v.GetString(V_BNDL_PULL_KEY), lang.CmdBundlePullFlagKey)

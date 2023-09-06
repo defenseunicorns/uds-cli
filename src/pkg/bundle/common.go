@@ -171,7 +171,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 
 		defer os.RemoveAll(tmp)
 
-		publicKeyPath := filepath.Join(b.tmp, PublicKeyFile)
+		publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
 		if pkg.PublicKey != "" {
 			if err := utils.WriteFile(publicKeyPath, []byte(pkg.PublicKey)); err != nil {
 				return err

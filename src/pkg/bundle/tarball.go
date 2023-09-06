@@ -5,18 +5,20 @@
 package bundle
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"io"
 	"os"
 	"path/filepath"
 
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
-	"github.com/mholt/archiver/v3"
+	av3 "github.com/mholt/archiver/v3"
 	av4 "github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	ocistore "oras.land/oras-go/v2/content/oci"
@@ -45,12 +47,79 @@ func extractJSON(j any) func(context.Context, av4.File) error {
 	}
 }
 
+// CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
+func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool) error {
+	err := tp.getBundleManifest()
+	if err != nil {
+		return err
+	}
+	// make tmp dir for pkg SBOM extraction
+	err = os.Mkdir(filepath.Join(tp.dst, config.BundleSBOM), 0700)
+	if err != nil {
+		return err
+	}
+	SBOMArtifactPathMap := make(PathMap)
+
+	for _, layer := range tp.manifest.Layers {
+		// get Zarf image manifests from bundle manifest
+		if len(layer.Annotations) != 0 {
+			continue
+		}
+		layerFilePath := filepath.Join(config.BlobsDir, layer.Digest.Encoded())
+		if err := av3.Extract(tp.src, layerFilePath, tp.dst); err != nil {
+			return fmt.Errorf("failed to extract %s from %s: %w", layer.Digest.Encoded(), tp.src, err)
+		}
+
+		// read in and unmarshal Zarf image manifest
+		zarfManifestBytes, err := os.ReadFile(filepath.Join(tp.dst, layerFilePath))
+		if err != nil {
+			return err
+		}
+		var zarfImageManifest *oci.ZarfOCIManifest
+		if err := json.Unmarshal(zarfManifestBytes, &zarfImageManifest); err != nil {
+			return err
+		}
+
+		// find sbom layer descriptor and extract sbom tar from archive
+		sbomDesc := zarfImageManifest.Locate(config.SBOMsTar)
+		sbomFilePath := filepath.Join(config.BlobsDir, sbomDesc.Digest.Encoded())
+		if err := av3.Extract(tp.src, sbomFilePath, tp.dst); err != nil {
+			return fmt.Errorf("failed to extract %s from %s: %w", layer.Digest.Encoded(), tp.src, err)
+		}
+		sbomTarBytes, err := os.ReadFile(filepath.Join(tp.dst, sbomFilePath))
+		if err != nil {
+			return err
+		}
+		extractor := utils.SBOMExtractor(tp.dst, SBOMArtifactPathMap)
+		err = av4.Tar{}.Extract(context.TODO(), bytes.NewReader(sbomTarBytes), nil, extractor)
+		if err != nil {
+			return err
+		}
+	}
+	if extractSBOM {
+		currentDir, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		err = utils.MoveExtractedSBOMs(tp.dst, currentDir)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = utils.CreateSBOMArtifact(SBOMArtifactPathMap)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (tp *tarballBundleProvider) getBundleManifest() error {
 	if tp.manifest != nil {
 		return nil
 	}
 
-	if err := archiver.Extract(tp.src, "index.json", tp.dst); err != nil {
+	if err := av3.Extract(tp.src, "index.json", tp.dst); err != nil {
 		return fmt.Errorf("failed to extract index.json from %s: %w", tp.src, err)
 	}
 
@@ -78,7 +147,7 @@ func (tp *tarballBundleProvider) getBundleManifest() error {
 
 	manifestRelativePath := filepath.Join(config.BlobsDir, bundleManifestDesc.Digest.Encoded())
 
-	if err := archiver.Extract(tp.src, manifestRelativePath, tp.dst); err != nil {
+	if err := av3.Extract(tp.src, manifestRelativePath, tp.dst); err != nil {
 		return fmt.Errorf("failed to extract %s from %s: %w", bundleManifestDesc.Digest.Encoded(), tp.src, err)
 	}
 
@@ -86,7 +155,7 @@ func (tp *tarballBundleProvider) getBundleManifest() error {
 
 	defer os.Remove(manifestPath)
 
-	if err := utils.SHAsMatch(manifestPath, bundleManifestDesc.Digest.Encoded()); err != nil {
+	if err := zarfUtils.SHAsMatch(manifestPath, bundleManifestDesc.Digest.Encoded()); err != nil {
 		return err
 	}
 
@@ -222,7 +291,7 @@ func (tp *tarballBundleProvider) LoadPackage(sha, destinationDir string, _ int) 
 
 		dst := filepath.Join(destinationDir, path)
 
-		if err := utils.CreateDirectory(filepath.Dir(dst), 0700); err != nil {
+		if err := zarfUtils.CreateDirectory(filepath.Dir(dst), 0700); err != nil {
 			return err
 		}
 
@@ -269,7 +338,7 @@ func (tp *tarballBundleProvider) LoadBundleMetadata() (PathMap, error) {
 	if err := tp.getBundleManifest(); err != nil {
 		return nil, err
 	}
-	pathsToExtract := BundleAlwaysPull
+	pathsToExtract := config.BundleAlwaysPull
 
 	loaded := make(PathMap)
 
@@ -279,10 +348,10 @@ func (tp *tarballBundleProvider) LoadBundleMetadata() (PathMap, error) {
 			pathInTarball := filepath.Join(config.BlobsDir, layer.Digest.Encoded())
 			abs := filepath.Join(tp.dst, pathInTarball)
 			loaded[path] = abs
-			if !utils.InvalidPath(abs) && utils.SHAsMatch(abs, layer.Digest.Encoded()) == nil {
+			if !zarfUtils.InvalidPath(abs) && zarfUtils.SHAsMatch(abs, layer.Digest.Encoded()) == nil {
 				continue
 			}
-			if err := archiver.Extract(tp.src, pathInTarball, tp.dst); err != nil {
+			if err := av3.Extract(tp.src, pathInTarball, tp.dst); err != nil {
 				return nil, fmt.Errorf("failed to extract %s from %s: %w", path, tp.src, err)
 			}
 		}

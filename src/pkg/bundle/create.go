@@ -85,7 +85,7 @@ func (b *Bundler) Create() error {
 			return interactive.PromptSigPassword()
 		}
 		// sign the bundle
-		signaturePath := filepath.Join(b.tmp, BundleYAMLSignature)
+		signaturePath := filepath.Join(b.tmp, config.BundleYAMLSignature)
 		bytes, err := utils.CosignSignBlob(bundlePath, signaturePath, b.cfg.CreateOpts.SigningKeyPath, getSigCreatePassword)
 		if err != nil {
 			return err
