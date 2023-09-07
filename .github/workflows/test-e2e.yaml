@@ -41,8 +41,7 @@ jobs:
       - name: Run E2E tests
         env:
           GHCR_USERNAME: ${{ github.actor }}
-          GHCR_PASSWORD: bogus
-          # GHCR_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: make test-e2e
 
       # Enable tmate debugging of manually-triggered workflows if the input option was provided
