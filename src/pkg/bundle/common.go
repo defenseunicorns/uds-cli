@@ -10,7 +10,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -185,62 +184,6 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 			return err
 		}
 		if len(pkg.OptionalComponents) > 0 {
-			// make sure if a wildcard is given, it is the first and only element
-			for idx, component := range pkg.OptionalComponents {
-				if (component == "*" && idx != 0) || (component == "*" && len(pkg.OptionalComponents) > 1) {
-					return fmt.Errorf("%s .packages[%s].optional-components[%d] wildcard '*' must be first and only item", config.BundleYAML, pkg.Repository, idx)
-				}
-			}
-
-			if err != nil {
-				return err
-			}
-			if pkg.OptionalComponents[0] == "*" {
-				pkg.OptionalComponents = []string{}
-				// mutate the package to include all optional components
-				bundle.ZarfPackages[idx].OptionalComponents = pkg.OptionalComponents
-				continue
-			}
-			// expand partial wildcards
-			// TODO: move this to a `expandWildcards` helper so packager can use it too
-			for idx, component := range pkg.OptionalComponents {
-				// TODO: move this to helpers
-				wildCardToRegexp := func(pattern string) string {
-					components := strings.Split(pattern, "*")
-					if len(components) == 1 {
-						// if len is 1, there are no *'s, return exact match pattern
-						return "^" + pattern + "$"
-					}
-					var result strings.Builder
-					for i, literal := range components {
-
-						// Replace * with .*
-						if i > 0 {
-							result.WriteString(".*")
-						}
-
-						// Quote any regular expression meta characters in the
-						// literal text.
-						result.WriteString(regexp.QuoteMeta(literal))
-					}
-					return "^" + result.String() + "$"
-				}
-
-				// if the component is a partial wildcard, expand it
-				if strings.Contains(component, "*") {
-					// expand the wildcard
-					components := helpers.Filter(zarfYAML.Components, func(c zarfTypes.ZarfComponent) bool {
-						return regexp.MustCompile(wildCardToRegexp(component)).MatchString(c.Name)
-					})
-					// add the expanded components to the optional components list
-					for _, c := range components {
-						if c.Only.Cluster.Architecture == "" || c.Only.Cluster.Architecture == bundle.Metadata.Architecture {
-							pkg.OptionalComponents = append(pkg.OptionalComponents[:idx], append([]string{c.Name}, pkg.OptionalComponents[idx:]...)...)
-						}
-					}
-					bundle.ZarfPackages[idx].OptionalComponents = pkg.OptionalComponents
-				}
-			}
 			// validate the optional components exist in the package and support the bundle's target architecture
 			for _, component := range pkg.OptionalComponents {
 				c := helpers.Find(zarfYAML.Components, func(c zarfTypes.ZarfComponent) bool {
