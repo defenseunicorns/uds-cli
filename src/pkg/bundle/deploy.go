@@ -45,7 +45,7 @@ func (b *Bundler) Deploy() error {
 	}
 
 	// validate the sig (if present)
-	if err := ValidateBundleSignature(loaded[config.BundleYAML], loaded[BundleYAMLSignature], b.cfg.DeployOpts.PublicKeyPath); err != nil {
+	if err := ValidateBundleSignature(loaded[config.BundleYAML], loaded[config.BundleYAMLSignature], b.cfg.DeployOpts.PublicKeyPath); err != nil {
 		return err
 	}
 
@@ -70,7 +70,7 @@ func (b *Bundler) Deploy() error {
 			return err
 		}
 
-		publicKeyPath := filepath.Join(b.tmp, PublicKeyFile)
+		publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
 		if pkg.PublicKey != "" {
 			if err := utils.WriteFile(publicKeyPath, []byte(pkg.PublicKey)); err != nil {
 				return err
@@ -99,7 +99,7 @@ func (b *Bundler) Deploy() error {
 		}
 		pkgCfg := zarfTypes.PackagerConfig{
 			PkgOpts:  opts,
-			InitOpts: defaultZarfInitOptions,
+			InitOpts: config.DefaultZarfInitOptions,
 		}
 
 		// grab Zarf version to make Zarf library checks happy

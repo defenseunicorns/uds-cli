@@ -6,6 +6,8 @@ package config
 
 import (
 	"github.com/defenseunicorns/uds-cli/src/types"
+	zarfConfig "github.com/defenseunicorns/zarf/src/config"
+	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"runtime"
 )
 
@@ -21,6 +23,21 @@ const (
 
 	// BundlePrefix is the prefix for compiled uds bundles
 	BundlePrefix = "uds-bundle-"
+
+	// SBOMsTar is the sboms.tar file in a Zarf pkg
+	SBOMsTar = "sboms.tar"
+
+	// BundleSBOMTar is the name of the tarball containing the bundle's SBOM
+	BundleSBOMTar = "bundle-sboms.tar"
+
+	// BundleSBOM is the name of the untarred folder containing the bundle's SBOM
+	BundleSBOM = "bundle-sboms"
+
+	// BundleYAMLSignature is the name of the bundle's metadata signature file
+	BundleYAMLSignature = "uds-bundle.yaml.sig"
+
+	// PublicKeyFile is the name of the public key file
+	PublicKeyFile = "public.key"
 )
 
 var (
@@ -50,4 +67,21 @@ func GetArch(archs ...string) string {
 	}
 
 	return runtime.GOARCH
+}
+
+var (
+	// BundleAlwaysPull is a list of paths that will always be pulled from the remote repository.
+	BundleAlwaysPull = []string{BundleYAML, BundleYAMLSignature}
+)
+
+// DefaultZarfInitOptions set these in the case of deploying a Zarf init pkg
+// typically these are set as part of Zarf's Viper config, which we don't use in UDS
+// could technically remove, but it doesn't hurt anything for now
+var DefaultZarfInitOptions = zarfTypes.ZarfInitOptions{
+	GitServer: zarfTypes.GitServerInfo{
+		PushUsername: zarfConfig.ZarfGitPushUser,
+	},
+	RegistryInfo: zarfTypes.RegistryInfo{
+		PushUsername: zarfConfig.ZarfRegistryPushUser,
+	},
 }

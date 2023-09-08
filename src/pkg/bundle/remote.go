@@ -5,9 +5,12 @@
 package bundle
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/mholt/archiver/v4"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,7 +18,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2/content/file"
@@ -103,13 +106,14 @@ func (op *ociProvider) LoadPackage(sha, destinationDir string, concurrency int) 
 
 // LoadBundleMetadata loads a remote bundle's metadata
 func (op *ociProvider) LoadBundleMetadata() (PathMap, error) {
-	if err := utils.CreateDirectory(filepath.Join(op.dst, config.BlobsDir), 0700); err != nil {
+	if err := zarfUtils.CreateDirectory(filepath.Join(op.dst, config.BlobsDir), 0700); err != nil {
 		return nil, err
 	}
-	layers, err := op.PullPackagePaths(BundleAlwaysPull, filepath.Join(op.dst, config.BlobsDir))
+	layers, err := op.PullPackagePaths(config.BundleAlwaysPull, filepath.Join(op.dst, config.BlobsDir))
 	if err != nil {
 		return nil, err
 	}
+
 	loaded := make(PathMap)
 	for _, layer := range layers {
 		rel := layer.Annotations[ocispec.AnnotationTitle]
@@ -123,9 +127,65 @@ func (op *ociProvider) LoadBundleMetadata() (PathMap, error) {
 	return loaded, nil
 }
 
+// CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
+func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
+	SBOMArtifactPathMap := make(PathMap)
+	root, err := op.FetchRoot()
+	if err != nil {
+		return err
+	}
+	// make tmp dir for pkg SBOM extraction
+	err = os.Mkdir(filepath.Join(op.dst, config.BundleSBOM), 0700)
+	if err != nil {
+		return err
+	}
+	// iterate through Zarf image manifests and find the Zarf pkg's sboms.tar
+	for _, layer := range root.Layers {
+		zarfManifest, err := op.OrasRemote.FetchManifest(layer)
+		if err != nil {
+			continue
+		}
+		// read in and unmarshal Zarf image manifest
+		sbomDesc := zarfManifest.Locate(config.SBOMsTar)
+		zarfYAML, err := op.OrasRemote.FetchZarfYAML(zarfManifest)
+		if err != nil {
+			return err
+		}
+		if sbomDesc.Annotations == nil {
+			message.Warnf("%s not found in Zarf pkg: %s", config.SBOMsTar, zarfYAML.Metadata.Name)
+		}
+		// grab sboms.tar and extract
+		sbomBytes, err := op.OrasRemote.FetchLayer(sbomDesc)
+		if err != nil {
+			return err
+		}
+		extractor := utils.SBOMExtractor(op.dst, SBOMArtifactPathMap)
+		err = archiver.Tar{}.Extract(context.TODO(), bytes.NewReader(sbomBytes), nil, extractor)
+		if err != nil {
+			return err
+		}
+	}
+	if extractSBOM {
+		currentDir, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		err = utils.MoveExtractedSBOMs(op.dst, currentDir)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = utils.CreateSBOMArtifact(SBOMArtifactPathMap)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // LoadBundle loads a bundle from a remote source
 func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
-	layersToPull := []ocispec.Descriptor{}
+	var layersToPull []ocispec.Descriptor
 
 	if err := op.getBundleManifest(); err != nil {
 		return nil, err

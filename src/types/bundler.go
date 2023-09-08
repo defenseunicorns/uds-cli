@@ -38,6 +38,8 @@ type SetVariables struct {
 type BundlerInspectOptions struct {
 	PublicKeyPath string
 	Source        string
+	IncludeSBOM   bool
+	ExtractSBOM   bool
 }
 
 // BundlerPullOptions is the options for the bundler.Pull() function

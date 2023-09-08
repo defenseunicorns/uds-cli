@@ -9,7 +9,6 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
-	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/spf13/cobra"
 )
 
@@ -17,7 +16,7 @@ var versionCmd = &cobra.Command{
 	Use:     "version",
 	Aliases: []string{"v"},
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		zarfConfig.SkipLogFile = true
+		config.SkipLogFile = true
 		cliSetup()
 	},
 	Short: lang.CmdVersionShort,
