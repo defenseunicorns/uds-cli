@@ -8,6 +8,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
@@ -15,10 +20,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/registry"
-	"os"
-	"path/filepath"
-	"strings"
-	"testing"
 )
 
 func zarfPublish(t *testing.T, path string, reg string) {
@@ -29,7 +30,7 @@ func zarfPublish(t *testing.T, path string, reg string) {
 	require.NoError(t, err)
 }
 
-const zarfVersion = "v0.29.0"
+const zarfVersion = "v0.29.1"
 
 func TestCreateWithNoPath(t *testing.T) {
 	zarfPkgPath1 := "src/test/packages/zarf/no-cluster/output-var"
@@ -89,13 +90,6 @@ func TestBundleWithLocalInitPkg(t *testing.T) {
 	e2e.SetupWithCluster(t)
 
 	e2e.DownloadZarfInitPkg(t, zarfVersion)
-	e2e.CreateZarfPkg(t, "src/test/packages/zarf/podinfo")
-
-	e2e.SetupDockerRegistry(t, 888)
-	defer e2e.TeardownRegistry(t, 888)
-
-	pkg := fmt.Sprintf("src/test/packages/zarf/zarf-init-%s-%s.tar.zst", e2e.Arch, zarfVersion)
-	zarfPublish(t, pkg, "localhost:888")
 
 	bundleDir := "src/test/packages/04-local-init"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-local-init-%s-0.0.1.tar.zst", e2e.Arch))
@@ -109,19 +103,12 @@ func TestBundleWithLocalInitPkg(t *testing.T) {
 func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 	e2e.SetupWithCluster(t)
 
-	e2e.DownloadZarfInitPkg(t, zarfVersion)
 	e2e.CreateZarfPkg(t, "src/test/packages/zarf/podinfo")
-
-	e2e.SetupDockerRegistry(t, 888)
-	defer e2e.TeardownRegistry(t, 888)
-
-	pkg := fmt.Sprintf("src/test/packages/zarf/zarf-init-%s-%s.tar.zst", e2e.Arch, zarfVersion)
-	zarfPublish(t, pkg, "localhost:888")
 
 	bundleDir := "src/test/packages/03-local-and-remote"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
-	create(t, bundleDir)
+	createSecure(t, bundleDir)
 	inspect(t, bundlePath)
 	deploy(t, bundlePath)
 	remove(t, bundlePath)
@@ -190,6 +177,12 @@ func TestRemoteBundle(t *testing.T) {
 
 func create(t *testing.T, bundlePath string) {
 	cmd := strings.Split(fmt.Sprintf("bundle create %s --set INIT_VERSION=%s --confirm --insecure", bundlePath, zarfVersion), " ")
+	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+}
+
+func createSecure(t *testing.T, bundlePath string) {
+	cmd := strings.Split(fmt.Sprintf("bundle create %s --set INIT_VERSION=%s --confirm", bundlePath, zarfVersion), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }

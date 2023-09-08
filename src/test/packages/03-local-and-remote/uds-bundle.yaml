@@ -6,10 +6,10 @@ metadata:
 
 zarf-packages:
   - name: init
-    repository: localhost:888/init
+    repository: ghcr.io/defenseunicorns/packages/init
     ref: "###BNDL_TMPL_INIT_VERSION###"
     optional-components:
       - git-server
   - name: podinfo
     path: "../zarf/podinfo"
-    ref: 0.0.1 
+    ref: 0.0.1
