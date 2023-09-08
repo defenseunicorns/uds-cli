@@ -177,7 +177,21 @@ func TestRemoteBundle(t *testing.T) {
 }
 
 func ghcrLogin(t *testing.T) {
-	cmd := strings.Split(fmt.Sprintf("tools registry login ghcr.io -u %s -p %s", os.Getenv("GHCR_USERNAME"), os.Getenv("GHCR_PASSWORD")), " ")
+	ghcrUsername, userIsPresent := os.LookupEnv("GHCR_USERNAME")
+	ghcrPass, passIsPresent := os.LookupEnv("GHCR_PASSWORD")
+
+	// Check if either of the environment variables is missing and fail the test.
+	if !userIsPresent {
+		require.FailNow(t, "Environment variable GHCR_USERNAME is not set")
+		return
+	}
+
+	if !passIsPresent {
+		require.FailNow(t, "Environment variable GHCR_PASSWORD is not set")
+		return
+	}
+
+	cmd := strings.Split(fmt.Sprintf("tools registry login ghcr.io -u %s -p %s", ghcrUsername, ghcrPass), " ")
 	_, _, err := e2e.UDSNoLog(cmd...)
 	require.NoError(t, err)
 }
