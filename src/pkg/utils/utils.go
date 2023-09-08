@@ -5,12 +5,19 @@
 package utils
 
 import (
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
+	"github.com/pterm/pterm"
 )
 
 // MergeVariables merges the variables from the config file and the CLI
@@ -39,4 +46,33 @@ func IsValidTarballPath(path string) bool {
 	}
 	re := regexp.MustCompile(`^uds-bundle-.*-.*.tar(.zst)?$`)
 	return re.MatchString(name)
+}
+
+// UseLogFile writes output to stderr and a logFile.
+func UseLogFile() {
+	// LogWriter is the stream to write logs to.
+	var LogWriter io.Writer = os.Stderr
+
+	// Write logs to stderr and a buffer for logFile generation.
+	var logFile *os.File
+
+	// Prepend the log filename with a timestamp.
+	ts := time.Now().Format("2006-01-02-15-04-05")
+
+	var err error
+	if logFile != nil {
+		// Use the existing log file if logFile is set
+		LogWriter = io.MultiWriter(os.Stderr, logFile)
+		pterm.SetDefaultOutput(LogWriter)
+	} else {
+		// Try to create a temp log file if one hasn't been made already
+		if logFile, err = os.CreateTemp("", fmt.Sprintf("uds-%s-*.log", ts)); err != nil {
+			message.WarnErr(err, "Error saving a log file to a temporary directory")
+		} else {
+			LogWriter = io.MultiWriter(os.Stderr, logFile)
+			pterm.SetDefaultOutput(LogWriter)
+			msg := fmt.Sprintf("Saving log file to %s", logFile.Name())
+			message.Note(msg)
+		}
+	}
 }

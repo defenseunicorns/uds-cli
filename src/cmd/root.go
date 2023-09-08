@@ -8,6 +8,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/cmd/common"
 	"github.com/defenseunicorns/zarf/src/cmd/tools"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
@@ -119,6 +120,6 @@ func cliSetup() {
 	}
 
 	if !config.SkipLogFile {
-		message.UseLogFile()
+		utils.UseLogFile()
 	}
 }
