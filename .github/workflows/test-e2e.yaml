@@ -44,11 +44,6 @@ jobs:
           GHCR_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: make test-e2e
 
-      # Enable tmate debugging of manually-triggered workflows if the input option was provided
-      - name: Setup tmate session
-        if: ${{ failure() }}
-        uses: mxschmitt/action-tmate@v3
-
       - name: Save logs
         if: always()
         uses: ./.github/actions/save-logs
