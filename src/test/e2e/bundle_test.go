@@ -107,7 +107,7 @@ func TestBundleWithRemoteInitGhcrPkg(t *testing.T) {
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-remote-init-ghcr-%s-0.0.1.tar.zst", e2e.Arch))
 
 	ghcrLogin(t)
-	create(t, bundleDir)
+	createSecure(t, bundleDir)
 	inspect(t, bundlePath)
 	deploy(t, bundlePath)
 	remove(t, bundlePath)
@@ -201,6 +201,12 @@ func ghcrLogin(t *testing.T) {
 
 func create(t *testing.T, bundlePath string) {
 	cmd := strings.Split(fmt.Sprintf("bundle create %s --set INIT_VERSION=%s --confirm --insecure", bundlePath, zarfVersion), " ")
+	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+}
+
+func createSecure(t *testing.T, bundlePath string) {
+	cmd := strings.Split(fmt.Sprintf("bundle create %s --set INIT_VERSION=%s --confirm", bundlePath, zarfVersion), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
