@@ -108,7 +108,6 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 	bundleDir := "src/test/packages/03-local-and-remote"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
-	ghcrLogin(t)
 	createSecure(t, bundleDir)
 	inspect(t, bundlePath)
 	deploy(t, bundlePath)
@@ -174,26 +173,6 @@ func TestRemoteBundle(t *testing.T) {
 	inspectRemote(t, bundleRef.String())
 	inspectRemoteAndSBOMExtract(t, bundleRef.String())
 	deployAndRemoveRemote(t, bundleRef.String(), tarballPath)
-}
-
-func ghcrLogin(t *testing.T) {
-	ghcrUsername, userIsPresent := os.LookupEnv("GHCR_USERNAME")
-	ghcrPass, passIsPresent := os.LookupEnv("GHCR_PASSWORD")
-
-	// Check if either of the environment variables is missing and fail the test.
-	if !userIsPresent {
-		require.FailNow(t, "Environment variable GHCR_USERNAME is not set")
-		return
-	}
-
-	if !passIsPresent {
-		require.FailNow(t, "Environment variable GHCR_PASSWORD is not set")
-		return
-	}
-
-	cmd := strings.Split(fmt.Sprintf("tools registry login ghcr.io -u %s -p %s", ghcrUsername, ghcrPass), " ")
-	_, _, err := e2e.UDSNoLog(cmd...)
-	require.NoError(t, err)
 }
 
 func create(t *testing.T, bundlePath string) {
