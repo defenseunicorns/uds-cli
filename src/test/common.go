@@ -62,11 +62,6 @@ func (e2e *UDSE2ETest) UDS(args ...string) (string, string, error) {
 	return exec.CmdWithContext(context.TODO(), exec.PrintCfg(), e2e.UdsBinPath, args...)
 }
 
-// UDSNoLog executes a UDS command with no logging.
-func (e2e *UDSE2ETest) UDSNoLog(args ...string) (string, string, error) {
-	return exec.CmdWithContext(context.TODO(), exec.Config{}, e2e.UdsBinPath, args...)
-}
-
 // CleanFiles removes files and directories that have been created during the test.
 func (e2e *UDSE2ETest) CleanFiles(files ...string) {
 	for _, file := range files {
