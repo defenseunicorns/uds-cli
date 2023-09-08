@@ -11,7 +11,10 @@ import (
 	"fmt"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"io"
+	"oras.land/oras-go/v2/content"
 	"os"
 	"path/filepath"
 
@@ -39,11 +42,11 @@ func extractJSON(j any) func(context.Context, av4.File) error {
 		}
 		defer stream.Close()
 
-		bytes, err := io.ReadAll(stream)
+		fileBytes, err := io.ReadAll(stream)
 		if err != nil {
 			return err
 		}
-		return json.Unmarshal(bytes, &j)
+		return json.Unmarshal(fileBytes, &j)
 	}
 }
 
@@ -357,4 +360,106 @@ func (tp *tarballBundleProvider) LoadBundleMetadata() (PathMap, error) {
 		}
 	}
 	return loaded, nil
+}
+
+func (tp *tarballBundleProvider) pushPackageLayersWithSpinner(spinner *message.Spinner, store *ocistore.Store, remote *oci.OrasRemote, pkgManifestDesc ocispec.Descriptor) error {
+	layerBytes, err := os.ReadFile(filepath.Join(tp.dst, config.BlobsDir, pkgManifestDesc.Digest.Encoded()))
+	if err != nil {
+		return err
+	}
+
+	// handle uds-bundle.yaml push
+	if pkgManifestDesc.Annotations != nil {
+		err = remote.Repo().Push(tp.ctx, pkgManifestDesc, bytes.NewReader(layerBytes))
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	var zarfImageManifest *oci.ZarfOCIManifest
+	if err := json.Unmarshal(layerBytes, &zarfImageManifest); err != nil {
+		return err
+	}
+
+	// only grab image layers that we want
+	numRetries := 3
+	for _, layer := range zarfImageManifest.Manifest.Layers {
+		if ok, _ := store.Exists(tp.ctx, layer); ok {
+			b, err := store.Fetch(tp.ctx, layer)
+			if err != nil {
+				return err
+			}
+			spinner.Updatef(fmt.Sprintf("Pushing Bundle layer: %s", layer.Digest.Encoded()))
+			for i := 0; i < numRetries; i++ {
+				if err := remote.Repo().Push(tp.ctx, layer, b); err == nil {
+					break
+				}
+			}
+			if err != nil {
+				return err
+			}
+		}
+	}
+	// hack the media type so Push() doesn't follow pointers
+	// if you give Push() an desc with an image manifest media type, it will follow the pointers
+	// we don't always want that because we sometimes use optional components
+	// can try to use oras.Copy() but refs are weird with local stores, but this would allow using oci.CopyWithProgress
+	pkgManifestDesc.MediaType = oci.ZarfLayerMediaTypeBlob
+	for i := 0; i < numRetries; i++ {
+		spinner.Updatef(fmt.Sprintf("Pushing bundle layer: %s", pkgManifestDesc.Digest.Encoded()))
+		if err := remote.Repo().Push(tp.ctx, pkgManifestDesc, bytes.NewReader(layerBytes)); err == nil {
+			break
+		}
+	}
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *oci.OrasRemote) error {
+	if err := tp.getBundleManifest(); err != nil {
+		return err
+	}
+
+	// reference local store holding untarred bundle
+	store, err := ocistore.NewWithContext(tp.ctx, tp.dst)
+	if err != nil {
+		return err
+	}
+	spinner := message.NewProgressSpinner("Starting bundle publish")
+	if err != nil {
+		return err
+	}
+	// push bundle layers to remote
+	for _, layer := range tp.manifest.Layers {
+		err := tp.pushPackageLayersWithSpinner(spinner, store, remote, layer)
+		if err != nil {
+			return err
+		}
+	}
+
+	// push manifest config
+	// todo: sometimes the manifest config isn't present, doesn't hurt anything but it's weird
+	configDesc, err := pushManifestConfigFromMetadata(remote, &bundle.Metadata, &bundle.Build)
+	tp.manifest.Manifest.Config = configDesc
+	if err != nil {
+		return err
+	}
+	b, err := json.Marshal(tp.manifest.Manifest)
+	if err != nil {
+		return err
+	}
+	expected := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, b)
+
+	message.Debug("Pushing manifest:", message.JSONValue(expected))
+
+	if err := remote.Repo().Manifests().PushReference(context.TODO(), expected, bytes.NewReader(b), remote.Repo().Reference.String()); err != nil {
+		return fmt.Errorf("failed to push manifest: %w", err)
+	}
+	spinner.Successf("Bundle publish successful!")
+	spinner.Stop()
+	return nil
 }

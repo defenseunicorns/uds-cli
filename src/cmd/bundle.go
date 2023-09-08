@@ -17,6 +17,7 @@ import (
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -142,6 +143,34 @@ var bundleRemoveCmd = &cobra.Command{
 	},
 }
 
+var bundlePublishCmd = &cobra.Command{
+	Use:     "publish [BUNDLE_TARBALL] [OCI_REF]",
+	Aliases: []string{"p"},
+	Short:   lang.CmdBundlePullShort,
+	Args:    cobra.ExactArgs(2),
+	PreRun: func(cmd *cobra.Command, args []string) {
+		if _, err := os.Stat(args[0]); err != nil {
+			message.Fatalf(err, "First argument (%q) must be a valid local Bundle path: %s", args[0], err.Error())
+		}
+		if !strings.HasPrefix(args[1], helpers.OCIURLPrefix) {
+			err := fmt.Errorf("oci url reference must begin with %s", helpers.OCIURLPrefix)
+			message.Fatalf(err, "Second argument (%q) must be a valid OCI URL: %s", args[0], err.Error())
+		}
+	},
+	Run: func(cmd *cobra.Command, args []string) {
+		bundleCfg.PublishOpts.Source = args[0]
+		bundleCfg.PublishOpts.Destination = args[1]
+		configureZarf()
+		bndlClient := bundle.NewOrDie(&bundleCfg)
+		defer bndlClient.ClearPaths()
+
+		if err := bndlClient.Publish(); err != nil {
+			bndlClient.ClearPaths()
+			message.Fatalf(err, "Failed to publish bundle: %s", err.Error())
+		}
+	},
+}
+
 var bundlePullCmd = &cobra.Command{
 	Use:     "pull [OCI_REF]",
 	Aliases: []string{"p"},
@@ -215,6 +244,9 @@ func init() {
 	// confirm does not use the Viper config
 	bundleRemoveCmd.Flags().BoolVarP(&config.CommonOptions.Confirm, "confirm", "c", false, lang.CmdBundleRemoveFlagConfirm)
 	_ = bundleRemoveCmd.MarkFlagRequired("confirm")
+
+	// publish cmd flags
+	bundleCmd.AddCommand(bundlePublishCmd)
 
 	// pull cmd flags
 	bundleCmd.AddCommand(bundlePullCmd)

@@ -7,6 +7,7 @@ package bundle
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
@@ -191,6 +192,7 @@ func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
 		return nil, err
 	}
 
+	spinner := message.NewProgressSpinner("Starting bundle pull")
 	loaded, err := op.LoadBundleMetadata() // todo: remove? this seems redundant, can we pass the "loaded" var in
 	if err != nil {
 		return nil, err
@@ -210,12 +212,16 @@ func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
 	for _, pkg := range bundle.ZarfPackages {
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
 		manifestDesc := op.manifest.Locate(sha)
-		manifestDesc.MediaType = ocispec.MediaTypeImageManifest
+		manifestDesc.MediaType = oci.ZarfLayerMediaTypeBlob
 		if err != nil {
 			return nil, err
 		}
-		manifest, err := op.FetchManifest(manifestDesc)
+		manifestBytes, err := op.FetchLayer(manifestDesc)
 		if err != nil {
+			return nil, err
+		}
+		var manifest oci.ZarfOCIManifest
+		if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
 			return nil, err
 		}
 		layersToPull = append(layersToPull, manifestDesc)
@@ -244,9 +250,32 @@ func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
 	}
 	layersToPull = append(layersToPull, rootDesc)
 
-	if err := op.CopyWithProgress(layersToPull, store, &copyOpts, op.dst); err != nil {
+	// only grab image layers that we want
+	// would like to use oci.CopyWithProgress here but it breaks when the media type of the image manifest is a Zarf blob
+	if err != nil {
 		return nil, err
 	}
+	for _, layer := range layersToPull {
+		spinner.Updatef(fmt.Sprintf("Pulling bundle layer: %s", layer.Digest.Encoded()))
+		if ok, _ := op.Repo().Exists(op.ctx, layer); ok {
+			lb, err := op.Repo().Fetch(op.ctx, layer)
+			if err != nil {
+				return nil, err
+			}
+			exists, err := store.Exists(op.ctx, layer)
+			if err != nil {
+				return nil, err
+			}
+			if !exists {
+				err = store.Push(op.ctx, layer, lb)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	spinner.Successf("Bundle pull successful!")
+	spinner.Stop()
 
 	for _, layer := range layersToPull {
 		sha := layer.Digest.Encoded()
@@ -255,4 +284,10 @@ func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
 	loaded["index.json"] = filepath.Join(op.dst, "index.json")
 
 	return loaded, nil
+}
+
+func (op *ociProvider) PublishBundle(_ types.UDSBundle, _ *oci.OrasRemote) error {
+	// todo: implement moving bundles from one registry to another
+	message.Warnf("moving bundles in between remote registries not yet supported")
+	return nil
 }

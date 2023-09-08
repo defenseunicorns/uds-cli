@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
@@ -44,6 +45,8 @@ type Provider interface {
 
 	// CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
 	CreateBundleSBOM(extractSBOM bool) error
+
+	PublishBundle(bundle types.UDSBundle, remote *oci.OrasRemote) error
 
 	getBundleManifest() error
 }

@@ -55,6 +55,7 @@ func (b *LocalBundler) GetMetadata(pathToTarball string, tmpDir string) (zarfTyp
 		if err != nil {
 			return err
 		}
+		defer outFile.Close()
 		stream, err := fileInArchive.Open()
 		if err != nil {
 			return err
@@ -165,37 +166,12 @@ func (b *LocalBundler) ToBundle(bundleStore *ocistore.Store, pkg zarfTypes.ZarfP
 		return ocispec.Descriptor{}, err
 	}
 	// push the manifest
-	rootManifest, err := generatePackManifest(bundleStore, descs, manifestConfigDesc, &pkg.Metadata)
+	rootManifest, err := generatePkgManifest(bundleStore, descs, manifestConfigDesc)
 
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
 	return rootManifest, err
-}
-
-// manifestAnnotationsFromMetadata returns the annotations for the manifest from the given metadata.
-func zarfAnnotationsFromMetadata(metadata *zarfTypes.ZarfMetadata) map[string]string {
-	annotations := map[string]string{
-		ocispec.AnnotationDescription: metadata.Description,
-	}
-
-	if url := metadata.URL; url != "" {
-		annotations[ocispec.AnnotationURL] = url
-	}
-	if authors := metadata.Authors; authors != "" {
-		annotations[ocispec.AnnotationAuthors] = authors
-	}
-	if documentation := metadata.Documentation; documentation != "" {
-		annotations[ocispec.AnnotationDocumentation] = documentation
-	}
-	if source := metadata.Source; source != "" {
-		annotations[ocispec.AnnotationSource] = source
-	}
-	if vendor := metadata.Vendor; vendor != "" {
-		annotations[ocispec.AnnotationVendor] = vendor
-	}
-
-	return annotations
 }
 
 // todo: clean up code the following which comes from Zarf
@@ -222,7 +198,7 @@ func pushZarfManifestConfigFromMetadata(store *ocistore.Store, metadata *zarfTyp
 	return manifestConfigDesc, err
 }
 
-func generatePackManifest(store *ocistore.Store, descs []ocispec.Descriptor, configDesc ocispec.Descriptor, metadata *zarfTypes.ZarfMetadata) (ocispec.Descriptor, error) {
+func generatePkgManifest(store *ocistore.Store, descs []ocispec.Descriptor, configDesc ocispec.Descriptor) (ocispec.Descriptor, error) {
 	ctx := context.TODO()
 
 	// adopted from oras.Pack fn
@@ -231,26 +207,19 @@ func generatePackManifest(store *ocistore.Store, descs []ocispec.Descriptor, con
 		Versioned: specs.Versioned{
 			SchemaVersion: 2, // historical value. does not pertain to OCI or docker version
 		},
-		Config:      configDesc,
-		MediaType:   oci.ZarfLayerMediaTypeBlob,
-		Layers:      descs,
-		Annotations: zarfAnnotationsFromMetadata(metadata),
+		Config:    configDesc,
+		MediaType: ocispec.MediaTypeImageManifest,
+		Layers:    descs,
 	}
 	manifestJSON, err := json.Marshal(manifest)
 	if err != nil {
 		return ocispec.Descriptor{}, fmt.Errorf("failed to marshal manifest: %w", err)
 	}
-	manifestDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, manifestJSON)
-	manifestDesc.ArtifactType = manifest.Config.MediaType
-	manifestDesc.Annotations = manifest.Annotations
+	manifestDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, manifestJSON)
 
 	// push manifest
 	if err := store.Push(ctx, manifestDesc, bytes.NewReader(manifestJSON)); err != nil {
 		return ocispec.Descriptor{}, err
 	}
-
-	// todo: hack manifestDesc back into ocispec.MediaTypeImageManifest??
-	manifestDesc.MediaType = ocispec.MediaTypeImageManifest
-
 	return manifestDesc, nil
 }
