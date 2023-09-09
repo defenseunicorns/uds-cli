@@ -75,6 +75,7 @@ func (b *RemoteBundler) PushManifest() (ocispec.Descriptor, error) {
 	}
 	var zarfManifestDesc ocispec.Descriptor
 	if b.localDst != nil {
+		// todo: this should have an image manifest media type, but this breaks publish
 		zarfManifestDesc = content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, pkgManifestBytes)
 		err = b.localDst.Push(b.ctx, zarfManifestDesc, bytes.NewReader(pkgManifestBytes))
 	} else {

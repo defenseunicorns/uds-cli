@@ -52,17 +52,17 @@ func Create(b *Bundler, signature []byte) error {
 				return err
 			}
 
-			zarfYamlDesc, err := remoteBundler.PushManifest()
+			pkgManifestDesc, err := remoteBundler.PushManifest()
 			if err != nil {
 				return err
 			}
 
 			// append zarf pkg manifest to root manifest and grab path for archiving
-			rootManifest.Layers = append(rootManifest.Layers, zarfYamlDesc)
-			digest := zarfYamlDesc.Digest.Encoded()
+			rootManifest.Layers = append(rootManifest.Layers, pkgManifestDesc)
+			digest := pkgManifestDesc.Digest.Encoded()
 			artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 
-			message.Debugf("Pushed %s sub-manifest into %s: %s", url, b.tmp, message.JSONValue(zarfYamlDesc))
+			message.Debugf("Pushed %s sub-manifest into %s: %s", url, b.tmp, message.JSONValue(pkgManifestDesc))
 			layerDescs, err := remoteBundler.PushLayers()
 			if err != nil {
 				return err
@@ -140,10 +140,32 @@ func Create(b *Bundler, signature []byte) error {
 	if err := store.Push(ctx, manifestDesc, bytes.NewReader(manifestBytes)); err != nil {
 		return err
 	}
-
-	// build index.json
 	digest = manifestDesc.Digest.Encoded()
 	artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
+
+	// rebuild index.json because pushing Zarf image manifests adds unnecessary entries
+	indexBytes, err := os.ReadFile(filepath.Join(b.tmp, "index.json"))
+	if err != nil {
+		return err
+	}
+	var index ocispec.Index
+	if err := json.Unmarshal(indexBytes, &index); err != nil {
+		return err
+	}
+	index.Manifests = []ocispec.Descriptor{manifestDesc} // use only the bundle-level manifest for index.json
+	bundleIndexBytes, err := json.Marshal(index)
+	if err != nil {
+		return err
+	}
+	indexFile, err := os.Create(filepath.Join(b.tmp, "index.json"))
+	if err != nil {
+		return err
+	}
+	defer indexFile.Close()
+	_, err = indexFile.Write(bundleIndexBytes)
+	if err != nil {
+		return err
+	}
 	artifactPathMap[filepath.Join(b.tmp, "index.json")] = "index.json"
 
 	// grab oci-layout

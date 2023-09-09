@@ -102,14 +102,24 @@ func TestBundleWithLocalInitPkg(t *testing.T) {
 
 func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 	e2e.SetupWithCluster(t)
-
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
 	e2e.CreateZarfPkg(t, "src/test/packages/zarf/podinfo")
 
 	bundleDir := "src/test/packages/03-local-and-remote"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
+	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
+	bundleRef := registry.Reference{
+		Registry: "localhost:888",
+		// this info is derived from the bundle's metadata
+		Repository: "local-and-remote",
+		Reference:  fmt.Sprintf("0.0.1-%s", e2e.Arch),
+	}
 	createSecure(t, bundleDir)
 	inspect(t, bundlePath)
+	publish(t, bundlePath, "localhost:888")
+	pull(t, bundleRef.String(), tarballPath)
 	deploy(t, bundlePath)
 	remove(t, bundlePath)
 }
@@ -324,4 +334,10 @@ func pull(t *testing.T, ref string, tarballPath string) {
 			}
 		}
 	}
+}
+
+func publish(t *testing.T, bundlePath, ociPath string) {
+	cmd := strings.Split(fmt.Sprintf("bundle publish %s oci://%s --insecure --oci-concurrency=10", bundlePath, ociPath), " ")
+	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
 }

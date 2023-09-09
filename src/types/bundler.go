@@ -8,6 +8,7 @@ package types
 type BundlerConfig struct {
 	CreateOpts  BundlerCreateOptions
 	DeployOpts  BundlerDeployOptions
+	PublishOpts BundlerPublishOptions
 	PullOpts    BundlerPullOptions
 	InspectOpts BundlerInspectOptions
 	RemoveOpts  BundlerRemoveOptions
@@ -40,6 +41,12 @@ type BundlerInspectOptions struct {
 	Source        string
 	IncludeSBOM   bool
 	ExtractSBOM   bool
+}
+
+// BundlerPublishOptions is the options for the bundle.Publish() function
+type BundlerPublishOptions struct {
+	Source      string
+	Destination string
 }
 
 // BundlerPullOptions is the options for the bundler.Pull() function

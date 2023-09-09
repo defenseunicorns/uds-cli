@@ -53,6 +53,12 @@ There are 2 additional flags for the `uds bundle inspect` command you can use to
 
 This functionality will use the `sboms.tar` of the  underlying Zarf packages to create new a `bundle-sboms.tar` artifact containing all SBOMs from the Zarf packages in the bundle.
 
+### Bundle Publish
+Local bundles can be published to an OCI registry like so:
+`uds bundle publish <bundle>.tar.zst oci://<registry> `
+
+As an example: `uds bundle publish uds-bundle-example-arm64-0.0.1.tar.zst oci://ghcr.io/github_user`
+
 ## Variables
 In addition to setting Bundle templates (`###BNDL_TMPL_###`) in the `uds-bundle.yaml`, you can also pass variables between Zarf packages
 ```yaml
