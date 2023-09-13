@@ -7,6 +7,7 @@ package bundle
 import (
 	"context"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"golang.org/x/exp/maps"
 	"os"
@@ -65,6 +66,9 @@ func (b *Bundler) Deploy() error {
 			return err
 		}
 		defer os.RemoveAll(pkgTmp)
+
+		message.Infof("Loading bundled Zarf package: %s", pkg.Name)
+		// todo: LoadPackage should return an err if the tmp dir (or wherever) is empty
 		_, err = provider.LoadPackage(sha, pkgTmp, config.CommonOptions.OCIConcurrency)
 		if err != nil {
 			return err

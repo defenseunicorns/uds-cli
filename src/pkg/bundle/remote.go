@@ -47,7 +47,7 @@ func (op *ociProvider) getBundleManifest() error {
 }
 
 // LoadPackage loads a package from a remote bundle
-func (op *ociProvider) LoadPackage(sha, destinationDir string, concurrency int) (PathMap, error) {
+func (op *ociProvider) LoadPackage(sha, destinationDir string, _ int) (PathMap, error) {
 	if destinationDir == op.dst {
 		return nil, fmt.Errorf("destination directory cannot be the same as the bundle directory")
 	}
@@ -59,10 +59,13 @@ func (op *ociProvider) LoadPackage(sha, destinationDir string, concurrency int) 
 	if oci.IsEmptyDescriptor(pkgManifestDesc) {
 		return nil, fmt.Errorf("package %s does not exist in this bundle", sha)
 	}
+	// hack to Zarf media type so that FetchManifest works
+	pkgManifestDesc.MediaType = oci.ZarfLayerMediaTypeBlob
 	pkgManifest, err := op.FetchManifest(pkgManifestDesc)
-	if err != nil {
+	if err != nil || pkgManifest == nil {
 		return nil, err
 	}
+
 	// including the package manifest uses some ORAs FindSuccessors hackery to expand the manifest into all layers
 	// as oras.Copy was designed for resolving layers via a manifest reference, not a manifest embedded inside of another
 	// image
@@ -83,19 +86,21 @@ func (op *ociProvider) LoadPackage(sha, destinationDir string, concurrency int) 
 	}
 	defer store.Close()
 
-	copyOpts := op.CopyOpts
-	copyOpts.Concurrency = concurrency
+	spinner := message.NewProgressSpinner("Starting bundle pull")
+	for _, layer := range layersToPull {
+		spinner.Updatef(fmt.Sprintf("Pulling bundle layer: %s", layer.Digest.Encoded()))
+		lb, err := op.Repo().Fetch(op.ctx, layer)
+		if err != nil {
+			return nil, err
+		}
 
-	preCopy := func(_ context.Context, desc ocispec.Descriptor) error {
-		message.Debug("Copying", message.JSONValue(desc), "to", destinationDir)
-		return nil
+		err = store.Push(op.ctx, layer, lb)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	copyOpts.PreCopy = preCopy
-
-	if err := op.CopyWithProgress(layersToPull, store, &copyOpts, destinationDir); err != nil {
-		return nil, err
-	}
+	spinner.Stop()
 
 	loaded := make(PathMap)
 	for _, layer := range layersToPull {
@@ -185,7 +190,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 }
 
 // LoadBundle loads a bundle from a remote source
-func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
+func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 	var layersToPull []ocispec.Descriptor
 
 	if err := op.getBundleManifest(); err != nil {
@@ -212,7 +217,6 @@ func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
 	for _, pkg := range bundle.ZarfPackages {
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
 		manifestDesc := op.manifest.Locate(sha)
-		manifestDesc.MediaType = oci.ZarfLayerMediaTypeBlob
 		if err != nil {
 			return nil, err
 		}
@@ -236,9 +240,6 @@ func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
 		}
 	}
 
-	copyOpts := op.CopyOpts
-	copyOpts.Concurrency = concurrency
-
 	store, err := ocistore.NewWithContext(op.ctx, op.dst)
 	if err != nil {
 		return nil, err
@@ -252,9 +253,6 @@ func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
 
 	// only grab image layers that we want
 	// would like to use oci.CopyWithProgress here but it breaks when the media type of the image manifest is a Zarf blob
-	if err != nil {
-		return nil, err
-	}
 	for _, layer := range layersToPull {
 		spinner.Updatef(fmt.Sprintf("Pulling bundle layer: %s", layer.Digest.Encoded()))
 		if ok, _ := op.Repo().Exists(op.ctx, layer); ok {
