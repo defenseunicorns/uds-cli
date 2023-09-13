@@ -124,6 +124,30 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 	remove(t, bundlePath)
 }
 
+func TestBundleDeployFromOciFromGHCR(t *testing.T) {
+	e2e.SetupWithCluster(t)
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+	e2e.CreateZarfPkg(t, "src/test/packages/zarf/podinfo")
+
+	bundleDir := "src/test/packages/03-local-and-remote"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
+
+	bundleRef := registry.Reference{
+		Registry: "ghcr.io/defenseunicorns/uds-cli/test-bundle",
+		// this info is derived from the bundle's metadata
+		Repository: "local-and-remote",
+		Reference:  fmt.Sprintf("0.0.1-%s", e2e.Arch),
+	}
+
+	ghcrLogin(t)
+	createSecure(t, bundleDir)
+	inspect(t, bundlePath)
+	publishToGhcr(t, bundlePath, "ghcr.io/defenseunicorns/uds-cli/test-bundle")
+	deployFromOci(t, bundleRef.String())
+	remove(t, bundlePath)
+}
+
 func TestBundle(t *testing.T) {
 	e2e.SetupWithCluster(t)
 
@@ -185,6 +209,17 @@ func TestRemoteBundle(t *testing.T) {
 	deployAndRemoveRemote(t, bundleRef.String(), tarballPath)
 }
 
+func ghcrLogin(t *testing.T) {
+	ghcrUsername, userIsPresent := os.LookupEnv("GHCR_USERNAME")
+	ghcrPass, passIsPresent := os.LookupEnv("GHCR_PASSWORD")
+
+	if userIsPresent && passIsPresent {
+		cmd := strings.Split(fmt.Sprintf("tools registry login ghcr.io -u %s -p %s", ghcrUsername, ghcrPass), " ")
+		_, _, err := e2e.UDSNoLog(cmd...)
+		require.NoError(t, err)
+	}
+}
+
 func create(t *testing.T, bundlePath string) {
 	cmd := strings.Split(fmt.Sprintf("bundle create %s --set INIT_VERSION=%s --confirm --insecure", bundlePath, zarfVersion), " ")
 	_, _, err := e2e.UDS(cmd...)
@@ -244,6 +279,13 @@ func inspectAndSBOMExtract(t *testing.T, tarballPath string) {
 
 func deploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
 	cmd := strings.Split(fmt.Sprintf("bundle deploy %s --confirm -l=debug", tarballPath), " ")
+	stdout, stderr, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	return stdout, stderr
+}
+
+func deployFromOci(t *testing.T, ref string) (stdout string, stderr string) {
+	cmd := strings.Split(fmt.Sprintf("bundle deploy oci://%s --insecure --confirm", ref), " ")
 	stdout, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 	return stdout, stderr
@@ -338,6 +380,12 @@ func pull(t *testing.T, ref string, tarballPath string) {
 
 func publish(t *testing.T, bundlePath, ociPath string) {
 	cmd := strings.Split(fmt.Sprintf("bundle publish %s oci://%s --insecure --oci-concurrency=10", bundlePath, ociPath), " ")
+	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+}
+
+func publishToGhcr(t *testing.T, bundlePath, ociPath string) {
+	cmd := strings.Split(fmt.Sprintf("bundle publish %s oci://%s --oci-concurrency=10", bundlePath, ociPath), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
