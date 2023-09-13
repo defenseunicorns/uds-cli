@@ -133,8 +133,7 @@ func TestBundleDeployFromOciFromGHCR(t *testing.T) {
 	bundleDir := "src/test/packages/03-local-and-remote"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
-	// registryUrl := "ghcr.io/defenseunicorns/uds-cli/test-bundle"
-	registryUrl := "ghcr.io/anthonywendt/uds-cli/test-bundle"
+	registryUrl := "ghcr.io/defenseunicorns/uds-cli/test-bundle"
 
 	bundleRef := registry.Reference{
 		Registry: registryUrl,
