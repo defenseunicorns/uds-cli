@@ -36,7 +36,9 @@ func (b *Bundler) Remove() error {
 		return err
 	}
 
-	for _, pkg := range b.bundle.ZarfPackages {
+	// remove in reverse order
+	for i := len(b.bundle.ZarfPackages) - 1; i >= 0; i-- {
+		pkg := b.bundle.ZarfPackages[i]
 		name := pkg.Name
 		pkgTmp, err := utils.MakeTempDir()
 		if err != nil {
