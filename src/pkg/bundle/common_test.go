@@ -1,8 +1,9 @@
 package bundle
 
 import (
-	"github.com/defenseunicorns/uds-cli/src/types"
 	"testing"
+
+	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
 func Test_validateBundleVars(t *testing.T) {
@@ -20,8 +21,8 @@ func Test_validateBundleVars(t *testing.T) {
 			description: "import matches export",
 			args: args{
 				packages: []types.BundleZarfPackage{
-					{Name: "foo", Exports: []types.BundleVariable{{Name: "foo"}}},
-					{Name: "bar", Imports: []types.BundleVariable{{Name: "foo", Package: "foo"}}},
+					{Name: "foo", Exports: []types.BundleVariableExport{{Name: "foo"}}},
+					{Name: "bar", Imports: []types.BundleVariableImport{{Name: "foo", Package: "foo"}}},
 				},
 			},
 			wantErr: false,
@@ -30,8 +31,8 @@ func Test_validateBundleVars(t *testing.T) {
 			description: "error when import doesn't match export",
 			args: args{
 				packages: []types.BundleZarfPackage{
-					{Name: "foo", Exports: []types.BundleVariable{{Name: "foo"}}},
-					{Name: "bar", Imports: []types.BundleVariable{{Name: "bar", Package: "foo"}}},
+					{Name: "foo", Exports: []types.BundleVariableExport{{Name: "foo"}}},
+					{Name: "bar", Imports: []types.BundleVariableImport{{Name: "bar", Package: "foo"}}},
 				},
 			},
 			wantErr: true,
@@ -40,7 +41,7 @@ func Test_validateBundleVars(t *testing.T) {
 			description: "error when first pkg has an import",
 			args: args{
 				packages: []types.BundleZarfPackage{
-					{Name: "foo", Imports: []types.BundleVariable{{Name: "foo", Package: "foo"}}},
+					{Name: "foo", Imports: []types.BundleVariableImport{{Name: "foo", Package: "foo"}}},
 				},
 			},
 			wantErr: true,
@@ -50,8 +51,8 @@ func Test_validateBundleVars(t *testing.T) {
 			description: "error when package name doesn't match",
 			args: args{
 				packages: []types.BundleZarfPackage{
-					{Name: "foo", Exports: []types.BundleVariable{{Name: "foo"}}},
-					{Name: "bar", Imports: []types.BundleVariable{{Name: "foo", Package: "baz"}}},
+					{Name: "foo", Exports: []types.BundleVariableExport{{Name: "foo"}}},
+					{Name: "bar", Imports: []types.BundleVariableImport{{Name: "foo", Package: "baz"}}},
 				},
 			},
 			wantErr: true,
