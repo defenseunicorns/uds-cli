@@ -17,6 +17,7 @@ import (
 	"oras.land/oras-go/v2/content"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -370,6 +371,7 @@ func (tp *tarballBundleProvider) pushPackageLayersWithSpinner(spinner *message.S
 
 	// handle uds-bundle.yaml push
 	if pkgManifestDesc.Annotations != nil {
+		spinner.Updatef("Pushing uds.bundle.yaml")
 		err = remote.Repo().Push(tp.ctx, pkgManifestDesc, bytes.NewReader(layerBytes))
 		if err != nil {
 			return err
@@ -383,8 +385,9 @@ func (tp *tarballBundleProvider) pushPackageLayersWithSpinner(spinner *message.S
 	}
 
 	// only grab image layers that we want
-	numRetries := 3
+	numRetries := 5
 	for _, layer := range zarfImageManifest.Manifest.Layers {
+		spinner.Updatef("Starting Zarf pkg push")
 		if ok, _ := store.Exists(tp.ctx, layer); ok {
 			b, err := store.Fetch(tp.ctx, layer)
 			if err != nil {
@@ -393,6 +396,14 @@ func (tp *tarballBundleProvider) pushPackageLayersWithSpinner(spinner *message.S
 			spinner.Updatef(fmt.Sprintf("Pushing Bundle layer: %s", layer.Digest.Encoded()))
 			for i := 0; i < numRetries; i++ {
 				if err := remote.Repo().Push(tp.ctx, layer, b); err == nil {
+					if exists, err := remote.Repo().Exists(tp.ctx, layer); !exists && err == nil {
+						message.Debugf("Layer %s was pushed but does not exist in the store; retrying. Possible error: %s", layer.Digest.Encoded(), err.Error())
+						time.Sleep(1 * time.Second) // back off in an attempt to avoid rate limiting
+						continue
+					} else if err != nil {
+						message.Debugf("Error checking if layer %s exists: %s", layer.Digest.Encoded(), err.Error())
+						continue
+					}
 					break
 				}
 			}
@@ -401,6 +412,7 @@ func (tp *tarballBundleProvider) pushPackageLayersWithSpinner(spinner *message.S
 			}
 		}
 	}
+
 	// hack the media type so Push() doesn't follow pointers
 	// if you give Push() an desc with an image manifest media type, it will follow the pointers
 	// we don't always want that because we sometimes use optional components
