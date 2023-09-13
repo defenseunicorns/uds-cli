@@ -133,8 +133,11 @@ func TestBundleDeployFromOciFromGHCR(t *testing.T) {
 	bundleDir := "src/test/packages/03-local-and-remote"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
+	// registryUrl := "ghcr.io/defenseunicorns/uds-cli/test-bundle"
+	registryUrl := "ghcr.io/anthonywendt/uds-cli/test-bundle"
+
 	bundleRef := registry.Reference{
-		Registry: "ghcr.io/defenseunicorns/uds-cli/test-bundle",
+		Registry: registryUrl,
 		// this info is derived from the bundle's metadata
 		Repository: "local-and-remote",
 		Reference:  fmt.Sprintf("0.0.1-%s", e2e.Arch),
@@ -143,7 +146,7 @@ func TestBundleDeployFromOciFromGHCR(t *testing.T) {
 	ghcrLogin(t)
 	createSecure(t, bundleDir)
 	inspect(t, bundlePath)
-	publishToGhcr(t, bundlePath, "ghcr.io/defenseunicorns/uds-cli/test-bundle")
+	publishToGhcr(t, bundlePath, registryUrl)
 	deployFromOci(t, bundleRef.String())
 	remove(t, bundlePath)
 }
