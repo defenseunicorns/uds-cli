@@ -14,7 +14,7 @@ metadata:
 zarf-packages:
   - name: init 
     repository: localhost:5000/init
-    ref: "###BNDL_TMPL_INIT_VERSION###"
+    ref: v0.29.1
     optional-components:
       - git-server
   - name: podinfo
@@ -29,8 +29,8 @@ The packages referenced in `zarf-packages` can exist either locally or in an OCI
 Pulls the Zarf packages from the registry and bundles them into an OCI artifact.
 
 There are 2 ways to create Bundles:
-1. Inside an OCI registry: `uds create <dir> --set INIT_VERSION=v0.28.3 --insecure -o localhost:5000`
-1. Locally on your filesystem: `uds create <dir> --set INIT_VERSION=v0.28.3 --insecure`
+1. Inside an OCI registry: `uds create <dir> --insecure -o localhost:5000`
+1. Locally on your filesystem: `uds create <dir> --insecure`
 
 Noting that the `--insecure` flag will be necessary when running the registry from the Makefile.
 
@@ -60,7 +60,7 @@ Local bundles can be published to an OCI registry like so:
 As an example: `uds publish uds-bundle-example-arm64-0.0.1.tar.zst oci://ghcr.io/github_user`
 
 ## Variables
-In addition to setting Bundle templates (`###BNDL_TMPL_###`) in the `uds-bundle.yaml`, you can also pass variables between Zarf packages
+Zarf package variables can be passed between Zarf packages:
 ```yaml
 kind: UDSBundle
 metadata:

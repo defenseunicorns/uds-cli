@@ -14,9 +14,9 @@ import (
 	"time"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/pterm/pterm"
 )
 
@@ -24,7 +24,7 @@ import (
 //
 // TODO: move this to helpers.MergeAndTransformMap
 func MergeVariables(left map[string]string, right map[string]string) map[string]string {
-	// Ensure uppercase keys from viper and CLI --set
+	// Ensure uppercase keys from viper
 	leftUpper := helpers.TransformMapKeys(left, strings.ToUpper)
 	rightUpper := helpers.TransformMapKeys(right, strings.ToUpper)
 
