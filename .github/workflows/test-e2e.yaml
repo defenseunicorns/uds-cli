@@ -38,10 +38,17 @@ jobs:
       - name: Setup K3d
         uses: ./.github/actions/k3d
 
+      - name: Install zarf
+        uses: supplypike/setup-bin@v3
+        with:
+          uri: 'https://github.com/defenseunicorns/zarf/releases/download/v0.29.2/zarf_v0.29.2_Linux_amd64'
+          name: 'zarf'
+          version: 'v0.29.2'
+
       - name: Install uds-cli
         uses: supplypike/setup-bin@v3
         with:
-          uri: 'https://github.com/defenseunicorns/uds-cli/releases/download/v0.0.4-alpha/uds-cli_v0.0.4-alpha_Linux_amd64 '
+          uri: 'https://github.com/defenseunicorns/uds-cli/releases/download/v0.0.5-alpha/uds-cli_v0.0.5-alpha_Linux_amd64 '
           name: 'uds'
           version: 'v0.0.5-alpha'
 
@@ -52,11 +59,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build bundle to publish to ghcr
-        run: uds bundle create src/test/packages/04-local-init --confirm --no-progress
+      - name: Build zarf package for GHCR bundle
+        run: zarf package create src/test/packages/zarf/podinfo --confirm --output-directory src/test/packages/zarf/podinfo
 
-      - name: Publish bundle to ghcr for test
-        run: uds bundle publish src/test/packages/04-local-init/uds-bundle-local-init-amd64-*.tar.zst oci://ghcr.io/defenseunicorns/uds-cli/test-bundle --no-progress
+      - name: Build bundle to publish to GHCR
+        run: uds bundle create src/test/packages/05-uds-bundle --confirm --no-progress
+
+      - name: Publish bundle to GHCR for test
+        run: uds bundle publish src/test/packages/05-uds-bundle/uds-bundle-local-podinfo-amd64-*.tar.zst oci://ghcr.io/defenseunicorns/uds-cli/test-bundle --no-progress
 
       - name: Run E2E tests
         run: make test-e2e
