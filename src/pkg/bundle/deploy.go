@@ -6,10 +6,6 @@ package bundle
 
 import (
 	"context"
-	"github.com/defenseunicorns/uds-cli/src/types"
-	zarfConfig "github.com/defenseunicorns/zarf/src/config"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"golang.org/x/exp/maps"
 	"os"
 	"path/filepath"
@@ -17,8 +13,12 @@ import (
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/types"
+	zarfConfig "github.com/defenseunicorns/zarf/src/config"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 )
 
 // Deploy deploys a bundle
@@ -106,6 +106,9 @@ func (b *Bundler) Deploy() error {
 				}
 			}
 		}
+
+		// Automatically confirm the package deployment
+		zarfConfig.CommonOptions.Confirm = true
 
 		pkgClient, err := packager.New(&pkgCfg)
 		if err != nil {
