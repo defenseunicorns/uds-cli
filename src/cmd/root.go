@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
-	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/cmd/common"
 	"github.com/defenseunicorns/zarf/src/cmd/tools"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
@@ -49,7 +49,6 @@ var rootCmd = &cobra.Command{
 		cliSetup()
 	},
 	Short: lang.RootCmdShort,
-	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		_, _ = fmt.Fprintln(os.Stderr)
 		cmd.Help()
