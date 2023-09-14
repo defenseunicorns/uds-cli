@@ -1,10 +1,12 @@
 kind: UDSBundle
 metadata:
-  name: local-podinfo
-  description: building from local Zarf pkg
+  name: zarf-init-ghcr
+  description:
   version: 0.0.1
 
 zarf-packages:
-  - name: podinfo
-    path: "src/test/packages/zarf/podinfo"
-    ref: 0.0.1
+  - name: init
+    repository: ghcr.io/defenseunicorns/packages/init
+    ref: "v0.29.2"
+    optional-components:
+      - git-server

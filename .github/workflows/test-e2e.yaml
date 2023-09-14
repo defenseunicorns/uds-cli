@@ -59,11 +59,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build zarf package for GHCR bundle
+      - name: Build and publish GHCR bundle
         run: |
-          zarf package create src/test/packages/zarf/podinfo --confirm --output-directory src/test/packages/zarf/podinfo
           uds bundle create src/test/packages/05-uds-bundle --confirm --no-progress
-          uds bundle publish src/test/packages/05-uds-bundle/uds-bundle-local-podinfo-amd64-*.tar.zst oci://ghcr.io/defenseunicorns/uds-cli/test-bundle --no-progress
+          uds bundle publish src/test/packages/05-uds-bundle/uds-bundle-zarf-init-ghcr-amd64-*.tar.zst oci://ghcr.io/defenseunicorns/uds-cli/test-bundle --no-progress
 
       - name: Run E2E tests
         run: make test-e2e
