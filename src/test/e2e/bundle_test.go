@@ -186,25 +186,25 @@ func TestRemoteBundle(t *testing.T) {
 }
 
 func create(t *testing.T, bundlePath string) {
-	cmd := strings.Split(fmt.Sprintf("bundle create %s --set INIT_VERSION=%s --confirm --insecure", bundlePath, zarfVersion), " ")
+	cmd := strings.Split(fmt.Sprintf("create %s --set INIT_VERSION=%s --confirm --insecure", bundlePath, zarfVersion), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
 
 func createSecure(t *testing.T, bundlePath string) {
-	cmd := strings.Split(fmt.Sprintf("bundle create %s --set INIT_VERSION=%s --confirm", bundlePath, zarfVersion), " ")
+	cmd := strings.Split(fmt.Sprintf("create %s --set INIT_VERSION=%s --confirm", bundlePath, zarfVersion), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
 
 func createRemote(t *testing.T, bundlePath string, registry string) {
-	cmd := strings.Split(fmt.Sprintf("bundle create %s -o oci://%s --set INIT_VERSION=%s --confirm --insecure", bundlePath, registry, zarfVersion), " ")
+	cmd := strings.Split(fmt.Sprintf("create %s -o oci://%s --set INIT_VERSION=%s --confirm --insecure", bundlePath, registry, zarfVersion), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
 
 func inspectRemote(t *testing.T, ref string) {
-	cmd := strings.Split(fmt.Sprintf("bundle inspect oci://%s --insecure --sbom", ref), " ")
+	cmd := strings.Split(fmt.Sprintf("inspect oci://%s --insecure --sbom", ref), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 	_, err = os.Stat(config.BundleSBOMTar)
@@ -213,7 +213,7 @@ func inspectRemote(t *testing.T, ref string) {
 	require.NoError(t, err)
 }
 func inspectRemoteAndSBOMExtract(t *testing.T, ref string) {
-	cmd := strings.Split(fmt.Sprintf("bundle inspect oci://%s --insecure --sbom --extract", ref), " ")
+	cmd := strings.Split(fmt.Sprintf("inspect oci://%s --insecure --sbom --extract", ref), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 	_, err = os.Stat(config.BundleSBOM)
@@ -261,11 +261,11 @@ func deployAndRemoveRemote(t *testing.T, ref string, tarballPath string) {
 	t.Run(
 		"deploy+remove bundle via OCI",
 		func(t *testing.T) {
-			cmd = strings.Split(fmt.Sprintf("bundle deploy oci://%s --insecure --oci-concurrency=10 --confirm", ref), " ")
+			cmd = strings.Split(fmt.Sprintf("deploy oci://%s --insecure --oci-concurrency=10 --confirm", ref), " ")
 			_, _, err := e2e.UDS(cmd...)
 			require.NoError(t, err)
 
-			cmd = strings.Split(fmt.Sprintf("bundle remove oci://%s --confirm --insecure", ref), " ")
+			cmd = strings.Split(fmt.Sprintf("remove oci://%s --confirm --insecure", ref), " ")
 			_, _, err = e2e.UDS(cmd...)
 			require.NoError(t, err)
 		},
@@ -274,11 +274,11 @@ func deployAndRemoveRemote(t *testing.T, ref string, tarballPath string) {
 	t.Run(
 		"deploy+remove bundle via local tarball",
 		func(t *testing.T) {
-			cmd = strings.Split(fmt.Sprintf("bundle deploy %s --confirm", tarballPath), " ")
+			cmd = strings.Split(fmt.Sprintf("deploy %s --confirm", tarballPath), " ")
 			_, _, err := e2e.UDS(cmd...)
 			require.NoError(t, err)
 
-			cmd = strings.Split(fmt.Sprintf("bundle remove %s --confirm --insecure", tarballPath), " ")
+			cmd = strings.Split(fmt.Sprintf("remove %s --confirm --insecure", tarballPath), " ")
 			_, _, err = e2e.UDS(cmd...)
 			require.NoError(t, err)
 		},
