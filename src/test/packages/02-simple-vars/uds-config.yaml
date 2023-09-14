@@ -3,4 +3,7 @@ bundle:
     zarf-packages:
       output-var:
         set:
-          country: Wales
+          country: Scotland
+      receive-var:
+        set:
+          precedence: Wales

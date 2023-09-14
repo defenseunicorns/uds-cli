@@ -7,7 +7,7 @@ metadata:
 
 variables:
   - name: COUNTRY
-    default: Scotland # todo: remove in favor of coming from uds-config.yaml
+    default: Wales
 
 components:
   - name: echo
@@ -18,3 +18,6 @@ components:
           - cmd: echo "Unicorns are the national animal of "${ZARF_VAR_COUNTRY}""
             setVariables:
               - name: OUTPUT
+          - cmd: echo "England"
+            setVariables:
+              - name: PRECEDENCE # will be overridden in test by the value in uds-config.yaml

@@ -86,6 +86,14 @@ Variables that you want to make available to other package are in the `export` b
 
 In the example above, the `OUTPUT` variable is created as part of a Zarf Action in the [output-var](src/test/packages/zarf/no-cluster/output-var) package, and the [receive-var](src/test/packages/zarf/no-cluster/receive-var) package expects a variable called `OUTPUT`.
 
+### Variable Precedence and Specificity
+In a bundle, variables can come from 3 sources. Those sources and their precedence are shown below in order of least to most specificity:
+- Variables declared in a Zarf pkg
+- Variables `import`'ed from a bundle package's `export`
+- Variables declared in `uds-config.yaml`
+
+That is to say, deploy-time variables declared in `uds-config.yaml` take precedence over all other variable sources.
+
 ## Bundle Anatomy
 A UDS Bundle is an OCI artifact with the following form:
 
