@@ -45,6 +45,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Build bundle to publish to ghcr
+        run: uds bundle create src/test/packages/04-local-init --confirm --no-progress
+
+      - name: Publish bundle to ghcr for test
+        run: uds bundle publish src/test/packages/04-local-init/uds-bundle-local-init-amd64-*.tar.zst oci://ghcr.io/defenseunicorns/uds-cli/test-bundle --no-progress
+
       - name: Run E2E tests
         run: make test-e2e
 

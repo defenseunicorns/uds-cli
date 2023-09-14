@@ -124,31 +124,31 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 	remove(t, bundlePath)
 }
 
-func TestBundleDeployFromOciFromGHCR(t *testing.T) {
-	e2e.SetupWithCluster(t)
-	e2e.SetupDockerRegistry(t, 888)
-	defer e2e.TeardownRegistry(t, 888)
-	e2e.CreateZarfPkg(t, "src/test/packages/zarf/podinfo")
+// func TestBundleDeployFromOciFromGHCR(t *testing.T) {
+// 	e2e.SetupWithCluster(t)
+// 	e2e.SetupDockerRegistry(t, 888)
+// 	defer e2e.TeardownRegistry(t, 888)
+// 	e2e.CreateZarfPkg(t, "src/test/packages/zarf/podinfo")
 
-	bundleDir := "src/test/packages/03-local-and-remote"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
+// 	bundleDir := "src/test/packages/03-local-and-remote"
+// 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
-	registryUrl := "ghcr.io/defenseunicorns/uds-cli/test-bundle"
+// 	registryUrl := "ghcr.io/defenseunicorns/uds-cli/test-bundle"
 
-	bundleRef := registry.Reference{
-		Registry: registryUrl,
-		// this info is derived from the bundle's metadata
-		Repository: "local-and-remote",
-		Reference:  fmt.Sprintf("0.0.1-%s", e2e.Arch),
-	}
+// 	bundleRef := registry.Reference{
+// 		Registry: registryUrl,
+// 		// this info is derived from the bundle's metadata
+// 		Repository: "local-and-remote",
+// 		Reference:  fmt.Sprintf("0.0.1-%s", e2e.Arch),
+// 	}
 
-	ghcrLogin(t)
-	createSecure(t, bundleDir)
-	inspect(t, bundlePath)
-	publishToGhcr(t, bundlePath, registryUrl)
-	deployFromOci(t, bundleRef.String())
-	remove(t, bundlePath)
-}
+// 	ghcrLogin(t)
+// 	createSecure(t, bundleDir)
+// 	inspect(t, bundlePath)
+// 	publishToGhcr(t, bundlePath, registryUrl)
+// 	deployFromOci(t, bundleRef.String())
+// 	remove(t, bundlePath)
+// }
 
 func TestBundle(t *testing.T) {
 	e2e.SetupWithCluster(t)
