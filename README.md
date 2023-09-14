@@ -29,8 +29,8 @@ The packages referenced in `zarf-packages` can exist either locally or in an OCI
 Pulls the Zarf packages from the registry and bundles them into an OCI artifact.
 
 There are 2 ways to create Bundles:
-1. Inside an OCI registry: `uds bundle create <dir> --set INIT_VERSION=v0.28.3 --insecure -o localhost:5000`
-1. Locally on your filesystem: `uds bundle create <dir> --set INIT_VERSION=v0.28.3 --insecure`
+1. Inside an OCI registry: `uds create <dir> --set INIT_VERSION=v0.28.3 --insecure -o localhost:5000`
+1. Locally on your filesystem: `uds create <dir> --set INIT_VERSION=v0.28.3 --insecure`
 
 Noting that the `--insecure` flag will be necessary when running the registry from the Makefile.
 
@@ -38,26 +38,26 @@ Noting that the `--insecure` flag will be necessary when running the registry fr
 Deploys the bundle
 
 There are 2 ways to deploy Bundles:
-1. From an OCI registry: `uds bundle deploy oci://localhost:5000/<name>:<tag> --insecure --confirm`
-1. From your local filesystem: `uds bundle deploy uds-bundle-<name>.tar.zst --confirm`
+1. From an OCI registry: `uds deploy oci://localhost:5000/<name>:<tag> --insecure --confirm`
+1. From your local filesystem: `uds deploy uds-bundle-<name>.tar.zst --confirm`
 
 ### Bundle Inspect
 Inspect the `uds-bundle.yaml` of a bundle
-1. From an OCI registry: `uds bundle inspect oci://localhost:5000/<name>:<tag> --insecure`
-1. From your local filesystem: `uds bundle inspect uds-bundle-<name>.tar.zst`
+1. From an OCI registry: `uds inspect oci://localhost:5000/<name>:<tag> --insecure`
+1. From your local filesystem: `uds inspect uds-bundle-<name>.tar.zst`
 
 #### Viewing SBOMs
 There are 2 additional flags for the `uds bundle inspect` command you can use to extract and view SBOMs:
-- Output the SBOMs as a tar file: `uds bundle inspect ... --sbom`
-- Output SBOMs into a directory as files: `uds bundle inspect ... --sbom --extract`
+- Output the SBOMs as a tar file: `uds inspect ... --sbom`
+- Output SBOMs into a directory as files: `uds inspect ... --sbom --extract`
 
 This functionality will use the `sboms.tar` of the  underlying Zarf packages to create new a `bundle-sboms.tar` artifact containing all SBOMs from the Zarf packages in the bundle.
 
 ### Bundle Publish
 Local bundles can be published to an OCI registry like so:
-`uds bundle publish <bundle>.tar.zst oci://<registry> `
+`uds publish <bundle>.tar.zst oci://<registry> `
 
-As an example: `uds bundle publish uds-bundle-example-arm64-0.0.1.tar.zst oci://ghcr.io/github_user`
+As an example: `uds publish uds-bundle-example-arm64-0.0.1.tar.zst oci://ghcr.io/github_user`
 
 ## Variables
 In addition to setting Bundle templates (`###BNDL_TMPL_###`) in the `uds-bundle.yaml`, you can also pass variables between Zarf packages
