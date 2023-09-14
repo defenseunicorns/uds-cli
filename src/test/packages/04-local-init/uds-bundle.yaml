@@ -7,6 +7,6 @@ metadata:
 zarf-packages:
   - name: init
     path: "../zarf"
-    ref: "###BNDL_TMPL_INIT_VERSION###"
+    ref: v0.29.1
     optional-components:
       - git-server
