@@ -6,6 +6,7 @@ package bundle
 
 import (
 	"context"
+	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
@@ -84,16 +85,7 @@ func (b *Bundler) Deploy() error {
 			publicKeyPath = ""
 		}
 
-		// grab vars from Viper config and bundle-level var store
-		pkgVars := make(map[string]string)
-		for name, val := range b.cfg.DeployOpts.ZarfPackageVariables[pkg.Name].Set {
-			pkgVars[strings.ToUpper(name)] = val
-		}
-		pkgImportedVars := make(map[string]string)
-		for _, imp := range pkg.Imports {
-			pkgImportedVars[strings.ToUpper(imp.Name)] = bundleExportedVars[imp.Package][imp.Name]
-		}
-		maps.Copy(pkgVars, pkgImportedVars)
+		pkgVars := b.loadVariables(pkg, bundleExportedVars)
 
 		opts := zarfTypes.ZarfPackageOptions{
 			PackagePath:        pkgTmp,
@@ -134,4 +126,22 @@ func (b *Bundler) Deploy() error {
 		bundleExportedVars[pkg.Name] = pkgExportedVars
 	}
 	return nil
+}
+
+// loadVariables loads and sets precedence for config-level and imported variables
+func (b *Bundler) loadVariables(pkg types.BundleZarfPackage, bundleExportedVars map[string]map[string]string) map[string]string {
+	pkgVars := make(map[string]string)
+	pkgConfigVars := make(map[string]string)
+	for name, val := range b.cfg.DeployOpts.ZarfPackageVariables[pkg.Name].Set {
+		pkgConfigVars[strings.ToUpper(name)] = val
+	}
+	pkgImportedVars := make(map[string]string)
+	for _, imp := range pkg.Imports {
+		pkgImportedVars[strings.ToUpper(imp.Name)] = bundleExportedVars[imp.Package][imp.Name]
+	}
+
+	// set var precedence
+	maps.Copy(pkgVars, pkgImportedVars)
+	maps.Copy(pkgVars, pkgConfigVars)
+	return pkgVars
 }

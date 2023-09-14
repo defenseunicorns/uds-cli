@@ -6,7 +6,8 @@ metadata:
   version: 0.0.1
 
 variables:
-  - name: OUTPUT # from output-var Zarf pkg
+  - name: OUTPUT     # from output-var Zarf pkg
+  - name: PRECEDENCE # from output-var Zarf pkg, but will be overridden by uds-config.yaml
 
 components:
   - name: echo
@@ -15,4 +16,6 @@ components:
       onDeploy:
         after:
           - cmd: |
-              echo "Received the following message: "${ZARF_VAR_OUTPUT}""
+              echo "This fun-fact was imported: "${ZARF_VAR_OUTPUT}""
+          - cmd: |
+              echo "This fun-fact demonstrates precedence: The Red Dragon is the national symbol of "${ZARF_VAR_PRECEDENCE}""

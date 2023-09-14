@@ -83,7 +83,8 @@ func TestBundleVariables(t *testing.T) {
 	_, stderr := deploy(t, bundlePath)
 
 	require.NotContains(t, stderr, "CLIVersion is set to 'unset' which can cause issues with package creation and deployment")
-	require.Contains(t, stderr, "Received the following message: Unicorns are the national animal of Wales")
+	require.Contains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
+	require.Contains(t, stderr, "This fun-fact demonstrates precedence: The Red Dragon is the national symbol of Wales")
 }
 
 func TestBundleWithLocalInitPkg(t *testing.T) {
