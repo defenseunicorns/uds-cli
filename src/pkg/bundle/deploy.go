@@ -6,6 +6,9 @@ package bundle
 
 import (
 	"context"
+	"fmt"
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/pterm/pterm"
 	"golang.org/x/exp/maps"
 	"os"
 	"path/filepath"
@@ -54,6 +57,11 @@ func (b *Bundler) Deploy() error {
 	// read the bundle's metadata into memory
 	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
+	}
+
+	// confirm deploy
+	if ok := b.confirmBundleDeploy(); !ok {
+		return fmt.Errorf("bundle deployment cancelled")
 	}
 
 	// map of Zarf pkgs and their vars
@@ -147,4 +155,29 @@ func (b *Bundler) loadVariables(pkg types.BundleZarfPackage, bundleExportedVars 
 	maps.Copy(pkgVars, pkgImportedVars)
 	maps.Copy(pkgVars, pkgConfigVars)
 	return pkgVars
+}
+
+// confirmBundleDeploy prompts the user to confirm bundle creation
+func (b *Bundler) confirmBundleDeploy() (confirm bool) {
+
+	message.HeaderInfof("🎁 BUNDLE DEFINITION")
+	utils.ColorPrintYAML(b.bundle, nil, false)
+
+	message.HorizontalRule()
+
+	// Display prompt if not auto-confirmed
+	if config.CommonOptions.Confirm {
+		return config.CommonOptions.Confirm
+	}
+
+	prompt := &survey.Confirm{
+		Message: fmt.Sprintf("Deploy this bundle?"),
+	}
+
+	pterm.Println()
+
+	if err := survey.AskOne(prompt, &confirm); err != nil || !confirm {
+		return false
+	}
+	return true
 }
