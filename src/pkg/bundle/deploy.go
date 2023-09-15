@@ -7,21 +7,23 @@ package bundle
 import (
 	"context"
 	"fmt"
-	"github.com/AlecAivazis/survey/v2"
-	"github.com/pterm/pterm"
-	"golang.org/x/exp/maps"
 	"os"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/pterm/pterm"
+	"golang.org/x/exp/maps"
+
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
 // Deploy deploys a bundle
