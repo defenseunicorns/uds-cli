@@ -31,7 +31,7 @@ type BundleVariableImport struct {
 	Description string `json:"description,omitempty" jsonschema:"name=Description of the variable"`
 }
 
-// BundleVariableImport represents variables in the bundle
+// BundleVariableExport represents variables in the bundle
 type BundleVariableExport struct {
 	Name        string `json:"name" jsonschema:"name=Name of the variable"`
 	Description string `json:"description,omitempty" jsonschema:"name=Description of the variable"`

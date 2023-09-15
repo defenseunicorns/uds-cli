@@ -25,6 +25,9 @@ The above `UDSBundle` deploys the Zarf init package and podinfo.
 
 The packages referenced in `zarf-packages` can exist either locally or in an OCI registry. See [here](src/test/packages/03-local-and-remote) for an example that deploys both local and remote Zarf packages. More `UDSBundle` examples can be found in the [src/test/packages](src/test/packages) folder. 
 
+#### Declarative Syntax
+The syntax of a `uds-bundle.yaml` is entirely declarative. As a result, the UDS CLI will not prompt users to deploy optional components in a Zarf package. If you want to deploy an optional Zarf component, it must be specified in the `optional-components` key of a particular `zarf-package`.
+
 ### Bundle Create
 Pulls the Zarf packages from the registry and bundles them into an OCI artifact.
 
@@ -38,8 +41,8 @@ Noting that the `--insecure` flag will be necessary when running the registry fr
 Deploys the bundle
 
 There are 2 ways to deploy Bundles:
-1. From an OCI registry: `uds deploy oci://localhost:5000/<name>:<tag> --insecure --confirm`
-1. From your local filesystem: `uds deploy uds-bundle-<name>.tar.zst --confirm`
+1. From an OCI registry: `uds deploy oci://localhost:5000/<name>:<tag> --insecure`
+1. From your local filesystem: `uds deploy uds-bundle-<name>.tar.zst`
 
 ### Bundle Inspect
 Inspect the `uds-bundle.yaml` of a bundle

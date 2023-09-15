@@ -101,7 +101,7 @@ func (b *Bundler) Create() error {
 	return Create(b, signatureBytes)
 }
 
-// adapted from p.confirmAction
+// confirmBundleCreation prompts the user to confirm bundle creation
 func (b *Bundler) confirmBundleCreation() (confirm bool) {
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
@@ -115,12 +115,11 @@ func (b *Bundler) confirmBundleCreation() (confirm bool) {
 	}
 
 	prompt := &survey.Confirm{
-		Message: "Create this UDS Create?",
+		Message: fmt.Sprintf("Create this bundle?"),
 	}
 
 	pterm.Println()
 
-	// Prompt the user for confirmation, on abort return false
 	if err := survey.AskOne(prompt, &confirm); err != nil || !confirm {
 		// User aborted or declined, cancel the action
 		return false
