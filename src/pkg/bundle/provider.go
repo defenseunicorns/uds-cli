@@ -7,11 +7,11 @@ package bundle
 import (
 	"context"
 	"fmt"
+
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
-
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 )
 
 // Provider is an interface for processing bundles
