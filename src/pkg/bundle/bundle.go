@@ -9,9 +9,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
-	"github.com/defenseunicorns/uds-cli/src/types"
+	"os"
+	"path/filepath"
+
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -20,8 +20,10 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2/content"
 	ocistore "oras.land/oras-go/v2/content/oci"
-	"os"
-	"path/filepath"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
+	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
 // Create creates the bundle and outputs to a local tarball
@@ -282,9 +284,9 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 		flags = "--insecure"
 	}
 	message.Title("To inspect/deploy/pull:", "")
-	message.Command("bundle inspect oci://%s %s", dstRef, flags)
-	message.Command("bundle deploy oci://%s %s", dstRef, flags)
-	message.Command("bundle pull oci://%s %s", dstRef, flags)
+	message.Command("inspect oci://%s %s", dstRef, flags)
+	message.Command("deploy oci://%s %s", dstRef, flags)
+	message.Command("pull oci://%s %s", dstRef, flags)
 
 	return nil
 }
