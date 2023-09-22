@@ -18,6 +18,7 @@ import (
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"golang.org/x/sync/errgroup"
 	"oras.land/oras-go/v2/content"
 	ocistore "oras.land/oras-go/v2/content/oci"
 
@@ -28,6 +29,8 @@ import (
 
 // Create creates the bundle and outputs to a local tarball
 func Create(b *Bundler, signature []byte) error {
+	message.HeaderInfof("🐕 Fetching Packages")
+
 	if b.bundle.Metadata.Architecture == "" {
 		return fmt.Errorf("architecture is required for bundling")
 	}
@@ -47,6 +50,10 @@ func Create(b *Bundler, signature []byte) error {
 
 	// grab all Zarf pkgs from OCI and put blobs in OCI store
 	for i, pkg := range bundle.ZarfPackages {
+		fetchSpinner := message.NewProgressSpinner("Fetching package %s", pkg.Name)
+
+		defer fetchSpinner.Stop()
+
 		if pkg.Repository != "" {
 			url := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
 			remoteBundler, err := bundler.NewRemoteBundler(pkg, url, store, nil)
@@ -65,7 +72,7 @@ func Create(b *Bundler, signature []byte) error {
 			artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 
 			message.Debugf("Pushed %s sub-manifest into %s: %s", url, b.tmp, message.JSONValue(pkgManifestDesc))
-			layerDescs, err := remoteBundler.PushLayers()
+			layerDescs, err := remoteBundler.PushLayers(fetchSpinner, i+1, len(bundle.ZarfPackages))
 			if err != nil {
 				return err
 			}
@@ -113,7 +120,11 @@ func Create(b *Bundler, signature []byte) error {
 		} else {
 			return fmt.Errorf("todo: haven't we already validated that Path or Repository is valid")
 		}
+
+		fetchSpinner.Successf("Fetched package: %s", pkg.Name)
 	}
+
+	message.HeaderInfof("🚧 Building Bundle")
 
 	// push uds-bundle.yaml to OCI store
 	bundleManifestDesc, err := pushBundleManifestToStore(ctx, store, bundle)
@@ -202,9 +213,12 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 
 	rootManifest := ocispec.Manifest{}
 
-	for _, pkg := range bundle.ZarfPackages {
+	for i, pkg := range bundle.ZarfPackages {
 		url := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
 		remoteBundler, err := bundler.NewRemoteBundler(pkg, url, nil, remoteDst)
+		if err != nil {
+			return err
+		}
 
 		zarfManifestDesc, err := remoteBundler.PushManifest()
 		if err != nil {
@@ -216,10 +230,16 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 		message.Debugf("Pushed %s sub-manifest into %s: %s", url, dstRef, message.JSONValue(zarfManifestDesc))
 		rootManifest.Layers = append(rootManifest.Layers, zarfManifestDesc)
 
-		_, err = remoteBundler.PushLayers()
+		pushSpinner := message.NewProgressSpinner("")
+
+		defer pushSpinner.Stop()
+
+		_, err = remoteBundler.PushLayers(pushSpinner, i+1, len(bundle.ZarfPackages))
 		if err != nil {
 			return err
 		}
+
+		pushSpinner.Successf("Pushed package: %s", pkg.Name)
 	}
 
 	// push the bundle's metadata
@@ -395,10 +415,49 @@ func writeTarball(bundle *types.UDSBundle, artifactPathMap PathMap) error {
 	if err != nil {
 		return err
 	}
-	if err := format.Archive(context.TODO(), out, files); err != nil {
+
+	archiveErrorChan := make(chan error, len(files))
+	jobs := make(chan archiver.ArchiveAsyncJob, len(files))
+
+	for _, file := range files {
+		archiveJob := archiver.ArchiveAsyncJob{
+			File:   file,
+			Result: archiveErrorChan,
+		}
+		jobs <- archiveJob
+	}
+
+	close(jobs)
+
+	archiveErrGroup, ctx := errgroup.WithContext(context.TODO())
+
+	archiveBar := message.NewProgressBar(int64(len(jobs)), "Creating bundle archive")
+
+	defer archiveBar.Stop()
+
+	archiveErrGroup.Go(func() error {
+		return format.ArchiveAsync(ctx, out, jobs)
+	})
+
+jobLoop:
+	for len(jobs) != 0 {
+		select {
+		case err := <-archiveErrorChan:
+			if err != nil {
+				return err
+			} else {
+				archiveBar.Add(1)
+			}
+		case <-ctx.Done():
+			break jobLoop
+		}
+	}
+
+	if err := archiveErrGroup.Wait(); err != nil {
 		return err
 	}
-	message.Infof("Create tarball saved to %s", dst)
+
+	archiveBar.Successf("Created bundle archive at: %s", dst)
 	return nil
 }
 
