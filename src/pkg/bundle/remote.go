@@ -86,7 +86,8 @@ func (op *ociProvider) LoadPackage(sha, destinationDir string, _ int) (PathMap, 
 	}
 	defer store.Close()
 
-	spinner := message.NewProgressSpinner("Starting bundle pull")
+	spinner := message.NewProgressSpinner("Pulling bundled Zarf package")
+	defer spinner.Stop()
 	for _, layer := range layersToPull {
 		spinner.Updatef(fmt.Sprintf("Pulling bundle layer: %s", layer.Digest.Encoded()))
 		lb, err := op.Repo().Fetch(op.ctx, layer)
@@ -100,7 +101,7 @@ func (op *ociProvider) LoadPackage(sha, destinationDir string, _ int) (PathMap, 
 		}
 	}
 
-	spinner.Stop()
+	spinner.Successf("Package pull successful")
 
 	loaded := make(PathMap)
 	for _, layer := range layersToPull {

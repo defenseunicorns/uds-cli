@@ -39,6 +39,11 @@ import (
 func (b *Bundler) Deploy() error {
 	ctx := context.TODO()
 
+	pterm.Println()
+	metadataSpinner := message.NewProgressSpinner("Loading bundle metadata")
+
+	defer metadataSpinner.Stop()
+
 	// create a new provider
 	provider, err := NewBundleProvider(ctx, b.cfg.DeployOpts.Source, b.tmp)
 	if err != nil {
@@ -61,6 +66,8 @@ func (b *Bundler) Deploy() error {
 		return err
 	}
 
+	metadataSpinner.Successf("Loaded bundle metadata")
+
 	// confirm deploy
 	if ok := b.confirmBundleDeploy(); !ok {
 		return fmt.Errorf("bundle deployment cancelled")
@@ -78,12 +85,17 @@ func (b *Bundler) Deploy() error {
 		}
 		defer os.RemoveAll(pkgTmp)
 
-		message.Infof("Loading bundled Zarf package: %s", pkg.Name)
+		packageSpinner := message.NewProgressSpinner("Loading bundled Zarf package: %s", pkg.Name)
+
+		defer packageSpinner.Stop()
+
 		// todo: LoadPackage should return an err if the tmp dir (or wherever) is empty
 		_, err = provider.LoadPackage(sha, pkgTmp, config.CommonOptions.OCIConcurrency)
 		if err != nil {
 			return err
 		}
+
+		packageSpinner.Successf("Loaded bundled Zarf package: %s", pkg.Name)
 
 		publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
 		if pkg.PublicKey != "" {
