@@ -56,10 +56,17 @@ func (b *Bundler) Create() error {
 	// populate Zarf config
 	zarfConfig.CommonOptions.Insecure = config.CommonOptions.Insecure
 
+	validateSpinner := message.NewProgressSpinner("Validating bundle")
+
+	defer validateSpinner.Stop()
+
 	// validate bundle / verify access to all repositories
-	if err := b.ValidateBundleResources(&b.bundle); err != nil {
+	if err := b.ValidateBundleResources(&b.bundle, validateSpinner); err != nil {
 		return err
 	}
+
+	validateSpinner.Successf("Bundle Validated")
+	pterm.Print()
 
 	var signatureBytes []byte
 
@@ -108,6 +115,7 @@ func (b *Bundler) confirmBundleCreation() (confirm bool) {
 	utils.ColorPrintYAML(b.bundle, nil, false)
 
 	message.HorizontalRule()
+	pterm.Println()
 
 	// Display prompt if not auto-confirmed
 	if config.CommonOptions.Confirm {
@@ -115,10 +123,9 @@ func (b *Bundler) confirmBundleCreation() (confirm bool) {
 	}
 
 	prompt := &survey.Confirm{
-		Message: fmt.Sprintf("Create this bundle?"),
+		Message: "Create this bundle?",
 	}
 
-	pterm.Println()
 
 	if err := survey.AskOne(prompt, &confirm); err != nil || !confirm {
 		// User aborted or declined, cancel the action

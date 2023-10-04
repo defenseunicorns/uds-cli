@@ -75,7 +75,7 @@ func (b *Bundler) ClearPaths() {
 }
 
 // ValidateBundleResources validates the bundle's metadata and package references
-func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
+func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *message.Spinner) error {
 	// TODO: need to validate arch of local OS
 	if bundle.Metadata.Architecture == "" {
 		// ValidateBundle was erroneously called before CalculateBuildInfo
@@ -108,6 +108,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 
 	// validate access to packages as well as components referenced in the package
 	for idx, pkg := range bundle.ZarfPackages {
+		spinner.Updatef("Validating Bundle Package: %s", pkg.Name)
 		if pkg.Name == "" {
 			return fmt.Errorf("%s is missing required field: name", pkg)
 		}
