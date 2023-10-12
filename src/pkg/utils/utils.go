@@ -24,7 +24,7 @@ import (
 //
 // TODO: move this to helpers.MergeAndTransformMap
 func MergeVariables(left map[string]string, right map[string]string) map[string]string {
-	// Ensure uppercase keys from viper
+	// Ensure uppercase keys from viper and CLI --set
 	leftUpper := helpers.TransformMapKeys(left, strings.ToUpper)
 	rightUpper := helpers.TransformMapKeys(right, strings.ToUpper)
 

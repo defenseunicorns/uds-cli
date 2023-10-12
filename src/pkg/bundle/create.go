@@ -7,10 +7,11 @@ package bundle
 import (
 	"errors"
 	"fmt"
-	"oras.land/oras-go/v2/registry"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"oras.land/oras-go/v2/registry"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
@@ -21,6 +22,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"github.com/pterm/pterm"
 )
 
@@ -40,6 +42,11 @@ func (b *Bundler) Create() error {
 
 	// read the bundle's metadata into memory
 	if err := utils.ReadYaml(config.BundleYAML, &b.bundle); err != nil {
+		return err
+	}
+
+	// replace BNDL_TMPL_* variables
+	if err := b.templateBundleYaml(); err != nil {
 		return err
 	}
 
@@ -108,6 +115,43 @@ func (b *Bundler) Create() error {
 	return Create(b, signatureBytes)
 }
 
+// adapted from p.fillActiveTemplate
+func (b *Bundler) templateBundleYaml() error {
+	message.Debug("Templating", config.BundleYAML, "w/:", message.JSONValue(b.cfg.CreateOpts.SetVariables))
+
+	templateMap := map[string]string{}
+	setFromCLIConfig := b.cfg.CreateOpts.SetVariables
+	yamlTemplates, err := utils.FindYamlTemplates(&b.bundle, "###BNDL_TMPL_", "###")
+	if err != nil {
+		return err
+	}
+
+	for key := range yamlTemplates {
+		_, present := setFromCLIConfig[key]
+		if !present && !config.CommonOptions.Confirm {
+			setVal, err := interactive.PromptVariable(zarfTypes.ZarfPackageVariable{
+				Name:    key,
+				Default: "",
+			})
+
+			if err == nil {
+				setFromCLIConfig[key] = setVal
+			} else {
+				return err
+			}
+		} else if !present {
+			return fmt.Errorf("template '%s' must be '--set' when using the '--confirm' flag", key)
+		}
+	}
+	for key, value := range setFromCLIConfig {
+		templateMap[fmt.Sprintf("###BNDL_TMPL_%s###", key)] = value
+	}
+
+	templateMap["###BNDL_ARCH###"] = b.bundle.Metadata.Architecture
+
+	return utils.ReloadYamlTemplate(&b.bundle, templateMap)
+}
+
 // confirmBundleCreation prompts the user to confirm bundle creation
 func (b *Bundler) confirmBundleCreation() (confirm bool) {
 
@@ -125,7 +169,6 @@ func (b *Bundler) confirmBundleCreation() (confirm bool) {
 	prompt := &survey.Confirm{
 		Message: "Create this bundle?",
 	}
-
 
 	if err := survey.AskOne(prompt, &confirm); err != nil || !confirm {
 		// User aborted or declined, cancel the action
