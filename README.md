@@ -1,5 +1,11 @@
 # UDS-CLI
-**Warning**: UDS-CLI is in early alpha, expect changes to the schema and workflow
+
+[![Latest Release](https://img.shields.io/github/v/release/defenseunicorns/uds-cli)](https://github.com/defenseunicorns/uds-cli/releases)
+[![Go version](https://img.shields.io/github/go-mod/go-version/defenseunicorns/uds-cli?filename=go.mod)](https://go.dev/)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/defenseunicorns/uds-cli/release.yml)](https://github.com/defenseunicorns/uds-cli/actions/workflows/release.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/defenseunicorns/uds-cli/badge)](https://api.securityscorecards.dev/projects/github.com/defenseunicorns/uds-cli)
+
+**:warning: Warning**:  UDS-CLI is in early alpha, expect changes to the schema and workflow
 
 ## Quickstart
 The UDS-CLI's flagship feature is deploying multiple, independent Zarf packages. To create a `UDSBundle` of Zarf packages, create a `uds-bundle.yaml` file like so:
