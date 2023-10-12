@@ -2,7 +2,7 @@
 
 [![Latest Release](https://img.shields.io/github/v/release/defenseunicorns/uds-cli)](https://github.com/defenseunicorns/uds-cli/releases)
 [![Go version](https://img.shields.io/github/go-mod/go-version/defenseunicorns/uds-cli?filename=go.mod)](https://go.dev/)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/defenseunicorns/uds-cli/release.yml)](https://github.com/defenseunicorns/uds-cli/actions/workflows/release.yml)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/defenseunicorns/uds-cli/release.yaml)](https://github.com/defenseunicorns/uds-cli/actions/workflows/release.yaml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/defenseunicorns/uds-cli/badge)](https://api.securityscorecards.dev/projects/github.com/defenseunicorns/uds-cli)
 
 **:warning: Warning**:  UDS-CLI is in early alpha, expect changes to the schema and workflow
