@@ -16,6 +16,5 @@
   "dependencyDashboardTitle": "Renovate Dashboard 🤖",
   "rebaseWhen": "conflicted",
   "commitBodyTable": true,
-  "ignorePaths": ["archive/**"],
   "suppressNotifications": ["prIgnoreNotification"]
 }
