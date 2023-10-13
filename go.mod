@@ -13,7 +13,7 @@ require (
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/mholt/archiver/v4 v4.0.0-alpha.8
 	github.com/opencontainers/image-spec v1.1.0-rc4
-	github.com/pterm/pterm v0.12.62
+	github.com/pterm/pterm v0.12.69
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/viper v1.16.0
 	github.com/stretchr/testify v1.8.4
@@ -23,9 +23,9 @@ require (
 )
 
 require (
-	atomicgo.dev/cursor v0.1.1 // indirect
+	atomicgo.dev/cursor v0.2.0 // indirect
 	atomicgo.dev/keyboard v0.2.9 // indirect
-	atomicgo.dev/schedule v0.0.2 // indirect
+	atomicgo.dev/schedule v0.1.0 // indirect
 	cloud.google.com/go/compute v1.19.1 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	cloud.google.com/go/iam v0.13.0 // indirect
@@ -210,7 +210,7 @@ require (
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
 	github.com/googleapis/gax-go/v2 v2.8.0 // indirect
-	github.com/gookit/color v1.5.3 // indirect
+	github.com/gookit/color v1.5.4 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gosuri/uitable v0.0.4 // indirect
 	github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7 // indirect
@@ -265,7 +265,7 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.18 // indirect
-	github.com/mattn/go-runewidth v0.0.14 // indirect
+	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/microsoft/go-rustaudit v0.0.0-20220730194248-4b17361d90a5 // indirect
