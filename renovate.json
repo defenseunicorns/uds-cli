@@ -1,6 +1,20 @@
 {
+  "enabled": true,
+  "forkProcessing": "enabled",
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:base"
-  ]
+  ],
+  "timezone": "America/New_York",
+  "repositories": ["defenseunicorns/uds-cli"],
+  "rebaseStalePrs": true,
+  "schedule": ["after 12pm and before 11am every weekday"],
+  "dependencyDashboard": true,
+  "platform": "github",
+  "onboarding": false,
+  "requireConfig": false,
+  "dependencyDashboardTitle": "Renovate Dashboard 🤖",
+  "rebaseWhen": "conflicted",
+  "commitBodyTable": true,
+  "suppressNotifications": ["prIgnoreNotification"]
 }
