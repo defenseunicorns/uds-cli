@@ -5,6 +5,8 @@
 package utils
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -13,11 +15,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
+	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pterm/pterm"
+	"oras.land/oras-go/v2"
+	"oras.land/oras-go/v2/content"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
 )
 
 // MergeVariables merges the variables from the config file and the CLI
@@ -75,4 +82,50 @@ func UseLogFile() {
 			message.Note(msg)
 		}
 	}
+}
+
+// CreateCopyOpts creates the ORAS CopyOpts struct to use when copying OCI artifacts
+func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) (oras.CopyOptions, int64, error) {
+	var copyOpts oras.CopyOptions
+	copyOpts.Concurrency = concurrency
+	estimatedBytes := int64(0)
+	var shas []string
+	for _, layer := range layersToPull {
+		if len(layer.Digest.String()) > 0 {
+			estimatedBytes += layer.Size
+			shas = append(shas, layer.Digest.Encoded())
+		}
+	}
+	copyOpts.FindSuccessors = func(ctx context.Context, fetcher content.Fetcher, desc ocispec.Descriptor) ([]ocispec.Descriptor, error) {
+		var nodes []ocispec.Descriptor
+		if desc.MediaType == oci.ZarfLayerMediaTypeBlob && desc.Annotations == nil {
+			layerBytes, err := content.FetchAll(ctx, fetcher, desc)
+			if err != nil {
+				return nil, err
+			}
+			var manifest oci.ZarfOCIManifest
+			if err := json.Unmarshal(layerBytes, &manifest); err != nil {
+				return nil, err
+			}
+			if manifest.Subject != nil {
+				nodes = append(nodes, *manifest.Subject)
+			}
+			nodes = append(nodes, manifest.Config)
+			nodes = append(nodes, manifest.Layers...)
+		} else {
+			successors, err := content.Successors(ctx, fetcher, desc)
+			if err != nil {
+				return nil, err
+			}
+			nodes = append(nodes, successors...)
+		}
+		var ret []ocispec.Descriptor
+		for _, node := range nodes {
+			if node.Size != 0 && helpers.SliceContains(shas, node.Digest.Encoded()) {
+				ret = append(ret, node)
+			}
+		}
+		return ret, nil
+	}
+	return copyOpts, estimatedBytes, nil
 }

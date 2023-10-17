@@ -10,14 +10,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"oras.land/oras-go/v2/content"
 	"os"
 	"path/filepath"
-	"time"
 
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
-	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -25,14 +20,20 @@ import (
 	av3 "github.com/mholt/archiver/v3"
 	av4 "github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"oras.land/oras-go/v2"
 	ocistore "oras.land/oras-go/v2/content/oci"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
 type tarballBundleProvider struct {
-	ctx      context.Context
-	src      string
-	dst      string
-	manifest *oci.ZarfOCIManifest
+	ctx          context.Context
+	src          string
+	dst          string
+	manifest     *oci.ZarfOCIManifest
+	manifestDesc ocispec.Descriptor
 }
 
 func extractJSON(j any) func(context.Context, av4.File) error {
@@ -131,19 +132,20 @@ func (tp *tarballBundleProvider) getBundleManifest() error {
 
 	defer os.Remove(indexPath)
 
-	bytes, err := os.ReadFile(indexPath)
+	b, err := os.ReadFile(indexPath)
 	if err != nil {
 		return err
 	}
 
 	var index ocispec.Index
 
-	if err := json.Unmarshal(bytes, &index); err != nil {
+	if err := json.Unmarshal(b, &index); err != nil {
 		return err
 	}
 
 	// due to logic during the bundle pull process, this index.json should only have one manifest
 	bundleManifestDesc := index.Manifests[0]
+	tp.manifestDesc = bundleManifestDesc
 
 	if len(index.Manifests) > 1 {
 		return fmt.Errorf("expected only one manifest in index.json, found %d", len(index.Manifests))
@@ -163,14 +165,14 @@ func (tp *tarballBundleProvider) getBundleManifest() error {
 		return err
 	}
 
-	bytes, err = os.ReadFile(manifestPath)
+	b, err = os.ReadFile(manifestPath)
 	if err != nil {
 		return err
 	}
 
 	var manifest *oci.ZarfOCIManifest
 
-	if err := json.Unmarshal(bytes, &manifest); err != nil {
+	if err := json.Unmarshal(b, &manifest); err != nil {
 		return err
 	}
 
@@ -191,7 +193,7 @@ func (tp *tarballBundleProvider) LoadBundle(_ int) (PathMap, error) {
 		return nil, err
 	}
 
-	layersToExtract := []ocispec.Descriptor{}
+	var layersToExtract []ocispec.Descriptor
 
 	format := av4.CompressedArchive{
 		Compression: av4.Zstd{},
@@ -363,75 +365,34 @@ func (tp *tarballBundleProvider) LoadBundleMetadata() (PathMap, error) {
 	return loaded, nil
 }
 
-func (tp *tarballBundleProvider) pushPackageLayersWithSpinner(spinner *message.Spinner, store *ocistore.Store, remote *oci.OrasRemote, pkgManifestDesc ocispec.Descriptor) error {
+func (tp *tarballBundleProvider) getZarfLayers(store *ocistore.Store, pkgManifestDesc ocispec.Descriptor) ([]ocispec.Descriptor, error) {
+	var layersToPull []ocispec.Descriptor
 	layerBytes, err := os.ReadFile(filepath.Join(tp.dst, config.BlobsDir, pkgManifestDesc.Digest.Encoded()))
 	if err != nil {
-		return err
-	}
-
-	// handle uds-bundle.yaml push
-	if pkgManifestDesc.Annotations != nil {
-		spinner.Updatef("Pushing uds.bundle.yaml")
-		err = remote.Repo().Push(tp.ctx, pkgManifestDesc, bytes.NewReader(layerBytes))
-		if err != nil {
-			return err
-		}
-		return nil
+		return nil, err
 	}
 
 	var zarfImageManifest *oci.ZarfOCIManifest
 	if err := json.Unmarshal(layerBytes, &zarfImageManifest); err != nil {
-		return err
+		return nil, err
 	}
 
 	// only grab image layers that we want
-	numRetries := 5
 	for _, layer := range zarfImageManifest.Manifest.Layers {
-		spinner.Updatef("Starting Zarf pkg push")
-		if ok, _ := store.Exists(tp.ctx, layer); ok {
-			b, err := store.Fetch(tp.ctx, layer)
-			if err != nil {
-				return err
-			}
-			spinner.Updatef(fmt.Sprintf("Pushing Bundle layer: %s", layer.Digest.Encoded()))
-			for i := 0; i < numRetries; i++ {
-				if err := remote.Repo().Push(tp.ctx, layer, b); err == nil {
-					if exists, err := remote.Repo().Exists(tp.ctx, layer); !exists && err == nil {
-						message.Debugf("Layer %s was pushed but does not exist in the store; retrying. Possible error: %s", layer.Digest.Encoded(), err.Error())
-						time.Sleep(1 * time.Second) // back off in an attempt to avoid rate limiting
-						continue
-					} else if err != nil {
-						message.Debugf("Error checking if layer %s exists: %s", layer.Digest.Encoded(), err.Error())
-						continue
-					}
-					break
-				}
-			}
-			if err != nil {
-				return err
-			}
+		ok, err := store.Exists(tp.ctx, layer)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			layersToPull = append(layersToPull, layer)
 		}
 	}
 
-	// hack the media type so Push() doesn't follow pointers
-	// if you give Push() an desc with an image manifest media type, it will follow the pointers
-	// we don't always want that because we sometimes use optional components
-	// can try to use oras.Copy() but refs are weird with local stores, but this would allow using oci.CopyWithProgress
-	pkgManifestDesc.MediaType = oci.ZarfLayerMediaTypeBlob
-	for i := 0; i < numRetries; i++ {
-		spinner.Updatef(fmt.Sprintf("Pushing bundle layer: %s", pkgManifestDesc.Digest.Encoded()))
-		if err := remote.Repo().Push(tp.ctx, pkgManifestDesc, bytes.NewReader(layerBytes)); err == nil {
-			break
-		}
-	}
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return layersToPull, nil
 }
 
 func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *oci.OrasRemote) error {
+	var layersToPull []ocispec.Descriptor
 	if err := tp.getBundleManifest(); err != nil {
 		return err
 	}
@@ -441,37 +402,38 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	if err != nil {
 		return err
 	}
-	spinner := message.NewProgressSpinner("Starting bundle publish")
 	if err != nil {
 		return err
 	}
 	// push bundle layers to remote
-	for _, layer := range tp.manifest.Layers {
-		err := tp.pushPackageLayersWithSpinner(spinner, store, remote, layer)
+	for _, manifestDesc := range tp.manifest.Layers {
+		layersToPull = append(layersToPull, manifestDesc)
+		if manifestDesc.Annotations != nil {
+			continue // uds-bundle.yaml doesn't have layers
+		}
+		layers, err := tp.getZarfLayers(store, manifestDesc)
 		if err != nil {
 			return err
 		}
+		layersToPull = append(layersToPull, layers...)
 	}
 
-	// push manifest config
-	// todo: sometimes the manifest config isn't present, doesn't hurt anything but it's weird
-	configDesc, err := pushManifestConfigFromMetadata(remote, &bundle.Metadata, &bundle.Build)
-	tp.manifest.Manifest.Config = configDesc
+	// grab image config
+	layersToPull = append(layersToPull, tp.manifest.Config)
+
+	// copy bundle
+	copyOpts, estimatedBytes, err := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
 	if err != nil {
 		return err
 	}
-	b, err := json.Marshal(tp.manifest.Manifest)
+	remote.Transport.ProgressBar = message.NewProgressBar(estimatedBytes, fmt.Sprintf("Publishing %s:%s", remote.Repo().Reference.Repository, remote.Repo().Reference.Reference))
+	defer remote.Transport.ProgressBar.Stop()
+	ref := fmt.Sprintf("%s-%s", bundle.Metadata.Version, bundle.Metadata.Architecture)
+	_, err = oras.Copy(tp.ctx, store, ref, remote.Repo(), ref, copyOpts)
 	if err != nil {
 		return err
 	}
-	expected := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, b)
+	remote.Transport.ProgressBar.Successf("Published %s", remote.Repo().Reference)
 
-	message.Debug("Pushing manifest:", message.JSONValue(expected))
-
-	if err := remote.Repo().Manifests().PushReference(context.TODO(), expected, bytes.NewReader(b), remote.Repo().Reference.String()); err != nil {
-		return fmt.Errorf("failed to push manifest: %w", err)
-	}
-	spinner.Successf("Bundle publish successful!")
-	spinner.Stop()
 	return nil
 }
