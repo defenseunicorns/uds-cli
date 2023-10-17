@@ -127,58 +127,39 @@ func Create(b *Bundler, signature []byte) error {
 	message.HeaderInfof("🚧 Building Bundle")
 
 	// push uds-bundle.yaml to OCI store
-	bundleManifestDesc, err := pushBundleManifestToStore(ctx, store, bundle)
+	bundleYAMLDesc, err := pushBundleYAMLToStore(ctx, store, bundle)
 	if err != nil {
 		return err
 	}
 
 	// append uds-bundle.yaml layer to rootManifest and grab path for archiving
-	rootManifest.Layers = append(rootManifest.Layers, bundleManifestDesc)
-	digest := bundleManifestDesc.Digest.Encoded()
+	rootManifest.Layers = append(rootManifest.Layers, bundleYAMLDesc)
+	digest := bundleYAMLDesc.Digest.Encoded()
 	artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 
 	// create and push bundle manifest config
-	manifestConfigDesc, err := createManifestConfig(bundle.Metadata, bundle.Build)
+	manifestConfigDesc, err := pushManifestConfig(store, bundle.Metadata, bundle.Build)
 	if err != nil {
 		return err
 	}
+	manifestConfigDigest := manifestConfigDesc.Digest.Encoded()
+	artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, manifestConfigDigest)] = filepath.Join(config.BlobsDir, manifestConfigDigest)
+
 	rootManifest.Config = manifestConfigDesc
 	rootManifest.SchemaVersion = 2
 	rootManifest.Annotations = manifestAnnotationsFromMetadata(&bundle.Metadata) // maps to registry UI
-	manifestBytes, err := json.Marshal(rootManifest)
+	rootManifestBytes, err := json.Marshal(rootManifest)
 	if err != nil {
 		return err
 	}
-	manifestDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, manifestBytes)
-	if err := store.Push(ctx, manifestDesc, bytes.NewReader(manifestBytes)); err != nil {
+	rootManifestDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, rootManifestBytes)
+	if err := store.Push(ctx, rootManifestDesc, bytes.NewReader(rootManifestBytes)); err != nil {
 		return err
 	}
-	digest = manifestDesc.Digest.Encoded()
+	digest = rootManifestDesc.Digest.Encoded()
 	artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 
-	// rebuild index.json because pushing Zarf image manifests adds unnecessary entries
-	indexBytes, err := os.ReadFile(filepath.Join(b.tmp, "index.json"))
-	if err != nil {
-		return err
-	}
-	var index ocispec.Index
-	if err := json.Unmarshal(indexBytes, &index); err != nil {
-		return err
-	}
-	index.Manifests = []ocispec.Descriptor{manifestDesc} // use only the bundle-level manifest for index.json
-	bundleIndexBytes, err := json.Marshal(index)
-	if err != nil {
-		return err
-	}
-	indexFile, err := os.Create(filepath.Join(b.tmp, "index.json"))
-	if err != nil {
-		return err
-	}
-	defer indexFile.Close()
-	_, err = indexFile.Write(bundleIndexBytes)
-	if err != nil {
-		return err
-	}
+	// grab index.json
 	artifactPathMap[filepath.Join(b.tmp, "index.json")] = "index.json"
 
 	// grab oci-layout
@@ -194,6 +175,12 @@ func Create(b *Bundler, signature []byte) error {
 		message.Debug("Pushed", config.BundleYAMLSignature+":", message.JSONValue(signatureDesc))
 	}
 
+	// tag the local bundle artifact
+	ref := fmt.Sprintf("%s-%s", bundle.Metadata.Version, bundle.Metadata.Architecture)
+	err = store.Tag(ctx, rootManifestDesc, ref)
+	if err != nil {
+		return err
+	}
 	// tarball the bundle
 	err = writeTarball(bundle, artifactPathMap)
 	if err != nil {
@@ -326,7 +313,7 @@ func pushManifestConfigFromMetadata(r *oci.OrasRemote, metadata *types.UDSMetada
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
-	return r.PushLayer(manifestConfigBytes, ocispec.MediaTypeImageConfig)
+	return r.PushLayer(manifestConfigBytes, oci.ZarfLayerMediaTypeBlob)
 }
 
 // copied from: https://github.com/defenseunicorns/zarf/blob/main/src/pkg/oci/push.go
@@ -354,17 +341,17 @@ func manifestAnnotationsFromMetadata(metadata *types.UDSMetadata) map[string]str
 	return annotations
 }
 
-// pushBundleManifestToStore pushes the uds-bundle.yaml to a provided OCI store
-func pushBundleManifestToStore(ctx context.Context, store *ocistore.Store, bundle *types.UDSBundle) (ocispec.Descriptor, error) {
-	bundleManifestBytes, err := goyaml.Marshal(bundle)
+// pushBundleYAMLToStore pushes the uds-bundle.yaml to a provided OCI store
+func pushBundleYAMLToStore(ctx context.Context, store *ocistore.Store, bundle *types.UDSBundle) (ocispec.Descriptor, error) {
+	bundleYAMLBytes, err := goyaml.Marshal(bundle)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
-	bundleYamlDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, bundleManifestBytes)
+	bundleYamlDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, bundleYAMLBytes)
 	bundleYamlDesc.Annotations = map[string]string{
 		ocispec.AnnotationTitle: config.BundleYAML,
 	}
-	err = store.Push(ctx, bundleYamlDesc, bytes.NewReader(bundleManifestBytes))
+	err = store.Push(ctx, bundleYamlDesc, bytes.NewReader(bundleYAMLBytes))
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
@@ -372,8 +359,8 @@ func pushBundleManifestToStore(ctx context.Context, store *ocistore.Store, bundl
 	return bundleYamlDesc, err
 }
 
-// createManifestConfig creates a manifest config based on the uds-bundle.yaml
-func createManifestConfig(metadata types.UDSMetadata, build types.UDSBuildData) (ocispec.Descriptor, error) {
+// pushManifestConfig creates a manifest config based on the uds-bundle.yaml
+func pushManifestConfig(store *ocistore.Store, metadata types.UDSMetadata, build types.UDSBuildData) (ocispec.Descriptor, error) {
 	annotations := map[string]string{
 		ocispec.AnnotationTitle:       metadata.Name,
 		ocispec.AnnotationDescription: metadata.Description,
@@ -387,7 +374,11 @@ func createManifestConfig(metadata types.UDSMetadata, build types.UDSBuildData) 
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
-	manifestConfigDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, manifestConfigBytes)
+	manifestConfigDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, manifestConfigBytes)
+	err = store.Push(context.TODO(), manifestConfigDesc, bytes.NewReader(manifestConfigBytes))
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
 	return manifestConfigDesc, err
 }
 

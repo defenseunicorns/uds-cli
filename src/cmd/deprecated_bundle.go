@@ -6,18 +6,21 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/config/lang"
-	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/oci"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	"os"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
+	"github.com/defenseunicorns/zarf/src/pkg/oci"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/config/lang"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
+
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/spf13/cobra"
+
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 )
 
 var bundleCmd = &cobra.Command{

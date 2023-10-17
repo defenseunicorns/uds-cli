@@ -12,18 +12,21 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
-	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content/file"
 	ocistore "oras.land/oras-go/v2/content/oci"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
 type ociProvider struct {
@@ -31,7 +34,7 @@ type ociProvider struct {
 	src string
 	dst string
 	*oci.OrasRemote
-	manifest *oci.ZarfOCIManifest // todo: UDSBundleOCIManifest?
+	manifest *oci.ZarfOCIManifest
 }
 
 func (op *ociProvider) getBundleManifest() error {
@@ -48,6 +51,7 @@ func (op *ociProvider) getBundleManifest() error {
 
 // LoadPackage loads a package from a remote bundle
 func (op *ociProvider) LoadPackage(sha, destinationDir string, _ int) (PathMap, error) {
+	// todo: use oras.Copy for faster downloads
 	if destinationDir == op.dst {
 		return nil, fmt.Errorf("destination directory cannot be the same as the bundle directory")
 	}
@@ -131,6 +135,7 @@ func (op *ociProvider) LoadBundleMetadata() (PathMap, error) {
 		}
 		loaded[rel] = absSha
 	}
+	op.getBundleManifest()
 	return loaded, nil
 }
 
@@ -198,7 +203,6 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 		return nil, err
 	}
 
-	spinner := message.NewProgressSpinner("Starting bundle pull")
 	loaded, err := op.LoadBundleMetadata() // todo: remove? this seems redundant, can we pass the "loaded" var in
 	if err != nil {
 		return nil, err
@@ -210,7 +214,6 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 	}
 
 	var bundle types.UDSBundle
-
 	if err := goyaml.Unmarshal(b, &bundle); err != nil {
 		return nil, err
 	}
@@ -230,8 +233,10 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 			return nil, err
 		}
 		layersToPull = append(layersToPull, manifestDesc)
+		progressBar := message.NewProgressBar(int64(len(manifest.Layers)), fmt.Sprintf("Verifying layers in Zarf package: %s", pkg.Name))
 		for _, layer := range manifest.Layers {
 			ok, err := op.Repo().Blobs().Exists(op.ctx, layer)
+			progressBar.Add(1)
 			if err != nil {
 				return nil, err
 			}
@@ -239,6 +244,7 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 				layersToPull = append(layersToPull, layer)
 			}
 		}
+		progressBar.Successf("Verified %s package", pkg.Name)
 	}
 
 	store, err := ocistore.NewWithContext(op.ctx, op.dst)
@@ -252,35 +258,30 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 	}
 	layersToPull = append(layersToPull, rootDesc)
 
-	// only grab image layers that we want
-	// would like to use oci.CopyWithProgress here but it breaks when the media type of the image manifest is a Zarf blob
-	for _, layer := range layersToPull {
-		spinner.Updatef(fmt.Sprintf("Pulling bundle layer: %s", layer.Digest.Encoded()))
-		if ok, _ := op.Repo().Exists(op.ctx, layer); ok {
-			lb, err := op.Repo().Fetch(op.ctx, layer)
-			if err != nil {
-				return nil, err
-			}
-			exists, err := store.Exists(op.ctx, layer)
-			if err != nil {
-				return nil, err
-			}
-			if !exists {
-				err = store.Push(op.ctx, layer, lb)
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
+	// copy bundle
+	copyOpts, estimatedBytes, err := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
+	if err != nil {
+		return nil, err
 	}
-	spinner.Successf("Bundle pull successful!")
-	spinner.Stop()
+
+	// Create a thread to update a progress bar as we save the package to disk
+	doneSaving := make(chan int)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go zarfUtils.RenderProgressBarForLocalDirWrite(op.dst, estimatedBytes, &wg, doneSaving, fmt.Sprintf("Pulling bundle: %s", bundle.Metadata.Name))
+	_, err = oras.Copy(op.ctx, op.Repo(), op.Repo().Reference.String(), store, op.Repo().Reference.String(), copyOpts)
+	if err != nil {
+		doneSaving <- 1
+		return nil, err
+	}
+
+	doneSaving <- 1
+	wg.Wait()
 
 	for _, layer := range layersToPull {
 		sha := layer.Digest.Encoded()
 		loaded[sha] = filepath.Join(op.dst, config.BlobsDir, sha)
 	}
-	loaded["index.json"] = filepath.Join(op.dst, "index.json")
 
 	return loaded, nil
 }
