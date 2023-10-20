@@ -5,6 +5,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -85,7 +86,7 @@ func initViper() {
 	if vConfigError != nil {
 		// Config file not found; ignore
 		if _, ok := vConfigError.(viper.ConfigFileNotFoundError); !ok {
-			message.WarnErrorf(vConfigError, lang.CmdViperErrLoadingConfigFile, vConfigError.Error())
+			message.WarnErr(vConfigError, fmt.Sprintf("%s - %s", lang.CmdViperErrLoadingConfigFile, vConfigError.Error()))
 		}
 	}
 }
@@ -95,7 +96,7 @@ func printViperConfigUsed() {
 	if vConfigError != nil {
 		// Config file not found; ignore
 		if _, ok := vConfigError.(viper.ConfigFileNotFoundError); !ok {
-			message.WarnErrorf(vConfigError, lang.CmdViperErrLoadingConfigFile, vConfigError.Error())
+			message.WarnErr(vConfigError, fmt.Sprintf("%s - %s", lang.CmdViperErrLoadingConfigFile, vConfigError.Error()))
 		}
 	} else {
 		message.Notef(lang.CmdViperInfoUsingConfigFile, v.ConfigFileUsed())

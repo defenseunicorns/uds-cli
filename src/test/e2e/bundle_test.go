@@ -13,13 +13,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/registry"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
 )
 
 func zarfPublish(t *testing.T, path string, reg string) {
@@ -30,7 +31,7 @@ func zarfPublish(t *testing.T, path string, reg string) {
 	require.NoError(t, err)
 }
 
-const zarfVersion = "v0.29.1"
+const zarfVersion = "v0.30.1"
 
 func TestCreateWithNoPath(t *testing.T) {
 	zarfPkgPath1 := "src/test/packages/zarf/no-cluster/output-var"

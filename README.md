@@ -20,7 +20,7 @@ metadata:
 zarf-packages:
   - name: init 
     repository: localhost:5000/init
-    ref: v0.29.1
+    ref: v0.30.1
     optional-components:
       - git-server
   - name: podinfo

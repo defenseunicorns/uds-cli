@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+	av4 "github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pterm/pterm"
 	"oras.land/oras-go/v2"
@@ -121,11 +123,28 @@ func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) (oras.Co
 		}
 		var ret []ocispec.Descriptor
 		for _, node := range nodes {
-			if node.Size != 0 && helpers.SliceContains(shas, node.Digest.Encoded()) {
+			if node.Size != 0 && slices.Contains(shas, node.Digest.Encoded()) {
 				ret = append(ret, node)
 			}
 		}
 		return ret, nil
 	}
 	return copyOpts, estimatedBytes, nil
+}
+
+// ExtractJSON extracts and unmarshals a tarballed JSON file into a type
+func ExtractJSON(j any) func(context.Context, av4.File) error {
+	return func(_ context.Context, file av4.File) error {
+		stream, err := file.Open()
+		if err != nil {
+			return err
+		}
+		defer stream.Close()
+
+		fileBytes, err := io.ReadAll(stream)
+		if err != nil {
+			return err
+		}
+		return json.Unmarshal(fileBytes, &j)
+	}
 }

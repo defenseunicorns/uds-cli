@@ -7,20 +7,20 @@ package bundle
 import (
 	"errors"
 	"fmt"
-	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/types"
-	zarfConfig "github.com/defenseunicorns/zarf/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
+
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
 // Bundler handles bundler operations
@@ -47,7 +47,7 @@ func New(cfg *types.BundlerConfig) (*Bundler, error) {
 		}
 	)
 
-	tmp, err := utils.MakeTempDir()
+	tmp, err := utils.MakeTempDir("")
 	if err != nil {
 		return nil, fmt.Errorf("bundler unable to create temp directory: %w", err)
 	}
@@ -71,7 +71,6 @@ func NewOrDie(cfg *types.BundlerConfig) *Bundler {
 // ClearPaths clears out the paths used by Bundler
 func (b *Bundler) ClearPaths() {
 	_ = os.RemoveAll(b.tmp)
-	_ = os.RemoveAll(zarfConfig.ZarfSBOMDir)
 }
 
 // ValidateBundleResources validates the bundle's metadata and package references
@@ -101,7 +100,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 		return fmt.Errorf("error validating bundle vars: %s", err)
 	}
 
-	tmp, err := utils.MakeTempDir()
+	tmp, err := utils.MakeTempDir("")
 	if err != nil {
 		return err
 	}
@@ -171,6 +170,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 
 		defer os.RemoveAll(tmp)
 
+		// todo: need to packager.ValidatePackageSignature (or come up with a bundle-level signature scheme)
 		publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
 		if pkg.PublicKey != "" {
 			if err := utils.WriteFile(publicKeyPath, []byte(pkg.PublicKey)); err != nil {
@@ -181,9 +181,6 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 			publicKeyPath = ""
 		}
 
-		if err := packager.ValidatePackageSignature(tmp, publicKeyPath); err != nil {
-			return err
-		}
 		if len(pkg.OptionalComponents) > 0 {
 			// validate the optional components exist in the package and support the bundle's target architecture
 			for _, component := range pkg.OptionalComponents {

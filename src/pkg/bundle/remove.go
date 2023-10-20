@@ -6,18 +6,17 @@ package bundle
 
 import (
 	"context"
+	"strings"
 
-	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/types"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 )
 
-// Remove should do the same as previous code
-//
-// really this is prob just gonna loop over the packages and call `p.Remove()`
-//
-// should this support some form of `--components`?
+// Remove removes packages deployed from a bundle
 func (b *Bundler) Remove() error {
 	ctx := context.TODO()
 	// create a new provider
@@ -40,21 +39,29 @@ func (b *Bundler) Remove() error {
 	// remove in reverse order
 	for i := len(b.bundle.ZarfPackages) - 1; i >= 0; i-- {
 		pkg := b.bundle.ZarfPackages[i]
-		name := pkg.Name
-		pkgTmp, err := utils.MakeTempDir()
 		if err != nil {
 			return err
+		}
+
+		opts := types.ZarfPackageOptions{
+			PackageSource: b.cfg.RemoveOpts.Source,
 		}
 		pkgCfg := types.PackagerConfig{
-			PkgOpts: types.ZarfPackageOptions{
-				PackagePath: name,
-			},
+			PkgOpts: opts,
 		}
-		pkgClient, err := packager.New(&pkgCfg)
+		pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
 			return err
 		}
-		if err := pkgClient.SetTempDirectory(pkgTmp); err != nil {
+
+		sha := strings.Split(pkg.Ref, "sha256:")[1]
+		source, err := sources.New(b.cfg.RemoveOpts.Source, pkg.Name, opts, sha)
+		if err != nil {
+			return err
+		}
+
+		pkgClient := packager.NewOrDie(&pkgCfg, packager.WithSource(source), packager.WithTemp(pkgTmp))
+		if err != nil {
 			return err
 		}
 		defer pkgClient.ClearTempPaths()
