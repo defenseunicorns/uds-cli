@@ -8,7 +8,8 @@ universal_binaries:
 
 # Build the different combination of goos/arch binaries
 builds:
-  - env:
+  - id: uds
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
@@ -44,7 +45,7 @@ changelog:
 
 brews:
   - name: uds
-    tap:
+    repository:
       owner: defenseunicorns
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
@@ -55,7 +56,7 @@ brews:
   # NOTE: We are using .Version instead of .Tag because homebrew has weird semver parsing rules and won't be able to
   #       install versioned releases that has a `v` character before the version number.
   - name: "uds@{{ .Version }}"
-    tap:
+    repository:
       owner: defenseunicorns
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
