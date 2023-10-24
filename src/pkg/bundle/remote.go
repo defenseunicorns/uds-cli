@@ -21,7 +21,6 @@ import (
 	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
-	"oras.land/oras-go/v2/content/file"
 	ocistore "oras.land/oras-go/v2/content/oci"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
@@ -47,72 +46,6 @@ func (op *ociProvider) getBundleManifest() error {
 	}
 	op.manifest = root
 	return nil
-}
-
-// LoadPackage loads a package from a remote bundle
-func (op *ociProvider) LoadPackage(sha, destinationDir string, _ int) (PathMap, error) {
-	// todo: use oras.Copy for faster downloads
-	if destinationDir == op.dst {
-		return nil, fmt.Errorf("destination directory cannot be the same as the bundle directory")
-	}
-
-	if err := op.getBundleManifest(); err != nil {
-		return nil, err
-	}
-	pkgManifestDesc := op.manifest.Locate(sha)
-	if oci.IsEmptyDescriptor(pkgManifestDesc) {
-		return nil, fmt.Errorf("package %s does not exist in this bundle", sha)
-	}
-	// hack to Zarf media type so that FetchManifest works
-	pkgManifestDesc.MediaType = oci.ZarfLayerMediaTypeBlob
-	pkgManifest, err := op.FetchManifest(pkgManifestDesc)
-	if err != nil || pkgManifest == nil {
-		return nil, err
-	}
-
-	// including the package manifest uses some ORAs FindSuccessors hackery to expand the manifest into all layers
-	// as oras.Copy was designed for resolving layers via a manifest reference, not a manifest embedded inside of another
-	// image
-	layersToPull := []ocispec.Descriptor{pkgManifestDesc}
-	for _, layer := range pkgManifest.Layers {
-		// only fetch layers that exist
-		// since optional-components exists, there will be layers that don't exist
-		// as the package's preserved manifest will contain all layers for all components
-		ok, _ := op.Repo().Blobs().Exists(op.ctx, layer)
-		if ok {
-			layersToPull = append(layersToPull, layer)
-		}
-	}
-
-	store, err := file.New(destinationDir)
-	if err != nil {
-		return nil, err
-	}
-	defer store.Close()
-
-	spinner := message.NewProgressSpinner("Pulling bundled Zarf package")
-	defer spinner.Stop()
-	for _, layer := range layersToPull {
-		spinner.Updatef(fmt.Sprintf("Pulling bundle layer: %s", layer.Digest.Encoded()))
-		lb, err := op.Repo().Fetch(op.ctx, layer)
-		if err != nil {
-			return nil, err
-		}
-
-		err = store.Push(op.ctx, layer, lb)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	spinner.Successf("Package pull successful")
-
-	loaded := make(PathMap)
-	for _, layer := range layersToPull {
-		rel := layer.Annotations[ocispec.AnnotationTitle]
-		loaded[rel] = filepath.Join(destinationDir, rel)
-	}
-	return loaded, nil
 }
 
 // LoadBundleMetadata loads a remote bundle's metadata
@@ -268,7 +201,7 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 	doneSaving := make(chan int)
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go zarfUtils.RenderProgressBarForLocalDirWrite(op.dst, estimatedBytes, &wg, doneSaving, fmt.Sprintf("Pulling bundle: %s", bundle.Metadata.Name))
+	go zarfUtils.RenderProgressBarForLocalDirWrite(op.dst, estimatedBytes, &wg, doneSaving, fmt.Sprintf("Pulling bundle: %s", bundle.Metadata.Name), fmt.Sprintf("Successfully pulled bundle: %s", bundle.Metadata.Name))
 	_, err = oras.Copy(op.ctx, op.Repo(), op.Repo().Reference.String(), store, op.Repo().Reference.String(), copyOpts)
 	if err != nil {
 		doneSaving <- 1

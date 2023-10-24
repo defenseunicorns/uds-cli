@@ -7,14 +7,13 @@ package bundle
 import (
 	"errors"
 	"fmt"
-	"oras.land/oras-go/v2/registry"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"oras.land/oras-go/v2/registry"
+
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/interactive"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
@@ -22,6 +21,9 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	"github.com/pterm/pterm"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
 // Create creates a bundle
@@ -125,7 +127,6 @@ func (b *Bundler) confirmBundleCreation() (confirm bool) {
 	prompt := &survey.Confirm{
 		Message: "Create this bundle?",
 	}
-
 
 	if err := survey.AskOne(prompt, &confirm); err != nil || !confirm {
 		// User aborted or declined, cancel the action

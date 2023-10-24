@@ -45,8 +45,9 @@ func Create(b *Bundler, signature []byte) error {
 	artifactPathMap := make(PathMap)
 
 	// create root manifest for OCI artifact, will populate with refs to uds-bundle.yaml and zarf.yamls
-	rootManifest := ocispec.Manifest{}
-	rootManifest.MediaType = ocispec.MediaTypeImageManifest
+	rootManifest := ocispec.Manifest{
+		MediaType: ocispec.MediaTypeImageManifest,
+	}
 
 	// grab all Zarf pkgs from OCI and put blobs in OCI store
 	for i, pkg := range bundle.ZarfPackages {
@@ -83,7 +84,7 @@ func Create(b *Bundler, signature []byte) error {
 				artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 			}
 		} else if pkg.Path != "" {
-			pkgTmp, err := utils.MakeTempDir()
+			pkgTmp, err := utils.MakeTempDir("")
 			defer os.RemoveAll(pkgTmp)
 			if err != nil {
 				return err

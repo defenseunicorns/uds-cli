@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 
@@ -34,22 +33,6 @@ type tarballBundleProvider struct {
 	dst          string
 	manifest     *oci.ZarfOCIManifest
 	manifestDesc ocispec.Descriptor
-}
-
-func extractJSON(j any) func(context.Context, av4.File) error {
-	return func(_ context.Context, file av4.File) error {
-		stream, err := file.Open()
-		if err != nil {
-			return err
-		}
-		defer stream.Close()
-
-		fileBytes, err := io.ReadAll(stream)
-		if err != nil {
-			return err
-		}
-		return json.Unmarshal(fileBytes, &j)
-	}
 }
 
 // CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
@@ -210,7 +193,7 @@ func (tp *tarballBundleProvider) LoadBundle(_ int) (PathMap, error) {
 	for _, layer := range tp.manifest.Layers {
 		if layer.MediaType == ocispec.MediaTypeImageManifest {
 			var manifest oci.ZarfOCIManifest
-			if err := format.Extract(tp.ctx, sourceArchive, []string{filepath.Join(config.BlobsDir, layer.Digest.Encoded())}, extractJSON(&manifest)); err != nil {
+			if err := format.Extract(tp.ctx, sourceArchive, []string{filepath.Join(config.BlobsDir, layer.Digest.Encoded())}, utils.ExtractJSON(&manifest)); err != nil {
 				return nil, err
 			}
 			layersToExtract = append(layersToExtract, layer)
@@ -244,95 +227,6 @@ func (tp *tarballBundleProvider) LoadBundle(_ int) (PathMap, error) {
 	}
 
 	if err := format.Extract(tp.ctx, sourceArchive, pathsInArchive, cacheFunc); err != nil {
-		return nil, err
-	}
-
-	return loaded, nil
-}
-
-// LoadPackage loads a package from a tarball
-func (tp *tarballBundleProvider) LoadPackage(sha, destinationDir string, _ int) (PathMap, error) {
-	if err := tp.getBundleManifest(); err != nil {
-		return nil, err
-	}
-
-	format := av4.CompressedArchive{
-		Compression: av4.Zstd{},
-		Archival:    av4.Tar{},
-	}
-
-	sourceArchive, err := os.Open(tp.src)
-	if err != nil {
-		return nil, err
-	}
-
-	var manifest oci.ZarfOCIManifest
-
-	if err := format.Extract(tp.ctx, sourceArchive, []string{filepath.Join(config.BlobsDir, sha)}, extractJSON(&manifest)); err != nil {
-		sourceArchive.Close()
-		return nil, err
-	}
-
-	if err := sourceArchive.Close(); err != nil {
-		return nil, err
-	}
-
-	extractLayer := func(_ context.Context, file av4.File) error {
-		if file.IsDir() {
-			return nil
-		}
-		stream, err := file.Open()
-		if err != nil {
-			return err
-		}
-		defer stream.Close()
-
-		desc := helpers.Find(manifest.Layers, func(layer ocispec.Descriptor) bool {
-			return layer.Digest.Encoded() == filepath.Base(file.NameInArchive)
-		})
-
-		path := desc.Annotations[ocispec.AnnotationTitle]
-
-		size := desc.Size
-
-		dst := filepath.Join(destinationDir, path)
-
-		if err := zarfUtils.CreateDirectory(filepath.Dir(dst), 0700); err != nil {
-			return err
-		}
-
-		target, err := os.Create(dst)
-		if err != nil {
-			return err
-		}
-		defer target.Close()
-
-		written, err := io.Copy(target, stream)
-		if err != nil {
-			return err
-		}
-		if written != size {
-			return fmt.Errorf("expected to write %d bytes to %s, wrote %d", size, path, written)
-		}
-
-		return nil
-	}
-
-	layersToExtract := []string{}
-	loaded := make(PathMap)
-
-	for _, layer := range manifest.Layers {
-		layersToExtract = append(layersToExtract, filepath.Join(config.BlobsDir, layer.Digest.Encoded()))
-		loaded[layer.Annotations[ocispec.AnnotationTitle]] = filepath.Join(destinationDir, config.BlobsDir, layer.Digest.Encoded())
-	}
-
-	sourceArchive, err = os.Open(tp.src)
-	if err != nil {
-		return nil, err
-	}
-	defer sourceArchive.Close()
-
-	if err := format.Extract(tp.ctx, sourceArchive, layersToExtract, extractLayer); err != nil {
 		return nil, err
 	}
 

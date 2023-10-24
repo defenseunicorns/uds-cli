@@ -23,6 +23,7 @@ import (
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
@@ -79,23 +80,11 @@ func (b *Bundler) Deploy() error {
 	// deploy each package
 	for _, pkg := range b.bundle.ZarfPackages {
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
-		pkgTmp, err := utils.MakeTempDir()
+		pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
 			return err
 		}
 		defer os.RemoveAll(pkgTmp)
-
-		packageSpinner := message.NewProgressSpinner("Loading bundled Zarf package: %s", pkg.Name)
-
-		defer packageSpinner.Stop()
-
-		// todo: LoadPackage should return an err if the tmp dir (or wherever) is empty
-		_, err = provider.LoadPackage(sha, pkgTmp, config.CommonOptions.OCIConcurrency)
-		if err != nil {
-			return err
-		}
-
-		packageSpinner.Successf("Loaded bundled Zarf package: %s", pkg.Name)
 
 		publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
 		if pkg.PublicKey != "" {
@@ -110,7 +99,7 @@ func (b *Bundler) Deploy() error {
 		pkgVars := b.loadVariables(pkg, bundleExportedVars)
 
 		opts := zarfTypes.ZarfPackageOptions{
-			PackagePath:        pkgTmp,
+			PackageSource:      pkgTmp,
 			OptionalComponents: strings.Join(pkg.OptionalComponents, ","),
 			PublicKeyPath:      publicKeyPath,
 			SetVariables:       pkgVars,
@@ -132,11 +121,13 @@ func (b *Bundler) Deploy() error {
 		// Automatically confirm the package deployment
 		zarfConfig.CommonOptions.Confirm = true
 
-		pkgClient, err := packager.New(&pkgCfg)
+		source, err := sources.New(b.cfg.DeployOpts.Source, pkg.Name, opts, sha)
 		if err != nil {
 			return err
 		}
-		if err := pkgClient.SetTempDirectory(pkgTmp); err != nil {
+
+		pkgClient := packager.NewOrDie(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
+		if err != nil {
 			return err
 		}
 		if err := pkgClient.Deploy(); err != nil {
