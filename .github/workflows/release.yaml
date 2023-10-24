@@ -103,3 +103,4 @@ jobs:
           args: release --rm-dist --debug
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN}}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.TAP_TOKEN }}

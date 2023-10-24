@@ -12,6 +12,7 @@ import (
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 )
 
+// New creates a new package source based on pkgLocation
 func New(pkgLocation string, pkgName string, opts zarfTypes.ZarfPackageOptions, sha string) (zarfSources.PackageSource, error) {
 	var source zarfSources.PackageSource
 	if strings.Contains(pkgLocation, "tar.zst") {
