@@ -14,6 +14,7 @@ const (
 	RootCmdFlagInsecure       = "Allow access to insecure registries and disable other recommended security enforcements such as package checksum and signature validation. This flag should only be used if you have a specific reason and accept the reduced security posture."
 	RootCmdFlagLogLevel       = "Log level when running UDS-CLI. Valid options are: warn, info, debug, trace"
 	RootCmdErrInvalidLogLevel = "Invalid log level. Valid options are: warn, info, debug, trace."
+	RootCmdFlagArch           = "Architecture for UDS bundles and Zarf packages"
 
 	// bundle
 	CmdBundleShort           = "Commands for creating, deploying, removing, pulling, and inspecting bundles"

@@ -34,8 +34,8 @@ func zarfPublish(t *testing.T, path string, reg string) {
 const zarfVersion = "v0.30.1"
 
 func TestCreateWithNoPath(t *testing.T) {
-	zarfPkgPath1 := "src/test/packages/zarf/no-cluster/output-var"
-	zarfPkgPath2 := "src/test/packages/zarf/no-cluster/receive-var"
+	zarfPkgPath1 := "src/test/packages/no-cluster/output-var"
+	zarfPkgPath2 := "src/test/packages/no-cluster/receive-var"
 	e2e.CreateZarfPkg(t, zarfPkgPath1)
 	e2e.CreateZarfPkg(t, zarfPkgPath2)
 
@@ -48,7 +48,7 @@ func TestCreateWithNoPath(t *testing.T) {
 	pkg = filepath.Join(zarfPkgPath2, fmt.Sprintf("zarf-package-receive-var-%s-0.0.1.tar.zst", e2e.Arch))
 	zarfPublish(t, pkg, "localhost:888")
 
-	err := os.Link(fmt.Sprintf("src/test/packages/02-simple-vars/%s", config.BundleYAML), config.BundleYAML)
+	err := os.Link(fmt.Sprintf("src/test/bundles/02-simple-vars/%s", config.BundleYAML), config.BundleYAML)
 	require.NoError(t, err)
 	defer os.Remove(config.BundleYAML)
 	defer os.Remove(fmt.Sprintf("uds-bundle-simple-vars-%s-0.0.1.tar.zst", e2e.Arch))
@@ -60,8 +60,8 @@ func TestCreateWithNoPath(t *testing.T) {
 }
 
 func TestBundleVariables(t *testing.T) {
-	zarfPkgPath1 := "src/test/packages/zarf/no-cluster/output-var"
-	zarfPkgPath2 := "src/test/packages/zarf/no-cluster/receive-var"
+	zarfPkgPath1 := "src/test/packages/no-cluster/output-var"
+	zarfPkgPath2 := "src/test/packages/no-cluster/receive-var"
 	e2e.CreateZarfPkg(t, zarfPkgPath1)
 	e2e.CreateZarfPkg(t, zarfPkgPath2)
 
@@ -74,10 +74,10 @@ func TestBundleVariables(t *testing.T) {
 	pkg = filepath.Join(zarfPkgPath2, fmt.Sprintf("zarf-package-receive-var-%s-0.0.1.tar.zst", e2e.Arch))
 	zarfPublish(t, pkg, "localhost:888")
 
-	bundleDir := "src/test/packages/02-simple-vars"
+	bundleDir := "src/test/bundles/02-simple-vars"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-simple-vars-%s-0.0.1.tar.zst", e2e.Arch))
 
-	os.Setenv("UDS_CONFIG", filepath.Join("src/test/packages/02-simple-vars", "uds-config.yaml"))
+	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/02-simple-vars", "uds-config.yaml"))
 
 	create(t, bundleDir)
 	createRemote(t, bundleDir, "localhost:888")
@@ -93,7 +93,7 @@ func TestBundleWithLocalInitPkg(t *testing.T) {
 
 	e2e.DownloadZarfInitPkg(t, zarfVersion)
 
-	bundleDir := "src/test/packages/04-local-init"
+	bundleDir := "src/test/bundles/04-local-init"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-local-init-%s-0.0.1.tar.zst", e2e.Arch))
 
 	create(t, bundleDir)
@@ -106,9 +106,9 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 	e2e.SetupWithCluster(t)
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
-	e2e.CreateZarfPkg(t, "src/test/packages/zarf/podinfo")
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
 
-	bundleDir := "src/test/packages/03-local-and-remote"
+	bundleDir := "src/test/bundles/03-local-and-remote"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
 	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
@@ -130,20 +130,20 @@ func TestBundle(t *testing.T) {
 	e2e.SetupWithCluster(t)
 
 	e2e.DownloadZarfInitPkg(t, zarfVersion)
-	e2e.CreateZarfPkg(t, "src/test/packages/zarf/podinfo")
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
 
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
 	e2e.SetupDockerRegistry(t, 889)
 	defer e2e.TeardownRegistry(t, 889)
 
-	pkg := fmt.Sprintf("src/test/packages/zarf/zarf-init-%s-%s.tar.zst", e2e.Arch, zarfVersion)
+	pkg := fmt.Sprintf("src/test/packages/zarf-init-%s-%s.tar.zst", e2e.Arch, zarfVersion)
 	zarfPublish(t, pkg, "localhost:888")
 
-	pkg = fmt.Sprintf("src/test/packages/zarf/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
+	pkg = fmt.Sprintf("src/test/packages/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
 	zarfPublish(t, pkg, "localhost:889")
 
-	bundleDir := "src/test/packages/01-uds-bundle"
+	bundleDir := "src/test/bundles/01-uds-bundle"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-example-%s-0.0.1.tar.zst", e2e.Arch))
 
 	create(t, bundleDir) // todo: allow creating from both the folder containing and direct reference to uds-bundle.yaml
@@ -157,17 +157,17 @@ func TestRemoteBundle(t *testing.T) {
 	e2e.SetupWithCluster(t)
 
 	e2e.DownloadZarfInitPkg(t, zarfVersion)
-	e2e.CreateZarfPkg(t, "src/test/packages/zarf/podinfo")
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
 
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
 	e2e.SetupDockerRegistry(t, 889)
 	defer e2e.TeardownRegistry(t, 889)
 
-	pkg := fmt.Sprintf("src/test/packages/zarf/zarf-init-%s-%s.tar.zst", e2e.Arch, zarfVersion)
+	pkg := fmt.Sprintf("src/test/packages/zarf-init-%s-%s.tar.zst", e2e.Arch, zarfVersion)
 	zarfPublish(t, pkg, "localhost:888")
 
-	pkg = fmt.Sprintf("src/test/packages/zarf/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
+	pkg = fmt.Sprintf("src/test/packages/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
 	zarfPublish(t, pkg, "localhost:889")
 
 	bundleRef := registry.Reference{
@@ -178,7 +178,7 @@ func TestRemoteBundle(t *testing.T) {
 	}
 
 	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-example-%s-0.0.1.tar.zst", e2e.Arch))
-	bundlePath := "src/test/packages/01-uds-bundle"
+	bundlePath := "src/test/bundles/01-uds-bundle"
 
 	createRemote(t, bundlePath, bundleRef.Registry)
 	pull(t, bundleRef.String(), tarballPath)
@@ -194,7 +194,7 @@ func create(t *testing.T, bundlePath string) {
 }
 
 func createSecure(t *testing.T, bundlePath string) {
-	cmd := strings.Split(fmt.Sprintf("create %s --confirm", bundlePath), " ")
+	cmd := strings.Split(fmt.Sprintf("create %s --confirm -a %s", bundlePath, e2e.Arch), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
