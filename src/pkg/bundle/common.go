@@ -228,8 +228,6 @@ func validateBundleVars(packages []types.BundleZarfPackage) error {
 }
 
 // CalculateBuildInfo calculates the build info for the bundle
-//
-// this is mainly mirrored from packager.writeYaml()
 func (b *Bundler) CalculateBuildInfo() error {
 	now := time.Now()
 	b.bundle.Build.User = os.Getenv("USER")
@@ -240,7 +238,7 @@ func (b *Bundler) CalculateBuildInfo() error {
 	}
 	b.bundle.Build.Terminal = hostname
 
-	// --architecture flag > metadata.arch > build.arch / runtime.GOARCH (default)
+	// --architecture flag > metadata.arch > build.arch > runtime.GOARCH (default)
 	b.bundle.Build.Architecture = config.GetArch(b.bundle.Metadata.Architecture, b.bundle.Build.Architecture)
 	b.bundle.Metadata.Architecture = b.bundle.Build.Architecture
 

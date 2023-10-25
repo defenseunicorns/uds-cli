@@ -117,7 +117,7 @@ func (e2e *UDSE2ETest) GetUdsVersion(t *testing.T) string {
 func (e2e *UDSE2ETest) DownloadZarfInitPkg(t *testing.T, zarfVersion string) {
 	filename := fmt.Sprintf("zarf-init-%s-%s.tar.zst", e2e.Arch, zarfVersion)
 	zarfReleaseURL := fmt.Sprintf("https://github.com/defenseunicorns/zarf/releases/download/%s/%s", zarfVersion, filename)
-	outputDir := "src/test/packages/zarf"
+	outputDir := "src/test/packages"
 
 	// Check if the file already exists
 	if _, err := os.Stat(outputDir + "/" + filename); err == nil {

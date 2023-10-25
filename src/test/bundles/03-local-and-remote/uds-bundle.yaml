@@ -11,5 +11,5 @@ zarf-packages:
     optional-components:
       - git-server
   - name: podinfo
-    path: "../zarf/podinfo"
+    path: "../../packages/podinfo"
     ref: 0.0.1
