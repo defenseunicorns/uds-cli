@@ -57,25 +57,11 @@ func Create(b *Bundler, signature []byte) error {
 
 		if pkg.Repository != "" {
 			url := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
-			remoteBundler, err := bundler.NewRemoteBundler(pkg, url, store, nil)
+			remoteBundler, err := bundler.NewRemoteBundler(pkg, url, store, nil, b.tmp)
 			if err != nil {
 				return err
 			}
 
-			pkgManifestDesc, err := remoteBundler.PushManifest()
-			pkgManifestDesc.Annotations = map[string]string{
-				ocispec.AnnotationTitle: pkg.Name,
-			}
-			if err != nil {
-				return err
-			}
-
-			// append zarf pkg manifest to root manifest and grab path for archiving
-			rootManifest.Layers = append(rootManifest.Layers, pkgManifestDesc)
-			digest := pkgManifestDesc.Digest.Encoded()
-			artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
-
-			message.Debugf("Pushed %s sub-manifest into %s: %s", url, b.tmp, message.JSONValue(pkgManifestDesc))
 			layerDescs, err := remoteBundler.PushLayers(fetchSpinner, i+1, len(bundle.ZarfPackages))
 			if err != nil {
 				return err
@@ -83,7 +69,24 @@ func Create(b *Bundler, signature []byte) error {
 
 			// grab layers for archiving
 			for _, layerDesc := range layerDescs {
-				digest = layerDesc.Digest.Encoded()
+				if layerDesc.MediaType == ocispec.MediaTypeImageManifest {
+					// rewrite the Zarf image manifest to have media type of Zarf blob
+					err = os.Remove(filepath.Join(b.tmp, config.BlobsDir, layerDesc.Digest.Encoded()))
+					if err != nil {
+						return err
+					}
+					layerBytes, err := remoteBundler.RemoteSrc.FetchLayer(layerDesc)
+					if err != nil {
+						return err
+					}
+					rootPkgDescBytes := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, layerBytes)
+					if err = store.Push(context.TODO(), rootPkgDescBytes, bytes.NewReader(layerBytes)); err != nil {
+						return err
+					}
+					layerDesc.MediaType = oci.ZarfLayerMediaTypeBlob
+					rootManifest.Layers = append(rootManifest.Layers, layerDesc)
+				}
+				digest := layerDesc.Digest.Encoded()
 				artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 			}
 		} else if pkg.Path != "" {
@@ -188,6 +191,11 @@ func Create(b *Bundler, signature []byte) error {
 	if err != nil {
 		return err
 	}
+	err = cleanIndexJSON(b.tmp, ref)
+	if err != nil {
+		return err
+	}
+
 	// tarball the bundle
 	err = writeTarball(bundle, artifactPathMap)
 	if err != nil {
@@ -209,7 +217,7 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 
 	for i, pkg := range bundle.ZarfPackages {
 		url := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
-		remoteBundler, err := bundler.NewRemoteBundler(pkg, url, nil, remoteDst)
+		remoteBundler, err := bundler.NewRemoteBundler(pkg, url, nil, remoteDst, "")
 		if err != nil {
 			return err
 		}
@@ -274,9 +282,7 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 	message.Debug("Pushed config:", message.JSONValue(configDesc))
 
 	rootManifest.Config = configDesc
-
 	rootManifest.SchemaVersion = 2
-
 	rootManifest.Annotations = manifestAnnotationsFromMetadata(&bundle.Metadata) // maps to registry UI
 	b, err := json.Marshal(rootManifest)
 	if err != nil {
@@ -469,4 +475,39 @@ func pushBundleSignature(ctx context.Context, store *ocistore.Store, signature [
 		ocispec.AnnotationTitle: config.BundleYAMLSignature,
 	}
 	return signatureDesc, err
+}
+
+// rebuild index.json because copying remote Zarf pkgs adds unnecessary entries
+// this is due to root manifest in Zarf packages having an image manifest media type
+func cleanIndexJSON(tmpDir, ref string) error {
+	indexBytes, err := os.ReadFile(filepath.Join(tmpDir, "index.json"))
+	if err != nil {
+		return err
+	}
+	var index ocispec.Index
+	if err := json.Unmarshal(indexBytes, &index); err != nil {
+		return err
+	}
+
+	for _, manifestDesc := range index.Manifests {
+		if manifestDesc.Annotations[ocispec.AnnotationRefName] == ref {
+			index.Manifests = []ocispec.Descriptor{manifestDesc}
+			break
+		}
+	}
+
+	bundleIndexBytes, err := json.Marshal(index)
+	if err != nil {
+		return err
+	}
+	indexFile, err := os.Create(filepath.Join(tmpDir, "index.json"))
+	if err != nil {
+		return err
+	}
+	defer indexFile.Close()
+	_, err = indexFile.Write(bundleIndexBytes)
+	if err != nil {
+		return err
+	}
+	return nil
 }

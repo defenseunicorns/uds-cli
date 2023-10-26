@@ -87,7 +87,7 @@ func UseLogFile() {
 }
 
 // CreateCopyOpts creates the ORAS CopyOpts struct to use when copying OCI artifacts
-func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) (oras.CopyOptions, int64, error) {
+func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) oras.CopyOptions {
 	var copyOpts oras.CopyOptions
 	copyOpts.Concurrency = concurrency
 	estimatedBytes := int64(0)
@@ -129,7 +129,7 @@ func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) (oras.Co
 		}
 		return ret, nil
 	}
-	return copyOpts, estimatedBytes, nil
+	return copyOpts
 }
 
 // ExtractJSON extracts and unmarshals a tarballed JSON file into a type

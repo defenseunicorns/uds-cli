@@ -44,6 +44,9 @@ const (
 	// ChecksumsTxt is the name of the checksums.txt file in a Zarf pkg
 	ChecksumsTxt = "checksums.txt"
 
+	// UDSCache is the directory containing cached bundle layers
+	UDSCache = ".uds-cache"
+
 	// TasksYAML is the default name of the uds run cmd file
 	TasksYAML = "tasks.yaml"
 )

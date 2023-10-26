@@ -131,7 +131,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 			if strings.Contains(pkg.Ref, "@sha256:") {
 				url = fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
 			}
-			remotePkg, err := bundler.NewRemoteBundler(pkg, url, nil, nil)
+			remotePkg, err := bundler.NewRemoteBundler(pkg, url, nil, nil, b.tmp)
 			if err != nil {
 				return err
 			}

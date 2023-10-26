@@ -9,18 +9,23 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 
 	"github.com/defenseunicorns/zarf/src/pkg/layout"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/sources"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content/file"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/cache"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 )
 
 // RemoteBundle is a package source for remote bundles that implements Zarf's packager.PackageSource
@@ -35,15 +40,13 @@ type RemoteBundle struct {
 
 // LoadPackage loads a Zarf package from a remote bundle
 func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, unarchiveAll bool) error {
-	packageSpinner := message.NewProgressSpinner("Loading bundled Zarf package: %s", r.PkgName)
-	defer packageSpinner.Stop()
 	layers, err := r.downloadPkgFromRemoteBundle()
 	if err != nil {
 		return err
 	}
 
 	var pkg zarfTypes.ZarfPackage
-	if err = utils.ReadYaml(dst.ZarfYAML, &pkg); err != nil {
+	if err = zarfUtils.ReadYaml(dst.ZarfYAML, &pkg); err != nil {
 		return err
 	}
 
@@ -74,8 +77,6 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, unarchiveAll bool) 
 			}
 		}
 	}
-
-	packageSpinner.Successf("Loaded bundled Zarf package: %s", r.PkgName)
 	return nil
 }
 
@@ -107,7 +108,7 @@ func (r *RemoteBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ b
 	if err = goyaml.Unmarshal(zarfYAMLBytes, &zarfYAML); err != nil {
 		return err
 	}
-	err = utils.WriteYaml(filepath.Join(dst.Base, config.ZarfYAML), zarfYAML, 0644)
+	err = zarfUtils.WriteYaml(filepath.Join(dst.Base, config.ZarfYAML), zarfYAML, 0644)
 
 	// grab checksums.txt so we can validate pkg integrity
 	var checksumLayer ocispec.Descriptor
@@ -139,7 +140,6 @@ func (r *RemoteBundle) Collect(_ string) (string, error) {
 
 // downloadPkgFromRemoteBundle downloads a Zarf package from a remote bundle
 func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, error) {
-	// todo: use oras.Copy for faster downloads
 	rootManifest, err := r.Remote.FetchRoot()
 	if err != nil {
 		return nil, err
@@ -156,19 +156,36 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 		return nil, err
 	}
 
-	// including the package manifest uses some ORAs FindSuccessors hackery to expand the manifest into all layers
-	// as oras.Copy was designed for resolving layers via a manifest reference, not a manifest embedded inside of another
-	// image
+	// only fetch layers that exist in the remote as optional ones might not exist
+	// todo: this is incredibly slow; maybe keep track of layers in bundle metadata instead of having to query the remote?
+	progressBar := message.NewProgressBar(int64(len(pkgManifest.Layers)), fmt.Sprintf("Verifying layers in Zarf package: %s", r.PkgName))
+	estimatedBytes := int64(0)
 	layersToPull := []ocispec.Descriptor{pkgManifestDesc}
+	layersInBundle := []ocispec.Descriptor{pkgManifestDesc}
+
 	for _, layer := range pkgManifest.Layers {
-		// only fetch layers that exist
-		// since optional-components exists, there will be layers that don't exist
-		// as the package's preserved manifest will contain all layers for all components
-		ok, _ := r.Remote.Repo().Blobs().Exists(context.TODO(), layer)
+		ok, err := r.Remote.Repo().Blobs().Exists(context.TODO(), layer)
+		if err != nil {
+			return nil, err
+		}
+		progressBar.Add(1)
 		if ok {
-			layersToPull = append(layersToPull, layer)
+			estimatedBytes += layer.Size
+			layersInBundle = append(layersInBundle, layer)
+			digest := layer.Digest.Encoded()
+			if strings.Contains(layer.Annotations[ocispec.AnnotationTitle], config.BlobsDir) && cache.Exists(digest) {
+				dst := filepath.Join(r.TmpDir, "images", config.BlobsDir)
+				err = cache.Use(digest, dst)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				layersToPull = append(layersToPull, layer)
+			}
+
 		}
 	}
+	progressBar.Successf("Verified %s package", r.PkgName)
 
 	store, err := file.New(r.TmpDir)
 	if err != nil {
@@ -176,24 +193,27 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 	}
 	defer store.Close()
 
-	spinner := message.NewProgressSpinner("Pulling bundled Zarf package")
-	defer spinner.Stop()
-	for _, layer := range layersToPull {
-		spinner.Updatef(fmt.Sprintf("Pulling bundle layer: %s", layer.Digest.Encoded()))
-		lb, err := r.Remote.Repo().Fetch(context.TODO(), layer)
-		if err != nil {
-			return nil, err
-		}
-
-		err = store.Push(context.TODO(), layer, lb)
-		if err != nil {
-			return nil, err
-		}
+	// copy zarf pkg to local store
+	copyOpts := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
+	doneSaving := make(chan int)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go zarfUtils.RenderProgressBarForLocalDirWrite(r.TmpDir, estimatedBytes, &wg, doneSaving, fmt.Sprintf("Pulling bundled Zarf pkg: %s", r.PkgName), fmt.Sprintf("Successfully pulled package: %s", r.PkgName))
+	_, err = oras.Copy(context.TODO(), r.Remote.Repo(), r.Remote.Repo().Reference.String(), store, "", copyOpts)
+	if err != nil {
+		doneSaving <- 1
+		return nil, err
 	}
-	if len(pkgManifest.Layers) > len(layersToPull) {
+
+	// todo: only use Zarf blobs from cache bc using cached image manifests causes oras.Copy() to not follow the DAG
+	// todo: only cache Zarf blobs?
+
+	doneSaving <- 1
+	wg.Wait()
+
+	if len(pkgManifest.Layers) > len(layersInBundle) {
 		r.isPartial = true
 	}
 
-	spinner.Successf("Package pull successful")
-	return layersToPull, nil
+	return layersInBundle, nil
 }

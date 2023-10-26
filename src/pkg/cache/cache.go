@@ -1,0 +1,87 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2023-Present The UDS Authors
+
+package cache
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+)
+
+func expandTilde(cachePath string) string {
+	if cachePath[:2] == "~/" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			fmt.Printf("Error in cache dir: %v\n", err)
+			return ""
+		}
+		return filepath.Join(homeDir, cachePath[2:])
+	}
+	return cachePath
+}
+
+func Add(filePathToAdd string) error {
+	// ensure cache dir exists
+	cacheDir := config.CommonOptions.CachePath
+	if err := os.MkdirAll(filepath.Join(cacheDir, "images"), 0755); err != nil {
+		return err
+	}
+
+	// if file already in cache, return
+	filename := strings.Split(filePathToAdd, config.BlobsDir)[1]
+	if Exists(filename) {
+		return nil
+	}
+
+	srcFile, err := os.Open(filePathToAdd)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(filepath.Join(cacheDir, "images", filename))
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+	_, err = io.Copy(dstFile, srcFile)
+	return err
+}
+
+func Exists(layerDigest string) bool {
+	cacheDir := config.CommonOptions.CachePath
+	layerCachePath := filepath.Join(expandTilde(cacheDir), "images", layerDigest)
+	_, err := os.Stat(layerCachePath)
+	if !os.IsNotExist(err) {
+		return true
+	}
+	return false
+}
+
+func Use(layerDigest, dstDir string) error {
+	cacheDir := config.CommonOptions.CachePath
+	layerCachePath := filepath.Join(expandTilde(cacheDir), "images", layerDigest)
+	srcFile, err := os.Open(layerCachePath)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	// ensure blobs/sha256 dir has been created
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		return err
+	}
+
+	dstFile, err := os.Create(filepath.Join(dstDir, layerDigest))
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+	_, err = io.Copy(dstFile, srcFile)
+	return err
+}

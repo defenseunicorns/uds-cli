@@ -23,7 +23,7 @@ const (
 	V_ARCHITECTURE = "architecture"
 	V_NO_LOG_FILE  = "no_log_file"
 	V_NO_PROGRESS  = "no_progress"
-	V_ZARF_CACHE   = "zarf_cache"
+	V_UDS_CACHE    = "uds_cache"
 	V_TMP_DIR      = "tmp_dir"
 	V_INSECURE     = "insecure"
 
