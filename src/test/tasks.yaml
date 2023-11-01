@@ -1,0 +1,63 @@
+variables:
+  - name: REPLACE_ME
+    default: replaced
+
+tasks:
+  - name: copy
+    files:
+      - source: base
+        target: copy
+  - name: copy-exec
+    files:
+      - source: exectest
+        target: exec
+        executable: true
+  - name: copy-verify
+    files:
+      - source: data
+        target: verify
+        shasum: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+  - name: copy-symlink
+    files:
+      - source: symtest
+        target: symcopy
+        symlinks:
+          - "testlink"
+  - name: remote
+    files:
+      - source: https://github.com/defenseunicorns/zarf/releases/download/v0.30.1/checksums.txt
+        target: checksums.txt
+  - name: template-file
+    files:
+      - source: raw
+        target: templated
+  - name: action
+    actions:
+      - cmd: echo "specific test string"
+  - name: cmd-set-variable
+    actions:
+      - cmd: echo unique-value
+        mute: true
+        setVariables:
+          - name: ACTION_VAR
+            sensitive: true
+      - cmd: echo ${ACTION_VAR}
+  - name: reference
+    actions:
+      - task:
+          name: referenced
+  - name: referenced
+    actions:
+      - cmd: echo "other-task"
+  - name: recursive
+    actions:
+      - task:
+          name: recursed
+  - name: recursed
+    actions:
+      - task:
+          name: recursed1
+  - name: recursed1
+    actions:
+      - task:
+          name: recursive

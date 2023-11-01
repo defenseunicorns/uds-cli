@@ -23,7 +23,7 @@ import (
 
 // UDSE2ETest Struct holding common fields most of the tests will utilize.
 type UDSE2ETest struct {
-	UdsBinPath        string
+	UDSBinPath        string
 	Arch              string
 	ApplianceMode     bool
 	ApplianceModeKeep bool
@@ -48,18 +48,25 @@ func GetCLIName() string {
 
 var logRegex = regexp.MustCompile(`Saving log file to (?P<logFile>.*?\.log)`)
 
-// SetupWithCluster performs actions for each test that requires a K8s cluster.
+// SetupWithCluster performs tasks for each test that requires a K8s cluster.
 func (e2e *UDSE2ETest) SetupWithCluster(t *testing.T) {
 	if !e2e.RunClusterTests {
 		t.Skip("")
 	}
-	_ = exec.CmdWithPrint("sh", "-c", fmt.Sprintf("%s tools kubectl describe nodes | grep -A 99 Non-terminated", e2e.UdsBinPath))
+	_ = exec.CmdWithPrint("sh", "-c", fmt.Sprintf("%s tools kubectl describe nodes | grep -A 99 Non-terminated", e2e.UDSBinPath))
 }
 
 // UDS executes a UDS command.
 func (e2e *UDSE2ETest) UDS(args ...string) (string, string, error) {
 	e2e.CommandLog = append(e2e.CommandLog, strings.Join(args, " "))
-	return exec.CmdWithContext(context.TODO(), exec.PrintCfg(), e2e.UdsBinPath, args...)
+	return exec.CmdWithContext(context.TODO(), exec.PrintCfg(), e2e.UDSBinPath, args...)
+}
+
+// RunTasksWithFile executes a UDS run command. with the --file flag set to the test/tasks.yaml file.
+func (e2e *UDSE2ETest) RunTasksWithFile(args ...string) (string, string, error) {
+	args = append(args, "--file", "src/test/tasks.yaml")
+	fmt.Println(args)
+	return exec.CmdWithContext(context.TODO(), exec.PrintCfg(), e2e.UDSBinPath, args...)
 }
 
 // CleanFiles removes files and directories that have been created during the test.

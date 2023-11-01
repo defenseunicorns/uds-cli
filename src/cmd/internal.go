@@ -23,8 +23,8 @@ var internalCmd = &cobra.Command{
 	Short:   lang.CmdInternalShort,
 }
 
-var configSchemaCmd = &cobra.Command{
-	Use:     "config-schema",
+var configUDSSchemaCmd = &cobra.Command{
+	Use:     "config-uds-schema",
 	Aliases: []string{"c"},
 	Short:   lang.CmdInternalConfigSchemaShort,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -37,8 +37,23 @@ var configSchemaCmd = &cobra.Command{
 	},
 }
 
+var configTasksSchemaCmd = &cobra.Command{
+	Use:     "config-tasks-schema",
+	Aliases: []string{"c"},
+	Short:   lang.CmdInternalConfigSchemaShort,
+	Run: func(cmd *cobra.Command, args []string) {
+		schema := jsonschema.Reflect(&types.TasksFile{})
+		output, err := json.MarshalIndent(schema, "", "  ")
+		if err != nil {
+			message.Fatal(err, lang.CmdInternalConfigSchemaErr)
+		}
+		fmt.Print(string(output) + "\n")
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(internalCmd)
 
-	internalCmd.AddCommand(configSchemaCmd)
+	internalCmd.AddCommand(configUDSSchemaCmd)
+	internalCmd.AddCommand(configTasksSchemaCmd)
 }

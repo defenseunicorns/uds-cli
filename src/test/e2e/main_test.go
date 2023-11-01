@@ -6,14 +6,16 @@ package test
 
 import (
 	"fmt"
-	"github.com/defenseunicorns/uds-cli/src/test"
 	"os"
 	"path"
 	"testing"
 
-	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/test"
+
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/pterm/pterm"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
 )
 
 var (
@@ -53,16 +55,16 @@ func doAllTheThings(m *testing.M) (int, error) {
 
 	// Set up constants in the global variable that all the tests are able to access
 	e2e.Arch = config.GetArch()
-	e2e.UdsBinPath = path.Join("build", test.GetCLIName())
+	e2e.UDSBinPath = path.Join("build", test.GetCLIName())
 	e2e.ApplianceMode = os.Getenv(applianceModeEnvVar) == "true"
 	e2e.ApplianceModeKeep = os.Getenv(applianceModeKeepEnvVar) == "true"
 	e2e.RunClusterTests = os.Getenv(skipK8sEnvVar) != "true"
 
 	// Validate that the UDS binary exists. If it doesn't that means the dev hasn't built it, usually by running
 	// `make build-cli`
-	_, err = os.Stat(e2e.UdsBinPath)
+	_, err = os.Stat(e2e.UDSBinPath)
 	if err != nil {
-		return 1, fmt.Errorf("zarf binary %s not found", e2e.UdsBinPath)
+		return 1, fmt.Errorf("zarf binary %s not found", e2e.UDSBinPath)
 	}
 
 	// Run the tests, with the cluster cleanup being deferred to the end of the function call
