@@ -12,10 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"time"
-
 	_ "unsafe"
-
-	_ "github.com/defenseunicorns/zarf/src/pkg/packager"
 
 	"github.com/defenseunicorns/zarf/src/config/lang"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
@@ -28,12 +25,14 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
+// Runner holds the necessary data to run tasks from a tasks file
 type Runner struct {
 	TemplateMap map[string]*utils.TextTemplate
 	TasksFile   types.TasksFile
 	TaskNameMap map[string]bool
 }
 
+// Run runs a task from tasks file
 func Run(tasksFile types.TasksFile, taskName string) error {
 	runner := Runner{
 		TemplateMap: map[string]*utils.TextTemplate{},
