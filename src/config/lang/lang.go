@@ -62,4 +62,7 @@ const (
 	CmdInternalShort             = "Internal cmds used by UDS-CLI"
 	CmdInternalConfigSchemaShort = "Generates a JSON schema for the uds-bundle.yaml configuration"
 	CmdInternalConfigSchemaErr   = "Unable to generate the uds-bundle.yaml schema"
+
+	// uds run
+	CmdRunFlag = "Name and location of task file to run"
 )

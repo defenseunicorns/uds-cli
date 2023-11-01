@@ -43,6 +43,9 @@ const (
 
 	// ChecksumsTxt is the name of the checksums.txt file in a Zarf pkg
 	ChecksumsTxt = "checksums.txt"
+
+	// TasksYAML is the default name of the uds run cmd file
+	TasksYAML = "tasks.yaml"
 )
 
 var (
@@ -57,6 +60,9 @@ var (
 
 	// SkipLogFile is a flag to skip logging to a file
 	SkipLogFile bool
+
+	// TaskFileLocation is the location of the tasks file to run
+	TaskFileLocation string
 )
 
 // GetArch returns the arch based on a priority list with options for overriding.
