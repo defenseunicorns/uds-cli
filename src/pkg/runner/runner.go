@@ -68,11 +68,9 @@ func (r *Runner) executeTask(task types.Task) error {
 		}
 	}
 
-	if len(task.Actions) > 0 {
-		for _, action := range task.Actions {
-			if err := r.performAction(action); err != nil {
-				return err
-			}
+	for _, action := range task.Actions {
+		if err := r.performAction(action); err != nil {
+			return err
 		}
 	}
 	return nil
