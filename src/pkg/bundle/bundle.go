@@ -63,6 +63,9 @@ func Create(b *Bundler, signature []byte) error {
 			}
 
 			pkgManifestDesc, err := remoteBundler.PushManifest()
+			pkgManifestDesc.Annotations = map[string]string{
+				ocispec.AnnotationTitle: pkg.Name,
+			}
 			if err != nil {
 				return err
 			}
@@ -106,6 +109,9 @@ func Create(b *Bundler, signature []byte) error {
 			}
 
 			zarfPkgDesc, err := localBundler.ToBundle(store, zarfPkg, artifactPathMap, b.tmp, pkgTmp)
+			zarfPkgDesc.Annotations = map[string]string{
+				ocispec.AnnotationTitle: pkg.Name,
+			}
 			if err != nil {
 				return err
 			}
@@ -113,7 +119,7 @@ func Create(b *Bundler, signature []byte) error {
 			// put digest in uds-bundle.yaml to reference during deploy
 			bundle.ZarfPackages[i].Ref = bundle.ZarfPackages[i].Ref + "-" + bundle.Metadata.Architecture + "@sha256:" + zarfPkgDesc.Digest.Encoded()
 
-			// append zarf.yaml layer to root manifest and grab path for archiving
+			// append zarf image manifest to bundle root manifest and grab path for archiving
 			rootManifest.Layers = append(rootManifest.Layers, zarfPkgDesc)
 			digest := zarfPkgDesc.Digest.Encoded()
 			artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)

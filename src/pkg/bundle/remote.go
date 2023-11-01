@@ -68,7 +68,10 @@ func (op *ociProvider) LoadBundleMetadata() (PathMap, error) {
 		}
 		loaded[rel] = absSha
 	}
-	op.getBundleManifest()
+	err = op.getBundleManifest()
+	if err != nil {
+		return nil, err
+	}
 	return loaded, nil
 }
 
@@ -90,14 +93,13 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 		if err != nil {
 			continue
 		}
-		// read in and unmarshal Zarf image manifest
+		// grab descriptor for sboms.tar
 		sbomDesc := zarfManifest.Locate(config.SBOMsTar)
-		zarfYAML, err := op.OrasRemote.FetchZarfYAML(zarfManifest)
 		if err != nil {
 			return err
 		}
 		if sbomDesc.Annotations == nil {
-			message.Warnf("%s not found in Zarf pkg: %s", config.SBOMsTar, zarfYAML.Metadata.Name)
+			message.Warnf("%s not found in Zarf pkg: %s", config.SBOMsTar, zarfManifest.Annotations[ocispec.AnnotationTitle])
 		}
 		// grab sboms.tar and extract
 		sbomBytes, err := op.OrasRemote.FetchLayer(sbomDesc)

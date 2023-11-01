@@ -16,6 +16,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/packager/sources"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2/content/file"
 
@@ -89,8 +90,23 @@ func (r *RemoteBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ b
 		return fmt.Errorf("zarf package %s with manifest sha %s not found", r.PkgName, r.PkgManifestSHA)
 	}
 
+	// look at Zarf pkg manifest, grab zarf.yaml desc and download it
 	pkgManifest, err := r.Remote.FetchManifest(pkgManifestDesc)
-	zarfYAML, err := r.Remote.FetchZarfYAML(pkgManifest)
+	var zarfYAMLDesc ocispec.Descriptor
+	for _, layer := range pkgManifest.Layers {
+		if layer.Annotations[ocispec.AnnotationTitle] == config.ZarfYAML {
+			zarfYAMLDesc = layer
+			break
+		}
+	}
+	zarfYAMLBytes, err := r.Remote.FetchLayer(zarfYAMLDesc)
+	if err != nil {
+		return err
+	}
+	var zarfYAML zarfTypes.ZarfPackage
+	if err = goyaml.Unmarshal(zarfYAMLBytes, &zarfYAML); err != nil {
+		return err
+	}
 	err = utils.WriteYaml(filepath.Join(dst.Base, config.ZarfYAML), zarfYAML, 0644)
 
 	// grab checksums.txt so we can validate pkg integrity
