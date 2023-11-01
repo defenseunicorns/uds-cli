@@ -39,5 +39,5 @@ var runCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(runCmd)
 	runFlags := runCmd.Flags()
-	runFlags.StringVar(&config.TaskFileLocation, "file", config.TasksYAML, lang.CmdRunFlag)
+	runFlags.StringVarP(&config.TaskFileLocation, "file", "f", config.TasksYAML, lang.CmdRunFlag)
 }
