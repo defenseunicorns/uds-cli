@@ -114,17 +114,17 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 }
 
 func TestBundle(t *testing.T) {
-    deployLocalZarfInit()
+	deployLocalZarfInit()
 
-	e2e.CreateZarfPkg(t, "src/test/packages/zarf/nginx")
-	e2e.CreateZarfPkg(t, "src/test/packages/zarf/podinfo")
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx")
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
 
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
 	e2e.SetupDockerRegistry(t, 889)
 	defer e2e.TeardownRegistry(t, 889)
 
-	pkg := fmt.Sprintf("src/test/packages/zarf/nginx/zarf-package-nginx-%s-0.0.1.tar.zst", e2e.Arch)
+	pkg := fmt.Sprintf("src/test/packages/nginx/zarf-package-nginx-%s-0.0.1.tar.zst", e2e.Arch)
 	zarfPublish(t, pkg, "localhost:888")
 
 	pkg = fmt.Sprintf("src/test/packages/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
