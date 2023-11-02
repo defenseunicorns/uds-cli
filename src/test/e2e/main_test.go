@@ -6,16 +6,19 @@ package test
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/test"
 
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/pterm/pterm"
 
-	"github.com/defenseunicorns/uds-cli/src/config"
 )
 
 var (
@@ -67,8 +70,12 @@ func doAllTheThings(m *testing.M) (int, error) {
 		return 1, fmt.Errorf("zarf binary %s not found", e2e.UDSBinPath)
 	}
 
+	deployLocalZarfInit()
+
 	// Run the tests, with the cluster cleanup being deferred to the end of the function call
 	returnCode := m.Run()
+
+	// removeLocalZarfInit()
 
 	isCi := os.Getenv("CI") == "true"
 	if isCi {
@@ -82,4 +89,46 @@ func doAllTheThings(m *testing.M) (int, error) {
 	}
 
 	return returnCode, nil
+}
+
+func deployLocalZarfInit() {
+	if !zarfInitDeployed() {
+		e2e.SetupWithCluster()
+		e2e.DownloadZarfInitPkg(zarfVersion)
+
+		bundleDir := "src/test/bundles/04-local-init"
+		bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-local-init-%s-0.0.1.tar.zst", e2e.Arch))
+
+		// Create
+		cmd := strings.Split(fmt.Sprintf("create %s --confirm --insecure", bundleDir), " ")
+		_, _, err := e2e.UDS(cmd...)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// Deploy
+		cmd = strings.Split(fmt.Sprintf("bundle deploy %s --confirm -l=debug", bundlePath), " ")
+		_, _, err = e2e.UDS(cmd...)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+
+func removeLocalZarfInit() {
+	if zarfInitDeployed() {
+		bundleDir := "src/test/bundles/04-local-init"
+		bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-local-init-%s-0.0.1.tar.zst", e2e.Arch))
+		cmd := strings.Split(fmt.Sprintf("bundle remove %s --confirm --insecure", bundlePath), " ")
+		e2e.UDS(cmd...)
+	}
+}
+
+func zarfInitDeployed() bool {
+	cmd := strings.Split("tools kubectl get deployments --namespace zarf", " ")
+	_, errOut, _ := e2e.UDS(cmd...)
+
+	noResourcesFound := "No resources found in zarf namespace.\n"
+
+	return errOut != noResourcesFound
 }

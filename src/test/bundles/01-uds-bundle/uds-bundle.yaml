@@ -5,11 +5,9 @@ metadata:
   version: 0.0.1
 
 zarf-packages:
-  - name: init
-    repository: localhost:888/init
-    ref: v0.30.1
-    optional-components:
-      - git-server
+  - name: nginx
+    repository: localhost:888/nginx
+    ref: 0.0.1
   - name: podinfo
     repository: localhost:889/podinfo
     ref: 0.0.1

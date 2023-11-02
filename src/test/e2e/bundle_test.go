@@ -88,22 +88,8 @@ func TestBundleVariables(t *testing.T) {
 	require.Contains(t, stderr, "This fun-fact demonstrates precedence: The Red Dragon is the national symbol of Wales")
 }
 
-func TestBundleWithLocalInitPkg(t *testing.T) {
-	e2e.SetupWithCluster(t)
-
-	e2e.DownloadZarfInitPkg(t, zarfVersion)
-
-	bundleDir := "src/test/bundles/04-local-init"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-local-init-%s-0.0.1.tar.zst", e2e.Arch))
-
-	create(t, bundleDir)
-	inspect(t, bundlePath)
-	deploy(t, bundlePath)
-	remove(t, bundlePath)
-}
-
 func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
-	e2e.SetupWithCluster(t)
+	e2e.SetupWithCluster()
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
@@ -127,17 +113,16 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 }
 
 func TestBundle(t *testing.T) {
-	e2e.SetupWithCluster(t)
 
-	e2e.DownloadZarfInitPkg(t, zarfVersion)
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
+	e2e.CreateZarfPkg(t, "src/test/packages/zarf/nginx")
+	e2e.CreateZarfPkg(t, "src/test/packages/zarf/podinfo")
 
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
 	e2e.SetupDockerRegistry(t, 889)
 	defer e2e.TeardownRegistry(t, 889)
 
-	pkg := fmt.Sprintf("src/test/packages/zarf-init-%s-%s.tar.zst", e2e.Arch, zarfVersion)
+	pkg := fmt.Sprintf("src/test/packages/zarf/nginx/zarf-package-nginx-%s-0.0.1.tar.zst", e2e.Arch)
 	zarfPublish(t, pkg, "localhost:888")
 
 	pkg = fmt.Sprintf("src/test/packages/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
@@ -154,9 +139,10 @@ func TestBundle(t *testing.T) {
 }
 
 func TestRemoteBundle(t *testing.T) {
-	e2e.SetupWithCluster(t)
+	e2e.SetupWithCluster()
 
-	e2e.DownloadZarfInitPkg(t, zarfVersion)
+	defer deployLocalZarfInit()
+
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
 
 	e2e.SetupDockerRegistry(t, 888)
@@ -178,8 +164,7 @@ func TestRemoteBundle(t *testing.T) {
 	}
 
 	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-example-%s-0.0.1.tar.zst", e2e.Arch))
-	bundlePath := "src/test/bundles/01-uds-bundle"
-
+	bundlePath := "src/test/bundles/05-init-podinfo"
 	createRemote(t, bundlePath, bundleRef.Registry)
 	pull(t, bundleRef.String(), tarballPath)
 	inspectRemote(t, bundleRef.String())

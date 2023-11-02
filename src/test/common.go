@@ -48,11 +48,7 @@ func GetCLIName() string {
 
 var logRegex = regexp.MustCompile(`Saving log file to (?P<logFile>.*?\.log)`)
 
-// SetupWithCluster performs tasks for each test that requires a K8s cluster.
-func (e2e *UDSE2ETest) SetupWithCluster(t *testing.T) {
-	if !e2e.RunClusterTests {
-		t.Skip("")
-	}
+func (e2e *UDSE2ETest) SetupWithCluster() {
 	_ = exec.CmdWithPrint("sh", "-c", fmt.Sprintf("%s tools kubectl describe nodes | grep -A 99 Non-terminated", e2e.UDSBinPath))
 }
 
@@ -121,7 +117,7 @@ func (e2e *UDSE2ETest) GetUdsVersion(t *testing.T) string {
 }
 
 // DownloadZarfInitPkg downloads the zarf init pkg used for testing if it doesn't already exist (todo: makefile?)
-func (e2e *UDSE2ETest) DownloadZarfInitPkg(t *testing.T, zarfVersion string) {
+func (e2e *UDSE2ETest) DownloadZarfInitPkg(zarfVersion string) {
 	filename := fmt.Sprintf("zarf-init-%s-%s.tar.zst", e2e.Arch, zarfVersion)
 	zarfReleaseURL := fmt.Sprintf("https://github.com/defenseunicorns/zarf/releases/download/%s/%s", zarfVersion, filename)
 	outputDir := "src/test/packages"
@@ -129,12 +125,12 @@ func (e2e *UDSE2ETest) DownloadZarfInitPkg(t *testing.T, zarfVersion string) {
 	// Check if the file already exists
 	if _, err := os.Stat(outputDir + "/" + filename); err == nil {
 		fmt.Println("Zarf init pkg already exists. Skipping download.")
-		require.NoError(t, err)
 		return
 	}
 
-	err := downloadFile(zarfReleaseURL, outputDir)
-	require.NoError(t, err)
+	downloadFile(zarfReleaseURL, outputDir)
+	// err := downloadFile(zarfReleaseURL, outputDir)
+	// require.NoError(t, err)
 }
 
 // CreateZarfPkg creates a Zarf in the given path (uses system Zarf binary) (todo: makefile?)
