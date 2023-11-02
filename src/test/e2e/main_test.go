@@ -15,10 +15,10 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/test"
 
-	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/pterm/pterm"
 
+	"github.com/defenseunicorns/uds-cli/src/config"
 )
 
 var (
@@ -87,13 +87,12 @@ func doAllTheThings(m *testing.M) (int, error) {
 	return returnCode, nil
 }
 
-func deployLocalZarfInit() {
+func deployZarfInit() {
 	if !zarfInitDeployed() {
-		e2e.SetupWithCluster()
 		e2e.DownloadZarfInitPkg(zarfVersion)
 
-		bundleDir := "src/test/bundles/04-local-init"
-		bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-local-init-%s-0.0.1.tar.zst", e2e.Arch))
+		bundleDir := "src/test/bundles/04-init"
+		bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-all-the-inits-%s-0.0.1.tar.zst", e2e.Arch))
 
 		// Create
 		cmd := strings.Split(fmt.Sprintf("create %s --confirm --insecure", bundleDir), " ")

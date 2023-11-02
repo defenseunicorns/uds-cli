@@ -48,10 +48,6 @@ func GetCLIName() string {
 
 var logRegex = regexp.MustCompile(`Saving log file to (?P<logFile>.*?\.log)`)
 
-func (e2e *UDSE2ETest) SetupWithCluster() {
-	_ = exec.CmdWithPrint("sh", "-c", fmt.Sprintf("%s tools kubectl describe nodes | grep -A 99 Non-terminated", e2e.UDSBinPath))
-}
-
 // UDS executes a UDS command.
 func (e2e *UDSE2ETest) UDS(args ...string) (string, string, error) {
 	e2e.CommandLog = append(e2e.CommandLog, strings.Join(args, " "))
