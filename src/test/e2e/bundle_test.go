@@ -148,7 +148,7 @@ func TestRemoteBundle(t *testing.T) {
 	e2e.SetupDockerRegistry(t, 889)
 	defer e2e.TeardownRegistry(t, 889)
 
-	pkg := fmt.Sprintf("src/test/packages/zarf-init-%s-%s.tar.zst", e2e.Arch, zarfVersion)
+	pkg := fmt.Sprintf("src/test/packages/nginx/zarf-package-nginx-%s-%s.tar.zst", e2e.Arch, zarfVersion)
 	zarfPublish(t, pkg, "localhost:888")
 
 	pkg = fmt.Sprintf("src/test/packages/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
@@ -162,7 +162,7 @@ func TestRemoteBundle(t *testing.T) {
 	}
 
 	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-example-%s-0.0.1.tar.zst", e2e.Arch))
-	bundlePath := "src/test/bundles/05-init-podinfo"
+	bundlePath := "src/test/bundles/01-uds-bundle"
 	createRemote(t, bundlePath, bundleRef.Registry)
 	pull(t, bundleRef.String(), tarballPath)
 	inspectRemote(t, bundleRef.String())
