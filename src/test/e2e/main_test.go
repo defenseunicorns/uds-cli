@@ -70,12 +70,8 @@ func doAllTheThings(m *testing.M) (int, error) {
 		return 1, fmt.Errorf("zarf binary %s not found", e2e.UDSBinPath)
 	}
 
-	deployLocalZarfInit()
-
 	// Run the tests, with the cluster cleanup being deferred to the end of the function call
 	returnCode := m.Run()
-
-	// removeLocalZarfInit()
 
 	isCi := os.Getenv("CI") == "true"
 	if isCi {
@@ -112,15 +108,6 @@ func deployLocalZarfInit() {
 		if err != nil {
 			log.Fatal(err)
 		}
-	}
-}
-
-func removeLocalZarfInit() {
-	if zarfInitDeployed() {
-		bundleDir := "src/test/bundles/04-local-init"
-		bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-local-init-%s-0.0.1.tar.zst", e2e.Arch))
-		cmd := strings.Split(fmt.Sprintf("bundle remove %s --confirm --insecure", bundlePath), " ")
-		e2e.UDS(cmd...)
 	}
 }
 
