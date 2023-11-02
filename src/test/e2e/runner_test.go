@@ -125,7 +125,7 @@ func TestUseCLI(t *testing.T) {
 			e2e.CleanFiles(baseFilePath, copiedFilePath)
 		})
 
-		err := os.WriteFile(baseFilePath, []byte("###ZARF_VAR_REPLACE_ME###"), 0600)
+		err := os.WriteFile(baseFilePath, []byte("${REPLACE_ME}"), 0600)
 		require.NoError(t, err)
 
 		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "template-file")

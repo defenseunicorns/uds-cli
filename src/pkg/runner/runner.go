@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"time"
 	// used for compile time directives to pull functions from Zarf
@@ -18,7 +17,6 @@ import (
 	"github.com/defenseunicorns/zarf/src/config/lang"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"github.com/mholt/archiver/v3"
@@ -46,7 +44,7 @@ func Run(tasksFile types.TasksFile, taskName string) error {
 		return err
 	}
 
-	runner.populateTemplateMap(tasksFile.Variables) // todo: change Variables from Zarf vars to something else
+	runner.populateTemplateMap(tasksFile.Variables)
 
 	err = runner.executeTask(task)
 	return err
@@ -78,7 +76,7 @@ func (r *Runner) executeTask(task types.Task) error {
 
 func (r *Runner) populateTemplateMap(zarfVariables []zarfTypes.ZarfPackageVariable) {
 	for _, variable := range zarfVariables {
-		r.TemplateMap[fmt.Sprintf("###ZARF_VAR_%s###", variable.Name)] = &utils.TextTemplate{
+		r.TemplateMap[fmt.Sprintf("${%s}", variable.Name)] = &utils.TextTemplate{
 			Sensitive:  variable.Sensitive,
 			AutoIndent: variable.AutoIndent,
 			Type:       variable.Type,
@@ -153,7 +151,7 @@ func (r *Runner) placeFiles(files []zarfTypes.ZarfFile) error {
 
 			// If the file is a text file, template it
 			if isText {
-				if err := utils.ReplaceTextTemplate(subFile, r.TemplateMap, nil, "###ZARF_[A-Z0-9_]+###"); err != nil {
+				if err := utils.ReplaceTextTemplate(subFile, r.TemplateMap, nil, `\$\{[A-Z0-9_]+\}`); err != nil {
 					return fmt.Errorf("unable to template file %s: %w", subFile, err)
 				}
 			}
@@ -195,7 +193,10 @@ func (r *Runner) performAction(action types.Action) error {
 			return err
 		}
 	} else {
-		r.performZarfAction(action.ZarfComponentAction)
+		err := r.performZarfAction(action.ZarfComponentAction)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -278,7 +279,7 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 
 	cfg := actionGetCfg(zarfTypes.ZarfComponentActionDefaults{}, *action, r.TemplateMap)
 
-	if cmd, err = actionCmdMutation(cmd, cfg.Shell); err != nil {
+	if cmd, err = actionCmdMutation(cmd); err != nil {
 		spinner.Errorf(err, "Error mutating command: %s", cmdEscaped)
 	}
 
@@ -299,13 +300,15 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 
 			// If an output variable is defined, set it.
 			for _, v := range action.SetVariables {
-				r.TemplateMap[v.Name] = &utils.TextTemplate{
+				// include ${...} syntax in template map for uniformity and to satisfy utils.ReplaceTextTemplate
+				nameInTemplatemap := "${" + v.Name + "}"
+				r.TemplateMap[nameInTemplatemap] = &utils.TextTemplate{
 					Sensitive:  v.Sensitive,
 					AutoIndent: v.AutoIndent,
 					Type:       v.Type,
 					Value:      out,
 				}
-				if regexp.MustCompile(v.Pattern).MatchString(r.TemplateMap[v.Name].Value); err != nil {
+				if regexp.MustCompile(v.Pattern).MatchString(r.TemplateMap[nameInTemplatemap].Value); err != nil {
 					message.WarnErr(err, err.Error())
 					return err
 				}
@@ -366,15 +369,10 @@ func (r *Runner) templateString(filename string) string {
 	// Create a regular expression to match ${...}
 	re := regexp.MustCompile(`\${(.*?)}`)
 
-	// Replace all occurrences of ${...} with their corresponding values from the map
+	// template string using values from the template map
 	result := re.ReplaceAllStringFunc(filename, func(matched string) string {
-		key := strings.TrimSuffix(strings.TrimPrefix(matched, "${"), "}")
-		if value, ok := r.TemplateMap[key]; ok {
+		if value, ok := r.TemplateMap[matched]; ok {
 			return value.Value
-		} else if strings.HasPrefix(key, "ZARF_VAR") {
-			if value, ok = r.TemplateMap["###"+key+"###"]; ok {
-				return value.Value
-			}
 		}
 		return matched // If the key is not found, keep the original substring
 	})
@@ -382,7 +380,7 @@ func (r *Runner) templateString(filename string) string {
 }
 
 // Perform some basic string mutations to make commands more useful.
-func actionCmdMutation(cmd string, shellPref zarfTypes.ZarfComponentActionShell) (string, error) {
+func actionCmdMutation(cmd string) (string, error) {
 	runCmd, err := utils.GetFinalExecutablePath()
 	if err != nil {
 		return cmd, err
@@ -390,24 +388,6 @@ func actionCmdMutation(cmd string, shellPref zarfTypes.ZarfComponentActionShell)
 
 	// Try to patch the binary path in case the name isn't exactly "./uds".
 	cmd = strings.ReplaceAll(cmd, "./uds ", runCmd+" ")
-
-	// Make commands 'more' compatible with Windows OS PowerShell
-	if runtime.GOOS == "windows" && (exec.IsPowershell(shellPref.Windows) || shellPref.Windows == "") {
-		// Replace "touch" with "New-Item" on Windows as it's a common command, but not POSIX so not aliased by M$.
-		// See https://mathieubuisson.github.io/powershell-linux-bash/ &
-		// http://web.cs.ucla.edu/~miryung/teaching/EE461L-Spring2012/labs/posix.html for more details.
-		cmd = regexp.MustCompile(`^touch `).ReplaceAllString(cmd, `New-Item `)
-
-		// Convert any ${ZARF_VAR_*} or $ZARF_VAR_* to ${env:ZARF_VAR_*} or $env:ZARF_VAR_* respectively (also TF_VAR_*).
-		// https://regex101.com/r/xk1rkw/1
-		envVarRegex := regexp.MustCompile(`(?P<envIndicator>\${?(?P<varName>(ZARF|TF)_VAR_([a-zA-Z0-9_-])+)}?)`)
-		get, err := helpers.MatchRegex(envVarRegex, cmd)
-		if err == nil {
-			newCmd := strings.ReplaceAll(cmd, get("envIndicator"), fmt.Sprintf("$Env:%s", get("varName")))
-			message.Debugf("Converted command \"%s\" to \"%s\" t", cmd, newCmd)
-			cmd = newCmd
-		}
-	}
 
 	return cmd, nil
 }
