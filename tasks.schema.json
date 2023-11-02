@@ -59,8 +59,7 @@
           "description": "Wait for a condition to be met before continuing. Must specify either cmd or wait for the action. See the 'zarf tools wait-for' command for more info."
         },
         "task": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/TaskReference",
+          "type": "string",
           "description": "The task to run"
         }
       },
@@ -95,19 +94,6 @@
           },
           "type": "array",
           "description": "Actions to take when running the task"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "TaskReference": {
-      "required": [
-        "name"
-      ],
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Name of the task to run"
         }
       },
       "additionalProperties": false,
