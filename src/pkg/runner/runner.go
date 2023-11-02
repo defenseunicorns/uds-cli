@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"time"
+	// used for compile time directives to pull functions from Zarf
 	_ "unsafe"
 
 	"github.com/defenseunicorns/zarf/src/config/lang"
@@ -88,25 +89,28 @@ func (r *Runner) populateTemplateMap(zarfVariables []zarfTypes.ZarfPackageVariab
 
 func (r *Runner) placeFiles(files []zarfTypes.ZarfFile) error {
 	for _, file := range files {
+		// template file.Source and file.Target
+		srcFile := r.templateString(file.Source)
+		targetFile := r.templateString(file.Target)
 
 		// get current directory
 		workingDir, err := os.Getwd()
 		if err != nil {
 			return err
 		}
-		dest := filepath.Join(workingDir, file.Target)
+		dest := filepath.Join(workingDir, targetFile)
 		destDir := filepath.Dir(dest)
 
-		if helpers.IsURL(file.Source) {
+		if helpers.IsURL(srcFile) {
 
 			// If file is a url download it
-			if err := utils.DownloadToFile(file.Source, dest, ""); err != nil {
-				return fmt.Errorf(lang.ErrDownloading, file.Source, err.Error())
+			if err := utils.DownloadToFile(srcFile, dest, ""); err != nil {
+				return fmt.Errorf(lang.ErrDownloading, srcFile, err.Error())
 			}
 		} else {
 			// If file is not a url copy it
-			if err := utils.CreatePathAndCopy(file.Source, dest); err != nil {
-				return fmt.Errorf("unable to copy file %s: %w", file.Source, err)
+			if err := utils.CreatePathAndCopy(srcFile, dest); err != nil {
+				return fmt.Errorf("unable to copy file %s: %w", srcFile, err)
 			}
 
 		}
@@ -115,7 +119,7 @@ func (r *Runner) placeFiles(files []zarfTypes.ZarfFile) error {
 			_ = os.RemoveAll(file.ExtractPath)
 			err = archiver.Extract(dest, file.ExtractPath, destDir)
 			if err != nil {
-				return fmt.Errorf(lang.ErrFileExtract, file.ExtractPath, file.Source, err.Error())
+				return fmt.Errorf(lang.ErrFileExtract, file.ExtractPath, srcFile, err.Error())
 			}
 		}
 
@@ -169,9 +173,9 @@ func (r *Runner) placeFiles(files []zarfTypes.ZarfFile) error {
 			// Make sure the parent directory exists
 			_ = utils.CreateFilePath(link)
 			// Create the symlink
-			err := os.Symlink(file.Target, link)
+			err := os.Symlink(targetFile, link)
 			if err != nil {
-				return fmt.Errorf("unable to create symlink %s->%s: %w", link, file.Target, err)
+				return fmt.Errorf("unable to create symlink %s->%s: %w", link, targetFile, err)
 			}
 		}
 	}
@@ -208,7 +212,7 @@ func (r *Runner) checkForTaskLoops(task types.Task) error {
 			if err != nil {
 				return err
 			}
-			if err := r.checkForTaskLoops(newTask); err != nil {
+			if err = r.checkForTaskLoops(newTask); err != nil {
 				return err
 			}
 		}
@@ -358,6 +362,25 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 	}
 }
 
+func (r *Runner) templateString(filename string) string {
+	// Create a regular expression to match ${...}
+	re := regexp.MustCompile(`\${(.*?)}`)
+
+	// Replace all occurrences of ${...} with their corresponding values from the map
+	result := re.ReplaceAllStringFunc(filename, func(matched string) string {
+		key := strings.TrimSuffix(strings.TrimPrefix(matched, "${"), "}")
+		if value, ok := r.TemplateMap[key]; ok {
+			return value.Value
+		} else if strings.HasPrefix(key, "ZARF_VAR") {
+			if value, ok = r.TemplateMap["###"+key+"###"]; ok {
+				return value.Value
+			}
+		}
+		return matched // If the key is not found, keep the original substring
+	})
+	return result
+}
+
 // Perform some basic string mutations to make commands more useful.
 func actionCmdMutation(cmd string, shellPref zarfTypes.ZarfComponentActionShell) (string, error) {
 	runCmd, err := utils.GetFinalExecutablePath()
@@ -365,7 +388,7 @@ func actionCmdMutation(cmd string, shellPref zarfTypes.ZarfComponentActionShell)
 		return cmd, err
 	}
 
-	// Try to patch the zarf binary path in case the name isn't exactly "./zarf".
+	// Try to patch the binary path in case the name isn't exactly "./uds".
 	cmd = strings.ReplaceAll(cmd, "./uds ", runCmd+" ")
 
 	// Make commands 'more' compatible with Windows OS PowerShell

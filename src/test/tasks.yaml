@@ -1,6 +1,8 @@
 variables:
   - name: REPLACE_ME
     default: replaced
+  - name: CHECKSUMS
+    default: checksums.txt
 
 tasks:
   - name: copy
@@ -23,10 +25,23 @@ tasks:
         target: symcopy
         symlinks:
           - "testlink"
-  - name: remote
+  - name: pre-remote
+    actions:
+      - cmd: |
+          echo "defenseunicorns"
+        setVariables:
+          - name: PRETTY_OK_COMPANY
+            sensitive: false
+  - name: pull-remote
     files:
-      - source: https://github.com/defenseunicorns/zarf/releases/download/v0.30.1/checksums.txt
-        target: checksums.txt
+      - source: https://github.com/${PRETTY_OK_COMPANY}/zarf/releases/download/v0.30.1/${ZARF_VAR_CHECKSUMS}
+        target: ${ZARF_VAR_CHECKSUMS}
+  - name: remote
+    actions:
+      - task:
+          name: pre-remote
+      - task:
+          name: pull-remote
   - name: template-file
     files:
       - source: raw
