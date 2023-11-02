@@ -38,10 +38,8 @@ tasks:
         target: ${ZARF_VAR_CHECKSUMS}
   - name: remote
     actions:
-      - task:
-          name: pre-remote
-      - task:
-          name: pull-remote
+      - task: pre-remote
+      - task: pull-remote
   - name: template-file
     files:
       - source: raw
@@ -59,20 +57,16 @@ tasks:
       - cmd: echo ${ACTION_VAR}
   - name: reference
     actions:
-      - task:
-          name: referenced
+      - task: referenced
   - name: referenced
     actions:
       - cmd: echo "other-task"
   - name: recursive
     actions:
-      - task:
-          name: recursed
+      - task: recursed
   - name: recursed
     actions:
-      - task:
-          name: recursed1
+      - task: recursed1
   - name: recursed1
     actions:
-      - task:
-          name: recursive
+      - task: recursive

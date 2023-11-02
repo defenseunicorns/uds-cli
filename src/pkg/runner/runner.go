@@ -183,8 +183,8 @@ func (r *Runner) placeFiles(files []zarfTypes.ZarfFile) error {
 }
 
 func (r *Runner) performAction(action types.Action) error {
-	if action.TaskReference != nil {
-		referencedTask, err := r.getTask(action.TaskReference.Name)
+	if action.TaskReference != "" {
+		referencedTask, err := r.getTask(action.TaskReference)
 		if err != nil {
 			return err
 		}
@@ -202,13 +202,13 @@ func (r *Runner) performAction(action types.Action) error {
 
 func (r *Runner) checkForTaskLoops(task types.Task) error {
 	for _, action := range task.Actions {
-		if action.TaskReference != nil {
-			exists := r.TaskNameMap[action.TaskReference.Name]
+		if action.TaskReference != "" {
+			exists := r.TaskNameMap[action.TaskReference]
 			if exists {
 				return fmt.Errorf("task loop detected")
 			}
-			r.TaskNameMap[action.TaskReference.Name] = true
-			newTask, err := r.getTask(action.TaskReference.Name)
+			r.TaskNameMap[action.TaskReference] = true
+			newTask, err := r.getTask(action.TaskReference)
 			if err != nil {
 				return err
 			}

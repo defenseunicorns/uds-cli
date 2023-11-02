@@ -27,7 +27,7 @@ type Task struct {
 // Action is a Zarf action inside a Task
 type Action struct {
 	*zarfTypes.ZarfComponentAction `yaml:",inline"`
-	TaskReference                  *TaskReference `json:"task,omitempty" jsonschema:"description=The task to run, mutually exclusive with cmd and wait"`
+	TaskReference                  string `json:"task,omitempty" jsonschema:"description=The task to run, mutually exclusive with cmd and wait"`
 }
 
 // TaskReference references the name of a task
