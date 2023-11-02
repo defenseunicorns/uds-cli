@@ -34,8 +34,8 @@ tasks:
             sensitive: false
   - name: pull-remote
     files:
-      - source: https://github.com/${PRETTY_OK_COMPANY}/zarf/releases/download/v0.30.1/${ZARF_VAR_CHECKSUMS}
-        target: ${ZARF_VAR_CHECKSUMS}
+      - source: https://github.com/${PRETTY_OK_COMPANY}/zarf/releases/download/v0.30.1/${CHECKSUMS}
+        target: ${CHECKSUMS}
   - name: remote
     actions:
       - task: pre-remote
