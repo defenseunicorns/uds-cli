@@ -54,7 +54,8 @@ tasks:
         setVariables:
           - name: ACTION_VAR
             sensitive: true
-      - cmd: echo ${ACTION_VAR}
+      - cmd: echo "I'm set from setVariables - ${ACTION_VAR}"
+      - cmd: echo "I'm set from a runner var - ${REPLACE_ME}"
   - name: reference
     actions:
       - task: referenced

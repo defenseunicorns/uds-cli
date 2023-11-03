@@ -4,6 +4,8 @@
 package cmd
 
 import (
+	"os"
+
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/spf13/cobra"
@@ -23,13 +25,16 @@ var runCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		var tasksFile types.TasksFile
 
-		err := utils.ReadYaml(config.TaskFileLocation, &tasksFile)
-		if err != nil {
+		if _, err := os.Stat(config.TaskFileLocation); os.IsNotExist(err) {
 			message.Fatalf(err, "%s not found", config.TaskFileLocation)
 		}
 
-		taskName := args[0]
+		err := utils.ReadYaml(config.TaskFileLocation, &tasksFile)
+		if err != nil {
+			message.Fatalf(err, "Cannot unmarshal %s", config.TaskFileLocation)
+		}
 
+		taskName := args[0]
 		if err := runner.Run(tasksFile, taskName); err != nil {
 			message.Fatalf(err, "Failed to run action: %s", err)
 		}
