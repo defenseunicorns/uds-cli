@@ -27,3 +27,4 @@ test-*.txt
 __debug_bin
 sboms
 bundle-sboms
+node_modules
