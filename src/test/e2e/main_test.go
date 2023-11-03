@@ -8,7 +8,11 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/defenseunicorns/uds-cli/src/test"
 
@@ -82,4 +86,34 @@ func doAllTheThings(m *testing.M) (int, error) {
 	}
 
 	return returnCode, nil
+}
+
+func deployZarfInit(t *testing.T) {
+	if !zarfInitDeployed() {
+		// todo: renovate this version or grab from deps
+		zarfVersion := "v0.31.0"
+		e2e.DownloadZarfInitPkg(t, zarfVersion)
+
+		bundleDir := "src/test/bundles/04-init"
+		bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-all-the-inits-%s-0.0.1.tar.zst", e2e.Arch))
+
+		// Create
+		cmd := strings.Split(fmt.Sprintf("create %s --confirm --insecure", bundleDir), " ")
+		_, _, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+
+		// Deploy
+		cmd = strings.Split(fmt.Sprintf("bundle deploy %s --confirm -l=debug", bundlePath), " ")
+		_, _, err = e2e.UDS(cmd...)
+		require.NoError(t, err)
+	}
+}
+
+func zarfInitDeployed() bool {
+	cmd := strings.Split("tools kubectl get deployments --namespace zarf", " ")
+	_, errOut, _ := e2e.UDS(cmd...)
+
+	noResourcesFound := "No resources found in zarf namespace.\n"
+
+	return errOut != noResourcesFound
 }

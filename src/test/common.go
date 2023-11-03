@@ -48,14 +48,6 @@ func GetCLIName() string {
 
 var logRegex = regexp.MustCompile(`Saving log file to (?P<logFile>.*?\.log)`)
 
-// SetupWithCluster performs tasks for each test that requires a K8s cluster.
-func (e2e *UDSE2ETest) SetupWithCluster(t *testing.T) {
-	if !e2e.RunClusterTests {
-		t.Skip("")
-	}
-	_ = exec.CmdWithPrint("sh", "-c", fmt.Sprintf("%s tools kubectl describe nodes | grep -A 99 Non-terminated", e2e.UDSBinPath))
-}
-
 // UDS executes a UDS command.
 func (e2e *UDSE2ETest) UDS(args ...string) (string, string, error) {
 	e2e.CommandLog = append(e2e.CommandLog, strings.Join(args, " "))
@@ -129,7 +121,6 @@ func (e2e *UDSE2ETest) DownloadZarfInitPkg(t *testing.T, zarfVersion string) {
 	// Check if the file already exists
 	if _, err := os.Stat(outputDir + "/" + filename); err == nil {
 		fmt.Println("Zarf init pkg already exists. Skipping download.")
-		require.NoError(t, err)
 		return
 	}
 
