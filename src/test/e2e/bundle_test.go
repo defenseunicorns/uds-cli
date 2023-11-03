@@ -31,8 +31,6 @@ func zarfPublish(t *testing.T, path string, reg string) {
 	require.NoError(t, err)
 }
 
-const zarfVersion = "v0.30.1"
-
 func TestCreateWithNoPath(t *testing.T) {
 	zarfPkgPath1 := "src/test/packages/no-cluster/output-var"
 	zarfPkgPath2 := "src/test/packages/no-cluster/receive-var"
@@ -148,7 +146,7 @@ func TestRemoteBundle(t *testing.T) {
 	e2e.SetupDockerRegistry(t, 889)
 	defer e2e.TeardownRegistry(t, 889)
 
-	pkg := fmt.Sprintf("src/test/packages/nginx/zarf-package-nginx-%s-%s.tar.zst", e2e.Arch, zarfVersion)
+	pkg := fmt.Sprintf("src/test/packages/nginx/zarf-package-nginx-%s-0.0.1.tar.zst", e2e.Arch)
 	zarfPublish(t, pkg, "localhost:888")
 
 	pkg = fmt.Sprintf("src/test/packages/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)

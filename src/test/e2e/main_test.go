@@ -89,6 +89,8 @@ func doAllTheThings(m *testing.M) (int, error) {
 
 func deployZarfInit() {
 	if !zarfInitDeployed() {
+		// todo: renovate this version or grab from deps
+		zarfVersion := "v0.31.0"
 		e2e.DownloadZarfInitPkg(zarfVersion)
 
 		bundleDir := "src/test/bundles/04-init"
