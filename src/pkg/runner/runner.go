@@ -283,6 +283,9 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 		spinner.Errorf(err, "Error mutating command: %s", cmdEscaped)
 	}
 
+	// template cmd string
+	cmd = r.templateString(cmd)
+
 	duration := time.Duration(cfg.MaxTotalSeconds) * time.Second
 	timeout := time.After(duration)
 
@@ -365,12 +368,12 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 	}
 }
 
-func (r *Runner) templateString(filename string) string {
+func (r *Runner) templateString(s string) string {
 	// Create a regular expression to match ${...}
 	re := regexp.MustCompile(`\${(.*?)}`)
 
 	// template string using values from the template map
-	result := re.ReplaceAllStringFunc(filename, func(matched string) string {
+	result := re.ReplaceAllStringFunc(s, func(matched string) string {
 		if value, ok := r.TemplateMap[matched]; ok {
 			return value.Value
 		}

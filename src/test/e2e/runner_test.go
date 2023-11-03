@@ -151,7 +151,8 @@ func TestUseCLI(t *testing.T) {
 
 		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "cmd-set-variable")
 		require.NoError(t, err, stdOut, stdErr)
-		require.Contains(t, stdErr, "unique-value")
+		require.Contains(t, stdErr, "I'm set from setVariables - unique-value")
+		require.Contains(t, stdErr, "I'm set from a runner var - replaced")
 	})
 
 	t.Run("run reference", func(t *testing.T) {
