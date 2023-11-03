@@ -87,7 +87,7 @@ func TestBundleVariables(t *testing.T) {
 }
 
 func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
-	deployZarfInit()
+	deployZarfInit(t)
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
@@ -111,7 +111,7 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 }
 
 func TestBundle(t *testing.T) {
-	deployZarfInit()
+	deployZarfInit(t)
 
 	e2e.CreateZarfPkg(t, "src/test/packages/nginx")
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
@@ -138,7 +138,7 @@ func TestBundle(t *testing.T) {
 }
 
 func TestRemoteBundle(t *testing.T) {
-	deployZarfInit()
+	deployZarfInit(t)
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
 
 	e2e.SetupDockerRegistry(t, 888)

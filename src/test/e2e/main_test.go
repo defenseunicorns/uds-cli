@@ -6,12 +6,13 @@ package test
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/defenseunicorns/uds-cli/src/test"
 
@@ -87,11 +88,11 @@ func doAllTheThings(m *testing.M) (int, error) {
 	return returnCode, nil
 }
 
-func deployZarfInit() {
+func deployZarfInit(t *testing.T) {
 	if !zarfInitDeployed() {
 		// todo: renovate this version or grab from deps
 		zarfVersion := "v0.31.0"
-		e2e.DownloadZarfInitPkg(zarfVersion)
+		e2e.DownloadZarfInitPkg(t, zarfVersion)
 
 		bundleDir := "src/test/bundles/04-init"
 		bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-all-the-inits-%s-0.0.1.tar.zst", e2e.Arch))
@@ -99,16 +100,12 @@ func deployZarfInit() {
 		// Create
 		cmd := strings.Split(fmt.Sprintf("create %s --confirm --insecure", bundleDir), " ")
 		_, _, err := e2e.UDS(cmd...)
-		if err != nil {
-			log.Fatal(err)
-		}
+		require.NoError(t, err)
 
 		// Deploy
 		cmd = strings.Split(fmt.Sprintf("bundle deploy %s --confirm -l=debug", bundlePath), " ")
 		_, _, err = e2e.UDS(cmd...)
-		if err != nil {
-			log.Fatal(err)
-		}
+		require.NoError(t, err)
 	}
 }
 
