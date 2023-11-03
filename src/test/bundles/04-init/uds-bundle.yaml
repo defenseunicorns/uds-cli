@@ -4,14 +4,14 @@ metadata:
   description: deploys both s local and remote init packages
   version: 0.0.1
 
-# contrived package to test local + remote Zarf inits
+# contrived bundle to test local + remote Zarf inits
 # cannot do uds remove on this pkg due to having the same name
 zarf-packages:
   - name: init
     path: "../../packages"
-    ref: v0.30.1
+    ref: v0.31.0
     optional-components:
       - git-server
   - name: init-adf
     repository: ghcr.io/defenseunicorns/packages/init
-    ref: v0.30.1
+    ref: v0.31.0
