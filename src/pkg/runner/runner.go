@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
 	// used for compile time directives to pull functions from Zarf
 	_ "unsafe"
 
@@ -21,6 +22,7 @@ import (
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"github.com/mholt/archiver/v3"
 
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
@@ -259,6 +261,9 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 		action.Env = []string{}
 		action.SetVariables = []zarfTypes.ZarfComponentActionSetVariable{}
 	}
+
+	// Add the uds/zarf arch to the environment.
+	action.Env = append(action.Env, "UDS_ARCH="+config.GetArch())
 
 	if action.Description != "" {
 		cmdEscaped = action.Description
