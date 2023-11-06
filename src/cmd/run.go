@@ -50,6 +50,7 @@ var runCmd = &cobra.Command{
 }
 
 func init() {
+	initViper()
 	rootCmd.AddCommand(runCmd)
 	runFlags := runCmd.Flags()
 	runFlags.StringVarP(&config.TaskFileLocation, "file", "f", config.TasksYAML, lang.CmdRunFlag)
