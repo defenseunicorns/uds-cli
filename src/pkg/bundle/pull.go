@@ -8,15 +8,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/defenseunicorns/uds-cli/src/config"
+	"os"
+	"path/filepath"
+
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"os"
-	"path/filepath"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
 )
 
 // Pull pulls a bundle and saves it locally + caches it
@@ -35,6 +37,9 @@ func (b *Bundler) Pull() error {
 	// pull the bundle's metadata + sig
 	loadedMetadata, err := provider.LoadBundleMetadata()
 	if err != nil {
+		return err
+	}
+	if err := utils.ReadYaml(loadedMetadata[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
 
@@ -61,24 +66,21 @@ func (b *Bundler) Pull() error {
 		return err
 	}
 
-	// make an index.json specifically for this bundle
+	// make an index.json for this bundle and write to tmp
 	index := ocispec.Index{}
 	index.SchemaVersion = 2
-	index.MediaType = ocispec.MediaTypeImageIndex
+	ref := fmt.Sprintf("%s-%s", b.bundle.Metadata.Version, b.bundle.Metadata.Architecture)
+	annotations := map[string]string{
+		ocispec.AnnotationRefName: ref,
+	}
+	rootDesc.Annotations = annotations // maintain the tag
 	index.Manifests = append(index.Manifests, rootDesc)
-
-	// write the index.json to tmp
 	bytes, err := json.MarshalIndent(index, "", "  ")
 	if err != nil {
 		return err
 	}
 	indexJSONPath := filepath.Join(b.tmp, "index.json")
 	if err := utils.WriteFile(indexJSONPath, bytes); err != nil {
-		return err
-	}
-
-	// read the metadata into memory
-	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
 
@@ -104,7 +106,7 @@ func (b *Bundler) Pull() error {
 	pathMap := make(PathMap)
 
 	// put the index.json and oci-layout at the root of the tarball
-	pathMap[indexJSONPath] = "index.json"
+	pathMap[filepath.Join(b.tmp, "index.json")] = "index.json"
 	pathMap[filepath.Join(cacheDir, "oci-layout")] = "oci-layout"
 
 	// re-map the paths to be relative to the cache directory

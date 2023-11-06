@@ -5,10 +5,12 @@
 package config
 
 import (
-	"github.com/defenseunicorns/uds-cli/src/types"
+	"runtime"
+
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
-	"runtime"
+
+	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
 const (
@@ -38,6 +40,12 @@ const (
 
 	// PublicKeyFile is the name of the public key file
 	PublicKeyFile = "public.key"
+
+	// ChecksumsTxt is the name of the checksums.txt file in a Zarf pkg
+	ChecksumsTxt = "checksums.txt"
+
+	// TasksYAML is the default name of the uds run cmd file
+	TasksYAML = "tasks.yaml"
 )
 
 var (
@@ -52,6 +60,12 @@ var (
 
 	// SkipLogFile is a flag to skip logging to a file
 	SkipLogFile bool
+
+	// TaskFileLocation is the location of the tasks file to run
+	TaskFileLocation string
+
+	// SetVariables is a map of the run time variables defined using --set
+	SetVariables map[string]string
 )
 
 // GetArch returns the arch based on a priority list with options for overriding.

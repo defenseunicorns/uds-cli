@@ -6,22 +6,21 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/AlecAivazis/survey/v2"
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/config/lang"
-	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
-	zarfConfig "github.com/defenseunicorns/zarf/src/config"
+	"os"
+	"strings"
+
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
-	"os"
-	"path/filepath"
-	"strings"
 
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/config/lang"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
+
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/spf13/cobra"
+
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 )
 
 var bundleCmd = &cobra.Command{
@@ -36,6 +35,8 @@ var bundleCreateCmd = &cobra.Command{
 	Args:    cobra.MaximumNArgs(1),
 	Short:   lang.CmdBundleCreateShort,
 	PreRun: func(cmd *cobra.Command, args []string) {
+		message.Warnf("Greetings 🦄! I noticed you used the `uds bundle %s` syntax!\n"+
+			"This syntax will be deprecated in favor of `uds %s` in an upcoming release", cmd.Use, cmd.Use)
 		if len(args) > 0 && !zarfUtils.IsDir(args[0]) {
 			message.Fatalf(nil, "(%q) is not a valid path to a directory", args[0])
 		}
@@ -70,7 +71,11 @@ var bundleDeployCmd = &cobra.Command{
 	Aliases: []string{"d"},
 	Short:   lang.CmdBundleDeployShort,
 	Args:    cobra.MaximumNArgs(1),
-	PreRun:  firstArgIsEitherOCIorTarball,
+	PreRun: func(cmd *cobra.Command, args []string) {
+		message.Warnf("Greetings 🦄! I noticed you used the `uds bundle %s` syntax!\n"+
+			"This syntax will be deprecated in favor of `uds %s` in an upcoming release", cmd.Use, cmd.Use)
+		firstArgIsEitherOCIorTarball(cmd, args)
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		bundleCfg.DeployOpts.Source = choosePackage(args)
 		configureZarf()
@@ -104,6 +109,8 @@ var bundleInspectCmd = &cobra.Command{
 	Short:   lang.CmdBundleInspectShort,
 	Args:    cobra.MaximumNArgs(1),
 	PreRun: func(cmd *cobra.Command, args []string) {
+		message.Warnf("Greetings 🦄! I noticed you used the `uds bundle %s` syntax!\n"+
+			"This syntax will be deprecated in favor of `uds %s` in an upcoming release", cmd.Use, cmd.Use)
 		firstArgIsEitherOCIorTarball(nil, args)
 		if cmd.Flag("extract").Value.String() == "true" && cmd.Flag("sbom").Value.String() == "false" {
 			message.Fatal(nil, "cannot use 'extract' flag without 'sbom' flag")
@@ -128,7 +135,11 @@ var bundleRemoveCmd = &cobra.Command{
 	Aliases: []string{"r"},
 	Args:    cobra.ExactArgs(1),
 	Short:   lang.CmdBundleRemoveShort,
-	PreRun:  firstArgIsEitherOCIorTarball,
+	PreRun: func(cmd *cobra.Command, args []string) {
+		message.Warnf("Greetings 🦄! I noticed you used the `uds bundle %s` syntax!\n"+
+			"This syntax will be deprecated in favor of `uds %s` in an upcoming release", cmd.Use, cmd.Use)
+		firstArgIsEitherOCIorTarball(cmd, args)
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		bundleCfg.RemoveOpts.Source = args[0]
 		configureZarf()
@@ -149,6 +160,8 @@ var bundlePublishCmd = &cobra.Command{
 	Short:   lang.CmdBundlePullShort,
 	Args:    cobra.ExactArgs(2),
 	PreRun: func(cmd *cobra.Command, args []string) {
+		message.Warnf("Greetings 🦄! I noticed you used the `uds bundle %s` syntax!\n"+
+			"This syntax will be deprecated in favor of `uds %s` in an upcoming release", cmd.Use, cmd.Use)
 		if _, err := os.Stat(args[0]); err != nil {
 			message.Fatalf(err, "First argument (%q) must be a valid local Bundle path: %s", args[0], err.Error())
 		}
@@ -177,6 +190,8 @@ var bundlePullCmd = &cobra.Command{
 	Short:   lang.CmdBundlePullShort,
 	Args:    cobra.ExactArgs(1),
 	PreRun: func(cmd *cobra.Command, args []string) {
+		message.Warnf("Greetings 🦄! I noticed you used the `uds bundle %s` syntax!\n"+
+			"This syntax will be deprecated in favor of `uds %s` in an upcoming release", cmd.Use, cmd.Use)
 		if err := oci.ValidateReference(args[0]); err != nil {
 			message.Fatalf(err, "First argument (%q) must be a valid OCI URL: %s", args[0], err.Error())
 		}
@@ -194,30 +209,8 @@ var bundlePullCmd = &cobra.Command{
 	},
 }
 
-func firstArgIsEitherOCIorTarball(_ *cobra.Command, args []string) {
-	if len(args) == 0 {
-		return
-	}
-	var errString string
-	var err error
-	if utils.IsValidTarballPath(args[0]) {
-		return
-	}
-	if !helpers.IsOCIURL(args[0]) && !utils.IsValidTarballPath(args[0]) {
-		errString = fmt.Sprintf("First argument (%q) must either be a valid OCI URL or a valid path to a bundle tarball", args[0])
-	} else {
-		err = oci.ValidateReference(args[0])
-	}
-	if errString != "" {
-		message.Fatalf(err, "Failed to validate first argument: %s", errString)
-	}
-}
-
-func init() {
-	initViper()
-
-	rootCmd.AddCommand(bundleCmd)
-	v.SetDefault(V_BNDL_OCI_CONCURRENCY, 3)
+func initDeprecated(cmd *cobra.Command) {
+	cmd.AddCommand(bundleCmd)
 	bundleCmd.PersistentFlags().IntVar(&config.CommonOptions.OCIConcurrency, "oci-concurrency", v.GetInt(V_BNDL_OCI_CONCURRENCY), lang.CmdBundleFlagConcurrency)
 
 	// create cmd flags
@@ -226,7 +219,6 @@ func init() {
 	bundleCreateCmd.Flags().StringVarP(&bundleCfg.CreateOpts.Output, "output", "o", v.GetString(V_BNDL_CREATE_OUTPUT), lang.CmdBundleCreateFlagOutput)
 	bundleCreateCmd.Flags().StringVarP(&bundleCfg.CreateOpts.SigningKeyPath, "signing-key", "k", v.GetString(V_BNDL_CREATE_SIGNING_KEY), lang.CmdBundleCreateFlagSigningKey)
 	bundleCreateCmd.Flags().StringVarP(&bundleCfg.CreateOpts.SigningKeyPassword, "signing-key-password", "p", v.GetString(V_BNDL_CREATE_SIGNING_KEY_PASSWORD), lang.CmdBundleCreateFlagSigningKeyPassword)
-	bundleCreateCmd.Flags().StringToStringVarP(&bundleCfg.CreateOpts.SetVariables, "set", "s", v.GetStringMapString(V_BNDL_CREATE_SET), lang.CmdBundleCreateFlagSet)
 
 	// deploy cmd flags
 	bundleCmd.AddCommand(bundleDeployCmd)
@@ -252,41 +244,4 @@ func init() {
 	bundleCmd.AddCommand(bundlePullCmd)
 	bundlePullCmd.Flags().StringVarP(&bundleCfg.PullOpts.OutputDirectory, "output", "o", v.GetString(V_BNDL_PULL_OUTPUT), lang.CmdBundlePullFlagOutput)
 	bundlePullCmd.Flags().StringVarP(&bundleCfg.PullOpts.PublicKeyPath, "key", "k", v.GetString(V_BNDL_PULL_KEY), lang.CmdBundlePullFlagKey)
-}
-
-// configureZarf copies configs from UDS-CLI to Zarf
-func configureZarf() {
-	zarfConfig.CommonOptions = zarfTypes.ZarfCommonOptions{
-		Insecure:       config.CommonOptions.Insecure,
-		TempDirectory:  config.CommonOptions.TempDirectory,
-		OCIConcurrency: config.CommonOptions.OCIConcurrency,
-		Confirm:        config.CommonOptions.Confirm,
-		CachePath:      config.CommonOptions.CachePath,
-	}
-}
-
-// choosePackage provides a file picker when users don't specify a file
-func choosePackage(args []string) string {
-	if len(args) > 0 {
-		return args[0]
-	}
-	var path string
-	prompt := &survey.Input{
-		Message: lang.CmdPackageChoose,
-		Suggest: func(toComplete string) []string {
-			files, _ := filepath.Glob(config.BundlePrefix + toComplete + "*.tar")
-			gzFiles, _ := filepath.Glob(config.BundlePrefix + toComplete + "*.tar.zst")
-			partialFiles, _ := filepath.Glob(config.BundlePrefix + toComplete + "*.part000")
-
-			files = append(files, gzFiles...)
-			files = append(files, partialFiles...)
-			return files
-		},
-	}
-
-	if err := survey.AskOne(prompt, &path, survey.WithValidator(survey.Required)); err != nil {
-		message.Fatalf(nil, lang.CmdPackageChooseErr, err.Error())
-	}
-
-	return path
 }

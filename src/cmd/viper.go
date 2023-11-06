@@ -5,10 +5,13 @@
 package cmd
 
 import (
-	"github.com/defenseunicorns/uds-cli/src/config/lang"
-	"github.com/defenseunicorns/zarf/src/cmd/common"
+	"fmt"
 	"os"
 	"strings"
+
+	"github.com/defenseunicorns/zarf/src/cmd/common"
+
+	"github.com/defenseunicorns/uds-cli/src/config/lang"
 
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/spf13/viper"
@@ -83,7 +86,7 @@ func initViper() {
 	if vConfigError != nil {
 		// Config file not found; ignore
 		if _, ok := vConfigError.(viper.ConfigFileNotFoundError); !ok {
-			message.WarnErrorf(vConfigError, lang.CmdViperErrLoadingConfigFile, vConfigError.Error())
+			message.WarnErr(vConfigError, fmt.Sprintf("%s - %s", lang.CmdViperErrLoadingConfigFile, vConfigError.Error()))
 		}
 	}
 }
@@ -93,7 +96,7 @@ func printViperConfigUsed() {
 	if vConfigError != nil {
 		// Config file not found; ignore
 		if _, ok := vConfigError.(viper.ConfigFileNotFoundError); !ok {
-			message.WarnErrorf(vConfigError, lang.CmdViperErrLoadingConfigFile, vConfigError.Error())
+			message.WarnErr(vConfigError, fmt.Sprintf("%s - %s", lang.CmdViperErrLoadingConfigFile, vConfigError.Error()))
 		}
 	} else {
 		message.Notef(lang.CmdViperInfoUsingConfigFile, v.ConfigFileUsed())

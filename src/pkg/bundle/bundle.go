@@ -9,23 +9,28 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
-	"github.com/defenseunicorns/uds-cli/src/types"
+	"os"
+	"path/filepath"
+
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"golang.org/x/sync/errgroup"
 	"oras.land/oras-go/v2/content"
 	ocistore "oras.land/oras-go/v2/content/oci"
-	"os"
-	"path/filepath"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
+	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
 // Create creates the bundle and outputs to a local tarball
 func Create(b *Bundler, signature []byte) error {
+	message.HeaderInfof("🐕 Fetching Packages")
+
 	if b.bundle.Metadata.Architecture == "" {
 		return fmt.Errorf("architecture is required for bundling")
 	}
@@ -40,11 +45,16 @@ func Create(b *Bundler, signature []byte) error {
 	artifactPathMap := make(PathMap)
 
 	// create root manifest for OCI artifact, will populate with refs to uds-bundle.yaml and zarf.yamls
-	rootManifest := ocispec.Manifest{}
-	rootManifest.MediaType = ocispec.MediaTypeImageManifest
+	rootManifest := ocispec.Manifest{
+		MediaType: ocispec.MediaTypeImageManifest,
+	}
 
 	// grab all Zarf pkgs from OCI and put blobs in OCI store
 	for i, pkg := range bundle.ZarfPackages {
+		fetchSpinner := message.NewProgressSpinner("Fetching package %s", pkg.Name)
+
+		defer fetchSpinner.Stop()
+
 		if pkg.Repository != "" {
 			url := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
 			remoteBundler, err := bundler.NewRemoteBundler(pkg, url, store, nil)
@@ -53,6 +63,9 @@ func Create(b *Bundler, signature []byte) error {
 			}
 
 			pkgManifestDesc, err := remoteBundler.PushManifest()
+			pkgManifestDesc.Annotations = map[string]string{
+				ocispec.AnnotationTitle: pkg.Name,
+			}
 			if err != nil {
 				return err
 			}
@@ -63,7 +76,7 @@ func Create(b *Bundler, signature []byte) error {
 			artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 
 			message.Debugf("Pushed %s sub-manifest into %s: %s", url, b.tmp, message.JSONValue(pkgManifestDesc))
-			layerDescs, err := remoteBundler.PushLayers()
+			layerDescs, err := remoteBundler.PushLayers(fetchSpinner, i+1, len(bundle.ZarfPackages))
 			if err != nil {
 				return err
 			}
@@ -74,7 +87,7 @@ func Create(b *Bundler, signature []byte) error {
 				artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 			}
 		} else if pkg.Path != "" {
-			pkgTmp, err := utils.MakeTempDir()
+			pkgTmp, err := utils.MakeTempDir("")
 			defer os.RemoveAll(pkgTmp)
 			if err != nil {
 				return err
@@ -96,6 +109,9 @@ func Create(b *Bundler, signature []byte) error {
 			}
 
 			zarfPkgDesc, err := localBundler.ToBundle(store, zarfPkg, artifactPathMap, b.tmp, pkgTmp)
+			zarfPkgDesc.Annotations = map[string]string{
+				ocispec.AnnotationTitle: pkg.Name,
+			}
 			if err != nil {
 				return err
 			}
@@ -103,7 +119,7 @@ func Create(b *Bundler, signature []byte) error {
 			// put digest in uds-bundle.yaml to reference during deploy
 			bundle.ZarfPackages[i].Ref = bundle.ZarfPackages[i].Ref + "-" + bundle.Metadata.Architecture + "@sha256:" + zarfPkgDesc.Digest.Encoded()
 
-			// append zarf.yaml layer to root manifest and grab path for archiving
+			// append zarf image manifest to bundle root manifest and grab path for archiving
 			rootManifest.Layers = append(rootManifest.Layers, zarfPkgDesc)
 			digest := zarfPkgDesc.Digest.Encoded()
 			artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
@@ -111,61 +127,46 @@ func Create(b *Bundler, signature []byte) error {
 		} else {
 			return fmt.Errorf("todo: haven't we already validated that Path or Repository is valid")
 		}
+
+		fetchSpinner.Successf("Fetched package: %s", pkg.Name)
 	}
 
+	message.HeaderInfof("🚧 Building Bundle")
+
 	// push uds-bundle.yaml to OCI store
-	bundleManifestDesc, err := pushBundleManifestToStore(ctx, store, bundle)
+	bundleYAMLDesc, err := pushBundleYAMLToStore(ctx, store, bundle)
 	if err != nil {
 		return err
 	}
 
 	// append uds-bundle.yaml layer to rootManifest and grab path for archiving
-	rootManifest.Layers = append(rootManifest.Layers, bundleManifestDesc)
-	digest := bundleManifestDesc.Digest.Encoded()
+	rootManifest.Layers = append(rootManifest.Layers, bundleYAMLDesc)
+	digest := bundleYAMLDesc.Digest.Encoded()
 	artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 
 	// create and push bundle manifest config
-	manifestConfigDesc, err := createManifestConfig(bundle.Metadata, bundle.Build)
+	manifestConfigDesc, err := pushManifestConfig(store, bundle.Metadata, bundle.Build)
 	if err != nil {
 		return err
 	}
+	manifestConfigDigest := manifestConfigDesc.Digest.Encoded()
+	artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, manifestConfigDigest)] = filepath.Join(config.BlobsDir, manifestConfigDigest)
+
 	rootManifest.Config = manifestConfigDesc
 	rootManifest.SchemaVersion = 2
 	rootManifest.Annotations = manifestAnnotationsFromMetadata(&bundle.Metadata) // maps to registry UI
-	manifestBytes, err := json.Marshal(rootManifest)
+	rootManifestBytes, err := json.Marshal(rootManifest)
 	if err != nil {
 		return err
 	}
-	manifestDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, manifestBytes)
-	if err := store.Push(ctx, manifestDesc, bytes.NewReader(manifestBytes)); err != nil {
+	rootManifestDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, rootManifestBytes)
+	if err := store.Push(ctx, rootManifestDesc, bytes.NewReader(rootManifestBytes)); err != nil {
 		return err
 	}
-	digest = manifestDesc.Digest.Encoded()
+	digest = rootManifestDesc.Digest.Encoded()
 	artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 
-	// rebuild index.json because pushing Zarf image manifests adds unnecessary entries
-	indexBytes, err := os.ReadFile(filepath.Join(b.tmp, "index.json"))
-	if err != nil {
-		return err
-	}
-	var index ocispec.Index
-	if err := json.Unmarshal(indexBytes, &index); err != nil {
-		return err
-	}
-	index.Manifests = []ocispec.Descriptor{manifestDesc} // use only the bundle-level manifest for index.json
-	bundleIndexBytes, err := json.Marshal(index)
-	if err != nil {
-		return err
-	}
-	indexFile, err := os.Create(filepath.Join(b.tmp, "index.json"))
-	if err != nil {
-		return err
-	}
-	defer indexFile.Close()
-	_, err = indexFile.Write(bundleIndexBytes)
-	if err != nil {
-		return err
-	}
+	// grab index.json
 	artifactPathMap[filepath.Join(b.tmp, "index.json")] = "index.json"
 
 	// grab oci-layout
@@ -181,6 +182,12 @@ func Create(b *Bundler, signature []byte) error {
 		message.Debug("Pushed", config.BundleYAMLSignature+":", message.JSONValue(signatureDesc))
 	}
 
+	// tag the local bundle artifact
+	ref := fmt.Sprintf("%s-%s", bundle.Metadata.Version, bundle.Metadata.Architecture)
+	err = store.Tag(ctx, rootManifestDesc, ref)
+	if err != nil {
+		return err
+	}
 	// tarball the bundle
 	err = writeTarball(bundle, artifactPathMap)
 	if err != nil {
@@ -200,9 +207,12 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 
 	rootManifest := ocispec.Manifest{}
 
-	for _, pkg := range bundle.ZarfPackages {
+	for i, pkg := range bundle.ZarfPackages {
 		url := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
 		remoteBundler, err := bundler.NewRemoteBundler(pkg, url, nil, remoteDst)
+		if err != nil {
+			return err
+		}
 
 		zarfManifestDesc, err := remoteBundler.PushManifest()
 		if err != nil {
@@ -214,10 +224,16 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 		message.Debugf("Pushed %s sub-manifest into %s: %s", url, dstRef, message.JSONValue(zarfManifestDesc))
 		rootManifest.Layers = append(rootManifest.Layers, zarfManifestDesc)
 
-		_, err = remoteBundler.PushLayers()
+		pushSpinner := message.NewProgressSpinner("")
+
+		defer pushSpinner.Stop()
+
+		_, err = remoteBundler.PushLayers(pushSpinner, i+1, len(bundle.ZarfPackages))
 		if err != nil {
 			return err
 		}
+
+		pushSpinner.Successf("Pushed package: %s", pkg.Name)
 	}
 
 	// push the bundle's metadata
@@ -282,9 +298,9 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 		flags = "--insecure"
 	}
 	message.Title("To inspect/deploy/pull:", "")
-	message.Command("bundle inspect oci://%s %s", dstRef, flags)
-	message.Command("bundle deploy oci://%s %s", dstRef, flags)
-	message.Command("bundle pull oci://%s %s", dstRef, flags)
+	message.Command("inspect oci://%s %s", dstRef, flags)
+	message.Command("deploy oci://%s %s", dstRef, flags)
+	message.Command("pull oci://%s %s", dstRef, flags)
 
 	return nil
 }
@@ -304,7 +320,7 @@ func pushManifestConfigFromMetadata(r *oci.OrasRemote, metadata *types.UDSMetada
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
-	return r.PushLayer(manifestConfigBytes, ocispec.MediaTypeImageConfig)
+	return r.PushLayer(manifestConfigBytes, oci.ZarfLayerMediaTypeBlob)
 }
 
 // copied from: https://github.com/defenseunicorns/zarf/blob/main/src/pkg/oci/push.go
@@ -332,17 +348,17 @@ func manifestAnnotationsFromMetadata(metadata *types.UDSMetadata) map[string]str
 	return annotations
 }
 
-// pushBundleManifestToStore pushes the uds-bundle.yaml to a provided OCI store
-func pushBundleManifestToStore(ctx context.Context, store *ocistore.Store, bundle *types.UDSBundle) (ocispec.Descriptor, error) {
-	bundleManifestBytes, err := goyaml.Marshal(bundle)
+// pushBundleYAMLToStore pushes the uds-bundle.yaml to a provided OCI store
+func pushBundleYAMLToStore(ctx context.Context, store *ocistore.Store, bundle *types.UDSBundle) (ocispec.Descriptor, error) {
+	bundleYAMLBytes, err := goyaml.Marshal(bundle)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
-	bundleYamlDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, bundleManifestBytes)
+	bundleYamlDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, bundleYAMLBytes)
 	bundleYamlDesc.Annotations = map[string]string{
 		ocispec.AnnotationTitle: config.BundleYAML,
 	}
-	err = store.Push(ctx, bundleYamlDesc, bytes.NewReader(bundleManifestBytes))
+	err = store.Push(ctx, bundleYamlDesc, bytes.NewReader(bundleYAMLBytes))
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
@@ -350,8 +366,8 @@ func pushBundleManifestToStore(ctx context.Context, store *ocistore.Store, bundl
 	return bundleYamlDesc, err
 }
 
-// createManifestConfig creates a manifest config based on the uds-bundle.yaml
-func createManifestConfig(metadata types.UDSMetadata, build types.UDSBuildData) (ocispec.Descriptor, error) {
+// pushManifestConfig creates a manifest config based on the uds-bundle.yaml
+func pushManifestConfig(store *ocistore.Store, metadata types.UDSMetadata, build types.UDSBuildData) (ocispec.Descriptor, error) {
 	annotations := map[string]string{
 		ocispec.AnnotationTitle:       metadata.Name,
 		ocispec.AnnotationDescription: metadata.Description,
@@ -365,7 +381,11 @@ func createManifestConfig(metadata types.UDSMetadata, build types.UDSBuildData) 
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
-	manifestConfigDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, manifestConfigBytes)
+	manifestConfigDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, manifestConfigBytes)
+	err = store.Push(context.TODO(), manifestConfigDesc, bytes.NewReader(manifestConfigBytes))
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
 	return manifestConfigDesc, err
 }
 
@@ -393,10 +413,49 @@ func writeTarball(bundle *types.UDSBundle, artifactPathMap PathMap) error {
 	if err != nil {
 		return err
 	}
-	if err := format.Archive(context.TODO(), out, files); err != nil {
+
+	archiveErrorChan := make(chan error, len(files))
+	jobs := make(chan archiver.ArchiveAsyncJob, len(files))
+
+	for _, file := range files {
+		archiveJob := archiver.ArchiveAsyncJob{
+			File:   file,
+			Result: archiveErrorChan,
+		}
+		jobs <- archiveJob
+	}
+
+	close(jobs)
+
+	archiveErrGroup, ctx := errgroup.WithContext(context.TODO())
+
+	archiveBar := message.NewProgressBar(int64(len(jobs)), "Creating bundle archive")
+
+	defer archiveBar.Stop()
+
+	archiveErrGroup.Go(func() error {
+		return format.ArchiveAsync(ctx, out, jobs)
+	})
+
+jobLoop:
+	for len(jobs) != 0 {
+		select {
+		case err := <-archiveErrorChan:
+			if err != nil {
+				return err
+			} else {
+				archiveBar.Add(1)
+			}
+		case <-ctx.Done():
+			break jobLoop
+		}
+	}
+
+	if err := archiveErrGroup.Wait(); err != nil {
 		return err
 	}
-	message.Infof("Create tarball saved to %s", dst)
+
+	archiveBar.Successf("Created bundle archive at: %s", dst)
 	return nil
 }
 

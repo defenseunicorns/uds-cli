@@ -7,12 +7,14 @@ package bundle
 import (
 	"context"
 	"fmt"
-	"github.com/defenseunicorns/uds-cli/src/config"
+	"os"
+	"path/filepath"
+
 	oci "github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	av3 "github.com/mholt/archiver/v3"
-	"os"
-	"path/filepath"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
 )
 
 // Publish publishes a bundle to a remote OCI registry

@@ -5,10 +5,8 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/config/lang"
-	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"os"
+
 	"github.com/defenseunicorns/zarf/src/cmd/common"
 	"github.com/defenseunicorns/zarf/src/cmd/tools"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
@@ -16,7 +14,11 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"os"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/config/lang"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
 var (
@@ -49,7 +51,6 @@ var rootCmd = &cobra.Command{
 		cliSetup()
 	},
 	Short: lang.RootCmdShort,
-	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		_, _ = fmt.Fprintln(os.Stderr)
 		cmd.Help()
@@ -86,11 +87,15 @@ func init() {
 	v.SetDefault(V_TMP_DIR, "")
 
 	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "l", v.GetString(V_LOG_LEVEL), lang.RootCmdFlagLogLevel)
+	rootCmd.PersistentFlags().StringVarP(&config.CLIArch, "architecture", "a", v.GetString(common.VArchitecture), lang.RootCmdFlagArch)
 	rootCmd.PersistentFlags().BoolVar(&config.SkipLogFile, "no-log-file", v.GetBool(V_NO_LOG_FILE), lang.RootCmdFlagSkipLogFile)
 	rootCmd.PersistentFlags().BoolVar(&message.NoProgress, "no-progress", v.GetBool(V_NO_PROGRESS), lang.RootCmdFlagNoProgress)
 	rootCmd.PersistentFlags().StringVar(&config.CommonOptions.CachePath, "zarf-cache", v.GetString(V_ZARF_CACHE), lang.RootCmdFlagCachePath)
 	rootCmd.PersistentFlags().StringVar(&config.CommonOptions.TempDirectory, "tmpdir", v.GetString(V_TMP_DIR), lang.RootCmdFlagTempDir)
 	rootCmd.PersistentFlags().BoolVar(&config.CommonOptions.Insecure, "insecure", v.GetBool(V_INSECURE), lang.RootCmdFlagInsecure)
+
+	// use system Zarf because of internal commands being using during zarf init (such as creating gitea users)
+	zarfConfig.ActionsUseSystemZarf = true
 }
 
 func cliSetup() {

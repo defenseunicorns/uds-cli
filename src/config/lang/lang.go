@@ -14,6 +14,7 @@ const (
 	RootCmdFlagInsecure       = "Allow access to insecure registries and disable other recommended security enforcements such as package checksum and signature validation. This flag should only be used if you have a specific reason and accept the reduced security posture."
 	RootCmdFlagLogLevel       = "Log level when running UDS-CLI. Valid options are: warn, info, debug, trace"
 	RootCmdErrInvalidLogLevel = "Invalid log level. Valid options are: warn, info, debug, trace."
+	RootCmdFlagArch           = "Architecture for UDS bundles and Zarf packages"
 
 	// bundle
 	CmdBundleShort           = "Commands for creating, deploying, removing, pulling, and inspecting bundles"
@@ -25,11 +26,9 @@ const (
 	CmdBundleCreateFlagOutput             = "Specify the output (an oci:// URL) for the created bundle"
 	CmdBundleCreateFlagSigningKey         = "Path to private key file for signing bundles"
 	CmdBundleCreateFlagSigningKeyPassword = "Password to the private key file used for signing bundles"
-	CmdBundleCreateFlagSet                = "Specify bundle template variables to set on the command line (KEY=value)"
 
 	// bundle deploy
-	CmdBundleDeployShort = "Deploy a bundle from a local tarball or oci:// URL"
-	//CmdBundleDeployFlagSet     = "Specify deployment variables to set on the command line (KEY=value)"
+	CmdBundleDeployShort       = "Deploy a bundle from a local tarball or oci:// URL"
 	CmdBundleDeployFlagConfirm = "Confirms bundle deployment without prompting. ONLY use with bundles you trust. Skips prompts to review SBOM, configure variables, select optional components and review potential breaking changes."
 
 	// bundle inspect
@@ -63,4 +62,8 @@ const (
 	CmdInternalShort             = "Internal cmds used by UDS-CLI"
 	CmdInternalConfigSchemaShort = "Generates a JSON schema for the uds-bundle.yaml configuration"
 	CmdInternalConfigSchemaErr   = "Unable to generate the uds-bundle.yaml schema"
+
+	// uds run
+	CmdRunFlag = "Name and location of task file to run"
+CmdRunSetVarFlag = "Set a runner variable from the command line (KEY=value)"
 )

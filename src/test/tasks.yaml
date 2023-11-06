@@ -1,0 +1,75 @@
+variables:
+  - name: REPLACE_ME
+    default: replaced
+  - name: CHECKSUMS
+    default: checksums.txt
+
+tasks:
+  - name: copy
+    files:
+      - source: base
+        target: copy
+  - name: copy-exec
+    files:
+      - source: exectest
+        target: exec
+        executable: true
+  - name: copy-verify
+    files:
+      - source: data
+        target: verify
+        shasum: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+  - name: copy-symlink
+    files:
+      - source: symtest
+        target: symcopy
+        symlinks:
+          - "testlink"
+  - name: pre-remote
+    actions:
+      - cmd: |
+          echo "defenseunicorns"
+        setVariables:
+          - name: PRETTY_OK_COMPANY
+            sensitive: false
+  - name: pull-remote
+    files:
+      - source: https://github.com/${PRETTY_OK_COMPANY}/zarf/releases/download/v0.30.1/${CHECKSUMS}
+        target: ${CHECKSUMS}
+  - name: remote
+    actions:
+      - task: pre-remote
+      - task: pull-remote
+  - name: template-file
+    files:
+      - source: raw
+        target: templated
+  - name: action
+    actions:
+      - cmd: echo "specific test string"
+  - name: cmd-set-variable
+    actions:
+      - cmd: echo unique-value
+        mute: true
+        setVariables:
+          - name: ACTION_VAR
+            sensitive: true
+      - cmd: echo "I'm set from setVariables - ${ACTION_VAR}"
+      - cmd: echo "I'm set from a runner var - ${REPLACE_ME}"
+      - cmd: echo "I'm set from a --set var - ${REPLACE_ME}"
+      - cmd: echo "I'm set from a new --set var - ${UNICORNS}"
+  - name: reference
+    actions:
+      - task: referenced
+  - name: referenced
+    actions:
+      - cmd: echo "other-task"
+  - name: recursive
+    actions:
+      - task: recursed
+  - name: recursed
+    actions:
+      - task: recursed1
+  - name: recursed1
+    actions:
+      - task: recursive

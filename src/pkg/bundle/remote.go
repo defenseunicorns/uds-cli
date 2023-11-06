@@ -9,21 +9,23 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
-	"github.com/mholt/archiver/v4"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
-	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	goyaml "github.com/goccy/go-yaml"
+	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"oras.land/oras-go/v2/content/file"
+	"oras.land/oras-go/v2"
 	ocistore "oras.land/oras-go/v2/content/oci"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
 type ociProvider struct {
@@ -31,7 +33,7 @@ type ociProvider struct {
 	src string
 	dst string
 	*oci.OrasRemote
-	manifest *oci.ZarfOCIManifest // todo: UDSBundleOCIManifest?
+	manifest *oci.ZarfOCIManifest
 }
 
 func (op *ociProvider) getBundleManifest() error {
@@ -44,65 +46,6 @@ func (op *ociProvider) getBundleManifest() error {
 	}
 	op.manifest = root
 	return nil
-}
-
-// LoadPackage loads a package from a remote bundle
-func (op *ociProvider) LoadPackage(sha, destinationDir string, concurrency int) (PathMap, error) {
-	if destinationDir == op.dst {
-		return nil, fmt.Errorf("destination directory cannot be the same as the bundle directory")
-	}
-
-	if err := op.getBundleManifest(); err != nil {
-		return nil, err
-	}
-	pkgManifestDesc := op.manifest.Locate(sha)
-	if oci.IsEmptyDescriptor(pkgManifestDesc) {
-		return nil, fmt.Errorf("package %s does not exist in this bundle", sha)
-	}
-	pkgManifest, err := op.FetchManifest(pkgManifestDesc)
-	if err != nil {
-		return nil, err
-	}
-	// including the package manifest uses some ORAs FindSuccessors hackery to expand the manifest into all layers
-	// as oras.Copy was designed for resolving layers via a manifest reference, not a manifest embedded inside of another
-	// image
-	layersToPull := []ocispec.Descriptor{pkgManifestDesc}
-	for _, layer := range pkgManifest.Layers {
-		// only fetch layers that exist
-		// since optional-components exists, there will be layers that don't exist
-		// as the package's preserved manifest will contain all layers for all components
-		ok, _ := op.Repo().Blobs().Exists(op.ctx, layer)
-		if ok {
-			layersToPull = append(layersToPull, layer)
-		}
-	}
-
-	store, err := file.New(destinationDir)
-	if err != nil {
-		return nil, err
-	}
-	defer store.Close()
-
-	copyOpts := op.CopyOpts
-	copyOpts.Concurrency = concurrency
-
-	preCopy := func(_ context.Context, desc ocispec.Descriptor) error {
-		message.Debug("Copying", message.JSONValue(desc), "to", destinationDir)
-		return nil
-	}
-
-	copyOpts.PreCopy = preCopy
-
-	if err := op.CopyWithProgress(layersToPull, store, &copyOpts, destinationDir); err != nil {
-		return nil, err
-	}
-
-	loaded := make(PathMap)
-	for _, layer := range layersToPull {
-		rel := layer.Annotations[ocispec.AnnotationTitle]
-		loaded[rel] = filepath.Join(destinationDir, rel)
-	}
-	return loaded, nil
 }
 
 // LoadBundleMetadata loads a remote bundle's metadata
@@ -125,6 +68,10 @@ func (op *ociProvider) LoadBundleMetadata() (PathMap, error) {
 		}
 		loaded[rel] = absSha
 	}
+	err = op.getBundleManifest()
+	if err != nil {
+		return nil, err
+	}
 	return loaded, nil
 }
 
@@ -146,14 +93,13 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 		if err != nil {
 			continue
 		}
-		// read in and unmarshal Zarf image manifest
+		// grab descriptor for sboms.tar
 		sbomDesc := zarfManifest.Locate(config.SBOMsTar)
-		zarfYAML, err := op.OrasRemote.FetchZarfYAML(zarfManifest)
 		if err != nil {
 			return err
 		}
 		if sbomDesc.Annotations == nil {
-			message.Warnf("%s not found in Zarf pkg: %s", config.SBOMsTar, zarfYAML.Metadata.Name)
+			message.Warnf("%s not found in Zarf pkg: %s", config.SBOMsTar, zarfManifest.Annotations[ocispec.AnnotationTitle])
 		}
 		// grab sboms.tar and extract
 		sbomBytes, err := op.OrasRemote.FetchLayer(sbomDesc)
@@ -185,14 +131,13 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 }
 
 // LoadBundle loads a bundle from a remote source
-func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
+func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 	var layersToPull []ocispec.Descriptor
 
 	if err := op.getBundleManifest(); err != nil {
 		return nil, err
 	}
 
-	spinner := message.NewProgressSpinner("Starting bundle pull")
 	loaded, err := op.LoadBundleMetadata() // todo: remove? this seems redundant, can we pass the "loaded" var in
 	if err != nil {
 		return nil, err
@@ -204,7 +149,6 @@ func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
 	}
 
 	var bundle types.UDSBundle
-
 	if err := goyaml.Unmarshal(b, &bundle); err != nil {
 		return nil, err
 	}
@@ -212,7 +156,6 @@ func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
 	for _, pkg := range bundle.ZarfPackages {
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
 		manifestDesc := op.manifest.Locate(sha)
-		manifestDesc.MediaType = oci.ZarfLayerMediaTypeBlob
 		if err != nil {
 			return nil, err
 		}
@@ -225,8 +168,10 @@ func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
 			return nil, err
 		}
 		layersToPull = append(layersToPull, manifestDesc)
+		progressBar := message.NewProgressBar(int64(len(manifest.Layers)), fmt.Sprintf("Verifying layers in Zarf package: %s", pkg.Name))
 		for _, layer := range manifest.Layers {
 			ok, err := op.Repo().Blobs().Exists(op.ctx, layer)
+			progressBar.Add(1)
 			if err != nil {
 				return nil, err
 			}
@@ -234,10 +179,8 @@ func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
 				layersToPull = append(layersToPull, layer)
 			}
 		}
+		progressBar.Successf("Verified %s package", pkg.Name)
 	}
-
-	copyOpts := op.CopyOpts
-	copyOpts.Concurrency = concurrency
 
 	store, err := ocistore.NewWithContext(op.ctx, op.dst)
 	if err != nil {
@@ -250,38 +193,30 @@ func (op *ociProvider) LoadBundle(concurrency int) (PathMap, error) {
 	}
 	layersToPull = append(layersToPull, rootDesc)
 
-	// only grab image layers that we want
-	// would like to use oci.CopyWithProgress here but it breaks when the media type of the image manifest is a Zarf blob
+	// copy bundle
+	copyOpts, estimatedBytes, err := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
 	if err != nil {
 		return nil, err
 	}
-	for _, layer := range layersToPull {
-		spinner.Updatef(fmt.Sprintf("Pulling bundle layer: %s", layer.Digest.Encoded()))
-		if ok, _ := op.Repo().Exists(op.ctx, layer); ok {
-			lb, err := op.Repo().Fetch(op.ctx, layer)
-			if err != nil {
-				return nil, err
-			}
-			exists, err := store.Exists(op.ctx, layer)
-			if err != nil {
-				return nil, err
-			}
-			if !exists {
-				err = store.Push(op.ctx, layer, lb)
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
+
+	// Create a thread to update a progress bar as we save the package to disk
+	doneSaving := make(chan int)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go zarfUtils.RenderProgressBarForLocalDirWrite(op.dst, estimatedBytes, &wg, doneSaving, fmt.Sprintf("Pulling bundle: %s", bundle.Metadata.Name), fmt.Sprintf("Successfully pulled bundle: %s", bundle.Metadata.Name))
+	_, err = oras.Copy(op.ctx, op.Repo(), op.Repo().Reference.String(), store, op.Repo().Reference.String(), copyOpts)
+	if err != nil {
+		doneSaving <- 1
+		return nil, err
 	}
-	spinner.Successf("Bundle pull successful!")
-	spinner.Stop()
+
+	doneSaving <- 1
+	wg.Wait()
 
 	for _, layer := range layersToPull {
 		sha := layer.Digest.Encoded()
 		loaded[sha] = filepath.Join(op.dst, config.BlobsDir, sha)
 	}
-	loaded["index.json"] = filepath.Join(op.dst, "index.json")
 
 	return loaded, nil
 }

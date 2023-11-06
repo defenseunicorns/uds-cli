@@ -7,20 +7,20 @@ package bundle
 import (
 	"errors"
 	"fmt"
-	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/types"
-	zarfConfig "github.com/defenseunicorns/zarf/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
+
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
 // Bundler handles bundler operations
@@ -47,7 +47,7 @@ func New(cfg *types.BundlerConfig) (*Bundler, error) {
 		}
 	)
 
-	tmp, err := utils.MakeTempDir()
+	tmp, err := utils.MakeTempDir("")
 	if err != nil {
 		return nil, fmt.Errorf("bundler unable to create temp directory: %w", err)
 	}
@@ -71,11 +71,10 @@ func NewOrDie(cfg *types.BundlerConfig) *Bundler {
 // ClearPaths clears out the paths used by Bundler
 func (b *Bundler) ClearPaths() {
 	_ = os.RemoveAll(b.tmp)
-	_ = os.RemoveAll(zarfConfig.ZarfSBOMDir)
 }
 
 // ValidateBundleResources validates the bundle's metadata and package references
-func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
+func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *message.Spinner) error {
 	// TODO: need to validate arch of local OS
 	if bundle.Metadata.Architecture == "" {
 		// ValidateBundle was erroneously called before CalculateBuildInfo
@@ -101,13 +100,14 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 		return fmt.Errorf("error validating bundle vars: %s", err)
 	}
 
-	tmp, err := utils.MakeTempDir()
+	tmp, err := utils.MakeTempDir("")
 	if err != nil {
 		return err
 	}
 
 	// validate access to packages as well as components referenced in the package
 	for idx, pkg := range bundle.ZarfPackages {
+		spinner.Updatef("Validating Bundle Package: %s", pkg.Name)
 		if pkg.Name == "" {
 			return fmt.Errorf("%s is missing required field: name", pkg)
 		}
@@ -170,6 +170,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 
 		defer os.RemoveAll(tmp)
 
+		// todo: need to packager.ValidatePackageSignature (or come up with a bundle-level signature scheme)
 		publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
 		if pkg.PublicKey != "" {
 			if err := utils.WriteFile(publicKeyPath, []byte(pkg.PublicKey)); err != nil {
@@ -180,9 +181,6 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle) error {
 			publicKeyPath = ""
 		}
 
-		if err := packager.ValidatePackageSignature(tmp, publicKeyPath); err != nil {
-			return err
-		}
 		if len(pkg.OptionalComponents) > 0 {
 			// validate the optional components exist in the package and support the bundle's target architecture
 			for _, component := range pkg.OptionalComponents {
@@ -230,8 +228,6 @@ func validateBundleVars(packages []types.BundleZarfPackage) error {
 }
 
 // CalculateBuildInfo calculates the build info for the bundle
-//
-// this is mainly mirrored from packager.writeYaml()
 func (b *Bundler) CalculateBuildInfo() error {
 	now := time.Now()
 	b.bundle.Build.User = os.Getenv("USER")
@@ -242,7 +238,7 @@ func (b *Bundler) CalculateBuildInfo() error {
 	}
 	b.bundle.Build.Terminal = hostname
 
-	// --architecture flag > metadata.arch > build.arch / runtime.GOARCH (default)
+	// --architecture flag > metadata.arch > build.arch > runtime.GOARCH (default)
 	b.bundle.Build.Architecture = config.GetArch(b.bundle.Metadata.Architecture, b.bundle.Build.Architecture)
 	b.bundle.Metadata.Architecture = b.bundle.Build.Architecture
 

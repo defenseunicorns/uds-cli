@@ -7,23 +7,23 @@ package bundle
 import (
 	"errors"
 	"fmt"
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/types"
-	zarfConfig "github.com/defenseunicorns/zarf/src/config"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
-	"oras.land/oras-go/v2/registry"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"oras.land/oras-go/v2/registry"
+
 	"github.com/AlecAivazis/survey/v2"
+	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/interactive"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
-
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	"github.com/pterm/pterm"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
 // Create creates a bundle
@@ -45,11 +45,6 @@ func (b *Bundler) Create() error {
 		return err
 	}
 
-	// replace BNDL_TMPL_* variables
-	if err := b.templateBundleYaml(); err != nil {
-		return err
-	}
-
 	// confirm creation
 	if ok := b.confirmBundleCreation(); !ok {
 		return fmt.Errorf("bundle creation cancelled")
@@ -63,10 +58,17 @@ func (b *Bundler) Create() error {
 	// populate Zarf config
 	zarfConfig.CommonOptions.Insecure = config.CommonOptions.Insecure
 
+	validateSpinner := message.NewProgressSpinner("Validating bundle")
+
+	defer validateSpinner.Stop()
+
 	// validate bundle / verify access to all repositories
-	if err := b.ValidateBundleResources(&b.bundle); err != nil {
+	if err := b.ValidateBundleResources(&b.bundle, validateSpinner); err != nil {
 		return err
 	}
+
+	validateSpinner.Successf("Bundle Validated")
+	pterm.Print()
 
 	var signatureBytes []byte
 
@@ -108,50 +110,14 @@ func (b *Bundler) Create() error {
 	return Create(b, signatureBytes)
 }
 
-// adapted from p.fillActiveTemplate
-func (b *Bundler) templateBundleYaml() error {
-	message.Debug("Templating", config.BundleYAML, "w/:", message.JSONValue(b.cfg.CreateOpts.SetVariables))
-
-	templateMap := map[string]string{}
-	setFromCLIConfig := b.cfg.CreateOpts.SetVariables
-	yamlTemplates, err := utils.FindYamlTemplates(&b.bundle, "###BNDL_TMPL_", "###")
-	if err != nil {
-		return err
-	}
-
-	for key := range yamlTemplates {
-		_, present := setFromCLIConfig[key]
-		if !present && !config.CommonOptions.Confirm {
-			setVal, err := interactive.PromptVariable(zarfTypes.ZarfPackageVariable{
-				Name:    key,
-				Default: "",
-			})
-
-			if err == nil {
-				setFromCLIConfig[key] = setVal
-			} else {
-				return err
-			}
-		} else if !present {
-			return fmt.Errorf("template '%s' must be '--set' when using the '--confirm' flag", key)
-		}
-	}
-	for key, value := range setFromCLIConfig {
-		templateMap[fmt.Sprintf("###BNDL_TMPL_%s###", key)] = value
-	}
-
-	templateMap["###BNDL_ARCH###"] = b.bundle.Metadata.Architecture
-
-	return utils.ReloadYamlTemplate(&b.bundle, templateMap)
-}
-
-// adapted from p.confirmAction
+// confirmBundleCreation prompts the user to confirm bundle creation
 func (b *Bundler) confirmBundleCreation() (confirm bool) {
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
 	utils.ColorPrintYAML(b.bundle, nil, false)
 
 	message.HorizontalRule()
+	pterm.Println()
 
 	// Display prompt if not auto-confirmed
 	if config.CommonOptions.Confirm {
@@ -159,12 +125,9 @@ func (b *Bundler) confirmBundleCreation() (confirm bool) {
 	}
 
 	prompt := &survey.Confirm{
-		Message: "Create this UDS Create?",
+		Message: "Create this bundle?",
 	}
 
-	pterm.Println()
-
-	// Prompt the user for confirmation, on abort return false
 	if err := survey.AskOne(prompt, &confirm); err != nil || !confirm {
 		// User aborted or declined, cancel the action
 		return false

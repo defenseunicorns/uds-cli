@@ -7,11 +7,12 @@ package bundle
 import (
 	"context"
 	"fmt"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
-	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
 // Provider is an interface for processing bundles
@@ -28,15 +29,6 @@ type Provider interface {
 	// : if OCI ref
 	// : : pulls the metadata from the OCI ref
 	LoadBundleMetadata() (PathMap, error)
-
-	// LoadPackage loads a package with a given `sha` from the bundle into the `destinationDir`
-	//
-	// : if tarball
-	// : : extracts the package from the tarball
-	//
-	// : if OCI ref
-	// : : pulls the package from the OCI ref
-	LoadPackage(sha, destinationDir string, concurrency int) (PathMap, error)
 
 	// LoadBundle loads a bundle into the temporary directory and returns a map of the bundle's files
 	//

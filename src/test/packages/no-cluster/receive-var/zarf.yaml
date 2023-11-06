@@ -1,0 +1,21 @@
+kind: ZarfPackageConfig
+metadata:
+  name: receive-var
+  description: |
+    Demonstrates a variable being set from a previously deployed Zarf pkg
+  version: 0.0.1
+
+variables:
+  - name: OUTPUT     # from output-var Zarf pkg
+  - name: PRECEDENCE # from output-var Zarf pkg, but will be overridden by uds-config.yaml
+
+components:
+  - name: echo
+    required: true
+    actions:
+      onDeploy:
+        after:
+          - cmd: |
+              echo "This fun-fact was imported: "${ZARF_VAR_OUTPUT}""
+          - cmd: |
+              echo "This fun-fact demonstrates precedence: The Red Dragon is the national symbol of "${ZARF_VAR_PRECEDENCE}""

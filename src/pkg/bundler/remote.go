@@ -8,17 +8,19 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/types"
+	"io"
+	"path/filepath"
+
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"io"
 	"oras.land/oras-go/v2/content"
 	ocistore "oras.land/oras-go/v2/content/oci"
-	"path/filepath"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
 // RemoteBundler contains methods for pulling remote Zarf packages into a bundle
@@ -88,21 +90,22 @@ func (b *RemoteBundler) PushManifest() (ocispec.Descriptor, error) {
 }
 
 // PushLayers pushes a Zarf pkg's layers to either a local or remote bundle
-func (b *RemoteBundler) PushLayers() ([]ocispec.Descriptor, error) {
+func (b *RemoteBundler) PushLayers(spinner *message.Spinner, currentPackageIter int, totalPackages int) ([]ocispec.Descriptor, error) {
 	// get only the layers that are required by the components
-	spinner := message.NewProgressSpinner("Fetching layers from %s", b.RemoteSrc.Repo().Reference.Repository)
+	spinner.Updatef("Fetching %s package layer metadata (package %d of %d)", b.pkg.Name, currentPackageIter, totalPackages)
 	layersToCopy, err := getZarfLayers(b.RemoteSrc, b.pkg, b.PkgRootManifest)
 	if err != nil {
 		return nil, err
 	}
 	if b.localDst != nil {
-		layerDescs, err := handleLocalCopy(layersToCopy, b, spinner)
+		layerDescs, err := handleLocalCopy(layersToCopy, b, spinner, currentPackageIter, totalPackages)
 		if err != nil {
 			return nil, err
 		}
 		// return layer descriptor so we can copy them into the tarball path map
 		return layerDescs, err
 	}
+	spinner.Updatef("Pushing package %s layers to registry (package %d of %d)", b.pkg.Name, currentPackageIter, totalPackages)
 	err = handleRemoteCopy(b, layersToCopy)
 	if err != nil {
 		return nil, err
@@ -154,10 +157,10 @@ func handleRemoteCopy(b *RemoteBundler, layersToCopy []ocispec.Descriptor) error
 }
 
 // handleLocalCopy copies a remote Zarf pkg to a local OCI store
-func handleLocalCopy(layersToCopy []ocispec.Descriptor, b *RemoteBundler, spinner *message.Spinner) ([]ocispec.Descriptor, error) {
+func handleLocalCopy(layersToCopy []ocispec.Descriptor, b *RemoteBundler, spinner *message.Spinner, currentPackageIter int, totalPackages int) ([]ocispec.Descriptor, error) {
 	// pull layers from remote and write to OCI artifact dir
 	var layerDescs []ocispec.Descriptor
-	for _, layer := range layersToCopy {
+	for i, layer := range layersToCopy {
 		if layer.Digest == "" {
 			continue
 		}
@@ -168,7 +171,7 @@ func handleLocalCopy(layersToCopy []ocispec.Descriptor, b *RemoteBundler, spinne
 			return nil, err
 		}
 
-		spinner.Updatef("Fetching %s", layer.Digest.Encoded())
+		spinner.Updatef("Fetching %s layer %d of %d (package %d of %d)", b.pkg.Name, i+1, len(layersToCopy), currentPackageIter, totalPackages)
 		layerBytes, err := b.RemoteSrc.FetchLayer(layer)
 		if err != nil {
 			return nil, err

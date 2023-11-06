@@ -1,6 +1,0 @@
-bundle:
-  deploy:
-    zarf-packages:
-      output-var:
-        set:
-          country: Wales
