@@ -54,5 +54,5 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 	runFlags := runCmd.Flags()
 	runFlags.StringVarP(&config.TaskFileLocation, "file", "f", config.TasksYAML, lang.CmdRunFlag)
-	runFlags.StringToStringVar(&config.SetVariables, "set", v.GetStringMapString(common.VPkgCreateSet), lang.CmdPackageCreateFlagSet)
+runFlags.StringToStringVar(&config.SetVariables, "set", v.GetStringMapString(common.VPkgCreateSet), lang.CmdRunSetVarFlag)
 }
