@@ -11,7 +11,7 @@ require (
 	github.com/mholt/archiver/v4 v4.0.0-alpha.8
 	github.com/opencontainers/image-spec v1.1.0-rc5
 	github.com/pterm/pterm v0.12.69
-	github.com/spf13/cobra v1.7.0
+	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.17.0
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
