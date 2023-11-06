@@ -63,6 +63,9 @@ var (
 
 	// TaskFileLocation is the location of the tasks file to run
 	TaskFileLocation string
+
+	// SetVariables is a map of the run time variables defined using --set
+	SetVariables map[string]string
 )
 
 // GetArch returns the arch based on a priority list with options for overriding.

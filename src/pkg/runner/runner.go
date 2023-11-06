@@ -34,7 +34,7 @@ type Runner struct {
 }
 
 // Run runs a task from tasks file
-func Run(tasksFile types.TasksFile, taskName string) error {
+func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]string) error {
 	runner := Runner{
 		TemplateMap: map[string]*utils.TextTemplate{},
 		TasksFile:   tasksFile,
@@ -46,7 +46,7 @@ func Run(tasksFile types.TasksFile, taskName string) error {
 		return err
 	}
 
-	runner.populateTemplateMap(tasksFile.Variables)
+	runner.populateTemplateMap(tasksFile.Variables, setVariables)
 
 	err = runner.executeTask(task)
 	return err
@@ -76,7 +76,7 @@ func (r *Runner) executeTask(task types.Task) error {
 	return nil
 }
 
-func (r *Runner) populateTemplateMap(zarfVariables []zarfTypes.ZarfPackageVariable) {
+func (r *Runner) populateTemplateMap(zarfVariables []zarfTypes.ZarfPackageVariable, setVariables map[string]string) {
 	for _, variable := range zarfVariables {
 		r.TemplateMap[fmt.Sprintf("${%s}", variable.Name)] = &utils.TextTemplate{
 			Sensitive:  variable.Sensitive,
@@ -85,6 +85,15 @@ func (r *Runner) populateTemplateMap(zarfVariables []zarfTypes.ZarfPackageVariab
 			Value:      variable.Default,
 		}
 	}
+	
+	setVariablesTemplateMap := make(map[string]*utils.TextTemplate)
+	for name, value := range setVariables {
+		setVariablesTemplateMap[fmt.Sprintf("${%s}", name)] = &utils.TextTemplate{
+			Value:      value,
+		}
+	}
+
+	r.TemplateMap = helpers.MergeMap[*utils.TextTemplate](r.TemplateMap,setVariablesTemplateMap)
 }
 
 func (r *Runner) placeFiles(files []zarfTypes.ZarfFile) error {
