@@ -12,6 +12,8 @@ zarf-packages:
     ref: v0.31.0
     optional-components:
       - git-server
-  - name: init-adf
+  - name: init
     repository: ghcr.io/defenseunicorns/packages/init
     ref: v0.31.0
+    optional-components:
+      - git-server

@@ -1,0 +1,10 @@
+kind: ZarfPackageConfig
+metadata:
+  name: gitrepo
+  version: 0.0.1
+
+components:
+  - name: dubbd-repo
+    required: true
+    repos:
+      - https://github.com/defenseunicorns/uds-package-dubbd
