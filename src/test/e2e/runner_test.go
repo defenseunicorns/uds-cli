@@ -170,4 +170,13 @@ func TestUseCLI(t *testing.T) {
 		require.Error(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "task loop detected")
 	})
+
+	t.Run("run cmd-set-variable with --set", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "cmd-set-variable", "--set", "REPLACE_ME=replacedWith--setvar", "--set", "UNICORNS=defense")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "I'm set from a runner var - replacedWith--setvar")
+		require.Contains(t, stdErr, "I'm set from a new --set var - defense")
+	})
 }

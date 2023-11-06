@@ -65,4 +65,5 @@ const (
 
 	// uds run
 	CmdRunFlag = "Name and location of task file to run"
+	CmdPackageCreateFlagSet = "Specify package variables to set on the command line (KEY=value)"
 )
