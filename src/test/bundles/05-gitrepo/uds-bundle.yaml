@@ -1,0 +1,10 @@
+kind: UDSBundle
+metadata:
+  name: gitrepo
+  description: tests that the gitrepo from Zarf init works as expected
+  version: 0.0.1
+
+zarf-packages:
+  - name: gitrepo
+    path: "../../packages/gitrepo"
+    ref: 0.0.1

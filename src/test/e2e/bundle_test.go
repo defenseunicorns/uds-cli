@@ -52,7 +52,7 @@ func TestCreateWithNoPath(t *testing.T) {
 	defer os.Remove(fmt.Sprintf("uds-bundle-simple-vars-%s-0.0.1.tar.zst", e2e.Arch))
 
 	// create
-	cmd := strings.Split(fmt.Sprintf("bundle create --confirm --insecure"), " ")
+	cmd := strings.Split(fmt.Sprintf("create --confirm --insecure"), " ")
 	_, _, err = e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
@@ -166,6 +166,17 @@ func TestRemoteBundle(t *testing.T) {
 	inspectRemote(t, bundleRef.String())
 	inspectRemoteAndSBOMExtract(t, bundleRef.String())
 	deployAndRemoveRemote(t, bundleRef.String(), tarballPath)
+}
+
+func TestBundleWithGitRepo(t *testing.T) {
+	deployZarfInit(t)
+	e2e.CreateZarfPkg(t, "src/test/packages/gitrepo")
+	bundleDir := "src/test/bundles/05-gitrepo"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-gitrepo-%s-0.0.1.tar.zst", e2e.Arch))
+
+	create(t, bundleDir)
+	deploy(t, bundlePath)
+	remove(t, bundlePath)
 }
 
 func create(t *testing.T, bundlePath string) {
