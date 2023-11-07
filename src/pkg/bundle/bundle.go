@@ -14,7 +14,7 @@ import (
 
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -24,6 +24,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
@@ -57,37 +58,37 @@ func Create(b *Bundler, signature []byte) error {
 
 		if pkg.Repository != "" {
 			url := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
-			remoteBundler, err := bundler.NewRemoteBundler(pkg, url, store, nil)
+			remoteBundler, err := bundler.NewRemoteBundler(pkg, url, store, nil, b.tmp)
 			if err != nil {
 				return err
 			}
 
-			pkgManifestDesc, err := remoteBundler.PushManifest()
-			pkgManifestDesc.Annotations = map[string]string{
-				ocispec.AnnotationTitle: pkg.Name,
-			}
-			if err != nil {
-				return err
-			}
-
-			// append zarf pkg manifest to root manifest and grab path for archiving
-			rootManifest.Layers = append(rootManifest.Layers, pkgManifestDesc)
-			digest := pkgManifestDesc.Digest.Encoded()
-			artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
-
-			message.Debugf("Pushed %s sub-manifest into %s: %s", url, b.tmp, message.JSONValue(pkgManifestDesc))
-			layerDescs, err := remoteBundler.PushLayers(fetchSpinner, i+1, len(bundle.ZarfPackages))
+			layerDescs, err := remoteBundler.LayersToBundle(fetchSpinner, i+1, len(bundle.ZarfPackages))
 			if err != nil {
 				return err
 			}
 
 			// grab layers for archiving
 			for _, layerDesc := range layerDescs {
-				digest = layerDesc.Digest.Encoded()
+				if layerDesc.MediaType == ocispec.MediaTypeImageManifest {
+					// rewrite the Zarf image manifest to have media type of Zarf blob
+					err = os.Remove(filepath.Join(b.tmp, config.BlobsDir, layerDesc.Digest.Encoded()))
+					if err != nil {
+						return err
+					}
+					err = utils.FetchLayerAndStore(layerDesc, remoteBundler.RemoteSrc, store)
+					if err != nil {
+						return err
+					}
+					// ensure media type is Zarf blob for layers in the bundle's root manifest
+					layerDesc.MediaType = oci.ZarfLayerMediaTypeBlob
+					rootManifest.Layers = append(rootManifest.Layers, layerDesc)
+				}
+				digest := layerDesc.Digest.Encoded()
 				artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 			}
 		} else if pkg.Path != "" {
-			pkgTmp, err := utils.MakeTempDir("")
+			pkgTmp, err := zarfUtils.MakeTempDir("")
 			defer os.RemoveAll(pkgTmp)
 			if err != nil {
 				return err
@@ -155,12 +156,8 @@ func Create(b *Bundler, signature []byte) error {
 	rootManifest.Config = manifestConfigDesc
 	rootManifest.SchemaVersion = 2
 	rootManifest.Annotations = manifestAnnotationsFromMetadata(&bundle.Metadata) // maps to registry UI
-	rootManifestBytes, err := json.Marshal(rootManifest)
+	rootManifestDesc, err := utils.ToOCIStore(rootManifest, ocispec.MediaTypeImageManifest, store)
 	if err != nil {
-		return err
-	}
-	rootManifestDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, rootManifestBytes)
-	if err := store.Push(ctx, rootManifestDesc, bytes.NewReader(rootManifestBytes)); err != nil {
 		return err
 	}
 	digest = rootManifestDesc.Digest.Encoded()
@@ -188,6 +185,11 @@ func Create(b *Bundler, signature []byte) error {
 	if err != nil {
 		return err
 	}
+	err = cleanIndexJSON(b.tmp, ref)
+	if err != nil {
+		return err
+	}
+
 	// tarball the bundle
 	err = writeTarball(bundle, artifactPathMap)
 	if err != nil {
@@ -209,7 +211,7 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 
 	for i, pkg := range bundle.ZarfPackages {
 		url := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
-		remoteBundler, err := bundler.NewRemoteBundler(pkg, url, nil, remoteDst)
+		remoteBundler, err := bundler.NewRemoteBundler(pkg, url, nil, remoteDst, "")
 		if err != nil {
 			return err
 		}
@@ -228,7 +230,7 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 
 		defer pushSpinner.Stop()
 
-		_, err = remoteBundler.PushLayers(pushSpinner, i+1, len(bundle.ZarfPackages))
+		_, err = remoteBundler.LayersToBundle(pushSpinner, i+1, len(bundle.ZarfPackages))
 		if err != nil {
 			return err
 		}
@@ -274,23 +276,13 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 	message.Debug("Pushed config:", message.JSONValue(configDesc))
 
 	rootManifest.Config = configDesc
-
 	rootManifest.SchemaVersion = 2
-
 	rootManifest.Annotations = manifestAnnotationsFromMetadata(&bundle.Metadata) // maps to registry UI
-	b, err := json.Marshal(rootManifest)
+
+	_, err = utils.ToOCIRemote(rootManifest, ocispec.MediaTypeImageManifest, remoteDst)
 	if err != nil {
 		return err
 	}
-	expected := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, b)
-
-	message.Debug("Pushing manifest:", message.JSONValue(expected))
-
-	if err := remoteDst.Repo().Manifests().PushReference(context.TODO(), expected, bytes.NewReader(b), dstRef.Reference); err != nil {
-		return fmt.Errorf("failed to push manifest: %w", err)
-	}
-
-	message.Successf("Published %s [%s]", dstRef, expected.MediaType)
 
 	message.HorizontalRule()
 	flags := ""
@@ -316,11 +308,11 @@ func pushManifestConfigFromMetadata(r *oci.OrasRemote, metadata *types.UDSMetada
 		OCIVersion:   "1.0.1",
 		Annotations:  annotations,
 	}
-	manifestConfigBytes, err := json.Marshal(manifestConfig)
+	manifestConfigDesc, err := utils.ToOCIRemote(manifestConfig, oci.ZarfLayerMediaTypeBlob, r)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
-	return r.PushLayer(manifestConfigBytes, oci.ZarfLayerMediaTypeBlob)
+	return manifestConfigDesc, nil
 }
 
 // copied from: https://github.com/defenseunicorns/zarf/blob/main/src/pkg/oci/push.go
@@ -377,15 +369,11 @@ func pushManifestConfig(store *ocistore.Store, metadata types.UDSMetadata, build
 		OCIVersion:   "1.0.1",
 		Annotations:  annotations,
 	}
-	manifestConfigBytes, err := json.Marshal(manifestConfig)
+	manifestConfigDesc, err := utils.ToOCIStore(manifestConfig, oci.ZarfLayerMediaTypeBlob, store)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
-	manifestConfigDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, manifestConfigBytes)
-	err = store.Push(context.TODO(), manifestConfigDesc, bytes.NewReader(manifestConfigBytes))
-	if err != nil {
-		return ocispec.Descriptor{}, err
-	}
+
 	return manifestConfigDesc, err
 }
 
@@ -469,4 +457,30 @@ func pushBundleSignature(ctx context.Context, store *ocistore.Store, signature [
 		ocispec.AnnotationTitle: config.BundleYAMLSignature,
 	}
 	return signatureDesc, err
+}
+
+// rebuild index.json because copying remote Zarf pkgs adds unnecessary entries
+// this is due to root manifest in Zarf packages having an image manifest media type
+func cleanIndexJSON(tmpDir, ref string) error {
+	indexBytes, err := os.ReadFile(filepath.Join(tmpDir, "index.json"))
+	if err != nil {
+		return err
+	}
+	var index ocispec.Index
+	if err := json.Unmarshal(indexBytes, &index); err != nil {
+		return err
+	}
+
+	for _, manifestDesc := range index.Manifests {
+		if manifestDesc.Annotations[ocispec.AnnotationRefName] == ref {
+			index.Manifests = []ocispec.Descriptor{manifestDesc}
+			break
+		}
+	}
+
+	err = utils.ToLocalFile(index, filepath.Join(tmpDir, "index.json"))
+	if err != nil {
+		return err
+	}
+	return nil
 }

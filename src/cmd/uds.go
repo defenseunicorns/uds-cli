@@ -258,7 +258,8 @@ func configureZarf() {
 		TempDirectory:  config.CommonOptions.TempDirectory,
 		OCIConcurrency: config.CommonOptions.OCIConcurrency,
 		Confirm:        config.CommonOptions.Confirm,
-		CachePath:      config.CommonOptions.CachePath,
+		// todo: decouple Zarf cache?
+		CachePath: config.CommonOptions.CachePath,
 	}
 }
 
