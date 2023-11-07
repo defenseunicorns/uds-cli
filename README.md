@@ -7,6 +7,14 @@
 
 **:warning: Warning**:  UDS-CLI is in early alpha, expect changes to the schema and workflow
 
+## Install
+Recommended installation method is with Brew:
+```
+brew tap defenseunicorns/tap && brew install uds
+```
+UDS CLI Binaries are also included with each [Github Release](https://github.com/defenseunicorns/uds-cli/releases)
+
+
 ## Quickstart
 The UDS-CLI's flagship feature is deploying multiple, independent Zarf packages. To create a `UDSBundle` of Zarf packages, create a `uds-bundle.yaml` file like so:
 
@@ -107,3 +115,6 @@ That is to say, deploy-time variables declared in `uds-config.yaml` take precede
 A UDS Bundle is an OCI artifact with the following form:
 
 ![](docs/.images/uds-bundle.png)
+
+## UDS Runner
+UDS runner docs can be found [here](docs/runner.md)
