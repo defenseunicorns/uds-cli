@@ -99,7 +99,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 			return err
 		}
 		if sbomDesc.Annotations == nil {
-			message.Warnf("%s not found in Zarf pkg: %s", config.SBOMsTar, zarfManifest.Annotations[ocispec.AnnotationTitle])
+			message.Warnf("%s not found in Zarf pkg", config.SBOMsTar)
 		}
 		// grab sboms.tar and extract
 		sbomBytes, err := op.OrasRemote.FetchLayer(sbomDesc)
