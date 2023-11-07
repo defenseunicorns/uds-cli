@@ -5,27 +5,25 @@
 package bundler
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	av3 "github.com/mholt/archiver/v3"
 	av4 "github.com/mholt/archiver/v4"
 	"github.com/opencontainers/image-spec/specs-go"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/content/file"
 	ocistore "oras.land/oras-go/v2/content/oci"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 )
 
 // LocalBundler contains methods for loading local Zarf packages into a bundle
@@ -74,7 +72,7 @@ func (b *LocalBundler) GetMetadata(pathToTarball string, tmpDir string) (zarfTyp
 	}
 	zarfYAML := zarfTypes.ZarfPackage{}
 	zarfYAMLPath := filepath.Join(tmpDir, config.ZarfYAML)
-	err = utils.ReadYaml(zarfYAMLPath, &zarfYAML)
+	err = zarfUtils.ReadYaml(zarfYAMLPath, &zarfYAML)
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, err
 	}
@@ -176,9 +174,7 @@ func (b *LocalBundler) ToBundle(bundleStore *ocistore.Store, pkg zarfTypes.ZarfP
 	return rootManifest, err
 }
 
-// todo: clean up code the following which comes from Zarf
 func pushZarfManifestConfigFromMetadata(store *ocistore.Store, metadata *zarfTypes.ZarfMetadata, build *zarfTypes.ZarfBuildData) (ocispec.Descriptor, error) {
-	ctx := context.TODO()
 	annotations := map[string]string{
 		ocispec.AnnotationTitle:       metadata.Name,
 		ocispec.AnnotationDescription: metadata.Description,
@@ -188,23 +184,16 @@ func pushZarfManifestConfigFromMetadata(store *ocistore.Store, metadata *zarfTyp
 		OCIVersion:   "1.0.1",
 		Annotations:  annotations,
 	}
-	manifestConfigBytes, err := json.Marshal(manifestConfig)
-	manifestConfigDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageConfig, manifestConfigBytes)
+
+	manifestConfigDesc, err := utils.ToOCIStore(manifestConfig, ocispec.MediaTypeImageManifest, store)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
-	if err := store.Push(ctx, manifestConfigDesc, bytes.NewReader(manifestConfigBytes)); err != nil {
-		return ocispec.Descriptor{}, err
-	}
-
 	return manifestConfigDesc, err
 }
 
 func generatePkgManifest(store *ocistore.Store, descs []ocispec.Descriptor, configDesc ocispec.Descriptor) (ocispec.Descriptor, error) {
-	ctx := context.TODO()
-
-	// adopted from oras.Pack fn
-	// manually  build the manifest and push to store and save reference
+	// adopted from oras.Pack fn; manually  build the manifest and push to store and save reference
 	manifest := ocispec.Manifest{
 		Versioned: specs.Versioned{
 			SchemaVersion: 2, // historical value. does not pertain to OCI or docker version
@@ -213,14 +202,9 @@ func generatePkgManifest(store *ocistore.Store, descs []ocispec.Descriptor, conf
 		MediaType: oci.ZarfLayerMediaTypeBlob,
 		Layers:    descs,
 	}
-	manifestJSON, err := json.Marshal(manifest)
-	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("failed to marshal manifest: %w", err)
-	}
-	manifestDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, manifestJSON)
 
-	// push manifest
-	if err := store.Push(ctx, manifestDesc, bytes.NewReader(manifestJSON)); err != nil {
+	manifestDesc, err := utils.ToOCIStore(manifest, oci.ZarfLayerMediaTypeBlob, store)
+	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
 	return manifestDesc, nil

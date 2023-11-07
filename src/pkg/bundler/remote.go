@@ -5,9 +5,7 @@
 package bundler
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -20,7 +18,6 @@ import (
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
-	"oras.land/oras-go/v2/content"
 	ocistore "oras.land/oras-go/v2/content/oci"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
@@ -78,34 +75,34 @@ func (b *RemoteBundler) GetMetadata(url string, tmpDir string) (zarfTypes.ZarfPa
 
 // PushManifest pushes the Zarf pkg's manifest to either a local or remote bundle
 func (b *RemoteBundler) PushManifest() (ocispec.Descriptor, error) {
-	pkgManifestBytes, err := json.Marshal(b.PkgRootManifest)
-	if err != nil {
-		return ocispec.Descriptor{}, err
-	}
 	var zarfManifestDesc ocispec.Descriptor
 	if b.localDst != nil {
-		// todo: this should have an image manifest media type, but this breaks publish
-		zarfManifestDesc = content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, pkgManifestBytes)
-		err = b.localDst.Push(b.ctx, zarfManifestDesc, bytes.NewReader(pkgManifestBytes))
+		desc, err := utils.ToOCIStore(b.PkgRootManifest, oci.ZarfLayerMediaTypeBlob, b.localDst)
+		if err != nil {
+			return ocispec.Descriptor{}, err
+		}
+		zarfManifestDesc = desc
 	} else {
-		zarfManifestDesc, err = b.RemoteDst.PushLayer(pkgManifestBytes, oci.ZarfLayerMediaTypeBlob)
+		desc, err := utils.ToOCIRemote(b.PkgRootManifest, oci.ZarfLayerMediaTypeBlob, b.RemoteDst)
+		if err != nil {
+			return ocispec.Descriptor{}, err
+		}
+		zarfManifestDesc = desc
 	}
-	if err != nil {
-		return ocispec.Descriptor{}, err
-	}
-	return zarfManifestDesc, err
+	return zarfManifestDesc, nil
 }
 
-// PushLayers pushes a Zarf pkg's layers to either a local or remote bundle
-func (b *RemoteBundler) PushLayers(spinner *message.Spinner, currentPackageIter int, totalPackages int) ([]ocispec.Descriptor, error) {
-	// get only the layers that are required by the components
+// LayersToBundle pushes a remote Zarf pkg's layers to either a local or remote bundle
+func (b *RemoteBundler) LayersToBundle(spinner *message.Spinner, currentPackageIter int, totalPackages int) ([]ocispec.Descriptor, error) {
 	spinner.Updatef("Fetching %s package layer metadata (package %d of %d)", b.pkg.Name, currentPackageIter, totalPackages)
-	layersToCopy, err := getZarfLayers(b.RemoteSrc, b.pkg, b.PkgRootManifest, b.tmpDir)
+	// get only the layers that are required by the components
+	layersToCopy, err := getZarfLayers(b.RemoteSrc, b.pkg, b.PkgRootManifest)
 	if err != nil {
 		return nil, err
 	}
+	spinner.Stop()
 	if b.localDst != nil {
-		layerDescs, err := b.handleLocalCopy(layersToCopy, spinner, currentPackageIter, totalPackages)
+		layerDescs, err := b.remoteToLocal(layersToCopy)
 		if err != nil {
 			return nil, err
 		}
@@ -113,16 +110,15 @@ func (b *RemoteBundler) PushLayers(spinner *message.Spinner, currentPackageIter 
 		return layerDescs, err
 	}
 	spinner.Updatef("Pushing package %s layers to registry (package %d of %d)", b.pkg.Name, currentPackageIter, totalPackages)
-	err = b.handleRemoteCopy(layersToCopy)
+	err = b.remoteToRemote(layersToCopy)
 	if err != nil {
 		return nil, err
 	}
 	return nil, err
 }
 
-// handleRemoteCopy copies a remote Zarf pkg to a remote OCI registry
-func (b *RemoteBundler) handleRemoteCopy(layersToCopy []ocispec.Descriptor) error {
-	// stream copy if different registry
+// remoteToRemote copies a remote Zarf pkg to a remote OCI registry
+func (b *RemoteBundler) remoteToRemote(layersToCopy []ocispec.Descriptor) error {
 	srcRef := b.RemoteSrc.Repo().Reference
 	dstRef := b.RemoteDst.Repo().Reference
 	// stream copy if different registry
@@ -163,17 +159,18 @@ func (b *RemoteBundler) handleRemoteCopy(layersToCopy []ocispec.Descriptor) erro
 	return nil
 }
 
-// handleLocalCopy copies a remote Zarf pkg to a local OCI store
-func (b *RemoteBundler) handleLocalCopy(layersToCopy []ocispec.Descriptor, spinner *message.Spinner, currentPackageIter int, totalPackages int) ([]ocispec.Descriptor, error) {
+// remoteToLocal copies a remote Zarf pkg to a local OCI store
+func (b *RemoteBundler) remoteToLocal(layersToCopy []ocispec.Descriptor) ([]ocispec.Descriptor, error) {
 	// pull layers from remote and write to OCI artifact dir
 	var layerDescsToArchive []ocispec.Descriptor
 	var layersToPull []ocispec.Descriptor
 	estimatedBytes := int64(0)
+	// grab descriptors of layers to copy
 	for _, layer := range layersToCopy {
 		if layer.Digest == "" {
 			continue
 		}
-		// check if layer already exists
+		// check if layer already exists; todo: this is VERY slow
 		if exists, _ := b.localDst.Exists(b.ctx, layer); exists {
 			continue
 		} else if cache.Exists(layer.Digest.Encoded()) {
@@ -183,20 +180,17 @@ func (b *RemoteBundler) handleLocalCopy(layersToCopy []ocispec.Descriptor, spinn
 			}
 			layerDescsToArchive = append(layerDescsToArchive, layer)
 			continue
-		} else {
-			// grab layer to pull from OCI
-			if layer.MediaType != ocispec.MediaTypeImageManifest {
-				layersToPull = append(layersToPull, layer)
-				layerDescsToArchive = append(layerDescsToArchive, layer)
-				estimatedBytes += layer.Size
-				continue
-			}
-			layerDescsToArchive = append(layerDescsToArchive, layer)
 		}
+		// grab layer to pull from OCI
+		if layer.MediaType != ocispec.MediaTypeImageManifest {
+			layersToPull = append(layersToPull, layer)
+			layerDescsToArchive = append(layerDescsToArchive, layer)
+			estimatedBytes += layer.Size
+			continue
+		}
+		layerDescsToArchive = append(layerDescsToArchive, layer)
 	}
-
-	// todo: weird flickering in TUI during Copy op (its bc of the spinner up top)
-
+	// pull layers that didn't exist on disk
 	if len(layersToPull) > 0 {
 		// copy bundle
 		copyOpts := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
@@ -205,7 +199,6 @@ func (b *RemoteBundler) handleLocalCopy(layersToCopy []ocispec.Descriptor, spinn
 		var wg sync.WaitGroup
 		wg.Add(1)
 		go zarfUtils.RenderProgressBarForLocalDirWrite(b.tmpDir, estimatedBytes, &wg, doneSaving, fmt.Sprintf("Pulling bundle: %s", b.pkg.Name), fmt.Sprintf("Successfully pulled bundle: %s", b.pkg.Name))
-		// todo: breaking bc root image manifest for the Zarf pkg is already in the store.......how did it get there?
 		rootPkgDesc, err := oras.Copy(context.TODO(), b.RemoteSrc.Repo(), b.RemoteSrc.Repo().Reference.String(), b.localDst, "", copyOpts)
 		if err != nil {
 			doneSaving <- 1
@@ -228,12 +221,8 @@ func (b *RemoteBundler) handleLocalCopy(layersToCopy []ocispec.Descriptor, spinn
 		}
 	} else {
 		// need to grab pkg root manifest manually bc we didn't use oras.Copy()
-		pkgManifestBytes, err := json.Marshal(b.PkgRootManifest)
+		pkgManifestDesc, err := utils.ToOCIStore(b.PkgRootManifest, ocispec.MediaTypeImageManifest, b.localDst)
 		if err != nil {
-			return nil, err
-		}
-		pkgManifestDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, pkgManifestBytes)
-		if err = b.localDst.Push(context.TODO(), pkgManifestDesc, bytes.NewReader(pkgManifestBytes)); err != nil {
 			return nil, err
 		}
 		layerDescsToArchive = append(layerDescsToArchive, pkgManifestDesc)
@@ -242,7 +231,7 @@ func (b *RemoteBundler) handleLocalCopy(layersToCopy []ocispec.Descriptor, spinn
 }
 
 // getZarfLayers grabs the necessary Zarf pkg layers from a remote OCI registry
-func getZarfLayers(remote *oci.OrasRemote, pkg types.BundleZarfPackage, pkgRootManifest *oci.ZarfOCIManifest, tmpDir string) ([]ocispec.Descriptor, error) {
+func getZarfLayers(remote *oci.OrasRemote, pkg types.BundleZarfPackage, pkgRootManifest *oci.ZarfOCIManifest) ([]ocispec.Descriptor, error) {
 	layersFromComponents, err := remote.LayersFromRequestedComponents(pkg.OptionalComponents)
 	if err != nil {
 		return nil, err

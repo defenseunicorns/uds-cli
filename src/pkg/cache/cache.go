@@ -25,6 +25,7 @@ func expandTilde(cachePath string) string {
 	return cachePath
 }
 
+// Add adds a file to the cache
 func Add(filePathToAdd string) error {
 	// ensure cache dir exists
 	cacheDir := config.CommonOptions.CachePath
@@ -53,6 +54,7 @@ func Add(filePathToAdd string) error {
 	return err
 }
 
+// Exists checks if a layer exists in the cache
 func Exists(layerDigest string) bool {
 	cacheDir := config.CommonOptions.CachePath
 	layerCachePath := filepath.Join(expandTilde(cacheDir), "images", layerDigest)
@@ -63,6 +65,7 @@ func Exists(layerDigest string) bool {
 	return false
 }
 
+// Use copies a layer from the cache to the dst dir
 func Use(layerDigest, dstDir string) error {
 	cacheDir := config.CommonOptions.CachePath
 	layerCachePath := filepath.Join(expandTilde(cacheDir), "images", layerDigest)

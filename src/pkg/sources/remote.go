@@ -149,7 +149,7 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 	if oci.IsEmptyDescriptor(pkgManifestDesc) {
 		return nil, fmt.Errorf("package %s does not exist in this bundle", r.PkgManifestSHA)
 	}
-	// hack to Zarf media type so that FetchManifest works
+	// hack Zarf media type so that FetchManifest works
 	pkgManifestDesc.MediaType = oci.ZarfLayerMediaTypeBlob
 	pkgManifest, err := r.Remote.FetchManifest(pkgManifestDesc)
 	if err != nil || pkgManifest == nil {
@@ -204,16 +204,11 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 		doneSaving <- 1
 		return nil, err
 	}
-
-	// todo: only use Zarf blobs from cache bc using cached image manifests causes oras.Copy() to not follow the DAG
-	// todo: only cache Zarf blobs?
-
 	doneSaving <- 1
 	wg.Wait()
 
 	if len(pkgManifest.Layers) > len(layersInBundle) {
 		r.isPartial = true
 	}
-
 	return layersInBundle, nil
 }
