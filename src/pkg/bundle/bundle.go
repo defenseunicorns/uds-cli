@@ -110,9 +110,7 @@ func Create(b *Bundler, signature []byte) error {
 			}
 
 			zarfPkgDesc, err := localBundler.ToBundle(store, zarfPkg, artifactPathMap, b.tmp, pkgTmp)
-			zarfPkgDesc.Annotations = map[string]string{
-				ocispec.AnnotationTitle: pkg.Name,
-			}
+
 			if err != nil {
 				return err
 			}
