@@ -63,7 +63,7 @@ func (e2e *UDSE2ETest) RunTasksWithFile(args ...string) (string, string, error) 
 
 // UDSNoLog executes a UDS command with no logging.
 func (e2e *UDSE2ETest) UDSNoLog(args ...string) (string, string, error) {
-	return exec.CmdWithContext(context.TODO(), exec.Config{}, e2e.UdsBinPath, args...)
+	return exec.CmdWithContext(context.TODO(), exec.Config{}, e2e.UDSBinPath, args...)
 }
 
 // CleanFiles removes files and directories that have been created during the test.

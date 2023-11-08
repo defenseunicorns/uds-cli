@@ -38,24 +38,24 @@ jobs:
       - name: Setup K3d
         uses: ./.github/actions/k3d
 
-      - name: Install uds-cli
-        uses: supplypike/setup-bin@v3
-        with:
-          uri: 'https://github.com/defenseunicorns/uds-cli/releases/download/v0.0.5-alpha/uds-cli_v0.0.5-alpha_Linux_amd64 '
-          name: 'uds'
-          version: 'v0.0.5-alpha'
+      # - name: Install uds-cli
+      #   uses: supplypike/setup-bin@v3
+      #   with:
+      #     uri: 'https://github.com/defenseunicorns/uds-cli/releases/download/v0.0.5-alpha/uds-cli_v0.0.5-alpha_Linux_amd64 '
+      #     name: 'uds'
+      #     version: 'v0.0.5-alpha'
 
-      - name: Login to GHCR
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Login to GHCR
+      #   uses: docker/login-action@v2
+      #   with:
+      #     registry: ghcr.io
+      #     username: ${{ github.actor }}
+      #     password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and publish GHCR bundle
-        run: |
-          uds bundle create src/test/packages/05-uds-bundle --confirm --no-progress
-          uds bundle publish src/test/packages/05-uds-bundle/uds-bundle-zarf-init-ghcr-amd64-*.tar.zst oci://ghcr.io/defenseunicorns/uds-cli/test-bundle --no-progress
+      # - name: Build and publish GHCR bundle
+      #   run: |
+      #     uds bundle create src/test/packages/05-uds-bundle --confirm --no-progress
+      #     uds bundle publish src/test/packages/05-uds-bundle/uds-bundle-zarf-init-ghcr-amd64-*.tar.zst oci://ghcr.io/defenseunicorns/uds-cli/test-bundle --no-progress
 
       - name: Run E2E tests
         run: make test-e2e
