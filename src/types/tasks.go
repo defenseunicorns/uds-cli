@@ -10,6 +10,7 @@ import (
 
 // TasksFile represents the contents of a tasks file
 type TasksFile struct {
+	Includes  []map[string]string             `json:"includes,omitempty" jsonschema:"description=List of local task files to include"`
 	Variables []zarfTypes.ZarfPackageVariable `json:"variables,omitempty" jsonschema:"description=Definitions and default values for variables used in run.yaml"`
 	Tasks     []Task                          `json:"tasks" jsonschema:"description=The list of tasks that can be run"`
 }

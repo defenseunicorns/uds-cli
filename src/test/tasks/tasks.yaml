@@ -1,8 +1,9 @@
+includes:
+  - imported: ./tasks-to-import.yaml
+
 variables:
   - name: REPLACE_ME
     default: replaced
-  - name: CHECKSUMS
-    default: checksums.txt
 
 tasks:
   - name: copy
@@ -25,21 +26,10 @@ tasks:
         target: symcopy
         symlinks:
           - "testlink"
-  - name: pre-remote
-    actions:
-      - cmd: |
-          echo "defenseunicorns"
-        setVariables:
-          - name: PRETTY_OK_COMPANY
-            sensitive: false
-  - name: pull-remote
-    files:
-      - source: https://github.com/${PRETTY_OK_COMPANY}/zarf/releases/download/v0.30.1/${CHECKSUMS}
-        target: ${CHECKSUMS}
   - name: remote
     actions:
-      - task: pre-remote
-      - task: pull-remote
+      # tasks imported from imported-tasks.yaml
+      - task: imported:fetch-checksums
   - name: template-file
     files:
       - source: raw

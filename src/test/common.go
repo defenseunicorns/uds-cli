@@ -56,7 +56,7 @@ func (e2e *UDSE2ETest) UDS(args ...string) (string, string, error) {
 
 // RunTasksWithFile executes a UDS run command. with the --file flag set to the test/tasks.yaml file.
 func (e2e *UDSE2ETest) RunTasksWithFile(args ...string) (string, string, error) {
-	args = append(args, "--file", "src/test/tasks.yaml")
+	args = append(args, "--file", "src/test/tasks/tasks.yaml")
 	fmt.Println(args)
 	return exec.CmdWithContext(context.TODO(), exec.PrintCfg(), e2e.UDSBinPath, args...)
 }
