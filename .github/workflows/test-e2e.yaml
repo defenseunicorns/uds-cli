@@ -45,12 +45,12 @@ jobs:
       #     name: 'uds'
       #     version: 'v0.0.5-alpha'
 
-      # - name: Login to GHCR
-      #   uses: docker/login-action@v2
-      #   with:
-      #     registry: ghcr.io
-      #     username: ${{ github.actor }}
-      #     password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Login to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       # - name: Build and publish GHCR bundle
       #   run: |
@@ -58,9 +58,7 @@ jobs:
       #     uds bundle publish src/test/packages/05-uds-bundle/uds-bundle-zarf-init-ghcr-amd64-*.tar.zst oci://ghcr.io/defenseunicorns/uds-cli/test-bundle --no-progress
 
       - name: Run E2E tests
-        run: |
-          env \
-            make test-e2e
+        run: make test-e2e
 
       - name: Save logs
         if: always()
