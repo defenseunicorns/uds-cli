@@ -41,6 +41,9 @@ const (
 	CmdBundleRemoveShort       = "Remove a bundle that has been deployed already"
 	CmdBundleRemoveFlagConfirm = "REQUIRED. Confirm the removal action to prevent accidental deletions"
 
+	// bundle publish
+	CmdPublishShort = "Publish a bundle from the local file system to a remote registry"
+
 	// bundle pull
 	CmdBundlePullShort      = "Pull a bundle from a remote registry and save to the local file system"
 	CmdBundlePullFlagOutput = "Specify the output directory for the pulled bundle"
@@ -64,6 +67,6 @@ const (
 	CmdInternalConfigSchemaErr   = "Unable to generate the uds-bundle.yaml schema"
 
 	// uds run
-	CmdRunFlag = "Name and location of task file to run"
-CmdRunSetVarFlag = "Set a runner variable from the command line (KEY=value)"
+	CmdRunFlag       = "Name and location of task file to run"
+	CmdRunSetVarFlag = "Set a runner variable from the command line (KEY=value)"
 )

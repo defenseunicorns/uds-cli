@@ -259,30 +259,33 @@ func (tp *tarballBundleProvider) LoadBundleMetadata() (PathMap, error) {
 	return loaded, nil
 }
 
-func (tp *tarballBundleProvider) getZarfLayers(store *ocistore.Store, pkgManifestDesc ocispec.Descriptor) ([]ocispec.Descriptor, error) {
+func (tp *tarballBundleProvider) getZarfLayers(store *ocistore.Store, pkgManifestDesc ocispec.Descriptor) ([]ocispec.Descriptor, int64, error) {
 	var layersToPull []ocispec.Descriptor
+	estimatedPkgSize := int64(0)
+
 	layerBytes, err := os.ReadFile(filepath.Join(tp.dst, config.BlobsDir, pkgManifestDesc.Digest.Encoded()))
 	if err != nil {
-		return nil, err
+		return nil, int64(0), err
 	}
 
 	var zarfImageManifest *oci.ZarfOCIManifest
 	if err := json.Unmarshal(layerBytes, &zarfImageManifest); err != nil {
-		return nil, err
+		return nil, int64(0), err
 	}
 
 	// only grab image layers that we want
 	for _, layer := range zarfImageManifest.Manifest.Layers {
 		ok, err := store.Exists(tp.ctx, layer)
 		if err != nil {
-			return nil, err
+			return nil, int64(0), err
 		}
 		if ok {
+			estimatedPkgSize += layer.Size
 			layersToPull = append(layersToPull, layer)
 		}
 	}
 
-	return layersToPull, nil
+	return layersToPull, estimatedPkgSize, nil
 }
 
 func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *oci.OrasRemote) error {
@@ -290,6 +293,7 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	if err := tp.getBundleManifest(); err != nil {
 		return err
 	}
+	estimatedBytes := int64(0)
 
 	// reference local store holding untarred bundle
 	store, err := ocistore.NewWithContext(tp.ctx, tp.dst)
@@ -305,7 +309,8 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 		if manifestDesc.Annotations != nil {
 			continue // uds-bundle.yaml doesn't have layers
 		}
-		layers, err := tp.getZarfLayers(store, manifestDesc)
+		layers, estimatedPkgSize, err := tp.getZarfLayers(store, manifestDesc)
+		estimatedBytes += estimatedPkgSize
 		if err != nil {
 			return err
 		}
@@ -316,7 +321,7 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	layersToPull = append(layersToPull, tp.manifest.Config)
 
 	// copy bundle
-	copyOpts, estimatedBytes, err := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
+	copyOpts := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
 	if err != nil {
 		return err
 	}

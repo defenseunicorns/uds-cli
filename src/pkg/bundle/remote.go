@@ -99,7 +99,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 			return err
 		}
 		if sbomDesc.Annotations == nil {
-			message.Warnf("%s not found in Zarf pkg: %s", config.SBOMsTar, zarfManifest.Annotations[ocispec.AnnotationTitle])
+			message.Warnf("%s not found in Zarf pkg", config.SBOMsTar)
 		}
 		// grab sboms.tar and extract
 		sbomBytes, err := op.OrasRemote.FetchLayer(sbomDesc)
@@ -133,6 +133,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 // LoadBundle loads a bundle from a remote source
 func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 	var layersToPull []ocispec.Descriptor
+	estimatedBytes := int64(0)
 
 	if err := op.getBundleManifest(); err != nil {
 		return nil, err
@@ -172,6 +173,7 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 		for _, layer := range manifest.Layers {
 			ok, err := op.Repo().Blobs().Exists(op.ctx, layer)
 			progressBar.Add(1)
+			estimatedBytes += layer.Size
 			if err != nil {
 				return nil, err
 			}
@@ -194,10 +196,7 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 	layersToPull = append(layersToPull, rootDesc)
 
 	// copy bundle
-	copyOpts, estimatedBytes, err := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
-	if err != nil {
-		return nil, err
-	}
+	copyOpts := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
 
 	// Create a thread to update a progress bar as we save the package to disk
 	doneSaving := make(chan int)
@@ -223,6 +222,5 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 
 func (op *ociProvider) PublishBundle(_ types.UDSBundle, _ *oci.OrasRemote) error {
 	// todo: implement moving bundles from one registry to another
-	message.Warnf("moving bundles in between remote registries not yet supported")
-	return nil
+	return fmt.Errorf("moving bundles in between remote registries not yet supported")
 }

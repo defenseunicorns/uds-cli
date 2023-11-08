@@ -143,7 +143,7 @@ var removeCmd = &cobra.Command{
 var publishCmd = &cobra.Command{
 	Use:     "publish [BUNDLE_TARBALL] [OCI_REF]",
 	Aliases: []string{"p"},
-	Short:   lang.CmdBundlePullShort,
+	Short:   lang.CmdPublishShort,
 	Args:    cobra.ExactArgs(2),
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if _, err := os.Stat(args[0]); err != nil {
@@ -258,7 +258,8 @@ func configureZarf() {
 		TempDirectory:  config.CommonOptions.TempDirectory,
 		OCIConcurrency: config.CommonOptions.OCIConcurrency,
 		Confirm:        config.CommonOptions.Confirm,
-		CachePath:      config.CommonOptions.CachePath,
+		// todo: decouple Zarf cache?
+		CachePath: config.CommonOptions.CachePath,
 	}
 }
 
