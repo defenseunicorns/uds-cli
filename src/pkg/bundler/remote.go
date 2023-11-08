@@ -38,6 +38,7 @@ type RemoteBundler struct {
 }
 
 // NewRemoteBundler creates a bundler to pull remote Zarf pkgs
+// todo: document this fn better or break out into multiple constructors
 func NewRemoteBundler(pkg types.BundleZarfPackage, url string, localDst *ocistore.Store, remoteDst *oci.OrasRemote, tmpDir string) (RemoteBundler, error) {
 	src, err := oci.NewOrasRemote(url)
 	if err != nil {
@@ -170,7 +171,7 @@ func (b *RemoteBundler) remoteToLocal(layersToCopy []ocispec.Descriptor) ([]ocis
 		if layer.Digest == "" {
 			continue
 		}
-		// check if layer already exists; todo: this is VERY slow
+		// check if layer already exists
 		if exists, _ := b.localDst.Exists(b.ctx, layer); exists {
 			continue
 		} else if cache.Exists(layer.Digest.Encoded()) {

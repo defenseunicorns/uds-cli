@@ -17,7 +17,7 @@ import (
 
 	"github.com/defenseunicorns/zarf/src/config/lang"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"github.com/mholt/archiver/v3"
@@ -28,7 +28,7 @@ import (
 
 // Runner holds the necessary data to run tasks from a tasks file
 type Runner struct {
-	TemplateMap map[string]*utils.TextTemplate
+	TemplateMap map[string]*zarfUtils.TextTemplate
 	TasksFile   types.TasksFile
 	TaskNameMap map[string]bool
 }
@@ -36,9 +36,14 @@ type Runner struct {
 // Run runs a task from tasks file
 func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]string) error {
 	runner := Runner{
-		TemplateMap: map[string]*utils.TextTemplate{},
+		TemplateMap: map[string]*zarfUtils.TextTemplate{},
 		TasksFile:   tasksFile,
 		TaskNameMap: map[string]bool{},
+	}
+
+	err := runner.importTasks(tasksFile.Includes)
+	if err != nil {
+		return err
 	}
 
 	task, err := runner.getTask(taskName)
@@ -46,10 +51,69 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 		return err
 	}
 
+	if err = runner.checkForTaskLoops(task); err != nil {
+		return err
+	}
+
 	runner.populateTemplateMap(tasksFile.Variables, setVariables)
 
 	err = runner.executeTask(task)
 	return err
+}
+
+func (r *Runner) importTasks(includes []map[string]string) error {
+	// iterate through includes, open the file, and unmarshal it into a Task
+	var includeFilenameKey string
+	var includeFilename string
+	for _, include := range includes {
+		if len(include) > 1 {
+			return fmt.Errorf("included item %s must have only one key", include)
+		}
+		// grab first and only value from include map
+		for k, v := range include {
+			includeFilenameKey = k
+			includeFilename = v
+			break
+		}
+		taskFileDir := filepath.Dir(config.TaskFileLocation)
+		includePath := filepath.Join(taskFileDir, includeFilename)
+
+		var tasksFile types.TasksFile
+		if err := zarfUtils.ReadYaml(includePath, &tasksFile); err != nil {
+			return fmt.Errorf("unable to read included file %s: %w", includePath, err)
+		}
+
+		// prefix task names and actions with the includes key
+		for i, t := range tasksFile.Tasks {
+			tasksFile.Tasks[i].Name = includeFilenameKey + ":" + t.Name
+			if len(tasksFile.Tasks[i].Actions) > 0 {
+				for j, a := range tasksFile.Tasks[i].Actions {
+					if a.TaskReference != "" && !strings.Contains(a.TaskReference, ":") {
+						tasksFile.Tasks[i].Actions[j].TaskReference = includeFilenameKey + ":" + a.TaskReference
+					}
+				}
+			}
+		}
+		r.TasksFile.Tasks = append(r.TasksFile.Tasks, tasksFile.Tasks...)
+
+		// grab variables from included file
+		for _, v := range tasksFile.Variables {
+			r.TemplateMap["${"+v.Name+"}"] = &zarfUtils.TextTemplate{
+				Sensitive:  v.Sensitive,
+				AutoIndent: v.AutoIndent,
+				Type:       v.Type,
+				Value:      v.Default,
+			}
+		}
+
+		// recursively import tasks from included files
+		if tasksFile.Includes != nil {
+			if err := r.importTasks(tasksFile.Includes); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (r *Runner) getTask(taskName string) (types.Task, error) {
@@ -78,22 +142,22 @@ func (r *Runner) executeTask(task types.Task) error {
 
 func (r *Runner) populateTemplateMap(zarfVariables []zarfTypes.ZarfPackageVariable, setVariables map[string]string) {
 	for _, variable := range zarfVariables {
-		r.TemplateMap[fmt.Sprintf("${%s}", variable.Name)] = &utils.TextTemplate{
+		r.TemplateMap[fmt.Sprintf("${%s}", variable.Name)] = &zarfUtils.TextTemplate{
 			Sensitive:  variable.Sensitive,
 			AutoIndent: variable.AutoIndent,
 			Type:       variable.Type,
 			Value:      variable.Default,
 		}
 	}
-	
-	setVariablesTemplateMap := make(map[string]*utils.TextTemplate)
+
+	setVariablesTemplateMap := make(map[string]*zarfUtils.TextTemplate)
 	for name, value := range setVariables {
-		setVariablesTemplateMap[fmt.Sprintf("${%s}", name)] = &utils.TextTemplate{
-			Value:      value,
+		setVariablesTemplateMap[fmt.Sprintf("${%s}", name)] = &zarfUtils.TextTemplate{
+			Value: value,
 		}
 	}
 
-	r.TemplateMap = helpers.MergeMap[*utils.TextTemplate](r.TemplateMap,setVariablesTemplateMap)
+	r.TemplateMap = helpers.MergeMap[*zarfUtils.TextTemplate](r.TemplateMap, setVariablesTemplateMap)
 }
 
 func (r *Runner) placeFiles(files []zarfTypes.ZarfFile) error {
@@ -113,12 +177,12 @@ func (r *Runner) placeFiles(files []zarfTypes.ZarfFile) error {
 		if helpers.IsURL(srcFile) {
 
 			// If file is a url download it
-			if err := utils.DownloadToFile(srcFile, dest, ""); err != nil {
+			if err := zarfUtils.DownloadToFile(srcFile, dest, ""); err != nil {
 				return fmt.Errorf(lang.ErrDownloading, srcFile, err.Error())
 			}
 		} else {
 			// If file is not a url copy it
-			if err := utils.CreatePathAndCopy(srcFile, dest); err != nil {
+			if err := zarfUtils.CreatePathAndCopy(srcFile, dest); err != nil {
 				return fmt.Errorf("unable to copy file %s: %w", srcFile, err)
 			}
 
@@ -135,11 +199,11 @@ func (r *Runner) placeFiles(files []zarfTypes.ZarfFile) error {
 		// if shasum is specified check it
 		if file.Shasum != "" {
 			if file.ExtractPath != "" {
-				if err := utils.SHAsMatch(file.ExtractPath, file.Shasum); err != nil {
+				if err := zarfUtils.SHAsMatch(file.ExtractPath, file.Shasum); err != nil {
 					return err
 				}
 			} else {
-				if err := utils.SHAsMatch(dest, file.Shasum); err != nil {
+				if err := zarfUtils.SHAsMatch(dest, file.Shasum); err != nil {
 					return err
 				}
 			}
@@ -147,29 +211,29 @@ func (r *Runner) placeFiles(files []zarfTypes.ZarfFile) error {
 
 		// template any text files with variables
 		fileList := []string{}
-		if utils.IsDir(dest) {
-			files, _ := utils.RecursiveFileList(dest, nil, false)
+		if zarfUtils.IsDir(dest) {
+			files, _ := zarfUtils.RecursiveFileList(dest, nil, false)
 			fileList = append(fileList, files...)
 		} else {
 			fileList = append(fileList, dest)
 		}
 		for _, subFile := range fileList {
 			// Check if the file looks like a text file
-			isText, err := utils.IsTextFile(subFile)
+			isText, err := zarfUtils.IsTextFile(subFile)
 			if err != nil {
 				fmt.Printf("unable to determine if file %s is a text file: %s", subFile, err)
 			}
 
 			// If the file is a text file, template it
 			if isText {
-				if err := utils.ReplaceTextTemplate(subFile, r.TemplateMap, nil, `\$\{[A-Z0-9_]+\}`); err != nil {
+				if err := zarfUtils.ReplaceTextTemplate(subFile, r.TemplateMap, nil, `\$\{[A-Z0-9_]+\}`); err != nil {
 					return fmt.Errorf("unable to template file %s: %w", subFile, err)
 				}
 			}
 		}
 
 		// if executable make file executable
-		if file.Executable || utils.IsDir(dest) {
+		if file.Executable || zarfUtils.IsDir(dest) {
 			_ = os.Chmod(dest, 0700)
 		} else {
 			_ = os.Chmod(dest, 0600)
@@ -180,7 +244,7 @@ func (r *Runner) placeFiles(files []zarfTypes.ZarfFile) error {
 			// Try to remove the filepath if it exists
 			_ = os.RemoveAll(link)
 			// Make sure the parent directory exists
-			_ = utils.CreateFilePath(link)
+			_ = zarfUtils.CreateFilePath(link)
 			// Create the symlink
 			err := os.Symlink(targetFile, link)
 			if err != nil {
@@ -195,9 +259,6 @@ func (r *Runner) performAction(action types.Action) error {
 	if action.TaskReference != "" {
 		referencedTask, err := r.getTask(action.TaskReference)
 		if err != nil {
-			return err
-		}
-		if err := r.checkForTaskLoops(referencedTask); err != nil {
 			return err
 		}
 		if err := r.executeTask(referencedTask); err != nil {
@@ -317,9 +378,9 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 
 			// If an output variable is defined, set it.
 			for _, v := range action.SetVariables {
-				// include ${...} syntax in template map for uniformity and to satisfy utils.ReplaceTextTemplate
+				// include ${...} syntax in template map for uniformity and to satisfy zarfUtils.ReplaceTextTemplate
 				nameInTemplatemap := "${" + v.Name + "}"
-				r.TemplateMap[nameInTemplatemap] = &utils.TextTemplate{
+				r.TemplateMap[nameInTemplatemap] = &zarfUtils.TextTemplate{
 					Sensitive:  v.Sensitive,
 					AutoIndent: v.AutoIndent,
 					Type:       v.Type,
@@ -398,7 +459,7 @@ func (r *Runner) templateString(s string) string {
 
 // Perform some basic string mutations to make commands more useful.
 func actionCmdMutation(cmd string) (string, error) {
-	runCmd, err := utils.GetFinalExecutablePath()
+	runCmd, err := zarfUtils.GetFinalExecutablePath()
 	if err != nil {
 		return cmd, err
 	}
@@ -446,7 +507,7 @@ func convertWaitToCmd(wait zarfTypes.ZarfComponentActionWait, timeout *int) (str
 }
 
 //go:linkname actionGetCfg github.com/defenseunicorns/zarf/src/pkg/packager.actionGetCfg
-func actionGetCfg(cfg zarfTypes.ZarfComponentActionDefaults, a zarfTypes.ZarfComponentAction, vars map[string]*utils.TextTemplate) zarfTypes.ZarfComponentActionDefaults
+func actionGetCfg(cfg zarfTypes.ZarfComponentActionDefaults, a zarfTypes.ZarfComponentAction, vars map[string]*zarfUtils.TextTemplate) zarfTypes.ZarfComponentActionDefaults
 
 //go:linkname actionRun github.com/defenseunicorns/zarf/src/pkg/packager.actionRun
 func actionRun(ctx context.Context, cfg zarfTypes.ZarfComponentActionDefaults, cmd string, shellPref zarfTypes.ZarfComponentActionShell, spinner *message.Spinner) (string, error)

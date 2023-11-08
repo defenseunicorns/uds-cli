@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
+// Package cache provides a primitive cache mechanism for bundle layers
 package cache
 
 import (
