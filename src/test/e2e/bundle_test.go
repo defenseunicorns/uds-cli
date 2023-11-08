@@ -127,7 +127,7 @@ func TestBundleDeployFromOciFromGHCR(t *testing.T) {
 		Reference:  fmt.Sprintf("0.0.1-%s", e2e.Arch),
 	}
 
-	ghcrLogin(t)
+	// ghcrLogin(t)
 	createSecure(t, bundleDir)
 	inspect(t, bundlePath)
 	publishToGhcr(t, bundlePath, registryUrl)
