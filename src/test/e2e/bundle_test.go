@@ -112,7 +112,7 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 
 func TestBundleDeployFromOciFromGHCR(t *testing.T) {
 	deployZarfInit(t)
-	e2e.CreateZarfPkg(t, "src/test/packages/zarf/podinfo")
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
 
 	bundleDir := "src/test/bundles/06-ghcr-deploy"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-ghcr-deploy-%s-0.0.1.tar.zst", e2e.Arch))
