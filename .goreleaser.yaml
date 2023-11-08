@@ -71,4 +71,4 @@ release:
     name: uds-cli
   prerelease: auto
   mode: append
-  draft: true
+  draft: false

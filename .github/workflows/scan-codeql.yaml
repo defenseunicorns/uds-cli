@@ -16,6 +16,7 @@ on:
       - "adr/**"
       - "docs/**"
       - "CODEOWNERS"
+      - "goreleaser.yml"
   schedule:
     - cron: "32 2 * * 5"
 
