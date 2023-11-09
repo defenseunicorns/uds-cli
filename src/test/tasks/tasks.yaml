@@ -1,5 +1,6 @@
 includes:
-  - imported: ./tasks-to-import.yaml
+  - local: ./tasks-to-import.yaml
+  - remote: https://raw.githubusercontent.com/defenseunicorns/uds-cli/${GIT_REVISION}/src/test/tasks/remote-import-tasks.yaml
 
 variables:
   - name: REPLACE_ME
@@ -26,10 +27,12 @@ tasks:
         target: symcopy
         symlinks:
           - "testlink"
-  - name: remote
+  - name: remote-import
     actions:
-      # tasks imported from imported-tasks.yaml
-      - task: imported:fetch-checksums
+      - task: remote:echo-var
+  - name: local-import-with-curl
+    actions:
+      - task: local:fetch-checksums
   - name: template-file
     files:
       - source: raw

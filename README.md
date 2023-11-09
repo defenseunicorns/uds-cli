@@ -7,6 +7,18 @@
 
 **:warning: Warning**:  UDS-CLI is in early alpha, expect changes to the schema and workflow
 
+## Table of Contents
+
+1. [Install](#install)
+2. [Quickstart](#quickstart)
+    - [Create](#bundle-create)
+    - [Deploy](#bundle-deploy)
+    - [Inspect](#bundle-inspect)
+    - [Publish](#bundle-publish)
+3. [Variables](#variables)
+4. [Bundle Anatomy](#bundle-anatomy)
+5. [UDS Runner](docs/runner.md)
+
 ## Install
 Recommended installation method is with Brew:
 ```
@@ -115,6 +127,3 @@ That is to say, deploy-time variables declared in `uds-config.yaml` take precede
 A UDS Bundle is an OCI artifact with the following form:
 
 ![](docs/.images/uds-bundle.png)
-
-## UDS Runner
-UDS runner docs can be found [here](docs/runner.md)

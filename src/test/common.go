@@ -177,3 +177,13 @@ func downloadFile(url string, outputDir string) error {
 
 	return nil
 }
+
+// GetGitRevision returns the current git revision
+func (e2e *UDSE2ETest) GetGitRevision() (string, error) {
+	out, _, err := exec.Cmd("git", "rev-parse", "--short", "HEAD")
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(out), nil
+}
