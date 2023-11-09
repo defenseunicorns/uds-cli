@@ -9,11 +9,11 @@ metadata:
 zarf-packages:
   - name: init
     path: "../../packages"
-    ref: v0.31.0
+    ref: v0.31.1
     optional-components:
       - git-server
   - name: init
     repository: ghcr.io/defenseunicorns/packages/init
-    ref: v0.31.0
+    ref: v0.31.1
     optional-components:
       - git-server
