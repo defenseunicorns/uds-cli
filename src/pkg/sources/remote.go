@@ -196,12 +196,13 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 	// copy zarf pkg to local store
 	copyOpts := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
 	doneSaving := make(chan int)
+	errChan := make(chan int)
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go zarfUtils.RenderProgressBarForLocalDirWrite(r.TmpDir, estimatedBytes, &wg, doneSaving, fmt.Sprintf("Pulling bundled Zarf pkg: %s", r.PkgName), fmt.Sprintf("Successfully pulled package: %s", r.PkgName))
+	go zarfUtils.RenderProgressBarForLocalDirWrite(r.TmpDir, estimatedBytes, &wg, doneSaving, errChan, fmt.Sprintf("Pulling bundled Zarf pkg: %s", r.PkgName), fmt.Sprintf("Successfully pulled package: %s", r.PkgName))
 	_, err = oras.Copy(context.TODO(), r.Remote.Repo(), r.Remote.Repo().Reference.String(), store, "", copyOpts)
 	if err != nil {
-		doneSaving <- 1
+		errChan <- 1
 		return nil, err
 	}
 	doneSaving <- 1
