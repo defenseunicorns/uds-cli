@@ -106,7 +106,32 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 	inspect(t, bundlePath)
 	publish(t, bundlePath, "localhost:888")
 	pull(t, bundleRef.String(), tarballPath)
-	deploy(t, bundlePath)
+	deploy(t, tarballPath)
+	remove(t, tarballPath)
+}
+
+func TestBundleDeployFromOCIFromGHCR(t *testing.T) {
+	deployZarfInit(t)
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
+
+	bundleDir := "src/test/bundles/06-ghcr-deploy"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-ghcr-deploy-%s-0.0.1.tar.zst", e2e.Arch))
+
+	registryURL := "ghcr.io/defenseunicorns/uds-cli/test-bundle"
+
+	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-ghcr-deploy-%s-0.0.1.tar.zst", e2e.Arch))
+	bundleRef := registry.Reference{
+		Registry: registryURL,
+		// this info is derived from the bundle's metadata
+		Repository: "ghcr-deploy",
+		Reference:  fmt.Sprintf("0.0.1-%s", e2e.Arch),
+	}
+
+	createSecure(t, bundleDir)
+	inspect(t, bundlePath)
+	publishToGHCR(t, bundlePath, registryURL)
+	pull(t, bundleRef.String(), tarballPath)
+	deployFromOCI(t, bundleRef.String())
 	remove(t, bundlePath)
 }
 
@@ -243,6 +268,13 @@ func deploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
 	return stdout, stderr
 }
 
+func deployFromOCI(t *testing.T, ref string) (stdout string, stderr string) {
+	cmd := strings.Split(fmt.Sprintf("bundle deploy oci://%s --insecure --confirm", ref), " ")
+	stdout, stderr, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	return stdout, stderr
+}
+
 func remove(t *testing.T, tarballPath string) {
 	cmd := strings.Split(fmt.Sprintf("bundle remove %s --confirm --insecure", tarballPath), " ")
 	_, _, err := e2e.UDS(cmd...)
@@ -332,6 +364,12 @@ func pull(t *testing.T, ref string, tarballPath string) {
 
 func publish(t *testing.T, bundlePath, ociPath string) {
 	cmd := strings.Split(fmt.Sprintf("bundle publish %s oci://%s --insecure --oci-concurrency=10", bundlePath, ociPath), " ")
+	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+}
+
+func publishToGHCR(t *testing.T, bundlePath, ociPath string) {
+	cmd := strings.Split(fmt.Sprintf("bundle publish %s oci://%s --oci-concurrency=10", bundlePath, ociPath), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }

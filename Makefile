@@ -29,6 +29,9 @@ test-unit: ## Run Unit Tests
 test-e2e: ## Run End to End (e2e) tests
 	cd src/test/e2e && go test -failfast -v -timeout 30m
 
+test-e2e-no-ghcr: ## Run End to End (e2e) tests without GHCR
+	cd src/test/e2e && go test -failfast -v -timeout 30m -skip "TestBundleDeployFromOCIFromGHCR"
+
 schema: ## Update JSON schema for uds-bundle.yaml
 	./hack/generate-schema.sh
 
