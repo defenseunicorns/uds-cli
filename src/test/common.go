@@ -56,7 +56,7 @@ func (e2e *UDSE2ETest) UDS(args ...string) (string, string, error) {
 
 // RunTasksWithFile executes a UDS run command. with the --file flag set to the test/tasks.yaml file.
 func (e2e *UDSE2ETest) RunTasksWithFile(args ...string) (string, string, error) {
-	args = append(args, "--file", "src/test/tasks.yaml")
+	args = append(args, "--file", "src/test/tasks/tasks.yaml")
 	fmt.Println(args)
 	return exec.CmdWithContext(context.TODO(), exec.PrintCfg(), e2e.UDSBinPath, args...)
 }
@@ -181,4 +181,14 @@ func downloadFile(url string, outputDir string) error {
 	}
 
 	return nil
+}
+
+// GetGitRevision returns the current git revision
+func (e2e *UDSE2ETest) GetGitRevision() (string, error) {
+	out, _, err := exec.Cmd("git", "rev-parse", "--short", "HEAD")
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(out), nil
 }

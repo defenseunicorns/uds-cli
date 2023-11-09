@@ -104,6 +104,18 @@
         "tasks"
       ],
       "properties": {
+        "includes": {
+          "items": {
+            "patternProperties": {
+              ".*": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array",
+          "description": "List of local task files to include"
+        },
         "variables": {
           "items": {
             "$schema": "http://json-schema.org/draft-04/schema#",

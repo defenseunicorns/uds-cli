@@ -10,6 +10,7 @@ on:
       - "adr/**"
       - "docs/**"
       - "CODEOWNERS"
+      - "goreleaser.yml"
 
 permissions:
   contents: read

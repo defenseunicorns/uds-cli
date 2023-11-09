@@ -16,6 +16,7 @@ UDS runner.
     - [Variables](#variables)
     - [Files](#files)
     - [Wait](#wait)
+    - [Includes](#includes)
 
 ## Quickstart
 
@@ -236,3 +237,25 @@ tasks:
         name: simple-configmap
         namespace: foo
 ```
+
+### Includes
+
+The `includes` key is used to import tasks from either local or remote task files. This is useful for sharing common tasks across multiple task files. 
+
+```yaml
+includes:
+  - local: ./path/to/tasks-to-import.yaml
+  - remote: https://raw.githubusercontent.com/defenseunicorns/uds-cli/main/src/test/tasks/remote-import-tasks.yaml
+
+tasks:
+  - name: import-local
+    actions:
+      - task: local:some-local-task
+  - name: import-remote
+    actions:
+      - task: remote:echo-var
+```
+
+Note that included task files can also include other task files, with the following restriction:
+- If a task file includes a remote task file, the included remote task file cannot include any local task files
+

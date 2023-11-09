@@ -1,8 +1,10 @@
+includes:
+  - local: ./tasks-to-import.yaml
+  - remote: https://raw.githubusercontent.com/defenseunicorns/uds-cli/${GIT_REVISION}/src/test/tasks/remote-import-tasks.yaml
+
 variables:
   - name: REPLACE_ME
     default: replaced
-  - name: CHECKSUMS
-    default: checksums.txt
 
 tasks:
   - name: copy
@@ -25,21 +27,12 @@ tasks:
         target: symcopy
         symlinks:
           - "testlink"
-  - name: pre-remote
+  - name: remote-import
     actions:
-      - cmd: |
-          echo "defenseunicorns"
-        setVariables:
-          - name: PRETTY_OK_COMPANY
-            sensitive: false
-  - name: pull-remote
-    files:
-      - source: https://github.com/${PRETTY_OK_COMPANY}/zarf/releases/download/v0.30.1/${CHECKSUMS}
-        target: ${CHECKSUMS}
-  - name: remote
+      - task: remote:echo-var
+  - name: local-import-with-curl
     actions:
-      - task: pre-remote
-      - task: pull-remote
+      - task: local:fetch-checksums
   - name: template-file
     files:
       - source: raw

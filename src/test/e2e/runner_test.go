@@ -5,6 +5,7 @@
 package test
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -98,7 +99,7 @@ func TestUseCLI(t *testing.T) {
 		require.FileExists(t, symlinkName)
 	})
 
-	t.Run("run remote", func(t *testing.T) {
+	t.Run("run local-import-with-curl", func(t *testing.T) {
 		t.Parallel()
 
 		downloadedFile := "checksums.txt"
@@ -107,8 +108,13 @@ func TestUseCLI(t *testing.T) {
 		t.Cleanup(func() {
 			e2e.CleanFiles(downloadedFile)
 		})
-
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "remote")
+		// get current git revision
+		gitRev, err := e2e.GetGitRevision()
+		if err != nil {
+			return
+		}
+		setVar := fmt.Sprintf("GIT_REVISION=%s", gitRev)
+		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "local-import-with-curl", "--set", setVar)
 		require.NoError(t, err, stdOut, stdErr)
 
 		require.FileExists(t, downloadedFile)
@@ -178,5 +184,19 @@ func TestUseCLI(t *testing.T) {
 		require.NoError(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "I'm set from a runner var - replacedWith--setvar")
 		require.Contains(t, stdErr, "I'm set from a new --set var - defense")
+	})
+
+	t.Run("run remote-import", func(t *testing.T) {
+		t.Parallel()
+
+		// get current git revision
+		gitRev, err := e2e.GetGitRevision()
+		if err != nil {
+			return
+		}
+		setVar := fmt.Sprintf("GIT_REVISION=%s", gitRev)
+		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "remote-import", "--set", setVar)
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "defenseunicorns is a pretty ok company")
 	})
 }
