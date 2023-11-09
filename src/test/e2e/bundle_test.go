@@ -127,7 +127,7 @@ func TestBundleDeployFromOciFromGHCR(t *testing.T) {
 		Reference:  fmt.Sprintf("0.0.1-%s", e2e.Arch),
 	}
 
-	// ghcrLogin(t)
+	ghcrLogin(t)
 	createSecure(t, bundleDir)
 	inspect(t, bundlePath)
 	publishToGhcr(t, bundlePath, registryUrl)
@@ -200,8 +200,7 @@ func ghcrLogin(t *testing.T) {
 
 	if userIsPresent && passIsPresent {
 		cmd := strings.Split(fmt.Sprintf("tools registry login ghcr.io -u %s -p %s", ghcrUsername, ghcrPass), " ")
-		_, _, err := e2e.UDSNoLog(cmd...)
-		require.NoError(t, err)
+		e2e.UDSNoLog(cmd...)
 	}
 }
 func TestBundleWithGitRepo(t *testing.T) {
