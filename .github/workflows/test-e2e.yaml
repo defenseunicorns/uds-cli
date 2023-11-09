@@ -60,6 +60,7 @@ jobs:
       #     uds bundle publish src/test/packages/05-uds-bundle/uds-bundle-zarf-init-ghcr-amd64-*.tar.zst oci://ghcr.io/defenseunicorns/uds-cli/test-bundle --no-progress
 
       - name: Run E2E tests
+        permissions: write-all
         run: make test-e2e
 
       - name: Save logs
