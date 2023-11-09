@@ -41,21 +41,27 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 		TaskNameMap: map[string]bool{},
 	}
 
-	err := runner.importTasks(tasksFile.Includes)
-	if err != nil {
-		return err
-	}
+	runner.populateTemplateMap(tasksFile.Variables, setVariables)
 
 	task, err := runner.getTask(taskName)
 	if err != nil {
 		return err
 	}
 
+	// only process includes if the task requires them
+	for _, a := range task.Actions {
+		if strings.Contains(a.TaskReference, ":") {
+			err = runner.importTasks(tasksFile.Includes)
+			if err != nil {
+				return err
+			}
+			break
+		}
+	}
+
 	if err = runner.checkForTaskLoops(task); err != nil {
 		return err
 	}
-
-	runner.populateTemplateMap(tasksFile.Variables, setVariables)
 
 	err = runner.executeTask(task)
 	return err
@@ -75,10 +81,27 @@ func (r *Runner) importTasks(includes []map[string]string) error {
 			includeFilename = v
 			break
 		}
-		taskFileDir := filepath.Dir(config.TaskFileLocation)
-		includePath := filepath.Join(taskFileDir, includeFilename)
+
+		includeFilename = r.templateString(includeFilename)
 
 		var tasksFile types.TasksFile
+		var includePath string
+		// check if included file is a url
+		if helpers.IsURL(includeFilename) {
+			// If file is a url download it to a tmp directory
+			tmpDir, err := zarfUtils.MakeTempDir("")
+			defer os.RemoveAll(tmpDir)
+			if err != nil {
+				return err
+			}
+			includePath = filepath.Join(tmpDir, filepath.Base(includeFilename))
+			if err := zarfUtils.DownloadToFile(includeFilename, includePath, ""); err != nil {
+				return fmt.Errorf(lang.ErrDownloading, includeFilename, err.Error())
+			}
+		} else {
+			includePath = filepath.Join(filepath.Dir(config.TaskFileLocation), includeFilename)
+		}
+
 		if err := zarfUtils.ReadYaml(includePath, &tasksFile); err != nil {
 			return fmt.Errorf("unable to read included file %s: %w", includePath, err)
 		}

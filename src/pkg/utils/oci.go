@@ -26,10 +26,8 @@ func FetchLayerAndStore(layerDesc ocispec.Descriptor, remoteRepo *oci.OrasRemote
 		return err
 	}
 	rootPkgDescBytes := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, layerBytes)
-	if err = localStore.Push(context.TODO(), rootPkgDescBytes, bytes.NewReader(layerBytes)); err != nil {
-		return err
-	}
-	return nil
+	err = localStore.Push(context.TODO(), rootPkgDescBytes, bytes.NewReader(layerBytes))
+	return err
 }
 
 // ToOCIStore takes an arbitrary type, typically a struct, marshals it into JSON and store it in a local OCI store
