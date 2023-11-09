@@ -117,20 +117,20 @@ func TestBundleDeployFromOciFromGHCR(t *testing.T) {
 	bundleDir := "src/test/bundles/06-ghcr-deploy"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-ghcr-deploy-%s-0.0.1.tar.zst", e2e.Arch))
 
-	registryUrl := "ghcr.io/defenseunicorns/uds-cli/test-bundle"
+	registryURL := "ghcr.io/defenseunicorns/uds-cli/test-bundle"
 
 	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-ghcr-deploy-%s-0.0.1.tar.zst", e2e.Arch))
 	bundleRef := registry.Reference{
-		Registry: registryUrl,
+		Registry: registryURL,
 		// this info is derived from the bundle's metadata
 		Repository: "ghcr-deploy",
 		Reference:  fmt.Sprintf("0.0.1-%s", e2e.Arch),
 	}
 
-	ghcrLogin(t)
+	ghcrLogin()
 	createSecure(t, bundleDir)
 	inspect(t, bundlePath)
-	publishToGhcr(t, bundlePath, registryUrl)
+	publishToGhcr(t, bundlePath, registryURL)
 	pull(t, bundleRef.String(), tarballPath)
 	deployFromOci(t, bundleRef.String())
 	remove(t, bundlePath)
@@ -194,7 +194,7 @@ func TestRemoteBundle(t *testing.T) {
 	deployAndRemoveRemote(t, bundleRef.String(), tarballPath)
 }
 
-func ghcrLogin(t *testing.T) {
+func ghcrLogin() {
 	ghcrUsername, userIsPresent := os.LookupEnv("GHCR_USERNAME")
 	ghcrPass, passIsPresent := os.LookupEnv("GHCR_PASSWORD")
 
