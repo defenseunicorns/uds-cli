@@ -1,0 +1,8 @@
+# @todo(jeff): delete this file--I know it's super evil
+
+bundle:
+  deploy:
+    zarf-packages:
+      uds-k3d-dev:
+        set:
+          CONTROLLER_LOG_LEVEL: debug

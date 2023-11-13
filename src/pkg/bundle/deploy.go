@@ -15,6 +15,8 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/pterm/pterm"
 	"golang.org/x/exp/maps"
+	"helm.sh/helm/v3/pkg/cli/values"
+	"helm.sh/helm/v3/pkg/getter"
 
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
@@ -26,6 +28,8 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/types"
 )
+
+type ZarfOverrideMap map[string]map[string]map[string]interface{}
 
 // Deploy deploys a bundle
 //
@@ -104,9 +108,20 @@ func (b *Bundler) Deploy() error {
 			PublicKeyPath:      publicKeyPath,
 			SetVariables:       pkgVars,
 		}
+
+		valuesOverrides, err := b.loadChartOverrides(pkg)
+		if err != nil {
+			return err
+		}
+
+		zarfDeployOpts := zarfTypes.ZarfDeployOptions{
+			ValuesOverridesMap: valuesOverrides,
+		}
+
 		pkgCfg := zarfTypes.PackagerConfig{
-			PkgOpts:  opts,
-			InitOpts: config.DefaultZarfInitOptions,
+			PkgOpts:    opts,
+			InitOpts:   config.DefaultZarfInitOptions,
+			DeployOpts: zarfDeployOpts,
 		}
 
 		// grab Zarf version to make Zarf library checks happy
@@ -176,7 +191,7 @@ func (b *Bundler) confirmBundleDeploy() (confirm bool) {
 	}
 
 	prompt := &survey.Confirm{
-		Message: fmt.Sprintf("Deploy this bundle?"),
+		Message: "Deploy this bundle?",
 	}
 
 	pterm.Println()
@@ -185,4 +200,92 @@ func (b *Bundler) confirmBundleDeploy() (confirm bool) {
 		return false
 	}
 	return true
+}
+
+// loadChartOverrides converts a helm path to a ValuesOverridesMap config for Zarf
+func (b *Bundler) loadChartOverrides(pkg types.BundleZarfPackage) (ZarfOverrideMap, error) {
+
+	// Create a nested map to hold the values
+	overrideMap := make(map[string]map[string]*values.Options)
+
+	// Loop through each path in Overrides.Values
+	for _, override := range pkg.Overrides.Values {
+		// Add the override to the map, or return an error if the path is invalid
+		if err := addOverrideValue(overrideMap, override.Path, override.Value); err != nil {
+			return nil, err
+		}
+	}
+
+	// Loop through each path in Overrides.Variables
+	for _, override := range pkg.Overrides.Variables {
+		// Set the default value
+		val := override.Default
+
+		// If the variable is set, override the default value, why is this lowercase?
+		name := strings.ToLower(override.Name)
+		if setVal, ok := b.cfg.DeployOpts.ZarfPackageVariables[pkg.Name].Set[name]; ok {
+			val = setVal
+		}
+
+		// Add the override to the map, or return an error if the path is invalid
+		if err := addOverrideValue(overrideMap, override.Path, val); err != nil {
+			return nil, err
+		}
+	}
+
+	processed := make(ZarfOverrideMap)
+
+	// Convert the options.Values map to the ZarfOverrideMap format
+	for componentName, component := range overrideMap {
+		// Create a map to hold all the charts in the component
+		componentMap := make(map[string]map[string]interface{})
+
+		// Loop through each chart in the component
+		for chartName, chart := range component {
+			// Merge the chart values with Helm
+			data, err := chart.MergeValues(getter.Providers{})
+			if err != nil {
+				return nil, err
+			}
+
+			// Add the chart values to the component map
+			componentMap[chartName] = data
+		}
+
+		// Add the component map to the processed map
+		processed[componentName] = componentMap
+	}
+
+	return processed, nil
+}
+
+// addOverrideValue adds a value to a ZarfOverrideMap
+func addOverrideValue(overrides map[string]map[string]*values.Options, path string, value interface{}) error {
+	// Split the path string into <component-name>/<chart-name>/<value>
+	// e.g. "nginx-ingress/nginx-ingress-controller/controller.service.type"
+	// becomes ["nginx-ingress", "nginx-ingress-controller", "controller.service.type"]
+	segments := strings.Split(path, "/")
+	if len(segments) != 3 {
+		// If the path is not in the correct format, return an error
+		return fmt.Errorf("invalid helm path format: %s", path)
+	}
+
+	// Human-readable names for the segments of the path
+	component, chart, valuePath := segments[0], segments[1], segments[2]
+
+	// Create the component map if it doesn't exist
+	if _, ok := overrides[component]; !ok {
+		overrides[component] = make(map[string]*values.Options)
+	}
+
+	// Create the chart map if it doesn't exist
+	if _, ok := overrides[component][chart]; !ok {
+		overrides[component][chart] = &values.Options{}
+	}
+
+	// Add the value to the chart map
+	helmVal := fmt.Sprintf("%s=%v", valuePath, value)
+	overrides[component][chart].Values = append(overrides[component][chart].Values, helmVal)
+
+	return nil
 }
