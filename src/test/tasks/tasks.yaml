@@ -66,3 +66,26 @@ tasks:
   - name: recursed1
     actions:
       - task: recursive
+  - name: rerun-tasks-child
+    actions:
+      - task: rerun-tasks
+  - name: rerun-tasks
+    actions:
+      - task: rerunnable-task
+      - task: rerunnable-task
+      - task: rerunnable-task2
+  - name: rerunnable-task
+    actions:
+      - task: rerunnable-echo
+  - name: rerunnable-task2
+    actions:
+      - task: rerunnable-task
+  - name: rerunnable-echo
+    actions:
+      - cmd: echo "I should be able to be called over and over within reason."
+  - name: rerun-tasks-recursive
+    actions:
+      - task: rerunnable-task
+      - task: rerunnable-task
+      - task: recursive
+

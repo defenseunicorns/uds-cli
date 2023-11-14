@@ -297,7 +297,9 @@ func (r *Runner) performAction(action types.Action) error {
 }
 
 func (r *Runner) checkForTaskLoops(task types.Task) error {
-	for _, action := range task.Actions {
+	// Filtering unique task actions allows for rerunning tasks in the same execution
+	uniqueTaskActions := getUniqueTaskActions(task.Actions)
+	for _, action := range uniqueTaskActions {
 		if action.TaskReference != "" {
 			exists := r.TaskNameMap[action.TaskReference]
 			if exists {
@@ -312,8 +314,23 @@ func (r *Runner) checkForTaskLoops(task types.Task) error {
 				return err
 			}
 		}
+		// Clear map once we get to a task that doesn't call another task
+		clear(r.TaskNameMap)
 	}
 	return nil
+}
+
+func getUniqueTaskActions(actions []types.Action) []types.Action {
+	uniqueMap := make(map[string]bool)
+	var uniqueArray []types.Action
+
+	for _, action := range actions {
+		if !uniqueMap[action.TaskReference] {
+			uniqueMap[action.TaskReference] = true
+			uniqueArray = append(uniqueArray, action)
+		}
+	}
+	return uniqueArray
 }
 
 func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error {
