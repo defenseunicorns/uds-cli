@@ -29,6 +29,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
+// ZarfOverrideMap is a map of Zarf packages -> components -> Helm charts -> values
 type ZarfOverrideMap map[string]map[string]map[string]interface{}
 
 // Deploy deploys a bundle
@@ -286,6 +287,5 @@ func addOverrideValue(overrides map[string]map[string]*values.Options, path stri
 	// Add the value to the chart map
 	helmVal := fmt.Sprintf("%s=%v", valuePath, value)
 	overrides[component][chart].Values = append(overrides[component][chart].Values, helmVal)
-
 	return nil
 }

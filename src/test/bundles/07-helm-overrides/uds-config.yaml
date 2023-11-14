@@ -1,0 +1,6 @@
+bundle:
+  deploy:
+    zarf-packages:
+      helm:
+        set:
+          UI_COLOR: green # overrides UI_COLOR in uds-bundle.yaml
