@@ -242,7 +242,7 @@ func inspectRemoteAndSBOMExtract(t *testing.T, ref string) {
 }
 
 func inspect(t *testing.T, tarballPath string) {
-	cmd := strings.Split(fmt.Sprintf("bundle inspect %s --sbom", tarballPath), " ")
+	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom", tarballPath), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 	_, err = os.Stat(config.BundleSBOMTar)
@@ -252,7 +252,7 @@ func inspect(t *testing.T, tarballPath string) {
 }
 
 func inspectAndSBOMExtract(t *testing.T, tarballPath string) {
-	cmd := strings.Split(fmt.Sprintf("bundle inspect %s --sbom --extract", tarballPath), " ")
+	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom --extract", tarballPath), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 	_, err = os.Stat(config.BundleSBOM)
@@ -262,21 +262,21 @@ func inspectAndSBOMExtract(t *testing.T, tarballPath string) {
 }
 
 func deploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("bundle deploy %s --confirm -l=debug", tarballPath), " ")
+	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug", tarballPath), " ")
 	stdout, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 	return stdout, stderr
 }
 
 func deployFromOCI(t *testing.T, ref string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("bundle deploy oci://%s --insecure --confirm", ref), " ")
+	cmd := strings.Split(fmt.Sprintf("deploy oci://%s --insecure --confirm", ref), " ")
 	stdout, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 	return stdout, stderr
 }
 
 func remove(t *testing.T, tarballPath string) {
-	cmd := strings.Split(fmt.Sprintf("bundle remove %s --confirm --insecure", tarballPath), " ")
+	cmd := strings.Split(fmt.Sprintf("remove %s --confirm --insecure", tarballPath), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
@@ -319,7 +319,7 @@ func shasMatch(t *testing.T, path string, expected string) {
 
 func pull(t *testing.T, ref string, tarballPath string) {
 	// todo: output somewhere other than build?
-	cmd := strings.Split(fmt.Sprintf("bundle pull oci://%s -o build --insecure --oci-concurrency=10", ref), " ")
+	cmd := strings.Split(fmt.Sprintf("pull oci://%s -o build --insecure --oci-concurrency=10", ref), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 
@@ -363,13 +363,13 @@ func pull(t *testing.T, ref string, tarballPath string) {
 }
 
 func publish(t *testing.T, bundlePath, ociPath string) {
-	cmd := strings.Split(fmt.Sprintf("bundle publish %s oci://%s --insecure --oci-concurrency=10", bundlePath, ociPath), " ")
+	cmd := strings.Split(fmt.Sprintf("publish %s oci://%s --insecure --oci-concurrency=10", bundlePath, ociPath), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
 
 func publishToGHCR(t *testing.T, bundlePath, ociPath string) {
-	cmd := strings.Split(fmt.Sprintf("bundle publish %s oci://%s --oci-concurrency=10", bundlePath, ociPath), " ")
+	cmd := strings.Split(fmt.Sprintf("publish %s oci://%s --oci-concurrency=10", bundlePath, ociPath), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }

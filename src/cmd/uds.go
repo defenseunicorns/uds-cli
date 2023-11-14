@@ -213,10 +213,7 @@ func firstArgIsEitherOCIorTarball(_ *cobra.Command, args []string) {
 func init() {
 	initViper()
 	v.SetDefault(V_BNDL_OCI_CONCURRENCY, 3)
-
-	// remove after deprecating 'bundle' syntax
-	initDeprecated(rootCmd)
-
+	
 	rootCmd.PersistentFlags().IntVar(&config.CommonOptions.OCIConcurrency, "oci-concurrency", v.GetInt(V_BNDL_OCI_CONCURRENCY), lang.CmdBundleFlagConcurrency)
 
 	// create cmd flags
