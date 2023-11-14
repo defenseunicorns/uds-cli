@@ -199,4 +199,23 @@ func TestUseCLI(t *testing.T) {
 		require.NoError(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "defenseunicorns is a pretty ok company")
 	})
+
+	t.Run("run rerun-tasks", func(t *testing.T) {
+		t.Parallel()
+		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "rerun-tasks")
+		require.NoError(t, err, stdOut, stdErr)
+	})
+
+	t.Run("run rerun-tasks-child", func(t *testing.T) {
+		t.Parallel()
+		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "rerun-tasks-child")
+		require.NoError(t, err, stdOut, stdErr)
+	})
+
+	t.Run("run rerun-tasks-recursive", func(t *testing.T) {
+		t.Parallel()
+		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "rerun-tasks-recursive")
+		require.Error(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "task loop detected")
+	})
 }
