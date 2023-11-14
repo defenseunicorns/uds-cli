@@ -204,6 +204,32 @@ func TestBundleWithGitRepo(t *testing.T) {
 	remove(t, bundlePath)
 }
 
+func TestBundleWithHelmOverrides(t *testing.T) {
+	deployZarfInit(t)
+	e2e.CreateZarfPkg(t, "src/test/packages/helm")
+	bundleDir := "src/test/bundles/07-helm-overrides"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
+	err := os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config.yaml"))
+	require.NoError(t, err)
+
+	create(t, bundleDir)
+	deploy(t, bundlePath)
+
+	// check values overrides
+	cmd := strings.Split("tools kubectl get deployment -n podinfo podinfo-chart -o=jsonpath='{.spec.replicas}'", " ")
+	outputNumReplicas, _, err := e2e.UDS(cmd...)
+	require.Equal(t, "'2'", outputNumReplicas)
+	require.NoError(t, err)
+
+	// check variables overrides
+	cmd = strings.Split("tools kubectl get deploy -n podinfo podinfo-chart -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
+	outputUIColor, _, err := e2e.UDS(cmd...)
+	require.Equal(t, "'green'", outputUIColor)
+	require.NoError(t, err)
+
+	remove(t, bundlePath)
+}
+
 func create(t *testing.T, bundlePath string) {
 	cmd := strings.Split(fmt.Sprintf("create %s --confirm --insecure", bundlePath), " ")
 	_, _, err := e2e.UDS(cmd...)

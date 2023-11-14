@@ -1,0 +1,21 @@
+kind: UDSBundle
+metadata:
+  name: helm-overrides
+  description: testing a bundle with Helm overrides
+  version: 0.0.1
+
+zarf-packages:
+  - name: helm
+    path: "../../packages/helm"
+    ref: 0.0.1
+
+    overrides:
+      values:
+        - path: "podinfo-component/podinfo-chart/replicaCount"
+          value: 2
+
+      variables:
+        - name: UI_COLOR
+          path: "podinfo-component/podinfo-chart/ui.color"
+          description: "Set the color for podinfo's UI"
+          default: "blue"
