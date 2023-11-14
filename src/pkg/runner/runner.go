@@ -314,6 +314,7 @@ func (r *Runner) checkForTaskLoops(task types.Task) error {
 				return err
 			}
 		}
+		// Clear map once we get to a task that doesn't call another task
 		clear(r.TaskNameMap)
 	}
 	return nil
