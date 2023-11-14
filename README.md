@@ -76,7 +76,7 @@ Inspect the `uds-bundle.yaml` of a bundle
 1. From your local filesystem: `uds inspect uds-bundle-<name>.tar.zst`
 
 #### Viewing SBOMs
-There are 2 additional flags for the `uds bundle inspect` command you can use to extract and view SBOMs:
+There are 2 additional flags for the `uds inspect` command you can use to extract and view SBOMs:
 - Output the SBOMs as a tar file: `uds inspect ... --sbom`
 - Output SBOMs into a directory as files: `uds inspect ... --sbom --extract`
 
