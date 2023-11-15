@@ -37,7 +37,8 @@ jobs:
 
   validate:
     runs-on: ubuntu-latest
-    permissions: write-all
+    permissions:
+      packages: write
     needs: build
     steps:
       # Checkout the repo and setup the tooling for this job
