@@ -52,10 +52,10 @@ func InitModel(content string, client *bundle.Bundler, buf *bytes.Buffer, op ope
 		bndlClient:          client,
 		packageOutputBuffer: buf,
 		op:                  op,
+		quitChan:            make(chan int),
 	}
 }
 
-// todo: public Model or constructor?
 type Model struct {
 	content             string
 	ready               bool
@@ -63,6 +63,7 @@ type Model struct {
 	packageOutputBuffer *bytes.Buffer
 	bndlClient          *bundle.Bundler
 	op                  operation
+	quitChan            chan int
 }
 
 func (m Model) Init() tea.Cmd {
@@ -76,72 +77,87 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd  tea.Cmd
 		cmds []tea.Cmd
 	)
-
-	switch msg := msg.(type) {
-	case operation:
-		m.content = m.packageOutputBuffer.String()
-		m.viewport.SetContent(m.content)
-		m.ready = true
-		switch msg {
-		case DeployOp:
-			// run Deploy concurrently to we can still update the TUI while it runs
-			go func() {
-				if err := m.bndlClient.Deploy(); err != nil {
-					// use existing Zarf pterm things for errors
-					pterm.EnableOutput()
-					pterm.SetDefaultOutput(os.Stderr)
-					m.bndlClient.ClearPaths()
-					message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
-				}
-			}()
-			// todo: Tick vs Every
-			return m, tea.Tick(time.Second, func(time.Time) tea.Msg {
-				return tick
-			})
-		case tick:
-			return m, tea.Tick(time.Second, func(time.Time) tea.Msg {
-				return tick
-			})
-		}
-
-	case tea.KeyMsg:
-		if k := msg.String(); k == "ctrl+c" || k == "q" || k == "esc" {
-			return m, tea.Quit
-		}
-
-	case tea.WindowSizeMsg:
-		headerHeight := lipgloss.Height(m.headerView())
-		footerHeight := lipgloss.Height(m.footerView())
-		verticalMarginHeight := headerHeight + footerHeight
-
-		if !m.ready {
-			// Since this program is using the full size of the viewport we
-			// need to wait until we've received the window dimensions before
-			// we can initialize the viewport. The initial dimensions come in
-			// quickly, though asynchronously, which is why we wait for them
-			// here.
-			m.viewport = viewport.New(msg.Width, msg.Height-verticalMarginHeight*3)
-			m.viewport.YPosition = headerHeight
-			m.viewport.HighPerformanceRendering = useHighPerformanceRenderer
+	select {
+	case <-m.quitChan:
+		return m, tea.Quit
+	default:
+		switch msg := msg.(type) {
+		case operation:
+			m.content += m.packageOutputBuffer.String()
 			m.viewport.SetContent(m.content)
 			m.ready = true
+			m.packageOutputBuffer.Reset()
+			// autoscroll the contents of the viewport
+			m.viewport.GotoBottom()
 
-			// This is only necessary for high performance rendering, which in
-			// most cases you won't need.
-			//
-			// Render the viewport one line below the header.
-			m.viewport.YPosition = headerHeight + 1
-		} else {
-			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - verticalMarginHeight
-		}
+			// todo: some pterm output isn't showing up, look into disabling styling in pterm
 
-		if useHighPerformanceRenderer {
-			// Render (or re-render) the whole viewport. Necessary both to
-			// initialize the viewport and when the window is resized.
-			//
-			// This is needed for high-performance rendering only.
-			cmds = append(cmds, viewport.Sync(m.viewport))
+			switch msg {
+			case DeployOp:
+				// run Deploy concurrently so we can update the TUI while it runs
+				go func() {
+					// todo: don't actually put the buffer in the call to Deploy()
+					if err := m.bndlClient.Deploy(m.packageOutputBuffer); err != nil {
+						// use existing Zarf pterm things for errors
+						pterm.EnableOutput()
+						pterm.SetDefaultOutput(os.Stderr)
+						m.bndlClient.ClearPaths()
+						message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
+						m.quitChan <- 1
+					}
+					m.quitChan <- 1
+
+				}()
+				// todo: Tick vs Every
+				// use a ticker to update the TUI while the deploy runs
+				return m, tea.Tick(time.Millisecond, func(time.Time) tea.Msg {
+					return tick
+				})
+			case tick:
+				return m, tea.Tick(time.Millisecond, func(time.Time) tea.Msg {
+					return tick
+				})
+			}
+
+		case tea.KeyMsg:
+			if k := msg.String(); k == "ctrl+c" || k == "q" || k == "esc" {
+				return m, tea.Quit
+			}
+
+		case tea.WindowSizeMsg:
+			headerHeight := lipgloss.Height(m.headerView())
+			footerHeight := lipgloss.Height(m.footerView())
+			verticalMarginHeight := headerHeight + footerHeight
+
+			if !m.ready {
+				// Since this program is using the full size of the viewport we
+				// need to wait until we've received the window dimensions before
+				// we can initialize the viewport. The initial dimensions come in
+				// quickly, though asynchronously, which is why we wait for them
+				// here.
+				m.viewport = viewport.New(msg.Width, msg.Height-verticalMarginHeight)
+				m.viewport.YPosition = headerHeight
+				m.viewport.HighPerformanceRendering = useHighPerformanceRenderer
+				m.viewport.SetContent(m.content)
+				m.ready = true
+
+				// This is only necessary for high performance rendering, which in
+				// most cases you won't need.
+				//
+				// Render the viewport one line below the header.
+				m.viewport.YPosition = headerHeight + 1
+			} else {
+				m.viewport.Width = msg.Width
+				m.viewport.Height = msg.Height - verticalMarginHeight
+			}
+
+			if useHighPerformanceRenderer {
+				// Render (or re-render) the whole viewport. Necessary both to
+				// initialize the viewport and when the window is resized.
+				//
+				// This is needed for high-performance rendering only.
+				cmds = append(cmds, viewport.Sync(m.viewport))
+			}
 		}
 	}
 

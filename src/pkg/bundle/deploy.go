@@ -5,6 +5,7 @@
 package bundle
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -42,7 +43,7 @@ type ZarfOverrideMap map[string]map[string]map[string]interface{}
 // : : load the package into a fresh temp dir
 // : : validate the sig (if present)
 // : : deploy the package
-func (b *Bundler) Deploy() error {
+func (b *Bundler) Deploy(ptermBuf *bytes.Buffer) error {
 	ctx := context.TODO()
 
 	pterm.Println()
@@ -153,6 +154,9 @@ func (b *Bundler) Deploy() error {
 		if err := pkgClient.Deploy(); err != nil {
 			return err
 		}
+		
+		// need to reset the output buffer because Deploy() sets it to stderr
+		pterm.SetDefaultOutput(ptermBuf)
 
 		// save exported vars
 		pkgExportedVars := make(map[string]string)
