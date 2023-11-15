@@ -146,6 +146,10 @@ func (b *Bundler) Deploy() error {
 		if err != nil {
 			return err
 		}
+
+		// enable output to start filling pterm buffer
+		pterm.EnableOutput()
+
 		if err := pkgClient.Deploy(); err != nil {
 			return err
 		}
