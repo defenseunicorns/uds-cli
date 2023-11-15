@@ -91,18 +91,13 @@ var deployCmd = &cobra.Command{
 		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
 
-		// disable pterm output (for now) and create a global BubbleTea Model
+		// disable pterm output (for now) and set default output to buffer
 		pterm.DisableOutput()
 		var ptermBuffer bytes.Buffer
 		pterm.SetDefaultOutput(&ptermBuffer)
-		m := tui.InitModel("", &ptermBuffer)
 
-		go func() {
-			if err := bndlClient.Deploy(); err != nil {
-				bndlClient.ClearPaths()
-				message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
-			}
-		}()
+		// start up bubbletea
+		m := tui.InitModel("", bndlClient, &ptermBuffer, tui.DeployOp)
 		p := tea.NewProgram(&m, tea.WithMouseAllMotion())
 		if _, err := p.Run(); err != nil {
 			panic(err)
