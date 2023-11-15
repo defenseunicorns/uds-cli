@@ -3,12 +3,24 @@ package tui
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
+	"github.com/pterm/pterm"
+
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
+)
+
+type operation string
+
+const (
+	DeployOp operation = "deploy"
+	tick     operation = "tick"
 )
 
 // You generally won't need this unless you're processing stuff with
@@ -33,31 +45,30 @@ var (
 	}()
 )
 
-func InitModel(content string, buf *bytes.Buffer) Model {
+func InitModel(content string, client *bundle.Bundler, buf *bytes.Buffer, op operation) Model {
 	return Model{
 		content:             content,
 		viewport:            viewport.Model{},
-		PackageOutputBuffer: buf,
+		bndlClient:          client,
+		packageOutputBuffer: buf,
+		op:                  op,
 	}
 }
-
-const tickMessage string = "tick"
 
 // todo: public Model or constructor?
 type Model struct {
 	content             string
 	ready               bool
 	viewport            viewport.Model
-	PackageOutputBuffer *bytes.Buffer
+	packageOutputBuffer *bytes.Buffer
+	bndlClient          *bundle.Bundler
+	op                  operation
 }
 
-// runs once at the start of the tea program
 func (m Model) Init() tea.Cmd {
-	// Start the tick to trigger rendering periodically
-	// todo: Tick vs Every
-	return tea.Tick(time.Millisecond, func(time.Time) tea.Msg {
-		return tickMessage
-	})
+	return func() tea.Msg {
+		return m.op
+	}
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -67,16 +78,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	)
 
 	switch msg := msg.(type) {
-	case string:
-		// todo: start here, m.content is empty, try with fresh cluster
-		m.content = m.PackageOutputBuffer.String()
-		//m.content = "hello world"
-		//m.viewport, cmd = m.viewport.Update(m.PackageOutputBuffer.String())
+	case operation:
+		m.content = m.packageOutputBuffer.String()
 		m.viewport.SetContent(m.content)
 		m.ready = true
-		return m, tea.Tick(time.Second, func(time.Time) tea.Msg {
-			return tickMessage
-		})
+		switch msg {
+		case DeployOp:
+			// run Deploy concurrently to we can still update the TUI while it runs
+			go func() {
+				if err := m.bndlClient.Deploy(); err != nil {
+					// use existing Zarf pterm things for errors
+					pterm.EnableOutput()
+					pterm.SetDefaultOutput(os.Stderr)
+					m.bndlClient.ClearPaths()
+					message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
+				}
+			}()
+			// todo: Tick vs Every
+			return m, tea.Tick(time.Second, func(time.Time) tea.Msg {
+				return tick
+			})
+		case tick:
+			return m, tea.Tick(time.Second, func(time.Time) tea.Msg {
+				return tick
+			})
+		}
 
 	case tea.KeyMsg:
 		if k := msg.String(); k == "ctrl+c" || k == "q" || k == "esc" {
