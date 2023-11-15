@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"os"
@@ -72,6 +73,22 @@ func (m Model) Init() tea.Cmd {
 	}
 }
 
+// allows us to get way more Zarf output
+// adopted from:
+// https://stackoverflow.com/questions/74375547/how-to-deal-with-log-output-which-contains-progress-bar
+func cleanFlushInfo(bytesBuffer *bytes.Buffer) string {
+	scanner := bufio.NewScanner(bytesBuffer)
+	finalString := ""
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		chunks := strings.Split(line, "\r")
+		lastChunk := chunks[len(chunks)-1] // fetch the last update of the line
+		finalString += lastChunk + "\n"
+	}
+	return finalString
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
 		cmd  tea.Cmd
@@ -83,14 +100,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	default:
 		switch msg := msg.(type) {
 		case operation:
-			m.content += m.packageOutputBuffer.String()
+			// todo: this should probably go somewhere else
+			m.content += cleanFlushInfo(m.packageOutputBuffer)
 			m.viewport.SetContent(m.content)
 			m.ready = true
 			m.packageOutputBuffer.Reset()
 			// autoscroll the contents of the viewport
-			m.viewport.GotoBottom()
-
-			// todo: some pterm output isn't showing up, look into disabling styling in pterm
+			//m.viewport.GotoBottom()
 
 			switch msg {
 			case DeployOp:
@@ -105,10 +121,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
 						m.quitChan <- 1
 					}
-					m.quitChan <- 1
-
+					//m.quitChan <- 1
 				}()
-				// todo: Tick vs Every
 				// use a ticker to update the TUI while the deploy runs
 				return m, tea.Tick(time.Millisecond, func(time.Time) tea.Msg {
 					return tick
