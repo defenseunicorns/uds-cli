@@ -95,7 +95,6 @@ var deployCmd = &cobra.Command{
 		pterm.DisableOutput()
 		var ptermBuffer bytes.Buffer
 		pterm.SetDefaultOutput(&ptermBuffer)
-		pterm.DisableStyling()
 
 		// start up bubbletea
 		m := tui.InitModel("", bndlClient, &ptermBuffer, tui.DeployOp)

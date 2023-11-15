@@ -154,7 +154,7 @@ func (b *Bundler) Deploy(ptermBuf *bytes.Buffer) error {
 		if err := pkgClient.Deploy(); err != nil {
 			return err
 		}
-		
+
 		// need to reset the output buffer because Deploy() sets it to stderr
 		pterm.SetDefaultOutput(ptermBuf)
 
