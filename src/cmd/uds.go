@@ -5,24 +5,27 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	tea "github.com/charmbracelet/bubbletea"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	"github.com/pterm/pterm"
+	"github.com/spf13/cobra"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
-
-	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/spf13/cobra"
+	"github.com/defenseunicorns/uds-cli/src/tui"
 
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 )
@@ -88,9 +91,21 @@ var deployCmd = &cobra.Command{
 		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
 
-		if err := bndlClient.Deploy(); err != nil {
-			bndlClient.ClearPaths()
-			message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
+		// disable pterm output (for now) and create a global BubbleTea Model
+		pterm.DisableOutput()
+		var ptermBuffer bytes.Buffer
+		pterm.SetDefaultOutput(&ptermBuffer)
+		m := tui.InitModel("", &ptermBuffer)
+
+		go func() {
+			if err := bndlClient.Deploy(); err != nil {
+				bndlClient.ClearPaths()
+				message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
+			}
+		}()
+		p := tea.NewProgram(&m, tea.WithMouseAllMotion())
+		if _, err := p.Run(); err != nil {
+			panic(err)
 		}
 	},
 }
@@ -213,7 +228,7 @@ func firstArgIsEitherOCIorTarball(_ *cobra.Command, args []string) {
 func init() {
 	initViper()
 	v.SetDefault(V_BNDL_OCI_CONCURRENCY, 3)
-	
+
 	rootCmd.PersistentFlags().IntVar(&config.CommonOptions.OCIConcurrency, "oci-concurrency", v.GetInt(V_BNDL_OCI_CONCURRENCY), lang.CmdBundleFlagConcurrency)
 
 	// create cmd flags
