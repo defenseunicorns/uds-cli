@@ -12,7 +12,7 @@ jobs:
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: Run Revive Action by pulling pre-built image
-        uses: docker://morphy/revive-action:v2
+        uses: docker://morphy/revive-action:v2@sha256:ae681532822691e521bee9d066d8470e04611e3fdeef8143ffdfa00d3263d02a
         with:
           config: revive.toml
           # Exclude patterns, separated by semicolons (optional)
