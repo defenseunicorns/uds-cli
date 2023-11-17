@@ -1,0 +1,6 @@
+testSecret: "dGVzdC1zZWNyZXQ="
+podinfo:
+  ui:
+    color: "purple"
+    message: "Hello from podinfo"
+
