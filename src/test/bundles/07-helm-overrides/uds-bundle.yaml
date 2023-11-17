@@ -20,7 +20,12 @@ zarf-packages:
           description: "Set the color for podinfo's UI"
           default: "blue"
 
-          # if no default, use the value in the underlying chart's values.yaml
+        # no default, but set in uds-config.yaml
+        - name: UI_MSG
+          path: "podinfo-component/unicorn-podinfo/podinfo.ui.message"
+          description: "Set the message for podinfo's UI"
+
+          # if no default and not set in uds-config.yaml, use the value in the underlying chart's values.yaml
         - name: SECRET_VAL
           path: "podinfo-component/unicorn-podinfo/testSecret"
           description: "testing a secret value"

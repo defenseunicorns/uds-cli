@@ -1,6 +1,5 @@
-testSecret: "dGVzdC1zZWNyZXQ="
+testSecret: "dGVzdC1zZWNyZXQ=" # test-secret
 podinfo:
   ui:
     color: "purple"
     message: "Hello from podinfo"
-

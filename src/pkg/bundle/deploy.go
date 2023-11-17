@@ -219,17 +219,21 @@ func (b *Bundler) loadChartOverrides(pkg types.BundleZarfPackage) (ZarfOverrideM
 
 	// Loop through each path in Overrides.Variables
 	for _, override := range pkg.Overrides.Variables {
-		// Set the default value
-		val := override.Default
-
-		// If the variable is set, override the default value, why is this lowercase?
-		name := strings.ToLower(override.Name)
-		if setVal, ok := b.cfg.DeployOpts.ZarfPackageVariables[pkg.Name].Set[name]; ok {
-			val = setVal
+		var overrideVal interface{}
+		configFileOverride, existsInConfig := b.cfg.DeployOpts.ZarfPackageVariables[pkg.Name].Set[strings.ToLower(override.Name)]
+		if override.Default == nil && !existsInConfig {
+			// no default or config value, use values from underlying chart
+			continue
+		} else if existsInConfig {
+			// if the config value is set, use it
+			overrideVal = configFileOverride
+		} else {
+			// use default value if no config value is set
+			overrideVal = override.Default
 		}
 
 		// Add the override to the map, or return an error if the path is invalid
-		if err := addOverrideValue(overrideMap, override.Path, val); err != nil {
+		if err := addOverrideValue(overrideMap, override.Path, overrideVal); err != nil {
 			return nil, err
 		}
 	}
