@@ -206,6 +206,7 @@ func TestBundleWithGitRepo(t *testing.T) {
 
 func TestBundleWithHelmOverrides(t *testing.T) {
 	deployZarfInit(t)
+	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
 	e2e.CreateZarfPkg(t, "src/test/packages/helm")
 	bundleDir := "src/test/bundles/07-helm-overrides"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
@@ -216,15 +217,28 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 	deploy(t, bundlePath)
 
 	// check values overrides
-	cmd := strings.Split("tools kubectl get deployment -n podinfo podinfo-chart -o=jsonpath='{.spec.replicas}'", " ")
+	cmd := strings.Split("tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.replicas}'", " ")
 	outputNumReplicas, _, err := e2e.UDS(cmd...)
 	require.Equal(t, "'2'", outputNumReplicas)
 	require.NoError(t, err)
 
 	// check variables overrides
-	cmd = strings.Split("tools kubectl get deploy -n podinfo podinfo-chart -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
+	cmd = strings.Split("tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
 	outputUIColor, _, err := e2e.UDS(cmd...)
 	require.Equal(t, "'green'", outputUIColor)
+	require.NoError(t, err)
+
+	// check variables overrides, no default but set in config
+	cmd = strings.Split("tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_MESSAGE\")].value}'", " ")
+	outputMsg, _, err := e2e.UDS(cmd...)
+	require.Equal(t, "'Hello Unicorn'", outputMsg)
+	require.NoError(t, err)
+
+	// check variables overrides, no default and not set in config
+	cmd = strings.Split("tools kubectl get secret test-secret -n podinfo -o jsonpath=\"{.data.test}\"", " ")
+	secretValue, _, err := e2e.UDS(cmd...)
+	// expect the value to be from the underlying chart's values.yaml, no overrides
+	require.Equal(t, "\"dGVzdC1zZWNyZXQ=\"", secretValue)
 	require.NoError(t, err)
 
 	remove(t, bundlePath)

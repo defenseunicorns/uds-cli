@@ -10,7 +10,7 @@ components:
     images:
       - ghcr.io/stefanprodan/podinfo:6.5.3
     charts:
-      - name: podinfo-chart
-        url: oci://ghcr.io/stefanprodan/charts/podinfo
+      - name: unicorn-podinfo
+        localPath: ./unicorn-podinfo
         namespace: podinfo
-        version: 6.5.3
+        version: 0.0.1

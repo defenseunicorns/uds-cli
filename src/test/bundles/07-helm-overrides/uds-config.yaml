@@ -3,4 +3,6 @@ bundle:
     zarf-packages:
       helm:
         set:
-          UI_COLOR: green # overrides UI_COLOR in uds-bundle.yaml
+          # overrides variables in uds-bundle.yaml
+          UI_COLOR: green
+          UI_MSG: "Hello Unicorn"
