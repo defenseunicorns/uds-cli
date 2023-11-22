@@ -1401,6 +1401,8 @@ github.com/pterm/pterm v0.12.36/go.mod h1:NjiL09hFhT/vWjQHSj1athJpx6H8cjpHXNAK5b
 github.com/pterm/pterm v0.12.40/go.mod h1:ffwPLwlbXxP+rxT0GsgDTzS3y3rmpAO1NMjUkGTYf8s=
 github.com/pterm/pterm v0.12.70 h1:8W0oBICz0xXvUeB8v9Pcfr2wNtsm7zfSb+FJzIbFB5w=
 github.com/pterm/pterm v0.12.70/go.mod h1:SUAcoZjRt+yjPWlWba+/Fd8zJJ2lSXBQWf0Z0HbFiIQ=
+github.com/pterm/pterm v0.12.71 h1:KcEJ98EiVCbzDkFbktJ2gMlr4pn8IzyGb9bwK6ffkuA=
+github.com/pterm/pterm v0.12.71/go.mod h1:SUAcoZjRt+yjPWlWba+/Fd8zJJ2lSXBQWf0Z0HbFiIQ=
 github.com/puzpuzpuz/xsync/v2 v2.4.1 h1:aGdE1C/HaR/QC6YAFdtZXi60Df8/qBIrs8PKrzkItcM=
 github.com/puzpuzpuz/xsync/v2 v2.4.1/go.mod h1:gD2H2krq/w52MfPLE+Uy64TzJDVY7lP2znR9qmR35kU=
 github.com/rakyll/hey v0.1.4 h1:hhc8GIqHN4+rPFZvkM9lkCQGi7da0sINM83xxpFkbPA=
