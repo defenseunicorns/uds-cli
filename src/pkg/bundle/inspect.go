@@ -7,8 +7,9 @@ package bundle
 import (
 	"context"
 
-	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
 )
 
 // Inspect pulls/unpacks a bundle's metadata and shows it

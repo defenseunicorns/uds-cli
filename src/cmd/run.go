@@ -35,8 +35,8 @@ var runCmd = &cobra.Command{
 
 		// Ensure uppercase keys from viper
 		v := common.GetViper()
-		config.SetVariables = helpers.TransformAndMergeMap(
-			v.GetStringMapString(common.VPkgCreateSet), config.SetVariables, strings.ToUpper)
+		config.SetRunnerVariables = helpers.TransformAndMergeMap(
+			v.GetStringMapString(common.VPkgCreateSet), config.SetRunnerVariables, strings.ToUpper)
 
 		err := utils.ReadYaml(config.TaskFileLocation, &tasksFile)
 		if err != nil {
@@ -44,7 +44,7 @@ var runCmd = &cobra.Command{
 		}
 
 		taskName := args[0]
-		if err := runner.Run(tasksFile, taskName, config.SetVariables); err != nil {
+		if err := runner.Run(tasksFile, taskName, config.SetRunnerVariables); err != nil {
 			message.Fatalf(err, "Failed to run action: %s", err)
 		}
 	},
@@ -55,5 +55,5 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 	runFlags := runCmd.Flags()
 	runFlags.StringVarP(&config.TaskFileLocation, "file", "f", config.TasksYAML, lang.CmdRunFlag)
-	runFlags.StringToStringVar(&config.SetVariables, "set", v.GetStringMapString(common.VPkgCreateSet), lang.CmdRunSetVarFlag)
+	runFlags.StringToStringVar(&config.SetRunnerVariables, "set", v.GetStringMapString(common.VPkgCreateSet), lang.CmdRunSetVarFlag)
 }

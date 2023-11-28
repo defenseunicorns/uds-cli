@@ -220,16 +220,24 @@ func (b *Bundler) loadChartOverrides(pkg types.BundleZarfPackage) (ZarfOverrideM
 	// Loop through each path in Overrides.Variables
 	for _, override := range pkg.Overrides.Variables {
 		var overrideVal interface{}
-		configFileOverride, existsInConfig := b.cfg.DeployOpts.ZarfPackageVariables[pkg.Name].Set[strings.ToLower(override.Name)]
-		if override.Default == nil && !existsInConfig {
-			// no default or config value, use values from underlying chart
-			continue
-		} else if existsInConfig {
-			// if the config value is set, use it
-			overrideVal = configFileOverride
+
+		// check for override in env vars
+		envVarOverride, exists := os.LookupEnv(strings.ToUpper(config.EnvVarPrefix + override.Name))
+		if exists {
+			overrideVal = envVarOverride
 		} else {
-			// use default value if no config value is set
-			overrideVal = override.Default
+			// todo: refactor this to be less ugly
+			configFileOverride, existsInConfig := b.cfg.DeployOpts.ZarfPackageVariables[pkg.Name].Set[strings.ToLower(override.Name)]
+			if override.Default == nil && !existsInConfig {
+				// no default or config value, use values from underlying chart
+				continue
+			} else if existsInConfig {
+				// if the config value is set, use it
+				overrideVal = configFileOverride
+			} else {
+				// use default value if no config value is set
+				overrideVal = override.Default
+			}
 		}
 
 		// Add the override to the map, or return an error if the path is invalid
