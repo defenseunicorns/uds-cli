@@ -25,7 +25,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
-	"github.com/defenseunicorns/uds-cli/src/tui"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui"
 
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 )
@@ -98,8 +98,8 @@ var deployCmd = &cobra.Command{
 
 		// start up bubbletea
 		m := tui.InitModel("", bndlClient, &ptermBuffer, tui.DeployOp)
-		p := tea.NewProgram(&m, tea.WithMouseAllMotion())
-		if _, err := p.Run(); err != nil {
+		tui.Program = tea.NewProgram(&m, tea.WithMouseAllMotion())
+		if _, err := tui.Program.Run(); err != nil {
 			panic(err)
 		}
 	},

@@ -26,6 +26,7 @@ import (
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/types"
 )
@@ -151,6 +152,9 @@ func (b *Bundler) Deploy(ptermBuf *bytes.Buffer) error {
 		// enable output to start filling pterm buffer
 		pterm.EnableOutput()
 
+		// bubbletea recommends calling the Program directly; calling model.Update() doesn't work
+		// https://github.com/charmbracelet/bubbletea/discussions/374
+		tui.Program.Send(fmt.Sprintf("package:%s", pkg.Name))
 		if err := pkgClient.Deploy(); err != nil {
 			return err
 		}
