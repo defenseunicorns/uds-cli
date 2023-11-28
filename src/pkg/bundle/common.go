@@ -24,6 +24,7 @@ import (
 )
 
 // Bundler handles bundler operations
+// todo: rename this mofo, bundler vs bundle is confusing
 type Bundler struct {
 	// cfg is the Bundler's configuration options
 	cfg *types.BundlerConfig

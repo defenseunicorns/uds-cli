@@ -23,6 +23,7 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 )
 
@@ -51,6 +52,9 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, unarchiveAll bool)
 		return err
 	}
 	dst.SetFromPaths(files)
+
+	// record number of components to be deployed for TUI
+	tui.Program.Send(fmt.Sprintf("numComponents:%d", len(pkg.Components)))
 
 	if err := sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, t.isPartial); err != nil {
 		return err

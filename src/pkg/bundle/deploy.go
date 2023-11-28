@@ -5,6 +5,7 @@
 package bundle
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -25,6 +26,7 @@ import (
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/types"
 )
@@ -42,7 +44,7 @@ type ZarfOverrideMap map[string]map[string]map[string]interface{}
 // : : load the package into a fresh temp dir
 // : : validate the sig (if present)
 // : : deploy the package
-func (b *Bundler) Deploy() error {
+func (b *Bundler) Deploy(ptermBuf *bytes.Buffer) error {
 	ctx := context.TODO()
 
 	pterm.Println()
@@ -146,9 +148,19 @@ func (b *Bundler) Deploy() error {
 		if err != nil {
 			return err
 		}
+
+		// enable output to start filling pterm buffer
+		pterm.EnableOutput()
+
+		// bubbletea recommends calling the Program directly; calling model.Update() doesn't work
+		// https://github.com/charmbracelet/bubbletea/discussions/374
+		tui.Program.Send(fmt.Sprintf("package:%s", pkg.Name))
 		if err := pkgClient.Deploy(); err != nil {
 			return err
 		}
+
+		// need to reset the output buffer because Deploy() sets it to stderr
+		pterm.SetDefaultOutput(ptermBuf)
 
 		// save exported vars
 		pkgExportedVars := make(map[string]string)
