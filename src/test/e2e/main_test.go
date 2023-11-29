@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/mod/modfile"
 
 	"github.com/defenseunicorns/uds-cli/src/test"
 
@@ -90,8 +91,17 @@ func doAllTheThings(m *testing.M) (int, error) {
 
 func deployZarfInit(t *testing.T) {
 	if !zarfInitDeployed() {
-		// todo: renovate this version or grab from deps
-		zarfVersion := "v0.31.1"
+		// get Zarf version from go.mod
+		b, err := os.ReadFile("go.mod")
+		require.NoError(t, err)
+		f, err := modfile.Parse("go.mod", b, nil)
+		require.NoError(t, err)
+		var zarfVersion string
+		for _, r := range f.Require {
+			if r.Mod.Path == "github.com/defenseunicorns/zarf" {
+				zarfVersion = r.Mod.Version
+			}
+		}
 		e2e.DownloadZarfInitPkg(t, zarfVersion)
 
 		bundleDir := "src/test/bundles/04-init"
@@ -99,7 +109,7 @@ func deployZarfInit(t *testing.T) {
 
 		// Create
 		cmd := strings.Split(fmt.Sprintf("create %s --confirm --insecure", bundleDir), " ")
-		_, _, err := e2e.UDS(cmd...)
+		_, _, err = e2e.UDS(cmd...)
 		require.NoError(t, err)
 
 		// Deploy
