@@ -69,7 +69,7 @@ var deployCmd = &cobra.Command{
 	Args:    cobra.MaximumNArgs(1),
 	PreRun:  firstArgIsEitherOCIorTarball,
 	Run: func(cmd *cobra.Command, args []string) {
-		bundleCfg.DeployOpts.Source = choosePackage(args)
+		bundleCfg.DeployOpts.Source = chooseBundle(args)
 		configureZarf()
 
 		// read config file and unmarshal
@@ -102,7 +102,7 @@ var inspectCmd = &cobra.Command{
 		}
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		bundleCfg.InspectOpts.Source = choosePackage(args)
+		bundleCfg.InspectOpts.Source = chooseBundle(args)
 		configureZarf()
 
 		bndlClient := bundle.NewOrDie(&bundleCfg)
@@ -219,6 +219,7 @@ func init() {
 	// deploy cmd flags
 	rootCmd.AddCommand(deployCmd)
 	deployCmd.Flags().BoolVarP(&config.CommonOptions.Confirm, "confirm", "c", false, lang.CmdBundleDeployFlagConfirm)
+	deployCmd.Flags().StringArrayVarP(&bundleCfg.DeployOpts.Packages, "packages", "p", []string{}, lang.CmdBundleDeployFlagPackages)
 
 	// inspect cmd flags
 	rootCmd.AddCommand(inspectCmd)
@@ -253,8 +254,8 @@ func configureZarf() {
 	}
 }
 
-// choosePackage provides a file picker when users don't specify a file
-func choosePackage(args []string) string {
+// chooseBundle provides a file picker when users don't specify a file
+func chooseBundle(args []string) string {
 	if len(args) > 0 {
 		return args[0]
 	}
