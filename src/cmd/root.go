@@ -14,7 +14,6 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
@@ -27,12 +26,6 @@ var (
 
 	// Default global config for the bundler
 	bundleCfg = types.BundlerConfig{}
-
-	// Viper instance used by the cmd package
-	v *viper.Viper
-
-	// holds any error from reading in Viper config
-	vConfigError error
 )
 
 var rootCmd = &cobra.Command{
@@ -85,6 +78,7 @@ func init() {
 	v.SetDefault(V_NO_PROGRESS, false)
 	v.SetDefault(V_INSECURE, false)
 	v.SetDefault(V_TMP_DIR, "")
+	v.SetDefault(V_BNDL_OCI_CONCURRENCY, 3)
 
 	homeDir, _ := os.UserHomeDir()
 	v.SetDefault(V_UDS_CACHE, filepath.Join(homeDir, config.UDSCache))

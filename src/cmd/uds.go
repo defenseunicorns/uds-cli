@@ -74,12 +74,7 @@ var deployCmd = &cobra.Command{
 
 		// read config file and unmarshal
 		if v.ConfigFileUsed() != "" {
-			err := v.ReadInConfig()
-			if err != nil {
-				message.Fatalf(err, "Failed to read config: %s", err.Error())
-				return
-			}
-			err = v.UnmarshalKey(V_BNDL_DEPLOY_ZARF_PACKAGES, &bundleCfg.DeployOpts.ZarfPackageVariables)
+			err := v.UnmarshalKey(V_BNDL_DEPLOY_ZARF_PACKAGES, &bundleCfg.DeployOpts.ZarfPackageVariables)
 			if err != nil {
 				message.Fatalf(err, "Failed to unmarshal config: %s", err.Error())
 				return
@@ -212,8 +207,6 @@ func firstArgIsEitherOCIorTarball(_ *cobra.Command, args []string) {
 
 func init() {
 	initViper()
-	v.SetDefault(V_BNDL_OCI_CONCURRENCY, 3)
-	
 	rootCmd.PersistentFlags().IntVar(&config.CommonOptions.OCIConcurrency, "oci-concurrency", v.GetInt(V_BNDL_OCI_CONCURRENCY), lang.CmdBundleFlagConcurrency)
 
 	// create cmd flags

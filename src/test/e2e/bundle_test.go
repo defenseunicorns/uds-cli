@@ -244,6 +244,36 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 	remove(t, bundlePath)
 }
 
+func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
+	// set up configs and env vars
+	deployZarfInit(t)
+	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
+	e2e.CreateZarfPkg(t, "src/test/packages/helm")
+	color := "purple"
+	b64Secret := "dGhhdCBhaW50IG15IHRydWNr"
+	err := os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config.yaml"))
+	err = os.Setenv("UDS_UI_COLOR", color)
+	err = os.Setenv("UDS_SECRET_VAL", b64Secret)
+	require.NoError(t, err)
+
+	// create and deploy bundle
+	bundleDir := "src/test/bundles/07-helm-overrides"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
+	create(t, bundleDir)
+	deploy(t, bundlePath)
+
+	// check override variables, ensure they are coming from env vars and take highest precedence
+	cmd := strings.Split("tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
+	outputUIColor, _, err := e2e.UDS(cmd...)
+	require.Equal(t, fmt.Sprintf("'%s'", color), outputUIColor)
+	require.NoError(t, err)
+
+	cmd = strings.Split("tools kubectl get secret test-secret -n podinfo -o jsonpath=\"{.data.test}\"", " ")
+	secretValue, _, err := e2e.UDS(cmd...)
+	require.Equal(t, fmt.Sprintf("\"%s\"", b64Secret), secretValue)
+	require.NoError(t, err)
+}
+
 func create(t *testing.T, bundlePath string) {
 	cmd := strings.Split(fmt.Sprintf("create %s --confirm --insecure", bundlePath), " ")
 	_, _, err := e2e.UDS(cmd...)

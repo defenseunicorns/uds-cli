@@ -32,8 +32,8 @@ const (
 
 	// Bundle create config keys
 	V_BNDL_CREATE_OUTPUT               = "bundle.create.output"
-	V_BNDL_CREATE_SIGNING_KEY          = "bundle.create.signing_key"
-	V_BNDL_CREATE_SIGNING_KEY_PASSWORD = "bundle.create.signing_key_password"
+	V_BNDL_CREATE_SIGNING_KEY          = "bundle.create.signing-key"
+	V_BNDL_CREATE_SIGNING_KEY_PASSWORD = "bundle.create.signing-key-password"
 	V_BNDL_CREATE_SET                  = "bundle.create.set"
 
 	// Bundle deploy config keys
@@ -48,6 +48,14 @@ const (
 	// Bundle pull config keys
 	V_BNDL_PULL_OUTPUT = "bundle.pull.output"
 	V_BNDL_PULL_KEY    = "bundle.pull.key"
+)
+
+var (
+	// Viper instance used by the cmd package
+	v *viper.Viper
+
+	// holds any error from reading in Viper config
+	vConfigError error
 )
 
 func initViper() {
