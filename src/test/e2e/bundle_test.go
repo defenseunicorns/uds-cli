@@ -203,13 +203,13 @@ func TestPackagesFlag(t *testing.T) {
 	require.Contains(t, deployments, "nginx")
 
 	// Remove only podinfo
-	removePackagesFlag(t, bundlePath, "podinfo")
+	removePackagesFlag(bundlePath, "podinfo")
 	deployments, _, _ = e2e.UDS(cmd...)
 	require.NotContains(t, deployments, "podinfo")
 	require.Contains(t, deployments, "nginx")
 
 	// Remove nginx
-	removePackagesFlag(t, bundlePath, "nginx")
+	removePackagesFlag(bundlePath, "nginx")
 	deployments, _, _ = e2e.UDS(cmd...)
 	require.NotContains(t, deployments, "podinfo")
 	require.NotContains(t, deployments, "nginx")
@@ -219,7 +219,7 @@ func TestPackagesFlag(t *testing.T) {
 	require.Contains(t, stderr, "invalid zarf packages specified by --packages")
 
 	// Test invalid package remove
-	_, stderr = removePackagesFlag(t, bundlePath, "podinfo,nginx,peanuts")
+	_, stderr = removePackagesFlag(bundlePath, "podinfo,nginx,peanuts")
 	require.Contains(t, stderr, "invalid zarf packages specified by --packages")
 }
 
