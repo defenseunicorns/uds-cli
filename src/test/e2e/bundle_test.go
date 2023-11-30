@@ -187,17 +187,17 @@ func TestPackagesDeployFlag(t *testing.T) {
 	inspectAndSBOMExtract(t, bundlePath)
 
 	// Test only podinfo
-	deployPackagesFlag(t, bundlePath, "podinfo")
+	deployPackagesFlag(bundlePath, "podinfo")
 	cmd := strings.Split("tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
 	namespaces, _, _ := e2e.UDS(cmd...)
 	require.Contains(t, namespaces, "podinfo")
 	require.NotContains(t, namespaces, "nginx")
 
-	_, stderr := removeWithError(t, bundlePath)
+	_, stderr := removeWithError(bundlePath)
 	require.Contains(t, stderr, "Failed to remove bundle:")
 
 	// Test both podinfo and nginx
-	deployPackagesFlag(t, bundlePath, "podinfo,nginx")
+	deployPackagesFlag(bundlePath, "podinfo,nginx")
 	cmd = strings.Split("tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
 	deployments, _, _ := e2e.UDS(cmd...)
 	require.Contains(t, deployments, "podinfo")
@@ -206,7 +206,7 @@ func TestPackagesDeployFlag(t *testing.T) {
 	remove(t, bundlePath)
 
 	// Test invalid package
-	_, stderr = deployPackagesFlag(t, bundlePath, "podinfo,nginx,peanuts")
+	_, stderr = deployPackagesFlag(bundlePath, "podinfo,nginx,peanuts")
 	require.Contains(t, stderr, "invalid zarf packages specified by --packages")
 }
 
