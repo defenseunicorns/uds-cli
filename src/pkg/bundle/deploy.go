@@ -84,20 +84,19 @@ func (b *Bundler) Deploy() error {
 	var packagesToDeploy []types.BundleZarfPackage
 
 	if len(b.cfg.DeployOpts.Packages) != 0 {
-		packages := strings.Split(b.cfg.DeployOpts.Packages[0], ",")
+		userSpecifiedPackages := strings.Split(b.cfg.DeployOpts.Packages[0], ",")
 
 		for _, pkg := range b.bundle.ZarfPackages {
-			if slices.Contains(packages, pkg.Name) {
+			if slices.Contains(userSpecifiedPackages, pkg.Name) {
 				packagesToDeploy = append(packagesToDeploy, pkg)
 			}
 		}
 	
 		// Check if invalid packages were specified
-		if len(packages) != len(packagesToDeploy) {
+		if len(userSpecifiedPackages) != len(packagesToDeploy) {
 			return fmt.Errorf("invalid zarf packages specified by --packages")
-		} else {
-			return deployPackages(packagesToDeploy, b)
-		}
+		} 
+		return deployPackages(packagesToDeploy, b)
 	} else {
 		return deployPackages(b.bundle.ZarfPackages, b)
 	}
