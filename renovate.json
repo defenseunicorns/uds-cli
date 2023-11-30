@@ -12,7 +12,6 @@
   "dependencyDashboard": true,
   "platform": "github",
   "onboarding": false,
-  "requireConfig": false,
   "dependencyDashboardTitle": "Renovate Dashboard 🤖",
   "rebaseWhen": "conflicted",
   "commitBodyTable": true,
@@ -23,13 +22,12 @@
   "regexManagers": [
     {
       "fileMatch": [
-        "(^|/)uds-bundle.yaml$",
-        "(^|/)action.yaml$"
+        "uds-bundle.yaml",
+        "action.yaml"
       ],
-      "matchStringsStrategy": "recursive",
+      "ignorePaths": [],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)( versioning=(?<versioning>.*?))?( registryUrl=(?<registryUrl>.*?))?\\s.*?version: (?<currentValue>.*)\\s",
-        "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)( versioning=(?<versioning>.*?))?( registryUrl=(?<registryUrl>.*?))?\\s.*?ref: (?<currentValue>.*)\\s"
+        "# renovate: datasource=(?<datasource>.*) depName=(?<depName>.*)(versioning=(?<versioning>.*))?(registryUrl=(?<registryUrl>.*))?\\n\\s*(version|ref): (?<currentValue>.*)"
       ],
       "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
     }
