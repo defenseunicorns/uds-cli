@@ -14,8 +14,8 @@ zarf-packages:
     optional-components:
       - git-server
   - name: init
-    # renovate: datasource=github-tags depName=defenseunicorns/zarf
     repository: ghcr.io/defenseunicorns/packages/init
+    # renovate: datasource=github-tags depName=defenseunicorns/zarf
     ref: v0.31.2
     optional-components:
       - git-server
