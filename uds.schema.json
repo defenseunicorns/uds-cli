@@ -19,14 +19,6 @@
           },
           "type": "array",
           "description": "List of Helm chart variables to set via UDS variables"
-        },
-        "value-files": {
-          "items": {
-            "$schema": "http://json-schema.org/draft-04/schema#",
-            "$ref": "#/definitions/BundleChartValueFile"
-          },
-          "type": "array",
-          "description": "List of Helm chart value files to set statically"
         }
       },
       "additionalProperties": false,
@@ -43,22 +35,6 @@
         },
         "value": {
           "additionalProperties": true
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "BundleChartValueFile": {
-      "required": [
-        "path",
-        "file"
-      ],
-      "properties": {
-        "path": {
-          "type": "string"
-        },
-        "file": {
-          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -169,8 +145,18 @@
           "description": "List of Zarf variables to export from the Zarf package"
         },
         "overrides": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/BundleChartOverrides",
+          "patternProperties": {
+            ".*": {
+              "patternProperties": {
+                ".*": {
+                  "$schema": "http://json-schema.org/draft-04/schema#",
+                  "$ref": "#/definitions/BundleChartOverrides"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "type": "object",
           "description": "List of Helm chart overrides to set"
         }
       },

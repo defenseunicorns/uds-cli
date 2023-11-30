@@ -320,6 +320,8 @@ func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 	secretValue, _, err := e2e.UDS(cmd...)
 	require.Equal(t, fmt.Sprintf("\"%s\"", b64Secret), secretValue)
 	require.NoError(t, err)
+
+	remove(t, bundlePath)
 }
 
 func create(t *testing.T, bundlePath string) {

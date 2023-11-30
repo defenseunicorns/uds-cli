@@ -10,22 +10,19 @@ zarf-packages:
     ref: 0.0.1
 
     overrides:
-      values:
-        - path: "podinfo-component/unicorn-podinfo/podinfo.replicaCount"
-          value: 2
-
-      variables:
-        - name: UI_COLOR
-          path: "podinfo-component/unicorn-podinfo/podinfo.ui.color"
-          description: "Set the color for podinfo's UI"
-          default: "blue"
-
-        # no default, but set in uds-config.yaml
-        - name: UI_MSG
-          path: "podinfo-component/unicorn-podinfo/podinfo.ui.message"
-          description: "Set the message for podinfo's UI"
-
-          # if no default and not set in uds-config.yaml, use the value in the underlying chart's values.yaml
-        - name: SECRET_VAL
-          path: "podinfo-component/unicorn-podinfo/testSecret"
-          description: "testing a secret value"
+      podinfo-component:
+        unicorn-podinfo:
+          values:
+            - path: "podinfo.replicaCount"
+              value: 2
+          variables:
+            - name: UI_COLOR
+              path: "podinfo.ui.color"
+              description: "Set the color for podinfo's UI"
+              default: "blue"
+            - name: UI_MSG
+              path: "podinfo.ui.message"
+              description: "Set the message for podinfo's UI"
+            - name: SECRET_VAL
+              path: "testSecret"
+              description: "testing a secret value"

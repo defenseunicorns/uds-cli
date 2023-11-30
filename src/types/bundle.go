@@ -14,15 +14,15 @@ type UDSBundle struct {
 
 // BundleZarfPackage represents a Zarf package in a UDS bundle
 type BundleZarfPackage struct {
-	Name               string                 `json:"name" jsonschema:"name=Name of the Zarf package"`
-	Repository         string                 `json:"repository,omitempty" jsonschema:"description=The repository to import the package from"`
-	Path               string                 `json:"path,omitempty" jsonschema:"description=The local path to import the package from"`
-	Ref                string                 `json:"ref" jsonschema:"description=Ref (tag) of the Zarf package"`
-	OptionalComponents []string               `json:"optional-components,omitempty" jsonschema:"description=List of optional components to include from the package (required components are always included)"`
-	PublicKey          string                 `json:"public-key,omitempty" jsonschema:"description=The public key to use to verify the package"`
-	Imports            []BundleVariableImport `json:"imports,omitempty" jsonschema:"description=List of Zarf variables to import from another Zarf package"`
-	Exports            []BundleVariableExport `json:"exports,omitempty" jsonschema:"description=List of Zarf variables to export from the Zarf package"`
-	Overrides          BundleChartOverrides   `json:"overrides,omitempty" jsonschema:"description=List of Helm chart overrides to set"`
+	Name               string                                     `json:"name" jsonschema:"name=Name of the Zarf package"`
+	Repository         string                                     `json:"repository,omitempty" jsonschema:"description=The repository to import the package from"`
+	Path               string                                     `json:"path,omitempty" jsonschema:"description=The local path to import the package from"`
+	Ref                string                                     `json:"ref" jsonschema:"description=Ref (tag) of the Zarf package"`
+	OptionalComponents []string                                   `json:"optional-components,omitempty" jsonschema:"description=List of optional components to include from the package (required components are always included)"`
+	PublicKey          string                                     `json:"public-key,omitempty" jsonschema:"description=The public key to use to verify the package"`
+	Imports            []BundleVariableImport                     `json:"imports,omitempty" jsonschema:"description=List of Zarf variables to import from another Zarf package"`
+	Exports            []BundleVariableExport                     `json:"exports,omitempty" jsonschema:"description=List of Zarf variables to export from the Zarf package"`
+	Overrides          map[string]map[string]BundleChartOverrides `json:"overrides,omitempty" jsonschema:"description=List of Helm chart overrides to set"`
 }
 
 // BundleChartOverrides represents a Helm chart override to set via UDS variables
@@ -31,7 +31,7 @@ type BundleChartOverrides struct {
 	Variables []BundleChartVariable `json:"variables,omitempty" jsonschema:"description=List of Helm chart variables to set via UDS variables"`
 
 	// EXPERIMENTAL, not yet implemented
-	ValueFiles []BundleChartValueFile `json:"value-files,omitempty" jsonschema:"description=List of Helm chart value files to set statically"`
+	//ValueFiles []BundleChartValueFile `json:"value-files,omitempty" jsonschema:"description=List of Helm chart value files to set statically"`
 }
 
 // BundleChartValue represents a Helm chart value to path mapping to set via UDS variables

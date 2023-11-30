@@ -233,42 +233,17 @@ func (b *Bundler) loadChartOverrides(pkg types.BundleZarfPackage) (ZarfOverrideM
 	// Create a nested map to hold the values
 	overrideMap := make(map[string]map[string]*values.Options)
 
-	// Loop through each path in Overrides.Values
-	for _, override := range pkg.Overrides.Values {
-		// Add the override to the map, or return an error if the path is invalid
-		if err := addOverrideValue(overrideMap, override.Path, override.Value); err != nil {
-			return nil, err
-		}
-	}
-
-	// Loop through each path in Overrides.Variables
-	for _, override := range pkg.Overrides.Variables {
-		var overrideVal interface{}
-
-		// check for override in env vars
-		if envVarOverride, exists := os.LookupEnv(strings.ToUpper(config.EnvVarPrefix + override.Name)); exists {
-			if err := addOverrideValue(overrideMap, override.Path, envVarOverride); err != nil {
+	// Loop through each package component's charts and process overrides
+	for componentName, component := range pkg.Overrides {
+		for chartName, chart := range component {
+			err := b.processOverrideValues(&overrideMap, &chart.Values, componentName, chartName)
+			if err != nil {
 				return nil, err
 			}
-			continue
-		}
-
-		// check for override in config
-		configFileOverride, existsInConfig := b.cfg.DeployOpts.ZarfPackageVariables[pkg.Name].Set[strings.ToLower(override.Name)]
-		if override.Default == nil && !existsInConfig {
-			// no default or config value, use values from underlying chart
-			continue
-		} else if existsInConfig {
-			// if the config value is set, use it
-			overrideVal = configFileOverride
-		} else {
-			// use default value if no config value is set
-			overrideVal = override.Default
-		}
-
-		// Add the override to the map, or return an error if the path is invalid
-		if err := addOverrideValue(overrideMap, override.Path, overrideVal); err != nil {
-			return nil, err
+			err = b.processOverrideVariables(&overrideMap, pkg.Name, &chart.Variables, componentName, chartName)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -298,20 +273,52 @@ func (b *Bundler) loadChartOverrides(pkg types.BundleZarfPackage) (ZarfOverrideM
 	return processed, nil
 }
 
-// addOverrideValue adds a value to a ZarfOverrideMap
-func addOverrideValue(overrides map[string]map[string]*values.Options, path string, value interface{}) error {
-	// Split the path string into <component-name>/<chart-name>/<value>
-	// e.g. "nginx-ingress/nginx-ingress-controller/controller.service.type"
-	// becomes ["nginx-ingress", "nginx-ingress-controller", "controller.service.type"]
-	segments := strings.Split(path, "/")
-	if len(segments) != 3 {
-		// If the path is not in the correct format, return an error
-		return fmt.Errorf("invalid helm path format: %s", path)
+// processOverrideValues processes a bundles values overrides and adds them to the override map
+func (b *Bundler) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values *[]types.BundleChartValue, componentName string, chartName string) error {
+	for _, v := range *values {
+		// Add the override to the map, or return an error if the path is invalid
+		if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, v.Value); err != nil {
+			return err
+		}
 	}
+	return nil
+}
 
-	// Human-readable names for the segments of the path
-	component, chart, valuePath := segments[0], segments[1], segments[2]
+// processOverrideVariables processes a bundles variables overrides and adds them to the override map
+func (b *Bundler) processOverrideVariables(overrideMap *map[string]map[string]*values.Options, pkgName string, variables *[]types.BundleChartVariable, componentName string, chartName string) error {
+	for _, v := range *variables {
+		var overrideVal interface{}
+		// check for override in env vars
+		if envVarOverride, exists := os.LookupEnv(strings.ToUpper(config.EnvVarPrefix + v.Name)); exists {
+			if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, envVarOverride); err != nil {
+				return err
+			}
+			continue
+		}
+		// check for override in config
+		configFileOverride, existsInConfig := b.cfg.DeployOpts.ZarfPackageVariables[pkgName].Set[strings.ToLower(v.Name)]
+		if v.Default == nil && !existsInConfig {
+			// no default or config v, use values from underlying chart
+			continue
+		} else if existsInConfig {
+			// if the config v is set, use it
+			overrideVal = configFileOverride
+		} else {
+			// use default v if no config v is set
+			overrideVal = v.Default
+		}
 
+		// Add the override to the map, or return an error if the path is invalid
+		if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, overrideVal); err != nil {
+			return err
+		}
+
+	}
+	return nil
+}
+
+// addOverrideValue adds a value to a ZarfOverrideMap
+func addOverrideValue(overrides map[string]map[string]*values.Options, component string, chart string, valuePath string, value interface{}) error {
 	// Create the component map if it doesn't exist
 	if _, ok := overrides[component]; !ok {
 		overrides[component] = make(map[string]*values.Options)
