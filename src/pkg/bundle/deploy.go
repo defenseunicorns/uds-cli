@@ -15,6 +15,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/pterm/pterm"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"helm.sh/helm/v3/pkg/cli/values"
 	"helm.sh/helm/v3/pkg/getter"
 
@@ -79,11 +80,34 @@ func (b *Bundler) Deploy() error {
 		return fmt.Errorf("bundle deployment cancelled")
 	}
 
+	// Check if --packages flag is set and zarf packages have been specified
+	var packagesToDeploy []types.BundleZarfPackage
+
+	if len(b.cfg.DeployOpts.Packages) != 0 {
+		userSpecifiedPackages := strings.Split(b.cfg.DeployOpts.Packages[0], ",")
+
+		for _, pkg := range b.bundle.ZarfPackages {
+			if slices.Contains(userSpecifiedPackages, pkg.Name) {
+				packagesToDeploy = append(packagesToDeploy, pkg)
+			}
+		}
+	
+		// Check if invalid packages were specified
+		if len(userSpecifiedPackages) != len(packagesToDeploy) {
+			return fmt.Errorf("invalid zarf packages specified by --packages")
+		} 
+		return deployPackages(packagesToDeploy, b)
+	}
+	
+	return deployPackages(b.bundle.ZarfPackages, b)
+}
+
+func deployPackages(packagesToDeploy []types.BundleZarfPackage, b *Bundler) error {
 	// map of Zarf pkgs and their vars
 	bundleExportedVars := make(map[string]map[string]string)
 
 	// deploy each package
-	for _, pkg := range b.bundle.ZarfPackages {
+	for _, pkg := range packagesToDeploy {
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 		pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {

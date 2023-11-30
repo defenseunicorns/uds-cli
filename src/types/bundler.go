@@ -26,6 +26,7 @@ type BundlerCreateOptions struct {
 // BundlerDeployOptions is the options for the bundler.Deploy() function
 type BundlerDeployOptions struct {
 	Source               string
+	Packages			 []string
 	PublicKeyPath        string
 	ZarfPackageVariables map[string]SetVariables
 }

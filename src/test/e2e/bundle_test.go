@@ -162,6 +162,54 @@ func TestBundle(t *testing.T) {
 	remove(t, bundlePath)
 }
 
+func TestPackagesDeployFlag(t *testing.T) {
+	deployZarfInit(t)
+
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx")
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
+
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+	e2e.SetupDockerRegistry(t, 889)
+	defer e2e.TeardownRegistry(t, 889)
+
+	pkg := fmt.Sprintf("src/test/packages/nginx/zarf-package-nginx-%s-0.0.1.tar.zst", e2e.Arch)
+	zarfPublish(t, pkg, "localhost:888")
+
+	pkg = fmt.Sprintf("src/test/packages/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
+	zarfPublish(t, pkg, "localhost:889")
+
+	bundleDir := "src/test/bundles/01-uds-bundle"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-example-%s-0.0.1.tar.zst", e2e.Arch))
+
+	create(t, bundleDir)
+	inspect(t, bundlePath)
+	inspectAndSBOMExtract(t, bundlePath)
+
+	// Test only podinfo
+	deployPackagesFlag(bundlePath, "podinfo")
+	cmd := strings.Split("tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
+	namespaces, _, _ := e2e.UDS(cmd...)
+	require.Contains(t, namespaces, "podinfo")
+	require.NotContains(t, namespaces, "nginx")
+
+	_, stderr := removeWithError(bundlePath)
+	require.Contains(t, stderr, "Failed to remove bundle:")
+
+	// Test both podinfo and nginx
+	deployPackagesFlag(bundlePath, "podinfo,nginx")
+	cmd = strings.Split("tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
+	deployments, _, _ := e2e.UDS(cmd...)
+	require.Contains(t, deployments, "podinfo")
+	require.Contains(t, deployments, "nginx")
+
+	remove(t, bundlePath)
+
+	// Test invalid package
+	_, stderr = deployPackagesFlag(bundlePath, "podinfo,nginx,peanuts")
+	require.Contains(t, stderr, "invalid zarf packages specified by --packages")
+}
+
 func TestRemoteBundle(t *testing.T) {
 	deployZarfInit(t)
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
@@ -342,6 +390,18 @@ func deployFromOCI(t *testing.T, ref string) (stdout string, stderr string) {
 	cmd := strings.Split(fmt.Sprintf("deploy oci://%s --insecure --confirm", ref), " ")
 	stdout, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
+	return stdout, stderr
+}
+
+func deployPackagesFlag(tarballPath string, packages string) (stdout string, stderr string) {
+	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --packages %s", tarballPath, packages), " ")
+	stdout, stderr, _ = e2e.UDS(cmd...)
+	return stdout, stderr
+}
+
+func removeWithError(tarballPath string) (stdout string, stderr string) {
+	cmd := strings.Split(fmt.Sprintf("remove %s --confirm --insecure", tarballPath), " ")
+	stdout, stderr, _ = e2e.UDS(cmd...)
 	return stdout, stderr
 }
 
