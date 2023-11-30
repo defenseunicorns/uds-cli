@@ -26,7 +26,7 @@ type BundlerCreateOptions struct {
 // BundlerDeployOptions is the options for the bundler.Deploy() function
 type BundlerDeployOptions struct {
 	Source               string
-	Packages			 []string
+	Packages             []string
 	PublicKeyPath        string
 	ZarfPackageVariables map[string]SetVariables
 }
@@ -59,7 +59,8 @@ type BundlerPullOptions struct {
 
 // BundlerRemoveOptions is the options for the bundler.Remove() function
 type BundlerRemoveOptions struct {
-	Source string
+	Source   string
+	Packages []string
 }
 
 // BundlerCommonOptions tracks the user-defined preferences used across commands.

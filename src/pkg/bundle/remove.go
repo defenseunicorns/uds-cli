@@ -6,14 +6,17 @@ package bundle
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/types"
+	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	"golang.org/x/exp/slices"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
+	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
 // Remove removes packages deployed from a bundle
@@ -36,17 +39,34 @@ func (b *Bundler) Remove() error {
 		return err
 	}
 
-	// remove in reverse order
-	for i := len(b.bundle.ZarfPackages) - 1; i >= 0; i-- {
-		pkg := b.bundle.ZarfPackages[i]
-		if err != nil {
-			return err
+	// Check if --packages flag is set and zarf packages have been specified
+	var packagesToRemove []types.BundleZarfPackage
+
+	if len(b.cfg.RemoveOpts.Packages) != 0 {
+		userSpecifiedPackages := strings.Split(b.cfg.RemoveOpts.Packages[0], ",")
+		for _, pkg := range b.bundle.ZarfPackages {
+			if slices.Contains(userSpecifiedPackages, pkg.Name) {
+				packagesToRemove = append(packagesToRemove, pkg)
+			}
 		}
 
-		opts := types.ZarfPackageOptions{
+		// Check if invalid packages were specified
+		if len(userSpecifiedPackages) != len(packagesToRemove) {
+			return fmt.Errorf("invalid zarf packages specified by --packages")
+		}
+		return removePackages(packagesToRemove, b)
+	} 
+	return removePackages(b.bundle.ZarfPackages, b)
+}
+
+func removePackages(packagesToRemove []types.BundleZarfPackage, b *Bundler) error {
+	for i := len(packagesToRemove) - 1; i >= 0; i-- {
+		pkg := packagesToRemove[i]
+
+		opts := zarfTypes.ZarfPackageOptions{
 			PackageSource: b.cfg.RemoveOpts.Source,
 		}
-		pkgCfg := types.PackagerConfig{
+		pkgCfg := zarfTypes.PackagerConfig{
 			PkgOpts: opts,
 		}
 		pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)

@@ -41,6 +41,7 @@ const (
 	// bundle remove
 	CmdBundleRemoveShort       = "Remove a bundle that has been deployed already"
 	CmdBundleRemoveFlagConfirm = "REQUIRED. Confirm the removal action to prevent accidental deletions"
+	CmdBundleRemoveFlagPackages = "Specify which zarf packages you would like to remove from the bundle. By default all zarf packages in the bundle are removed."
 
 	// bundle publish
 	CmdPublishShort = "Publish a bundle from the local file system to a remote registry"
