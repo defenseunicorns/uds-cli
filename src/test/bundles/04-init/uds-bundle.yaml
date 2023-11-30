@@ -10,12 +10,12 @@ zarf-packages:
   - name: init
     path: "../../packages"
     # renovate: datasource=github-tags depName=defenseunicorns/zarf
-    ref: v0.31.2
+    ref: v0.31.3
     optional-components:
       - git-server
   - name: init
     repository: ghcr.io/defenseunicorns/packages/init
     # renovate: datasource=github-tags depName=defenseunicorns/zarf
-    ref: v0.31.2
+    ref: v0.31.3
     optional-components:
       - git-server
