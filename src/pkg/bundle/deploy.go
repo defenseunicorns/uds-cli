@@ -97,9 +97,9 @@ func (b *Bundler) Deploy() error {
 			return fmt.Errorf("invalid zarf packages specified by --packages")
 		} 
 		return deployPackages(packagesToDeploy, b)
-	} else {
-		return deployPackages(b.bundle.ZarfPackages, b)
 	}
+	
+	return deployPackages(b.bundle.ZarfPackages, b)
 }
 
 func deployPackages(packagesToDeploy []types.BundleZarfPackage, b *Bundler) error {
