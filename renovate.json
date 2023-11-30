@@ -19,6 +19,12 @@
   "postUpdateOptions": [
     "gomodTidy"
   ],
+  "packageRules": [
+    {
+      "matchPackageNames": ["defenseunicorns/zarf", "github.com/defenseunicorns/zarf"],
+      "groupName": "zarf"
+    }
+  ],
   "regexManagers": [
     {
       "fileMatch": [
