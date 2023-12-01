@@ -162,7 +162,7 @@ func TestBundle(t *testing.T) {
 	remove(t, bundlePath)
 }
 
-func TestPackagesDeployFlag(t *testing.T) {
+func TestPackagesFlag(t *testing.T) {
 	deployZarfInit(t)
 
 	e2e.CreateZarfPkg(t, "src/test/packages/nginx")
@@ -186,27 +186,40 @@ func TestPackagesDeployFlag(t *testing.T) {
 	inspect(t, bundlePath)
 	inspectAndSBOMExtract(t, bundlePath)
 
-	// Test only podinfo
+	// Test only podinfo deploy
 	deployPackagesFlag(bundlePath, "podinfo")
 	cmd := strings.Split("tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
-	namespaces, _, _ := e2e.UDS(cmd...)
-	require.Contains(t, namespaces, "podinfo")
-	require.NotContains(t, namespaces, "nginx")
+	deployments, _, _ := e2e.UDS(cmd...)
+	require.Contains(t, deployments, "podinfo")
+	require.NotContains(t, deployments, "nginx")
 
 	_, stderr := removeWithError(bundlePath)
 	require.Contains(t, stderr, "Failed to remove bundle:")
 
-	// Test both podinfo and nginx
+	// Test both podinfo and nginx deploy
 	deployPackagesFlag(bundlePath, "podinfo,nginx")
-	cmd = strings.Split("tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
-	deployments, _, _ := e2e.UDS(cmd...)
+	deployments, _, _ = e2e.UDS(cmd...)
 	require.Contains(t, deployments, "podinfo")
 	require.Contains(t, deployments, "nginx")
 
-	remove(t, bundlePath)
+	// Remove only podinfo
+	removePackagesFlag(bundlePath, "podinfo")
+	deployments, _, _ = e2e.UDS(cmd...)
+	require.NotContains(t, deployments, "podinfo")
+	require.Contains(t, deployments, "nginx")
 
-	// Test invalid package
+	// Remove nginx
+	removePackagesFlag(bundlePath, "nginx")
+	deployments, _, _ = e2e.UDS(cmd...)
+	require.NotContains(t, deployments, "podinfo")
+	require.NotContains(t, deployments, "nginx")
+
+	// Test invalid package deploy
 	_, stderr = deployPackagesFlag(bundlePath, "podinfo,nginx,peanuts")
+	require.Contains(t, stderr, "invalid zarf packages specified by --packages")
+
+	// Test invalid package remove
+	_, stderr = removePackagesFlag(bundlePath, "podinfo,nginx,peanuts")
 	require.Contains(t, stderr, "invalid zarf packages specified by --packages")
 }
 
@@ -411,6 +424,12 @@ func remove(t *testing.T, tarballPath string) {
 	cmd := strings.Split(fmt.Sprintf("remove %s --confirm --insecure", tarballPath), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
+}
+
+func removePackagesFlag(tarballPath string, packages string) (stdout string, stderr string){
+	cmd := strings.Split(fmt.Sprintf("remove %s --confirm --insecure --packages %s", tarballPath, packages), " ")
+	stdout, stderr, _ = e2e.UDS(cmd...)
+	return stdout, stderr
 }
 
 func deployAndRemoveRemote(t *testing.T, ref string, tarballPath string) {

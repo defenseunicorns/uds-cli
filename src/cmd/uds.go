@@ -232,6 +232,7 @@ func init() {
 	// confirm does not use the Viper config
 	removeCmd.Flags().BoolVarP(&config.CommonOptions.Confirm, "confirm", "c", false, lang.CmdBundleRemoveFlagConfirm)
 	_ = removeCmd.MarkFlagRequired("confirm")
+	removeCmd.Flags().StringArrayVarP(&bundleCfg.RemoveOpts.Packages, "packages", "p", []string{}, lang.CmdBundleRemoveFlagPackages)
 
 	// publish cmd flags
 	rootCmd.AddCommand(publishCmd)
