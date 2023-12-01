@@ -91,14 +91,14 @@ func (b *Bundler) Deploy() error {
 				packagesToDeploy = append(packagesToDeploy, pkg)
 			}
 		}
-	
+
 		// Check if invalid packages were specified
 		if len(userSpecifiedPackages) != len(packagesToDeploy) {
 			return fmt.Errorf("invalid zarf packages specified by --packages")
-		} 
+		}
 		return deployPackages(packagesToDeploy, b)
 	}
-	
+
 	return deployPackages(b.bundle.ZarfPackages, b)
 }
 
@@ -141,6 +141,7 @@ func deployPackages(packagesToDeploy []types.BundleZarfPackage, b *Bundler) erro
 
 		zarfDeployOpts := zarfTypes.ZarfDeployOptions{
 			ValuesOverridesMap: valuesOverrides,
+			Timeout:            config.HelmTimeout,
 		}
 
 		pkgCfg := zarfTypes.PackagerConfig{
