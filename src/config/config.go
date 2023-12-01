@@ -6,6 +6,7 @@ package config
 
 import (
 	"runtime"
+	"time"
 
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
@@ -72,6 +73,9 @@ var (
 
 	// SetRunnerVariables is a map of the run time variables defined using --set
 	SetRunnerVariables map[string]string
+
+	// HelmTimeout is the default timeout for helm deploys
+	HelmTimeout = 15 * time.Minute
 )
 
 // GetArch returns the arch based on a priority list with options for overriding.
