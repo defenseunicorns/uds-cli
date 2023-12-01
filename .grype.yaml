@@ -4,4 +4,3 @@ ignore:
 
   # This vulnerability does not affect UDS as we do not instantiate a rekor client
   - vulnerability: GHSA-frqx-jfcm-6jjr
-

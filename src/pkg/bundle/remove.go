@@ -55,7 +55,7 @@ func (b *Bundler) Remove() error {
 			return fmt.Errorf("invalid zarf packages specified by --packages")
 		}
 		return removePackages(packagesToRemove, b)
-	} 
+	}
 	return removePackages(b.bundle.ZarfPackages, b)
 }
 

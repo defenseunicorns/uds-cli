@@ -8,10 +8,9 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
-
-	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
 const (

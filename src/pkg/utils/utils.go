@@ -15,13 +15,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	av4 "github.com/mholt/archiver/v4"
 	"github.com/pterm/pterm"
-
-	"github.com/defenseunicorns/uds-cli/src/config"
 )
 
 // MergeVariables merges the variables from the config file and the CLI

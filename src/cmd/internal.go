@@ -9,11 +9,10 @@ import (
 	"fmt"
 
 	"github.com/alecthomas/jsonschema"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/spf13/cobra"
-
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
+	"github.com/spf13/cobra"
 )
 
 var internalCmd = &cobra.Command{
