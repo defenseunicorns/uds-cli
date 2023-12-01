@@ -6,10 +6,11 @@ package utils
 
 import (
 	"context"
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/mholt/archiver/v4"
 	"os"
 	"path/filepath"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/mholt/archiver/v4"
 )
 
 // CreateSBOMArtifact creates sbom artifacts in the form of a tar archive

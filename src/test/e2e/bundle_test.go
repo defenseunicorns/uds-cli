@@ -426,7 +426,7 @@ func remove(t *testing.T, tarballPath string) {
 	require.NoError(t, err)
 }
 
-func removePackagesFlag(tarballPath string, packages string) (stdout string, stderr string){
+func removePackagesFlag(tarballPath string, packages string) (stdout string, stderr string) {
 	cmd := strings.Split(fmt.Sprintf("remove %s --confirm --insecure --packages %s", tarballPath, packages), " ")
 	stdout, stderr, _ = e2e.UDS(cmd...)
 	return stdout, stderr
