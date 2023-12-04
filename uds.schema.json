@@ -157,7 +157,7 @@
             }
           },
           "type": "object",
-          "description": "List of Helm chart overrides to set"
+          "description": "Map of Helm chart overrides to set. The format is \u003ccomponent\u003e:"
         }
       },
       "additionalProperties": false,
