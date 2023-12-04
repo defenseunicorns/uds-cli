@@ -193,8 +193,7 @@ func TestPackagesFlag(t *testing.T) {
 	require.Contains(t, deployments, "podinfo")
 	require.NotContains(t, deployments, "nginx")
 
-	_, stderr := removeWithError(bundlePath)
-	require.Contains(t, stderr, "Failed to remove bundle:")
+	remove(t, bundlePath)
 
 	// Test both podinfo and nginx deploy
 	deployPackagesFlag(bundlePath, "podinfo,nginx")
@@ -215,7 +214,7 @@ func TestPackagesFlag(t *testing.T) {
 	require.NotContains(t, deployments, "nginx")
 
 	// Test invalid package deploy
-	_, stderr = deployPackagesFlag(bundlePath, "podinfo,nginx,peanuts")
+	_, stderr := deployPackagesFlag(bundlePath, "podinfo,nginx,peanuts")
 	require.Contains(t, stderr, "invalid zarf packages specified by --packages")
 
 	// Test invalid package remove
@@ -410,12 +409,6 @@ func deployFromOCI(t *testing.T, ref string) (stdout string, stderr string) {
 
 func deployPackagesFlag(tarballPath string, packages string) (stdout string, stderr string) {
 	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --packages %s", tarballPath, packages), " ")
-	stdout, stderr, _ = e2e.UDS(cmd...)
-	return stdout, stderr
-}
-
-func removeWithError(tarballPath string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("remove %s --confirm --insecure", tarballPath), " ")
 	stdout, stderr, _ = e2e.UDS(cmd...)
 	return stdout, stderr
 }

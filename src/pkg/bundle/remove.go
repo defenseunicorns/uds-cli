@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
@@ -18,6 +19,9 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/types"
 )
+
+// Error string that gets thrown when attempting to remove a package that is not deployed
+var removeError = "unable to load the secret for the package we are attempting to remove:"
 
 // Remove removes packages deployed from a bundle
 func (b *Bundler) Remove() error {
@@ -87,7 +91,12 @@ func removePackages(packagesToRemove []types.BundleZarfPackage, b *Bundler) erro
 		defer pkgClient.ClearTempPaths()
 
 		if err := pkgClient.Remove(); err != nil {
-			return err
+			// Check if error is due to attempting to remove package that is not deployed
+			if(strings.Contains(err.Error(), removeError)){
+				message.Warn(err.Error())
+			}else{
+				return err
+			}
 		}
 	}
 
