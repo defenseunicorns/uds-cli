@@ -283,6 +283,21 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 	require.Equal(t, "'2'", outputNumReplicas)
 	require.NoError(t, err)
 
+	// check object-type override
+	cmd = strings.Split("tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.metadata.annotations}'", " ")
+	annotations, _, err := e2e.UDS(cmd...)
+	require.Contains(t, annotations, "\"customAnnotation\":\"customValue\"")
+	require.NoError(t, err)
+
+	// check list-type override
+	cmd = strings.Split("tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.tolerations}'", " ")
+	tolerations, _, err := e2e.UDS(cmd...)
+	require.Contains(t, tolerations, "\"key\":\"uds\"")
+	require.Contains(t, tolerations, "\"value\":\"defense\"")
+	require.Contains(t, tolerations, "\"key\":\"unicorn\"")
+	require.Contains(t, tolerations, "\"effect\":\"NoSchedule\"")
+	require.NoError(t, err)
+
 	// check variables overrides
 	cmd = strings.Split("tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
 	outputUIColor, _, err := e2e.UDS(cmd...)

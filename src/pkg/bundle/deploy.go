@@ -6,6 +6,7 @@ package bundle
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -329,7 +330,33 @@ func addOverrideValue(overrides map[string]map[string]*values.Options, component
 	}
 
 	// Add the value to the chart map
-	helmVal := fmt.Sprintf("%s=%v", valuePath, value)
-	overrides[component][chart].Values = append(overrides[component][chart].Values, helmVal)
+	switch v := value.(type) {
+	case []interface{}:
+		// handle list of objects by parsing them as json and appending to Options.JSONValues
+		jsonStrs := make([]string, len(v))
+		// concat json strings representing items in the list
+		for i, val := range v {
+			j, err := json.Marshal(val)
+			if err != nil {
+				return err
+			}
+			jsonStrs[i] = fmt.Sprintf("%s", j)
+		}
+		// construct JSONValues string
+		jsonVals := fmt.Sprintf("%s=[%s]", valuePath, strings.Join(jsonStrs, ","))
+		overrides[component][chart].JSONValues = append(overrides[component][chart].JSONValues, jsonVals)
+	case map[string]interface{}:
+		// handle objects by parsing them as json and appending to Options.JSONValues
+		j, err := json.Marshal(v)
+		if err != nil {
+			return err
+		}
+		val := fmt.Sprintf("%s=%s", valuePath, j)
+		overrides[component][chart].JSONValues = append(overrides[component][chart].JSONValues, val)
+	default:
+		// handle default case of simple values like strings and numbers
+		helmVal := fmt.Sprintf("%s=%v", valuePath, value)
+		overrides[component][chart].Values = append(overrides[component][chart].Values, helmVal)
+	}
 	return nil
 }
