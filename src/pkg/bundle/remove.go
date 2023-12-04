@@ -47,7 +47,7 @@ func (b *Bundler) Remove() error {
 	var packagesToRemove []types.BundleZarfPackage
 
 	if len(b.cfg.RemoveOpts.Packages) != 0 {
-		userSpecifiedPackages := strings.Split(b.cfg.RemoveOpts.Packages[0], ",")
+		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.RemoveOpts.Packages[0]," ",""), ",")
 		for _, pkg := range b.bundle.ZarfPackages {
 			if slices.Contains(userSpecifiedPackages, pkg.Name) {
 				packagesToRemove = append(packagesToRemove, pkg)

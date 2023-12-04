@@ -82,7 +82,7 @@ func (b *Bundler) Deploy() error {
 	var packagesToDeploy []types.BundleZarfPackage
 
 	if len(b.cfg.DeployOpts.Packages) != 0 {
-		userSpecifiedPackages := strings.Split(b.cfg.DeployOpts.Packages[0], ",")
+		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.DeployOpts.Packages[0], " ",""), ",")
 
 		for _, pkg := range b.bundle.ZarfPackages {
 			if slices.Contains(userSpecifiedPackages, pkg.Name) {
