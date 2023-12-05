@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/defenseunicorns/zarf/src/pkg/cluster"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
@@ -43,7 +45,7 @@ func (b *Bundler) Remove() error {
 	var packagesToRemove []types.BundleZarfPackage
 
 	if len(b.cfg.RemoveOpts.Packages) != 0 {
-		userSpecifiedPackages := strings.Split(b.cfg.RemoveOpts.Packages[0], ",")
+		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.RemoveOpts.Packages[0]," ",""), ",")
 		for _, pkg := range b.bundle.ZarfPackages {
 			if slices.Contains(userSpecifiedPackages, pkg.Name) {
 				packagesToRemove = append(packagesToRemove, pkg)
@@ -60,36 +62,58 @@ func (b *Bundler) Remove() error {
 }
 
 func removePackages(packagesToRemove []types.BundleZarfPackage, b *Bundler) error {
+
+	// Get deployed packages
+	cluster := cluster.NewClusterOrDie()
+	deployedPackages, err := cluster.GetDeployedZarfPackages()
+	if err != nil {
+		return nil
+	}
+	deployedPackageNames := getDeployedPackageNames(deployedPackages)
+
 	for i := len(packagesToRemove) - 1; i >= 0; i-- {
+
 		pkg := packagesToRemove[i]
 
-		opts := zarfTypes.ZarfPackageOptions{
-			PackageSource: b.cfg.RemoveOpts.Source,
-		}
-		pkgCfg := zarfTypes.PackagerConfig{
-			PkgOpts: opts,
-		}
-		pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
-		if err != nil {
-			return err
-		}
+		if(slices.Contains(deployedPackageNames, pkg.Name)) {
+			opts := zarfTypes.ZarfPackageOptions{
+				PackageSource: b.cfg.RemoveOpts.Source,
+			}
+			pkgCfg := zarfTypes.PackagerConfig{
+				PkgOpts: opts,
+			}
+			pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
+			if err != nil {
+				return err
+			}
 
-		sha := strings.Split(pkg.Ref, "sha256:")[1]
-		source, err := sources.New(b.cfg.RemoveOpts.Source, pkg.Name, opts, sha)
-		if err != nil {
-			return err
-		}
+			sha := strings.Split(pkg.Ref, "sha256:")[1]
+			source, err := sources.New(b.cfg.RemoveOpts.Source, pkg.Name, opts, sha)
+			if err != nil {
+				return err
+			}
 
-		pkgClient := packager.NewOrDie(&pkgCfg, packager.WithSource(source), packager.WithTemp(pkgTmp))
-		if err != nil {
-			return err
-		}
-		defer pkgClient.ClearTempPaths()
+			pkgClient := packager.NewOrDie(&pkgCfg, packager.WithSource(source), packager.WithTemp(pkgTmp))
+			if err != nil {
+				return err
+			}
+			defer pkgClient.ClearTempPaths()
 
-		if err := pkgClient.Remove(); err != nil {
-			return err
+			if err := pkgClient.Remove(); err != nil {
+				return err
+			}
+		}else{
+			message.Warnf("Skipping removal of %s. Package not deployed", pkg.Name)
 		}
 	}
 
 	return nil
+}
+
+func getDeployedPackageNames(deployedPackages []zarfTypes.DeployedPackage) []string {
+	var deployedPackageNames []string
+	for _,pkg := range deployedPackages{
+		deployedPackageNames = append(deployedPackageNames, pkg.Name)
+	}
+	return deployedPackageNames
 }
