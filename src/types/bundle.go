@@ -22,7 +22,7 @@ type BundleZarfPackage struct {
 	PublicKey          string                                     `json:"public-key,omitempty" jsonschema:"description=The public key to use to verify the package"`
 	Imports            []BundleVariableImport                     `json:"imports,omitempty" jsonschema:"description=List of Zarf variables to import from another Zarf package"`
 	Exports            []BundleVariableExport                     `json:"exports,omitempty" jsonschema:"description=List of Zarf variables to export from the Zarf package"`
-	Overrides          map[string]map[string]BundleChartOverrides `json:"overrides,omitempty" jsonschema:"description=List of Helm chart overrides to set"`
+	Overrides          map[string]map[string]BundleChartOverrides `json:"overrides,omitempty" jsonschema:"description=Map of Helm chart overrides to set. The format is <component>:, <chart-name>:"`
 }
 
 // BundleChartOverrides represents a Helm chart override to set via UDS variables
@@ -36,7 +36,7 @@ type BundleChartOverrides struct {
 
 // BundleChartValue represents a Helm chart value to path mapping to set via UDS variables
 type BundleChartValue struct {
-	Path  string      `json:"path" jsonschema:"name=Path to the Helm chart value to set. The format is <component>/<chart-name>/<chart-value>, example=my-component/my-cool-chart/controller.service.type"`
+	Path  string      `json:"path" jsonschema:"name=Path to the Helm chart value to set. The format is <chart-value>, example=controller.service.type"`
 	Value interface{} `json:"value" jsonschema:"name=The value to set"`
 }
 
@@ -48,7 +48,7 @@ type BundleChartValueFile struct {
 
 // BundleChartVariable - EXPERIMENTAL - represents a Helm chart variable and its path
 type BundleChartVariable struct {
-	Path        string      `json:"path" jsonschema:"name=Path to the Helm chart value to set. The format is <component>/<chart-name>/<chart-value>, example=my-component/my-cool-chart/controller.service.type"`
+	Path        string      `json:"path" jsonschema:"name=Path to the Helm chart value to set. The format is <chart-value>, example=controller.service.type"`
 	Name        string      `json:"name" jsonschema:"name=Name of the variable to set"`
 	Description string      `json:"description,omitempty" jsonschema:"name=Description of the variable"`
 	Default     interface{} `json:"default,omitempty" jsonschema:"name=The default value to set"`
