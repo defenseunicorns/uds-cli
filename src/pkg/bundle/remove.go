@@ -62,7 +62,7 @@ func (b *Bundler) Remove() error {
 }
 
 func removePackages(packagesToRemove []types.BundleZarfPackage, b *Bundler) error {
-	
+
 	// Get deployed packages
 	cluster := cluster.NewClusterOrDie()
 	deployedPackages, err := cluster.GetDeployedZarfPackages()
@@ -70,11 +70,11 @@ func removePackages(packagesToRemove []types.BundleZarfPackage, b *Bundler) erro
 		return nil
 	}
 	deployedPackageNames := getDeployedPackageNames(deployedPackages)
-	
+
 	for i := len(packagesToRemove) - 1; i >= 0; i-- {
-		
+
 		pkg := packagesToRemove[i]
-		
+
 		if(slices.Contains(deployedPackageNames, pkg.Name)) {
 			opts := zarfTypes.ZarfPackageOptions{
 				PackageSource: b.cfg.RemoveOpts.Source,
@@ -117,5 +117,3 @@ func getDeployedPackageNames(deployedPackages []zarfTypes.DeployedPackage) []str
 	}
 	return deployedPackageNames
 }
-
-
