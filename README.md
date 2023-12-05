@@ -15,6 +15,7 @@
     - [Deploy](#bundle-deploy)
     - [Inspect](#bundle-inspect)
     - [Publish](#bundle-publish)
+    - [Remove](#bundle-remove)
 3. [Variables](#variables)
 4. [Bundle Anatomy](#bundle-anatomy)
 5. [UDS Runner](docs/runner.md)
@@ -70,6 +71,10 @@ There are 2 ways to deploy Bundles:
 1. From an OCI registry: `uds deploy oci://localhost:5000/<name>:<tag> --insecure`
 1. From your local filesystem: `uds deploy uds-bundle-<name>.tar.zst`
 
+By default all the packages in the bundle are deployed, but you can also deploy only certain packages in the bundle by using the `--packages` flag.
+
+As an example: `uds deploy uds-bundle-<name>.tar.zst --packages init,nginx`
+
 ### Bundle Inspect
 Inspect the `uds-bundle.yaml` of a bundle
 1. From an OCI registry: `uds inspect oci://localhost:5000/<name>:<tag> --insecure`
@@ -87,6 +92,17 @@ Local bundles can be published to an OCI registry like so:
 `uds publish <bundle>.tar.zst oci://<registry> `
 
 As an example: `uds publish uds-bundle-example-arm64-0.0.1.tar.zst oci://ghcr.io/github_user`
+
+### Bundle Remove
+Removes the bundle
+
+There are 2 ways to remove Bundles:
+1. From an OCI registry: `uds remove oci://localhost:5000/<name>:<tag> --insecure --confirm`
+1. From your local filesystem: `uds remove uds-bundle-<name>.tar.zst --confirm`
+
+By default all the packages in the bundle are removed, but you can also remove only certain packages in the bundle by using the `--packages` flag.
+
+As an example: `uds remove uds-bundle-<name>.tar.zst --packages init,nginx`
 
 ## Variables
 Zarf package variables can be passed between Zarf packages:
