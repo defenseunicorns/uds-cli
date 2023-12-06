@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -64,12 +63,7 @@ func (b *Bundler) Remove() error {
 func removePackages(packagesToRemove []types.BundleZarfPackage, b *Bundler) error {
 
 	// Get deployed packages
-	cluster := cluster.NewClusterOrDie()
-	deployedPackages, err := cluster.GetDeployedZarfPackages()
-	if err != nil {
-		return nil
-	}
-	deployedPackageNames := getDeployedPackageNames(deployedPackages)
+	deployedPackageNames := GetDeployedPackageNames()
 
 	for i := len(packagesToRemove) - 1; i >= 0; i-- {
 
@@ -108,12 +102,4 @@ func removePackages(packagesToRemove []types.BundleZarfPackage, b *Bundler) erro
 	}
 
 	return nil
-}
-
-func getDeployedPackageNames(deployedPackages []zarfTypes.DeployedPackage) []string {
-	var deployedPackageNames []string
-	for _,pkg := range deployedPackages{
-		deployedPackageNames = append(deployedPackageNames, pkg.Name)
-	}
-	return deployedPackageNames
 }

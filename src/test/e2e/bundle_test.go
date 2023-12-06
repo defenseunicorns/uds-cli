@@ -222,6 +222,58 @@ func TestPackagesFlag(t *testing.T) {
 	require.Contains(t, stderr, "invalid zarf packages specified by --packages")
 }
 
+func TestResumeFlag(t *testing.T) {
+	deployZarfInit(t)
+
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx")
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
+
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+	e2e.SetupDockerRegistry(t, 889)
+	defer e2e.TeardownRegistry(t, 889)
+
+	pkg := fmt.Sprintf("src/test/packages/nginx/zarf-package-nginx-%s-0.0.1.tar.zst", e2e.Arch)
+	zarfPublish(t, pkg, "localhost:888")
+
+	pkg = fmt.Sprintf("src/test/packages/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
+	zarfPublish(t, pkg, "localhost:889")
+
+	bundleDir := "src/test/bundles/01-uds-bundle"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-example-%s-0.0.1.tar.zst", e2e.Arch))
+
+	create(t, bundleDir)
+	inspect(t, bundlePath)
+	inspectAndSBOMExtract(t, bundlePath)
+
+	// Deploy only podinfo from bundle
+	deployPackagesFlag(bundlePath, "podinfo")
+	cmd := strings.Split("tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
+	deployments, _, _ := e2e.UDS(cmd...)
+	require.Contains(t, deployments, "podinfo")
+	require.NotContains(t, deployments, "nginx")
+
+	// Deploy bundle --resume
+	deployResumeFlag(t,bundlePath)
+	cmd = strings.Split("tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
+	deployments, _, _ = e2e.UDS(cmd...)
+	require.Contains(t, deployments, "podinfo")
+	require.Contains(t, deployments, "nginx")
+
+	// Remove only podinfo
+	removePackagesFlag(bundlePath, "podinfo")
+	deployments, _, _ = e2e.UDS(cmd...)
+	require.NotContains(t, deployments, "podinfo")
+	require.Contains(t, deployments, "nginx")
+
+	// Remove bundle
+	remove(t,bundlePath)
+	cmd = strings.Split("tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
+	deployments, _, _ = e2e.UDS(cmd...)
+	require.NotContains(t, deployments, "podinfo")
+	require.NotContains(t, deployments, "nginx")
+}
+
 func TestRemoteBundle(t *testing.T) {
 	deployZarfInit(t)
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
@@ -426,6 +478,12 @@ func deployPackagesFlag(tarballPath string, packages string) (stdout string, std
 	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --packages %s", tarballPath, packages), " ")
 	stdout, stderr, _ = e2e.UDS(cmd...)
 	return stdout, stderr
+}
+
+func deployResumeFlag(t *testing.T, tarballPath string) {
+	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --resume", tarballPath), " ")
+	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
 }
 
 func remove(t *testing.T, tarballPath string) {

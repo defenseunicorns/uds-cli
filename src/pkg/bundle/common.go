@@ -12,9 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/zarf/src/config/lang"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
@@ -267,4 +269,22 @@ func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string
 
 	// The package is signed, and a public key was provided
 	return utils.CosignVerifyBlob(bundleYAMLPath, signaturePath, publicKeyPath)
+}
+
+func GetDeployedPackages()([]zarfTypes.DeployedPackage, error){
+	cluster := cluster.NewClusterOrDie()
+	deployedPackages, errs := cluster.GetDeployedZarfPackages()
+	if len(errs) > 0 {
+		return nil,lang.ErrUnableToGetPackages
+	}
+	return deployedPackages, nil
+}
+
+func GetDeployedPackageNames()[]string {
+	var deployedPackageNames []string
+	deployedPackages, _ := GetDeployedPackages()
+	for _,pkg := range deployedPackages{
+		deployedPackageNames = append(deployedPackageNames, pkg.Name)
+	}
+	return deployedPackageNames
 }

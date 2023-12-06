@@ -79,9 +79,11 @@ func (b *Bundler) Deploy() error {
 		return fmt.Errorf("bundle deployment cancelled")
 	}
 
+	// Check if --resume is set
+	resume := b.cfg.DeployOpts.Resume
+
 	// Check if --packages flag is set and zarf packages have been specified
 	var packagesToDeploy []types.BundleZarfPackage
-
 	if len(b.cfg.DeployOpts.Packages) != 0 {
 		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.DeployOpts.Packages[0], " ",""), ",")
 
@@ -95,15 +97,28 @@ func (b *Bundler) Deploy() error {
 		if len(userSpecifiedPackages) != len(packagesToDeploy) {
 			return fmt.Errorf("invalid zarf packages specified by --packages")
 		}
-		return deployPackages(packagesToDeploy, b)
+		return deployPackages(packagesToDeploy, resume, b)
 	}
 
-	return deployPackages(b.bundle.ZarfPackages, b)
+	return deployPackages(b.bundle.ZarfPackages, resume, b)
 }
 
-func deployPackages(packagesToDeploy []types.BundleZarfPackage, b *Bundler) error {
+func deployPackages(packages []types.BundleZarfPackage, resume bool, b *Bundler) error {
 	// map of Zarf pkgs and their vars
 	bundleExportedVars := make(map[string]map[string]string)
+
+	var packagesToDeploy []types.BundleZarfPackage
+
+	if(resume){
+		deployedPackageNames := GetDeployedPackageNames()
+		for _, pkg := range packages {
+			if !slices.Contains(deployedPackageNames, pkg.Name) {
+				packagesToDeploy = append(packagesToDeploy, pkg)
+			}
+		}
+	} else {
+		packagesToDeploy = packages
+	}
 
 	// deploy each package
 	for _, pkg := range packagesToDeploy {
