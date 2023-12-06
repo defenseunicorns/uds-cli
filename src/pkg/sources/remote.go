@@ -207,7 +207,8 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 	doneSaving <- 1
 	wg.Wait()
 
-	if len(pkgManifest.Layers) > len(layersInBundle) {
+	// need to substract 1 from layersInBundle because it includes the pkgManifestDesc and pkgManifest.Layers does not
+	if len(pkgManifest.Layers) != len(layersInBundle)-1 {
 		r.isPartial = true
 	}
 	return layersInBundle, nil
