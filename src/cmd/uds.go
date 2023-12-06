@@ -5,6 +5,7 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,6 +22,7 @@ import (
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	goyaml "github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
 )
 
@@ -69,11 +71,10 @@ var deployCmd = &cobra.Command{
 		bundleCfg.DeployOpts.Source = chooseBundle(args)
 		configureZarf()
 
-		// read config file and unmarshal
+		// load uds-config if it exists
 		if v.ConfigFileUsed() != "" {
-			err := v.UnmarshalKey(V_BNDL_DEPLOY_ZARF_PACKAGES, &bundleCfg.DeployOpts.ZarfPackageVariables)
-			if err != nil {
-				message.Fatalf(err, "Failed to unmarshal config: %s", err.Error())
+			if err := loadViperConfig(); err != nil {
+				message.Fatalf(err, "Failed to load uds-config: %s", err.Error())
 				return
 			}
 		}
@@ -200,6 +201,27 @@ func firstArgIsEitherOCIorTarball(_ *cobra.Command, args []string) {
 	if errString != "" {
 		message.Fatalf(err, "Failed to validate first argument: %s", errString)
 	}
+}
+
+// loadViperConfig reads the config file and unmarshals the relevant config into DeployOpts.Variables
+func loadViperConfig() error {
+	// get config file from Viper
+	configFile, err := os.ReadFile(v.ConfigFileUsed())
+	if err != nil {
+		return err
+	}
+	// unmarshal config file at key
+	// need to use goyaml because Viper doesn't preserve case: https://github.com/spf13/viper/issues/1014
+	pathString, err := goyaml.PathString("$.bundle.deploy.zarf-packages")
+	if err != nil {
+		return err
+	}
+	// read relevant config into DeployOpts.Variables
+	err = pathString.Read(bytes.NewReader(configFile), &bundleCfg.DeployOpts.Variables)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func init() {
