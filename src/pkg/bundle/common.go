@@ -271,7 +271,7 @@ func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string
 	return utils.CosignVerifyBlob(bundleYAMLPath, signaturePath, publicKeyPath)
 }
 
-// GetDeployedPackages returns packages that have been deployed 
+// GetDeployedPackages returns packages that have been deployed
 func GetDeployedPackages()([]zarfTypes.DeployedPackage, error){
 	cluster := cluster.NewClusterOrDie()
 	deployedPackages, errs := cluster.GetDeployedZarfPackages()
