@@ -5,7 +5,7 @@ metadata:
   version: 0.0.1
 
 zarf-packages:
-  - name: helm
+  - name: helm-overrides
     path: "../../packages/helm"
     ref: 0.0.1
 
@@ -39,3 +39,12 @@ zarf-packages:
             - name: SECRET_VAL
               path: "testSecret"
               description: "testing a secret value"
+            - name: SECURITY_CTX
+              path: "podinfo.securityContext"
+              description: "testing an object"
+              default:
+                runAsUser: 1000
+                runAsGroup: 3000
+            - name: HOSTS
+              path: "podinfo.ingress.hosts"
+              description: "just testing a a list of objects (doesn't actually do ingress things)"

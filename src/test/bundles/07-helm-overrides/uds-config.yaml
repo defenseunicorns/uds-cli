@@ -1,8 +1,25 @@
 bundle:
   deploy:
     zarf-packages:
-      helm:
+      helm-overrides:
         set:
-          # overrides variables in uds-bundle.yaml
           UI_COLOR: green
           UI_MSG: "Hello Unicorn"
+          SECURITY_CTX:
+            runAsUser: 2000
+            runAsGroup: 4000
+            capabilities:
+              add:
+                - NET_ADMIN
+              drop:
+                - SETUID
+                - SETGID
+          HOSTS:
+            - host: podinfo.burning.boats
+              paths:
+              - path: "/"
+                pathType: "Prefix"
+            - host: podinfo.unicorns
+              paths:
+              - path: "/"
+                pathType: "Prefix"

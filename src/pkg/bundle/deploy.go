@@ -203,8 +203,12 @@ func deployPackages(packages []types.BundleZarfPackage, resume bool, b *Bundler)
 func (b *Bundler) loadVariables(pkg types.BundleZarfPackage, bundleExportedVars map[string]map[string]string) map[string]string {
 	pkgVars := make(map[string]string)
 	pkgConfigVars := make(map[string]string)
-	for name, val := range b.cfg.DeployOpts.ZarfPackageVariables[pkg.Name].Set {
-		pkgConfigVars[strings.ToUpper(name)] = val
+	// don't use pkg overrides here bc this function processes Zarf vars (even though they look the same in the uds-config)
+	overrideVars := getPkgOverrideVars(pkg)
+	for name, val := range b.cfg.DeployOpts.Variables[pkg.Name].Set {
+		if !slices.Contains(overrideVars, name) {
+			pkgConfigVars[strings.ToUpper(name)] = fmt.Sprint(val)
+		}
 	}
 	pkgImportedVars := make(map[string]string)
 	for _, imp := range pkg.Imports {
@@ -215,6 +219,18 @@ func (b *Bundler) loadVariables(pkg types.BundleZarfPackage, bundleExportedVars 
 	maps.Copy(pkgVars, pkgImportedVars)
 	maps.Copy(pkgVars, pkgConfigVars)
 	return pkgVars
+}
+
+func getPkgOverrideVars(pkg types.BundleZarfPackage) []string {
+	var overrideVars []string
+	for _, components := range pkg.Overrides {
+		for _, chart := range components {
+			for _, v := range chart.Variables {
+				overrideVars = append(overrideVars, v.Name)
+			}
+		}
+	}
+	return overrideVars
 }
 
 // confirmBundleDeploy prompts the user to confirm bundle creation
@@ -311,7 +327,7 @@ func (b *Bundler) processOverrideVariables(overrideMap *map[string]map[string]*v
 			continue
 		}
 		// check for override in config
-		configFileOverride, existsInConfig := b.cfg.DeployOpts.ZarfPackageVariables[pkgName].Set[strings.ToLower(v.Name)]
+		configFileOverride, existsInConfig := b.cfg.DeployOpts.Variables[pkgName].Set[v.Name]
 		if v.Default == nil && !existsInConfig {
 			// no default or config v, use values from underlying chart
 			continue
@@ -357,7 +373,7 @@ func addOverrideValue(overrides map[string]map[string]*values.Options, component
 			}
 			jsonStrs[i] = fmt.Sprintf("%s", j)
 		}
-		// construct JSONValues string
+		// use JSONValues because we can easily marshal the YAML to JSON and Helm understands it
 		jsonVals := fmt.Sprintf("%s=[%s]", valuePath, strings.Join(jsonStrs, ","))
 		overrides[component][chart].JSONValues = append(overrides[component][chart].JSONValues, jsonVals)
 	case map[string]interface{}:
@@ -366,6 +382,7 @@ func addOverrideValue(overrides map[string]map[string]*values.Options, component
 		if err != nil {
 			return err
 		}
+		// use JSONValues because we can easily marshal the YAML to JSON and Helm understands it
 		val := fmt.Sprintf("%s=%s", valuePath, j)
 		overrides[component][chart].JSONValues = append(overrides[component][chart].JSONValues, val)
 	default:
