@@ -79,7 +79,7 @@ As an example: `uds deploy uds-bundle-<name>.tar.zst --packages init,nginx`
 #### `--resume`
 By default all the packages in the bundle are deployed, regardless of if they have already been deployed, but you can also choose to only deploy packages that have not already been deployed by using the `--resume` flag
 
-As an example: ``uds deploy uds-bundle-<name>.tar.zst --resume`
+As an example: `uds deploy uds-bundle-<name>.tar.zst --resume`
 
 ### Bundle Inspect
 Inspect the `uds-bundle.yaml` of a bundle
