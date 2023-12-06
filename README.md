@@ -10,15 +10,16 @@
 ## Table of Contents
 
 1. [Install](#install)
-2. [Quickstart](#quickstart)
+1. [Quickstart](#quickstart)
     - [Create](#bundle-create)
     - [Deploy](#bundle-deploy)
     - [Inspect](#bundle-inspect)
     - [Publish](#bundle-publish)
     - [Remove](#bundle-remove)
-3. [Variables](#variables)
-4. [Bundle Anatomy](#bundle-anatomy)
-5. [UDS Runner](docs/runner.md)
+1. [Variables](#variables)
+1. [Bundle Overrides](docs/overrides.md)
+1. [Bundle Anatomy](#bundle-anatomy)
+1. [UDS Runner](docs/runner.md)
 
 ## Install
 Recommended installation method is with Brew:

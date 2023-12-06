@@ -282,13 +282,13 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 	require.Equal(t, "'2'", outputNumReplicas)
 	require.NoError(t, err)
 
-	// check object-type override
+	// check object-type override in values
 	cmd = strings.Split("tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.metadata.annotations}'", " ")
 	annotations, _, err := e2e.UDS(cmd...)
 	require.Contains(t, annotations, "\"customAnnotation\":\"customValue\"")
 	require.NoError(t, err)
 
-	// check list-type override
+	// check list-type override in values
 	cmd = strings.Split("tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.tolerations}'", " ")
 	tolerations, _, err := e2e.UDS(cmd...)
 	require.Contains(t, tolerations, "\"key\":\"uds\"")
@@ -315,6 +315,20 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 	// expect the value to be from the underlying chart's values.yaml, no overrides
 	require.Equal(t, "\"dGVzdC1zZWNyZXQ=\"", secretValue)
 	require.NoError(t, err)
+
+	// check variables overrides with an object-type value
+	cmd = strings.Split("tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].securityContext}'", " ")
+	securityContext, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	require.Contains(t, securityContext, "NET_ADMIN")
+	require.Contains(t, securityContext, "\"runAsGroup\":4000")
+
+	// check variables overrides with a list-type value
+	cmd = strings.Split("tools kubectl get ingress -n podinfo unicorn-podinfo -o=jsonpath='{.spec.rules[*].host}''", " ")
+	hosts, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	require.Contains(t, hosts, "podinfo.burning.boats")
+	require.Contains(t, hosts, "podinfo.unicorns")
 
 	remove(t, bundlePath)
 }

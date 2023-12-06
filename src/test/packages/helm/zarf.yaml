@@ -1,6 +1,6 @@
 kind: ZarfPackageConfig
 metadata:
-  name: helm
+  name: helm-overrides
   description: Zarf pkg with a Helm chart to test Helm overrides in the uds-bundle.yaml
   version: 0.0.1
 
