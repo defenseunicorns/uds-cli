@@ -25,9 +25,10 @@ type BundlerCreateOptions struct {
 
 // BundlerDeployOptions is the options for the bundler.Deploy() function
 type BundlerDeployOptions struct {
-	Source        string
-	Packages      []string
-	PublicKeyPath string
+	Resume               bool
+	Source               string
+	Packages             []string
+	PublicKeyPath        string
 	Variables     map[string]SetVariables
 }
 
