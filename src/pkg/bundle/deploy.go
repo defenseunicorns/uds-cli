@@ -16,19 +16,19 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
-	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"github.com/pterm/pterm"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"helm.sh/helm/v3/pkg/cli/values"
 	"helm.sh/helm/v3/pkg/getter"
+	// "oras.land/oras-go/v2/registry"
 )
 
 // ZarfOverrideMap is a map of Zarf packages -> components -> Helm charts -> values
@@ -52,11 +52,10 @@ func (b *Bundler) Deploy() error {
 
 	defer metadataSpinner.Stop()
 
-	// check that architecture is specified in source
-	if helpers.IsOCIURL(b.cfg.DeployOpts.Source) && !IsSourceArchSpecified(b.cfg.DeployOpts.Source) {
-		clusterArchs,_ := cluster.NewClusterOrDie().GetArchitectures()
-		// This won't work for multi-architecture clusters, in which case, the desired architecture should be specified
-		b.cfg.DeployOpts.Source = b.cfg.DeployOpts.Source + "-" + clusterArchs[0]
+	// oci source checks
+	validTarballPath := utils.IsValidTarballPath(b.cfg.DeployOpts.Source)
+	if !validTarballPath {
+		b.cfg.DeployOpts.Source = ociValidatedSource(b.cfg.DeployOpts.Source)
 	}
 
 	// create a new provider
@@ -77,7 +76,7 @@ func (b *Bundler) Deploy() error {
 	}
 
 	// read the bundle's metadata into memory
-	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
+	if err := zarfUtils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
 
@@ -132,7 +131,7 @@ func deployPackages(packages []types.BundleZarfPackage, resume bool, b *Bundler)
 	// deploy each package
 	for _, pkg := range packagesToDeploy {
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
-		pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
+		pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
 			return err
 		}
@@ -140,7 +139,7 @@ func deployPackages(packages []types.BundleZarfPackage, resume bool, b *Bundler)
 
 		publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
 		if pkg.PublicKey != "" {
-			if err := utils.WriteFile(publicKeyPath, []byte(pkg.PublicKey)); err != nil {
+			if err := zarfUtils.WriteFile(publicKeyPath, []byte(pkg.PublicKey)); err != nil {
 				return err
 			}
 			defer os.Remove(publicKeyPath)
@@ -246,7 +245,7 @@ func getPkgOverrideVars(pkg types.BundleZarfPackage) []string {
 func (b *Bundler) confirmBundleDeploy() (confirm bool) {
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
-	utils.ColorPrintYAML(b.bundle, nil, false)
+	zarfUtils.ColorPrintYAML(b.bundle, nil, false)
 
 	message.HorizontalRule()
 

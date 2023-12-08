@@ -66,7 +66,6 @@ var deployCmd = &cobra.Command{
 	Aliases: []string{"d"},
 	Short:   lang.CmdBundleDeployShort,
 	Args:    cobra.MaximumNArgs(1),
-	PreRun:  firstArgIsEitherOCIorTarball,
 	Run: func(cmd *cobra.Command, args []string) {
 		bundleCfg.DeployOpts.Source = chooseBundle(args)
 		configureZarf()
@@ -118,7 +117,6 @@ var removeCmd = &cobra.Command{
 	Aliases: []string{"r"},
 	Args:    cobra.ExactArgs(1),
 	Short:   lang.CmdBundleRemoveShort,
-	PreRun:  firstArgIsEitherOCIorTarball,
 	Run: func(cmd *cobra.Command, args []string) {
 		bundleCfg.RemoveOpts.Source = args[0]
 		configureZarf()

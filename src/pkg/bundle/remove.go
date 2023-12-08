@@ -9,11 +9,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"golang.org/x/exp/slices"
 
@@ -26,11 +25,10 @@ import (
 func (b *Bundler) Remove() error {
 	ctx := context.TODO()
 
-	// check that architecture is specified in source
-	if helpers.IsOCIURL(b.cfg.RemoveOpts.Source) && !IsSourceArchSpecified(b.cfg.RemoveOpts.Source) {
-		clusterArchs,_ := cluster.NewClusterOrDie().GetArchitectures()
-		// This won't work for multi-architecture clusters, in which case, the desired architecture should be specified
-		b.cfg.RemoveOpts.Source = b.cfg.RemoveOpts.Source + "-" + clusterArchs[0]
+	// oci source checks
+	validTarballPath := utils.IsValidTarballPath(b.cfg.RemoveOpts.Source)
+	if !validTarballPath {
+		b.cfg.RemoveOpts.Source = ociValidatedSource(b.cfg.RemoveOpts.Source)
 	}
 
 	// create a new provider
@@ -46,7 +44,7 @@ func (b *Bundler) Remove() error {
 	}
 
 	// read the bundle's metadata into memory
-	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
+	if err := zarfUtils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
 
@@ -86,7 +84,7 @@ func removePackages(packagesToRemove []types.BundleZarfPackage, b *Bundler) erro
 			pkgCfg := zarfTypes.PackagerConfig{
 				PkgOpts: opts,
 			}
-			pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
+			pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 			if err != nil {
 				return err
 			}

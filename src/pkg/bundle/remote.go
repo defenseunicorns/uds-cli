@@ -17,6 +17,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -25,6 +26,12 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
 	ocistore "oras.land/oras-go/v2/content/oci"
+)
+
+const (
+	GhcrPackagesPath  = "oci://ghcr.io/defenseunicorns/packages/"
+	GhcrUdsBundlePath = GhcrPackagesPath + "uds/bundles/"
+	GhcrDeliveryPath  = GhcrPackagesPath + "delivery/"
 )
 
 type ociProvider struct {
@@ -223,4 +230,40 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 func (op *ociProvider) PublishBundle(_ types.UDSBundle, _ *oci.OrasRemote) error {
 	// todo: implement moving bundles from one registry to another
 	return fmt.Errorf("moving bundles in between remote registries not yet supported")
+}
+
+// Validates the provided oci source path passed in through the bundler
+func ociValidatedSource(source string) string {
+	originalSource := source
+	// Check if arch specified, if not, append cluster arch
+	if !IsSourceArchSpecified(source) {
+		clusterArchs, _ := cluster.NewClusterOrDie().GetArchitectures()
+		// This won't work for multi-architecture clusters, in which case, the desired architecture should be specified
+		source = source + "-" + clusterArchs[0]
+	}
+	// Check provided repository path
+	remote, err := oci.NewOrasRemote(source)
+	if err == nil {
+		_, err = remote.ResolveRoot()
+	}
+	if err != nil {
+		// Check in ghcr uds bundle path
+		source = GhcrUdsBundlePath + originalSource
+		remote, err = oci.NewOrasRemote(source)
+		if err == nil {
+			_, err = remote.ResolveRoot()
+		}
+		if err != nil {
+			// Check in delivery bundle path
+			source = GhcrDeliveryPath + originalSource
+			remote, err = oci.NewOrasRemote(source)
+			if err == nil {
+				_, err = remote.ResolveRoot()
+			}
+			if err != nil {
+				message.Fatalf(nil, "%s", originalSource+": not found")
+			}
+		}
+	}
+	return source
 }
