@@ -303,6 +303,15 @@ func TestRemoteBundle(t *testing.T) {
 	inspectRemote(t, bundleRef.String())
 	inspectRemoteAndSBOMExtract(t, bundleRef.String())
 	deployAndRemoveRemote(t, bundleRef.String(), tarballPath)
+
+	// Test without architecture specified
+	bundleRef = registry.Reference{
+		Registry: "localhost:888",
+		// this info is derived from the bundle's metadata
+		Repository: "example",
+		Reference:  "0.0.1",
+	}
+	deployAndRemoveRemote(t, bundleRef.String(), tarballPath)
 }
 
 func TestBundleWithGitRepo(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"golang.org/x/exp/slices"
 
@@ -23,6 +24,12 @@ import (
 // Remove removes packages deployed from a bundle
 func (b *Bundler) Remove() error {
 	ctx := context.TODO()
+
+	// check that architecture is specified in source
+	if helpers.IsOCIURL(b.cfg.RemoveOpts.Source) && !IsSourceArchSpecified(b.cfg.RemoveOpts.Source) {
+		b.cfg.RemoveOpts.Source = b.cfg.RemoveOpts.Source + "-" + config.GetArch()
+	}
+
 	// create a new provider
 	provider, err := NewBundleProvider(ctx, b.cfg.RemoveOpts.Source, b.tmp)
 	if err != nil {

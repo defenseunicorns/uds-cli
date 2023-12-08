@@ -21,6 +21,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"github.com/pterm/pterm"
 	"golang.org/x/exp/maps"
@@ -49,6 +50,11 @@ func (b *Bundler) Deploy() error {
 	metadataSpinner := message.NewProgressSpinner("Loading bundle metadata")
 
 	defer metadataSpinner.Stop()
+
+	// check that architecture is specified in source
+	if helpers.IsOCIURL(b.cfg.DeployOpts.Source) && !IsSourceArchSpecified(b.cfg.DeployOpts.Source) {
+		b.cfg.DeployOpts.Source = b.cfg.DeployOpts.Source + "-" + config.GetArch()
+	}
 
 	// create a new provider
 	provider, err := NewBundleProvider(ctx, b.cfg.DeployOpts.Source, b.tmp)

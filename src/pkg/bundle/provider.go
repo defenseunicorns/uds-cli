@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
@@ -48,10 +47,6 @@ type PathMap map[string]string
 
 // NewBundleProvider returns a new bundler Provider based on the source type
 func NewBundleProvider(ctx context.Context, source, destination string) (Provider, error) {
-	// check that architecture is specified in source
-	if !IsSourceArchSpecified(source) {
-		source = source + "-" + config.GetArch()
-	}
 	if helpers.IsOCIURL(source) {
 		provider := ociProvider{ctx: ctx, src: source, dst: destination}
 		remote, err := oci.NewOrasRemote(source)
