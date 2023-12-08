@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -27,7 +28,9 @@ func (b *Bundler) Remove() error {
 
 	// check that architecture is specified in source
 	if helpers.IsOCIURL(b.cfg.RemoveOpts.Source) && !IsSourceArchSpecified(b.cfg.RemoveOpts.Source) {
-		b.cfg.RemoveOpts.Source = b.cfg.RemoveOpts.Source + "-" + config.GetArch()
+		clusterArchs,_ := cluster.NewClusterOrDie().GetArchitectures()
+		// This won't work for multi-architecture clusters, in which case, the desired architecture should be specified
+		b.cfg.RemoveOpts.Source = b.cfg.RemoveOpts.Source + "-" + clusterArchs[0]
 	}
 
 	// create a new provider

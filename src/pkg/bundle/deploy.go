@@ -18,6 +18,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
+	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -53,7 +54,9 @@ func (b *Bundler) Deploy() error {
 
 	// check that architecture is specified in source
 	if helpers.IsOCIURL(b.cfg.DeployOpts.Source) && !IsSourceArchSpecified(b.cfg.DeployOpts.Source) {
-		b.cfg.DeployOpts.Source = b.cfg.DeployOpts.Source + "-" + config.GetArch()
+		clusterArchs,_ := cluster.NewClusterOrDie().GetArchitectures()
+		// This won't work for multi-architecture clusters, in which case, the desired architecture should be specified
+		b.cfg.DeployOpts.Source = b.cfg.DeployOpts.Source + "-" + clusterArchs[0]
 	}
 
 	// create a new provider
