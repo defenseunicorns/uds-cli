@@ -232,8 +232,8 @@ func (op *ociProvider) PublishBundle(_ types.UDSBundle, _ *oci.OrasRemote) error
 	return fmt.Errorf("moving bundles in between remote registries not yet supported")
 }
 
-// Validates the provided oci source path passed in through the bundler
-func ociValidatedSource(source string) string {
+// Returns the validated source path based on the provided oci source path
+func getOciValidatedSource(source string) string {
 	originalSource := source
 	// Check if arch specified, if not, append cluster arch
 	if !IsSourceArchSpecified(source) {

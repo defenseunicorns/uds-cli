@@ -28,6 +28,9 @@ func (b *Bundler) Pull() error {
 		return err
 	}
 
+	// Get validated source path
+	b.cfg.PullOpts.Source = getOciValidatedSource(b.cfg.PullOpts.Source)
+
 	provider, err := NewBundleProvider(context.TODO(), b.cfg.PullOpts.Source, cacheDir)
 	if err != nil {
 		return err

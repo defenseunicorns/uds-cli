@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"golang.org/x/exp/slices"
@@ -28,7 +28,7 @@ func (b *Bundler) Remove() error {
 	// oci source checks
 	validTarballPath := utils.IsValidTarballPath(b.cfg.RemoveOpts.Source)
 	if !validTarballPath {
-		b.cfg.RemoveOpts.Source = ociValidatedSource(b.cfg.RemoveOpts.Source)
+		b.cfg.RemoveOpts.Source = getOciValidatedSource(b.cfg.RemoveOpts.Source)
 	}
 
 	// create a new provider

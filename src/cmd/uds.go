@@ -93,7 +93,6 @@ var inspectCmd = &cobra.Command{
 	Short:   lang.CmdBundleInspectShort,
 	Args:    cobra.MaximumNArgs(1),
 	PreRun: func(cmd *cobra.Command, args []string) {
-		firstArgIsEitherOCIorTarball(nil, args)
 		if cmd.Flag("extract").Value.String() == "true" && cmd.Flag("sbom").Value.String() == "false" {
 			message.Fatal(nil, "cannot use 'extract' flag without 'sbom' flag")
 		}

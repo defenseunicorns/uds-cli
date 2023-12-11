@@ -55,7 +55,7 @@ func (b *Bundler) Deploy() error {
 	// oci source checks
 	validTarballPath := utils.IsValidTarballPath(b.cfg.DeployOpts.Source)
 	if !validTarballPath {
-		b.cfg.DeployOpts.Source = ociValidatedSource(b.cfg.DeployOpts.Source)
+		b.cfg.DeployOpts.Source = getOciValidatedSource(b.cfg.DeployOpts.Source)
 	}
 
 	// create a new provider

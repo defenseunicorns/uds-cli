@@ -8,12 +8,20 @@ import (
 	"context"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 )
 
 // Inspect pulls/unpacks a bundle's metadata and shows it
 func (b *Bundler) Inspect() error {
 	ctx := context.TODO()
+
+	// oci source checks
+	validTarballPath := utils.IsValidTarballPath(b.cfg.InspectOpts.Source)
+	if !validTarballPath {
+		b.cfg.InspectOpts.Source = getOciValidatedSource(b.cfg.InspectOpts.Source)
+	}
+
 	// create a new provider
 	provider, err := NewBundleProvider(ctx, b.cfg.InspectOpts.Source, b.tmp)
 	if err != nil {
@@ -39,12 +47,12 @@ func (b *Bundler) Inspect() error {
 		}
 	}
 	// read the bundle's metadata into memory
-	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
+	if err := zarfUtils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
 
 	// show the bundle's metadata
-	utils.ColorPrintYAML(b.bundle, nil, false)
+	zarfUtils.ColorPrintYAML(b.bundle, nil, false)
 
 	// TODO: showing package metadata?
 	// TODO: could be cool to have an interactive mode that lets you select a package and show its metadata
