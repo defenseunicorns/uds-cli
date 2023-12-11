@@ -31,7 +31,6 @@ import (
 const (
 	GhcrPackagesPath  = "oci://ghcr.io/defenseunicorns/packages/"
 	GhcrUdsBundlePath = GhcrPackagesPath + "uds/bundles/"
-	GhcrDeliveryPath  = GhcrPackagesPath + "delivery/"
 )
 
 type ociProvider struct {
@@ -234,34 +233,40 @@ func (op *ociProvider) PublishBundle(_ types.UDSBundle, _ *oci.OrasRemote) error
 
 // Returns the validated source path based on the provided oci source path
 func getOciValidatedSource(source string) string {
-	originalSource := source
 	// Check if arch specified, if not, append cluster arch
 	if !IsSourceArchSpecified(source) {
-		clusterArchs, _ := cluster.NewClusterOrDie().GetArchitectures()
-		// This won't work for multi-architecture clusters, in which case, the desired architecture should be specified
-		source = source + "-" + clusterArchs[0]
+		clusterArchs, err := cluster.NewClusterOrDie().GetArchitectures()
+		var arch string
+		if err != nil {
+			arch = config.GetArch()
+		} else {
+			// This won't work for multi-architecture clusters, in which case, the desired architecture should be specified
+			arch = clusterArchs[0]
+		}
+		source = source + "-" + arch
 	}
+	sourceWithArch := source
 	// Check provided repository path
-	remote, err := oci.NewOrasRemote(source)
+	remote, err := oci.NewOrasRemote(sourceWithArch)
 	if err == nil {
 		_, err = remote.ResolveRoot()
 	}
 	if err != nil {
 		// Check in ghcr uds bundle path
-		source = GhcrUdsBundlePath + originalSource
+		source = GhcrUdsBundlePath + sourceWithArch
 		remote, err = oci.NewOrasRemote(source)
 		if err == nil {
 			_, err = remote.ResolveRoot()
 		}
 		if err != nil {
-			// Check in delivery bundle path
-			source = GhcrDeliveryPath + originalSource
+			// Check in packages bundle path
+			source = GhcrPackagesPath + sourceWithArch
 			remote, err = oci.NewOrasRemote(source)
 			if err == nil {
 				_, err = remote.ResolveRoot()
 			}
 			if err != nil {
-				message.Fatalf(nil, "%s", originalSource+": not found")
+				message.Fatalf(nil, "%s", sourceWithArch+": not found")
 			}
 		}
 	}

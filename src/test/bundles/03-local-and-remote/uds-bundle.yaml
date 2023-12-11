@@ -1,6 +1,6 @@
 kind: UDSBundle
 metadata:
-  name: local-and-remote
+  name: test-local-and-remote
   description: building from local and remote Zarf pkgs
   version: 0.0.1
 
