@@ -5,6 +5,7 @@
   "extends": [
     "config:base"
   ],
+  "ignorePaths": [],
   "timezone": "America/New_York",
   "repositories": ["defenseunicorns/uds-cli"],
   "rebaseStalePrs": true,
@@ -31,7 +32,6 @@
         "uds-bundle.yaml",
         "action.yaml"
       ],
-      "ignorePaths": [],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>.*) depName=(?<depName>.*)(versioning=(?<versioning>.*))?(registryUrl=(?<registryUrl>.*))?\\n\\s*(version|ref): (?<currentValue>.*)"
       ],
