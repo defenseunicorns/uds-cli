@@ -25,7 +25,7 @@ func (b *Bundler) Remove() error {
 	ctx := context.TODO()
 
 	// Check that provided oci source path is valid, and update it if it's missing the full path
-	CheckOCISourcePath(b)
+	b.cfg.RemoveOpts.Source = CheckOCISourcePath(b.cfg.RemoveOpts.Source)
 
 	// create a new provider
 	provider, err := NewBundleProvider(ctx, b.cfg.RemoveOpts.Source, b.tmp)

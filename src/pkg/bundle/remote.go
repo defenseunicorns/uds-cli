@@ -281,7 +281,7 @@ func getOciValidatedSource(source string) string {
 func IsSourceArchSpecified(source string) bool {
 	// get version
 	v := strings.Split(source, ":")
-	version := v[1]
+	version := v[len(v)-1]
 	// architecture specified after "-" in version
 	a := strings.Split(version, "-")
 	// if "-" is missing or nothing is after "-" in version, arch is not specified
@@ -295,9 +295,10 @@ func IsSourceArchSpecified(source string) bool {
 }
 
 // CheckOCISourcePath checks that provided oci source path is valid, and updates it if it's missing the full path
-func CheckOCISourcePath(b *Bundler) {
-	validTarballPath := utils.IsValidTarballPath(b.cfg.DeployOpts.Source)
+func CheckOCISourcePath(source string) string{
+	validTarballPath := utils.IsValidTarballPath(source)
 	if !validTarballPath {
-		b.cfg.DeployOpts.Source = getOciValidatedSource(b.cfg.DeployOpts.Source)
+		source = getOciValidatedSource(source)
 	}
+	return source
 }

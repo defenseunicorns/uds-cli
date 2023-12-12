@@ -515,13 +515,6 @@ func deploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
 	return stdout, stderr
 }
 
-func deployFromOCI(t *testing.T, ref string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("deploy oci://%s --insecure --confirm", ref), " ")
-	stdout, stderr, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	return stdout, stderr
-}
-
 func deployPackagesFlag(tarballPath string, packages string) (stdout string, stderr string) {
 	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --packages %s", tarballPath, packages), " ")
 	stdout, stderr, _ = e2e.UDS(cmd...)
