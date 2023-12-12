@@ -425,7 +425,7 @@ func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 
 	remove(t, bundlePath)
 }
-
+add comment on image prereq
 func TestOciNoPath(t *testing.T) {
 	deployZarfInit(t)
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -29,8 +30,10 @@ import (
 )
 
 const (
-	GhcrPackagesPath  = "oci://ghcr.io/defenseunicorns/packages/"
-	GhcrUdsBundlePath = GhcrPackagesPath + "uds/bundles/"
+	// GHCRPackagesPath is the default package path
+	GHCRPackagesPath  = "oci://ghcr.io/defenseunicorns/packages/"
+	// GHCRUDSBundlePath is the default path for uds bundles
+	GHCRUDSBundlePath = GHCRPackagesPath + "uds/bundles/"
 )
 
 type ociProvider struct {
@@ -248,19 +251,20 @@ func getOciValidatedSource(source string) string {
 	sourceWithArch := source
 	// Check provided repository path
 	remote, err := oci.NewOrasRemote(sourceWithArch)
+
 	if err == nil {
 		_, err = remote.ResolveRoot()
 	}
 	if err != nil {
 		// Check in ghcr uds bundle path
-		source = GhcrUdsBundlePath + sourceWithArch
+		source = GHCRUDSBundlePath + sourceWithArch
 		remote, err = oci.NewOrasRemote(source)
 		if err == nil {
 			_, err = remote.ResolveRoot()
 		}
 		if err != nil {
 			// Check in packages bundle path
-			source = GhcrPackagesPath + sourceWithArch
+			source = GHCRPackagesPath + sourceWithArch
 			remote, err = oci.NewOrasRemote(source)
 			if err == nil {
 				_, err = remote.ResolveRoot()
@@ -271,4 +275,29 @@ func getOciValidatedSource(source string) string {
 		}
 	}
 	return source
+}
+
+// IsSourceArchSpecified checks if the architecture is specified in the bundle source
+func IsSourceArchSpecified(source string) bool {
+	// get version
+	v := strings.Split(source, ":")
+	version := v[1]
+	// architecture specified after "-" in version
+	a := strings.Split(version, "-")
+	// if "-" is missing or nothing is after "-" in version, arch is not specified
+	if len(a) < 2 {
+		return false
+	}
+	// get specified arch
+	arch := a[len(a)-1]
+	// confirm arch is valid
+	return slices.Contains(config.GetSupportedArchitectures(), arch)
+}
+
+// CheckOCISourcePath checks that provided oci source path is valid, and updates it if it's missing the full path
+func CheckOCISourcePath(b *Bundler) {
+	validTarballPath := utils.IsValidTarballPath(b.cfg.DeployOpts.Source)
+	if !validTarballPath {
+		b.cfg.DeployOpts.Source = getOciValidatedSource(b.cfg.DeployOpts.Source)
+	}
 }

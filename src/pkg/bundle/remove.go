@@ -9,10 +9,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
-	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"golang.org/x/exp/slices"
 
@@ -25,11 +24,8 @@ import (
 func (b *Bundler) Remove() error {
 	ctx := context.TODO()
 
-	// oci source checks
-	validTarballPath := utils.IsValidTarballPath(b.cfg.RemoveOpts.Source)
-	if !validTarballPath {
-		b.cfg.RemoveOpts.Source = getOciValidatedSource(b.cfg.RemoveOpts.Source)
-	}
+	// Check that provided oci source path is valid, and update it if it's missing the full path
+	CheckOCISourcePath(b)
 
 	// create a new provider
 	provider, err := NewBundleProvider(ctx, b.cfg.RemoveOpts.Source, b.tmp)
@@ -44,7 +40,7 @@ func (b *Bundler) Remove() error {
 	}
 
 	// read the bundle's metadata into memory
-	if err := zarfUtils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
+	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
 
@@ -84,7 +80,7 @@ func removePackages(packagesToRemove []types.BundleZarfPackage, b *Bundler) erro
 			pkgCfg := zarfTypes.PackagerConfig{
 				PkgOpts: opts,
 			}
-			pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
+			pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
 			if err != nil {
 				return err
 			}

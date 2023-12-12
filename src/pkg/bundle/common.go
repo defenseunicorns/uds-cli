@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -290,21 +289,4 @@ func GetDeployedPackageNames()[]string {
 		deployedPackageNames = append(deployedPackageNames, pkg.Name)
 	}
 	return deployedPackageNames
-}
-
-// IsSourceArchSpecified checks if the architecture is specified in the bundle source
-func IsSourceArchSpecified(source string) bool {
-	// get version
-	v := strings.Split(source, ":")
-	version := v[len(v)-1]
-	// architecture specified after "-" in version
-	a := strings.Split(version, "-")
-	// if "-" is missing or nothing is after "-" in version, arch is not specified
-	if len(a) < 2 {
-		return false
-	}
-	// get specified arch
-	arch := a[len(a)-1]
-	// confirm arch is valid
-	return slices.Contains(config.GetSupportedArchitectures(), arch)
 }

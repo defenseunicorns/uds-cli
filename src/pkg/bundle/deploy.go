@@ -16,12 +16,11 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
-	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"github.com/pterm/pterm"
 	"golang.org/x/exp/maps"
@@ -52,11 +51,8 @@ func (b *Bundler) Deploy() error {
 
 	defer metadataSpinner.Stop()
 
-	// oci source checks
-	validTarballPath := utils.IsValidTarballPath(b.cfg.DeployOpts.Source)
-	if !validTarballPath {
-		b.cfg.DeployOpts.Source = getOciValidatedSource(b.cfg.DeployOpts.Source)
-	}
+	// Check that provided oci source path is valid, and update it if it's missing the full path
+	CheckOCISourcePath(b)
 
 	// create a new provider
 	provider, err := NewBundleProvider(ctx, b.cfg.DeployOpts.Source, b.tmp)
@@ -76,7 +72,7 @@ func (b *Bundler) Deploy() error {
 	}
 
 	// read the bundle's metadata into memory
-	if err := zarfUtils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
+	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
 
@@ -131,7 +127,7 @@ func deployPackages(packages []types.BundleZarfPackage, resume bool, b *Bundler)
 	// deploy each package
 	for _, pkg := range packagesToDeploy {
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
-		pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
+		pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
 			return err
 		}
@@ -139,7 +135,7 @@ func deployPackages(packages []types.BundleZarfPackage, resume bool, b *Bundler)
 
 		publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
 		if pkg.PublicKey != "" {
-			if err := zarfUtils.WriteFile(publicKeyPath, []byte(pkg.PublicKey)); err != nil {
+			if err := utils.WriteFile(publicKeyPath, []byte(pkg.PublicKey)); err != nil {
 				return err
 			}
 			defer os.Remove(publicKeyPath)
@@ -245,7 +241,7 @@ func getPkgOverrideVars(pkg types.BundleZarfPackage) []string {
 func (b *Bundler) confirmBundleDeploy() (confirm bool) {
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
-	zarfUtils.ColorPrintYAML(b.bundle, nil, false)
+	utils.ColorPrintYAML(b.bundle, nil, false)
 
 	message.HorizontalRule()
 
