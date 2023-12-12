@@ -426,7 +426,9 @@ func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 	remove(t, bundlePath)
 }
 
-// This test requires ghcr.io/defenseunicorns/packages/uds/bundles/ghcr-test:0.0.1-amd64 to be published
+// This test requires the following to be published:
+// ghcr.io/defenseunicorns/packages/uds/bundles/ghcr-test:0.0.1-amd64
+// ghcr.io/defenseunicorns/packages/delivery/ghcr-delivery-test:0.0.1-amd64
 // The default bundle location if no source path provided is defenseunicorns/packages/uds/bundles/"
 func TestOciNoPath(t *testing.T) {
 	deployZarfInit(t)
@@ -435,19 +437,15 @@ func TestOciNoPath(t *testing.T) {
 	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-ghcr-test-%s-0.0.1.tar.zst", e2e.Arch))
 
 	bundleName := "ghcr-test:0.0.1"
-
 	inspect(t, bundleName)
-
-	// Test pull with no path or arch specified
-	// pull ghcr.io/defenseunicorns/packages/uds/bundles/ghcr-test:0.0.1-amd64
 	pull(t, bundleName, tarballPath)
-
-	// test deploy with no path or arch specified
-	// deploy ghcr.io/defenseunicorns/packages/uds/bundles/ghcr-test:0.0.1-amd64
 	deploy(t, bundleName)
+	remove(t, bundleName)
 
-	// test remove with no path or arch specified
-	// remove ghcr.io/defenseunicorns/packages/uds/bundles/ghcr-test:0.0.1-amd64
+	bundleName = "delivery/ghcr-delivery-test:0.0.1-amd64"
+	inspect(t, bundleName)
+	pull(t, bundleName, tarballPath)
+	deploy(t, bundleName)
 	remove(t, bundleName)
 }
 
