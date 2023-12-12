@@ -425,12 +425,12 @@ func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 
 	remove(t, bundlePath)
 }
-add comment on image prereq
+
+// This test requires ghcr.io/defenseunicorns/packages/uds/bundles/ghcr-test:0.0.1-amd64 to be published
+// The default bundle location if no source path provided is defenseunicorns/packages/uds/bundles/"
 func TestOciNoPath(t *testing.T) {
 	deployZarfInit(t)
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
-
-	// Default bundle location if no source path provided: defenseunicorns/packages/uds/bundles/"
 
 	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-ghcr-test-%s-0.0.1.tar.zst", e2e.Arch))
 
