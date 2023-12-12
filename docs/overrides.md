@@ -50,7 +50,7 @@ metadata:
   description: testing a bundle with Helm overrides
   version: 0.0.1
 
-zarf-packages:
+packages:
   - name: helm-overrides-package
     path: "path/to/pkg"
     ref: 0.0.1
@@ -86,7 +86,7 @@ bundle:
 Consider the following bundle `overrides`:
 
 ```yaml
-zarf-packages:
+packages:
   - name: helm-overrides-package
     path: "path/to/pkg"
     ref: 0.0.1

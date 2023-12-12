@@ -90,7 +90,7 @@ func (b *Bundler) Deploy() error {
 	if len(b.cfg.DeployOpts.Packages) != 0 {
 		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.DeployOpts.Packages[0], " ", ""), ",")
 
-		for _, pkg := range b.bundle.ZarfPackages {
+		for _, pkg := range b.bundle.Packages {
 			if slices.Contains(userSpecifiedPackages, pkg.Name) {
 				packagesToDeploy = append(packagesToDeploy, pkg)
 			}
@@ -103,7 +103,7 @@ func (b *Bundler) Deploy() error {
 		return deployPackages(packagesToDeploy, resume, b)
 	}
 
-	return deployPackages(b.bundle.ZarfPackages, resume, b)
+	return deployPackages(b.bundle.Packages, resume, b)
 }
 
 func deployPackages(packages []types.BundleZarfPackage, resume bool, b *Bundler) error {
@@ -208,7 +208,7 @@ func (b *Bundler) loadVariables(pkg types.BundleZarfPackage, bundleExportedVars 
 	pkgConfigVars := make(map[string]string)
 	// don't use pkg overrides here bc this function processes Zarf vars (even though they look the same in the uds-config)
 	overrideVars := getPkgOverrideVars(pkg)
-	for name, val := range b.cfg.DeployOpts.Variables[pkg.Name].Set {
+	for name, val := range b.cfg.DeployOpts.Variables[pkg.Name] {
 		if !slices.Contains(overrideVars, name) {
 			pkgConfigVars[strings.ToUpper(name)] = fmt.Sprint(val)
 		}
@@ -330,7 +330,7 @@ func (b *Bundler) processOverrideVariables(overrideMap *map[string]map[string]*v
 			continue
 		}
 		// check for override in config
-		configFileOverride, existsInConfig := b.cfg.DeployOpts.Variables[pkgName].Set[v.Name]
+		configFileOverride, existsInConfig := b.cfg.DeployOpts.Variables[pkgName][v.Name]
 		if v.Default == nil && !existsInConfig {
 			// no default or config v, use values from underlying chart
 			continue

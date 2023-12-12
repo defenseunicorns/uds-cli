@@ -25,17 +25,17 @@ type BundlerCreateOptions struct {
 
 // BundlerDeployOptions is the options for the bundler.Deploy() function
 type BundlerDeployOptions struct {
-	Resume               bool
-	Source               string
-	Packages             []string
-	PublicKeyPath        string
-	Variables     map[string]SetVariables
+	Resume        bool
+	Source        string
+	Packages      []string
+	PublicKeyPath string
+	Variables     map[string]map[string]interface{}
 }
 
-// SetVariables is a map of variables
-type SetVariables struct {
-	Set map[string]interface{}
-}
+//// SetVariables is a map of variables
+//type SetVariables struct {
+//	Set map[string]interface{}
+//}
 
 // BundlerInspectOptions is the options for the bundler.Inspect() function
 type BundlerInspectOptions struct {

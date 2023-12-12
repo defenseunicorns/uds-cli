@@ -182,16 +182,27 @@ func loadViperConfig() error {
 	if err != nil {
 		return err
 	}
+
 	// unmarshal config file at key
 	// need to use goyaml because Viper doesn't preserve case: https://github.com/spf13/viper/issues/1014
-	pathString, err := goyaml.PathString("$.bundle.deploy.zarf-packages")
+	pathString, err := goyaml.PathString("$.variables")
 	if err != nil {
 		return err
 	}
+
 	// read relevant config into DeployOpts.Variables
 	err = pathString.Read(bytes.NewReader(configFile), &bundleCfg.DeployOpts.Variables)
 	if err != nil {
 		return err
+	}
+
+	// ensure the DeployOpts.Variables pkg vars are uppercase
+	for pkgName, pkgVar := range bundleCfg.DeployOpts.Variables {
+		for varName, varValue := range pkgVar {
+			// delete the lowercase var replace with uppercase
+			delete(bundleCfg.DeployOpts.Variables[pkgName], varName)
+			bundleCfg.DeployOpts.Variables[pkgName][strings.ToUpper(varName)] = varValue
+		}
 	}
 	return nil
 }

@@ -17,31 +17,25 @@ import (
 
 const (
 	// Root config keys
-	V_LOG_LEVEL    = "log_level"
-	V_ARCHITECTURE = "architecture"
-	V_NO_LOG_FILE  = "no_log_file"
-	V_NO_PROGRESS  = "no_progress"
-	V_UDS_CACHE    = "uds_cache"
-	V_TMP_DIR      = "tmp_dir"
-	V_INSECURE     = "insecure"
+	V_LOG_LEVEL    = "options.log_level"
+	V_ARCHITECTURE = "options.architecture"
+	V_NO_LOG_FILE  = "options.no_log_file"
+	V_NO_PROGRESS  = "options.no_progress"
+	V_UDS_CACHE    = "options.uds_cache"
+	V_TMP_DIR      = "options.tmp_dir"
+	V_INSECURE     = "options.insecure"
 
 	// Bundle config keys
 	V_BNDL_OCI_CONCURRENCY = "bundle.oci_concurrency"
 
 	// Bundle create config keys
-	V_BNDL_CREATE_OUTPUT               = "bundle.create.output"
-	V_BNDL_CREATE_SIGNING_KEY          = "bundle.create.signing-key"
-	V_BNDL_CREATE_SIGNING_KEY_PASSWORD = "bundle.create.signing-key-password"
-	V_BNDL_CREATE_SET                  = "bundle.create.set"
-
-	// Bundle deploy config keys
-	V_BNDL_DEPLOY_ZARF_PACKAGES = "bundle.deploy.zarf-packages"
+	V_BNDL_CREATE_OUTPUT               = "create.output"
+	V_BNDL_CREATE_SIGNING_KEY          = "create.signing-key"
+	V_BNDL_CREATE_SIGNING_KEY_PASSWORD = "create.signing-key-password"
+	V_BNDL_CREATE_SET                  = "create.set"
 
 	// Bundle inspect config keys
 	V_BNDL_INSPECT_KEY = "bundle.inspect.key"
-
-	// Bundle remove config keys
-	V_BNDL_REMOVE_PACKAGES = "bundle.remove.packages"
 
 	// Bundle pull config keys
 	V_BNDL_PULL_OUTPUT = "bundle.pull.output"

@@ -39,7 +39,7 @@ metadata:
   description: an example UDS bundle
   version: 0.0.1
 
-zarf-packages:
+packages:
   - name: init
     repository: localhost:5000/init
     ref: v0.31.1
@@ -51,10 +51,10 @@ zarf-packages:
 ```
 The above `UDSBundle` deploys the Zarf init package and podinfo.
 
-The packages referenced in `zarf-packages` can exist either locally or in an OCI registry. See [here](src/test/packages/03-local-and-remote) for an example that deploys both local and remote Zarf packages. More `UDSBundle` examples can be found in the [src/test/packages](src/test/packages) folder.
+The packages referenced in `packages` can exist either locally or in an OCI registry. See [here](src/test/packages/03-local-and-remote) for an example that deploys both local and remote Zarf packages. More `UDSBundle` examples can be found in the [src/test/packages](src/test/packages) folder.
 
 #### Declarative Syntax
-The syntax of a `uds-bundle.yaml` is entirely declarative. As a result, the UDS CLI will not prompt users to deploy optional components in a Zarf package. If you want to deploy an optional Zarf component, it must be specified in the `optional-components` key of a particular `zarf-package`.
+The syntax of a `uds-bundle.yaml` is entirely declarative. As a result, the UDS CLI will not prompt users to deploy optional components in a Zarf package. If you want to deploy an optional Zarf component, it must be specified in the `optional-components` key of a particular `package`.
 
 ### Bundle Create
 Pulls the Zarf packages from the registry and bundles them into an OCI artifact.
@@ -120,7 +120,7 @@ metadata:
   description: show how vars work
   version: 0.0.1
 
-zarf-packages:
+packages:
   - name: output-var
     repository: localhost:888/output-var
     ref: 0.0.1
