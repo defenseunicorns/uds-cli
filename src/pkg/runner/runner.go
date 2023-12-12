@@ -266,7 +266,7 @@ func (r *Runner) placeFiles(files []zarfTypes.ZarfFile) error {
 			// Try to remove the filepath if it exists
 			_ = os.RemoveAll(link)
 			// Make sure the parent directory exists
-			_ = zarfUtils.CreateFilePath(link)
+			_ = zarfUtils.CreateParentDirectory(link)
 			// Create the symlink
 			err := os.Symlink(targetFile, link)
 			if err != nil {
