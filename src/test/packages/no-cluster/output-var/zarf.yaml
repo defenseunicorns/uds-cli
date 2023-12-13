@@ -8,6 +8,8 @@ metadata:
 variables:
   - name: COUNTRY
     default: Wales
+  - name: ANIMAL # will be set by an env var for testing
+    default: Dragons
 
 components:
   - name: echo
@@ -15,7 +17,7 @@ components:
     actions:
       onDeploy:
         after:
-          - cmd: echo "Unicorns are the national animal of "${ZARF_VAR_COUNTRY}""
+          - cmd: echo ""${ZARF_VAR_ANIMAL}" are the national animal of "${ZARF_VAR_COUNTRY}""
             setVariables:
               - name: OUTPUT
           - cmd: echo "England"
