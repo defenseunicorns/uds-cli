@@ -206,13 +206,21 @@ func deployPackages(packages []types.Package, resume bool, b *Bundler) error {
 func (b *Bundler) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) map[string]string {
 	pkgVars := make(map[string]string)
 	pkgConfigVars := make(map[string]string)
-	// don't use pkg overrides here bc this function processes Zarf vars (even though they look the same in the uds-config)
-	overrideVars := getPkgOverrideVars(pkg)
+	pkgEnvVars := make(map[string]string)
+
 	for name, val := range b.cfg.DeployOpts.Variables[pkg.Name] {
-		if !slices.Contains(overrideVars, name) {
-			pkgConfigVars[strings.ToUpper(name)] = fmt.Sprint(val)
+		pkgConfigVars[strings.ToUpper(name)] = fmt.Sprint(val)
+	}
+
+	// load env vars that start with UDS_
+	for _, envVar := range os.Environ() {
+		if strings.HasPrefix(envVar, config.EnvVarPrefix) {
+			parts := strings.Split(envVar, "=")
+			pkgEnvVars[strings.ToUpper(strings.TrimPrefix(parts[0], config.EnvVarPrefix))] = parts[1]
 		}
 	}
+
+	// get imported vars
 	pkgImportedVars := make(map[string]string)
 	for _, imp := range pkg.Imports {
 		pkgImportedVars[strings.ToUpper(imp.Name)] = bundleExportedVars[imp.Package][imp.Name]
@@ -221,19 +229,8 @@ func (b *Bundler) loadVariables(pkg types.Package, bundleExportedVars map[string
 	// set var precedence
 	maps.Copy(pkgVars, pkgImportedVars)
 	maps.Copy(pkgVars, pkgConfigVars)
+	maps.Copy(pkgVars, pkgEnvVars)
 	return pkgVars
-}
-
-func getPkgOverrideVars(pkg types.Package) []string {
-	var overrideVars []string
-	for _, components := range pkg.Overrides {
-		for _, chart := range components {
-			for _, v := range chart.Variables {
-				overrideVars = append(overrideVars, v.Name)
-			}
-		}
-	}
-	return overrideVars
 }
 
 // confirmBundleDeploy prompts the user to confirm bundle creation

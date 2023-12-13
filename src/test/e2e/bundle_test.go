@@ -75,10 +75,12 @@ func TestBundleVariables(t *testing.T) {
 	bundleDir := "src/test/bundles/02-simple-vars"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-simple-vars-%s-0.0.1.tar.zst", e2e.Arch))
 
-	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/02-simple-vars", "uds-config.yaml"))
-
 	create(t, bundleDir)
 	createRemote(t, bundleDir, "localhost:888")
+
+	os.Setenv("UDS_ANIMAL", "Unicorns")
+	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/02-simple-vars", "uds-config.yaml"))
+
 	_, stderr := deploy(t, bundlePath)
 
 	require.NotContains(t, stderr, "CLIVersion is set to 'unset' which can cause issues with package creation and deployment")
