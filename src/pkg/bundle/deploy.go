@@ -50,6 +50,9 @@ func (b *Bundler) Deploy() error {
 
 	defer metadataSpinner.Stop()
 
+	// Check that provided oci source path is valid, and update it if it's missing the full path
+	b.cfg.DeployOpts.Source = CheckOCISourcePath(b.cfg.DeployOpts.Source)
+
 	// create a new provider
 	provider, err := NewBundleProvider(ctx, b.cfg.DeployOpts.Source, b.tmp)
 	if err != nil {
@@ -85,7 +88,7 @@ func (b *Bundler) Deploy() error {
 	// Check if --packages flag is set and zarf packages have been specified
 	var packagesToDeploy []types.BundleZarfPackage
 	if len(b.cfg.DeployOpts.Packages) != 0 {
-		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.DeployOpts.Packages[0], " ",""), ",")
+		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.DeployOpts.Packages[0], " ", ""), ",")
 
 		for _, pkg := range b.bundle.ZarfPackages {
 			if slices.Contains(userSpecifiedPackages, pkg.Name) {
@@ -109,7 +112,7 @@ func deployPackages(packages []types.BundleZarfPackage, resume bool, b *Bundler)
 
 	var packagesToDeploy []types.BundleZarfPackage
 
-	if(resume){
+	if resume {
 		deployedPackageNames := GetDeployedPackageNames()
 		for _, pkg := range packages {
 			if !slices.Contains(deployedPackageNames, pkg.Name) {

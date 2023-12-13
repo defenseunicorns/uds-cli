@@ -18,7 +18,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
@@ -66,7 +65,6 @@ var deployCmd = &cobra.Command{
 	Aliases: []string{"d"},
 	Short:   lang.CmdBundleDeployShort,
 	Args:    cobra.MaximumNArgs(1),
-	PreRun:  firstArgIsEitherOCIorTarball,
 	Run: func(cmd *cobra.Command, args []string) {
 		bundleCfg.DeployOpts.Source = chooseBundle(args)
 		configureZarf()
@@ -94,7 +92,6 @@ var inspectCmd = &cobra.Command{
 	Short:   lang.CmdBundleInspectShort,
 	Args:    cobra.MaximumNArgs(1),
 	PreRun: func(cmd *cobra.Command, args []string) {
-		firstArgIsEitherOCIorTarball(nil, args)
 		if cmd.Flag("extract").Value.String() == "true" && cmd.Flag("sbom").Value.String() == "false" {
 			message.Fatal(nil, "cannot use 'extract' flag without 'sbom' flag")
 		}
@@ -118,7 +115,6 @@ var removeCmd = &cobra.Command{
 	Aliases: []string{"r"},
 	Args:    cobra.ExactArgs(1),
 	Short:   lang.CmdBundleRemoveShort,
-	PreRun:  firstArgIsEitherOCIorTarball,
 	Run: func(cmd *cobra.Command, args []string) {
 		bundleCfg.RemoveOpts.Source = args[0]
 		configureZarf()
@@ -166,11 +162,6 @@ var pullCmd = &cobra.Command{
 	Aliases: []string{"p"},
 	Short:   lang.CmdBundlePullShort,
 	Args:    cobra.ExactArgs(1),
-	PreRun: func(cmd *cobra.Command, args []string) {
-		if err := oci.ValidateReference(args[0]); err != nil {
-			message.Fatalf(err, "First argument (%q) must be a valid OCI URL: %s", args[0], err.Error())
-		}
-	},
 	Run: func(cmd *cobra.Command, args []string) {
 		bundleCfg.PullOpts.Source = args[0]
 		configureZarf()
@@ -182,25 +173,6 @@ var pullCmd = &cobra.Command{
 			message.Fatalf(err, "Failed to pull bundle: %s", err.Error())
 		}
 	},
-}
-
-func firstArgIsEitherOCIorTarball(_ *cobra.Command, args []string) {
-	if len(args) == 0 {
-		return
-	}
-	var errString string
-	var err error
-	if utils.IsValidTarballPath(args[0]) {
-		return
-	}
-	if !helpers.IsOCIURL(args[0]) && !utils.IsValidTarballPath(args[0]) {
-		errString = fmt.Sprintf("First argument (%q) must either be a valid OCI URL or a valid path to a bundle tarball", args[0])
-	} else {
-		err = oci.ValidateReference(args[0])
-	}
-	if errString != "" {
-		message.Fatalf(err, "Failed to validate first argument: %s", errString)
-	}
 }
 
 // loadViperConfig reads the config file and unmarshals the relevant config into DeployOpts.Variables
