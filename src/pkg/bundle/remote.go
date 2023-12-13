@@ -162,7 +162,7 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 		return nil, err
 	}
 
-	for _, pkg := range bundle.ZarfPackages {
+	for _, pkg := range bundle.Packages {
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
 		manifestDesc := op.manifest.Locate(sha)
 		if err != nil {

@@ -16,6 +16,7 @@
     - [Inspect](#bundle-inspect)
     - [Publish](#bundle-publish)
     - [Remove](#bundle-remove)
+1. [Configuration](#configuration)
 1. [Variables](#variables)
 1. [Bundle Overrides](docs/overrides.md)
 1. [Bundle Anatomy](#bundle-anatomy)
@@ -39,7 +40,7 @@ metadata:
   description: an example UDS bundle
   version: 0.0.1
 
-zarf-packages:
+packages:
   - name: init
     repository: localhost:5000/init
     ref: v0.31.1
@@ -51,10 +52,10 @@ zarf-packages:
 ```
 The above `UDSBundle` deploys the Zarf init package and podinfo.
 
-The packages referenced in `zarf-packages` can exist either locally or in an OCI registry. See [here](src/test/packages/03-local-and-remote) for an example that deploys both local and remote Zarf packages. More `UDSBundle` examples can be found in the [src/test/packages](src/test/packages) folder.
+The packages referenced in `packages` can exist either locally or in an OCI registry. See [here](src/test/packages/03-local-and-remote) for an example that deploys both local and remote Zarf packages. More `UDSBundle` examples can be found in the [src/test/packages](src/test/packages) folder.
 
 #### Declarative Syntax
-The syntax of a `uds-bundle.yaml` is entirely declarative. As a result, the UDS CLI will not prompt users to deploy optional components in a Zarf package. If you want to deploy an optional Zarf component, it must be specified in the `optional-components` key of a particular `zarf-package`.
+The syntax of a `uds-bundle.yaml` is entirely declarative. As a result, the UDS CLI will not prompt users to deploy optional components in a Zarf package. If you want to deploy an optional Zarf component, it must be specified in the `optional-components` key of a particular `package`.
 
 ### Bundle Create
 Pulls the Zarf packages from the registry and bundles them into an OCI artifact.
@@ -111,6 +112,30 @@ By default all the packages in the bundle are removed, but you can also remove o
 
 As an example: `uds remove uds-bundle-<name>.tar.zst --packages init,nginx`
 
+## Configuration
+The UDS CLI can be configured with a `uds-config.yaml` file. This file can be placed in the current working directory or specified with an environment variable called `UDS_CONFIG`. The basic structure of the `uds-config.yaml` is as follows:
+```yaml
+options:
+   log-level: debug
+   architecture: arm64
+   no_log_file: false
+   no_progress: false
+   uds_cache: /tmp/uds-cache
+   tmp_dir: /tmp/tmp_dir
+   insecure: false
+   oci_concurrency: 3
+variables:
+  my-zarf-package:  # name of Zarf package
+    ui_color: green # key is not case sensitive and refers to name of Zarf variable
+    UI_MSG: "Hello Unicorn"
+    hosts:          # variables can be complex types such as lists and maps
+       - host: burning.boats
+         paths:
+            - path: "/"
+              pathType: "Prefix"
+```
+The `options` key contains UDS CLI options that are not specific to a particular Zarf package. The `variables` key contains variables that are specific to a particular Zarf package.
+
 ## Variables
 Zarf package variables can be passed between Zarf packages:
 ```yaml
@@ -120,7 +145,7 @@ metadata:
   description: show how vars work
   version: 0.0.1
 
-zarf-packages:
+packages:
   - name: output-var
     repository: localhost:888/output-var
     ref: 0.0.1

@@ -426,11 +426,13 @@ func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 	remove(t, bundlePath)
 }
 
-// This test requires the following to be published:
+// This test requires the following to be published (based on src/test/bundles/06-ghcr/uds-bundle.yaml):
 // ghcr.io/defenseunicorns/packages/uds/bundles/ghcr-test:0.0.1-amd64
-// ghcr.io/defenseunicorns/packages/delivery/ghcr-delivery-test:0.0.1-amd64
+// ghcr.io/defenseunicorns/packages/uds/bundles/ghcr-test:0.0.1-arm64
+// ghcr.io/defenseunicorns/packages/delivery/ghcr-test:0.0.1-amd64
+// ghcr.io/defenseunicorns/packages/delivery/ghcr-test:0.0.1-arm64
 // The default bundle location if no source path provided is defenseunicorns/packages/uds/bundles/"
-func TestOciNoPath(t *testing.T) {
+func TestOCINoPath(t *testing.T) {
 	deployZarfInit(t)
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
 
@@ -442,7 +444,7 @@ func TestOciNoPath(t *testing.T) {
 	deploy(t, bundleName)
 	remove(t, bundleName)
 
-	bundleName = "delivery/ghcr-delivery-test:0.0.1-amd64"
+	bundleName = fmt.Sprintf("delivery/ghcr-test:0.0.1-%s", e2e.Arch)
 	inspect(t, bundleName)
 	pull(t, bundleName, tarballPath)
 	deploy(t, bundleName)
