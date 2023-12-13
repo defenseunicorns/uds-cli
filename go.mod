@@ -3,7 +3,7 @@ module github.com/defenseunicorns/uds-cli
 go 1.21.5
 
 // TODO (@UncleGedd): Pending merge into github.com/anchore/syft (https://github.com/anchore/syft/pull/2411)
-replace github.com/anchore/syft => github.com/defenseunicorns/syft v0.75.1-0.20231208231130-562ba667d3d1
+replace github.com/anchore/syft => github.com/defenseunicorns/syft v0.75.1-0.20231208100201-4d4b5021746a
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
