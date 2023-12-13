@@ -17,16 +17,14 @@ import (
 
 const (
 	// Root config keys
-	V_LOG_LEVEL    = "options.log_level"
-	V_ARCHITECTURE = "options.architecture"
-	V_NO_LOG_FILE  = "options.no_log_file"
-	V_NO_PROGRESS  = "options.no_progress"
-	V_UDS_CACHE    = "options.uds_cache"
-	V_TMP_DIR      = "options.tmp_dir"
-	V_INSECURE     = "options.insecure"
-
-	// Bundle config keys
-	V_BNDL_OCI_CONCURRENCY = "bundle.oci_concurrency"
+	V_LOG_LEVEL            = "options.log_level"
+	V_ARCHITECTURE         = "options.architecture"
+	V_NO_LOG_FILE          = "options.no_log_file"
+	V_NO_PROGRESS          = "options.no_progress"
+	V_UDS_CACHE            = "options.uds_cache"
+	V_TMP_DIR              = "options.tmp_dir"
+	V_INSECURE             = "options.insecure"
+	V_BNDL_OCI_CONCURRENCY = "options.oci_concurrency"
 
 	// Bundle create config keys
 	V_BNDL_CREATE_OUTPUT               = "create.output"

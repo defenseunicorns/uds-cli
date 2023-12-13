@@ -96,7 +96,7 @@
       "additionalProperties": false,
       "type": "object"
     },
-    "BundleZarfPackage": {
+    "Package": {
       "required": [
         "name",
         "ref"
@@ -223,7 +223,7 @@
         "packages": {
           "items": {
             "$schema": "http://json-schema.org/draft-04/schema#",
-            "$ref": "#/definitions/BundleZarfPackage"
+            "$ref": "#/definitions/Package"
           },
           "type": "array",
           "description": "List of Zarf packages"

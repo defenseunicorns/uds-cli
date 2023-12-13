@@ -16,6 +16,7 @@
     - [Inspect](#bundle-inspect)
     - [Publish](#bundle-publish)
     - [Remove](#bundle-remove)
+1. [Configuration](#configuration)
 1. [Variables](#variables)
 1. [Bundle Overrides](docs/overrides.md)
 1. [Bundle Anatomy](#bundle-anatomy)
@@ -110,6 +111,30 @@ There are 2 ways to remove Bundles:
 By default all the packages in the bundle are removed, but you can also remove only certain packages in the bundle by using the `--packages` flag.
 
 As an example: `uds remove uds-bundle-<name>.tar.zst --packages init,nginx`
+
+## Configuration
+The UDS CLI can be configured with a `uds-config.yaml` file. This file can be placed in the current working directory or specified with an environment variable called `UDS_CONFIG`. The basic structure of the `uds-config.yaml` is as follows:
+```yaml
+options:
+   log-level: debug
+   architecture: arm64
+   no_log_file: false
+   no_progress: false
+   uds_cache: /tmp/uds-cache
+   tmp_dir: /tmp/tmp_dir
+   insecure: false
+   oci_concurrency: 3
+variables:
+  my-zarf-package:  # name of Zarf package
+    ui_color: green # key is not case sensitive and refers to name of Zarf variable
+    UI_MSG: "Hello Unicorn"
+    hosts:          # variables can be complex types such as lists and maps
+       - host: burning.boats
+         paths:
+            - path: "/"
+              pathType: "Prefix"
+```
+The `options` key contains UDS CLI options that are not specific to a particular Zarf package. The `variables` key contains variables that are specific to a particular Zarf package.
 
 ## Variables
 Zarf package variables can be passed between Zarf packages:
