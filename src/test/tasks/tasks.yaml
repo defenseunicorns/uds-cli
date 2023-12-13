@@ -1,5 +1,6 @@
 includes:
   - local: ./tasks-to-import.yaml
+  - foo: ./more-tasks/foo.yaml
   - remote: https://raw.githubusercontent.com/defenseunicorns/uds-cli/${GIT_REVISION}/src/test/tasks/remote-import-tasks.yaml
 
 variables:
@@ -88,3 +89,6 @@ tasks:
       - task: rerunnable-task
       - task: rerunnable-task
       - task: recursive
+  - name: foobar
+    actions:
+      - task: foo:foobar
