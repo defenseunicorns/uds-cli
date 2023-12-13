@@ -235,7 +235,7 @@ func (op *ociProvider) PublishBundle(_ types.UDSBundle, _ *oci.OrasRemote) error
 }
 
 // Returns the validated source path based on the provided oci source path
-func getOciValidatedSource(source string) string {
+func getOCIValidatedSource(source string) string {
 	// Check if arch specified, if not, append cluster arch
 	if !IsSourceArchSpecified(source) {
 		clusterArchs, err := cluster.NewClusterOrDie().GetArchitectures()
@@ -298,7 +298,7 @@ func IsSourceArchSpecified(source string) bool {
 func CheckOCISourcePath(source string) string{
 	validTarballPath := utils.IsValidTarballPath(source)
 	if !validTarballPath {
-		source = getOciValidatedSource(source)
+		source = getOCIValidatedSource(source)
 	}
 	return source
 }
