@@ -86,7 +86,7 @@ func (b *Bundler) Deploy() error {
 	resume := b.cfg.DeployOpts.Resume
 
 	// Check if --packages flag is set and zarf packages have been specified
-	var packagesToDeploy []types.BundleZarfPackage
+	var packagesToDeploy []types.Package
 	if len(b.cfg.DeployOpts.Packages) != 0 {
 		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.DeployOpts.Packages[0], " ", ""), ",")
 
@@ -106,11 +106,11 @@ func (b *Bundler) Deploy() error {
 	return deployPackages(b.bundle.Packages, resume, b)
 }
 
-func deployPackages(packages []types.BundleZarfPackage, resume bool, b *Bundler) error {
+func deployPackages(packages []types.Package, resume bool, b *Bundler) error {
 	// map of Zarf pkgs and their vars
 	bundleExportedVars := make(map[string]map[string]string)
 
-	var packagesToDeploy []types.BundleZarfPackage
+	var packagesToDeploy []types.Package
 
 	if resume {
 		deployedPackageNames := GetDeployedPackageNames()
@@ -203,7 +203,7 @@ func deployPackages(packages []types.BundleZarfPackage, resume bool, b *Bundler)
 }
 
 // loadVariables loads and sets precedence for config-level and imported variables
-func (b *Bundler) loadVariables(pkg types.BundleZarfPackage, bundleExportedVars map[string]map[string]string) map[string]string {
+func (b *Bundler) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) map[string]string {
 	pkgVars := make(map[string]string)
 	pkgConfigVars := make(map[string]string)
 	// don't use pkg overrides here bc this function processes Zarf vars (even though they look the same in the uds-config)
@@ -224,7 +224,7 @@ func (b *Bundler) loadVariables(pkg types.BundleZarfPackage, bundleExportedVars 
 	return pkgVars
 }
 
-func getPkgOverrideVars(pkg types.BundleZarfPackage) []string {
+func getPkgOverrideVars(pkg types.Package) []string {
 	var overrideVars []string
 	for _, components := range pkg.Overrides {
 		for _, chart := range components {
@@ -262,7 +262,7 @@ func (b *Bundler) confirmBundleDeploy() (confirm bool) {
 }
 
 // loadChartOverrides converts a helm path to a ValuesOverridesMap config for Zarf
-func (b *Bundler) loadChartOverrides(pkg types.BundleZarfPackage) (ZarfOverrideMap, error) {
+func (b *Bundler) loadChartOverrides(pkg types.Package) (ZarfOverrideMap, error) {
 
 	// Create a nested map to hold the values
 	overrideMap := make(map[string]map[string]*values.Options)

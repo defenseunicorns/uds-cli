@@ -28,7 +28,7 @@ import (
 // RemoteBundler contains methods for pulling remote Zarf packages into a bundle
 type RemoteBundler struct {
 	ctx             context.Context
-	pkg             types.BundleZarfPackage
+	pkg             types.Package
 	PkgRootManifest *oci.ZarfOCIManifest
 	RemoteSrc       *oci.OrasRemote
 	RemoteDst       *oci.OrasRemote
@@ -38,7 +38,7 @@ type RemoteBundler struct {
 
 // NewRemoteBundler creates a bundler to pull remote Zarf pkgs
 // todo: document this fn better or break out into multiple constructors
-func NewRemoteBundler(pkg types.BundleZarfPackage, url string, localDst *ocistore.Store, remoteDst *oci.OrasRemote, tmpDir string) (RemoteBundler, error) {
+func NewRemoteBundler(pkg types.Package, url string, localDst *ocistore.Store, remoteDst *oci.OrasRemote, tmpDir string) (RemoteBundler, error) {
 	src, err := oci.NewOrasRemote(url)
 	if err != nil {
 		return RemoteBundler{}, err
@@ -232,7 +232,7 @@ func (b *RemoteBundler) remoteToLocal(layersToCopy []ocispec.Descriptor) ([]ocis
 }
 
 // getZarfLayers grabs the necessary Zarf pkg layers from a remote OCI registry
-func getZarfLayers(remote *oci.OrasRemote, pkg types.BundleZarfPackage, pkgRootManifest *oci.ZarfOCIManifest) ([]ocispec.Descriptor, error) {
+func getZarfLayers(remote *oci.OrasRemote, pkg types.Package, pkgRootManifest *oci.ZarfOCIManifest) ([]ocispec.Descriptor, error) {
 	layersFromComponents, err := remote.LayersFromRequestedComponents(pkg.OptionalComponents)
 	if err != nil {
 		return nil, err

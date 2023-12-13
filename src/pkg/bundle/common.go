@@ -202,7 +202,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 }
 
 // validateBundleVars ensures imports and exports between Zarf pkgs match up
-func validateBundleVars(packages []types.BundleZarfPackage) error {
+func validateBundleVars(packages []types.Package) error {
 	exports := make(map[string]string)
 	for i, pkg := range packages {
 		if i == 0 && pkg.Imports != nil {

@@ -154,13 +154,12 @@ There are 2 ways to override the `UI_COLOR` variable:
 1. **UDS config**: you can create a `uds-config.yaml` file in the same directory as the bundle and specify the variable to override. For example, to override the `UI_COLOR` variable, you can create a `uds-config.yaml`:
 
     ```yaml
-    bundle:
-      deploy:
+      variables:
         helm-overrides-package:
-          helm-overrides-component:
-            set:
-              UI_COLOR: green
+          ui_color: green
     ```
+Note that the variable for `UI_COLOR` can be upper or lowercase.  
+
 1. **Environment variables**: you can create an environment variable prefixed with `UDS_` and the name of the variable. For example, to override the `UI_COLOR` variable, you can create an environment variable called `UDS_UI_COLOR` and set it to the desired value. Note that environment variables take precedence over `uds-config.yaml` variables.  
 
 #### Variable Precedence

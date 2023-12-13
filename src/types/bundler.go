@@ -32,11 +32,6 @@ type BundlerDeployOptions struct {
 	Variables     map[string]map[string]interface{}
 }
 
-//// SetVariables is a map of variables
-//type SetVariables struct {
-//	Set map[string]interface{}
-//}
-
 // BundlerInspectOptions is the options for the bundler.Inspect() function
 type BundlerInspectOptions struct {
 	PublicKeyPath string

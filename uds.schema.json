@@ -200,7 +200,7 @@
       "required": [
         "kind",
         "metadata",
-        "zarf-packages"
+        "packages"
       ],
       "properties": {
         "kind": {
@@ -220,7 +220,7 @@
           "$ref": "#/definitions/UDSBuildData",
           "description": "Generated bundle build data"
         },
-        "zarf-packages": {
+        "packages": {
           "items": {
             "$schema": "http://json-schema.org/draft-04/schema#",
             "$ref": "#/definitions/BundleZarfPackage"

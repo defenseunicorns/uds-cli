@@ -45,7 +45,7 @@ func (b *Bundler) Remove() error {
 	}
 
 	// Check if --packages flag is set and zarf packages have been specified
-	var packagesToRemove []types.BundleZarfPackage
+	var packagesToRemove []types.Package
 
 	if len(b.cfg.RemoveOpts.Packages) != 0 {
 		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.RemoveOpts.Packages[0], " ", ""), ",")
@@ -64,7 +64,7 @@ func (b *Bundler) Remove() error {
 	return removePackages(b.bundle.Packages, b)
 }
 
-func removePackages(packagesToRemove []types.BundleZarfPackage, b *Bundler) error {
+func removePackages(packagesToRemove []types.Package, b *Bundler) error {
 
 	// Get deployed packages
 	deployedPackageNames := GetDeployedPackageNames()
