@@ -6,14 +6,14 @@ package types
 
 // UDSBundle is the top-level structure of a UDS bundle
 type UDSBundle struct {
-	Kind         string              `json:"kind" jsonschema:"description=The kind of UDS package,enum=UDSBundle"`
-	Metadata     UDSMetadata         `json:"metadata" jsonschema:"description=UDSBundle metadata"`
-	Build        UDSBuildData        `json:"build,omitempty" jsonschema:"description=Generated bundle build data"`
-	ZarfPackages []BundleZarfPackage `json:"zarf-packages" jsonschema:"description=List of Zarf packages"`
+	Kind     string       `json:"kind" jsonschema:"description=The kind of UDS package,enum=UDSBundle"`
+	Metadata UDSMetadata  `json:"metadata" jsonschema:"description=UDSBundle metadata"`
+	Build    UDSBuildData `json:"build,omitempty" jsonschema:"description=Generated bundle build data"`
+	Packages []Package    `json:"packages" jsonschema:"description=List of Zarf packages"`
 }
 
-// BundleZarfPackage represents a Zarf package in a UDS bundle
-type BundleZarfPackage struct {
+// Package represents a Zarf package in a UDS bundle
+type Package struct {
 	Name               string                                     `json:"name" jsonschema:"name=Name of the Zarf package"`
 	Repository         string                                     `json:"repository,omitempty" jsonschema:"description=The repository to import the package from"`
 	Path               string                                     `json:"path,omitempty" jsonschema:"description=The local path to import the package from"`

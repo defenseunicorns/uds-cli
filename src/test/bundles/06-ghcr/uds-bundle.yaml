@@ -1,10 +1,10 @@
 kind: UDSBundle
 metadata:
-  name: ghcr-deploy
+  name: ghcr-test
   description: building from local and remote Zarf pkgs
   version: 0.0.1
 
-zarf-packages:
+packages:
   - name: nginx
     repository: ghcr.io/defenseunicorns/nginx
     ref: 0.0.1

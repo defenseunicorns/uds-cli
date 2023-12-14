@@ -3,7 +3,7 @@ module github.com/defenseunicorns/uds-cli
 go 1.21.5
 
 // TODO (@UncleGedd): Pending merge into github.com/anchore/syft (https://github.com/anchore/syft/pull/2411)
-replace github.com/anchore/syft => github.com/defenseunicorns/syft v0.75.1-0.20231208231130-562ba667d3d1
+replace github.com/anchore/syft => github.com/defenseunicorns/syft v0.75.1-0.20231208100201-4d4b5021746a
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
@@ -17,10 +17,10 @@ require (
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.18.1
 	github.com/stretchr/testify v1.8.4
-	golang.org/x/exp v0.0.0-20231127185646-65229373498e
+	golang.org/x/exp v0.0.0-20231206192017-f3f8817b8deb
 	golang.org/x/mod v0.14.0
 	golang.org/x/sync v0.5.0
-	helm.sh/helm/v3 v3.13.2
+	helm.sh/helm/v3 v3.13.3
 	oras.land/oras-go/v2 v2.3.1
 )
 
@@ -479,9 +479,9 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/gorm v1.25.5 // indirect
 	k8s.io/api v0.28.4 // indirect
-	k8s.io/apiextensions-apiserver v0.28.3 // indirect
+	k8s.io/apiextensions-apiserver v0.28.4 // indirect
 	k8s.io/apimachinery v0.28.4 // indirect
-	k8s.io/apiserver v0.28.3 // indirect
+	k8s.io/apiserver v0.28.4 // indirect
 	k8s.io/cli-runtime v0.28.4 // indirect
 	k8s.io/client-go v0.28.4 // indirect
 	k8s.io/component-base v0.28.4 // indirect

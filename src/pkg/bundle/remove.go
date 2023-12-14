@@ -23,6 +23,10 @@ import (
 // Remove removes packages deployed from a bundle
 func (b *Bundler) Remove() error {
 	ctx := context.TODO()
+
+	// Check that provided oci source path is valid, and update it if it's missing the full path
+	b.cfg.RemoveOpts.Source = CheckOCISourcePath(b.cfg.RemoveOpts.Source)
+
 	// create a new provider
 	provider, err := NewBundleProvider(ctx, b.cfg.RemoveOpts.Source, b.tmp)
 	if err != nil {
@@ -41,11 +45,11 @@ func (b *Bundler) Remove() error {
 	}
 
 	// Check if --packages flag is set and zarf packages have been specified
-	var packagesToRemove []types.BundleZarfPackage
+	var packagesToRemove []types.Package
 
 	if len(b.cfg.RemoveOpts.Packages) != 0 {
-		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.RemoveOpts.Packages[0]," ",""), ",")
-		for _, pkg := range b.bundle.ZarfPackages {
+		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.RemoveOpts.Packages[0], " ", ""), ",")
+		for _, pkg := range b.bundle.Packages {
 			if slices.Contains(userSpecifiedPackages, pkg.Name) {
 				packagesToRemove = append(packagesToRemove, pkg)
 			}
@@ -57,10 +61,10 @@ func (b *Bundler) Remove() error {
 		}
 		return removePackages(packagesToRemove, b)
 	}
-	return removePackages(b.bundle.ZarfPackages, b)
+	return removePackages(b.bundle.Packages, b)
 }
 
-func removePackages(packagesToRemove []types.BundleZarfPackage, b *Bundler) error {
+func removePackages(packagesToRemove []types.Package, b *Bundler) error {
 
 	// Get deployed packages
 	deployedPackageNames := GetDeployedPackageNames()
@@ -69,7 +73,7 @@ func removePackages(packagesToRemove []types.BundleZarfPackage, b *Bundler) erro
 
 		pkg := packagesToRemove[i]
 
-		if(slices.Contains(deployedPackageNames, pkg.Name)) {
+		if slices.Contains(deployedPackageNames, pkg.Name) {
 			opts := zarfTypes.ZarfPackageOptions{
 				PackageSource: b.cfg.RemoveOpts.Source,
 			}
@@ -96,7 +100,7 @@ func removePackages(packagesToRemove []types.BundleZarfPackage, b *Bundler) erro
 			if err := pkgClient.Remove(); err != nil {
 				return err
 			}
-		}else{
+		} else {
 			message.Warnf("Skipping removal of %s. Package not deployed", pkg.Name)
 		}
 	}

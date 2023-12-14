@@ -1,9 +1,7 @@
-bundle:
-  deploy:
-    zarf-packages:
-      output-var:
-        set:
-          country: Scotland
-      receive-var:
-        set:
-          precedence: Wales
+options:
+  log_level: debug
+variables:
+  output-var:
+    country: Scotland
+  receive-var:
+    precedence: Wales

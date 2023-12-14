@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/config/lang"
+	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
@@ -92,11 +92,11 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 		return fmt.Errorf("%s is missing required field: metadata.name", config.BundleYAML)
 	}
 
-	if len(bundle.ZarfPackages) == 0 {
+	if len(bundle.Packages) == 0 {
 		return fmt.Errorf("%s is missing required list: packages", config.BundleYAML)
 	}
 
-	if err := validateBundleVars(bundle.ZarfPackages); err != nil {
+	if err := validateBundleVars(bundle.Packages); err != nil {
 		return fmt.Errorf("error validating bundle vars: %s", err)
 	}
 
@@ -106,7 +106,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 	}
 
 	// validate access to packages as well as components referenced in the package
-	for idx, pkg := range bundle.ZarfPackages {
+	for idx, pkg := range bundle.Packages {
 		spinner.Updatef("Validating Bundle Package: %s", pkg.Name)
 		if pkg.Name == "" {
 			return fmt.Errorf("%s is missing required field: name", pkg)
@@ -137,7 +137,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 			}
 			if err := remotePkg.RemoteSrc.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
 				manifestDesc, _ := remotePkg.RemoteSrc.ResolveRoot()
-				bundle.ZarfPackages[idx].Ref = pkg.Ref + "-" + bundle.Metadata.Architecture + "@sha256:" + manifestDesc.Digest.Encoded()
+				bundle.Packages[idx].Ref = pkg.Ref + "-" + bundle.Metadata.Architecture + "@sha256:" + manifestDesc.Digest.Encoded()
 			}
 			zarfYAML, err = remotePkg.GetMetadata(url, tmp)
 			if err != nil {
@@ -155,7 +155,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 				fullPkgName = fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", pkg.Name, bundle.Metadata.Architecture, pkg.Ref)
 			}
 			path := filepath.Join(pkg.Path, fullPkgName)
-			bundle.ZarfPackages[idx].Path = path
+			bundle.Packages[idx].Path = path
 			p := bundler.NewLocalBundler(pkg.Path, tmp)
 			if err != nil {
 				return err
@@ -202,7 +202,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 }
 
 // validateBundleVars ensures imports and exports between Zarf pkgs match up
-func validateBundleVars(packages []types.BundleZarfPackage) error {
+func validateBundleVars(packages []types.Package) error {
 	exports := make(map[string]string)
 	for i, pkg := range packages {
 		if i == 0 && pkg.Imports != nil {
@@ -272,20 +272,20 @@ func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string
 }
 
 // GetDeployedPackages returns packages that have been deployed
-func GetDeployedPackages()([]zarfTypes.DeployedPackage, error){
+func GetDeployedPackages() ([]zarfTypes.DeployedPackage, error) {
 	cluster := cluster.NewClusterOrDie()
 	deployedPackages, errs := cluster.GetDeployedZarfPackages()
 	if len(errs) > 0 {
-		return nil,lang.ErrUnableToGetPackages
+		return nil, lang.ErrUnableToGetPackages
 	}
 	return deployedPackages, nil
 }
 
 // GetDeployedPackageNames returns the names of the packages that have been deployed
-func GetDeployedPackageNames()[]string {
+func GetDeployedPackageNames() []string {
 	var deployedPackageNames []string
 	deployedPackages, _ := GetDeployedPackages()
-	for _,pkg := range deployedPackages{
+	for _, pkg := range deployedPackages {
 		deployedPackageNames = append(deployedPackageNames, pkg.Name)
 	}
 	return deployedPackageNames

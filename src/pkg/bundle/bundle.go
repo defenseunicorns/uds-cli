@@ -50,7 +50,7 @@ func Create(b *Bundler, signature []byte) error {
 	}
 
 	// grab all Zarf pkgs from OCI and put blobs in OCI store
-	for i, pkg := range bundle.ZarfPackages {
+	for i, pkg := range bundle.Packages {
 		fetchSpinner := message.NewProgressSpinner("Fetching package %s", pkg.Name)
 
 		defer fetchSpinner.Stop()
@@ -62,7 +62,7 @@ func Create(b *Bundler, signature []byte) error {
 				return err
 			}
 
-			layerDescs, err := remoteBundler.LayersToBundle(fetchSpinner, i+1, len(bundle.ZarfPackages))
+			layerDescs, err := remoteBundler.LayersToBundle(fetchSpinner, i+1, len(bundle.Packages))
 			if err != nil {
 				return err
 			}
@@ -115,7 +115,7 @@ func Create(b *Bundler, signature []byte) error {
 			}
 
 			// put digest in uds-bundle.yaml to reference during deploy
-			bundle.ZarfPackages[i].Ref = bundle.ZarfPackages[i].Ref + "-" + bundle.Metadata.Architecture + "@sha256:" + zarfPkgDesc.Digest.Encoded()
+			bundle.Packages[i].Ref = bundle.Packages[i].Ref + "-" + bundle.Metadata.Architecture + "@sha256:" + zarfPkgDesc.Digest.Encoded()
 
 			// append zarf image manifest to bundle root manifest and grab path for archiving
 			rootManifest.Layers = append(rootManifest.Layers, zarfPkgDesc)
@@ -206,7 +206,7 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 
 	rootManifest := ocispec.Manifest{}
 
-	for i, pkg := range bundle.ZarfPackages {
+	for i, pkg := range bundle.Packages {
 		url := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
 		remoteBundler, err := bundler.NewRemoteBundler(pkg, url, nil, remoteDst, "")
 		if err != nil {
@@ -227,7 +227,7 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 
 		defer pushSpinner.Stop()
 
-		_, err = remoteBundler.LayersToBundle(pushSpinner, i+1, len(bundle.ZarfPackages))
+		_, err = remoteBundler.LayersToBundle(pushSpinner, i+1, len(bundle.Packages))
 		if err != nil {
 			return err
 		}

@@ -96,7 +96,7 @@
       "additionalProperties": false,
       "type": "object"
     },
-    "BundleZarfPackage": {
+    "Package": {
       "required": [
         "name",
         "ref"
@@ -200,7 +200,7 @@
       "required": [
         "kind",
         "metadata",
-        "zarf-packages"
+        "packages"
       ],
       "properties": {
         "kind": {
@@ -220,10 +220,10 @@
           "$ref": "#/definitions/UDSBuildData",
           "description": "Generated bundle build data"
         },
-        "zarf-packages": {
+        "packages": {
           "items": {
             "$schema": "http://json-schema.org/draft-04/schema#",
-            "$ref": "#/definitions/BundleZarfPackage"
+            "$ref": "#/definitions/Package"
           },
           "type": "array",
           "description": "List of Zarf packages"

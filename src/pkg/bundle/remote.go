@@ -11,12 +11,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -25,6 +27,13 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
 	ocistore "oras.land/oras-go/v2/content/oci"
+)
+
+const (
+	// GHCRPackagesPath is the default package path
+	GHCRPackagesPath  = "oci://ghcr.io/defenseunicorns/packages/"
+	// GHCRUDSBundlePath is the default path for uds bundles
+	GHCRUDSBundlePath = GHCRPackagesPath + "uds/bundles/"
 )
 
 type ociProvider struct {
@@ -153,7 +162,7 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 		return nil, err
 	}
 
-	for _, pkg := range bundle.ZarfPackages {
+	for _, pkg := range bundle.Packages {
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
 		manifestDesc := op.manifest.Locate(sha)
 		if err != nil {
@@ -223,4 +232,73 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 func (op *ociProvider) PublishBundle(_ types.UDSBundle, _ *oci.OrasRemote) error {
 	// todo: implement moving bundles from one registry to another
 	return fmt.Errorf("moving bundles in between remote registries not yet supported")
+}
+
+// Returns the validated source path based on the provided oci source path
+func getOCIValidatedSource(source string) string {
+	// Check if arch specified, if not, append cluster arch
+	if !IsSourceArchSpecified(source) {
+		clusterArchs, err := cluster.NewClusterOrDie().GetArchitectures()
+		var arch string
+		if err != nil {
+			arch = config.GetArch()
+		} else {
+			// This won't work for multi-architecture clusters, in which case, the desired architecture should be specified
+			arch = clusterArchs[0]
+		}
+		source = source + "-" + arch
+	}
+	sourceWithArch := source
+	// Check provided repository path
+	remote, err := oci.NewOrasRemote(sourceWithArch)
+
+	if err == nil {
+		_, err = remote.ResolveRoot()
+	}
+	if err != nil {
+		// Check in ghcr uds bundle path
+		source = GHCRUDSBundlePath + sourceWithArch
+		remote, err = oci.NewOrasRemote(source)
+		if err == nil {
+			_, err = remote.ResolveRoot()
+		}
+		if err != nil {
+			// Check in packages bundle path
+			source = GHCRPackagesPath + sourceWithArch
+			remote, err = oci.NewOrasRemote(source)
+			if err == nil {
+				_, err = remote.ResolveRoot()
+			}
+			if err != nil {
+				message.Fatalf(nil, "%s", sourceWithArch+": not found")
+			}
+		}
+	}
+	return source
+}
+
+// IsSourceArchSpecified checks if the architecture is specified in the bundle source
+func IsSourceArchSpecified(source string) bool {
+	// get version
+	v := strings.Split(source, ":")
+	version := v[len(v)-1]
+	// architecture specified after "-" in version
+	a := strings.Split(version, "-")
+	// if "-" is missing or nothing is after "-" in version, arch is not specified
+	if len(a) < 2 {
+		return false
+	}
+	// get specified arch
+	arch := a[len(a)-1]
+	// confirm arch is valid
+	return slices.Contains(config.GetSupportedArchitectures(), arch)
+}
+
+// CheckOCISourcePath checks that provided oci source path is valid, and updates it if it's missing the full path
+func CheckOCISourcePath(source string) string{
+	validTarballPath := utils.IsValidTarballPath(source)
+	if !validTarballPath {
+		source = getOCIValidatedSource(source)
+	}
+	return source
 }

@@ -18,7 +18,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
@@ -66,7 +65,6 @@ var deployCmd = &cobra.Command{
 	Aliases: []string{"d"},
 	Short:   lang.CmdBundleDeployShort,
 	Args:    cobra.MaximumNArgs(1),
-	PreRun:  firstArgIsEitherOCIorTarball,
 	Run: func(cmd *cobra.Command, args []string) {
 		bundleCfg.DeployOpts.Source = chooseBundle(args)
 		configureZarf()
@@ -94,7 +92,6 @@ var inspectCmd = &cobra.Command{
 	Short:   lang.CmdBundleInspectShort,
 	Args:    cobra.MaximumNArgs(1),
 	PreRun: func(cmd *cobra.Command, args []string) {
-		firstArgIsEitherOCIorTarball(nil, args)
 		if cmd.Flag("extract").Value.String() == "true" && cmd.Flag("sbom").Value.String() == "false" {
 			message.Fatal(nil, "cannot use 'extract' flag without 'sbom' flag")
 		}
@@ -118,7 +115,6 @@ var removeCmd = &cobra.Command{
 	Aliases: []string{"r"},
 	Args:    cobra.ExactArgs(1),
 	Short:   lang.CmdBundleRemoveShort,
-	PreRun:  firstArgIsEitherOCIorTarball,
 	Run: func(cmd *cobra.Command, args []string) {
 		bundleCfg.RemoveOpts.Source = args[0]
 		configureZarf()
@@ -166,11 +162,6 @@ var pullCmd = &cobra.Command{
 	Aliases: []string{"p"},
 	Short:   lang.CmdBundlePullShort,
 	Args:    cobra.ExactArgs(1),
-	PreRun: func(cmd *cobra.Command, args []string) {
-		if err := oci.ValidateReference(args[0]); err != nil {
-			message.Fatalf(err, "First argument (%q) must be a valid OCI URL: %s", args[0], err.Error())
-		}
-	},
 	Run: func(cmd *cobra.Command, args []string) {
 		bundleCfg.PullOpts.Source = args[0]
 		configureZarf()
@@ -184,25 +175,6 @@ var pullCmd = &cobra.Command{
 	},
 }
 
-func firstArgIsEitherOCIorTarball(_ *cobra.Command, args []string) {
-	if len(args) == 0 {
-		return
-	}
-	var errString string
-	var err error
-	if utils.IsValidTarballPath(args[0]) {
-		return
-	}
-	if !helpers.IsOCIURL(args[0]) && !utils.IsValidTarballPath(args[0]) {
-		errString = fmt.Sprintf("First argument (%q) must either be a valid OCI URL or a valid path to a bundle tarball", args[0])
-	} else {
-		err = oci.ValidateReference(args[0])
-	}
-	if errString != "" {
-		message.Fatalf(err, "Failed to validate first argument: %s", errString)
-	}
-}
-
 // loadViperConfig reads the config file and unmarshals the relevant config into DeployOpts.Variables
 func loadViperConfig() error {
 	// get config file from Viper
@@ -210,16 +182,27 @@ func loadViperConfig() error {
 	if err != nil {
 		return err
 	}
+
 	// unmarshal config file at key
 	// need to use goyaml because Viper doesn't preserve case: https://github.com/spf13/viper/issues/1014
-	pathString, err := goyaml.PathString("$.bundle.deploy.zarf-packages")
+	pathString, err := goyaml.PathString("$.variables")
 	if err != nil {
 		return err
 	}
+
 	// read relevant config into DeployOpts.Variables
 	err = pathString.Read(bytes.NewReader(configFile), &bundleCfg.DeployOpts.Variables)
 	if err != nil {
 		return err
+	}
+
+	// ensure the DeployOpts.Variables pkg vars are uppercase
+	for pkgName, pkgVar := range bundleCfg.DeployOpts.Variables {
+		for varName, varValue := range pkgVar {
+			// delete the lowercase var replace with uppercase
+			delete(bundleCfg.DeployOpts.Variables[pkgName], varName)
+			bundleCfg.DeployOpts.Variables[pkgName][strings.ToUpper(varName)] = varValue
+		}
 	}
 	return nil
 }
