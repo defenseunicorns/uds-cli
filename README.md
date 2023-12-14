@@ -17,7 +17,7 @@
     - [Publish](#bundle-publish)
     - [Remove](#bundle-remove)
 1. [Configuration](#configuration)
-1. [Variables](#variables)
+1. [Sharing Variables](#sharing-variables)
 1. [Bundle Overrides](docs/overrides.md)
 1. [Bundle Anatomy](#bundle-anatomy)
 1. [UDS Runner](docs/runner.md)
@@ -57,12 +57,17 @@ The packages referenced in `packages` can exist either locally or in an OCI regi
 #### Declarative Syntax
 The syntax of a `uds-bundle.yaml` is entirely declarative. As a result, the UDS CLI will not prompt users to deploy optional components in a Zarf package. If you want to deploy an optional Zarf component, it must be specified in the `optional-components` key of a particular `package`.
 
-#### Registry Structure
-<b>UDS core bundles:</b> `ghcr.io/defenseunicorns/packages/uds/bundles/`
+#### First-class UDS Support
+When running `deploy`,`inspect`,`remove`, and `pull` commands, UDS CLI contains shorthand for interacting with the Defense Unicorns org on GHCR. Specifically, unless otherwise specified, paths will automatically be expanded to the Defense Unicorns org on GHCR. For example:
+- `uds deploy unicorn-bundle:v0.1.0` is equivalent to `uds deploy ghcr.io/defenseunicorns/packages/uds/bundles/unicorn-bundle:v0.1.0`
 
-<b>UDS delivery bundles:</b> `ghcr.io/defenseunicorns/packages/delivery/`
+The bundle matching and expansion is ordered as follows:
+1. Local with a `tar.zst` extension
+2. Remote path: `oci://ghcr.io/defenseunicorns/packages/uds/bundles/<path>`
+3. Remote path: `oci://ghcr.io/defenseunicorns/packages/delivery/<path>`
+4. Remote path: `oci://ghcr.io/defenseunicorns/packages/<path>`
 
-While you can specify the full path for commands that accept an OCI registry path, for `deploy`,`inspect`,`remove`, and `pull` commands, if you just specify the artifact name and tag, UDS CLI by default will look in `ghcr.io/defenseunicorns/packages/uds/bundles/` for that artifact. UDS bundles used for delivery should be located in `ghcr.io/defenseunicorns/packages/delivery/`. When referencing a remote delivery bundle artifact in `ghcr.io/defenseunicorns/packages/delivery/`, you can provide the entire path, or you can just provide the artifact name and tag, prefaced by `delivery/`
+That is to say, if the bundle is not local, UDS CLI will check path 2, path 3, etc for the remote bundle artifact. This behavior can be overriden by specifying the full path to the bundle artifact, for example `uds deploy ghcr.io/defenseunicorns/dev/path/dev-bundle:v0.1.0`.
 
 ### Bundle Create
 Pulls the Zarf packages from the registry and bundles them into an OCI artifact.
@@ -71,7 +76,8 @@ There are 2 ways to create Bundles:
 1. Inside an OCI registry: `uds create <dir> --insecure -o localhost:5000`
 1. Locally on your filesystem: `uds create <dir> --insecure`
 
-Noting that the `--insecure` flag will be necessary when running the registry from the Makefile.
+> [!NOTE]  
+> The `--insecure` flag is necessary when pulling from a local registry, but not from secure, remote registries such as GHCR.
 
 ### Bundle Deploy
 Deploys the bundle
@@ -143,7 +149,8 @@ variables:
 ```
 The `options` key contains UDS CLI options that are not specific to a particular Zarf package. The `variables` key contains variables that are specific to a particular Zarf package.
 
-## Variables
+## Sharing Variables
+### Importing/Exporting Variables
 Zarf package variables can be passed between Zarf packages:
 ```yaml
 kind: UDSBundle
@@ -169,6 +176,9 @@ packages:
 Variables that you want to make available to other package are in the `export` block of the Zarf package to export a variable from. To have another package ingest an exported variable, use the `imports` key to name both the `variable` and `package` that the variable is exported from.
 
 In the example above, the `OUTPUT` variable is created as part of a Zarf Action in the [output-var](src/test/packages/zarf/no-cluster/output-var) package, and the [receive-var](src/test/packages/zarf/no-cluster/receive-var) package expects a variable called `OUTPUT`.
+
+### Sharing Variables Across Multiple Packages
+If a Zarf variable has the same name in multiple packages and you don't want to set it multiple times via the import/export syntax, you can set an environment variable prefixed with `UDS_` and it will be applied to all the Zarf packages in a bundle. For example, if multiple packages require a `DOMAIN` variable, you could set it once with a `UDS_DOMAIN` environment variable and it would be applied to all packages.
 
 ### Variable Precedence and Specificity
 In a bundle, variables can come from 4 sources. Those sources and their precedence are shown below in order of least to most specificity:
