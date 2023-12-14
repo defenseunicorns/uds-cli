@@ -1,6 +1,6 @@
 kind: UDSBundle
 metadata:
-  name: ghcr-test
+  name: ghcr-delivery-test
   description: building from local and remote Zarf pkgs
   version: 0.0.1
 

@@ -34,6 +34,8 @@ const (
 	GHCRPackagesPath  = "oci://ghcr.io/defenseunicorns/packages/"
 	// GHCRUDSBundlePath is the default path for uds bundles
 	GHCRUDSBundlePath = GHCRPackagesPath + "uds/bundles/"
+	// GHCRDeliveryBundlePath is the default path for delivery bundles
+	GHCRDeliveryBundlePath = GHCRPackagesPath + "delivery/"
 )
 
 type ociProvider struct {
@@ -263,17 +265,28 @@ func getOCIValidatedSource(source string) string {
 			_, err = remote.ResolveRoot()
 		}
 		if err != nil {
-			// Check in packages bundle path
-			source = GHCRPackagesPath + sourceWithArch
+			message.Debugf("%s: not found", source)
+			// Check in delivery bundle path
+			source = GHCRDeliveryBundlePath + sourceWithArch
 			remote, err = oci.NewOrasRemote(source)
 			if err == nil {
 				_, err = remote.ResolveRoot()
 			}
 			if err != nil {
-				message.Fatalf(nil, "%s", sourceWithArch+": not found")
+				message.Debugf("%s: not found", source)
+				// Check in packages bundle path
+				source = GHCRPackagesPath + sourceWithArch
+				remote, err = oci.NewOrasRemote(source)
+				if err == nil {
+					_, err = remote.ResolveRoot()
+				}
+				if err != nil {
+					message.Fatalf(nil, "%s: not found", source)
+				}
 			}
 		}
 	}
+	message.Debugf("%s: found", source)
 	return source
 }
 
