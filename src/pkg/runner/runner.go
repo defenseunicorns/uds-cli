@@ -50,7 +50,7 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 	// only process includes if the task requires them
 	for _, a := range task.Actions {
 		if strings.Contains(a.TaskReference, ":") {
-			err = runner.importTasks(tasksFile.Includes)
+			err = runner.importTasks(tasksFile.Includes,config.TaskFileLocation)
 			if err != nil {
 				return err
 			}
@@ -66,10 +66,11 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 	return err
 }
 
-func (r *Runner) importTasks(includes []map[string]string) error {
+func (r *Runner) importTasks(includes []map[string]string, dir string) error {
 	// iterate through includes, open the file, and unmarshal it into a Task
 	var includeFilenameKey string
 	var includeFilename string
+	dir = filepath.Dir(dir)
 	for _, include := range includes {
 		if len(include) > 1 {
 			return fmt.Errorf("included item %s must have only one key", include)
@@ -98,7 +99,7 @@ func (r *Runner) importTasks(includes []map[string]string) error {
 				return fmt.Errorf(lang.ErrDownloading, includeFilename, err.Error())
 			}
 		} else {
-			includePath = filepath.Join(filepath.Dir(config.TaskFileLocation), includeFilename)
+			includePath = filepath.Join(dir, includeFilename)
 		}
 
 		if err := zarfUtils.ReadYaml(includePath, &tasksFile); err != nil {
@@ -130,7 +131,7 @@ func (r *Runner) importTasks(includes []map[string]string) error {
 
 		// recursively import tasks from included files
 		if tasksFile.Includes != nil {
-			if err := r.importTasks(tasksFile.Includes); err != nil {
+			if err := r.importTasks(tasksFile.Includes,includePath); err != nil {
 				return err
 			}
 		}

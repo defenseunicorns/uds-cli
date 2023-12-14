@@ -57,6 +57,13 @@ The packages referenced in `packages` can exist either locally or in an OCI regi
 #### Declarative Syntax
 The syntax of a `uds-bundle.yaml` is entirely declarative. As a result, the UDS CLI will not prompt users to deploy optional components in a Zarf package. If you want to deploy an optional Zarf component, it must be specified in the `optional-components` key of a particular `package`.
 
+#### Registry Structure
+<b>UDS core bundles:</b> `ghcr.io/defenseunicorns/packages/uds/bundles/`
+
+<b>UDS delivery bundles:</b> `ghcr.io/defenseunicorns/packages/delivery/`
+
+While you can specify the full path for commands that accept an OCI registry path, for `deploy`,`inspect`,`remove`, and `pull` commands, if you just specify the artifact name and tag, UDS CLI by default will look in `ghcr.io/defenseunicorns/packages/uds/bundles/` for that artifact. UDS bundles used for delivery should be located in `ghcr.io/defenseunicorns/packages/delivery/`. When referencing a remote delivery bundle artifact in `ghcr.io/defenseunicorns/packages/delivery/`, you can provide the entire path, or you can just provide the artifact name and tag, prefaced by `delivery/`
+
 ### Bundle Create
 Pulls the Zarf packages from the registry and bundles them into an OCI artifact.
 

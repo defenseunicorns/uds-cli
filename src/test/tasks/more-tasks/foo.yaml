@@ -1,0 +1,8 @@
+includes:
+  - bar: ./bar.yaml
+
+tasks:
+  - name: foobar
+    actions:
+      - cmd: "echo foo"
+      - task: bar:bar
