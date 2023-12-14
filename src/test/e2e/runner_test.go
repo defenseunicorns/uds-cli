@@ -233,6 +233,7 @@ func TestUseCLI(t *testing.T) {
 
 		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "foobar", "--set", setVar)
 		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "echo foo")
 		require.Contains(t, stdErr, "echo bar")
 	})
 }
