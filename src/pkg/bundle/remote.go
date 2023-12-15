@@ -31,7 +31,7 @@ import (
 
 const (
 	// GHCRPackagesPath is the default package path
-	GHCRPackagesPath  = "oci://ghcr.io/defenseunicorns/packages/"
+	GHCRPackagesPath = "oci://ghcr.io/defenseunicorns/packages/"
 	// GHCRUDSBundlePath is the default path for uds bundles
 	GHCRUDSBundlePath = GHCRPackagesPath + "uds/bundles/"
 	// GHCRDeliveryBundlePath is the default path for delivery bundles
@@ -281,7 +281,7 @@ func getOCIValidatedSource(source string) string {
 					_, err = remote.ResolveRoot()
 				}
 				if err != nil {
-					message.Fatalf(nil, "%s: not found", source)
+					message.Fatalf(nil, "%s: not found", sourceWithArch)
 				}
 			}
 		}
@@ -308,7 +308,7 @@ func IsSourceArchSpecified(source string) bool {
 }
 
 // CheckOCISourcePath checks that provided oci source path is valid, and updates it if it's missing the full path
-func CheckOCISourcePath(source string) string{
+func CheckOCISourcePath(source string) string {
 	validTarballPath := utils.IsValidTarballPath(source)
 	if !validTarballPath {
 		source = getOCIValidatedSource(source)

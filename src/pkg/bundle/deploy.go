@@ -207,9 +207,14 @@ func (b *Bundler) loadVariables(pkg types.Package, bundleExportedVars map[string
 	pkgVars := make(map[string]string)
 	pkgConfigVars := make(map[string]string)
 	pkgEnvVars := make(map[string]string)
+	pkgSharedVars := make(map[string]string)
 
+	// get vars and shared vars loaded into DeployOpts
 	for name, val := range b.cfg.DeployOpts.Variables[pkg.Name] {
 		pkgConfigVars[strings.ToUpper(name)] = fmt.Sprint(val)
+	}
+	for name, val := range b.cfg.DeployOpts.SharedVariables {
+		pkgSharedVars[strings.ToUpper(name)] = fmt.Sprint(val)
 	}
 
 	// load env vars that start with UDS_
@@ -226,8 +231,9 @@ func (b *Bundler) loadVariables(pkg types.Package, bundleExportedVars map[string
 		pkgImportedVars[strings.ToUpper(imp.Name)] = bundleExportedVars[imp.Package][imp.Name]
 	}
 
-	// set var precedence
+	// set var precedence (least specific to most specific)
 	maps.Copy(pkgVars, pkgImportedVars)
+	maps.Copy(pkgVars, pkgSharedVars)
 	maps.Copy(pkgVars, pkgConfigVars)
 	maps.Copy(pkgVars, pkgEnvVars)
 	return pkgVars
@@ -315,7 +321,8 @@ func (b *Bundler) processOverrideValues(overrideMap *map[string]map[string]*valu
 	return nil
 }
 
-// processOverrideVariables processes a bundles variables overrides and adds them to the override map
+// processOverrideVariables processes bundle variables overrides and adds them to the override map
+// todo: check for shared vars
 func (b *Bundler) processOverrideVariables(overrideMap *map[string]map[string]*values.Options, pkgName string, variables *[]types.BundleChartVariable, componentName string, chartName string) error {
 	for _, v := range *variables {
 		var overrideVal interface{}
@@ -328,12 +335,16 @@ func (b *Bundler) processOverrideVariables(overrideMap *map[string]map[string]*v
 		}
 		// check for override in config
 		configFileOverride, existsInConfig := b.cfg.DeployOpts.Variables[pkgName][v.Name]
-		if v.Default == nil && !existsInConfig {
-			// no default or config v, use values from underlying chart
+		sharedConfigOverride, existsInSharedConfig := b.cfg.DeployOpts.SharedVariables[v.Name]
+		if v.Default == nil && !existsInConfig && !existsInSharedConfig {
+			// no default and not in config, use values from underlying chart
 			continue
 		} else if existsInConfig {
-			// if the config v is set, use it
+			// if set in config
 			overrideVal = configFileOverride
+		} else if existsInSharedConfig {
+			// if set in shared config
+			overrideVal = sharedConfigOverride
 		} else {
 			// use default v if no config v is set
 			overrideVal = v.Default

@@ -8,6 +8,7 @@ metadata:
 variables:
   - name: OUTPUT     # from output-var Zarf pkg
   - name: PRECEDENCE # from output-var Zarf pkg, but will be overridden by uds-config.yaml
+  - name: DOMAIN # shared with output-var
 
 components:
   - name: echo
@@ -19,3 +20,5 @@ components:
               echo "This fun-fact was imported: "${ZARF_VAR_OUTPUT}""
           - cmd: |
               echo "This fun-fact demonstrates precedence: The Red Dragon is the national symbol of "${ZARF_VAR_PRECEDENCE}""
+          - cmd: |
+              echo "shared var in receive-var pkg: "${ZARF_VAR_DOMAIN}""

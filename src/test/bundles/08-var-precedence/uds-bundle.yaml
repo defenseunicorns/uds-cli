@@ -1,0 +1,26 @@
+kind: UDSBundle
+metadata:
+  name: var-precedence
+  description: demonstrates variable precedence
+  version: 0.0.1
+
+packages:
+  - name: helm-overrides
+    path: "../../packages/helm"
+    ref: 0.0.1
+    overrides:
+      podinfo-component:
+        unicorn-podinfo:
+          variables:
+            - name: UI_COLOR
+              path: "podinfo.ui.color"
+              description: "Set the color for podinfo's UI"
+              default: "blue"
+            - name: DOMAIN
+              path: "podinfo.backend"
+              description: "Set the backend for podinfo"
+              default: "uds.dev"
+
+  - name: output-var
+    path: "../../packages/no-cluster/output-var"
+    ref: 0.0.1

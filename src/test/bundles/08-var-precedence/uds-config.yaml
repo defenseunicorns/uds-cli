@@ -1,0 +1,12 @@
+options:
+  log_level: debug
+
+shared:
+  domain: burning.boats # used in helm-overrides pkg, but overriden in output-var pkg
+  ui_color: purple # overriden by env var
+
+variables:
+  helm-overrides:
+    ui_color: pink
+  output-var:
+    domain: unicorns.uds.dev # overrides shared.domain

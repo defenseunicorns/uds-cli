@@ -129,7 +129,7 @@ As an example: `uds remove uds-bundle-<name>.tar.zst --packages init,nginx`
 The UDS CLI can be configured with a `uds-config.yaml` file. This file can be placed in the current working directory or specified with an environment variable called `UDS_CONFIG`. The basic structure of the `uds-config.yaml` is as follows:
 ```yaml
 options:
-   log-level: debug
+   log_level: debug
    architecture: arm64
    no_log_file: false
    no_progress: false
