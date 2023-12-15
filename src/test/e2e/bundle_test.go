@@ -160,6 +160,8 @@ func TestBundle(t *testing.T) {
 	create(t, bundleDir) // todo: allow creating from both the folder containing and direct reference to uds-bundle.yaml
 	inspect(t, bundlePath)
 	inspectAndSBOMExtract(t, bundlePath)
+	// Test with an "options only" config file
+	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/01-uds-bundle", "uds-config.yaml"))
 	deploy(t, bundlePath)
 	remove(t, bundlePath)
 }

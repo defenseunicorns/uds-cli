@@ -29,7 +29,7 @@ type BundlerDeployOptions struct {
 	Source        string
 	Packages      []string
 	PublicKeyPath string
-	Variables     map[string]map[string]interface{}
+	Variables     map[string]map[string]interface{} `yaml:"variables,omitempty"`
 }
 
 // BundlerInspectOptions is the options for the bundler.Inspect() function
