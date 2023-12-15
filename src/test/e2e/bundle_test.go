@@ -446,6 +446,12 @@ func TestOCINoPath(t *testing.T) {
 	deploy(t, bundleName)
 	remove(t, bundleName)
 
+	bundleName = fmt.Sprintf("ghcr-delivery-test:0.0.1-%s", e2e.Arch)
+	inspect(t, bundleName)
+	pull(t, bundleName, tarballPath)
+	deploy(t, bundleName)
+	remove(t, bundleName)
+
 	bundleName = fmt.Sprintf("delivery/ghcr-test:0.0.1-%s", e2e.Arch)
 	inspect(t, bundleName)
 	pull(t, bundleName, tarballPath)
