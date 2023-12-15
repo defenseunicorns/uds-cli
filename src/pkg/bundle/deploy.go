@@ -322,7 +322,6 @@ func (b *Bundler) processOverrideValues(overrideMap *map[string]map[string]*valu
 }
 
 // processOverrideVariables processes bundle variables overrides and adds them to the override map
-// todo: check for shared vars
 func (b *Bundler) processOverrideVariables(overrideMap *map[string]map[string]*values.Options, pkgName string, variables *[]types.BundleChartVariable, componentName string, chartName string) error {
 	for _, v := range *variables {
 		var overrideVal interface{}
