@@ -5,7 +5,6 @@
 package cmd
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -183,15 +182,8 @@ func loadViperConfig() error {
 		return err
 	}
 
-	// unmarshal config file at key
-	// need to use goyaml because Viper doesn't preserve case: https://github.com/spf13/viper/issues/1014
-	pathString, err := goyaml.PathString("$.variables")
-	if err != nil {
-		return err
-	}
-
 	// read relevant config into DeployOpts.Variables
-	err = pathString.Read(bytes.NewReader(configFile), &bundleCfg.DeployOpts.Variables)
+	err = goyaml.Unmarshal(configFile, &bundleCfg.DeployOpts)
 	if err != nil {
 		return err
 	}
