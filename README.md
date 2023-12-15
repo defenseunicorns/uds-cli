@@ -19,7 +19,7 @@
 1. [Configuration](#configuration)
 1. [Sharing Variables](#sharing-variables)
 1. [Bundle Overrides](docs/overrides.md)
-1. [Bundle Anatomy](#bundle-anatomy)
+1. [Bundle Anatomy](docs/anatomy.md)
 1. [UDS Runner](docs/runner.md)
 
 ## Install
@@ -42,8 +42,8 @@ metadata:
 
 packages:
   - name: init
-    repository: localhost:5000/init
-    ref: v0.31.1
+    repository: ghcr.io/defenseunicorns/packages/init
+    ref: v0.31.4
     optional-components:
       - git-server
   - name: podinfo
@@ -73,17 +73,17 @@ That is to say, if the bundle is not local, UDS CLI will check path 2, path 3, e
 Pulls the Zarf packages from the registry and bundles them into an OCI artifact.
 
 There are 2 ways to create Bundles:
-1. Inside an OCI registry: `uds create <dir> --insecure -o localhost:5000`
-1. Locally on your filesystem: `uds create <dir> --insecure`
+1. Inside an OCI registry: `uds create <dir> -o ghcr.io/defenseunicorns/dev`
+1. Locally on your filesystem: `uds create <dir>`
 
 > [!NOTE]  
-> The `--insecure` flag is necessary when pulling from a local registry, but not from secure, remote registries such as GHCR.
+> The `--insecure` flag is necessary when interacting with a local registry, but not from secure, remote registries such as GHCR.
 
 ### Bundle Deploy
 Deploys the bundle
 
 There are 2 ways to deploy Bundles:
-1. From an OCI registry: `uds deploy oci://localhost:5000/<name>:<tag> --insecure`
+1. From an OCI registry: `uds deploy ghcr.io/defenseunicorns/dev/<name>:<tag>`
 1. From your local filesystem: `uds deploy uds-bundle-<name>.tar.zst`
 
 #### `--packages`
@@ -98,7 +98,7 @@ As an example: `uds deploy uds-bundle-<name>.tar.zst --resume`
 
 ### Bundle Inspect
 Inspect the `uds-bundle.yaml` of a bundle
-1. From an OCI registry: `uds inspect oci://localhost:5000/<name>:<tag> --insecure`
+1. From an OCI registry: `uds inspect oci://ghcr.io/defenseunicorns/dev/<name>:<tag>`
 1. From your local filesystem: `uds inspect uds-bundle-<name>.tar.zst`
 
 #### Viewing SBOMs
@@ -118,7 +118,7 @@ As an example: `uds publish uds-bundle-example-arm64-0.0.1.tar.zst oci://ghcr.io
 Removes the bundle
 
 There are 2 ways to remove Bundles:
-1. From an OCI registry: `uds remove oci://localhost:5000/<name>:<tag> --insecure --confirm`
+1. From an OCI registry: `uds remove oci://ghcr.io/defenseunicorns/dev/<name>:<tag> --confirm`
 1. From your local filesystem: `uds remove uds-bundle-<name>.tar.zst --confirm`
 
 By default all the packages in the bundle are removed, but you can also remove only certain packages in the bundle by using the `--packages` flag.
@@ -188,8 +188,3 @@ In a bundle, variables can come from 4 sources. Those sources and their preceden
 - Variables set with an environment variable prefixed with `UDS_` (ex. `UDS_OUTPUT`)
 
 That is to say, variables set as environment variables take precedence over all other variable sources.
-
-## Bundle Anatomy
-A UDS Bundle is an OCI artifact with the following form:
-
-![](docs/.images/uds-bundle.png)
