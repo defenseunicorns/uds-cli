@@ -221,19 +221,24 @@ func TestUseCLI(t *testing.T) {
 
 	t.Run("test includes paths", func(t *testing.T) {
 		t.Parallel()
+		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "foobar")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "echo foo")
+		require.Contains(t, stdErr, "echo bar")
+	})
 
-		// NOTE: Even though the foobar task doesn't use remote include, since it does reference an "include", all the "includes" get processed,
-		// which means we must set "GIT_REVISION" for the remote include
-		// get current git revision
+	t.Run("test action with multiple include tasks", func(t *testing.T) {
+		t.Parallel()
 		gitRev, err := e2e.GetGitRevision()
 		if err != nil {
 			return
 		}
 		setVar := fmt.Sprintf("GIT_REVISION=%s", gitRev)
 
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "foobar", "--set", setVar)
+		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "more-foobar", "--set", setVar)
 		require.NoError(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "echo foo")
 		require.Contains(t, stdErr, "echo bar")
+		require.Contains(t, stdErr, "defenseunicorns is a pretty ok company")
 	})
 }

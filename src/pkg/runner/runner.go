@@ -50,11 +50,17 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 	// only process includes if the task requires them
 	for _, a := range task.Actions {
 		if strings.Contains(a.TaskReference, ":") {
-			err = runner.importTasks(tasksFile.Includes,config.TaskFileLocation)
-			if err != nil {
-				return err
+			taskReferenceName := strings.Split(a.TaskReference, ":")[0]
+			for _, b:= range tasksFile.Includes{
+				if (b[taskReferenceName]!=""){
+					referencedIncludes := []map[string]string{b}
+					err = runner.importTasks(referencedIncludes,config.TaskFileLocation)
+					break
+				}
+				if err != nil {
+					return err
+				}
 			}
-			break
 		}
 	}
 
