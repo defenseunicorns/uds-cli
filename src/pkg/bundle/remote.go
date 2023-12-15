@@ -252,9 +252,11 @@ func getOCIValidatedSource(source string) string {
 	}
 	sourceWithArch := source
 	// Check provided repository path
-	remote, err := oci.NewOrasRemote(sourceWithArch)
+	sourceWithOCIAndArch := EnsureOCIPrefix(sourceWithArch)
+	remote, err := oci.NewOrasRemote(sourceWithOCIAndArch)
 
 	if err == nil {
+		source = sourceWithOCIAndArch
 		_, err = remote.ResolveRoot()
 	}
 	if err != nil {
@@ -312,6 +314,15 @@ func CheckOCISourcePath(source string) string{
 	validTarballPath := utils.IsValidTarballPath(source)
 	if !validTarballPath {
 		source = getOCIValidatedSource(source)
+	}
+	return source
+}
+
+// EnsureOCIPrefix ensures oci prefix is part of provided remote source path, and adds it if it's not
+func EnsureOCIPrefix(source string) string{
+	var ociPrefix = "oci://"
+	if (source[:6]!=ociPrefix){
+		return ociPrefix+source
 	}
 	return source
 }
