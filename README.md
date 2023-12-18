@@ -137,6 +137,10 @@ options:
    tmp_dir: /tmp/tmp_dir
    insecure: false
    oci_concurrency: 3
+
+shared:
+   domain: uds.dev # shared across all packages in a bundle
+
 variables:
   my-zarf-package:  # name of Zarf package
     ui_color: green # key is not case sensitive and refers to name of Zarf variable
@@ -147,7 +151,7 @@ variables:
             - path: "/"
               pathType: "Prefix"
 ```
-The `options` key contains UDS CLI options that are not specific to a particular Zarf package. The `variables` key contains variables that are specific to a particular Zarf package.
+The `options` key contains UDS CLI options that are not specific to a particular Zarf package. The `variables` key contains variables that are specific to a particular Zarf package. If you want to share insensitive variables across multiple Zarf packages, you can use the `shared` key, where the key is the variable name and the value is the variable value.
 
 ## Sharing Variables
 ### Importing/Exporting Variables
@@ -178,13 +182,14 @@ Variables that you want to make available to other package are in the `export` b
 In the example above, the `OUTPUT` variable is created as part of a Zarf Action in the [output-var](src/test/packages/zarf/no-cluster/output-var) package, and the [receive-var](src/test/packages/zarf/no-cluster/receive-var) package expects a variable called `OUTPUT`.
 
 ### Sharing Variables Across Multiple Packages
-If a Zarf variable has the same name in multiple packages and you don't want to set it multiple times via the import/export syntax, you can set an environment variable prefixed with `UDS_` and it will be applied to all the Zarf packages in a bundle. For example, if multiple packages require a `DOMAIN` variable, you could set it once with a `UDS_DOMAIN` environment variable and it would be applied to all packages.
+If a Zarf variable has the same name in multiple packages and you don't want to set it multiple times via the import/export syntax, you can set an environment variable prefixed with `UDS_` and it will be applied to all the Zarf packages in a bundle. For example, if multiple packages require a `DOMAIN` variable, you could set it once with a `UDS_DOMAIN` environment variable and it would be applied to all packages. Note that this can also be done with the `shared` key in the `uds-config.yaml` file.
 
 ### Variable Precedence and Specificity
 In a bundle, variables can come from 4 sources. Those sources and their precedence are shown below in order of least to most specificity:
 - Variables declared in a Zarf pkg
 - Variables `import`'ed from a bundle package's `export`
-- Variables configured in `uds-config.yaml`
+- Variables configured in the `shared` key in a `uds-config.yaml`
+- Variables configured in the `packages` key in a `uds-config.yaml`
 - Variables set with an environment variable prefixed with `UDS_` (ex. `UDS_OUTPUT`)
 
 That is to say, variables set as environment variables take precedence over all other variable sources.
