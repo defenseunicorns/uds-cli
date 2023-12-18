@@ -238,6 +238,7 @@ func (op *ociProvider) PublishBundle(_ types.UDSBundle, _ *oci.OrasRemote) error
 
 // Returns the validated source path based on the provided oci source path
 func getOCIValidatedSource(source string) string {
+	originalSource := source
 	// Check if arch specified, if not, append cluster arch
 	if !IsSourceArchSpecified(source) {
 		clusterArchs, err := cluster.NewClusterOrDie().GetArchitectures()
@@ -281,7 +282,7 @@ func getOCIValidatedSource(source string) string {
 					_, err = remote.ResolveRoot()
 				}
 				if err != nil {
-					message.Fatalf(nil, "%s: not found", sourceWithArch)
+					message.Fatalf(nil, "%s: not found", originalSource)
 				}
 			}
 		}
