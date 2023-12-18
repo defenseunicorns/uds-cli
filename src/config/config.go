@@ -93,8 +93,8 @@ func GetArch(archs ...string) string {
 }
 
 // GetSupportedArchitectures returns a list of valid architectures
-func GetSupportedArchitectures() [] string{
-	return []string{"amd64","arm64"}
+func GetSupportedArchitectures() []string {
+	return []string{"amd64", "arm64"}
 }
 
 var (
