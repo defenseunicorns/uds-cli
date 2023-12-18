@@ -47,29 +47,33 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 		return err
 	}
 
-	// only process includes if the task requires them
+	runner.processIncludes(task, tasksFile)
+
+	if err = runner.checkForTaskLoops(task, tasksFile); err != nil {
+		return err
+	}
+
+	err = runner.executeTask(task)
+	return err
+}
+
+func (r *Runner) processIncludes(task types.Task, tasksFile types.TasksFile) error {
 	for _, a := range task.Actions {
 		if strings.Contains(a.TaskReference, ":") {
 			taskReferenceName := strings.Split(a.TaskReference, ":")[0]
 			for _, include := range tasksFile.Includes {
 				if include[taskReferenceName] != "" {
 					referencedIncludes := []map[string]string{include}
-					err = runner.importTasks(referencedIncludes, config.TaskFileLocation)
+					err := r.importTasks(referencedIncludes, config.TaskFileLocation)
+					if err != nil {
+						return err
+					}
 					break
-				}
-				if err != nil {
-					return err
 				}
 			}
 		}
 	}
-
-	if err = runner.checkForTaskLoops(task); err != nil {
-		return err
-	}
-
-	err = runner.executeTask(task)
-	return err
+	return nil
 }
 
 func (r *Runner) importTasks(includes []map[string]string, dir string) error {
@@ -302,7 +306,7 @@ func (r *Runner) performAction(action types.Action) error {
 	return nil
 }
 
-func (r *Runner) checkForTaskLoops(task types.Task) error {
+func (r *Runner) checkForTaskLoops(task types.Task, tasksFile types.TasksFile) error {
 	// Filtering unique task actions allows for rerunning tasks in the same execution
 	uniqueTaskActions := getUniqueTaskActions(task.Actions)
 	for _, action := range uniqueTaskActions {
@@ -316,7 +320,9 @@ func (r *Runner) checkForTaskLoops(task types.Task) error {
 			if err != nil {
 				return err
 			}
-			if err = r.checkForTaskLoops(newTask); err != nil {
+			// check new task includes
+			r.processIncludes(newTask, tasksFile)
+			if err = r.checkForTaskLoops(newTask, tasksFile); err != nil {
 				return err
 			}
 		}

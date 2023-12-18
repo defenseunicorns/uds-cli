@@ -241,4 +241,20 @@ func TestUseCLI(t *testing.T) {
 		require.Contains(t, stdErr, "echo bar")
 		require.Contains(t, stdErr, "defenseunicorns is a pretty ok company")
 	})
+
+	t.Run("test action with multiple nested include tasks", func(t *testing.T) {
+		t.Parallel()
+		gitRev, err := e2e.GetGitRevision()
+		if err != nil {
+			return
+		}
+		setVar := fmt.Sprintf("GIT_REVISION=%s", gitRev)
+
+		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "extra-foobar", "--set", setVar)
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "echo foo")
+		require.Contains(t, stdErr, "echo bar")
+		require.Contains(t, stdErr, "defenseunicorns")
+		require.Contains(t, stdErr, "defenseunicorns is a pretty ok company")
+	})
 }
