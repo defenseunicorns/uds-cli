@@ -1,5 +1,9 @@
 options:
   log_level: debug
+
+shared:
+  domain: burning.boats
+
 variables:
   output-var:
     country: Scotland

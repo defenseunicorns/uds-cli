@@ -10,6 +10,8 @@ variables:
     default: Wales
   - name: ANIMAL # will be set by an env var for testing
     default: Dragons
+  - name: DOMAIN # shared with receive-var
+    default: uds.dev
 
 components:
   - name: echo
@@ -23,3 +25,5 @@ components:
           - cmd: echo "England"
             setVariables:
               - name: PRECEDENCE # will be overridden in test by the value in uds-config.yaml
+          - cmd: |
+              echo "shared var in output-var pkg: "${ZARF_VAR_DOMAIN}""
