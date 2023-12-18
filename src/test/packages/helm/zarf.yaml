@@ -4,6 +4,10 @@ metadata:
   description: Zarf pkg with a Helm chart to test Helm overrides in the uds-bundle.yaml
   version: 0.0.1
 
+variables:
+  - name: DOMAIN
+    default: uds.dev
+
 components:
   - name: podinfo-component
     required: true
@@ -14,3 +18,8 @@ components:
         localPath: ./unicorn-podinfo
         namespace: podinfo
         version: 0.0.1
+    actions:
+      onDeploy:
+        after:
+          - cmd: |
+              echo "shared var in helm-overrides pkg: "${ZARF_VAR_DOMAIN}""

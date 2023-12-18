@@ -13,7 +13,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -44,8 +43,6 @@ var createCmd = &cobra.Command{
 			srcDir = args[0]
 		}
 		bundleCfg.CreateOpts.SourceDirectory = srcDir
-
-		bundleCfg.CreateOpts.SetVariables = utils.MergeVariables(v.GetStringMapString(V_BNDL_CREATE_SET), bundleCfg.CreateOpts.SetVariables)
 
 		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
@@ -177,6 +174,7 @@ func loadViperConfig() error {
 	}
 
 	// read relevant config into DeployOpts.Variables
+	// need to use goyaml because Viper doesn't preserve case: https://github.com/spf13/viper/issues/1014
 	err = goyaml.Unmarshal(configFile, &bundleCfg.DeployOpts)
 	if err != nil {
 		return err
@@ -185,11 +183,19 @@ func loadViperConfig() error {
 	// ensure the DeployOpts.Variables pkg vars are uppercase
 	for pkgName, pkgVar := range bundleCfg.DeployOpts.Variables {
 		for varName, varValue := range pkgVar {
-			// delete the lowercase var replace with uppercase
+			// delete the lowercase var and replace with uppercase
 			delete(bundleCfg.DeployOpts.Variables[pkgName], varName)
 			bundleCfg.DeployOpts.Variables[pkgName][strings.ToUpper(varName)] = varValue
 		}
 	}
+
+	// ensure the DeployOpts.SharedVariables vars are uppercase
+	for varName, varValue := range bundleCfg.DeployOpts.SharedVariables {
+		// delete the lowercase var and replace with uppercase
+		delete(bundleCfg.DeployOpts.SharedVariables, varName)
+		bundleCfg.DeployOpts.SharedVariables[strings.ToUpper(varName)] = varValue
+	}
+
 	return nil
 }
 

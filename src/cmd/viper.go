@@ -30,7 +30,6 @@ const (
 	V_BNDL_CREATE_OUTPUT               = "create.output"
 	V_BNDL_CREATE_SIGNING_KEY          = "create.signing-key"
 	V_BNDL_CREATE_SIGNING_KEY_PASSWORD = "create.signing-key-password"
-	V_BNDL_CREATE_SET                  = "create.set"
 
 	// Bundle inspect config keys
 	V_BNDL_INSPECT_KEY = "bundle.inspect.key"

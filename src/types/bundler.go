@@ -20,7 +20,6 @@ type BundlerCreateOptions struct {
 	Output             string
 	SigningKeyPath     string
 	SigningKeyPassword string
-	SetVariables       map[string]string
 }
 
 // BundlerDeployOptions is the options for the bundler.Deploy() function
@@ -29,7 +28,9 @@ type BundlerDeployOptions struct {
 	Source        string
 	Packages      []string
 	PublicKeyPath string
-	Variables     map[string]map[string]interface{} `yaml:"variables,omitempty"`
+	// Variables and SharedVariables are read in from uds-config.yaml
+	Variables       map[string]map[string]interface{} `yaml:"variables,omitempty"`
+	SharedVariables map[string]interface{}            `yaml:"shared,omitempty"`
 }
 
 // BundlerInspectOptions is the options for the bundler.Inspect() function

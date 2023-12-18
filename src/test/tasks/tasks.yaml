@@ -92,3 +92,7 @@ tasks:
   - name: foobar
     actions:
       - task: foo:foobar
+  - name: more-foobar
+    actions:
+      - task: foo:foobar
+      - task: remote:echo-var
