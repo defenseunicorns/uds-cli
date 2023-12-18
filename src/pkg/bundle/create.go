@@ -94,6 +94,7 @@ func (b *Bundler) Create() error {
 	}
 
 	if b.cfg.CreateOpts.Output != "" {
+		b.cfg.CreateOpts.Output = EnsureOCIPrefix(b.cfg.CreateOpts.Output)
 		// set the remote's reference from the bundle's metadata
 		ref, err := referenceFromMetadata(b.cfg.CreateOpts.Output, &b.bundle.Metadata, b.bundle.Metadata.Architecture)
 		if err != nil {

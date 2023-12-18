@@ -32,6 +32,9 @@ func TestBundleDeployFromOCIFromGHCR(t *testing.T) {
 	createSecure(t, bundleDir)
 	inspect(t, bundlePath)
 	publish(t, bundlePath, registryURL)
+	// test without oci prefix
+	registryURL = "ghcr.io/defenseunicorns/packages/uds/bundles/uds-cli/test"
+	publish(t, bundlePath, registryURL)
 	pull(t, bundleRef.String(), tarballPath)
 	deploy(t, bundleRef.String())
 	remove(t, bundlePath)
@@ -42,6 +45,8 @@ func TestBundleDeployFromOCIFromGHCR(t *testing.T) {
 // ghcr.io/defenseunicorns/packages/uds/bundles/ghcr-test:0.0.1-arm64
 // ghcr.io/defenseunicorns/packages/delivery/ghcr-test:0.0.1-amd64
 // ghcr.io/defenseunicorns/packages/delivery/ghcr-test:0.0.1-arm64
+// ghcr.io/defenseunicorns/packages/delivery/ghcr-delivery-test:0.0.1-amd64
+// ghcr.io/defenseunicorns/packages/delivery/ghcr-delivery-test:0.0.1-arm64
 // The default bundle location if no source path provided is defenseunicorns/packages/uds/bundles/"
 func TestGHCRPathExpansion(t *testing.T) {
 	deployZarfInit(t)
@@ -62,6 +67,12 @@ func TestGHCRPathExpansion(t *testing.T) {
 	remove(t, bundleName)
 
 	bundleName = fmt.Sprintf("delivery/ghcr-test:0.0.1-%s", e2e.Arch)
+	inspect(t, bundleName)
+	pull(t, bundleName, tarballPath)
+	deploy(t, bundleName)
+	remove(t, bundleName)
+
+	bundleName = "ghcr.io/defenseunicorns/packages/delivery/ghcr-delivery-test:0.0.1"
 	inspect(t, bundleName)
 	pull(t, bundleName, tarballPath)
 	deploy(t, bundleName)

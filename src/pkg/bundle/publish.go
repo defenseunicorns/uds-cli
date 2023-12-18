@@ -18,6 +18,8 @@ import (
 
 // Publish publishes a bundle to a remote OCI registry
 func (b *Bundler) Publish() error {
+	b.cfg.PublishOpts.Destination = EnsureOCIPrefix(b.cfg.PublishOpts.Destination)
+
 	// load bundle metadata into memory
 	provider, err := NewBundleProvider(context.TODO(), b.cfg.PublishOpts.Source, b.tmp)
 	if err != nil {

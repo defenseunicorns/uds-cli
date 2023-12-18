@@ -5,7 +5,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +16,6 @@ import (
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
@@ -133,10 +131,6 @@ var publishCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if _, err := os.Stat(args[0]); err != nil {
 			message.Fatalf(err, "First argument (%q) must be a valid local Bundle path: %s", args[0], err.Error())
-		}
-		if !strings.HasPrefix(args[1], helpers.OCIURLPrefix) {
-			err := fmt.Errorf("oci url reference must begin with %s", helpers.OCIURLPrefix)
-			message.Fatalf(err, "Second argument (%q) must be a valid OCI URL: %s", args[0], err.Error())
 		}
 	},
 	Run: func(cmd *cobra.Command, args []string) {

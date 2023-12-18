@@ -243,6 +243,10 @@ func TestRemoteBundle(t *testing.T) {
 	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-example-%s-0.0.1.tar.zst", e2e.Arch))
 	bundlePath := "src/test/bundles/01-uds-bundle"
 	createRemote(t, bundlePath, bundleRef.Registry)
+
+	// Test without oci prefix
+	createRemote(t, bundlePath, "localhost:888")
+
 	pull(t, bundleRef.String(), tarballPath)
 	inspectRemote(t, bundleRef.String())
 	inspectRemoteAndSBOMExtract(t, bundleRef.String())
