@@ -322,7 +322,7 @@ func CheckOCISourcePath(source string) string {
 // EnsureOCIPrefix ensures oci prefix is part of provided remote source path, and adds it if it's not
 func EnsureOCIPrefix(source string) string {
 	var ociPrefix = "oci://"
-	if source[:6] != ociPrefix {
+	if source[:len(ociPrefix)] != ociPrefix {
 		return ociPrefix + source
 	}
 	return source
