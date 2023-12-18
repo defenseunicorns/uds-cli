@@ -308,6 +308,7 @@ func IsSourceArchSpecified(source string) bool {
 }
 
 // CheckOCISourcePath checks that provided oci source path is valid, and updates it if it's missing the full path
+// test
 func CheckOCISourcePath(source string) string{
 	validTarballPath := utils.IsValidTarballPath(source)
 	if !validTarballPath {
