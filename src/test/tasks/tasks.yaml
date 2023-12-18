@@ -96,3 +96,6 @@ tasks:
     actions:
       - task: foo:foobar
       - task: remote:echo-var
+  - name: extra-foobar
+    actions:
+      - task: more-foobar
