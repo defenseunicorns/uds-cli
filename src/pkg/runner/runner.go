@@ -47,7 +47,6 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 		return err
 	}
 
-	// only process includes if the task requires them
 	runner.processIncludes(task, tasksFile)
 
 	if err = runner.checkForTaskLoops(task, tasksFile); err != nil {
