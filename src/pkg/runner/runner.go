@@ -62,9 +62,9 @@ func (r *Runner) processIncludes(task types.Task, tasksFile types.TasksFile) err
 	for _, a := range task.Actions {
 		if strings.Contains(a.TaskReference, ":") {
 			taskReferenceName := strings.Split(a.TaskReference, ":")[0]
-			for _, b := range tasksFile.Includes {
-				if b[taskReferenceName] != "" {
-					referencedIncludes := []map[string]string{b}
+			for _, include := range tasksFile.Includes {
+				if include[taskReferenceName] != "" {
+					referencedIncludes := []map[string]string{include}
 					err := r.importTasks(referencedIncludes, config.TaskFileLocation)
 					if err != nil {
 						return err
