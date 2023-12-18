@@ -1,3 +1,6 @@
+options:
+  log_level: debug
+
 variables:
   helm-overrides:
     # vars can be upper or lowercase
