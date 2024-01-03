@@ -45,6 +45,10 @@ func TestBundleVariables(t *testing.T) {
 	require.Contains(t, stderr, "This fun-fact demonstrates precedence: The Red Dragon is the national symbol of Wales")
 	require.Contains(t, stderr, "shared var in output-var pkg: burning.boats")
 	require.Contains(t, stderr, "shared var in receive-var pkg: burning.boats")
+
+	_, stderr = deployCustom(t, "deploy "+bundlePath+" --set ANIMAL=Longhorns --set COUNTRY=Texas --confirm -l=debug")
+	require.Contains(t, stderr, "This fun-fact was imported: Longhorns are the national animal of Texas")
+	require.NotContains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
 }
 
 func TestBundleWithHelmOverrides(t *testing.T) {
