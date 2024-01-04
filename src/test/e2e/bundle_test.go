@@ -5,14 +5,12 @@
 package test
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/registry"
 
@@ -20,10 +18,8 @@ import (
 )
 
 func zarfPublish(t *testing.T, path string, reg string) {
-	cmd := "zarf"
-	args := strings.Split(fmt.Sprintf("package publish %s oci://%s --insecure --oci-concurrency=10", path, reg), " ")
-	tmp := exec.PrintCfg()
-	_, _, err := exec.CmdWithContext(context.TODO(), tmp, cmd, args...)
+	args := strings.Split(fmt.Sprintf("zarf package publish %s oci://%s --insecure --oci-concurrency=10", path, reg), " ")
+	_, _, err := e2e.UDS(args...)
 	require.NoError(t, err)
 }
 
@@ -132,7 +128,7 @@ func TestPackagesFlag(t *testing.T) {
 
 	// Test only podinfo deploy
 	deployPackagesFlag(bundlePath, "podinfo")
-	cmd := strings.Split("tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
+	cmd := strings.Split("zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
 	deployments, _, _ := e2e.UDS(cmd...)
 	require.Contains(t, deployments, "podinfo")
 	require.NotContains(t, deployments, "nginx")
@@ -192,14 +188,14 @@ func TestResumeFlag(t *testing.T) {
 
 	// Deploy only podinfo from bundle
 	deployPackagesFlag(bundlePath, "podinfo")
-	cmd := strings.Split("tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
+	cmd := strings.Split("zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
 	deployments, _, _ := e2e.UDS(cmd...)
 	require.Contains(t, deployments, "podinfo")
 	require.NotContains(t, deployments, "nginx")
 
 	// Deploy bundle --resume
 	deployResumeFlag(t, bundlePath)
-	cmd = strings.Split("tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
+	cmd = strings.Split("zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
 	deployments, _, _ = e2e.UDS(cmd...)
 	require.Contains(t, deployments, "podinfo")
 	require.Contains(t, deployments, "nginx")
@@ -212,7 +208,7 @@ func TestResumeFlag(t *testing.T) {
 
 	// Remove bundle
 	remove(t, bundlePath)
-	cmd = strings.Split("tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
+	cmd = strings.Split("zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
 	deployments, _, _ = e2e.UDS(cmd...)
 	require.NotContains(t, deployments, "podinfo")
 	require.NotContains(t, deployments, "nginx")

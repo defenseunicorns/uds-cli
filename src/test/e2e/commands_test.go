@@ -154,7 +154,7 @@ func pull(t *testing.T, ref string, tarballPath string) {
 	decompressed := "build/decompressed-bundle"
 	defer e2e.CleanFiles(decompressed)
 
-	cmd = []string{"tools", "archiver", "decompress", tarballPath, decompressed}
+	cmd = []string{"zarf", "tools", "archiver", "decompress", tarballPath, decompressed}
 	_, _, err = e2e.UDS(cmd...)
 	require.NoError(t, err)
 
