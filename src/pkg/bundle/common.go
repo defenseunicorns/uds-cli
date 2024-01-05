@@ -275,9 +275,9 @@ func GetDeployedPackageNames() []string {
 func validateOverrides(pkg types.Package, zarfYAML zarfTypes.ZarfPackage) error {
 	for componentName, chartsValues := range pkg.Overrides {
 		var foundComponent *zarfTypes.ZarfComponent
-		for _, c := range zarfYAML.Components {
-			if c.Name == componentName {
-				foundComponent = &c
+		for _, component := range zarfYAML.Components {
+			if component.Name == componentName {
+				foundComponent = &component
 			}
 		}
 		if foundComponent == nil {
@@ -286,9 +286,9 @@ func validateOverrides(pkg types.Package, zarfYAML zarfTypes.ZarfPackage) error 
 
 		for chartName := range chartsValues {
 			var foundChart *zarfTypes.ZarfChart
-			for _, v := range foundComponent.Charts {
-				if v.Name == chartName {
-					foundChart = &v
+			for _, chart := range foundComponent.Charts {
+				if chart.Name == chartName {
+					foundChart = &chart
 				}
 			}
 			if foundChart == nil {
