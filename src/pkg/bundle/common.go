@@ -207,60 +207,6 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 	return nil
 }
 
-// validateOverrides ensures that the overrides have matching components and charts in the zarf package
-func validateOverrides(pkg types.Package, zarfYAML zarfTypes.ZarfPackage) error {
-	for componentName, chartsValues := range pkg.Overrides {
-		var foundComponent *zarfTypes.ZarfComponent
-		for _, c := range zarfYAML.Components {
-			if c.Name == componentName {
-				foundComponent = &c
-			}
-		}
-		if foundComponent == nil {
-			return fmt.Errorf("invalid override: package %q does not contain the component %q", pkg.Name, componentName)
-		}
-
-		for chartName := range chartsValues {
-			var foundChart *zarfTypes.ZarfChart
-			for _, v := range foundComponent.Charts {
-				if v.Name == chartName {
-					foundChart = &v
-				}
-			}
-			if foundChart == nil {
-				return fmt.Errorf("invalid override: package %q does not contain the chart %q", pkg.Name, chartName)
-			}
-		}
-	}
-	return nil
-}
-
-// validateBundleVars ensures imports and exports between Zarf pkgs match up
-func validateBundleVars(packages []types.Package) error {
-	exports := make(map[string]string)
-	for i, pkg := range packages {
-		if i == 0 && pkg.Imports != nil {
-			return fmt.Errorf("first package in bundle cannot have imports")
-		}
-		// capture exported vars from all Zarf pkgs
-		if pkg.Exports != nil {
-			for _, v := range pkg.Exports {
-				exports[v.Name] = pkg.Name // save off pkg.Name to check when importing
-			}
-		}
-		// ensure imports have a matching export
-		if pkg.Imports != nil {
-			for _, v := range pkg.Imports {
-				if _, ok := exports[v.Name]; ok && v.Package == exports[v.Name] {
-					continue
-				}
-				return fmt.Errorf("import var %s does not have a matching export", v.Name)
-			}
-		}
-	}
-	return nil
-}
-
 // CalculateBuildInfo calculates the build info for the bundle
 func (b *Bundler) CalculateBuildInfo() error {
 	now := time.Now()
@@ -323,4 +269,58 @@ func GetDeployedPackageNames() []string {
 		deployedPackageNames = append(deployedPackageNames, pkg.Name)
 	}
 	return deployedPackageNames
+}
+
+// validateOverrides ensures that the overrides have matching components and charts in the zarf package
+func validateOverrides(pkg types.Package, zarfYAML zarfTypes.ZarfPackage) error {
+	for componentName, chartsValues := range pkg.Overrides {
+		var foundComponent *zarfTypes.ZarfComponent
+		for _, c := range zarfYAML.Components {
+			if c.Name == componentName {
+				foundComponent = &c
+			}
+		}
+		if foundComponent == nil {
+			return fmt.Errorf("invalid override: package %q does not contain the component %q", pkg.Name, componentName)
+		}
+
+		for chartName := range chartsValues {
+			var foundChart *zarfTypes.ZarfChart
+			for _, v := range foundComponent.Charts {
+				if v.Name == chartName {
+					foundChart = &v
+				}
+			}
+			if foundChart == nil {
+				return fmt.Errorf("invalid override: package %q does not contain the chart %q", pkg.Name, chartName)
+			}
+		}
+	}
+	return nil
+}
+
+// validateBundleVars ensures imports and exports between Zarf pkgs match up
+func validateBundleVars(packages []types.Package) error {
+	exports := make(map[string]string)
+	for i, pkg := range packages {
+		if i == 0 && pkg.Imports != nil {
+			return fmt.Errorf("first package in bundle cannot have imports")
+		}
+		// capture exported vars from all Zarf pkgs
+		if pkg.Exports != nil {
+			for _, v := range pkg.Exports {
+				exports[v.Name] = pkg.Name // save off pkg.Name to check when importing
+			}
+		}
+		// ensure imports have a matching export
+		if pkg.Imports != nil {
+			for _, v := range pkg.Imports {
+				if _, ok := exports[v.Name]; ok && v.Package == exports[v.Name] {
+					continue
+				}
+				return fmt.Errorf("import var %s does not have a matching export", v.Name)
+			}
+		}
+	}
+	return nil
 }
