@@ -197,6 +197,33 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 				}
 			}
 		}
+
+		// We want to look at each override for a package, and make sure the component and chart exists
+
+		for componentName, chartsValues := range pkg.Overrides {
+			var foundComponent *zarfTypes.ZarfComponent
+			for _, c := range zarfYAML.Components {
+				if c.Name == componentName {
+					foundComponent = &c
+				}
+			}
+			if foundComponent == nil {
+				return fmt.Errorf("invalid override: package %q does not contain the component %q", pkg.Name, componentName)
+			}
+			
+			for chartName := range chartsValues {
+				var foundChart *zarfTypes.ZarfChart
+				for _, v := range foundComponent.Charts {
+					if v.Name == chartName {
+						foundChart = &v
+					}
+				}
+				if foundChart == nil {
+					return fmt.Errorf("invalid override: package %q does not contain the chart %q", pkg.Name, chartName)
+				}
+			}
+		}
+
 	}
 	return nil
 }
