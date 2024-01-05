@@ -198,8 +198,8 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 			}
 		}
 
-		err := validateBundleForOverride(pkg, zarfYAML)
-		if err != nil {	
+		err := validateOverrides(pkg, zarfYAML)
+		if err != nil {
 			return err
 		}
 
@@ -207,7 +207,8 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 	return nil
 }
 
-func validateBundleForOverride(pkg types.Package, zarfYAML zarfTypes.ZarfPackage) error {
+// validateOverrides ensures that the overrides have matching components and charts in the zarf package
+func validateOverrides(pkg types.Package, zarfYAML zarfTypes.ZarfPackage) error {
 	for componentName, chartsValues := range pkg.Overrides {
 		var foundComponent *zarfTypes.ZarfComponent
 		for _, c := range zarfYAML.Components {
@@ -227,7 +228,7 @@ func validateBundleForOverride(pkg types.Package, zarfYAML zarfTypes.ZarfPackage
 				}
 			}
 			if foundChart == nil {
-				return  fmt.Errorf("invalid override: package %q does not contain the chart %q", pkg.Name, chartName)
+				return fmt.Errorf("invalid override: package %q does not contain the chart %q", pkg.Name, chartName)
 			}
 		}
 	}

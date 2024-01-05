@@ -69,7 +69,7 @@ func Test_validateBundleVars(t *testing.T) {
 	}
 }
 
-func Test_validationForBundleOverrides(t *testing.T) {
+func Test_validateOverrides(t *testing.T) {
 	type args struct {
 		bundlePackage types.Package
 		zarfPackage   zarfTypes.ZarfPackage
@@ -85,7 +85,7 @@ func Test_validationForBundleOverrides(t *testing.T) {
 			description: "Respective components and charts exist for override",
 			args: args{
 				bundlePackage: types.Package{
-					Name: "foo", Overrides: map[string]map[string]types.BundleChartOverrides{"component": {"chart": {}}}} ,
+					Name: "foo", Overrides: map[string]map[string]types.BundleChartOverrides{"component": {"chart": {}}}},
 				zarfPackage: zarfTypes.ZarfPackage{
 					Components: []zarfTypes.ZarfComponent{
 						{Name: "component", Charts: []zarfTypes.ZarfChart{{Name: "chart"}}},
@@ -98,7 +98,7 @@ func Test_validationForBundleOverrides(t *testing.T) {
 			description: "Component does not exist for override",
 			args: args{
 				bundlePackage: types.Package{
-					Name: "foo", Overrides: map[string]map[string]types.BundleChartOverrides{"hell-unleashed": {"chart": {}}}} ,
+					Name: "foo", Overrides: map[string]map[string]types.BundleChartOverrides{"hell-unleashed": {"chart": {}}}},
 				zarfPackage: zarfTypes.ZarfPackage{
 					Components: []zarfTypes.ZarfComponent{
 						{Name: "hello-world", Charts: []zarfTypes.ZarfChart{{Name: "chart"}}},
@@ -111,7 +111,7 @@ func Test_validationForBundleOverrides(t *testing.T) {
 			description: "Chart does not exist for override",
 			args: args{
 				bundlePackage: types.Package{
-					Name: "foo", Overrides: map[string]map[string]types.BundleChartOverrides{"component": {"hell-unleashed": {}}}} ,
+					Name: "foo", Overrides: map[string]map[string]types.BundleChartOverrides{"component": {"hell-unleashed": {}}}},
 				zarfPackage: zarfTypes.ZarfPackage{
 					Components: []zarfTypes.ZarfComponent{
 						{Name: "component", Charts: []zarfTypes.ZarfChart{{Name: "hello-world"}}},
@@ -123,8 +123,8 @@ func Test_validationForBundleOverrides(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := validateBundleForOverride(tt.args.bundlePackage, tt.args.zarfPackage); (err != nil) != tt.wantErr {
-				t.Errorf("validateBundleForOverride() error = %v, wantErr %v", err, tt.wantErr)
+			if err := validateOverrides(tt.args.bundlePackage, tt.args.zarfPackage); (err != nil) != tt.wantErr {
+				t.Errorf("validateOverrides() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
