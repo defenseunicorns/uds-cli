@@ -6,7 +6,7 @@ metadata:
 
 packages:
   - name: nginx
-    repository: ghcr.io/defenseunicorns/nginx
+    repository: ghcr.io/defenseunicorns/uds-cli/nginx
     ref: 0.0.1
   - name: podinfo
     path: "../../packages/podinfo"

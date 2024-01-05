@@ -127,7 +127,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 		var url string
 		// if using a remote repository
 		if pkg.Repository != "" {
-			url = fmt.Sprintf("%s:%s-%s", pkg.Repository, pkg.Ref, bundle.Metadata.Architecture)
+			url = fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
 			if strings.Contains(pkg.Ref, "@sha256:") {
 				url = fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
 			}
@@ -137,7 +137,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 			}
 			if err := remotePkg.RemoteSrc.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
 				manifestDesc, _ := remotePkg.RemoteSrc.ResolveRoot()
-				bundle.Packages[idx].Ref = pkg.Ref + "-" + bundle.Metadata.Architecture + "@sha256:" + manifestDesc.Digest.Encoded()
+				bundle.Packages[idx].Ref = pkg.Ref + "@sha256:" + manifestDesc.Digest.Encoded()
 			}
 			zarfYAML, err = remotePkg.GetMetadata(url, tmp)
 			if err != nil {

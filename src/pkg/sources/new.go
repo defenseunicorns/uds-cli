@@ -7,6 +7,7 @@ package sources
 import (
 	"strings"
 
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfSources "github.com/defenseunicorns/zarf/src/pkg/packager/sources"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
@@ -24,7 +25,8 @@ func New(pkgLocation string, pkgName string, opts zarfTypes.ZarfPackageOptions, 
 			BundleLocation: pkgLocation,
 		}
 	} else {
-		remote, err := oci.NewOrasRemote(pkgLocation)
+		modifier := oci.WithArch(config.GetArch())
+		remote, err := oci.NewOrasRemote(pkgLocation, modifier)
 		if err != nil {
 			return nil, err
 		}

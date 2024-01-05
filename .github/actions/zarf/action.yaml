@@ -7,4 +7,4 @@ runs:
     - uses: defenseunicorns/setup-zarf@main
       with:
         # renovate: datasource=github-tags depName=defenseunicorns/zarf
-        version: v0.31.4
+        version: v0.32.1
