@@ -6,6 +6,8 @@ includes:
 variables:
   - name: REPLACE_ME
     default: replaced
+  - name: FOO_VAR
+    default: default
 
 tasks:
   - name: copy
@@ -99,3 +101,6 @@ tasks:
   - name: extra-foobar
     actions:
       - task: more-foobar
+  - name: more-foo
+    actions:
+      - task: foo:fooybar
