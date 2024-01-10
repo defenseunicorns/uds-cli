@@ -27,11 +27,20 @@ var createCmd = &cobra.Command{
 	Args:    cobra.MaximumNArgs(1),
 	Short:   lang.CmdBundleCreateShort,
 	PreRun: func(cmd *cobra.Command, args []string) {
-		if len(args) > 0 && !zarfUtils.IsDir(args[0]) {
-			message.Fatalf(nil, "(%q) is not a valid path to a directory", args[0])
+		pathToBundleFile := ""
+		if len(args) > 0 {
+			if !zarfUtils.IsDir(args[0]) {
+				message.Fatalf(nil, "(%q) is not a valid path to a directory", args[0])
+			}
+			pathToBundleFile = args[0] + "/"
 		}
-		if _, err := os.Stat(config.BundleYAML); len(args) == 0 && err != nil {
-			message.Fatalf(err, "%s not found in directory", config.BundleYAML)
+		// Handle .yaml or .yml
+		if _, yamlErr := os.Stat(pathToBundleFile + config.BundleYAML); yamlErr == nil {
+			bundleCfg.CreateOpts.UserProvidedBundleYamlFile = config.BundleYAML
+		} else if _, ymlErr := os.Stat(pathToBundleFile + strings.Replace(config.BundleYAML, ".yaml", ".yml", 1)); ymlErr == nil {
+			bundleCfg.CreateOpts.UserProvidedBundleYamlFile = strings.Replace(config.BundleYAML, ".yaml", ".yml", 1)
+		} else {
+			message.Fatalf(ymlErr, "Neither %s or %s found", config.BundleYAML, strings.Replace(config.BundleYAML, ".yaml", ".yml", 1))
 		}
 	},
 	Run: func(cmd *cobra.Command, args []string) {
