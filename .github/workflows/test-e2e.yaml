@@ -32,9 +32,6 @@ jobs:
       - name: Setup golang
         uses: ./.github/actions/golang
 
-      - name: Install Zarf
-        uses: ./.github/actions/zarf
-
       - name: Build UDS-CLI binary
         run: make build-cli-linux-amd ARCH=amd64
 

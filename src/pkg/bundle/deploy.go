@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime/debug"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -165,15 +164,6 @@ func deployPackages(packages []types.Package, resume bool, b *Bundler) error {
 			PkgOpts:    opts,
 			InitOpts:   config.DefaultZarfInitOptions,
 			DeployOpts: zarfDeployOpts,
-		}
-
-		// grab Zarf version to make Zarf library checks happy
-		if buildInfo, ok := debug.ReadBuildInfo(); ok {
-			for _, dep := range buildInfo.Deps {
-				if dep.Path == "github.com/defenseunicorns/zarf" {
-					zarfConfig.CLIVersion = strings.Split(dep.Version, "v")[1]
-				}
-			}
 		}
 
 		// Automatically confirm the package deployment
