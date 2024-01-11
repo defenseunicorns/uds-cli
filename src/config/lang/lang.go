@@ -72,4 +72,5 @@ const (
 	// uds run
 	CmdRunFlag       = "Name and location of task file to run"
 	CmdRunSetVarFlag = "Set a runner variable from the command line (KEY=value)"
+	CmdRunList       = "List available tasks in a task file"
 )

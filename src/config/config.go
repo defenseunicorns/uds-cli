@@ -67,6 +67,9 @@ var (
 	// SkipLogFile is a flag to skip logging to a file
 	SkipLogFile bool
 
+	// ListTasks is a flag to print available tasks in a TaskFileLocation
+	ListTasks bool
+
 	// TaskFileLocation is the location of the tasks file to run
 	TaskFileLocation string
 
