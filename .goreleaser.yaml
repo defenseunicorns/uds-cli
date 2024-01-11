@@ -14,7 +14,7 @@ builds:
       - linux
       - darwin
     ldflags:
-      - -s -w -X 'github.com/defenseunicorns/uds-cli/src/config.CLIVersion={{.Tag}}'
+      - -s -w -X 'github.com/defenseunicorns/uds-cli/src/config.CLIVersion={{.Tag}}' -X 'github.com/defenseunicorns/zarf/src/config.ActionsCommandZarfPrefix=zarf'
     goarch:
       - amd64
       - arm64
