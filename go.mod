@@ -12,7 +12,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.0-rc5
 	github.com/pterm/pterm v0.12.72
 	github.com/spf13/cobra v1.8.0
-	github.com/spf13/viper v1.18.1
+	github.com/spf13/viper v1.18.2
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/exp v0.0.0-20240110193028-0dcbfd608b1e
 	golang.org/x/mod v0.14.0
