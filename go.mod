@@ -16,7 +16,7 @@ require (
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/exp v0.0.0-20240110193028-0dcbfd608b1e
 	golang.org/x/mod v0.14.0
-	golang.org/x/sync v0.5.0
+	golang.org/x/sync v0.6.0
 	helm.sh/helm/v3 v3.13.3
 	oras.land/oras-go/v2 v2.3.1
 )
