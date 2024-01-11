@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
+	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 )
 
 func Test_validateBundleVars(t *testing.T) {
@@ -63,6 +64,67 @@ func Test_validateBundleVars(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if err := validateBundleVars(tt.args.packages); (err != nil) != tt.wantErr {
 				t.Errorf("validateBundleVars() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func Test_validateOverrides(t *testing.T) {
+	type args struct {
+		bundlePackage types.Package
+		zarfPackage   zarfTypes.ZarfPackage
+	}
+	tests := []struct {
+		name        string
+		description string
+		args        args
+		wantErr     bool
+	}{
+		{
+			name:        "validOverride",
+			description: "Respective components and charts exist for override",
+			args: args{
+				bundlePackage: types.Package{
+					Name: "foo", Overrides: map[string]map[string]types.BundleChartOverrides{"component": {"chart": {}}}},
+				zarfPackage: zarfTypes.ZarfPackage{
+					Components: []zarfTypes.ZarfComponent{
+						{Name: "component", Charts: []zarfTypes.ZarfChart{{Name: "chart"}}},
+					},
+				}},
+			wantErr: false,
+		},
+		{
+			name:        "invalidComponentOverride",
+			description: "Component does not exist for override",
+			args: args{
+				bundlePackage: types.Package{
+					Name: "foo", Overrides: map[string]map[string]types.BundleChartOverrides{"hell-unleashed": {"chart": {}}}},
+				zarfPackage: zarfTypes.ZarfPackage{
+					Components: []zarfTypes.ZarfComponent{
+						{Name: "hello-world", Charts: []zarfTypes.ZarfChart{{Name: "chart"}}},
+					},
+				}},
+			wantErr: true,
+		},
+		{
+			name:        "invalidChartOverride",
+			description: "Chart does not exist for override",
+			args: args{
+				bundlePackage: types.Package{
+					Name: "foo", Overrides: map[string]map[string]types.BundleChartOverrides{"component": {"hell-unleashed": {}}}},
+				zarfPackage: zarfTypes.ZarfPackage{
+					Components: []zarfTypes.ZarfComponent{
+						{Name: "component", Charts: []zarfTypes.ZarfChart{{Name: "hello-world"}}},
+					},
+				}},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := validateOverrides(tt.args.bundlePackage, tt.args.zarfPackage); (err != nil) != tt.wantErr {
+				t.Errorf("validateOverrides() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
