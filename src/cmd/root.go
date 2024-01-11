@@ -138,7 +138,7 @@ func cliSetup() {
 		message.NoProgress = true
 	}
 
-	if !config.SkipLogFile {
+	if !config.SkipLogFile && !config.ListTasks {
 		utils.UseLogFile()
 	}
 }
