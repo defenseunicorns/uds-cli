@@ -11,6 +11,7 @@ variables:
 
 tasks:
   - name: copy
+    description: "This is a copy task"
     files:
       - source: base
         target: copy

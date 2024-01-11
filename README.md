@@ -18,6 +18,7 @@
     - [Remove](#bundle-remove)
 1. [Configuration](#configuration)
 1. [Sharing Variables](#sharing-variables)
+1. [Zarf Integration](#zarf-integration)
 1. [Bundle Overrides](docs/overrides.md)
 1. [Bundle Anatomy](docs/anatomy.md)
 1. [UDS Runner](docs/runner.md)
@@ -193,3 +194,7 @@ In a bundle, variables can come from 4 sources. Those sources and their preceden
 - Variables set with an environment variable prefixed with `UDS_` (ex. `UDS_OUTPUT`)
 
 That is to say, variables set as environment variables take precedence over all other variable sources.
+
+
+## Zarf Integration
+UDS CLI includes a vendored version of Zarf inside of its binary. To use Zarf, simply run `uds zarf <command>`. For example, to create a Zarf package, run `uds zarf create <dir>`, or to use the [airgap tooling](https://docs.zarf.dev/docs/the-zarf-cli/cli-commands/zarf_tools) that Zarf provides, run `uds zarf tools <cmd>`.

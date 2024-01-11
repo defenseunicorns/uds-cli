@@ -127,7 +127,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 		var url string
 		// if using a remote repository
 		if pkg.Repository != "" {
-			url = fmt.Sprintf("%s:%s-%s", pkg.Repository, pkg.Ref, bundle.Metadata.Architecture)
+			url = fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
 			if strings.Contains(pkg.Ref, "@sha256:") {
 				url = fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
 			}
@@ -137,7 +137,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 			}
 			if err := remotePkg.RemoteSrc.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
 				manifestDesc, _ := remotePkg.RemoteSrc.ResolveRoot()
-				bundle.Packages[idx].Ref = pkg.Ref + "-" + bundle.Metadata.Architecture + "@sha256:" + manifestDesc.Digest.Encoded()
+				bundle.Packages[idx].Ref = pkg.Ref + "@sha256:" + manifestDesc.Digest.Encoded()
 			}
 			zarfYAML, err = remotePkg.GetMetadata(url, tmp)
 			if err != nil {
@@ -197,32 +197,12 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 				}
 			}
 		}
-	}
-	return nil
-}
 
-// validateBundleVars ensures imports and exports between Zarf pkgs match up
-func validateBundleVars(packages []types.Package) error {
-	exports := make(map[string]string)
-	for i, pkg := range packages {
-		if i == 0 && pkg.Imports != nil {
-			return fmt.Errorf("first package in bundle cannot have imports")
+		err := validateOverrides(pkg, zarfYAML)
+		if err != nil {
+			return err
 		}
-		// capture exported vars from all Zarf pkgs
-		if pkg.Exports != nil {
-			for _, v := range pkg.Exports {
-				exports[v.Name] = pkg.Name // save off pkg.Name to check when importing
-			}
-		}
-		// ensure imports have a matching export
-		if pkg.Imports != nil {
-			for _, v := range pkg.Imports {
-				if _, ok := exports[v.Name]; ok && v.Package == exports[v.Name] {
-					continue
-				}
-				return fmt.Errorf("import var %s does not have a matching export", v.Name)
-			}
-		}
+
 	}
 	return nil
 }
@@ -289,4 +269,58 @@ func GetDeployedPackageNames() []string {
 		deployedPackageNames = append(deployedPackageNames, pkg.Name)
 	}
 	return deployedPackageNames
+}
+
+// validateOverrides ensures that the overrides have matching components and charts in the zarf package
+func validateOverrides(pkg types.Package, zarfYAML zarfTypes.ZarfPackage) error {
+	for componentName, chartsValues := range pkg.Overrides {
+		var foundComponent *zarfTypes.ZarfComponent
+		for _, component := range zarfYAML.Components {
+			if component.Name == componentName {
+				foundComponent = &component
+			}
+		}
+		if foundComponent == nil {
+			return fmt.Errorf("invalid override: package %q does not contain the component %q", pkg.Name, componentName)
+		}
+
+		for chartName := range chartsValues {
+			var foundChart *zarfTypes.ZarfChart
+			for _, chart := range foundComponent.Charts {
+				if chart.Name == chartName {
+					foundChart = &chart
+				}
+			}
+			if foundChart == nil {
+				return fmt.Errorf("invalid override: package %q does not contain the chart %q", pkg.Name, chartName)
+			}
+		}
+	}
+	return nil
+}
+
+// validateBundleVars ensures imports and exports between Zarf pkgs match up
+func validateBundleVars(packages []types.Package) error {
+	exports := make(map[string]string)
+	for i, pkg := range packages {
+		if i == 0 && pkg.Imports != nil {
+			return fmt.Errorf("first package in bundle cannot have imports")
+		}
+		// capture exported vars from all Zarf pkgs
+		if pkg.Exports != nil {
+			for _, v := range pkg.Exports {
+				exports[v.Name] = pkg.Name // save off pkg.Name to check when importing
+			}
+		}
+		// ensure imports have a matching export
+		if pkg.Imports != nil {
+			for _, v := range pkg.Imports {
+				if _, ok := exports[v.Name]; ok && v.Package == exports[v.Name] {
+					continue
+				}
+				return fmt.Errorf("import var %s does not have a matching export", v.Name)
+			}
+		}
+	}
+	return nil
 }

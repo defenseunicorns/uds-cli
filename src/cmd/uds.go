@@ -201,7 +201,6 @@ func loadViperConfig() error {
 
 func init() {
 	initViper()
-	rootCmd.PersistentFlags().IntVar(&config.CommonOptions.OCIConcurrency, "oci-concurrency", v.GetInt(V_BNDL_OCI_CONCURRENCY), lang.CmdBundleFlagConcurrency)
 
 	// create cmd flags
 	rootCmd.AddCommand(createCmd)

@@ -47,23 +47,26 @@ func SBOMExtractor(dst string, SBOMArtifactPathMap map[string]string) func(ctx c
 		if err != nil {
 			return err
 		}
-		buffer := make([]byte, f.Size()-1)
-		_, err = open.Read(buffer)
-		if err != nil {
-			return err
+		size := f.Size() - 1
+		if size > 0 {
+			buffer := make([]byte, size)
+			_, err = open.Read(buffer)
+			if err != nil {
+				return err
+			}
+			err = open.Close()
+			if err != nil {
+				return err
+			}
+			path := filepath.Join(dst, config.BundleSBOM, f.NameInArchive)
+			// todo: handle collisions? especially for zarf-component SBOM files?
+			err = os.WriteFile(path, buffer, 0644)
+			if err != nil {
+				return err
+			}
+			// map files for bundle-level sboms.tar
+			SBOMArtifactPathMap[path] = f.NameInArchive
 		}
-		err = open.Close()
-		if err != nil {
-			return err
-		}
-		path := filepath.Join(dst, config.BundleSBOM, f.NameInArchive)
-		// todo: handle collisions? especially for zarf-component SBOM files?
-		err = os.WriteFile(path, buffer, 0644)
-		if err != nil {
-			return err
-		}
-		// map files for bundle-level sboms.tar
-		SBOMArtifactPathMap[path] = f.NameInArchive
 		return nil
 	}
 	return extractor

@@ -133,7 +133,7 @@ func (e2e *UDSE2ETest) DownloadZarfInitPkg(t *testing.T, zarfVersion string) {
 	require.NoError(t, err)
 }
 
-// CreateZarfPkg creates a Zarf in the given path (uses system Zarf binary) (todo: makefile?)
+// CreateZarfPkg creates a Zarf in the given path (todo: makefile?)
 func (e2e *UDSE2ETest) CreateZarfPkg(t *testing.T, path string) {
 	//  check if pkg already exists
 	pattern := fmt.Sprintf("%s/*-%s-*.tar.zst", path, e2e.Arch)
@@ -143,11 +143,8 @@ func (e2e *UDSE2ETest) CreateZarfPkg(t *testing.T, path string) {
 		fmt.Println("Zarf pkg already exists, skipping create")
 		return
 	}
-	cmd := "zarf"
-	args := strings.Split(fmt.Sprintf("package create . --confirm"), " ")
-	tmp := exec.PrintCfg()
-	tmp.Dir = path
-	_, _, err = exec.CmdWithContext(context.TODO(), tmp, cmd, args...)
+	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --confirm", path, path), " ")
+	_, _, err = e2e.UDS(args...)
 	require.NoError(t, err)
 }
 
