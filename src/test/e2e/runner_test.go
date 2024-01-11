@@ -258,6 +258,15 @@ func TestUseCLI(t *testing.T) {
 		require.Contains(t, stdErr, "defenseunicorns is a pretty ok company")
 	})
 
+	t.Run("test variable passing to included tasks", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "more-foo", "--set", "FOO_VAR=success")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "success")
+		require.NotContains(t, stdErr, "default")
+	})
+
 	t.Run("run list tasks", func(t *testing.T) {
 		t.Parallel()
 		gitRev, err := e2e.GetGitRevision()

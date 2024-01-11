@@ -45,3 +45,6 @@ local-registry: ## Run a local docker registry
 
 clean: ## Clean up build artifacts
 	rm -rf build
+
+clean-test-artifacts: ## removes bundles and zarf packages that have been created from previous test runs
+	find src/test -type f -name '*.tar.zst' -delete

@@ -47,9 +47,9 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 		return err
 	}
 
-	runner.processIncludes(task, tasksFile)
+	runner.processIncludes(task, tasksFile, setVariables)
 
-	if err = runner.checkForTaskLoops(task, tasksFile); err != nil {
+	if err = runner.checkForTaskLoops(task, tasksFile, setVariables); err != nil {
 		return err
 	}
 
@@ -57,14 +57,14 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 	return err
 }
 
-func (r *Runner) processIncludes(task types.Task, tasksFile types.TasksFile) error {
+func (r *Runner) processIncludes(task types.Task, tasksFile types.TasksFile, setVariables map[string]string) error {
 	for _, a := range task.Actions {
 		if strings.Contains(a.TaskReference, ":") {
 			taskReferenceName := strings.Split(a.TaskReference, ":")[0]
 			for _, include := range tasksFile.Includes {
 				if include[taskReferenceName] != "" {
 					referencedIncludes := []map[string]string{include}
-					err := r.importTasks(referencedIncludes, config.TaskFileLocation)
+					err := r.importTasks(referencedIncludes, config.TaskFileLocation, setVariables)
 					if err != nil {
 						return err
 					}
@@ -76,7 +76,7 @@ func (r *Runner) processIncludes(task types.Task, tasksFile types.TasksFile) err
 	return nil
 }
 
-func (r *Runner) importTasks(includes []map[string]string, dir string) error {
+func (r *Runner) importTasks(includes []map[string]string, dir string, setVariables map[string]string) error {
 	// iterate through includes, open the file, and unmarshal it into a Task
 	var includeFilenameKey string
 	var includeFilename string
@@ -139,9 +139,19 @@ func (r *Runner) importTasks(includes []map[string]string, dir string) error {
 			}
 		}
 
+		// merge variables with setVariables
+		setVariablesTemplateMap := make(map[string]*zarfUtils.TextTemplate)
+		for name, value := range setVariables {
+			setVariablesTemplateMap[fmt.Sprintf("${%s}", name)] = &zarfUtils.TextTemplate{
+				Value: value,
+			}
+		}
+
+		r.TemplateMap = helpers.MergeMap[*zarfUtils.TextTemplate](r.TemplateMap, setVariablesTemplateMap)
+
 		// recursively import tasks from included files
 		if tasksFile.Includes != nil {
-			if err := r.importTasks(tasksFile.Includes, includePath); err != nil {
+			if err := r.importTasks(tasksFile.Includes, includePath, setVariables); err != nil {
 				return err
 			}
 		}
@@ -306,7 +316,7 @@ func (r *Runner) performAction(action types.Action) error {
 	return nil
 }
 
-func (r *Runner) checkForTaskLoops(task types.Task, tasksFile types.TasksFile) error {
+func (r *Runner) checkForTaskLoops(task types.Task, tasksFile types.TasksFile, setVariables map[string]string) error {
 	// Filtering unique task actions allows for rerunning tasks in the same execution
 	uniqueTaskActions := getUniqueTaskActions(task.Actions)
 	for _, action := range uniqueTaskActions {
@@ -321,8 +331,8 @@ func (r *Runner) checkForTaskLoops(task types.Task, tasksFile types.TasksFile) e
 				return err
 			}
 			// check new task includes
-			r.processIncludes(newTask, tasksFile)
-			if err = r.checkForTaskLoops(newTask, tasksFile); err != nil {
+			r.processIncludes(newTask, tasksFile, setVariables)
+			if err = r.checkForTaskLoops(newTask, tasksFile, setVariables); err != nil {
 				return err
 			}
 		}
