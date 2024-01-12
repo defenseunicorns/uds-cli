@@ -94,6 +94,20 @@ func Test_validateOverrides(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:        "validOverrideMultipleComponents",
+			description: "Respective components and charts exist for override when multiple charts and components are present",
+			args: args{
+				bundlePackage: types.Package{
+					Name: "foo", Overrides: map[string]map[string]types.BundleChartOverrides{"component-a": {"chart-1": {}}}},
+				zarfPackage: zarfTypes.ZarfPackage{
+					Components: []zarfTypes.ZarfComponent{
+						{Name: "component-a", Charts: []zarfTypes.ZarfChart{{Name: "chart-1"}, {Name: "chart-2"}}},
+						{Name: "component-b", Charts: []zarfTypes.ZarfChart{{Name: "chart-b"}}},
+					},
+				}},
+			wantErr: false,
+		},
+		{
 			name:        "invalidComponentOverride",
 			description: "Component does not exist for override",
 			args: args{
