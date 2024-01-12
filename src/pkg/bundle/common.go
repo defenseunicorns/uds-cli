@@ -278,6 +278,7 @@ func validateOverrides(pkg types.Package, zarfYAML zarfTypes.ZarfPackage) error 
 		for _, component := range zarfYAML.Components {
 			if component.Name == componentName {
 				foundComponent = &component
+				break
 			}
 		}
 		if foundComponent == nil {
@@ -289,6 +290,7 @@ func validateOverrides(pkg types.Package, zarfYAML zarfTypes.ZarfPackage) error 
 			for _, chart := range foundComponent.Charts {
 				if chart.Name == chartName {
 					foundChart = &chart
+					break
 				}
 			}
 			if foundChart == nil {
