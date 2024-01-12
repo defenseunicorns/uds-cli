@@ -16,11 +16,11 @@ type BundlerConfig struct {
 
 // BundlerCreateOptions is the options for the bundler.Create() function
 type BundlerCreateOptions struct {
-	SourceDirectory            string
-	Output                     string
-	SigningKeyPath             string
-	SigningKeyPassword         string
-	UserProvidedBundleYamlFile string
+	SourceDirectory    string
+	Output             string
+	SigningKeyPath     string
+	SigningKeyPassword string
+	BundleFile         string
 }
 
 // BundlerDeployOptions is the options for the bundler.Deploy() function

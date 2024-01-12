@@ -39,7 +39,7 @@ func (b *Bundler) Create() error {
 	defer os.Chdir(cwd)
 
 	// read the bundle's metadata into memory
-	if err := utils.ReadYaml(b.cfg.CreateOpts.UserProvidedBundleYamlFile, &b.bundle); err != nil {
+	if err := utils.ReadYaml(b.cfg.CreateOpts.BundleFile, &b.bundle); err != nil {
 		return err
 	}
 
