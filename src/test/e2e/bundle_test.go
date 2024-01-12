@@ -268,3 +268,32 @@ func TestBundleWithGitRepo(t *testing.T) {
 	deploy(t, bundlePath)
 	remove(t, bundlePath)
 }
+
+func TestBundleWithYmlFile(t *testing.T) {
+	deployZarfInit(t)
+
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx")
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
+
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+	e2e.SetupDockerRegistry(t, 889)
+	defer e2e.TeardownRegistry(t, 889)
+
+	pkg := fmt.Sprintf("src/test/packages/nginx/zarf-package-nginx-%s-0.0.1.tar.zst", e2e.Arch)
+	zarfPublish(t, pkg, "localhost:888")
+
+	pkg = fmt.Sprintf("src/test/packages/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
+	zarfPublish(t, pkg, "localhost:889")
+
+	bundleDir := "src/test/bundles/09-uds-bundle-yml"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-yml-example-%s-0.0.1.tar.zst", e2e.Arch))
+
+	create(t, bundleDir) // todo: allow creating from both the folder containing and direct reference to uds-bundle.yaml
+	inspect(t, bundlePath)
+	inspectAndSBOMExtract(t, bundlePath)
+	// Test with an "options only" config file
+	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/09-uds-bundle-yml", "uds-config.yml"))
+	deploy(t, bundlePath)
+	remove(t, bundlePath)
+}

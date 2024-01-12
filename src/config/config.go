@@ -20,7 +20,7 @@ const (
 	// BlobsDir is the string for the blobs/sha256 dir in an OCI artifact
 	BlobsDir = "blobs/sha256"
 
-	// BundleYAML is the string for zarf.yaml
+	// BundleYAML is the string for uds-bundle.yaml
 	BundleYAML = "uds-bundle.yaml"
 
 	// BundlePrefix is the prefix for compiled uds bundles
