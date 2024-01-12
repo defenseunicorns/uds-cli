@@ -218,8 +218,8 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 			return err
 		}
 
-		// hack the media type to be a manifest and append to bundle root manifest
-		zarfManifestDesc.MediaType = ocispec.MediaTypeImageManifest
+		// ensure media type is a Zarf blob and append to bundle root manifest
+		zarfManifestDesc.MediaType = oci.ZarfLayerMediaTypeBlob
 		message.Debugf("Pushed %s sub-manifest into %s: %s", url, dstRef, message.JSONValue(zarfManifestDesc))
 		rootManifest.Layers = append(rootManifest.Layers, zarfManifestDesc)
 

@@ -14,12 +14,11 @@ import (
 
 func TestBundleDeployFromOCIFromGHCR(t *testing.T) {
 	deployZarfInit(t)
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
 
 	bundleDir := "src/test/bundles/06-ghcr"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-ghcr-test-%s-0.0.1.tar.zst", e2e.Arch))
 
-	registryURL := "oci://ghcr.io/defenseunicorns/packages/uds/bundles/uds-cli/test"
+	registryURL := "oci://ghcr.io/defenseunicorns/packages/uds-cli/test/publish"
 
 	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-ghcr-test-%s-0.0.1.tar.zst", e2e.Arch))
 	bundleRef := registry.Reference{
@@ -33,11 +32,29 @@ func TestBundleDeployFromOCIFromGHCR(t *testing.T) {
 	inspect(t, bundlePath)
 	publish(t, bundlePath, registryURL)
 	// test without oci prefix
-	registryURL = "ghcr.io/defenseunicorns/packages/uds/bundles/uds-cli/test"
+	registryURL = "ghcr.io/defenseunicorns/packages/uds-cli/test/publish"
 	publish(t, bundlePath, registryURL)
 	pull(t, bundleRef.String(), tarballPath)
 	deploy(t, bundleRef.String())
 	remove(t, bundlePath)
+}
+
+// test the create -o path
+func TestBundleCreateAndDeployOCI(t *testing.T) {
+	deployZarfInit(t)
+
+	bundleDir := "src/test/bundles/06-ghcr"
+	registryURL := "ghcr.io/defenseunicorns/packages/uds-cli/test/create-remote"
+	bundleRef := registry.Reference{
+		Registry: registryURL,
+		// this info is derived from the bundle's metadata
+		Repository: "ghcr-test",
+		Reference:  fmt.Sprintf("0.0.1-%s", e2e.Arch),
+	}
+	createRemoteSecure(t, bundleDir, registryURL)
+	inspect(t, bundleRef.String())
+	deploy(t, bundleRef.String())
+	remove(t, bundleRef.String())
 }
 
 // This test requires the following to be published (based on src/test/bundles/06-ghcr/uds-bundle.yaml):
