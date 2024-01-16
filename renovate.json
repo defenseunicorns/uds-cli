@@ -24,6 +24,10 @@
     {
       "matchPackageNames": ["defenseunicorns/zarf", "github.com/defenseunicorns/zarf"],
       "groupName": "zarf"
+    },
+    {
+      "matchPackageNames": ["stefanprodan/podinfo", "github.com/stefanprodan/podinfo", "podinfo"],
+      "groupName": "podinfo"
     }
   ],
   "regexManagers": [
@@ -33,9 +37,18 @@
         "action.yaml"
       ],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>.*) depName=(?<depName>.*)(versioning=(?<versioning>.*))?(registryUrl=(?<registryUrl>.*))?\\n\\s*(version|ref): (?<currentValue>.*)"
+        "# renovate: datasource=(?<datasource>.*) depName=(?<depName>.*)\\n\\s*(version|ref): (?<currentValue>.*)"
       ],
-      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
+      "versioningTemplate": "semver"
+    },
+    {
+      "fileMatch": [
+        "zarf.yaml"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>.*) depName=(?<depName>.*)\\n\\s*(-\\s.*:)(?<currentValue>.*)"
+      ],
+      "datasourceTemplate": "github-tags"
     }
   ]
 }
