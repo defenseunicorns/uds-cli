@@ -12,7 +12,8 @@ components:
   - name: podinfo-component
     required: true
     images:
-      - ghcr.io/stefanprodan/podinfo:6.5.3
+      # renovate: datasource=github-tags depName=stefanprodan/podinfo
+      - ghcr.io/stefanprodan/podinfo:6.5.4
     charts:
       - name: unicorn-podinfo
         localPath: ./unicorn-podinfo
