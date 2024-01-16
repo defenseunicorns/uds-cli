@@ -39,6 +39,12 @@ func createRemote(t *testing.T, bundlePath string, registry string) {
 	require.NoError(t, err)
 }
 
+func createRemoteSecure(t *testing.T, bundlePath string, registry string) {
+	cmd := strings.Split(fmt.Sprintf("create %s -o %s --confirm", bundlePath, registry), " ")
+	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+}
+
 func inspectRemote(t *testing.T, ref string) {
 	cmd := strings.Split(fmt.Sprintf("inspect %s --insecure --sbom", ref), " ")
 	_, _, err := e2e.UDS(cmd...)
