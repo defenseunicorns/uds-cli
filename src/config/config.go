@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2023-Present The UDS Authorspackage config
+// SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
 // Package config contains configuration strings for UDS-CLI
 package config

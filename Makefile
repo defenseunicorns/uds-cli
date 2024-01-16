@@ -48,3 +48,6 @@ clean: ## Clean up build artifacts
 
 clean-test-artifacts: ## removes bundles and zarf packages that have been created from previous test runs
 	find src/test -type f -name '*.tar.zst' -delete
+
+push-test-artifacts: ## Push artifacts that UDS CLI tests rely on to GHCR
+	cd hack && ./push-test-artifacts.sh
