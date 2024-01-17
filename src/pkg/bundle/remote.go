@@ -97,19 +97,22 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 	if err != nil {
 		return err
 	}
+	containsSBOMs := false
+
 	// iterate through Zarf image manifests and find the Zarf pkg's sboms.tar
 	for _, layer := range root.Layers {
-		zarfManifest, err := op.OrasRemote.FetchManifest(layer)
-		if err != nil {
+		if layer.Annotations[ocispec.AnnotationTitle] == config.BundleYAML {
 			continue
 		}
-		// grab descriptor for sboms.tar
-		sbomDesc := zarfManifest.Locate(config.SBOMsTar)
+		zarfManifest, err := op.OrasRemote.FetchManifest(layer)
 		if err != nil {
 			return err
 		}
-		if sbomDesc.Annotations == nil {
+		// grab descriptor for sboms.tar
+		sbomDesc := zarfManifest.Locate(config.SBOMsTar)
+		if oci.IsEmptyDescriptor(sbomDesc) {
 			message.Warnf("%s not found in Zarf pkg", config.SBOMsTar)
+			continue
 		}
 		// grab sboms.tar and extract
 		sbomBytes, err := op.OrasRemote.FetchLayer(sbomDesc)
@@ -121,8 +124,13 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 		if err != nil {
 			return err
 		}
+		containsSBOMs = true
 	}
 	if extractSBOM {
+		if !containsSBOMs {
+			message.Warnf("Cannot extract, no SBOMs found in bundle")
+			return nil
+		}
 		currentDir, err := os.Getwd()
 		if err != nil {
 			return err

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -82,7 +83,7 @@ func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) oras.Cop
 	}
 	copyOpts.FindSuccessors = func(ctx context.Context, fetcher content.Fetcher, desc ocispec.Descriptor) ([]ocispec.Descriptor, error) {
 		var nodes []ocispec.Descriptor
-		if desc.MediaType == oci.ZarfLayerMediaTypeBlob && desc.Annotations == nil {
+		if desc.MediaType == oci.ZarfLayerMediaTypeBlob && desc.Annotations[ocispec.AnnotationTitle] == config.BundleYAML {
 			layerBytes, err := content.FetchAll(ctx, fetcher, desc)
 			if err != nil {
 				return nil, err

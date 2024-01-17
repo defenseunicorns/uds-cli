@@ -46,10 +46,11 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool) error {
 		return err
 	}
 	SBOMArtifactPathMap := make(PathMap)
+	containsSBOMs := false
 
 	for _, layer := range tp.manifest.Layers {
 		// get Zarf image manifests from bundle manifest
-		if len(layer.Annotations) != 0 {
+		if layer.Annotations[ocispec.AnnotationTitle] == config.BundleYAML {
 			continue
 		}
 		layerFilePath := filepath.Join(config.BlobsDir, layer.Digest.Encoded())
@@ -69,6 +70,9 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool) error {
 
 		// find sbom layer descriptor and extract sbom tar from archive
 		sbomDesc := zarfImageManifest.Locate(config.SBOMsTar)
+
+		// todo: if sbomDesc doesn't exist, continue
+
 		sbomFilePath := filepath.Join(config.BlobsDir, sbomDesc.Digest.Encoded())
 		if err := av3.Extract(tp.src, sbomFilePath, tp.dst); err != nil {
 			return fmt.Errorf("failed to extract %s from %s: %w", layer.Digest.Encoded(), tp.src, err)
@@ -82,8 +86,13 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool) error {
 		if err != nil {
 			return err
 		}
+		containsSBOMs = true
 	}
 	if extractSBOM {
+		if !containsSBOMs {
+			message.Warnf("Cannot extract, no SBOMs found in bundle")
+			return nil
+		}
 		currentDir, err := os.Getwd()
 		if err != nil {
 			return err
@@ -299,13 +308,10 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	if err != nil {
 		return err
 	}
-	if err != nil {
-		return err
-	}
 	// push bundle layers to remote
 	for _, manifestDesc := range tp.manifest.Layers {
 		layersToPull = append(layersToPull, manifestDesc)
-		if manifestDesc.Annotations != nil {
+		if manifestDesc.Annotations[ocispec.AnnotationTitle] != config.BundleYAML {
 			continue // uds-bundle.yaml doesn't have layers
 		}
 		layers, estimatedPkgSize, err := tp.getZarfLayers(store, manifestDesc)
