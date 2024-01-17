@@ -105,3 +105,11 @@ tasks:
   - name: more-foo
     actions:
       - task: foo:fooybar
+  - name: wait
+    actions:
+      - maxTotalSeconds: 1
+        wait:
+          cluster:
+            kind: StatefulSet
+            name: cool-name
+            namespace: tasks

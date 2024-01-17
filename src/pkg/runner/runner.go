@@ -546,7 +546,7 @@ func convertWaitToCmd(wait zarfTypes.ZarfComponentActionWait, timeout *int) (str
 		}
 
 		// Build a call to the uds tools wait-for command.
-		return fmt.Sprintf("./uds tools wait-for %s %s %s %s %s",
+		return fmt.Sprintf("./uds zarf tools wait-for %s %s %s %s %s",
 			cluster.Kind, cluster.Identifier, cluster.Condition, ns, timeoutString), nil
 	}
 
@@ -561,7 +561,7 @@ func convertWaitToCmd(wait zarfTypes.ZarfComponentActionWait, timeout *int) (str
 		}
 
 		// Build a call to the uds tools wait-for command.
-		return fmt.Sprintf("./uds tools wait-for %s %s %d %s",
+		return fmt.Sprintf("./uds zarf tools wait-for %s %s %d %s",
 			network.Protocol, network.Address, network.Code, timeoutString), nil
 	}
 

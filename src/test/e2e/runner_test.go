@@ -282,4 +282,10 @@ func TestUseCLI(t *testing.T) {
 		require.Contains(t, stdErr, "copy-exec")
 		require.Contains(t, stdErr, "copy-verify")
 	})
+
+	t.Run("test call to zarf tools wait-for", func(t *testing.T) {
+		t.Parallel()
+		_, stdErr, _ := e2e.RunTasksWithFile("run", "wait")
+		require.Contains(t, stdErr, "Waiting for")
+	})
 }
