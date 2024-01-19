@@ -23,6 +23,7 @@ import (
 	av4 "github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
+	"oras.land/oras-go/v2/content"
 	ocistore "oras.land/oras-go/v2/content/oci"
 )
 
@@ -302,7 +303,8 @@ func (tp *tarballBundleProvider) getZarfLayers(store *ocistore.Store, pkgManifes
 
 // PublishBundle publishes a local bundle to a remote OCI registry
 func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *oci.OrasRemote) error {
-	var layersToPull []ocispec.Descriptor
+	// todo: tp.src and dst are jacked here (they are swapped)
+	var layersToPush []ocispec.Descriptor
 	if err := tp.getBundleManifest(); err != nil {
 		return err
 	}
@@ -315,7 +317,7 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	}
 	// push bundle layers to remote
 	for _, manifestDesc := range tp.manifest.Layers {
-		layersToPull = append(layersToPull, manifestDesc)
+		layersToPush = append(layersToPush, manifestDesc)
 		if manifestDesc.Annotations[ocispec.AnnotationTitle] == config.BundleYAML {
 			continue // uds-bundle.yaml doesn't have layers
 		}
@@ -324,14 +326,14 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 		if err != nil {
 			return err
 		}
-		layersToPull = append(layersToPull, layers...)
+		layersToPush = append(layersToPush, layers...)
 	}
 
 	// grab image config
-	layersToPull = append(layersToPull, tp.manifest.Config)
+	layersToPush = append(layersToPush, tp.manifest.Config)
 
 	// copy bundle
-	copyOpts := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
+	copyOpts := utils.CreateCopyOpts(layersToPush, config.CommonOptions.OCIConcurrency)
 	if err != nil {
 		return err
 	}
@@ -344,5 +346,26 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	}
 	remote.Transport.ProgressBar.Successf("Published %s", remote.Repo().Reference)
 
+	// push index bc it doesnt look like it gets pushed
+	var index ocispec.Index
+	index.MediaType = ocispec.MediaTypeImageIndex
+	index.Versioned.SchemaVersion = 2
+	index.Manifests = []ocispec.Descriptor{
+		{
+			MediaType: ocispec.MediaTypeImageManifest,
+			Digest:    tp.manifestDesc.Digest,
+			Size:      tp.manifestDesc.Size,
+		},
+	}
+	indexBytes, err := json.Marshal(index)
+	if err != nil {
+		return err
+	}
+	indexDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageIndex, indexBytes)
+	err = remote.Repo().Manifests().PushReference(tp.ctx, indexDesc, bytes.NewReader(indexBytes), ref)
+
+	if err != nil {
+		return err
+	}
 	return nil
 }

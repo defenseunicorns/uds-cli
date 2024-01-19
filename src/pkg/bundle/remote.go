@@ -148,7 +148,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 	return nil
 }
 
-// LoadBundle loads a bundle from a remote source
+// LoadBundle loads a bundle's uds-bundle.yaml and Zarf packages from a remote source
 func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 	var layersToPull []ocispec.Descriptor
 	estimatedBytes := int64(0)
@@ -173,6 +173,7 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 	}
 
 	for _, pkg := range bundle.Packages {
+		// grab sha of zarf image manifest and pull it down
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
 		manifestDesc := op.manifest.Locate(sha)
 		if err != nil {
@@ -182,12 +183,14 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 		if err != nil {
 			return nil, err
 		}
+		// unmarshal the zarf image manifest and add it to the layers to pull
 		var manifest oci.ZarfOCIManifest
 		if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
 			return nil, err
 		}
 		layersToPull = append(layersToPull, manifestDesc)
 		progressBar := message.NewProgressBar(int64(len(manifest.Layers)), fmt.Sprintf("Verifying layers in Zarf package: %s", pkg.Name))
+		// go through the layers in the zarf image manifest and check if they exist in the remote
 		for _, layer := range manifest.Layers {
 			ok, err := op.Repo().Blobs().Exists(op.ctx, layer)
 			progressBar.Add(1)
@@ -195,6 +198,7 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 			if err != nil {
 				return nil, err
 			}
+			// if the layer exists in the remote, add it to the layers to pull
 			if ok {
 				layersToPull = append(layersToPull, layer)
 			}
@@ -207,13 +211,14 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 		return nil, err
 	}
 
+	// grab the bundle root manifest and add it to the layers to pull
 	rootDesc, err := op.ResolveRoot()
 	if err != nil {
 		return nil, err
 	}
 	layersToPull = append(layersToPull, rootDesc)
 
-	// copy bundle
+	// create copy options for oras.Copy()
 	copyOpts := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
 
 	// Create a thread to update a progress bar as we save the package to disk

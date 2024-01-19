@@ -70,6 +70,7 @@ func (b *Bundler) Deploy() error {
 	}
 
 	// read the bundle's metadata into memory
+	// todo: we also read the SHAs from the uds-bundle.yaml here, should we refactor so that we use the bundle's root manifest?
 	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}

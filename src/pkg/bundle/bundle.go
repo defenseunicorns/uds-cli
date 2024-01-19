@@ -475,6 +475,8 @@ func cleanIndexJSON(tmpDir, ref string) error {
 		}
 	}
 
+	index.MediaType = "application/vnd.docker.distribution.manifest.list.v2+json"
+
 	err = utils.ToLocalFile(index, filepath.Join(tmpDir, "index.json"))
 	if err != nil {
 		return err

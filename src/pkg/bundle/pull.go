@@ -50,7 +50,10 @@ func (b *Bundler) Pull() error {
 		return err
 	}
 
-	// pull the bundle
+	// pull the bundle's uds-bundle.yaml and it's Zarf pkgs
+	// todo: refactor this fn, think about pulling the rootDesc first and getting the hashes from there
+	// today, we are getting the Zarf image manifest hashes from the uds-bundle.yaml
+	// in that logic we end up pulling the root manifest twice, once in LoadBundle and the other below in remote.ResolveRoot()
 	loaded, err := provider.LoadBundle(zarfConfig.CommonOptions.OCIConcurrency)
 	if err != nil {
 		return err
