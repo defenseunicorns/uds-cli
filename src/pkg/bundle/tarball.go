@@ -18,7 +18,6 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	av3 "github.com/mholt/archiver/v3"
 	av4 "github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -177,72 +176,7 @@ func (tp *tarballBundleProvider) getBundleManifest() error {
 
 // LoadBundle loads a bundle from a tarball
 func (tp *tarballBundleProvider) LoadBundle(_ int) (PathMap, error) {
-	loaded := make(PathMap)
-
-	if err := tp.getBundleManifest(); err != nil {
-		return nil, err
-	}
-
-	store, err := ocistore.NewWithContext(tp.ctx, tp.dst)
-	if err != nil {
-		return nil, err
-	}
-
-	var layersToExtract []ocispec.Descriptor
-
-	format := av4.CompressedArchive{
-		Compression: av4.Zstd{},
-		Archival:    av4.Tar{},
-	}
-
-	sourceArchive, err := os.Open(tp.src)
-	if err != nil {
-		return nil, err
-	}
-
-	defer sourceArchive.Close()
-
-	for _, layer := range tp.manifest.Layers {
-		if layer.MediaType == ocispec.MediaTypeImageManifest {
-			var manifest oci.ZarfOCIManifest
-			if err := format.Extract(tp.ctx, sourceArchive, []string{filepath.Join(config.BlobsDir, layer.Digest.Encoded())}, utils.ExtractJSON(&manifest)); err != nil {
-				return nil, err
-			}
-			layersToExtract = append(layersToExtract, layer)
-			layersToExtract = append(layersToExtract, manifest.Layers...)
-		} else if layer.MediaType == oci.ZarfLayerMediaTypeBlob {
-			rel := layer.Annotations[ocispec.AnnotationTitle]
-			layersToExtract = append(layersToExtract, layer)
-			loaded[rel] = filepath.Join(tp.dst, config.BlobsDir, layer.Digest.Encoded())
-		}
-	}
-
-	cacheFunc := func(ctx context.Context, file av4.File) error {
-		desc := helpers.Find(layersToExtract, func(layer ocispec.Descriptor) bool {
-			return layer.Digest.Encoded() == filepath.Base(file.NameInArchive)
-		})
-		r, err := file.Open()
-		if err != nil {
-			return err
-		}
-		defer r.Close()
-		return store.Push(ctx, desc, r)
-	}
-
-	pathsInArchive := []string{}
-	for _, layer := range layersToExtract {
-		sha := layer.Digest.Encoded()
-		if layer.MediaType == oci.ZarfLayerMediaTypeBlob {
-			pathsInArchive = append(pathsInArchive, filepath.Join(config.BlobsDir, sha))
-			loaded[sha] = filepath.Join(tp.dst, config.BlobsDir, sha)
-		}
-	}
-
-	if err := format.Extract(tp.ctx, sourceArchive, pathsInArchive, cacheFunc); err != nil {
-		return nil, err
-	}
-
-	return loaded, nil
+	return nil, fmt.Errorf("uds pull does not support pulling local bundles")
 }
 
 // LoadBundleMetadata loads a bundle's metadata from a tarball
