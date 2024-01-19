@@ -97,19 +97,22 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 	if err != nil {
 		return err
 	}
+	containsSBOMs := false
+
 	// iterate through Zarf image manifests and find the Zarf pkg's sboms.tar
 	for _, layer := range root.Layers {
-		zarfManifest, err := op.OrasRemote.FetchManifest(layer)
-		if err != nil {
+		if layer.Annotations[ocispec.AnnotationTitle] == config.BundleYAML {
 			continue
 		}
-		// grab descriptor for sboms.tar
-		sbomDesc := zarfManifest.Locate(config.SBOMsTar)
+		zarfManifest, err := op.OrasRemote.FetchManifest(layer)
 		if err != nil {
 			return err
 		}
-		if sbomDesc.Annotations == nil {
+		// grab descriptor for sboms.tar
+		sbomDesc := zarfManifest.Locate(config.SBOMsTar)
+		if oci.IsEmptyDescriptor(sbomDesc) {
 			message.Warnf("%s not found in Zarf pkg", config.SBOMsTar)
+			continue
 		}
 		// grab sboms.tar and extract
 		sbomBytes, err := op.OrasRemote.FetchLayer(sbomDesc)
@@ -121,8 +124,13 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 		if err != nil {
 			return err
 		}
+		containsSBOMs = true
 	}
 	if extractSBOM {
+		if !containsSBOMs {
+			message.Warnf("Cannot extract, no SBOMs found in bundle")
+			return nil
+		}
 		currentDir, err := os.Getwd()
 		if err != nil {
 			return err
@@ -214,6 +222,7 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go zarfUtils.RenderProgressBarForLocalDirWrite(op.dst, estimatedBytes, &wg, doneSaving, errChan, fmt.Sprintf("Pulling bundle: %s", bundle.Metadata.Name), fmt.Sprintf("Successfully pulled bundle: %s", bundle.Metadata.Name))
+	// note that in this case oras.Copy() copies using the bundle root manifest, not the packages directly
 	_, err = oras.Copy(op.ctx, op.Repo(), op.Repo().Reference.String(), store, op.Repo().Reference.String(), copyOpts)
 	if err != nil {
 		doneSaving <- 1

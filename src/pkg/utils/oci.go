@@ -82,7 +82,12 @@ func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) oras.Cop
 	}
 	copyOpts.FindSuccessors = func(ctx context.Context, fetcher content.Fetcher, desc ocispec.Descriptor) ([]ocispec.Descriptor, error) {
 		var nodes []ocispec.Descriptor
-		if desc.MediaType == oci.ZarfLayerMediaTypeBlob && desc.Annotations == nil {
+		_, hasTitleAnnotation := desc.Annotations[ocispec.AnnotationTitle]
+
+		// This if block is for used for finding successors from bundle root manifests during bundle pull/publish ops;
+		// note that ptrs to the Zarf pkg image manifests won't have title annotations, and will follow this code path
+		if desc.MediaType == oci.ZarfLayerMediaTypeBlob && !hasTitleAnnotation {
+			// adopted from the content.Successors() fn in oras
 			layerBytes, err := content.FetchAll(ctx, fetcher, desc)
 			if err != nil {
 				return nil, err
@@ -97,6 +102,7 @@ func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) oras.Cop
 			nodes = append(nodes, manifest.Config)
 			nodes = append(nodes, manifest.Layers...)
 		} else {
+			// this block is meant for pulling Zarf OCI pkgs directly, it also gets called as ORAS navigates the bundle root manifest
 			successors, err := content.Successors(ctx, fetcher, desc)
 			if err != nil {
 				return nil, err

@@ -6,8 +6,5 @@ metadata:
 
 packages:
   - name: nginx
-    repository: localhost:888/nginx
-    ref: 0.0.1
-  - name: podinfo
-    repository: localhost:889/podinfo
+    path: "../../packages/nginx"
     ref: 0.0.1

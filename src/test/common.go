@@ -16,6 +16,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	"github.com/stretchr/testify/require"
@@ -128,18 +129,19 @@ func (e2e *UDSE2ETest) DownloadZarfInitPkg(t *testing.T, zarfVersion string) {
 		fmt.Println("Zarf init pkg already exists. Skipping download.")
 		return
 	}
-
+	downloadSpinner := message.NewProgressSpinner("Downloading Zarf init package %s", zarfVersion)
 	err := downloadFile(zarfReleaseURL, outputDir)
+	downloadSpinner.Successf("Downloaded Zarf init package %s", zarfVersion)
 	require.NoError(t, err)
 }
 
 // CreateZarfPkg creates a Zarf in the given path (todo: makefile?)
-func (e2e *UDSE2ETest) CreateZarfPkg(t *testing.T, path string) {
+func (e2e *UDSE2ETest) CreateZarfPkg(t *testing.T, path string, forceCreate bool) {
 	//  check if pkg already exists
 	pattern := fmt.Sprintf("%s/*-%s-*.tar.zst", path, e2e.Arch)
 	matches, err := filepath.Glob(pattern)
 	require.NoError(t, err)
-	if len(matches) > 0 {
+	if !forceCreate && len(matches) > 0 {
 		fmt.Println("Zarf pkg already exists, skipping create")
 		return
 	}
