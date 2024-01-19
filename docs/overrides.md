@@ -71,12 +71,9 @@ packages:
 This bundle will deploy the `helm-overrides-package` Zarf package and override the `replicaCount` and `ui.color` values in the `podinfo` chart. The `values` can't be modified after the bundle has been created. However, at deploy time, users can override the `UI_COLOR` and other `variables` using a environment variable called `UDS_UI_COLOR` or by specifying it in a `uds-config.yaml` like so:
 
 ```yaml
-bundle:
-  deploy:
-    helm-overrides-package:
-       helm-overrides-component:
-        set:
-          UI_COLOR: green
+variables:
+ helm-overrides-package:
+   UI_COLOR: green
 ```
 
 ## Overrides

@@ -71,7 +71,11 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool) error {
 		// find sbom layer descriptor and extract sbom tar from archive
 		sbomDesc := zarfImageManifest.Locate(config.SBOMsTar)
 
-		// todo: if sbomDesc doesn't exist, continue
+		// if sbomDesc doesn't exist, continue
+		if oci.IsEmptyDescriptor(sbomDesc) {
+			message.Warnf("%s not found in Zarf pkg", config.SBOMsTar)
+			continue
+		}
 
 		sbomFilePath := filepath.Join(config.BlobsDir, sbomDesc.Digest.Encoded())
 		if err := av3.Extract(tp.src, sbomFilePath, tp.dst); err != nil {
@@ -296,6 +300,7 @@ func (tp *tarballBundleProvider) getZarfLayers(store *ocistore.Store, pkgManifes
 	return layersToPull, estimatedPkgSize, nil
 }
 
+// PublishBundle publishes a local bundle to a remote OCI registry
 func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *oci.OrasRemote) error {
 	var layersToPull []ocispec.Descriptor
 	if err := tp.getBundleManifest(); err != nil {
@@ -311,7 +316,7 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	// push bundle layers to remote
 	for _, manifestDesc := range tp.manifest.Layers {
 		layersToPull = append(layersToPull, manifestDesc)
-		if manifestDesc.Annotations[ocispec.AnnotationTitle] != config.BundleYAML {
+		if manifestDesc.Annotations[ocispec.AnnotationTitle] == config.BundleYAML {
 			continue // uds-bundle.yaml doesn't have layers
 		}
 		layers, estimatedPkgSize, err := tp.getZarfLayers(store, manifestDesc)

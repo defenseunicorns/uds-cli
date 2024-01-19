@@ -12,6 +12,9 @@ import (
 	"oras.land/oras-go/v2/registry"
 )
 
+// NOTE: These tests need to have the string "GHCR" in their names
+//       to ensure they are not run by the test-e2e-no-ghcr make target
+
 func TestBundleDeployFromOCIFromGHCR(t *testing.T) {
 	deployZarfInit(t)
 
@@ -40,7 +43,7 @@ func TestBundleDeployFromOCIFromGHCR(t *testing.T) {
 }
 
 // test the create -o path
-func TestBundleCreateAndDeployOCI(t *testing.T) {
+func TestBundleCreateAndDeployGHCR(t *testing.T) {
 	deployZarfInit(t)
 
 	bundleDir := "src/test/bundles/06-ghcr"
@@ -67,7 +70,7 @@ func TestBundleCreateAndDeployOCI(t *testing.T) {
 // The default bundle location if no source path provided is defenseunicorns/packages/uds/bundles/"
 func TestGHCRPathExpansion(t *testing.T) {
 	deployZarfInit(t)
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
 	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-ghcr-test-%s-0.0.1.tar.zst", e2e.Arch))
 

@@ -222,6 +222,7 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go zarfUtils.RenderProgressBarForLocalDirWrite(op.dst, estimatedBytes, &wg, doneSaving, errChan, fmt.Sprintf("Pulling bundle: %s", bundle.Metadata.Name), fmt.Sprintf("Successfully pulled bundle: %s", bundle.Metadata.Name))
+	// note that in this case oras.Copy() copies using the bundle root manifest, not the packages directly
 	_, err = oras.Copy(op.ctx, op.Repo(), op.Repo().Reference.String(), store, op.Repo().Reference.String(), copyOpts)
 	if err != nil {
 		doneSaving <- 1

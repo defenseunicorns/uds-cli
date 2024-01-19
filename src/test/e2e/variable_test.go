@@ -17,8 +17,8 @@ import (
 func TestBundleVariables(t *testing.T) {
 	zarfPkgPath1 := "src/test/packages/no-cluster/output-var"
 	zarfPkgPath2 := "src/test/packages/no-cluster/receive-var"
-	e2e.CreateZarfPkg(t, zarfPkgPath1)
-	e2e.CreateZarfPkg(t, zarfPkgPath2)
+	e2e.CreateZarfPkg(t, zarfPkgPath1, false)
+	e2e.CreateZarfPkg(t, zarfPkgPath2, false)
 
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
@@ -50,7 +50,7 @@ func TestBundleVariables(t *testing.T) {
 func TestBundleWithHelmOverrides(t *testing.T) {
 	deployZarfInit(t)
 	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
-	e2e.CreateZarfPkg(t, "src/test/packages/helm")
+	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
 	bundleDir := "src/test/bundles/07-helm-overrides"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
 	err := os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config.yaml"))
@@ -120,7 +120,7 @@ func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 	// set up configs and env vars
 	deployZarfInit(t)
 	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
-	e2e.CreateZarfPkg(t, "src/test/packages/helm")
+	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
 	color := "purple"
 	b64Secret := "dGhhdCBhaW50IG15IHRydWNr"
 	err := os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config.yaml"))
@@ -152,8 +152,8 @@ func TestVariablePrecedence(t *testing.T) {
 	// precedence rules: env var > uds-config.variables > uds-config.shared > default
 	deployZarfInit(t)
 	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
-	e2e.CreateZarfPkg(t, "src/test/packages/helm")
-	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var")
+	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false)
 	bundleDir := "src/test/bundles/08-var-precedence"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-var-precedence-%s-0.0.1.tar.zst", e2e.Arch))
 	err := os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/08-var-precedence", "uds-config.yaml"))

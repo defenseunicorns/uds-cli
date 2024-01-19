@@ -23,11 +23,16 @@ func zarfPublish(t *testing.T, path string, reg string) {
 	require.NoError(t, err)
 }
 
+func TestUDSCmd(t *testing.T) {
+	_, _, err := e2e.UDS()
+	require.NoError(t, err)
+}
+
 func TestCreateWithNoPath(t *testing.T) {
 	zarfPkgPath1 := "src/test/packages/no-cluster/output-var"
 	zarfPkgPath2 := "src/test/packages/no-cluster/receive-var"
-	e2e.CreateZarfPkg(t, zarfPkgPath1)
-	e2e.CreateZarfPkg(t, zarfPkgPath2)
+	e2e.CreateZarfPkg(t, zarfPkgPath1, false)
+	e2e.CreateZarfPkg(t, zarfPkgPath2, false)
 
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
@@ -53,7 +58,7 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 	deployZarfInit(t)
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
 	bundleDir := "src/test/bundles/03-local-and-remote"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
@@ -76,8 +81,8 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 func TestBundle(t *testing.T) {
 	deployZarfInit(t)
 
-	e2e.CreateZarfPkg(t, "src/test/packages/nginx")
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
@@ -105,8 +110,8 @@ func TestBundle(t *testing.T) {
 func TestPackagesFlag(t *testing.T) {
 	deployZarfInit(t)
 
-	e2e.CreateZarfPkg(t, "src/test/packages/nginx")
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
@@ -165,8 +170,8 @@ func TestPackagesFlag(t *testing.T) {
 func TestResumeFlag(t *testing.T) {
 	deployZarfInit(t)
 
-	e2e.CreateZarfPkg(t, "src/test/packages/nginx")
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
@@ -216,7 +221,7 @@ func TestResumeFlag(t *testing.T) {
 
 func TestRemoteBundle(t *testing.T) {
 	deployZarfInit(t)
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
@@ -260,7 +265,7 @@ func TestRemoteBundle(t *testing.T) {
 
 func TestBundleWithGitRepo(t *testing.T) {
 	deployZarfInit(t)
-	e2e.CreateZarfPkg(t, "src/test/packages/gitrepo")
+	e2e.CreateZarfPkg(t, "src/test/packages/gitrepo", false)
 	bundleDir := "src/test/bundles/05-gitrepo"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-gitrepo-%s-0.0.1.tar.zst", e2e.Arch))
 
@@ -272,8 +277,8 @@ func TestBundleWithGitRepo(t *testing.T) {
 func TestBundleWithYmlFile(t *testing.T) {
 	deployZarfInit(t)
 
-	e2e.CreateZarfPkg(t, "src/test/packages/nginx")
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo")
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx", true)
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", true)
 
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
@@ -289,11 +294,48 @@ func TestBundleWithYmlFile(t *testing.T) {
 	bundleDir := "src/test/bundles/09-uds-bundle-yml"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-yml-example-%s-0.0.1.tar.zst", e2e.Arch))
 
-	create(t, bundleDir) // todo: allow creating from both the folder containing and direct reference to uds-bundle.yaml
+	create(t, bundleDir)
 	inspect(t, bundlePath)
 	inspectAndSBOMExtract(t, bundlePath)
 	// Test with an "options only" config file
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/09-uds-bundle-yml", "uds-config.yml"))
 	deploy(t, bundlePath)
 	remove(t, bundlePath)
+}
+
+func TestLocalBundleWithNoSBOM(t *testing.T) {
+	path := "src/test/packages/nginx"
+	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --skip-sbom --confirm", path, path), " ")
+	_, _, err := e2e.UDS(args...)
+	require.NoError(t, err)
+
+	bundleDir := "src/test/bundles/09-uds-bundle-yml"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-yml-example-%s-0.0.1.tar.zst", e2e.Arch))
+	create(t, bundleDir)
+
+	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom --extract", bundlePath), " ")
+	_, stderr, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
+	require.Contains(t, stderr, "sboms.tar not found in Zarf pkg")
+}
+
+func TestRemoteBundleWithNoSBOM(t *testing.T) {
+	path := "src/test/packages/nginx"
+	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --skip-sbom --confirm", path, path), " ")
+	_, _, err := e2e.UDS(args...)
+	require.NoError(t, err)
+
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+	bundleDir := "src/test/bundles/09-uds-bundle-yml"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-yml-example-%s-0.0.1.tar.zst", e2e.Arch))
+	create(t, bundleDir)
+	publishInsecure(t, bundlePath, "localhost:888")
+
+	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom --extract", bundlePath), " ")
+	_, stderr, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
+	require.Contains(t, stderr, "sboms.tar not found in Zarf pkg")
 }
