@@ -403,7 +403,7 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 		cmdEscaped = message.Truncate(cmd, 60, false)
 	}
 
-	spinner := message.NewProgressSpinner("Running \"%s\"", cmdEscaped)
+	spinner := message.NewProgressSpinner("Running %q", cmdEscaped)
 	// Persist the spinner output so it doesn't get overwritten by the command output.
 	spinner.EnablePreserveWrites()
 
@@ -456,9 +456,9 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 
 			// If the action has a wait, change the spinner message to reflect that on success.
 			if action.Wait != nil {
-				spinner.Successf("Wait for \"%s\" succeeded", cmdEscaped)
+				spinner.Successf("Wait for %q succeeded", cmdEscaped)
 			} else {
-				spinner.Successf("Completed \"%s\"", cmdEscaped)
+				spinner.Successf("Completed %q", cmdEscaped)
 			}
 
 			// If the command ran successfully, continue to the next action.
@@ -467,7 +467,7 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 
 		// If no timeout is set, run the command and return or continue retrying.
 		if cfg.MaxTotalSeconds < 1 {
-			spinner.Updatef("Waiting for \"%s\" (no timeout)", cmdEscaped)
+			spinner.Updatef("Waiting for %q (no timeout)", cmdEscaped)
 			if err := tryCmd(context.TODO()); err != nil {
 				continue
 			}
@@ -476,7 +476,7 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 		}
 
 		// Run the command on repeat until success or timeout.
-		spinner.Updatef("Waiting for \"%s\" (timeout: %ds)", cmdEscaped, cfg.MaxTotalSeconds)
+		spinner.Updatef("Waiting for %q (timeout: %ds)", cmdEscaped, cfg.MaxTotalSeconds)
 		select {
 		// On timeout break the loop to abort.
 		case <-timeout:
@@ -497,11 +497,11 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 	select {
 	case <-timeout:
 		// If we reached this point, the timeout was reached.
-		return fmt.Errorf("command \"%s\" timed out after %d seconds", cmdEscaped, cfg.MaxTotalSeconds)
+		return fmt.Errorf("command %q timed out after %d seconds", cmdEscaped, cfg.MaxTotalSeconds)
 
 	default:
 		// If we reached this point, the retry limit was reached.
-		return fmt.Errorf("command \"%s\" failed after %d retries", cmdEscaped, cfg.MaxRetries)
+		return fmt.Errorf("command %q failed after %d retries", cmdEscaped, cfg.MaxRetries)
 	}
 }
 
