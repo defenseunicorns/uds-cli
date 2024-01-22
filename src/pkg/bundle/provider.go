@@ -37,8 +37,10 @@ type Provider interface {
 	// CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
 	CreateBundleSBOM(extractSBOM bool) error
 
+	// PublishBundle publishes a bundle to a remote OCI repo
 	PublishBundle(bundle types.UDSBundle, remote *oci.OrasRemote) error
 
+	// getBundleManifest gets the bundle's root manifest
 	getBundleManifest() error
 }
 
