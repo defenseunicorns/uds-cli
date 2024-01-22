@@ -152,6 +152,8 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 			if pkg.Name == "init" {
 				fullPkgName = fmt.Sprintf("zarf-%s-%s-%s.tar.zst", pkg.Name, bundle.Metadata.Architecture, pkg.Ref)
 			} else {
+				// For local zarf packages, we get the package name using the package name provided in the bundle, since the zarf package artifact
+				// uses the actual zarf package name, these names must match
 				fullPkgName = fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", pkg.Name, bundle.Metadata.Architecture, pkg.Ref)
 			}
 			path := filepath.Join(pkg.Path, fullPkgName)
@@ -160,6 +162,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 			if err != nil {
 				return err
 			}
+			// This will throw an error if the zarf package name in the bundle doesn't match the actual zarf package name
 			zarfYAML, err = p.GetMetadata(path, tmp)
 			if err != nil {
 				return err

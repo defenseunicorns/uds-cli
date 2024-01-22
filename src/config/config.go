@@ -52,6 +52,10 @@ const (
 
 	// EnvVarPrefix is the prefix for environment variables to override bundle helm variables
 	EnvVarPrefix = "UDS_"
+
+	ZarfPackageNameAnnotation = "zarf.package.name"
+
+	UDSPackageNameAnnotation = "uds.package.name"
 )
 
 var (

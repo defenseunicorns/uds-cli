@@ -346,3 +346,22 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 
 	return nil
 }
+
+// get zarf package name mappings from tarball provider
+func (tp *tarballBundleProvider) ZarfPackageNameMap() (map[string]string, error) {
+	if err := tp.getBundleManifest(); err != nil {
+		return nil, err
+	}
+
+	nameMap := make(map[string]string)
+	for _, layer := range tp.manifest.Layers {
+		if layer.MediaType == oci.ZarfLayerMediaTypeBlob {
+			// only the uds bundle layer will have AnnotationTitle set
+			rel := layer.Annotations[ocispec.AnnotationTitle]
+			if rel == "" {
+				nameMap[layer.Annotations[config.UDSPackageNameAnnotation]] = layer.Annotations[config.ZarfPackageNameAnnotation]
+			}
+		}
+	}
+	return nameMap, nil
+}
