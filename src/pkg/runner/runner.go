@@ -30,6 +30,7 @@ type Runner struct {
 	TemplateMap map[string]*zarfUtils.TextTemplate
 	TasksFile   types.TasksFile
 	TaskNameMap map[string]bool
+	EnvFilePath string
 }
 
 // Run runs a task from tasks file
@@ -38,6 +39,19 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 		TemplateMap: map[string]*zarfUtils.TextTemplate{},
 		TasksFile:   tasksFile,
 		TaskNameMap: map[string]bool{},
+	}
+
+	tmpDir, err := zarfUtils.MakeTempDir("")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmpDir)
+
+	runner.EnvFilePath = filepath.Join(tmpDir, "env")
+
+	// Add the uds arch to the environment.
+	if err := os.WriteFile(runner.EnvFilePath, []byte("UDS_ARCH="+config.GetArch()+"\n"), 0600); err != nil {
+		return err
 	}
 
 	runner.populateTemplateMap(tasksFile.Variables, setVariables)
@@ -448,8 +462,13 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 		action.SetVariables = []zarfTypes.ZarfComponentActionSetVariable{}
 	}
 
-	// Add the uds/zarf arch to the environment.
-	action.Env = append(action.Env, "UDS_ARCH="+config.GetArch())
+	currentEnvFileContents, err := os.ReadFile(r.EnvFilePath)
+	if err != nil {
+		return err
+	}
+
+	action.Env = append(action.Env, strings.Split(string(currentEnvFileContents), "\n")...)
+	action.Env = append(action.Env, "UDS_ENV="+r.EnvFilePath)
 
 	if action.Description != "" {
 		cmdEscaped = action.Description

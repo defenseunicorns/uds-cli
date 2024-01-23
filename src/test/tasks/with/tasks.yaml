@@ -7,6 +7,7 @@ tasks:
     actions:
       - cmd: |
           echo "${INPUT_ECHO}${PERIOD}"
+          # env
         env:
           - INPUT_ECHO=nowhere
           - PERIOD=.
@@ -17,6 +18,12 @@ tasks:
         default: world
         description: The thing to say hello to
     actions:
+      - cmd: |
+          echo "FOO=bar" >> .env
+          cat .env >> $UDS_ENV
+          rm .env
+        mute: true
+      - cmd: env | grep FOO
       - task: echo
         with:
           echo: "hello there"
