@@ -221,6 +221,7 @@ func TestResumeFlag(t *testing.T) {
 
 func TestRemoteBundle(t *testing.T) {
 	deployZarfInit(t)
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false)
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
 	e2e.SetupDockerRegistry(t, 888)
@@ -371,4 +372,8 @@ func TestPackageNaming(t *testing.T) {
 	pull(t, bundleRef.String(), tarballPath)
 	deploy(t, tarballPath)
 	remove(t, tarballPath)
+
+	// Test create -o with zarf package names that don't match the zarf package name in the bundle
+	createRemote(t, bundleDir, bundleRef.Registry)
+	deployAndRemoveRemote(t, bundleRef.String(), tarballPath)
 }

@@ -337,7 +337,7 @@ func EnsureOCIPrefix(source string) string {
 	return source
 }
 
-// get zarf package name mappings from oci provider
+// ZarfPackageNameMap returns the uds bundle zarf package name to actual zarf package name mappings from the oci provider
 func (op *ociProvider) ZarfPackageNameMap() (map[string]string, error) {
 	if err := op.getBundleManifest(); err != nil {
 		return nil, err

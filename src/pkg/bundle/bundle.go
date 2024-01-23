@@ -53,7 +53,7 @@ func Create(b *Bundler, signature []byte) error {
 	for i, pkg := range bundle.Packages {
 		fetchSpinner := message.NewProgressSpinner("Fetching package %s", pkg.Name)
 		zarfPackageName := ""
-		zarfLayerAdded := false
+		zarfRootLayerAdded := false
 		defer fetchSpinner.Stop()
 
 		if pkg.Repository != "" {
@@ -69,7 +69,7 @@ func Create(b *Bundler, signature []byte) error {
 			}
 
 			// grab layers for archiving
-			for i, layerDesc := range layerDescs {
+			for _, layerDesc := range layerDescs {
 				if layerDesc.MediaType == ocispec.MediaTypeImageManifest {
 					// rewrite the Zarf image manifest to have media type of Zarf blob
 					err = os.Remove(filepath.Join(b.tmp, config.BlobsDir, layerDesc.Digest.Encoded()))
@@ -89,28 +89,28 @@ func Create(b *Bundler, signature []byte) error {
 					layerDesc.Annotations[config.UDSPackageNameAnnotation] = pkg.Name
 
 					// If zarf package name has been obtained from zarf config, set the zarf package name annotation
+					// This block of code will only be triggered if the zarf config is processed before the zarf image manifest
 					if zarfPackageName != "" {
 						layerDesc.Annotations[config.ZarfPackageNameAnnotation] = zarfPackageName
 					}
 
 					rootManifest.Layers = append(rootManifest.Layers, layerDesc)
-					zarfLayerAdded = true
-				}
-				if layerDesc.MediaType == "application/vnd.zarf.config.v1+json" {
+					zarfRootLayerAdded = true
+				} else if layerDesc.MediaType == oci.ZarfConfigMediaType {
 					// read in and unmarshall zarf config
 					jsonData, err := os.ReadFile(filepath.Join(b.tmp, config.BlobsDir, layerDesc.Digest.Encoded()))
 					if err != nil {
 						return err
 					}
-					var data map[string]interface{}
-					err = json.Unmarshal(jsonData, &data)
+					var zarfConfigData oci.ConfigPartial
+					err = json.Unmarshal(jsonData, &zarfConfigData)
 					if err != nil {
 						return err
 					}
-					zarfPackageName = data["annotations"].(map[string]interface{})["org.opencontainers.image.title"].(string)
+					zarfPackageName = zarfConfigData.Annotations[ocispec.AnnotationTitle]
 					// Check if zarf image manifest has been added to root manifest already, if so add zarfPackageName annotation
-					if zarfLayerAdded {
-						rootManifest.Layers = append(rootManifest.Layers, layerDesc)
+					// This block of code will only be triggered if the zarf image manifest is processed before the zarf config
+					if zarfRootLayerAdded {
 						rootManifest.Layers[i].Annotations[config.ZarfPackageNameAnnotation] = zarfPackageName
 					}
 				}
@@ -259,13 +259,13 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 		message.Debugf("Pushed %s sub-manifest into %s: %s", url, dstRef, message.JSONValue(zarfManifestDesc))
 
 		// add package name annotations to zarf manifest
-		zarfYamlPackage, err := remoteBundler.RemoteSrc.FetchZarfYAML()
+		zarfYamlFile, err := remoteBundler.RemoteSrc.FetchZarfYAML()
 		if err != nil {
 			return err
 		}
 		zarfManifestDesc.Annotations = make(map[string]string)
 		zarfManifestDesc.Annotations[config.UDSPackageNameAnnotation] = pkg.Name
-		zarfManifestDesc.Annotations[config.ZarfPackageNameAnnotation] = zarfYamlPackage.Metadata.Name
+		zarfManifestDesc.Annotations[config.ZarfPackageNameAnnotation] = zarfYamlFile.Metadata.Name
 
 		rootManifest.Layers = append(rootManifest.Layers, zarfManifestDesc)
 
