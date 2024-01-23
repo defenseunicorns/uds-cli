@@ -335,17 +335,17 @@ func (r *Runner) placeFiles(files []zarfTypes.ZarfFile) error {
 
 func (r *Runner) performAction(action types.Action) error {
 	if action.TaskReference != "" {
-		env := []string{}
+		withEnv := []string{}
 		for name := range action.With {
 			switch v := action.With[name].(type) {
 			case string:
-				env = append(env, formatEnvVar(name, v))
+				withEnv = append(withEnv, formatEnvVar(name, v))
 			case int:
 				value := fmt.Sprintf("%d", v)
-				env = append(env, formatEnvVar(name, value))
+				withEnv = append(withEnv, formatEnvVar(name, value))
 			case bool:
 				value := fmt.Sprintf("%t", v)
-				env = append(env, formatEnvVar(name, value))
+				withEnv = append(withEnv, formatEnvVar(name, value))
 			default:
 				return fmt.Errorf("unsupported type %T for input %s", v, name)
 			}
@@ -356,7 +356,7 @@ func (r *Runner) performAction(action types.Action) error {
 			return err
 		}
 		for _, a := range referencedTask.Actions {
-			a.Env = mergeEnv(env, a.Env)
+			a.Env = mergeEnv(withEnv, a.Env)
 		}
 		if err := r.executeTask(referencedTask); err != nil {
 			return err
@@ -457,7 +457,7 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 		cmdEscaped = message.Truncate(cmd, 60, false)
 	}
 
-	spinner := message.NewProgressSpinner("Running %q", cmdEscaped)
+	spinner := message.NewProgressSpinner("Running \"%s\"", cmdEscaped)
 	// Persist the spinner output so it doesn't get overwritten by the command output.
 	spinner.EnablePreserveWrites()
 
@@ -510,9 +510,9 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 
 			// If the action has a wait, change the spinner message to reflect that on success.
 			if action.Wait != nil {
-				spinner.Successf("Wait for %q succeeded", cmdEscaped)
+				spinner.Successf("Wait for \"%s\" succeeded", cmdEscaped)
 			} else {
-				spinner.Successf("Completed %q", cmdEscaped)
+				spinner.Successf("Completed \"%s\"", cmdEscaped)
 			}
 
 			// If the command ran successfully, continue to the next action.
@@ -521,7 +521,7 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 
 		// If no timeout is set, run the command and return or continue retrying.
 		if cfg.MaxTotalSeconds < 1 {
-			spinner.Updatef("Waiting for %q (no timeout)", cmdEscaped)
+			spinner.Updatef("Waiting for \"%s\" (no timeout)", cmdEscaped)
 			if err := tryCmd(context.TODO()); err != nil {
 				continue
 			}
@@ -530,7 +530,7 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 		}
 
 		// Run the command on repeat until success or timeout.
-		spinner.Updatef("Waiting for %q (timeout: %ds)", cmdEscaped, cfg.MaxTotalSeconds)
+		spinner.Updatef("Waiting for \"%s\" (timeout: %ds)", cmdEscaped, cfg.MaxTotalSeconds)
 		select {
 		// On timeout break the loop to abort.
 		case <-timeout:
@@ -551,11 +551,11 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 	select {
 	case <-timeout:
 		// If we reached this point, the timeout was reached.
-		return fmt.Errorf("command %q timed out after %d seconds", cmdEscaped, cfg.MaxTotalSeconds)
+		return fmt.Errorf("command \"%s\" timed out after %d seconds", cmdEscaped, cfg.MaxTotalSeconds)
 
 	default:
 		// If we reached this point, the retry limit was reached.
-		return fmt.Errorf("command %q failed after %d retries", cmdEscaped, cfg.MaxRetries)
+		return fmt.Errorf("command \"%s\" failed after %d retries", cmdEscaped, cfg.MaxRetries)
 	}
 }
 
