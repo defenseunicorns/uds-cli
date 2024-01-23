@@ -184,6 +184,14 @@ func mergeEnv(env1, env2 []string) []string {
 	return env2
 }
 
+func formatEnvVar(name, value string) string {
+	// replace all non-alphanumeric characters with underscores
+	name = regexp.MustCompile(`[^a-zA-Z0-9]+`).ReplaceAllString(name, "_")
+	name = strings.ToUpper(name)
+	// prefix with INPUT_ (same as GitHub Actions)
+	return fmt.Sprintf("INPUT_%s=%s", name, value)
+}
+
 func (r *Runner) executeTask(task types.Task) error {
 	if len(task.Files) > 0 {
 		if err := r.placeFiles(task.Files); err != nil {
@@ -197,10 +205,7 @@ func (r *Runner) executeTask(task types.Task) error {
 		if d == "" {
 			continue
 		}
-		// replace all non-alphanumeric characters with underscores
-		name = regexp.MustCompile(`[^a-zA-Z0-9]+`).ReplaceAllString(name, "_")
-		name = strings.ToUpper(name)
-		defaultEnv = append(defaultEnv, fmt.Sprintf("INPUT_%s=%s", name, d))
+		defaultEnv = append(defaultEnv, formatEnvVar(name, d))
 	}
 
 	for _, action := range task.Actions {
@@ -332,19 +337,15 @@ func (r *Runner) performAction(action types.Action) error {
 	if action.TaskReference != "" {
 		env := []string{}
 		for name := range action.With {
-			key := name
-			// replace all non-alphanumeric characters with underscores
-			name = regexp.MustCompile(`[^a-zA-Z0-9]+`).ReplaceAllString(name, "_")
-			name = strings.ToUpper(name)
-			// prefix with INPUT_ (same as GitHub Actions)
-			name = fmt.Sprintf("INPUT_%s", name)
-			switch v := action.With[key].(type) {
+			switch v := action.With[name].(type) {
 			case string:
-				env = append(env, fmt.Sprintf("%s=%s", name, v))
+				env = append(env, formatEnvVar(name, v))
 			case int:
-				env = append(env, fmt.Sprintf("%s=%d", name, v))
+				value := fmt.Sprintf("%d", v)
+				env = append(env, formatEnvVar(name, value))
 			case bool:
-				env = append(env, fmt.Sprintf("%s=%t", name, v))
+				value := fmt.Sprintf("%t", v)
+				env = append(env, formatEnvVar(name, value))
 			default:
 				return fmt.Errorf("unsupported type %T for input %s", v, name)
 			}
