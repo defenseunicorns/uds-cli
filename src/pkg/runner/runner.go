@@ -168,6 +168,22 @@ func (r *Runner) getTask(taskName string) (types.Task, error) {
 	return types.Task{}, fmt.Errorf("task name %s not found", taskName)
 }
 
+func mergeEnv(env1, env2 []string) []string {
+	for _, s1 := range env1 {
+		replaced := false
+		for j, s2 := range env2 {
+			if strings.Split(s1, "=")[0] == strings.Split(s2, "=")[0] {
+				env2[j] = s1
+				replaced = true
+			}
+		}
+		if !replaced {
+			env2 = append(env2, s1)
+		}
+	}
+	return env2
+}
+
 func (r *Runner) executeTask(task types.Task) error {
 	if len(task.Files) > 0 {
 		if err := r.placeFiles(task.Files); err != nil {
@@ -175,7 +191,21 @@ func (r *Runner) executeTask(task types.Task) error {
 		}
 	}
 
+	env := []string{}
+	for name := range task.Inputs {
+		d := task.Inputs[name].Default
+		if d == "" {
+			continue
+		}
+		// replace all non-alphanumeric characters with underscores
+		name = regexp.MustCompile(`[^a-zA-Z0-9]+`).ReplaceAllString(name, "_")
+		name = strings.ToUpper(name)
+		env = append(env, fmt.Sprintf("INPUT_%s=%s", name, d))
+	}
+
 	for _, action := range task.Actions {
+		action.Env = mergeEnv(env, action.Env)
+
 		if err := r.performAction(action); err != nil {
 			return err
 		}
@@ -308,6 +338,28 @@ func (r *Runner) performAction(action types.Action) error {
 			return err
 		}
 	} else {
+		env := []string{}
+		for name := range action.With {
+			key := name
+			// replace all non-alphanumeric characters with underscores
+			name = regexp.MustCompile(`[^a-zA-Z0-9]+`).ReplaceAllString(name, "_")
+			name = strings.ToUpper(name)
+			// prefix with INPUT_ (same as GitHub Actions)
+			name = fmt.Sprintf("INPUT_%s", name)
+			switch v := action.With[key].(type) {
+			case string:
+				env = append(env, fmt.Sprintf("%s=%s", name, v))
+			case int:
+				env = append(env, fmt.Sprintf("%s=%d", name, v))
+			case bool:
+				env = append(env, fmt.Sprintf("%s=%t", name, v))
+			default:
+				return fmt.Errorf("unsupported type %T for input %s", v, name)
+			}
+		}
+
+		action.Env = mergeEnv(env, action.Env)
+
 		err := r.performZarfAction(action.ZarfComponentAction)
 		if err != nil {
 			return err

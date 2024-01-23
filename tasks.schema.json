@@ -61,6 +61,40 @@
         "task": {
           "type": "string",
           "description": "The task to run"
+        },
+        "with": {
+          "patternProperties": {
+            ".*": {
+              "additionalProperties": true
+            }
+          },
+          "type": "object",
+          "description": "Input parameters to pass to the task"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "InputParameter": {
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Description of the parameter"
+        },
+        "deprecatedMessage": {
+          "type": "string",
+          "description": "Message to display when the parameter is deprecated"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether the parameter is required"
+        },
+        "default": {
+          "type": "string",
+          "description": "Default value for the parameter"
         }
       },
       "additionalProperties": false,
@@ -94,6 +128,16 @@
           },
           "type": "array",
           "description": "Actions to take when running the task"
+        },
+        "inputs": {
+          "patternProperties": {
+            ".*": {
+              "$schema": "http://json-schema.org/draft-04/schema#",
+              "$ref": "#/definitions/InputParameter"
+            }
+          },
+          "type": "object",
+          "description": "Input parameters for the task"
         }
       },
       "additionalProperties": false,

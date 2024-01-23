@@ -1,0 +1,11 @@
+tasks:
+  - name: echo-var
+    inputs:
+      hello:
+        default: world
+        description: The thing to say hello to
+    actions:
+      - cmd: |
+          echo "${INPUT_HELLO} is a pretty ok company"
+        with:
+          hello: defense unicorns

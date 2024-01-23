@@ -17,10 +17,21 @@ type TasksFile struct {
 
 // Task represents a single task
 type Task struct {
-	Name        string               `json:"name" jsonschema:"description=Name of the task"`
-	Description string               `json:"description,omitempty" jsonschema:"description=Description of the task"`
-	Files       []zarfTypes.ZarfFile `json:"files,omitempty" jsonschema:"description=Files or folders to download or copy"`
-	Actions     []Action             `json:"actions,omitempty" jsonschema:"description=Actions to take when running the task"`
+	Name        string                    `json:"name" jsonschema:"description=Name of the task"`
+	Description string                    `json:"description,omitempty" jsonschema:"description=Description of the task"`
+	Files       []zarfTypes.ZarfFile      `json:"files,omitempty" jsonschema:"description=Files or folders to download or copy"`
+	Actions     []Action                  `json:"actions,omitempty" jsonschema:"description=Actions to take when running the task"`
+	Inputs      map[string]InputParameter `json:"inputs,omitempty" jsonschema:"description=Input parameters for the task"`
+}
+
+// InputParameter represents a single input parameter for a task, to be used w/ `with`
+type InputParameter struct {
+	Description string `json:"description" jsonschema:"description=Description of the parameter,required"`
+	// TODO implement this
+	DeprecatedMessage string `json:"deprecatedMessage,omitempty" jsonschema:"description=Message to display when the parameter is deprecated"`
+	// TODO implement this
+	Required bool   `json:"required,omitempty" jsonschema:"description=Whether the parameter is required,default=true"`
+	Default  string `json:"default,omitempty" jsonschema:"description=Default value for the parameter"`
 }
 
 // TODO make schema complain if an action has more than one of cmd, task or wait
@@ -28,7 +39,8 @@ type Task struct {
 // Action is a Zarf action inside a Task
 type Action struct {
 	*zarfTypes.ZarfComponentAction `yaml:",inline"`
-	TaskReference                  string `json:"task,omitempty" jsonschema:"description=The task to run, mutually exclusive with cmd and wait"`
+	TaskReference                  string                 `json:"task,omitempty" jsonschema:"description=The task to run, mutually exclusive with cmd and wait"`
+	With                           map[string]interface{} `json:"with,omitempty" jsonschema:"description=Input parameters to pass to the task,type=object"`
 }
 
 // TaskReference references the name of a task
