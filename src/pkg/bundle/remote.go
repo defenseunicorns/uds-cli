@@ -336,3 +336,33 @@ func EnsureOCIPrefix(source string) string {
 	}
 	return source
 }
+
+// ZarfPackageNameMap returns the uds bundle zarf package name to actual zarf package name mappings from the oci provider
+func (op *ociProvider) ZarfPackageNameMap() (map[string]string, error) {
+	if err := op.getBundleManifest(); err != nil {
+		return nil, err
+	}
+
+	loaded, err := op.LoadBundleMetadata()
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := os.ReadFile(loaded[config.BundleYAML])
+	if err != nil {
+		return nil, err
+	}
+
+	var bundle types.UDSBundle
+	if err := goyaml.Unmarshal(b, &bundle); err != nil {
+		return nil, err
+	}
+
+	nameMap := make(map[string]string)
+	for _, pkg := range bundle.Packages {
+		sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
+		manifestDesc := op.manifest.Locate(sha)
+		nameMap[manifestDesc.Annotations[config.UDSPackageNameAnnotation]] = manifestDesc.Annotations[config.ZarfPackageNameAnnotation]
+	}
+	return nameMap, nil
+}

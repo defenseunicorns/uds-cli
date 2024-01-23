@@ -52,7 +52,8 @@ func Create(b *Bundler, signature []byte) error {
 	// grab all Zarf pkgs from OCI and put blobs in OCI store
 	for i, pkg := range bundle.Packages {
 		fetchSpinner := message.NewProgressSpinner("Fetching package %s", pkg.Name)
-
+		zarfPackageName := ""
+		zarfRootLayerAdded := false
 		defer fetchSpinner.Stop()
 
 		if pkg.Repository != "" {
@@ -81,7 +82,37 @@ func Create(b *Bundler, signature []byte) error {
 					}
 					// ensure media type is Zarf blob for layers in the bundle's root manifest
 					layerDesc.MediaType = oci.ZarfLayerMediaTypeBlob
+
+					// add package name annotations
+					annotations := make(map[string]string)
+					layerDesc.Annotations = annotations
+					layerDesc.Annotations[config.UDSPackageNameAnnotation] = pkg.Name
+
+					// If zarf package name has been obtained from zarf config, set the zarf package name annotation
+					// This block of code will only be triggered if the zarf config is processed before the zarf image manifest
+					if zarfPackageName != "" {
+						layerDesc.Annotations[config.ZarfPackageNameAnnotation] = zarfPackageName
+					}
+
 					rootManifest.Layers = append(rootManifest.Layers, layerDesc)
+					zarfRootLayerAdded = true
+				} else if layerDesc.MediaType == oci.ZarfConfigMediaType {
+					// read in and unmarshall zarf config
+					jsonData, err := os.ReadFile(filepath.Join(b.tmp, config.BlobsDir, layerDesc.Digest.Encoded()))
+					if err != nil {
+						return err
+					}
+					var zarfConfigData oci.ConfigPartial
+					err = json.Unmarshal(jsonData, &zarfConfigData)
+					if err != nil {
+						return err
+					}
+					zarfPackageName = zarfConfigData.Annotations[ocispec.AnnotationTitle]
+					// Check if zarf image manifest has been added to root manifest already, if so add zarfPackageName annotation
+					// This block of code will only be triggered if the zarf image manifest is processed before the zarf config
+					if zarfRootLayerAdded {
+						rootManifest.Layers[i].Annotations[config.ZarfPackageNameAnnotation] = zarfPackageName
+					}
 				}
 				digest := layerDesc.Digest.Encoded()
 				artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
@@ -109,6 +140,11 @@ func Create(b *Bundler, signature []byte) error {
 			}
 
 			zarfPkgDesc, err := localBundler.ToBundle(store, zarfPkg, artifactPathMap, b.tmp, pkgTmp)
+
+			// add package name annotations, for local zarf packages, these names will be the same
+			zarfPkgDesc.Annotations = make(map[string]string)
+			zarfPkgDesc.Annotations[config.UDSPackageNameAnnotation] = pkg.Name
+			zarfPkgDesc.Annotations[config.ZarfPackageNameAnnotation] = pkg.Name
 
 			if err != nil {
 				return err
@@ -221,6 +257,16 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 		// ensure media type is a Zarf blob and append to bundle root manifest
 		zarfManifestDesc.MediaType = oci.ZarfLayerMediaTypeBlob
 		message.Debugf("Pushed %s sub-manifest into %s: %s", url, dstRef, message.JSONValue(zarfManifestDesc))
+
+		// add package name annotations to zarf manifest
+		zarfYamlFile, err := remoteBundler.RemoteSrc.FetchZarfYAML()
+		if err != nil {
+			return err
+		}
+		zarfManifestDesc.Annotations = make(map[string]string)
+		zarfManifestDesc.Annotations[config.UDSPackageNameAnnotation] = pkg.Name
+		zarfManifestDesc.Annotations[config.ZarfPackageNameAnnotation] = zarfYamlFile.Metadata.Name
+
 		rootManifest.Layers = append(rootManifest.Layers, zarfManifestDesc)
 
 		pushSpinner := message.NewProgressSpinner("")

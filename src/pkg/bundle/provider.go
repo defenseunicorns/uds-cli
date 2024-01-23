@@ -42,6 +42,9 @@ type Provider interface {
 
 	// getBundleManifest gets the bundle's root manifest
 	getBundleManifest() error
+
+	// ZarfPackageNameMap returns a map of the zarf package name specified in the uds-bundle.yaml to the actual zarf package name
+	ZarfPackageNameMap() (map[string]string, error)
 }
 
 // PathMap is a map of either absolute paths to relative paths or relative paths to absolute paths

@@ -84,6 +84,12 @@ func (b *Bundler) Deploy() error {
 	// Check if --resume is set
 	resume := b.cfg.DeployOpts.Resume
 
+	// Maps name given to zarf package in the bundle to the actual name of the zarf package
+	zarfPackageNameMap, err := provider.ZarfPackageNameMap()
+	if err != nil {
+		return err
+	}
+
 	// Check if --packages flag is set and zarf packages have been specified
 	var packagesToDeploy []types.Package
 	if len(b.cfg.DeployOpts.Packages) != 0 {
@@ -99,13 +105,13 @@ func (b *Bundler) Deploy() error {
 		if len(userSpecifiedPackages) != len(packagesToDeploy) {
 			return fmt.Errorf("invalid zarf packages specified by --packages")
 		}
-		return deployPackages(packagesToDeploy, resume, b)
+		return deployPackages(packagesToDeploy, resume, b, zarfPackageNameMap)
 	}
 
-	return deployPackages(b.bundle.Packages, resume, b)
+	return deployPackages(b.bundle.Packages, resume, b, zarfPackageNameMap)
 }
 
-func deployPackages(packages []types.Package, resume bool, b *Bundler) error {
+func deployPackages(packages []types.Package, resume bool, b *Bundler, zarfPackageNameMap map[string]string) error {
 	// map of Zarf pkgs and their vars
 	bundleExportedVars := make(map[string]map[string]string)
 
@@ -169,7 +175,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundler) error {
 		// Automatically confirm the package deployment
 		zarfConfig.CommonOptions.Confirm = true
 
-		source, err := sources.New(b.cfg.DeployOpts.Source, pkg.Name, opts, sha)
+		source, err := sources.New(b.cfg.DeployOpts.Source, zarfPackageNameMap[pkg.Name], opts, sha)
 		if err != nil {
 			return err
 		}

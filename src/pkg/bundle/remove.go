@@ -44,6 +44,12 @@ func (b *Bundler) Remove() error {
 		return err
 	}
 
+	// Maps name given to zarf package in the bundle to the actual name of the zarf package
+	zarfPackageNameMap, err := provider.ZarfPackageNameMap()
+	if err != nil {
+		return err
+	}
+
 	// Check if --packages flag is set and zarf packages have been specified
 	var packagesToRemove []types.Package
 
@@ -59,12 +65,12 @@ func (b *Bundler) Remove() error {
 		if len(userSpecifiedPackages) != len(packagesToRemove) {
 			return fmt.Errorf("invalid zarf packages specified by --packages")
 		}
-		return removePackages(packagesToRemove, b)
+		return removePackages(packagesToRemove, b, zarfPackageNameMap)
 	}
-	return removePackages(b.bundle.Packages, b)
+	return removePackages(b.bundle.Packages, b, zarfPackageNameMap)
 }
 
-func removePackages(packagesToRemove []types.Package, b *Bundler) error {
+func removePackages(packagesToRemove []types.Package, b *Bundler, zarfPackageNameMap map[string]string) error {
 
 	// Get deployed packages
 	deployedPackageNames := GetDeployedPackageNames()
@@ -72,8 +78,8 @@ func removePackages(packagesToRemove []types.Package, b *Bundler) error {
 	for i := len(packagesToRemove) - 1; i >= 0; i-- {
 
 		pkg := packagesToRemove[i]
-
-		if slices.Contains(deployedPackageNames, pkg.Name) {
+		zarfPackageName := zarfPackageNameMap[pkg.Name]
+		if slices.Contains(deployedPackageNames, zarfPackageName) {
 			opts := zarfTypes.ZarfPackageOptions{
 				PackageSource: b.cfg.RemoveOpts.Source,
 			}
@@ -86,7 +92,7 @@ func removePackages(packagesToRemove []types.Package, b *Bundler) error {
 			}
 
 			sha := strings.Split(pkg.Ref, "sha256:")[1]
-			source, err := sources.New(b.cfg.RemoveOpts.Source, pkg.Name, opts, sha)
+			source, err := sources.New(b.cfg.RemoveOpts.Source, zarfPackageName, opts, sha)
 			if err != nil {
 				return err
 			}
