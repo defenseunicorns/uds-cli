@@ -1,11 +1,24 @@
 tasks:
+  - name: echo
+    inputs:
+      echo:
+        default: hello world
+        description: The thing to echo
+    actions:
+      - cmd: |
+          echo "${INPUT_ECHO}${PERIOD}"
+        env:
+          - INPUT_ECHO=nowhere
+          - PERIOD=.
+
   - name: echo-var
     inputs:
       hello:
         default: world
         description: The thing to say hello to
     actions:
-      - cmd: |
-          echo "${INPUT_HELLO} is a pretty ok company"
+      - task: echo
         with:
-          hello: defense unicorns
+          echo: "hello there"
+      - cmd: |
+          echo "${INPUT_HELLO}"

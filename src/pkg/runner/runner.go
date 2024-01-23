@@ -191,7 +191,7 @@ func (r *Runner) executeTask(task types.Task) error {
 		}
 	}
 
-	env := []string{}
+	defaultEnv := []string{}
 	for name := range task.Inputs {
 		d := task.Inputs[name].Default
 		if d == "" {
@@ -200,11 +200,11 @@ func (r *Runner) executeTask(task types.Task) error {
 		// replace all non-alphanumeric characters with underscores
 		name = regexp.MustCompile(`[^a-zA-Z0-9]+`).ReplaceAllString(name, "_")
 		name = strings.ToUpper(name)
-		env = append(env, fmt.Sprintf("INPUT_%s=%s", name, d))
+		defaultEnv = append(defaultEnv, fmt.Sprintf("INPUT_%s=%s", name, d))
 	}
 
 	for _, action := range task.Actions {
-		action.Env = mergeEnv(env, action.Env)
+		action.Env = mergeEnv(action.Env, defaultEnv)
 
 		if err := r.performAction(action); err != nil {
 			return err
@@ -330,14 +330,6 @@ func (r *Runner) placeFiles(files []zarfTypes.ZarfFile) error {
 
 func (r *Runner) performAction(action types.Action) error {
 	if action.TaskReference != "" {
-		referencedTask, err := r.getTask(action.TaskReference)
-		if err != nil {
-			return err
-		}
-		if err := r.executeTask(referencedTask); err != nil {
-			return err
-		}
-	} else {
 		env := []string{}
 		for name := range action.With {
 			key := name
@@ -358,8 +350,17 @@ func (r *Runner) performAction(action types.Action) error {
 			}
 		}
 
-		action.Env = mergeEnv(env, action.Env)
-
+		referencedTask, err := r.getTask(action.TaskReference)
+		if err != nil {
+			return err
+		}
+		for _, a := range referencedTask.Actions {
+			a.Env = mergeEnv(env, a.Env)
+		}
+		if err := r.executeTask(referencedTask); err != nil {
+			return err
+		}
+	} else {
 		err := r.performZarfAction(action.ZarfComponentAction)
 		if err != nil {
 			return err
