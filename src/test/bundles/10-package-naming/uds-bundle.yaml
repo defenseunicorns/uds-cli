@@ -1,0 +1,13 @@
+kind: UDSBundle
+metadata:
+  name: package-naming
+  description: test bundle package names being different than actual zarf package names
+  version: 0.0.1
+
+packages:
+  - name: nginxx
+    repository: localhost:888/nginx
+    ref: 0.0.1
+  - name: podinfox
+    repository: localhost:889/podinfo
+    ref: 0.0.1

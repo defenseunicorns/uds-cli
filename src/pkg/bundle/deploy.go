@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime/debug"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -51,7 +50,11 @@ func (b *Bundler) Deploy() error {
 	defer metadataSpinner.Stop()
 
 	// Check that provided oci source path is valid, and update it if it's missing the full path
-	b.cfg.DeployOpts.Source = CheckOCISourcePath(b.cfg.DeployOpts.Source)
+	source, err := CheckOCISourcePath(b.cfg.DeployOpts.Source)
+	if err != nil {
+		return err
+	}
+	b.cfg.DeployOpts.Source = source
 
 	// create a new provider
 	provider, err := NewBundleProvider(ctx, b.cfg.DeployOpts.Source, b.tmp)
@@ -71,6 +74,7 @@ func (b *Bundler) Deploy() error {
 	}
 
 	// read the bundle's metadata into memory
+	// todo: we also read the SHAs from the uds-bundle.yaml here, should we refactor so that we use the bundle's root manifest?
 	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
@@ -84,6 +88,12 @@ func (b *Bundler) Deploy() error {
 
 	// Check if --resume is set
 	resume := b.cfg.DeployOpts.Resume
+
+	// Maps name given to zarf package in the bundle to the actual name of the zarf package
+	zarfPackageNameMap, err := provider.ZarfPackageNameMap()
+	if err != nil {
+		return err
+	}
 
 	// Check if --packages flag is set and zarf packages have been specified
 	var packagesToDeploy []types.Package
@@ -100,13 +110,13 @@ func (b *Bundler) Deploy() error {
 		if len(userSpecifiedPackages) != len(packagesToDeploy) {
 			return fmt.Errorf("invalid zarf packages specified by --packages")
 		}
-		return deployPackages(packagesToDeploy, resume, b)
+		return deployPackages(packagesToDeploy, resume, b, zarfPackageNameMap)
 	}
 
-	return deployPackages(b.bundle.Packages, resume, b)
+	return deployPackages(b.bundle.Packages, resume, b, zarfPackageNameMap)
 }
 
-func deployPackages(packages []types.Package, resume bool, b *Bundler) error {
+func deployPackages(packages []types.Package, resume bool, b *Bundler, zarfPackageNameMap map[string]string) error {
 	// map of Zarf pkgs and their vars
 	bundleExportedVars := make(map[string]map[string]string)
 
@@ -167,19 +177,10 @@ func deployPackages(packages []types.Package, resume bool, b *Bundler) error {
 			DeployOpts: zarfDeployOpts,
 		}
 
-		// grab Zarf version to make Zarf library checks happy
-		if buildInfo, ok := debug.ReadBuildInfo(); ok {
-			for _, dep := range buildInfo.Deps {
-				if dep.Path == "github.com/defenseunicorns/zarf" {
-					zarfConfig.CLIVersion = strings.Split(dep.Version, "v")[1]
-				}
-			}
-		}
-
 		// Automatically confirm the package deployment
 		zarfConfig.CommonOptions.Confirm = true
 
-		source, err := sources.New(b.cfg.DeployOpts.Source, pkg.Name, opts, sha)
+		source, err := sources.New(b.cfg.DeployOpts.Source, zarfPackageNameMap[pkg.Name], opts, sha)
 		if err != nil {
 			return err
 		}

@@ -3,7 +3,8 @@
 
 ARCH ?= amd64
 CLI_VERSION ?= $(if $(shell git describe --tags),$(shell git describe --tags),"UnknownVersion")
-BUILD_ARGS := -s -w -X 'github.com/defenseunicorns/uds-cli/src/config.CLIVersion=$(CLI_VERSION)'
+BUILD_ARGS := -s -w -X 'github.com/defenseunicorns/uds-cli/src/config.CLIVersion=$(CLI_VERSION)' \
+				    -X 'github.com/defenseunicorns/zarf/src/config.ActionsCommandZarfPrefix=zarf'
 
 .PHONY: help
 help: ## Display this help information
@@ -30,7 +31,7 @@ test-e2e: ## Run End to End (e2e) tests
 	cd src/test/e2e && go test -failfast -v -timeout 30m
 
 test-e2e-no-ghcr: ## Run End to End (e2e) tests without GHCR
-	cd src/test/e2e && go test -failfast -v -timeout 30m -skip "TestBundleDeployFromOCIFromGHCR"
+	cd src/test/e2e && go test -failfast -v -timeout 30m -skip ".*GHCR.*"
 
 schema: ## Update JSON schema for uds-bundle.yaml
 	./hack/generate-schema.sh
@@ -44,3 +45,9 @@ local-registry: ## Run a local docker registry
 
 clean: ## Clean up build artifacts
 	rm -rf build
+
+clean-test-artifacts: ## removes bundles and zarf packages that have been created from previous test runs
+	find src/test -type f -name '*.tar.zst' -delete
+
+push-test-artifacts: ## Push artifacts that UDS CLI tests rely on to GHCR
+	cd hack && ./push-test-artifacts.sh

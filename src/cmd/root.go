@@ -7,13 +7,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
+	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	zarfCLI "github.com/defenseunicorns/zarf/src/cmd"
 	"github.com/defenseunicorns/zarf/src/cmd/common"
-	"github.com/defenseunicorns/zarf/src/cmd/tools"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
@@ -61,11 +63,29 @@ func RootCmd() *cobra.Command {
 }
 
 func init() {
-	// Add the tools commands
-	tools.Include(rootCmd)
+	// grab Zarf version to make Zarf library checks happy
+	if buildInfo, ok := debug.ReadBuildInfo(); ok {
+		for _, dep := range buildInfo.Deps {
+			if dep.Path == "github.com/defenseunicorns/zarf" {
+				zarfConfig.CLIVersion = strings.Split(dep.Version, "v")[1]
+			}
+		}
+	}
 
-	// Skip for vendor-only commands
-	if common.CheckVendorOnlyFromArgs() {
+	// only vendor zarf if specifically invoked
+	if len(os.Args) > 1 && os.Args[1] == "zarf" {
+		zarfCmd := &cobra.Command{
+			Use: "zarf COMMAND",
+			Run: func(cmd *cobra.Command, args []string) {
+				os.Args = os.Args[1:] // grab 'zarf' and onward from the CLI args
+				zarfCLI.Execute()
+			},
+			DisableFlagParsing: true,
+		}
+		rootCmd.AddCommand(zarfCmd)
+
+		// disable UDS log file for Zarf commands bc Zarf has its own log file
+		config.SkipLogFile = true
 		return
 	}
 
@@ -89,9 +109,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&config.CommonOptions.CachePath, "uds-cache", v.GetString(V_UDS_CACHE), lang.RootCmdFlagCachePath)
 	rootCmd.PersistentFlags().StringVar(&config.CommonOptions.TempDirectory, "tmpdir", v.GetString(V_TMP_DIR), lang.RootCmdFlagTempDir)
 	rootCmd.PersistentFlags().BoolVar(&config.CommonOptions.Insecure, "insecure", v.GetBool(V_INSECURE), lang.RootCmdFlagInsecure)
-
-	// use system Zarf because of internal commands being using during zarf init (such as creating gitea users)
-	zarfConfig.ActionsUseSystemZarf = true
+	rootCmd.PersistentFlags().IntVar(&config.CommonOptions.OCIConcurrency, "oci-concurrency", v.GetInt(V_BNDL_OCI_CONCURRENCY), lang.CmdBundleFlagConcurrency)
 }
 
 func cliSetup() {
@@ -120,7 +138,7 @@ func cliSetup() {
 		message.NoProgress = true
 	}
 
-	if !config.SkipLogFile {
+	if !config.SkipLogFile && !config.ListTasks {
 		utils.UseLogFile()
 	}
 }

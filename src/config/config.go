@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2023-Present The UDS Authorspackage config
+// SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
 // Package config contains configuration strings for UDS-CLI
 package config
@@ -20,7 +20,7 @@ const (
 	// BlobsDir is the string for the blobs/sha256 dir in an OCI artifact
 	BlobsDir = "blobs/sha256"
 
-	// BundleYAML is the string for zarf.yaml
+	// BundleYAML is the string for uds-bundle.yaml
 	BundleYAML = "uds-bundle.yaml"
 
 	// BundlePrefix is the prefix for compiled uds bundles
@@ -52,6 +52,12 @@ const (
 
 	// EnvVarPrefix is the prefix for environment variables to override bundle helm variables
 	EnvVarPrefix = "UDS_"
+
+	// ZarfPackageNameAnnotation is the annotation key for the value that specifies the zarf package name
+	ZarfPackageNameAnnotation = "zarf.package.name"
+
+	// UDSPackageNameAnnotation is the annotation key for the value that specifies the name given to a zarf package in the uds-bundle.yaml
+	UDSPackageNameAnnotation = "uds.package.name"
 )
 
 var (
@@ -66,6 +72,9 @@ var (
 
 	// SkipLogFile is a flag to skip logging to a file
 	SkipLogFile bool
+
+	// ListTasks is a flag to print available tasks in a TaskFileLocation
+	ListTasks bool
 
 	// TaskFileLocation is the location of the tasks file to run
 	TaskFileLocation string

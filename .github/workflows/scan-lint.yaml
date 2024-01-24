@@ -23,7 +23,7 @@ jobs:
           args: --all-files --verbose # pre-commit run --all-files --verbose
 
       - name: Run Revive Action by pulling pre-built image
-        uses: docker://morphy/revive-action:v2@sha256:ae681532822691e521bee9d066d8470e04611e3fdeef8143ffdfa00d3263d02a
+        uses: docker://morphy/revive-action:v2@sha256:dad5d9525a11d42ea2a36237f6a4082aef3db37cbd280eabf5e7b87eb033d0d4
         with:
           config: revive.toml
           # Exclude patterns, separated by semicolons (optional)

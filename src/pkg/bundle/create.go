@@ -39,7 +39,7 @@ func (b *Bundler) Create() error {
 	defer os.Chdir(cwd)
 
 	// read the bundle's metadata into memory
-	if err := utils.ReadYaml(config.BundleYAML, &b.bundle); err != nil {
+	if err := utils.ReadYaml(b.cfg.CreateOpts.BundleFile, &b.bundle); err != nil {
 		return err
 	}
 
@@ -100,7 +100,7 @@ func (b *Bundler) Create() error {
 		if err != nil {
 			return err
 		}
-		remote, err := oci.NewOrasRemote(ref)
+		remote, err := oci.NewOrasRemote(ref, oci.WithArch(config.GetArch()))
 		if err != nil {
 			return err
 		}

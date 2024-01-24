@@ -1,0 +1,10 @@
+kind: UDSBundle
+metadata:
+  name: yml-example
+  description: an example UDS bundle
+  version: 0.0.1
+
+packages:
+  - name: nginx
+    path: "../../packages/nginx"
+    ref: 0.0.1

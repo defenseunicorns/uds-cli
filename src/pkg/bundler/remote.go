@@ -39,7 +39,7 @@ type RemoteBundler struct {
 // NewRemoteBundler creates a bundler to pull remote Zarf pkgs
 // todo: document this fn better or break out into multiple constructors
 func NewRemoteBundler(pkg types.Package, url string, localDst *ocistore.Store, remoteDst *oci.OrasRemote, tmpDir string) (RemoteBundler, error) {
-	src, err := oci.NewOrasRemote(url)
+	src, err := oci.NewOrasRemote(url, oci.WithArch(config.GetArch()))
 	if err != nil {
 		return RemoteBundler{}, err
 	}
@@ -55,7 +55,7 @@ func NewRemoteBundler(pkg types.Package, url string, localDst *ocistore.Store, r
 
 // GetMetadata grabs metadata from a remote Zarf package's zarf.yaml
 func (b *RemoteBundler) GetMetadata(url string, tmpDir string) (zarfTypes.ZarfPackage, error) {
-	remote, err := oci.NewOrasRemote(url)
+	remote, err := oci.NewOrasRemote(url, oci.WithArch(config.GetArch()))
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, err
 	}
@@ -162,7 +162,7 @@ func (b *RemoteBundler) remoteToRemote(layersToCopy []ocispec.Descriptor) error 
 // remoteToLocal copies a remote Zarf pkg to a local OCI store
 func (b *RemoteBundler) remoteToLocal(layersToCopy []ocispec.Descriptor) ([]ocispec.Descriptor, error) {
 	// pull layers from remote and write to OCI artifact dir
-	var layerDescsToArchive []ocispec.Descriptor
+	var descsToBundle []ocispec.Descriptor
 	var layersToPull []ocispec.Descriptor
 	estimatedBytes := int64(0)
 	// grab descriptors of layers to copy
@@ -178,28 +178,33 @@ func (b *RemoteBundler) remoteToLocal(layersToCopy []ocispec.Descriptor) ([]ocis
 			if err != nil {
 				return nil, err
 			}
-			layerDescsToArchive = append(layerDescsToArchive, layer)
-			continue
 		}
-		// grab layer to pull from OCI
+		// grab layer to pull from OCI; don't grab Zarf root manifest because we get it automatically during oras.Copy()
 		if layer.MediaType != ocispec.MediaTypeImageManifest {
 			layersToPull = append(layersToPull, layer)
-			layerDescsToArchive = append(layerDescsToArchive, layer)
 			estimatedBytes += layer.Size
-			continue
 		}
-		layerDescsToArchive = append(layerDescsToArchive, layer)
+		descsToBundle = append(descsToBundle, layer)
 	}
 	// pull layers that didn't exist on disk
 	if len(layersToPull) > 0 {
-		// copy bundle
+		// copy Zarf pkg
 		copyOpts := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
 		// Create a thread to update a progress bar as we save the package to disk
 		doneSaving := make(chan int)
 		errChan := make(chan int)
 		var wg sync.WaitGroup
 		wg.Add(1)
-		go zarfUtils.RenderProgressBarForLocalDirWrite(b.tmpDir, estimatedBytes, &wg, doneSaving, errChan, fmt.Sprintf("Pulling bundle: %s", b.pkg.Name), fmt.Sprintf("Successfully pulled bundle: %s", b.pkg.Name))
+
+		// Grab tmpDirSize and add it to the estimatedBytes, otherwise the progress bar will be off
+		// because as multiple packages are pulled into the tmpDir, RenderProgressBarForLocalDirWrite continues to
+		// add their size which results in strange MB ratios
+		tmpDirSize, err := zarfUtils.GetDirSize(b.tmpDir)
+		if err != nil {
+			return nil, err
+		}
+
+		go zarfUtils.RenderProgressBarForLocalDirWrite(b.tmpDir, estimatedBytes+tmpDirSize, &wg, doneSaving, errChan, fmt.Sprintf("Pulling bundle: %s", b.pkg.Name), fmt.Sprintf("Successfully pulled package: %s", b.pkg.Name))
 		rootPkgDesc, err := oras.Copy(context.TODO(), b.RemoteSrc.Repo(), b.RemoteSrc.Repo().Reference.String(), b.localDst, "", copyOpts)
 		if err != nil {
 			errChan <- 1
@@ -209,7 +214,7 @@ func (b *RemoteBundler) remoteToLocal(layersToCopy []ocispec.Descriptor) ([]ocis
 		wg.Wait()
 
 		// grab pkg root manifest for archiving
-		layerDescsToArchive = append(layerDescsToArchive, rootPkgDesc)
+		descsToBundle = append(descsToBundle, rootPkgDesc)
 
 		// cache only the image layers that were just pulled
 		for _, layer := range layersToPull {
@@ -226,9 +231,9 @@ func (b *RemoteBundler) remoteToLocal(layersToCopy []ocispec.Descriptor) ([]ocis
 		if err != nil {
 			return nil, err
 		}
-		layerDescsToArchive = append(layerDescsToArchive, pkgManifestDesc)
+		descsToBundle = append(descsToBundle, pkgManifestDesc)
 	}
-	return layerDescsToArchive, nil
+	return descsToBundle, nil
 }
 
 // getZarfLayers grabs the necessary Zarf pkg layers from a remote OCI registry

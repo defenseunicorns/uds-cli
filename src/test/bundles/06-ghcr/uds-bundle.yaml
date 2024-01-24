@@ -1,13 +1,13 @@
 kind: UDSBundle
 metadata:
   name: ghcr-test
-  description: building from local and remote Zarf pkgs
+  description: testing a bundle of pkgs from ghcr
   version: 0.0.1
 
 packages:
-  - name: nginx
-    repository: ghcr.io/defenseunicorns/nginx
-    ref: 0.0.1
   - name: podinfo
-    path: "../../packages/podinfo"
+    repository: ghcr.io/defenseunicorns/uds-cli/podinfo
+    ref: 0.0.1
+  - name: nginx
+    repository: ghcr.io/defenseunicorns/uds-cli/nginx
     ref: 0.0.1

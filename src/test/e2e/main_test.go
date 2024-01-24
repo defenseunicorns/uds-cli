@@ -120,10 +120,7 @@ func deployZarfInit(t *testing.T) {
 }
 
 func zarfInitDeployed() bool {
-	cmd := strings.Split("tools kubectl get deployments --namespace zarf", " ")
-	_, errOut, _ := e2e.UDS(cmd...)
-
-	noResourcesFound := "No resources found in zarf namespace.\n"
-
-	return errOut != noResourcesFound
+	cmd := strings.Split("zarf tools kubectl get deployments --namespace zarf", " ")
+	_, stderr, _ := e2e.UDS(cmd...)
+	return !strings.Contains(stderr, "No resources found in zarf namespace")
 }

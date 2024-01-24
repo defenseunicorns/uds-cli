@@ -59,6 +59,12 @@ Optionally, you can specify the location and name of your `tasks.yaml` using the
 uds run example -f tmp/tasks.yaml
 ```
 
+You can also view the tasks that are available to run using the `list` flag:
+
+```  
+uds run -f tmp/tasks.yaml --list
+```
+
 ## Key Concepts
 
 ### Tasks

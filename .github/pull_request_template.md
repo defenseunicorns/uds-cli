@@ -17,4 +17,4 @@ Relates to #
 ## Checklist before merging
 
 - [ ] Test, docs, adr added or updated as needed
-- [ ] [Contributor Guide Steps](https://github.com/defenseunicorns/uds-template-capability/blob/main/CONTRIBUTING.md)(https://github.com/defenseunicorns/uds-template-capability/blob/main/CONTRIBUTING.md#submitting-a-pull-request) followed
+- [ ] [Contributor Guide Steps](https://github.com/defenseunicorns/uds-cli/blob/main/CONTRIBUTING.md)(https://github.com/defenseunicorns/uds-template-capability/blob/main/CONTRIBUTING.md#submitting-a-pull-request) followed
