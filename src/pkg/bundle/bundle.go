@@ -322,7 +322,13 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 	rootManifest.SchemaVersion = 2
 	rootManifest.Annotations = manifestAnnotationsFromMetadata(&bundle.Metadata) // maps to registry UI
 
-	_, err = utils.ToOCIRemote(rootManifest, ocispec.MediaTypeImageManifest, remoteDst)
+	rootManifestDesc, err := utils.ToOCIRemote(rootManifest, ocispec.MediaTypeImageManifest, remoteDst)
+	if err != nil {
+		return err
+	}
+
+	// create and push index.json
+	err = utils.CreateAndPushIndex(remoteDst, rootManifestDesc, dstRef.Reference)
 	if err != nil {
 		return err
 	}

@@ -25,8 +25,7 @@ func New(pkgLocation string, pkgName string, opts zarfTypes.ZarfPackageOptions, 
 			BundleLocation: pkgLocation,
 		}
 	} else {
-		modifier := oci.WithArch(config.GetArch())
-		remote, err := oci.NewOrasRemote(pkgLocation, modifier)
+		remote, err := oci.NewOrasRemote(pkgLocation, oci.WithArch(config.GetArch()))
 		if err != nil {
 			return nil, err
 		}

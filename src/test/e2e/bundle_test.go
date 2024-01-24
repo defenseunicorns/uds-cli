@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/registry"
 
@@ -70,7 +71,7 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 		Repository: "test-local-and-remote",
 		Reference:  fmt.Sprintf("0.0.1-%s", e2e.Arch),
 	}
-	createSecure(t, bundleDir)
+	createLocal(t, bundleDir)
 	inspect(t, bundlePath)
 	publishInsecure(t, bundlePath, bundleRef.Registry)
 	pull(t, bundleRef.String(), tarballPath)
@@ -376,4 +377,44 @@ func TestPackageNaming(t *testing.T) {
 	// Test create -o with zarf package names that don't match the zarf package name in the bundle
 	createRemote(t, bundleDir, bundleRef.Registry)
 	deployAndRemoveRemote(t, bundleRef.String(), tarballPath)
+}
+
+func TestBundleIndexInRemoteOnPublish(t *testing.T) {
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+
+	bundleDir := "src/test/bundles/06-ghcr"
+	bundleName := "ghcr-test"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch))
+	create(t, bundleDir)
+	publishInsecure(t, bundlePath, "localhost:888")
+
+	// curl OCI registry for index
+	index, err := queryIndex(t, "http://localhost:888", bundleName)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, len(index.Manifests))
+	require.Equal(t, ocispec.MediaTypeImageIndex, index.MediaType)
+	require.Equal(t, ocispec.MediaTypeImageManifest, index.Manifests[0].MediaType)
+	require.Equal(t, e2e.Arch, index.Manifests[0].Platform.Architecture)
+	require.Equal(t, "multi", index.Manifests[0].Platform.OS)
+}
+
+func TestBundleIndexInRemoteOnCreate(t *testing.T) {
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+
+	bundleDir := "src/test/bundles/06-ghcr"
+	bundleName := "ghcr-test"
+	createRemote(t, bundleDir, "oci://localhost:888")
+
+	// curl OCI registry for index
+	index, err := queryIndex(t, "http://localhost:888", bundleName)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, len(index.Manifests))
+	require.Equal(t, ocispec.MediaTypeImageIndex, index.MediaType)
+	require.Equal(t, ocispec.MediaTypeImageManifest, index.Manifests[0].MediaType)
+	require.Equal(t, e2e.Arch, index.Manifests[0].Platform.Architecture)
+	require.Equal(t, "multi", index.Manifests[0].Platform.OS)
 }

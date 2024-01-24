@@ -75,7 +75,9 @@ jobs:
 
       - name: Run e2e tests
         run: |
-          make test-e2e ARCH=amd64
+          make test-e2e
+        env:
+          GITHUB_TOKEN: secrets.GITHUB_TOKEN
 
       - name: Save logs
         if: always()
