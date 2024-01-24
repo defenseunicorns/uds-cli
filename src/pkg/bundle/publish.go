@@ -48,7 +48,7 @@ func (b *Bundler) Publish() error {
 	bundleName := b.bundle.Metadata.Name
 	bundleTag := b.bundle.Metadata.Version
 	bundleArch := b.bundle.Metadata.Architecture
-	remote, err := oci.NewOrasRemote(fmt.Sprintf("%s/%s:%s-%s", ociURL, bundleName, bundleTag, bundleArch))
+	remote, err := oci.NewOrasRemote(fmt.Sprintf("%s/%s:%s-%s", ociURL, bundleName, bundleTag, bundleArch), oci.WithArch(config.GetArch()))
 	if err != nil {
 		return err
 	}
