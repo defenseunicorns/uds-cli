@@ -100,7 +100,7 @@ func (b *Bundler) Create() error {
 		if err != nil {
 			return err
 		}
-		remote, err := oci.NewOrasRemote(ref)
+		remote, err := oci.NewOrasRemote(ref, oci.WithArch(config.GetArch()))
 		if err != nil {
 			return err
 		}

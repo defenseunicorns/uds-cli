@@ -50,7 +50,11 @@ func (b *Bundler) Deploy() error {
 	defer metadataSpinner.Stop()
 
 	// Check that provided oci source path is valid, and update it if it's missing the full path
-	b.cfg.DeployOpts.Source = CheckOCISourcePath(b.cfg.DeployOpts.Source)
+	source, err := CheckOCISourcePath(b.cfg.DeployOpts.Source)
+	if err != nil {
+		return err
+	}
+	b.cfg.DeployOpts.Source = source
 
 	// create a new provider
 	provider, err := NewBundleProvider(ctx, b.cfg.DeployOpts.Source, b.tmp)
@@ -70,6 +74,7 @@ func (b *Bundler) Deploy() error {
 	}
 
 	// read the bundle's metadata into memory
+	// todo: we also read the SHAs from the uds-bundle.yaml here, should we refactor so that we use the bundle's root manifest?
 	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}

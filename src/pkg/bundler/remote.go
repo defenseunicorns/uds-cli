@@ -39,8 +39,7 @@ type RemoteBundler struct {
 // NewRemoteBundler creates a bundler to pull remote Zarf pkgs
 // todo: document this fn better or break out into multiple constructors
 func NewRemoteBundler(pkg types.Package, url string, localDst *ocistore.Store, remoteDst *oci.OrasRemote, tmpDir string) (RemoteBundler, error) {
-	modifier := oci.WithArch(config.GetArch())
-	src, err := oci.NewOrasRemote(url, modifier)
+	src, err := oci.NewOrasRemote(url, oci.WithArch(config.GetArch()))
 	if err != nil {
 		return RemoteBundler{}, err
 	}
@@ -56,8 +55,7 @@ func NewRemoteBundler(pkg types.Package, url string, localDst *ocistore.Store, r
 
 // GetMetadata grabs metadata from a remote Zarf package's zarf.yaml
 func (b *RemoteBundler) GetMetadata(url string, tmpDir string) (zarfTypes.ZarfPackage, error) {
-	modifier := oci.WithArch(config.GetArch())
-	remote, err := oci.NewOrasRemote(url, modifier)
+	remote, err := oci.NewOrasRemote(url, oci.WithArch(config.GetArch()))
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, err
 	}
@@ -180,16 +178,11 @@ func (b *RemoteBundler) remoteToLocal(layersToCopy []ocispec.Descriptor) ([]ocis
 			if err != nil {
 				return nil, err
 			}
-			descsToBundle = append(descsToBundle, layer)
-			estimatedBytes += layer.Size
-			continue
 		}
 		// grab layer to pull from OCI; don't grab Zarf root manifest because we get it automatically during oras.Copy()
 		if layer.MediaType != ocispec.MediaTypeImageManifest {
 			layersToPull = append(layersToPull, layer)
-			descsToBundle = append(descsToBundle, layer)
 			estimatedBytes += layer.Size
-			continue
 		}
 		descsToBundle = append(descsToBundle, layer)
 	}
@@ -202,7 +195,16 @@ func (b *RemoteBundler) remoteToLocal(layersToCopy []ocispec.Descriptor) ([]ocis
 		errChan := make(chan int)
 		var wg sync.WaitGroup
 		wg.Add(1)
-		go zarfUtils.RenderProgressBarForLocalDirWrite(b.tmpDir, estimatedBytes, &wg, doneSaving, errChan, fmt.Sprintf("Pulling bundle: %s", b.pkg.Name), fmt.Sprintf("Successfully pulled package: %s", b.pkg.Name))
+
+		// Grab tmpDirSize and add it to the estimatedBytes, otherwise the progress bar will be off
+		// because as multiple packages are pulled into the tmpDir, RenderProgressBarForLocalDirWrite continues to
+		// add their size which results in strange MB ratios
+		tmpDirSize, err := zarfUtils.GetDirSize(b.tmpDir)
+		if err != nil {
+			return nil, err
+		}
+
+		go zarfUtils.RenderProgressBarForLocalDirWrite(b.tmpDir, estimatedBytes+tmpDirSize, &wg, doneSaving, errChan, fmt.Sprintf("Pulling bundle: %s", b.pkg.Name), fmt.Sprintf("Successfully pulled package: %s", b.pkg.Name))
 		rootPkgDesc, err := oras.Copy(context.TODO(), b.RemoteSrc.Repo(), b.RemoteSrc.Repo().Reference.String(), b.localDst, "", copyOpts)
 		if err != nil {
 			errChan <- 1
