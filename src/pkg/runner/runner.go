@@ -219,6 +219,10 @@ func (r *Runner) executeTask(task types.Task) error {
 		if d == "" {
 			continue
 		}
+		dm := task.Inputs[name].DeprecatedMessage
+		if dm != "" {
+			message.Warnf("This input has been marked deprecated: %s", dm)
+		}
 		defaultEnv = append(defaultEnv, formatEnvVar(name, d))
 	}
 
