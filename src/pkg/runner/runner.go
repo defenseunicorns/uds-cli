@@ -67,6 +67,10 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 		return err
 	}
 
+	if task.Inputs != nil {
+		return fmt.Errorf("task %s has inputs, please do not call this task directly from CLI", task.Name)
+	}
+
 	err = runner.executeTask(task)
 	return err
 }
@@ -381,7 +385,7 @@ func (r *Runner) performAction(action types.Action) error {
 					break
 				}
 			}
-			if !checked	{
+			if !checked {
 				return fmt.Errorf("input %s is required", inputKey)
 			}
 		}

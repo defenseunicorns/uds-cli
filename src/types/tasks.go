@@ -26,10 +26,10 @@ type Task struct {
 
 // InputParameter represents a single input parameter for a task, to be used w/ `with`
 type InputParameter struct {
-	Description string `json:"description" jsonschema:"description=Description of the parameter,required"`
+	Description       string `json:"description" jsonschema:"description=Description of the parameter,required"`
 	DeprecatedMessage string `json:"deprecatedMessage,omitempty" jsonschema:"description=Message to display when the parameter is deprecated"`
-	Required bool   `json:"required,omitempty" jsonschema:"description=Whether the parameter is required,default=true"`
-	Default  string `json:"default,omitempty" jsonschema:"description=Default value for the parameter"`
+	Required          bool   `json:"required,omitempty" jsonschema:"description=Whether the parameter is required,default=true"`
+	Default           string `json:"default,omitempty" jsonschema:"description=Default value for the parameter"`
 }
 
 // TODO make schema complain if an action has more than one of cmd, task or wait
