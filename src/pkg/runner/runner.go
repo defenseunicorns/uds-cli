@@ -353,6 +353,10 @@ func (r *Runner) placeFiles(files []zarfTypes.ZarfFile) error {
 
 func (r *Runner) performAction(action types.Action) error {
 	if action.TaskReference != "" {
+		referencedTask, err := r.getTask(action.TaskReference)
+		if err != nil {
+			return err
+		}
 		withEnv := []string{}
 		for name := range action.With {
 			switch v := action.With[name].(type) {
@@ -368,10 +372,34 @@ func (r *Runner) performAction(action types.Action) error {
 				return fmt.Errorf("unsupported type %T for input %s", v, name)
 			}
 		}
-
-		referencedTask, err := r.getTask(action.TaskReference)
-		if err != nil {
-			return err
+		for inputKey, input := range referencedTask.Inputs {
+			// skip inputs that are not required or have a default value
+			if !input.Required || input.Default != "" {
+				continue
+			}
+			checked := false
+			for withKey, withVal := range action.With {
+				// verify that the input is in the with map and the "with" has a value
+				if inputKey == withKey && withVal != nil {
+					checked = true
+					break
+				}
+			}
+			if !checked	{
+				return fmt.Errorf("input %s is required", inputKey)
+			}
+		}
+		for withKey := range action.With {
+			matched := false
+			for inputKey := range referencedTask.Inputs {
+				if withKey == inputKey {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				message.Warnf("Task %s does not have an input named %s", referencedTask.Name, withKey)
+			}
 		}
 		for _, a := range referencedTask.Actions {
 			a.Env = mergeEnv(withEnv, a.Env)

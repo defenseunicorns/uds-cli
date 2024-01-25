@@ -62,6 +62,13 @@ func (e2e *UDSE2ETest) RunTasksWithFile(args ...string) (string, string, error) 
 	return exec.CmdWithContext(context.TODO(), exec.PrintCfg(), e2e.UDSBinPath, args...)
 }
 
+// RunTasksWithFile executes a UDS run command. with the --file flag set to the test/tasks.yaml file.
+func (e2e *UDSE2ETest) RunTasksWithCustomFile(filePath string, args ...string) (string, string, error) {
+	args = append(args, "--file", filePath)
+	fmt.Println(args)
+	return exec.CmdWithContext(context.TODO(), exec.PrintCfg(), e2e.UDSBinPath, args...)
+}
+
 // UDSNoLog executes a UDS command with no logging.
 func (e2e *UDSE2ETest) UDSNoLog(args ...string) (string, string, error) {
 	return exec.CmdWithContext(context.TODO(), exec.Config{}, e2e.UDSBinPath, args...)

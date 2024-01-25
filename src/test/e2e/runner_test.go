@@ -267,6 +267,78 @@ func TestUseCLI(t *testing.T) {
 		require.NotContains(t, stdErr, "default")
 	})
 
+	t.Run("test that default values for inputs work when not required", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.RunTasksWithCustomFile("src/test/tasks/composable-tasks.yaml", "run", "has-default-empty")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "success")
+		require.NotContains(t, stdErr, "default")
+	})
+
+	t.Run("test that default values for inputs work when required", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.RunTasksWithCustomFile("src/test/tasks/composable-tasks.yaml", "run", "has-default-and-required-empty")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "success")
+		require.NotContains(t, stdErr, "default")
+	})
+
+	t.Run("test that default values for inputs work when required and have values supplied", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.RunTasksWithCustomFile("src/test/tasks/composable-tasks.yaml", "run", "has-default-and-required-supplied")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "success")
+		require.NotContains(t, stdErr, "default")
+	})
+
+	t.Run("test that inputs that aren't required with no default don't error", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.RunTasksWithCustomFile("src/test/tasks/composable-tasks.yaml", "run", "no-default-empty")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "success")
+		require.NotContains(t, stdErr, "default")
+	})
+
+	t.Run("test that inputs with no defaults that aren't required don't error when supplied with a value", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.RunTasksWithCustomFile("src/test/tasks/composable-tasks.yaml", "run", "no-default-supplied")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "success")
+		require.NotContains(t, stdErr, "default")
+	})
+
+	t.Run("test that tasks that require inputs with no defaults error when called without values", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.RunTasksWithCustomFile("src/test/tasks/composable-tasks.yaml", "run", "no-default-and-required-empty")
+		require.Error(t, err, stdOut, stdErr)
+		require.NotContains(t, stdErr, "success")
+	})
+
+	t.Run("test that tasks that require inputs with no defaults run when supplied with a value", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.RunTasksWithCustomFile("src/test/tasks/composable-tasks.yaml", "run", "no-default-and-required-supplied")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "success")
+		require.NotContains(t, stdErr, "default")
+	})
+
+	t.Run("test that when a task is called with extra inputs it warns", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.RunTasksWithCustomFile("src/test/tasks/composable-tasks.yaml", "run", "no-default-and-required-supplied-extra")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "success")
+		require.Contains(t, stdErr, "WARNING")
+		require.Contains(t, stdErr, "does not have an input named")
+	})
+
 	t.Run("run list tasks", func(t *testing.T) {
 		t.Parallel()
 		gitRev, err := e2e.GetGitRevision()
