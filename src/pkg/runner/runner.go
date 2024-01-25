@@ -219,10 +219,6 @@ func (r *Runner) executeTask(task types.Task) error {
 		if d == "" {
 			continue
 		}
-		dm := ip.DeprecatedMessage
-		if dm != "" {
-			message.Warnf("This input has been marked deprecated: %s", dm)
-		}
 		defaultEnv = append(defaultEnv, formatEnvVar(name, d))
 	}
 
@@ -391,8 +387,11 @@ func (r *Runner) performAction(action types.Action) error {
 		}
 		for withKey := range action.With {
 			matched := false
-			for inputKey := range referencedTask.Inputs {
+			for inputKey, input := range referencedTask.Inputs {
 				if withKey == inputKey {
+					if input.DeprecatedMessage != "" {
+						message.Warnf("This input has been marked deprecated: %s", input.DeprecatedMessage)
+					}
 					matched = true
 					break
 				}
