@@ -127,6 +127,15 @@ func (r *Runner) importTasks(includes []map[string]string, dir string, setVariab
 				}
 			}
 		}
+		// The following for loop protects against task loops. Makes sure the task being added hasn't already been processed
+		for _, taskToAdd := range tasksFile.Tasks {
+			for _, currentTasks := range r.TasksFile.Tasks {
+				if taskToAdd.Name == currentTasks.Name {
+					return fmt.Errorf("task loop detected")
+				}
+			}
+		}
+
 		r.TasksFile.Tasks = append(r.TasksFile.Tasks, tasksFile.Tasks...)
 
 		// grab variables from included file
