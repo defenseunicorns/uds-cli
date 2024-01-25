@@ -25,6 +25,24 @@ var runCmd = &cobra.Command{
 	Use:   "run [ TASK NAME ]",
 	Short: "run a task",
 	Long:  `run a task from an tasks file`,
+	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		var tasksFile types.TasksFile
+
+		if _, err := os.Stat(config.TaskFileLocation); os.IsNotExist(err) {
+			return []string{}, cobra.ShellCompDirectiveNoFileComp
+		}
+
+		err := utils.ReadYaml(config.TaskFileLocation, &tasksFile)
+		if err != nil {
+			return []string{}, cobra.ShellCompDirectiveNoFileComp
+		}
+
+		var taskNames []string
+		for _, task := range tasksFile.Tasks {
+			taskNames = append(taskNames, task.Name)
+		}
+		return taskNames, cobra.ShellCompDirectiveNoFileComp
+	},
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 1 && !config.ListTasks {
 			return fmt.Errorf("accepts 1 arg(s), received 0")
