@@ -339,6 +339,15 @@ func TestUseCLI(t *testing.T) {
 		require.Contains(t, stdErr, "does not have an input named")
 	})
 
+	t.Run("test that displays a deprecated message", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.RunTasksWithCustomFile("src/test/tasks/composable-tasks.yaml", "run", "deprecated-task")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "WARNING")
+		require.Contains(t, stdErr, "This input has been marked deprecated: This is a deprecated message")
+	})
+
 	t.Run("run list tasks", func(t *testing.T) {
 		t.Parallel()
 		gitRev, err := e2e.GetGitRevision()

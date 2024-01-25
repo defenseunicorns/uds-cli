@@ -35,6 +35,15 @@ tasks:
       - cmd: |
           echo success
 
+  - name: deprecated-message
+    inputs:
+      deprecated-message:
+        description: This task has a deprecated message
+        deprecatedMessage: This is a deprecated message
+    actions:
+      - cmd: |
+          echo success
+
 ###################
 ## Tasks to call ##
 ###################
@@ -79,3 +88,9 @@ tasks:
         with:
           no-default-and-required: value
           extra: value
+
+  - name: deprecated-task
+    actions:
+      - task: deprecated-message
+        with:
+          deprecated-message: value
