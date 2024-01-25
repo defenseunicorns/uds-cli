@@ -64,7 +64,7 @@
         },
         "with": {
           "patternProperties": {
-            ".*": {
+            "^[_a-zA-Z][a-zA-Z0-9_-]*$": {
               "additionalProperties": true
             }
           },
@@ -131,7 +131,7 @@
         },
         "inputs": {
           "patternProperties": {
-            ".*": {
+            "^[_a-zA-Z][a-zA-Z0-9_-]*$": {
               "$schema": "http://json-schema.org/draft-04/schema#",
               "$ref": "#/definitions/InputParameter"
             }
@@ -218,7 +218,7 @@
       "properties": {
         "windows": {
           "type": "string",
-          "description": "(default 'powershell') Indicates a preference for the shell to use on Windows systems (note that choosing 'cmd' will turn off migrations like touch -\u003e New-Item)",
+          "description": "(default 'powershell') Indicates a preference for the shell to use on Windows systems (note that choosing 'cmd' will turn off migrations like touch -> New-Item)",
           "examples": [
             "powershell",
             "cmd",
@@ -289,7 +289,7 @@
           "description": "The name of the resource or selector to wait for",
           "examples": [
             "podinfo",
-            "app\u0026#61;podinfo"
+            "app&#61;podinfo"
           ]
         },
         "namespace": {

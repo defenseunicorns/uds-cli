@@ -214,12 +214,12 @@ func (r *Runner) executeTask(task types.Task) error {
 	}
 
 	defaultEnv := []string{}
-	for name := range task.Inputs {
-		d := task.Inputs[name].Default
+	for name, ip := range task.Inputs {
+		d := ip.Default
 		if d == "" {
 			continue
 		}
-		dm := task.Inputs[name].DeprecatedMessage
+		dm := ip.DeprecatedMessage
 		if dm != "" {
 			message.Warnf("This input has been marked deprecated: %s", dm)
 		}
