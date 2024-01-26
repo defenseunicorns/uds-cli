@@ -39,7 +39,9 @@ var runCmd = &cobra.Command{
 
 		var taskNames []string
 		for _, task := range tasksFile.Tasks {
-			taskNames = append(taskNames, task.Name)
+			if task.Inputs == nil {
+				taskNames = append(taskNames, task.Name)
+			}
 		}
 		return taskNames, cobra.ShellCompDirectiveNoFileComp
 	},
@@ -71,7 +73,9 @@ var runCmd = &cobra.Command{
 				{"Name", "Description"},
 			}
 			for _, task := range tasksFile.Tasks {
-				rows = append(rows, []string{task.Name, task.Description})
+				if task.Inputs == nil {
+					rows = append(rows, []string{task.Name, task.Description})
+				}
 			}
 			pterm.DefaultTable.WithHasHeader().WithData(rows).Render()
 			os.Exit(0)
