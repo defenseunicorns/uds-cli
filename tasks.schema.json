@@ -73,7 +73,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "InputParameter": {
       "required": [
@@ -98,7 +101,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "Task": {
       "required": [
@@ -141,7 +147,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "TasksFile": {
       "required": [
@@ -178,7 +187,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "ZarfComponentActionSetVariable": {
       "required": [
@@ -212,7 +224,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "ZarfComponentActionShell": {
       "properties": {
@@ -252,7 +267,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "ZarfComponentActionWait": {
       "properties": {
@@ -268,7 +286,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "ZarfComponentActionWaitCluster": {
       "required": [
@@ -306,7 +327,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "ZarfComponentActionWaitNetwork": {
       "required": [
@@ -341,7 +365,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "ZarfFile": {
       "required": [
@@ -378,7 +405,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "ZarfPackageVariable": {
       "required": [
@@ -424,7 +454,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     }
   }
 }
