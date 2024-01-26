@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"text/template"
 	"time"
 
 	// used for compile time directives to pull functions from Zarf
@@ -22,6 +23,7 @@ import (
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	goyaml "github.com/goccy/go-yaml"
 	"github.com/mholt/archiver/v3"
 )
 
@@ -74,6 +76,10 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 		for k, v := range withInputs {
 			withMap[k] = v
 			withEnv = append(withEnv, formatEnvVar(k, v))
+		}
+
+		if err := templateTaskWithInputs(&task, withMap); err != nil {
+			return err
 		}
 
 		if err := validateActionableTaskCall(task.Name, task.Inputs, withMap); err != nil {
@@ -374,6 +380,11 @@ func (r *Runner) performAction(action types.Action) error {
 		if err != nil {
 			return err
 		}
+
+		if err := templateTaskWithInputs(&referencedTask, action.With); err != nil {
+			return err
+		}
+
 		withEnv := []string{}
 		for name := range action.With {
 			switch v := action.With[name].(type) {
@@ -405,6 +416,45 @@ func (r *Runner) performAction(action types.Action) error {
 		}
 	}
 	return nil
+}
+
+func templateTaskWithInputs(task *types.Task, withs map[string]interface{}) error {
+	templatedData := map[string]map[string]string{
+		"inputs": {},
+	}
+	for name := range withs {
+		var value string
+		switch v := withs[name].(type) {
+		case string:
+			value = v
+		case int:
+			value = fmt.Sprintf("%d", v)
+		case bool:
+			value = fmt.Sprintf("%t", v)
+		default:
+			return fmt.Errorf("unsupported type %T for input %s", v, name)
+		}
+		templatedData["inputs"][name] = value
+	}
+	b, err := goyaml.Marshal(*task)
+	if err != nil {
+		return err
+	}
+
+	t, err := template.New("task").Delims("${{", "}}").Parse(string(b))
+	if err != nil {
+		return err
+	}
+
+	var templated strings.Builder
+
+	if err := t.Execute(&templated, templatedData); err != nil {
+		return err
+	}
+
+	result := templated.String()
+
+	return goyaml.Unmarshal([]byte(result), task)
 }
 
 func (r *Runner) checkForTaskLoops(task types.Task, tasksFile types.TasksFile, setVariables map[string]string) error {
