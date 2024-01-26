@@ -434,6 +434,7 @@ func (r *Runner) checkForTaskLoops(task types.Task, tasksFile types.TasksFile, s
 }
 
 func validateActionableTaskCall(inputTaskName string, inputs map[string]types.InputParameter, withs map[string]interface{}) error {
+	missing := []string{}
 	for inputKey, input := range inputs {
 		// skip inputs that are not required or have a default value
 		if !input.Required || input.Default != "" {
@@ -448,8 +449,11 @@ func validateActionableTaskCall(inputTaskName string, inputs map[string]types.In
 			}
 		}
 		if !checked {
-			return fmt.Errorf("input %s is required", inputKey)
+			missing = append(missing, inputKey)
 		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("task %s is missing required inputs: %s", inputTaskName, strings.Join(missing, ", "))
 	}
 	for withKey := range withs {
 		matched := false
