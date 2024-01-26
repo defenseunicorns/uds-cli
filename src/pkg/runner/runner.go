@@ -34,7 +34,7 @@ type Runner struct {
 }
 
 // Run runs a task from tasks file
-func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]string) error {
+func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]string, withInputs map[string]string) error {
 	runner := Runner{
 		TemplateMap: map[string]*zarfUtils.TextTemplate{},
 		TasksFile:   tasksFile,
@@ -67,8 +67,22 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 		return err
 	}
 
-	if task.Inputs != nil {
-		return fmt.Errorf("task %s has inputs, please do not call this task directly from CLI", task.Name)
+	// if withInputs is not nil, validate that the inputs are sufficient
+	if withInputs != nil {
+		withMap := make(map[string]interface{})
+		withEnv := []string{}
+		for k, v := range withInputs {
+			withMap[k] = v
+			withEnv = append(withEnv, formatEnvVar(k, v))
+		}
+
+		if err := validateActionableTaskCall(task.Name, task.Inputs, withMap); err != nil {
+			return err
+		}
+
+		for _, action := range task.Actions {
+			action.Env = mergeEnv(withEnv, action.Env)
+		}
 	}
 
 	err = runner.executeTask(task)
@@ -375,37 +389,8 @@ func (r *Runner) performAction(action types.Action) error {
 				return fmt.Errorf("unsupported type %T for input %s", v, name)
 			}
 		}
-		for inputKey, input := range referencedTask.Inputs {
-			// skip inputs that are not required or have a default value
-			if !input.Required || input.Default != "" {
-				continue
-			}
-			checked := false
-			for withKey, withVal := range action.With {
-				// verify that the input is in the with map and the "with" has a value
-				if inputKey == withKey && withVal != nil {
-					checked = true
-					break
-				}
-			}
-			if !checked {
-				return fmt.Errorf("input %s is required", inputKey)
-			}
-		}
-		for withKey := range action.With {
-			matched := false
-			for inputKey, input := range referencedTask.Inputs {
-				if withKey == inputKey {
-					if input.DeprecatedMessage != "" {
-						message.Warnf("This input has been marked deprecated: %s", input.DeprecatedMessage)
-					}
-					matched = true
-					break
-				}
-			}
-			if !matched {
-				message.Warnf("Task %s does not have an input named %s", referencedTask.Name, withKey)
-			}
+		if err := validateActionableTaskCall(referencedTask.Name, referencedTask.Inputs, action.With); err != nil {
+			return err
 		}
 		for _, a := range referencedTask.Actions {
 			a.Env = mergeEnv(withEnv, a.Env)
@@ -444,6 +429,42 @@ func (r *Runner) checkForTaskLoops(task types.Task, tasksFile types.TasksFile, s
 		}
 		// Clear map once we get to a task that doesn't call another task
 		clear(r.TaskNameMap)
+	}
+	return nil
+}
+
+func validateActionableTaskCall(inputTaskName string, inputs map[string]types.InputParameter, withs map[string]interface{}) error {
+	for inputKey, input := range inputs {
+		// skip inputs that are not required or have a default value
+		if !input.Required || input.Default != "" {
+			continue
+		}
+		checked := false
+		for withKey, withVal := range withs {
+			// verify that the input is in the with map and the "with" has a value
+			if inputKey == withKey && withVal != nil {
+				checked = true
+				break
+			}
+		}
+		if !checked {
+			return fmt.Errorf("input %s is required", inputKey)
+		}
+	}
+	for withKey := range withs {
+		matched := false
+		for inputKey, input := range inputs {
+			if withKey == inputKey {
+				if input.DeprecatedMessage != "" {
+					message.Warnf("This input has been marked deprecated: %s", input.DeprecatedMessage)
+				}
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			message.Warnf("Task %s does not have an input named %s", inputTaskName, withKey)
+		}
 	}
 	return nil
 }

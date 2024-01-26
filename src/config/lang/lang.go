@@ -70,7 +70,8 @@ const (
 	CmdInternalConfigSchemaErr   = "Unable to generate the uds-bundle.yaml schema"
 
 	// uds run
-	CmdRunFlag       = "Name and location of task file to run"
-	CmdRunSetVarFlag = "Set a runner variable from the command line (KEY=value)"
-	CmdRunList       = "List available tasks in a task file"
+	CmdRunFlag        = "Name and location of task file to run"
+	CmdRunSetVarFlag  = "Set a runner variable from the command line (KEY=value)"
+	CmdRunWithVarFlag = "Set the inputs for a task from the command line (KEY=value)"
+	CmdRunList        = "List available tasks in a task file"
 )

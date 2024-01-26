@@ -73,16 +73,14 @@ var runCmd = &cobra.Command{
 				{"Name", "Description"},
 			}
 			for _, task := range tasksFile.Tasks {
-				if task.Inputs == nil {
-					rows = append(rows, []string{task.Name, task.Description})
-				}
+				rows = append(rows, []string{task.Name, task.Description})
 			}
 			pterm.DefaultTable.WithHasHeader().WithData(rows).Render()
 			os.Exit(0)
 		}
 
 		taskName := args[0]
-		if err := runner.Run(tasksFile, taskName, config.SetRunnerVariables); err != nil {
+		if err := runner.Run(tasksFile, taskName, config.SetRunnerVariables, config.WithInputs); err != nil {
 			message.Fatalf(err, "Failed to run action: %s", err)
 		}
 	},
@@ -95,4 +93,5 @@ func init() {
 	runFlags.StringVarP(&config.TaskFileLocation, "file", "f", config.TasksYAML, lang.CmdRunFlag)
 	runFlags.BoolVar(&config.ListTasks, "list", false, lang.CmdRunList)
 	runFlags.StringToStringVar(&config.SetRunnerVariables, "set", v.GetStringMapString(common.VPkgCreateSet), lang.CmdRunSetVarFlag)
+	runFlags.StringToStringVar(&config.WithInputs, "with", v.GetStringMapString("runner.with"), lang.CmdRunWithVarFlag)
 }
