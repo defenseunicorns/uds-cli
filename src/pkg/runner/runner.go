@@ -186,6 +186,9 @@ func (r *Runner) getTask(taskName string) (types.Task, error) {
 	return types.Task{}, fmt.Errorf("task name %s not found", taskName)
 }
 
+// mergeEnv merges two environment variable arrays,
+// replacing variables found in env2 with variables from env1
+// otherwise appending the variable from env1 to env2
 func mergeEnv(env1, env2 []string) []string {
 	for _, s1 := range env1 {
 		replaced := false
@@ -218,8 +221,8 @@ func (r *Runner) executeTask(task types.Task) error {
 	}
 
 	defaultEnv := []string{}
-	for name, ip := range task.Inputs {
-		d := ip.Default
+	for name, inputParam := range task.Inputs {
+		d := inputParam.Default
 		if d == "" {
 			continue
 		}

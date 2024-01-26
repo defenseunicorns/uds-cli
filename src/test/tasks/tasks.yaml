@@ -109,7 +109,6 @@ tasks:
     actions:
       - maxTotalSeconds: 1
         wait:
-          cluster:
-            kind: StatefulSet
-            name: cool-name
-            namespace: tasks
+          network:
+            protocol: tcp
+            address: githubstatus.com:443
