@@ -78,7 +78,8 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 			withEnv = append(withEnv, formatEnvVar(k, v))
 		}
 
-		if err := templateTaskWithInputs(&task, withMap); err != nil {
+		task.Actions, err = templateTaskActionsWithInputs(task, withMap)
+		if err != nil {
 			return err
 		}
 
@@ -381,7 +382,8 @@ func (r *Runner) performAction(action types.Action) error {
 			return err
 		}
 
-		if err := templateTaskWithInputs(&referencedTask, action.With); err != nil {
+		referencedTask.Actions, err = templateTaskActionsWithInputs(referencedTask, action.With)
+		if err != nil {
 			return err
 		}
 
@@ -418,8 +420,8 @@ func (r *Runner) performAction(action types.Action) error {
 	return nil
 }
 
-func templateTaskWithInputs(task *types.Task, withs map[string]interface{}) error {
-	templatedData := map[string]map[string]string{
+func templateTaskActionsWithInputs(task types.Task, withs map[string]interface{}) ([]types.Action, error) {
+	data := map[string]map[string]string{
 		"inputs": {},
 	}
 	for name := range withs {
@@ -432,29 +434,38 @@ func templateTaskWithInputs(task *types.Task, withs map[string]interface{}) erro
 		case bool:
 			value = fmt.Sprintf("%t", v)
 		default:
-			return fmt.Errorf("unsupported type %T for input %s", v, name)
+			return nil, fmt.Errorf("unsupported type %T for input %s", v, name)
 		}
-		templatedData["inputs"][name] = value
-	}
-	b, err := goyaml.Marshal(*task)
-	if err != nil {
-		return err
+		data["inputs"][name] = value
 	}
 
-	t, err := template.New("task").Delims("${{", "}}").Parse(string(b))
+	for name := range task.Inputs {
+		if current, ok := data["inputs"][name]; !ok || current == "" {
+			data["inputs"][name] = task.Inputs[name].Default
+		}
+	}
+
+	b, err := goyaml.Marshal(task.Actions)
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	t, err := template.New("template task actions").Option("missingkey=error").Delims("${{", "}}").Parse(string(b))
+	if err != nil {
+		return nil, err
 	}
 
 	var templated strings.Builder
 
-	if err := t.Execute(&templated, templatedData); err != nil {
-		return err
+	if err := t.Execute(&templated, data); err != nil {
+		return nil, err
 	}
 
 	result := templated.String()
 
-	return goyaml.Unmarshal([]byte(result), task)
+	var templatedActions []types.Action
+
+	return templatedActions, goyaml.Unmarshal([]byte(result), &templatedActions)
 }
 
 func (r *Runner) checkForTaskLoops(task types.Task, tasksFile types.TasksFile, setVariables map[string]string) error {

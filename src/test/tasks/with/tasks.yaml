@@ -2,30 +2,27 @@ tasks:
   - name: echo
     inputs:
       echo:
-        default: hello world
+        default: new york
         description: The thing to echo
     actions:
       - cmd: |
-          echo "${INPUT_ECHO}${PERIOD}"
-          # env
-        env:
-          - INPUT_ECHO=nowhere
-          - PERIOD=.
+          echo "${{ .inputs.echo }} says hello"
+        description: "Echo ${{ .inputs.echo }}"
 
-  - name: echo-var
+  - name: hello
     inputs:
       hello:
-        default: world
+        default: los angeles
         description: The thing to say hello to
     actions:
-      - cmd: |
-          echo "FOO=bar" >> .env
-          cat .env >> $UDS_ENV
-          rm .env
-        mute: true
-      - cmd: env | grep FOO
+      # - cmd: |
+      #     echo "FOO=bar" >> .env
+      #     cat .env >> $UDS_ENV
+      #     rm .env
+      #   mute: true
+      # - cmd: env | grep FOO
       - task: echo
         with:
-          echo: "hello there"
-      - cmd: |
-          echo "${INPUT_HELLO}"
+          echo: ${{ .inputs.hello }}
+      # - cmd: |
+      #     echo "${INPUT_HELLO}"
