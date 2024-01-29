@@ -39,9 +39,7 @@ var runCmd = &cobra.Command{
 
 		var taskNames []string
 		for _, task := range tasksFile.Tasks {
-			if task.Inputs == nil {
-				taskNames = append(taskNames, task.Name)
-			}
+			taskNames = append(taskNames, task.Name)
 		}
 		return taskNames, cobra.ShellCompDirectiveNoFileComp
 	},
