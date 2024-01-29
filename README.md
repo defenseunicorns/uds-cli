@@ -205,8 +205,9 @@ In a bundle, variables can come from 4 sources. Those sources and their preceden
 - Variables configured in the `shared` key in a `uds-config.yaml`
 - Variables configured in the `variables` key in a `uds-config.yaml`
 - Variables set with an environment variable prefixed with `UDS_` (ex. `UDS_OUTPUT`)
+- Variables set using the `--set` flag when running the `uds deploy` command
 
-That is to say, variables set as environment variables take precedence over all other variable sources.
+That is to say, variables set using the `--set` flag take precedence over all other variable sources.
 
 
 ## Zarf Integration

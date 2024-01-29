@@ -29,6 +29,7 @@ type BundlerDeployOptions struct {
 	Source        string
 	Packages      []string
 	PublicKeyPath string
+	SetVariables  map[string]string `json:"setVariables" jsonschema:"description=Key-Value map of variable names and their corresponding values that will be used by Zarf packages in a bundle"`
 	// Variables and SharedVariables are read in from uds-config.yaml
 	Variables       map[string]map[string]interface{} `yaml:"variables,omitempty"`
 	SharedVariables map[string]interface{}            `yaml:"shared,omitempty"`

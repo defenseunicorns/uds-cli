@@ -215,13 +215,17 @@ func (b *Bundler) loadVariables(pkg types.Package, bundleExportedVars map[string
 	pkgConfigVars := make(map[string]string)
 	pkgEnvVars := make(map[string]string)
 	pkgSharedVars := make(map[string]string)
+	pkgSetVars := make(map[string]string)
 
-	// get vars and shared vars loaded into DeployOpts
+	// get vars, shared vars, and set vars loaded into DeployOpts
 	for name, val := range b.cfg.DeployOpts.Variables[pkg.Name] {
 		pkgConfigVars[strings.ToUpper(name)] = fmt.Sprint(val)
 	}
 	for name, val := range b.cfg.DeployOpts.SharedVariables {
 		pkgSharedVars[strings.ToUpper(name)] = fmt.Sprint(val)
+	}
+	for name, val := range b.cfg.DeployOpts.SetVariables {
+		pkgSetVars[strings.ToUpper(name)] = fmt.Sprint(val)
 	}
 
 	// load env vars that start with UDS_
@@ -243,6 +247,7 @@ func (b *Bundler) loadVariables(pkg types.Package, bundleExportedVars map[string
 	maps.Copy(pkgVars, pkgSharedVars)
 	maps.Copy(pkgVars, pkgConfigVars)
 	maps.Copy(pkgVars, pkgEnvVars)
+	maps.Copy(pkgVars, pkgSetVars)
 	return pkgVars
 }
 
