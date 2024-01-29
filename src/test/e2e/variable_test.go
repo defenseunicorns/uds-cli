@@ -30,7 +30,7 @@ func TestBundleVariables(t *testing.T) {
 	zarfPublish(t, pkg, "localhost:888")
 
 	bundleDir := "src/test/bundles/02-simple-vars"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-simple-vars-%s-0.0.1.tar.zst", e2e.Arch))
+	bundleTarballPath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-simple-vars-%s-0.0.1.tar.zst", e2e.Arch))
 
 	create(t, bundleDir)
 	createRemote(t, bundleDir, "localhost:888")
@@ -38,7 +38,7 @@ func TestBundleVariables(t *testing.T) {
 	os.Setenv("UDS_ANIMAL", "Unicorns")
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/02-simple-vars", "uds-config.yaml"))
 
-	_, stderr := deploy(t, bundlePath)
+	_, stderr := deploy(t, bundleTarballPath)
 
 	require.NotContains(t, stderr, "CLIVersion is set to 'unset' which can cause issues with package creation and deployment")
 	require.Contains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
@@ -46,7 +46,7 @@ func TestBundleVariables(t *testing.T) {
 	require.Contains(t, stderr, "shared var in output-var pkg: burning.boats")
 	require.Contains(t, stderr, "shared var in receive-var pkg: burning.boats")
 
-	_, stderr = deployCustom(t, "deploy "+bundlePath+" --set ANIMAL=Longhorns --set COUNTRY=Texas --confirm -l=debug")
+	_, stderr = runCmd(t, "deploy "+bundleTarballPath+" --set ANIMAL=Longhorns --set COUNTRY=Texas --confirm -l=debug")
 	require.Contains(t, stderr, "This fun-fact was imported: Longhorns are the national animal of Texas")
 	require.NotContains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
 }

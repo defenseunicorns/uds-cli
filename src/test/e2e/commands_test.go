@@ -94,7 +94,7 @@ func deploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
 	return stdout, stderr
 }
 
-func deployCustom(t *testing.T, input string) (stdout string, stderr string) {
+func runCmd(t *testing.T, input string) (stdout string, stderr string) {
 	cmd := strings.Split(fmt.Sprintf(input), " ")
 	stdout, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
