@@ -56,6 +56,12 @@ func (b *Bundler) Deploy() error {
 	}
 	b.cfg.DeployOpts.Source = source
 
+	// validate config's arch against cluster
+	err = ValidateArch(config.GetArch())
+	if err != nil {
+		return err
+	}
+
 	// create a new provider
 	provider, err := NewBundleProvider(ctx, b.cfg.DeployOpts.Source, b.tmp)
 	if err != nil {

@@ -21,6 +21,7 @@ func (b *Bundler) Publish() error {
 	b.cfg.PublishOpts.Destination = EnsureOCIPrefix(b.cfg.PublishOpts.Destination)
 
 	// load bundle metadata into memory
+	// todo: having the tmp dir be the provider.dst is weird
 	provider, err := NewBundleProvider(context.TODO(), b.cfg.PublishOpts.Source, b.tmp)
 	if err != nil {
 		return err
@@ -47,8 +48,7 @@ func (b *Bundler) Publish() error {
 	ociURL := b.cfg.PublishOpts.Destination
 	bundleName := b.bundle.Metadata.Name
 	bundleTag := b.bundle.Metadata.Version
-	bundleArch := b.bundle.Metadata.Architecture
-	remote, err := oci.NewOrasRemote(fmt.Sprintf("%s/%s:%s-%s", ociURL, bundleName, bundleTag, bundleArch), oci.WithArch(config.GetArch()))
+	remote, err := oci.NewOrasRemote(fmt.Sprintf("%s/%s:%s", ociURL, bundleName, bundleTag), oci.WithArch(config.GetArch()))
 	if err != nil {
 		return err
 	}

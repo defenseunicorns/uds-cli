@@ -101,11 +101,6 @@ func GetArch(archs ...string) string {
 	return runtime.GOARCH
 }
 
-// GetSupportedArchitectures returns a list of valid architectures
-func GetSupportedArchitectures() []string {
-	return []string{"amd64", "arm64"}
-}
-
 var (
 	// BundleAlwaysPull is a list of paths that will always be pulled from the remote repository.
 	BundleAlwaysPull = []string{BundleYAML, BundleYAMLSignature}

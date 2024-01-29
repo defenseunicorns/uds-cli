@@ -213,12 +213,13 @@ func Create(b *Bundler, signature []byte) error {
 	}
 
 	// tag the local bundle artifact
-	ref := fmt.Sprintf("%s-%s", bundle.Metadata.Version, bundle.Metadata.Architecture)
-	err = store.Tag(ctx, rootManifestDesc, ref)
+	// todo: no need to tag the local artifact
+	err = store.Tag(ctx, rootManifestDesc, bundle.Metadata.Version)
 	if err != nil {
 		return err
 	}
-	err = cleanIndexJSON(b.tmp, ref)
+	// ensure the bundle root manifest is the only manifest in the index.json
+	err = cleanIndexJSON(b.tmp, rootManifestDesc)
 	if err != nil {
 		return err
 	}
@@ -233,7 +234,7 @@ func Create(b *Bundler, signature []byte) error {
 }
 
 // CreateAndPublish creates the bundle in an OCI registry publishes w/ optional signature to the remote repository.
-func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signature []byte) error {
+func CreateAndPublish(remoteDst *oci.OrasRemote, bundle types.UDSBundle, signature []byte) error {
 	if bundle.Metadata.Architecture == "" {
 		return fmt.Errorf("architecture is required for bundling")
 	}
@@ -318,17 +319,23 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 
 	message.Debug("Pushed config:", message.JSONValue(configDesc))
 
+	// check for existing index
+	index, err := utils.GetIndex(remoteDst, dstRef.String())
+	if err != nil {
+		return err
+	}
+
+	// push bundle root manifest
 	rootManifest.Config = configDesc
 	rootManifest.SchemaVersion = 2
 	rootManifest.Annotations = manifestAnnotationsFromMetadata(&bundle.Metadata) // maps to registry UI
-
 	rootManifestDesc, err := utils.ToOCIRemote(rootManifest, ocispec.MediaTypeImageManifest, remoteDst)
 	if err != nil {
 		return err
 	}
 
-	// create and push index.json
-	err = utils.CreateAndPushIndex(remoteDst, rootManifestDesc, dstRef.Reference)
+	// create or update, then push index.json
+	err = utils.UpdateIndex(index, remoteDst, bundle, rootManifestDesc)
 	if err != nil {
 		return err
 	}
@@ -510,7 +517,7 @@ func pushBundleSignature(ctx context.Context, store *ocistore.Store, signature [
 
 // rebuild index.json because copying remote Zarf pkgs adds unnecessary entries
 // this is due to root manifest in Zarf packages having an image manifest media type
-func cleanIndexJSON(tmpDir, ref string) error {
+func cleanIndexJSON(tmpDir string, bundleRootDesc ocispec.Descriptor) error {
 	indexBytes, err := os.ReadFile(filepath.Join(tmpDir, "index.json"))
 	if err != nil {
 		return err
@@ -521,7 +528,7 @@ func cleanIndexJSON(tmpDir, ref string) error {
 	}
 
 	for _, manifestDesc := range index.Manifests {
-		if manifestDesc.Annotations[ocispec.AnnotationRefName] == ref {
+		if manifestDesc.Digest.Encoded() == bundleRootDesc.Digest.Encoded() {
 			index.Manifests = []ocispec.Descriptor{manifestDesc}
 			break
 		}
