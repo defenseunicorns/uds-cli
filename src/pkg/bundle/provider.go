@@ -13,6 +13,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // Provider is an interface for processing bundles
@@ -55,7 +56,11 @@ type PathMap map[string]string
 func NewBundleProvider(ctx context.Context, source, destination string) (Provider, error) {
 	if helpers.IsOCIURL(source) {
 		provider := ociProvider{ctx: ctx, src: source, dst: destination}
-		remote, err := oci.NewOrasRemote(source, oci.WithArch(config.GetArch()))
+		platform := ocispec.Platform{
+			Architecture: config.GetArch(),
+			OS:           oci.MultiOS,
+		}
+		remote, err := oci.NewOrasRemote(source, platform)
 		if err != nil {
 			return nil, err
 		}

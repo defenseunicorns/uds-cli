@@ -4,13 +4,16 @@ metadata:
   version: 0.0.1
 
 components:
-  - name: podinfo-kustomize
+  - name: podinfo
     required: true
-    manifests:
-      - name: simple-podinfo-deployment
+    charts:
+      - name: podinfo
+        version: 6.4.0
         namespace: podinfo
-        kustomizations:
-          - github.com/stefanprodan/podinfo//kustomize?ref=6.4.0
+        url: https://github.com/stefanprodan/podinfo.git
+        gitPath: charts/podinfo
+    images:
+      - ghcr.io/stefanprodan/podinfo:6.4.0
     actions:
       onDeploy:
         after:
@@ -20,5 +23,3 @@ components:
                 name: podinfo
                 namespace: podinfo
                 condition: available
-    images:
-      - ghcr.io/stefanprodan/podinfo:6.4.0

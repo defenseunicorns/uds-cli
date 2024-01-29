@@ -5,7 +5,7 @@ go 1.21.5
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
-	github.com/defenseunicorns/zarf v0.32.1
+	github.com/defenseunicorns/zarf v0.32.2
 	github.com/goccy/go-yaml v1.11.2
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/mholt/archiver/v4 v4.0.0-alpha.8
@@ -84,7 +84,7 @@ require (
 	github.com/alibabacloud-go/tea-xml v1.1.3 // indirect
 	github.com/aliyun/credentials-go v1.3.1 // indirect
 	github.com/anchore/bubbly v0.0.0-20231115134915-def0aba654a9 // indirect
-	github.com/anchore/clio v0.0.0-20231220164737-3e50431641a5 // indirect
+	github.com/anchore/clio v0.0.0-20240118133543-a5e93b68d716 // indirect
 	github.com/anchore/fangs v0.0.0-20231201140849-5075d28d6d8b // indirect
 	github.com/anchore/go-logger v0.0.0-20230725134548-c21dafa1ec5a // indirect
 	github.com/anchore/go-macholibre v0.0.0-20220308212642-53e6d0aaf6fb // indirect
@@ -92,7 +92,7 @@ require (
 	github.com/anchore/go-version v1.2.2-0.20210903204242-51efa5b487c4 // indirect
 	github.com/anchore/grype v0.73.5 // indirect
 	github.com/anchore/packageurl-go v0.1.1-0.20230104203445-02e0a6721501 // indirect
-	github.com/anchore/stereoscope v0.0.0-20231220161148-590920dabc54 // indirect
+	github.com/anchore/stereoscope v0.0.0-20240118133533-eb656fc71793 // indirect
 	github.com/anchore/syft v0.99.0 // indirect
 	github.com/andybalholm/brotli v1.0.6 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
@@ -142,7 +142,7 @@ require (
 	github.com/charmbracelet/lipgloss v0.9.1 // indirect
 	github.com/chrismellard/docker-credential-acr-env v0.0.0-20230304212654-82a0ddb27589 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect
-	github.com/cloudflare/circl v1.3.5 // indirect
+	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/cockroachdb/apd/v3 v3.2.1 // indirect
 	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be // indirect
 	github.com/connesc/cipherio v0.2.1 // indirect

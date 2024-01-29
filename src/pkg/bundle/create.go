@@ -20,6 +20,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pterm/pterm"
 	"oras.land/oras-go/v2/registry"
 )
@@ -100,7 +101,11 @@ func (b *Bundler) Create() error {
 		if err != nil {
 			return err
 		}
-		remote, err := oci.NewOrasRemote(ref, oci.WithArch(config.GetArch()))
+		platform := ocispec.Platform{
+			Architecture: config.GetArch(),
+			OS:           oci.MultiOS,
+		}
+		remote, err := oci.NewOrasRemote(ref, platform)
 		if err != nil {
 			return err
 		}
