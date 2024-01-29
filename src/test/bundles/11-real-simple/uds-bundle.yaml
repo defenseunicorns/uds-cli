@@ -1,0 +1,9 @@
+kind: UDSBundle
+metadata:
+  name: real-simple
+  version: 0.0.1
+
+packages:
+  - name: real-simple
+    path: "../../packages/no-cluster/real-simple"
+    ref: 0.0.1

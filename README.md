@@ -16,6 +16,7 @@
     - [Inspect](#bundle-inspect)
     - [Publish](#bundle-publish)
     - [Remove](#bundle-remove)
+1. [Bundle Architecture and Multi-Arch Support](#bundle-architecture-and-multi-arch-support)
 1. [Configuration](#configuration)
 1. [Sharing Variables](#sharing-variables)
 1. [Zarf Integration](#zarf-integration)
@@ -125,6 +126,18 @@ There are 2 ways to remove Bundles:
 By default all the packages in the bundle are removed, but you can also remove only certain packages in the bundle by using the `--packages` flag.
 
 As an example: `uds remove uds-bundle-<name>.tar.zst --packages init,nginx`
+
+## Bundle Architecture and Multi-Arch Support
+There are several ways to specify the architecture of a bundle:
+1. Setting `--architecture` or `-a` flag during `uds ...` operations: `uds create <dir> --architecture arm64`
+2. Setting the `metadata.architecture` key in a `uds-bundle.yaml`
+3. Setting a `UDS_ARCHITECTURE` environment variable
+4. Setting the `options.architecture` key in a `uds-config.yaml`
+
+Note that the setting the `--architecture` flag takes precedence over all other methods of specifying the architecture.
+
+UDS CLI supports multi-arch bundles. This means you can push bundles with different architectures to the same remote OCI repository, at the same tag. For example, you can push both an `amd64` and `arm64` bundle to `ghcr.io/<org>/<bundle name>:0.0.1`.
+
 
 ## Configuration
 The UDS CLI can be configured with a `uds-config.yaml` file. This file can be placed in the current working directory or specified with an environment variable called `UDS_CONFIG`. The basic structure of the `uds-config.yaml` is as follows:

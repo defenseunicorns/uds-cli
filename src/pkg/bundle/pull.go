@@ -29,7 +29,7 @@ func (b *Bundler) Pull() error {
 	}
 
 	// Get validated source path
-	source, err := getOCIValidatedSource(b.cfg.PullOpts.Source)
+	source, err := CheckOCISourcePath(b.cfg.PullOpts.Source)
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,7 @@ func (b *Bundler) Pull() error {
 	// make an index.json for this bundle and write to tmp
 	index := ocispec.Index{}
 	index.SchemaVersion = 2
-	ref := fmt.Sprintf("%s-%s", b.bundle.Metadata.Version, b.bundle.Metadata.Architecture)
+	ref := b.bundle.Metadata.Version
 	annotations := map[string]string{
 		ocispec.AnnotationRefName: ref,
 	}

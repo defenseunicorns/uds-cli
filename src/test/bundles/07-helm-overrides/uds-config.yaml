@@ -4,7 +4,7 @@ options:
 variables:
   helm-overrides:
     # vars can be upper or lowercase
-    ui_color: green
+    ui_color: "green, yellow"
     UI_MSG: "Hello Unicorn"
     security_ctx:
       runAsUser: 2000

@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/registry"
 )
@@ -22,36 +21,33 @@ func TestBundleDeployFromOCIFromGHCR(t *testing.T) {
 
 	bundleName := "ghcr-test"
 	bundleDir := "src/test/bundles/06-ghcr"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-ghcr-test-%s-0.0.1.tar.zst", e2e.Arch))
+	bundlePathARM := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-ghcr-test-%s-0.0.1.tar.zst", "arm64"))
+	bundlePathAMD := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-ghcr-test-%s-0.0.1.tar.zst", "amd64"))
 
 	registryURL := "oci://ghcr.io/defenseunicorns/packages/uds-cli/test/publish"
 	bundleGHCRPath := "defenseunicorns/packages/uds-cli/test/publish"
 	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch))
 	bundleRef := registry.Reference{
-		Registry: registryURL,
-		// this info is derived from the bundle's metadata
+		Registry:   registryURL,
 		Repository: "ghcr-test",
-		Reference:  fmt.Sprintf("0.0.1-%s", e2e.Arch),
+		Reference:  fmt.Sprintf("0.0.1"),
 	}
 
-	createLocal(t, bundleDir)
-	inspect(t, bundlePath)
-	publish(t, bundlePath, registryURL)
+	createLocal(t, bundleDir, "arm64")
+	createLocal(t, bundleDir, "amd64")
+	publish(t, bundlePathARM, registryURL)
 	// test without oci prefix
 	registryURL = "ghcr.io/defenseunicorns/packages/uds-cli/test/publish"
-	publish(t, bundlePath, registryURL)
+	publish(t, bundlePathAMD, registryURL)
+	inspectRemote(t, bundlePathARM)
 	pull(t, bundleRef.String(), tarballPath)
 	deploy(t, bundleRef.String())
-	remove(t, bundlePath)
+	remove(t, bundleRef.String())
 
 	// ensure the bundle index is present
 	index, err := queryIndex(t, "https://ghcr.io", fmt.Sprintf("%s/%s", bundleGHCRPath, bundleName))
 	require.NoError(t, err)
-	require.Equal(t, 1, len(index.Manifests))
-	require.Equal(t, ocispec.MediaTypeImageIndex, index.MediaType)
-	require.Equal(t, ocispec.MediaTypeImageManifest, index.Manifests[0].MediaType)
-	require.Equal(t, e2e.Arch, index.Manifests[0].Platform.Architecture)
-	require.Equal(t, "multi", index.Manifests[0].Platform.OS)
+	validateMultiArchIndex(t, index)
 }
 
 // test the create -o path
@@ -63,33 +59,29 @@ func TestBundleCreateAndDeployGHCR(t *testing.T) {
 	bundleGHCRPath := "defenseunicorns/packages/uds-cli/test/create-remote"
 	registryURL := fmt.Sprintf("ghcr.io/%s", bundleGHCRPath)
 	bundleRef := registry.Reference{
-		Registry: registryURL,
-		// this info is derived from the bundle's metadata
+		Registry:   registryURL,
 		Repository: "ghcr-test",
-		Reference:  fmt.Sprintf("0.0.1-%s", e2e.Arch),
+		Reference:  fmt.Sprintf("0.0.1"),
 	}
-	createRemoteSecure(t, bundleDir, registryURL)
-	inspect(t, bundleRef.String())
+	createRemote(t, bundleDir, registryURL, "arm64")
+	createRemote(t, bundleDir, registryURL, "amd64")
+	inspectRemote(t, bundleRef.String())
 	deploy(t, bundleRef.String())
 	remove(t, bundleRef.String())
 
 	// ensure the bundle index is present
 	index, err := queryIndex(t, "https://ghcr.io", fmt.Sprintf("%s/%s", bundleGHCRPath, bundleName))
 	require.NoError(t, err)
-	require.Equal(t, 1, len(index.Manifests))
-	require.Equal(t, ocispec.MediaTypeImageIndex, index.MediaType)
-	require.Equal(t, ocispec.MediaTypeImageManifest, index.Manifests[0].MediaType)
-	require.Equal(t, e2e.Arch, index.Manifests[0].Platform.Architecture)
-	require.Equal(t, "multi", index.Manifests[0].Platform.OS)
+	validateMultiArchIndex(t, index)
 }
 
 // This test requires the following to be published (based on src/test/bundles/06-ghcr/uds-bundle.yaml):
-// ghcr.io/defenseunicorns/packages/uds/bundles/ghcr-test:0.0.1-amd64
-// ghcr.io/defenseunicorns/packages/uds/bundles/ghcr-test:0.0.1-arm64
-// ghcr.io/defenseunicorns/packages/delivery/ghcr-test:0.0.1-amd64
-// ghcr.io/defenseunicorns/packages/delivery/ghcr-test:0.0.1-arm64
-// ghcr.io/defenseunicorns/packages/delivery/ghcr-delivery-test:0.0.1-amd64
-// ghcr.io/defenseunicorns/packages/delivery/ghcr-delivery-test:0.0.1-arm64
+// ghcr.io/defenseunicorns/packages/uds/bundles/ghcr-test:0.0.1
+// ghcr.io/defenseunicorns/packages/uds/bundles/ghcr-test:0.0.1
+// ghcr.io/defenseunicorns/packages/delivery/ghcr-test:0.0.1
+// ghcr.io/defenseunicorns/packages/delivery/ghcr-test:0.0.1
+// ghcr.io/defenseunicorns/packages/delivery/ghcr-delivery-test:0.0.1
+// ghcr.io/defenseunicorns/packages/delivery/ghcr-delivery-test:0.0.1
 // The default bundle location if no source path provided is defenseunicorns/packages/uds/bundles/"
 func TestGHCRPathExpansion(t *testing.T) {
 	deployZarfInit(t)
@@ -98,25 +90,25 @@ func TestGHCRPathExpansion(t *testing.T) {
 	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-ghcr-test-%s-0.0.1.tar.zst", e2e.Arch))
 
 	bundleName := "ghcr-test:0.0.1"
-	inspect(t, bundleName)
+	inspectRemote(t, bundleName)
 	pull(t, bundleName, tarballPath)
 	deploy(t, bundleName)
 	remove(t, bundleName)
 
-	bundleName = fmt.Sprintf("ghcr-delivery-test:0.0.1-%s", e2e.Arch)
-	inspect(t, bundleName)
+	bundleName = fmt.Sprintf("ghcr-delivery-test:0.0.1")
+	inspectRemote(t, bundleName)
 	pull(t, bundleName, tarballPath)
 	deploy(t, bundleName)
 	remove(t, bundleName)
 
-	bundleName = fmt.Sprintf("delivery/ghcr-test:0.0.1-%s", e2e.Arch)
-	inspect(t, bundleName)
+	bundleName = fmt.Sprintf("delivery/ghcr-test:0.0.1")
+	inspectRemote(t, bundleName)
 	pull(t, bundleName, tarballPath)
 	deploy(t, bundleName)
 	remove(t, bundleName)
 
 	bundleName = "ghcr.io/defenseunicorns/packages/delivery/ghcr-delivery-test:0.0.1"
-	inspect(t, bundleName)
+	inspectRemote(t, bundleName)
 	pull(t, bundleName, tarballPath)
 	deploy(t, bundleName)
 	remove(t, bundleName)

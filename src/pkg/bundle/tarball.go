@@ -137,8 +137,7 @@ func (tp *tarballBundleProvider) getBundleManifest() error {
 		return err
 	}
 
-	// due to logic during the bundle pull process, this index.json should only have one manifest
-	// todo: no longer true with multi-arch
+	// local bundles only have one manifest entry in their index.json
 	bundleManifestDesc := index.Manifests[0]
 	tp.bundleRootDesc = bundleManifestDesc
 
@@ -237,7 +236,6 @@ func (tp *tarballBundleProvider) getZarfLayers(store *ocistore.Store, pkgManifes
 
 // PublishBundle publishes a local bundle to a remote OCI registry
 func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *oci.OrasRemote) error {
-	// todo: tp.src and dst are jacked here (they are swapped)
 	var layersToPush []ocispec.Descriptor
 	if err := tp.getBundleManifest(); err != nil {
 		return err
@@ -273,18 +271,27 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	}
 	remote.Transport.ProgressBar = message.NewProgressBar(estimatedBytes, fmt.Sprintf("Publishing %s:%s", remote.Repo().Reference.Repository, remote.Repo().Reference.Reference))
 	defer remote.Transport.ProgressBar.Stop()
-	ref := fmt.Sprintf("%s-%s", bundle.Metadata.Version, bundle.Metadata.Architecture)
+
+	ref := bundle.Metadata.Version
+
+	// check for existing index
+	index, err := utils.GetIndex(remote, ref)
+	if err != nil {
+		return err
+	}
+
 	_, err = oras.Copy(tp.ctx, store, ref, remote.Repo(), ref, copyOpts)
 	if err != nil {
 		return err
 	}
-	remote.Transport.ProgressBar.Successf("Published %s", remote.Repo().Reference)
 
-	// create and push index.json
-	err = utils.CreateAndPushIndex(remote, tp.bundleRootDesc, ref)
+	// create or update, then push index.json
+	err = utils.UpdateIndex(index, remote, bundle, tp.bundleRootDesc)
 	if err != nil {
 		return err
 	}
+
+	remote.Transport.ProgressBar.Successf("Published %s", remote.Repo().Reference)
 	return nil
 }
 

@@ -56,6 +56,12 @@ func (b *Bundler) Deploy() error {
 	}
 	b.cfg.DeployOpts.Source = source
 
+	// validate config's arch against cluster
+	err = ValidateArch(config.GetArch())
+	if err != nil {
+		return err
+	}
+
 	// create a new provider
 	provider, err := NewBundleProvider(ctx, b.cfg.DeployOpts.Source, b.tmp)
 	if err != nil {
@@ -299,6 +305,10 @@ func (b *Bundler) loadChartOverrides(pkg types.Package) (ZarfOverrideMap, error)
 
 		// Loop through each chart in the component
 		for chartName, chart := range component {
+			//escape commas (with \\) in values so helm v3 can process them
+			for i, value := range chart.Values {
+				chart.Values[i] = strings.ReplaceAll(value, ",", "\\,")
+			}
 			// Merge the chart values with Helm
 			data, err := chart.MergeValues(getter.Providers{})
 			if err != nil {

@@ -113,3 +113,6 @@ tasks:
             kind: StatefulSet
             name: cool-name
             namespace: tasks
+  - name: include-loop
+    actions:
+      - task: local:loop
