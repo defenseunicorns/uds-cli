@@ -83,7 +83,7 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 	// check variables overrides
 	cmd = strings.Split("zarf tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
 	outputUIColor, _, err := e2e.UDS(cmd...)
-	require.Equal(t, "'green'", outputUIColor)
+	require.Equal(t, "'green, yellow'", outputUIColor)
 	require.NoError(t, err)
 
 	// check variables overrides, no default but set in config
