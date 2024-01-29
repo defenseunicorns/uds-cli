@@ -64,7 +64,11 @@ func (b *Bundler) Pull() error {
 	}
 
 	// create a remote client just to resolve the root descriptor
-	remote, err := oci.NewOrasRemote(b.cfg.PullOpts.Source, oci.WithArch(config.GetArch()))
+	platform := ocispec.Platform{
+		Architecture: config.GetArch(),
+		OS:           oci.MultiOS,
+	}
+	remote, err := oci.NewOrasRemote(b.cfg.PullOpts.Source, platform)
 	if err != nil {
 		return err
 	}

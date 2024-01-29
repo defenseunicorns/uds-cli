@@ -14,6 +14,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	av3 "github.com/mholt/archiver/v3"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // Publish publishes a bundle to a remote OCI registry
@@ -48,7 +49,11 @@ func (b *Bundler) Publish() error {
 	ociURL := b.cfg.PublishOpts.Destination
 	bundleName := b.bundle.Metadata.Name
 	bundleTag := b.bundle.Metadata.Version
-	remote, err := oci.NewOrasRemote(fmt.Sprintf("%s/%s:%s", ociURL, bundleName, bundleTag), oci.WithArch(config.GetArch()))
+	platform := ocispec.Platform{
+		Architecture: config.GetArch(),
+		OS:           oci.MultiOS,
+	}
+	remote, err := oci.NewOrasRemote(fmt.Sprintf("%s/%s:%s", ociURL, bundleName, bundleTag), platform)
 	if err != nil {
 		return err
 	}

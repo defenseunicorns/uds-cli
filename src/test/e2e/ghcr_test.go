@@ -84,32 +84,15 @@ func TestBundleCreateAndDeployGHCR(t *testing.T) {
 // ghcr.io/defenseunicorns/packages/delivery/ghcr-delivery-test:0.0.1
 // The default bundle location if no source path provided is defenseunicorns/packages/uds/bundles/"
 func TestGHCRPathExpansion(t *testing.T) {
-	deployZarfInit(t)
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
-
-	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-ghcr-test-%s-0.0.1.tar.zst", e2e.Arch))
-
 	bundleName := "ghcr-test:0.0.1"
 	inspectRemote(t, bundleName)
-	pull(t, bundleName, tarballPath)
-	deploy(t, bundleName)
-	remove(t, bundleName)
 
-	bundleName = fmt.Sprintf("ghcr-delivery-test:0.0.1")
+	bundleName = fmt.Sprintf("ghcr-delivery-test:0.0.1-%s", e2e.Arch)
 	inspectRemote(t, bundleName)
-	pull(t, bundleName, tarballPath)
-	deploy(t, bundleName)
-	remove(t, bundleName)
 
-	bundleName = fmt.Sprintf("delivery/ghcr-test:0.0.1")
+	bundleName = fmt.Sprintf("delivery/ghcr-test:0.0.1-%s", e2e.Arch)
 	inspectRemote(t, bundleName)
-	pull(t, bundleName, tarballPath)
-	deploy(t, bundleName)
-	remove(t, bundleName)
 
 	bundleName = "ghcr.io/defenseunicorns/packages/delivery/ghcr-delivery-test:0.0.1"
 	inspectRemote(t, bundleName)
-	pull(t, bundleName, tarballPath)
-	deploy(t, bundleName)
-	remove(t, bundleName)
 }

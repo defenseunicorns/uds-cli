@@ -39,7 +39,11 @@ type RemoteBundler struct {
 // NewRemoteBundler creates a bundler to pull remote Zarf pkgs
 // todo: document this fn better or break out into multiple constructors
 func NewRemoteBundler(pkg types.Package, url string, localDst *ocistore.Store, remoteDst *oci.OrasRemote, tmpDir string) (RemoteBundler, error) {
-	src, err := oci.NewOrasRemote(url, oci.WithArch(config.GetArch()))
+	platform := ocispec.Platform{
+		Architecture: config.GetArch(),
+		OS:           oci.MultiOS,
+	}
+	src, err := oci.NewOrasRemote(url, platform)
 	if err != nil {
 		return RemoteBundler{}, err
 	}
@@ -55,7 +59,11 @@ func NewRemoteBundler(pkg types.Package, url string, localDst *ocistore.Store, r
 
 // GetMetadata grabs metadata from a remote Zarf package's zarf.yaml
 func (b *RemoteBundler) GetMetadata(url string, tmpDir string) (zarfTypes.ZarfPackage, error) {
-	remote, err := oci.NewOrasRemote(url, oci.WithArch(config.GetArch()))
+	platform := ocispec.Platform{
+		Architecture: config.GetArch(),
+		OS:           oci.MultiOS,
+	}
+	remote, err := oci.NewOrasRemote(url, platform)
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, err
 	}

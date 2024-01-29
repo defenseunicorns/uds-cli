@@ -255,9 +255,13 @@ func (op *ociProvider) PublishBundle(_ types.UDSBundle, _ *oci.OrasRemote) error
 func getOCIValidatedSource(source string) (string, error) {
 	originalSource := source
 
+	platform := ocispec.Platform{
+		Architecture: config.GetArch(),
+		OS:           oci.MultiOS,
+	}
 	// Check provided repository path
 	sourceWithOCI := EnsureOCIPrefix(source)
-	remote, err := oci.NewOrasRemote(sourceWithOCI, oci.WithArch(config.GetArch()))
+	remote, err := oci.NewOrasRemote(sourceWithOCI, platform)
 	if err == nil {
 		source = sourceWithOCI
 		_, err = remote.ResolveRoot()
@@ -267,7 +271,7 @@ func getOCIValidatedSource(source string) (string, error) {
 	if err != nil {
 		// Check in ghcr uds bundle path
 		source = GHCRUDSBundlePath + originalSource
-		remote, err = oci.NewOrasRemote(source, oci.WithArch(config.GetArch()))
+		remote, err = oci.NewOrasRemote(source, platform)
 		if err == nil {
 			_, err = remote.ResolveRoot()
 		}
@@ -275,7 +279,7 @@ func getOCIValidatedSource(source string) (string, error) {
 			message.Debugf("%s: not found", source)
 			// Check in delivery bundle path
 			source = GHCRDeliveryBundlePath + originalSource
-			remote, err = oci.NewOrasRemote(source, oci.WithArch(config.GetArch()))
+			remote, err = oci.NewOrasRemote(source, platform)
 			if err == nil {
 				_, err = remote.ResolveRoot()
 			}
@@ -283,7 +287,7 @@ func getOCIValidatedSource(source string) (string, error) {
 				message.Debugf("%s: not found", source)
 				// Check in packages bundle path
 				source = GHCRPackagesPath + originalSource
-				remote, err = oci.NewOrasRemote(source, oci.WithArch(config.GetArch()))
+				remote, err = oci.NewOrasRemote(source, platform)
 				if err == nil {
 					_, err = remote.ResolveRoot()
 				}
