@@ -9,7 +9,7 @@ jq '.definitions |= map_values(. + {"patternProperties": {"^x-": {}}})' tasks.sc
 mv temp_tasks.schema.json tasks.schema.json
 
 # Modifies pattern properties to allow input parameters
-jq '.definitions.Task.properties.inputs.patternProperties = {"^[_a-zA-Z][a-zA-Z0-9_-]*$": {"$schema": "http://json-schema.org/draft-04/schema#","$ref": "#/definitions/InputParameter"}}' tasks.schema.json > temp_tasks.schema.json
+jq '.definitions.Task.properties.inputs.patternProperties = {"^[_a-zA-Z][a-zA-Z0-9_]*$": {"$schema": "http://json-schema.org/draft-04/schema#","$ref": "#/definitions/InputParameter"}}' tasks.schema.json > temp_tasks.schema.json
 mv temp_tasks.schema.json tasks.schema.json
-jq '.definitions.Action.properties.with.patternProperties = {"^[_a-zA-Z][a-zA-Z0-9_-]*$": {"additionalProperties": true}}' tasks.schema.json > temp_tasks.schema.json
+jq '.definitions.Action.properties.with.patternProperties = {"^[_a-zA-Z][a-zA-Z0-9_]*$": {"additionalProperties": true}}' tasks.schema.json > temp_tasks.schema.json
 mv temp_tasks.schema.json tasks.schema.json
