@@ -32,8 +32,8 @@ func TestBundleVariables(t *testing.T) {
 	bundleDir := "src/test/bundles/02-simple-vars"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-simple-vars-%s-0.0.1.tar.zst", e2e.Arch))
 
-	create(t, bundleDir)
-	createRemote(t, bundleDir, "localhost:888")
+	createLocal(t, bundleDir, e2e.Arch)
+	createRemoteInsecure(t, bundleDir, "localhost:888", e2e.Arch)
 
 	os.Setenv("UDS_ANIMAL", "Unicorns")
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/02-simple-vars", "uds-config.yaml"))
@@ -56,7 +56,7 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 	err := os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config.yaml"))
 	require.NoError(t, err)
 
-	create(t, bundleDir)
+	createLocal(t, bundleDir, e2e.Arch)
 	deploy(t, bundlePath)
 
 	// check values overrides
@@ -131,7 +131,7 @@ func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 	// create and deploy bundle
 	bundleDir := "src/test/bundles/07-helm-overrides"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
-	create(t, bundleDir)
+	createLocal(t, bundleDir, e2e.Arch)
 	deploy(t, bundlePath)
 
 	// check override variables, ensure they are coming from env vars and take highest precedence
@@ -158,7 +158,7 @@ func TestVariablePrecedence(t *testing.T) {
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-var-precedence-%s-0.0.1.tar.zst", e2e.Arch))
 	err := os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/08-var-precedence", "uds-config.yaml"))
 	require.NoError(t, err)
-	create(t, bundleDir)
+	createLocal(t, bundleDir, e2e.Arch)
 
 	color := "green"
 	err = os.Setenv("UDS_UI_COLOR", color)

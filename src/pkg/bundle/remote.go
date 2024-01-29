@@ -254,30 +254,19 @@ func (op *ociProvider) PublishBundle(_ types.UDSBundle, _ *oci.OrasRemote) error
 // Returns the validated source path based on the provided oci source path
 func getOCIValidatedSource(source string) (string, error) {
 	originalSource := source
-	// Check if arch specified, if not, append cluster arch
-	if !IsSourceArchSpecified(source) {
-		clusterArchs, err := cluster.NewClusterOrDie().GetArchitectures()
-		var arch string
-		if err != nil {
-			arch = config.GetArch()
-		} else {
-			// This won't work for multi-architecture clusters, in which case, the desired architecture should be specified
-			arch = clusterArchs[0]
-		}
-		source = source + "-" + arch
-	}
-	sourceWithArch := source
-	// Check provided repository path
-	sourceWithOCIAndArch := EnsureOCIPrefix(sourceWithArch)
 
-	remote, err := oci.NewOrasRemote(sourceWithOCIAndArch, oci.WithArch(config.GetArch()))
+	// Check provided repository path
+	sourceWithOCI := EnsureOCIPrefix(source)
+	remote, err := oci.NewOrasRemote(sourceWithOCI, oci.WithArch(config.GetArch()))
 	if err == nil {
-		source = sourceWithOCIAndArch
+		source = sourceWithOCI
 		_, err = remote.ResolveRoot()
+
 	}
+	// if root didn't resolve, expand the path
 	if err != nil {
 		// Check in ghcr uds bundle path
-		source = GHCRUDSBundlePath + sourceWithArch
+		source = GHCRUDSBundlePath + originalSource
 		remote, err = oci.NewOrasRemote(source, oci.WithArch(config.GetArch()))
 		if err == nil {
 			_, err = remote.ResolveRoot()
@@ -285,7 +274,7 @@ func getOCIValidatedSource(source string) (string, error) {
 		if err != nil {
 			message.Debugf("%s: not found", source)
 			// Check in delivery bundle path
-			source = GHCRDeliveryBundlePath + sourceWithArch
+			source = GHCRDeliveryBundlePath + originalSource
 			remote, err = oci.NewOrasRemote(source, oci.WithArch(config.GetArch()))
 			if err == nil {
 				_, err = remote.ResolveRoot()
@@ -293,7 +282,7 @@ func getOCIValidatedSource(source string) (string, error) {
 			if err != nil {
 				message.Debugf("%s: not found", source)
 				// Check in packages bundle path
-				source = GHCRPackagesPath + sourceWithArch
+				source = GHCRPackagesPath + originalSource
 				remote, err = oci.NewOrasRemote(source, oci.WithArch(config.GetArch()))
 				if err == nil {
 					_, err = remote.ResolveRoot()
@@ -308,21 +297,22 @@ func getOCIValidatedSource(source string) (string, error) {
 	return source, nil
 }
 
-// IsSourceArchSpecified checks if the architecture is specified in the bundle source
-func IsSourceArchSpecified(source string) bool {
-	// get version
-	v := strings.Split(source, ":")
-	version := v[len(v)-1]
-	// architecture specified after "-" in version
-	a := strings.Split(version, "-")
-	// if "-" is missing or nothing is after "-" in version, arch is not specified
-	if len(a) < 2 {
-		return false
+// ValidateArch validates that the passed in arch matches the cluster arch
+func ValidateArch(arch string) error {
+	// compare bundle arch and cluster arch
+	var clusterArchs []string
+	c, err := cluster.NewCluster()
+	if c != nil {
+		clusterArchs, err = c.GetArchitectures()
+		if err == nil {
+			return err
+		}
+		// check if bundle arch is in clusterArchs
+		if !slices.Contains(clusterArchs, arch) {
+			return fmt.Errorf("arch %s does not match cluster arch, %s", arch, clusterArchs)
+		}
 	}
-	// get specified arch
-	arch := a[len(a)-1]
-	// confirm arch is valid
-	return slices.Contains(config.GetSupportedArchitectures(), arch)
+	return nil
 }
 
 // CheckOCISourcePath checks that provided oci source path is valid, and updates it if it's missing the full path

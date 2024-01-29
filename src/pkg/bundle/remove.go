@@ -31,6 +31,12 @@ func (b *Bundler) Remove() error {
 	}
 	b.cfg.RemoveOpts.Source = source
 
+	// validate CLI config's arch against cluster
+	err = ValidateArch(config.GetArch())
+	if err != nil {
+		return err
+	}
+
 	// create a new provider
 	provider, err := NewBundleProvider(ctx, b.cfg.RemoveOpts.Source, b.tmp)
 	if err != nil {
