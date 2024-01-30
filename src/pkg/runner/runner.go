@@ -478,6 +478,7 @@ func (r *Runner) checkForTaskLoops(task types.Task, tasksFile types.TasksFile, s
 	return nil
 }
 
+// validateActionableTaskCall validates a tasks "withs" and inputs
 func validateActionableTaskCall(inputTaskName string, inputs map[string]types.InputParameter, withs map[string]string) error {
 	missing := []string{}
 	for inputKey, input := range inputs {
@@ -587,13 +588,6 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 	spinner := message.NewProgressSpinner("Running \"%s\"", cmdEscaped)
 	// Persist the spinner output so it doesn't get overwritten by the command output.
 	spinner.EnablePreserveWrites()
-
-	// If the value template is not nil, get the variables for the action.
-	// No special variables or deprecations will be used in the action.
-	// Reload the variables each time in case they have been changed by a previous action.
-	// if valueTemplate != nil {
-	// 	vars, _ = valueTemplate.GetVariables(zarfTypes.ZarfComponent{})
-	// }
 
 	cfg := actionGetCfg(zarfTypes.ZarfComponentActionDefaults{}, *action, r.TemplateMap)
 
