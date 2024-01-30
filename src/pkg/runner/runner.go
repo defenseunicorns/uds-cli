@@ -63,7 +63,10 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 		return err
 	}
 
-	runner.processIncludes(task, tasksFile, setVariables)
+	err = runner.processIncludes(task, tasksFile, setVariables)
+	if err != nil {
+		return err
+	}
 
 	if err = runner.checkForTaskLoops(task, tasksFile, setVariables); err != nil {
 		return err
@@ -71,7 +74,7 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 
 	// if withInputs is not nil, validate that the inputs are sufficient
 	if withInputs != nil {
-		withMap := make(map[string]interface{})
+		withMap := make(map[string]string)
 		withEnv := []string{}
 		for k, v := range withInputs {
 			withMap[k] = v
@@ -389,18 +392,7 @@ func (r *Runner) performAction(action types.Action) error {
 
 		withEnv := []string{}
 		for name := range action.With {
-			switch v := action.With[name].(type) {
-			case string:
-				withEnv = append(withEnv, formatEnvVar(name, v))
-			case int:
-				value := fmt.Sprintf("%d", v)
-				withEnv = append(withEnv, formatEnvVar(name, value))
-			case bool:
-				value := fmt.Sprintf("%t", v)
-				withEnv = append(withEnv, formatEnvVar(name, value))
-			default:
-				return fmt.Errorf("unsupported type %T for input %s", v, name)
-			}
+			withEnv = append(withEnv, formatEnvVar(name, action.With[name]))
 		}
 		if err := validateActionableTaskCall(referencedTask.Name, referencedTask.Inputs, action.With); err != nil {
 			return err
@@ -420,25 +412,17 @@ func (r *Runner) performAction(action types.Action) error {
 	return nil
 }
 
-func templateTaskActionsWithInputs(task types.Task, withs map[string]interface{}) ([]types.Action, error) {
+func templateTaskActionsWithInputs(task types.Task, withs map[string]string) ([]types.Action, error) {
 	data := map[string]map[string]string{
 		"inputs": {},
 	}
+
+	// get inputs from "with" map
 	for name := range withs {
-		var value string
-		switch v := withs[name].(type) {
-		case string:
-			value = v
-		case int:
-			value = fmt.Sprintf("%d", v)
-		case bool:
-			value = fmt.Sprintf("%t", v)
-		default:
-			return nil, fmt.Errorf("unsupported type %T for input %s", v, name)
-		}
-		data["inputs"][name] = value
+		data["inputs"][name] = withs[name]
 	}
 
+	// use default if not populated in data
 	for name := range task.Inputs {
 		if current, ok := data["inputs"][name]; !ok || current == "" {
 			data["inputs"][name] = task.Inputs[name].Default
@@ -494,7 +478,7 @@ func (r *Runner) checkForTaskLoops(task types.Task, tasksFile types.TasksFile, s
 	return nil
 }
 
-func validateActionableTaskCall(inputTaskName string, inputs map[string]types.InputParameter, withs map[string]interface{}) error {
+func validateActionableTaskCall(inputTaskName string, inputs map[string]types.InputParameter, withs map[string]string) error {
 	missing := []string{}
 	for inputKey, input := range inputs {
 		// skip inputs that are not required or have a default value
@@ -504,7 +488,7 @@ func validateActionableTaskCall(inputTaskName string, inputs map[string]types.In
 		checked := false
 		for withKey, withVal := range withs {
 			// verify that the input is in the with map and the "with" has a value
-			if inputKey == withKey && withVal != nil {
+			if inputKey == withKey && withVal != "" {
 				checked = true
 				break
 			}

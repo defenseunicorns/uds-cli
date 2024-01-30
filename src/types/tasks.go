@@ -37,8 +37,8 @@ type InputParameter struct {
 // Action is a Zarf action inside a Task
 type Action struct {
 	*zarfTypes.ZarfComponentAction `yaml:",inline"`
-	TaskReference                  string                 `json:"task,omitempty" jsonschema:"description=The task to run, mutually exclusive with cmd and wait"`
-	With                           map[string]interface{} `json:"with,omitempty" jsonschema:"description=Input parameters to pass to the task,type=object"`
+	TaskReference                  string            `json:"task,omitempty" jsonschema:"description=The task to run, mutually exclusive with cmd and wait"`
+	With                           map[string]string `json:"with,omitempty" jsonschema:"description=Input parameters to pass to the task,type=object"`
 }
 
 // TaskReference references the name of a task

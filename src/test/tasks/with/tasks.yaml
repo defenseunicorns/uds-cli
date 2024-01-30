@@ -1,28 +1,50 @@
-tasks:
-  - name: echo
-    inputs:
-      echo:
-        default: new york
-        description: The thing to echo
-    actions:
-      - cmd: |
-          echo "${{ .inputs.echo }} says hello"
-        description: "Echo ${{ .inputs.echo }}"
+includes:
+  - with: ./composable-tasks.yaml
 
-  - name: hello
-    inputs:
-      hello:
-        default: los angeles
-        description: The thing to say hello to
+tasks:
+  - name: has-default-empty
     actions:
-      # - cmd: |
-      #     echo "FOO=bar" >> .env
-      #     cat .env >> $UDS_ENV
-      #     rm .env
-      #   mute: true
-      # - cmd: env | grep FOO
-      - task: echo
+      - task: with:has-default
+
+  - name: has-default-and-required-empty
+    actions:
+      - task: with:has-default-and-required
+
+  - name: has-default-and-required-supplied
+    actions:
+      - task: with:has-default-and-required
         with:
-          echo: ${{ .inputs.hello }}
-      # - cmd: |
-      #     echo "${INPUT_HELLO}"
+          has-default-and-required: supplied-value
+
+  - name: no-default-empty
+    actions:
+      - task: with:no-default
+
+  - name: no-default-supplied
+    actions:
+      - task: with:no-default
+        with:
+          no-default: supplied-value
+
+  - name: no-default-and-required-empty
+    actions:
+      - task: with:no-default-and-required
+
+  - name: no-default-and-required-supplied
+    actions:
+      - task: with:no-default-and-required
+        with:
+          no-default-and-required: supplied-value
+
+  - name: no-default-and-required-supplied-extra
+    actions:
+      - task: with:no-default-and-required
+        with:
+          no-default-and-required: supplied-value
+          extra: extra-value
+
+  - name: deprecated-task
+    actions:
+      - task: with:deprecated-message
+        with:
+          deprecated-message: deprecated-value
