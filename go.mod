@@ -18,7 +18,7 @@ require (
 	golang.org/x/mod v0.14.0
 	golang.org/x/sync v0.6.0
 	helm.sh/helm/v3 v3.13.3
-	oras.land/oras-go/v2 v2.3.1
+	oras.land/oras-go/v2 v2.4.0
 )
 
 require (
