@@ -377,7 +377,7 @@ func TestTaskRunner(t *testing.T) {
 	t.Run("test call to zarf tools wait-for", func(t *testing.T) {
 		t.Parallel()
 		_, stdErr, err := e2e.UDS("run", "wait", "--file", "src/test/tasks/tasks.yaml")
-		require.NoError(t, err)
+		require.Error(t, err)
 		require.Contains(t, stdErr, "Waiting for")
 	})
 }

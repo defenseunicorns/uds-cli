@@ -63,10 +63,8 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 		return err
 	}
 
-	err = runner.processIncludes(task, tasksFile, setVariables)
-	if err != nil {
-		return err
-	}
+	// todo: err check this fn
+	runner.processIncludes(task, tasksFile, setVariables)
 
 	if err = runner.checkForTaskLoops(task, tasksFile, setVariables); err != nil {
 		return err
