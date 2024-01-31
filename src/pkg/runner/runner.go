@@ -74,19 +74,18 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 
 	// if withInputs is not nil, validate that the inputs are sufficient
 	if withInputs != nil {
-		withMap := make(map[string]string)
 		withEnv := []string{}
 		for k, v := range withInputs {
-			withMap[k] = v
+			withInputs[k] = v
 			withEnv = append(withEnv, formatEnvVar(k, v))
 		}
 
-		task.Actions, err = templateTaskActionsWithInputs(task, withMap)
+		task.Actions, err = templateTaskActionsWithInputs(task, withInputs)
 		if err != nil {
 			return err
 		}
 
-		if err := validateActionableTaskCall(task.Name, task.Inputs, withMap); err != nil {
+		if err := validateActionableTaskCall(task.Name, task.Inputs, withInputs); err != nil {
 			return err
 		}
 
