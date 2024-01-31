@@ -54,7 +54,7 @@ func TestBundleVariables(t *testing.T) {
 	require.Contains(t, stderr, "output-var SPECIFIC_PKG_VAR = output-var-set")
 	require.Contains(t, stderr, "receive-var SPECIFIC_PKG_VAR = not-set")
 
-	_, stderr = runCmd(t, "deploy "+bundleTarballPath+" --set output-var.SPECIFIC_PKG_VAR=output --set receive-var.SPECIFIC_PKG_VAR=receive --confirm -l=debug")
+	_, stderr = runCmd(t, "deploy "+bundleTarballPath+" --set output-var.specific_pkg_var=output --set receive-var.SPECIFIC_PKG_VAR=receive --confirm -l=debug")
 	require.Contains(t, stderr, "output-var SPECIFIC_PKG_VAR = output")
 	require.Contains(t, stderr, "receive-var SPECIFIC_PKG_VAR = receive")
 
