@@ -180,7 +180,7 @@ func TestTaskRunner(t *testing.T) {
 	t.Run("includes task loop", func(t *testing.T) {
 		t.Parallel()
 
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "include-loop")
+		stdOut, stdErr, err := e2e.UDS("run", "include-loop", "--file", "src/test/tasks/tasks.yaml")
 		require.Error(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "task loop detected")
 	})
