@@ -18,7 +18,6 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	av3 "github.com/mholt/archiver/v3"
 	av4 "github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -27,11 +26,11 @@ import (
 )
 
 type tarballBundleProvider struct {
-	ctx          context.Context
-	src          string
-	dst          string
-	manifest     *oci.ZarfOCIManifest
-	manifestDesc ocispec.Descriptor
+	ctx                context.Context
+	src                string
+	dst                string
+	bundleRootManifest *oci.ZarfOCIManifest
+	bundleRootDesc     ocispec.Descriptor
 }
 
 // CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
@@ -48,7 +47,7 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool) error {
 	SBOMArtifactPathMap := make(PathMap)
 	containsSBOMs := false
 
-	for _, layer := range tp.manifest.Layers {
+	for _, layer := range tp.bundleRootManifest.Layers {
 		// get Zarf image manifests from bundle manifest
 		if layer.Annotations[ocispec.AnnotationTitle] == config.BundleYAML {
 			continue
@@ -115,7 +114,7 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool) error {
 }
 
 func (tp *tarballBundleProvider) getBundleManifest() error {
-	if tp.manifest != nil {
+	if tp.bundleRootManifest != nil {
 		return nil
 	}
 
@@ -138,9 +137,9 @@ func (tp *tarballBundleProvider) getBundleManifest() error {
 		return err
 	}
 
-	// due to logic during the bundle pull process, this index.json should only have one manifest
+	// local bundles only have one manifest entry in their index.json
 	bundleManifestDesc := index.Manifests[0]
-	tp.manifestDesc = bundleManifestDesc
+	tp.bundleRootDesc = bundleManifestDesc
 
 	if len(index.Manifests) > 1 {
 		return fmt.Errorf("expected only one manifest in index.json, found %d", len(index.Manifests))
@@ -171,78 +170,13 @@ func (tp *tarballBundleProvider) getBundleManifest() error {
 		return err
 	}
 
-	tp.manifest = manifest
+	tp.bundleRootManifest = manifest
 	return nil
 }
 
 // LoadBundle loads a bundle from a tarball
 func (tp *tarballBundleProvider) LoadBundle(_ int) (PathMap, error) {
-	loaded := make(PathMap)
-
-	if err := tp.getBundleManifest(); err != nil {
-		return nil, err
-	}
-
-	store, err := ocistore.NewWithContext(tp.ctx, tp.dst)
-	if err != nil {
-		return nil, err
-	}
-
-	var layersToExtract []ocispec.Descriptor
-
-	format := av4.CompressedArchive{
-		Compression: av4.Zstd{},
-		Archival:    av4.Tar{},
-	}
-
-	sourceArchive, err := os.Open(tp.src)
-	if err != nil {
-		return nil, err
-	}
-
-	defer sourceArchive.Close()
-
-	for _, layer := range tp.manifest.Layers {
-		if layer.MediaType == ocispec.MediaTypeImageManifest {
-			var manifest oci.ZarfOCIManifest
-			if err := format.Extract(tp.ctx, sourceArchive, []string{filepath.Join(config.BlobsDir, layer.Digest.Encoded())}, utils.ExtractJSON(&manifest)); err != nil {
-				return nil, err
-			}
-			layersToExtract = append(layersToExtract, layer)
-			layersToExtract = append(layersToExtract, manifest.Layers...)
-		} else if layer.MediaType == oci.ZarfLayerMediaTypeBlob {
-			rel := layer.Annotations[ocispec.AnnotationTitle]
-			layersToExtract = append(layersToExtract, layer)
-			loaded[rel] = filepath.Join(tp.dst, config.BlobsDir, layer.Digest.Encoded())
-		}
-	}
-
-	cacheFunc := func(ctx context.Context, file av4.File) error {
-		desc := helpers.Find(layersToExtract, func(layer ocispec.Descriptor) bool {
-			return layer.Digest.Encoded() == filepath.Base(file.NameInArchive)
-		})
-		r, err := file.Open()
-		if err != nil {
-			return err
-		}
-		defer r.Close()
-		return store.Push(ctx, desc, r)
-	}
-
-	pathsInArchive := []string{}
-	for _, layer := range layersToExtract {
-		sha := layer.Digest.Encoded()
-		if layer.MediaType == oci.ZarfLayerMediaTypeBlob {
-			pathsInArchive = append(pathsInArchive, filepath.Join(config.BlobsDir, sha))
-			loaded[sha] = filepath.Join(tp.dst, config.BlobsDir, sha)
-		}
-	}
-
-	if err := format.Extract(tp.ctx, sourceArchive, pathsInArchive, cacheFunc); err != nil {
-		return nil, err
-	}
-
-	return loaded, nil
+	return nil, fmt.Errorf("uds pull does not support pulling local bundles")
 }
 
 // LoadBundleMetadata loads a bundle's metadata from a tarball
@@ -255,7 +189,7 @@ func (tp *tarballBundleProvider) LoadBundleMetadata() (PathMap, error) {
 	loaded := make(PathMap)
 
 	for _, path := range pathsToExtract {
-		layer := tp.manifest.Locate(path)
+		layer := tp.bundleRootManifest.Locate(path)
 		if !oci.IsEmptyDescriptor(layer) {
 			pathInTarball := filepath.Join(config.BlobsDir, layer.Digest.Encoded())
 			abs := filepath.Join(tp.dst, pathInTarball)
@@ -302,7 +236,7 @@ func (tp *tarballBundleProvider) getZarfLayers(store *ocistore.Store, pkgManifes
 
 // PublishBundle publishes a local bundle to a remote OCI registry
 func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *oci.OrasRemote) error {
-	var layersToPull []ocispec.Descriptor
+	var layersToPush []ocispec.Descriptor
 	if err := tp.getBundleManifest(); err != nil {
 		return err
 	}
@@ -314,8 +248,8 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 		return err
 	}
 	// push bundle layers to remote
-	for _, manifestDesc := range tp.manifest.Layers {
-		layersToPull = append(layersToPull, manifestDesc)
+	for _, manifestDesc := range tp.bundleRootManifest.Layers {
+		layersToPush = append(layersToPush, manifestDesc)
 		if manifestDesc.Annotations[ocispec.AnnotationTitle] == config.BundleYAML {
 			continue // uds-bundle.yaml doesn't have layers
 		}
@@ -324,25 +258,57 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 		if err != nil {
 			return err
 		}
-		layersToPull = append(layersToPull, layers...)
+		layersToPush = append(layersToPush, layers...)
 	}
 
 	// grab image config
-	layersToPull = append(layersToPull, tp.manifest.Config)
+	layersToPush = append(layersToPush, tp.bundleRootManifest.Config)
 
 	// copy bundle
-	copyOpts := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
+	copyOpts := utils.CreateCopyOpts(layersToPush, config.CommonOptions.OCIConcurrency)
 	if err != nil {
 		return err
 	}
 	remote.Transport.ProgressBar = message.NewProgressBar(estimatedBytes, fmt.Sprintf("Publishing %s:%s", remote.Repo().Reference.Repository, remote.Repo().Reference.Reference))
 	defer remote.Transport.ProgressBar.Stop()
-	ref := fmt.Sprintf("%s-%s", bundle.Metadata.Version, bundle.Metadata.Architecture)
+
+	ref := bundle.Metadata.Version
+
+	// check for existing index
+	index, err := utils.GetIndex(remote, ref)
+	if err != nil {
+		return err
+	}
+
 	_, err = oras.Copy(tp.ctx, store, ref, remote.Repo(), ref, copyOpts)
 	if err != nil {
 		return err
 	}
-	remote.Transport.ProgressBar.Successf("Published %s", remote.Repo().Reference)
 
+	// create or update, then push index.json
+	err = utils.UpdateIndex(index, remote, bundle, tp.bundleRootDesc)
+	if err != nil {
+		return err
+	}
+
+	remote.Transport.ProgressBar.Successf("Published %s", remote.Repo().Reference)
 	return nil
+}
+
+// ZarfPackageNameMap gets zarf package name mappings from tarball provider
+func (tp *tarballBundleProvider) ZarfPackageNameMap() (map[string]string, error) {
+	if err := tp.getBundleManifest(); err != nil {
+		return nil, err
+	}
+
+	nameMap := make(map[string]string)
+	for _, layer := range tp.bundleRootManifest.Layers {
+		if layer.MediaType == oci.ZarfLayerMediaTypeBlob {
+			// only the uds bundle layer will have AnnotationTitle set
+			if layer.Annotations[ocispec.AnnotationTitle] != config.BundleYAML {
+				nameMap[layer.Annotations[config.UDSPackageNameAnnotation]] = layer.Annotations[config.ZarfPackageNameAnnotation]
+			}
+		}
+	}
+	return nameMap, nil
 }

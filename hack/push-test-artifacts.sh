@@ -5,6 +5,9 @@
 
 set -e
 
+# used when pushing to GHCR using a local version of UDS; useful for testing changes to OCI
+#alias uds=<path>/build/uds-mac-apple
+
 # create the nginx and podinfo Zarf packages
 cd ./../src/test/packages/nginx
 zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a amd64
@@ -29,9 +32,9 @@ uds create . -o ghcr.io/defenseunicorns/packages/delivery --confirm -a amd64
 uds create . -o ghcr.io/defenseunicorns/packages/delivery --confirm -a arm64
 
 # change name of bundle for testing purposes
-sed -i'' -e 's/ghcr-test/ghcr-delivery-test/g' uds-bundle.yaml
+sed -i '' -e 's/ghcr-test/ghcr-delivery-test/g' uds-bundle.yaml
 uds create . -o ghcr.io/defenseunicorns/packages/delivery --confirm -a amd64
 uds create . -o ghcr.io/defenseunicorns/packages/delivery --confirm -a arm64
-sed -i'' -e 's/ghcr-delivery-test/ghcr-test/g' uds-bundle.yaml
+sed -i '' -e 's/ghcr-delivery-test/ghcr-test/g' uds-bundle.yaml
 
-echo "Finished pushing test artifacts to GHCR."
+printf "\nSuccessfully pushed all test artifacts to GHCR."

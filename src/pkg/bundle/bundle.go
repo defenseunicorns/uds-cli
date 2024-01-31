@@ -52,7 +52,8 @@ func Create(b *Bundler, signature []byte) error {
 	// grab all Zarf pkgs from OCI and put blobs in OCI store
 	for i, pkg := range bundle.Packages {
 		fetchSpinner := message.NewProgressSpinner("Fetching package %s", pkg.Name)
-
+		zarfPackageName := ""
+		zarfRootLayerAdded := false
 		defer fetchSpinner.Stop()
 
 		if pkg.Repository != "" {
@@ -81,7 +82,37 @@ func Create(b *Bundler, signature []byte) error {
 					}
 					// ensure media type is Zarf blob for layers in the bundle's root manifest
 					layerDesc.MediaType = oci.ZarfLayerMediaTypeBlob
+
+					// add package name annotations
+					annotations := make(map[string]string)
+					layerDesc.Annotations = annotations
+					layerDesc.Annotations[config.UDSPackageNameAnnotation] = pkg.Name
+
+					// If zarf package name has been obtained from zarf config, set the zarf package name annotation
+					// This block of code will only be triggered if the zarf config is processed before the zarf image manifest
+					if zarfPackageName != "" {
+						layerDesc.Annotations[config.ZarfPackageNameAnnotation] = zarfPackageName
+					}
+
 					rootManifest.Layers = append(rootManifest.Layers, layerDesc)
+					zarfRootLayerAdded = true
+				} else if layerDesc.MediaType == oci.ZarfConfigMediaType {
+					// read in and unmarshall zarf config
+					jsonData, err := os.ReadFile(filepath.Join(b.tmp, config.BlobsDir, layerDesc.Digest.Encoded()))
+					if err != nil {
+						return err
+					}
+					var zarfConfigData oci.ConfigPartial
+					err = json.Unmarshal(jsonData, &zarfConfigData)
+					if err != nil {
+						return err
+					}
+					zarfPackageName = zarfConfigData.Annotations[ocispec.AnnotationTitle]
+					// Check if zarf image manifest has been added to root manifest already, if so add zarfPackageName annotation
+					// This block of code will only be triggered if the zarf image manifest is processed before the zarf config
+					if zarfRootLayerAdded {
+						rootManifest.Layers[i].Annotations[config.ZarfPackageNameAnnotation] = zarfPackageName
+					}
 				}
 				digest := layerDesc.Digest.Encoded()
 				artifactPathMap[filepath.Join(b.tmp, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
@@ -109,6 +140,11 @@ func Create(b *Bundler, signature []byte) error {
 			}
 
 			zarfPkgDesc, err := localBundler.ToBundle(store, zarfPkg, artifactPathMap, b.tmp, pkgTmp)
+
+			// add package name annotations, for local zarf packages, these names will be the same
+			zarfPkgDesc.Annotations = make(map[string]string)
+			zarfPkgDesc.Annotations[config.UDSPackageNameAnnotation] = pkg.Name
+			zarfPkgDesc.Annotations[config.ZarfPackageNameAnnotation] = pkg.Name
 
 			if err != nil {
 				return err
@@ -177,12 +213,13 @@ func Create(b *Bundler, signature []byte) error {
 	}
 
 	// tag the local bundle artifact
-	ref := fmt.Sprintf("%s-%s", bundle.Metadata.Version, bundle.Metadata.Architecture)
-	err = store.Tag(ctx, rootManifestDesc, ref)
+	// todo: no need to tag the local artifact
+	err = store.Tag(ctx, rootManifestDesc, bundle.Metadata.Version)
 	if err != nil {
 		return err
 	}
-	err = cleanIndexJSON(b.tmp, ref)
+	// ensure the bundle root manifest is the only manifest in the index.json
+	err = cleanIndexJSON(b.tmp, rootManifestDesc)
 	if err != nil {
 		return err
 	}
@@ -197,7 +234,7 @@ func Create(b *Bundler, signature []byte) error {
 }
 
 // CreateAndPublish creates the bundle in an OCI registry publishes w/ optional signature to the remote repository.
-func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signature []byte) error {
+func CreateAndPublish(remoteDst *oci.OrasRemote, bundle types.UDSBundle, signature []byte) error {
 	if bundle.Metadata.Architecture == "" {
 		return fmt.Errorf("architecture is required for bundling")
 	}
@@ -221,6 +258,16 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 		// ensure media type is a Zarf blob and append to bundle root manifest
 		zarfManifestDesc.MediaType = oci.ZarfLayerMediaTypeBlob
 		message.Debugf("Pushed %s sub-manifest into %s: %s", url, dstRef, message.JSONValue(zarfManifestDesc))
+
+		// add package name annotations to zarf manifest
+		zarfYamlFile, err := remoteBundler.RemoteSrc.FetchZarfYAML()
+		if err != nil {
+			return err
+		}
+		zarfManifestDesc.Annotations = make(map[string]string)
+		zarfManifestDesc.Annotations[config.UDSPackageNameAnnotation] = pkg.Name
+		zarfManifestDesc.Annotations[config.ZarfPackageNameAnnotation] = zarfYamlFile.Metadata.Name
+
 		rootManifest.Layers = append(rootManifest.Layers, zarfManifestDesc)
 
 		pushSpinner := message.NewProgressSpinner("")
@@ -272,11 +319,23 @@ func CreateAndPublish(remoteDst *oci.OrasRemote, bundle *types.UDSBundle, signat
 
 	message.Debug("Pushed config:", message.JSONValue(configDesc))
 
+	// check for existing index
+	index, err := utils.GetIndex(remoteDst, dstRef.String())
+	if err != nil {
+		return err
+	}
+
+	// push bundle root manifest
 	rootManifest.Config = configDesc
 	rootManifest.SchemaVersion = 2
 	rootManifest.Annotations = manifestAnnotationsFromMetadata(&bundle.Metadata) // maps to registry UI
+	rootManifestDesc, err := utils.ToOCIRemote(rootManifest, ocispec.MediaTypeImageManifest, remoteDst)
+	if err != nil {
+		return err
+	}
 
-	_, err = utils.ToOCIRemote(rootManifest, ocispec.MediaTypeImageManifest, remoteDst)
+	// create or update, then push index.json
+	err = utils.UpdateIndex(index, remoteDst, bundle, rootManifestDesc)
 	if err != nil {
 		return err
 	}
@@ -458,7 +517,7 @@ func pushBundleSignature(ctx context.Context, store *ocistore.Store, signature [
 
 // rebuild index.json because copying remote Zarf pkgs adds unnecessary entries
 // this is due to root manifest in Zarf packages having an image manifest media type
-func cleanIndexJSON(tmpDir, ref string) error {
+func cleanIndexJSON(tmpDir string, bundleRootDesc ocispec.Descriptor) error {
 	indexBytes, err := os.ReadFile(filepath.Join(tmpDir, "index.json"))
 	if err != nil {
 		return err
@@ -469,7 +528,7 @@ func cleanIndexJSON(tmpDir, ref string) error {
 	}
 
 	for _, manifestDesc := range index.Manifests {
-		if manifestDesc.Annotations[ocispec.AnnotationRefName] == ref {
+		if manifestDesc.Digest.Encoded() == bundleRootDesc.Digest.Encoded() {
 			index.Manifests = []ocispec.Descriptor{manifestDesc}
 			break
 		}

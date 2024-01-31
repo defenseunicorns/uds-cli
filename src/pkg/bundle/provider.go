@@ -8,10 +8,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // Provider is an interface for processing bundles
@@ -37,9 +39,14 @@ type Provider interface {
 	// CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
 	CreateBundleSBOM(extractSBOM bool) error
 
+	// PublishBundle publishes a bundle to a remote OCI repo
 	PublishBundle(bundle types.UDSBundle, remote *oci.OrasRemote) error
 
+	// getBundleManifest gets the bundle's root manifest
 	getBundleManifest() error
+
+	// ZarfPackageNameMap returns a map of the zarf package name specified in the uds-bundle.yaml to the actual zarf package name
+	ZarfPackageNameMap() (map[string]string, error)
 }
 
 // PathMap is a map of either absolute paths to relative paths or relative paths to absolute paths
@@ -49,7 +56,11 @@ type PathMap map[string]string
 func NewBundleProvider(ctx context.Context, source, destination string) (Provider, error) {
 	if helpers.IsOCIURL(source) {
 		provider := ociProvider{ctx: ctx, src: source, dst: destination}
-		remote, err := oci.NewOrasRemote(source)
+		platform := ocispec.Platform{
+			Architecture: config.GetArch(),
+			OS:           oci.MultiOS,
+		}
+		remote, err := oci.NewOrasRemote(source, platform)
 		if err != nil {
 			return nil, err
 		}

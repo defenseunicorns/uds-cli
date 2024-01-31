@@ -29,7 +29,11 @@ func (b *Bundler) Pull() error {
 	}
 
 	// Get validated source path
-	b.cfg.PullOpts.Source = getOCIValidatedSource(b.cfg.PullOpts.Source)
+	source, err := CheckOCISourcePath(b.cfg.PullOpts.Source)
+	if err != nil {
+		return err
+	}
+	b.cfg.PullOpts.Source = source
 
 	provider, err := NewBundleProvider(context.TODO(), b.cfg.PullOpts.Source, cacheDir)
 	if err != nil {
@@ -50,14 +54,21 @@ func (b *Bundler) Pull() error {
 		return err
 	}
 
-	// pull the bundle
+	// pull the bundle's uds-bundle.yaml and it's Zarf pkgs
+	// todo: refactor this fn, think about pulling the rootDesc first and getting the hashes from there
+	// today, we are getting the Zarf image manifest hashes from the uds-bundle.yaml
+	// in that logic we end up pulling the root manifest twice, once in LoadBundle and the other below in remote.ResolveRoot()
 	loaded, err := provider.LoadBundle(zarfConfig.CommonOptions.OCIConcurrency)
 	if err != nil {
 		return err
 	}
 
 	// create a remote client just to resolve the root descriptor
-	remote, err := oci.NewOrasRemote(b.cfg.PullOpts.Source)
+	platform := ocispec.Platform{
+		Architecture: config.GetArch(),
+		OS:           oci.MultiOS,
+	}
+	remote, err := oci.NewOrasRemote(b.cfg.PullOpts.Source, platform)
 	if err != nil {
 		return err
 	}
@@ -71,7 +82,7 @@ func (b *Bundler) Pull() error {
 	// make an index.json for this bundle and write to tmp
 	index := ocispec.Index{}
 	index.SchemaVersion = 2
-	ref := fmt.Sprintf("%s-%s", b.bundle.Metadata.Version, b.bundle.Metadata.Architecture)
+	ref := b.bundle.Metadata.Version
 	annotations := map[string]string{
 		ocispec.AnnotationRefName: ref,
 	}

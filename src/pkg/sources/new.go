@@ -11,6 +11,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfSources "github.com/defenseunicorns/zarf/src/pkg/packager/sources"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // New creates a new package source based on pkgLocation
@@ -25,8 +26,11 @@ func New(pkgLocation string, pkgName string, opts zarfTypes.ZarfPackageOptions, 
 			BundleLocation: pkgLocation,
 		}
 	} else {
-		modifier := oci.WithArch(config.GetArch())
-		remote, err := oci.NewOrasRemote(pkgLocation, modifier)
+		platform := ocispec.Platform{
+			Architecture: config.GetArch(),
+			OS:           oci.MultiOS,
+		}
+		remote, err := oci.NewOrasRemote(pkgLocation, platform)
 		if err != nil {
 			return nil, err
 		}

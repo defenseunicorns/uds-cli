@@ -8,15 +8,19 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
 	ocistore "oras.land/oras-go/v2/content/oci"
+	"oras.land/oras-go/v2/errdef"
 )
 
 // FetchLayerAndStore fetches a remote layer and copies it to a local store
@@ -37,6 +41,9 @@ func ToOCIStore(t any, mediaType string, store *ocistore.Store) (ocispec.Descrip
 		return ocispec.Descriptor{}, err
 	}
 	desc := content.NewDescriptorFromBytes(mediaType, b)
+	if exists, _ := store.Exists(context.Background(), desc); exists {
+		return desc, nil
+	}
 	if err := store.Push(context.TODO(), desc, bytes.NewReader(b)); err != nil {
 		return ocispec.Descriptor{}, err
 	}
@@ -53,7 +60,7 @@ func ToOCIRemote(t any, mediaType string, remote *oci.OrasRemote) (ocispec.Descr
 	var layerDesc ocispec.Descriptor
 	// if image manifest media type, push to Manifests(), otherwise normal pushLayer()
 	if mediaType == ocispec.MediaTypeImageManifest {
-		layerDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, b)
+		layerDesc = content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, b)
 		if err := remote.Repo().Manifests().PushReference(context.TODO(), layerDesc, bytes.NewReader(b), remote.Repo().Reference.String()); err != nil {
 			return ocispec.Descriptor{}, fmt.Errorf("failed to push manifest: %w", err)
 		}
@@ -84,9 +91,27 @@ func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) oras.Cop
 		var nodes []ocispec.Descriptor
 		_, hasTitleAnnotation := desc.Annotations[ocispec.AnnotationTitle]
 
-		// This if block is for used for finding successors from bundle root manifests during bundle pull/publish ops;
-		// note that ptrs to the Zarf pkg image manifests won't have title annotations, and will follow this code path
-		if desc.MediaType == oci.ZarfLayerMediaTypeBlob && !hasTitleAnnotation {
+		if desc.MediaType == ocispec.MediaTypeImageIndex {
+			// This block is triggered when ORAS initially hits the OCI repo and gets the image index (index.json)
+			// and it grabs the bundle root manifest corresponding to the proper arch
+			// todo: refactor to solve the arch problem using the shas var above instead of checking here
+
+			// get contents of the index.json from its desc
+			successors, err := content.Successors(ctx, fetcher, desc)
+			if err != nil {
+				return nil, err
+			}
+
+			// grab the proper bundle root manifest, based on arch
+			for _, node := range successors {
+				// todo: remove this check once we have a better way to handle arch
+				if node.Platform.Architecture == config.GetArch() {
+					return []ocispec.Descriptor{node}, nil
+				}
+			}
+		} else if desc.MediaType == oci.ZarfLayerMediaTypeBlob && !hasTitleAnnotation {
+			// This if block is for used for finding successors from bundle root manifests during bundle pull/publish ops;
+			// note that ptrs to the Zarf pkg image manifests won't have title annotations, and will follow this code path
 			// adopted from the content.Successors() fn in oras
 			layerBytes, err := content.FetchAll(ctx, fetcher, desc)
 			if err != nil {
@@ -118,4 +143,100 @@ func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) oras.Cop
 		return ret, nil
 	}
 	return copyOpts
+}
+
+// createIndex creates an OCI index and pushes it to a remote based on ref
+func createIndex(bundle types.UDSBundle, rootManifestDesc ocispec.Descriptor) *ocispec.Index {
+	var index ocispec.Index
+	index.MediaType = ocispec.MediaTypeImageIndex
+	index.Versioned.SchemaVersion = 2
+	index.Manifests = []ocispec.Descriptor{
+		{
+			MediaType: ocispec.MediaTypeImageManifest,
+			Digest:    rootManifestDesc.Digest,
+			Size:      rootManifestDesc.Size,
+			Platform: &ocispec.Platform{
+				Architecture: bundle.Metadata.Architecture,
+				OS:           oci.MultiOS,
+			},
+		},
+	}
+	return &index
+}
+
+// addToIndex adds or replaces a bundle root manifest to an OCI index
+func addToIndex(index *ocispec.Index, bundle types.UDSBundle, newManifestDesc ocispec.Descriptor) *ocispec.Index {
+	manifestExists := false
+	for i, manifest := range index.Manifests {
+		// if existing manifest has the same arch as the bundle, don't append new bundle root manifest to index
+		if manifest.Platform != nil && manifest.Platform.Architecture == bundle.Metadata.Architecture {
+			// update digest and size in case they changed with the new bundle root manifest
+			index.Manifests[i].Digest = newManifestDesc.Digest
+			index.Manifests[i].Size = newManifestDesc.Size
+			manifestExists = true
+		}
+	}
+	if !manifestExists {
+		newManifestDesc.Platform = &ocispec.Platform{
+			Architecture: bundle.Metadata.Architecture,
+			OS:           oci.MultiOS,
+		}
+		index.Manifests = append(index.Manifests, newManifestDesc)
+	}
+	return index
+}
+
+func pushIndex(index *ocispec.Index, remote *oci.OrasRemote, ref string) error {
+	indexBytes, err := json.Marshal(index)
+	if err != nil {
+		return err
+	}
+	indexDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageIndex, indexBytes)
+	err = remote.Repo().Manifests().PushReference(context.TODO(), indexDesc, bytes.NewReader(indexBytes), ref)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// UpdateIndex updates or creates a new OCI index based on the index arg, then pushes to the remote OCI repo
+func UpdateIndex(index *ocispec.Index, remote *oci.OrasRemote, bundle types.UDSBundle, newManifestDesc ocispec.Descriptor) error {
+	var newIndex *ocispec.Index
+	ref := bundle.Metadata.Version
+	if index == nil {
+		newIndex = createIndex(bundle, newManifestDesc)
+	} else {
+		newIndex = addToIndex(index, bundle, newManifestDesc)
+	}
+	err := pushIndex(newIndex, remote, ref)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// GetIndex gets the OCI index from a remote repository if the index exists, otherwise returns a
+func GetIndex(remote *oci.OrasRemote, ref string) (*ocispec.Index, error) {
+	var index *ocispec.Index
+	existingRootDesc, err := remote.Repo().Resolve(context.TODO(), ref)
+	if err != nil {
+		// ErrNotFound indicates that the repo hasn't been created yet, expected for brand new repos in a registry
+		// if the err isn't of type ErrNotFound, it's a real error so return it
+		if !errors.Is(err, errdef.ErrNotFound) {
+			return nil, err
+		}
+	}
+	// if an index exists, save it so we can update it after pushing the bundle's root manifest
+	if existingRootDesc.MediaType == ocispec.MediaTypeImageIndex {
+		rc, err := remote.Repo().Fetch(context.TODO(), existingRootDesc)
+		defer rc.Close()
+		b, err := content.ReadAll(rc, existingRootDesc)
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(b, &index); err != nil {
+			return nil, err
+		}
+	}
+	return index, nil
 }

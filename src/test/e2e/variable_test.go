@@ -30,21 +30,25 @@ func TestBundleVariables(t *testing.T) {
 	zarfPublish(t, pkg, "localhost:888")
 
 	bundleDir := "src/test/bundles/02-simple-vars"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-simple-vars-%s-0.0.1.tar.zst", e2e.Arch))
+	bundleTarballPath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-simple-vars-%s-0.0.1.tar.zst", e2e.Arch))
 
-	create(t, bundleDir)
-	createRemote(t, bundleDir, "localhost:888")
+	createLocal(t, bundleDir, e2e.Arch)
+	createRemoteInsecure(t, bundleDir, "localhost:888", e2e.Arch)
 
 	os.Setenv("UDS_ANIMAL", "Unicorns")
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/02-simple-vars", "uds-config.yaml"))
 
-	_, stderr := deploy(t, bundlePath)
+	_, stderr := deploy(t, bundleTarballPath)
 
 	require.NotContains(t, stderr, "CLIVersion is set to 'unset' which can cause issues with package creation and deployment")
 	require.Contains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
 	require.Contains(t, stderr, "This fun-fact demonstrates precedence: The Red Dragon is the national symbol of Wales")
 	require.Contains(t, stderr, "shared var in output-var pkg: burning.boats")
 	require.Contains(t, stderr, "shared var in receive-var pkg: burning.boats")
+
+	_, stderr = runCmd(t, "deploy "+bundleTarballPath+" --set ANIMAL=Longhorns --set COUNTRY=Texas --confirm -l=debug")
+	require.Contains(t, stderr, "This fun-fact was imported: Longhorns are the national animal of Texas")
+	require.NotContains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
 }
 
 func TestBundleWithHelmOverrides(t *testing.T) {
@@ -56,7 +60,7 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 	err := os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config.yaml"))
 	require.NoError(t, err)
 
-	create(t, bundleDir)
+	createLocal(t, bundleDir, e2e.Arch)
 	deploy(t, bundlePath)
 
 	// check values overrides
@@ -83,7 +87,7 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 	// check variables overrides
 	cmd = strings.Split("zarf tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
 	outputUIColor, _, err := e2e.UDS(cmd...)
-	require.Equal(t, "'green'", outputUIColor)
+	require.Equal(t, "'green, yellow'", outputUIColor)
 	require.NoError(t, err)
 
 	// check variables overrides, no default but set in config
@@ -131,7 +135,7 @@ func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 	// create and deploy bundle
 	bundleDir := "src/test/bundles/07-helm-overrides"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
-	create(t, bundleDir)
+	createLocal(t, bundleDir, e2e.Arch)
 	deploy(t, bundlePath)
 
 	// check override variables, ensure they are coming from env vars and take highest precedence
@@ -158,7 +162,7 @@ func TestVariablePrecedence(t *testing.T) {
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-var-precedence-%s-0.0.1.tar.zst", e2e.Arch))
 	err := os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/08-var-precedence", "uds-config.yaml"))
 	require.NoError(t, err)
-	create(t, bundleDir)
+	createLocal(t, bundleDir, e2e.Arch)
 
 	color := "green"
 	err = os.Setenv("UDS_UI_COLOR", color)

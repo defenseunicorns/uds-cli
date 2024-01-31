@@ -1,0 +1,13 @@
+kind: ZarfPackageConfig
+metadata:
+  name: real-simple
+  version: 0.0.1
+
+components:
+  - name: test
+    required: true
+    actions:
+      onDeploy:
+        after:
+          - cmd: |
+              ./zarf p inspect oci://ghcr.io/defenseunicorns/uds-cli/nginx:0.0.1

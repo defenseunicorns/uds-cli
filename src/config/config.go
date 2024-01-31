@@ -52,6 +52,12 @@ const (
 
 	// EnvVarPrefix is the prefix for environment variables to override bundle helm variables
 	EnvVarPrefix = "UDS_"
+
+	// ZarfPackageNameAnnotation is the annotation key for the value that specifies the zarf package name
+	ZarfPackageNameAnnotation = "zarf.package.name"
+
+	// UDSPackageNameAnnotation is the annotation key for the value that specifies the name given to a zarf package in the uds-bundle.yaml
+	UDSPackageNameAnnotation = "uds.package.name"
 )
 
 var (
@@ -96,11 +102,6 @@ func GetArch(archs ...string) string {
 	}
 
 	return runtime.GOARCH
-}
-
-// GetSupportedArchitectures returns a list of valid architectures
-func GetSupportedArchitectures() []string {
-	return []string{"amd64", "arm64"}
 }
 
 var (

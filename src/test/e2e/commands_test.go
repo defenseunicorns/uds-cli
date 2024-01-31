@@ -5,8 +5,11 @@
 package test
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,31 +24,25 @@ import (
 
 // This file contains helpers for running UDS CLI commands (ie. uds create/deploy/etc with various flags and options)
 
-func create(t *testing.T, bundlePath string) {
-	cmd := strings.Split(fmt.Sprintf("create %s --confirm --insecure", bundlePath), " ")
+func createLocal(t *testing.T, bundlePath string, arch string) {
+	cmd := strings.Split(fmt.Sprintf("create %s --insecure --confirm -a %s", bundlePath, arch), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
 
-func createSecure(t *testing.T, bundlePath string) {
-	cmd := strings.Split(fmt.Sprintf("create %s --confirm -a %s", bundlePath, e2e.Arch), " ")
+func createRemoteInsecure(t *testing.T, bundlePath, registry, arch string) {
+	cmd := strings.Split(fmt.Sprintf("create %s -o %s --confirm --insecure -a %s", bundlePath, registry, arch), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
 
-func createRemote(t *testing.T, bundlePath string, registry string) {
-	cmd := strings.Split(fmt.Sprintf("create %s -o %s --confirm --insecure", bundlePath, registry), " ")
+func createRemote(t *testing.T, bundlePath, registry, arch string) {
+	cmd := strings.Split(fmt.Sprintf("create %s -o %s --confirm -a %s", bundlePath, registry, arch), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
 
-func createRemoteSecure(t *testing.T, bundlePath string, registry string) {
-	cmd := strings.Split(fmt.Sprintf("create %s -o %s --confirm", bundlePath, registry), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-}
-
-func inspectRemote(t *testing.T, ref string) {
+func inspectRemoteInsecure(t *testing.T, ref string) {
 	cmd := strings.Split(fmt.Sprintf("inspect %s --insecure --sbom", ref), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
@@ -54,6 +51,17 @@ func inspectRemote(t *testing.T, ref string) {
 	err = os.Remove(config.BundleSBOMTar)
 	require.NoError(t, err)
 }
+
+func inspectRemote(t *testing.T, ref string) {
+	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom", ref), " ")
+	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	_, err = os.Stat(config.BundleSBOMTar)
+	require.NoError(t, err)
+	err = os.Remove(config.BundleSBOMTar)
+	require.NoError(t, err)
+}
+
 func inspectRemoteAndSBOMExtract(t *testing.T, ref string) {
 	cmd := strings.Split(fmt.Sprintf("inspect %s --insecure --sbom --extract", ref), " ")
 	_, _, err := e2e.UDS(cmd...)
@@ -64,7 +72,7 @@ func inspectRemoteAndSBOMExtract(t *testing.T, ref string) {
 	require.NoError(t, err)
 }
 
-func inspect(t *testing.T, tarballPath string) {
+func inspectLocal(t *testing.T, tarballPath string) {
 	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom", tarballPath), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
@@ -74,7 +82,7 @@ func inspect(t *testing.T, tarballPath string) {
 	require.NoError(t, err)
 }
 
-func inspectAndSBOMExtract(t *testing.T, tarballPath string) {
+func inspectLocalAndSBOMExtract(t *testing.T, tarballPath string) {
 	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom --extract", tarballPath), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
@@ -86,6 +94,13 @@ func inspectAndSBOMExtract(t *testing.T, tarballPath string) {
 
 func deploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
 	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug", tarballPath), " ")
+	stdout, stderr, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	return stdout, stderr
+}
+
+func runCmd(t *testing.T, input string) (stdout string, stderr string) {
+	cmd := strings.Split(fmt.Sprintf(input), " ")
 	stdout, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 	return stdout, stderr
@@ -138,7 +153,7 @@ func deployAndRemoveRemote(t *testing.T, ref string, tarballPath string) {
 			_, _, err := e2e.UDS(cmd...)
 			require.NoError(t, err)
 
-			cmd = strings.Split(fmt.Sprintf("remove %s --confirm --insecure", tarballPath), " ")
+			cmd = strings.Split(fmt.Sprintf("remove %s --confirm", tarballPath), " ")
 			_, _, err = e2e.UDS(cmd...)
 			require.NoError(t, err)
 		},
@@ -206,4 +221,28 @@ func publishInsecure(t *testing.T, bundlePath, ociPath string) {
 	cmd := strings.Split(fmt.Sprintf("publish %s %s --insecure --oci-concurrency=10", bundlePath, ociPath), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
+}
+
+func queryIndex(t *testing.T, registryURL, bundlePath string) (ocispec.Index, error) {
+	url := fmt.Sprintf("%s/v2/%s/manifests/0.0.1", registryURL, bundlePath)
+	req, err := http.NewRequest("GET", url, nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", ocispec.MediaTypeImageIndex)
+	if registryURL == "https://ghcr.io" {
+		// requires a base64 Github token (can be a PAT)
+		token := os.Getenv("GITHUB_TOKEN")
+		encodedToken := base64.StdEncoding.EncodeToString([]byte(token))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", encodedToken))
+	}
+	client := http.DefaultClient
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if strings.Contains(string(body), "errors") {
+		require.Fail(t, fmt.Sprintf("Received the following error from GHCR: %s", string(body)))
+	}
+	index := ocispec.Index{}
+	err = json.Unmarshal(body, &index)
+	return index, err
 }

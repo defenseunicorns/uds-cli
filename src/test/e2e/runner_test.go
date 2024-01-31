@@ -177,6 +177,14 @@ func TestTaskRunner(t *testing.T) {
 		require.Contains(t, stdErr, "task loop detected")
 	})
 
+	t.Run("includes task loop", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "include-loop")
+		require.Error(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "task loop detected")
+	})
+
 	t.Run("run cmd-set-variable with --set", func(t *testing.T) {
 		t.Parallel()
 

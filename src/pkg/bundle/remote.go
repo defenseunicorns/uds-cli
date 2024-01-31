@@ -63,6 +63,7 @@ func (op *ociProvider) LoadBundleMetadata() (PathMap, error) {
 	if err := zarfUtils.CreateDirectory(filepath.Join(op.dst, config.BlobsDir), 0700); err != nil {
 		return nil, err
 	}
+
 	layers, err := op.PullPackagePaths(config.BundleAlwaysPull, filepath.Join(op.dst, config.BlobsDir))
 	if err != nil {
 		return nil, err
@@ -148,7 +149,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 	return nil
 }
 
-// LoadBundle loads a bundle from a remote source
+// LoadBundle loads a bundle's uds-bundle.yaml and Zarf packages from a remote source
 func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 	var layersToPull []ocispec.Descriptor
 	estimatedBytes := int64(0)
@@ -173,6 +174,7 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 	}
 
 	for _, pkg := range bundle.Packages {
+		// grab sha of zarf image manifest and pull it down
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
 		manifestDesc := op.manifest.Locate(sha)
 		if err != nil {
@@ -182,12 +184,14 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 		if err != nil {
 			return nil, err
 		}
+		// unmarshal the zarf image manifest and add it to the layers to pull
 		var manifest oci.ZarfOCIManifest
 		if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
 			return nil, err
 		}
 		layersToPull = append(layersToPull, manifestDesc)
 		progressBar := message.NewProgressBar(int64(len(manifest.Layers)), fmt.Sprintf("Verifying layers in Zarf package: %s", pkg.Name))
+		// go through the layers in the zarf image manifest and check if they exist in the remote
 		for _, layer := range manifest.Layers {
 			ok, err := op.Repo().Blobs().Exists(op.ctx, layer)
 			progressBar.Add(1)
@@ -195,6 +199,7 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 			if err != nil {
 				return nil, err
 			}
+			// if the layer exists in the remote, add it to the layers to pull
 			if ok {
 				layersToPull = append(layersToPull, layer)
 			}
@@ -207,13 +212,14 @@ func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
 		return nil, err
 	}
 
+	// grab the bundle root manifest and add it to the layers to pull
 	rootDesc, err := op.ResolveRoot()
 	if err != nil {
 		return nil, err
 	}
 	layersToPull = append(layersToPull, rootDesc)
 
-	// copy bundle
+	// create copy options for oras.Copy()
 	copyOpts := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
 
 	// Create a thread to update a progress bar as we save the package to disk
@@ -246,49 +252,42 @@ func (op *ociProvider) PublishBundle(_ types.UDSBundle, _ *oci.OrasRemote) error
 }
 
 // Returns the validated source path based on the provided oci source path
-func getOCIValidatedSource(source string) string {
+func getOCIValidatedSource(source string) (string, error) {
 	originalSource := source
-	// Check if arch specified, if not, append cluster arch
-	if !IsSourceArchSpecified(source) {
-		clusterArchs, err := cluster.NewClusterOrDie().GetArchitectures()
-		var arch string
-		if err != nil {
-			arch = config.GetArch()
-		} else {
-			// This won't work for multi-architecture clusters, in which case, the desired architecture should be specified
-			arch = clusterArchs[0]
-		}
-		source = source + "-" + arch
-	}
-	sourceWithArch := source
-	// Check provided repository path
-	sourceWithOCIAndArch := EnsureOCIPrefix(sourceWithArch)
-	remote, err := oci.NewOrasRemote(sourceWithOCIAndArch)
 
-	if err == nil {
-		source = sourceWithOCIAndArch
-		_, err = remote.ResolveRoot()
+	platform := ocispec.Platform{
+		Architecture: config.GetArch(),
+		OS:           oci.MultiOS,
 	}
+	// Check provided repository path
+	sourceWithOCI := EnsureOCIPrefix(source)
+	remote, err := oci.NewOrasRemote(sourceWithOCI, platform)
+	if err == nil {
+		source = sourceWithOCI
+		_, err = remote.ResolveRoot()
+
+	}
+	// if root didn't resolve, expand the path
 	if err != nil {
 		// Check in ghcr uds bundle path
-		source = GHCRUDSBundlePath + sourceWithArch
-		remote, err = oci.NewOrasRemote(source)
+		source = GHCRUDSBundlePath + originalSource
+		remote, err = oci.NewOrasRemote(source, platform)
 		if err == nil {
 			_, err = remote.ResolveRoot()
 		}
 		if err != nil {
 			message.Debugf("%s: not found", source)
 			// Check in delivery bundle path
-			source = GHCRDeliveryBundlePath + sourceWithArch
-			remote, err = oci.NewOrasRemote(source)
+			source = GHCRDeliveryBundlePath + originalSource
+			remote, err = oci.NewOrasRemote(source, platform)
 			if err == nil {
 				_, err = remote.ResolveRoot()
 			}
 			if err != nil {
 				message.Debugf("%s: not found", source)
 				// Check in packages bundle path
-				source = GHCRPackagesPath + sourceWithArch
-				remote, err = oci.NewOrasRemote(source)
+				source = GHCRPackagesPath + originalSource
+				remote, err = oci.NewOrasRemote(source, platform)
 				if err == nil {
 					_, err = remote.ResolveRoot()
 				}
@@ -299,33 +298,38 @@ func getOCIValidatedSource(source string) string {
 		}
 	}
 	message.Debugf("%s: found", source)
-	return source
+	return source, nil
 }
 
-// IsSourceArchSpecified checks if the architecture is specified in the bundle source
-func IsSourceArchSpecified(source string) bool {
-	// get version
-	v := strings.Split(source, ":")
-	version := v[len(v)-1]
-	// architecture specified after "-" in version
-	a := strings.Split(version, "-")
-	// if "-" is missing or nothing is after "-" in version, arch is not specified
-	if len(a) < 2 {
-		return false
+// ValidateArch validates that the passed in arch matches the cluster arch
+func ValidateArch(arch string) error {
+	// compare bundle arch and cluster arch
+	var clusterArchs []string
+	c, err := cluster.NewCluster()
+	if c != nil {
+		clusterArchs, err = c.GetArchitectures()
+		if err == nil {
+			return err
+		}
+		// check if bundle arch is in clusterArchs
+		if !slices.Contains(clusterArchs, arch) {
+			return fmt.Errorf("arch %s does not match cluster arch, %s", arch, clusterArchs)
+		}
 	}
-	// get specified arch
-	arch := a[len(a)-1]
-	// confirm arch is valid
-	return slices.Contains(config.GetSupportedArchitectures(), arch)
+	return nil
 }
 
 // CheckOCISourcePath checks that provided oci source path is valid, and updates it if it's missing the full path
-func CheckOCISourcePath(source string) string {
+func CheckOCISourcePath(source string) (string, error) {
 	validTarballPath := utils.IsValidTarballPath(source)
+	var err error
 	if !validTarballPath {
-		source = getOCIValidatedSource(source)
+		source, err = getOCIValidatedSource(source)
+		if err != nil {
+			return "", err
+		}
 	}
-	return source
+	return source, nil
 }
 
 // EnsureOCIPrefix ensures oci prefix is part of provided remote source path, and adds it if it's not
@@ -335,4 +339,34 @@ func EnsureOCIPrefix(source string) string {
 		return ociPrefix + source
 	}
 	return source
+}
+
+// ZarfPackageNameMap returns the uds bundle zarf package name to actual zarf package name mappings from the oci provider
+func (op *ociProvider) ZarfPackageNameMap() (map[string]string, error) {
+	if err := op.getBundleManifest(); err != nil {
+		return nil, err
+	}
+
+	loaded, err := op.LoadBundleMetadata()
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := os.ReadFile(loaded[config.BundleYAML])
+	if err != nil {
+		return nil, err
+	}
+
+	var bundle types.UDSBundle
+	if err := goyaml.Unmarshal(b, &bundle); err != nil {
+		return nil, err
+	}
+
+	nameMap := make(map[string]string)
+	for _, pkg := range bundle.Packages {
+		sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
+		manifestDesc := op.manifest.Locate(sha)
+		nameMap[manifestDesc.Annotations[config.UDSPackageNameAnnotation]] = manifestDesc.Annotations[config.ZarfPackageNameAnnotation]
+	}
+	return nameMap, nil
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	av3 "github.com/mholt/archiver/v3"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // Publish publishes a bundle to a remote OCI registry
@@ -21,6 +22,7 @@ func (b *Bundler) Publish() error {
 	b.cfg.PublishOpts.Destination = EnsureOCIPrefix(b.cfg.PublishOpts.Destination)
 
 	// load bundle metadata into memory
+	// todo: having the tmp dir be the provider.dst is weird
 	provider, err := NewBundleProvider(context.TODO(), b.cfg.PublishOpts.Source, b.tmp)
 	if err != nil {
 		return err
@@ -47,8 +49,11 @@ func (b *Bundler) Publish() error {
 	ociURL := b.cfg.PublishOpts.Destination
 	bundleName := b.bundle.Metadata.Name
 	bundleTag := b.bundle.Metadata.Version
-	bundleArch := b.bundle.Metadata.Architecture
-	remote, err := oci.NewOrasRemote(fmt.Sprintf("%s/%s:%s-%s", ociURL, bundleName, bundleTag, bundleArch))
+	platform := ocispec.Platform{
+		Architecture: config.GetArch(),
+		OS:           oci.MultiOS,
+	}
+	remote, err := oci.NewOrasRemote(fmt.Sprintf("%s/%s:%s", ociURL, bundleName, bundleTag), platform)
 	if err != nil {
 		return err
 	}

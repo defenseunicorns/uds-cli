@@ -90,6 +90,6 @@ func init() {
 	runFlags := runCmd.Flags()
 	runFlags.StringVarP(&config.TaskFileLocation, "file", "f", config.TasksYAML, lang.CmdRunFlag)
 	runFlags.BoolVar(&config.ListTasks, "list", false, lang.CmdRunList)
-	runFlags.StringToStringVar(&config.SetRunnerVariables, "set", v.GetStringMapString(common.VPkgCreateSet), lang.CmdRunSetVarFlag)
+	runFlags.StringToStringVar(&config.SetRunnerVariables, "set", nil, lang.CmdRunSetVarFlag)
 	runFlags.StringToStringVar(&config.WithInputs, "with", v.GetStringMapString("runner.with"), lang.CmdRunWithVarFlag)
 }

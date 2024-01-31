@@ -22,7 +22,6 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"github.com/pterm/pterm"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"helm.sh/helm/v3/pkg/cli/values"
 	"helm.sh/helm/v3/pkg/getter"
@@ -50,7 +49,17 @@ func (b *Bundler) Deploy() error {
 	defer metadataSpinner.Stop()
 
 	// Check that provided oci source path is valid, and update it if it's missing the full path
-	b.cfg.DeployOpts.Source = CheckOCISourcePath(b.cfg.DeployOpts.Source)
+	source, err := CheckOCISourcePath(b.cfg.DeployOpts.Source)
+	if err != nil {
+		return err
+	}
+	b.cfg.DeployOpts.Source = source
+
+	// validate config's arch against cluster
+	err = ValidateArch(config.GetArch())
+	if err != nil {
+		return err
+	}
 
 	// create a new provider
 	provider, err := NewBundleProvider(ctx, b.cfg.DeployOpts.Source, b.tmp)
@@ -70,6 +79,7 @@ func (b *Bundler) Deploy() error {
 	}
 
 	// read the bundle's metadata into memory
+	// todo: we also read the SHAs from the uds-bundle.yaml here, should we refactor so that we use the bundle's root manifest?
 	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
@@ -83,6 +93,12 @@ func (b *Bundler) Deploy() error {
 
 	// Check if --resume is set
 	resume := b.cfg.DeployOpts.Resume
+
+	// Maps name given to zarf package in the bundle to the actual name of the zarf package
+	zarfPackageNameMap, err := provider.ZarfPackageNameMap()
+	if err != nil {
+		return err
+	}
 
 	// Check if --packages flag is set and zarf packages have been specified
 	var packagesToDeploy []types.Package
@@ -99,13 +115,13 @@ func (b *Bundler) Deploy() error {
 		if len(userSpecifiedPackages) != len(packagesToDeploy) {
 			return fmt.Errorf("invalid zarf packages specified by --packages")
 		}
-		return deployPackages(packagesToDeploy, resume, b)
+		return deployPackages(packagesToDeploy, resume, b, zarfPackageNameMap)
 	}
 
-	return deployPackages(b.bundle.Packages, resume, b)
+	return deployPackages(b.bundle.Packages, resume, b, zarfPackageNameMap)
 }
 
-func deployPackages(packages []types.Package, resume bool, b *Bundler) error {
+func deployPackages(packages []types.Package, resume bool, b *Bundler, zarfPackageNameMap map[string]string) error {
 	// map of Zarf pkgs and their vars
 	bundleExportedVars := make(map[string]map[string]string)
 
@@ -169,7 +185,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundler) error {
 		// Automatically confirm the package deployment
 		zarfConfig.CommonOptions.Confirm = true
 
-		source, err := sources.New(b.cfg.DeployOpts.Source, pkg.Name, opts, sha)
+		source, err := sources.New(b.cfg.DeployOpts.Source, zarfPackageNameMap[pkg.Name], opts, sha)
 		if err != nil {
 			return err
 		}
@@ -195,37 +211,31 @@ func deployPackages(packages []types.Package, resume bool, b *Bundler) error {
 // loadVariables loads and sets precedence for config-level and imported variables
 func (b *Bundler) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) map[string]string {
 	pkgVars := make(map[string]string)
-	pkgConfigVars := make(map[string]string)
-	pkgEnvVars := make(map[string]string)
-	pkgSharedVars := make(map[string]string)
 
-	// get vars and shared vars loaded into DeployOpts
-	for name, val := range b.cfg.DeployOpts.Variables[pkg.Name] {
-		pkgConfigVars[strings.ToUpper(name)] = fmt.Sprint(val)
+	// Set variables in order or precendence (least specific to most specific)
+	// imported vars
+	for _, imp := range pkg.Imports {
+		pkgVars[strings.ToUpper(imp.Name)] = bundleExportedVars[imp.Package][imp.Name]
 	}
+	// shared vars
 	for name, val := range b.cfg.DeployOpts.SharedVariables {
-		pkgSharedVars[strings.ToUpper(name)] = fmt.Sprint(val)
+		pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
 	}
-
-	// load env vars that start with UDS_
+	// config vars
+	for name, val := range b.cfg.DeployOpts.Variables[pkg.Name] {
+		pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
+	}
+	// env vars (vars that start with UDS_)
 	for _, envVar := range os.Environ() {
 		if strings.HasPrefix(envVar, config.EnvVarPrefix) {
 			parts := strings.Split(envVar, "=")
-			pkgEnvVars[strings.ToUpper(strings.TrimPrefix(parts[0], config.EnvVarPrefix))] = parts[1]
+			pkgVars[strings.ToUpper(strings.TrimPrefix(parts[0], config.EnvVarPrefix))] = parts[1]
 		}
 	}
-
-	// get imported vars
-	pkgImportedVars := make(map[string]string)
-	for _, imp := range pkg.Imports {
-		pkgImportedVars[strings.ToUpper(imp.Name)] = bundleExportedVars[imp.Package][imp.Name]
+	// set vars (vars set with --set flag)
+	for name, val := range b.cfg.DeployOpts.SetVariables {
+		pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
 	}
-
-	// set var precedence (least specific to most specific)
-	maps.Copy(pkgVars, pkgImportedVars)
-	maps.Copy(pkgVars, pkgSharedVars)
-	maps.Copy(pkgVars, pkgConfigVars)
-	maps.Copy(pkgVars, pkgEnvVars)
 	return pkgVars
 }
 
@@ -283,6 +293,10 @@ func (b *Bundler) loadChartOverrides(pkg types.Package) (ZarfOverrideMap, error)
 
 		// Loop through each chart in the component
 		for chartName, chart := range component {
+			//escape commas (with \\) in values so helm v3 can process them
+			for i, value := range chart.Values {
+				chart.Values[i] = strings.ReplaceAll(value, ",", "\\,")
+			}
 			// Merge the chart values with Helm
 			data, err := chart.MergeValues(getter.Providers{})
 			if err != nil {

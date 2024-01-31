@@ -112,3 +112,10 @@ tasks:
           network:
             protocol: tcp
             address: githubstatus.com:443
+          cluster:
+            kind: StatefulSet
+            name: cool-name
+            namespace: tasks
+  - name: include-loop
+    actions:
+      - task: local:loop
