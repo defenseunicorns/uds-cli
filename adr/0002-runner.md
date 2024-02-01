@@ -7,12 +7,12 @@ Accepted
 
 ## Context
 
-Due to frustration with current build tooling (ie. Makefiles) and the need for a more custom build system for UDS, we have decided to experiment with new feature in UDS CLI called UDS Runner. This feature will allow users to define and run complex build-related workflows in a simple, declarative way, based on existing functionality in Zarf Actions.
+Due to frustration with current build tooling (ie. Makefiles) and the need for a more custom build system for UDS, we have decided to experiment with new a feature in UDS CLI called UDS Runner. This feature will allow users to define and run complex build-related workflows in a simple, declarative way, based on existing functionality in Zarf Actions.
 
 ### Alternatives
 
 #### Make
-Aside from concerns around syntax, maintainability and personal preference, we wanted a tool that we could universally use in all environments (dev, CI, prod, etc), and could support creating and deploying Zarf packages and UDS bundles. After becoming frustrated with several overly-large and complex Makefiles to perform these tasks, the team decided to explore additional tooling outside of Make.
+Aside from concerns around syntax, maintainability and personal preference, we wanted a tool that we could use in all environments (dev, CI, prod, etc), and could support creating and deploying Zarf packages and UDS bundles. After becoming frustrated with several overly-large and complex Makefiles to perform these tasks, the team decided to explore additional tooling outside of Make.
 
 #### Task
 According to the [official docs](https://taskfile.dev/) "Task is a task runner / build tool that aims to be simpler and easier to use than, for example, GNU Make." This project was evaluated during a company Dash Days event and was found to be a good fit for our needs. However, due to the context of the larger UDS ecosystem, we are largely unable to bring in projects that have primarily non-US contributors.
