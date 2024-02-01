@@ -380,4 +380,12 @@ func TestTaskRunner(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, stdErr, "Waiting for")
 	})
+
+	t.Run("test task to load env vars from a .env using UDS_ENV", func(t *testing.T) {
+		t.Parallel()
+		stdOut, stdErr, err := e2e.UDS("run", "env-from-file", "--file", "src/test/tasks/tasks.yaml")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "bar")
+		require.Contains(t, stdErr, e2e.Arch)
+	})
 }

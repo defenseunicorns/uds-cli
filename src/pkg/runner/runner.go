@@ -562,7 +562,7 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 			return err
 		}
 
-		// Mute the output becuase it will be noisy.
+		// Mute the output because it will be noisy.
 		t := true
 		action.Mute = &t
 
@@ -582,6 +582,9 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 		return err
 	}
 
+	// load the contents of the env file into the Action, then an action load other env vars by referencing UDS_ENV
+	// in an action and appending more env vars to $UDS_ENV (see task env-from-file in src/test/tasks/tasks.yaml)
+	// todo: rethink this approach, don't make users write bash to load env vars or a .env
 	action.Env = append(action.Env, strings.Split(string(currentEnvFileContents), "\n")...)
 	action.Env = append(action.Env, "UDS_ENV="+r.EnvFilePath)
 
