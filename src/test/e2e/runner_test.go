@@ -388,4 +388,11 @@ func TestTaskRunner(t *testing.T) {
 		require.Contains(t, stdErr, "bar")
 		require.Contains(t, stdErr, e2e.Arch)
 	})
+
+	t.Run("test --with flag", func(t *testing.T) {
+		t.Parallel()
+		stdOut, stdErr, err := e2e.UDS("run", "has-default", "--file", "src/test/tasks/with/composable-tasks.yaml", "--with", "has-default=setting-with-flag")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "setting-with-flag")
+	})
 }

@@ -51,7 +51,7 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 
 	runner.EnvFilePath = filepath.Join(tmpDir, "env")
 
-	// Add the uds arch to the environment.
+	// create the env file with limited perms and add the uds arch to the environment.
 	if err := os.WriteFile(runner.EnvFilePath, []byte("UDS_ARCH="+config.GetArch()+"\n"), 0600); err != nil {
 		return err
 	}
@@ -386,6 +386,7 @@ func (r *Runner) placeFiles(files []zarfTypes.ZarfFile) error {
 
 func (r *Runner) performAction(action types.Action) error {
 	if action.TaskReference != "" {
+		// todo: much of this logic is duplicated in Run, consider refactoring
 		referencedTask, err := r.getTask(action.TaskReference)
 		if err != nil {
 			return err
@@ -418,6 +419,7 @@ func (r *Runner) performAction(action types.Action) error {
 	return nil
 }
 
+// templateTaskActionsWithInputs templates a task's actions with the given inputs
 func templateTaskActionsWithInputs(task types.Task, withs map[string]string) ([]types.Action, error) {
 	data := map[string]map[string]string{
 		"inputs": {},
