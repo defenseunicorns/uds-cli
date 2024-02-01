@@ -17,6 +17,7 @@
 *.zst
 *.zim
 build
+completions
 data/
 dist/
 test-results/
