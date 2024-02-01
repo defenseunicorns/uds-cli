@@ -30,6 +30,10 @@ variables:
     default: foo
 
 tasks:
+  - name: default
+    actions:
+      - cmd: echo "run default task"
+
   - name: example
     actions:
       - task: set-variable
@@ -54,6 +58,12 @@ uds run example
 
 This will run the `example` tasks which in turn runs the `set-variable` and `echo-variable`. In this example, the text "
 bar" should be printed to the screen twice.
+
+In the above example, there is also a `default` task, which is special, optional, task that can be used for the most common entrypoint for your tasks. When trying to run the `default`` task, you can omit the task name from the run command:
+
+```bash
+uds run
+```
 
 Optionally, you can specify the location and name of your `tasks.yaml` using the `--file` or `-f` flag:
 
