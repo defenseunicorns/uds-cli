@@ -234,7 +234,16 @@ func (b *Bundler) loadVariables(pkg types.Package, bundleExportedVars map[string
 	}
 	// set vars (vars set with --set flag)
 	for name, val := range b.cfg.DeployOpts.SetVariables {
-		pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
+		// Check if setting package specific variable (ex. packageName.variableName)
+		splitName := strings.Split(name, string("."))
+		if len(splitName) == 2 {
+			packageName, variableName := splitName[0], splitName[1]
+			if packageName == pkg.Name {
+				pkgVars[strings.ToUpper(variableName)] = fmt.Sprint(val)
+			}
+		} else {
+			pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
+		}
 	}
 	return pkgVars
 }

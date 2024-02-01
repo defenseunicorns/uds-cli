@@ -49,6 +49,18 @@ func TestBundleVariables(t *testing.T) {
 	_, stderr = runCmd(t, "deploy "+bundleTarballPath+" --set ANIMAL=Longhorns --set COUNTRY=Texas --confirm -l=debug")
 	require.Contains(t, stderr, "This fun-fact was imported: Longhorns are the national animal of Texas")
 	require.NotContains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
+
+	_, stderr = runCmd(t, "deploy "+bundleTarballPath+" --set output-var.SPECIFIC_PKG_VAR=output-var-set --confirm -l=debug")
+	require.Contains(t, stderr, "output-var SPECIFIC_PKG_VAR = output-var-set")
+	require.Contains(t, stderr, "receive-var SPECIFIC_PKG_VAR = not-set")
+
+	_, stderr = runCmd(t, "deploy "+bundleTarballPath+" --set output-var.specific_pkg_var=output --set receive-var.SPECIFIC_PKG_VAR=receive --confirm -l=debug")
+	require.Contains(t, stderr, "output-var SPECIFIC_PKG_VAR = output")
+	require.Contains(t, stderr, "receive-var SPECIFIC_PKG_VAR = receive")
+
+	_, stderr = runCmd(t, "deploy "+bundleTarballPath+" --set SPECIFIC_PKG_VAR=errbody --confirm -l=debug")
+	require.Contains(t, stderr, "output-var SPECIFIC_PKG_VAR = errbody")
+	require.Contains(t, stderr, "receive-var SPECIFIC_PKG_VAR = errbody")
 }
 
 func TestBundleWithHelmOverrides(t *testing.T) {

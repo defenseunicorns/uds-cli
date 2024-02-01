@@ -82,6 +82,9 @@ var (
 	// SetRunnerVariables is a map of the run time variables defined using --set
 	SetRunnerVariables map[string]string
 
+	// WithInputs is a map of the values provided as inputs defined using --with
+	WithInputs map[string]string
+
 	// HelmTimeout is the default timeout for helm deploys
 	HelmTimeout = 15 * time.Minute
 )

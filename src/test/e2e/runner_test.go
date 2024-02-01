@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestUseCLI(t *testing.T) {
-	t.Log("E2E: Use CLI")
+func TestTaskRunner(t *testing.T) {
+	t.Log("E2E: Task Runner")
 
 	t.Run("run copy", func(t *testing.T) {
 		t.Parallel()
@@ -29,7 +29,7 @@ func TestUseCLI(t *testing.T) {
 		err := os.WriteFile(baseFilePath, []byte{}, 0600)
 		require.NoError(t, err)
 
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "copy")
+		stdOut, stdErr, err := e2e.UDS("run", "copy", "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 
 		require.FileExists(t, copiedFilePath)
@@ -49,7 +49,7 @@ func TestUseCLI(t *testing.T) {
 		err := os.WriteFile(baseFilePath, []byte{}, 0600)
 		require.NoError(t, err)
 
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "copy-exec")
+		stdOut, stdErr, err := e2e.UDS("run", "copy-exec", "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 
 		require.FileExists(t, copiedFilePath)
@@ -72,7 +72,7 @@ func TestUseCLI(t *testing.T) {
 		err := os.WriteFile(baseFilePath, []byte("test"), 0600)
 		require.NoError(t, err)
 
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "copy-verify")
+		stdOut, stdErr, err := e2e.UDS("run", "copy-verify", "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 
 		require.FileExists(t, copiedFilePath)
@@ -93,7 +93,7 @@ func TestUseCLI(t *testing.T) {
 		err := os.WriteFile(baseFilePath, []byte{}, 0600)
 		require.NoError(t, err)
 
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "copy-symlink")
+		stdOut, stdErr, err := e2e.UDS("run", "copy-symlink", "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 
 		require.FileExists(t, symlinkName)
@@ -114,7 +114,7 @@ func TestUseCLI(t *testing.T) {
 			return
 		}
 		setVar := fmt.Sprintf("GIT_REVISION=%s", gitRev)
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "local-import-with-curl", "--set", setVar)
+		stdOut, stdErr, err := e2e.UDS("run", "local-import-with-curl", "--set", setVar, "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 
 		require.FileExists(t, downloadedFile)
@@ -134,7 +134,7 @@ func TestUseCLI(t *testing.T) {
 		err := os.WriteFile(baseFilePath, []byte("${REPLACE_ME}"), 0600)
 		require.NoError(t, err)
 
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "template-file")
+		stdOut, stdErr, err := e2e.UDS("run", "template-file", "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 
 		require.FileExists(t, copiedFilePath)
@@ -147,7 +147,7 @@ func TestUseCLI(t *testing.T) {
 	t.Run("run action", func(t *testing.T) {
 		t.Parallel()
 
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "action")
+		stdOut, stdErr, err := e2e.UDS("run", "action", "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "specific test string")
 	})
@@ -155,7 +155,7 @@ func TestUseCLI(t *testing.T) {
 	t.Run("run cmd-set-variable", func(t *testing.T) {
 		t.Parallel()
 
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "cmd-set-variable")
+		stdOut, stdErr, err := e2e.UDS("run", "cmd-set-variable", "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "I'm set from setVariables - unique-value")
 		require.Contains(t, stdErr, "I'm set from a runner var - replaced")
@@ -164,7 +164,7 @@ func TestUseCLI(t *testing.T) {
 	t.Run("run reference", func(t *testing.T) {
 		t.Parallel()
 
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "reference")
+		stdOut, stdErr, err := e2e.UDS("run", "reference", "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "other-task")
 	})
@@ -172,7 +172,7 @@ func TestUseCLI(t *testing.T) {
 	t.Run("run recursive", func(t *testing.T) {
 		t.Parallel()
 
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "recursive")
+		stdOut, stdErr, err := e2e.UDS("run", "recursive", "--file", "src/test/tasks/tasks.yaml")
 		require.Error(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "task loop detected")
 	})
@@ -180,7 +180,7 @@ func TestUseCLI(t *testing.T) {
 	t.Run("includes task loop", func(t *testing.T) {
 		t.Parallel()
 
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "include-loop")
+		stdOut, stdErr, err := e2e.UDS("run", "include-loop", "--file", "src/test/tasks/tasks.yaml")
 		require.Error(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "task loop detected")
 	})
@@ -188,7 +188,7 @@ func TestUseCLI(t *testing.T) {
 	t.Run("run cmd-set-variable with --set", func(t *testing.T) {
 		t.Parallel()
 
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "cmd-set-variable", "--set", "REPLACE_ME=replacedWith--setvar", "--set", "UNICORNS=defense")
+		stdOut, stdErr, err := e2e.UDS("run", "cmd-set-variable", "--set", "REPLACE_ME=replacedWith--setvar", "--set", "UNICORNS=defense", "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "I'm set from a runner var - replacedWith--setvar")
 		require.Contains(t, stdErr, "I'm set from a new --set var - defense")
@@ -203,33 +203,33 @@ func TestUseCLI(t *testing.T) {
 			return
 		}
 		setVar := fmt.Sprintf("GIT_REVISION=%s", gitRev)
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "remote-import", "--set", setVar)
+		stdOut, stdErr, err := e2e.UDS("run", "remote-import", "--set", setVar, "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "defenseunicorns is a pretty ok company")
 	})
 
 	t.Run("run rerun-tasks", func(t *testing.T) {
 		t.Parallel()
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "rerun-tasks")
+		stdOut, stdErr, err := e2e.UDS("run", "rerun-tasks", "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 	})
 
 	t.Run("run rerun-tasks-child", func(t *testing.T) {
 		t.Parallel()
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "rerun-tasks-child")
+		stdOut, stdErr, err := e2e.UDS("run", "rerun-tasks-child", "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 	})
 
 	t.Run("run rerun-tasks-recursive", func(t *testing.T) {
 		t.Parallel()
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "rerun-tasks-recursive")
+		stdOut, stdErr, err := e2e.UDS("run", "rerun-tasks-recursive", "--file", "src/test/tasks/tasks.yaml")
 		require.Error(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "task loop detected")
 	})
 
 	t.Run("test includes paths", func(t *testing.T) {
 		t.Parallel()
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "foobar")
+		stdOut, stdErr, err := e2e.UDS("run", "foobar", "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "echo foo")
 		require.Contains(t, stdErr, "echo bar")
@@ -243,7 +243,7 @@ func TestUseCLI(t *testing.T) {
 		}
 		setVar := fmt.Sprintf("GIT_REVISION=%s", gitRev)
 
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "more-foobar", "--set", setVar)
+		stdOut, stdErr, err := e2e.UDS("run", "more-foobar", "--set", setVar, "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "echo foo")
 		require.Contains(t, stdErr, "echo bar")
@@ -258,7 +258,7 @@ func TestUseCLI(t *testing.T) {
 		}
 		setVar := fmt.Sprintf("GIT_REVISION=%s", gitRev)
 
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "extra-foobar", "--set", setVar)
+		stdOut, stdErr, err := e2e.UDS("run", "extra-foobar", "--set", setVar, "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "echo foo")
 		require.Contains(t, stdErr, "echo bar")
@@ -269,10 +269,93 @@ func TestUseCLI(t *testing.T) {
 	t.Run("test variable passing to included tasks", func(t *testing.T) {
 		t.Parallel()
 
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "more-foo", "--set", "FOO_VAR=success")
+		stdOut, stdErr, err := e2e.UDS("run", "more-foo", "--set", "FOO_VAR=success", "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "success")
 		require.NotContains(t, stdErr, "default")
+	})
+
+	t.Run("test that default values for inputs work when not required", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.UDS("run", "has-default-empty", "--file", "src/test/tasks/with/tasks.yaml")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "default")
+		require.NotContains(t, stdErr, "{{")
+	})
+
+	t.Run("test that default values for inputs work when required", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.UDS("run", "has-default-and-required-empty", "--file", "src/test/tasks/with/tasks.yaml")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "default")
+		require.NotContains(t, stdErr, "{{")
+
+	})
+
+	t.Run("test that default values for inputs work when required and have values supplied", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.UDS("run", "has-default-and-required-supplied", "--file", "src/test/tasks/with/tasks.yaml")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "supplied-value")
+		require.NotContains(t, stdErr, "{{")
+	})
+
+	t.Run("test that inputs that aren't required with no default don't error", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.UDS("run", "no-default-empty", "--file", "src/test/tasks/with/tasks.yaml")
+		require.NoError(t, err, stdOut, stdErr)
+		require.NotContains(t, stdErr, "has-no-default")
+		require.NotContains(t, stdErr, "{{")
+	})
+
+	t.Run("test that inputs with no defaults that aren't required don't error when supplied with a value", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.UDS("run", "no-default-supplied", "--file", "src/test/tasks/with/tasks.yaml")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "success + supplied-value")
+		require.NotContains(t, stdErr, "{{")
+	})
+
+	t.Run("test that tasks that require inputs with no defaults error when called without values", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.UDS("run", "no-default-and-required-empty", "--file", "src/test/tasks/with/tasks.yaml")
+		require.Error(t, err, stdOut, stdErr)
+		require.NotContains(t, stdErr, "{{")
+	})
+
+	t.Run("test that tasks that require inputs with no defaults run when supplied with a value", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.UDS("run", "no-default-and-required-supplied", "--file", "src/test/tasks/with/tasks.yaml")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "supplied-value")
+		require.NotContains(t, stdErr, "{{")
+	})
+
+	t.Run("test that when a task is called with extra inputs it warns", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.UDS("run", "no-default-and-required-supplied-extra", "--file", "src/test/tasks/with/tasks.yaml")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "supplied-value")
+		require.Contains(t, stdErr, "WARNING")
+		require.Contains(t, stdErr, "does not have an input named extra")
+		require.NotContains(t, stdErr, "{{")
+	})
+
+	t.Run("test that displays a deprecated message", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.UDS("run", "deprecated-task", "--file", "src/test/tasks/with/tasks.yaml")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "WARNING")
+		require.Contains(t, stdErr, "This input has been marked deprecated: This is a deprecated message")
 	})
 
 	t.Run("run list tasks", func(t *testing.T) {
@@ -283,7 +366,7 @@ func TestUseCLI(t *testing.T) {
 		}
 		setVar := fmt.Sprintf("GIT_REVISION=%s", gitRev)
 
-		stdOut, stdErr, err := e2e.RunTasksWithFile("run", "--list", setVar)
+		stdOut, stdErr, err := e2e.UDS("run", "--list", setVar, "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "copy")
 		require.Contains(t, stdErr, "This is a copy task")
@@ -293,7 +376,23 @@ func TestUseCLI(t *testing.T) {
 
 	t.Run("test call to zarf tools wait-for", func(t *testing.T) {
 		t.Parallel()
-		_, stdErr, _ := e2e.RunTasksWithFile("run", "wait")
+		_, stdErr, err := e2e.UDS("run", "wait", "--file", "src/test/tasks/tasks.yaml")
+		require.Error(t, err)
 		require.Contains(t, stdErr, "Waiting for")
+	})
+
+	t.Run("test task to load env vars from a .env using UDS_ENV", func(t *testing.T) {
+		t.Parallel()
+		stdOut, stdErr, err := e2e.UDS("run", "env-from-file", "--file", "src/test/tasks/tasks.yaml")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "bar")
+		require.Contains(t, stdErr, e2e.Arch)
+	})
+
+	t.Run("test --with flag", func(t *testing.T) {
+		t.Parallel()
+		stdOut, stdErr, err := e2e.UDS("run", "has-default", "--file", "src/test/tasks/with/composable-tasks.yaml", "--with", "has-default=setting-with-flag")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "setting-with-flag")
 	})
 }

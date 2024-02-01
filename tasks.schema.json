@@ -61,10 +61,50 @@
         "task": {
           "type": "string",
           "description": "The task to run"
+        },
+        "with": {
+          "patternProperties": {
+            "^[_a-zA-Z][a-zA-Z0-9_-]*$": {
+              "additionalProperties": true
+            }
+          },
+          "type": "object",
+          "description": "Input parameters to pass to the task"
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
+    },
+    "InputParameter": {
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Description of the parameter"
+        },
+        "deprecatedMessage": {
+          "type": "string",
+          "description": "Message to display when the parameter is deprecated"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether the parameter is required"
+        },
+        "default": {
+          "type": "string",
+          "description": "Default value for the parameter"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "Task": {
       "required": [
@@ -94,10 +134,23 @@
           },
           "type": "array",
           "description": "Actions to take when running the task"
+        },
+        "inputs": {
+          "patternProperties": {
+            "^[_a-zA-Z][a-zA-Z0-9_-]*$": {
+              "$schema": "http://json-schema.org/draft-04/schema#",
+              "$ref": "#/definitions/InputParameter"
+            }
+          },
+          "type": "object",
+          "description": "Input parameters for the task"
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "TasksFile": {
       "required": [
@@ -134,7 +187,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "ZarfComponentActionSetVariable": {
       "required": [
@@ -168,13 +224,16 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "ZarfComponentActionShell": {
       "properties": {
         "windows": {
           "type": "string",
-          "description": "(default 'powershell') Indicates a preference for the shell to use on Windows systems (note that choosing 'cmd' will turn off migrations like touch -\u003e New-Item)",
+          "description": "(default 'powershell') Indicates a preference for the shell to use on Windows systems (note that choosing 'cmd' will turn off migrations like touch -> New-Item)",
           "examples": [
             "powershell",
             "cmd",
@@ -208,7 +267,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "ZarfComponentActionWait": {
       "properties": {
@@ -224,7 +286,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "ZarfComponentActionWaitCluster": {
       "required": [
@@ -245,7 +310,7 @@
           "description": "The name of the resource or selector to wait for",
           "examples": [
             "podinfo",
-            "app\u0026#61;podinfo"
+            "app&#61;podinfo"
           ]
         },
         "namespace": {
@@ -262,7 +327,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "ZarfComponentActionWaitNetwork": {
       "required": [
@@ -297,7 +365,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "ZarfFile": {
       "required": [
@@ -334,7 +405,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "ZarfPackageVariable": {
       "required": [
@@ -380,7 +454,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     }
   }
 }
