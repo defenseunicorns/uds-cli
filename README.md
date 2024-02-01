@@ -49,12 +49,12 @@ packages:
     optional-components:
       - git-server
   - name: podinfo
-    repository: localhost:5000/podinfo
+    repository: ghcr.io/defenseunicorns/uds-cli/podinfo
     ref: 0.0.1
 ```
 The above `UDSBundle` deploys the Zarf init package and podinfo.
 
-The packages referenced in `packages` can exist either locally or in an OCI registry. See [here](src/test/packages/03-local-and-remote) for an example that deploys both local and remote Zarf packages. More `UDSBundle` examples can be found in the [src/test/packages](src/test/packages) folder.
+The packages referenced in `packages` can exist either locally or in an OCI registry. See [here](src/test/packages/03-local-and-remote) for an example that deploys both local and remote Zarf packages. More `UDSBundle` examples can be found in the [src/test/bundles](src/test/bundles) folder.
 
 #### Declarative Syntax
 The syntax of a `uds-bundle.yaml` is entirely declarative. As a result, the UDS CLI will not prompt users to deploy optional components in a Zarf package. If you want to deploy an optional Zarf component, it must be specified in the `optional-components` key of a particular `package`.
@@ -88,12 +88,12 @@ There are 2 ways to deploy Bundles:
 1. From an OCI registry: `uds deploy ghcr.io/defenseunicorns/dev/<name>:<tag>`
 1. From your local filesystem: `uds deploy uds-bundle-<name>.tar.zst`
 
-#### `--packages`
+#### Specifying Packages with `--packages`
 By default all the packages in the bundle are deployed, but you can also deploy only certain packages in the bundle by using the `--packages` flag.
 
 As an example: `uds deploy uds-bundle-<name>.tar.zst --packages init,nginx`
 
-#### `--resume`
+#### Resuming Bundle Deploys with `--resume`
 By default all the packages in the bundle are deployed, regardless of if they have already been deployed, but you can also choose to only deploy packages that have not already been deployed by using the `--resume` flag
 
 As an example: `uds deploy uds-bundle-<name>.tar.zst --resume`
