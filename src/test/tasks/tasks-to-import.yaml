@@ -1,6 +1,5 @@
 includes:
   - common: "./more-tasks-to-import.yaml"
-  - original: "./tasks.yaml"
 
 variables:
   - name: CHECKSUMS
@@ -15,6 +14,3 @@ tasks:
     files:
       - source: https://github.com/${PRETTY_OK_COMPANY}/zarf/releases/download/v0.31.1/${CHECKSUMS}
         target: ${CHECKSUMS}
-  - name: loop
-    actions:
-      - task: original:include-loop

@@ -47,7 +47,10 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 		return err
 	}
 
-	runner.processIncludes(task, tasksFile, setVariables)
+	err = runner.processIncludes(task, tasksFile, setVariables)
+	if err != nil {
+		return err
+	}
 
 	if err = runner.checkForTaskLoops(task, tasksFile, setVariables); err != nil {
 		return err
@@ -131,7 +134,7 @@ func (r *Runner) importTasks(includes []map[string]string, dir string, setVariab
 		for _, taskToAdd := range tasksFile.Tasks {
 			for _, currentTasks := range r.TasksFile.Tasks {
 				if taskToAdd.Name == currentTasks.Name {
-					return fmt.Errorf("task loop detected")
+					return fmt.Errorf("task loop detected, ensure no cyclic loops in tasks or includes files")
 				}
 			}
 		}
@@ -332,7 +335,7 @@ func (r *Runner) checkForTaskLoops(task types.Task, tasksFile types.TasksFile, s
 		if action.TaskReference != "" {
 			exists := r.TaskNameMap[action.TaskReference]
 			if exists {
-				return fmt.Errorf("task loop detected")
+				return fmt.Errorf("task loop detected, ensure no cyclic loops in tasks or includes files")
 			}
 			r.TaskNameMap[action.TaskReference] = true
 			newTask, err := r.getTask(action.TaskReference)
