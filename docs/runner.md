@@ -7,12 +7,14 @@ UDS runner.
 
 ## Table of Contents
 
-1. [Quickstart](#quickstart)
-2. [Key Concepts](#key-concepts)
+- [UDS Runner](#uds-runner)
+  - [Table of Contents](#table-of-contents)
+  - [Quickstart](#quickstart)
+  - [Key Concepts](#key-concepts)
     - [Tasks](#tasks)
     - [Actions](#actions)
-        - [Task](#task)
-        - [Cmd](#cmd)
+      - [Task](#task)
+      - [Cmd](#cmd)
     - [Variables](#variables)
     - [Files](#files)
     - [Wait](#wait)
@@ -46,7 +48,7 @@ tasks:
 
 From the same directory as the `tasks.yaml`, run the `example` task using:
 
-```
+```bash
 uds run example
 ```
 
@@ -55,13 +57,13 @@ bar" should be printed to the screen twice.
 
 Optionally, you can specify the location and name of your `tasks.yaml` using the `--file` or `-f` flag:
 
-```
+```bash
 uds run example -f tmp/tasks.yaml
 ```
 
 You can also view the tasks that are available to run using the `list` flag:
 
-```  
+```bash
 uds run -f tmp/tasks.yaml --list
 ```
 
@@ -81,7 +83,7 @@ tasks:
       - task: install-deps
 ```
 
-In this example, the name of the task is "all-the-tasks", and it is composed multiple sub-tasks to run. These sub-tasks
+In this example, the name of the task is "all-the-tasks", and it is composed of multiple sub-tasks to run. These sub-tasks
 would also be defined in the list of `tasks`:
 
 ```yaml
@@ -102,7 +104,7 @@ tasks:
 
 Using the UDS CLI, these tasks can be run individually:
 
-```
+```bash
 uds run all-the-tasks   # runs all-the-tasks, which calls make-build-dir and install-deps
 uds run make-build-dir  # only runs make-build-dir
 ```
@@ -143,56 +145,60 @@ tasks:
       - cmd: echo -n 'dHdvIHdlZWtzIG5vIHByb2JsZW0=' | base64 -d
         setVariables:
           - name: FOO
-  ```
+```
 
 This task will decode the base64 string and set the value as a variable named `FOO` that can be used in other tasks.
 
 Command blocks can have several other properties including:
 
 - `description`: description of the command
-    - `mute`: boolean value to mute the output of a command
-    - `dir`: the directory to run the command in
-    - `env`: list of environment variables to run for this `cmd` block only
-      ```yaml
-        tasks:
-          - name: foo
-            actions:
-              - cmd: echo ${BAR}
-                env:
-                  - BAR=bar
-       ```
-    - `maxRetries`: number of times to retry the command
-    - `maxTotalSeconds`: max number of seconds the command can run until it is killed; takes precendence
-      over `maxRetries`
+  - `mute`: boolean value to mute the output of a command
+  - `dir`: the directory to run the command in
+  - `env`: list of environment variables to run for this `cmd` block only
 
+    ```yaml
+    tasks:
+      - name: foo
+        actions:
+          - cmd: echo ${BAR}
+            env:
+              - BAR=bar
+    ```
+
+  - `maxRetries`: number of times to retry the command
+  - `maxTotalSeconds`: max number of seconds the command can run until it is killed; takes precendence
+    over `maxRetries`
 
 ### Variables
 
 Variables can be defined in 3 ways:
 
 1. At the top of the `tasks.yaml`
-    ```yaml
-   variables:
-      - name: FOO
-        default: foo
 
-   tasks:
-     ...
-   ```
-1. As the output of a `cmd`
    ```yaml
    variables:
-      - name: FOO
-        default: foo
-   tasks:
-      - name: foo
-        actions:
-          - cmd: uname -m
-            mute: true
-            setVariables:
-              - name: FOO
-          - cmd: echo ${FOO}
+     - name: FOO
+       default: foo
+
+   tasks: ...
    ```
+
+1. As the output of a `cmd`
+
+   ```yaml
+   variables:
+     - name: FOO
+       default: foo
+   tasks:
+     - name: foo
+       actions:
+         - cmd: uname -m
+           mute: true
+           setVariables:
+             - name: FOO
+         - cmd: echo ${FOO}
+   ```
+
 1. Using the `--set` flag in the CLI : `uds run foo --set FOO=bar`
 
 To use a variable, reference it using `${VAR_NAME}`
@@ -263,4 +269,5 @@ tasks:
 ```
 
 Note that included task files can also include other task files, with the following restriction:
+
 - If a task file includes a remote task file, the included remote task file cannot include any local task files

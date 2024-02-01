@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"text/template"
 	"time"
 
 	// used for compile time directives to pull functions from Zarf
@@ -22,6 +23,7 @@ import (
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	goyaml "github.com/goccy/go-yaml"
 	"github.com/mholt/archiver/v3"
 )
 
@@ -30,14 +32,28 @@ type Runner struct {
 	TemplateMap map[string]*zarfUtils.TextTemplate
 	TasksFile   types.TasksFile
 	TaskNameMap map[string]bool
+	EnvFilePath string
 }
 
 // Run runs a task from tasks file
-func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]string) error {
+func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]string, withInputs map[string]string) error {
 	runner := Runner{
 		TemplateMap: map[string]*zarfUtils.TextTemplate{},
 		TasksFile:   tasksFile,
 		TaskNameMap: map[string]bool{},
+	}
+
+	tmpDir, err := zarfUtils.MakeTempDir("")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmpDir)
+
+	runner.EnvFilePath = filepath.Join(tmpDir, "env")
+
+	// create the env file with limited perms and add the uds arch to the environment.
+	if err := os.WriteFile(runner.EnvFilePath, []byte("UDS_ARCH="+config.GetArch()+"\n"), 0600); err != nil {
+		return err
 	}
 
 	runner.populateTemplateMap(tasksFile.Variables, setVariables)
@@ -47,10 +63,33 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 		return err
 	}
 
+	// todo: err check this fn
 	runner.processIncludes(task, tasksFile, setVariables)
 
 	if err = runner.checkForTaskLoops(task, tasksFile, setVariables); err != nil {
 		return err
+	}
+
+	// if withInputs is not nil, validate that the inputs are sufficient
+	if withInputs != nil {
+		withEnv := []string{}
+		for k, v := range withInputs {
+			withInputs[k] = v
+			withEnv = append(withEnv, formatEnvVar(k, v))
+		}
+
+		task.Actions, err = templateTaskActionsWithInputs(task, withInputs)
+		if err != nil {
+			return err
+		}
+
+		if err := validateActionableTaskCall(task.Name, task.Inputs, withInputs); err != nil {
+			return err
+		}
+
+		for _, action := range task.Actions {
+			action.Env = mergeEnv(withEnv, action.Env)
+		}
 	}
 
 	err = runner.executeTask(task)
@@ -177,6 +216,33 @@ func (r *Runner) getTask(taskName string) (types.Task, error) {
 	return types.Task{}, fmt.Errorf("task name %s not found", taskName)
 }
 
+// mergeEnv merges two environment variable arrays,
+// replacing variables found in env2 with variables from env1
+// otherwise appending the variable from env1 to env2
+func mergeEnv(env1, env2 []string) []string {
+	for _, s1 := range env1 {
+		replaced := false
+		for j, s2 := range env2 {
+			if strings.Split(s1, "=")[0] == strings.Split(s2, "=")[0] {
+				env2[j] = s1
+				replaced = true
+			}
+		}
+		if !replaced {
+			env2 = append(env2, s1)
+		}
+	}
+	return env2
+}
+
+func formatEnvVar(name, value string) string {
+	// replace all non-alphanumeric characters with underscores
+	name = regexp.MustCompile(`[^a-zA-Z0-9]+`).ReplaceAllString(name, "_")
+	name = strings.ToUpper(name)
+	// prefix with INPUT_ (same as GitHub Actions)
+	return fmt.Sprintf("INPUT_%s=%s", name, value)
+}
+
 func (r *Runner) executeTask(task types.Task) error {
 	if len(task.Files) > 0 {
 		if err := r.placeFiles(task.Files); err != nil {
@@ -184,7 +250,18 @@ func (r *Runner) executeTask(task types.Task) error {
 		}
 	}
 
+	defaultEnv := []string{}
+	for name, inputParam := range task.Inputs {
+		d := inputParam.Default
+		if d == "" {
+			continue
+		}
+		defaultEnv = append(defaultEnv, formatEnvVar(name, d))
+	}
+
 	for _, action := range task.Actions {
+		action.Env = mergeEnv(action.Env, defaultEnv)
+
 		if err := r.performAction(action); err != nil {
 			return err
 		}
@@ -309,9 +386,26 @@ func (r *Runner) placeFiles(files []zarfTypes.ZarfFile) error {
 
 func (r *Runner) performAction(action types.Action) error {
 	if action.TaskReference != "" {
+		// todo: much of this logic is duplicated in Run, consider refactoring
 		referencedTask, err := r.getTask(action.TaskReference)
 		if err != nil {
 			return err
+		}
+
+		referencedTask.Actions, err = templateTaskActionsWithInputs(referencedTask, action.With)
+		if err != nil {
+			return err
+		}
+
+		withEnv := []string{}
+		for name := range action.With {
+			withEnv = append(withEnv, formatEnvVar(name, action.With[name]))
+		}
+		if err := validateActionableTaskCall(referencedTask.Name, referencedTask.Inputs, action.With); err != nil {
+			return err
+		}
+		for _, a := range referencedTask.Actions {
+			a.Env = mergeEnv(withEnv, a.Env)
 		}
 		if err := r.executeTask(referencedTask); err != nil {
 			return err
@@ -323,6 +417,47 @@ func (r *Runner) performAction(action types.Action) error {
 		}
 	}
 	return nil
+}
+
+// templateTaskActionsWithInputs templates a task's actions with the given inputs
+func templateTaskActionsWithInputs(task types.Task, withs map[string]string) ([]types.Action, error) {
+	data := map[string]map[string]string{
+		"inputs": {},
+	}
+
+	// get inputs from "with" map
+	for name := range withs {
+		data["inputs"][name] = withs[name]
+	}
+
+	// use default if not populated in data
+	for name := range task.Inputs {
+		if current, ok := data["inputs"][name]; !ok || current == "" {
+			data["inputs"][name] = task.Inputs[name].Default
+		}
+	}
+
+	b, err := goyaml.Marshal(task.Actions)
+	if err != nil {
+		return nil, err
+	}
+
+	t, err := template.New("template task actions").Option("missingkey=error").Delims("${{", "}}").Parse(string(b))
+	if err != nil {
+		return nil, err
+	}
+
+	var templated strings.Builder
+
+	if err := t.Execute(&templated, data); err != nil {
+		return nil, err
+	}
+
+	result := templated.String()
+
+	var templatedActions []types.Action
+
+	return templatedActions, goyaml.Unmarshal([]byte(result), &templatedActions)
 }
 
 func (r *Runner) checkForTaskLoops(task types.Task, tasksFile types.TasksFile, setVariables map[string]string) error {
@@ -347,6 +482,47 @@ func (r *Runner) checkForTaskLoops(task types.Task, tasksFile types.TasksFile, s
 		}
 		// Clear map once we get to a task that doesn't call another task
 		clear(r.TaskNameMap)
+	}
+	return nil
+}
+
+// validateActionableTaskCall validates a tasks "withs" and inputs
+func validateActionableTaskCall(inputTaskName string, inputs map[string]types.InputParameter, withs map[string]string) error {
+	missing := []string{}
+	for inputKey, input := range inputs {
+		// skip inputs that are not required or have a default value
+		if !input.Required || input.Default != "" {
+			continue
+		}
+		checked := false
+		for withKey, withVal := range withs {
+			// verify that the input is in the with map and the "with" has a value
+			if inputKey == withKey && withVal != "" {
+				checked = true
+				break
+			}
+		}
+		if !checked {
+			missing = append(missing, inputKey)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("task %s is missing required inputs: %s", inputTaskName, strings.Join(missing, ", "))
+	}
+	for withKey := range withs {
+		matched := false
+		for inputKey, input := range inputs {
+			if withKey == inputKey {
+				if input.DeprecatedMessage != "" {
+					message.Warnf("This input has been marked deprecated: %s", input.DeprecatedMessage)
+				}
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			message.Warnf("Task %s does not have an input named %s", inputTaskName, withKey)
+		}
 	}
 	return nil
 }
@@ -388,7 +564,7 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 			return err
 		}
 
-		// Mute the output becuase it will be noisy.
+		// Mute the output because it will be noisy.
 		t := true
 		action.Mute = &t
 
@@ -403,8 +579,16 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 		action.SetVariables = []zarfTypes.ZarfComponentActionSetVariable{}
 	}
 
-	// Add the uds/zarf arch to the environment.
-	action.Env = append(action.Env, "UDS_ARCH="+config.GetArch())
+	currentEnvFileContents, err := os.ReadFile(r.EnvFilePath)
+	if err != nil {
+		return err
+	}
+
+	// load the contents of the env file into the Action, then an action load other env vars by referencing UDS_ENV
+	// in an action and appending more env vars to $UDS_ENV (see task env-from-file in src/test/tasks/tasks.yaml)
+	// todo: rethink this approach, don't make users write bash to load env vars or a .env
+	action.Env = append(action.Env, strings.Split(string(currentEnvFileContents), "\n")...)
+	action.Env = append(action.Env, "UDS_ENV="+r.EnvFilePath)
 
 	if action.Description != "" {
 		cmdEscaped = action.Description
@@ -415,13 +599,6 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 	spinner := message.NewProgressSpinner("Running \"%s\"", cmdEscaped)
 	// Persist the spinner output so it doesn't get overwritten by the command output.
 	spinner.EnablePreserveWrites()
-
-	// If the value template is not nil, get the variables for the action.
-	// No special variables or deprecations will be used in the action.
-	// Reload the variables each time in case they have been changed by a previous action.
-	// if valueTemplate != nil {
-	// 	vars, _ = valueTemplate.GetVariables(zarfTypes.ZarfComponent{})
-	// }
 
 	cfg := actionGetCfg(zarfTypes.ZarfComponentActionDefaults{}, *action, r.TemplateMap)
 

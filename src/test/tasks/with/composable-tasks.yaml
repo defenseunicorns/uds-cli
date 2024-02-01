@@ -1,0 +1,47 @@
+tasks:
+  - name: has-default
+    inputs:
+      has-default:
+        default: default
+        description: has a default
+    actions:
+      # ${{ index .inputs "has-default" }} is necessary to use inputs with '-' in the name
+      # This is a known issue with go text/templates
+      - cmd: |
+          echo ${{ index .inputs "has-default" }}
+
+  - name: has-default-and-required
+    inputs:
+      has-default-and-required:
+        default: default
+        description: has a default and is required
+        required: true
+    actions:
+      - cmd: |
+          echo $INPUT_HAS_DEFAULT_AND_REQUIRED
+
+  - name: no-default
+    inputs:
+      no-default:
+        description: has no default
+    actions:
+      - cmd: |
+          echo success + ${{ index .inputs "no-default" }}
+
+  - name: no-default-and-required
+    inputs:
+      no-default-and-required:
+        description: has no default and is required
+        required: true
+    actions:
+      - cmd: |
+          echo ${{ index .inputs "no-default-and-required" }}
+
+  - name: deprecated-message
+    inputs:
+      deprecated-message:
+        description: This task has a deprecated message
+        deprecatedMessage: This is a deprecated message
+    actions:
+      - cmd: |
+          echo ${{ index .inputs "deprecated-message" }}

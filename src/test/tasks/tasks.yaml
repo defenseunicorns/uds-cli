@@ -109,6 +109,9 @@ tasks:
     actions:
       - maxTotalSeconds: 1
         wait:
+          network:
+            protocol: tcp
+            address: githubstatus.com:443
           cluster:
             kind: StatefulSet
             name: cool-name
@@ -116,3 +119,12 @@ tasks:
   - name: include-loop
     actions:
       - task: local:loop
+  - name: env-from-file
+    actions:
+      # create a .env and load it into env var UDS_ENV
+      - cmd: |
+          echo "FOO=bar" >> .env
+          cat .env >> $UDS_ENV
+          rm .env
+      - cmd: echo $FOO
+      - cmd: echo $UDS_ARCH
