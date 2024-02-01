@@ -3,4 +3,3 @@ tasks:
     description: non-default-task
     actions:
       - cmd: echo "Hello from non-default task"
-  
