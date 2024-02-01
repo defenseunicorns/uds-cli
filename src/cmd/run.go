@@ -44,8 +44,8 @@ var runCmd = &cobra.Command{
 		return taskNames, cobra.ShellCompDirectiveNoFileComp
 	},
 	Args: func(cmd *cobra.Command, args []string) error {
-		if len(args) != 1 && !config.ListTasks {
-			return fmt.Errorf("accepts 1 arg(s), received 0")
+		if len(args) > 1 && !config.ListTasks {
+			return fmt.Errorf("accepts 0 or 1 arg(s), received %d", len(args))
 		}
 		return nil
 	},
@@ -77,7 +77,10 @@ var runCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
-		taskName := args[0]
+		taskName := "default"
+		if len(args) > 0 {
+			taskName = args[0]
+		}
 		if err := runner.Run(tasksFile, taskName, config.SetRunnerVariables, config.WithInputs); err != nil {
 			message.Fatalf(err, "Failed to run action: %s", err)
 		}

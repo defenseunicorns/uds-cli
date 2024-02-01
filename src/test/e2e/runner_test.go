@@ -160,7 +160,22 @@ func TestTaskRunner(t *testing.T) {
 		require.Contains(t, stdErr, "I'm set from setVariables - unique-value")
 		require.Contains(t, stdErr, "I'm set from a runner var - replaced")
 	})
+	t.Run("run default task", func(t *testing.T) {
+		t.Parallel()
 
+		stdOut, stdErr, err := e2e.UDS("run", "--file", "src/test/tasks/tasks.yaml")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "This is the default task")
+
+	})
+
+	t.Run("run default task when undefined", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.UDS("run", "--file", "src/test/tasks/tasks-no-default.yaml")
+		require.Error(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "task name default not found")
+	})
 	t.Run("run reference", func(t *testing.T) {
 		t.Parallel()
 
