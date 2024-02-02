@@ -18,6 +18,7 @@ UDS runner.
     - [Files](#files)
     - [Wait](#wait)
     - [Includes](#includes)
+    - [Task Inputs and Reusable Tasks](#task-inputs-and-reusable-tasks)
 
 ## Quickstart
 
@@ -285,3 +286,71 @@ tasks:
 Note that included task files can also include other task files, with the following restriction:
 
 - If a task file includes a remote task file, the included remote task file cannot include any local task files
+
+### Task Inputs and Reusable Tasks
+
+Although all tasks should be reusable, sometimes you may want to create a task that can be reused with different inputs. To create a reusable task that requires inputs, add an `inputs` key with a map of inputs to the task:
+
+```yaml
+tasks:
+  - name: echo-var
+    inputs:
+      hello-input:
+        default: hello world
+        description: This is an input to the echo-var task
+      deprecated-input:
+        default: foo
+        description: this is a input from a previous version of this task
+        deprecatedMessage: this input is deprecated, use hello-input instead
+    actions:
+      # to use the input, reference it using INPUT_<INPUT_NAME> in all caps
+      - cmd: echo $INPUT_HELLO_INPUT
+
+  - name: use-echo-var
+    actions:
+      - task: echo-var
+        with:
+          # hello-input is the name of the input in the echo-var task, hello-unicorn is the value we want to pass in
+          hello-input: hello unicorn
+```
+
+In this example, the `echo-var` task takes an input called `hello-input` and prints it to the console; notice that the `input` can have a `default` value. The `use-echo-var` task calls `echo-var` with a different input value using the `with` key. In this case `"hello unicorn"` is passed to the `hello-input` input.
+
+Note that the `deprecated-input` input has a `deprecatedMessage` attribute. This is used to indicate that the input is deprecated and should not be used. If a task is run with a deprecated input, a warning will be printed to the console.
+
+#### Specifying Task Inputs using`--with`
+If you want to run the `echo-var` task directly, such as when doing dev work, you can use the `--with` flag to pass in inputs via the CLI
+
+```bash
+uds run echo-var --with hello-input=hello-cli
+```
+
+This command passes the string `"hello-cli"` to the `hello-input` input of the `echo-var` task.
+
+
+#### Templates
+
+When creating a task with `inputs` you can use [Go templates](https://pkg.go.dev/text/template#hdr-Functions) in that task's `actions`. For example:
+
+```yaml
+tasks:
+  - name: length-of-inputs
+    inputs:
+      hello-input:
+        default: hello world
+        description: This is an input to the echo-var task
+      another-input:
+        default: another world
+    actions:
+      # index and len are go template functions, while .inputs is map representing the inputs to the task
+      - cmd: echo ${{ index .inputs "hello-input" | len }}
+      - cmd: echo ${{ index .inputs "another-input" | len }}
+
+  - name: len
+    actions:
+      - task: length-of-inputs
+        with:
+          hello-input: hello unicorn
+```
+
+Running `uds run len` will print the length of the inputs to `hello-input` and `another-input` to the console.
