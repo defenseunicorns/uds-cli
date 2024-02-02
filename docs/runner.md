@@ -16,7 +16,6 @@ UDS runner.
       - [Task](#task)
       - [Cmd](#cmd)
     - [Variables](#variables)
-    - [Environment Variables](#environment-variables)
     - [Files](#files)
     - [Wait](#wait)
     - [Includes](#includes)
@@ -210,32 +209,6 @@ Note that variables also have the following attributes:
 - `sensitive`: boolean value indicating if a variable should be visible in output
 - `default`: default value of a variable
 
-### Environment Variables
-
-*This is an experimental feature that will be refined in future releases*
-
-The UDS Runner contains a special environment variable called `UDS_ENV` that is designed to point to a file containing env vars. This file is sourced before any task is run. This is useful for setting environment variables that are used across all tasks. For example,
-
-```yaml
-tasks:
-  - name: env
-    actions:
-      # create a .env and load it into env var UDS_ENV
-      - cmd: |
-          echo "FOO=bar" >> .env
-          cat .env >> $UDS_ENV
-          rm .env
-      - cmd: echo $FOO
-      - cmd: echo $UDS_ARCH
-      - task: echo-env
-  - name: echo-env
-    actions:
-      - cmd: echo $FOO
-```
-
-The `cat .env >> $UDS_ENV` command ensures the contents of `.env` are loaded into the UDS_ENV, making those environment variables usable in other tasks. Note that `UDS_ARCH` is automatically available as an environment variable.
-
-
 ### Files
 
 The `files` key is used to copy local or remote files to the current working directory
@@ -327,7 +300,7 @@ tasks:
           hello-input: hello unicorn
 ```
 
-In this example, the `echo-var` task takes an input called `hello-input` and prints it to the console. Notice that the `input` can have a `default` value. The `use-echo-var` task calls `echo-var` with a different input value using the `with` key. In this case `"hello unicorn"` is passed to the `hello-input` input.
+In this example, the `echo-var` task takes an input called `hello-input` and prints it to the console; notice that the `input` can have a `default` value. The `use-echo-var` task calls `echo-var` with a different input value using the `with` key. In this case `"hello unicorn"` is passed to the `hello-input` input.
 
 Note that the `deprecated-input` input has a `deprecatedMessage` attribute. This is used to indicate that the input is deprecated and should not be used. If a task is run with a deprecated input, a warning will be printed to the console.
 
@@ -338,12 +311,12 @@ If you want to run the `echo-var` task directly, such as when doing dev work, yo
 uds run echo-var --with hello-input=hello-cli
 ```
 
-This command passes the string "hello-cli" to the `hello-input` input of the `echo-var` task.
+This command passes the string `"hello-cli"` to the `hello-input` input of the `echo-var` task.
 
 
 #### Templates
 
-When creating a task with `inputs` you can use [Go templates](https://pkg.go.dev/text/template#hdr-Functions) in that tasks `actions`. For example:
+When creating a task with `inputs` you can use [Go templates](https://pkg.go.dev/text/template#hdr-Functions) in that task's `actions`. For example:
 
 ```yaml
 tasks:

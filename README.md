@@ -88,12 +88,12 @@ There are 2 ways to deploy Bundles:
 1. From an OCI registry: `uds deploy ghcr.io/defenseunicorns/dev/<name>:<tag>`
 1. From your local filesystem: `uds deploy uds-bundle-<name>.tar.zst`
 
-#### Specifying Packages with `--packages`
+#### Specifying Packages using `--packages`
 By default all the packages in the bundle are deployed, but you can also deploy only certain packages in the bundle by using the `--packages` flag.
 
 As an example: `uds deploy uds-bundle-<name>.tar.zst --packages init,nginx`
 
-#### Resuming Bundle Deploys with `--resume`
+#### Resuming Bundle Deploys using `--resume`
 By default all the packages in the bundle are deployed, regardless of if they have already been deployed, but you can also choose to only deploy packages that have not already been deployed by using the `--resume` flag
 
 As an example: `uds deploy uds-bundle-<name>.tar.zst --resume`
