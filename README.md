@@ -46,7 +46,7 @@ packages:
   - name: init
     repository: ghcr.io/defenseunicorns/packages/init
     ref: v0.31.4
-    optional-components:
+    optionalComponents:
       - git-server
   - name: podinfo
     repository: localhost:5000/podinfo
@@ -57,7 +57,7 @@ The above `UDSBundle` deploys the Zarf init package and podinfo.
 The packages referenced in `packages` can exist either locally or in an OCI registry. See [here](src/test/packages/03-local-and-remote) for an example that deploys both local and remote Zarf packages. More `UDSBundle` examples can be found in the [src/test/packages](src/test/packages) folder.
 
 #### Declarative Syntax
-The syntax of a `uds-bundle.yaml` is entirely declarative. As a result, the UDS CLI will not prompt users to deploy optional components in a Zarf package. If you want to deploy an optional Zarf component, it must be specified in the `optional-components` key of a particular `package`.
+The syntax of a `uds-bundle.yaml` is entirely declarative. As a result, the UDS CLI will not prompt users to deploy optional components in a Zarf package. If you want to deploy an optional Zarf component, it must be specified in the `optionalComponents` key of a particular `package`.
 
 #### First-class UDS Support
 When running `deploy`,`inspect`,`remove`, and `pull` commands, UDS CLI contains shorthand for interacting with the Defense Unicorns org on GHCR. Specifically, unless otherwise specified, paths will automatically be expanded to the Defense Unicorns org on GHCR. For example:
