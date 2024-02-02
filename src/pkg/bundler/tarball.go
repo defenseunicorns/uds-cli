@@ -103,7 +103,7 @@ func (b *LocalBundler) Load() (zarfTypes.ZarfPackage, error) {
 
 // ToBundle transfers a Zarf package to a given Bundle
 func (b *LocalBundler) ToBundle(bundleStore *ocistore.Store, pkg zarfTypes.ZarfPackage, artifactPathMap map[string]string, bundleTmpDir string, packageTmpDir string) (ocispec.Descriptor, error) {
-	// todo: only grab components that are required + specified in optional-components
+	// todo: only grab components that are required + specified in optionalComponents
 	ctx := b.ctx
 	src, err := file.New(packageTmpDir)
 	if err != nil {

@@ -117,14 +117,14 @@
           "type": "string",
           "description": "Ref (tag) of the Zarf package"
         },
-        "optional-components": {
+        "optionalComponents": {
           "items": {
             "type": "string"
           },
           "type": "array",
           "description": "List of optional components to include from the package (required components are always included)"
         },
-        "public-key": {
+        "publicKey": {
           "type": "string",
           "description": "The public key to use to verify the package"
         },

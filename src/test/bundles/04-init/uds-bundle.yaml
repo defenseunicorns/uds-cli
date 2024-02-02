@@ -11,11 +11,11 @@ packages:
     path: "../../packages"
     # renovate: datasource=github-tags depName=defenseunicorns/zarf
     ref: v0.32.2
-    optional-components:
+    optionalComponents:
       - git-server
   - name: init
     repository: ghcr.io/defenseunicorns/packages/init
     # renovate: datasource=github-tags depName=defenseunicorns/zarf
     ref: v0.32.2
-    optional-components:
+    optionalComponents:
       - git-server
