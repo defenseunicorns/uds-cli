@@ -22,6 +22,7 @@ type Task struct {
 	Files       []zarfTypes.ZarfFile      `json:"files,omitempty" jsonschema:"description=Files or folders to download or copy"`
 	Actions     []Action                  `json:"actions,omitempty" jsonschema:"description=Actions to take when running the task"`
 	Inputs      map[string]InputParameter `json:"inputs,omitempty" jsonschema:"description=Input parameters for the task"`
+	EnvPath     string                    `json:"envPath,omitempty" jsonschema:"description=Path to file containing environment variables"`
 }
 
 // InputParameter represents a single input parameter for a task, to be used w/ `with`

@@ -1,5 +1,5 @@
 includes:
-  - with: ./composable-tasks.yaml
+  - with: ./tasks-with-inputs.yaml
 
 tasks:
   - name: has-default-empty

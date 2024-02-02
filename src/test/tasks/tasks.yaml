@@ -120,11 +120,18 @@ tasks:
     actions:
       - task: local:loop
   - name: env-from-file
+    envPath: "./my-env"
     actions:
-      # create a .env and load it into env var UDS_ENV
-      - cmd: |
-          echo "FOO=bar" >> .env
-          cat .env >> $UDS_ENV
-          rm .env
-      - cmd: echo $FOO
       - cmd: echo $UDS_ARCH
+      - cmd: echo $SECRET_KEY
+      - cmd: echo $PORT
+      - cmd: echo $SPECIAL
+      - task: pass-env-vars
+      - task: overwrite-env-path
+  - name: pass-env-vars
+    actions:
+      - cmd: echo env var from calling task - $SECRET_KEY
+  - name: overwrite-env-path
+    envPath: "./my-other-env"
+    actions:
+      - cmd: echo overwritten env var - $PORT
