@@ -21,6 +21,9 @@ repos:
     rev: v0.5.1
     hooks:
       - id: go-imports
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v1.55.2
+    hooks:
       - id: golangci-lint
   - repo: local
     hooks:
