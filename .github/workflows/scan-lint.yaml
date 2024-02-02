@@ -18,7 +18,7 @@ jobs:
         run: go install golang.org/x/tools/cmd/goimports@latest
 
       - name: Install golangci-lint
-        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.55.2
+        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.55.2
 
       - name: Run pre-commit
         uses: pre-commit/action@c7d159c2092cbfaab7352e2d8211ab536aa2267c #
