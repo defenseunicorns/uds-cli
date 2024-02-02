@@ -11,6 +11,10 @@ variables:
     default: default
 
 tasks:
+  - name: default
+    description: Run Default Task
+    actions:
+      - cmd: echo "This is the default task"
   - name: copy
     description: "This is a copy task"
     files:

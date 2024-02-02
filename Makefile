@@ -33,6 +33,9 @@ test-e2e: ## Run End to End (e2e) tests
 test-e2e-no-ghcr: ## Run End to End (e2e) tests without GHCR
 	cd src/test/e2e && go test -failfast -v -timeout 30m -skip ".*GHCR.*"
 
+test-e2e-only-tasks: ## Run End to End (e2e) tests for task runner only
+	cd src/test/e2e && go test -failfast -v -timeout 30m -run TestTaskRunner
+
 schema: ## Update JSON schema for uds-bundle.yaml
 	./hack/generate-schema.sh
 

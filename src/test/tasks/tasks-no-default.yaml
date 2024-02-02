@@ -1,0 +1,5 @@
+tasks:
+  - name: non-default
+    description: non-default-task
+    actions:
+      - cmd: echo "Hello from non-default task"
