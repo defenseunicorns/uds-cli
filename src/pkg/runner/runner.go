@@ -32,7 +32,7 @@ type Runner struct {
 	TemplateMap map[string]*zarfUtils.TextTemplate
 	TasksFile   types.TasksFile
 	TaskNameMap map[string]bool
-	EnvFilePath string
+	envFilePath string
 }
 
 // Run runs a task from tasks file
@@ -41,19 +41,6 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 		TemplateMap: map[string]*zarfUtils.TextTemplate{},
 		TasksFile:   tasksFile,
 		TaskNameMap: map[string]bool{},
-	}
-
-	tmpDir, err := zarfUtils.MakeTempDir("")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(tmpDir)
-
-	runner.EnvFilePath = filepath.Join(tmpDir, "env")
-
-	// create the env file with limited perms and add the uds arch to the environment.
-	if err := os.WriteFile(runner.EnvFilePath, []byte("UDS_ARCH="+config.GetArch()+"\n"), 0600); err != nil {
-		return err
 	}
 
 	runner.populateTemplateMap(tasksFile.Variables, setVariables)
@@ -261,9 +248,13 @@ func (r *Runner) executeTask(task types.Task) error {
 		defaultEnv = append(defaultEnv, formatEnvVar(name, d))
 	}
 
+	// load the tasks env file into the runner, can override previous task's env files
+	if task.EnvPath != "" {
+		r.envFilePath = task.EnvPath
+	}
+
 	for _, action := range task.Actions {
 		action.Env = mergeEnv(action.Env, defaultEnv)
-
 		if err := r.performAction(action); err != nil {
 			return err
 		}
@@ -581,16 +572,16 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 		action.SetVariables = []zarfTypes.ZarfComponentActionSetVariable{}
 	}
 
-	currentEnvFileContents, err := os.ReadFile(r.EnvFilePath)
-	if err != nil {
-		return err
+	// load the contents of the env file into the Action + the UDS_ARCH
+	if r.envFilePath != "" {
+		envFilePath := filepath.Join(filepath.Dir(config.TaskFileLocation), r.envFilePath)
+		envFileContents, err := os.ReadFile(envFilePath)
+		if err != nil {
+			return err
+		}
+		action.Env = append(action.Env, strings.Split(string(envFileContents), "\n")...)
 	}
-
-	// load the contents of the env file into the Action, then an action load other env vars by referencing UDS_ENV
-	// in an action and appending more env vars to $UDS_ENV (see task env-from-file in src/test/tasks/tasks.yaml)
-	// todo: rethink this approach, don't make users write bash to load env vars or a .env
-	action.Env = append(action.Env, strings.Split(string(currentEnvFileContents), "\n")...)
-	action.Env = append(action.Env, "UDS_ENV="+r.EnvFilePath)
+	action.Env = append(action.Env, fmt.Sprintf("UDS_ARCH=%s", config.GetArch()))
 
 	if action.Description != "" {
 		cmdEscaped = action.Description

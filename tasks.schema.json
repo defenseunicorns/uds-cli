@@ -144,6 +144,10 @@
           },
           "type": "object",
           "description": "Input parameters for the task"
+        },
+        "envPath": {
+          "type": "string",
+          "description": "Path to file containing environment variables"
         }
       },
       "additionalProperties": false,

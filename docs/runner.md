@@ -15,6 +15,7 @@ UDS runner.
       - [Task](#task)
       - [Cmd](#cmd)
     - [Variables](#variables)
+    - [Environment Variables](#environment-variables)
     - [Files](#files)
     - [Wait](#wait)
     - [Includes](#includes)
@@ -222,6 +223,23 @@ Note that variables also have the following attributes:
 
 - `sensitive`: boolean value indicating if a variable should be visible in output
 - `default`: default value of a variable
+
+### Environment Variables
+
+To include a file containing environment variables that you'd like to load into a task, use the `envPath` key in the task. This will load all of the environment variables in the file into the task being called and its child tasks.
+
+```yaml
+tasks:
+  - name: env
+    actions:
+      - cmd: echo $FOO
+      - cmd: echo $UDS_ARCH
+      - task: echo-env
+  - name: echo-env
+    envPath: ./path/to/.env
+    actions:
+      - cmd: echo differnt task $FOO
+```
 
 ### Files
 
