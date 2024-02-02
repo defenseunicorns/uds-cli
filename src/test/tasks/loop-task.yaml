@@ -1,0 +1,10 @@
+# Since every task and includes gets processed when running a task, and because this task file has an includes entry that
+# points back to the original task file, any task in this file will fail due to this infinite loop.
+
+includes:
+  - original: "./tasks.yaml"
+
+tasks:
+  - name: loop
+    actions:
+      - task: original:include-loop

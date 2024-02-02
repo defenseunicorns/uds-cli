@@ -1,6 +1,7 @@
 includes:
   - local: ./tasks-to-import.yaml
   - foo: ./more-tasks/foo.yaml
+  - infinite: ./loop-task.yaml
   - remote: https://raw.githubusercontent.com/defenseunicorns/uds-cli/${GIT_REVISION}/src/test/tasks/remote-import-tasks.yaml
 
 variables:
@@ -118,7 +119,7 @@ tasks:
             namespace: tasks
   - name: include-loop
     actions:
-      - task: local:loop
+      - task: infinite:loop
   - name: env-from-file
     actions:
       # create a .env and load it into env var UDS_ENV

@@ -252,7 +252,7 @@ tasks:
 
 ### Includes
 
-The `includes` key is used to import tasks from either local or remote task files. This is useful for sharing common tasks across multiple task files. When importing a task from a local task file, the path is relative to the file you are currently in.
+The `includes` key is used to import tasks from either local or remote task files. This is useful for sharing common tasks across multiple task files. When importing a task from a local task file, the path is relative to the file you are currently in. When running a task, the tasks in the task file as well as the `includes` get processed to ensure there are no infinite loop references.
 
 ```yaml
 includes:
