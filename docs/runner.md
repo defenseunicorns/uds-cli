@@ -8,7 +8,6 @@ UDS runner.
 ## Table of Contents
 
 - [UDS Runner](#uds-runner)
-  - [Table of Contents](#table-of-contents)
   - [Quickstart](#quickstart)
   - [Key Concepts](#key-concepts)
     - [Tasks](#tasks)
@@ -59,12 +58,6 @@ uds run example
 This will run the `example` tasks which in turn runs the `set-variable` and `echo-variable`. In this example, the text "
 bar" should be printed to the screen twice.
 
-In the above example, there is also a `default` task, which is special, optional, task that can be used for the most common entrypoint for your tasks. When trying to run the `default`` task, you can omit the task name from the run command:
-
-```bash
-uds run
-```
-
 Optionally, you can specify the location and name of your `tasks.yaml` using the `--file` or `-f` flag:
 
 ```bash
@@ -98,6 +91,10 @@ would also be defined in the list of `tasks`:
 
 ```yaml
 tasks:
+  - name: default
+    actions:
+      - cmd: echo "run default task"
+
   - name: all-the-tasks
     actions:
       - task: make-build-dir
@@ -117,6 +114,13 @@ Using the UDS CLI, these tasks can be run individually:
 ```bash
 uds run all-the-tasks   # runs all-the-tasks, which calls make-build-dir and install-deps
 uds run make-build-dir  # only runs make-build-dir
+```
+
+#### Default Tasks
+In the above example, there is also a `default` task, which is special, optional, task that can be used for the most common entrypoint for your tasks. When trying to run the `default` task, you can omit the task name from the run command:
+
+```bash
+uds run
 ```
 
 ### Actions
