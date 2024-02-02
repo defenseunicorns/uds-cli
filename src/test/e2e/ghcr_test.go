@@ -30,7 +30,7 @@ func TestBundleDeployFromOCIFromGHCR(t *testing.T) {
 	bundleRef := registry.Reference{
 		Registry:   registryURL,
 		Repository: "ghcr-test",
-		Reference:  fmt.Sprintf("0.0.1"),
+		Reference:  "0.0.1",
 	}
 
 	createLocal(t, bundleDir, "arm64")
@@ -61,7 +61,7 @@ func TestBundleCreateAndDeployGHCR(t *testing.T) {
 	bundleRef := registry.Reference{
 		Registry:   registryURL,
 		Repository: "ghcr-test",
-		Reference:  fmt.Sprintf("0.0.1"),
+		Reference:  "0.0.1",
 	}
 	createRemote(t, bundleDir, registryURL, "arm64")
 	createRemote(t, bundleDir, registryURL, "amd64")

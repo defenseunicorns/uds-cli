@@ -229,6 +229,9 @@ func GetIndex(remote *oci.OrasRemote, ref string) (*ocispec.Index, error) {
 	// if an index exists, save it so we can update it after pushing the bundle's root manifest
 	if existingRootDesc.MediaType == ocispec.MediaTypeImageIndex {
 		rc, err := remote.Repo().Fetch(context.TODO(), existingRootDesc)
+		if err != nil {
+			return nil, err
+		}
 		defer rc.Close()
 		b, err := content.ReadAll(rc, existingRootDesc)
 		if err != nil {

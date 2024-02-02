@@ -180,8 +180,6 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 				return err
 			}
 			defer os.Remove(publicKeyPath)
-		} else {
-			publicKeyPath = ""
 		}
 
 		if len(pkg.OptionalComponents) > 0 {

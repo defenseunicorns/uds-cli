@@ -37,7 +37,12 @@ func (b *Bundler) Create() error {
 	if err := os.Chdir(b.cfg.CreateOpts.SourceDirectory); err != nil {
 		return err
 	}
-	defer os.Chdir(cwd)
+	defer func() {
+		err := os.Chdir(cwd)
+		if err != nil {
+			fmt.Println("Error changing back to the original directory:", err)
+		}
+	}()
 
 	// read the bundle's metadata into memory
 	if err := utils.ReadYaml(b.cfg.CreateOpts.BundleFile, &b.bundle); err != nil {

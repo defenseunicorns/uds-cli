@@ -92,6 +92,10 @@ func (r *RemoteBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ b
 
 	// look at Zarf pkg manifest, grab zarf.yaml desc and download it
 	pkgManifest, err := r.Remote.FetchManifest(pkgManifestDesc)
+	if err != nil {
+		return err
+	}
+
 	var zarfYAMLDesc ocispec.Descriptor
 	for _, layer := range pkgManifest.Layers {
 		if layer.Annotations[ocispec.AnnotationTitle] == config.ZarfYAML {
@@ -108,6 +112,9 @@ func (r *RemoteBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ b
 		return err
 	}
 	err = zarfUtils.WriteYaml(filepath.Join(dst.Base, config.ZarfYAML), zarfYAML, 0644)
+	if err != nil {
+		return err
+	}
 
 	// grab checksums.txt so we can validate pkg integrity
 	var checksumLayer ocispec.Descriptor

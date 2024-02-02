@@ -48,7 +48,10 @@ var rootCmd = &cobra.Command{
 	Short: lang.RootCmdShort,
 	Run: func(cmd *cobra.Command, args []string) {
 		_, _ = fmt.Fprintln(os.Stderr)
-		cmd.Help()
+		err := cmd.Help()
+		if err != nil {
+			message.Fatal(err, "error calling help command")
+		}
 	},
 }
 

@@ -26,6 +26,9 @@ func CreateSBOMArtifact(SBOMArtifactPathMap map[string]string) error {
 	}
 	format := archiver.Tar{}
 	err = format.Archive(context.TODO(), out, files)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

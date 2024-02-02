@@ -60,10 +60,7 @@ func Exists(layerDigest string) bool {
 	cacheDir := config.CommonOptions.CachePath
 	layerCachePath := filepath.Join(expandTilde(cacheDir), "images", layerDigest)
 	_, err := os.Stat(layerCachePath)
-	if !os.IsNotExist(err) {
-		return true
-	}
-	return false
+	return !os.IsNotExist(err)
 }
 
 // Use copies a layer from the cache to the dst dir
