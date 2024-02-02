@@ -18,8 +18,8 @@ type Package struct {
 	Repository         string                                     `json:"repository,omitempty" jsonschema:"description=The repository to import the package from"`
 	Path               string                                     `json:"path,omitempty" jsonschema:"description=The local path to import the package from"`
 	Ref                string                                     `json:"ref" jsonschema:"description=Ref (tag) of the Zarf package"`
-	OptionalComponents []string                                   `json:"optional-components,omitempty" jsonschema:"description=List of optional components to include from the package (required components are always included)"`
-	PublicKey          string                                     `json:"public-key,omitempty" jsonschema:"description=The public key to use to verify the package"`
+	OptionalComponents []string                                   `json:"optionalComponents,omitempty" jsonschema:"description=List of optional components to include from the package (required components are always included)"`
+	PublicKey          string                                     `json:"publicKey,omitempty" jsonschema:"description=The public key to use to verify the package"`
 	Imports            []BundleVariableImport                     `json:"imports,omitempty" jsonschema:"description=List of Zarf variables to import from another Zarf package"`
 	Exports            []BundleVariableExport                     `json:"exports,omitempty" jsonschema:"description=List of Zarf variables to export from the Zarf package"`
 	Overrides          map[string]map[string]BundleChartOverrides `json:"overrides,omitempty" jsonschema:"description=Map of Helm chart overrides to set. The format is <component>:, <chart-name>:"`
