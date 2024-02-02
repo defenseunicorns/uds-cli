@@ -21,6 +21,7 @@ repos:
     rev: v0.5.1
     hooks:
       - id: go-imports
+      - id: golangci-lint
   - repo: local
     hooks:
       - id: check-docs-and-schema
