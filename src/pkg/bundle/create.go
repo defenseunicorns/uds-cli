@@ -5,28 +5,22 @@
 package bundle
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/interactive"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
-	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pterm/pterm"
-	"oras.land/oras-go/v2/registry"
 )
 
 // Create creates a bundle
-func (b *Bundler) Create() error {
+func (b *Bundle) Create() error {
 	// get the current working directory
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -74,8 +68,6 @@ func (b *Bundler) Create() error {
 	validateSpinner.Successf("Bundle Validated")
 	pterm.Print()
 
-	var signatureBytes []byte
-
 	// sign the bundle if a signing key was provided
 	if b.cfg.CreateOpts.SigningKeyPath != "" {
 		// write the bundle to disk so we can sign it
@@ -92,40 +84,23 @@ func (b *Bundler) Create() error {
 		}
 		// sign the bundle
 		signaturePath := filepath.Join(b.tmp, config.BundleYAMLSignature)
-		bytes, err := utils.CosignSignBlob(bundlePath, signaturePath, b.cfg.CreateOpts.SigningKeyPath, getSigCreatePassword)
+		_, err := utils.CosignSignBlob(bundlePath, signaturePath, b.cfg.CreateOpts.SigningKeyPath, getSigCreatePassword)
 		if err != nil {
 			return err
 		}
-		signatureBytes = bytes
 	}
 
-	if b.cfg.CreateOpts.Output != "" {
-		b.cfg.CreateOpts.Output = EnsureOCIPrefix(b.cfg.CreateOpts.Output)
-		// set the remote's reference from the bundle's metadata
-		ref, err := referenceFromMetadata(b.cfg.CreateOpts.Output, &b.bundle.Metadata)
-		if err != nil {
-			return err
-		}
-		platform := ocispec.Platform{
-			Architecture: config.GetArch(),
-			OS:           oci.MultiOS,
-		}
-		remote, err := oci.NewOrasRemote(ref, platform)
-		if err != nil {
-			return err
-		}
-		return CreateAndPublish(remote, b.bundle, signatureBytes)
+	opts := bundler.Options{
+		Bundle:     &b.bundle,
+		CreateOpts: b.cfg.CreateOpts,
+		TmpDstDir:  b.tmp,
 	}
-
-	// create a bundler obj -> determines if you're dealing with a local or remote bundle
-	// if local bundle -> use a fetcher to fetch all the packages and pull them into the local bundle (local and remote pkgs)
-	// if remote bundle -> use a pusher to push all the packages to the remote bundle (local and remote pkgs)
-
-	return Create(b, signatureBytes)
+	bundlerClient := bundler.NewBundler(&opts)
+	return bundlerClient.Create()
 }
 
 // confirmBundleCreation prompts the user to confirm bundle creation
-func (b *Bundler) confirmBundleCreation() (confirm bool) {
+func (b *Bundle) confirmBundleCreation() (confirm bool) {
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
 	utils.ColorPrintYAML(b.bundle, nil, false)
@@ -147,26 +122,4 @@ func (b *Bundler) confirmBundleCreation() (confirm bool) {
 		return false
 	}
 	return true
-}
-
-// copied from: https://github.com/defenseunicorns/zarf/blob/main/src/pkg/oci/utils.go
-func referenceFromMetadata(registryLocation string, metadata *types.UDSMetadata) (string, error) {
-	ver := metadata.Version
-	if len(ver) == 0 {
-		return "", errors.New("version is required for publishing")
-	}
-
-	if !strings.HasSuffix(registryLocation, "/") {
-		registryLocation = registryLocation + "/"
-	}
-	registryLocation = strings.TrimPrefix(registryLocation, helpers.OCIURLPrefix)
-	raw := fmt.Sprintf("%s%s:%s", registryLocation, metadata.Name, ver)
-
-	message.Debug("Raw OCI reference from metadata:", raw)
-	ref, err := registry.ParseReference(raw)
-	if err != nil {
-		return "", err
-	}
-
-	return ref.String(), nil
 }

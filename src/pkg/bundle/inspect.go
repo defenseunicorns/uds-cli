@@ -12,7 +12,7 @@ import (
 )
 
 // Inspect pulls/unpacks a bundle's metadata and shows it
-func (b *Bundler) Inspect() error {
+func (b *Bundle) Inspect() error {
 	ctx := context.TODO()
 
 	// Check that provided oci source path is valid, and update it if it's missing the full path

@@ -146,7 +146,7 @@ func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) oras.Cop
 }
 
 // createIndex creates an OCI index and pushes it to a remote based on ref
-func createIndex(bundle types.UDSBundle, rootManifestDesc ocispec.Descriptor) *ocispec.Index {
+func createIndex(bundle *types.UDSBundle, rootManifestDesc ocispec.Descriptor) *ocispec.Index {
 	var index ocispec.Index
 	index.MediaType = ocispec.MediaTypeImageIndex
 	index.Versioned.SchemaVersion = 2
@@ -165,7 +165,7 @@ func createIndex(bundle types.UDSBundle, rootManifestDesc ocispec.Descriptor) *o
 }
 
 // addToIndex adds or replaces a bundle root manifest to an OCI index
-func addToIndex(index *ocispec.Index, bundle types.UDSBundle, newManifestDesc ocispec.Descriptor) *ocispec.Index {
+func addToIndex(index *ocispec.Index, bundle *types.UDSBundle, newManifestDesc ocispec.Descriptor) *ocispec.Index {
 	manifestExists := false
 	for i, manifest := range index.Manifests {
 		// if existing manifest has the same arch as the bundle, don't append new bundle root manifest to index
@@ -200,7 +200,7 @@ func pushIndex(index *ocispec.Index, remote *oci.OrasRemote, ref string) error {
 }
 
 // UpdateIndex updates or creates a new OCI index based on the index arg, then pushes to the remote OCI repo
-func UpdateIndex(index *ocispec.Index, remote *oci.OrasRemote, bundle types.UDSBundle, newManifestDesc ocispec.Descriptor) error {
+func UpdateIndex(index *ocispec.Index, remote *oci.OrasRemote, bundle *types.UDSBundle, newManifestDesc ocispec.Descriptor) error {
 	var newIndex *ocispec.Index
 	ref := bundle.Metadata.Version
 	if index == nil {
@@ -242,4 +242,13 @@ func GetIndex(remote *oci.OrasRemote, ref string) (*ocispec.Index, error) {
 		}
 	}
 	return index, nil
+}
+
+// EnsureOCIPrefix ensures oci prefix is part of provided remote source path, and adds it if it's not
+func EnsureOCIPrefix(source string) string {
+	var ociPrefix = "oci://"
+	if source[:len(ociPrefix)] != ociPrefix {
+		return ociPrefix + source
+	}
+	return source
 }

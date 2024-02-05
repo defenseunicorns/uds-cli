@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
@@ -21,7 +22,7 @@ import (
 )
 
 // Pull pulls a bundle and saves it locally + caches it
-func (b *Bundler) Pull() error {
+func (b *Bundle) Pull() error {
 	cacheDir := filepath.Join(zarfConfig.GetAbsCachePath(), "packages")
 	// create the cache directory if it doesn't exist
 	if err := utils.CreateDirectory(cacheDir, 0755); err != nil {
@@ -116,7 +117,7 @@ func (b *Bundler) Pull() error {
 		Archival:    archiver.Tar{},
 	}
 
-	pathMap := make(PathMap)
+	pathMap := make(types.PathMap)
 
 	// put the index.json and oci-layout at the root of the tarball
 	pathMap[filepath.Join(b.tmp, "index.json")] = "index.json"

@@ -59,7 +59,7 @@ func (op *ociProvider) getBundleManifest() error {
 }
 
 // LoadBundleMetadata loads a remote bundle's metadata
-func (op *ociProvider) LoadBundleMetadata() (PathMap, error) {
+func (op *ociProvider) LoadBundleMetadata() (types.PathMap, error) {
 	if err := zarfUtils.CreateDirectory(filepath.Join(op.dst, config.BlobsDir), 0700); err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func (op *ociProvider) LoadBundleMetadata() (PathMap, error) {
 		return nil, err
 	}
 
-	loaded := make(PathMap)
+	loaded := make(types.PathMap)
 	for _, layer := range layers {
 		rel := layer.Annotations[ocispec.AnnotationTitle]
 		abs := filepath.Join(op.dst, config.BlobsDir, rel)
@@ -88,7 +88,7 @@ func (op *ociProvider) LoadBundleMetadata() (PathMap, error) {
 
 // CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
 func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
-	SBOMArtifactPathMap := make(PathMap)
+	SBOMArtifactPathMap := make(types.PathMap)
 	root, err := op.FetchRoot()
 	if err != nil {
 		return err
@@ -150,7 +150,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 }
 
 // LoadBundle loads a bundle's uds-bundle.yaml and Zarf packages from a remote source
-func (op *ociProvider) LoadBundle(_ int) (PathMap, error) {
+func (op *ociProvider) LoadBundle(_ int) (types.PathMap, error) {
 	var layersToPull []ocispec.Descriptor
 	estimatedBytes := int64(0)
 
@@ -260,7 +260,7 @@ func getOCIValidatedSource(source string) (string, error) {
 		OS:           oci.MultiOS,
 	}
 	// Check provided repository path
-	sourceWithOCI := EnsureOCIPrefix(source)
+	sourceWithOCI := utils.EnsureOCIPrefix(source)
 	remote, err := oci.NewOrasRemote(sourceWithOCI, platform)
 	if err == nil {
 		source = sourceWithOCI
@@ -335,15 +335,6 @@ func CheckOCISourcePath(source string) (string, error) {
 	return source, nil
 }
 
-// EnsureOCIPrefix ensures oci prefix is part of provided remote source path, and adds it if it's not
-func EnsureOCIPrefix(source string) string {
-	var ociPrefix = "oci://"
-	if source[:len(ociPrefix)] != ociPrefix {
-		return ociPrefix + source
-	}
-	return source
-}
-
 // ZarfPackageNameMap returns the uds bundle zarf package name to actual zarf package name mappings from the oci provider
 func (op *ociProvider) ZarfPackageNameMap() (map[string]string, error) {
 	if err := op.getBundleManifest(); err != nil {
@@ -373,3 +364,27 @@ func (op *ociProvider) ZarfPackageNameMap() (map[string]string, error) {
 	}
 	return nameMap, nil
 }
+
+// GetMetadata grabs metadata from a remote Zarf package's zarf.yaml
+// todo: not sure where this fn goes
+//func GetMetadata(url string, tmpDir string) (zarfTypes.ZarfPackage, error) {
+//	platform := ocispec.Platform{
+//		Architecture: config.GetArch(),
+//		OS:           oci.MultiOS,
+//	}
+//	remote, err := oci.NewOrasRemote(url, platform)
+//	if err != nil {
+//		return zarfTypes.ZarfPackage{}, err
+//	}
+//
+//	if _, err := remote.PullPackageMetadata(tmpDir); err != nil {
+//		return zarfTypes.ZarfPackage{}, err
+//	}
+//	zarfYAML := zarfTypes.ZarfPackage{}
+//	zarfYAMLPath := filepath.Join(tmpDir, config.ZarfYAML)
+//	err = zarfUtils.ReadYaml(zarfYAMLPath, &zarfYAML)
+//	if err != nil {
+//		return zarfTypes.ZarfPackage{}, err
+//	}
+//	return zarfYAML, err
+//}

@@ -11,15 +11,16 @@ import (
 	"path/filepath"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	av3 "github.com/mholt/archiver/v3"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // Publish publishes a bundle to a remote OCI registry
-func (b *Bundler) Publish() error {
-	b.cfg.PublishOpts.Destination = EnsureOCIPrefix(b.cfg.PublishOpts.Destination)
+func (b *Bundle) Publish() error {
+	b.cfg.PublishOpts.Destination = utils.EnsureOCIPrefix(b.cfg.PublishOpts.Destination)
 
 	// load bundle metadata into memory
 	// todo: having the tmp dir be the provider.dst is weird
@@ -31,7 +32,7 @@ func (b *Bundler) Publish() error {
 	if err != nil {
 		return err
 	}
-	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
+	if err := zarfUtils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
 	err = os.RemoveAll(filepath.Join(b.tmp, "blobs")) // clear tmp dir

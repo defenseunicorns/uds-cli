@@ -26,7 +26,7 @@ var (
 	logLevel string
 
 	// Default global config for the bundler
-	bundleCfg = types.BundlerConfig{}
+	bundleCfg = types.BundleConfig{}
 )
 
 var rootCmd = &cobra.Command{
