@@ -2,7 +2,7 @@ includes:
   - local: ./tasks-to-import.yaml
   - foo: ./more-tasks/foo.yaml
   - infinite: ./loop-task.yaml
-  - remote-one: https://raw.githubusercontent.com/defenseunicorns/uds-cli/${GIT_REVISION}/src/test/tasks/remote-import-tasks.yaml
+  - remote: https://raw.githubusercontent.com/defenseunicorns/uds-cli/${GIT_REVISION}/src/test/tasks/remote-import-tasks.yaml
 
 variables:
   - name: REPLACE_ME
@@ -38,7 +38,7 @@ tasks:
           - "testlink"
   - name: remote-import
     actions:
-      - task: remote-one:echo-var
+      - task: remote:echo-var
   - name: local-import-with-curl
     actions:
       - task: local:fetch-checksums
@@ -103,7 +103,7 @@ tasks:
   - name: more-foobar
     actions:
       - task: foo:foobar
-      - task: remote-one:echo-var
+      - task: remote:echo-var
   - name: extra-foobar
     actions:
       - task: more-foobar

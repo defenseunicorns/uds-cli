@@ -80,7 +80,7 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 	return err
 }
 
-func (r *Runner) processIncludes(task types.Task, tasksFile types.TasksFile, setVariables map[string]string, action types.Action) error {
+func (r *Runner) processIncludes(tasksFile types.TasksFile, setVariables map[string]string, action types.Action) error {
 	if strings.Contains(action.TaskReference, ":") {
 		taskReferenceName := strings.Split(action.TaskReference, ":")[0]
 		for _, include := range tasksFile.Includes {
@@ -455,7 +455,7 @@ func (r *Runner) checkForTaskLoops(task types.Task, tasksFile types.TasksFile, s
 		// don't need to process if references are the same since that indicates the task and action task are in the same file
 		if action.TaskReference != "" && (taskReferenceName != actionReferenceName) {
 			// process includes for action, which will import all tasks for include file
-			if err := r.processIncludes(task, tasksFile, setVariables, action); err != nil {
+			if err := r.processIncludes(tasksFile, setVariables, action); err != nil {
 				return err
 			}
 
