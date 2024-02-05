@@ -450,10 +450,7 @@ func (r *Runner) checkForTaskLoops(task types.Task, tasksFile types.TasksFile, s
 	// Filtering unique task actions allows for rerunning tasks in the same execution
 	uniqueTaskActions := getUniqueTaskActions(task.Actions)
 	for _, action := range uniqueTaskActions {
-		taskReferenceName := strings.Split(task.Name, ":")[0]
-		actionReferenceName := strings.Split(action.TaskReference, ":")[0]
-		// don't need to process if references are the same since that indicates the task and action task are in the same file
-		if action.TaskReference != "" && (taskReferenceName != actionReferenceName) {
+		if r.processAction(task, action) {
 			// process includes for action, which will import all tasks for include file
 			if err := r.processIncludes(tasksFile, setVariables, action); err != nil {
 				return err
@@ -476,6 +473,26 @@ func (r *Runner) checkForTaskLoops(task types.Task, tasksFile types.TasksFile, s
 		clear(r.TaskNameMap)
 	}
 	return nil
+}
+
+// processAction checks if action needs to be processed for a given task
+func (r *Runner) processAction(task types.Task, action types.Action) bool {
+
+	taskReferenceName := strings.Split(task.Name, ":")[0]
+	actionReferenceName := strings.Split(action.TaskReference, ":")[0]
+	// don't need to process if the action.TaskReference is empty or if the task and action references are the same since
+	// that indicates the task and task in the action are in the same file
+	if action.TaskReference != "" && (taskReferenceName != actionReferenceName) {
+		for _, task := range r.TasksFile.Tasks {
+			// check if TasksFile.Tasks already includes tasks with given reference name, which indicates that the
+			// reference has already been processed.
+			if strings.Contains(task.Name, taskReferenceName+":") || strings.Contains(task.Name, actionReferenceName+":") {
+				return false
+			}
+		}
+		return true
+	}
+	return false
 }
 
 // validateActionableTaskCall validates a tasks "withs" and inputs

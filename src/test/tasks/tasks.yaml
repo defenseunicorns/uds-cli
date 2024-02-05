@@ -110,6 +110,7 @@ tasks:
   - name: more-foo
     actions:
       - task: foo:fooybar
+      - task: foo:foobar
   - name: wait
     actions:
       - maxTotalSeconds: 1

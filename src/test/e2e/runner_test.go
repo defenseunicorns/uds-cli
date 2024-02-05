@@ -287,6 +287,8 @@ func TestTaskRunner(t *testing.T) {
 		stdOut, stdErr, err := e2e.UDS("run", "more-foo", "--set", "FOO_VAR=success", "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "success")
+		require.Contains(t, stdErr, "foo")
+		require.Contains(t, stdErr, "bar")
 		require.NotContains(t, stdErr, "default")
 	})
 
