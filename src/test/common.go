@@ -188,7 +188,7 @@ func (e2e *UDSE2ETest) GetGitRevision() (string, error) {
 // HelmDepUpdate runs 'helm dependency update .' on the given path
 func (e2e *UDSE2ETest) HelmDepUpdate(t *testing.T, path string) {
 	cmd := "helm"
-	args := strings.Split(fmt.Sprintf("dependency update ."), " ")
+	args := strings.Split("dependency update .", " ")
 	tmp := exec.PrintCfg()
 	tmp.Dir = path
 	_, _, err := exec.CmdWithContext(context.TODO(), tmp, cmd, args...)

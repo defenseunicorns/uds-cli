@@ -54,7 +54,7 @@ func IsValidTarballPath(path string) bool {
 // UseLogFile writes output to stderr and a logFile.
 func UseLogFile() {
 	// LogWriter is the stream to write logs to.
-	var LogWriter io.Writer = os.Stderr
+	var LogWriter io.Writer
 
 	// Write logs to stderr and a buffer for logFile generation.
 	var logFile *os.File

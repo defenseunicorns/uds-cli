@@ -73,7 +73,11 @@ var runCmd = &cobra.Command{
 			for _, task := range tasksFile.Tasks {
 				rows = append(rows, []string{task.Name, task.Description})
 			}
-			pterm.DefaultTable.WithHasHeader().WithData(rows).Render()
+			err := pterm.DefaultTable.WithHasHeader().WithData(rows).Render()
+			if err != nil {
+				message.Fatal(err, "error listing tasks")
+			}
+
 			os.Exit(0)
 		}
 

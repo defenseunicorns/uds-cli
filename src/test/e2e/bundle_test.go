@@ -57,7 +57,7 @@ func TestCreateWithNoPath(t *testing.T) {
 	defer os.Remove(fmt.Sprintf("uds-bundle-simple-vars-%s-0.0.1.tar.zst", e2e.Arch))
 
 	// create
-	cmd := strings.Split(fmt.Sprintf("create --confirm --insecure"), " ")
+	cmd := strings.Split("create --confirm --insecure", " ")
 	_, _, err = e2e.UDS(cmd...)
 	require.NoError(t, err)
 }

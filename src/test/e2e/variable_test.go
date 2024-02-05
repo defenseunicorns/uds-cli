@@ -140,7 +140,9 @@ func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 	color := "purple"
 	b64Secret := "dGhhdCBhaW50IG15IHRydWNr"
 	err := os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config.yaml"))
+	require.NoError(t, err)
 	err = os.Setenv("UDS_UI_COLOR", color)
+	require.NoError(t, err)
 	err = os.Setenv("UDS_SECRET_VAL", b64Secret)
 	require.NoError(t, err)
 

@@ -50,11 +50,6 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 		return err
 	}
 
-	err = runner.processIncludes(task, tasksFile, setVariables)
-	if err != nil {
-		return err
-	}
-
 	if err = runner.checkForTaskLoops(task, tasksFile, setVariables); err != nil {
 		return err
 	}
@@ -85,19 +80,17 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 	return err
 }
 
-func (r *Runner) processIncludes(task types.Task, tasksFile types.TasksFile, setVariables map[string]string) error {
-	for _, a := range task.Actions {
-		if strings.Contains(a.TaskReference, ":") {
-			taskReferenceName := strings.Split(a.TaskReference, ":")[0]
-			for _, include := range tasksFile.Includes {
-				if include[taskReferenceName] != "" {
-					referencedIncludes := []map[string]string{include}
-					err := r.importTasks(referencedIncludes, config.TaskFileLocation, setVariables)
-					if err != nil {
-						return err
-					}
-					break
+func (r *Runner) processIncludes(tasksFile types.TasksFile, setVariables map[string]string, action types.Action) error {
+	if strings.Contains(action.TaskReference, ":") {
+		taskReferenceName := strings.Split(action.TaskReference, ":")[0]
+		for _, include := range tasksFile.Includes {
+			if include[taskReferenceName] != "" {
+				referencedIncludes := []map[string]string{include}
+				err := r.importTasks(referencedIncludes, config.TaskFileLocation, setVariables)
+				if err != nil {
+					return err
 				}
+				break
 			}
 		}
 	}
@@ -457,7 +450,15 @@ func (r *Runner) checkForTaskLoops(task types.Task, tasksFile types.TasksFile, s
 	// Filtering unique task actions allows for rerunning tasks in the same execution
 	uniqueTaskActions := getUniqueTaskActions(task.Actions)
 	for _, action := range uniqueTaskActions {
-		if action.TaskReference != "" {
+		taskReferenceName := strings.Split(task.Name, ":")[0]
+		actionReferenceName := strings.Split(action.TaskReference, ":")[0]
+		// don't need to process if references are the same since that indicates the task and action task are in the same file
+		if action.TaskReference != "" && (taskReferenceName != actionReferenceName) {
+			// process includes for action, which will import all tasks for include file
+			if err := r.processIncludes(tasksFile, setVariables, action); err != nil {
+				return err
+			}
+
 			exists := r.TaskNameMap[action.TaskReference]
 			if exists {
 				return fmt.Errorf("task loop detected, ensure no cyclic loops in tasks or includes files")
@@ -467,8 +468,6 @@ func (r *Runner) checkForTaskLoops(task types.Task, tasksFile types.TasksFile, s
 			if err != nil {
 				return err
 			}
-			// check new task includes
-			r.processIncludes(newTask, tasksFile, setVariables)
 			if err = r.checkForTaskLoops(newTask, tasksFile, setVariables); err != nil {
 				return err
 			}

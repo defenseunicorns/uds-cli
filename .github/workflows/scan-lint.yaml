@@ -17,10 +17,13 @@ jobs:
       - name: Install goimports
         run: go install golang.org/x/tools/cmd/goimports@latest
 
+      - name: Install golangci-lint
+        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.55.2
+
       - name: Run pre-commit
         uses: pre-commit/action@c7d159c2092cbfaab7352e2d8211ab536aa2267c #
         with:
-          args: --all-files --verbose # pre-commit run --all-files --verbose
+          extra_args: --all-files --verbose # pre-commit run --all-files --verbose
 
       - name: Run Revive Action by pulling pre-built image
         uses: docker://morphy/revive-action:v2@sha256:dad5d9525a11d42ea2a36237f6a4082aef3db37cbd280eabf5e7b87eb033d0d4

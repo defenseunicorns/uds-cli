@@ -100,7 +100,7 @@ func deploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
 }
 
 func runCmd(t *testing.T, input string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf(input), " ")
+	cmd := strings.Split(input, " ")
 	stdout, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 	return stdout, stderr
@@ -239,10 +239,13 @@ func queryIndex(t *testing.T, registryURL, bundlePath string) (ocispec.Index, er
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
+	index := ocispec.Index{}
+	if err != nil {
+		return index, err
+	}
 	if strings.Contains(string(body), "errors") {
 		require.Fail(t, fmt.Sprintf("Received the following error from GHCR: %s", string(body)))
 	}
-	index := ocispec.Index{}
 	err = json.Unmarshal(body, &index)
 	return index, err
 }

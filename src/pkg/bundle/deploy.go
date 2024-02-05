@@ -394,7 +394,7 @@ func addOverrideValue(overrides map[string]map[string]*values.Options, component
 			if err != nil {
 				return err
 			}
-			jsonStrs[i] = fmt.Sprintf("%s", j)
+			jsonStrs[i] = string(j)
 		}
 		// use JSONValues because we can easily marshal the YAML to JSON and Helm understands it
 		jsonVals := fmt.Sprintf("%s=[%s]", valuePath, strings.Join(jsonStrs, ","))

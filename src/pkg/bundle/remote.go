@@ -306,6 +306,9 @@ func ValidateArch(arch string) error {
 	// compare bundle arch and cluster arch
 	var clusterArchs []string
 	c, err := cluster.NewCluster()
+	if err != nil {
+		return err
+	}
 	if c != nil {
 		clusterArchs, err = c.GetArchitectures()
 		if err == nil {
