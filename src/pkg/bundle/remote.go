@@ -307,7 +307,7 @@ func ValidateArch(arch string) error {
 	var clusterArchs []string
 	c, err := cluster.NewCluster()
 	if err != nil {
-		return err
+		message.Debugf("error creating cluster object: %s", err)
 	}
 	if c != nil {
 		clusterArchs, err = c.GetArchitectures()
