@@ -9,12 +9,17 @@ variables:
     default: replaced
   - name: FOO_VAR
     default: default
+  - name: NO_DEFAULT
 
 tasks:
   - name: default
     description: Run Default Task
     actions:
       - cmd: echo "This is the default task"
+  - name: echo-env-var
+    actions:
+        - cmd: echo "${REPLACE_ME}"
+        - cmd: echo "${NO_DEFAULT}"
   - name: copy
     description: "This is a copy task"
     files:

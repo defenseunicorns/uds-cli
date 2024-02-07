@@ -256,12 +256,31 @@ func (r *Runner) executeTask(task types.Task) error {
 }
 
 func (r *Runner) populateTemplateMap(zarfVariables []zarfTypes.ZarfPackageVariable, setVariables map[string]string) {
+
+	defaultEnvs := make(map[string]string)
+
+	// get env vars (vars that start with UDS_)
+	for _, envVar := range os.Environ() {
+		if strings.HasPrefix(envVar, config.EnvVarPrefix) {
+			varNameNoPrefix := envVar[len(config.EnvVarPrefix):]
+			parts := strings.Split(varNameNoPrefix, "=")
+			key := parts[0]
+			value := parts[1]
+			defaultEnvs[key] = value
+		}
+	}
+
 	for _, variable := range zarfVariables {
-		r.TemplateMap[fmt.Sprintf("${%s}", variable.Name)] = &zarfUtils.TextTemplate{
+		templatedVariableName := fmt.Sprintf("${%s}", variable.Name)
+		r.TemplateMap[templatedVariableName] = &zarfUtils.TextTemplate{
 			Sensitive:  variable.Sensitive,
 			AutoIndent: variable.AutoIndent,
 			Type:       variable.Type,
 			Value:      variable.Default,
+		}
+		if variable.Default == "" {
+			// check env vars for a default, if no env, value will remain ""
+			r.TemplateMap[templatedVariableName].Value = defaultEnvs[variable.Name]
 		}
 	}
 
