@@ -74,9 +74,10 @@ func initViper() {
 		v.SetConfigName("uds-config")
 	}
 
-	// E.g. UDS_LOG_LEVEL=debug
+	// we replace 'OPTIONS.' because in a uds-config.yaml, the key is options.<opt>, but in the environment, it's UDS_<OPT>
+	// e.g. UDS_LOG_LEVEL=debug
 	v.SetEnvPrefix("uds")
-	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.SetEnvKeyReplacer(strings.NewReplacer("OPTIONS.", ""))
 	v.AutomaticEnv()
 
 	vConfigError = v.ReadInConfig()
