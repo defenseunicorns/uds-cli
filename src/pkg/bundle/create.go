@@ -116,6 +116,11 @@ func (b *Bundler) Create() error {
 		}
 		return CreateAndPublish(remote, b.bundle, signatureBytes)
 	}
+
+	// create a bundler obj -> determines if you're dealing with a local or remote bundle
+	// if local bundle -> use a fetcher to fetch all the packages and pull them into the local bundle (local and remote pkgs)
+	// if remote bundle -> use a pusher to push all the packages to the remote bundle (local and remote pkgs)
+
 	return Create(b, signatureBytes)
 }
 

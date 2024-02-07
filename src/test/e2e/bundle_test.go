@@ -32,8 +32,10 @@ func TestUDSCmd(t *testing.T) {
 func TestSimpleBundleWithZarfAction(t *testing.T) {
 	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+	os.Setenv("UDS_LOG_LEVEL", "debug")
 	createLocal(t, "src/test/bundles/11-real-simple", e2e.Arch)
-	deploy(t, fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-real-simple-%s-0.0.1.tar.zst", e2e.Arch))
+	_, stderr := deploy(t, fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-real-simple-%s-0.0.1.tar.zst", e2e.Arch))
+	require.Contains(t, stderr, "Log level set to debug")
 }
 
 func TestCreateWithNoPath(t *testing.T) {
