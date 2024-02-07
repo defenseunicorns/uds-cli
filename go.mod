@@ -3,7 +3,7 @@ module github.com/defenseunicorns/uds-cli
 go 1.21.5
 
 // todo: fix when https://github.com/defenseunicorns/zarf/pull/2270 gets merged
-replace github.com/derailed/k9s => github.com/derailed/k9s v0.31.7
+replace github.com/derailed/k9s => github.com/derailed/k9s v0.31.8
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
@@ -95,7 +95,7 @@ require (
 	github.com/anchore/go-version v1.2.2-0.20210903204242-51efa5b487c4 // indirect
 	github.com/anchore/grype v0.74.0 // indirect
 	github.com/anchore/packageurl-go v0.1.1-0.20230104203445-02e0a6721501 // indirect
-	github.com/anchore/stereoscope v0.0.0-20240118133533-eb656fc71793 // indirect
+	github.com/anchore/stereoscope v0.0.1 // indirect
 	github.com/anchore/syft v0.100.0 // indirect
 	github.com/andybalholm/brotli v1.0.6 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
@@ -166,7 +166,7 @@ require (
 	github.com/daviddengcn/go-colortext v1.0.0 // indirect
 	github.com/deitch/magic v0.0.0-20230404182410-1ff89d7342da // indirect
 	github.com/derailed/k9s v0.29.1 // indirect
-	github.com/derailed/popeye v0.11.2 // indirect
+	github.com/derailed/popeye v0.11.3 // indirect
 	github.com/derailed/tcell/v2 v2.3.1-rc.3 // indirect
 	github.com/derailed/tview v0.8.3 // indirect
 	github.com/digitorus/pkcs7 v0.0.0-20230818184609-3a137a874352 // indirect
@@ -351,7 +351,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/open-policy-agent/opa v0.59.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/opencontainers/runc v1.1.5 // indirect
+	github.com/opencontainers/runc v1.1.12 // indirect
 	github.com/opencontainers/runtime-spec v1.1.0-rc.1 // indirect
 	github.com/opencontainers/selinux v1.11.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
@@ -379,7 +379,7 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
-	github.com/rs/zerolog v1.31.0 // indirect
+	github.com/rs/zerolog v1.32.0 // indirect
 	github.com/rubenv/sql-migrate v1.5.2 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
@@ -482,18 +482,18 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/gorm v1.25.5 // indirect
-	k8s.io/api v0.29.0 // indirect
-	k8s.io/apiextensions-apiserver v0.29.0 // indirect
-	k8s.io/apimachinery v0.29.0 // indirect
-	k8s.io/apiserver v0.29.0 // indirect
-	k8s.io/cli-runtime v0.29.0 // indirect
-	k8s.io/client-go v0.29.0 // indirect
-	k8s.io/component-base v0.29.0 // indirect
-	k8s.io/component-helpers v0.29.0 // indirect
-	k8s.io/klog/v2 v2.120.0 // indirect
+	k8s.io/api v0.29.1 // indirect
+	k8s.io/apiextensions-apiserver v0.29.1 // indirect
+	k8s.io/apimachinery v0.29.1 // indirect
+	k8s.io/apiserver v0.29.1 // indirect
+	k8s.io/cli-runtime v0.29.1 // indirect
+	k8s.io/client-go v0.29.1 // indirect
+	k8s.io/component-base v0.29.1 // indirect
+	k8s.io/component-helpers v0.29.1 // indirect
+	k8s.io/klog/v2 v2.120.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00 // indirect
-	k8s.io/kubectl v0.29.0 // indirect
-	k8s.io/metrics v0.29.0 // indirect
+	k8s.io/kubectl v0.29.1 // indirect
+	k8s.io/metrics v0.29.1 // indirect
 	k8s.io/utils v0.0.0-20231127182322-b307cd553661 // indirect
 	modernc.org/libc v1.29.0 // indirect
 	modernc.org/mathutil v1.6.0 // indirect
