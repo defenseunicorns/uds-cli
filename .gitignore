@@ -4,6 +4,7 @@
 .env.*
 .idea/
 .image-cache/
+.release-downloads/
 .scratch/
 .vscode/
 .zarf*
