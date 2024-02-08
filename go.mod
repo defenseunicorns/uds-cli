@@ -2,11 +2,6 @@ module github.com/defenseunicorns/uds-cli
 
 go 1.21.6
 
-toolchain go1.22.0
-
-// todo: fix when https://github.com/defenseunicorns/zarf/pull/2270 gets merged
-replace github.com/derailed/k9s => github.com/derailed/k9s v0.31.7
-
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
