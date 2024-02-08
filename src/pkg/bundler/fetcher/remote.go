@@ -25,7 +25,7 @@ import (
 	"oras.land/oras-go/v2"
 )
 
-type RemoteFetcher struct {
+type remoteFetcher struct {
 	ctx             context.Context
 	pkg             types.Package
 	cfg             Config
@@ -33,13 +33,13 @@ type RemoteFetcher struct {
 	remote          *oci.OrasRemote
 }
 
-func (f *RemoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
+func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	fetchSpinner := message.NewProgressSpinner("Fetching package %s", f.pkg.Name)
 	zarfPackageName := ""
 	zarfRootLayerAdded := false
 	defer fetchSpinner.Stop()
 
-	layerDescs, err := f.LayersToLocalBundle(fetchSpinner, f.cfg.PkgIter+1, f.cfg.NumPkgs)
+	layerDescs, err := f.layersToLocalBundle(fetchSpinner, f.cfg.PkgIter+1, f.cfg.NumPkgs)
 	if err != nil {
 		return nil, err
 	}
@@ -96,10 +96,10 @@ func (f *RemoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 }
 
 // LayersToLocalBundle pushes a remote Zarf pkg's layers to a local bundle
-func (f *RemoteFetcher) LayersToLocalBundle(spinner *message.Spinner, currentPackageIter int, totalPackages int) ([]ocispec.Descriptor, error) {
+func (f *remoteFetcher) layersToLocalBundle(spinner *message.Spinner, currentPackageIter int, totalPackages int) ([]ocispec.Descriptor, error) {
 	spinner.Updatef("Fetching %s package layer metadata (package %d of %d)", f.pkg.Name, currentPackageIter, totalPackages)
 	// get only the layers that are required by the components
-	layersToCopy, err := getZarfLayers(f.remote, f.pkg, f.pkgRootManifest)
+	layersToCopy, err := utils.GetZarfLayers(f.remote, f.pkg, f.pkgRootManifest)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +114,7 @@ func (f *RemoteFetcher) LayersToLocalBundle(spinner *message.Spinner, currentPac
 }
 
 // remoteToLocal copies a remote Zarf pkg to a local OCI store
-func (f *RemoteFetcher) remoteToLocal(layersToCopy []ocispec.Descriptor) ([]ocispec.Descriptor, error) {
+func (f *remoteFetcher) remoteToLocal(layersToCopy []ocispec.Descriptor) ([]ocispec.Descriptor, error) {
 	// pull layers from remote and write to OCI artifact dir
 	var descsToBundle []ocispec.Descriptor
 	var layersToPull []ocispec.Descriptor
@@ -189,27 +189,7 @@ func (f *RemoteFetcher) remoteToLocal(layersToCopy []ocispec.Descriptor) ([]ocis
 	return descsToBundle, nil
 }
 
-// getZarfLayers grabs the necessary Zarf pkg layers from a remote OCI registry
-// todo: dedup from fetcher and pusher
-func getZarfLayers(remote *oci.OrasRemote, pkg types.Package, pkgRootManifest *oci.ZarfOCIManifest) ([]ocispec.Descriptor, error) {
-	layersFromComponents, err := remote.LayersFromRequestedComponents(pkg.OptionalComponents)
-	if err != nil {
-		return nil, err
-	}
-	// get the layers that are always pulled
-	var metadataLayers []ocispec.Descriptor
-	for _, path := range oci.PackageAlwaysPull {
-		layer := pkgRootManifest.Locate(path)
-		if !oci.IsEmptyDescriptor(layer) {
-			metadataLayers = append(metadataLayers, layer)
-		}
-	}
-	layersToCopy := append(layersFromComponents, metadataLayers...)
-	layersToCopy = append(layersToCopy, pkgRootManifest.Config)
-	return layersToCopy, err
-}
-
-func (f *RemoteFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
+func (f *remoteFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
 	platform := ocispec.Platform{
 		Architecture: config.GetArch(),
 		OS:           oci.MultiOS,

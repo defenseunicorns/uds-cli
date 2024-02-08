@@ -252,3 +252,22 @@ func EnsureOCIPrefix(source string) string {
 	}
 	return source
 }
+
+// GetZarfLayers grabs the necessary Zarf pkg layers from a remote OCI registry
+func GetZarfLayers(remote *oci.OrasRemote, pkg types.Package, pkgRootManifest *oci.ZarfOCIManifest) ([]ocispec.Descriptor, error) {
+	layersFromComponents, err := remote.LayersFromRequestedComponents(pkg.OptionalComponents)
+	if err != nil {
+		return nil, err
+	}
+	// get the layers that are always pulled
+	var metadataLayers []ocispec.Descriptor
+	for _, path := range oci.PackageAlwaysPull {
+		layer := pkgRootManifest.Locate(path)
+		if !oci.IsEmptyDescriptor(layer) {
+			metadataLayers = append(metadataLayers, layer)
+		}
+	}
+	layersToCopy := append(layersFromComponents, metadataLayers...)
+	layersToCopy = append(layersToCopy, pkgRootManifest.Config)
+	return layersToCopy, err
+}

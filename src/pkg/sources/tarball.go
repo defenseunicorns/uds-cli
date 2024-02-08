@@ -224,7 +224,6 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 
 		target, err := os.Create(layerDst)
 		if err != nil {
-			// todo: need to add title annotation to Zarf layers f/local pkgs
 			return err
 		}
 		defer target.Close()

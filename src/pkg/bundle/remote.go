@@ -364,27 +364,3 @@ func (op *ociProvider) ZarfPackageNameMap() (map[string]string, error) {
 	}
 	return nameMap, nil
 }
-
-// GetMetadata grabs metadata from a remote Zarf package's zarf.yaml
-// todo: not sure where this fn goes
-//func GetMetadata(url string, tmpDir string) (zarfTypes.ZarfPackage, error) {
-//	platform := ocispec.Platform{
-//		Architecture: config.GetArch(),
-//		OS:           oci.MultiOS,
-//	}
-//	remote, err := oci.NewOrasRemote(url, platform)
-//	if err != nil {
-//		return zarfTypes.ZarfPackage{}, err
-//	}
-//
-//	if _, err := remote.PullPackageMetadata(tmpDir); err != nil {
-//		return zarfTypes.ZarfPackage{}, err
-//	}
-//	zarfYAML := zarfTypes.ZarfPackage{}
-//	zarfYAMLPath := filepath.Join(tmpDir, config.ZarfYAML)
-//	err = zarfUtils.ReadYaml(zarfYAMLPath, &zarfYAML)
-//	if err != nil {
-//		return zarfTypes.ZarfPackage{}, err
-//	}
-//	return zarfYAML, err
-//}

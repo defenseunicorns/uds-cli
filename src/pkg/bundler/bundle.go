@@ -61,7 +61,7 @@ func (b *Bundler) createLocalBundle(signature []byte) error {
 	// grab all Zarf pkgs from OCI and put blobs in OCI store
 	for i, pkg := range bundle.Packages {
 		fetcherConfig.PkgIter = i
-		pkgFetcher, err := fetcher.NewFetcher(pkg, fetcherConfig)
+		pkgFetcher, err := fetcher.NewPkgFetcher(pkg, fetcherConfig)
 		if err != nil {
 			return err
 		}
@@ -146,28 +146,39 @@ func (b *Bundler) createLocalBundle(signature []byte) error {
 }
 
 // createRemoteBundle creates the bundle in a remote OCI registry publishes w/ optional signature to the remote repository.
-func (b *Bundler) createRemoteBundle(remoteDst *oci.OrasRemote, signature []byte) error {
-	bundle := b.bundle
-	if bundle.Metadata.Architecture == "" {
-		return fmt.Errorf("architecture is required for bundling")
+func (b *Bundler) createRemoteBundle(signature []byte) error {
+	// set the bundle remote's reference from metadata
+	b.createOpts.Output = utils.EnsureOCIPrefix(b.createOpts.Output)
+	ref, err := referenceFromMetadata(b.createOpts.Output, &b.bundle.Metadata)
+	if err != nil {
+		return err
 	}
-	dstRef := remoteDst.Repo().Reference
-	message.Debug("Bundling", bundle.Metadata.Name, "to", dstRef)
-
-	rootManifest := ocispec.Manifest{}
 	platform := ocispec.Platform{
 		Architecture: config.GetArch(),
 		OS:           oci.MultiOS,
 	}
 
+	// create the bundle remote
+	bundleRemote, err := oci.NewOrasRemote(ref, platform)
+	if err != nil {
+		return err
+	}
+	bundle := b.bundle
+	if bundle.Metadata.Architecture == "" {
+		return fmt.Errorf("architecture is required for bundling")
+	}
+	dstRef := bundleRemote.Repo().Reference
+	message.Debug("Bundling", bundle.Metadata.Name, "to", dstRef)
+
+	rootManifest := ocispec.Manifest{}
 	pusherConfig := pusher.Config{
 		Bundle:    bundle,
-		RemoteDst: remoteDst,
+		RemoteDst: bundleRemote,
 		NumPkgs:   len(bundle.Packages),
 	}
 
 	for i, pkg := range bundle.Packages {
-		// todo: can leave this block here or move to pusher.NewPusher (would be closer to NewFetcher pattern)
+		// todo: can leave this block here or move to pusher.NewPkgPusher (would be closer to NewPkgFetcher pattern)
 		pkgUrl := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
 		src, err := oci.NewOrasRemote(pkgUrl, platform)
 		if err != nil {
@@ -181,7 +192,7 @@ func (b *Bundler) createRemoteBundle(remoteDst *oci.OrasRemote, signature []byte
 		pusherConfig.PkgRootManifest = pkgRootManifest
 		pusherConfig.PkgIter = i
 
-		remotePusher := pusher.NewPusher(pkg, pusherConfig)
+		remotePusher := pusher.NewPkgPusher(pkg, pusherConfig)
 		zarfManifestDesc, err := remotePusher.Push()
 		if err != nil {
 			return err
@@ -194,7 +205,7 @@ func (b *Bundler) createRemoteBundle(remoteDst *oci.OrasRemote, signature []byte
 	if err != nil {
 		return err
 	}
-	bundleYamlDesc, err := remoteDst.PushLayer(bundleYamlBytes, oci.ZarfLayerMediaTypeBlob)
+	bundleYamlDesc, err := bundleRemote.PushLayer(bundleYamlBytes, oci.ZarfLayerMediaTypeBlob)
 	if err != nil {
 		return err
 	}
@@ -207,7 +218,7 @@ func (b *Bundler) createRemoteBundle(remoteDst *oci.OrasRemote, signature []byte
 
 	// push the bundle's signature
 	if len(signature) > 0 {
-		bundleYamlSigDesc, err := remoteDst.PushLayer(signature, oci.ZarfLayerMediaTypeBlob)
+		bundleYamlSigDesc, err := bundleRemote.PushLayer(signature, oci.ZarfLayerMediaTypeBlob)
 		if err != nil {
 			return err
 		}
@@ -219,7 +230,7 @@ func (b *Bundler) createRemoteBundle(remoteDst *oci.OrasRemote, signature []byte
 	}
 
 	// push the bundle manifest config
-	configDesc, err := pushManifestConfigFromMetadata(remoteDst, &bundle.Metadata, &bundle.Build)
+	configDesc, err := pushManifestConfigFromMetadata(bundleRemote, &bundle.Metadata, &bundle.Build)
 	if err != nil {
 		return err
 	}
@@ -227,7 +238,7 @@ func (b *Bundler) createRemoteBundle(remoteDst *oci.OrasRemote, signature []byte
 	message.Debug("Pushed config:", message.JSONValue(configDesc))
 
 	// check for existing index
-	index, err := utils.GetIndex(remoteDst, dstRef.String())
+	index, err := utils.GetIndex(bundleRemote, dstRef.String())
 	if err != nil {
 		return err
 	}
@@ -236,13 +247,13 @@ func (b *Bundler) createRemoteBundle(remoteDst *oci.OrasRemote, signature []byte
 	rootManifest.Config = configDesc
 	rootManifest.SchemaVersion = 2
 	rootManifest.Annotations = manifestAnnotationsFromMetadata(&bundle.Metadata) // maps to registry UI
-	rootManifestDesc, err := utils.ToOCIRemote(rootManifest, ocispec.MediaTypeImageManifest, remoteDst)
+	rootManifestDesc, err := utils.ToOCIRemote(rootManifest, ocispec.MediaTypeImageManifest, bundleRemote)
 	if err != nil {
 		return err
 	}
 
 	// create or update, then push index.json
-	err = utils.UpdateIndex(index, remoteDst, bundle, rootManifestDesc)
+	err = utils.UpdateIndex(index, bundleRemote, bundle, rootManifestDesc)
 	if err != nil {
 		return err
 	}

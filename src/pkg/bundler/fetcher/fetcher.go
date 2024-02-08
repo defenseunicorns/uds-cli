@@ -31,7 +31,8 @@ type Config struct {
 	Bundle             *types.UDSBundle
 }
 
-func NewFetcher(pkg types.Package, fetcherConfig Config) (Fetcher, error) {
+// NewPkgFetcher creates a fetcher object to pull Zarf pkgs into a local bundle
+func NewPkgFetcher(pkg types.Package, fetcherConfig Config) (Fetcher, error) {
 	var fetcher Fetcher
 	if utils.IsRemotePkg(pkg) {
 		platform := ocispec.Platform{
@@ -47,7 +48,7 @@ func NewFetcher(pkg types.Package, fetcherConfig Config) (Fetcher, error) {
 		if err != nil {
 			return nil, err
 		}
-		fetcher = &RemoteFetcher{
+		fetcher = &remoteFetcher{
 			ctx:             context.TODO(),
 			pkg:             pkg,
 			cfg:             fetcherConfig,
@@ -55,7 +56,7 @@ func NewFetcher(pkg types.Package, fetcherConfig Config) (Fetcher, error) {
 			remote:          remote,
 		}
 	} else {
-		fetcher = &LocalFetcher{
+		fetcher = &localFetcher{
 			pkg: pkg,
 			cfg: fetcherConfig,
 		}

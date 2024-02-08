@@ -166,7 +166,7 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 		}
 
 		// grab the Zarf pkg metadata
-		f, err := fetcher.NewFetcher(pkg, fetcher.Config{
+		f, err := fetcher.NewPkgFetcher(pkg, fetcher.Config{
 			PkgIter: idx, Bundle: bundle,
 		})
 		if err != nil {

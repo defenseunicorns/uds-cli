@@ -9,13 +9,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
-	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2/registry"
 )
 
@@ -51,22 +47,7 @@ func (b *Bundler) Create() error {
 			return err
 		}
 	} else {
-		// todo: move this into createRemoteBundle
-		b.createOpts.Output = utils.EnsureOCIPrefix(b.createOpts.Output)
-		// set the remote's reference from the bundle's metadata
-		ref, err := referenceFromMetadata(b.createOpts.Output, &b.bundle.Metadata)
-		if err != nil {
-			return err
-		}
-		platform := ocispec.Platform{
-			Architecture: config.GetArch(),
-			OS:           oci.MultiOS,
-		}
-		remote, err := oci.NewOrasRemote(ref, platform)
-		if err != nil {
-			return err
-		}
-		err = b.createRemoteBundle(remote, nil)
+		err := b.createRemoteBundle(nil)
 		if err != nil {
 			return err
 		}

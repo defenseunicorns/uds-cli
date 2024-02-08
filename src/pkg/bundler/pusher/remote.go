@@ -32,11 +32,12 @@ type Config struct {
 	Bundle          *types.UDSBundle
 }
 
-// NewPusher creates a bundler to pull remote Zarf pkgs
-func NewPusher(pkg types.Package, cfg Config) RemotePusher {
+// NewPkgPusher creates a pusher object to push Zarf pkgs to a remote bundle
+func NewPkgPusher(pkg types.Package, cfg Config) RemotePusher {
 	return RemotePusher{ctx: context.TODO(), pkg: pkg, cfg: cfg}
 }
 
+// Push pushes a Zarf pkg to a remote bundle
 func (p *RemotePusher) Push() (ocispec.Descriptor, error) {
 	zarfManifestDesc, err := p.PushManifest()
 	if err != nil {
@@ -84,7 +85,7 @@ func (p *RemotePusher) PushManifest() (ocispec.Descriptor, error) {
 func (p *RemotePusher) LayersToRemoteBundle(spinner *message.Spinner, currentPackageIter int, totalPackages int) ([]ocispec.Descriptor, error) {
 	spinner.Updatef("Fetching %s package layer metadata (package %d of %d)", p.pkg.Name, currentPackageIter, totalPackages)
 	// get only the layers that are required by the components
-	layersToCopy, err := getZarfLayers(p.cfg.RemoteSrc, p.pkg, p.cfg.PkgRootManifest)
+	layersToCopy, err := utils.GetZarfLayers(p.cfg.RemoteSrc, p.pkg, p.cfg.PkgRootManifest)
 	if err != nil {
 		return nil, err
 	}
@@ -137,23 +138,4 @@ func (p *RemotePusher) remoteToRemote(layersToCopy []ocispec.Descriptor) error {
 		spinner.Successf("Mounted %d layers", len(layersToCopy))
 	}
 	return nil
-}
-
-// getZarfLayers grabs the necessary Zarf pkg layers from a remote OCI registry
-func getZarfLayers(remote *oci.OrasRemote, pkg types.Package, pkgRootManifest *oci.ZarfOCIManifest) ([]ocispec.Descriptor, error) {
-	layersFromComponents, err := remote.LayersFromRequestedComponents(pkg.OptionalComponents)
-	if err != nil {
-		return nil, err
-	}
-	// get the layers that are always pulled
-	var metadataLayers []ocispec.Descriptor
-	for _, path := range oci.PackageAlwaysPull {
-		layer := pkgRootManifest.Locate(path)
-		if !oci.IsEmptyDescriptor(layer) {
-			metadataLayers = append(metadataLayers, layer)
-		}
-	}
-	layersToCopy := append(layersFromComponents, metadataLayers...)
-	layersToCopy = append(layersToCopy, pkgRootManifest.Config)
-	return layersToCopy, err
 }

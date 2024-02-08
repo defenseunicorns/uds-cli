@@ -27,13 +27,14 @@ import (
 	ocistore "oras.land/oras-go/v2/content/oci"
 )
 
-type LocalFetcher struct {
+type localFetcher struct {
 	pkg        types.Package
 	cfg        Config
 	extractDst string
 }
 
-func (f *LocalFetcher) Fetch() ([]ocispec.Descriptor, error) {
+// Fetch fetches a Zarf pkg and puts it into a local bundle
+func (f *localFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	fetchSpinner := message.NewProgressSpinner("Fetching package %s", f.pkg.Name)
 	defer fetchSpinner.Stop()
 	pkgTmp, err := zarfUtils.MakeTempDir("")
@@ -43,12 +44,12 @@ func (f *LocalFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	}
 	f.extractDst = pkgTmp
 
-	err = f.Extract()
+	err = f.extract()
 	if err != nil {
 		return nil, err
 	}
 
-	zarfPkg, err := f.Load()
+	zarfPkg, err := f.load()
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +63,7 @@ func (f *LocalFetcher) Fetch() ([]ocispec.Descriptor, error) {
 }
 
 // GetPkgMetadata grabs metadata from a local Zarf package's zarf.yaml
-func (f *LocalFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
+func (f *localFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
 	tmpDir, err := zarfUtils.MakeTempDir("")
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, err
@@ -114,7 +115,7 @@ func (f *LocalFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
 }
 
 // Extract extracts a compressed Zarf archive into a directory
-func (f *LocalFetcher) Extract() error {
+func (f *localFetcher) extract() error {
 	err := av3.Unarchive(f.pkg.Path, f.extractDst) // todo: awkward to use old version of mholt/archiver
 	if err != nil {
 		return err
@@ -123,7 +124,7 @@ func (f *LocalFetcher) Extract() error {
 }
 
 // Load loads a zarf.yaml into a Zarf object
-func (f *LocalFetcher) Load() (zarfTypes.ZarfPackage, error) {
+func (f *localFetcher) load() (zarfTypes.ZarfPackage, error) {
 	// grab zarf.yaml from extracted archive
 	p, err := os.ReadFile(filepath.Join(f.extractDst, config.ZarfYAML))
 	if err != nil {
@@ -137,7 +138,7 @@ func (f *LocalFetcher) Load() (zarfTypes.ZarfPackage, error) {
 }
 
 // toBundle transfers a Zarf package to a given Bundle
-func (f *LocalFetcher) toBundle(pkg zarfTypes.ZarfPackage, pkgTmp string) ([]ocispec.Descriptor, error) {
+func (f *localFetcher) toBundle(pkg zarfTypes.ZarfPackage, pkgTmp string) ([]ocispec.Descriptor, error) {
 	// todo: only grab components that are required + specified in optionalComponents
 	ctx := context.TODO()
 	src, err := file.New(pkgTmp)
