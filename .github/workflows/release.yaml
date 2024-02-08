@@ -70,9 +70,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install Zarf
-        uses: ./.github/actions/zarf
-
       - name: Run e2e tests
         run: |
           make test-e2e
