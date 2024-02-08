@@ -9,6 +9,11 @@ variables:
     default: replaced
   - name: FOO_VAR
     default: default
+  - name: COOL_DIR
+    default: src/test/tasks
+  - name: COOL_FILE
+    type: file
+    default: my-env
 
 tasks:
   - name: default
@@ -141,3 +146,8 @@ tasks:
     envPath: "./my-other-env"
     actions:
       - cmd: echo overwritten env var - $PORT
+  - name: file-and-dir
+    description: Tests variables of type file and setting dir from variable
+    actions:
+      - cmd: cat ${COOL_FILE}
+        dir: ${COOL_DIR}
