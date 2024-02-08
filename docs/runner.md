@@ -223,7 +223,7 @@ Note that variables also have the following attributes:
 
 - `sensitive`: boolean value indicating if a variable should be visible in output
 - `default`: default value of a variable
-  - If a default is not specified for a variable, the UDS runner will look at your environment variables for a match prefixed with `UDS_`. In the example above, if `FOO` did not have a default, and you have an environment variable `UDS_FOO=bar`, the default would get set to `bar`.
+  - In the example above, if `FOO` did not have a default, and you have an environment variable `UDS_FOO=bar`, the default would get set to `bar`.
 
 ### Environment Variables
 
@@ -241,6 +241,8 @@ tasks:
     actions:
       - cmd: echo differnt task $FOO
 ```
+
+If a default is not specified for a variable, the UDS runner will look at your environment variables for a match prefixed with `UDS_`.
 
 ### Files
 

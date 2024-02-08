@@ -264,9 +264,9 @@ func (r *Runner) populateTemplateMap(zarfVariables []zarfTypes.ZarfPackageVariab
 		if strings.HasPrefix(envVar, config.EnvVarPrefix) {
 			varNameNoPrefix := envVar[len(config.EnvVarPrefix):]
 			parts := strings.Split(varNameNoPrefix, "=")
-			key := parts[0]
-			value := parts[1]
-			defaultEnvs[key] = value
+			envVarKey := parts[0]
+			envVarValue := parts[1]
+			defaultEnvs[envVarKey] = envVarValue
 		}
 	}
 

@@ -17,6 +17,7 @@ tasks:
     actions:
       - cmd: echo "This is the default task"
   - name: echo-env-var
+    description: Test that env vars get used for variables that do not have a default set
     actions:
         - cmd: echo "${REPLACE_ME}"
         - cmd: echo "${NO_DEFAULT}"

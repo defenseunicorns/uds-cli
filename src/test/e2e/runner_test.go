@@ -327,7 +327,7 @@ func TestTaskRunner(t *testing.T) {
 		require.Contains(t, stdErr, "overwritten env var - 8080")
 	})
 
-	t.Run("run echo-env-var", func(t *testing.T) {
+	t.Run("test that env vars get used for variables that do not have a default set", func(t *testing.T) {
 		t.Parallel()
 		os.Setenv("UDS_REPLACE_ME", "env-var")
 		os.Setenv("UDS_NO_DEFAULT", "no-problem")
