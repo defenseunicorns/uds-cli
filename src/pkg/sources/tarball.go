@@ -126,7 +126,7 @@ func (t *TarballBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ 
 
 	// grab zarf.yaml and checksums.txt
 	filePaths := []string{filepath.Join(config.BlobsDir, zarfYamlSHA), filepath.Join(config.BlobsDir, checksumsSHA)}
-	if err := format.Extract(ctx, sourceArchive, filePaths, func(ctx context.Context, fileInArchive av4.File) error {
+	if err := format.Extract(ctx, sourceArchive, filePaths, func(_ context.Context, fileInArchive av4.File) error {
 		var fileDst string
 		if strings.Contains(fileInArchive.Name(), zarfYamlSHA) {
 			fileDst = filepath.Join(dst.Base, config.ZarfYAML)

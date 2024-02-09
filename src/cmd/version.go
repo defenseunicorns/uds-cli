@@ -15,13 +15,13 @@ import (
 var versionCmd = &cobra.Command{
 	Use:     "version",
 	Aliases: []string{"v"},
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+	PersistentPreRun: func(_ *cobra.Command, _ []string) {
 		config.SkipLogFile = true
 		cliSetup()
 	},
 	Short: lang.CmdVersionShort,
 	Long:  lang.CmdVersionLong,
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 		fmt.Println(config.CLIVersion)
 	},
 }
