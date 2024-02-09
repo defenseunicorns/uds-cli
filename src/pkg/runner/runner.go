@@ -379,6 +379,11 @@ func (r *Runner) performAction(action types.Action) error {
 			return err
 		}
 
+		// template the withs with variables
+		for k, v := range action.With {
+			action.With[k] = r.templateString(v)
+		}
+
 		referencedTask.Actions, err = templateTaskActionsWithInputs(referencedTask, action.With)
 		if err != nil {
 			return err
@@ -704,6 +709,7 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 	}
 }
 
+// templateString replaces ${...} with the value from the template map
 func (r *Runner) templateString(s string) string {
 	// Create a regular expression to match ${...}
 	re := regexp.MustCompile(`\${(.*?)}`)

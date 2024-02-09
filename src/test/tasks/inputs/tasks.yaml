@@ -1,6 +1,10 @@
 includes:
   - with: ./tasks-with-inputs.yaml
 
+variables:
+  - name: FOO
+    default: bar
+
 tasks:
   - name: has-default-empty
     actions:
@@ -48,3 +52,10 @@ tasks:
       - task: with:deprecated-message
         with:
           deprecated-message: deprecated-value
+
+  - name: variable-as-input
+    description: demonstrates that variables can be passed into tasks as 'with' inputs
+    actions:
+      - task: with:no-default
+        with:
+          no-default: ${FOO}

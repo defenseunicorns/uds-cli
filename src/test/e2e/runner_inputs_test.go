@@ -5,6 +5,7 @@
 package test
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -92,5 +93,20 @@ func TestRunnerInputs(t *testing.T) {
 		require.NoError(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "WARNING")
 		require.Contains(t, stdErr, "This input has been marked deprecated: This is a deprecated message")
+	})
+
+	t.Run("test that variables can be used as inputs", func(t *testing.T) {
+		t.Parallel()
+
+		stdOut, stdErr, err := e2e.UDS("run", "variable-as-input", "--file", "src/test/tasks/inputs/tasks.yaml", "--set", "foo=im a variable")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "im a variable")
+	})
+
+	t.Run("test that env vars can be used as inputs", func(t *testing.T) {
+		os.Setenv("UDS_FOO", "im an env var")
+		stdOut, stdErr, err := e2e.UDS("run", "variable-as-input", "--file", "src/test/tasks/inputs/tasks.yaml")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "im an env var")
 	})
 }
