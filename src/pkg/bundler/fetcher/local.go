@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
-// Package bundler defines behavior for bundling packages
-package bundler
+// Package fetcher contains functionality to fetch local and remote Zarf pkgs for bundling
+package fetcher
 
 import (
 	"context"
@@ -13,6 +13,8 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
@@ -25,21 +27,55 @@ import (
 	ocistore "oras.land/oras-go/v2/content/oci"
 )
 
-// LocalBundler contains methods for loading local Zarf packages into a bundle
-type LocalBundler struct {
-	ctx          context.Context
-	tarballSrc   string
-	extractedDst string
+type localFetcher struct {
+	pkg        types.Package
+	cfg        Config
+	extractDst string
 }
 
-// NewLocalBundler creates a bundler for bundling local Zarf pkgs
-func NewLocalBundler(src, dest string) LocalBundler {
-	return LocalBundler{tarballSrc: src, extractedDst: dest, ctx: context.TODO()}
+// Fetch fetches a Zarf pkg and puts it into a local bundle
+func (f *localFetcher) Fetch() ([]ocispec.Descriptor, error) {
+	fetchSpinner := message.NewProgressSpinner("Fetching package %s", f.pkg.Name)
+	defer fetchSpinner.Stop()
+	pkgTmp, err := zarfUtils.MakeTempDir("")
+	defer os.RemoveAll(pkgTmp)
+	if err != nil {
+		return nil, err
+	}
+	f.extractDst = pkgTmp
+
+	err = f.extract()
+	if err != nil {
+		return nil, err
+	}
+
+	zarfPkg, err := f.load()
+	if err != nil {
+		return nil, err
+	}
+
+	layerDescs, err := f.toBundle(zarfPkg, pkgTmp)
+	if err != nil {
+		return nil, err
+	}
+	fetchSpinner.Successf("Fetched package: %s", f.pkg.Name)
+	return layerDescs, nil
 }
 
-// GetMetadata grabs metadata from a local Zarf package's zarf.yaml
-func (b *LocalBundler) GetMetadata(pathToTarball string, tmpDir string) (zarfTypes.ZarfPackage, error) {
-	zarfTarball, err := os.Open(pathToTarball)
+// GetPkgMetadata grabs metadata from a local Zarf package's zarf.yaml
+func (f *localFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
+	tmpDir, err := zarfUtils.MakeTempDir("")
+	if err != nil {
+		return zarfTypes.ZarfPackage{}, err
+	}
+	defer func(path string) {
+		err := os.RemoveAll(path)
+		if err != nil {
+
+		}
+	}(tmpDir)
+
+	zarfTarball, err := os.Open(f.cfg.Bundle.Packages[f.cfg.PkgIter].Path)
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, err
 	}
@@ -79,8 +115,8 @@ func (b *LocalBundler) GetMetadata(pathToTarball string, tmpDir string) (zarfTyp
 }
 
 // Extract extracts a compressed Zarf archive into a directory
-func (b *LocalBundler) Extract() error {
-	err := av3.Unarchive(b.tarballSrc, b.extractedDst) // todo: awkward to use old version of mholt/archiver
+func (f *localFetcher) extract() error {
+	err := av3.Unarchive(f.pkg.Path, f.extractDst) // todo: awkward to use old version of mholt/archiver
 	if err != nil {
 		return err
 	}
@@ -88,9 +124,9 @@ func (b *LocalBundler) Extract() error {
 }
 
 // Load loads a zarf.yaml into a Zarf object
-func (b *LocalBundler) Load() (zarfTypes.ZarfPackage, error) {
+func (f *localFetcher) load() (zarfTypes.ZarfPackage, error) {
 	// grab zarf.yaml from extracted archive
-	p, err := os.ReadFile(filepath.Join(b.extractedDst, config.ZarfYAML))
+	p, err := os.ReadFile(filepath.Join(f.extractDst, config.ZarfYAML))
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, err
 	}
@@ -101,17 +137,17 @@ func (b *LocalBundler) Load() (zarfTypes.ZarfPackage, error) {
 	return pkg, err
 }
 
-// ToBundle transfers a Zarf package to a given Bundle
-func (b *LocalBundler) ToBundle(bundleStore *ocistore.Store, pkg zarfTypes.ZarfPackage, artifactPathMap map[string]string, bundleTmpDir string, packageTmpDir string) (ocispec.Descriptor, error) {
+// toBundle transfers a Zarf package to a given Bundle
+func (f *localFetcher) toBundle(pkg zarfTypes.ZarfPackage, pkgTmp string) ([]ocispec.Descriptor, error) {
 	// todo: only grab components that are required + specified in optionalComponents
-	ctx := b.ctx
-	src, err := file.New(packageTmpDir)
+	ctx := context.TODO()
+	src, err := file.New(pkgTmp)
 	if err != nil {
-		return ocispec.Descriptor{}, err
+		return nil, err
 	}
 	// Grab Zarf layers
-	paths := []string{}
-	err = filepath.Walk(packageTmpDir, func(path string, info os.FileInfo, err error) error {
+	var paths []string
+	err = filepath.Walk(pkgTmp, func(path string, info os.FileInfo, err error) error {
 		// Catch any errors that happened during the walk
 		if err != nil {
 			return err
@@ -121,56 +157,64 @@ func (b *LocalBundler) ToBundle(bundleStore *ocistore.Store, pkg zarfTypes.ZarfP
 		if !info.IsDir() {
 			paths = append(paths, path)
 		}
-		return nil
+		return err
 	})
 	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("unable to get the layers in the package to publish: %w", err)
+		return nil, fmt.Errorf("unable to get the layers in the package to publish: %w", err)
 	}
 
 	var descs []ocispec.Descriptor
 	for _, path := range paths {
-		name, err := filepath.Rel(packageTmpDir, path)
+		name, err := filepath.Rel(pkgTmp, path)
 		if err != nil {
-			return ocispec.Descriptor{}, err
+			return nil, err
 		}
 
 		mediaType := oci.ZarfLayerMediaTypeBlob
 
-		// get descriptor, push bytes
+		// todo: try finding the desc with media type of image manifest, and rewrite it here!
+		// just iterate through it's layers and add the annotations to each layer, then push to the store and add to descs
+
+		// adds title annotations to descs and creates layer to put in the store
+		// title annotations need to be added to the pkg root manifest
+		// Zarf image manifests already contain those title annotations in remote OCI repos, but they need to be added manually here
 		desc, err := src.Add(ctx, name, mediaType, path)
 		if err != nil {
-			return ocispec.Descriptor{}, err
+			return nil, err
 		}
 		layer, err := src.Fetch(ctx, desc)
 		if err != nil {
-			return ocispec.Descriptor{}, err
+			return nil, err
 		}
 
 		// push if layer doesn't already exist in bundleStore
-		if exists, err := bundleStore.Exists(ctx, desc); !exists && err == nil {
-			if err := bundleStore.Push(ctx, desc, layer); err != nil {
-				return ocispec.Descriptor{}, err
+		// at this point, for some reason, many layers already exist in the store?
+		if exists, err := f.cfg.Store.Exists(ctx, desc); !exists && err == nil {
+			if err := f.cfg.Store.Push(ctx, desc, layer); err != nil {
+				return nil, err
+			} else if err != nil {
+				return nil, err
 			}
-		} else if err != nil {
-			return ocispec.Descriptor{}, err
 		}
-
-		digest := desc.Digest.Encoded()
-		artifactPathMap[filepath.Join(bundleTmpDir, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 		descs = append(descs, desc)
 	}
+
 	// push the manifest config
-	manifestConfigDesc, err := pushZarfManifestConfigFromMetadata(bundleStore, &pkg.Metadata, &pkg.Build)
+	// todo: I don't think this is making it to the local bundle
+	manifestConfigDesc, err := pushZarfManifestConfigFromMetadata(f.cfg.Store, &pkg.Metadata, &pkg.Build)
 	if err != nil {
-		return ocispec.Descriptor{}, err
+		return nil, err
 	}
 	// push the manifest
-	rootManifest, err := generatePkgManifest(bundleStore, descs, manifestConfigDesc)
+	rootManifest, err := generatePkgManifest(f.cfg.Store, descs, manifestConfigDesc)
+	descs = append(descs, rootManifest)
 
-	if err != nil {
-		return ocispec.Descriptor{}, err
-	}
-	return rootManifest, err
+	// put digest in uds-bundle.yaml to reference during deploy
+	f.cfg.Bundle.Packages[f.cfg.PkgIter].Ref = f.cfg.Bundle.Packages[f.cfg.PkgIter].Ref + "@" + rootManifest.Digest.String()
+
+	// append zarf image manifest to bundle root manifest and grab path for archiving
+	f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, rootManifest)
+	return descs, err
 }
 
 func pushZarfManifestConfigFromMetadata(store *ocistore.Store, metadata *zarfTypes.ZarfMetadata, build *zarfTypes.ZarfBuildData) (ocispec.Descriptor, error) {
@@ -192,7 +236,7 @@ func pushZarfManifestConfigFromMetadata(store *ocistore.Store, metadata *zarfTyp
 }
 
 func generatePkgManifest(store *ocistore.Store, descs []ocispec.Descriptor, configDesc ocispec.Descriptor) (ocispec.Descriptor, error) {
-	// adopted from oras.Pack fn; manually  build the manifest and push to store and save reference
+	// adopted from oras.Pack fn; manually build the manifest and push to store and save reference
 	manifest := ocispec.Manifest{
 		Versioned: specs.Versioned{
 			SchemaVersion: 2, // historical value. does not pertain to OCI or docker version

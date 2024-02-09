@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
@@ -113,4 +114,9 @@ func ToLocalFile(t any, filePath string) error {
 		return err
 	}
 	return nil
+}
+
+// IsRemotePkg returns true if the Zarf package is remote
+func IsRemotePkg(pkg types.Package) bool {
+	return pkg.Repository != ""
 }

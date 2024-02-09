@@ -21,7 +21,7 @@ import (
 )
 
 // Remove removes packages deployed from a bundle
-func (b *Bundler) Remove() error {
+func (b *Bundle) Remove() error {
 	ctx := context.TODO()
 
 	// Check that provided oci source path is valid, and update it if it's missing the full path
@@ -80,7 +80,7 @@ func (b *Bundler) Remove() error {
 	return removePackages(b.bundle.Packages, b, zarfPackageNameMap)
 }
 
-func removePackages(packagesToRemove []types.Package, b *Bundler, zarfPackageNameMap map[string]string) error {
+func removePackages(packagesToRemove []types.Package, b *Bundle, zarfPackageNameMap map[string]string) error {
 
 	// Get deployed packages
 	deployedPackageNames := GetDeployedPackageNames()

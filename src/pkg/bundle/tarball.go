@@ -44,7 +44,7 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool) error {
 	if err != nil {
 		return err
 	}
-	SBOMArtifactPathMap := make(PathMap)
+	SBOMArtifactPathMap := make(types.PathMap)
 	containsSBOMs := false
 
 	for _, layer := range tp.bundleRootManifest.Layers {
@@ -175,18 +175,18 @@ func (tp *tarballBundleProvider) getBundleManifest() error {
 }
 
 // LoadBundle loads a bundle from a tarball
-func (tp *tarballBundleProvider) LoadBundle(_ int) (PathMap, error) {
+func (tp *tarballBundleProvider) LoadBundle(_ int) (types.PathMap, error) {
 	return nil, fmt.Errorf("uds pull does not support pulling local bundles")
 }
 
 // LoadBundleMetadata loads a bundle's metadata from a tarball
-func (tp *tarballBundleProvider) LoadBundleMetadata() (PathMap, error) {
+func (tp *tarballBundleProvider) LoadBundleMetadata() (types.PathMap, error) {
 	if err := tp.getBundleManifest(); err != nil {
 		return nil, err
 	}
 	pathsToExtract := config.BundleAlwaysPull
 
-	loaded := make(PathMap)
+	loaded := make(types.PathMap)
 
 	for _, path := range pathsToExtract {
 		layer := tp.bundleRootManifest.Locate(path)
@@ -286,7 +286,7 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	}
 
 	// create or update, then push index.json
-	err = utils.UpdateIndex(index, remote, bundle, tp.bundleRootDesc)
+	err = utils.UpdateIndex(index, remote, &bundle, tp.bundleRootDesc)
 	if err != nil {
 		return err
 	}

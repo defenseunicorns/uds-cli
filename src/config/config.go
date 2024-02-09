@@ -62,7 +62,7 @@ const (
 
 var (
 	// CommonOptions tracks user-defined values that apply across commands.
-	CommonOptions types.BundlerCommonOptions
+	CommonOptions types.BundleCommonOptions
 
 	// CLIVersion track the version of the CLI
 	CLIVersion = "unset"

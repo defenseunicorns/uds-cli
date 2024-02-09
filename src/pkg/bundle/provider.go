@@ -29,12 +29,12 @@ type Provider interface {
 	//
 	// : if OCI ref
 	// : : pulls the metadata from the OCI ref
-	LoadBundleMetadata() (PathMap, error)
+	LoadBundleMetadata() (types.PathMap, error)
 
 	// LoadBundle loads a bundle into the temporary directory and returns a map of the bundle's files
 	//
 	// (currently only the remote provider utilizes the concurrency parameter)
-	LoadBundle(concurrency int) (PathMap, error)
+	LoadBundle(concurrency int) (types.PathMap, error)
 
 	// CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
 	CreateBundleSBOM(extractSBOM bool) error
@@ -48,9 +48,6 @@ type Provider interface {
 	// ZarfPackageNameMap returns a map of the zarf package name specified in the uds-bundle.yaml to the actual zarf package name
 	ZarfPackageNameMap() (map[string]string, error)
 }
-
-// PathMap is a map of either absolute paths to relative paths or relative paths to absolute paths
-type PathMap map[string]string
 
 // NewBundleProvider returns a new bundler Provider based on the source type
 func NewBundleProvider(ctx context.Context, source, destination string) (Provider, error) {

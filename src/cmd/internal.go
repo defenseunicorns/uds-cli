@@ -26,7 +26,7 @@ var configUDSSchemaCmd = &cobra.Command{
 	Use:     "config-uds-schema",
 	Aliases: []string{"c"},
 	Short:   lang.CmdInternalConfigSchemaShort,
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 		schema := jsonschema.Reflect(&types.UDSBundle{})
 		output, err := json.MarshalIndent(schema, "", "  ")
 		if err != nil {
@@ -40,7 +40,7 @@ var configTasksSchemaCmd = &cobra.Command{
 	Use:     "config-tasks-schema",
 	Aliases: []string{"c"},
 	Short:   lang.CmdInternalConfigSchemaShort,
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 		schema := jsonschema.Reflect(&types.TasksFile{})
 		output, err := json.MarshalIndent(schema, "", "  ")
 		if err != nil {

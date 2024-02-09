@@ -4,18 +4,18 @@
 // Package types contains all the types used by UDS.
 package types
 
-// BundlerConfig is the main struct that the bundler uses to hold high-level options.
-type BundlerConfig struct {
-	CreateOpts  BundlerCreateOptions
-	DeployOpts  BundlerDeployOptions
-	PublishOpts BundlerPublishOptions
-	PullOpts    BundlerPullOptions
-	InspectOpts BundlerInspectOptions
-	RemoveOpts  BundlerRemoveOptions
+// BundleConfig is the main struct that the bundler uses to hold high-level options.
+type BundleConfig struct {
+	CreateOpts  BundleCreateOptions
+	DeployOpts  BundleDeployOptions
+	PublishOpts BundlePublishOptions
+	PullOpts    BundlePullOptions
+	InspectOpts BundleInspectOptions
+	RemoveOpts  BundleRemoveOptions
 }
 
-// BundlerCreateOptions is the options for the bundler.Create() function
-type BundlerCreateOptions struct {
+// BundleCreateOptions is the options for the bundler.Create() function
+type BundleCreateOptions struct {
 	SourceDirectory    string
 	Output             string
 	SigningKeyPath     string
@@ -23,8 +23,8 @@ type BundlerCreateOptions struct {
 	BundleFile         string
 }
 
-// BundlerDeployOptions is the options for the bundler.Deploy() function
-type BundlerDeployOptions struct {
+// BundleDeployOptions is the options for the bundler.Deploy() function
+type BundleDeployOptions struct {
 	Resume        bool
 	Source        string
 	Packages      []string
@@ -35,38 +35,42 @@ type BundlerDeployOptions struct {
 	SharedVariables map[string]interface{}            `yaml:"shared,omitempty"`
 }
 
-// BundlerInspectOptions is the options for the bundler.Inspect() function
-type BundlerInspectOptions struct {
+// BundleInspectOptions is the options for the bundler.Inspect() function
+type BundleInspectOptions struct {
 	PublicKeyPath string
 	Source        string
 	IncludeSBOM   bool
 	ExtractSBOM   bool
 }
 
-// BundlerPublishOptions is the options for the bundle.Publish() function
-type BundlerPublishOptions struct {
+// BundlePublishOptions is the options for the bundle.Publish() function
+type BundlePublishOptions struct {
 	Source      string
 	Destination string
 }
 
-// BundlerPullOptions is the options for the bundler.Pull() function
-type BundlerPullOptions struct {
+// BundlePullOptions is the options for the bundler.Pull() function
+type BundlePullOptions struct {
 	OutputDirectory string
 	PublicKeyPath   string
 	Source          string
 }
 
-// BundlerRemoveOptions is the options for the bundler.Remove() function
-type BundlerRemoveOptions struct {
+// BundleRemoveOptions is the options for the bundler.Remove() function
+type BundleRemoveOptions struct {
 	Source   string
 	Packages []string
 }
 
-// BundlerCommonOptions tracks the user-defined preferences used across commands.
-type BundlerCommonOptions struct {
+// BundleCommonOptions tracks the user-defined preferences used across commands.
+type BundleCommonOptions struct {
 	Confirm        bool   `json:"confirm" jsonschema:"description=Verify that Zarf should perform an action"`
 	Insecure       bool   `json:"insecure" jsonschema:"description=Allow insecure connections for remote packages"`
 	CachePath      string `json:"cachePath" jsonschema:"description=Path to use to cache images and git repos on package create"`
 	TempDirectory  string `json:"tempDirectory" jsonschema:"description=Location Zarf should use as a staging ground when managing files and images for package creation and deployment"`
 	OCIConcurrency int    `jsonschema:"description=Number of concurrent layer operations to perform when interacting with a remote package"`
 }
+
+// PathMap is a map of either absolute paths to relative paths or relative paths to absolute paths
+// used to map filenames during local bundle tarball creation
+type PathMap map[string]string

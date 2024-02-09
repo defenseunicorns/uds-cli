@@ -13,28 +13,30 @@ import (
 	"time"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/fetcher"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/config/lang"
 	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
+	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-// Bundler handles bundler operations
-type Bundler struct {
-	// cfg is the Bundler's configuration options
-	cfg *types.BundlerConfig
+// Bundle handles bundler operations
+type Bundle struct {
+	// cfg is the Bundle's configuration options
+	cfg *types.BundleConfig
 	// bundle is the bundle's metadata read into memory
 	bundle types.UDSBundle
-	// tmp is the temporary directory used by the Bundler cleaned up with ClearPaths()
+	// tmp is the temporary directory used by the Bundle cleaned up with ClearPaths()
 	tmp string
 }
 
-// New creates a new Bundler
-func New(cfg *types.BundlerConfig) (*Bundler, error) {
+// New creates a new Bundle
+func New(cfg *types.BundleConfig) (*Bundle, error) {
 	message.Debugf("bundler.New(%s)", message.JSONValue(cfg))
 
 	if cfg == nil {
@@ -42,7 +44,7 @@ func New(cfg *types.BundlerConfig) (*Bundler, error) {
 	}
 
 	var (
-		bundler = &Bundler{
+		bundle = &Bundle{
 			cfg: cfg,
 		}
 	)
@@ -51,30 +53,30 @@ func New(cfg *types.BundlerConfig) (*Bundler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("bundler unable to create temp directory: %w", err)
 	}
-	bundler.tmp = tmp
+	bundle.tmp = tmp
 
-	return bundler, nil
+	return bundle, nil
 }
 
-// NewOrDie creates a new Bundler or dies
-func NewOrDie(cfg *types.BundlerConfig) *Bundler {
+// NewOrDie creates a new Bundle or dies
+func NewOrDie(cfg *types.BundleConfig) *Bundle {
 	var (
-		err     error
-		bundler *Bundler
+		err    error
+		bundle *Bundle
 	)
-	if bundler, err = New(cfg); err != nil {
-		message.Fatalf(err, "bundler unable to setup, bad config: %s", err.Error())
+	if bundle, err = New(cfg); err != nil {
+		message.Fatalf(err, "bundle unable to setup, bad config: %s", err.Error())
 	}
-	return bundler
+	return bundle
 }
 
-// ClearPaths clears out the paths used by Bundler
-func (b *Bundler) ClearPaths() {
+// ClearPaths clears out the paths used by Bundle
+func (b *Bundle) ClearPaths() {
 	_ = os.RemoveAll(b.tmp)
 }
 
 // ValidateBundleResources validates the bundle's metadata and package references
-func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *message.Spinner) error {
+func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *message.Spinner) error {
 	// TODO: need to validate arch of local OS
 	if bundle.Metadata.Architecture == "" {
 		// ValidateBundle was erroneously called before CalculateBuildInfo
@@ -123,25 +125,28 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 		if pkg.Ref == "" {
 			return fmt.Errorf("%s .packages[%s] is missing required field: ref", config.BundleYAML, pkg.Repository)
 		}
-		zarfYAML := zarfTypes.ZarfPackage{}
+		var zarfYAML zarfTypes.ZarfPackage
 		var url string
 		// if using a remote repository
+		// todo: refactor these hash checks using the fetcher
 		if pkg.Repository != "" {
 			url = fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
 			if strings.Contains(pkg.Ref, "@sha256:") {
 				url = fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
 			}
-			remotePkg, err := bundler.NewRemoteBundler(pkg, url, nil, nil, b.tmp)
+
+			platform := ocispec.Platform{
+				Architecture: config.GetArch(),
+				OS:           oci.MultiOS,
+			}
+			remote, err := oci.NewOrasRemote(url, platform)
 			if err != nil {
 				return err
 			}
-			if err := remotePkg.RemoteSrc.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
-				manifestDesc, _ := remotePkg.RemoteSrc.ResolveRoot()
+			if err := remote.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
+				manifestDesc, _ := remote.ResolveRoot()
+				// todo: don't do this here, a "validate" fn shouldn't be modifying the bundle
 				bundle.Packages[idx].Ref = pkg.Ref + "@sha256:" + manifestDesc.Digest.Encoded()
-			}
-			zarfYAML, err = remotePkg.GetMetadata(url, tmp)
-			if err != nil {
-				return err
 			}
 		} else {
 			// atm we don't support outputting a bundle with local pkgs outputting to OCI
@@ -158,15 +163,19 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 			}
 			path := filepath.Join(pkg.Path, fullPkgName)
 			bundle.Packages[idx].Path = path
-			p := bundler.NewLocalBundler(pkg.Path, tmp)
-			if err != nil {
-				return err
-			}
-			// This will throw an error if the zarf package name in the bundle doesn't match the actual zarf package name
-			zarfYAML, err = p.GetMetadata(path, tmp)
-			if err != nil {
-				return err
-			}
+		}
+
+		// grab the Zarf pkg metadata
+		f, err := fetcher.NewPkgFetcher(pkg, fetcher.Config{
+			PkgIter: idx, Bundle: bundle,
+		})
+		if err != nil {
+			return err
+		}
+		// For local pkgs, this will throw an error if the zarf package name in the bundle doesn't match the actual zarf package name
+		zarfYAML, err = f.GetPkgMetadata()
+		if err != nil {
+			return err
 		}
 
 		message.Debug("Validating package:", message.JSONValue(pkg))
@@ -199,7 +208,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 			}
 		}
 
-		err := validateOverrides(pkg, zarfYAML)
+		err = validateOverrides(pkg, zarfYAML)
 		if err != nil {
 			return err
 		}
@@ -209,7 +218,7 @@ func (b *Bundler) ValidateBundleResources(bundle *types.UDSBundle, spinner *mess
 }
 
 // CalculateBuildInfo calculates the build info for the bundle
-func (b *Bundler) CalculateBuildInfo() error {
+func (b *Bundle) CalculateBuildInfo() error {
 	now := time.Now()
 	b.bundle.Build.User = os.Getenv("USER")
 

@@ -40,7 +40,7 @@ type ZarfOverrideMap map[string]map[string]map[string]interface{}
 // : : load the package into a fresh temp dir
 // : : validate the sig (if present)
 // : : deploy the package
-func (b *Bundler) Deploy() error {
+func (b *Bundle) Deploy() error {
 	ctx := context.TODO()
 
 	pterm.Println()
@@ -121,7 +121,7 @@ func (b *Bundler) Deploy() error {
 	return deployPackages(b.bundle.Packages, resume, b, zarfPackageNameMap)
 }
 
-func deployPackages(packages []types.Package, resume bool, b *Bundler, zarfPackageNameMap map[string]string) error {
+func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackageNameMap map[string]string) error {
 	// map of Zarf pkgs and their vars
 	bundleExportedVars := make(map[string]map[string]string)
 
@@ -209,7 +209,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundler, zarfPacka
 }
 
 // loadVariables loads and sets precedence for config-level and imported variables
-func (b *Bundler) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) map[string]string {
+func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) map[string]string {
 	pkgVars := make(map[string]string)
 
 	// Set variables in order or precendence (least specific to most specific)
@@ -249,7 +249,7 @@ func (b *Bundler) loadVariables(pkg types.Package, bundleExportedVars map[string
 }
 
 // confirmBundleDeploy prompts the user to confirm bundle creation
-func (b *Bundler) confirmBundleDeploy() (confirm bool) {
+func (b *Bundle) confirmBundleDeploy() (confirm bool) {
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
 	utils.ColorPrintYAML(b.bundle, nil, false)
@@ -274,7 +274,7 @@ func (b *Bundler) confirmBundleDeploy() (confirm bool) {
 }
 
 // loadChartOverrides converts a helm path to a ValuesOverridesMap config for Zarf
-func (b *Bundler) loadChartOverrides(pkg types.Package) (ZarfOverrideMap, error) {
+func (b *Bundle) loadChartOverrides(pkg types.Package) (ZarfOverrideMap, error) {
 
 	// Create a nested map to hold the values
 	overrideMap := make(map[string]map[string]*values.Options)
@@ -324,7 +324,7 @@ func (b *Bundler) loadChartOverrides(pkg types.Package) (ZarfOverrideMap, error)
 }
 
 // processOverrideValues processes a bundles values overrides and adds them to the override map
-func (b *Bundler) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values *[]types.BundleChartValue, componentName string, chartName string) error {
+func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values *[]types.BundleChartValue, componentName string, chartName string) error {
 	for _, v := range *values {
 		// Add the override to the map, or return an error if the path is invalid
 		if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, v.Value); err != nil {
@@ -335,7 +335,7 @@ func (b *Bundler) processOverrideValues(overrideMap *map[string]map[string]*valu
 }
 
 // processOverrideVariables processes bundle variables overrides and adds them to the override map
-func (b *Bundler) processOverrideVariables(overrideMap *map[string]map[string]*values.Options, pkgName string, variables *[]types.BundleChartVariable, componentName string, chartName string) error {
+func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*values.Options, pkgName string, variables *[]types.BundleChartVariable, componentName string, chartName string) error {
 	for _, v := range *variables {
 		var overrideVal interface{}
 		// check for override in env vars
