@@ -36,7 +36,7 @@ type Runner struct {
 }
 
 // Run runs a task from tasks file
-func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]string, withInputs map[string]string) error {
+func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]string) error {
 	runner := Runner{
 		TemplateMap: map[string]*zarfUtils.TextTemplate{},
 		TasksFile:   tasksFile,
@@ -50,30 +50,12 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 		return err
 	}
 
-	if err = runner.checkForTaskLoops(task, tasksFile, setVariables); err != nil {
-		return err
+	if task.Inputs != nil {
+		return fmt.Errorf("task '%s' contains 'inputs' and cannot be called directly by the CLI", taskName)
 	}
 
-	// if withInputs is not nil, validate that the inputs are sufficient
-	if withInputs != nil {
-		withEnv := []string{}
-		for k, v := range withInputs {
-			withInputs[k] = v
-			withEnv = append(withEnv, formatEnvVar(k, v))
-		}
-
-		task.Actions, err = templateTaskActionsWithInputs(task, withInputs)
-		if err != nil {
-			return err
-		}
-
-		if err := validateActionableTaskCall(task.Name, task.Inputs, withInputs); err != nil {
-			return err
-		}
-
-		for _, action := range task.Actions {
-			action.Env = mergeEnv(withEnv, action.Env)
-		}
+	if err = runner.checkForTaskLoops(task, tasksFile, setVariables); err != nil {
+		return err
 	}
 
 	err = runner.executeTask(task)

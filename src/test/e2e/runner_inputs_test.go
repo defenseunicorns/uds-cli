@@ -93,11 +93,4 @@ func TestRunnerInputs(t *testing.T) {
 		require.Contains(t, stdErr, "WARNING")
 		require.Contains(t, stdErr, "This input has been marked deprecated: This is a deprecated message")
 	})
-
-	t.Run("test --with flag", func(t *testing.T) {
-		t.Parallel()
-		stdOut, stdErr, err := e2e.UDS("run", "has-default", "--file", "src/test/tasks/inputs/tasks-with-inputs.yaml", "--with", "has-default=setting-with-flag")
-		require.NoError(t, err, stdOut, stdErr)
-		require.Contains(t, stdErr, "setting-with-flag")
-	})
 }

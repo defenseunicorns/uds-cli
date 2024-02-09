@@ -339,16 +339,6 @@ In this example, the `echo-var` task takes an input called `hello-input` and pri
 
 Note that the `deprecated-input` input has a `deprecatedMessage` attribute. This is used to indicate that the input is deprecated and should not be used. If a task is run with a deprecated input, a warning will be printed to the console.
 
-#### Specifying Task Inputs using`--with`
-If you want to run the `echo-var` task directly, such as when doing dev work, you can use the `--with` flag to pass in inputs via the CLI
-
-```bash
-uds run echo-var --with hello-input=hello-cli
-```
-
-This command passes the string `"hello-cli"` to the `hello-input` input of the `echo-var` task.
-
-
 #### Templates
 
 When creating a task with `inputs` you can use [Go templates](https://pkg.go.dev/text/template#hdr-Functions) in that task's `actions`. For example:
