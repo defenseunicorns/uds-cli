@@ -327,6 +327,13 @@ func TestTaskRunner(t *testing.T) {
 		require.Contains(t, stdErr, "overwritten env var - 8080")
 	})
 
+	t.Run("test that variables of type file and setting dir from a variable are processed correctly", func(t *testing.T) {
+		t.Parallel()
+		stdOut, stdErr, err := e2e.UDS("run", "file-and-dir", "--file", "src/test/tasks/tasks.yaml")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "SECRET_KEY=not-a-secret")
+	})
+
 	t.Run("test that env vars get used for variables that do not have a default set", func(t *testing.T) {
 		t.Parallel()
 		os.Setenv("UDS_REPLACE_ME", "env-var")

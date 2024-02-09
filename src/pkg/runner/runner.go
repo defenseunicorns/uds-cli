@@ -634,6 +634,9 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 		spinner.Errorf(err, "Error mutating command: %s", cmdEscaped)
 	}
 
+	// Template dir string
+	cfg.Dir = r.templateString(cfg.Dir)
+
 	// template cmd string
 	cmd = r.templateString(cmd)
 
