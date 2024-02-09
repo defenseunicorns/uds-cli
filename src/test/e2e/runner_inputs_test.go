@@ -103,10 +103,17 @@ func TestRunnerInputs(t *testing.T) {
 		require.Contains(t, stdErr, "im a variable")
 	})
 
-	t.Run("test that env vars can be used as inputs", func(t *testing.T) {
+	t.Run("test that env vars can be used as inputs and take precedence over default vals", func(t *testing.T) {
 		os.Setenv("UDS_FOO", "im an env var")
 		stdOut, stdErr, err := e2e.UDS("run", "variable-as-input", "--file", "src/test/tasks/inputs/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "im an env var")
+	})
+
+	t.Run("test that a --set var has the greatest precedence for inputs", func(t *testing.T) {
+		os.Setenv("UDS_FOO", "im an env var")
+		stdOut, stdErr, err := e2e.UDS("run", "variable-as-input", "--file", "src/test/tasks/inputs/tasks.yaml", "--set", "foo=most specific")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "most specific")
 	})
 }

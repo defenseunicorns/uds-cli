@@ -336,12 +336,10 @@ func TestTaskRunner(t *testing.T) {
 
 	t.Run("test that env vars get used for variables that do not have a default set", func(t *testing.T) {
 		t.Parallel()
-		os.Setenv("UDS_REPLACE_ME", "env-var")
-		os.Setenv("UDS_NO_DEFAULT", "no-problem")
+		os.Setenv("UDS_TO_BE_OVERWRITTEN", "env-var")
 		stdOut, stdErr, err := e2e.UDS("run", "echo-env-var", "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
-		require.Contains(t, stdErr, "replaced")
-		require.NotContains(t, stdErr, "env-var")
-		require.Contains(t, stdErr, "no-problem")
+		require.NotContains(t, stdErr, "default")
+		require.Contains(t, stdErr, "env-var")
 	})
 }

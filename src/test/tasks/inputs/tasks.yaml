@@ -3,7 +3,7 @@ includes:
 
 variables:
   - name: FOO
-    default: bar
+    default: default-value
 
 tasks:
   - name: has-default-empty

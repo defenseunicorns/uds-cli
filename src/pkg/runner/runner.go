@@ -50,6 +50,7 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 		return err
 	}
 
+	// can't call a task directly from the CLI if it has inputs
 	if task.Inputs != nil {
 		return fmt.Errorf("task '%s' contains 'inputs' and cannot be called directly by the CLI", taskName)
 	}
@@ -238,32 +239,20 @@ func (r *Runner) executeTask(task types.Task) error {
 }
 
 func (r *Runner) populateTemplateMap(zarfVariables []zarfTypes.ZarfPackageVariable, setVariables map[string]string) {
-
-	defaultEnvs := make(map[string]string)
-
-	// get env vars (vars that start with UDS_)
-	for _, envVar := range os.Environ() {
-		if strings.HasPrefix(envVar, config.EnvVarPrefix) {
-			varNameNoPrefix := envVar[len(config.EnvVarPrefix):]
-			parts := strings.Split(varNameNoPrefix, "=")
-			envVarKey := parts[0]
-			envVarValue := parts[1]
-			defaultEnvs[envVarKey] = envVarValue
-		}
-	}
-
+	// populate text template (ie. Zarf var) with the following precedence: default < env var < set var
 	for _, variable := range zarfVariables {
 		templatedVariableName := fmt.Sprintf("${%s}", variable.Name)
-		r.TemplateMap[templatedVariableName] = &zarfUtils.TextTemplate{
+		textTemplate := &zarfUtils.TextTemplate{
 			Sensitive:  variable.Sensitive,
 			AutoIndent: variable.AutoIndent,
 			Type:       variable.Type,
-			Value:      variable.Default,
 		}
-		if variable.Default == "" {
-			// check env vars for a default, if no env, value will remain ""
-			r.TemplateMap[templatedVariableName].Value = defaultEnvs[variable.Name]
+		if v := os.Getenv(fmt.Sprintf("UDS_%s", variable.Name)); v != "" {
+			textTemplate.Value = v
+		} else {
+			textTemplate.Value = variable.Default
 		}
+		r.TemplateMap[templatedVariableName] = textTemplate
 	}
 
 	setVariablesTemplateMap := make(map[string]*zarfUtils.TextTemplate)
