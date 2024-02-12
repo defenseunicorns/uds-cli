@@ -9,7 +9,8 @@ variables:
     default: replaced
   - name: FOO_VAR
     default: default
-  - name: NO_DEFAULT
+  - name: TO_BE_OVERWRITTEN
+    default: default
   - name: COOL_DIR
     default: src/test/tasks
   - name: COOL_FILE
@@ -22,10 +23,9 @@ tasks:
     actions:
       - cmd: echo "This is the default task"
   - name: echo-env-var
-    description: Test that env vars get used for variables that do not have a default set
+    description: Test that env vars take precedence over var defaults
     actions:
-        - cmd: echo "${REPLACE_ME}"
-        - cmd: echo "${NO_DEFAULT}"
+        - cmd: echo "${TO_BE_OVERWRITTEN}"
   - name: copy
     description: "This is a copy task"
     files:

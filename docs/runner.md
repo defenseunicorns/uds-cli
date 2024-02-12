@@ -15,7 +15,6 @@ UDS runner.
       - [Task](#task)
       - [Cmd](#cmd)
     - [Variables](#variables)
-    - [Environment Variables](#environment-variables)
     - [Files](#files)
     - [Wait](#wait)
     - [Includes](#includes)
@@ -187,7 +186,7 @@ Command blocks can have several other properties including:
 
 ### Variables
 
-Variables can be defined in 3 ways:
+Variables can be defined in several ways:
 
 1. At the top of the `tasks.yaml`
 
@@ -215,17 +214,19 @@ Variables can be defined in 3 ways:
          - cmd: echo ${FOO}
    ```
 
+1. As an environment variable prefixed with `UDS_`. In the example above, if you create an env var `UDS_FOO=bar`, then the`FOO` variable would be set to `bar`.
+
 1. Using the `--set` flag in the CLI : `uds run foo --set FOO=bar`
 
 To use a variable, reference it using `${VAR_NAME}`
 
-Note that variables also have the following attributes:
+Note that variables also have the following attributes when setting them with YAML:
 
 - `sensitive`: boolean value indicating if a variable should be visible in output
 - `default`: default value of a variable
   - In the example above, if `FOO` did not have a default, and you have an environment variable `UDS_FOO=bar`, the default would get set to `bar`.
 
-### Environment Variables
+#### Environment Variable Files
 
 To include a file containing environment variables that you'd like to load into a task, use the `envPath` key in the task. This will load all of the environment variables in the file into the task being called and its child tasks.
 
@@ -239,10 +240,17 @@ tasks:
   - name: echo-env
     envPath: ./path/to/.env
     actions:
-      - cmd: echo differnt task $FOO
+      - cmd: echo different task $FOO
 ```
 
-If a default is not specified for a variable, the UDS runner will look at your environment variables for a match prefixed with `UDS_`.
+
+#### Variable Precedence
+Variable precedence is as follows, from least to most specific:
+- Variable defaults set in YAML
+- Environment variables prefixed with `UDS_`
+- Variables set with the `--set` flag in the CLI
+
+That is to say, variables set via the `--set` flag take precedence over all other variables. The exception to this precedence order is when a variable is modified using `setVariable`, which will change the value of the variable during runtime.
 
 ### Files
 
@@ -338,16 +346,6 @@ tasks:
 In this example, the `echo-var` task takes an input called `hello-input` and prints it to the console; notice that the `input` can have a `default` value. The `use-echo-var` task calls `echo-var` with a different input value using the `with` key. In this case `"hello unicorn"` is passed to the `hello-input` input.
 
 Note that the `deprecated-input` input has a `deprecatedMessage` attribute. This is used to indicate that the input is deprecated and should not be used. If a task is run with a deprecated input, a warning will be printed to the console.
-
-#### Specifying Task Inputs using`--with`
-If you want to run the `echo-var` task directly, such as when doing dev work, you can use the `--with` flag to pass in inputs via the CLI
-
-```bash
-uds run echo-var --with hello-input=hello-cli
-```
-
-This command passes the string `"hello-cli"` to the `hello-input` input of the `echo-var` task.
-
 
 #### Templates
 

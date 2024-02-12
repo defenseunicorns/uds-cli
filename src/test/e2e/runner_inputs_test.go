@@ -5,6 +5,7 @@
 package test
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -94,10 +95,25 @@ func TestRunnerInputs(t *testing.T) {
 		require.Contains(t, stdErr, "This input has been marked deprecated: This is a deprecated message")
 	})
 
-	t.Run("test --with flag", func(t *testing.T) {
+	t.Run("test that variables can be used as inputs", func(t *testing.T) {
 		t.Parallel()
-		stdOut, stdErr, err := e2e.UDS("run", "has-default", "--file", "src/test/tasks/inputs/tasks-with-inputs.yaml", "--with", "has-default=setting-with-flag")
+
+		stdOut, stdErr, err := e2e.UDS("run", "variable-as-input", "--file", "src/test/tasks/inputs/tasks.yaml", "--set", "foo=im a variable")
 		require.NoError(t, err, stdOut, stdErr)
-		require.Contains(t, stdErr, "setting-with-flag")
+		require.Contains(t, stdErr, "im a variable")
+	})
+
+	t.Run("test that env vars can be used as inputs and take precedence over default vals", func(t *testing.T) {
+		os.Setenv("UDS_FOO", "im an env var")
+		stdOut, stdErr, err := e2e.UDS("run", "variable-as-input", "--file", "src/test/tasks/inputs/tasks.yaml")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "im an env var")
+	})
+
+	t.Run("test that a --set var has the greatest precedence for inputs", func(t *testing.T) {
+		os.Setenv("UDS_FOO", "im an env var")
+		stdOut, stdErr, err := e2e.UDS("run", "variable-as-input", "--file", "src/test/tasks/inputs/tasks.yaml", "--set", "foo=most specific")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "most specific")
 	})
 }

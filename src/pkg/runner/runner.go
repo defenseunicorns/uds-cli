@@ -36,7 +36,7 @@ type Runner struct {
 }
 
 // Run runs a task from tasks file
-func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]string, withInputs map[string]string) error {
+func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]string) error {
 	runner := Runner{
 		TemplateMap: map[string]*zarfUtils.TextTemplate{},
 		TasksFile:   tasksFile,
@@ -50,30 +50,13 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 		return err
 	}
 
-	if err = runner.checkForTaskLoops(task, tasksFile, setVariables); err != nil {
-		return err
+	// can't call a task directly from the CLI if it has inputs
+	if task.Inputs != nil {
+		return fmt.Errorf("task '%s' contains 'inputs' and cannot be called directly by the CLI", taskName)
 	}
 
-	// if withInputs is not nil, validate that the inputs are sufficient
-	if withInputs != nil {
-		withEnv := []string{}
-		for k, v := range withInputs {
-			withInputs[k] = v
-			withEnv = append(withEnv, formatEnvVar(k, v))
-		}
-
-		task.Actions, err = templateTaskActionsWithInputs(task, withInputs)
-		if err != nil {
-			return err
-		}
-
-		if err := validateActionableTaskCall(task.Name, task.Inputs, withInputs); err != nil {
-			return err
-		}
-
-		for _, action := range task.Actions {
-			action.Env = mergeEnv(withEnv, action.Env)
-		}
+	if err = runner.checkForTaskLoops(task, tasksFile, setVariables); err != nil {
+		return err
 	}
 
 	err = runner.executeTask(task)
@@ -256,32 +239,20 @@ func (r *Runner) executeTask(task types.Task) error {
 }
 
 func (r *Runner) populateTemplateMap(zarfVariables []zarfTypes.ZarfPackageVariable, setVariables map[string]string) {
-
-	defaultEnvs := make(map[string]string)
-
-	// get env vars (vars that start with UDS_)
-	for _, envVar := range os.Environ() {
-		if strings.HasPrefix(envVar, config.EnvVarPrefix) {
-			varNameNoPrefix := envVar[len(config.EnvVarPrefix):]
-			parts := strings.Split(varNameNoPrefix, "=")
-			envVarKey := parts[0]
-			envVarValue := parts[1]
-			defaultEnvs[envVarKey] = envVarValue
-		}
-	}
-
+	// populate text template (ie. Zarf var) with the following precedence: default < env var < set var
 	for _, variable := range zarfVariables {
 		templatedVariableName := fmt.Sprintf("${%s}", variable.Name)
-		r.TemplateMap[templatedVariableName] = &zarfUtils.TextTemplate{
+		textTemplate := &zarfUtils.TextTemplate{
 			Sensitive:  variable.Sensitive,
 			AutoIndent: variable.AutoIndent,
 			Type:       variable.Type,
-			Value:      variable.Default,
 		}
-		if variable.Default == "" {
-			// check env vars for a default, if no env, value will remain ""
-			r.TemplateMap[templatedVariableName].Value = defaultEnvs[variable.Name]
+		if v := os.Getenv(fmt.Sprintf("UDS_%s", variable.Name)); v != "" {
+			textTemplate.Value = v
+		} else {
+			textTemplate.Value = variable.Default
 		}
+		r.TemplateMap[templatedVariableName] = textTemplate
 	}
 
 	setVariablesTemplateMap := make(map[string]*zarfUtils.TextTemplate)
@@ -395,6 +366,11 @@ func (r *Runner) performAction(action types.Action) error {
 		referencedTask, err := r.getTask(action.TaskReference)
 		if err != nil {
 			return err
+		}
+
+		// template the withs with variables
+		for k, v := range action.With {
+			action.With[k] = r.templateString(v)
 		}
 
 		referencedTask.Actions, err = templateTaskActionsWithInputs(referencedTask, action.With)
@@ -722,6 +698,7 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 	}
 }
 
+// templateString replaces ${...} with the value from the template map
 func (r *Runner) templateString(s string) string {
 	// Create a regular expression to match ${...}
 	re := regexp.MustCompile(`\${(.*?)}`)
