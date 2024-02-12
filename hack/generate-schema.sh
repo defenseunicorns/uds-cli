@@ -13,3 +13,11 @@ jq '.definitions.Task.properties.inputs.patternProperties = {"^[_a-zA-Z][a-zA-Z0
 mv temp_tasks.schema.json tasks.schema.json
 jq '.definitions.Action.properties.with.patternProperties = {"^[_a-zA-Z][a-zA-Z0-9_-]*$": {"additionalProperties": true}}' tasks.schema.json > temp_tasks.schema.json
 mv temp_tasks.schema.json tasks.schema.json
+
+
+# Create the json schema for zarf.yaml
+go run main.go zarf internal gen-config-schema > zarf.schema.json
+
+# Adds pattern properties to all definitions to allow for yaml extensions
+jq '.definitions |= map_values(. + {"patternProperties": {"^x-": {}}})' zarf.schema.json > temp_zarf.schema.json
+mv temp_zarf.schema.json zarf.schema.json
