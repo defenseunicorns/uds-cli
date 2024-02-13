@@ -194,6 +194,9 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 		if len(pkg.OptionalComponents) > 0 {
 			// validate the optional components exist in the package and support the bundle's target architecture
 			for _, component := range pkg.OptionalComponents {
+				// remove character '-' from the beginning of the string component if it exists (e.g. -component) to support negation
+				component = strings.TrimPrefix(component, "-")
+
 				c := helpers.Find(zarfYAML.Components, func(c zarfTypes.ZarfComponent) bool {
 					return c.Name == component
 				})
