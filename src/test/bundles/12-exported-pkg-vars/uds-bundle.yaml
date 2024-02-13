@@ -1,0 +1,28 @@
+kind: UDSBundle
+metadata:
+  name: export-vars
+  description: testing a bundle using exported vars from zarf package
+  version: 0.0.1
+
+packages:
+  - name: output-var
+    repository: localhost:888/output-var
+    ref: 0.0.1
+    exports:
+      - name: COLOR
+
+  - name: helm-overrides
+    path: "../../packages/helm"
+    ref: 0.0.1
+    imports:
+      - name: COLOR
+        package: output-var
+
+    overrides:
+      podinfo-component:
+        unicorn-podinfo:
+          values:
+            - path: "podinfo.replicaCount"
+              value: 1
+            - path: "podinfo.ui.color"
+              value: ${COLOR}
