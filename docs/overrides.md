@@ -130,6 +130,7 @@ The `value` is the value to set at the `path`. Values can be simple values such 
               value:
                 customAnnotation: "customValue"
 ```
+If [importing](../README.md#importingexporting-variables) a variable from another package, that variable can also be used to set a value, using the template syntax `${...}`
 
 ### Variables
 Variables are similar to [values](#values) in that they allow users to override values in a Zarf package component's underlying Helm chart; they also share a similar syntax. However, unlike `values`, `variables` can be overridden at deploy time. For example, consider the following `variables`:

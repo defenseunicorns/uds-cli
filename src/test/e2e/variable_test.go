@@ -203,3 +203,31 @@ func TestVariablePrecedence(t *testing.T) {
 
 	remove(t, bundlePath)
 }
+
+func TestZarfPackageExportVarsAsGlobalBundleVars(t *testing.T) {
+	deployZarfInit(t)
+	zarfPkgPath1 := "src/test/packages/no-cluster/output-var"
+	e2e.CreateZarfPkg(t, zarfPkgPath1, false)
+
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+
+	pkg := filepath.Join(zarfPkgPath1, fmt.Sprintf("zarf-package-output-var-%s-0.0.1.tar.zst", e2e.Arch))
+	zarfPublish(t, pkg, "localhost:888")
+
+	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
+	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
+	bundleDir := "src/test/bundles/12-exported-pkg-vars"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-export-vars-%s-0.0.1.tar.zst", e2e.Arch))
+
+	createLocal(t, bundleDir, e2e.Arch)
+	deploy(t, bundlePath)
+
+	// check variables overrides
+	cmd := strings.Split("zarf tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
+	outputUIColor, _, err := e2e.UDS(cmd...)
+	require.Equal(t, "'orange'", outputUIColor)
+	require.NoError(t, err)
+
+	remove(t, bundlePath)
+}

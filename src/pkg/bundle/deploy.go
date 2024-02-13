@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -166,7 +167,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackag
 			SetVariables:       pkgVars,
 		}
 
-		valuesOverrides, err := b.loadChartOverrides(pkg)
+		valuesOverrides, err := b.loadChartOverrides(pkg, pkgVars)
 		if err != nil {
 			return err
 		}
@@ -274,7 +275,7 @@ func (b *Bundle) confirmBundleDeploy() (confirm bool) {
 }
 
 // loadChartOverrides converts a helm path to a ValuesOverridesMap config for Zarf
-func (b *Bundle) loadChartOverrides(pkg types.Package) (ZarfOverrideMap, error) {
+func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string) (ZarfOverrideMap, error) {
 
 	// Create a nested map to hold the values
 	overrideMap := make(map[string]map[string]*values.Options)
@@ -282,7 +283,7 @@ func (b *Bundle) loadChartOverrides(pkg types.Package) (ZarfOverrideMap, error) 
 	// Loop through each package component's charts and process overrides
 	for componentName, component := range pkg.Overrides {
 		for chartName, chart := range component {
-			err := b.processOverrideValues(&overrideMap, &chart.Values, componentName, chartName)
+			err := b.processOverrideValues(&overrideMap, &chart.Values, componentName, chartName, pkgVars)
 			if err != nil {
 				return nil, err
 			}
@@ -324,10 +325,10 @@ func (b *Bundle) loadChartOverrides(pkg types.Package) (ZarfOverrideMap, error) 
 }
 
 // processOverrideValues processes a bundles values overrides and adds them to the override map
-func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values *[]types.BundleChartValue, componentName string, chartName string) error {
+func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values *[]types.BundleChartValue, componentName string, chartName string, pkgVars map[string]string) error {
 	for _, v := range *values {
 		// Add the override to the map, or return an error if the path is invalid
-		if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, v.Value); err != nil {
+		if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, v.Value, pkgVars); err != nil {
 			return err
 		}
 	}
@@ -340,7 +341,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 		var overrideVal interface{}
 		// check for override in env vars
 		if envVarOverride, exists := os.LookupEnv(strings.ToUpper(config.EnvVarPrefix + v.Name)); exists {
-			if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, envVarOverride); err != nil {
+			if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, envVarOverride, nil); err != nil {
 				return err
 			}
 			continue
@@ -363,7 +364,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 		}
 
 		// Add the override to the map, or return an error if the path is invalid
-		if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, overrideVal); err != nil {
+		if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, overrideVal, nil); err != nil {
 			return err
 		}
 
@@ -372,7 +373,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 }
 
 // addOverrideValue adds a value to a ZarfOverrideMap
-func addOverrideValue(overrides map[string]map[string]*values.Options, component string, chart string, valuePath string, value interface{}) error {
+func addOverrideValue(overrides map[string]map[string]*values.Options, component string, chart string, valuePath string, value interface{}, pkgVars map[string]string) error {
 	// Create the component map if it doesn't exist
 	if _, ok := overrides[component]; !ok {
 		overrides[component] = make(map[string]*values.Options)
@@ -409,6 +410,21 @@ func addOverrideValue(overrides map[string]map[string]*values.Options, component
 		val := fmt.Sprintf("%s=%s", valuePath, j)
 		overrides[component][chart].JSONValues = append(overrides[component][chart].JSONValues, val)
 	default:
+		// Check for any templated variables if pkgVars set
+		if pkgVars != nil {
+			// Regular expression to get text in ${...}
+			re := regexp.MustCompile(`\${([^}]+)}`)
+			templatedVariable := fmt.Sprintf("%v", v)
+			// Get the variable name inside of ${...}
+			// returns slice with the templated variable and the variable name
+			variableName := re.FindStringSubmatch(templatedVariable)
+			// If we have a templated variable, get the value from pkgVars
+			if len(variableName) == 2 {
+				if varValue, ok := pkgVars[variableName[1]]; ok {
+					value = varValue
+				}
+			}
+		}
 		// handle default case of simple values like strings and numbers
 		helmVal := fmt.Sprintf("%s=%v", valuePath, value)
 		overrides[component][chart].Values = append(overrides[component][chart].Values, helmVal)
