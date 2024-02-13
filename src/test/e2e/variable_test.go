@@ -153,12 +153,12 @@ func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 	deploy(t, bundlePath)
 
 	// check override variables, ensure they are coming from env vars and take highest precedence
-	cmd := strings.Split("zarf tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
+	cmd := strings.Split("z tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
 	outputUIColor, _, err := e2e.UDS(cmd...)
 	require.Equal(t, fmt.Sprintf("'%s'", color), outputUIColor)
 	require.NoError(t, err)
 
-	cmd = strings.Split("zarf tools kubectl get secret test-secret -n podinfo -o jsonpath=\"{.data.test}\"", " ")
+	cmd = strings.Split("z tools kubectl get secret test-secret -n podinfo -o jsonpath=\"{.data.test}\"", " ")
 	secretValue, _, err := e2e.UDS(cmd...)
 	require.Equal(t, fmt.Sprintf("\"%s\"", b64Secret), secretValue)
 	require.NoError(t, err)
