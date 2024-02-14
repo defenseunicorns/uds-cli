@@ -56,7 +56,7 @@ type BundleChartVariable struct {
 
 // BundleVariableImport represents variables in the bundle
 type BundleVariableImport struct {
-	Name        string `json:"name" jsonschema:"name=Name of the variable"`
+	Name        string `json:"name,omitempty" jsonschema:"name=Name of the variable"`
 	Package     string `json:"package" jsonschema:"name=Name of the Zarf package to get the variable from"`
 	Description string `json:"description,omitempty" jsonschema:"name=Description of the variable"`
 }

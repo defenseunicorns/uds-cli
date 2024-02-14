@@ -39,7 +39,25 @@ func TestBundleVariables(t *testing.T) {
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/02-simple-vars", "uds-config.yaml"))
 
 	_, stderr := deploy(t, bundleTarballPath)
+	bunleVariablesTestChecks(t, stderr, bundleTarballPath)
+	remove(t, bundleTarballPath)
 
+	// Run same test checks but with package that is importing all of the exported variables by just providing the packageName in the import
+	bundleDir = "src/test/bundles/02-simple-vars/import-all"
+	bundleTarballPath = filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-import-all-%s-0.0.1.tar.zst", e2e.Arch))
+	createLocal(t, bundleDir, e2e.Arch)
+	createRemoteInsecure(t, bundleDir, "localhost:888", e2e.Arch)
+	_, stderr = deploy(t, bundleTarballPath)
+	bunleVariablesTestChecks(t, stderr, bundleTarballPath)
+
+	// Test with bad package name in import
+	bundleDir = "src/test/bundles/02-simple-vars/import-all-bad-name"
+	// bundleTarballPath = filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-import-all-bad-name-%s-0.0.1.tar.zst", e2e.Arch))
+	stderr = createLocalError(t, bundleDir, e2e.Arch)
+	require.Contains(t, stderr, "does not match any exporting package")
+}
+
+func bunleVariablesTestChecks(t *testing.T, stderr string, bundleTarballPath string) {
 	require.NotContains(t, stderr, "CLIVersion is set to 'unset' which can cause issues with package creation and deployment")
 	require.Contains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
 	require.Contains(t, stderr, "This fun-fact demonstrates precedence: The Red Dragon is the national symbol of Wales")

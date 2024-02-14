@@ -79,7 +79,6 @@
     },
     "BundleVariableImport": {
       "required": [
-        "name",
         "package"
       ],
       "properties": {

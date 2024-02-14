@@ -327,10 +327,22 @@ func validateBundleVars(packages []types.Package) error {
 		// ensure imports have a matching export
 		if pkg.Imports != nil {
 			for _, v := range pkg.Imports {
-				if _, ok := exports[v.Name]; ok && v.Package == exports[v.Name] {
-					continue
+				// check import names if they are set, otherwise importing all the variables for the given package
+				if v.Name != "" {
+					if _, ok := exports[v.Name]; ok && v.Package == exports[v.Name] {
+						continue
+					}
+					return fmt.Errorf("import var %s does not have a matching export", v.Name)
+					// Check that the import package is valid
+				} else {
+					for _, pkgName := range exports {
+						if pkgName == v.Package {
+							break
+						} else {
+							return fmt.Errorf("import package %s does not match any exporting package", v.Package)
+						}
+					}
 				}
-				return fmt.Errorf("import var %s does not have a matching export", v.Name)
 			}
 		}
 	}

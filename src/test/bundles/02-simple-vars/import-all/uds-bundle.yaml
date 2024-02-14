@@ -1,0 +1,19 @@
+kind: UDSBundle
+metadata:
+  name: import-all
+  description: show how import all works
+  version: 0.0.1
+
+packages:
+  - name: output-var
+    repository: localhost:888/output-var
+    ref: 0.0.1
+    exports:
+      - name: OUTPUT
+      - name: PRECEDENCE
+
+  - name: receive-var
+    repository: localhost:888/receive-var
+    ref: 0.0.1
+    imports:
+       - package: output-var
