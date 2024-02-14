@@ -17,7 +17,7 @@ require (
 	golang.org/x/exp v0.0.0-20240205201215-2c58cdc269a3
 	golang.org/x/mod v0.15.0
 	golang.org/x/sync v0.6.0
-	helm.sh/helm/v3 v3.14.0
+	helm.sh/helm/v3 v3.14.1
 	oras.land/oras-go/v2 v2.4.0
 )
 
