@@ -29,7 +29,7 @@ packages:
               value:
                 customAnnotation: "customValue"
           variables:
-            - name: UI_COLOR
+            - name: ui_color
               path: "podinfo.ui.color"
               description: "Set the color for podinfo's UI"
               default: "blue"
