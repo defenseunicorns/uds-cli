@@ -115,6 +115,10 @@ func TestBundle(t *testing.T) {
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/01-uds-bundle", "uds-config.yaml"))
 	deploy(t, bundlePath)
 	remove(t, bundlePath)
+
+	//Test create using custom tmpDir
+	runCmd(t, "create "+bundleDir+" --tmpdir ./customtmp --confirm --insecure")
+
 }
 
 func TestPackagesFlag(t *testing.T) {

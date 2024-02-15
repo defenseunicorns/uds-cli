@@ -103,7 +103,7 @@ func (r *Runner) importTasks(includes []map[string]string, dir string, setVariab
 		// check if included file is a url
 		if helpers.IsURL(includeFilename) {
 			// If file is a url download it to a tmp directory
-			tmpDir, err := zarfUtils.MakeTempDir("")
+			tmpDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 			defer os.RemoveAll(tmpDir)
 			if err != nil {
 				return err

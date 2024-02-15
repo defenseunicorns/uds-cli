@@ -49,7 +49,7 @@ func New(cfg *types.BundleConfig) (*Bundle, error) {
 		}
 	)
 
-	tmp, err := utils.MakeTempDir("")
+	tmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
 	if err != nil {
 		return nil, fmt.Errorf("bundler unable to create temp directory: %w", err)
 	}
@@ -102,7 +102,7 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 		return fmt.Errorf("error validating bundle vars: %s", err)
 	}
 
-	tmp, err := utils.MakeTempDir("")
+	tmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
 	if err != nil {
 		return err
 	}
