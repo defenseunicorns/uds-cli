@@ -102,11 +102,6 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 		return fmt.Errorf("error validating bundle vars: %s", err)
 	}
 
-	tmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
-	if err != nil {
-		return err
-	}
-
 	// validate access to packages as well as components referenced in the package
 	for idx, pkg := range bundle.Packages {
 		spinner.Updatef("Validating Bundle Package: %s", pkg.Name)
@@ -179,8 +174,6 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 		}
 
 		message.Debug("Validating package:", message.JSONValue(pkg))
-
-		defer os.RemoveAll(tmp)
 
 		// todo: need to packager.ValidatePackageSignature (or come up with a bundle-level signature scheme)
 		publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
