@@ -338,6 +338,8 @@ func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*value
 func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*values.Options, pkgName string, variables *[]types.BundleChartVariable, componentName string, chartName string) error {
 	for _, v := range *variables {
 		var overrideVal interface{}
+		// Ensuring variable name is upper case since comparisons are being done against upper case env and config variables
+		v.Name = strings.ToUpper(v.Name)
 		// check for override in env vars
 		if envVarOverride, exists := os.LookupEnv(strings.ToUpper(config.EnvVarPrefix + v.Name)); exists {
 			if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, envVarOverride); err != nil {
