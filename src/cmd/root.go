@@ -76,9 +76,10 @@ func init() {
 	}
 
 	// only vendor zarf if specifically invoked
-	if len(os.Args) > 1 && os.Args[1] == "zarf" {
+	if len(os.Args) > 1 && (os.Args[1] == "zarf" || os.Args[1] == "z") {
 		zarfCmd := &cobra.Command{
-			Use: "zarf COMMAND",
+			Use:     "zarf COMMAND",
+			Aliases: []string{"z"},
 			Run: func(cmd *cobra.Command, args []string) {
 				os.Args = os.Args[1:] // grab 'zarf' and onward from the CLI args
 				zarfCLI.Execute()
