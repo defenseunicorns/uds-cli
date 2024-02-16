@@ -6,5 +6,5 @@ metadata:
 
 packages:
   - name: gitrepo
-    path: "../../packages/gitrepo"
+    path: "src/test/packages/gitrepo"
     ref: 0.0.1

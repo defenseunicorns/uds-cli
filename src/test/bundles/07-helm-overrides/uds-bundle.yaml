@@ -6,7 +6,7 @@ metadata:
 
 packages:
   - name: helm-overrides
-    path: "../../packages/helm"
+    path: "src/test/packages/helm"
     ref: 0.0.1
 
     overrides:

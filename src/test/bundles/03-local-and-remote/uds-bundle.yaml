@@ -9,5 +9,5 @@ packages:
     repository: ghcr.io/defenseunicorns/uds-cli/nginx
     ref: 0.0.1
   - name: podinfo
-    path: "../../packages/podinfo"
+    path: "src/test/packages/podinfo"
     ref: 0.0.1
