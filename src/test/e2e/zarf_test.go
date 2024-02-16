@@ -14,7 +14,6 @@ import (
 // NOTE: These tests test that the embedded `zarf` commands are imported properly and function as expected
 
 // TestZarfLint tests to ensure that the `zarf dev lint` command functions (which requires the zarf schema to be embedded in main.go)
-
 func TestZarfLint(t *testing.T) {
 	cmd := strings.Split("zarf dev lint src/test/packages/podinfo", " ")
 	_, stdErr, err := e2e.UDS(cmd...)
