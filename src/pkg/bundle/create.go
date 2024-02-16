@@ -77,6 +77,7 @@ func (b *Bundle) Create() error {
 		Bundle:    &b.bundle,
 		Output:    b.cfg.CreateOpts.Output,
 		TmpDstDir: b.tmp,
+		SourceDir: b.cfg.CreateOpts.SourceDirectory,
 	}
 	bundlerClient := bundler.NewBundler(&opts)
 	return bundlerClient.Create()

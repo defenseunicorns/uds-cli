@@ -29,17 +29,20 @@ import (
 type LocalBundleOpts struct {
 	Bundle    *types.UDSBundle
 	TmpDstDir string
+	SourceDir string
 }
 
 type LocalBundle struct {
 	bundle    *types.UDSBundle
 	tmpDstDir string
+	sourceDir string
 }
 
 func NewLocalBundle(opts *LocalBundleOpts) *LocalBundle {
 	return &LocalBundle{
 		bundle:    opts.Bundle,
 		tmpDstDir: opts.TmpDstDir,
+		sourceDir: opts.SourceDir,
 	}
 }
 
@@ -153,7 +156,7 @@ func (lo *LocalBundle) create(signature []byte) error {
 	}
 
 	// tarball the bundle
-	err = writeTarball(bundle, artifactPathMap)
+	err = writeTarball(bundle, artifactPathMap, lo.sourceDir)
 	if err != nil {
 		return err
 	}
@@ -199,17 +202,14 @@ func pushManifestConfig(store *ocistore.Store, metadata types.UDSMetadata, build
 }
 
 // writeTarball builds and writes a bundle tarball to disk based on a file map
-func writeTarball(bundle *types.UDSBundle, artifactPathMap types.PathMap) error {
+func writeTarball(bundle *types.UDSBundle, artifactPathMap types.PathMap, sourceDir string) error {
 	format := archiver.CompressedArchive{
 		Compression: archiver.Zstd{},
 		Archival:    archiver.Tar{},
 	}
 	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, bundle.Metadata.Name, bundle.Metadata.Architecture, bundle.Metadata.Version)
-	cwd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	dst := filepath.Join(cwd, filename)
+
+	dst := filepath.Join(sourceDir, filename)
 
 	_ = os.RemoveAll(dst)
 
