@@ -31,6 +31,9 @@ import (
 // ZarfOverrideMap is a map of Zarf packages -> components -> Helm charts -> values
 type ZarfOverrideMap map[string]map[string]map[string]interface{}
 
+// templatedVarRegex is the regex for templated variables
+var templatedVarRegex = regexp.MustCompile(`\${([^}]+)}`)
+
 // Deploy deploys a bundle
 //
 // : create a new provider
@@ -412,18 +415,18 @@ func addOverrideValue(overrides map[string]map[string]*values.Options, component
 	default:
 		// Check for any templated variables if pkgVars set
 		if pkgVars != nil {
-			// Regular expression to get text in ${...}
-			re := regexp.MustCompile(`\${([^}]+)}`)
 			templatedVariable := fmt.Sprintf("%v", v)
-			// Get the variable name inside of ${...}
-			// returns slice with the templated variable and the variable name
-			variableName := re.FindStringSubmatch(templatedVariable)
-			// If we have a templated variable, get the value from pkgVars
-			if len(variableName) == 2 {
-				if varValue, ok := pkgVars[variableName[1]]; ok {
-					value = varValue
+			// Use ReplaceAllStringFunc to handle all occurrences of templated variables
+			replacedValue := templatedVarRegex.ReplaceAllStringFunc(templatedVariable, func(match string) string {
+				// returns slice with the templated variable and the variable name
+				variableName := templatedVarRegex.FindStringSubmatch(match)[1]
+				// If we have a templated variable, get the value from pkgVars
+				if varValue, ok := pkgVars[variableName]; ok {
+					return varValue
 				}
-			}
+				return fmt.Sprintf("${%s_not_found}", variableName)
+			})
+			value = replacedValue
 		}
 		// handle default case of simple values like strings and numbers
 		helmVal := fmt.Sprintf("%s=%v", valuePath, value)
