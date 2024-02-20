@@ -8,7 +8,7 @@ metadata:
 # cannot do uds remove on this pkg due to having the same name
 packages:
   - name: init
-    path: "../../packages"
+    path: "src/test/packages"
     # renovate: datasource=github-tags depName=defenseunicorns/zarf
     ref: v0.32.3
     optionalComponents:

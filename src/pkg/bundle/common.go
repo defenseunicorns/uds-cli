@@ -49,7 +49,7 @@ func New(cfg *types.BundleConfig) (*Bundle, error) {
 		}
 	)
 
-	tmp, err := utils.MakeTempDir("")
+	tmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
 	if err != nil {
 		return nil, fmt.Errorf("bundler unable to create temp directory: %w", err)
 	}
@@ -100,11 +100,6 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 
 	if err := validateBundleVars(bundle.Packages); err != nil {
 		return fmt.Errorf("error validating bundle vars: %s", err)
-	}
-
-	tmp, err := utils.MakeTempDir("")
-	if err != nil {
-		return err
 	}
 
 	// validate access to packages as well as components referenced in the package
@@ -179,8 +174,6 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 		}
 
 		message.Debug("Validating package:", message.JSONValue(pkg))
-
-		defer os.RemoveAll(tmp)
 
 		// todo: need to packager.ValidatePackageSignature (or come up with a bundle-level signature scheme)
 		publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
