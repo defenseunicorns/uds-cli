@@ -1,7 +1,7 @@
 kind: UDSBundle
 metadata:
   name: import-all-bad-name
-  description: show how import all works
+  description: show errors for bad imports
   version: 0.0.1
 
 packages:
@@ -17,3 +17,4 @@ packages:
     ref: 0.0.1
     imports:
        - package: output-varz
+         name: OUTPUTZ

@@ -15,5 +15,3 @@ packages:
   - name: receive-var
     repository: localhost:888/receive-var
     ref: 0.0.1
-    imports:
-       - package: output-var
