@@ -528,6 +528,8 @@ func TestBundleTmpDir(t *testing.T) {
 	done := make(chan bool)
 	// Channel to receive errors
 	errCh := make(chan error)
+
+	// Watch for file creation in the temporary directory
 	go func() {
 		for {
 			select {
