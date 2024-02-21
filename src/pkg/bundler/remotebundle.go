@@ -17,18 +17,21 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
+// RemoteBundleOpts are the options for creating a remote bundle
 type RemoteBundleOpts struct {
 	Bundle    *types.UDSBundle
 	TmpDstDir string
 	Output    string
 }
 
+// RemoteBundle enables create ops with remote bundles
 type RemoteBundle struct {
 	bundle    *types.UDSBundle
 	tmpDstDir string
 	output    string
 }
 
+// NewRemoteBundle creates a new remote bundle
 func NewRemoteBundle(opts *RemoteBundleOpts) *RemoteBundle {
 	return &RemoteBundle{
 		bundle:    opts.Bundle,

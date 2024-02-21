@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
-// Package fetcher contains functionality to fetch local and remote Zarf pkgs for bundling
+// Package fetcher contains functionality to fetch local and remote Zarf pkgs for local bundling
 package fetcher
 
 import (
@@ -17,11 +17,13 @@ import (
 	ocistore "oras.land/oras-go/v2/content/oci"
 )
 
+// Fetcher is the interface for fetching packages
 type Fetcher interface {
 	Fetch() ([]ocispec.Descriptor, error)
 	GetPkgMetadata() (zarfTypes.ZarfPackage, error)
 }
 
+// Config is the configuration for the fetcher
 type Config struct {
 	Store              *ocistore.Store
 	TmpDstDir          string

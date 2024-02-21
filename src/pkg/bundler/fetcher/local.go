@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
-// Package fetcher contains functionality to fetch local and remote Zarf pkgs for bundling
+// Package fetcher contains functionality to fetch local and remote Zarf pkgs for local bundling
 package fetcher
 
 import (
@@ -109,7 +109,7 @@ func (f *localFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
 	return zarfYAML, err
 }
 
-// Extract extracts a compressed Zarf archive into a directory
+// extract extracts a compressed Zarf archive into a directory
 func (f *localFetcher) extract() error {
 	err := av3.Unarchive(f.pkg.Path, f.extractDst) // todo: awkward to use old version of mholt/archiver
 	if err != nil {
@@ -118,7 +118,7 @@ func (f *localFetcher) extract() error {
 	return nil
 }
 
-// Load loads a zarf.yaml into a Zarf object
+// load loads a zarf.yaml into a Zarf object
 func (f *localFetcher) load() (zarfTypes.ZarfPackage, error) {
 	// grab zarf.yaml from extracted archive
 	p, err := os.ReadFile(filepath.Join(f.extractDst, config.ZarfYAML))

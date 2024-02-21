@@ -95,12 +95,12 @@ var inspectCmd = &cobra.Command{
 	Aliases: []string{"i"},
 	Short:   lang.CmdBundleInspectShort,
 	Args:    cobra.MaximumNArgs(1),
-	PreRun: func(cmd *cobra.Command, args []string) {
+	PreRun: func(cmd *cobra.Command, _ []string) {
 		if cmd.Flag("extract").Value.String() == "true" && cmd.Flag("sbom").Value.String() == "false" {
 			message.Fatal(nil, "cannot use 'extract' flag without 'sbom' flag")
 		}
 	},
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, args []string) {
 		bundleCfg.InspectOpts.Source = chooseBundle(args)
 		configureZarf()
 

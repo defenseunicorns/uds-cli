@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
-// Package fetcher contains functionality to fetch local and remote Zarf pkgs for bundling
+// Package fetcher contains functionality to fetch local and remote Zarf pkgs for local bundling
 package fetcher
 
 import (
@@ -33,6 +33,7 @@ type remoteFetcher struct {
 	remote          *oci.OrasRemote
 }
 
+// Fetch fetches a Zarf pkg and puts it into a local bundle
 func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	fetchSpinner := message.NewProgressSpinner("Fetching package %s", f.pkg.Name)
 	zarfPackageName := ""

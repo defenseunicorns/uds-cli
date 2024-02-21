@@ -44,7 +44,7 @@ func MoveExtractedSBOMs(src, dst string) error {
 }
 
 // SBOMExtractor is the extraction fn for extracting HTML and JSON files from an sboms.tar archive
-func SBOMExtractor(dst string, SBOMArtifactPathMap map[string]string) func(ctx context.Context, f archiver.File) error {
+func SBOMExtractor(dst string, SBOMArtifactPathMap map[string]string) func(_ context.Context, f archiver.File) error {
 	extractor := func(ctx context.Context, f archiver.File) error {
 		open, err := f.Open()
 		if err != nil {
