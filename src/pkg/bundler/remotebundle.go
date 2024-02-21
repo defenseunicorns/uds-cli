@@ -74,8 +74,8 @@ func (r *RemoteBundle) create(signature []byte) error {
 
 	for i, pkg := range bundle.Packages {
 		// todo: can leave this block here or move to pusher.NewPkgPusher (would be closer to NewPkgFetcher pattern)
-		pkgUrl := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
-		src, err := oci.NewOrasRemote(pkgUrl, platform)
+		pkgURL := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
+		src, err := oci.NewOrasRemote(pkgURL, platform)
 		if err != nil {
 			return err
 		}

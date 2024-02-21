@@ -25,7 +25,7 @@ var runCmd = &cobra.Command{
 	Use:   "run [ TASK NAME ]",
 	Short: "run a task",
 	Long:  `run a task from an tasks file`,
-	ValidArgsFunction: func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	ValidArgsFunction: func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		var tasksFile types.TasksFile
 
 		if _, err := os.Stat(config.TaskFileLocation); os.IsNotExist(err) {

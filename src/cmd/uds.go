@@ -119,7 +119,7 @@ var removeCmd = &cobra.Command{
 	Aliases: []string{"r"},
 	Args:    cobra.ExactArgs(1),
 	Short:   lang.CmdBundleRemoveShort,
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, args []string) {
 		bundleCfg.RemoveOpts.Source = args[0]
 		configureZarf()
 
@@ -138,12 +138,12 @@ var publishCmd = &cobra.Command{
 	Aliases: []string{"p"},
 	Short:   lang.CmdPublishShort,
 	Args:    cobra.ExactArgs(2),
-	PreRun: func(cmd *cobra.Command, args []string) {
+	PreRun: func(_ *cobra.Command, args []string) {
 		if _, err := os.Stat(args[0]); err != nil {
 			message.Fatalf(err, "First argument (%q) must be a valid local Bundle path: %s", args[0], err.Error())
 		}
 	},
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, args []string) {
 		bundleCfg.PublishOpts.Source = args[0]
 		bundleCfg.PublishOpts.Destination = args[1]
 		configureZarf()
@@ -162,7 +162,7 @@ var pullCmd = &cobra.Command{
 	Aliases: []string{"p"},
 	Short:   lang.CmdBundlePullShort,
 	Args:    cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, args []string) {
 		bundleCfg.PullOpts.Source = args[0]
 		configureZarf()
 		bndlClient := bundle.NewOrDie(&bundleCfg)
