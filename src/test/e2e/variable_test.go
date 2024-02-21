@@ -239,9 +239,9 @@ func TestZarfPackageExportVarsAsGlobalBundleVars(t *testing.T) {
 	cmd = strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.tolerations}'", " ")
 	tolerations, _, err := e2e.UDS(cmd...)
 	require.Contains(t, tolerations, "\"key\":\"uds\"")
-	require.Contains(t, tolerations, "\"value\":\"defense\"")
+	require.Contains(t, tolerations, "\"value\":\"true\"")
 	require.Contains(t, tolerations, "\"key\":\"unicorn\"")
-	require.Contains(t, tolerations, "\"effect\":\"NoSchedule\"")
+	require.Contains(t, tolerations, "\"value\":\"defense\"")
 	require.NoError(t, err)
 
 	remove(t, bundlePath)
