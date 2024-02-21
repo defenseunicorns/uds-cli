@@ -6,6 +6,7 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
 	github.com/defenseunicorns/zarf v0.32.3
+	github.com/fsnotify/fsnotify v1.7.0
 	github.com/goccy/go-yaml v1.11.3
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/mholt/archiver/v4 v4.0.0-alpha.8
@@ -17,7 +18,7 @@ require (
 	golang.org/x/exp v0.0.0-20240213143201-ec583247a57a
 	golang.org/x/mod v0.15.0
 	golang.org/x/sync v0.6.0
-	helm.sh/helm/v3 v3.14.1
+	helm.sh/helm/v3 v3.14.2
 	oras.land/oras-go/v2 v2.4.0
 )
 
@@ -197,7 +198,6 @@ require (
 	github.com/fluxcd/pkg/apis/kustomize v1.3.0 // indirect
 	github.com/fluxcd/pkg/apis/meta v1.3.0 // indirect
 	github.com/fluxcd/source-controller/api v1.2.4 // indirect
-	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/fvbommel/sortorder v1.1.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
 	github.com/gdamore/encoding v1.0.0 // indirect
