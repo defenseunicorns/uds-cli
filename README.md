@@ -191,7 +191,7 @@ packages:
         package: output-var
 ```
 
-Variables that you want to make available to other package are in the `export` block of the Zarf package to export a variable from. By default, all exported variables are available to all of the packages in a bundle. To have another package ingest a specific exported variable, use the `imports` key to name both the `variable` and `package` that the variable is exported from, like in the example above.
+Variables that you want to make available to other packages are in the `export` block of the Zarf package to export a variable from. By default, all exported variables are available to all of the packages in a bundle. To have another package ingest a specific exported variable, like in the case of variable name collisions, use the `imports` key to name both the `variable` and `package` that the variable is exported from, like in the example above.
 
 In the example above, the `OUTPUT` variable is created as part of a Zarf Action in the [output-var](src/test/packages/zarf/no-cluster/output-var) package, and the [receive-var](src/test/packages/zarf/no-cluster/receive-var) package expects a variable called `OUTPUT`.
 
