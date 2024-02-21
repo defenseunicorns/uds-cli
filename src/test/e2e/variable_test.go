@@ -51,7 +51,7 @@ func TestBundleVariables(t *testing.T) {
 
 	// Test with bad variable name in import
 	bundleDir = "src/test/bundles/02-simple-vars/import-all-bad-name"
-	stderr = createLocalError(t, bundleDir, e2e.Arch)
+	stderr = createLocalError(bundleDir, e2e.Arch)
 	require.Contains(t, stderr, "does not have a matching export")
 
 	// Test name collisions with exported variables
