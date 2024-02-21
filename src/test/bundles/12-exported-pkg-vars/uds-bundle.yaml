@@ -22,10 +22,6 @@ packages:
         package: output-var
       - name: ANNOTATION
         package: output-var
-      - name: DEFENSE
-        package: output-var
-      - name: BOOL
-        package: output-var
 
     overrides:
       podinfo-component:
