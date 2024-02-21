@@ -212,6 +212,13 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackag
 func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) map[string]string {
 	pkgVars := make(map[string]string)
 
+	// load all exported variables
+	for _, exportedVarMap := range bundleExportedVars {
+		for varName, varValue := range exportedVarMap {
+			pkgVars[strings.ToUpper(varName)] = varValue
+		}
+	}
+
 	// Set variables in order or precendence (least specific to most specific)
 	// imported vars
 	for _, imp := range pkg.Imports {
