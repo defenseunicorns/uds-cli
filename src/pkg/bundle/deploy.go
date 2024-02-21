@@ -282,11 +282,12 @@ func (b *Bundle) loadChartOverrides(pkg types.Package) (ZarfOverrideMap, error) 
 	// Loop through each package component's charts and process overrides
 	for componentName, component := range pkg.Overrides {
 		for chartName, chart := range component {
-			err := b.processOverrideValues(&overrideMap, &chart.Values, componentName, chartName)
+			chartCopy := chart // Create a copy of the chart
+			err := b.processOverrideValues(&overrideMap, &chartCopy.Values, componentName, chartName)
 			if err != nil {
 				return nil, err
 			}
-			err = b.processOverrideVariables(&overrideMap, pkg.Name, &chart.Variables, componentName, chartName)
+			err = b.processOverrideVariables(&overrideMap, pkg.Name, &chartCopy.Variables, componentName, chartName)
 			if err != nil {
 				return nil, err
 			}

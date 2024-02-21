@@ -280,7 +280,8 @@ func validateOverrides(pkg types.Package, zarfYAML zarfTypes.ZarfPackage) error 
 		var foundComponent *zarfTypes.ZarfComponent
 		for _, component := range zarfYAML.Components {
 			if component.Name == componentName {
-				foundComponent = &component
+				componentCopy := component // Create a copy of the component
+				foundComponent = &componentCopy
 				break
 			}
 		}
@@ -292,7 +293,8 @@ func validateOverrides(pkg types.Package, zarfYAML zarfTypes.ZarfPackage) error 
 			var foundChart *zarfTypes.ZarfChart
 			for _, chart := range foundComponent.Charts {
 				if chart.Name == chartName {
-					foundChart = &chart
+					chartCopy := chart // Create a copy of the chart
+					foundChart = &chartCopy
 					break
 				}
 			}

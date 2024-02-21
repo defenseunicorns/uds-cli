@@ -63,7 +63,7 @@ func SBOMExtractor(dst string, SBOMArtifactPathMap map[string]string) func(ctx c
 			}
 			path := filepath.Join(dst, config.BundleSBOM, f.NameInArchive)
 			// todo: handle collisions? especially for zarf-component SBOM files?
-			err = os.WriteFile(path, buffer, 0644)
+			err = os.WriteFile(path, buffer, 0600)
 			if err != nil {
 				return err
 			}
