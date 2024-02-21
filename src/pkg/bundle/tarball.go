@@ -121,8 +121,11 @@ func (tp *tarballBundleProvider) getBundleManifest() error {
 	if err := av3.Extract(tp.src, "index.json", tp.dst); err != nil {
 		return fmt.Errorf("failed to extract index.json from %s: %w", tp.src, err)
 	}
-
 	indexPath := filepath.Join(tp.dst, "index.json")
+	indexPathChecksum, err := utils.CalculateFileChecksum(indexPath)
+	if err != nil {
+		return fmt.Errorf("failed to calculate checksum for %s: %w", indexPath, err)
+	}
 
 	defer os.Remove(indexPath)
 
@@ -136,7 +139,13 @@ func (tp *tarballBundleProvider) getBundleManifest() error {
 	if err := json.Unmarshal(b, &index); err != nil {
 		return err
 	}
-
+	// The check is done after json.Unmarshal to ensure that the file wasn't tampered after written to the temp dir
+	// while reading the file
+	// Verify the calculated checksum against the expected checksum
+	isValid, err := utils.VerifyFileChecksum(indexPath, indexPathChecksum)
+	if err != nil || !isValid {
+		return fmt.Errorf("checksum verification failed for %s", indexPath)
+	}
 	// local bundles only have one manifest entry in their index.json
 	bundleManifestDesc := index.Manifests[0]
 	tp.bundleRootDesc = bundleManifestDesc
@@ -168,6 +177,11 @@ func (tp *tarballBundleProvider) getBundleManifest() error {
 
 	if err := json.Unmarshal(b, &manifest); err != nil {
 		return err
+	}
+	// This is to ensure that the file wasn't tampered after written to the temp dir
+	isValid, err = utils.VerifyFileChecksum(manifestPath, bundleManifestDesc.Digest.Encoded())
+	if err != nil || !isValid {
+		return fmt.Errorf("checksum verification failed for %s", manifestPath)
 	}
 
 	tp.bundleRootManifest = manifest
