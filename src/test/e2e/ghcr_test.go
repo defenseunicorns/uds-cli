@@ -15,8 +15,9 @@ import (
 
 // NOTE: These tests need to have the string "GHCR" in their names
 //       to ensure they are not run by the test-e2e-no-ghcr make target
+//       Also, these tests are run nightly and on releases, not on PRs
 
-func TestBundleDeployFromOCIFromGHCR(t *testing.T) {
+func TestBundleCreateAndPublishGHCR(t *testing.T) {
 	deployZarfInit(t)
 
 	bundleName := "ghcr-test"
@@ -51,7 +52,7 @@ func TestBundleDeployFromOCIFromGHCR(t *testing.T) {
 }
 
 // test the create -o path
-func TestBundleCreateAndDeployGHCR(t *testing.T) {
+func TestBundleCreateRemoteAndDeployGHCR(t *testing.T) {
 	deployZarfInit(t)
 
 	bundleDir := "src/test/bundles/06-ghcr"

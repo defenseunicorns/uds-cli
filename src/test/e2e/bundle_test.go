@@ -121,6 +121,10 @@ func TestBundle(t *testing.T) {
 	//Test create using custom tmpDir
 	runCmd(t, "create "+bundleDir+" --tmpdir ./customtmp --confirm --insecure")
 
+	// remove customtmp folder if it exists
+	err := os.RemoveAll("./customtmp")
+	require.NoError(t, err)
+
 }
 
 func TestPackagesFlag(t *testing.T) {

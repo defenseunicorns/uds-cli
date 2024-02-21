@@ -1,0 +1,49 @@
+name: Test GHCR Write
+on:
+  schedule:
+    - cron: '0 7 * * *' ## Every day at 0700 UTC
+
+  workflow_dispatch: ## Give us the ability to run this manually
+
+permissions:
+  contents: read
+
+# Abort prior jobs in the same workflow / PR
+concurrency:
+  group: e2e-ghcr-write-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Setup golang
+        uses: ./.github/actions/golang
+
+      - name: Build UDS-CLI binary
+        run: make build-cli-linux-amd ARCH=amd64
+
+      - name: Setup K3d
+        uses: ./.github/actions/k3d
+
+      - name: Login to GHCR
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run e2e tests
+        run: |
+          make test-e2e-ghcr
+        env:
+          GITHUB_TOKEN: secrets.GITHUB_TOKEN
+
+      - name: Save logs
+        if: always()
+        uses: ./.github/actions/save-logs
