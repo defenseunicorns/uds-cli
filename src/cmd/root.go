@@ -80,7 +80,7 @@ func init() {
 		zarfCmd := &cobra.Command{
 			Use:     "zarf COMMAND",
 			Aliases: []string{"z"},
-			Run: func(cmd *cobra.Command, args []string) {
+			Run: func(_ *cobra.Command, _ []string) {
 				os.Args = os.Args[1:] // grab 'zarf' and onward from the CLI args
 				zarfCLI.Execute()
 			},
