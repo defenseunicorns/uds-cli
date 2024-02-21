@@ -37,7 +37,7 @@ type localFetcher struct {
 func (f *localFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	fetchSpinner := message.NewProgressSpinner("Fetching package %s", f.pkg.Name)
 	defer fetchSpinner.Stop()
-	pkgTmp, err := zarfUtils.MakeTempDir("")
+	pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 	defer os.RemoveAll(pkgTmp)
 	if err != nil {
 		return nil, err
@@ -64,7 +64,7 @@ func (f *localFetcher) Fetch() ([]ocispec.Descriptor, error) {
 
 // GetPkgMetadata grabs metadata from a local Zarf package's zarf.yaml
 func (f *localFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
-	tmpDir, err := zarfUtils.MakeTempDir("")
+	tmpDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, err
 	}

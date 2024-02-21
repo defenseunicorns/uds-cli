@@ -6,7 +6,7 @@ metadata:
 
 packages:
   - name: helm-overrides
-    path: "../../packages/helm"
+    path: "src/test/packages/helm"
     ref: 0.0.1
 
     overrides:
@@ -29,7 +29,7 @@ packages:
               value:
                 customAnnotation: "customValue"
           variables:
-            - name: UI_COLOR
+            - name: ui_color
               path: "podinfo.ui.color"
               description: "Set the color for podinfo's UI"
               default: "blue"

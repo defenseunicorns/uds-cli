@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
+// Package pusher contains functionality to push Zarf pkgs to remote bundles
 package pusher
 
 import (
@@ -23,6 +24,7 @@ type RemotePusher struct {
 	cfg Config
 }
 
+// Config contains the configuration for the remote pusher
 type Config struct {
 	PkgRootManifest *oci.ZarfOCIManifest
 	RemoteSrc       *oci.OrasRemote
@@ -81,7 +83,7 @@ func (p *RemotePusher) PushManifest() (ocispec.Descriptor, error) {
 	return zarfManifestDesc, nil
 }
 
-// todo: what does this fn return?
+// LayersToRemoteBundle pushes the Zarf pkg's layers to a remote bundle
 func (p *RemotePusher) LayersToRemoteBundle(spinner *message.Spinner, currentPackageIter int, totalPackages int) ([]ocispec.Descriptor, error) {
 	spinner.Updatef("Fetching %s package layer metadata (package %d of %d)", p.pkg.Name, currentPackageIter, totalPackages)
 	// get only the layers that are required by the components

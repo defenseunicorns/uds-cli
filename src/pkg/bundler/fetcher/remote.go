@@ -199,7 +199,7 @@ func (f *remoteFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, err
 	}
-	tmpDir, err := zarfUtils.MakeTempDir("")
+	tmpDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, fmt.Errorf("bundler unable to create temp directory: %w", err)
 	}

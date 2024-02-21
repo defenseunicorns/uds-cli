@@ -85,7 +85,7 @@ var runCmd = &cobra.Command{
 		if len(args) > 0 {
 			taskName = args[0]
 		}
-		if err := runner.Run(tasksFile, taskName, config.SetRunnerVariables, config.WithInputs); err != nil {
+		if err := runner.Run(tasksFile, taskName, config.SetRunnerVariables); err != nil {
 			message.Fatalf(err, "Failed to run action: %s", err)
 		}
 	},
@@ -98,5 +98,4 @@ func init() {
 	runFlags.StringVarP(&config.TaskFileLocation, "file", "f", config.TasksYAML, lang.CmdRunFlag)
 	runFlags.BoolVar(&config.ListTasks, "list", false, lang.CmdRunList)
 	runFlags.StringToStringVar(&config.SetRunnerVariables, "set", nil, lang.CmdRunSetVarFlag)
-	runFlags.StringToStringVar(&config.WithInputs, "with", v.GetStringMapString("runner.with"), lang.CmdRunWithVarFlag)
 }

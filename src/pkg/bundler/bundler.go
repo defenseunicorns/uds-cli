@@ -12,6 +12,7 @@ type Bundler struct {
 	bundle    *types.UDSBundle
 	output    string
 	tmpDstDir string
+	sourceDir string
 }
 
 type Pusher interface {
@@ -21,6 +22,7 @@ type Options struct {
 	Bundle    *types.UDSBundle
 	Output    string
 	TmpDstDir string
+	SourceDir string
 }
 
 func NewBundler(opts *Options) *Bundler {
@@ -28,13 +30,14 @@ func NewBundler(opts *Options) *Bundler {
 		bundle:    opts.Bundle,
 		output:    opts.Output,
 		tmpDstDir: opts.TmpDstDir,
+		sourceDir: opts.SourceDir,
 	}
 	return &b
 }
 
 func (b *Bundler) Create() error {
 	if b.output == "" {
-		localBundle := NewLocalBundle(&LocalBundleOpts{Bundle: b.bundle, TmpDstDir: b.tmpDstDir})
+		localBundle := NewLocalBundle(&LocalBundleOpts{Bundle: b.bundle, TmpDstDir: b.tmpDstDir, SourceDir: b.sourceDir})
 		err := localBundle.create(nil)
 		if err != nil {
 			return err

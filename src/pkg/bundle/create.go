@@ -6,7 +6,6 @@ package bundle
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -21,25 +20,9 @@ import (
 
 // Create creates a bundle
 func (b *Bundle) Create() error {
-	// get the current working directory
-	cwd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-
-	// cd into base
-	if err := os.Chdir(b.cfg.CreateOpts.SourceDirectory); err != nil {
-		return err
-	}
-	defer func() {
-		err := os.Chdir(cwd)
-		if err != nil {
-			fmt.Println("Error changing back to the original directory:", err)
-		}
-	}()
 
 	// read the bundle's metadata into memory
-	if err := utils.ReadYaml(b.cfg.CreateOpts.BundleFile, &b.bundle); err != nil {
+	if err := utils.ReadYaml(filepath.Join(b.cfg.CreateOpts.SourceDirectory, b.cfg.CreateOpts.BundleFile), &b.bundle); err != nil {
 		return err
 	}
 
@@ -94,6 +77,7 @@ func (b *Bundle) Create() error {
 		Bundle:    &b.bundle,
 		Output:    b.cfg.CreateOpts.Output,
 		TmpDstDir: b.tmp,
+		SourceDir: b.cfg.CreateOpts.SourceDirectory,
 	}
 	bundlerClient := bundler.NewBundler(&opts)
 	return bundlerClient.Create()

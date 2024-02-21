@@ -10,7 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/fsnotify/fsnotify"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/registry"
@@ -115,6 +117,10 @@ func TestBundle(t *testing.T) {
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/01-uds-bundle", "uds-config.yaml"))
 	deploy(t, bundlePath)
 	remove(t, bundlePath)
+
+	//Test create using custom tmpDir
+	runCmd(t, "create "+bundleDir+" --tmpdir ./customtmp --confirm --insecure")
+
 }
 
 func TestPackagesFlag(t *testing.T) {
@@ -473,4 +479,103 @@ func validateMultiArchIndex(t *testing.T, index ocispec.Index) {
 	}
 	require.True(t, checkedAMD)
 	require.True(t, checkedARM)
+}
+
+func TestBundleTmpDir(t *testing.T) {
+	deployZarfInit(t)
+
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
+
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+	e2e.SetupDockerRegistry(t, 889)
+	defer e2e.TeardownRegistry(t, 889)
+
+	pkg := fmt.Sprintf("src/test/packages/nginx/zarf-package-nginx-%s-0.0.1.tar.zst", e2e.Arch)
+	zarfPublish(t, pkg, "localhost:888")
+
+	pkg = fmt.Sprintf("src/test/packages/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
+	zarfPublish(t, pkg, "localhost:889")
+
+	bundleDir := "src/test/bundles/01-uds-bundle"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-example-%s-0.0.1.tar.zst", e2e.Arch))
+
+	//Test create using custom tmpDir
+	tmpDirName := "customtmp"
+	tmpDir := fmt.Sprintf("%s/%s", bundleDir, tmpDirName)
+
+	err := os.Mkdir(tmpDir, 0755)
+	if err != nil {
+		t.Fatalf("error creating directory: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// create a file watcher for tmpDir
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		t.Fatalf("error creating file watcher: %v", err)
+	}
+	defer watcher.Close()
+
+	// Add the temporary directory to the watcher
+	err = watcher.Add(tmpDir)
+	if err != nil {
+		t.Fatalf("error adding directory to watcher: %v", err)
+	}
+
+	// Channel to receive file change events
+	done := make(chan bool)
+	// Channel to receive errors
+	errCh := make(chan error)
+
+	// Watch for file creation in the temporary directory
+	go func() {
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+				if event.Op&fsnotify.Create == fsnotify.Create {
+					// Check if the directory is populated
+					files, err := os.ReadDir(tmpDir)
+					if err != nil {
+						// Send error to the main test goroutine
+						errCh <- fmt.Errorf("error reading directory: %v", err)
+						return
+					}
+					if len(files) > 0 {
+						// Directory is populated, send success signal to the main test goroutine
+						done <- true
+						return
+					}
+				}
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				// Send error to the main test goroutine
+				errCh <- fmt.Errorf("error watching directory: %v", err)
+				return
+			}
+		}
+	}()
+
+	// run create command with tmpDir
+	runCmd(t, "create "+bundleDir+" --tmpdir "+tmpDir+" --confirm --insecure")
+	// run deploy command with tmpDir
+	runCmd(t, "deploy "+bundlePath+" --tmpdir "+tmpDir+" --confirm --insecure")
+	// run remove command with tmpDir
+	runCmd(t, "remove "+bundlePath+" --tmpdir "+tmpDir+" --confirm --insecure")
+
+	// handle errors and failures
+	select {
+	case err := <-errCh:
+		t.Fatalf("error: %v", err)
+	case <-done:
+		t.Log("Directory is populated")
+	case <-time.After(10 * time.Second): // Timeout after 10 seconds
+		t.Fatal("timeout waiting for directory to get populated")
+	}
 }

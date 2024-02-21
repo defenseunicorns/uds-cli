@@ -26,7 +26,7 @@ var createCmd = &cobra.Command{
 	Aliases: []string{"c"},
 	Args:    cobra.MaximumNArgs(1),
 	Short:   lang.CmdBundleCreateShort,
-	PreRun: func(cmd *cobra.Command, args []string) {
+	PreRun: func(_ *cobra.Command, args []string) {
 		pathToBundleFile := ""
 		if len(args) > 0 {
 			if !zarfUtils.IsDir(args[0]) {
@@ -44,7 +44,7 @@ var createCmd = &cobra.Command{
 			message.Fatalf(err, "Neither %s or %s found", config.BundleYAML, bundleYml)
 		}
 	},
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, args []string) {
 		srcDir, err := os.Getwd()
 		if err != nil {
 			message.Fatalf(err, "error reading the current working directory")
@@ -69,7 +69,7 @@ var deployCmd = &cobra.Command{
 	Aliases: []string{"d"},
 	Short:   lang.CmdBundleDeployShort,
 	Args:    cobra.MaximumNArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, args []string) {
 		bundleCfg.DeployOpts.Source = chooseBundle(args)
 		configureZarf()
 
