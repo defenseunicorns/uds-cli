@@ -402,6 +402,9 @@ func addOverrideValue(overrides map[string]map[string]*values.Options, component
 		}
 		// use JSONValues because we can easily marshal the YAML to JSON and Helm understands it
 		jsonVals := fmt.Sprintf("%s=[%s]", valuePath, strings.Join(jsonStrs, ","))
+		if pkgVars != nil {
+			jsonVals = setTemplatedVariables(jsonVals, pkgVars)
+		}
 		overrides[component][chart].JSONValues = append(overrides[component][chart].JSONValues, jsonVals)
 	case map[string]interface{}:
 		// handle objects by parsing them as json and appending to Options.JSONValues
@@ -411,26 +414,34 @@ func addOverrideValue(overrides map[string]map[string]*values.Options, component
 		}
 		// use JSONValues because we can easily marshal the YAML to JSON and Helm understands it
 		val := fmt.Sprintf("%s=%s", valuePath, j)
+		if pkgVars != nil {
+			val = setTemplatedVariables(val, pkgVars)
+		}
 		overrides[component][chart].JSONValues = append(overrides[component][chart].JSONValues, val)
 	default:
 		// Check for any templated variables if pkgVars set
 		if pkgVars != nil {
 			templatedVariable := fmt.Sprintf("%v", v)
-			// Use ReplaceAllStringFunc to handle all occurrences of templated variables
-			replacedValue := templatedVarRegex.ReplaceAllStringFunc(templatedVariable, func(match string) string {
-				// returns slice with the templated variable and the variable name
-				variableName := templatedVarRegex.FindStringSubmatch(match)[1]
-				// If we have a templated variable, get the value from pkgVars
-				if varValue, ok := pkgVars[variableName]; ok {
-					return varValue
-				}
-				return fmt.Sprintf("${%s_not_found}", variableName)
-			})
-			value = replacedValue
+			value = setTemplatedVariables(templatedVariable, pkgVars)
 		}
 		// handle default case of simple values like strings and numbers
 		helmVal := fmt.Sprintf("%s=%v", valuePath, value)
 		overrides[component][chart].Values = append(overrides[component][chart].Values, helmVal)
 	}
 	return nil
+}
+
+// setTemplatedVariables sets the value for the templated variables
+func setTemplatedVariables(templatedVariables string, pkgVars map[string]string) string {
+	// Use ReplaceAllStringFunc to handle all occurrences of templated variables
+	replacedValue := templatedVarRegex.ReplaceAllStringFunc(templatedVariables, func(match string) string {
+		// returns slice with the templated variable and the variable name
+		variableName := templatedVarRegex.FindStringSubmatch(match)[1]
+		// If we have a templated variable, get the value from pkgVars
+		if varValue, ok := pkgVars[variableName]; ok {
+			return varValue
+		}
+		return fmt.Sprintf("${%s_not_found}", variableName)
+	})
+	return replacedValue
 }

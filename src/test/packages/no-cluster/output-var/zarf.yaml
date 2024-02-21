@@ -34,3 +34,12 @@ components:
           - cmd: echo "orange"
             setVariables:
               - name: COLOR
+          - cmd: echo "Annotation"
+            setVariables:
+              - name: ANNOTATION
+          - cmd: echo "defense"
+            setVariables:
+              - name: DEFENSE
+          - cmd: echo "true"
+            setVariables:
+              - name: BOOL

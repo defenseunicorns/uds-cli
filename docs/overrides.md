@@ -130,7 +130,37 @@ The `value` is the value to set at the `path`. Values can be simple values such 
               value:
                 customAnnotation: "customValue"
 ```
-If [importing](../README.md#importingexporting-variables) a variable from another package, that variable can also be used to set a value, using the template syntax `${...}`
+If [importing](../README.md#importingexporting-variables) a variable from another package, that variable can also be used to set a value, using the template syntax `${...}`. In the example below the `COLOR` variable is being used to set the `podinfo.ui.color` value.
+```
+kind: UDSBundle
+metadata:
+  name: export-vars
+  description: Example for using an imported variable to set an overrides value
+  version: 0.0.1
+
+packages:
+  - name: output-var
+    repository: localhost:888/output-var
+    ref: 0.0.1
+    exports:
+      - name: COLOR
+
+  - name: helm-overrides
+    path: "../../packages/helm"
+    ref: 0.0.1
+    imports:
+      - name: COLOR
+        package: output-var
+
+    overrides:
+      podinfo-component:
+        unicorn-podinfo:
+          values:
+            - path: "podinfo.replicaCount"
+              value: 1
+            - path: "podinfo.ui.color"
+              value: ${COLOR}
+```
 
 ### Variables
 Variables are similar to [values](#values) in that they allow users to override values in a Zarf package component's underlying Helm chart; they also share a similar syntax. However, unlike `values`, `variables` can be overridden at deploy time. For example, consider the following `variables`:

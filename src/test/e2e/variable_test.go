@@ -223,10 +223,25 @@ func TestZarfPackageExportVarsAsGlobalBundleVars(t *testing.T) {
 	createLocal(t, bundleDir, e2e.Arch)
 	deploy(t, bundlePath)
 
-	// check variables overrides
+	// check templated variables overrides in values
 	cmd := strings.Split("zarf tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
 	outputUIColor, _, err := e2e.UDS(cmd...)
 	require.Equal(t, "'orange'", outputUIColor)
+	require.NoError(t, err)
+
+	// check multiple templated variables as object overrides in values
+	cmd = strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.metadata.annotations}'", " ")
+	annotations, _, err := e2e.UDS(cmd...)
+	require.Contains(t, annotations, "\"customAnnotation\":\"orangeAnnotation\"")
+	require.NoError(t, err)
+
+	// check templated variable list-type overrides in values
+	cmd = strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.tolerations}'", " ")
+	tolerations, _, err := e2e.UDS(cmd...)
+	require.Contains(t, tolerations, "\"key\":\"uds\"")
+	require.Contains(t, tolerations, "\"value\":\"defense\"")
+	require.Contains(t, tolerations, "\"key\":\"unicorn\"")
+	require.Contains(t, tolerations, "\"effect\":\"NoSchedule\"")
 	require.NoError(t, err)
 
 	remove(t, bundlePath)

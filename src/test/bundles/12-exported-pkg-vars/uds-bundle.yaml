@@ -10,12 +10,21 @@ packages:
     ref: 0.0.1
     exports:
       - name: COLOR
+      - name: ANNOTATION
+      - name: DEFENSE
+      - name: BOOL
 
   - name: helm-overrides
     path: "../../packages/helm"
     ref: 0.0.1
     imports:
       - name: COLOR
+        package: output-var
+      - name: ANNOTATION
+        package: output-var
+      - name: DEFENSE
+        package: output-var
+      - name: BOOL
         package: output-var
 
     overrides:
@@ -26,3 +35,16 @@ packages:
               value: 1
             - path: "podinfo.ui.color"
               value: ${COLOR}
+            - path: podinfo.podAnnotations
+              value:
+                customAnnotation: ${COLOR}${ANNOTATION}
+            - path: "podinfo.tolerations"
+              value:
+                - key: "unicorn"
+                  operator: "Equal"
+                  value: ${DEFENSE}
+                  effect: "NoSchedule"
+                - key: "uds"
+                  operator: "Equal"
+                  value: ${BOOL}
+                  effect: "NoSchedule"
