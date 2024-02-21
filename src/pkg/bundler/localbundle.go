@@ -26,18 +26,21 @@ import (
 	ocistore "oras.land/oras-go/v2/content/oci"
 )
 
+// LocalBundleOpts are the options for creating a local bundle
 type LocalBundleOpts struct {
 	Bundle    *types.UDSBundle
 	TmpDstDir string
 	SourceDir string
 }
 
+// LocalBundle enables create ops with local bundles
 type LocalBundle struct {
 	bundle    *types.UDSBundle
 	tmpDstDir string
 	sourceDir string
 }
 
+// NewLocalBundle creates a new local bundle
 func NewLocalBundle(opts *LocalBundleOpts) *LocalBundle {
 	return &LocalBundle{
 		bundle:    opts.Bundle,

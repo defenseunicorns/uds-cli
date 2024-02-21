@@ -44,8 +44,8 @@ func MoveExtractedSBOMs(src, dst string) error {
 }
 
 // SBOMExtractor is the extraction fn for extracting HTML and JSON files from an sboms.tar archive
-func SBOMExtractor(dst string, SBOMArtifactPathMap map[string]string) func(ctx context.Context, f archiver.File) error {
-	extractor := func(ctx context.Context, f archiver.File) error {
+func SBOMExtractor(dst string, SBOMArtifactPathMap map[string]string) func(_ context.Context, f archiver.File) error {
+	extractor := func(_ context.Context, f archiver.File) error {
 		open, err := f.Open()
 		if err != nil {
 			return err
@@ -63,7 +63,7 @@ func SBOMExtractor(dst string, SBOMArtifactPathMap map[string]string) func(ctx c
 			}
 			path := filepath.Join(dst, config.BundleSBOM, f.NameInArchive)
 			// todo: handle collisions? especially for zarf-component SBOM files?
-			err = os.WriteFile(path, buffer, 0644)
+			err = os.WriteFile(path, buffer, 0600)
 			if err != nil {
 				return err
 			}

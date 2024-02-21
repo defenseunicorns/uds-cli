@@ -216,6 +216,13 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackag
 func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) map[string]string {
 	pkgVars := make(map[string]string)
 
+	// load all exported variables
+	for _, exportedVarMap := range bundleExportedVars {
+		for varName, varValue := range exportedVarMap {
+			pkgVars[strings.ToUpper(varName)] = varValue
+		}
+	}
+
 	// Set variables in order or precendence (least specific to most specific)
 	// imported vars
 	for _, imp := range pkg.Imports {
@@ -286,11 +293,12 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string
 	// Loop through each package component's charts and process overrides
 	for componentName, component := range pkg.Overrides {
 		for chartName, chart := range component {
-			err := b.processOverrideValues(&overrideMap, &chart.Values, componentName, chartName, pkgVars)
+			chartCopy := chart // Create a copy of the chart
+			err := b.processOverrideValues(&overrideMap, &chartCopy.Values, componentName, chartName, pkgVars)
 			if err != nil {
 				return nil, err
 			}
-			err = b.processOverrideVariables(&overrideMap, pkg.Name, &chart.Variables, componentName, chartName)
+			err = b.processOverrideVariables(&overrideMap, pkg.Name, &chartCopy.Variables, componentName, chartName)
 			if err != nil {
 				return nil, err
 			}

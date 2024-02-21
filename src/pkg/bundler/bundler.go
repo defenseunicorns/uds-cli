@@ -8,6 +8,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
+// Bundler is used for bundling packages
 type Bundler struct {
 	bundle    *types.UDSBundle
 	output    string
@@ -15,9 +16,11 @@ type Bundler struct {
 	sourceDir string
 }
 
+// Pusher is the interface for pushing bundles
 type Pusher interface {
 }
 
+// Options are the options for creating a bundler
 type Options struct {
 	Bundle    *types.UDSBundle
 	Output    string
@@ -25,6 +28,7 @@ type Options struct {
 	SourceDir string
 }
 
+// NewBundler creates a new bundler
 func NewBundler(opts *Options) *Bundler {
 	b := Bundler{
 		bundle:    opts.Bundle,
@@ -35,6 +39,7 @@ func NewBundler(opts *Options) *Bundler {
 	return &b
 }
 
+// Create creates a bundle
 func (b *Bundler) Create() error {
 	if b.output == "" {
 		localBundle := NewLocalBundle(&LocalBundleOpts{Bundle: b.bundle, TmpDstDir: b.tmpDstDir, SourceDir: b.sourceDir})

@@ -17,18 +17,21 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
+// RemoteBundleOpts are the options for creating a remote bundle
 type RemoteBundleOpts struct {
 	Bundle    *types.UDSBundle
 	TmpDstDir string
 	Output    string
 }
 
+// RemoteBundle enables create ops with remote bundles
 type RemoteBundle struct {
 	bundle    *types.UDSBundle
 	tmpDstDir string
 	output    string
 }
 
+// NewRemoteBundle creates a new remote bundle
 func NewRemoteBundle(opts *RemoteBundleOpts) *RemoteBundle {
 	return &RemoteBundle{
 		bundle:    opts.Bundle,
@@ -71,8 +74,8 @@ func (r *RemoteBundle) create(signature []byte) error {
 
 	for i, pkg := range bundle.Packages {
 		// todo: can leave this block here or move to pusher.NewPkgPusher (would be closer to NewPkgFetcher pattern)
-		pkgUrl := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
-		src, err := oci.NewOrasRemote(pkgUrl, platform)
+		pkgURL := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
+		src, err := oci.NewOrasRemote(pkgURL, platform)
 		if err != nil {
 			return err
 		}

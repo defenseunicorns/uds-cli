@@ -111,7 +111,7 @@ func (r *RemoteBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ b
 	if err = goyaml.Unmarshal(zarfYAMLBytes, &zarfYAML); err != nil {
 		return err
 	}
-	err = zarfUtils.WriteYaml(filepath.Join(dst.Base, config.ZarfYAML), zarfYAML, 0644)
+	err = zarfUtils.WriteYaml(filepath.Join(dst.Base, config.ZarfYAML), zarfYAML, 0600)
 	if err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func (r *RemoteBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ b
 			if err != nil {
 				return err
 			}
-			err = os.WriteFile(filepath.Join(dst.Base, config.ChecksumsTxt), checksumBytes, 0644)
+			err = os.WriteFile(filepath.Join(dst.Base, config.ChecksumsTxt), checksumBytes, 0600)
 			if err != nil {
 				return err
 			}

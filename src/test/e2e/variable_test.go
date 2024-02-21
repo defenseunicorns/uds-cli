@@ -39,7 +39,38 @@ func TestBundleVariables(t *testing.T) {
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/02-simple-vars", "uds-config.yaml"))
 
 	_, stderr := deploy(t, bundleTarballPath)
+	bundleVariablesTestChecks(t, stderr, bundleTarballPath)
+	remove(t, bundleTarballPath)
 
+	// Run same test checks but with package that isn't explicitly importing vars
+	bundleDir = "src/test/bundles/02-simple-vars/import-all"
+	bundleTarballPath = filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-import-all-%s-0.0.1.tar.zst", e2e.Arch))
+	createLocal(t, bundleDir, e2e.Arch)
+	_, stderr = deploy(t, bundleTarballPath)
+	bundleVariablesTestChecks(t, stderr, bundleTarballPath)
+
+	// Test with bad variable name in import
+	bundleDir = "src/test/bundles/02-simple-vars/import-all-bad-name"
+	stderr = createLocalError(t, bundleDir, e2e.Arch)
+	require.Contains(t, stderr, "does not have a matching export")
+
+	// Test name collisions with exported variables
+	zarfPkgPath3 := "src/test/packages/no-cluster/output-var-collision"
+	e2e.CreateZarfPkg(t, zarfPkgPath3, false)
+
+	pkg = filepath.Join(zarfPkgPath3, fmt.Sprintf("zarf-package-output-var-collision-%s-0.0.1.tar.zst", e2e.Arch))
+	zarfPublish(t, pkg, "localhost:888")
+
+	bundleDir = "src/test/bundles/02-simple-vars/export-name-collision"
+	bundleTarballPath = filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-export-name-collision-%s-0.0.1.tar.zst", e2e.Arch))
+	createLocal(t, bundleDir, e2e.Arch)
+	createRemoteInsecure(t, bundleDir, "localhost:888", e2e.Arch)
+	_, stderr = deploy(t, bundleTarballPath)
+	require.Contains(t, stderr, "This fun-fact was imported: Daffodils are the national flower of Wales")
+	require.NotContains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
+}
+
+func bundleVariablesTestChecks(t *testing.T, stderr string, bundleTarballPath string) {
 	require.NotContains(t, stderr, "CLIVersion is set to 'unset' which can cause issues with package creation and deployment")
 	require.Contains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
 	require.Contains(t, stderr, "This fun-fact demonstrates precedence: The Red Dragon is the national symbol of Wales")
