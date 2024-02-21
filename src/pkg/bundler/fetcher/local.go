@@ -68,12 +68,7 @@ func (f *localFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, err
 	}
-	defer func(path string) {
-		err := os.RemoveAll(path)
-		if err != nil {
-
-		}
-	}(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck
 
 	zarfTarball, err := os.Open(f.cfg.Bundle.Packages[f.cfg.PkgIter].Path)
 	if err != nil {
