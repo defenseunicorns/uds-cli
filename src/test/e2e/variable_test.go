@@ -46,7 +46,6 @@ func TestBundleVariables(t *testing.T) {
 	bundleDir = "src/test/bundles/02-simple-vars/import-all"
 	bundleTarballPath = filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-import-all-%s-0.0.1.tar.zst", e2e.Arch))
 	createLocal(t, bundleDir, e2e.Arch)
-	createRemoteInsecure(t, bundleDir, "localhost:888", e2e.Arch)
 	_, stderr = deploy(t, bundleTarballPath)
 	bundleVariablesTestChecks(t, stderr, bundleTarballPath)
 
