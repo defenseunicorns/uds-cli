@@ -31,9 +31,18 @@ jobs:
       - name: Setup K3d
         uses: ./.github/actions/k3d
 
+      - name: Login to GHCR
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Run e2e tests
         run: |
           make test-e2e-ghcr
+        env:
+          GITHUB_TOKEN: secrets.GITHUB_TOKEN
 
       - name: Save logs
         if: always()
