@@ -30,7 +30,7 @@ func createLocal(t *testing.T, bundlePath string, arch string) {
 	require.NoError(t, err)
 }
 
-func createLocalError(t *testing.T, bundlePath string, arch string) (stderr string) {
+func createLocalError(bundlePath string, arch string) (stderr string) {
 	cmd := strings.Split(fmt.Sprintf("create %s --insecure --confirm -a %s", bundlePath, arch), " ")
 	_, stderr, _ = e2e.UDS(cmd...)
 	return stderr

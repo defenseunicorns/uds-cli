@@ -51,7 +51,7 @@ func TestBundleVariables(t *testing.T) {
 
 	// Test with bad variable name in import
 	bundleDir = "src/test/bundles/02-simple-vars/import-all-bad-name"
-	stderr = createLocalError(t, bundleDir, e2e.Arch)
+	stderr = createLocalError(bundleDir, e2e.Arch)
 	require.Contains(t, stderr, "does not have a matching export")
 
 	// Test name collisions with exported variables
@@ -230,6 +230,49 @@ func TestVariablePrecedence(t *testing.T) {
 	cmd = strings.Split("zarf tools kubectl get deploy unicorn-podinfo -n podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_BACKEND_URL\")].value}'", " ")
 	backend, _, err := e2e.UDS(cmd...)
 	require.Equal(t, fmt.Sprintf("'%s'", "burning.boats"), backend)
+	require.NoError(t, err)
+
+	remove(t, bundlePath)
+}
+
+func TestZarfPackageExportVarsAsGlobalBundleVars(t *testing.T) {
+	deployZarfInit(t)
+	zarfPkgPath1 := "src/test/packages/no-cluster/output-var"
+	e2e.CreateZarfPkg(t, zarfPkgPath1, false)
+
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+
+	pkg := filepath.Join(zarfPkgPath1, fmt.Sprintf("zarf-package-output-var-%s-0.0.1.tar.zst", e2e.Arch))
+	zarfPublish(t, pkg, "localhost:888")
+
+	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
+	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
+	bundleDir := "src/test/bundles/12-exported-pkg-vars"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-export-vars-%s-0.0.1.tar.zst", e2e.Arch))
+
+	createLocal(t, bundleDir, e2e.Arch)
+	deploy(t, bundlePath)
+
+	// check templated variables overrides in values
+	cmd := strings.Split("zarf tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
+	outputUIColor, _, err := e2e.UDS(cmd...)
+	require.Equal(t, "'orange'", outputUIColor)
+	require.NoError(t, err)
+
+	// check multiple templated variables as object overrides in values
+	cmd = strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.metadata.annotations}'", " ")
+	annotations, _, err := e2e.UDS(cmd...)
+	require.Contains(t, annotations, "\"customAnnotation\":\"orangeAnnotation\"")
+	require.NoError(t, err)
+
+	// check templated variable list-type overrides in values
+	cmd = strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.tolerations}'", " ")
+	tolerations, _, err := e2e.UDS(cmd...)
+	require.Contains(t, tolerations, "\"key\":\"uds\"")
+	require.Contains(t, tolerations, "\"value\":\"true\"")
+	require.Contains(t, tolerations, "\"key\":\"unicorn\"")
+	require.Contains(t, tolerations, "\"value\":\"defense\"")
 	require.NoError(t, err)
 
 	remove(t, bundlePath)

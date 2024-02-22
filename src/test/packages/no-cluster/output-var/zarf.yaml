@@ -31,3 +31,15 @@ components:
               echo "shared var in output-var pkg: "${ZARF_VAR_DOMAIN}""
           - cmd: |
               echo "output-var SPECIFIC_PKG_VAR = "${ZARF_VAR_SPECIFIC_PKG_VAR}""
+          - cmd: echo "orange"
+            setVariables:
+              - name: COLOR
+          - cmd: echo "Annotation"
+            setVariables:
+              - name: ANNOTATION
+          - cmd: echo "defense"
+            setVariables:
+              - name: DEFENSE
+          - cmd: echo "true"
+            setVariables:
+              - name: BOOL
