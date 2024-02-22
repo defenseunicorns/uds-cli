@@ -1,7 +1,7 @@
 package generate
 
 import (
-	"fmt"
+	"os"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/cmd/common"
@@ -47,13 +47,25 @@ func Generate() {
 
 	packagerConfig := types.PackagerConfig{
 		Pkg: packageInstance,
+		CreateOpts: types.ZarfCreateOptions{
+			Flavor: "upstream",
+		},
+		// TODO: Why is this needed?
+		FindImagesOpts: types.ZarfFindImagesOptions{
+			KubeVersionOverride: "1.28.0",
+		},
 	}
 	common.SetBaseDirectory(nil, &packagerConfig)
 
 	packager := packager.NewOrDie(&packagerConfig)
 	defer packager.ClearTempPaths()
+
+	stdout := os.Stdout
+	os.Stdout = nil
 	images, _ := packager.FindImages()
-	fmt.Println(images)
+	os.Stdout = stdout
+	// TODO: Strip off cosign signatures/attestations?
+	components[0].Images = images[config.GenerateChartName]
 
 	utils.ColorPrintYAML(packageInstance, nil, false)
 }
