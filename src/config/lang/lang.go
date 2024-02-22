@@ -65,6 +65,12 @@ const (
 	CmdVersionShort = "Shows the version of the running UDS-CLI binary"
 	CmdVersionLong  = "Displays the version of the UDS-CLI release that the current binary was built from."
 
+	// uds-cli generate
+	CmdGenerateShort       = "Generates a UDS Package from a helm chart"
+	CmdGenerateLong        = "Generates a zarf package integrated with UDS Core based on inputs for a helm chart"
+	CmdGenerateFlagChart   = "URL for a helm chart"
+	CmdGenerateFlagVersion = "Version for a helm chart"
+
 	// uds-cli internal
 	CmdInternalShort             = "Internal cmds used by UDS-CLI"
 	CmdInternalConfigSchemaShort = "Generates a JSON schema for the uds-bundle.yaml configuration"

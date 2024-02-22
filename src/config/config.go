@@ -82,6 +82,12 @@ var (
 	// SetRunnerVariables is a map of the run time variables defined using --set
 	SetRunnerVariables map[string]string
 
+	// GenerateChartUrl is a URL for the helm chart to generate a UDS Package based off of
+	GenerateChartUrl string
+
+	// GenerateChartVersion is the version of the helm chart to generate a UDS Package based off of
+	GenerateChartVersion string
+
 	// HelmTimeout is the default timeout for helm deploys
 	HelmTimeout = 15 * time.Minute
 )
