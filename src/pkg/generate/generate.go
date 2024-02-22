@@ -45,6 +45,7 @@ func Generate() {
 		Components: components,
 	}
 
+	// Find images to add to the component
 	packagerConfig := types.PackagerConfig{
 		Pkg: packageInstance,
 		CreateOpts: types.ZarfCreateOptions{
@@ -66,6 +67,8 @@ func Generate() {
 	os.Stdout = stdout
 	// TODO: Strip off cosign signatures/attestations?
 	components[0].Images = images[config.GenerateChartName]
+
+	// Generate UDS Config chart
 
 	utils.ColorPrintYAML(packageInstance, nil, false)
 }
