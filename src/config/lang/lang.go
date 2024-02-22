@@ -71,6 +71,7 @@ const (
 	CmdGenerateFlagChart   = "URL for the helm chart"
 	CmdGenerateFlagName    = "Name of the helm chart"
 	CmdGenerateFlagVersion = "Version for the helm chart"
+	CmdGenerateOutputDir   = "Output directory for the generated package"
 
 	// uds-cli internal
 	CmdInternalShort             = "Internal cmds used by UDS-CLI"

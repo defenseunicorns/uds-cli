@@ -91,6 +91,9 @@ var (
 	// GenerateChartVersion is the version of the helm chart to generate a UDS Package based off of
 	GenerateChartVersion string
 
+	// GenerateOutputDir is the directory to output the generated package to
+	GenerateOutputDir string
+
 	// HelmTimeout is the default timeout for helm deploys
 	HelmTimeout = 15 * time.Minute
 )

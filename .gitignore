@@ -31,3 +31,4 @@ bundle-sboms
 node_modules
 checksums.txt
 *.tape
+generated/

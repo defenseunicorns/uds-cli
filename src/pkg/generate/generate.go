@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/zarf/src/cmd/common"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/types"
@@ -62,25 +61,30 @@ func Generate() {
 		Components: components,
 	}
 
+	// Create generated directory if it doesn't exist
+	if err := os.MkdirAll(config.GenerateOutputDir, 0755); err != nil {
+		panic(err)
+	}
+	zarfPath := filepath.Join(config.GenerateOutputDir, "zarf.yaml")
+
 	// Write in progress zarf yaml to a file
 	text, _ := goyaml.Marshal(packageInstance)
-	os.WriteFile("zarf.yaml", text, 0644)
+	os.WriteFile(zarfPath, text, 0644)
 
 	// Copy template chart to destination
 	writeChart(folder)
 
 	// Find images to add to the component
 	packagerConfig := types.PackagerConfig{
-		Pkg: packageInstance,
 		CreateOpts: types.ZarfCreateOptions{
-			Flavor: "upstream",
+			Flavor:  "upstream",
+			BaseDir: config.GenerateOutputDir,
 		},
 		// TODO: Why is this needed?
 		FindImagesOpts: types.ZarfFindImagesOptions{
 			KubeVersionOverride: "1.28.0",
 		},
 	}
-	common.SetBaseDirectory(nil, &packagerConfig)
 
 	packager := packager.NewOrDie(&packagerConfig)
 	defer packager.ClearTempPaths()
@@ -96,19 +100,11 @@ func Generate() {
 
 	// Write final zarf yaml to a file
 	text, _ = goyaml.Marshal(packageInstance)
-	os.WriteFile("zarf.yaml", text, 0644)
+	os.WriteFile(zarfPath, text, 0644)
 }
 
 // Write an embedded folder (template helm chart) to the localDir
 func writeChart(folder embed.FS) {
-	// Destination directory where you want to write the files
-	destDir := "."
-
-	// Create destination directory if it doesn't exist
-	if err := os.MkdirAll(destDir, 0755); err != nil {
-		panic(err)
-	}
-
 	// Walk through the embedded filesystem
 	err := fs.WalkDir(folder, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -116,7 +112,7 @@ func writeChart(folder embed.FS) {
 		}
 
 		// Construct destination file path
-		destPath := filepath.Join(destDir, path)
+		destPath := filepath.Join(config.GenerateOutputDir, path)
 
 		if d.IsDir() {
 			// Create directory if it doesn't exist
