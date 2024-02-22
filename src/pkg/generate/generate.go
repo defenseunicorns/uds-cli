@@ -1,13 +1,25 @@
 package generate
 
 import (
-	"fmt"
-
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/types"
 )
 
 func Generate() {
-	fmt.Println(config.GenerateChartUrl)
-	fmt.Println(config.GenerateChartName)
-	fmt.Println(config.GenerateChartVersion)
+	metadata := types.ZarfMetadata{
+		Name:    config.GenerateChartName,
+		Version: config.GenerateChartVersion + "-uds.0",
+		URL:     config.GenerateChartUrl,
+		Authors: "Rob Ferguson",
+	}
+
+	// component :=
+
+	packageInstance := types.ZarfPackage{
+		Kind:       types.ZarfPackageConfig,
+		Metadata:   metadata,
+		Components: []types.ZarfComponent{},
+	}
+	utils.ColorPrintYAML(packageInstance, nil, false)
 }
