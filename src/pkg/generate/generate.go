@@ -75,7 +75,7 @@ func Generate() {
 	writeChart(folder)
 
 	// Manipulate chart
-	if err := manipulateChart(); err != nil {
+	if err := manipulatePackage(); err != nil {
 		panic(err)
 	}
 
@@ -152,7 +152,7 @@ func writeChart(folder embed.FS) {
 	}
 }
 
-func manipulateChart() error {
+func manipulatePackage() error {
 	var udsPackage Package
 	packagePath := filepath.Join(config.GenerateOutputDir, "chart", "templates", "uds-package.yaml")
 	packageYaml, err := os.ReadFile(packagePath)

@@ -7,82 +7,82 @@ import (
 type PackageSpec struct {
 	Network struct {
 		Allow []struct {
-			Description     string            `json:"description"`
+			Description     string            `json:"description,omitempty"`
 			Direction       string            `json:"direction"`
-			Labels          map[string]string `json:"labels"`
-			PodLabels       map[string]string `json:"podLabels"`
-			Port            int               `json:"port"`
-			Ports           []int             `json:"ports"`
-			RemoteGenerated string            `json:"remoteGenerated"`
-			RemoteNamespace string            `json:"remoteNamespace"`
-			RemotePodLabels map[string]string `json:"remotePodLabels"`
-			RemoteSelector  map[string]string `json:"remoteSelector"`
-			Selector        map[string]string `json:"selector"`
-		} `json:"allow"`
+			Labels          map[string]string `json:"labels,omitempty"`
+			PodLabels       map[string]string `json:"podLabels,omitempty"`
+			Port            int               `json:"port,omitempty"`
+			Ports           []int             `json:"ports,omitempty"`
+			RemoteGenerated string            `json:"remoteGenerated,omitempty"`
+			RemoteNamespace string            `json:"remoteNamespace,omitempty"`
+			RemotePodLabels map[string]string `json:"remotePodLabels,omitempty"`
+			RemoteSelector  map[string]string `json:"remoteSelector,omitempty"`
+			Selector        map[string]string `json:"selector,omitempty"`
+		} `json:"allow,omitempty"`
 		Expose []struct {
 			AdvancedHTTP struct {
 				CorsPolicy struct {
-					AllowCredentials bool     `json:"allowCredentials"`
-					AllowHeaders     []string `json:"allowHeaders"`
-					AllowMethods     []string `json:"allowMethods"`
-					AllowOrigin      []string `json:"allowOrigin"`
+					AllowCredentials bool     `json:"allowCredentials,omitempty"`
+					AllowHeaders     []string `json:"allowHeaders,omitempty"`
+					AllowMethods     []string `json:"allowMethods,omitempty"`
+					AllowOrigin      []string `json:"allowOrigin,omitempty"`
 					AllowOrigins     []struct {
 						Exact  string `json:"exact,omitempty"`
 						Prefix string `json:"prefix,omitempty"`
 						Regex  string `json:"regex,omitempty"`
 					} `json:"allowOrigins,omitempty"`
-					ExposeHeaders []string `json:"exposeHeaders"`
-					MaxAge        string   `json:"maxAge"`
-				} `json:"corsPolicy"`
+					ExposeHeaders []string `json:"exposeHeaders,omitempty"`
+					MaxAge        string   `json:"maxAge,omitempty"`
+				} `json:"corsPolicy,omitempty"`
 				DirectResponse struct {
 					Body   map[string]string `json:"body,omitempty"`
-					Status int               `json:"status"`
+					Status int               `json:"status,omitempty"`
 				} `json:"directResponse,omitempty"`
 				Headers struct {
 					Request  map[string]string `json:"request,omitempty"`
 					Response map[string]string `json:"response,omitempty"`
-				} `json:"headers"`
+				} `json:"headers,omitempty"`
 				Match []struct {
-					IgnoreUriCase bool              `json:"ignoreUriCase"`
-					Method        map[string]string `json:"method"`
-					Name          string            `json:"name"`
-					QueryParams   map[string]string `json:"queryParams"`
-					Uri           map[string]string `json:"uri"`
-				} `json:"match"`
+					IgnoreUriCase bool              `json:"ignoreUriCase,omitempty"`
+					Method        map[string]string `json:"method,omitempty"`
+					Name          string            `json:"name,omitempty"`
+					QueryParams   map[string]string `json:"queryParams,omitempty"`
+					Uri           map[string]string `json:"uri,omitempty"`
+				} `json:"match,omitempty"`
 				Retries struct {
-					Attempts              int    `json:"attempts"`
-					PerTryTimeout         string `json:"perTryTimeout"`
-					RetryOn               string `json:"retryOn"`
+					Attempts              int    `json:"attempts,omitempty"`
+					PerTryTimeout         string `json:"perTryTimeout,omitempty"`
+					RetryOn               string `json:"retryOn,omitempty"`
 					RetryRemoteLocalities *bool  `json:"retryRemoteLocalities,omitempty"`
-				} `json:"retries"`
+				} `json:"retries,omitempty"`
 				Rewrite struct {
-					Authority       string `json:"authority"`
-					Uri             string `json:"uri"`
+					Authority       string `json:"authority,omitempty"`
+					Uri             string `json:"uri,omitempty"`
 					UriRegexRewrite struct {
-						Match   string `json:"match"`
-						Rewrite string `json:"rewrite"`
-					} `json:"uriRegexRewrite"`
-				} `json:"rewrite"`
-				Timeout string `json:"timeout"`
-				Weight  int    `json:"weight"`
-			} `json:"advancedHTTP"`
-			Description string `json:"description"`
+						Match   string `json:"match,omitempty"`
+						Rewrite string `json:"rewrite,omitempty"`
+					} `json:"uriRegexRewrite,omitempty"`
+				} `json:"rewrite,omitempty"`
+				Timeout string `json:"timeout,omitempty"`
+				Weight  int    `json:"weight,omitempty"`
+			} `json:"advancedHTTP,omitempty"`
+			Description string `json:"description,omitempty"`
 			Gateway     string `json:"gateway"`
 			Host        string `json:"host"`
 			Match       []struct {
-				IgnoreUriCase bool              `json:"ignoreUriCase"`
-				Method        map[string]string `json:"method"`
-				Name          string            `json:"name"`
-				QueryParams   map[string]string `json:"queryParams"`
-				Uri           map[string]string `json:"uri"`
-			} `json:"match"`
-			PodLabels  map[string]string `json:"podLabels"`
+				IgnoreUriCase bool              `json:"ignoreUriCase,omitempty"`
+				Method        map[string]string `json:"method,omitempty"`
+				Name          string            `json:"name,omitempty"`
+				QueryParams   map[string]string `json:"queryParams,omitempty"`
+				Uri           map[string]string `json:"uri,omitempty"`
+			} `json:"match,omitempty"`
+			PodLabels  map[string]string `json:"podLabels,omitempty"`
 			Port       int               `json:"port"`
-			Selector   map[string]string `json:"selector"`
+			Selector   map[string]string `json:"selector,omitempty"`
 			Service    string            `json:"service"`
-			TargetPort int               `json:"targetPort"`
-		} `json:"expose"`
-	} `json:"network"`
+			TargetPort int               `json:"targetPort,omitempty"`
+		} `json:"expose,omitempty"`
+	} `json:"network,omitempty"`
 }
 
 type PackageStatus struct {
@@ -94,7 +94,7 @@ type PackageStatus struct {
 
 type Package struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
 	Spec   PackageSpec   `json:"spec,omitempty"`
 	Status PackageStatus `json:"status,omitempty"`
