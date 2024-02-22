@@ -205,6 +205,10 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackag
 		// save exported vars
 		pkgExportedVars := make(map[string]string)
 		for _, exp := range pkg.Exports {
+			// ensure if variable exists in package
+			if _, ok := pkgCfg.SetVariableMap[exp.Name]; !ok {
+				return fmt.Errorf("cannot export variable %s because it does not exist in package %s", exp.Name, pkg.Name)
+			}
 			pkgExportedVars[strings.ToUpper(exp.Name)] = pkgCfg.SetVariableMap[exp.Name].Value
 		}
 		bundleExportedVars[pkg.Name] = pkgExportedVars
