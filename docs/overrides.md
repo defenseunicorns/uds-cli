@@ -130,7 +130,7 @@ The `value` is the value to set at the `path`. Values can be simple values such 
               value:
                 customAnnotation: "customValue"
 ```
-If [importing](../README.md#importingexporting-variables) a variable from another package, that variable can also be used to set a value, using the template syntax `${...}`. In the example below the `COLOR` variable is being used to set the `podinfo.ui.color` value.
+If using a variable that has been [exported](../README.md#importingexporting-variables) from another package, that variable can also be used to set a value, using the syntax `${...}`. In the example below the `COLOR` variable is being used to set the `podinfo.ui.color` value.
 ```
 kind: UDSBundle
 metadata:
