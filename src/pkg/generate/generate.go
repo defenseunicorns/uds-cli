@@ -19,8 +19,16 @@ func Generate() {
 		Authors: "2 days no pROBlem",
 	}
 
-	// Generate the chart
-	chart := types.ZarfChart{
+	// Generate the config chart zarf yaml
+	configChart := types.ZarfChart{
+		Name:      "uds-config",
+		Namespace: config.GenerateChartName,
+		LocalPath: "chart",
+		Version:   "0.0.1",
+	}
+
+	// Generate the upstream chart zarf yaml
+	upstreamChart := types.ZarfChart{
 		Name:      config.GenerateChartName,
 		Namespace: config.GenerateChartName,
 		URL:       config.GenerateChartUrl,
@@ -31,7 +39,7 @@ func Generate() {
 	component := types.ZarfComponent{
 		Name:     config.GenerateChartName,
 		Required: true,
-		Charts:   []types.ZarfChart{chart},
+		Charts:   []types.ZarfChart{configChart, upstreamChart},
 		Only: types.ZarfComponentOnlyTarget{
 			Flavor: "upstream",
 		},
