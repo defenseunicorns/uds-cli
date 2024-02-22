@@ -216,8 +216,13 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 		})
 
 		path := desc.Annotations[ocispec.AnnotationTitle]
+		cleanPath := filepath.Clean(path)
+		if strings.Contains(cleanPath, "..") {
+			// Log the attempt or handle it as needed
+			return fmt.Errorf("invalid path detected: %s", path)
+		}
 		size := desc.Size
-		layerDst := filepath.Join(t.TmpDir, path)
+		layerDst := filepath.Join(t.TmpDir, cleanPath)
 		if err := zarfUtils.CreateDirectory(filepath.Dir(layerDst), 0700); err != nil {
 			return err
 		}
