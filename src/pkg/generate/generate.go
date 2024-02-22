@@ -8,6 +8,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/types"
+	goyaml "github.com/goccy/go-yaml"
 )
 
 func Generate() {
@@ -20,12 +21,12 @@ func Generate() {
 	}
 
 	// Generate the config chart zarf yaml
-	configChart := types.ZarfChart{
-		Name:      "uds-config",
-		Namespace: config.GenerateChartName,
-		LocalPath: "chart",
-		Version:   "0.0.1",
-	}
+	// configChart := types.ZarfChart{
+	// 	Name:      "uds-config",
+	// 	Namespace: config.GenerateChartName,
+	// 	LocalPath: "chart",
+	// 	Version:   "0.0.1",
+	// }
 
 	// Generate the upstream chart zarf yaml
 	upstreamChart := types.ZarfChart{
@@ -39,7 +40,7 @@ func Generate() {
 	component := types.ZarfComponent{
 		Name:     config.GenerateChartName,
 		Required: true,
-		Charts:   []types.ZarfChart{configChart, upstreamChart},
+		Charts:   []types.ZarfChart{upstreamChart},
 		Only: types.ZarfComponentOnlyTarget{
 			Flavor: "upstream",
 		},
@@ -52,6 +53,10 @@ func Generate() {
 		Metadata:   metadata,
 		Components: components,
 	}
+
+	// Write in progress zarf yaml to a file
+	text, _ := goyaml.Marshal(packageInstance)
+	os.WriteFile("zarf.yaml", text, 0644)
 
 	// Find images to add to the component
 	packagerConfig := types.PackagerConfig{
@@ -79,4 +84,8 @@ func Generate() {
 	// Generate UDS Config chart
 
 	utils.ColorPrintYAML(packageInstance, nil, false)
+
+	// Write in progress zarf yaml to a file
+	text, _ = goyaml.Marshal(packageInstance)
+	os.WriteFile("zarf.yaml", text, 0644)
 }
