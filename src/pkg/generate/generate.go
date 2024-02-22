@@ -74,6 +74,11 @@ func Generate() {
 	// Copy template chart to destination
 	writeChart(folder)
 
+	// Manipulate chart
+	if err := manipulateChart(); err != nil {
+		panic(err)
+	}
+
 	// Find images to add to the component
 	packagerConfig := types.PackagerConfig{
 		CreateOpts: types.ZarfCreateOptions{
@@ -145,4 +150,21 @@ func writeChart(folder embed.FS) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func manipulateChart() error {
+	var udsPackage Package
+	packagePath := filepath.Join(config.GenerateOutputDir, "chart", "templates", "uds-package.yaml")
+	packageYaml, err := os.ReadFile(packagePath)
+	if err != nil {
+		return err
+	}
+	if err := goyaml.Unmarshal(packageYaml, &udsPackage); err != nil {
+		return err
+	}
+	udsPackage.ObjectMeta.Name = config.GenerateChartName
+	udsPackage.ObjectMeta.Namespace = config.GenerateChartName
+	text, _ := goyaml.Marshal(udsPackage)
+	os.WriteFile(packagePath, text, 0644)
+	return nil
 }

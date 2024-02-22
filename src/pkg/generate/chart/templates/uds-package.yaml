@@ -1,8 +1,8 @@
 apiVersion: uds.dev/v1alpha1
 kind: Package
 metadata:
-  name: default
-  namespace: {{ .Release.Namespace }}
+  name: ""
+  namespace: ""
 spec:
   network:
     expose: []
