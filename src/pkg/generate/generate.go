@@ -8,5 +8,6 @@ import (
 
 func Generate() {
 	fmt.Println(config.GenerateChartUrl)
+	fmt.Println(config.GenerateChartName)
 	fmt.Println(config.GenerateChartVersion)
 }

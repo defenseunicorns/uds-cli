@@ -24,5 +24,6 @@ var generateCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(generateCmd)
 	generateCmd.Flags().StringVarP(&config.GenerateChartUrl, "chart", "c", "", lang.CmdGenerateFlagChart)
+	generateCmd.Flags().StringVarP(&config.GenerateChartName, "name", "n", "", lang.CmdGenerateFlagName)
 	generateCmd.Flags().StringVarP(&config.GenerateChartVersion, "version", "v", "", lang.CmdGenerateFlagVersion)
 }

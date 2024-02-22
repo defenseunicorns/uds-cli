@@ -68,8 +68,9 @@ const (
 	// uds-cli generate
 	CmdGenerateShort       = "Generates a UDS Package from a helm chart"
 	CmdGenerateLong        = "Generates a zarf package integrated with UDS Core based on inputs for a helm chart"
-	CmdGenerateFlagChart   = "URL for a helm chart"
-	CmdGenerateFlagVersion = "Version for a helm chart"
+	CmdGenerateFlagChart   = "URL for the helm chart"
+	CmdGenerateFlagName    = "Name of the helm chart"
+	CmdGenerateFlagVersion = "Version for the helm chart"
 
 	// uds-cli internal
 	CmdInternalShort             = "Internal cmds used by UDS-CLI"

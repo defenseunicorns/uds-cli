@@ -85,6 +85,9 @@ var (
 	// GenerateChartUrl is a URL for the helm chart to generate a UDS Package based off of
 	GenerateChartUrl string
 
+	// GenerateChartName is the name of the helm chart to generate a UDS Package based off of
+	GenerateChartName string
+
 	// GenerateChartVersion is the version of the helm chart to generate a UDS Package based off of
 	GenerateChartVersion string
 
