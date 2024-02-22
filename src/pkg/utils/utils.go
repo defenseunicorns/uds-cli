@@ -148,3 +148,16 @@ func VerifyFileChecksum(filePath, expectedChecksum string) (bool, error) {
 
 	return calculatedChecksum == expectedChecksum, nil
 }
+
+// CreateSecureTempDir creates a secure, randomly named subdirectory with restricted permissions.
+func CreateSecureTempDir() (string, error) {
+	tempDir := os.TempDir()
+
+	// Restrict permissions to the directory
+	// the permissions are being restricted to 0700 for security reasons
+	if err := os.Chmod(tempDir, 0o700); err != nil {
+		os.Remove(tempDir) // Cleanup on error
+		return "", fmt.Errorf("failed to set permissions for the temp directory: %w", err)
+	}
+	return tempDir, nil
+}
