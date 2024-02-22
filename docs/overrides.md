@@ -148,9 +148,6 @@ packages:
   - name: helm-overrides
     path: "../../packages/helm"
     ref: 0.0.1
-    imports:
-      - name: COLOR
-        package: output-var
 
     overrides:
       podinfo-component:
