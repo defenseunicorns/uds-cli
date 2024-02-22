@@ -106,7 +106,7 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 	for idx, pkg := range bundle.Packages {
 		// if package path is set, make it relative to source directory
 		if pkg.Path != "" {
-			pkg.Path = fmt.Sprintf("%s/%s", b.cfg.CreateOpts.SourceDirectory, pkg.Path)
+			pkg.Path = filepath.Join(b.cfg.CreateOpts.SourceDirectory, pkg.Path)
 		}
 
 		spinner.Updatef("Validating Bundle Package: %s", pkg.Name)
