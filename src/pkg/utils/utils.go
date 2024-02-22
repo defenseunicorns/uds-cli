@@ -6,8 +6,6 @@ package utils
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -121,46 +119,4 @@ func ToLocalFile(t any, filePath string) error {
 // IsRemotePkg returns true if the Zarf package is remote
 func IsRemotePkg(pkg types.Package) bool {
 	return pkg.Repository != ""
-}
-
-// CalculateFileChecksum calculates the SHA-256 checksum of a file.
-func CalculateFileChecksum(filePath string) (string, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return "", fmt.Errorf("error opening file: %w", err)
-	}
-	defer file.Close()
-
-	hasher := sha256.New()
-	if _, err := io.Copy(hasher, file); err != nil {
-		return "", fmt.Errorf("error calculating checksum: %w", err)
-	}
-
-	return hex.EncodeToString(hasher.Sum(nil)), nil
-}
-
-// VerifyFileChecksum compares the calculated checksum of a file against a provided checksum.
-func VerifyFileChecksum(filePath, expectedChecksum string) (bool, error) {
-	calculatedChecksum, err := CalculateFileChecksum(filePath)
-	if err != nil {
-		return false, fmt.Errorf("error calculating checksum: %w", err)
-	}
-
-	return calculatedChecksum == expectedChecksum, nil
-}
-
-// CreateSecureTempDir creates a secure, randomly named subdirectory with restricted permissions.
-func CreateSecureTempDir() (string, error) {
-	// Restrict permissions to the directory
-	// the permissions are being restricted to 0700 for security reasons
-	// create a subdirectory with a random name
-	secureTempDir, err := os.MkdirTemp(os.TempDir(), "uds-*")
-	if err != nil {
-		return "", fmt.Errorf("failed to create a secure temp directory: %w", err)
-	}
-	if err := os.Chmod(secureTempDir, 0o700); err != nil {
-		os.Remove(secureTempDir) // Cleanup on error
-		return "", fmt.Errorf("failed to set permissions for the temp directory: %w", err)
-	}
-	return secureTempDir, nil
 }

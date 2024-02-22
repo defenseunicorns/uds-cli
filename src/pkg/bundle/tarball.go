@@ -118,39 +118,28 @@ func (tp *tarballBundleProvider) getBundleManifest() error {
 		return nil
 	}
 	// Create a secure temporary directory for handling files
-	secureTempDir, err := utils.CreateSecureTempDir()
+	secureTempDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 	if err != nil {
 		return fmt.Errorf("failed to create a secure temporary directory: %w", err)
 	}
 	defer os.RemoveAll(secureTempDir) // Ensure cleanup of the temp directory
 
-	if err := av3.Extract(tp.src, "index.json", tp.dst); err != nil {
+	if err := av3.Extract(tp.src, "index.json", secureTempDir); err != nil {
 		return fmt.Errorf("failed to extract index.json from %s: %w", tp.src, err)
 	}
 	indexPath := filepath.Join(secureTempDir, "index.json")
-	indexPathChecksum, err := utils.CalculateFileChecksum(indexPath)
-	if err != nil {
-		return fmt.Errorf("failed to calculate checksum for %s: %w", indexPath, err)
-	}
 
 	defer os.Remove(indexPath)
 
 	b, err := os.ReadFile(indexPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read index.json: %w", err)
 	}
 
 	var index ocispec.Index
 
 	if err := json.Unmarshal(b, &index); err != nil {
-		return err
-	}
-	// The check is done after json.Unmarshal to ensure that the file wasn't tampered after written to the temp dir
-	// while reading the file
-	// Verify the calculated checksum against the expected checksum
-	isValid, err := utils.VerifyFileChecksum(indexPath, indexPathChecksum)
-	if err != nil || !isValid {
-		return fmt.Errorf("checksum verification failed for %s", indexPath)
+		return fmt.Errorf("failed to unmarshal index.json: %w", err)
 	}
 	// local bundles only have one manifest entry in their index.json
 	bundleManifestDesc := index.Manifests[0]
@@ -162,7 +151,7 @@ func (tp *tarballBundleProvider) getBundleManifest() error {
 
 	manifestRelativePath := filepath.Join(config.BlobsDir, bundleManifestDesc.Digest.Encoded())
 
-	if err := av3.Extract(tp.src, manifestRelativePath, tp.dst); err != nil {
+	if err := av3.Extract(tp.src, manifestRelativePath, secureTempDir); err != nil {
 		return fmt.Errorf("failed to extract %s from %s: %w", bundleManifestDesc.Digest.Encoded(), tp.src, err)
 	}
 
@@ -183,11 +172,6 @@ func (tp *tarballBundleProvider) getBundleManifest() error {
 
 	if err := json.Unmarshal(b, &manifest); err != nil {
 		return err
-	}
-	// This is to ensure that the file wasn't tampered after written to the temp dir
-	isValid, err = utils.VerifyFileChecksum(manifestPath, bundleManifestDesc.Digest.Encoded())
-	if err != nil || !isValid {
-		return fmt.Errorf("checksum verification failed for %s", manifestPath)
 	}
 
 	tp.bundleRootManifest = manifest
