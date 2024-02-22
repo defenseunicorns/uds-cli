@@ -6,6 +6,8 @@ metadata:
 components:
   - name: podinfo
     required: true
+    only:
+      flavor: upstream
     charts:
       - name: config
         namespace: podinfo
@@ -15,10 +17,14 @@ components:
         namespace: podinfo
         url: https://stefanprodan.github.io/podinfo
         version: 6.5.4
+        valuesFiles:
+          - values/base-values.yaml
+    # this is populated by: zarf dev find-images --no-log-file --no-progress --no-color
     images:
       - curlimages/curl:7.69.0
       - ghcr.io/stefanprodan/podinfo:6.5.4
       - giantswarm/tiny-tools
+      - redis:7.0.7
       - stefanprodan/grpc_health_probe:v0.3.0
       # Cosign artifacts for images - podinfo - podinfo
       - ghcr.io/stefanprodan/podinfo:sha256-f2f5572333a09bfeded83666228f4ffa7487ab6e72ece2fe9c4428755c8ce9d0.sig
