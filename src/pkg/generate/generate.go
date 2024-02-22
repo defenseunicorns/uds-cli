@@ -1,7 +1,12 @@
 package generate
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+)
 
 func Generate() {
-	fmt.Println("generate")
+	fmt.Println(config.GenerateChartUrl)
+	fmt.Println(config.GenerateChartVersion)
 }
