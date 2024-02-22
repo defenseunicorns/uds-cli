@@ -12,7 +12,7 @@ import (
 )
 
 var generateCmd = &cobra.Command{
-	Use:     "generate --chart [HELM CHART URL] --version [HELM CHART VERSION]",
+	Use:     "generate",
 	Aliases: []string{"g"},
 	Short:   lang.CmdGenerateShort,
 	Long:    lang.CmdGenerateLong,
