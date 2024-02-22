@@ -6,7 +6,7 @@ metadata:
 
 packages:
   - name: helm-overrides
-    path: "src/test/packages/helm"
+    path: "../../packages/helm"
     ref: 0.0.1
     overrides:
       podinfo-component:
@@ -22,5 +22,5 @@ packages:
               default: "uds.dev"
 
   - name: output-var
-    path: "src/test/packages/no-cluster/output-var"
+    path: "../../packages/no-cluster/output-var"
     ref: 0.0.1
