@@ -1,0 +1,13 @@
+kind: ZarfPackageConfig
+metadata:
+  name: podinfo
+  version: 0.0.1
+
+components:
+  - name: podinfo
+    required: true
+    charts:
+      - name: podinfo
+        namespace: podinfo
+        url: https://stefanprodan.github.io/podinfo
+        version: 6.5.4

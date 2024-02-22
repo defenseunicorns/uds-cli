@@ -1,0 +1,20 @@
+apiVersion: uds.dev/v1alpha1
+kind: Package
+metadata:
+  name: podinfo
+  namespace: {{ .Release.Namespace }}
+spec:
+  network:
+    expose:
+      - service: podinfo-podinfo  # <-- how will we get this
+        podLabels:
+          app: podinfo # <-- how will we get this
+        gateway: tenant
+        host: podinfo # <-- how will we get this
+        port: 9000  # <-- how will we get this
+    allow:
+      # Todo: wide open for hitting in-cluster or external postgres
+      - direction: Egress
+        podLabels:
+          app: podinfo # <-- how will we get this
+        remoteGenerated: Anywhere

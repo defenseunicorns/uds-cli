@@ -1,0 +1,24 @@
+kind: ZarfPackageConfig
+metadata:
+  name: podinfo
+  version: 0.0.1
+
+components:
+  - name: podinfo
+    required: true
+    charts:
+      - name: config
+        namespace: podinfo
+        version: 0.0.1
+        localPath: chart
+      - name: podinfo
+        namespace: podinfo
+        url: https://stefanprodan.github.io/podinfo
+        version: 6.5.4
+    images:
+      - curlimages/curl:7.69.0
+      - ghcr.io/stefanprodan/podinfo:6.5.4
+      - giantswarm/tiny-tools
+      - stefanprodan/grpc_health_probe:v0.3.0
+      # Cosign artifacts for images - podinfo - podinfo
+      - ghcr.io/stefanprodan/podinfo:sha256-f2f5572333a09bfeded83666228f4ffa7487ab6e72ece2fe9c4428755c8ce9d0.sig
