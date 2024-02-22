@@ -32,6 +32,9 @@ func Generate() {
 		Name:     config.GenerateChartName,
 		Required: true,
 		Charts:   []types.ZarfChart{chart},
+		Only: types.ZarfComponentOnlyTarget{
+			Flavor: "upstream",
+		},
 	}
 	components := []types.ZarfComponent{component}
 
