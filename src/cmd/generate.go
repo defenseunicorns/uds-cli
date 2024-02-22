@@ -5,10 +5,9 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
+	"github.com/defenseunicorns/uds-cli/src/pkg/generate"
 	"github.com/spf13/cobra"
 )
 
@@ -18,7 +17,7 @@ var generateCmd = &cobra.Command{
 	Short:   lang.CmdGenerateShort,
 	Long:    lang.CmdGenerateLong,
 	Run: func(_ *cobra.Command, _ []string) {
-		fmt.Println("Generating some things")
+		generate.Generate()
 	},
 }
 
