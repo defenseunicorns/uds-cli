@@ -1,0 +1,14 @@
+kind: Package
+apiVersion: uds.dev/v1alpha1
+metadata:
+  name: podinfo
+  namespace: podinfo
+spec:
+  network:
+    allow:
+    - direction: Ingress
+      remoteGenerated: IntraNamespace
+    - direction: Egress
+      remoteGenerated: IntraNamespace
+    - direction: Egress
+      remoteGenerated: Anywhere
