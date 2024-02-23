@@ -13,6 +13,17 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/chartutil"
+	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/downloader"
+	"helm.sh/helm/v3/pkg/getter"
+	"helm.sh/helm/v3/pkg/repo"
 )
 
 //go:embed chart/*
@@ -221,5 +232,86 @@ func writeTasks(tasks embed.FS) error {
 }
 
 func findHttpServices() ([]Expose, error) {
-	return nil, nil
+	var exposeList []Expose
+	chartName := config.GenerateChartName
+	chartVersion := config.GenerateChartVersion
+	repoURL := config.GenerateChartUrl
+
+	settings := cli.New()
+	actionConfig := new(action.Configuration)
+	actionConfig.Init(settings.RESTClientGetter(), chartName, "", log.Printf)
+
+	pull := action.NewPull()
+	pull.Settings = cli.New()
+
+	chartDownloader := downloader.ChartDownloader{
+		Out:            nil,
+		RegistryClient: nil,
+		Verify:         downloader.VerifyNever,
+		Getters:        getter.All(pull.Settings),
+		Options: []getter.Option{
+			getter.WithInsecureSkipVerifyTLS(config.CommonOptions.Insecure),
+		},
+	}
+
+	temp := filepath.Join(config.GenerateOutputDir, "temp")
+	if err := utils.CreateDirectory(temp, 0700); err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(temp)
+
+	chartURL, _ := repo.FindChartInAuthRepoURL(repoURL, "", "", chartName, chartVersion, pull.CertFile, pull.KeyFile, pull.CaFile, getter.All(pull.Settings))
+
+	saved, _, err := chartDownloader.DownloadTo(chartURL, pull.Version, temp)
+	if err != nil {
+		return nil, err
+	}
+
+	client := action.NewInstall(actionConfig)
+	client.DryRun = true
+	client.Replace = true // Skip the name check.
+	client.ClientOnly = true
+	client.IncludeCRDs = true
+	client.Verify = false
+	client.KubeVersion, _ = chartutil.ParseKubeVersion(kubeVersionOverride)
+	client.InsecureSkipTLSverify = config.CommonOptions.Insecure
+	client.ReleaseName = chartName
+	client.Namespace = chartName
+
+	loadedChart, err := loader.Load(saved)
+	if err != nil {
+		return nil, err
+	}
+
+	templatedChart, err := client.Run(loadedChart, nil)
+	if err != nil {
+		return nil, err
+	}
+	template := templatedChart.Manifest
+	yamls, _ := utils.SplitYAML([]byte(template))
+	var resources []*unstructured.Unstructured
+	resources = append(resources, yamls...)
+
+	for _, resource := range resources {
+		if resource.GetKind() == "Service" {
+			contents := resource.UnstructuredContent()
+			var service v1.Service
+			runtime.DefaultUnstructuredConverter.FromUnstructured(contents, &service)
+			for _, port := range service.Spec.Ports {
+				// Guess that we want to expose any ports named "http"
+				if port.Name == "http" {
+					expose := Expose{
+						Gateway:  "tenant",
+						Host:     service.ObjectMeta.Name,
+						Port:     int(port.Port),
+						Selector: service.Spec.Selector,
+						Service:  service.ObjectMeta.Name,
+						// TODO: Target Port
+					}
+					exposeList = append(exposeList, expose)
+				}
+			}
+		}
+	}
+	return exposeList, nil
 }
