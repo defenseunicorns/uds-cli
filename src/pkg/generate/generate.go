@@ -21,6 +21,15 @@ var folder embed.FS
 //go:embed tasks.yaml
 var tasks embed.FS
 
+var kubeVersionOverride = "1.28.0"
+
+type Generator struct {
+	pkg       types.PackagerConfig
+	component types.ZarfComponent
+}
+
+var generator Generator
+
 // Generate a UDS Package from a given helm chart in the config
 func Generate() {
 	// Generate the metadata
@@ -48,7 +57,7 @@ func Generate() {
 	}
 
 	// Generate the component
-	component := types.ZarfComponent{
+	generator.component = types.ZarfComponent{
 		Name:     config.GenerateChartName,
 		Required: true,
 		Charts:   []types.ZarfChart{configChart, upstreamChart},
@@ -56,7 +65,7 @@ func Generate() {
 			Flavor: "upstream",
 		},
 	}
-	components := []types.ZarfComponent{component}
+	components := []types.ZarfComponent{generator.component}
 
 	// Generate the package
 	packageInstance := types.ZarfPackage{
@@ -86,18 +95,18 @@ func Generate() {
 	writeTasks(tasks)
 
 	// Find images to add to the component
-	packagerConfig := types.PackagerConfig{
+	generator.pkg = types.PackagerConfig{
 		CreateOpts: types.ZarfCreateOptions{
 			Flavor:  "upstream",
 			BaseDir: config.GenerateOutputDir,
 		},
 		// TODO: Why is this needed?
 		FindImagesOpts: types.ZarfFindImagesOptions{
-			KubeVersionOverride: "1.28.0",
+			KubeVersionOverride: kubeVersionOverride,
 		},
 	}
 
-	packager := packager.NewOrDie(&packagerConfig)
+	packager := packager.NewOrDie(&generator.pkg)
 	defer packager.ClearTempPaths()
 
 	stdout := os.Stdout
@@ -170,6 +179,9 @@ func manipulatePackage() error {
 	}
 	udsPackage.ObjectMeta.Name = config.GenerateChartName
 	udsPackage.ObjectMeta.Namespace = config.GenerateChartName
+
+	findHttpServices()
+
 	text, _ := goyaml.Marshal(udsPackage)
 	os.WriteFile(packagePath, text, 0644)
 	return nil
@@ -200,4 +212,8 @@ func writeTasks(tasks embed.FS) error {
 
 	log.Printf("File %s copied to %s successfully.", fileName, config.GenerateOutputDir)
 	return nil
+}
+
+func findHttpServices() ([]Expose, error) {
+	return nil, nil
 }
