@@ -40,7 +40,7 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool) error {
 		return err
 	}
 	// make tmp dir for pkg SBOM extraction
-	err = os.Mkdir(filepath.Join(tp.dst, config.BundleSBOM), 0700)
+	err = os.Mkdir(filepath.Join(tp.dst, config.BundleSBOM), 0o700)
 	if err != nil {
 		return err
 	}
@@ -117,26 +117,30 @@ func (tp *tarballBundleProvider) getBundleManifest() error {
 	if tp.bundleRootManifest != nil {
 		return nil
 	}
+	// Create a secure temporary directory for handling files
+	secureTempDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
+	if err != nil {
+		return fmt.Errorf("failed to create a secure temporary directory: %w", err)
+	}
+	defer os.RemoveAll(secureTempDir) // Ensure cleanup of the temp directory
 
-	if err := av3.Extract(tp.src, "index.json", tp.dst); err != nil {
+	if err := av3.Extract(tp.src, "index.json", secureTempDir); err != nil {
 		return fmt.Errorf("failed to extract index.json from %s: %w", tp.src, err)
 	}
-
-	indexPath := filepath.Join(tp.dst, "index.json")
+	indexPath := filepath.Join(secureTempDir, "index.json")
 
 	defer os.Remove(indexPath)
 
 	b, err := os.ReadFile(indexPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read index.json: %w", err)
 	}
 
 	var index ocispec.Index
 
 	if err := json.Unmarshal(b, &index); err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal index.json: %w", err)
 	}
-
 	// local bundles only have one manifest entry in their index.json
 	bundleManifestDesc := index.Manifests[0]
 	tp.bundleRootDesc = bundleManifestDesc
@@ -147,11 +151,11 @@ func (tp *tarballBundleProvider) getBundleManifest() error {
 
 	manifestRelativePath := filepath.Join(config.BlobsDir, bundleManifestDesc.Digest.Encoded())
 
-	if err := av3.Extract(tp.src, manifestRelativePath, tp.dst); err != nil {
+	if err := av3.Extract(tp.src, manifestRelativePath, secureTempDir); err != nil {
 		return fmt.Errorf("failed to extract %s from %s: %w", bundleManifestDesc.Digest.Encoded(), tp.src, err)
 	}
 
-	manifestPath := filepath.Join(tp.dst, manifestRelativePath)
+	manifestPath := filepath.Join(secureTempDir, manifestRelativePath)
 
 	defer os.Remove(manifestPath)
 
