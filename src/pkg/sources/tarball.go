@@ -218,7 +218,7 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 		path := desc.Annotations[ocispec.AnnotationTitle]
 		cleanPath := filepath.Clean(path)
 		if strings.Contains(cleanPath, "..") {
-			// Log the attempt or handle it as needed
+			// throw an error for dangerous looking paths
 			return fmt.Errorf("invalid path detected: %s", path)
 		}
 		size := desc.Size
