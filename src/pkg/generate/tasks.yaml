@@ -4,6 +4,12 @@ includes:
   - deploy: https://raw.githubusercontent.com/defenseunicorns/uds-common/main/tasks/deploy.yaml
 
 tasks:
+  - name: default
+    actions:
+      - task: setup-cluster
+      - task: create-package
+      - task: deploy-package
+
   - name: setup-cluster
     actions:
       - task: setup:k3d-test-cluster
