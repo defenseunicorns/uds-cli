@@ -4,6 +4,7 @@ import (
 	"embed"
 	"io"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -16,6 +17,9 @@ import (
 
 //go:embed chart/*
 var folder embed.FS
+
+//go:embed tasks.yaml
+var tasks embed.FS
 
 // Generate a UDS Package from a given helm chart in the config
 func Generate() {
@@ -78,6 +82,8 @@ func Generate() {
 	if err := manipulatePackage(); err != nil {
 		panic(err)
 	}
+
+	writeTasks(tasks)
 
 	// Find images to add to the component
 	packagerConfig := types.PackagerConfig{
@@ -166,5 +172,32 @@ func manipulatePackage() error {
 	udsPackage.ObjectMeta.Namespace = config.GenerateChartName
 	text, _ := goyaml.Marshal(udsPackage)
 	os.WriteFile(packagePath, text, 0644)
+	return nil
+}
+
+func writeTasks(tasks embed.FS) error {
+	fileName := "tasks.yaml"
+
+	// Open the embedded file.
+	fileData, err := tasks.Open(fileName)
+	if err != nil {
+		return err
+	}
+	defer fileData.Close()
+
+	// Create a new file in the target directory.
+	targetPath := config.GenerateOutputDir + "/" + fileName
+	outFile, err := os.Create(targetPath)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+
+	// Copy the content of the embedded file to the new file.
+	if _, err := io.Copy(outFile, fileData); err != nil {
+		return err
+	}
+
+	log.Printf("File %s copied to %s successfully.", fileName, config.GenerateOutputDir)
 	return nil
 }
