@@ -180,7 +180,13 @@ func manipulatePackage() error {
 	udsPackage.ObjectMeta.Name = config.GenerateChartName
 	udsPackage.ObjectMeta.Namespace = config.GenerateChartName
 
-	findHttpServices()
+	expose, err := findHttpServices()
+	if err != nil {
+		return err
+	}
+	if expose != nil {
+		udsPackage.Spec.Network.Expose = expose
+	}
 
 	text, _ := goyaml.Marshal(udsPackage)
 	os.WriteFile(packagePath, text, 0644)

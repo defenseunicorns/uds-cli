@@ -19,7 +19,7 @@ type PackageSpec struct {
 			RemoteSelector  map[string]string `json:"remoteSelector,omitempty"`
 			Selector        map[string]string `json:"selector,omitempty"`
 		} `json:"allow,omitempty"`
-		Expose Expose `json:"expose,omitempty"`
+		Expose []Expose `json:"expose,omitempty"`
 	} `json:"network,omitempty"`
 }
 
