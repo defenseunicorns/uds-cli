@@ -71,6 +71,26 @@ You can also view the tasks that are available to run using the `list` flag:
 uds run -f tmp/tasks.yaml --list
 ```
 
+## Schema Validation
+
+When working with runner task files and going through the key concepts below it can be useful to setup your IDE to know about the schema that UDS Runner uses.
+
+### VS Code
+
+To do this in VS Code you can install the [YAML Extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) and add the following to your `settings.json` (pinning `main` to your IDE runner version if desired, and changing the `tasks` subdirectory to your chosen pattern for imported task files):
+
+```json
+    "yaml.schemas": {
+        "https://raw.githubusercontent.com/defenseunicorns/uds-cli/main/tasks.schema.json": ["tasks.yaml", "tasks/*.y*ml"]
+    },
+```
+
+You can also add the following line to the top of a yaml file as well:
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/defenseunicorns/uds-cli/main/tasks.schema.json
+```
+
 ## Key Concepts
 
 ### Tasks
