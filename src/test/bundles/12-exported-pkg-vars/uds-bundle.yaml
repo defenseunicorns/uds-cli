@@ -6,7 +6,7 @@ metadata:
 
 packages:
   - name: output-var
-    repository: localhost:888/output-var
+    path: ../../packages/no-cluster/output-var
     ref: 0.0.1
     exports:
       - name: COLOR

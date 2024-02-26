@@ -15,25 +15,13 @@ import (
 )
 
 func TestBundleVariables(t *testing.T) {
-	zarfPkgPath1 := "src/test/packages/no-cluster/output-var"
-	zarfPkgPath2 := "src/test/packages/no-cluster/receive-var"
-	e2e.CreateZarfPkg(t, zarfPkgPath1, false)
-	e2e.CreateZarfPkg(t, zarfPkgPath2, false)
-
-	e2e.SetupDockerRegistry(t, 888)
-	defer e2e.TeardownRegistry(t, 888)
-
-	pkg := filepath.Join(zarfPkgPath1, fmt.Sprintf("zarf-package-output-var-%s-0.0.1.tar.zst", e2e.Arch))
-	zarfPublish(t, pkg, "localhost:888")
-
-	pkg = filepath.Join(zarfPkgPath2, fmt.Sprintf("zarf-package-receive-var-%s-0.0.1.tar.zst", e2e.Arch))
-	zarfPublish(t, pkg, "localhost:888")
+	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/receive-var", false)
 
 	bundleDir := "src/test/bundles/02-simple-vars"
 	bundleTarballPath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-simple-vars-%s-0.0.1.tar.zst", e2e.Arch))
 
 	createLocal(t, bundleDir, e2e.Arch)
-	createRemoteInsecure(t, bundleDir, "localhost:888", e2e.Arch)
 
 	os.Setenv("UDS_ANIMAL", "Unicorns")
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/02-simple-vars", "uds-config.yaml"))
@@ -58,13 +46,9 @@ func TestBundleVariables(t *testing.T) {
 	zarfPkgPath3 := "src/test/packages/no-cluster/output-var-collision"
 	e2e.CreateZarfPkg(t, zarfPkgPath3, false)
 
-	pkg = filepath.Join(zarfPkgPath3, fmt.Sprintf("zarf-package-output-var-collision-%s-0.0.1.tar.zst", e2e.Arch))
-	zarfPublish(t, pkg, "localhost:888")
-
 	bundleDir = "src/test/bundles/02-simple-vars/export-name-collision"
 	bundleTarballPath = filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-export-name-collision-%s-0.0.1.tar.zst", e2e.Arch))
 	createLocal(t, bundleDir, e2e.Arch)
-	createRemoteInsecure(t, bundleDir, "localhost:888", e2e.Arch)
 	_, stderr = deploy(t, bundleTarballPath)
 	require.Contains(t, stderr, "This fun-fact was imported: Daffodils are the national flower of Wales")
 	require.NotContains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
@@ -237,15 +221,7 @@ func TestVariablePrecedence(t *testing.T) {
 
 func TestZarfPackageExportVarsAsGlobalBundleVars(t *testing.T) {
 	deployZarfInit(t)
-	zarfPkgPath1 := "src/test/packages/no-cluster/output-var"
-	e2e.CreateZarfPkg(t, zarfPkgPath1, false)
-
-	e2e.SetupDockerRegistry(t, 888)
-	defer e2e.TeardownRegistry(t, 888)
-
-	pkg := filepath.Join(zarfPkgPath1, fmt.Sprintf("zarf-package-output-var-%s-0.0.1.tar.zst", e2e.Arch))
-	zarfPublish(t, pkg, "localhost:888")
-
+	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false)
 	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
 	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
 	bundleDir := "src/test/bundles/12-exported-pkg-vars"

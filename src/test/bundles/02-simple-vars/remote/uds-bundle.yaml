@@ -6,14 +6,14 @@ metadata:
 
 packages:
   - name: output-var
-    path: ../../packages/no-cluster/output-var
+    repository: localhost:888/output-var
     ref: 0.0.1
     exports:
       - name: OUTPUT
       - name: PRECEDENCE
 
   - name: receive-var
-    path: ../../packages/no-cluster/receive-var
+    repository: localhost:888/receive-var
     ref: 0.0.1
     imports:
       - name: OUTPUT

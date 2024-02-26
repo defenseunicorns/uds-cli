@@ -41,6 +41,7 @@ func TestSimpleBundleWithZarfAction(t *testing.T) {
 }
 
 func TestCreateWithNoPath(t *testing.T) {
+	// need to use remote pkgs because we move the uds-bundle.yaml to the current directory
 	zarfPkgPath1 := "src/test/packages/no-cluster/output-var"
 	zarfPkgPath2 := "src/test/packages/no-cluster/receive-var"
 	e2e.CreateZarfPkg(t, zarfPkgPath1, false)
@@ -55,7 +56,8 @@ func TestCreateWithNoPath(t *testing.T) {
 	pkg = filepath.Join(zarfPkgPath2, fmt.Sprintf("zarf-package-receive-var-%s-0.0.1.tar.zst", e2e.Arch))
 	zarfPublish(t, pkg, "localhost:888")
 
-	err := os.Link(fmt.Sprintf("src/test/bundles/02-simple-vars/%s", config.BundleYAML), config.BundleYAML)
+	// move the bundle to the current directory so we can test the create command with no path
+	err := os.Link(fmt.Sprintf("src/test/bundles/02-simple-vars/remote/%s", config.BundleYAML), config.BundleYAML)
 	require.NoError(t, err)
 	defer os.Remove(config.BundleYAML)
 	defer os.Remove(fmt.Sprintf("uds-bundle-simple-vars-%s-0.0.1.tar.zst", e2e.Arch))
@@ -110,7 +112,7 @@ func TestBundle(t *testing.T) {
 	bundleDir := "src/test/bundles/01-uds-bundle"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-example-%s-0.0.1.tar.zst", e2e.Arch))
 
-	createLocal(t, bundleDir, e2e.Arch) // todo: allow creating from both the folder containing and direct reference to uds-bundle.yaml
+	createLocal(t, bundleDir, e2e.Arch)
 	inspectLocal(t, bundlePath)
 	inspectLocalAndSBOMExtract(t, bundlePath)
 	// Test with an "options only" config file
