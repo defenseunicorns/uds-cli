@@ -30,7 +30,7 @@ func expandTilde(cachePath string) string {
 func Add(filePathToAdd string) error {
 	// ensure cache dir exists
 	cacheDir := config.CommonOptions.CachePath
-	if err := os.MkdirAll(filepath.Join(cacheDir, "images"), 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Join(cacheDir, "images"), 0o755); err != nil {
 		return err
 	}
 
@@ -74,7 +74,7 @@ func Use(layerDigest, dstDir string) error {
 	defer srcFile.Close()
 
 	// ensure blobs/sha256 dir has been created
-	if err := os.MkdirAll(dstDir, 0o700); err != nil {
+	if err := os.MkdirAll(dstDir, 0o755); err != nil {
 		return err
 	}
 

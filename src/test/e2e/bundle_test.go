@@ -461,7 +461,7 @@ func TestBundleTmpDir(t *testing.T) {
 	tmpDirName := "customtmp"
 	tmpDir := fmt.Sprintf("%s/%s", bundleDir, tmpDirName)
 
-	err := os.Mkdir(tmpDir, 0o700)
+	err := os.Mkdir(tmpDir, 0o755)
 	if err != nil {
 		t.Fatalf("error creating directory: %v", err)
 	}
