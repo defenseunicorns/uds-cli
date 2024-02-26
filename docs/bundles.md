@@ -1,7 +1,7 @@
 ## Bundle Anatomy
 A UDS Bundle is an OCI artifact with the following form:
 
-![](.images/uds-bundle.png)
+![UDS Bundle OCI Layout Diagram](.images/uds-bundle.png)
 
 ## Schema Validation
 
