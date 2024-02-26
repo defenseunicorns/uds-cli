@@ -174,12 +174,16 @@ func (f *localFetcher) toBundle(pkg zarfTypes.ZarfPackage, pkgTmp string) ([]oci
 		// title annotations need to be added to the pkg root manifest
 		// Zarf image manifests already contain those title annotations in remote OCI repos, but they need to be added manually here
 
-		// get current directory prepend to path to make it absolute
-		wd, err := os.Getwd()
-		if err != nil {
-			return nil, err
+		// if using a custom tmp dir that is not an absolute path, get working dir and prepend to path to make it absolute
+		if !filepath.IsAbs(path) {
+			wd, err := os.Getwd()
+			if err != nil {
+				return nil, err
+			}
+			path = filepath.Join(wd, path)
 		}
-		desc, err := src.Add(ctx, name, mediaType, filepath.Join(wd, path))
+
+		desc, err := src.Add(ctx, name, mediaType, path)
 		if err != nil {
 			return nil, err
 		}
