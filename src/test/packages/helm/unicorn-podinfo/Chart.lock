@@ -1,6 +1,6 @@
 dependencies:
 - name: podinfo
   repository: https://stefanprodan.github.io/podinfo
-  version: 6.5.4
-digest: sha256:0db7bdcd71ac4162a0d2b9ebfc792f19f1cf52050933edeacd4f514f4bc3033b
-generated: "2023-12-18T07:32:32.320434073Z"
+  version: 6.6.0
+digest: sha256:e98b771f48adfc407ca45353678f0a44f82cf24aa10bb1d1b304183e2284db4d
+generated: "2024-02-26T12:39:38.675839591Z"
