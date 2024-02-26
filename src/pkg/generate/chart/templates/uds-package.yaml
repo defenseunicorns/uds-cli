@@ -11,3 +11,5 @@ spec:
         remoteGenerated: IntraNamespace
       - direction: Egress
         remoteGenerated: IntraNamespace
+      - direction: Egress
+        remoteGenerated: Anywhere
