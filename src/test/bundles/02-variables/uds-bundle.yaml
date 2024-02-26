@@ -16,5 +16,6 @@ packages:
     path: ../../packages/no-cluster/receive-var
     ref: 0.0.1
     imports:
+      # note that PRECEDENCE is not imported because exports are global!
       - name: OUTPUT
         package: output-var

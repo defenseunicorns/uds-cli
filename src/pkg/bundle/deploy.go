@@ -227,7 +227,7 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 		}
 	}
 
-	// Set variables in order or precendence (least specific to most specific)
+	// Set variables in order or precedence (least specific to most specific)
 	// imported vars
 	for _, imp := range pkg.Imports {
 		pkgVars[strings.ToUpper(imp.Name)] = bundleExportedVars[imp.Package][imp.Name]

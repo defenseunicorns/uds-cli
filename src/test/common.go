@@ -154,7 +154,7 @@ func downloadFile(url string, outputDir string) error {
 		return fmt.Errorf("unexpected status code: %d", response.StatusCode)
 	}
 
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
+	if err := os.MkdirAll(outputDir, 0o700); err != nil {
 		return err
 	}
 

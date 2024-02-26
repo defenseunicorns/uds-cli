@@ -25,7 +25,7 @@ import (
 func (b *Bundle) Pull() error {
 	cacheDir := filepath.Join(zarfConfig.GetAbsCachePath(), "packages")
 	// create the cache directory if it doesn't exist
-	if err := utils.CreateDirectory(cacheDir, 0755); err != nil {
+	if err := utils.CreateDirectory(cacheDir, 0o700); err != nil {
 		return err
 	}
 

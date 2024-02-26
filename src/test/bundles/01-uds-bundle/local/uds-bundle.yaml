@@ -1,0 +1,13 @@
+kind: UDSBundle
+metadata:
+  name: example-local
+  description: an example UDS bundle with local packages
+  version: 0.0.1
+
+packages:
+  - name: nginx
+    path: ../../../packages/nginx
+    ref: 0.0.1
+  - name: podinfo
+    path: ../../../packages/podinfo
+    ref: 0.0.1
