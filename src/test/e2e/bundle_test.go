@@ -454,8 +454,8 @@ func TestBundleTmpDir(t *testing.T) {
 	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false)
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
-	bundleDir := "src/test/bundles/01-uds-bundle/local"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-example-local-%s-0.0.1.tar.zst", e2e.Arch))
+	bundleDir := "src/test/bundles/03-local-and-remote"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
 	// Test create using custom tmpDir
 	tmpDirName := "customtmp"

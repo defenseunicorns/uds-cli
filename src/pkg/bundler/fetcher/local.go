@@ -173,7 +173,13 @@ func (f *localFetcher) toBundle(pkg zarfTypes.ZarfPackage, pkgTmp string) ([]oci
 		// adds title annotations to descs and creates layer to put in the store
 		// title annotations need to be added to the pkg root manifest
 		// Zarf image manifests already contain those title annotations in remote OCI repos, but they need to be added manually here
-		desc, err := src.Add(ctx, name, mediaType, path)
+
+		// get current directory prepend to path to make it absolute
+		wd, err := os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+		desc, err := src.Add(ctx, name, mediaType, filepath.Join(wd, path))
 		if err != nil {
 			return nil, err
 		}
