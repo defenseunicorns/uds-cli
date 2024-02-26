@@ -9,7 +9,7 @@ When working with UDS Bundle definitions it can be useful to setup your IDE to k
 
 ### VS Code
 
-To do this in VS Code you can install the [YAML Extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) and add the following to your `settings.json` (pinning `main` to your UDE runner version if desired):
+To do this in VS Code you can install the [YAML Extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) and add the following to your `settings.json` (pinning `main` to your UDS CLI version if desired):
 
 ```json
     "yaml.schemas": {

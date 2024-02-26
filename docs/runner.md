@@ -77,7 +77,7 @@ When working with runner task files and going through the key concepts below it 
 
 ### VS Code
 
-To do this in VS Code you can install the [YAML Extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) and add the following to your `settings.json` (pinning `main` to your IDE runner version if desired, and changing the `tasks` subdirectory to your chosen pattern for imported task files):
+To do this in VS Code you can install the [YAML Extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) and add the following to your `settings.json` (pinning `main` to your UDS Runner version if desired, and changing the `tasks` subdirectory to your chosen pattern for imported task files):
 
 ```json
     "yaml.schemas": {
