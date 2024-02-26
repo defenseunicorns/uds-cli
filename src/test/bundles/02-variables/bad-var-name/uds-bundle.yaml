@@ -1,7 +1,7 @@
 kind: UDSBundle
 metadata:
-  name: import-all
-  description: show how global exports work
+  name: bad-var-name
+  description: show errors for bad imports
   version: 0.0.1
 
 packages:
@@ -15,3 +15,6 @@ packages:
   - name: receive-var
     path: ../../../packages/no-cluster/receive-var
     ref: 0.0.1
+    imports:
+       - package: output-varz
+         name: OUTPUTZ

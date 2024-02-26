@@ -17,41 +17,32 @@ import (
 func TestBundleVariables(t *testing.T) {
 	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false)
 	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/receive-var", false)
-
-	bundleDir := "src/test/bundles/02-simple-vars"
-	bundleTarballPath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-simple-vars-%s-0.0.1.tar.zst", e2e.Arch))
-
-	createLocal(t, bundleDir, e2e.Arch)
-
 	os.Setenv("UDS_ANIMAL", "Unicorns")
-	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/02-simple-vars", "uds-config.yaml"))
+	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/02-variables", "uds-config.yaml"))
 
-	_, stderr := deploy(t, bundleTarballPath)
-	bundleVariablesTestChecks(t, stderr, bundleTarballPath)
-	remove(t, bundleTarballPath)
+	t.Run("simple vars and global export", func(t *testing.T) {
+		bundleDir := "src/test/bundles/02-variables"
+		bundleTarballPath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-variables-%s-0.0.1.tar.zst", e2e.Arch))
+		createLocal(t, bundleDir, e2e.Arch)
+		_, stderr := deploy(t, bundleTarballPath)
+		bundleVariablesTestChecks(t, stderr, bundleTarballPath)
+	})
 
-	// Run same test checks but with package that isn't explicitly importing vars
-	bundleDir = "src/test/bundles/02-simple-vars/import-all"
-	bundleTarballPath = filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-import-all-%s-0.0.1.tar.zst", e2e.Arch))
-	createLocal(t, bundleDir, e2e.Arch)
-	_, stderr = deploy(t, bundleTarballPath)
-	bundleVariablesTestChecks(t, stderr, bundleTarballPath)
+	t.Run("bad var name in import", func(t *testing.T) {
+		bundleDir := "src/test/bundles/02-variables/bad-var-name"
+		stderr := createLocalError(bundleDir, e2e.Arch)
+		require.Contains(t, stderr, "does not have a matching export")
+	})
 
-	// Test with bad variable name in import
-	bundleDir = "src/test/bundles/02-simple-vars/import-all-bad-name"
-	stderr = createLocalError(bundleDir, e2e.Arch)
-	require.Contains(t, stderr, "does not have a matching export")
-
-	// Test name collisions with exported variables
-	zarfPkgPath3 := "src/test/packages/no-cluster/output-var-collision"
-	e2e.CreateZarfPkg(t, zarfPkgPath3, false)
-
-	bundleDir = "src/test/bundles/02-simple-vars/export-name-collision"
-	bundleTarballPath = filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-export-name-collision-%s-0.0.1.tar.zst", e2e.Arch))
-	createLocal(t, bundleDir, e2e.Arch)
-	_, stderr = deploy(t, bundleTarballPath)
-	require.Contains(t, stderr, "This fun-fact was imported: Daffodils are the national flower of Wales")
-	require.NotContains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
+	t.Run("var name collision with exported vars", func(t *testing.T) {
+		e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var-collision", false)
+		bundleDir := "src/test/bundles/02-variables/export-name-collision"
+		bundleTarballPath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-export-name-collision-%s-0.0.1.tar.zst", e2e.Arch))
+		createLocal(t, bundleDir, e2e.Arch)
+		_, stderr := deploy(t, bundleTarballPath)
+		require.Contains(t, stderr, "This fun-fact was imported: Daffodils are the national flower of Wales")
+		require.NotContains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
+	})
 }
 
 func bundleVariablesTestChecks(t *testing.T, stderr string, bundleTarballPath string) {

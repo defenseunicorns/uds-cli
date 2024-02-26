@@ -57,10 +57,10 @@ func TestCreateWithNoPath(t *testing.T) {
 	zarfPublish(t, pkg, "localhost:888")
 
 	// move the bundle to the current directory so we can test the create command with no path
-	err := os.Link(fmt.Sprintf("src/test/bundles/02-simple-vars/remote/%s", config.BundleYAML), config.BundleYAML)
+	err := os.Link(fmt.Sprintf("src/test/bundles/02-variables/remote/%s", config.BundleYAML), config.BundleYAML)
 	require.NoError(t, err)
 	defer os.Remove(config.BundleYAML)
-	defer os.Remove(fmt.Sprintf("uds-bundle-simple-vars-%s-0.0.1.tar.zst", e2e.Arch))
+	defer os.Remove(fmt.Sprintf("uds-bundle-variables-%s-0.0.1.tar.zst", e2e.Arch))
 
 	// create
 	cmd := strings.Split("create --confirm --insecure", " ")
