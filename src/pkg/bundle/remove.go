@@ -89,7 +89,7 @@ func removePackages(packagesToRemove []types.Package, b *Bundle, zarfPackageName
 		pkg := packagesToRemove[i]
 		zarfPackageName := pkg.Name
 		// use the name map if it has been set (remote pkgs where the pkg name isn't consistent)
-		if zarfPackageNameMap[pkg.Name] != "" {
+		if _, ok := zarfPackageNameMap[pkg.Name]; ok {
 			zarfPackageName = zarfPackageNameMap[pkg.Name]
 		}
 

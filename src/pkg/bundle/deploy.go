@@ -369,7 +369,6 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 			overrideVal = sharedConfigOverride
 		} else {
 			// use default v if no config v is set
-			//overrideVal = "sharedConfigOverride"
 			overrideVal = v.Default
 		}
 
