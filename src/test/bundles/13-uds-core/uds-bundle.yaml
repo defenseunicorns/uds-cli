@@ -29,8 +29,10 @@ packages:
 
   - name: init
     repository: oci://ghcr.io/defenseunicorns/packages/init
+    # renovate: datasource=github-tags depName=defenseunicorns/zarf versioning=semver
     ref: v0.32.1
 
   - name: core
     repository: oci://ghcr.io/defenseunicorns/packages/uds/core
+    # renovate: datasource=github-tags depName=defenseunicorns/uds-core versioning=semver
     ref: 0.13.1-registry1
