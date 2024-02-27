@@ -109,6 +109,22 @@ jobs:
         run: build/uds deploy src/test-bundles/13-uds-core/uds-bundle*.tar.zst --confirm --no-progress
         shell: bash
 
+      - name: Validate UDS Core deployment
+        run: |
+          build/uds zarf tools wait-for pod app.kubernetes.io/instance=grafana -n grafana
+          build/uds zarf tools wait-for gateway admin-gateway -n istio-admin-gateway
+          build/uds zarf tools wait-for gateway passthrough-gateway -n istio-passthrough-gateway
+          build/uds zarf tools wait-for gateway tenant-gateway -n istio-tenant-gateway
+          build/uds zarf tools wait-for pod app.kubernetes.io/name=loki -n loki
+          build/uds zarf tools wait-for pod app.kubernetes.io/component=gateway -n loki
+          build/uds zarf tools wait-for deployment metrics-server -n metrics-server
+          build/uds zarf tools wait-for apiservice v1beta1.metrics.k8s.io available
+          build/uds zarf tools wait-for pod app.kubernetes.io/name=alertmanager -n monitoring # Prometheus
+          build/uds zarf tools wait-for pod app.kubernetes.io/name=prometheus -n monitoring # Prometheus
+          build/uds zarf tools wait-for pod app.kubernetes.io/name=kube-state-metrics -n monitoring # Prometheus
+          build/uds zarf tools wait-for pod app.kubernetes.io/instance=promtail -n promtail
+        shell: bash
+
   push:
     runs-on: ubuntu-latest
     needs: uds-core-test
