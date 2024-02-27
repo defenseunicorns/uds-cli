@@ -80,9 +80,38 @@ jobs:
         if: always()
         uses: ./.github/actions/save-logs
 
-  push:
+  uds-core-test:
     runs-on: ubuntu-latest
     needs: validate
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          fetch-depth: 0
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@87c55149d96e628cc2ef7e6fc2aab372015aec85 # v4.1.3
+        with:
+          name: build-artifacts
+          path: build/
+
+      - name: Make UDS-CLI executable
+        run: |
+          chmod +x build/uds
+
+      - name: Create UDS Core bundle
+        run: build/uds create src/test/bundles/13-uds-core/ --confirm --no-progress
+        shell: bash
+
+      - name: Deploy UDS Core bundle
+        run: build/uds deploy src/test-bundles/13-uds-core/uds-bundle*.tar.zst --confirm --no-progress
+        shell: bash
+
+  push:
+    runs-on: ubuntu-latest
+    needs: uds-core-test
     permissions:
       contents: write
     steps:
