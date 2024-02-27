@@ -81,59 +81,78 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 	createLocal(t, bundleDir, e2e.Arch)
 	deploy(t, bundlePath)
 
-	// check values overrides
-	cmd := strings.Split("zarf tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.replicas}'", " ")
-	outputNumReplicas, _, err := e2e.UDS(cmd...)
-	require.Equal(t, "'2'", outputNumReplicas)
-	require.NoError(t, err)
+	// test values overrides
+	t.Run("check values overrides", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.replicas}'", " ")
+		outputNumReplicas, _, err := e2e.UDS(cmd...)
+		require.Equal(t, "'2'", outputNumReplicas)
+		require.NoError(t, err)
+	})
 
-	// check object-type override in values
-	cmd = strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.metadata.annotations}'", " ")
-	annotations, _, err := e2e.UDS(cmd...)
-	require.Contains(t, annotations, "\"customAnnotation\":\"customValue\"")
-	require.NoError(t, err)
+	t.Run("check object-type override in values", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.metadata.annotations}'", " ")
+		annotations, _, err := e2e.UDS(cmd...)
+		require.Contains(t, annotations, "\"customAnnotation\":\"customValue\"")
+		require.NoError(t, err)
 
-	// check list-type override in values
-	cmd = strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.tolerations}'", " ")
-	tolerations, _, err := e2e.UDS(cmd...)
-	require.Contains(t, tolerations, "\"key\":\"uds\"")
-	require.Contains(t, tolerations, "\"value\":\"defense\"")
-	require.Contains(t, tolerations, "\"key\":\"unicorn\"")
-	require.Contains(t, tolerations, "\"effect\":\"NoSchedule\"")
-	require.NoError(t, err)
+	})
 
-	// check variables overrides
-	cmd = strings.Split("zarf tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
-	outputUIColor, _, err := e2e.UDS(cmd...)
-	require.Equal(t, "'green, yellow'", outputUIColor)
-	require.NoError(t, err)
+	t.Run("check list-type override in values", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.tolerations}'", " ")
+		tolerations, _, err := e2e.UDS(cmd...)
+		require.Contains(t, tolerations, "\"key\":\"uds\"")
+		require.Contains(t, tolerations, "\"value\":\"defense\"")
+		require.Contains(t, tolerations, "\"key\":\"unicorn\"")
+		require.Contains(t, tolerations, "\"effect\":\"NoSchedule\"")
+		require.NoError(t, err)
 
-	// check variables overrides, no default but set in config
-	cmd = strings.Split("zarf tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_MESSAGE\")].value}'", " ")
-	outputMsg, _, err := e2e.UDS(cmd...)
-	require.Equal(t, "'Hello Unicorn'", outputMsg)
-	require.NoError(t, err)
+	})
 
-	// check variables overrides, no default and not set in config
-	cmd = strings.Split("zarf tools kubectl get secret test-secret -n podinfo -o jsonpath=\"{.data.test}\"", " ")
-	secretValue, _, err := e2e.UDS(cmd...)
-	// expect the value to be from the underlying chart's values.yaml, no overrides
-	require.Equal(t, "\"dGVzdC1zZWNyZXQ=\"", secretValue)
-	require.NoError(t, err)
+	// test variables overrides
+	t.Run("check variables overrides, use default", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get deploy unicorn-podinfo -n podinfo -o=jsonpath='{.spec.template.spec.containers[*].command[*]}'", " ")
+		podCmd, _, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+		require.Contains(t, podCmd, "--level=debug")
+	})
 
-	// check variables overrides with an object-type value
-	cmd = strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].securityContext}'", " ")
-	securityContext, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	require.Contains(t, securityContext, "NET_ADMIN")
-	require.Contains(t, securityContext, "\"runAsGroup\":4000")
+	t.Run("check variables overrides, default overwritten by config", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
+		outputUIColor, _, err := e2e.UDS(cmd...)
+		require.Equal(t, "'green, yellow'", outputUIColor)
+		require.NoError(t, err)
+	})
 
-	// check variables overrides with a list-type value
-	cmd = strings.Split("zarf tools kubectl get ingress -n podinfo unicorn-podinfo -o=jsonpath='{.spec.rules[*].host}''", " ")
-	hosts, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	require.Contains(t, hosts, "podinfo.burning.boats")
-	require.Contains(t, hosts, "podinfo.unicorns")
+	t.Run("check variables overrides, no default but set in config", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_MESSAGE\")].value}'", " ")
+		outputMsg, _, err := e2e.UDS(cmd...)
+		require.Equal(t, "'Hello Unicorn'", outputMsg)
+		require.NoError(t, err)
+	})
+
+	t.Run("check variables overrides, no default and not set in config", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get secret test-secret -n podinfo -o jsonpath=\"{.data.test}\"", " ")
+		secretValue, _, err := e2e.UDS(cmd...)
+		// expect the value to be from the underlying chart's values.yaml, no overrides
+		require.Equal(t, "\"dGVzdC1zZWNyZXQ=\"", secretValue)
+		require.NoError(t, err)
+	})
+
+	t.Run("check variables overrides with an object-type value", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].securityContext}'", " ")
+		securityContext, _, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+		require.Contains(t, securityContext, "NET_ADMIN")
+		require.Contains(t, securityContext, "\"runAsGroup\":4000")
+	})
+
+	t.Run("check variables overrides with a list-type value", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get ingress -n podinfo unicorn-podinfo -o=jsonpath='{.spec.rules[*].host}''", " ")
+		hosts, _, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+		require.Contains(t, hosts, "podinfo.burning.boats")
+		require.Contains(t, hosts, "podinfo.unicorns")
+	})
 
 	remove(t, bundlePath)
 }
@@ -158,16 +177,19 @@ func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 	createLocal(t, bundleDir, e2e.Arch)
 	deploy(t, bundlePath)
 
-	// check override variables, ensure they are coming from env vars and take highest precedence
-	cmd := strings.Split("z tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
-	outputUIColor, _, err := e2e.UDS(cmd...)
-	require.Equal(t, fmt.Sprintf("'%s'", color), outputUIColor)
-	require.NoError(t, err)
+	t.Run("check override variables, ensure they are coming from env vars and take highest precedence", func(t *testing.T) {
+		cmd := strings.Split("z tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
+		outputUIColor, _, err := e2e.UDS(cmd...)
+		require.Equal(t, fmt.Sprintf("'%s'", color), outputUIColor)
+		require.NoError(t, err)
+	})
 
-	cmd = strings.Split("z tools kubectl get secret test-secret -n podinfo -o jsonpath=\"{.data.test}\"", " ")
-	secretValue, _, err := e2e.UDS(cmd...)
-	require.Equal(t, fmt.Sprintf("\"%s\"", b64Secret), secretValue)
-	require.NoError(t, err)
+	t.Run("check override secret val", func(t *testing.T) {
+		cmd := strings.Split("z tools kubectl get secret test-secret -n podinfo -o jsonpath=\"{.data.test}\"", " ")
+		secretValue, _, err := e2e.UDS(cmd...)
+		require.Equal(t, fmt.Sprintf("\"%s\"", b64Secret), secretValue)
+		require.NoError(t, err)
+	})
 
 	remove(t, bundlePath)
 }
@@ -189,28 +211,31 @@ func TestVariablePrecedence(t *testing.T) {
 	require.NoError(t, err)
 	_, stderr := deploy(t, bundlePath)
 
-	// test env var taking highest precedence
-	cmd := strings.Split("zarf tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
-	outputUIColor, _, err := e2e.UDS(cmd...)
-	require.Equal(t, fmt.Sprintf("'%s'", color), outputUIColor)
-	require.NoError(t, err)
+	t.Run("test precedence, env var > uds-config.variables > uds-config.shared", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
+		// test env har taking highest precedence
+		outputUIColor, _, err := e2e.UDS(cmd...)
+		require.Equal(t, fmt.Sprintf("'%s'", color), outputUIColor)
+		require.NoError(t, err)
 
-	// test uds-config.variables overriding a shared var
-	require.Contains(t, stderr, "shared var in output-var pkg: unicorns.uds.dev")
+		// test uds-config.variables overriding a shared var
+		require.Contains(t, stderr, "shared var in output-var pkg: unicorns.uds.dev")
 
-	// test uds-config.shared overriding a Zarf var
-	require.Contains(t, stderr, "shared var in helm-overrides pkg: burning.boats")
+		// test uds-config.shared overriding a Zarf var
+		require.Contains(t, stderr, "shared var in helm-overrides pkg: burning.boats")
+	})
 
-	// test uds-config.shared overriding values in a Helm chart (ie. bundle overrides)
-	cmd = strings.Split("zarf tools kubectl get deploy unicorn-podinfo -n podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_BACKEND_URL\")].value}'", " ")
-	backend, _, err := e2e.UDS(cmd...)
-	require.Equal(t, fmt.Sprintf("'%s'", "burning.boats"), backend)
-	require.NoError(t, err)
+	t.Run("test uds-config.shared overriding values in a Helm chart (ie. bundle overrides)", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get deploy unicorn-podinfo -n podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_BACKEND_URL\")].value}'", " ")
+		backend, _, err := e2e.UDS(cmd...)
+		require.Equal(t, fmt.Sprintf("'%s'", "burning.boats"), backend)
+		require.NoError(t, err)
+	})
 
 	remove(t, bundlePath)
 }
 
-func TestZarfPackageExportVarsAsGlobalBundleVars(t *testing.T) {
+func TestExportVarsAsGlobalVars(t *testing.T) {
 	deployZarfInit(t)
 	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false)
 	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
@@ -221,26 +246,29 @@ func TestZarfPackageExportVarsAsGlobalBundleVars(t *testing.T) {
 	createLocal(t, bundleDir, e2e.Arch)
 	deploy(t, bundlePath)
 
-	// check templated variables overrides in values
-	cmd := strings.Split("zarf tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
-	outputUIColor, _, err := e2e.UDS(cmd...)
-	require.Equal(t, "'orange'", outputUIColor)
-	require.NoError(t, err)
+	t.Run("check templated variables overrides in values", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
+		outputUIColor, _, err := e2e.UDS(cmd...)
+		require.Equal(t, "'orange'", outputUIColor)
+		require.NoError(t, err)
+	})
 
-	// check multiple templated variables as object overrides in values
-	cmd = strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.metadata.annotations}'", " ")
-	annotations, _, err := e2e.UDS(cmd...)
-	require.Contains(t, annotations, "\"customAnnotation\":\"orangeAnnotation\"")
-	require.NoError(t, err)
+	t.Run("check multiple templated variables as object overrides in values", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.metadata.annotations}'", " ")
+		annotations, _, err := e2e.UDS(cmd...)
+		require.Contains(t, annotations, "\"customAnnotation\":\"orangeAnnotation\"")
+		require.NoError(t, err)
+	})
 
-	// check templated variable list-type overrides in values
-	cmd = strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.tolerations}'", " ")
-	tolerations, _, err := e2e.UDS(cmd...)
-	require.Contains(t, tolerations, "\"key\":\"uds\"")
-	require.Contains(t, tolerations, "\"value\":\"true\"")
-	require.Contains(t, tolerations, "\"key\":\"unicorn\"")
-	require.Contains(t, tolerations, "\"value\":\"defense\"")
-	require.NoError(t, err)
+	t.Run("check templated variable list-type overrides in values", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.tolerations}'", " ")
+		tolerations, _, err := e2e.UDS(cmd...)
+		require.Contains(t, tolerations, "\"key\":\"uds\"")
+		require.Contains(t, tolerations, "\"value\":\"true\"")
+		require.Contains(t, tolerations, "\"key\":\"unicorn\"")
+		require.Contains(t, tolerations, "\"value\":\"defense\"")
+		require.NoError(t, err)
+	})
 
 	remove(t, bundlePath)
 }

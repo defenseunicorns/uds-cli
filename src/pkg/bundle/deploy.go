@@ -35,15 +35,6 @@ type ZarfOverrideMap map[string]map[string]map[string]interface{}
 var templatedVarRegex = regexp.MustCompile(`\${([^}]+)}`)
 
 // Deploy deploys a bundle
-//
-// : create a new provider
-// : pull the bundle's metadata + sig
-// : read the metadata into memory
-// : validate the sig (if present)
-// : loop through each package
-// : : load the package into a fresh temp dir
-// : : validate the sig (if present)
-// : : deploy the package
 func (b *Bundle) Deploy() error {
 	ctx := context.TODO()
 
@@ -356,6 +347,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 		var overrideVal interface{}
 		// Ensuring variable name is upper case since comparisons are being done against upper case env and config variables
 		v.Name = strings.ToUpper(v.Name)
+
 		// check for override in env vars
 		if envVarOverride, exists := os.LookupEnv(strings.ToUpper(config.EnvVarPrefix + v.Name)); exists {
 			if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, envVarOverride, nil); err != nil {
@@ -363,6 +355,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 			}
 			continue
 		}
+		// todo: untested??
 		// check for override in config
 		configFileOverride, existsInConfig := b.cfg.DeployOpts.Variables[pkgName][v.Name]
 		sharedConfigOverride, existsInSharedConfig := b.cfg.DeployOpts.SharedVariables[v.Name]
@@ -377,6 +370,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 			overrideVal = sharedConfigOverride
 		} else {
 			// use default v if no config v is set
+			//overrideVal = "sharedConfigOverride"
 			overrideVal = v.Default
 		}
 

@@ -27,8 +27,6 @@ packages:
       podinfo-component:
         unicorn-podinfo:
           values:
-            - path: "podinfo.replicaCount"
-              value: 1
             - path: "podinfo.ui.color"
               value: ${COLOR}
             - path: podinfo.podAnnotations

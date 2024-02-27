@@ -112,16 +112,13 @@ func TestLocalBundleWithRemotePkgs(t *testing.T) {
 	bundleDir := "src/test/bundles/01-uds-bundle/remote"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-example-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
-	// todo: not getting uds-config options on create (or probably anything other than deploy)
 	createLocal(t, bundleDir, e2e.Arch)
 	inspectLocal(t, bundlePath)
 	inspectLocalAndSBOMExtract(t, bundlePath)
-	// Test with an "options only" config file
-	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/01-uds-bundle", "uds-config.yaml"))
 	deploy(t, bundlePath)
 	remove(t, bundlePath)
 
-	//Test create using custom tmpDir
+	// Test create using custom tmpDir
 	runCmd(t, "create "+bundleDir+" --tmpdir ./customtmp --confirm --insecure")
 
 	// remove customtmp folder if it exists
