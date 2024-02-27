@@ -355,7 +355,6 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 			}
 			continue
 		}
-		// todo: untested??
 		// check for override in config
 		configFileOverride, existsInConfig := b.cfg.DeployOpts.Variables[pkgName][v.Name]
 		sharedConfigOverride, existsInSharedConfig := b.cfg.DeployOpts.SharedVariables[v.Name]
