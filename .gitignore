@@ -7,7 +7,6 @@
 .release-downloads/
 .scratch/
 .vscode/
-bin/
 .zarf*
 *.bak
 *.key

@@ -58,39 +58,5 @@ clean-test-artifacts: ## removes bundles and zarf packages that have been create
 push-test-artifacts: ## Push artifacts that UDS CLI tests rely on to GHCR
 	cd hack && ./push-test-artifacts.sh
 
-###############################################################################
-
-##@ Tools
-################################ make install #################################
-TOOLS_DIR := src/tools
-TOOLS_BIN_DIR := $(abspath src/bin)
-
-# Define tools to be installed
-TOOLS := github.com/golangci/golangci-lint/cmd/golangci-lint
-
-# Convert tool paths to binary names
-TOOL_BINARIES := $(foreach tool,$(TOOLS),$(TOOLS_BIN_DIR)/$(notdir $(tool)))
-
-# Generic rule for installing tools
-define INSTALL_TOOL
-@echo Installing $(1)
-@cd $(TOOLS_DIR); GOBIN=$(TOOLS_BIN_DIR) go install $(1)
-endef
-
-# Rule to install each tool, depends on go.mod to ensure dependencies are resolved
-$(TOOL_BINARIES): $(TOOLS_DIR)/go.mod
-	$(call INSTALL_TOOL,$(subst $(TOOLS_BIN_DIR)/,,$@))
-
-# Installs required binaries into $(TOOLS_BIN_DIR) wherever possible.
-# Keeping a local copy instead of a global install allows for:
-# i) Controlling the binary version uds-cli depends on leading to consistent
-# behavior across users.
-# ii) Avoids installing a whole bunch of otherwise unnecessary tools in the user's workspace.
-.PHONY: install
-install: ## Installs required binaries.
-	@$(foreach binary,$(TOOL_BINARIES),$(call INSTALL_TOOL,$(binary)))
-
-lint: | $(TOOL_BINARIES)
-	# Run golangci-lint linter from src directory
-	@echo Running linters...
-	@cd src && $(TOOLS_BIN_DIR)/golangci-lint run -c ../.golangci.yml
+lint: ## Run golangci-lint on the project
+	golangci-lint run ./src/...
