@@ -121,6 +121,7 @@ func TestLocalBundleWithRemotePkgs(t *testing.T) {
 
 func TestPackagesFlag(t *testing.T) {
 	deployZarfInit(t)
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false)
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 	bundleDir := "src/test/bundles/03-local-and-remote"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
