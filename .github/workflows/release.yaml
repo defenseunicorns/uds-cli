@@ -7,7 +7,6 @@ on:
   push:
     tags:
       - "v*"
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -101,28 +100,16 @@ jobs:
         run: |
           chmod +x build/uds
 
-      - name: Create UDS Core bundle
-        run: build/uds create src/test/bundles/13-uds-core/ --confirm --no-progress
-        shell: bash
-
       - name: Deploy UDS Core bundle
-        run: build/uds deploy src/test-bundles/13-uds-core/uds-bundle*.tar.zst --confirm --no-progress
+        # renovate: datasource=github-tags depName=defenseunicorns/uds-core versioning=semver
+        run: build/uds deploy ghcr.io/defenseunicorns/packages/uds/bundles/k3d-core-istio-dev:0.13.1 --confirm --no-progress
         shell: bash
 
       - name: Validate UDS Core deployment
         run: |
-          build/uds zarf tools wait-for pod app.kubernetes.io/instance=grafana -n grafana
-          build/uds zarf tools wait-for gateway admin-gateway -n istio-admin-gateway
-          build/uds zarf tools wait-for gateway passthrough-gateway -n istio-passthrough-gateway
-          build/uds zarf tools wait-for gateway tenant-gateway -n istio-tenant-gateway
-          build/uds zarf tools wait-for pod app.kubernetes.io/name=loki -n loki
-          build/uds zarf tools wait-for pod app.kubernetes.io/component=gateway -n loki
-          build/uds zarf tools wait-for deployment metrics-server -n metrics-server
-          build/uds zarf tools wait-for apiservice v1beta1.metrics.k8s.io available
-          build/uds zarf tools wait-for pod app.kubernetes.io/name=alertmanager -n monitoring # Prometheus
-          build/uds zarf tools wait-for pod app.kubernetes.io/name=prometheus -n monitoring # Prometheus
-          build/uds zarf tools wait-for pod app.kubernetes.io/name=kube-state-metrics -n monitoring # Prometheus
-          build/uds zarf tools wait-for pod app.kubernetes.io/instance=promtail -n promtail
+          build/uds zarf tools wait-for gateway admin-gateway -n istio-admin-gateway --timeout 10s
+          build/uds zarf tools wait-for gateway passthrough-gateway -n istio-passthrough-gateway --timeout 10s
+          build/uds zarf tools wait-for gateway tenant-gateway -n istio-tenant-gateway --timeout 10s
         shell: bash
 
   push:
