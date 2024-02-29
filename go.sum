@@ -364,8 +364,8 @@ github.com/aliyun/credentials-go v1.3.1 h1:uq/0v7kWrxmoLGpqjx7vtQ/s03f0zR//0br/x
 github.com/aliyun/credentials-go v1.3.1/go.mod h1:8jKYhQuDawt8x2+fusqa1Y6mPxemTsBEN04dgcAcYz0=
 github.com/anchore/bubbly v0.0.0-20231115134915-def0aba654a9 h1:p0ZIe0htYOX284Y4axJaGBvXHU0VCCzLN5Wf5XbKStU=
 github.com/anchore/bubbly v0.0.0-20231115134915-def0aba654a9/go.mod h1:3ZsFB9tzW3vl4gEiUeuSOMDnwroWxIxJelOOHUp8dSw=
-github.com/anchore/clio v0.0.0-20240202120828-3ef5b3b40ea3 h1:DfXgeXMJi1v3zyzgkftWK4a4FUc0QUtRGOrTvYBCPMs=
-github.com/anchore/clio v0.0.0-20240202120828-3ef5b3b40ea3/go.mod h1:CdT/JVbhkK6cPZFxBjwsX4lHIYJXg+XCv+T0hndWrSw=
+github.com/anchore/clio v0.0.0-20240209204744-cb94e40a4f65 h1:u9XrEabKlGPsrmRvAER+kUKkwXiJfLyqGhmOTFsXjX4=
+github.com/anchore/clio v0.0.0-20240209204744-cb94e40a4f65/go.mod h1:8Jr7CjmwFVcBPtkJdTpaAGHimoGJGfbExypjzOu87Og=
 github.com/anchore/fangs v0.0.0-20231201140849-5075d28d6d8b h1:L/djgY7ZbZ/38+wUtdkk398W3PIBJLkt1N8nU/7e47A=
 github.com/anchore/fangs v0.0.0-20231201140849-5075d28d6d8b/go.mod h1:TLcE0RE5+8oIx2/NPWem/dq1DeaMoC+fPEH7hoSzPLo=
 github.com/anchore/go-logger v0.0.0-20230725134548-c21dafa1ec5a h1:nJ2G8zWKASyVClGVgG7sfM5mwoZlZ2zYpIzN2OhjWkw=
@@ -598,8 +598,8 @@ github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/daviddengcn/go-colortext v1.0.0 h1:ANqDyC0ys6qCSvuEK7l3g5RaehL/Xck9EX8ATG8oKsE=
 github.com/daviddengcn/go-colortext v1.0.0/go.mod h1:zDqEI5NVUop5QPpVJUxE9UO10hRnmkD5G4Pmri9+m4c=
-github.com/defenseunicorns/zarf v0.32.3 h1:/jjWK3B1VfgBe114O7suWD2gOp9AA6emHgtzGzRvpvo=
-github.com/defenseunicorns/zarf v0.32.3/go.mod h1:AjMjTPMIQT+bMeQ2R2kw9Q7KBdFUjO1MZj+26npmXVk=
+github.com/defenseunicorns/zarf v0.32.4 h1:3foCaUHUtAu8YId49j3u+EVknaTB8ERaQ9J6Do+bAwc=
+github.com/defenseunicorns/zarf v0.32.4/go.mod h1:f4H7al7qnj5VXfkUkB/CcepVW/DA/O5tvAy8TWv9aT8=
 github.com/deitch/magic v0.0.0-20230404182410-1ff89d7342da h1:ZOjWpVsFZ06eIhnh4mkaceTiVoktdU67+M7KDHJ268M=
 github.com/deitch/magic v0.0.0-20230404182410-1ff89d7342da/go.mod h1:B3tI9iGHi4imdLi4Asdha1Sc6feLMTfPLXh9IUYmysk=
 github.com/depcheck-test/depcheck-test v0.0.0-20220607135614-199033aaa936 h1:foGzavPWwtoyBvjWyKJYDYsyzy+23iBV7NKTwdk+LRY=
