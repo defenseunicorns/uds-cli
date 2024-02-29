@@ -30,7 +30,7 @@ func expandTilde(cachePath string) string {
 func Add(filePathToAdd string) error {
 	// ensure cache dir exists
 	cacheDir := config.CommonOptions.CachePath
-	if err := os.MkdirAll(filepath.Join(cacheDir, "images"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(cacheDir, config.UDSCacheLayers), 0o755); err != nil {
 		return err
 	}
 
@@ -46,7 +46,7 @@ func Add(filePathToAdd string) error {
 	}
 	defer srcFile.Close()
 
-	dstFile, err := os.Create(filepath.Join(cacheDir, "images", filename))
+	dstFile, err := os.Create(filepath.Join(cacheDir, config.UDSCacheLayers, filename))
 	if err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func Add(filePathToAdd string) error {
 // Exists checks if a layer exists in the cache
 func Exists(layerDigest string) bool {
 	cacheDir := config.CommonOptions.CachePath
-	layerCachePath := filepath.Join(expandTilde(cacheDir), "images", layerDigest)
+	layerCachePath := filepath.Join(expandTilde(cacheDir), config.UDSCacheLayers, layerDigest)
 	_, err := os.Stat(layerCachePath)
 	return !os.IsNotExist(err)
 }
@@ -66,7 +66,7 @@ func Exists(layerDigest string) bool {
 // Use copies a layer from the cache to the dst dir
 func Use(layerDigest, dstDir string) error {
 	cacheDir := config.CommonOptions.CachePath
-	layerCachePath := filepath.Join(expandTilde(cacheDir), "images", layerDigest)
+	layerCachePath := filepath.Join(expandTilde(cacheDir), config.UDSCacheLayers, layerDigest)
 	srcFile, err := os.Open(layerCachePath)
 	if err != nil {
 		return err
