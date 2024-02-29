@@ -81,14 +81,18 @@ func (b *Bundle) Remove() error {
 }
 
 func removePackages(packagesToRemove []types.Package, b *Bundle, zarfPackageNameMap map[string]string) error {
-
 	// Get deployed packages
 	deployedPackageNames := GetDeployedPackageNames()
 
 	for i := len(packagesToRemove) - 1; i >= 0; i-- {
 
 		pkg := packagesToRemove[i]
-		zarfPackageName := zarfPackageNameMap[pkg.Name]
+		zarfPackageName := pkg.Name
+		// use the name map if it has been set (remote pkgs where the pkg name isn't consistent)
+		if _, ok := zarfPackageNameMap[pkg.Name]; ok {
+			zarfPackageName = zarfPackageNameMap[pkg.Name]
+		}
+
 		if slices.Contains(deployedPackageNames, zarfPackageName) {
 			opts := zarfTypes.ZarfPackageOptions{
 				PackageSource: b.cfg.RemoveOpts.Source,

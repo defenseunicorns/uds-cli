@@ -29,6 +29,10 @@ packages:
               value:
                 customAnnotation: "customValue"
           variables:
+            - name: log_level
+              path: "podinfo.logLevel"
+              description: "Set the log level for podinfo"
+              default: "debug" # not overwritten!
             - name: ui_color
               path: "podinfo.ui.color"
               description: "Set the color for podinfo's UI"

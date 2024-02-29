@@ -27,7 +27,8 @@ func Test_validateBundleVars(t *testing.T) {
 				},
 			},
 			wantErr: false,
-		}, {
+		},
+		{
 			name:        "ImportDoesntMatchExport",
 			description: "error when import doesn't match export",
 			args: args{
@@ -37,7 +38,8 @@ func Test_validateBundleVars(t *testing.T) {
 				},
 			},
 			wantErr: true,
-		}, {
+		},
+		{
 			name:        "FirstPkgHasImport",
 			description: "error when first pkg has an import",
 			args: args{

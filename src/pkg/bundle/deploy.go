@@ -35,15 +35,6 @@ type ZarfOverrideMap map[string]map[string]map[string]interface{}
 var templatedVarRegex = regexp.MustCompile(`\${([^}]+)}`)
 
 // Deploy deploys a bundle
-//
-// : create a new provider
-// : pull the bundle's metadata + sig
-// : read the metadata into memory
-// : validate the sig (if present)
-// : loop through each package
-// : : load the package into a fresh temp dir
-// : : validate the sig (if present)
-// : : deploy the package
 func (b *Bundle) Deploy() error {
 	ctx := context.TODO()
 
@@ -227,7 +218,7 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 		}
 	}
 
-	// Set variables in order or precendence (least specific to most specific)
+	// Set variables in order or precedence (least specific to most specific)
 	// imported vars
 	for _, imp := range pkg.Imports {
 		pkgVars[strings.ToUpper(imp.Name)] = bundleExportedVars[imp.Package][imp.Name]
@@ -356,6 +347,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 		var overrideVal interface{}
 		// Ensuring variable name is upper case since comparisons are being done against upper case env and config variables
 		v.Name = strings.ToUpper(v.Name)
+
 		// check for override in env vars
 		if envVarOverride, exists := os.LookupEnv(strings.ToUpper(config.EnvVarPrefix + v.Name)); exists {
 			if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, envVarOverride, nil); err != nil {
