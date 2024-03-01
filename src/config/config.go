@@ -76,6 +76,9 @@ var (
 	// ListTasks is a flag to print available tasks in a TaskFileLocation
 	ListTasks bool
 
+	// ListAllTasks is a flag to print available tasks in a TaskFileLocation
+	ListAllTasks bool
+
 	// TaskFileLocation is the location of the tasks file to run
 	TaskFileLocation string
 

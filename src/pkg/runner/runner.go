@@ -19,6 +19,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/config/lang"
+	zarfLang "github.com/defenseunicorns/zarf/src/config/lang"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -59,7 +60,7 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 	}
 
 	// populate after getting task in case of calling included task directly
-	runner.populateTemplateMap(runner.TasksFile.Variables, setVariables)
+	runner.PopulateTemplateMap(runner.TasksFile.Variables, setVariables)
 
 	// can't call a task directly from the CLI if it has inputs
 	if task.Inputs != nil {
@@ -107,7 +108,7 @@ func (r *Runner) importTasks(includes []map[string]string, dir string, setVariab
 			break
 		}
 
-		includeFilename = r.templateString(includeFilename)
+		includeFilename = r.TemplateString(includeFilename)
 
 		var tasksFile types.TasksFile
 		var includePath string
@@ -189,22 +190,42 @@ func (r *Runner) loadIncludedTaskFile(taskName string) (string, error) {
 	if len(includedTask) == 2 {
 		includeName := includedTask[0]
 		includeTaskName := includedTask[1]
-
+		var fullPath string
+		var tasksFile types.TasksFile
+		templatePattern := `\${[^}]+}`
+		re := regexp.MustCompile(templatePattern)
 		// Get referenced include file
 		for _, includes := range r.TasksFile.Includes {
 			// Check if include exists
 			if includeFileLocation, ok := includes[includeName]; ok {
-				// set include path based on task file location
-				lastSlashIndex := strings.LastIndex(config.TaskFileLocation, "/")
-				includeFileLocation = config.TaskFileLocation[:lastSlashIndex+1] + includeFileLocation
+				// check for templated variables in includeFileLocation value
+				if re.MatchString(includeFileLocation) {
+					r.PopulateTemplateMap(r.TasksFile.Variables, config.SetRunnerVariables)
+					includeFileLocation = r.TemplateString(includeFileLocation)
+				}
+				// check if included file is a url
+				if helpers.IsURL(includeFileLocation) {
+					// If file is a url download it to a tmp directory
+					tmpDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
+					defer os.RemoveAll(tmpDir)
+					if err != nil {
+						message.Fatalf(err, "error removing %s", tmpDir)
+					}
+					fullPath = filepath.Join(tmpDir, filepath.Base(includeFileLocation))
+					if err := zarfUtils.DownloadToFile(includeFileLocation, fullPath, ""); err != nil {
+						message.Fatalf(zarfLang.ErrDownloading, includeFileLocation, err.Error())
+					}
+				} else {
+					// set include path based on task file location
+					fullPath = filepath.Join(filepath.Dir(config.TaskFileLocation), includeFileLocation)
+				}
 				// update config.TaskFileLocation which gets used globally
 				config.TaskFileLocation = includeFileLocation
 				// get included TasksFile
-				var tasksFile types.TasksFile
-				if _, err := os.Stat(includeFileLocation); os.IsNotExist(err) {
+				if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 					message.Fatalf(err, "%s not found", includeFileLocation)
 				}
-				err := utils.ReadYaml(includeFileLocation, &tasksFile)
+				err := utils.ReadYaml(fullPath, &tasksFile)
 				if err != nil {
 					message.Fatalf(err, "Cannot unmarshal %s", config.TaskFileLocation)
 				}
@@ -286,7 +307,8 @@ func (r *Runner) executeTask(task types.Task) error {
 	return nil
 }
 
-func (r *Runner) populateTemplateMap(zarfVariables []zarfTypes.ZarfPackageVariable, setVariables map[string]string) {
+// PopulateTemplateMap populates the runner's template variable map
+func (r *Runner) PopulateTemplateMap(zarfVariables []zarfTypes.ZarfPackageVariable, setVariables map[string]string) {
 	// populate text template (ie. Zarf var) with the following precedence: default < env var < set var
 	for _, variable := range zarfVariables {
 		templatedVariableName := fmt.Sprintf("${%s}", variable.Name)
@@ -316,8 +338,8 @@ func (r *Runner) populateTemplateMap(zarfVariables []zarfTypes.ZarfPackageVariab
 func (r *Runner) placeFiles(files []zarfTypes.ZarfFile) error {
 	for _, file := range files {
 		// template file.Source and file.Target
-		srcFile := r.templateString(file.Source)
-		targetFile := r.templateString(file.Target)
+		srcFile := r.TemplateString(file.Source)
+		targetFile := r.TemplateString(file.Target)
 
 		// get current directory
 		workingDir, err := os.Getwd()
@@ -418,7 +440,7 @@ func (r *Runner) performAction(action types.Action) error {
 
 		// template the withs with variables
 		for k, v := range action.With {
-			action.With[k] = r.templateString(v)
+			action.With[k] = r.TemplateString(v)
 		}
 
 		referencedTask.Actions, err = templateTaskActionsWithInputs(referencedTask, action.With)
@@ -659,10 +681,10 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 	}
 
 	// Template dir string
-	cfg.Dir = r.templateString(cfg.Dir)
+	cfg.Dir = r.TemplateString(cfg.Dir)
 
 	// template cmd string
-	cmd = r.templateString(cmd)
+	cmd = r.TemplateString(cmd)
 
 	duration := time.Duration(cfg.MaxTotalSeconds) * time.Second
 	timeout := time.After(duration)
@@ -746,8 +768,8 @@ func (r *Runner) performZarfAction(action *zarfTypes.ZarfComponentAction) error 
 	}
 }
 
-// templateString replaces ${...} with the value from the template map
-func (r *Runner) templateString(s string) string {
+// TemplateString replaces ${...} with the value from the template map
+func (r *Runner) TemplateString(s string) string {
 	// Create a regular expression to match ${...}
 	re := regexp.MustCompile(`\${(.*?)}`)
 

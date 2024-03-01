@@ -75,4 +75,5 @@ const (
 	CmdRunSetVarFlag  = "Set a runner variable from the command line (KEY=value)"
 	CmdRunWithVarFlag = "Set the inputs for a task from the command line (KEY=value)"
 	CmdRunList        = "List available tasks in a task file"
+	CmdRunListAll     = "List all available tasks in a task file, including tasks from included files"
 )
