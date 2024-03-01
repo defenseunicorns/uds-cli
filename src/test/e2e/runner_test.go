@@ -342,4 +342,12 @@ func TestTaskRunner(t *testing.T) {
 		require.NotContains(t, stdErr, "default")
 		require.Contains(t, stdErr, "env-var")
 	})
+
+	t.Run("test calling an included task directly", func(t *testing.T) {
+		t.Parallel()
+		stdOut, stdErr, err := e2e.UDS("run", "foo:foobar", "--file", "src/test/tasks/tasks.yaml")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "echo foo")
+		require.Contains(t, stdErr, "echo bar")
+	})
 }

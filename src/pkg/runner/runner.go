@@ -20,6 +20,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/config/lang"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
+	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
@@ -42,20 +43,30 @@ func Run(tasksFile types.TasksFile, taskName string, setVariables map[string]str
 		TasksFile:   tasksFile,
 		TaskNameMap: map[string]bool{},
 	}
-
-	runner.populateTemplateMap(tasksFile.Variables, setVariables)
+	// Check to see if running an included task directly
+	includeTaskName, err := runner.loadIncludedTaskFile(taskName)
+	if err != nil {
+		return err
+	}
+	// if running an included task directly, update the task name
+	if len(includeTaskName) > 0 {
+		taskName = includeTaskName
+	}
 
 	task, err := runner.getTask(taskName)
 	if err != nil {
 		return err
 	}
 
+	// populate after getting task in case of calling included task directly
+	runner.populateTemplateMap(runner.TasksFile.Variables, setVariables)
+
 	// can't call a task directly from the CLI if it has inputs
 	if task.Inputs != nil {
 		return fmt.Errorf("task '%s' contains 'inputs' and cannot be called directly by the CLI", taskName)
 	}
 
-	if err = runner.checkForTaskLoops(task, tasksFile, setVariables); err != nil {
+	if err = runner.checkForTaskLoops(task, runner.TasksFile, setVariables); err != nil {
 		return err
 	}
 
@@ -170,6 +181,43 @@ func (r *Runner) importTasks(includes []map[string]string, dir string, setVariab
 		}
 	}
 	return nil
+}
+
+func (r *Runner) loadIncludedTaskFile(taskName string) (string, error) {
+	// Check if running task directly from included task file
+	includedTask := strings.Split(taskName, ":")
+	if len(includedTask) == 2 {
+		includeName := includedTask[0]
+		includeTaskName := includedTask[1]
+
+		// Get referenced include file
+		for _, includes := range r.TasksFile.Includes {
+			// Check if include exists
+			if includeFileLocation, ok := includes[includeName]; ok {
+				// set include path based on task file location
+				lastSlashIndex := strings.LastIndex(config.TaskFileLocation, "/")
+				includeFileLocation = config.TaskFileLocation[:lastSlashIndex+1] + includeFileLocation
+				// update config.TaskFileLocation which gets used globally
+				config.TaskFileLocation = includeFileLocation
+				// get included TasksFile
+				var tasksFile types.TasksFile
+				if _, err := os.Stat(includeFileLocation); os.IsNotExist(err) {
+					message.Fatalf(err, "%s not found", includeFileLocation)
+				}
+				err := utils.ReadYaml(includeFileLocation, &tasksFile)
+				if err != nil {
+					message.Fatalf(err, "Cannot unmarshal %s", config.TaskFileLocation)
+				}
+				// Set TasksFile to include task file
+				r.TasksFile = tasksFile
+				taskName = includeTaskName
+				return taskName, nil
+			}
+		}
+	} else if len(includedTask) > 2 {
+		return "", fmt.Errorf("invalid task name: %s", taskName)
+	}
+	return "", nil
 }
 
 func (r *Runner) getTask(taskName string) (types.Task, error) {
