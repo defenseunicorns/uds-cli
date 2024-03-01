@@ -21,10 +21,11 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-// Pull pulls a bundle and saves it locally + caches it
+// Pull pulls a bundle and saves it locally
 func (b *Bundle) Pull() error {
+	// use uds-cache/packages as the dst dir for the pull to get auto caching
+	// we use an ORAS ocistore to make that dir look like an OCI artifact
 	cacheDir := filepath.Join(zarfConfig.GetAbsCachePath(), "packages")
-	// create the cache directory if it doesn't exist
 	if err := utils.CreateDirectory(cacheDir, 0o755); err != nil {
 		return err
 	}
@@ -41,28 +42,12 @@ func (b *Bundle) Pull() error {
 		return err
 	}
 
-	// pull the bundle's metadata + sig
-	loadedMetadata, err := provider.LoadBundleMetadata()
-	if err != nil {
-		return err
-	}
-	if err := utils.ReadYaml(loadedMetadata[config.BundleYAML], &b.bundle); err != nil {
-		return err
-	}
-
-	// validate the sig (if present)
-	if err := ValidateBundleSignature(loadedMetadata[config.BundleYAML], loadedMetadata[config.BundleYAMLSignature], b.cfg.PullOpts.PublicKeyPath); err != nil {
-		return err
-	}
-
 	// pull the bundle's uds-bundle.yaml and it's Zarf pkgs
-	// todo: refactor this fn, think about pulling the rootDesc first and getting the hashes from there
-	// today, we are getting the Zarf image manifest hashes from the uds-bundle.yaml
-	// in that logic we end up pulling the root manifest twice, once in LoadBundle and the other below in remote.ResolveRoot()
-	loaded, err := provider.LoadBundle(zarfConfig.CommonOptions.OCIConcurrency)
+	bundle, loaded, err := provider.LoadBundle(b.cfg.PullOpts, zarfConfig.CommonOptions.OCIConcurrency)
 	if err != nil {
 		return err
 	}
+	b.bundle = *bundle
 
 	// create a remote client just to resolve the root descriptor
 	platform := ocispec.Platform{

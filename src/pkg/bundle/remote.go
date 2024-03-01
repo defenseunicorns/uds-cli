@@ -43,19 +43,14 @@ type ociProvider struct {
 	src string
 	dst string
 	*oci.OrasRemote
-	manifest *oci.ZarfOCIManifest
+	rootManifest *oci.ZarfOCIManifest
 }
 
-func (op *ociProvider) getBundleManifest() error {
-	if op.manifest != nil {
-		return nil
+func (op *ociProvider) getBundleManifest() (*oci.ZarfOCIManifest, error) {
+	if op.rootManifest != nil {
+		return op.rootManifest, nil
 	}
-	root, err := op.FetchRoot()
-	if err != nil {
-		return err
-	}
-	op.manifest = root
-	return nil
+	return nil, fmt.Errorf("bundle root manifest not loaded")
 }
 
 // LoadBundleMetadata loads a remote bundle's metadata
@@ -78,10 +73,6 @@ func (op *ociProvider) LoadBundleMetadata() (types.PathMap, error) {
 			return nil, err
 		}
 		loaded[rel] = absSha
-	}
-	err = op.getBundleManifest()
-	if err != nil {
-		return nil, err
 	}
 	return loaded, nil
 }
@@ -149,55 +140,60 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 	return nil
 }
 
-// LoadBundle loads a bundle's uds-bundle.yaml and Zarf packages from a remote source
-func (op *ociProvider) LoadBundle(_ int) (types.PathMap, error) {
+// LoadBundle loads a bundle from a remote source
+func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.UDSBundle, types.PathMap, error) {
+	var bundle types.UDSBundle
+	// pull the bundle's metadata + sig
+	loaded, err := op.LoadBundleMetadata()
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := zarfUtils.ReadYaml(loaded[config.BundleYAML], &bundle); err != nil {
+		return nil, nil, err
+	}
+
+	// validate the sig (if present) before pulling the whole bundle
+	if err := ValidateBundleSignature(loaded[config.BundleYAML], loaded[config.BundleYAMLSignature], opts.PublicKeyPath); err != nil {
+		return nil, nil, err
+	}
+
 	var layersToPull []ocispec.Descriptor
 	estimatedBytes := int64(0)
 
-	if err := op.getBundleManifest(); err != nil {
-		return nil, err
-	}
-
-	loaded, err := op.LoadBundleMetadata() // todo: remove? this seems redundant, can we pass the "loaded" var in
+	// get the bundle's root manifest
+	rootManifest, err := op.getBundleManifest()
 	if err != nil {
-		return nil, err
-	}
-
-	b, err := os.ReadFile(loaded[config.BundleYAML])
-	if err != nil {
-		return nil, err
-	}
-
-	var bundle types.UDSBundle
-	if err := goyaml.Unmarshal(b, &bundle); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	for _, pkg := range bundle.Packages {
+
 		// grab sha of zarf image manifest and pull it down
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
-		manifestDesc := op.manifest.Locate(sha)
+		manifestDesc := rootManifest.Locate(sha)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		manifestBytes, err := op.FetchLayer(manifestDesc)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
+
 		// unmarshal the zarf image manifest and add it to the layers to pull
 		var manifest oci.ZarfOCIManifest
 		if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		layersToPull = append(layersToPull, manifestDesc)
 		progressBar := message.NewProgressBar(int64(len(manifest.Layers)), fmt.Sprintf("Verifying layers in Zarf package: %s", pkg.Name))
+
 		// go through the layers in the zarf image manifest and check if they exist in the remote
 		for _, layer := range manifest.Layers {
 			ok, err := op.Repo().Blobs().Exists(op.ctx, layer)
 			progressBar.Add(1)
 			estimatedBytes += layer.Size
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			// if the layer exists in the remote, add it to the layers to pull
 			if ok {
@@ -209,13 +205,13 @@ func (op *ociProvider) LoadBundle(_ int) (types.PathMap, error) {
 
 	store, err := ocistore.NewWithContext(op.ctx, op.dst)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// grab the bundle root manifest and add it to the layers to pull
 	rootDesc, err := op.ResolveRoot()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	layersToPull = append(layersToPull, rootDesc)
 
@@ -232,7 +228,7 @@ func (op *ociProvider) LoadBundle(_ int) (types.PathMap, error) {
 	_, err = oras.Copy(op.ctx, op.Repo(), op.Repo().Reference.String(), store, op.Repo().Reference.String(), copyOpts)
 	if err != nil {
 		doneSaving <- 1
-		return nil, err
+		return nil, nil, err
 	}
 
 	doneSaving <- 1
@@ -243,7 +239,7 @@ func (op *ociProvider) LoadBundle(_ int) (types.PathMap, error) {
 		loaded[sha] = filepath.Join(op.dst, config.BlobsDir, sha)
 	}
 
-	return loaded, nil
+	return &bundle, loaded, nil
 }
 
 func (op *ociProvider) PublishBundle(_ types.UDSBundle, _ *oci.OrasRemote) error {
@@ -337,7 +333,8 @@ func CheckOCISourcePath(source string) (string, error) {
 
 // ZarfPackageNameMap returns the uds bundle zarf package name to actual zarf package name mappings from the oci provider
 func (op *ociProvider) ZarfPackageNameMap() (map[string]string, error) {
-	if err := op.getBundleManifest(); err != nil {
+	rootManifest, err := op.getBundleManifest()
+	if err != nil {
 		return nil, err
 	}
 
@@ -359,7 +356,7 @@ func (op *ociProvider) ZarfPackageNameMap() (map[string]string, error) {
 	nameMap := make(map[string]string)
 	for _, pkg := range bundle.Packages {
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
-		manifestDesc := op.manifest.Locate(sha)
+		manifestDesc := rootManifest.Locate(sha)
 		nameMap[manifestDesc.Annotations[config.UDSPackageNameAnnotation]] = manifestDesc.Annotations[config.ZarfPackageNameAnnotation]
 	}
 	return nameMap, nil
