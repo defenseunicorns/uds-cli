@@ -144,7 +144,10 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 				return err
 			}
 			if err := remote.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
-				manifestDesc, _ := remote.ResolveRoot()
+				manifestDesc, err := remote.ResolveRoot()
+				if err != nil {
+					return err
+				}
 				// todo: don't do this here, a "validate" fn shouldn't be modifying the bundle
 				bundle.Packages[idx].Ref = pkg.Ref + "@sha256:" + manifestDesc.Digest.Encoded()
 			}
