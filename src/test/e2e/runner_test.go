@@ -308,6 +308,22 @@ func TestTaskRunner(t *testing.T) {
 		require.Contains(t, stdErr, "copy-verify")
 	})
 
+	t.Run("run --list-all tasks", func(t *testing.T) {
+		t.Parallel()
+		gitRev, err := e2e.GetGitRevision()
+		if err != nil {
+			return
+		}
+		setVar := fmt.Sprintf("GIT_REVISION=%s", gitRev)
+
+		stdOut, stdErr, err := e2e.UDS("run", "--list-all", "--set", setVar, "--file", "src/test/tasks/tasks.yaml")
+		require.NoError(t, err, stdOut, stdErr)
+		require.Contains(t, stdErr, "copy")
+		require.Contains(t, stdErr, "This is a copy task")
+		require.Contains(t, stdErr, "foo:foobar")
+		require.Contains(t, stdErr, "remote:echo-var")
+	})
+
 	t.Run("test call to zarf tools wait-for", func(t *testing.T) {
 		t.Parallel()
 		_, stdErr, err := e2e.UDS("run", "wait", "--file", "src/test/tasks/tasks.yaml")
