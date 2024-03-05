@@ -22,7 +22,7 @@
 1. [Zarf Integration](#zarf-integration)
 1. [Bundle Overrides](docs/overrides.md)
 1. [Bundle Anatomy](docs/anatomy.md)
-1. [UDS Runner](docs/runner.md)
+1. [Runner](docs/runner.md)
 
 ## Install
 Recommended installation method is with Brew:
