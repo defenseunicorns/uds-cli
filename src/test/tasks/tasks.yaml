@@ -122,17 +122,22 @@ tasks:
     actions:
       - task: foo:fooybar
       - task: foo:foobar
-  - name: wait
+  - name: wait-success
     actions:
       - maxTotalSeconds: 1
         wait:
           network:
             protocol: tcp
             address: githubstatus.com:443
-          cluster:
-            kind: StatefulSet
-            name: cool-name
-            namespace: tasks
+  - name: wait-fail
+    actions:
+      - maxTotalSeconds: 1
+        wait:
+          network:
+            cluster:
+              kind: StatefulSet
+              name: cool-name
+              namespace: tasks
   - name: include-loop
     actions:
       - task: infinite:loop

@@ -10,6 +10,9 @@ import (
 	"runtime/debug"
 	"strings"
 
+	runnerCLI "github.com/defenseunicorns/maru-runner/src/cmd"
+	runnerConfig "github.com/defenseunicorns/maru-runner/src/config"
+
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
@@ -75,7 +78,7 @@ func init() {
 		}
 	}
 
-	// only vendor zarf if specifically invoked
+	// vendored Zarf command
 	if len(os.Args) > 1 && (os.Args[1] == "zarf" || os.Args[1] == "z") {
 		zarfCmd := &cobra.Command{
 			Use:     "zarf COMMAND",
@@ -89,6 +92,27 @@ func init() {
 		rootCmd.AddCommand(zarfCmd)
 
 		// disable UDS log file for Zarf commands bc Zarf has its own log file
+		config.SkipLogFile = true
+		return
+	}
+
+	// vendored run command
+	if len(os.Args) > 1 && (os.Args[1] == "run" || os.Args[1] == "r") {
+		runnerCmd := &cobra.Command{
+			Use:     "run",
+			Aliases: []string{"r"},
+			Run: func(_ *cobra.Command, _ []string) {
+				os.Args = os.Args[1:]          // grab 'run' and onward from the CLI args
+				runnerConfig.CmdPrefix = "uds" // use vendored Zarf inside the runner
+				runnerConfig.EnvPrefix = "uds"
+				runnerCLI.RootCmd().SetArgs(os.Args)
+				runnerCLI.Execute()
+			},
+			DisableFlagParsing: true,
+		}
+		rootCmd.AddCommand(runnerCmd)
+
+		// disable UDS log file for the runner because the runner has its own log file
 		config.SkipLogFile = true
 		return
 	}
