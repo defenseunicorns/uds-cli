@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
@@ -247,7 +248,7 @@ func GetIndex(remote *oci.OrasRemote, ref string) (*ocispec.Index, error) {
 // EnsureOCIPrefix ensures oci prefix is part of provided remote source path, and adds it if it's not
 func EnsureOCIPrefix(source string) string {
 	var ociPrefix = "oci://"
-	if source[:len(ociPrefix)] != ociPrefix {
+	if !strings.Contains(source, ociPrefix) {
 		return ociPrefix + source
 	}
 	return source
