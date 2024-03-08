@@ -66,17 +66,17 @@ func UseLogFile() {
 	var err error
 	if logFile != nil {
 		// Use the existing log file if logFile is set
-		LogWriter = io.MultiWriter(os.Stderr, logFile)
+		LogWriter = io.MultiWriter(logFile)
 		pterm.SetDefaultOutput(LogWriter)
 	} else {
 		// Try to create a temp log file if one hasn't been made already
 		if logFile, err = os.CreateTemp("", fmt.Sprintf("uds-%s-*.log", ts)); err != nil {
 			message.WarnErr(err, "Error saving a log file to a temporary directory")
 		} else {
-			LogWriter = io.MultiWriter(os.Stderr, logFile)
+			LogWriter = io.MultiWriter(logFile)
 			pterm.SetDefaultOutput(LogWriter)
 			msg := fmt.Sprintf("Saving log file to %s", logFile.Name())
-			message.Note(msg)
+			fmt.Println(msg)
 		}
 	}
 }

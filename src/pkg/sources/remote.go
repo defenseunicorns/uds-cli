@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui"
 	"github.com/defenseunicorns/uds-cli/src/pkg/cache"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/layout"
@@ -48,6 +49,9 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, unarchiveAll bool) 
 	if err = zarfUtils.ReadYaml(dst.ZarfYAML, &pkg); err != nil {
 		return err
 	}
+
+	// record number of components to be deployed for TUI
+	tui.Program.Send(fmt.Sprintf("totalComponents:%d", len(pkg.Components)))
 
 	dst.SetFromLayers(layers)
 

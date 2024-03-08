@@ -10,15 +10,18 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var createCmd = &cobra.Command{
@@ -83,9 +86,18 @@ var deployCmd = &cobra.Command{
 		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
 
-		if err := bndlClient.Deploy(); err != nil {
-			bndlClient.ClearPaths()
-			message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
+		// start up bubbletea
+		m := tui.InitModel("", bndlClient)
+
+		// detect tty so CI doesn't break
+		if term.IsTerminal(int(os.Stdout.Fd())) {
+			tui.Program = tea.NewProgram(&m)
+		} else {
+			tui.Program = tea.NewProgram(&m, tea.WithInput(nil))
+		}
+
+		if _, err := tui.Program.Run(); err != nil {
+			panic(err)
 		}
 	},
 }
@@ -257,6 +269,8 @@ func configureZarf() {
 		Confirm:        config.CommonOptions.Confirm,
 		CachePath:      config.CommonOptions.CachePath, // use uds-cache instead of zarf-cache
 	}
+	// when using bubbletea, disable progress bars in pterm
+	message.NoProgress = true
 }
 
 // chooseBundle provides a file picker when users don't specify a file

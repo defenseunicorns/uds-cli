@@ -15,6 +15,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
@@ -22,7 +23,6 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
-	"github.com/pterm/pterm"
 	"golang.org/x/exp/slices"
 	"helm.sh/helm/v3/pkg/cli/values"
 	"helm.sh/helm/v3/pkg/getter"
@@ -37,11 +37,6 @@ var templatedVarRegex = regexp.MustCompile(`\${([^}]+)}`)
 // Deploy deploys a bundle
 func (b *Bundle) Deploy() error {
 	ctx := context.TODO()
-
-	pterm.Println()
-	metadataSpinner := message.NewProgressSpinner("Loading bundle metadata")
-
-	defer metadataSpinner.Stop()
 
 	// Check that provided oci source path is valid, and update it if it's missing the full path
 	source, err := CheckOCISourcePath(b.cfg.DeployOpts.Source)
@@ -77,13 +72,6 @@ func (b *Bundle) Deploy() error {
 	// todo: we also read the SHAs from the uds-bundle.yaml here, should we refactor so that we use the bundle's root manifest?
 	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
-	}
-
-	metadataSpinner.Successf("Loaded bundle metadata")
-
-	// confirm deploy
-	if ok := b.confirmBundleDeploy(); !ok {
-		return fmt.Errorf("bundle deployment cancelled")
 	}
 
 	// Check if --resume is set
@@ -189,6 +177,10 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackag
 		if err != nil {
 			return err
 		}
+
+		// bubbletea recommends calling the Program directly; calling model.Update() doesn't work
+		// https://github.com/charmbracelet/bubbletea/discussions/374
+		tui.Program.Send(fmt.Sprintf("package:%s", pkg.Name))
 		if err := pkgClient.Deploy(); err != nil {
 			return err
 		}
@@ -270,8 +262,6 @@ func (b *Bundle) confirmBundleDeploy() (confirm bool) {
 	prompt := &survey.Confirm{
 		Message: "Deploy this bundle?",
 	}
-
-	pterm.Println()
 
 	if err := survey.AskOne(prompt, &confirm); err != nil || !confirm {
 		return false
