@@ -89,7 +89,7 @@ var deployCmd = &cobra.Command{
 		// start up bubbletea
 		m := tui.InitModel("", bndlClient)
 
-		// detect tty so CI doesn't break
+		// detect tty so CI/containers don't break
 		if term.IsTerminal(int(os.Stdout.Fd())) {
 			tui.Program = tea.NewProgram(&m)
 		} else {

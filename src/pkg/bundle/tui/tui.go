@@ -25,6 +25,10 @@ import (
 type tickMsg time.Time
 type operation string
 
+const (
+	DeployOp operation = "deploy"
+)
+
 var (
 	Program       *tea.Program
 	resetProgress bool
@@ -36,14 +40,20 @@ func InitModel(content string, client bndlClientShim) model {
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
+	var confirmed bool
+	if config.CommonOptions.Confirm {
+		confirmed = true
+	}
+
 	return model{
 		content:       content,
 		bndlClient:    client,
-		quitChan:      make(chan int),
+		completeChan:  make(chan int),
 		componentChan: make(chan int),
 		progress:      progress.New(progress.WithDefaultGradient()),
 		currentPkg:    "",
 		spinner:       s,
+		confirmed:     confirmed,
 	}
 }
 
@@ -57,19 +67,19 @@ type model struct {
 	content             string
 	packageOutputBuffer *bytes.Buffer
 	bndlClient          bndlClientShim
-	op                  operation
-	quitChan            chan int
+	completeChan        chan int
 	progress            progress.Model
 	currentPkg          string
 	totalComponents     int
 	componentChan       chan int
 	spinner             spinner.Model
 	confirmed           bool
+	complete            bool
 }
 
 func (m model) Init() tea.Cmd {
 	return tea.Sequence(func() tea.Msg {
-		return m.op
+		return DeployOp
 	}, m.spinner.Tick)
 }
 
@@ -106,7 +116,7 @@ func GetDeployedPackage(packageName string) (deployedPackage *types.DeployedPack
 }
 
 func finalPause() tea.Cmd {
-	return tea.Tick(time.Millisecond*750, func(_ time.Time) tea.Msg {
+	return tea.Tick(time.Second*1, func(_ time.Time) tea.Msg {
 		return nil
 	})
 }
@@ -116,8 +126,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds []tea.Cmd
 	)
 	select {
-	case <-m.quitChan:
-		return m, tea.Sequence(tea.Quit)
+	case <-m.completeChan:
+		m.complete = true
+		return m, tea.Sequence(tickCmd())
 	default:
 		switch msg := msg.(type) {
 		case progress.FrameMsg:
@@ -126,6 +137,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		case tickMsg:
 			var progressCmd tea.Cmd
+
+			if m.complete {
+				progressCmd = m.progress.SetPercent(100)
+				m.spinner.Spinner.Frames = []string{""}
+				m.spinner.Style = lipgloss.NewStyle().SetString("✅")
+				s, spinnerCmd := m.spinner.Update(spinner.TickMsg{})
+				m.spinner = s
+				return m, tea.Sequence(progressCmd, spinnerCmd, finalPause(), tea.Quit)
+			}
+
 			if m.totalComponents > 0 {
 				deployedPkg := GetDeployedPackage(m.currentPkg)
 				if deployedPkg != nil && !resetProgress {
@@ -139,7 +160,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else {
 					// handle upgrade scenario by resetting the progress bar until DeployedComponents is back to 1 (ie. the first component)
 					progressCmd = m.progress.SetPercent(0)
-					if deployedPkg != nil && len(deployedPkg.DeployedComponents) > 1 {
+					if deployedPkg != nil && len(deployedPkg.DeployedComponents) >= 1 {
 						resetProgress = false
 					}
 				}
@@ -154,28 +175,38 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "y", "Y":
 				m.confirmed = true
-				// run Deploy concurrently so we can update the TUI while it runs
-				go func() {
-					// todo: don't actually put the buffer in the call to Deploy()
-					if err := m.bndlClient.Deploy(); err != nil {
-						// todo: this doesn't work; test by deploying git-repo bundle followed by local-and-remote bundle
-						m.spinner.Spinner.Frames = []string{""}
-						m.spinner.Style = lipgloss.NewStyle().SetString("❌")
-						// use existing Zarf pterm things for errors
-						pterm.EnableOutput()
-						pterm.SetDefaultOutput(os.Stderr)
-						m.bndlClient.ClearPaths()
-						message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
-						m.quitChan <- 1
-					}
-					m.quitChan <- 1
-				}()
-				// use a ticker to update the TUI while the deploy runs
-				return m, tickCmd()
+				return m, func() tea.Msg {
+					return DeployOp
+				}
 			case "n", "N":
 				m.confirmed = false
 			case "ctrl+c", "q":
 				return m, tea.Quit
+			}
+
+		case operation:
+			switch msg {
+			case DeployOp:
+				if m.confirmed {
+					// run Deploy concurrently so we can update the TUI while it runs
+					// todo: don't actually put the buffer in the call to Deploy()
+					go func() {
+						if err := m.bndlClient.Deploy(); err != nil {
+							// todo: this doesn't work, send to a fatalChannel or something
+							// test by deploying git-repo bundle followed by local-and-remote bundle
+							m.spinner.Spinner.Frames = []string{""}
+							m.spinner.Style = lipgloss.NewStyle().SetString("❌")
+							// use existing Zarf pterm things for errors
+							pterm.EnableOutput()
+							pterm.SetDefaultOutput(os.Stderr)
+							m.bndlClient.ClearPaths()
+							message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
+						}
+						m.completeChan <- 1
+					}()
+					// use a ticker to update the TUI during deployment
+					return m, tickCmd()
+				}
 			}
 
 		case string:
@@ -207,21 +238,30 @@ func (m model) View() string {
 }
 
 func (m model) deployView() string {
-	width := 100
-	question := lipgloss.NewStyle().
+	width := 100 // todo: make dynamic?
+	text := lipgloss.NewStyle().
 		Width(50).
 		Align(lipgloss.Left).
 		Padding(0, 3).
-		Render(fmt.Sprintf("%s Deploying: %s", m.spinner.View(), m.currentPkg))
+		Render(fmt.Sprintf("%s Package %s deploying ...", m.spinner.View(), m.currentPkg))
 
+	// render progress bar until deployment is complete
 	progressBar := lipgloss.NewStyle().
 		Width(50).
 		Align(lipgloss.Left).
 		Padding(0, 3).
 		MarginTop(1).
 		Render(m.progress.View())
+	ui := lipgloss.JoinVertical(lipgloss.Center, text, progressBar)
 
-	ui := lipgloss.JoinVertical(lipgloss.Center, question, progressBar)
+	if m.complete {
+		text = lipgloss.NewStyle().
+			Width(50).
+			Align(lipgloss.Left).
+			Padding(0, 3).
+			Render(fmt.Sprintf("%s Package %s deployed", m.spinner.View(), m.currentPkg))
+		ui = lipgloss.JoinVertical(lipgloss.Center, text)
+	}
 
 	boxStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
