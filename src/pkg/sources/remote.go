@@ -51,6 +51,7 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, unarchiveAll bool) 
 	}
 
 	// record number of components to be deployed for TUI
+	// todo: won't work for optional components......
 	tui.Program.Send(fmt.Sprintf("totalComponents:%d", len(pkg.Components)))
 
 	dst.SetFromLayers(layers)

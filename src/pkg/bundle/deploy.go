@@ -121,8 +121,11 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackag
 		packagesToDeploy = packages
 	}
 
+	// let TUI know how many packages are being deployed
+	tui.Program.Send(fmt.Sprintf("total:%d", len(b.bundle.Packages)))
+
 	// deploy each package
-	for _, pkg := range packagesToDeploy {
+	for i, pkg := range packagesToDeploy {
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 		pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
@@ -178,12 +181,15 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackag
 			return err
 		}
 
-		// bubbletea recommends calling the Program directly; calling model.Update() doesn't work
-		// https://github.com/charmbracelet/bubbletea/discussions/374
+		// bubbletea recommends calling the Program directly: https://github.com/charmbracelet/bubbletea/discussions/374
 		tui.Program.Send(fmt.Sprintf("package:%s", pkg.Name))
+		tui.Program.Send(fmt.Sprintf("idx:%d", i))
+
 		if err := pkgClient.Deploy(); err != nil {
 			return err
 		}
+
+		tui.Program.Send(fmt.Sprintf("complete:%d", i))
 
 		// save exported vars
 		pkgExportedVars := make(map[string]string)

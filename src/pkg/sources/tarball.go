@@ -54,6 +54,7 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, unarchiveAll bool)
 	dst.SetFromPaths(files)
 
 	// record number of components to be deployed for TUI
+	// todo: won't work for optional components......
 	tui.Program.Send(fmt.Sprintf("totalComponents:%d", len(pkg.Components)))
 
 	if err := sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, t.isPartial); err != nil {
