@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -14,11 +13,11 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/k8s"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/types"
-	"github.com/pterm/pterm"
 )
 
 // todo: watch naming collisions, spinner also has a TickMsg
@@ -34,7 +33,26 @@ var (
 	resetProgress bool
 )
 
-func InitModel(content string, client bndlClientShim) model {
+// private interface to decouple tui pkg from bundle pkg
+type bndlClientShim interface {
+	Deploy() error
+	ClearPaths()
+}
+
+type model struct {
+	bndlClient      bndlClientShim
+	completeChan    chan int
+	fatalChan       chan error
+	progress        progress.Model
+	currentPkg      string
+	totalComponents int
+	componentChan   chan int
+	spinner         spinner.Model
+	confirmed       bool
+	complete        bool
+}
+
+func InitModel(client bndlClientShim) model {
 	// configure spinner
 	s := spinner.New()
 	s.Spinner = spinner.Dot
@@ -46,35 +64,15 @@ func InitModel(content string, client bndlClientShim) model {
 	}
 
 	return model{
-		content:       content,
 		bndlClient:    client,
 		completeChan:  make(chan int),
+		fatalChan:     make(chan error),
 		componentChan: make(chan int),
 		progress:      progress.New(progress.WithDefaultGradient()),
 		currentPkg:    "",
 		spinner:       s,
 		confirmed:     confirmed,
 	}
-}
-
-// private interface to decouple tui pkg from bundle pkg
-type bndlClientShim interface {
-	Deploy() error
-	ClearPaths()
-}
-
-type model struct {
-	content             string
-	packageOutputBuffer *bytes.Buffer
-	bndlClient          bndlClientShim
-	completeChan        chan int
-	progress            progress.Model
-	currentPkg          string
-	totalComponents     int
-	componentChan       chan int
-	spinner             spinner.Model
-	confirmed           bool
-	complete            bool
 }
 
 func (m model) Init() tea.Cmd {
@@ -129,6 +127,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case <-m.completeChan:
 		m.complete = true
 		return m, tea.Sequence(tickCmd())
+	case <-m.fatalChan:
+		m.spinner.Spinner.Frames = []string{""}
+		m.spinner.Style = lipgloss.NewStyle().SetString("❌")
+		s, spinnerCmd := m.spinner.Update(spinner.TickMsg{})
+		m.spinner = s
+		return m, tea.Sequence(spinnerCmd, finalPause(), tea.Quit)
 	default:
 		switch msg := msg.(type) {
 		case progress.FrameMsg:
@@ -153,6 +157,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					// todo: instead of going off of DeployedComponents, find a way to include deployedPkg.DeployedComponents[0].Status
 					progressCmd = m.progress.SetPercent(float64(len(deployedPkg.DeployedComponents)) / float64(m.totalComponents))
 					if m.progress.Percent() == 1 {
+						// todo: instead of going off percentage, go off successful deployment of the pkg
 						// stop the spinner and show success
 						m.spinner.Spinner.Frames = []string{""}
 						m.spinner.Style = lipgloss.NewStyle().SetString("✅")
@@ -185,28 +190,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case operation:
-			switch msg {
-			case DeployOp:
-				if m.confirmed {
+			if m.confirmed {
+				go func() {
+					// if something goes wrong in Deploy(), reset the terminal
+					defer utils.GracefulPanic()
 					// run Deploy concurrently so we can update the TUI while it runs
-					// todo: don't actually put the buffer in the call to Deploy()
-					go func() {
-						if err := m.bndlClient.Deploy(); err != nil {
-							// todo: this doesn't work, send to a fatalChannel or something
-							// test by deploying git-repo bundle followed by local-and-remote bundle
-							m.spinner.Spinner.Frames = []string{""}
-							m.spinner.Style = lipgloss.NewStyle().SetString("❌")
-							// use existing Zarf pterm things for errors
-							pterm.EnableOutput()
-							pterm.SetDefaultOutput(os.Stderr)
-							m.bndlClient.ClearPaths()
-							message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
-						}
+					if err := m.bndlClient.Deploy(); err != nil {
+						m.bndlClient.ClearPaths()
+						m.fatalChan <- fmt.Errorf("failed to deploy bundle: %s", err.Error())
+					} else {
 						m.completeChan <- 1
-					}()
-					// use a ticker to update the TUI during deployment
-					return m, tickCmd()
-				}
+					}
+				}()
+				// use a ticker to update the TUI during deployment
+				return m, tickCmd()
 			}
 
 		case string:

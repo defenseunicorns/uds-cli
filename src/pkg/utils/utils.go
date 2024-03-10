@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -34,6 +35,19 @@ func MergeVariables(left map[string]string, right map[string]string) map[string]
 
 	// Merge the viper config file variables and provided CLI flag variables (CLI takes precedence))
 	return helpers.MergeMap(leftUpper, rightUpper)
+}
+
+// GracefulPanic in the event of a panic, attempt to reset the terminal using the 'reset' command.
+func GracefulPanic() {
+	if r := recover(); r != nil {
+		fmt.Println("Recovering from panic to reset terminal before exiting")
+		// todo: this approach is heavy-handed, consider alternatives using the term lib (check out what BubbleTea does)
+		cmd := exec.Command("reset")
+		cmd.Stdout = os.Stdout
+		cmd.Stdin = os.Stdin
+		_ = cmd.Run()
+		panic(r)
+	}
 }
 
 // IsValidTarballPath returns true if the path is a valid tarball path to a bundle tarball

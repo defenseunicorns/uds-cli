@@ -87,7 +87,7 @@ var deployCmd = &cobra.Command{
 		defer bndlClient.ClearPaths()
 
 		// start up bubbletea
-		m := tui.InitModel("", bndlClient)
+		m := tui.InitModel(bndlClient)
 
 		// detect tty so CI/containers don't break
 		if term.IsTerminal(int(os.Stdout.Fd())) {
@@ -97,7 +97,7 @@ var deployCmd = &cobra.Command{
 		}
 
 		if _, err := tui.Program.Run(); err != nil {
-			panic(err)
+			message.Fatalf(err, "TUI program error: %s", err.Error())
 		}
 	},
 }
