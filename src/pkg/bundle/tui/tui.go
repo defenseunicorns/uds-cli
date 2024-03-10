@@ -270,44 +270,44 @@ func (m model) deployView() string {
 
 		ui := lipgloss.JoinVertical(lipgloss.Center, text, bar)
 
-		if len(m.complete) > i && m.complete[i] {
-			text = lipgloss.NewStyle().
-				Width(50).
-				Align(lipgloss.Left).
-				Padding(0, 3).
-				Render(fmt.Sprintf("%s Package %s deployed", m.spinners[i].View(), m.pkgNames[i]))
-			ui = lipgloss.JoinVertical(lipgloss.Center, text)
-		}
+		//if len(m.complete) > i && m.complete[i] {
+		//	text = lipgloss.NewStyle().
+		//		Width(50).
+		//		Align(lipgloss.Left).
+		//		Padding(0, 3).
+		//		Render(fmt.Sprintf("%s Package %s deployed", m.spinners[i].View(), m.pkgNames[i]))
+		//	ui = lipgloss.JoinVertical(lipgloss.Center, text)
+		//}
 
 		boxStyle := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#874BFD")).
-			Padding(1, 0).
+			//Padding(1, 0).
 			BorderTop(true).
 			BorderLeft(true).
 			BorderRight(true).
 			BorderBottom(true)
 		subtle := lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#383838"}
-		box := lipgloss.Place(width, 9,
+		box := lipgloss.Place(width, 6,
 			lipgloss.Left, lipgloss.Top,
 			boxStyle.Render(ui),
 			lipgloss.WithWhitespaceForeground(subtle),
 		)
 
-		if len(m.complete) > i && m.complete[i] {
-			boxStyle = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("#874BFD")).
-				BorderTop(true).
-				BorderLeft(true).
-				BorderRight(true).
-				BorderBottom(true)
-			box = lipgloss.Place(width, 6,
-				lipgloss.Left, lipgloss.Top,
-				boxStyle.Render(ui),
-				lipgloss.WithWhitespaceForeground(subtle),
-			)
-		}
+		//if len(m.complete) > i && m.complete[i] {
+		//	boxStyle = lipgloss.NewStyle().
+		//		Border(lipgloss.RoundedBorder()).
+		//		BorderForeground(lipgloss.Color("#874BFD")).
+		//		BorderTop(true).
+		//		BorderLeft(true).
+		//		BorderRight(true).
+		//		BorderBottom(true)
+		//	box = lipgloss.Place(width, 6,
+		//		lipgloss.Left, lipgloss.Top,
+		//		boxStyle.Render(ui),
+		//		lipgloss.WithWhitespaceForeground(subtle),
+		//	)
+		//}
 		//view = lipgloss.JoinVertical(lipgloss.Center, view, box)
 		view += fmt.Sprintf("%s\n", box)
 	}
