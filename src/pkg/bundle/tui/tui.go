@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -73,22 +71,6 @@ func (m model) Init() tea.Cmd {
 	})
 }
 
-// allows us to get way more Zarf output
-// adopted from:
-// https://stackoverflow.com/questions/74375547/how-to-deal-with-log-output-which-contains-progress-bar
-func cleanFlushInfo(bytesBuffer *bytes.Buffer) string {
-	scanner := bufio.NewScanner(bytesBuffer)
-	finalString := ""
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		chunks := strings.Split(line, "\r")
-		lastChunk := chunks[len(chunks)-1] // fetch the last update of the line
-		finalString += lastChunk + "\n"
-	}
-	return finalString
-}
-
 // todo: I think Zarf has this...
 func GetDeployedPackage(packageName string) (deployedPackage *types.DeployedPackage) {
 	// Get the secret that describes the deployed package
@@ -130,7 +112,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		case tickMsg:
 			var progressCmd tea.Cmd
-
 			if len(m.complete) > m.pkgIdx && m.complete[m.pkgIdx] {
 				progressCmd = m.progressBars[m.pkgIdx].SetPercent(100)
 				m.spinners[m.pkgIdx].Spinner.Frames = []string{""}
@@ -179,12 +160,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyMsg:
 			switch msg.String() {
 			case "y", "Y":
-				m.confirmed = true
+				if !m.confirmed {
+					m.confirmed = true
+				}
 				return m, func() tea.Msg {
 					return DeployOp
 				}
 			case "n", "N":
-				m.confirmed = false
+				if !m.confirmed {
+					m.confirmed = false
+				}
 			case "ctrl+c", "q":
 				return m, tea.Quit
 			}
@@ -198,9 +183,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if err := m.bndlClient.Deploy(); err != nil {
 						m.bndlClient.ClearPaths()
 						m.fatalChan <- fmt.Errorf("failed to deploy bundle: %s", err.Error())
-					} else {
-						// todo bundleSuccess chan!
-						//m.completeChan <- 1
 					}
 				}()
 				// use a ticker to update the TUI during deployment
@@ -253,7 +235,7 @@ func (m model) View() string {
 func (m model) deployView() string {
 	view := ""
 	for i := range m.progressBars {
-		width := 100 // todo: make dynamic?
+		width := 50 // todo: make dynamic?
 		text := lipgloss.NewStyle().
 			Width(50).
 			Align(lipgloss.Left).
@@ -279,7 +261,7 @@ func (m model) deployView() string {
 		//	ui = lipgloss.JoinVertical(lipgloss.Center, text)
 		//}
 
-		boxStyle := lipgloss.NewStyle().
+		boxStyle := lipgloss.NewStyle().Width(width).
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#874BFD")).
 			//Padding(1, 0).
@@ -288,7 +270,7 @@ func (m model) deployView() string {
 			BorderRight(true).
 			BorderBottom(true)
 		subtle := lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#383838"}
-		box := lipgloss.Place(width, 6,
+		box := lipgloss.Place(0, 6,
 			lipgloss.Left, lipgloss.Top,
 			boxStyle.Render(ui),
 			lipgloss.WithWhitespaceForeground(subtle),
