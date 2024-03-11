@@ -13,6 +13,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -43,7 +44,7 @@ type Provider interface {
 	PublishBundle(bundle types.UDSBundle, remote *oci.OrasRemote) error
 
 	// getBundleManifest gets the bundle's root manifest
-	getBundleManifest() (*oci.ZarfOCIManifest, error)
+	getBundleManifest() (*oci.Manifest, error)
 
 	// ZarfPackageNameMap returns a map of the zarf package name specified in the uds-bundle.yaml to the actual zarf package name
 	ZarfPackageNameMap() (map[string]string, error)
@@ -58,14 +59,14 @@ func NewBundleProvider(ctx context.Context, source, destination string) (Provide
 			OS:           oci.MultiOS,
 		}
 		// get remote client
-		remote, err := oci.NewOrasRemote(source, platform)
+		remote, err := zoci.NewRemote(source, platform)
 		if err != nil {
 			return nil, err
 		}
-		op.OrasRemote = remote
+		op.OrasRemote = remote.OrasRemote
 
 		// get root manifest
-		root, err := op.FetchRoot()
+		root, err := op.FetchRoot(ctx)
 		if err != nil {
 			return nil, err
 		}

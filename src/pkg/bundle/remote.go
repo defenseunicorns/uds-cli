@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
@@ -22,6 +21,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -43,10 +43,10 @@ type ociProvider struct {
 	src string
 	dst string
 	*oci.OrasRemote
-	rootManifest *oci.ZarfOCIManifest
+	rootManifest *oci.Manifest
 }
 
-func (op *ociProvider) getBundleManifest() (*oci.ZarfOCIManifest, error) {
+func (op *ociProvider) getBundleManifest() (*oci.Manifest, error) {
 	if op.rootManifest != nil {
 		return op.rootManifest, nil
 	}
@@ -59,7 +59,7 @@ func (op *ociProvider) LoadBundleMetadata() (types.PathMap, error) {
 		return nil, err
 	}
 
-	layers, err := op.PullPackagePaths(config.BundleAlwaysPull, filepath.Join(op.dst, config.BlobsDir))
+	layers, err := op.PullPaths(op.ctx, filepath.Join(op.dst, config.BlobsDir), config.BundleAlwaysPull)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (op *ociProvider) LoadBundleMetadata() (types.PathMap, error) {
 // CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
 func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 	SBOMArtifactPathMap := make(types.PathMap)
-	root, err := op.FetchRoot()
+	root, err := op.FetchRoot(op.ctx)
 	if err != nil {
 		return err
 	}
@@ -96,7 +96,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 		if layer.Annotations[ocispec.AnnotationTitle] == config.BundleYAML {
 			continue
 		}
-		zarfManifest, err := op.OrasRemote.FetchManifest(layer)
+		zarfManifest, err := op.OrasRemote.FetchManifest(op.ctx, layer)
 		if err != nil {
 			return err
 		}
@@ -107,7 +107,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 			continue
 		}
 		// grab sboms.tar and extract
-		sbomBytes, err := op.OrasRemote.FetchLayer(sbomDesc)
+		sbomBytes, err := op.OrasRemote.FetchLayer(op.ctx, sbomDesc)
 		if err != nil {
 			return err
 		}
@@ -174,13 +174,13 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 		if err != nil {
 			return nil, nil, err
 		}
-		manifestBytes, err := op.FetchLayer(manifestDesc)
+		manifestBytes, err := op.FetchLayer(op.ctx, manifestDesc)
 		if err != nil {
 			return nil, nil, err
 		}
 
 		// unmarshal the zarf image manifest and add it to the layers to pull
-		var manifest oci.ZarfOCIManifest
+		var manifest oci.Manifest
 		if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
 			return nil, nil, err
 		}
@@ -209,7 +209,7 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 	}
 
 	// grab the bundle root manifest and add it to the layers to pull
-	rootDesc, err := op.ResolveRoot()
+	rootDesc, err := op.ResolveRoot(op.ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -219,20 +219,15 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 	copyOpts := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
 
 	// Create a thread to update a progress bar as we save the package to disk
-	doneSaving := make(chan int)
-	errChan := make(chan int)
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go zarfUtils.RenderProgressBarForLocalDirWrite(op.dst, estimatedBytes, &wg, doneSaving, errChan, fmt.Sprintf("Pulling bundle: %s", bundle.Metadata.Name), fmt.Sprintf("Successfully pulled bundle: %s", bundle.Metadata.Name))
+	doneSaving := make(chan error)
+	go zarfUtils.RenderProgressBarForLocalDirWrite(op.dst, estimatedBytes, doneSaving, fmt.Sprintf("Pulling bundle: %s", bundle.Metadata.Name), fmt.Sprintf("Successfully pulled bundle: %s", bundle.Metadata.Name))
 	// note that in this case oras.Copy() copies using the bundle root manifest, not the packages directly
 	_, err = oras.Copy(op.ctx, op.Repo(), op.Repo().Reference.String(), store, op.Repo().Reference.String(), copyOpts)
+	doneSaving <- err
+	<-doneSaving
 	if err != nil {
-		doneSaving <- 1
 		return nil, nil, err
 	}
-
-	doneSaving <- 1
-	wg.Wait()
 
 	for _, layer := range layersToPull {
 		sha := layer.Digest.Encoded()
@@ -248,7 +243,7 @@ func (op *ociProvider) PublishBundle(_ types.UDSBundle, _ *oci.OrasRemote) error
 }
 
 // Returns the validated source path based on the provided oci source path
-func getOCIValidatedSource(source string) (string, error) {
+func getOCIValidatedSource(ctx context.Context, source string) (string, error) {
 	originalSource := source
 
 	platform := ocispec.Platform{
@@ -257,35 +252,35 @@ func getOCIValidatedSource(source string) (string, error) {
 	}
 	// Check provided repository path
 	sourceWithOCI := utils.EnsureOCIPrefix(source)
-	remote, err := oci.NewOrasRemote(sourceWithOCI, platform)
+	remote, err := zoci.NewRemote(sourceWithOCI, platform)
 	if err == nil {
 		source = sourceWithOCI
-		_, err = remote.ResolveRoot()
+		_, err = remote.ResolveRoot(ctx)
 
 	}
 	// if root didn't resolve, expand the path
 	if err != nil {
 		// Check in ghcr uds bundle path
 		source = GHCRUDSBundlePath + originalSource
-		remote, err = oci.NewOrasRemote(source, platform)
+		remote, err = zoci.NewRemote(source, platform)
 		if err == nil {
-			_, err = remote.ResolveRoot()
+			_, err = remote.ResolveRoot(ctx)
 		}
 		if err != nil {
 			message.Debugf("%s: not found", source)
 			// Check in delivery bundle path
 			source = GHCRDeliveryBundlePath + originalSource
-			remote, err = oci.NewOrasRemote(source, platform)
+			remote, err = zoci.NewRemote(source, platform)
 			if err == nil {
-				_, err = remote.ResolveRoot()
+				_, err = remote.ResolveRoot(ctx)
 			}
 			if err != nil {
 				message.Debugf("%s: not found", source)
 				// Check in packages bundle path
 				source = GHCRPackagesPath + originalSource
-				remote, err = oci.NewOrasRemote(source, platform)
+				remote, err = zoci.NewRemote(source, platform)
 				if err == nil {
-					_, err = remote.ResolveRoot()
+					_, err = remote.ResolveRoot(ctx)
 				}
 				if err != nil {
 					message.Fatalf(nil, "%s: not found", originalSource)
@@ -319,11 +314,11 @@ func ValidateArch(arch string) error {
 }
 
 // CheckOCISourcePath checks that provided oci source path is valid, and updates it if it's missing the full path
-func CheckOCISourcePath(source string) (string, error) {
+func CheckOCISourcePath(ctx context.Context, source string) (string, error) {
 	validTarballPath := utils.IsValidTarballPath(source)
 	var err error
 	if !validTarballPath {
-		source, err = getOCIValidatedSource(source)
+		source, err = getOCIValidatedSource(ctx, source)
 		if err != nil {
 			return "", err
 		}

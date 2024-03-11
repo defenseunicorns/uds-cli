@@ -12,6 +12,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	ocistore "oras.land/oras-go/v2/content/oci"
@@ -42,16 +43,17 @@ func NewPkgFetcher(pkg types.Package, fetcherConfig Config) (Fetcher, error) {
 			OS:           oci.MultiOS,
 		}
 		url := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
-		remote, err := oci.NewOrasRemote(url, platform)
+		remote, err := zoci.NewRemote(url, platform)
 		if err != nil {
 			return nil, err
 		}
-		pkgRootManifest, err := remote.FetchRoot()
+		ctx := context.TODO()
+		pkgRootManifest, err := remote.FetchRoot(ctx)
 		if err != nil {
 			return nil, err
 		}
 		fetcher = &remoteFetcher{
-			ctx:             context.TODO(),
+			ctx:             ctx,
 			pkg:             pkg,
 			cfg:             fetcherConfig,
 			pkgRootManifest: pkgRootManifest,

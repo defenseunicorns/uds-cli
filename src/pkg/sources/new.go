@@ -5,11 +5,13 @@
 package sources
 
 import (
+	"context"
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfSources "github.com/defenseunicorns/zarf/src/pkg/packager/sources"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
@@ -30,7 +32,7 @@ func New(pkgLocation string, pkgName string, opts zarfTypes.ZarfPackageOptions, 
 			Architecture: config.GetArch(),
 			OS:           oci.MultiOS,
 		}
-		remote, err := oci.NewOrasRemote(pkgLocation, platform)
+		remote, err := zoci.NewRemote(pkgLocation, platform)
 		if err != nil {
 			return nil, err
 		}
@@ -39,7 +41,8 @@ func New(pkgLocation string, pkgName string, opts zarfTypes.ZarfPackageOptions, 
 			PkgOpts:        &opts,
 			PkgManifestSHA: sha,
 			TmpDir:         opts.PackageSource,
-			Remote:         remote,
+			Remote:         remote.OrasRemote,
+			ctx:            context.TODO(),
 		}
 	}
 	return source, nil

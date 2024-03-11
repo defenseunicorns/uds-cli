@@ -92,7 +92,7 @@ func (t *TarballBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ 
 		return err
 	}
 
-	var imageManifest oci.ZarfOCIManifest
+	var imageManifest oci.Manifest
 	if err := format.Extract(ctx, sourceArchive, []string{filepath.Join(config.BlobsDir, t.PkgManifestSHA)}, utils.ExtractJSON(&imageManifest)); err != nil {
 		return err
 	}
@@ -189,7 +189,7 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 		return nil, err
 	}
 
-	var manifest oci.ZarfOCIManifest
+	var manifest oci.Manifest
 	if err := format.Extract(context.TODO(), sourceArchive, []string{filepath.Join(config.BlobsDir, t.PkgManifestSHA)}, utils.ExtractJSON(&manifest)); err != nil {
 		if err := sourceArchive.Close(); err != nil {
 			return nil, err

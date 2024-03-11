@@ -5,6 +5,7 @@
 package bundle
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -21,6 +22,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
@@ -139,12 +141,12 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 				Architecture: config.GetArch(),
 				OS:           oci.MultiOS,
 			}
-			remote, err := oci.NewOrasRemote(url, platform)
+			remote, err := zoci.NewRemote(url, platform)
 			if err != nil {
 				return err
 			}
 			if err := remote.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
-				manifestDesc, err := remote.ResolveRoot()
+				manifestDesc, err := remote.ResolveRoot(context.TODO())
 				if err != nil {
 					return err
 				}
@@ -186,7 +188,7 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 		// todo: need to packager.ValidatePackageSignature (or come up with a bundle-level signature scheme)
 		publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
 		if pkg.PublicKey != "" {
-			if err := utils.WriteFile(publicKeyPath, []byte(pkg.PublicKey)); err != nil {
+			if err := os.WriteFile(publicKeyPath, []byte(pkg.PublicKey), helpers.ReadWriteUser); err != nil {
 				return err
 			}
 			defer os.Remove(publicKeyPath)

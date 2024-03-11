@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
-	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 )
 
@@ -114,9 +113,9 @@ var (
 // could technically remove, but it doesn't hurt anything for now
 var DefaultZarfInitOptions = zarfTypes.ZarfInitOptions{
 	GitServer: zarfTypes.GitServerInfo{
-		PushUsername: zarfConfig.ZarfGitPushUser,
+		PushUsername: zarfTypes.ZarfGitPushUser,
 	},
 	RegistryInfo: zarfTypes.RegistryInfo{
-		PushUsername: zarfConfig.ZarfRegistryPushUser,
+		PushUsername: zarfTypes.ZarfRegistryPushUser,
 	},
 }

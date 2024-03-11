@@ -17,6 +17,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	av3 "github.com/mholt/archiver/v3"
@@ -165,7 +166,7 @@ func (f *localFetcher) toBundle(pkg zarfTypes.ZarfPackage, pkgTmp string) ([]oci
 			return nil, err
 		}
 
-		mediaType := oci.ZarfLayerMediaTypeBlob
+		mediaType := zoci.ZarfLayerMediaTypeBlob
 
 		// todo: try finding the desc with media type of image manifest, and rewrite it here!
 		// just iterate through it's layers and add the annotations to each layer, then push to the store and add to descs
@@ -247,11 +248,11 @@ func generatePkgManifest(store *ocistore.Store, descs []ocispec.Descriptor, conf
 			SchemaVersion: 2, // historical value. does not pertain to OCI or docker version
 		},
 		Config:    configDesc,
-		MediaType: oci.ZarfLayerMediaTypeBlob,
+		MediaType: zoci.ZarfLayerMediaTypeBlob,
 		Layers:    descs,
 	}
 
-	manifestDesc, err := utils.ToOCIStore(manifest, oci.ZarfLayerMediaTypeBlob, store)
+	manifestDesc, err := utils.ToOCIStore(manifest, zoci.ZarfLayerMediaTypeBlob, store)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}

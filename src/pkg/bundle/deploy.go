@@ -21,6 +21,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"github.com/pterm/pterm"
 	"golang.org/x/exp/slices"
@@ -44,7 +45,7 @@ func (b *Bundle) Deploy() error {
 	defer metadataSpinner.Stop()
 
 	// Check that provided oci source path is valid, and update it if it's missing the full path
-	source, err := CheckOCISourcePath(b.cfg.DeployOpts.Source)
+	source, err := CheckOCISourcePath(ctx, b.cfg.DeployOpts.Source)
 	if err != nil {
 		return err
 	}
@@ -144,7 +145,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackag
 
 		publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
 		if pkg.PublicKey != "" {
-			if err := utils.WriteFile(publicKeyPath, []byte(pkg.PublicKey)); err != nil {
+			if err := os.WriteFile(publicKeyPath, []byte(pkg.PublicKey), helpers.ReadWriteUser); err != nil {
 				return err
 			}
 			defer os.Remove(publicKeyPath)

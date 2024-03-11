@@ -25,7 +25,7 @@ func (b *Bundle) Remove() error {
 	ctx := context.TODO()
 
 	// Check that provided oci source path is valid, and update it if it's missing the full path
-	source, err := CheckOCISourcePath(b.cfg.RemoveOpts.Source)
+	source, err := CheckOCISourcePath(ctx, b.cfg.RemoveOpts.Source)
 	if err != nil {
 		return err
 	}
