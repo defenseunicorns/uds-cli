@@ -3,6 +3,7 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +17,9 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/k8s"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/types"
+	"github.com/fatih/color"
+	"github.com/goccy/go-yaml/lexer"
+	"github.com/goccy/go-yaml/printer"
 )
 
 // todo: watch naming collisions, spinners also has a TickMsg
@@ -39,6 +43,7 @@ type bndlClientShim interface {
 
 type model struct {
 	bndlClient            bndlClientShim
+	bundleYAML            string
 	completeChan          chan int
 	fatalChan             chan error
 	progressBars          []progress.Model
@@ -51,7 +56,7 @@ type model struct {
 	complete              []bool
 }
 
-func InitModel(client bndlClientShim) model {
+func InitModel(client bndlClientShim, bundleYAML string) model {
 	var confirmed bool
 	if config.CommonOptions.Confirm {
 		confirmed = true
@@ -62,6 +67,7 @@ func InitModel(client bndlClientShim) model {
 		completeChan: make(chan int),
 		fatalChan:    make(chan error),
 		confirmed:    confirmed,
+		bundleYAML:   bundleYAML,
 	}
 }
 
@@ -201,7 +207,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if totalComponents, err := strconv.Atoi(strings.Split(msg, ":")[1]); err == nil {
 					m.totalComponentsPerPkg = append(m.totalComponentsPerPkg, totalComponents)
 				}
-			} else if strings.Split(msg, ":")[0] == "total" {
+			} else if strings.Split(msg, ":")[0] == "totalPackages" {
 				if totalPkgs, err := strconv.Atoi(strings.Split(msg, ":")[1]); err == nil {
 					m.totalPkgs = totalPkgs
 				}
@@ -299,23 +305,74 @@ func (m model) deployView() string {
 
 func (m model) preDeployView() string {
 	header := "🎁 BUNDLE DEFINITION"
-	yaml := `
-# Example YAML
-name: my-bundle
-version: 1.0.0
-dependencies:
-  - dependency1
-  - dependency2
-`
 
 	prompt := "Deploy this bundle? (Y/N): "
 
+	prettyYAML := colorPrintYAML(m.bundleYAML)
+
 	// Concatenate header, highlighted YAML, and prompt
-	return fmt.Sprintf("%s\n%s\n%s", header, yaml, prompt)
+	return fmt.Sprintf("\n%s\n\n%s\n\n%s\n", header, prettyYAML, prompt)
 }
 
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Millisecond, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
+}
+
+// colorPrintYAML makes a pretty-print YAML string with color
+func colorPrintYAML(yaml string) string {
+	tokens := lexer.Tokenize(yaml)
+
+	var p printer.Printer
+	p.Bool = func() *printer.Property {
+		return &printer.Property{
+			Prefix: yamlFormat(color.FgHiWhite),
+			Suffix: yamlFormat(color.Reset),
+		}
+	}
+	p.Number = func() *printer.Property {
+		return &printer.Property{
+			Prefix: yamlFormat(color.FgHiWhite),
+			Suffix: yamlFormat(color.Reset),
+		}
+	}
+	p.MapKey = func() *printer.Property {
+		return &printer.Property{
+			Prefix: yamlFormat(color.FgHiCyan),
+			Suffix: yamlFormat(color.Reset),
+		}
+	}
+	p.Anchor = func() *printer.Property {
+		return &printer.Property{
+			Prefix: yamlFormat(color.FgHiYellow),
+			Suffix: yamlFormat(color.Reset),
+		}
+	}
+	p.Alias = func() *printer.Property {
+		return &printer.Property{
+			Prefix: yamlFormat(color.FgHiYellow),
+			Suffix: yamlFormat(color.Reset),
+		}
+	}
+	p.String = func() *printer.Property {
+		return &printer.Property{
+			Prefix: yamlFormat(color.FgHiMagenta),
+			Suffix: yamlFormat(color.Reset),
+		}
+	}
+
+	outputYAML := p.PrintTokens(tokens)
+
+	if config.NoColor {
+		// If no color is specified strip any color codes from the output - https://regex101.com/r/YFyIwC/2
+		ansiRegex := regexp.MustCompile(`\x1b\[(.*?)m`)
+		outputYAML = ansiRegex.ReplaceAllString(outputYAML, "")
+	}
+	return outputYAML
+}
+
+func yamlFormat(attr color.Attribute) string {
+	const yamlEscape = "\x1b"
+	return fmt.Sprintf("%s[%dm", yamlEscape, attr)
 }

@@ -83,11 +83,19 @@ var deployCmd = &cobra.Command{
 				return
 			}
 		}
+		// create new bundle client
 		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
 
+		// pre-deploy validation
+		bundleYAML := ""
+		bundleYAML, err := bndlClient.PreDeployValidation()
+		if err != nil {
+			return
+		}
+
 		// start up bubbletea
-		m := tui.InitModel(bndlClient)
+		m := tui.InitModel(bndlClient, bundleYAML)
 
 		// detect tty so CI/containers don't break
 		if term.IsTerminal(int(os.Stdout.Fd())) {
