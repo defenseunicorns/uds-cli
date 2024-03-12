@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
@@ -93,6 +94,8 @@ func (e2e *UDSE2ETest) SetupDockerRegistry(t *testing.T, port int) {
 	// spin up a local registry
 	registryImage := "registry:2.8.3"
 	err := exec.CmdWithPrint("docker", "run", "-d", "--restart=always", "-p", fmt.Sprintf("%d:5000", port), "--name", fmt.Sprintf("registry-%d", port), registryImage)
+	// wait for a half a second to ensure the registry is up and running
+	time.Sleep(500 * time.Millisecond)
 	require.NoError(t, err)
 }
 
