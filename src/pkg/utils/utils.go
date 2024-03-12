@@ -89,7 +89,7 @@ func UseLogFile() {
 		} else {
 			LogWriter = io.MultiWriter(logFile)
 			pterm.SetDefaultOutput(LogWriter)
-			msg := fmt.Sprintf("Saving log file to %s\n", logFile.Name())
+			msg := fmt.Sprintf("Saving log file to %s", logFile.Name())
 			fmt.Println(msg)
 		}
 	}

@@ -26,6 +26,9 @@ import (
 type tickMsg time.Time
 type operation string
 
+// todo: make dynamic?
+const WIDTH = 50
+
 const (
 	DeployOp operation = "deploy"
 )
@@ -41,7 +44,7 @@ type bndlClientShim interface {
 	ClearPaths()
 }
 
-type model struct {
+type Model struct {
 	bndlClient            bndlClientShim
 	bundleYAML            string
 	completeChan          chan int
@@ -54,15 +57,16 @@ type model struct {
 	spinners              []spinner.Model
 	confirmed             bool
 	complete              []bool
+	done                  bool
 }
 
-func InitModel(client bndlClientShim, bundleYAML string) model {
+func InitModel(client bndlClientShim, bundleYAML string) Model {
 	var confirmed bool
 	if config.CommonOptions.Confirm {
 		confirmed = true
 	}
 
-	return model{
+	return Model{
 		bndlClient:   client,
 		completeChan: make(chan int),
 		fatalChan:    make(chan error),
@@ -71,8 +75,9 @@ func InitModel(client bndlClientShim, bundleYAML string) model {
 	}
 }
 
-func (m model) Init() tea.Cmd {
-	return tea.Sequence(func() tea.Msg {
+func (m Model) Init() tea.Cmd {
+	cmd := tea.Println(fmt.Sprintf("%s", m.preDeployView()))
+	return tea.Sequence(cmd, func() tea.Msg {
 		return DeployOp
 	})
 }
@@ -93,13 +98,13 @@ func GetDeployedPackage(packageName string) (deployedPackage *types.DeployedPack
 	return deployedPackage
 }
 
-func finalPause() tea.Cmd {
-	return tea.Tick(time.Second*1, func(_ time.Time) tea.Msg {
+func pause() tea.Cmd {
+	return tea.Tick(time.Millisecond*500, func(_ time.Time) tea.Msg {
 		return nil
 	})
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
 		cmds []tea.Cmd
 	)
@@ -109,7 +114,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinners[m.pkgIdx].Style = lipgloss.NewStyle().SetString("❌")
 		s, spinnerCmd := m.spinners[m.pkgIdx].Update(spinner.TickMsg{})
 		m.spinners[m.pkgIdx] = s
-		return m, tea.Sequence(spinnerCmd, finalPause(), tea.Quit)
+		return m, tea.Sequence(spinnerCmd, pause(), tea.Quit)
 	default:
 		switch msg := msg.(type) {
 		case progress.FrameMsg:
@@ -127,7 +132,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				// check if last pkg is complete
 				if m.pkgIdx == m.totalPkgs-1 {
-					return m, tea.Sequence(progressCmd, spinnerCmd, finalPause(), tea.Quit)
+					// print success messages and set m.done to remove the current view
+					m.done = true
+					line := strings.Repeat("─", WIDTH) + "\n"
+					successCmds := []tea.Cmd{progressCmd, spinnerCmd, tickCmd(), tea.Println(line)}
+					for i := 0; i < m.totalPkgs; i++ {
+						successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#32A852"))
+						successMsg := fmt.Sprintf("✅ Package %s deployed\n", m.pkgNames[i])
+						successCmds = append(successCmds, tea.Println(successStyle.Render(successMsg)))
+					}
+
+					successCmds = append(successCmds, tea.Quit)
+					return m, tea.Sequence(successCmds...)
 				}
 				return m, tea.Sequence(progressCmd, spinnerCmd)
 			}
@@ -136,6 +152,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				deployedPkg := GetDeployedPackage(m.pkgNames[m.pkgIdx])
 				if deployedPkg != nil && !resetProgress {
 					// todo: instead of going off of DeployedComponents, find a way to include deployedPkg.DeployedComponents[0].Status
+					// todo: make all tests pass!
+					// todo: make this TUI toggleable
 					progressCmd = m.progressBars[m.pkgIdx].SetPercent(
 						float64(len(deployedPkg.DeployedComponents)) / float64(m.totalComponentsPerPkg[m.pkgIdx]),
 					)
@@ -229,28 +247,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m model) View() string {
-	if m.confirmed {
-		return fmt.Sprintf("%s\n%s", m.preDeployView(), m.deployView())
-
-	} else {
-		return m.preDeployView()
+func (m Model) View() string {
+	if m.done {
+		// clear the controlled Program's output
+		return ""
+	} else if m.confirmed {
+		line := strings.Repeat("─", WIDTH)
+		return fmt.Sprintf("%s\n%s", line, m.deployView())
 	}
+	return ""
 }
 
-func (m model) deployView() string {
+func (m Model) deployView() string {
 	view := ""
 	for i := range m.progressBars {
-		width := 50 // todo: make dynamic?
 		text := lipgloss.NewStyle().
-			Width(50).
+			Width(WIDTH).
 			Align(lipgloss.Left).
 			Padding(0, 3).
 			Render(fmt.Sprintf("%s Package %s deploying ...", m.spinners[i].View(), m.pkgNames[i]))
 
 		// render progress bar until deployment is complete
 		bar := lipgloss.NewStyle().
-			Width(50).
+			Width(WIDTH).
 			Align(lipgloss.Left).
 			Padding(0, 3).
 			MarginTop(1).
@@ -258,19 +277,18 @@ func (m model) deployView() string {
 
 		ui := lipgloss.JoinVertical(lipgloss.Center, text, bar)
 
-		//if len(m.complete) > i && m.complete[i] {
-		//	text = lipgloss.NewStyle().
-		//		Width(50).
-		//		Align(lipgloss.Left).
-		//		Padding(0, 3).
-		//		Render(fmt.Sprintf("%s Package %s deployed", m.spinners[i].View(), m.pkgNames[i]))
-		//	ui = lipgloss.JoinVertical(lipgloss.Center, text)
-		//}
+		if len(m.complete) > i && m.complete[i] {
+			text = lipgloss.NewStyle().
+				Width(WIDTH).
+				Align(lipgloss.Left).
+				Padding(0, 3).
+				Render(fmt.Sprintf("%s Package %s deployed", m.spinners[i].View(), m.pkgNames[i]))
+			ui = lipgloss.JoinVertical(lipgloss.Center, text, bar)
+		}
 
-		boxStyle := lipgloss.NewStyle().Width(width).
+		boxStyle := lipgloss.NewStyle().Width(WIDTH).
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#874BFD")).
-			//Padding(1, 0).
 			BorderTop(true).
 			BorderLeft(true).
 			BorderRight(true).
@@ -282,36 +300,37 @@ func (m model) deployView() string {
 			lipgloss.WithWhitespaceForeground(subtle),
 		)
 
-		//if len(m.complete) > i && m.complete[i] {
-		//	boxStyle = lipgloss.NewStyle().
-		//		Border(lipgloss.RoundedBorder()).
-		//		BorderForeground(lipgloss.Color("#874BFD")).
-		//		BorderTop(true).
-		//		BorderLeft(true).
-		//		BorderRight(true).
-		//		BorderBottom(true)
-		//	box = lipgloss.Place(width, 6,
-		//		lipgloss.Left, lipgloss.Top,
-		//		boxStyle.Render(ui),
-		//		lipgloss.WithWhitespaceForeground(subtle),
-		//	)
-		//}
-		//view = lipgloss.JoinVertical(lipgloss.Center, view, box)
-		view += fmt.Sprintf("%s\n", box)
+		if len(m.complete) > i && m.complete[i] {
+			boxStyle = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("#874BFD")).
+				BorderTop(true).
+				BorderLeft(true).
+				BorderRight(true).
+				BorderBottom(true)
+			box = lipgloss.Place(WIDTH, 6,
+				lipgloss.Left, lipgloss.Top,
+				boxStyle.Render(ui),
+				lipgloss.WithWhitespaceForeground(subtle),
+			)
+		}
+		view = lipgloss.JoinVertical(lipgloss.Center, view, box)
 	}
 
 	return view
 }
 
-func (m model) preDeployView() string {
+func (m Model) preDeployView() string {
 	header := "🎁 BUNDLE DEFINITION"
 
-	prompt := "Deploy this bundle? (Y/N): "
+	prompt := "❓ Deploy this bundle? (y/n)"
 
 	prettyYAML := colorPrintYAML(m.bundleYAML)
 
+	line := strings.Repeat("─", WIDTH)
+
 	// Concatenate header, highlighted YAML, and prompt
-	return fmt.Sprintf("\n%s\n\n%s\n\n%s\n", header, prettyYAML, prompt)
+	return fmt.Sprintf("\n%s\n\n%s\n\n%s\n\n%s", header, line, prettyYAML, prompt)
 }
 
 func tickCmd() tea.Cmd {
