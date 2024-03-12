@@ -200,7 +200,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case operation:
 			if m.confirmed {
-				go func() {
+				deployCmd := func() tea.Msg {
 					// if something goes wrong in Deploy(), reset the terminal
 					defer utils.GracefulPanic()
 					// run Deploy concurrently so we can update the TUI while it runs
@@ -208,9 +208,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.bndlClient.ClearPaths()
 						m.fatalChan <- fmt.Errorf("failed to deploy bundle: %s", err.Error())
 					}
-				}()
+					return nil
+				}
 				// use a ticker to update the TUI during deployment
-				return m, tickCmd()
+				return m, tea.Batch(tickCmd(), deployCmd)
 			}
 
 		case string:
