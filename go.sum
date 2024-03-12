@@ -598,8 +598,8 @@ github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/daviddengcn/go-colortext v1.0.0 h1:ANqDyC0ys6qCSvuEK7l3g5RaehL/Xck9EX8ATG8oKsE=
 github.com/daviddengcn/go-colortext v1.0.0/go.mod h1:zDqEI5NVUop5QPpVJUxE9UO10hRnmkD5G4Pmri9+m4c=
-github.com/defenseunicorns/maru-runner v0.0.1 h1:0SPiaXbPKnv7bjsUW2f7rPiIMmd3YLfT9+wQe4810K8=
-github.com/defenseunicorns/maru-runner v0.0.1/go.mod h1:3K+JeLpud+rb8vC+nPFaTNjhqW40++6qFKKVTBEEzQM=
+github.com/defenseunicorns/maru-runner v0.0.2 h1:aZ/MCryY3Dp+u14nhGrvOXVnZI3DYY3ytjFdfHnyqY4=
+github.com/defenseunicorns/maru-runner v0.0.2/go.mod h1:3K+JeLpud+rb8vC+nPFaTNjhqW40++6qFKKVTBEEzQM=
 github.com/defenseunicorns/zarf v0.32.4 h1:3foCaUHUtAu8YId49j3u+EVknaTB8ERaQ9J6Do+bAwc=
 github.com/defenseunicorns/zarf v0.32.4/go.mod h1:f4H7al7qnj5VXfkUkB/CcepVW/DA/O5tvAy8TWv9aT8=
 github.com/deitch/magic v0.0.0-20230404182410-1ff89d7342da h1:ZOjWpVsFZ06eIhnh4mkaceTiVoktdU67+M7KDHJ268M=
