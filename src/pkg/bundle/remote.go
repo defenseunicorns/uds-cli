@@ -166,6 +166,9 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 		return nil, nil, err
 	}
 
+	// grab root manifest config
+	layersToPull = append(layersToPull, rootManifest.Config)
+
 	for _, pkg := range bundle.Packages {
 
 		// grab sha of zarf image manifest and pull it down
