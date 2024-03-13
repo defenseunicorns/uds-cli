@@ -72,6 +72,8 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 	deployZarfInit(t)
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
+	e2e.SetupDockerRegistry(t, 889)
+	defer e2e.TeardownRegistry(t, 889)
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
 	bundleDir := "src/test/bundles/03-local-and-remote"
@@ -86,10 +88,22 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 	}
 	createLocal(t, bundleDir, e2e.Arch)
 	inspectLocal(t, bundlePath)
-	publishInsecure(t, bundlePath, bundleRef.Registry)
-	pull(t, bundleRef.String(), tarballPath)
-	deploy(t, tarballPath)
-	remove(t, tarballPath)
+	deploy(t, bundlePath)
+	remove(t, bundlePath)
+
+	t.Run("Test pulling and deploying from the same registry", func(t *testing.T) {
+		publishInsecure(t, bundlePath, bundleRef.Registry)
+		pull(t, bundleRef.String(), tarballPath) // note that pull pulls the bundle into the build dir
+		deploy(t, filepath.Join("build", filepath.Base(bundlePath)))
+		remove(t, filepath.Join("build", filepath.Base(bundlePath)))
+	})
+
+	t.Run(" Test publishing and deploying from different registries", func(t *testing.T) {
+		publishInsecure(t, bundlePath, bundleRef.Registry)
+		pull(t, bundleRef.String(), tarballPath) // note that pull pulls the bundle into the build dir
+		publishInsecure(t, filepath.Join("build", filepath.Base(bundlePath)), "oci://localhost:889")
+		deployAndRemoveRemoteInsecure(t, bundleRef.String())
+	})
 }
 
 func TestLocalBundleWithRemotePkgs(t *testing.T) {
@@ -263,14 +277,14 @@ func TestRemoteBundleWithRemotePkgs(t *testing.T) {
 	pull(t, bundleRef.String(), tarballPath)
 	inspectRemoteInsecure(t, bundleRef.String())
 	inspectRemoteAndSBOMExtract(t, bundleRef.String())
-	deployAndRemoveRemote(t, bundleRef.String(), tarballPath)
+	deployAndRemoveLocalAndRemoteInsecure(t, bundleRef.String(), tarballPath)
 
 	bundleRef = registry.Reference{
 		Registry:   "oci://localhost:888",
 		Repository: "example-remote",
 		Reference:  "0.0.1",
 	}
-	deployAndRemoveRemote(t, bundleRef.String(), tarballPath)
+	deployAndRemoveLocalAndRemoteInsecure(t, bundleRef.String(), tarballPath)
 }
 
 func TestBundleWithGitRepo(t *testing.T) {
@@ -370,7 +384,7 @@ func TestPackageNaming(t *testing.T) {
 
 	// Test create -o with zarf package names that don't match the zarf package name in the bundle
 	createRemoteInsecure(t, bundleDir, bundleRef.Registry, e2e.Arch)
-	deployAndRemoveRemote(t, bundleRef.String(), tarballPath)
+	deployAndRemoveLocalAndRemoteInsecure(t, bundleRef.String(), tarballPath)
 }
 
 func TestBundleIndexInRemoteOnPublish(t *testing.T) {
@@ -396,7 +410,7 @@ func TestBundleIndexInRemoteOnPublish(t *testing.T) {
 
 	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName))
 	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), tarballPath) // test no oci prefix
-	deployAndRemoveRemote(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), tarballPath)
+	deployAndRemoveLocalAndRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), tarballPath)
 
 	// now test by running 'create -o' over the bundle that was published
 	createRemoteInsecure(t, bundleDir, "oci://localhost:888", e2e.Arch)
@@ -405,7 +419,7 @@ func TestBundleIndexInRemoteOnPublish(t *testing.T) {
 	validateMultiArchIndex(t, index)
 	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName))
 	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), tarballPath) // test no oci prefix
-	deployAndRemoveRemote(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), tarballPath)
+	deployAndRemoveLocalAndRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), tarballPath)
 }
 
 func TestBundleIndexInRemoteOnCreate(t *testing.T) {
@@ -427,7 +441,7 @@ func TestBundleIndexInRemoteOnCreate(t *testing.T) {
 
 	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName))
 	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), tarballPath) // test no oci prefix
-	deployAndRemoveRemote(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), tarballPath)
+	deployAndRemoveLocalAndRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), tarballPath)
 
 	// now test by publishing over the bundle that was created with 'create -o'
 	createLocal(t, bundleDir, e2e.Arch)
@@ -437,7 +451,7 @@ func TestBundleIndexInRemoteOnCreate(t *testing.T) {
 	validateMultiArchIndex(t, index)
 	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName))
 	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), tarballPath) // test no oci prefix
-	deployAndRemoveRemote(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), tarballPath)
+	deployAndRemoveLocalAndRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), tarballPath)
 }
 
 func validateMultiArchIndex(t *testing.T, index ocispec.Index) {
