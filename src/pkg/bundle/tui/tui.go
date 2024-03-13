@@ -34,8 +34,7 @@ const (
 )
 
 var (
-	Program       *tea.Program
-	resetProgress bool
+	Program *tea.Program
 )
 
 // private interface to decouple tui pkg from bundle pkg
@@ -58,6 +57,7 @@ type Model struct {
 	confirmed             bool
 	complete              []bool
 	done                  bool
+	resetProgress         []bool
 }
 
 func InitModel(client bndlClientShim, bundleYAML string) Model {
@@ -122,64 +122,68 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.progressBars[m.pkgIdx] = progressModel.(progress.Model)
 			return m, cmd
 		case tickMsg:
-			var progressCmd tea.Cmd
-			if len(m.complete) > m.pkgIdx && m.complete[m.pkgIdx] {
-				progressCmd = m.progressBars[m.pkgIdx].SetPercent(100)
-				m.spinners[m.pkgIdx].Spinner.Frames = []string{""}
-				m.spinners[m.pkgIdx].Style = lipgloss.NewStyle().SetString("✅")
-				s, spinnerCmd := m.spinners[m.pkgIdx].Update(spinner.TickMsg{})
-				m.spinners[m.pkgIdx] = s
 
-				// check if last pkg is complete
-				if m.pkgIdx == m.totalPkgs-1 {
-					// print success messages and set m.done to remove the current view
-					m.done = true
-					line := strings.Repeat("─", WIDTH) + "\n"
-					successCmds := []tea.Cmd{progressCmd, spinnerCmd, tickCmd(), tea.Println(line)}
-					for i := 0; i < m.totalPkgs; i++ {
-						successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#32A852"))
-						successMsg := fmt.Sprintf("✅ Package %s deployed\n", m.pkgNames[i])
-						successCmds = append(successCmds, tea.Println(successStyle.Render(successMsg)))
-					}
-
-					successCmds = append(successCmds, tea.Quit)
-					return m, tea.Sequence(successCmds...)
+			// on a successful bundle deployment, print success message and quit
+			if len(m.complete) == m.totalPkgs {
+				// check if last pkg is complete; if so, print success messages and quit
+				m.done = true // remove the current view
+				line := strings.Repeat("─", WIDTH) + "\n"
+				successCmds := []tea.Cmd{tea.Println(line)}
+				for i := 0; i < m.totalPkgs; i++ {
+					successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#32A852"))
+					successMsg := fmt.Sprintf("✅ Package %s deployed\n", m.pkgNames[i])
+					successCmds = append(successCmds, tea.Println(successStyle.Render(successMsg)))
 				}
-				return m, tea.Sequence(progressCmd, spinnerCmd)
+
+				successCmds = append(successCmds, tea.Quit)
+				return m, tea.Sequence(successCmds...)
 			}
 
-			if len(m.totalComponentsPerPkg) > m.pkgIdx && m.totalComponentsPerPkg[m.pkgIdx] > 0 {
-				deployedPkg := GetDeployedPackage(m.pkgNames[m.pkgIdx])
-				if deployedPkg != nil && !resetProgress {
-					// todo: instead of going off of DeployedComponents, find a way to include deployedPkg.DeployedComponents[0].Status
-					// todo: make all tests pass!
-					// todo: make this TUI toggleable
-					progressCmd = m.progressBars[m.pkgIdx].SetPercent(
-						float64(len(deployedPkg.DeployedComponents)) / float64(m.totalComponentsPerPkg[m.pkgIdx]),
-					)
-					if m.progressBars[m.pkgIdx].Percent() == 1 {
-						// todo: instead of going off percentage, go off successful deployment of the pkg
-						// stop the spinners and show success
-						m.spinners[m.pkgIdx].Spinner.Frames = []string{""}
-						m.spinners[m.pkgIdx].Style = lipgloss.NewStyle().SetString("✅")
-					}
-				} else {
-					// handle upgrade scenario by resetting the progress bar until DeployedComponents is back to 1 (ie. the first component)
-					progressCmd = m.progressBars[m.pkgIdx].SetPercent(0)
-					if deployedPkg != nil && len(deployedPkg.DeployedComponents) >= 1 {
-						resetProgress = false
+			// update progress bars and spinners for all pkgs
+			var spinnerCmds []tea.Cmd
+			var progressCmds []tea.Cmd
+			var updateCmds []tea.Cmd
+			for i, name := range m.pkgNames {
+				var progressCmd tea.Cmd
+				if !(len(m.complete) > i && m.complete[i]) {
+					deployedPkg := GetDeployedPackage(name)
+
+					// handle upgrade scenario by resetting the progress bar, otherwise increment it
+					if m.resetProgress[i] {
+						progressCmds = append(progressCmds, m.progressBars[i].SetPercent(0))
+						// if upgraded len(deployedPkg.DeployedComponents) will be equal to the number of components in the package
+						if deployedPkg != nil && len(deployedPkg.DeployedComponents) == 1 {
+							m.resetProgress[i] = false
+						}
+					} else if deployedPkg != nil && len(m.totalComponentsPerPkg) > i {
+						// slight delay between rendering the TUI and updating m.totalComponentsPerPkg, be sure to check for it
+						progressCmd = m.progressBars[i].SetPercent(
+							min(float64(len(deployedPkg.DeployedComponents))/float64(m.totalComponentsPerPkg[i]), 0.99),
+						)
 					}
 				}
-			}
-			// must send a spinners.TickMsg to the spinners to keep it spinning
-			if len(m.spinners) > 0 {
-				s, spinnerCmd := m.spinners[m.pkgIdx].Update(spinner.TickMsg{})
-				m.spinners[m.pkgIdx] = s
 
-				return m, tea.Sequence(progressCmd, spinnerCmd, tickCmd())
+				// for all completed pkgs, ensure spinner is ✅ and progress is full
+				// todo: sometimes get (error) on spinner at end of deployment
+				for j := range m.complete {
+					m.spinners[j].Style = lipgloss.NewStyle().SetString("✅")
+					m.spinners[j].Spinner.Frames = []string{""}
+					progressCmd = m.progressBars[j].SetPercent(1)
+				}
+				progressCmds = append(progressCmds, progressCmd)
+
+				// update spinner
+				s, cmd := m.spinners[i].Update(spinner.TickMsg{})
+				m.spinners[i] = s
+				spinnerCmds = append(spinnerCmds, cmd)
 			}
 
-			return m, tea.Sequence(progressCmd, tickCmd())
+			// join spinnerCmds and progressCmds
+			updateCmds = append(updateCmds, progressCmds...)
+			updateCmds = append(updateCmds, spinnerCmds...)
+			updateCmds = append(updateCmds, tickCmd())
+
+			return m, tea.Sequence(updateCmds...)
 
 		case tea.KeyMsg:
 			switch msg.String() {
@@ -216,12 +220,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case string:
 			if strings.Split(msg, ":")[0] == "package" {
+				// grab pkgName
 				pkgName := strings.Split(msg, ":")[1]
 				m.pkgNames = append(m.pkgNames, pkgName)
-				// if pkg is already deployed, set resetProgress to true
+
+				// if pkg is already deployed, set resetProgress to true to clear the progress bar
 				if deployedPkg := GetDeployedPackage(pkgName); deployedPkg != nil && len(deployedPkg.DeployedComponents) != 0 {
-					resetProgress = true
+					m.resetProgress = append(m.resetProgress, true)
 				}
+				// grab pkg index
+				if currentPkgIdx, err := strconv.Atoi(strings.Split(msg, ":")[2]); err == nil {
+					m.pkgIdx = currentPkgIdx
+					m.progressBars = append(m.progressBars, progress.New(progress.WithDefaultGradient()))
+					s := spinner.New()
+					s.Spinner = spinner.Dot
+					s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+					m.spinners = append(m.spinners, s)
+				}
+
 			} else if strings.Split(msg, ":")[0] == "totalComponents" {
 				if totalComponents, err := strconv.Atoi(strings.Split(msg, ":")[1]); err == nil {
 					m.totalComponentsPerPkg = append(m.totalComponentsPerPkg, totalComponents)
@@ -230,21 +246,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if totalPkgs, err := strconv.Atoi(strings.Split(msg, ":")[1]); err == nil {
 					m.totalPkgs = totalPkgs
 				}
-			} else if strings.Split(msg, ":")[0] == "idx" {
-				if currentPkgIdx, err := strconv.Atoi(strings.Split(msg, ":")[1]); err == nil {
-					m.pkgIdx = currentPkgIdx
-					m.progressBars = append(m.progressBars, progress.New(progress.WithDefaultGradient()))
-					s := spinner.New()
-					s.Spinner = spinner.Dot
-					s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-					m.spinners = append(m.spinners, s)
-				}
 			} else if strings.Split(msg, ":")[0] == "complete" {
+				m.spinners[m.pkgIdx].Spinner.Frames = []string{""}
+				m.spinners[m.pkgIdx].Style = lipgloss.NewStyle().SetString("✅")
+				cmds = append(cmds, m.progressBars[m.pkgIdx].SetPercent(1))
 				m.complete = append(m.complete, true)
 			}
 		}
 	}
 
+	// keep this as Batch for now, spinner breaks if it's a Sequence
 	return m, tea.Batch(cmds...)
 }
 

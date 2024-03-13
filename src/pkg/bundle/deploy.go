@@ -137,9 +137,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 			return err
 		}
 
-		// bubbletea recommends calling the Program directly: https://github.com/charmbracelet/bubbletea/discussions/374
-		tui.Program.Send(fmt.Sprintf("package:%s", pkg.Name))
-		tui.Program.Send(fmt.Sprintf("idx:%d", i))
+		tui.Program.Send(fmt.Sprintf("package:%s:%d", pkg.Name, i))
 
 		if err := pkgClient.Deploy(); err != nil {
 			return err
