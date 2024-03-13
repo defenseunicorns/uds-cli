@@ -5,7 +5,7 @@ go 1.21.6
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
-	github.com/defenseunicorns/maru-runner v0.0.1
+	github.com/defenseunicorns/maru-runner v0.0.2
 	github.com/defenseunicorns/zarf v0.32.4
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/goccy/go-yaml v1.11.3

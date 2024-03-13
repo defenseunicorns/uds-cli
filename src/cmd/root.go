@@ -7,19 +7,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime/debug"
-	"strings"
-
-	runnerCLI "github.com/defenseunicorns/maru-runner/src/cmd"
-	runnerConfig "github.com/defenseunicorns/maru-runner/src/config"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	zarfCLI "github.com/defenseunicorns/zarf/src/cmd"
 	"github.com/defenseunicorns/zarf/src/cmd/common"
-	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
 	"github.com/spf13/cobra"
@@ -69,53 +62,6 @@ func RootCmd() *cobra.Command {
 }
 
 func init() {
-	// grab Zarf version to make Zarf library checks happy
-	if buildInfo, ok := debug.ReadBuildInfo(); ok {
-		for _, dep := range buildInfo.Deps {
-			if dep.Path == "github.com/defenseunicorns/zarf" {
-				zarfConfig.CLIVersion = strings.Split(dep.Version, "v")[1]
-			}
-		}
-	}
-
-	// vendored Zarf command
-	if len(os.Args) > 1 && (os.Args[1] == "zarf" || os.Args[1] == "z") {
-		zarfCmd := &cobra.Command{
-			Use:     "zarf COMMAND",
-			Aliases: []string{"z"},
-			Run: func(_ *cobra.Command, _ []string) {
-				os.Args = os.Args[1:] // grab 'zarf' and onward from the CLI args
-				zarfCLI.Execute()
-			},
-			DisableFlagParsing: true,
-		}
-		rootCmd.AddCommand(zarfCmd)
-
-		// disable UDS log file for Zarf commands bc Zarf has its own log file
-		config.SkipLogFile = true
-		return
-	}
-
-	// vendored run command
-	if len(os.Args) > 1 && (os.Args[1] == "run" || os.Args[1] == "r") {
-		runnerCmd := &cobra.Command{
-			Use:     "run",
-			Aliases: []string{"r"},
-			Run: func(_ *cobra.Command, _ []string) {
-				os.Args = os.Args[1:]          // grab 'run' and onward from the CLI args
-				runnerConfig.CmdPrefix = "uds" // use vendored Zarf inside the runner
-				runnerConfig.EnvPrefix = "uds"
-				runnerCLI.RootCmd().SetArgs(os.Args)
-				runnerCLI.Execute()
-			},
-			DisableFlagParsing: true,
-		}
-		rootCmd.AddCommand(runnerCmd)
-
-		// disable UDS log file for the runner because the runner has its own log file
-		config.SkipLogFile = true
-		return
-	}
 
 	initViper()
 
