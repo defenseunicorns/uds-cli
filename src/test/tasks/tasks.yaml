@@ -162,3 +162,7 @@ tasks:
     actions:
       - cmd: cat ${COOL_FILE}
         dir: ${COOL_DIR}
+  - name: echo-architecture
+    description: Echos the architecture being used for the task by the runner
+    actions:
+        - cmd: echo "${UDS_ARCH}"
