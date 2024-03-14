@@ -71,8 +71,8 @@ const (
 	CmdInternalConfigSchemaErr   = "Unable to generate the uds-bundle.yaml schema"
 
 	// uds run
-	CmdRunFlag        = "Name and location of task file to run"
-	CmdRunSetVarFlag  = "Set a runner variable from the command line (KEY=value)"
-	CmdRunWithVarFlag = "Set the inputs for a task from the command line (KEY=value)"
-	CmdRunList        = "List available tasks in a task file"
+	CmdRunShort = "Run a task using maru-runner"
+
+	// uds zarf
+	CmdZarfShort = "Run a zarf command"
 )

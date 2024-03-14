@@ -136,7 +136,13 @@ func removePackagesFlag(tarballPath string, packages string) (stdout string, std
 	return stdout, stderr
 }
 
-func deployAndRemoveRemote(t *testing.T, ref string, tarballPath string) {
+func deployAndRemoveRemoteInsecure(t *testing.T, ref string) {
+	cmd := strings.Split(fmt.Sprintf("deploy %s --insecure --oci-concurrency=10 --confirm", ref), " ")
+	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+}
+
+func deployAndRemoveLocalAndRemoteInsecure(t *testing.T, ref string, tarballPath string) {
 	var cmd []string
 	// test both paths because we want to test that the pulled tarball works as well
 	t.Run(

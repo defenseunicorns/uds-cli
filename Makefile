@@ -57,3 +57,6 @@ clean-test-artifacts: ## removes bundles and zarf packages that have been create
 
 push-test-artifacts: ## Push artifacts that UDS CLI tests rely on to GHCR
 	cd hack && ./push-test-artifacts.sh
+
+lint: ## Run golangci-lint on the project
+	golangci-lint run ./src/...
