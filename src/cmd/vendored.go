@@ -26,6 +26,12 @@ var runnerCmd = &cobra.Command{
 		os.Args = os.Args[1:]          // grab 'run' and onward from the CLI args
 		runnerConfig.CmdPrefix = "uds" // use vendored Zarf inside the runner
 		runnerConfig.EnvPrefix = "uds"
+		// The maru runner init gets called before the uds-cli init, which looks for RUN_ARCHITECTURE because the EnvPrefix
+		// that we set above is not called yet. So in order to set the architecture if passing in UDS_ARCHITECTURE we must set it here.
+		archValue := os.Getenv("UDS_ARCHITECTURE")
+		if archValue != "" {
+			runnerConfig.CLIArch = archValue
+		}
 		runnerCLI.RootCmd().SetArgs(os.Args)
 		runnerCLI.Execute()
 	},
