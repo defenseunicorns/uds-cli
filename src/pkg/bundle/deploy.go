@@ -160,6 +160,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackag
 			OptionalComponents: strings.Join(pkg.OptionalComponents, ","),
 			PublicKeyPath:      publicKeyPath,
 			SetVariables:       pkgVars,
+			Retries:            1,
 		}
 
 		valuesOverrides, err := b.loadChartOverrides(pkg, pkgVars)
