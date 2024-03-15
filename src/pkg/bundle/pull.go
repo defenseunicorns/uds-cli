@@ -34,13 +34,13 @@ func (b *Bundle) Pull() error {
 	}
 
 	// Get validated source path
-	source, err := CheckOCISourcePath(ctx, b.cfg.PullOpts.Source)
+	source, err := CheckOCISourcePath(b.cfg.PullOpts.Source)
 	if err != nil {
 		return err
 	}
 	b.cfg.PullOpts.Source = source
 
-	provider, err := NewBundleProvider(ctx, b.cfg.PullOpts.Source, cacheDir)
+	provider, err := NewBundleProvider(b.cfg.PullOpts.Source, cacheDir)
 	if err != nil {
 		return err
 	}
@@ -125,7 +125,7 @@ func (b *Bundle) Pull() error {
 	}
 
 	// tarball the bundle
-	if err := format.Archive(context.TODO(), out, files); err != nil {
+	if err := format.Archive(ctx, out, files); err != nil {
 		return err
 	}
 

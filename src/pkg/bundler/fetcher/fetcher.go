@@ -53,7 +53,6 @@ func NewPkgFetcher(pkg types.Package, fetcherConfig Config) (Fetcher, error) {
 			return nil, err
 		}
 		fetcher = &remoteFetcher{
-			ctx:             ctx,
 			pkg:             pkg,
 			cfg:             fetcherConfig,
 			pkgRootManifest: pkgRootManifest,

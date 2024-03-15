@@ -26,7 +26,6 @@ import (
 )
 
 type remoteFetcher struct {
-	ctx             context.Context
 	pkg             types.Package
 	cfg             Config
 	pkgRootManifest *oci.Manifest
@@ -53,7 +52,7 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 			if err != nil {
 				return nil, err
 			}
-			err = utils.FetchLayerAndStore(f.ctx, layerDesc, f.remote.OrasRemote, f.cfg.Store)
+			err = utils.FetchLayerAndStore(layerDesc, f.remote.OrasRemote, f.cfg.Store)
 			if err != nil {
 				return nil, err
 			}
@@ -100,7 +99,7 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 func (f *remoteFetcher) layersToLocalBundle(spinner *message.Spinner, currentPackageIter int, totalPackages int) ([]ocispec.Descriptor, error) {
 	spinner.Updatef("Fetching %s package layer metadata (package %d of %d)", f.pkg.Name, currentPackageIter, totalPackages)
 	// get only the layers that are required by the components
-	layersToCopy, err := utils.GetZarfLayers(f.ctx, *f.remote, f.pkg, f.pkgRootManifest)
+	layersToCopy, err := utils.GetZarfLayers(*f.remote, f.pkg, f.pkgRootManifest)
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +115,7 @@ func (f *remoteFetcher) layersToLocalBundle(spinner *message.Spinner, currentPac
 
 // remoteToLocal copies a remote Zarf pkg to a local OCI store
 func (f *remoteFetcher) remoteToLocal(layersToCopy []ocispec.Descriptor) ([]ocispec.Descriptor, error) {
+	ctx := context.TODO()
 	// pull layers from remote and write to OCI artifact dir
 	var descsToBundle []ocispec.Descriptor
 	var layersToPull []ocispec.Descriptor
@@ -126,7 +126,7 @@ func (f *remoteFetcher) remoteToLocal(layersToCopy []ocispec.Descriptor) ([]ocis
 			continue
 		}
 		// check if layer already exists
-		if exists, _ := f.cfg.Store.Exists(f.ctx, layer); exists {
+		if exists, _ := f.cfg.Store.Exists(ctx, layer); exists {
 			continue
 		} else if cache.Exists(layer.Digest.Encoded()) {
 			err := cache.Use(layer.Digest.Encoded(), filepath.Join(f.cfg.TmpDstDir, config.BlobsDir))
@@ -187,6 +187,7 @@ func (f *remoteFetcher) remoteToLocal(layersToCopy []ocispec.Descriptor) ([]ocis
 }
 
 func (f *remoteFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
+	ctx := context.TODO()
 	platform := ocispec.Platform{
 		Architecture: config.GetArch(),
 		OS:           oci.MultiOS,
@@ -200,7 +201,7 @@ func (f *remoteFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, fmt.Errorf("bundler unable to create temp directory: %w", err)
 	}
-	if _, err := remote.PullPackageMetadata(f.ctx, tmpDir); err != nil {
+	if _, err := remote.PullPackageMetadata(ctx, tmpDir); err != nil {
 		return zarfTypes.ZarfPackage{}, err
 	}
 	zarfYAML := zarfTypes.ZarfPackage{}

@@ -5,25 +5,22 @@
 package bundle
 
 import (
-	"context"
-
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 )
 
 // Inspect pulls/unpacks a bundle's metadata and shows it
 func (b *Bundle) Inspect() error {
-	ctx := context.TODO()
 
 	// Check that provided oci source path is valid, and update it if it's missing the full path
-	source, err := CheckOCISourcePath(ctx, b.cfg.InspectOpts.Source)
+	source, err := CheckOCISourcePath(b.cfg.InspectOpts.Source)
 	if err != nil {
 		return err
 	}
 	b.cfg.InspectOpts.Source = source
 
 	// create a new provider
-	provider, err := NewBundleProvider(ctx, b.cfg.InspectOpts.Source, b.tmp)
+	provider, err := NewBundleProvider(b.cfg.InspectOpts.Source, b.tmp)
 	if err != nil {
 		return err
 	}

@@ -5,7 +5,6 @@
 package bundle
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -22,10 +21,9 @@ import (
 
 // Remove removes packages deployed from a bundle
 func (b *Bundle) Remove() error {
-	ctx := context.TODO()
 
 	// Check that provided oci source path is valid, and update it if it's missing the full path
-	source, err := CheckOCISourcePath(ctx, b.cfg.RemoveOpts.Source)
+	source, err := CheckOCISourcePath(b.cfg.RemoveOpts.Source)
 	if err != nil {
 		return err
 	}
@@ -38,7 +36,7 @@ func (b *Bundle) Remove() error {
 	}
 
 	// create a new provider
-	provider, err := NewBundleProvider(ctx, b.cfg.RemoveOpts.Source, b.tmp)
+	provider, err := NewBundleProvider(b.cfg.RemoveOpts.Source, b.tmp)
 	if err != nil {
 		return err
 	}

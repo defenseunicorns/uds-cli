@@ -5,7 +5,6 @@
 package sources
 
 import (
-	"context"
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
@@ -42,7 +41,6 @@ func New(pkgLocation string, pkgName string, opts zarfTypes.ZarfPackageOptions, 
 			PkgManifestSHA: sha,
 			TmpDir:         opts.PackageSource,
 			Remote:         remote.OrasRemote,
-			ctx:            context.TODO(),
 		}
 	}
 	return source, nil

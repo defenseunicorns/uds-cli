@@ -31,7 +31,6 @@ type RemoteBundle struct {
 	bundle    *types.UDSBundle
 	tmpDstDir string
 	output    string
-	ctx       context.Context
 }
 
 // NewRemoteBundle creates a new remote bundle
@@ -40,12 +39,13 @@ func NewRemoteBundle(opts *RemoteBundleOpts) *RemoteBundle {
 		bundle:    opts.Bundle,
 		tmpDstDir: opts.TmpDstDir,
 		output:    opts.Output,
-		ctx:       context.TODO(),
 	}
 }
 
 // create creates the bundle in a remote OCI registry publishes w/ optional signature to the remote repository.
 func (r *RemoteBundle) create(signature []byte) error {
+	ctx := context.TODO()
+
 	// set the bundle remote's reference from metadata
 	r.output = utils.EnsureOCIPrefix(r.output)
 	ref, err := referenceFromMetadata(r.output, &r.bundle.Metadata)
@@ -84,7 +84,7 @@ func (r *RemoteBundle) create(signature []byte) error {
 			return err
 		}
 		pusherConfig.RemoteSrc = *src
-		pkgRootManifest, err := src.FetchRoot(r.ctx)
+		pkgRootManifest, err := src.FetchRoot(ctx)
 		if err != nil {
 			return err
 		}
@@ -104,7 +104,7 @@ func (r *RemoteBundle) create(signature []byte) error {
 	if err != nil {
 		return err
 	}
-	bundleYamlDesc, err := bundleRemote.PushLayer(r.ctx, bundleYamlBytes, zoci.ZarfLayerMediaTypeBlob)
+	bundleYamlDesc, err := bundleRemote.PushLayer(ctx, bundleYamlBytes, zoci.ZarfLayerMediaTypeBlob)
 	if err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func (r *RemoteBundle) create(signature []byte) error {
 
 	// push the bundle's signature
 	if len(signature) > 0 {
-		bundleYamlSigDesc, err := bundleRemote.PushLayer(r.ctx, signature, zoci.ZarfLayerMediaTypeBlob)
+		bundleYamlSigDesc, err := bundleRemote.PushLayer(ctx, signature, zoci.ZarfLayerMediaTypeBlob)
 		if err != nil {
 			return err
 		}
@@ -129,7 +129,7 @@ func (r *RemoteBundle) create(signature []byte) error {
 	}
 
 	// push the bundle manifest config
-	configDesc, err := pushManifestConfigFromMetadata(r.ctx, bundleRemote.OrasRemote, &bundle.Metadata, &bundle.Build)
+	configDesc, err := pushManifestConfigFromMetadata(bundleRemote.OrasRemote, &bundle.Metadata, &bundle.Build)
 	if err != nil {
 		return err
 	}
@@ -146,7 +146,7 @@ func (r *RemoteBundle) create(signature []byte) error {
 	rootManifest.Config = configDesc
 	rootManifest.SchemaVersion = 2
 	rootManifest.Annotations = manifestAnnotationsFromMetadata(&bundle.Metadata) // maps to registry UI
-	rootManifestDesc, err := utils.ToOCIRemote(r.ctx, rootManifest, ocispec.MediaTypeImageManifest, bundleRemote.OrasRemote)
+	rootManifestDesc, err := utils.ToOCIRemote(rootManifest, ocispec.MediaTypeImageManifest, bundleRemote.OrasRemote)
 	if err != nil {
 		return err
 	}

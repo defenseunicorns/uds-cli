@@ -26,7 +26,8 @@ import (
 )
 
 // FetchLayerAndStore fetches a remote layer and copies it to a local store
-func FetchLayerAndStore(ctx context.Context, layerDesc ocispec.Descriptor, remoteRepo *oci.OrasRemote, localStore *ocistore.Store) error {
+func FetchLayerAndStore(layerDesc ocispec.Descriptor, remoteRepo *oci.OrasRemote, localStore *ocistore.Store) error {
+	ctx := context.TODO()
 	layerBytes, err := remoteRepo.FetchLayer(ctx, layerDesc)
 	if err != nil {
 		return err
@@ -53,7 +54,8 @@ func ToOCIStore(t any, mediaType string, store *ocistore.Store) (ocispec.Descrip
 }
 
 // ToOCIRemote takes an arbitrary type, typically a struct, marshals it into JSON and store it in a remote OCI store
-func ToOCIRemote(ctx context.Context, t any, mediaType string, remote *oci.OrasRemote) (*ocispec.Descriptor, error) {
+func ToOCIRemote(t any, mediaType string, remote *oci.OrasRemote) (*ocispec.Descriptor, error) {
+	ctx := context.TODO()
 	b, err := json.Marshal(t)
 	if err != nil {
 		return &ocispec.Descriptor{}, err
@@ -63,8 +65,7 @@ func ToOCIRemote(ctx context.Context, t any, mediaType string, remote *oci.OrasR
 	// if image manifest media type, push to Manifests(), otherwise normal pushLayer()
 	if mediaType == ocispec.MediaTypeImageManifest {
 		descriptorFromBytes := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, b)
-		layerDesc = &descriptorFromBytes
-		if err := remote.Repo().Manifests().PushReference(context.TODO(), *layerDesc, bytes.NewReader(b), remote.Repo().Reference.String()); err != nil {
+		if err := remote.Repo().Manifests().PushReference(ctx, descriptorFromBytes, bytes.NewReader(b), remote.Repo().Reference.String()); err != nil {
 			return &ocispec.Descriptor{}, fmt.Errorf("failed to push manifest: %w", err)
 		}
 	} else {
@@ -220,8 +221,9 @@ func UpdateIndex(index *ocispec.Index, remote *oci.OrasRemote, bundle *types.UDS
 
 // GetIndex gets the OCI index from a remote repository if the index exists, otherwise returns a
 func GetIndex(remote *oci.OrasRemote, ref string) (*ocispec.Index, error) {
+	ctx := context.TODO()
 	var index *ocispec.Index
-	existingRootDesc, err := remote.Repo().Resolve(context.TODO(), ref)
+	existingRootDesc, err := remote.Repo().Resolve(ctx, ref)
 	if err != nil {
 		// ErrNotFound indicates that the repo hasn't been created yet, expected for brand new repos in a registry
 		// if the err isn't of type ErrNotFound, it's a real error so return it
@@ -231,7 +233,7 @@ func GetIndex(remote *oci.OrasRemote, ref string) (*ocispec.Index, error) {
 	}
 	// if an index exists, save it so we can update it after pushing the bundle's root manifest
 	if existingRootDesc.MediaType == ocispec.MediaTypeImageIndex {
-		rc, err := remote.Repo().Fetch(context.TODO(), existingRootDesc)
+		rc, err := remote.Repo().Fetch(ctx, existingRootDesc)
 		if err != nil {
 			return nil, err
 		}
@@ -257,7 +259,8 @@ func EnsureOCIPrefix(source string) string {
 }
 
 // GetZarfLayers grabs the necessary Zarf pkg layers from a remote OCI registry
-func GetZarfLayers(ctx context.Context, remote zoci.Remote, pkg types.Package, pkgRootManifest *oci.Manifest) ([]ocispec.Descriptor, error) {
+func GetZarfLayers(remote zoci.Remote, pkg types.Package, pkgRootManifest *oci.Manifest) ([]ocispec.Descriptor, error) {
+	ctx := context.TODO()
 	layersFromComponents, err := remote.LayersFromRequestedComponents(ctx, pkg.OptionalComponents)
 	if err != nil {
 		return nil, err

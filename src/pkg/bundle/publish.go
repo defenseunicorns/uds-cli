@@ -5,7 +5,6 @@
 package bundle
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,7 +24,7 @@ func (b *Bundle) Publish() error {
 
 	// load bundle metadata into memory
 	// todo: having the tmp dir be the provider.dst is weird
-	provider, err := NewBundleProvider(context.TODO(), b.cfg.PublishOpts.Source, b.tmp)
+	provider, err := NewBundleProvider(b.cfg.PublishOpts.Source, b.tmp)
 	if err != nil {
 		return err
 	}

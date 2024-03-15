@@ -51,9 +51,10 @@ type Provider interface {
 }
 
 // NewBundleProvider returns a new bundler Provider based on the source type
-func NewBundleProvider(ctx context.Context, source, destination string) (Provider, error) {
+func NewBundleProvider(source, destination string) (Provider, error) {
+	ctx := context.TODO()
 	if helpers.IsOCIURL(source) {
-		op := ociProvider{ctx: ctx, src: source, dst: destination}
+		op := ociProvider{src: source, dst: destination}
 		platform := ocispec.Platform{
 			Architecture: config.GetArch(),
 			OS:           oci.MultiOS,

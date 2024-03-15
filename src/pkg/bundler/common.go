@@ -5,7 +5,6 @@
 package bundler
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -46,7 +45,7 @@ func manifestAnnotationsFromMetadata(metadata *types.UDSMetadata) map[string]str
 }
 
 // copied from: https://github.com/defenseunicorns/zarf/blob/main/src/pkg/oci/push.go
-func pushManifestConfigFromMetadata(ctx context.Context, r *oci.OrasRemote, metadata *types.UDSMetadata, build *types.UDSBuildData) (ocispec.Descriptor, error) {
+func pushManifestConfigFromMetadata(r *oci.OrasRemote, metadata *types.UDSMetadata, build *types.UDSBuildData) (ocispec.Descriptor, error) {
 	annotations := map[string]string{
 		ocispec.AnnotationTitle:       metadata.Name,
 		ocispec.AnnotationDescription: metadata.Description,
@@ -56,7 +55,7 @@ func pushManifestConfigFromMetadata(ctx context.Context, r *oci.OrasRemote, meta
 		OCIVersion:   "1.0.1",
 		Annotations:  annotations,
 	}
-	manifestConfigDesc, err := utils.ToOCIRemote(ctx, manifestConfig, zoci.ZarfLayerMediaTypeBlob, r)
+	manifestConfigDesc, err := utils.ToOCIRemote(manifestConfig, zoci.ZarfLayerMediaTypeBlob, r)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}

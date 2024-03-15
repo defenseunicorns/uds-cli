@@ -20,7 +20,6 @@ import (
 
 // RemotePusher contains methods for pulling remote Zarf packages into a bundle
 type RemotePusher struct {
-	ctx context.Context
 	pkg types.Package
 	cfg Config
 }
@@ -37,11 +36,12 @@ type Config struct {
 
 // NewPkgPusher creates a pusher object to push Zarf pkgs to a remote bundle
 func NewPkgPusher(pkg types.Package, cfg Config) RemotePusher {
-	return RemotePusher{ctx: context.TODO(), pkg: pkg, cfg: cfg}
+	return RemotePusher{pkg: pkg, cfg: cfg}
 }
 
 // Push pushes a Zarf pkg to a remote bundle
 func (p *RemotePusher) Push() (ocispec.Descriptor, error) {
+	ctx := context.TODO()
 	zarfManifestDesc, err := p.PushManifest()
 	if err != nil {
 		return ocispec.Descriptor{}, err
@@ -53,7 +53,7 @@ func (p *RemotePusher) Push() (ocispec.Descriptor, error) {
 	message.Debugf("Pushed %s sub-manifest into %s: %s", url, p.cfg.RemoteDst.Repo().Reference, message.JSONValue(zarfManifestDesc))
 
 	// add package name annotations to zarf manifest
-	zarfYamlFile, err := p.cfg.RemoteSrc.FetchZarfYAML(p.ctx)
+	zarfYamlFile, err := p.cfg.RemoteSrc.FetchZarfYAML(ctx)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
@@ -76,7 +76,7 @@ func (p *RemotePusher) Push() (ocispec.Descriptor, error) {
 // PushManifest pushes the Zarf pkg's manifest to either a local or remote bundle
 func (p *RemotePusher) PushManifest() (ocispec.Descriptor, error) {
 	var zarfManifestDesc ocispec.Descriptor
-	desc, err := utils.ToOCIRemote(p.ctx, p.cfg.PkgRootManifest, zoci.ZarfLayerMediaTypeBlob, p.cfg.RemoteDst.OrasRemote)
+	desc, err := utils.ToOCIRemote(p.cfg.PkgRootManifest, zoci.ZarfLayerMediaTypeBlob, p.cfg.RemoteDst.OrasRemote)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
@@ -88,7 +88,7 @@ func (p *RemotePusher) PushManifest() (ocispec.Descriptor, error) {
 func (p *RemotePusher) LayersToRemoteBundle(spinner *message.Spinner, currentPackageIter int, totalPackages int) ([]ocispec.Descriptor, error) {
 	spinner.Updatef("Fetching %s package layer metadata (package %d of %d)", p.pkg.Name, currentPackageIter, totalPackages)
 	// get only the layers that are required by the components
-	layersToCopy, err := utils.GetZarfLayers(p.ctx, p.cfg.RemoteSrc, p.pkg, p.cfg.PkgRootManifest)
+	layersToCopy, err := utils.GetZarfLayers(p.cfg.RemoteSrc, p.pkg, p.cfg.PkgRootManifest)
 	if err != nil {
 		return nil, err
 	}
@@ -103,6 +103,7 @@ func (p *RemotePusher) LayersToRemoteBundle(spinner *message.Spinner, currentPac
 
 // remoteToRemote copies a remote Zarf pkg to a remote OCI registry
 func (p *RemotePusher) remoteToRemote(layersToCopy []ocispec.Descriptor) error {
+	ctx := context.TODO()
 	srcRef := p.cfg.RemoteSrc.Repo().Reference
 	dstRef := p.cfg.RemoteDst.Repo().Reference
 	// stream copy if different registry
@@ -118,7 +119,7 @@ func (p *RemotePusher) remoteToRemote(layersToCopy []ocispec.Descriptor) error {
 			}
 			return false
 		}
-		if err := oci.Copy(p.ctx, p.cfg.RemoteSrc.OrasRemote, p.cfg.RemoteDst.OrasRemote, filterLayers, config.CommonOptions.OCIConcurrency, nil); err != nil {
+		if err := oci.Copy(ctx, p.cfg.RemoteSrc.OrasRemote, p.cfg.RemoteDst.OrasRemote, filterLayers, config.CommonOptions.OCIConcurrency, nil); err != nil {
 			return err
 		}
 	} else {
@@ -131,8 +132,8 @@ func (p *RemotePusher) remoteToRemote(layersToCopy []ocispec.Descriptor) error {
 				continue
 			}
 			spinner.Updatef("Mounting %s", layer.Digest.Encoded())
-			if err := p.cfg.RemoteDst.Repo().Mount(p.ctx, layer, srcRef.Repository, func() (io.ReadCloser, error) {
-				return p.cfg.RemoteSrc.Repo().Fetch(p.ctx, layer)
+			if err := p.cfg.RemoteDst.Repo().Mount(ctx, layer, srcRef.Repository, func() (io.ReadCloser, error) {
+				return p.cfg.RemoteSrc.Repo().Fetch(ctx, layer)
 			}); err != nil {
 				return err
 			}

@@ -5,7 +5,6 @@
 package bundle
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -37,7 +36,6 @@ var templatedVarRegex = regexp.MustCompile(`\${([^}]+)}`)
 
 // Deploy deploys a bundle
 func (b *Bundle) Deploy() error {
-	ctx := context.TODO()
 
 	pterm.Println()
 	metadataSpinner := message.NewProgressSpinner("Loading bundle metadata")
@@ -45,7 +43,7 @@ func (b *Bundle) Deploy() error {
 	defer metadataSpinner.Stop()
 
 	// Check that provided oci source path is valid, and update it if it's missing the full path
-	source, err := CheckOCISourcePath(ctx, b.cfg.DeployOpts.Source)
+	source, err := CheckOCISourcePath(b.cfg.DeployOpts.Source)
 	if err != nil {
 		return err
 	}
@@ -58,7 +56,7 @@ func (b *Bundle) Deploy() error {
 	}
 
 	// create a new provider
-	provider, err := NewBundleProvider(ctx, b.cfg.DeployOpts.Source, b.tmp)
+	provider, err := NewBundleProvider(b.cfg.DeployOpts.Source, b.tmp)
 	if err != nil {
 		return err
 	}
