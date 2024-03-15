@@ -65,6 +65,7 @@ func ToOCIRemote(t any, mediaType string, remote *oci.OrasRemote) (*ocispec.Desc
 	// if image manifest media type, push to Manifests(), otherwise normal pushLayer()
 	if mediaType == ocispec.MediaTypeImageManifest {
 		descriptorFromBytes := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, b)
+		layerDesc = &descriptorFromBytes
 		if err := remote.Repo().Manifests().PushReference(ctx, descriptorFromBytes, bytes.NewReader(b), remote.Repo().Reference.String()); err != nil {
 			return &ocispec.Descriptor{}, fmt.Errorf("failed to push manifest: %w", err)
 		}
