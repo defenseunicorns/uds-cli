@@ -108,8 +108,17 @@ func (p *RemotePusher) remoteToRemote(layersToCopy []ocispec.Descriptor) error {
 	// stream copy if different registry
 	if srcRef.Registry != dstRef.Registry {
 		message.Debugf("Streaming layers from %s --> %s", srcRef, dstRef)
-
-		if err := zoci.CopyPackage(p.ctx, &p.cfg.RemoteSrc, &p.cfg.RemoteDst, config.CommonOptions.OCIConcurrency); err != nil {
+		// filterLayers returns true if the layer is in the list of layers to copy, this allows for
+		// copying only the layers that are required by the required + specified optional components
+		filterLayers := func(d ocispec.Descriptor) bool {
+			for _, layer := range layersToCopy {
+				if layer.Digest == d.Digest {
+					return true
+				}
+			}
+			return false
+		}
+		if err := oci.Copy(p.ctx, p.cfg.RemoteSrc.OrasRemote, p.cfg.RemoteDst.OrasRemote, filterLayers, config.CommonOptions.OCIConcurrency, nil); err != nil {
 			return err
 		}
 	} else {
