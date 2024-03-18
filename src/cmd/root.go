@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
@@ -14,6 +15,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/cmd/common"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
 	"github.com/spf13/cobra"
 )
@@ -114,5 +116,24 @@ func cliSetup() {
 
 	if !config.SkipLogFile && !config.ListTasks {
 		utils.UseLogFile()
+	}
+}
+
+func CreatePreRun(args []string) {
+	pathToBundleFile := ""
+	if len(args) > 0 {
+		if !zarfUtils.IsDir(args[0]) {
+			message.Fatalf(nil, "(%q) is not a valid path to a directory", args[0])
+		}
+		pathToBundleFile = filepath.Join(args[0])
+	}
+	// Handle .yaml or .yml
+	bundleYml := strings.Replace(config.BundleYAML, ".yaml", ".yml", 1)
+	if _, err := os.Stat(filepath.Join(pathToBundleFile, config.BundleYAML)); err == nil {
+		bundleCfg.CreateOpts.BundleFile = config.BundleYAML
+	} else if _, err = os.Stat(filepath.Join(pathToBundleFile, bundleYml)); err == nil {
+		bundleCfg.CreateOpts.BundleFile = bundleYml
+	} else {
+		message.Fatalf(err, "Neither %s or %s found", config.BundleYAML, bundleYml)
 	}
 }

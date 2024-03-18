@@ -15,7 +15,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
@@ -27,22 +26,7 @@ var createCmd = &cobra.Command{
 	Args:    cobra.MaximumNArgs(1),
 	Short:   lang.CmdBundleCreateShort,
 	PreRun: func(_ *cobra.Command, args []string) {
-		pathToBundleFile := ""
-		if len(args) > 0 {
-			if !zarfUtils.IsDir(args[0]) {
-				message.Fatalf(nil, "(%q) is not a valid path to a directory", args[0])
-			}
-			pathToBundleFile = filepath.Join(args[0])
-		}
-		// Handle .yaml or .yml
-		bundleYml := strings.Replace(config.BundleYAML, ".yaml", ".yml", 1)
-		if _, err := os.Stat(filepath.Join(pathToBundleFile, config.BundleYAML)); err == nil {
-			bundleCfg.CreateOpts.BundleFile = config.BundleYAML
-		} else if _, err = os.Stat(filepath.Join(pathToBundleFile, bundleYml)); err == nil {
-			bundleCfg.CreateOpts.BundleFile = bundleYml
-		} else {
-			message.Fatalf(err, "Neither %s or %s found", config.BundleYAML, bundleYml)
-		}
+		CreatePreRun(args)
 	},
 	Run: func(_ *cobra.Command, args []string) {
 		srcDir, err := os.Getwd()
