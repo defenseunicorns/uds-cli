@@ -17,6 +17,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
@@ -26,11 +27,12 @@ import (
 
 // FetchLayerAndStore fetches a remote layer and copies it to a local store
 func FetchLayerAndStore(layerDesc ocispec.Descriptor, remoteRepo *oci.OrasRemote, localStore *ocistore.Store) error {
-	layerBytes, err := remoteRepo.FetchLayer(layerDesc)
+	ctx := context.TODO()
+	layerBytes, err := remoteRepo.FetchLayer(ctx, layerDesc)
 	if err != nil {
 		return err
 	}
-	rootPkgDescBytes := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, layerBytes)
+	rootPkgDescBytes := content.NewDescriptorFromBytes(zoci.ZarfLayerMediaTypeBlob, layerBytes)
 	err = localStore.Push(context.TODO(), rootPkgDescBytes, bytes.NewReader(layerBytes))
 	return err
 }
@@ -52,23 +54,25 @@ func ToOCIStore(t any, mediaType string, store *ocistore.Store) (ocispec.Descrip
 }
 
 // ToOCIRemote takes an arbitrary type, typically a struct, marshals it into JSON and store it in a remote OCI store
-func ToOCIRemote(t any, mediaType string, remote *oci.OrasRemote) (ocispec.Descriptor, error) {
+func ToOCIRemote(t any, mediaType string, remote *oci.OrasRemote) (*ocispec.Descriptor, error) {
+	ctx := context.TODO()
 	b, err := json.Marshal(t)
 	if err != nil {
-		return ocispec.Descriptor{}, err
+		return &ocispec.Descriptor{}, err
 	}
 
-	var layerDesc ocispec.Descriptor
+	var layerDesc *ocispec.Descriptor
 	// if image manifest media type, push to Manifests(), otherwise normal pushLayer()
 	if mediaType == ocispec.MediaTypeImageManifest {
-		layerDesc = content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, b)
-		if err := remote.Repo().Manifests().PushReference(context.TODO(), layerDesc, bytes.NewReader(b), remote.Repo().Reference.String()); err != nil {
-			return ocispec.Descriptor{}, fmt.Errorf("failed to push manifest: %w", err)
+		descriptorFromBytes := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, b)
+		layerDesc = &descriptorFromBytes
+		if err := remote.Repo().Manifests().PushReference(ctx, descriptorFromBytes, bytes.NewReader(b), remote.Repo().Reference.String()); err != nil {
+			return &ocispec.Descriptor{}, fmt.Errorf("failed to push manifest: %w", err)
 		}
 	} else {
-		layerDesc, err = remote.PushLayer(b, mediaType)
+		layerDesc, err = remote.PushLayer(ctx, b, mediaType)
 		if err != nil {
-			return ocispec.Descriptor{}, err
+			return &ocispec.Descriptor{}, err
 		}
 	}
 
@@ -110,7 +114,7 @@ func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) oras.Cop
 					return []ocispec.Descriptor{node}, nil
 				}
 			}
-		} else if desc.MediaType == oci.ZarfLayerMediaTypeBlob && !hasTitleAnnotation {
+		} else if desc.MediaType == zoci.ZarfLayerMediaTypeBlob && !hasTitleAnnotation {
 			// This if block is for used for finding successors from bundle root manifests during bundle pull/publish ops;
 			// note that ptrs to the Zarf pkg image manifests won't have title annotations, and will follow this code path
 			// adopted from the content.Successors() fn in oras
@@ -118,7 +122,7 @@ func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) oras.Cop
 			if err != nil {
 				return nil, err
 			}
-			var manifest oci.ZarfOCIManifest
+			var manifest oci.Manifest
 			if err := json.Unmarshal(layerBytes, &manifest); err != nil {
 				return nil, err
 			}
@@ -218,8 +222,9 @@ func UpdateIndex(index *ocispec.Index, remote *oci.OrasRemote, bundle *types.UDS
 
 // GetIndex gets the OCI index from a remote repository if the index exists, otherwise returns a
 func GetIndex(remote *oci.OrasRemote, ref string) (*ocispec.Index, error) {
+	ctx := context.TODO()
 	var index *ocispec.Index
-	existingRootDesc, err := remote.Repo().Resolve(context.TODO(), ref)
+	existingRootDesc, err := remote.Repo().Resolve(ctx, ref)
 	if err != nil {
 		// ErrNotFound indicates that the repo hasn't been created yet, expected for brand new repos in a registry
 		// if the err isn't of type ErrNotFound, it's a real error so return it
@@ -229,7 +234,7 @@ func GetIndex(remote *oci.OrasRemote, ref string) (*ocispec.Index, error) {
 	}
 	// if an index exists, save it so we can update it after pushing the bundle's root manifest
 	if existingRootDesc.MediaType == ocispec.MediaTypeImageIndex {
-		rc, err := remote.Repo().Fetch(context.TODO(), existingRootDesc)
+		rc, err := remote.Repo().Fetch(ctx, existingRootDesc)
 		if err != nil {
 			return nil, err
 		}
@@ -255,14 +260,15 @@ func EnsureOCIPrefix(source string) string {
 }
 
 // GetZarfLayers grabs the necessary Zarf pkg layers from a remote OCI registry
-func GetZarfLayers(remote *oci.OrasRemote, pkg types.Package, pkgRootManifest *oci.ZarfOCIManifest) ([]ocispec.Descriptor, error) {
-	layersFromComponents, err := remote.LayersFromRequestedComponents(pkg.OptionalComponents)
+func GetZarfLayers(remote zoci.Remote, pkg types.Package, pkgRootManifest *oci.Manifest) ([]ocispec.Descriptor, error) {
+	ctx := context.TODO()
+	layersFromComponents, err := remote.LayersFromRequestedComponents(ctx, pkg.OptionalComponents)
 	if err != nil {
 		return nil, err
 	}
 	// get the layers that are always pulled
 	var metadataLayers []ocispec.Descriptor
-	for _, path := range oci.PackageAlwaysPull {
+	for _, path := range zoci.PackageAlwaysPull {
 		layer := pkgRootManifest.Locate(path)
 		if !oci.IsEmptyDescriptor(layer) {
 			metadataLayers = append(metadataLayers, layer)

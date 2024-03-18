@@ -5,7 +5,6 @@
 package bundle
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -21,6 +20,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"github.com/pterm/pterm"
 	"golang.org/x/exp/slices"
@@ -36,7 +36,6 @@ var templatedVarRegex = regexp.MustCompile(`\${([^}]+)}`)
 
 // Deploy deploys a bundle
 func (b *Bundle) Deploy() error {
-	ctx := context.TODO()
 
 	pterm.Println()
 	metadataSpinner := message.NewProgressSpinner("Loading bundle metadata")
@@ -57,7 +56,7 @@ func (b *Bundle) Deploy() error {
 	}
 
 	// create a new provider
-	provider, err := NewBundleProvider(ctx, b.cfg.DeployOpts.Source, b.tmp)
+	provider, err := NewBundleProvider(b.cfg.DeployOpts.Source, b.tmp)
 	if err != nil {
 		return err
 	}
@@ -144,7 +143,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackag
 
 		publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
 		if pkg.PublicKey != "" {
-			if err := utils.WriteFile(publicKeyPath, []byte(pkg.PublicKey)); err != nil {
+			if err := os.WriteFile(publicKeyPath, []byte(pkg.PublicKey), helpers.ReadWriteUser); err != nil {
 				return err
 			}
 			defer os.Remove(publicKeyPath)
@@ -159,6 +158,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackag
 			OptionalComponents: strings.Join(pkg.OptionalComponents, ","),
 			PublicKeyPath:      publicKeyPath,
 			SetVariables:       pkgVars,
+			Retries:            1,
 		}
 
 		valuesOverrides, err := b.loadChartOverrides(pkg, pkgVars)

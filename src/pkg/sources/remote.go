@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/cache"
@@ -20,6 +19,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/sources"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -81,7 +81,8 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, unarchiveAll bool) 
 
 // LoadPackageMetadata loads a Zarf package's metadata from a remote bundle
 func (r *RemoteBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ bool) (err error) {
-	root, err := r.Remote.FetchRoot()
+	ctx := context.TODO()
+	root, err := r.Remote.FetchRoot(ctx)
 	if err != nil {
 		return err
 	}
@@ -91,7 +92,7 @@ func (r *RemoteBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ b
 	}
 
 	// look at Zarf pkg manifest, grab zarf.yaml desc and download it
-	pkgManifest, err := r.Remote.FetchManifest(pkgManifestDesc)
+	pkgManifest, err := r.Remote.FetchManifest(ctx, pkgManifestDesc)
 	if err != nil {
 		return err
 	}
@@ -103,7 +104,7 @@ func (r *RemoteBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ b
 			break
 		}
 	}
-	zarfYAMLBytes, err := r.Remote.FetchLayer(zarfYAMLDesc)
+	zarfYAMLBytes, err := r.Remote.FetchLayer(ctx, zarfYAMLDesc)
 	if err != nil {
 		return err
 	}
@@ -120,7 +121,7 @@ func (r *RemoteBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ b
 	var checksumLayer ocispec.Descriptor
 	for _, layer := range pkgManifest.Layers {
 		if layer.Annotations[ocispec.AnnotationTitle] == config.ChecksumsTxt {
-			checksumBytes, err := r.Remote.FetchLayer(layer)
+			checksumBytes, err := r.Remote.FetchLayer(ctx, layer)
 			if err != nil {
 				return err
 			}
@@ -146,7 +147,8 @@ func (r *RemoteBundle) Collect(_ string) (string, error) {
 
 // downloadPkgFromRemoteBundle downloads a Zarf package from a remote bundle
 func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, error) {
-	rootManifest, err := r.Remote.FetchRoot()
+	ctx := context.TODO()
+	rootManifest, err := r.Remote.FetchRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -156,8 +158,8 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 		return nil, fmt.Errorf("package %s does not exist in this bundle", r.PkgManifestSHA)
 	}
 	// hack Zarf media type so that FetchManifest works
-	pkgManifestDesc.MediaType = oci.ZarfLayerMediaTypeBlob
-	pkgManifest, err := r.Remote.FetchManifest(pkgManifestDesc)
+	pkgManifestDesc.MediaType = zoci.ZarfLayerMediaTypeBlob
+	pkgManifest, err := r.Remote.FetchManifest(ctx, pkgManifestDesc)
 	if err != nil || pkgManifest == nil {
 		return nil, err
 	}
@@ -170,7 +172,7 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 	layersInBundle := []ocispec.Descriptor{pkgManifestDesc}
 
 	for _, layer := range pkgManifest.Layers {
-		ok, err := r.Remote.Repo().Blobs().Exists(context.TODO(), layer)
+		ok, err := r.Remote.Repo().Blobs().Exists(ctx, layer)
 		if err != nil {
 			return nil, err
 		}
@@ -201,18 +203,14 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 
 	// copy zarf pkg to local store
 	copyOpts := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
-	doneSaving := make(chan int)
-	errChan := make(chan int)
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go zarfUtils.RenderProgressBarForLocalDirWrite(r.TmpDir, estimatedBytes, &wg, doneSaving, errChan, fmt.Sprintf("Pulling bundled Zarf pkg: %s", r.PkgName), fmt.Sprintf("Successfully pulled package: %s", r.PkgName))
-	_, err = oras.Copy(context.TODO(), r.Remote.Repo(), r.Remote.Repo().Reference.String(), store, "", copyOpts)
+	doneSaving := make(chan error)
+	go zarfUtils.RenderProgressBarForLocalDirWrite(r.TmpDir, estimatedBytes, doneSaving, fmt.Sprintf("Pulling bundled Zarf pkg: %s", r.PkgName), fmt.Sprintf("Successfully pulled package: %s", r.PkgName))
+	_, err = oras.Copy(ctx, r.Remote.Repo(), r.Remote.Repo().Reference.String(), store, "", copyOpts)
+	doneSaving <- err
+	<-doneSaving
 	if err != nil {
-		errChan <- 1
 		return nil, err
 	}
-	doneSaving <- 1
-	wg.Wait()
 
 	// need to substract 1 from layersInBundle because it includes the pkgManifestDesc and pkgManifest.Layers does not
 	if len(pkgManifest.Layers) != len(layersInBundle)-1 {

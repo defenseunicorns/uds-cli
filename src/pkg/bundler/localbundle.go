@@ -18,6 +18,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -102,7 +103,7 @@ func (lo *LocalBundle) create(signature []byte) error {
 	message.HeaderInfof("🚧 Building Bundle")
 
 	// push uds-bundle.yaml to OCI store
-	bundleYAMLDesc, err := pushBundleYAMLToStore(ctx, store, bundle)
+	bundleYAMLDesc, err := pushBundleYAMLToStore(store, bundle)
 	if err != nil {
 		return err
 	}
@@ -138,7 +139,7 @@ func (lo *LocalBundle) create(signature []byte) error {
 
 	// push the bundle's signature todo: need to understand functionality and add tests
 	if len(signature) > 0 {
-		signatureDesc, err := pushBundleSignature(ctx, store, signature)
+		signatureDesc, err := pushBundleSignature(store, signature)
 		if err != nil {
 			return err
 		}
@@ -168,12 +169,13 @@ func (lo *LocalBundle) create(signature []byte) error {
 }
 
 // pushBundleYAMLToStore pushes the uds-bundle.yaml to a provided OCI store
-func pushBundleYAMLToStore(ctx context.Context, store *ocistore.Store, bundle *types.UDSBundle) (ocispec.Descriptor, error) {
+func pushBundleYAMLToStore(store *ocistore.Store, bundle *types.UDSBundle) (ocispec.Descriptor, error) {
+	ctx := context.TODO()
 	bundleYAMLBytes, err := goyaml.Marshal(bundle)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
-	bundleYamlDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, bundleYAMLBytes)
+	bundleYamlDesc := content.NewDescriptorFromBytes(zoci.ZarfLayerMediaTypeBlob, bundleYAMLBytes)
 	bundleYamlDesc.Annotations = map[string]string{
 		ocispec.AnnotationTitle: config.BundleYAML,
 	}
@@ -196,7 +198,7 @@ func pushManifestConfig(store *ocistore.Store, metadata types.UDSMetadata, build
 		OCIVersion:   "1.0.1",
 		Annotations:  annotations,
 	}
-	manifestConfigDesc, err := utils.ToOCIStore(manifestConfig, oci.ZarfLayerMediaTypeBlob, store)
+	manifestConfigDesc, err := utils.ToOCIStore(manifestConfig, zoci.ZarfLayerMediaTypeBlob, store)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
@@ -271,8 +273,9 @@ jobLoop:
 	return nil
 }
 
-func pushBundleSignature(ctx context.Context, store *ocistore.Store, signature []byte) (ocispec.Descriptor, error) {
-	signatureDesc := content.NewDescriptorFromBytes(oci.ZarfLayerMediaTypeBlob, signature)
+func pushBundleSignature(store *ocistore.Store, signature []byte) (ocispec.Descriptor, error) {
+	ctx := context.TODO()
+	signatureDesc := content.NewDescriptorFromBytes(zoci.ZarfLayerMediaTypeBlob, signature)
 	err := store.Push(ctx, signatureDesc, bytes.NewReader(signature))
 	if err != nil {
 		return ocispec.Descriptor{}, err

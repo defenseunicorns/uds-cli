@@ -18,6 +18,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	av3 "github.com/mholt/archiver/v3"
 	av4 "github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -32,7 +33,7 @@ type tarballBundleProvider struct {
 
 	// these fields are populated by loadBundleManifest as part of the provider constructor
 	bundleRootDesc ocispec.Descriptor
-	rootManifest   *oci.ZarfOCIManifest
+	rootManifest   *oci.Manifest
 }
 
 // CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
@@ -64,7 +65,7 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool) error {
 		if err != nil {
 			return err
 		}
-		var zarfImageManifest *oci.ZarfOCIManifest
+		var zarfImageManifest *oci.Manifest
 		if err := json.Unmarshal(zarfManifestBytes, &zarfImageManifest); err != nil {
 			return err
 		}
@@ -115,7 +116,7 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool) error {
 	return nil
 }
 
-func (tp *tarballBundleProvider) getBundleManifest() (*oci.ZarfOCIManifest, error) {
+func (tp *tarballBundleProvider) getBundleManifest() (*oci.Manifest, error) {
 	if tp.rootManifest != nil {
 		return tp.rootManifest, nil
 	}
@@ -174,7 +175,7 @@ func (tp *tarballBundleProvider) loadBundleManifest() error {
 		return err
 	}
 
-	var manifest *oci.ZarfOCIManifest
+	var manifest *oci.Manifest
 
 	if err := json.Unmarshal(b, &manifest); err != nil {
 		return err
@@ -225,7 +226,7 @@ func (tp *tarballBundleProvider) getZarfLayers(store *ocistore.Store, pkgManifes
 		return nil, int64(0), err
 	}
 
-	var zarfImageManifest *oci.ZarfOCIManifest
+	var zarfImageManifest *oci.Manifest
 	if err := json.Unmarshal(layerBytes, &zarfImageManifest); err != nil {
 		return nil, int64(0), err
 	}
@@ -281,8 +282,10 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	if err != nil {
 		return err
 	}
-	remote.Transport.ProgressBar = message.NewProgressBar(estimatedBytes, fmt.Sprintf("Publishing %s:%s", remote.Repo().Reference.Repository, remote.Repo().Reference.Reference))
-	defer remote.Transport.ProgressBar.Stop()
+	progressBar := message.NewProgressBar(estimatedBytes, fmt.Sprintf("Publishing %s:%s", remote.Repo().Reference.Repository, remote.Repo().Reference.Reference))
+	defer progressBar.Stop()
+	remote.SetProgressWriter(progressBar)
+	defer remote.ClearProgressWriter()
 
 	ref := bundle.Metadata.Version
 
@@ -303,7 +306,7 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 		return err
 	}
 
-	remote.Transport.ProgressBar.Successf("Published %s", remote.Repo().Reference)
+	progressBar.Successf("Published %s", remote.Repo().Reference)
 	return nil
 }
 
@@ -316,7 +319,7 @@ func (tp *tarballBundleProvider) ZarfPackageNameMap() (map[string]string, error)
 
 	nameMap := make(map[string]string)
 	for _, layer := range bundleRootManifest.Layers {
-		if layer.MediaType == oci.ZarfLayerMediaTypeBlob {
+		if layer.MediaType == zoci.ZarfLayerMediaTypeBlob {
 			// only the uds bundle layer will have AnnotationTitle set
 			if layer.Annotations[ocispec.AnnotationTitle] != config.BundleYAML {
 				nameMap[layer.Annotations[config.UDSPackageNameAnnotation]] = layer.Annotations[config.ZarfPackageNameAnnotation]

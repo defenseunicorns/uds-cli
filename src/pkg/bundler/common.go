@@ -14,6 +14,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2/registry"
 )
@@ -54,11 +55,11 @@ func pushManifestConfigFromMetadata(r *oci.OrasRemote, metadata *types.UDSMetada
 		OCIVersion:   "1.0.1",
 		Annotations:  annotations,
 	}
-	manifestConfigDesc, err := utils.ToOCIRemote(manifestConfig, oci.ZarfLayerMediaTypeBlob, r)
+	manifestConfigDesc, err := utils.ToOCIRemote(manifestConfig, zoci.ZarfLayerMediaTypeBlob, r)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
-	return manifestConfigDesc, nil
+	return *manifestConfigDesc, nil
 }
 
 // copied from: https://github.com/defenseunicorns/zarf/blob/main/src/pkg/oci/utils.go

@@ -14,21 +14,21 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // RemotePusher contains methods for pulling remote Zarf packages into a bundle
 type RemotePusher struct {
-	ctx context.Context
 	pkg types.Package
 	cfg Config
 }
 
 // Config contains the configuration for the remote pusher
 type Config struct {
-	PkgRootManifest *oci.ZarfOCIManifest
-	RemoteSrc       *oci.OrasRemote
-	RemoteDst       *oci.OrasRemote
+	PkgRootManifest *oci.Manifest
+	RemoteSrc       zoci.Remote
+	RemoteDst       zoci.Remote
 	PkgIter         int
 	NumPkgs         int
 	Bundle          *types.UDSBundle
@@ -36,23 +36,24 @@ type Config struct {
 
 // NewPkgPusher creates a pusher object to push Zarf pkgs to a remote bundle
 func NewPkgPusher(pkg types.Package, cfg Config) RemotePusher {
-	return RemotePusher{ctx: context.TODO(), pkg: pkg, cfg: cfg}
+	return RemotePusher{pkg: pkg, cfg: cfg}
 }
 
 // Push pushes a Zarf pkg to a remote bundle
 func (p *RemotePusher) Push() (ocispec.Descriptor, error) {
+	ctx := context.TODO()
 	zarfManifestDesc, err := p.PushManifest()
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
 
 	// ensure media type is a Zarf blob and append to bundle root manifest
-	zarfManifestDesc.MediaType = oci.ZarfLayerMediaTypeBlob
+	zarfManifestDesc.MediaType = zoci.ZarfLayerMediaTypeBlob
 	url := fmt.Sprintf("%s:%s", p.pkg.Repository, p.pkg.Ref)
 	message.Debugf("Pushed %s sub-manifest into %s: %s", url, p.cfg.RemoteDst.Repo().Reference, message.JSONValue(zarfManifestDesc))
 
 	// add package name annotations to zarf manifest
-	zarfYamlFile, err := p.cfg.RemoteSrc.FetchZarfYAML()
+	zarfYamlFile, err := p.cfg.RemoteSrc.FetchZarfYAML(ctx)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
@@ -75,11 +76,11 @@ func (p *RemotePusher) Push() (ocispec.Descriptor, error) {
 // PushManifest pushes the Zarf pkg's manifest to either a local or remote bundle
 func (p *RemotePusher) PushManifest() (ocispec.Descriptor, error) {
 	var zarfManifestDesc ocispec.Descriptor
-	desc, err := utils.ToOCIRemote(p.cfg.PkgRootManifest, oci.ZarfLayerMediaTypeBlob, p.cfg.RemoteDst)
+	desc, err := utils.ToOCIRemote(p.cfg.PkgRootManifest, zoci.ZarfLayerMediaTypeBlob, p.cfg.RemoteDst.OrasRemote)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
-	zarfManifestDesc = desc
+	zarfManifestDesc = *desc
 	return zarfManifestDesc, nil
 }
 
@@ -102,12 +103,12 @@ func (p *RemotePusher) LayersToRemoteBundle(spinner *message.Spinner, currentPac
 
 // remoteToRemote copies a remote Zarf pkg to a remote OCI registry
 func (p *RemotePusher) remoteToRemote(layersToCopy []ocispec.Descriptor) error {
+	ctx := context.TODO()
 	srcRef := p.cfg.RemoteSrc.Repo().Reference
 	dstRef := p.cfg.RemoteDst.Repo().Reference
 	// stream copy if different registry
 	if srcRef.Registry != dstRef.Registry {
 		message.Debugf("Streaming layers from %s --> %s", srcRef, dstRef)
-
 		// filterLayers returns true if the layer is in the list of layers to copy, this allows for
 		// copying only the layers that are required by the required + specified optional components
 		filterLayers := func(d ocispec.Descriptor) bool {
@@ -118,7 +119,7 @@ func (p *RemotePusher) remoteToRemote(layersToCopy []ocispec.Descriptor) error {
 			}
 			return false
 		}
-		if err := oci.CopyPackage(p.ctx, p.cfg.RemoteSrc, p.cfg.RemoteDst, filterLayers, config.CommonOptions.OCIConcurrency); err != nil {
+		if err := oci.Copy(ctx, p.cfg.RemoteSrc.OrasRemote, p.cfg.RemoteDst.OrasRemote, filterLayers, config.CommonOptions.OCIConcurrency, nil); err != nil {
 			return err
 		}
 	} else {
@@ -131,8 +132,8 @@ func (p *RemotePusher) remoteToRemote(layersToCopy []ocispec.Descriptor) error {
 				continue
 			}
 			spinner.Updatef("Mounting %s", layer.Digest.Encoded())
-			if err := p.cfg.RemoteDst.Repo().Mount(p.ctx, layer, srcRef.Repository, func() (io.ReadCloser, error) {
-				return p.cfg.RemoteSrc.Repo().Fetch(p.ctx, layer)
+			if err := p.cfg.RemoteDst.Repo().Mount(ctx, layer, srcRef.Repository, func() (io.ReadCloser, error) {
+				return p.cfg.RemoteSrc.Repo().Fetch(ctx, layer)
 			}); err != nil {
 				return err
 			}

@@ -17,12 +17,15 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // Pull pulls a bundle and saves it locally
 func (b *Bundle) Pull() error {
+	ctx := context.TODO()
 	// use uds-cache/packages as the dst dir for the pull to get auto caching
 	// we use an ORAS ocistore to make that dir look like an OCI artifact
 	cacheDir := filepath.Join(zarfConfig.GetAbsCachePath(), "packages")
@@ -37,7 +40,7 @@ func (b *Bundle) Pull() error {
 	}
 	b.cfg.PullOpts.Source = source
 
-	provider, err := NewBundleProvider(context.TODO(), b.cfg.PullOpts.Source, cacheDir)
+	provider, err := NewBundleProvider(b.cfg.PullOpts.Source, cacheDir)
 	if err != nil {
 		return err
 	}
@@ -54,13 +57,13 @@ func (b *Bundle) Pull() error {
 		Architecture: config.GetArch(),
 		OS:           oci.MultiOS,
 	}
-	remote, err := oci.NewOrasRemote(b.cfg.PullOpts.Source, platform)
+	remote, err := zoci.NewRemote(b.cfg.PullOpts.Source, platform)
 	if err != nil {
 		return err
 	}
 
 	// fetch the bundle's root descriptor
-	rootDesc, err := remote.ResolveRoot()
+	rootDesc, err := remote.ResolveRoot(ctx)
 	if err != nil {
 		return err
 	}
@@ -79,7 +82,7 @@ func (b *Bundle) Pull() error {
 		return err
 	}
 	indexJSONPath := filepath.Join(b.tmp, "index.json")
-	if err := utils.WriteFile(indexJSONPath, bytes); err != nil {
+	if err := os.WriteFile(indexJSONPath, bytes, helpers.ReadWriteUser); err != nil {
 		return err
 	}
 
@@ -122,7 +125,7 @@ func (b *Bundle) Pull() error {
 	}
 
 	// tarball the bundle
-	if err := format.Archive(context.TODO(), out, files); err != nil {
+	if err := format.Archive(ctx, out, files); err != nil {
 		return err
 	}
 
