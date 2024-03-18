@@ -113,6 +113,18 @@ func (b *Bundle) Deploy() error {
 		return deployPackages(packagesToDeploy, resume, b, zarfPackageNameMap)
 	}
 
+	// for packagesToDeploy, if packageComponents contains a substring matching "package.Name", set package.OptionalComponents
+	fmt.Println("Found package components: ", b.cfg.DeployOpts.PackageComponents)
+	for idx, pkgComponents := range b.cfg.DeployOpts.PackageComponents {
+		for _, pkg := range b.bundle.Packages {
+			if strings.Contains(pkgComponents, pkg.Name) {
+				c := strings.Split(pkgComponents, "=")[1]
+				fmt.Println("Found matching package, setting optional components: ", c)
+				b.bundle.Packages[idx].OptionalComponents = []string{c}
+			}
+		}
+	}
+
 	return deployPackages(b.bundle.Packages, resume, b, zarfPackageNameMap)
 }
 

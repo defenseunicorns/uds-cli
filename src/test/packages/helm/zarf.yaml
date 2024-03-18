@@ -24,3 +24,33 @@ components:
         after:
           - cmd: |
               echo "shared var in helm-overrides pkg: "${ZARF_VAR_DOMAIN}""
+  - name: robinfo
+    required: false
+    images:
+      # renovate: datasource=github-tags depName=stefanprodan/podinfo
+      - ghcr.io/stefanprodan/podinfo:6.6.0
+    charts:
+      - name: unicorn-podinfo
+        localPath: ./unicorn-podinfo
+        namespace: robinfo
+        version: 0.0.1
+    actions:
+      onDeploy:
+        after:
+          - cmd: |
+              echo "shared var in helm-overrides pkg: "${ZARF_VAR_DOMAIN}""
+  - name: steveinfo
+    required: false
+    images:
+      # renovate: datasource=github-tags depName=stefanprodan/podinfo
+      - ghcr.io/stefanprodan/podinfo:6.6.0
+    charts:
+      - name: unicorn-podinfo
+        localPath: ./unicorn-podinfo
+        namespace: steveinfo
+        version: 0.0.1
+    actions:
+      onDeploy:
+        after:
+          - cmd: |
+              echo "shared var in helm-overrides pkg: "${ZARF_VAR_DOMAIN}""

@@ -1,0 +1,10 @@
+kind: UDSBundle
+metadata:
+  name: optional-components
+  description: testing a bundle with optional-components
+  version: 0.0.1
+
+packages:
+  - name: helm-overrides
+    path: "../../packages/helm"
+    ref: 0.0.1

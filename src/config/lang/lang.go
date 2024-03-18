@@ -28,11 +28,12 @@ const (
 	CmdBundleCreateFlagSigningKeyPassword = "Password to the private key file used for signing bundles"
 
 	// bundle deploy
-	CmdBundleDeployShort        = "Deploy a bundle from a local tarball or oci:// URL"
-	CmdBundleDeployFlagConfirm  = "Confirms bundle deployment without prompting. ONLY use with bundles you trust. Skips prompts to review SBOM, configure variables, select optional components and review potential breaking changes."
-	CmdBundleDeployFlagPackages = "Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed."
-	CmdBundleDeployFlagResume   = "Only deploys packages from the bundle which haven't already been deployed"
-	CmdBundleDeployFlagSet      = "Specify deployment variables to set on the command line (KEY=value)"
+	CmdBundleDeployShort          = "Deploy a bundle from a local tarball or oci:// URL"
+	CmdBundleDeployFlagConfirm    = "Confirms bundle deployment without prompting. ONLY use with bundles you trust. Skips prompts to review SBOM, configure variables, select optional components and review potential breaking changes."
+	CmdBundleDeployFlagPackages   = "Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed."
+	CmdBundleDeployFlagComponents = "Specify which zarf packages components you would like to deploy from the bundle. By default the default zarf packages components in the bundle are deployed."
+	CmdBundleDeployFlagResume     = "Only deploys packages from the bundle which haven't already been deployed"
+	CmdBundleDeployFlagSet        = "Specify deployment variables to set on the command line (KEY=value)"
 
 	// bundle inspect
 	CmdBundleInspectShort            = "Display the metadata of a bundle"
