@@ -180,12 +180,11 @@ func TestPackagesFlag(t *testing.T) {
 	t.Run("Test invalid package deploy", func(t *testing.T) {
 		_, stderr := deployPackagesFlag(bundlePath, "podinfo,nginx,peanuts")
 		require.Contains(t, stderr, "invalid zarf packages specified by --packages")
-
 	})
+
 	t.Run("Test invalid package remove", func(t *testing.T) {
 		_, stderr := removePackagesFlag(bundlePath, "podinfo,nginx,peanuts")
 		require.Contains(t, stderr, "invalid zarf packages specified by --packages")
-
 	})
 }
 

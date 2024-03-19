@@ -15,6 +15,10 @@ const (
 	RootCmdFlagLogLevel       = "Log level when running UDS-CLI. Valid options are: warn, info, debug, trace"
 	RootCmdErrInvalidLogLevel = "Invalid log level. Valid options are: warn, info, debug, trace."
 	RootCmdFlagArch           = "Architecture for UDS bundles and Zarf packages"
+	RootCmdNoTea              = "Don't use the BubbleTea TUI"
+
+	// logs
+	CmdBundleLogsShort = "View most recent UDS CLI logs"
 
 	// bundle
 	CmdBundleShort           = "Commands for creating, deploying, removing, pulling, and inspecting bundles"

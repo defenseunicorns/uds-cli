@@ -12,8 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui/deploy"
 	"github.com/defenseunicorns/zarf/src/pkg/layout"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
@@ -23,6 +22,9 @@ import (
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	av4 "github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 )
 
 // TarballBundle is a package source for local tarball bundles that implements Zarf's packager.PackageSource
@@ -50,6 +52,10 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, unarchiveAll bool)
 		return err
 	}
 	dst.SetFromPaths(files)
+
+	// record number of components to be deployed for TUI
+	// todo: won't work for optional components......
+	deploy.Program.Send(fmt.Sprintf("totalComponents:%d", len(pkg.Components)))
 
 	if err := sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, t.isPartial); err != nil {
 		return err

@@ -49,9 +49,6 @@ const (
 	// UDSCacheLayers is the directory in the cache containing cached bundle layers
 	UDSCacheLayers = "layers"
 
-	// TasksYAML is the default name of the uds run cmd file
-	TasksYAML = "tasks.yaml"
-
 	// EnvVarPrefix is the prefix for environment variables to override bundle helm variables
 	EnvVarPrefix = "UDS_"
 
@@ -60,6 +57,9 @@ const (
 
 	// UDSPackageNameAnnotation is the annotation key for the value that specifies the name given to a zarf package in the uds-bundle.yaml
 	UDSPackageNameAnnotation = "uds.package.name"
+
+	// CachedLogs is a file containing cached logs
+	CachedLogs = "recent-logs"
 )
 
 var (
@@ -78,14 +78,14 @@ var (
 	// ListTasks is a flag to print available tasks in a TaskFileLocation
 	ListTasks bool
 
-	// TaskFileLocation is the location of the tasks file to run
-	TaskFileLocation string
-
-	// SetRunnerVariables is a map of the run time variables defined using --set
-	SetRunnerVariables map[string]string
+	// LogFileName is the name of the UDS log file
+	LogFileName string
 
 	// HelmTimeout is the default timeout for helm deploys
 	HelmTimeout = 15 * time.Minute
+
+	// TeaEnabled is a flag to enable BubbleTea for select bundle ops as we refactor the TUI
+	TeaEnabled bool
 )
 
 // GetArch returns the arch based on a priority list with options for overriding.

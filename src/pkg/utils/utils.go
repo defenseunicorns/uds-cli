@@ -10,30 +10,34 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	av4 "github.com/mholt/archiver/v4"
 	"github.com/pterm/pterm"
 )
 
-// MergeVariables merges the variables from the config file and the CLI
-//
-// TODO: move this to helpers.MergeAndTransformMap
-func MergeVariables(left map[string]string, right map[string]string) map[string]string {
-	// Ensure uppercase keys from viper
-	leftUpper := helpers.TransformMapKeys(left, strings.ToUpper)
-	rightUpper := helpers.TransformMapKeys(right, strings.ToUpper)
+var (
+	CacheLogFile *os.File
+)
 
-	// Merge the viper config file variables and provided CLI flag variables (CLI takes precedence))
-	return helpers.MergeMap(leftUpper, rightUpper)
+// GracefulPanic in the event of a panic, attempt to reset the terminal using the 'reset' command.
+func GracefulPanic() {
+	if r := recover(); r != nil {
+		fmt.Println("Recovering from panic to reset terminal before exiting")
+		// todo: this approach is heavy-handed, consider alternatives using the term lib (check out what BubbleTea does)
+		cmd := exec.Command("reset")
+		cmd.Stdout = os.Stdout
+		cmd.Stdin = os.Stdin
+		_ = cmd.Run()
+		panic(r)
+	}
 }
 
 // IsValidTarballPath returns true if the path is a valid tarball path to a bundle tarball
@@ -52,33 +56,47 @@ func IsValidTarballPath(path string) bool {
 	return re.MatchString(name)
 }
 
-// UseLogFile writes output to stderr and a logFile.
-func UseLogFile() {
-	// LogWriter is the stream to write logs to.
-	var LogWriter io.Writer
+// ConfigureLogs sets up the log file, log cache and output for the CLI
+func ConfigureLogs() error {
+	writer, err := message.UseLogFile("")
+	logFile := writer
+	if err != nil {
+		return err
 
-	// Write logs to stderr and a buffer for logFile generation.
-	var logFile *os.File
-
-	// Prepend the log filename with a timestamp.
-	ts := time.Now().Format("2006-01-02-15-04-05")
-
-	var err error
-	if logFile != nil {
-		// Use the existing log file if logFile is set
-		LogWriter = io.MultiWriter(os.Stderr, logFile)
-		pterm.SetDefaultOutput(LogWriter)
-	} else {
-		// Try to create a temp log file if one hasn't been made already
-		if logFile, err = os.CreateTemp("", fmt.Sprintf("uds-%s-*.log", ts)); err != nil {
-			message.WarnErr(err, "Error saving a log file to a temporary directory")
-		} else {
-			LogWriter = io.MultiWriter(os.Stderr, logFile)
-			pterm.SetDefaultOutput(LogWriter)
-			msg := fmt.Sprintf("Saving log file to %s", logFile.Name())
-			message.Note(msg)
-		}
 	}
+	location := message.LogFileLocation()
+	config.LogFileName = location
+
+	// empty cache logs file
+	os.Remove(filepath.Join(config.CommonOptions.CachePath, config.CachedLogs))
+
+	// Set up cache dir and cache logs file
+	cacheDir := filepath.Join(config.CommonOptions.CachePath)
+	if err := os.MkdirAll(cacheDir, 0o0755); err != nil { // Ensure the directory exists
+		return fmt.Errorf("failed to create cache directory: %w", err)
+	}
+	CacheLogFile, err = os.OpenFile(filepath.Join(config.CommonOptions.CachePath, config.CachedLogs), os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	logWriter := io.MultiWriter(logFile, CacheLogFile)
+
+	// use Zarf pterm output if no-tea flag is set
+	if !config.TeaEnabled || config.CommonOptions.NoTea {
+		message.Notef("Saving log file to %s", location)
+		logWriter = io.MultiWriter(os.Stderr, CacheLogFile, logFile)
+		pterm.SetDefaultOutput(logWriter)
+		return nil
+	}
+
+	// set pterm output to only go to this logfile
+	pterm.SetDefaultOutput(logWriter)
+
+	// disable progress bars (otherwise they will still get printed to STDERR)
+	message.NoProgress = true
+
+	message.Debugf(fmt.Sprintf("Saving log file to %s", location))
+	return nil
 }
 
 // ExtractJSON extracts and unmarshals a tarballed JSON file into a type
