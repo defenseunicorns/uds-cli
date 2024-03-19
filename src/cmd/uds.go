@@ -5,6 +5,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -226,24 +227,26 @@ var pullCmd = &cobra.Command{
 var logsCmd = &cobra.Command{
 	Use:     "logs",
 	Aliases: []string{"l"},
-	Short:   "Display log file contents", // Replace with your actual short description
+	Short:   "Display log file contents",
 	Run: func(cmd *cobra.Command, args []string) {
 		logFilePath := filepath.Join(config.CommonOptions.CachePath, config.CachedLogs)
 
-		// Open the log file
-		file, err := os.Open(logFilePath)
+		// Open the cached log file
+		logfile, err := os.Open(logFilePath)
 		if err != nil {
-			// Handle the error if the file can't be opened
-			fmt.Fprintf(os.Stderr, "Error opening log file: %v\n", err)
-			return
+			var pathError *os.PathError
+			if errors.As(err, &pathError) {
+				msg := fmt.Sprintf("No cached logs found at %s", logFilePath)
+				message.Fatalf(nil, msg)
+			}
+			message.Fatalf("Error opening log file: %s\n", err.Error())
 		}
-		defer file.Close() // Ensure the file is closed when the function returns
+		defer logfile.Close()
 
-		// Copy the contents of the log file to standard output
-		if _, err := io.Copy(os.Stdout, file); err != nil {
+		// Copy the contents of the log file to stdout
+		if _, err := io.Copy(os.Stdout, logfile); err != nil {
 			// Handle the error if the contents can't be read or written to stdout
-			fmt.Fprintf(os.Stderr, "Error reading or printing log file: %v\n", err)
-			return
+			message.Fatalf(err, "Error reading or printing log file: %v\n", err.Error())
 		}
 	},
 }

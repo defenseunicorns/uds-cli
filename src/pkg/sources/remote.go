@@ -40,6 +40,7 @@ type RemoteBundle struct {
 
 // LoadPackage loads a Zarf package from a remote bundle
 func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, unarchiveAll bool) error {
+	// todo: progress bar??
 	layers, err := r.downloadPkgFromRemoteBundle()
 	if err != nil {
 		return err
@@ -175,6 +176,7 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 	estimatedBytes := int64(0)
 	layersToPull := []ocispec.Descriptor{pkgManifestDesc}
 	layersInBundle := []ocispec.Descriptor{pkgManifestDesc}
+	numLayersVerified := 0.0
 
 	for _, layer := range pkgManifest.Layers {
 		ok, err := r.Remote.Repo().Blobs().Exists(ctx, layer)
@@ -182,6 +184,8 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 			return nil, err
 		}
 		progressBar.Add(1)
+		numLayersVerified++
+		deploy.Program.Send(fmt.Sprintf("verified:%v", numLayersVerified/float64(len(pkgManifest.Layers))))
 		if ok {
 			estimatedBytes += layer.Size
 			layersInBundle = append(layersInBundle, layer)

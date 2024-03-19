@@ -68,6 +68,7 @@ func (m *Model) deployView() string {
 			}
 		}
 
+		// todo: sometimes this says it's deploying 0/0 components, fix this
 		text := lipgloss.NewStyle().
 			Align(lipgloss.Left).
 			Padding(0, 3).
@@ -80,7 +81,7 @@ func (m *Model) deployView() string {
 				Render(fmt.Sprintf("✅ Package %s deployed", p.name))
 		}
 
-		view = lipgloss.JoinVertical(lipgloss.Left, view, text+"\n")
+		view = lipgloss.JoinVertical(lipgloss.Left, view, text+"\n", p.progress.View())
 	}
 
 	return view

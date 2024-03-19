@@ -31,6 +31,16 @@ func TestUDSCmd(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestUDSLogs(t *testing.T) {
+	bundleDir := "src/test/bundles/03-local-and-remote"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
+	inspectLocal(t, bundlePath)
+
+	stderr, _, err := e2e.UDS("logs")
+	require.NoError(t, err)
+	require.Contains(t, stderr, "UDSBundle")
+}
+
 func TestSimpleBundleWithZarfAction(t *testing.T) {
 	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)

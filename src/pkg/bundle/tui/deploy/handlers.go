@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -29,6 +30,7 @@ func (m *Model) handleNewPackage(pkgName string, currentPkgIdx int) tea.Cmd {
 	}
 
 	// finish creating newPkg and start the spinner
+	newPkg.progress = progress.New(progress.WithDefaultGradient())
 	m.pkgIdx = currentPkgIdx
 	s := spinner.New()
 	s.Spinner = spinner.Dot
@@ -65,7 +67,8 @@ func (m *Model) handleDone(err error) tea.Cmd {
 	m.done = true // remove the current view
 	cmds = append(cmds, genSuccessOrFailCmds(m)...)
 	if err != nil {
-		errMsg := lipgloss.NewStyle().Padding(0, 3).Render(fmt.Sprintf("\n❌ %s\n", err.Error()))
+		hint := lightBlueText.Render("uds logs")
+		errMsg := lipgloss.NewStyle().Padding(0, 3).Render(fmt.Sprintf("\n❌ Error deploying bundle: %s\n\nRun %s to view deployment logs", lightGrayText.Render(err.Error()), hint) + "\n")
 		cmds = []tea.Cmd{tea.Println(errMsg)}
 	}
 	cmds = append(cmds, tui.Pause(), tea.Quit)

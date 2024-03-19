@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -28,6 +29,7 @@ const (
 	totalComponents packageOp = "totalComponents"
 	totalPackages   packageOp = "totalPackages"
 	complete        packageOp = "complete"
+	verified        packageOp = "verified"
 )
 
 var (
@@ -52,6 +54,7 @@ type pkgState struct {
 	spinner           spinner.Model
 	complete          bool
 	resetProgress     bool
+	progress          progress.Model
 }
 
 type Model struct {
@@ -127,6 +130,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	default:
 		switch msg := msg.(type) {
+		// FrameMsg is sent when the progress bar wants to animate itself
+		case progress.FrameMsg:
+			if len(m.packages) > m.pkgIdx {
+				progressModel, cmd := m.packages[m.pkgIdx].progress.Update(msg)
+				m.packages[m.pkgIdx].progress = progressModel.(progress.Model)
+				return m, cmd
+			}
 		// handle changes in window size
 		case tea.WindowSizeMsg:
 			termWidth = msg.Width
@@ -203,6 +213,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case totalPackages:
 					if totalPkgs, err := strconv.Atoi(strings.Split(msg, ":")[1]); err == nil {
 						m.totalPkgs = totalPkgs
+					}
+				case verified:
+					// update progress bar
+					if perc, err := strconv.ParseFloat(strings.Split(msg, ":")[1], 64); err == nil {
+						cmd := m.packages[m.pkgIdx].progress.SetPercent(perc)
+						return m, cmd
 					}
 				case complete:
 					m.packages[m.pkgIdx].complete = true
