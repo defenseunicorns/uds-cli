@@ -168,6 +168,8 @@ func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 	require.NoError(t, err)
 	err = os.Setenv("UDS_UI_COLOR", color)
 	require.NoError(t, err)
+	err = os.Setenv("UDS_UI_MSG", "im set by an env var")
+	require.NoError(t, err)
 	err = os.Setenv("UDS_SECRET_VAL", b64Secret)
 	require.NoError(t, err)
 
@@ -189,6 +191,22 @@ func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 		secretValue, _, err := e2e.UDS(cmd...)
 		require.Equal(t, fmt.Sprintf("\"%s\"", b64Secret), secretValue)
 		require.NoError(t, err)
+	})
+
+	t.Run("ensure --set overrides take precedence over env vars", func(t *testing.T) {
+		deployCmd := fmt.Sprintf("deploy %s --set UI_COLOR=orange --set helm-overrides.ui_msg=foo --confirm", bundlePath)
+		_, _, err := e2e.UDS(strings.Split(deployCmd, " ")...)
+		require.NoError(t, err)
+
+		cmd := strings.Split("z tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
+		outputUIColor, _, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+		require.Equal(t, "'orange'", outputUIColor)
+
+		cmd = strings.Split("z tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_MESSAGE\")].value}'", " ")
+		outputMsg, _, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+		require.Equal(t, "'foo'", outputMsg)
 	})
 
 	remove(t, bundlePath)
