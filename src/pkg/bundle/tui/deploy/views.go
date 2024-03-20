@@ -39,13 +39,14 @@ var (
 )
 
 func (m *Model) logView() string {
+	headerMsg := fmt.Sprintf("Package %s deploy logs", m.packages[m.pkgIdx].name)
 	return lipgloss.NewStyle().Padding(0, 3).Render(
-		fmt.Sprintf("%s\n%s\n%s\n\n", m.logHeaderView(), m.logViewport.View(), m.logFooterView()),
+		fmt.Sprintf("%s\n%s\n%s\n\n", m.logHeaderView(headerMsg), m.logViewport.View(), m.logFooterView()),
 	)
 }
 
-func (m *Model) logHeaderView() string {
-	title := titleStyle.Render(fmt.Sprintf("Package %s deploy logs", m.packages[m.pkgIdx].name))
+func (m *Model) logHeaderView(msg string) string {
+	title := titleStyle.Render(msg)
 	headerLine := strings.Repeat("─", max(0, m.logViewport.Width-lipgloss.Width(title)))
 	return lipgloss.JoinHorizontal(lipgloss.Center, title, headerLine)
 }
@@ -68,12 +69,21 @@ func (m *Model) deployView() string {
 			}
 		}
 
-		// todo: sometimes this says it's deploying 0/0 components, fix this
-		text := lipgloss.NewStyle().
-			Align(lipgloss.Left).
-			Padding(0, 3).
-			Render(fmt.Sprintf("%s Package %s deploying (%d / %d components)", p.spinner.View(), p.name, min(numComponentsSuccess+1, p.numComponents), p.numComponents))
-
+		var text string
+		if p.percLayersVerified > 0 {
+			perc := lightGrayText.Render(fmt.Sprintf("%d%%", int32(p.percLayersVerified)))
+			text = lipgloss.NewStyle().
+				Align(lipgloss.Left).
+				Padding(0, 3).
+				Render(fmt.Sprintf("%s Verifying pkg %s (%s)", p.verifySpinner.View(), p.name, perc))
+		}
+		if p.numComponents != 0 {
+			// todo: sometimes this says it's deploying 0/0 components, fix this
+			text = lipgloss.NewStyle().
+				Align(lipgloss.Left).
+				Padding(0, 3).
+				Render(fmt.Sprintf("%s Package %s deploying (%d / %d components)", p.deploySpinner.View(), p.name, min(numComponentsSuccess+1, p.numComponents), p.numComponents))
+		}
 		if p.complete {
 			text = lipgloss.NewStyle().
 				Align(lipgloss.Left).
@@ -81,7 +91,7 @@ func (m *Model) deployView() string {
 				Render(fmt.Sprintf("✅ Package %s deployed", p.name))
 		}
 
-		view = lipgloss.JoinVertical(lipgloss.Left, view, text+"\n", p.progress.View())
+		view = lipgloss.JoinVertical(lipgloss.Left, view, text+"\n")
 	}
 
 	return view
@@ -94,8 +104,19 @@ func (m *Model) preDeployView() string {
 	prettyYAML := paddingStyle.Render(colorPrintYAML(m.bundleYAML))
 	m.yamlViewport.SetContent(prettyYAML)
 
+	headerMsg := "Use mouse wheel to scroll"
+	//return lipgloss.NewStyle().Padding(0, 3).Render(
+	//	fmt.Sprintf("%s\n%s\n%s\n\n", m.logHeaderView(headerMsg), m.logViewport.View(), m.logFooterView()),
+	//)
+
 	// Concatenate header, highlighted YAML, and prompt
-	return fmt.Sprintf("\n%s\n\n%s\n\n%s\n\n%s", header, line, m.yamlViewport.View(), prompt)
+	return fmt.Sprintf("\n%s\n\n%s\n%s\n%s\n\n%s",
+		header,
+		lipgloss.NewStyle().Padding(0, 3).Render(m.logHeaderView(headerMsg)),
+		lipgloss.NewStyle().Padding(0, 3).Render(m.yamlViewport.View()),
+		lipgloss.NewStyle().Padding(0, 3).Render(m.logFooterView()),
+		prompt,
+	)
 }
 
 func tickCmd() tea.Cmd {

@@ -185,8 +185,9 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 		}
 		progressBar.Add(1)
 		numLayersVerified++
-		deploy.Program.Send(fmt.Sprintf("verified:%v", numLayersVerified/float64(len(pkgManifest.Layers))))
 		if ok {
+			percVerified := numLayersVerified / float64(len(pkgManifest.Layers)) * 100
+			deploy.Program.Send(fmt.Sprintf("verified:%v", percVerified))
 			estimatedBytes += layer.Size
 			layersInBundle = append(layersInBundle, layer)
 			digest := layer.Digest.Encoded()

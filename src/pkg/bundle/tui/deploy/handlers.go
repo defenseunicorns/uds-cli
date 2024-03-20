@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -29,15 +28,23 @@ func (m *Model) handleNewPackage(pkgName string, currentPkgIdx int) tea.Cmd {
 		newPkg.resetProgress = true
 	}
 
-	// finish creating newPkg and start the spinner
-	newPkg.progress = progress.New(progress.WithDefaultGradient())
+	// finish creating newPkg and start the spinners
 	m.pkgIdx = currentPkgIdx
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	newPkg.spinner = s
+
+	// create spinner to track deployment progress
+	deploySpinner := spinner.New()
+	deploySpinner.Spinner = spinner.Dot
+	deploySpinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	newPkg.deploySpinner = deploySpinner
+
+	// for remote packages, create spinner to track verification progress
+	verifySpinner := spinner.New()
+	verifySpinner.Spinner = spinner.Dot
+	verifySpinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	newPkg.verifySpinner = verifySpinner
+
 	m.packages = append(m.packages, newPkg)
-	return m.packages[m.pkgIdx].spinner.Tick
+	return tea.Batch(m.packages[m.pkgIdx].deploySpinner.Tick, m.packages[m.pkgIdx].verifySpinner.Tick)
 }
 
 func (m *Model) handleDeploy() tea.Cmd {

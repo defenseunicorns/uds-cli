@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -48,13 +47,14 @@ type bndlClientShim interface {
 
 // pkgState contains the state of the pkg as its deploying
 type pkgState struct {
-	name              string
-	numComponents     int
-	componentStatuses []bool
-	spinner           spinner.Model
-	complete          bool
-	resetProgress     bool
-	progress          progress.Model
+	name               string
+	numComponents      int
+	percLayersVerified float64
+	componentStatuses  []bool
+	deploySpinner      spinner.Model
+	complete           bool
+	resetProgress      bool
+	verifySpinner      spinner.Model
 }
 
 type Model struct {
@@ -130,13 +130,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	default:
 		switch msg := msg.(type) {
-		// FrameMsg is sent when the progress bar wants to animate itself
-		case progress.FrameMsg:
-			if len(m.packages) > m.pkgIdx {
-				progressModel, cmd := m.packages[m.pkgIdx].progress.Update(msg)
-				m.packages[m.pkgIdx].progress = progressModel.(progress.Model)
-				return m, cmd
-			}
+
 		// handle changes in window size
 		case tea.WindowSizeMsg:
 			termWidth = msg.Width
@@ -151,10 +145,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.logViewport, _ = m.logViewport.Update(msg)
 			m.yamlViewport, _ = m.yamlViewport.Update(msg)
 
-		// handle spinner
+		// spin the spinners
 		case spinner.TickMsg:
 			var cmd tea.Cmd
-			m.packages[m.pkgIdx].spinner, cmd = m.packages[m.pkgIdx].spinner.Update(msg)
+			if msg.ID == m.packages[m.pkgIdx].deploySpinner.ID() {
+				m.packages[m.pkgIdx].deploySpinner, cmd = m.packages[m.pkgIdx].deploySpinner.Update(msg)
+			} else if msg.ID == m.packages[m.pkgIdx].verifySpinner.ID() {
+				m.packages[m.pkgIdx].verifySpinner, cmd = m.packages[m.pkgIdx].verifySpinner.Update(msg)
+			}
 			return m, cmd
 
 		// handle ticks
@@ -191,6 +189,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
+			//if !m.confirmed {
+			//	switch msg.(type) {
+			//	case tea.KeyUp, tea.KeyCtrlK:
+			//		m.yamlViewport.ScrollBy(-1) // Scroll up by one line
+			//	case tea.KeyDown, tea.KeyCtrlJ:
+			//		m.yamlViewport.ScrollBy(1) // Scroll down by one line
+			//	case tea.KeyPgUp:
+			//		m.yamlViewport.ScrollBy(-m.yamlViewport.Height / 2) // Scroll up by half a page
+			//	case tea.KeyPgDown:
+			//		m.yamlViewport.ScrollBy(m.yamlViewport.Height / 2) // Scroll down by half a page
+			//	}
+			//}
+
 		// handle deploy
 		case deployOp:
 			cmd := m.handleDeploy()
@@ -215,10 +226,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.totalPkgs = totalPkgs
 					}
 				case verified:
-					// update progress bar
 					if perc, err := strconv.ParseFloat(strings.Split(msg, ":")[1], 64); err == nil {
-						cmd := m.packages[m.pkgIdx].progress.SetPercent(perc)
-						return m, cmd
+						m.packages[m.pkgIdx].percLayersVerified = perc
 					}
 				case complete:
 					m.packages[m.pkgIdx].complete = true
