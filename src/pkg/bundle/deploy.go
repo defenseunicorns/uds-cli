@@ -348,28 +348,35 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 		// Ensuring variable name is upper case since comparisons are being done against upper case env and config variables
 		v.Name = strings.ToUpper(v.Name)
 
-		// check for override in env vars
-		if envVarOverride, exists := os.LookupEnv(strings.ToUpper(config.EnvVarPrefix + v.Name)); exists {
-			if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, envVarOverride, nil); err != nil {
-				return err
+		// check for override in --set vars
+		for k, val := range b.cfg.DeployOpts.SetVariables {
+			if strings.Contains(k, ".") {
+				// check for <pkg>.<var> syntax was used in --set and use uppercase for a non-case-sensitive comparison
+				setVal := strings.Split(k, ".")
+				if setVal[0] == pkgName && strings.ToUpper(setVal[1]) == v.Name {
+					overrideVal = val
+				}
+			} else if strings.ToUpper(k) == v.Name {
+				overrideVal = val
 			}
-			continue
 		}
-		// check for override in config
-		configFileOverride, existsInConfig := b.cfg.DeployOpts.Variables[pkgName][v.Name]
-		sharedConfigOverride, existsInSharedConfig := b.cfg.DeployOpts.SharedVariables[v.Name]
-		if v.Default == nil && !existsInConfig && !existsInSharedConfig {
-			// no default and not in config, use values from underlying chart
-			continue
-		} else if existsInConfig {
-			// if set in config
-			overrideVal = configFileOverride
-		} else if existsInSharedConfig {
-			// if set in shared config
-			overrideVal = sharedConfigOverride
-		} else {
-			// use default v if no config v is set
-			overrideVal = v.Default
+
+		// check for override in env vars if not in --set
+		if envVarOverride, exists := os.LookupEnv(strings.ToUpper(config.EnvVarPrefix + v.Name)); overrideVal == nil && exists {
+			overrideVal = envVarOverride
+		}
+
+		// if not in --set or an env var, use the following precedence: configFile, sharedConfig, default
+		if overrideVal == nil {
+			if configFileOverride, existsInConfig := b.cfg.DeployOpts.Variables[pkgName][v.Name]; existsInConfig {
+				overrideVal = configFileOverride
+			} else if sharedConfigOverride, existsInSharedConfig := b.cfg.DeployOpts.SharedVariables[v.Name]; existsInSharedConfig {
+				overrideVal = sharedConfigOverride
+			} else if v.Default != nil {
+				overrideVal = v.Default
+			} else {
+				continue
+			}
 		}
 
 		// Add the override to the map, or return an error if the path is invalid
