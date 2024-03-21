@@ -2,6 +2,10 @@ module github.com/defenseunicorns/uds-cli
 
 go 1.21.6
 
+// replace github.com/defenseunicorns/zarf => /Users/darcy/leapfrog/gh-repos/defenseunicorns/zarf
+
+replace github.com/defenseunicorns/maru-runner => /Users/darcy/leapfrog/gh-repos/defenseunicorns/maru-runner
+
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
@@ -86,6 +90,7 @@ require (
 	github.com/alibabacloud-go/tea-xml v1.1.3 // indirect
 	github.com/aliyun/credentials-go v1.3.1 // indirect
 	github.com/anchore/bubbly v0.0.0-20231115134915-def0aba654a9 // indirect
+	github.com/anchore/clio v0.0.0-20240301210832-abcb7197da84 // indirect
 	github.com/anchore/clio v0.0.0-20240301210832-abcb7197da84 // indirect
 	github.com/anchore/fangs v0.0.0-20231201140849-5075d28d6d8b // indirect
 	github.com/anchore/go-logger v0.0.0-20230725134548-c21dafa1ec5a // indirect
@@ -471,7 +476,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20240102182953-50ed04b92917 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240116215550-a9fa1716bcac // indirect
 	google.golang.org/grpc v1.61.0 // indirect
-	google.golang.org/protobuf v1.32.0 // indirect
+	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/evanphx/json-patch.v5 v5.6.0 // indirect
 	gopkg.in/go-jose/go-jose.v2 v2.6.3 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect

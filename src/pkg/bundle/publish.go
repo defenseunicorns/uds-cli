@@ -32,7 +32,7 @@ func (b *Bundle) Publish() error {
 	if err != nil {
 		return err
 	}
-	if err := zarfUtils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
+	if err := zarfUtils.ReadYaml(loaded[config.BundleYAML], &b.Bundle); err != nil {
 		return err
 	}
 	err = os.RemoveAll(filepath.Join(b.tmp, "blobs")) // clear tmp dir
@@ -48,8 +48,8 @@ func (b *Bundle) Publish() error {
 
 	// create new OCI artifact in remote
 	ociURL := b.cfg.PublishOpts.Destination
-	bundleName := b.bundle.Metadata.Name
-	bundleTag := b.bundle.Metadata.Version
+	bundleName := b.Bundle.Metadata.Name
+	bundleTag := b.Bundle.Metadata.Version
 	platform := ocispec.Platform{
 		Architecture: config.GetArch(),
 		OS:           oci.MultiOS,
@@ -58,7 +58,7 @@ func (b *Bundle) Publish() error {
 	if err != nil {
 		return err
 	}
-	err = provider.PublishBundle(b.bundle, remote.OrasRemote)
+	err = provider.PublishBundle(b.Bundle, remote.OrasRemote)
 	if err != nil {
 		return err
 	}

@@ -50,7 +50,7 @@ func (b *Bundle) Pull() error {
 	if err != nil {
 		return err
 	}
-	b.bundle = *bundle
+	b.Bundle = *bundle
 
 	// create a remote client just to resolve the root descriptor
 	platform := ocispec.Platform{
@@ -71,7 +71,7 @@ func (b *Bundle) Pull() error {
 	// make an index.json for this bundle and write to tmp
 	index := ocispec.Index{}
 	index.SchemaVersion = 2
-	ref := b.bundle.Metadata.Version
+	ref := b.Bundle.Metadata.Version
 	annotations := map[string]string{
 		ocispec.AnnotationRefName: ref,
 	}
@@ -87,7 +87,7 @@ func (b *Bundle) Pull() error {
 	}
 
 	// tarball the bundle
-	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, b.bundle.Metadata.Name, b.bundle.Metadata.Architecture, b.bundle.Metadata.Version)
+	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, b.Bundle.Metadata.Name, b.Bundle.Metadata.Architecture, b.Bundle.Metadata.Version)
 	dst := filepath.Join(b.cfg.PullOpts.OutputDirectory, filename)
 
 	_ = os.RemoveAll(dst)

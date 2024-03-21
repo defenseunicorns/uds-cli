@@ -44,12 +44,12 @@ func (b *Bundle) Inspect() error {
 		}
 	}
 	// read the bundle's metadata into memory
-	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
+	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.Bundle); err != nil {
 		return err
 	}
 
 	// show the bundle's metadata
-	utils.ColorPrintYAML(b.bundle, nil, false)
+	utils.ColorPrintYAML(b.Bundle, nil, false)
 
 	// TODO: showing package metadata?
 	// TODO: could be cool to have an interactive mode that lets you select a package and show its metadata

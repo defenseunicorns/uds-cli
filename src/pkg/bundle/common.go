@@ -32,7 +32,7 @@ type Bundle struct {
 	// cfg is the Bundle's configuration options
 	cfg *types.BundleConfig
 	// bundle is the bundle's metadata read into memory
-	bundle types.UDSBundle
+	Bundle types.UDSBundle
 	// tmp is the temporary directory used by the Bundle cleaned up with ClearPaths()
 	tmp string
 }
@@ -223,21 +223,21 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 // CalculateBuildInfo calculates the build info for the bundle
 func (b *Bundle) CalculateBuildInfo() error {
 	now := time.Now()
-	b.bundle.Build.User = os.Getenv("USER")
+	b.Bundle.Build.User = os.Getenv("USER")
 
 	hostname, err := os.Hostname()
 	if err != nil {
 		return err
 	}
-	b.bundle.Build.Terminal = hostname
+	b.Bundle.Build.Terminal = hostname
 
 	// --architecture flag > metadata.arch > build.arch > runtime.GOARCH (default)
-	b.bundle.Build.Architecture = config.GetArch(b.bundle.Metadata.Architecture, b.bundle.Build.Architecture)
-	b.bundle.Metadata.Architecture = b.bundle.Build.Architecture
+	b.Bundle.Build.Architecture = config.GetArch(b.Bundle.Metadata.Architecture, b.Bundle.Build.Architecture)
+	b.Bundle.Metadata.Architecture = b.Bundle.Build.Architecture
 
-	b.bundle.Build.Timestamp = now.Format(time.RFC1123Z)
+	b.Bundle.Build.Timestamp = now.Format(time.RFC1123Z)
 
-	b.bundle.Build.Version = config.CLIVersion
+	b.Bundle.Build.Version = config.CLIVersion
 
 	return nil
 }

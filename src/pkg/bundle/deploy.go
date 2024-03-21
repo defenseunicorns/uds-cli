@@ -74,7 +74,7 @@ func (b *Bundle) Deploy() error {
 
 	// read the bundle's metadata into memory
 	// todo: we also read the SHAs from the uds-bundle.yaml here, should we refactor so that we use the bundle's root manifest?
-	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
+	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.Bundle); err != nil {
 		return err
 	}
 
@@ -99,7 +99,7 @@ func (b *Bundle) Deploy() error {
 	if len(b.cfg.DeployOpts.Packages) != 0 {
 		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.DeployOpts.Packages[0], " ", ""), ",")
 
-		for _, pkg := range b.bundle.Packages {
+		for _, pkg := range b.Bundle.Packages {
 			if slices.Contains(userSpecifiedPackages, pkg.Name) {
 				packagesToDeploy = append(packagesToDeploy, pkg)
 			}
@@ -112,7 +112,7 @@ func (b *Bundle) Deploy() error {
 		return deployPackages(packagesToDeploy, resume, b, zarfPackageNameMap)
 	}
 
-	return deployPackages(b.bundle.Packages, resume, b, zarfPackageNameMap)
+	return deployPackages(b.Bundle.Packages, resume, b, zarfPackageNameMap)
 }
 
 func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackageNameMap map[string]string) error {
@@ -258,7 +258,7 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 func (b *Bundle) confirmBundleDeploy() (confirm bool) {
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
-	utils.ColorPrintYAML(b.bundle, nil, false)
+	utils.ColorPrintYAML(b.Bundle, nil, false)
 
 	message.HorizontalRule()
 
