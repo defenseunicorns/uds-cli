@@ -6,7 +6,6 @@ package cmd
 import (
 	"os"
 	"runtime/debug"
-	"strings"
 
 	runnerCLI "github.com/defenseunicorns/maru-runner/src/cmd"
 	runnerConfig "github.com/defenseunicorns/maru-runner/src/config"
@@ -57,7 +56,7 @@ func init() {
 	if buildInfo, ok := debug.ReadBuildInfo(); ok {
 		for _, dep := range buildInfo.Deps {
 			if dep.Path == "github.com/defenseunicorns/zarf" {
-				zarfConfig.CLIVersion = strings.Split(dep.Version, "v")[1]
+				zarfConfig.CLIVersion = dep.Version
 			}
 		}
 	}
