@@ -15,7 +15,6 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/fetcher"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/config/lang"
 	"github.com/defenseunicorns/zarf/src/pkg/cluster"
@@ -75,7 +74,6 @@ func NewOrDie(cfg *types.BundleConfig) *Bundle {
 
 // ClearPaths closes any files and clears out the paths used by Bundle
 func (b *Bundle) ClearPaths() {
-	utils.CacheLogFile.Close()
 	_ = os.RemoveAll(b.tmp)
 }
 

@@ -83,9 +83,6 @@ var (
 
 	// HelmTimeout is the default timeout for helm deploys
 	HelmTimeout = 15 * time.Minute
-
-	// TeaEnabled is a flag to enable BubbleTea for select bundle ops as we refactor the TUI
-	TeaEnabled bool
 )
 
 // GetArch returns the arch based on a priority list with options for overriding.

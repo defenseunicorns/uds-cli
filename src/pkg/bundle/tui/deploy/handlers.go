@@ -14,6 +14,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 )
 
@@ -108,6 +109,7 @@ func (m *Model) handleDone(err error) tea.Cmd {
 	cmds = append(cmds, genSuccessOrFailCmds(m)...)
 	if err != nil {
 		hint := lightBlueText.Render("uds logs")
+		message.Debug(err) // capture err in debug logs
 		errMsg := lipgloss.NewStyle().Padding(0, 4).Render(fmt.Sprintf("\n❌ Error deploying bundle: %s\n\nRun %s to view deployment logs", lightGrayText.Render(err.Error()), hint) + "\n")
 		cmds = []tea.Cmd{tea.Println(errMsg), tui.Pause(), tea.Quit}
 		return tea.Sequence(cmds...)

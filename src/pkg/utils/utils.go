@@ -23,10 +23,6 @@ import (
 	"github.com/pterm/pterm"
 )
 
-var (
-	CacheLogFile *os.File
-)
-
 // GracefulPanic in the event of a panic, attempt to reset the terminal using the 'reset' command.
 func GracefulPanic() {
 	if r := recover(); r != nil {
@@ -58,45 +54,48 @@ func IsValidTarballPath(path string) bool {
 
 // ConfigureLogs sets up the log file, log cache and output for the CLI
 func ConfigureLogs(op string) error {
+	// don't configure UDS logs for vendored Zarf cmds
+	if op == "zarf COMMAND" {
+		return nil
+	}
 	writer, err := message.UseLogFile("")
 	logFile := writer
 	if err != nil {
 		return err
 
 	}
-	location := message.LogFileLocation()
-	config.LogFileName = location
-
-	// empty cache logs file
-	os.Remove(filepath.Join(config.CommonOptions.CachePath, config.CachedLogs))
+	tmpLogLocation := message.LogFileLocation()
+	config.LogFileName = tmpLogLocation
 
 	// Set up cache dir and cache logs file
 	cacheDir := filepath.Join(config.CommonOptions.CachePath)
 	if err := os.MkdirAll(cacheDir, 0o0755); err != nil { // Ensure the directory exists
 		return fmt.Errorf("failed to create cache directory: %w", err)
 	}
-	CacheLogFile, err = os.OpenFile(filepath.Join(config.CommonOptions.CachePath, config.CachedLogs), os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
+
+	// remove old cache logs file, and set up symlink to the new log file
+	os.Remove(filepath.Join(config.CommonOptions.CachePath, config.CachedLogs))
+	if err = os.Symlink(tmpLogLocation, filepath.Join(config.CommonOptions.CachePath, config.CachedLogs)); err != nil {
 		return err
 	}
-	logWriter := io.MultiWriter(logFile, CacheLogFile)
+
+	logWriter := io.MultiWriter(logFile)
 
 	// use Zarf pterm output if no-tea flag is set
 	// todo: as more bundle ops use BubbleTea, need to also check them alongside 'deploy'
 	if !strings.Contains(op, "deploy") || config.CommonOptions.NoTea {
-		message.Notef("Saving log file to %s", location)
-		logWriter = io.MultiWriter(os.Stderr, CacheLogFile, logFile)
+		message.Notef("Saving log file to %s", tmpLogLocation)
+		logWriter = io.MultiWriter(os.Stderr, logFile)
 		pterm.SetDefaultOutput(logWriter)
 		return nil
 	}
 
-	// set pterm output to only go to this logfile
 	pterm.SetDefaultOutput(logWriter)
 
 	// disable progress bars (otherwise they will still get printed to STDERR)
 	message.NoProgress = true
 
-	message.Debugf(fmt.Sprintf("Saving log file to %s", location))
+	message.Debugf(fmt.Sprintf("Saving log file to %s", tmpLogLocation))
 	return nil
 }
 
