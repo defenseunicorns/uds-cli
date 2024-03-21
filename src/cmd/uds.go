@@ -18,7 +18,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui/deploy"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -77,13 +76,6 @@ var deployCmd = &cobra.Command{
 	Short:   lang.CmdBundleDeployShort,
 	Args:    cobra.MaximumNArgs(1),
 	Run: func(_ *cobra.Command, args []string) {
-		// reconfigure logs for the deploy command so we can use BubbleTea
-		config.TeaEnabled = true
-		err := utils.ConfigureLogs()
-		if err != nil {
-			message.Fatalf(err, "Error configuring logs")
-		}
-
 		bundleCfg.DeployOpts.Source = chooseBundle(args)
 		configureZarf()
 
@@ -98,37 +90,18 @@ var deployCmd = &cobra.Command{
 		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
 
-		// pre-deploy validation
-		bundleYAML := ""
-		bundleYAML, err = bndlClient.PreDeployValidation()
-		if err != nil {
-			return
-		}
-
 		// don't use bubbletea if --no-tea flag is set
 		if config.CommonOptions.NoTea {
-			// confirm deployment
-			if ok := bndlClient.ConfirmBundleDeploy(); !ok {
-				message.Fatal(nil, "bundle deployment cancelled")
-			}
-			// create an empty program and kill it, this makes Program.Send a no-op
-			deploy.Program = tea.NewProgram(nil)
-			deploy.Program.Kill()
-
-			// deploy the bundle
-			if err := bndlClient.Deploy(); err != nil {
-				bndlClient.ClearPaths()
-				message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
-			}
+			deployWithoutTea(bndlClient)
 			return
 		}
 
 		// start up bubbletea
-		m := deploy.InitModel(bndlClient, bundleYAML)
+		m := deploy.InitModel(bndlClient)
 
 		// detect tty so CI/containers don't break
 		if term.IsTerminal(int(os.Stdout.Fd())) {
-			deploy.Program = tea.NewProgram(&m, tea.WithMouseCellMotion())
+			deploy.Program = tea.NewProgram(&m)
 		} else {
 			deploy.Program = tea.NewProgram(&m, tea.WithInput(nil))
 		}
@@ -137,6 +110,26 @@ var deployCmd = &cobra.Command{
 			message.Fatalf(err, "TUI program error: %s", err.Error())
 		}
 	},
+}
+
+func deployWithoutTea(bndlClient *bundle.Bundle) {
+	_, _, _, err := bndlClient.PreDeployValidation()
+	if err != nil {
+		message.Fatalf(err, "Failed to validate bundle: %s", err.Error())
+	}
+	// confirm deployment
+	if ok := bndlClient.ConfirmBundleDeploy(); !ok {
+		message.Fatal(nil, "bundle deployment cancelled")
+	}
+	// create an empty program and kill it, this makes Program.Send a no-op
+	deploy.Program = tea.NewProgram(nil)
+	deploy.Program.Kill()
+
+	// deploy the bundle
+	if err := bndlClient.Deploy(); err != nil {
+		bndlClient.ClearPaths()
+		message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
+	}
 }
 
 var inspectCmd = &cobra.Command{

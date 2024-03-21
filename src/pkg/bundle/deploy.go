@@ -281,57 +281,58 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string
 	return processed, nil
 }
 
-func (b *Bundle) PreDeployValidation() (string, error) {
+func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 
 	// Check that provided oci source path is valid, and update it if it's missing the full path
 	source, err := CheckOCISourcePath(b.cfg.DeployOpts.Source)
 	if err != nil {
-		return "", err
+		return "", "", "", err
 	}
 	b.cfg.DeployOpts.Source = source
 
 	// validate config's arch against cluster
 	err = ValidateArch(config.GetArch())
 	if err != nil {
-		return "", err
+		return "", "", "", err
 	}
 
 	// create a new provider
 	provider, err := NewBundleProvider(b.cfg.DeployOpts.Source, b.tmp)
 	if err != nil {
-		return "", err
+		return "", "", "", err
 	}
 
 	// pull the bundle's metadata + sig
 	loaded, err := provider.LoadBundleMetadata()
 	if err != nil {
-		return "", err
+		return "", "", "", err
 	}
 
 	// validate the sig (if present)
 	if err := ValidateBundleSignature(loaded[config.BundleYAML], loaded[config.BundleYAMLSignature], b.cfg.DeployOpts.PublicKeyPath); err != nil {
-		return "", err
+		return "", "", "", err
 	}
 
 	// read in file at config.BundleYAML
 	message.Debugf("Reading YAML at %s", loaded[config.BundleYAML])
 	bundleYAML, err := os.ReadFile(loaded[config.BundleYAML])
 	if err != nil {
-		return "", err
+		return "", "", "", err
 	}
 
 	// todo: we also read the SHAs from the uds-bundle.yaml here, should we refactor so that we use the bundle's root manifest?
 	if err := goyaml.Unmarshal(bundleYAML, &b.bundle); err != nil {
-		return "", err
+		return "", "", "", err
 	}
 
 	// Maps name given to zarf package in the bundle to the actual name of the zarf package
 	zarfPackageNameMap, err := provider.ZarfPackageNameMap()
 	if err != nil {
-		return "", err
+		return "", "", "", err
 	}
 	b.cfg.DeployOpts.ZarfPackageNameMap = zarfPackageNameMap
-	return string(bundleYAML), err
+	bundleName := b.bundle.Metadata.Name
+	return bundleName, string(bundleYAML), source, err
 }
 
 // processOverrideValues processes a bundles values overrides and adds them to the override map

@@ -42,7 +42,7 @@ var rootCmd = &cobra.Command{
 
 		// don't load log configs for the logs command
 		if cmd.Use != "logs" {
-			cliSetup()
+			cliSetup(cmd.Use)
 		}
 	},
 	Short: lang.RootCmdShort,
@@ -92,7 +92,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&config.CommonOptions.NoTea, "no-tea", v.GetBool(V_NO_TEA), lang.RootCmdNoTea)
 }
 
-func cliSetup() {
+func cliSetup(op string) {
 	match := map[string]message.LogLevel{
 		"warn":  message.WarnLevel,
 		"info":  message.InfoLevel,
@@ -113,7 +113,7 @@ func cliSetup() {
 	}
 
 	if !config.SkipLogFile && !config.ListTasks {
-		err := utils.ConfigureLogs()
+		err := utils.ConfigureLogs(op)
 		if err != nil {
 			message.Fatalf(err, "Error configuring logs")
 		}

@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -289,7 +290,9 @@ func getOCIValidatedSource(source string) (string, error) {
 					_, err = remote.ResolveRoot(ctx)
 				}
 				if err != nil {
-					message.Fatalf(nil, "%s: not found", originalSource)
+					errMsg := fmt.Sprintf("%s: not found", originalSource)
+					message.Debug(errMsg)
+					return "", errors.New(errMsg)
 				}
 			}
 		}

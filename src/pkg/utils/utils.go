@@ -57,7 +57,7 @@ func IsValidTarballPath(path string) bool {
 }
 
 // ConfigureLogs sets up the log file, log cache and output for the CLI
-func ConfigureLogs() error {
+func ConfigureLogs(op string) error {
 	writer, err := message.UseLogFile("")
 	logFile := writer
 	if err != nil {
@@ -82,7 +82,8 @@ func ConfigureLogs() error {
 	logWriter := io.MultiWriter(logFile, CacheLogFile)
 
 	// use Zarf pterm output if no-tea flag is set
-	if !config.TeaEnabled || config.CommonOptions.NoTea {
+	// todo: as more bundle ops use BubbleTea, need to also check them alongside 'deploy'
+	if !strings.Contains(op, "deploy") || config.CommonOptions.NoTea {
 		message.Notef("Saving log file to %s", location)
 		logWriter = io.MultiWriter(os.Stderr, CacheLogFile, logFile)
 		pterm.SetDefaultOutput(logWriter)

@@ -295,9 +295,26 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 		return err
 	}
 
-	_, err = oras.Copy(tp.ctx, store, ref, remote.Repo(), ref, copyOpts)
-	if err != nil {
-		return err
+	// copy bundle layers to remote with retries
+	maxRetries := 3
+	retries := 0
+
+	// reset retries if a desc was successful
+	copyOpts.PostCopy = func(_ context.Context, desc ocispec.Descriptor) error {
+		retries = 0
+		return nil
+	}
+
+	for {
+		_, err = oras.Copy(tp.ctx, store, ref, remote.Repo(), ref, copyOpts)
+		if err != nil && retries < maxRetries {
+			retries++
+			message.Debugf("Encountered err during publish: %s\nRetrying %d/%d", err, retries, maxRetries)
+			continue
+		} else if err != nil {
+			return err
+		}
+		break
 	}
 
 	// create or update, then push index.json

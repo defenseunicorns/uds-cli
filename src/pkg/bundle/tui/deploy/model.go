@@ -24,11 +24,13 @@ type packageOp string
 
 const (
 	doDeploy        deployOp  = "deploy"
+	doPreDeploy     deployOp  = "preDeploy"
 	newPackage      packageOp = "newPackage"
 	totalComponents packageOp = "totalComponents"
 	totalPackages   packageOp = "totalPackages"
 	complete        packageOp = "complete"
-	verified        packageOp = "verified"
+	verifying       packageOp = "verifying"
+	downloading     packageOp = "downloading"
 )
 
 var (
@@ -42,6 +44,7 @@ var (
 // private interface to decouple tui pkg from bundle pkg
 type bndlClientShim interface {
 	Deploy() error
+	PreDeployValidation() (string, string, string, error)
 	ClearPaths()
 }
 
@@ -49,46 +52,67 @@ type bndlClientShim interface {
 type pkgState struct {
 	name               string
 	numComponents      int
-	percLayersVerified float64
+	percLayersVerified int64
 	componentStatuses  []bool
 	deploySpinner      spinner.Model
+	downloadSpinner    spinner.Model
+	verifySpinner      spinner.Model
 	complete           bool
 	resetProgress      bool
-	verifySpinner      spinner.Model
+	percDownloaded     int64
+	downloaded         bool
+	verified           bool
+	isRemote           bool
 }
 
 type Model struct {
-	bndlClient   bndlClientShim
-	bundleYAML   string
-	doneChan     chan int
-	pkgIdx       int
-	totalPkgs    int
-	confirmed    bool
-	done         bool
-	packages     []pkgState
-	deploying    bool
-	inProgress   bool
-	viewLogs     bool
-	logViewport  viewport.Model
-	isScrolling  bool
-	errChan      chan error
-	yamlViewport viewport.Model
+	bndlClient              bndlClientShim
+	bundleYAML              string
+	doneChan                chan int
+	pkgIdx                  int
+	totalPkgs               int
+	confirmed               bool
+	done                    bool
+	packages                []pkgState
+	deploying               bool
+	inProgress              bool
+	viewLogs                bool
+	logViewport             viewport.Model
+	isScrolling             bool
+	errChan                 chan error
+	yamlViewport            viewport.Model
+	isRemoteBundle          bool
+	bundleName              string
+	validatingBundle        bool
+	validatingBundleSpinner spinner.Model
 }
 
-func InitModel(client bndlClientShim, bundleYAML string) Model {
+func InitModel(client bndlClientShim) Model {
 	var confirmed bool
 	var inProgress bool
+	var isRemoteBundle bool
 	if config.CommonOptions.Confirm {
 		confirmed = true
 		inProgress = true
 	}
+
+	// create spinner to track bundle validation
+	validatingBundleSpinner := spinner.New()
+	validatingBundleSpinner.Spinner = spinner.Ellipsis
+	validatingBundleSpinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	// create cluster client for querying packages during deployment
 	c, _ = cluster.NewCluster()
 
 	// set termWidth and line length based on window size
 	termWidth, termHeight, _ = term.GetSize(0)
-	line = lipgloss.NewStyle().Padding(0, 3).Render(strings.Repeat("─", int(float64(termWidth)*lineWidthScale)))
+
+	// make log viewport scale dynamic based on termHeight to prevent weird artifacts
+	if termHeight < 30 {
+		logVpHeightScale = 0.3
+	} else {
+		logVpHeightScale = 0.4
+	}
 
 	// set up logViewport for logs, adjust width and height of logViewport
 	logViewport := viewport.New(int(float64(termWidth)*logVpWidthScale), int(float64(termHeight)*logVpHeightScale))
@@ -102,20 +126,22 @@ func InitModel(client bndlClientShim, bundleYAML string) Model {
 	yamlViewport.MouseWheelDelta = 1
 
 	return Model{
-		bndlClient:   client,
-		doneChan:     make(chan int),
-		errChan:      make(chan error),
-		confirmed:    confirmed,
-		bundleYAML:   bundleYAML,
-		inProgress:   inProgress,
-		logViewport:  logViewport,
-		yamlViewport: yamlViewport,
+		bndlClient:              client,
+		doneChan:                make(chan int),
+		errChan:                 make(chan error),
+		confirmed:               confirmed,
+		inProgress:              inProgress,
+		logViewport:             logViewport,
+		yamlViewport:            yamlViewport,
+		isRemoteBundle:          isRemoteBundle,
+		validatingBundleSpinner: validatingBundleSpinner,
+		validatingBundle:        true,
 	}
 }
 
 func (m *Model) Init() tea.Cmd {
 	return func() tea.Msg {
-		return doDeploy
+		return doPreDeploy
 	}
 }
 
@@ -135,25 +161,27 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.WindowSizeMsg:
 			termWidth = msg.Width
 			termHeight = msg.Height
-			line = lipgloss.NewStyle().Padding(0, 3).Render(strings.Repeat("─", int(float64(termWidth)*lineWidthScale)))
+
+			// make log viewport scale dynamic based on termHeight to prevent weird artifacts
+			if termHeight < 30 {
+				logVpHeightScale = 0.3
+			} else {
+				logVpHeightScale = 0.4
+			}
 			m.logViewport.Width = int(float64(termWidth) * logVpWidthScale)
 			m.logViewport.Height = int(float64(termHeight) * logVpHeightScale)
 
-		// handle mouse events
-		case tea.MouseMsg:
-			m.isScrolling = true
-			m.logViewport, _ = m.logViewport.Update(msg)
-			m.yamlViewport, _ = m.yamlViewport.Update(msg)
-
 		// spin the spinners
 		case spinner.TickMsg:
-			var cmd tea.Cmd
-			if msg.ID == m.packages[m.pkgIdx].deploySpinner.ID() {
-				m.packages[m.pkgIdx].deploySpinner, cmd = m.packages[m.pkgIdx].deploySpinner.Update(msg)
-			} else if msg.ID == m.packages[m.pkgIdx].verifySpinner.ID() {
-				m.packages[m.pkgIdx].verifySpinner, cmd = m.packages[m.pkgIdx].verifySpinner.Update(msg)
+			var spinDeploy, spinVerify, spinDownload, spinValidateBundle tea.Cmd
+			if len(m.packages) > m.pkgIdx {
+				m.packages[m.pkgIdx].deploySpinner, spinDeploy = m.packages[m.pkgIdx].deploySpinner.Update(msg)
+				m.packages[m.pkgIdx].verifySpinner, spinVerify = m.packages[m.pkgIdx].verifySpinner.Update(msg)
+				m.packages[m.pkgIdx].downloadSpinner, spinDownload = m.packages[m.pkgIdx].downloadSpinner.Update(msg)
+			} else {
+				m.validatingBundleSpinner, spinValidateBundle = m.validatingBundleSpinner.Update(msg)
 			}
-			return m, cmd
+			return m, tea.Batch(spinDeploy, spinVerify, spinDownload, spinValidateBundle)
 
 		// handle ticks
 		case deployTickMsg:
@@ -178,7 +206,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, tea.Sequence(quitMsg, tea.Println(), tea.Quit)
 				}
 			case "ctrl+c", "q":
-				return m, tea.Quit
+				return m, tea.Sequence(tea.Quit)
+
+			case "up":
+				if !m.confirmed {
+					m.yamlViewport.LineUp(1)
+				}
+			case "down":
+				if !m.confirmed {
+					m.yamlViewport.LineDown(1)
+				}
 
 			case "l", "L":
 				if m.inProgress && !m.viewLogs {
@@ -189,23 +226,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-			//if !m.confirmed {
-			//	switch msg.(type) {
-			//	case tea.KeyUp, tea.KeyCtrlK:
-			//		m.yamlViewport.ScrollBy(-1) // Scroll up by one line
-			//	case tea.KeyDown, tea.KeyCtrlJ:
-			//		m.yamlViewport.ScrollBy(1) // Scroll down by one line
-			//	case tea.KeyPgUp:
-			//		m.yamlViewport.ScrollBy(-m.yamlViewport.Height / 2) // Scroll up by half a page
-			//	case tea.KeyPgDown:
-			//		m.yamlViewport.ScrollBy(m.yamlViewport.Height / 2) // Scroll down by half a page
-			//	}
-			//}
-
 		// handle deploy
 		case deployOp:
-			cmd := m.handleDeploy()
-			return m, cmd
+			switch msg {
+			case doDeploy:
+				cmd := m.handleDeploy()
+				return m, cmd
+			case doPreDeploy:
+				cmd := m.handlePreDeploy()
+				return m, tea.Sequence(m.validatingBundleSpinner.Tick, cmd)
+			}
 
 		// handle package updates
 		case string:
@@ -225,9 +255,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if totalPkgs, err := strconv.Atoi(strings.Split(msg, ":")[1]); err == nil {
 						m.totalPkgs = totalPkgs
 					}
-				case verified:
-					if perc, err := strconv.ParseFloat(strings.Split(msg, ":")[1], 64); err == nil {
+				case verifying:
+					if perc, err := strconv.ParseInt(strings.Split(msg, ":")[1], 10, 8); err == nil {
 						m.packages[m.pkgIdx].percLayersVerified = perc
+						if perc == 100 {
+							m.packages[m.pkgIdx].verified = true
+						}
+					}
+				case downloading:
+					if perc, err := strconv.ParseInt(strings.Split(msg, ":")[1], 10, 8); err == nil {
+						m.packages[m.pkgIdx].percDownloaded = perc
+						if perc == 100 {
+							m.packages[m.pkgIdx].downloaded = true
+						}
 					}
 				case complete:
 					m.packages[m.pkgIdx].complete = true
@@ -243,10 +283,13 @@ func (m *Model) View() string {
 	if m.done {
 		// no errors, clear the controlled Program's output
 		return ""
+	} else if m.validatingBundle {
+		validatingBundleMsg := lightGrayText.Render("Validating bundle")
+		return lipgloss.NewStyle().Padding(0, 4).Render(fmt.Sprintf("\n%s %s", validatingBundleMsg, m.validatingBundleSpinner.View()))
 	} else if m.viewLogs {
-		return fmt.Sprintf("%s\n\n%s\n", logMsg, m.logView())
+		return fmt.Sprintf("\n%s\n\n%s\n%s\n\n%s\n", m.udsTitle(), m.bundleDeployProgress(), logMsg, m.logView())
 	} else if m.confirmed {
-		return fmt.Sprintf("%s\n%s\n", logMsg, m.deployView())
+		return fmt.Sprintf("\n%s\n\n%s\n%s\n%s\n", m.udsTitle(), m.bundleDeployProgress(), logMsg, m.deployView())
 	} else {
 		return fmt.Sprintf("%s\n", m.preDeployView())
 	}

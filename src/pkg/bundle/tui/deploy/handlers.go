@@ -6,6 +6,7 @@ package deploy
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -37,14 +38,45 @@ func (m *Model) handleNewPackage(pkgName string, currentPkgIdx int) tea.Cmd {
 	deploySpinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	newPkg.deploySpinner = deploySpinner
 
-	// for remote packages, create spinner to track verification progress
+	// for remote packages, create spinner to track verification and download progress
 	verifySpinner := spinner.New()
 	verifySpinner.Spinner = spinner.Dot
 	verifySpinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	newPkg.verifySpinner = verifySpinner
+	downloadSpinner := spinner.New()
+	downloadSpinner.Spinner = spinner.Dot
+	downloadSpinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	newPkg.downloadSpinner = downloadSpinner
+
+	// create spinner to track total bundle progress
+	bundleSpinner := spinner.New()
+	bundleSpinner.Spinner = spinner.Ellipsis
+	bundleSpinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	m.packages = append(m.packages, newPkg)
-	return tea.Batch(m.packages[m.pkgIdx].deploySpinner.Tick, m.packages[m.pkgIdx].verifySpinner.Tick)
+	return tea.Batch(m.packages[m.pkgIdx].deploySpinner.Tick,
+		m.packages[m.pkgIdx].verifySpinner.Tick,
+		m.packages[m.pkgIdx].downloadSpinner.Tick,
+	)
+}
+
+func (m *Model) handlePreDeploy() tea.Cmd {
+	cmd := func() tea.Msg {
+		name, bundleYAML, source, err := m.bndlClient.PreDeployValidation()
+		if err != nil {
+			m.errChan <- err
+		}
+		m.validatingBundle = false
+		m.bundleYAML = bundleYAML
+		m.bundleName = name
+		// check if the bundle is remote
+		if strings.HasPrefix(source, "oci://") {
+			m.isRemoteBundle = true
+		}
+		return doDeploy
+	}
+
+	return cmd
 }
 
 func (m *Model) handleDeploy() tea.Cmd {
@@ -70,15 +102,21 @@ func (m *Model) handleDeploy() tea.Cmd {
 }
 
 func (m *Model) handleDone(err error) tea.Cmd {
-	var cmds []tea.Cmd
+	//uds := "   __  ______  _____\n  / / / / __ \\/ ___/\n / / / / / / /\\__ \\ \n/ /_/ / /_/ /___/ / \n\\____/_____//____/  \n                    \n"
+	cmds := []tea.Cmd{tea.Println(), tea.Println(m.udsTitle()), tea.Println()}
 	m.done = true // remove the current view
 	cmds = append(cmds, genSuccessOrFailCmds(m)...)
 	if err != nil {
 		hint := lightBlueText.Render("uds logs")
-		errMsg := lipgloss.NewStyle().Padding(0, 3).Render(fmt.Sprintf("\n❌ Error deploying bundle: %s\n\nRun %s to view deployment logs", lightGrayText.Render(err.Error()), hint) + "\n")
-		cmds = []tea.Cmd{tea.Println(errMsg)}
+		errMsg := lipgloss.NewStyle().Padding(0, 4).Render(fmt.Sprintf("\n❌ Error deploying bundle: %s\n\nRun %s to view deployment logs", lightGrayText.Render(err.Error()), hint) + "\n")
+		cmds = []tea.Cmd{tea.Println(errMsg), tui.Pause(), tea.Quit}
+		return tea.Sequence(cmds...)
 	}
-	cmds = append(cmds, tui.Pause(), tea.Quit)
+	styledBundleName := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFF258")).Render(m.bundleName)
+	successMsg := tea.Println(lipgloss.NewStyle().
+		Padding(0, 4).
+		Render(fmt.Sprintf("\n✨ Bundle %s deployed successfully\n", styledBundleName)))
+	cmds = append(cmds, successMsg, tui.Pause(), tea.Quit)
 	return tea.Sequence(cmds...)
 }
 
@@ -137,21 +175,4 @@ func (m *Model) handleDeployTick() (tea.Model, tea.Cmd) {
 	}
 
 	return m, tickCmd()
-}
-
-// genSuccessOrFailCmds generates the success or failure messages for each package
-func genSuccessOrFailCmds(m *Model) []tea.Cmd {
-	cmds := []tea.Cmd{tea.Println(fmt.Sprintf("%s\n", logMsg))}
-	for i := 0; i < len(m.packages); i++ {
-		if m.packages[i].complete {
-			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#32A852")).Padding(0, 3)
-			successMsg := fmt.Sprintf("✅ Package %s deployed\n", m.packages[i].name)
-			cmds = append(cmds, tea.Println(successStyle.Render(successMsg)))
-		} else {
-			failStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000")).Padding(0, 3)
-			failMsg := fmt.Sprintf("❌ Package %s failed to deploy\n", m.packages[i].name)
-			cmds = append(cmds, tea.Println(failStyle.Render(failMsg)))
-		}
-	}
-	return cmds
 }

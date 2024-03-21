@@ -177,6 +177,7 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 	layersToPull := []ocispec.Descriptor{pkgManifestDesc}
 	layersInBundle := []ocispec.Descriptor{pkgManifestDesc}
 	numLayersVerified := 0.0
+	downloadedBytes := int64(0)
 
 	for _, layer := range pkgManifest.Layers {
 		ok, err := r.Remote.Repo().Blobs().Exists(ctx, layer)
@@ -187,7 +188,7 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 		numLayersVerified++
 		if ok {
 			percVerified := numLayersVerified / float64(len(pkgManifest.Layers)) * 100
-			deploy.Program.Send(fmt.Sprintf("verified:%v", percVerified))
+			deploy.Program.Send(fmt.Sprintf("verifying:%v", int64(percVerified)))
 			estimatedBytes += layer.Size
 			layersInBundle = append(layersInBundle, layer)
 			digest := layer.Digest.Encoded()
@@ -215,6 +216,14 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 	copyOpts := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
 	doneSaving := make(chan error)
 	go zarfUtils.RenderProgressBarForLocalDirWrite(r.TmpDir, estimatedBytes, doneSaving, fmt.Sprintf("Pulling bundled Zarf pkg: %s", r.PkgName), fmt.Sprintf("Successfully pulled package: %s", r.PkgName))
+
+	copyOpts.PostCopy = func(_ context.Context, desc ocispec.Descriptor) error {
+		downloadedBytes += desc.Size
+		downloadedPerc := float64(downloadedBytes) / float64(estimatedBytes) * 100
+		deploy.Program.Send(fmt.Sprintf("downloading:%d", int64(downloadedPerc)))
+		return nil
+	}
+
 	_, err = oras.Copy(ctx, r.Remote.Repo(), r.Remote.Repo().Reference.String(), store, "", copyOpts)
 	doneSaving <- err
 	<-doneSaving
