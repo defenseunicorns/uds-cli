@@ -20,7 +20,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui/deploy"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
@@ -35,7 +35,7 @@ var createCmd = &cobra.Command{
 	PreRun: func(_ *cobra.Command, args []string) {
 		pathToBundleFile := ""
 		if len(args) > 0 {
-			if !zarfUtils.IsDir(args[0]) {
+			if !helpers.IsDir(args[0]) {
 				message.Fatalf(nil, "(%q) is not a valid path to a directory", args[0])
 			}
 			pathToBundleFile = filepath.Join(args[0])

@@ -18,6 +18,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	av3 "github.com/mholt/archiver/v3"
 	av4 "github.com/mholt/archiver/v4"
@@ -166,7 +167,7 @@ func (tp *tarballBundleProvider) loadBundleManifest() error {
 
 	defer os.Remove(manifestPath)
 
-	if err := zarfUtils.SHAsMatch(manifestPath, bundleManifestDesc.Digest.Encoded()); err != nil {
+	if err := helpers.SHAsMatch(manifestPath, bundleManifestDesc.Digest.Encoded()); err != nil {
 		return err
 	}
 
@@ -206,7 +207,7 @@ func (tp *tarballBundleProvider) LoadBundleMetadata() (types.PathMap, error) {
 			pathInTarball := filepath.Join(config.BlobsDir, layer.Digest.Encoded())
 			abs := filepath.Join(tp.dst, pathInTarball)
 			loaded[path] = abs
-			if !zarfUtils.InvalidPath(abs) && zarfUtils.SHAsMatch(abs, layer.Digest.Encoded()) == nil {
+			if !helpers.InvalidPath(abs) && helpers.SHAsMatch(abs, layer.Digest.Encoded()) == nil {
 				continue
 			}
 			if err := av3.Extract(tp.src, pathInTarball, tp.dst); err != nil {

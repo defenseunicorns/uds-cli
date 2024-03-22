@@ -18,6 +18,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
+	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
@@ -262,7 +263,11 @@ func EnsureOCIPrefix(source string) string {
 // GetZarfLayers grabs the necessary Zarf pkg layers from a remote OCI registry
 func GetZarfLayers(remote zoci.Remote, pkg types.Package, pkgRootManifest *oci.Manifest) ([]ocispec.Descriptor, error) {
 	ctx := context.TODO()
-	layersFromComponents, err := remote.LayersFromRequestedComponents(ctx, pkg.OptionalComponents)
+	var optComponents []zarfTypes.ZarfComponent
+	for _, c := range pkg.OptionalComponents {
+		optComponents = append(optComponents, zarfTypes.ZarfComponent{Name: c})
+	}
+	layersFromComponents, err := remote.LayersFromRequestedComponents(ctx, optComponents)
 	if err != nil {
 		return nil, err
 	}

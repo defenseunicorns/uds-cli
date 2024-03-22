@@ -13,8 +13,8 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/cmd/common"
+	zarfCommon "github.com/defenseunicorns/zarf/src/cmd/common"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
 	"github.com/spf13/cobra"
 )
 
@@ -33,7 +33,7 @@ var rootCmd = &cobra.Command{
 			return
 		}
 
-		exec.ExitOnInterrupt()
+		zarfCommon.ExitOnInterrupt()
 
 		// Don't add the logo to the help command
 		if cmd.Parent() == nil {

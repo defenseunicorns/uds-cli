@@ -22,6 +22,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/mholt/archiver/v4"
@@ -56,7 +57,7 @@ func (op *ociProvider) getBundleManifest() (*oci.Manifest, error) {
 // LoadBundleMetadata loads a remote bundle's metadata
 func (op *ociProvider) LoadBundleMetadata() (types.PathMap, error) {
 	ctx := context.TODO()
-	if err := zarfUtils.CreateDirectory(filepath.Join(op.dst, config.BlobsDir), 0700); err != nil {
+	if err := helpers.CreateDirectory(filepath.Join(op.dst, config.BlobsDir), 0700); err != nil {
 		return nil, err
 	}
 

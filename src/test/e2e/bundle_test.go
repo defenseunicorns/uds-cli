@@ -32,12 +32,10 @@ func TestUDSCmd(t *testing.T) {
 }
 
 func TestUDSLogs(t *testing.T) {
-	bundleDir := "src/test/bundles/03-local-and-remote"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
-	inspectLocal(t, bundlePath)
-
+	inspectRemote(t, "ghcr.io/defenseunicorns/packages/uds-cli/test/publish/ghcr-test:0.0.1")
 	stderr, _, err := e2e.UDS("logs")
 	require.NoError(t, err)
+	require.Contains(t, stderr, "DEBUG")
 	require.Contains(t, stderr, "UDSBundle")
 }
 

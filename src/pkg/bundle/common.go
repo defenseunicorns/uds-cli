@@ -244,7 +244,7 @@ func (b *Bundle) CalculateBuildInfo() error {
 
 // ValidateBundleSignature validates the bundle signature
 func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string) error {
-	if zarfUtils.InvalidPath(bundleYAMLPath) {
+	if helpers.InvalidPath(bundleYAMLPath) {
 		return fmt.Errorf("path for %s at %s does not exist", config.BundleYAML, bundleYAMLPath)
 	}
 	// The package is not signed, and no public key was provided
@@ -252,11 +252,11 @@ func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string
 		return nil
 	}
 	// The package is not signed, but a public key was provided
-	if zarfUtils.InvalidPath(signaturePath) && !zarfUtils.InvalidPath(publicKeyPath) {
+	if helpers.InvalidPath(signaturePath) && !helpers.InvalidPath(publicKeyPath) {
 		return fmt.Errorf("package is not signed, but a public key was provided")
 	}
 	// The package is signed, but no public key was provided
-	if !zarfUtils.InvalidPath(signaturePath) && zarfUtils.InvalidPath(publicKeyPath) {
+	if !helpers.InvalidPath(signaturePath) && helpers.InvalidPath(publicKeyPath) {
 		return fmt.Errorf("package is signed, but no public key was provided")
 	}
 

@@ -18,7 +18,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	av4 "github.com/mholt/archiver/v4"
 	"github.com/pterm/pterm"
 )
@@ -38,7 +38,7 @@ func GracefulPanic() {
 
 // IsValidTarballPath returns true if the path is a valid tarball path to a bundle tarball
 func IsValidTarballPath(path string) bool {
-	if utils.InvalidPath(path) || utils.IsDir(path) {
+	if helpers.InvalidPath(path) || helpers.IsDir(path) {
 		return false
 	}
 	name := filepath.Base(path)
