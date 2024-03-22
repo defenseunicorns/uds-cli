@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -119,4 +120,54 @@ func ToLocalFile(t any, filePath string) error {
 // IsRemotePkg returns true if the Zarf package is remote
 func IsRemotePkg(pkg types.Package) bool {
 	return pkg.Repository != ""
+}
+
+// DownloadZarfInitPkg downloads the zarf init pkg used for testing and dev
+func DownloadZarfInitPkg(zarfVersion string, arch string, outputDir string) error {
+	filename := fmt.Sprintf("zarf-init-%s-%s.tar.zst", arch, zarfVersion)
+	zarfReleaseURL := fmt.Sprintf("https://github.com/defenseunicorns/zarf/releases/download/%s/%s", zarfVersion, filename)
+
+	// Check if the file already exists
+	if _, err := os.Stat(outputDir + "/" + filename); err == nil {
+		fmt.Println("Zarf init pkg already exists. Skipping download.")
+		return nil
+	}
+	downloadSpinner := message.NewProgressSpinner("Downloading Zarf init package %s", zarfVersion)
+	if err := downloadFile(zarfReleaseURL, outputDir); err != nil {
+		return err
+	}
+	downloadSpinner.Successf("Downloaded Zarf init package %s", zarfVersion)
+	return nil
+}
+
+func downloadFile(url string, outputDir string) error {
+	response, err := http.Get(url) //nolint:gosec
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", response.StatusCode)
+	}
+
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return err
+	}
+
+	outputFileName := filepath.Base(url)
+	outputFilePath := filepath.Join(outputDir, outputFileName)
+
+	outputFile, err := os.Create(outputFilePath)
+	if err != nil {
+		return err
+	}
+	defer outputFile.Close()
+
+	_, err = io.Copy(outputFile, response.Body)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

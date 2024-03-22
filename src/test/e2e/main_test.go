@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/mod/modfile"
 
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/test"
-
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/pterm/pterm"
 
@@ -105,7 +105,9 @@ func deployZarfInit(t *testing.T) {
 				zarfVersion = r.Mod.Version
 			}
 		}
-		e2e.DownloadZarfInitPkg(t, zarfVersion)
+		outputDir := "src/test/packages"
+		err = utils.DownloadZarfInitPkg(zarfVersion, e2e.Arch, outputDir)
+		require.NoError(t, err)
 
 		bundleDir := "src/test/bundles/04-init"
 		bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-all-the-inits-%s-0.0.1.tar.zst", e2e.Arch))
