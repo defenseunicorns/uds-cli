@@ -16,6 +16,7 @@
     - [Inspect](#bundle-inspect)
     - [Publish](#bundle-publish)
     - [Remove](#bundle-remove)
+    - [Logs](#logs)
 1. [Bundle Architecture and Multi-Arch Support](#bundle-architecture-and-multi-arch-support)
 1. [Configuration](#configuration)
 1. [Sharing Variables](#sharing-variables)
@@ -126,6 +127,13 @@ There are 2 ways to remove Bundles:
 By default all the packages in the bundle are removed, but you can also remove only certain packages in the bundle by using the `--packages` flag.
 
 As an example: `uds remove uds-bundle-<name>.tar.zst --packages init,nginx`
+
+### Logs
+
+> [!NOTE]  
+> Only works with `uds deploy` for now, may work for other operations but isn't guaranteed.
+
+The `uds logs` command can be used to view the most recent logs of a bundle operation. Note that depending on your OS temporary directory and file settings, recent logs are purged after a certain amount of time, so this command may return an error if the logs are no longer available.
 
 ## Bundle Architecture and Multi-Arch Support
 There are several ways to specify the architecture of a bundle:

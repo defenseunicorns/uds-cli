@@ -14,6 +14,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui/deploy"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
@@ -22,7 +23,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
-	"github.com/pterm/pterm"
+	goyaml "github.com/goccy/go-yaml"
 	"golang.org/x/exp/slices"
 	"helm.sh/helm/v3/pkg/cli/values"
 	"helm.sh/helm/v3/pkg/getter"
@@ -36,63 +37,7 @@ var templatedVarRegex = regexp.MustCompile(`\${([^}]+)}`)
 
 // Deploy deploys a bundle
 func (b *Bundle) Deploy() error {
-
-	pterm.Println()
-	metadataSpinner := message.NewProgressSpinner("Loading bundle metadata")
-
-	defer metadataSpinner.Stop()
-
-	// Check that provided oci source path is valid, and update it if it's missing the full path
-	source, err := CheckOCISourcePath(b.cfg.DeployOpts.Source)
-	if err != nil {
-		return err
-	}
-	b.cfg.DeployOpts.Source = source
-
-	// validate config's arch against cluster
-	err = ValidateArch(config.GetArch())
-	if err != nil {
-		return err
-	}
-
-	// create a new provider
-	provider, err := NewBundleProvider(b.cfg.DeployOpts.Source, b.tmp)
-	if err != nil {
-		return err
-	}
-
-	// pull the bundle's metadata + sig
-	loaded, err := provider.LoadBundleMetadata()
-	if err != nil {
-		return err
-	}
-
-	// validate the sig (if present)
-	if err := ValidateBundleSignature(loaded[config.BundleYAML], loaded[config.BundleYAMLSignature], b.cfg.DeployOpts.PublicKeyPath); err != nil {
-		return err
-	}
-
-	// read the bundle's metadata into memory
-	// todo: we also read the SHAs from the uds-bundle.yaml here, should we refactor so that we use the bundle's root manifest?
-	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
-		return err
-	}
-
-	metadataSpinner.Successf("Loaded bundle metadata")
-
-	// confirm deploy
-	if ok := b.confirmBundleDeploy(); !ok {
-		return fmt.Errorf("bundle deployment cancelled")
-	}
-
-	// Check if --resume is set
 	resume := b.cfg.DeployOpts.Resume
-
-	// Maps name given to zarf package in the bundle to the actual name of the zarf package
-	zarfPackageNameMap, err := provider.ZarfPackageNameMap()
-	if err != nil {
-		return err
-	}
 
 	// Check if --packages flag is set and zarf packages have been specified
 	var packagesToDeploy []types.Package
@@ -109,13 +54,13 @@ func (b *Bundle) Deploy() error {
 		if len(userSpecifiedPackages) != len(packagesToDeploy) {
 			return fmt.Errorf("invalid zarf packages specified by --packages")
 		}
-		return deployPackages(packagesToDeploy, resume, b, zarfPackageNameMap)
+		return deployPackages(packagesToDeploy, resume, b)
 	}
 
-	return deployPackages(b.bundle.Packages, resume, b, zarfPackageNameMap)
+	return deployPackages(b.bundle.Packages, resume, b)
 }
 
-func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackageNameMap map[string]string) error {
+func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 	// map of Zarf pkgs and their vars
 	bundleExportedVars := make(map[string]map[string]string)
 
@@ -132,8 +77,11 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackag
 		packagesToDeploy = packages
 	}
 
+	// let TUI know how many packages are being deployed
+	deploy.Program.Send(fmt.Sprintf("totalPackages:%d", len(packagesToDeploy)))
+
 	// deploy each package
-	for _, pkg := range packagesToDeploy {
+	for i, pkg := range packagesToDeploy {
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 		pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
@@ -180,7 +128,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackag
 		// Automatically confirm the package deployment
 		zarfConfig.CommonOptions.Confirm = true
 
-		source, err := sources.New(b.cfg.DeployOpts.Source, zarfPackageNameMap[pkg.Name], opts, sha)
+		source, err := sources.New(b.cfg.DeployOpts.Source, b.cfg.DeployOpts.ZarfPackageNameMap[pkg.Name], opts, sha)
 		if err != nil {
 			return err
 		}
@@ -189,9 +137,14 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackag
 		if err != nil {
 			return err
 		}
+
+		deploy.Program.Send(fmt.Sprintf("newPackage:%s:%d", pkg.Name, i))
+
 		if err := pkgClient.Deploy(); err != nil {
 			return err
 		}
+
+		deploy.Program.Send(fmt.Sprintf("complete:%d", i))
 
 		// save exported vars
 		pkgExportedVars := make(map[string]string)
@@ -254,8 +207,8 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 	return pkgVars
 }
 
-// confirmBundleDeploy prompts the user to confirm bundle creation
-func (b *Bundle) confirmBundleDeploy() (confirm bool) {
+// ConfirmBundleDeploy uses Zarf's pterm logging to prompt the user to confirm bundle creation
+func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
 	utils.ColorPrintYAML(b.bundle, nil, false)
@@ -270,8 +223,6 @@ func (b *Bundle) confirmBundleDeploy() (confirm bool) {
 	prompt := &survey.Confirm{
 		Message: "Deploy this bundle?",
 	}
-
-	pterm.Println()
 
 	if err := survey.AskOne(prompt, &confirm); err != nil || !confirm {
 		return false
@@ -328,6 +279,60 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string
 	}
 
 	return processed, nil
+}
+
+func (b *Bundle) PreDeployValidation() (string, string, string, error) {
+
+	// Check that provided oci source path is valid, and update it if it's missing the full path
+	source, err := CheckOCISourcePath(b.cfg.DeployOpts.Source)
+	if err != nil {
+		return "", "", "", err
+	}
+	b.cfg.DeployOpts.Source = source
+
+	// validate config's arch against cluster
+	err = ValidateArch(config.GetArch())
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// create a new provider
+	provider, err := NewBundleProvider(b.cfg.DeployOpts.Source, b.tmp)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// pull the bundle's metadata + sig
+	loaded, err := provider.LoadBundleMetadata()
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// validate the sig (if present)
+	if err := ValidateBundleSignature(loaded[config.BundleYAML], loaded[config.BundleYAMLSignature], b.cfg.DeployOpts.PublicKeyPath); err != nil {
+		return "", "", "", err
+	}
+
+	// read in file at config.BundleYAML
+	message.Debugf("Reading YAML at %s", loaded[config.BundleYAML])
+	bundleYAML, err := os.ReadFile(loaded[config.BundleYAML])
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// todo: we also read the SHAs from the uds-bundle.yaml here, should we refactor so that we use the bundle's root manifest?
+	if err := goyaml.Unmarshal(bundleYAML, &b.bundle); err != nil {
+		return "", "", "", err
+	}
+
+	// Maps name given to zarf package in the bundle to the actual name of the zarf package
+	zarfPackageNameMap, err := provider.ZarfPackageNameMap()
+	if err != nil {
+		return "", "", "", err
+	}
+	b.cfg.DeployOpts.ZarfPackageNameMap = zarfPackageNameMap
+	bundleName := b.bundle.Metadata.Name
+	return bundleName, string(bundleYAML), source, err
 }
 
 // processOverrideValues processes a bundles values overrides and adds them to the override map
