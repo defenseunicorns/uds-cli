@@ -54,8 +54,8 @@ func IsValidTarballPath(path string) bool {
 
 // ConfigureLogs sets up the log file, log cache and output for the CLI
 func ConfigureLogs(op string) error {
-	// don't configure UDS logs for vendored Zarf cmds
-	if op == "zarf COMMAND" {
+	// don't configure UDS logs for vendored cmds
+	if strings.HasPrefix(op, "zarf") || strings.HasPrefix(op, "run") {
 		return nil
 	}
 	writer, err := message.UseLogFile("")

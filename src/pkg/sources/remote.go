@@ -40,7 +40,7 @@ type RemoteBundle struct {
 }
 
 // LoadPackage loads a Zarf package from a remote bundle
-func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, _ filters.ComponentFilterStrategy, unarchiveAll bool) (zarfTypes.ZarfPackage, []string, error) {
+func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (zarfTypes.ZarfPackage, []string, error) {
 	// todo: progress bar??
 	layers, err := r.downloadPkgFromRemoteBundle()
 	if err != nil {
@@ -50,6 +50,11 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, _ filters.Component
 	var pkg zarfTypes.ZarfPackage
 	if err = zarfUtils.ReadYaml(dst.ZarfYAML, &pkg); err != nil {
 		return zarfTypes.ZarfPackage{}, nil, err
+	}
+
+	pkg.Components, err = filter.Apply(pkg)
+	if err != nil {
+		return pkg, nil, err
 	}
 
 	// record number of components to be deployed for TUI

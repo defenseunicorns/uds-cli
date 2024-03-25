@@ -2,18 +2,14 @@ module github.com/defenseunicorns/uds-cli
 
 go 1.21.6
 
-replace github.com/defenseunicorns/zarf v0.32.5 => github.com/defenseunicorns/zarf v0.32.6-0.20240321202634-329a1ae1f69c
-
-replace github.com/defenseunicorns/maru-runner v0.0.2 => github.com/defenseunicorns/maru-runner v0.0.3-0.20240322171619-a7974e34d1d0
-
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
 	github.com/charmbracelet/bubbles v0.16.1
 	github.com/charmbracelet/bubbletea v0.25.0
 	github.com/charmbracelet/lipgloss v0.9.1
-	github.com/defenseunicorns/maru-runner v0.0.2
-	github.com/defenseunicorns/zarf v0.32.5
+	github.com/defenseunicorns/maru-runner v0.1.0
+	github.com/defenseunicorns/zarf v0.32.6
 	github.com/fatih/color v1.16.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/goccy/go-yaml v1.11.3
@@ -180,7 +176,7 @@ require (
 	github.com/distribution/reference v0.5.0 // indirect
 	github.com/docker/cli v24.0.9+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
-	github.com/docker/docker v24.0.7+incompatible // indirect
+	github.com/docker/docker v24.0.9+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.0 // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect

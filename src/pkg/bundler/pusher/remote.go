@@ -88,7 +88,7 @@ func (p *RemotePusher) PushManifest() (ocispec.Descriptor, error) {
 func (p *RemotePusher) LayersToRemoteBundle(spinner *message.Spinner, currentPackageIter int, totalPackages int) ([]ocispec.Descriptor, error) {
 	spinner.Updatef("Fetching %s package layer metadata (package %d of %d)", p.pkg.Name, currentPackageIter, totalPackages)
 	// get only the layers that are required by the components
-	layersToCopy, err := utils.GetZarfLayers(p.cfg.RemoteSrc, p.pkg, p.cfg.PkgRootManifest)
+	layersToCopy, err := utils.GetZarfLayers(p.cfg.RemoteSrc, p.cfg.PkgRootManifest)
 	if err != nil {
 		return nil, err
 	}

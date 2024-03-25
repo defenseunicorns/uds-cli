@@ -261,13 +261,21 @@ func EnsureOCIPrefix(source string) string {
 }
 
 // GetZarfLayers grabs the necessary Zarf pkg layers from a remote OCI registry
-func GetZarfLayers(remote zoci.Remote, pkg types.Package, pkgRootManifest *oci.Manifest) ([]ocispec.Descriptor, error) {
+func GetZarfLayers(remote zoci.Remote, pkgRootManifest *oci.Manifest) ([]ocispec.Descriptor, error) {
+	// todo: ensure we are only pulling non-optional components
 	ctx := context.TODO()
-	var optComponents []zarfTypes.ZarfComponent
-	for _, c := range pkg.OptionalComponents {
-		optComponents = append(optComponents, zarfTypes.ZarfComponent{Name: c})
+	var components []zarfTypes.ZarfComponent
+	for _, layer := range pkgRootManifest.Layers {
+		// infer component name from layer title annotation
+		titleAnnotation := layer.Annotations[ocispec.AnnotationTitle]
+		isComponent := strings.HasPrefix(titleAnnotation, "components/") && strings.HasSuffix(titleAnnotation, ".tar")
+		if isComponent {
+			afterComponents := strings.Split(titleAnnotation, "components/")[1]
+			componentName := strings.Split(afterComponents, ".tar")[0]
+			components = append(components, zarfTypes.ZarfComponent{Name: componentName})
+		}
 	}
-	layersFromComponents, err := remote.LayersFromRequestedComponents(ctx, optComponents)
+	layersFromComponents, err := remote.LayersFromRequestedComponents(ctx, components)
 	if err != nil {
 		return nil, err
 	}

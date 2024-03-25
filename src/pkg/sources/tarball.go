@@ -52,12 +52,13 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Com
 	if err = zarfUtils.ReadYaml(dst.ZarfYAML, &pkg); err != nil {
 		return zarfTypes.ZarfPackage{}, nil, err
 	}
-	dst.SetFromPaths(files)
 
 	pkg.Components, err = filter.Apply(pkg)
 	if err != nil {
 		return pkg, nil, err
 	}
+
+	dst.SetFromPaths(files)
 
 	// record number of components to be deployed for TUI
 	// todo: won't work for optional components......
@@ -239,9 +240,6 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 			return err
 		}
 
-		// todo: everything is broken! seems like this fn isn't pulling all the layers
-		// try rebuilding the packages with the latest Zarf + rebuilding bundle
-		// try with old version of UDS CLI
 		target, err := os.Create(layerDst)
 		if err != nil {
 			return err

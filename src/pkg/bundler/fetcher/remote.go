@@ -26,6 +26,7 @@ import (
 	"oras.land/oras-go/v2"
 )
 
+// remoteFetcher fetches remote Zarf pkgs for local bundles
 type remoteFetcher struct {
 	pkg             types.Package
 	cfg             Config
@@ -100,7 +101,7 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 func (f *remoteFetcher) layersToLocalBundle(spinner *message.Spinner, currentPackageIter int, totalPackages int) ([]ocispec.Descriptor, error) {
 	spinner.Updatef("Fetching %s package layer metadata (package %d of %d)", f.pkg.Name, currentPackageIter, totalPackages)
 	// get only the layers that are required by the components
-	layersToCopy, err := utils.GetZarfLayers(*f.remote, f.pkg, f.pkgRootManifest)
+	layersToCopy, err := utils.GetZarfLayers(*f.remote, f.pkgRootManifest)
 	if err != nil {
 		return nil, err
 	}

@@ -14,6 +14,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui"
 	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"golang.org/x/term"
 )
@@ -38,7 +39,6 @@ var (
 	c                *cluster.Cluster
 	logVpWidthScale  = 0.9
 	logVpHeightScale = 0.4
-	lineWidthScale   = 0.75
 )
 
 // private interface to decouple tui pkg from bundle pkg
@@ -52,20 +52,20 @@ type bndlClientShim interface {
 type pkgState struct {
 	name               string
 	numComponents      int
-	percLayersVerified int64
+	percLayersVerified int
 	componentStatuses  []bool
 	deploySpinner      spinner.Model
 	downloadSpinner    spinner.Model
 	verifySpinner      spinner.Model
 	complete           bool
 	resetProgress      bool
-	percDownloaded     int64
+	percDownloaded     int
 	downloaded         bool
 	verified           bool
 	isRemote           bool
 }
 
-type Model struct {
+type model struct {
 	bndlClient              bndlClientShim
 	bundleYAML              string
 	doneChan                chan int
@@ -78,7 +78,6 @@ type Model struct {
 	inProgress              bool
 	viewLogs                bool
 	logViewport             viewport.Model
-	isScrolling             bool
 	errChan                 chan error
 	yamlViewport            viewport.Model
 	isRemoteBundle          bool
@@ -87,7 +86,7 @@ type Model struct {
 	validatingBundleSpinner spinner.Model
 }
 
-func InitModel(client bndlClientShim) Model {
+func InitModel(client bndlClientShim) model {
 	var confirmed bool
 	var inProgress bool
 	var isRemoteBundle bool
@@ -116,16 +115,12 @@ func InitModel(client bndlClientShim) Model {
 
 	// set up logViewport for logs, adjust width and height of logViewport
 	logViewport := viewport.New(int(float64(termWidth)*logVpWidthScale), int(float64(termHeight)*logVpHeightScale))
-	logViewport.MouseWheelEnabled = true
-	logViewport.MouseWheelDelta = 1
 
 	// set up yamlViewport to ensure the preDeploy YAML is scrollable
-	numYamlLines := 10
-	yamlViewport := viewport.New(termWidth, numYamlLines)
-	yamlViewport.MouseWheelEnabled = true
-	yamlViewport.MouseWheelDelta = 1
+	numYAMLLines := 10
+	yamlViewport := viewport.New(termWidth, numYAMLLines)
 
-	return Model{
+	return model{
 		bndlClient:              client,
 		doneChan:                make(chan int),
 		errChan:                 make(chan error),
@@ -139,13 +134,13 @@ func InitModel(client bndlClientShim) Model {
 	}
 }
 
-func (m *Model) Init() tea.Cmd {
+func (m *model) Init() tea.Cmd {
 	return func() tea.Msg {
 		return doPreDeploy
 	}
 }
 
-func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	select {
 	case err := <-m.errChan:
 		cmd := m.handleDone(err)
@@ -202,7 +197,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "n", "N":
 				if !m.confirmed && !m.inProgress {
 					m.done = true
-					quitMsg := tea.Println("\n👋 Deployment cancelled")
+					quitMsg := tea.Println(tui.IndentStyle.Render("\n👋 Deployment cancelled"))
 					return m, tea.Sequence(quitMsg, tea.Println(), tea.Quit)
 				}
 			case "ctrl+c", "q":
@@ -220,7 +215,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "l", "L":
 				if m.inProgress && !m.viewLogs {
 					m.viewLogs = true
-					m.isScrolling = false
 				} else if m.inProgress {
 					m.viewLogs = false
 				}
@@ -247,23 +241,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					cmd := m.handleNewPackage(pkgName, pkgIdx)
 					return m, cmd
 				case totalComponents:
-					if totalComponents, err := strconv.Atoi(strings.Split(msg, ":")[1]); err == nil {
-						m.packages[m.pkgIdx].numComponents = totalComponents
-						m.packages[m.pkgIdx].componentStatuses = make([]bool, totalComponents)
+					if tc, err := strconv.Atoi(strings.Split(msg, ":")[1]); err == nil {
+						m.packages[m.pkgIdx].numComponents = tc
+						m.packages[m.pkgIdx].componentStatuses = make([]bool, tc)
 					}
 				case totalPackages:
 					if totalPkgs, err := strconv.Atoi(strings.Split(msg, ":")[1]); err == nil {
 						m.totalPkgs = totalPkgs
 					}
 				case verifying:
-					if perc, err := strconv.ParseInt(strings.Split(msg, ":")[1], 10, 8); err == nil {
+					if perc, err := strconv.Atoi(strings.Split(msg, ":")[1]); err == nil {
 						m.packages[m.pkgIdx].percLayersVerified = perc
 						if perc == 100 {
 							m.packages[m.pkgIdx].verified = true
 						}
 					}
 				case downloading:
-					if perc, err := strconv.ParseInt(strings.Split(msg, ":")[1], 10, 8); err == nil {
+					if perc, err := strconv.Atoi(strings.Split(msg, ":")[1]); err == nil {
 						m.packages[m.pkgIdx].percDownloaded = perc
 						if perc == 100 {
 							m.packages[m.pkgIdx].downloaded = true
@@ -279,13 +273,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) View() string {
+func (m *model) View() string {
 	if m.done {
 		// no errors, clear the controlled Program's output
 		return ""
 	} else if m.validatingBundle {
 		validatingBundleMsg := lightGrayText.Render("Validating bundle")
-		return lipgloss.NewStyle().Padding(0, 4).Render(fmt.Sprintf("\n%s %s", validatingBundleMsg, m.validatingBundleSpinner.View()))
+		return tui.IndentStyle.Render(fmt.Sprintf("\n%s %s", validatingBundleMsg, m.validatingBundleSpinner.View()))
 	} else if m.viewLogs {
 		return fmt.Sprintf("\n%s\n\n%s\n%s\n\n%s\n", m.udsTitle(), m.bundleDeployProgress(), logMsg, m.logView())
 	} else if m.confirmed {

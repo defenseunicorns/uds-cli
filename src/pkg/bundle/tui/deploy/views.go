@@ -10,6 +10,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui"
 	"github.com/fatih/color"
 	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/printer"
@@ -26,7 +27,7 @@ var (
 	styledCheck   = lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF00")).Render("✔")
 	lightBlueText = lipgloss.NewStyle().Foreground(LIGHTBLUE)
 	lightGrayText = lipgloss.NewStyle().Foreground(LIGHTGRAY)
-	logMsg        = lipgloss.NewStyle().Padding(0, 4).Render(fmt.Sprintf("\n%s %s",
+	logMsg        = tui.IndentStyle.Render(fmt.Sprintf("\n%s %s",
 		lightBlueText.Render("<l>"), lightGrayText.Render("Toggle logs")))
 )
 
@@ -38,14 +39,14 @@ var (
 	}()
 )
 
-func (m *Model) logView() string {
+func (m *model) logView() string {
 	headerMsg := fmt.Sprintf("%s %s", lightBlueText.Render(m.packages[m.pkgIdx].name), lightGrayText.Render("package logs"))
-	return lipgloss.NewStyle().Padding(0, 4).Render(
+	return tui.IndentStyle.Render(
 		fmt.Sprintf("%s\n%s\n%s\n\n", m.logHeaderView(headerMsg), m.logViewport.View(), m.logFooterView()),
 	)
 }
 
-func (m *Model) yamlHeaderView() string {
+func (m *model) yamlHeaderView() string {
 	upArrow := "▲  "
 	styledUpArrow := lipgloss.NewStyle().Foreground(LIGHTGRAY).Render(upArrow)
 	if !m.yamlViewport.AtTop() {
@@ -55,7 +56,7 @@ func (m *Model) yamlHeaderView() string {
 	return lipgloss.JoinHorizontal(lipgloss.Center, styledUpArrow, headerLine)
 }
 
-func (m *Model) yamlFooterView() string {
+func (m *model) yamlFooterView() string {
 	downArrow := "▼ "
 	styledDownArrow := lipgloss.NewStyle().Foreground(LIGHTGRAY).Render(downArrow)
 	if !m.yamlViewport.AtBottom() {
@@ -66,7 +67,7 @@ func (m *Model) yamlFooterView() string {
 	return lipgloss.JoinHorizontal(lipgloss.Center, styledDownArrow, footerLine)
 }
 
-func (m *Model) logHeaderView(msg string) string {
+func (m *model) logHeaderView(msg string) string {
 	title := titleStyle.Render(msg)
 	if msg == "" {
 		title = ""
@@ -75,12 +76,12 @@ func (m *Model) logHeaderView(msg string) string {
 	return lipgloss.JoinHorizontal(lipgloss.Center, title, headerLine)
 }
 
-func (m *Model) logFooterView() string {
+func (m *model) logFooterView() string {
 	footerLine := strings.Repeat("─", max(0, m.logViewport.Width)-1)
 	return lipgloss.JoinHorizontal(lipgloss.Center, footerLine)
 }
 
-func (m *Model) deployView() string {
+func (m *model) deployView() string {
 	view := ""
 	for _, p := range m.packages {
 		// count number of successful components
@@ -101,9 +102,8 @@ func (m *Model) deployView() string {
 		}
 
 		if p.complete {
-			text = lipgloss.NewStyle().
+			text = tui.IndentStyle.
 				Align(lipgloss.Left).
-				Padding(0, 4).
 				Render(fmt.Sprintf("%s Package %s deployed", styledCheck, lightBlueText.Render(p.name)))
 		}
 
@@ -118,14 +118,12 @@ func genLocalPkgText(p pkgState, numComponentsSuccess int) string {
 	styledName := lightBlueText.Render(p.name)
 	styledComponents := lightGrayText.Render(fmt.Sprintf("(%d / %d components)", min(numComponentsSuccess+1, p.numComponents), p.numComponents))
 	if p.numComponents > 0 {
-		text = lipgloss.NewStyle().
+		text = tui.IndentStyle.
 			Align(lipgloss.Left).
-			Padding(0, 4).
 			Render(fmt.Sprintf("%s Package %s deploying %s", p.deploySpinner.View(), styledName, styledComponents))
 	} else {
-		text = lipgloss.NewStyle().
+		text = tui.IndentStyle.
 			Align(lipgloss.Left).
-			Padding(0, 4).
 			Render(fmt.Sprintf("%s Package %s deploying", p.deploySpinner.View(), styledName))
 	}
 	return text
@@ -137,45 +135,40 @@ func genRemotePkgText(p pkgState, numComponentsSuccess int) string {
 	styledComponents := lightGrayText.Render(fmt.Sprintf("(%d / %d components)", min(numComponentsSuccess+1, p.numComponents), p.numComponents))
 	if !p.verified {
 		perc := lightGrayText.Render(fmt.Sprintf("(%d%%)", p.percLayersVerified))
-		text = lipgloss.NewStyle().
+		text = tui.IndentStyle.
 			Align(lipgloss.Left).
-			Padding(0, 4).
 			Render(fmt.Sprintf("%sVerifying %s package %s", p.verifySpinner.View(), styledName, perc))
 	} else if p.verified && !p.downloaded {
 		perc := lightGrayText.Render(fmt.Sprintf("(%d%%)", p.percDownloaded))
-		text = lipgloss.NewStyle().
+		text = tui.IndentStyle.
 			Align(lipgloss.Left).
-			Padding(0, 4).
 			Render(fmt.Sprintf("%sDownloading %s package %s", p.downloadSpinner.View(), styledName, perc))
 	} else if p.downloaded && p.verified && p.numComponents > 0 {
-		text = lipgloss.NewStyle().
+		text = tui.IndentStyle.
 			Align(lipgloss.Left).
-			Padding(0, 4).
 			Render(fmt.Sprintf("%sDeploying %s package %s", p.deploySpinner.View(), styledName, styledComponents))
 	} else {
-		text = lipgloss.NewStyle().
+		text = tui.IndentStyle.
 			Align(lipgloss.Left).
-			Padding(0, 4).
 			Render(fmt.Sprintf("%sDeploying %s package", p.deploySpinner.View(), styledName))
 	}
 
 	return text
 }
 
-func (m *Model) preDeployView() string {
-	paddingStyle := lipgloss.NewStyle().Padding(0, 4)
-	header := paddingStyle.Render("📦 Bundle Definition (▲ / ▼)")
-	prompt := paddingStyle.Render("❓ Deploy this bundle? (y/n)")
-	prettyYAML := paddingStyle.Render(colorPrintYAML(m.bundleYAML))
+func (m *model) preDeployView() string {
+	header := tui.IndentStyle.Render("📦 Bundle Definition (▲ / ▼)")
+	prompt := tui.IndentStyle.Render("❓ Deploy this bundle? (y/n)")
+	prettyYAML := tui.IndentStyle.Render(colorPrintYAML(m.bundleYAML))
 	m.yamlViewport.SetContent(prettyYAML)
 
 	// Concatenate header, highlighted YAML, and prompt
 	return fmt.Sprintf("\n%s\n\n%s\n\n%s\n%s\n%s\n\n%s",
 		m.udsTitle(),
 		header,
-		lipgloss.NewStyle().Padding(0, 4).Render(m.yamlHeaderView()),
-		lipgloss.NewStyle().Padding(0, 4).Render(m.yamlViewport.View()),
-		lipgloss.NewStyle().Padding(0, 4).Render(m.yamlFooterView()),
+		tui.IndentStyle.Render(m.yamlHeaderView()),
+		tui.IndentStyle.Render(m.yamlViewport.View()),
+		tui.IndentStyle.Render(m.yamlFooterView()),
 		prompt,
 	)
 }
@@ -238,7 +231,7 @@ func yamlFormat(attr color.Attribute) string {
 }
 
 // udsTitle returns the title header for the UDS bundle
-func (m *Model) udsTitle() string {
+func (m *model) udsTitle() string {
 	styledBundleName := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFF258")).Render(m.bundleName + " ")
 	title := " UDS Bundle: "
 	styledTitle := lipgloss.NewStyle().Margin(0, 3).
@@ -249,37 +242,19 @@ func (m *Model) udsTitle() string {
 	return styledTitle
 }
 
-// genSuccessOrFailCmds generates the success or failure messages for each package
-func genSuccessOrFailCmds(m *Model) []tea.Cmd {
+// genSuccessCmds generates the success or failure messages for each package
+func genSuccessCmds(m *model) []tea.Cmd {
 	var cmds []tea.Cmd
 	for i := 0; i < len(m.packages); i++ {
-		if m.packages[i].complete {
-			successStyle := lipgloss.NewStyle().Padding(0, 4)
-			successMsg := fmt.Sprintf("%s Package %s deployed\n", styledCheck, lightBlueText.Render(m.packages[i].name))
-			cmds = append(cmds, tea.Println(successStyle.Render(successMsg)))
-		} else {
-			failStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000")).Padding(0, 4)
-			failMsg := fmt.Sprintf("❌ Package %s failed to deploy\n", m.packages[i].name)
-			cmds = append(cmds, tea.Println(failStyle.Render(failMsg)))
-		}
+		successMsg := fmt.Sprintf("%s Package %s deployed\n", styledCheck, lightBlueText.Render(m.packages[i].name))
+		cmds = append(cmds, tea.Println(tui.IndentStyle.Render(successMsg)))
 	}
 	return cmds
 }
 
-func (m *Model) bundleDeployProgress() string {
+func (m *model) bundleDeployProgress() string {
 	styledText := lightGrayText.Render("📦 Deploying bundle package")
 	styledPkgCounter := lightGrayText.Render(fmt.Sprintf("(%d / %d)", m.pkgIdx+1, m.totalPkgs))
 	msg := fmt.Sprintf("%s %s", styledText, styledPkgCounter)
-	return lipgloss.NewStyle().Padding(0, 4).Render(msg)
+	return tui.IndentStyle.Render(msg)
 }
-
-//func udsTitle(bundleName string) string {
-//	styledBundleName := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFF258")).Render(" " + bundleName)
-//	title := fmt.Sprintf(" UDS Bundle:")
-//	styledTitle := lipgloss.NewStyle().
-//		Margin(0, 0, 0, 3).
-//		//Background(lipgloss.Color("#6233f2")).
-//		Foreground(lipgloss.Color("#FFFFFF")).
-//		Render(fmt.Sprintf("%s", title))
-//	return fmt.Sprintf("%s%s", styledTitle, styledBundleName)
-//}

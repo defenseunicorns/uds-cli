@@ -18,7 +18,7 @@ import (
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 )
 
-func (m *Model) handleNewPackage(pkgName string, currentPkgIdx int) tea.Cmd {
+func (m *model) handleNewPackage(pkgName string, currentPkgIdx int) tea.Cmd {
 	// see if pkg has already been deployed
 	deployedPkg, _ := c.GetDeployedPackage(pkgName)
 	newPkg := pkgState{
@@ -49,11 +49,6 @@ func (m *Model) handleNewPackage(pkgName string, currentPkgIdx int) tea.Cmd {
 	downloadSpinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	newPkg.downloadSpinner = downloadSpinner
 
-	// create spinner to track total bundle progress
-	bundleSpinner := spinner.New()
-	bundleSpinner.Spinner = spinner.Ellipsis
-	bundleSpinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-
 	m.packages = append(m.packages, newPkg)
 	return tea.Batch(m.packages[m.pkgIdx].deploySpinner.Tick,
 		m.packages[m.pkgIdx].verifySpinner.Tick,
@@ -61,7 +56,7 @@ func (m *Model) handleNewPackage(pkgName string, currentPkgIdx int) tea.Cmd {
 	)
 }
 
-func (m *Model) handlePreDeploy() tea.Cmd {
+func (m *model) handlePreDeploy() tea.Cmd {
 	cmd := func() tea.Msg {
 		name, bundleYAML, source, err := m.bndlClient.PreDeployValidation()
 		if err != nil {
@@ -80,7 +75,7 @@ func (m *Model) handlePreDeploy() tea.Cmd {
 	return cmd
 }
 
-func (m *Model) handleDeploy() tea.Cmd {
+func (m *model) handleDeploy() tea.Cmd {
 	// ensure bundle deployment is confirmed and is only being deployed once
 	if m.confirmed && !m.deploying {
 		// run Deploy concurrently so we can update the TUI while it runs
@@ -102,27 +97,26 @@ func (m *Model) handleDeploy() tea.Cmd {
 	return nil
 }
 
-func (m *Model) handleDone(err error) tea.Cmd {
-	//uds := "   __  ______  _____\n  / / / / __ \\/ ___/\n / / / / / / /\\__ \\ \n/ /_/ / /_/ /___/ / \n\\____/_____//____/  \n                    \n"
+func (m *model) handleDone(err error) tea.Cmd {
 	cmds := []tea.Cmd{tea.Println(), tea.Println(m.udsTitle()), tea.Println()}
 	m.done = true // remove the current view
-	cmds = append(cmds, genSuccessOrFailCmds(m)...)
+	cmds = append(cmds, genSuccessCmds(m)...)
 	if err != nil {
 		hint := lightBlueText.Render("uds logs")
 		message.Debug(err) // capture err in debug logs
-		errMsg := lipgloss.NewStyle().Padding(0, 4).Render(fmt.Sprintf("\n❌ Error deploying bundle: %s\n\nRun %s to view deployment logs", lightGrayText.Render(err.Error()), hint) + "\n")
+		errMsg := tui.IndentStyle.Render(fmt.Sprintf("\n❌ Error deploying bundle: %s\n\nRun %s to view deployment logs", lightGrayText.Render(err.Error()), hint) + "\n")
 		cmds = []tea.Cmd{tea.Println(errMsg), tui.Pause(), tea.Quit}
 		return tea.Sequence(cmds...)
 	}
 	styledBundleName := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFF258")).Render(m.bundleName)
-	successMsg := tea.Println(lipgloss.NewStyle().
-		Padding(0, 4).
-		Render(fmt.Sprintf("\n✨ Bundle %s deployed successfully\n", styledBundleName)))
+	successMsg := tea.Println(
+		tui.IndentStyle.
+			Render(fmt.Sprintf("\n✨ Bundle %s deployed successfully\n", styledBundleName)))
 	cmds = append(cmds, successMsg, tui.Pause(), tea.Quit)
 	return tea.Sequence(cmds...)
 }
 
-func (m *Model) handleDeployTick() (tea.Model, tea.Cmd) {
+func (m *model) handleDeployTick() (tea.Model, tea.Cmd) {
 	// check if all pkgs are complete
 	numComplete := 0
 	if len(m.packages) == m.totalPkgs {
@@ -152,10 +146,10 @@ func (m *Model) handleDeployTick() (tea.Model, tea.Cmd) {
 		if deployedPkg == nil {
 			break
 		}
-		// handle upgrade scenario by resetting the progress bar, otherwise increment it
+		// handle upgrade scenario by resetting the component progress, otherwise increment it
 		if p.resetProgress {
 			// if upgraded len(deployedPkg.DeployedComponents) will be equal to the number of components in the package
-			if deployedPkg != nil && len(deployedPkg.DeployedComponents) == 1 {
+			if deployedPkg != nil && len(deployedPkg.DeployedComponents) > 0 {
 				m.packages[i].resetProgress = false
 			}
 			break
@@ -172,9 +166,7 @@ func (m *Model) handleDeployTick() (tea.Model, tea.Cmd) {
 	// always update logViewport content with logs
 	file, _ := os.ReadFile(config.LogFileName)
 	m.logViewport.SetContent(string(file))
-	if !m.isScrolling {
-		m.logViewport.GotoBottom()
-	}
+	m.logViewport.GotoBottom()
 
 	return m, tickCmd()
 }
