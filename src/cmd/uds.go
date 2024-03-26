@@ -221,7 +221,7 @@ var logsCmd = &cobra.Command{
 	Use:     "logs",
 	Aliases: []string{"l"},
 	Short:   "Display log file contents",
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 		logFilePath := filepath.Join(config.CommonOptions.CachePath, config.CachedLogs)
 
 		// Open the cached log file

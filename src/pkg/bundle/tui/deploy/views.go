@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
+// Package deploy contains the TUI logic for bundle deploys
 package deploy
 
 import (
@@ -16,17 +17,12 @@ import (
 	"github.com/goccy/go-yaml/printer"
 )
 
-const (
-	LIGHTBLUE = lipgloss.Color("#4BFDEB")
-	LIGHTGRAY = lipgloss.Color("#7A7A78")
-)
-
 var (
 	termWidth     int
 	termHeight    int
 	styledCheck   = lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF00")).Render("✔")
-	lightBlueText = lipgloss.NewStyle().Foreground(LIGHTBLUE)
-	lightGrayText = lipgloss.NewStyle().Foreground(LIGHTGRAY)
+	lightBlueText = lipgloss.NewStyle().Foreground(tui.LIGHTBLUE)
+	lightGrayText = lipgloss.NewStyle().Foreground(tui.LIGHTGRAY)
 	logMsg        = tui.IndentStyle.Render(fmt.Sprintf("\n%s %s",
 		lightBlueText.Render("<l>"), lightGrayText.Render("Toggle logs")))
 )
@@ -39,16 +35,16 @@ var (
 	}()
 )
 
-func (m *model) logView() string {
+func (m *Model) logView() string {
 	headerMsg := fmt.Sprintf("%s %s", lightBlueText.Render(m.packages[m.pkgIdx].name), lightGrayText.Render("package logs"))
 	return tui.IndentStyle.Render(
 		fmt.Sprintf("%s\n%s\n%s\n\n", m.logHeaderView(headerMsg), m.logViewport.View(), m.logFooterView()),
 	)
 }
 
-func (m *model) yamlHeaderView() string {
+func (m *Model) yamlHeaderView() string {
 	upArrow := "▲  "
-	styledUpArrow := lipgloss.NewStyle().Foreground(LIGHTGRAY).Render(upArrow)
+	styledUpArrow := lipgloss.NewStyle().Foreground(tui.LIGHTGRAY).Render(upArrow)
 	if !m.yamlViewport.AtTop() {
 		styledUpArrow = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFF258")).Render(upArrow)
 	}
@@ -56,9 +52,9 @@ func (m *model) yamlHeaderView() string {
 	return lipgloss.JoinHorizontal(lipgloss.Center, styledUpArrow, headerLine)
 }
 
-func (m *model) yamlFooterView() string {
+func (m *Model) yamlFooterView() string {
 	downArrow := "▼ "
-	styledDownArrow := lipgloss.NewStyle().Foreground(LIGHTGRAY).Render(downArrow)
+	styledDownArrow := lipgloss.NewStyle().Foreground(tui.LIGHTGRAY).Render(downArrow)
 	if !m.yamlViewport.AtBottom() {
 		styledDownArrow = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFF258")).Render(downArrow)
 
@@ -67,7 +63,7 @@ func (m *model) yamlFooterView() string {
 	return lipgloss.JoinHorizontal(lipgloss.Center, styledDownArrow, footerLine)
 }
 
-func (m *model) logHeaderView(msg string) string {
+func (m *Model) logHeaderView(msg string) string {
 	title := titleStyle.Render(msg)
 	if msg == "" {
 		title = ""
@@ -76,12 +72,12 @@ func (m *model) logHeaderView(msg string) string {
 	return lipgloss.JoinHorizontal(lipgloss.Center, title, headerLine)
 }
 
-func (m *model) logFooterView() string {
+func (m *Model) logFooterView() string {
 	footerLine := strings.Repeat("─", max(0, m.logViewport.Width)-1)
 	return lipgloss.JoinHorizontal(lipgloss.Center, footerLine)
 }
 
-func (m *model) deployView() string {
+func (m *Model) deployView() string {
 	view := ""
 	for _, p := range m.packages {
 		// count number of successful components
@@ -156,7 +152,7 @@ func genRemotePkgText(p pkgState, numComponentsSuccess int) string {
 	return text
 }
 
-func (m *model) preDeployView() string {
+func (m *Model) preDeployView() string {
 	header := tui.IndentStyle.Render("📦 Bundle Definition (▲ / ▼)")
 	prompt := tui.IndentStyle.Render("❓ Deploy this bundle? (y/n)")
 	prettyYAML := tui.IndentStyle.Render(colorPrintYAML(m.bundleYAML))
@@ -231,7 +227,7 @@ func yamlFormat(attr color.Attribute) string {
 }
 
 // udsTitle returns the title header for the UDS bundle
-func (m *model) udsTitle() string {
+func (m *Model) udsTitle() string {
 	styledBundleName := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFF258")).Render(m.bundleName + " ")
 	title := " UDS Bundle: "
 	styledTitle := lipgloss.NewStyle().Margin(0, 3).
@@ -243,7 +239,7 @@ func (m *model) udsTitle() string {
 }
 
 // genSuccessCmds generates the success or failure messages for each package
-func genSuccessCmds(m *model) []tea.Cmd {
+func genSuccessCmds(m *Model) []tea.Cmd {
 	var cmds []tea.Cmd
 	for i := 0; i < len(m.packages); i++ {
 		successMsg := fmt.Sprintf("%s Package %s deployed\n", styledCheck, lightBlueText.Render(m.packages[i].name))
@@ -252,7 +248,7 @@ func genSuccessCmds(m *model) []tea.Cmd {
 	return cmds
 }
 
-func (m *model) bundleDeployProgress() string {
+func (m *Model) bundleDeployProgress() string {
 	styledText := lightGrayText.Render("📦 Deploying bundle package")
 	styledPkgCounter := lightGrayText.Render(fmt.Sprintf("(%d / %d)", m.pkgIdx+1, m.totalPkgs))
 	msg := fmt.Sprintf("%s %s", styledText, styledPkgCounter)

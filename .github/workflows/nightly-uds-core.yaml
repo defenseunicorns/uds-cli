@@ -31,12 +31,13 @@ jobs:
         run: |
           chmod +x build/uds
 
-      - name: Setup K3d
-        uses: ./.github/actions/k3d
+      - name: install-k3d
+        run: "curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash"
+        shell: bash
 
       - name: Deploy UDS Core bundle
         # renovate: datasource=github-tags depName=defenseunicorns/uds-core versioning=semver
-        run: build/uds deploy ghcr.io/defenseunicorns/packages/uds/bundles/k3d-core-istio-dev:0.13.1 --confirm --no-progress
+        run: build/uds deploy k3d-core-istio-dev:0.16.1 --confirm
         shell: bash
 
       - name: Validate UDS Core deployment

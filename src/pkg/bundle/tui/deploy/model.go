@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
+// Package deploy contains the TUI logic for bundle deploys
 package deploy
 
 import (
@@ -35,6 +36,7 @@ const (
 )
 
 var (
+	// Program is the Bubbletea TUI main program
 	Program          *tea.Program
 	c                *cluster.Cluster
 	logVpWidthScale  = 0.9
@@ -65,7 +67,7 @@ type pkgState struct {
 	isRemote           bool
 }
 
-type model struct {
+type Model struct {
 	bndlClient              bndlClientShim
 	bundleYAML              string
 	doneChan                chan int
@@ -86,7 +88,8 @@ type model struct {
 	validatingBundleSpinner spinner.Model
 }
 
-func InitModel(client bndlClientShim) model {
+// InitModel initializes the model for the TUI
+func InitModel(client bndlClientShim) Model {
 	var confirmed bool
 	var inProgress bool
 	var isRemoteBundle bool
@@ -120,7 +123,7 @@ func InitModel(client bndlClientShim) model {
 	numYAMLLines := 10
 	yamlViewport := viewport.New(termWidth, numYAMLLines)
 
-	return model{
+	return Model{
 		bndlClient:              client,
 		doneChan:                make(chan int),
 		errChan:                 make(chan error),
@@ -134,13 +137,13 @@ func InitModel(client bndlClientShim) model {
 	}
 }
 
-func (m *model) Init() tea.Cmd {
+func (m *Model) Init() tea.Cmd {
 	return func() tea.Msg {
 		return doPreDeploy
 	}
 }
 
-func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	select {
 	case err := <-m.errChan:
 		cmd := m.handleDone(err)
@@ -273,7 +276,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *model) View() string {
+func (m *Model) View() string {
 	if m.done {
 		// no errors, clear the controlled Program's output
 		return ""
@@ -284,7 +287,6 @@ func (m *model) View() string {
 		return fmt.Sprintf("\n%s\n\n%s\n%s\n\n%s\n", m.udsTitle(), m.bundleDeployProgress(), logMsg, m.logView())
 	} else if m.confirmed {
 		return fmt.Sprintf("\n%s\n\n%s\n%s\n%s\n", m.udsTitle(), m.bundleDeployProgress(), logMsg, m.deployView())
-	} else {
-		return fmt.Sprintf("%s\n", m.preDeployView())
 	}
+	return fmt.Sprintf("%s\n", m.preDeployView())
 }
