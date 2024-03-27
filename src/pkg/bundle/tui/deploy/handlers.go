@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
+// Package deploy contains the TUI logic for bundle deploys
 package deploy
 
 import (
@@ -14,13 +15,20 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 )
 
-func (m *model) handleNewPackage(pkgName string, currentPkgIdx int) tea.Cmd {
-	// see if pkg has already been deployed
-	deployedPkg, _ := c.GetDeployedPackage(pkgName)
+func (m *Model) handleNewPackage(pkgName string, currentPkgIdx int) tea.Cmd {
+	// check if pkg has already been deployed
+	var deployedPkg *zarfTypes.DeployedPackage
+	if c != nil {
+		deployedPkg, _ = c.GetDeployedPackage(pkgName)
+	} else {
+		// keep checking for cluster connectivity
+		c, _ = cluster.NewCluster()
+	}
 	newPkg := pkgState{
 		name: pkgName,
 	}
@@ -56,7 +64,7 @@ func (m *model) handleNewPackage(pkgName string, currentPkgIdx int) tea.Cmd {
 	)
 }
 
-func (m *model) handlePreDeploy() tea.Cmd {
+func (m *Model) handlePreDeploy() tea.Cmd {
 	cmd := func() tea.Msg {
 		name, bundleYAML, source, err := m.bndlClient.PreDeployValidation()
 		if err != nil {
@@ -75,7 +83,7 @@ func (m *model) handlePreDeploy() tea.Cmd {
 	return cmd
 }
 
-func (m *model) handleDeploy() tea.Cmd {
+func (m *Model) handleDeploy() tea.Cmd {
 	// ensure bundle deployment is confirmed and is only being deployed once
 	if m.confirmed && !m.deploying {
 		// run Deploy concurrently so we can update the TUI while it runs
@@ -97,7 +105,7 @@ func (m *model) handleDeploy() tea.Cmd {
 	return nil
 }
 
-func (m *model) handleDone(err error) tea.Cmd {
+func (m *Model) handleDone(err error) tea.Cmd {
 	cmds := []tea.Cmd{tea.Println(), tea.Println(m.udsTitle()), tea.Println()}
 	m.done = true // remove the current view
 	cmds = append(cmds, genSuccessCmds(m)...)
@@ -116,7 +124,7 @@ func (m *model) handleDone(err error) tea.Cmd {
 	return tea.Sequence(cmds...)
 }
 
-func (m *model) handleDeployTick() (tea.Model, tea.Cmd) {
+func (m *Model) handleDeployTick() (tea.Model, tea.Cmd) {
 	// check if all pkgs are complete
 	numComplete := 0
 	if len(m.packages) == m.totalPkgs {
@@ -141,7 +149,15 @@ func (m *model) handleDeployTick() (tea.Model, tea.Cmd) {
 		if p.complete {
 			continue
 		}
-		deployedPkg, _ := c.GetDeployedPackage(p.name)
+
+		var deployedPkg *zarfTypes.DeployedPackage
+		if c != nil {
+			deployedPkg, _ = c.GetDeployedPackage(p.name)
+		} else {
+			// keep checking for cluster connectivity
+			c, _ = cluster.NewCluster()
+		}
+
 		// if deployedPkg is nil, the package hasn't been deployed yet
 		if deployedPkg == nil {
 			break

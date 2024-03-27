@@ -16,7 +16,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/fetcher"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/config/lang"
 	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
@@ -264,22 +263,15 @@ func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string
 	return zarfUtils.CosignVerifyBlob(bundleYAMLPath, signaturePath, publicKeyPath)
 }
 
-// GetDeployedPackages returns packages that have been deployed
-func GetDeployedPackages() ([]zarfTypes.DeployedPackage, error) {
-	cluster := cluster.NewClusterOrDie()
-	deployedPackages, errs := cluster.GetDeployedZarfPackages()
-	if len(errs) > 0 {
-		return nil, lang.ErrUnableToGetPackages
-	}
-	return deployedPackages, nil
-}
-
 // GetDeployedPackageNames returns the names of the packages that have been deployed
 func GetDeployedPackageNames() []string {
 	var deployedPackageNames []string
-	deployedPackages, _ := GetDeployedPackages()
-	for _, pkg := range deployedPackages {
-		deployedPackageNames = append(deployedPackageNames, pkg.Name)
+	c, _ := cluster.NewCluster()
+	if c != nil {
+		deployedPackages, _ := c.GetDeployedZarfPackages()
+		for _, pkg := range deployedPackages {
+			deployedPackageNames = append(deployedPackageNames, pkg.Name)
+		}
 	}
 	return deployedPackageNames
 }
