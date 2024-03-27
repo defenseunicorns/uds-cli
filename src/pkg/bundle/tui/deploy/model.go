@@ -247,6 +247,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if tc, err := strconv.Atoi(strings.Split(msg, ":")[1]); err == nil {
 						m.packages[m.pkgIdx].numComponents = tc
 						m.packages[m.pkgIdx].componentStatuses = make([]bool, tc)
+						if m.isRemoteBundle {
+							m.packages[m.pkgIdx].downloaded = true
+						}
 					}
 				case totalPackages:
 					if totalPkgs, err := strconv.Atoi(strings.Split(msg, ":")[1]); err == nil {
