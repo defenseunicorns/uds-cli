@@ -301,7 +301,7 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	retries := 0
 
 	// reset retries if a desc was successful
-	copyOpts.PostCopy = func(_ context.Context, desc ocispec.Descriptor) error {
+	copyOpts.PostCopy = func(_ context.Context, _ ocispec.Descriptor) error {
 		retries = 0
 		return nil
 	}

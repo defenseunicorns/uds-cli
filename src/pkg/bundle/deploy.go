@@ -281,6 +281,7 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string
 	return processed, nil
 }
 
+// PreDeployValidation validates the bundle before deployment
 func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 
 	// Check that provided oci source path is valid, and update it if it's missing the full path

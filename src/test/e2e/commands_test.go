@@ -105,6 +105,13 @@ func deploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
 	return stdout, stderr
 }
 
+func deployWithTUI(t *testing.T, source string) (stdout string, stderr string) {
+	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm", source), " ")
+	stdout, stderr, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	return stdout, stderr
+}
+
 func runCmd(t *testing.T, input string) (stdout string, stderr string) {
 	cmd := strings.Split(input, " ")
 	stdout, stderr, err := e2e.UDS(cmd...)
@@ -124,8 +131,8 @@ func deployResumeFlag(t *testing.T, tarballPath string) {
 	require.NoError(t, err)
 }
 
-func remove(t *testing.T, tarballPath string) {
-	cmd := strings.Split(fmt.Sprintf("remove %s --confirm --insecure", tarballPath), " ")
+func remove(t *testing.T, source string) {
+	cmd := strings.Split(fmt.Sprintf("remove %s --confirm --insecure", source), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
