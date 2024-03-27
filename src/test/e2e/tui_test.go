@@ -54,5 +54,6 @@ func TestBundleDeployWithBadPkg(t *testing.T) {
 	createLocal(t, bundleDir, e2e.Arch)
 	stdout, _ = deployWithTUI(t, bundlePath)
 	require.Contains(t, stdout, "❌ Error deploying bundle: unable to deploy component \"nginx-remote\": unable to install helm chart")
+	require.Contains(t, stdout, "Run uds logs to view deployment logs")
 	remove(t, source)
 }
