@@ -67,6 +67,7 @@ type pkgState struct {
 	isRemote           bool
 }
 
+// Model contains the state of the TUI
 type Model struct {
 	bndlClient              bndlClientShim
 	bundleYAML              string
@@ -137,12 +138,14 @@ func InitModel(client bndlClientShim) Model {
 	}
 }
 
+// Init performs some action when BubbleTea starts up
 func (m *Model) Init() tea.Cmd {
 	return func() tea.Msg {
 		return doPreDeploy
 	}
 }
 
+// Update updates the model based on the message received
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	select {
 	case err := <-m.errChan:
@@ -279,6 +282,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// View returns the view for the TUI
 func (m *Model) View() string {
 	if m.done {
 		// no errors, clear the controlled Program's output
