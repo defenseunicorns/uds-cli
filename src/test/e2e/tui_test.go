@@ -32,10 +32,9 @@ func TestBundleDeployWithBadSource(t *testing.T) {
 	deployZarfInit(t)
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
-	source := "a.bad.source"
+	source := "a.bad.source:0.0.1"
 	stdout, _ := deployWithTUI(t, source)
-	require.Contains(t, stdout, "❌ Error deploying bundle: a.bad.source: not found")
-	remove(t, source)
+	require.Contains(t, stdout, "❌ Error deploying bundle: a.bad.source:0.0.1: not found")
 }
 
 func TestBundleDeployWithBadPkg(t *testing.T) {
