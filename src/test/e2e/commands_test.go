@@ -114,7 +114,7 @@ func deployWithTUI(t *testing.T, source string) (stdout string, stderr string) {
 }
 
 func devDeploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("dev deploy %s --confirm", tarballPath), " ")
+	cmd := strings.Split(fmt.Sprintf("dev deploy %s --no-tea", tarballPath), " ")
 	stdout, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 	return stdout, stderr
@@ -278,7 +278,7 @@ func queryIndex(t *testing.T, registryURL, bundlePath string) (ocispec.Index, er
 }
 
 func removeZarfInit() {
-	cmd := strings.Split("zarf tools kubectl delete --namespace zarf", " ")
+	cmd := strings.Split("zarf tools kubectl delete namespace zarf", " ")
 	_, _, err := e2e.UDS(cmd...)
 	message.WarnErr(err, "Failed to delete zarf namespace")
 	cmd = strings.Split("zarf tools kubectl delete mutatingwebhookconfiguration.admissionregistration.k8s.io/zarf", " ")
