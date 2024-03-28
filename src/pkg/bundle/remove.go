@@ -48,7 +48,7 @@ func (b *Bundle) Remove() error {
 	}
 
 	// read the bundle's metadata into memory
-	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.Bundle); err != nil {
+	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
 
@@ -63,7 +63,7 @@ func (b *Bundle) Remove() error {
 
 	if len(b.cfg.RemoveOpts.Packages) != 0 {
 		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.RemoveOpts.Packages[0], " ", ""), ",")
-		for _, pkg := range b.Bundle.Packages {
+		for _, pkg := range b.bundle.Packages {
 			if slices.Contains(userSpecifiedPackages, pkg.Name) {
 				packagesToRemove = append(packagesToRemove, pkg)
 			}
@@ -75,7 +75,7 @@ func (b *Bundle) Remove() error {
 		}
 		return removePackages(packagesToRemove, b, zarfPackageNameMap)
 	}
-	return removePackages(b.Bundle.Packages, b, zarfPackageNameMap)
+	return removePackages(b.bundle.Packages, b, zarfPackageNameMap)
 }
 
 func removePackages(packagesToRemove []types.Package, b *Bundle, zarfPackageNameMap map[string]string) error {

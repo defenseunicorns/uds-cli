@@ -2,10 +2,6 @@ module github.com/defenseunicorns/uds-cli
 
 go 1.21.6
 
-// replace github.com/defenseunicorns/zarf => /Users/darcy/leapfrog/gh-repos/defenseunicorns/zarf
-
-replace github.com/defenseunicorns/maru-runner => /Users/darcy/leapfrog/gh-repos/defenseunicorns/maru-runner
-
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
@@ -95,7 +91,6 @@ require (
 	github.com/alibabacloud-go/tea-xml v1.1.3 // indirect
 	github.com/aliyun/credentials-go v1.3.1 // indirect
 	github.com/anchore/bubbly v0.0.0-20231115134915-def0aba654a9 // indirect
-	github.com/anchore/clio v0.0.0-20240301210832-abcb7197da84 // indirect
 	github.com/anchore/clio v0.0.0-20240301210832-abcb7197da84 // indirect
 	github.com/anchore/fangs v0.0.0-20231201140849-5075d28d6d8b // indirect
 	github.com/anchore/go-logger v0.0.0-20230725134548-c21dafa1ec5a // indirect

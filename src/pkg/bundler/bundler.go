@@ -40,10 +40,10 @@ func NewBundler(opts *Options) *Bundler {
 }
 
 // Create creates a bundle
-func (b *Bundler) Create(dev bool) error {
+func (b *Bundler) Create() error {
 	if b.output == "" {
 		localBundle := NewLocalBundle(&LocalBundleOpts{Bundle: b.bundle, TmpDstDir: b.tmpDstDir, SourceDir: b.sourceDir})
-		err := localBundle.create(nil, dev)
+		err := localBundle.create(nil)
 		if err != nil {
 			return err
 		}

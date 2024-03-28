@@ -86,6 +86,9 @@ var (
 
 	// HelmTimeout is the default timeout for helm deploys
 	HelmTimeout = 15 * time.Minute
+
+	// Dev specifies if we are running in dev mode
+	Dev = false
 )
 
 // GetArch returns the arch based on a priority list with options for overriding.

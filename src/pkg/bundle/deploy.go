@@ -44,7 +44,7 @@ func (b *Bundle) Deploy() error {
 	if len(b.cfg.DeployOpts.Packages) != 0 {
 		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.DeployOpts.Packages[0], " ", ""), ",")
 
-		for _, pkg := range b.Bundle.Packages {
+		for _, pkg := range b.bundle.Packages {
 			if slices.Contains(userSpecifiedPackages, pkg.Name) {
 				packagesToDeploy = append(packagesToDeploy, pkg)
 			}
@@ -57,7 +57,7 @@ func (b *Bundle) Deploy() error {
 		return deployPackages(packagesToDeploy, resume, b)
 	}
 
-	return deployPackages(b.Bundle.Packages, resume, b)
+	return deployPackages(b.bundle.Packages, resume, b)
 }
 
 func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
@@ -211,7 +211,7 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
-	utils.ColorPrintYAML(b.Bundle, nil, false)
+	utils.ColorPrintYAML(b.bundle, nil, false)
 
 	message.HorizontalRule()
 
@@ -322,7 +322,7 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 	}
 
 	// todo: we also read the SHAs from the uds-bundle.yaml here, should we refactor so that we use the bundle's root manifest?
-	if err := goyaml.Unmarshal(bundleYAML, &b.Bundle); err != nil {
+	if err := goyaml.Unmarshal(bundleYAML, &b.bundle); err != nil {
 		return "", "", "", err
 	}
 
@@ -332,7 +332,7 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 		return "", "", "", err
 	}
 	b.cfg.DeployOpts.ZarfPackageNameMap = zarfPackageNameMap
-	bundleName := b.Bundle.Metadata.Name
+	bundleName := b.bundle.Metadata.Name
 	return bundleName, string(bundleYAML), source, err
 }
 

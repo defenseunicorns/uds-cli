@@ -19,10 +19,10 @@ import (
 )
 
 // Create creates a bundle
-func (b *Bundle) Create(dev bool) error {
+func (b *Bundle) Create() error {
 
 	// read the bundle's metadata into memory
-	if err := utils.ReadYaml(filepath.Join(b.cfg.CreateOpts.SourceDirectory, b.cfg.CreateOpts.BundleFile), &b.Bundle); err != nil {
+	if err := utils.ReadYaml(filepath.Join(b.cfg.CreateOpts.SourceDirectory, b.cfg.CreateOpts.BundleFile), &b.bundle); err != nil {
 		return err
 	}
 
@@ -44,7 +44,7 @@ func (b *Bundle) Create(dev bool) error {
 	defer validateSpinner.Stop()
 
 	// validate bundle / verify access to all repositories
-	if err := b.ValidateBundleResources(&b.Bundle, validateSpinner); err != nil {
+	if err := b.ValidateBundleResources(&b.bundle, validateSpinner); err != nil {
 		return err
 	}
 
@@ -55,7 +55,7 @@ func (b *Bundle) Create(dev bool) error {
 	if b.cfg.CreateOpts.SigningKeyPath != "" {
 		// write the bundle to disk so we can sign it
 		bundlePath := filepath.Join(b.tmp, config.BundleYAML)
-		if err := utils.WriteYaml(bundlePath, &b.Bundle, 0600); err != nil {
+		if err := utils.WriteYaml(bundlePath, &b.bundle, 0600); err != nil {
 			return err
 		}
 
@@ -74,20 +74,20 @@ func (b *Bundle) Create(dev bool) error {
 	}
 
 	opts := bundler.Options{
-		Bundle:    &b.Bundle,
+		Bundle:    &b.bundle,
 		Output:    b.cfg.CreateOpts.Output,
 		TmpDstDir: b.tmp,
 		SourceDir: b.cfg.CreateOpts.SourceDirectory,
 	}
 	bundlerClient := bundler.NewBundler(&opts)
-	return bundlerClient.Create(dev)
+	return bundlerClient.Create()
 }
 
 // confirmBundleCreation prompts the user to confirm bundle creation
 func (b *Bundle) confirmBundleCreation() (confirm bool) {
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
-	utils.ColorPrintYAML(b.Bundle, nil, false)
+	utils.ColorPrintYAML(b.bundle, nil, false)
 
 	message.HorizontalRule()
 	pterm.Println()

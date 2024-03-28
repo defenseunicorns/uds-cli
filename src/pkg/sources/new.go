@@ -25,6 +25,7 @@ func New(pkgLocation string, pkgName string, opts zarfTypes.ZarfPackageOptions, 
 			PkgManifestSHA: sha,
 			TmpDir:         opts.PackageSource,
 			BundleLocation: pkgLocation,
+			Dev:            config.Dev,
 		}
 	} else {
 		platform := ocispec.Platform{
