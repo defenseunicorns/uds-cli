@@ -76,6 +76,7 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, unarchiveAll bool)
 		}
 	}
 	packageSpinner.Successf("Loaded bundled Zarf package: %s", t.PkgName)
+
 	return nil
 }
 

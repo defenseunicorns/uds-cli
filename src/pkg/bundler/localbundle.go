@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/fetcher"
@@ -18,7 +19,9 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
+	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -51,7 +54,7 @@ func NewLocalBundle(opts *LocalBundleOpts) *LocalBundle {
 }
 
 // create creates the bundle and outputs to a local tarball
-func (lo *LocalBundle) create(signature []byte) error {
+func (lo *LocalBundle) create(signature []byte, dev bool) error {
 	bundle := lo.bundle
 	if bundle.Metadata.Architecture == "" {
 		return fmt.Errorf("architecture is required for bundling")
@@ -92,11 +95,31 @@ func (lo *LocalBundle) create(signature []byte) error {
 		if err != nil {
 			return err
 		}
+
+		// get the image manifest digest for the current package
+		imageManifestDigest := strings.Split(bundle.Packages[i].Ref, ":")[1]
+
 		// add to artifactPathMap for local tarball
 		// todo: if we know the path to where the blobs are stored, we can use that instead of the artifactPathMap?
+		var zarfYamlLayerSize int64
+		var imageManifestPath string
 		for _, layer := range layerDescs {
 			digest := layer.Digest.Encoded()
-			artifactPathMap[filepath.Join(lo.tmpDstDir, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
+			path := filepath.Join(lo.tmpDstDir, config.BlobsDir, digest)
+			artifactPathMap[path] = filepath.Join(config.BlobsDir, digest)
+			// if running in dev mode update zarf.yaml with YOLO and strip out images and repos
+			if dev {
+				if layer.Annotations["org.opencontainers.image.title"] == "zarf.yaml" {
+					zarfYamlLayerSize = updateDevZarfYaml(path)
+				} else if digest == imageManifestDigest {
+					imageManifestPath = path
+				}
+			}
+		}
+
+		// if running in dev mode update zarf.yaml layer size in image manifest
+		if dev {
+			updateDevImageManifest(imageManifestPath, zarfYamlLayerSize)
 		}
 	}
 
@@ -160,7 +183,7 @@ func (lo *LocalBundle) create(signature []byte) error {
 	}
 
 	// tarball the bundle
-	err = writeTarball(bundle, artifactPathMap, lo.sourceDir)
+	err = writeTarball(bundle, artifactPathMap, lo.sourceDir, dev)
 	if err != nil {
 		return err
 	}
@@ -207,12 +230,18 @@ func pushManifestConfig(store *ocistore.Store, metadata types.UDSMetadata, build
 }
 
 // writeTarball builds and writes a bundle tarball to disk based on a file map
-func writeTarball(bundle *types.UDSBundle, artifactPathMap types.PathMap, sourceDir string) error {
+func writeTarball(bundle *types.UDSBundle, artifactPathMap types.PathMap, sourceDir string, dev bool) error {
 	format := archiver.CompressedArchive{
 		Compression: archiver.Zstd{},
 		Archival:    archiver.Tar{},
 	}
-	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, bundle.Metadata.Name, bundle.Metadata.Architecture, bundle.Metadata.Version)
+
+	var filename string
+	if dev {
+		filename = fmt.Sprintf("%s%s-%s-%s.tar.zst", config.DevBundlePrefix, bundle.Metadata.Name, bundle.Metadata.Architecture, bundle.Metadata.Version)
+	} else {
+		filename = fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, bundle.Metadata.Name, bundle.Metadata.Architecture, bundle.Metadata.Version)
+	}
 
 	dst := filepath.Join(sourceDir, filename)
 
@@ -310,4 +339,70 @@ func cleanIndexJSON(tmpDir string, bundleRootDesc ocispec.Descriptor) error {
 		return err
 	}
 	return nil
+}
+
+// updateDevZarfYaml updates zarf.yaml with YOLO and strips out images and repos
+func updateDevZarfYaml(path string) int64 {
+
+	// Read YAML into struct
+	var zarfYamlConfig zarfTypes.ZarfPackage
+	err := zarfUtils.ReadYaml(path, &zarfYamlConfig)
+	if err != nil {
+		message.Fatalf(err, "Failed to read zarf.yaml: %s", err.Error())
+	}
+
+	// Add the yolo to the metadata
+	zarfYamlConfig.Metadata.YOLO = true
+
+	// strip out all images and repos
+	for idx := range zarfYamlConfig.Components {
+		zarfYamlConfig.Components[idx].Images = []string{}
+		zarfYamlConfig.Components[idx].Repos = []string{}
+	}
+
+	// delete the old zarf yaml
+	err = os.Remove(path)
+	if err != nil {
+		message.Fatalf(err, "Failed to delete zarf.yaml: %s", err.Error())
+	}
+	// Write zarf yaml
+	err = zarfUtils.WriteYaml(path, &zarfYamlConfig, 0444)
+	if err != nil {
+		message.Fatalf(err, "Failed to update zarf.yaml: %s", err.Error())
+	}
+
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		message.Fatalf(err, "Failed to stat zarf.yaml: %s", err.Error())
+	}
+
+	return fileInfo.Size()
+}
+
+// updateDevImageManifest updates the image manifest with the new zarf.yaml layer size
+func updateDevImageManifest(imageManifestPath string, zarfYamlLayerSize int64) {
+	// Read imageManifest into struct
+	indexBytes, err := os.ReadFile(imageManifestPath)
+	if err != nil {
+		message.Fatalf(err, "Failed to read image manifest %s: %s", imageManifestPath, err.Error())
+	}
+	var imageManifest ocispec.Manifest
+	if err := json.Unmarshal(indexBytes, &imageManifest); err != nil {
+		message.Fatalf(err, "Failed to unmarshal image manifest: %s", err.Error())
+	}
+
+	for idx := range imageManifest.Layers {
+		if imageManifest.Layers[idx].Annotations["org.opencontainers.image.title"] == "zarf.yaml" {
+			imageManifest.Layers[idx].Size = zarfYamlLayerSize
+		}
+	}
+
+	// delete the old image manifest
+	_ = os.Remove(imageManifestPath)
+
+	// Write image manifest with updated size
+	err = utils.ToLocalFile(&imageManifest, imageManifestPath)
+	if err != nil {
+		message.Fatalf(err, "Failed to write image manifest %s: %s", imageManifestPath, err.Error())
+	}
 }

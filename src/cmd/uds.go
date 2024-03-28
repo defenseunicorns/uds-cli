@@ -41,7 +41,7 @@ var createCmd = &cobra.Command{
 		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
 
-		if err := bndlClient.Create(); err != nil {
+		if err := bndlClient.Create(false); err != nil {
 			bndlClient.ClearPaths()
 			message.Fatalf(err, "Failed to create bundle: %s", err.Error())
 		}

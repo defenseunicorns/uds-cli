@@ -19,7 +19,7 @@ import (
 )
 
 // Create creates a bundle
-func (b *Bundle) Create() error {
+func (b *Bundle) Create(dev bool) error {
 
 	// read the bundle's metadata into memory
 	if err := utils.ReadYaml(filepath.Join(b.cfg.CreateOpts.SourceDirectory, b.cfg.CreateOpts.BundleFile), &b.Bundle); err != nil {
@@ -80,7 +80,7 @@ func (b *Bundle) Create() error {
 		SourceDir: b.cfg.CreateOpts.SourceDirectory,
 	}
 	bundlerClient := bundler.NewBundler(&opts)
-	return bundlerClient.Create()
+	return bundlerClient.Create(dev)
 }
 
 // confirmBundleCreation prompts the user to confirm bundle creation
