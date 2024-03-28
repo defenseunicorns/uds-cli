@@ -36,7 +36,6 @@ type TarballBundle struct {
 	BundleLocation string
 	PkgName        string
 	isPartial      bool
-	Dev            bool
 }
 
 // LoadPackage loads a Zarf package from a local tarball bundle

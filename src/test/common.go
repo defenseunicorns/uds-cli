@@ -7,6 +7,8 @@ package test
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -15,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	"github.com/stretchr/testify/require"
@@ -111,6 +114,23 @@ func (e2e *UDSE2ETest) GetUdsVersion(t *testing.T) string {
 	return strings.Trim(stdOut, "\n")
 }
 
+// DownloadZarfInitPkg downloads the zarf init pkg used for testing if it doesn't already exist (todo: makefile?)
+func (e2e *UDSE2ETest) DownloadZarfInitPkg(t *testing.T, zarfVersion string) {
+	filename := fmt.Sprintf("zarf-init-%s-%s.tar.zst", e2e.Arch, zarfVersion)
+	zarfReleaseURL := fmt.Sprintf("https://github.com/defenseunicorns/zarf/releases/download/%s/%s", zarfVersion, filename)
+	outputDir := "src/test/packages"
+
+	// Check if the file already exists
+	if _, err := os.Stat(outputDir + "/" + filename); err == nil {
+		fmt.Println("Zarf init pkg already exists. Skipping download.")
+		return
+	}
+	downloadSpinner := message.NewProgressSpinner("Downloading Zarf init package %s", zarfVersion)
+	err := downloadFile(zarfReleaseURL, outputDir)
+	downloadSpinner.Successf("Downloaded Zarf init package %s", zarfVersion)
+	require.NoError(t, err)
+}
+
 // CreateZarfPkg creates a Zarf in the given path (todo: makefile?)
 func (e2e *UDSE2ETest) CreateZarfPkg(t *testing.T, path string, forceCreate bool) {
 	//  check if pkg already exists
@@ -124,6 +144,38 @@ func (e2e *UDSE2ETest) CreateZarfPkg(t *testing.T, path string, forceCreate bool
 	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --confirm", path, path), " ")
 	_, _, err = e2e.UDS(args...)
 	require.NoError(t, err)
+}
+
+func downloadFile(url string, outputDir string) error {
+	response, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", response.StatusCode)
+	}
+
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return err
+	}
+
+	outputFileName := filepath.Base(url)
+	outputFilePath := filepath.Join(outputDir, outputFileName)
+
+	outputFile, err := os.Create(outputFilePath)
+	if err != nil {
+		return err
+	}
+	defer outputFile.Close()
+
+	_, err = io.Copy(outputFile, response.Body)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // GetGitRevision returns the current git revision
