@@ -17,7 +17,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,7 +100,14 @@ func inspectLocalAndSBOMExtract(t *testing.T, tarballPath string) {
 }
 
 func deploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm", tarballPath), " ")
+	cmd := strings.Split(fmt.Sprintf("deploy %s --retries 1 --confirm --no-tea", tarballPath), " ")
+	stdout, stderr, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	return stdout, stderr
+}
+
+func deployWithTUI(t *testing.T, source string) (stdout string, stderr string) {
+	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm", source), " ")
 	stdout, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 	return stdout, stderr
@@ -121,19 +128,19 @@ func runCmd(t *testing.T, input string) (stdout string, stderr string) {
 }
 
 func deployPackagesFlag(tarballPath string, packages string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --packages %s", tarballPath, packages), " ")
+	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --packages %s --no-tea", tarballPath, packages), " ")
 	stdout, stderr, _ = e2e.UDS(cmd...)
 	return stdout, stderr
 }
 
 func deployResumeFlag(t *testing.T, tarballPath string) {
-	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --resume", tarballPath), " ")
+	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --resume --no-tea", tarballPath), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
 
-func remove(t *testing.T, tarballPath string) {
-	cmd := strings.Split(fmt.Sprintf("remove %s --confirm --insecure", tarballPath), " ")
+func remove(t *testing.T, source string) {
+	cmd := strings.Split(fmt.Sprintf("remove %s --confirm --insecure", source), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
@@ -145,7 +152,7 @@ func removePackagesFlag(tarballPath string, packages string) (stdout string, std
 }
 
 func deployAndRemoveRemoteInsecure(t *testing.T, ref string) {
-	cmd := strings.Split(fmt.Sprintf("deploy %s --insecure --oci-concurrency=10 --confirm", ref), " ")
+	cmd := strings.Split(fmt.Sprintf("deploy %s --insecure --confirm --no-tea", ref), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
@@ -156,7 +163,7 @@ func deployAndRemoveLocalAndRemoteInsecure(t *testing.T, ref string, tarballPath
 	t.Run(
 		"deploy+remove bundle via OCI",
 		func(t *testing.T) {
-			cmd = strings.Split(fmt.Sprintf("deploy %s --insecure --oci-concurrency=10 --confirm", ref), " ")
+			cmd = strings.Split(fmt.Sprintf("deploy %s --insecure --confirm --no-tea", ref), " ")
 			_, _, err := e2e.UDS(cmd...)
 			require.NoError(t, err)
 
@@ -169,7 +176,7 @@ func deployAndRemoveLocalAndRemoteInsecure(t *testing.T, ref string, tarballPath
 	t.Run(
 		"deploy+remove bundle via local tarball",
 		func(t *testing.T) {
-			cmd = strings.Split(fmt.Sprintf("deploy %s --confirm", tarballPath), " ")
+			cmd = strings.Split(fmt.Sprintf("deploy %s --confirm --no-tea", tarballPath), " ")
 			_, _, err := e2e.UDS(cmd...)
 			require.NoError(t, err)
 
@@ -181,7 +188,7 @@ func deployAndRemoveLocalAndRemoteInsecure(t *testing.T, ref string, tarballPath
 }
 
 func shasMatch(t *testing.T, path string, expected string) {
-	actual, err := utils.GetSHA256OfFile(path)
+	actual, err := helpers.GetSHA256OfFile(path)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
@@ -238,7 +245,7 @@ func publish(t *testing.T, bundlePath, ociPath string) {
 }
 
 func publishInsecure(t *testing.T, bundlePath, ociPath string) {
-	cmd := strings.Split(fmt.Sprintf("publish %s %s --insecure --oci-concurrency=10", bundlePath, ociPath), " ")
+	cmd := strings.Split(fmt.Sprintf("publish %s %s --insecure", bundlePath, ociPath), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }

@@ -16,11 +16,10 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/fetcher"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/config/lang"
 	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
@@ -51,7 +50,7 @@ func New(cfg *types.BundleConfig) (*Bundle, error) {
 		}
 	)
 
-	tmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
+	tmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 	if err != nil {
 		return nil, fmt.Errorf("bundler unable to create temp directory: %w", err)
 	}
@@ -72,7 +71,7 @@ func NewOrDie(cfg *types.BundleConfig) *Bundle {
 	return bundle
 }
 
-// ClearPaths clears out the paths used by Bundle
+// ClearPaths closes any files and clears out the paths used by Bundle
 func (b *Bundle) ClearPaths() {
 	_ = os.RemoveAll(b.tmp)
 }
@@ -244,7 +243,7 @@ func (b *Bundle) CalculateBuildInfo() error {
 
 // ValidateBundleSignature validates the bundle signature
 func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string) error {
-	if utils.InvalidPath(bundleYAMLPath) {
+	if helpers.InvalidPath(bundleYAMLPath) {
 		return fmt.Errorf("path for %s at %s does not exist", config.BundleYAML, bundleYAMLPath)
 	}
 	// The package is not signed, and no public key was provided
@@ -252,34 +251,27 @@ func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string
 		return nil
 	}
 	// The package is not signed, but a public key was provided
-	if utils.InvalidPath(signaturePath) && !utils.InvalidPath(publicKeyPath) {
+	if helpers.InvalidPath(signaturePath) && !helpers.InvalidPath(publicKeyPath) {
 		return fmt.Errorf("package is not signed, but a public key was provided")
 	}
 	// The package is signed, but no public key was provided
-	if !utils.InvalidPath(signaturePath) && utils.InvalidPath(publicKeyPath) {
+	if !helpers.InvalidPath(signaturePath) && helpers.InvalidPath(publicKeyPath) {
 		return fmt.Errorf("package is signed, but no public key was provided")
 	}
 
 	// The package is signed, and a public key was provided
-	return utils.CosignVerifyBlob(bundleYAMLPath, signaturePath, publicKeyPath)
-}
-
-// GetDeployedPackages returns packages that have been deployed
-func GetDeployedPackages() ([]zarfTypes.DeployedPackage, error) {
-	cluster := cluster.NewClusterOrDie()
-	deployedPackages, errs := cluster.GetDeployedZarfPackages()
-	if len(errs) > 0 {
-		return nil, lang.ErrUnableToGetPackages
-	}
-	return deployedPackages, nil
+	return zarfUtils.CosignVerifyBlob(bundleYAMLPath, signaturePath, publicKeyPath)
 }
 
 // GetDeployedPackageNames returns the names of the packages that have been deployed
 func GetDeployedPackageNames() []string {
 	var deployedPackageNames []string
-	deployedPackages, _ := GetDeployedPackages()
-	for _, pkg := range deployedPackages {
-		deployedPackageNames = append(deployedPackageNames, pkg.Name)
+	c, _ := cluster.NewCluster()
+	if c != nil {
+		deployedPackages, _ := c.GetDeployedZarfPackages()
+		for _, pkg := range deployedPackages {
+			deployedPackageNames = append(deployedPackageNames, pkg.Name)
+		}
 	}
 	return deployedPackageNames
 }

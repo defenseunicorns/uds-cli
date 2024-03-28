@@ -19,12 +19,14 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
 )
 
+// remoteFetcher fetches remote Zarf pkgs for local bundles
 type remoteFetcher struct {
 	pkg             types.Package
 	cfg             Config
@@ -99,7 +101,7 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 func (f *remoteFetcher) layersToLocalBundle(spinner *message.Spinner, currentPackageIter int, totalPackages int) ([]ocispec.Descriptor, error) {
 	spinner.Updatef("Fetching %s package layer metadata (package %d of %d)", f.pkg.Name, currentPackageIter, totalPackages)
 	// get only the layers that are required by the components
-	layersToCopy, err := utils.GetZarfLayers(*f.remote, f.pkg, f.pkgRootManifest)
+	layersToCopy, err := utils.GetZarfLayers(*f.remote, f.pkgRootManifest)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +152,7 @@ func (f *remoteFetcher) remoteToLocal(layersToCopy []ocispec.Descriptor) ([]ocis
 		// Grab tmpDirSize and add it to the estimatedBytes, otherwise the progress bar will be off
 		// because as multiple packages are pulled into the tmpDir, RenderProgressBarForLocalDirWrite continues to
 		// add their size which results in strange MB ratios
-		tmpDirSize, err := zarfUtils.GetDirSize(f.cfg.TmpDstDir)
+		tmpDirSize, err := helpers.GetDirSize(f.cfg.TmpDstDir)
 		if err != nil {
 			return nil, err
 		}

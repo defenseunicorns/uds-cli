@@ -118,7 +118,7 @@ func deployZarfInit(t *testing.T) {
 		require.NoError(t, err)
 
 		// Deploy
-		cmd = strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug", bundlePath), " ")
+		cmd = strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --no-tea", bundlePath), " ")
 		_, _, err = e2e.UDS(cmd...)
 		require.NoError(t, err)
 	}

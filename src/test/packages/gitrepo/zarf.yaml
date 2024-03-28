@@ -8,3 +8,21 @@ components:
     required: true
     repos:
       - https://github.com/defenseunicorns/uds-package-dubbd
+  - name: nginx-remote
+    required: true
+    manifests:
+      - name: simple-nginx-deployment
+        namespace: nginx
+        files:
+          - https://k8s.io/examples/application/deployment.yaml@c57f73449b26eae02ca2a549c388807d49ef6d3f2dc040a9bbb1290128d97157
+    actions:
+      onDeploy:
+        after:
+          - wait:
+              cluster:
+                kind: deployment
+                name: nginx-deployment
+                namespace: nginx
+                condition: available
+    images:
+      - docker.io/library/nginx:1.14.2

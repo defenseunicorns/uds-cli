@@ -16,7 +16,6 @@ import (
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	"github.com/mholt/archiver/v4"
@@ -29,7 +28,7 @@ func (b *Bundle) Pull() error {
 	// use uds-cache/packages as the dst dir for the pull to get auto caching
 	// we use an ORAS ocistore to make that dir look like an OCI artifact
 	cacheDir := filepath.Join(zarfConfig.GetAbsCachePath(), "packages")
-	if err := utils.CreateDirectory(cacheDir, 0o755); err != nil {
+	if err := helpers.CreateDirectory(cacheDir, 0o755); err != nil {
 		return err
 	}
 

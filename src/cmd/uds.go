@@ -5,19 +5,26 @@
 package cmd
 
 import (
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui/deploy"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
+	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var createCmd = &cobra.Command{
@@ -26,7 +33,22 @@ var createCmd = &cobra.Command{
 	Args:    cobra.MaximumNArgs(1),
 	Short:   lang.CmdBundleCreateShort,
 	PreRun: func(_ *cobra.Command, args []string) {
-		CreatePreRun(args)
+		pathToBundleFile := ""
+		if len(args) > 0 {
+			if !helpers.IsDir(args[0]) {
+				message.Fatalf(nil, "(%q) is not a valid path to a directory", args[0])
+			}
+			pathToBundleFile = filepath.Join(args[0])
+		}
+		// Handle .yaml or .yml
+		bundleYml := strings.Replace(config.BundleYAML, ".yaml", ".yml", 1)
+		if _, err := os.Stat(filepath.Join(pathToBundleFile, config.BundleYAML)); err == nil {
+			bundleCfg.CreateOpts.BundleFile = config.BundleYAML
+		} else if _, err = os.Stat(filepath.Join(pathToBundleFile, bundleYml)); err == nil {
+			bundleCfg.CreateOpts.BundleFile = bundleYml
+		} else {
+			message.Fatalf(err, "Neither %s or %s found", config.BundleYAML, bundleYml)
+		}
 	},
 	Run: func(_ *cobra.Command, args []string) {
 		srcDir, err := os.Getwd()
@@ -64,14 +86,50 @@ var deployCmd = &cobra.Command{
 				return
 			}
 		}
+		// create new bundle client
 		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
 
-		if err := bndlClient.Deploy(); err != nil {
-			bndlClient.ClearPaths()
-			message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
+		// don't use bubbletea if --no-tea flag is set
+		if config.CommonOptions.NoTea {
+			deployWithoutTea(bndlClient)
+			return
+		}
+
+		// start up bubbletea
+		m := deploy.InitModel(bndlClient)
+
+		// detect tty so CI/containers don't break
+		if term.IsTerminal(int(os.Stdout.Fd())) {
+			deploy.Program = tea.NewProgram(&m)
+		} else {
+			deploy.Program = tea.NewProgram(&m, tea.WithInput(nil))
+		}
+
+		if _, err := deploy.Program.Run(); err != nil {
+			message.Fatalf(err, "TUI program error: %s", err.Error())
 		}
 	},
+}
+
+func deployWithoutTea(bndlClient *bundle.Bundle) {
+	_, _, _, err := bndlClient.PreDeployValidation()
+	if err != nil {
+		message.Fatalf(err, "Failed to validate bundle: %s", err.Error())
+	}
+	// confirm deployment
+	if ok := bndlClient.ConfirmBundleDeploy(); !ok {
+		message.Fatal(nil, "bundle deployment cancelled")
+	}
+	// create an empty program and kill it, this makes Program.Send a no-op
+	deploy.Program = tea.NewProgram(nil)
+	deploy.Program.Kill()
+
+	// deploy the bundle
+	if err := bndlClient.Deploy(); err != nil {
+		bndlClient.ClearPaths()
+		message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
+	}
 }
 
 var inspectCmd = &cobra.Command{
@@ -159,6 +217,33 @@ var pullCmd = &cobra.Command{
 	},
 }
 
+var logsCmd = &cobra.Command{
+	Use:     "logs",
+	Aliases: []string{"l"},
+	Short:   "Display log file contents",
+	Run: func(_ *cobra.Command, _ []string) {
+		logFilePath := filepath.Join(config.CommonOptions.CachePath, config.CachedLogs)
+
+		// Open the cached log file
+		logfile, err := os.Open(logFilePath)
+		if err != nil {
+			var pathError *os.PathError
+			if errors.As(err, &pathError) {
+				msg := fmt.Sprintf("No cached logs found at %s", logFilePath)
+				message.Fatalf(nil, msg)
+			}
+			message.Fatalf("Error opening log file: %s\n", err.Error())
+		}
+		defer logfile.Close()
+
+		// Copy the contents of the log file to stdout
+		if _, err := io.Copy(os.Stdout, logfile); err != nil {
+			// Handle the error if the contents can't be read or written to stdout
+			message.Fatalf(err, "Error reading or printing log file: %v\n", err.Error())
+		}
+	},
+}
+
 // loadViperConfig reads the config file and unmarshals the relevant config into DeployOpts.Variables
 func loadViperConfig() error {
 	// get config file from Viper
@@ -209,6 +294,7 @@ func init() {
 	deployCmd.Flags().BoolVarP(&config.CommonOptions.Confirm, "confirm", "c", false, lang.CmdBundleDeployFlagConfirm)
 	deployCmd.Flags().StringArrayVarP(&bundleCfg.DeployOpts.Packages, "packages", "p", []string{}, lang.CmdBundleDeployFlagPackages)
 	deployCmd.Flags().BoolVarP(&bundleCfg.DeployOpts.Resume, "resume", "r", false, lang.CmdBundleDeployFlagResume)
+	deployCmd.Flags().IntVar(&bundleCfg.DeployOpts.Retries, "retries", 1, lang.CmdBundleDeployFlagRetries)
 
 	// inspect cmd flags
 	rootCmd.AddCommand(inspectCmd)
@@ -230,6 +316,9 @@ func init() {
 	rootCmd.AddCommand(pullCmd)
 	pullCmd.Flags().StringVarP(&bundleCfg.PullOpts.OutputDirectory, "output", "o", v.GetString(V_BNDL_PULL_OUTPUT), lang.CmdBundlePullFlagOutput)
 	pullCmd.Flags().StringVarP(&bundleCfg.PullOpts.PublicKeyPath, "key", "k", v.GetString(V_BNDL_PULL_KEY), lang.CmdBundlePullFlagKey)
+
+	// logs cmd
+	rootCmd.AddCommand(logsCmd)
 }
 
 // configureZarf copies configs from UDS-CLI to Zarf

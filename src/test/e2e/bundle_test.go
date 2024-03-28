@@ -31,6 +31,14 @@ func TestUDSCmd(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestUDSLogs(t *testing.T) {
+	inspectRemote(t, "ghcr.io/defenseunicorns/packages/uds-cli/test/publish/ghcr-test:0.0.1")
+	stderr, _, err := e2e.UDS("logs")
+	require.NoError(t, err)
+	require.Contains(t, stderr, "DEBUG")
+	require.Contains(t, stderr, "UDSBundle")
+}
+
 func TestSimpleBundleWithZarfAction(t *testing.T) {
 	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
@@ -180,12 +188,11 @@ func TestPackagesFlag(t *testing.T) {
 	t.Run("Test invalid package deploy", func(t *testing.T) {
 		_, stderr := deployPackagesFlag(bundlePath, "podinfo,nginx,peanuts")
 		require.Contains(t, stderr, "invalid zarf packages specified by --packages")
-
 	})
+
 	t.Run("Test invalid package remove", func(t *testing.T) {
 		_, stderr := removePackagesFlag(bundlePath, "podinfo,nginx,peanuts")
 		require.Contains(t, stderr, "invalid zarf packages specified by --packages")
-
 	})
 }
 

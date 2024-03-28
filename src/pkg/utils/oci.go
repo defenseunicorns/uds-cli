@@ -18,6 +18,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
+	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
@@ -260,9 +261,21 @@ func EnsureOCIPrefix(source string) string {
 }
 
 // GetZarfLayers grabs the necessary Zarf pkg layers from a remote OCI registry
-func GetZarfLayers(remote zoci.Remote, pkg types.Package, pkgRootManifest *oci.Manifest) ([]ocispec.Descriptor, error) {
+func GetZarfLayers(remote zoci.Remote, pkgRootManifest *oci.Manifest) ([]ocispec.Descriptor, error) {
+	// todo: ensure we are only pulling non-optional components
 	ctx := context.TODO()
-	layersFromComponents, err := remote.LayersFromRequestedComponents(ctx, pkg.OptionalComponents)
+	var components []zarfTypes.ZarfComponent
+	for _, layer := range pkgRootManifest.Layers {
+		// infer component name from layer title annotation
+		titleAnnotation := layer.Annotations[ocispec.AnnotationTitle]
+		isComponent := strings.HasPrefix(titleAnnotation, "components/") && strings.HasSuffix(titleAnnotation, ".tar")
+		if isComponent {
+			afterComponents := strings.Split(titleAnnotation, "components/")[1]
+			componentName := strings.Split(afterComponents, ".tar")[0]
+			components = append(components, zarfTypes.ZarfComponent{Name: componentName})
+		}
+	}
+	layersFromComponents, err := remote.LayersFromRequestedComponents(ctx, components)
 	if err != nil {
 		return nil, err
 	}
