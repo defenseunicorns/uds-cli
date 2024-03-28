@@ -37,6 +37,7 @@ const (
 	CmdBundleDeployFlagPackages = "Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed."
 	CmdBundleDeployFlagResume   = "Only deploys packages from the bundle which haven't already been deployed"
 	CmdBundleDeployFlagSet      = "Specify deployment variables to set on the command line (KEY=value)"
+	CmdBundleDeployFlagRetries  = "Specify the number of retries for package deployments (applies to all pkgs in a bundle)"
 
 	// bundle inspect
 	CmdBundleInspectShort            = "Display the metadata of a bundle"
