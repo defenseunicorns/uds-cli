@@ -99,7 +99,7 @@ func inspectLocalAndSBOMExtract(t *testing.T, tarballPath string) {
 }
 
 func deploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm --no-tea", tarballPath), " ")
+	cmd := strings.Split(fmt.Sprintf("deploy %s --retries 1 --confirm --no-tea", tarballPath), " ")
 	stdout, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 	return stdout, stderr
