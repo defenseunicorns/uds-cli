@@ -91,12 +91,40 @@ func (e2e *UDSE2ETest) GetLogFileContents(t *testing.T, stdErr string) string {
 
 // SetupDockerRegistry uses the host machine's docker daemon to spin up a local registry for testing purposes.
 func (e2e *UDSE2ETest) SetupDockerRegistry(t *testing.T, port int) {
-	// spin up a local registry
 	registryImage := "registry:2.8.3"
 	err := exec.CmdWithPrint("docker", "run", "-d", "--restart=always", "-p", fmt.Sprintf("%d:5000", port), "--name", fmt.Sprintf("registry-%d", port), registryImage)
-	// wait for a half a second to ensure the registry is up and running
-	time.Sleep(500 * time.Millisecond)
 	require.NoError(t, err)
+
+	// Check for registry health
+	waitForRegistryHealth(t, port)
+}
+
+// waitForRegistryHealth pings the registry's health endpoint until a successful response or timeout
+func waitForRegistryHealth(t *testing.T, port int) {
+	healthURL := fmt.Sprintf("http://localhost:%d/v2/", port)
+	maxDuration := 10 * time.Second  // Maximum time to wait for the registry to become healthy
+	checkInterval := 1 * time.Second // Interval between health checks
+
+	timeout := time.NewTimer(maxDuration)
+	defer timeout.Stop()
+	ticker := time.NewTicker(checkInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout.C:
+			t.Fatalf("Timeout waiting for registry at port %d to become healthy", port)
+		case <-ticker.C:
+			resp, err := http.Get(healthURL)
+			if err == nil && resp.StatusCode == http.StatusOK {
+				fmt.Printf("Registry at port %d is healthy\n", port)
+				return
+			}
+			if resp != nil {
+				resp.Body.Close()
+			}
+		}
+	}
 }
 
 // TeardownRegistry removes the local registry.
