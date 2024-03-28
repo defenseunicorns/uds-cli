@@ -106,7 +106,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 			OptionalComponents: strings.Join(pkg.OptionalComponents, ","),
 			PublicKeyPath:      publicKeyPath,
 			SetVariables:       pkgVars,
-			Retries:            1,
+			Retries:            b.cfg.DeployOpts.Retries,
 		}
 
 		valuesOverrides, err := b.loadChartOverrides(pkg, pkgVars)
