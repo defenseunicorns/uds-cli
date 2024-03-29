@@ -54,7 +54,7 @@ func (b *Bundle) CreateZarfPkgs(srcDir string) {
 	}
 }
 
-// setDevSource sets the source for the bundle when in dev mode
+// SetDevSource sets the source for the bundle when in dev mode
 func (b *Bundle) SetDevSource(srcDir string) {
 	srcDir = filepath.Dir(srcDir)
 	// Add a trailing slash if it's missing
