@@ -61,7 +61,6 @@ var devDeployCmd = &cobra.Command{
 
 		config.CommonOptions.Confirm = true
 		bundleCfg.CreateOpts.SourceDirectory = srcDir
-
 		configureZarf()
 
 		// load uds-config if it exists
@@ -88,9 +87,8 @@ var devDeployCmd = &cobra.Command{
 			message.Fatalf(err, "Failed to create bundle: %s", err.Error())
 		}
 
-		bndlClient.SetDevSource(srcDir)
-
 		// Deploy dev bundle
+		bndlClient.SetDevSource(srcDir)
 
 		// don't use bubbletea if --no-tea flag is set
 		if config.CommonOptions.NoTea {

@@ -25,9 +25,6 @@ const (
 	// BundlePrefix is the prefix for compiled uds bundles
 	BundlePrefix = "uds-bundle-"
 
-	// BundlePrefix is the prefix for compiled uds bundles
-	DevBundlePrefix = "dev-uds-bundle-"
-
 	// SBOMsTar is the sboms.tar file in a Zarf pkg
 	SBOMsTar = "sboms.tar"
 

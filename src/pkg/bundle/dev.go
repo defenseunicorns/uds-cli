@@ -61,6 +61,6 @@ func (b *Bundle) SetDevSource(srcDir string) {
 	if len(srcDir) != 0 && srcDir[len(srcDir)-1] != '/' {
 		srcDir = srcDir + "/"
 	}
-	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", config.DevBundlePrefix, b.bundle.Metadata.Name, b.bundle.Metadata.Architecture, b.bundle.Metadata.Version)
+	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, b.bundle.Metadata.Name, b.bundle.Metadata.Architecture, b.bundle.Metadata.Version)
 	b.cfg.DeployOpts.Source = filepath.Join(srcDir, filename)
 }

@@ -17,7 +17,7 @@ func TestDevDeployWithLocalAndRemotePkgs(t *testing.T) {
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
 	bundleDir := "src/test/bundles/03-local-and-remote"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("dev-uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
 	devDeploy(t, bundleDir)
 	remove(t, bundlePath)
@@ -30,7 +30,7 @@ func TestDevDeployWithCreateLocalPkgs(t *testing.T) {
 	e2e.DeleteZarfPkg(t, "src/test/packages/podinfo")
 
 	bundleDir := "src/test/bundles/03-local-and-remote"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("dev-uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
 	devDeploy(t, bundleDir)
 	remove(t, bundlePath)

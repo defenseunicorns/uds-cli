@@ -215,12 +215,7 @@ func writeTarball(bundle *types.UDSBundle, artifactPathMap types.PathMap, source
 		Archival:    archiver.Tar{},
 	}
 
-	var filename string
-	if config.Dev {
-		filename = fmt.Sprintf("%s%s-%s-%s.tar.zst", config.DevBundlePrefix, bundle.Metadata.Name, bundle.Metadata.Architecture, bundle.Metadata.Version)
-	} else {
-		filename = fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, bundle.Metadata.Name, bundle.Metadata.Architecture, bundle.Metadata.Version)
-	}
+	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, bundle.Metadata.Name, bundle.Metadata.Architecture, bundle.Metadata.Version)
 
 	dst := filepath.Join(sourceDir, filename)
 
