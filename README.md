@@ -24,7 +24,8 @@
 1. [Bundle Overrides](docs/overrides.md)
 1. [Bundle Anatomy](docs/anatomy.md)
 1. [Runner](docs/runner.md)
-1. [Dev Mode](#dev)
+1. [Dev Mode](#dev-mode)
+
 ## Install
 Recommended installation method is with Brew:
 ```
