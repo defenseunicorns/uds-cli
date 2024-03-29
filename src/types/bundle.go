@@ -29,6 +29,7 @@ type Package struct {
 type BundleChartOverrides struct {
 	Values    []BundleChartValue    `json:"values,omitempty" jsonschema:"description=List of Helm chart values to set statically"`
 	Variables []BundleChartVariable `json:"variables,omitempty" jsonschema:"description=List of Helm chart variables to set via UDS variables"`
+	Namespace string                `json:"namespace,omitempty" jsonschema:"description=The namespace to deploy the Helm chart to"`
 
 	// EXPERIMENTAL, not yet implemented
 	//ValueFiles []BundleChartValueFile `json:"value-files,omitempty" jsonschema:"description=List of Helm chart value files to set statically"`

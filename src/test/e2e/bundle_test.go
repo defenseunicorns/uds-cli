@@ -110,7 +110,7 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 		publishInsecure(t, bundlePath, bundleRef.Registry)
 		pull(t, bundleRef.String(), tarballPath) // note that pull pulls the bundle into the build dir
 		publishInsecure(t, filepath.Join("build", filepath.Base(bundlePath)), "oci://localhost:889")
-		deployAndRemoveRemoteInsecure(t, bundleRef.String())
+		deployInsecure(t, bundleRef.String())
 	})
 }
 

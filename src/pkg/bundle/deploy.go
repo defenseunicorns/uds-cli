@@ -29,8 +29,8 @@ import (
 	"helm.sh/helm/v3/pkg/getter"
 )
 
-// ZarfOverrideMap is a map of Zarf packages -> components -> Helm charts -> values
-type ZarfOverrideMap map[string]map[string]map[string]interface{}
+// PkgOverrideMap is a map of Zarf packages -> components -> Helm charts -> values/namespace
+type PkgOverrideMap map[string]map[string]map[string]interface{}
 
 // templatedVarRegex is the regex for templated variables
 var templatedVarRegex = regexp.MustCompile(`\${([^}]+)}`)
@@ -109,7 +109,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 			Retries:            b.cfg.DeployOpts.Retries,
 		}
 
-		valuesOverrides, err := b.loadChartOverrides(pkg, pkgVars)
+		valuesOverrides, nsOverrides, err := b.loadChartOverrides(pkg, pkgVars)
 		if err != nil {
 			return err
 		}
@@ -128,7 +128,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 		// Automatically confirm the package deployment
 		zarfConfig.CommonOptions.Confirm = true
 
-		source, err := sources.New(b.cfg.DeployOpts.Source, b.cfg.DeployOpts.ZarfPackageNameMap[pkg.Name], opts, sha)
+		source, err := sources.New(b.cfg.DeployOpts.Source, b.cfg.DeployOpts.ZarfPackageNameMap[pkg.Name], opts, sha, nsOverrides)
 		if err != nil {
 			return err
 		}
@@ -231,10 +231,11 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 }
 
 // loadChartOverrides converts a helm path to a ValuesOverridesMap config for Zarf
-func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string) (ZarfOverrideMap, error) {
+func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string) (PkgOverrideMap, sources.NamespaceOverrideMap, error) {
 
-	// Create a nested map to hold the values
+	// Create nested maps to hold the overrides
 	overrideMap := make(map[string]map[string]*values.Options)
+	nsOverrides := make(sources.NamespaceOverrideMap)
 
 	// Loop through each package component's charts and process overrides
 	for componentName, component := range pkg.Overrides {
@@ -242,18 +243,19 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string
 			chartCopy := chart // Create a copy of the chart
 			err := b.processOverrideValues(&overrideMap, &chartCopy.Values, componentName, chartName, pkgVars)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			err = b.processOverrideVariables(&overrideMap, pkg.Name, &chartCopy.Variables, componentName, chartName)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
+			b.processOverrideNamespaces(nsOverrides, chartCopy.Namespace, componentName, chartName)
 		}
 	}
 
-	processed := make(ZarfOverrideMap)
+	processed := make(PkgOverrideMap)
 
-	// Convert the options.Values map to the ZarfOverrideMap format
+	// Convert the options.Values map (located in chart.MergeValues) to the PkgOverrideMap format
 	for componentName, component := range overrideMap {
 		// Create a map to hold all the charts in the component
 		componentMap := make(map[string]map[string]interface{})
@@ -267,7 +269,7 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string
 			// Merge the chart values with Helm
 			data, err := chart.MergeValues(getter.Providers{})
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			// Add the chart values to the component map
@@ -278,7 +280,7 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string
 		processed[componentName] = componentMap
 	}
 
-	return processed, nil
+	return processed, nsOverrides, nil
 }
 
 // PreDeployValidation validates the bundle before deployment
@@ -334,6 +336,18 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 	b.cfg.DeployOpts.ZarfPackageNameMap = zarfPackageNameMap
 	bundleName := b.bundle.Metadata.Name
 	return bundleName, string(bundleYAML), source, err
+}
+
+// processOverrideNamespaces processes a bundles namespace overrides and adds them to the override map
+func (b *Bundle) processOverrideNamespaces(overrideMap sources.NamespaceOverrideMap, ns string, componentName string, chartName string) {
+	if ns == "" {
+		return // no namespace override
+	}
+	// check if component exists in override map
+	if _, ok := overrideMap[componentName]; !ok {
+		overrideMap[componentName] = make(map[string]string)
+	}
+	overrideMap[componentName][chartName] = ns
 }
 
 // processOverrideValues processes a bundles values overrides and adds them to the override map
@@ -394,7 +408,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 	return nil
 }
 
-// addOverrideValue adds a value to a ZarfOverrideMap
+// addOverrideValue adds a value to a PkgOverrideMap
 func addOverrideValue(overrides map[string]map[string]*values.Options, component string, chart string, valuePath string, value interface{}, pkgVars map[string]string) error {
 	// Create the component map if it doesn't exist
 	if _, ok := overrides[component]; !ok {

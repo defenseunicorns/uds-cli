@@ -16,7 +16,7 @@ import (
 )
 
 // New creates a new package source based on pkgLocation
-func New(pkgLocation string, pkgName string, opts zarfTypes.ZarfPackageOptions, sha string) (zarfSources.PackageSource, error) {
+func New(pkgLocation string, pkgName string, opts zarfTypes.ZarfPackageOptions, sha string, nsOverrides NamespaceOverrideMap) (zarfSources.PackageSource, error) {
 	var source zarfSources.PackageSource
 	if strings.Contains(pkgLocation, "tar.zst") {
 		source = &TarballBundle{
@@ -25,6 +25,7 @@ func New(pkgLocation string, pkgName string, opts zarfTypes.ZarfPackageOptions, 
 			PkgManifestSHA: sha,
 			TmpDir:         opts.PackageSource,
 			BundleLocation: pkgLocation,
+			nsOverrides:    nsOverrides,
 		}
 	} else {
 		platform := ocispec.Platform{
@@ -41,6 +42,7 @@ func New(pkgLocation string, pkgName string, opts zarfTypes.ZarfPackageOptions, 
 			PkgManifestSHA: sha,
 			TmpDir:         opts.PackageSource,
 			Remote:         remote.OrasRemote,
+			nsOverrides:    nsOverrides,
 		}
 	}
 	return source, nil

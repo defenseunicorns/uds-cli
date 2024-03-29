@@ -28,6 +28,9 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 )
 
+// NamespaceOverrideMap is a map of component names to a map of chart names to namespace overrides
+type NamespaceOverrideMap = map[string]map[string]string
+
 // TarballBundle is a package source for local tarball bundles that implements Zarf's packager.PackageSource
 type TarballBundle struct {
 	PkgOpts        *zarfTypes.ZarfPackageOptions
@@ -36,6 +39,7 @@ type TarballBundle struct {
 	BundleLocation string
 	PkgName        string
 	isPartial      bool
+	nsOverrides    NamespaceOverrideMap
 }
 
 // LoadPackage loads a Zarf package from a local tarball bundle
@@ -88,6 +92,7 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Com
 			}
 		}
 	}
+	addNamespaceOverrides(&pkg, t.nsOverrides)
 	packageSpinner.Successf("Loaded bundled Zarf package: %s", t.PkgName)
 	return pkg, nil, err
 }
