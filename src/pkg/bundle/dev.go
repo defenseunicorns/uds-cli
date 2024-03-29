@@ -16,7 +16,7 @@ import (
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 )
 
-// CreateZarfPkg creates a zarf package if its missing when in dev mode
+// CreateZarfPkgs creates a zarf package if its missing when in dev mode
 func (b *Bundle) CreateZarfPkgs(srcDir string) {
 	path := filepath.Join(srcDir, b.cfg.CreateOpts.BundleFile)
 	if err := zarfUtils.ReadYaml(path, &b.bundle); err != nil {
