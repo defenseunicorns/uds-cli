@@ -92,13 +92,11 @@ func (lo *LocalBundle) create(signature []byte) error {
 		if err != nil {
 			return err
 		}
-
 		// add to artifactPathMap for local tarball
 		// todo: if we know the path to where the blobs are stored, we can use that instead of the artifactPathMap?
 		for _, layer := range layerDescs {
 			digest := layer.Digest.Encoded()
-			path := filepath.Join(lo.tmpDstDir, config.BlobsDir, digest)
-			artifactPathMap[path] = filepath.Join(config.BlobsDir, digest)
+			artifactPathMap[filepath.Join(lo.tmpDstDir, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 		}
 	}
 
@@ -214,7 +212,6 @@ func writeTarball(bundle *types.UDSBundle, artifactPathMap types.PathMap, source
 		Compression: archiver.Zstd{},
 		Archival:    archiver.Tar{},
 	}
-
 	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, bundle.Metadata.Name, bundle.Metadata.Architecture, bundle.Metadata.Version)
 
 	dst := filepath.Join(sourceDir, filename)
