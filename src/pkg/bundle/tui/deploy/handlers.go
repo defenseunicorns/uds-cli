@@ -173,7 +173,9 @@ func (m *Model) handleDeployTick() (tea.Model, tea.Cmd) {
 		// check component progress
 		for j := range deployedPkg.DeployedComponents {
 			// check numComponents bc there is a slight delay between rendering the TUI and updating this value
-			if p.numComponents > 0 && deployedPkg.DeployedComponents[j].Status == zarfTypes.ComponentStatusSucceeded {
+			// also nil check the componentStatuses to avoid panic
+			componentSucceeded := deployedPkg.DeployedComponents[j].Status == zarfTypes.ComponentStatusSucceeded
+			if p.numComponents > 0 && len(p.componentStatuses) >= j && componentSucceeded {
 				m.packages[i].componentStatuses[j] = true
 			}
 		}
