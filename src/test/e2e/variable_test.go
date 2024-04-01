@@ -157,6 +157,25 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 	remove(t, bundlePath)
 }
 
+func TestBundleWithDupPkgs(t *testing.T) {
+	deployZarfInit(t)
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false)
+	bundleDir := "src/test/bundles/07-helm-overrides/duplicate"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-duplicates-%s-0.0.1.tar.zst", e2e.Arch))
+
+	createLocal(t, bundleDir, e2e.Arch)
+	deploy(t, bundlePath)
+	defer remove(t, bundlePath)
+
+	// ensure there are 2 namespaces each with an nginx deployment
+	cmd := strings.Split("zarf tools kubectl get deploy -n override-namespace -o=jsonpath='{.items[*].metadata.name}'", " ")
+	deployments, _, _ := e2e.UDS(cmd...)
+	require.Equal(t, "'unicorn-podinfo'", deployments)
+	cmd = strings.Split("zarf tools kubectl get deploy -n override-namespace-2 -o=jsonpath='{.items[*].metadata.name}'", " ")
+	deployments, _, _ = e2e.UDS(cmd...)
+	require.Equal(t, "'unicorn-podinfo'", deployments)
+}
+
 func TestBundleWithOverridenNamespace(t *testing.T) {
 	deployZarfInit(t)
 	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")

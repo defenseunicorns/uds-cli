@@ -279,6 +279,7 @@ func GetZarfLayers(remote zoci.Remote, pkgRootManifest *oci.Manifest) ([]ocispec
 	if err != nil {
 		return nil, err
 	}
+
 	// get the layers that are always pulled
 	var metadataLayers []ocispec.Descriptor
 	for _, path := range zoci.PackageAlwaysPull {

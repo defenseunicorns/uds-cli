@@ -31,10 +31,9 @@ type BundleDeployOptions struct {
 	PublicKeyPath string
 	SetVariables  map[string]string `json:"setVariables" jsonschema:"description=Key-Value map of variable names and their corresponding values that will be used by Zarf packages in a bundle"`
 	// Variables and SharedVariables are read in from uds-config.yaml
-	Variables          map[string]map[string]interface{} `yaml:"variables,omitempty"`
-	SharedVariables    map[string]interface{}            `yaml:"shared,omitempty"`
-	ZarfPackageNameMap map[string]string                 `yaml:"-" json:"-"`
-	Retries            int                               `yaml:"retries"`
+	Variables       map[string]map[string]interface{} `yaml:"variables,omitempty"`
+	SharedVariables map[string]interface{}            `yaml:"shared,omitempty"`
+	Retries         int                               `yaml:"retries"`
 }
 
 // BundleInspectOptions is the options for the bundler.Inspect() function

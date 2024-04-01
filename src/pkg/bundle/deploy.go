@@ -128,7 +128,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 		// Automatically confirm the package deployment
 		zarfConfig.CommonOptions.Confirm = true
 
-		source, err := sources.New(b.cfg.DeployOpts.Source, b.cfg.DeployOpts.ZarfPackageNameMap[pkg.Name], opts, sha, nsOverrides)
+		source, err := sources.New(b.cfg.DeployOpts.Source, pkg.Name, opts, sha, nsOverrides)
 		if err != nil {
 			return err
 		}
@@ -328,12 +328,6 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 		return "", "", "", err
 	}
 
-	// Maps name given to zarf package in the bundle to the actual name of the zarf package
-	zarfPackageNameMap, err := provider.ZarfPackageNameMap()
-	if err != nil {
-		return "", "", "", err
-	}
-	b.cfg.DeployOpts.ZarfPackageNameMap = zarfPackageNameMap
 	bundleName := b.bundle.Metadata.Name
 	return bundleName, string(bundleYAML), source, err
 }
