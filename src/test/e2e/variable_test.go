@@ -159,13 +159,24 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 
 func TestBundleWithDupPkgs(t *testing.T) {
 	deployZarfInit(t)
-	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false)
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+	zarfPkgPath := "src/test/packages/helm"
+	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
+	zarfPublish(t, pkg, "localhost:888")
 	bundleDir := "src/test/bundles/07-helm-overrides/duplicate"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-duplicates-%s-0.0.1.tar.zst", e2e.Arch))
 
 	createLocal(t, bundleDir, e2e.Arch)
 	deploy(t, bundlePath)
 	defer remove(t, bundlePath)
+	// remove namespace after tests
+	defer func() {
+		cmd := strings.Split("zarf tools kubectl delete ns override-namespace override-namespace-2", " ")
+		_, _, _ = e2e.UDS(cmd...)
+	}()
 
 	// ensure there are 2 namespaces each with an nginx deployment
 	cmd := strings.Split("zarf tools kubectl get deploy -n override-namespace -o=jsonpath='{.items[*].metadata.name}'", " ")
@@ -187,7 +198,7 @@ func TestBundleWithOverridenNamespace(t *testing.T) {
 	defer e2e.TeardownRegistry(t, 888)
 	// remove namespace after tests
 	defer func() {
-		cmd := strings.Split("zarf tools kubectl delete ns override-namespace", " ")
+		cmd := strings.Split("zarf tools kubectl delete ns override-namespace override-namespace-2", " ")
 		_, _, _ = e2e.UDS(cmd...)
 	}()
 

@@ -6,8 +6,7 @@ metadata:
 
 packages:
   - name: helm-overrides
-#    path: "../../../packages/helm"
-    repository: ghcr.io/unclegedd/helm-overrides
+    repository: localhost:888/helm-overrides
     ref: 0.0.1
     overrides:
       podinfo-component:
@@ -17,8 +16,7 @@ packages:
             - path: "podinfo.replicaCount"
               value: 1
   - name: helm-overrides-duplicate
-#    path: "../../../packages/helm"
-    repository: ghcr.io/unclegedd/helm-overrides
+    repository: localhost:888/helm-overrides
     ref: 0.0.1
     overrides:
       podinfo-component:
