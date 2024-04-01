@@ -19,6 +19,10 @@
           },
           "type": "array",
           "description": "List of Helm chart variables to set via UDS variables"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "The namespace to deploy the Helm chart to"
         }
       },
       "additionalProperties": false,

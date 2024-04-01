@@ -9,6 +9,7 @@ Bundle overrides provide a mechanism to customize Helm charts inside of Zarf pac
     - [Syntax](#syntax)
     - [Values](#values)
     - [Variables](#variables)
+    - [Namespace](#namespace)
 
 ## Quickstart
 
@@ -214,3 +215,25 @@ Variable precedence is as follows:
 1. Environment variables
 1. `uds-config.yaml` variables
 1. Variables `default` in the`uds-bundle.yaml`
+
+### Namespace
+It's also possible to specify a namespace for a packaged Helm chart to be installed in. For example, to deploy the a chart in the `custom-podinfo` namespace, you can specify the `namespace` in the `overrides` block:
+
+```yaml
+kind: UDSBundle
+metadata:
+   name: example-bundle
+   version: 0.0.1
+
+packages:
+   - name: helm-overrides-package
+     path: "../../packages/helm"
+     ref: 0.0.1"
+     overrides:
+        podinfo-component:
+          unicorn-podinfo:
+             namespace: custom-podinfo # custom namespace!
+             values:
+                - path: "podinfo.replicaCount"
+                  value: 1
+```

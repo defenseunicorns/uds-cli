@@ -104,7 +104,7 @@ func removePackages(packagesToRemove []types.Package, b *Bundle, zarfPackageName
 			}
 
 			sha := strings.Split(pkg.Ref, "sha256:")[1]
-			source, err := sources.New(b.cfg.RemoveOpts.Source, zarfPackageName, opts, sha)
+			source, err := sources.New(b.cfg.RemoveOpts.Source, zarfPackageName, opts, sha, nil)
 			if err != nil {
 				return err
 			}

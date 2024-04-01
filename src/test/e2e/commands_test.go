@@ -143,8 +143,14 @@ func removePackagesFlag(tarballPath string, packages string) (stdout string, std
 	return stdout, stderr
 }
 
-func deployAndRemoveRemoteInsecure(t *testing.T, ref string) {
+func deployInsecure(t *testing.T, ref string) {
 	cmd := strings.Split(fmt.Sprintf("deploy %s --insecure --confirm --no-tea", ref), " ")
+	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+}
+
+func removeInsecure(t *testing.T, remote string) {
+	cmd := strings.Split(fmt.Sprintf("remove %s --insecure --confirm", remote), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }

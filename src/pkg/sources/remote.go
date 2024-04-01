@@ -37,6 +37,7 @@ type RemoteBundle struct {
 	TmpDir         string
 	Remote         *oci.OrasRemote
 	isPartial      bool
+	nsOverrides    NamespaceOverrideMap
 }
 
 // LoadPackage loads a Zarf package from a remote bundle
@@ -88,6 +89,7 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Comp
 			}
 		}
 	}
+	addNamespaceOverrides(&pkg, r.nsOverrides)
 	return pkg, nil, err
 }
 
