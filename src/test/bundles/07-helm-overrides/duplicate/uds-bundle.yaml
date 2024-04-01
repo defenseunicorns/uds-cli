@@ -5,23 +5,47 @@ metadata:
   version: 0.0.1
 
 packages:
-  - name: helm-overrides
+  - name: helm-overrides-0
     repository: localhost:888/helm-overrides
     ref: 0.0.1
     overrides:
       podinfo-component:
         unicorn-podinfo:
-          namespace: "override-namespace"
+          namespace: override-ns-0
           values:
             - path: "podinfo.replicaCount"
               value: 1
-  - name: helm-overrides-duplicate
+
+  - name: helm-overrides-1
     repository: localhost:888/helm-overrides
     ref: 0.0.1
     overrides:
       podinfo-component:
         unicorn-podinfo:
-          namespace: "override-namespace-2"
+          namespace: override-ns-1
+          values:
+            - path: "podinfo.replicaCount"
+              value: 1
+
+  - name: helm-overrides-2
+    description: "local package"
+    # todo: arch will be a problem, remove these from the test and do a unit test instead
+    path: "../../../packages/helm/zarf-package-helm-overrides-arm64-0.0.1.tar.zst"
+    ref: 0.0.1
+    overrides:
+      podinfo-component:
+        unicorn-podinfo:
+          namespace: override-ns-2
+          values:
+            - path: "podinfo.replicaCount"
+              value: 1
+  - name: helm-overrides-3
+    path: "../../../packages/helm/zarf-package-helm-overrides-arm64-0.0.1.tar.zst"
+    ref: 0.0.1
+    overrides:
+      podinfo-component:
+        unicorn-podinfo:
+          namespace: override-ns-3
           values:
             - path: "podinfo.replicaCount"
               value: 1

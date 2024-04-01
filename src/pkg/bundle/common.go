@@ -158,14 +158,19 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 				return fmt.Errorf("detected local Zarf package: %s, outputting to an OCI registry is not supported when using local Zarf packages", pkg.Name)
 			}
 			var fullPkgName string
+			var path string
 			if pkg.Name == "init" {
+				// Zarf init pkgs has a specific naming convention
 				fullPkgName = fmt.Sprintf("zarf-%s-%s-%s.tar.zst", pkg.Name, bundle.Metadata.Architecture, pkg.Ref)
+				path = filepath.Join(pkg.Path, fullPkgName)
+			} else if strings.HasSuffix(pkg.Path, ".tar.zst") {
+				// use the provided pkg tarball
+				path = pkg.Path
 			} else {
-				// For local zarf packages, we get the package name using the package name provided in the bundle, since the zarf package artifact
-				// uses the actual zarf package name, these names must match
+				// infer the name of the local Zarf pkg
 				fullPkgName = fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", pkg.Name, bundle.Metadata.Architecture, pkg.Ref)
+				path = filepath.Join(pkg.Path, fullPkgName)
 			}
-			path := filepath.Join(pkg.Path, fullPkgName)
 			bundle.Packages[idx].Path = path
 		}
 

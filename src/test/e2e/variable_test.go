@@ -164,27 +164,41 @@ func TestBundleWithDupPkgs(t *testing.T) {
 	zarfPkgPath := "src/test/packages/helm"
 	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+	name := "duplicates"
 	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
 	zarfPublish(t, pkg, "localhost:888")
 	bundleDir := "src/test/bundles/07-helm-overrides/duplicate"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-duplicates-%s-0.0.1.tar.zst", e2e.Arch))
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", name, e2e.Arch))
 
 	createLocal(t, bundleDir, e2e.Arch)
-	deploy(t, bundlePath)
-	defer remove(t, bundlePath)
+
 	// remove namespace after tests
 	defer func() {
-		cmd := strings.Split("zarf tools kubectl delete ns override-namespace override-namespace-2", " ")
+		cmd := strings.Split("zarf tools kubectl delete ns override-ns-0 override-ns-1 override-ns-2 override-ns-3", " ")
 		_, _, _ = e2e.UDS(cmd...)
 	}()
 
-	// ensure there are 2 namespaces each with an nginx deployment
-	cmd := strings.Split("zarf tools kubectl get deploy -n override-namespace -o=jsonpath='{.items[*].metadata.name}'", " ")
-	deployments, _, _ := e2e.UDS(cmd...)
-	require.Equal(t, "'unicorn-podinfo'", deployments)
-	cmd = strings.Split("zarf tools kubectl get deploy -n override-namespace-2 -o=jsonpath='{.items[*].metadata.name}'", " ")
-	deployments, _, _ = e2e.UDS(cmd...)
-	require.Equal(t, "'unicorn-podinfo'", deployments)
+	// helper fn to check the 4 different namespaces for the deployment
+	checkDeployments := func(t *testing.T) {
+		for i := 0; i < 4; i++ {
+			cmd := strings.Split(fmt.Sprintf("zarf tools kubectl get deploy -n override-ns-%d -o=jsonpath='{.items[*].metadata.name}'", i), " ")
+			deployment, _, _ := e2e.UDS(cmd...)
+			require.Equal(t, "'unicorn-podinfo'", deployment)
+		}
+	}
+
+	t.Run("test namespace override + dup pkgs in local bundle", func(t *testing.T) {
+		deploy(t, bundlePath)
+		checkDeployments(t)
+		remove(t, bundlePath)
+	})
+
+	t.Run("test namespace override + dup pkgs in remote bundle", func(t *testing.T) {
+		publishInsecure(t, bundlePath, "localhost:888")
+		deployInsecure(t, fmt.Sprintf("localhost:888/%s:0.0.1", name))
+		checkDeployments(t)
+		removeInsecure(t, fmt.Sprintf("localhost:888/%s:0.0.1", name))
+	})
 }
 
 func TestBundleWithOverridenNamespace(t *testing.T) {

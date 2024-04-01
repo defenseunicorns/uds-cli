@@ -15,6 +15,7 @@ type UDSBundle struct {
 // Package represents a Zarf package in a UDS bundle
 type Package struct {
 	Name               string                                     `json:"name" jsonschema:"name=Name of the Zarf package"`
+	Description        string                                     `json:"description,omitempty" jsonschema:"description=Description of the Zarf package"`
 	Repository         string                                     `json:"repository,omitempty" jsonschema:"description=The repository to import the package from"`
 	Path               string                                     `json:"path,omitempty" jsonschema:"description=The local path to import the package from"`
 	Ref                string                                     `json:"ref" jsonschema:"description=Ref (tag) of the Zarf package"`
