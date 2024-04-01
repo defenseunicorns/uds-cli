@@ -7,31 +7,46 @@ package test
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-func TestDevDeployWithLocalAndRemotePkgs(t *testing.T) {
+func TestDevDeploy(t *testing.T) {
 
+	cmd := strings.Split("zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
 	removeZarfInit()
 
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
+	t.Run("TestDevDeployWithLocalAndRemotePkgs", func(t *testing.T) {
 
-	bundleDir := "src/test/bundles/03-local-and-remote"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
+		e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
-	devDeploy(t, bundleDir)
-	remove(t, bundlePath)
-}
+		bundleDir := "src/test/bundles/03-local-and-remote"
+		bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
-func TestDevDeployWithCreateLocalPkgs(t *testing.T) {
+		devDeploy(t, bundleDir)
 
-	removeZarfInit()
+		deployments, _, _ := e2e.UDS(cmd...)
+		require.Contains(t, deployments, "podinfo")
+		require.Contains(t, deployments, "nginx")
 
-	e2e.DeleteZarfPkg(t, "src/test/packages/podinfo")
+		remove(t, bundlePath)
+	})
 
-	bundleDir := "src/test/bundles/03-local-and-remote"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
+	t.Run("TestDevDeployWithCreateLocalPkgs", func(t *testing.T) {
 
-	devDeploy(t, bundleDir)
-	remove(t, bundlePath)
+		e2e.DeleteZarfPkg(t, "src/test/packages/podinfo")
+
+		bundleDir := "src/test/bundles/03-local-and-remote"
+		bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
+
+		devDeploy(t, bundleDir)
+
+		deployments, _, _ := e2e.UDS(cmd...)
+		require.Contains(t, deployments, "podinfo")
+		require.Contains(t, deployments, "nginx")
+
+		remove(t, bundlePath)
+	})
 }

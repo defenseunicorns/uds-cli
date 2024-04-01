@@ -11,13 +11,15 @@ import (
 	"regexp"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+
 	zarfCLI "github.com/defenseunicorns/zarf/src/cmd"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 )
 
 // CreateZarfPkgs creates a zarf package if its missing when in dev mode
-func (b *Bundle) CreateZarfPkgs(srcDir string) {
+func (b *Bundle) CreateZarfPkgs() {
+	srcDir := b.cfg.CreateOpts.SourceDirectory
 	path := filepath.Join(srcDir, b.cfg.CreateOpts.BundleFile)
 	if err := zarfUtils.ReadYaml(path, &b.bundle); err != nil {
 		message.Fatalf(err, "Failed to read bundle.yaml: %s", err.Error())
@@ -25,6 +27,7 @@ func (b *Bundle) CreateZarfPkgs(srcDir string) {
 
 	zarfPackagePattern := `^zarf-.*\.tar\.zst$`
 	for _, pkg := range b.bundle.Packages {
+		// if pkg a local zarf package attempt to create it if it doesn't exist
 		if pkg.Repository == "" {
 			path := srcDir + pkg.Path
 			// get files in directory

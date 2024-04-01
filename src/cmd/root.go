@@ -10,7 +10,6 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/cmd/common"
 	zarfCommon "github.com/defenseunicorns/zarf/src/cmd/common"
@@ -90,32 +89,4 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&config.CommonOptions.Insecure, "insecure", v.GetBool(V_INSECURE), lang.RootCmdFlagInsecure)
 	rootCmd.PersistentFlags().IntVar(&config.CommonOptions.OCIConcurrency, "oci-concurrency", v.GetInt(V_BNDL_OCI_CONCURRENCY), lang.CmdBundleFlagConcurrency)
 	rootCmd.PersistentFlags().BoolVar(&config.CommonOptions.NoTea, "no-tea", v.GetBool(V_NO_TEA), lang.RootCmdNoTea)
-}
-
-func cliSetup(op string) {
-	match := map[string]message.LogLevel{
-		"warn":  message.WarnLevel,
-		"info":  message.InfoLevel,
-		"debug": message.DebugLevel,
-		"trace": message.TraceLevel,
-	}
-
-	printViperConfigUsed()
-
-	// No log level set, so use the default
-	if logLevel != "" {
-		if lvl, ok := match[logLevel]; ok {
-			message.SetLogLevel(lvl)
-			message.Debug("Log level set to " + logLevel)
-		} else {
-			message.Warn(lang.RootCmdErrInvalidLogLevel)
-		}
-	}
-
-	if !config.SkipLogFile && !config.ListTasks {
-		err := utils.ConfigureLogs(op)
-		if err != nil {
-			message.Fatalf(err, "Error configuring logs")
-		}
-	}
 }

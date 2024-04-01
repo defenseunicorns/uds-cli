@@ -6,17 +6,15 @@ package cmd
 
 import (
 	"os"
-	"path/filepath"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
+
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui/deploy"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -31,24 +29,13 @@ var devDeployCmd = &cobra.Command{
 	Args:  cobra.MaximumNArgs(1),
 	Short: lang.CmdDevDeployShort,
 	PreRun: func(_ *cobra.Command, args []string) {
-		pathToBundleFile := ""
-		if len(args) > 0 {
-			if !helpers.IsDir(args[0]) {
-				message.Fatalf(nil, "(%q) is not a valid path to a directory", args[0])
-			}
-			pathToBundleFile = filepath.Join(args[0])
-		}
-		// Handle .yaml or .yml
-		bundleYml := strings.Replace(config.BundleYAML, ".yaml", ".yml", 1)
-		if _, err := os.Stat(filepath.Join(pathToBundleFile, config.BundleYAML)); err == nil {
-			bundleCfg.CreateOpts.BundleFile = config.BundleYAML
-		} else if _, err = os.Stat(filepath.Join(pathToBundleFile, bundleYml)); err == nil {
-			bundleCfg.CreateOpts.BundleFile = bundleYml
-		} else {
-			message.Fatalf(err, "Neither %s or %s found", config.BundleYAML, bundleYml)
-		}
+		setBundleFile(args)
 	},
 	Run: func(_ *cobra.Command, args []string) {
+
+		// (TODO: remove once we have create tui code)create an empty program and kill it, this makes Program.Send a no-op
+		deploy.Program = tea.NewProgram(nil)
+		deploy.Program.Kill()
 
 		// Create Bundle
 		srcDir, err := os.Getwd()
@@ -57,6 +44,10 @@ var devDeployCmd = &cobra.Command{
 		}
 		if len(args) > 0 {
 			srcDir = args[0]
+		}
+
+		if len(srcDir) != 0 && srcDir[len(srcDir)-1] != '/' {
+			srcDir = srcDir + "/"
 		}
 
 		config.CommonOptions.Confirm = true
@@ -75,10 +66,7 @@ var devDeployCmd = &cobra.Command{
 		defer bndlClient.ClearPaths()
 
 		// Check if local zarf packages need to be created
-		if len(srcDir) != 0 && srcDir[len(srcDir)-1] != '/' {
-			srcDir = srcDir + "/"
-		}
-		bndlClient.CreateZarfPkgs(srcDir)
+		bndlClient.CreateZarfPkgs()
 
 		// Create dev bundle
 		config.Dev = true
