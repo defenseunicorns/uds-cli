@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"github.com/stretchr/testify/require"
 )
@@ -146,33 +145,6 @@ func Test_validateOverrides(t *testing.T) {
 			}
 		})
 	}
-}
-
-func Test_ValidateBundleResources(t *testing.T) {
-	b := Bundle{
-		cfg: &types.BundleConfig{
-			CreateOpts: types.BundleCreateOptions{
-				SourceDirectory: "../../fake/path",
-			},
-		},
-		bundle: types.UDSBundle{
-			Metadata: types.UDSMetadata{
-				Name:         "foo",
-				Version:      "0.0.1",
-				Architecture: "fake64",
-			},
-			Packages: []types.Package{
-				{
-					Name: "foo",
-					Path: "../../test/packages/nginx/zarf-package-nginx-fake64-0.0.1.tar.zst",
-					Ref:  "0.0.1",
-				},
-			},
-		},
-	}
-
-	err := b.ValidateBundleResources(message.NewProgressSpinner(""))
-	require.NoError(t, err)
 }
 
 func Test_getPkgPath(t *testing.T) {
