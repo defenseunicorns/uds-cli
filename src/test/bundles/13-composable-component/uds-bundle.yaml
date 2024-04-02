@@ -1,0 +1,14 @@
+kind: UDSBundle
+metadata:
+  name: with-composed
+  description: |
+    test bundle with a remote pkg with a:
+      - docker distribution manifest media type (quay images)
+      - composed component with only images
+  version: 0.0.1
+
+packages:
+  - name: prometheus
+    # remote pkg ensures we're testing pulling composed components from OCI
+    repository: localhost:888/prometheus
+    ref: 0.0.1
