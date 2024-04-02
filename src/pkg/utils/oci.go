@@ -261,24 +261,25 @@ func EnsureOCIPrefix(source string) string {
 }
 
 // GetZarfLayers grabs the necessary Zarf pkg layers from a remote OCI registry
-func GetZarfLayers(remote zoci.Remote, pkgRootManifest *oci.Manifest) ([]ocispec.Descriptor, error) {
-	// todo: ensure we are only pulling non-optional components
+func GetZarfLayers(remote zoci.Remote, pkgRootManifest *oci.Manifest, optionalComponents []string) ([]ocispec.Descriptor, error) {
 	ctx := context.TODO()
+	zarfPkg, err := remote.FetchZarfYAML(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// ensure we're only pulling required components and optional components
 	var components []zarfTypes.ZarfComponent
-	for _, layer := range pkgRootManifest.Layers {
-		// infer component name from layer title annotation
-		titleAnnotation := layer.Annotations[ocispec.AnnotationTitle]
-		isComponent := strings.HasPrefix(titleAnnotation, "components/") && strings.HasSuffix(titleAnnotation, ".tar")
-		if isComponent {
-			afterComponents := strings.Split(titleAnnotation, "components/")[1]
-			componentName := strings.Split(afterComponents, ".tar")[0]
-			components = append(components, zarfTypes.ZarfComponent{Name: componentName})
+	for _, c := range zarfPkg.Components {
+		if c.Required != nil || slices.Contains(optionalComponents, c.Name) {
+			components = append(components, c)
 		}
 	}
 	layersFromComponents, err := remote.LayersFromRequestedComponents(ctx, components)
 	if err != nil {
 		return nil, err
 	}
+
 	// get the layers that are always pulled
 	var metadataLayers []ocispec.Descriptor
 	for _, path := range zoci.PackageAlwaysPull {
