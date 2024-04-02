@@ -109,6 +109,10 @@
         "name": {
           "type": "string"
         },
+        "description": {
+          "type": "string",
+          "description": "Description of the Zarf package"
+        },
         "repository": {
           "type": "string",
           "description": "The repository to import the package from"
