@@ -41,7 +41,7 @@ var rootCmd = &cobra.Command{
 
 		// don't load log configs for the logs command
 		if cmd.Use != "logs" {
-			cliSetup(cmd.Use)
+			cliSetup(cmd)
 		}
 	},
 	Short: lang.RootCmdShort,

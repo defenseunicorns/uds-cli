@@ -27,8 +27,8 @@ func (b *Bundle) CreateZarfPkgs() {
 
 	zarfPackagePattern := `^zarf-.*\.tar\.zst$`
 	for _, pkg := range b.bundle.Packages {
-		// if pkg a local zarf package attempt to create it if it doesn't exist
-		if pkg.Repository == "" {
+		// if pkg is a local zarf package, attempt to create it if it doesn't exist
+		if pkg.Path != "" {
 			path := srcDir + pkg.Path
 			// get files in directory
 			files, err := os.ReadDir(path)

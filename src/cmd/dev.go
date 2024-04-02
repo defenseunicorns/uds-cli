@@ -7,16 +7,12 @@ package cmd
 import (
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
-
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
-	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui/deploy"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 )
 
 var devCmd = &cobra.Command{
@@ -32,10 +28,6 @@ var devDeployCmd = &cobra.Command{
 		setBundleFile(args)
 	},
 	Run: func(_ *cobra.Command, args []string) {
-
-		// (TODO: remove once we have create tui code)create an empty program and kill it, this makes Program.Send a no-op
-		deploy.Program = tea.NewProgram(nil)
-		deploy.Program.Kill()
 
 		// Create Bundle
 		srcDir, err := os.Getwd()
@@ -78,25 +70,7 @@ var devDeployCmd = &cobra.Command{
 		// Deploy dev bundle
 		bndlClient.SetDevSource(srcDir)
 
-		// don't use bubbletea if --no-tea flag is set
-		if config.CommonOptions.NoTea {
-			deployWithoutTea(bndlClient)
-			return
-		}
-
-		// start up bubbletea
-		m := deploy.InitModel(bndlClient)
-
-		// detect tty so CI/containers don't break
-		if term.IsTerminal(int(os.Stdout.Fd())) {
-			deploy.Program = tea.NewProgram(&m)
-		} else {
-			deploy.Program = tea.NewProgram(&m, tea.WithInput(nil))
-		}
-
-		if _, err := deploy.Program.Run(); err != nil {
-			message.Fatalf(err, "TUI program error: %s", err.Error())
-		}
+		deployWithoutTea(bndlClient)
 	},
 }
 

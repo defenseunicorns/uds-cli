@@ -21,6 +21,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	av4 "github.com/mholt/archiver/v4"
 	"github.com/pterm/pterm"
+	"github.com/spf13/cobra"
 )
 
 // GracefulPanic in the event of a panic, attempt to reset the terminal using the 'reset' command.
@@ -53,9 +54,9 @@ func IsValidTarballPath(path string) bool {
 }
 
 // ConfigureLogs sets up the log file, log cache and output for the CLI
-func ConfigureLogs(op string) error {
+func ConfigureLogs(cmd *cobra.Command) error {
 	// don't configure UDS logs for vendored cmds
-	if strings.HasPrefix(op, "zarf") || strings.HasPrefix(op, "run") {
+	if strings.HasPrefix(cmd.Use, "zarf") || strings.HasPrefix(cmd.Use, "run") {
 		return nil
 	}
 	writer, err := message.UseLogFile("")
@@ -83,7 +84,7 @@ func ConfigureLogs(op string) error {
 
 	// use Zarf pterm output if no-tea flag is set
 	// todo: as more bundle ops use BubbleTea, need to also check them alongside 'deploy'
-	if !strings.Contains(op, "deploy") || config.CommonOptions.NoTea {
+	if !(strings.HasPrefix(cmd.Parent().Use, "uds") && strings.HasPrefix(cmd.Use, "deploy")) || config.CommonOptions.NoTea {
 		message.Notef("Saving log file to %s", tmpLogLocation)
 		logWriter = io.MultiWriter(os.Stderr, logFile)
 		pterm.SetDefaultOutput(logWriter)

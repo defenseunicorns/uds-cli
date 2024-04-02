@@ -19,6 +19,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	"github.com/spf13/cobra"
 )
 
 // configureZarf copies configs from UDS-CLI to Zarf
@@ -71,7 +72,7 @@ func setBundleFile(args []string) {
 	}
 }
 
-func cliSetup(op string) {
+func cliSetup(cmd *cobra.Command) {
 	match := map[string]message.LogLevel{
 		"warn":  message.WarnLevel,
 		"info":  message.InfoLevel,
@@ -92,7 +93,7 @@ func cliSetup(op string) {
 	}
 
 	if !config.SkipLogFile && !config.ListTasks {
-		err := utils.ConfigureLogs(op)
+		err := utils.ConfigureLogs(cmd)
 		if err != nil {
 			message.Fatalf(err, "Error configuring logs")
 		}

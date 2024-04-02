@@ -15,10 +15,10 @@ import (
 
 func TestDevDeploy(t *testing.T) {
 
-	cmd := strings.Split("zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
 	removeZarfInit()
+	cmd := strings.Split("zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
 
-	t.Run("TestDevDeployWithLocalAndRemotePkgs", func(t *testing.T) {
+	t.Run("Test dev deploy with local and remote pkgs", func(t *testing.T) {
 
 		e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
@@ -34,7 +34,7 @@ func TestDevDeploy(t *testing.T) {
 		remove(t, bundlePath)
 	})
 
-	t.Run("TestDevDeployWithCreateLocalPkgs", func(t *testing.T) {
+	t.Run("Test dev deploy with CreateLocalPkgs", func(t *testing.T) {
 
 		e2e.DeleteZarfPkg(t, "src/test/packages/podinfo")
 
