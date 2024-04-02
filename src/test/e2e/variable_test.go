@@ -174,14 +174,14 @@ func TestBundleWithDupPkgs(t *testing.T) {
 
 	// remove namespace after tests
 	defer func() {
-		cmd := strings.Split("zarf tools kubectl delete ns override-ns-0 override-ns-1 override-ns-2 override-ns-3", " ")
+		cmd := strings.Split("zarf tools kubectl delete ns override-ns another-override-ns", " ")
 		_, _, _ = e2e.UDS(cmd...)
 	}()
 
-	// helper fn to check the 4 different namespaces for the deployment
+	// helper fn to check the different namespaces for the deployment
 	checkDeployments := func(t *testing.T) {
-		for i := 0; i < 4; i++ {
-			cmd := strings.Split(fmt.Sprintf("zarf tools kubectl get deploy -n override-ns-%d -o=jsonpath='{.items[*].metadata.name}'", i), " ")
+		for _, ns := range []string{"override-ns", "another-override-ns"} {
+			cmd := strings.Split(fmt.Sprintf("zarf tools kubectl get deploy -n %s -o=jsonpath='{.items[*].metadata.name}'", ns), " ")
 			deployment, _, _ := e2e.UDS(cmd...)
 			require.Equal(t, "'unicorn-podinfo'", deployment)
 		}
@@ -197,41 +197,6 @@ func TestBundleWithDupPkgs(t *testing.T) {
 		publishInsecure(t, bundlePath, "localhost:888")
 		deployInsecure(t, fmt.Sprintf("localhost:888/%s:0.0.1", name))
 		checkDeployments(t)
-		removeInsecure(t, fmt.Sprintf("localhost:888/%s:0.0.1", name))
-	})
-}
-
-func TestBundleWithOverridenNamespace(t *testing.T) {
-	deployZarfInit(t)
-	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
-	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
-	name := "override-namespace"
-	bundleDir := "src/test/bundles/07-helm-overrides/namespace"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", name, e2e.Arch))
-	e2e.SetupDockerRegistry(t, 888)
-	defer e2e.TeardownRegistry(t, 888)
-	// remove namespace after tests
-	defer func() {
-		cmd := strings.Split("zarf tools kubectl delete ns override-namespace override-namespace-2", " ")
-		_, _, _ = e2e.UDS(cmd...)
-	}()
-
-	createLocal(t, bundleDir, e2e.Arch)
-
-	t.Run("test namespace override in local bundle", func(t *testing.T) {
-		deploy(t, bundlePath)
-		cmd := strings.Split("zarf tools kubectl get deploy -n override-namespace unicorn-podinfo -o=jsonpath='{.metadata.name}'", " ")
-		deployments, _, _ := e2e.UDS(cmd...)
-		require.Contains(t, deployments, "unicorn-podinfo")
-		remove(t, bundlePath)
-	})
-
-	t.Run("test namespace override in remote bundle", func(t *testing.T) {
-		publishInsecure(t, bundlePath, "localhost:888")
-		deployInsecure(t, fmt.Sprintf("localhost:888/%s:0.0.1", name))
-		cmd := strings.Split("zarf tools kubectl get deploy -n override-namespace unicorn-podinfo -o=jsonpath='{.metadata.name}'", " ")
-		deployments, _, _ := e2e.UDS(cmd...)
-		require.Contains(t, deployments, "unicorn-podinfo")
 		removeInsecure(t, fmt.Sprintf("localhost:888/%s:0.0.1", name))
 	})
 }
