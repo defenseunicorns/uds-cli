@@ -34,7 +34,7 @@ type localFetcher struct {
 	extractDst string
 }
 
-// Fetch fetches a Zarf pkg and puts it into a local bundle
+// Fetch fetches a local Zarf pkg and puts it into a local bundle
 func (f *localFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	fetchSpinner := message.NewProgressSpinner("Fetching package %s", f.pkg.Name)
 	defer fetchSpinner.Stop()

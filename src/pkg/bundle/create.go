@@ -44,7 +44,7 @@ func (b *Bundle) Create() error {
 	defer validateSpinner.Stop()
 
 	// validate bundle / verify access to all repositories
-	if err := b.ValidateBundleResources(&b.bundle, validateSpinner); err != nil {
+	if err := b.ValidateBundleResources(validateSpinner); err != nil {
 		return err
 	}
 

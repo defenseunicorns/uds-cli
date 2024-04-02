@@ -77,8 +77,8 @@ func (b *Bundle) ClearPaths() {
 }
 
 // ValidateBundleResources validates the bundle's metadata and package references
-func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *message.Spinner) error {
-	// TODO: need to validate arch of local OS
+func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
+	bundle := &b.bundle
 	if bundle.Metadata.Architecture == "" {
 		// ValidateBundle was erroneously called before CalculateBuildInfo
 		if err := b.CalculateBuildInfo(); err != nil {
@@ -157,15 +157,7 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 			if b.cfg.CreateOpts.Output != "" {
 				return fmt.Errorf("detected local Zarf package: %s, outputting to an OCI registry is not supported when using local Zarf packages", pkg.Name)
 			}
-			var fullPkgName string
-			if pkg.Name == "init" {
-				fullPkgName = fmt.Sprintf("zarf-%s-%s-%s.tar.zst", pkg.Name, bundle.Metadata.Architecture, pkg.Ref)
-			} else {
-				// For local zarf packages, we get the package name using the package name provided in the bundle, since the zarf package artifact
-				// uses the actual zarf package name, these names must match
-				fullPkgName = fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", pkg.Name, bundle.Metadata.Architecture, pkg.Ref)
-			}
-			path := filepath.Join(pkg.Path, fullPkgName)
+			path := getPkgPath(pkg, bundle.Metadata.Architecture)
 			bundle.Packages[idx].Path = path
 		}
 
@@ -217,6 +209,24 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 
 	}
 	return nil
+}
+
+func getPkgPath(pkg types.Package, arch string) string {
+	var fullPkgName string
+	var path string
+	if strings.HasSuffix(pkg.Path, ".tar.zst") {
+		// use the provided pkg tarball
+		path = pkg.Path
+	} else if pkg.Name == "init" {
+		// Zarf init pkgs have a specific naming convention
+		fullPkgName = fmt.Sprintf("zarf-%s-%s-%s.tar.zst", pkg.Name, arch, pkg.Ref)
+		path = filepath.Join(pkg.Path, fullPkgName)
+	} else {
+		// infer the name of the local Zarf pkg
+		fullPkgName = fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", pkg.Name, arch, pkg.Ref)
+		path = filepath.Join(pkg.Path, fullPkgName)
+	}
+	return path
 }
 
 // CalculateBuildInfo calculates the build info for the bundle

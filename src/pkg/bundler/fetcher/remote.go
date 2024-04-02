@@ -37,8 +37,6 @@ type remoteFetcher struct {
 // Fetch fetches a Zarf pkg and puts it into a local bundle
 func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	fetchSpinner := message.NewProgressSpinner("Fetching package %s", f.pkg.Name)
-	zarfPackageName := ""
-	zarfRootLayerAdded := false
 	defer fetchSpinner.Stop()
 
 	layerDescs, err := f.layersToLocalBundle(fetchSpinner, f.cfg.PkgIter+1, f.cfg.NumPkgs)
@@ -58,22 +56,12 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			// ensure media type is Zarf blob for layers in the bundle's root manifest
 			layerDesc.MediaType = zoci.ZarfLayerMediaTypeBlob
 
-			// add package name annotations
-			annotations := make(map[string]string)
-			layerDesc.Annotations = annotations
-			layerDesc.Annotations[config.UDSPackageNameAnnotation] = f.pkg.Name
-
-			// If zarf package name has been obtained from zarf config, set the zarf package name annotation
-			// This block of code will only be triggered if the zarf config is processed before the zarf image manifest
-			if zarfPackageName != "" {
-				layerDesc.Annotations[config.ZarfPackageNameAnnotation] = zarfPackageName
-			}
-
+			// add layer to bundle's root manifest
 			f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, layerDesc)
-			zarfRootLayerAdded = true
 		} else if layerDesc.MediaType == zoci.ZarfConfigMediaType {
 			// read in and unmarshal zarf config
 			jsonData, err := os.ReadFile(filepath.Join(f.cfg.TmpDstDir, config.BlobsDir, layerDesc.Digest.Encoded()))
@@ -85,14 +73,9 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 			if err != nil {
 				return nil, err
 			}
-			zarfPackageName = zarfConfigData.Annotations[ocispec.AnnotationTitle]
-			// Check if zarf image manifest has been added to root manifest already, if so add zarfPackageName annotation
-			// This block of code will only be triggered if the zarf image manifest is processed before the zarf config
-			if zarfRootLayerAdded {
-				f.cfg.BundleRootManifest.Layers[f.cfg.PkgIter].Annotations[config.ZarfPackageNameAnnotation] = zarfPackageName
-			}
 		}
 	}
+
 	fetchSpinner.Successf("Fetched package: %s", f.pkg.Name)
 	return layerDescs, nil
 }
@@ -178,7 +161,7 @@ func (f *remoteFetcher) remoteToLocal(layersToCopy []ocispec.Descriptor) ([]ocis
 			}
 		}
 	} else {
-		// need to grab pkg root manifest manually bc we didn't use oras.Copy()
+		// need to grab pkg root manifest and config manually bc we didn't use oras.Copy()
 		pkgManifestDesc, err := utils.ToOCIStore(f.pkgRootManifest, ocispec.MediaTypeImageManifest, f.cfg.Store)
 		if err != nil {
 			return nil, err

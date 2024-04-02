@@ -41,7 +41,6 @@ func NewPkgPusher(pkg types.Package, cfg Config) RemotePusher {
 
 // Push pushes a Zarf pkg to a remote bundle
 func (p *RemotePusher) Push() (ocispec.Descriptor, error) {
-	ctx := context.TODO()
 	zarfManifestDesc, err := p.PushManifest()
 	if err != nil {
 		return ocispec.Descriptor{}, err
@@ -51,15 +50,6 @@ func (p *RemotePusher) Push() (ocispec.Descriptor, error) {
 	zarfManifestDesc.MediaType = zoci.ZarfLayerMediaTypeBlob
 	url := fmt.Sprintf("%s:%s", p.pkg.Repository, p.pkg.Ref)
 	message.Debugf("Pushed %s sub-manifest into %s: %s", url, p.cfg.RemoteDst.Repo().Reference, message.JSONValue(zarfManifestDesc))
-
-	// add package name annotations to zarf manifest
-	zarfYamlFile, err := p.cfg.RemoteSrc.FetchZarfYAML(ctx)
-	if err != nil {
-		return ocispec.Descriptor{}, err
-	}
-	zarfManifestDesc.Annotations = make(map[string]string)
-	zarfManifestDesc.Annotations[config.UDSPackageNameAnnotation] = p.pkg.Name
-	zarfManifestDesc.Annotations[config.ZarfPackageNameAnnotation] = zarfYamlFile.Metadata.Name
 
 	pushSpinner := message.NewProgressSpinner("")
 	defer pushSpinner.Stop()

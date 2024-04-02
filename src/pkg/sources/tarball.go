@@ -94,6 +94,8 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Com
 	}
 	addNamespaceOverrides(&pkg, t.nsOverrides)
 	packageSpinner.Successf("Loaded bundled Zarf package: %s", t.PkgName)
+	// ensure we're using the correct package name as specified by the bundle
+	pkg.Metadata.Name = t.PkgName
 	return pkg, nil, err
 }
 
@@ -187,6 +189,8 @@ func (t *TarballBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ 
 	}
 
 	err = sourceArchive.Close()
+	// ensure we're using the correct package name as specified by the bundle
+	pkg.Metadata.Name = t.PkgName
 	return pkg, nil, err
 }
 
