@@ -45,9 +45,6 @@ type Provider interface {
 
 	// getBundleManifest gets the bundle's root manifest
 	getBundleManifest() (*oci.Manifest, error)
-
-	// ZarfPackageNameMap returns a map of the zarf package name specified in the uds-bundle.yaml to the actual zarf package name
-	ZarfPackageNameMap() (map[string]string, error)
 }
 
 // NewBundleProvider returns a new bundler Provider based on the source type

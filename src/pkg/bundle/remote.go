@@ -24,7 +24,6 @@ import (
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
-	goyaml "github.com/goccy/go-yaml"
 	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
@@ -334,35 +333,4 @@ func CheckOCISourcePath(source string) (string, error) {
 		}
 	}
 	return source, nil
-}
-
-// ZarfPackageNameMap returns the uds bundle zarf package name to actual zarf package name mappings from the oci provider
-func (op *ociProvider) ZarfPackageNameMap() (map[string]string, error) {
-	rootManifest, err := op.getBundleManifest()
-	if err != nil {
-		return nil, err
-	}
-
-	loaded, err := op.LoadBundleMetadata()
-	if err != nil {
-		return nil, err
-	}
-
-	b, err := os.ReadFile(loaded[config.BundleYAML])
-	if err != nil {
-		return nil, err
-	}
-
-	var bundle types.UDSBundle
-	if err := goyaml.Unmarshal(b, &bundle); err != nil {
-		return nil, err
-	}
-
-	nameMap := make(map[string]string)
-	for _, pkg := range bundle.Packages {
-		sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
-		manifestDesc := rootManifest.Locate(sha)
-		nameMap[manifestDesc.Annotations[config.UDSPackageNameAnnotation]] = manifestDesc.Annotations[config.ZarfPackageNameAnnotation]
-	}
-	return nameMap, nil
 }

@@ -256,7 +256,7 @@ func init() {
 	deployCmd.Flags().BoolVarP(&config.CommonOptions.Confirm, "confirm", "c", false, lang.CmdBundleDeployFlagConfirm)
 	deployCmd.Flags().StringArrayVarP(&bundleCfg.DeployOpts.Packages, "packages", "p", []string{}, lang.CmdBundleDeployFlagPackages)
 	deployCmd.Flags().BoolVarP(&bundleCfg.DeployOpts.Resume, "resume", "r", false, lang.CmdBundleDeployFlagResume)
-	deployCmd.Flags().IntVar(&bundleCfg.DeployOpts.Retries, "retries", 1, lang.CmdBundleDeployFlagRetries)
+	deployCmd.Flags().IntVar(&bundleCfg.DeployOpts.Retries, "retries", 3, lang.CmdBundleDeployFlagRetries)
 
 	// inspect cmd flags
 	rootCmd.AddCommand(inspectCmd)
@@ -307,4 +307,24 @@ func chooseBundle(args []string) string {
 	}
 
 	return path
+}
+
+func deployWithoutTea(bndlClient *bundle.Bundle) {
+	_, _, _, err := bndlClient.PreDeployValidation()
+	if err != nil {
+		message.Fatalf(err, "Failed to validate bundle: %s", err.Error())
+	}
+	// confirm deployment
+	if ok := bndlClient.ConfirmBundleDeploy(); !ok {
+		message.Fatal(nil, "bundle deployment cancelled")
+	}
+	// create an empty program and kill it, this makes Program.Send a no-op
+	deploy.Program = tea.NewProgram(nil)
+	deploy.Program.Kill()
+
+	// deploy the bundle
+	if err := bndlClient.Deploy(); err != nil {
+		bndlClient.ClearPaths()
+		message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
+	}
 }

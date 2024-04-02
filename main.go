@@ -8,6 +8,7 @@ import (
 	"embed"
 
 	"github.com/defenseunicorns/uds-cli/src/cmd"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/lint"
 )
 
@@ -15,6 +16,7 @@ import (
 var zarfSchema embed.FS
 
 func main() {
+	defer utils.GracefulPanic()
 	lint.ZarfSchema = zarfSchema
 	cmd.Execute()
 }

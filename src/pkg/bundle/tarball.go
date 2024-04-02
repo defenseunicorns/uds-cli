@@ -19,7 +19,6 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
-	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	av3 "github.com/mholt/archiver/v3"
 	av4 "github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -326,23 +325,4 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 
 	progressBar.Successf("Published %s", remote.Repo().Reference)
 	return nil
-}
-
-// ZarfPackageNameMap gets zarf package name mappings from tarball provider
-func (tp *tarballBundleProvider) ZarfPackageNameMap() (map[string]string, error) {
-	bundleRootManifest, err := tp.getBundleManifest()
-	if err != nil {
-		return nil, err
-	}
-
-	nameMap := make(map[string]string)
-	for _, layer := range bundleRootManifest.Layers {
-		if layer.MediaType == zoci.ZarfLayerMediaTypeBlob {
-			// only the uds bundle layer will have AnnotationTitle set
-			if layer.Annotations[ocispec.AnnotationTitle] != config.BundleYAML {
-				nameMap[layer.Annotations[config.UDSPackageNameAnnotation]] = layer.Annotations[config.ZarfPackageNameAnnotation]
-			}
-		}
-	}
-	return nameMap, nil
 }

@@ -191,7 +191,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyMsg:
 			switch msg.String() {
 			case "y", "Y":
-				if !m.confirmed {
+				if !m.validatingBundle && !m.confirmed {
 					m.confirmed = true
 					m.inProgress = true
 				}
@@ -200,7 +200,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 			case "n", "N":
-				if !m.confirmed && !m.inProgress {
+				if !m.validatingBundle && !m.confirmed && !m.inProgress {
 					m.done = true
 					quitMsg := tea.Println(tui.IndentStyle.Render("\n👋 Deployment cancelled"))
 					return m, tea.Sequence(quitMsg, tea.Println(), tea.Quit)

@@ -1,0 +1,13 @@
+kind: ZarfPackageConfig
+metadata:
+  name: prometheus-images
+  description: |
+    testing pkg component composition
+  version: 0.0.1
+
+components:
+  - name: upload
+    required: true
+    description: Push quay image to the zarf registry
+    images:
+      - quay.io/prometheus/node-exporter:v1.7.0

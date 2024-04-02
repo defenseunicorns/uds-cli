@@ -52,12 +52,6 @@ const (
 	// EnvVarPrefix is the prefix for environment variables to override bundle helm variables
 	EnvVarPrefix = "UDS_"
 
-	// ZarfPackageNameAnnotation is the annotation key for the value that specifies the zarf package name
-	ZarfPackageNameAnnotation = "zarf.package.name"
-
-	// UDSPackageNameAnnotation is the annotation key for the value that specifies the name given to a zarf package in the uds-bundle.yaml
-	UDSPackageNameAnnotation = "uds.package.name"
-
 	// CachedLogs is a file containing cached logs
 	CachedLogs = "recent-logs"
 )

@@ -110,7 +110,7 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 		publishInsecure(t, bundlePath, bundleRef.Registry)
 		pull(t, bundleRef.String(), tarballPath) // note that pull pulls the bundle into the build dir
 		publishInsecure(t, filepath.Join("build", filepath.Base(bundlePath)), "oci://localhost:889")
-		deployAndRemoveRemoteInsecure(t, bundleRef.String())
+		deployInsecure(t, bundleRef.String())
 	})
 }
 
@@ -479,6 +479,22 @@ func validateMultiArchIndex(t *testing.T, index ocispec.Index) {
 	}
 	require.True(t, checkedAMD)
 	require.True(t, checkedARM)
+}
+
+func TestBundleWithComposedPkgComponent(t *testing.T) {
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+	zarfPkgPath := "src/test/packages/prometheus"
+	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-prometheus-%s-0.0.1.tar.zst", e2e.Arch))
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+	zarfPublish(t, pkg, "localhost:888")
+
+	bundleDir := "src/test/bundles/13-composable-component"
+	bundleName := "with-composed"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch))
+	createLocal(t, bundleDir, e2e.Arch)
+	deploy(t, bundlePath)
+	remove(t, bundlePath)
 }
 
 func TestBundleTmpDir(t *testing.T) {
