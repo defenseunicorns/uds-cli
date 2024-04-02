@@ -162,7 +162,6 @@ func (f *remoteFetcher) remoteToLocal(layersToCopy []ocispec.Descriptor) ([]ocis
 		}
 	} else {
 		// need to grab pkg root manifest and config manually bc we didn't use oras.Copy()
-		// note we're creating a new desc because we're changing the media type of the pkg root manifest
 		pkgManifestDesc, err := utils.ToOCIStore(f.pkgRootManifest, ocispec.MediaTypeImageManifest, f.cfg.Store)
 		if err != nil {
 			return nil, err
