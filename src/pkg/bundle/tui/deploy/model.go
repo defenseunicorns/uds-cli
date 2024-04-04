@@ -64,7 +64,6 @@ type pkgState struct {
 	percDownloaded     int
 	downloaded         bool
 	verified           bool
-	isRemote           bool
 }
 
 // Model contains the state of the TUI

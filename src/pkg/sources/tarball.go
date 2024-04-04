@@ -20,6 +20,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/packager/sources"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+	"github.com/defenseunicorns/zarf/src/types"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	av4 "github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -44,6 +45,7 @@ type TarballBundle struct {
 
 // LoadPackage loads a Zarf package from a local tarball bundle
 func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (zarfTypes.ZarfPackage, []string, error) {
+
 	packageSpinner := message.NewProgressSpinner("Loading bundled Zarf package: %s", t.PkgName)
 	defer packageSpinner.Stop()
 
@@ -55,6 +57,11 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Com
 	var pkg zarfTypes.ZarfPackage
 	if err = zarfUtils.ReadYaml(dst.ZarfYAML, &pkg); err != nil {
 		return zarfTypes.ZarfPackage{}, nil, err
+	}
+
+	// if in dev mode and package is a zarf init config, return an empty package
+	if config.Dev && pkg.Kind == types.ZarfInitConfig {
+		return zarfTypes.ZarfPackage{}, nil, nil
 	}
 
 	pkg.Components, err = filter.Apply(pkg)
@@ -93,6 +100,16 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Com
 		}
 	}
 	addNamespaceOverrides(&pkg, t.nsOverrides)
+
+	if config.Dev {
+		pkg.Metadata.YOLO = true
+		// strip out all images and repos
+		for idx := range pkg.Components {
+			pkg.Components[idx].Images = []string{}
+			pkg.Components[idx].Repos = []string{}
+		}
+	}
+
 	packageSpinner.Successf("Loaded bundled Zarf package: %s", t.PkgName)
 	// ensure we're using the correct package name as specified by the bundle
 	pkg.Metadata.Name = t.PkgName

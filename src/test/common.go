@@ -174,6 +174,20 @@ func (e2e *UDSE2ETest) CreateZarfPkg(t *testing.T, path string, forceCreate bool
 	require.NoError(t, err)
 }
 
+func (e2e *UDSE2ETest) DeleteZarfPkg(t *testing.T, path string) {
+	//  check if pkg already exists
+	pattern := fmt.Sprintf("%s/*-%s-*.tar.zst", path, e2e.Arch)
+	matches, err := filepath.Glob(pattern)
+	require.NoError(t, err)
+	if len(matches) > 0 {
+		fmt.Println("Deleting Zarf pkg")
+		for _, match := range matches {
+			os.Remove(match)
+		}
+		return
+	}
+}
+
 func downloadFile(url string, outputDir string) error {
 	response, err := http.Get(url)
 	if err != nil {

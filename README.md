@@ -24,6 +24,7 @@
 1. [Bundle Overrides](docs/overrides.md)
 1. [Bundle Anatomy](docs/anatomy.md)
 1. [Runner](docs/runner.md)
+1. [Dev Mode](#dev-mode)
 
 ## Install
 Recommended installation method is with Brew:
@@ -130,7 +131,7 @@ As an example: `uds remove uds-bundle-<name>.tar.zst --packages init,nginx`
 
 ### Logs
 
-> [!NOTE]  
+> Note:  
 > Only works with `uds deploy` for now, may work for other operations but isn't guaranteed.
 
 The `uds logs` command can be used to view the most recent logs of a bundle operation. Note that depending on your OS temporary directory and file settings, recent logs are purged after a certain amount of time, so this command may return an error if the logs are no longer available.
@@ -223,3 +224,8 @@ That is to say, variables set using the `--set` flag take precedence over all ot
 
 ## Zarf Integration
 UDS CLI includes a vendored version of Zarf inside of its binary. To use Zarf, simply run `uds zarf <command>`. For example, to create a Zarf package, run `uds zarf create <dir>`, or to use the [airgap tooling](https://docs.zarf.dev/docs/the-zarf-cli/cli-commands/zarf_tools) that Zarf provides, run `uds zarf tools <cmd>`.
+
+## Dev Mode
+Dev mode allows you to speed up dev cycles when developing and testing bundles. `uds dev deploy` allows you to deploy a UDS bundle in dev mode. If you are missing a local zarf package, this command will create that zarf package for you assuming that your `zarf.yaml` file and zarf package are expected in the same directory. It will then create your bundle and deploy your zarf packages in [YOLO](https://docs.zarf.dev/docs/faq#what-is-yolo-mode-and-why-would-i-use-it) mode, eliminating the need to do a `zarf init`
+
+> Note: currently dev mode only works with local bundles

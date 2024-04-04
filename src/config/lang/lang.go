@@ -80,4 +80,8 @@ const (
 
 	// uds zarf
 	CmdZarfShort = "Run a zarf command"
+
+	// uds dev
+	CmdDevShort       = "Commands useful for developing bundles"
+	CmdDevDeployShort = "Creates and deploys a dev UDS bundle from a given directory"
 )

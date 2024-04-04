@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
@@ -107,6 +108,13 @@ func deploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
 
 func deployWithTUI(t *testing.T, source string) (stdout string, stderr string) {
 	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm", source), " ")
+	stdout, stderr, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	return stdout, stderr
+}
+
+func devDeploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
+	cmd := strings.Split(fmt.Sprintf("dev deploy %s --no-tea", tarballPath), " ")
 	stdout, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 	return stdout, stderr
@@ -273,4 +281,13 @@ func queryIndex(t *testing.T, registryURL, bundlePath string) (ocispec.Index, er
 	}
 	err = json.Unmarshal(body, &index)
 	return index, err
+}
+
+func removeZarfInit() {
+	cmd := strings.Split("zarf tools kubectl delete namespace zarf", " ")
+	_, _, err := e2e.UDS(cmd...)
+	message.WarnErr(err, "Failed to delete zarf namespace")
+	cmd = strings.Split("zarf tools kubectl delete mutatingwebhookconfiguration.admissionregistration.k8s.io/zarf", " ")
+	_, _, err = e2e.UDS(cmd...)
+	message.WarnErr(err, "Failed to delete zarf webhook")
 }
