@@ -144,8 +144,14 @@ func hasScheme(s string) bool {
 	return strings.Contains(s, "://")
 }
 
+// hasDomain checks if a string contains a domain.
+// It assumes the domain is at the beginning of a URL and there is no scheme (e.g., oci://).
 func hasDomain(s string) bool {
-	return strings.Contains(s, ".") && len(s) > 1
+	dotIndex := strings.Index(s, ".")
+	firstSlashIndex := strings.Index(s, "/")
+
+	// dot exists; dot is not first char; not preceded by any / if / exists
+	return dotIndex != -1 && dotIndex != 0 && (firstSlashIndex == -1 || firstSlashIndex > dotIndex)
 }
 
 func hasPort(s string) bool {
