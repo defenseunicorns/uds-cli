@@ -15,6 +15,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/fetcher"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
@@ -154,7 +155,7 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 			}
 		} else {
 			// atm we don't support outputting a bundle with local pkgs outputting to OCI
-			if b.cfg.CreateOpts.Output != "" {
+			if utils.IsRegistryURL(b.cfg.CreateOpts.Output) {
 				return fmt.Errorf("detected local Zarf package: %s, outputting to an OCI registry is not supported when using local Zarf packages", pkg.Name)
 			}
 			path := getPkgPath(pkg, bundle.Metadata.Architecture)

@@ -320,6 +320,22 @@ func TestBundleWithYmlFile(t *testing.T) {
 	remove(t, bundlePath)
 }
 
+func TestLocalBundleWithOutput(t *testing.T) {
+	path := "src/test/packages/nginx"
+	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --confirm", path, path), " ")
+	_, _, err := e2e.UDS(args...)
+	require.NoError(t, err)
+
+	bundleDir := "src/test/bundles/09-uds-bundle-yml"
+	destDir := "src/test/test/"
+	bundlePath := filepath.Join(destDir, fmt.Sprintf("uds-bundle-yml-example-%s-0.0.1.tar.zst", e2e.Arch))
+	createLocalWithOuputFlag(t, bundleDir, destDir, e2e.Arch)
+
+	cmd := strings.Split(fmt.Sprintf("inspect %s", bundlePath), " ")
+	_, _, err = e2e.UDS(cmd...)
+	require.NoError(t, err)
+}
+
 func TestLocalBundleWithNoSBOM(t *testing.T) {
 	path := "src/test/packages/nginx"
 	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --skip-sbom --confirm", path, path), " ")
