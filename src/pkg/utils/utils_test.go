@@ -2,6 +2,8 @@ package utils
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func Test_IsRegistryURL(t *testing.T) {
@@ -84,9 +86,8 @@ func Test_IsRegistryURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if result := IsRegistryURL(tt.args.output); result != tt.wantResult {
-				t.Errorf("IsRegistryURL() result = %v, wantResult %v", result, tt.wantResult)
-			}
+			actualResult := IsRegistryURL(tt.args.output)
+			require.Equal(t, tt.wantResult, actualResult)
 		})
 	}
 }

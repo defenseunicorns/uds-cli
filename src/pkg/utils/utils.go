@@ -174,17 +174,9 @@ func hasPort(s string) bool {
 	return false
 }
 
-// Checks if string is an oci url
+// IsRegistryURL checks if a string is a URL
 func IsRegistryURL(s string) bool {
-	if hasScheme(s) {
-		return true
-	}
-
-	if hasDomain(s) {
-		return true
-	}
-
-	if hasPort(s) {
+	if hasScheme(s) || hasDomain(s) || hasPort(s) {
 		return true
 	}
 
