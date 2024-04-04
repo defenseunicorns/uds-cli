@@ -36,6 +36,12 @@ func createLocalError(bundlePath string, arch string) (stderr string) {
 	return stderr
 }
 
+func createLocalWithOuputFlag(t *testing.T, bundlePath string, destPath string, arch string) {
+	cmd := strings.Split(fmt.Sprintf("create %s -o %s --insecure --confirm -a %s", bundlePath, destPath, arch), " ")
+	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+}
+
 func createRemoteInsecure(t *testing.T, bundlePath, registry, arch string) {
 	cmd := strings.Split(fmt.Sprintf("create %s -o %s --confirm --insecure -a %s", bundlePath, registry, arch), " ")
 	_, _, err := e2e.UDS(cmd...)

@@ -76,6 +76,14 @@ func (b *Bundle) ClearPaths() {
 	_ = os.RemoveAll(b.tmp)
 }
 
+// Checks if string is an oci url
+func (b *Bundle) isURL(s string) bool {
+	if strings.Contains(s, "://") || strings.Contains(s, ".") && len(s) > 1 {
+		return true
+	}
+	return false
+}
+
 // ValidateBundleResources validates the bundle's metadata and package references
 func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *message.Spinner) error {
 	// TODO: need to validate arch of local OS
@@ -154,7 +162,7 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 			}
 		} else {
 			// atm we don't support outputting a bundle with local pkgs outputting to OCI
-			if b.cfg.CreateOpts.Output != "" {
+			if b.isURL(b.cfg.CreateOpts.Output) {
 				return fmt.Errorf("detected local Zarf package: %s, outputting to an OCI registry is not supported when using local Zarf packages", pkg.Name)
 			}
 			var fullPkgName string
