@@ -5,8 +5,7 @@
 package bundler
 
 import (
-	"strings"
-
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 )
 
@@ -41,17 +40,9 @@ func NewBundler(opts *Options) *Bundler {
 	return &b
 }
 
-// Checks if string is an oci url
-func isURL(s string) bool {
-	if strings.Contains(s, "://") || strings.Contains(s, ".") && len(s) > 1 {
-		return true
-	}
-	return false
-}
-
 // Create creates a bundle
 func (b *Bundler) Create() error {
-	if isURL(b.output) {
+	if utils.IsRegistryURL(b.output) {
 		remoteBundle := NewRemoteBundle(&RemoteBundleOpts{Bundle: b.bundle, Output: b.output})
 		err := remoteBundle.create(nil)
 		if err != nil {

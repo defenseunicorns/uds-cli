@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
@@ -137,4 +138,49 @@ func ToLocalFile(t any, filePath string) error {
 // IsRemotePkg returns true if the Zarf package is remote
 func IsRemotePkg(pkg types.Package) bool {
 	return pkg.Repository != ""
+}
+
+func hasScheme(s string) bool {
+	return strings.Contains(s, "://")
+}
+
+func hasDomain(s string) bool {
+	return strings.Contains(s, ".") && len(s) > 1
+}
+
+func hasPort(s string) bool {
+	// look for colon and port (e.g localhost:31999)
+	colonIndex := strings.Index(s, ":")
+	firstSlashIndex := strings.Index(s, "/")
+	endIndex := firstSlashIndex
+	if firstSlashIndex == -1 {
+		endIndex = len(s) - 1
+	}
+	if colonIndex != -1 {
+		port := s[colonIndex+1 : endIndex]
+
+		// port valid number ?
+		_, err := strconv.Atoi(port)
+		if err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// Checks if string is an oci url
+func IsRegistryURL(s string) bool {
+	if hasScheme(s) {
+		return true
+	}
+
+	if hasDomain(s) {
+		return true
+	}
+
+	if hasPort(s) {
+		return true
+	}
+
+	return false
 }
