@@ -132,7 +132,7 @@ As an example: `uds remove uds-bundle-<name>.tar.zst --packages init,nginx`
 
 ### Logs
 
-> Note:  
+> [!NOTE]
 > Only works with `uds deploy` for now, may work for other operations but isn't guaranteed.
 
 The `uds logs` command can be used to view the most recent logs of a bundle operation. Note that depending on your OS temporary directory and file settings, recent logs are purged after a certain amount of time, so this command may return an error if the logs are no longer available.
