@@ -106,9 +106,11 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 
 	// validate access to packages as well as components referenced in the package
 	for idx, pkg := range bundle.Packages {
-		// if package path is set, make it relative to source directory
+		// Set relative to the source directory if not absolute
 		if pkg.Path != "" {
-			pkg.Path = filepath.Join(b.cfg.CreateOpts.SourceDirectory, pkg.Path)
+			if !filepath.IsAbs(pkg.Path) {
+				pkg.Path = filepath.Join(b.cfg.CreateOpts.SourceDirectory, pkg.Path)
+			}
 		}
 
 		spinner.Updatef("Validating Bundle Package: %s", pkg.Name)
