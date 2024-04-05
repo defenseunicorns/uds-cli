@@ -20,6 +20,7 @@
 1. [Bundle Architecture and Multi-Arch Support](#bundle-architecture-and-multi-arch-support)
 1. [Configuration](#configuration)
 1. [Sharing Variables](#sharing-variables)
+1. [Duplicate Packages and Naming](#duplicate-packages-and-naming)
 1. [Zarf Integration](#zarf-integration)
 1. [Bundle Overrides](docs/overrides.md)
 1. [Bundle Anatomy](docs/anatomy.md)
@@ -131,7 +132,7 @@ As an example: `uds remove uds-bundle-<name>.tar.zst --packages init,nginx`
 
 ### Logs
 
-> Note:  
+> [!NOTE]
 > Only works with `uds deploy` for now, may work for other operations but isn't guaranteed.
 
 The `uds logs` command can be used to view the most recent logs of a bundle operation. Note that depending on your OS temporary directory and file settings, recent logs are purged after a certain amount of time, so this command may return an error if the logs are no longer available.
@@ -221,6 +222,52 @@ In a bundle, variables can come from 4 sources. Those sources and their preceden
 
 That is to say, variables set using the `--set` flag take precedence over all other variable sources.
 
+
+## Duplicate Packages And Naming
+
+It is possible to deploy multiple instances of the same Zarf package in a bundle. For example, the following `uds-bundle.yaml` deploys 3 instances of the [helm-overrides](src/test/packages/helm/zarf.yaml) Zarf packags:
+```yaml
+kind: UDSBundle
+metadata:
+   name: duplicates
+   description: testing a bundle with duplicate packages in specified namespaces
+   version: 0.0.1
+
+packages:
+   - name: helm-overrides
+     repository: localhost:5000/helm-overrides
+     ref: 0.0.1
+     overrides:
+        podinfo-component:
+           unicorn-podinfo: # name of Helm chart
+              namespace: podinfo-ns
+
+   # note the unique name and namespace
+   - name: helm-overrides-duplicate
+     repository: localhost:5000/helm-overrides
+     ref: 0.0.1
+     overrides:
+        podinfo-component:
+           unicorn-podinfo:
+              namespace: another-podinfo-ns
+
+   # note the unique name, namespace and the path to the Zarf package tarball
+   - name: helm-overrides-local-duplicate
+     path: src/test/packages/helm/zarf-package-helm-overrides-arm64-0.0.1.tar.zst
+     ref: 0.0.1
+     overrides:
+        podinfo-component:
+           unicorn-podinfo:
+              namespace: yet-another-podinfo-ns
+```
+
+The naming conventions for deploying duplicate packages are as follows:
+1. The `name` field of the package in the `uds-bundle.yaml` must be unique
+1. The duplicate packages must be deployed in different namespaces
+1. In order to deploy duplicates of local packages, the `path` field must point to a Zarf package tarball instead of to a folder.
+
+> [!NOTE]  
+> Today the duplicate packages feature is only supported for packages with Helm charts. This is because Helm charts' [namespaces can be overridden](docs/overrides.md#namespace) at deploy time.
 
 ## Zarf Integration
 UDS CLI includes a vendored version of Zarf inside of its binary. To use Zarf, simply run `uds zarf <command>`. For example, to create a Zarf package, run `uds zarf create <dir>`, or to use the [airgap tooling](https://docs.zarf.dev/docs/the-zarf-cli/cli-commands/zarf_tools) that Zarf provides, run `uds zarf tools <cmd>`.
