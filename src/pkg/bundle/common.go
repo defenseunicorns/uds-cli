@@ -106,12 +106,6 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 
 	// validate access to packages as well as components referenced in the package
 	for idx, pkg := range bundle.Packages {
-		// Set relative to the source directory if not absolute
-		if pkg.Path != "" {
-			if !filepath.IsAbs(pkg.Path) {
-				pkg.Path = filepath.Join(b.cfg.CreateOpts.SourceDirectory, pkg.Path)
-			}
-		}
 
 		spinner.Updatef("Validating Bundle Package: %s", pkg.Name)
 		if pkg.Name == "" {
@@ -160,7 +154,7 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 			if utils.IsRegistryURL(b.cfg.CreateOpts.Output) {
 				return fmt.Errorf("detected local Zarf package: %s, outputting to an OCI registry is not supported when using local Zarf packages", pkg.Name)
 			}
-			path := getPkgPath(pkg, bundle.Metadata.Architecture)
+			path := getPkgPath(pkg, bundle.Metadata.Architecture, b.cfg.CreateOpts.SourceDirectory)
 			bundle.Packages[idx].Path = path
 		}
 
@@ -214,9 +208,15 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 	return nil
 }
 
-func getPkgPath(pkg types.Package, arch string) string {
+func getPkgPath(pkg types.Package, arch string, srcDir string) string {
 	var fullPkgName string
 	var path string
+	// Set path relative to the source directory if not absolute
+	if pkg.Path != "" {
+		if !filepath.IsAbs(pkg.Path) {
+			pkg.Path = filepath.Join(srcDir, pkg.Path)
+		}
+	}
 	if strings.HasSuffix(pkg.Path, ".tar.zst") {
 		// use the provided pkg tarball
 		path = pkg.Path

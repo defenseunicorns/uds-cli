@@ -149,8 +149,9 @@ func Test_validateOverrides(t *testing.T) {
 
 func Test_getPkgPath(t *testing.T) {
 	type args struct {
-		pkg  types.Package
-		arch string
+		pkg    types.Package
+		arch   string
+		srcDir string
 	}
 	tests := []struct {
 		name string
@@ -160,39 +161,52 @@ func Test_getPkgPath(t *testing.T) {
 		{
 			name: "init full path",
 			args: args{
-				pkg:  types.Package{Name: "init", Ref: "0.0.1", Path: "../fake/path/custom-init.tar.zst"},
-				arch: "fake64",
+				pkg:    types.Package{Name: "init", Ref: "0.0.1", Path: "../fake/path/custom-init.tar.zst"},
+				arch:   "fake64",
+				srcDir: "/mock/source",
 			},
-			want: "../fake/path/custom-init.tar.zst",
+			want: "/mock/fake/path/custom-init.tar.zst",
 		},
 		{
 			name: "init directory only path",
 			args: args{
-				pkg:  types.Package{Name: "init", Ref: "0.0.1", Path: "../fake/path"},
-				arch: "fake64",
+				pkg:    types.Package{Name: "init", Ref: "0.0.1", Path: "../fake/path"},
+				arch:   "fake64",
+				srcDir: "/mock/source",
 			},
-			want: "../fake/path/zarf-init-fake64-0.0.1.tar.zst",
+			want: "/mock/fake/path/zarf-init-fake64-0.0.1.tar.zst",
 		},
 		{
 			name: "full path",
 			args: args{
-				pkg:  types.Package{Name: "nginx", Ref: "0.0.1", Path: "./fake/zarf-package-nginx-fake64-0.0.1.tar.zst"},
-				arch: "fake64",
+				pkg:    types.Package{Name: "nginx", Ref: "0.0.1", Path: "./fake/zarf-package-nginx-fake64-0.0.1.tar.zst"},
+				arch:   "fake64",
+				srcDir: "/mock/source",
 			},
-			want: "./fake/zarf-package-nginx-fake64-0.0.1.tar.zst",
+			want: "/mock/source/fake/zarf-package-nginx-fake64-0.0.1.tar.zst",
 		},
 		{
 			name: "directory only path",
 			args: args{
-				pkg:  types.Package{Name: "nginx", Ref: "0.0.1", Path: "/fake"},
-				arch: "fake64",
+				pkg:    types.Package{Name: "nginx", Ref: "0.0.1", Path: "fake/"},
+				arch:   "fake64",
+				srcDir: "/mock/source",
+			},
+			want: "/mock/source/fake/zarf-package-nginx-fake64-0.0.1.tar.zst",
+		},
+		{
+			name: "absolute path",
+			args: args{
+				pkg:    types.Package{Name: "nginx", Ref: "0.0.1", Path: "/fake/zarf-package-nginx-fake64-0.0.1.tar.zst"},
+				arch:   "fake64",
+				srcDir: "/mock/source",
 			},
 			want: "/fake/zarf-package-nginx-fake64-0.0.1.tar.zst",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			path := getPkgPath(tt.args.pkg, tt.args.arch)
+			path := getPkgPath(tt.args.pkg, tt.args.arch, tt.args.srcDir)
 			require.Equal(t, tt.want, path)
 		})
 	}
