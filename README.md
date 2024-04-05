@@ -264,7 +264,7 @@ packages:
 The naming conventions for deploying duplicate packages are as follows:
 1. The `name` field of the package in the `uds-bundle.yaml` must be unique
 1. The duplicate packages must be deployed in different namespaces
-1. In order to deploy duplicates of local packages, the `path` field must point to a Zarf package tarball instead of to a folder; this allows us to satisfy the first convention.
+1. In order to deploy duplicates of local packages, the `path` field must point to a Zarf package tarball instead of to a folder.
 
 > [!NOTE]  
 > Today the duplicate packages feature is only supported for packages with Helm charts. This is because Helm charts' [namespaces can be overridden](docs/overrides.md#namespace) at deploy time.
