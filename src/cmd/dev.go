@@ -24,6 +24,7 @@ var devDeployCmd = &cobra.Command{
 	Use:   "deploy",
 	Args:  cobra.MaximumNArgs(1),
 	Short: lang.CmdDevDeployShort,
+	Long:  lang.CmdDevDeployLong,
 	PreRun: func(_ *cobra.Command, args []string) {
 		setBundleFile(args)
 	},
@@ -44,6 +45,7 @@ var devDeployCmd = &cobra.Command{
 
 		config.CommonOptions.Confirm = true
 		bundleCfg.CreateOpts.SourceDirectory = srcDir
+
 		configureZarf()
 
 		// load uds-config if it exists
@@ -78,4 +80,5 @@ func init() {
 	initViper()
 	rootCmd.AddCommand(devCmd)
 	devCmd.AddCommand(devDeployCmd)
+	devDeployCmd.Flags().StringArrayVarP(&bundleCfg.DeployOpts.Packages, "packages", "p", []string{}, lang.CmdBundleDeployFlagPackages)
 }
