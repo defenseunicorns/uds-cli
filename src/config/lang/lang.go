@@ -83,5 +83,6 @@ const (
 
 	// uds dev
 	CmdDevShort       = "Commands useful for developing bundles"
-	CmdDevDeployShort = "Creates and deploys a dev UDS bundle from a given directory"
+	CmdDevDeployShort = "[beta] Creates and deploys a UDS bundle from a given directory in dev mode"
+	CmdDevDeployLong  = "[beta] Creates and deploys a UDS bundle from a given directory in dev mode, setting package options like YOLO mode for faster iteration."
 )
