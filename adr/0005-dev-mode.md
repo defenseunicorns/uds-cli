@@ -21,7 +21,7 @@ The current bundle development lifecycle is:
 Currently the [Local Artifacts](#bundle-create) option has been implemented to provide an MVP (minimal viable product). This ADR is intended to determine potential future implementation.
 
 ## Alternatives
-Regardless of implementation, the plan is to introduce `uds dev deploy` which allows you to deploy a UDS bundle in dev mode. If a **local** zarf package is missing, this command will create that zarf package for you assuming that your `zarf.yaml` file and zarf package are expected in the same directory. It will then create your bundle and deploy your zarf packages in [YOLO](https://docs.zarf.dev/docs/faq#what-is-yolo-mode-and-why-would-i-use-it) mode, eliminating the need to do a `uds zarf init`.
+Regardless of implementation, the plan is to introduce `uds dev deploy` which allows you to deploy a UDS bundle in dev mode. When deploying in dev mode, any `kind: ZarfInitConfig` packages in the bundle will be ignored. If a **local** zarf package is missing, this command will create that zarf package for you assuming that your `zarf.yaml` file and zarf package are expected in the same directory. It will then create your bundle and deploy your zarf packages in [YOLO](https://docs.zarf.dev/docs/faq#what-is-yolo-mode-and-why-would-i-use-it) mode, eliminating the need to do a `uds zarf init`.
 
 ### Local Artifacts
  In order to maximize code reuse and leverage existing logic we will be creating local artifacts (both bundle and zarf package artifacts) in the same way that UDS bundles are currently created and deployed. This solution also minimizes the amount of code needed to process a zarf package regardless if it is a remote or local package.
