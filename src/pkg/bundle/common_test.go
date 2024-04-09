@@ -188,7 +188,7 @@ func Test_getPkgPath(t *testing.T) {
 		{
 			name: "directory only path",
 			args: args{
-				pkg:    types.Package{Name: "nginx", Ref: "0.0.1", Path: "fake/"},
+				pkg:    types.Package{Name: "nginx", Ref: "0.0.1", Path: "fake"},
 				arch:   "fake64",
 				srcDir: "/mock/source",
 			},
