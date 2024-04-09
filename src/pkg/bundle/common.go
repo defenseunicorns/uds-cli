@@ -212,8 +212,10 @@ func getPkgPath(pkg types.Package, arch string, srcDir string) string {
 	var fullPkgName string
 	var path string
 	// Set path relative to the source directory if not absolute
-	if !filepath.IsAbs(pkg.Path) {
-		pkg.Path = filepath.Join(srcDir, pkg.Path)
+	if pkg.Path != "" {
+		if !filepath.IsAbs(pkg.Path) {
+			pkg.Path = filepath.Join(srcDir, pkg.Path)
+		}
 	}
 	if strings.HasSuffix(pkg.Path, ".tar.zst") {
 		// use the provided pkg tarball
