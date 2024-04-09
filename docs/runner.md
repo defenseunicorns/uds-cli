@@ -30,6 +30,7 @@ variables:
    default: foo
 tasks:
  - name: echo-foo
+   actions:
      - cmd: echo ${FOO}
 ```
 
