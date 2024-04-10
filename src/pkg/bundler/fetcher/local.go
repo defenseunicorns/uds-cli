@@ -20,6 +20,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
+	"github.com/google/safeopen"
 	av3 "github.com/mholt/archiver/v3"
 	av4 "github.com/mholt/archiver/v4"
 	"github.com/opencontainers/image-spec/specs-go"
@@ -71,7 +72,11 @@ func (f *localFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
 	}
 	defer os.RemoveAll(tmpDir) //nolint:errcheck
 
-	zarfTarball, err := os.Open(f.cfg.Bundle.Packages[f.cfg.PkgIter].Path)
+	directory := filepath.Dir(f.cfg.Bundle.Packages[f.cfg.PkgIter].Path)
+	relativePath := filepath.Base(f.cfg.Bundle.Packages[f.cfg.PkgIter].Path)
+
+	zarfTarball, err := safeopen.OpenBeneath(directory, relativePath)
+
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, err
 	}

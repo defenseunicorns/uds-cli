@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/google/safeopen"
 )
 
 func expandTilde(cachePath string) string {
@@ -40,7 +41,7 @@ func Add(filePathToAdd string) error {
 		return nil
 	}
 
-	srcFile, err := os.Open(filePathToAdd)
+	srcFile, err := safeopen.OpenBeneath(filepath.Dir(filePathToAdd), filepath.Base(filePathToAdd))
 	if err != nil {
 		return err
 	}
@@ -67,7 +68,7 @@ func Exists(layerDigest string) bool {
 func Use(layerDigest, dstDir string) error {
 	cacheDir := config.CommonOptions.CachePath
 	layerCachePath := filepath.Join(expandTilde(cacheDir), config.UDSCacheLayers, layerDigest)
-	srcFile, err := os.Open(layerCachePath)
+	srcFile, err := safeopen.OpenBeneath(filepath.Dir(layerCachePath), filepath.Base(layerCachePath))
 	if err != nil {
 		return err
 	}

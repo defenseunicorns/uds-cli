@@ -9,6 +9,7 @@ require (
 	github.com/defenseunicorns/zarf v0.32.5
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/goccy/go-yaml v1.11.3
+	github.com/google/safeopen v0.0.0-20240125081138-66b54d5181c6
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/mholt/archiver/v4 v4.0.0-alpha.8
 	github.com/opencontainers/image-spec v1.1.0

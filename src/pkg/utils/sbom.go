@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/google/safeopen"
 	"github.com/mholt/archiver/v4"
 )
 
@@ -46,7 +47,7 @@ func MoveExtractedSBOMs(src, dst string) error {
 // SBOMExtractor is the extraction fn for extracting HTML and JSON files from an sboms.tar archive
 func SBOMExtractor(dst string, SBOMArtifactPathMap map[string]string) func(_ context.Context, f archiver.File) error {
 	extractor := func(_ context.Context, f archiver.File) error {
-		open, err := f.Open()
+		open, err := safeopen.OpenBeneath(filepath.Dir(dst), f.Name())
 		if err != nil {
 			return err
 		}

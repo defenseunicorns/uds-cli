@@ -8,9 +8,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/google/safeopen"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
@@ -87,7 +88,7 @@ func (t *TarballBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ 
 		Archival:    av4.Tar{},
 	}
 
-	sourceArchive, err := os.Open(t.BundleLocation)
+	sourceArchive, err := safeopen.OpenBeneath(filepath.Dir(t.BundleLocation), filepath.Base(t.BundleLocation))
 	if err != nil {
 		return err
 	}
@@ -133,7 +134,7 @@ func (t *TarballBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ 
 		} else {
 			fileDst = filepath.Join(dst.Base, config.ChecksumsTxt)
 		}
-		outFile, err := os.Create(fileDst)
+		outFile, err := safeopen.OpenBeneath(filepath.Dir(fileDst), filepath.Base(fileDst))
 		if err != nil {
 			return err
 		}
@@ -184,7 +185,7 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 		Compression: av4.Zstd{},
 		Archival:    av4.Tar{},
 	}
-	sourceArchive, err := os.Open(t.BundleLocation)
+	sourceArchive, err := safeopen.OpenBeneath(filepath.Dir(t.BundleLocation), filepath.Base(t.BundleLocation))
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +228,7 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 			return err
 		}
 
-		target, err := os.Create(layerDst)
+		target, err := safeopen.OpenBeneath(filepath.Dir(layerDst), filepath.Base(layerDst))
 		if err != nil {
 			return err
 		}
@@ -251,7 +252,7 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 		layersToExtract = append(layersToExtract, filepath.Join(config.BlobsDir, layer.Digest.Encoded()))
 	}
 
-	sourceArchive, err = os.Open(t.BundleLocation) //reopen to reset reader
+	sourceArchive, err = safeopen.OpenBeneath(filepath.Dir(t.BundleLocation), filepath.Base(t.BundleLocation)) //reopen to reset reader
 	if err != nil {
 		return nil, err
 	}
