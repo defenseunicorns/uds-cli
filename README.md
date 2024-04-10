@@ -280,7 +280,7 @@ UDS CLI includes a vendored version of Zarf inside of its binary. To use Zarf, s
 Dev mode facilitates faster dev cycles when developing and testing bundles
 
 ```
-uds dev deploy <path-to-bundle>
+uds dev deploy <path-to-bundle-yaml-dir>
 ```
 
 The `dev deploy` command performs the following operations
