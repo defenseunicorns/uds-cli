@@ -273,6 +273,19 @@ The naming conventions for deploying duplicate packages are as follows:
 UDS CLI includes a vendored version of Zarf inside of its binary. To use Zarf, simply run `uds zarf <command>`. For example, to create a Zarf package, run `uds zarf create <dir>`, or to use the [airgap tooling](https://docs.zarf.dev/docs/the-zarf-cli/cli-commands/zarf_tools) that Zarf provides, run `uds zarf tools <cmd>`.
 
 ## Dev Mode
-Dev mode allows you to speed up dev cycles when developing and testing bundles. `uds dev deploy` allows you to deploy a UDS bundle in dev mode. If you are missing a local zarf package, this command will create that zarf package for you assuming that your `zarf.yaml` file and zarf package are expected in the same directory. It will then create your bundle and deploy your zarf packages in [YOLO](https://docs.zarf.dev/docs/faq#what-is-yolo-mode-and-why-would-i-use-it) mode, eliminating the need to do a `zarf init`
 
-> Note: currently dev mode only works with local bundles
+> [!NOTE]  
+> Dev mode is a BETA feature and currently only works with local bundles
+
+Dev mode facilitates faster dev cycles when developing and testing bundles
+
+```
+uds dev deploy
+```
+
+The `dev deploy` command performs the following operations
+- Creates Zarf packages for all local packages in a bundle
+  - Creates the Zarf tarball in the same directory as the `zarf.yaml`
+  - Will only create the Zarf tarball if one does not already exist
+- Creates a bundle from the newly created Zarf packages
+- Deploys the bundle in [YOLO](https://docs.zarf.dev/faq/#what-is-yolo-mode-and-why-would-i-use-it) mode, eliminating the need to do a `zarf init`
