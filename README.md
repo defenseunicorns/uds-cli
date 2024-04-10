@@ -48,7 +48,7 @@ metadata:
 packages:
   - name: init
     repository: ghcr.io/defenseunicorns/packages/init
-    ref: v0.32.3
+    ref: v0.33.0
     optionalComponents:
       - git-server
   - name: podinfo

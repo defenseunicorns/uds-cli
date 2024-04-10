@@ -13,10 +13,10 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"

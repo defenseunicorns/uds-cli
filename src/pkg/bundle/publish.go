@@ -9,9 +9,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	av3 "github.com/mholt/archiver/v3"
