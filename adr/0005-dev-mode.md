@@ -20,6 +20,9 @@ The current bundle development lifecycle is:
 
 Currently the [Local Artifacts](#bundle-create) option has been implemented to provide an MVP (minimal viable product). This ADR is intended to determine potential future implementation.
 
+### Planned Features
+ - zarf package flavor support
+
 ## Alternatives
 Regardless of implementation, the plan is to introduce `uds dev deploy` which allows you to deploy a UDS bundle in dev mode. When deploying in dev mode, any `kind: ZarfInitConfig` packages in the bundle will be ignored. If a **local** zarf package is missing, this command will create that zarf package for you assuming that your `zarf.yaml` file and zarf package are expected in the same directory. It will then create your bundle and deploy your zarf packages in [YOLO](https://docs.zarf.dev/docs/faq#what-is-yolo-mode-and-why-would-i-use-it) mode, eliminating the need to do a `uds zarf init`.
 
@@ -29,8 +32,8 @@ Regardless of implementation, the plan is to introduce `uds dev deploy` which al
  + code readibility/reuse regardless if `dev` or not and if processing local or remote packages
  - less efficient
 
-### In Memory
-The current `create` and `deploy` functionality does additional work creating local artifacts that potentially isn't necessary. We can speed up the dev cycle even more by doing the package and bundling processing in memory. Zarf currently has a `dev deploy` command that allows you to deploy zarf packages in memory in YOLO mode. This code can be leveraged, but only works for local packages. Additional work would be needed to handle remote packages. We will also need to handle the passing of variables and overrides between zarf packages within a bundle.
+### No Tarball
+The current `create` and `deploy` functionality does additional work creating local artifacts and a tarball that potentially isn't necessary. We can speed up the dev cycle even more by doing the package and bundling processing without needing the intermediary bundle tarball. Zarf currently has a `dev deploy` command that allows you to deploy zarf packages in YOLO mode. This code can be leveraged, but only works for local packages. Additional work would be needed to handle remote packages. We will also need to handle the passing of variables and overrides between zarf packages within a bundle.
 
 + more efficient
 - more new code, less reuse between `dev` and non-dev and local and remote zarf packages.
