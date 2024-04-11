@@ -20,14 +20,26 @@ The current bundle development lifecycle is:
 
 Currently the [Local Artifacts](#bundle-create) option has been implemented to provide an MVP (minimal viable product). This ADR is intended to determine potential future implementation.
 
-### Planned Features
- - zarf package flavor support
 
-## Alternatives
-Regardless of implementation, the plan is to introduce `uds dev deploy` which allows you to deploy a UDS bundle in dev mode. When deploying in dev mode, any `kind: ZarfInitConfig` packages in the bundle will be ignored. If a **local** zarf package is missing, this command will create that zarf package for you assuming that your `zarf.yaml` file and zarf package are expected in the same directory. It will then create your bundle and deploy your zarf packages in [YOLO](https://docs.zarf.dev/docs/faq#what-is-yolo-mode-and-why-would-i-use-it) mode, eliminating the need to do a `uds zarf init`.
+## Dev Mode Overview
+Regardless of implementation, the plan is to introduce `uds dev deploy` which allows you to deploy a UDS bundle in dev mode. Dev mode will perform the following actions:
+- Create Zarf packages for all local packages in a bundle
+  - The Zarf tarball will be created in the same directory as the `zarf.yaml`
+  - Dev mode will only create the Zarf tarball if one does not already exist
+  - Ignore any `kind: ZarfInitConfig` packages in the bundle
+- Create a bundle from the newly created Zarf packages
+- Deploy the bundle in [YOLO](https://docs.zarf.dev/faq/#what-is-yolo-mode-and-why-would-i-use-it) mode, eliminating the need to do a `zarf init`
+
+
+## Planned Features
+ - Add a `--ref` flag to `uds dev deploy` to enable setting the `ref` field for a package at `dev deploy` time
+ - Add a `--flavor` flag to `uds dev deploy` to enable setting the flavor of a ref at `dev deploy` time
+
+## Handling Artifacts
+The following options are being considered for handling the creation of Zarf packages and bundles in dev mode:
 
 ### Local Artifacts
- In order to maximize code reuse and leverage existing logic we will be creating local artifacts (both bundle and zarf package artifacts) in the same way that UDS bundles are currently created and deployed. This solution also minimizes the amount of code needed to process a zarf package regardless if it is a remote or local package.
+In order to maximize code reuse and leverage existing logic we could create local artifacts (both bundle and Zarf package artifacts) in the same way that UDS bundles are currently created and deployed. This solution also minimizes the amount of code needed to process a zarf package regardless if it is a remote or local package.
 
  + code readibility/reuse regardless if `dev` or not and if processing local or remote packages
  - less efficient
@@ -39,7 +51,7 @@ The current `create` and `deploy` functionality does additional work creating lo
 - more new code, less reuse between `dev` and non-dev and local and remote zarf packages.
 
 ## Decision
-
+TBD
 
 ## Consequences
 Commands under `dev` are meant to be used in **development** environments, and are **not** meant to be used in **production** environments. There is still the possibility that a user will use `uds dev deploy` in a production environment, but the command name and documentation will make it clear that this is not the intended use case.
