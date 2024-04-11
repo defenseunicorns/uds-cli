@@ -16,10 +16,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/defenseunicorns/pkg/helpers"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	av4 "github.com/mholt/archiver/v4"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
