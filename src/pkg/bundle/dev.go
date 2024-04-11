@@ -47,7 +47,7 @@ func (b *Bundle) CreateZarfPkgs() {
 			}
 			// create local zarf package if it doesn't exist
 			if !packageFound {
-				os.Args = []string{"zarf", "package", "create", path, "--confirm", "-o", path}
+				os.Args = []string{"zarf", "package", "create", path, "--confirm", "-o", path, "--skip-sbom"}
 				zarfCLI.Execute()
 				if err != nil {
 					message.Fatalf(err, "Failed to create package %s: %s", pkg.Name, err.Error())

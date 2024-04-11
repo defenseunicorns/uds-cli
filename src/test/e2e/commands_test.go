@@ -120,7 +120,14 @@ func deployWithTUI(t *testing.T, source string) (stdout string, stderr string) {
 }
 
 func devDeploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("dev deploy %s --no-tea", tarballPath), " ")
+	cmd := strings.Split(fmt.Sprintf("dev deploy %s", tarballPath), " ")
+	stdout, stderr, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	return stdout, stderr
+}
+
+func devDeployPackages(t *testing.T, tarballPath string, packages string) (stdout string, stderr string) {
+	cmd := strings.Split(fmt.Sprintf("dev deploy %s --packages %s", tarballPath, packages), " ")
 	stdout, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 	return stdout, stderr

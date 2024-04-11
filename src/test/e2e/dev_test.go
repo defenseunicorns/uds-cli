@@ -41,11 +41,11 @@ func TestDevDeploy(t *testing.T) {
 		bundleDir := "src/test/bundles/03-local-and-remote"
 		bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
-		devDeploy(t, bundleDir)
+		devDeployPackages(t, bundleDir, "podinfo")
 
 		deployments, _, _ := e2e.UDS(cmd...)
 		require.Contains(t, deployments, "podinfo")
-		require.Contains(t, deployments, "nginx")
+		require.NotContains(t, deployments, "nginx")
 
 		remove(t, bundlePath)
 	})
