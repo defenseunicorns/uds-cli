@@ -9,6 +9,7 @@ Bundle overrides provide a mechanism to customize Helm charts inside of Zarf pac
     - [Syntax](#syntax)
     - [Values](#values)
     - [Variables](#variables)
+    - [Namespace](#namespace)
 
 ## Quickstart
 
@@ -131,10 +132,10 @@ The `value` is the value to set at the `path`. Values can be simple values such 
                 customAnnotation: "customValue"
 ```
 If using a variable that has been [exported](../README.md#importingexporting-variables) from another package, that variable can also be used to set a value, using the syntax `${...}`. In the example below the `COLOR` variable is being used to set the `podinfo.ui.color` value.
-```
+```yaml
 kind: UDSBundle
 metadata:
-  name: export-vars
+  name: example-bundle
   description: Example for using an imported variable to set an overrides value
   version: 0.0.1
 
@@ -145,7 +146,7 @@ packages:
     exports:
       - name: COLOR
 
-  - name: helm-overrides
+  - name: helm-overrides-package
     path: "../../packages/helm"
     ref: 0.0.1
 
@@ -160,35 +161,80 @@ packages:
 ```
 
 ### Variables
-Variables are similar to [values](#values) in that they allow users to override values in a Zarf package component's underlying Helm chart; they also share a similar syntax. However, unlike `values`, `variables` can be overridden at deploy time. For example, consider the following `variables`:
+Variables are similar to [values](#values) in that they allow users to override values in a Zarf package component's underlying Helm chart; they also share a similar syntax. However, unlike `values`, `variables` can be overridden at deploy time. For example, consider the `variables` key in the following `uds-bundle.yaml`:
 
 ```yaml
-...
-    overrides:
-      helm-overrides-component:
-        podinfo:
-          variables:
+kind: UDSBundle
+metadata:
+   name: example-bundle
+   version: 0.0.1
+
+packages:
+   - name: helm-overrides-package
+     path: "../../packages/helm"
+     ref: 0.0.1"
+     overrides:
+        podinfo-component:
+          unicorn-podinfo:
+           variables:
            - name: UI_COLOR
              path: "ui.color"
              description: "Set the color for podinfo's UI"
              default: "purple"
 ```
 
-There are 2 ways to override the `UI_COLOR` variable:
+There are 3 ways to override the `UI_COLOR` variable:
 
 1. **UDS config**: you can create a `uds-config.yaml` file in the same directory as the bundle and specify the variable to override. For example, to override the `UI_COLOR` variable, you can create a `uds-config.yaml`:
 
     ```yaml
       variables:
         helm-overrides-package:
-          ui_color: green
+          ui_color: green # Note that the variable for `UI_COLOR` can be upper or lowercase
     ```
-Note that the variable for `UI_COLOR` can be upper or lowercase.  
 
 1. **Environment variables**: you can create an environment variable prefixed with `UDS_` and the name of the variable. For example, to override the `UI_COLOR` variable, you can create an environment variable called `UDS_UI_COLOR` and set it to the desired value. Note that environment variables take precedence over `uds-config.yaml` variables.  
 
+1. **--set Flag**: you can also override the variable using the CLI's `--set` flag. For example, to override the `UI_COLOR` variable, you can run one of the following commands:
+
+    ```bash
+   # by default ui_color will apply to all packages in the bundle
+    uds deploy example-bundle --set ui_color=green
+
+    # to specify a specific package that the variable should apply to you can prepend th package name to the variable
+    uds deploy example-bundle --set helm-overrides-package.ui_color=green
+    ```
+
+   > **:warning: Warning**: Because Helm override variables and Zarf variables share the same --set syntax, be careful with variable names to avoid conflicts.
+
+> [!NOTE]  
+> A variable that is not overridden by any of the methods above and has no default will be ignored.
+
 #### Variable Precedence
 Variable precedence is as follows:
+1. The `--set` flag
 1. Environment variables
-2. `uds-config.yaml` variables
-3. Variables `default` in the`uds-bundle.yaml`
+1. `uds-config.yaml` variables
+1. Variables `default` in the`uds-bundle.yaml`
+
+### Namespace
+It's also possible to specify a namespace for a packaged Helm chart to be installed in. For example, to deploy the a chart in the `custom-podinfo` namespace, you can specify the `namespace` in the `overrides` block:
+
+```yaml
+kind: UDSBundle
+metadata:
+   name: example-bundle
+   version: 0.0.1
+
+packages:
+   - name: helm-overrides-package
+     path: "../../packages/helm"
+     ref: 0.0.1"
+     overrides:
+        podinfo-component:
+          unicorn-podinfo:
+             namespace: custom-podinfo # custom namespace!
+             values:
+                - path: "podinfo.replicaCount"
+                  value: 1
+```

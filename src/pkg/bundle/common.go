@@ -5,6 +5,7 @@
 package bundle
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -12,15 +13,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/defenseunicorns/pkg/helpers"
+	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/fetcher"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/config/lang"
 	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/oci"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
@@ -49,7 +51,7 @@ func New(cfg *types.BundleConfig) (*Bundle, error) {
 		}
 	)
 
-	tmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
+	tmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 	if err != nil {
 		return nil, fmt.Errorf("bundler unable to create temp directory: %w", err)
 	}
@@ -70,14 +72,14 @@ func NewOrDie(cfg *types.BundleConfig) *Bundle {
 	return bundle
 }
 
-// ClearPaths clears out the paths used by Bundle
+// ClearPaths closes any files and clears out the paths used by Bundle
 func (b *Bundle) ClearPaths() {
 	_ = os.RemoveAll(b.tmp)
 }
 
 // ValidateBundleResources validates the bundle's metadata and package references
-func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *message.Spinner) error {
-	// TODO: need to validate arch of local OS
+func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
+	bundle := &b.bundle
 	if bundle.Metadata.Architecture == "" {
 		// ValidateBundle was erroneously called before CalculateBuildInfo
 		if err := b.CalculateBuildInfo(); err != nil {
@@ -104,6 +106,11 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 
 	// validate access to packages as well as components referenced in the package
 	for idx, pkg := range bundle.Packages {
+		// if package path is set, make it relative to source directory
+		if pkg.Path != "" {
+			pkg.Path = filepath.Join(b.cfg.CreateOpts.SourceDirectory, pkg.Path)
+		}
+
 		spinner.Updatef("Validating Bundle Package: %s", pkg.Name)
 		if pkg.Name == "" {
 			return fmt.Errorf("%s is missing required field: name", pkg)
@@ -134,29 +141,24 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 				Architecture: config.GetArch(),
 				OS:           oci.MultiOS,
 			}
-			remote, err := oci.NewOrasRemote(url, platform)
+			remote, err := zoci.NewRemote(url, platform)
 			if err != nil {
 				return err
 			}
 			if err := remote.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
-				manifestDesc, _ := remote.ResolveRoot()
+				manifestDesc, err := remote.ResolveRoot(context.TODO())
+				if err != nil {
+					return err
+				}
 				// todo: don't do this here, a "validate" fn shouldn't be modifying the bundle
 				bundle.Packages[idx].Ref = pkg.Ref + "@sha256:" + manifestDesc.Digest.Encoded()
 			}
 		} else {
 			// atm we don't support outputting a bundle with local pkgs outputting to OCI
-			if b.cfg.CreateOpts.Output != "" {
+			if utils.IsRegistryURL(b.cfg.CreateOpts.Output) {
 				return fmt.Errorf("detected local Zarf package: %s, outputting to an OCI registry is not supported when using local Zarf packages", pkg.Name)
 			}
-			var fullPkgName string
-			if pkg.Name == "init" {
-				fullPkgName = fmt.Sprintf("zarf-%s-%s-%s.tar.zst", pkg.Name, bundle.Metadata.Architecture, pkg.Ref)
-			} else {
-				// For local zarf packages, we get the package name using the package name provided in the bundle, since the zarf package artifact
-				// uses the actual zarf package name, these names must match
-				fullPkgName = fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", pkg.Name, bundle.Metadata.Architecture, pkg.Ref)
-			}
-			path := filepath.Join(pkg.Path, fullPkgName)
+			path := getPkgPath(pkg, bundle.Metadata.Architecture)
 			bundle.Packages[idx].Path = path
 		}
 
@@ -178,7 +180,7 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 		// todo: need to packager.ValidatePackageSignature (or come up with a bundle-level signature scheme)
 		publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
 		if pkg.PublicKey != "" {
-			if err := utils.WriteFile(publicKeyPath, []byte(pkg.PublicKey)); err != nil {
+			if err := os.WriteFile(publicKeyPath, []byte(pkg.PublicKey), helpers.ReadWriteUser); err != nil {
 				return err
 			}
 			defer os.Remove(publicKeyPath)
@@ -210,6 +212,24 @@ func (b *Bundle) ValidateBundleResources(bundle *types.UDSBundle, spinner *messa
 	return nil
 }
 
+func getPkgPath(pkg types.Package, arch string) string {
+	var fullPkgName string
+	var path string
+	if strings.HasSuffix(pkg.Path, ".tar.zst") {
+		// use the provided pkg tarball
+		path = pkg.Path
+	} else if pkg.Name == "init" {
+		// Zarf init pkgs have a specific naming convention
+		fullPkgName = fmt.Sprintf("zarf-%s-%s-%s.tar.zst", pkg.Name, arch, pkg.Ref)
+		path = filepath.Join(pkg.Path, fullPkgName)
+	} else {
+		// infer the name of the local Zarf pkg
+		fullPkgName = fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", pkg.Name, arch, pkg.Ref)
+		path = filepath.Join(pkg.Path, fullPkgName)
+	}
+	return path
+}
+
 // CalculateBuildInfo calculates the build info for the bundle
 func (b *Bundle) CalculateBuildInfo() error {
 	now := time.Now()
@@ -234,7 +254,7 @@ func (b *Bundle) CalculateBuildInfo() error {
 
 // ValidateBundleSignature validates the bundle signature
 func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string) error {
-	if utils.InvalidPath(bundleYAMLPath) {
+	if helpers.InvalidPath(bundleYAMLPath) {
 		return fmt.Errorf("path for %s at %s does not exist", config.BundleYAML, bundleYAMLPath)
 	}
 	// The package is not signed, and no public key was provided
@@ -242,34 +262,27 @@ func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string
 		return nil
 	}
 	// The package is not signed, but a public key was provided
-	if utils.InvalidPath(signaturePath) && !utils.InvalidPath(publicKeyPath) {
+	if helpers.InvalidPath(signaturePath) && !helpers.InvalidPath(publicKeyPath) {
 		return fmt.Errorf("package is not signed, but a public key was provided")
 	}
 	// The package is signed, but no public key was provided
-	if !utils.InvalidPath(signaturePath) && utils.InvalidPath(publicKeyPath) {
+	if !helpers.InvalidPath(signaturePath) && helpers.InvalidPath(publicKeyPath) {
 		return fmt.Errorf("package is signed, but no public key was provided")
 	}
 
 	// The package is signed, and a public key was provided
-	return utils.CosignVerifyBlob(bundleYAMLPath, signaturePath, publicKeyPath)
-}
-
-// GetDeployedPackages returns packages that have been deployed
-func GetDeployedPackages() ([]zarfTypes.DeployedPackage, error) {
-	cluster := cluster.NewClusterOrDie()
-	deployedPackages, errs := cluster.GetDeployedZarfPackages()
-	if len(errs) > 0 {
-		return nil, lang.ErrUnableToGetPackages
-	}
-	return deployedPackages, nil
+	return zarfUtils.CosignVerifyBlob(bundleYAMLPath, signaturePath, publicKeyPath)
 }
 
 // GetDeployedPackageNames returns the names of the packages that have been deployed
 func GetDeployedPackageNames() []string {
 	var deployedPackageNames []string
-	deployedPackages, _ := GetDeployedPackages()
-	for _, pkg := range deployedPackages {
-		deployedPackageNames = append(deployedPackageNames, pkg.Name)
+	c, _ := cluster.NewCluster()
+	if c != nil {
+		deployedPackages, _ := c.GetDeployedZarfPackages()
+		for _, pkg := range deployedPackages {
+			deployedPackageNames = append(deployedPackageNames, pkg.Name)
+		}
 	}
 	return deployedPackageNames
 }

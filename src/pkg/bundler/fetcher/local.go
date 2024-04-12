@@ -11,12 +11,13 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	av3 "github.com/mholt/archiver/v3"
@@ -33,7 +34,7 @@ type localFetcher struct {
 	extractDst string
 }
 
-// Fetch fetches a Zarf pkg and puts it into a local bundle
+// Fetch fetches a local Zarf pkg and puts it into a local bundle
 func (f *localFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	fetchSpinner := message.NewProgressSpinner("Fetching package %s", f.pkg.Name)
 	defer fetchSpinner.Stop()
@@ -165,7 +166,7 @@ func (f *localFetcher) toBundle(pkg zarfTypes.ZarfPackage, pkgTmp string) ([]oci
 			return nil, err
 		}
 
-		mediaType := oci.ZarfLayerMediaTypeBlob
+		mediaType := zoci.ZarfLayerMediaTypeBlob
 
 		// todo: try finding the desc with media type of image manifest, and rewrite it here!
 		// just iterate through it's layers and add the annotations to each layer, then push to the store and add to descs
@@ -173,6 +174,16 @@ func (f *localFetcher) toBundle(pkg zarfTypes.ZarfPackage, pkgTmp string) ([]oci
 		// adds title annotations to descs and creates layer to put in the store
 		// title annotations need to be added to the pkg root manifest
 		// Zarf image manifests already contain those title annotations in remote OCI repos, but they need to be added manually here
+
+		// if using a custom tmp dir that is not an absolute path, get working dir and prepend to path to make it absolute
+		if !filepath.IsAbs(path) {
+			wd, err := os.Getwd()
+			if err != nil {
+				return nil, err
+			}
+			path = filepath.Join(wd, path)
+		}
+
 		desc, err := src.Add(ctx, name, mediaType, path)
 		if err != nil {
 			return nil, err
@@ -237,11 +248,11 @@ func generatePkgManifest(store *ocistore.Store, descs []ocispec.Descriptor, conf
 			SchemaVersion: 2, // historical value. does not pertain to OCI or docker version
 		},
 		Config:    configDesc,
-		MediaType: oci.ZarfLayerMediaTypeBlob,
+		MediaType: zoci.ZarfLayerMediaTypeBlob,
 		Layers:    descs,
 	}
 
-	manifestDesc, err := utils.ToOCIStore(manifest, oci.ZarfLayerMediaTypeBlob, store)
+	manifestDesc, err := utils.ToOCIStore(manifest, zoci.ZarfLayerMediaTypeBlob, store)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}

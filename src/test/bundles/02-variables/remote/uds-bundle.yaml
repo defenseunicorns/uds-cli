@@ -1,7 +1,7 @@
 kind: UDSBundle
 metadata:
-  name: import-all-bad-name
-  description: show errors for bad imports
+  name: variables
+  description: show how vars work
   version: 0.0.1
 
 packages:
@@ -16,5 +16,7 @@ packages:
     repository: localhost:888/receive-var
     ref: 0.0.1
     imports:
-       - package: output-varz
-         name: OUTPUTZ
+      - name: OUTPUT
+        package: output-var
+      - name: PRECEDENCE
+        package: output-var

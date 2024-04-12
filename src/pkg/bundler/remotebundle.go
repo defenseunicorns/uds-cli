@@ -5,14 +5,16 @@
 package bundler
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/pusher"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/oci"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
@@ -42,6 +44,8 @@ func NewRemoteBundle(opts *RemoteBundleOpts) *RemoteBundle {
 
 // create creates the bundle in a remote OCI registry publishes w/ optional signature to the remote repository.
 func (r *RemoteBundle) create(signature []byte) error {
+	ctx := context.TODO()
+
 	// set the bundle remote's reference from metadata
 	r.output = utils.EnsureOCIPrefix(r.output)
 	ref, err := referenceFromMetadata(r.output, &r.bundle.Metadata)
@@ -54,7 +58,7 @@ func (r *RemoteBundle) create(signature []byte) error {
 	}
 
 	// create the bundle remote
-	bundleRemote, err := oci.NewOrasRemote(ref, platform)
+	bundleRemote, err := zoci.NewRemote(ref, platform)
 	if err != nil {
 		return err
 	}
@@ -68,19 +72,19 @@ func (r *RemoteBundle) create(signature []byte) error {
 	rootManifest := ocispec.Manifest{}
 	pusherConfig := pusher.Config{
 		Bundle:    bundle,
-		RemoteDst: bundleRemote,
+		RemoteDst: *bundleRemote,
 		NumPkgs:   len(bundle.Packages),
 	}
 
 	for i, pkg := range bundle.Packages {
 		// todo: can leave this block here or move to pusher.NewPkgPusher (would be closer to NewPkgFetcher pattern)
 		pkgURL := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
-		src, err := oci.NewOrasRemote(pkgURL, platform)
+		src, err := zoci.NewRemote(pkgURL, platform)
 		if err != nil {
 			return err
 		}
-		pusherConfig.RemoteSrc = src
-		pkgRootManifest, err := src.FetchRoot()
+		pusherConfig.RemoteSrc = *src
+		pkgRootManifest, err := src.FetchRoot(ctx)
 		if err != nil {
 			return err
 		}
@@ -100,7 +104,7 @@ func (r *RemoteBundle) create(signature []byte) error {
 	if err != nil {
 		return err
 	}
-	bundleYamlDesc, err := bundleRemote.PushLayer(bundleYamlBytes, oci.ZarfLayerMediaTypeBlob)
+	bundleYamlDesc, err := bundleRemote.PushLayer(ctx, bundleYamlBytes, zoci.ZarfLayerMediaTypeBlob)
 	if err != nil {
 		return err
 	}
@@ -109,23 +113,23 @@ func (r *RemoteBundle) create(signature []byte) error {
 	}
 
 	message.Debug("Pushed", config.BundleYAML+":", message.JSONValue(bundleYamlDesc))
-	rootManifest.Layers = append(rootManifest.Layers, bundleYamlDesc)
+	rootManifest.Layers = append(rootManifest.Layers, *bundleYamlDesc)
 
 	// push the bundle's signature
 	if len(signature) > 0 {
-		bundleYamlSigDesc, err := bundleRemote.PushLayer(signature, oci.ZarfLayerMediaTypeBlob)
+		bundleYamlSigDesc, err := bundleRemote.PushLayer(ctx, signature, zoci.ZarfLayerMediaTypeBlob)
 		if err != nil {
 			return err
 		}
 		bundleYamlSigDesc.Annotations = map[string]string{
 			ocispec.AnnotationTitle: config.BundleYAMLSignature,
 		}
-		rootManifest.Layers = append(rootManifest.Layers, bundleYamlSigDesc)
+		rootManifest.Layers = append(rootManifest.Layers, *bundleYamlSigDesc)
 		message.Debug("Pushed", config.BundleYAMLSignature+":", message.JSONValue(bundleYamlSigDesc))
 	}
 
 	// push the bundle manifest config
-	configDesc, err := pushManifestConfigFromMetadata(bundleRemote, &bundle.Metadata, &bundle.Build)
+	configDesc, err := pushManifestConfigFromMetadata(bundleRemote.OrasRemote, &bundle.Metadata, &bundle.Build)
 	if err != nil {
 		return err
 	}
@@ -133,7 +137,7 @@ func (r *RemoteBundle) create(signature []byte) error {
 	message.Debug("Pushed config:", message.JSONValue(configDesc))
 
 	// check for existing index
-	index, err := utils.GetIndex(bundleRemote, dstRef.String())
+	index, err := utils.GetIndex(bundleRemote.OrasRemote, dstRef.String())
 	if err != nil {
 		return err
 	}
@@ -142,13 +146,13 @@ func (r *RemoteBundle) create(signature []byte) error {
 	rootManifest.Config = configDesc
 	rootManifest.SchemaVersion = 2
 	rootManifest.Annotations = manifestAnnotationsFromMetadata(&bundle.Metadata) // maps to registry UI
-	rootManifestDesc, err := utils.ToOCIRemote(rootManifest, ocispec.MediaTypeImageManifest, bundleRemote)
+	rootManifestDesc, err := utils.ToOCIRemote(rootManifest, ocispec.MediaTypeImageManifest, bundleRemote.OrasRemote)
 	if err != nil {
 		return err
 	}
 
 	// create or update, then push index.json
-	err = utils.UpdateIndex(index, bundleRemote, bundle, rootManifestDesc)
+	err = utils.UpdateIndex(index, bundleRemote.OrasRemote, bundle, *rootManifestDesc)
 	if err != nil {
 		return err
 	}

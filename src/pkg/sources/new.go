@@ -7,15 +7,16 @@ package sources
 import (
 	"strings"
 
+	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfSources "github.com/defenseunicorns/zarf/src/pkg/packager/sources"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // New creates a new package source based on pkgLocation
-func New(pkgLocation string, pkgName string, opts zarfTypes.ZarfPackageOptions, sha string) (zarfSources.PackageSource, error) {
+func New(pkgLocation string, pkgName string, opts zarfTypes.ZarfPackageOptions, sha string, nsOverrides NamespaceOverrideMap) (zarfSources.PackageSource, error) {
 	var source zarfSources.PackageSource
 	if strings.Contains(pkgLocation, "tar.zst") {
 		source = &TarballBundle{
@@ -24,13 +25,14 @@ func New(pkgLocation string, pkgName string, opts zarfTypes.ZarfPackageOptions, 
 			PkgManifestSHA: sha,
 			TmpDir:         opts.PackageSource,
 			BundleLocation: pkgLocation,
+			nsOverrides:    nsOverrides,
 		}
 	} else {
 		platform := ocispec.Platform{
 			Architecture: config.GetArch(),
 			OS:           oci.MultiOS,
 		}
-		remote, err := oci.NewOrasRemote(pkgLocation, platform)
+		remote, err := zoci.NewRemote(pkgLocation, platform)
 		if err != nil {
 			return nil, err
 		}
@@ -39,7 +41,8 @@ func New(pkgLocation string, pkgName string, opts zarfTypes.ZarfPackageOptions, 
 			PkgOpts:        &opts,
 			PkgManifestSHA: sha,
 			TmpDir:         opts.PackageSource,
-			Remote:         remote,
+			Remote:         remote.OrasRemote,
+			nsOverrides:    nsOverrides,
 		}
 	}
 	return source, nil

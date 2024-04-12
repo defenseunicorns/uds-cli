@@ -11,21 +11,24 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/defenseunicorns/pkg/helpers"
+	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/oci"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-// Pull pulls a bundle and saves it locally + caches it
+// Pull pulls a bundle and saves it locally
 func (b *Bundle) Pull() error {
+	ctx := context.TODO()
+	// use uds-cache/packages as the dst dir for the pull to get auto caching
+	// we use an ORAS ocistore to make that dir look like an OCI artifact
 	cacheDir := filepath.Join(zarfConfig.GetAbsCachePath(), "packages")
-	// create the cache directory if it doesn't exist
-	if err := utils.CreateDirectory(cacheDir, 0755); err != nil {
+	if err := helpers.CreateDirectory(cacheDir, 0o755); err != nil {
 		return err
 	}
 
@@ -36,46 +39,30 @@ func (b *Bundle) Pull() error {
 	}
 	b.cfg.PullOpts.Source = source
 
-	provider, err := NewBundleProvider(context.TODO(), b.cfg.PullOpts.Source, cacheDir)
+	provider, err := NewBundleProvider(b.cfg.PullOpts.Source, cacheDir)
 	if err != nil {
-		return err
-	}
-
-	// pull the bundle's metadata + sig
-	loadedMetadata, err := provider.LoadBundleMetadata()
-	if err != nil {
-		return err
-	}
-	if err := utils.ReadYaml(loadedMetadata[config.BundleYAML], &b.bundle); err != nil {
-		return err
-	}
-
-	// validate the sig (if present)
-	if err := ValidateBundleSignature(loadedMetadata[config.BundleYAML], loadedMetadata[config.BundleYAMLSignature], b.cfg.PullOpts.PublicKeyPath); err != nil {
 		return err
 	}
 
 	// pull the bundle's uds-bundle.yaml and it's Zarf pkgs
-	// todo: refactor this fn, think about pulling the rootDesc first and getting the hashes from there
-	// today, we are getting the Zarf image manifest hashes from the uds-bundle.yaml
-	// in that logic we end up pulling the root manifest twice, once in LoadBundle and the other below in remote.ResolveRoot()
-	loaded, err := provider.LoadBundle(zarfConfig.CommonOptions.OCIConcurrency)
+	bundle, loaded, err := provider.LoadBundle(b.cfg.PullOpts, zarfConfig.CommonOptions.OCIConcurrency)
 	if err != nil {
 		return err
 	}
+	b.bundle = *bundle
 
 	// create a remote client just to resolve the root descriptor
 	platform := ocispec.Platform{
 		Architecture: config.GetArch(),
 		OS:           oci.MultiOS,
 	}
-	remote, err := oci.NewOrasRemote(b.cfg.PullOpts.Source, platform)
+	remote, err := zoci.NewRemote(b.cfg.PullOpts.Source, platform)
 	if err != nil {
 		return err
 	}
 
 	// fetch the bundle's root descriptor
-	rootDesc, err := remote.ResolveRoot()
+	rootDesc, err := remote.ResolveRoot(ctx)
 	if err != nil {
 		return err
 	}
@@ -94,7 +81,7 @@ func (b *Bundle) Pull() error {
 		return err
 	}
 	indexJSONPath := filepath.Join(b.tmp, "index.json")
-	if err := utils.WriteFile(indexJSONPath, bytes); err != nil {
+	if err := os.WriteFile(indexJSONPath, bytes, helpers.ReadWriteUser); err != nil {
 		return err
 	}
 
@@ -137,7 +124,7 @@ func (b *Bundle) Pull() error {
 	}
 
 	// tarball the bundle
-	if err := format.Archive(context.TODO(), out, files); err != nil {
+	if err := format.Archive(ctx, out, files); err != nil {
 		return err
 	}
 

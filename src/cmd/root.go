@@ -7,18 +7,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime/debug"
-	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	zarfCLI "github.com/defenseunicorns/zarf/src/cmd"
 	"github.com/defenseunicorns/zarf/src/cmd/common"
-	zarfConfig "github.com/defenseunicorns/zarf/src/config"
+	zarfCommon "github.com/defenseunicorns/zarf/src/cmd/common"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
 	"github.com/spf13/cobra"
 )
 
@@ -37,13 +32,17 @@ var rootCmd = &cobra.Command{
 			return
 		}
 
-		exec.ExitOnInterrupt()
+		zarfCommon.ExitOnInterrupt()
 
 		// Don't add the logo to the help command
 		if cmd.Parent() == nil {
 			config.SkipLogFile = true
 		}
-		cliSetup()
+
+		// don't load log configs for the logs command
+		if cmd.Use != "logs" {
+			cliSetup(cmd)
+		}
 	},
 	Short: lang.RootCmdShort,
 	Run: func(cmd *cobra.Command, _ []string) {
@@ -66,32 +65,6 @@ func RootCmd() *cobra.Command {
 }
 
 func init() {
-	// grab Zarf version to make Zarf library checks happy
-	if buildInfo, ok := debug.ReadBuildInfo(); ok {
-		for _, dep := range buildInfo.Deps {
-			if dep.Path == "github.com/defenseunicorns/zarf" {
-				zarfConfig.CLIVersion = strings.Split(dep.Version, "v")[1]
-			}
-		}
-	}
-
-	// only vendor zarf if specifically invoked
-	if len(os.Args) > 1 && (os.Args[1] == "zarf" || os.Args[1] == "z") {
-		zarfCmd := &cobra.Command{
-			Use:     "zarf COMMAND",
-			Aliases: []string{"z"},
-			Run: func(_ *cobra.Command, _ []string) {
-				os.Args = os.Args[1:] // grab 'zarf' and onward from the CLI args
-				zarfCLI.Execute()
-			},
-			DisableFlagParsing: true,
-		}
-		rootCmd.AddCommand(zarfCmd)
-
-		// disable UDS log file for Zarf commands bc Zarf has its own log file
-		config.SkipLogFile = true
-		return
-	}
 
 	initViper()
 
@@ -102,6 +75,7 @@ func init() {
 	v.SetDefault(V_INSECURE, false)
 	v.SetDefault(V_TMP_DIR, "")
 	v.SetDefault(V_BNDL_OCI_CONCURRENCY, 3)
+	v.SetDefault(V_NO_TEA, false) // by default use the BubbleTea TUI
 
 	homeDir, _ := os.UserHomeDir()
 	v.SetDefault(V_UDS_CACHE, filepath.Join(homeDir, config.UDSCache))
@@ -114,35 +88,5 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&config.CommonOptions.TempDirectory, "tmpdir", v.GetString(V_TMP_DIR), lang.RootCmdFlagTempDir)
 	rootCmd.PersistentFlags().BoolVar(&config.CommonOptions.Insecure, "insecure", v.GetBool(V_INSECURE), lang.RootCmdFlagInsecure)
 	rootCmd.PersistentFlags().IntVar(&config.CommonOptions.OCIConcurrency, "oci-concurrency", v.GetInt(V_BNDL_OCI_CONCURRENCY), lang.CmdBundleFlagConcurrency)
-}
-
-func cliSetup() {
-	match := map[string]message.LogLevel{
-		"warn":  message.WarnLevel,
-		"info":  message.InfoLevel,
-		"debug": message.DebugLevel,
-		"trace": message.TraceLevel,
-	}
-
-	printViperConfigUsed()
-
-	// No log level set, so use the default
-	if logLevel != "" {
-		if lvl, ok := match[logLevel]; ok {
-			message.SetLogLevel(lvl)
-			message.Debug("Log level set to " + logLevel)
-		} else {
-			message.Warn(lang.RootCmdErrInvalidLogLevel)
-		}
-	}
-
-	// Disable progress bars for CI envs
-	if os.Getenv("CI") == "true" {
-		message.Debug("CI environment detected, disabling progress bars")
-		message.NoProgress = true
-	}
-
-	if !config.SkipLogFile && !config.ListTasks {
-		utils.UseLogFile()
-	}
+	rootCmd.PersistentFlags().BoolVar(&config.CommonOptions.NoTea, "no-tea", v.GetBool(V_NO_TEA), lang.RootCmdNoTea)
 }

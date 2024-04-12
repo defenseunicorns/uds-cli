@@ -308,15 +308,21 @@ func TestTaskRunner(t *testing.T) {
 		require.Contains(t, stdErr, "copy-verify")
 	})
 
-	t.Run("test call to zarf tools wait-for", func(t *testing.T) {
+	t.Run("test bad call to zarf tools wait-for", func(t *testing.T) {
 		t.Parallel()
-		_, stdErr, err := e2e.UDS("run", "wait", "--file", "src/test/tasks/tasks.yaml")
+		_, stdErr, err := e2e.UDS("run", "wait-fail", "--file", "src/test/tasks/tasks.yaml")
 		require.Error(t, err)
-		require.Contains(t, stdErr, "Waiting for")
+		require.Contains(t, stdErr, "Failed to run action")
+	})
+
+	t.Run("test successful call to zarf tools wait-for", func(t *testing.T) {
+		t.Parallel()
+		_, stderr, err := e2e.UDS("run", "wait-success", "--file", "src/test/tasks/tasks.yaml")
+		require.NoError(t, err)
+		require.Contains(t, stderr, "succeeded")
 	})
 
 	t.Run("test task to load env vars using the envPath key", func(t *testing.T) {
-		t.Parallel()
 		stdOut, stdErr, err := e2e.UDS("run", "env-from-file", "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, e2e.Arch)
@@ -341,5 +347,20 @@ func TestTaskRunner(t *testing.T) {
 		require.NoError(t, err, stdOut, stdErr)
 		require.NotContains(t, stdErr, "default")
 		require.Contains(t, stdErr, "env-var")
+	})
+	t.Run("test that ARCHITECTURE env var is getting passed to runner", func(t *testing.T) {
+		os.Setenv("UDS_ARCHITECTURE", "amd64")
+		stdOut, stdErr, err := e2e.UDS("run", "echo-architecture", "--file", "src/test/tasks/tasks.yaml")
+		require.NoError(t, err, stdOut, stdErr)
+		require.NotContains(t, stdErr, "arm64")
+		require.Contains(t, stdErr, "amd64")
+
+		os.Setenv("UDS_ARCHITECTURE", "arm64")
+		stdOut, stdErr, err = e2e.UDS("run", "echo-architecture", "--file", "src/test/tasks/tasks.yaml")
+		require.NoError(t, err, stdOut, stdErr)
+		require.NotContains(t, stdErr, "amd64")
+		require.Contains(t, stdErr, "arm64")
+
+		os.Setenv("UDS_ARCHITECTURE", "")
 	})
 }

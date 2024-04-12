@@ -1,0 +1,48 @@
+name: UDS Core Smoke Test
+on:
+  schedule:
+    - cron: '0 7 * * *' ## Every day at 0700 UTC
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Abort prior jobs in the same workflow / PR
+concurrency:
+  group: uds-core-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  uds-core-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          fetch-depth: 0
+
+      - name: Build UDS-CLI binary
+        run: make build-cli-linux-amd ARCH=amd64
+
+      - name: Make UDS-CLI executable
+        run: |
+          chmod +x build/uds
+
+      - name: install-k3d
+        run: "curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash"
+        shell: bash
+
+      - name: Deploy UDS Core bundle
+        # renovate: datasource=github-tags depName=defenseunicorns/uds-core versioning=semver
+        run: build/uds deploy k3d-core-istio-dev:0.16.1 --confirm
+        shell: bash
+
+      - name: Validate UDS Core deployment
+        run: |
+          build/uds zarf tools wait-for gateway admin-gateway -n istio-admin-gateway --timeout 10s
+          build/uds zarf tools wait-for gateway passthrough-gateway -n istio-passthrough-gateway --timeout 10s
+          build/uds zarf tools wait-for gateway tenant-gateway -n istio-tenant-gateway --timeout 10s
+        shell: bash

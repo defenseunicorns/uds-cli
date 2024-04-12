@@ -33,6 +33,7 @@ type BundleDeployOptions struct {
 	// Variables and SharedVariables are read in from uds-config.yaml
 	Variables       map[string]map[string]interface{} `yaml:"variables,omitempty"`
 	SharedVariables map[string]interface{}            `yaml:"shared,omitempty"`
+	Retries         int                               `yaml:"retries"`
 }
 
 // BundleInspectOptions is the options for the bundler.Inspect() function
@@ -69,6 +70,7 @@ type BundleCommonOptions struct {
 	CachePath      string `json:"cachePath" jsonschema:"description=Path to use to cache images and git repos on package create"`
 	TempDirectory  string `json:"tempDirectory" jsonschema:"description=Location Zarf should use as a staging ground when managing files and images for package creation and deployment"`
 	OCIConcurrency int    `jsonschema:"description=Number of concurrent layer operations to perform when interacting with a remote package"`
+	NoTea          bool   `json:"useTea" jsonschema:"description=Don't use BubbleTea TUI"`
 }
 
 // PathMap is a map of either absolute paths to relative paths or relative paths to absolute paths

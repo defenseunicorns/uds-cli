@@ -8,11 +8,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/defenseunicorns/pkg/helpers"
+	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/pkg/oci"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -34,7 +35,7 @@ type Provider interface {
 	// LoadBundle loads a bundle into the temporary directory and returns a map of the bundle's files
 	//
 	// (currently only the remote provider utilizes the concurrency parameter)
-	LoadBundle(concurrency int) (types.PathMap, error)
+	LoadBundle(options types.BundlePullOptions, concurrency int) (*types.UDSBundle, types.PathMap, error)
 
 	// CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
 	CreateBundleSBOM(extractSBOM bool) error
@@ -43,29 +44,41 @@ type Provider interface {
 	PublishBundle(bundle types.UDSBundle, remote *oci.OrasRemote) error
 
 	// getBundleManifest gets the bundle's root manifest
-	getBundleManifest() error
-
-	// ZarfPackageNameMap returns a map of the zarf package name specified in the uds-bundle.yaml to the actual zarf package name
-	ZarfPackageNameMap() (map[string]string, error)
+	getBundleManifest() (*oci.Manifest, error)
 }
 
 // NewBundleProvider returns a new bundler Provider based on the source type
-func NewBundleProvider(ctx context.Context, source, destination string) (Provider, error) {
+func NewBundleProvider(source, destination string) (Provider, error) {
+	ctx := context.TODO()
 	if helpers.IsOCIURL(source) {
-		provider := ociProvider{ctx: ctx, src: source, dst: destination}
+		op := ociProvider{src: source, dst: destination}
 		platform := ocispec.Platform{
 			Architecture: config.GetArch(),
 			OS:           oci.MultiOS,
 		}
-		remote, err := oci.NewOrasRemote(source, platform)
+		// get remote client
+		remote, err := zoci.NewRemote(source, platform)
 		if err != nil {
 			return nil, err
 		}
-		provider.OrasRemote = remote
-		return &provider, nil
+		op.OrasRemote = remote.OrasRemote
+
+		// get root manifest
+		root, err := op.FetchRoot(ctx)
+		if err != nil {
+			return nil, err
+		}
+		op.rootManifest = root
+
+		return &op, nil
 	}
 	if !utils.IsValidTarballPath(source) {
 		return nil, fmt.Errorf("invalid tarball path: %s", source)
 	}
-	return &tarballBundleProvider{ctx: ctx, src: source, dst: destination}, nil
+	tp := tarballBundleProvider{ctx: ctx, src: source, dst: destination}
+	err := tp.loadBundleManifest()
+	if err != nil {
+		return nil, err
+	}
+	return &tp, nil
 }

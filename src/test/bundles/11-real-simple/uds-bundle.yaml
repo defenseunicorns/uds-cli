@@ -5,5 +5,5 @@ metadata:
 
 packages:
   - name: real-simple
-    path: "src/test/packages/no-cluster/real-simple"
+    path: "../../packages/no-cluster/real-simple"
     ref: 0.0.1

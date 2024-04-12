@@ -5,15 +5,15 @@
 package bundle
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/oci"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	av3 "github.com/mholt/archiver/v3"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
@@ -24,7 +24,7 @@ func (b *Bundle) Publish() error {
 
 	// load bundle metadata into memory
 	// todo: having the tmp dir be the provider.dst is weird
-	provider, err := NewBundleProvider(context.TODO(), b.cfg.PublishOpts.Source, b.tmp)
+	provider, err := NewBundleProvider(b.cfg.PublishOpts.Source, b.tmp)
 	if err != nil {
 		return err
 	}
@@ -54,11 +54,11 @@ func (b *Bundle) Publish() error {
 		Architecture: config.GetArch(),
 		OS:           oci.MultiOS,
 	}
-	remote, err := oci.NewOrasRemote(fmt.Sprintf("%s/%s:%s", ociURL, bundleName, bundleTag), platform)
+	remote, err := zoci.NewRemote(fmt.Sprintf("%s/%s:%s", ociURL, bundleName, bundleTag), platform)
 	if err != nil {
 		return err
 	}
-	err = provider.PublishBundle(b.bundle, remote)
+	err = provider.PublishBundle(b.bundle, remote.OrasRemote)
 	if err != nil {
 		return err
 	}

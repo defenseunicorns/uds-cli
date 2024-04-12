@@ -8,7 +8,7 @@ BUILD_ARGS := -s -w -X 'github.com/defenseunicorns/uds-cli/src/config.CLIVersion
 
 .PHONY: help
 help: ## Display this help information
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
+	@grep -E '^[0-9a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 	  | sort | awk 'BEGIN {FS = ":.*?## "}; \
 	  {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
@@ -57,3 +57,6 @@ clean-test-artifacts: ## removes bundles and zarf packages that have been create
 
 push-test-artifacts: ## Push artifacts that UDS CLI tests rely on to GHCR
 	cd hack && ./push-test-artifacts.sh
+
+lint: ## Run golangci-lint on the project
+	golangci-lint run ./src/...
