@@ -603,8 +603,8 @@ github.com/defenseunicorns/maru-runner v0.1.1 h1:1q77tBdyhfCLWRbkXZm36ZpFlK9Jxf2
 github.com/defenseunicorns/maru-runner v0.1.1/go.mod h1:B0mrTjz/ylNuyZ4tTl1sTHS/hNfFS01kh6QsO09pFqk=
 github.com/defenseunicorns/pkg/helpers v1.0.0 h1:0o3Rs+J/g0UemZHcENBS1Z2Qw2y4FIUUrGs75iEyPb4=
 github.com/defenseunicorns/pkg/helpers v1.0.0/go.mod h1:F4S5VZLDrlNWQKklzv4v9tFWjjZNhxJ1gT79j4XiLwk=
-github.com/defenseunicorns/pkg/oci v0.0.1 h1:EFRp3NeiwzhOWKpQ6mAxi0l9chnrAvDcIgjMr0o0fkM=
-github.com/defenseunicorns/pkg/oci v0.0.1/go.mod h1:zVBgRjckEAhfdvbnQrnfOP/3M/GYJkIgWtJtY7pjYdo=
+github.com/defenseunicorns/pkg/oci v0.0.2 h1:Lewwtl/D1Z55npRCkK1DS4Sd7pdrwyUs4+1RGpYajSQ=
+github.com/defenseunicorns/pkg/oci v0.0.2/go.mod h1:fMevWu1lBUmk7Q0dHWjR5RVHE2jTV7X0mlroxdkIqDE=
 github.com/defenseunicorns/zarf v0.33.0 h1:6Lrb8ZExt3afATyoGDENSw3pD/0BauH5VfVhxNHfWKY=
 github.com/defenseunicorns/zarf v0.33.0/go.mod h1:azWKTxMMsnmqNqn+d5jBnlz3ihu4NRk4Jhm2z5Dl5UI=
 github.com/deitch/magic v0.0.0-20230404182410-1ff89d7342da h1:ZOjWpVsFZ06eIhnh4mkaceTiVoktdU67+M7KDHJ268M=
