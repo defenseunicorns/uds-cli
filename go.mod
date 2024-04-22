@@ -10,7 +10,7 @@ require (
 	github.com/charmbracelet/lipgloss v0.10.0
 	github.com/defenseunicorns/maru-runner v0.1.1
 	github.com/defenseunicorns/pkg/helpers v1.0.0
-	github.com/defenseunicorns/pkg/oci v0.0.1
+	github.com/defenseunicorns/pkg/oci v0.0.2
 	github.com/defenseunicorns/zarf v0.33.0
 	github.com/fatih/color v1.16.0
 	github.com/fsnotify/fsnotify v1.7.0
