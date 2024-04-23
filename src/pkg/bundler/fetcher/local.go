@@ -206,7 +206,6 @@ func (f *localFetcher) toBundle(pkg zarfTypes.ZarfPackage, pkgTmp string) ([]oci
 	}
 
 	// push the manifest config
-	// todo: I don't think this is making it to the local bundle
 	manifestConfigDesc, err := pushZarfManifestConfigFromMetadata(f.cfg.Store, &pkg.Metadata, &pkg.Build)
 	if err != nil {
 		return nil, err

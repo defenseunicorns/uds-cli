@@ -272,6 +272,12 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 			return err
 		}
 		layersToPush = append(layersToPush, layers...)
+		manifestRelativePath := filepath.Join(tp.dst, config.BlobsDir, manifestDesc.Digest.Encoded())
+		manifest, err := os.ReadFile(manifestRelativePath)
+		if err != nil {
+			return err
+		}
+		remote.Repo().Blobs().Push(tp.ctx, manifestDesc, bytes.NewReader(manifest))
 	}
 
 	// grab image config
