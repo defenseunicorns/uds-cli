@@ -205,7 +205,7 @@ func pushManifestConfig(store *ocistore.Store, metadata types.UDSMetadata, build
 		OCIVersion:   "1.0.1",
 		Annotations:  annotations,
 	}
-	manifestConfigDesc, err := utils.ToOCIStore(manifestConfig, zoci.ZarfLayerMediaTypeBlob, store)
+	manifestConfigDesc, err := utils.ToOCIStore(manifestConfig, zoci.ZarfConfigMediaType, store)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}

@@ -6,9 +6,7 @@ package fetcher
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -47,32 +45,8 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	// grab layers for archiving
 	for _, layerDesc := range layerDescs {
 		if layerDesc.MediaType == ocispec.MediaTypeImageManifest {
-			// rewrite the Zarf image manifest to have media type of Zarf blob
-			err = os.Remove(filepath.Join(f.cfg.TmpDstDir, config.BlobsDir, layerDesc.Digest.Encoded()))
-			if err != nil {
-				return nil, err
-			}
-			err = utils.FetchLayerAndStore(layerDesc, f.remote.OrasRemote, f.cfg.Store)
-			if err != nil {
-				return nil, err
-			}
-
-			// ensure media type is Zarf blob for layers in the bundle's root manifest
-			layerDesc.MediaType = zoci.ZarfLayerMediaTypeBlob
-
 			// add layer to bundle's root manifest
 			f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, layerDesc)
-		} else if layerDesc.MediaType == zoci.ZarfConfigMediaType {
-			// read in and unmarshal zarf config
-			jsonData, err := os.ReadFile(filepath.Join(f.cfg.TmpDstDir, config.BlobsDir, layerDesc.Digest.Encoded()))
-			if err != nil {
-				return nil, err
-			}
-			var zarfConfigData oci.ConfigPartial
-			err = json.Unmarshal(jsonData, &zarfConfigData)
-			if err != nil {
-				return nil, err
-			}
 		}
 	}
 

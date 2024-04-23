@@ -26,18 +26,6 @@ import (
 	"oras.land/oras-go/v2/errdef"
 )
 
-// FetchLayerAndStore fetches a remote layer and copies it to a local store
-func FetchLayerAndStore(layerDesc ocispec.Descriptor, remoteRepo *oci.OrasRemote, localStore *ocistore.Store) error {
-	ctx := context.TODO()
-	layerBytes, err := remoteRepo.FetchLayer(ctx, layerDesc)
-	if err != nil {
-		return err
-	}
-	rootPkgDescBytes := content.NewDescriptorFromBytes(zoci.ZarfLayerMediaTypeBlob, layerBytes)
-	err = localStore.Push(context.TODO(), rootPkgDescBytes, bytes.NewReader(layerBytes))
-	return err
-}
-
 // ToOCIStore takes an arbitrary type, typically a struct, marshals it into JSON and store it in a local OCI store
 func ToOCIStore(t any, mediaType string, store *ocistore.Store) (ocispec.Descriptor, error) {
 	b, err := json.Marshal(t)

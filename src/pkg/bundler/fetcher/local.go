@@ -211,6 +211,7 @@ func (f *localFetcher) toBundle(pkg zarfTypes.ZarfPackage, pkgTmp string) ([]oci
 	if err != nil {
 		return nil, err
 	}
+	descs = append(descs, manifestConfigDesc)
 	// push the manifest
 	rootManifest, err := generatePkgManifest(f.cfg.Store, descs, manifestConfigDesc)
 	descs = append(descs, rootManifest)
@@ -234,7 +235,7 @@ func pushZarfManifestConfigFromMetadata(store *ocistore.Store, metadata *zarfTyp
 		Annotations:  annotations,
 	}
 
-	manifestConfigDesc, err := utils.ToOCIStore(manifestConfig, ocispec.MediaTypeImageManifest, store)
+	manifestConfigDesc, err := utils.ToOCIStore(manifestConfig, zoci.ZarfConfigMediaType, store)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
@@ -248,11 +249,11 @@ func generatePkgManifest(store *ocistore.Store, descs []ocispec.Descriptor, conf
 			SchemaVersion: 2, // historical value. does not pertain to OCI or docker version
 		},
 		Config:    configDesc,
-		MediaType: zoci.ZarfLayerMediaTypeBlob,
+		MediaType: ocispec.MediaTypeImageManifest,
 		Layers:    descs,
 	}
 
-	manifestDesc, err := utils.ToOCIStore(manifest, zoci.ZarfLayerMediaTypeBlob, store)
+	manifestDesc, err := utils.ToOCIStore(manifest, ocispec.MediaTypeImageManifest, store)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}

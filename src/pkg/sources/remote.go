@@ -21,7 +21,6 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/sources"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -175,8 +174,6 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 	if oci.IsEmptyDescriptor(pkgManifestDesc) {
 		return nil, fmt.Errorf("package %s does not exist in this bundle", r.PkgManifestSHA)
 	}
-	// hack Zarf media type so that FetchManifest works
-	pkgManifestDesc.MediaType = zoci.ZarfLayerMediaTypeBlob
 	pkgManifest, err := r.Remote.FetchManifest(ctx, pkgManifestDesc)
 	if err != nil || pkgManifest == nil {
 		return nil, err

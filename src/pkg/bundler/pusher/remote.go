@@ -46,8 +46,6 @@ func (p *RemotePusher) Push() (ocispec.Descriptor, error) {
 		return ocispec.Descriptor{}, err
 	}
 
-	// ensure media type is a Zarf blob and append to bundle root manifest
-	zarfManifestDesc.MediaType = zoci.ZarfLayerMediaTypeBlob
 	url := fmt.Sprintf("%s:%s", p.pkg.Repository, p.pkg.Ref)
 	message.Debugf("Pushed %s sub-manifest into %s: %s", url, p.cfg.RemoteDst.Repo().Reference, message.JSONValue(zarfManifestDesc))
 
@@ -66,7 +64,7 @@ func (p *RemotePusher) Push() (ocispec.Descriptor, error) {
 // PushManifest pushes the Zarf pkg's manifest to either a local or remote bundle
 func (p *RemotePusher) PushManifest() (ocispec.Descriptor, error) {
 	var zarfManifestDesc ocispec.Descriptor
-	desc, err := utils.ToOCIRemote(p.cfg.PkgRootManifest, zoci.ZarfLayerMediaTypeBlob, p.cfg.RemoteDst.OrasRemote)
+	desc, err := utils.ToOCIRemote(p.cfg.PkgRootManifest, ocispec.MediaTypeImageManifest, p.cfg.RemoteDst.OrasRemote)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
