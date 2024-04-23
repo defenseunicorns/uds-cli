@@ -20,8 +20,8 @@ import (
 // CreateZarfPkgs creates a zarf package if its missing when in dev mode
 func (b *Bundle) CreateZarfPkgs() {
 	srcDir := b.cfg.CreateOpts.SourceDirectory
-	path := filepath.Join(srcDir, b.cfg.CreateOpts.BundleFile)
-	if err := zarfUtils.ReadYaml(path, &b.bundle); err != nil {
+	bundleYAMLPath := filepath.Join(srcDir, b.cfg.CreateOpts.BundleFile)
+	if err := zarfUtils.ReadYaml(bundleYAMLPath, &b.bundle); err != nil {
 		message.Fatalf(err, "Failed to read bundle.yaml: %s", err.Error())
 	}
 
@@ -29,9 +29,9 @@ func (b *Bundle) CreateZarfPkgs() {
 	for _, pkg := range b.bundle.Packages {
 		// if pkg is a local zarf package, attempt to create it if it doesn't exist
 		if pkg.Path != "" {
-			path := srcDir + pkg.Path
+			path := getPkgPath(pkg, config.GetArch(b.bundle.Metadata.Architecture), srcDir)
 			// get files in directory
-			files, err := os.ReadDir(path)
+			files, err := os.ReadDir(filepath.Dir(path))
 			if err != nil {
 				message.Fatalf(err, "Failed to obtain package %s: %s", pkg.Name, err.Error())
 			}
