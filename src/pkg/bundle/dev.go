@@ -30,8 +30,9 @@ func (b *Bundle) CreateZarfPkgs() {
 		// if pkg is a local zarf package, attempt to create it if it doesn't exist
 		if pkg.Path != "" {
 			path := getPkgPath(pkg, config.GetArch(b.bundle.Metadata.Architecture), srcDir)
+			pkgDir := filepath.Dir(path)
 			// get files in directory
-			files, err := os.ReadDir(filepath.Dir(path))
+			files, err := os.ReadDir(pkgDir)
 			if err != nil {
 				message.Fatalf(err, "Failed to obtain package %s: %s", pkg.Name, err.Error())
 			}
@@ -47,7 +48,7 @@ func (b *Bundle) CreateZarfPkgs() {
 			}
 			// create local zarf package if it doesn't exist
 			if !packageFound {
-				os.Args = []string{"zarf", "package", "create", path, "--confirm", "-o", path, "--skip-sbom"}
+				os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom"}
 				zarfCLI.Execute()
 				if err != nil {
 					message.Fatalf(err, "Failed to create package %s: %s", pkg.Name, err.Error())
