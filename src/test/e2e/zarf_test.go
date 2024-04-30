@@ -5,6 +5,7 @@
 package test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -22,21 +23,52 @@ func TestZarfLint(t *testing.T) {
 	require.Contains(t, stdErr, "Image not pinned with digest - ghcr.io/stefanprodan/podinfo:6.4.0")
 }
 
-// K9S_VERSION=$(shell go list -f '{{.Version}}' -m github.com/derailed/k9s)
-// CRANE_VERSION=$(shell go list -f '{{.Version}}' -m github.com/google/go-containerregistry)
-// SYFT_VERSION=$(shell go list -f '{{.Version}}' -m github.com/anchore/syft)
-// ARCHIVER_VERSION=$(shell go list -f '{{.Version}}' -m github.com/mholt/archiver/v3)
-// HELM_VERSION=$(shell go list -f '{{.Version}}' -m helm.sh/helm/v3)
-
-// // vendored tool versions are set as build args
 func TestZarfToolsVersions(t *testing.T) {
-	cmd := strings.Split("zarf tools helm version", " ")
-	_, stderr, err := e2e.UDS(cmd...)
-	getHelmVersionCmd := strings.Split("list -f '{{.Version}}' -m helm.sh/helm/v3", " ")
-	versionRes, _, _ := exec.Cmd("go", getHelmVersionCmd...)
-	helmVersion := strings.Split(versionRes, "'")
-	version := strings.Split(stderr, "\n")
-	require.NoError(t, err)
-	require.Contains(t, version[4], "helm")
-	require.Contains(t, version[4], helmVersion[1])
+	type args struct {
+		tool     string
+		toolRepo string
+	}
+	tests := []struct {
+		name        string
+		description string
+		args        args
+	}{
+		{
+			name:        "HelmVersion",
+			description: "zarf tools helm version",
+			args:        args{tool: "helm", toolRepo: "helm.sh/helm/v3"},
+		},
+		{
+			name:        "Crane Version",
+			description: "zarf tools crane version",
+			args:        args{tool: "crane", toolRepo: "github.com/google/go-containerregistry"},
+		},
+		{
+			name:        "Syft Version",
+			description: "zarf tools syft version",
+			args:        args{tool: "syft", toolRepo: "github.com/anchore/syft"},
+		},
+		{
+			name:        "Archiver Version",
+			description: "zarf tools archiver version",
+			args:        args{tool: "archiver", toolRepo: "github.com/mholt/archiver/v3"},
+		},
+	}
+
+	for _, tt := range tests {
+		cmdStr := fmt.Sprintf("zarf tools %s version", tt.args.tool)
+		res, stdErr, err := e2e.UDS(strings.Split(cmdStr, " ")...)
+		require.NoError(t, err)
+
+		toolVerRepoStr := fmt.Sprintf("list -f '{{.Version}}' -m %s", tt.args.toolRepo)
+		verRes, _, verErr := exec.Cmd("go", strings.Split(toolVerRepoStr, " ")...)
+		require.NoError(t, verErr)
+
+		toolVersion := strings.Split(verRes, "'")
+		toMatch := res
+		if res == "" {
+			toMatch = stdErr
+		}
+		require.Contains(t, toMatch, toolVersion[1])
+	}
 }
