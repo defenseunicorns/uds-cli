@@ -39,36 +39,36 @@ func TestZarfToolsVersions(t *testing.T) {
 			args:        args{tool: "helm", toolRepo: "helm.sh/helm/v3"},
 		},
 		{
-			name:        "Crane Version",
+			name:        "CraneVersion",
 			description: "zarf tools crane version",
 			args:        args{tool: "crane", toolRepo: "github.com/google/go-containerregistry"},
 		},
 		{
-			name:        "Syft Version",
+			name:        "SyftVersion",
 			description: "zarf tools syft version",
 			args:        args{tool: "syft", toolRepo: "github.com/anchore/syft"},
 		},
 		{
-			name:        "Archiver Version",
+			name:        "ArchiverVersion",
 			description: "zarf tools archiver version",
 			args:        args{tool: "archiver", toolRepo: "github.com/mholt/archiver/v3"},
 		},
 	}
 
 	for _, tt := range tests {
-		cmdStr := fmt.Sprintf("zarf tools %s version", tt.args.tool)
-		res, stdErr, err := e2e.UDS(strings.Split(cmdStr, " ")...)
+		cmdArgs := fmt.Sprintf("zarf tools %s version", tt.args.tool)
+		res, stdErr, err := e2e.UDS(strings.Split(cmdArgs, " ")...)
 		require.NoError(t, err)
 
-		toolVerRepoStr := fmt.Sprintf("list -f '{{.Version}}' -m %s", tt.args.toolRepo)
-		verRes, _, verErr := exec.Cmd("go", strings.Split(toolVerRepoStr, " ")...)
+		toolRepoVerArgs := fmt.Sprintf("list -f '{{.Version}}' -m %s", tt.args.toolRepo)
+		verRes, _, verErr := exec.Cmd("go", strings.Split(toolRepoVerArgs, " ")...)
 		require.NoError(t, verErr)
 
-		toolVersion := strings.Split(verRes, "'")
-		toMatch := res
+		toolVersion := strings.Split(verRes, "'")[1]
+		output := res
 		if res == "" {
-			toMatch = stdErr
+			output = stdErr
 		}
-		require.Contains(t, toMatch, toolVersion[1])
+		require.Contains(t, output, toolVersion)
 	}
 }
