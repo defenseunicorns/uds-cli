@@ -601,8 +601,8 @@ github.com/daviddengcn/go-colortext v1.0.0 h1:ANqDyC0ys6qCSvuEK7l3g5RaehL/Xck9EX
 github.com/daviddengcn/go-colortext v1.0.0/go.mod h1:zDqEI5NVUop5QPpVJUxE9UO10hRnmkD5G4Pmri9+m4c=
 github.com/defenseunicorns/maru-runner v0.1.1 h1:1q77tBdyhfCLWRbkXZm36ZpFlK9Jxf2/KYTxVRrRAQ4=
 github.com/defenseunicorns/maru-runner v0.1.1/go.mod h1:B0mrTjz/ylNuyZ4tTl1sTHS/hNfFS01kh6QsO09pFqk=
-github.com/defenseunicorns/pkg/helpers v1.0.0 h1:0o3Rs+J/g0UemZHcENBS1Z2Qw2y4FIUUrGs75iEyPb4=
-github.com/defenseunicorns/pkg/helpers v1.0.0/go.mod h1:F4S5VZLDrlNWQKklzv4v9tFWjjZNhxJ1gT79j4XiLwk=
+github.com/defenseunicorns/pkg/helpers v1.1.1 h1:p3pKeK5SeFaoZUJZIX9sEsJqX1CGGMS8OpQMPgJtSqM=
+github.com/defenseunicorns/pkg/helpers v1.1.1/go.mod h1:F4S5VZLDrlNWQKklzv4v9tFWjjZNhxJ1gT79j4XiLwk=
 github.com/defenseunicorns/pkg/oci v0.0.2 h1:Lewwtl/D1Z55npRCkK1DS4Sd7pdrwyUs4+1RGpYajSQ=
 github.com/defenseunicorns/pkg/oci v0.0.2/go.mod h1:fMevWu1lBUmk7Q0dHWjR5RVHE2jTV7X0mlroxdkIqDE=
 github.com/defenseunicorns/zarf v0.33.0 h1:6Lrb8ZExt3afATyoGDENSw3pD/0BauH5VfVhxNHfWKY=
