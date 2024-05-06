@@ -3,8 +3,18 @@
 
 ARCH ?= amd64
 CLI_VERSION ?= $(if $(shell git describe --tags),$(shell git describe --tags),"UnknownVersion")
+K9S_VERSION=$(shell go list -f '{{.Version}}' -m github.com/derailed/k9s)
+CRANE_VERSION=$(shell go list -f '{{.Version}}' -m github.com/google/go-containerregistry)
+SYFT_VERSION=$(shell go list -f '{{.Version}}' -m github.com/anchore/syft)
+ARCHIVER_VERSION=$(shell go list -f '{{.Version}}' -m github.com/mholt/archiver/v3)
+HELM_VERSION=$(shell go list -f '{{.Version}}' -m helm.sh/helm/v3)
 BUILD_ARGS := -s -w -X 'github.com/defenseunicorns/uds-cli/src/config.CLIVersion=$(CLI_VERSION)' \
-				    -X 'github.com/defenseunicorns/zarf/src/config.ActionsCommandZarfPrefix=zarf'
+				    -X 'github.com/defenseunicorns/zarf/src/config.ActionsCommandZarfPrefix=zarf' \
+					-X 'github.com/derailed/k9s/cmd.version=$(K9S_VERSION)' \
+					-X 'github.com/google/go-containerregistry/cmd/crane/cmd.Version=$(CRANE_VERSION)' \
+					-X 'github.com/defenseunicorns/zarf/src/cmd/tools.syftVersion=$(SYFT_VERSION)' \
+					-X 'github.com/defenseunicorns/zarf/src/cmd/tools.archiverVersion=$(ARCHIVER_VERSION)' \
+					-X 'github.com/defenseunicorns/zarf/src/cmd/tools.helmVersion=$(HELM_VERSION)'
 
 .PHONY: help
 help: ## Display this help information
