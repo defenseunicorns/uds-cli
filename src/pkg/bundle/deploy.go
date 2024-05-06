@@ -26,6 +26,9 @@ import (
 	"golang.org/x/exp/slices"
 	"helm.sh/helm/v3/pkg/cli/values"
 	"helm.sh/helm/v3/pkg/getter"
+
+	// allows us to use compile time directives
+	_ "unsafe"
 )
 
 // PkgOverrideMap is a map of Zarf packages -> components -> Helm charts -> values/namespace
@@ -137,12 +140,14 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 
 		// save exported vars
 		pkgExportedVars := make(map[string]string)
+		variableConfig := pkgClient.GetVariableConfig()
 		for _, exp := range pkg.Exports {
 			// ensure if variable exists in package
-			if _, ok := pkgCfg.SetVariableMap[exp.Name]; !ok {
+			setVariable, ok := variableConfig.GetSetVariable(exp.Name)
+			if !ok {
 				return fmt.Errorf("cannot export variable %s because it does not exist in package %s", exp.Name, pkg.Name)
 			}
-			pkgExportedVars[strings.ToUpper(exp.Name)] = pkgCfg.SetVariableMap[exp.Name].Value
+			pkgExportedVars[strings.ToUpper(exp.Name)] = setVariable.Value
 		}
 		bundleExportedVars[pkg.Name] = pkgExportedVars
 	}
