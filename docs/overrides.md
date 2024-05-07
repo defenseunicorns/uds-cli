@@ -59,6 +59,8 @@ packages:
     overrides:
       helm-overrides-component:
         podinfo:
+          valuesFiles:
+            - file: values.yaml
           values:
             - path: "replicaCount"
               value: 2
@@ -69,7 +71,13 @@ packages:
               default: "purple"
 ```
 
-This bundle will deploy the `helm-overrides-package` Zarf package and override the `replicaCount` and `ui.color` values in the `podinfo` chart. The `values` can't be modified after the bundle has been created. However, at deploy time, users can override the `UI_COLOR` and other `variables` using a environment variable called `UDS_UI_COLOR` or by specifying it in a `uds-config.yaml` like so:
+```yaml
+#values.yaml
+podAnnotations:
+  customAnnotation: "customValue"
+```
+
+This bundle will deploy the `helm-overrides-package` Zarf package and override the `replicaCount`, `ui.color`, and `podAnnotations` values in the `podinfo` chart. The `values` can't be modified after the bundle has been created. However, at deploy time, users can override the `UI_COLOR` and other `variables` using a environment variable called `UDS_UI_COLOR` or by specifying it in a `uds-config.yaml` like so:
 
 ```yaml
 variables:
@@ -92,6 +100,8 @@ packages:
     overrides:
       helm-overrides-component: # component name inside of the helm-overrides-package Zarf pkg
         podinfo:                # chart name from the helm-overrides-component component
+          valuesFiles:
+            - file: values.yaml
           values:
             - path: "replicaCount"
               value: 2
@@ -102,7 +112,18 @@ packages:
               default: "purple"
 ```
 
-In this example, the `helm-overrides-package` Zarf package has a component called `helm-overrides-component` which contains a Helm chart called `podinfo`; note how these names are keys in the `overrides` block. The `podinfo` chart has a `replicaCount` value that is overridden to `2` and a variable called `UI_COLOR` that is overridden to `purple`.
+```yaml
+#values.yaml
+podAnnotations:
+  customAnnotation: "customValue"
+```
+In this example, the `helm-overrides-package` Zarf package has a component called `helm-overrides-component` which contains a Helm chart called `podinfo`; note how these names are keys in the `overrides` block. The `podinfo` chart has a `replicaCount` value that is overridden to `2`, a `podAnnotations` value that is overridden to include `customAnnotation: "customValue"` and a variable called `UI_COLOR` that is overridden to `purple`.
+
+### ValuesFiles
+
+The `valuesFiles` in an `overrides` block are a list of `file`'s. It allows users to override multiple values in a Zarf package component's underlying Helm chart, by providing a file with those values instead of having to include them all indiviually in the `overrides` block.
+
+<b>NOTE:</b> If a value is specified in both a `valuesFile` and as a `value` in the `overrides` block, the value set in the `valuesFile` will take precedence.
 
 ### Values
 

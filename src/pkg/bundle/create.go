@@ -11,11 +11,13 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
+	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/interactive"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/pterm/pterm"
+	"helm.sh/helm/v3/pkg/chartutil"
 )
 
 // Create creates a bundle
@@ -24,6 +26,32 @@ func (b *Bundle) Create() error {
 	// read the bundle's metadata into memory
 	if err := utils.ReadYaml(filepath.Join(b.cfg.CreateOpts.SourceDirectory, b.cfg.CreateOpts.BundleFile), &b.bundle); err != nil {
 		return err
+	}
+
+	// Populate values from valuesFiles if provided
+	for i, pkg := range b.bundle.Packages {
+		for j, overrides := range pkg.Overrides {
+			for k, bundleChartOverrides := range overrides {
+				for _, valuesFile := range bundleChartOverrides.ValuesFiles {
+					// Check relative vs absolute path
+					fileName := filepath.Join(b.cfg.CreateOpts.SourceDirectory, valuesFile.File)
+					if filepath.IsAbs(valuesFile.File) {
+						fileName = valuesFile.File
+					}
+					// read values from valuesFile
+					values, err := chartutil.ReadValuesFile(fileName)
+					if err != nil {
+						return err
+					}
+					// add values from valuesFile to bundleChartOverrides
+					for key, value := range values {
+						bundleChartOverrides.Values = append(bundleChartOverrides.Values, types.BundleChartValue{Path: key, Value: value})
+					}
+					// update bundle with override values
+					b.bundle.Packages[i].Overrides[j][k] = bundleChartOverrides
+				}
+			}
+		}
 	}
 
 	// confirm creation
