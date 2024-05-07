@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/defenseunicorns/pkg/helpers"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -70,7 +71,7 @@ func Generate() {
 	// Generate the component
 	generator.component = types.ZarfComponent{
 		Name:     config.GenerateChartName,
-		Required: true,
+		Required: BoolPointer(true),
 		Charts:   []types.ZarfChart{configChart, upstreamChart},
 		Only: types.ZarfComponentOnlyTarget{
 			Flavor: "upstream",
@@ -255,7 +256,7 @@ func findHttpServices() ([]Expose, error) {
 	}
 
 	temp := filepath.Join(config.GenerateOutputDir, "temp")
-	if err := utils.CreateDirectory(temp, 0700); err != nil {
+	if err := helpers.CreateDirectory(temp, 0700); err != nil {
 		return nil, err
 	}
 	defer os.RemoveAll(temp)
@@ -314,4 +315,8 @@ func findHttpServices() ([]Expose, error) {
 		}
 	}
 	return exposeList, nil
+}
+
+func BoolPointer(b bool) *bool {
+	return &b
 }
