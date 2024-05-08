@@ -604,7 +604,9 @@ func TestBundleTmpDir(t *testing.T) {
 
 func TestInvalidBundle(t *testing.T) {
 	deployZarfInit(t)
-	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
+	zarfPkgPath := "src/test/packages/helm"
+	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 	bundleDir := "src/test/bundles/07-helm-overrides/invalid"
 	stderr := createLocalError(bundleDir, e2e.Arch)
 	require.Contains(t, stderr, "unknown field")
