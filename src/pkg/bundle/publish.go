@@ -12,7 +12,6 @@ import (
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
-	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	av3 "github.com/mholt/archiver/v3"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -32,7 +31,7 @@ func (b *Bundle) Publish() error {
 	if err != nil {
 		return err
 	}
-	if err := zarfUtils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
+	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
 	err = os.RemoveAll(filepath.Join(b.tmp, "blobs")) // clear tmp dir

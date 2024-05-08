@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 
+	goyaml "github.com/goccy/go-yaml"
+
 	"github.com/defenseunicorns/pkg/helpers"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
@@ -182,4 +184,15 @@ func IsRegistryURL(s string) bool {
 	}
 
 	return false
+}
+
+func ReadYaml(path string, destConfig any) error {
+	message.Debugf("Reading YAML at %s", path)
+
+	file, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	return goyaml.UnmarshalWithOptions(file, destConfig, goyaml.Strict())
 }

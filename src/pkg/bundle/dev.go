@@ -11,17 +11,17 @@ import (
 	"regexp"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 
 	zarfCLI "github.com/defenseunicorns/zarf/src/cmd"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 )
 
 // CreateZarfPkgs creates a zarf package if its missing when in dev mode
 func (b *Bundle) CreateZarfPkgs() {
 	srcDir := b.cfg.CreateOpts.SourceDirectory
 	bundleYAMLPath := filepath.Join(srcDir, b.cfg.CreateOpts.BundleFile)
-	if err := zarfUtils.ReadYaml(bundleYAMLPath, &b.bundle); err != nil {
+	if err := utils.ReadYaml(bundleYAMLPath, &b.bundle); err != nil {
 		message.Fatalf(err, "Failed to read bundle.yaml: %s", err.Error())
 	}
 

@@ -11,10 +11,11 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/interactive"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/pterm/pterm"
 )
 
@@ -55,7 +56,7 @@ func (b *Bundle) Create() error {
 	if b.cfg.CreateOpts.SigningKeyPath != "" {
 		// write the bundle to disk so we can sign it
 		bundlePath := filepath.Join(b.tmp, config.BundleYAML)
-		if err := utils.WriteYaml(bundlePath, &b.bundle, 0600); err != nil {
+		if err := zarfUtils.WriteYaml(bundlePath, &b.bundle, 0600); err != nil {
 			return err
 		}
 
@@ -67,7 +68,7 @@ func (b *Bundle) Create() error {
 		}
 		// sign the bundle
 		signaturePath := filepath.Join(b.tmp, config.BundleYAMLSignature)
-		_, err := utils.CosignSignBlob(bundlePath, signaturePath, b.cfg.CreateOpts.SigningKeyPath, getSigCreatePassword)
+		_, err := zarfUtils.CosignSignBlob(bundlePath, signaturePath, b.cfg.CreateOpts.SigningKeyPath, getSigCreatePassword)
 		if err != nil {
 			return err
 		}
@@ -87,7 +88,7 @@ func (b *Bundle) Create() error {
 func (b *Bundle) confirmBundleCreation() (confirm bool) {
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
-	utils.ColorPrintYAML(b.bundle, nil, false)
+	zarfUtils.ColorPrintYAML(b.bundle, nil, false)
 
 	message.HorizontalRule()
 	pterm.Println()

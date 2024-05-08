@@ -8,15 +8,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/packager"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
-	"golang.org/x/exp/slices"
-
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
+	"github.com/defenseunicorns/zarf/src/pkg/packager"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
+	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	"golang.org/x/exp/slices"
 )
 
 // Remove removes packages deployed from a bundle
@@ -87,7 +87,7 @@ func removePackages(packagesToRemove []types.Package, b *Bundle) error {
 			pkgCfg := zarfTypes.PackagerConfig{
 				PkgOpts: opts,
 			}
-			pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
+			pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 			if err != nil {
 				return err
 			}

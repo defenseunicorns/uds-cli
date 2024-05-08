@@ -151,7 +151,7 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := zarfUtils.ReadYaml(loaded[config.BundleYAML], &bundle); err != nil {
+	if err := utils.ReadYaml(loaded[config.BundleYAML], &bundle); err != nil {
 		return nil, nil, err
 	}
 
