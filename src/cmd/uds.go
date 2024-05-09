@@ -69,7 +69,7 @@ var deployCmd = &cobra.Command{
 }
 
 var inspectCmd = &cobra.Command{
-	Use:     "inspect [BUNDLE_TARBALL|OCI_REF]",
+	Use:     "inspect [BUNDLE_TARBALL|OCI_REF|BUNDLE_YAML_FILE]",
 	Aliases: []string{"i"},
 	Short:   lang.CmdBundleInspectShort,
 	Args:    cobra.MaximumNArgs(1),
@@ -203,6 +203,7 @@ func init() {
 	inspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.IncludeSBOM, "sbom", "s", false, lang.CmdPackageInspectFlagSBOM)
 	inspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.ExtractSBOM, "extract", "e", false, lang.CmdPackageInspectFlagExtractSBOM)
 	inspectCmd.Flags().StringVarP(&bundleCfg.InspectOpts.PublicKeyPath, "key", "k", v.GetString(V_BNDL_INSPECT_KEY), lang.CmdBundleInspectFlagKey)
+	inspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.ExtractImages, "list-images", "i", false, "Recursively go through all of the sbom's and get the images")
 
 	// remove cmd flags
 	rootCmd.AddCommand(removeCmd)
@@ -235,9 +236,11 @@ func chooseBundle(args []string) string {
 			files, _ := filepath.Glob(config.BundlePrefix + toComplete + "*.tar")
 			gzFiles, _ := filepath.Glob(config.BundlePrefix + toComplete + "*.tar.zst")
 			partialFiles, _ := filepath.Glob(config.BundlePrefix + toComplete + "*.part000")
+			yamlFiles, _ := filepath.Glob(config.BundlePrefix + toComplete + "*.yaml") // Add this line
 
 			files = append(files, gzFiles...)
 			files = append(files, partialFiles...)
+			files = append(files, yamlFiles...)
 			return files
 		},
 	}
