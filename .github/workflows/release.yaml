@@ -25,7 +25,7 @@ jobs:
 
       - name: Build CLI
         run: |
-          make build-cli-linux-amd
+          uds run build-cli-linux-amd
 
       # Upload the contents of the build directory for later stages to use
       - name: Upload build artifacts
@@ -72,7 +72,7 @@ jobs:
 
       - name: Run e2e tests
         run: |
-          make test-e2e
+          uds run test:test-e2e
         env:
           GITHUB_TOKEN: secrets.GITHUB_TOKEN
 

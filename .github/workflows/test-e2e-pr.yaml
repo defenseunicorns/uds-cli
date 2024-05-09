@@ -31,14 +31,14 @@ jobs:
         uses: ./.github/actions/golang
 
       - name: Build UDS-CLI binary
-        run: make build-cli-linux-amd ARCH=amd64
+        run: uds run build-cli-linux-amd
 
       - name: Setup K3d
         uses: ./.github/actions/k3d
 
       - name: Run e2e tests
         run: |
-          make test-e2e-no-ghcr-write
+          uds run test:test-e2e-no-ghcr-write
 
       - name: Save logs
         if: always()

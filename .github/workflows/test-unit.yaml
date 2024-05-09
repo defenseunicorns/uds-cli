@@ -31,7 +31,7 @@ jobs:
         uses: ./.github/actions/golang
 
       - name: Run unit tests
-        run: make test-unit
+        run: uds run test:test-unit
 
       - name: Save logs
         if: always()

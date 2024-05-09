@@ -25,7 +25,7 @@ jobs:
           fetch-depth: 0
 
       - name: Build UDS-CLI binary
-        run: make build-cli-linux-amd ARCH=amd64
+        run: uds run build-cli-linux-amd
 
       - name: Make UDS-CLI executable
         run: |

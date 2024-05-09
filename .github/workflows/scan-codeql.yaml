@@ -42,7 +42,7 @@ jobs:
         uses: ./.github/actions/golang
 
       - name: Build UDS CLI
-        run: make build-cli-linux-amd
+        run: uds run build-cli-linux-amd
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@ccf74c947955fd1cf117aef6a0e4e66191ef6f61 # v3.25.4
