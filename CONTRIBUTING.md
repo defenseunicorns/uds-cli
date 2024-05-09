@@ -31,10 +31,14 @@ Specifically:
 Please ensure there is a Gitub issue for your proposed change, this helps the UDS CLI team to understand the context of the change and to track the progress of the work. If there isn't an issue for your change, please create one before starting work. The recommended workflow for contributing is as follows:
 
 1. **Fork this repo** and clone it locally
-2. **Create a branch** for your changes
-3. **Create and [test](#testing)** your changes
-4. **Push your branch** to your fork
-5. **Open a PR** against the `main` branch of this repo
+1. **Create a branch** for your changes
+1. **Create, [test](#testing)** your changes
+1. **Add docs** where appropriate
+1. **Push your branch** to your fork
+1. **Open a PR** against the `main` branch of this repo
+
+### Building the app
+Today, we use `make` to build UDS CLI. To build the app, check out the [Makefile](Makefile) and find the appropriate build target for your system, and run it from the root of the repo (ex. `make build-cli-mac-apple`). This will create a binary in the `build` directory that you can use to test your changes (note that this binary is automatically used when running the E2E tests).
 
 ### Testing
 
@@ -44,7 +48,13 @@ We strive to test all changes made to UDS CLI. If you're adding a new feature or
 Unit tests reside alongside the source code in a `*_test.go` file. These tests should be used to test individual functions or methods in isolation. Unit tests should be fast and focused on a single piece of functionality.
 
 #### E2E Tests
-E2E tests reside in the `src/test/e2e` directory. They use bundles located in the `src/test/e2e/bundles` which contain Zarf packages from the `src/test/e2e/packages` directory. Feel free to add new bundles and packages where appropriate. It's encouraged to write comments/metadata in any new bundles or packages to explain what they are testing. Note that to run E2E tests, you'll need build UDS CLI locally, and re-build any time you make a change to the source code; this is because the binary in the `build` directory is used to drive the tests.
+E2E tests reside in the `src/test/e2e` directory. They use bundles located in the `src/test/e2e/bundles` which contain Zarf packages from the `src/test/e2e/packages` directory. Feel free to add new bundles and packages where appropriate. It's encouraged to write comments/metadata in any new bundles or packages to explain what they are testing.
 
 #### Assertions
 We prefer to use Testify's [require](https://github.com/stretchr/testify/tree/master/require) package for assertions in tests. This package provides a rich set of assertion functions that make tests more readable and easier to debug. See other tests in this repo for examples.
+
+#### Running Tests
+- **Unit Tests**: To run unit tests, run `make test-unit` from the root of the repo. This will run all unit tests in the `src` directory.
+
+
+- **E2E Tests**: To run E2E tests, you'll need build UDS CLI locally, and re-build any time you make a change to the source code; this is because the binary in the `build` directory is used to drive the tests. To run the entire suite of E2E tests locally, run `make test-e2e-no-ghcr-write` (note that this intentionally skips the tests that involve writing to GHCR).
