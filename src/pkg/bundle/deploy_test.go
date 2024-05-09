@@ -2,7 +2,6 @@ package bundle
 
 import (
 	"os"
-	"reflect"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
@@ -234,10 +233,7 @@ func TestLoadVariablesPrecedence(t *testing.T) {
 				os.Setenv("UDS_FOO", "set using env var")
 			}
 			actualPkgVars := tc.bundle.loadVariables(tc.pkg, tc.bundleExportVars)
-
-			if !reflect.DeepEqual(actualPkgVars, tc.expectedPkgVars) {
-				t.Errorf("Test case %s failed. Expected %v, got %v", tc.name, tc.expectedPkgVars, actualPkgVars)
-			}
+			require.Equal(t, tc.expectedPkgVars, actualPkgVars)
 		})
 	}
 }
