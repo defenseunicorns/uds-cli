@@ -25,6 +25,9 @@ jobs:
       - name: Setup golang
         uses: ./.github/actions/golang
 
+      - name: Install UDS CLI
+        uses: ./.github/actions/install-uds-cli
+
       - name: Build UDS-CLI binary
         run: uds run build-cli-linux-amd
 

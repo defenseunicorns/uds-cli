@@ -23,6 +23,9 @@ jobs:
       - name: Setup golang
         uses: ./.github/actions/golang
 
+      - name: Install UDS CLI
+        uses: ./.github/actions/install-uds-cli
+
       - name: Build CLI
         run: |
           uds run build-cli-linux-amd
@@ -72,7 +75,7 @@ jobs:
 
       - name: Run e2e tests
         run: |
-          uds run test:test-e2e
+          build/uds run test:test-e2e
         env:
           GITHUB_TOKEN: secrets.GITHUB_TOKEN
 

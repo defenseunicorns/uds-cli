@@ -10,5 +10,5 @@ tasks:
   - name: test-schema
     description: tests if the schema has been modified
     actions:
-      - cmd: ./uds run schema
+      - task: schema
       - cmd: ./hack/test-generate-schema.sh
