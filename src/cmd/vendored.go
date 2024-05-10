@@ -9,11 +9,11 @@ import (
 
 	runnerCLI "github.com/defenseunicorns/maru-runner/src/cmd"
 	runnerConfig "github.com/defenseunicorns/maru-runner/src/config"
-
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	zarfCLI "github.com/defenseunicorns/zarf/src/cmd"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/spf13/cobra"
 )
 
@@ -22,9 +22,16 @@ var runnerCmd = &cobra.Command{
 	Aliases: []string{"r"},
 	Short:   lang.CmdRunShort,
 	Run: func(_ *cobra.Command, _ []string) {
-		os.Args = os.Args[1:]          // grab 'run' and onward from the CLI args
+		for i, arg := range os.Args {
+			if arg == "run" {
+				os.Args = os.Args[i:]
+				break
+			}
+		}
 		runnerConfig.CmdPrefix = "uds" // use vendored Zarf inside the runner
+		runnerConfig.CmdPrefixFlags = "--no-tea"
 		runnerConfig.EnvPrefix = "uds"
+		message.NoProgress = true
 		// The maru runner init gets called before the uds-cli init, which looks for RUN_ARCHITECTURE because the EnvPrefix
 		// that we set above is not called yet. So in order to set the architecture if passing in UDS_ARCHITECTURE we must set it here.
 		archValue := os.Getenv("UDS_ARCHITECTURE")
@@ -45,7 +52,13 @@ var zarfCmd = &cobra.Command{
 	Aliases: []string{"z"},
 	Short:   lang.CmdZarfShort,
 	Run: func(_ *cobra.Command, _ []string) {
-		os.Args = os.Args[1:] // grab 'zarf' and onward from the CLI args
+		// grab 'zarf' and onward from the CLI args
+		for i, arg := range os.Args {
+			if arg == "zarf" {
+				os.Args = os.Args[i:]
+				break
+			}
+		}
 		zarfCLI.Execute()
 	},
 	DisableFlagParsing: true,

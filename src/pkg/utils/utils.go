@@ -83,6 +83,9 @@ func ConfigureLogs(cmd *cobra.Command) error {
 
 	logWriter := io.MultiWriter(logFile)
 
+	// disable progress bars (otherwise they will still get printed to STDERR)
+	message.NoProgress = true
+
 	// use Zarf pterm output if no-tea flag is set
 	// todo: as more bundle ops use BubbleTea, need to also check them alongside 'deploy'
 	if !(strings.HasPrefix(cmd.Parent().Use, "uds") && strings.HasPrefix(cmd.Use, "deploy")) || config.CommonOptions.NoTea {
@@ -93,9 +96,6 @@ func ConfigureLogs(cmd *cobra.Command) error {
 	}
 
 	pterm.SetDefaultOutput(logWriter)
-
-	// disable progress bars (otherwise they will still get printed to STDERR)
-	message.NoProgress = true
 
 	message.Debugf(fmt.Sprintf("Saving log file to %s", tmpLogLocation))
 	return nil
