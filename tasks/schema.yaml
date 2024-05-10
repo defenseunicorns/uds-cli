@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2023-Present The UDS Authors
+
+tasks:
+  - name: schema
+    description: updates the JSON schema
+    actions:
+      - cmd: ./hack/generate-schema.sh
+
+  - name: test-schema
+    description: tests if the schema has been modified
+    actions:
+      - task: schema
+      - cmd: ./hack/test-generate-schema.sh

@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2023-Present The UDS Authors
+
+tasks:
+  - name: lint
+    description: runs the linter (requires golangci-lint)
+    actions:
+      - cmd: golangci-lint run ./src/...
+
+  - name: clean
+    description: removes the build dir
+    actions:
+      - cmd: rm -rf build
+
+  - name: local-registry
+    description: run a local docker registry
+    actions:
+      - cmd: |
+          docker run -p 5000:5000 --restart=always --name registry registry:2

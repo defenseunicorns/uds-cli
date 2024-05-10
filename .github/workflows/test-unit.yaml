@@ -30,8 +30,11 @@ jobs:
       - name: Setup golang
         uses: ./.github/actions/golang
 
+      - name: Install UDS CLI
+        uses: ./.github/actions/install-uds-cli
+
       - name: Run unit tests
-        run: make test-unit
+        run: uds run test:unit
 
       - name: Save logs
         if: always()

@@ -10,6 +10,7 @@
 ## Table of Contents
 
 1. [Install](#install)
+1. [Contributing](CONTRIBUTING.md)
 1. [Quickstart](#quickstart)
     - [Create](#bundle-create)
     - [Deploy](#bundle-deploy)
@@ -34,6 +35,8 @@ brew tap defenseunicorns/tap && brew install uds
 ```
 UDS CLI Binaries are also included with each [Github Release](https://github.com/defenseunicorns/uds-cli/releases)
 
+## Contributing
+Build instructions and contributing docs are located in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Quickstart
 The UDS-CLI's flagship feature is deploying multiple, independent Zarf packages. To create a `UDSBundle` of Zarf packages, create a `uds-bundle.yaml` file like so:

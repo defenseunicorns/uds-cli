@@ -25,8 +25,11 @@ jobs:
       - name: Setup golang
         uses: ./.github/actions/golang
 
+      - name: Install UDS CLI
+        uses: ./.github/actions/install-uds-cli
+
       - name: Build UDS-CLI binary
-        run: make build-cli-linux-amd ARCH=amd64
+        run: uds run build-cli-linux-amd
 
       - name: Setup K3d
         uses: ./.github/actions/k3d
@@ -40,7 +43,7 @@ jobs:
 
       - name: Run e2e tests
         run: |
-          make test-e2e-ghcr
+          build/uds run test:e2e-ghcr
         env:
           GITHUB_TOKEN: secrets.GITHUB_TOKEN
 

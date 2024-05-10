@@ -15,8 +15,11 @@ jobs:
       - name: Setup golang
         uses: ./.github/actions/golang
 
+      - name: Install UDS CLI
+        uses: ./.github/actions/install-uds-cli
+
       - name: Docs and schemas
-        run: "make schema test-schema"
+        run: uds run schema:test-schema
 
       - name: Save logs
         if: always()
