@@ -63,7 +63,7 @@ E2E tests reside in the `src/test/e2e` directory. They use bundles located in th
 We prefer to use Testify's [require](https://github.com/stretchr/testify/tree/master/require) package for assertions in tests. This package provides a rich set of assertion functions that make tests more readable and easier to debug. See other tests in this repo for examples.
 
 #### Running Tests
-- **Unit Tests**: To run unit tests, run `uds run test:test-unit` from the root of the repo. This will run all unit tests in the `src` directory.
+- **Unit Tests**: To run unit tests, run `uds run test:unit` from the root of the repo. This will run all unit tests in the `src` directory.
 
 
-- **E2E Tests**: To run E2E tests, you'll need build UDS CLI locally, and re-build any time you make a change to the source code; this is because the binary in the `build` directory is used to drive the tests. To run the entire suite of E2E tests locally, run `uds run test:test-e2e-no-ghcr-write` (note that this intentionally skips the tests that involve writing to GHCR).
+- **E2E Tests**: To run E2E tests, you'll need build UDS CLI locally, and re-build any time you make a change to the source code; this is because the binary in the `build` directory is used to drive the tests. To run the entire suite of E2E tests locally, run `uds run test:e2e-no-ghcr-write` (note that this intentionally skips the tests that involve writing to GHCR).

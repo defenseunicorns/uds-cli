@@ -5,15 +5,6 @@ includes:
   - test: tasks/tests.yaml
   - schema: tasks/schema.yaml
 
-variables:
-  - name: K9S_VERSION
-  - name: CRANE_VERSION
-  - name: SYFT_VERSION
-  - name: ARCHIVER_VERSION
-  - name: HELM_VERSION
-  - name: CLI_VERSION
-  - name: BUILD_ARGS
-
 tasks:
   # build tasks
   - name: get-versions

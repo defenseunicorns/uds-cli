@@ -2,27 +2,27 @@
 # SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
 tasks:
-  - name: test-unit
+  - name: unit
     description: run all the unit tests
     actions:
       - cmd: cd src/pkg && go test ./... -failfast -v -timeout 5m
 
-  - name: test-e2e
+  - name: e2e
     description: run all the e2e tests
     actions:
       - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m
 
-  - name: test-e2e-no-ghcr-write
+  - name: e2e-no-ghcr-write
     description: run e2e tests without writing to GHCR
     actions:
       - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m -skip ".*GHCR.*"
 
-  - name: test-e2e-ghcr
+  - name: e2e-ghcr
     description: run e2e tests that write to GHCR
     actions:
       - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m -run ".*GHCR.*"
 
-  - name: test-e2e-runner
+  - name: e2e-runner
     description: run e2e tests for task runner only
     actions:
       - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m -run TestTaskRunner
