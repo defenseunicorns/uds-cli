@@ -44,7 +44,7 @@ Please ensure there is a Gitub issue for your proposed change, this helps the UD
 ### Building the app
 We use UDS CLI's `run` feature (ie. vendored [Maru](https://github.com/defenseunicorns/maru-runner)) to build UDS CLI; this means that you'll need to have the `uds` binary [installed](./README.md#install) on your system in order to build the app.
 
-To build the app, check out the [tasks](tasks.yaml) with `uds run --list`, find the appropriate build target for your system, and run it from the root of the repo (ex. `uds run build-cli-mac-apple`). This will create a binary in the `build` directory that you can use to test your changes (note that this binary is automatically used when running [E2E Tests](#running-tests).
+To build the app, check out the [tasks](tasks.yaml) with `uds run --list-all`, find the appropriate build target for your system, and run it from the root of the repo (ex. `uds run build-cli-mac-apple`). This will create a binary in the `build` directory that you can use to test your changes (note that this binary is automatically used when running [E2E Tests](#running-tests).
 
 ### Pre-Commit Hooks and Linting
 In this repo you can optionally use [pre-commit](https://pre-commit.com/) hooks for automated validation and linting, but if not CI will run these checks for you
