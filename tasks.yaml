@@ -4,6 +4,7 @@
 includes:
   - test: tasks/tests.yaml
   - schema: tasks/schema.yaml
+  - dev: tasks/dev.yaml
 
 tasks:
   # build tasks
@@ -11,21 +12,27 @@ tasks:
     description: gets versions of UDS CLI + vendored tools
     actions:
       - cmd: go list -f '{{.Version}}' -m github.com/derailed/k9s
+        mute: true
         setVariables:
           - name: K9S_VERSION
       - cmd: go list -f '{{.Version}}' -m github.com/anchore/syft
+        mute: true
         setVariables:
           - name: SYFT_VERSION
       - cmd: go list -f '{{.Version}}' -m github.com/google/go-containerregistry
+        mute: true
         setVariables:
           - name: CRANE_VERSION
       - cmd: go list -f '{{.Version}}' -m github.com/mholt/archiver/v3
+        mute: true
         setVariables:
           - name: ARCHIVER_VERSION
       - cmd: go list -f '{{.Version}}' -m helm.sh/helm/v3
+        mute: true
         setVariables:
           - name: HELM_VERSION
       - cmd: git describe --tags 2>/dev/null || echo "UnknownVersion"
+        mute: true
         setVariables:
           - name: CLI_VERSION
 
