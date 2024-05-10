@@ -3,6 +3,13 @@ Welcome :unicorn: to the UDS CLI! If you'd like to contribute, please reach out 
 
 Below are some notes on our core software design philosophies that should help guide contributors.
 
+## Table of Contents
+1. [Code Quality and Standards](#code-quality-and-standards)
+1. [How to Contribute](#how-to-contribute)
+    - [Building the app](#building-the-app)
+    - [Pre-Commit Hooks and Linting](#pre-commit-hooks-and-linting)
+    - [Testing](#testing)
+
 ## Code Quality and Standards
 Fundamentally, software engineering is a communication problem; we write code for each other, not a computer. When working on this project (or any project!) keep your fellow humans in mind and write clearly and concisely. Below are some general guidelines for code quality and standards that make UDS CLI :sparkles:
 
@@ -12,10 +19,7 @@ Fundamentally, software engineering is a communication problem; we write code fo
 - **Prefer readability over being clever**: We have a strong preference for code readabilty in UDS CLI. Specifically, this means things like: naming variables appropriately, keeping functions to a reasonable size and avoiding complicated solutions when simple ones exist.
 
 
-- **User experience is paramount**: UDS CLI doesn't have a pretty UI (yet), but the core user-centered design principles that apply when building a frontend also apply to this CLI tool. First and foremost, features in UDS CLI should enhance workflows and make life easier for end users; if a feature doesn't accomplish this, it will be dropped.  
-
-### Pre-Commit Hooks and Linting
-In this repo you can optionally use [pre-commit](https://pre-commit.com/) hooks for automated validation and linting, but if not CI will run these checks for you.
+- **User experience is paramount**: UDS CLI doesn't have a pretty UI (yet), but the core user-centered design principles that apply when building a frontend also apply to this CLI tool. First and foremost, features in UDS CLI should enhance workflows and make life easier for end users; if a feature doesn't accomplish this, it will be dropped.
 
 ### Continuous Delivery
 Continuous Delivery is core to our development philosophy. Check out [https://minimumcd.org](https://minimumcd.org/) for a good baseline agreement on what that means.
@@ -38,7 +42,12 @@ Please ensure there is a Gitub issue for your proposed change, this helps the UD
 1. **Open a PR** against the `main` branch of this repo
 
 ### Building the app
-We use UDS CLI's `run` feature (ie. vendored [Maru](https://github.com/defenseunicorns/maru-runner)) to build UDS CLI; this means that you'll need to have the `uds` binary [installed](./README.md#install) on your system in order to build the app. To build the app, check out the [tasks](tasks.yaml) with `uds run --list`, find the appropriate build target for your system, and run it from the root of the repo (ex. `uds run build-cli-mac-apple`). This will create a binary in the `build` directory that you can use to test your changes (note that this binary is automatically used when running [E2E Tests](#running-tests).
+We use UDS CLI's `run` feature (ie. vendored [Maru](https://github.com/defenseunicorns/maru-runner)) to build UDS CLI; this means that you'll need to have the `uds` binary [installed](./README.md#install) on your system in order to build the app.
+
+To build the app, check out the [tasks](tasks.yaml) with `uds run --list`, find the appropriate build target for your system, and run it from the root of the repo (ex. `uds run build-cli-mac-apple`). This will create a binary in the `build` directory that you can use to test your changes (note that this binary is automatically used when running [E2E Tests](#running-tests).
+
+### Pre-Commit Hooks and Linting
+In this repo you can optionally use [pre-commit](https://pre-commit.com/) hooks for automated validation and linting, but if not CI will run these checks for you
 
 ### Testing
 
