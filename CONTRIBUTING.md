@@ -38,7 +38,7 @@ Please ensure there is a Gitub issue for your proposed change, this helps the UD
 1. **Open a PR** against the `main` branch of this repo
 
 ### Building the app
-Today, we use `make` to build UDS CLI. To build the app, check out the [Makefile](Makefile) and find the appropriate build target for your system, and run it from the root of the repo (ex. `make build-cli-mac-apple`). This will create a binary in the `build` directory that you can use to test your changes (note that this binary is automatically used when running the E2E tests).
+We use UDS CLI's `run` feature (ie. vendored [Maru](https://github.com/defenseunicorns/maru-runner)) to build UDS CLI; this means that you'll need to have the `uds` binary [installed](./README.md#install) on your system in order to build the app. To build the app, check out the [tasks](tasks.yaml) with `uds run --list`, find the appropriate build target for your system, and run it from the root of the repo (ex. `uds run build-cli-mac-apple`). This will create a binary in the `build` directory that you can use to test your changes (note that this binary is automatically used when running [E2E Tests](#running-tests).
 
 ### Testing
 
@@ -54,7 +54,7 @@ E2E tests reside in the `src/test/e2e` directory. They use bundles located in th
 We prefer to use Testify's [require](https://github.com/stretchr/testify/tree/master/require) package for assertions in tests. This package provides a rich set of assertion functions that make tests more readable and easier to debug. See other tests in this repo for examples.
 
 #### Running Tests
-- **Unit Tests**: To run unit tests, run `make test-unit` from the root of the repo. This will run all unit tests in the `src` directory.
+- **Unit Tests**: To run unit tests, run `uds run test:test-unit` from the root of the repo. This will run all unit tests in the `src` directory.
 
 
-- **E2E Tests**: To run E2E tests, you'll need build UDS CLI locally, and re-build any time you make a change to the source code; this is because the binary in the `build` directory is used to drive the tests. To run the entire suite of E2E tests locally, run `make test-e2e-no-ghcr-write` (note that this intentionally skips the tests that involve writing to GHCR).
+- **E2E Tests**: To run E2E tests, you'll need build UDS CLI locally, and re-build any time you make a change to the source code; this is because the binary in the `build` directory is used to drive the tests. To run the entire suite of E2E tests locally, run `uds run test:test-e2e-no-ghcr-write` (note that this intentionally skips the tests that involve writing to GHCR).
