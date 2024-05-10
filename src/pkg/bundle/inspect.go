@@ -22,7 +22,7 @@ import (
 func (b *Bundle) extractImagesFromPackages() {
 	for i, pkg := range b.bundle.Packages {
 		if pkg.Repository != "" && pkg.Ref != "" {
-			message.Debugf("Package:", pkg.Name, "Repository:", pkg.Repository, "Ref:", pkg.Ref)
+			message.Debugf("Package: %s, Repository: %s, Ref: %s", pkg.Name, pkg.Repository, pkg.Ref)
 			type Component struct {
 				Images []string `yaml:"images"`
 			}
