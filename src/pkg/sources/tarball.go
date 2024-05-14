@@ -254,6 +254,11 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 			return layer.Digest.Encoded() == filepath.Base(file.NameInArchive)
 		})
 
+		// skip if not a file (ie. the zarf config layer)
+		if desc.Annotations == nil {
+			return nil
+		}
+
 		path := desc.Annotations[ocispec.AnnotationTitle]
 		cleanPath := filepath.Clean(path)
 		if strings.Contains(cleanPath, "..") {

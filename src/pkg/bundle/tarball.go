@@ -260,24 +260,31 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	if err != nil {
 		return err
 	}
+
 	// push bundle layers to remote
 	for _, manifestDesc := range bundleRootManifest.Layers {
 		layersToPush = append(layersToPush, manifestDesc)
 		if manifestDesc.Annotations[ocispec.AnnotationTitle] == config.BundleYAML {
 			continue // uds-bundle.yaml doesn't have layers
 		}
-		layers, estimatedPkgSize, err := tp.getZarfLayers(store, manifestDesc)
+		layers, estimatedPkgSize, err := tp.getZarfLayers(store, manifestDesc) // todo: shouldn't need this after ensuring the image manifest is correct
 		estimatedBytes += estimatedPkgSize
 		if err != nil {
 			return err
 		}
 		layersToPush = append(layersToPush, layers...)
-		manifestRelativePath := filepath.Join(tp.dst, config.BlobsDir, manifestDesc.Digest.Encoded())
+		manifestRelativePath := filepath.Join(tp.dst, config.BlobsDir, manifestDesc.Digest.Encoded()) // todo: tp.dst is the publish source... this is weird
 		manifest, err := os.ReadFile(manifestRelativePath)
 		if err != nil {
 			return err
 		}
-		remote.Repo().Blobs().Push(tp.ctx, manifestDesc, bytes.NewReader(manifest))
+
+		// intentionally push the Zarf image manifest to the /blobs endpoint of the OCI repo
+		// we do this because both the bundle root manifest and the Zarf image manifest have an image manifest media type
+		err = remote.Repo().Blobs().Push(tp.ctx, manifestDesc, bytes.NewReader(manifest))
+		if err != nil {
+			return err
+		}
 	}
 
 	// grab image config

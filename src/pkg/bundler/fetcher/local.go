@@ -213,6 +213,9 @@ func (f *localFetcher) toBundle(pkg zarfTypes.ZarfPackage, pkgTmp string) ([]oci
 	descs = append(descs, manifestConfigDesc)
 	// push the manifest
 	rootManifest, err := generatePkgManifest(f.cfg.Store, descs, manifestConfigDesc)
+	if err != nil {
+		return nil, err
+	}
 	descs = append(descs, rootManifest)
 
 	// put digest in uds-bundle.yaml to reference during deploy
