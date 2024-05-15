@@ -13,7 +13,9 @@ packages:
       podinfo-component:
         unicorn-podinfo:
           valuesFiles:
-            - file: values.yaml
+            - values.yaml
+          values:
+            podinfo.replicaCount: 3
           variables:
             - name: log_level
               path: "podinfo.logLevel"

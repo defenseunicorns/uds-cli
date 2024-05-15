@@ -11,7 +11,6 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
-	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/interactive"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
@@ -34,9 +33,9 @@ func (b *Bundle) Create() error {
 			for k, bundleChartOverrides := range overrides {
 				for _, valuesFile := range bundleChartOverrides.ValuesFiles {
 					// Check relative vs absolute path
-					fileName := filepath.Join(b.cfg.CreateOpts.SourceDirectory, valuesFile.File)
-					if filepath.IsAbs(valuesFile.File) {
-						fileName = valuesFile.File
+					fileName := filepath.Join(b.cfg.CreateOpts.SourceDirectory, valuesFile)
+					if filepath.IsAbs(valuesFile) {
+						fileName = valuesFile
 					}
 					// read values from valuesFile
 					values, err := chartutil.ReadValuesFile(fileName)
@@ -44,8 +43,14 @@ func (b *Bundle) Create() error {
 						return err
 					}
 					// add values from valuesFile to bundleChartOverrides
+					if bundleChartOverrides.Values == nil {
+						bundleChartOverrides.Values = make(map[string]interface{})
+					}
 					for key, value := range values {
-						bundleChartOverrides.Values = append(bundleChartOverrides.Values, types.BundleChartValue{Path: key, Value: value})
+						// only use valuesFile values if they are not already set by overrides value
+						if bundleChartOverrides.Values[key] == nil {
+							bundleChartOverrides.Values[key] = value
+						}
 					}
 					// update bundle with override values
 					b.bundle.Packages[i].Overrides[j][k] = bundleChartOverrides
