@@ -26,11 +26,10 @@
         },
         "valuesFiles": {
           "items": {
-            "$schema": "http://json-schema.org/draft-04/schema#",
-            "$ref": "#/definitions/BundleChartValuesFile"
+            "type": "string"
           },
           "type": "array",
-          "description": "List of Helm chart value files to set statically"
+          "description": "List of Helm chart value file  paths to set statically"
         }
       },
       "additionalProperties": false,
@@ -47,18 +46,6 @@
         },
         "value": {
           "additionalProperties": true
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "BundleChartValuesFile": {
-      "required": [
-        "file"
-      ],
-      "properties": {
-        "file": {
-          "type": "string"
         }
       },
       "additionalProperties": false,
