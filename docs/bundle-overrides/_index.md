@@ -1,7 +1,7 @@
 ---
 title: Bundle Overrides Quickstart
 type: docs
-weight: 4
+weight: 5
 ---
 
 Consider the following `zarf.yaml` and `values.yaml` which deploys [`podinfo`](https://github.com/stefanprodan/podinfo) with a set of custom values:
