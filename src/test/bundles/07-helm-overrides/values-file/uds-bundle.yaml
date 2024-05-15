@@ -15,7 +15,8 @@ packages:
           valuesFiles:
             - values.yaml
           values:
-            podinfo.replicaCount: 3
+            - path: "podinfo.replicaCount"
+              value: 2
           variables:
             - name: log_level
               path: "podinfo.logLevel"

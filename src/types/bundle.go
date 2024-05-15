@@ -28,13 +28,17 @@ type Package struct {
 
 // BundleChartOverrides represents a Helm chart override to set via UDS variables
 type BundleChartOverrides struct {
-	Values      map[string]interface{} `json:"values,omitempty" jsonschema:"description=Map of Helm chart values to set statically"`
-	Variables   []BundleChartVariable  `json:"variables,omitempty" jsonschema:"description=List of Helm chart variables to set via UDS variables"`
-	Namespace   string                 `json:"namespace,omitempty" jsonschema:"description=The namespace to deploy the Helm chart to"`
-	ValuesFiles []string               `json:"valuesFiles,omitempty" jsonschema:"description=List of Helm chart value file  paths to set statically"`
+	Values      []BundleChartValue    `json:"values,omitempty" jsonschema:"description=List of Helm chart values to set statically"`
+	Variables   []BundleChartVariable `json:"variables,omitempty" jsonschema:"description=List of Helm chart variables to set via UDS variables"`
+	Namespace   string                `json:"namespace,omitempty" jsonschema:"description=The namespace to deploy the Helm chart to"`
+	ValuesFiles []string              `json:"valuesFiles,omitempty" jsonschema:"description=List of Helm chart value file  paths to set statically"`
 }
 
-// BundleChartVariable - EXPERIMENTAL - represents a Helm chart variable and its path
+type BundleChartValue struct {
+	Path  string      `json:"path" jsonschema:"name=Path to the Helm chart value to set. The format is <chart-value>, example=controller.service.type"`
+	Value interface{} `json:"value" jsonschema:"name=The value to set"`
+}
+
 type BundleChartVariable struct {
 	Path        string      `json:"path" jsonschema:"name=Path to the Helm chart value to set. The format is <chart-value>, example=controller.service.type"`
 	Name        string      `json:"name" jsonschema:"name=Name of the variable to set"`

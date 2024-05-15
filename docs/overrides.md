@@ -123,8 +123,6 @@ In this example, the `helm-overrides-package` Zarf package has a component calle
 
 The `valuesFiles` in an `overrides` block are a list of `file`'s. It allows users to override multiple values in a Zarf package component's underlying Helm chart, by providing a file with those values instead of having to include them all indiviually in the `overrides` block.
 
-<b>NOTE:</b> If a value is specified in both a `valuesFile` and as a `value` in the `overrides` block, the value set in the `valuesFile` will take precedence.
-
 ### Values
 
 The `values` in an `overrides` block are a list of `path` and `value` pairs. They allow users to override values in a Zarf package component's underlying Helm chart. Note that values are specified by bundle authors and **cannot be modified** after the bundle has been created.
@@ -180,6 +178,12 @@ packages:
             - path: "podinfo.ui.color"
               value: ${COLOR}
 ```
+
+#### Value Precedence
+Value precedence is as follows:
+1. The `values` in an `overrides` block
+1. `values` set in the first `valuesFile` (if specified)
+1. `values` set in the next `valuesFile` (if specified)
 
 ### Variables
 Variables are similar to [values](#values) in that they allow users to override values in a Zarf package component's underlying Helm chart; they also share a similar syntax. However, unlike `values`, `variables` can be overridden at deploy time. For example, consider the `variables` key in the following `uds-bundle.yaml`:

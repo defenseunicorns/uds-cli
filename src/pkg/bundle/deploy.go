@@ -345,10 +345,10 @@ func (b *Bundle) processOverrideNamespaces(overrideMap sources.NamespaceOverride
 }
 
 // processOverrideValues processes a bundles values overrides and adds them to the override map
-func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values *map[string]interface{}, componentName string, chartName string, pkgVars map[string]string) error {
-	for k, v := range *values {
+func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values *[]types.BundleChartValue, componentName string, chartName string, pkgVars map[string]string) error {
+	for _, v := range *values {
 		// Add the override to the map, or return an error if the path is invalid
-		if err := addOverrideValue(*overrideMap, componentName, chartName, k, v, pkgVars); err != nil {
+		if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, v.Value, pkgVars); err != nil {
 			return err
 		}
 	}

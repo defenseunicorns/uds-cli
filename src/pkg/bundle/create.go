@@ -11,6 +11,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
+	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/interactive"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
@@ -28,35 +29,8 @@ func (b *Bundle) Create() error {
 	}
 
 	// Populate values from valuesFiles if provided
-	for i, pkg := range b.bundle.Packages {
-		for j, overrides := range pkg.Overrides {
-			for k, bundleChartOverrides := range overrides {
-				for _, valuesFile := range bundleChartOverrides.ValuesFiles {
-					// Check relative vs absolute path
-					fileName := filepath.Join(b.cfg.CreateOpts.SourceDirectory, valuesFile)
-					if filepath.IsAbs(valuesFile) {
-						fileName = valuesFile
-					}
-					// read values from valuesFile
-					values, err := chartutil.ReadValuesFile(fileName)
-					if err != nil {
-						return err
-					}
-					// add values from valuesFile to bundleChartOverrides
-					if bundleChartOverrides.Values == nil {
-						bundleChartOverrides.Values = make(map[string]interface{})
-					}
-					for key, value := range values {
-						// only use valuesFile values if they are not already set by overrides value
-						if bundleChartOverrides.Values[key] == nil {
-							bundleChartOverrides.Values[key] = value
-						}
-					}
-					// update bundle with override values
-					b.bundle.Packages[i].Overrides[j][k] = bundleChartOverrides
-				}
-			}
-		}
+	if err := b.processValuesFiles(); err != nil {
+		return err
 	}
 
 	// confirm creation
@@ -139,4 +113,61 @@ func (b *Bundle) confirmBundleCreation() (confirm bool) {
 		return false
 	}
 	return true
+}
+
+// processValuesFiles reads values from valuesFiles and updates the bundle with the override values
+func (b *Bundle) processValuesFiles() error {
+	// Populate values from valuesFiles if provided
+	for i, pkg := range b.bundle.Packages {
+		for j, overrides := range pkg.Overrides {
+			for k, bundleChartOverrides := range overrides {
+				for _, valuesFile := range bundleChartOverrides.ValuesFiles {
+					// Check relative vs absolute path
+					fileName := filepath.Join(b.cfg.CreateOpts.SourceDirectory, valuesFile)
+					if filepath.IsAbs(valuesFile) {
+						fileName = valuesFile
+					}
+					// read values from valuesFile
+					values, err := chartutil.ReadValuesFile(fileName)
+					if err != nil {
+						return err
+					}
+					if len(values) > 0 {
+						// populate BundleChartValue slice to use for merging existing values
+						valuesFileValues := make([]types.BundleChartValue, 0, len(values))
+						for key, value := range values {
+							valuesFileValues = append(valuesFileValues, types.BundleChartValue{Path: key, Value: value})
+						}
+						// update bundle with override values
+						overrides := b.bundle.Packages[i].Overrides[j][k]
+						// Merge values from valuesFile and existing values
+						overrides.Values = mergeBundleChartValues(overrides.Values, valuesFileValues)
+						b.bundle.Packages[i].Overrides[j][k] = overrides
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// mergeBundleChartValues merges two lists of BundleChartValue using the values from list1 if there are duplicates
+func mergeBundleChartValues(list1, list2 []types.BundleChartValue) []types.BundleChartValue {
+	merged := make([]types.BundleChartValue, 0)
+	paths := make(map[string]bool)
+
+	// Add entries from list1 to the merged list
+	for _, bundleChartValue := range list1 {
+		merged = append(merged, bundleChartValue)
+		paths[bundleChartValue.Path] = true
+	}
+
+	// Add entries from list2 to the merged list, if they don't already exist
+	for _, bundleChartValue := range list2 {
+		if _, ok := paths[bundleChartValue.Path]; !ok {
+			merged = append(merged, bundleChartValue)
+		}
+	}
+
+	return merged
 }
