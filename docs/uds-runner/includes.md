@@ -1,7 +1,7 @@
 ---
 title: Includes
 type: docs
-weight: 12
+weight: 6
 ---
 
 The `includes` key serves the purpose of importing tasks from either local or remote task files. This functionality proves beneficial for sharing common tasks among various task files. When importing a task from a local task file, the path is relative to the current file. During task execution, both the tasks within the file and the `includes` tasks undergo processing to prevent any potential infinite loop references. This ensures a seamless and efficient task execution process:

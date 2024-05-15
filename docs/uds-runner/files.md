@@ -1,7 +1,7 @@
 ---
 title: Files
 type: docs
-weight: 10
+weight: 4
 ---
 
 The `files` key is used to copy local or remote files to the current working directory:

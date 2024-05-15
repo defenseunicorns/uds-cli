@@ -1,7 +1,7 @@
 ---
 title: Tasks
 type: docs
-weight: 7
+weight: 1
 ---
 
 Tasks serve as the foundational components of the UDS Runner, defining the operations to be executed. Within the `tasks.yaml` file, the `tasks` key at the root level delineates a list of tasks scheduled for execution. The specific operations carried out by each task are detailed under the `actions` key:

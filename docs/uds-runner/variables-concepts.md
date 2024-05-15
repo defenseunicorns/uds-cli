@@ -1,7 +1,7 @@
 ---
 title: Variables
 type: docs
-weight: 9
+weight: 3
 ---
 
 Variables can be defined in several ways:

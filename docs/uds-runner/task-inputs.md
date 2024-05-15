@@ -1,7 +1,7 @@
 ---
 title: Task Inputs and Reusable Tasks
 type: docs
-weight: 13
+weight: 7
 ---
 
 While the expectation is for tasks to be reusable, there are instances where you may need to create a task that accommodates various inputs for reuse. To create such a versatile task, include an `inputs` key featuring a mapping of inputs to the task:

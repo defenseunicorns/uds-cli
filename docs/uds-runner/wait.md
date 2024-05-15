@@ -1,7 +1,7 @@
 ---
 title: Wait
 type: docs
-weight: 11
+weight: 5
 ---
 
 The `wait` key function serves to halt the execution, effectively pausing the program until a specified resource becomes available. This resource could include anything from network responses to Kubernetes operations:

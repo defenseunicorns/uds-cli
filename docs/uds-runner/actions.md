@@ -1,7 +1,7 @@
 ---
 title: Actions
 type: docs
-weight: 8
+weight: 2
 ---
 
 Actions are the underlying operations that a task will perform. Each action under the `actions` key has a unique syntax.
