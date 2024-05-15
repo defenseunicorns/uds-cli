@@ -205,7 +205,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					quitMsg := tea.Println(tui.IndentStyle.Render("\n👋 Deployment cancelled"))
 					return m, tea.Sequence(quitMsg, tea.Println(), tea.Quit)
 				}
-			case "ctrl+c", "q":
+			case "ctrl+c":
 				return m, tea.Sequence(tea.Quit)
 
 			case "up":
