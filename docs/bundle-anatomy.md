@@ -7,4 +7,4 @@ weight: 5
 ## Bunble Anatomy
 A UDS Bundle is an OCI artifact with the following form:
 
-![](.images/uds-bundle.png)
+![](https://github.com/defenseunicorns/uds-cli/blob/main/docs/.images/uds-bundle.png)
