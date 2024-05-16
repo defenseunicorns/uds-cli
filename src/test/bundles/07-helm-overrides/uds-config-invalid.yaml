@@ -1,0 +1,6 @@
+options:
+  log_level: debug
+
+# helm-overrides is an invalid top level key. Missing `variables` parent key.
+helm-overrides:
+  ui_color: "orange"
