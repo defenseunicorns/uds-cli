@@ -186,6 +186,7 @@ func IsRegistryURL(s string) bool {
 	return false
 }
 
+// ReadYAMLStrict reads a YAML file into a struct, with strict parsing
 func ReadYAMLStrict(path string, destConfig any) error {
 	message.Debugf("Reading YAML at %s", path)
 
