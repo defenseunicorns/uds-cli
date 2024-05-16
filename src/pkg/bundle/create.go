@@ -23,7 +23,7 @@ import (
 func (b *Bundle) Create() error {
 
 	// read the bundle's metadata into memory
-	if err := utils.ReadYaml(filepath.Join(b.cfg.CreateOpts.SourceDirectory, b.cfg.CreateOpts.BundleFile), &b.bundle); err != nil {
+	if err := utils.ReadYAMLStrict(filepath.Join(b.cfg.CreateOpts.SourceDirectory, b.cfg.CreateOpts.BundleFile), &b.bundle); err != nil {
 		return err
 	}
 

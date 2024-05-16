@@ -49,7 +49,7 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Comp
 	}
 
 	var pkg zarfTypes.ZarfPackage
-	if err = utils.ReadYaml(dst.ZarfYAML, &pkg); err != nil {
+	if err = utils.ReadYAMLStrict(dst.ZarfYAML, &pkg); err != nil {
 		return zarfTypes.ZarfPackage{}, nil, err
 	}
 

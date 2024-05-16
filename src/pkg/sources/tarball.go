@@ -54,7 +54,7 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Com
 	}
 
 	var pkg zarfTypes.ZarfPackage
-	if err = utils.ReadYaml(dst.ZarfYAML, &pkg); err != nil {
+	if err = utils.ReadYAMLStrict(dst.ZarfYAML, &pkg); err != nil {
 		return zarfTypes.ZarfPackage{}, nil, err
 	}
 
@@ -194,7 +194,7 @@ func (t *TarballBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ 
 
 	// deserialize zarf.yaml to grab checksum for validating pkg integrity
 	var pkg zarfTypes.ZarfPackage
-	err = utils.ReadYaml(dst.ZarfYAML, &pkg)
+	err = utils.ReadYAMLStrict(dst.ZarfYAML, &pkg)
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, nil, err
 	}

@@ -191,7 +191,7 @@ func (f *remoteFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
 	}
 	zarfYAML := zarfTypes.ZarfPackage{}
 	zarfYAMLPath := filepath.Join(tmpDir, config.ZarfYAML)
-	err = utils.ReadYaml(zarfYAMLPath, &zarfYAML)
+	err = utils.ReadYAMLStrict(zarfYAMLPath, &zarfYAML)
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, err
 	}

@@ -186,7 +186,7 @@ func IsRegistryURL(s string) bool {
 	return false
 }
 
-func ReadYaml(path string, destConfig any) error {
+func ReadYAMLStrict(path string, destConfig any) error {
 	message.Debugf("Reading YAML at %s", path)
 
 	file, err := os.ReadFile(path)

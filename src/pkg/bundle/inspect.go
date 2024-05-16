@@ -45,7 +45,7 @@ func (b *Bundle) Inspect() error {
 		}
 	}
 	// read the bundle's metadata into memory
-	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
+	if err := utils.ReadYAMLStrict(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
 

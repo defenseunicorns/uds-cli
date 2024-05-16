@@ -21,7 +21,7 @@ import (
 func (b *Bundle) CreateZarfPkgs() {
 	srcDir := b.cfg.CreateOpts.SourceDirectory
 	bundleYAMLPath := filepath.Join(srcDir, b.cfg.CreateOpts.BundleFile)
-	if err := utils.ReadYaml(bundleYAMLPath, &b.bundle); err != nil {
+	if err := utils.ReadYAMLStrict(bundleYAMLPath, &b.bundle); err != nil {
 		message.Fatalf(err, "Failed to read bundle.yaml: %s", err.Error())
 	}
 
