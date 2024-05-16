@@ -34,6 +34,7 @@ type BundleDeployOptions struct {
 	Variables       map[string]map[string]interface{} `yaml:"variables,omitempty"`
 	SharedVariables map[string]interface{}            `yaml:"shared,omitempty"`
 	Retries         int                               `yaml:"retries"`
+	Options         map[string]interface{}            `yaml:"options,omitempty"`
 }
 
 // BundleInspectOptions is the options for the bundler.Inspect() function

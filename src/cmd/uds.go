@@ -216,7 +216,7 @@ func loadViperConfig() error {
 
 	// read relevant config into DeployOpts.Variables
 	// need to use goyaml because Viper doesn't preserve case: https://github.com/spf13/viper/issues/1014
-	err = goyaml.Unmarshal(configFile, &bundleCfg.DeployOpts)
+	err = goyaml.UnmarshalWithOptions(configFile, &bundleCfg.DeployOpts, goyaml.Strict())
 	if err != nil {
 		return err
 	}

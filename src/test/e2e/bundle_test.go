@@ -601,3 +601,16 @@ func TestBundleTmpDir(t *testing.T) {
 	err = os.RemoveAll("./customtmp")
 	require.NoError(t, err)
 }
+
+func TestInvalidConfig(t *testing.T) {
+	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config-invalid.yaml"))
+	deployZarfInit(t)
+	zarfPkgPath := "src/test/packages/helm"
+	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+	bundleDir := "src/test/bundles/07-helm-overrides"
+	createLocal(t, bundleDir, e2e.Arch)
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
+	_, stderr := deployWithError(t, bundlePath)
+	require.Contains(t, stderr, "unknown field")
+}
