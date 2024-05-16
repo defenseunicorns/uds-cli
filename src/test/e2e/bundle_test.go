@@ -613,4 +613,5 @@ func TestInvalidConfig(t *testing.T) {
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
 	_, stderr := deployWithError(t, bundlePath)
 	require.Contains(t, stderr, "unknown field")
+	os.Unsetenv("UDS_CONFIG")
 }
