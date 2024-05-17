@@ -6,21 +6,27 @@ package fetcher
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 
+	"github.com/defenseunicorns/pkg/helpers"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/zarf/src/pkg/layout"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
+	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
+	zarfSources "github.com/defenseunicorns/zarf/src/pkg/packager/sources"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
-	av3 "github.com/mholt/archiver/v3"
 	av4 "github.com/mholt/archiver/v4"
 	"github.com/opencontainers/image-spec/specs-go"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -45,17 +51,7 @@ func (f *localFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	}
 	f.extractDst = pkgTmp
 
-	err = f.extract()
-	if err != nil {
-		return nil, err
-	}
-
-	zarfPkg, err := f.load()
-	if err != nil {
-		return nil, err
-	}
-
-	layerDescs, err := f.toBundle(zarfPkg, pkgTmp)
+	layerDescs, err := f.toBundle(pkgTmp)
 	if err != nil {
 		return nil, err
 	}
@@ -110,70 +106,179 @@ func (f *localFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
 	return zarfYAML, err
 }
 
-// extract extracts a compressed Zarf archive into a directory
-func (f *localFetcher) extract() error {
-	err := av3.Unarchive(f.pkg.Path, f.extractDst) // todo: awkward to use old version of mholt/archiver
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// load loads a zarf.yaml into a Zarf object
-func (f *localFetcher) load() (zarfTypes.ZarfPackage, error) {
-	// grab zarf.yaml from extracted archive
-	p, err := os.ReadFile(filepath.Join(f.extractDst, config.ZarfYAML))
-	if err != nil {
-		return zarfTypes.ZarfPackage{}, err
-	}
-	var pkg zarfTypes.ZarfPackage
-	if err := goyaml.Unmarshal(p, &pkg); err != nil {
-		return zarfTypes.ZarfPackage{}, err
-	}
-	return pkg, err
-}
-
 // toBundle transfers a Zarf package to a given Bundle
-func (f *localFetcher) toBundle(pkg zarfTypes.ZarfPackage, pkgTmp string) ([]ocispec.Descriptor, error) {
-	// todo: only grab components that are required + specified in optionalComponents
+func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	ctx := context.TODO()
+
+	// create a new layout for the package to make it easy to filter components and get file paths
+	pkgPaths := layout.New(pkgTmp)
+	tarballSrc := zarfSources.TarballSource{
+		ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{
+			PackageSource: f.pkg.Path,
+			// todo: any other options?
+		},
+	}
+
+	// todo: test the case of an optional component that only has an action (maybe also test for charts and manifests)
+
+	// filter out optional components
+	createFilter := filters.Combine(
+		filters.ByLocalOS(runtime.GOOS), // todo: should we use config.Arch?
+		filters.ForDeploy(strings.Join(f.pkg.OptionalComponents, ","), false),
+	)
+
+	// calling LoadPackage populates the pkgPaths with the files from the tarball
+	pkg, _, err := tarballSrc.LoadPackage(pkgPaths, createFilter, false)
+	if err != nil {
+		return nil, err
+	}
+
+	// create a new store to push layers to
 	src, err := file.New(pkgTmp)
 	if err != nil {
 		return nil, err
 	}
-	// Grab Zarf layers
-	var paths []string
-	err = filepath.Walk(pkgTmp, func(path string, info os.FileInfo, err error) error {
-		// Catch any errors that happened during the walk
-		if err != nil {
-			return err
-		}
 
-		// Add any resource that is not a directory to the paths of objects we will include into the package
-		if !info.IsDir() {
-			paths = append(paths, path)
+	paths := pkgPaths.Files()
+
+	// don't include any images from non-required components
+	// read in images/index.json
+	var imgIndex ocispec.Index
+	if pkgPaths.Images.Index != "" {
+		indexBytes, err := os.ReadFile(pkgPaths.Images.Index)
+		if err != nil {
+			return nil, err
 		}
-		return err
-	})
-	if err != nil {
-		return nil, fmt.Errorf("unable to get the layers in the package to publish: %w", err)
+		err = json.Unmarshal(indexBytes, &imgIndex)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	var descs []ocispec.Descriptor
+	// include only images that are in the components
+	var imgManifestsToInclude []ocispec.Descriptor
+	for _, manifest := range imgIndex.Manifests {
+		for _, component := range pkg.Components {
+			for _, imgName := range component.Images {
+				// include backwards compatibility shim for older Zarf versions that would leave docker.io off of image annotations
+				if manifest.Annotations[ocispec.AnnotationBaseImageName] == imgName ||
+					manifest.Annotations[ocispec.AnnotationBaseImageName] == fmt.Sprintf("docker.io/%s", imgName) {
+					imgManifestsToInclude = append(imgManifestsToInclude, manifest)
+					// todo: de-dup descs
+				}
+			}
+		}
+	}
+	imgIndex.Manifests = imgManifestsToInclude
+
+	// rewrite the images index (desc will be rewritten when its copied to the bundle)
+	if len(imgIndex.Manifests) > 0 {
+		imgIndexBytes, err := json.Marshal(imgIndex)
+		if err != nil {
+			return nil, err
+		}
+		err = os.WriteFile(pkgPaths.Images.Index, imgIndexBytes, 0600)
+		if err != nil {
+			return nil, err
+		}
+
+	}
+
+	// go to image manifest and grab config + layers
+	var includeLayers []string
+	for _, manifest := range imgIndex.Manifests {
+		includeLayers = append(includeLayers, manifest.Digest.Hex()) // be sure to include image manifest
+		manifestBytes, err := os.ReadFile(filepath.Join(pkgPaths.Images.Base, config.BlobsDir, manifest.Digest.Hex()))
+		if err != nil {
+			return nil, err
+		}
+		var imgManifest ocispec.Manifest
+		err = goyaml.Unmarshal(manifestBytes, &imgManifest)
+		if err != nil {
+			return nil, err
+		}
+		includeLayers = append(includeLayers, imgManifest.Config.Digest.Hex()) // don't forget the config
+		for _, layer := range imgManifest.Layers {
+			includeLayers = append(includeLayers, layer.Digest.Hex())
+		}
+	}
+
+	// filter paths to only include layers that are in includeLayers
+	var filteredPaths []string
+	var imageBlobs []string
 	for _, path := range paths {
+		include := false
+		isBlob := false
+		for _, layer := range includeLayers {
+			// include all paths that aren't in the blobs dir
+			if !strings.Contains(path, config.BlobsDir) {
+				include = true
+			}
+			// include paths that are in the blobs dir and are in includeLayers
+			if strings.Contains(path, config.BlobsDir) && strings.Contains(path, layer) {
+				isBlob = true
+				include = true
+			}
+		}
+		if include {
+			filteredPaths = append(filteredPaths, path)
+		}
+		if isBlob {
+			// save off image blobs so we can rewrite pkgPaths (makes generating checksums easier)
+			imageBlobs = append(imageBlobs, path)
+		}
+	}
+
+	// todo: also remove unnecessary component tarballs
+
+	// ensure zarf.yaml, checksums and SBOMS (if exists) are always included
+	// note you may have extra SBOMs because they are not filtered out
+	alwaysInclude := []string{pkgPaths.ZarfYAML, pkgPaths.Checksums}
+	if pkgPaths.SBOMs.Path != "" {
+		alwaysInclude = append(alwaysInclude, pkgPaths.SBOMs.Path)
+	}
+	filteredPaths = helpers.MergeSlices(filteredPaths, alwaysInclude, func(a, b string) bool {
+		return a == b
+	})
+
+	// rewrite checksums.txt with removed layers
+	pkgPaths.Images.Blobs = imageBlobs
+	checksum, err := pkgPaths.GenerateChecksums()
+	if err != nil {
+		return nil, err
+	}
+
+	// update zarf.yaml with new aggregate checksum
+	var zarfYAML zarfTypes.ZarfPackage
+	zarfBytes, err := os.ReadFile(pkgPaths.ZarfYAML)
+	if err != nil {
+		return nil, err
+	}
+	err = goyaml.Unmarshal(zarfBytes, &zarfYAML)
+	if err != nil {
+		return nil, err
+	}
+	zarfYAML.Metadata.AggregateChecksum = checksum
+	zarfYAMLBytes, err := goyaml.Marshal(zarfYAML)
+	if err != nil {
+		return nil, err
+	}
+	err = os.WriteFile(pkgPaths.ZarfYAML, zarfYAMLBytes, 0600)
+	if err != nil {
+		return nil, err
+	}
+	pkg.Metadata.AggregateChecksum = checksum // update pkg metadata already in memory
+
+	// go through the filtered paths and add them to the bundle store
+	var descs []ocispec.Descriptor
+	for _, path := range filteredPaths {
 		name, err := filepath.Rel(pkgTmp, path)
 		if err != nil {
 			return nil, err
 		}
 
+		// set media type to blob for all layers in the pkg
 		mediaType := zoci.ZarfLayerMediaTypeBlob
-
-		// todo: try finding the desc with media type of image manifest, and rewrite it here!
-		// just iterate through it's layers and add the annotations to each layer, then push to the store and add to descs
-
-		// adds title annotations to descs and creates layer to put in the store
-		// title annotations need to be added to the pkg root manifest
-		// Zarf image manifests already contain those title annotations in remote OCI repos, but they need to be added manually here
 
 		// if using a custom tmp dir that is not an absolute path, get working dir and prepend to path to make it absolute
 		if !filepath.IsAbs(path) {
@@ -184,6 +289,8 @@ func (f *localFetcher) toBundle(pkg zarfTypes.ZarfPackage, pkgTmp string) ([]oci
 			path = filepath.Join(wd, path)
 		}
 
+		// Zarf image manifests already contain those title annotations in remote OCI repos, but they need to be added manually here
+		// computer descriptors for each layer (we get title annotations for free)
 		desc, err := src.Add(ctx, name, mediaType, path)
 		if err != nil {
 			return nil, err
@@ -193,13 +300,14 @@ func (f *localFetcher) toBundle(pkg zarfTypes.ZarfPackage, pkgTmp string) ([]oci
 			return nil, err
 		}
 
-		// push if layer doesn't already exist in bundleStore
-		// at this point, for some reason, many layers already exist in the store?
+		// push if layer to bundle store if it doesn't already exist
 		if exists, err := f.cfg.Store.Exists(ctx, desc); !exists && err == nil {
 			if err := f.cfg.Store.Push(ctx, desc, layer); err != nil {
 				return nil, err
 			}
 		}
+
+		// record descriptor for the pkg root manifest
 		descs = append(descs, desc)
 	}
 
@@ -209,8 +317,11 @@ func (f *localFetcher) toBundle(pkg zarfTypes.ZarfPackage, pkgTmp string) ([]oci
 	if err != nil {
 		return nil, err
 	}
-	// push the manifest
+	// push the manifest, save the descriptor to put in the bundle root manifest
 	rootManifest, err := generatePkgManifest(f.cfg.Store, descs, manifestConfigDesc)
+	if err != nil {
+		return nil, err
+	}
 	descs = append(descs, rootManifest)
 
 	// put digest in uds-bundle.yaml to reference during deploy

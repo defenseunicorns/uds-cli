@@ -1,0 +1,12 @@
+kind: UDSBundle
+metadata:
+  name: optional-components
+  description: test bundle with optional components in its pkg
+  version: 0.0.1
+
+packages:
+  - name: podinfo-and-nginx
+    path: "../../packages/podinfo-and-nginx"
+    ref: 0.0.1
+    optionalComponents:
+      - podinfo
