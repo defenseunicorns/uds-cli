@@ -182,7 +182,6 @@ func TestBundleWithHelmOverridesValuesFile(t *testing.T) {
 		annotations, _, err := e2e.UDS(cmd...)
 		require.Contains(t, annotations, "\"customAnnotation\":\"customValue\"")
 		require.NoError(t, err)
-
 	})
 
 	t.Run("check list-type override in values", func(t *testing.T) {
