@@ -119,7 +119,7 @@ podAnnotations:
 ```
 In this example, the `helm-overrides-package` Zarf package has a component called `helm-overrides-component` which contains a Helm chart called `podinfo`; note how these names are keys in the `overrides` block. The `podinfo` chart has a `replicaCount` value that is overridden to `2`, a `podAnnotations` value that is overridden to include `customAnnotation: "customValue"` and a variable called `UI_COLOR` that is overridden to `purple`.
 
-### ValuesFiles
+### Values Files
 
 The `valuesFiles` in an `overrides` block are a list of `file`'s. It allows users to override multiple values in a Zarf package component's underlying Helm chart, by providing a file with those values instead of having to include them all indiviually in the `overrides` block.
 
