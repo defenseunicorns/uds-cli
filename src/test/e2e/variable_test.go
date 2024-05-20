@@ -180,7 +180,7 @@ func TestBundleWithHelmOverridesValuesFile(t *testing.T) {
 	t.Run("check object-type override in values", func(t *testing.T) {
 		cmd := strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.metadata.annotations}'", " ")
 		annotations, _, err := e2e.UDS(cmd...)
-		require.Contains(t, annotations, "\"customAnnotation\":\"customValue\"")
+		require.Contains(t, annotations, "\"customAnnotation\":\"customValue2\"")
 		require.NoError(t, err)
 	})
 

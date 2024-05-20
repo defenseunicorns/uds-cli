@@ -1,4 +1,4 @@
-# podinfo.replicaCount: 3
+podinfo.replicaCount: 3
 podinfo.tolerations:
   - key: "unicorn"
     operator: "Equal"

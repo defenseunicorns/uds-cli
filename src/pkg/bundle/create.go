@@ -119,9 +119,11 @@ func (b *Bundle) confirmBundleCreation() (confirm bool) {
 func (b *Bundle) processValuesFiles() error {
 	// Populate values from valuesFiles if provided
 	for i, pkg := range b.bundle.Packages {
-		for j, overrides := range pkg.Overrides {
-			for k, bundleChartOverrides := range overrides {
-				for _, valuesFile := range bundleChartOverrides.ValuesFiles {
+		for componentName, overrides := range pkg.Overrides {
+			for chartName, bundleChartOverrides := range overrides {
+				// Iterate over valuesFiles in reverse order to ensure subsequent value files takes precedence over previous ones
+				for index := len(bundleChartOverrides.ValuesFiles) - 1; index >= 0; index-- {
+					valuesFile := bundleChartOverrides.ValuesFiles[index]
 					// Check relative vs absolute path
 					fileName := filepath.Join(b.cfg.CreateOpts.SourceDirectory, valuesFile)
 					if filepath.IsAbs(valuesFile) {
@@ -139,10 +141,10 @@ func (b *Bundle) processValuesFiles() error {
 							valuesFileValues = append(valuesFileValues, types.BundleChartValue{Path: key, Value: value})
 						}
 						// update bundle with override values
-						overrides := b.bundle.Packages[i].Overrides[j][k]
+						override := b.bundle.Packages[i].Overrides[componentName][chartName]
 						// Merge values from valuesFile and existing values
-						overrides.Values = mergeBundleChartValues(overrides.Values, valuesFileValues)
-						b.bundle.Packages[i].Overrides[j][k] = overrides
+						override.Values = mergeBundleChartValues(valuesFileValues, override.Values)
+						b.bundle.Packages[i].Overrides[componentName][chartName] = override
 					}
 				}
 			}
@@ -151,19 +153,19 @@ func (b *Bundle) processValuesFiles() error {
 	return nil
 }
 
-// mergeBundleChartValues merges two lists of BundleChartValue using the values from list1 if there are duplicates
-func mergeBundleChartValues(list1, list2 []types.BundleChartValue) []types.BundleChartValue {
+// mergeBundleChartValues merges two lists of BundleChartValue using the values from overrides if there are duplicates
+func mergeBundleChartValues(original, overrides []types.BundleChartValue) []types.BundleChartValue {
 	merged := make([]types.BundleChartValue, 0)
 	paths := make(map[string]bool)
 
-	// Add entries from list1 to the merged list
-	for _, bundleChartValue := range list1 {
+	// Add entries from overrides to the merged list
+	for _, bundleChartValue := range overrides {
 		merged = append(merged, bundleChartValue)
 		paths[bundleChartValue.Path] = true
 	}
 
-	// Add entries from list2 to the merged list, if they don't already exist
-	for _, bundleChartValue := range list2 {
+	// Add entries from original to the merged list, if they don't already exist
+	for _, bundleChartValue := range original {
 		if _, ok := paths[bundleChartValue.Path]; !ok {
 			merged = append(merged, bundleChartValue)
 		}

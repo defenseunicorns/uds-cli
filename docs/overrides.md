@@ -182,8 +182,8 @@ packages:
 #### Value Precedence
 Value precedence is as follows:
 1. The `values` in an `overrides` block
-1. `values` set in the first `valuesFile` (if specified)
-1. `values` set in the next `valuesFile` (if specified)
+1. `values` set in the last `valuesFile` (if more than one specified)
+1. `values` set in the previous `valuesFile` (if more than one specified)
 
 ### Variables
 Variables are similar to [values](#values) in that they allow users to override values in a Zarf package component's underlying Helm chart; they also share a similar syntax. However, unlike `values`, `variables` can be overridden at deploy time. For example, consider the `variables` key in the following `uds-bundle.yaml`:

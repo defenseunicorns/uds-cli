@@ -14,6 +14,7 @@ packages:
         unicorn-podinfo:
           valuesFiles:
             - values.yaml
+            - values2.yaml
           values:
             - path: "podinfo.replicaCount"
               value: 2
