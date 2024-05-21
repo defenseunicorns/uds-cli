@@ -15,7 +15,6 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/pkg/helpers"
 	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui/deploy"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
@@ -77,11 +76,8 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 		packagesToDeploy = packages
 	}
 
-	// let TUI know how many packages are being deployed
-	deploy.Program.Send(fmt.Sprintf("totalPackages:%d", len(packagesToDeploy)))
-
 	// deploy each package
-	for i, pkg := range packagesToDeploy {
+	for _, pkg := range packagesToDeploy {
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 		pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
@@ -135,13 +131,9 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 
 		pkgClient := packager.NewOrDie(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
 
-		deploy.Program.Send(fmt.Sprintf("newPackage:%s:%d", pkg.Name, i))
-
 		if err := pkgClient.Deploy(); err != nil {
 			return err
 		}
-
-		deploy.Program.Send(fmt.Sprintf("complete:%d", i))
 
 		// save exported vars
 		pkgExportedVars := make(map[string]string)

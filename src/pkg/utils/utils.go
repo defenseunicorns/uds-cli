@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -24,19 +23,6 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
-
-// GracefulPanic in the event of a panic, attempt to reset the terminal using the 'reset' command.
-func GracefulPanic() {
-	if r := recover(); r != nil {
-		fmt.Println("Recovering from panic to reset terminal before exiting")
-		// todo: this approach is heavy-handed, consider alternatives using the term lib (check out what BubbleTea does)
-		cmd := exec.Command("reset")
-		cmd.Stdout = os.Stdout
-		cmd.Stdin = os.Stdin
-		_ = cmd.Run()
-		panic(r)
-	}
-}
 
 // IsValidTarballPath returns true if the path is a valid tarball path to a bundle tarball
 func IsValidTarballPath(path string) bool {
@@ -64,7 +50,6 @@ func ConfigureLogs(cmd *cobra.Command) error {
 	logFile := writer
 	if err != nil {
 		return err
-
 	}
 	tmpLogLocation := message.LogFileLocation()
 	config.LogFileName = tmpLogLocation
@@ -83,20 +68,10 @@ func ConfigureLogs(cmd *cobra.Command) error {
 
 	logWriter := io.MultiWriter(logFile)
 
-	// use Zarf pterm output if no-tea flag is set
-	// todo: as more bundle ops use BubbleTea, need to also check them alongside 'deploy'
-	if !(strings.HasPrefix(cmd.Parent().Use, "uds") && strings.HasPrefix(cmd.Use, "deploy")) || config.CommonOptions.NoTea {
-		message.Notef("Saving log file to %s", tmpLogLocation)
-		logWriter = io.MultiWriter(os.Stderr, logFile)
-		pterm.SetDefaultOutput(logWriter)
-		return nil
-	}
-
+	// use Zarf pterm output
+	message.Notef("Saving log file to %s", tmpLogLocation)
+	logWriter = io.MultiWriter(os.Stderr, logFile)
 	pterm.SetDefaultOutput(logWriter)
-
-	// disable progress bars (otherwise they will still get printed to STDERR)
-	message.NoProgress = true
-
 	message.Debugf(fmt.Sprintf("Saving log file to %s", tmpLogLocation))
 	return nil
 }
