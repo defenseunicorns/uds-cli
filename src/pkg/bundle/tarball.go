@@ -279,9 +279,6 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 
 	// copy bundle
 	copyOpts := utils.CreateCopyOpts(layersToPush, config.CommonOptions.OCIConcurrency)
-	if err != nil {
-		return err
-	}
 	progressBar := message.NewProgressBar(estimatedBytes, fmt.Sprintf("Publishing %s:%s", remote.Repo().Reference.Repository, remote.Repo().Reference.Reference))
 	defer progressBar.Stop()
 	remote.SetProgressWriter(progressBar)

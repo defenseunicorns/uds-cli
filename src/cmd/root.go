@@ -11,7 +11,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/cmd/common"
 	zarfCommon "github.com/defenseunicorns/zarf/src/cmd/common"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/spf13/cobra"
@@ -28,7 +27,7 @@ var rootCmd = &cobra.Command{
 	Use: "uds COMMAND",
 	PersistentPreRun: func(cmd *cobra.Command, _ []string) {
 		// Skip for vendor-only commands
-		if common.CheckVendorOnlyFromPath(cmd) {
+		if zarfCommon.CheckVendorOnlyFromPath(cmd) {
 			return
 		}
 
