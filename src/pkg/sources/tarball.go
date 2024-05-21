@@ -14,7 +14,6 @@ import (
 
 	"github.com/defenseunicorns/pkg/helpers"
 	"github.com/defenseunicorns/pkg/oci"
-	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui/deploy"
 	"github.com/defenseunicorns/zarf/src/pkg/layout"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
@@ -70,10 +69,6 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Com
 	}
 
 	dst.SetFromPaths(files)
-
-	// record number of components to be deployed for TUI
-	// todo: won't work for optional components......
-	deploy.Program.Send(fmt.Sprintf("totalComponents:%d", len(pkg.Components)))
 
 	if err := sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, t.isPartial); err != nil {
 		return zarfTypes.ZarfPackage{}, nil, err

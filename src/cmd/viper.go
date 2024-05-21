@@ -25,7 +25,6 @@ const (
 	V_TMP_DIR              = "options.tmp_dir"
 	V_INSECURE             = "options.insecure"
 	V_BNDL_OCI_CONCURRENCY = "options.oci_concurrency"
-	V_NO_TEA               = "options.no_tea"
 
 	// Bundle create config keys
 	V_BNDL_CREATE_OUTPUT               = "create.output"
