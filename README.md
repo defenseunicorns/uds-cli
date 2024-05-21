@@ -141,13 +141,13 @@ As an example: `uds remove uds-bundle-<name>.tar.zst --packages init,nginx`
 The `uds logs` command can be used to view the most recent logs of a bundle operation. Note that depending on your OS temporary directory and file settings, recent logs are purged after a certain amount of time, so this command may return an error if the logs are no longer available.
 
 ## Bundle Architecture and Multi-Arch Support
-There are several ways to specify the architecture of a bundle:
+There are several ways to specify the architecture of a bundle according to the following precedence:
 1. Setting `--architecture` or `-a` flag during `uds ...` operations: `uds create <dir> --architecture arm64`
-2. Setting the `metadata.architecture` key in a `uds-bundle.yaml`
-3. Setting a `UDS_ARCHITECTURE` environment variable
-4. Setting the `options.architecture` key in a `uds-config.yaml`
+2. Setting a `UDS_ARCHITECTURE` environment variable
+3. Setting the `options.architecture` key in a `uds-config.yaml`
+4. Setting the `metadata.architecture` key in a `uds-bundle.yaml`
 
-Note that the setting the `--architecture` flag takes precedence over all other methods of specifying the architecture.
+This means that setting the `--architecture` flag takes precedence over all other methods of specifying the architecture.
 
 UDS CLI supports multi-arch bundles. This means you can push bundles with different architectures to the same remote OCI repository, at the same tag. For example, you can push both an `amd64` and `arm64` bundle to `ghcr.io/<org>/<bundle name>:0.0.1`.
 

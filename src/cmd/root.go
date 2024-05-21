@@ -11,7 +11,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/cmd/common"
 	zarfCommon "github.com/defenseunicorns/zarf/src/cmd/common"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/spf13/cobra"
@@ -28,7 +27,7 @@ var rootCmd = &cobra.Command{
 	Use: "uds COMMAND",
 	PersistentPreRun: func(cmd *cobra.Command, _ []string) {
 		// Skip for vendor-only commands
-		if common.CheckVendorOnlyFromPath(cmd) {
+		if zarfCommon.CheckVendorOnlyFromPath(cmd) {
 			return
 		}
 
@@ -75,7 +74,6 @@ func init() {
 	v.SetDefault(V_INSECURE, false)
 	v.SetDefault(V_TMP_DIR, "")
 	v.SetDefault(V_BNDL_OCI_CONCURRENCY, 3)
-	v.SetDefault(V_NO_TEA, false) // by default use the BubbleTea TUI
 
 	homeDir, _ := os.UserHomeDir()
 	v.SetDefault(V_UDS_CACHE, filepath.Join(homeDir, config.UDSCache))
@@ -88,5 +86,4 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&config.CommonOptions.TempDirectory, "tmpdir", v.GetString(V_TMP_DIR), lang.RootCmdFlagTempDir)
 	rootCmd.PersistentFlags().BoolVar(&config.CommonOptions.Insecure, "insecure", v.GetBool(V_INSECURE), lang.RootCmdFlagInsecure)
 	rootCmd.PersistentFlags().IntVar(&config.CommonOptions.OCIConcurrency, "oci-concurrency", v.GetInt(V_BNDL_OCI_CONCURRENCY), lang.CmdBundleFlagConcurrency)
-	rootCmd.PersistentFlags().BoolVar(&config.CommonOptions.NoTea, "no-tea", v.GetBool(V_NO_TEA), lang.RootCmdNoTea)
 }

@@ -24,8 +24,9 @@ repos:
   - repo: https://github.com/golangci/golangci-lint
     rev: v1.55.2
     hooks:
-      - id: golangci-lint
+      - id: golangci-lint-full
         args: [--timeout=5m]
+        linters:
   - repo: local
     hooks:
       - id: check-docs-and-schema

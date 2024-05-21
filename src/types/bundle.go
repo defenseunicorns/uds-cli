@@ -28,27 +28,17 @@ type Package struct {
 
 // BundleChartOverrides represents a Helm chart override to set via UDS variables
 type BundleChartOverrides struct {
-	Values    []BundleChartValue    `json:"values,omitempty" jsonschema:"description=List of Helm chart values to set statically"`
-	Variables []BundleChartVariable `json:"variables,omitempty" jsonschema:"description=List of Helm chart variables to set via UDS variables"`
-	Namespace string                `json:"namespace,omitempty" jsonschema:"description=The namespace to deploy the Helm chart to"`
-
-	// EXPERIMENTAL, not yet implemented
-	//ValueFiles []BundleChartValueFile `json:"value-files,omitempty" jsonschema:"description=List of Helm chart value files to set statically"`
+	Values      []BundleChartValue    `json:"values,omitempty" jsonschema:"description=List of Helm chart values to set statically"`
+	Variables   []BundleChartVariable `json:"variables,omitempty" jsonschema:"description=List of Helm chart variables to set via UDS variables"`
+	Namespace   string                `json:"namespace,omitempty" jsonschema:"description=The namespace to deploy the Helm chart to"`
+	ValuesFiles []string              `json:"valuesFiles,omitempty" jsonschema:"description=List of Helm chart value file  paths to set statically"`
 }
 
-// BundleChartValue represents a Helm chart value to path mapping to set via UDS variables
 type BundleChartValue struct {
 	Path  string      `json:"path" jsonschema:"name=Path to the Helm chart value to set. The format is <chart-value>, example=controller.service.type"`
 	Value interface{} `json:"value" jsonschema:"name=The value to set"`
 }
 
-// BundleChartValueFile - EXPERIMENTAL - represents a Helm chart value file to override
-type BundleChartValueFile struct {
-	Path string `json:"path" jsonschema:"name=Path to the Helm chart to set. The format is <component>/<chart-name>, example=my-component/my-cool-chart"`
-	File string `json:"file" jsonschema:"name=The path to the values file to add to the Helm chart"`
-}
-
-// BundleChartVariable - EXPERIMENTAL - represents a Helm chart variable and its path
 type BundleChartVariable struct {
 	Path        string      `json:"path" jsonschema:"name=Path to the Helm chart value to set. The format is <chart-value>, example=controller.service.type"`
 	Name        string      `json:"name" jsonschema:"name=Name of the variable to set"`

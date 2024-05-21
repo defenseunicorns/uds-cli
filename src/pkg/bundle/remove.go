@@ -99,9 +99,6 @@ func removePackages(packagesToRemove []types.Package, b *Bundle) error {
 			}
 
 			pkgClient := packager.NewOrDie(&pkgCfg, packager.WithSource(source), packager.WithTemp(pkgTmp))
-			if err != nil {
-				return err
-			}
 			defer pkgClient.ClearTempPaths()
 
 			if err := pkgClient.Remove(); err != nil {
