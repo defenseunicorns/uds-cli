@@ -9,12 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/defenseunicorns/pkg/helpers"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
-	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
-	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui/deploy"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
@@ -30,26 +27,6 @@ func configureZarf() {
 		OCIConcurrency: config.CommonOptions.OCIConcurrency,
 		Confirm:        config.CommonOptions.Confirm,
 		CachePath:      config.CommonOptions.CachePath, // use uds-cache instead of zarf-cache
-	}
-}
-
-func deployWithoutTea(bndlClient *bundle.Bundle) {
-	_, _, _, err := bndlClient.PreDeployValidation()
-	if err != nil {
-		message.Fatalf(err, "Failed to validate bundle: %s", err.Error())
-	}
-	// confirm deployment
-	if ok := bndlClient.ConfirmBundleDeploy(); !ok {
-		message.Fatal(nil, "bundle deployment cancelled")
-	}
-	// create an empty program and kill it, this makes Program.Send a no-op
-	deploy.Program = tea.NewProgram(nil)
-	deploy.Program.Kill()
-
-	// deploy the bundle
-	if err := bndlClient.Deploy(); err != nil {
-		bndlClient.ClearPaths()
-		message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
 	}
 }
 
