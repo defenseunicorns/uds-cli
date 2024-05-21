@@ -13,15 +13,12 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
-	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui/deploy"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 )
 
 var createCmd = &cobra.Command{
@@ -68,29 +65,11 @@ var deployCmd = &cobra.Command{
 				return
 			}
 		}
-		// create new bundle client
+
+		// create new bundle client and deploy
 		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
-
-		// don't use bubbletea if --no-tea flag is set
-		if config.CommonOptions.NoTea {
-			deployWithoutTea(bndlClient)
-			return
-		}
-
-		// start up bubbletea
-		m := deploy.InitModel(bndlClient)
-
-		// detect tty so CI/containers don't break
-		if term.IsTerminal(int(os.Stdout.Fd())) {
-			deploy.Program = tea.NewProgram(&m)
-		} else {
-			deploy.Program = tea.NewProgram(&m, tea.WithInput(nil))
-		}
-
-		if _, err := deploy.Program.Run(); err != nil {
-			message.Fatalf(err, "TUI program error: %s", err.Error())
-		}
+		deploy(bndlClient)
 	},
 }
 

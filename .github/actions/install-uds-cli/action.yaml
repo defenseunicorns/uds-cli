@@ -1,0 +1,13 @@
+name: Install UDS CLI
+description: installs uds-cli from brew
+runs:
+  using: composite
+  steps:
+  - name: Set up Homebrew
+    uses: Homebrew/actions/setup-homebrew@677db441141a5ec37a353273cb6cb6006c29c5bf # master
+
+  - name: Install UDS CLI
+    shell: bash
+    run: |
+      brew tap defenseunicorns/tap
+      brew install uds

@@ -2,7 +2,6 @@ package bundle
 
 import (
 	"os"
-	"reflect"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
@@ -228,16 +227,16 @@ func TestLoadVariablesPrecedence(t *testing.T) {
 	// Run test cases
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			// unset arch var that gets applied automatically when doing 'uds run' so it doesn't get in the way
+			os.Unsetenv("UDS_ARCH")
+
 			// Set for select test cases to test precedence of env vars
 			os.Unsetenv("UDS_FOO")
 			if tc.loadEnvVar {
 				os.Setenv("UDS_FOO", "set using env var")
 			}
 			actualPkgVars := tc.bundle.loadVariables(tc.pkg, tc.bundleExportVars)
-
-			if !reflect.DeepEqual(actualPkgVars, tc.expectedPkgVars) {
-				t.Errorf("Test case %s failed. Expected %v, got %v", tc.name, tc.expectedPkgVars, actualPkgVars)
-			}
+			require.Equal(t, tc.expectedPkgVars, actualPkgVars)
 		})
 	}
 }

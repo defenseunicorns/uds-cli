@@ -1,0 +1,81 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2023-Present The UDS Authors
+
+includes:
+  - test: tasks/tests.yaml
+  - schema: tasks/schema.yaml
+  - dev: tasks/dev.yaml
+
+tasks:
+  # build tasks
+  - name: get-versions
+    description: gets versions of UDS CLI + vendored tools
+    actions:
+      - cmd: go list -f '{{.Version}}' -m github.com/derailed/k9s
+        mute: true
+        setVariables:
+          - name: K9S_VERSION
+      - cmd: go list -f '{{.Version}}' -m github.com/anchore/syft
+        mute: true
+        setVariables:
+          - name: SYFT_VERSION
+      - cmd: go list -f '{{.Version}}' -m github.com/google/go-containerregistry
+        mute: true
+        setVariables:
+          - name: CRANE_VERSION
+      - cmd: go list -f '{{.Version}}' -m github.com/mholt/archiver/v3
+        mute: true
+        setVariables:
+          - name: ARCHIVER_VERSION
+      - cmd: go list -f '{{.Version}}' -m helm.sh/helm/v3
+        mute: true
+        setVariables:
+          - name: HELM_VERSION
+      - cmd: git describe --tags 2>/dev/null || echo "UnknownVersion"
+        mute: true
+        setVariables:
+          - name: CLI_VERSION
+
+  - name: build-args
+    description: generates the build args for building UDS CLI
+    actions:
+      - cmd: |
+          cat <<EOF
+          -s -w -X 'github.com/defenseunicorns/uds-cli/src/config.CLIVersion=${CLI_VERSION}' \
+            -X 'github.com/defenseunicorns/zarf/src/config.ActionsCommandZarfPrefix=zarf' \
+            -X 'github.com/derailed/k9s/cmd.version=${K9S_VERSION}' \
+            -X 'github.com/google/go-containerregistry/cmd/crane/cmd.Version=${CRANE_VERSION}' \
+            -X 'github.com/defenseunicorns/zarf/src/cmd/tools.syftVersion=${SYFT_VERSION}' \
+            -X 'github.com/defenseunicorns/zarf/src/cmd/tools.archiverVersion=${ARCHIVER_VERSION}' \
+            -X 'github.com/defenseunicorns/zarf/src/cmd/tools.helmVersion=${HELM_VERSION}'
+          EOF
+        setVariables:
+          - name: BUILD_ARGS
+
+  - name: build-cli-linux-amd
+    description: build the CLI for Linux AMD64
+    actions:
+      - task: get-versions
+      - task: build-args
+      - cmd: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="${BUILD_ARGS}" -o build/uds main.go
+
+  - name: build-cli-linux-arm
+    description: build the CLI for Linux ARM64
+    actions:
+      - task: get-versions
+      - task: build-args
+      - cmd: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="${BUILD_ARGS}" -o build/uds-arm main.go
+
+  - name: build-cli-mac-intel
+    description: build the CLI for Mac Intel
+    actions:
+      - task: get-versions
+      - task: build-args
+      - cmd: GOOS=darwin GOARCH=amd64 go build -ldflags="${BUILD_ARGS}" -o build/uds-mac-intel main.go
+
+  - name: build-cli-mac-apple
+    description: build the CLI for Mac Apple
+    actions:
+      - task: get-versions
+      - task: build-args
+      - cmd: GOOS=darwin GOARCH=arm64 go build -ldflags="${BUILD_ARGS}" -o build/uds-mac-apple main.go

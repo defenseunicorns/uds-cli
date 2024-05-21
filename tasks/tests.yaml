@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2023-Present The UDS Authors
+
+tasks:
+  - name: unit
+    description: run all the unit tests
+    actions:
+      - cmd: cd src/pkg && go test ./... -failfast -v -timeout 5m
+
+  - name: e2e
+    description: run all the e2e tests
+    actions:
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m
+
+  - name: e2e-no-ghcr-write
+    description: run e2e tests without writing to GHCR
+    actions:
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m -skip ".*GHCR.*"
+
+  - name: e2e-ghcr
+    description: run e2e tests that write to GHCR
+    actions:
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m -run ".*GHCR.*"
+
+  - name: e2e-runner
+    description: run e2e tests for task runner only
+    actions:
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m -run TestTaskRunner
+
+  - name: push-test-artifacts
+    description: push artifacts that UDS CLI tests rely on to GHCR
+    actions:
+      - cmd: ./hack/push-test-artifacts.sh
+
+  - name: clean-test-artifacts
+    description: removes bundles and zarf packages that have been created from previous test runs
+    actions:
+      - cmd: find src/test -type f -name '*.tar.zst' -delete

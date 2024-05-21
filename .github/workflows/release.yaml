@@ -16,16 +16,19 @@ jobs:
     steps:
       # Checkout the repo and setup the tooling for this job
       - name: Checkout
-        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
         with:
           fetch-depth: 0
 
       - name: Setup golang
         uses: ./.github/actions/golang
 
+      - name: Install UDS CLI
+        uses: ./.github/actions/install-uds-cli
+
       - name: Build CLI
         run: |
-          make build-cli-linux-amd
+          uds run build-cli-linux-amd
 
       # Upload the contents of the build directory for later stages to use
       - name: Upload build artifacts
@@ -43,7 +46,7 @@ jobs:
     steps:
       # Checkout the repo and setup the tooling for this job
       - name: Checkout
-        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
         with:
           fetch-depth: 0
 
@@ -72,7 +75,7 @@ jobs:
 
       - name: Run e2e tests
         run: |
-          make test-e2e
+          build/uds run test:e2e
         env:
           GITHUB_TOKEN: secrets.GITHUB_TOKEN
 
@@ -88,7 +91,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
         with:
           fetch-depth: 0
 
@@ -113,7 +116,7 @@ jobs:
           organization: defenseunicorns
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@7ec5c2b0c6cdda6e8bbb49444bc797dd33d74dd8 # v5.0.0
+        uses: goreleaser/goreleaser-action@5742e2a039330cbb23ebf35f046f814d4c6ff811 # v5.1.0
         with:
           distribution: goreleaser
           version: latest

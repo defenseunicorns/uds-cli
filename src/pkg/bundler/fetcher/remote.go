@@ -6,7 +6,6 @@ package fetcher
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -62,17 +61,6 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 
 			// add layer to bundle's root manifest
 			f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, layerDesc)
-		} else if layerDesc.MediaType == zoci.ZarfConfigMediaType {
-			// read in and unmarshal zarf config
-			jsonData, err := os.ReadFile(filepath.Join(f.cfg.TmpDstDir, config.BlobsDir, layerDesc.Digest.Encoded()))
-			if err != nil {
-				return nil, err
-			}
-			var zarfConfigData oci.ConfigPartial
-			err = json.Unmarshal(jsonData, &zarfConfigData)
-			if err != nil {
-				return nil, err
-			}
 		}
 	}
 

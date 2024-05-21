@@ -65,9 +65,12 @@ func Test_validateBundleVars(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := validateBundleVars(tt.args.packages); (err != nil) != tt.wantErr {
-				t.Errorf("validateBundleVars() error = %v, wantErr %v", err, tt.wantErr)
+			err := validateBundleVars(tt.args.packages)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
 			}
+			require.NoError(t, err)
 		})
 	}
 }
@@ -140,9 +143,12 @@ func Test_validateOverrides(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := validateOverrides(tt.args.bundlePackage, tt.args.zarfPackage); (err != nil) != tt.wantErr {
-				t.Errorf("validateOverrides() error = %v, wantErr %v", err, tt.wantErr)
+			err := validateOverrides(tt.args.bundlePackage, tt.args.zarfPackage)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
 			}
+			require.NoError(t, err)
 		})
 	}
 }

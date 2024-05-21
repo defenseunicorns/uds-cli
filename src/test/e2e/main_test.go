@@ -68,8 +68,7 @@ func doAllTheThings(m *testing.M) (int, error) {
 	e2e.ApplianceModeKeep = os.Getenv(applianceModeKeepEnvVar) == "true"
 	e2e.RunClusterTests = os.Getenv(skipK8sEnvVar) != "true"
 
-	// Validate that the UDS binary exists. If it doesn't that means the dev hasn't built it, usually by running
-	// `make build-cli`
+	// Validate that the UDS binary exists. If it doesn't that means the dev hasn't built it
 	_, err = os.Stat(e2e.UDSBinPath)
 	if err != nil {
 		return 1, fmt.Errorf("zarf binary %s not found", e2e.UDSBinPath)
@@ -116,7 +115,7 @@ func deployZarfInit(t *testing.T) {
 		require.NoError(t, err)
 
 		// Deploy
-		cmd = strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --no-tea", bundlePath), " ")
+		cmd = strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug", bundlePath), " ")
 		_, _, err = e2e.UDS(cmd...)
 		require.NoError(t, err)
 	}

@@ -36,16 +36,19 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
 
       - name: Setup golang
         uses: ./.github/actions/golang
 
+      - name: Install UDS CLI
+        uses: ./.github/actions/install-uds-cli
+
       - name: Build UDS CLI
-        run: make build-cli-linux-amd
+        run: uds run build-cli-linux-amd
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@d39d31e687223d841ef683f52467bd88e9b21c14 # v3.25.3
+        uses: github/codeql-action/init@9fdb3e49720b44c48891d036bb502feb25684276 # v3.25.6
         env:
           CODEQL_EXTRACTOR_GO_BUILD_TRACING: on
         with:
@@ -54,6 +57,6 @@ jobs:
 
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@d39d31e687223d841ef683f52467bd88e9b21c14 # v3.25.3
+        uses: github/codeql-action/analyze@9fdb3e49720b44c48891d036bb502feb25684276 # v3.25.6
         with:
           category: "/language:${{matrix.language}}"

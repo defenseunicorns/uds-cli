@@ -11,6 +11,7 @@ check_git_status() {
 }
 
 check_git_status uds.schema.json
+check_git_status zarf.schema.json
 check_git_status tasks.schema.json
 
 exit 0

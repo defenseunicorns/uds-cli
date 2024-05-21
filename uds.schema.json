@@ -23,6 +23,13 @@
         "namespace": {
           "type": "string",
           "description": "The namespace to deploy the Helm chart to"
+        },
+        "valuesFiles": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "List of Helm chart value file  paths to set statically"
         }
       },
       "additionalProperties": false,
