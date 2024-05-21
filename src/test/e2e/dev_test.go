@@ -49,4 +49,17 @@ func TestDevDeploy(t *testing.T) {
 
 		remove(t, bundlePath)
 	})
+
+	t.Run("Test dev deploy with remote bundle", func(t *testing.T) {
+
+		bundle := "oci://ghcr.io/defenseunicorns/packages/uds-cli/test/publish/ghcr-test:0.0.1"
+
+		devDeploy(t, bundle)
+
+		deployments, _, _ := e2e.UDS(cmd...)
+		require.Contains(t, deployments, "podinfo")
+		require.Contains(t, deployments, "nginx")
+
+		remove(t, bundle)
+	})
 }
