@@ -1,9 +1,9 @@
 # 5. Dev Mode
 
-Date: 05 April 2024
+Date: 21 May 2024
 
 ## Status
-In Progress
+Accepted
 
 ## Context
 
@@ -51,7 +51,7 @@ The current `create` and `deploy` functionality does additional work creating lo
 - more new code, less reuse between `dev` and non-dev and local and remote zarf packages.
 
 ## Decision
-TBD
+By using the existing local artifacts solution, we can leverage current functionality and accelerate the development cycle. Understanding that this approach may be revisited based on future user feedback.
 
 ## Consequences
 Commands under `dev` are meant to be used in **development** environments, and are **not** meant to be used in **production** environments. There is still the possibility that a user will use `uds dev deploy` in a production environment, but the command name and documentation will make it clear that this is not the intended use case.
