@@ -1,9 +1,0 @@
-linters-settings:
-  govet:
-    enable:
-      - nilness
-
-  unused:
-    # Mark all local variables as used.
-    # default: true
-    local-variables-are-used: false
