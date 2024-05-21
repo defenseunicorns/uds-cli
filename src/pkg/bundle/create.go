@@ -157,25 +157,20 @@ func (b *Bundle) processValuesFiles() error {
 // mergeBundleChartValues merges lists of BundleChartValue using the values from the last list if there are any duplicates
 // such that values from the last list will take precedence over the values from previous lists
 func mergeBundleChartValues(bundleChartValueLists ...[]types.BundleChartValue) []types.BundleChartValue {
-	merged := make([]types.BundleChartValue, 0)
-	paths := make(map[string]bool)
+	mergedMap := make(map[string]types.BundleChartValue)
 
 	// Iterate over each list in order
 	for _, bundleChartValues := range bundleChartValueLists {
-		// Add entries from the current list to the merged list, overwriting any existing entries
+		// Add entries from the current list to the merged map, overwriting any existing entries
 		for _, bundleChartValue := range bundleChartValues {
-			if _, ok := paths[bundleChartValue.Path]; ok {
-				// Remove the existing entry from the merged list
-				for i, mergedValue := range merged {
-					if mergedValue.Path == bundleChartValue.Path {
-						merged = append(merged[:i], merged[i+1:]...)
-						break
-					}
-				}
-			}
-			merged = append(merged, bundleChartValue)
-			paths[bundleChartValue.Path] = true
+			mergedMap[bundleChartValue.Path] = bundleChartValue
 		}
+	}
+
+	// Convert the map to a slice
+	merged := make([]types.BundleChartValue, 0, len(mergedMap))
+	for _, value := range mergedMap {
+		merged = append(merged, value)
 	}
 
 	return merged
