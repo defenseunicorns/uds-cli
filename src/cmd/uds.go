@@ -66,23 +66,10 @@ var deployCmd = &cobra.Command{
 			}
 		}
 
-		// create new bundle client
+		// create new bundle client and deploy
 		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
-
-		// perform some validations, confirm, and deploy
-		_, _, _, err := bndlClient.PreDeployValidation()
-		if err != nil {
-			message.Fatalf(err, "Failed to validate bundle: %s", err.Error())
-		}
-
-		if ok := bndlClient.ConfirmBundleDeploy(); !ok {
-			message.Fatal(nil, "bundle deployment cancelled")
-		}
-		if err := bndlClient.Deploy(); err != nil {
-			bndlClient.ClearPaths()
-			message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
-		}
+		deploy(bndlClient)
 	},
 }
 
