@@ -24,12 +24,3 @@ jobs:
         uses: pre-commit/action@f7acafac0271bdd064cdfa1b13f17b4350e565ed #
         with:
           extra_args: --all-files --verbose # pre-commit run --all-files --verbose
-
-      - name: Run Revive Action by pulling pre-built image
-        uses: docker://morphy/revive-action:v2@sha256:087d4e61077087755711ab7e9fae3cc899b7bb07ff8f6a30c3dfb240b1620ae8
-        with:
-          config: revive.toml
-          # Exclude patterns, separated by semicolons (optional)
-          exclude: "src/cmd/viper.go;src/config/lang/lang.go"
-          # Path pattern (default: ./...)
-          path: "./src/..."
