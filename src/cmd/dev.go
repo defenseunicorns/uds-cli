@@ -5,8 +5,7 @@
 package cmd
 
 import (
-	"os"
-
+	"github.com/defenseunicorns/pkg/helpers"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
@@ -25,26 +24,26 @@ var devDeployCmd = &cobra.Command{
 	Args:  cobra.MaximumNArgs(1),
 	Short: lang.CmdDevDeployShort,
 	Long:  lang.CmdDevDeployLong,
-	PreRun: func(_ *cobra.Command, args []string) {
-		setBundleFile(args)
-	},
 	Run: func(_ *cobra.Command, args []string) {
+		config.Dev = true
 
-		// Create Bundle
-		srcDir, err := os.Getwd()
-		if err != nil {
-			message.Fatalf(err, "error reading the current working directory")
-		}
+		var src string
 		if len(args) > 0 {
-			srcDir = args[0]
+			src = args[0]
 		}
+		localBundle := helpers.IsDir(src)
+		if localBundle {
 
-		if len(srcDir) != 0 && srcDir[len(srcDir)-1] != '/' {
-			srcDir = srcDir + "/"
+			// Create Bundle
+			setBundleFile(args)
+
+			if len(src) != 0 && src[len(src)-1] != '/' {
+				src = src + "/"
+			}
+
+			config.CommonOptions.Confirm = true
+			bundleCfg.CreateOpts.SourceDirectory = src
 		}
-
-		config.CommonOptions.Confirm = true
-		bundleCfg.CreateOpts.SourceDirectory = srcDir
 
 		configureZarf()
 
@@ -59,18 +58,23 @@ var devDeployCmd = &cobra.Command{
 		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
 
-		// Check if local zarf packages need to be created
-		bndlClient.CreateZarfPkgs()
-
 		// Create dev bundle
-		config.Dev = true
-		if err := bndlClient.Create(); err != nil {
-			bndlClient.ClearPaths()
-			message.Fatalf(err, "Failed to create bundle: %s", err.Error())
+		if localBundle {
+			// Check if local zarf packages need to be created
+			bndlClient.CreateZarfPkgs()
+
+			if err := bndlClient.Create(); err != nil {
+				bndlClient.ClearPaths()
+				message.Fatalf(err, "Failed to create bundle: %s", err.Error())
+			}
 		}
 
 		// Deploy dev bundle
-		bndlClient.SetDevSource(srcDir)
+		if localBundle {
+			bndlClient.SetDevSource(src)
+		} else {
+			bundleCfg.DeployOpts.Source = src
+		}
 		deploy(bndlClient)
 	},
 }
@@ -80,4 +84,6 @@ func init() {
 	rootCmd.AddCommand(devCmd)
 	devCmd.AddCommand(devDeployCmd)
 	devDeployCmd.Flags().StringArrayVarP(&bundleCfg.DeployOpts.Packages, "packages", "p", []string{}, lang.CmdBundleDeployFlagPackages)
+	devDeployCmd.Flags().BoolVarP(&config.CommonOptions.Confirm, "confirm", "c", false, lang.CmdBundleDeployFlagConfirm)
+
 }
