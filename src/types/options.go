@@ -21,6 +21,7 @@ type BundleCreateOptions struct {
 	SigningKeyPath     string
 	SigningKeyPassword string
 	BundleFile         string
+	Flavors            map[string]string
 }
 
 // BundleDeployOptions is the options for the bundler.Deploy() function
@@ -28,6 +29,7 @@ type BundleDeployOptions struct {
 	Resume        bool
 	Source        string
 	Packages      []string
+	Refs          map[string]string
 	PublicKeyPath string
 	SetVariables  map[string]string `json:"setVariables" jsonschema:"description=Key-Value map of variable names and their corresponding values that will be used by Zarf packages in a bundle"`
 	// Variables and SharedVariables are read in from uds-config.yaml

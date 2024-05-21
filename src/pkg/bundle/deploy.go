@@ -46,6 +46,8 @@ func (b *Bundle) Deploy() error {
 
 		for _, pkg := range b.bundle.Packages {
 			if slices.Contains(userSpecifiedPackages, pkg.Name) {
+				pkg = b.setPackageRef(pkg)
+				pkg = b.setPackageFlavor(pkg)
 				packagesToDeploy = append(packagesToDeploy, pkg)
 			}
 		}
@@ -54,10 +56,41 @@ func (b *Bundle) Deploy() error {
 		if len(userSpecifiedPackages) != len(packagesToDeploy) {
 			return fmt.Errorf("invalid zarf packages specified by --packages")
 		}
-		return deployPackages(packagesToDeploy, resume, b)
+	} else {
+		// packages not specified check any ref or flavor flags against all packages
+		for i, pkg := range b.bundle.Packages {
+			pkg = b.setPackageRef(pkg)
+			pkg = b.setPackageFlavor(pkg)
+			b.bundle.Packages[i] = pkg
+		}
+		packagesToDeploy = b.bundle.Packages
 	}
+	return deployPackages(packagesToDeploy, resume, b)
+}
 
-	return deployPackages(b.bundle.Packages, resume, b)
+func (b *Bundle) setPackageRef(pkg types.Package) types.Package {
+	if b.cfg.DeployOpts.Refs != nil {
+		if len(b.cfg.DeployOpts.Refs) == 1 {
+			var value string
+			for _, val := range b.cfg.DeployOpts.Refs {
+				value = val
+				break
+			}
+			if value == "" {
+				var ref string
+				for key := range b.cfg.DeployOpts.Refs {
+					ref = key
+					break
+				}
+				pkg.Ref = ref
+			}
+		} else {
+			if ref, ok := b.cfg.DeployOpts.Refs[pkg.Name]; ok {
+				pkg.Ref = ref
+			}
+		}
+	}
+	return pkg
 }
 
 func deployPackages(packages []types.Package, resume bool, b *Bundle) error {

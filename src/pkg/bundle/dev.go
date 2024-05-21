@@ -11,7 +11,7 @@ import (
 	"regexp"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
-
+	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfCLI "github.com/defenseunicorns/zarf/src/cmd"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -48,7 +48,8 @@ func (b *Bundle) CreateZarfPkgs() {
 			}
 			// create local zarf package if it doesn't exist
 			if !packageFound {
-				os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom"}
+				pkg = b.setPackageFlavor(pkg)
+				os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom", "--flavor", pkg.Flavor}
 				zarfCLI.Execute()
 				if err != nil {
 					message.Fatalf(err, "Failed to create package %s: %s", pkg.Name, err.Error())
@@ -56,6 +57,31 @@ func (b *Bundle) CreateZarfPkgs() {
 			}
 		}
 	}
+}
+
+func (b *Bundle) setPackageFlavor(pkg types.Package) types.Package {
+	if b.cfg.CreateOpts.Flavors != nil {
+		if len(b.cfg.CreateOpts.Flavors) == 1 {
+			var value string
+			for _, val := range b.cfg.CreateOpts.Flavors {
+				value = val
+				break
+			}
+			if value == "" {
+				var flavor string
+				for key := range b.cfg.CreateOpts.Flavors {
+					flavor = key
+					break
+				}
+				pkg.Flavor = flavor
+			}
+		} else {
+			if flavor, ok := b.cfg.CreateOpts.Flavors[pkg.Name]; ok {
+				pkg.Flavor = flavor
+			}
+		}
+	}
+	return pkg
 }
 
 // SetDevSource sets the source for the bundle when in dev mode

@@ -30,6 +30,7 @@ const (
 	CmdBundleCreateFlagOutput             = "Specify the output (an oci:// URL) for the created bundle"
 	CmdBundleCreateFlagSigningKey         = "Path to private key file for signing bundles"
 	CmdBundleCreateFlagSigningKeyPassword = "Password to the private key file used for signing bundles"
+	CmdBundleCreateFlagFlavors            = "Specify which zarf package flavor you want to use. By default the ref set in the bundle yaml is used."
 
 	// bundle deploy
 	CmdBundleDeployShort        = "Deploy a bundle from a local tarball or oci:// URL"
@@ -38,6 +39,7 @@ const (
 	CmdBundleDeployFlagResume   = "Only deploys packages from the bundle which haven't already been deployed"
 	CmdBundleDeployFlagSet      = "Specify deployment variables to set on the command line (KEY=value)"
 	CmdBundleDeployFlagRetries  = "Specify the number of retries for package deployments (applies to all pkgs in a bundle)"
+	CmdBundleDeployFlagRefs     = "Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used."
 
 	// bundle inspect
 	CmdBundleInspectShort            = "Display the metadata of a bundle"

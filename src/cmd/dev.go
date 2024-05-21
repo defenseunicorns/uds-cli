@@ -81,4 +81,6 @@ func init() {
 	rootCmd.AddCommand(devCmd)
 	devCmd.AddCommand(devDeployCmd)
 	devDeployCmd.Flags().StringArrayVarP(&bundleCfg.DeployOpts.Packages, "packages", "p", []string{}, lang.CmdBundleDeployFlagPackages)
+	devDeployCmd.Flags().StringToStringVarP(&bundleCfg.DeployOpts.Refs, "refs", "r", map[string]string{}, lang.CmdBundleDeployFlagRefs)
+	devDeployCmd.Flags().StringToStringVarP(&bundleCfg.CreateOpts.Flavors, "flavors", "f", map[string]string{}, lang.CmdBundleCreateFlagFlavors)
 }
