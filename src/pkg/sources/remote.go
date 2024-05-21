@@ -183,7 +183,6 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 	estimatedBytes := int64(0)
 	layersToPull := []ocispec.Descriptor{pkgManifestDesc}
 	layersInBundle := []ocispec.Descriptor{pkgManifestDesc}
-	numLayersVerified := 0.0
 
 	for _, layer := range pkgManifest.Layers {
 		ok, err := r.Remote.Repo().Blobs().Exists(ctx, layer)
@@ -191,7 +190,6 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 			return nil, err
 		}
 		progressBar.Add(1)
-		numLayersVerified++
 		if ok {
 			estimatedBytes += layer.Size
 			layersInBundle = append(layersInBundle, layer)

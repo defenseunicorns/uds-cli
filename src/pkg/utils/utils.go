@@ -66,11 +66,9 @@ func ConfigureLogs(cmd *cobra.Command) error {
 		return err
 	}
 
-	logWriter := io.MultiWriter(logFile)
-
 	// use Zarf pterm output
 	message.Notef("Saving log file to %s", tmpLogLocation)
-	logWriter = io.MultiWriter(os.Stderr, logFile)
+	logWriter := io.MultiWriter(os.Stderr, logFile)
 	pterm.SetDefaultOutput(logWriter)
 	message.Debugf(fmt.Sprintf("Saving log file to %s", tmpLogLocation))
 	return nil
