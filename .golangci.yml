@@ -27,8 +27,13 @@ linters:
 
 linters-settings:
   govet:
-    enable:
-      - nilness
+    enable-all: true
+    disable:
+      - shadow
+      - fieldalignment
+      - unusedwrite
+  nolintlint:
+    require-specific: true
 
   unused:
     # Mark all local variables as used.
