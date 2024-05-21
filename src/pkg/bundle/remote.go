@@ -308,7 +308,7 @@ func ValidateArch(arch string) error {
 	}
 	if c != nil {
 		clusterArchs, err = c.GetArchitectures()
-		if err == nil {
+		if err != nil {
 			return err
 		}
 		// check if bundle arch is in clusterArchs

@@ -23,7 +23,7 @@ linters:
     - gosec
     - govet
     - staticcheck
-
+    - nilerr
 
 linters-settings:
   govet:
@@ -34,4 +34,3 @@ linters-settings:
     # Mark all local variables as used.
     # default: true
     local-variables-are-used: false
-
