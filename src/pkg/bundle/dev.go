@@ -22,7 +22,7 @@ func (b *Bundle) CreateZarfPkgs() {
 	srcDir := b.cfg.CreateOpts.SourceDirectory
 	bundleYAMLPath := filepath.Join(srcDir, b.cfg.CreateOpts.BundleFile)
 	if err := utils.ReadYAMLStrict(bundleYAMLPath, &b.bundle); err != nil {
-		message.Fatalf(err, "Failed to read bundle.yaml: %s", err.Error())
+		message.Fatalf(err, "Failed to read %s, error in YAML: %s", b.cfg.CreateOpts.BundleFile, err.Error())
 	}
 
 	zarfPackagePattern := `^zarf-.*\.tar\.zst$`
