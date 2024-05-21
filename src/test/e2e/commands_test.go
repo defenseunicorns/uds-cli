@@ -106,7 +106,7 @@ func inspectLocalAndSBOMExtract(t *testing.T, tarballPath string) {
 }
 
 func deploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("deploy %s --retries 1 --confirm --no-tea", tarballPath), " ")
+	cmd := strings.Split(fmt.Sprintf("deploy %s --retries 1 --confirm", tarballPath), " ")
 	stdout, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 	return stdout, stderr
@@ -134,13 +134,13 @@ func runCmd(t *testing.T, input string) (stdout string, stderr string) {
 }
 
 func deployPackagesFlag(tarballPath string, packages string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --packages %s --no-tea", tarballPath, packages), " ")
+	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --packages %s", tarballPath, packages), " ")
 	stdout, stderr, _ = e2e.UDS(cmd...)
 	return stdout, stderr
 }
 
 func deployResumeFlag(t *testing.T, tarballPath string) {
-	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --resume --no-tea", tarballPath), " ")
+	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --resume", tarballPath), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
@@ -158,7 +158,7 @@ func removePackagesFlag(tarballPath string, packages string) (stdout string, std
 }
 
 func deployInsecure(t *testing.T, ref string) {
-	cmd := strings.Split(fmt.Sprintf("deploy %s --insecure --confirm --no-tea", ref), " ")
+	cmd := strings.Split(fmt.Sprintf("deploy %s --insecure --confirm", ref), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
@@ -175,7 +175,7 @@ func deployAndRemoveLocalAndRemoteInsecure(t *testing.T, ref string, tarballPath
 	t.Run(
 		"deploy+remove bundle via OCI",
 		func(t *testing.T) {
-			cmd = strings.Split(fmt.Sprintf("deploy %s --insecure --confirm --no-tea", ref), " ")
+			cmd = strings.Split(fmt.Sprintf("deploy %s --insecure --confirm", ref), " ")
 			_, _, err := e2e.UDS(cmd...)
 			require.NoError(t, err)
 
@@ -188,7 +188,7 @@ func deployAndRemoveLocalAndRemoteInsecure(t *testing.T, ref string, tarballPath
 	t.Run(
 		"deploy+remove bundle via local tarball",
 		func(t *testing.T) {
-			cmd = strings.Split(fmt.Sprintf("deploy %s --confirm --no-tea", tarballPath), " ")
+			cmd = strings.Split(fmt.Sprintf("deploy %s --confirm", tarballPath), " ")
 			_, _, err := e2e.UDS(cmd...)
 			require.NoError(t, err)
 
