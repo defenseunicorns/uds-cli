@@ -222,7 +222,10 @@ func writeTarball(bundle *types.UDSBundle, artifactPathMap types.PathMap, output
 	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, bundle.Metadata.Name, bundle.Metadata.Architecture, bundle.Metadata.Version)
 
 	if !helpers.IsDir(outputDir) {
-		os.MkdirAll(outputDir, 0755)
+		err := os.MkdirAll(outputDir, 0755)
+		if err != nil {
+			return err
+		}
 	}
 
 	dst := filepath.Join(outputDir, filename)

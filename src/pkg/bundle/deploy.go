@@ -130,9 +130,6 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 		}
 
 		pkgClient := packager.NewOrDie(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
-		if err != nil {
-			return err
-		}
 
 		if err := pkgClient.Deploy(); err != nil {
 			return err

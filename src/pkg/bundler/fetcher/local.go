@@ -198,8 +198,6 @@ func (f *localFetcher) toBundle(pkg zarfTypes.ZarfPackage, pkgTmp string) ([]oci
 		if exists, err := f.cfg.Store.Exists(ctx, desc); !exists && err == nil {
 			if err := f.cfg.Store.Push(ctx, desc, layer); err != nil {
 				return nil, err
-			} else if err != nil {
-				return nil, err
 			}
 		}
 		descs = append(descs, desc)

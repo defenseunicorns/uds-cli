@@ -177,9 +177,6 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 		// grab sha of zarf image manifest and pull it down
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
 		manifestDesc := rootManifest.Locate(sha)
-		if err != nil {
-			return nil, nil, err
-		}
 		manifestBytes, err := op.FetchLayer(ctx, manifestDesc)
 		if err != nil {
 			return nil, nil, err
@@ -311,7 +308,7 @@ func ValidateArch(arch string) error {
 	}
 	if c != nil {
 		clusterArchs, err = c.GetArchitectures()
-		if err == nil {
+		if err != nil {
 			return err
 		}
 		// check if bundle arch is in clusterArchs
