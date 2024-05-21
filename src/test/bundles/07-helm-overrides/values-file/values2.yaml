@@ -1,0 +1,3 @@
+podinfo.replicaCount: 4
+podinfo.podAnnotations:
+  customAnnotation: "customValue2"

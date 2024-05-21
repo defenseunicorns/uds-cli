@@ -157,6 +157,45 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 	remove(t, bundlePath)
 }
 
+func TestBundleWithHelmOverridesValuesFile(t *testing.T) {
+	deployZarfInit(t)
+	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
+	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
+	bundleDir := "src/test/bundles/07-helm-overrides/values-file"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-values-file-%s-0.0.1.tar.zst", e2e.Arch))
+	err := os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config.yaml"))
+	require.NoError(t, err)
+
+	createLocal(t, bundleDir, e2e.Arch)
+	deploy(t, bundlePath)
+
+	// test values overrides
+	t.Run("check values overrides", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.replicas}'", " ")
+		outputNumReplicas, _, err := e2e.UDS(cmd...)
+		require.Equal(t, "'2'", outputNumReplicas)
+		require.NoError(t, err)
+	})
+
+	t.Run("check object-type override in values", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.metadata.annotations}'", " ")
+		annotations, _, err := e2e.UDS(cmd...)
+		require.Contains(t, annotations, "\"customAnnotation\":\"customValue2\"")
+		require.NoError(t, err)
+	})
+
+	t.Run("check list-type override in values", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.tolerations}'", " ")
+		tolerations, _, err := e2e.UDS(cmd...)
+		require.Contains(t, tolerations, "\"key\":\"uds\"")
+		require.Contains(t, tolerations, "\"value\":\"defense\"")
+		require.Contains(t, tolerations, "\"key\":\"unicorn\"")
+		require.Contains(t, tolerations, "\"effect\":\"NoSchedule\"")
+		require.NoError(t, err)
+
+	})
+}
+
 func TestBundleWithDupPkgs(t *testing.T) {
 	deployZarfInit(t)
 	e2e.SetupDockerRegistry(t, 888)

@@ -1,0 +1,12 @@
+podinfo.replicaCount: 3
+podinfo.tolerations:
+  - key: "unicorn"
+    operator: "Equal"
+    value: "defense"
+    effect: "NoSchedule"
+  - key: "uds"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"
+podinfo.podAnnotations:
+  customAnnotation: "customValue"
