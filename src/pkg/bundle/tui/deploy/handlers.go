@@ -165,7 +165,7 @@ func (m *Model) handleDeployTick() (tea.Model, tea.Cmd) {
 		// handle upgrade scenario by resetting the component progress, otherwise increment it
 		if p.resetProgress {
 			// if upgraded len(deployedPkg.DeployedComponents) will be equal to the number of components in the package
-			if deployedPkg != nil && len(deployedPkg.DeployedComponents) > 0 {
+			if len(deployedPkg.DeployedComponents) > 0 {
 				m.packages[i].resetProgress = false
 			}
 			break

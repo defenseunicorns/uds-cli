@@ -177,9 +177,6 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 		// grab sha of zarf image manifest and pull it down
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
 		manifestDesc := rootManifest.Locate(sha)
-		if err != nil {
-			return nil, nil, err
-		}
 		manifestBytes, err := op.FetchLayer(ctx, manifestDesc)
 		if err != nil {
 			return nil, nil, err

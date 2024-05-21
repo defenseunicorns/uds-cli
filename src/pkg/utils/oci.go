@@ -85,11 +85,9 @@ func ToOCIRemote(t any, mediaType string, remote *oci.OrasRemote) (*ocispec.Desc
 func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) oras.CopyOptions {
 	var copyOpts oras.CopyOptions
 	copyOpts.Concurrency = concurrency
-	estimatedBytes := int64(0)
 	var shas []string
 	for _, layer := range layersToPull {
 		if len(layer.Digest.String()) > 0 {
-			estimatedBytes += layer.Size
 			shas = append(shas, layer.Digest.Encoded())
 		}
 	}

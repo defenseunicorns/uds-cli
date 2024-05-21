@@ -134,9 +134,6 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 		}
 
 		pkgClient := packager.NewOrDie(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
-		if err != nil {
-			return err
-		}
 
 		deploy.Program.Send(fmt.Sprintf("newPackage:%s:%d", pkg.Name, i))
 
