@@ -13,7 +13,6 @@ import (
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/pkg/bundle/tui/deploy"
 	"github.com/defenseunicorns/uds-cli/src/pkg/cache"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/layout"
@@ -49,7 +48,7 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Comp
 	}
 
 	var pkg zarfTypes.ZarfPackage
-	if err = zarfUtils.ReadYaml(dst.ZarfYAML, &pkg); err != nil {
+	if err = utils.ReadYAMLStrict(dst.ZarfYAML, &pkg); err != nil {
 		return zarfTypes.ZarfPackage{}, nil, err
 	}
 
@@ -57,10 +56,6 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Comp
 	if err != nil {
 		return pkg, nil, err
 	}
-
-	// record number of components to be deployed for TUI
-	// todo: won't work for optional components......
-	deploy.Program.Send(fmt.Sprintf("totalComponents:%d", len(pkg.Components)))
 
 	dst.SetFromLayers(layers)
 
@@ -188,8 +183,6 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 	estimatedBytes := int64(0)
 	layersToPull := []ocispec.Descriptor{pkgManifestDesc}
 	layersInBundle := []ocispec.Descriptor{pkgManifestDesc}
-	numLayersVerified := 0.0
-	downloadedBytes := int64(0)
 
 	for _, layer := range pkgManifest.Layers {
 		ok, err := r.Remote.Repo().Blobs().Exists(ctx, layer)
@@ -197,10 +190,7 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 			return nil, err
 		}
 		progressBar.Add(1)
-		numLayersVerified++
 		if ok {
-			percVerified := numLayersVerified / float64(len(pkgManifest.Layers)) * 100
-			deploy.Program.Send(fmt.Sprintf("verifying:%v", int64(percVerified)))
 			estimatedBytes += layer.Size
 			layersInBundle = append(layersInBundle, layer)
 			digest := layer.Digest.Encoded()
@@ -228,13 +218,6 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 	copyOpts := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
 	doneSaving := make(chan error)
 	go zarfUtils.RenderProgressBarForLocalDirWrite(r.TmpDir, estimatedBytes, doneSaving, fmt.Sprintf("Pulling bundled Zarf pkg: %s", r.PkgName), fmt.Sprintf("Successfully pulled package: %s", r.PkgName))
-
-	copyOpts.PostCopy = func(_ context.Context, desc ocispec.Descriptor) error {
-		downloadedBytes += desc.Size
-		downloadedPerc := float64(downloadedBytes) / float64(estimatedBytes) * 100
-		deploy.Program.Send(fmt.Sprintf("downloading:%d", int64(downloadedPerc)))
-		return nil
-	}
 
 	_, err = oras.Copy(ctx, r.Remote.Repo(), r.Remote.Repo().Reference.String(), store, "", copyOpts)
 	doneSaving <- err

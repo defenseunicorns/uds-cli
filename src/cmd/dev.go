@@ -71,8 +71,7 @@ var devDeployCmd = &cobra.Command{
 
 		// Deploy dev bundle
 		bndlClient.SetDevSource(srcDir)
-
-		deployWithoutTea(bndlClient)
+		deploy(bndlClient)
 	},
 }
 

@@ -601,3 +601,13 @@ func TestBundleTmpDir(t *testing.T) {
 	err = os.RemoveAll("./customtmp")
 	require.NoError(t, err)
 }
+
+func TestInvalidBundle(t *testing.T) {
+	deployZarfInit(t)
+	zarfPkgPath := "src/test/packages/helm"
+	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+	bundleDir := "src/test/bundles/07-helm-overrides/invalid"
+	stderr := createLocalError(bundleDir, e2e.Arch)
+	require.Contains(t, stderr, "unknown field")
+}

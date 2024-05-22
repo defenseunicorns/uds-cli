@@ -103,7 +103,7 @@ func (f *localFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
 	}
 	zarfYAML := zarfTypes.ZarfPackage{}
 	zarfYAMLPath := filepath.Join(tmpDir, config.ZarfYAML)
-	err = zarfUtils.ReadYaml(zarfYAMLPath, &zarfYAML)
+	err = utils.ReadYAMLStrict(zarfYAMLPath, &zarfYAML)
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, err
 	}
@@ -197,8 +197,6 @@ func (f *localFetcher) toBundle(pkg zarfTypes.ZarfPackage, pkgTmp string) ([]oci
 		// at this point, for some reason, many layers already exist in the store?
 		if exists, err := f.cfg.Store.Exists(ctx, desc); !exists && err == nil {
 			if err := f.cfg.Store.Push(ctx, desc, layer); err != nil {
-				return nil, err
-			} else if err != nil {
 				return nil, err
 			}
 		}
