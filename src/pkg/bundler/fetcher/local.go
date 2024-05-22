@@ -109,6 +109,8 @@ func (f *localFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
 func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	ctx := context.TODO()
 
+	// todo: test the case of an optional component that only has an action (maybe also test for charts and manifests)
+
 	// create a new layout for the package to make it easy to filter components and get file paths
 	pkgPaths := layout.New(pkgTmp)
 	tarballSrc := zarfSources.TarballSource{
@@ -117,8 +119,6 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 		},
 	}
 
-	// todo: test the case of an optional component that only has an action (maybe also test for charts and manifests)
-
 	// filter out optional components
 	createFilter := filters.Combine(
 		filters.ForDeploy(strings.Join(f.pkg.OptionalComponents, ","), false),
@@ -126,12 +126,6 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 
 	// calling LoadPackage populates the pkgPaths with the files from the tarball
 	pkg, _, err := tarballSrc.LoadPackage(pkgPaths, createFilter, false)
-	if err != nil {
-		return nil, err
-	}
-
-	// create a new store to push layers to
-	src, err := file.New(pkgTmp)
 	if err != nil {
 		return nil, err
 	}
@@ -235,31 +229,17 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 
 	// rewrite checksums.txt with removed layers
 	pkgPaths.Images.Blobs = imageBlobs
-	checksum, err := pkgPaths.GenerateChecksums()
-	if err != nil {
-		return nil, err
-	}
-
-	// update zarf.yaml with new aggregate checksum
-	var zarfYAML zarfTypes.ZarfPackage
-	zarfBytes, err := os.ReadFile(pkgPaths.ZarfYAML)
-	if err != nil {
-		return nil, err
-	}
-	err = goyaml.Unmarshal(zarfBytes, &zarfYAML)
-	if err != nil {
-		return nil, err
-	}
-	zarfYAML.Metadata.AggregateChecksum = checksum
-	zarfYAMLBytes, err := goyaml.Marshal(zarfYAML)
-	if err != nil {
-		return nil, err
-	}
-	err = os.WriteFile(pkgPaths.ZarfYAML, zarfYAMLBytes, 0600)
+	checksum, err := recomputePkgChecksum(pkgPaths)
 	if err != nil {
 		return nil, err
 	}
 	pkg.Metadata.AggregateChecksum = checksum // update pkg metadata already in memory
+
+	// create a new store to push layers to
+	src, err := file.New(pkgTmp)
+	if err != nil {
+		return nil, err
+	}
 
 	// go through the filtered paths and add them to the bundle store
 	var descs []ocispec.Descriptor

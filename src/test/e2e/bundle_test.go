@@ -411,6 +411,7 @@ func TestPackageNaming(t *testing.T) {
 }
 
 func TestBundleIndexInRemoteOnPublish(t *testing.T) {
+	deployZarfInit(t)
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
 
@@ -446,6 +447,7 @@ func TestBundleIndexInRemoteOnPublish(t *testing.T) {
 }
 
 func TestBundleIndexInRemoteOnCreate(t *testing.T) {
+	deployZarfInit(t)
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
 
@@ -498,6 +500,7 @@ func validateMultiArchIndex(t *testing.T, index ocispec.Index) {
 }
 
 func TestBundleWithComposedPkgComponent(t *testing.T) {
+	deployZarfInit(t)
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
 	zarfPkgPath := "src/test/packages/prometheus"
@@ -507,6 +510,19 @@ func TestBundleWithComposedPkgComponent(t *testing.T) {
 
 	bundleDir := "src/test/bundles/13-composable-component"
 	bundleName := "with-composed"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch))
+	createLocal(t, bundleDir, e2e.Arch)
+	deploy(t, bundlePath)
+	remove(t, bundlePath)
+}
+
+func TestBundleOptionalComponents(t *testing.T) {
+	deployZarfInit(t)
+	zarfPkgPath := "src/test/packages/podinfo-and-nginx"
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+
+	bundleDir := "src/test/bundles/14-optional-components"
+	bundleName := "optional-components"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch))
 	createLocal(t, bundleDir, e2e.Arch)
 	deploy(t, bundlePath)
