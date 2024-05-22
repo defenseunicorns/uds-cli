@@ -110,6 +110,7 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	}
 
 	// go into the pkg's image index and filter out optional components, then rewrite to disk
+	// todo: may be able to reuse this fn if you take out the read/writing to disk logic
 	imgIndex, err := filterImageIndex(pkg, pkgPaths)
 	if err != nil {
 		return nil, err

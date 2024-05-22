@@ -23,6 +23,7 @@ import (
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
+	ocistore "oras.land/oras-go/v2/content/oci"
 )
 
 // remoteFetcher fetches remote Zarf pkgs for local bundles
@@ -38,12 +39,22 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	fetchSpinner := message.NewProgressSpinner("Fetching package %s", f.pkg.Name)
 	defer fetchSpinner.Stop()
 
-	layerDescs, err := f.layersToLocalBundle(fetchSpinner, f.cfg.PkgIter+1, f.cfg.NumPkgs)
+	// get layers from remote
+	fetchSpinner.Updatef("Fetching %s package layer metadata (package %d of %d)", f.pkg.Name, f.cfg.PkgIter+1, f.cfg.NumPkgs)
+	layersToCopy, err := utils.GetZarfLayers(*f.remote, f.pkgRootManifest, f.pkg.OptionalComponents)
 	if err != nil {
 		return nil, err
 	}
+	fetchSpinner.Stop()
 
-	// grab layers for archiving
+	// copy layers to local bundle
+	layerDescs, err := f.remoteToLocal(layersToCopy)
+	if err != nil {
+		return nil, err
+	}
+	fetchSpinner.Updatef("Pushing package %s layers to registry (package %d of %d)", f.pkg.Name, f.cfg.PkgIter+1, f.cfg.NumPkgs)
+
+	// write the bundle root manifest using refs to the Zarf root manifests
 	for _, layerDesc := range layerDescs {
 		if layerDesc.MediaType == ocispec.MediaTypeImageManifest {
 			// rewrite the Zarf image manifest to have media type of Zarf blob
@@ -68,46 +79,41 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	return layerDescs, nil
 }
 
-// LayersToLocalBundle pushes a remote Zarf pkg's layers to a local bundle
-func (f *remoteFetcher) layersToLocalBundle(spinner *message.Spinner, currentPackageIter int, totalPackages int) ([]ocispec.Descriptor, error) {
-	spinner.Updatef("Fetching %s package layer metadata (package %d of %d)", f.pkg.Name, currentPackageIter, totalPackages)
-	// get only the layers that are required by the components
-	layersToCopy, err := utils.GetZarfLayers(*f.remote, f.pkgRootManifest, f.pkg.OptionalComponents)
-	if err != nil {
-		return nil, err
+func checkLayerExists(ctx context.Context, layer ocispec.Descriptor, store *ocistore.Store, dstDir string) (bool, error) {
+	// check if layer already exists either in the bundle store or the cache
+	if exists, _ := store.Exists(ctx, layer); exists {
+		return true, nil
+	} else if cache.Exists(layer.Digest.Encoded()) {
+		err := cache.Use(layer.Digest.Encoded(), filepath.Join(dstDir, config.BlobsDir))
+		if err != nil {
+			return false, err
+		}
+		return true, nil
 	}
-	spinner.Stop()
-	layerDescs, err := f.remoteToLocal(layersToCopy)
-	if err != nil {
-		return nil, err
-	}
-	// return layer descriptor so we can copy them into the tarball path map
-	spinner.Updatef("Pushing package %s layers to registry (package %d of %d)", f.pkg.Name, currentPackageIter, totalPackages)
-	return layerDescs, err
+	return false, nil
 }
 
 // remoteToLocal copies a remote Zarf pkg to a local OCI store
+// todo: refactor, this guy is huge and complicated
 func (f *remoteFetcher) remoteToLocal(layersToCopy []ocispec.Descriptor) ([]ocispec.Descriptor, error) {
 	ctx := context.TODO()
 	// pull layers from remote and write to OCI artifact dir
 	var descsToBundle []ocispec.Descriptor
 	var layersToPull []ocispec.Descriptor
 	estimatedBytes := int64(0)
+
 	// grab descriptors of layers to copy
 	for _, layer := range layersToCopy {
 		if layer.Digest == "" {
 			continue
 		}
-		// check if layer already exists
-		if exists, _ := f.cfg.Store.Exists(ctx, layer); exists {
-			continue
-		} else if cache.Exists(layer.Digest.Encoded()) {
-			err := cache.Use(layer.Digest.Encoded(), filepath.Join(f.cfg.TmpDstDir, config.BlobsDir))
-			if err != nil {
-				return nil, err
-			}
-		} else if layer.MediaType != ocispec.MediaTypeImageManifest {
-			// grab layer to pull from OCI; don't grab Zarf root manifest because we get it automatically during oras.Copy()
+		exists, err := checkLayerExists(ctx, layer, f.cfg.Store, f.cfg.TmpDstDir)
+		if err != nil {
+			return nil, err
+		}
+		// if layer not in bundle store, add to layersToPull
+		// but don't grab Zarf root manifest because we get it automatically during oras.Copy()
+		if !exists && layer.MediaType != ocispec.MediaTypeImageManifest {
 			layersToPull = append(layersToPull, layer)
 			estimatedBytes += layer.Size
 		}

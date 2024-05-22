@@ -266,7 +266,7 @@ func GetZarfLayers(remote zoci.Remote, pkgRootManifest *oci.Manifest, optionalCo
 		return nil, err
 	}
 
-	// ensure we're only pulling required components and optional components
+	// ensure we're only pulling required components and optional components and images
 	var components []zarfTypes.ZarfComponent
 	for _, c := range zarfPkg.Components {
 		if c.Required != nil || slices.Contains(optionalComponents, c.Name) {

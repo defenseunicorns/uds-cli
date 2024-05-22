@@ -217,6 +217,7 @@ func (tp *tarballBundleProvider) LoadBundleMetadata() (types.PathMap, error) {
 	return loaded, nil
 }
 
+// todo: rename or refactor, there are 2 getZarfLayers functions in this codebase....
 func (tp *tarballBundleProvider) getZarfLayers(store *ocistore.Store, pkgManifestDesc ocispec.Descriptor) ([]ocispec.Descriptor, int64, error) {
 	var layersToPull []ocispec.Descriptor
 	estimatedPkgSize := int64(0)

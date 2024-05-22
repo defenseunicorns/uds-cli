@@ -517,9 +517,9 @@ func TestBundleWithComposedPkgComponent(t *testing.T) {
 }
 
 func TestBundleOptionalComponents(t *testing.T) {
-	deployZarfInit(t)
+	removeZarfInit()
 	zarfPkgPath := "src/test/packages/podinfo-and-nginx"
-	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+	e2e.CreateZarfPkg(t, zarfPkgPath, true)
 
 	bundleDir := "src/test/bundles/14-optional-components"
 	bundleName := "optional-components"
