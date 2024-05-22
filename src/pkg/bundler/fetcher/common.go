@@ -51,14 +51,9 @@ func recomputePkgChecksum(pkgPaths *layout.PackagePaths) (string, error) {
 }
 
 // loadPkg loads a package from a tarball source and filters out optional components
-func loadPkg(pkgTmp, pkgSrc string, optionalComponents []string) (zarfTypes.ZarfPackage, *layout.PackagePaths, error) {
+func loadPkg(pkgTmp string, pkgSrc zarfSources.PackageSource, optionalComponents []string) (zarfTypes.ZarfPackage, *layout.PackagePaths, error) {
 	// create empty layout and source
 	pkgPaths := layout.New(pkgTmp)
-	tarballSrc := zarfSources.TarballSource{
-		ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{
-			PackageSource: pkgSrc,
-		},
-	}
 
 	// create filter for optional components
 	createFilter := filters.Combine(
@@ -66,7 +61,7 @@ func loadPkg(pkgTmp, pkgSrc string, optionalComponents []string) (zarfTypes.Zarf
 	)
 
 	// load the package with the filter (calling LoadPackage populates the pkgPaths with the files from the tarball)
-	pkg, _, err := tarballSrc.LoadPackage(pkgPaths, createFilter, false)
+	pkg, _, err := pkgSrc.LoadPackage(pkgPaths, createFilter, false)
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, nil, err
 	}
@@ -74,11 +69,12 @@ func loadPkg(pkgTmp, pkgSrc string, optionalComponents []string) (zarfTypes.Zarf
 }
 
 // filterImageIndex filters out optional components from the images index
-func filterImageIndex(pkg zarfTypes.ZarfPackage, pkgPaths *layout.PackagePaths) (ocispec.Index, error) {
+func filterImageIndex(pkg zarfTypes.ZarfPackage, pathToImgIndex string) (ocispec.Index, error) {
 	// read in images/index.json
 	var imgIndex ocispec.Index
-	if pkgPaths.Images.Index != "" {
-		indexBytes, err := os.ReadFile(pkgPaths.Images.Index)
+	var originalNumImgs int
+	if pathToImgIndex != "" {
+		indexBytes, err := os.ReadFile(pathToImgIndex)
 		if err != nil {
 			return ocispec.Index{}, err
 		}
@@ -86,6 +82,7 @@ func filterImageIndex(pkg zarfTypes.ZarfPackage, pkgPaths *layout.PackagePaths) 
 		if err != nil {
 			return ocispec.Index{}, err
 		}
+		originalNumImgs = len(imgIndex.Manifests)
 	}
 	// include only images that are in the components using a map to dedup manifests
 	manifestIncludeMap := map[string]ocispec.Descriptor{}
@@ -108,12 +105,16 @@ func filterImageIndex(pkg zarfTypes.ZarfPackage, pkgPaths *layout.PackagePaths) 
 	imgIndex.Manifests = manifestsToInclude
 
 	// rewrite the images index
-	if len(imgIndex.Manifests) > 0 {
+	if len(imgIndex.Manifests) > 0 && len(imgIndex.Manifests) != originalNumImgs {
+		err := os.Remove(pathToImgIndex)
+		if err != nil {
+			return ocispec.Index{}, err
+		}
 		imgIndexBytes, err := json.Marshal(imgIndex)
 		if err != nil {
 			return ocispec.Index{}, err
 		}
-		err = os.WriteFile(pkgPaths.Images.Index, imgIndexBytes, 0600)
+		err = os.WriteFile(pathToImgIndex, imgIndexBytes, 0600)
 		if err != nil {
 			return ocispec.Index{}, err
 		}

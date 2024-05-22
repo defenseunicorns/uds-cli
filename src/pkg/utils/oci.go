@@ -26,18 +26,6 @@ import (
 	"oras.land/oras-go/v2/errdef"
 )
 
-// FetchLayerAndStore fetches a remote layer and copies it to a local store
-func FetchLayerAndStore(layerDesc ocispec.Descriptor, remoteRepo *oci.OrasRemote, localStore *ocistore.Store) error {
-	ctx := context.TODO()
-	layerBytes, err := remoteRepo.FetchLayer(ctx, layerDesc)
-	if err != nil {
-		return err
-	}
-	rootPkgDescBytes := content.NewDescriptorFromBytes(zoci.ZarfLayerMediaTypeBlob, layerBytes)
-	err = localStore.Push(context.TODO(), rootPkgDescBytes, bytes.NewReader(layerBytes))
-	return err
-}
-
 // ToOCIStore takes an arbitrary type, typically a struct, marshals it into JSON and store it in a local OCI store
 func ToOCIStore(t any, mediaType string, store *ocistore.Store) (ocispec.Descriptor, error) {
 	b, err := json.Marshal(t)
@@ -258,8 +246,8 @@ func EnsureOCIPrefix(source string) string {
 	return source
 }
 
-// GetZarfLayers grabs the necessary Zarf pkg layers from a remote OCI registry
-func GetZarfLayers(remote zoci.Remote, pkgRootManifest *oci.Manifest, optionalComponents []string) ([]ocispec.Descriptor, error) {
+// FindPkgLayers finds the necessary Zarf pkg layers from a remote OCI registry
+func FindPkgLayers(remote zoci.Remote, pkgRootManifest *oci.Manifest, optionalComponents []string) ([]ocispec.Descriptor, error) {
 	ctx := context.TODO()
 	zarfPkg, err := remote.FetchZarfYAML(ctx)
 	if err != nil {

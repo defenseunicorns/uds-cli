@@ -15,6 +15,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
+	zarfSources "github.com/defenseunicorns/zarf/src/pkg/packager/sources"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
@@ -104,14 +105,18 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	// todo: test the case of an optional component that only has an action (maybe also test for charts and manifests)
 
 	// load pkg and layout of pkg paths
-	pkg, pkgPaths, err := loadPkg(pkgTmp, f.pkg.Path, f.pkg.OptionalComponents)
+	pkgSrc := zarfSources.TarballSource{
+		ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{
+			PackageSource: f.pkg.Path,
+		},
+	}
+	pkg, pkgPaths, err := loadPkg(pkgTmp, &pkgSrc, f.pkg.OptionalComponents)
 	if err != nil {
 		return nil, err
 	}
 
 	// go into the pkg's image index and filter out optional components, then rewrite to disk
-	// todo: may be able to reuse this fn if you take out the read/writing to disk logic
-	imgIndex, err := filterImageIndex(pkg, pkgPaths)
+	imgIndex, err := filterImageIndex(pkg, pkgPaths.Images.Index)
 	if err != nil {
 		return nil, err
 	}
@@ -134,6 +139,8 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	pkg.Metadata.AggregateChecksum = checksum // update pkg metadata already in memory
 
 	// create a new store to push layers to
+	// todo: this is bad....you're writing the Zarf pkg to 3 places
+	// 1. pkgTmp 2. this file store 3. bundle store 4. potentiallly the bundle artifact itself....
 	src, err := file.New(pkgTmp)
 	if err != nil {
 		return nil, err
