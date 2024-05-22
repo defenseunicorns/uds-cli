@@ -6,26 +6,18 @@ package fetcher
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
-	"github.com/defenseunicorns/pkg/helpers"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/pkg/layout"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
-	zarfSources "github.com/defenseunicorns/zarf/src/pkg/packager/sources"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
-	goyaml "github.com/goccy/go-yaml"
 	av4 "github.com/mholt/archiver/v4"
 	"github.com/opencontainers/image-spec/specs-go"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -111,124 +103,29 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 
 	// todo: test the case of an optional component that only has an action (maybe also test for charts and manifests)
 
-	// create a new layout for the package to make it easy to filter components and get file paths
-	pkgPaths := layout.New(pkgTmp)
-	tarballSrc := zarfSources.TarballSource{
-		ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{
-			PackageSource: f.pkg.Path,
-		},
-	}
-
-	// filter out optional components
-	createFilter := filters.Combine(
-		filters.ForDeploy(strings.Join(f.pkg.OptionalComponents, ","), false),
-	)
-
-	// calling LoadPackage populates the pkgPaths with the files from the tarball
-	pkg, _, err := tarballSrc.LoadPackage(pkgPaths, createFilter, false)
+	// load pkg and layout of pkg paths
+	pkg, pkgPaths, err := loadPkg(pkgTmp, f.pkg.Path, f.pkg.OptionalComponents)
 	if err != nil {
 		return nil, err
 	}
 
-	paths := pkgPaths.Files()
-
-	// don't include any images from non-required components
-	// read in images/index.json
-	var imgIndex ocispec.Index
-	if pkgPaths.Images.Index != "" {
-		indexBytes, err := os.ReadFile(pkgPaths.Images.Index)
-		if err != nil {
-			return nil, err
-		}
-		err = json.Unmarshal(indexBytes, &imgIndex)
-		if err != nil {
-			return nil, err
-		}
+	// go into the pkg's image index and filter out optional components, then rewrite to disk
+	imgIndex, err := filterImageIndex(pkg, pkgPaths)
+	if err != nil {
+		return nil, err
 	}
 
-	// include only images that are in the components using a map to dedup manifests
-	manifestIncludeMap := map[string]ocispec.Descriptor{}
-	for _, manifest := range imgIndex.Manifests {
-		for _, component := range pkg.Components {
-			for _, imgName := range component.Images {
-				// include backwards compatibility shim for older Zarf versions that would leave docker.io off of image annotations
-				if manifest.Annotations[ocispec.AnnotationBaseImageName] == imgName ||
-					manifest.Annotations[ocispec.AnnotationBaseImageName] == fmt.Sprintf("docker.io/%s", imgName) {
-					manifestIncludeMap[manifest.Digest.Hex()] = manifest
-				}
-			}
-		}
-	}
-	// convert map to list and rewrite the index manifests
-	var manifestsToInclude []ocispec.Descriptor
-	for _, manifest := range manifestIncludeMap {
-		manifestsToInclude = append(manifestsToInclude, manifest)
-	}
-	imgIndex.Manifests = manifestsToInclude
-
-	// rewrite the images index (desc will be rewritten when its copied to the bundle)
-	if len(imgIndex.Manifests) > 0 {
-		imgIndexBytes, err := json.Marshal(imgIndex)
-		if err != nil {
-			return nil, err
-		}
-		err = os.WriteFile(pkgPaths.Images.Index, imgIndexBytes, 0600)
-		if err != nil {
-			return nil, err
-		}
-
+	// go through image index and get all images' config + layers
+	includeLayers, err := getImgLayerDigests(imgIndex, pkgPaths)
+	if err != nil {
+		return nil, err
 	}
 
-	// go to image manifest and grab config + layers
-	var includeLayers []string
-	for _, manifest := range imgIndex.Manifests {
-		includeLayers = append(includeLayers, manifest.Digest.Hex()) // be sure to include image manifest
-		manifestBytes, err := os.ReadFile(filepath.Join(pkgPaths.Images.Base, config.BlobsDir, manifest.Digest.Hex()))
-		if err != nil {
-			return nil, err
-		}
-		var imgManifest ocispec.Manifest
-		err = goyaml.Unmarshal(manifestBytes, &imgManifest)
-		if err != nil {
-			return nil, err
-		}
-		includeLayers = append(includeLayers, imgManifest.Config.Digest.Hex()) // don't forget the config
-		for _, layer := range imgManifest.Layers {
-			includeLayers = append(includeLayers, layer.Digest.Hex())
-		}
-	}
-
-	// filter paths to only include layers that are in includeLayers
-	var filteredPaths []string
-	var imageBlobs []string
-	for _, path := range paths {
-		// include all paths that aren't in the blobs dir
-		if !strings.Contains(path, config.BlobsDir) {
-			filteredPaths = append(filteredPaths, path)
-			continue
-		}
-		// include paths that are in the blobs dir and are in includeLayers
-		for _, layer := range includeLayers {
-			if strings.Contains(path, config.BlobsDir) && strings.Contains(path, layer) {
-				filteredPaths = append(filteredPaths, path)
-				imageBlobs = append(imageBlobs, path) // save off image blobs so we can rewrite pkgPaths (makes generating checksums easier)
-				break
-			}
-		}
-	}
-
-	// ensure zarf.yaml, checksums and SBOMS (if exists) are always included
-	// note you may have extra SBOMs because they are not filtered out
-	alwaysInclude := []string{pkgPaths.ZarfYAML, pkgPaths.Checksums}
-	if pkgPaths.SBOMs.Path != "" {
-		alwaysInclude = append(alwaysInclude, pkgPaths.SBOMs.Path)
-	}
-	filteredPaths = helpers.MergeSlices(filteredPaths, alwaysInclude, func(a, b string) bool {
-		return a == b
-	})
-
-	// rewrite checksums.txt with removed layers
+	// filter paths to only include layers that are in includeLayers, and grab image blobs to recompute checksums
+	filteredPaths, imageBlobs := filterPkgPaths(pkgPaths, includeLayers)
 	pkgPaths.Images.Blobs = imageBlobs
+
+	// recompute checksums and rewrite to disk
 	checksum, err := recomputePkgChecksum(pkgPaths)
 	if err != nil {
 		return nil, err
