@@ -27,16 +27,20 @@ var devDeployCmd = &cobra.Command{
 	Run: func(_ *cobra.Command, args []string) {
 		config.Dev = true
 
-		var src string
+		// Get bundle source
+		src := ""
 		if len(args) > 0 {
 			src = args[0]
 		}
-		localBundle := helpers.IsDir(src)
-		if localBundle {
 
+		// Check if source is a local bundle
+		localBundle := helpers.IsDir(src)
+
+		if localBundle {
 			// Create Bundle
 			setBundleFile(args)
 
+			// Ensure source ends with a slash
 			if len(src) != 0 && src[len(src)-1] != '/' {
 				src = src + "/"
 			}
@@ -64,17 +68,18 @@ var devDeployCmd = &cobra.Command{
 			bndlClient.CreateZarfPkgs()
 
 			if err := bndlClient.Create(); err != nil {
-				bndlClient.ClearPaths()
 				message.Fatalf(err, "Failed to create bundle: %s", err.Error())
 			}
 		}
 
-		// Deploy dev bundle
+		// Set dev source
 		if localBundle {
 			bndlClient.SetDevSource(src)
 		} else {
 			bundleCfg.DeployOpts.Source = src
 		}
+
+		// Deploy bundle
 		deploy(bndlClient)
 	},
 }
