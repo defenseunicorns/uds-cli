@@ -95,7 +95,10 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 			publicKeyPath = ""
 		}
 
-		pkgVars := b.loadVariables(pkg, bundleExportedVars)
+		pkgVars, err := b.loadVariables(pkg, bundleExportedVars)
+		if err != nil {
+			return err
+		}
 
 		opts := zarfTypes.ZarfPackageOptions{
 			PackageSource:      pkgTmp,
@@ -149,8 +152,22 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 	return nil
 }
 
+func (b *Bundle) loadFileContents(path string) (string, error) {
+	// check for file
+	if helpers.InvalidPath(path) {
+		return "", fmt.Errorf("unable to find file %s", path)
+	}
+	// read file
+	read, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	return string(read), err
+}
+
 // loadVariables loads and sets precedence for config-level and imported variables
-func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) map[string]string {
+func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) (map[string]string, error) {
 	pkgVars := make(map[string]string)
 
 	// load all exported variables
@@ -173,6 +190,14 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 	for name, val := range b.cfg.DeployOpts.Variables[pkg.Name] {
 		pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
 	}
+	// file vars
+	for name, val := range b.cfg.DeployOpts.FileVariables[pkg.Name] {
+		fileContents, err := b.loadFileContents(val)
+		if err != nil {
+			return pkgVars, err
+		}
+		pkgVars[strings.ToUpper(name)] = fileContents
+	}
 	// env vars (vars that start with UDS_)
 	for _, envVar := range os.Environ() {
 		if strings.HasPrefix(envVar, config.EnvVarPrefix) {
@@ -193,7 +218,7 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 			pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
 		}
 	}
-	return pkgVars
+	return pkgVars, nil
 }
 
 // ConfirmBundleDeploy uses Zarf's pterm logging to prompt the user to confirm bundle creation
