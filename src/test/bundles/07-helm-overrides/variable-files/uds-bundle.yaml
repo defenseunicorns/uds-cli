@@ -1,6 +1,6 @@
 kind: UDSBundle
 metadata:
-  name: helm-variables-file
+  name: variable-files
   description: testing a bundle with Helm overrides
   version: 0.0.1
 

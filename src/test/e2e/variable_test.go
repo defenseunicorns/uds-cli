@@ -375,13 +375,11 @@ func TestExportVarsAsGlobalVars(t *testing.T) {
 }
 
 func TestVariableFilesForOverrides(t *testing.T) {
-	// precedence rules: env var > uds-config.variables > uds-config.shared > default
 	deployZarfInit(t)
 	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
 	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
-	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false)
 	bundleDir := "src/test/bundles/07-helm-overrides/variable-files"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-var-files-%s-0.0.1.tar.zst", e2e.Arch))
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-variable-files-%s-0.0.1.tar.zst", e2e.Arch))
 	err := os.Setenv("UDS_CONFIG", filepath.Join(bundleDir, "uds-config.yaml"))
 	require.NoError(t, err)
 	createLocal(t, bundleDir, e2e.Arch)
@@ -389,7 +387,7 @@ func TestVariableFilesForOverrides(t *testing.T) {
 	// color := "green"
 	// err = os.Setenv("UDS_UI_COLOR", color)
 	require.NoError(t, err)
-	_, stderr := deploy(t, bundlePath)
+	deploy(t, bundlePath)
 
 	t.Run("test fake_key file contents set as value for testSecret and used in test-secret secret", func(t *testing.T) {
 

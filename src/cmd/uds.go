@@ -216,6 +216,13 @@ func loadViperConfig() error {
 		bundleCfg.DeployOpts.SharedVariables[strings.ToUpper(varName)] = varValue
 	}
 
+	// ensure the DeployOpts.FileVariables vars are uppercase
+	for varName, varValue := range bundleCfg.DeployOpts.FileVariables {
+		// delete the lowercase var and replace with uppercase
+		delete(bundleCfg.DeployOpts.FileVariables, varName)
+		bundleCfg.DeployOpts.FileVariables[strings.ToUpper(varName)] = varValue
+	}
+
 	return nil
 }
 
