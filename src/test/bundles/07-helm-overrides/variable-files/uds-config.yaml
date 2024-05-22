@@ -1,0 +1,5 @@
+files:
+  packages:
+    helm-overrides:
+      test_secret: fake_key
+      SECURITY_CTX: sec_ctx.yaml

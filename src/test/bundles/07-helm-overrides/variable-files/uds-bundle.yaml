@@ -1,0 +1,25 @@
+kind: UDSBundle
+metadata:
+  name: helm-variables-file
+  description: testing a bundle with Helm overrides
+  version: 0.0.1
+
+packages:
+  - name: helm-overrides
+    path: "../../../packages/helm"
+    ref: 0.0.1
+
+    overrides:
+      podinfo-component:
+        unicorn-podinfo:
+          variables:
+            - name: log_level
+              path: "podinfo.logLevel"
+              description: "Set the log level for podinfo"
+              default: "debug" # not overwritten!
+            - name: SECURITY_CTX
+              path: "podinfo.securityContext"
+              description: "testing a file"
+            - name: TEST_SECRET
+              path: "testSecret"
+              description: "key to place in the test secret resource"
