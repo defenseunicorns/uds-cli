@@ -92,12 +92,7 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Comp
 	addNamespaceOverrides(&pkg, r.nsOverrides)
 
 	if config.Dev {
-		pkg.Metadata.YOLO = true
-		// strip out all images and repos
-		for idx := range pkg.Components {
-			pkg.Components[idx].Images = []string{}
-			pkg.Components[idx].Repos = []string{}
-		}
+		YOLOPackage(&pkg)
 	}
 
 	// ensure we're using the correct package name as specified by the bundle

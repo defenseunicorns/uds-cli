@@ -40,11 +40,6 @@ var devDeployCmd = &cobra.Command{
 			// Create Bundle
 			setBundleFile(args)
 
-			// Ensure source ends with a slash
-			if len(src) != 0 && src[len(src)-1] != '/' {
-				src = src + "/"
-			}
-
 			config.CommonOptions.Confirm = true
 			bundleCfg.CreateOpts.SourceDirectory = src
 		}

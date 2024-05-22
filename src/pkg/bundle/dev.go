@@ -60,11 +60,6 @@ func (b *Bundle) CreateZarfPkgs() {
 
 // SetDevSource sets the source for the bundle when in dev mode
 func (b *Bundle) SetDevSource(srcDir string) {
-	srcDir = filepath.Dir(srcDir)
-	// Add a trailing slash if it's missing
-	if len(srcDir) != 0 && srcDir[len(srcDir)-1] != '/' {
-		srcDir = srcDir + "/"
-	}
 	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, b.bundle.Metadata.Name, b.bundle.Metadata.Architecture, b.bundle.Metadata.Version)
 	b.cfg.DeployOpts.Source = filepath.Join(srcDir, filename)
 }

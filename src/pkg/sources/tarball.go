@@ -96,12 +96,7 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Com
 	addNamespaceOverrides(&pkg, t.nsOverrides)
 
 	if config.Dev {
-		pkg.Metadata.YOLO = true
-		// strip out all images and repos
-		for idx := range pkg.Components {
-			pkg.Components[idx].Images = []string{}
-			pkg.Components[idx].Repos = []string{}
-		}
+		YOLOPackage(&pkg)
 	}
 
 	packageSpinner.Successf("Loaded bundled Zarf package: %s", t.PkgName)
