@@ -11,7 +11,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers"
@@ -115,7 +114,6 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	tarballSrc := zarfSources.TarballSource{
 		ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{
 			PackageSource: f.pkg.Path,
-			// todo: any other options?
 		},
 	}
 
@@ -123,7 +121,6 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 
 	// filter out optional components
 	createFilter := filters.Combine(
-		filters.ByLocalOS(runtime.GOOS), // todo: should we use config.Arch?
 		filters.ForDeploy(strings.Join(f.pkg.OptionalComponents, ","), false),
 	)
 
@@ -155,21 +152,25 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 		}
 	}
 
-	// include only images that are in the components
-	var imgManifestsToInclude []ocispec.Descriptor
+	// include only images that are in the components using a map to dedup manifests
+	manifestIncludeMap := map[string]ocispec.Descriptor{}
 	for _, manifest := range imgIndex.Manifests {
 		for _, component := range pkg.Components {
 			for _, imgName := range component.Images {
 				// include backwards compatibility shim for older Zarf versions that would leave docker.io off of image annotations
 				if manifest.Annotations[ocispec.AnnotationBaseImageName] == imgName ||
 					manifest.Annotations[ocispec.AnnotationBaseImageName] == fmt.Sprintf("docker.io/%s", imgName) {
-					imgManifestsToInclude = append(imgManifestsToInclude, manifest)
-					// todo: de-dup descs
+					manifestIncludeMap[manifest.Digest.Hex()] = manifest
 				}
 			}
 		}
 	}
-	imgIndex.Manifests = imgManifestsToInclude
+	// convert map to list and rewrite the index manifests
+	var manifestsToInclude []ocispec.Descriptor
+	for _, manifest := range manifestIncludeMap {
+		manifestsToInclude = append(manifestsToInclude, manifest)
+	}
+	imgIndex.Manifests = manifestsToInclude
 
 	// rewrite the images index (desc will be rewritten when its copied to the bundle)
 	if len(imgIndex.Manifests) > 0 {
@@ -207,29 +208,20 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	var filteredPaths []string
 	var imageBlobs []string
 	for _, path := range paths {
-		include := false
-		isBlob := false
-		for _, layer := range includeLayers {
-			// include all paths that aren't in the blobs dir
-			if !strings.Contains(path, config.BlobsDir) {
-				include = true
-			}
-			// include paths that are in the blobs dir and are in includeLayers
-			if strings.Contains(path, config.BlobsDir) && strings.Contains(path, layer) {
-				isBlob = true
-				include = true
-			}
-		}
-		if include {
+		// include all paths that aren't in the blobs dir
+		if !strings.Contains(path, config.BlobsDir) {
 			filteredPaths = append(filteredPaths, path)
+			continue
 		}
-		if isBlob {
-			// save off image blobs so we can rewrite pkgPaths (makes generating checksums easier)
-			imageBlobs = append(imageBlobs, path)
+		// include paths that are in the blobs dir and are in includeLayers
+		for _, layer := range includeLayers {
+			if strings.Contains(path, config.BlobsDir) && strings.Contains(path, layer) {
+				filteredPaths = append(filteredPaths, path)
+				imageBlobs = append(imageBlobs, path) // save off image blobs so we can rewrite pkgPaths (makes generating checksums easier)
+				break
+			}
 		}
 	}
-
-	// todo: also remove unnecessary component tarballs
 
 	// ensure zarf.yaml, checksums and SBOMS (if exists) are always included
 	// note you may have extra SBOMs because they are not filtered out
