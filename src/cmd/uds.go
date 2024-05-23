@@ -59,7 +59,9 @@ var deployCmd = &cobra.Command{
 		configureZarf()
 
 		// load uds-config if it exists
-		if v.ConfigFileUsed() != "" {
+		config := v.ConfigFileUsed()
+		if config != "" {
+			bundleCfg.DeployOpts.Config = config
 			if err := loadViperConfig(); err != nil {
 				message.Fatalf(err, "Failed to load uds-config: %s", err.Error())
 				return
@@ -217,10 +219,12 @@ func loadViperConfig() error {
 	}
 
 	// ensure the DeployOpts.FileVariables vars are uppercase
-	for varName, varValue := range bundleCfg.DeployOpts.FileVariables {
-		// delete the lowercase var and replace with uppercase
-		delete(bundleCfg.DeployOpts.FileVariables, varName)
-		bundleCfg.DeployOpts.FileVariables[strings.ToUpper(varName)] = varValue
+	for pkgName, pkgVar := range bundleCfg.DeployOpts.FileVariables {
+		for varName, varValue := range pkgVar {
+			// delete the lowercase var and replace with uppercase
+			delete(bundleCfg.DeployOpts.FileVariables[pkgName], varName)
+			bundleCfg.DeployOpts.FileVariables[pkgName][strings.ToUpper(varName)] = varValue
+		}
 	}
 
 	return nil

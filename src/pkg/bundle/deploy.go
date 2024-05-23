@@ -153,11 +153,23 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 }
 
 func (b *Bundle) loadFileContents(path string) (string, error) {
-	// check for file
+	//check for absolute path ? ...
+
+	if !filepath.IsAbs(path) {
+		if filepath.Dir(b.cfg.DeployOpts.Config) != filepath.Dir(path) {
+			path = filepath.Join(filepath.Dir(b.cfg.DeployOpts.Config), path)
+		}
+	}
+
 	if helpers.InvalidPath(path) {
 		return "", fmt.Errorf("unable to find file %s", path)
 	}
-	// read file
+
+	_, err := helpers.IsTextFile(path)
+	if err != nil {
+		return "", err
+	}
+
 	read, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
@@ -192,6 +204,9 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 	}
 	// file vars
 	for name, val := range b.cfg.DeployOpts.FileVariables[pkg.Name] {
+		if _, exists := pkgVars[strings.ToUpper(name)]; exists {
+			return nil, fmt.Errorf("invalid config: variable %s is declared more than once", strings.ToUpper(name))
+		}
 		fileContents, err := b.loadFileContents(val)
 		if err != nil {
 			return pkgVars, err

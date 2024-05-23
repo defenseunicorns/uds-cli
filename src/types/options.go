@@ -27,6 +27,7 @@ type BundleCreateOptions struct {
 type BundleDeployOptions struct {
 	Resume        bool
 	Source        string
+	Config        string
 	Packages      []string
 	PublicKeyPath string
 	SetVariables  map[string]string `json:"setVariables" jsonschema:"description=Key-Value map of variable names and their corresponding values that will be used by Zarf packages in a bundle"`

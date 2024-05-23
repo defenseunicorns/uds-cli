@@ -1,3 +1,8 @@
+
+variables:
+  helm-overrides:
+    test_secret: whatever
+
 files:
   helm-overrides:
     test_secret: test.pub

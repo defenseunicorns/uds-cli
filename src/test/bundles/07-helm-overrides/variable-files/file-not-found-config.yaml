@@ -1,4 +1,4 @@
 files:
   helm-overrides:
-    test_secret: test.pub
+    test_secret: not-there.pub
     SECURITY_CTX: sec_ctx.yaml
