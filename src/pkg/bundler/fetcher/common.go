@@ -51,6 +51,7 @@ func recomputePkgChecksum(pkgPaths *layout.PackagePaths) (string, error) {
 }
 
 // loadPkg loads a package from a tarball source and filters out optional components
+// todo: not common
 func loadPkg(pkgTmp string, pkgSrc zarfSources.PackageSource, optionalComponents []string) (zarfTypes.ZarfPackage, *layout.PackagePaths, error) {
 	// create empty layout and source
 	pkgPaths := layout.New(pkgTmp)
