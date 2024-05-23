@@ -63,7 +63,7 @@ func (p *RemotePusher) Push() (ocispec.Descriptor, error) {
 	return zarfManifestDesc, nil
 }
 
-// PushManifest pushes the Zarf pkg's manifest to either a local or remote bundle
+// PushManifest pushes the Zarf pkg's manifest to a remote bundle
 func (p *RemotePusher) PushManifest() (ocispec.Descriptor, error) {
 	var zarfManifestDesc ocispec.Descriptor
 	desc, err := utils.ToOCIRemote(p.cfg.PkgRootManifest, zoci.ZarfLayerMediaTypeBlob, p.cfg.RemoteDst.OrasRemote)

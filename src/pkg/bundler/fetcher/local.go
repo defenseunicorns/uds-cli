@@ -102,8 +102,6 @@ func (f *localFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
 func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	ctx := context.TODO()
 
-	// todo: test the case of an optional component that only has an action (maybe also test for charts and manifests)
-
 	// load pkg and layout of pkg paths
 	pkgSrc := zarfSources.TarballSource{
 		ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{

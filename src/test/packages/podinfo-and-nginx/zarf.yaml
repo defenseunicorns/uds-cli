@@ -12,3 +12,8 @@ components:
   - name: nginx-remote
     import:
       path: ../nginx
+
+  - name: test
+    description: contains only single Zarf action
+    import:
+      path: ../no-cluster/real-simple

@@ -527,6 +527,8 @@ func TestBundleOptionalComponents(t *testing.T) {
 	createLocal(t, bundleDir, e2e.Arch)
 	deploy(t, bundlePath)
 	remove(t, bundlePath)
+
+	// todo: test that imgs from optional components aren't in the bundle?
 }
 
 func TestBundleTmpDir(t *testing.T) {
