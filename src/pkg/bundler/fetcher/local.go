@@ -115,7 +115,12 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 		return nil, err
 	}
 
+	// get paths from pkgs to put in the bundle
 	var pathsToBundle []string
+	for _, fullPath := range pkgPaths.Files() {
+		pathsToBundle = append(pathsToBundle, fullPath)
+	}
+
 	if len(f.pkg.OptionalComponents) > 0 {
 		// go into the pkg's image index and filter out optional components, grabbing img manifests of imgs to include
 		imgManifestsToInclude, err := filterImageIndex(pkg, pkgPaths.Images.Index)
@@ -132,11 +137,6 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 		// filter paths to only include layers that are in includeLayers, and grab image blobs to recompute checksums
 		filteredPaths := filterPkgPaths(pkgPaths, includeLayers)
 		pathsToBundle = filteredPaths
-
-	} else {
-		for _, fullPath := range pkgPaths.Files() {
-			pathsToBundle = append(pathsToBundle, fullPath)
-		}
 	}
 
 	// create a new store to push layers to
