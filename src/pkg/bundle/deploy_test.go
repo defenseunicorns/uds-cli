@@ -235,7 +235,7 @@ func TestLoadVariablesPrecedence(t *testing.T) {
 			if tc.loadEnvVar {
 				os.Setenv("UDS_FOO", "set using env var")
 			}
-			actualPkgVars := tc.bundle.loadVariables(tc.pkg, tc.bundleExportVars)
+			actualPkgVars, _ := tc.bundle.loadVariables(tc.pkg, tc.bundleExportVars)
 			require.Equal(t, tc.expectedPkgVars, actualPkgVars)
 		})
 	}
