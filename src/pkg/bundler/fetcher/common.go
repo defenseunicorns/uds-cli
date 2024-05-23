@@ -21,35 +21,6 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-// recomputePkgChecksum rewrites the checksums.txt to account for any removed layers
-func recomputePkgChecksum(pkgPaths *layout.PackagePaths) (string, error) {
-	checksum, err := pkgPaths.GenerateChecksums()
-	if err != nil {
-		return "", err
-	}
-
-	// update zarf.yaml with new aggregate checksum
-	var zarfYAML zarfTypes.ZarfPackage
-	zarfBytes, err := os.ReadFile(pkgPaths.ZarfYAML)
-	if err != nil {
-		return "", err
-	}
-	err = goyaml.Unmarshal(zarfBytes, &zarfYAML)
-	if err != nil {
-		return "", err
-	}
-	zarfYAML.Metadata.AggregateChecksum = checksum
-	zarfYAMLBytes, err := goyaml.Marshal(zarfYAML)
-	if err != nil {
-		return "", err
-	}
-	err = os.WriteFile(pkgPaths.ZarfYAML, zarfYAMLBytes, 0600)
-	if err != nil {
-		return "", err
-	}
-	return checksum, nil
-}
-
 // loadPkg loads a package from a tarball source and filters out optional components
 func loadPkg(pkgTmp string, pkgSrc zarfSources.PackageSource, optionalComponents []string) (zarfTypes.ZarfPackage, *layout.PackagePaths, error) {
 	// create empty layout and source
