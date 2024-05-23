@@ -16,7 +16,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/cache"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/pkg/layout"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
@@ -47,24 +46,19 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	}
 	fetchSpinner.Stop()
 
-	// create empty layout, will fill with a few key paths (zarf.yaml, image index, and checksums)
-	pkgPaths := layout.New(f.cfg.TmpDstDir)
-
 	// copy layers to local bundle
-	bundleDescs, err := f.getRemotePkgLayers(pkgLayers, pkgPaths)
+	fetchSpinner.Updatef("Pushing package %s layers to bundle (package %d of %d)", f.pkg.Name, f.cfg.PkgIter+1, f.cfg.NumPkgs)
+	bundleDescs, err := f.getRemotePkgLayers(pkgLayers)
 	if err != nil {
 		return nil, err
 	}
-	fetchSpinner.Updatef("Pushing package %s layers to registry (package %d of %d)", f.pkg.Name, f.cfg.PkgIter+1, f.cfg.NumPkgs)
-
-	// todo: clean up image index and checksums.txt
 
 	fetchSpinner.Successf("Fetched package: %s", f.pkg.Name)
 	return bundleDescs, nil
 }
 
 // getRemotePkgLayers copies a remote Zarf pkg to a local OCI store
-func (f *remoteFetcher) getRemotePkgLayers(layersToCopy []ocispec.Descriptor, pkgPaths *layout.PackagePaths) ([]ocispec.Descriptor, error) {
+func (f *remoteFetcher) getRemotePkgLayers(layersToCopy []ocispec.Descriptor) ([]ocispec.Descriptor, error) {
 	ctx := context.TODO()
 	// pull layers from remote and write to OCI artifact dir
 	var descsToBundle []ocispec.Descriptor
@@ -76,9 +70,6 @@ func (f *remoteFetcher) getRemotePkgLayers(layersToCopy []ocispec.Descriptor, pk
 		if layer.Digest == "" {
 			continue
 		}
-
-		// populate part of the paths layout for later processing
-		populatePartialPaths(layer, f.cfg.TmpDstDir, pkgPaths)
 
 		exists, err := checkLayerExists(ctx, layer, f.cfg.Store, f.cfg.TmpDstDir)
 		if err != nil {
@@ -127,17 +118,6 @@ func (f *remoteFetcher) getRemotePkgLayers(layersToCopy []ocispec.Descriptor, pk
 		descsToBundle = append(descsToBundle, pkgManifestDesc, manifestConfigDesc)
 	}
 	return descsToBundle, nil
-}
-
-// populatePartialPaths saves refs to zarf.yaml, checksums.txt and image index for later processing
-func populatePartialPaths(layer ocispec.Descriptor, dstDir string, pkgPaths *layout.PackagePaths) {
-	if layer.Annotations[ocispec.AnnotationTitle] == config.ZarfYAML {
-		pkgPaths.ZarfYAML = filepath.Join(dstDir, config.BlobsDir, layer.Digest.Encoded())
-	} else if layer.Annotations[ocispec.AnnotationTitle] == "checksums.txt" {
-		pkgPaths.Checksums = filepath.Join(dstDir, config.BlobsDir, layer.Digest.Encoded())
-	} else if layer.Annotations[ocispec.AnnotationTitle] == "images/index.json" {
-		pkgPaths.Images.Index = filepath.Join(dstDir, config.BlobsDir, layer.Digest.Encoded())
-	}
 }
 
 // copyLayers uses ORAS to copy layers from a remote repo to a local OCI store

@@ -36,7 +36,6 @@ type TarballBundle struct {
 	TmpDir         string
 	BundleLocation string
 	PkgName        string
-	isPartial      bool
 	nsOverrides    NamespaceOverrideMap
 }
 
@@ -68,7 +67,9 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Com
 
 	dst.SetFromPaths(files)
 
-	if err := sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, t.isPartial); err != nil {
+	isPartialPkg := t.PkgOpts.OptionalComponents != ""
+
+	if err := sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, isPartialPkg); err != nil {
 		return zarfTypes.ZarfPackage{}, nil, err
 	}
 
@@ -284,8 +285,5 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 	}
 	defer sourceArchive.Close()
 	err = format.Extract(context.TODO(), sourceArchive, layersToExtract, extractLayer)
-	if len(manifest.Layers) > len(files) {
-		t.isPartial = true
-	}
 	return files, err
 }

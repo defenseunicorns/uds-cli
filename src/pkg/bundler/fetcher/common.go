@@ -51,7 +51,6 @@ func recomputePkgChecksum(pkgPaths *layout.PackagePaths) (string, error) {
 }
 
 // loadPkg loads a package from a tarball source and filters out optional components
-// todo: not common
 func loadPkg(pkgTmp string, pkgSrc zarfSources.PackageSource, optionalComponents []string) (zarfTypes.ZarfPackage, *layout.PackagePaths, error) {
 	// create empty layout and source
 	pkgPaths := layout.New(pkgTmp)
@@ -70,20 +69,18 @@ func loadPkg(pkgTmp string, pkgSrc zarfSources.PackageSource, optionalComponents
 }
 
 // filterImageIndex filters out optional components from the images index
-func filterImageIndex(pkg zarfTypes.ZarfPackage, pathToImgIndex string) (ocispec.Index, error) {
+func filterImageIndex(pkg zarfTypes.ZarfPackage, pathToImgIndex string) ([]ocispec.Descriptor, error) {
 	// read in images/index.json
 	var imgIndex ocispec.Index
-	var originalNumImgs int
 	if pathToImgIndex != "" {
 		indexBytes, err := os.ReadFile(pathToImgIndex)
 		if err != nil {
-			return ocispec.Index{}, err
+			return nil, err
 		}
 		err = json.Unmarshal(indexBytes, &imgIndex)
 		if err != nil {
-			return ocispec.Index{}, err
+			return nil, err
 		}
-		originalNumImgs = len(imgIndex.Manifests)
 	}
 	// include only images that are in the components using a map to dedup manifests
 	manifestIncludeMap := map[string]ocispec.Descriptor{}
@@ -103,31 +100,14 @@ func filterImageIndex(pkg zarfTypes.ZarfPackage, pathToImgIndex string) (ocispec
 	for _, manifest := range manifestIncludeMap {
 		manifestsToInclude = append(manifestsToInclude, manifest)
 	}
-	imgIndex.Manifests = manifestsToInclude
 
-	// rewrite the images index
-	if len(imgIndex.Manifests) > 0 && len(imgIndex.Manifests) != originalNumImgs {
-		err := os.Remove(pathToImgIndex)
-		if err != nil {
-			return ocispec.Index{}, err
-		}
-		imgIndexBytes, err := json.Marshal(imgIndex)
-		if err != nil {
-			return ocispec.Index{}, err
-		}
-		err = os.WriteFile(pathToImgIndex, imgIndexBytes, 0600)
-		if err != nil {
-			return ocispec.Index{}, err
-		}
-	}
-
-	return imgIndex, nil
+	return manifestsToInclude, nil
 }
 
 // getImgLayerDigests grabs the digests of the layers from the images in the image index
-func getImgLayerDigests(imgIndex ocispec.Index, pkgPaths *layout.PackagePaths) ([]string, error) {
+func getImgLayerDigests(manifestsToInclude []ocispec.Descriptor, pkgPaths *layout.PackagePaths) ([]string, error) {
 	var includeLayers []string
-	for _, manifest := range imgIndex.Manifests {
+	for _, manifest := range manifestsToInclude {
 		includeLayers = append(includeLayers, manifest.Digest.Hex()) // be sure to include image manifest
 		manifestBytes, err := os.ReadFile(filepath.Join(pkgPaths.Images.Base, config.BlobsDir, manifest.Digest.Hex()))
 		if err != nil {
@@ -147,9 +127,8 @@ func getImgLayerDigests(imgIndex ocispec.Index, pkgPaths *layout.PackagePaths) (
 }
 
 // filterPkgPaths grabs paths that either not in the blobs dir or are in includeLayers
-func filterPkgPaths(pkgPaths *layout.PackagePaths, includeLayers []string) ([]string, []string) {
+func filterPkgPaths(pkgPaths *layout.PackagePaths, includeLayers []string) []string {
 	var filteredPaths []string
-	var imageBlobs []string
 	paths := pkgPaths.Files()
 	for _, path := range paths {
 		// include all paths that aren't in the blobs dir
@@ -161,7 +140,6 @@ func filterPkgPaths(pkgPaths *layout.PackagePaths, includeLayers []string) ([]st
 		for _, layer := range includeLayers {
 			if strings.Contains(path, config.BlobsDir) && strings.Contains(path, layer) {
 				filteredPaths = append(filteredPaths, path)
-				imageBlobs = append(imageBlobs, path) // save off image blobs so we can rewrite pkgPaths (makes generating checksums easier)
 				break
 			}
 		}
@@ -177,5 +155,5 @@ func filterPkgPaths(pkgPaths *layout.PackagePaths, includeLayers []string) ([]st
 		return a == b
 	})
 
-	return filteredPaths, imageBlobs
+	return filteredPaths
 }

@@ -13,6 +13,7 @@ packages:
       - git-server
   - name: podinfo-and-nginx
     path: "../../packages/podinfo-and-nginx"
+#    repository: localhost:5000/podinfo-and-nginx
     ref: 0.0.1
     optionalComponents:
       - podinfo

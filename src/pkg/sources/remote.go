@@ -35,7 +35,6 @@ type RemoteBundle struct {
 	PkgManifestSHA string
 	TmpDir         string
 	Remote         *oci.OrasRemote
-	isPartial      bool
 	nsOverrides    NamespaceOverrideMap
 }
 
@@ -64,7 +63,9 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Comp
 
 	dst.SetFromLayers(layers)
 
-	err = sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, r.isPartial)
+	isPartialPkg := r.PkgOpts.OptionalComponents != ""
+
+	err = sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, isPartialPkg)
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, nil, err
 	}
@@ -236,9 +237,5 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 		return nil, err
 	}
 
-	// need to substract 1 from layersInBundle because it includes the pkgManifestDesc and pkgManifest.Layers does not
-	if len(pkgManifest.Layers) != len(layersInBundle)-1 {
-		r.isPartial = true
-	}
 	return layersInBundle, nil
 }

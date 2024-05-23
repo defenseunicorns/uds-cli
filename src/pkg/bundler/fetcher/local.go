@@ -115,28 +115,29 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 		return nil, err
 	}
 
-	// go into the pkg's image index and filter out optional components, then rewrite to disk
-	imgIndex, err := filterImageIndex(pkg, pkgPaths.Images.Index)
-	if err != nil {
-		return nil, err
-	}
+	var pathsToBundle []string
+	if len(f.pkg.OptionalComponents) > 0 {
+		// go into the pkg's image index and filter out optional components, grabbing img manifests of imgs to include
+		imgManifestsToInclude, err := filterImageIndex(pkg, pkgPaths.Images.Index)
+		if err != nil {
+			return nil, err
+		}
 
-	// go through image index and get all images' config + layers
-	includeLayers, err := getImgLayerDigests(imgIndex, pkgPaths)
-	if err != nil {
-		return nil, err
-	}
+		// go through image index and get all images' config + layers
+		includeLayers, err := getImgLayerDigests(imgManifestsToInclude, pkgPaths)
+		if err != nil {
+			return nil, err
+		}
 
-	// filter paths to only include layers that are in includeLayers, and grab image blobs to recompute checksums
-	filteredPaths, imageBlobs := filterPkgPaths(pkgPaths, includeLayers)
-	pkgPaths.Images.Blobs = imageBlobs
+		// filter paths to only include layers that are in includeLayers, and grab image blobs to recompute checksums
+		filteredPaths := filterPkgPaths(pkgPaths, includeLayers)
+		pathsToBundle = filteredPaths
 
-	// recompute checksums and rewrite to disk
-	checksum, err := recomputePkgChecksum(pkgPaths)
-	if err != nil {
-		return nil, err
+	} else {
+		for _, fullPath := range pkgPaths.Files() {
+			pathsToBundle = append(pathsToBundle, fullPath)
+		}
 	}
-	pkg.Metadata.AggregateChecksum = checksum // update pkg metadata already in memory
 
 	// create a new store to push layers to
 	// todo: this is bad....you're writing the Zarf pkg to 3 places
@@ -148,7 +149,7 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 
 	// go through the filtered paths and add them to the bundle store
 	var descs []ocispec.Descriptor
-	for _, path := range filteredPaths {
+	for _, path := range pathsToBundle {
 		name, err := filepath.Rel(pkgTmp, path)
 		if err != nil {
 			return nil, err
@@ -189,7 +190,6 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	}
 
 	// push the manifest config
-	// todo: I don't think this is making it to the local bundle
 	manifestConfigDesc, err := pushZarfManifestConfigFromMetadata(f.cfg.Store, &pkg.Metadata, &pkg.Build)
 	if err != nil {
 		return nil, err
@@ -199,7 +199,7 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	if err != nil {
 		return nil, err
 	}
-	descs = append(descs, rootManifest)
+	descs = append(descs, rootManifest, manifestConfigDesc)
 
 	// put digest in uds-bundle.yaml to reference during deploy
 	f.cfg.Bundle.Packages[f.cfg.PkgIter].Ref = f.cfg.Bundle.Packages[f.cfg.PkgIter].Ref + "@" + rootManifest.Digest.String()
