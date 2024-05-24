@@ -152,14 +152,19 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 	return nil
 }
 
-func (b *Bundle) loadFileContents(path string) (string, error) {
+func formFullPath(configPath string, path string) string {
 	if !filepath.IsAbs(path) {
 		// set path relative to config file, unless they are the same
-		if filepath.Dir(b.cfg.DeployOpts.Config) != filepath.Dir(path) {
-			path = filepath.Join(filepath.Dir(b.cfg.DeployOpts.Config), path)
+		if filepath.Dir(configPath) != filepath.Dir(path) {
+			path = filepath.Join(filepath.Dir(configPath), path)
 		}
 	}
 
+	return path
+}
+
+func (b *Bundle) loadFileContents(path string) (string, error) {
+	path = formFullPath(b.cfg.DeployOpts.Config, path)
 	if helpers.InvalidPath(path) {
 		return "", fmt.Errorf("unable to find file %s", path)
 	}
@@ -376,7 +381,7 @@ func (b *Bundle) processOverrideNamespaces(overrideMap sources.NamespaceOverride
 func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values *[]types.BundleChartValue, componentName string, chartName string, pkgVars map[string]string) error {
 	for _, v := range *values {
 		// Add the override to the map, or return an error if the path is invalid
-		if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, v.Value, pkgVars); err != nil {
+		if err := b.addOverrideValue(*overrideMap, componentName, chartName, v.Path, v.Value, pkgVars); err != nil {
 			return err
 		}
 	}
@@ -429,7 +434,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 		}
 
 		// Add the override to the map, or return an error if the path is invalid
-		if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, overrideVal, nil); err != nil {
+		if err := b.addOverrideValue(*overrideMap, componentName, chartName, v.Path, overrideVal, nil); err != nil {
 			return err
 		}
 
@@ -438,7 +443,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 }
 
 // addOverrideValue adds a value to a PkgOverrideMap
-func addOverrideValue(overrides map[string]map[string]*values.Options, component string, chart string, valuePath string, value interface{}, pkgVars map[string]string) error {
+func (b *Bundle) addOverrideValue(overrides map[string]map[string]*values.Options, component string, chart string, valuePath string, value interface{}, pkgVars map[string]string) error {
 	// Create the component map if it doesn't exist
 	if _, ok := overrides[component]; !ok {
 		overrides[component] = make(map[string]*values.Options)
@@ -486,10 +491,11 @@ func addOverrideValue(overrides map[string]map[string]*values.Options, component
 			templatedVariable := fmt.Sprintf("%v", v)
 			value = setTemplatedVariables(templatedVariable, pkgVars)
 		}
-		if val, ok := v.(string); ok {
-			if strings.Contains(val, ".") {
-				helmVal := fmt.Sprintf("%s=%v", valuePath, value)
-				overrides[component][chart].Values = append(overrides[component][chart].FileValues, helmVal)
+		if _, ok := v.(string); ok {
+			possFile := formFullPath(b.cfg.DeployOpts.Config, value.(string))
+			if isFile, _ := helpers.IsTextFile(possFile); isFile {
+				helmVal := fmt.Sprintf("%s=%v", valuePath, possFile)
+				overrides[component][chart].FileValues = append(overrides[component][chart].FileValues, helmVal)
 			}
 		}
 
