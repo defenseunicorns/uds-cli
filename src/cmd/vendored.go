@@ -23,7 +23,7 @@ var runnerCmd = &cobra.Command{
 	Use:     "run",
 	Aliases: []string{"r"},
 	Short:   lang.CmdRunShort,
-	Run: func(_ *cobra.Command, _ []string) {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		os.Args = os.Args[1:] // grab 'run' and onward from the CLI args
 
 		runnerConfig.CmdPrefix = "uds"
@@ -35,14 +35,24 @@ var runnerCmd = &cobra.Command{
 		runnerConfig.AddExtraEnv("UDS_ARCH", archValue)
 
 		executablePath, err := exec.GetFinalExecutablePath()
-		if err == nil {
-			exec.RegisterCmdMutation("uds", executablePath)
-			exec.RegisterCmdMutation("zarf", fmt.Sprintf("%s zarf", executablePath))
-			exec.RegisterCmdMutation("kubectl", fmt.Sprintf("%s zarf tools kubectl", executablePath))
+		if err != nil {
+			return err
+		}
+
+		if err = exec.RegisterCmdMutation("uds", executablePath); err != nil {
+			return err
+		}
+		if err = exec.RegisterCmdMutation("zarf", fmt.Sprintf("%s zarf", executablePath)); err != nil {
+			return err
+		}
+		if err = exec.RegisterCmdMutation("kubectl", fmt.Sprintf("%s zarf tools kubectl", executablePath)); err != nil {
+			return err
 		}
 
 		runnerCLI.RootCmd().SetArgs(os.Args)
 		runnerCLI.Execute()
+
+		return nil
 	},
 	DisableFlagParsing: true,
 	ValidArgsFunction: func(cmd *cobra.Command, tasks []string, task string) ([]string, cobra.ShellCompDirective) {
