@@ -69,7 +69,7 @@ var devDeployCmd = &cobra.Command{
 
 		// Set dev source
 		if localBundle {
-			bndlClient.SetDevSource(src)
+			bndlClient.SetDeploySource(src)
 		} else {
 			bundleCfg.DeployOpts.Source = src
 		}
