@@ -177,117 +177,13 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 	layersToPull = append(layersToPull, rootManifest.Config)
 
 	for _, pkg := range bundle.Packages {
-
-		// grab sha of zarf image manifest and pull it down
-		sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
-		manifestDesc := rootManifest.Locate(sha)
-		manifestBytes, err := op.FetchLayer(ctx, manifestDesc)
+		// go through the pkg's layers and figure out which ones to pull based on the req'd + selected components
+		pkgLayers, estPkgBytes, err := FindLayersToPull(ctx, pkg, rootManifest, op.OrasRemote)
 		if err != nil {
 			return nil, nil, err
 		}
-
-		// unmarshal the zarf image manifest and add it to the layers to pull
-		var manifest oci.Manifest
-		if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
-			return nil, nil, err
-		}
-		layersToPull = append(layersToPull, manifestDesc)
-		estimatedBytes += manifestDesc.Size
-
-		// figure out which layers to pull by correlating images with the specified components
-		// load Zarf pkg from manifest
-		var zarfPkg zarfTypes.ZarfPackage
-		for _, desc := range manifest.Layers {
-			if desc.Annotations[ocispec.AnnotationTitle] == config.ZarfYAML {
-				zarfYAMLBytes, err := op.FetchLayer(ctx, desc)
-				if err != nil {
-					return nil, nil, err
-				}
-				if err := goyaml.Unmarshal(zarfYAMLBytes, &zarfPkg); err != nil {
-					return nil, nil, err
-				}
-				break
-			}
-		}
-
-		// load pkg and filter components
-		// create filter for optional components
-		createFilter := filters.Combine(
-			filters.ForDeploy(strings.Join(pkg.OptionalComponents, ","), false),
-		)
-
-		components, err := createFilter.Apply(zarfPkg)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		// get the image index from the manifest
-		var index ocispec.Index
-		for _, desc := range manifest.Layers {
-			if desc.Annotations[ocispec.AnnotationTitle] == "images/index.json" {
-				indexBytes, err := op.FetchLayer(ctx, desc)
-				if err != nil {
-					return nil, nil, err
-				}
-				if err := json.Unmarshal(indexBytes, &index); err != nil {
-					return nil, nil, err
-				}
-				layersToPull = append(layersToPull, desc)
-			} else if strings.HasPrefix(desc.Annotations[ocispec.AnnotationTitle], "components/") {
-				// desc refers to a component, make sure we want it
-				for _, component := range components {
-					// get component name from annotation
-					nameWithSuffix := strings.Split(desc.Annotations[ocispec.AnnotationTitle], "components/")[1]
-					componentName := strings.Split(nameWithSuffix, ".tar")[0]
-					if componentName == component.Name {
-						layersToPull = append(layersToPull, desc)
-						estimatedBytes += desc.Size
-						break
-					}
-				}
-			} else if !strings.Contains(desc.Annotations[ocispec.AnnotationTitle], config.BlobsDir) {
-				layersToPull = append(layersToPull, desc)
-				estimatedBytes += desc.Size
-			}
-		}
-
-		manifestsToInclude, err := utils.FilterImageIndex(components, index)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		// grab all layers from the included image manifests
-		for _, desc := range manifestsToInclude {
-			imgManifestReader, err := op.Repo().Blobs().Fetch(ctx, desc)
-			if err != nil {
-				return nil, nil, err
-			}
-			imgManifestBytes, err := io.ReadAll(imgManifestReader)
-			if err != nil {
-				return nil, nil, err
-			}
-			var imgManifest ocispec.Manifest
-			if err := json.Unmarshal(imgManifestBytes, &imgManifest); err != nil {
-				return nil, nil, err
-			}
-			err = imgManifestReader.Close()
-			if err != nil {
-				return nil, nil, err
-			}
-			// go through layers in image manifest and add to layersToPull
-			for _, layer := range imgManifest.Layers {
-				layersToPull = append(layersToPull, layer)
-				estimatedBytes += layer.Size
-			}
-
-			// don't forget the img config
-			layersToPull = append(layersToPull, imgManifest.Config)
-			estimatedBytes += desc.Size
-
-			// don't forget the image manifest itself
-			layersToPull = append(layersToPull, desc)
-			estimatedBytes += desc.Size
-		}
+		layersToPull = append(layersToPull, pkgLayers...)
+		estimatedBytes += estPkgBytes
 	}
 
 	store, err := ocistore.NewWithContext(ctx, op.dst)
@@ -322,6 +218,121 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 	}
 
 	return &bundle, loaded, nil
+}
+
+func FindLayersToPull(ctx context.Context, pkg types.Package, rootManifest *oci.Manifest, remote *oci.OrasRemote) ([]ocispec.Descriptor, int64, error) {
+	var layersToPull []ocispec.Descriptor
+	estPkgBytes := int64(0)
+
+	// grab sha of zarf image manifest and pull it down
+	sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
+	manifestDesc := rootManifest.Locate(sha)
+	manifestBytes, err := remote.FetchLayer(ctx, manifestDesc)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// unmarshal the zarf image manifest and add it to the layers to pull
+	var manifest oci.Manifest
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		return nil, 0, err
+	}
+
+	layersToPull = append(layersToPull, manifestDesc)
+
+	filteredComponents, err := getFilteredComponents(ctx, remote, manifest, pkg.OptionalComponents)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// go through manifest layers and add to layersToPull as appropriate
+	var imgIndex ocispec.Index
+	for _, desc := range manifest.Layers {
+		if desc.Annotations[ocispec.AnnotationTitle] == "images/index.json" {
+			imgIndex, err = handleImgIndex(ctx, remote, desc)
+			if err != nil {
+				return nil, 0, err
+			}
+			layersToPull = append(layersToPull, desc)
+		} else if strings.HasPrefix(desc.Annotations[ocispec.AnnotationTitle], "components/") {
+			if shouldInclude := handleComponent(desc, filteredComponents); shouldInclude {
+				layersToPull = append(layersToPull, desc)
+			}
+		} else if !strings.Contains(desc.Annotations[ocispec.AnnotationTitle], config.BlobsDir) {
+			// not a blob or component, add to layersToPull
+			layersToPull = append(layersToPull, desc)
+		}
+	}
+
+	// get only image manifests that are part of req'd + selected components
+	manifestsToInclude, err := utils.FilterImageIndex(filteredComponents, imgIndex)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// grab all layers from the included image manifests
+	for _, desc := range manifestsToInclude {
+		imgManifest, err := getImgManifest(ctx, remote, desc)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		// grab all layers in image manifest, the img config and the img manifest itself
+		layersToPull = append(layersToPull, imgManifest.Layers...)
+		layersToPull = append(layersToPull, desc, imgManifest.Config)
+	}
+
+	// loop through layersToPull and add up bytes
+	for _, layer := range layersToPull {
+		estPkgBytes += layer.Size
+	}
+
+	return layersToPull, estPkgBytes, nil
+}
+
+func getImgManifest(ctx context.Context, remote *oci.OrasRemote, desc ocispec.Descriptor) (ocispec.Manifest, error) {
+	imgManifestReader, err := remote.Repo().Blobs().Fetch(ctx, desc)
+	if err != nil {
+		return ocispec.Manifest{}, err
+	}
+	imgManifestBytes, err := io.ReadAll(imgManifestReader)
+	if err != nil {
+		return ocispec.Manifest{}, err
+	}
+	var imgManifest ocispec.Manifest
+	if err := json.Unmarshal(imgManifestBytes, &imgManifest); err != nil {
+		return ocispec.Manifest{}, err
+	}
+	err = imgManifestReader.Close()
+	if err != nil {
+		return ocispec.Manifest{}, err
+	}
+	return imgManifest, nil
+}
+
+func handleComponent(desc ocispec.Descriptor, filteredComponents []zarfTypes.ZarfComponent) bool {
+	for _, component := range filteredComponents {
+		// get component name from annotation
+		nameWithSuffix := strings.Split(desc.Annotations[ocispec.AnnotationTitle], "components/")[1]
+		componentName := strings.Split(nameWithSuffix, ".tar")[0]
+		if componentName == component.Name {
+			return true
+		}
+	}
+	return false
+}
+
+func handleImgIndex(ctx context.Context, remote *oci.OrasRemote, desc ocispec.Descriptor) (ocispec.Index, error) {
+	indexBytes, err := remote.FetchLayer(ctx, desc)
+	if err != nil {
+		return ocispec.Index{}, err
+	}
+
+	var index ocispec.Index
+	if err := json.Unmarshal(indexBytes, &index); err != nil {
+		return ocispec.Index{}, err
+	}
+	return index, nil
 }
 
 func (op *ociProvider) PublishBundle(_ types.UDSBundle, _ *oci.OrasRemote) error {
@@ -414,4 +425,31 @@ func CheckOCISourcePath(source string) (string, error) {
 		}
 	}
 	return source, nil
+}
+
+func getFilteredComponents(ctx context.Context, remote *oci.OrasRemote, manifest oci.Manifest, optionalComponents []string) ([]zarfTypes.ZarfComponent, error) {
+	// get Zarf pkg from manifest
+	var zarfPkg zarfTypes.ZarfPackage
+	for _, desc := range manifest.Layers {
+		if desc.Annotations[ocispec.AnnotationTitle] == config.ZarfYAML {
+			zarfYAMLBytes, err := remote.FetchLayer(ctx, desc)
+			if err != nil {
+				return nil, err
+			}
+			if err := goyaml.Unmarshal(zarfYAMLBytes, &zarfPkg); err != nil {
+				return nil, err
+			}
+			break
+		}
+	}
+
+	// create filter for optional components and filter the pkg
+	createFilter := filters.Combine(
+		filters.ForDeploy(strings.Join(optionalComponents, ","), false),
+	)
+	filteredComponents, err := createFilter.Apply(zarfPkg)
+	if err != nil {
+		return nil, err
+	}
+	return filteredComponents, nil
 }
