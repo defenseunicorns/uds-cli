@@ -1,5 +1,4 @@
 includes:
-  - local: ./tasks-to-import.yaml
   - foo: ./more-tasks/foo.yaml
   - infinite: ./loop-task.yaml
   - remote: https://raw.githubusercontent.com/defenseunicorns/uds-cli/${GIT_REVISION}/src/test/tasks/remote-import-tasks.yaml
@@ -26,37 +25,9 @@ tasks:
     description: Test that env vars take precedence over var defaults
     actions:
         - cmd: echo "${TO_BE_OVERWRITTEN}"
-  - name: copy
-    description: "This is a copy task"
-    files:
-      - source: base
-        target: copy
-  - name: copy-exec
-    files:
-      - source: exectest
-        target: exec
-        executable: true
-  - name: copy-verify
-    files:
-      - source: data
-        target: verify
-        shasum: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
-  - name: copy-symlink
-    files:
-      - source: symtest
-        target: symcopy
-        symlinks:
-          - "testlink"
   - name: remote-import
     actions:
       - task: remote:echo-var
-  - name: local-import-with-curl
-    actions:
-      - task: local:fetch-checksums
-  - name: template-file
-    files:
-      - source: raw
-        target: templated
   - name: action
     actions:
       - cmd: echo "specific test string"
