@@ -7,7 +7,7 @@ toolchain go1.22.3
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
-	github.com/defenseunicorns/maru-runner v0.1.1
+	github.com/defenseunicorns/maru-runner v0.2.0
 	github.com/defenseunicorns/pkg/helpers v1.1.2
 	github.com/defenseunicorns/pkg/oci v0.0.2
 	github.com/defenseunicorns/zarf v0.33.0
@@ -169,6 +169,8 @@ require (
 	github.com/cyphar/filepath-securejoin v0.2.4 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/daviddengcn/go-colortext v1.0.0 // indirect
+	github.com/defenseunicorns/pkg/exec v0.0.1 // indirect
+	github.com/defenseunicorns/pkg/helpers/v2 v2.0.1 // indirect
 	github.com/deitch/magic v0.0.0-20230404182410-1ff89d7342da // indirect
 	github.com/derailed/k9s v0.31.7 // indirect
 	github.com/derailed/popeye v0.11.2 // indirect
