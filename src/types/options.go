@@ -37,6 +37,28 @@ type BundleDeployOptions struct {
 	Options         map[string]interface{}            `yaml:"options,omitempty"`
 }
 
+type ConfigOption string
+
+const (
+	Confirm       ConfigOption = "confirm"
+	Insecure      ConfigOption = "insecure"
+	CachePath     ConfigOption = "uds_cache"
+	TempDirectory ConfigOption = "tmp_dir"
+	LogLevel      ConfigOption = "log_level"
+	Architecture  ConfigOption = "architecture"
+	NoLogFile     ConfigOption = "no_log_file"
+	NoProgress    ConfigOption = "no_progress"
+)
+
+func IsValidConfigOption(str string) bool {
+	switch ConfigOption(str) {
+	case Confirm, Insecure, CachePath, TempDirectory, LogLevel, Architecture, NoLogFile, NoProgress:
+		return true
+	default:
+		return false
+	}
+}
+
 // BundleInspectOptions is the options for the bundler.Inspect() function
 type BundleInspectOptions struct {
 	PublicKeyPath string

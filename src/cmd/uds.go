@@ -16,6 +16,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
@@ -193,9 +194,7 @@ func loadViperConfig() error {
 		return err
 	}
 
-	// read relevant config into DeployOpts.Variables
-	// need to use goyaml because Viper doesn't preserve case: https://github.com/spf13/viper/issues/1014
-	err = goyaml.UnmarshalWithOptions(configFile, &bundleCfg.DeployOpts, goyaml.Strict())
+	err = UnmarshalAndValidateConfig(configFile, &bundleCfg)
 	if err != nil {
 		return err
 	}
@@ -286,4 +285,20 @@ func chooseBundle(args []string) string {
 	}
 
 	return path
+}
+
+func UnmarshalAndValidateConfig(configFile []byte, bundleCfg *types.BundleConfig) error {
+	// read relevant config into DeployOpts.Variables
+	// need to use goyaml because Viper doesn't preserve case: https://github.com/spf13/viper/issues/1014
+	err := goyaml.UnmarshalWithOptions(configFile, &bundleCfg.DeployOpts, goyaml.Strict())
+	if err != nil {
+		return err
+	}
+	// validate config options
+	for optionName := range bundleCfg.DeployOpts.Options {
+		if !types.IsValidConfigOption(optionName) {
+			return fmt.Errorf("invalid config option: %s", optionName)
+		}
+	}
+	return nil
 }
