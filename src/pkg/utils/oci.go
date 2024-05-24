@@ -278,3 +278,27 @@ func FindPkgLayers(remote zoci.Remote, pkgRootManifest *oci.Manifest, optionalCo
 	layersToCopy = append(layersToCopy, pkgRootManifest.Config)
 	return layersToCopy, err
 }
+
+// FilterImageIndex filters out optional components from the images index
+func FilterImageIndex(components []zarfTypes.ZarfComponent, imgIndex ocispec.Index) ([]ocispec.Descriptor, error) {
+	// include only images that are in the components using a map to dedup manifests
+	manifestIncludeMap := map[string]ocispec.Descriptor{}
+	for _, manifest := range imgIndex.Manifests {
+		for _, component := range components {
+			for _, imgName := range component.Images {
+				// include backwards compatibility shim for older Zarf versions that would leave docker.io off of image annotations
+				if manifest.Annotations[ocispec.AnnotationBaseImageName] == imgName ||
+					manifest.Annotations[ocispec.AnnotationBaseImageName] == fmt.Sprintf("docker.io/%s", imgName) {
+					manifestIncludeMap[manifest.Digest.Hex()] = manifest
+				}
+			}
+		}
+	}
+	// convert map to list and rewrite the index manifests
+	var manifestsToInclude []ocispec.Descriptor
+	for _, manifest := range manifestIncludeMap {
+		manifestsToInclude = append(manifestsToInclude, manifest)
+	}
+
+	return manifestsToInclude, nil
+}

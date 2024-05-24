@@ -5,8 +5,6 @@
 package fetcher
 
 import (
-	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,42 +35,6 @@ func loadPkg(pkgTmp string, pkgSrc zarfSources.PackageSource, optionalComponents
 		return zarfTypes.ZarfPackage{}, nil, err
 	}
 	return pkg, pkgPaths, nil
-}
-
-// filterImageIndex filters out optional components from the images index
-func filterImageIndex(pkg zarfTypes.ZarfPackage, pathToImgIndex string) ([]ocispec.Descriptor, error) {
-	// read in images/index.json
-	var imgIndex ocispec.Index
-	if pathToImgIndex != "" {
-		indexBytes, err := os.ReadFile(pathToImgIndex)
-		if err != nil {
-			return nil, err
-		}
-		err = json.Unmarshal(indexBytes, &imgIndex)
-		if err != nil {
-			return nil, err
-		}
-	}
-	// include only images that are in the components using a map to dedup manifests
-	manifestIncludeMap := map[string]ocispec.Descriptor{}
-	for _, manifest := range imgIndex.Manifests {
-		for _, component := range pkg.Components {
-			for _, imgName := range component.Images {
-				// include backwards compatibility shim for older Zarf versions that would leave docker.io off of image annotations
-				if manifest.Annotations[ocispec.AnnotationBaseImageName] == imgName ||
-					manifest.Annotations[ocispec.AnnotationBaseImageName] == fmt.Sprintf("docker.io/%s", imgName) {
-					manifestIncludeMap[manifest.Digest.Hex()] = manifest
-				}
-			}
-		}
-	}
-	// convert map to list and rewrite the index manifests
-	var manifestsToInclude []ocispec.Descriptor
-	for _, manifest := range manifestIncludeMap {
-		manifestsToInclude = append(manifestsToInclude, manifest)
-	}
-
-	return manifestsToInclude, nil
 }
 
 // getImgLayerDigests grabs the digests of the layers from the images in the image index

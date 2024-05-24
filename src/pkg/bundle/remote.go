@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -22,8 +23,11 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
+	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
+	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	goyaml "github.com/goccy/go-yaml"
 	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
@@ -188,22 +192,102 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 			return nil, nil, err
 		}
 		layersToPull = append(layersToPull, manifestDesc)
-		progressBar := message.NewProgressBar(int64(len(manifest.Layers)), fmt.Sprintf("Verifying layers in Zarf package: %s", pkg.Name))
+		estimatedBytes += manifestDesc.Size
 
-		// go through the layers in the zarf image manifest and check if they exist in the remote
-		for _, layer := range manifest.Layers {
-			ok, err := op.Repo().Blobs().Exists(ctx, layer)
-			progressBar.Add(1)
-			estimatedBytes += layer.Size
+		// figure out which layers to pull by correlating images with the specified components
+		// load Zarf pkg from manifest
+		var zarfPkg zarfTypes.ZarfPackage
+		for _, desc := range manifest.Layers {
+			if desc.Annotations[ocispec.AnnotationTitle] == config.ZarfYAML {
+				zarfYAMLBytes, err := op.FetchLayer(ctx, desc)
+				if err != nil {
+					return nil, nil, err
+				}
+				if err := goyaml.Unmarshal(zarfYAMLBytes, &zarfPkg); err != nil {
+					return nil, nil, err
+				}
+				break
+			}
+		}
+
+		// load pkg and filter components
+		// create filter for optional components
+		createFilter := filters.Combine(
+			filters.ForDeploy(strings.Join(pkg.OptionalComponents, ","), false),
+		)
+
+		components, err := createFilter.Apply(zarfPkg)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// get the image index from the manifest
+		var index ocispec.Index
+		for _, desc := range manifest.Layers {
+			if desc.Annotations[ocispec.AnnotationTitle] == "images/index.json" {
+				indexBytes, err := op.FetchLayer(ctx, desc)
+				if err != nil {
+					return nil, nil, err
+				}
+				if err := json.Unmarshal(indexBytes, &index); err != nil {
+					return nil, nil, err
+				}
+				layersToPull = append(layersToPull, desc)
+			} else if strings.HasPrefix(desc.Annotations[ocispec.AnnotationTitle], "components/") {
+				// desc refers to a component, make sure we want it
+				for _, component := range components {
+					// get component name from annotation
+					nameWithSuffix := strings.Split(desc.Annotations[ocispec.AnnotationTitle], "components/")[1]
+					componentName := strings.Split(nameWithSuffix, ".tar")[0]
+					if componentName == component.Name {
+						layersToPull = append(layersToPull, desc)
+						estimatedBytes += desc.Size
+						break
+					}
+				}
+			} else if !strings.Contains(desc.Annotations[ocispec.AnnotationTitle], config.BlobsDir) {
+				layersToPull = append(layersToPull, desc)
+				estimatedBytes += desc.Size
+			}
+		}
+
+		manifestsToInclude, err := utils.FilterImageIndex(components, index)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// grab all layers from the included image manifests
+		for _, desc := range manifestsToInclude {
+			imgManifestReader, err := op.Repo().Blobs().Fetch(ctx, desc)
 			if err != nil {
 				return nil, nil, err
 			}
-			// if the layer exists in the remote, add it to the layers to pull
-			if ok {
-				layersToPull = append(layersToPull, layer)
+			imgManifestBytes, err := io.ReadAll(imgManifestReader)
+			if err != nil {
+				return nil, nil, err
 			}
+			var imgManifest ocispec.Manifest
+			if err := json.Unmarshal(imgManifestBytes, &imgManifest); err != nil {
+				return nil, nil, err
+			}
+			err = imgManifestReader.Close()
+			if err != nil {
+				return nil, nil, err
+			}
+			// go through layers in image manifest and add to layersToPull
+			for _, layer := range imgManifest.Layers {
+				layersToPull = append(layersToPull, layer)
+				estimatedBytes += layer.Size
+			}
+
+			// don't forget the img config
+			layersToPull = append(layersToPull, imgManifest.Config)
+			estimatedBytes += desc.Size
+
+			// don't forget the image manifest itself
+			layersToPull = append(layersToPull, desc)
+			estimatedBytes += desc.Size
 		}
-		progressBar.Successf("Verified %s package", pkg.Name)
 	}
 
 	store, err := ocistore.NewWithContext(ctx, op.dst)

@@ -92,13 +92,13 @@ func (lo *LocalBundle) create(signature []byte) error {
 		if err != nil {
 			return err
 		}
-		bundleDescs, err := pkgFetcher.Fetch()
+		pkgDescs, err := pkgFetcher.Fetch()
 		if err != nil {
 			return err
 		}
-		// add to artifactPathMap for local tarball
-		// todo: if we know the path to where the blobs are stored, we can use that instead of the artifactPathMap?
-		for _, layer := range bundleDescs {
+
+		// add to artifactPathMap for local bundle tarball
+		for _, layer := range pkgDescs {
 			digest := layer.Digest.Encoded()
 			artifactPathMap[filepath.Join(lo.tmpDstDir, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 		}

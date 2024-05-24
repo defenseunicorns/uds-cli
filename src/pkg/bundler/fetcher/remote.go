@@ -40,7 +40,7 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 
 	// find layers in remote
 	fetchSpinner.Updatef("Fetching %s package layer metadata (package %d of %d)", f.pkg.Name, f.cfg.PkgIter+1, f.cfg.NumPkgs)
-	pkgLayers, err := utils.FindPkgLayers(*f.remote, f.pkgRootManifest, f.pkg.OptionalComponents)
+	layersToCopy, err := utils.FindPkgLayers(*f.remote, f.pkgRootManifest, f.pkg.OptionalComponents)
 	if err != nil {
 		return nil, err
 	}
@@ -48,17 +48,17 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 
 	// copy layers to local bundle
 	fetchSpinner.Updatef("Pushing package %s layers to bundle (package %d of %d)", f.pkg.Name, f.cfg.PkgIter+1, f.cfg.NumPkgs)
-	bundleDescs, err := f.getRemotePkgLayers(pkgLayers)
+	pkgDescs, err := f.copyRemotePkgLayers(layersToCopy)
 	if err != nil {
 		return nil, err
 	}
 
 	fetchSpinner.Successf("Fetched package: %s", f.pkg.Name)
-	return bundleDescs, nil
+	return pkgDescs, nil
 }
 
-// getRemotePkgLayers copies a remote Zarf pkg to a local OCI store
-func (f *remoteFetcher) getRemotePkgLayers(layersToCopy []ocispec.Descriptor) ([]ocispec.Descriptor, error) {
+// copyRemotePkgLayers copies a remote Zarf pkg to a local OCI store
+func (f *remoteFetcher) copyRemotePkgLayers(layersToCopy []ocispec.Descriptor) ([]ocispec.Descriptor, error) {
 	ctx := context.TODO()
 	// pull layers from remote and write to OCI artifact dir
 	var descsToBundle []ocispec.Descriptor
