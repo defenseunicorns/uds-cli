@@ -14,6 +14,7 @@ import (
 
 	"github.com/defenseunicorns/pkg/helpers"
 	"github.com/defenseunicorns/pkg/oci"
+	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/layout"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
@@ -35,14 +36,14 @@ type TarballBundle struct {
 	PkgManifestSHA string
 	TmpDir         string
 	BundleLocation string
-	PkgName        string
+	Pkg            types.Package
 	nsOverrides    NamespaceOverrideMap
 }
 
 // LoadPackage loads a Zarf package from a local tarball bundle
 func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (zarfTypes.ZarfPackage, []string, error) {
 
-	packageSpinner := message.NewProgressSpinner("Loading bundled Zarf package: %s", t.PkgName)
+	packageSpinner := message.NewProgressSpinner("Loading bundled Zarf package: %s", t.Pkg.Name)
 	defer packageSpinner.Stop()
 
 	files, err := t.extractPkgFromBundle()
@@ -99,9 +100,9 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Com
 		setAsYOLO(&pkg)
 	}
 
-	packageSpinner.Successf("Loaded bundled Zarf package: %s", t.PkgName)
+	packageSpinner.Successf("Loaded bundled Zarf package: %s", t.Pkg.Name)
 	// ensure we're using the correct package name as specified by the bundle
-	pkg.Metadata.Name = t.PkgName
+	pkg.Metadata.Name = t.Pkg.Name
 	return pkg, nil, err
 }
 
@@ -196,7 +197,7 @@ func (t *TarballBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ 
 
 	err = sourceArchive.Close()
 	// ensure we're using the correct package name as specified by the bundle
-	pkg.Metadata.Name = t.PkgName
+	pkg.Metadata.Name = t.Pkg.Name
 	return pkg, nil, err
 }
 

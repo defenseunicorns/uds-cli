@@ -15,8 +15,8 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/cache"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/layout"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/sources"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -30,7 +30,7 @@ import (
 
 // RemoteBundle is a package source for remote bundles that implements Zarf's packager.PackageSource
 type RemoteBundle struct {
-	PkgName        string
+	Pkg            types.Package
 	PkgOpts        *zarfTypes.ZarfPackageOptions
 	PkgManifestSHA string
 	TmpDir         string
@@ -97,7 +97,7 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Comp
 	}
 
 	// ensure we're using the correct package name as specified by the bundle
-	pkg.Metadata.Name = r.PkgName
+	pkg.Metadata.Name = r.Pkg.Name
 	return pkg, nil, err
 }
 
@@ -110,7 +110,7 @@ func (r *RemoteBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ b
 	}
 	pkgManifestDesc := root.Locate(r.PkgManifestSHA)
 	if oci.IsEmptyDescriptor(pkgManifestDesc) {
-		return zarfTypes.ZarfPackage{}, nil, fmt.Errorf("zarf package %s with manifest sha %s not found", r.PkgName, r.PkgManifestSHA)
+		return zarfTypes.ZarfPackage{}, nil, fmt.Errorf("zarf package %s with manifest sha %s not found", r.Pkg.Name, r.PkgManifestSHA)
 	}
 
 	// look at Zarf pkg manifest, grab zarf.yaml desc and download it
@@ -160,7 +160,7 @@ func (r *RemoteBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ b
 
 	err = sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, true)
 	// ensure we're using the correct package name as specified by the bundle
-	pkg.Metadata.Name = r.PkgName
+	pkg.Metadata.Name = r.Pkg.Name
 	return pkg, nil, err
 }
 
@@ -188,36 +188,44 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 		return nil, err
 	}
 
-	// only fetch layers that exist in the remote as optional ones might not exist
-	// todo: this is incredibly slow; maybe keep track of layers in bundle metadata instead of having to query the remote?
-	progressBar := message.NewProgressBar(int64(len(pkgManifest.Layers)), fmt.Sprintf("Verifying layers in Zarf package: %s", r.PkgName))
 	estimatedBytes := int64(0)
 	layersToPull := []ocispec.Descriptor{pkgManifestDesc}
 	layersInBundle := []ocispec.Descriptor{pkgManifestDesc}
 
-	for _, layer := range pkgManifest.Layers {
-		ok, err := r.Remote.Repo().Blobs().Exists(ctx, layer)
-		if err != nil {
-			return nil, err
-		}
-		progressBar.Add(1)
-		if ok {
-			estimatedBytes += layer.Size
-			layersInBundle = append(layersInBundle, layer)
-			digest := layer.Digest.Encoded()
-			if strings.Contains(layer.Annotations[ocispec.AnnotationTitle], config.BlobsDir) && cache.Exists(digest) {
-				dst := filepath.Join(r.TmpDir, "images", config.BlobsDir)
-				err = cache.Use(digest, dst)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				layersToPull = append(layersToPull, layer)
-			}
+	// get pkg layers that we want to pull
+	pkgLayers, _, err := utils.FindRemotePkgLayers(ctx, r.Pkg, rootManifest, r.Remote)
+	if err != nil {
+		return nil, err
+	}
 
+	// todo: we seem to need to specifically pull the layers from the pkgManifest here, but not in the
+	// other location that FindRemotePkgLayers is called. Why is that?
+	// I believe it's bc here we are going to iterate through those layers and fill out a layout with
+	// the annotations from each desc (only pkgManifest layers contain the necessary annotations)
+
+	// correlate descs in pkg root manifest with the pkg layers to pull
+	for _, manifestLayer := range pkgManifest.Layers {
+		for _, pkgLayer := range pkgLayers {
+			if pkgLayer.Digest.Encoded() == manifestLayer.Digest.Encoded() {
+				layersInBundle = append(layersInBundle, manifestLayer)
+				digest := manifestLayer.Digest.Encoded()
+
+				// if it's an image layer and is in the cache, use it
+				if strings.Contains(manifestLayer.Annotations[ocispec.AnnotationTitle], config.BlobsDir) && cache.Exists(digest) {
+					dst := filepath.Join(r.TmpDir, "images", config.BlobsDir)
+					err = cache.Use(digest, dst)
+					if err != nil {
+						return nil, err
+					}
+				} else {
+					// not in cache, so pull
+					layersToPull = append(layersToPull, manifestLayer)
+					estimatedBytes += manifestLayer.Size
+				}
+				break // if layer is found, break out of inner loop
+			}
 		}
 	}
-	progressBar.Successf("Verified %s package", r.PkgName)
 
 	store, err := file.New(r.TmpDir)
 	if err != nil {
@@ -228,7 +236,7 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 	// copy zarf pkg to local store
 	copyOpts := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
 	doneSaving := make(chan error)
-	go zarfUtils.RenderProgressBarForLocalDirWrite(r.TmpDir, estimatedBytes, doneSaving, fmt.Sprintf("Pulling bundled Zarf pkg: %s", r.PkgName), fmt.Sprintf("Successfully pulled package: %s", r.PkgName))
+	go zarfUtils.RenderProgressBarForLocalDirWrite(r.TmpDir, estimatedBytes, doneSaving, fmt.Sprintf("Pulling bundled Zarf pkg: %s", r.Pkg.Name), fmt.Sprintf("Successfully pulled package: %s", r.Pkg.Name))
 
 	_, err = oras.Copy(ctx, r.Remote.Repo(), r.Remote.Repo().Reference.String(), store, "", copyOpts)
 	doneSaving <- err
