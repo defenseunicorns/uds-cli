@@ -96,7 +96,7 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Com
 	addNamespaceOverrides(&pkg, t.nsOverrides)
 
 	if config.Dev {
-		YOLOPackage(&pkg)
+		setAsYOLO(&pkg)
 	}
 
 	packageSpinner.Successf("Loaded bundled Zarf package: %s", t.PkgName)

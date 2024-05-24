@@ -92,7 +92,7 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Comp
 	addNamespaceOverrides(&pkg, r.nsOverrides)
 
 	if config.Dev {
-		YOLOPackage(&pkg)
+		setAsYOLO(&pkg)
 	}
 
 	// ensure we're using the correct package name as specified by the bundle

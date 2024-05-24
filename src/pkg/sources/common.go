@@ -24,8 +24,8 @@ func addNamespaceOverrides(pkg *zarfTypes.ZarfPackage, nsOverrides NamespaceOver
 	}
 }
 
-// YOLOPackage sets the YOLO flag on a package and strips out all images and repos
-func YOLOPackage(pkg *zarfTypes.ZarfPackage) {
+// setAsYOLO sets the YOLO flag on a package and strips out all images and repos
+func setAsYOLO(pkg *zarfTypes.ZarfPackage) {
 	pkg.Metadata.YOLO = true
 	// strip out all images and repos
 	for idx := range pkg.Components {
