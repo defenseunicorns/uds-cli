@@ -1,0 +1,22 @@
+kind: UDSBundle
+metadata:
+  name: helm-overrides
+  description: testing a bundle with Helm overrides
+  version: 0.0.1
+
+packages:
+  - name: helm-overrides
+    path: "../../../packages/helm"
+    ref: 0.0.1
+
+    overrides:
+      podinfo-component:
+        unicorn-podinfo:
+          values:
+            - path: "podinfo.replicaCount"
+              value: 2
+          # missing `variables:` key here should throw an error
+            - name: log_level
+              path: "podinfo.logLevel"
+              description: "Set the log level for podinfo"
+              default: "debug" # not overwritten!

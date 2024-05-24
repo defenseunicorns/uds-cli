@@ -18,7 +18,6 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/sources"
-	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	av4 "github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -53,7 +52,7 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Com
 	}
 
 	var pkg zarfTypes.ZarfPackage
-	if err = zarfUtils.ReadYaml(dst.ZarfYAML, &pkg); err != nil {
+	if err = utils.ReadYAMLStrict(dst.ZarfYAML, &pkg); err != nil {
 		return zarfTypes.ZarfPackage{}, nil, err
 	}
 
@@ -189,7 +188,7 @@ func (t *TarballBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ 
 
 	// deserialize zarf.yaml to grab checksum for validating pkg integrity
 	var pkg zarfTypes.ZarfPackage
-	err = zarfUtils.ReadYaml(dst.ZarfYAML, &pkg)
+	err = utils.ReadYAMLStrict(dst.ZarfYAML, &pkg)
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, nil, err
 	}

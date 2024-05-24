@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 
+	goyaml "github.com/goccy/go-yaml"
+
 	"github.com/defenseunicorns/pkg/helpers"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
@@ -155,4 +157,20 @@ func IsRegistryURL(s string) bool {
 	}
 
 	return false
+}
+
+// ReadYAMLStrict reads a YAML file into a struct, with strict parsing
+func ReadYAMLStrict(path string, destConfig any) error {
+	message.Debugf("Reading YAML at %s", path)
+
+	file, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read file at %s: %v", path, err)
+	}
+
+	err = goyaml.UnmarshalWithOptions(file, destConfig, goyaml.Strict())
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal YAML at %s: %v", path, err)
+	}
+	return nil
 }
