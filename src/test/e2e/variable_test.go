@@ -407,7 +407,7 @@ func TestVariableFilesFileNotFound(t *testing.T) {
 	require.Contains(t, stderr, fmt.Sprintf("unable to find file %s/not-there.pub", bundleDir))
 }
 
-func TestVariableFiles(t *testing.T) {
+func TestVariableFilesSettingZarfVar(t *testing.T) {
 	deployZarfInit(t)
 	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
 	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
@@ -415,18 +415,42 @@ func TestVariableFiles(t *testing.T) {
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-variable-files-%s-0.0.1.tar.zst", e2e.Arch))
 	err := os.Setenv("UDS_CONFIG", filepath.Join(bundleDir, "uds-config.yaml"))
 	require.NoError(t, err)
-	// createLocal(t, bundleDir, e2e.Arch)
+	createLocal(t, bundleDir, e2e.Arch)
+
+	require.NoError(t, err)
+	_, stderr := deploy(t, bundlePath)
+
+	require.Contains(t, stderr, "\"###ZARF_VAR_DOMAIN###\": \"from-file.dev\"")
+
+	remove(t, bundlePath)
+}
+
+func TestVariableFilesHelmOverrides(t *testing.T) {
+	deployZarfInit(t)
+	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
+	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
+	bundleDir := "src/test/bundles/07-helm-overrides/variable-files"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-variable-files-%s-0.0.1.tar.zst", e2e.Arch))
+	err := os.Setenv("UDS_CONFIG", filepath.Join(bundleDir, "uds-config.yaml"))
+	require.NoError(t, err)
+	createLocal(t, bundleDir, e2e.Arch)
 
 	require.NoError(t, err)
 	deploy(t, bundlePath)
 
-	// t.Run("test fake_key file contents set as value for testSecret and used in test-secret secret", func(t *testing.T) {
-
-	// })
+	t.Run("test test.pub file contents set as value for testSecret and used in test-secret secret", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get secret -n podinfo test-secret -o=jsonpath={.data} | base64 -d", " ")
+		stdout, _, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+		require.Contains(t, stdout, "ssh-rsa")
+	})
 
 	// t.Run("test sec_ctx file contents set as value for podinfo.securityContext in deployment", func(t *testing.T) {
-
+	// 	cmd := strings.Split("zarf tools helm values -n podinfo unicorn-podinfo", " ")
+	// 	stdout, _, err := e2e.UDS(cmd...)
+	// 	require.NoError(t, err)
+	// 	require.Contains(t, stdout, "key file contents here")
 	// })
 
-	remove(t, bundlePath)
+	// remove(t, bundlePath)
 }

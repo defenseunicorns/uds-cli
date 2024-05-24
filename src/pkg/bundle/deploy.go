@@ -153,9 +153,8 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 }
 
 func (b *Bundle) loadFileContents(path string) (string, error) {
-	//check for absolute path ? ...
-
 	if !filepath.IsAbs(path) {
+		// set path relative to config file, unless they are the same
 		if filepath.Dir(b.cfg.DeployOpts.Config) != filepath.Dir(path) {
 			path = filepath.Join(filepath.Dir(b.cfg.DeployOpts.Config), path)
 		}
@@ -175,7 +174,7 @@ func (b *Bundle) loadFileContents(path string) (string, error) {
 		return "", err
 	}
 
-	return string(read), err
+	return string(read), nil
 }
 
 // loadVariables loads and sets precedence for config-level and imported variables
@@ -415,6 +414,13 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 				overrideVal = configFileOverride
 			} else if sharedConfigOverride, existsInSharedConfig := b.cfg.DeployOpts.SharedVariables[v.Name]; existsInSharedConfig {
 				overrideVal = sharedConfigOverride
+			} else if fileConfigOverride, existsInFileConfig := b.cfg.DeployOpts.FileVariables[pkgName][v.Name]; existsInFileConfig {
+				// fileContents, err := b.loadFileContents(fileConfigOverride)
+				// if err != nil {
+				// 	return err
+				// }
+				// overrideVal = fileContents
+				overrideVal = fileConfigOverride
 			} else if v.Default != nil {
 				overrideVal = v.Default
 			} else {
@@ -480,6 +486,13 @@ func addOverrideValue(overrides map[string]map[string]*values.Options, component
 			templatedVariable := fmt.Sprintf("%v", v)
 			value = setTemplatedVariables(templatedVariable, pkgVars)
 		}
+		if val, ok := v.(string); ok {
+			if strings.Contains(val, ".") {
+				helmVal := fmt.Sprintf("%s=%v", valuePath, value)
+				overrides[component][chart].Values = append(overrides[component][chart].FileValues, helmVal)
+			}
+		}
+
 		// handle default case of simple values like strings and numbers
 		helmVal := fmt.Sprintf("%s=%v", valuePath, value)
 		overrides[component][chart].Values = append(overrides[component][chart].Values, helmVal)
