@@ -4,11 +4,13 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"runtime/debug"
 
 	runnerCLI "github.com/defenseunicorns/maru-runner/src/cmd"
 	runnerConfig "github.com/defenseunicorns/maru-runner/src/config"
+	"github.com/defenseunicorns/pkg/exec"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
@@ -22,15 +24,23 @@ var runnerCmd = &cobra.Command{
 	Aliases: []string{"r"},
 	Short:   lang.CmdRunShort,
 	Run: func(_ *cobra.Command, _ []string) {
-		os.Args = os.Args[1:]          // grab 'run' and onward from the CLI args
-		runnerConfig.CmdPrefix = "uds" // use vendored Zarf inside the runner
-		runnerConfig.EnvPrefix = "uds"
-		// The maru runner init gets called before the uds-cli init, which looks for RUN_ARCHITECTURE because the EnvPrefix
-		// that we set above is not called yet. So in order to set the architecture if passing in UDS_ARCHITECTURE we must set it here.
-		archValue := os.Getenv("UDS_ARCHITECTURE")
-		if archValue != "" {
-			runnerConfig.CLIArch = archValue
+		os.Args = os.Args[1:] // grab 'run' and onward from the CLI args
+
+		runnerConfig.CmdPrefix = "uds"
+		runnerConfig.VendorPrefix = "UDS"
+
+		// Maru by default uses the MARU_ env var prefix - to add any UDS_ env vars we have to add them here
+		archValue := config.GetArch(v.GetString(V_ARCHITECTURE))
+		runnerConfig.AddExtraEnv("UDS", "true")
+		runnerConfig.AddExtraEnv("UDS_ARCH", archValue)
+
+		executablePath, err := exec.GetFinalExecutablePath()
+		if err == nil {
+			exec.RegisterCmdMutation("uds", executablePath)
+			exec.RegisterCmdMutation("zarf", fmt.Sprintf("%s zarf", executablePath))
+			exec.RegisterCmdMutation("kubectl", fmt.Sprintf("%s zarf tools kubectl", executablePath))
 		}
+
 		runnerCLI.RootCmd().SetArgs(os.Args)
 		runnerCLI.Execute()
 	},
