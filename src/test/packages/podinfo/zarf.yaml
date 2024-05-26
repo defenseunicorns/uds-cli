@@ -23,3 +23,47 @@ components:
                 name: podinfo
                 namespace: podinfo
                 condition: available
+
+  - name: podinfo-flavor
+    required: true
+    only:
+      flavor: two
+    charts:
+      - name: podinfo
+        version: 6.6.2
+        namespace: podinfo-flavor
+        url: https://github.com/stefanprodan/podinfo.git
+        gitPath: charts/podinfo
+    images:
+      - ghcr.io/stefanprodan/podinfo:6.6.2
+    actions:
+      onDeploy:
+        after:
+          - wait:
+              cluster:
+                kind: deployment
+                name: podinfo
+                namespace: podinfo-flavor
+                condition: available
+
+  - name: podinfo-flavor
+    required: true
+    only:
+      flavor: three
+    charts:
+      - name: podinfo
+        version: 6.6.3
+        namespace: podinfo-flavor
+        url: https://github.com/stefanprodan/podinfo.git
+        gitPath: charts/podinfo
+    images:
+      - ghcr.io/stefanprodan/podinfo:6.6.3
+    actions:
+      onDeploy:
+        after:
+          - wait:
+              cluster:
+                kind: deployment
+                name: podinfo
+                namespace: podinfo-flavor
+                condition: available

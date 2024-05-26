@@ -6,12 +6,13 @@ package types
 
 // BundleConfig is the main struct that the bundler uses to hold high-level options.
 type BundleConfig struct {
-	CreateOpts  BundleCreateOptions
-	DeployOpts  BundleDeployOptions
-	PublishOpts BundlePublishOptions
-	PullOpts    BundlePullOptions
-	InspectOpts BundleInspectOptions
-	RemoveOpts  BundleRemoveOptions
+	CreateOpts    BundleCreateOptions
+	DeployOpts    BundleDeployOptions
+	PublishOpts   BundlePublishOptions
+	PullOpts      BundlePullOptions
+	InspectOpts   BundleInspectOptions
+	RemoveOpts    BundleRemoveOptions
+	DevDeployOpts BundleDevDeployOptions
 }
 
 // BundleCreateOptions is the options for the bundler.Create() function
@@ -21,7 +22,6 @@ type BundleCreateOptions struct {
 	SigningKeyPath     string
 	SigningKeyPassword string
 	BundleFile         string
-	Flavors            map[string]string
 }
 
 // BundleDeployOptions is the options for the bundler.Deploy() function
@@ -29,7 +29,6 @@ type BundleDeployOptions struct {
 	Resume        bool
 	Source        string
 	Packages      []string
-	Refs          map[string]string
 	PublicKeyPath string
 	SetVariables  map[string]string `json:"setVariables" jsonschema:"description=Key-Value map of variable names and their corresponding values that will be used by Zarf packages in a bundle"`
 	// Variables and SharedVariables are read in from uds-config.yaml
@@ -72,6 +71,14 @@ type BundleCommonOptions struct {
 	CachePath      string `json:"cachePath" jsonschema:"description=Path to use to cache images and git repos on package create"`
 	TempDirectory  string `json:"tempDirectory" jsonschema:"description=Location Zarf should use as a staging ground when managing files and images for package creation and deployment"`
 	OCIConcurrency int    `jsonschema:"description=Number of concurrent layer operations to perform when interacting with a remote package"`
+}
+
+// BundleDevDeployOptions are the options for when doing a dev deploy
+type BundleDevDeployOptions struct {
+	Flavor      map[string]string
+	FlavorAll   string
+	ForceCreate bool
+	Ref         map[string]string
 }
 
 // PathMap is a map of either absolute paths to relative paths or relative paths to absolute paths

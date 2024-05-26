@@ -80,6 +80,9 @@ func init() {
 	rootCmd.AddCommand(devCmd)
 	devCmd.AddCommand(devDeployCmd)
 	devDeployCmd.Flags().StringArrayVarP(&bundleCfg.DeployOpts.Packages, "packages", "p", []string{}, lang.CmdBundleDeployFlagPackages)
-	devDeployCmd.Flags().StringToStringVarP(&bundleCfg.DeployOpts.Refs, "refs", "r", map[string]string{}, lang.CmdBundleDeployFlagRefs)
-	devDeployCmd.Flags().StringToStringVarP(&bundleCfg.CreateOpts.Flavors, "flavors", "f", map[string]string{}, lang.CmdBundleCreateFlagFlavors)
+	devDeployCmd.Flags().StringToStringVarP(&bundleCfg.DevDeployOpts.Ref, "ref", "r", map[string]string{}, lang.CmdBundleDeployFlagRef)
+	devDeployCmd.Flags().StringToStringVarP(&bundleCfg.DevDeployOpts.Flavor, "flavor", "f", map[string]string{}, lang.CmdBundleCreateFlagFlavor)
+	devDeployCmd.Flags().StringVar(&bundleCfg.DevDeployOpts.FlavorAll, "flavor-all", "", lang.CmdBundleCreateFlagFlavorAll)
+	devDeployCmd.Flags().BoolVar(&bundleCfg.DevDeployOpts.ForceCreate, "force-create", false, lang.CmdBundleCreateForceCreate)
+	devDeployCmd.Flags().BoolVarP(&config.CommonOptions.Confirm, "confirm", "c", false, lang.CmdBundleDeployFlagConfirm)
 }

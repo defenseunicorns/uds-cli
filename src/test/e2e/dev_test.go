@@ -49,4 +49,80 @@ func TestDevDeploy(t *testing.T) {
 
 		remove(t, bundlePath)
 	})
+
+	t.Run("Test dev deploy with ref flag", func(t *testing.T) {
+
+		bundleDir := "src/test/bundles/03-local-and-remote"
+
+		cmd := strings.Split(fmt.Sprintf("dev deploy %s --ref %s", bundleDir, "nginx=0.0.2"), " ")
+		_, _, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+
+		cmd = strings.Split("zarf tools kubectl get deployment -n nginx nginx-deployment -o=jsonpath='{.spec.template.spec.containers[0].image}'", " ")
+		ref, _, err := e2e.UDS(cmd...)
+		require.Contains(t, ref, "nginx:1.26.0")
+		require.NoError(t, err)
+
+		cmd = strings.Split("zarf tools kubectl delete ns podinfo nginx zarf", " ")
+		_, _, err = e2e.UDS(cmd...)
+		require.NoError(t, err)
+	})
+
+	t.Run("Test dev deploy with flavors flag", func(t *testing.T) {
+
+		bundleDir := "src/test/bundles/03-local-and-remote"
+
+		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavors %s", bundleDir, "podinfo=three"), " ")
+		_, _, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+
+		cmd = strings.Split("zarf tools kubectl get deployment -n podinfo-flavor podinfo -o=jsonpath='{.spec.template.spec.containers[0].image}'", " ")
+		ref, _, err := e2e.UDS(cmd...)
+		require.Contains(t, ref, "ghcr.io/stefanprodan/podinfo:6.6.3")
+		require.NoError(t, err)
+
+		cmd = strings.Split("zarf tools kubectl delete ns podinfo nginx zarf podinfo-flavor", " ")
+		_, _, err = e2e.UDS(cmd...)
+		require.NoError(t, err)
+	})
+	t.Run("Test dev deploy with global flavor", func(t *testing.T) {
+
+		bundleDir := "src/test/bundles/03-local-and-remote"
+
+		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor-all %s", bundleDir, "three"), " ")
+		_, _, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+
+		cmd = strings.Split("zarf tools kubectl get deployment -n podinfo-flavor podinfo -o=jsonpath='{.spec.template.spec.containers[0].image}'", " ")
+		ref, _, err := e2e.UDS(cmd...)
+		require.Contains(t, ref, "ghcr.io/stefanprodan/podinfo:6.6.3")
+		require.NoError(t, err)
+
+		cmd = strings.Split("zarf tools kubectl delete ns podinfo nginx zarf podinfo-flavor", " ")
+		_, _, err = e2e.UDS(cmd...)
+		require.NoError(t, err)
+	})
+
+	t.Run("Test dev deploy with flavors and force create", func(t *testing.T) {
+
+		bundleDir := "src/test/bundles/03-local-and-remote"
+
+		// create flavor three podinfo-flavor package
+		cmd = strings.Split("zarf package create src/test/packages/podinfo --flavor three", " ")
+
+		// dev deploy with flavor two and --force-create
+		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create", bundleDir, "podinfo=two"), " ")
+		_, _, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+
+		cmd = strings.Split("zarf tools kubectl get deployment -n podinfo-flavor podinfo -o=jsonpath='{.spec.template.spec.containers[0].image}'", " ")
+		ref, _, err := e2e.UDS(cmd...)
+		// assert that podinfo package with flavor two was deployed.
+		require.Contains(t, ref, "ghcr.io/stefanprodan/podinfo:6.6.2")
+		require.NoError(t, err)
+
+		cmd = strings.Split("zarf tools kubectl delete ns podinfo nginx zarf podinfo-flavor", " ")
+		_, _, err = e2e.UDS(cmd...)
+		require.NoError(t, err)
+	})
 }

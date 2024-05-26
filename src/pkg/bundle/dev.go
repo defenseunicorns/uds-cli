@@ -27,7 +27,8 @@ func (b *Bundle) CreateZarfPkgs() {
 	}
 
 	zarfPackagePattern := `^zarf-.*\.tar\.zst$`
-	for _, pkg := range b.bundle.Packages {
+	for i := range b.bundle.Packages {
+		pkg := b.bundle.Packages[i]
 		// if pkg is a local zarf package, attempt to create it if it doesn't exist
 		if pkg.Path != "" {
 			path := getPkgPath(pkg, config.GetArch(b.bundle.Metadata.Architecture), srcDir)
@@ -48,9 +49,13 @@ func (b *Bundle) CreateZarfPkgs() {
 				}
 			}
 			// create local zarf package if it doesn't exist
-			if !packageFound {
-				pkg = b.setPackageFlavor(pkg)
-				os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom", "--flavor", pkg.Flavor}
+			if !packageFound || b.cfg.DevDeployOpts.ForceCreate {
+				if len(b.cfg.DevDeployOpts.Flavor) != 0 || b.cfg.DevDeployOpts.FlavorAll != "" {
+					b.setPackageFlavor(&pkg)
+					os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom", "--flavor", pkg.Flavor}
+				} else {
+					os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom"}
+				}
 				zarfCLI.Execute()
 				if err != nil {
 					message.Fatalf(err, "Failed to create package %s: %s", pkg.Name, err.Error())
@@ -60,29 +65,13 @@ func (b *Bundle) CreateZarfPkgs() {
 	}
 }
 
-func (b *Bundle) setPackageFlavor(pkg types.Package) types.Package {
-	if b.cfg.CreateOpts.Flavors != nil {
-		if len(b.cfg.CreateOpts.Flavors) == 1 {
-			var value string
-			for _, val := range b.cfg.CreateOpts.Flavors {
-				value = val
-				break
-			}
-			if value == "" {
-				var flavor string
-				for key := range b.cfg.CreateOpts.Flavors {
-					flavor = key
-					break
-				}
-				pkg.Flavor = flavor
-			}
-		} else {
-			if flavor, ok := b.cfg.CreateOpts.Flavors[pkg.Name]; ok {
-				pkg.Flavor = flavor
-			}
-		}
+func (b *Bundle) setPackageFlavor(pkg *types.Package) {
+	// handle case when flavor applies to all packages
+	if b.cfg.DevDeployOpts.FlavorAll != "" {
+		pkg.Flavor = b.cfg.DevDeployOpts.FlavorAll
+	} else if flavor, ok := b.cfg.DevDeployOpts.Flavor[pkg.Name]; ok {
+		pkg.Flavor = flavor
 	}
-	return pkg
 }
 
 // SetDevSource sets the source for the bundle when in dev mode

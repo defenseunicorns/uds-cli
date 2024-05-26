@@ -5,10 +5,12 @@
 package bundle
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
@@ -17,6 +19,8 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/interactive"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pterm/pterm"
 	"helm.sh/helm/v3/pkg/chartutil"
 )
@@ -26,11 +30,6 @@ func (b *Bundle) Create() error {
 
 	// read the bundle's metadata into memory
 	if err := utils.ReadYAMLStrict(filepath.Join(b.cfg.CreateOpts.SourceDirectory, b.cfg.CreateOpts.BundleFile), &b.bundle); err != nil {
-		return err
-	}
-
-	// Populate values from valuesFiles if provided
-	if err := b.processValuesFiles(); err != nil {
 		return err
 	}
 
@@ -86,6 +85,16 @@ func (b *Bundle) Create() error {
 		}
 	}
 
+	// update package refs for dev deploy
+	if config.Dev {
+		if len(b.cfg.DevDeployOpts.Ref) != 0 {
+			for i, pkg := range b.bundle.Packages {
+				pkg = b.setPackageRef(pkg)
+				b.bundle.Packages[i] = pkg
+			}
+		}
+	}
+
 	opts := bundler.Options{
 		Bundle:    &b.bundle,
 		Output:    b.cfg.CreateOpts.Output,
@@ -93,7 +102,33 @@ func (b *Bundle) Create() error {
 		SourceDir: b.cfg.CreateOpts.SourceDirectory,
 	}
 	bundlerClient := bundler.NewBundler(&opts)
+
 	return bundlerClient.Create()
+}
+
+func (b *Bundle) setPackageRef(pkg types.Package) types.Package {
+	if ref, ok := b.cfg.DevDeployOpts.Ref[pkg.Name]; ok {
+		pkg.Ref = ref
+		// Get SHA from registry
+		url := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
+
+		platform := ocispec.Platform{
+			Architecture: config.GetArch(),
+			OS:           oci.MultiOS,
+		}
+		remote, err := zoci.NewRemote(url, platform)
+		if err != nil {
+			message.Fatalf(err, "Unable to access %s:%s", pkg.Repository, pkg.Ref)
+		}
+		if err := remote.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
+			manifestDesc, err := remote.ResolveRoot(context.TODO())
+			if err != nil {
+				message.Fatalf(err, "Unable to access %s:%s", pkg.Repository, pkg.Ref)
+			}
+			pkg.Ref = pkg.Ref + "@sha256:" + manifestDesc.Digest.Encoded()
+		}
+	}
+	return pkg
 }
 
 // confirmBundleCreation prompts the user to confirm bundle creation
