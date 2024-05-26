@@ -62,4 +62,12 @@ func TestDevDeploy(t *testing.T) {
 
 		remove(t, bundle)
 	})
+
+	t.Run("Test dev deploy with --set flag", func(t *testing.T) {
+		bundleDir := "src/test/bundles/02-variables"
+		bundleTarballPath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-variables-%s-0.0.1.tar.zst", e2e.Arch))
+		_, stderr := runCmd(t, "dev deploy "+bundleTarballPath+" --set ANIMAL=Longhorns --set COUNTRY=Texas --confirm -l=debug")
+		require.Contains(t, stderr, "This fun-fact was imported: Longhorns are the national animal of Texas")
+		require.NotContains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
+	})
 }
