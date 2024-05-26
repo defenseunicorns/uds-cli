@@ -543,6 +543,10 @@ func TestBundleOptionalComponents(t *testing.T) {
 	createLocal(t, bundleDir, e2e.Arch)
 	publishInsecure(t, bundlePath, "localhost:888")
 
+	// todo: look through bundle contents to make sure only the selected components are present
+	// local pkgs will a correct pkg manifest (missing non-selected optional component tarballs)
+	// remote pkgs will not, because they already have a pkg manifest and we don't want to rewrite it
+
 	t.Run("test local deploy", func(t *testing.T) {
 		deploy(t, bundlePath)
 		remove(t, bundlePath)

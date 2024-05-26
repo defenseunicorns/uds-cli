@@ -68,13 +68,14 @@ func filterPkgPaths(pkgPaths *layout.PackagePaths, includeLayers []string, optio
 		// include all paths that aren't in the blobs dir
 		if !strings.Contains(path, config.BlobsDir) {
 			// only grab req'd + specified optional components
-			if strings.HasPrefix(path, "components/") {
+			if strings.Contains(path, "/components/") {
 				if shouldInclude := utils.IncludeComponent(path, optionalComponents); shouldInclude {
 					filteredPaths = append(filteredPaths, path)
 					continue
 				}
+			} else {
+				filteredPaths = append(filteredPaths, path)
 			}
-			filteredPaths = append(filteredPaths, path)
 		}
 		// include paths that are in the blobs dir and are in includeLayers
 		for _, layer := range includeLayers {
