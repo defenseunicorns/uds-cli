@@ -85,9 +85,10 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
 	bundleDir := "src/test/bundles/03-local-and-remote"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
+	bundleTarballName := fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch)
+	bundlePath := filepath.Join(bundleDir, bundleTarballName)
+	pulledBundlePath := filepath.Join("build", bundleTarballName)
 
-	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 	bundleRef := registry.Reference{
 		Registry: "oci://localhost:888",
 		// this info is derived from the bundle's metadata
@@ -101,15 +102,15 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 
 	t.Run("Test pulling and deploying from the same registry", func(t *testing.T) {
 		publishInsecure(t, bundlePath, bundleRef.Registry)
-		pull(t, bundleRef.String(), tarballPath) // note that pull pulls the bundle into the build dir
-		deploy(t, filepath.Join("build", filepath.Base(bundlePath)))
-		remove(t, filepath.Join("build", filepath.Base(bundlePath)))
+		pull(t, bundleRef.String(), bundleTarballName) // note that pull pulls the bundle into the build dir
+		deploy(t, pulledBundlePath)
+		remove(t, pulledBundlePath)
 	})
 
 	t.Run(" Test publishing and deploying from different registries", func(t *testing.T) {
 		publishInsecure(t, bundlePath, bundleRef.Registry)
-		pull(t, bundleRef.String(), tarballPath) // note that pull pulls the bundle into the build dir
-		publishInsecure(t, filepath.Join("build", filepath.Base(bundlePath)), "oci://localhost:889")
+		pull(t, bundleRef.String(), bundleTarballName) // note that pull pulls the bundle into the build dir
+		publishInsecure(t, pulledBundlePath, "oci://localhost:889")
 		deployInsecure(t, bundleRef.String())
 	})
 }
@@ -274,14 +275,15 @@ func TestRemoteBundleWithRemotePkgs(t *testing.T) {
 		Reference:  "0.0.1",
 	}
 
-	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-example-remote-%s-0.0.1.tar.zst", e2e.Arch))
+	bundleTarballName := fmt.Sprintf("uds-bundle-example-remote-%s-0.0.1.tar.zst", e2e.Arch)
+	tarballPath := filepath.Join("build", bundleTarballName)
 	bundlePath := "src/test/bundles/01-uds-bundle"
 	createRemoteInsecure(t, bundlePath, bundleRef.Registry, e2e.Arch)
 
 	// Test without oci prefix
 	createRemoteInsecure(t, bundlePath, "localhost:888", e2e.Arch)
 
-	pull(t, bundleRef.String(), tarballPath)
+	pull(t, bundleRef.String(), bundleTarballName)
 	inspectRemoteInsecure(t, bundleRef.String())
 	inspectRemoteAndSBOMExtract(t, bundleRef.String())
 	deployAndRemoveLocalAndRemoteInsecure(t, bundleRef.String(), tarballPath)
@@ -391,8 +393,9 @@ func TestPackageNaming(t *testing.T) {
 	zarfPublish(t, pkg, "localhost:889")
 
 	bundleDir := "src/test/bundles/10-package-naming"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-package-naming-%s-0.0.1.tar.zst", e2e.Arch))
-	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-package-naming-%s-0.0.1.tar.zst", e2e.Arch))
+	bundleTarballName := fmt.Sprintf("uds-bundle-package-naming-%s-0.0.1.tar.zst", e2e.Arch)
+	bundlePath := filepath.Join(bundleDir, bundleTarballName)
+	tarballPath := filepath.Join("build", bundleTarballName)
 	bundleRef := registry.Reference{
 		Registry: "oci://localhost:888",
 		// this info is derived from the bundle's metadata
@@ -401,7 +404,7 @@ func TestPackageNaming(t *testing.T) {
 	}
 	createLocal(t, bundleDir, e2e.Arch) // todo: allow creating from both the folder containing and direct reference to uds-bundle.yaml
 	publishInsecure(t, bundlePath, bundleRef.Registry)
-	pull(t, bundleRef.String(), tarballPath)
+	pull(t, bundleRef.String(), bundleTarballName)
 	deploy(t, tarballPath)
 	remove(t, tarballPath)
 
@@ -417,9 +420,10 @@ func TestBundleIndexInRemoteOnPublish(t *testing.T) {
 
 	bundleDir := "src/test/bundles/06-ghcr"
 	bundleName := "ghcr-test"
+	bundleTarballName := fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch)
 	bundlePathARM := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, "arm64"))
 	bundlePathAMD := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, "amd64"))
-	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch))
+	tarballPath := filepath.Join("build", bundleTarballName)
 
 	// create and push bundles with different archs to the same OCI repo
 	createLocal(t, bundleDir, "arm64")
@@ -433,7 +437,7 @@ func TestBundleIndexInRemoteOnPublish(t *testing.T) {
 	validateMultiArchIndex(t, index)
 
 	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName))
-	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), tarballPath) // test no oci prefix
+	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), bundleTarballName) // test no oci prefix
 	deployAndRemoveLocalAndRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), tarballPath)
 
 	// now test by running 'create -o' over the bundle that was published
@@ -442,7 +446,7 @@ func TestBundleIndexInRemoteOnPublish(t *testing.T) {
 	require.NoError(t, err)
 	validateMultiArchIndex(t, index)
 	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName))
-	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), tarballPath) // test no oci prefix
+	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), bundleTarballName) // test no oci prefix
 	deployAndRemoveLocalAndRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), tarballPath)
 }
 
@@ -453,7 +457,8 @@ func TestBundleIndexInRemoteOnCreate(t *testing.T) {
 
 	bundleDir := "src/test/bundles/06-ghcr"
 	bundleName := "ghcr-test"
-	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch))
+	bundleTarballName := fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch)
+	tarballPath := filepath.Join("build", bundleTarballName)
 
 	// create and push bundles with different archs to the same OCI repo
 	createRemoteInsecure(t, bundleDir, "oci://localhost:888", "arm64")
@@ -465,7 +470,7 @@ func TestBundleIndexInRemoteOnCreate(t *testing.T) {
 	validateMultiArchIndex(t, index)
 
 	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName))
-	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), tarballPath) // test no oci prefix
+	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), bundleTarballName) // test no oci prefix
 	deployAndRemoveLocalAndRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), tarballPath)
 
 	// now test by publishing over the bundle that was created with 'create -o'
@@ -475,7 +480,7 @@ func TestBundleIndexInRemoteOnCreate(t *testing.T) {
 	require.NoError(t, err)
 	validateMultiArchIndex(t, index)
 	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName))
-	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), tarballPath) // test no oci prefix
+	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), bundleTarballName) // test no oci prefix
 	deployAndRemoveLocalAndRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), tarballPath)
 }
 
@@ -517,18 +522,37 @@ func TestBundleWithComposedPkgComponent(t *testing.T) {
 }
 
 func TestBundleOptionalComponents(t *testing.T) {
-	removeZarfInit()
-	zarfPkgPath := "src/test/packages/podinfo-and-nginx"
-	e2e.CreateZarfPkg(t, zarfPkgPath, true)
+	deployZarfInit(t)
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
 
+	// create 2 Zarf pkgs to be bundled
+	zarfPkgPath := "src/test/packages/podinfo-and-nginx"
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+
+	zarfPkgPath = "src/test/packages/prometheus"
+	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-prometheus-%s-0.0.1.tar.zst", e2e.Arch))
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+	zarfPublish(t, pkg, "localhost:888")
+
+	// create bundle and publish
 	bundleDir := "src/test/bundles/14-optional-components"
 	bundleName := "optional-components"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch))
+	bundleTarballName := fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch)
+	bundlePath := filepath.Join(bundleDir, bundleTarballName)
 	createLocal(t, bundleDir, e2e.Arch)
-	deploy(t, bundlePath)
-	remove(t, bundlePath)
+	publishInsecure(t, bundlePath, "localhost:888")
 
-	// todo: test that imgs from optional components aren't in the bundle?
+	t.Run("test local deploy", func(t *testing.T) {
+		deploy(t, bundlePath)
+		remove(t, bundlePath)
+	})
+
+	t.Run("test remote deploy + pulled deploy", func(t *testing.T) {
+		pulledBundlePath := filepath.Join("build", bundleTarballName)
+		pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), bundleTarballName)
+		deployAndRemoveLocalAndRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), pulledBundlePath)
+	})
 }
 
 func TestBundleTmpDir(t *testing.T) {

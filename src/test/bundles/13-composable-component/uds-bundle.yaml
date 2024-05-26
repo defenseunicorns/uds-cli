@@ -12,3 +12,5 @@ packages:
     # remote pkg ensures we're testing pulling composed components from OCI
     repository: localhost:888/prometheus
     ref: 0.0.1
+    optionalComponents:
+      - upload-image

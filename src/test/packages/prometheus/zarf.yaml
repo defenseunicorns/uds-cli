@@ -7,7 +7,6 @@ metadata:
 
 components:
   - name: upload-image
-    required: true
     description: test composition
     import:
       path: images
