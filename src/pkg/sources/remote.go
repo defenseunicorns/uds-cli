@@ -15,6 +15,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/cache"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/layout"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
@@ -193,13 +194,13 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 	layersInBundle := []ocispec.Descriptor{pkgManifestDesc}
 
 	// get pkg layers that we want to pull
-	pkgLayers, _, err := utils.FindRemotePkgLayers(ctx, r.Pkg, rootManifest, r.Remote)
+	pkgLayers, _, err := boci.FindBundledPkgLayers(ctx, r.Pkg, rootManifest, r.Remote)
 	if err != nil {
 		return nil, err
 	}
 
 	// todo: we seem to need to specifically pull the layers from the pkgManifest here, but not in the
-	// other location that FindRemotePkgLayers is called. Why is that?
+	// other location that FindBundledPkgLayers is called. Why is that?
 	// I believe it's bc here we are going to iterate through those layers and fill out a layout with
 	// the annotations from each desc (only pkgManifest layers contain the necessary annotations)
 
@@ -234,7 +235,7 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 	defer store.Close()
 
 	// copy zarf pkg to local store
-	copyOpts := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
+	copyOpts := boci.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
 	doneSaving := make(chan error)
 	go zarfUtils.RenderProgressBarForLocalDirWrite(r.TmpDir, estimatedBytes, doneSaving, fmt.Sprintf("Pulling bundled Zarf pkg: %s", r.Pkg.Name), fmt.Sprintf("Successfully pulled package: %s", r.Pkg.Name))
 

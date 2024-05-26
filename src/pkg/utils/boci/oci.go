@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
-// Package utils provides utility fns for UDS-CLI
-package utils
+// Package boci (bundle OCI) provides OCI utility functions for bundles
+package boci
 
 import (
 	"bytes"
@@ -16,6 +16,7 @@ import (
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
@@ -306,7 +307,8 @@ func FilterImageIndex(components []zarfTypes.ZarfComponent, imgIndex ocispec.Ind
 	return manifestsToInclude, nil
 }
 
-func FindRemotePkgLayers(ctx context.Context, pkg types.Package, rootManifest *oci.Manifest, remote *oci.OrasRemote) ([]ocispec.Descriptor, int64, error) {
+// FindBundledPkgLayers finds the necessary Zarf pkg layers from a remote bundle
+func FindBundledPkgLayers(ctx context.Context, pkg types.Package, rootManifest *oci.Manifest, remote *oci.OrasRemote) ([]ocispec.Descriptor, int64, error) {
 	var layersToPull []ocispec.Descriptor
 	estPkgBytes := int64(0)
 
@@ -334,17 +336,18 @@ func FindRemotePkgLayers(ctx context.Context, pkg types.Package, rootManifest *o
 	// go through manifest layers and add to layersToPull as appropriate
 	var imgIndex ocispec.Index
 	for _, desc := range manifest.Layers {
-		if desc.Annotations[ocispec.AnnotationTitle] == "images/index.json" {
+		descAnnotationTile := desc.Annotations[ocispec.AnnotationTitle]
+		if descAnnotationTile == "images/index.json" {
 			imgIndex, err = handleImgIndex(ctx, remote, desc)
 			if err != nil {
 				return nil, 0, err
 			}
 			layersToPull = append(layersToPull, desc)
-		} else if strings.HasPrefix(desc.Annotations[ocispec.AnnotationTitle], "components/") {
-			if shouldInclude := handleComponent(desc, filteredComponents); shouldInclude {
+		} else if strings.HasPrefix(descAnnotationTile, "components/") {
+			if shouldInclude := utils.IncludeComponent(descAnnotationTile, filteredComponents); shouldInclude {
 				layersToPull = append(layersToPull, desc)
 			}
-		} else if !strings.Contains(desc.Annotations[ocispec.AnnotationTitle], config.BlobsDir) {
+		} else if !strings.Contains(descAnnotationTile, config.BlobsDir) {
 			// not a blob or component, add to layersToPull
 			layersToPull = append(layersToPull, desc)
 		}
@@ -394,18 +397,6 @@ func getImgManifest(ctx context.Context, remote *oci.OrasRemote, desc ocispec.De
 		return ocispec.Manifest{}, err
 	}
 	return imgManifest, nil
-}
-
-func handleComponent(desc ocispec.Descriptor, filteredComponents []zarfTypes.ZarfComponent) bool {
-	for _, component := range filteredComponents {
-		// get component name from annotation
-		nameWithSuffix := strings.Split(desc.Annotations[ocispec.AnnotationTitle], "components/")[1]
-		componentName := strings.Split(nameWithSuffix, ".tar")[0]
-		if componentName == component.Name {
-			return true
-		}
-	}
-	return false
 }
 
 func handleImgIndex(ctx context.Context, remote *oci.OrasRemote, desc ocispec.Descriptor) (ocispec.Index, error) {

@@ -17,6 +17,7 @@ import (
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
@@ -172,7 +173,7 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 
 	for _, pkg := range bundle.Packages {
 		// go through the pkg's layers and figure out which ones to pull based on the req'd + selected components
-		pkgLayers, estPkgBytes, err := utils.FindRemotePkgLayers(ctx, pkg, rootManifest, op.OrasRemote)
+		pkgLayers, estPkgBytes, err := boci.FindBundledPkgLayers(ctx, pkg, rootManifest, op.OrasRemote)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -193,7 +194,7 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 	layersToPull = append(layersToPull, rootDesc)
 
 	// create copy options for oras.Copy()
-	copyOpts := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
+	copyOpts := boci.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
 
 	// Create a thread to update a progress bar as we save the package to disk
 	doneSaving := make(chan error)
@@ -229,7 +230,7 @@ func getOCIValidatedSource(source string) (string, error) {
 		OS:           oci.MultiOS,
 	}
 	// Check provided repository path
-	sourceWithOCI := utils.EnsureOCIPrefix(source)
+	sourceWithOCI := boci.EnsureOCIPrefix(source)
 	remote, err := zoci.NewRemote(sourceWithOCI, platform)
 	if err == nil {
 		source = sourceWithOCI

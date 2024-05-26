@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 
+	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 
 	"github.com/defenseunicorns/pkg/helpers"
@@ -40,6 +41,19 @@ func IsValidTarballPath(path string) bool {
 	}
 	re := regexp.MustCompile(`^uds-bundle-.*-.*.tar(.zst)?$`)
 	return re.MatchString(name)
+}
+
+// IncludeComponent checks if a component has been specified in a a list of components (used for filtering optional components)
+func IncludeComponent(componentToCheck string, filteredComponents []zarfTypes.ZarfComponent) bool {
+	for _, component := range filteredComponents {
+		// get component name from annotation
+		nameWithSuffix := strings.Split(componentToCheck, "components/")[1]
+		componentName := strings.Split(nameWithSuffix, ".tar")[0]
+		if componentName == component.Name {
+			return true
+		}
+	}
+	return false
 }
 
 // ConfigureLogs sets up the log file, log cache and output for the CLI

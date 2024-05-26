@@ -14,6 +14,7 @@ import (
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	zarfSources "github.com/defenseunicorns/zarf/src/pkg/packager/sources"
@@ -54,6 +55,7 @@ func (f *localFetcher) Fetch() ([]ocispec.Descriptor, error) {
 
 // GetPkgMetadata grabs metadata from a local Zarf package's zarf.yaml
 func (f *localFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
+	// todo: can we refactor to use Zarf fns?
 	tmpDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, err
@@ -136,7 +138,7 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 		}
 
 		// go into the pkg's image index and filter out optional components, grabbing img manifests of imgs to include
-		imgManifestsToInclude, err := utils.FilterImageIndex(pkg.Components, imgIndex)
+		imgManifestsToInclude, err := boci.FilterImageIndex(pkg.Components, imgIndex)
 		if err != nil {
 			return nil, err
 		}
@@ -147,8 +149,8 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 			return nil, err
 		}
 
-		// filter paths to only include layers that are in includeLayers, and grab image blobs to recompute checksums
-		filteredPaths := filterPkgPaths(pkgPaths, includeLayers)
+		// filter paths to only include layers that are in includeLayers
+		filteredPaths := filterPkgPaths(pkgPaths, includeLayers, pkg.Components)
 		pathsToBundle = filteredPaths
 	}
 
@@ -230,7 +232,7 @@ func generatePkgManifestConfig(store *ocistore.Store, metadata *zarfTypes.ZarfMe
 		Annotations:  annotations,
 	}
 
-	manifestConfigDesc, err := utils.ToOCIStore(manifestConfig, zoci.ZarfConfigMediaType, store)
+	manifestConfigDesc, err := boci.ToOCIStore(manifestConfig, zoci.ZarfConfigMediaType, store)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
@@ -248,7 +250,7 @@ func generatePkgManifest(store *ocistore.Store, descs []ocispec.Descriptor, conf
 		Layers:    descs,
 	}
 
-	manifestDesc, err := utils.ToOCIStore(manifest, zoci.ZarfLayerMediaTypeBlob, store)
+	manifestDesc, err := boci.ToOCIStore(manifest, zoci.ZarfLayerMediaTypeBlob, store)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}

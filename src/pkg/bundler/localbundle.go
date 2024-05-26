@@ -17,6 +17,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/fetcher"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
@@ -128,7 +129,7 @@ func (lo *LocalBundle) create(signature []byte) error {
 	rootManifest.Config = manifestConfigDesc
 	rootManifest.SchemaVersion = 2
 	rootManifest.Annotations = manifestAnnotationsFromMetadata(&bundle.Metadata) // maps to registry UI
-	rootManifestDesc, err := utils.ToOCIStore(rootManifest, ocispec.MediaTypeImageManifest, store)
+	rootManifestDesc, err := boci.ToOCIStore(rootManifest, ocispec.MediaTypeImageManifest, store)
 	if err != nil {
 		return err
 	}
@@ -205,7 +206,7 @@ func pushManifestConfig(store *ocistore.Store, metadata types.UDSMetadata, build
 		OCIVersion:   "1.0.1",
 		Annotations:  annotations,
 	}
-	manifestConfigDesc, err := utils.ToOCIStore(manifestConfig, zoci.ZarfLayerMediaTypeBlob, store)
+	manifestConfigDesc, err := boci.ToOCIStore(manifestConfig, zoci.ZarfLayerMediaTypeBlob, store)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}

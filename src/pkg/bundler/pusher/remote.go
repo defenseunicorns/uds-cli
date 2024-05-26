@@ -11,7 +11,7 @@ import (
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
@@ -66,7 +66,7 @@ func (p *RemotePusher) Push() (ocispec.Descriptor, error) {
 // PushManifest pushes the Zarf pkg's manifest to a remote bundle
 func (p *RemotePusher) PushManifest() (ocispec.Descriptor, error) {
 	var zarfManifestDesc ocispec.Descriptor
-	desc, err := utils.ToOCIRemote(p.cfg.PkgRootManifest, zoci.ZarfLayerMediaTypeBlob, p.cfg.RemoteDst.OrasRemote)
+	desc, err := boci.ToOCIRemote(p.cfg.PkgRootManifest, zoci.ZarfLayerMediaTypeBlob, p.cfg.RemoteDst.OrasRemote)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
@@ -78,7 +78,7 @@ func (p *RemotePusher) PushManifest() (ocispec.Descriptor, error) {
 func (p *RemotePusher) LayersToRemoteBundle(spinner *message.Spinner, currentPackageIter int, totalPackages int) ([]ocispec.Descriptor, error) {
 	spinner.Updatef("Fetching %s package layer metadata (package %d of %d)", p.pkg.Name, currentPackageIter, totalPackages)
 	// get only the layers that are required by the components
-	layersToCopy, err := utils.FindPkgLayers(p.cfg.RemoteSrc, p.cfg.PkgRootManifest, p.pkg.OptionalComponents)
+	layersToCopy, err := boci.FindPkgLayers(p.cfg.RemoteSrc, p.cfg.PkgRootManifest, p.pkg.OptionalComponents)
 	if err != nil {
 		return nil, err
 	}

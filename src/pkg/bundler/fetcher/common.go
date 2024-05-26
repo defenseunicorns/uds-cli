@@ -11,6 +11,7 @@ import (
 
 	"github.com/defenseunicorns/pkg/helpers"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/layout"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
 	zarfSources "github.com/defenseunicorns/zarf/src/pkg/packager/sources"
@@ -60,14 +61,20 @@ func getImgLayerDigests(manifestsToInclude []ocispec.Descriptor, pkgPaths *layou
 }
 
 // filterPkgPaths grabs paths that either not in the blobs dir or are in includeLayers
-func filterPkgPaths(pkgPaths *layout.PackagePaths, includeLayers []string) []string {
+func filterPkgPaths(pkgPaths *layout.PackagePaths, includeLayers []string, optionalComponents []zarfTypes.ZarfComponent) []string {
 	var filteredPaths []string
 	paths := pkgPaths.Files()
 	for _, path := range paths {
 		// include all paths that aren't in the blobs dir
 		if !strings.Contains(path, config.BlobsDir) {
+			// only grab req'd + specified optional components
+			if strings.HasPrefix(path, "components/") {
+				if shouldInclude := utils.IncludeComponent(path, optionalComponents); shouldInclude {
+					filteredPaths = append(filteredPaths, path)
+					continue
+				}
+			}
 			filteredPaths = append(filteredPaths, path)
-			continue
 		}
 		// include paths that are in the blobs dir and are in includeLayers
 		for _, layer := range includeLayers {
