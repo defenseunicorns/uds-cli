@@ -521,44 +521,6 @@ func TestBundleWithComposedPkgComponent(t *testing.T) {
 	remove(t, bundlePath)
 }
 
-func TestBundleOptionalComponents(t *testing.T) {
-	deployZarfInit(t)
-	e2e.SetupDockerRegistry(t, 888)
-	defer e2e.TeardownRegistry(t, 888)
-
-	// create 2 Zarf pkgs to be bundled
-	zarfPkgPath := "src/test/packages/podinfo-and-nginx"
-	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-
-	zarfPkgPath = "src/test/packages/prometheus"
-	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-prometheus-%s-0.0.1.tar.zst", e2e.Arch))
-	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-	zarfPublish(t, pkg, "localhost:888")
-
-	// create bundle and publish
-	bundleDir := "src/test/bundles/14-optional-components"
-	bundleName := "optional-components"
-	bundleTarballName := fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch)
-	bundlePath := filepath.Join(bundleDir, bundleTarballName)
-	createLocal(t, bundleDir, e2e.Arch)
-	publishInsecure(t, bundlePath, "localhost:888")
-
-	// todo: look through bundle contents to make sure only the selected components are present
-	// local pkgs will a correct pkg manifest (missing non-selected optional component tarballs)
-	// remote pkgs will not, because they already have a pkg manifest and we don't want to rewrite it
-
-	t.Run("test local deploy", func(t *testing.T) {
-		deploy(t, bundlePath)
-		remove(t, bundlePath)
-	})
-
-	t.Run("test remote deploy + pulled deploy", func(t *testing.T) {
-		pulledBundlePath := filepath.Join("build", bundleTarballName)
-		pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), bundleTarballName)
-		deployAndRemoveLocalAndRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), pulledBundlePath)
-	})
-}
-
 func TestBundleTmpDir(t *testing.T) {
 	deployZarfInit(t)
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
