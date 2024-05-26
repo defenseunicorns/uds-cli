@@ -132,6 +132,10 @@
           "type": "string",
           "description": "Ref (tag) of the Zarf package"
         },
+        "flavor": {
+          "type": "string",
+          "description": "Flavor of the Zarf package"
+        },
         "optionalComponents": {
           "items": {
             "type": "string"

@@ -85,7 +85,7 @@ func (b *Bundle) Create() error {
 		}
 	}
 
-	// update package refs for dev deploy
+	// update package ref for dev deploy
 	if config.Dev {
 		if len(b.cfg.DevDeployOpts.Ref) != 0 {
 			for i, pkg := range b.bundle.Packages {

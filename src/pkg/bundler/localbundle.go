@@ -65,7 +65,7 @@ func (lo *LocalBundle) create(signature []byte) error {
 
 	message.HeaderInfof("🐕 Fetching Packages")
 
-	// create root manifest for bundle, will populate with refs to uds-bundle.yaml and zarf image manifests
+	// create root manifest for bundle, will populate with ref to uds-bundle.yaml and zarf image manifests
 	rootManifest := ocispec.Manifest{
 		MediaType: ocispec.MediaTypeImageManifest,
 	}

@@ -68,11 +68,11 @@ func TestDevDeploy(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("Test dev deploy with flavors flag", func(t *testing.T) {
+	t.Run("Test dev deploy with flavor flag", func(t *testing.T) {
 
 		bundleDir := "src/test/bundles/03-local-and-remote"
 
-		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavors %s", bundleDir, "podinfo=three"), " ")
+		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s", bundleDir, "podinfo=three"), " ")
 		_, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
 
@@ -103,7 +103,7 @@ func TestDevDeploy(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("Test dev deploy with flavors and force create", func(t *testing.T) {
+	t.Run("Test dev deploy with flavor and force create", func(t *testing.T) {
 
 		bundleDir := "src/test/bundles/03-local-and-remote"
 
