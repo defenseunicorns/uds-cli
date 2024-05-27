@@ -51,7 +51,7 @@ func TestDevDeploy(t *testing.T) {
 	})
 
 	t.Run("Test dev deploy with ref flag", func(t *testing.T) {
-
+		e2e.DeleteZarfPkg(t, "src/test/packages/podinfo")
 		bundleDir := "src/test/bundles/03-local-and-remote"
 
 		cmd := strings.Split(fmt.Sprintf("dev deploy %s --ref %s", bundleDir, "nginx=0.0.2"), " ")
@@ -69,7 +69,7 @@ func TestDevDeploy(t *testing.T) {
 	})
 
 	t.Run("Test dev deploy with flavor flag", func(t *testing.T) {
-
+		e2e.DeleteZarfPkg(t, "src/test/packages/podinfo")
 		bundleDir := "src/test/bundles/03-local-and-remote"
 
 		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s", bundleDir, "podinfo=three"), " ")
@@ -86,7 +86,7 @@ func TestDevDeploy(t *testing.T) {
 		require.NoError(t, err)
 	})
 	t.Run("Test dev deploy with global flavor", func(t *testing.T) {
-
+		e2e.DeleteZarfPkg(t, "src/test/packages/podinfo")
 		bundleDir := "src/test/bundles/03-local-and-remote"
 
 		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor-all %s", bundleDir, "three"), " ")
