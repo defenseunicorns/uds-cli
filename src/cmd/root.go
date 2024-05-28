@@ -133,6 +133,7 @@ func loadViperConfig() error {
 func unmarshalAndValidateConfig(configFile []byte, bundleCfg *types.BundleConfig) error {
 	// read relevant config into DeployOpts.Variables
 	// need to use goyaml because Viper doesn't preserve case: https://github.com/spf13/viper/issues/1014
+	// unmarshalling into DeployOpts because we want to check all of the top level config keys which are currently defined in DeployOpts
 	err := goyaml.UnmarshalWithOptions(configFile, &bundleCfg.DeployOpts, goyaml.Strict())
 	if err != nil {
 		return err
