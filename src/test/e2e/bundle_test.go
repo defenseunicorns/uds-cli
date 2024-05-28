@@ -606,11 +606,10 @@ func TestInvalidConfig(t *testing.T) {
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config-invalid.yaml"))
 	zarfPkgPath := "src/test/packages/helm"
 	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
-	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-	bundleDir := "src/test/bundles/07-helm-overrides"
-	stderr := createLocalError(bundleDir, e2e.Arch)
-	require.Contains(t, stderr, "invalid config option: log_levelx")
-	os.Unsetenv("UDS_CONFIG")
+	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --confirm", zarfPkgPath, zarfPkgPath), " ")
+	_, stdErr, err := e2e.UDS(args...)
+	require.Error(t, err)
+	require.Contains(t, stdErr, "invalid config option: log_levelx")
 }
 
 func TestInvalidBundle(t *testing.T) {
