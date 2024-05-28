@@ -52,6 +52,11 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Comp
 		return zarfTypes.ZarfPackage{}, nil, err
 	}
 
+	// if in dev mode and package is a zarf init config, return an empty package
+	if config.Dev && pkg.Kind == zarfTypes.ZarfInitConfig {
+		return zarfTypes.ZarfPackage{}, nil, nil
+	}
+
 	pkg.Components, err = filter.Apply(pkg)
 	if err != nil {
 		return pkg, nil, err
@@ -85,6 +90,11 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Comp
 		}
 	}
 	addNamespaceOverrides(&pkg, r.nsOverrides)
+
+	if config.Dev {
+		setAsYOLO(&pkg)
+	}
+
 	// ensure we're using the correct package name as specified by the bundle
 	pkg.Metadata.Name = r.PkgName
 	return pkg, nil, err
