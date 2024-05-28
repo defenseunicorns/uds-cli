@@ -125,7 +125,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 		// Automatically confirm the package deployment
 		zarfConfig.CommonOptions.Confirm = true
 
-		source, err := sources.New(b.cfg.DeployOpts.Source, pkg.Name, opts, sha, nsOverrides)
+		source, err := sources.New(b.cfg.DeployOpts.Source, pkg, opts, sha, nsOverrides)
 		if err != nil {
 			return err
 		}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfSources "github.com/defenseunicorns/zarf/src/pkg/packager/sources"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
@@ -16,11 +17,11 @@ import (
 )
 
 // New creates a new package source based on pkgLocation
-func New(pkgLocation string, pkgName string, opts zarfTypes.ZarfPackageOptions, sha string, nsOverrides NamespaceOverrideMap) (zarfSources.PackageSource, error) {
+func New(pkgLocation string, pkg types.Package, opts zarfTypes.ZarfPackageOptions, sha string, nsOverrides NamespaceOverrideMap) (zarfSources.PackageSource, error) {
 	var source zarfSources.PackageSource
 	if strings.Contains(pkgLocation, "tar.zst") {
 		source = &TarballBundle{
-			PkgName:        pkgName,
+			Pkg:            pkg,
 			PkgOpts:        &opts,
 			PkgManifestSHA: sha,
 			TmpDir:         opts.PackageSource,
@@ -37,7 +38,7 @@ func New(pkgLocation string, pkgName string, opts zarfTypes.ZarfPackageOptions, 
 			return nil, err
 		}
 		source = &RemoteBundle{
-			PkgName:        pkgName,
+			Pkg:            pkg,
 			PkgOpts:        &opts,
 			PkgManifestSHA: sha,
 			TmpDir:         opts.PackageSource,

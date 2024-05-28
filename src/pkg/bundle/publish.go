@@ -12,6 +12,7 @@ import (
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	av3 "github.com/mholt/archiver/v3"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -19,7 +20,7 @@ import (
 
 // Publish publishes a bundle to a remote OCI registry
 func (b *Bundle) Publish() error {
-	b.cfg.PublishOpts.Destination = utils.EnsureOCIPrefix(b.cfg.PublishOpts.Destination)
+	b.cfg.PublishOpts.Destination = boci.EnsureOCIPrefix(b.cfg.PublishOpts.Destination)
 
 	// load bundle metadata into memory
 	// todo: having the tmp dir be the provider.dst is weird

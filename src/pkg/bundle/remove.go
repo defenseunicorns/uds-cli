@@ -94,7 +94,7 @@ func removePackages(packagesToRemove []types.Package, b *Bundle) error {
 			}
 
 			sha := strings.Split(pkg.Ref, "sha256:")[1]
-			source, err := sources.New(b.cfg.RemoveOpts.Source, pkg.Name, opts, sha, nil)
+			source, err := sources.New(b.cfg.RemoveOpts.Source, pkg, opts, sha, nil)
 			if err != nil {
 				return err
 			}

@@ -11,7 +11,7 @@ import (
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/pusher"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
@@ -47,7 +47,7 @@ func (r *RemoteBundle) create(signature []byte) error {
 	ctx := context.TODO()
 
 	// set the bundle remote's reference from metadata
-	r.output = utils.EnsureOCIPrefix(r.output)
+	r.output = boci.EnsureOCIPrefix(r.output)
 	ref, err := referenceFromMetadata(r.output, &r.bundle.Metadata)
 	if err != nil {
 		return err
@@ -137,7 +137,7 @@ func (r *RemoteBundle) create(signature []byte) error {
 	message.Debug("Pushed config:", message.JSONValue(configDesc))
 
 	// check for existing index
-	index, err := utils.GetIndex(bundleRemote.OrasRemote, dstRef.String())
+	index, err := boci.GetIndex(bundleRemote.OrasRemote, dstRef.String())
 	if err != nil {
 		return err
 	}
@@ -146,13 +146,13 @@ func (r *RemoteBundle) create(signature []byte) error {
 	rootManifest.Config = configDesc
 	rootManifest.SchemaVersion = 2
 	rootManifest.Annotations = manifestAnnotationsFromMetadata(&bundle.Metadata) // maps to registry UI
-	rootManifestDesc, err := utils.ToOCIRemote(rootManifest, ocispec.MediaTypeImageManifest, bundleRemote.OrasRemote)
+	rootManifestDesc, err := boci.ToOCIRemote(rootManifest, ocispec.MediaTypeImageManifest, bundleRemote.OrasRemote)
 	if err != nil {
 		return err
 	}
 
 	// create or update, then push index.json
-	err = utils.UpdateIndex(index, bundleRemote.OrasRemote, bundle, *rootManifestDesc)
+	err = boci.UpdateIndex(index, bundleRemote.OrasRemote, bundle, *rootManifestDesc)
 	if err != nil {
 		return err
 	}

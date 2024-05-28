@@ -71,4 +71,8 @@ func TestDevDeploy(t *testing.T) {
 		require.NotContains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
 		remove(t, bundleTarballPath)
 	})
+
+	// delete packages because other tests depend on them being created with SBOMs (ie. force other tests to re-create)
+	e2e.DeleteZarfPkg(t, "src/test/packages/podinfo")
+	e2e.DeleteZarfPkg(t, "src/test/packages/nginx")
 }

@@ -205,7 +205,10 @@ func shasMatch(t *testing.T, path string, expected string) {
 	require.Equal(t, expected, actual)
 }
 
-func pull(t *testing.T, ref string, tarballPath string) {
+func pull(t *testing.T, ref string, tarballName string) {
+	if !strings.HasSuffix(tarballName, "tar.zst") {
+		t.Fatalf("second arg to pull() must be the name a bundle tarball, got %s", tarballName)
+	}
 	// todo: output somewhere other than build?
 	cmd := strings.Split(fmt.Sprintf("pull %s -o build --insecure --oci-concurrency=10", ref), " ")
 	_, _, err := e2e.UDS(cmd...)
@@ -214,7 +217,7 @@ func pull(t *testing.T, ref string, tarballPath string) {
 	decompressed := "build/decompressed-bundle"
 	defer e2e.CleanFiles(decompressed)
 
-	cmd = []string{"zarf", "tools", "archiver", "decompress", tarballPath, decompressed}
+	cmd = []string{"zarf", "tools", "archiver", "decompress", filepath.Join("build", tarballName), decompressed}
 	_, _, err = e2e.UDS(cmd...)
 	require.NoError(t, err)
 
