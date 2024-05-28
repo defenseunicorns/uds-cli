@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfCommon "github.com/defenseunicorns/zarf/src/cmd/common"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
+	goyaml "github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
 )
 
@@ -94,4 +96,52 @@ func init() {
 			return
 		}
 	}
+}
+
+// loadViperConfig reads the config file and unmarshals the relevant config into DeployOpts.Variables
+func loadViperConfig() error {
+	// get config file from Viper
+	configFile, err := os.ReadFile(v.ConfigFileUsed())
+	if err != nil {
+		return err
+	}
+
+	err = unmarshalAndValidateConfig(configFile, &bundleCfg)
+	if err != nil {
+		return err
+	}
+
+	// ensure the DeployOpts.Variables pkg vars are uppercase
+	for pkgName, pkgVar := range bundleCfg.DeployOpts.Variables {
+		for varName, varValue := range pkgVar {
+			// delete the lowercase var and replace with uppercase
+			delete(bundleCfg.DeployOpts.Variables[pkgName], varName)
+			bundleCfg.DeployOpts.Variables[pkgName][strings.ToUpper(varName)] = varValue
+		}
+	}
+
+	// ensure the DeployOpts.SharedVariables vars are uppercase
+	for varName, varValue := range bundleCfg.DeployOpts.SharedVariables {
+		// delete the lowercase var and replace with uppercase
+		delete(bundleCfg.DeployOpts.SharedVariables, varName)
+		bundleCfg.DeployOpts.SharedVariables[strings.ToUpper(varName)] = varValue
+	}
+
+	return nil
+}
+
+func unmarshalAndValidateConfig(configFile []byte, bundleCfg *types.BundleConfig) error {
+	// read relevant config into DeployOpts.Variables
+	// need to use goyaml because Viper doesn't preserve case: https://github.com/spf13/viper/issues/1014
+	err := goyaml.UnmarshalWithOptions(configFile, &bundleCfg.DeployOpts, goyaml.Strict())
+	if err != nil {
+		return err
+	}
+	// validate config options
+	for optionName := range bundleCfg.DeployOpts.Options {
+		if !isValidConfigOption(optionName) {
+			return fmt.Errorf("invalid config option: %s", optionName)
+		}
+	}
+	return nil
 }
