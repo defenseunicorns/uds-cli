@@ -118,8 +118,8 @@ func deployWithError(_ *testing.T, tarballPath string) (stdout string, stderr st
 	return stdout, stderr
 }
 
-func devDeploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("dev deploy %s", tarballPath), " ")
+func devDeploy(t *testing.T, bundlePath string) (stdout string, stderr string) {
+	cmd := strings.Split(fmt.Sprintf("dev deploy %s --confirm", bundlePath), " ")
 	stdout, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 	return stdout, stderr
