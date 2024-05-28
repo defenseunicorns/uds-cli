@@ -112,12 +112,6 @@ func deploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
 	return stdout, stderr
 }
 
-func deployWithError(_ *testing.T, tarballPath string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("deploy %s --retries 1 --confirm", tarballPath), " ")
-	stdout, stderr, _ = e2e.UDS(cmd...)
-	return stdout, stderr
-}
-
 func devDeploy(t *testing.T, bundlePath string) (stdout string, stderr string) {
 	cmd := strings.Split(fmt.Sprintf("dev deploy %s --confirm", bundlePath), " ")
 	stdout, stderr, err := e2e.UDS(cmd...)

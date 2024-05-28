@@ -608,9 +608,7 @@ func TestInvalidConfig(t *testing.T) {
 	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 	bundleDir := "src/test/bundles/07-helm-overrides"
-	createLocal(t, bundleDir, e2e.Arch)
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
-	_, stderr := deployWithError(t, bundlePath)
+	stderr := createLocalError(bundleDir, e2e.Arch)
 	require.Contains(t, stderr, "invalid config option: log_levelx")
 	os.Unsetenv("UDS_CONFIG")
 }
