@@ -610,6 +610,7 @@ func TestInvalidConfig(t *testing.T) {
 	_, stdErr, err := e2e.UDS(args...)
 	require.Error(t, err)
 	require.Contains(t, stdErr, "invalid config option: log_levelx")
+	os.Unsetenv("UDS_CONFIG")
 }
 
 func TestInvalidBundle(t *testing.T) {
