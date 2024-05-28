@@ -27,9 +27,6 @@ import (
 	"golang.org/x/exp/slices"
 	"helm.sh/helm/v3/pkg/cli/values"
 	"helm.sh/helm/v3/pkg/getter"
-
-	// allows us to use compile time directives
-	_ "unsafe"
 )
 
 // PkgOverrideMap is a map of Zarf packages -> components -> Helm charts -> values/namespace
