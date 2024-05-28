@@ -72,9 +72,6 @@ var (
 	// ListTasks is a flag to print available tasks in a TaskFileLocation
 	ListTasks bool
 
-	// LogFileName is the name of the UDS log file
-	LogFileName string
-
 	// HelmTimeout is the default timeout for helm deploys
 	HelmTimeout = 15 * time.Minute
 
