@@ -194,7 +194,7 @@ func loadViperConfig() error {
 		return err
 	}
 
-	err = UnmarshalAndValidateConfig(configFile, &bundleCfg)
+	err = unmarshalAndValidateConfig(configFile, &bundleCfg)
 	if err != nil {
 		return err
 	}
@@ -287,7 +287,7 @@ func chooseBundle(args []string) string {
 	return path
 }
 
-func UnmarshalAndValidateConfig(configFile []byte, bundleCfg *types.BundleConfig) error {
+func unmarshalAndValidateConfig(configFile []byte, bundleCfg *types.BundleConfig) error {
 	// read relevant config into DeployOpts.Variables
 	// need to use goyaml because Viper doesn't preserve case: https://github.com/spf13/viper/issues/1014
 	err := goyaml.UnmarshalWithOptions(configFile, &bundleCfg.DeployOpts, goyaml.Strict())
@@ -296,7 +296,7 @@ func UnmarshalAndValidateConfig(configFile []byte, bundleCfg *types.BundleConfig
 	}
 	// validate config options
 	for optionName := range bundleCfg.DeployOpts.Options {
-		if !types.IsValidConfigOption(optionName) {
+		if !isValidConfigOption(optionName) {
 			return fmt.Errorf("invalid config option: %s", optionName)
 		}
 	}

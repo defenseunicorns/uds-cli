@@ -49,7 +49,7 @@ optionx:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := UnmarshalAndValidateConfig(tt.args.configFile, tt.args.bundleCfg)
+			err := unmarshalAndValidateConfig(tt.args.configFile, tt.args.bundleCfg)
 			if tt.wantErr {
 				require.NotNil(t, err, "Expected error")
 				require.Contains(t, err.Error(), tt.errContains, "Error message should contain the expected string")
