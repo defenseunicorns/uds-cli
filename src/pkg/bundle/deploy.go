@@ -152,7 +152,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 	return nil
 }
 
-func formFullPath(configPath string, path string) string {
+func formFullRelativePath(configPath string, path string) string {
 	if !filepath.IsAbs(path) {
 		// set path relative to config file, unless they are the same
 		if filepath.Dir(configPath) != filepath.Dir(path) {
@@ -164,7 +164,7 @@ func formFullPath(configPath string, path string) string {
 }
 
 func (b *Bundle) loadFileContents(path string) (string, error) {
-	path = formFullPath(b.cfg.DeployOpts.Config, path)
+	path = formFullRelativePath(b.cfg.DeployOpts.Config, path)
 	if helpers.InvalidPath(path) {
 		return "", fmt.Errorf("unable to find file %s", path)
 	}
@@ -420,12 +420,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 			} else if sharedConfigOverride, existsInSharedConfig := b.cfg.DeployOpts.SharedVariables[v.Name]; existsInSharedConfig {
 				overrideVal = sharedConfigOverride
 			} else if fileConfigOverride, existsInFileConfig := b.cfg.DeployOpts.FileVariables[pkgName][v.Name]; existsInFileConfig {
-				// fileContents, err := b.loadFileContents(fileConfigOverride)
-				// if err != nil {
-				// 	return err
-				// }
-				// overrideVal = fileContents
-				overrideVal = fileConfigOverride
+				overrideVal = formFullRelativePath(b.cfg.DeployOpts.Config, fileConfigOverride)
 			} else if v.Default != nil {
 				overrideVal = v.Default
 			} else {
@@ -492,9 +487,8 @@ func (b *Bundle) addOverrideValue(overrides map[string]map[string]*values.Option
 			value = setTemplatedVariables(templatedVariable, pkgVars)
 		}
 		if _, ok := v.(string); ok {
-			possFile := formFullPath(b.cfg.DeployOpts.Config, value.(string))
-			if isFile, _ := helpers.IsTextFile(possFile); isFile {
-				helmVal := fmt.Sprintf("%s=%v", valuePath, possFile)
+			if isFile, _ := helpers.IsTextFile(value.(string)); isFile {
+				helmVal := fmt.Sprintf("%s=%v", valuePath, value)
 				overrides[component][chart].FileValues = append(overrides[component][chart].FileValues, helmVal)
 			}
 		}

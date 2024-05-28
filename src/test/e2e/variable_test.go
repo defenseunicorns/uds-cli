@@ -5,6 +5,7 @@
 package test
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -439,18 +440,13 @@ func TestVariableFilesHelmOverrides(t *testing.T) {
 	deploy(t, bundlePath)
 
 	t.Run("test test.pub file contents set as value for testSecret and used in test-secret secret", func(t *testing.T) {
-		cmd := strings.Split("zarf tools kubectl get secret -n podinfo test-secret -o=jsonpath={.data} | base64 -d", " ")
+		cmd := strings.Split("zarf tools kubectl get secret -n podinfo test-secret -o=jsonpath={.data.test}", " ")
 		stdout, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
-		require.Contains(t, stdout, "ssh-rsa")
+		decoded, err := base64.StdEncoding.DecodeString(stdout)
+		require.NoError(t, err)
+		require.Contains(t, string(decoded), "ssh-rsa")
 	})
 
-	// t.Run("test sec_ctx file contents set as value for podinfo.securityContext in deployment", func(t *testing.T) {
-	// 	cmd := strings.Split("zarf tools helm values -n podinfo unicorn-podinfo", " ")
-	// 	stdout, _, err := e2e.UDS(cmd...)
-	// 	require.NoError(t, err)
-	// 	require.Contains(t, stdout, "key file contents here")
-	// })
-
-	// remove(t, bundlePath)
+	remove(t, bundlePath)
 }
