@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	goyaml "github.com/goccy/go-yaml"
 
@@ -48,13 +49,21 @@ func ConfigureLogs(cmd *cobra.Command) error {
 	if strings.HasPrefix(cmd.Use, "zarf") || strings.HasPrefix(cmd.Use, "run") {
 		return nil
 	}
-	writer, err := message.UseLogFile("")
-	logFile := writer
+
+	// create a temporary log file
+	ts := time.Now().Format("2006-01-02-15-04-05")
+	tmpLogFile, err := os.CreateTemp("", fmt.Sprintf("uds-%s-*.log", ts))
+	if err != nil {
+		message.WarnErr(err, "Error creating a log file in a temporary directory")
+		return err
+	}
+	tmpLogLocation := tmpLogFile.Name()
+
+	writer, err := message.UseLogFile(tmpLogFile)
 	if err != nil {
 		return err
 	}
-	tmpLogLocation := message.LogFileLocation()
-	config.LogFileName = tmpLogLocation
+	pterm.SetDefaultOutput(io.MultiWriter(os.Stderr, writer))
 
 	// Set up cache dir and cache logs file
 	cacheDir := filepath.Join(config.CommonOptions.CachePath)
@@ -70,9 +79,6 @@ func ConfigureLogs(cmd *cobra.Command) error {
 
 	// use Zarf pterm output
 	message.Notef("Saving log file to %s", tmpLogLocation)
-	logWriter := io.MultiWriter(os.Stderr, logFile)
-	pterm.SetDefaultOutput(logWriter)
-	message.Debugf(fmt.Sprintf("Saving log file to %s", tmpLogLocation))
 	return nil
 }
 

@@ -5,6 +5,7 @@
 package bundle
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -134,7 +135,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 
 		pkgClient := packager.NewOrDie(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
 
-		if err := pkgClient.Deploy(); err != nil {
+		if err := pkgClient.Deploy(context.TODO()); err != nil {
 			return err
 		}
 
