@@ -69,6 +69,14 @@ func init() {
 
 	initViper()
 
+	// load uds-config if it exists
+	if v.ConfigFileUsed() != "" {
+		if err := loadViperConfig(); err != nil {
+			message.Fatalf(err, "Failed to load uds-config: %s", err.Error())
+			return
+		}
+	}
+
 	v.SetDefault(V_LOG_LEVEL, "info")
 	v.SetDefault(V_ARCHITECTURE, "")
 	v.SetDefault(V_NO_LOG_FILE, false)
@@ -88,14 +96,6 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&config.CommonOptions.TempDirectory, "tmpdir", v.GetString(V_TMP_DIR), lang.RootCmdFlagTempDir)
 	rootCmd.PersistentFlags().BoolVar(&config.CommonOptions.Insecure, "insecure", v.GetBool(V_INSECURE), lang.RootCmdFlagInsecure)
 	rootCmd.PersistentFlags().IntVar(&config.CommonOptions.OCIConcurrency, "oci-concurrency", v.GetInt(V_BNDL_OCI_CONCURRENCY), lang.CmdBundleFlagConcurrency)
-
-	// load uds-config if it exists
-	if v.ConfigFileUsed() != "" {
-		if err := loadViperConfig(); err != nil {
-			message.Fatalf(err, "Failed to load uds-config: %s", err.Error())
-			return
-		}
-	}
 }
 
 // loadViperConfig reads the config file and unmarshals the relevant config into DeployOpts.Variables
