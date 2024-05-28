@@ -20,24 +20,24 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type ConfigOption string
+type configOption string
 
 // Valid values for options in uds_config.yaml
 const (
-	Confirm       ConfigOption = "confirm"
-	Insecure      ConfigOption = "insecure"
-	CachePath     ConfigOption = "uds_cache"
-	TempDirectory ConfigOption = "tmp_dir"
-	LogLevel      ConfigOption = "log_level"
-	Architecture  ConfigOption = "architecture"
-	NoLogFile     ConfigOption = "no_log_file"
-	NoProgress    ConfigOption = "no_progress"
+	confirm        configOption = "confirm"
+	insecure       configOption = "insecure"
+	cachePath      configOption = "uds_cache"
+	tempDirectory  configOption = "tmp_dir"
+	logLevelOption configOption = "log_level"
+	architecture   configOption = "architecture"
+	noLogFile      configOption = "no_log_file"
+	noProgress     configOption = "no_progress"
 )
 
 // isValidConfigOption checks if a string is a valid config option
 func isValidConfigOption(str string) bool {
-	switch ConfigOption(str) {
-	case Confirm, Insecure, CachePath, TempDirectory, LogLevel, Architecture, NoLogFile, NoProgress:
+	switch configOption(str) {
+	case confirm, insecure, cachePath, tempDirectory, logLevelOption, architecture, noLogFile, noProgress:
 		return true
 	default:
 		return false
