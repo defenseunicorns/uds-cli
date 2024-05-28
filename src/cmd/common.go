@@ -20,6 +20,30 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type configOption string
+
+// Valid values for options in uds_config.yaml
+const (
+	confirm        configOption = "confirm"
+	insecure       configOption = "insecure"
+	cachePath      configOption = "uds_cache"
+	tempDirectory  configOption = "tmp_dir"
+	logLevelOption configOption = "log_level"
+	architecture   configOption = "architecture"
+	noLogFile      configOption = "no_log_file"
+	noProgress     configOption = "no_progress"
+)
+
+// isValidConfigOption checks if a string is a valid config option
+func isValidConfigOption(str string) bool {
+	switch configOption(str) {
+	case confirm, insecure, cachePath, tempDirectory, logLevelOption, architecture, noLogFile, noProgress:
+		return true
+	default:
+		return false
+	}
+}
+
 // deploy performs validation, confirmation and deployment of a bundle
 func deploy(bndlClient *bundle.Bundle) {
 	_, _, _, err := bndlClient.PreDeployValidation()
