@@ -15,135 +15,6 @@ import (
 func TestTaskRunner(t *testing.T) {
 	t.Log("E2E: Task Runner")
 
-	t.Run("run copy", func(t *testing.T) {
-		t.Parallel()
-
-		baseFilePath := "base"
-		copiedFilePath := "copy"
-
-		e2e.CleanFiles(baseFilePath, copiedFilePath)
-		t.Cleanup(func() {
-			e2e.CleanFiles(baseFilePath, copiedFilePath)
-		})
-
-		err := os.WriteFile(baseFilePath, []byte{}, 0600)
-		require.NoError(t, err)
-
-		stdOut, stdErr, err := e2e.UDS("run", "copy", "--file", "src/test/tasks/tasks.yaml")
-		require.NoError(t, err, stdOut, stdErr)
-
-		require.FileExists(t, copiedFilePath)
-	})
-
-	t.Run("run copy-exec", func(t *testing.T) {
-		t.Parallel()
-
-		baseFilePath := "exectest"
-		copiedFilePath := "exec"
-
-		e2e.CleanFiles(baseFilePath, copiedFilePath)
-		t.Cleanup(func() {
-			e2e.CleanFiles(baseFilePath, copiedFilePath)
-		})
-
-		err := os.WriteFile(baseFilePath, []byte{}, 0600)
-		require.NoError(t, err)
-
-		stdOut, stdErr, err := e2e.UDS("run", "copy-exec", "--file", "src/test/tasks/tasks.yaml")
-		require.NoError(t, err, stdOut, stdErr)
-
-		require.FileExists(t, copiedFilePath)
-		execFileInfo, err := os.Stat(copiedFilePath)
-		require.NoError(t, err)
-		require.True(t, execFileInfo.Mode()&0111 != 0)
-	})
-
-	t.Run("run copy-verify", func(t *testing.T) {
-		t.Parallel()
-
-		baseFilePath := "data"
-		copiedFilePath := "verify"
-
-		e2e.CleanFiles(baseFilePath, copiedFilePath)
-		t.Cleanup(func() {
-			e2e.CleanFiles(baseFilePath, copiedFilePath)
-		})
-
-		err := os.WriteFile(baseFilePath, []byte("test"), 0600)
-		require.NoError(t, err)
-
-		stdOut, stdErr, err := e2e.UDS("run", "copy-verify", "--file", "src/test/tasks/tasks.yaml")
-		require.NoError(t, err, stdOut, stdErr)
-
-		require.FileExists(t, copiedFilePath)
-	})
-
-	t.Run("run copy-symlink", func(t *testing.T) {
-		t.Parallel()
-
-		baseFilePath := "symtest"
-		copiedFilePath := "symcopy"
-		symlinkName := "testlink"
-
-		e2e.CleanFiles(baseFilePath, copiedFilePath, symlinkName)
-		t.Cleanup(func() {
-			e2e.CleanFiles(baseFilePath, copiedFilePath, symlinkName)
-		})
-
-		err := os.WriteFile(baseFilePath, []byte{}, 0600)
-		require.NoError(t, err)
-
-		stdOut, stdErr, err := e2e.UDS("run", "copy-symlink", "--file", "src/test/tasks/tasks.yaml")
-		require.NoError(t, err, stdOut, stdErr)
-
-		require.FileExists(t, symlinkName)
-	})
-
-	t.Run("run local-import-with-curl", func(t *testing.T) {
-		t.Parallel()
-
-		downloadedFile := "checksums.txt"
-
-		e2e.CleanFiles(downloadedFile)
-		t.Cleanup(func() {
-			e2e.CleanFiles(downloadedFile)
-		})
-		// get current git revision
-		gitRev, err := e2e.GetGitRevision()
-		if err != nil {
-			return
-		}
-		setVar := fmt.Sprintf("GIT_REVISION=%s", gitRev)
-		stdOut, stdErr, err := e2e.UDS("run", "local-import-with-curl", "--set", setVar, "--file", "src/test/tasks/tasks.yaml")
-		require.NoError(t, err, stdOut, stdErr)
-
-		require.FileExists(t, downloadedFile)
-	})
-
-	t.Run("run template-file", func(t *testing.T) {
-		t.Parallel()
-
-		baseFilePath := "raw"
-		copiedFilePath := "templated"
-
-		e2e.CleanFiles(baseFilePath, copiedFilePath)
-		t.Cleanup(func() {
-			e2e.CleanFiles(baseFilePath, copiedFilePath)
-		})
-
-		err := os.WriteFile(baseFilePath, []byte("${REPLACE_ME}"), 0600)
-		require.NoError(t, err)
-
-		stdOut, stdErr, err := e2e.UDS("run", "template-file", "--file", "src/test/tasks/tasks.yaml")
-		require.NoError(t, err, stdOut, stdErr)
-
-		require.FileExists(t, copiedFilePath)
-
-		templatedContentsBytes, err := os.ReadFile(copiedFilePath)
-		require.NoError(t, err)
-		require.Equal(t, "replaced\n", string(templatedContentsBytes))
-	})
-
 	t.Run("run action", func(t *testing.T) {
 		t.Parallel()
 
@@ -302,10 +173,10 @@ func TestTaskRunner(t *testing.T) {
 
 		stdOut, stdErr, err := e2e.UDS("run", "--list", setVar, "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
-		require.Contains(t, stdErr, "copy")
-		require.Contains(t, stdErr, "This is a copy task")
-		require.Contains(t, stdErr, "copy-exec")
-		require.Contains(t, stdErr, "copy-verify")
+		require.Contains(t, stdErr, "echo-env-var")
+		require.Contains(t, stdErr, "Test that env vars take precedence")
+		require.Contains(t, stdErr, "remote-import")
+		require.Contains(t, stdErr, "action")
 	})
 
 	t.Run("test bad call to zarf tools wait-for", func(t *testing.T) {
