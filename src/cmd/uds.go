@@ -59,14 +59,6 @@ var deployCmd = &cobra.Command{
 		bundleCfg.DeployOpts.Source = chooseBundle(args)
 		configureZarf()
 
-		// load uds-config if it exists
-		if v.ConfigFileUsed() != "" {
-			if err := loadViperConfig(); err != nil {
-				message.Fatalf(err, "Failed to load uds-config: %s", err.Error())
-				return
-			}
-		}
-
 		// create new bundle client and deploy
 		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
