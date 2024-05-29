@@ -283,6 +283,10 @@ This means when `test.pub` is evalutated it will first be appended to the config
 
 If the file path is already set to the same relative path as the config, then no merging will take place.
 
+> [!NOTE]  
+> uds-cli does not encrypt or base64 encode any file contents before passing said data to Zarf or Helm.  
+> So if for example the file contains a key to be used in a kubernetes secret, it must be base64 encoded before given to uds-cli.
+
 
 ### Namespace
 It's also possible to specify a namespace for a packaged Helm chart to be installed in. For example, to deploy the a chart in the `custom-podinfo` namespace, you can specify the `namespace` in the `overrides` block:

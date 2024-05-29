@@ -391,7 +391,7 @@ func TestVariableFilesFileNotFound(t *testing.T) {
 	require.Contains(t, stderr, fmt.Sprintf("Unable to find file %s/not-there.pub", bundleDir))
 }
 
-func TestVariableFilesHelmOverrides(t *testing.T) {
+func TestVariableFiles(t *testing.T) {
 	deployZarfInit(t)
 	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
 	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
@@ -401,11 +401,12 @@ func TestVariableFilesHelmOverrides(t *testing.T) {
 
 	os.Setenv("UDS_CONFIG", filepath.Join(bundleDir, "uds-config.yaml"))
 	os.Setenv("UDS_TEST_FILE", fmt.Sprintf("%s/test-zarf-var-file.txt", bundleDir))
+
 	cmd := strings.Split(fmt.Sprintf("deploy %s --retries 1 --confirm --set helm-overrides.log_level=%s/log-level.txt", bundlePath, bundleDir), " ")
 	_, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 
-	t.Run("test test.pub file contents set by config", func(t *testing.T) {
+	t.Run("test test_secret helm override set by config", func(t *testing.T) {
 		cmd := strings.Split("zarf tools kubectl get secret -n podinfo test-secret -o=jsonpath={.data.test}", " ")
 		stdout, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
@@ -414,7 +415,7 @@ func TestVariableFilesHelmOverrides(t *testing.T) {
 		require.Contains(t, string(decoded), "ssh-rsa")
 	})
 
-	t.Run("test log-level.txt set by --set", func(t *testing.T) {
+	t.Run("test log-level helm override set by --set", func(t *testing.T) {
 		cmd := strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath={.spec.template.spec.containers[0].command}", " ")
 		stdout, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
