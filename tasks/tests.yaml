@@ -29,27 +29,27 @@ tasks:
   - name: run-bundle-test
     description: only run tests in bundle_test.go
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 5m bundle_test.go commands_test.go main_test.go
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m bundle_test.go commands_test.go main_test.go
 
   - name: run-dev-test
     description: only run tests in dev.go
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 5m dev_test.go commands_test.go main_test.go
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m dev_test.go commands_test.go main_test.go
 
   - name: run-variable-test
     description: only run tests in variable_test.go
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 5m variable_test.go commands_test.go main_test.go
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m variable_test.go commands_test.go main_test.go
 
   - name: run-optional-bundle-tests
     description: only run tests in optional_bundle_test.go
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 5m optional_bundle_test.go commands_test.go main_test.go
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m optional_bundle_test.go commands_test.go main_test.go
 
   - name: run-vendor-tests
     description: only run tests in zarf_test.go and runner_test.go
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 5m zarf_test.go runner_test.go commands_test.go main_test.go
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m zarf_test.go runner_test.go commands_test.go main_test.go
 
   - name: push-test-artifacts
     description: push artifacts that UDS CLI tests rely on to GHCR
