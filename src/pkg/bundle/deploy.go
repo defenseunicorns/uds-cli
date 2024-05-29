@@ -471,6 +471,7 @@ func (b *Bundle) addOverrideValue(overrides map[string]map[string]*values.Option
 			templatedVariable := fmt.Sprintf("%v", v)
 			value = setTemplatedVariables(templatedVariable, pkgVars)
 		}
+
 		if valueType == "file" {
 			verifiedPath, err := b.handleFileVar(value.(string))
 			if err != nil {
@@ -478,11 +479,12 @@ func (b *Bundle) addOverrideValue(overrides map[string]map[string]*values.Option
 			}
 			helmVal := fmt.Sprintf("%s=%v", valuePath, verifiedPath)
 			overrides[component][chart].FileValues = append(overrides[component][chart].FileValues, helmVal)
-		}
+		} else {
 
-		// handle default case of simple values like strings and numbers
-		helmVal := fmt.Sprintf("%s=%v", valuePath, value)
-		overrides[component][chart].Values = append(overrides[component][chart].Values, helmVal)
+			// handle default case of simple values like strings and numbers
+			helmVal := fmt.Sprintf("%s=%v", valuePath, value)
+			overrides[component][chart].Values = append(overrides[component][chart].Values, helmVal)
+		}
 	}
 	return nil
 }
