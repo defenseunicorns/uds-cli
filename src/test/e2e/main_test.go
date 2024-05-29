@@ -91,6 +91,7 @@ func doAllTheThings(m *testing.M) (int, error) {
 	return returnCode, nil
 }
 
+// deployZarfInit deploys Zarf init (from a bundle!) if it hasn't already been deployed.
 func deployZarfInit(t *testing.T) {
 	if !zarfInitDeployed() {
 		// get Zarf version from go.mod

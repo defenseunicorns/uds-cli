@@ -278,18 +278,19 @@ UDS CLI includes a vendored version of Zarf inside of its binary. To use Zarf, s
 ## Dev Mode
 
 > [!NOTE]  
-> Dev mode is a BETA feature and currently only works with local bundles
+> Dev mode is a BETA feature
 
 Dev mode facilitates faster dev cycles when developing and testing bundles
 
 ```
-uds dev deploy <path-to-bundle-yaml-dir>
+uds dev deploy <path-to-bundle-yaml-dir> | <oci-ref>
 ```
 
 The `dev deploy` command performs the following operations
-- Creates Zarf packages for all local packages in a bundle
+
+- If local bundle: Creates Zarf packages for all local packages in a bundle
   - Creates the Zarf tarball in the same directory as the `zarf.yaml`
   - Will only create the Zarf tarball if one does not already exist
   - Ignores any `kind: ZarfInitConfig` packages in the bundle
-- Creates a bundle from the newly created Zarf packages
+  - Creates a bundle from the newly created Zarf packages
 - Deploys the bundle in [YOLO](https://docs.zarf.dev/faq/#what-is-yolo-mode-and-why-would-i-use-it) mode, eliminating the need to do a `zarf init`

@@ -5,14 +5,15 @@
 package types
 
 import (
+	zarfVariables "github.com/defenseunicorns/zarf/src/pkg/variables"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 )
 
 // TasksFile represents the contents of a tasks file
 type TasksFile struct {
-	Includes  []map[string]string             `json:"includes,omitempty" jsonschema:"description=List of local task files to include"`
-	Variables []zarfTypes.ZarfPackageVariable `json:"variables,omitempty" jsonschema:"description=Definitions and default values for variables used in run.yaml"`
-	Tasks     []Task                          `json:"tasks" jsonschema:"description=The list of tasks that can be run"`
+	Includes  []map[string]string                 `json:"includes,omitempty" jsonschema:"description=List of local task files to include"`
+	Variables []zarfVariables.InteractiveVariable `json:"variables,omitempty" jsonschema:"description=Definitions and default values for variables used in run.yaml"`
+	Tasks     []Task                              `json:"tasks" jsonschema:"description=The list of tasks that can be run"`
 }
 
 // Task represents a single task

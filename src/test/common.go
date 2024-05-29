@@ -91,8 +91,14 @@ func (e2e *UDSE2ETest) GetLogFileContents(t *testing.T, stdErr string) string {
 
 // SetupDockerRegistry uses the host machine's docker daemon to spin up a local registry for testing purposes.
 func (e2e *UDSE2ETest) SetupDockerRegistry(t *testing.T, port int) {
+	// check if registry is already running on port
+	_, _, err := exec.Cmd("docker", "inspect", fmt.Sprintf("registry-%d", port))
+	if err == nil {
+		fmt.Println("Registry already running, skipping setup")
+		return
+	}
 	registryImage := "registry:2.8.3"
-	err := exec.CmdWithPrint("docker", "run", "-d", "--restart=always", "-p", fmt.Sprintf("%d:5000", port), "--name", fmt.Sprintf("registry-%d", port), registryImage)
+	err = exec.CmdWithPrint("docker", "run", "-d", "--restart=always", "-p", fmt.Sprintf("%d:5000", port), "--name", fmt.Sprintf("registry-%d", port), registryImage)
 	require.NoError(t, err)
 
 	// Check for registry health
@@ -159,7 +165,7 @@ func (e2e *UDSE2ETest) DownloadZarfInitPkg(t *testing.T, zarfVersion string) {
 	require.NoError(t, err)
 }
 
-// CreateZarfPkg creates a Zarf package in the given path (todo: makefile?)
+// CreateZarfPkg creates a Zarf package in the given path
 func (e2e *UDSE2ETest) CreateZarfPkg(t *testing.T, path string, forceCreate bool) {
 	//  check if pkg already exists
 	pattern := fmt.Sprintf("%s/*-%s-*.tar.zst", path, e2e.Arch)

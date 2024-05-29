@@ -5,6 +5,7 @@
 package bundle
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -124,25 +125,27 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 		// Automatically confirm the package deployment
 		zarfConfig.CommonOptions.Confirm = true
 
-		source, err := sources.New(b.cfg.DeployOpts.Source, pkg.Name, opts, sha, nsOverrides)
+		source, err := sources.New(b.cfg.DeployOpts.Source, pkg, opts, sha, nsOverrides)
 		if err != nil {
 			return err
 		}
 
 		pkgClient := packager.NewOrDie(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
 
-		if err := pkgClient.Deploy(); err != nil {
+		if err := pkgClient.Deploy(context.TODO()); err != nil {
 			return err
 		}
 
 		// save exported vars
 		pkgExportedVars := make(map[string]string)
+		variableConfig := pkgClient.GetVariableConfig()
 		for _, exp := range pkg.Exports {
 			// ensure if variable exists in package
-			if _, ok := pkgCfg.SetVariableMap[exp.Name]; !ok {
+			setVariable, ok := variableConfig.GetSetVariable(exp.Name)
+			if !ok {
 				return fmt.Errorf("cannot export variable %s because it does not exist in package %s", exp.Name, pkg.Name)
 			}
-			pkgExportedVars[strings.ToUpper(exp.Name)] = pkgCfg.SetVariableMap[exp.Name].Value
+			pkgExportedVars[strings.ToUpper(exp.Name)] = setVariable.Value
 		}
 		bundleExportedVars[pkg.Name] = pkgExportedVars
 	}

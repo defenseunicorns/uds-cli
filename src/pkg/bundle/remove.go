@@ -5,6 +5,7 @@
 package bundle
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -93,7 +94,7 @@ func removePackages(packagesToRemove []types.Package, b *Bundle) error {
 			}
 
 			sha := strings.Split(pkg.Ref, "sha256:")[1]
-			source, err := sources.New(b.cfg.RemoveOpts.Source, pkg.Name, opts, sha, nil)
+			source, err := sources.New(b.cfg.RemoveOpts.Source, pkg, opts, sha, nil)
 			if err != nil {
 				return err
 			}
@@ -101,7 +102,7 @@ func removePackages(packagesToRemove []types.Package, b *Bundle) error {
 			pkgClient := packager.NewOrDie(&pkgCfg, packager.WithSource(source), packager.WithTemp(pkgTmp))
 			defer pkgClient.ClearTempPaths()
 
-			if err := pkgClient.Remove(); err != nil {
+			if err := pkgClient.Remove(context.TODO()); err != nil {
 				return err
 			}
 		} else {
