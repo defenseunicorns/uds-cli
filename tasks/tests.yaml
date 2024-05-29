@@ -15,24 +15,41 @@ tasks:
   - name: e2e-no-ghcr-write
     description: run e2e tests without writing to GHCR
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m -skip ".*GHCR.*"
+      - task: run-bundle-test
+      - task: run-dev-test
+      - task: run-variable-test
+      - task: run-optional-bundle-tests
+      - task: run-vendor-tests
 
   - name: e2e-ghcr
     description: run e2e tests that write to GHCR
     actions:
       - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m -run ".*GHCR.*"
 
-  - name: e2e-runner
-    description: run e2e tests for task runner only
+  - name: run-bundle-test
+    description: only run tests in bundle_test.go
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m -run TestTaskRunner
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 5m bundle_test.go commands_test.go main_test.go
 
-
+  - name: run-dev-test
+    description: only run tests in dev.go
+    actions:
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 5m dev_test.go commands_test.go main_test.go
 
   - name: run-variable-test
     description: only run tests in variable_test.go
     actions:
       - cmd: cd src/test/e2e && go test -failfast -v -timeout 5m variable_test.go commands_test.go main_test.go
+
+  - name: run-optional-bundle-tests
+    description: only run tests in optional_bundle_test.go
+    actions:
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 5m optional_bundle_test.go commands_test.go main_test.go
+
+  - name: run-vendor-tests
+    description: only run tests in zarf_test.go and runner_test.go
+    actions:
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 5m zarf_test.go runner_test commands_test.go main_test.go
 
   - name: push-test-artifacts
     description: push artifacts that UDS CLI tests rely on to GHCR

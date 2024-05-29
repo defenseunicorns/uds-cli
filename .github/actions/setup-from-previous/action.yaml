@@ -1,0 +1,28 @@
+name: setup-from-previous
+description: grabs artifact from a previous job and sets up the env for tests
+
+runs:
+  using: composite
+  steps:
+    # Checkout the repo and setup the tooling for this job
+    - name: Checkout
+      uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+      with:
+        fetch-depth: 0
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
+      with:
+        name: build-artifacts
+        path: build/
+
+    - name: Setup golang
+      uses: ./.github/actions/golang
+
+    - name: Make UDS-CLI executable
+      shell: bash
+      run: |
+        chmod +x build/uds
+
+    - name: Setup K3d
+      uses: ./.github/actions/k3d
