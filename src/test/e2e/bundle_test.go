@@ -20,12 +20,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 )
 
-func zarfPublish(t *testing.T, path string, reg string) {
-	args := strings.Split(fmt.Sprintf("zarf package publish %s oci://%s --insecure --oci-concurrency=10 -l debug", path, reg), " ")
-	_, _, err := e2e.UDS(args...)
-	require.NoError(t, err)
-}
-
 func TestUDSCmd(t *testing.T) {
 	_, _, err := e2e.UDS()
 	require.NoError(t, err)

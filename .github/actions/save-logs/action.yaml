@@ -1,15 +1,20 @@
 name: save-logs
 description: "Save debug logs"
 
+inputs:
+  name:
+    description: "unique name to put in log file"
+    required: true
+
 runs:
   using: composite
   steps:
     - name: Fix log permissions
       run: |
-        sudo chown $USER /tmp/zarf-*.log || echo ""
+        sudo chown $USER /tmp/uds-${{ inputs.name }}.log || echo ""
       shell: bash
 
     - uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
         name: debug-log
-        path: /tmp/zarf-*.log
+        path: /tmp/uds-${{ inputs.name }}.log
