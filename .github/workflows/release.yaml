@@ -75,7 +75,7 @@ jobs:
 
       - name: Run e2e tests
         run: |
-          build/uds run test:e2e
+          build/uds run test:e2e --no-progress
         env:
           GITHUB_TOKEN: secrets.GITHUB_TOKEN
 
@@ -83,10 +83,50 @@ jobs:
         if: always()
         uses: ./.github/actions/save-logs
 
+  smoke-test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      # Checkout the repo and setup the tooling for this job
+      - name: Checkout
+        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+        with:
+          fetch-depth: 0
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
+        with:
+          name: build-artifacts
+          path: build/
+
+      - name: Setup golang
+        uses: ./.github/actions/golang
+
+      - name: Make UDS-CLI executable
+        run: |
+          chmod +x build/uds
+
+      - name: Setup K3d
+        uses: ./.github/actions/k3d
+
+      - name: Login to GHCR
+        uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446 # v3.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run UDS Core smoke test
+        run: build/uds run test:ci-uds-core-smoke-test --no-progress
+        shell: bash
+
+      - name: Save logs
+        if: always()
+        uses: ./.github/actions/save-logs
   push:
     runs-on: ubuntu-latest
     environment: release
-    needs: validate
+    needs: [validate, smoke-test]
     permissions:
       contents: write
     steps:
