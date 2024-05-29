@@ -1,10 +1,21 @@
 kind: ZarfPackageConfig
 metadata:
-  name: podinfo-and-nginx
+  name: podinfo-nginx-apache
   description: used to test bundles with optional components
   version: 0.0.1
 
 components:
+  # only req'd component in this pkg
+  - name: apache
+    required: true
+    manifests:
+      - name: manifests
+        namespace: httpbin
+        files:
+          - "httpbin.yaml"
+    images:
+      - docker.io/kong/httpbin:latest
+
   - name: podinfo
     import:
       path: ../podinfo

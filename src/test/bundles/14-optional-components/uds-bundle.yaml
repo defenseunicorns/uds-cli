@@ -5,14 +5,21 @@ metadata:
   version: 0.0.1
 
 packages:
-  - name: prometheus
-    repository: localhost:888/prometheus
+  # deploys apache as a required component (no optionalComponents key)
+  - name: podinfo-nginx-apache
+    path: ../../packages/podinfo-nginx-apache
     ref: 0.0.1
+
+  # deploys prometheus as a required component and upload-image as an optional component (with noOptionalComponents key)
+#  - name: prometheus
+#    repository: localhost:888/prometheus
+#    ref: 0.0.1
 #    optionalComponents:
 #      - upload-image
 
-  - name: podinfo-and-nginx
-    path: ../../packages/podinfo-and-nginx
-    ref: 0.0.1
-    optionalComponents:
-      - podinfo
+  # deploys podinfo as an optional component and apache as a required component
+#  - name: podinfo-nginx-apache
+#    path: ../../packages/podinfo-nginx-apache
+#    ref: 0.0.1
+#    optionalComponents:
+#      - podinfo
