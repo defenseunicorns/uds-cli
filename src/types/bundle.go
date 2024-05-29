@@ -51,7 +51,7 @@ type BundleChartVariable struct {
 	Name        string            `json:"name" jsonschema:"name=Name of the variable to set"`
 	Description string            `json:"description,omitempty" jsonschema:"name=Description of the variable"`
 	Default     interface{}       `json:"default,omitempty" jsonschema:"name=The default value to set"`
-	Type        ChartVariableType `json:"type,omitempty" jsonschema:"type=The type of value to be processed"`
+	Type        ChartVariableType `json:"type,omitempty" jsonschema:"description=The type of value to be processed,enum=raw,enum=file"`
 }
 
 // BundleVariableImport represents variables in the bundle

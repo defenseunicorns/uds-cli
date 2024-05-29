@@ -1,4 +1,3 @@
-files:
+variables:
   helm-overrides:
     test_secret: not-there.pub
-    SECURITY_CTX: sec_ctx.yaml

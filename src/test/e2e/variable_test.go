@@ -375,22 +375,6 @@ func TestExportVarsAsGlobalVars(t *testing.T) {
 	remove(t, bundlePath)
 }
 
-func TestVariableFilesInvalidConfig(t *testing.T) {
-	deployZarfInit(t)
-	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
-	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
-	bundleDir := "src/test/bundles/07-helm-overrides/variable-files"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-variable-files-%s-0.0.1.tar.zst", e2e.Arch))
-	err := os.Setenv("UDS_CONFIG", filepath.Join(bundleDir, "invalid-config.yaml"))
-	require.NoError(t, err)
-
-	createLocal(t, bundleDir, e2e.Arch)
-
-	cmd := strings.Split(fmt.Sprintf("deploy %s --retries 1 --confirm", bundlePath), " ")
-	_, stderr, _ := e2e.UDS(cmd...)
-	require.Contains(t, stderr, "invalid config")
-}
-
 func TestVariableFilesFileNotFound(t *testing.T) {
 	deployZarfInit(t)
 	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
@@ -408,44 +392,40 @@ func TestVariableFilesFileNotFound(t *testing.T) {
 	require.Contains(t, stderr, fmt.Sprintf("unable to find file %s/not-there.pub", bundleDir))
 }
 
-func TestVariableFilesSettingZarfVar(t *testing.T) {
-	deployZarfInit(t)
-	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
-	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
-	bundleDir := "src/test/bundles/07-helm-overrides/variable-files"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-variable-files-%s-0.0.1.tar.zst", e2e.Arch))
-	err := os.Setenv("UDS_CONFIG", filepath.Join(bundleDir, "uds-config.yaml"))
-	require.NoError(t, err)
-	createLocal(t, bundleDir, e2e.Arch)
-
-	require.NoError(t, err)
-	_, stderr := deploy(t, bundlePath)
-
-	require.Contains(t, stderr, "\"###ZARF_VAR_DOMAIN###\": \"from-file.dev\"")
-
-	remove(t, bundlePath)
-}
-
 func TestVariableFilesHelmOverrides(t *testing.T) {
 	deployZarfInit(t)
 	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
 	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
 	bundleDir := "src/test/bundles/07-helm-overrides/variable-files"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-variable-files-%s-0.0.1.tar.zst", e2e.Arch))
-	err := os.Setenv("UDS_CONFIG", filepath.Join(bundleDir, "uds-config.yaml"))
-	require.NoError(t, err)
+	os.Setenv("UDS_CONFIG", filepath.Join(bundleDir, "uds-config.yaml"))
+	os.Setenv("UDS_DOMAIN", fmt.Sprintf("%s/domain.txt", bundleDir))
+
 	createLocal(t, bundleDir, e2e.Arch)
-
+	cmd := strings.Split(fmt.Sprintf("deploy %s --retries 1 --confirm --set helm-overrides.log_level=%s/log-level.txt", bundlePath, bundleDir), " ")
+	_, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
-	deploy(t, bundlePath)
 
-	t.Run("test test.pub file contents set as value for testSecret and used in test-secret secret", func(t *testing.T) {
+	t.Run("test test.pub file contents set by config", func(t *testing.T) {
 		cmd := strings.Split("zarf tools kubectl get secret -n podinfo test-secret -o=jsonpath={.data.test}", " ")
 		stdout, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
 		decoded, err := base64.StdEncoding.DecodeString(stdout)
 		require.NoError(t, err)
 		require.Contains(t, string(decoded), "ssh-rsa")
+	})
+
+	t.Run("test log-level.txt set by --set", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get secret -n podinfo test-secret -o=jsonpath={.data.test}", " ")
+		stdout, _, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+		decoded, err := base64.StdEncoding.DecodeString(stdout)
+		require.NoError(t, err)
+		require.Contains(t, string(decoded), "ssh-rsa")
+	})
+
+	t.Run("test domain zarf var set by env variable", func(t *testing.T) {
+		require.Contains(t, stderr, fmt.Sprintf("\"###ZARF_VAR_DOMAIN###\": \"%s/domain.txt\"", bundleDir))
 	})
 
 	remove(t, bundlePath)

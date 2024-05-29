@@ -68,6 +68,14 @@
         },
         "default": {
           "additionalProperties": true
+        },
+        "type": {
+          "enum": [
+            "raw",
+            "file"
+          ],
+          "type": "string",
+          "description": "The type of value to be processed"
         }
       },
       "additionalProperties": false,
