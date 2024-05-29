@@ -26,6 +26,7 @@ var devDeployCmd = &cobra.Command{
 	Long:  lang.CmdDevDeployLong,
 	Run: func(_ *cobra.Command, args []string) {
 		config.Dev = true
+		config.DevDeployRefs = bundleCfg.DevDeployOpts.Ref
 
 		// Get bundle source
 		src := ""

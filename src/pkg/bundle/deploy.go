@@ -78,7 +78,12 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 	}
 
 	// deploy each package
-	for _, pkg := range packagesToDeploy {
+	for i, pkg := range packagesToDeploy {
+		// update package ref for dev deploy
+		if config.Dev {
+			pkg = b.setPackageRef(pkg)
+			b.bundle.Packages[i] = pkg
+		}
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 		pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {

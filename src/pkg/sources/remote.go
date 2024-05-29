@@ -42,7 +42,25 @@ type RemoteBundle struct {
 // LoadPackage loads a Zarf package from a remote bundle
 func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (zarfTypes.ZarfPackage, []string, error) {
 	// todo: progress bar??
-	layers, err := r.downloadPkgFromRemoteBundle()
+	var layers []ocispec.Descriptor
+	var err error
+
+	if config.Dev {
+		if _, ok := config.DevDeployRefs[r.Pkg.Name]; ok {
+			// create new oras remote for package
+			platform := ocispec.Platform{
+				Architecture: config.GetArch(),
+				OS:           oci.MultiOS,
+			}
+			// get remote client
+			repoUrl := fmt.Sprintf("%s:%s", r.Pkg.Repository, r.Pkg.Ref)
+			remote, _ := zoci.NewRemote(repoUrl, platform)
+			layers, err = remote.PullPackage(context.TODO(), r.TmpDir, config.CommonOptions.OCIConcurrency)
+		}
+	} else {
+		layers, err = r.downloadPkgFromRemoteBundle()
+	}
+
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, nil, err
 	}
