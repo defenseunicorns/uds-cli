@@ -5,17 +5,6 @@ metadata:
   version: 0.0.1
 
 components:
-  # only req'd component in this pkg
-#  - name: apache
-#    required: true
-#    manifests:
-#      - name: manifests
-#        namespace: apache
-#        files:
-#          - "apache.yaml"
-#    images:
-#      - httpd:latest
-
   - name: podinfo
     import:
       path: ../podinfo
