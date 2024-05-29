@@ -27,6 +27,13 @@ tasks:
     actions:
       - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m -run TestTaskRunner
 
+
+
+  - name: run-variable-test
+    description: only run tests in variable_test.go
+    actions:
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 5m variable_test.go commands_test.go main_test.go
+
   - name: push-test-artifacts
     description: push artifacts that UDS CLI tests rely on to GHCR
     actions:
