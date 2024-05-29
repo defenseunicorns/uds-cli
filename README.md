@@ -5,8 +5,6 @@
 [![Build Status](https://img.shields.io/github/actions/workflow/status/defenseunicorns/uds-cli/release.yaml)](https://github.com/defenseunicorns/uds-cli/actions/workflows/release.yaml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/defenseunicorns/uds-cli/badge)](https://api.securityscorecards.dev/projects/github.com/defenseunicorns/uds-cli)
 
-**:warning: Warning**:  UDS-CLI is in early alpha, expect changes to the schema and workflow
-
 ## Table of Contents
 
 1. [Install](#install)
