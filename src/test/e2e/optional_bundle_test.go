@@ -17,12 +17,11 @@ import (
 )
 
 func TestBundleOptionalComponents(t *testing.T) {
-	deployZarfInit(t)
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
 
 	// create 2 Zarf pkgs to be bundled
-	zarfPkgPath := "src/test/packages/podinfo-and-nginx"
+	zarfPkgPath := "src/test/packages/podinfo-nginx"
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 
 	zarfPkgPath = "src/test/packages/prometheus"
@@ -90,8 +89,8 @@ func introspectOptionalComponentsBundle(t *testing.T) {
 	err = json.Unmarshal(rootManifesBytes, &bundleRootManifest)
 	require.NoError(t, err)
 
-	// grab the first pkg (note that it came from a remote source)
-	pkgManifestBytes, err := os.ReadFile(filepath.Join(blobsDir, bundleRootManifest.Layers[0].Digest.Encoded()))
+	// grab the second pkg (note that it came from a remote source)
+	pkgManifestBytes, err := os.ReadFile(filepath.Join(blobsDir, bundleRootManifest.Layers[1].Digest.Encoded()))
 	require.NoError(t, err)
 	remotePkgManifest := ocispec.Manifest{}
 	err = json.Unmarshal(pkgManifestBytes, &remotePkgManifest)
@@ -112,8 +111,8 @@ func introspectOptionalComponentsBundle(t *testing.T) {
 	}
 	require.True(t, verifyComponentNotIncluded)
 
-	// grab the second pkg (note that it came from a local source)
-	pkgManifestBytes, err = os.ReadFile(filepath.Join(blobsDir, bundleRootManifest.Layers[1].Digest.Encoded()))
+	// grab the third pkg (note that it came from a local source)
+	pkgManifestBytes, err = os.ReadFile(filepath.Join(blobsDir, bundleRootManifest.Layers[2].Digest.Encoded()))
 	require.NoError(t, err)
 	localPkgManifest := ocispec.Manifest{}
 	err = json.Unmarshal(pkgManifestBytes, &localPkgManifest)

@@ -6,15 +6,15 @@ metadata:
 
 components:
   # only req'd component in this pkg
-  - name: apache
-    required: true
-    manifests:
-      - name: manifests
-        namespace: httpbin
-        files:
-          - "httpbin.yaml"
-    images:
-      - docker.io/kong/httpbin:latest
+#  - name: apache
+#    required: true
+#    manifests:
+#      - name: manifests
+#        namespace: apache
+#        files:
+#          - "apache.yaml"
+#    images:
+#      - httpd:latest
 
   - name: podinfo
     import:
