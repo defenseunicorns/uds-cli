@@ -36,3 +36,12 @@ tasks:
     description: removes bundles and zarf packages that have been created from previous test runs
     actions:
       - cmd: find src/test -type f -name '*.tar.zst' -delete
+
+  - name: ci-uds-core-smoke-test
+    description: deploy UDS Core and runs a couple of validations
+    actions:
+      - cmd: build/uds deploy k3d-core-istio-dev:0.16.1 --confirm
+      - cmd: |
+          build/uds zarf tools wait-for gateway admin-gateway -n istio-admin-gateway --timeout 10s
+          build/uds zarf tools wait-for gateway admin-gateway -n istio-admin-gateway --timeout 10s
+          build/uds zarf tools wait-for gateway admin-gateway -n istio-admin-gateway --timeout 10s

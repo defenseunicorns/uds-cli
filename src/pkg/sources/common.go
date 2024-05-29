@@ -5,6 +5,7 @@
 package sources
 
 import (
+	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 )
 
@@ -32,4 +33,14 @@ func setAsYOLO(pkg *zarfTypes.ZarfPackage) {
 		pkg.Components[idx].Images = []string{}
 		pkg.Components[idx].Repos = []string{}
 	}
+}
+
+// handleFilter filters components and checks if a package is a partial package by checking its number of components
+func handleFilter(pkg zarfTypes.ZarfPackage, filter filters.ComponentFilterStrategy) ([]zarfTypes.ZarfComponent, bool, error) {
+	numComponents := len(pkg.Components)
+	filteredComps, err := filter.Apply(pkg)
+	if err != nil {
+		return nil, false, err
+	}
+	return filteredComps, numComponents > len(filteredComps), nil
 }

@@ -61,14 +61,14 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Com
 		return zarfTypes.ZarfPackage{}, nil, nil
 	}
 
-	pkg.Components, err = filter.Apply(pkg)
+	// filter pkg components and determine if its a partial pkg
+	filteredComps, isPartialPkg, err := handleFilter(pkg, filter)
 	if err != nil {
-		return pkg, nil, err
+		return zarfTypes.ZarfPackage{}, nil, err
 	}
+	pkg.Components = filteredComps
 
 	dst.SetFromPaths(files)
-
-	isPartialPkg := t.PkgOpts.OptionalComponents != ""
 
 	if err := sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, isPartialPkg); err != nil {
 		return zarfTypes.ZarfPackage{}, nil, err

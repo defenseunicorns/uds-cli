@@ -1,6 +1,6 @@
 kind: ZarfPackageConfig
 metadata:
-  name: podinfo-and-nginx
+  name: podinfo-nginx-apache
   description: used to test bundles with optional components
   version: 0.0.1
 

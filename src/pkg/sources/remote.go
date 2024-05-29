@@ -57,14 +57,14 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Comp
 		return zarfTypes.ZarfPackage{}, nil, nil
 	}
 
-	pkg.Components, err = filter.Apply(pkg)
+	// filter pkg components and determine if its a partial pkg
+	filteredComps, isPartialPkg, err := handleFilter(pkg, filter)
 	if err != nil {
-		return pkg, nil, err
+		return zarfTypes.ZarfPackage{}, nil, err
 	}
+	pkg.Components = filteredComps
 
 	dst.SetFromLayers(layers)
-
-	isPartialPkg := r.PkgOpts.OptionalComponents != ""
 
 	err = sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, isPartialPkg)
 	if err != nil {

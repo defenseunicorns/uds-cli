@@ -79,6 +79,10 @@ jobs:
         env:
           GITHUB_TOKEN: secrets.GITHUB_TOKEN
 
+      - name: Run UDS Core smoke test
+        run: build/uds run test:ci-uds-core-smoke-test
+        shell: bash
+
       - name: Save logs
         if: always()
         uses: ./.github/actions/save-logs
