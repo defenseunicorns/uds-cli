@@ -388,7 +388,7 @@ func TestVariableFilesFileNotFound(t *testing.T) {
 	cmd := strings.Split(fmt.Sprintf("deploy %s --retries 1 --confirm", bundlePath), " ")
 	_, stderr, _ := e2e.UDS(cmd...)
 
-	require.Contains(t, stderr, fmt.Sprintf("unable to find file %s/not-there.pub", bundleDir))
+	require.Contains(t, stderr, fmt.Sprintf("Unable to find file %s/not-there.pub", bundleDir))
 }
 
 func TestVariableFilesHelmOverrides(t *testing.T) {
