@@ -6,10 +6,10 @@ runs:
   steps:
     - name: Fix log permissions
       run: |
-        sudo chown $USER /tmp/zarf-*.log || echo ""
+        sudo chown $USER /tmp/uds-*.log || echo ""
       shell: bash
 
     - uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
         name: debug-log
-        path: /tmp/zarf-*.log
+        path: /tmp/uds-*.log
