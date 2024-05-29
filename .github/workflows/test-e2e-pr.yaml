@@ -89,7 +89,7 @@ jobs:
         if: always()
         uses: ./.github/actions/save-logs
         with:
-          name: dev-test
+          name: test-dev
 
   test-variables:
     runs-on: ubuntu-latest
