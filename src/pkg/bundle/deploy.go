@@ -155,29 +155,24 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 	return nil
 }
 
-func formFullRelativePath(configPath string, path string) string {
-	if !filepath.IsAbs(path) {
-		// set path relative to config file, unless they are the same
-		if filepath.Dir(configPath) != filepath.Dir(path) {
-			path = filepath.Join(filepath.Dir(configPath), path)
+func formAndCheckFilePath(anchorPath string, filePath string) (string, error) {
+	if !filepath.IsAbs(filePath) {
+		// set path relative to anchorPath (i.e. cwd or config), unless they are the same
+		if filepath.Dir(anchorPath) != filepath.Dir(filePath) {
+			filePath = filepath.Join(filepath.Dir(anchorPath), filePath)
 		}
 	}
 
-	return path
-}
-
-func (b *Bundle) handleFileVar(path string) (string, error) {
-	path = formFullRelativePath(b.cfg.DeployOpts.Config, path)
-	if helpers.InvalidPath(path) {
-		return "", fmt.Errorf("unable to find file %s", path)
+	if helpers.InvalidPath(filePath) {
+		return "", fmt.Errorf("Unable to find file %s", filePath)
 	}
 
-	_, err := helpers.IsTextFile(path)
+	_, err := helpers.IsTextFile(filePath)
 	if err != nil {
 		return "", err
 	}
 
-	return path, nil
+	return filePath, nil
 }
 
 // loadVariables loads and sets precedence for config-level and imported variables
@@ -473,7 +468,7 @@ func (b *Bundle) addOverrideValue(overrides map[string]map[string]*values.Option
 		}
 
 		if valueType == "file" {
-			verifiedPath, err := b.handleFileVar(value.(string))
+			verifiedPath, err := formAndCheckFilePath(b.cfg.DeployOpts.Config, value.(string))
 			if err != nil {
 				return err
 			}

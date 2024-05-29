@@ -16,6 +16,7 @@ packages:
             - name: log_level
               path: "podinfo.logLevel"
               description: "Set the log level for podinfo"
+              type: file
             - name: TEST_SECRET
               path: "testSecret"
               description: "base64 encoded key to place in the test secret resource"

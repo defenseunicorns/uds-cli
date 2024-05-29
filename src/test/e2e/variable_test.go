@@ -381,8 +381,7 @@ func TestVariableFilesFileNotFound(t *testing.T) {
 	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
 	bundleDir := "src/test/bundles/07-helm-overrides/variable-files"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-variable-files-%s-0.0.1.tar.zst", e2e.Arch))
-	err := os.Setenv("UDS_CONFIG", filepath.Join(bundleDir, "file-not-found-config.yaml"))
-	require.NoError(t, err)
+	os.Setenv("UDS_CONFIG", filepath.Join(bundleDir, "file-not-found-config.yaml"))
 
 	createLocal(t, bundleDir, e2e.Arch)
 
@@ -398,10 +397,10 @@ func TestVariableFilesHelmOverrides(t *testing.T) {
 	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
 	bundleDir := "src/test/bundles/07-helm-overrides/variable-files"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-variable-files-%s-0.0.1.tar.zst", e2e.Arch))
-	os.Setenv("UDS_CONFIG", filepath.Join(bundleDir, "uds-config.yaml"))
-	os.Setenv("UDS_DOMAIN", fmt.Sprintf("%s/domain.txt", bundleDir))
-
 	createLocal(t, bundleDir, e2e.Arch)
+
+	os.Setenv("UDS_CONFIG", filepath.Join(bundleDir, "uds-config.yaml"))
+	os.Setenv("UDS_TEST_FILE", fmt.Sprintf("%s/test-zarf-var-file.txt", bundleDir))
 	cmd := strings.Split(fmt.Sprintf("deploy %s --retries 1 --confirm --set helm-overrides.log_level=%s/log-level.txt", bundlePath, bundleDir), " ")
 	_, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
@@ -416,16 +415,16 @@ func TestVariableFilesHelmOverrides(t *testing.T) {
 	})
 
 	t.Run("test log-level.txt set by --set", func(t *testing.T) {
-		cmd := strings.Split("zarf tools kubectl get secret -n podinfo test-secret -o=jsonpath={.data.test}", " ")
+		cmd := strings.Split("zarf tools kubectl get pod -n podinfo -o=jsonpath={.items[0].spec.containers[0].command}", " ")
 		stdout, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
-		decoded, err := base64.StdEncoding.DecodeString(stdout)
-		require.NoError(t, err)
-		require.Contains(t, string(decoded), "ssh-rsa")
+		require.Contains(t, stdout, "--level=debug")
 	})
 
 	t.Run("test domain zarf var set by env variable", func(t *testing.T) {
-		require.Contains(t, stderr, fmt.Sprintf("\"###ZARF_VAR_DOMAIN###\": \"%s/domain.txt\"", bundleDir))
+		// checking output of action in the helm-overrides package
+		// zarf will handle actually parsing the files passed to it
+		require.Contains(t, stderr, fmt.Sprintf("TEST_FILE set as %s/test-zarf-var-file.txt", bundleDir))
 	})
 
 	remove(t, bundlePath)
