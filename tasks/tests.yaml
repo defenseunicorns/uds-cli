@@ -49,7 +49,7 @@ tasks:
   - name: run-vendor-tests
     description: only run tests in zarf_test.go and runner_test.go
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 5m zarf_test.go runner_test commands_test.go main_test.go
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 5m zarf_test.go runner_test.go commands_test.go main_test.go
 
   - name: push-test-artifacts
     description: push artifacts that UDS CLI tests rely on to GHCR

@@ -26,7 +26,7 @@ import (
 // This file contains helpers for running UDS CLI commands (ie. uds create/deploy/etc with various flags and options)
 
 func zarfPublish(t *testing.T, path string, reg string) {
-	args := strings.Split(fmt.Sprintf("zarf package publish %s oci://%s --insecure --oci-concurrency=10 -l debug", path, reg), " ")
+	args := strings.Split(fmt.Sprintf("zarf package publish %s oci://%s --insecure --oci-concurrency=10 -l debug --no-progress", path, reg), " ")
 	_, _, err := e2e.UDS(args...)
 	require.NoError(t, err)
 }
