@@ -11,18 +11,18 @@ import (
 	"regexp"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 
 	zarfCLI "github.com/defenseunicorns/zarf/src/cmd"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 )
 
 // CreateZarfPkgs creates a zarf package if its missing when in dev mode
 func (b *Bundle) CreateZarfPkgs() {
 	srcDir := b.cfg.CreateOpts.SourceDirectory
 	bundleYAMLPath := filepath.Join(srcDir, b.cfg.CreateOpts.BundleFile)
-	if err := zarfUtils.ReadYaml(bundleYAMLPath, &b.bundle); err != nil {
-		message.Fatalf(err, "Failed to read bundle.yaml: %s", err.Error())
+	if err := utils.ReadYAMLStrict(bundleYAMLPath, &b.bundle); err != nil {
+		message.Fatalf(err, "Failed to read %s, error in YAML: %s", b.cfg.CreateOpts.BundleFile, err.Error())
 	}
 
 	zarfPackagePattern := `^zarf-.*\.tar\.zst$`
@@ -58,13 +58,8 @@ func (b *Bundle) CreateZarfPkgs() {
 	}
 }
 
-// SetDevSource sets the source for the bundle when in dev mode
-func (b *Bundle) SetDevSource(srcDir string) {
-	srcDir = filepath.Dir(srcDir)
-	// Add a trailing slash if it's missing
-	if len(srcDir) != 0 && srcDir[len(srcDir)-1] != '/' {
-		srcDir = srcDir + "/"
-	}
+// SetDeploySource sets the source for the bundle when in dev mode
+func (b *Bundle) SetDeploySource(srcDir string) {
 	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, b.bundle.Metadata.Name, b.bundle.Metadata.Architecture, b.bundle.Metadata.Version)
 	b.cfg.DeployOpts.Source = filepath.Join(srcDir, filename)
 }

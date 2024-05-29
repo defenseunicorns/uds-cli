@@ -13,7 +13,7 @@ components:
     required: true
     images:
       # renovate: datasource=github-tags depName=stefanprodan/podinfo
-      - ghcr.io/stefanprodan/podinfo:6.6.2
+      - ghcr.io/stefanprodan/podinfo:6.6.3
     charts:
       - name: unicorn-podinfo
         localPath: ./unicorn-podinfo

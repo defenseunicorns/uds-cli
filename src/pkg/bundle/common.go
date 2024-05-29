@@ -279,7 +279,7 @@ func GetDeployedPackageNames() []string {
 	var deployedPackageNames []string
 	c, _ := cluster.NewCluster()
 	if c != nil {
-		deployedPackages, _ := c.GetDeployedZarfPackages()
+		deployedPackages, _ := c.GetDeployedZarfPackages(context.TODO())
 		for _, pkg := range deployedPackages {
 			deployedPackageNames = append(deployedPackageNames, pkg.Name)
 		}

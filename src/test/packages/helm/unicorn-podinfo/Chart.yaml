@@ -25,5 +25,5 @@ appVersion: "1.16.0"
 
 dependencies:
   - name: podinfo
-    version: 6.6.2
+    version: 6.6.3
     repository: https://stefanprodan.github.io/podinfo

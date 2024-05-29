@@ -16,6 +16,7 @@ import (
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -217,6 +218,7 @@ func (tp *tarballBundleProvider) LoadBundleMetadata() (types.PathMap, error) {
 	return loaded, nil
 }
 
+// getZarfLayers returns the layers of the Zarf package that are in the bundle
 func (tp *tarballBundleProvider) getZarfLayers(store *ocistore.Store, pkgManifestDesc ocispec.Descriptor) ([]ocispec.Descriptor, int64, error) {
 	var layersToPull []ocispec.Descriptor
 	estimatedPkgSize := int64(0)
@@ -278,7 +280,7 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	layersToPush = append(layersToPush, bundleRootManifest.Config)
 
 	// copy bundle
-	copyOpts := utils.CreateCopyOpts(layersToPush, config.CommonOptions.OCIConcurrency)
+	copyOpts := boci.CreateCopyOpts(layersToPush, config.CommonOptions.OCIConcurrency)
 	progressBar := message.NewProgressBar(estimatedBytes, fmt.Sprintf("Publishing %s:%s", remote.Repo().Reference.Repository, remote.Repo().Reference.Reference))
 	defer progressBar.Stop()
 	remote.SetProgressWriter(progressBar)
@@ -287,7 +289,7 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	ref := bundle.Metadata.Version
 
 	// check for existing index
-	index, err := utils.GetIndex(remote, ref)
+	index, err := boci.GetIndex(remote, ref)
 	if err != nil {
 		return err
 	}
@@ -315,7 +317,7 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	}
 
 	// create or update, then push index.json
-	err = utils.UpdateIndex(index, remote, &bundle, tp.bundleRootDesc)
+	err = boci.UpdateIndex(index, remote, &bundle, tp.bundleRootDesc)
 	if err != nil {
 		return err
 	}

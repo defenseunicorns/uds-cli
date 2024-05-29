@@ -1,6 +1,6 @@
 kind: UDSBundle
 metadata:
-  name: variable-files
+  name: helm-overrides
   description: testing a bundle with Helm overrides
   version: 0.0.1
 
@@ -12,12 +12,11 @@ packages:
     overrides:
       podinfo-component:
         unicorn-podinfo:
-          variables:
+          values:
+            - path: "podinfo.replicaCount"
+              value: 2
+          # missing `variables:` key here should throw an error
             - name: log_level
               path: "podinfo.logLevel"
               description: "Set the log level for podinfo"
               default: "debug" # not overwritten!
-            - name: TEST_SECRET
-              path: "testSecret"
-              description: "base64 encoded key to place in the test secret resource"
-              type: file

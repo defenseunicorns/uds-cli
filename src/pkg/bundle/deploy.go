@@ -5,6 +5,7 @@
 package bundle
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -127,25 +128,27 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 		// Automatically confirm the package deployment
 		zarfConfig.CommonOptions.Confirm = true
 
-		source, err := sources.New(b.cfg.DeployOpts.Source, pkg.Name, opts, sha, nsOverrides)
+		source, err := sources.New(b.cfg.DeployOpts.Source, pkg, opts, sha, nsOverrides)
 		if err != nil {
 			return err
 		}
 
 		pkgClient := packager.NewOrDie(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
 
-		if err := pkgClient.Deploy(); err != nil {
+		if err := pkgClient.Deploy(context.TODO()); err != nil {
 			return err
 		}
 
 		// save exported vars
 		pkgExportedVars := make(map[string]string)
+		variableConfig := pkgClient.GetVariableConfig()
 		for _, exp := range pkg.Exports {
 			// ensure if variable exists in package
-			if _, ok := pkgCfg.SetVariableMap[exp.Name]; !ok {
+			setVariable, ok := variableConfig.GetSetVariable(exp.Name)
+			if !ok {
 				return fmt.Errorf("cannot export variable %s because it does not exist in package %s", exp.Name, pkg.Name)
 			}
-			pkgExportedVars[strings.ToUpper(exp.Name)] = pkgCfg.SetVariableMap[exp.Name].Value
+			pkgExportedVars[strings.ToUpper(exp.Name)] = setVariable.Value
 		}
 		bundleExportedVars[pkg.Name] = pkgExportedVars
 	}
@@ -163,7 +166,7 @@ func formFullRelativePath(configPath string, path string) string {
 	return path
 }
 
-func (b *Bundle) loadFileContents(path string) (string, error) {
+func (b *Bundle) handleFileVar(path string) (string, error) {
 	path = formFullRelativePath(b.cfg.DeployOpts.Config, path)
 	if helpers.InvalidPath(path) {
 		return "", fmt.Errorf("unable to find file %s", path)
@@ -174,12 +177,7 @@ func (b *Bundle) loadFileContents(path string) (string, error) {
 		return "", err
 	}
 
-	read, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-
-	return string(read), nil
+	return path, nil
 }
 
 // loadVariables loads and sets precedence for config-level and imported variables
@@ -205,17 +203,6 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 	// config vars
 	for name, val := range b.cfg.DeployOpts.Variables[pkg.Name] {
 		pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
-	}
-	// file vars
-	for name, val := range b.cfg.DeployOpts.FileVariables[pkg.Name] {
-		if _, exists := pkgVars[strings.ToUpper(name)]; exists {
-			return nil, fmt.Errorf("invalid config: variable %s is declared more than once", strings.ToUpper(name))
-		}
-		fileContents, err := b.loadFileContents(val)
-		if err != nil {
-			return pkgVars, err
-		}
-		pkgVars[strings.ToUpper(name)] = fileContents
 	}
 	// env vars (vars that start with UDS_)
 	for _, envVar := range os.Environ() {
@@ -381,7 +368,7 @@ func (b *Bundle) processOverrideNamespaces(overrideMap sources.NamespaceOverride
 func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values *[]types.BundleChartValue, componentName string, chartName string, pkgVars map[string]string) error {
 	for _, v := range *values {
 		// Add the override to the map, or return an error if the path is invalid
-		if err := b.addOverrideValue(*overrideMap, componentName, chartName, v.Path, v.Value, pkgVars); err != nil {
+		if err := b.addOverrideValue(*overrideMap, componentName, chartName, v.Path, "raw", v.Value, pkgVars); err != nil {
 			return err
 		}
 	}
@@ -419,8 +406,6 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 				overrideVal = configFileOverride
 			} else if sharedConfigOverride, existsInSharedConfig := b.cfg.DeployOpts.SharedVariables[v.Name]; existsInSharedConfig {
 				overrideVal = sharedConfigOverride
-			} else if fileConfigOverride, existsInFileConfig := b.cfg.DeployOpts.FileVariables[pkgName][v.Name]; existsInFileConfig {
-				overrideVal = formFullRelativePath(b.cfg.DeployOpts.Config, fileConfigOverride)
 			} else if v.Default != nil {
 				overrideVal = v.Default
 			} else {
@@ -429,7 +414,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 		}
 
 		// Add the override to the map, or return an error if the path is invalid
-		if err := b.addOverrideValue(*overrideMap, componentName, chartName, v.Path, overrideVal, nil); err != nil {
+		if err := b.addOverrideValue(*overrideMap, componentName, chartName, v.Path, v.Type, overrideVal, nil); err != nil {
 			return err
 		}
 
@@ -438,7 +423,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 }
 
 // addOverrideValue adds a value to a PkgOverrideMap
-func (b *Bundle) addOverrideValue(overrides map[string]map[string]*values.Options, component string, chart string, valuePath string, value interface{}, pkgVars map[string]string) error {
+func (b *Bundle) addOverrideValue(overrides map[string]map[string]*values.Options, component string, chart string, valuePath string, valueType types.ChartVariableType, value interface{}, pkgVars map[string]string) error {
 	// Create the component map if it doesn't exist
 	if _, ok := overrides[component]; !ok {
 		overrides[component] = make(map[string]*values.Options)
@@ -486,11 +471,13 @@ func (b *Bundle) addOverrideValue(overrides map[string]map[string]*values.Option
 			templatedVariable := fmt.Sprintf("%v", v)
 			value = setTemplatedVariables(templatedVariable, pkgVars)
 		}
-		if _, ok := v.(string); ok {
-			if isFile, _ := helpers.IsTextFile(value.(string)); isFile {
-				helmVal := fmt.Sprintf("%s=%v", valuePath, value)
-				overrides[component][chart].FileValues = append(overrides[component][chart].FileValues, helmVal)
+		if valueType == "file" {
+			verifiedPath, err := b.handleFileVar(value.(string))
+			if err != nil {
+				return err
 			}
+			helmVal := fmt.Sprintf("%s=%v", valuePath, verifiedPath)
+			overrides[component][chart].FileValues = append(overrides[component][chart].FileValues, helmVal)
 		}
 
 		// handle default case of simple values like strings and numbers

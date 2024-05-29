@@ -5,18 +5,19 @@
 package bundle
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
-	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/packager"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
-	"golang.org/x/exp/slices"
-
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
+	"github.com/defenseunicorns/zarf/src/pkg/packager"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
+	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	"golang.org/x/exp/slices"
 )
 
 // Remove removes packages deployed from a bundle
@@ -48,7 +49,7 @@ func (b *Bundle) Remove() error {
 	}
 
 	// read the bundle's metadata into memory
-	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
+	if err := utils.ReadYAMLStrict(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
 
@@ -87,13 +88,13 @@ func removePackages(packagesToRemove []types.Package, b *Bundle) error {
 			pkgCfg := zarfTypes.PackagerConfig{
 				PkgOpts: opts,
 			}
-			pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
+			pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 			if err != nil {
 				return err
 			}
 
 			sha := strings.Split(pkg.Ref, "sha256:")[1]
-			source, err := sources.New(b.cfg.RemoveOpts.Source, pkg.Name, opts, sha, nil)
+			source, err := sources.New(b.cfg.RemoveOpts.Source, pkg, opts, sha, nil)
 			if err != nil {
 				return err
 			}
@@ -101,7 +102,7 @@ func removePackages(packagesToRemove []types.Package, b *Bundle) error {
 			pkgClient := packager.NewOrDie(&pkgCfg, packager.WithSource(source), packager.WithTemp(pkgTmp))
 			defer pkgClient.ClearTempPaths()
 
-			if err := pkgClient.Remove(); err != nil {
+			if err := pkgClient.Remove(context.TODO()); err != nil {
 				return err
 			}
 		} else {

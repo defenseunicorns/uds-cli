@@ -4,6 +4,13 @@
 // Package types contains all the types used by UDS.
 package types
 
+type ChartVariableType string
+
+const (
+	File ChartVariableType = "file"
+	Raw  ChartVariableType = "raw"
+)
+
 // UDSBundle is the top-level structure of a UDS bundle
 type UDSBundle struct {
 	Kind     string       `json:"kind" jsonschema:"description=The kind of UDS package,enum=UDSBundle"`
@@ -40,10 +47,11 @@ type BundleChartValue struct {
 }
 
 type BundleChartVariable struct {
-	Path        string      `json:"path" jsonschema:"name=Path to the Helm chart value to set. The format is <chart-value>, example=controller.service.type"`
-	Name        string      `json:"name" jsonschema:"name=Name of the variable to set"`
-	Description string      `json:"description,omitempty" jsonschema:"name=Description of the variable"`
-	Default     interface{} `json:"default,omitempty" jsonschema:"name=The default value to set"`
+	Path        string            `json:"path" jsonschema:"name=Path to the Helm chart value to set. The format is <chart-value>, example=controller.service.type"`
+	Name        string            `json:"name" jsonschema:"name=Name of the variable to set"`
+	Description string            `json:"description,omitempty" jsonschema:"name=Description of the variable"`
+	Default     interface{}       `json:"default,omitempty" jsonschema:"name=The default value to set"`
+	Type        ChartVariableType `json:"type,omitempty" jsonschema:"type=The type of value to be processed"`
 }
 
 // BundleVariableImport represents variables in the bundle

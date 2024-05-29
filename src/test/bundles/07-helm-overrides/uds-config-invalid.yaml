@@ -1,0 +1,6 @@
+options:
+  log_levelx: debug
+
+variables:
+  helm-overrides:
+    ui_color: "orange"

@@ -17,7 +17,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	goyaml "github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
 )
 
@@ -216,15 +215,6 @@ func loadViperConfig() error {
 		// delete the lowercase var and replace with uppercase
 		delete(bundleCfg.DeployOpts.SharedVariables, varName)
 		bundleCfg.DeployOpts.SharedVariables[strings.ToUpper(varName)] = varValue
-	}
-
-	// ensure the DeployOpts.FileVariables vars are uppercase
-	for pkgName, pkgVar := range bundleCfg.DeployOpts.FileVariables {
-		for varName, varValue := range pkgVar {
-			// delete the lowercase var and replace with uppercase
-			delete(bundleCfg.DeployOpts.FileVariables[pkgName], varName)
-			bundleCfg.DeployOpts.FileVariables[pkgName][strings.ToUpper(varName)] = varValue
-		}
 	}
 
 	return nil

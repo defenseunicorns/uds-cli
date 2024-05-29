@@ -7,18 +7,17 @@ package bundle
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
@@ -151,7 +150,7 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := zarfUtils.ReadYaml(loaded[config.BundleYAML], &bundle); err != nil {
+	if err := utils.ReadYAMLStrict(loaded[config.BundleYAML], &bundle); err != nil {
 		return nil, nil, err
 	}
 
@@ -173,37 +172,13 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 	layersToPull = append(layersToPull, rootManifest.Config)
 
 	for _, pkg := range bundle.Packages {
-
-		// grab sha of zarf image manifest and pull it down
-		sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
-		manifestDesc := rootManifest.Locate(sha)
-		manifestBytes, err := op.FetchLayer(ctx, manifestDesc)
+		// go through the pkg's layers and figure out which ones to pull based on the req'd + selected components
+		pkgLayers, estPkgBytes, err := boci.FindBundledPkgLayers(ctx, pkg, rootManifest, op.OrasRemote)
 		if err != nil {
 			return nil, nil, err
 		}
-
-		// unmarshal the zarf image manifest and add it to the layers to pull
-		var manifest oci.Manifest
-		if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
-			return nil, nil, err
-		}
-		layersToPull = append(layersToPull, manifestDesc)
-		progressBar := message.NewProgressBar(int64(len(manifest.Layers)), fmt.Sprintf("Verifying layers in Zarf package: %s", pkg.Name))
-
-		// go through the layers in the zarf image manifest and check if they exist in the remote
-		for _, layer := range manifest.Layers {
-			ok, err := op.Repo().Blobs().Exists(ctx, layer)
-			progressBar.Add(1)
-			estimatedBytes += layer.Size
-			if err != nil {
-				return nil, nil, err
-			}
-			// if the layer exists in the remote, add it to the layers to pull
-			if ok {
-				layersToPull = append(layersToPull, layer)
-			}
-		}
-		progressBar.Successf("Verified %s package", pkg.Name)
+		layersToPull = append(layersToPull, pkgLayers...)
+		estimatedBytes += estPkgBytes
 	}
 
 	store, err := ocistore.NewWithContext(ctx, op.dst)
@@ -219,7 +194,7 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 	layersToPull = append(layersToPull, rootDesc)
 
 	// create copy options for oras.Copy()
-	copyOpts := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
+	copyOpts := boci.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
 
 	// Create a thread to update a progress bar as we save the package to disk
 	doneSaving := make(chan error)
@@ -255,7 +230,7 @@ func getOCIValidatedSource(source string) (string, error) {
 		OS:           oci.MultiOS,
 	}
 	// Check provided repository path
-	sourceWithOCI := utils.EnsureOCIPrefix(source)
+	sourceWithOCI := boci.EnsureOCIPrefix(source)
 	remote, err := zoci.NewRemote(sourceWithOCI, platform)
 	if err == nil {
 		source = sourceWithOCI
@@ -307,7 +282,7 @@ func ValidateArch(arch string) error {
 		message.Debugf("error creating cluster object: %s", err)
 	}
 	if c != nil {
-		clusterArchs, err = c.GetArchitectures()
+		clusterArchs, err = c.GetArchitectures(context.TODO())
 		if err != nil {
 			return err
 		}

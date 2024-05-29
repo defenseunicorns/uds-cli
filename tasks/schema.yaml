@@ -2,13 +2,13 @@
 # SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
 tasks:
-  - name: schema
+  - name: update
     description: updates the JSON schema
     actions:
       - cmd: ./hack/generate-schema.sh
 
-  - name: test-schema
+  - name: test
     description: tests if the schema has been modified
     actions:
-      - task: schema
+      - task: update
       - cmd: ./hack/test-generate-schema.sh

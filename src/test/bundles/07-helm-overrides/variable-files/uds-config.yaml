@@ -1,4 +1,4 @@
-files:
+variables:
   helm-overrides:
     domain: domain.txt
     test_secret: test.pub

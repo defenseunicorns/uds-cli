@@ -34,7 +34,7 @@ jobs:
         uses: ./.github/actions/install-uds-cli
 
       - name: Run unit tests
-        run: uds run test:unit
+        run: uds run test:unit --no-progress
 
       - name: Save logs
         if: always()
