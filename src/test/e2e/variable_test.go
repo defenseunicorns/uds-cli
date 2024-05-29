@@ -415,7 +415,7 @@ func TestVariableFilesHelmOverrides(t *testing.T) {
 	})
 
 	t.Run("test log-level.txt set by --set", func(t *testing.T) {
-		cmd := strings.Split("zarf tools kubectl get pod -n podinfo -o=jsonpath={.items[0].spec.containers[0].command}", " ")
+		cmd := strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath={.spec.template.spec.containers[0].command}", " ")
 		stdout, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
 		require.Contains(t, stdout, "--level=debug")
