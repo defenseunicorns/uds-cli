@@ -1,6 +1,6 @@
 options:
   log_level: debug
-  
+
 variables:
   helm-overrides:
     test_secret: not-there.pub
