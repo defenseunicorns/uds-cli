@@ -61,6 +61,10 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Com
 		return zarfTypes.ZarfPackage{}, nil, nil
 	}
 
+	// grab number of components before filtering to determine if package is partial
+	numComponents := len(pkg.Components)
+
+	// filter components based on required + specified optional components
 	pkg.Components, err = filter.Apply(pkg)
 	if err != nil {
 		return pkg, nil, err
@@ -68,7 +72,7 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Com
 
 	dst.SetFromPaths(files)
 
-	isPartialPkg := t.PkgOpts.OptionalComponents != ""
+	isPartialPkg := t.PkgOpts.OptionalComponents != "" || numComponents > len(pkg.Components)
 
 	if err := sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, isPartialPkg); err != nil {
 		return zarfTypes.ZarfPackage{}, nil, err
