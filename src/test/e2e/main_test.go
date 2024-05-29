@@ -123,7 +123,12 @@ func deployZarfInit(t *testing.T) {
 }
 
 func zarfInitDeployed() bool {
-	cmd := strings.Split("zarf tools kubectl get deployments --namespace zarf", " ")
+	cmd := strings.Split("zarf tools kubectl get deployments zarf-docker-registry --namespace zarf", " ")
 	_, stderr, _ := e2e.UDS(cmd...)
-	return !strings.Contains(stderr, "No resources found in zarf namespace")
+	registryDeployed := !strings.Contains(stderr, "No resources found in zarf namespace") && !strings.Contains(stderr, "not found")
+
+	cmd = strings.Split("zarf tools kubectl get deployments agent-hook --namespace zarf", " ")
+	_, stderr, _ = e2e.UDS(cmd...)
+	agentDeployed := !strings.Contains(stderr, "No resources found in zarf namespace") && !strings.Contains(stderr, "not found")
+	return registryDeployed && agentDeployed
 }
