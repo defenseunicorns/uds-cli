@@ -32,7 +32,7 @@
     display: grid;
     row-gap: var(--cds-spacing-04);
 
-    background-color: var(--cds-ui-background);
+    background-color: var(--cds-ui-01);
     border: 1px solid var(--cds-link-02);
     border-radius: 4px;
     padding: var(--cds-spacing-05) var(--cds-spacing-06);
