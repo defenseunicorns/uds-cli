@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { render } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 
 import HeaderSelect from './HeaderSelect.svelte';
