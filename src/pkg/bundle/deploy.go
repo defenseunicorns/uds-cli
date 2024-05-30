@@ -155,26 +155,6 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 	return nil
 }
 
-func formAndCheckFilePath(anchorPath string, filePath string) (string, error) {
-	if !filepath.IsAbs(filePath) {
-		// set path relative to anchorPath (i.e. cwd or config), unless they are the same
-		if filepath.Dir(anchorPath) != filepath.Dir(filePath) {
-			filePath = filepath.Join(filepath.Dir(anchorPath), filePath)
-		}
-	}
-
-	if helpers.InvalidPath(filePath) {
-		return "", fmt.Errorf("Unable to find file %s", filePath)
-	}
-
-	_, err := helpers.IsTextFile(filePath)
-	if err != nil {
-		return "", err
-	}
-
-	return filePath, nil
-}
-
 // loadVariables loads and sets precedence for config-level and imported variables
 func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) (map[string]string, error) {
 	pkgVars := make(map[string]string)
@@ -467,6 +447,7 @@ func (b *Bundle) addOverrideValue(overrides map[string]map[string]*values.Option
 			value = setTemplatedVariables(templatedVariable, pkgVars)
 		}
 
+		// Check for files else handle default case of simple values like strings and numbers
 		if valueType == "file" {
 			verifiedPath, err := formAndCheckFilePath(b.cfg.DeployOpts.Config, value.(string))
 			if err != nil {
@@ -475,8 +456,6 @@ func (b *Bundle) addOverrideValue(overrides map[string]map[string]*values.Option
 			helmVal := fmt.Sprintf("%s=%v", valuePath, verifiedPath)
 			overrides[component][chart].FileValues = append(overrides[component][chart].FileValues, helmVal)
 		} else {
-
-			// handle default case of simple values like strings and numbers
 			helmVal := fmt.Sprintf("%s=%v", valuePath, value)
 			overrides[component][chart].Values = append(overrides[component][chart].Values, helmVal)
 		}
@@ -497,4 +476,25 @@ func setTemplatedVariables(templatedVariables string, pkgVars map[string]string)
 		return fmt.Sprintf("${%s_not_found}", variableName)
 	})
 	return replacedValue
+}
+
+// formAndCheckFilePath merges relative paths together to form full path and checks if the file exists
+func formAndCheckFilePath(anchorPath string, filePath string) (string, error) {
+	if !filepath.IsAbs(filePath) {
+		// set path relative to anchorPath (i.e. cwd or config), unless they are the same
+		if filepath.Dir(anchorPath) != filepath.Dir(filePath) {
+			filePath = filepath.Join(filepath.Dir(anchorPath), filePath)
+		}
+	}
+
+	if helpers.InvalidPath(filePath) {
+		return "", fmt.Errorf("Unable to find file %s", filePath)
+	}
+
+	_, err := helpers.IsTextFile(filePath)
+	if err != nil {
+		return "", err
+	}
+
+	return filePath, nil
 }
