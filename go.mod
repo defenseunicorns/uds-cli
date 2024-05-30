@@ -9,7 +9,7 @@ require (
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
 	github.com/defenseunicorns/maru-runner v0.2.0
 	github.com/defenseunicorns/pkg/exec v0.0.1
-	github.com/defenseunicorns/pkg/helpers v1.1.2
+	github.com/defenseunicorns/pkg/helpers v2.0.1
 	github.com/defenseunicorns/pkg/oci v0.0.2
 	github.com/defenseunicorns/zarf v0.34.0
 	github.com/fsnotify/fsnotify v1.7.0
