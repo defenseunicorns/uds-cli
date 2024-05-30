@@ -56,6 +56,8 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Comp
 			repoUrl := fmt.Sprintf("%s:%s", r.Pkg.Repository, r.Pkg.Ref)
 			remote, _ := zoci.NewRemote(repoUrl, platform)
 			layers, err = remote.PullPackage(context.TODO(), r.TmpDir, config.CommonOptions.OCIConcurrency)
+		} else {
+			layers, err = r.downloadPkgFromRemoteBundle()
 		}
 	} else {
 		layers, err = r.downloadPkgFromRemoteBundle()

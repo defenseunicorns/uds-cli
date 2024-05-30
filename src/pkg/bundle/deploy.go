@@ -79,8 +79,8 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 
 	// deploy each package
 	for i, pkg := range packagesToDeploy {
-		// update package ref for dev deploy
-		if config.Dev {
+		// for dev mode update package ref for remote bundles, refs for local bundles updated on create
+		if config.Dev && !strings.Contains(b.cfg.DeployOpts.Source, "tar.zst") {
 			pkg = b.setPackageRef(pkg)
 			b.bundle.Packages[i] = pkg
 		}

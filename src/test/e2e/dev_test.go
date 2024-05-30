@@ -16,7 +16,6 @@ import (
 func TestDevDeploy(t *testing.T) {
 
 	removeZarfInit()
-	cmd := strings.Split("zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
 
 	t.Run("Test dev deploy with local and remote pkgs", func(t *testing.T) {
 
@@ -27,6 +26,7 @@ func TestDevDeploy(t *testing.T) {
 
 		devDeploy(t, bundleDir)
 
+		cmd := strings.Split("zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
 		deployments, _, _ := e2e.UDS(cmd...)
 		require.Contains(t, deployments, "podinfo")
 		require.Contains(t, deployments, "nginx")
@@ -43,6 +43,7 @@ func TestDevDeploy(t *testing.T) {
 
 		devDeployPackages(t, bundleDir, "podinfo")
 
+		cmd := strings.Split("zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
 		deployments, _, _ := e2e.UDS(cmd...)
 		require.Contains(t, deployments, "podinfo")
 		require.NotContains(t, deployments, "nginx")
@@ -108,11 +109,14 @@ func TestDevDeploy(t *testing.T) {
 		bundleDir := "src/test/bundles/03-local-and-remote"
 
 		// create flavor three podinfo-flavor package
-		cmd = strings.Split("zarf package create src/test/packages/podinfo --flavor three", " ")
+		pkgDir := "src/test/packages/podinfo"
+		cmd := strings.Split(fmt.Sprintf("zarf package create %s --flavor %s --confirm -o %s", pkgDir, "three", pkgDir), " ")
+		_, _, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
 
 		// dev deploy with flavor two and --force-create
-		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create", bundleDir, "podinfo=two"), " ")
-		_, _, err := e2e.UDS(cmd...)
+		cmd = strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create", bundleDir, "podinfo-flavor=two"), " ")
+		_, _, err = e2e.UDS(cmd...)
 		require.NoError(t, err)
 
 		cmd = strings.Split("zarf tools kubectl get deployment -n podinfo-flavor podinfo -o=jsonpath='{.spec.template.spec.containers[0].image}'", " ")
@@ -131,6 +135,7 @@ func TestDevDeploy(t *testing.T) {
 
 		devDeploy(t, bundle)
 
+		cmd := strings.Split("zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
 		deployments, _, _ := e2e.UDS(cmd...)
 		require.Contains(t, deployments, "podinfo")
 		require.Contains(t, deployments, "nginx")
