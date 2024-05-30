@@ -609,8 +609,8 @@ github.com/defenseunicorns/maru-runner v0.2.0 h1:y49cPZSydBVlTwcH+JaSuBtW0BxL19s
 github.com/defenseunicorns/maru-runner v0.2.0/go.mod h1:MOVxUUSTNINepwiqkq8jrqVSASK47Pk2+ziZKPR8Uxw=
 github.com/defenseunicorns/pkg/exec v0.0.1 h1:mZtkZvwvOgInZOi+hvEjT0JAtjOgbeIo4RkpqMzU85g=
 github.com/defenseunicorns/pkg/exec v0.0.1/go.mod h1:F/OPhrZuoXM6e2RgeDUlaSYFFW8I3rsErJnytLSkLFo=
-github.com/defenseunicorns/pkg/helpers v1.1.2 h1:2t8ntF2Lijc8GqigAe6ZpYfC2BZd5Kk6rAUqrKNASt4=
-github.com/defenseunicorns/pkg/helpers v1.1.2/go.mod h1:F4S5VZLDrlNWQKklzv4v9tFWjjZNhxJ1gT79j4XiLwk=
+github.com/defenseunicorns/pkg/helpers v1.1.1 h1:p3pKeK5SeFaoZUJZIX9sEsJqX1CGGMS8OpQMPgJtSqM=
+github.com/defenseunicorns/pkg/helpers v1.1.1/go.mod h1:F4S5VZLDrlNWQKklzv4v9tFWjjZNhxJ1gT79j4XiLwk=
 github.com/defenseunicorns/pkg/helpers/v2 v2.0.1 h1:j08rz9vhyD9Bs+yKiyQMY2tSSejXRMxTqEObZ5M1Wbk=
 github.com/defenseunicorns/pkg/helpers/v2 v2.0.1/go.mod h1:u1PAqOICZyiGIVA2v28g55bQH1GiAt0Bc4U9/rnWQvQ=
 github.com/defenseunicorns/pkg/oci v0.0.2 h1:Lewwtl/D1Z55npRCkK1DS4Sd7pdrwyUs4+1RGpYajSQ=

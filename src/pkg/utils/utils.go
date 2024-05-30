@@ -19,7 +19,7 @@ import (
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 
-	"github.com/defenseunicorns/pkg/helpers"
+	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
