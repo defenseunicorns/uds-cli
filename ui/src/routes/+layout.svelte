@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Breadcrumb, BreadcrumbItem, Content, Theme } from 'carbon-components-svelte';
+  import { Content, Theme } from 'carbon-components-svelte';
 
   import { type CarbonTheme } from 'carbon-components-svelte/src/Theme/Theme.svelte';
 
@@ -119,6 +119,10 @@
 
 <style lang="scss">
   $side-nav__header-text: #aaa;
+
+  :global(.bx--content) {
+    max-width: 924px;
+  }
 
   :global(.bx--side-nav) {
     background-color: var(--cds-inverse-01);
