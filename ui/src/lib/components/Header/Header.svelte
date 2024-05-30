@@ -99,20 +99,10 @@
     <span>Platform</span>
   </a>
 
-  <HeaderSeparator spaceLeft={0} spaceRight={20} />
-
-  <HeaderSelect title="Services" items={leftMenuLinks} />
-
   <div class="bx--header__global">
-    <Search size="sm" closeButtonLabelText="Hello" />
-
-    <HeaderSeparator spaceLeft={0} spaceRight={6} />
     <HeaderGlobalAction iconDescription="Help" tooltipAlignment="start" icon={HelpFilled} />
 
     {#if authenticated}
-      <HeaderGlobalAction iconDescription="Notification" icon={NotificationFilled} />
-      <HeaderSeparator spaceLeft={0} />
-      <HeaderSelect title="prod.uds.is" items={prodMenuLinks} />
       <HeaderSeparator spaceLeft={0} />
       <HeaderSelect title="username" items={lastMenuLinks} withIcon={true}>
         <div slot="account-icon">
@@ -125,24 +115,3 @@
     {/if}
   </div>
 </header>
-
-<style lang="scss">
-  :global(.bx--search) {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 40% !important;
-    left: -15% !important;
-  }
-
-  :global(.bx--search-close) {
-    top: 8px !important;
-  }
-
-  @media (max-width: 1160px) {
-    :global(.bx--search) {
-      // width: 33% !important;
-      left: -7% !important;
-    }
-  }
-</style>
