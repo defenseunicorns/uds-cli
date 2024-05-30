@@ -1,6 +1,4 @@
 <script lang="ts">
-  import { Column, Content, Grid, Row } from 'carbon-components-svelte';
-
   import Card from '$lib/components/Card/Card.svelte';
   import CardHeader from '$lib/components/Card/CardHeader.svelte';
   import CardContent from '$lib/components/Card/CardContent.svelte';
@@ -25,23 +23,17 @@
 </svelte:head>
 
 <div>
-  <h4 style="margin-bottom: 30px">Welcome to UDS</h4>
+  <h2 class="header">Welcome to UDS</h2>
 
-  <p>Find the applications running in your cluster and accessible to you here.</p>
+  <p class="subheader">Find the applications running in your cluster and accessible to you here.</p>
 
   <div class="cards">
     <Card radius={4} width={300} height={200}>
-      <CardHeader
-        slot="card-header"
-        hasLogo
-        stacked={false}
-        version="v1.23.4"
-        title="App Name"
-      />
+      <CardHeader slot="card-header" hasLogo stacked={false} version="v1.23.4" title="App Name" />
 
       <CardContent
         slot="card-content"
-        text="App Description. Your son is gone. He was weak and foolish like his father so I destroyed him."
+        text="App Description. Your son is gone. He was weak and foolish like his father."
       />
 
       <CardLinks
@@ -60,17 +52,11 @@
     </Card>
 
     <Card radius={4} width={300} height={200}>
-      <CardHeader
-        slot="card-header"
-        hasLogo
-        stacked={false}
-        version="v1.23.4"
-        title="Gitlab"
-      />
+      <CardHeader slot="card-header" hasLogo stacked={false} version="v1.23.4" title="Gitlab" />
 
       <CardContent
         slot="card-content"
-        text="App Description. Your son is gone. He was weak and foolish like his father so I destroyed him."
+        text="App Description. Your son is gone. He was weak and foolish like his father."
       />
 
       <CardLinks
@@ -89,17 +75,11 @@
     </Card>
 
     <Card radius={4} width={300} height={200}>
-      <CardHeader
-        slot="card-header"
-        hasLogo
-        stacked={false}
-        version="v1.23.4"
-        title="Mattermost"
-      />
+      <CardHeader slot="card-header" hasLogo stacked={false} version="v1.23.4" title="Mattermost" />
 
       <CardContent
         slot="card-content"
-        text="App Description. Your son is gone. He was weak and foolish like his father so I destroyed him."
+        text="App Description. Your son is gone. He was weak and foolish like his father."
       />
 
       <CardLinks
@@ -128,7 +108,7 @@
 
       <CardContent
         slot="card-content"
-        text="App Description. Your son is gone. He was weak and foolish like his father so I destroyed him."
+        text="App Description. Your son is gone. He was weak and foolish like his father."
       />
 
       <CardLinks
@@ -147,17 +127,11 @@
     </Card>
 
     <Card radius={4} width={300} height={200}>
-      <CardHeader
-        slot="card-header"
-        hasLogo
-        stacked={false}
-        version="v1.23.4"
-        title="LeapfrogAi"
-      />
+      <CardHeader slot="card-header" hasLogo stacked={false} version="v1.23.4" title="LeapfrogAi" />
 
       <CardContent
         slot="card-content"
-        text="App Description. Your son is gone. He was weak and foolish like his father so I destroyed him."
+        text="App Description. Your son is gone. He was weak and foolish like his father."
       />
 
       <CardLinks
@@ -174,12 +148,24 @@
 </div>
 
 <style lang="scss">
+  .header {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 32px;
+  }
+
+  .subheader {
+    font-size: var(--cds-helper-text-01-font-size);
+    line-height: 16px;
+    letter-spacing: 0.32px;
+  }
+
   .cards {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     grid-column-gap: var(--cds-spacing-04);
-    grid-row-gap:  var(--cds-spacing-04);
+    grid-row-gap: var(--cds-spacing-06);
 
-    margin-top:  var(--cds-spacing-05);
-}
+    margin-top: var(--cds-spacing-07);
+  }
 </style>
