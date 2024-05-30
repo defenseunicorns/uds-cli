@@ -115,7 +115,7 @@ func TestDevDeploy(t *testing.T) {
 		require.NoError(t, err)
 
 		// dev deploy with flavor two and --force-create
-		cmd = strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create", bundleDir, "podinfo-flavor=two"), " ")
+		cmd = strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create", bundleDir, "podinfo=two"), " ")
 		_, _, err = e2e.UDS(cmd...)
 		require.NoError(t, err)
 
