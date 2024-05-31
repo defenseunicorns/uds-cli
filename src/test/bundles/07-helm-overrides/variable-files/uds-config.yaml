@@ -3,4 +3,4 @@ options:
 
 variables:
   helm-overrides:
-    test_secret: test.pub
+    test_secret: test.cert

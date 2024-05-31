@@ -246,7 +246,7 @@ Variable precedence is as follows:
 Variables can be of either type `raw` or `file`. The type will default to raw if not set explicitly.
 
 > [!WARNING]  
-> If a variable is set to accept a file as it's value, but is missing the `file` type, then the file will not be processed.
+> If a variable is set to accept a file as its value, but is missing the `file` type, then the file will not be processed.
 
 ```yaml
 kind: UDSBundle
@@ -262,30 +262,34 @@ packages:
         podinfo-component:
           unicorn-podinfo:
            variables:
+           - name: UI_COLOR
+             path: "ui.color"
+             description: "variable UI_COLOR accepts a raw value (e.g. a string, int, map) like "purple", which is passed to the ui.color helm path"
+             type: raw
            - name: test_secret
              path: "testSecret"
-             description: "Key to be set in a secret"
+             description: "variable TEST_SECRET will resolve to the contents of a file (e.g. test.cert), which gets passed to the testSecret helm path"
              type: file
 ```
 
 **File Paths**
 
-If a file path is not absolute it will be set as relative to the uds-config.yaml path.
+If a file path is not absolute, it will be set as relative to the `uds-config.yaml` directory.
 
 e.g. the following `uds-config.yaml` is in [`src/test/bundles/07-helm-overrides/variable-files/`](../src/test/bundles/07-helm-overrides/variable-files/uds-config.yaml)
 ```yaml
 variables:
   helm-overrides:
-    test_secret: test.pub
+    test_secret: test.cert
 ```
 
-This means when `test.pub` is evalutated it will first be appended to the config path like so `src/test/bundles/07-helm-overrides/variable-files/test.pub`.
+This means when `test.cert` is evalutated it will first be appended to the config path like so `src/test/bundles/07-helm-overrides/variable-files/test.cert`.
 
 If the file path is already set to the same relative path as the config, then no merging will take place.
 
 > [!NOTE]  
-> uds-cli does not encrypt or base64 encode any file contents before passing said data to Zarf or Helm.  
-> So if for example the file contains a key to be used in a kubernetes secret, it must be base64 encoded before given to uds-cli.
+> UDS CLI does not encrypt or base64 encode any file contents before passing said data to Zarf or Helm.  
+> For example, if the file contains a key to be used in a Kubernetes secret, it must be base64 encoded before being ingested by UDS CLI.
 
 
 ### Namespace

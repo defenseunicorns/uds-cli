@@ -54,10 +54,11 @@ func (b *Bundle) Deploy() error {
 		if len(userSpecifiedPackages) != len(packagesToDeploy) {
 			return fmt.Errorf("invalid zarf packages specified by --packages")
 		}
-		return deployPackages(packagesToDeploy, resume, b)
+	} else {
+		packagesToDeploy = b.bundle.Packages
 	}
 
-	return deployPackages(b.bundle.Packages, resume, b)
+	return deployPackages(packagesToDeploy, resume, b)
 }
 
 func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
@@ -343,7 +344,7 @@ func (b *Bundle) processOverrideNamespaces(overrideMap sources.NamespaceOverride
 func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values *[]types.BundleChartValue, componentName string, chartName string, pkgVars map[string]string) error {
 	for _, v := range *values {
 		// Add the override to the map, or return an error if the path is invalid
-		if err := b.addOverrideValue(*overrideMap, componentName, chartName, v.Path, "raw", v.Value, pkgVars); err != nil {
+		if err := b.addOverride(*overrideMap, componentName, chartName, v.Path, types.Raw, v.Value, pkgVars); err != nil {
 			return err
 		}
 	}
@@ -389,7 +390,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 		}
 
 		// Add the override to the map, or return an error if the path is invalid
-		if err := b.addOverrideValue(*overrideMap, componentName, chartName, v.Path, v.Type, overrideVal, nil); err != nil {
+		if err := b.addOverride(*overrideMap, componentName, chartName, v.Path, v.Type, overrideVal, nil); err != nil {
 			return err
 		}
 
@@ -397,8 +398,8 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 	return nil
 }
 
-// addOverrideValue adds a value to a PkgOverrideMap
-func (b *Bundle) addOverrideValue(overrides map[string]map[string]*values.Options, component string, chart string, valuePath string, valueType types.ChartVariableType, value interface{}, pkgVars map[string]string) error {
+// addOverride adds a value or variable to a PkgOverrideMap
+func (b *Bundle) addOverride(overrides map[string]map[string]*values.Options, component string, chart string, valuePath string, valueType types.ChartVariableType, value interface{}, pkgVars map[string]string) error {
 	// Create the component map if it doesn't exist
 	if _, ok := overrides[component]; !ok {
 		overrides[component] = make(map[string]*values.Options)
@@ -407,6 +408,16 @@ func (b *Bundle) addOverrideValue(overrides map[string]map[string]*values.Option
 	// Create the chart map if it doesn't exist
 	if _, ok := overrides[component][chart]; !ok {
 		overrides[component][chart] = &values.Options{}
+	}
+
+	if valueType == "file" {
+		if fileVals, err := b.verifyAndAddFileTo(overrides[component][chart].FileValues, value.(string), valuePath); err == nil {
+			overrides[component][chart].FileValues = fileVals
+		} else {
+			return err
+		}
+
+		return nil
 	}
 
 	// Add the value to the chart map
@@ -447,18 +458,9 @@ func (b *Bundle) addOverrideValue(overrides map[string]map[string]*values.Option
 			value = setTemplatedVariables(templatedVariable, pkgVars)
 		}
 
-		// Check for files else handle default case of simple values like strings and numbers
-		if valueType == "file" {
-			verifiedPath, err := formAndCheckFilePath(b.cfg.DeployOpts.Config, value.(string))
-			if err != nil {
-				return err
-			}
-			helmVal := fmt.Sprintf("%s=%v", valuePath, verifiedPath)
-			overrides[component][chart].FileValues = append(overrides[component][chart].FileValues, helmVal)
-		} else {
-			helmVal := fmt.Sprintf("%s=%v", valuePath, value)
-			overrides[component][chart].Values = append(overrides[component][chart].Values, helmVal)
-		}
+		// Handle default case of simple values like strings and numbers
+		helmVal := fmt.Sprintf("%s=%v", valuePath, value)
+		overrides[component][chart].Values = append(overrides[component][chart].Values, helmVal)
 	}
 	return nil
 }
@@ -478,6 +480,16 @@ func setTemplatedVariables(templatedVariables string, pkgVars map[string]string)
 	return replacedValue
 }
 
+// verifyAndAddFileTo
+func (b *Bundle) verifyAndAddFileTo(helmFileVals []string, filePath string, key string) ([]string, error) {
+	verifiedPath, err := formAndCheckFilePath(b.cfg.DeployOpts.Config, filePath)
+	if err != nil {
+		return nil, err
+	}
+	helmVal := fmt.Sprintf("%s=%v", key, verifiedPath)
+	return append(helmFileVals, helmVal), nil
+}
+
 // formAndCheckFilePath merges relative paths together to form full path and checks if the file exists
 func formAndCheckFilePath(anchorPath string, filePath string) (string, error) {
 	if !filepath.IsAbs(filePath) {
@@ -488,7 +500,7 @@ func formAndCheckFilePath(anchorPath string, filePath string) (string, error) {
 	}
 
 	if helpers.InvalidPath(filePath) {
-		return "", fmt.Errorf("Unable to find file %s", filePath)
+		return "", fmt.Errorf("unable to find file %s", filePath)
 	}
 
 	_, err := helpers.IsTextFile(filePath)
