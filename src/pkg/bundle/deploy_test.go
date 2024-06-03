@@ -436,9 +436,9 @@ func TestFileVariableHandlers(t *testing.T) {
 	cwd, _ := os.Getwd()
 	t.Run("addFileValue file not found", func(t *testing.T) {
 		overrideVar := types.BundleChartVariable{
-			Path:        "key",
-			Name:        "testVar",
-			ValueSource: "./",
+			Path:   "key",
+			Name:   "testVar",
+			Source: "./",
 		}
 		_, err := addFileValue(make([]string, 0), "not-there.txt", overrideVar)
 		require.Contains(t, err.Error(), "unable to find file")
@@ -447,9 +447,9 @@ func TestFileVariableHandlers(t *testing.T) {
 	t.Run("addFileValue file found", func(t *testing.T) {
 		valSrcPath := filepath.Join(cwd, "/../../test/bundles/07-helm-overrides/variable-files")
 		overrideVar := types.BundleChartVariable{
-			Path:        "key",
-			Name:        "testVar",
-			ValueSource: valSrcPath,
+			Path:   "key",
+			Name:   "testVar",
+			Source: valSrcPath,
 		}
 		fileVals, err := addFileValue(make([]string, 0), "test.cert", overrideVar)
 		require.NoError(t, err)
