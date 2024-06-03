@@ -56,4 +56,4 @@ tasks:
 - Running `UDS_ARCHITECTURE=amd64 uds run print-arch` will echo "amd64"
 
 ### No Dependency on Zarf
-Since UDS CLI also vendors [Zarf](), there is no need to also have Zarf installed on your system.
+Since UDS CLI also vendors [Zarf](https://github.com/defenseunicorns/zarf), there is no need to also have Zarf installed on your system.
