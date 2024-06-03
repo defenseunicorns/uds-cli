@@ -86,12 +86,10 @@ func (b *Bundle) Create() error {
 	}
 
 	// for dev mode update package ref for local bundles, refs for remote bundles updated on deploy
-	if config.Dev {
-		if len(b.cfg.DevDeployOpts.Ref) != 0 {
-			for i, pkg := range b.bundle.Packages {
-				pkg = b.setPackageRef(pkg)
-				b.bundle.Packages[i] = pkg
-			}
+	if config.Dev && len(b.cfg.DevDeployOpts.Ref) != 0 {
+		for i, pkg := range b.bundle.Packages {
+			pkg = b.setPackageRef(pkg)
+			b.bundle.Packages[i] = pkg
 		}
 	}
 
