@@ -43,7 +43,6 @@ packages:
             - name: SECRET_VAL
               path: "testSecret"
               description: "testing a secret value"
-              type: file
             - name: SECURITY_CTX
               path: "podinfo.securityContext"
               description: "testing an object"
@@ -53,3 +52,7 @@ packages:
             - name: HOSTS
               path: "podinfo.ingress.hosts"
               description: "just testing a a list of objects (doesn't actually do ingress things)"
+            - name: SECRET_FILE_VAL
+              path: "testFileSecret"
+              description: "testing setting secret with file"
+              type: "file"

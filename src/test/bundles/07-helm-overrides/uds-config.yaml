@@ -15,7 +15,6 @@ variables:
         drop:
           - SETUID
           - SETGID
-    secret_val: ./variable-files/test.cert
     HOSTS:
       - host: podinfo.burning.boats
         paths:
@@ -25,3 +24,4 @@ variables:
         paths:
         - path: "/"
           pathType: "Prefix"
+    secret_file_val: "./variable-files/test.cert"
