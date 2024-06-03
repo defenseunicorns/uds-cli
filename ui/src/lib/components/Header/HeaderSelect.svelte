@@ -32,7 +32,10 @@
       data-testid="header__select-menu-action-{title.toLowerCase()}-test-id"
     >
       {#if withIcon}
-        <div class="header__select-icon" data-testid="header__select-icon--{title.toLowerCase()}-test-id">
+        <div
+          class="header__select-icon"
+          data-testid="header__select-icon--{title.toLowerCase()}-test-id"
+        >
           <slot name="account-icon" />
         </div>
       {/if}

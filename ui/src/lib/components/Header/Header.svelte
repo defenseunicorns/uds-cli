@@ -3,7 +3,6 @@
 
   import ArrowRight from 'carbon-icons-svelte/lib/ArrowRight.svelte';
   import HelpFilled from 'carbon-icons-svelte/lib/HelpFilled.svelte';
-  import NotificationFilled from 'carbon-icons-svelte/lib/NotificationFilled.svelte';
   import UserAvatarFilled from 'carbon-icons-svelte/lib/UserAvatarFilled.svelte';
 
   import HeaderSelect from '$lib/components/Header/HeaderSelect.svelte';
@@ -22,52 +21,6 @@
   $: console.log('selectedResultIndex', selectedResultIndex);
 
   export let authenticated: boolean;
-
-  let leftMenuLinks: HeaderSelectProps[] = [
-    {
-      title: 'Deployment',
-      path: '/deployment'
-    },
-    {
-      title: 'Security',
-      path: '/security'
-    },
-    {
-      title: 'IDAM',
-      path: '/idam'
-    },
-    {
-      title: 'AI/ML',
-      path: '/ai_ml'
-    },
-    {
-      title: 'App Dashboard',
-      path: '/dashboard'
-    }
-  ];
-
-  let prodMenuLinks: HeaderSelectProps[] = [
-    {
-      title: 'uds.us/staging',
-      path: '/uds-us-staging'
-    },
-    {
-      title: 'prod.uds.us',
-      path: '/prod-us'
-    },
-    {
-      title: 'prod.uds.is',
-      path: '/prod-is'
-    },
-    {
-      title: 'Uds.is/staging',
-      path: '/uds-is-staging'
-    },
-    {
-      title: 'spaceforce.swf.gov',
-      path: '/spaceforce'
-    }
-  ];
 
   let lastMenuLinks: HeaderSelectProps[] = [
     {
