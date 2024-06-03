@@ -34,5 +34,16 @@ tasks:
      - cmd: echo ${FOO}
 ```
 
+### Architecture Environment Variable
+When running tasks with `uds run`, there is a special `UDS_ARCH` environment variable accessible within tasks that is automatically set to your system architecture, but is also configurable with a `UDS_ARCHITECTURE` environmental variable. For example:
+```
+tasks:
+- name: print-arch
+  actions:
+    - cmd: echo ${UDS_ARCH}
+```
+- Running `uds run print-arch` will echo your local system architecture
+- Running `UDS_ARCHITECTURE=amd64 uds-local run print-arch` will echo "amd64" 
+
 ### No Dependency on Zarf
 Since UDS CLI also vendors [Zarf](https://github.com/defenseunicorns/zarf), there is no need to also have Zarf installed on your system.
