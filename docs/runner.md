@@ -43,7 +43,7 @@ tasks:
     - cmd: echo ${UDS_ARCH}
 ```
 - Running `uds run print-arch` will echo your local system architecture
-- Running `UDS_ARCHITECTURE=amd64 uds-local run print-arch` will echo "amd64" 
+- Running `UDS_ARCHITECTURE=amd64 uds run print-arch` will echo "amd64" 
 
 ### No Dependency on Zarf
 Since UDS CLI also vendors [Zarf](https://github.com/defenseunicorns/zarf), there is no need to also have Zarf installed on your system.
