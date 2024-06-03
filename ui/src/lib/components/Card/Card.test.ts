@@ -13,7 +13,7 @@ describe('Card component', () => {
   test('should use passed in with, height and border radius', () => {
     const { getByTestId } = render(Card, cardProps);
 
-    expect(getByTestId(/card__container/).style.width).toBe('303px');
+    expect(getByTestId(/card__container/).style.minWidth).toBe('303px');
     expect(getByTestId(/card__container/).style.minHeight).toBe('203px');
     expect(getByTestId(/card__container/).style.borderRadius).toBe('3px');
   });
