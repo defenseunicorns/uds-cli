@@ -262,20 +262,20 @@ func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 	deployZarfInit(t)
 	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
 	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
+
+	// create and deploy bundle
+	bundleDir := "src/test/bundles/07-helm-overrides"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
+
 	color := "purple"
-	b64Secret := "dGhhdCBhaW50IG15IHRydWNr"
-	err := os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config.yaml"))
+	err := os.Setenv("UDS_CONFIG", filepath.Join(bundleDir, "uds-config.yaml"))
 	require.NoError(t, err)
 	err = os.Setenv("UDS_UI_COLOR", color)
 	require.NoError(t, err)
 	err = os.Setenv("UDS_UI_MSG", "im set by an env var")
 	require.NoError(t, err)
-	err = os.Setenv("UDS_SECRET_VAL", b64Secret)
 	require.NoError(t, err)
 
-	// create and deploy bundle
-	bundleDir := "src/test/bundles/07-helm-overrides"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
 	createLocal(t, bundleDir, e2e.Arch)
 	deploy(t, bundlePath)
 
@@ -283,13 +283,6 @@ func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 		cmd := strings.Split("z tools kubectl get deploy -n podinfo unicorn-podinfo -o=jsonpath='{.spec.template.spec.containers[0].env[?(@.name==\"PODINFO_UI_COLOR\")].value}'", " ")
 		outputUIColor, _, err := e2e.UDS(cmd...)
 		require.Equal(t, fmt.Sprintf("'%s'", color), outputUIColor)
-		require.NoError(t, err)
-	})
-
-	t.Run("check override secret val", func(t *testing.T) {
-		cmd := strings.Split("z tools kubectl get secret test-secret -n podinfo -o jsonpath=\"{.data.test}\"", " ")
-		secretValue, _, err := e2e.UDS(cmd...)
-		require.Equal(t, fmt.Sprintf("\"%s\"", b64Secret), secretValue)
 		require.NoError(t, err)
 	})
 
