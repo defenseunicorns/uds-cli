@@ -5,6 +5,9 @@
 package cmd
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
@@ -35,9 +38,15 @@ var devDeployCmd = &cobra.Command{
 		}
 
 		// Check if source is a local bundle
-		localBundle := helpers.IsDir(src)
+		isLocalBundle := isLocalBundle(src)
 
-		if localBundle {
+		// Validate flags
+		err := validateDevDeployFlags(isLocalBundle)
+		if err != nil {
+			message.Fatalf(err, "Failed to validate flags: %s", err.Error())
+		}
+
+		if isLocalBundle {
 			// Create Bundle
 			setBundleFile(args)
 
@@ -59,7 +68,7 @@ var devDeployCmd = &cobra.Command{
 		defer bndlClient.ClearPaths()
 
 		// Create dev bundle
-		if localBundle {
+		if isLocalBundle {
 			// Check if local zarf packages need to be created
 			bndlClient.CreateZarfPkgs()
 
@@ -69,7 +78,7 @@ var devDeployCmd = &cobra.Command{
 		}
 
 		// Set dev source
-		if localBundle {
+		if isLocalBundle {
 			bndlClient.SetDeploySource(src)
 		} else {
 			bundleCfg.DeployOpts.Source = src
@@ -78,6 +87,22 @@ var devDeployCmd = &cobra.Command{
 		// Deploy bundle
 		deploy(bndlClient)
 	},
+}
+
+// isLocalBundle checks if the bundle source is a local bundle
+func isLocalBundle(src string) bool {
+	return helpers.IsDir(src) || strings.Contains(src, ".tar.zst")
+}
+
+// validateDevDeployFlags validates the flags for dev deploy
+func validateDevDeployFlags(isLocalBundle bool) error {
+	if !isLocalBundle {
+		//Throw error if trying to run with --flavor, --flavor-all, or --force-create flag with remote bundle
+		if len(bundleCfg.DevDeployOpts.Flavor) > 0 || bundleCfg.DevDeployOpts.FlavorAll != "" || bundleCfg.DevDeployOpts.ForceCreate {
+			return fmt.Errorf("Cannot use --flavor, --flavor-all, or --force-create flags with remote bundle")
+		}
+	}
+	return nil
 }
 
 func init() {

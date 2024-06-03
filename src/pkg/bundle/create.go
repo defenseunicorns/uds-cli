@@ -109,6 +109,8 @@ func (b *Bundle) Create() error {
 func (b *Bundle) setPackageRef(pkg types.Package) types.Package {
 	if ref, ok := b.cfg.DevDeployOpts.Ref[pkg.Name]; ok {
 		pkg.Ref = ref
+		errMsg := fmt.Sprintf("Unable to access %s:%s", pkg.Repository, pkg.Ref)
+
 		// Get SHA from registry
 		url := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
 
@@ -118,14 +120,16 @@ func (b *Bundle) setPackageRef(pkg types.Package) types.Package {
 		}
 		remote, err := zoci.NewRemote(url, platform)
 		if err != nil {
-			message.Fatalf(err, "Unable to access %s:%s", pkg.Repository, pkg.Ref)
+			message.Fatalf(err, errMsg)
 		}
 		if err := remote.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
 			manifestDesc, err := remote.ResolveRoot(context.TODO())
 			if err != nil {
-				message.Fatalf(err, "Unable to access %s:%s", pkg.Repository, pkg.Ref)
+				message.Fatalf(err, errMsg)
 			}
 			pkg.Ref = pkg.Ref + "@sha256:" + manifestDesc.Digest.Encoded()
+		} else {
+			message.Fatalf(err, errMsg)
 		}
 	}
 	return pkg
