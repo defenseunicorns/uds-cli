@@ -76,11 +76,12 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
 	bundleDir := "src/test/bundles/07-helm-overrides"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
-	err := os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config.yaml"))
+	err := os.Setenv("UDS_CONFIG", filepath.Join(bundleDir, "uds-config.yaml"))
+	os.Setenv("UDS_TEST_FILE", fmt.Sprintf("%s/test-zarf-var-file.txt", bundleDir))
 	require.NoError(t, err)
 
 	createLocal(t, bundleDir, e2e.Arch)
-	deploy(t, bundlePath)
+	_, stderr := deploy(t, bundlePath)
 
 	// test values overrides
 	t.Run("check values overrides", func(t *testing.T) {
@@ -132,10 +133,10 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 	})
 
 	t.Run("check variables overrides, no default and not set in config", func(t *testing.T) {
-		cmd := strings.Split("zarf tools kubectl get secret test-secret -n podinfo -o jsonpath=\"{.data.test}\"", " ")
-		secretValue, _, err := e2e.UDS(cmd...)
+		cmd := strings.Split("zarf tools kubectl get service -n podinfo unicorn-podinfo -o jsonpath='{.spec.type}'", " ")
+		serviceType, _, err := e2e.UDS(cmd...)
 		// expect the value to be from the underlying chart's values.yaml, no overrides
-		require.Equal(t, "\"dGVzdC1zZWNyZXQ=\"", secretValue)
+		require.Equal(t, "'ClusterIP'", serviceType)
 		require.NoError(t, err)
 	})
 
@@ -153,6 +154,21 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, hosts, "podinfo.burning.boats")
 		require.Contains(t, hosts, "podinfo.unicorns")
+	})
+
+	t.Run("check variables overrides with a file type value", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get secret -n podinfo test-secret -o=jsonpath={.data.test}", " ")
+		stdout, _, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+		decoded, err := base64.StdEncoding.DecodeString(stdout)
+		require.NoError(t, err)
+		require.Contains(t, string(decoded), "ssh-rsa")
+	})
+
+	t.Run("test domain zarf var set by env variable", func(t *testing.T) {
+		// checking output of action in the helm-overrides package
+		// zarf will handle actually parsing and validating the files passed to it
+		require.Contains(t, stderr, fmt.Sprintf("TEST_FILE set as %s/test-zarf-var-file.txt", bundleDir))
 	})
 
 	remove(t, bundlePath)
@@ -370,62 +386,6 @@ func TestExportVarsAsGlobalVars(t *testing.T) {
 		require.Contains(t, tolerations, "\"key\":\"unicorn\"")
 		require.Contains(t, tolerations, "\"value\":\"defense\"")
 		require.NoError(t, err)
-	})
-
-	remove(t, bundlePath)
-}
-
-func TestVariableFilesFileNotFound(t *testing.T) {
-	deployZarfInit(t)
-	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
-	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
-	bundleDir := "src/test/bundles/07-helm-overrides/variable-files"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-variable-files-%s-0.0.1.tar.zst", e2e.Arch))
-	os.Setenv("UDS_CONFIG", filepath.Join(bundleDir, "file-not-found-config.yaml"))
-
-	createLocal(t, bundleDir, e2e.Arch)
-
-	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm", bundlePath), " ")
-	_, stderr, _ := e2e.UDS(cmd...)
-
-	require.Contains(t, stderr, fmt.Sprintf("unable to find file %s/not-there.pub", bundleDir))
-}
-
-func TestVariableFiles(t *testing.T) {
-	deployZarfInit(t)
-	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
-	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
-	bundleDir := "src/test/bundles/07-helm-overrides/variable-files"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-variable-files-%s-0.0.1.tar.zst", e2e.Arch))
-	createLocal(t, bundleDir, e2e.Arch)
-
-	os.Setenv("UDS_CONFIG", filepath.Join(bundleDir, "uds-config.yaml"))
-	os.Setenv("UDS_TEST_FILE", fmt.Sprintf("%s/test-zarf-var-file.txt", bundleDir))
-
-	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm --set helm-overrides.log_level=%s/log-level.txt", bundlePath, bundleDir), " ")
-	_, stderr, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-
-	t.Run("test test_secret helm override set by config", func(t *testing.T) {
-		cmd := strings.Split("zarf tools kubectl get secret -n podinfo test-secret -o=jsonpath={.data.test}", " ")
-		stdout, _, err := e2e.UDS(cmd...)
-		require.NoError(t, err)
-		decoded, err := base64.StdEncoding.DecodeString(stdout)
-		require.NoError(t, err)
-		require.Contains(t, string(decoded), "ssh-rsa")
-	})
-
-	t.Run("test log-level helm override set by --set", func(t *testing.T) {
-		cmd := strings.Split("zarf tools kubectl get deployment -n podinfo unicorn-podinfo -o=jsonpath={.spec.template.spec.containers[0].command}", " ")
-		stdout, _, err := e2e.UDS(cmd...)
-		require.NoError(t, err)
-		require.Contains(t, stdout, "--level=debug")
-	})
-
-	t.Run("test domain zarf var set by env variable", func(t *testing.T) {
-		// checking output of action in the helm-overrides package
-		// zarf will handle actually parsing the files passed to it
-		require.Contains(t, stderr, fmt.Sprintf("TEST_FILE set as %s/test-zarf-var-file.txt", bundleDir))
 	})
 
 	remove(t, bundlePath)

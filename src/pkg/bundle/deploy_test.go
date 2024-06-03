@@ -1,7 +1,9 @@
 package bundle
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
@@ -235,7 +237,7 @@ func TestLoadVariablesPrecedence(t *testing.T) {
 			if tc.loadEnvVar {
 				os.Setenv("UDS_FOO", "set using env var")
 			}
-			actualPkgVars, _ := tc.bundle.loadVariables(tc.pkg, tc.bundleExportVars)
+			actualPkgVars := tc.bundle.loadVariables(tc.pkg, tc.bundleExportVars)
 			require.Equal(t, tc.expectedPkgVars, actualPkgVars)
 		})
 	}
@@ -426,6 +428,98 @@ func TestHelmOverrideVariablePrecedence(t *testing.T) {
 			if tc.expectedVal == "" {
 				require.Equal(t, 0, len(overrideMap))
 			}
+		})
+	}
+}
+
+func TestFileVariableHandlers(t *testing.T) {
+	cwd, _ := os.Getwd()
+	t.Run("addFileValue file not found", func(t *testing.T) {
+		overrideVar := types.BundleChartVariable{
+			Path:        "key",
+			Name:        "testVar",
+			ValueSource: "./",
+		}
+		_, err := addFileValue(make([]string, 0), "not-there.txt", overrideVar)
+		require.Contains(t, err.Error(), "unable to find file")
+	})
+
+	t.Run("addFileValue file found", func(t *testing.T) {
+		valSrcPath := filepath.Join(cwd, "/../../test/bundles/07-helm-overrides/variable-files")
+		overrideVar := types.BundleChartVariable{
+			Path:        "key",
+			Name:        "testVar",
+			ValueSource: valSrcPath,
+		}
+		fileVals, err := addFileValue(make([]string, 0), "test.cert", overrideVar)
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf("%s=%s/test.cert", overrideVar.Path, valSrcPath), fileVals[0])
+	})
+
+	testCases := []struct {
+		name   string
+		bundle Bundle
+		arg    types.ValueSources
+		wanted string
+	}{
+		{
+			name: "getSourcePath --set",
+			bundle: Bundle{
+				cfg: &types.BundleConfig{
+					DeployOpts: types.BundleDeployOptions{
+						Config: "",
+						Source: "",
+					},
+				},
+			},
+			arg:    types.CLI,
+			wanted: cwd,
+		},
+		{
+			name: "getSourcePath UDS_VAR",
+			bundle: Bundle{
+				cfg: &types.BundleConfig{
+					DeployOpts: types.BundleDeployOptions{
+						Config: "",
+						Source: "",
+					},
+				},
+			},
+			arg:    types.CLI,
+			wanted: cwd,
+		},
+		{
+			name: "getSourcePath Config",
+			bundle: Bundle{
+				cfg: &types.BundleConfig{
+					DeployOpts: types.BundleDeployOptions{
+						Config: "/src/path/to/config/",
+						Source: "",
+					},
+				},
+			},
+			arg:    types.Config,
+			wanted: "/src/path/to/config",
+		},
+		{
+			name: "getSourcePath Bundle",
+			bundle: Bundle{
+				cfg: &types.BundleConfig{
+					DeployOpts: types.BundleDeployOptions{
+						Config: "",
+						Source: "/src/path/to/bundle/",
+					},
+				},
+			},
+			arg:    types.Bundle,
+			wanted: "/src/path/to/bundle",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			sourcePath := tc.bundle.getSourcePath(tc.arg)
+			require.Equal(t, tc.wanted, sourcePath)
 		})
 	}
 }

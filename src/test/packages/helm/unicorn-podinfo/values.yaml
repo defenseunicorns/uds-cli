@@ -7,3 +7,8 @@ podinfo:
   # doesn't do anything, just testing more configs
   ingress:
     enabled: true
+
+# for testing when values are not overridden
+service:
+  enabled: true
+  type: ClusterIP

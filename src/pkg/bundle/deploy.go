@@ -98,9 +98,6 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 		}
 
 		pkgVars := b.loadVariables(pkg, bundleExportedVars)
-		if err != nil {
-			return err
-		}
 
 		opts := zarfTypes.ZarfPackageOptions{
 			PackageSource:      pkgTmp,
@@ -487,7 +484,7 @@ func (b *Bundle) getSourcePath(pathType types.ValueSources) string {
 	case types.Env:
 		sourcePath, _ = os.Getwd()
 	case types.Bundle:
-		sourcePath = b.cfg.DeployOpts.Source
+		sourcePath = filepath.Dir(b.cfg.DeployOpts.Source)
 	case types.Config:
 		sourcePath = filepath.Dir(b.cfg.DeployOpts.Config)
 	}
