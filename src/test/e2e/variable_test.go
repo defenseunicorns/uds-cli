@@ -385,7 +385,7 @@ func TestVariableFilesFileNotFound(t *testing.T) {
 
 	createLocal(t, bundleDir, e2e.Arch)
 
-	cmd := strings.Split(fmt.Sprintf("deploy %s --retries 1 --confirm", bundlePath), " ")
+	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm", bundlePath), " ")
 	_, stderr, _ := e2e.UDS(cmd...)
 
 	require.Contains(t, stderr, fmt.Sprintf("unable to find file %s/not-there.pub", bundleDir))
@@ -402,7 +402,7 @@ func TestVariableFiles(t *testing.T) {
 	os.Setenv("UDS_CONFIG", filepath.Join(bundleDir, "uds-config.yaml"))
 	os.Setenv("UDS_TEST_FILE", fmt.Sprintf("%s/test-zarf-var-file.txt", bundleDir))
 
-	cmd := strings.Split(fmt.Sprintf("deploy %s --retries 1 --confirm --set helm-overrides.log_level=%s/log-level.txt", bundlePath, bundleDir), " ")
+	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm --set helm-overrides.log_level=%s/log-level.txt", bundlePath, bundleDir), " ")
 	_, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 
