@@ -3,7 +3,6 @@ package bundle
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
@@ -433,93 +432,174 @@ func TestHelmOverrideVariablePrecedence(t *testing.T) {
 }
 
 func TestFileVariableHandlers(t *testing.T) {
-	cwd, _ := os.Getwd()
-	t.Run("addFileValue file not found", func(t *testing.T) {
-		overrideVar := types.BundleChartVariable{
-			Path:   "key",
-			Name:   "testVar",
-			Source: "./",
-		}
-		_, err := addFileValue(make([]string, 0), "not-there.txt", overrideVar)
-		require.Contains(t, err.Error(), "unable to find file")
-	})
+	const (
+		componentName = "test-component"
+		chartName     = "test-chart"
+		pkgName       = "test-package"
+		varName       = "cert"
+		path          = "test.Cert"
+		relativePath  = "../../../src/test/bundles/07-helm-overrides/variable-files/"
+	)
 
-	t.Run("addFileValue file found", func(t *testing.T) {
-		valSrcPath := filepath.Join(cwd, "/../../test/bundles/07-helm-overrides/variable-files")
-		overrideVar := types.BundleChartVariable{
-			Path:   "key",
-			Name:   "testVar",
-			Source: valSrcPath,
-		}
-		fileVals, err := addFileValue(make([]string, 0), "test.cert", overrideVar)
-		require.NoError(t, err)
-		require.Equal(t, fmt.Sprintf("%s=%s/test.cert", overrideVar.Path, valSrcPath), fileVals[0])
-	})
-
+	type args struct {
+		pkgName       string
+		variables     *[]types.BundleChartVariable
+		componentName string
+		chartName     string
+	}
 	testCases := []struct {
-		name   string
-		bundle Bundle
-		arg    types.ValueSources
-		wanted string
+		name         string
+		bundle       Bundle
+		args         args
+		loadEnv      bool
+		requireNoErr bool
 	}{
 		{
-			name: "getSourcePath --set",
+			name: "with --set",
 			bundle: Bundle{
 				cfg: &types.BundleConfig{
 					DeployOpts: types.BundleDeployOptions{
-						Config: "",
-						Source: "",
+						SetVariables: map[string]string{
+							varName: fmt.Sprintf("%s/test.cert", relativePath),
+						},
 					},
 				},
 			},
-			arg:    types.CLI,
-			wanted: cwd,
+			args: args{
+				pkgName: pkgName,
+				variables: &[]types.BundleChartVariable{
+					{
+						Name:        varName,
+						Path:        path,
+						Type:        types.File,
+						Description: "set the var from cli, so source path is current working directory (eg. /home/user/repos/uds-cli/...)",
+					},
+				},
+				componentName: componentName,
+				chartName:     chartName,
+			},
+			requireNoErr: true,
 		},
 		{
-			name: "getSourcePath UDS_VAR",
+			name: "with UDS_VAR",
 			bundle: Bundle{
 				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{
-						Config: "",
-						Source: "",
-					},
+					DeployOpts: types.BundleDeployOptions{},
 				},
 			},
-			arg:    types.CLI,
-			wanted: cwd,
+			args: args{
+				pkgName: pkgName,
+				variables: &[]types.BundleChartVariable{
+					{
+						Name:        varName,
+						Path:        path,
+						Type:        types.File,
+						Description: "set the var from env, so source path is current working directory (eg. /home/user/repos/uds-cli/...)",
+					},
+				},
+				componentName: componentName,
+				chartName:     chartName,
+			},
+			loadEnv:      true,
+			requireNoErr: true,
 		},
 		{
-			name: "getSourcePath Config",
+			name: "with Config",
 			bundle: Bundle{
 				cfg: &types.BundleConfig{
 					DeployOpts: types.BundleDeployOptions{
-						Config: "/src/path/to/config/",
-						Source: "",
+						Config: fmt.Sprintf("%s/uds-config.yaml", relativePath),
+						Variables: map[string]map[string]interface{}{
+							pkgName: {
+								varName: "test.cert",
+							},
+						},
 					},
 				},
 			},
-			arg:    types.Config,
-			wanted: "/src/path/to/config",
+			args: args{
+				pkgName: pkgName,
+				variables: &[]types.BundleChartVariable{
+					{
+						Name:        varName,
+						Path:        path,
+						Type:        types.File,
+						Description: "set the var from config, so source path is config directory",
+					},
+				},
+				componentName: componentName,
+				chartName:     chartName,
+			},
+			requireNoErr: true,
 		},
 		{
-			name: "getSourcePath Bundle",
+			name: "with Bundle",
 			bundle: Bundle{
 				cfg: &types.BundleConfig{
 					DeployOpts: types.BundleDeployOptions{
-						Config: "",
-						Source: "/src/path/to/bundle/",
+
+						Source: fmt.Sprintf("%s/uds-bundle-helm-overrides-amd64-0.0.1.tar.zst", relativePath),
 					},
 				},
 			},
-			arg:    types.Bundle,
-			wanted: "/src/path/to/bundle",
+			args: args{
+				pkgName: pkgName,
+				variables: &[]types.BundleChartVariable{
+					{
+						Name:        varName,
+						Path:        path,
+						Type:        types.File,
+						Description: "set the var from bundle default, so source path is bundle directory",
+						Default:     "test.cert",
+					},
+				},
+				componentName: componentName,
+				chartName:     chartName,
+			},
+			requireNoErr: true,
+		},
+		{
+			name: "file not found",
+			bundle: Bundle{
+				cfg: &types.BundleConfig{
+					DeployOpts: types.BundleDeployOptions{
+						Source: fmt.Sprintf("%s/uds-bundle-helm-overrides-amd64-0.0.1.tar.zst", relativePath),
+					},
+				},
+			},
+			args: args{
+				pkgName: pkgName,
+				variables: &[]types.BundleChartVariable{
+					{
+						Name:        varName,
+						Path:        path,
+						Type:        types.File,
+						Description: "set the var from bundle default, so source path is bundle directory",
+						Default:     "not-there-test.cert",
+					},
+				},
+				componentName: componentName,
+				chartName:     chartName,
+			},
+			requireNoErr: false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			sourcePath := tc.bundle.getSourcePath(tc.arg)
-			require.Equal(t, tc.wanted, sourcePath)
+			os.Unsetenv("UDS_CERT")
+			if tc.loadEnv {
+				os.Setenv("UDS_CERT", fmt.Sprintf("%s/test.cert", relativePath))
+			}
+
+			overrideMap := map[string]map[string]*values.Options{}
+			err := tc.bundle.processOverrideVariables(&overrideMap, tc.args.pkgName, tc.args.variables, tc.args.componentName, tc.args.chartName)
+
+			if tc.requireNoErr {
+				require.NoError(t, err)
+			} else {
+				require.Contains(t, err.Error(), "unable to find")
+			}
 		})
 	}
 }
