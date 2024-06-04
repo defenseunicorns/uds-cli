@@ -77,9 +77,6 @@ var (
 
 	// Dev specifies if we are running in dev mode
 	Dev = false
-
-	// Map of refs specified for dev deploy
-	DevDeployRefs map[string]string
 )
 
 // GetArch returns the arch based on a priority list with options for overriding.

@@ -37,6 +37,7 @@ type RemoteBundle struct {
 	TmpDir         string
 	Remote         *oci.OrasRemote
 	nsOverrides    NamespaceOverrideMap
+	bundleCfg      types.BundleConfig
 }
 
 // LoadPackage loads a Zarf package from a remote bundle
@@ -46,7 +47,7 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Comp
 	var err error
 
 	if config.Dev {
-		if _, ok := config.DevDeployRefs[r.Pkg.Name]; ok {
+		if _, ok := r.bundleCfg.DevDeployOpts.Ref[r.Pkg.Name]; ok {
 			// create new oras remote for package
 			platform := ocispec.Platform{
 				Architecture: config.GetArch(),

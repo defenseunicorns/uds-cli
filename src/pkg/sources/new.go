@@ -5,6 +5,7 @@
 package sources
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/defenseunicorns/pkg/oci"
@@ -17,8 +18,17 @@ import (
 )
 
 // New creates a new package source based on pkgLocation
-func New(pkgLocation string, pkg types.Package, opts zarfTypes.ZarfPackageOptions, sha string, nsOverrides NamespaceOverrideMap) (zarfSources.PackageSource, error) {
+func New(bundleCfg types.BundleConfig, pkg types.Package, opts zarfTypes.ZarfPackageOptions, sha string, nsOverrides NamespaceOverrideMap) (zarfSources.PackageSource, error) {
 	var source zarfSources.PackageSource
+	var pkgLocation string
+	if bundleCfg.DeployOpts.Source != "" {
+		pkgLocation = bundleCfg.DeployOpts.Source
+	} else if bundleCfg.RemoveOpts.Source != "" {
+		pkgLocation = bundleCfg.DeployOpts.Source
+	} else {
+		return nil, fmt.Errorf("no source provided for package %s", pkg.Name)
+	}
+
 	if strings.Contains(pkgLocation, "tar.zst") {
 		source = &TarballBundle{
 			Pkg:            pkg,
@@ -44,6 +54,7 @@ func New(pkgLocation string, pkg types.Package, opts zarfTypes.ZarfPackageOption
 			TmpDir:         opts.PackageSource,
 			Remote:         remote.OrasRemote,
 			nsOverrides:    nsOverrides,
+			bundleCfg:      bundleCfg,
 		}
 	}
 	return source, nil
