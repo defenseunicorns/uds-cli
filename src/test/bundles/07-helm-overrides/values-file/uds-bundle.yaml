@@ -32,7 +32,6 @@ packages:
               description: "Set the message for podinfo's UI"
             - name: SECRET_VAL
               path: "testSecret"
-              type: file
               description: "testing a secret value"
             - name: SECURITY_CTX
               path: "podinfo.securityContext"

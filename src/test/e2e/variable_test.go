@@ -77,11 +77,10 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 	bundleDir := "src/test/bundles/07-helm-overrides"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
 	err := os.Setenv("UDS_CONFIG", filepath.Join(bundleDir, "uds-config.yaml"))
-	os.Setenv("UDS_TEST_FILE", fmt.Sprintf("%s/test-zarf-var-file.txt", bundleDir))
 	require.NoError(t, err)
 
 	createLocal(t, bundleDir, e2e.Arch)
-	_, stderr := deploy(t, bundlePath)
+	deploy(t, bundlePath)
 
 	// test values overrides
 	t.Run("check values overrides", func(t *testing.T) {
@@ -107,7 +106,6 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 		require.Contains(t, tolerations, "\"key\":\"unicorn\"")
 		require.Contains(t, tolerations, "\"effect\":\"NoSchedule\"")
 		require.NoError(t, err)
-
 	})
 
 	// test variables overrides
@@ -163,12 +161,6 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 		decoded, err := base64.StdEncoding.DecodeString(stdout)
 		require.NoError(t, err)
 		require.Contains(t, string(decoded), "ssh-rsa")
-	})
-
-	t.Run("test domain zarf var set by env variable", func(t *testing.T) {
-		// checking output of action in the helm-overrides package
-		// zarf will handle actually parsing and validating the files passed to it
-		require.Contains(t, stderr, fmt.Sprintf("TEST_FILE set as %s/test-zarf-var-file.txt", bundleDir))
 	})
 
 	remove(t, bundlePath)

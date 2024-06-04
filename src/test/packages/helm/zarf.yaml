@@ -7,8 +7,6 @@ metadata:
 variables:
   - name: DOMAIN
     default: uds.dev
-  - name: TEST_FILE
-    type: file
 
 components:
   - name: podinfo-component
@@ -26,4 +24,3 @@ components:
         after:
           - cmd: |
               echo "shared var in helm-overrides pkg: "${ZARF_VAR_DOMAIN}""
-          - cmd: echo "TEST_FILE set as ${ZARF_VAR_TEST_FILE}"
