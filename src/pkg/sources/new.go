@@ -24,7 +24,7 @@ func New(bundleCfg types.BundleConfig, pkg types.Package, opts zarfTypes.ZarfPac
 	if bundleCfg.DeployOpts.Source != "" {
 		pkgLocation = bundleCfg.DeployOpts.Source
 	} else if bundleCfg.RemoveOpts.Source != "" {
-		pkgLocation = bundleCfg.DeployOpts.Source
+		pkgLocation = bundleCfg.RemoveOpts.Source
 	} else {
 		return nil, fmt.Errorf("no source provided for package %s", pkg.Name)
 	}
