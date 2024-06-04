@@ -315,7 +315,7 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 	}
 
 	// validate bundle's arch against cluster
-	err = ValidateArch(b.bundle.Build.Architecture)
+	err = ValidateArch(config.GetArch(b.bundle.Build.Architecture))
 	if err != nil {
 		return "", "", "", err
 	}
