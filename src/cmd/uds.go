@@ -203,7 +203,7 @@ func init() {
 	inspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.IncludeSBOM, "sbom", "s", false, lang.CmdPackageInspectFlagSBOM)
 	inspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.ExtractSBOM, "extract", "e", false, lang.CmdPackageInspectFlagExtractSBOM)
 	inspectCmd.Flags().StringVarP(&bundleCfg.InspectOpts.PublicKeyPath, "key", "k", v.GetString(V_BNDL_INSPECT_KEY), lang.CmdBundleInspectFlagKey)
-	inspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.ExtractImages, "list-images", "i", false, "Recursively go through all of the sbom's and get the images")
+	inspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.ListImages, "list-images", "i", false, lang.CmdBundleInspectFlagFindImages)
 
 	// remove cmd flags
 	rootCmd.AddCommand(removeCmd)

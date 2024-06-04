@@ -44,7 +44,7 @@ type BundleInspectOptions struct {
 	Source        string
 	IncludeSBOM   bool
 	ExtractSBOM   bool
-	ExtractImages bool
+	ListImages    bool
 }
 
 // BundlePublishOptions is the options for the bundle.Publish() function
