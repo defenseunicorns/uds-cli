@@ -17,6 +17,8 @@ import (
 	zarfCLI "github.com/defenseunicorns/zarf/src/cmd"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/spf13/cobra"
+
+	securityHub "github.com/defenseunicorns/uds-security-hub/cmd"
 )
 
 var runnerCmd = &cobra.Command{
@@ -71,6 +73,16 @@ var zarfCmd = &cobra.Command{
 	DisableFlagParsing: true,
 }
 
+// Add a new command to invoke the security hub scanner
+var scanCmd = &cobra.Command{
+	Use:   "scan",
+	Short: "[ALPHA] Scan will scan a zarf package for vulnerabilities and generate a report.",
+	Long:  "[ALPHA] Scan is a tool for scanning zarf packages for vulnerabilities and generating a report",
+	Run: func(cmd *cobra.Command, args []string) {
+		securityHub.Execute()
+	},
+}
+
 func init() {
 	// grab Zarf version to make Zarf library checks happy
 	if buildInfo, ok := debug.ReadBuildInfo(); ok {
@@ -90,4 +102,5 @@ func init() {
 	initViper()
 	rootCmd.AddCommand(runnerCmd)
 	rootCmd.AddCommand(zarfCmd)
+	rootCmd.AddCommand(scanCmd) // Add the scan command
 }
