@@ -166,7 +166,22 @@ func (e2e *UDSE2ETest) DownloadZarfInitPkg(t *testing.T, zarfVersion string) {
 }
 
 // CreateZarfPkg creates a Zarf package in the given path
-func (e2e *UDSE2ETest) CreateZarfPkg(t *testing.T, path string, forceCreate bool, arch string) {
+func (e2e *UDSE2ETest) CreateZarfPkg(t *testing.T, path string, forceCreate bool) {
+	//  check if pkg already exists
+	pattern := fmt.Sprintf("%s/*-%s-*.tar.zst", path, e2e.Arch)
+	matches, err := filepath.Glob(pattern)
+	require.NoError(t, err)
+	if !forceCreate && len(matches) > 0 {
+		fmt.Println("Zarf pkg already exists, skipping create")
+		return
+	}
+	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --confirm", path, path), " ")
+	_, _, err = e2e.UDS(args...)
+	require.NoError(t, err)
+}
+
+// CreateZarfPkgWithArch creates a Zarf package of a user specified arch in the given path
+func (e2e *UDSE2ETest) CreateZarfPkgWithArch(t *testing.T, path string, forceCreate bool, arch string) {
 	//  check if pkg already exists
 	pattern := fmt.Sprintf("%s/*-%s-*.tar.zst", path, arch)
 	matches, err := filepath.Glob(pattern)
@@ -175,7 +190,7 @@ func (e2e *UDSE2ETest) CreateZarfPkg(t *testing.T, path string, forceCreate bool
 		fmt.Println("Zarf pkg already exists, skipping create")
 		return
 	}
-	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --confirm", path, path), " ")
+	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s -a %s --confirm", path, path, arch), " ")
 	_, _, err = e2e.UDS(args...)
 	require.NoError(t, err)
 }

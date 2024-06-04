@@ -35,7 +35,7 @@ func TestUDSLogs(t *testing.T) {
 
 func TestSimpleBundleWithZarfAction(t *testing.T) {
 	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
-	e2e.CreateZarfPkg(t, zarfPkgPath, false, e2e.Arch)
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 	os.Setenv("UDS_LOG_LEVEL", "debug")
 	createLocal(t, "src/test/bundles/11-real-simple", e2e.Arch)
 	_, stderr := deploy(t, fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-real-simple-%s-0.0.1.tar.zst", e2e.Arch))
@@ -46,8 +46,8 @@ func TestCreateWithNoPath(t *testing.T) {
 	// need to use remote pkgs because we move the uds-bundle.yaml to the current directory
 	zarfPkgPath1 := "src/test/packages/no-cluster/output-var"
 	zarfPkgPath2 := "src/test/packages/no-cluster/receive-var"
-	e2e.CreateZarfPkg(t, zarfPkgPath1, false, e2e.Arch)
-	e2e.CreateZarfPkg(t, zarfPkgPath2, false, e2e.Arch)
+	e2e.CreateZarfPkg(t, zarfPkgPath1, false)
+	e2e.CreateZarfPkg(t, zarfPkgPath2, false)
 
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
@@ -76,7 +76,7 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 	defer e2e.TeardownRegistry(t, 888)
 	e2e.SetupDockerRegistry(t, 889)
 	defer e2e.TeardownRegistry(t, 889)
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false, e2e.Arch)
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
 	bundleDir := "src/test/bundles/03-local-and-remote"
 	bundleTarballName := fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch)
@@ -112,8 +112,8 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 func TestLocalBundleWithRemotePkgs(t *testing.T) {
 	deployZarfInit(t)
 
-	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false, e2e.Arch)
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false, e2e.Arch)
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
@@ -138,7 +138,7 @@ func TestLocalBundleWithRemotePkgs(t *testing.T) {
 
 func TestPackagesFlag(t *testing.T) {
 	deployZarfInit(t)
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false, e2e.Arch)
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 	bundleDir := "src/test/bundles/03-local-and-remote"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
@@ -193,7 +193,7 @@ func TestPackagesFlag(t *testing.T) {
 
 func TestResumeFlag(t *testing.T) {
 	deployZarfInit(t)
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false, e2e.Arch)
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 	bundleDir := "src/test/bundles/03-local-and-remote"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
@@ -248,8 +248,8 @@ func TestResumeFlag(t *testing.T) {
 
 func TestRemoteBundleWithRemotePkgs(t *testing.T) {
 	deployZarfInit(t)
-	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false, e2e.Arch)
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false, e2e.Arch)
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
@@ -292,7 +292,7 @@ func TestRemoteBundleWithRemotePkgs(t *testing.T) {
 
 func TestBundleWithGitRepo(t *testing.T) {
 	deployZarfInit(t)
-	e2e.CreateZarfPkg(t, "src/test/packages/gitrepo", false, e2e.Arch)
+	e2e.CreateZarfPkg(t, "src/test/packages/gitrepo", false)
 	bundleDir := "src/test/bundles/05-gitrepo"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-gitrepo-%s-0.0.1.tar.zst", e2e.Arch))
 
@@ -303,7 +303,7 @@ func TestBundleWithGitRepo(t *testing.T) {
 
 func TestBundleWithYmlFile(t *testing.T) {
 	deployZarfInit(t)
-	e2e.CreateZarfPkg(t, "src/test/packages/nginx", true, e2e.Arch)
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx", true)
 
 	bundleDir := "src/test/bundles/09-uds-bundle-yml"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-yml-example-%s-0.0.1.tar.zst", e2e.Arch))
@@ -372,8 +372,8 @@ func TestRemoteBundleWithNoSBOM(t *testing.T) {
 func TestPackageNaming(t *testing.T) {
 	deployZarfInit(t)
 
-	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false, e2e.Arch)
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false, e2e.Arch)
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
@@ -504,7 +504,7 @@ func TestBundleWithComposedPkgComponent(t *testing.T) {
 	defer e2e.TeardownRegistry(t, 888)
 	zarfPkgPath := "src/test/packages/prometheus"
 	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-prometheus-%s-0.0.1.tar.zst", e2e.Arch))
-	e2e.CreateZarfPkg(t, zarfPkgPath, false, e2e.Arch)
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 	zarfPublish(t, pkg, "localhost:888")
 
 	bundleDir := "src/test/bundles/13-composable-component"
@@ -517,7 +517,7 @@ func TestBundleWithComposedPkgComponent(t *testing.T) {
 
 func TestBundleTmpDir(t *testing.T) {
 	deployZarfInit(t)
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false, e2e.Arch)
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
 	bundleDir := "src/test/bundles/03-local-and-remote"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
@@ -619,7 +619,7 @@ func TestInvalidBundle(t *testing.T) {
 	deployZarfInit(t)
 	zarfPkgPath := "src/test/packages/helm"
 	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
-	e2e.CreateZarfPkg(t, zarfPkgPath, false, e2e.Arch)
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 	bundleDir := "src/test/bundles/07-helm-overrides/invalid"
 	stderr := createLocalError(bundleDir, e2e.Arch)
 	require.Contains(t, stderr, "unknown field")
@@ -629,7 +629,7 @@ func TestArchCheck(t *testing.T) {
 	deployZarfInit(t)
 	zarfPkgPath := "src/test/packages/helm"
 	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
-	e2e.CreateZarfPkg(t, zarfPkgPath, false, "arm64")
+	e2e.CreateZarfPkgWithArch(t, zarfPkgPath, false, "arm64")
 	bundleDir := "src/test/bundles/07-helm-overrides"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", "arm64"))
 	createLocal(t, bundleDir, "arm64")
