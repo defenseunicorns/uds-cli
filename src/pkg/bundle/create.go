@@ -5,12 +5,10 @@
 package bundle
 
 import (
-	"context"
 	"fmt"
 	"path/filepath"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
@@ -19,8 +17,6 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/interactive"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/zoci"
-	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pterm/pterm"
 	"helm.sh/helm/v3/pkg/chartutil"
 )
@@ -102,35 +98,6 @@ func (b *Bundle) Create() error {
 	bundlerClient := bundler.NewBundler(&opts)
 
 	return bundlerClient.Create()
-}
-
-func (b *Bundle) setPackageRef(pkg types.Package) types.Package {
-	if ref, ok := b.cfg.DevDeployOpts.Ref[pkg.Name]; ok {
-		pkg.Ref = ref
-		errMsg := fmt.Sprintf("Unable to access %s:%s", pkg.Repository, pkg.Ref)
-
-		// Get SHA from registry
-		url := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
-
-		platform := ocispec.Platform{
-			Architecture: config.GetArch(),
-			OS:           oci.MultiOS,
-		}
-		remote, err := zoci.NewRemote(url, platform)
-		if err != nil {
-			message.Fatalf(err, errMsg)
-		}
-		if err := remote.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
-			manifestDesc, err := remote.ResolveRoot(context.TODO())
-			if err != nil {
-				message.Fatalf(err, errMsg)
-			}
-			pkg.Ref = pkg.Ref + "@sha256:" + manifestDesc.Digest.Encoded()
-		} else {
-			message.Fatalf(err, errMsg)
-		}
-	}
-	return pkg
 }
 
 // confirmBundleCreation prompts the user to confirm bundle creation
