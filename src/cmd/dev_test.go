@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateDevDeployFlags(t *testing.T) {
@@ -54,9 +54,9 @@ func TestValidateDevDeployFlags(t *testing.T) {
 
 			err := validateDevDeployFlags(tc.localBundle)
 			if tc.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -93,7 +93,50 @@ func TestIsLocalBundle(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := isLocalBundle(tc.src)
-			assert.Equal(t, tc.want, got)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestPopulateFlavorMap(t *testing.T) {
+	testCases := []struct {
+		name        string
+		FlavorInput string
+		expect      map[string]string
+		expectError bool
+	}{
+		{
+			name:        "Test with valid flavor input",
+			FlavorInput: "key1=value1,key2=value2",
+			expect:      map[string]string{"key1": "value1", "key2": "value2"},
+		},
+		{
+			name:        "Test with single value",
+			FlavorInput: "value1",
+			expect:      map[string]string{"": "value1"},
+		},
+		{
+			name:        "Test with invalid flavor input",
+			FlavorInput: "key1=value1,key2",
+			expectError: true,
+		},
+		{
+			name:        "Test with empty flavor input",
+			FlavorInput: "",
+			expect:      nil,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			bundleCfg.DevDeployOpts.FlavorInput = tc.FlavorInput
+			bundleCfg.DevDeployOpts.Flavor = nil
+			err := populateFlavorMap()
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expect, bundleCfg.DevDeployOpts.Flavor)
+			}
 		})
 	}
 }

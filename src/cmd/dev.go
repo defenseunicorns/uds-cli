@@ -47,12 +47,14 @@ var devDeployCmd = &cobra.Command{
 
 		if isLocalBundle {
 			// Populate flavor map
-			populateFlavorMap()
+			err = populateFlavorMap()
+			if err != nil {
+				message.Fatalf(err, "Failed to populate flavor map: %s", err.Error())
+			}
 
 			// Create Bundle
 			setBundleFile(args)
 
-			config.CommonOptions.Confirm = true
 			bundleCfg.CreateOpts.SourceDirectory = src
 		}
 
@@ -77,10 +79,6 @@ var devDeployCmd = &cobra.Command{
 			if err := bndlClient.Create(); err != nil {
 				message.Fatalf(err, "Failed to create bundle: %s", err.Error())
 			}
-		}
-
-		// Set dev source
-		if isLocalBundle {
 			bndlClient.SetDeploySource(src)
 		} else {
 			bundleCfg.DeployOpts.Source = src
@@ -108,23 +106,25 @@ func validateDevDeployFlags(isLocalBundle bool) error {
 }
 
 // populateFlavorMap populates the flavor map based on the string input to the --flavor flag
-func populateFlavorMap() {
+func populateFlavorMap() error {
 	if bundleCfg.DevDeployOpts.FlavorInput != "" {
 		bundleCfg.DevDeployOpts.Flavor = make(map[string]string)
 		flavorEntries := strings.Split(bundleCfg.DevDeployOpts.FlavorInput, ",")
-		for _, entry := range flavorEntries {
+		for i, entry := range flavorEntries {
 			entrySplit := strings.Split(entry, "=")
 			if len(entrySplit) != 2 {
-				if len(entrySplit) == 1 {
+				// check i==0 to check for invalid input (ex. key=value1,value2)
+				if len(entrySplit) == 1 && i == 0 {
 					bundleCfg.DevDeployOpts.Flavor = map[string]string{"": bundleCfg.DevDeployOpts.FlavorInput}
 				} else {
-					message.Fatalf(nil, "Invalid flavor entry: %s", entry)
+					return fmt.Errorf("Invalid flavor entry: %s", entry)
 				}
 			} else {
 				bundleCfg.DevDeployOpts.Flavor[entrySplit[0]] = entrySplit[1]
 			}
 		}
 	}
+	return nil
 }
 
 func init() {
