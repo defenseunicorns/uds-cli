@@ -149,6 +149,16 @@ This means that setting the `--architecture` flag takes precedence over all othe
 
 UDS CLI supports multi-arch bundles. This means you can push bundles with different architectures to the same remote OCI repository, at the same tag. For example, you can push both an `amd64` and `arm64` bundle to `ghcr.io/<org>/<bundle name>:0.0.1`.
 
+### Architecture Validation
+When deploying a local bundle, the bundle's architecture will be used for comparison against the cluster architecture to ensure compatability. If deploying a remote bundle, by default the bundle is pulled based on system architecture, which is then checked against the cluster.
+
+> [!NOTE]  
+> It is possible to override the bundle architecture used at validation time by using the `--architecture` / `-a` flag.
+
+If, for example, you have a multi-arch remote bundle that you want to deploy from an arm64 machine to an amd64 cluster, the validation with fail because the system arch does not match the cluster arch. However, you can pull the correct bundle version by specificying the arch with the command line architecture flag.
+
+e.g.
+`uds deploy -a amd64 <remote-multi-arch-bundle.tar.zst> --confirm`
 
 ## Configuration
 The UDS CLI can be configured with a `uds-config.yaml` file. This file can be placed in the current working directory or specified with an environment variable called `UDS_CONFIG`. The basic structure of the `uds-config.yaml` is as follows:
