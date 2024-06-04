@@ -111,6 +111,7 @@ func validateDevDeployFlags(isLocalBundle bool) error {
 // populateFlavorMap populates the flavor map based on the string input to the --flavor flag
 func populateFlavorMap() {
 	if bundleCfg.DevDeployOpts.FlavorInput != "" {
+		bundleCfg.DevDeployOpts.Flavor = make(map[string]string)
 		flavorEntries := strings.Split(bundleCfg.DevDeployOpts.FlavorInput, ",")
 		for _, entry := range flavorEntries {
 			entrySplit := strings.Split(entry, "=")
