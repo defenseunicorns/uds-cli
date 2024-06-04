@@ -3,6 +3,7 @@ package bundle
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
@@ -432,11 +433,12 @@ func TestHelmOverrideVariablePrecedence(t *testing.T) {
 }
 
 func TestFileVariableHandlers(t *testing.T) {
+	cwd, _ := os.Getwd()
 	const (
 		componentName = "test-component"
 		chartName     = "test-chart"
 		pkgName       = "test-package"
-		varName       = "cert"
+		varName       = "CERT"
 		path          = "test.Cert"
 		relativePath  = "../../../src/test/bundles/07-helm-overrides/variable-files/"
 	)
@@ -453,6 +455,7 @@ func TestFileVariableHandlers(t *testing.T) {
 		args         args
 		loadEnv      bool
 		requireNoErr bool
+		expected     string
 	}{
 		{
 			name: "with --set",
@@ -479,6 +482,7 @@ func TestFileVariableHandlers(t *testing.T) {
 				chartName:     chartName,
 			},
 			requireNoErr: true,
+			expected:     fmt.Sprintf("%s=%s", path, filepath.Join(cwd, fmt.Sprintf("%s/test.cert", relativePath))),
 		},
 		{
 			name: "with UDS_VAR",
@@ -502,6 +506,7 @@ func TestFileVariableHandlers(t *testing.T) {
 			},
 			loadEnv:      true,
 			requireNoErr: true,
+			expected:     fmt.Sprintf("%s=%s", path, filepath.Join(cwd, fmt.Sprintf("%s/test.cert", relativePath))),
 		},
 		{
 			name: "with Config",
@@ -531,6 +536,7 @@ func TestFileVariableHandlers(t *testing.T) {
 				chartName:     chartName,
 			},
 			requireNoErr: true,
+			expected:     fmt.Sprintf("%s=%s", path, fmt.Sprintf("%stest.cert", relativePath)),
 		},
 		{
 			name: "with Bundle",
@@ -557,6 +563,7 @@ func TestFileVariableHandlers(t *testing.T) {
 				chartName:     chartName,
 			},
 			requireNoErr: true,
+			expected:     fmt.Sprintf("%s=%s", path, fmt.Sprintf("%stest.cert", relativePath)),
 		},
 		{
 			name: "file not found",
@@ -582,6 +589,7 @@ func TestFileVariableHandlers(t *testing.T) {
 				chartName:     chartName,
 			},
 			requireNoErr: false,
+			expected:     "",
 		},
 	}
 
@@ -597,6 +605,7 @@ func TestFileVariableHandlers(t *testing.T) {
 
 			if tc.requireNoErr {
 				require.NoError(t, err)
+				require.Contains(t, tc.expected, overrideMap[componentName][chartName].FileValues[0])
 			} else {
 				require.Contains(t, err.Error(), "unable to find")
 			}
