@@ -15,8 +15,8 @@ import (
 )
 
 func TestBundleVariables(t *testing.T) {
-	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false)
-	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/receive-var", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false, e2e.Arch)
+	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/receive-var", false, e2e.Arch)
 	os.Setenv("UDS_ANIMAL", "Unicorns")
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/02-variables", "uds-config.yaml"))
 
@@ -35,7 +35,7 @@ func TestBundleVariables(t *testing.T) {
 	})
 
 	t.Run("var name collision with exported vars", func(t *testing.T) {
-		e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var-collision", false)
+		e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var-collision", false, e2e.Arch)
 		bundleDir := "src/test/bundles/02-variables/export-name-collision"
 		bundleTarballPath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-export-name-collision-%s-0.0.1.tar.zst", e2e.Arch))
 		createLocal(t, bundleDir, e2e.Arch)
@@ -72,7 +72,7 @@ func bundleVariablesTestChecks(t *testing.T, stderr string, bundleTarballPath st
 func TestBundleWithHelmOverrides(t *testing.T) {
 	deployZarfInit(t)
 	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
-	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/helm", false, e2e.Arch)
 	bundleDir := "src/test/bundles/07-helm-overrides"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
 	err := os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config.yaml"))
@@ -160,7 +160,7 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 func TestBundleWithHelmOverridesValuesFile(t *testing.T) {
 	deployZarfInit(t)
 	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
-	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/helm", false, e2e.Arch)
 	bundleDir := "src/test/bundles/07-helm-overrides/values-file"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-values-file-%s-0.0.1.tar.zst", e2e.Arch))
 	err := os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config.yaml"))
@@ -202,7 +202,7 @@ func TestBundleWithDupPkgs(t *testing.T) {
 	defer e2e.TeardownRegistry(t, 888)
 	zarfPkgPath := "src/test/packages/helm"
 	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
-	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+	e2e.CreateZarfPkg(t, zarfPkgPath, false, e2e.Arch)
 	name := "duplicates"
 	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
 	zarfPublish(t, pkg, "localhost:888")
@@ -244,7 +244,7 @@ func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 	// set up configs and env vars
 	deployZarfInit(t)
 	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
-	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/helm", false, e2e.Arch)
 	color := "purple"
 	b64Secret := "dGhhdCBhaW50IG15IHRydWNr"
 	err := os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config.yaml"))
@@ -299,8 +299,8 @@ func TestVariablePrecedence(t *testing.T) {
 	// precedence rules: env var > uds-config.variables > uds-config.shared > default
 	deployZarfInit(t)
 	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
-	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
-	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/helm", false, e2e.Arch)
+	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false, e2e.Arch)
 	bundleDir := "src/test/bundles/08-var-precedence"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-var-precedence-%s-0.0.1.tar.zst", e2e.Arch))
 	err := os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/08-var-precedence", "uds-config.yaml"))
@@ -338,9 +338,9 @@ func TestVariablePrecedence(t *testing.T) {
 
 func TestExportVarsAsGlobalVars(t *testing.T) {
 	deployZarfInit(t)
-	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false, e2e.Arch)
 	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
-	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/helm", false, e2e.Arch)
 	bundleDir := "src/test/bundles/12-exported-pkg-vars"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-export-vars-%s-0.0.1.tar.zst", e2e.Arch))
 

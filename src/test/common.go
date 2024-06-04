@@ -166,9 +166,9 @@ func (e2e *UDSE2ETest) DownloadZarfInitPkg(t *testing.T, zarfVersion string) {
 }
 
 // CreateZarfPkg creates a Zarf package in the given path
-func (e2e *UDSE2ETest) CreateZarfPkg(t *testing.T, path string, forceCreate bool) {
+func (e2e *UDSE2ETest) CreateZarfPkg(t *testing.T, path string, forceCreate bool, arch string) {
 	//  check if pkg already exists
-	pattern := fmt.Sprintf("%s/*-%s-*.tar.zst", path, e2e.Arch)
+	pattern := fmt.Sprintf("%s/*-%s-*.tar.zst", path, arch)
 	matches, err := filepath.Glob(pattern)
 	require.NoError(t, err)
 	if !forceCreate && len(matches) > 0 {

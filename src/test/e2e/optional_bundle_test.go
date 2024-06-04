@@ -22,11 +22,11 @@ func TestBundleOptionalComponents(t *testing.T) {
 
 	// create 2 Zarf pkgs to be bundled
 	zarfPkgPath := "src/test/packages/podinfo-nginx"
-	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+	e2e.CreateZarfPkg(t, zarfPkgPath, false, e2e.Arch)
 
 	zarfPkgPath = "src/test/packages/prometheus"
 	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-prometheus-%s-0.0.1.tar.zst", e2e.Arch))
-	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+	e2e.CreateZarfPkg(t, zarfPkgPath, false, e2e.Arch)
 	zarfPublish(t, pkg, "localhost:888")
 
 	// create bundle and publish
