@@ -30,7 +30,6 @@ const (
 	CmdBundleCreateFlagSigningKey         = "Path to private key file for signing bundles"
 	CmdBundleCreateFlagSigningKeyPassword = "Password to the private key file used for signing bundles"
 	CmdBundleCreateFlagFlavor             = "Specify which zarf package flavor you want to use."
-	CmdBundleCreateFlagFlavorAll          = "Specify which zarf package flavor you want to use for all packages in the bundle"
 
 	// bundle deploy
 	CmdBundleDeployShort        = "Deploy a bundle from a local tarball or oci:// URL"

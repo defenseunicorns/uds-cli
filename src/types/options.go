@@ -76,8 +76,8 @@ type BundleCommonOptions struct {
 
 // BundleDevDeployOptions are the options for when doing a dev deploy
 type BundleDevDeployOptions struct {
+	FlavorInput string
 	Flavor      map[string]string
-	FlavorAll   string
 	ForceCreate bool
 	Ref         map[string]string
 }

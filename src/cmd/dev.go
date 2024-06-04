@@ -47,6 +47,9 @@ var devDeployCmd = &cobra.Command{
 		}
 
 		if isLocalBundle {
+			// Populate flavor map
+			populateFlavorMap()
+
 			// Create Bundle
 			setBundleFile(args)
 
@@ -97,12 +100,31 @@ func isLocalBundle(src string) bool {
 // validateDevDeployFlags validates the flags for dev deploy
 func validateDevDeployFlags(isLocalBundle bool) error {
 	if !isLocalBundle {
-		//Throw error if trying to run with --flavor, --flavor-all, or --force-create flag with remote bundle
-		if len(bundleCfg.DevDeployOpts.Flavor) > 0 || bundleCfg.DevDeployOpts.FlavorAll != "" || bundleCfg.DevDeployOpts.ForceCreate {
-			return fmt.Errorf("Cannot use --flavor, --flavor-all, or --force-create flags with remote bundle")
+		//Throw error if trying to run with --flavor or --force-create flag with remote bundle
+		if len(bundleCfg.DevDeployOpts.Flavor) > 0 || bundleCfg.DevDeployOpts.ForceCreate {
+			return fmt.Errorf("Cannot use --flavor or --force-create flags with remote bundle")
 		}
 	}
 	return nil
+}
+
+// populateFlavorMap populates the flavor map based on the string input to the --flavor flag
+func populateFlavorMap() {
+	if bundleCfg.DevDeployOpts.FlavorInput != "" {
+		flavorEntries := strings.Split(bundleCfg.DevDeployOpts.FlavorInput, ",")
+		for _, entry := range flavorEntries {
+			entrySplit := strings.Split(entry, "=")
+			if len(entrySplit) != 2 {
+				if len(entrySplit) == 1 {
+					bundleCfg.DevDeployOpts.Flavor = map[string]string{"": bundleCfg.DevDeployOpts.FlavorInput}
+				} else {
+					message.Fatalf(nil, "Invalid flavor entry: %s", entry)
+				}
+			} else {
+				bundleCfg.DevDeployOpts.Flavor[entrySplit[0]] = entrySplit[1]
+			}
+		}
+	}
 }
 
 func init() {
@@ -111,8 +133,7 @@ func init() {
 	devCmd.AddCommand(devDeployCmd)
 	devDeployCmd.Flags().StringArrayVarP(&bundleCfg.DeployOpts.Packages, "packages", "p", []string{}, lang.CmdBundleDeployFlagPackages)
 	devDeployCmd.Flags().StringToStringVarP(&bundleCfg.DevDeployOpts.Ref, "ref", "r", map[string]string{}, lang.CmdBundleDeployFlagRef)
-	devDeployCmd.Flags().StringToStringVarP(&bundleCfg.DevDeployOpts.Flavor, "flavor", "f", map[string]string{}, lang.CmdBundleCreateFlagFlavor)
-	devDeployCmd.Flags().StringVar(&bundleCfg.DevDeployOpts.FlavorAll, "flavor-all", "", lang.CmdBundleCreateFlagFlavorAll)
+	devDeployCmd.Flags().StringVarP(&bundleCfg.DevDeployOpts.FlavorInput, "flavor", "f", "", lang.CmdBundleCreateFlagFlavor)
 	devDeployCmd.Flags().BoolVar(&bundleCfg.DevDeployOpts.ForceCreate, "force-create", false, lang.CmdBundleCreateForceCreate)
 	devDeployCmd.Flags().BoolVarP(&config.CommonOptions.Confirm, "confirm", "c", false, lang.CmdBundleDeployFlagConfirm)
 	devDeployCmd.Flags().StringToStringVar(&bundleCfg.DeployOpts.SetVariables, "set", nil, lang.CmdBundleDeployFlagSet)

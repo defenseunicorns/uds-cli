@@ -288,7 +288,7 @@ The `dev deploy` command performs the following operations
 
 - If local bundle: Creates Zarf packages for all local packages in a bundle
   - Creates the Zarf tarball in the same directory as the `zarf.yaml`
-      - Can use `--flavor` and `--flavor-all` flags to specify what flavor of package you want to create
+      - Can use `--flavor` flag to specify what flavor of package you want to create
   - Will only create the Zarf tarball if one does not already exist or can use `--force-create` to force the creation of a new zarf package even if one currently exists
   - Ignores any `kind: ZarfInitConfig` packages in the bundle
   - Creates a bundle from the newly created Zarf packages

@@ -50,7 +50,7 @@ func (b *Bundle) CreateZarfPkgs() {
 			}
 			// create local zarf package if it doesn't exist
 			if !packageFound || b.cfg.DevDeployOpts.ForceCreate {
-				if len(b.cfg.DevDeployOpts.Flavor) != 0 || b.cfg.DevDeployOpts.FlavorAll != "" {
+				if len(b.cfg.DevDeployOpts.Flavor) != 0 {
 					b.setPackageFlavor(&pkg)
 					os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom", "--flavor", pkg.Flavor}
 				} else {
@@ -67,8 +67,8 @@ func (b *Bundle) CreateZarfPkgs() {
 
 func (b *Bundle) setPackageFlavor(pkg *types.Package) {
 	// handle case when flavor applies to all packages
-	if b.cfg.DevDeployOpts.FlavorAll != "" {
-		pkg.Flavor = b.cfg.DevDeployOpts.FlavorAll
+	if len(b.cfg.DevDeployOpts.Flavor) == 1 && b.cfg.DevDeployOpts.Flavor[""] != "" {
+		pkg.Flavor = b.cfg.DevDeployOpts.Flavor[""]
 	} else if flavor, ok := b.cfg.DevDeployOpts.Flavor[pkg.Name]; ok {
 		pkg.Flavor = flavor
 	}

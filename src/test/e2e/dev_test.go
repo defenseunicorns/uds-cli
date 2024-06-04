@@ -87,10 +87,9 @@ func TestDevDeploy(t *testing.T) {
 		require.NoError(t, err)
 	})
 	t.Run("Test dev deploy with global flavor", func(t *testing.T) {
-		e2e.DeleteZarfPkg(t, "src/test/packages/podinfo")
 		bundleDir := "src/test/bundles/03-local-and-remote"
 
-		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor-all %s", bundleDir, "three"), " ")
+		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create -l=debug", bundleDir, "three"), " ")
 		_, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
 
