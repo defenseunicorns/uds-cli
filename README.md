@@ -307,7 +307,9 @@ The `dev deploy` command performs the following operations
 ## Scan
 
 > [!NOTE]  
-> Scan is an ALPHA feature
+> Scan is an ALPHA feature.
+> Trivy is a prerequisite for scanning container images and filesystem for vulnerabilities. You can find more information and installation instructions at [Trivy's official documentation](https://aquasecurity.github.io/trivy).
+
 
 The `scan` command is used to scan a Zarf package for vulnerabilities and generate a report. This command is currently in ALPHA.
 
@@ -333,4 +335,6 @@ uds scan --org <organization> --package-name <package-name> --tag <tag> [options
 ```sh
 uds scan -o defenseunicorns -n packages/uds/gitlab-runner -g 16.10.0-uds.0-upstream -u docker-username -p docker-password -f gitlab-runner.csv
 ```
+
+
 
