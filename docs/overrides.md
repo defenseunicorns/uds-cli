@@ -242,6 +242,56 @@ Variable precedence is as follows:
 1. `uds-config.yaml` variables
 1. Variables `default` in the`uds-bundle.yaml`
 
+#### Variable Types
+Variables can be of either type `raw` or `file`. The type will default to raw if not set explicitly.
+
+> [!WARNING]  
+> If a variable is set to accept a file as its value, but is missing the `file` type, then the file will not be processed.
+
+```yaml
+kind: UDSBundle
+metadata:
+   name: example-bundle
+   version: 0.0.1
+
+packages:
+   - name: helm-overrides-package
+     path: "../../packages/helm"
+     ref: 0.0.1
+     overrides:
+        podinfo-component:
+          unicorn-podinfo:
+           variables:
+           - name: UI_COLOR
+             path: "ui.color"
+             description: "variable UI_COLOR accepts a raw value (e.g. a string, int, map) like "purple", which is passed to the ui.color helm path"
+             type: raw
+           - name: test_secret
+             path: "testSecret"
+             description: "variable TEST_SECRET will resolve to the contents of a file (e.g. test.cert), which gets passed to the testSecret helm path"
+             type: file
+```
+
+**File Paths**
+
+If a file path is not absolute, it will be set as relative to the `uds-config.yaml` directory.
+
+e.g. the following `uds-config.yaml` is in [`src/test/bundles/07-helm-overrides/variable-files/`](../src/test/bundles/07-helm-overrides/variable-files/uds-config.yaml)
+```yaml
+variables:
+  helm-overrides:
+    test_secret: test.cert
+```
+
+This means when `test.cert` is evalutated it will first be appended to the config path like so `src/test/bundles/07-helm-overrides/variable-files/test.cert`.
+
+If the file path is already set to the same relative path as the config, then no merging will take place.
+
+> [!NOTE]  
+> UDS CLI does not encrypt or base64 encode any file contents before passing said data to Zarf or Helm.  
+> For example, if the file contains a key to be used in a Kubernetes secret, it must be base64 encoded before being ingested by UDS CLI.
+
+
 ### Namespace
 It's also possible to specify a namespace for a packaged Helm chart to be installed in. For example, to deploy the a chart in the `custom-podinfo` namespace, you can specify the `namespace` in the `overrides` block:
 

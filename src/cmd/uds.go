@@ -56,6 +56,11 @@ var deployCmd = &cobra.Command{
 		bundleCfg.DeployOpts.Source = chooseBundle(args)
 		configureZarf()
 
+		// set DeployOptions.Config if exists
+		if config := v.ConfigFileUsed(); config != "" {
+			bundleCfg.DeployOpts.Config = config
+		}
+
 		// create new bundle client and deploy
 		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()

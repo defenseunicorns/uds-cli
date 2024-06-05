@@ -34,5 +34,26 @@ tasks:
      - cmd: echo ${FOO}
 ```
 
+### Running UDS and Zarf Commands
+To run `uds` commands from within a task, you can invoke your system `uds` binary using the `./uds` syntax. Similarly, UDS CLI vendors Zarf, and tasks can run vendored Zarf commands using `./zarf`. For example:
+```yaml
+tasks:
+- name: default
+  actions:
+    - cmd: ./uds inspect k3d-core-istio-dev:0.16.1 # uses system uds
+    - cmd: ./zarf tools kubectl get pods -A        # uses vendored Zarf
+```
+
+### Architecture Environment Variable
+When running tasks with `uds run`, there is a special `UDS_ARCH` environment variable accessible within tasks that is automatically set to your system architecture, but is also configurable with a `UDS_ARCHITECTURE` environmental variable. For example:
+```
+tasks:
+- name: print-arch
+  actions:
+    - cmd: echo ${UDS_ARCH}
+```
+- Running `uds run print-arch` will echo your local system architecture
+- Running `UDS_ARCHITECTURE=amd64 uds run print-arch` will echo "amd64"
+
 ### No Dependency on Zarf
 Since UDS CLI also vendors [Zarf](https://github.com/defenseunicorns/zarf), there is no need to also have Zarf installed on your system.

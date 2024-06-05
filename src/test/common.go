@@ -180,6 +180,21 @@ func (e2e *UDSE2ETest) CreateZarfPkg(t *testing.T, path string, forceCreate bool
 	require.NoError(t, err)
 }
 
+// CreateZarfPkgWithArch creates a Zarf package of a user specified arch in the given path
+func (e2e *UDSE2ETest) CreateZarfPkgWithArch(t *testing.T, path string, forceCreate bool, arch string) {
+	//  check if pkg already exists
+	pattern := fmt.Sprintf("%s/*-%s-*.tar.zst", path, arch)
+	matches, err := filepath.Glob(pattern)
+	require.NoError(t, err)
+	if !forceCreate && len(matches) > 0 {
+		fmt.Println("Zarf pkg already exists, skipping create")
+		return
+	}
+	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s -a %s --confirm", path, path, arch), " ")
+	_, _, err = e2e.UDS(args...)
+	require.NoError(t, err)
+}
+
 // DeleteZarfPkg deletes a Zarf package from the given path
 func (e2e *UDSE2ETest) DeleteZarfPkg(t *testing.T, path string) {
 	//  check if pkg already exists
