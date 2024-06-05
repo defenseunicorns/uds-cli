@@ -73,7 +73,7 @@ func TestDevDeploy(t *testing.T) {
 		e2e.DeleteZarfPkg(t, "src/test/packages/podinfo")
 		bundleDir := "src/test/bundles/03-local-and-remote"
 
-		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --confirm", bundleDir, "podinfo=three"), " ")
+		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --confirm", bundleDir, "podinfo=patchVersion3"), " ")
 		_, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
 
@@ -89,7 +89,7 @@ func TestDevDeploy(t *testing.T) {
 	t.Run("Test dev deploy with global flavor", func(t *testing.T) {
 		bundleDir := "src/test/bundles/03-local-and-remote"
 
-		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create --confirm", bundleDir, "three"), " ")
+		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create --confirm", bundleDir, "patchVersion3"), " ")
 		_, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
 
@@ -107,20 +107,20 @@ func TestDevDeploy(t *testing.T) {
 
 		bundleDir := "src/test/bundles/03-local-and-remote"
 
-		// create flavor three podinfo-flavor package
+		// create flavor patchVersion3 podinfo-flavor package
 		pkgDir := "src/test/packages/podinfo"
-		cmd := strings.Split(fmt.Sprintf("zarf package create %s --flavor %s --confirm -o %s", pkgDir, "three", pkgDir), " ")
+		cmd := strings.Split(fmt.Sprintf("zarf package create %s --flavor %s --confirm -o %s", pkgDir, "patchVersion3", pkgDir), " ")
 		_, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
 
-		// dev deploy with flavor two and --force-create
-		cmd = strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create --confirm", bundleDir, "podinfo=two"), " ")
+		// dev deploy with flavor patchVersion2 and --force-create
+		cmd = strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create --confirm", bundleDir, "podinfo=patchVersion2"), " ")
 		_, _, err = e2e.UDS(cmd...)
 		require.NoError(t, err)
 
 		cmd = strings.Split("zarf tools kubectl get deployment -n podinfo-flavor podinfo -o=jsonpath='{.spec.template.spec.containers[0].image}'", " ")
 		ref, _, err := e2e.UDS(cmd...)
-		// assert that podinfo package with flavor two was deployed.
+		// assert that podinfo package with flavor patchVersion2 was deployed.
 		require.Contains(t, ref, "ghcr.io/stefanprodan/podinfo:6.6.2")
 		require.NoError(t, err)
 

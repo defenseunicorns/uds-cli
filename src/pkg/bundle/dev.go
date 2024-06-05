@@ -65,7 +65,8 @@ func (b *Bundle) CreateZarfPkgs() {
 }
 
 func (b *Bundle) setPackageFlavor(pkg types.Package) types.Package {
-	// handle case when flavor applies to all packages, which is specified by an empty key in DevDeployOpts.Flavor
+	// handle case when --flavor flag applies to all packages
+	// empty key references a value that is applied to all package flavors
 	if len(b.cfg.DevDeployOpts.Flavor) == 1 && b.cfg.DevDeployOpts.Flavor[""] != "" {
 		pkg.Flavor = b.cfg.DevDeployOpts.Flavor[""]
 	} else if flavor, ok := b.cfg.DevDeployOpts.Flavor[pkg.Name]; ok {

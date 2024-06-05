@@ -27,7 +27,7 @@ components:
   - name: podinfo-flavor
     required: true
     only:
-      flavor: two
+      flavor: patchVersion2
     charts:
       - name: podinfo
         version: 6.6.2
@@ -49,7 +49,7 @@ components:
   - name: podinfo-flavor
     required: true
     only:
-      flavor: three
+      flavor: patchVersion3
     charts:
       - name: podinfo
         version: 6.6.3
