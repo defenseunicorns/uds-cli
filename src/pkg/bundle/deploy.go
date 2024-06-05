@@ -54,10 +54,11 @@ func (b *Bundle) Deploy() error {
 		if len(userSpecifiedPackages) != len(packagesToDeploy) {
 			return fmt.Errorf("invalid zarf packages specified by --packages")
 		}
-		return deployPackages(packagesToDeploy, resume, b)
+	} else {
+		packagesToDeploy = b.bundle.Packages
 	}
 
-	return deployPackages(b.bundle.Packages, resume, b)
+	return deployPackages(packagesToDeploy, resume, b)
 }
 
 func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
@@ -340,7 +341,7 @@ func (b *Bundle) processOverrideNamespaces(overrideMap sources.NamespaceOverride
 func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values *[]types.BundleChartValue, componentName string, chartName string, pkgVars map[string]string) error {
 	for _, v := range *values {
 		// Add the override to the map, or return an error if the path is invalid
-		if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, v.Value, pkgVars); err != nil {
+		if err := addOverride(*overrideMap, componentName, chartName, v, v.Value, pkgVars); err != nil {
 			return err
 		}
 	}
@@ -361,32 +362,38 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 				setVal := strings.Split(k, ".")
 				if setVal[0] == pkgName && strings.ToUpper(setVal[1]) == v.Name {
 					overrideVal = val
+					v.Source = b.getSourcePath(types.CLI)
 				}
 			} else if strings.ToUpper(k) == v.Name {
 				overrideVal = val
+				v.Source = b.getSourcePath(types.CLI)
 			}
 		}
 
 		// check for override in env vars if not in --set
 		if envVarOverride, exists := os.LookupEnv(strings.ToUpper(config.EnvVarPrefix + v.Name)); overrideVal == nil && exists {
 			overrideVal = envVarOverride
+			v.Source = b.getSourcePath(types.Env)
 		}
 
 		// if not in --set or an env var, use the following precedence: configFile, sharedConfig, default
 		if overrideVal == nil {
 			if configFileOverride, existsInConfig := b.cfg.DeployOpts.Variables[pkgName][v.Name]; existsInConfig {
 				overrideVal = configFileOverride
+				v.Source = b.getSourcePath(types.Config)
 			} else if sharedConfigOverride, existsInSharedConfig := b.cfg.DeployOpts.SharedVariables[v.Name]; existsInSharedConfig {
 				overrideVal = sharedConfigOverride
+				v.Source = b.getSourcePath(types.Config)
 			} else if v.Default != nil {
 				overrideVal = v.Default
+				v.Source = b.getSourcePath(types.Bundle)
 			} else {
 				continue
 			}
 		}
 
 		// Add the override to the map, or return an error if the path is invalid
-		if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, overrideVal, nil); err != nil {
+		if err := addOverride(*overrideMap, componentName, chartName, v, overrideVal, nil); err != nil {
 			return err
 		}
 
@@ -394,8 +401,8 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 	return nil
 }
 
-// addOverrideValue adds a value to a PkgOverrideMap
-func addOverrideValue(overrides map[string]map[string]*values.Options, component string, chart string, valuePath string, value interface{}, pkgVars map[string]string) error {
+// addOverride adds a value or variable to a PkgOverrideMap
+func addOverride[T types.ChartOverride](overrides map[string]map[string]*values.Options, component string, chart string, override T, value interface{}, pkgVars map[string]string) error {
 	// Create the component map if it doesn't exist
 	if _, ok := overrides[component]; !ok {
 		overrides[component] = make(map[string]*values.Options)
@@ -404,6 +411,23 @@ func addOverrideValue(overrides map[string]map[string]*values.Options, component
 	// Create the chart map if it doesn't exist
 	if _, ok := overrides[component][chart]; !ok {
 		overrides[component][chart] = &values.Options{}
+	}
+
+	var valuePath string
+
+	switch v := any(override).(type) {
+	case types.BundleChartValue:
+		valuePath = v.Path
+	case types.BundleChartVariable:
+		valuePath = v.Path
+		if v.Type == types.File {
+			if fileVals, err := addFileValue(overrides[component][chart].FileValues, value.(string), v); err == nil {
+				overrides[component][chart].FileValues = fileVals
+			} else {
+				return err
+			}
+			return nil
+		}
 	}
 
 	// Add the value to the chart map
@@ -443,11 +467,29 @@ func addOverrideValue(overrides map[string]map[string]*values.Options, component
 			templatedVariable := fmt.Sprintf("%v", v)
 			value = setTemplatedVariables(templatedVariable, pkgVars)
 		}
-		// handle default case of simple values like strings and numbers
+
+		// Handle default case of simple values like strings and numbers
 		helmVal := fmt.Sprintf("%s=%v", valuePath, value)
 		overrides[component][chart].Values = append(overrides[component][chart].Values, helmVal)
 	}
 	return nil
+}
+
+// getSourcePath returns the path from where a value is set
+func (b *Bundle) getSourcePath(pathType types.ValueSources) string {
+	var sourcePath string
+	switch pathType {
+	case types.CLI:
+		sourcePath, _ = os.Getwd()
+	case types.Env:
+		sourcePath, _ = os.Getwd()
+	case types.Bundle:
+		sourcePath = filepath.Dir(b.cfg.DeployOpts.Source)
+	case types.Config:
+		sourcePath = filepath.Dir(b.cfg.DeployOpts.Config)
+	}
+
+	return sourcePath
 }
 
 // setTemplatedVariables sets the value for the templated variables
@@ -463,4 +505,35 @@ func setTemplatedVariables(templatedVariables string, pkgVars map[string]string)
 		return fmt.Sprintf("${%s_not_found}", variableName)
 	})
 	return replacedValue
+}
+
+// addFileValue adds a key=filepath string to helm FileValues
+func addFileValue(helmFileVals []string, filePath string, override types.BundleChartVariable) ([]string, error) {
+	verifiedPath, err := formFilePath(override.Source, filePath)
+	if err != nil {
+		return nil, err
+	}
+	helmVal := fmt.Sprintf("%s=%v", override.Path, verifiedPath)
+	return append(helmFileVals, helmVal), nil
+}
+
+// formFilePath merges relative paths together to form full path and checks if the file exists
+func formFilePath(anchorPath string, filePath string) (string, error) {
+	if !filepath.IsAbs(filePath) {
+		// set path relative to anchorPath (i.e. cwd or config), unless they are the same
+		if anchorPath != filepath.Dir(filePath) {
+			filePath = filepath.Join(anchorPath, filePath)
+		}
+	}
+
+	if helpers.InvalidPath(filePath) {
+		return "", fmt.Errorf("unable to find file %s", filePath)
+	}
+
+	_, err := helpers.IsTextFile(filePath)
+	if err != nil {
+		return "", err
+	}
+
+	return filePath, nil
 }

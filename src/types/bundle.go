@@ -4,6 +4,22 @@
 // Package types contains all the types used by UDS.
 package types
 
+type ChartVariableType string
+
+const (
+	File ChartVariableType = "file"
+	Raw  ChartVariableType = "raw"
+)
+
+type ValueSources string
+
+const (
+	Config ValueSources = "config"
+	Env    ValueSources = "env"
+	CLI    ValueSources = "cli"
+	Bundle ValueSources = "bundle"
+)
+
 // UDSBundle is the top-level structure of a UDS bundle
 type UDSBundle struct {
 	Kind     string       `json:"kind" jsonschema:"description=The kind of UDS package,enum=UDSBundle"`
@@ -34,16 +50,22 @@ type BundleChartOverrides struct {
 	ValuesFiles []string              `json:"valuesFiles,omitempty" jsonschema:"description=List of Helm chart value file  paths to set statically"`
 }
 
+type ChartOverride interface {
+	BundleChartVariable | BundleChartValue
+}
+
 type BundleChartValue struct {
 	Path  string      `json:"path" jsonschema:"name=Path to the Helm chart value to set. The format is <chart-value>, example=controller.service.type"`
 	Value interface{} `json:"value" jsonschema:"name=The value to set"`
 }
 
 type BundleChartVariable struct {
-	Path        string      `json:"path" jsonschema:"name=Path to the Helm chart value to set. The format is <chart-value>, example=controller.service.type"`
-	Name        string      `json:"name" jsonschema:"name=Name of the variable to set"`
-	Description string      `json:"description,omitempty" jsonschema:"name=Description of the variable"`
-	Default     interface{} `json:"default,omitempty" jsonschema:"name=The default value to set"`
+	Path        string            `json:"path" jsonschema:"name=Path to the Helm chart value to set. The format is <chart-value>, example=controller.service.type"`
+	Name        string            `json:"name" jsonschema:"name=Name of the variable to set"`
+	Description string            `json:"description,omitempty" jsonschema:"name=Description of the variable"`
+	Default     interface{}       `json:"default,omitempty" jsonschema:"name=The default value to set"`
+	Type        ChartVariableType `json:"type,omitempty" jsonschema:"description=The type of value to be processed,enum=raw,enum=file"`
+	Source      string            `json:"source,omitempty" jsonschema:"description=Where the value is set from"`
 }
 
 // BundleVariableImport represents variables in the bundle

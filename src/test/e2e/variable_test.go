@@ -5,6 +5,7 @@
 package test
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -75,7 +76,7 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
 	bundleDir := "src/test/bundles/07-helm-overrides"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
-	err := os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config.yaml"))
+	err := os.Setenv("UDS_CONFIG", filepath.Join(bundleDir, "uds-config.yaml"))
 	require.NoError(t, err)
 
 	createLocal(t, bundleDir, e2e.Arch)
@@ -105,7 +106,6 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 		require.Contains(t, tolerations, "\"key\":\"unicorn\"")
 		require.Contains(t, tolerations, "\"effect\":\"NoSchedule\"")
 		require.NoError(t, err)
-
 	})
 
 	// test variables overrides
@@ -152,6 +152,15 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, hosts, "podinfo.burning.boats")
 		require.Contains(t, hosts, "podinfo.unicorns")
+	})
+
+	t.Run("check variables overrides with a file type value", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get secret -n podinfo test-file-secret -o=jsonpath={.data.test}", " ")
+		stdout, _, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+		decoded, err := base64.StdEncoding.DecodeString(stdout)
+		require.NoError(t, err)
+		require.Contains(t, string(decoded), "ssh-rsa")
 	})
 
 	remove(t, bundlePath)

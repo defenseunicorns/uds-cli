@@ -1,7 +1,9 @@
 package bundle
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
@@ -425,6 +427,187 @@ func TestHelmOverrideVariablePrecedence(t *testing.T) {
 			require.NoError(t, err)
 			if tc.expectedVal == "" {
 				require.Equal(t, 0, len(overrideMap))
+			}
+		})
+	}
+}
+
+func TestFileVariableHandlers(t *testing.T) {
+	cwd, _ := os.Getwd()
+	const (
+		componentName = "test-component"
+		chartName     = "test-chart"
+		pkgName       = "test-package"
+		varName       = "CERT"
+		path          = "test.Cert"
+		relativePath  = "../../../src/test/bundles/07-helm-overrides/variable-files/"
+	)
+
+	type args struct {
+		pkgName       string
+		variables     *[]types.BundleChartVariable
+		componentName string
+		chartName     string
+	}
+	testCases := []struct {
+		name         string
+		bundle       Bundle
+		args         args
+		loadEnv      bool
+		requireNoErr bool
+		expected     string
+	}{
+		{
+			name: "with --set",
+			bundle: Bundle{
+				cfg: &types.BundleConfig{
+					DeployOpts: types.BundleDeployOptions{
+						SetVariables: map[string]string{
+							varName: fmt.Sprintf("%s/test.cert", relativePath),
+						},
+					},
+				},
+			},
+			args: args{
+				pkgName: pkgName,
+				variables: &[]types.BundleChartVariable{
+					{
+						Name:        varName,
+						Path:        path,
+						Type:        types.File,
+						Description: "set the var from cli, so source path is current working directory (eg. /home/user/repos/uds-cli/...)",
+					},
+				},
+				componentName: componentName,
+				chartName:     chartName,
+			},
+			requireNoErr: true,
+			expected:     fmt.Sprintf("%s=%s", path, filepath.Join(cwd, fmt.Sprintf("%s/test.cert", relativePath))),
+		},
+		{
+			name: "with UDS_VAR",
+			bundle: Bundle{
+				cfg: &types.BundleConfig{
+					DeployOpts: types.BundleDeployOptions{},
+				},
+			},
+			args: args{
+				pkgName: pkgName,
+				variables: &[]types.BundleChartVariable{
+					{
+						Name:        varName,
+						Path:        path,
+						Type:        types.File,
+						Description: "set the var from env, so source path is current working directory (eg. /home/user/repos/uds-cli/...)",
+					},
+				},
+				componentName: componentName,
+				chartName:     chartName,
+			},
+			loadEnv:      true,
+			requireNoErr: true,
+			expected:     fmt.Sprintf("%s=%s", path, filepath.Join(cwd, fmt.Sprintf("%s/test.cert", relativePath))),
+		},
+		{
+			name: "with Config",
+			bundle: Bundle{
+				cfg: &types.BundleConfig{
+					DeployOpts: types.BundleDeployOptions{
+						Config: fmt.Sprintf("%s/uds-config.yaml", relativePath),
+						Variables: map[string]map[string]interface{}{
+							pkgName: {
+								varName: "test.cert",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				pkgName: pkgName,
+				variables: &[]types.BundleChartVariable{
+					{
+						Name:        varName,
+						Path:        path,
+						Type:        types.File,
+						Description: "set the var from config, so source path is config directory",
+					},
+				},
+				componentName: componentName,
+				chartName:     chartName,
+			},
+			requireNoErr: true,
+			expected:     fmt.Sprintf("%s=%s", path, fmt.Sprintf("%stest.cert", relativePath)),
+		},
+		{
+			name: "with Bundle",
+			bundle: Bundle{
+				cfg: &types.BundleConfig{
+					DeployOpts: types.BundleDeployOptions{
+
+						Source: fmt.Sprintf("%s/uds-bundle-helm-overrides-amd64-0.0.1.tar.zst", relativePath),
+					},
+				},
+			},
+			args: args{
+				pkgName: pkgName,
+				variables: &[]types.BundleChartVariable{
+					{
+						Name:        varName,
+						Path:        path,
+						Type:        types.File,
+						Description: "set the var from bundle default, so source path is bundle directory",
+						Default:     "test.cert",
+					},
+				},
+				componentName: componentName,
+				chartName:     chartName,
+			},
+			requireNoErr: true,
+			expected:     fmt.Sprintf("%s=%s", path, fmt.Sprintf("%stest.cert", relativePath)),
+		},
+		{
+			name: "file not found",
+			bundle: Bundle{
+				cfg: &types.BundleConfig{
+					DeployOpts: types.BundleDeployOptions{
+						Source: fmt.Sprintf("%s/uds-bundle-helm-overrides-amd64-0.0.1.tar.zst", relativePath),
+					},
+				},
+			},
+			args: args{
+				pkgName: pkgName,
+				variables: &[]types.BundleChartVariable{
+					{
+						Name:        varName,
+						Path:        path,
+						Type:        types.File,
+						Description: "set the var from bundle default, so source path is bundle directory",
+						Default:     "not-there-test.cert",
+					},
+				},
+				componentName: componentName,
+				chartName:     chartName,
+			},
+			requireNoErr: false,
+			expected:     "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			os.Unsetenv("UDS_CERT")
+			if tc.loadEnv {
+				os.Setenv("UDS_CERT", fmt.Sprintf("%s/test.cert", relativePath))
+			}
+
+			overrideMap := map[string]map[string]*values.Options{}
+			err := tc.bundle.processOverrideVariables(&overrideMap, tc.args.pkgName, tc.args.variables, tc.args.componentName, tc.args.chartName)
+
+			if tc.requireNoErr {
+				require.NoError(t, err)
+				require.Equal(t, tc.expected, overrideMap[componentName][chartName].FileValues[0])
+			} else {
+				require.Contains(t, err.Error(), "unable to find")
 			}
 		})
 	}
