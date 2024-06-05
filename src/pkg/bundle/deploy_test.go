@@ -605,7 +605,7 @@ func TestFileVariableHandlers(t *testing.T) {
 
 			if tc.requireNoErr {
 				require.NoError(t, err)
-				require.Equals(t, tc.expected, overrideMap[componentName][chartName].FileValues[0])
+				require.Equal(t, tc.expected, overrideMap[componentName][chartName].FileValues[0])
 			} else {
 				require.Contains(t, err.Error(), "unable to find")
 			}
