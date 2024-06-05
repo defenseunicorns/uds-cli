@@ -335,6 +335,3 @@ uds scan --org <organization> --package-name <package-name> --tag <tag> [options
 ```sh
 uds scan -o defenseunicorns -n packages/uds/gitlab-runner -g 16.10.0-uds.0-upstream -u docker-username -p docker-password -f gitlab-runner.csv
 ```
-
-
-
