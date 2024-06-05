@@ -286,12 +286,6 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 	}
 	b.cfg.DeployOpts.Source = source
 
-	// validate config's arch against cluster
-	err = ValidateArch(config.GetArch())
-	if err != nil {
-		return "", "", "", err
-	}
-
 	// create a new provider
 	provider, err := NewBundleProvider(b.cfg.DeployOpts.Source, b.tmp)
 	if err != nil {
@@ -318,6 +312,12 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 
 	// todo: we also read the SHAs from the uds-bundle.yaml here, should we refactor so that we use the bundle's root manifest?
 	if err := goyaml.Unmarshal(bundleYAML, &b.bundle); err != nil {
+		return "", "", "", err
+	}
+
+	// validate bundle's arch against cluster
+	err = ValidateArch(config.GetArch(b.bundle.Build.Architecture))
+	if err != nil {
 		return "", "", "", err
 	}
 
