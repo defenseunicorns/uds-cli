@@ -83,8 +83,6 @@ func (b *Bundle) Inspect() error {
 	// show the bundle's metadata
 	zarfUtils.ColorPrintYAML(b.bundle, nil, false)
 
-	// TODO: showing package metadata?
-	// TODO: could be cool to have an interactive mode that lets you select a package and show its metadata
 	return nil
 }
 
@@ -104,10 +102,8 @@ func (b *Bundle) extractImagesFromPackages() ([]string, error) {
 			}
 
 			source := zarfSources.OCISource{
-				ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{
-					PublicKeyPath: "",
-				},
-				Remote: remote,
+				ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{},
+				Remote:             remote,
 			}
 
 			tmpDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
