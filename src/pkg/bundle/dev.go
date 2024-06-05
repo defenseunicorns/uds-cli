@@ -27,8 +27,7 @@ func (b *Bundle) CreateZarfPkgs() {
 	}
 
 	zarfPackagePattern := `^zarf-.*\.tar\.zst$`
-	for i := range b.bundle.Packages {
-		pkg := b.bundle.Packages[i]
+	for _, pkg := range b.bundle.Packages {
 		// if pkg is a local zarf package, attempt to create it if it doesn't exist
 		if pkg.Path != "" {
 			path := getPkgPath(pkg, config.GetArch(b.bundle.Metadata.Architecture), srcDir)
@@ -51,7 +50,7 @@ func (b *Bundle) CreateZarfPkgs() {
 			// create local zarf package if it doesn't exist
 			if !packageFound || b.cfg.DevDeployOpts.ForceCreate {
 				if len(b.cfg.DevDeployOpts.Flavor) != 0 {
-					b.setPackageFlavor(&pkg)
+					pkg = b.setPackageFlavor(pkg)
 					os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom", "--flavor", pkg.Flavor}
 				} else {
 					os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom"}
@@ -65,13 +64,14 @@ func (b *Bundle) CreateZarfPkgs() {
 	}
 }
 
-func (b *Bundle) setPackageFlavor(pkg *types.Package) {
-	// handle case when flavor applies to all packages
+func (b *Bundle) setPackageFlavor(pkg types.Package) types.Package {
+	// handle case when flavor applies to all packages, which is specified by an empty key in DevDeployOpts.Flavor
 	if len(b.cfg.DevDeployOpts.Flavor) == 1 && b.cfg.DevDeployOpts.Flavor[""] != "" {
 		pkg.Flavor = b.cfg.DevDeployOpts.Flavor[""]
 	} else if flavor, ok := b.cfg.DevDeployOpts.Flavor[pkg.Name]; ok {
 		pkg.Flavor = flavor
 	}
+	return pkg
 }
 
 // SetDeploySource sets the source for the bundle when in dev mode

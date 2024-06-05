@@ -55,7 +55,7 @@ func TestDevDeploy(t *testing.T) {
 		e2e.DeleteZarfPkg(t, "src/test/packages/podinfo")
 		bundleDir := "src/test/bundles/03-local-and-remote"
 
-		cmd := strings.Split(fmt.Sprintf("dev deploy %s --ref %s", bundleDir, "nginx=0.0.2"), " ")
+		cmd := strings.Split(fmt.Sprintf("dev deploy %s --ref %s --confirm", bundleDir, "nginx=0.0.2"), " ")
 		_, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
 
@@ -73,7 +73,7 @@ func TestDevDeploy(t *testing.T) {
 		e2e.DeleteZarfPkg(t, "src/test/packages/podinfo")
 		bundleDir := "src/test/bundles/03-local-and-remote"
 
-		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s", bundleDir, "podinfo=three"), " ")
+		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --confirm", bundleDir, "podinfo=three"), " ")
 		_, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
 
@@ -89,7 +89,7 @@ func TestDevDeploy(t *testing.T) {
 	t.Run("Test dev deploy with global flavor", func(t *testing.T) {
 		bundleDir := "src/test/bundles/03-local-and-remote"
 
-		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create -l=debug", bundleDir, "three"), " ")
+		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create  --confirm", bundleDir, "three"), " ")
 		_, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
 
@@ -114,7 +114,7 @@ func TestDevDeploy(t *testing.T) {
 		require.NoError(t, err)
 
 		// dev deploy with flavor two and --force-create
-		cmd = strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create", bundleDir, "podinfo=two"), " ")
+		cmd = strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create --confirm", bundleDir, "podinfo=two"), " ")
 		_, _, err = e2e.UDS(cmd...)
 		require.NoError(t, err)
 
