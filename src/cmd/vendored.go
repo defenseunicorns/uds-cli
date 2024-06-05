@@ -73,14 +73,38 @@ var zarfCmd = &cobra.Command{
 	DisableFlagParsing: true,
 }
 
-// Add a new command to invoke the security hub scanner
+// uds-security-hub CLI command
 var scanCmd = &cobra.Command{
 	Use:   "scan",
-	Short: "[ALPHA] Scan will scan a zarf package for vulnerabilities and generate a report.",
-	Long:  "[ALPHA] Scan is a tool for scanning zarf packages for vulnerabilities and generating a report",
-	Run: func(cmd *cobra.Command, args []string) {
-		securityHub.Execute()
+	Short: "[ALPHA] Scan a zarf package for vulnerabilities and generate a report.",
+	Long:  "[ALPHA] Scan a zarf package for vulnerabilities and generate a report.",
+	Run: func(cmd *cobra.Command, _ []string) {
+		org, _ := cmd.Flags().GetString("org")
+		packageName, _ := cmd.Flags().GetString("package-name")
+		tag, _ := cmd.Flags().GetString("tag")
+		dockerUsername, _ := cmd.Flags().GetString("docker-username")
+		dockerPassword, _ := cmd.Flags().GetString("docker-password")
+		outputFile, _ := cmd.Flags().GetString("output-file")
+
+		securityHub.Execute([]string{
+			fmt.Sprintf("--org=%s", org),
+			fmt.Sprintf("--package-name=%s", packageName),
+			fmt.Sprintf("--tag=%s", tag),
+			fmt.Sprintf("--docker-username=%s", dockerUsername),
+			fmt.Sprintf("--docker-password=%s", dockerPassword),
+			fmt.Sprintf("--output-file=%s", outputFile),
+		})
 	},
+}
+
+// addScanCmdFlags adds the scan command flags
+func addScanCmdFlags(cmd *cobra.Command) {
+	cmd.PersistentFlags().StringP("docker-username", "u", "", "Optional: Docker username for registry access, accepts CSV values")
+	cmd.PersistentFlags().StringP("docker-password", "p", "", "Optional: Docker password for registry access, accepts CSV values")
+	cmd.PersistentFlags().StringP("org", "o", "defenseunicorns", "Organization name")
+	cmd.PersistentFlags().StringP("package-name", "n", "", "Package Name: packages/uds/gitlab-runner")
+	cmd.PersistentFlags().StringP("tag", "g", "", "Tag name (e.g.  16.10.0-uds.0-upstream)")
+	cmd.PersistentFlags().StringP("output-file", "f", "", "Output file for CSV results")
 }
 
 func init() {
@@ -102,5 +126,6 @@ func init() {
 	initViper()
 	rootCmd.AddCommand(runnerCmd)
 	rootCmd.AddCommand(zarfCmd)
-	rootCmd.AddCommand(scanCmd) // Add the scan command
+	addScanCmdFlags(scanCmd)
+	rootCmd.AddCommand(scanCmd) // uds-security-hub CLI command
 }
