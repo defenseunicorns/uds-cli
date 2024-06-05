@@ -1050,8 +1050,8 @@ github.com/defenseunicorns/pkg/helpers/v2 v2.0.1 h1:j08rz9vhyD9Bs+yKiyQMY2tSSejX
 github.com/defenseunicorns/pkg/helpers/v2 v2.0.1/go.mod h1:u1PAqOICZyiGIVA2v28g55bQH1GiAt0Bc4U9/rnWQvQ=
 github.com/defenseunicorns/pkg/oci v0.0.2 h1:Lewwtl/D1Z55npRCkK1DS4Sd7pdrwyUs4+1RGpYajSQ=
 github.com/defenseunicorns/pkg/oci v0.0.2/go.mod h1:fMevWu1lBUmk7Q0dHWjR5RVHE2jTV7X0mlroxdkIqDE=
-github.com/defenseunicorns/uds-security-hub v0.0.0-20240605151929-6018e1b10bd4 h1:TLEJFoN7QEaMHiWNrNIzlrY/aHCHQ8mj60IbIFRWu0k=
-github.com/defenseunicorns/uds-security-hub v0.0.0-20240605151929-6018e1b10bd4/go.mod h1:4c1w8sRRyQfMDEQ3d+i3/7ENwQGgkNRkvjF5+4D2LZ4=
+github.com/defenseunicorns/uds-security-hub v0.0.0-20240605182211-d1345978f0c3 h1:0fGd3WK+AJTHe9qvX4vua+Nf+T3q+10kVI7qKrH9Pk8=
+github.com/defenseunicorns/uds-security-hub v0.0.0-20240605182211-d1345978f0c3/go.mod h1:4c1w8sRRyQfMDEQ3d+i3/7ENwQGgkNRkvjF5+4D2LZ4=
 github.com/defenseunicorns/zarf v0.34.0 h1:ULR9NnQHOBzR9bbzUqp1Q7wj3iA/9zs8VsLGFCbOxMY=
 github.com/defenseunicorns/zarf v0.34.0/go.mod h1:f4tqeDPIqotSz6FB2ol6Obiyb8QFq/jc6L5nEf2v/8k=
 github.com/deitch/magic v0.0.0-20230404182410-1ff89d7342da h1:ZOjWpVsFZ06eIhnh4mkaceTiVoktdU67+M7KDHJ268M=
@@ -1088,8 +1088,8 @@ github.com/distribution/reference v0.5.0 h1:/FUIFXtfc/x2gpa5/VGfiGLuOIdYa1t65IKK
 github.com/distribution/reference v0.5.0/go.mod h1:BbU0aIcezP1/5jX/8MP0YiH4SdvB5Y4f/wlDRiLyi3E=
 github.com/dnaeon/go-vcr v1.2.0 h1:zHCHvJYTMh1N7xnV7zf1m1GPBF9Ad0Jk/whtQ1663qI=
 github.com/dnaeon/go-vcr v1.2.0/go.mod h1:R4UdLID7HZT3taECzJs4YgbbH6PIGXB6W/sc5OLb6RQ=
-github.com/docker/cli v26.1.3+incompatible h1:bUpXT/N0kDE3VUHI2r5VMsYQgi38kYuoC0oL9yt3lqc=
-github.com/docker/cli v26.1.3+incompatible/go.mod h1:JLrzqnKDaYBop7H2jaqPtU4hHvMKP+vjCwu2uszcLI8=
+github.com/docker/cli v26.1.4+incompatible h1:I8PHdc0MtxEADqYJZvhBrW9bo8gawKwwenxRM7/rLu8=
+github.com/docker/cli v26.1.4+incompatible/go.mod h1:JLrzqnKDaYBop7H2jaqPtU4hHvMKP+vjCwu2uszcLI8=
 github.com/docker/distribution v2.8.3+incompatible h1:AtKxIZ36LoNK51+Z6RpzLpddBirtxJnzDrHLEKxTAYk=
 github.com/docker/distribution v2.8.3+incompatible/go.mod h1:J2gT2udsDAN96Uj4KfcMRqY0/ypR+oyYUYmja8H+y+w=
 github.com/docker/docker v24.0.9+incompatible h1:HPGzNmwfLZWdxHqK9/II92pyi1EpYKsAqcl4G0Of9v0=
