@@ -626,14 +626,20 @@ func TestInvalidBundle(t *testing.T) {
 }
 
 func TestArchCheck(t *testing.T) {
+	testArch := "arm64"
+
+	// use arch that is different from system arch
+	if e2e.Arch == "arm64" {
+		testArch = "amd64"
+	}
+
 	deployZarfInit(t)
 	zarfPkgPath := "src/test/packages/helm"
-	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
-	e2e.CreateZarfPkgWithArch(t, zarfPkgPath, false, "arm64")
+	e2e.CreateZarfPkgWithArch(t, zarfPkgPath, false, testArch)
 	bundleDir := "src/test/bundles/07-helm-overrides"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", "arm64"))
-	createLocal(t, bundleDir, "arm64")
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", testArch))
+	createLocal(t, bundleDir, testArch)
 	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm", bundlePath), " ")
 	_, stderr, _ := e2e.UDS(cmd...)
-	require.Contains(t, stderr, "arch arm64 does not match cluster arch, [amd64]")
+	require.Contains(t, stderr, fmt.Sprintf("arch %s does not match cluster arch, [%s]", testArch, e2e.Arch))
 }
