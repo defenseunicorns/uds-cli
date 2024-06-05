@@ -89,7 +89,7 @@ func TestDevDeploy(t *testing.T) {
 	t.Run("Test dev deploy with global flavor", func(t *testing.T) {
 		bundleDir := "src/test/bundles/03-local-and-remote"
 
-		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create  --confirm", bundleDir, "three"), " ")
+		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create --confirm", bundleDir, "three"), " ")
 		_, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
 
