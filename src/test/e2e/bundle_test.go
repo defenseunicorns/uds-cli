@@ -643,3 +643,34 @@ func TestArchCheck(t *testing.T) {
 	_, stderr, _ := e2e.UDS(cmd...)
 	require.Contains(t, stderr, fmt.Sprintf("arch %s does not match cluster arch, [%s]", testArch, e2e.Arch))
 }
+
+func TestListImages(t *testing.T) {
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+
+	zarfPkgPath := "src/test/packages/prometheus"
+	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-prometheus-%s-0.0.1.tar.zst", e2e.Arch))
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+	zarfPublish(t, pkg, "localhost:888")
+
+	zarfPkgPath = "src/test/packages/podinfo-nginx"
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+
+	bundleDir := "src/test/bundles/14-optional-components"
+
+	t.Run("list images on bundle YAML only", func(t *testing.T) {
+		cmd := strings.Split(fmt.Sprintf("inspect %s --list-images --insecure", filepath.Join(bundleDir, config.BundleYAML)), " ")
+		_, stderr, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+		require.Contains(t, stderr, "library/registry")
+		require.Contains(t, stderr, "ghcr.io/defenseunicorns/zarf/agent")
+		require.Contains(t, stderr, "ghcr.io/stefanprodan/podinfo")
+		require.Contains(t, stderr, "quay.io/prometheus/node-exporter")
+
+		// ensure non-req'd components got filtered
+		require.NotContains(t, stderr, "grafana")
+		require.NotContains(t, stderr, "gitea")
+		require.NotContains(t, stderr, "kiwix")
+		require.NotContains(t, stderr, "nginx")
+	})
+}

@@ -43,6 +43,7 @@ const (
 	CmdBundleInspectFlagKey          = "Path to a public key file that will be used to validate a signed bundle"
 	CmdPackageInspectFlagSBOM        = "Create a tarball of SBOMs contained in the bundle"
 	CmdPackageInspectFlagExtractSBOM = "Create a folder of SBOMs contained in the bundle"
+	CmdBundleInspectFlagFindImages   = "Derive images from a uds-bundle.yaml file and list them"
 
 	// bundle remove
 	CmdBundleRemoveShort        = "Remove a bundle that has been deployed already"

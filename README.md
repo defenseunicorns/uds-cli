@@ -108,6 +108,13 @@ Inspect the `uds-bundle.yaml` of a bundle
 1. From an OCI registry: `uds inspect oci://ghcr.io/defenseunicorns/dev/<name>:<tag>`
 1. From your local filesystem: `uds inspect uds-bundle-<name>.tar.zst`
 
+#### Viewing Images in a Bundle
+It is possible derive images from a `uds-bundle.yaml`. This can be useful for situations where you need to know what images will be bundled before you actually create the bundle. This is accomplished with the `--list-images`. For example:
+
+`uds inspect ./uds-bundle.yaml --list-images`
+
+This command will return a list of images derived from the bundle's packages and taking into account optional and required package components.
+
 #### Viewing SBOMs
 There are 2 additional flags for the `uds inspect` command you can use to extract and view SBOMs:
 - Output the SBOMs as a tar file: `uds inspect ... --sbom`
