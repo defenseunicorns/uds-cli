@@ -91,8 +91,10 @@ func ConfigureLogs(cmd *cobra.Command) error {
 		return err
 	}
 
-	// use Zarf pterm output
-	message.Notef("Saving log file to %s", tmpLogLocation)
+	// don't print the note for inspect cmds because they are used in automation
+	if !strings.Contains(cmd.Use, "inspect") {
+		message.Notef("Saving log file to %s", tmpLogLocation)
+	}
 	return nil
 }
 
@@ -192,5 +194,20 @@ func ReadYAMLStrict(path string, destConfig any) error {
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal YAML at %s: %v", path, err)
 	}
+	return nil
+}
+
+// CheckYAMLSourcePath checks if the provided YAML source path is valid
+func CheckYAMLSourcePath(source string) error {
+	// check if the source is a YAML file
+	isYaml := strings.HasSuffix(source, ".yaml") || strings.HasSuffix(source, ".yml")
+	if !isYaml {
+		return fmt.Errorf("source must have .yaml or yml file extension")
+	}
+	// Check if the file exists
+	if _, err := os.Stat(source); os.IsNotExist(err) {
+		return fmt.Errorf("file %s does not exist", source)
+	}
+
 	return nil
 }

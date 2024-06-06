@@ -132,6 +132,13 @@
           "type": "string",
           "description": "Description of the Zarf package"
         },
+        "images": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "List of images included in the Zarf package"
+        },
         "repository": {
           "type": "string",
           "description": "The repository to import the package from"

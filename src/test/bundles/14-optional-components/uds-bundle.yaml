@@ -17,7 +17,7 @@ packages:
     optionalComponents:
       - upload-image
 
-  # deploys podinfo as an optional component and apache as a required component
+  # deploys podinfo as an optional component
   - name: podinfo-nginx
     path: ../../packages/podinfo-nginx
     ref: 0.0.1

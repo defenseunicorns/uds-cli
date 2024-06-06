@@ -69,7 +69,7 @@ var deployCmd = &cobra.Command{
 }
 
 var inspectCmd = &cobra.Command{
-	Use:     "inspect [BUNDLE_TARBALL|OCI_REF]",
+	Use:     "inspect [BUNDLE_TARBALL|OCI_REF|BUNDLE_YAML_FILE]",
 	Aliases: []string{"i"},
 	Short:   lang.CmdBundleInspectShort,
 	Args:    cobra.MaximumNArgs(1),
@@ -203,6 +203,7 @@ func init() {
 	inspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.IncludeSBOM, "sbom", "s", false, lang.CmdPackageInspectFlagSBOM)
 	inspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.ExtractSBOM, "extract", "e", false, lang.CmdPackageInspectFlagExtractSBOM)
 	inspectCmd.Flags().StringVarP(&bundleCfg.InspectOpts.PublicKeyPath, "key", "k", v.GetString(V_BNDL_INSPECT_KEY), lang.CmdBundleInspectFlagKey)
+	inspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.ListImages, "list-images", "i", false, lang.CmdBundleInspectFlagFindImages)
 
 	// remove cmd flags
 	rootCmd.AddCommand(removeCmd)

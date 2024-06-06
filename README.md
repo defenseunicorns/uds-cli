@@ -25,6 +25,7 @@
 1. [Bundle Anatomy](docs/anatomy.md)
 1. [Runner](docs/runner.md)
 1. [Dev Mode](#dev-mode)
+1. [Scan](#scan)
 
 ## Install
 Recommended installation method is with Brew:
@@ -106,6 +107,13 @@ As an example: `uds deploy uds-bundle-<name>.tar.zst --resume`
 Inspect the `uds-bundle.yaml` of a bundle
 1. From an OCI registry: `uds inspect oci://ghcr.io/defenseunicorns/dev/<name>:<tag>`
 1. From your local filesystem: `uds inspect uds-bundle-<name>.tar.zst`
+
+#### Viewing Images in a Bundle
+It is possible derive images from a `uds-bundle.yaml`. This can be useful for situations where you need to know what images will be bundled before you actually create the bundle. This is accomplished with the `--list-images`. For example:
+
+`uds inspect ./uds-bundle.yaml --list-images`
+
+This command will return a list of images derived from the bundle's packages and taking into account optional and required package components.
 
 #### Viewing SBOMs
 There are 2 additional flags for the `uds inspect` command you can use to extract and view SBOMs:
@@ -304,3 +312,35 @@ The `dev deploy` command performs the following operations
   - Creates a bundle from the newly created Zarf packages
 - Deploys the bundle in [YOLO](https://docs.zarf.dev/faq/#what-is-yolo-mode-and-why-would-i-use-it) mode, eliminating the need to do a `zarf init`
 - For remote packages you can specify what package ref you want to deploy by using the `--ref` flag and specifying the package name and desired ref. (example: `--ref podinfo=0.2.0`)
+
+## Scan
+
+> [!NOTE]  
+> Scan is an ALPHA feature.
+> Trivy is a prerequisite for scanning container images and filesystem for vulnerabilities. You can find more information and installation instructions at [Trivy's official documentation](https://aquasecurity.github.io/trivy).
+
+
+The `scan` command is used to scan a Zarf package for vulnerabilities and generate a report. This command is currently in ALPHA.
+
+### Usage
+
+To use the `scan` command, run:
+
+```sh
+uds scan --org <organization> --package-name <package-name> --tag <tag> [options]
+```
+
+### Required Parameters
+- `--org` or `-o`: Organization name (default: `defenseunicorns`)
+- `--package-name` or `-n`: Name of the package (e.g., `packages/uds/gitlab-runner`)
+- `--tag` or `-g`: Tag name (e.g., `16.10.0-uds.0-upstream`)
+- `--output-file` or `-f`: Output file for CSV results
+
+### Optional Parameters
+- `--docker-username` or `-u`: Docker username for registry access, accepts CSV values
+- `--docker-password` or `-p`: Docker password for registry access, accepts CSV values
+
+### Example Usage
+```sh
+uds scan -o defenseunicorns -n packages/uds/gitlab-runner -g 16.10.0-uds.0-upstream -u docker-username -p docker-password -f gitlab-runner.csv
+```
