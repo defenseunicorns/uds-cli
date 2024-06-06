@@ -5,6 +5,7 @@
 package bundle
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,6 +29,15 @@ func (b *Bundle) CreateZarfPkgs() {
 
 	zarfPackagePattern := `^zarf-.*\.tar\.zst$`
 	for _, pkg := range b.bundle.Packages {
+		// Can only set flavors for local packages
+		if pkg.Path == "" {
+			// check if attempting to apply flavor to remote package
+			if (len(b.cfg.DevDeployOpts.Flavor) == 1 && b.cfg.DevDeployOpts.Flavor[""] != "") ||
+				(b.cfg.DevDeployOpts.Flavor[pkg.Name] != "") {
+				message.Fatalf(errors.New("Invalid input"), "Cannot set flavor for remote packages: %s", pkg.Name)
+			}
+		}
+
 		// if pkg is a local zarf package, attempt to create it if it doesn't exist
 		if pkg.Path != "" {
 			path := getPkgPath(pkg, config.GetArch(b.bundle.Metadata.Architecture), srcDir)

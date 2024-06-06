@@ -348,6 +348,11 @@ func validateBundleVars(packages []types.Package) error {
 // setPackageRef sets the package reference
 func (b *Bundle) setPackageRef(pkg types.Package) types.Package {
 	if ref, ok := b.cfg.DevDeployOpts.Ref[pkg.Name]; ok {
+		// Can only set refs for remote packages
+		if pkg.Repository == "" {
+			message.Fatalf(errors.New("Invalid input"), "Cannot set ref for local packages: %s", pkg.Name)
+		}
+
 		errMsg := fmt.Sprintf("Unable to access %s:%s", pkg.Repository, ref)
 
 		// Get SHA from registry
