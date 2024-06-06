@@ -29,6 +29,7 @@ var devDeployCmd = &cobra.Command{
 	Long:  lang.CmdDevDeployLong,
 	Run: func(_ *cobra.Command, args []string) {
 		config.Dev = true
+		config.CommonOptions.Confirm = true
 
 		// Get bundle source
 		src := ""
@@ -135,6 +136,5 @@ func init() {
 	devDeployCmd.Flags().StringToStringVarP(&bundleCfg.DevDeployOpts.Ref, "ref", "r", map[string]string{}, lang.CmdBundleDeployFlagRef)
 	devDeployCmd.Flags().StringVarP(&bundleCfg.DevDeployOpts.FlavorInput, "flavor", "f", "", lang.CmdBundleCreateFlagFlavor)
 	devDeployCmd.Flags().BoolVar(&bundleCfg.DevDeployOpts.ForceCreate, "force-create", false, lang.CmdBundleCreateForceCreate)
-	devDeployCmd.Flags().BoolVarP(&config.CommonOptions.Confirm, "confirm", "c", false, lang.CmdBundleDeployFlagConfirm)
 	devDeployCmd.Flags().StringToStringVar(&bundleCfg.DeployOpts.SetVariables, "set", nil, lang.CmdBundleDeployFlagSet)
 }

@@ -55,7 +55,7 @@ func TestDevDeploy(t *testing.T) {
 		e2e.DeleteZarfPkg(t, "src/test/packages/podinfo")
 		bundleDir := "src/test/bundles/03-local-and-remote"
 
-		cmd := strings.Split(fmt.Sprintf("dev deploy %s --ref %s --confirm", bundleDir, "nginx=0.0.2"), " ")
+		cmd := strings.Split(fmt.Sprintf("dev deploy %s --ref %s", bundleDir, "nginx=0.0.2"), " ")
 		_, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
 
@@ -73,7 +73,7 @@ func TestDevDeploy(t *testing.T) {
 		e2e.DeleteZarfPkg(t, "src/test/packages/podinfo")
 		bundleDir := "src/test/bundles/03-local-and-remote"
 
-		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --confirm", bundleDir, "podinfo=patchVersion3"), " ")
+		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s", bundleDir, "podinfo=patchVersion3"), " ")
 		_, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
 
@@ -89,7 +89,7 @@ func TestDevDeploy(t *testing.T) {
 	t.Run("Test dev deploy with global flavor", func(t *testing.T) {
 		bundleDir := "src/test/bundles/03-local-and-remote"
 
-		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create --confirm", bundleDir, "patchVersion3"), " ")
+		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create", bundleDir, "patchVersion3"), " ")
 		_, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
 
@@ -114,7 +114,7 @@ func TestDevDeploy(t *testing.T) {
 		require.NoError(t, err)
 
 		// dev deploy with flavor patchVersion2 and --force-create
-		cmd = strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create --confirm", bundleDir, "podinfo=patchVersion2"), " ")
+		cmd = strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create", bundleDir, "podinfo=patchVersion2"), " ")
 		_, _, err = e2e.UDS(cmd...)
 		require.NoError(t, err)
 
@@ -145,7 +145,7 @@ func TestDevDeploy(t *testing.T) {
 	t.Run("Test dev deploy with --set flag", func(t *testing.T) {
 		bundleDir := "src/test/bundles/02-variables"
 		bundleTarballPath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-variables-%s-0.0.1.tar.zst", e2e.Arch))
-		_, stderr := runCmd(t, "dev deploy "+bundleDir+" --set ANIMAL=Longhorns --set COUNTRY=Texas --confirm -l=debug")
+		_, stderr := runCmd(t, "dev deploy "+bundleDir+" --set ANIMAL=Longhorns --set COUNTRY=Texas -l=debug")
 		require.Contains(t, stderr, "This fun-fact was imported: Longhorns are the national animal of Texas")
 		require.NotContains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
 		remove(t, bundleTarballPath)
