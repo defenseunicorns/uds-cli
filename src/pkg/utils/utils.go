@@ -91,8 +91,10 @@ func ConfigureLogs(cmd *cobra.Command) error {
 		return err
 	}
 
-	// use Zarf pterm output
-	message.Notef("Saving log file to %s", tmpLogLocation)
+	// don't print the note for inspect cmds because they are used in automation
+	if !strings.Contains(cmd.Use, "inspect") {
+		message.Notef("Saving log file to %s", tmpLogLocation)
+	}
 	return nil
 }
 
