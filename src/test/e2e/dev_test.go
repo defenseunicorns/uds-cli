@@ -70,8 +70,8 @@ func TestDevDeploy(t *testing.T) {
 	})
 
 	t.Run("Test dev deploy with flavor flag", func(t *testing.T) {
-		e2e.DeleteZarfPkg(t, "src/test/packages/podinfo")
-		bundleDir := "src/test/bundles/03-local-and-remote"
+		e2e.DeleteZarfPkg(t, "src/test/packages/podinfo/flavors")
+		bundleDir := "src/test/bundles/15-dev-deploy"
 
 		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s", bundleDir, "podinfo=patchVersion3"), " ")
 		_, _, err := e2e.UDS(cmd...)
@@ -82,12 +82,12 @@ func TestDevDeploy(t *testing.T) {
 		require.Contains(t, ref, "ghcr.io/stefanprodan/podinfo:6.6.3")
 		require.NoError(t, err)
 
-		cmd = strings.Split("zarf tools kubectl delete ns podinfo nginx zarf podinfo-flavor", " ")
+		cmd = strings.Split("zarf tools kubectl delete ns zarf podinfo-flavor", " ")
 		_, _, err = e2e.UDS(cmd...)
 		require.NoError(t, err)
 	})
 	t.Run("Test dev deploy with global flavor", func(t *testing.T) {
-		bundleDir := "src/test/bundles/03-local-and-remote"
+		bundleDir := "src/test/bundles/15-dev-deploy"
 
 		cmd := strings.Split(fmt.Sprintf("dev deploy %s --flavor %s --force-create", bundleDir, "patchVersion3"), " ")
 		_, _, err := e2e.UDS(cmd...)
@@ -98,14 +98,14 @@ func TestDevDeploy(t *testing.T) {
 		require.Contains(t, ref, "ghcr.io/stefanprodan/podinfo:6.6.3")
 		require.NoError(t, err)
 
-		cmd = strings.Split("zarf tools kubectl delete ns podinfo nginx zarf podinfo-flavor", " ")
+		cmd = strings.Split("zarf tools kubectl delete ns zarf podinfo-flavor", " ")
 		_, _, err = e2e.UDS(cmd...)
 		require.NoError(t, err)
 	})
 
 	t.Run("Test dev deploy with flavor and force create", func(t *testing.T) {
 
-		bundleDir := "src/test/bundles/03-local-and-remote"
+		bundleDir := "src/test/bundles/15-dev-deploy"
 
 		// create flavor patchVersion3 podinfo-flavor package
 		pkgDir := "src/test/packages/podinfo"
@@ -124,7 +124,7 @@ func TestDevDeploy(t *testing.T) {
 		require.Contains(t, ref, "ghcr.io/stefanprodan/podinfo:6.6.2")
 		require.NoError(t, err)
 
-		cmd = strings.Split("zarf tools kubectl delete ns podinfo nginx zarf podinfo-flavor", " ")
+		cmd = strings.Split("zarf tools kubectl delete ns zarf podinfo-flavor", " ")
 		_, _, err = e2e.UDS(cmd...)
 		require.NoError(t, err)
 	})
