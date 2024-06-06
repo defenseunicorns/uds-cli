@@ -196,3 +196,18 @@ func ReadYAMLStrict(path string, destConfig any) error {
 	}
 	return nil
 }
+
+// CheckYAMLSourcePath checks if the provided YAML source path is valid
+func CheckYAMLSourcePath(source string) error {
+	// check if the source is a YAML file
+	isYaml := strings.HasSuffix(source, ".yaml") || strings.HasSuffix(source, ".yml")
+	if !isYaml {
+		return fmt.Errorf("source must have .yaml or yml file extension")
+	}
+	// Check if the file exists
+	if _, err := os.Stat(source); os.IsNotExist(err) {
+		return fmt.Errorf("file %s does not exist", source)
+	}
+
+	return nil
+}

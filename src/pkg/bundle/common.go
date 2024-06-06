@@ -344,18 +344,3 @@ func validateBundleVars(packages []types.Package) error {
 	}
 	return nil
 }
-
-// checkYAMLSourcePath checks if the provided YAML source path is valid
-func checkYAMLSourcePath(source string) (string, error) {
-	// check if the source is a YAML file
-	isYaml := strings.HasSuffix(source, ".yaml") || strings.HasSuffix(source, ".yml")
-	if !isYaml {
-		return "", fmt.Errorf("source must be a YAML file")
-	}
-	// Check if the file exists
-	if _, err := os.Stat(source); os.IsNotExist(err) {
-		return "", fmt.Errorf("file does not exist: %s", source)
-	}
-
-	return source, nil
-}

@@ -28,12 +28,12 @@ import (
 func (b *Bundle) Inspect() error {
 	//  handle --list-images flag
 	if b.cfg.InspectOpts.ListImages {
-		source, err := checkYAMLSourcePath(b.cfg.InspectOpts.Source)
+		err := utils.CheckYAMLSourcePath(b.cfg.InspectOpts.Source)
 		if err != nil {
 			return err
 		}
 
-		if err := utils.ReadYAMLStrict(source, &b.bundle); err != nil {
+		if err := utils.ReadYAMLStrict(b.cfg.InspectOpts.Source, &b.bundle); err != nil {
 			return err
 		}
 
