@@ -11,7 +11,7 @@ require (
 	github.com/defenseunicorns/pkg/exec v0.0.1
 	github.com/defenseunicorns/pkg/helpers/v2 v2.0.1
 	github.com/defenseunicorns/pkg/oci v0.0.2
-	github.com/defenseunicorns/uds-security-hub v0.0.0-20240605182211-d1345978f0c3
+	github.com/defenseunicorns/uds-security-hub v0.0.6
 	github.com/defenseunicorns/zarf v0.34.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/goccy/go-yaml v1.11.3
