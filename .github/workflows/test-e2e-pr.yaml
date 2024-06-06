@@ -67,7 +67,7 @@ jobs:
         if: always()
         uses: ./.github/actions/save-logs
         with:
-          suffix: build
+          name: build
 
   test-dev:
     runs-on: ubuntu-latest
@@ -89,7 +89,7 @@ jobs:
         if: always()
         uses: ./.github/actions/save-logs
         with:
-          suffix: test-dev
+          name: test-dev
 
   test-variables:
     runs-on: ubuntu-latest
@@ -111,7 +111,7 @@ jobs:
         if: always()
         uses: ./.github/actions/save-logs
         with:
-          suffix: test-variables
+          name: test-variables
 
   test-optional-bundle:
     runs-on: ubuntu-latest
@@ -133,7 +133,7 @@ jobs:
         if: always()
         uses: ./.github/actions/save-logs
         with:
-          suffix: test-optional-bundle
+          name: test-optional-bundle
 
   test-vendor:
     runs-on: ubuntu-latest
@@ -155,4 +155,4 @@ jobs:
         if: always()
         uses: ./.github/actions/save-logs
         with:
-          suffix: test-vendor
+          name: test-vendor
