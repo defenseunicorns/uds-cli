@@ -653,6 +653,9 @@ func TestListImages(t *testing.T) {
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 	zarfPublish(t, pkg, "localhost:888")
 
+	zarfPkgPath = "src/test/packages/podinfo-nginx"
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+
 	bundleDir := "src/test/bundles/14-optional-components"
 
 	t.Run("list images on bundle YAML only", func(t *testing.T) {
