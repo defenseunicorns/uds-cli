@@ -236,11 +236,9 @@ func chooseBundle(args []string) string {
 			files, _ := filepath.Glob(config.BundlePrefix + toComplete + "*.tar")
 			gzFiles, _ := filepath.Glob(config.BundlePrefix + toComplete + "*.tar.zst")
 			partialFiles, _ := filepath.Glob(config.BundlePrefix + toComplete + "*.part000")
-			yamlFiles, _ := filepath.Glob(config.BundlePrefix + toComplete + "*.yaml") // Add this line
 
 			files = append(files, gzFiles...)
 			files = append(files, partialFiles...)
-			files = append(files, yamlFiles...)
 			return files
 		},
 	}
