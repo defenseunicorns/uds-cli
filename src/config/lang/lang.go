@@ -32,13 +32,14 @@ const (
 	CmdBundleCreateFlagFlavor             = "Specify which zarf package flavor you want to use."
 
 	// bundle deploy
-	CmdBundleDeployShort        = "Deploy a bundle from a local tarball or oci:// URL"
-	CmdBundleDeployFlagConfirm  = "Confirms bundle deployment without prompting. ONLY use with bundles you trust. Skips prompts to review SBOM, configure variables, select optional components and review potential breaking changes."
-	CmdBundleDeployFlagPackages = "Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed."
-	CmdBundleDeployFlagResume   = "Only deploys packages from the bundle which haven't already been deployed"
-	CmdBundleDeployFlagSet      = "Specify deployment variables to set on the command line (KEY=value)"
-	CmdBundleDeployFlagRetries  = "Specify the number of retries for package deployments (applies to all pkgs in a bundle)"
-	CmdBundleDeployFlagRef      = "Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used."
+	CmdBundleDeployShort             = "Deploy a bundle from a local tarball or oci:// URL"
+	CmdBundleDeployFlagConfirm       = "Confirms bundle deployment without prompting. ONLY use with bundles you trust. Skips prompts to review SBOM, configure variables, select optional components and review potential breaking changes."
+	CmdBundleDeployFlagPackages      = "Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed."
+	CmdBundleDeployFlagResume        = "Only deploys packages from the bundle which haven't already been deployed"
+	CmdBundleDeployFlagSet           = "Specify deployment variables to set on the command line (KEY=value)"
+	CmdBundleDeployFlagRetries       = "Specify the number of retries for package deployments (applies to all pkgs in a bundle)"
+	CmdBundleDeployFlagRef           = "Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used."
+	CmdBundleDeployFlagListVariables = "List the configurable variables and what their values will be when passed to helm"
 
 	// bundle inspect
 	CmdBundleInspectShort            = "Display the metadata of a bundle"
@@ -46,6 +47,7 @@ const (
 	CmdPackageInspectFlagSBOM        = "Create a tarball of SBOMs contained in the bundle"
 	CmdPackageInspectFlagExtractSBOM = "Create a folder of SBOMs contained in the bundle"
 	CmdBundleInspectFlagFindImages   = "Derive images from a uds-bundle.yaml file and list them"
+	CmdBundleInspectFlagListVars     = "List configurable variables from a bundle tarball"
 
 	// bundle remove
 	CmdBundleRemoveShort        = "Remove a bundle that has been deployed already"

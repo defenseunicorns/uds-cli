@@ -197,6 +197,7 @@ func init() {
 	deployCmd.Flags().StringArrayVarP(&bundleCfg.DeployOpts.Packages, "packages", "p", []string{}, lang.CmdBundleDeployFlagPackages)
 	deployCmd.Flags().BoolVarP(&bundleCfg.DeployOpts.Resume, "resume", "r", false, lang.CmdBundleDeployFlagResume)
 	deployCmd.Flags().IntVar(&bundleCfg.DeployOpts.Retries, "retries", 3, lang.CmdBundleDeployFlagRetries)
+	deployCmd.Flags().BoolVarP(&bundleCfg.DeployOpts.ListVariables, "list-variables", "v", false, lang.CmdBundleDeployFlagListVariables)
 
 	// inspect cmd flags
 	rootCmd.AddCommand(inspectCmd)
@@ -204,6 +205,7 @@ func init() {
 	inspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.ExtractSBOM, "extract", "e", false, lang.CmdPackageInspectFlagExtractSBOM)
 	inspectCmd.Flags().StringVarP(&bundleCfg.InspectOpts.PublicKeyPath, "key", "k", v.GetString(V_BNDL_INSPECT_KEY), lang.CmdBundleInspectFlagKey)
 	inspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.ListImages, "list-images", "i", false, lang.CmdBundleInspectFlagFindImages)
+	inspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.ListVariables, "variables", "v", false, lang.CmdBundleInspectFlagListVars)
 
 	// remove cmd flags
 	rootCmd.AddCommand(removeCmd)

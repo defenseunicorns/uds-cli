@@ -72,6 +72,18 @@ func (b *Bundle) Inspect() error {
 		return err
 	}
 
+	if b.cfg.InspectOpts.ListVariables {
+		for _, pkg := range b.bundle.Packages {
+			for _, oversMap := range pkg.Overrides {
+				for _, ovPkg := range oversMap {
+
+					zarfUtils.ColorPrintYAML(ovPkg.Variables, nil, false)
+				}
+			}
+		}
+		return nil
+	}
+
 	// show the bundle's metadata
 	zarfUtils.ColorPrintYAML(b.bundle, nil, false)
 

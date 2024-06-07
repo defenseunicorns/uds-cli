@@ -116,6 +116,17 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 			return err
 		}
 
+		if b.cfg.DeployOpts.ListVariables {
+			for _, comp := range valuesOverrides {
+				for _, chart := range comp {
+					for _, overs := range chart {
+						utils.ColorPrintYAML(overs, nil, false)
+					}
+				}
+			}
+			return nil
+		}
+
 		zarfDeployOpts := zarfTypes.ZarfDeployOptions{
 			ValuesOverridesMap: valuesOverrides,
 			Timeout:            config.HelmTimeout,
