@@ -87,11 +87,11 @@ Inspect the `uds-bundle.yaml` of a bundle
 1. From your local filesystem: `uds inspect uds-bundle-<name>.tar.zst`
 
 #### Viewing Images in a Bundle
-It is possible derive images from a `uds-bundle.yaml`. This can be useful for situations where you need to know what images will be bundled before you actually create the bundle. This is accomplished with the `--list-images`. For example:
+It is possible to derive images from a `uds-bundle.yaml`. This can be useful for situations where you need to know what images will be bundled before you actually create the bundle. This is accomplished with the `--list-images` flag. For example:
 
 `uds inspect ./uds-bundle.yaml --list-images`
 
-This command will return a list of images derived from the bundle's packages and taking into account optional and required package components.
+This command will return a list of images derived from the bundle's packages, taking into account optional and required package components.
 
 #### Viewing SBOMs
 There are 2 additional flags for the `uds inspect` command you can use to extract and view SBOMs:
@@ -143,7 +143,7 @@ When deploying a local bundle, the bundle's architecture will be used for compar
 It is possible to override the bundle architecture used at validation time by using the `--architecture` / `-a` flag.
 {{% /alert-note %}}
 
-If, for example, you have a multi-arch remote bundle that you want to deploy from an arm64 machine to an amd64 cluster, the validation with fail because the system arch does not match the cluster arch. However, you can pull the correct bundle version by specificying the arch with the command line architecture flag.
+If, for example, you have a multi-arch remote bundle that you want to deploy from an arm64 machine to an amd64 cluster, the validation with fail because the system arch does not match the cluster arch. However, you can pull the correct bundle version by specifying the arch with the command line architecture flag.
 
 e.g.
 `uds deploy -a amd64 <remote-multi-arch-bundle.tar.zst> --confirm`
