@@ -1,0 +1,10 @@
+kind: UDSBundle
+metadata:
+  name: dev-deploy-flavors
+  description: building from a local Zarf pkg with flavors
+  version: 0.0.1
+
+packages:
+  - name: podinfo
+    path: "../../packages/podinfo/flavors"
+    ref: 0.0.1

@@ -5,6 +5,7 @@
 package bundle
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/types"
 
 	zarfCLI "github.com/defenseunicorns/zarf/src/cmd"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
@@ -27,6 +29,15 @@ func (b *Bundle) CreateZarfPkgs() {
 
 	zarfPackagePattern := `^zarf-.*\.tar\.zst$`
 	for _, pkg := range b.bundle.Packages {
+		// Can only set flavors for local packages
+		if pkg.Path == "" {
+			// check if attempting to apply flavor to remote package
+			if (len(b.cfg.DevDeployOpts.Flavor) == 1 && b.cfg.DevDeployOpts.Flavor[""] != "") ||
+				(b.cfg.DevDeployOpts.Flavor[pkg.Name] != "") {
+				message.Fatalf(errors.New("Invalid input"), "Cannot set flavor for remote packages: %s", pkg.Name)
+			}
+		}
+
 		// if pkg is a local zarf package, attempt to create it if it doesn't exist
 		if pkg.Path != "" {
 			path := getPkgPath(pkg, config.GetArch(b.bundle.Metadata.Architecture), srcDir)
@@ -47,8 +58,13 @@ func (b *Bundle) CreateZarfPkgs() {
 				}
 			}
 			// create local zarf package if it doesn't exist
-			if !packageFound {
-				os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom"}
+			if !packageFound || b.cfg.DevDeployOpts.ForceCreate {
+				if len(b.cfg.DevDeployOpts.Flavor) != 0 {
+					pkg = b.setPackageFlavor(pkg)
+					os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom", "--flavor", pkg.Flavor}
+				} else {
+					os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom"}
+				}
 				zarfCLI.Execute()
 				if err != nil {
 					message.Fatalf(err, "Failed to create package %s: %s", pkg.Name, err.Error())
@@ -56,6 +72,17 @@ func (b *Bundle) CreateZarfPkgs() {
 			}
 		}
 	}
+}
+
+func (b *Bundle) setPackageFlavor(pkg types.Package) types.Package {
+	// handle case when --flavor flag applies to all packages
+	// empty key references a value that is applied to all package flavors
+	if len(b.cfg.DevDeployOpts.Flavor) == 1 && b.cfg.DevDeployOpts.Flavor[""] != "" {
+		pkg.Flavor = b.cfg.DevDeployOpts.Flavor[""]
+	} else if flavor, ok := b.cfg.DevDeployOpts.Flavor[pkg.Name]; ok {
+		pkg.Flavor = flavor
+	}
+	return pkg
 }
 
 // SetDeploySource sets the source for the bundle when in dev mode

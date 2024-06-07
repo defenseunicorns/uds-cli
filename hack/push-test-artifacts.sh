@@ -12,8 +12,14 @@ set -e
 cd ./../src/test/packages/nginx
 zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a amd64
 zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a arm64
+cd ./refs
+zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a amd64
+zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a arm64
 
-cd ../podinfo
+cd ../../podinfo
+zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a amd64
+zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a arm64
+cd ./refs
 zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a amd64
 zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a arm64
 

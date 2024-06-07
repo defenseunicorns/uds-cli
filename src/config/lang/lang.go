@@ -29,6 +29,7 @@ const (
 	CmdBundleCreateFlagOutput             = "Specify the output (an oci:// URL) for the created bundle"
 	CmdBundleCreateFlagSigningKey         = "Path to private key file for signing bundles"
 	CmdBundleCreateFlagSigningKeyPassword = "Password to the private key file used for signing bundles"
+	CmdBundleCreateFlagFlavor             = "Specify which zarf package flavor you want to use."
 
 	// bundle deploy
 	CmdBundleDeployShort        = "Deploy a bundle from a local tarball or oci:// URL"
@@ -37,6 +38,7 @@ const (
 	CmdBundleDeployFlagResume   = "Only deploys packages from the bundle which haven't already been deployed"
 	CmdBundleDeployFlagSet      = "Specify deployment variables to set on the command line (KEY=value)"
 	CmdBundleDeployFlagRetries  = "Specify the number of retries for package deployments (applies to all pkgs in a bundle)"
+	CmdBundleDeployFlagRef      = "Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used."
 
 	// bundle inspect
 	CmdBundleInspectShort            = "Display the metadata of a bundle"
@@ -82,7 +84,8 @@ const (
 	CmdZarfShort = "Run a zarf command"
 
 	// uds dev
-	CmdDevShort       = "Commands useful for developing bundles"
-	CmdDevDeployShort = "[beta] Creates and deploys a UDS bundle from a given directory in dev mode"
-	CmdDevDeployLong  = "[beta] Creates and deploys a UDS bundle from a given directory in dev mode, setting package options like YOLO mode for faster iteration."
+	CmdDevShort                = "[beta] Commands useful for developing bundles"
+	CmdDevDeployShort          = "[beta] Creates and deploys a UDS bundle from a given directory in dev mode"
+	CmdDevDeployLong           = "[beta] Creates and deploys a UDS bundle from a given directory in dev mode, setting package options like YOLO mode for faster iteration."
+	CmdBundleCreateForceCreate = "For local bundles with local packages, specify whether to create a zarf package even if it already exists."
 )
