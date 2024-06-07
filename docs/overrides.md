@@ -5,15 +5,6 @@ weight: 5
 ---
 Bundle overrides provide a mechanism to customize Helm charts inside of Zarf packages.
 
-## Table of Contents
-
-1. [Quickstart](#quickstart)
-1. [Overrides](#variables)
-    - [Syntax](#syntax)
-    - [Values](#values)
-    - [Variables](#variables)
-    - [Namespace](#namespace)
-
 ## Quickstart
 
 Consider the following `zarf.yaml` and `values.yaml` which deploys [podinfo](https://github.com/stefanprodan/podinfo)
