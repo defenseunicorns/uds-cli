@@ -293,8 +293,7 @@ UDS CLI includes a vendored version of Zarf inside of its binary. To use Zarf, s
 
 ## Dev Mode
 
-> [!NOTE]  
-> Dev mode is a BETA feature
+<b>NOTE: Dev mode is a BETA feature</b>
 
 Dev mode facilitates faster dev cycles when developing and testing bundles
 
@@ -302,16 +301,17 @@ Dev mode facilitates faster dev cycles when developing and testing bundles
 uds dev deploy <path-to-bundle-yaml-dir> | <oci-ref>
 ```
 
-The `dev deploy` command performs the following operations
+The `dev deploy` command performs the following operations:
 
-- If local bundle: Creates Zarf packages for all local packages in a bundle
-  - Creates the Zarf tarball in the same directory as the `zarf.yaml`
-      - Can use `--flavor` flag to specify what flavor of package you want to create
-  - Will only create the Zarf tarball if one does not already exist or can use `--force-create` to force the creation of a new zarf package even if one currently exists
-  - Ignores any `kind: ZarfInitConfig` packages in the bundle
-  - Creates a bundle from the newly created Zarf packages
 - Deploys the bundle in [YOLO](https://docs.zarf.dev/faq/#what-is-yolo-mode-and-why-would-i-use-it) mode, eliminating the need to do a `zarf init`
-- For remote packages you can specify what package ref you want to deploy by using the `--ref` flag and specifying the package name and desired ref. (example: `--ref podinfo=0.2.0`)
+  - any `kind: ZarfInitConfig` packages in the bundle will be ignored
+- For local bundles:
+  - Creates the Zarf tarball if one does not already exist or the `--force-create` flag can be used to force the creation of a new zarf package
+    - The Zarf tarball is created in the same directory as the `zarf.yaml`
+    - The `--flavor` flag can be used to specify what flavor of a package you want to create (example: `--flavor podinfo=upstream` to specify the flavor for the `podinfo` package or `--flavor upstream` to specify the flavor for all the packages in the bundle)
+  - Creates a bundle from the newly created Zarf packages
+- For remote packages:
+  - The `--ref` flagcan be used to specify what package ref you want to deploy (example: `--ref podinfo=0.2.0`)
 
 ## Scan
 
