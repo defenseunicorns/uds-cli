@@ -3,8 +3,6 @@ title: UDS Runner
 type: docs
 weight: 4
 ---
-# UDS Runner
-
 UDS CLI contains vendors and configures the [maru-runner](https://github.com/defenseunicorns/maru-runner) build tool to make compiling and building UDS bundles simple.
 
 
