@@ -304,7 +304,7 @@ uds dev deploy <path-to-bundle-yaml-dir> | <oci-ref>
 The `dev deploy` command performs the following operations:
 
 - Deploys the bundle in [YOLO](https://docs.zarf.dev/faq/#what-is-yolo-mode-and-why-would-i-use-it) mode, eliminating the need to do a `zarf init`
-  - any `kind: ZarfInitConfig` packages in the bundle will be ignored
+  - Any `kind: ZarfInitConfig` packages in the bundle will be ignored
 - For local bundles:
   - Creates the Zarf tarball if one does not already exist or the `--force-create` flag can be used to force the creation of a new zarf package
     - The Zarf tarball is created in the same directory as the `zarf.yaml`
