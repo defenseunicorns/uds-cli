@@ -1,5 +1,5 @@
 ---
-title: Quickstart Guide
+title: Quickstart and Usage
 type: docs
 weight: 1
 ---
