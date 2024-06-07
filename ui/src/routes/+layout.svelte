@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { Content } from 'carbon-components-svelte';
   import Header from '$lib/components/Header/Header.svelte';
 
   import 'carbon-components-svelte/css/all.css';
@@ -11,9 +10,7 @@
 
 <Header authenticated={true} />
 
-<Content>
-  <slot />
-</Content>
+<slot />
 
 <style lang="scss">
   :global(.bx--content) {
