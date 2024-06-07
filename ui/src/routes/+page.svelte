@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Content } from 'carbon-components-svelte';
+
   import Card from '$lib/components/Card/Card.svelte';
   import CardHeader from '$lib/components/Card/CardHeader.svelte';
   import CardContent from '$lib/components/Card/CardContent.svelte';
@@ -22,130 +24,146 @@
   <meta name="description" content="Home -- Search for repos" />
 </svelte:head>
 
-<div class="welcome__container">
-  <h2 class="header">Welcome to UDS</h2>
+<Content>
+  <div class="welcome__container">
+    <h2 class="header">Welcome to UDS</h2>
 
-  <p class="subheader">Find the applications running in your cluster and accessible to you here.</p>
+    <p class="subheader">
+      Find the applications running in your cluster and accessible to you here.
+    </p>
 
-  <div class="cards">
-    <Card radius={4} width={300} height={200}>
-      <CardHeader slot="card-header" hasLogo stacked={false} version="v1.23.4" title="App Name" />
+    <div class="cards">
+      <Card radius={4} width={300} height={200}>
+        <CardHeader slot="card-header" hasLogo stacked={false} version="v1.23.4" title="App Name" />
 
-      <CardContent
-        slot="card-content"
-        text="App Description. Your son is gone. He was weak and foolish like his father."
-      />
+        <CardContent
+          slot="card-content"
+          text="App Description. Your son is gone. He was weak and foolish like his father."
+        />
 
-      <CardLinks
-        slot="card-links"
-        links={[
-          {
-            name: 'Link',
-            url: 'http://www.google.com'
-          },
-          {
-            name: 'Link',
-            url: 'http://www.google.com'
-          }
-        ]}
-      />
-    </Card>
+        <CardLinks
+          slot="card-links"
+          links={[
+            {
+              name: 'Link',
+              url: 'http://www.google.com'
+            },
+            {
+              name: 'Link',
+              url: 'http://www.google.com'
+            }
+          ]}
+        />
+      </Card>
 
-    <Card radius={4} width={300} height={200}>
-      <CardHeader slot="card-header" hasLogo stacked={false} version="v1.23.4" title="Gitlab" />
+      <Card radius={4} width={300} height={200}>
+        <CardHeader slot="card-header" hasLogo stacked={false} version="v1.23.4" title="Gitlab" />
 
-      <CardContent
-        slot="card-content"
-        text="App Description. Your son is gone. He was weak and foolish like his father."
-      />
+        <CardContent
+          slot="card-content"
+          text="App Description. Your son is gone. He was weak and foolish like his father."
+        />
 
-      <CardLinks
-        slot="card-links"
-        links={[
-          {
-            name: 'Link',
-            url: 'http://www.google.com'
-          },
-          {
-            name: 'Link',
-            url: 'http://www.google.com'
-          }
-        ]}
-      />
-    </Card>
+        <CardLinks
+          slot="card-links"
+          links={[
+            {
+              name: 'Link',
+              url: 'http://www.google.com'
+            },
+            {
+              name: 'Link',
+              url: 'http://www.google.com'
+            }
+          ]}
+        />
+      </Card>
 
-    <Card radius={4} width={300} height={200}>
-      <CardHeader slot="card-header" hasLogo stacked={false} version="v1.23.4" title="Mattermost" />
+      <Card radius={4} width={300} height={200}>
+        <CardHeader
+          slot="card-header"
+          hasLogo
+          stacked={false}
+          version="v1.23.4"
+          title="Mattermost"
+        />
 
-      <CardContent
-        slot="card-content"
-        text="App Description. Your son is gone. He was weak and foolish like his father."
-      />
+        <CardContent
+          slot="card-content"
+          text="App Description. Your son is gone. He was weak and foolish like his father."
+        />
 
-      <CardLinks
-        slot="card-links"
-        links={[
-          {
-            name: 'Link',
-            url: 'http://www.google.com'
-          },
-          {
-            name: 'Link',
-            url: 'http://www.google.com'
-          }
-        ]}
-      />
-    </Card>
+        <CardLinks
+          slot="card-links"
+          links={[
+            {
+              name: 'Link',
+              url: 'http://www.google.com'
+            },
+            {
+              name: 'Link',
+              url: 'http://www.google.com'
+            }
+          ]}
+        />
+      </Card>
 
-    <Card radius={4} width={300} height={200}>
-      <CardHeader
-        slot="card-header"
-        hasLogo
-        stacked={false}
-        version="v1.23.4"
-        title="Pipeline Tool"
-      />
+      <Card radius={4} width={300} height={200}>
+        <CardHeader
+          slot="card-header"
+          hasLogo
+          stacked={false}
+          version="v1.23.4"
+          title="Pipeline Tool"
+        />
 
-      <CardContent
-        slot="card-content"
-        text="App Description. Your son is gone. He was weak and foolish like his father."
-      />
+        <CardContent
+          slot="card-content"
+          text="App Description. Your son is gone. He was weak and foolish like his father."
+        />
 
-      <CardLinks
-        slot="card-links"
-        links={[
-          {
-            name: 'Link',
-            url: 'http://www.google.com'
-          },
-          {
-            name: 'Link',
-            url: 'http://www.google.com'
-          }
-        ]}
-      />
-    </Card>
+        <CardLinks
+          slot="card-links"
+          links={[
+            {
+              name: 'Link',
+              url: 'http://www.google.com'
+            },
+            {
+              name: 'Link',
+              url: 'http://www.google.com'
+            }
+          ]}
+        />
+      </Card>
 
-    <Card radius={4} width={300} height={200}>
-      <CardHeader slot="card-header" hasLogo stacked={false} version="v1.23.4" title="LeapfrogAi" />
+      <Card radius={4} width={300} height={200}>
+        <CardHeader
+          slot="card-header"
+          hasLogo
+          stacked={false}
+          version="v1.23.4"
+          title="LeapfrogAi"
+        />
 
-      <CardContent
-        slot="card-content"
-        text="App Description. Your son is gone. He was weak and foolish like his father."
-      />
+        <CardContent
+          slot="card-content"
+          text="App Description. Your son is gone. He was weak and foolish like his father."
+        />
 
-      <CardLinks
-        slot="card-links"
-        links={[
-          {
-            name: 'uds.ai/char',
-            url: 'http://www.google.com'
-          }
-        ]}
-      />
-    </Card>
+        <CardLinks
+          slot="card-links"
+          links={[
+            {
+              name: 'uds.ai/char',
+              url: 'http://www.google.com'
+            }
+          ]}
+        />
+      </Card>
+    </div>
   </div>
-</div>
+</Content>
 
 <style lang="scss">
   .welcome__container {
