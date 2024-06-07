@@ -9,12 +9,7 @@ export default defineConfig({
     include: ['src/**/*.{test,spec}.{js,ts}'],
     setupFiles: ['./vitest-setup.ts'],
     coverage: {
-      exclude: [
-        '**/src/routes/**',
-        '**/tests/**',
-        '**/*.config.{js,ts}',
-        '**/[.]**',
-      ],
-    },
+      exclude: ['**/src/routes/**', '**/tests/**', '**/*.config.{js,ts}', '**/[.]**']
+    }
   }
 });
