@@ -28,8 +28,7 @@ import (
 func (b *Bundle) Inspect() error {
 	//  handle --list-images flag
 	if b.cfg.InspectOpts.ListImages {
-		err := utils.CheckYAMLSourcePath(b.cfg.InspectOpts.Source)
-		if err != nil {
+		if err := utils.CheckYAMLSourcePath(b.cfg.InspectOpts.Source); err != nil {
 			return err
 		}
 

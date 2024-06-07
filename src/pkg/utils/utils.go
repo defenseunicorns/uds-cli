@@ -205,8 +205,8 @@ func CheckYAMLSourcePath(source string) error {
 		return fmt.Errorf("source must have .yaml or yml file extension")
 	}
 	// Check if the file exists
-	if _, err := os.Stat(source); os.IsNotExist(err) {
-		return fmt.Errorf("file %s does not exist", source)
+	if isInvalid := helpers.InvalidPath(source); isInvalid {
+		return fmt.Errorf("file %s does not exist or has incorrect permissions", source)
 	}
 
 	return nil

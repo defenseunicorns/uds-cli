@@ -32,7 +32,6 @@ type UDSBundle struct {
 type Package struct {
 	Name               string                                     `json:"name" jsonschema:"name=Name of the Zarf package"`
 	Description        string                                     `json:"description,omitempty" jsonschema:"description=Description of the Zarf package"`
-	Images             []string                                   `json:"images,omitempty" jsonschema:"description=List of images included in the Zarf package"`
 	Repository         string                                     `json:"repository,omitempty" jsonschema:"description=The repository to import the package from"`
 	Path               string                                     `json:"path,omitempty" jsonschema:"description=The local path to import the package from"`
 	Ref                string                                     `json:"ref" jsonschema:"description=Ref (tag) of the Zarf package"`
