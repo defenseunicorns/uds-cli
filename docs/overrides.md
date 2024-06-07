@@ -238,7 +238,7 @@ There are 3 ways to override the `UI_COLOR` variable:
 
 {{% alert-note %}}  
 A variable that is not overridden by any of the methods above and has no default will be ignored.
-{{% /alert-note %}} 
+{{% /alert-note %}}
 
 #### Variable Precedence
 Variable precedence is as follows:
@@ -252,7 +252,7 @@ Variables can be of either type `raw` or `file`. The type will default to raw if
 
 {{% alert-caution %}}  
 If a variable is set to accept a file as its value, but is missing the `file` type, then the file will not be processed.
-{{% /alert-caution %}} 
+{{% /alert-caution %}}
 
 ```yaml
 kind: UDSBundle
@@ -297,7 +297,7 @@ If the file path is already set to the same relative path as the config, then no
 UDS CLI does not encrypt or base64 encode any file contents before passing said data to Zarf or Helm.  
 
 For example, if the file contains a key to be used in a Kubernetes secret, it must be base64 encoded before being ingested by UDS CLI.
-{{% /alert-note %}} 
+{{% /alert-note %}}
 
 ### Namespace
 It's also possible to specify a namespace for a packaged Helm chart to be installed in. For example, to deploy the a chart in the `custom-podinfo` namespace, you can specify the `namespace` in the `overrides` block:

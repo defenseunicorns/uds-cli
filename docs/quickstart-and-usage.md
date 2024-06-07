@@ -62,7 +62,7 @@ There are 2 ways to create Bundles:
 
 {{% alert-note %}}  
 The `--insecure` flag is necessary when interacting with a local registry, but not from secure, remote registries such as GHCR.
-{{% /alert-note %}} 
+{{% /alert-note %}}
 
 ### Bundle Deploy
 Deploys the bundle
@@ -119,9 +119,9 @@ As an example: `uds remove uds-bundle-<name>.tar.zst --packages init,nginx`
 
 ### Logs
 
-{{% alert-note %}} 
+{{% alert-note %}}
 Only works with `uds deploy` for now, may work for other operations but isn't guaranteed.
-{{% /alert-note %}} 
+{{% /alert-note %}}
 
 The `uds logs` command can be used to view the most recent logs of a bundle operation. Note that depending on your OS temporary directory and file settings, recent logs are purged after a certain amount of time, so this command may return an error if the logs are no longer available.
 
@@ -139,9 +139,9 @@ UDS CLI supports multi-arch bundles. This means you can push bundles with differ
 ### Architecture Validation
 When deploying a local bundle, the bundle's architecture will be used for comparison against the cluster architecture to ensure compatability. If deploying a remote bundle, by default the bundle is pulled based on system architecture, which is then checked against the cluster.
 
-{{% alert-note %}} 
+{{% alert-note %}}
 It is possible to override the bundle architecture used at validation time by using the `--architecture` / `-a` flag.
-{{% /alert-note %}} 
+{{% /alert-note %}}
 
 If, for example, you have a multi-arch remote bundle that you want to deploy from an arm64 machine to an amd64 cluster, the validation with fail because the system arch does not match the cluster arch. However, you can pull the correct bundle version by specificying the arch with the command line architecture flag.
 
@@ -265,9 +265,9 @@ The naming conventions for deploying duplicate packages are as follows:
 2. The duplicate packages must be deployed in different namespaces
 3. In order to deploy duplicates of local packages, the `path` field must point to a Zarf package tarball instead of to a folder.
 
-{{% alert-note %}} 
+{{% alert-note %}}
 Today the duplicate packages feature is only supported for packages with Helm charts. This is because Helm charts' [namespaces can be overridden](https://github.com/defenseunicorns/uds-cli/blob/main/docs/overrides.md) at deploy time.
-{{% /alert-note %}} 
+{{% /alert-note %}}
 
 ## Zarf Integration
 UDS CLI includes a vendored version of Zarf inside of its binary. To use Zarf, simply run `uds zarf <command>`. For example, to create a Zarf package, run `uds zarf create <dir>`, or to use the [airgap tooling](https://docs.zarf.dev/docs/the-zarf-cli/cli-commands/zarf_tools) that Zarf provides, run `uds zarf tools <cmd>`.
@@ -276,7 +276,7 @@ UDS CLI includes a vendored version of Zarf inside of its binary. To use Zarf, s
 
 {{% alert-caution %}}  
 Dev mode is a BETA feature
-{{% /alert-caution %}} 
+{{% /alert-caution %}}
 
 Dev mode facilitates faster dev cycles when developing and testing bundles
 
@@ -295,10 +295,10 @@ The `dev deploy` command performs the following operations
 
 ## Scan
 
-{{% alert-caution %}} 
+{{% alert-caution %}}
 Scan is an ALPHA feature.
 Trivy is a prerequisite for scanning container images and filesystem for vulnerabilities. You can find more information and installation instructions at [Trivy's official documentation](https://aquasecurity.github.io/trivy).
-{{% /alert-caution %}} 
+{{% /alert-caution %}}
 
 
 The `scan` command is used to scan a Zarf package for vulnerabilities and generate a report. This command is currently in ALPHA.
