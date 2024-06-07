@@ -306,7 +306,7 @@ The `dev deploy` command performs the following operations:
 - Deploys the bundle in [YOLO](https://docs.zarf.dev/faq/#what-is-yolo-mode-and-why-would-i-use-it) mode, eliminating the need to do a `zarf init`
   - Any `kind: ZarfInitConfig` packages in the bundle will be ignored
 - For local bundles:
-  - Local Packages:
+  - For local packages:
     - Creates the Zarf tarball if one does not already exist or the `--force-create` flag can be used to force the creation of a new Zarf package
       - The Zarf tarball is created in the same directory as the `zarf.yaml`
       - The `--flavor` flag can be used to specify what flavor of a package you want to create (example: `--flavor podinfo=upstream` to specify the flavor for the `podinfo` package or `--flavor upstream` to specify the flavor for all the packages in the bundle)
