@@ -12,7 +12,7 @@ brew tap defenseunicorns/tap && brew install uds
 UDS CLI Binaries are also included with each [Github Release](https://github.com/defenseunicorns/uds-cli/releases)
 
 ## Contributing
-Build instructions and contributing docs are located in [CONTRIBUTING.md](CONTRIBUTING.md).
+Build instructions and contributing docs are located in [CONTRIBUTING.md](https://github.com/defenseunicorns/uds-cli/blob/main/CONTRIBUTING.md).
 
 ## Quickstart
 The UDS-CLI's flagship feature is deploying multiple, independent Zarf packages. To create a `UDSBundle` of Zarf packages, create a `uds-bundle.yaml` file like so:
@@ -36,7 +36,7 @@ packages:
 ```
 The above `UDSBundle` deploys the Zarf init package and podinfo.
 
-The packages referenced in `packages` can exist either locally or in an OCI registry. See [here](src/test/packages/03-local-and-remote) for an example that deploys both local and remote Zarf packages. More `UDSBundle` examples can be found in the [src/test/bundles](src/test/bundles) folder.
+The packages referenced in `packages` can exist either locally or in an OCI registry. See [here](https://github.com/defenseunicorns/uds-cli/tree/main/src/test/bundles/03-local-and-remote) for an example that deploys both local and remote Zarf packages. More `UDSBundle` examples can be found in the [src/test/bundles](https://github.com/defenseunicorns/uds-cli/tree/main/src/test/bundles) folder.
 
 #### Declarative Syntax
 The syntax of a `uds-bundle.yaml` is entirely declarative. As a result, the UDS CLI will not prompt users to deploy optional components in a Zarf package. If you want to deploy an optional Zarf component, it must be specified in the `optionalComponents` key of a particular `package`.
@@ -60,8 +60,9 @@ There are 2 ways to create Bundles:
 1. Inside an OCI registry: `uds create <dir> -o ghcr.io/defenseunicorns/dev`
 1. Locally on your filesystem: `uds create <dir>`
 
-> [!NOTE]  
-> The `--insecure` flag is necessary when interacting with a local registry, but not from secure, remote registries such as GHCR.
+{{% alert-note %}}  
+The `--insecure` flag is necessary when interacting with a local registry, but not from secure, remote registries such as GHCR.
+{{% /alert-note %}} 
 
 ### Bundle Deploy
 Deploys the bundle
@@ -118,8 +119,9 @@ As an example: `uds remove uds-bundle-<name>.tar.zst --packages init,nginx`
 
 ### Logs
 
-> [!NOTE]
-> Only works with `uds deploy` for now, may work for other operations but isn't guaranteed.
+{{% alert-note %}} 
+Only works with `uds deploy` for now, may work for other operations but isn't guaranteed.
+{{% /alert-note %}} 
 
 The `uds logs` command can be used to view the most recent logs of a bundle operation. Note that depending on your OS temporary directory and file settings, recent logs are purged after a certain amount of time, so this command may return an error if the logs are no longer available.
 
@@ -137,8 +139,9 @@ UDS CLI supports multi-arch bundles. This means you can push bundles with differ
 ### Architecture Validation
 When deploying a local bundle, the bundle's architecture will be used for comparison against the cluster architecture to ensure compatability. If deploying a remote bundle, by default the bundle is pulled based on system architecture, which is then checked against the cluster.
 
-> [!NOTE]  
-> It is possible to override the bundle architecture used at validation time by using the `--architecture` / `-a` flag.
+{{% alert-note %}} 
+It is possible to override the bundle architecture used at validation time by using the `--architecture` / `-a` flag.
+{{% /alert-note %}} 
 
 If, for example, you have a multi-arch remote bundle that you want to deploy from an arm64 machine to an amd64 cluster, the validation with fail because the system arch does not match the cluster arch. However, you can pull the correct bundle version by specificying the arch with the command line architecture flag.
 
@@ -199,7 +202,7 @@ packages:
 
 Variables that you want to make available to other packages are in the `export` block of the Zarf package to export a variable from. By default, all exported variables are available to all of the packages in a bundle. To have another package ingest a specific exported variable, like in the case of variable name collisions, use the `imports` key to name both the `variable` and `package` that the variable is exported from, like in the example above.
 
-In the example above, the `OUTPUT` variable is created as part of a Zarf Action in the [output-var](src/test/packages/zarf/no-cluster/output-var) package, and the [receive-var](src/test/packages/zarf/no-cluster/receive-var) package expects a variable called `OUTPUT`.
+In the example above, the `OUTPUT` variable is created as part of a Zarf Action in the [output-var](https://github.com/defenseunicorns/uds-cli/tree/main/src/test/packages/no-cluster/output-var) package, and the [receive-var]([src/test/packages/zarf/no-cluster/receive-var](https://github.com/defenseunicorns/uds-cli/tree/main/src/test/packages/no-cluster/receive-var)) package expects a variable called `OUTPUT`.
 
 ### Sharing Variables Across Multiple Packages
 If a Zarf variable has the same name in multiple packages and you don't want to set it multiple times via the import/export syntax, you can set an environment variable prefixed with `UDS_` and it will be applied to all the Zarf packages in a bundle. For example, if multiple packages require a `DOMAIN` variable, you could set it once with a `UDS_DOMAIN` environment variable and it would be applied to all packages. Note that this can also be done with the `shared` key in the `uds-config.yaml` file.
@@ -221,7 +224,7 @@ That is to say, variables set using the `--set` flag take precedence over all ot
 
 ## Duplicate Packages And Naming
 
-It is possible to deploy multiple instances of the same Zarf package in a bundle. For example, the following `uds-bundle.yaml` deploys 3 instances of the [helm-overrides](src/test/packages/helm/zarf.yaml) Zarf packags:
+It is possible to deploy multiple instances of the same Zarf package in a bundle. For example, the following `uds-bundle.yaml` deploys 3 instances of the [helm-overrides](https://github.com/defenseunicorns/uds-cli/blob/main/src/test/packages/helm/zarf.yaml) Zarf packags:
 ```yaml
 kind: UDSBundle
 metadata:
@@ -259,19 +262,21 @@ packages:
 
 The naming conventions for deploying duplicate packages are as follows:
 1. The `name` field of the package in the `uds-bundle.yaml` must be unique
-1. The duplicate packages must be deployed in different namespaces
-1. In order to deploy duplicates of local packages, the `path` field must point to a Zarf package tarball instead of to a folder.
+2. The duplicate packages must be deployed in different namespaces
+3. In order to deploy duplicates of local packages, the `path` field must point to a Zarf package tarball instead of to a folder.
 
-> [!NOTE]  
-> Today the duplicate packages feature is only supported for packages with Helm charts. This is because Helm charts' [namespaces can be overridden](docs/overrides.md#namespace) at deploy time.
+{{% alert-note %}} 
+Today the duplicate packages feature is only supported for packages with Helm charts. This is because Helm charts' [namespaces can be overridden](https://github.com/defenseunicorns/uds-cli/blob/main/docs/overrides.md) at deploy time.
+{{% /alert-note %}} 
 
 ## Zarf Integration
 UDS CLI includes a vendored version of Zarf inside of its binary. To use Zarf, simply run `uds zarf <command>`. For example, to create a Zarf package, run `uds zarf create <dir>`, or to use the [airgap tooling](https://docs.zarf.dev/docs/the-zarf-cli/cli-commands/zarf_tools) that Zarf provides, run `uds zarf tools <cmd>`.
 
 ## Dev Mode
 
-> [!NOTE]  
-> Dev mode is a BETA feature
+{{% alert-caution %}}  
+Dev mode is a BETA feature
+{{% /alert-caution %}} 
 
 Dev mode facilitates faster dev cycles when developing and testing bundles
 
@@ -290,9 +295,10 @@ The `dev deploy` command performs the following operations
 
 ## Scan
 
-> [!NOTE]  
-> Scan is an ALPHA feature.
-> Trivy is a prerequisite for scanning container images and filesystem for vulnerabilities. You can find more information and installation instructions at [Trivy's official documentation](https://aquasecurity.github.io/trivy).
+{{% alert-caution %}} 
+Scan is an ALPHA feature.
+Trivy is a prerequisite for scanning container images and filesystem for vulnerabilities. You can find more information and installation instructions at [Trivy's official documentation](https://aquasecurity.github.io/trivy).
+{{% /alert-caution %}} 
 
 
 The `scan` command is used to scan a Zarf package for vulnerabilities and generate a report. This command is currently in ALPHA.

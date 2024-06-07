@@ -236,8 +236,9 @@ There are 3 ways to override the `UI_COLOR` variable:
 
    > **:warning: Warning**: Because Helm override variables and Zarf variables share the same --set syntax, be careful with variable names to avoid conflicts.
 
-> [!NOTE]  
-> A variable that is not overridden by any of the methods above and has no default will be ignored.
+{{% alert-note %}}  
+A variable that is not overridden by any of the methods above and has no default will be ignored.
+{{% /alert-note %}} 
 
 #### Variable Precedence
 Variable precedence is as follows:
@@ -249,8 +250,9 @@ Variable precedence is as follows:
 #### Variable Types
 Variables can be of either type `raw` or `file`. The type will default to raw if not set explicitly.
 
-> [!WARNING]  
-> If a variable is set to accept a file as its value, but is missing the `file` type, then the file will not be processed.
+{{% alert-caution %}}  
+If a variable is set to accept a file as its value, but is missing the `file` type, then the file will not be processed.
+{{% /alert-caution %}} 
 
 ```yaml
 kind: UDSBundle
@@ -280,7 +282,7 @@ packages:
 
 If a file path is not absolute, it will be set as relative to the `uds-config.yaml` directory.
 
-e.g. the following `uds-config.yaml` is in [`src/test/bundles/07-helm-overrides/variable-files/`](../src/test/bundles/07-helm-overrides/variable-files/uds-config.yaml)
+e.g. the following `uds-config.yaml` is in [`src/test/bundles/07-helm-overrides/variable-files/`](https://github.com/defenseunicorns/uds-cli/blob/uds-cli-docs/src/test/bundles/07-helm-overrides/uds-config.yaml)
 ```yaml
 variables:
   helm-overrides:
@@ -291,10 +293,11 @@ This means when `test.cert` is evaluated it will first be appended to the config
 
 If the file path is already set to the same relative path as the config, then no merging will take place.
 
-> [!NOTE]  
-> UDS CLI does not encrypt or base64 encode any file contents before passing said data to Zarf or Helm.  
-> For example, if the file contains a key to be used in a Kubernetes secret, it must be base64 encoded before being ingested by UDS CLI.
+{{% alert-note %}}  
+UDS CLI does not encrypt or base64 encode any file contents before passing said data to Zarf or Helm.  
 
+For example, if the file contains a key to be used in a Kubernetes secret, it must be base64 encoded before being ingested by UDS CLI.
+{{% /alert-note %}} 
 
 ### Namespace
 It's also possible to specify a namespace for a packaged Helm chart to be installed in. For example, to deploy the a chart in the `custom-podinfo` namespace, you can specify the `namespace` in the `overrides` block:
