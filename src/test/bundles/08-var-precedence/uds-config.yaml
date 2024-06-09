@@ -2,8 +2,8 @@ options:
   log_level: debug
 
 shared:
-  domain: burning.boats # used in helm-overrides pkg, but overriden in output-var pkg
-  ui_color: purple # overriden by env var
+  domain: burning.boats # used in helm-overrides pkg, but overridden in output-var pkg
+  ui_color: purple # overridden by env var
 
 variables:
   helm-overrides:
