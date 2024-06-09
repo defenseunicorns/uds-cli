@@ -74,7 +74,7 @@ The bundle matching and expansion is ordered as follows:
 3. Remote path: `oci://ghcr.io/defenseunicorns/packages/delivery/<path>`
 4. Remote path: `oci://ghcr.io/defenseunicorns/packages/<path>`
 
-That is to say, if the bundle is not local, UDS CLI will check path 2, path 3, etc for the remote bundle artifact. This behavior can be overriden by specifying the full path to the bundle artifact, for example `uds deploy ghcr.io/defenseunicorns/dev/path/dev-bundle:v0.1.0`.
+That is to say, if the bundle is not local, UDS CLI will check path 2, path 3, etc for the remote bundle artifact. This behavior can be overridden by specifying the full path to the bundle artifact, for example `uds deploy ghcr.io/defenseunicorns/dev/path/dev-bundle:v0.1.0`.
 
 ### Bundle Create
 Pulls the Zarf packages from the registry and bundles them into an OCI artifact.
@@ -158,7 +158,7 @@ This means that setting the `--architecture` flag takes precedence over all othe
 UDS CLI supports multi-arch bundles. This means you can push bundles with different architectures to the same remote OCI repository, at the same tag. For example, you can push both an `amd64` and `arm64` bundle to `ghcr.io/<org>/<bundle name>:0.0.1`.
 
 ### Architecture Validation
-When deploying a local bundle, the bundle's architecture will be used for comparison against the cluster architecture to ensure compatability. If deploying a remote bundle, by default the bundle is pulled based on system architecture, which is then checked against the cluster.
+When deploying a local bundle, the bundle's architecture will be used for comparison against the cluster architecture to ensure compatibility. If deploying a remote bundle, by default the bundle is pulled based on system architecture, which is then checked against the cluster.
 
 > [!NOTE]  
 > It is possible to override the bundle architecture used at validation time by using the `--architecture` / `-a` flag.
@@ -244,7 +244,7 @@ That is to say, variables set using the `--set` flag take precedence over all ot
 
 ## Duplicate Packages And Naming
 
-It is possible to deploy multiple instances of the same Zarf package in a bundle. For example, the following `uds-bundle.yaml` deploys 3 instances of the [helm-overrides](src/test/packages/helm/zarf.yaml) Zarf packags:
+It is possible to deploy multiple instances of the same Zarf package in a bundle. For example, the following `uds-bundle.yaml` deploys 3 instances of the [helm-overrides](src/test/packages/helm/zarf.yaml) Zarf packages:
 ```yaml
 kind: UDSBundle
 metadata:
