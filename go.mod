@@ -13,7 +13,7 @@ require (
 	github.com/defenseunicorns/pkg/oci v0.0.2
 	github.com/defenseunicorns/uds-security-hub v0.0.7
 	github.com/defenseunicorns/zarf v0.34.0
-	github.com/fatih/color v1.16.0
+	github.com/fatih/color v1.17.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/goccy/go-yaml v1.11.3
 	github.com/mholt/archiver/v3 v3.5.1
