@@ -1,30 +1,8 @@
-# UDS-CLI
-
-[![Latest Release](https://img.shields.io/github/v/release/defenseunicorns/uds-cli)](https://github.com/defenseunicorns/uds-cli/releases)
-[![Go version](https://img.shields.io/github/go-mod/go-version/defenseunicorns/uds-cli?filename=go.mod)](https://go.dev/)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/defenseunicorns/uds-cli/release.yaml)](https://github.com/defenseunicorns/uds-cli/actions/workflows/release.yaml)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/defenseunicorns/uds-cli/badge)](https://api.securityscorecards.dev/projects/github.com/defenseunicorns/uds-cli)
-
-## Table of Contents
-
-1. [Install](#install)
-1. [Contributing](CONTRIBUTING.md)
-1. [Quickstart](#quickstart)
-    - [Create](#bundle-create)
-    - [Deploy](#bundle-deploy)
-    - [Inspect](#bundle-inspect)
-    - [Publish](#bundle-publish)
-    - [Remove](#bundle-remove)
-    - [Logs](#logs)
-1. [Bundle Architecture and Multi-Arch Support](#bundle-architecture-and-multi-arch-support)
-1. [Variables and Configuration](#variables-and-configuration)
-1. [Duplicate Packages and Naming](#duplicate-packages-and-naming)
-1. [Zarf Integration](#zarf-integration)
-1. [Bundle Overrides](docs/overrides.md)
-1. [Bundle Anatomy](docs/anatomy.md)
-1. [Runner](docs/runner.md)
-1. [Dev Mode](#dev-mode)
-1. [Scan](#scan)
+---
+title: Quickstart and Usage
+type: docs
+weight: 1
+---
 
 ## Install
 
@@ -38,7 +16,7 @@ UDS CLI Binaries are also included with each [Github Release](https://github.com
 
 ## Contributing
 
-Build instructions and contributing docs are located in [CONTRIBUTING.md](CONTRIBUTING.md).
+Build instructions and contributing docs are located in [CONTRIBUTING.md](https://github.com/defenseunicorns/uds-cli/blob/main/CONTRIBUTING.md).
 
 ## Quickstart
 
@@ -64,7 +42,7 @@ packages:
 
 The above `UDSBundle` deploys the Zarf init package and podinfo.
 
-The packages referenced in `packages` can exist either locally or in an OCI registry. See [here](src/test/packages/03-local-and-remote) for an example that deploys both local and remote Zarf packages. More `UDSBundle` examples can be found in the [src/test/bundles](src/test/bundles) folder.
+The packages referenced in `packages` can exist either locally or in an OCI registry. See [here](https://github.com/defenseunicorns/uds-cli/tree/main/src/test/bundles/03-local-and-remote) for an example that deploys both local and remote Zarf packages. More `UDSBundle` examples can be found in the [src/test/bundles](https://github.com/defenseunicorns/uds-cli/tree/main/src/test/bundles) folder.
 
 #### Declarative Syntax
 
@@ -253,7 +231,7 @@ packages:
 
 Variables that you want to make available to other packages are in the `export` block of the Zarf package to export a variable from. By default, all exported variables are available to all of the packages in a bundle. To have another package ingest a specific exported variable, like in the case of variable name collisions, use the `imports` key to name both the `variable` and `package` that the variable is exported from, like in the example above.
 
-In the example above, the `OUTPUT` variable is created as part of a Zarf Action in the [output-var](src/test/packages/zarf/no-cluster/output-var) package, and the [receive-var](src/test/packages/zarf/no-cluster/receive-var) package expects a variable called `OUTPUT`.
+In the example above, the `OUTPUT` variable is created as part of a Zarf Action in the [output-var](https://github.com/defenseunicorns/uds-cli/tree/main/src/test/packages/no-cluster/output-var) package, and the [receive-var](https://github.com/defenseunicorns/uds-cli/tree/main/src/test/packages/no-cluster/receive-var) package expects a variable called `OUTPUT`.
 
 ### Sharing Variables Across Multiple Packages
 
@@ -277,7 +255,7 @@ That is to say, variables set using the `--set` flag take precedence over all ot
 
 ## Duplicate Packages And Naming
 
-It is possible to deploy multiple instances of the same Zarf package in a bundle. For example, the following `uds-bundle.yaml` deploys 3 instances of the [helm-overrides](src/test/packages/helm/zarf.yaml) Zarf packages:
+It is possible to deploy multiple instances of the same Zarf package in a bundle. For example, the following `uds-bundle.yaml` deploys 3 instances of the [helm-overrides](https://github.com/defenseunicorns/uds-cli/blob/main/src/test/packages/helm/zarf.yaml) Zarf packages:
 
 ```yaml
 kind: UDSBundle
@@ -321,7 +299,7 @@ The naming conventions for deploying duplicate packages are as follows:
 1. In order to deploy duplicates of local packages, the `path` field must point to a Zarf package tarball instead of to a folder.
 
 {{% alert-note %}}
-Today the duplicate packages feature is only supported for packages with Helm charts. This is because Helm charts' [namespaces can be overridden](docs/overrides.md#namespace) at deploy time.
+Today the duplicate packages feature is only supported for packages with Helm charts. This is because Helm charts' [namespaces can be overridden](https://github.com/defenseunicorns/uds-cli/blob/main/docs/overrides.md) at deploy time.
 {{% /alert-note %}}
 
 ## Zarf Integration
