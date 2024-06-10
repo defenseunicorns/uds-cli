@@ -14,7 +14,7 @@ packages:
         unicorn-podinfo:
           values:
             - path: "podinfo.replicaCount"
-              value: ${numReplicas}
+              value: ${numReplicas} # set from uds-config.yaml
             - path: "podinfo.tolerations"
               value:
                 - key: "unicorn"
