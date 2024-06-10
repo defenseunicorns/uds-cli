@@ -2,6 +2,7 @@ package pepr
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"regexp"
 	"strings"
@@ -17,7 +18,7 @@ func TestNewStreamReader(t *testing.T) {
 	filterNamespace := "test-namespace"
 	filterName := "test-name"
 
-	reader := NewStreamReader(timestamp, filterNamespace, filterName)
+	reader := NewStreamReader(context.TODO(), timestamp, filterNamespace, filterName)
 
 	require.True(t, reader.showTimestamp)
 	require.Equal(t, "                     ", reader.indent)
@@ -156,7 +157,7 @@ func TestLogStream(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			reader := NewStreamReader(false, tc.filterNamespace, tc.filterName)
+			reader := NewStreamReader(context.TODO(), false, tc.filterNamespace, tc.filterName)
 			reader.FilterStream = tc.filterStream
 
 			var buf bytes.Buffer
