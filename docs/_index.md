@@ -1,6 +1,6 @@
 ---
 title: Overview
-linkTitle: UDS CLI Guide
+linkTitle: UDS CLI
 type: docs
 menu:
     main:
