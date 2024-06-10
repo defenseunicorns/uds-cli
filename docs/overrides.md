@@ -150,7 +150,9 @@ The `value` is the value to set at the `path`. Values can be simple values such 
               value:
                 customAnnotation: "customValue"
 ```
-Zarf variables can be used to set override values and be override variable defaults using the syntax `${...}`.
+
+#### Bundle Variables as Values
+Bundle and Zarf variables can be used to set override values and be override variable defaults using the syntax `${...}`. For example:
 ```yaml
 # uds-config.yaml
 variables:
@@ -185,7 +187,7 @@ packages:
               value: ${COLOR}
 ```
 
-In the example above `${REPLICA_COUNT}` is set in the `uds-config.yaml` file and `${COLOR}` is set as an export from the `output-var` package. Note that you could also set these values with environment variables prefixed with `UDS_` or with the `--set` flag during deployment.
+In the example above `${REPLICA_COUNT}` is set in the `uds-config.yaml` file and `${COLOR}` is set as an export from the `output-var` package. Note that you could also set these values with the `shared` key in a `uds-config.yaml`, environment variables prefixed with `UDS_` or with the `--set` flag during deployment.
 
 #### Value Precedence
 Value precedence is as follows:
