@@ -24,7 +24,7 @@ func TestScanCommand(t *testing.T) {
 		defer os.RemoveAll(tempDir)
 		outputFile := filepath.Join(tempDir, "gitlab-runner.csv")
 
-		stdOut, stdErr, err := e2e.UDS("scan", "--org", "defenseunicorns", "--package-name", "packages/uds/gitlab-runner", "--tag", "16.10.0-uds.0-upstream", "--output-file", outputFile)
+		stdOut, stdErr, err := e2e.UDS("scan", "--org", "defenseunicorns", "--package-name", "packages/init", "--tag", "v0.34.0", "--output-file", outputFile)
 		require.NoError(t, err, stdOut, stdErr)
 		require.FileExists(t, outputFile)
 		fileInfo, err := os.Stat(outputFile)
