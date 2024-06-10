@@ -150,7 +150,13 @@ The `value` is the value to set at the `path`. Values can be simple values such 
               value:
                 customAnnotation: "customValue"
 ```
-If using a variable that has been [exported](../README.md#importingexporting-variables) from another package, that variable can also be used to set a value, using the syntax `${...}`. In the example below the `COLOR` variable is being used to set the `podinfo.ui.color` value.
+Zarf variables can be used to set override values and be override variable defaults using the syntax `${...}`.
+```yaml
+# uds-config.yaml
+variables:
+  helm-overrides-package:
+    replica_count: 2
+```
 ```yaml
 kind: UDSBundle
 metadata:
@@ -174,10 +180,12 @@ packages:
         unicorn-podinfo:
           values:
             - path: "podinfo.replicaCount"
-              value: 1
+              value: ${REPLICA_COUNT}
             - path: "podinfo.ui.color"
               value: ${COLOR}
 ```
+
+In the example above `${REPLICA_COUNT}` is set in the `uds-config.yaml` file and `${COLOR}` is set as an export from the `output-var` package. Note that you could also set these values with environment variables prefixed with `UDS_` or with the `--set` flag during deployment.
 
 #### Value Precedence
 Value precedence is as follows:
@@ -206,6 +214,10 @@ packages:
              path: "ui.color"
              description: "Set the color for podinfo's UI"
              default: "purple"
+           - name: UI_MSG
+             path: "podinfo.ui.message"
+             description: "Set the message for podinfo's UI"
+             default: ${UI_MSG} # templating also works for variable defaults!
 ```
 
 There are 3 ways to override the `UI_COLOR` variable:
