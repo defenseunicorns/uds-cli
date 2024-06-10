@@ -502,8 +502,8 @@ func setTemplatedVariables(templatedVariables string, pkgVars map[string]string)
 	replacedValue := templatedVarRegex.ReplaceAllStringFunc(templatedVariables, func(match string) string {
 		// returns slice with the templated variable and the variable name
 		variableName := templatedVarRegex.FindStringSubmatch(match)[1]
-		// If we have a templated variable, get the value from pkgVars
-		if varValue, ok := pkgVars[variableName]; ok {
+		// If we have a templated variable, get the value from pkgVars (use uppercase for case-insensitive comparison)
+		if varValue, ok := pkgVars[strings.ToUpper(variableName)]; ok {
 			return varValue
 		}
 		return fmt.Sprintf("${%s_not_found}", variableName)

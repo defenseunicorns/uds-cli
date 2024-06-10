@@ -7,38 +7,24 @@
 
 ## Table of Contents
 
-- [UDS-CLI](#uds-cli)
-  - [Table of Contents](#table-of-contents)
-  - [Install](#install)
-  - [Contributing](#contributing)
-  - [Quickstart](#quickstart)
-    - [Declarative Syntax](#declarative-syntax)
-    - [First-class UDS Support](#first-class-uds-support)
-    - [Bundle Create](#bundle-create)
-    - [Bundle Deploy](#bundle-deploy)
-      - [Specifying Packages using `--packages`](#specifying-packages-using---packages)
-      - [Resuming Bundle Deploys using `--resume`](#resuming-bundle-deploys-using---resume)
-    - [Bundle Inspect](#bundle-inspect)
-      - [Viewing Images in a Bundle](#viewing-images-in-a-bundle)
-      - [Viewing SBOMs](#viewing-sboms)
-    - [Bundle Publish](#bundle-publish)
-    - [Bundle Remove](#bundle-remove)
+1. [Install](#install)
+1. [Contributing](CONTRIBUTING.md)
+1. [Quickstart](#quickstart)
+    - [Create](#bundle-create)
+    - [Deploy](#bundle-deploy)
+    - [Inspect](#bundle-inspect)
+    - [Publish](#bundle-publish)
+    - [Remove](#bundle-remove)
     - [Logs](#logs)
-  - [Bundle Architecture and Multi-Arch Support](#bundle-architecture-and-multi-arch-support)
-    - [Architecture Validation](#architecture-validation)
-  - [Configuration](#configuration)
-  - [Sharing Variables](#sharing-variables)
-    - [Importing/Exporting Variables](#importingexporting-variables)
-    - [Sharing Variables Across Multiple Packages](#sharing-variables-across-multiple-packages)
-    - [Variable Precedence and Specificity](#variable-precedence-and-specificity)
-  - [Duplicate Packages And Naming](#duplicate-packages-and-naming)
-  - [Zarf Integration](#zarf-integration)
-  - [Dev Mode](#dev-mode)
-  - [Scan](#scan)
-    - [Usage](#usage)
-    - [Required Parameters](#required-parameters)
-    - [Optional Parameters](#optional-parameters)
-    - [Example Usage](#example-usage)
+1. [Bundle Architecture and Multi-Arch Support](#bundle-architecture-and-multi-arch-support)
+1. [Variables and Configuration](#variables-and-configuration)
+1. [Duplicate Packages and Naming](#duplicate-packages-and-naming)
+1. [Zarf Integration](#zarf-integration)
+1. [Bundle Overrides](docs/overrides.md)
+1. [Bundle Anatomy](docs/anatomy.md)
+1. [Runner](docs/runner.md)
+1. [Dev Mode](#dev-mode)
+1. [Scan](#scan)
 
 ## Install
 
@@ -208,8 +194,7 @@ If, for example, you have a multi-arch remote bundle that you want to deploy fro
 e.g.
 `uds deploy -a amd64 <remote-multi-arch-bundle.tar.zst> --confirm`
 
-## Configuration
-
+## Variables and Configuration
 The UDS CLI can be configured with a `uds-config.yaml` file. This file can be placed in the current working directory or specified with an environment variable called `UDS_CONFIG`. The basic structure of the `uds-config.yaml` is as follows:
 
 ```yaml
@@ -239,10 +224,7 @@ variables:
 
 The `options` key contains UDS CLI options that are not specific to a particular Zarf package. The `variables` key contains variables that are specific to a particular Zarf package. If you want to share insensitive variables across multiple Zarf packages, you can use the `shared` key, where the key is the variable name and the value is the variable value.
 
-## Sharing Variables
-
-### Importing/Exporting Variables
-
+### Sharing Variables
 Zarf package variables can be passed between Zarf packages:
 
 ```yaml
