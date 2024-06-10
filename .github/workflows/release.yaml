@@ -236,7 +236,7 @@ jobs:
   push:
     runs-on: ubuntu-latest
     environment: release
-    needs: [validate, smoke-test]
+    needs: [test-bundle, test-dev, test-variables, test-optional-bundle, test-vendor, test-ghcr, smoke-test]
     permissions:
       contents: write
     steps:
