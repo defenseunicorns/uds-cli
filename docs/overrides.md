@@ -152,7 +152,7 @@ The `value` is the value to set at the `path`. Values can be simple values such 
 ```
 
 #### Bundle Variables as Values
-Bundle and Zarf variables can be used to set override values and be override variable defaults using the syntax `${...}`. For example:
+Bundle and Zarf variables can be used to set override values by using the syntax `${...}`. For example:
 ```yaml
 # uds-config.yaml
 variables:
@@ -216,10 +216,6 @@ packages:
              path: "ui.color"
              description: "Set the color for podinfo's UI"
              default: "purple"
-           - name: UI_MSG
-             path: "podinfo.ui.message"
-             description: "Set the message for podinfo's UI"
-             default: ${UI_MSG} # templating also works for variable defaults!
 ```
 
 There are 3 ways to override the `UI_COLOR` variable:
