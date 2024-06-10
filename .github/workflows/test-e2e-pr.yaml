@@ -61,11 +61,13 @@ jobs:
 
       - name: Run e2e bundle tests
         run: |
-          build/uds run test:run-bundle-test --no-progress
+          build/uds run test:bundle --no-progress
 
       - name: Save logs
         if: always()
         uses: ./.github/actions/save-logs
+        with:
+          name: build
 
   test-dev:
     runs-on: ubuntu-latest
@@ -81,11 +83,13 @@ jobs:
 
       - name: Run e2e dev tests
         run: |
-          build/uds run test:run-dev-test --no-progress
+          build/uds run test:dev --no-progress
 
       - name: Save logs
         if: always()
         uses: ./.github/actions/save-logs
+        with:
+          name: test-dev
 
   test-variables:
     runs-on: ubuntu-latest
@@ -101,11 +105,13 @@ jobs:
 
       - name: Run e2e variable tests
         run: |
-          build/uds run test:run-variable-test --no-progress
+          build/uds run test:variable --no-progress
 
       - name: Save logs
         if: always()
         uses: ./.github/actions/save-logs
+        with:
+          name: test-variables
 
   test-optional-bundle:
     runs-on: ubuntu-latest
@@ -121,11 +127,13 @@ jobs:
 
       - name: Run e2e optional bundle tests
         run: |
-          build/uds run test:run-optional-bundle-tests --no-progress
+          build/uds run test:optional-bundle --no-progress
 
       - name: Save logs
         if: always()
         uses: ./.github/actions/save-logs
+        with:
+          name: test-optional-bundle
 
   test-vendor:
     runs-on: ubuntu-latest
@@ -141,8 +149,10 @@ jobs:
 
       - name: Run e2e vendor tests
         run: |
-          build/uds run test:run-vendor-tests --no-progress
+          build/uds run test:vendor --no-progress
 
       - name: Save logs
         if: always()
         uses: ./.github/actions/save-logs
+        with:
+          name: test-vendor
