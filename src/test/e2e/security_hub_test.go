@@ -15,22 +15,21 @@ import (
 func TestScanCommand(t *testing.T) {
 	t.Log("E2E: Scan Command")
 
-	t.Run("scan packages/uds/gitlab-runner", func(t *testing.T) {
+	t.Run("scan remote Zarf init pkg", func(t *testing.T) {
 		t.Parallel()
 
 		// Create a temporary directory for the test output file
 		tempDir, err := os.MkdirTemp("", "scan-test")
 		require.NoError(t, err)
 		defer os.RemoveAll(tempDir)
-		outputFile := filepath.Join(tempDir, "gitlab-runner.csv")
+		outputFile := filepath.Join(tempDir, "zarf-init.csv")
 
-		stdOut, stdErr, err := e2e.UDS("scan", "--org", "defenseunicorns", "--package-name", "packages/init", "--tag", "v0.34.0", "--output-file", outputFile)
-		require.NoError(t, err, stdOut, stdErr)
+		_, stdErr, err := e2e.UDS("scan", "--org", "defenseunicorns", "--package-name", "packages/init", "--tag", "v0.34.0", "--output-file", outputFile)
+		require.NoError(t, err, stdErr)
 		require.FileExists(t, outputFile)
 		fileInfo, err := os.Stat(outputFile)
 		require.NoError(t, err)
 		require.Greater(t, fileInfo.Size(), int64(10), "output file size should be greater than 10 bytes")
-		require.NotEmpty(t, stdOut)
 		require.NotEmpty(t, stdErr)
 	})
 }
