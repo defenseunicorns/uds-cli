@@ -13,38 +13,38 @@ The goal is to establish a method for installing the UDS Engine in a cluster. Th
 ## Alternatives
 
 ### 1. Install UDS Engine as a UDS Core Capability
-This approach involves packaging the UDS Engine in a Zarf package with a Helm chart and deploying it as part of the UDS Core.
+This approach involves packaging the UDS Engine in a Zarf package with a Helm chart and deploying it as part of UDS Core.
 
 <b>Pros:</b>
-- The Engine is installed as part of the core, ensuring seamless integration.
-- The initial Engine capability depends on Pepr, which is already installed as part of the core.
+- UDS Engine is installed as part of UDS Core, ensuring seamless integration.
+- The initial Engine capability depends on Pepr, which is already installed as part of UDS Core.
 
 <b>Cons:</b>
 - UDS Core includes additional capabilities that may not be necessary or desired in all scenarios.
 
 ### 2. UDS command
-This alternative proposes a UDS command that "bootstraps" a cluster with UDS Engine, similar to how Zarf initializes a cluster with the `zarf init` command.
+This alternative proposes a UDS cli command that "bootstraps" a cluster with UDS Engine, similar to how Zarf initializes a cluster with the `zarf init` command.
 
 <b>Pros:</b>
-- This method is quick and lightweight, allowing users to install only the Engine in the cluster.
+- This method is quick and lightweight, allowing users to install only UDS Engine in the cluster.
 - It's convenient for rapid development work cycles.
 
 <b>Cons:</b>
 - Users would have to manually install/deploy any other dependencies.
-- There's a potential for maintaining a `uds-cli` command that rarely gets used, once it's run and the UDS Engine is installed.
+- There's a potential for maintaining a `uds-cli` command that rarely gets used, once it's run and UDS Engine is installed.
 
 ### 3. UDS Core and UDS Dev command
-This strategy proposes integrating the UDS Engine as a feature within the UDS Core. Additionally, we plan to develop a `uds dev` command to facilitate the Engine's installation. The `uds dev` command is primarily intended for platform engineers who are engaged in development and testing tasks. By designating the installation command as a subcommand of `uds dev`, we underscore that this command is not intended for production environments.
+This strategy proposes integrating UDS Engine as a feature within UDS Core. Additionally, we plan to develop a `uds dev` command to facilitate the Engine's installation. The `uds dev` command is primarily intended for platform engineers who are engaged in development and testing tasks. By designating the installation command as a subcommand of `uds dev`, we underscore that this command is not intended for production environments.
 
 <b>Pros:</b>
 - This method combines the advantages of alternatives 1 and 2 while potentially eliminating the disadvantages.
 
 <b>Cons:</b>
-- It would require more work to maintain two different ways of installing the Engine.
+- It would require more work to maintain two different ways of installing UDS Engine.
 
 ## Decision
 
-The chosen option is 3. The plan is to add the UDS Engine as a capability to UDS Core and eventually create a `uds dev` command to install UDS Engine. The initial focus will be on adding the Engine as a capability to the UDS Core, and the need and implementation for a `uds dev` command will be evaluated later.
+The chosen option is 3. The plan is to add the UDS Engine as a capability to UDS Core and eventually create a `uds dev` command to install UDS Engine. The initial focus will be on adding UDS Engine as a capability to UDS Core, and the need and implementation for a `uds dev` command will be evaluated later.
 
 ## Consequences
 
