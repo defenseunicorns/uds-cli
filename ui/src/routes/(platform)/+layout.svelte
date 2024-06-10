@@ -12,7 +12,7 @@
   import HeaderSeparator from '$lib/components/Header/HeaderSeparator.svelte';
 
   import { type HeaderSelectProps } from '$lib/components/Header/types';
-  import {FakePodRepository} from "../../../tests/fakerepo";
+  import { FakePodRepository } from '../../../tests/fakerepo';
 
   let ref = null;
   let active = true;
@@ -135,11 +135,11 @@
 >
   <ul class="bx--side-nav__items">
     <li class="bx--side-nav__item">
-        <a href="/dashboard" style="color: inherit; text-decoration: None">
-            <div aria-expanded="true" class="bx--side-nav__submenu">
-                <span class="bx--side-nav__submenu-title">Dashboard</span>
-             </div>
-        </a>
+      <a href="/dashboard" style="color: inherit; text-decoration: None">
+        <div aria-expanded="true" class="bx--side-nav__submenu">
+          <span class="bx--side-nav__submenu-title">Dashboard</span>
+        </div>
+      </a>
     </li>
 
     <li role="separator" class="bx--side-nav__divider"></li>
