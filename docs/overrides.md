@@ -283,7 +283,7 @@ packages:
 
 If a file path is not absolute, it will be set as relative to the `uds-config.yaml` directory.
 
-e.g. the following `uds-config.yaml` is in [`src/test/bundles/07-helm-overrides/variable-files/`](https://github.com/defenseunicorns/uds-cli/blob/uds-cli-docs/src/test/bundles/07-helm-overrides/uds-config.yaml)
+e.g. the following `uds-config.yaml` is in [`src/test/bundles/07-helm-overrides/variable-files/`](https://github.com/defenseunicorns/uds-cli/blob/main/src/test/bundles/07-helm-overrides/uds-config.yaml)
 ```yaml
 variables:
   helm-overrides:
