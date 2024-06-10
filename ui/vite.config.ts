@@ -4,6 +4,11 @@ import { svelteTesting } from '@testing-library/svelte/vite';
 
 export default defineConfig({
   plugins: [sveltekit(), svelteTesting()],
+  server: {
+    fs: {
+      allow: ['..']
+    }
+  },
   test: {
     environment: 'jsdom',
     include: ['src/**/*.{test,spec}.{js,ts}'],
