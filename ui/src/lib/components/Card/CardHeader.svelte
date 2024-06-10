@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { truncate } from "carbon-components-svelte";
+  import { truncate } from 'carbon-components-svelte';
 
   export let hasLogo: boolean = true;
   export let stacked: boolean = false;

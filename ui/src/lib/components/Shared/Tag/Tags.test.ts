@@ -17,7 +17,7 @@ describe('Tags component', () => {
   ];
 
   test('should display Tags', () => {
-    const { getByText } = render(Tags, {tags});
+    const { getByText } = render(Tags, { tags });
 
     expect(getByText(/Category/)).toBeTruthy();
   });
