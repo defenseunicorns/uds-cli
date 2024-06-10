@@ -146,6 +146,7 @@ The `value` is the value to set at the `path`. Values can be simple values such 
 ```
 
 #### Bundle Variables as Values
+
 Bundle and Zarf variables can be used to set override values by using the syntax `${...}`. For example:
 ```yaml
 # uds-config.yaml
