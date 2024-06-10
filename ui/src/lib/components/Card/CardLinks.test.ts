@@ -5,7 +5,7 @@ import CardLinks from './CardLinks.svelte';
 import { type LinkType } from './types';
 
 describe('CardLinks component', () => {
-  const cardLinksProps: LinkType[] =[
+  const cardLinksProps: LinkType[] = [
     {
       name: 'Link 1',
       url: 'http://www.google.com'
