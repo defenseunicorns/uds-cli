@@ -121,7 +121,7 @@ In this example, the `helm-overrides-package` Zarf package has a component calle
 
 ### Values Files
 
-The `valuesFiles` in an `overrides` block are a list of `file`'s. It allows users to override multiple values in a Zarf package component's underlying Helm chart, by providing a file with those values instead of having to include them all indiviually in the `overrides` block.
+The `valuesFiles` in an `overrides` block are a list of `file`'s. It allows users to override multiple values in a Zarf package component's underlying Helm chart, by providing a file with those values instead of having to include them all individually in the `overrides` block.
 
 ### Values
 
@@ -283,7 +283,7 @@ variables:
     test_secret: test.cert
 ```
 
-This means when `test.cert` is evalutated it will first be appended to the config path like so `src/test/bundles/07-helm-overrides/variable-files/test.cert`.
+This means when `test.cert` is evaluated it will first be appended to the config path like so `src/test/bundles/07-helm-overrides/variable-files/test.cert`.
 
 If the file path is already set to the same relative path as the config, then no merging will take place.
 
