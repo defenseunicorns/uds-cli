@@ -9,10 +9,8 @@
 
   const getPods = async () => {
     try {
-      console.log('data', data);
       const res = await data.repo.getPods();
       pods = res as Pod[];
-      console.log('pods', pods);
     } catch (err) {
       error = 'Failed to fetch pods.';
       console.error(err);

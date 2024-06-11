@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { Content } from 'carbon-components-svelte';
-
-  import { Button, HeaderGlobalAction, Search } from 'carbon-components-svelte';
+  import {Button, Content, HeaderGlobalAction, Search} from 'carbon-components-svelte';
 
   import ArrowRight from 'carbon-icons-svelte/lib/ArrowRight.svelte';
   import HelpFilled from 'carbon-icons-svelte/lib/HelpFilled.svelte';
@@ -11,18 +9,7 @@
   import HeaderSelect from '$lib/components/Header/HeaderSelect.svelte';
   import HeaderSeparator from '$lib/components/Header/HeaderSeparator.svelte';
 
-  import { type HeaderSelectProps } from '$lib/components/Header/types';
-  import { FakePodRepository } from '../../../tests/fakerepo';
-
-  let ref = null;
-  let active = true;
-  let value = '';
-  let selectedResultIndex = 0;
-
-  $: console.log('ref', ref);
-  $: console.log('active', active);
-  $: console.log('value', value);
-  $: console.log('selectedResultIndex', selectedResultIndex);
+  import {type HeaderSelectProps} from '$lib/components/Header/types';
 
   export let authenticated: boolean = true;
 
@@ -198,7 +185,7 @@
           </a>
         </li>
         <li class="bx--side-nav__menu-item">
-          <a href="/ui/static" class="bx--side-nav__link bx--side-nav__link--current">
+          <a href="/logs/policies" class="bx--side-nav__link bx--side-nav__link--current">
             <span class="bx--side-nav__link-text">Policy Enforcement</span>
           </a>
         </li>

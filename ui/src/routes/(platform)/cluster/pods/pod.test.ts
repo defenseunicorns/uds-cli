@@ -1,18 +1,18 @@
 // +page.test.js
-import { describe, expect, test } from 'vitest';
-import { render, waitFor } from '@testing-library/svelte';
+import {describe, test} from 'vitest';
+import {render, screen} from '@testing-library/svelte';
 import Page from './+page.svelte';
-import { FakePodRepository } from '../../../../../tests/fakerepo';
+import {FakePodRepository} from '../../../../../tests/fakerepos/FakePodRepo';
 
 describe('pod page', () => {
   test('pod rendering', async () => {
-    const { getByText } = render(Page, {
+    render(Page, {
       data: {
         repo: new FakePodRepository()
       }
     });
 
-    await waitFor(() => expect(getByText('pod1')).toBeDefined());
-    expect(getByText('pod2')).toBeDefined();
+    await screen.findByText('pod1');
+    await screen.findByText('pod2');
   });
 });

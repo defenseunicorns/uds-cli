@@ -1,7 +1,7 @@
 import type { Pod } from 'kubernetes-types/core/v1';
 import type { PodRepository } from '$lib/repos/repository';
 
-export const testData: Pod[] = [
+const testData: Pod[] = [
   {
     apiVersion: 'v1',
     kind: 'Pod',

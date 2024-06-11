@@ -1,4 +1,4 @@
-import { FakePodRepository } from '../../../tests/fakerepo';
+import { FakePodRepository } from '../../../tests/fakerepos/FakePodRepo';
 
 const repo = new FakePodRepository();
 

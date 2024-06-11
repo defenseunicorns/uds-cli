@@ -1,6 +1,7 @@
 {
   "name": "uds-ui",
   "version": "0.0.1",
+  "type": "module",
   "private": true,
   "scripts": {
     "dev": "vite dev",
@@ -47,7 +48,6 @@
     "vite": "^5.0.3",
     "vitest": "^1.2.0"
   },
-  "type": "module",
   "dependencies": {
     "kubernetes-types": "^1.30.0"
   }
