@@ -44,8 +44,12 @@ This strategy proposes integrating UDS Engine as a feature within UDS Core. Addi
 
 ## Decision
 
-The chosen option is 3. The plan is to add the UDS Engine as a capability to UDS Core and eventually create a `uds dev` command to install UDS Engine. The initial focus will be on adding UDS Engine as a capability to UDS Core, and the need and implementation for a `uds dev` command will be evaluated later.
+Option 1 (Install UDS Engine as a UDS Core Capability).
+
+In adding UDS Engine as a UDS Core application, we will treat it like any other UDS Core application. This approach allows us to leverage the existing UDS Core architecture and workflows. We should be able to do any UDS Engine dev work locally without needing to add any additional `uds dev` commands for installation.
 
 ## Consequences
 
-Option 3 allows us to concentrate on implementing an initial method for installing the Engine into a cluster. The Zarf package developed for the Engine can be leveraged later for the `uds dev` command. This approach enables quick installation of the Engine into a cluster and allows for the evaluation of the need for a `uds dev` command at a later stage.
+By going with option 1, UDS Engine will be installed as part of UDS Core. This decision will require additional work to ensure that UDS Engine is properly integrated with UDS Core. However, this approach will provide a seamless installation experience for users and maintain compatibility with the existing system architecture and workflows.
+
+```
