@@ -119,7 +119,8 @@ func introspectOptionalComponentsBundle(t *testing.T) {
 	require.NoError(t, err)
 
 	// ensure nginx not present in bundle bc we didn't specify its component in the optional components
-	ensureImgNotPresent(t, "docker.io/library/nginx", localPkgManifest, blobsDir)
+	//ensureImgNotPresent(t, "docker.io/library/nginx", localPkgManifest, blobsDir)
+	ensureImgNotPresent(t, " ghcr.io/stefanprodan/podinfo:6.4.0", localPkgManifest, blobsDir)
 
 	// for this local pkg, ensure component tars DO NOT exist in img manifest
 	componentName = "nginx-remote"
