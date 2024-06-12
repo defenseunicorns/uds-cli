@@ -39,7 +39,6 @@ const (
 	CmdBundleDeployFlagSet           = "Specify deployment variables to set on the command line (KEY=value)"
 	CmdBundleDeployFlagRetries       = "Specify the number of retries for package deployments (applies to all pkgs in a bundle)"
 	CmdBundleDeployFlagRef           = "Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used."
-	CmdBundleDeployFlagListVariables = "List the configurable variables and what their values will be when passed to helm"
 
 	// bundle inspect
 	CmdBundleInspectShort            = "Display the metadata of a bundle"
@@ -47,7 +46,6 @@ const (
 	CmdPackageInspectFlagSBOM        = "Create a tarball of SBOMs contained in the bundle"
 	CmdPackageInspectFlagExtractSBOM = "Create a folder of SBOMs contained in the bundle"
 	CmdBundleInspectFlagFindImages   = "Derive images from a uds-bundle.yaml file and list them"
-	CmdBundleInspectFlagListVars     = "List configurable variables from a bundle tarball"
 
 	// bundle remove
 	CmdBundleRemoveShort        = "Remove a bundle that has been deployed already"

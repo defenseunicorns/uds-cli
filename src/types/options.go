@@ -37,7 +37,6 @@ type BundleDeployOptions struct {
 	SharedVariables map[string]interface{}            `yaml:"shared,omitempty"`
 	Retries         int                               `yaml:"retries"`
 	Options         map[string]interface{}            `yaml:"options,omitempty"`
-	ListVariables   bool
 }
 
 // BundleInspectOptions is the options for the bundler.Inspect() function
@@ -47,7 +46,6 @@ type BundleInspectOptions struct {
 	IncludeSBOM   bool
 	ExtractSBOM   bool
 	ListImages    bool
-	ListVariables bool
 }
 
 // BundlePublishOptions is the options for the bundle.Publish() function
