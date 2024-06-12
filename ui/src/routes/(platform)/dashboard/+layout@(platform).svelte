@@ -4,17 +4,17 @@
   import {
     Button,
     HeaderGlobalAction,
-    SideNavMenuItem,
+    Search,
     SideNav,
     SideNavItems,
-    Search
+    SideNavMenu,
+    SideNavMenuItem
   } from 'carbon-components-svelte';
 
   import ArrowRight from 'carbon-icons-svelte/lib/ArrowRight.svelte';
   import HelpFilled from 'carbon-icons-svelte/lib/HelpFilled.svelte';
   import NotificationFilled from 'carbon-icons-svelte/lib/NotificationFilled.svelte';
   import UserAvatarFilled from 'carbon-icons-svelte/lib/UserAvatarFilled.svelte';
-  import SideNavMenu from '$lib/components/SideNav/SideNavMenu.svelte';
 
   import HeaderSelect from '$lib/components/Header/HeaderSelect.svelte';
   import HeaderSeparator from '$lib/components/Header/HeaderSeparator.svelte';
@@ -142,13 +142,13 @@
 
     <SideNavDivider />
 
-    <SideNavMenu text="Cluster">
+    <SideNavMenu expanded text="Cluster">
       <SideNavMenuItem text="Pods" href="#" />
     </SideNavMenu>
 
     <SideNavDivider />
 
-    <SideNavMenu text="Deployment">
+    <SideNavMenu expanded text="Deployment">
       <SideNavMenuItem text="Bundles" href="#" />
       <SideNavMenuItem text="Packages" href="#" />
       <SideNavMenuItem text="Configuration" href="#" />
@@ -156,14 +156,14 @@
 
     <SideNavDivider />
 
-    <SideNavMenu text="Logs">
+    <SideNavMenu expanded text="Logs">
       <SideNavMenuItem text="Operator" href="#" />
       <SideNavMenuItem text="Policy Enforcement" href="#" isSelected />
     </SideNavMenu>
 
     <SideNavDivider />
 
-    <SideNavMenu text="Security">
+    <SideNavMenu expanded text="Security">
       <SideNavMenuItem text="Vulnerabilities" href="#" />
       <SideNavMenuItem text="Compliance" href="#" />
     </SideNavMenu>
@@ -223,10 +223,6 @@
     background-color: var(--cds-ui-01) !important;
   }
 
-  :global(.bx--side-nav__submenu) {
-    cursor: default !important;
-  }
-
   /* Remove hover highlight on hover for the Sidenav header */
   :global(.bx--side-nav__submenu:hover) {
     background-color: transparent !important;
@@ -237,20 +233,17 @@
     background-color: var(--cds-ui-01) !important;
   }
 
-  :global(a.bx--side-nav__link[aria-current='page']:focus) {
-    border: none !important;
-  }
-
-  /* Removes outline/ border around a sidenav header that is clicked/ focused */
-  :global(.bx--side-nav__submenu:focus) {
-    outline: none !important;
-  }
-
   :global(a.bx--side-nav__link[aria-current='page'] > .bx--side-nav__link-text) {
     color: var(--cds-interactive-03) !important;
   }
 
+  /* Remove icon from nav menu heaer */
   :global(.bx--side-nav__icon) {
     display: none !important;
+  }
+
+  /* Remove pointer events so we cannot click to toggle or highlight button */
+  :global(.bx--side-nav__submenu) {
+    pointer-events: none;
   }
 </style>
