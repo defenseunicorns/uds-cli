@@ -54,7 +54,6 @@
   #terminal {
     display: flex;
     flex-direction: column;
-    background-color: #1e1e1e;
     padding: 12px;
     font-size: 12px;
     overflow-x: auto;

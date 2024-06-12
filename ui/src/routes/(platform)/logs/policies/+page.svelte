@@ -32,8 +32,12 @@
 
 <style>
   .stream {
+    margin-top: 2rem;
     white-space: pre-wrap;
     font-family: monospace;
     width: 100%;
+    height: 90%;
+    background-color: #001a30;
+    border: #3191d6 1px solid;
   }
 </style>

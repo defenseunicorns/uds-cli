@@ -7,16 +7,6 @@
   import CardLinks from '$lib/components/Card/CardLinks.svelte';
   import { type TagType } from '$lib/components/Shared/Tag/types';
 
-  const tags: TagType[] = [
-    {
-      name: 'Category',
-      type: 'green'
-    },
-    {
-      name: 'Secondary',
-      type: 'purple'
-    }
-  ];
 </script>
 
 <svelte:head>

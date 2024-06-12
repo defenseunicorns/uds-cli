@@ -1,15 +1,25 @@
 <script lang="ts">
-  import {Button, Content, HeaderGlobalAction, Search} from 'carbon-components-svelte';
+  import { Content, SideNavDivider } from 'carbon-components-svelte';
+
+  import {
+    Button,
+    HeaderGlobalAction,
+    SideNavMenuItem,
+    SideNav,
+    SideNavItems,
+    Search
+  } from 'carbon-components-svelte';
 
   import ArrowRight from 'carbon-icons-svelte/lib/ArrowRight.svelte';
   import HelpFilled from 'carbon-icons-svelte/lib/HelpFilled.svelte';
   import NotificationFilled from 'carbon-icons-svelte/lib/NotificationFilled.svelte';
   import UserAvatarFilled from 'carbon-icons-svelte/lib/UserAvatarFilled.svelte';
+  import SideNavMenu from '$lib/components/SideNav/SideNavMenu.svelte';
 
   import HeaderSelect from '$lib/components/Header/HeaderSelect.svelte';
   import HeaderSeparator from '$lib/components/Header/HeaderSeparator.svelte';
 
-  import {type HeaderSelectProps} from '$lib/components/Header/types';
+  import { type HeaderSelectProps } from '$lib/components/Header/types';
 
   export let authenticated: boolean = true;
 
@@ -78,9 +88,9 @@
 <header class="bx--header">
   <button class="bx--header__action bx--header__menu-trigger bx--header__menu-toggle">
     <img
-      alt="Defense Unicorns Logo"
-      src="https://www.defenseunicorns.com/images/svg/doug.svg"
-      style="width: 32px; height: 32px"
+            alt="Defense Unicorns Logo"
+            src="https://www.defenseunicorns.com/images/svg/doug.svg"
+            style="width: 32px; height: 32px"
     />
   </button>
   <a href="#main-content" tabindex="0" class="bx--skip-to-content">Skip to main content</a>
@@ -116,114 +126,44 @@
   </div>
 </header>
 
-<nav
-  aria-hidden="false"
-  class="bx--side-nav__navigation bx--side-nav bx--side-nav--ux bx--side-nav--expanded"
->
-  <ul class="bx--side-nav__items">
-    <li class="bx--side-nav__item">
-      <a href="/dashboard" style="color: inherit; text-decoration: None">
-        <div aria-expanded="true" class="bx--side-nav__submenu">
-          <span class="bx--side-nav__submenu-title">Dashboard</span>
-        </div>
-      </a>
-    </li>
+<SideNav isOpen>
+  <SideNavItems>
+    <SideNavMenu text="Dashboard" />
 
-    <li role="separator" class="bx--side-nav__divider"></li>
+    <SideNavDivider />
 
-    <li class="bx--side-nav__item">
-      <div aria-expanded="true" class="bx--side-nav__submenu">
-        <span class="bx--side-nav__submenu-title">Cluster</span>
-      </div>
+    <SideNavMenu text="Cluster">
+      <SideNavMenuItem text="Pods" href="#" />
+    </SideNavMenu>
 
-      <ul role="menu" class="bx--side-nav__menu">
-        <li class="bx--side-nav__menu-item">
-          <a href="/cluster/pods" class="bx--side-nav__link">
-            <span class="bx--side-nav__link-text">Pods</span>
-          </a>
-        </li>
-      </ul>
-    </li>
+    <SideNavDivider />
 
-    <li role="separator" class="bx--side-nav__divider"></li>
+    <SideNavMenu text="Deployment">
+      <SideNavMenuItem text="Bundles" href="#" />
+      <SideNavMenuItem text="Packages" href="#" />
+      <SideNavMenuItem text="Configuration" href="#" />
+    </SideNavMenu>
 
-    <li class="bx--side-nav__item">
-      <div aria-expanded="true" class="bx--side-nav__submenu">
-        <span class="bx--side-nav__submenu-title">Deployment</span>
-      </div>
+    <SideNavDivider />
 
-      <ul role="menu" class="bx--side-nav__menu">
-        <li class="bx--side-nav__menu-item">
-          <a href="/ui/static" class="bx--side-nav__link">
-            <span class="bx--side-nav__link-text">Bundles</span>
-          </a>
-        </li>
-        <li class="bx--side-nav__menu-item">
-          <a href="/ui/static" class="bx--side-nav__link">
-            <span class="bx--side-nav__link-text">Packages</span>
-          </a>
-        </li>
-        <li class="bx--side-nav__menu-item">
-          <a href="/ui/static" class="bx--side-nav__link">
-            <span class="bx--side-nav__link-text">Configuration</span>
-          </a>
-        </li>
-      </ul>
-    </li>
+    <SideNavMenu text="Logs">
+      <SideNavMenuItem text="Policy Enforcement" href="/logs/policies" isSelected />
+    </SideNavMenu>
 
-    <li role="separator" class="bx--side-nav__divider"></li>
+    <SideNavDivider />
 
-    <li class="bx--side-nav__item">
-      <div aria-expanded="true" class="bx--side-nav__submenu">
-        <span class="bx--side-nav__submenu-title">Logs</span>
-      </div>
+    <SideNavMenu text="Security">
+      <SideNavMenuItem text="Vulnerabilities" href="#" />
+      <SideNavMenuItem text="Compliance" href="#" />
+    </SideNavMenu>
+  </SideNavItems>
+</SideNav>
 
-      <ul role="menu" class="bx--side-nav__menu">
-        <li class="bx--side-nav__menu-item">
-          <a href="/ui/static" class="bx--side-nav__link" on:click={() => console.log('clicked')}>
-            <span class="bx--side-nav__link-text">Operator</span>
-          </a>
-        </li>
-        <li class="bx--side-nav__menu-item">
-          <a href="/logs/policies" class="bx--side-nav__link bx--side-nav__link--current">
-            <span class="bx--side-nav__link-text">Policy Enforcement</span>
-          </a>
-        </li>
-      </ul>
-    </li>
-
-    <li role="separator" class="bx--side-nav__divider"></li>
-
-    <li class="bx--side-nav__item">
-      <div aria-expanded="true" class="bx--side-nav__submenu">
-        <span class="bx--side-nav__submenu-title">Security</span>
-      </div>
-
-      <ul role="menu" class="bx--side-nav__menu">
-        <li class="bx--side-nav__menu-item">
-          <a href="/ui/static" class="bx--side-nav__link" on:click={() => console.log('clicked')}>
-            <span class="bx--side-nav__link-text">Vulnerabilities</span>
-          </a>
-        </li>
-        <li class="bx--side-nav__menu-item">
-          <a href="/ui/static" class="bx--side-nav__link">
-            <span class="bx--side-nav__link-text">Compliance</span>
-          </a>
-        </li>
-      </ul>
-    </li>
-  </ul>
-</nav>
-
-<Content >
+<Content>
   <slot />
 </Content>
 
 <style lang="scss">
-  :global(.bx--content) {
-    max-width: none !important;
-  }
-
   :global(.bx--search) {
     display: flex !important;
     align-items: center !important;
@@ -245,13 +185,18 @@
 
   $side-nav__header-text: #aaa;
 
+  /* remove Content max-width for responsiveness */
+  :global(.bx--content) {
+    max-width: none;
+  }
+
   :global(.bx--side-nav) {
     background-color: var(--cds-inverse-01) !important;
   }
 
   /* Sidenav header color */
   :global(.bx--side-nav__submenu-title) {
-    color: $side-nav__header-text;
+    color: $side-nav__header-text !important;
   }
 
   /* Sidenav link color */
@@ -260,28 +205,42 @@
   }
 
   :global(.bx--side-nav__divider) {
-    background-color: var(--cds-ui-01);
+    background-color: var(--cds-ui-01) !important;
   }
 
+  /* Link item hover color */
   :global(.bx--side-nav__link):hover {
     background-color: var(--cds-ui-01) !important;
   }
 
   :global(.bx--side-nav__submenu) {
-    cursor: default;
+    cursor: default !important;
   }
 
   /* Remove hover highlight on hover for the Sidenav header */
   :global(.bx--side-nav__submenu:hover) {
-    background-color: transparent;
+    background-color: transparent !important;
   }
 
   /* Sidenav active/ selected link background color */
-  :global(a.bx--side-nav__link--current) {
+  :global(a.bx--side-nav__link[aria-current='page']) {
     background-color: var(--cds-ui-01) !important;
   }
 
-  :global(a.bx--side-nav__link--current > .bx--side-nav__link-text) {
+  :global(a.bx--side-nav__link[aria-current='page']:focus) {
+    border: none !important;
+  }
+
+  /* Removes outline/ border around a sidenav header that is clicked/ focused */
+  :global(.bx--side-nav__submenu:focus) {
+    outline: none !important;
+  }
+
+  :global(a.bx--side-nav__link[aria-current='page'] > .bx--side-nav__link-text) {
     color: var(--cds-interactive-03) !important;
+  }
+
+  :global(.bx--side-nav__icon) {
+    display: none !important;
   }
 </style>
