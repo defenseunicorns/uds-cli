@@ -215,11 +215,15 @@
   </ul>
 </nav>
 
-<Content>
+<Content >
   <slot />
 </Content>
 
 <style lang="scss">
+  :global(.bx--content) {
+    max-width: none !important;
+  }
+
   :global(.bx--search) {
     display: flex !important;
     align-items: center !important;
@@ -240,10 +244,6 @@
   }
 
   $side-nav__header-text: #aaa;
-
-  :global(.bx--content) {
-    max-width: 924px;
-  }
 
   :global(.bx--side-nav) {
     background-color: var(--cds-inverse-01) !important;

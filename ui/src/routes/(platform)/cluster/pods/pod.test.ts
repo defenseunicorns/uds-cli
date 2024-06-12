@@ -1,8 +1,8 @@
 // +page.test.js
-import {describe, test} from 'vitest';
-import {render, screen} from '@testing-library/svelte';
+import { describe, test } from 'vitest';
+import { render, screen } from '@testing-library/svelte';
 import Page from './+page.svelte';
-import {FakePodRepository} from '../../../../../tests/fakerepos/FakePodRepo';
+import { FakePodRepository } from '../../../../../tests/fakerepos/FakePodRepo';
 
 describe('pod page', () => {
   test('pod rendering', async () => {
