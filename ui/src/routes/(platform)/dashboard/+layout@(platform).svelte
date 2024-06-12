@@ -237,7 +237,7 @@
     color: var(--cds-interactive-03) !important;
   }
 
-  /* Remove icon from nav menu heaer */
+  /* Remove icon from nav menu header */
   :global(.bx--side-nav__icon) {
     display: none !important;
   }
