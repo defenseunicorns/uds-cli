@@ -9,7 +9,7 @@ const (
 	RootCmdShort              = "CLI for UDS Bundles"
 	RootCmdFlagSkipLogFile    = "Disable log file creation"
 	RootCmdFlagNoProgress     = "Disable fancy UI progress bars, spinners, logos, etc"
-	RootCmdFlagCachePath      = "Specify the location of the Zarf cache directory"
+	RootCmdFlagCachePath      = "Specify the location of the UDS cache directory"
 	RootCmdFlagTempDir        = "Specify the temporary directory to use for intermediate files"
 	RootCmdFlagInsecure       = "Allow access to insecure registries and disable other recommended security enforcements such as package checksum and signature validation. This flag should only be used if you have a specific reason and accept the reduced security posture."
 	RootCmdFlagLogLevel       = "Log level when running UDS-CLI. Valid options are: warn, info, debug, trace"
@@ -20,25 +20,24 @@ const (
 	CmdBundleLogsShort = "View most recent UDS CLI logs"
 
 	// bundle
-	CmdBundleShort           = "Commands for creating, deploying, removing, pulling, and inspecting bundles"
 	CmdBundleFlagConcurrency = "Number of concurrent layer operations to perform when interacting with a remote bundle."
 
 	// bundle create
-	CmdBundleCreateShort = "Create a bundle from a given directory or the current directory"
-	//CmdBundleCreateFlagConfirm            = "Confirm bundle creation without prompting"
+	CmdBundleCreateShort                  = "Create a bundle from a given directory or the current directory"
+	CmdBundleCreateFlagConfirm            = "Confirm bundle creation without prompting"
 	CmdBundleCreateFlagOutput             = "Specify the output (an oci:// URL) for the created bundle"
 	CmdBundleCreateFlagSigningKey         = "Path to private key file for signing bundles"
 	CmdBundleCreateFlagSigningKeyPassword = "Password to the private key file used for signing bundles"
 	CmdBundleCreateFlagFlavor             = "Specify which zarf package flavor you want to use."
 
 	// bundle deploy
-	CmdBundleDeployShort             = "Deploy a bundle from a local tarball or oci:// URL"
-	CmdBundleDeployFlagConfirm       = "Confirms bundle deployment without prompting. ONLY use with bundles you trust. Skips prompts to review SBOM, configure variables, select optional components and review potential breaking changes."
-	CmdBundleDeployFlagPackages      = "Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed."
-	CmdBundleDeployFlagResume        = "Only deploys packages from the bundle which haven't already been deployed"
-	CmdBundleDeployFlagSet           = "Specify deployment variables to set on the command line (KEY=value)"
-	CmdBundleDeployFlagRetries       = "Specify the number of retries for package deployments (applies to all pkgs in a bundle)"
-	CmdBundleDeployFlagRef           = "Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used."
+	CmdBundleDeployShort        = "Deploy a bundle from a local tarball or oci:// URL"
+	CmdBundleDeployFlagConfirm  = "Confirms bundle deployment without prompting. ONLY use with bundles you trust"
+	CmdBundleDeployFlagPackages = "Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed."
+	CmdBundleDeployFlagResume   = "Only deploys packages from the bundle which haven't already been deployed"
+	CmdBundleDeployFlagSet      = "Specify deployment variables to set on the command line (KEY=value)"
+	CmdBundleDeployFlagRetries  = "Specify the number of retries for package deployments (applies to all pkgs in a bundle)"
+	CmdBundleDeployFlagRef      = "Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used."
 
 	// bundle inspect
 	CmdBundleInspectShort            = "Display the metadata of a bundle"
