@@ -134,7 +134,7 @@ func introspectOptionalComponentsBundle(t *testing.T) {
 }
 
 func ensureImgNotPresent(t *testing.T, imgName string, remotePkgManifest ocispec.Manifest, blobsDir string) {
-	// used to verify that the kiwix img is not included in the bundle (note that kiwix is intentionally excluded!)
+	// used to verify that the img is not included in the bundle
 	verifyImgNotIncluded := false
 
 	// grab image index from pkg root manifest
