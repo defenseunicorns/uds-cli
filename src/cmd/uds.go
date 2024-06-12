@@ -197,7 +197,6 @@ func init() {
 	deployCmd.Flags().StringArrayVarP(&bundleCfg.DeployOpts.Packages, "packages", "p", []string{}, lang.CmdBundleDeployFlagPackages)
 	deployCmd.Flags().BoolVarP(&bundleCfg.DeployOpts.Resume, "resume", "r", false, lang.CmdBundleDeployFlagResume)
 	deployCmd.Flags().IntVar(&bundleCfg.DeployOpts.Retries, "retries", 3, lang.CmdBundleDeployFlagRetries)
-	deployCmd.Flags().BoolVarP(&bundleCfg.DeployOpts.ListVariables, "list-variables", "v", false, lang.CmdBundleDeployFlagListVariables)
 
 	// inspect cmd flags
 	rootCmd.AddCommand(inspectCmd)
