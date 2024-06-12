@@ -10,18 +10,18 @@ set -e
 
 # create the nginx and podinfo Zarf packages
 cd ./../src/test/packages/nginx
-zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a amd64
-zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a arm64
+uds zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a amd64
+uds zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a arm64
 cd ./refs
-zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a amd64
-zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a arm64
+uds zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a amd64
+uds zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a arm64
 
 cd ../../podinfo
-zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a amd64
-zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a arm64
+uds zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a amd64
+uds zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a arm64
 cd ./refs
-zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a amd64
-zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a arm64
+uds zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a amd64
+uds zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a arm64
 
 # create ghcr-test bundle
 cd ../../bundles/06-ghcr

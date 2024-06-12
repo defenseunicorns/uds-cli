@@ -14,8 +14,6 @@ components:
           - deployment.yaml
     actions:
       onDeploy:
-      # the following checks were computed by viewing the success state of the package deployment
-      # and creating `wait` actions that match
         after:
           - wait:
               cluster:
@@ -23,7 +21,5 @@ components:
                 name: nginx-deployment
                 namespace: nginx
                 condition: available
-    # image discovery is supported in all manifests and charts using:
-    # zarf prepare find-images
     images:
-      - docker.io/library/nginx:1.26.0
+      - nginx:1.26.0 # use shorthand for nginx!
