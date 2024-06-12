@@ -5,10 +5,10 @@ metadata:
   version: 0.0.1
 
 packages:
-  - name: init
-    repository: ghcr.io/defenseunicorns/packages/init
-    # renovate: datasource=github-tags depName=defenseunicorns/zarf
-    ref: v0.34.0
+#  - name: init
+#    repository: ghcr.io/defenseunicorns/packages/init
+#    # renovate: datasource=github-tags depName=defenseunicorns/zarf
+#    ref: v0.34.0
 
   # deploys prometheus as a required component and upload-image as an optional component (with noOptionalComponents key)
   - name: prometheus
@@ -22,4 +22,4 @@ packages:
     path: ../../packages/podinfo-nginx
     ref: 0.0.1
     optionalComponents:
-      - nginx
+      - nginx-remote

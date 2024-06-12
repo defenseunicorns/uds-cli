@@ -118,12 +118,11 @@ func introspectOptionalComponentsBundle(t *testing.T) {
 	err = json.Unmarshal(pkgManifestBytes, &localPkgManifest)
 	require.NoError(t, err)
 
-	// ensure nginx not present in bundle bc we didn't specify its component in the optional components
-	//ensureImgNotPresent(t, "docker.io/library/nginx", localPkgManifest, blobsDir)
-	ensureImgNotPresent(t, " ghcr.io/stefanprodan/podinfo:6.4.0", localPkgManifest, blobsDir)
+	// ensure podinfo not present in bundle bc we didn't specify its component in the optional components
+	ensureImgNotPresent(t, "ghcr.io/stefanprodan/podinfo:6.4.0", localPkgManifest, blobsDir)
 
 	// for this local pkg, ensure component tars DO NOT exist in img manifest
-	componentName = "nginx-remote"
+	componentName = "podinfo"
 	verifyComponentNotIncluded = true
 	for _, desc := range localPkgManifest.Layers {
 		if strings.Contains(desc.Annotations[ocispec.AnnotationTitle], fmt.Sprintf("components/%s.tar", componentName)) {
