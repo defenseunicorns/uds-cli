@@ -26,9 +26,9 @@ var peprCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// Set the stream kind from the CLI
 		// @todo add validation for the argument
-		var streamKind pepr.PeprStreamKind
+		var streamKind pepr.StreamKind
 		if len(args) > 0 {
-			streamKind = pepr.PeprStreamKind(args[0])
+			streamKind = pepr.StreamKind(args[0])
 		}
 
 		// Create a new stream for the Pepr logs

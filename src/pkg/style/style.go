@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	Bold = lipgloss.NewStyle().Bold(true)
+	Bold      = lipgloss.NewStyle().Bold(true)
 	Underline = lipgloss.NewStyle().Underline(true)
 
 	// styles for gray-90 tags from https://carbondesignsystem.com/elements/color/tokens/
@@ -31,5 +31,5 @@ var (
 )
 
 func RenderFmt(style lipgloss.Style, format string, a ...any) string {
-	return style.Render(fmt.Sprintf(format, a...));
+	return style.Render(fmt.Sprintf(format, a...))
 }

@@ -17,7 +17,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type StreamReader interface {
+type Reader interface {
 	// PodFilter creates a map of pod and container names to pull logs from
 	PodFilter(pods []corev1.Pod) map[string]string
 
@@ -30,12 +30,12 @@ type StreamReader interface {
 
 type Stream struct {
 	writer    io.Writer
-	reader    StreamReader
+	reader    Reader
 	follow    bool
 	namespace string
 }
 
-func NewStream(writer io.Writer, reader StreamReader, namespace string) *Stream {
+func NewStream(writer io.Writer, reader Reader, namespace string) *Stream {
 	return &Stream{
 		writer:    writer,
 		reader:    reader,

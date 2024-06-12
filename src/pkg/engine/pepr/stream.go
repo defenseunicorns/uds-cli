@@ -19,14 +19,14 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// PeprStreamKind represents the type of Pepr stream
-type PeprStreamKind string
+// StreamKind represents the type of Pepr stream
+type StreamKind string
 
-type PeprStreamReader struct {
+type StreamReader struct {
 	showTimestamp   bool
 	filterNamespace string
 	filterName      string
-	filterStream    PeprStreamKind
+	filterStream    StreamKind
 	indent          string
 	lastEntryHeader string
 	lastEntryBody   string
@@ -71,30 +71,30 @@ type operation struct {
 
 const (
 	// AnyStream represents all Pepr logs
-	AnyStream PeprStreamKind = ""
+	AnyStream StreamKind = ""
 	// PolicyStream represents all Pepr admission controller logs
-	PolicyStream PeprStreamKind = "policies"
+	PolicyStream StreamKind = "policies"
 	// OperatorStream represents all UDS Operator logs
-	OperatorStream PeprStreamKind = "operator"
+	OperatorStream StreamKind = "operator"
 	// AllowStream represents all Pepr admission controller allow logs
-	AllowStream PeprStreamKind = "allowed"
+	AllowStream StreamKind = "allowed"
 	// DenyStream represents all Pepr admission controller deny logs
-	DenyStream PeprStreamKind = "denied"
+	DenyStream StreamKind = "denied"
 	// MutateStream represents all Pepr admission controller mutation logs
-	MutateStream PeprStreamKind = "mutated"
+	MutateStream StreamKind = "mutated"
 	// FailureStream represents all admission controller deny logs and operator failure logs
-	FailureStream PeprStreamKind = "failed"
+	FailureStream StreamKind = "failed"
 )
 
 // NewPeprStreamReader creates a new PeprStreamReader
-func NewPeprStreamReader(timestamp bool, filterNamespace, filterName string, filterStream PeprStreamKind) *PeprStreamReader {
+func NewPeprStreamReader(timestamp bool, filterNamespace, filterName string, filterStream StreamKind) *StreamReader {
 	// Use a longer indent when timestamps are enabled
 	indent := ""
 	if timestamp {
 		indent = "                     "
 	}
 
-	return &PeprStreamReader{
+	return &StreamReader{
 		indent:          indent,
 		filterNamespace: strings.ToLower(filterNamespace),
 		filterName:      strings.ToLower(filterName),
@@ -104,7 +104,7 @@ func NewPeprStreamReader(timestamp bool, filterNamespace, filterName string, fil
 }
 
 // PodFilter creates a map of pod and container names to pull logs from
-func (p *PeprStreamReader) PodFilter(pods []corev1.Pod) map[string]string {
+func (p *StreamReader) PodFilter(pods []corev1.Pod) map[string]string {
 	containers := make(map[string]string)
 
 	// By default include the admission controller logs and exclude the operator logs
@@ -149,7 +149,7 @@ func (p *PeprStreamReader) PodFilter(pods []corev1.Pod) map[string]string {
 }
 
 // LogStream processes the log stream from Pepr and writes formatted output to the writer
-func (p *PeprStreamReader) LogStream(writer io.Writer, logStream io.ReadCloser) error {
+func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser) error {
 	// Process logs line by line.
 	scanner := bufio.NewScanner(logStream)
 	buf := make([]byte, 0, 5*1024*1024) // Allocate a 5 MB buffer to handle large log lines
@@ -253,10 +253,16 @@ func (p *PeprStreamReader) LogStream(writer io.Writer, logStream io.ReadCloser) 
 			// If timestamps are enabled, write the timestamp before the header
 			if p.showTimestamp {
 				timestamp := time.UnixMilli(event.Time).Format("2006-01-01 15:01:01")
-				writer.Write([]byte(fmt.Sprintf("\n\n%s  %v%v", timestamp, style.Bold.Render(header), body)))
+				_, err := writer.Write([]byte(fmt.Sprintf("\n\n%s  %v%v", timestamp, style.Bold.Render(header), body)))
+				if err != nil {
+					return err
+				}
 			} else {
 				// Otherwise, write the header and body
-				writer.Write([]byte(fmt.Sprintf("\n\n%v%v", style.Bold.Render(header), body)))
+				_, err := writer.Write([]byte(fmt.Sprintf("\n\n%v%v", style.Bold.Render(header), body)))
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -265,11 +271,11 @@ func (p *PeprStreamReader) LogStream(writer io.Writer, logStream io.ReadCloser) 
 }
 
 // LogFlush write any remaining repeated events to the writer
-func (p *PeprStreamReader) LogFlush(writer io.Writer) {
+func (p *StreamReader) LogFlush(writer io.Writer) {
 	p.writeRepeatedEvent(writer)
 }
 
-func (p *PeprStreamReader) updateRepeatCount(count int) {
+func (p *StreamReader) updateRepeatCount(count int) {
 	// Use a mutex to avoid conncurrent writes from multiple goroutines
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
@@ -277,7 +283,7 @@ func (p *PeprStreamReader) updateRepeatCount(count int) {
 	p.repeatCount = count
 }
 
-func (p *PeprStreamReader) updateLastEntry(header, body string) {
+func (p *StreamReader) updateLastEntry(header, body string) {
 	// Use a mutex to avoid conncurrent writes from multiple goroutines
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
@@ -286,7 +292,7 @@ func (p *PeprStreamReader) updateLastEntry(header, body string) {
 	p.lastEntryBody = body
 }
 
-func (p *PeprStreamReader) writeRepeatedEvent(writer io.Writer) {
+func (p *StreamReader) writeRepeatedEvent(writer io.Writer) {
 	// Print the last entry if it's not the first and there were repeats for ALLOWED events
 	if p.repeatCount > 0 {
 		// Handle pluralization
@@ -302,7 +308,10 @@ func (p *PeprStreamReader) writeRepeatedEvent(writer io.Writer) {
 		}
 
 		countMsg := offset + style.RenderFmt(style.Gray, "(repeated %d time%s)", p.repeatCount, plural)
-		writer.Write([]byte(countMsg))
+		_, err := writer.Write([]byte(countMsg))
+		if err != nil {
+			log.Printf("Error writing repeated event: %v", err)
+		}
 
 		// Reset the counter and last entry
 		p.updateRepeatCount(0)
@@ -310,7 +319,7 @@ func (p *PeprStreamReader) writeRepeatedEvent(writer io.Writer) {
 	}
 }
 
-func (p *PeprStreamReader) skipResource(event LogEntry) bool {
+func (p *StreamReader) skipResource(event LogEntry) bool {
 	if p.filterNamespace != "" {
 		namespace := strings.ToLower(event.Namespace)
 		if !strings.Contains(namespace, p.filterNamespace) {
@@ -328,7 +337,7 @@ func (p *PeprStreamReader) skipResource(event LogEntry) bool {
 	return false
 }
 
-func (p *PeprStreamReader) renderDenied(event LogEntry) string {
+func (p *StreamReader) renderDenied(event LogEntry) string {
 	var msg strings.Builder
 
 	// Get the failure message
@@ -363,7 +372,7 @@ func (p *PeprStreamReader) renderDenied(event LogEntry) string {
 	return msg.String()
 }
 
-func (p *PeprStreamReader) renderMutation(event LogEntry) string {
+func (p *StreamReader) renderMutation(event LogEntry) string {
 	if event.Res.Patch != nil {
 		decodedPatch, _ := base64.StdEncoding.DecodeString(*event.Res.Patch)
 
