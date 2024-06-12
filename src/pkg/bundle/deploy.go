@@ -24,6 +24,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
+	"github.com/pterm/pterm"
 	"golang.org/x/exp/slices"
 	"helm.sh/helm/v3/pkg/cli/values"
 	"helm.sh/helm/v3/pkg/getter"
@@ -116,17 +117,12 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 			return err
 		}
 
-		if b.cfg.DeployOpts.ListVariables {
-			for _, comp := range valuesOverrides {
-				for _, chart := range comp {
-					for _, overs := range chart {
-						utils.ColorPrintYAML(overs, nil, false)
-					}
-				}
-			}
-			return nil
+		// confirm deployment
+		if ok := b.ConfirmBundleDeploy(valuesOverrides); !ok {
+			message.Fatal(nil, "bundle deployment cancelled")
 		}
 
+		
 		zarfDeployOpts := zarfTypes.ZarfDeployOptions{
 			ValuesOverridesMap: valuesOverrides,
 			Timeout:            config.HelmTimeout,
@@ -216,10 +212,47 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 }
 
 // ConfirmBundleDeploy uses Zarf's pterm logging to prompt the user to confirm bundle creation
-func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
+func (b *Bundle) ConfirmBundleDeploy(valuesOverrides PkgOverrideMap) (confirm bool) {
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
-	utils.ColorPrintYAML(b.bundle, nil, false)
+	pterm.Println("kind: ", b.bundle.Kind)
+
+	message.HorizontalRule()
+
+	pterm.Println("metadata")
+	utils.ColorPrintYAML(b.bundle.Metadata, nil, false)
+
+	message.HorizontalRule()
+
+	pterm.Println("Build")
+	utils.ColorPrintYAML(b.bundle.Build, nil, false)
+
+	message.HorizontalRule()
+
+	pterm.Println("Configs")
+	pterm.Println(b.cfg.DeployOpts.Config)
+
+
+	message.HorizontalRule()
+
+	utils.ColorPrintYAML(b.bundle.Packages, nil, false)
+
+			for _, comp := range valuesOverrides {
+				pterm.Println("name: ", )
+				pterm.Println("repo: _",)
+				pterm.Println("ref: _",)
+				pterm.Println("overrides:",)
+				for _, chart := range comp {
+					pterm.Println(chart)
+					pterm.Println("variables:")
+					for _, overs := range chart {
+						utils.ColorPrintYAML(overs, nil, false)
+					}
+				}
+			}
+			
+		
+
 
 	message.HorizontalRule()
 
@@ -356,7 +389,7 @@ func (b *Bundle) processOverrideNamespaces(overrideMap sources.NamespaceOverride
 func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values *[]types.BundleChartValue, componentName string, chartName string, pkgVars map[string]string) error {
 	for _, v := range *values {
 		// Add the override to the map, or return an error if the path is invalid
-		if err := addOverride(*overrideMap, componentName, chartName, v, v.Value, pkgVars); err != nil {
+		if err := b.addOverride(*overrideMap, componentName, chartName, v, v.Value, pkgVars); err != nil {
 			return err
 		}
 	}
@@ -377,38 +410,38 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 				setVal := strings.Split(k, ".")
 				if setVal[0] == pkgName && strings.ToUpper(setVal[1]) == v.Name {
 					overrideVal = val
-					v.Source = b.getSourcePath(types.CLI)
+					v.Source = types.CLI
 				}
 			} else if strings.ToUpper(k) == v.Name {
 				overrideVal = val
-				v.Source = b.getSourcePath(types.CLI)
+				v.Source = types.CLI
 			}
 		}
 
 		// check for override in env vars if not in --set
 		if envVarOverride, exists := os.LookupEnv(strings.ToUpper(config.EnvVarPrefix + v.Name)); overrideVal == nil && exists {
 			overrideVal = envVarOverride
-			v.Source = b.getSourcePath(types.Env)
+			v.Source = types.Env
 		}
 
 		// if not in --set or an env var, use the following precedence: configFile, sharedConfig, default
 		if overrideVal == nil {
 			if configFileOverride, existsInConfig := b.cfg.DeployOpts.Variables[pkgName][v.Name]; existsInConfig {
 				overrideVal = configFileOverride
-				v.Source = b.getSourcePath(types.Config)
+				v.Source = types.Config
 			} else if sharedConfigOverride, existsInSharedConfig := b.cfg.DeployOpts.SharedVariables[v.Name]; existsInSharedConfig {
 				overrideVal = sharedConfigOverride
-				v.Source = b.getSourcePath(types.Config)
+				v.Source = types.Config
 			} else if v.Default != nil {
 				overrideVal = v.Default
-				v.Source = b.getSourcePath(types.Bundle)
+				v.Source = types.Bundle
 			} else {
 				continue
 			}
 		}
 
 		// Add the override to the map, or return an error if the path is invalid
-		if err := addOverride(*overrideMap, componentName, chartName, v, overrideVal, nil); err != nil {
+		if err := b.addOverride(*overrideMap, componentName, chartName, v, overrideVal, nil); err != nil {
 			return err
 		}
 
@@ -417,7 +450,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 }
 
 // addOverride adds a value or variable to a PkgOverrideMap
-func addOverride[T types.ChartOverride](overrides map[string]map[string]*values.Options, component string, chart string, override T, value interface{}, pkgVars map[string]string) error {
+func (b *Bundle) addOverride(overrides map[string]map[string]*values.Options, component string, chart string, override interface{}, value interface{}, pkgVars map[string]string) error {
 	// Create the component map if it doesn't exist
 	if _, ok := overrides[component]; !ok {
 		overrides[component] = make(map[string]*values.Options)
@@ -436,7 +469,7 @@ func addOverride[T types.ChartOverride](overrides map[string]map[string]*values.
 	case types.BundleChartVariable:
 		valuePath = v.Path
 		if v.Type == types.File {
-			if fileVals, err := addFileValue(overrides[component][chart].FileValues, value.(string), v); err == nil {
+			if fileVals, err := b.addFileValue(overrides[component][chart].FileValues, value.(string), v); err == nil {
 				overrides[component][chart].FileValues = fileVals
 			} else {
 				return err
@@ -491,7 +524,7 @@ func addOverride[T types.ChartOverride](overrides map[string]map[string]*values.
 }
 
 // getSourcePath returns the path from where a value is set
-func (b *Bundle) getSourcePath(pathType types.ValueSources) string {
+func getSourcePath(pathType types.ValueSources, b *Bundle) string {
 	var sourcePath string
 	switch pathType {
 	case types.CLI:
@@ -523,8 +556,8 @@ func setTemplatedVariables(templatedVariables string, pkgVars map[string]string)
 }
 
 // addFileValue adds a key=filepath string to helm FileValues
-func addFileValue(helmFileVals []string, filePath string, override types.BundleChartVariable) ([]string, error) {
-	verifiedPath, err := formFilePath(override.Source, filePath)
+func (b *Bundle) addFileValue(helmFileVals []string, filePath string, override types.BundleChartVariable) ([]string, error) {
+	verifiedPath, err := formFilePath(getSourcePath(override.Source, b), filePath)
 	if err != nil {
 		return nil, err
 	}

@@ -51,10 +51,6 @@ type BundleChartOverrides struct {
 	ValuesFiles []string              `json:"valuesFiles,omitempty" jsonschema:"description=List of Helm chart value file  paths to set statically"`
 }
 
-type ChartOverride interface {
-	BundleChartVariable | BundleChartValue
-}
-
 type BundleChartValue struct {
 	Path  string      `json:"path" jsonschema:"name=Path to the Helm chart value to set. The format is <chart-value>, example=controller.service.type"`
 	Value interface{} `json:"value" jsonschema:"name=The value to set"`
@@ -66,7 +62,7 @@ type BundleChartVariable struct {
 	Description string            `json:"description,omitempty" jsonschema:"name=Description of the variable"`
 	Default     interface{}       `json:"default,omitempty" jsonschema:"name=The default value to set"`
 	Type        ChartVariableType `json:"type,omitempty" jsonschema:"description=The type of value to be processed,enum=raw,enum=file"`
-	Source      string            `json:"source,omitempty" jsonschema:"description=Where the value is set from"`
+	Source      ValueSources      `json:"source,omitempty" jsonschema:"description=Where the value is set from,enum=config,enum=env,enum=cli,enum=bundle"`
 }
 
 // BundleVariableImport represents variables in the bundle
