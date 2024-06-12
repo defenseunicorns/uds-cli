@@ -18,17 +18,24 @@ var follow bool
 var timestamps bool
 
 var peprCmd = &cobra.Command{
-	Use:     "pepr [policies|operator|allowed|denied|failed]",
+	Use:     "pepr [policies|operator|allowed|denied|failed|mutated]",
 	Aliases: []string{"p"},
 	Short:   lang.CmdMonitorPeprShort,
 	Long:    lang.CmdMonitorPeprLong,
 	Args:    cobra.MaximumNArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, args []string) {
 		// Set the stream kind from the CLI
-		// @todo add validation for the argument
 		var streamKind pepr.StreamKind
-		if len(args) > 0 {
+		if len(args) > 0 && args[0] != "" {
 			streamKind = pepr.StreamKind(args[0])
+
+			// Validate the stream kind
+			switch streamKind {
+			case pepr.PolicyStream, pepr.OperatorStream, pepr.AllowStream, pepr.DenyStream, pepr.FailureStream, pepr.MutateStream:
+				// Valid stream kind
+			default:
+				log.Fatalf("Invalid stream kind: %s", streamKind)
+			}
 		}
 
 		// Create a new stream for the Pepr logs
