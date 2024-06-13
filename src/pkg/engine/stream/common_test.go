@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -109,11 +109,11 @@ func TestStream_Start(t *testing.T) {
 
 			err := stream.Start()
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				if tt.pods != nil && tt.name == "Successful log streaming" {
-					assert.Contains(t, writer.String(), tt.logStreamData)
+					require.Contains(t, writer.String(), tt.logStreamData)
 				}
 			}
 

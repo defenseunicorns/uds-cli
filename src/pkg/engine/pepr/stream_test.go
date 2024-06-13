@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -19,10 +19,10 @@ func TestNewStreamReader(t *testing.T) {
 
 	reader := NewStreamReader(timestamp, filterNamespace, filterName)
 
-	assert.True(t, reader.showTimestamp)
-	assert.Equal(t, "                     ", reader.indent)
-	assert.Equal(t, "test-namespace", reader.filterNamespace)
-	assert.Equal(t, "test-name", reader.filterName)
+	require.True(t, reader.showTimestamp)
+	require.Equal(t, "                     ", reader.indent)
+	require.Equal(t, "test-namespace", reader.filterNamespace)
+	require.Equal(t, "test-name", reader.filterName)
 }
 
 func TestPodFilter(t *testing.T) {
@@ -94,7 +94,7 @@ func TestPodFilter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			reader := &StreamReader{FilterStream: tt.filterStream}
 			result := reader.PodFilter(pods)
-			assert.Equal(t, tt.expected, result)
+			require.Equal(t, tt.expected, result)
 		})
 	}
 }
@@ -161,12 +161,12 @@ func TestLogStream(t *testing.T) {
 
 			var buf bytes.Buffer
 			err := reader.LogStream(&buf, io.NopCloser(strings.NewReader(tc.logs)))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			expected := normalizeWhitespace(tc.expected)
 			actual := normalizeWhitespace(buf.String())
 
-			assert.Equal(t, expected, actual)
+			require.Equal(t, expected, actual)
 		})
 	}
 }
@@ -181,7 +181,7 @@ func TestLogFlush(t *testing.T) {
 	reader.LogFlush(&buf)
 
 	expected := " (repeated 3 times)"
-	assert.Equal(t, expected, buf.String())
+	require.Equal(t, expected, buf.String())
 }
 
 func TestSkipResource(t *testing.T) {
@@ -252,7 +252,7 @@ func TestSkipResource(t *testing.T) {
 			}
 
 			result := reader.skipResource(tc.event)
-			assert.Equal(t, tc.expected, result)
+			require.Equal(t, tc.expected, result)
 		})
 	}
 }
@@ -319,7 +319,7 @@ func TestRenderDenied(t *testing.T) {
 			expected := normalizeWhitespace(tc.expected)
 			actual := normalizeWhitespace(result)
 
-			assert.Equal(t, expected, actual)
+			require.Equal(t, expected, actual)
 		})
 	}
 }
@@ -374,7 +374,7 @@ func TestRenderMutation(t *testing.T) {
 			expected := normalizeWhitespace(tc.expected)
 			actual := normalizeWhitespace(result)
 
-			assert.Equal(t, expected, actual)
+			require.Equal(t, expected, actual)
 		})
 	}
 }
