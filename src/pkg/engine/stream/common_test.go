@@ -97,7 +97,7 @@ func TestStream_Start(t *testing.T) {
 				reader.On("PodFilter", mock.Anything).Return(tt.filterResult)
 				reader.On("LogStream", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
 					writer := args.Get(0).(io.Writer)
-					writer.Write([]byte(tt.logStreamData))
+					_, _ = writer.Write([]byte(tt.logStreamData))
 				})
 			}
 
