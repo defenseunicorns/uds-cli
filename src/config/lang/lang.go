@@ -87,4 +87,17 @@ const (
 	CmdDevDeployShort          = "[beta] Creates and deploys a UDS bundle from a given directory in dev mode"
 	CmdDevDeployLong           = "[beta] Creates and deploys a UDS bundle from a given directory in dev mode, setting package options like YOLO mode for faster iteration."
 	CmdBundleCreateForceCreate = "For local bundles with local packages, specify whether to create a zarf package even if it already exists."
+
+	// uds monitor
+	CmdMonitorShort = "Monitor a UDS Cluster"
+	CmdMonitorLong  = "Tools for monitoring a UDS Cluster and connecting to the UDS Engine for advanced troubleshooting"
+
+	CmdMonitorNamespaceFlag = "Limit monitoring to a specific namespace"
+
+	CmdMonitorPeprShort         = "Observe Pepr operations in a UDS Cluster"
+	CmdMonitorPeprLong          = "View UDS Policy enforcements, UDS Operator events and additional Pepr operations"
+	CmdPeprMonitorFollowFlag    = "Continuously stream Pepr logs"
+	CmdPeprMonitorTimestampFlag = "Show timestamps in Pepr logs"
+	CmdPeprMonitorSinceFlag     = "Only return logs newer than a relative duration like 5s, 2m, or 3h. Defaults to all logs."
+	CmdPeprMonitorJSONFlag      = "Return the raw JSON output of the logs"
 )
