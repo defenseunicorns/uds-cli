@@ -31,21 +31,17 @@ type Reader interface {
 type Stream struct {
 	writer    io.Writer
 	reader    Reader
-	follow    bool
-	namespace string
+	Follow    bool
+	Namespace string
+	Since     time.Duration
 }
 
 func NewStream(writer io.Writer, reader Reader, namespace string) *Stream {
 	return &Stream{
 		writer:    writer,
 		reader:    reader,
-		namespace: namespace,
+		Namespace: namespace,
 	}
-}
-
-// SetFollow sets the follow flag for the stream
-func (s *Stream) SetFollow(follow bool) {
-	s.follow = follow
 }
 
 // Start starts the stream
@@ -55,7 +51,7 @@ func (s *Stream) Start() error {
 		return fmt.Errorf("unable to connect to the cluster: %v", err)
 	}
 
-	pods, err := c.Clientset.CoreV1().Pods(s.namespace).List(context.TODO(), v1.ListOptions{})
+	pods, err := c.Clientset.CoreV1().Pods(s.Namespace).List(context.TODO(), v1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("unable to get pods: %v", err)
 	}
@@ -73,10 +69,20 @@ func (s *Stream) Start() error {
 			defer wg.Done()
 
 			// Set up the pod log options
-			podOpts := &corev1.PodLogOptions{Follow: s.follow, Container: container}
+			podOpts := &corev1.PodLogOptions{
+				Follow:    s.Follow,
+				Container: container,
+			}
+
+			// Set the sinceSeconds option if provided
+			if s.Since != 0 {
+				// round up to the nearest second
+				sec := int64(s.Since.Round(time.Second).Seconds())
+				podOpts.SinceSeconds = &sec
+			}
 
 			// Get the log stream for the pod
-			logStream, err := c.Clientset.CoreV1().Pods(s.namespace).GetLogs(podName, podOpts).Stream(context.TODO())
+			logStream, err := c.Clientset.CoreV1().Pods(s.Namespace).GetLogs(podName, podOpts).Stream(context.TODO())
 			if err != nil {
 				log.Printf("Error streaming logs for pod %s: %v", podName, err)
 				return
@@ -93,7 +99,7 @@ func (s *Stream) Start() error {
 	stopChan := make(chan struct{})
 
 	// Need to flush logs if following or repeats won't be seen until the end of the stream
-	if s.follow {
+	if s.Follow {
 		go func() {
 			// Final log flush when goroutine exits
 			defer s.reader.LogFlush(s.writer)

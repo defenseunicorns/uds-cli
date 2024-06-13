@@ -23,10 +23,11 @@ import (
 type StreamKind string
 
 type StreamReader struct {
-	showTimestamp   bool
+	JSON            bool
+	FilterStream    StreamKind
 	filterNamespace string
 	filterName      string
-	filterStream    StreamKind
+	showTimestamp   bool
 	indent          string
 	lastEntryHeader string
 	lastEntryBody   string
@@ -86,8 +87,8 @@ const (
 	FailureStream StreamKind = "failed"
 )
 
-// NewPeprStreamReader creates a new PeprStreamReader
-func NewPeprStreamReader(timestamp bool, filterNamespace, filterName string, filterStream StreamKind) *StreamReader {
+// NewStreamReader creates a new PeprStreamReader
+func NewStreamReader(timestamp bool, filterNamespace, filterName string) *StreamReader {
 	// Use a longer indent when timestamps are enabled
 	indent := ""
 	if timestamp {
@@ -98,7 +99,6 @@ func NewPeprStreamReader(timestamp bool, filterNamespace, filterName string, fil
 		indent:          indent,
 		filterNamespace: strings.ToLower(filterNamespace),
 		filterName:      strings.ToLower(filterName),
-		filterStream:    filterStream,
 		showTimestamp:   timestamp,
 	}
 }
@@ -111,7 +111,7 @@ func (p *StreamReader) PodFilter(pods []corev1.Pod) map[string]string {
 	includeAdmissionStream := true
 	includeWatchStream := false
 
-	switch p.filterStream {
+	switch p.FilterStream {
 	// For OperatorStream, include only the operator logs
 	case OperatorStream:
 		includeAdmissionStream = false
@@ -156,14 +156,14 @@ func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser) erro
 	scanner.Buffer(buf, cap(buf))       // Set the maximum token size
 
 	var (
-		enableLogAny             = p.filterStream == AnyStream
-		enableLogFailureAny      = p.filterStream == FailureStream
-		enableLogOperatorAny     = p.filterStream == OperatorStream || enableLogAny
-		enableLogOperatorFailure = p.filterStream == FailureStream || enableLogOperatorAny
-		enableLogAdmissionAny    = p.filterStream == PolicyStream || enableLogAny
-		enableLogMutate          = p.filterStream == MutateStream || enableLogAdmissionAny
-		enableLogAllow           = p.filterStream == AllowStream || enableLogAdmissionAny
-		enableLogDeny            = p.filterStream == DenyStream || enableLogAdmissionAny || enableLogFailureAny
+		enableLogAny             = p.FilterStream == AnyStream
+		enableLogFailureAny      = p.FilterStream == FailureStream
+		enableLogOperatorAny     = p.FilterStream == OperatorStream || enableLogAny
+		enableLogOperatorFailure = p.FilterStream == FailureStream || enableLogOperatorAny
+		enableLogAdmissionAny    = p.FilterStream == PolicyStream || enableLogAny
+		enableLogMutate          = p.FilterStream == MutateStream || enableLogAdmissionAny
+		enableLogAllow           = p.FilterStream == AllowStream || enableLogAdmissionAny
+		enableLogDeny            = p.FilterStream == DenyStream || enableLogAdmissionAny || enableLogFailureAny
 	)
 
 	for scanner.Scan() {
@@ -176,6 +176,13 @@ func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser) erro
 
 		// Ignore any unmatched log lines
 		if !isLogAdmission && !isLogOperatorProcessing && !isLogOperatorStatus && !isLogOperatorEvent {
+			continue
+		}
+
+		if p.JSON {
+			if _, err := writer.Write([]byte("\n" + line)); err != nil {
+				log.Printf("Error writing newline: %v", err)
+			}
 			continue
 		}
 

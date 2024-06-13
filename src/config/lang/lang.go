@@ -98,4 +98,6 @@ const (
 	CmdMonitorPeprLong          = "View UDS Policy enforcements, UDS Operator events and additional Pepr operations"
 	CmdPeprMonitorFollowFlag    = "Continuously stream Pepr logs"
 	CmdPeprMonitorTimestampFlag = "Show timestamps in Pepr logs"
+	CmdPeprMonitorSinceFlag     = "Only return logs newer than a relative duration like 5s, 2m, or 3h. Defaults to all logs."
+	CmdPeprMonitorJSONFlag      = "Return the raw JSON output of the logs"
 )

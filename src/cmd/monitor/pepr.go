@@ -7,6 +7,7 @@ package monitor
 import (
 	"log"
 	"os"
+	"time"
 
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/engine/pepr"
@@ -16,6 +17,8 @@ import (
 
 var follow bool
 var timestamps bool
+var since time.Duration
+var json bool
 
 var peprCmd = &cobra.Command{
 	Use:     "pepr [policies|operator|allowed|denied|failed|mutated]",
@@ -39,11 +42,14 @@ var peprCmd = &cobra.Command{
 		}
 
 		// Create a new stream for the Pepr logs
-		peprReader := pepr.NewPeprStreamReader(timestamps, namespace, "", streamKind)
+		peprReader := pepr.NewStreamReader(timestamps, namespace, "")
 		peprStream := stream.NewStream(os.Stdout, peprReader, "pepr-system")
 
-		// Set the follow flag from the CLI
-		peprStream.SetFollow(follow)
+		// Set the stream flags
+		peprReader.JSON = json
+		peprReader.FilterStream = streamKind
+		peprStream.Follow = follow
+		peprStream.Since = since
 
 		// Start the stream
 		if err := peprStream.Start(); err != nil {
@@ -57,4 +63,6 @@ func init() {
 
 	peprCmd.Flags().BoolVarP(&follow, "follow", "f", false, lang.CmdPeprMonitorFollowFlag)
 	peprCmd.Flags().BoolVarP(&timestamps, "timestamps", "t", false, lang.CmdPeprMonitorTimestampFlag)
+	peprCmd.Flags().DurationVar(&since, "since", since, lang.CmdPeprMonitorSinceFlag)
+	peprCmd.Flags().BoolVar(&json, "json", false, lang.CmdPeprMonitorJSONFlag)
 }
