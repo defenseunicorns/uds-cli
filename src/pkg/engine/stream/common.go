@@ -12,9 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/defenseunicorns/uds-cli/src/pkg/engine"
+	"github.com/defenseunicorns/uds-cli/src/pkg/engine/k8s"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 type Reader interface {
@@ -34,6 +35,8 @@ type Stream struct {
 	Follow    bool
 	Namespace string
 	Since     time.Duration
+	// Adding for testability :-<
+	Client kubernetes.Interface
 }
 
 func NewStream(writer io.Writer, reader Reader, namespace string) *Stream {
@@ -46,12 +49,16 @@ func NewStream(writer io.Writer, reader Reader, namespace string) *Stream {
 
 // Start starts the stream
 func (s *Stream) Start() error {
-	c, err := engine.NewCluster()
-	if err != nil {
-		return fmt.Errorf("unable to connect to the cluster: %v", err)
+	// Create a new client if one is not provided (usually for testing)
+	if s.Client == nil {
+		c, _, err := k8s.NewClient()
+		if err != nil {
+			return fmt.Errorf("unable to connect to the cluster: %v", err)
+		}
+		s.Client = c
 	}
 
-	pods, err := c.Clientset.CoreV1().Pods(s.Namespace).List(context.TODO(), v1.ListOptions{})
+	pods, err := s.Client.CoreV1().Pods(s.Namespace).List(context.TODO(), v1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("unable to get pods: %v", err)
 	}
@@ -65,7 +72,7 @@ func (s *Stream) Start() error {
 		// Add a goroutine to the wait group for each pod
 		wg.Add(1)
 		// Run as a goroutine to stream logs for each pod without blocking
-		go func(podName string, container string) {
+		go func(podName, container string) {
 			defer wg.Done()
 
 			// Set up the pod log options
@@ -82,7 +89,7 @@ func (s *Stream) Start() error {
 			}
 
 			// Get the log stream for the pod
-			logStream, err := c.Clientset.CoreV1().Pods(s.Namespace).GetLogs(podName, podOpts).Stream(context.TODO())
+			logStream, err := s.Client.CoreV1().Pods(s.Namespace).GetLogs(podName, podOpts).Stream(context.TODO())
 			if err != nil {
 				log.Printf("Error streaming logs for pod %s: %v", podName, err)
 				return

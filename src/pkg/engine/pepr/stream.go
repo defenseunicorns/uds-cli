@@ -248,6 +248,10 @@ func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser) erro
 		case enableLogDeny && isLogAdmission && !event.Res.Allowed:
 			header = style.RenderFmt(style.Red, " ✗ DENIED    %s", name)
 			body = p.renderDenied(event)
+
+		default:
+			// Unmatched log line (should not happen)
+			continue
 		}
 
 		// Handle repeated events

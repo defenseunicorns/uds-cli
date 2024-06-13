@@ -27,6 +27,8 @@ require (
 	golang.org/x/sync v0.7.0
 	helm.sh/helm/v3 v3.15.1
 	k8s.io/api v0.30.0
+	k8s.io/apimachinery v0.30.0
+	k8s.io/client-go v0.30.0
 	oras.land/oras-go/v2 v2.5.0
 )
 
@@ -428,6 +430,7 @@ require (
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.1.7 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/sylabs/sif/v2 v2.11.5 // indirect
 	github.com/sylabs/squashfs v0.6.1 // indirect
@@ -499,10 +502,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/gorm v1.25.10 // indirect
 	k8s.io/apiextensions-apiserver v0.30.0 // indirect
-	k8s.io/apimachinery v0.30.0 // indirect
 	k8s.io/apiserver v0.30.0 // indirect
 	k8s.io/cli-runtime v0.30.0 // indirect
-	k8s.io/client-go v0.30.0 // indirect
 	k8s.io/component-base v0.30.0 // indirect
 	k8s.io/component-helpers v0.30.0 // indirect
 	k8s.io/klog/v2 v2.120.1 // indirect
