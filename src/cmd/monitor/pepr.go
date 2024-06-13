@@ -5,13 +5,13 @@
 package monitor
 
 import (
-	"log"
 	"os"
 	"time"
 
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/engine/pepr"
 	"github.com/defenseunicorns/uds-cli/src/pkg/engine/stream"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/spf13/cobra"
 )
 
@@ -58,7 +58,7 @@ var peprCmd = &cobra.Command{
 			case pepr.PolicyStream, pepr.OperatorStream, pepr.AllowStream, pepr.DenyStream, pepr.FailureStream, pepr.MutateStream:
 				// Valid stream kind
 			default:
-				log.Fatalf("Invalid stream kind: %s", streamKind)
+				message.Fatalf("Invalid stream kind: %s", string(streamKind))
 			}
 		}
 
@@ -74,7 +74,7 @@ var peprCmd = &cobra.Command{
 
 		// Start the stream
 		if err := peprStream.Start(); err != nil {
-			log.Fatalf("Error streaming Pepr logs: %v", err)
+			message.Fatalf(err, "Error streaming Pepr logs")
 		}
 	},
 }

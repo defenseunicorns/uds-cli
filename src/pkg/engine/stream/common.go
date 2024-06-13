@@ -8,11 +8,11 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/defenseunicorns/uds-cli/src/pkg/engine/k8s"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -91,13 +91,13 @@ func (s *Stream) Start() error {
 			// Get the log stream for the pod
 			logStream, err := s.Client.CoreV1().Pods(s.Namespace).GetLogs(podName, podOpts).Stream(context.TODO())
 			if err != nil {
-				log.Printf("Error streaming logs for pod %s: %v", podName, err)
+				message.WarnErrf(err, "Error streaming logs for pod %s", podName)
 				return
 			}
 			defer logStream.Close()
 
 			if err := s.reader.LogStream(s.writer, logStream); err != nil {
-				log.Printf("Error streaming logs for pod %s: %v", podName, err)
+				message.WarnErrf(err, "Error streaming logs for pod %s", podName)
 			}
 		}(pod, container)
 	}

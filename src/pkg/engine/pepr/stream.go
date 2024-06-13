@@ -10,12 +10,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/defenseunicorns/uds-cli/src/pkg/style"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -181,7 +181,7 @@ func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser) erro
 
 		if p.JSON {
 			if _, err := writer.Write([]byte("\n" + line)); err != nil {
-				log.Printf("Error writing newline: %v", err)
+				message.WarnErr(err, "Error writing newline")
 			}
 			continue
 		}
@@ -190,7 +190,7 @@ func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser) erro
 		var event LogEntry
 		if err := json.Unmarshal([]byte(line), &event); err != nil {
 			// Log the error and continue to the next line
-			log.Printf("Error parsing JSON: %v", err)
+			message.WarnErr(err, "Error parsing JSON")
 			continue
 		}
 
@@ -321,7 +321,7 @@ func (p *StreamReader) writeRepeatedEvent(writer io.Writer) {
 		countMsg := offset + style.RenderFmt(style.Gray, "(repeated %d time%s)", p.repeatCount, plural)
 		_, err := writer.Write([]byte(countMsg))
 		if err != nil {
-			log.Printf("Error writing repeated event: %v", err)
+			message.WarnErr(err, "Error writing repeated event")
 		}
 
 		// Reset the counter and last entry
@@ -390,7 +390,7 @@ func (p *StreamReader) renderMutation(event LogEntry) string {
 		var ops []operation
 
 		if err := json.Unmarshal(decodedPatch, &ops); err != nil {
-			log.Printf("Error parsing JSON: %v", err)
+			message.WarnErr(err, "Error parsing JSON patch")
 			return ""
 		}
 
