@@ -7,13 +7,18 @@ package engine
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
-	"os/exec"
+	"os"
 	"strings"
+	"time"
 
-	"github.com/fatih/color"
+	"github.com/defenseunicorns/uds-cli/src/pkg/engine/pepr"
+	"github.com/defenseunicorns/uds-cli/src/pkg/engine/stream"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -39,9 +44,19 @@ func Start() error {
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/policies", func(w http.ResponseWriter, r *http.Request) {
-			cmd := exec.Command("ping", "google.com")
-			//output, err := runCommand("npx", "pepr", "monitor")
-			streamCommandOutput(cmd, w, r)
+
+			var buf bytes.Buffer
+			logStream := io.MultiWriter(&buf, os.Stderr)
+			pterm.SetDefaultOutput(logStream)
+
+			peprReader := pepr.NewStreamReader(false, "", "")
+			peprStream := stream.NewStream(logStream, peprReader, "pepr-system")
+			peprStream.Follow = true
+			go peprStream.Start()
+			streamPeprOutput(&buf, w, r)
+			//if err != nil {
+			//	message.WarnErrf(err, "Failed to start the stream: %s", err)
+			//}
 		})
 	})
 
@@ -52,54 +67,38 @@ func Start() error {
 	return nil
 }
 
-func streamCommandOutput(cmd *exec.Cmd, w http.ResponseWriter, r *http.Request) {
+func streamPeprOutput(buf *bytes.Buffer, w http.ResponseWriter, r *http.Request) {
 	// Set the headers for streaming
 	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		handleError(w, err, "Failed to get command output", http.StatusInternalServerError)
-		return
-	}
-
-	if err := cmd.Start(); err != nil {
-		// todo: need cmd.Wait() after calling Start? maybe when returning?
-		handleError(w, err, "Failed to start command", http.StatusInternalServerError)
-		return
-	}
-
-	// Create a buffered reader to read the command output
-	reader := bufio.NewReader(stdout)
-
 	connClosed := r.Context().Done()
 
-	// Stream the output line by line
+	reader := bufio.NewReader(buf)
 	for {
 		select {
 		case <-connClosed:
 			log.Println("Client closed connection")
-			if err := cmd.Process.Kill(); err != nil {
-				log.Printf("Failed to kill process: %v", err)
-			}
 			return
 		default:
 			line, err := reader.ReadString('\n')
 			if err != nil {
-				break
+				if err != io.EOF {
+					message.ErrorWebf(err, w, "Unable to read the stream")
+					return
+				}
+				// Sleep briefly to wait for more data
+				time.Sleep(500 * time.Millisecond)
+				continue
 			}
-			styledLine := pterm.Color(color.FgHiMagenta).Sprintf(strings.TrimSpace(line))
-			fmt.Println(styledLine)
 
-			// Write the data as an SSE message
-			fmt.Fprintf(w, "data: %s\n\n", styledLine)
-			w.(http.Flusher).Flush() // Flush the buffer to ensure the client receives the data in real-time
+			trimmed := strings.TrimSpace(line)
+			if len(trimmed) > 0 {
+				fmt.Fprintf(w, "data: %s\n\n", trimmed)
+				w.(http.Flusher).Flush()
+			}
 		}
-	}
-
-	if err := cmd.Wait(); err != nil {
-		log.Printf("Command finished with error: %v", err)
 	}
 }
 
@@ -107,4 +106,31 @@ func streamCommandOutput(cmd *exec.Cmd, w http.ResponseWriter, r *http.Request) 
 func handleError(w http.ResponseWriter, err error, message string, statusCode int) {
 	log.Printf("error: %v - %s", err, message)
 	http.Error(w, message, statusCode)
+}
+
+// Splits scanner lines on '\n', '\r', and '\r\n' line endings to ensure the progress and spinner lines show up correctly
+func splitStreamLines(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+	// If data ends with '\n', return the line without '\n' or '\r\n'
+	if i := bytes.IndexByte(data, '\n'); i >= 0 {
+		// Drop the preceding carriage return if it exists
+		if i > 0 && data[i-1] == '\r' {
+			return i + 1, data[:i-1], nil
+		}
+
+		return i + 1, data[:i], nil
+	}
+	// if data ends with '\r', return the line without '\r'
+	if i := bytes.IndexByte(data, '\r'); i >= 0 {
+		return i + 1, data[:i], nil
+	}
+
+	// If we're at EOF and we have a final non-terminated line. Return it.
+	if atEOF {
+		return len(data), data, nil
+	}
+
+	return 0, nil, nil
 }
