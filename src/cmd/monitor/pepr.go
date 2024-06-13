@@ -21,11 +21,32 @@ var since time.Duration
 var json bool
 
 var peprCmd = &cobra.Command{
-	Use:     "pepr [policies|operator|allowed|denied|failed|mutated]",
+	Use:     "pepr [policies | operator | allowed | denied | failed | mutated]",
 	Aliases: []string{"p"},
-	Short:   lang.CmdMonitorPeprShort,
-	Long:    lang.CmdMonitorPeprLong,
-	Args:    cobra.MaximumNArgs(1),
+	Example: `
+  # Aggregates all admission and operator logs into a single stream
+  uds monitor pepr
+
+  # Stream UDS Operator actions (Package processing, status updates, and errors)
+  uds monitor pepr operator
+
+  # Stream UDS Policy logs (Allow, Deny, Mutate)
+  uds monitor pepr policies
+
+  # Stream UDS Policy allow logs
+  uds monitor pepr allowed
+
+  # Stream UDS Policy deny logs
+  uds monitor pepr denied
+
+  # Stream UDS Policy mutation logs
+  uds monitor pepr mutated
+
+  # Stream UDS Policy deny logs and UDS Operator error logs
+  uds monitor pepr failed`,
+	Short: lang.CmdMonitorPeprShort,
+	Long:  lang.CmdMonitorPeprLong,
+	Args:  cobra.MaximumNArgs(1),
 	Run: func(_ *cobra.Command, args []string) {
 		// Set the stream kind from the CLI
 		var streamKind pepr.StreamKind
