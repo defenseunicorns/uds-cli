@@ -49,7 +49,7 @@ func Start() error {
 			logStream := io.MultiWriter(&buf, os.Stderr)
 			pterm.SetDefaultOutput(logStream)
 
-			peprReader := pepr.NewStreamReader(false, "", "")
+			peprReader := pepr.NewStreamReader(true, "", "")
 			peprStream := stream.NewStream(logStream, peprReader, "pepr-system")
 			peprStream.Follow = true
 			go peprStream.Start()

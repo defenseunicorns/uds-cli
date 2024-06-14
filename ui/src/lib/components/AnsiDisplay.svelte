@@ -48,6 +48,7 @@
 
 <div id="terminal">
   <div class="scroll-anchor" />
+  <div class="zarf-terminal-line"></div>
 </div>
 
 <style>
@@ -65,10 +66,11 @@
     max-width: var(--maxWidth);
   }
 
-  & .zarf-terminal-line {
+  .zarf-terminal-line {
     white-space: pre-wrap;
     word-break: break-all;
     word-wrap: break-word;
     overflow-wrap: break-word;
+    width: 100%;
   }
 </style>

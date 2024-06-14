@@ -14,8 +14,13 @@
 
 <style lang="scss">
   :global(.bx--content) {
-    max-width: 924px;
     margin-left: auto;
     margin-right: auto;
+    height: 100%
+  }
+
+  /* ensure the root element takes up the full height of the viewport */
+  :global(:root, body) {
+    height: 95%;
   }
 </style>

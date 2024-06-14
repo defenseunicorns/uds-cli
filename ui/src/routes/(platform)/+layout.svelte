@@ -131,7 +131,7 @@
 
     <SideNavDivider />
 
-    <SideNavMenu text="Cluster">
+    <SideNavMenu expanded text="Cluster">
       <SideNavMenuItem text="Pods" href="#" />
     </SideNavMenu>
 
@@ -183,11 +183,6 @@
   }
 
   $side-nav__header-text: #aaa;
-
-  /* remove Content max-width for responsiveness */
-  :global(.bx--content) {
-    max-width: none;
-  }
 
   :global(.bx--side-nav) {
     background-color: var(--cds-inverse-01) !important;
