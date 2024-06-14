@@ -1,8 +1,6 @@
 <script lang="ts">
   import {
     Button,
-    Breadcrumb,
-    BreadcrumbItem,
     Content,
     SideNav,
     SideNavDivider,
@@ -11,8 +9,6 @@
     SideNavMenuItem,
     Search
   } from 'carbon-components-svelte';
-
-  import { page } from '$app/stores';
 
   import ArrowRight from 'carbon-icons-svelte/lib/ArrowRight.svelte';
   import UserAvatarFilled from 'carbon-icons-svelte/lib/UserAvatarFilled.svelte';
@@ -84,35 +80,6 @@
       path: '/link-3'
     }
   ];
-
-  const mapRouteSegments = (route: string): { [segment: string]: string } => {
-    // Split the route into segments
-    const segments = route.split('/').filter((segment) => segment.length > 0);
-
-    // Initialize an empty object to store the mapping
-    const routeMapping: { [segment: string]: string } = {};
-
-    // Initialize a variable to build the link incrementally
-    let link = '';
-
-    // Loop through each segment and build the mapping
-    segments.forEach((segment, index) => {
-      // Add the segment to the link
-      link += (index > 0 ? '/' : '') + segment;
-
-      let capitalizedSegment = `${segment.charAt(0).toUpperCase()}${segment.slice(1, segment.length)}`;
-      routeMapping[capitalizedSegment] = link;
-    });
-
-    return routeMapping;
-  };
-
-  $: navRouteNames = mapRouteSegments($page.url.pathname);
-  console.log('navRouteNames');
-  console.log(mapRouteSegments($page.url.pathname));
-
-  // const isCurrentPage = (routeName: string) =>
-  //   routeName === navRouteNames[navRouteNames.length - 1];
 </script>
 
 <header class="bx--header">
@@ -158,7 +125,7 @@
     <SideNavDivider />
 
     <SideNavMenu expanded text="Monitor">
-      <SideNavMenuItem text="Pepr" href="/cluster/pods" />
+      <SideNavMenuItem text="Pepr" href="/logs/policies" />
     </SideNavMenu>
 
     <SideNavDivider />
@@ -168,17 +135,7 @@
 </SideNav>
 
 <Content>
-  <Breadcrumb noTrailingSlash>
-    {#each Object.entries(navRouteNames) as [key, value]}
-      <BreadcrumbItem href={`/${value}`} isCurrentPage={$page.url.pathname === `/${value}`}>
-        {key}
-      </BreadcrumbItem>
-    {/each}
-  </Breadcrumb>
-
-  <div style:padding-top="var(--cds-spacing-07)">
-    <slot />
-  </div>
+  <slot />
 </Content>
 
 <style lang="scss">
@@ -205,7 +162,7 @@
 
   :global(.bx--side-nav) {
     background-color: var(--cds-inverse-01) !important;
-    transition: none
+    transition: none;
   }
 
   /* Sidenav header color */

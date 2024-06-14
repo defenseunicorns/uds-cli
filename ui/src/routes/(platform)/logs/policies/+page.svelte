@@ -26,13 +26,14 @@
   <BreadcrumbItem>Logs</BreadcrumbItem>
   <BreadcrumbItem>Policy Enforcement</BreadcrumbItem>
 </Breadcrumb>
+
 <div class="stream">
   <AnsiDisplay bind:addMessage />
 </div>
 
 <style>
   .stream {
-    margin-top: 2rem;
+    margin-top: var(--cds-spacing-07);
     white-space: pre-wrap;
     font-family: monospace;
     width: 100%;
