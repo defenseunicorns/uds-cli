@@ -1,18 +1,20 @@
 <script lang="ts">
-  import {Content, SideNavDivider, SideNavMenu} from 'carbon-components-svelte';
-
   import {
     Button,
-    HeaderGlobalAction,
-    SideNavMenuItem,
+    Breadcrumb,
+    BreadcrumbItem,
+    Content,
     SideNav,
+    SideNavDivider,
     SideNavItems,
+    SideNavMenu,
+    SideNavMenuItem,
     Search
   } from 'carbon-components-svelte';
 
+  import { page } from '$app/stores';
+
   import ArrowRight from 'carbon-icons-svelte/lib/ArrowRight.svelte';
-  import HelpFilled from 'carbon-icons-svelte/lib/HelpFilled.svelte';
-  import NotificationFilled from 'carbon-icons-svelte/lib/NotificationFilled.svelte';
   import UserAvatarFilled from 'carbon-icons-svelte/lib/UserAvatarFilled.svelte';
 
   import HeaderSelect from '$lib/components/Header/HeaderSelect.svelte';
@@ -82,14 +84,43 @@
       path: '/link-3'
     }
   ];
+
+  const mapRouteSegments = (route: string): { [segment: string]: string } => {
+    // Split the route into segments
+    const segments = route.split('/').filter((segment) => segment.length > 0);
+
+    // Initialize an empty object to store the mapping
+    const routeMapping: { [segment: string]: string } = {};
+
+    // Initialize a variable to build the link incrementally
+    let link = '';
+
+    // Loop through each segment and build the mapping
+    segments.forEach((segment, index) => {
+      // Add the segment to the link
+      link += (index > 0 ? '/' : '') + segment;
+
+      let capitalizedSegment = `${segment.charAt(0).toUpperCase()}${segment.slice(1, segment.length)}`;
+      routeMapping[capitalizedSegment] = link;
+    });
+
+    return routeMapping;
+  };
+
+  $: navRouteNames = mapRouteSegments($page.url.pathname);
+  console.log('navRouteNames');
+  console.log(mapRouteSegments($page.url.pathname));
+
+  // const isCurrentPage = (routeName: string) =>
+  //   routeName === navRouteNames[navRouteNames.length - 1];
 </script>
 
 <header class="bx--header">
   <button class="bx--header__action bx--header__menu-trigger bx--header__menu-toggle">
     <img
-            alt="Defense Unicorns Logo"
-            src="https://www.defenseunicorns.com/images/svg/doug.svg"
-            style="width: 32px; height: 32px"
+      alt="Defense Unicorns Logo"
+      src="https://www.defenseunicorns.com/images/svg/doug.svg"
+      style="width: 32px; height: 32px"
     />
   </button>
   <a href="#main-content" tabindex="0" class="bx--skip-to-content">Skip to main content</a>
@@ -105,12 +136,7 @@
   <div class="bx--header__global">
     <Search size="sm" closeButtonLabelText="Hello" />
 
-    <HeaderSeparator spaceLeft={0} spaceRight={6} />
-    <HeaderGlobalAction iconDescription="Help" tooltipAlignment="start" icon={HelpFilled} />
-
     {#if authenticated}
-      <HeaderGlobalAction iconDescription="Notification" icon={NotificationFilled} />
-      <HeaderSeparator spaceLeft={0} />
       <HeaderSelect title="prod.uds.is" items={prodMenuLinks} />
       <HeaderSeparator spaceLeft={0} />
       <HeaderSelect title="username" items={lastMenuLinks} withIcon={true}>
@@ -131,35 +157,28 @@
 
     <SideNavDivider />
 
-    <SideNavMenu expanded text="Cluster">
-      <SideNavMenuItem text="Pods" href="#" />
+    <SideNavMenu expanded text="Monitor">
+      <SideNavMenuItem text="Pepr" href="/cluster/pods" />
     </SideNavMenu>
 
     <SideNavDivider />
 
-    <SideNavMenu expanded text="Deployment">
-      <SideNavMenuItem text="Bundles" href="#" />
-      <SideNavMenuItem text="Packages" href="#" />
-      <SideNavMenuItem text="Configuration" href="#" />
-    </SideNavMenu>
-
-    <SideNavDivider />
-
-    <SideNavMenu expanded text="Logs">
-      <SideNavMenuItem text="Policy Enforcement" href="/logs/policies" isSelected />
-    </SideNavMenu>
-
-    <SideNavDivider />
-
-    <SideNavMenu expanded text="Security">
-      <SideNavMenuItem text="Vulnerabilities" href="#" />
-      <SideNavMenuItem text="Compliance" href="#" />
-    </SideNavMenu>
+    <SideNavMenu text="Application Portal" />
   </SideNavItems>
 </SideNav>
 
 <Content>
-  <slot />
+  <Breadcrumb noTrailingSlash>
+    {#each Object.entries(navRouteNames) as [key, value]}
+      <BreadcrumbItem href={`/${value}`} isCurrentPage={$page.url.pathname === `/${value}`}>
+        {key}
+      </BreadcrumbItem>
+    {/each}
+  </Breadcrumb>
+
+  <div style:padding-top="var(--cds-spacing-07)">
+    <slot />
+  </div>
 </Content>
 
 <style lang="scss">
@@ -207,10 +226,6 @@
     background-color: var(--cds-ui-01) !important;
   }
 
-  :global(.bx--side-nav__submenu) {
-    cursor: default !important;
-  }
-
   /* Remove hover highlight on hover for the Sidenav header */
   :global(.bx--side-nav__submenu:hover) {
     background-color: transparent !important;
@@ -221,20 +236,16 @@
     background-color: var(--cds-ui-01) !important;
   }
 
-  :global(a.bx--side-nav__link[aria-current='page']:focus) {
-    border: none !important;
-  }
-
-  /* Removes outline/ border around a sidenav header that is clicked/ focused */
-  :global(.bx--side-nav__submenu:focus) {
-    outline: none !important;
-  }
-
   :global(a.bx--side-nav__link[aria-current='page'] > .bx--side-nav__link-text) {
     color: var(--cds-interactive-03) !important;
   }
 
   :global(.bx--side-nav__icon) {
     display: none !important;
+  }
+
+  /* Remove pointer events so we cannot click to toggle or highlight button */
+  :global(.bx--side-nav__submenu) {
+    pointer-events: none;
   }
 </style>
