@@ -5,6 +5,7 @@
 package monitor
 
 import (
+	"context"
 	"os"
 	"time"
 
@@ -63,7 +64,7 @@ var peprCmd = &cobra.Command{
 		}
 
 		// Create a new stream for the Pepr logs
-		peprReader := pepr.NewStreamReader(timestamps, namespace, "")
+		peprReader := pepr.NewStreamReader(context.TODO(), timestamps, namespace, "")
 		peprStream := stream.NewStream(os.Stdout, peprReader, "pepr-system")
 
 		// Set the stream flags

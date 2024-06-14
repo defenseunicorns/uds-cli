@@ -14,8 +14,8 @@
 
 <style lang="scss">
   :global(.bx--content) {
-    max-width: 924px;
     margin-left: auto;
     margin-right: auto;
   }
+
 </style>

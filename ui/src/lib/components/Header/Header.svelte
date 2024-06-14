@@ -10,16 +10,6 @@
 
   import { type HeaderSelectProps } from './types';
 
-  let ref = null;
-  let active = true;
-  let value = '';
-  let selectedResultIndex = 0;
-
-  $: console.log('ref', ref);
-  $: console.log('active', active);
-  $: console.log('value', value);
-  $: console.log('selectedResultIndex', selectedResultIndex);
-
   export let authenticated: boolean;
 
   let lastMenuLinks: HeaderSelectProps[] = [
