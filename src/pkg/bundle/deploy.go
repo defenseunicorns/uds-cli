@@ -239,7 +239,7 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string
 			if err != nil {
 				return nil, nil, err
 			}
-			err = b.processOverrideVariables(&overrideMap, pkg.Name, &chart.Variables, componentName, chartName)
+			err = b.processOverrideVariables(&overrideMap, pkg.Name, &chartCopy.Variables, componentName, chartName)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -580,7 +580,7 @@ func (b *Bundle) ConfirmBundleDeploy(packageClients map[string]PkgClientDeploy) 
 	message.HorizontalRule()
 
 	for _, pkg := range b.bundle.Packages {
-		minPkg := make(map[string]string, 0)
+		minPkg := make(map[string]string)
 		minPkg["name"] = pkg.Name
 		if pkg.Repository != "" {
 			minPkg["repo"] = pkg.Repository
@@ -592,11 +592,32 @@ func (b *Bundle) ConfirmBundleDeploy(packageClients map[string]PkgClientDeploy) 
 
 		valuesOverrides := packageClients[pkg.Name].overrides
 
-		for _, component := range valuesOverrides {
-			for _, chart := range component {
-				utils.ColorPrintYAML(chart, nil, false)
+		overridesMap := make(map[string]interface{})
+		variables := make([]map[string]interface{}, 0)
+
+		for compName, component := range pkg.Overrides {
+			for chartName, chart := range component {
+				processedVars := valuesOverrides[compName][chartName]
+				for _, v := range chart.Variables {
+					varMap := make(map[string]interface{})
+					if strings.Contains(v.Path, ".") {
+						paths := strings.Split(v.Path, ".")
+						val := processedVars[paths[0]]
+						for i := range paths[1:] {
+							val = val.(map[string]interface{})[paths[i+1]]
+						}
+						varMap[v.Path] = val
+						variables = append(variables, varMap)
+					} else {
+						varMap[v.Path] = processedVars[v.Path]
+						variables = append(variables, varMap)
+					}
+				}
 			}
 		}
+
+		overridesMap["overrides"] = map[string][]map[string]interface{}{"variables": variables}
+		utils.ColorPrintYAML(overridesMap, nil, false)
 	}
 
 	message.HorizontalRule()
