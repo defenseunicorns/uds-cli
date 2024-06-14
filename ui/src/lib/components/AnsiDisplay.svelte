@@ -27,10 +27,8 @@
   let termElement: HTMLElement | null;
   let scrollAnchor: Element | null | undefined;
 
+  // using Zarf UI constant for now: https://github.com/defenseunicorns/zarf-ui/blob/d02a5c0e4e04441d6bb3bd7ed331e037a35aa067/src/ui/lib/components/ansi-display.svelte#L35C27-L35C29
   export let height = '688px';
-  export let width = 'auto';
-  export let minWidth = '';
-  export let maxWidth = '';
 
   // exported in parent component to handle incoming SSE messages
   export const addMessage = (message: string) => {
@@ -46,9 +44,8 @@
   });
 </script>
 
-<div id="terminal">
+<div id="terminal" style="--box-height: {height}">
   <div class="scroll-anchor" />
-  <div class="zarf-terminal-line"></div>
 </div>
 
 <style>
@@ -58,14 +55,12 @@
     padding: 12px;
     font-size: 12px;
     overflow-x: auto;
-    overflow-y: hidden;
-
-    height: var(--height);
-    width: 90%;
-    min-width: var(--minWidth);
-    max-width: var(--maxWidth);
+    overflow-y: auto;
+    height: var(--box-height);
+    width: 100%;
   }
 
+  /* dynamically rendered terminal lines */
   .zarf-terminal-line {
     white-space: pre-wrap;
     word-break: break-all;
