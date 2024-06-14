@@ -579,39 +579,22 @@ func (b *Bundle) ConfirmBundleDeploy(packageClients map[string]PkgClientDeploy) 
 
 	message.HorizontalRule()
 
-	// type pkgView struct {
-	// 	name string
-	// 	repo string
-	// 	path string
-	// 	ref  string
-	// 	// variables: [{path: value}]
-	// 	overrides map[string][]interface{}
-	// }
-
-	// pkgViews := make([]pkgView, len(b.bundle.Packages))
-
 	for _, pkg := range b.bundle.Packages {
-		// newView := &pkgView{name: pkg.Name, repo: pkg.Repository, path: pkg.Path, ref: pkg.Ref, overrides: make(map[string][]interface{}, 0)}
-		pterm.Println("name: ", pkg.Name)
-
+		minPkg := make(map[string]string, 0)
+		minPkg["name"] = pkg.Name
 		if pkg.Repository != "" {
-			pterm.Println("repo: ", pkg.Repository)
+			minPkg["repo"] = pkg.Repository
 		} else {
-			pterm.Println("path: ", pkg.Path)
+			minPkg["path"] = pkg.Path
 		}
-
-		pterm.Println("ref: ", pkg.Ref)
-		pterm.Println("overrides:")
-		pterm.Println("variables:")
+		minPkg["ref"] = pkg.Ref
+		utils.ColorPrintYAML(minPkg, nil, false)
 
 		valuesOverrides := packageClients[pkg.Name].overrides
 
 		for _, component := range valuesOverrides {
 			for _, chart := range component {
-				for key, over := range chart {
-					// newView.overrides["variables"] = append(newView.overrides["variables"], over)
-					pterm.Printfln("path: %s=%s", key, over)
-				}
+				utils.ColorPrintYAML(chart, nil, false)
 			}
 		}
 	}
