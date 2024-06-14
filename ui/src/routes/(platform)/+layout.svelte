@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Content, SideNavDivider } from 'carbon-components-svelte';
+  import {Content, SideNavDivider, SideNavMenu} from 'carbon-components-svelte';
 
   import {
     Button,
@@ -14,7 +14,6 @@
   import HelpFilled from 'carbon-icons-svelte/lib/HelpFilled.svelte';
   import NotificationFilled from 'carbon-icons-svelte/lib/NotificationFilled.svelte';
   import UserAvatarFilled from 'carbon-icons-svelte/lib/UserAvatarFilled.svelte';
-  import SideNavMenu from '$lib/components/SideNav/SideNavMenu.svelte';
 
   import HeaderSelect from '$lib/components/Header/HeaderSelect.svelte';
   import HeaderSeparator from '$lib/components/Header/HeaderSeparator.svelte';
@@ -138,7 +137,7 @@
 
     <SideNavDivider />
 
-    <SideNavMenu text="Deployment">
+    <SideNavMenu expanded text="Deployment">
       <SideNavMenuItem text="Bundles" href="#" />
       <SideNavMenuItem text="Packages" href="#" />
       <SideNavMenuItem text="Configuration" href="#" />
@@ -146,13 +145,13 @@
 
     <SideNavDivider />
 
-    <SideNavMenu text="Logs">
+    <SideNavMenu expanded text="Logs">
       <SideNavMenuItem text="Policy Enforcement" href="/logs/policies" isSelected />
     </SideNavMenu>
 
     <SideNavDivider />
 
-    <SideNavMenu text="Security">
+    <SideNavMenu expanded text="Security">
       <SideNavMenuItem text="Vulnerabilities" href="#" />
       <SideNavMenuItem text="Compliance" href="#" />
     </SideNavMenu>
