@@ -312,7 +312,7 @@ metadata:
 packages:
    - name: helm-overrides-package
      path: "../../packages/helm"
-     ref: 0.0.1"
+     ref: 0.0.1
      overrides:
         podinfo-component:
           unicorn-podinfo:
