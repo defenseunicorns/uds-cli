@@ -36,8 +36,7 @@
     white-space: pre-wrap;
     font-family: monospace;
     width: 100%;
-    height: 90%;
+    height: 100%;
     background-color: #001a30;
-    /*background-color: red;*/
   }
 </style>

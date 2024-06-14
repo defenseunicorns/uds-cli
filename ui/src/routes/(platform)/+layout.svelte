@@ -186,6 +186,7 @@
 
   :global(.bx--side-nav) {
     background-color: var(--cds-inverse-01) !important;
+    transition: none
   }
 
   /* Sidenav header color */
