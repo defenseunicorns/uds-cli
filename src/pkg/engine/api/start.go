@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
-package engine
+package api
 
 import (
 	"bufio"
@@ -15,7 +15,6 @@ import (
 	"net/http"
 	"os"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/defenseunicorns/uds-cli/src/pkg/engine/pepr"
@@ -24,7 +23,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"github.com/pterm/pterm"
 )
 
 func Start() error {
@@ -39,8 +37,8 @@ func Start() error {
 		AllowCredentials: true,
 		MaxAge:           300, // Maximum value not ignored by any of major browsers
 	})
-	r.Use(cors.Handler)
 
+	r.Use(cors.Handler)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
@@ -48,18 +46,19 @@ func Start() error {
 		r.Get("/policies", func(w http.ResponseWriter, r *http.Request) {
 
 			var buf bytes.Buffer
+			// Todo: we probably shouldn't do this long-term or we're going to super blow up logs
 			logStream := io.MultiWriter(&buf, os.Stderr)
-			pterm.SetDefaultOutput(logStream)
 
 			ctx, cancel := context.WithCancel(context.Background())
 
 			// pass context to stream reader to clean up spawned goroutines that watch pepr pods
-			peprReader := pepr.NewStreamReader(ctx, true, "", "")
+			peprReader := pepr.NewStreamReader("", "")
 			peprStream := stream.NewStream(logStream, peprReader, "pepr-system")
 			peprStream.Follow = true
+			peprStream.Timestamps = true
 
 			// Start the stream in a goroutine
-			go peprStream.Start()
+			go peprStream.Start(ctx)
 
 			// Stream the output to the client
 			streamPeprOutput(&buf, w, r)
@@ -112,12 +111,9 @@ func streamPeprOutput(buf *bytes.Buffer, w http.ResponseWriter, r *http.Request)
 				time.Sleep(500 * time.Millisecond)
 				continue
 			}
-
-			trimmed := strings.TrimSpace(line)
-			if len(trimmed) > 0 {
-				fmt.Fprintf(w, "data: %s\n\n", trimmed)
-				w.(http.Flusher).Flush()
-			}
+			log.Print(line)
+			fmt.Fprintf(w, "data: %s\n", line)
+			w.(http.Flusher).Flush()
 		}
 	}
 }

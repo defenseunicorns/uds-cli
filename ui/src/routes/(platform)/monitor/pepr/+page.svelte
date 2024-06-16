@@ -35,9 +35,10 @@
   .stream {
     margin-top: var(--cds-spacing-07);
     white-space: pre-wrap;
-    font-family: monospace;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
     width: 100%;
     height: 100%;
     background-color: #001a30;
+    line-height: 1.2rem;
   }
 </style>

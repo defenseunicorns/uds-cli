@@ -5,24 +5,24 @@
   const convert = new Convert({
     newline: true,
     stream: true,
-    colors: {
-      0: '#000000',
-      1: '#C23621',
-      2: '#25BC24',
-      3: '#ADAD27',
-      4: '#000080',
-      5: '#D338D3',
-      6: '#33BBC8',
-      7: '#CBCCCD',
-      8: '#818383',
-      9: '#FC391F',
-      10: '#31E783',
-      11: '#EAEC23',
-      12: '#0000E1',
-      13: '#F935F8',
-      14: '#14F0F0',
-      15: '#E9EBEB'
-    }
+    // colors: {
+    //   0: '#000000',
+    //   1: '#C23621',
+    //   2: '#25BC24',
+    //   3: '#ADAD27',
+    //   4: '#000080',
+    //   5: '#D338D3',
+    //   6: '#33BBC8',
+    //   7: '#CBCCCD',
+    //   8: '#818383',
+    //   9: '#FC391F',
+    //   10: '#31E783',
+    //   11: '#EAEC23',
+    //   12: '#0000E1',
+    //   13: '#F935F8',
+    //   14: '#14F0F0',
+    //   15: '#E9EBEB'
+    // }
   });
   let termElement: HTMLElement | null;
   let scrollAnchor: Element | null | undefined;
@@ -33,7 +33,8 @@
   // exported in parent component to handle incoming SSE messages
   export const addMessage = (message: string) => {
     let html = convert.toHtml(message);
-    html = `<div class="zarf-terminal-line">${html}</div>`;
+    // Print the html or a non-breaking space if the message is empty to preserve line breaks
+    html = `<div class="zarf-terminal-line">${html || "&nbsp;"}</div>`;
     scrollAnchor?.insertAdjacentHTML('beforebegin', html);
     scrollAnchor?.scrollIntoView();
   };
