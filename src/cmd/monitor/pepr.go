@@ -64,7 +64,7 @@ var peprCmd = &cobra.Command{
 		}
 
 		// Create a new stream for the Pepr logs
-		peprReader := pepr.NewStreamReader(context.TODO(), timestamps, namespace, "")
+		peprReader := pepr.NewStreamReader(namespace, "")
 		peprStream := stream.NewStream(os.Stdout, peprReader, "pepr-system")
 
 		// Set the stream flags
@@ -72,9 +72,10 @@ var peprCmd = &cobra.Command{
 		peprReader.FilterStream = streamKind
 		peprStream.Follow = follow
 		peprStream.Since = since
+		peprStream.Timestamps = timestamps
 
 		// Start the stream
-		if err := peprStream.Start(); err != nil {
+		if err := peprStream.Start(context.TODO()); err != nil {
 			message.Fatalf(err, "Error streaming Pepr logs")
 		}
 	},

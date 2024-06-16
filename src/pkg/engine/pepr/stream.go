@@ -6,14 +6,12 @@ package pepr
 
 import (
 	"bufio"
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/defenseunicorns/uds-cli/src/pkg/style"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
@@ -28,13 +26,11 @@ type StreamReader struct {
 	FilterStream    StreamKind
 	filterNamespace string
 	filterName      string
-	showTimestamp   bool
 	indent          string
 	lastEntryHeader string
 	lastEntryBody   string
 	repeatCount     int
 	mutex           sync.Mutex
-	ctx             context.Context
 }
 
 // LogEntry represents a log entry from Pepr
@@ -90,19 +86,10 @@ const (
 )
 
 // NewStreamReader creates a new PeprStreamReader
-func NewStreamReader(ctx context.Context, timestamp bool, filterNamespace, filterName string) *StreamReader {
-	// Use a longer indent when timestamps are enabled
-	indent := ""
-	if timestamp {
-		indent = "                     "
-	}
-
+func NewStreamReader(filterNamespace, filterName string) *StreamReader {
 	return &StreamReader{
-		indent:          indent,
 		filterNamespace: strings.ToLower(filterNamespace),
 		filterName:      strings.ToLower(filterName),
-		showTimestamp:   timestamp,
-		ctx:             ctx,
 	}
 }
 
@@ -152,7 +139,12 @@ func (p *StreamReader) PodFilter(pods []corev1.Pod) map[string]string {
 }
 
 // LogStream processes the log stream from Pepr and writes formatted output to the writer
-func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser) error {
+func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser, timestamp bool) error {
+	// Use a longer indent when timestamps are enabled
+	if timestamp {
+		p.indent = "                                "
+	}
+
 	// Process logs line by line.
 	scanner := bufio.NewScanner(logStream)
 	buf := make([]byte, 0, 5*1024*1024) // Allocate a 5 MB buffer to handle large log lines
@@ -170,119 +162,127 @@ func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser) erro
 	)
 
 	for scanner.Scan() {
-		select {
-		case <-p.ctx.Done():
-			message.Debugf("Context canceled, stopping log stream")
-			return nil
-		default:
 
-			line := scanner.Text()
+		line := scanner.Text()
 
-			isLogAdmission := strings.Contains(line, `"msg":"Check response"`)
-			isLogOperatorProcessing := strings.Contains(line, `"kind":"Package"`) && strings.Contains(line, `"msg":"Processing`)
-			isLogOperatorStatus := strings.Contains(line, `"msg":"Updating status`)
-			isLogOperatorEvent := strings.Contains(line, `"msg":"Writing event:`)
+		isLogAdmission := strings.Contains(line, `"msg":"Check response"`)
+		isLogOperatorProcessing := strings.Contains(line, `"kind":"Package"`) && strings.Contains(line, `"msg":"Processing`)
+		isLogOperatorStatus := strings.Contains(line, `"msg":"Updating status`)
+		isLogOperatorEvent := strings.Contains(line, `"msg":"Writing event:`)
 
-			// Ignore any unmatched log lines
-			if !isLogAdmission && !isLogOperatorProcessing && !isLogOperatorStatus && !isLogOperatorEvent {
-				continue
-			}
+		// Ignore any unmatched log lines
+		if !isLogAdmission && !isLogOperatorProcessing && !isLogOperatorStatus && !isLogOperatorEvent {
+			continue
+		}
 
-			if p.JSON {
-				if _, err := writer.Write([]byte("\n" + line)); err != nil {
-					message.WarnErr(err, "Error writing newline")
-				}
-				continue
-			}
-
-			// JSON parse the line
-			var event LogEntry
-			if err := json.Unmarshal([]byte(line), &event); err != nil {
-				// Log the error and continue to the next line
-				message.WarnErr(err, "Error parsing JSON")
-				continue
-			}
-
-			// Filter by namespace if set
-			if p.skipResource(event) {
-				continue
-			}
-
-			// Process the JSON and generate formatted output
-			name := fmt.Sprintf("%v%v", event.Namespace, event.Name)
-
-			var header string
-			var body string
-
-			switch {
-			// Handle operator processing
-			case enableLogOperatorAny && isLogOperatorProcessing:
-				name = fmt.Sprintf("%v/%v", event.Metadata.Namespace, event.Metadata.Name)
-				header = style.RenderFmt(style.Purple, " ⚙️ OPERATOR  %s", name)
-				body = style.RenderFmt(style.WarmGray, "\n%s             %v", p.indent, event.Msg)
-
-			// Handle operator status updates
-			case isLogOperatorStatus:
-				failed := strings.Contains(event.Msg, "Failed")
-				name = fmt.Sprintf("%v/%v", event.Namespace, event.Name)
-				header = style.RenderFmt(style.Purple, " ⚙️ OPERATOR  %s", name)
-				// Red if the status update is a failure
-				if failed {
-					body = style.RenderFmt(style.Red, "\n%s             %v", p.indent, event.Msg)
-				} else {
-					// Skip if operator events are not enabled for non-failures
-					if !enableLogOperatorAny {
-						continue
-					}
-					body = style.RenderFmt(style.WarmGray, "\n%s             %v", p.indent, event.Msg)
-				}
-
-			// Handle operator events
-			case enableLogOperatorFailure && isLogOperatorEvent:
-				name = fmt.Sprintf("%v/%v", event.Namespace, event.Name)
-				header = style.RenderFmt(style.Purple, " ⚙️ OPERATOR  %s", name)
-				// Red because events are failures
-				body = "\n" + style.RenderFmt(style.Red, "%s             %v", p.indent, event.Msg)
-
-			// Handle mutations
-			case enableLogMutate && isLogAdmission && event.Res.PatchType != nil:
-				header = style.RenderFmt(style.Cyan, " ✎ MUTATED   %s", name)
-				body = p.renderMutation(event)
-
-			// Handle validation success
-			case enableLogAllow && isLogAdmission && event.Res.Allowed:
-				header = style.RenderFmt(style.Green, " ✓ ALLOWED   %s", name)
-
-			// Handle validation failure and override the formatting
-			case enableLogDeny && isLogAdmission && !event.Res.Allowed:
-				header = style.RenderFmt(style.Red, " ✗ DENIED    %s", name)
-				body = p.renderDenied(event)
-
-			default:
-				// Unmatched log line (should not happen)
-				continue
-			}
-
-			// Handle repeated events
-			if p.lastEntryHeader == header && p.lastEntryBody == body {
-				p.updateRepeatCount(p.repeatCount + 1)
+		var msgTimestamp, msgPayload string
+		if timestamp {
+			// Split the timestamp and payload
+			split := strings.SplitN(line, " ", 2)
+			if len(split) == 2 {
+				msgTimestamp = split[0]
+				msgPayload = split[1]
 			} else {
-				p.writeRepeatedEvent(writer)
-				p.updateLastEntry(header, body)
+				message.Warnf("Error splitting log line: %s", line)
+				continue
+			}
+		} else {
+			msgPayload = line
+		}
 
-				// If timestamps are enabled, write the timestamp before the header
-				if p.showTimestamp {
-					timestamp := time.UnixMilli(event.Time).Format("2006-01-01 15:01:01")
-					_, err := writer.Write([]byte(fmt.Sprintf("\n\n%s  %v%v", timestamp, style.Bold.Render(header), body)))
-					if err != nil {
-						return err
-					}
-				} else {
-					// Otherwise, write the header and body
-					_, err := writer.Write([]byte(fmt.Sprintf("\n\n%v%v", style.Bold.Render(header), body)))
-					if err != nil {
-						return err
-					}
+		if p.JSON {
+			if _, err := writer.Write([]byte("\n" + msgPayload)); err != nil {
+				message.WarnErr(err, "Error writing newline")
+			}
+			continue
+		}
+
+		// JSON parse the line
+		var event LogEntry
+		if err := json.Unmarshal([]byte(msgPayload), &event); err != nil {
+			// Log the error and continue to the next line
+			message.WarnErr(err, "Error parsing JSON")
+			continue
+		}
+
+		// Filter by namespace if set
+		if p.skipResource(event) {
+			continue
+		}
+
+		// Process the JSON and generate formatted output
+		name := fmt.Sprintf("%v%v", event.Namespace, event.Name)
+
+		var header string
+		var body string
+
+		switch {
+		// Handle operator processing
+		case enableLogOperatorAny && isLogOperatorProcessing:
+			name = fmt.Sprintf("%v/%v", event.Metadata.Namespace, event.Metadata.Name)
+			header = style.RenderFmt(style.Purple, " ⚙️ OPERATOR  %s", name)
+			body = style.RenderFmt(style.WarmGray, "\n%s             %v", p.indent, event.Msg)
+
+		// Handle operator status updates
+		case isLogOperatorStatus:
+			failed := strings.Contains(event.Msg, "Failed")
+			name = fmt.Sprintf("%v/%v", event.Namespace, event.Name)
+			header = style.RenderFmt(style.Purple, " ⚙️ OPERATOR  %s", name)
+			// Red if the status update is a failure
+			if failed {
+				body = style.RenderFmt(style.Red, "\n%s             %v", p.indent, event.Msg)
+			} else {
+				// Skip if operator events are not enabled for non-failures
+				if !enableLogOperatorAny {
+					continue
+				}
+				body = style.RenderFmt(style.WarmGray, "\n%s             %v", p.indent, event.Msg)
+			}
+
+		// Handle operator events
+		case enableLogOperatorFailure && isLogOperatorEvent:
+			name = fmt.Sprintf("%v/%v", event.Namespace, event.Name)
+			header = style.RenderFmt(style.Purple, " ⚙️ OPERATOR  %s", name)
+			// Red because events are failures
+			body = "\n" + style.RenderFmt(style.Red, "%s             %v", p.indent, event.Msg)
+
+		// Handle mutations
+		case enableLogMutate && isLogAdmission && event.Res.PatchType != nil:
+			header = style.RenderFmt(style.Cyan, " ✎ MUTATED   %s", name)
+			body = p.renderMutation(event)
+
+		// Handle validation success
+		case enableLogAllow && isLogAdmission && event.Res.Allowed:
+			header = style.RenderFmt(style.Green, " ✓ ALLOWED   %s", name)
+
+		// Handle validation failure and override the formatting
+		case enableLogDeny && isLogAdmission && !event.Res.Allowed:
+			header = style.RenderFmt(style.Red, " ✗ DENIED    %s", name)
+			body = p.renderDenied(event)
+
+		default:
+			// Unmatched log line (should not happen)
+			continue
+		}
+
+		// Handle repeated events
+		if p.lastEntryHeader == header && p.lastEntryBody == body {
+			p.updateRepeatCount(p.repeatCount + 1)
+		} else {
+			p.writeRepeatedEvent(writer)
+			p.updateLastEntry(header, body)
+
+			// If timestamps are enabled, write the timestamp before the header
+			if timestamp {
+				_, err := writer.Write([]byte(fmt.Sprintf("\n\n%s  %v%v", msgTimestamp, style.Bold.Render(header), body)))
+				if err != nil {
+					return err
+				}
+			} else {
+				// Otherwise, write the header and body
+				_, err := writer.Write([]byte(fmt.Sprintf("\n\n%v%v", style.Bold.Render(header), body)))
+				if err != nil {
+					return err
 				}
 			}
 		}

@@ -2,6 +2,7 @@ package stream
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"testing"
@@ -26,7 +27,7 @@ func (m *MockReader) PodFilter(pods []corev1.Pod) map[string]string {
 	return args.Get(0).(map[string]string)
 }
 
-func (m *MockReader) LogStream(writer io.Writer, logStream io.ReadCloser) error {
+func (m *MockReader) LogStream(writer io.Writer, logStream io.ReadCloser, timestamp bool) error {
 	args := m.Called(writer, logStream)
 	return args.Error(0)
 }
@@ -107,7 +108,8 @@ func TestStream_Start(t *testing.T) {
 			stream.Follow = tt.follow
 			stream.Since = tt.since
 
-			err := stream.Start()
+			ctx := context.TODO()
+			err := stream.Start(ctx)
 			if tt.expectError {
 				require.Error(t, err)
 			} else {

@@ -23,18 +23,19 @@ type Reader interface {
 	PodFilter(pods []corev1.Pod) map[string]string
 
 	// LogStream processes the log stream from Pepr and writes formatted output to the writer
-	LogStream(writer io.Writer, logStream io.ReadCloser) error
+	LogStream(writer io.Writer, logStream io.ReadCloser, timestamp bool) error
 
 	// LogFlush to flush the log at a given interval and at the end of the stream
 	LogFlush(writer io.Writer)
 }
 
 type Stream struct {
-	writer    io.Writer
-	reader    Reader
-	Follow    bool
-	Namespace string
-	Since     time.Duration
+	writer     io.Writer
+	reader     Reader
+	Follow     bool
+	Timestamps bool
+	Namespace  string
+	Since      time.Duration
 	// Adding for testability :-<
 	Client kubernetes.Interface
 }
@@ -47,8 +48,8 @@ func NewStream(writer io.Writer, reader Reader, namespace string) *Stream {
 	}
 }
 
-// Start starts the stream
-func (s *Stream) Start() error {
+// Start starts the stream with the provided context
+func (s *Stream) Start(ctx context.Context) error {
 	// Create a new client if one is not provided (usually for testing)
 	if s.Client == nil {
 		c, _, err := k8s.NewClient()
@@ -58,6 +59,7 @@ func (s *Stream) Start() error {
 		s.Client = c
 	}
 
+	// List the pods in the specified namespace
 	pods, err := s.Client.CoreV1().Pods(s.Namespace).List(context.TODO(), v1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("unable to get pods: %v", err)
@@ -65,6 +67,7 @@ func (s *Stream) Start() error {
 
 	var wg sync.WaitGroup
 
+	// Filter the pods and containers to stream logs from
 	containers := s.reader.PodFilter(pods.Items)
 
 	// Stream logs for each pod
@@ -79,8 +82,9 @@ func (s *Stream) Start() error {
 
 			// Set up the pod log options
 			podOpts := &corev1.PodLogOptions{
-				Follow:    s.Follow,
-				Container: container,
+				Follow:     s.Follow,
+				Container:  container,
+				Timestamps: s.Timestamps,
 			}
 
 			// Set the sinceSeconds option if provided
@@ -91,14 +95,15 @@ func (s *Stream) Start() error {
 			}
 
 			// Get the log stream for the pod
-			logStream, err := s.Client.CoreV1().Pods(s.Namespace).GetLogs(podName, podOpts).Stream(context.TODO())
+			logStream, err := s.Client.CoreV1().Pods(s.Namespace).GetLogs(podName, podOpts).Stream(ctx)
 			if err != nil {
 				message.WarnErrf(err, "Error streaming logs for pod %s", podName)
 				return
 			}
 			defer logStream.Close()
 
-			if err := s.reader.LogStream(s.writer, logStream); err != nil {
+			// Process the log stream
+			if err := s.reader.LogStream(s.writer, logStream, s.Timestamps); err != nil {
 				message.WarnErrf(err, "Error streaming logs for pod %s", podName)
 			}
 		}(pod, container)
@@ -118,7 +123,10 @@ func (s *Stream) Start() error {
 				// Stop the goroutine when the stopChan is closed
 				case <-stopChan:
 					return
-					// Flush the logs every second
+				// Stop the goroutine when the context is done
+				case <-ctx.Done():
+					return
+				// Flush the logs every second
 				case <-time.After(time.Second):
 					s.reader.LogFlush(s.writer)
 				}
