@@ -191,9 +191,17 @@ func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser, time
 		}
 
 		if p.JSON {
+			// If timestamps are enabled, append the timestamp to the JSON payload
+			// Replacing the last closing brace with a comma and the timestamp
+			if timestamp {
+				msgPayload = strings.TrimSuffix(msgPayload, "}")
+				msgPayload = fmt.Sprintf("%s, \"ts\": \"%s\"}", msgPayload, msgTimestamp)
+			}
+
 			if _, err := writer.Write([]byte("\n" + msgPayload)); err != nil {
 				message.WarnErr(err, "Error writing newline")
 			}
+
 			continue
 		}
 
