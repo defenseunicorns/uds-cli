@@ -531,4 +531,4 @@ replace github.com/prometheus/common => github.com/prometheus/common v0.45.0
 replace github.com/docker/docker => github.com/docker/docker v24.0.9+incompatible
 
 // remove when Zarf updates k9s versions to v0.32.4
-replace github.com/derailed/k9s => github.com/derailed/k9s v0.32.4
+replace github.com/derailed/k9s => github.com/derailed/k9s v0.32.5
