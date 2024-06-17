@@ -9,7 +9,7 @@ require (
 	github.com/defenseunicorns/maru-runner v0.2.0
 	github.com/defenseunicorns/pkg/exec v0.0.1
 	github.com/defenseunicorns/pkg/helpers/v2 v2.0.1
-	github.com/defenseunicorns/pkg/oci v0.0.2
+	github.com/defenseunicorns/pkg/oci v1.0.1
 	github.com/defenseunicorns/uds-security-hub v0.0.7
 	github.com/defenseunicorns/zarf v0.34.0
 	github.com/fatih/color v1.16.0

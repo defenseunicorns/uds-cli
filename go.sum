@@ -1050,6 +1050,8 @@ github.com/defenseunicorns/pkg/helpers/v2 v2.0.1 h1:j08rz9vhyD9Bs+yKiyQMY2tSSejX
 github.com/defenseunicorns/pkg/helpers/v2 v2.0.1/go.mod h1:u1PAqOICZyiGIVA2v28g55bQH1GiAt0Bc4U9/rnWQvQ=
 github.com/defenseunicorns/pkg/oci v0.0.2 h1:Lewwtl/D1Z55npRCkK1DS4Sd7pdrwyUs4+1RGpYajSQ=
 github.com/defenseunicorns/pkg/oci v0.0.2/go.mod h1:fMevWu1lBUmk7Q0dHWjR5RVHE2jTV7X0mlroxdkIqDE=
+github.com/defenseunicorns/pkg/oci v1.0.1 h1:WPrWRrae1L19X1vuhy6yYMR2zrTzgBbJHp3ImgUm4ZM=
+github.com/defenseunicorns/pkg/oci v1.0.1/go.mod h1:qZ3up/d0P81taW37fKR4lb19jJhQZJVtNOEJMu00dHQ=
 github.com/defenseunicorns/uds-security-hub v0.0.7 h1:4leg+FDagyoFdr3aSeFGlega4XG5+FwXnAdQsB2MebM=
 github.com/defenseunicorns/uds-security-hub v0.0.7/go.mod h1:4c1w8sRRyQfMDEQ3d+i3/7ENwQGgkNRkvjF5+4D2LZ4=
 github.com/defenseunicorns/zarf v0.34.0 h1:ULR9NnQHOBzR9bbzUqp1Q7wj3iA/9zs8VsLGFCbOxMY=
