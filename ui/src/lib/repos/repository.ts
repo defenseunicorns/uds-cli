@@ -1,5 +1,5 @@
-import type { Pod } from 'kubernetes-types/core/v1';
-
-export interface PodRepository {
-  getPods(): Promise<Pod[]>;
+export interface PolicyLogsRepository {
+  onMessageHandler(handler: (message: string) => void): void;
+  onErrorHandler(handler: (error: Event) => void): void;
+  close(): void;
 }

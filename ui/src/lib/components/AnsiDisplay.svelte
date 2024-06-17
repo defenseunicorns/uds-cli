@@ -34,6 +34,7 @@
   export const addMessage = (message: string) => {
     let html = convert.toHtml(message);
     html = `<div class="zarf-terminal-line">${html}</div>`;
+    console.log('scrollAnchor', scrollAnchor)
     scrollAnchor?.insertAdjacentHTML('beforebegin', html);
     scrollAnchor?.scrollIntoView();
   };
