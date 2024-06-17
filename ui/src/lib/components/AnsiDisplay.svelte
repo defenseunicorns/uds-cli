@@ -33,7 +33,6 @@
   // exported in parent component to handle incoming SSE messages
   export const addMessage = (message: string) => {
     allMsgs.push(message);
-    debugger;
     let html = convert.toHtml(message);
     html = `<div class="zarf-terminal-line">${html}</div>`;
     scrollAnchor?.insertAdjacentHTML('beforebegin', html);

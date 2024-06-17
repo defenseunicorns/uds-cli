@@ -7,7 +7,6 @@
 
   let addMessage: (message: string) => void;
 
-  console.log(data.url);
   onMount(() => {
     const policyLogsRepo = new data.policyLogsRepo('http://localhost:8080/api/v1/policies');
     policyLogsRepo.onMessageHandler((message: string) => {
