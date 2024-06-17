@@ -33,13 +33,6 @@ import (
 // PkgOverrideMap is a map of Zarf packages -> components -> Helm charts -> values/namespace
 type PkgOverrideMap map[string]map[string]map[string]interface{}
 
-type PkgClientDeploy struct {
-	exports   []types.BundleVariableExport
-	client    *packager.Packager
-	zarfVars  map[string]string
-	overrides PkgOverrideMap
-}
-
 // templatedVarRegex is the regex for templated variables
 var templatedVarRegex = regexp.MustCompile(`\${([^}]+)}`)
 var includedSources = make(map[types.ValueSources]types.ValueSources, 0)
@@ -74,7 +67,6 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 	bundleExportedVars := make(map[string]map[string]string)
 
 	var packagesToDeploy []types.Package
-	packageClients := make(map[string]PkgClientDeploy, 0)
 
 	if resume {
 		deployedPackageNames := GetDeployedPackageNames()
@@ -85,6 +77,11 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 		}
 	} else {
 		packagesToDeploy = packages
+	}
+
+	// confirm deployment
+	if ok := b.ConfirmBundleDeploy(); !ok {
+		message.Fatal(nil, "bundle deployment cancelled")
 	}
 
 	// setup each package client
@@ -113,17 +110,17 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 
 		pkgVars := b.loadVariables(pkg, bundleExportedVars)
 
+		valuesOverrides, nsOverrides, err := b.loadChartOverrides(pkg, pkgVars)
+		if err != nil {
+			return err
+		}
+
 		opts := zarfTypes.ZarfPackageOptions{
 			PackageSource:      pkgTmp,
 			OptionalComponents: strings.Join(pkg.OptionalComponents, ","),
 			PublicKeyPath:      publicKeyPath,
 			SetVariables:       pkgVars,
 			Retries:            b.cfg.DeployOpts.Retries,
-		}
-
-		valuesOverrides, nsOverrides, err := b.loadChartOverrides(pkg, pkgVars)
-		if err != nil {
-			return err
 		}
 
 		zarfDeployOpts := zarfTypes.ZarfDeployOptions{
@@ -146,32 +143,21 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 		}
 
 		pkgClient := packager.NewOrDie(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
-		packageClients[pkg.Name] = PkgClientDeploy{exports: pkg.Exports, client: pkgClient, zarfVars: pkgVars, overrides: valuesOverrides}
-	}
-
-	// confirm deployment
-	if ok := b.ConfirmBundleDeploy(packageClients); !ok {
-		message.Fatal(nil, "bundle deployment cancelled")
-	}
-
-	// deploy each package
-	for pkgName, pkg := range packageClients {
-		if err := pkg.client.Deploy(context.TODO()); err != nil {
+		if err := pkgClient.Deploy(context.TODO()); err != nil {
 			return err
 		}
-
 		// save exported vars
 		pkgExportedVars := make(map[string]string)
-		variableConfig := pkg.client.GetVariableConfig()
-		for _, exp := range pkg.exports {
+		variableConfig := pkgClient.GetVariableConfig()
+		for _, exp := range pkg.Exports {
 			// ensure if variable exists in package
 			setVariable, ok := variableConfig.GetSetVariable(exp.Name)
 			if !ok {
-				return fmt.Errorf("cannot export variable %s because it does not exist in package %s", exp.Name, pkgName)
+				return fmt.Errorf("cannot export variable %s because it does not exist in package %s", exp.Name, pkg.Name)
 			}
 			pkgExportedVars[strings.ToUpper(exp.Name)] = setVariable.Value
 		}
-		bundleExportedVars[pkgName] = pkgExportedVars
+		bundleExportedVars[pkg.Name] = pkgExportedVars
 	}
 
 	return nil
@@ -193,6 +179,7 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 	for _, imp := range pkg.Imports {
 		pkgVars[strings.ToUpper(imp.Name)] = bundleExportedVars[imp.Package][imp.Name]
 	}
+
 	// shared vars
 	for name, val := range b.cfg.DeployOpts.SharedVariables {
 		pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
@@ -300,13 +287,9 @@ func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*value
 	return nil
 }
 
-type ProcessedVars struct {
-	variable types.BundleChartVariable
-	value    interface{}
-}
-
-func getVarValues(pkgName string, variables *[]types.BundleChartVariable, b *Bundle) []ProcessedVars {
-	processedVars := make([]ProcessedVars, 0)
+// processOverrideVariables processes bundle variables overrides and adds them to the override map
+func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*values.Options, pkgName string, variables *[]types.BundleChartVariable, componentName string, chartName string) error {
+	// processedVars := getVarValues(pkgName, variables, b)
 	for _, v := range *variables {
 		var overrideVal interface{}
 		// Ensuring variable name is upper case since comparisons are being done against upper case env and config variables
@@ -350,21 +333,12 @@ func getVarValues(pkgName string, variables *[]types.BundleChartVariable, b *Bun
 		}
 
 		includedSources[v.Source] = v.Source
-		processedVars = append(processedVars, ProcessedVars{v, overrideVal})
-	}
-	return processedVars
-}
-
-// processOverrideVariables processes bundle variables overrides and adds them to the override map
-func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*values.Options, pkgName string, variables *[]types.BundleChartVariable, componentName string, chartName string) error {
-	processedVars := getVarValues(pkgName, variables, b)
-	for _, pv := range processedVars {
 		// Add the override to the map, or return an error if the path is invalid
-		if err := b.addOverride(*overrideMap, componentName, chartName, pv.variable, pv.value, nil); err != nil {
+		if err := b.addOverride(*overrideMap, componentName, chartName, v, overrideVal, nil); err != nil {
 			return err
 		}
-
 	}
+
 	return nil
 }
 
@@ -555,7 +529,7 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 }
 
 // ConfirmBundleDeploy uses Zarf's pterm logging to prompt the user to confirm bundle creation
-func (b *Bundle) ConfirmBundleDeploy(packageClients map[string]PkgClientDeploy) (confirm bool) {
+func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
 	pterm.Println("kind: ", b.bundle.Kind)
@@ -590,7 +564,8 @@ func (b *Bundle) ConfirmBundleDeploy(packageClients map[string]PkgClientDeploy) 
 		minPkg["ref"] = pkg.Ref
 		utils.ColorPrintYAML(minPkg, nil, false)
 
-		valuesOverrides := packageClients[pkg.Name].overrides
+		// pkgVars := b.loadVariables(pkg, make(map[string]map[string]string))
+		valuesOverrides, _, _ := b.loadChartOverrides(pkg, make(map[string]string))
 
 		overridesMap := make(map[string]interface{})
 		variables := make([]map[string]interface{}, 0)
@@ -598,18 +573,30 @@ func (b *Bundle) ConfirmBundleDeploy(packageClients map[string]PkgClientDeploy) 
 		for compName, component := range pkg.Overrides {
 			for chartName, chart := range component {
 				processedVars := valuesOverrides[compName][chartName]
+
 				for _, v := range chart.Variables {
 					varMap := make(map[string]interface{})
+
 					if strings.Contains(v.Path, ".") {
 						paths := strings.Split(v.Path, ".")
 						val := processedVars[paths[0]]
 						for i := range paths[1:] {
+							if val == nil {
+								val = "not set"
+								break
+							}
 							val = val.(map[string]interface{})[paths[i+1]]
 						}
+
 						varMap[v.Path] = val
 						variables = append(variables, varMap)
 					} else {
-						varMap[v.Path] = processedVars[v.Path]
+						if processedVars[v.Path] == nil {
+							varMap[v.Path] = "not set"
+						} else {
+							varMap[v.Path] = processedVars[v.Path]
+						}
+
 						variables = append(variables, varMap)
 					}
 				}
