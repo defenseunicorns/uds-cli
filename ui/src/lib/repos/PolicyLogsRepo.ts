@@ -1,4 +1,4 @@
-import type {PolicyLogsRepository} from "$lib/repos/repository";
+import type { PolicyLogsRepository } from '$lib/repos/repository';
 
 export class PolicyLogsRepo implements PolicyLogsRepository {
   eventSource: EventSource;

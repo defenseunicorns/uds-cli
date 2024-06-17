@@ -6,7 +6,6 @@
   import CardContent from '$lib/components/Card/CardContent.svelte';
   import CardLinks from '$lib/components/Card/CardLinks.svelte';
   import { type TagType } from '$lib/components/Shared/Tag/types';
-
 </script>
 
 <svelte:head>

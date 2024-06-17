@@ -1,9 +1,15 @@
-import {FakePolicyLogsRepo} from "../../../tests/fakerepos/FakePolicyRepo";
-import {PolicyLogsRepo} from "$lib/repos/PolicyLogsRepo";
+import { FakePolicyLogsRepo } from '../../../tests/fakerepos/FakePolicyRepo';
+import { PUBLIC_BACKEND_URL } from '$env/static/public';
+import { PolicyLogsRepo } from '$lib/repos/PolicyLogsRepo';
 
-const policyLogsRepo = new FakePolicyLogsRepo();
-// const policyLogsRepo = new PolicyLogsRepo('http://localhost:8080/api/v1/policies');
+const policyLogsRepo = FakePolicyLogsRepo;
+// const policyLogsRepo = PolicyLogsRepo;
+
+const url: string = PUBLIC_BACKEND_URL;
 
 export async function load() {
-  return { policyLogsRepo };
+  return {
+    policyLogsRepo,
+    url
+  };
 }

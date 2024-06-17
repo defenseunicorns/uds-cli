@@ -20,8 +20,6 @@
 
   export let authenticated: boolean = true;
 
-  export const ssr = false
-
   let leftMenuLinks: HeaderSelectProps[] = [
     {
       title: 'Deployment',

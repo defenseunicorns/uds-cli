@@ -3,7 +3,6 @@
   import Convert from 'ansi-to-html';
 
   const convert = new Convert({
-    newline: true,
     stream: true,
     colors: {
       0: '#000000',
@@ -26,15 +25,17 @@
   });
   let termElement: HTMLElement | null;
   let scrollAnchor: Element | null | undefined;
+  let allMsgs = [];
 
   // using Zarf UI constant for now: https://github.com/defenseunicorns/zarf-ui/blob/d02a5c0e4e04441d6bb3bd7ed331e037a35aa067/src/ui/lib/components/ansi-display.svelte#L35C27-L35C29
   export let height = '688px';
 
   // exported in parent component to handle incoming SSE messages
   export const addMessage = (message: string) => {
+    allMsgs.push(message);
+    debugger;
     let html = convert.toHtml(message);
     html = `<div class="zarf-terminal-line">${html}</div>`;
-    console.log('scrollAnchor', scrollAnchor)
     scrollAnchor?.insertAdjacentHTML('beforebegin', html);
     scrollAnchor?.scrollIntoView();
   };
