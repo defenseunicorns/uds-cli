@@ -1048,12 +1048,14 @@ github.com/defenseunicorns/pkg/helpers v1.1.1 h1:p3pKeK5SeFaoZUJZIX9sEsJqX1CGGMS
 github.com/defenseunicorns/pkg/helpers v1.1.1/go.mod h1:F4S5VZLDrlNWQKklzv4v9tFWjjZNhxJ1gT79j4XiLwk=
 github.com/defenseunicorns/pkg/helpers/v2 v2.0.1 h1:j08rz9vhyD9Bs+yKiyQMY2tSSejXRMxTqEObZ5M1Wbk=
 github.com/defenseunicorns/pkg/helpers/v2 v2.0.1/go.mod h1:u1PAqOICZyiGIVA2v28g55bQH1GiAt0Bc4U9/rnWQvQ=
-github.com/defenseunicorns/pkg/oci v0.0.2 h1:Lewwtl/D1Z55npRCkK1DS4Sd7pdrwyUs4+1RGpYajSQ=
-github.com/defenseunicorns/pkg/oci v0.0.2/go.mod h1:fMevWu1lBUmk7Q0dHWjR5RVHE2jTV7X0mlroxdkIqDE=
+github.com/defenseunicorns/pkg/kubernetes v0.0.1 h1:HNQBV6XXFvlDvFdOCCWam0/LCgq67M+ggQKiRIoM2vU=
+github.com/defenseunicorns/pkg/kubernetes v0.0.1/go.mod h1:AWB1iBbDO4VTmRO/E/8e0tVN0kkWbg+v8dhs9Hd9KXA=
+github.com/defenseunicorns/pkg/oci v1.0.1 h1:WPrWRrae1L19X1vuhy6yYMR2zrTzgBbJHp3ImgUm4ZM=
+github.com/defenseunicorns/pkg/oci v1.0.1/go.mod h1:qZ3up/d0P81taW37fKR4lb19jJhQZJVtNOEJMu00dHQ=
 github.com/defenseunicorns/uds-security-hub v0.0.7 h1:4leg+FDagyoFdr3aSeFGlega4XG5+FwXnAdQsB2MebM=
 github.com/defenseunicorns/uds-security-hub v0.0.7/go.mod h1:4c1w8sRRyQfMDEQ3d+i3/7ENwQGgkNRkvjF5+4D2LZ4=
-github.com/defenseunicorns/zarf v0.34.0 h1:ULR9NnQHOBzR9bbzUqp1Q7wj3iA/9zs8VsLGFCbOxMY=
-github.com/defenseunicorns/zarf v0.34.0/go.mod h1:f4tqeDPIqotSz6FB2ol6Obiyb8QFq/jc6L5nEf2v/8k=
+github.com/defenseunicorns/zarf v0.35.0 h1:xBzKQGO9WfoW/vol5SzjERSR/eGbUHcZSziR490Zabk=
+github.com/defenseunicorns/zarf v0.35.0/go.mod h1:KYjOuPz8+XzhNSNAmew9nFZgB05vfcKYRoLNIg7qEe0=
 github.com/deitch/magic v0.0.0-20230404182410-1ff89d7342da h1:ZOjWpVsFZ06eIhnh4mkaceTiVoktdU67+M7KDHJ268M=
 github.com/deitch/magic v0.0.0-20230404182410-1ff89d7342da/go.mod h1:B3tI9iGHi4imdLi4Asdha1Sc6feLMTfPLXh9IUYmysk=
 github.com/depcheck-test/depcheck-test v0.0.0-20220607135614-199033aaa936 h1:foGzavPWwtoyBvjWyKJYDYsyzy+23iBV7NKTwdk+LRY=
@@ -1144,6 +1146,8 @@ github.com/envoyproxy/protoc-gen-validate v0.9.1/go.mod h1:OKNgG7TCp5pF4d6XftA0+
 github.com/envoyproxy/protoc-gen-validate v0.10.0/go.mod h1:DRjgyB0I43LtJapqN6NiRwroiAU2PaFuvk/vjgh61ss=
 github.com/evanphx/json-patch v5.7.0+incompatible h1:vgGkfT/9f8zE6tvSCe74nfpAVDQ2tG6yudJd8LBksgI=
 github.com/evanphx/json-patch v5.7.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLiYLvXMP4fmwYFNcr97nuDLSk=
+github.com/evanphx/json-patch/v5 v5.6.0 h1:b91NhWfaz02IuVxO9faSllyAtNXHMPkC5J8sJCLunww=
+github.com/evanphx/json-patch/v5 v5.6.0/go.mod h1:G79N1coSVB93tBe7j6PhzjmR3/2VvlbKOFpnXhI9Bw4=
 github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d h1:105gxyaGwCFad8crR9dcMQWvV9Hvulu6hwUh4tWPJnM=
 github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d/go.mod h1:ZZMPRZwes7CROmyNKgQzC3XPs6L/G2EJLHddWejkmf4=
 github.com/facebookincubator/flog v0.0.0-20190930132826-d2511d0ce33c/go.mod h1:QGzNH9ujQ2ZUr/CjDGZGWeDAVStrWNjHeEcjJL96Nuk=
@@ -1599,6 +1603,7 @@ github.com/jedisct1/go-minisign v0.0.0-20230811132847-661be99b8267 h1:TMtDYDHKYY
 github.com/jedisct1/go-minisign v0.0.0-20230811132847-661be99b8267/go.mod h1:h1nSAbGFqGVzn6Jyl1R/iCcBUHN4g+gW1u9CoBTrb9E=
 github.com/jellydator/ttlcache/v3 v3.1.1 h1:RCgYJqo3jgvhl+fEWvjNW8thxGWsgxi+TPhRir1Y9y8=
 github.com/jellydator/ttlcache/v3 v3.1.1/go.mod h1:hi7MGFdMAwZna5n2tuvh63DvFLzVKySzCVW6+0gA2n4=
+github.com/jessevdk/go-flags v1.4.0/go.mod h1:4FA24M0QyGHXBuZZK/XkWh8h0e1EYbRYJSGM75WSRxI=
 github.com/jinzhu/copier v0.4.0 h1:w3ciUoD19shMCRargcpm0cm91ytaBhDvuRpz1ODO/U8=
 github.com/jinzhu/copier v0.4.0/go.mod h1:DfbEm0FYsaqBcKcFuvmOZb218JkPGtvSHsKg8S8hyyg=
 github.com/jinzhu/inflection v1.0.0 h1:K317FqzuhWc8YvSVlFMCCUb36O/S9MCKRDI7QkRKD/E=
@@ -2766,6 +2771,8 @@ golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f/go.mod h1:K8+ghG5WaK9qNq
 golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2/go.mod h1:K8+ghG5WaK9qNqU5K3HdILfMLy1f3aNYFI/wnl100a8=
 golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 h1:+cNy6SZtPcJQH3LJVLOSmiC7MMxXNOb3PU/VUEz+EhU=
 golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028/go.mod h1:NDW/Ps6MPRej6fsCIbMTohpP40sJ/P/vI1MoTEGwX90=
+gomodules.xyz/jsonpatch/v2 v2.4.0 h1:Ci3iUJyx9UeRx7CeFN8ARgGbkESwJK+KB9lLcWxY/Zw=
+gomodules.xyz/jsonpatch/v2 v2.4.0/go.mod h1:AH3dM2RI6uoBZxn3LVrfvJ3E0/9dG4cSrbuBJT4moAY=
 gonum.org/v1/gonum v0.0.0-20180816165407-929014505bf4/go.mod h1:Y+Yx5eoAFn32cQvJDxZx5Dpnq+c3wtXuadVZAcxbbBo=
 gonum.org/v1/gonum v0.8.2/go.mod h1:oe/vMfY3deqTw+1EZJhuvEW2iwGF1bW9wwu7XCu0+v0=
 gonum.org/v1/gonum v0.9.3/go.mod h1:TZumC3NeyVQskjXqmyWt4S3bINhy7B4eYwW69EbyX+0=
@@ -3192,6 +3199,8 @@ rsc.io/binaryregexp v0.2.0/go.mod h1:qTv7/COck+e2FymRvadv62gMdZztPaShugOCi3I+8D8
 rsc.io/pdf v0.1.1/go.mod h1:n8OzWcQ6Sp37PL01nO98y4iUCRdTGarVfzxY20ICaU4=
 rsc.io/quote/v3 v3.1.0/go.mod h1:yEA65RcK8LyAZtP9Kv3t0HmxON59tX3rD+tICJqUlj0=
 rsc.io/sampler v1.3.0/go.mod h1:T1hPZKmBbMNahiBKFy5HrXp6adAjACjK9JXDnKaTXpA=
+sigs.k8s.io/cli-utils v0.36.0 h1:k7GM6LmIMydtvM6Ad91XuqKk0QEVL9bVbaiX1uvWIrA=
+sigs.k8s.io/cli-utils v0.36.0/go.mod h1:uCFC3BPXB3xHFQyKkWUlTrncVDCKzbdDfqZqRTCrk24=
 sigs.k8s.io/controller-runtime v0.16.3 h1:2TuvuokmfXvDUamSx1SuAOO3eTyye+47mJCigwG62c4=
 sigs.k8s.io/controller-runtime v0.16.3/go.mod h1:j7bialYoSn142nv9sCOJmQgDXQXxnroFU4VnX/brVJ0=
 sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd h1:EDPBXCAspyGV4jQlpZSudPeMmr1bNJefnuqLsRAsHZo=

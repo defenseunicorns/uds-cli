@@ -1,6 +1,6 @@
 module github.com/defenseunicorns/uds-cli
 
-go 1.22.3
+go 1.22.4
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
@@ -9,9 +9,9 @@ require (
 	github.com/defenseunicorns/maru-runner v0.2.0
 	github.com/defenseunicorns/pkg/exec v0.0.1
 	github.com/defenseunicorns/pkg/helpers/v2 v2.0.1
-	github.com/defenseunicorns/pkg/oci v0.0.2
+	github.com/defenseunicorns/pkg/oci v1.0.1
 	github.com/defenseunicorns/uds-security-hub v0.0.7
-	github.com/defenseunicorns/zarf v0.34.0
+	github.com/defenseunicorns/zarf v0.35.0
 	github.com/fatih/color v1.17.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/goccy/go-yaml v1.11.3
@@ -178,6 +178,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/daviddengcn/go-colortext v1.0.0 // indirect
 	github.com/defenseunicorns/pkg/helpers v1.1.1 // indirect
+	github.com/defenseunicorns/pkg/kubernetes v0.0.1 // indirect
 	github.com/deitch/magic v0.0.0-20230404182410-1ff89d7342da // indirect
 	github.com/derailed/k9s v0.31.7 // indirect
 	github.com/derailed/popeye v0.11.3 // indirect
@@ -203,6 +204,7 @@ require (
 	github.com/emicklei/proto v1.12.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/evanphx/json-patch v5.7.0+incompatible // indirect
+	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
 	github.com/facebookincubator/nvdtools v0.1.5 // indirect
 	github.com/fairwindsops/pluto/v5 v5.18.4 // indirect
@@ -516,6 +518,7 @@ require (
 	modernc.org/memory v1.7.2 // indirect
 	modernc.org/sqlite v1.28.0 // indirect
 	oras.land/oras-go v1.2.5 // indirect
+	sigs.k8s.io/cli-utils v0.36.0 // indirect
 	sigs.k8s.io/controller-runtime v0.16.3 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/kustomize/api v0.16.0 // indirect
