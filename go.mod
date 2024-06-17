@@ -340,6 +340,7 @@ require (
 	github.com/mitchellh/hashstructure/v2 v2.0.2 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
+	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/locker v1.0.1 // indirect
 	github.com/moby/moby v24.0.9+incompatible // indirect
 	github.com/moby/spdystream v0.2.0 // indirect
@@ -528,7 +529,7 @@ require (
 
 replace github.com/prometheus/common => github.com/prometheus/common v0.45.0
 
-replace github.com/docker/docker => github.com/docker/docker v24.0.9+incompatible
+replace github.com/docker/docker => github.com/docker/docker v26.1.4+incompatible
 
 // remove when Zarf updates k9s versions to v0.32.4
 replace github.com/derailed/k9s => github.com/derailed/k9s v0.32.4
