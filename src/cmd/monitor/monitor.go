@@ -11,7 +11,7 @@ import (
 
 var namespace string
 
-var MonitorCmd = &cobra.Command{
+var Cmd = &cobra.Command{
 	Use:     "monitor",
 	Aliases: []string{"mon", "m"},
 	Short:   lang.CmdMonitorShort,
@@ -19,5 +19,5 @@ var MonitorCmd = &cobra.Command{
 }
 
 func init() {
-	MonitorCmd.PersistentFlags().StringVarP(&namespace, "namespace", "n", "", lang.CmdMonitorNamespaceFlag)
+	Cmd.PersistentFlags().StringVarP(&namespace, "namespace", "n", "", lang.CmdMonitorNamespaceFlag)
 }

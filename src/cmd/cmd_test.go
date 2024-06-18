@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2023-Present The UDS Authors
+
+// Package cmd contains the CLI commands for UDS.
 package cmd
 
 import (
