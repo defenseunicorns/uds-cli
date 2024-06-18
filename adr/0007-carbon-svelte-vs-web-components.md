@@ -6,15 +6,11 @@ proposed
 
 ## Context
 
-We had previously decided to use the IBM Carbon Design System for our Svelte applications using `carbon-components-svelte`, but we wanted to take a look at another option that was framework agnostic, so we starting looking at Web Components.
+We previously decided to use the IBM Carbon Design System for our Svelte applications using `carbon-components-svelte`. Recently but we wanted to take a look at another option that was framework agnostic, so we starting looking at Web Components.
 
 IBM's supports Web Components nas has a [package](https://github.com/carbon-design-system/carbon-for-ibm-dotcom/tree/main/packages/carbon-web-components) to help you create Custom Elements
 
 What we wanted to do was take a look at the differences/ pros and cons of using the Svelte variation vs the Web Componnets variations of Carbon in order to decided which one provides the best solution for development but also for design. Some of the determining factors are ease of use, ability to customize as well as support in design tools such as Figma
-
-What is the issue that we're seeing that is motivating this decision or change?
-
-- why was it made
 
 ## Decision
 
@@ -100,7 +96,7 @@ converts to this...
   </nav>
 ```
 
-and then we can customize it and add the `withIcon` attribute as a slot was to allow the ability to have an icon and also pass whatever icon we would want
+and then we can customize it and add the `withIcon` attribute as a slot to allow the ability to have an icon and be able to chose a what icon
 
 ```Svelte
   <nav class="bx--header__nav">
@@ -214,5 +210,3 @@ The isue here is that, we can only seem to be able to override styles and if we 
 - Tooling: While supported by modern browsers, development tools and extensions specific to web components may be less mature than those for frameworks like React or Vue.
 
 ## Consequences
-
-What becomes easier or more difficult to do because of this change?
