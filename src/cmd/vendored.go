@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"runtime/debug"
@@ -68,7 +69,7 @@ var zarfCmd = &cobra.Command{
 	Short:   lang.CmdZarfShort,
 	Run: func(_ *cobra.Command, _ []string) {
 		os.Args = os.Args[1:] // grab 'zarf' and onward from the CLI args
-		zarfCLI.Execute()
+		zarfCLI.Execute(context.TODO())
 	},
 	DisableFlagParsing: true,
 }

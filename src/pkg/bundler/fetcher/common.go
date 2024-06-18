@@ -5,6 +5,7 @@
 package fetcher
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,7 +32,7 @@ func loadPkg(pkgTmp string, pkgSrc zarfSources.PackageSource, optionalComponents
 	)
 
 	// load the package with the filter (calling LoadPackage populates the pkgPaths with the files from the tarball)
-	pkg, _, err := pkgSrc.LoadPackage(pkgPaths, createFilter, false)
+	pkg, _, err := pkgSrc.LoadPackage(context.TODO(), pkgPaths, createFilter, false)
 	if err != nil {
 		return zarfTypes.ZarfPackage{}, nil, err
 	}

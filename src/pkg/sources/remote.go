@@ -41,7 +41,7 @@ type RemoteBundle struct {
 }
 
 // LoadPackage loads a Zarf package from a remote bundle
-func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (zarfTypes.ZarfPackage, []string, error) {
+func (r *RemoteBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (zarfTypes.ZarfPackage, []string, error) {
 	// todo: progress bar??
 	var layers []ocispec.Descriptor
 	var err error
@@ -124,7 +124,7 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Comp
 }
 
 // LoadPackageMetadata loads a Zarf package's metadata from a remote bundle
-func (r *RemoteBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ bool) (zarfTypes.ZarfPackage, []string, error) {
+func (r *RemoteBundle) LoadPackageMetadata(_ context.Context, dst *layout.PackagePaths, _ bool, _ bool) (zarfTypes.ZarfPackage, []string, error) {
 	ctx := context.TODO()
 	root, err := r.Remote.FetchRoot(ctx)
 	if err != nil {
@@ -187,7 +187,7 @@ func (r *RemoteBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ b
 }
 
 // Collect doesn't need to be implemented
-func (r *RemoteBundle) Collect(_ string) (string, error) {
+func (r *RemoteBundle) Collect(_ context.Context, _ string) (string, error) {
 	return "", fmt.Errorf("not implemented in %T", r)
 }
 

@@ -260,7 +260,7 @@ func writeTarball(bundle *types.UDSBundle, artifactPathMap types.PathMap, output
 
 	archiveBar := message.NewProgressBar(int64(len(jobs)), "Creating bundle archive")
 
-	defer archiveBar.Stop()
+	defer archiveBar.Close()
 
 	archiveErrGroup.Go(func() error {
 		return format.ArchiveAsync(ctx, out, jobs)
