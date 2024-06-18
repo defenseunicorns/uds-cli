@@ -180,7 +180,7 @@ jobs:
 
       - name: Run e2e optional bundle tests
         run: |
-          build/uds run test:engine --no-progress
+          build/uds run test:engine-e2e --no-progress
 
       - name: Save logs
         if: always()
