@@ -331,6 +331,70 @@ The `dev deploy` command performs the following operations:
     - The `--ref` flag can be used to specify what package ref you want to deploy (example: `--ref podinfo=0.2.0`)
   - Creates a bundle from the newly created Zarf packages
 
+## Monitor
+
+UDS CLI provides a `uds monitor` command that can be used to monitor the status of a UDS cluster
+
+### Monitor Pepr
+
+To monitor the status of a UDS cluster's admission and operator controllers, run: `uds monitor pepr`
+
+#### UDS Controllers
+
+UDS clusters contain two Kubernetes controllers, both created using [Pepr](https://pepr.dev/):
+1. **Admission Controller**: Corresponds to the `pepr-uds-core` pods in the cluster. This controller is responsible for validating and mutating resources in the cluster including the enforcement of [UDS Exemptions](https://uds.defenseunicorns.com/core/configuration/uds-configure-policy-exemptions/).
+
+1. **Operator Controller**: Corresponds to the `pepr-uds-core-watcher` pods. This controller is responsible for managing the lifecyle of [UDS Package](https://uds.defenseunicorns.com/core/configuration/uds-operator/) resources in the cluster.
+
+#### Monitor Args
+Aggregate all admission and operator logs into a single stream:  
+```
+uds monitor pepr
+```
+
+Stream UDS Operator actions (UDS Package processing, status updates, and errors):  
+
+```
+uds monitor pepr operator
+```
+
+Stream UDS Policy logs (Allow, Deny, Mutate):  
+
+```
+uds monitor pepr policies
+```
+
+Stream UDS Policy allow logs:  
+
+```
+uds monitor pepr allowed
+```
+
+Stream UDS Policy deny logs:  
+
+```
+uds monitor pepr denied
+```
+
+Stream UDS Policy mutation logs:  
+
+```
+uds monitor pepr mutated
+```
+
+Stream UDS Policy deny logs and UDS Operator error logs:  
+`uds monitor pepr failed`
+
+#### Monitor Flags
+
+`-f, --follow`           Continuously stream Pepr logs
+
+`--json`             Return the raw JSON output of the logs
+``
+`--since duration   Only return logs newer than a relative duration like 5s, 2m, or 3h. Defaults to all logs.
+
+`-t, --timestamps`       Show timestamps in Pepr log
+
 ## Scan
 
 {{% alert-note %}}> Scan is an ALPHA feature.

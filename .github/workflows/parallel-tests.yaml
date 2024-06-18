@@ -1,0 +1,170 @@
+name: E2E Tests
+on:
+  workflow_call: # This is the event that triggers the workflow
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout the repo and setup the tooling for this job
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: Setup golang
+        uses: ./.github/actions/golang
+
+      - name: Install UDS CLI
+        uses: ./.github/actions/install-uds-cli
+
+      - name: Build CLI
+        run: |
+          uds run build-cli-linux-amd
+
+      # Upload the contents of the build directory for later stages to use
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+        with:
+          name: build-artifacts
+          path: build/
+          retention-days: 1
+  test-bundle:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: setup-using-previous-job
+        uses: ./.github/actions/setup-from-previous
+
+      - name: Run e2e bundle tests
+        run: |
+          build/uds run test:bundle --no-progress
+
+      - name: Save logs
+        if: always()
+        uses: ./.github/actions/save-logs
+        with:
+          name: build
+
+  test-dev:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: setup-using-previous-job
+        uses: ./.github/actions/setup-from-previous
+
+      - name: Run e2e dev tests
+        run: |
+          build/uds run test:dev --no-progress
+
+      - name: Save logs
+        if: always()
+        uses: ./.github/actions/save-logs
+        with:
+          name: test-dev
+
+  test-variables:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: setup-using-previous-job
+        uses: ./.github/actions/setup-from-previous
+
+      - name: Run e2e variable tests
+        run: |
+          build/uds run test:variable --no-progress
+
+      - name: Save logs
+        if: always()
+        uses: ./.github/actions/save-logs
+        with:
+          name: test-variables
+
+  test-optional-bundle:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: setup-using-previous-job
+        uses: ./.github/actions/setup-from-previous
+
+      - name: Run e2e optional bundle tests
+        run: |
+          build/uds run test:optional-bundle --no-progress
+
+      - name: Save logs
+        if: always()
+        uses: ./.github/actions/save-logs
+        with:
+          name: test-optional-bundle
+
+  test-vendor:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: setup-using-previous-job
+        uses: ./.github/actions/setup-from-previous
+
+      - name: Install Trivy
+        run: |
+          sudo apt-get install wget apt-transport-https gnupg -y
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install trivy -y
+
+      - name: Run e2e vendor tests
+        run: |
+          build/uds run test:vendor --no-progress
+
+      - name: Save logs
+        if: always()
+        uses: ./.github/actions/save-logs
+        with:
+          name: test-vendor
+
+  test-engine:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: setup-using-previous-job
+        uses: ./.github/actions/setup-from-previous
+
+      - name: Run e2e optional bundle tests
+        run: |
+          build/uds run test:engine-e2e --no-progress
+
+      - name: Save logs
+        if: always()
+        uses: ./.github/actions/save-logs
+        with:
+          name: test-engine

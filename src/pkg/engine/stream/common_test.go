@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2023-Present The UDS Authors
+
+// Package stream contains the logic for streaming logs from from UDS Core
 package stream
 
 import (
@@ -98,7 +102,7 @@ func TestStream_Start(t *testing.T) {
 				reader.On("PodFilter", mock.Anything).Return(tt.filterResult)
 				reader.On("LogStream", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
 					writer := args.Get(0).(io.Writer)
-					_, _ = writer.Write([]byte(tt.logStreamData))
+					writer.Write([]byte(tt.logStreamData))
 				})
 			}
 
