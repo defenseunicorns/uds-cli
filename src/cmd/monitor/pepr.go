@@ -80,7 +80,7 @@ var peprCmd = &cobra.Command{
 }
 
 func init() {
-	MonitorCmd.AddCommand(peprCmd)
+	Cmd.AddCommand(peprCmd)
 
 	peprCmd.Flags().BoolVarP(&follow, "follow", "f", false, lang.CmdPeprMonitorFollowFlag)
 	peprCmd.Flags().BoolVarP(&timestamps, "timestamps", "t", false, lang.CmdPeprMonitorTimestampFlag)

@@ -98,7 +98,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&config.CommonOptions.Insecure, "insecure", v.GetBool(V_INSECURE), lang.RootCmdFlagInsecure)
 	rootCmd.PersistentFlags().IntVar(&config.CommonOptions.OCIConcurrency, "oci-concurrency", v.GetInt(V_BNDL_OCI_CONCURRENCY), lang.CmdBundleFlagConcurrency)
 
-	rootCmd.AddCommand(monitor.MonitorCmd)
+	rootCmd.AddCommand(monitor.Cmd)
 }
 
 // loadViperConfig reads the config file and unmarshals the relevant config into DeployOpts.Variables
