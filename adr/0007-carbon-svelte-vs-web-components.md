@@ -16,6 +16,144 @@ What is the issue that we're seeing that is motivating this decision or change?
 
 - why was it made
 
+## Decision
+
+We will continue to adopt the Carbon Design System using Svelte components over switching to Carbon with Web Components.
+
+### Argument
+
+Switching over to Web Components requires learning a new technology as well as it's underlining templating, component library [Lit](https://lit.dev/docs/v1/lit-html/introduction/)
+
+In the meantime, if we do feel like we need to create web components to use across platforms, we can leverage Svelte itself, to create web components as documented [here](https://svelte.dev/docs/custom-elements-api), which does come with some [limitations](https://svelte.dev/docs/custom-elements-api#caveats-and-limitations)
+
+Customization played a big role in the decision of which option to chose. Svelte allowed for easier customization because Svelte components are simply broken down into traditional html elements like `div, section, header` etc. This allowed us to look at the generated html from a component with all of the carbon classes. We could then add or subtract from the html structure to create either a simpler component or a more complex component. Here is an example below
+
+This...
+
+```Svelte
+  <HeaderNav>
+    <HeaderNavMenu text="Menu">
+      <HeaderNavItem href="/" text="Link 1" />
+      <HeaderNavItem href="/" text="Link 2" />
+      <HeaderNavItem href="/" text="Link 3" />
+    </HeaderNavMenu>
+    <HeaderNavItem href="/" text="Link 4" />
+  </HeaderNav>
+```
+
+converts to this...
+
+```Svelte
+  <nav class="bx--header__nav">
+    <ul role="menubar" class="bx--header__menu-bar">
+      <li role="none" class="bx--header__submenu">
+        <a
+          role="menuitem"
+          tabindex="0"
+          aria-haspopup="menu"
+          aria-expanded="false"
+          aria-label="Menu"
+          href="/"
+          class="bx--header__menu-item bx--header__menu-title"
+          style="z-index: 1;"
+        >
+          Menu
+
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 32 32"
+            fill="currentColor"
+            preserveAspectRatio="xMidYMid meet"
+            width="16"
+            height="16"
+            aria-hidden="true"
+            class="bx--header__menu-arrow"
+          >
+            <path d="M16 22L6 12 7.4 10.6 16 19.2 24.6 10.6 26 12z"></path>
+          </svg>
+        </a>
+
+        <ul role="menu" aria-label="Menu" class="bx--header__menu">
+          <li role="none">
+            <a role="menuitem" tabindex="0" href="/" class="bx--header__menu-item">
+              <span class="bx--text-truncate--end">Link 1</span>
+            </a>
+          </li>
+          <li role="none">
+            <a role="menuitem" tabindex="0" href="/" class="bx--header__menu-item">
+              <span class="bx--text-truncate--end">Link 2</span>
+            </a>
+          </li>
+          <li role="none">
+            <a role="menuitem" tabindex="0" href="/" class="bx--header__menu-item">
+              <span class="bx--text-truncate--end">Link 3</span>
+            </a>
+          </li>
+        </ul>
+      </li>
+      <li role="none">
+        <a role="menuitem" tabindex="0" href="/" class="bx--header__menu-item">
+          <span class="bx--text-truncate--end">Link 4</span>
+        </a>
+      </li>
+    </ul>
+  </nav>
+```
+
+and then we can customize it and add the `withIcon` attribute as a slot was to allow the ability to have an icon and also pass whatever icon we would want
+
+```Svelte
+  <nav class="bx--header__nav">
+    <ul role="menubar" class="bx--header__menu-bar">
+      <li role="none" class="bx--header__submenu">
+        <a
+          role="menuitem"
+          tabindex="0"
+          aria-haspopup="menu"
+          aria-expanded="false"
+          aria-label="Menu"
+          href="/"
+          class="bx--header__menu-item bx--header__menu-title"
+          style="z-index: 1;"
+        >
+          {#if withIcon}
+            <div
+              class="header__select-icon"
+              data-testid="header__select-icon--{title.toLowerCase()}-test-id"
+            >
+              <slot name="account-icon" />
+            </div>
+          {/if}
+
+          Menu
+
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 32 32"
+            fill="currentColor"
+            preserveAspectRatio="xMidYMid meet"
+            width="16"
+            height="16"
+            aria-hidden="true"
+            class="bx--header__menu-arrow"
+          >
+            <path d="M16 22L6 12 7.4 10.6 16 19.2 24.6 10.6 26 12z"></path>
+          </svg>
+        </a>
+
+        <ul role="menu" aria-label="Menu" class="bx--header__menu">
+          ...
+        </ul>
+      </li>
+      <li role="none">
+        ...
+      </li>
+    </ul>
+  </nav>
+```
+
+When trying to customize a Web Component, we have to leverage the Lit library to be able to override a component...
+
 ```JavaScript
 import { css } from 'lit';
 import { customElement } from 'lit/decorators/custom-element.js';
@@ -33,23 +171,7 @@ export class MySideNav extends SideNav {
 
 ```
 
-## Decision
-
-We will continue to adopt the Carbon Design System using Svelte components over switching to Carbon with Web Components.
-
-### Argument
-
-Switching over to Web Components requires learning a new technology as well as it's underlining templating, component library [Lit](https://lit.dev/docs/v1/lit-html/introduction/)
-
-In the meantime, if we do feel like we need to create web components to use across platforms, we can leverage Svelte itself, to create web components as documented [here](https://svelte.dev/docs/custom-elements-api), which does come with some [limitations](https://svelte.dev/docs/custom-elements-api#caveats-and-limitations)
-
-Customization played a big role in the decision of which option to chose. Svelte allowed for easier customization because Svelte components are simply broken down into traditional html elements like `div, section, header` etc. This allowed us to look at the generated html from a component with all of the carbon classes. We could then add or subtract from the html structure to create either a simpler component or a more complex component. Here is an example below
-
-This...
-
-converts to this...
-
-And we can then custommizt to add an icon to a componnet that didn't previously have the option to
+The isue here is that, we can only seem to be able to override styles and if we try an approach similar to what we did with Svelte, it will not be as straight forward because Web Components are actual HTML elements and so they do not "break down" further to show the structure generated from the component. Trying to chase down the shadow elements created by the component tree, including it's slots and css parts can become a tedeous job that might not lead to the results desired.
 
 ### Related Decisions
 
