@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import AnsiDisplay from '$lib/components/AnsiDisplay.svelte';
-  import { Breadcrumb, BreadcrumbItem } from 'carbon-components-svelte';
 
   export let data;
 
@@ -22,11 +21,6 @@
   });
 </script>
 
-<Breadcrumb noTrailingSlash>
-  <BreadcrumbItem>Logs</BreadcrumbItem>
-  <BreadcrumbItem>Policy Enforcement</BreadcrumbItem>
-</Breadcrumb>
-
 <div class="stream">
   <AnsiDisplay bind:addMessage />
 </div>
@@ -36,8 +30,9 @@
     margin-top: var(--cds-spacing-07);
     white-space: pre-wrap;
     font-family: monospace;
-    width: 100%;
+    width: calc(100% - 18em);
     height: 100%;
     background-color: #001a30;
+    margin-left: 18em;
   }
 </style>

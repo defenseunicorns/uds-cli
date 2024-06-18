@@ -1,11 +1,3 @@
-<script lang="ts">
-  import { Breadcrumb, BreadcrumbItem } from 'carbon-components-svelte';
-</script>
-
-<Breadcrumb noTrailingSlash>
-  <BreadcrumbItem href="/Dashboard" isCurrentPage={true}>Dashboard</BreadcrumbItem>
-</Breadcrumb>
-
-<div style:padding-top="var(--cds-spacing-07)">
+<div style:padding-top="var(--cds-spacing-07)" style:margin-left="16em">
   <h1>Dashboard</h1>
 </div>
