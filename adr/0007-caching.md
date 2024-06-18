@@ -3,7 +3,7 @@
 Date: 17 June 2024
 
 ## Status
-IN PROGRESS
+APPROVED
 
 ## Context
 UDS interacts with both local and remote bundles that are made up of both local and remote zarf packages. When dealing with remote artifacts, the process can be slow due to the time it takes to download the artifacts. We want to speed up that process by caching the layers of the artifacts. There are different ways to cache these artifacts, and we need to decide which one to use. We want to take into consideration the following: efficiency, ease of implementation, and code readability. We want to be able to leverage the same caching  implementation everywhere it makes sense. We also want the caching implementation to be resilient and able to recover from any corruption.
