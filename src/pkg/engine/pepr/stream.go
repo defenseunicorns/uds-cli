@@ -12,7 +12,6 @@ import (
 	"io"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/defenseunicorns/uds-cli/src/pkg/style"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
@@ -27,7 +26,6 @@ type StreamReader struct {
 	FilterStream    StreamKind
 	filterNamespace string
 	filterName      string
-	showTimestamp   bool
 	indent          string
 	lastEntryHeader string
 	lastEntryBody   string
@@ -88,18 +86,10 @@ const (
 )
 
 // NewStreamReader creates a new PeprStreamReader
-func NewStreamReader(timestamp bool, filterNamespace, filterName string) *StreamReader {
-	// Use a longer indent when timestamps are enabled
-	indent := ""
-	if timestamp {
-		indent = "                     "
-	}
-
+func NewStreamReader(filterNamespace, filterName string) *StreamReader {
 	return &StreamReader{
-		indent:          indent,
 		filterNamespace: strings.ToLower(filterNamespace),
 		filterName:      strings.ToLower(filterName),
-		showTimestamp:   timestamp,
 	}
 }
 
@@ -149,7 +139,12 @@ func (p *StreamReader) PodFilter(pods []corev1.Pod) map[string]string {
 }
 
 // LogStream processes the log stream from Pepr and writes formatted output to the writer
-func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser) error {
+func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser, timestamp bool) error {
+	// Use a longer indent when timestamps are enabled
+	if timestamp {
+		p.indent = "                                "
+	}
+
 	// Process logs line by line.
 	scanner := bufio.NewScanner(logStream)
 	buf := make([]byte, 0, 5*1024*1024) // Allocate a 5 MB buffer to handle large log lines
@@ -167,6 +162,7 @@ func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser) erro
 	)
 
 	for scanner.Scan() {
+
 		line := scanner.Text()
 
 		isLogAdmission := strings.Contains(line, `"msg":"Check response"`)
@@ -179,16 +175,39 @@ func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser) erro
 			continue
 		}
 
+		var msgTimestamp, msgPayload string
+		if timestamp {
+			// Split the timestamp and payload
+			split := strings.SplitN(line, " ", 2)
+			if len(split) == 2 {
+				msgTimestamp = split[0]
+				msgPayload = split[1]
+			} else {
+				message.Warnf("Error splitting log line: %s", line)
+				continue
+			}
+		} else {
+			msgPayload = line
+		}
+
 		if p.JSON {
-			if _, err := writer.Write([]byte("\n" + line)); err != nil {
+			// If timestamps are enabled, append the timestamp to the JSON payload
+			// Replacing the last closing brace with a comma and the timestamp
+			if timestamp {
+				msgPayload = strings.TrimSuffix(msgPayload, "}")
+				msgPayload = fmt.Sprintf("%s, \"ts\": \"%s\"}", msgPayload, msgTimestamp)
+			}
+
+			if _, err := writer.Write([]byte("\n" + msgPayload)); err != nil {
 				message.WarnErr(err, "Error writing newline")
 			}
+
 			continue
 		}
 
 		// JSON parse the line
 		var event LogEntry
-		if err := json.Unmarshal([]byte(line), &event); err != nil {
+		if err := json.Unmarshal([]byte(msgPayload), &event); err != nil {
 			// Log the error and continue to the next line
 			message.WarnErr(err, "Error parsing JSON")
 			continue
@@ -262,9 +281,8 @@ func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser) erro
 			p.updateLastEntry(header, body)
 
 			// If timestamps are enabled, write the timestamp before the header
-			if p.showTimestamp {
-				timestamp := time.UnixMilli(event.Time).Format("2006-01-01 15:01:01")
-				_, err := writer.Write([]byte(fmt.Sprintf("\n\n%s  %v%v", timestamp, style.Bold.Render(header), body)))
+			if timestamp {
+				_, err := writer.Write([]byte(fmt.Sprintf("\n\n%s  %v%v", msgTimestamp, style.Bold.Render(header), body)))
 				if err != nil {
 					return err
 				}

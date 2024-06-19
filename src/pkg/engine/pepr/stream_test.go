@@ -17,14 +17,12 @@ import (
 )
 
 func TestNewStreamReader(t *testing.T) {
-	timestamp := true
 	filterNamespace := "test-namespace"
 	filterName := "test-name"
 
-	reader := NewStreamReader(timestamp, filterNamespace, filterName)
+	reader := NewStreamReader(filterNamespace, filterName)
 
-	require.True(t, reader.showTimestamp)
-	require.Equal(t, "                     ", reader.indent)
+	require.Equal(t, "", reader.indent)
 	require.Equal(t, "test-namespace", reader.filterNamespace)
 	require.Equal(t, "test-name", reader.filterName)
 }
@@ -160,11 +158,11 @@ func TestLogStream(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			reader := NewStreamReader(false, tc.filterNamespace, tc.filterName)
+			reader := NewStreamReader(tc.filterNamespace, tc.filterName)
 			reader.FilterStream = tc.filterStream
 
 			var buf bytes.Buffer
-			err := reader.LogStream(&buf, io.NopCloser(strings.NewReader(tc.logs)))
+			err := reader.LogStream(&buf, io.NopCloser(strings.NewReader(tc.logs)), false)
 			require.NoError(t, err)
 
 			expected := normalizeWhitespace(tc.expected)
