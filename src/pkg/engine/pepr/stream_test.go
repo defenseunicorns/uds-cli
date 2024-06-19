@@ -18,7 +18,7 @@ func TestNewStreamReader(t *testing.T) {
 
 	reader := NewStreamReader(filterNamespace, filterName)
 
-	require.Equal(t, "                     ", reader.indent)
+	require.Equal(t, "", reader.indent)
 	require.Equal(t, "test-namespace", reader.filterNamespace)
 	require.Equal(t, "test-name", reader.filterName)
 }
