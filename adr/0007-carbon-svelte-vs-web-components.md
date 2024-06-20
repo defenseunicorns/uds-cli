@@ -10,7 +10,7 @@ We previously decided to use the IBM Carbon Design System for our Svelte applica
 
 IBM supports Web Components and has a [package](https://github.com/carbon-design-system/carbon-for-ibm-dotcom/tree/main/packages/carbon-web-components) to help you create Custom Elements
 
-What we wanted to do was take a look at the differences/ pros and cons of using the Svelte variation vs the Web Componnets variations of Carbon in order to decided which one provides the best solution for development but also for design. Some of the determining factors are ease of use, ability to customize as well as support in design tools such as Figma
+What we wanted to do was take a look at the differences/ pros and cons of using the Svelte variation vs the Web Components variation of Carbon in order to decided which one provides the best solution for development but also for design. Some of the determining factors are ease of use, ability to customize as well as support in design tools such as Figma
 
 ## Decision
 
@@ -20,7 +20,7 @@ We will continue to adopt the Carbon Design System using Svelte components over 
 
 Switching over to Web Components requires learning a new technology as well as it's underlining templating, component library [Lit](https://lit.dev/docs/v1/lit-html/introduction/)
 
-In the meantime, if we do feel like we need to create web components to use across platforms, we can leverage Svelte itself, to create web components as documented [here](https://svelte.dev/docs/custom-elements-api), which does come with some [limitations](https://svelte.dev/docs/custom-elements-api#caveats-and-limitations)
+In the meantime, if we do feel like we need to create web components to use across platforms, we can leverage Svelte itself, to create web components as documented [here](https://svelte.dev/docs/custom-elements-api), even though it does come with some [limitations](https://svelte.dev/docs/custom-elements-api#caveats-and-limitations)
 
 Customization played a big role in the decision of which option to chose. Svelte allowed for easier customization because Svelte components are simply broken down into traditional html elements like `div, section, header` etc. This allowed us to look at the generated html from a component with all of the carbon classes. We could then add or subtract from the html structure to create either a simpler component or a more complex component. Here is an example below
 
@@ -96,7 +96,7 @@ converts to this...
   </nav>
 ```
 
-and then we can customize it and add the `withIcon` attribute as a slot to allow the ability to have an icon and be able to chose a what icon
+and then we can customize it and add the `withIcon` attribute as a slot to allow the ability to have an icon and be able to chose any icon
 
 ```Svelte
   <nav class="bx--header__nav">
