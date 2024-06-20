@@ -8,7 +8,7 @@ proposed
 
 We previously decided to use the IBM Carbon Design System for our Svelte applications using `carbon-components-svelte`. Recently but we wanted to take a look at another option that was framework agnostic, so we starting looking at Web Components.
 
-IBM's supports Web Components nas has a [package](https://github.com/carbon-design-system/carbon-for-ibm-dotcom/tree/main/packages/carbon-web-components) to help you create Custom Elements
+IBM supports Web Components and has a [package](https://github.com/carbon-design-system/carbon-for-ibm-dotcom/tree/main/packages/carbon-web-components) to help you create Custom Elements
 
 What we wanted to do was take a look at the differences/ pros and cons of using the Svelte variation vs the Web Componnets variations of Carbon in order to decided which one provides the best solution for development but also for design. Some of the determining factors are ease of use, ability to customize as well as support in design tools such as Figma
 
