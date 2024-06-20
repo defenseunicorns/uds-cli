@@ -80,11 +80,6 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 		packagesToDeploy = packages
 	}
 
-	// confirm deployment
-	if ok := b.ConfirmBundleDeploy(); !ok {
-		message.Fatal(nil, "bundle deployment cancelled")
-	}
-
 	// setup each package client
 	for i, pkg := range packagesToDeploy {
 		// for dev mode update package ref for remote bundles, refs for local bundles updated on create
