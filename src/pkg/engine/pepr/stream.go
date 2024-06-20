@@ -142,7 +142,7 @@ func (p *StreamReader) PodFilter(pods []corev1.Pod) map[string]string {
 func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser, timestamp bool) error {
 	// Use a longer indent when timestamps are enabled
 	if timestamp {
-		p.indent = "                                "
+		p.indent = strings.Repeat(" ", 32)
 	}
 
 	// Process logs line by line.
