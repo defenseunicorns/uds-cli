@@ -5,6 +5,7 @@
 package bundle
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -114,7 +115,7 @@ func (b *Bundle) getPackageImages() ([]string, error) {
 			return nil, err
 		}
 		pkgPaths := layout.New(tmpDir)
-		zarfPkg, _, err := source.LoadPackageMetadata(pkgPaths, false, true)
+		zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), pkgPaths, false, true)
 		if err != nil {
 			return nil, err
 		}

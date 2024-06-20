@@ -54,7 +54,7 @@ packages:
       helm-overrides-component:
         podinfo:
           valuesFiles:
-            - file: values.yaml
+            - values.yaml
           values:
             - path: "replicaCount"
               value: 2
@@ -95,7 +95,7 @@ packages:
       helm-overrides-component: # component name inside of the helm-overrides-package Zarf pkg
         podinfo:                # chart name from the helm-overrides-component component
           valuesFiles:
-            - file: values.yaml
+            - values.yaml
           values:
             - path: "replicaCount"
               value: 2
@@ -312,7 +312,7 @@ metadata:
 packages:
    - name: helm-overrides-package
      path: "../../packages/helm"
-     ref: 0.0.1"
+     ref: 0.0.1
      overrides:
         podinfo-component:
           unicorn-podinfo:
