@@ -41,7 +41,7 @@ type TarballBundle struct {
 }
 
 // LoadPackage loads a Zarf package from a local tarball bundle
-func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (zarfTypes.ZarfPackage, []string, error) {
+func (t *TarballBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (zarfTypes.ZarfPackage, []string, error) {
 
 	packageSpinner := message.NewProgressSpinner("Loading bundled Zarf package: %s", t.Pkg.Name)
 	defer packageSpinner.Stop()
@@ -107,7 +107,7 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, filter filters.Com
 }
 
 // LoadPackageMetadata loads a Zarf package's metadata from a local tarball bundle
-func (t *TarballBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ bool) (zarfTypes.ZarfPackage, []string, error) {
+func (t *TarballBundle) LoadPackageMetadata(_ context.Context, dst *layout.PackagePaths, _ bool, _ bool) (zarfTypes.ZarfPackage, []string, error) {
 	ctx := context.TODO()
 	format := av4.CompressedArchive{
 		Compression: av4.Zstd{},
@@ -202,7 +202,7 @@ func (t *TarballBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ 
 }
 
 // Collect doesn't need to be implemented
-func (t *TarballBundle) Collect(_ string) (string, error) {
+func (t *TarballBundle) Collect(_ context.Context, _ string) (string, error) {
 	return "", fmt.Errorf("not implemented in %T", t)
 }
 

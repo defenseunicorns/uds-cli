@@ -132,13 +132,6 @@
           "type": "string",
           "description": "Description of the Zarf package"
         },
-        "images": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "description": "List of images included in the Zarf package"
-        },
         "repository": {
           "type": "string",
           "description": "The repository to import the package from"
@@ -150,6 +143,10 @@
         "ref": {
           "type": "string",
           "description": "Ref (tag) of the Zarf package"
+        },
+        "flavor": {
+          "type": "string",
+          "description": "Flavor of the Zarf package"
         },
         "optionalComponents": {
           "items": {

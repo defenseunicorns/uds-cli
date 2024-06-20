@@ -57,7 +57,6 @@ func (b *Bundle) Deploy() error {
 	} else {
 		packagesToDeploy = b.bundle.Packages
 	}
-
 	return deployPackages(packagesToDeploy, resume, b)
 }
 
@@ -79,7 +78,12 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 	}
 
 	// deploy each package
-	for _, pkg := range packagesToDeploy {
+	for i, pkg := range packagesToDeploy {
+		// for dev mode update package ref for remote bundles, refs for local bundles updated on create
+		if config.Dev && !strings.Contains(b.cfg.DeployOpts.Source, "tar.zst") {
+			pkg = b.setPackageRef(pkg)
+			b.bundle.Packages[i] = pkg
+		}
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 		pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
@@ -126,7 +130,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 		// Automatically confirm the package deployment
 		zarfConfig.CommonOptions.Confirm = true
 
-		source, err := sources.New(b.cfg.DeployOpts.Source, pkg, opts, sha, nsOverrides)
+		source, err := sources.New(*b.cfg, pkg, opts, sha, nsOverrides)
 		if err != nil {
 			return err
 		}
@@ -498,8 +502,8 @@ func setTemplatedVariables(templatedVariables string, pkgVars map[string]string)
 	replacedValue := templatedVarRegex.ReplaceAllStringFunc(templatedVariables, func(match string) string {
 		// returns slice with the templated variable and the variable name
 		variableName := templatedVarRegex.FindStringSubmatch(match)[1]
-		// If we have a templated variable, get the value from pkgVars
-		if varValue, ok := pkgVars[variableName]; ok {
+		// If we have a templated variable, get the value from pkgVars (use uppercase for case-insensitive comparison)
+		if varValue, ok := pkgVars[strings.ToUpper(variableName)]; ok {
 			return varValue
 		}
 		return fmt.Sprintf("${%s_not_found}", variableName)

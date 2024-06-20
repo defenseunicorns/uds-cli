@@ -5,6 +5,7 @@
 package bundle
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/layout"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
 	zarfSources "github.com/defenseunicorns/zarf/src/pkg/packager/sources"
@@ -28,23 +30,10 @@ import (
 func (b *Bundle) Inspect() error {
 	//  handle --list-images flag
 	if b.cfg.InspectOpts.ListImages {
-		err := utils.CheckYAMLSourcePath(b.cfg.InspectOpts.Source)
+		err := b.listImages()
 		if err != nil {
 			return err
 		}
-
-		if err := utils.ReadYAMLStrict(b.cfg.InspectOpts.Source, &b.bundle); err != nil {
-			return err
-		}
-
-		// find images in the packages taking into account optional components
-		imgs, err := b.getPackageImages()
-		if err != nil {
-			return err
-		}
-
-		formattedImgs := pterm.Color(color.FgHiMagenta).Sprintf(strings.Join(imgs, "\n"))
-		pterm.Printfln("\n%s\n", formattedImgs)
 		return nil
 	}
 
@@ -90,45 +79,35 @@ func (b *Bundle) Inspect() error {
 	return nil
 }
 
+func (b *Bundle) listImages() error {
+	if err := utils.CheckYAMLSourcePath(b.cfg.InspectOpts.Source); err != nil {
+		return err
+	}
+
+	if err := utils.ReadYAMLStrict(b.cfg.InspectOpts.Source, &b.bundle); err != nil {
+		return err
+	}
+
+	// find images in the packages taking into account optional components
+	imgs, err := b.getPackageImages()
+	if err != nil {
+		return err
+	}
+
+	formattedImgs := pterm.Color(color.FgHiMagenta).Sprintf(strings.Join(imgs, "\n"))
+	pterm.Printfln("\n%s\n", formattedImgs)
+	return nil
+}
+
 func (b *Bundle) getPackageImages() ([]string, error) {
 	// use a map to track the images for easy de-duping
 	imgMap := make(map[string]string)
 
 	for _, pkg := range b.bundle.Packages {
 		// get package source
-		var source zarfSources.PackageSource
-		if pkg.Repository != "" {
-			// handle remote packages
-			url := fmt.Sprintf("oci://%s:%s", pkg.Repository, pkg.Ref)
-			platform := ocispec.Platform{
-				Architecture: config.GetArch(),
-				OS:           oci.MultiOS,
-			}
-			remote, err := zoci.NewRemote(url, platform)
-			if err != nil {
-				return nil, err
-			}
-
-			source = &zarfSources.OCISource{
-				ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{},
-				Remote:             remote,
-			}
-		} else if pkg.Path != "" {
-			// handle local packages
-			err := os.Chdir(filepath.Dir(b.cfg.InspectOpts.Source)) // change to the bundle's directory
-			if err != nil {
-				return nil, err
-			}
-
-			bundleArch := config.GetArch(b.bundle.Metadata.Architecture)
-			tarballName := fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", pkg.Name, bundleArch, pkg.Ref)
-			source = &zarfSources.TarballSource{
-				ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{
-					PackageSource: filepath.Join(pkg.Path, tarballName),
-				},
-			}
-		} else {
-			return nil, fmt.Errorf("package %s is missing a repository or path", pkg.Name)
+		source, err := b.getSource(pkg)
+		if err != nil {
+			return nil, err
 		}
 
 		tmpDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
@@ -136,7 +115,7 @@ func (b *Bundle) getPackageImages() ([]string, error) {
 			return nil, err
 		}
 		pkgPaths := layout.New(tmpDir)
-		zarfPkg, _, err := source.LoadPackageMetadata(pkgPaths, false, true)
+		zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), pkgPaths, false, true)
 		if err != nil {
 			return nil, err
 		}
@@ -167,4 +146,42 @@ func (b *Bundle) getPackageImages() ([]string, error) {
 	}
 
 	return images, nil
+}
+
+func (b *Bundle) getSource(pkg types.Package) (zarfSources.PackageSource, error) {
+	var source zarfSources.PackageSource
+	if pkg.Repository != "" {
+		// handle remote packages
+		url := fmt.Sprintf("oci://%s:%s", pkg.Repository, pkg.Ref)
+		platform := ocispec.Platform{
+			Architecture: config.GetArch(),
+			OS:           oci.MultiOS,
+		}
+		remote, err := zoci.NewRemote(url, platform)
+		if err != nil {
+			return nil, err
+		}
+
+		source = &zarfSources.OCISource{
+			ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{},
+			Remote:             remote,
+		}
+	} else if pkg.Path != "" {
+		// handle local packages
+		err := os.Chdir(filepath.Dir(b.cfg.InspectOpts.Source)) // change to the bundle's directory
+		if err != nil {
+			return nil, err
+		}
+
+		bundleArch := config.GetArch(b.bundle.Metadata.Architecture)
+		tarballName := fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", pkg.Name, bundleArch, pkg.Ref)
+		source = &zarfSources.TarballSource{
+			ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{
+				PackageSource: filepath.Join(pkg.Path, tarballName),
+			},
+		}
+	} else {
+		return nil, fmt.Errorf("package %s is missing a repository or path", pkg.Name)
+	}
+	return source, nil
 }

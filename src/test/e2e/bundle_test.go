@@ -664,13 +664,13 @@ func TestListImages(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, stderr, "library/registry")
 		require.Contains(t, stderr, "ghcr.io/defenseunicorns/zarf/agent")
-		require.Contains(t, stderr, "ghcr.io/stefanprodan/podinfo")
+		require.Contains(t, stderr, "nginx")
 		require.Contains(t, stderr, "quay.io/prometheus/node-exporter")
 
 		// ensure non-req'd components got filtered
 		require.NotContains(t, stderr, "grafana")
 		require.NotContains(t, stderr, "gitea")
 		require.NotContains(t, stderr, "kiwix")
-		require.NotContains(t, stderr, "nginx")
+		require.NotContains(t, stderr, "podinfo")
 	})
 }

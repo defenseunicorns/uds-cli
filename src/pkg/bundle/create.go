@@ -34,11 +34,6 @@ func (b *Bundle) Create() error {
 		return err
 	}
 
-	// Populate values from valuesFiles if provided
-	if err := b.processValuesFiles(); err != nil {
-		return err
-	}
-
 	// confirm creation
 	if ok := b.confirmBundleCreation(); !ok {
 		return fmt.Errorf("bundle creation cancelled")
@@ -86,6 +81,14 @@ func (b *Bundle) Create() error {
 		}
 	}
 
+	// for dev mode update package ref for local bundles, refs for remote bundles updated on deploy
+	if config.Dev && len(b.cfg.DevDeployOpts.Ref) != 0 {
+		for i, pkg := range b.bundle.Packages {
+			pkg = b.setPackageRef(pkg)
+			b.bundle.Packages[i] = pkg
+		}
+	}
+
 	opts := bundler.Options{
 		Bundle:    &b.bundle,
 		Output:    b.cfg.CreateOpts.Output,
@@ -93,6 +96,7 @@ func (b *Bundle) Create() error {
 		SourceDir: b.cfg.CreateOpts.SourceDirectory,
 	}
 	bundlerClient := bundler.NewBundler(&opts)
+
 	return bundlerClient.Create()
 }
 

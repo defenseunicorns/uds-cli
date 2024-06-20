@@ -1,0 +1,25 @@
+kind: ZarfPackageConfig
+metadata:
+  name: nginx
+  version: 0.0.2
+  description: nginx deployment using image docker.io/library/nginx:1.26.0 for testing dev deploy --refs flag
+
+components:
+  - name: nginx-remote
+    required: true
+    manifests:
+      - name: simple-nginx-deployment
+        namespace: nginx
+        files:
+          - deployment.yaml
+    actions:
+      onDeploy:
+        after:
+          - wait:
+              cluster:
+                kind: deployment
+                name: nginx-deployment
+                namespace: nginx
+                condition: available
+    images:
+      - nginx:1.26.0 # use shorthand for nginx!
