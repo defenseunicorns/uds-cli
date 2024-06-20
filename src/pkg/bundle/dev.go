@@ -5,6 +5,7 @@
 package bundle
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -65,7 +66,7 @@ func (b *Bundle) CreateZarfPkgs() {
 				} else {
 					os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom"}
 				}
-				zarfCLI.Execute()
+				zarfCLI.Execute(context.TODO())
 				if err != nil {
 					message.Fatalf(err, "Failed to create package %s: %s", pkg.Name, err.Error())
 				}

@@ -34,8 +34,6 @@ var rootCmd = &cobra.Command{
 			return
 		}
 
-		zarfCommon.ExitOnInterrupt()
-
 		// Don't add the logo to the help command
 		if cmd.Parent() == nil {
 			config.SkipLogFile = true

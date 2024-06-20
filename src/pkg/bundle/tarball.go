@@ -282,7 +282,7 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	// copy bundle
 	copyOpts := boci.CreateCopyOpts(layersToPush, config.CommonOptions.OCIConcurrency)
 	progressBar := message.NewProgressBar(estimatedBytes, fmt.Sprintf("Publishing %s:%s", remote.Repo().Reference.Repository, remote.Repo().Reference.Reference))
-	defer progressBar.Stop()
+	defer progressBar.Close()
 	remote.SetProgressWriter(progressBar)
 	defer remote.ClearProgressWriter()
 
