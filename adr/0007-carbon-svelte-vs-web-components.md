@@ -210,3 +210,5 @@ The isue here is that, we can only seem to be able to override styles and if we 
 - Tooling: While supported by modern browsers, development tools and extensions specific to web components may be less mature than those for frameworks like React or Vue.
 
 ## Consequences
+
+The Svelte componets library is not an IBM package. It is a Svelte community package and so that leaves us to rely on the Svelte community and it's contributors for this package to update features and keep parity with the IBM components
