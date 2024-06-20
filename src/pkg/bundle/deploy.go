@@ -23,6 +23,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	"github.com/fatih/color"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/pterm/pterm"
 	"golang.org/x/exp/slices"
@@ -531,44 +532,27 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 // ConfirmBundleDeploy uses Zarf's pterm logging to prompt the user to confirm bundle creation
 func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
-	message.HeaderInfof("🎁 BUNDLE DEFINITION")
-	pterm.Println("kind: ", b.bundle.Kind)
-
-	message.HorizontalRule()
-
-	pterm.Println("metadata")
-	utils.ColorPrintYAML(b.bundle.Metadata, nil, false)
-
-	message.HorizontalRule()
-
-	pterm.Println("Build")
-	utils.ColorPrintYAML(b.bundle.Build, nil, false)
-
-	message.HorizontalRule()
-
-	pterm.Println("Configs")
-	for _, source := range includedSources {
-		pterm.Println("Source: ", source)
+	type pkgView struct {
+		meta      map[string]string
+		overrides map[string]interface{}
 	}
 
-	message.HorizontalRule()
+	pkgViews := make([]pkgView, 0)
 
 	for _, pkg := range b.bundle.Packages {
-		minPkg := make(map[string]string)
-		minPkg["name"] = pkg.Name
-		if pkg.Repository != "" {
-			minPkg["repo"] = pkg.Repository
-		} else {
-			minPkg["path"] = pkg.Path
-		}
-		minPkg["ref"] = pkg.Ref
-		utils.ColorPrintYAML(minPkg, nil, false)
-
-		// pkgVars := b.loadVariables(pkg, make(map[string]map[string]string))
-		valuesOverrides, _, _ := b.loadChartOverrides(pkg, make(map[string]string))
-
+		pkgMeta := make(map[string]string)
 		overridesMap := make(map[string]interface{})
 		variables := make([]map[string]interface{}, 0)
+
+		pkgMeta["name"] = pkg.Name
+		if pkg.Repository != "" {
+			pkgMeta["repo"] = pkg.Repository
+		} else {
+			pkgMeta["path"] = pkg.Path
+		}
+		pkgMeta["ref"] = pkg.Ref
+
+		valuesOverrides, _, _ := b.loadChartOverrides(pkg, make(map[string]string))
 
 		for compName, component := range pkg.Overrides {
 			for chartName, chart := range component {
@@ -577,6 +561,7 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 				for _, v := range chart.Variables {
 					varMap := make(map[string]interface{})
 
+					// handle complex paths
 					if strings.Contains(v.Path, ".") {
 						paths := strings.Split(v.Path, ".")
 						val := processedVars[paths[0]]
@@ -603,8 +588,39 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 			}
 		}
 
-		overridesMap["overrides"] = map[string][]map[string]interface{}{"variables": variables}
-		utils.ColorPrintYAML(overridesMap, nil, false)
+		overridesMap["Overrides"] = map[string][]map[string]interface{}{"Variables": variables}
+		pkgViews = append(pkgViews, pkgView{pkgMeta, overridesMap})
+	}
+
+	message.HeaderInfof("🎁 BUNDLE DEFINITION")
+	pterm.Println("kind: UDS Bundle")
+
+	message.HorizontalRule()
+
+	message.Title("Metatdata:", "information about this bundle")
+	utils.ColorPrintYAML(b.bundle.Metadata, nil, false)
+
+	message.HorizontalRule()
+
+	message.Title("Build:", "info about the machine, UDS version, and the user that created this bundle")
+	utils.ColorPrintYAML(b.bundle.Build, nil, false)
+
+	message.HorizontalRule()
+
+	message.Title("Configs", "shared configurations for bundle")
+	pterm.Println()
+	// requires loadChartOverrides to have been called for each package
+	for _, source := range includedSources {
+		pterm.Println(message.ColorWrap("source: ", color.FgHiCyan), message.ColorWrap(string(source), color.FgHiMagenta))
+	}
+
+	message.HorizontalRule()
+
+	message.Title("Packages:", "definition of packages this bundle deploys, including variable overrides")
+
+	for _, pkg := range pkgViews {
+		utils.ColorPrintYAML(pkg.meta, nil, false)
+		utils.ColorPrintYAML(pkg.overrides, nil, false)
 	}
 
 	message.HorizontalRule()
