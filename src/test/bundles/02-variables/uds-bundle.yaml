@@ -4,11 +4,6 @@ metadata:
   description: show how vars work
   version: 0.0.1
 
-x-gitlab-init-security-context: &gitlab-init-security-context
-  privileged: true
-  readOnlyRootFilesystem: false
-  runAsUser: 0
-
 packages:
   - name: output-var
     path: ../../packages/no-cluster/output-var
