@@ -38,6 +38,29 @@
   </cds-header-nav>
 
   <div class="cds--header__global">
+    <header-icon-menu menu-label="My Menu" role="listitem" trigger-content="MyMenu">
+      <cds-header-menu-item href="javascript:void 0" tabindex="-1" role="listitem">
+        uds.us/staging
+      </cds-header-menu-item>
+
+      <cds-header-menu-item href="javascript:void 0" tabindex="-1" role="listitem">
+        prod.uds.us
+      </cds-header-menu-item>
+
+      <cds-header-menu-item href="javascript:void 0" tabindex="-1" role="listitem">
+        prod.uds.is
+      </cds-header-menu-item>
+
+      <cds-header-menu-item href="javascript:void 0" tabindex="-1" role="listitem">
+        Uds.is/staging
+      </cds-header-menu-item>
+
+      <cds-header-menu-item href="javascript:void 0" tabindex="-1" role="listitem">
+        spaceforce.swf.gov
+      </cds-header-menu-item>
+    </header-icon-menu>
+    <div part="divider" class="cds-ce--header__divider" />
+
     <cds-header-menu menu-label="prod.uds.is" role="listitem" trigger-content="prod.uds.is">
       <cds-header-menu-item href="javascript:void 0" tabindex="-1" role="listitem">
         uds.us/staging
