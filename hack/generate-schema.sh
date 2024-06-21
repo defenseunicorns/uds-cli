@@ -2,6 +2,12 @@
 
 # Create the json schema for the uds-bundle.yaml
 go run main.go internal config-uds-schema > uds.schema.json
+
+# Adds pattern properties to all definitions to allow for yaml extensions
+jq '.definitions |= map_values(. + {"patternProperties": {"^x-": {}}})' uds.schema.json > temp_uds.schema.json
+mv temp_uds.schema.json uds.schema.json
+
+# Create the json schema for tasks.yaml
 go run main.go internal config-tasks-schema > tasks.schema.json
 
 # Adds pattern properties to all definitions to allow for yaml extensions
