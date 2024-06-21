@@ -350,9 +350,6 @@
       "patternProperties": {
         "^x-": {}
       }
-    },
-    "patternProperties": {
-        "^x-": {}
     }
   }
 }
