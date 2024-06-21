@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -642,6 +643,25 @@ func TestArchCheck(t *testing.T) {
 	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm", bundlePath), " ")
 	_, stderr, _ := e2e.UDS(cmd...)
 	require.Contains(t, stderr, fmt.Sprintf("arch %s does not match cluster arch, [%s]", testArch, e2e.Arch))
+}
+
+func TestConfirmBundleDeployView(t *testing.T) {
+	deployZarfInit(t)
+	zarfPkgPath := "src/test/packages/helm"
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+	bundleDir := "src/test/bundles/07-helm-overrides"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
+	createLocal(t, bundleDir, e2e.Arch)
+
+	os.Setenv("UDS_CONFIG", fmt.Sprintf("%s/uds-config.yaml", bundleDir))
+	_, stderr := deploy(t, bundlePath)
+
+	ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
+	cleaned := ansiRegex.ReplaceAllString(stderr, "")
+	require.Contains(t, cleaned, "podinfo.logLevel: debug")
+	require.Contains(t, cleaned, "testSecret: not set")
+
+	remove(t, bundlePath)
 }
 
 func TestListImages(t *testing.T) {
