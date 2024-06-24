@@ -16,6 +16,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/layout"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
 	zarfSources "github.com/defenseunicorns/zarf/src/pkg/packager/sources"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -73,6 +74,13 @@ func (b *Bundle) Inspect() error {
 		return err
 	}
 
+	if b.cfg.InspectOpts.ListVariables {
+		if err := b.listVariables(); err != nil {
+			return err
+		}
+		return nil
+	}
+
 	// show the bundle's metadata
 	zarfUtils.ColorPrintYAML(b.bundle, nil, false)
 
@@ -96,6 +104,34 @@ func (b *Bundle) listImages() error {
 
 	formattedImgs := pterm.Color(color.FgHiMagenta).Sprintf(strings.Join(imgs, "\n"))
 	pterm.Printfln("\n%s\n", formattedImgs)
+	return nil
+}
+
+func (b *Bundle) listVariables() error {
+	message.HorizontalRule()
+	message.Title("Overrides and Variables:", "configurable helm overrides and Zarf variables by package")
+
+	for _, pkg := range b.bundle.Packages {
+		// get package source
+		source, err := b.getSourceFromTarball(pkg)
+		if err != nil {
+			return err
+		}
+
+		tmpDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
+		if err != nil {
+			return err
+		}
+		pkgPaths := layout.New(tmpDir)
+		zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), pkgPaths, false, true)
+		if err != nil {
+			return err
+		}
+
+		varMap := map[string]map[string]interface{}{pkg.Name: {"Overrides": pkg.Overrides, "Zarf-Variables": zarfPkg.Variables}}
+		zarfUtils.ColorPrintYAML(varMap, nil, false)
+	}
+
 	return nil
 }
 
@@ -146,6 +182,36 @@ func (b *Bundle) getPackageImages() ([]string, error) {
 	}
 
 	return images, nil
+}
+
+func (b *Bundle) getSourceFromTarball(pkg types.Package) (zarfSources.PackageSource, error) {
+	var source zarfSources.PackageSource
+	if pkg.Repository != "" {
+		// handle remote packages
+		url := fmt.Sprintf("oci://%s:%s", pkg.Repository, pkg.Ref)
+		platform := ocispec.Platform{
+			Architecture: config.GetArch(),
+			OS:           oci.MultiOS,
+		}
+		remote, err := zoci.NewRemote(url, platform)
+		if err != nil {
+			return nil, err
+		}
+
+		source = &zarfSources.OCISource{
+			ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{},
+			Remote:             remote,
+		}
+	} else if pkg.Path != "" {
+		source = &zarfSources.TarballSource{
+			ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{
+				PackageSource: pkg.Path,
+			},
+		}
+	} else {
+		return nil, fmt.Errorf("package %s is missing a repository or path", pkg.Name)
+	}
+	return source, nil
 }
 
 func (b *Bundle) getSource(pkg types.Package) (zarfSources.PackageSource, error) {
