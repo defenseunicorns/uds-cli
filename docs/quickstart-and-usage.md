@@ -8,7 +8,7 @@ weight: 1
 
 Recommended installation method is with Brew:
 
-```
+```bash
 brew tap defenseunicorns/tap && brew install uds
 ```
 
@@ -44,11 +44,11 @@ The above `UDSBundle` deploys the Zarf init package and podinfo.
 
 The packages referenced in `packages` can exist either locally or in an OCI registry. See [here](https://github.com/defenseunicorns/uds-cli/tree/main/src/test/bundles/03-local-and-remote) for an example that deploys both local and remote Zarf packages. More `UDSBundle` examples can be found in the [src/test/bundles](https://github.com/defenseunicorns/uds-cli/tree/main/src/test/bundles) folder.
 
-#### Declarative Syntax
+### Declarative Syntax
 
 The syntax of a `uds-bundle.yaml` is entirely declarative. As a result, the UDS CLI will not prompt users to deploy optional components in a Zarf package. If you want to deploy an optional Zarf component, it must be specified in the `optionalComponents` key of a particular `package`.
 
-#### First-class UDS Support
+### First-class UDS Support
 
 When running `deploy`,`inspect`,`remove`, and `pull` commands, UDS CLI contains shorthand for interacting with the Defense Unicorns org on GHCR. Specifically, unless otherwise specified, paths will automatically be expanded to the Defense Unicorns org on GHCR. For example:
 
@@ -176,6 +176,7 @@ e.g.
 `uds deploy -a amd64 <remote-multi-arch-bundle.tar.zst> --confirm`
 
 ## Variables and Configuration
+
 The UDS CLI can be configured with a `uds-config.yaml` file. This file can be placed in the current working directory or specified with an environment variable called `UDS_CONFIG`. The basic structure of the `uds-config.yaml` is as follows:
 
 ```yaml
@@ -206,6 +207,7 @@ variables:
 The `options` key contains UDS CLI options that are not specific to a particular Zarf package. The `variables` key contains variables that are specific to a particular Zarf package. If you want to share insensitive variables across multiple Zarf packages, you can use the `shared` key, where the key is the variable name and the value is the variable value.
 
 ### Sharing Variables
+
 Zarf package variables can be passed between Zarf packages:
 
 ```yaml
@@ -342,43 +344,46 @@ To monitor the status of a UDS cluster's admission and operator controllers, run
 #### UDS Controllers
 
 UDS clusters contain two Kubernetes controllers, both created using [Pepr](https://pepr.dev/):
+
 1. **Admission Controller**: Corresponds to the `pepr-uds-core` pods in the cluster. This controller is responsible for validating and mutating resources in the cluster including the enforcement of [UDS Exemptions](https://uds.defenseunicorns.com/core/configuration/uds-configure-policy-exemptions/).
 
 1. **Operator Controller**: Corresponds to the `pepr-uds-core-watcher` pods. This controller is responsible for managing the lifecyle of [UDS Package](https://uds.defenseunicorns.com/core/configuration/uds-operator/) resources in the cluster.
 
 #### Monitor Args
+
 Aggregate all admission and operator logs into a single stream:  
-```
+
+```bash
 uds monitor pepr
 ```
 
 Stream UDS Operator actions (UDS Package processing, status updates, and errors):  
 
-```
+```bash
 uds monitor pepr operator
 ```
 
 Stream UDS Policy logs (Allow, Deny, Mutate):  
 
-```
+```bash
 uds monitor pepr policies
 ```
 
 Stream UDS Policy allow logs:  
 
-```
+```bash
 uds monitor pepr allowed
 ```
 
 Stream UDS Policy deny logs:  
 
-```
+```bash
 uds monitor pepr denied
 ```
 
 Stream UDS Policy mutation logs:  
 
-```
+```bash
 uds monitor pepr mutated
 ```
 
