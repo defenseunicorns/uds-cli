@@ -192,7 +192,11 @@ func ReadYAMLStrict(path string, destConfig any) error {
 
 	err = goyaml.UnmarshalWithOptions(file, destConfig, goyaml.Strict())
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal YAML at %s: %v", path, err)
+		message.Warnf("failed strict unmarshalling of YAML at %s: %v", path, err)
+		err = goyaml.UnmarshalWithOptions(file, destConfig)
+		if err != nil {
+			return fmt.Errorf("failed to unmarshal YAML at %s: %v", path, err)
+		}
 	}
 	return nil
 }
