@@ -75,7 +75,8 @@ func (b *Bundle) Inspect() error {
 	}
 
 	if b.cfg.InspectOpts.ListVariables {
-		if err := b.listVariables(); err != nil {
+		err := b.listVariables()
+		if err != nil {
 			return err
 		}
 		return nil
