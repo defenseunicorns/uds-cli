@@ -119,7 +119,13 @@ There are 2 additional flags for the `uds inspect` command you can use to extrac
 - Output the SBOMs as a tar file: `uds inspect ... --sbom`
 - Output SBOMs into a directory as files: `uds inspect ... --sbom --extract`
 
-This functionality will use the `sboms.tar` of the  underlying Zarf packages to create new a `bundle-sboms.tar` artifact containing all SBOMs from the Zarf packages in the bundle.
+This functionality will use the `sboms.tar` of the underlying Zarf packages to create new a `bundle-sboms.tar` artifact containing all SBOMs from the Zarf packages in the bundle.
+
+#### Viewing Variables
+
+To view the configurable overrides and Zarf variables of a bundle's packages:
+
+`uds inspect --list-variables <local-or-remote-tarball>:ref`
 
 ### Bundle Publish
 
@@ -176,36 +182,38 @@ e.g.
 `uds deploy -a amd64 <remote-multi-arch-bundle.tar.zst> --confirm`
 
 ## Variables and Configuration
+
 The UDS CLI can be configured with a `uds-config.yaml` file. This file can be placed in the current working directory or specified with an environment variable called `UDS_CONFIG`. The basic structure of the `uds-config.yaml` is as follows:
 
 ```yaml
 options:
-   log_level: debug
-   architecture: arm64
-   no_log_file: false
-   no_progress: false
-   uds_cache: /tmp/uds-cache
-   tmp_dir: /tmp/tmp_dir
-   insecure: false
-   oci_concurrency: 3
+  log_level: debug
+  architecture: arm64
+  no_log_file: false
+  no_progress: false
+  uds_cache: /tmp/uds-cache
+  tmp_dir: /tmp/tmp_dir
+  insecure: false
+  oci_concurrency: 3
 
 shared:
-   domain: uds.dev # shared across all packages in a bundle
+  domain: uds.dev # shared across all packages in a bundle
 
 variables:
-  my-zarf-package:  # name of Zarf package
+  my-zarf-package: # name of Zarf package
     ui_color: green # key is not case sensitive and refers to name of Zarf variable
     UI_MSG: "Hello Unicorn"
-    hosts:          # variables can be complex types such as lists and maps
-       - host: burning.boats
-         paths:
-            - path: "/"
-              pathType: "Prefix"
+    hosts: # variables can be complex types such as lists and maps
+      - host: burning.boats
+        paths:
+          - path: "/"
+            pathType: "Prefix"
 ```
 
 The `options` key contains UDS CLI options that are not specific to a particular Zarf package. The `variables` key contains variables that are specific to a particular Zarf package. If you want to share insensitive variables across multiple Zarf packages, you can use the `shared` key, where the key is the variable name and the value is the variable value.
 
 ### Sharing Variables
+
 Zarf package variables can be passed between Zarf packages:
 
 ```yaml
@@ -242,14 +250,14 @@ On deploy, you can also set package variables by using the `--set` flag. If the 
 
 ### Variable Precedence and Specificity
 
-In a bundle, variables can come from 4 sources. Those sources and their precedence are shown below in order of least to most specificity:
+In a bundle, variables can come from 6 sources. Those sources and their precedence are shown below in order of least to most specificity:
 
-- Variables declared in a Zarf pkg
-- Variables `import`'ed from a bundle package's `export`
-- Variables configured in the `shared` key in a `uds-config.yaml`
-- Variables configured in the `variables` key in a `uds-config.yaml`
-- Variables set with an environment variable prefixed with `UDS_` (ex. `UDS_OUTPUT`)
-- Variables set using the `--set` flag when running the `uds deploy` command
+- declared in a Zarf pkg
+- `import`'ed from a bundle package's `export`
+- configured in the `shared` key in a `uds-config.yaml`
+- configured in the `variables` key in a `uds-config.yaml`
+- set with an environment variable prefixed with `UDS_` (ex. `UDS_OUTPUT`)
+- set using the `--set` flag when running the `uds deploy` command
 
 That is to say, variables set using the `--set` flag take precedence over all other variable sources.
 
@@ -260,36 +268,36 @@ It is possible to deploy multiple instances of the same Zarf package in a bundle
 ```yaml
 kind: UDSBundle
 metadata:
-   name: duplicates
-   description: testing a bundle with duplicate packages in specified namespaces
-   version: 0.0.1
+  name: duplicates
+  description: testing a bundle with duplicate packages in specified namespaces
+  version: 0.0.1
 
 packages:
-   - name: helm-overrides
-     repository: localhost:5000/helm-overrides
-     ref: 0.0.1
-     overrides:
-        podinfo-component:
-           unicorn-podinfo: # name of Helm chart
-              namespace: podinfo-ns
+  - name: helm-overrides
+    repository: localhost:5000/helm-overrides
+    ref: 0.0.1
+    overrides:
+      podinfo-component:
+        unicorn-podinfo: # name of Helm chart
+          namespace: podinfo-ns
 
-   # note the unique name and namespace
-   - name: helm-overrides-duplicate
-     repository: localhost:5000/helm-overrides
-     ref: 0.0.1
-     overrides:
-        podinfo-component:
-           unicorn-podinfo:
-              namespace: another-podinfo-ns
+  # note the unique name and namespace
+  - name: helm-overrides-duplicate
+    repository: localhost:5000/helm-overrides
+    ref: 0.0.1
+    overrides:
+      podinfo-component:
+        unicorn-podinfo:
+          namespace: another-podinfo-ns
 
-   # note the unique name, namespace and the path to the Zarf package tarball
-   - name: helm-overrides-local-duplicate
-     path: src/test/packages/helm/zarf-package-helm-overrides-arm64-0.0.1.tar.zst
-     ref: 0.0.1
-     overrides:
-        podinfo-component:
-           unicorn-podinfo:
-              namespace: yet-another-podinfo-ns
+  # note the unique name, namespace and the path to the Zarf package tarball
+  - name: helm-overrides-local-duplicate
+    path: src/test/packages/helm/zarf-package-helm-overrides-arm64-0.0.1.tar.zst
+    ref: 0.0.1
+    overrides:
+      podinfo-component:
+        unicorn-podinfo:
+          namespace: yet-another-podinfo-ns
 ```
 
 The naming conventions for deploying duplicate packages are as follows:
@@ -342,41 +350,44 @@ To monitor the status of a UDS cluster's admission and operator controllers, run
 #### UDS Controllers
 
 UDS clusters contain two Kubernetes controllers, both created using [Pepr](https://pepr.dev/):
+
 1. **Admission Controller**: Corresponds to the `pepr-uds-core` pods in the cluster. This controller is responsible for validating and mutating resources in the cluster including the enforcement of [UDS Exemptions](https://uds.defenseunicorns.com/core/configuration/uds-configure-policy-exemptions/).
 
 1. **Operator Controller**: Corresponds to the `pepr-uds-core-watcher` pods. This controller is responsible for managing the lifecyle of [UDS Package](https://uds.defenseunicorns.com/core/configuration/uds-operator/) resources in the cluster.
 
 #### Monitor Args
-Aggregate all admission and operator logs into a single stream:  
+
+Aggregate all admission and operator logs into a single stream:
+
 ```
 uds monitor pepr
 ```
 
-Stream UDS Operator actions (UDS Package processing, status updates, and errors):  
+Stream UDS Operator actions (UDS Package processing, status updates, and errors):
 
 ```
 uds monitor pepr operator
 ```
 
-Stream UDS Policy logs (Allow, Deny, Mutate):  
+Stream UDS Policy logs (Allow, Deny, Mutate):
 
 ```
 uds monitor pepr policies
 ```
 
-Stream UDS Policy allow logs:  
+Stream UDS Policy allow logs:
 
 ```
 uds monitor pepr allowed
 ```
 
-Stream UDS Policy deny logs:  
+Stream UDS Policy deny logs:
 
 ```
 uds monitor pepr denied
 ```
 
-Stream UDS Policy mutation logs:  
+Stream UDS Policy mutation logs:
 
 ```
 uds monitor pepr mutated
@@ -387,13 +398,13 @@ Stream UDS Policy deny logs and UDS Operator error logs:
 
 #### Monitor Flags
 
-`-f, --follow`           Continuously stream Pepr logs
+`-f, --follow` Continuously stream Pepr logs
 
-`--json`             Return the raw JSON output of the logs
+`--json` Return the raw JSON output of the logs
 ``
-`--since duration   Only return logs newer than a relative duration like 5s, 2m, or 3h. Defaults to all logs.
+`--since duration Only return logs newer than a relative duration like 5s, 2m, or 3h. Defaults to all logs.
 
-`-t, --timestamps`       Show timestamps in Pepr log
+`-t, --timestamps` Show timestamps in Pepr log
 
 ## Scan
 
