@@ -13,6 +13,7 @@ import (
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/layout"
@@ -114,7 +115,8 @@ func (b *Bundle) listVariables() error {
 
 	for _, pkg := range b.bundle.Packages {
 		// get package source
-		source, err := b.getSourceFromTarball(pkg)
+		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
+		source, err := sources.New(*b.cfg, pkg, zarfTypes.ZarfPackageOptions{}, sha, nil)
 		if err != nil {
 			return err
 		}
@@ -183,36 +185,6 @@ func (b *Bundle) getPackageImages() ([]string, error) {
 	}
 
 	return images, nil
-}
-
-func (b *Bundle) getSourceFromTarball(pkg types.Package) (zarfSources.PackageSource, error) {
-	var source zarfSources.PackageSource
-	if pkg.Repository != "" {
-		// handle remote packages
-		url := fmt.Sprintf("oci://%s:%s", pkg.Repository, pkg.Ref)
-		platform := ocispec.Platform{
-			Architecture: config.GetArch(),
-			OS:           oci.MultiOS,
-		}
-		remote, err := zoci.NewRemote(url, platform)
-		if err != nil {
-			return nil, err
-		}
-
-		source = &zarfSources.OCISource{
-			ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{},
-			Remote:             remote,
-		}
-	} else if pkg.Path != "" {
-		source = &zarfSources.TarballSource{
-			ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{
-				PackageSource: pkg.Path,
-			},
-		}
-	} else {
-		return nil, fmt.Errorf("package %s is missing a repository or path", pkg.Name)
-	}
-	return source, nil
 }
 
 func (b *Bundle) getSource(pkg types.Package) (zarfSources.PackageSource, error) {
