@@ -524,68 +524,15 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 	return bundleName, string(bundleYAML), source, err
 }
 
+type PkgView struct {
+	meta      map[string]string
+	overrides map[string]interface{}
+}
+
 // ConfirmBundleDeploy uses Zarf's pterm logging to prompt the user to confirm bundle creation
 func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
-	type pkgView struct {
-		meta      map[string]string
-		overrides map[string]interface{}
-	}
-
-	pkgViews := make([]pkgView, 0)
-
-	for _, pkg := range b.bundle.Packages {
-		pkgMeta := make(map[string]string)
-		overridesMap := make(map[string]interface{})
-		variables := make([]map[string]interface{}, 0)
-
-		pkgMeta["name"] = pkg.Name
-		if pkg.Repository != "" {
-			pkgMeta["repo"] = pkg.Repository
-		} else {
-			pkgMeta["path"] = pkg.Path
-		}
-		pkgMeta["ref"] = pkg.Ref
-
-		valuesOverrides, _, _ := b.loadChartOverrides(pkg, make(map[string]string))
-
-		for compName, component := range pkg.Overrides {
-			for chartName, chart := range component {
-				processedVars := valuesOverrides[compName][chartName]
-
-				for _, v := range chart.Variables {
-					varMap := make(map[string]interface{})
-
-					// handle complex paths
-					if strings.Contains(v.Path, ".") {
-						paths := strings.Split(v.Path, ".")
-						val := processedVars[paths[0]]
-						for i := range paths[1:] {
-							if val == nil {
-								val = "not set"
-								break
-							}
-							val = val.(map[string]interface{})[paths[i+1]]
-						}
-
-						varMap[v.Path] = val
-						variables = append(variables, varMap)
-					} else {
-						if processedVars[v.Path] == nil {
-							varMap[v.Path] = "not set"
-						} else {
-							varMap[v.Path] = processedVars[v.Path]
-						}
-
-						variables = append(variables, varMap)
-					}
-				}
-			}
-		}
-
-		overridesMap["Overrides"] = map[string][]map[string]interface{}{"Variables": variables}
-		pkgViews = append(pkgViews, pkgView{pkgMeta, overridesMap})
-	}
+	pkgviews := formPkgViews(b)
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
 	pterm.Println("kind: UDS Bundle")
@@ -604,7 +551,8 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 	message.Title("Configs", "shared configurations for bundle")
 	pterm.Println()
-	// requires loadChartOverrides to have been called for each package
+
+	// requires loadChartOverrides via formPkgViews() to have been called for each package
 	for _, source := range includedSources {
 		pterm.Println(message.ColorWrap("source: ", color.FgHiCyan), message.ColorWrap(string(source), color.FgHiMagenta))
 	}
@@ -613,7 +561,7 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 	message.Title("Packages:", "definition of packages this bundle deploys, including variable overrides")
 
-	for _, pkg := range pkgViews {
+	for _, pkg := range pkgviews {
 		utils.ColorPrintYAML(pkg.meta, nil, false)
 		utils.ColorPrintYAML(pkg.overrides, nil, false)
 	}
@@ -633,4 +581,63 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 		return false
 	}
 	return true
+}
+
+// formPkgViews creates a unique pre deploy view of each packages override variables
+func formPkgViews(b *Bundle) []PkgView {
+	var pkgViews []PkgView
+	for _, pkg := range b.bundle.Packages {
+		pkgMeta := make(map[string]string)
+		variables := make([]map[string]interface{}, 0)
+
+		pkgMeta["name"] = pkg.Name
+		if pkg.Repository != "" {
+			pkgMeta["repo"] = pkg.Repository
+		} else {
+			pkgMeta["path"] = pkg.Path
+		}
+		pkgMeta["ref"] = pkg.Ref
+
+		valuesOverrides, _, _ := b.loadChartOverrides(pkg, make(map[string]string))
+
+		for compName, component := range pkg.Overrides {
+			for chartName, chart := range component {
+				processedVars := valuesOverrides[compName][chartName]
+
+				for _, v := range chart.Variables {
+					varMap := make(map[string]interface{})
+
+					// handle complex paths: var.helm.path = { var: { helm: { path: val } } }
+					if strings.Contains(v.Path, ".") {
+						paths := strings.Split(v.Path, ".")
+
+						// hold the next {key: value} in the chain
+						val := processedVars[paths[0]]
+						for i := range paths[1:] {
+							if val == nil {
+								val = "not set"
+								break
+							}
+							val = val.(map[string]interface{})[paths[i+1]]
+						}
+
+						// var.helm.path: val
+						varMap[v.Path] = val
+					} else {
+						if processedVars[v.Path] == nil {
+							varMap[v.Path] = "not set"
+						} else {
+							varMap[v.Path] = processedVars[v.Path]
+						}
+
+					}
+
+					variables = append(variables, varMap)
+				}
+			}
+		}
+
+		pkgViews = append(pkgViews, PkgView{pkgMeta, map[string]interface{}{"Overrides": map[string][]map[string]interface{}{"Variables": variables}}})
+	}
+	return pkgViews
 }

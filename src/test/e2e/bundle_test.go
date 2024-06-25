@@ -676,6 +676,45 @@ func TestListImages(t *testing.T) {
 	})
 }
 
+func TestListVariables(t *testing.T) {
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+
+	zarfPkgPath := "src/test/packages/prometheus"
+	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-prometheus-%s-0.0.1.tar.zst", e2e.Arch))
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+	zarfPublish(t, pkg, "localhost:888")
+
+	zarfPkgPath = "src/test/packages/podinfo-nginx"
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+
+	bundleDir := "src/test/bundles/14-optional-components"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-optional-components-%s-0.0.1.tar.zst", e2e.Arch))
+	ociRef := "oci://localhost:888/test/bundles"
+	createLocal(t, bundleDir, e2e.Arch)
+	publishInsecure(t, bundlePath, ociRef)
+
+	t.Run("list variables for local tarball", func(t *testing.T) {
+		cmd := strings.Split(fmt.Sprintf("inspect %s --list-variables", bundlePath), " ")
+		_, stderr, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+
+		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
+		cleaned := ansiRegex.ReplaceAllString(stderr, "")
+		require.Contains(t, cleaned, "prometheus:\n  Overrides: {}\n  Zarf-Variables: []\n")
+	})
+
+	t.Run("list variables for remote tarball", func(t *testing.T) {
+		cmd := strings.Split(fmt.Sprintf("inspect %s --list-variables --insecure", fmt.Sprintf("%s/optional-components:0.0.1", ociRef)), " ")
+		_, stderr, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+
+		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
+		cleaned := ansiRegex.ReplaceAllString(stderr, "")
+		require.Contains(t, cleaned, "prometheus:\n  Overrides: {}\n  Zarf-Variables: []\n")
+	})
+}
+
 // run after TestListImages because stderr bleeds over between tests
 func TestConfirmBundleDeployView(t *testing.T) {
 	deployZarfInit(t)
