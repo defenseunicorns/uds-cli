@@ -8,7 +8,7 @@ weight: 1
 
 Recommended installation method is with Brew:
 
-```
+```bash
 brew tap defenseunicorns/tap && brew install uds
 ```
 
@@ -44,11 +44,11 @@ The above `UDSBundle` deploys the Zarf init package and podinfo.
 
 The packages referenced in `packages` can exist either locally or in an OCI registry. See [here](https://github.com/defenseunicorns/uds-cli/tree/main/src/test/bundles/03-local-and-remote) for an example that deploys both local and remote Zarf packages. More `UDSBundle` examples can be found in the [src/test/bundles](https://github.com/defenseunicorns/uds-cli/tree/main/src/test/bundles) folder.
 
-#### Declarative Syntax
+### Declarative Syntax
 
 The syntax of a `uds-bundle.yaml` is entirely declarative. As a result, the UDS CLI will not prompt users to deploy optional components in a Zarf package. If you want to deploy an optional Zarf component, it must be specified in the `optionalComponents` key of a particular `package`.
 
-#### First-class UDS Support
+### First-class UDS Support
 
 When running `deploy`,`inspect`,`remove`, and `pull` commands, UDS CLI contains shorthand for interacting with the Defense Unicorns org on GHCR. Specifically, unless otherwise specified, paths will automatically be expanded to the Defense Unicorns org on GHCR. For example:
 
@@ -359,37 +359,37 @@ UDS clusters contain two Kubernetes controllers, both created using [Pepr](https
 
 Aggregate all admission and operator logs into a single stream:
 
-```
+```bash
 uds monitor pepr
 ```
 
 Stream UDS Operator actions (UDS Package processing, status updates, and errors):
 
-```
+```bash
 uds monitor pepr operator
 ```
 
 Stream UDS Policy logs (Allow, Deny, Mutate):
 
-```
+```bash
 uds monitor pepr policies
 ```
 
 Stream UDS Policy allow logs:
 
-```
+```bash
 uds monitor pepr allowed
 ```
 
 Stream UDS Policy deny logs:
 
-```
+```bash
 uds monitor pepr denied
 ```
 
 Stream UDS Policy mutation logs:
 
-```
+```bash
 uds monitor pepr mutated
 ```
 

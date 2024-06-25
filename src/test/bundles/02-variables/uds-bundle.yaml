@@ -4,6 +4,9 @@ metadata:
   description: show how vars work
   version: 0.0.1
 
+x-output-anchor: &output-anchor
+  name: OUTPUT
+
 packages:
   - name: output-var
     path: ../../packages/no-cluster/output-var
@@ -17,5 +20,6 @@ packages:
     ref: 0.0.1
     imports:
       # note that PRECEDENCE is not imported because exports are global!
-      - name: OUTPUT
+      # test anchor
+      - <<: *output-anchor
         package: output-var

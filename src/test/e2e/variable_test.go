@@ -24,8 +24,11 @@ func TestBundleVariables(t *testing.T) {
 	t.Run("simple vars and global export", func(t *testing.T) {
 		bundleDir := "src/test/bundles/02-variables"
 		bundleTarballPath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-variables-%s-0.0.1.tar.zst", e2e.Arch))
-		createLocal(t, bundleDir, e2e.Arch)
-		_, stderr := deploy(t, bundleTarballPath)
+		cmd := strings.Split(fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch), " ")
+		_, stderr, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+		require.Contains(t, stderr, "failed strict unmarshalling")
+		_, stderr = deploy(t, bundleTarballPath)
 		bundleVariablesTestChecks(t, stderr, bundleTarballPath)
 	})
 
