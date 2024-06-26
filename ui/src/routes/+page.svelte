@@ -15,10 +15,10 @@
 
 <Content>
   <div class="welcome__container">
-    <h2 class="header">Welcome to UDS</h2>
+    <h2 class="header">Application Portal</h2>
 
     <p class="subheader">
-      Find the applications running in your cluster and accessible to you here.
+      Welcome to UDS. These are all of the mission applications running in your UDS environement.
     </p>
 
     <div class="cards">
@@ -157,25 +157,30 @@
 <style lang="scss">
   .welcome__container {
     display: grid;
-    grid-gap: 17px;
   }
 
   .header {
-    font-size: 16px;
+    font-size: var(--cds-heading-02-font-size);
     font-weight: 600;
-    // line-height: 32px;
+    margin-bottom: var(--cds-spacing-03);
   }
 
   .subheader {
     color: var(--cds-text-secondary);
     font-size: var(--cds-helper-text-01-font-size);
-    line-height: var(--cds-helper-text-01-font-size);
     letter-spacing: 0.32px;
+    margin-bottom: var(--cds-spacing-07);
   }
 
   .cards {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     grid-gap: var(--cds-spacing-05);
+  }
+
+  :global(.bx--content) {
+    max-width: 924px;
+    margin-left: auto;
+    margin-right: auto;
   }
 </style>
