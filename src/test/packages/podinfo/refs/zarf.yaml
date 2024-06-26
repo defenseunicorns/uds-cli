@@ -1,0 +1,27 @@
+kind: ZarfPackageConfig
+metadata:
+  name: podinfo
+  version: 0.0.2
+  description: podinfo deployment using image ghcr.io/stefanprodan/podinfo:6.6.2 for testing dev deploy --refs flag
+
+
+components:
+  - name: podinfo
+    required: true
+    charts:
+      - name: podinfo
+        version: 6.6.2
+        namespace: podinfo
+        url: https://github.com/stefanprodan/podinfo.git
+        gitPath: charts/podinfo
+    images:
+      - ghcr.io/stefanprodan/podinfo:6.6.2
+    actions:
+      onDeploy:
+        after:
+          - wait:
+              cluster:
+                kind: deployment
+                name: podinfo
+                namespace: podinfo
+                condition: available

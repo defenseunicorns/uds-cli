@@ -156,7 +156,7 @@ var pullCmd = &cobra.Command{
 var logsCmd = &cobra.Command{
 	Use:     "logs",
 	Aliases: []string{"l"},
-	Short:   "Display log file contents",
+	Short:   lang.CmdBundleLogsShort,
 	Run: func(_ *cobra.Command, _ []string) {
 		logFilePath := filepath.Join(config.CommonOptions.CachePath, config.CachedLogs)
 
@@ -185,7 +185,7 @@ func init() {
 
 	// create cmd flags
 	rootCmd.AddCommand(createCmd)
-	createCmd.Flags().BoolVarP(&config.CommonOptions.Confirm, "confirm", "c", false, lang.CmdBundleRemoveFlagConfirm)
+	createCmd.Flags().BoolVarP(&config.CommonOptions.Confirm, "confirm", "c", false, lang.CmdBundleCreateFlagConfirm)
 	createCmd.Flags().StringVarP(&bundleCfg.CreateOpts.Output, "output", "o", v.GetString(V_BNDL_CREATE_OUTPUT), lang.CmdBundleCreateFlagOutput)
 	createCmd.Flags().StringVarP(&bundleCfg.CreateOpts.SigningKeyPath, "signing-key", "k", v.GetString(V_BNDL_CREATE_SIGNING_KEY), lang.CmdBundleCreateFlagSigningKey)
 	createCmd.Flags().StringVarP(&bundleCfg.CreateOpts.SigningKeyPassword, "signing-key-password", "p", v.GetString(V_BNDL_CREATE_SIGNING_KEY_PASSWORD), lang.CmdBundleCreateFlagSigningKeyPassword)

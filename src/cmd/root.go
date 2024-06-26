@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/defenseunicorns/uds-cli/src/cmd/monitor"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/types"
@@ -32,8 +33,6 @@ var rootCmd = &cobra.Command{
 		if zarfCommon.CheckVendorOnlyFromPath(cmd) {
 			return
 		}
-
-		zarfCommon.ExitOnInterrupt()
 
 		// Don't add the logo to the help command
 		if cmd.Parent() == nil {
@@ -96,6 +95,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&config.CommonOptions.TempDirectory, "tmpdir", v.GetString(V_TMP_DIR), lang.RootCmdFlagTempDir)
 	rootCmd.PersistentFlags().BoolVar(&config.CommonOptions.Insecure, "insecure", v.GetBool(V_INSECURE), lang.RootCmdFlagInsecure)
 	rootCmd.PersistentFlags().IntVar(&config.CommonOptions.OCIConcurrency, "oci-concurrency", v.GetInt(V_BNDL_OCI_CONCURRENCY), lang.CmdBundleFlagConcurrency)
+
+	rootCmd.AddCommand(monitor.Cmd)
 }
 
 // loadViperConfig reads the config file and unmarshals the relevant config into DeployOpts.Variables

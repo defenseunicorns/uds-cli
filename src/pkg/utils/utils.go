@@ -192,7 +192,11 @@ func ReadYAMLStrict(path string, destConfig any) error {
 
 	err = goyaml.UnmarshalWithOptions(file, destConfig, goyaml.Strict())
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal YAML at %s: %v", path, err)
+		message.Warnf("failed strict unmarshalling of YAML at %s: %v", path, err)
+		err = goyaml.UnmarshalWithOptions(file, destConfig)
+		if err != nil {
+			return fmt.Errorf("failed to unmarshal YAML at %s: %v", path, err)
+		}
 	}
 	return nil
 }
@@ -205,8 +209,8 @@ func CheckYAMLSourcePath(source string) error {
 		return fmt.Errorf("source must have .yaml or yml file extension")
 	}
 	// Check if the file exists
-	if _, err := os.Stat(source); os.IsNotExist(err) {
-		return fmt.Errorf("file %s does not exist", source)
+	if isInvalid := helpers.InvalidPath(source); isInvalid {
+		return fmt.Errorf("file %s does not exist or has incorrect permissions", source)
 	}
 
 	return nil

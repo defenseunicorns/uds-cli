@@ -66,7 +66,7 @@ func (lo *LocalBundle) create(signature []byte) error {
 
 	message.HeaderInfof("🐕 Fetching Packages")
 
-	// create root manifest for bundle, will populate with refs to uds-bundle.yaml and zarf image manifests
+	// create root manifest for bundle, will populate with ref to uds-bundle.yaml and zarf image manifests
 	rootManifest := ocispec.Manifest{
 		MediaType: ocispec.MediaTypeImageManifest,
 	}
@@ -260,7 +260,7 @@ func writeTarball(bundle *types.UDSBundle, artifactPathMap types.PathMap, output
 
 	archiveBar := message.NewProgressBar(int64(len(jobs)), "Creating bundle archive")
 
-	defer archiveBar.Stop()
+	defer archiveBar.Close()
 
 	archiveErrGroup.Go(func() error {
 		return format.ArchiveAsync(ctx, out, jobs)

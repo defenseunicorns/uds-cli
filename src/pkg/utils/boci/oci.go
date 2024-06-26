@@ -20,6 +20,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
+	"github.com/defenseunicorns/zarf/src/pkg/transform"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
@@ -290,9 +291,16 @@ func FilterImageIndex(components []zarfTypes.ZarfComponent, imgIndex ocispec.Ind
 	for _, manifest := range imgIndex.Manifests {
 		for _, component := range components {
 			for _, imgName := range component.Images {
+
+				refInfo, err := transform.ParseImageRef(imgName)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse image ref %q: %w", imgName, err)
+				}
+
 				// include backwards compatibility shim for older Zarf versions that would leave docker.io off of image annotations
+				dockerShimPath := refInfo.Host + "/" + refInfo.Path + refInfo.TagOrDigest
 				if manifest.Annotations[ocispec.AnnotationBaseImageName] == imgName ||
-					manifest.Annotations[ocispec.AnnotationBaseImageName] == fmt.Sprintf("docker.io/%s", imgName) {
+					(refInfo.Host == "docker.io" && manifest.Annotations[ocispec.AnnotationBaseImageName] == dockerShimPath) {
 					manifestIncludeMap[manifest.Digest.Hex()] = manifest
 				}
 			}

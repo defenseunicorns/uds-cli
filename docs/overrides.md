@@ -1,15 +1,9 @@
-# Bundle Overrides
-
+---
+title: Bundle Overrides
+type: docs
+weight: 5
+---
 Bundle overrides provide a mechanism to customize Helm charts inside of Zarf packages.
-
-## Table of Contents
-
-1. [Quickstart](#quickstart)
-1. [Overrides](#variables)
-    - [Syntax](#syntax)
-    - [Values](#values)
-    - [Variables](#variables)
-    - [Namespace](#namespace)
 
 ## Quickstart
 
@@ -44,6 +38,7 @@ ui:
 ```
 
 The bundle overrides feature allows users to override the values specified in Zarf packages. For example:
+
 ```yaml
 kind: UDSBundle
 metadata:
@@ -60,7 +55,7 @@ packages:
       helm-overrides-component:
         podinfo:
           valuesFiles:
-            - file: values.yaml
+            - values.yaml
           values:
             - path: "replicaCount"
               value: 2
@@ -101,7 +96,7 @@ packages:
       helm-overrides-component: # component name inside of the helm-overrides-package Zarf pkg
         podinfo:                # chart name from the helm-overrides-component component
           valuesFiles:
-            - file: values.yaml
+            - values.yaml
           values:
             - path: "replicaCount"
               value: 2
@@ -117,11 +112,12 @@ packages:
 podAnnotations:
   customAnnotation: "customValue"
 ```
+
 In this example, the `helm-overrides-package` Zarf package has a component called `helm-overrides-component` which contains a Helm chart called `podinfo`; note how these names are keys in the `overrides` block. The `podinfo` chart has a `replicaCount` value that is overridden to `2`, a `podAnnotations` value that is overridden to include `customAnnotation: "customValue"` and a variable called `UI_COLOR` that is overridden to `purple`.
 
 ### Values Files
 
-The `valuesFiles` in an `overrides` block are a list of `file`'s. It allows users to override multiple values in a Zarf package component's underlying Helm chart, by providing a file with those values instead of having to include them all indiviually in the `overrides` block.
+The `valuesFiles` in an `overrides` block are a list of `file`'s. It allows users to override multiple values in a Zarf package component's underlying Helm chart, by providing a file with those values instead of having to include them all individually in the `overrides` block.
 
 ### Values
 
@@ -134,6 +130,7 @@ The `path` uses dot notation to specify the location of a value to override in t
 #### Value
 
 The `value` is the value to set at the `path`. Values can be simple values such as numbers and strings, as well as, complex lists and objects, for example:
+
 ```yaml
 ...
     overrides:
@@ -150,7 +147,18 @@ The `value` is the value to set at the `path`. Values can be simple values such 
               value:
                 customAnnotation: "customValue"
 ```
-If using a variable that has been [exported](../README.md#importingexporting-variables) from another package, that variable can also be used to set a value, using the syntax `${...}`. In the example below the `COLOR` variable is being used to set the `podinfo.ui.color` value.
+
+#### Bundle Variables as Values
+
+Bundle and Zarf variables can be used to set override values by using the syntax `${...}`. For example:
+
+```yaml
+# uds-config.yaml
+variables:
+  helm-overrides-package:
+    replica_count: 2
+```
+
 ```yaml
 kind: UDSBundle
 metadata:
@@ -174,18 +182,23 @@ packages:
         unicorn-podinfo:
           values:
             - path: "podinfo.replicaCount"
-              value: 1
+              value: ${REPLICA_COUNT}
             - path: "podinfo.ui.color"
               value: ${COLOR}
 ```
 
+In the example above `${REPLICA_COUNT}` is set in the `uds-config.yaml` file and `${COLOR}` is set as an export from the `output-var` package. Note that you could also set these values with the `shared` key in a `uds-config.yaml`, environment variables prefixed with `UDS_` or with the `--set` flag during deployment.
+
 #### Value Precedence
+
 Value precedence is as follows:
+
 1. The `values` in an `overrides` block
 1. `values` set in the last `valuesFile` (if more than one specified)
 1. `values` set in the previous `valuesFile` (if more than one specified)
 
 ### Variables
+
 Variables are similar to [values](#values) in that they allow users to override values in a Zarf package component's underlying Helm chart; they also share a similar syntax. However, unlike `values`, `variables` can be overridden at deploy time. For example, consider the `variables` key in the following `uds-bundle.yaml`:
 
 ```yaml
@@ -232,21 +245,26 @@ There are 3 ways to override the `UI_COLOR` variable:
 
    > **:warning: Warning**: Because Helm override variables and Zarf variables share the same --set syntax, be careful with variable names to avoid conflicts.
 
-> [!NOTE]  
-> A variable that is not overridden by any of the methods above and has no default will be ignored.
+{{% alert-note %}}  
+A variable that is not overridden by any of the methods above and has no default will be ignored.
+{{% /alert-note %}}
 
 #### Variable Precedence
+
 Variable precedence is as follows:
+
 1. The `--set` flag
 1. Environment variables
 1. `uds-config.yaml` variables
 1. Variables `default` in the`uds-bundle.yaml`
 
 #### Variable Types
+
 Variables can be of either type `raw` or `file`. The type will default to raw if not set explicitly.
 
-> [!WARNING]  
-> If a variable is set to accept a file as its value, but is missing the `file` type, then the file will not be processed.
+{{% alert-caution %}}  
+If a variable is set to accept a file as its value, but is missing the `file` type, then the file will not be processed.
+{{% /alert-caution %}}
 
 ```yaml
 kind: UDSBundle
@@ -276,23 +294,26 @@ packages:
 
 If a file path is not absolute, it will be set as relative to the `uds-config.yaml` directory.
 
-e.g. the following `uds-config.yaml` is in [`src/test/bundles/07-helm-overrides/variable-files/`](../src/test/bundles/07-helm-overrides/variable-files/uds-config.yaml)
+e.g. the following `uds-config.yaml` is in [`src/test/bundles/07-helm-overrides/variable-files/`](https://github.com/defenseunicorns/uds-cli/blob/main/src/test/bundles/07-helm-overrides/uds-config.yaml)
+
 ```yaml
 variables:
   helm-overrides:
     test_secret: test.cert
 ```
 
-This means when `test.cert` is evalutated it will first be appended to the config path like so `src/test/bundles/07-helm-overrides/variable-files/test.cert`.
+This means when `test.cert` is evaluated it will first be appended to the config path like so `src/test/bundles/07-helm-overrides/variable-files/test.cert`.
 
 If the file path is already set to the same relative path as the config, then no merging will take place.
 
-> [!NOTE]  
-> UDS CLI does not encrypt or base64 encode any file contents before passing said data to Zarf or Helm.  
-> For example, if the file contains a key to be used in a Kubernetes secret, it must be base64 encoded before being ingested by UDS CLI.
+{{% alert-note %}}  
+UDS CLI does not encrypt or base64 encode any file contents before passing said data to Zarf or Helm.  
 
+For example, if the file contains a key to be used in a Kubernetes secret, it must be base64 encoded before being ingested by UDS CLI.
+{{% /alert-note %}}
 
 ### Namespace
+
 It's also possible to specify a namespace for a packaged Helm chart to be installed in. For example, to deploy the a chart in the `custom-podinfo` namespace, you can specify the `namespace` in the `overrides` block:
 
 ```yaml
@@ -304,7 +325,7 @@ metadata:
 packages:
    - name: helm-overrides-package
      path: "../../packages/helm"
-     ref: 0.0.1"
+     ref: 0.0.1
      overrides:
         podinfo-component:
           unicorn-podinfo:

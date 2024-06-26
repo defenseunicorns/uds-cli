@@ -33,7 +33,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "BundleChartValue": {
       "required": [
@@ -49,7 +52,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "BundleChartVariable": {
       "required": [
@@ -83,7 +89,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "BundleVariableExport": {
       "required": [
@@ -98,7 +107,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "BundleVariableImport": {
       "required": [
@@ -117,7 +129,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "Package": {
       "required": [
@@ -132,13 +147,6 @@
           "type": "string",
           "description": "Description of the Zarf package"
         },
-        "images": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "description": "List of images included in the Zarf package"
-        },
         "repository": {
           "type": "string",
           "description": "The repository to import the package from"
@@ -150,6 +158,10 @@
         "ref": {
           "type": "string",
           "description": "Ref (tag) of the Zarf package"
+        },
+        "flavor": {
+          "type": "string",
+          "description": "Flavor of the Zarf package"
         },
         "optionalComponents": {
           "items": {
@@ -191,11 +203,14 @@
             }
           },
           "type": "object",
-          "description": "Map of Helm chart overrides to set. The format is \u003ccomponent\u003e:"
+          "description": "Map of Helm chart overrides to set. The format is <component>:"
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "UDSBuildData": {
       "required": [
@@ -228,7 +243,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "UDSBundle": {
       "required": [
@@ -264,7 +282,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     },
     "UDSMetadata": {
       "required": [
@@ -304,7 +325,7 @@
           "type": "string",
           "description": "Comma-separated list of package authors (including contact info)",
           "examples": [
-            "Doug \u0026#60;hello@defenseunicorns.com\u0026#62;\u0026#44; Pepr \u0026#60;hello@defenseunicorns.com\u0026#62;"
+            "Doug &#60;hello@defenseunicorns.com&#62;&#44; Pepr &#60;hello@defenseunicorns.com&#62;"
           ]
         },
         "documentation": {
@@ -325,7 +346,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
     }
   }
 }

@@ -344,3 +344,37 @@ func validateBundleVars(packages []types.Package) error {
 	}
 	return nil
 }
+
+// setPackageRef sets the package reference
+func (b *Bundle) setPackageRef(pkg types.Package) types.Package {
+	if ref, ok := b.cfg.DevDeployOpts.Ref[pkg.Name]; ok {
+		// Can only set refs for remote packages
+		if pkg.Repository == "" {
+			message.Fatalf(errors.New("Invalid input"), "Cannot set ref for local packages: %s", pkg.Name)
+		}
+
+		errMsg := fmt.Sprintf("Unable to access %s:%s", pkg.Repository, ref)
+
+		// Get SHA from registry
+		url := fmt.Sprintf("%s:%s", pkg.Repository, ref)
+
+		platform := ocispec.Platform{
+			Architecture: config.GetArch(),
+			OS:           oci.MultiOS,
+		}
+		remote, err := zoci.NewRemote(url, platform)
+		if err != nil {
+			message.Fatalf(err, errMsg)
+		}
+		if err := remote.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
+			manifestDesc, err := remote.ResolveRoot(context.TODO())
+			if err != nil {
+				message.Fatalf(err, errMsg)
+			}
+			pkg.Ref = ref + "@sha256:" + manifestDesc.Digest.Encoded()
+		} else {
+			message.Fatalf(err, errMsg)
+		}
+	}
+	return pkg
+}

@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
@@ -25,6 +24,8 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"golang.org/x/exp/slices"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"oras.land/oras-go/v2"
 	ocistore "oras.land/oras-go/v2/content/oci"
 )
@@ -276,21 +277,28 @@ func getOCIValidatedSource(source string) (string, error) {
 // ValidateArch validates that the passed in arch matches the cluster arch
 func ValidateArch(arch string) error {
 	// compare bundle arch and cluster arch
-	var clusterArchs []string
+	clusterArchs := []string{}
 	c, err := cluster.NewCluster()
 	if err != nil {
 		message.Debugf("error creating cluster object: %s", err)
 	}
+
 	if c != nil {
-		clusterArchs, err = c.GetArchitectures(context.TODO())
+		nodeList, err := c.Clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			return err
+			return fmt.Errorf("unable to get cluster architectures")
 		}
+
+		for _, node := range nodeList.Items {
+			clusterArchs = append(clusterArchs, node.Status.NodeInfo.Architecture)
+		}
+
 		// check if bundle arch is in clusterArchs
 		if !slices.Contains(clusterArchs, arch) {
 			return fmt.Errorf("arch %s does not match cluster arch, %s", arch, clusterArchs)
 		}
 	}
+
 	return nil
 }
 
