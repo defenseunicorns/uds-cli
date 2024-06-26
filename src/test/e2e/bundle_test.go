@@ -734,3 +734,22 @@ func TestConfirmBundleDeployView(t *testing.T) {
 
 	remove(t, bundlePath)
 }
+
+func TestDeployViewNoOverrides(t *testing.T) {
+	deployZarfInit(t)
+
+	zarfPkgPath := "src/test/packages/podinfo"
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+
+	bundleDir := "src/test/bundles/03-local-and-remote"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
+	createLocal(t, bundleDir, e2e.Arch)
+
+	_, stderr := deploy(t, bundlePath)
+
+	ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
+	cleaned := ansiRegex.ReplaceAllString(stderr, "")
+	require.Contains(t, cleaned, "Overrides: []")
+
+	remove(t, bundlePath)
+}

@@ -575,7 +575,7 @@ func formPkgViews(b *Bundle) []PkgView {
 	var pkgViews []PkgView
 	for _, pkg := range b.bundle.Packages {
 		pkgMeta := make(map[string]string)
-		variables := make([]map[string]interface{}, 0)
+		variables := make([]map[string]map[string]interface{}, 0)
 
 		pkgMeta["name"] = pkg.Name
 		if pkg.Repository != "" {
@@ -590,43 +590,46 @@ func formPkgViews(b *Bundle) []PkgView {
 		for compName, component := range pkg.Overrides {
 			for chartName, chart := range component {
 				processedVars := valuesOverrides[compName][chartName]
+				// if no values or variables set then will be nil
+				if processedVars == nil {
+					continue
+				}
+
+				chartVars := make(map[string]interface{})
 
 				for _, v := range chart.Variables {
-					varMap := make(map[string]interface{})
-
 					// handle complex paths: var.helm.path = { var: { helm: { path: val } } }
 					if strings.Contains(v.Path, ".") {
 						paths := strings.Split(v.Path, ".")
 
 						// hold the next {key: value} in the chain
-						varMap[v.Name] = processedVars[paths[0]]
+						chartVars[v.Name] = processedVars[paths[0]]
 						for i := range paths[1:] {
-							if varMap[v.Name].(map[string]interface{})[paths[i+1]] == nil {
+							if chartVars[v.Name] == nil || chartVars[v.Name].(map[string]interface{})[paths[i+1]] == nil {
 								//delete any previously set entries of var.Name
-								delete(varMap, v.Name)
+								delete(chartVars, v.Name)
 								break
 							}
 
-							varMap[v.Name] = varMap[v.Name].(map[string]interface{})[paths[i+1]]
+							chartVars[v.Name] = chartVars[v.Name].(map[string]interface{})[paths[i+1]]
 						}
 					} else {
 						if processedVars[v.Path] == nil {
 							continue
 						}
 
-						varMap[v.Name] = processedVars[v.Path]
+						chartVars[v.Name] = processedVars[v.Path]
 
 					}
+				}
 
-					if len(varMap) > 0 {
-						variables = append(variables, varMap)
-					}
-
+				if len(chartVars) > 0 {
+					variables = append(variables, map[string]map[string]interface{}{chartName: {"Variables": chartVars}})
 				}
 			}
 		}
 
-		pkgViews = append(pkgViews, PkgView{pkgMeta, map[string]interface{}{"Overrides": map[string][]map[string]interface{}{"Variables": variables}}})
+		pkgViews = append(pkgViews, PkgView{pkgMeta, map[string]interface{}{"Overrides": variables}})
 	}
 	return pkgViews
 }
