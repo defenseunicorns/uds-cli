@@ -7,6 +7,7 @@ package bundle
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -40,7 +41,7 @@ func (b *Bundle) Inspect() error {
 	// Check that provided oci source path is valid, and update it if it's missing the full path
 	source, err := CheckOCISourcePath(b.cfg.InspectOpts.Source)
 	if err != nil {
-		return err
+		return fmt.Errorf("source %s is either invalid or doesn't exist", b.cfg.InspectOpts.Source)
 	}
 	b.cfg.InspectOpts.Source = source
 
@@ -95,6 +96,10 @@ func (b *Bundle) listImages() error {
 	}
 
 	formattedImgs := pterm.Color(color.FgHiMagenta).Sprintf(strings.Join(imgs, "\n"))
+
+	// print to stdout to enable users to easily grab the output
+	// (and stderr for backwards compatibility)
+	pterm.SetDefaultOutput(io.MultiWriter(os.Stderr, os.Stdout))
 	pterm.Printfln("\n%s\n", formattedImgs)
 	return nil
 }

@@ -24,17 +24,17 @@ func TestMonitor(t *testing.T) {
 	require.Error(t, err)
 
 	t.Run("test mutated policies", func(t *testing.T) {
-		_, stderr, _ := e2e.UDS("monitor", "pepr", "mutated")
-		require.Contains(t, stderr, "✎ MUTATED   podinfo")
+		stdout, _, _ := e2e.UDS("monitor", "pepr", "mutated")
+		require.Contains(t, stdout, "✎ MUTATED   podinfo")
 	})
 
 	t.Run("test allowed policies", func(t *testing.T) {
-		_, stderr, _ := e2e.UDS("monitor", "pepr", "allowed")
-		require.Contains(t, stderr, "✓ ALLOWED   podinfo")
+		stdout, _, _ := e2e.UDS("monitor", "pepr", "allowed")
+		require.Contains(t, stdout, "✓ ALLOWED   podinfo")
 	})
 
 	t.Run("test denied policies", func(t *testing.T) {
-		_, stderr, _ := e2e.UDS("monitor", "pepr", "denied")
-		require.Contains(t, stderr, "✗ DENIED    podinfo")
+		stdout, _, _ := e2e.UDS("monitor", "pepr", "denied")
+		require.Contains(t, stdout, "✗ DENIED    podinfo")
 	})
 }

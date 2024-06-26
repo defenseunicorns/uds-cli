@@ -65,7 +65,7 @@ var peprCmd = &cobra.Command{
 
 		// Create a new stream for the Pepr logs
 		peprReader := pepr.NewStreamReader(namespace, "")
-		peprStream := stream.NewStream(os.Stderr, peprReader, "pepr-system")
+		peprStream := stream.NewStream(os.Stdout, peprReader, "pepr-system")
 
 		// Set the stream flags
 		peprReader.JSON = json

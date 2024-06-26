@@ -21,6 +21,9 @@ Fundamentally, software engineering is a communication problem; we write code fo
 
 - **User experience is paramount**: UDS CLI doesn't have a pretty UI (yet), but the core user-centered design principles that apply when building a frontend also apply to this CLI tool. First and foremost, features in UDS CLI should enhance workflows and make life easier for end users; if a feature doesn't accomplish this, it will be dropped.
 
+
+- **Design Decision**: We use [Architectural Decision Records](https://adr.github.io/) to document the design decisions that we make. These records live in the `adr` directory. We highly recommend reading through the existing ADRs to understand the context and decisions that have been made in the past, and to inform current development.
+
 ### Continuous Delivery
 Continuous Delivery is core to our development philosophy. Check out [https://minimumcd.org](https://minimumcd.org/) for a good baseline agreement on what that means.
 
@@ -33,6 +36,9 @@ Specifically:
 
 ## How to Contribute
 Please ensure there is a Gitub issue for your proposed change, this helps the UDS CLI team to understand the context of the change and to track the progress of the work. If there isn't an issue for your change, please create one before starting work. The recommended workflow for contributing is as follows:
+
+
+*Before starting development, we highly recommend reading through the UDS CLI [documentation](https://uds.defenseunicorns.com/cli/) and our [ADRs](./adr).
 
 1. **Fork this repo** and clone it locally
 1. **Create a branch** for your changes
