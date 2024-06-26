@@ -729,8 +729,8 @@ func TestConfirmBundleDeployView(t *testing.T) {
 
 	ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
 	cleaned := ansiRegex.ReplaceAllString(stderr, "")
-	require.Contains(t, cleaned, "podinfo.logLevel: debug")
-	require.Contains(t, cleaned, "testSecret: not set")
+	require.Contains(t, cleaned, "log_level: debug")
+	require.Contains(t, cleaned, "ui_color: green, yellow")
 
 	remove(t, bundlePath)
 }

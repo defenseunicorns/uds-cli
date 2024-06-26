@@ -599,26 +599,29 @@ func formPkgViews(b *Bundle) []PkgView {
 						paths := strings.Split(v.Path, ".")
 
 						// hold the next {key: value} in the chain
-						val := processedVars[paths[0]]
+						varMap[v.Name] = processedVars[paths[0]]
 						for i := range paths[1:] {
-							if val == nil {
-								val = "not set"
+							if varMap[v.Name].(map[string]interface{})[paths[i+1]] == nil {
+								//delete any previously set entries of var.Name
+								delete(varMap, v.Name)
 								break
 							}
-							val = val.(map[string]interface{})[paths[i+1]]
-						}
 
-						varMap[v.Path] = val
+							varMap[v.Name] = varMap[v.Name].(map[string]interface{})[paths[i+1]]
+						}
 					} else {
 						if processedVars[v.Path] == nil {
-							varMap[v.Path] = "not set"
-						} else {
-							varMap[v.Path] = processedVars[v.Path]
+							continue
 						}
+
+						varMap[v.Name] = processedVars[v.Path]
 
 					}
 
-					variables = append(variables, varMap)
+					if len(varMap) > 0 {
+						variables = append(variables, varMap)
+					}
+
 				}
 			}
 		}
