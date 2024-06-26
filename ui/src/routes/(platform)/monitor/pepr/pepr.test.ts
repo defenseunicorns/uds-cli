@@ -1,11 +1,12 @@
-import { waitFor, render, findByText } from '@testing-library/svelte';
+import { render } from '@testing-library/svelte';
 import { vi, describe, test, expect } from 'vitest';
+
 import Page from './+page.svelte';
 import { FakePolicyLogsRepo } from '../../../../../tests/fakerepos/FakePolicyRepo';
 
-describe('monitor pepr page', () => {
-  test('data is rendered', async () => {
-    const { findByText } = render(Page, {
+describe('Monitor/Pepr page', () => {
+  test('should render data', async () => {
+    const { findAllByText } = render(Page, {
       data: {
         policyLogsRepo: FakePolicyLogsRepo,
         url: 'fake-url'
@@ -15,6 +16,8 @@ describe('monitor pepr page', () => {
     // stub out scrollIntoView because it doesn't exist in jsdom
     Element.prototype.scrollIntoView = vi.fn();
 
-    expect(await findByText('VALIDATE', { exact: false })).toBeDefined();
+    const allowedText = await findAllByText('ALLOWED', { exact: false });
+
+    expect(allowedText.length).toBeGreaterThan(0);
   });
 });
