@@ -18,12 +18,12 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
-	"github.com/fatih/color"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/pterm/pterm"
 	"golang.org/x/exp/slices"
@@ -36,7 +36,6 @@ type PkgOverrideMap map[string]map[string]map[string]interface{}
 
 // templatedVarRegex is the regex for templated variables
 var templatedVarRegex = regexp.MustCompile(`\${([^}]+)}`)
-var includedSources = make(map[types.ValueSources]types.ValueSources, 0)
 
 // Deploy deploys a bundle
 func (b *Bundle) Deploy() error {
@@ -80,7 +79,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 		packagesToDeploy = packages
 	}
 
-	// setup each package client
+	// setup each package client and deploy
 	for i, pkg := range packagesToDeploy {
 		// for dev mode update package ref for remote bundles, refs for local bundles updated on create
 		if config.Dev && !strings.Contains(b.cfg.DeployOpts.Source, "tar.zst") {
@@ -285,7 +284,6 @@ func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*value
 
 // processOverrideVariables processes bundle variables overrides and adds them to the override map
 func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*values.Options, pkgName string, variables *[]types.BundleChartVariable, componentName string, chartName string) error {
-	// processedVars := getVarValues(pkgName, variables, b)
 	for _, v := range *variables {
 		var overrideVal interface{}
 		// Ensuring variable name is upper case since comparisons are being done against upper case env and config variables
@@ -298,37 +296,36 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 				setVal := strings.Split(k, ".")
 				if setVal[0] == pkgName && strings.ToUpper(setVal[1]) == v.Name {
 					overrideVal = val
-					v.Source = types.CLI
+					v.Source = valuesources.CLI
 				}
 			} else if strings.ToUpper(k) == v.Name {
 				overrideVal = val
-				v.Source = types.CLI
+				v.Source = valuesources.CLI
 			}
 		}
 
 		// check for override in env vars if not in --set
 		if envVarOverride, exists := os.LookupEnv(strings.ToUpper(config.EnvVarPrefix + v.Name)); overrideVal == nil && exists {
 			overrideVal = envVarOverride
-			v.Source = types.Env
+			v.Source = valuesources.Env
 		}
 
 		// if not in --set or an env var, use the following precedence: configFile, sharedConfig, default
 		if overrideVal == nil {
 			if configFileOverride, existsInConfig := b.cfg.DeployOpts.Variables[pkgName][v.Name]; existsInConfig {
 				overrideVal = configFileOverride
-				v.Source = types.Config
+				v.Source = valuesources.Config
 			} else if sharedConfigOverride, existsInSharedConfig := b.cfg.DeployOpts.SharedVariables[v.Name]; existsInSharedConfig {
 				overrideVal = sharedConfigOverride
-				v.Source = types.Config
+				v.Source = valuesources.Config
 			} else if v.Default != nil {
 				overrideVal = v.Default
-				v.Source = types.Bundle
+				v.Source = valuesources.Bundle
 			} else {
 				continue
 			}
 		}
 
-		includedSources[v.Source] = v.Source
 		// Add the override to the map, or return an error if the path is invalid
 		if err := b.addOverride(*overrideMap, componentName, chartName, v, overrideVal, nil); err != nil {
 			return err
@@ -438,16 +435,16 @@ func (b *Bundle) addFileValue(helmFileVals []string, filePath string, override t
 }
 
 // getSourcePath returns the path from where a value is set
-func getSourcePath(pathType types.ValueSources, b *Bundle) string {
+func getSourcePath(pathType valuesources.Source, b *Bundle) string {
 	var sourcePath string
 	switch pathType {
-	case types.CLI:
+	case valuesources.CLI:
 		sourcePath, _ = os.Getwd()
-	case types.Env:
+	case valuesources.Env:
 		sourcePath, _ = os.Getwd()
-	case types.Bundle:
+	case valuesources.Bundle:
 		sourcePath = filepath.Dir(b.cfg.DeployOpts.Source)
-	case types.Config:
+	case valuesources.Config:
 		sourcePath = filepath.Dir(b.cfg.DeployOpts.Config)
 	}
 
@@ -529,7 +526,7 @@ type PkgView struct {
 	overrides map[string]interface{}
 }
 
-// ConfirmBundleDeploy uses Zarf's pterm logging to prompt the user to confirm bundle creation
+// ConfirmBundleDeploy prompts the user to confirm bundle creation
 func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 	pkgviews := formPkgViews(b)
@@ -546,16 +543,6 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 	message.Title("Build:", "info about the machine, UDS version, and the user that created this bundle")
 	utils.ColorPrintYAML(b.bundle.Build, nil, false)
-
-	message.HorizontalRule()
-
-	message.Title("Configs", "shared configurations for bundle")
-	pterm.Println()
-
-	// requires loadChartOverrides via formPkgViews() to have been called for each package
-	for _, source := range includedSources {
-		pterm.Println(message.ColorWrap("source: ", color.FgHiCyan), message.ColorWrap(string(source), color.FgHiMagenta))
-	}
 
 	message.HorizontalRule()
 
@@ -621,7 +608,6 @@ func formPkgViews(b *Bundle) []PkgView {
 							val = val.(map[string]interface{})[paths[i+1]]
 						}
 
-						// var.helm.path: val
 						varMap[v.Path] = val
 					} else {
 						if processedVars[v.Path] == nil {

@@ -4,20 +4,13 @@
 // Package types contains all the types used by UDS.
 package types
 
+import "github.com/defenseunicorns/uds-cli/src/types/valuesources"
+
 type ChartVariableType string
 
 const (
 	File ChartVariableType = "file"
 	Raw  ChartVariableType = "raw"
-)
-
-type ValueSources string
-
-const (
-	Config ValueSources = "config"
-	Env    ValueSources = "env"
-	CLI    ValueSources = "cli"
-	Bundle ValueSources = "bundle"
 )
 
 // UDSBundle is the top-level structure of a UDS bundle
@@ -57,12 +50,12 @@ type BundleChartValue struct {
 }
 
 type BundleChartVariable struct {
-	Path        string            `json:"path" jsonschema:"name=Path to the Helm chart value to set. The format is <chart-value>, example=controller.service.type"`
-	Name        string            `json:"name" jsonschema:"name=Name of the variable to set"`
-	Description string            `json:"description,omitempty" jsonschema:"name=Description of the variable"`
-	Default     interface{}       `json:"default,omitempty" jsonschema:"name=The default value to set"`
-	Type        ChartVariableType `json:"type,omitempty" jsonschema:"description=The type of value to be processed,enum=raw,enum=file"`
-	Source      ValueSources      `json:"source,omitempty" jsonschema:"description=Where the value is set from,enum=config,enum=env,enum=cli,enum=bundle"`
+	Path        string              `json:"path" jsonschema:"name=Path to the Helm chart value to set. The format is <chart-value>, example=controller.service.type"`
+	Name        string              `json:"name" jsonschema:"name=Name of the variable to set"`
+	Description string              `json:"description,omitempty" jsonschema:"name=Description of the variable"`
+	Default     interface{}         `json:"default,omitempty" jsonschema:"name=The default value to set"`
+	Type        ChartVariableType   `json:"type,omitempty" jsonschema:"description=The type of value to be processed,enum=raw,enum=file"`
+	Source      valuesources.Source `json:"source,omitempty" jsonschema:"description=Where the value is set from,enum=config,enum=env,enum=cli,enum=bundle"`
 }
 
 // BundleVariableImport represents variables in the bundle
