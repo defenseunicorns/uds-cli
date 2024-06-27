@@ -688,6 +688,8 @@ func TestListImages(t *testing.T) {
 		outfile, err := os.Create(filename)
 		require.NoError(t, err)
 		defer outfile.Close()
+		defer os.Remove(filename)
+
 		cmd.Stdout = outfile
 		cmd.Stderr = outfile
 
