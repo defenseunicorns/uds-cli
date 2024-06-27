@@ -7,7 +7,6 @@ package bundle
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -97,8 +96,7 @@ func (b *Bundle) listImages() error {
 	formattedImgs := strings.Join(imgs, "\n")
 
 	// print to stdout to enable users to easily grab the output
-	// (and stderr for backwards compatibility)
-	pterm.SetDefaultOutput(io.MultiWriter(os.Stderr, os.Stdout))
+	pterm.SetDefaultOutput(os.Stdout)
 	pterm.Printfln("%s\n", formattedImgs)
 	return nil
 }
