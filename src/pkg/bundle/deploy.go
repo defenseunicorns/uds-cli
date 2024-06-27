@@ -47,12 +47,12 @@ func (b *Bundle) Deploy() error {
 			}
 		}
 
+		packagesToDeploy = selectedPackages
+
 		// Check if invalid packages were specified
 		if len(userSpecifiedPackages) != len(packagesToDeploy) {
 			return fmt.Errorf("invalid zarf packages specified by --packages")
 		}
-
-		packagesToDeploy = selectedPackages
 	}
 
 	// if resume, filter for packages not yet deployed
