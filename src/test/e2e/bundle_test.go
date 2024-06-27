@@ -691,7 +691,6 @@ func TestListImages(t *testing.T) {
 		defer os.Remove(filename)
 
 		cmd.Stdout = outfile
-		cmd.Stderr = outfile
 
 		err = cmd.Run()
 		require.NoError(t, err)
