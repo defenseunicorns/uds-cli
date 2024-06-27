@@ -521,11 +521,6 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 	return bundleName, string(bundleYAML), source, err
 }
 
-type PkgView struct {
-	meta      map[string]string
-	overrides map[string]interface{}
-}
-
 // ConfirmBundleDeploy prompts the user to confirm bundle creation
 func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
@@ -550,6 +545,7 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 	for _, pkg := range pkgviews {
 		utils.ColorPrintYAML(pkg.meta, nil, false)
+		utils.ColorPrintYAML(pkg.zarfVars, nil, false)
 		utils.ColorPrintYAML(pkg.overrides, nil, false)
 	}
 
@@ -570,11 +566,17 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 	return true
 }
 
-// formPkgViews creates a unique pre deploy view of each packages override variables
+type PkgView struct {
+	meta      map[string]string
+	zarfVars  map[string]map[string]string
+	overrides map[string]interface{}
+}
+
+// formPkgViews creates a unique pre deploy view of each packages set overrides and Zarf variables
 func formPkgViews(b *Bundle) []PkgView {
 	var pkgViews []PkgView
 	for _, pkg := range b.bundle.Packages {
-		pkgMeta := make(map[string]string)
+		pkgMeta := map[string]string{}
 		variables := make([]map[string]map[string]interface{}, 0)
 
 		pkgMeta["name"] = pkg.Name
@@ -585,17 +587,19 @@ func formPkgViews(b *Bundle) []PkgView {
 		}
 		pkgMeta["ref"] = pkg.Ref
 
-		valuesOverrides, _, _ := b.loadChartOverrides(pkg, make(map[string]string))
+		pkgVars := b.loadVariables(pkg, nil)
+		valuesOverrides, _, _ := b.loadChartOverrides(pkg, pkgVars)
 
 		for compName, component := range pkg.Overrides {
 			for chartName, chart := range component {
+				pkgVars = filterOutOverrides(chart.Variables, pkgVars)
+
 				processedVars := valuesOverrides[compName][chartName]
-				// if no values or variables set then will be nil
 				if processedVars == nil {
 					continue
 				}
 
-				chartVars := make(map[string]interface{})
+				chartVars := map[string]interface{}{}
 
 				for _, v := range chart.Variables {
 					// handle complex paths: var.helm.path = { var: { helm: { path: val } } }
@@ -619,7 +623,6 @@ func formPkgViews(b *Bundle) []PkgView {
 						}
 
 						chartVars[v.Name] = processedVars[v.Path]
-
 					}
 				}
 
@@ -629,7 +632,18 @@ func formPkgViews(b *Bundle) []PkgView {
 			}
 		}
 
-		pkgViews = append(pkgViews, PkgView{pkgMeta, map[string]interface{}{"Overrides": variables}})
+		pkgViews = append(pkgViews, PkgView{meta: pkgMeta, zarfVars: map[string]map[string]string{"Zarf-Variables": pkgVars}, overrides: map[string]interface{}{"Overrides": variables}})
 	}
 	return pkgViews
+}
+
+func filterOutOverrides(chartVars []types.BundleChartVariable, pkgVars map[string]string) map[string]string {
+	pkgVarsCopy := pkgVars
+	for _, cv := range chartVars {
+		if pkgVarsCopy[strings.ToUpper(cv.Name)] != "" {
+			delete(pkgVarsCopy, strings.ToUpper(cv.Name))
+		}
+	}
+
+	return pkgVarsCopy
 }
