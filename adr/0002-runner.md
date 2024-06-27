@@ -3,7 +3,7 @@
 Date: 1 Feb 2024
 
 ## Status
-Accepted
+[AMENDED](#amendment-1)
 
 ## Context
 
@@ -25,3 +25,14 @@ After quickly gaining adoption across the organization, we have decided to make 
 ## Consequences
 
 The UDS CLI team will own the UDS Runner functionality and is responsible for maintaining it. Furthermore, because the UDS Runner uses Zarf, the UDS CLI team will contribute to upstream Zarf Actions and common library functionality to support UDS Runner.
+
+# Amendment 1
+
+Date: 1 March 2024
+
+## Status
+
+Accepted
+
+## Context and Decision
+In an effort to reduce the scope of UDS CLI and experiment with a new standalone project, the UDS Runner functionality will be moved to a new project tentatively named [maru-runner](https://github.com/defenseunicorns/maru-runner). This project will be maintained by the UDS CLI team for a short time but ownership will be eventually be transferred to a different team. Furthermore, UDS CLI will vendor the runner such that no breaking changes will be introduced for UDS CLI users.

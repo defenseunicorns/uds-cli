@@ -2,6 +2,12 @@
 
 # Create the json schema for the uds-bundle.yaml
 go run main.go internal config-uds-schema > uds.schema.json
+
+# Adds pattern properties to all definitions to allow for yaml extensions
+jq '.definitions |= map_values(. + {"patternProperties": {"^x-": {}}})' uds.schema.json > temp_uds.schema.json
+mv temp_uds.schema.json uds.schema.json
+
+# Create the json schema for tasks.yaml
 go run main.go internal config-tasks-schema > tasks.schema.json
 
 # Adds pattern properties to all definitions to allow for yaml extensions
@@ -19,5 +25,15 @@ mv temp_tasks.schema.json tasks.schema.json
 go run main.go zarf internal gen-config-schema > zarf.schema.json
 
 # Adds pattern properties to all definitions to allow for yaml extensions
-jq '.definitions |= map_values(. + {"patternProperties": {"^x-": {}}})' zarf.schema.json > temp_zarf.schema.json
+jq '
+  def addPatternProperties:
+    . +
+    if has("properties") then
+      {"patternProperties": {"^x-": {}}}
+    else
+      {}
+    end;
+
+  walk(if type == "object" then addPatternProperties else . end)
+' zarf.schema.json > temp_zarf.schema.json
 mv temp_zarf.schema.json zarf.schema.json

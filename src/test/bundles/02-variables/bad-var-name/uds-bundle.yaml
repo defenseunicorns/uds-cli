@@ -1,0 +1,20 @@
+kind: UDSBundle
+metadata:
+  name: bad-var-name
+  description: show errors for bad imports
+  version: 0.0.1
+
+packages:
+  - name: output-var
+    path: ../../../packages/no-cluster/output-var
+    ref: 0.0.1
+    exports:
+      - name: OUTPUT
+      - name: PRECEDENCE
+
+  - name: receive-var
+    path: ../../../packages/no-cluster/receive-var
+    ref: 0.0.1
+    imports:
+       - package: output-varz
+         name: OUTPUTZ

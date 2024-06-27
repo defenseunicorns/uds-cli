@@ -12,18 +12,23 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/pkg/helpers/v2"
+	"github.com/defenseunicorns/pkg/oci"
+	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/layout"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/oci"
+	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/sources"
-	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	av4 "github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+
+	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 )
+
+// NamespaceOverrideMap is a map of component names to a map of chart names to namespace overrides
+type NamespaceOverrideMap = map[string]map[string]string
 
 // TarballBundle is a package source for local tarball bundles that implements Zarf's packager.PackageSource
 type TarballBundle struct {
@@ -31,28 +36,42 @@ type TarballBundle struct {
 	PkgManifestSHA string
 	TmpDir         string
 	BundleLocation string
-	PkgName        string
-	isPartial      bool
+	Pkg            types.Package
+	nsOverrides    NamespaceOverrideMap
 }
 
 // LoadPackage loads a Zarf package from a local tarball bundle
-func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, unarchiveAll bool) error {
-	packageSpinner := message.NewProgressSpinner("Loading bundled Zarf package: %s", t.PkgName)
+func (t *TarballBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (zarfTypes.ZarfPackage, []string, error) {
+
+	packageSpinner := message.NewProgressSpinner("Loading bundled Zarf package: %s", t.Pkg.Name)
 	defer packageSpinner.Stop()
 
 	files, err := t.extractPkgFromBundle()
 	if err != nil {
-		return err
+		return zarfTypes.ZarfPackage{}, nil, err
 	}
 
 	var pkg zarfTypes.ZarfPackage
-	if err = zarfUtils.ReadYaml(dst.ZarfYAML, &pkg); err != nil {
-		return err
+	if err = utils.ReadYAMLStrict(dst.ZarfYAML, &pkg); err != nil {
+		return zarfTypes.ZarfPackage{}, nil, err
 	}
+
+	// if in dev mode and package is a zarf init config, return an empty package
+	if config.Dev && pkg.Kind == zarfTypes.ZarfInitConfig {
+		return zarfTypes.ZarfPackage{}, nil, nil
+	}
+
+	// filter pkg components and determine if its a partial pkg
+	filteredComps, isPartialPkg, err := handleFilter(pkg, filter)
+	if err != nil {
+		return zarfTypes.ZarfPackage{}, nil, err
+	}
+	pkg.Components = filteredComps
+
 	dst.SetFromPaths(files)
 
-	if err := sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, t.isPartial); err != nil {
-		return err
+	if err := sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, isPartialPkg); err != nil {
+		return zarfTypes.ZarfPackage{}, nil, err
 	}
 
 	if unarchiveAll {
@@ -61,26 +80,34 @@ func (t *TarballBundle) LoadPackage(dst *layout.PackagePaths, unarchiveAll bool)
 				if layout.IsNotLoaded(err) {
 					_, err := dst.Components.Create(component)
 					if err != nil {
-						return err
+						return zarfTypes.ZarfPackage{}, nil, err
 					}
 				} else {
-					return err
+					return zarfTypes.ZarfPackage{}, nil, err
 				}
 			}
 		}
 
 		if dst.SBOMs.Path != "" {
 			if err := dst.SBOMs.Unarchive(); err != nil {
-				return err
+				return zarfTypes.ZarfPackage{}, nil, err
 			}
 		}
 	}
-	packageSpinner.Successf("Loaded bundled Zarf package: %s", t.PkgName)
-	return nil
+	addNamespaceOverrides(&pkg, t.nsOverrides)
+
+	if config.Dev {
+		setAsYOLO(&pkg)
+	}
+
+	packageSpinner.Successf("Loaded bundled Zarf package: %s", t.Pkg.Name)
+	// ensure we're using the correct package name as specified by the bundle
+	pkg.Metadata.Name = t.Pkg.Name
+	return pkg, nil, err
 }
 
 // LoadPackageMetadata loads a Zarf package's metadata from a local tarball bundle
-func (t *TarballBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ bool) (err error) {
+func (t *TarballBundle) LoadPackageMetadata(_ context.Context, dst *layout.PackagePaths, _ bool, _ bool) (zarfTypes.ZarfPackage, []string, error) {
 	ctx := context.TODO()
 	format := av4.CompressedArchive{
 		Compression: av4.Zstd{},
@@ -89,12 +116,12 @@ func (t *TarballBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ 
 
 	sourceArchive, err := os.Open(t.BundleLocation)
 	if err != nil {
-		return err
+		return zarfTypes.ZarfPackage{}, nil, err
 	}
 
-	var imageManifest oci.ZarfOCIManifest
+	var imageManifest oci.Manifest
 	if err := format.Extract(ctx, sourceArchive, []string{filepath.Join(config.BlobsDir, t.PkgManifestSHA)}, utils.ExtractJSON(&imageManifest)); err != nil {
-		return err
+		return zarfTypes.ZarfPackage{}, nil, err
 	}
 
 	var zarfYamlSHA string
@@ -106,7 +133,7 @@ func (t *TarballBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ 
 	}
 
 	if zarfYamlSHA == "" {
-		return fmt.Errorf(fmt.Sprintf("zarf.yaml with SHA %s not found", zarfYamlSHA))
+		return zarfTypes.ZarfPackage{}, nil, fmt.Errorf(fmt.Sprintf("zarf.yaml with SHA %s not found", zarfYamlSHA))
 	}
 
 	// grab SHA of checksums.txt
@@ -121,7 +148,7 @@ func (t *TarballBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ 
 	// reset file reader
 	_, err = sourceArchive.Seek(0, 0)
 	if err != nil {
-		return err
+		return zarfTypes.ZarfPackage{}, nil, err
 	}
 
 	// grab zarf.yaml and checksums.txt
@@ -151,29 +178,31 @@ func (t *TarballBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ 
 	}); err != nil {
 		err = sourceArchive.Close()
 		if err != nil {
-			return err
+			return zarfTypes.ZarfPackage{}, nil, err
 		}
-		return err
+		return zarfTypes.ZarfPackage{}, nil, err
 	}
 
 	// deserialize zarf.yaml to grab checksum for validating pkg integrity
-	var zarfYAML zarfTypes.ZarfPackage
-	err = zarfUtils.ReadYaml(dst.ZarfYAML, &zarfYAML)
+	var pkg zarfTypes.ZarfPackage
+	err = utils.ReadYAMLStrict(dst.ZarfYAML, &pkg)
 	if err != nil {
-		return err
+		return zarfTypes.ZarfPackage{}, nil, err
 	}
 
 	dst.SetFromPaths(filePaths)
-	if err := sources.ValidatePackageIntegrity(dst, zarfYAML.Metadata.AggregateChecksum, true); err != nil {
-		return err
+	if err := sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, true); err != nil {
+		return zarfTypes.ZarfPackage{}, nil, err
 	}
 
 	err = sourceArchive.Close()
-	return err
+	// ensure we're using the correct package name as specified by the bundle
+	pkg.Metadata.Name = t.Pkg.Name
+	return pkg, nil, err
 }
 
 // Collect doesn't need to be implemented
-func (t *TarballBundle) Collect(_ string) (string, error) {
+func (t *TarballBundle) Collect(_ context.Context, _ string) (string, error) {
 	return "", fmt.Errorf("not implemented in %T", t)
 }
 
@@ -189,7 +218,7 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 		return nil, err
 	}
 
-	var manifest oci.ZarfOCIManifest
+	var manifest oci.Manifest
 	if err := format.Extract(context.TODO(), sourceArchive, []string{filepath.Join(config.BlobsDir, t.PkgManifestSHA)}, utils.ExtractJSON(&manifest)); err != nil {
 		if err := sourceArchive.Close(); err != nil {
 			return nil, err
@@ -223,7 +252,7 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 		}
 		size := desc.Size
 		layerDst := filepath.Join(t.TmpDir, cleanPath)
-		if err := zarfUtils.CreateDirectory(filepath.Dir(layerDst), 0700); err != nil {
+		if err := helpers.CreateDirectory(filepath.Dir(layerDst), 0700); err != nil {
 			return err
 		}
 
@@ -245,7 +274,7 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 		return nil
 	}
 
-	layersToExtract := []string{}
+	var layersToExtract []string
 
 	for _, layer := range manifest.Layers {
 		layersToExtract = append(layersToExtract, filepath.Join(config.BlobsDir, layer.Digest.Encoded()))
@@ -257,8 +286,5 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 	}
 	defer sourceArchive.Close()
 	err = format.Extract(context.TODO(), sourceArchive, layersToExtract, extractLayer)
-	if len(manifest.Layers) > len(files) {
-		t.isPartial = true
-	}
 	return files, err
 }

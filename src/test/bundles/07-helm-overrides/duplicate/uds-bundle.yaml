@@ -1,0 +1,28 @@
+kind: UDSBundle
+metadata:
+  name: duplicates
+  description: testing a bundle with duplicate packages in specified namespaces
+  version: 0.0.1
+
+packages:
+  - name: helm-overrides
+    repository: localhost:888/helm-overrides
+    ref: 0.0.1
+    overrides:
+      podinfo-component:
+        unicorn-podinfo:
+          namespace: override-ns
+          values:
+            - path: "podinfo.replicaCount"
+              value: 1
+
+  - name: helm-overrides-duplicate
+    repository: localhost:888/helm-overrides
+    ref: 0.0.1
+    overrides:
+      podinfo-component:
+        unicorn-podinfo:
+          namespace: another-override-ns
+          values:
+            - path: "podinfo.replicaCount"
+              value: 1

@@ -9,20 +9,19 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/packager"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
-	"golang.org/x/exp/slices"
-
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
+	"github.com/defenseunicorns/zarf/src/pkg/packager"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
+	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	"golang.org/x/exp/slices"
 )
 
 // Remove removes packages deployed from a bundle
 func (b *Bundle) Remove() error {
-	ctx := context.TODO()
 
 	// Check that provided oci source path is valid, and update it if it's missing the full path
 	source, err := CheckOCISourcePath(b.cfg.RemoveOpts.Source)
@@ -38,7 +37,7 @@ func (b *Bundle) Remove() error {
 	}
 
 	// create a new provider
-	provider, err := NewBundleProvider(ctx, b.cfg.RemoveOpts.Source, b.tmp)
+	provider, err := NewBundleProvider(b.cfg.RemoveOpts.Source, b.tmp)
 	if err != nil {
 		return err
 	}
@@ -50,13 +49,7 @@ func (b *Bundle) Remove() error {
 	}
 
 	// read the bundle's metadata into memory
-	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
-		return err
-	}
-
-	// Maps name given to zarf package in the bundle to the actual name of the zarf package
-	zarfPackageNameMap, err := provider.ZarfPackageNameMap()
-	if err != nil {
+	if err := utils.ReadYAMLStrict(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
 
@@ -75,45 +68,41 @@ func (b *Bundle) Remove() error {
 		if len(userSpecifiedPackages) != len(packagesToRemove) {
 			return fmt.Errorf("invalid zarf packages specified by --packages")
 		}
-		return removePackages(packagesToRemove, b, zarfPackageNameMap)
+		return removePackages(packagesToRemove, b)
 	}
-	return removePackages(b.bundle.Packages, b, zarfPackageNameMap)
+	return removePackages(b.bundle.Packages, b)
 }
 
-func removePackages(packagesToRemove []types.Package, b *Bundle, zarfPackageNameMap map[string]string) error {
-
+func removePackages(packagesToRemove []types.Package, b *Bundle) error {
 	// Get deployed packages
 	deployedPackageNames := GetDeployedPackageNames()
 
 	for i := len(packagesToRemove) - 1; i >= 0; i-- {
 
 		pkg := packagesToRemove[i]
-		zarfPackageName := zarfPackageNameMap[pkg.Name]
-		if slices.Contains(deployedPackageNames, zarfPackageName) {
+
+		if slices.Contains(deployedPackageNames, pkg.Name) {
 			opts := zarfTypes.ZarfPackageOptions{
 				PackageSource: b.cfg.RemoveOpts.Source,
 			}
 			pkgCfg := zarfTypes.PackagerConfig{
 				PkgOpts: opts,
 			}
-			pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
+			pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 			if err != nil {
 				return err
 			}
 
 			sha := strings.Split(pkg.Ref, "sha256:")[1]
-			source, err := sources.New(b.cfg.RemoveOpts.Source, zarfPackageName, opts, sha)
+			source, err := sources.New(*b.cfg, pkg, opts, sha, nil)
 			if err != nil {
 				return err
 			}
 
 			pkgClient := packager.NewOrDie(&pkgCfg, packager.WithSource(source), packager.WithTemp(pkgTmp))
-			if err != nil {
-				return err
-			}
 			defer pkgClient.ClearTempPaths()
 
-			if err := pkgClient.Remove(); err != nil {
+			if err := pkgClient.Remove(context.TODO()); err != nil {
 				return err
 			}
 		} else {

@@ -1,7 +1,7 @@
 kind: UDSBundle
 metadata:
-  name: example
-  description: an example UDS bundle
+  name: example-remote
+  description: an example UDS bundle with remote packages
   version: 0.0.1
 
 packages:

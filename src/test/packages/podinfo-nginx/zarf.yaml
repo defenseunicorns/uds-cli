@@ -1,0 +1,19 @@
+kind: ZarfPackageConfig
+metadata:
+  name: podinfo-nginx
+  description: used to test bundles with optional components
+  version: 0.0.1
+
+components:
+  - name: podinfo
+    import:
+      path: ../podinfo
+
+  - name: nginx-remote
+    import:
+      path: ../nginx
+
+  - name: test
+    description: contains only single Zarf action
+    import:
+      path: ../no-cluster/real-simple

@@ -1,0 +1,67 @@
+---
+run:
+  concurrency: 6
+  timeout: 5m
+  tests: false
+issues:
+  # Maximum issues count per one linter.
+  # Set to 0 to disable.
+  # Default: 50
+  max-issues-per-linter: 0
+  # Maximum count of issues with the same text.
+  # Set to 0 to disable.
+  # Default: 3
+  max-same-issues: 0
+  new-from-rev: ""
+  exclude-rules:
+    - path: 'test/.*'
+      linters:
+        - gosec
+linters:
+  enable:
+    - gofmt
+    - goimports
+    - gosec
+    - govet
+    - staticcheck
+    - nilerr
+    - revive
+
+linters-settings:
+  govet:
+    enable-all: true
+    disable:
+      - shadow
+      - fieldalignment
+      - unusedwrite
+  nolintlint:
+    require-specific: true
+
+  unused:
+    local-variables-are-used: false
+
+  revive:
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: if-return
+      - name: increment-decrement
+      - name: var-declaration
+      - name: package-comments
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: indent-error-flow
+      - name: errorf
+      - name: empty-block
+      - name: superfluous-else
+      - name: unused-parameter
+      - name: unreachable-code
+      - name: redefines-builtin-id

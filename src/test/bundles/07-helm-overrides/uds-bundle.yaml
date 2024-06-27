@@ -14,7 +14,7 @@ packages:
         unicorn-podinfo:
           values:
             - path: "podinfo.replicaCount"
-              value: 2
+              value: ${numReplicas} # set from uds-config.yaml
             - path: "podinfo.tolerations"
               value:
                 - key: "unicorn"
@@ -29,6 +29,10 @@ packages:
               value:
                 customAnnotation: "customValue"
           variables:
+            - name: log_level
+              path: "podinfo.logLevel"
+              description: "Set the log level for podinfo"
+              default: "debug" # not overwritten!
             - name: ui_color
               path: "podinfo.ui.color"
               description: "Set the color for podinfo's UI"
@@ -48,3 +52,7 @@ packages:
             - name: HOSTS
               path: "podinfo.ingress.hosts"
               description: "just testing a a list of objects (doesn't actually do ingress things)"
+            - name: SECRET_FILE_VAL
+              path: "testFileSecret"
+              description: "testing setting secret with file"
+              type: "file"

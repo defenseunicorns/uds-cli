@@ -1,0 +1,25 @@
+kind: UDSBundle
+metadata:
+  name: optional-components
+  description: test bundle with optional components in its pkgs
+  version: 0.0.1
+
+packages:
+  - name: init
+    repository: ghcr.io/defenseunicorns/packages/init
+    # renovate: datasource=github-tags depName=defenseunicorns/zarf
+    ref: v0.35.0
+
+  # deploys prometheus as a required component and upload-image as an optional component (with noOptionalComponents key)
+  - name: prometheus
+    repository: localhost:888/prometheus
+    ref: 0.0.1
+    optionalComponents:
+      - upload-image
+
+  # deploys podinfo as an optional component
+  - name: podinfo-nginx
+    path: ../../packages/podinfo-nginx
+    ref: 0.0.1
+    optionalComponents:
+      - nginx-remote

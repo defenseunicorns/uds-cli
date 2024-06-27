@@ -7,18 +7,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime/debug"
 	"strings"
 
+	"github.com/defenseunicorns/uds-cli/src/cmd/monitor"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	zarfCLI "github.com/defenseunicorns/zarf/src/cmd"
-	"github.com/defenseunicorns/zarf/src/cmd/common"
-	zarfConfig "github.com/defenseunicorns/zarf/src/config"
+	zarfCommon "github.com/defenseunicorns/zarf/src/cmd/common"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
+	goyaml "github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
 )
 
@@ -33,17 +30,19 @@ var rootCmd = &cobra.Command{
 	Use: "uds COMMAND",
 	PersistentPreRun: func(cmd *cobra.Command, _ []string) {
 		// Skip for vendor-only commands
-		if common.CheckVendorOnlyFromPath(cmd) {
+		if zarfCommon.CheckVendorOnlyFromPath(cmd) {
 			return
 		}
-
-		exec.ExitOnInterrupt()
 
 		// Don't add the logo to the help command
 		if cmd.Parent() == nil {
 			config.SkipLogFile = true
 		}
-		cliSetup()
+
+		// don't load log configs for the logs command
+		if cmd.Use != "logs" {
+			cliSetup(cmd)
+		}
 	},
 	Short: lang.RootCmdShort,
 	Run: func(cmd *cobra.Command, _ []string) {
@@ -66,34 +65,16 @@ func RootCmd() *cobra.Command {
 }
 
 func init() {
-	// grab Zarf version to make Zarf library checks happy
-	if buildInfo, ok := debug.ReadBuildInfo(); ok {
-		for _, dep := range buildInfo.Deps {
-			if dep.Path == "github.com/defenseunicorns/zarf" {
-				zarfConfig.CLIVersion = strings.Split(dep.Version, "v")[1]
-			}
-		}
-	}
-
-	// only vendor zarf if specifically invoked
-	if len(os.Args) > 1 && (os.Args[1] == "zarf" || os.Args[1] == "z") {
-		zarfCmd := &cobra.Command{
-			Use:     "zarf COMMAND",
-			Aliases: []string{"z"},
-			Run: func(_ *cobra.Command, _ []string) {
-				os.Args = os.Args[1:] // grab 'zarf' and onward from the CLI args
-				zarfCLI.Execute()
-			},
-			DisableFlagParsing: true,
-		}
-		rootCmd.AddCommand(zarfCmd)
-
-		// disable UDS log file for Zarf commands bc Zarf has its own log file
-		config.SkipLogFile = true
-		return
-	}
 
 	initViper()
+
+	// load uds-config if it exists
+	if v.ConfigFileUsed() != "" {
+		if err := loadViperConfig(); err != nil {
+			message.Fatalf(err, "Failed to load uds-config: %s", err.Error())
+			return
+		}
+	}
 
 	v.SetDefault(V_LOG_LEVEL, "info")
 	v.SetDefault(V_ARCHITECTURE, "")
@@ -114,35 +95,55 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&config.CommonOptions.TempDirectory, "tmpdir", v.GetString(V_TMP_DIR), lang.RootCmdFlagTempDir)
 	rootCmd.PersistentFlags().BoolVar(&config.CommonOptions.Insecure, "insecure", v.GetBool(V_INSECURE), lang.RootCmdFlagInsecure)
 	rootCmd.PersistentFlags().IntVar(&config.CommonOptions.OCIConcurrency, "oci-concurrency", v.GetInt(V_BNDL_OCI_CONCURRENCY), lang.CmdBundleFlagConcurrency)
+
+	rootCmd.AddCommand(monitor.Cmd)
 }
 
-func cliSetup() {
-	match := map[string]message.LogLevel{
-		"warn":  message.WarnLevel,
-		"info":  message.InfoLevel,
-		"debug": message.DebugLevel,
-		"trace": message.TraceLevel,
+// loadViperConfig reads the config file and unmarshals the relevant config into DeployOpts.Variables
+func loadViperConfig() error {
+	// get config file from Viper
+	configFile, err := os.ReadFile(v.ConfigFileUsed())
+	if err != nil {
+		return err
 	}
 
-	printViperConfigUsed()
+	err = unmarshalAndValidateConfig(configFile, &bundleCfg)
+	if err != nil {
+		return err
+	}
 
-	// No log level set, so use the default
-	if logLevel != "" {
-		if lvl, ok := match[logLevel]; ok {
-			message.SetLogLevel(lvl)
-			message.Debug("Log level set to " + logLevel)
-		} else {
-			message.Warn(lang.RootCmdErrInvalidLogLevel)
+	// ensure the DeployOpts.Variables pkg vars are uppercase
+	for pkgName, pkgVar := range bundleCfg.DeployOpts.Variables {
+		for varName, varValue := range pkgVar {
+			// delete the lowercase var and replace with uppercase
+			delete(bundleCfg.DeployOpts.Variables[pkgName], varName)
+			bundleCfg.DeployOpts.Variables[pkgName][strings.ToUpper(varName)] = varValue
 		}
 	}
 
-	// Disable progress bars for CI envs
-	if os.Getenv("CI") == "true" {
-		message.Debug("CI environment detected, disabling progress bars")
-		message.NoProgress = true
+	// ensure the DeployOpts.SharedVariables vars are uppercase
+	for varName, varValue := range bundleCfg.DeployOpts.SharedVariables {
+		// delete the lowercase var and replace with uppercase
+		delete(bundleCfg.DeployOpts.SharedVariables, varName)
+		bundleCfg.DeployOpts.SharedVariables[strings.ToUpper(varName)] = varValue
 	}
 
-	if !config.SkipLogFile && !config.ListTasks {
-		utils.UseLogFile()
+	return nil
+}
+
+func unmarshalAndValidateConfig(configFile []byte, bundleCfg *types.BundleConfig) error {
+	// read relevant config into DeployOpts.Variables
+	// need to use goyaml because Viper doesn't preserve case: https://github.com/spf13/viper/issues/1014
+	// unmarshalling into DeployOpts because we want to check all of the top level config keys which are currently defined in DeployOpts
+	err := goyaml.UnmarshalWithOptions(configFile, &bundleCfg.DeployOpts, goyaml.Strict())
+	if err != nil {
+		return err
 	}
+	// validate config options
+	for optionName := range bundleCfg.DeployOpts.Options {
+		if !isValidConfigOption(optionName) {
+			return fmt.Errorf("invalid config option: %s", optionName)
+		}
+	}
+	return nil
 }

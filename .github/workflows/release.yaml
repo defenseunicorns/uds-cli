@@ -9,46 +9,67 @@ on:
       - "v*"
 
 jobs:
-  build:
+  checkout:
     runs-on: ubuntu-latest
-    permissions:
-      packages: write
     steps:
-      # Checkout the repo and setup the tooling for this job
       - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           fetch-depth: 0
 
-      - name: Setup golang
-        uses: ./.github/actions/golang
+  test:
+    uses: ./.github/workflows/parallel-tests.yaml
+    needs: checkout
 
-      - name: Build CLI
-        run: |
-          make build-cli-linux-amd
-
-      # Upload the contents of the build directory for later stages to use
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
-        with:
-          name: build-artifacts
-          path: build/
-          retention-days: 1
-
-  validate:
+  test-ghcr:
     runs-on: ubuntu-latest
+    needs: build
     permissions:
       packages: write
-    needs: build
     steps:
-      # Checkout the repo and setup the tooling for this job
       - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           fetch-depth: 0
 
       - name: Download build artifacts
-        uses: actions/download-artifact@87c55149d96e628cc2ef7e6fc2aab372015aec85 # v4.1.3
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
+        with:
+          name: build-artifacts
+          path: build/
+
+      - name: setup-using-previous-job
+        uses: ./.github/actions/setup-from-previous
+
+      - name: Login to GHCR
+        uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446 # v3.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run GHCR tests
+        run: |
+          build/uds run test:e2e-ghcr --no-progress
+        env:
+          GITHUB_TOKEN: secrets.GITHUB_TOKEN
+
+      - name: Save logs
+        if: always()
+        uses: ./.github/actions/save-logs
+
+  smoke-test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      # Checkout the repo and setup the tooling for this job
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
         with:
           name: build-artifacts
           path: build/
@@ -64,17 +85,15 @@ jobs:
         uses: ./.github/actions/k3d
 
       - name: Login to GHCR
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446 # v3.2.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run e2e tests
-        run: |
-          make test-e2e
-        env:
-          GITHUB_TOKEN: secrets.GITHUB_TOKEN
+      - name: Run UDS Core smoke test
+        run: build/uds run test:ci-uds-core-smoke-test --no-progress
+        shell: bash
 
       - name: Save logs
         if: always()
@@ -82,12 +101,13 @@ jobs:
 
   push:
     runs-on: ubuntu-latest
-    needs: validate
+    environment: release
+    needs: [test-bundle, test-dev, test-variables, test-optional-bundle, test-vendor, test-ghcr, smoke-test, test-engine]
     permissions:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           fetch-depth: 0
 
@@ -98,17 +118,26 @@ jobs:
         uses: ./.github/actions/install-tools
 
       - name: Download build artifacts
-        uses: actions/download-artifact@87c55149d96e628cc2ef7e6fc2aab372015aec85 # v4.1.3
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
         with:
           name: build-artifacts
           path: build/
 
+      - name: Get Brew tap repo token
+        id: brew-tap-token
+        uses: actions/create-github-app-token@c8f55efbd427e7465d6da1106e7979bc8aaee856 # v1.10.1
+        with:
+          app-id: ${{ secrets.HOMEBREW_TAP_WORKFLOW_GITHUB_APP_ID }}
+          private-key: ${{ secrets.HOMEBREW_TAP_WORKFLOW_GITHUB_APP_SECRET }}
+          owner: defenseunicorns
+          repositories: homebrew-tap
+
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@7ec5c2b0c6cdda6e8bbb49444bc797dd33d74dd8 # v5.0.0
+        uses: goreleaser/goreleaser-action@286f3b13b1b49da4ac219696163fb8c1c93e1200 # v6.0.0
         with:
           distribution: goreleaser
           version: latest
-          args: release --rm-dist --debug
+          args: release --clean --verbose
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN}}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.TAP_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.brew-tap-token.outputs.token }}

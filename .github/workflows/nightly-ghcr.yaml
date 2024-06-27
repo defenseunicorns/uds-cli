@@ -20,19 +20,22 @@ jobs:
       packages: write
     steps:
       - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Setup golang
         uses: ./.github/actions/golang
 
+      - name: Install UDS CLI
+        uses: ./.github/actions/install-uds-cli
+
       - name: Build UDS-CLI binary
-        run: make build-cli-linux-amd ARCH=amd64
+        run: uds run build-cli-linux-amd
 
       - name: Setup K3d
         uses: ./.github/actions/k3d
 
       - name: Login to GHCR
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446 # v3.2.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -40,7 +43,7 @@ jobs:
 
       - name: Run e2e tests
         run: |
-          make test-e2e-ghcr
+          build/uds run test:e2e-ghcr --no-progress
         env:
           GITHUB_TOKEN: secrets.GITHUB_TOKEN
 

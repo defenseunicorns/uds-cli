@@ -1,0 +1,22 @@
+kind: UDSBundle
+metadata:
+  name: variables
+  description: show how vars work
+  version: 0.0.1
+
+packages:
+  - name: output-var
+    repository: localhost:888/output-var
+    ref: 0.0.1
+    exports:
+      - name: OUTPUT
+      - name: PRECEDENCE
+
+  - name: receive-var
+    repository: localhost:888/receive-var
+    ref: 0.0.1
+    imports:
+      - name: OUTPUT
+        package: output-var
+      - name: PRECEDENCE
+        package: output-var

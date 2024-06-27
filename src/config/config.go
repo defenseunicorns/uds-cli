@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
-	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 )
 
@@ -47,17 +46,14 @@ const (
 	// UDSCache is the directory containing cached bundle layers
 	UDSCache = ".uds-cache"
 
-	// TasksYAML is the default name of the uds run cmd file
-	TasksYAML = "tasks.yaml"
+	// UDSCacheLayers is the directory in the cache containing cached bundle layers
+	UDSCacheLayers = "layers"
 
 	// EnvVarPrefix is the prefix for environment variables to override bundle helm variables
 	EnvVarPrefix = "UDS_"
 
-	// ZarfPackageNameAnnotation is the annotation key for the value that specifies the zarf package name
-	ZarfPackageNameAnnotation = "zarf.package.name"
-
-	// UDSPackageNameAnnotation is the annotation key for the value that specifies the name given to a zarf package in the uds-bundle.yaml
-	UDSPackageNameAnnotation = "uds.package.name"
+	// CachedLogs is a file containing cached logs
+	CachedLogs = "recent-logs"
 )
 
 var (
@@ -76,14 +72,11 @@ var (
 	// ListTasks is a flag to print available tasks in a TaskFileLocation
 	ListTasks bool
 
-	// TaskFileLocation is the location of the tasks file to run
-	TaskFileLocation string
-
-	// SetRunnerVariables is a map of the run time variables defined using --set
-	SetRunnerVariables map[string]string
-
 	// HelmTimeout is the default timeout for helm deploys
 	HelmTimeout = 15 * time.Minute
+
+	// Dev specifies if we are running in dev mode
+	Dev = false
 )
 
 // GetArch returns the arch based on a priority list with options for overriding.
@@ -111,9 +104,9 @@ var (
 // could technically remove, but it doesn't hurt anything for now
 var DefaultZarfInitOptions = zarfTypes.ZarfInitOptions{
 	GitServer: zarfTypes.GitServerInfo{
-		PushUsername: zarfConfig.ZarfGitPushUser,
+		PushUsername: zarfTypes.ZarfGitPushUser,
 	},
 	RegistryInfo: zarfTypes.RegistryInfo{
-		PushUsername: zarfConfig.ZarfRegistryPushUser,
+		PushUsername: zarfTypes.ZarfRegistryPushUser,
 	},
 }

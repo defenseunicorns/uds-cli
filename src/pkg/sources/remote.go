@@ -10,16 +10,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
+	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/cache"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
+	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/layout"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/oci"
+	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/sources"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -29,31 +31,65 @@ import (
 
 // RemoteBundle is a package source for remote bundles that implements Zarf's packager.PackageSource
 type RemoteBundle struct {
-	PkgName        string
+	Pkg            types.Package
 	PkgOpts        *zarfTypes.ZarfPackageOptions
 	PkgManifestSHA string
 	TmpDir         string
 	Remote         *oci.OrasRemote
-	isPartial      bool
+	nsOverrides    NamespaceOverrideMap
+	bundleCfg      types.BundleConfig
 }
 
 // LoadPackage loads a Zarf package from a remote bundle
-func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, unarchiveAll bool) error {
-	layers, err := r.downloadPkgFromRemoteBundle()
+func (r *RemoteBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (zarfTypes.ZarfPackage, []string, error) {
+	// todo: progress bar??
+	var layers []ocispec.Descriptor
+	var err error
+
+	if config.Dev {
+		if _, ok := r.bundleCfg.DevDeployOpts.Ref[r.Pkg.Name]; ok {
+			// create new oras remote for package
+			platform := ocispec.Platform{
+				Architecture: config.GetArch(),
+				OS:           oci.MultiOS,
+			}
+			// get remote client
+			repoUrl := fmt.Sprintf("%s:%s", r.Pkg.Repository, r.Pkg.Ref)
+			remote, _ := zoci.NewRemote(repoUrl, platform)
+			layers, err = remote.PullPackage(context.TODO(), r.TmpDir, config.CommonOptions.OCIConcurrency)
+		} else {
+			layers, err = r.downloadPkgFromRemoteBundle()
+		}
+	} else {
+		layers, err = r.downloadPkgFromRemoteBundle()
+	}
+
 	if err != nil {
-		return err
+		return zarfTypes.ZarfPackage{}, nil, err
 	}
 
 	var pkg zarfTypes.ZarfPackage
-	if err = zarfUtils.ReadYaml(dst.ZarfYAML, &pkg); err != nil {
-		return err
+	if err = utils.ReadYAMLStrict(dst.ZarfYAML, &pkg); err != nil {
+		return zarfTypes.ZarfPackage{}, nil, err
 	}
+
+	// if in dev mode and package is a zarf init config, return an empty package
+	if config.Dev && pkg.Kind == zarfTypes.ZarfInitConfig {
+		return zarfTypes.ZarfPackage{}, nil, nil
+	}
+
+	// filter pkg components and determine if its a partial pkg
+	filteredComps, isPartialPkg, err := handleFilter(pkg, filter)
+	if err != nil {
+		return zarfTypes.ZarfPackage{}, nil, err
+	}
+	pkg.Components = filteredComps
 
 	dst.SetFromLayers(layers)
 
-	err = sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, r.isPartial)
+	err = sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, isPartialPkg)
 	if err != nil {
-		return err
+		return zarfTypes.ZarfPackage{}, nil, err
 	}
 
 	if unarchiveAll {
@@ -62,38 +98,47 @@ func (r *RemoteBundle) LoadPackage(dst *layout.PackagePaths, unarchiveAll bool) 
 				if layout.IsNotLoaded(err) {
 					_, err := dst.Components.Create(component)
 					if err != nil {
-						return err
+						return zarfTypes.ZarfPackage{}, nil, err
 					}
 				} else {
-					return err
+					return zarfTypes.ZarfPackage{}, nil, err
 				}
 			}
 		}
 
 		if dst.SBOMs.Path != "" {
 			if err := dst.SBOMs.Unarchive(); err != nil {
-				return err
+				return zarfTypes.ZarfPackage{}, nil, err
 			}
 		}
 	}
-	return nil
+	addNamespaceOverrides(&pkg, r.nsOverrides)
+
+	if config.Dev {
+		setAsYOLO(&pkg)
+	}
+
+	// ensure we're using the correct package name as specified by the bundle
+	pkg.Metadata.Name = r.Pkg.Name
+	return pkg, nil, err
 }
 
 // LoadPackageMetadata loads a Zarf package's metadata from a remote bundle
-func (r *RemoteBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ bool) (err error) {
-	root, err := r.Remote.FetchRoot()
+func (r *RemoteBundle) LoadPackageMetadata(_ context.Context, dst *layout.PackagePaths, _ bool, _ bool) (zarfTypes.ZarfPackage, []string, error) {
+	ctx := context.TODO()
+	root, err := r.Remote.FetchRoot(ctx)
 	if err != nil {
-		return err
+		return zarfTypes.ZarfPackage{}, nil, err
 	}
 	pkgManifestDesc := root.Locate(r.PkgManifestSHA)
 	if oci.IsEmptyDescriptor(pkgManifestDesc) {
-		return fmt.Errorf("zarf package %s with manifest sha %s not found", r.PkgName, r.PkgManifestSHA)
+		return zarfTypes.ZarfPackage{}, nil, fmt.Errorf("zarf package %s with manifest sha %s not found", r.Pkg.Name, r.PkgManifestSHA)
 	}
 
 	// look at Zarf pkg manifest, grab zarf.yaml desc and download it
-	pkgManifest, err := r.Remote.FetchManifest(pkgManifestDesc)
+	pkgManifest, err := r.Remote.FetchManifest(ctx, pkgManifestDesc)
 	if err != nil {
-		return err
+		return zarfTypes.ZarfPackage{}, nil, err
 	}
 
 	var zarfYAMLDesc ocispec.Descriptor
@@ -103,30 +148,30 @@ func (r *RemoteBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ b
 			break
 		}
 	}
-	zarfYAMLBytes, err := r.Remote.FetchLayer(zarfYAMLDesc)
+	pkgBytes, err := r.Remote.FetchLayer(ctx, zarfYAMLDesc)
 	if err != nil {
-		return err
+		return zarfTypes.ZarfPackage{}, nil, err
 	}
-	var zarfYAML zarfTypes.ZarfPackage
-	if err = goyaml.Unmarshal(zarfYAMLBytes, &zarfYAML); err != nil {
-		return err
+	var pkg zarfTypes.ZarfPackage
+	if err = goyaml.Unmarshal(pkgBytes, &pkg); err != nil {
+		return zarfTypes.ZarfPackage{}, nil, err
 	}
-	err = zarfUtils.WriteYaml(filepath.Join(dst.Base, config.ZarfYAML), zarfYAML, 0600)
+	err = zarfUtils.WriteYaml(filepath.Join(dst.Base, config.ZarfYAML), pkg, 0600)
 	if err != nil {
-		return err
+		return zarfTypes.ZarfPackage{}, nil, err
 	}
 
 	// grab checksums.txt so we can validate pkg integrity
 	var checksumLayer ocispec.Descriptor
 	for _, layer := range pkgManifest.Layers {
 		if layer.Annotations[ocispec.AnnotationTitle] == config.ChecksumsTxt {
-			checksumBytes, err := r.Remote.FetchLayer(layer)
+			checksumBytes, err := r.Remote.FetchLayer(ctx, layer)
 			if err != nil {
-				return err
+				return zarfTypes.ZarfPackage{}, nil, err
 			}
 			err = os.WriteFile(filepath.Join(dst.Base, config.ChecksumsTxt), checksumBytes, 0600)
 			if err != nil {
-				return err
+				return zarfTypes.ZarfPackage{}, nil, err
 			}
 			checksumLayer = layer
 			break
@@ -135,18 +180,21 @@ func (r *RemoteBundle) LoadPackageMetadata(dst *layout.PackagePaths, _ bool, _ b
 
 	dst.SetFromLayers([]ocispec.Descriptor{pkgManifestDesc, checksumLayer})
 
-	err = sources.ValidatePackageIntegrity(dst, zarfYAML.Metadata.AggregateChecksum, true)
-	return err
+	err = sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, true)
+	// ensure we're using the correct package name as specified by the bundle
+	pkg.Metadata.Name = r.Pkg.Name
+	return pkg, nil, err
 }
 
 // Collect doesn't need to be implemented
-func (r *RemoteBundle) Collect(_ string) (string, error) {
+func (r *RemoteBundle) Collect(_ context.Context, _ string) (string, error) {
 	return "", fmt.Errorf("not implemented in %T", r)
 }
 
 // downloadPkgFromRemoteBundle downloads a Zarf package from a remote bundle
 func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, error) {
-	rootManifest, err := r.Remote.FetchRoot()
+	ctx := context.TODO()
+	rootManifest, err := r.Remote.FetchRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -156,42 +204,50 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 		return nil, fmt.Errorf("package %s does not exist in this bundle", r.PkgManifestSHA)
 	}
 	// hack Zarf media type so that FetchManifest works
-	pkgManifestDesc.MediaType = oci.ZarfLayerMediaTypeBlob
-	pkgManifest, err := r.Remote.FetchManifest(pkgManifestDesc)
+	pkgManifestDesc.MediaType = zoci.ZarfLayerMediaTypeBlob
+	pkgManifest, err := r.Remote.FetchManifest(ctx, pkgManifestDesc)
 	if err != nil || pkgManifest == nil {
 		return nil, err
 	}
 
-	// only fetch layers that exist in the remote as optional ones might not exist
-	// todo: this is incredibly slow; maybe keep track of layers in bundle metadata instead of having to query the remote?
-	progressBar := message.NewProgressBar(int64(len(pkgManifest.Layers)), fmt.Sprintf("Verifying layers in Zarf package: %s", r.PkgName))
 	estimatedBytes := int64(0)
 	layersToPull := []ocispec.Descriptor{pkgManifestDesc}
 	layersInBundle := []ocispec.Descriptor{pkgManifestDesc}
 
-	for _, layer := range pkgManifest.Layers {
-		ok, err := r.Remote.Repo().Blobs().Exists(context.TODO(), layer)
-		if err != nil {
-			return nil, err
-		}
-		progressBar.Add(1)
-		if ok {
-			estimatedBytes += layer.Size
-			layersInBundle = append(layersInBundle, layer)
-			digest := layer.Digest.Encoded()
-			if strings.Contains(layer.Annotations[ocispec.AnnotationTitle], config.BlobsDir) && cache.Exists(digest) {
-				dst := filepath.Join(r.TmpDir, "images", config.BlobsDir)
-				err = cache.Use(digest, dst)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				layersToPull = append(layersToPull, layer)
-			}
+	// get pkg layers that we want to pull
+	pkgLayers, _, err := boci.FindBundledPkgLayers(ctx, r.Pkg, rootManifest, r.Remote)
+	if err != nil {
+		return nil, err
+	}
 
+	// todo: we seem to need to specifically pull the layers from the pkgManifest here, but not in the
+	// other location that FindBundledPkgLayers is called. Why is that?
+	// I believe it's bc here we are going to iterate through those layers and fill out a layout with
+	// the annotations from each desc (only pkgManifest layers contain the necessary annotations)
+
+	// correlate descs in pkg root manifest with the pkg layers to pull
+	for _, manifestLayer := range pkgManifest.Layers {
+		for _, pkgLayer := range pkgLayers {
+			if pkgLayer.Digest.Encoded() == manifestLayer.Digest.Encoded() {
+				layersInBundle = append(layersInBundle, manifestLayer)
+				digest := manifestLayer.Digest.Encoded()
+
+				// if it's an image layer and is in the cache, use it
+				if strings.Contains(manifestLayer.Annotations[ocispec.AnnotationTitle], config.BlobsDir) && cache.Exists(digest) {
+					dst := filepath.Join(r.TmpDir, "images", config.BlobsDir)
+					err = cache.Use(digest, dst)
+					if err != nil {
+						return nil, err
+					}
+				} else {
+					// not in cache, so pull
+					layersToPull = append(layersToPull, manifestLayer)
+					estimatedBytes += manifestLayer.Size
+				}
+				break // if layer is found, break out of inner loop
+			}
 		}
 	}
-	progressBar.Successf("Verified %s package", r.PkgName)
 
 	store, err := file.New(r.TmpDir)
 	if err != nil {
@@ -200,23 +256,16 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 	defer store.Close()
 
 	// copy zarf pkg to local store
-	copyOpts := utils.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
-	doneSaving := make(chan int)
-	errChan := make(chan int)
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go zarfUtils.RenderProgressBarForLocalDirWrite(r.TmpDir, estimatedBytes, &wg, doneSaving, errChan, fmt.Sprintf("Pulling bundled Zarf pkg: %s", r.PkgName), fmt.Sprintf("Successfully pulled package: %s", r.PkgName))
-	_, err = oras.Copy(context.TODO(), r.Remote.Repo(), r.Remote.Repo().Reference.String(), store, "", copyOpts)
+	copyOpts := boci.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
+	doneSaving := make(chan error)
+	go zarfUtils.RenderProgressBarForLocalDirWrite(r.TmpDir, estimatedBytes, doneSaving, fmt.Sprintf("Pulling bundled Zarf pkg: %s", r.Pkg.Name), fmt.Sprintf("Successfully pulled package: %s", r.Pkg.Name))
+
+	_, err = oras.Copy(ctx, r.Remote.Repo(), r.Remote.Repo().Reference.String(), store, "", copyOpts)
+	doneSaving <- err
+	<-doneSaving
 	if err != nil {
-		errChan <- 1
 		return nil, err
 	}
-	doneSaving <- 1
-	wg.Wait()
 
-	// need to substract 1 from layersInBundle because it includes the pkgManifestDesc and pkgManifest.Layers does not
-	if len(pkgManifest.Layers) != len(layersInBundle)-1 {
-		r.isPartial = true
-	}
 	return layersInBundle, nil
 }

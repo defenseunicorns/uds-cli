@@ -11,18 +11,26 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/interactive"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/pterm/pterm"
+	"helm.sh/helm/v3/pkg/chartutil"
 )
 
 // Create creates a bundle
 func (b *Bundle) Create() error {
 
 	// read the bundle's metadata into memory
-	if err := utils.ReadYaml(filepath.Join(b.cfg.CreateOpts.SourceDirectory, b.cfg.CreateOpts.BundleFile), &b.bundle); err != nil {
+	if err := utils.ReadYAMLStrict(filepath.Join(b.cfg.CreateOpts.SourceDirectory, b.cfg.CreateOpts.BundleFile), &b.bundle); err != nil {
+		return err
+	}
+
+	// Populate values from valuesFiles if provided
+	if err := b.processValuesFiles(); err != nil {
 		return err
 	}
 
@@ -44,7 +52,7 @@ func (b *Bundle) Create() error {
 	defer validateSpinner.Stop()
 
 	// validate bundle / verify access to all repositories
-	if err := b.ValidateBundleResources(&b.bundle, validateSpinner); err != nil {
+	if err := b.ValidateBundleResources(validateSpinner); err != nil {
 		return err
 	}
 
@@ -55,7 +63,7 @@ func (b *Bundle) Create() error {
 	if b.cfg.CreateOpts.SigningKeyPath != "" {
 		// write the bundle to disk so we can sign it
 		bundlePath := filepath.Join(b.tmp, config.BundleYAML)
-		if err := utils.WriteYaml(bundlePath, &b.bundle, 0600); err != nil {
+		if err := zarfUtils.WriteYaml(bundlePath, &b.bundle, 0600); err != nil {
 			return err
 		}
 
@@ -67,9 +75,17 @@ func (b *Bundle) Create() error {
 		}
 		// sign the bundle
 		signaturePath := filepath.Join(b.tmp, config.BundleYAMLSignature)
-		_, err := utils.CosignSignBlob(bundlePath, signaturePath, b.cfg.CreateOpts.SigningKeyPath, getSigCreatePassword)
+		_, err := zarfUtils.CosignSignBlob(bundlePath, signaturePath, b.cfg.CreateOpts.SigningKeyPath, getSigCreatePassword)
 		if err != nil {
 			return err
+		}
+	}
+
+	// for dev mode update package ref for local bundles, refs for remote bundles updated on deploy
+	if config.Dev && len(b.cfg.DevDeployOpts.Ref) != 0 {
+		for i, pkg := range b.bundle.Packages {
+			pkg = b.setPackageRef(pkg)
+			b.bundle.Packages[i] = pkg
 		}
 	}
 
@@ -80,6 +96,7 @@ func (b *Bundle) Create() error {
 		SourceDir: b.cfg.CreateOpts.SourceDirectory,
 	}
 	bundlerClient := bundler.NewBundler(&opts)
+
 	return bundlerClient.Create()
 }
 
@@ -87,7 +104,7 @@ func (b *Bundle) Create() error {
 func (b *Bundle) confirmBundleCreation() (confirm bool) {
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
-	utils.ColorPrintYAML(b.bundle, nil, false)
+	zarfUtils.ColorPrintYAML(b.bundle, nil, false)
 
 	message.HorizontalRule()
 	pterm.Println()
@@ -106,4 +123,65 @@ func (b *Bundle) confirmBundleCreation() (confirm bool) {
 		return false
 	}
 	return true
+}
+
+// processValuesFiles reads values from valuesFiles and updates the bundle with the override values
+func (b *Bundle) processValuesFiles() error {
+	// Populate values from valuesFiles if provided
+	for i, pkg := range b.bundle.Packages {
+		for componentName, overrides := range pkg.Overrides {
+			for chartName, bundleChartOverrides := range overrides {
+				valuesFilesToMerge := make([][]types.BundleChartValue, 0)
+				// Iterate over valuesFiles in reverse order to ensure subsequent value files takes precedence over previous ones
+				for _, valuesFile := range bundleChartOverrides.ValuesFiles {
+					// Check relative vs absolute path
+					fileName := filepath.Join(b.cfg.CreateOpts.SourceDirectory, valuesFile)
+					if filepath.IsAbs(valuesFile) {
+						fileName = valuesFile
+					}
+					// read values from valuesFile
+					values, err := chartutil.ReadValuesFile(fileName)
+					if err != nil {
+						return err
+					}
+					if len(values) > 0 {
+						// populate BundleChartValue slice to use for merging existing values
+						valuesFileValues := make([]types.BundleChartValue, 0, len(values))
+						for key, value := range values {
+							valuesFileValues = append(valuesFileValues, types.BundleChartValue{Path: key, Value: value})
+						}
+						valuesFilesToMerge = append(valuesFilesToMerge, valuesFileValues)
+					}
+				}
+				override := b.bundle.Packages[i].Overrides[componentName][chartName]
+				// add override values to the end of the list of values to merge since we want them to take precedence
+				valuesFilesToMerge = append(valuesFilesToMerge, override.Values)
+				override.Values = mergeBundleChartValues(valuesFilesToMerge...)
+				b.bundle.Packages[i].Overrides[componentName][chartName] = override
+			}
+		}
+	}
+	return nil
+}
+
+// mergeBundleChartValues merges lists of BundleChartValue using the values from the last list if there are any duplicates
+// such that values from the last list will take precedence over the values from previous lists
+func mergeBundleChartValues(bundleChartValueLists ...[]types.BundleChartValue) []types.BundleChartValue {
+	mergedMap := make(map[string]types.BundleChartValue)
+
+	// Iterate over each list in order
+	for _, bundleChartValues := range bundleChartValueLists {
+		// Add entries from the current list to the merged map, overwriting any existing entries
+		for _, bundleChartValue := range bundleChartValues {
+			mergedMap[bundleChartValue.Path] = bundleChartValue
+		}
+	}
+
+	// Convert the map to a slice
+	merged := make([]types.BundleChartValue, 0, len(mergedMap))
+	for _, value := range mergedMap {
+		merged = append(merged, value)
+	}
+
+	return merged
 }

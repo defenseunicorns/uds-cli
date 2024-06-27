@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/types"
@@ -22,87 +23,21 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
-	"github.com/pterm/pterm"
+	goyaml "github.com/goccy/go-yaml"
 	"golang.org/x/exp/slices"
 	"helm.sh/helm/v3/pkg/cli/values"
 	"helm.sh/helm/v3/pkg/getter"
 )
 
-// ZarfOverrideMap is a map of Zarf packages -> components -> Helm charts -> values
-type ZarfOverrideMap map[string]map[string]map[string]interface{}
+// PkgOverrideMap is a map of Zarf packages -> components -> Helm charts -> values/namespace
+type PkgOverrideMap map[string]map[string]map[string]interface{}
 
 // templatedVarRegex is the regex for templated variables
 var templatedVarRegex = regexp.MustCompile(`\${([^}]+)}`)
 
 // Deploy deploys a bundle
-//
-// : create a new provider
-// : pull the bundle's metadata + sig
-// : read the metadata into memory
-// : validate the sig (if present)
-// : loop through each package
-// : : load the package into a fresh temp dir
-// : : validate the sig (if present)
-// : : deploy the package
 func (b *Bundle) Deploy() error {
-	ctx := context.TODO()
-
-	pterm.Println()
-	metadataSpinner := message.NewProgressSpinner("Loading bundle metadata")
-
-	defer metadataSpinner.Stop()
-
-	// Check that provided oci source path is valid, and update it if it's missing the full path
-	source, err := CheckOCISourcePath(b.cfg.DeployOpts.Source)
-	if err != nil {
-		return err
-	}
-	b.cfg.DeployOpts.Source = source
-
-	// validate config's arch against cluster
-	err = ValidateArch(config.GetArch())
-	if err != nil {
-		return err
-	}
-
-	// create a new provider
-	provider, err := NewBundleProvider(ctx, b.cfg.DeployOpts.Source, b.tmp)
-	if err != nil {
-		return err
-	}
-
-	// pull the bundle's metadata + sig
-	loaded, err := provider.LoadBundleMetadata()
-	if err != nil {
-		return err
-	}
-
-	// validate the sig (if present)
-	if err := ValidateBundleSignature(loaded[config.BundleYAML], loaded[config.BundleYAMLSignature], b.cfg.DeployOpts.PublicKeyPath); err != nil {
-		return err
-	}
-
-	// read the bundle's metadata into memory
-	// todo: we also read the SHAs from the uds-bundle.yaml here, should we refactor so that we use the bundle's root manifest?
-	if err := utils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
-		return err
-	}
-
-	metadataSpinner.Successf("Loaded bundle metadata")
-
-	// confirm deploy
-	if ok := b.confirmBundleDeploy(); !ok {
-		return fmt.Errorf("bundle deployment cancelled")
-	}
-
-	// Check if --resume is set
 	resume := b.cfg.DeployOpts.Resume
-
-	// Maps name given to zarf package in the bundle to the actual name of the zarf package
-	zarfPackageNameMap, err := provider.ZarfPackageNameMap()
-	if err != nil {
-		return err
-	}
 
 	// Check if --packages flag is set and zarf packages have been specified
 	var packagesToDeploy []types.Package
@@ -119,13 +54,13 @@ func (b *Bundle) Deploy() error {
 		if len(userSpecifiedPackages) != len(packagesToDeploy) {
 			return fmt.Errorf("invalid zarf packages specified by --packages")
 		}
-		return deployPackages(packagesToDeploy, resume, b, zarfPackageNameMap)
+	} else {
+		packagesToDeploy = b.bundle.Packages
 	}
-
-	return deployPackages(b.bundle.Packages, resume, b, zarfPackageNameMap)
+	return deployPackages(packagesToDeploy, resume, b)
 }
 
-func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackageNameMap map[string]string) error {
+func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 	// map of Zarf pkgs and their vars
 	bundleExportedVars := make(map[string]map[string]string)
 
@@ -143,7 +78,12 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackag
 	}
 
 	// deploy each package
-	for _, pkg := range packagesToDeploy {
+	for i, pkg := range packagesToDeploy {
+		// for dev mode update package ref for remote bundles, refs for local bundles updated on create
+		if config.Dev && !strings.Contains(b.cfg.DeployOpts.Source, "tar.zst") {
+			pkg = b.setPackageRef(pkg)
+			b.bundle.Packages[i] = pkg
+		}
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 		pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
@@ -153,7 +93,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackag
 
 		publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
 		if pkg.PublicKey != "" {
-			if err := utils.WriteFile(publicKeyPath, []byte(pkg.PublicKey)); err != nil {
+			if err := os.WriteFile(publicKeyPath, []byte(pkg.PublicKey), helpers.ReadWriteUser); err != nil {
 				return err
 			}
 			defer os.Remove(publicKeyPath)
@@ -168,9 +108,10 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackag
 			OptionalComponents: strings.Join(pkg.OptionalComponents, ","),
 			PublicKeyPath:      publicKeyPath,
 			SetVariables:       pkgVars,
+			Retries:            b.cfg.DeployOpts.Retries,
 		}
 
-		valuesOverrides, err := b.loadChartOverrides(pkg, pkgVars)
+		valuesOverrides, nsOverrides, err := b.loadChartOverrides(pkg, pkgVars)
 		if err != nil {
 			return err
 		}
@@ -189,27 +130,27 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle, zarfPackag
 		// Automatically confirm the package deployment
 		zarfConfig.CommonOptions.Confirm = true
 
-		source, err := sources.New(b.cfg.DeployOpts.Source, zarfPackageNameMap[pkg.Name], opts, sha)
+		source, err := sources.New(*b.cfg, pkg, opts, sha, nsOverrides)
 		if err != nil {
 			return err
 		}
 
 		pkgClient := packager.NewOrDie(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
-		if err != nil {
-			return err
-		}
-		if err := pkgClient.Deploy(); err != nil {
+
+		if err := pkgClient.Deploy(context.TODO()); err != nil {
 			return err
 		}
 
 		// save exported vars
 		pkgExportedVars := make(map[string]string)
+		variableConfig := pkgClient.GetVariableConfig()
 		for _, exp := range pkg.Exports {
 			// ensure if variable exists in package
-			if _, ok := pkgCfg.SetVariableMap[exp.Name]; !ok {
+			setVariable, ok := variableConfig.GetSetVariable(exp.Name)
+			if !ok {
 				return fmt.Errorf("cannot export variable %s because it does not exist in package %s", exp.Name, pkg.Name)
 			}
-			pkgExportedVars[strings.ToUpper(exp.Name)] = pkgCfg.SetVariableMap[exp.Name].Value
+			pkgExportedVars[strings.ToUpper(exp.Name)] = setVariable.Value
 		}
 		bundleExportedVars[pkg.Name] = pkgExportedVars
 	}
@@ -227,7 +168,7 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 		}
 	}
 
-	// Set variables in order or precendence (least specific to most specific)
+	// Set variables in order or precedence (least specific to most specific)
 	// imported vars
 	for _, imp := range pkg.Imports {
 		pkgVars[strings.ToUpper(imp.Name)] = bundleExportedVars[imp.Package][imp.Name]
@@ -263,8 +204,8 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 	return pkgVars
 }
 
-// confirmBundleDeploy prompts the user to confirm bundle creation
-func (b *Bundle) confirmBundleDeploy() (confirm bool) {
+// ConfirmBundleDeploy uses Zarf's pterm logging to prompt the user to confirm bundle creation
+func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
 	utils.ColorPrintYAML(b.bundle, nil, false)
@@ -280,8 +221,6 @@ func (b *Bundle) confirmBundleDeploy() (confirm bool) {
 		Message: "Deploy this bundle?",
 	}
 
-	pterm.Println()
-
 	if err := survey.AskOne(prompt, &confirm); err != nil || !confirm {
 		return false
 	}
@@ -289,10 +228,11 @@ func (b *Bundle) confirmBundleDeploy() (confirm bool) {
 }
 
 // loadChartOverrides converts a helm path to a ValuesOverridesMap config for Zarf
-func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string) (ZarfOverrideMap, error) {
+func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string) (PkgOverrideMap, sources.NamespaceOverrideMap, error) {
 
-	// Create a nested map to hold the values
+	// Create nested maps to hold the overrides
 	overrideMap := make(map[string]map[string]*values.Options)
+	nsOverrides := make(sources.NamespaceOverrideMap)
 
 	// Loop through each package component's charts and process overrides
 	for componentName, component := range pkg.Overrides {
@@ -300,18 +240,19 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string
 			chartCopy := chart // Create a copy of the chart
 			err := b.processOverrideValues(&overrideMap, &chartCopy.Values, componentName, chartName, pkgVars)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			err = b.processOverrideVariables(&overrideMap, pkg.Name, &chartCopy.Variables, componentName, chartName)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
+			b.processOverrideNamespaces(nsOverrides, chartCopy.Namespace, componentName, chartName)
 		}
 	}
 
-	processed := make(ZarfOverrideMap)
+	processed := make(PkgOverrideMap)
 
-	// Convert the options.Values map to the ZarfOverrideMap format
+	// Convert the options.Values map (located in chart.MergeValues) to the PkgOverrideMap format
 	for componentName, component := range overrideMap {
 		// Create a map to hold all the charts in the component
 		componentMap := make(map[string]map[string]interface{})
@@ -325,7 +266,7 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string
 			// Merge the chart values with Helm
 			data, err := chart.MergeValues(getter.Providers{})
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			// Add the chart values to the component map
@@ -336,14 +277,75 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string
 		processed[componentName] = componentMap
 	}
 
-	return processed, nil
+	return processed, nsOverrides, nil
+}
+
+// PreDeployValidation validates the bundle before deployment
+func (b *Bundle) PreDeployValidation() (string, string, string, error) {
+
+	// Check that provided oci source path is valid, and update it if it's missing the full path
+	source, err := CheckOCISourcePath(b.cfg.DeployOpts.Source)
+	if err != nil {
+		return "", "", "", err
+	}
+	b.cfg.DeployOpts.Source = source
+
+	// create a new provider
+	provider, err := NewBundleProvider(b.cfg.DeployOpts.Source, b.tmp)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// pull the bundle's metadata + sig
+	loaded, err := provider.LoadBundleMetadata()
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// validate the sig (if present)
+	if err := ValidateBundleSignature(loaded[config.BundleYAML], loaded[config.BundleYAMLSignature], b.cfg.DeployOpts.PublicKeyPath); err != nil {
+		return "", "", "", err
+	}
+
+	// read in file at config.BundleYAML
+	message.Debugf("Reading YAML at %s", loaded[config.BundleYAML])
+	bundleYAML, err := os.ReadFile(loaded[config.BundleYAML])
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// todo: we also read the SHAs from the uds-bundle.yaml here, should we refactor so that we use the bundle's root manifest?
+	if err := goyaml.Unmarshal(bundleYAML, &b.bundle); err != nil {
+		return "", "", "", err
+	}
+
+	// validate bundle's arch against cluster
+	err = ValidateArch(config.GetArch(b.bundle.Build.Architecture))
+	if err != nil {
+		return "", "", "", err
+	}
+
+	bundleName := b.bundle.Metadata.Name
+	return bundleName, string(bundleYAML), source, err
+}
+
+// processOverrideNamespaces processes a bundles namespace overrides and adds them to the override map
+func (b *Bundle) processOverrideNamespaces(overrideMap sources.NamespaceOverrideMap, ns string, componentName string, chartName string) {
+	if ns == "" {
+		return // no namespace override
+	}
+	// check if component exists in override map
+	if _, ok := overrideMap[componentName]; !ok {
+		overrideMap[componentName] = make(map[string]string)
+	}
+	overrideMap[componentName][chartName] = ns
 }
 
 // processOverrideValues processes a bundles values overrides and adds them to the override map
 func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values *[]types.BundleChartValue, componentName string, chartName string, pkgVars map[string]string) error {
 	for _, v := range *values {
 		// Add the override to the map, or return an error if the path is invalid
-		if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, v.Value, pkgVars); err != nil {
+		if err := addOverride(*overrideMap, componentName, chartName, v, v.Value, pkgVars); err != nil {
 			return err
 		}
 	}
@@ -356,32 +358,46 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 		var overrideVal interface{}
 		// Ensuring variable name is upper case since comparisons are being done against upper case env and config variables
 		v.Name = strings.ToUpper(v.Name)
-		// check for override in env vars
-		if envVarOverride, exists := os.LookupEnv(strings.ToUpper(config.EnvVarPrefix + v.Name)); exists {
-			if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, envVarOverride, nil); err != nil {
-				return err
+
+		// check for override in --set vars
+		for k, val := range b.cfg.DeployOpts.SetVariables {
+			if strings.Contains(k, ".") {
+				// check for <pkg>.<var> syntax was used in --set and use uppercase for a non-case-sensitive comparison
+				setVal := strings.Split(k, ".")
+				if setVal[0] == pkgName && strings.ToUpper(setVal[1]) == v.Name {
+					overrideVal = val
+					v.Source = b.getSourcePath(types.CLI)
+				}
+			} else if strings.ToUpper(k) == v.Name {
+				overrideVal = val
+				v.Source = b.getSourcePath(types.CLI)
 			}
-			continue
 		}
-		// check for override in config
-		configFileOverride, existsInConfig := b.cfg.DeployOpts.Variables[pkgName][v.Name]
-		sharedConfigOverride, existsInSharedConfig := b.cfg.DeployOpts.SharedVariables[v.Name]
-		if v.Default == nil && !existsInConfig && !existsInSharedConfig {
-			// no default and not in config, use values from underlying chart
-			continue
-		} else if existsInConfig {
-			// if set in config
-			overrideVal = configFileOverride
-		} else if existsInSharedConfig {
-			// if set in shared config
-			overrideVal = sharedConfigOverride
-		} else {
-			// use default v if no config v is set
-			overrideVal = v.Default
+
+		// check for override in env vars if not in --set
+		if envVarOverride, exists := os.LookupEnv(strings.ToUpper(config.EnvVarPrefix + v.Name)); overrideVal == nil && exists {
+			overrideVal = envVarOverride
+			v.Source = b.getSourcePath(types.Env)
+		}
+
+		// if not in --set or an env var, use the following precedence: configFile, sharedConfig, default
+		if overrideVal == nil {
+			if configFileOverride, existsInConfig := b.cfg.DeployOpts.Variables[pkgName][v.Name]; existsInConfig {
+				overrideVal = configFileOverride
+				v.Source = b.getSourcePath(types.Config)
+			} else if sharedConfigOverride, existsInSharedConfig := b.cfg.DeployOpts.SharedVariables[v.Name]; existsInSharedConfig {
+				overrideVal = sharedConfigOverride
+				v.Source = b.getSourcePath(types.Config)
+			} else if v.Default != nil {
+				overrideVal = v.Default
+				v.Source = b.getSourcePath(types.Bundle)
+			} else {
+				continue
+			}
 		}
 
 		// Add the override to the map, or return an error if the path is invalid
-		if err := addOverrideValue(*overrideMap, componentName, chartName, v.Path, overrideVal, nil); err != nil {
+		if err := addOverride(*overrideMap, componentName, chartName, v, overrideVal, nil); err != nil {
 			return err
 		}
 
@@ -389,8 +405,8 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 	return nil
 }
 
-// addOverrideValue adds a value to a ZarfOverrideMap
-func addOverrideValue(overrides map[string]map[string]*values.Options, component string, chart string, valuePath string, value interface{}, pkgVars map[string]string) error {
+// addOverride adds a value or variable to a PkgOverrideMap
+func addOverride[T types.ChartOverride](overrides map[string]map[string]*values.Options, component string, chart string, override T, value interface{}, pkgVars map[string]string) error {
 	// Create the component map if it doesn't exist
 	if _, ok := overrides[component]; !ok {
 		overrides[component] = make(map[string]*values.Options)
@@ -399,6 +415,23 @@ func addOverrideValue(overrides map[string]map[string]*values.Options, component
 	// Create the chart map if it doesn't exist
 	if _, ok := overrides[component][chart]; !ok {
 		overrides[component][chart] = &values.Options{}
+	}
+
+	var valuePath string
+
+	switch v := any(override).(type) {
+	case types.BundleChartValue:
+		valuePath = v.Path
+	case types.BundleChartVariable:
+		valuePath = v.Path
+		if v.Type == types.File {
+			if fileVals, err := addFileValue(overrides[component][chart].FileValues, value.(string), v); err == nil {
+				overrides[component][chart].FileValues = fileVals
+			} else {
+				return err
+			}
+			return nil
+		}
 	}
 
 	// Add the value to the chart map
@@ -438,11 +471,29 @@ func addOverrideValue(overrides map[string]map[string]*values.Options, component
 			templatedVariable := fmt.Sprintf("%v", v)
 			value = setTemplatedVariables(templatedVariable, pkgVars)
 		}
-		// handle default case of simple values like strings and numbers
+
+		// Handle default case of simple values like strings and numbers
 		helmVal := fmt.Sprintf("%s=%v", valuePath, value)
 		overrides[component][chart].Values = append(overrides[component][chart].Values, helmVal)
 	}
 	return nil
+}
+
+// getSourcePath returns the path from where a value is set
+func (b *Bundle) getSourcePath(pathType types.ValueSources) string {
+	var sourcePath string
+	switch pathType {
+	case types.CLI:
+		sourcePath, _ = os.Getwd()
+	case types.Env:
+		sourcePath, _ = os.Getwd()
+	case types.Bundle:
+		sourcePath = filepath.Dir(b.cfg.DeployOpts.Source)
+	case types.Config:
+		sourcePath = filepath.Dir(b.cfg.DeployOpts.Config)
+	}
+
+	return sourcePath
 }
 
 // setTemplatedVariables sets the value for the templated variables
@@ -451,11 +502,42 @@ func setTemplatedVariables(templatedVariables string, pkgVars map[string]string)
 	replacedValue := templatedVarRegex.ReplaceAllStringFunc(templatedVariables, func(match string) string {
 		// returns slice with the templated variable and the variable name
 		variableName := templatedVarRegex.FindStringSubmatch(match)[1]
-		// If we have a templated variable, get the value from pkgVars
-		if varValue, ok := pkgVars[variableName]; ok {
+		// If we have a templated variable, get the value from pkgVars (use uppercase for case-insensitive comparison)
+		if varValue, ok := pkgVars[strings.ToUpper(variableName)]; ok {
 			return varValue
 		}
 		return fmt.Sprintf("${%s_not_found}", variableName)
 	})
 	return replacedValue
+}
+
+// addFileValue adds a key=filepath string to helm FileValues
+func addFileValue(helmFileVals []string, filePath string, override types.BundleChartVariable) ([]string, error) {
+	verifiedPath, err := formFilePath(override.Source, filePath)
+	if err != nil {
+		return nil, err
+	}
+	helmVal := fmt.Sprintf("%s=%v", override.Path, verifiedPath)
+	return append(helmFileVals, helmVal), nil
+}
+
+// formFilePath merges relative paths together to form full path and checks if the file exists
+func formFilePath(anchorPath string, filePath string) (string, error) {
+	if !filepath.IsAbs(filePath) {
+		// set path relative to anchorPath (i.e. cwd or config), unless they are the same
+		if anchorPath != filepath.Dir(filePath) {
+			filePath = filepath.Join(anchorPath, filePath)
+		}
+	}
+
+	if helpers.InvalidPath(filePath) {
+		return "", fmt.Errorf("unable to find file %s", filePath)
+	}
+
+	_, err := helpers.IsTextFile(filePath)
+	if err != nil {
+		return "", err
+	}
+
+	return filePath, nil
 }

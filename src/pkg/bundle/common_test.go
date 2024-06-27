@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2023-Present The UDS Authors
+
+// Package bundle contains functions for interacting with, managing and deploying UDS packages
 package bundle
 
 import (
@@ -5,6 +9,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_validateBundleVars(t *testing.T) {
@@ -27,7 +32,8 @@ func Test_validateBundleVars(t *testing.T) {
 				},
 			},
 			wantErr: false,
-		}, {
+		},
+		{
 			name:        "ImportDoesntMatchExport",
 			description: "error when import doesn't match export",
 			args: args{
@@ -37,7 +43,8 @@ func Test_validateBundleVars(t *testing.T) {
 				},
 			},
 			wantErr: true,
-		}, {
+		},
+		{
 			name:        "FirstPkgHasImport",
 			description: "error when first pkg has an import",
 			args: args{
@@ -62,9 +69,12 @@ func Test_validateBundleVars(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := validateBundleVars(tt.args.packages); (err != nil) != tt.wantErr {
-				t.Errorf("validateBundleVars() error = %v, wantErr %v", err, tt.wantErr)
+			err := validateBundleVars(tt.args.packages)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
 			}
+			require.NoError(t, err)
 		})
 	}
 }
@@ -137,9 +147,77 @@ func Test_validateOverrides(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := validateOverrides(tt.args.bundlePackage, tt.args.zarfPackage); (err != nil) != tt.wantErr {
-				t.Errorf("validateOverrides() error = %v, wantErr %v", err, tt.wantErr)
+			err := validateOverrides(tt.args.bundlePackage, tt.args.zarfPackage)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
 			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func Test_getPkgPath(t *testing.T) {
+	type args struct {
+		pkg    types.Package
+		arch   string
+		srcDir string
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "init full path",
+			args: args{
+				pkg:    types.Package{Name: "init", Ref: "0.0.1", Path: "../fake/path/custom-init.tar.zst"},
+				arch:   "fake64",
+				srcDir: "/mock/source",
+			},
+			want: "/mock/fake/path/custom-init.tar.zst",
+		},
+		{
+			name: "init directory only path",
+			args: args{
+				pkg:    types.Package{Name: "init", Ref: "0.0.1", Path: "../fake/path"},
+				arch:   "fake64",
+				srcDir: "/mock/source",
+			},
+			want: "/mock/fake/path/zarf-init-fake64-0.0.1.tar.zst",
+		},
+		{
+			name: "full path",
+			args: args{
+				pkg:    types.Package{Name: "nginx", Ref: "0.0.1", Path: "./fake/zarf-package-nginx-fake64-0.0.1.tar.zst"},
+				arch:   "fake64",
+				srcDir: "/mock/source",
+			},
+			want: "/mock/source/fake/zarf-package-nginx-fake64-0.0.1.tar.zst",
+		},
+		{
+			name: "directory only path",
+			args: args{
+				pkg:    types.Package{Name: "nginx", Ref: "0.0.1", Path: "fake"},
+				arch:   "fake64",
+				srcDir: "/mock/source",
+			},
+			want: "/mock/source/fake/zarf-package-nginx-fake64-0.0.1.tar.zst",
+		},
+		{
+			name: "absolute path",
+			args: args{
+				pkg:    types.Package{Name: "nginx", Ref: "0.0.1", Path: "/fake/zarf-package-nginx-fake64-0.0.1.tar.zst"},
+				arch:   "fake64",
+				srcDir: "/mock/source",
+			},
+			want: "/fake/zarf-package-nginx-fake64-0.0.1.tar.zst",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := getPkgPath(tt.args.pkg, tt.args.arch, tt.args.srcDir)
+			require.Equal(t, tt.want, path)
 		})
 	}
 }

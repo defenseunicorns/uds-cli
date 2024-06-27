@@ -27,7 +27,7 @@ func TestBundleCreateAndPublishGHCR(t *testing.T) {
 
 	registryURL := "oci://ghcr.io/defenseunicorns/packages/uds-cli/test/publish"
 	bundleGHCRPath := "defenseunicorns/packages/uds-cli/test/publish"
-	tarballPath := filepath.Join("build", fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch))
+	bundleTarballName := fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch)
 	bundleRef := registry.Reference{
 		Registry:   registryURL,
 		Repository: "ghcr-test",
@@ -41,7 +41,7 @@ func TestBundleCreateAndPublishGHCR(t *testing.T) {
 	registryURL = "ghcr.io/defenseunicorns/packages/uds-cli/test/publish"
 	publish(t, bundlePathAMD, registryURL)
 	inspectRemote(t, bundlePathARM)
-	pull(t, bundleRef.String(), tarballPath)
+	pull(t, bundleRef.String(), bundleTarballName)
 	deploy(t, bundleRef.String())
 	remove(t, bundleRef.String())
 

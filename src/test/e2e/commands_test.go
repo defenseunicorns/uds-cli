@@ -15,14 +15,21 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // This file contains helpers for running UDS CLI commands (ie. uds create/deploy/etc with various flags and options)
+
+func zarfPublish(t *testing.T, path string, reg string) {
+	args := strings.Split(fmt.Sprintf("zarf package publish %s oci://%s --insecure --oci-concurrency=10 -l debug --no-progress", path, reg), " ")
+	_, _, err := e2e.UDS(args...)
+	require.NoError(t, err)
+}
 
 func createLocal(t *testing.T, bundlePath string, arch string) {
 	cmd := strings.Split(fmt.Sprintf("create %s --insecure --confirm -a %s", bundlePath, arch), " ")
@@ -34,6 +41,12 @@ func createLocalError(bundlePath string, arch string) (stderr string) {
 	cmd := strings.Split(fmt.Sprintf("create %s --insecure --confirm -a %s", bundlePath, arch), " ")
 	_, stderr, _ = e2e.UDS(cmd...)
 	return stderr
+}
+
+func createLocalWithOuputFlag(t *testing.T, bundlePath string, destPath string, arch string) {
+	cmd := strings.Split(fmt.Sprintf("create %s -o %s --insecure --confirm -a %s", bundlePath, destPath, arch), " ")
+	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
 }
 
 func createRemoteInsecure(t *testing.T, bundlePath, registry, arch string) {
@@ -99,7 +112,21 @@ func inspectLocalAndSBOMExtract(t *testing.T, tarballPath string) {
 }
 
 func deploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm", tarballPath), " ")
+	cmd := strings.Split(fmt.Sprintf("deploy %s --retries 1 --confirm", tarballPath), " ")
+	stdout, stderr, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	return stdout, stderr
+}
+
+func devDeploy(t *testing.T, bundlePath string) (stdout string, stderr string) {
+	cmd := strings.Split(fmt.Sprintf("dev deploy %s", bundlePath), " ")
+	stdout, stderr, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	return stdout, stderr
+}
+
+func devDeployPackages(t *testing.T, tarballPath string, packages string) (stdout string, stderr string) {
+	cmd := strings.Split(fmt.Sprintf("dev deploy %s --packages %s", tarballPath, packages), " ")
 	stdout, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 	return stdout, stderr
@@ -124,8 +151,8 @@ func deployResumeFlag(t *testing.T, tarballPath string) {
 	require.NoError(t, err)
 }
 
-func remove(t *testing.T, tarballPath string) {
-	cmd := strings.Split(fmt.Sprintf("remove %s --confirm --insecure", tarballPath), " ")
+func remove(t *testing.T, source string) {
+	cmd := strings.Split(fmt.Sprintf("remove %s --confirm --insecure", source), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
@@ -136,13 +163,25 @@ func removePackagesFlag(tarballPath string, packages string) (stdout string, std
 	return stdout, stderr
 }
 
-func deployAndRemoveRemote(t *testing.T, ref string, tarballPath string) {
+func deployInsecure(t *testing.T, ref string) {
+	cmd := strings.Split(fmt.Sprintf("deploy %s --insecure --confirm", ref), " ")
+	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+}
+
+func removeInsecure(t *testing.T, remote string) {
+	cmd := strings.Split(fmt.Sprintf("remove %s --insecure --confirm", remote), " ")
+	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+}
+
+func deployAndRemoveLocalAndRemoteInsecure(t *testing.T, ref string, tarballPath string) {
 	var cmd []string
 	// test both paths because we want to test that the pulled tarball works as well
 	t.Run(
 		"deploy+remove bundle via OCI",
 		func(t *testing.T) {
-			cmd = strings.Split(fmt.Sprintf("deploy %s --insecure --oci-concurrency=10 --confirm", ref), " ")
+			cmd = strings.Split(fmt.Sprintf("deploy %s --insecure --confirm", ref), " ")
 			_, _, err := e2e.UDS(cmd...)
 			require.NoError(t, err)
 
@@ -167,12 +206,15 @@ func deployAndRemoveRemote(t *testing.T, ref string, tarballPath string) {
 }
 
 func shasMatch(t *testing.T, path string, expected string) {
-	actual, err := utils.GetSHA256OfFile(path)
+	actual, err := helpers.GetSHA256OfFile(path)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
 
-func pull(t *testing.T, ref string, tarballPath string) {
+func pull(t *testing.T, ref string, tarballName string) {
+	if !strings.HasSuffix(tarballName, "tar.zst") {
+		t.Fatalf("second arg to pull() must be the name a bundle tarball, got %s", tarballName)
+	}
 	// todo: output somewhere other than build?
 	cmd := strings.Split(fmt.Sprintf("pull %s -o build --insecure --oci-concurrency=10", ref), " ")
 	_, _, err := e2e.UDS(cmd...)
@@ -181,7 +223,7 @@ func pull(t *testing.T, ref string, tarballPath string) {
 	decompressed := "build/decompressed-bundle"
 	defer e2e.CleanFiles(decompressed)
 
-	cmd = []string{"zarf", "tools", "archiver", "decompress", tarballPath, decompressed}
+	cmd = []string{"zarf", "tools", "archiver", "decompress", filepath.Join("build", tarballName), decompressed}
 	_, _, err = e2e.UDS(cmd...)
 	require.NoError(t, err)
 
@@ -224,7 +266,7 @@ func publish(t *testing.T, bundlePath, ociPath string) {
 }
 
 func publishInsecure(t *testing.T, bundlePath, ociPath string) {
-	cmd := strings.Split(fmt.Sprintf("publish %s %s --insecure --oci-concurrency=10", bundlePath, ociPath), " ")
+	cmd := strings.Split(fmt.Sprintf("publish %s %s --insecure", bundlePath, ociPath), " ")
 	_, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 }
@@ -254,4 +296,13 @@ func queryIndex(t *testing.T, registryURL, bundlePath string) (ocispec.Index, er
 	}
 	err = json.Unmarshal(body, &index)
 	return index, err
+}
+
+func removeZarfInit() {
+	cmd := strings.Split("zarf tools kubectl delete namespace zarf", " ")
+	_, _, err := e2e.UDS(cmd...)
+	message.WarnErr(err, "Failed to delete zarf namespace")
+	cmd = strings.Split("zarf tools kubectl delete mutatingwebhookconfiguration.admissionregistration.k8s.io/zarf", " ")
+	_, _, err = e2e.UDS(cmd...)
+	message.WarnErr(err, "Failed to delete zarf webhook")
 }

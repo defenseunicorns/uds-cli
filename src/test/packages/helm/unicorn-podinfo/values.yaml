@@ -1,4 +1,5 @@
 testSecret: "dGVzdC1zZWNyZXQ=" # test-secret
+testFileSecret: ""
 podinfo:
   ui:
     color: "purple"

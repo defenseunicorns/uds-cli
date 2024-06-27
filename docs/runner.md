@@ -1,375 +1,70 @@
-# UDS Runner
-
-UDS runner enables UDS Bundle developers to automate UDS builds and perform common shell tasks. It
-uses [Zarf](https://zarf.dev/) under the hood to perform tasks and shares a syntax similar to `zarf.yaml` manifests.
-Many [Zarf Actions features](https://docs.zarf.dev/docs/create-a-zarf-package/component-actions) are also available in
-UDS runner.
-
-## Table of Contents
-
-- [UDS Runner](#uds-runner)
-  - [Quickstart](#quickstart)
-  - [Key Concepts](#key-concepts)
-    - [Tasks](#tasks)
-    - [Actions](#actions)
-      - [Task](#task)
-      - [Cmd](#cmd)
-    - [Variables](#variables)
-    - [Files](#files)
-    - [Wait](#wait)
-    - [Includes](#includes)
-    - [Task Inputs and Reusable Tasks](#task-inputs-and-reusable-tasks)
+---
+title: UDS Runner
+type: docs
+weight: 4
+---
+UDS CLI contains vendors and configures the [maru-runner](https://github.com/defenseunicorns/maru-runner) build tool to make compiling and building UDS bundles simple.
 
 ## Quickstart
 
-Create a file called `tasks.yaml`
+### Running a Task
+
+To run a task from a `tasks.yaml`:
+
+```bash
+uds run <task-name>
+```
+
+#### Running a Task from a specific tasks file
+
+```bash
+uds run -f <path/to/tasks.yaml> <task-name>
+```
+
+The Maru [docs](https://github.com/defenseunicorns/maru-runner) describe how to build `tasks.yaml` files to configure the runner. The functionality in UDS CLI is mostly identical with the following exceptions
+
+### Variables Set with Environment Variables
+
+When running a `tasks.yaml` with `uds run my-task` you can set variables using environment prefixed with `UDS_`
+
+For example, running `UDS_FOO=bar uds run echo-foo` on the following task will echo `bar`.
 
 ```yaml
 variables:
-  - name: FOO
-    default: foo
-
+ - name: FOO
+   default: foo
 tasks:
-  - name: default
-    actions:
-      - cmd: echo "run default task"
-
-  - name: example
-    actions:
-      - task: set-variable
-      - task: echo-variable
-
-  - name: set-variable
-    actions:
-      - cmd: echo "bar"
-        setVariables:
-          - name: FOO
-
-  - name: echo-variable
-    actions:
-      - cmd: echo ${FOO}
+ - name: echo-foo
+   actions:
+     - cmd: echo ${FOO}
 ```
 
-From the same directory as the `tasks.yaml`, run the `example` task using:
+### Running UDS and Zarf Commands
 
-```bash
-uds run example
-```
-
-This will run the `example` tasks which in turn runs the `set-variable` and `echo-variable`. In this example, the text "
-bar" should be printed to the screen twice.
-
-Optionally, you can specify the location and name of your `tasks.yaml` using the `--file` or `-f` flag:
-
-```bash
-uds run example -f tmp/tasks.yaml
-```
-
-You can also view the tasks that are available to run using the `list` flag:
-
-```bash
-uds run -f tmp/tasks.yaml --list
-```
-
-## Key Concepts
-
-### Tasks
-
-Tasks are the fundamental building blocks of the UDS runner and they define operations to be performed. The `tasks` key
-at the root of `tasks.yaml` define a list of tasks to be run. This underlying operations performed by a task are defined
-under the `actions` key:
+To run `uds` commands from within a task, you can invoke your system `uds` binary using the `./uds` syntax. Similarly, UDS CLI vendors Zarf, and tasks can run vendored Zarf commands using `./zarf`. For example:
 
 ```yaml
 tasks:
-  - name: all-the-tasks
-    actions:
-      - task: make-build-dir
-      - task: install-deps
+- name: default
+  actions:
+    - cmd: ./uds inspect k3d-core-istio-dev:0.16.1 # uses system uds
+    - cmd: ./zarf tools kubectl get pods -A        # uses vendored Zarf
 ```
 
-In this example, the name of the task is "all-the-tasks", and it is composed of multiple sub-tasks to run. These sub-tasks
-would also be defined in the list of `tasks`:
+### Architecture Environment Variable
+
+When running tasks with `uds run`, there is a special `UDS_ARCH` environment variable accessible within tasks that is automatically set to your system architecture, but is also configurable with a `UDS_ARCHITECTURE` environmental variable. For example:
 
 ```yaml
 tasks:
-  - name: default
-    actions:
-      - cmd: echo "run default task"
-
-  - name: all-the-tasks
-    actions:
-      - task: make-build-dir
-      - task: install-deps
-
-  - name: make-build-dir
-    actions:
-      - cmd: mkdir -p build
-
-  - name: install-deps
-    actions:
-      - cmd: go mod tidy
+- name: print-arch
+  actions:
+    - cmd: echo ${UDS_ARCH}
 ```
 
-Using the UDS CLI, these tasks can be run individually:
+- Running `uds run print-arch` will echo your local system architecture
+- Running `UDS_ARCHITECTURE=amd64 uds run print-arch` will echo "amd64"
 
-```bash
-uds run all-the-tasks   # runs all-the-tasks, which calls make-build-dir and install-deps
-uds run make-build-dir  # only runs make-build-dir
-```
+### No Dependency on Zarf
 
-#### Default Tasks
-In the above example, there is also a `default` task, which is special, optional, task that can be used for the most common entrypoint for your tasks. When trying to run the `default` task, you can omit the task name from the run command:
-
-```bash
-uds run
-```
-
-### Actions
-
-Actions are the underlying operations that a task will perform. Each action under the `actions` key has a unique syntax.
-
-#### Task
-
-A task can reference a task, thus making tasks composable.
-
-```yaml
-tasks:
-  - name: foo
-    actions:
-      - task: bar
-  - name: bar
-    actions:
-      - task: baz
-  - name: baz
-    actions:
-      - cmd: "echo task foo is composed of task bar which is composed of task baz!"
-```
-
-In this example, the task `foo` calls a task called `bar` which calls a task `baz` which prints some output to the
-console.
-
-#### Cmd
-
-Actions can run arbitrary bash commands including in-line scripts, and the output of a command can be placed in a
-variable using the `setVariables` key
-
-```yaml
-tasks:
-  - name: foo
-    actions:
-      - cmd: echo -n 'dHdvIHdlZWtzIG5vIHByb2JsZW0=' | base64 -d
-        setVariables:
-          - name: FOO
-```
-
-This task will decode the base64 string and set the value as a variable named `FOO` that can be used in other tasks.
-
-Command blocks can have several other properties including:
-
-- `description`: description of the command
-  - `mute`: boolean value to mute the output of a command
-  - `dir`: the directory to run the command in
-  - `env`: list of environment variables to run for this `cmd` block only
-
-    ```yaml
-    tasks:
-      - name: foo
-        actions:
-          - cmd: echo ${BAR}
-            env:
-              - BAR=bar
-    ```
-
-  - `maxRetries`: number of times to retry the command
-  - `maxTotalSeconds`: max number of seconds the command can run until it is killed; takes precendence
-    over `maxRetries`
-
-### Variables
-
-Variables can be defined in several ways:
-
-1. At the top of the `tasks.yaml`
-
-   ```yaml
-   variables:
-     - name: FOO
-       default: foo
-
-   tasks: ...
-   ```
-
-1. As the output of a `cmd`
-
-   ```yaml
-   variables:
-     - name: FOO
-       default: foo
-   tasks:
-     - name: foo
-       actions:
-         - cmd: uname -m
-           mute: true
-           setVariables:
-             - name: FOO
-         - cmd: echo ${FOO}
-   ```
-
-1. As an environment variable prefixed with `UDS_`. In the example above, if you create an env var `UDS_FOO=bar`, then the`FOO` variable would be set to `bar`.
-
-1. Using the `--set` flag in the CLI : `uds run foo --set FOO=bar`
-
-To use a variable, reference it using `${VAR_NAME}`
-
-Note that variables also have the following attributes when setting them with YAML:
-
-- `sensitive`: boolean value indicating if a variable should be visible in output
-- `default`: default value of a variable
-  - In the example above, if `FOO` did not have a default, and you have an environment variable `UDS_FOO=bar`, the default would get set to `bar`.
-
-#### Environment Variable Files
-
-To include a file containing environment variables that you'd like to load into a task, use the `envPath` key in the task. This will load all of the environment variables in the file into the task being called and its child tasks.
-
-```yaml
-tasks:
-  - name: env
-    actions:
-      - cmd: echo $FOO
-      - cmd: echo $UDS_ARCH
-      - task: echo-env
-  - name: echo-env
-    envPath: ./path/to/.env
-    actions:
-      - cmd: echo different task $FOO
-```
-
-
-#### Variable Precedence
-Variable precedence is as follows, from least to most specific:
-- Variable defaults set in YAML
-- Environment variables prefixed with `UDS_`
-- Variables set with the `--set` flag in the CLI
-
-That is to say, variables set via the `--set` flag take precedence over all other variables. The exception to this precedence order is when a variable is modified using `setVariable`, which will change the value of the variable during runtime.
-
-### Files
-
-The `files` key is used to copy local or remote files to the current working directory
-
-```yaml
-tasks:
-  - name: copy-local
-    files:
-      - source: /tmp/foo
-        target: foo
-  - name: copy-remote
-    files:
-      - source: https://cataas.com/cat
-        target: cat.jpeg
-```
-
-Files blocks can also use the following attributes:
-
-- `executable`: boolean value indicating if the file is executable
-- `shasum`: SHA string to verify the integrity of the file
-- `symlinks`: list of strings referring to symlink the file to
-
-### Wait
-
-The `wait`key is used to block execution while waiting for a resource, including network responses and K8s operations
-
-```yaml
-tasks:
-  - name: network-response
-    wait:
-      network:
-        protocol: https
-        address: 1.1.1.1
-        code: 200
-  - name: configmap-creation
-    wait:
-      cluster:
-        kind: configmap
-        name: simple-configmap
-        namespace: foo
-```
-
-### Includes
-
-The `includes` key is used to import tasks from either local or remote task files. This is useful for sharing common tasks across multiple task files. When importing a task from a local task file, the path is relative to the file you are currently in. When running a task, the tasks in the task file as well as the `includes` get processed to ensure there are no infinite loop references.
-
-```yaml
-includes:
-  - local: ./path/to/tasks-to-import.yaml
-  - remote: https://raw.githubusercontent.com/defenseunicorns/uds-cli/main/src/test/tasks/remote-import-tasks.yaml
-
-tasks:
-  - name: import-local
-    actions:
-      - task: local:some-local-task
-  - name: import-remote
-    actions:
-      - task: remote:echo-var
-```
-
-Note that included task files can also include other task files, with the following restriction:
-
-- If a task file includes a remote task file, the included remote task file cannot include any local task files
-
-### Task Inputs and Reusable Tasks
-
-Although all tasks should be reusable, sometimes you may want to create a task that can be reused with different inputs. To create a reusable task that requires inputs, add an `inputs` key with a map of inputs to the task:
-
-```yaml
-tasks:
-  - name: echo-var
-    inputs:
-      hello-input:
-        default: hello world
-        description: This is an input to the echo-var task
-      deprecated-input:
-        default: foo
-        description: this is a input from a previous version of this task
-        deprecatedMessage: this input is deprecated, use hello-input instead
-    actions:
-      # to use the input, reference it using INPUT_<INPUT_NAME> in all caps
-      - cmd: echo $INPUT_HELLO_INPUT
-
-  - name: use-echo-var
-    actions:
-      - task: echo-var
-        with:
-          # hello-input is the name of the input in the echo-var task, hello-unicorn is the value we want to pass in
-          hello-input: hello unicorn
-```
-
-In this example, the `echo-var` task takes an input called `hello-input` and prints it to the console; notice that the `input` can have a `default` value. The `use-echo-var` task calls `echo-var` with a different input value using the `with` key. In this case `"hello unicorn"` is passed to the `hello-input` input.
-
-Note that the `deprecated-input` input has a `deprecatedMessage` attribute. This is used to indicate that the input is deprecated and should not be used. If a task is run with a deprecated input, a warning will be printed to the console.
-
-#### Templates
-
-When creating a task with `inputs` you can use [Go templates](https://pkg.go.dev/text/template#hdr-Functions) in that task's `actions`. For example:
-
-```yaml
-tasks:
-  - name: length-of-inputs
-    inputs:
-      hello-input:
-        default: hello world
-        description: This is an input to the echo-var task
-      another-input:
-        default: another world
-    actions:
-      # index and len are go template functions, while .inputs is map representing the inputs to the task
-      - cmd: echo ${{ index .inputs "hello-input" | len }}
-      - cmd: echo ${{ index .inputs "another-input" | len }}
-
-  - name: len
-    actions:
-      - task: length-of-inputs
-        with:
-          hello-input: hello unicorn
-```
-
-Running `uds run len` will print the length of the inputs to `hello-input` and `another-input` to the console.
+Since UDS CLI also vendors [Zarf](https://github.com/defenseunicorns/zarf), there is no need to also have Zarf installed on your system.

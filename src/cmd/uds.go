@@ -5,19 +5,17 @@
 package cmd
 
 import (
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
-	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
-	goyaml "github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
 )
 
@@ -27,22 +25,7 @@ var createCmd = &cobra.Command{
 	Args:    cobra.MaximumNArgs(1),
 	Short:   lang.CmdBundleCreateShort,
 	PreRun: func(_ *cobra.Command, args []string) {
-		pathToBundleFile := ""
-		if len(args) > 0 {
-			if !zarfUtils.IsDir(args[0]) {
-				message.Fatalf(nil, "(%q) is not a valid path to a directory", args[0])
-			}
-			pathToBundleFile = filepath.Join(args[0])
-		}
-		// Handle .yaml or .yml
-		bundleYml := strings.Replace(config.BundleYAML, ".yaml", ".yml", 1)
-		if _, err := os.Stat(filepath.Join(pathToBundleFile, config.BundleYAML)); err == nil {
-			bundleCfg.CreateOpts.BundleFile = config.BundleYAML
-		} else if _, err = os.Stat(filepath.Join(pathToBundleFile, bundleYml)); err == nil {
-			bundleCfg.CreateOpts.BundleFile = bundleYml
-		} else {
-			message.Fatalf(err, "Neither %s or %s found", config.BundleYAML, bundleYml)
-		}
+		setBundleFile(args)
 	},
 	Run: func(_ *cobra.Command, args []string) {
 		srcDir, err := os.Getwd()
@@ -73,25 +56,20 @@ var deployCmd = &cobra.Command{
 		bundleCfg.DeployOpts.Source = chooseBundle(args)
 		configureZarf()
 
-		// load uds-config if it exists
-		if v.ConfigFileUsed() != "" {
-			if err := loadViperConfig(); err != nil {
-				message.Fatalf(err, "Failed to load uds-config: %s", err.Error())
-				return
-			}
+		// set DeployOptions.Config if exists
+		if config := v.ConfigFileUsed(); config != "" {
+			bundleCfg.DeployOpts.Config = config
 		}
+
+		// create new bundle client and deploy
 		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
-
-		if err := bndlClient.Deploy(); err != nil {
-			bndlClient.ClearPaths()
-			message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
-		}
+		deploy(bndlClient)
 	},
 }
 
 var inspectCmd = &cobra.Command{
-	Use:     "inspect [BUNDLE_TARBALL|OCI_REF]",
+	Use:     "inspect [BUNDLE_TARBALL|OCI_REF|BUNDLE_YAML_FILE]",
 	Aliases: []string{"i"},
 	Short:   lang.CmdBundleInspectShort,
 	Args:    cobra.MaximumNArgs(1),
@@ -175,38 +153,31 @@ var pullCmd = &cobra.Command{
 	},
 }
 
-// loadViperConfig reads the config file and unmarshals the relevant config into DeployOpts.Variables
-func loadViperConfig() error {
-	// get config file from Viper
-	configFile, err := os.ReadFile(v.ConfigFileUsed())
-	if err != nil {
-		return err
-	}
+var logsCmd = &cobra.Command{
+	Use:     "logs",
+	Aliases: []string{"l"},
+	Short:   lang.CmdBundleLogsShort,
+	Run: func(_ *cobra.Command, _ []string) {
+		logFilePath := filepath.Join(config.CommonOptions.CachePath, config.CachedLogs)
 
-	// read relevant config into DeployOpts.Variables
-	// need to use goyaml because Viper doesn't preserve case: https://github.com/spf13/viper/issues/1014
-	err = goyaml.Unmarshal(configFile, &bundleCfg.DeployOpts)
-	if err != nil {
-		return err
-	}
-
-	// ensure the DeployOpts.Variables pkg vars are uppercase
-	for pkgName, pkgVar := range bundleCfg.DeployOpts.Variables {
-		for varName, varValue := range pkgVar {
-			// delete the lowercase var and replace with uppercase
-			delete(bundleCfg.DeployOpts.Variables[pkgName], varName)
-			bundleCfg.DeployOpts.Variables[pkgName][strings.ToUpper(varName)] = varValue
+		// Open the cached log file
+		logfile, err := os.Open(logFilePath)
+		if err != nil {
+			var pathError *os.PathError
+			if errors.As(err, &pathError) {
+				msg := fmt.Sprintf("No cached logs found at %s", logFilePath)
+				message.Fatalf(nil, msg)
+			}
+			message.Fatalf("Error opening log file: %s\n", err.Error())
 		}
-	}
+		defer logfile.Close()
 
-	// ensure the DeployOpts.SharedVariables vars are uppercase
-	for varName, varValue := range bundleCfg.DeployOpts.SharedVariables {
-		// delete the lowercase var and replace with uppercase
-		delete(bundleCfg.DeployOpts.SharedVariables, varName)
-		bundleCfg.DeployOpts.SharedVariables[strings.ToUpper(varName)] = varValue
-	}
-
-	return nil
+		// Copy the contents of the log file to stdout
+		if _, err := io.Copy(os.Stdout, logfile); err != nil {
+			// Handle the error if the contents can't be read or written to stdout
+			message.Fatalf(err, "Error reading or printing log file: %v\n", err.Error())
+		}
+	},
 }
 
 func init() {
@@ -214,7 +185,7 @@ func init() {
 
 	// create cmd flags
 	rootCmd.AddCommand(createCmd)
-	createCmd.Flags().BoolVarP(&config.CommonOptions.Confirm, "confirm", "c", false, lang.CmdBundleRemoveFlagConfirm)
+	createCmd.Flags().BoolVarP(&config.CommonOptions.Confirm, "confirm", "c", false, lang.CmdBundleCreateFlagConfirm)
 	createCmd.Flags().StringVarP(&bundleCfg.CreateOpts.Output, "output", "o", v.GetString(V_BNDL_CREATE_OUTPUT), lang.CmdBundleCreateFlagOutput)
 	createCmd.Flags().StringVarP(&bundleCfg.CreateOpts.SigningKeyPath, "signing-key", "k", v.GetString(V_BNDL_CREATE_SIGNING_KEY), lang.CmdBundleCreateFlagSigningKey)
 	createCmd.Flags().StringVarP(&bundleCfg.CreateOpts.SigningKeyPassword, "signing-key-password", "p", v.GetString(V_BNDL_CREATE_SIGNING_KEY_PASSWORD), lang.CmdBundleCreateFlagSigningKeyPassword)
@@ -225,12 +196,14 @@ func init() {
 	deployCmd.Flags().BoolVarP(&config.CommonOptions.Confirm, "confirm", "c", false, lang.CmdBundleDeployFlagConfirm)
 	deployCmd.Flags().StringArrayVarP(&bundleCfg.DeployOpts.Packages, "packages", "p", []string{}, lang.CmdBundleDeployFlagPackages)
 	deployCmd.Flags().BoolVarP(&bundleCfg.DeployOpts.Resume, "resume", "r", false, lang.CmdBundleDeployFlagResume)
+	deployCmd.Flags().IntVar(&bundleCfg.DeployOpts.Retries, "retries", 3, lang.CmdBundleDeployFlagRetries)
 
 	// inspect cmd flags
 	rootCmd.AddCommand(inspectCmd)
 	inspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.IncludeSBOM, "sbom", "s", false, lang.CmdPackageInspectFlagSBOM)
 	inspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.ExtractSBOM, "extract", "e", false, lang.CmdPackageInspectFlagExtractSBOM)
 	inspectCmd.Flags().StringVarP(&bundleCfg.InspectOpts.PublicKeyPath, "key", "k", v.GetString(V_BNDL_INSPECT_KEY), lang.CmdBundleInspectFlagKey)
+	inspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.ListImages, "list-images", "i", false, lang.CmdBundleInspectFlagFindImages)
 
 	// remove cmd flags
 	rootCmd.AddCommand(removeCmd)
@@ -246,18 +219,9 @@ func init() {
 	rootCmd.AddCommand(pullCmd)
 	pullCmd.Flags().StringVarP(&bundleCfg.PullOpts.OutputDirectory, "output", "o", v.GetString(V_BNDL_PULL_OUTPUT), lang.CmdBundlePullFlagOutput)
 	pullCmd.Flags().StringVarP(&bundleCfg.PullOpts.PublicKeyPath, "key", "k", v.GetString(V_BNDL_PULL_KEY), lang.CmdBundlePullFlagKey)
-}
 
-// configureZarf copies configs from UDS-CLI to Zarf
-func configureZarf() {
-	zarfConfig.CommonOptions = zarfTypes.ZarfCommonOptions{
-		Insecure:       config.CommonOptions.Insecure,
-		TempDirectory:  config.CommonOptions.TempDirectory,
-		OCIConcurrency: config.CommonOptions.OCIConcurrency,
-		Confirm:        config.CommonOptions.Confirm,
-		// todo: decouple Zarf cache?
-		CachePath: config.CommonOptions.CachePath,
-	}
+	// logs cmd
+	rootCmd.AddCommand(logsCmd)
 }
 
 // chooseBundle provides a file picker when users don't specify a file

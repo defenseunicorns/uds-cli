@@ -6,7 +6,7 @@ metadata:
 
 packages:
   - name: output-var
-    repository: localhost:888/output-var
+    path: ../../packages/no-cluster/output-var
     ref: 0.0.1
     exports:
       - name: COLOR
@@ -27,8 +27,6 @@ packages:
       podinfo-component:
         unicorn-podinfo:
           values:
-            - path: "podinfo.replicaCount"
-              value: 1
             - path: "podinfo.ui.color"
               value: ${COLOR}
             - path: podinfo.podAnnotations

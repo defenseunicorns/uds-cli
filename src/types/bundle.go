@@ -4,6 +4,22 @@
 // Package types contains all the types used by UDS.
 package types
 
+type ChartVariableType string
+
+const (
+	File ChartVariableType = "file"
+	Raw  ChartVariableType = "raw"
+)
+
+type ValueSources string
+
+const (
+	Config ValueSources = "config"
+	Env    ValueSources = "env"
+	CLI    ValueSources = "cli"
+	Bundle ValueSources = "bundle"
+)
+
 // UDSBundle is the top-level structure of a UDS bundle
 type UDSBundle struct {
 	Kind     string       `json:"kind" jsonschema:"description=The kind of UDS package,enum=UDSBundle"`
@@ -15,9 +31,11 @@ type UDSBundle struct {
 // Package represents a Zarf package in a UDS bundle
 type Package struct {
 	Name               string                                     `json:"name" jsonschema:"name=Name of the Zarf package"`
+	Description        string                                     `json:"description,omitempty" jsonschema:"description=Description of the Zarf package"`
 	Repository         string                                     `json:"repository,omitempty" jsonschema:"description=The repository to import the package from"`
 	Path               string                                     `json:"path,omitempty" jsonschema:"description=The local path to import the package from"`
 	Ref                string                                     `json:"ref" jsonschema:"description=Ref (tag) of the Zarf package"`
+	Flavor             string                                     `json:"flavor,omitempty" jsonschema:"description=Flavor of the Zarf package"`
 	OptionalComponents []string                                   `json:"optionalComponents,omitempty" jsonschema:"description=List of optional components to include from the package (required components are always included)"`
 	PublicKey          string                                     `json:"publicKey,omitempty" jsonschema:"description=The public key to use to verify the package"`
 	Imports            []BundleVariableImport                     `json:"imports,omitempty" jsonschema:"description=List of Zarf variables to import from another Zarf package"`
@@ -27,31 +45,28 @@ type Package struct {
 
 // BundleChartOverrides represents a Helm chart override to set via UDS variables
 type BundleChartOverrides struct {
-	Values    []BundleChartValue    `json:"values,omitempty" jsonschema:"description=List of Helm chart values to set statically"`
-	Variables []BundleChartVariable `json:"variables,omitempty" jsonschema:"description=List of Helm chart variables to set via UDS variables"`
-
-	// EXPERIMENTAL, not yet implemented
-	//ValueFiles []BundleChartValueFile `json:"value-files,omitempty" jsonschema:"description=List of Helm chart value files to set statically"`
+	Values      []BundleChartValue    `json:"values,omitempty" jsonschema:"description=List of Helm chart values to set statically"`
+	Variables   []BundleChartVariable `json:"variables,omitempty" jsonschema:"description=List of Helm chart variables to set via UDS variables"`
+	Namespace   string                `json:"namespace,omitempty" jsonschema:"description=The namespace to deploy the Helm chart to"`
+	ValuesFiles []string              `json:"valuesFiles,omitempty" jsonschema:"description=List of Helm chart value file  paths to set statically"`
 }
 
-// BundleChartValue represents a Helm chart value to path mapping to set via UDS variables
+type ChartOverride interface {
+	BundleChartVariable | BundleChartValue
+}
+
 type BundleChartValue struct {
 	Path  string      `json:"path" jsonschema:"name=Path to the Helm chart value to set. The format is <chart-value>, example=controller.service.type"`
 	Value interface{} `json:"value" jsonschema:"name=The value to set"`
 }
 
-// BundleChartValueFile - EXPERIMENTAL - represents a Helm chart value file to override
-type BundleChartValueFile struct {
-	Path string `json:"path" jsonschema:"name=Path to the Helm chart to set. The format is <component>/<chart-name>, example=my-component/my-cool-chart"`
-	File string `json:"file" jsonschema:"name=The path to the values file to add to the Helm chart"`
-}
-
-// BundleChartVariable - EXPERIMENTAL - represents a Helm chart variable and its path
 type BundleChartVariable struct {
-	Path        string      `json:"path" jsonschema:"name=Path to the Helm chart value to set. The format is <chart-value>, example=controller.service.type"`
-	Name        string      `json:"name" jsonschema:"name=Name of the variable to set"`
-	Description string      `json:"description,omitempty" jsonschema:"name=Description of the variable"`
-	Default     interface{} `json:"default,omitempty" jsonschema:"name=The default value to set"`
+	Path        string            `json:"path" jsonschema:"name=Path to the Helm chart value to set. The format is <chart-value>, example=controller.service.type"`
+	Name        string            `json:"name" jsonschema:"name=Name of the variable to set"`
+	Description string            `json:"description,omitempty" jsonschema:"name=Description of the variable"`
+	Default     interface{}       `json:"default,omitempty" jsonschema:"name=The default value to set"`
+	Type        ChartVariableType `json:"type,omitempty" jsonschema:"description=The type of value to be processed,enum=raw,enum=file"`
+	Source      string            `json:"source,omitempty" jsonschema:"description=Where the value is set from"`
 }
 
 // BundleVariableImport represents variables in the bundle

@@ -15,10 +15,11 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
-	"github.com/defenseunicorns/zarf/src/pkg/utils/helpers"
 	"github.com/stretchr/testify/require"
 )
 
@@ -90,10 +91,46 @@ func (e2e *UDSE2ETest) GetLogFileContents(t *testing.T, stdErr string) string {
 
 // SetupDockerRegistry uses the host machine's docker daemon to spin up a local registry for testing purposes.
 func (e2e *UDSE2ETest) SetupDockerRegistry(t *testing.T, port int) {
-	// spin up a local registry
-	registryImage := "registry:2.8.2"
-	err := exec.CmdWithPrint("docker", "run", "-d", "--restart=always", "-p", fmt.Sprintf("%d:5000", port), "--name", fmt.Sprintf("registry-%d", port), registryImage)
+	// check if registry is already running on port
+	_, _, err := exec.Cmd("docker", "inspect", fmt.Sprintf("registry-%d", port))
+	if err == nil {
+		fmt.Println("Registry already running, skipping setup")
+		return
+	}
+	registryImage := "registry:2.8.3"
+	err = exec.CmdWithPrint("docker", "run", "-d", "--restart=always", "-p", fmt.Sprintf("%d:5000", port), "--name", fmt.Sprintf("registry-%d", port), registryImage)
 	require.NoError(t, err)
+
+	// Check for registry health
+	waitForRegistryHealth(t, port)
+}
+
+// waitForRegistryHealth pings the registry's health endpoint until a successful response or timeout
+func waitForRegistryHealth(t *testing.T, port int) {
+	healthURL := fmt.Sprintf("http://localhost:%d/v2/", port)
+	maxDuration := 10 * time.Second  // Maximum time to wait for the registry to become healthy
+	checkInterval := 1 * time.Second // Interval between health checks
+
+	timeout := time.NewTimer(maxDuration)
+	defer timeout.Stop()
+	ticker := time.NewTicker(checkInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout.C:
+			t.Fatalf("Timeout waiting for registry at port %d to become healthy", port)
+		case <-ticker.C:
+			resp, err := http.Get(healthURL)
+			if err == nil && resp.StatusCode == http.StatusOK {
+				fmt.Printf("Registry at port %d is healthy\n", port)
+				return
+			}
+			if resp != nil {
+				resp.Body.Close()
+			}
+		}
+	}
 }
 
 // TeardownRegistry removes the local registry.
@@ -128,7 +165,7 @@ func (e2e *UDSE2ETest) DownloadZarfInitPkg(t *testing.T, zarfVersion string) {
 	require.NoError(t, err)
 }
 
-// CreateZarfPkg creates a Zarf in the given path (todo: makefile?)
+// CreateZarfPkg creates a Zarf package in the given path
 func (e2e *UDSE2ETest) CreateZarfPkg(t *testing.T, path string, forceCreate bool) {
 	//  check if pkg already exists
 	pattern := fmt.Sprintf("%s/*-%s-*.tar.zst", path, e2e.Arch)
@@ -143,6 +180,36 @@ func (e2e *UDSE2ETest) CreateZarfPkg(t *testing.T, path string, forceCreate bool
 	require.NoError(t, err)
 }
 
+// CreateZarfPkgWithArch creates a Zarf package of a user specified arch in the given path
+func (e2e *UDSE2ETest) CreateZarfPkgWithArch(t *testing.T, path string, forceCreate bool, arch string) {
+	//  check if pkg already exists
+	pattern := fmt.Sprintf("%s/*-%s-*.tar.zst", path, arch)
+	matches, err := filepath.Glob(pattern)
+	require.NoError(t, err)
+	if !forceCreate && len(matches) > 0 {
+		fmt.Println("Zarf pkg already exists, skipping create")
+		return
+	}
+	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s -a %s --confirm", path, path, arch), " ")
+	_, _, err = e2e.UDS(args...)
+	require.NoError(t, err)
+}
+
+// DeleteZarfPkg deletes a Zarf package from the given path
+func (e2e *UDSE2ETest) DeleteZarfPkg(t *testing.T, path string) {
+	//  check if pkg already exists
+	pattern := fmt.Sprintf("%s/*-%s-*.tar.zst", path, e2e.Arch)
+	matches, err := filepath.Glob(pattern)
+	require.NoError(t, err)
+	if len(matches) > 0 {
+		fmt.Println("Deleting Zarf pkg")
+		for _, match := range matches {
+			os.Remove(match)
+		}
+		return
+	}
+}
+
 func downloadFile(url string, outputDir string) error {
 	response, err := http.Get(url)
 	if err != nil {
@@ -154,7 +221,7 @@ func downloadFile(url string, outputDir string) error {
 		return fmt.Errorf("unexpected status code: %d", response.StatusCode)
 	}
 
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		return err
 	}
 

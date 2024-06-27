@@ -5,26 +5,26 @@
 package bundle
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/oci"
-	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
+	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	av3 "github.com/mholt/archiver/v3"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // Publish publishes a bundle to a remote OCI registry
 func (b *Bundle) Publish() error {
-	b.cfg.PublishOpts.Destination = utils.EnsureOCIPrefix(b.cfg.PublishOpts.Destination)
+	b.cfg.PublishOpts.Destination = boci.EnsureOCIPrefix(b.cfg.PublishOpts.Destination)
 
 	// load bundle metadata into memory
 	// todo: having the tmp dir be the provider.dst is weird
-	provider, err := NewBundleProvider(context.TODO(), b.cfg.PublishOpts.Source, b.tmp)
+	provider, err := NewBundleProvider(b.cfg.PublishOpts.Source, b.tmp)
 	if err != nil {
 		return err
 	}
@@ -32,7 +32,7 @@ func (b *Bundle) Publish() error {
 	if err != nil {
 		return err
 	}
-	if err := zarfUtils.ReadYaml(loaded[config.BundleYAML], &b.bundle); err != nil {
+	if err := utils.ReadYAMLStrict(loaded[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
 	err = os.RemoveAll(filepath.Join(b.tmp, "blobs")) // clear tmp dir
@@ -54,11 +54,11 @@ func (b *Bundle) Publish() error {
 		Architecture: config.GetArch(),
 		OS:           oci.MultiOS,
 	}
-	remote, err := oci.NewOrasRemote(fmt.Sprintf("%s/%s:%s", ociURL, bundleName, bundleTag), platform)
+	remote, err := zoci.NewRemote(fmt.Sprintf("%s/%s:%s", ociURL, bundleName, bundleTag), platform)
 	if err != nil {
 		return err
 	}
-	err = provider.PublishBundle(b.bundle, remote)
+	err = provider.PublishBundle(b.bundle, remote.OrasRemote)
 	if err != nil {
 		return err
 	}

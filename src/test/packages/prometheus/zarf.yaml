@@ -1,0 +1,31 @@
+kind: ZarfPackageConfig
+metadata:
+  name: prometheus
+  description: |
+    test pkg with a docker distribution manifest media type (quay images) and a component with only images
+  version: 0.0.1
+
+components:
+  - name: upload-image
+    description: test composition
+    import:
+      path: images
+      name: upload
+  - name: optional-kiwix
+    description: used to test optional component images (not actually bundled)
+    charts:
+      # random helm chart that isn't important; just used to test that it doesn't get bundled
+      - name: prometheus-node-exporter
+        url: https://prometheus-community.github.io/helm-charts
+        version: 4.32.0
+        namespace: prometheus
+    images:
+      # again, not bundled, we just need a unique name to test that it doesn't get bundled
+      - ghcr.io/kiwix/kiwix-serve:3.7.0
+  - name: deploy
+    required: true
+    charts:
+      - name: prometheus-node-exporter
+        url: https://prometheus-community.github.io/helm-charts
+        version: 4.32.0
+        namespace: prometheus

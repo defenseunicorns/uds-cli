@@ -1,0 +1,26 @@
+kind: UDSBundle
+metadata:
+  name: export-name-collision
+  description: show how to specify import vars in case of name collisions
+  version: 0.0.1
+
+packages:
+  - name: output-var
+    path: ../../../packages/no-cluster/output-var
+    ref: 0.0.1
+    exports:
+      - name: OUTPUT
+      - name: PRECEDENCE
+
+  - name: output-var-collision
+    path: ../../../packages/no-cluster/output-var-collision
+    ref: 0.0.1
+    exports:
+      - name: OUTPUT
+
+  - name: receive-var
+    path: ../../../packages/no-cluster/receive-var
+    ref: 0.0.1
+    imports:
+       - package: output-var-collision
+         name: OUTPUT

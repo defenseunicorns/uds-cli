@@ -68,8 +68,7 @@ func doAllTheThings(m *testing.M) (int, error) {
 	e2e.ApplianceModeKeep = os.Getenv(applianceModeKeepEnvVar) == "true"
 	e2e.RunClusterTests = os.Getenv(skipK8sEnvVar) != "true"
 
-	// Validate that the UDS binary exists. If it doesn't that means the dev hasn't built it, usually by running
-	// `make build-cli`
+	// Validate that the UDS binary exists. If it doesn't that means the dev hasn't built it
 	_, err = os.Stat(e2e.UDSBinPath)
 	if err != nil {
 		return 1, fmt.Errorf("zarf binary %s not found", e2e.UDSBinPath)
@@ -92,6 +91,7 @@ func doAllTheThings(m *testing.M) (int, error) {
 	return returnCode, nil
 }
 
+// deployZarfInit deploys Zarf init (from a bundle!) if it hasn't already been deployed.
 func deployZarfInit(t *testing.T) {
 	if !zarfInitDeployed() {
 		// get Zarf version from go.mod
@@ -123,7 +123,12 @@ func deployZarfInit(t *testing.T) {
 }
 
 func zarfInitDeployed() bool {
-	cmd := strings.Split("zarf tools kubectl get deployments --namespace zarf", " ")
+	cmd := strings.Split("zarf tools kubectl get deployments zarf-docker-registry --namespace zarf", " ")
 	_, stderr, _ := e2e.UDS(cmd...)
-	return !strings.Contains(stderr, "No resources found in zarf namespace")
+	registryDeployed := !strings.Contains(stderr, "No resources found in zarf namespace") && !strings.Contains(stderr, "not found")
+
+	cmd = strings.Split("zarf tools kubectl get deployments agent-hook --namespace zarf", " ")
+	_, stderr, _ = e2e.UDS(cmd...)
+	agentDeployed := !strings.Contains(stderr, "No resources found in zarf namespace") && !strings.Contains(stderr, "not found")
+	return registryDeployed && agentDeployed
 }
