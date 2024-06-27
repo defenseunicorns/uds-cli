@@ -7,6 +7,7 @@ package test
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -676,5 +677,27 @@ func TestListImages(t *testing.T) {
 		require.NotContains(t, stderr, "gitea")
 		require.NotContains(t, stderr, "kiwix")
 		require.NotContains(t, stderr, "podinfo")
+	})
+
+	t.Run("list images outputted to a file", func(t *testing.T) {
+		args := strings.Split(fmt.Sprintf("inspect %s --list-images --insecure", filepath.Join(bundleDir, config.BundleYAML)), " ")
+		cmd := exec.Command(e2e.UDSBinPath, args...)
+
+		// open the out file for writing, and redirect the cmd output to that file
+		filename := "./out.txt"
+		outfile, err := os.Create(filename)
+		require.NoError(t, err)
+		defer outfile.Close()
+		cmd.Stdout = outfile
+		cmd.Stderr = outfile
+
+		err = cmd.Run()
+		require.NoError(t, err)
+
+		// read in the file and check its contents
+		contents, err := os.ReadFile(filename)
+		require.NoError(t, err)
+		require.NotContains(t, string(contents), "\u001B") // ensure no color-related bytes
+		require.Contains(t, string(contents), "library/registry")
 	})
 }
