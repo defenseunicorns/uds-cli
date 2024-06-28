@@ -6,7 +6,7 @@
     SearchOutline
   } from 'flowbite-svelte-icons';
 
-  import { createPodStore, SearchByType } from '$lib/stores/resources/pods';
+  import { createPodStore, headers, SearchByType } from '$lib/stores/resources/pods';
   import { onMount } from 'svelte';
 
   const pods = createPodStore();
@@ -15,17 +15,6 @@
   onMount(() => {
     return pods.start();
   });
-
-  const headers = [
-    'name',
-    'namespace',
-    'containers',
-    'restarts',
-    'controller',
-    'node',
-    'age',
-    'status'
-  ];
 
   const searchTypes = Object.values(SearchByType);
 </script>
