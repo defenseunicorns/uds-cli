@@ -99,7 +99,7 @@ As an example: `uds deploy uds-bundle-<name>.tar.zst --resume`
 
 #### Pre-Deploy View
 
-When `deploy` is executed, the bundle's metadata, along with a list of its packages and each package's overrides or Zarf variables, will be outputted to the terminal. Unlike [`inspect --list-variables`](#viewing-variables), this output will show the value set for each override or Zarf variable. Overrides and variables that have not been set will not show in the output.
+When `uds deploy` is executed, the bundle's metadata, along with a list of its packages and each package's overrides and Zarf variables, will be outputted to the terminal. Unlike [`inspect --list-variables`](#viewing-variables), this output will show the value set for each override or Zarf variable. Overrides and variables that have not been set will not be shown in the output.
 
 {{% alert-note %}}
 To view this output more easily or for troubleshooting, run `deploy` without the `--confirm` flag.
@@ -133,7 +133,7 @@ This functionality will use the `sboms.tar` of the underlying Zarf packages to c
 
 To view the configurable overrides and Zarf variables of a bundle's packages:
 
-`uds inspect --list-variables <local-or-remote-tarball>:ref`
+`uds inspect --list-variables BUNDLE_TARBALL|OCI_REF]`
 
 ### Bundle Publish
 

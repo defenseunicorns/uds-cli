@@ -133,7 +133,6 @@ The `path` uses dot notation to specify the location of a value to override in t
 The `value` is the value to set at the `path`. Values can be simple values such as numbers and strings, as well as, complex lists and objects, for example:
 
 ```yaml
-
 ---
 overrides:
   helm-overrides-component:
@@ -339,4 +338,4 @@ packages:
 
 ### View All Variables
 
-When working with a local or remote bundle you can view all overrides and zarf variables by running `uds inspect --list-variables <tarball>:ref`
+When working with a local or remote bundle you can view all overrides and zarf variables by running `uds inspect --list-variables BUNDLE_TARBALL|OCI_REF]`

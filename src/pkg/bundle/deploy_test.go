@@ -620,7 +620,7 @@ func TestFileVariableHandlers(t *testing.T) {
 func TestFilterOverrides(t *testing.T) {
 	chartVars := []types.BundleChartVariable{{Name: "over1"}, {Name: "over2"}}
 	pkgVars := map[string]string{"OVER1": "val", "ZARFVAR": "val"}
-	filtered := filterOutOverrides(chartVars, pkgVars)
+	filtered := filterOverrides(chartVars, pkgVars)
 	actual := map[string]string{"ZARFVAR": "val"}
 	require.Equal(t, actual, filtered)
 }

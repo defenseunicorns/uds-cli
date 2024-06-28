@@ -545,7 +545,6 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 	for _, pkg := range pkgviews {
 		utils.ColorPrintYAML(pkg.meta, nil, false)
-		utils.ColorPrintYAML(pkg.zarfVars, nil, false)
 		utils.ColorPrintYAML(pkg.overrides, nil, false)
 	}
 
@@ -568,7 +567,6 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 type PkgView struct {
 	meta      map[string]string
-	zarfVars  map[string]map[string]string
 	overrides map[string]interface{}
 }
 
@@ -577,7 +575,7 @@ func formPkgViews(b *Bundle) []PkgView {
 	var pkgViews []PkgView
 	for _, pkg := range b.bundle.Packages {
 		pkgMeta := map[string]string{}
-		variables := make([]map[string]map[string]interface{}, 0)
+		variables := make([]interface{}, 0)
 
 		pkgMeta["name"] = pkg.Name
 		if pkg.Repository != "" {
@@ -589,10 +587,12 @@ func formPkgViews(b *Bundle) []PkgView {
 
 		pkgVars := b.loadVariables(pkg, nil)
 		valuesOverrides, _, _ := b.loadChartOverrides(pkg, pkgVars)
+		filteredVars := pkgVars
 
 		for compName, component := range pkg.Overrides {
 			for chartName, chart := range component {
-				pkgVars = filterOutOverrides(chart.Variables, pkgVars)
+				// for each chart filter out the chart.Variables so left with Zarf Variables
+				filteredVars = filterOverrides(chart.Variables, filteredVars)
 
 				processedVars := valuesOverrides[compName][chartName]
 				if processedVars == nil {
@@ -627,23 +627,28 @@ func formPkgViews(b *Bundle) []PkgView {
 				}
 
 				if len(chartVars) > 0 {
-					variables = append(variables, map[string]map[string]interface{}{chartName: {"Variables": chartVars}})
+					variables = append(variables, map[string]interface{}{chartName: map[string]interface{}{"variables": chartVars}})
 				}
 			}
 		}
 
-		pkgViews = append(pkgViews, PkgView{meta: pkgMeta, zarfVars: map[string]map[string]string{"Zarf-Variables": pkgVars}, overrides: map[string]interface{}{"Overrides": variables}})
+		for key, fv := range filteredVars {
+			if key != "CONFIG" {
+				variables = append(variables, map[string]string{key: fv})
+			}
+		}
+
+		pkgViews = append(pkgViews, PkgView{meta: pkgMeta, overrides: map[string]interface{}{"overrides": variables}})
 	}
 	return pkgViews
 }
 
-func filterOutOverrides(chartVars []types.BundleChartVariable, pkgVars map[string]string) map[string]string {
-	pkgVarsCopy := pkgVars
+func filterOverrides(chartVars []types.BundleChartVariable, varMap map[string]string) map[string]string {
+	varMapCopy := varMap
 	for _, cv := range chartVars {
-		if pkgVarsCopy[strings.ToUpper(cv.Name)] != "" {
-			delete(pkgVarsCopy, strings.ToUpper(cv.Name))
+		if varMapCopy[strings.ToUpper(cv.Name)] != "" {
+			delete(varMapCopy, strings.ToUpper(cv.Name))
 		}
 	}
-
-	return pkgVarsCopy
+	return varMapCopy
 }

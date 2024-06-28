@@ -133,7 +133,14 @@ func (b *Bundle) listVariables() error {
 			return err
 		}
 
-		varMap := map[string]map[string]interface{}{pkg.Name: {"Overrides": pkg.Overrides, "Zarf-Variables": zarfPkg.Variables}}
+		variables := make([]interface{}, 0)
+		for _, zarfVar := range zarfPkg.Variables {
+			variables = append(variables, zarfVar)
+		}
+
+		variables = append(variables, pkg.Overrides)
+
+		varMap := map[string]map[string]interface{}{pkg.Name: {"variables": variables}}
 		zarfUtils.ColorPrintYAML(varMap, nil, false)
 	}
 
