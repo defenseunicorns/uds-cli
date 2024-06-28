@@ -749,7 +749,7 @@ func TestDeployViewNoOverrides(t *testing.T) {
 
 	ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
 	cleaned := ansiRegex.ReplaceAllString(stderr, "")
-	require.Contains(t, cleaned, "Overrides: []")
+	require.Contains(t, cleaned, "overrides: []")
 
 	remove(t, bundlePath)
 }
