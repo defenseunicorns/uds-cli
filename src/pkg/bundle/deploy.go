@@ -103,7 +103,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 			publicKeyPath = ""
 		}
 
-		pkgVars := b.loadVariables(pkg, bundleExportedVars)
+		pkgVars, _ := b.loadVariables(pkg, bundleExportedVars)
 
 		valuesOverrides, nsOverrides, err := b.loadChartOverrides(pkg, pkgVars)
 		if err != nil {
@@ -158,14 +158,22 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 	return nil
 }
 
+type overrideView struct {
+	value  string
+	source valuesources.Source
+}
+
 // loadVariables loads and sets precedence for config-level and imported variables
-func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) map[string]string {
+func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) (map[string]string, map[string]overrideView) {
+
 	pkgVars := make(map[string]string)
+	forView := make(map[string]overrideView)
 
 	// load all exported variables
 	for _, exportedVarMap := range bundleExportedVars {
 		for varName, varValue := range exportedVarMap {
 			pkgVars[strings.ToUpper(varName)] = varValue
+			forView[strings.ToUpper(varName)] = overrideView{varValue, valuesources.Bundle}
 		}
 	}
 
@@ -173,21 +181,25 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 	// imported vars
 	for _, imp := range pkg.Imports {
 		pkgVars[strings.ToUpper(imp.Name)] = bundleExportedVars[imp.Package][imp.Name]
+		forView[strings.ToUpper(imp.Name)] = overrideView{bundleExportedVars[imp.Package][imp.Name], valuesources.Bundle}
 	}
 
 	// shared vars
 	for name, val := range b.cfg.DeployOpts.SharedVariables {
 		pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
+		forView[strings.ToUpper(name)] = overrideView{fmt.Sprint(val), valuesources.Config}
 	}
 	// config vars
 	for name, val := range b.cfg.DeployOpts.Variables[pkg.Name] {
 		pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
+		forView[strings.ToUpper(name)] = overrideView{fmt.Sprint(val), valuesources.Config}
 	}
 	// env vars (vars that start with UDS_)
 	for _, envVar := range os.Environ() {
 		if strings.HasPrefix(envVar, config.EnvVarPrefix) {
 			parts := strings.Split(envVar, "=")
 			pkgVars[strings.ToUpper(strings.TrimPrefix(parts[0], config.EnvVarPrefix))] = parts[1]
+			forView[strings.ToUpper(strings.TrimPrefix(parts[0], config.EnvVarPrefix))] = overrideView{parts[1], valuesources.Env}
 		}
 	}
 	// set vars (vars set with --set flag)
@@ -198,12 +210,14 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 			packageName, variableName := splitName[0], splitName[1]
 			if packageName == pkg.Name {
 				pkgVars[strings.ToUpper(variableName)] = fmt.Sprint(val)
+				forView[strings.ToUpper(variableName)] = overrideView{fmt.Sprint(val), valuesources.CLI}
 			}
 		} else {
 			pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
+			forView[strings.ToUpper(name)] = overrideView{fmt.Sprint(val), valuesources.CLI}
 		}
 	}
-	return pkgVars
+	return pkgVars, forView
 }
 
 // loadChartOverrides converts a helm path to a ValuesOverridesMap config for Zarf
@@ -216,16 +230,15 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string
 	// Loop through each package component's charts and process overrides
 	for componentName, component := range pkg.Overrides {
 		for chartName, chart := range component {
-			chartCopy := chart // Create a copy of the chart
-			err := b.processOverrideValues(&overrideMap, &chartCopy.Values, componentName, chartName, pkgVars)
+			err := b.processOverrideValues(&overrideMap, chart.Values, componentName, chartName, pkgVars)
 			if err != nil {
 				return nil, nil, err
 			}
-			err = b.processOverrideVariables(&overrideMap, pkg.Name, &chartCopy.Variables, componentName, chartName)
+			err = b.processOverrideVariables(&overrideMap, pkg.Name, chart.Variables, componentName, chartName)
 			if err != nil {
 				return nil, nil, err
 			}
-			b.processOverrideNamespaces(nsOverrides, chartCopy.Namespace, componentName, chartName)
+			b.processOverrideNamespaces(nsOverrides, chart.Namespace, componentName, chartName)
 		}
 	}
 
@@ -272,8 +285,8 @@ func (b *Bundle) processOverrideNamespaces(overrideMap sources.NamespaceOverride
 }
 
 // processOverrideValues processes a bundles values overrides and adds them to the override map
-func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values *[]types.BundleChartValue, componentName string, chartName string, pkgVars map[string]string) error {
-	for _, v := range *values {
+func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values []types.BundleChartValue, componentName string, chartName string, pkgVars map[string]string) error {
+	for _, v := range values {
 		// Add the override to the map, or return an error if the path is invalid
 		if err := b.addOverride(*overrideMap, componentName, chartName, v, v.Value, pkgVars); err != nil {
 			return err
@@ -283,8 +296,9 @@ func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*value
 }
 
 // processOverrideVariables processes bundle variables overrides and adds them to the override map
-func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*values.Options, pkgName string, variables *[]types.BundleChartVariable, componentName string, chartName string) error {
-	for _, v := range *variables {
+func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*values.Options, pkgName string, variables []types.BundleChartVariable, componentName string, chartName string) error {
+	for i := range variables {
+		v := &variables[i]
 		var overrideVal interface{}
 		// Ensuring variable name is upper case since comparisons are being done against upper case env and config variables
 		v.Name = strings.ToUpper(v.Name)
@@ -327,7 +341,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 		}
 
 		// Add the override to the map, or return an error if the path is invalid
-		if err := b.addOverride(*overrideMap, componentName, chartName, v, overrideVal, nil); err != nil {
+		if err := b.addOverride(*overrideMap, componentName, chartName, *v, overrideVal, nil); err != nil {
 			return err
 		}
 	}
@@ -585,8 +599,8 @@ func formPkgViews(b *Bundle) []PkgView {
 		}
 		pkgMeta["ref"] = pkg.Ref
 
-		pkgVars := b.loadVariables(pkg, nil)
-		valuesOverrides, _, _ := b.loadChartOverrides(pkg, pkgVars)
+		_, pkgVars := b.loadVariables(pkg, nil)
+		valuesOverrides, _, _ := b.loadChartOverrides(pkg, map[string]string{})
 		filteredVars := pkgVars
 
 		for compName, component := range pkg.Overrides {
@@ -602,16 +616,25 @@ func formPkgViews(b *Bundle) []PkgView {
 				chartVars := map[string]interface{}{}
 
 				for _, v := range chart.Variables {
+
+					// Mask potentially sensitive variables
+					if v.Type == "file" || v.Source == valuesources.Env {
+						chartVars[v.Name] = "****"
+						continue
+					}
+
 					// handle complex paths: var.helm.path = { var: { helm: { path: val } } }
 					if strings.Contains(v.Path, ".") {
 						paths := strings.Split(v.Path, ".")
 
+						// set initial entry so iterations through paths can hold next key value pair until final value is found,
+						// removing the entry if map[path] returns nil
 						chartVars[v.Name] = processedVars
 						for _, p := range paths {
 
 							val, ok := chartVars[v.Name].(map[string]interface{})[p]
 							if !ok {
-								// delete any previously set entry of v.Name
+								// delete previously set entry of v.Name
 								delete(chartVars, v.Name)
 								break
 							}
@@ -635,7 +658,11 @@ func formPkgViews(b *Bundle) []PkgView {
 
 		for key, fv := range filteredVars {
 			if key != "CONFIG" {
-				variables = append(variables, map[string]string{key: fv})
+				// Mask potentially secret ENV vars
+				if fv.source == valuesources.Env {
+					fv.value = "****"
+				}
+				variables = append(variables, map[string]string{key: fv.value})
 			}
 		}
 
@@ -644,10 +671,10 @@ func formPkgViews(b *Bundle) []PkgView {
 	return pkgViews
 }
 
-func filterOverrides(chartVars []types.BundleChartVariable, varMap map[string]string) map[string]string {
+func filterOverrides(chartVars []types.BundleChartVariable, varMap map[string]overrideView) map[string]overrideView {
 	varMapCopy := varMap
 	for _, cv := range chartVars {
-		if varMapCopy[strings.ToUpper(cv.Name)] != "" {
+		if varMapCopy[strings.ToUpper(cv.Name)].value != "" {
 			delete(varMapCopy, strings.ToUpper(cv.Name))
 		}
 	}
