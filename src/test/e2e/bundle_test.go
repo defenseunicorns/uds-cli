@@ -701,7 +701,7 @@ func TestListVariables(t *testing.T) {
 
 		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
 		cleaned := ansiRegex.ReplaceAllString(stderr, "")
-		require.Contains(t, cleaned, "prometheus:\n  Overrides: {}\n  Zarf-Variables: []\n")
+		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")
 	})
 
 	t.Run("list variables for remote tarball", func(t *testing.T) {
@@ -711,7 +711,7 @@ func TestListVariables(t *testing.T) {
 
 		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
 		cleaned := ansiRegex.ReplaceAllString(stderr, "")
-		require.Contains(t, cleaned, "prometheus:\n  Overrides: {}\n  Zarf-Variables: []\n")
+		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")
 	})
 }
 
