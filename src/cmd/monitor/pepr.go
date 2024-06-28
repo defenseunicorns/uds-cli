@@ -54,12 +54,8 @@ var peprCmd = &cobra.Command{
 		if len(args) > 0 && args[0] != "" {
 			streamKind = pepr.StreamKind(args[0])
 
-			// Validate the stream kind
-			switch streamKind {
-			case pepr.PolicyStream, pepr.OperatorStream, pepr.AllowStream, pepr.DenyStream, pepr.FailureStream, pepr.MutateStream:
-				// Valid stream kind
-			default:
-				message.Fatalf("Invalid stream kind: %s", string(streamKind))
+			if !pepr.IsValidStreamFilter(streamKind) {
+				message.Fatalf(nil, "Invalid stream kind: %s", string(streamKind))
 			}
 		}
 

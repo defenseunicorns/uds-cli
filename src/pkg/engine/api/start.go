@@ -6,20 +6,14 @@
 package api
 
 import (
-	"bufio"
-	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"os"
-	"runtime"
-	"time"
 
-	"github.com/defenseunicorns/uds-cli/src/pkg/engine/pepr"
-	"github.com/defenseunicorns/uds-cli/src/pkg/engine/stream"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
+	"github.com/defenseunicorns/uds-cli/src/pkg/engine/api/monitor"
+	"github.com/defenseunicorns/uds-cli/src/pkg/engine/api/resources"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -42,37 +36,50 @@ func Start() error {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
+	ctx := context.Background()
+	cache, err := resources.NewCache(ctx)
+	if err != nil {
+		log.Fatalf("Failed to create cache: %v", err)
+	}
+
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Get("/policies", func(w http.ResponseWriter, r *http.Request) {
+		r.Get("/monitor/pepr/", monitor.Pepr)
+		r.Get("/monitor/pepr/{stream}", monitor.Pepr)
 
-			var buf bytes.Buffer
-			// Todo: we probably shouldn't do this long-term or we're going to super blow up logs
-			logStream := io.MultiWriter(&buf, os.Stderr)
+		r.Get("/resources/pods", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Connection", "keep-alive")
 
-			ctx, cancel := context.WithCancel(context.Background())
+			flusher, ok := w.(http.Flusher)
+			if !ok {
+				http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+				return
+			}
 
-			// pass context to stream reader to clean up spawned goroutines that watch pepr pods
-			peprReader := pepr.NewStreamReader("", "")
-			peprStream := stream.NewStream(logStream, peprReader, "pepr-system")
-			peprStream.Follow = true
-			peprStream.Timestamps = true
+			sendData := func() {
+				pods := cache.Pods.GetPods()
+				data, err := json.Marshal(pods)
+				if err != nil {
+					fmt.Fprintf(w, "data: Error: %v\n\n", err)
+					flusher.Flush()
+					return
+				}
+				fmt.Fprintf(w, "data: %s\n\n", data)
+				flusher.Flush()
+			}
 
-			// Start the stream in a goroutine
-			go peprStream.Start(ctx)
+			sendData()
 
-			// Stream the output to the client
-			streamPeprOutput(&buf, w, r)
+			for {
+				select {
+				case <-r.Context().Done():
+					return
+				case <-cache.Pods.Changes:
+					sendData()
+				}
+			}
 
-			// Cancel the context when the client disconnects
-			cancel()
-			log.Println("after cancel")
-		})
-	})
-
-	r.Route("/", func(r chi.Router) {
-		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-			foo := fmt.Sprintf("Number of goroutines: %d", runtime.NumGoroutine())
-			w.Write([]byte(foo))
 		})
 	})
 
@@ -81,45 +88,4 @@ func Start() error {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 	return nil
-}
-
-func streamPeprOutput(buf *bytes.Buffer, w http.ResponseWriter, r *http.Request) {
-	// Set the headers for streaming
-	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-
-	connClosed := r.Context().Done()
-
-	reader := bufio.NewReader(buf)
-	for {
-		select {
-		case <-connClosed:
-			log.Println("Client closed connection")
-			return
-		default:
-			log.Printf("Number of goroutines: %d", runtime.NumGoroutine())
-
-			line, err := reader.ReadString('\n')
-			if err != nil {
-				if err != io.EOF {
-					message.ErrorWebf(err, w, "Unable to read the stream")
-					return
-				}
-				// Sleep briefly to wait for more data
-				// todo: move this to outside the if statement
-				time.Sleep(500 * time.Millisecond)
-				continue
-			}
-			log.Print(line)
-			fmt.Fprintf(w, "data: %s\n", line)
-			w.(http.Flusher).Flush()
-		}
-	}
-}
-
-// handleError sends an error response with a given status code and logs the error
-func handleError(w http.ResponseWriter, err error, message string, statusCode int) {
-	log.Printf("error: %v - %s", err, message)
-	http.Error(w, message, statusCode)
 }

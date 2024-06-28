@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@tailwind typography;
+
+@layer components {
+  /* width */
+  ::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  /* Track */
+  ::-webkit-scrollbar-track {
+    background: rgb(55, 65, 81);
+  }
+
+  /* Handle */
+  ::-webkit-scrollbar-thumb {
+    background: rgba(156, 163, 175, 0.5);
+  }
+
+  /* Handle on hover */
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(156, 163, 175, 0.75);
+  }
+
+  select {
+    @apply block w-full appearance-none border-0 border-b-2 border-gray-200 bg-transparent px-0 py-2.5 text-sm text-gray-500 focus:border-gray-200 focus:outline-none focus:ring-0 dark:border-gray-700 dark:text-gray-400;
+  }
+
+  .table-section {
+    @apply flex h-full flex-col bg-gray-50 dark:bg-gray-900;
+
+    .table-container {
+      @apply flex h-full w-full flex-col;
+
+      .table-content {
+        @apply relative flex h-full w-full flex-col overflow-hidden dark:bg-gray-800 sm:rounded-lg;
+
+        .table-filter-section {
+          @apply sticky top-0 z-20 flex flex-col space-y-3 px-4 py-3 dark:bg-gray-800 lg:flex-row lg:items-center lg:justify-between lg:space-x-4 lg:space-y-0;
+
+          button {
+            @apply flex flex-shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-100 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700;
+          }
+        }
+
+        .table-scroll-container {
+          @apply flex-grow overflow-auto;
+
+          table {
+            @apply w-full text-left text-sm text-gray-500 dark:text-gray-400;
+
+            thead {
+              @apply sticky top-0 z-10 bg-gray-50 text-xs uppercase text-gray-700 dark:bg-gray-700 dark:text-gray-400;
+
+              th {
+                @apply px-4 py-3;
+
+                button {
+                  @apply uppercase;
+                }
+
+                svg.sort {
+                  @apply mb-1 ml-1 inline-block h-4 w-4 transform transition duration-300;
+
+                  &.opacity-100 {
+                    opacity: 1!important;
+                  }
+                }
+
+                &:hover {
+                  svg.sort {
+                    @apply opacity-50;
+                  }
+                }
+              }
+            }
+
+            tbody {
+              tr {
+                @apply border-b hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700;
+
+                td {
+                  @apply px-4 py-2;
+                }
+
+                td.emphasize {
+                  @apply text-gray-900 dark:text-white;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

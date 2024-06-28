@@ -22,6 +22,7 @@
     "@sveltejs/adapter-auto": "^3.0.0",
     "@sveltejs/kit": "^2.0.0",
     "@sveltejs/vite-plugin-svelte": "^3.1.0",
+    "@tailwindcss/typography": "^0.5.13",
     "@testing-library/jest-dom": "^6.4.5",
     "@testing-library/svelte": "^5.1.0",
     "@testing-library/user-event": "^14.5.2",
@@ -30,26 +31,30 @@
     "@typescript-eslint/parser": "^7.0.0",
     "@vitest/coverage-v8": "^1.6.0",
     "@vitest/ui": "^1.6.0",
-    "carbon-components-svelte": "^0.85.0",
-    "carbon-icons-svelte": "^12.6.0",
+    "autoprefixer": "^10.4.19",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-svelte": "^2.35.1",
+    "flowbite": "^2.3.0",
+    "flowbite-svelte-icons": "^1.6.1",
     "globals": "^15.0.0",
     "jsdom": "^24.0.0",
+    "postcss": "^8.4.38",
     "prettier": "^3.1.1",
     "prettier-plugin-svelte": "^3.1.2",
+    "prettier-plugin-tailwindcss": "^0.6.4",
     "sass": "^1.77.2",
     "svelte": "^4.2.7",
     "svelte-check": "^3.6.0",
-    "tslib": "^2.4.1",
+    "tailwindcss": "^3.4.4",
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.0.0-alpha.20",
     "vite": "^5.0.3",
     "vitest": "^1.2.0"
   },
   "dependencies": {
+    "@kubernetes/client-node": "1.0.0-rc5",
     "ansi-to-html": "^0.7.2",
-    "kubernetes-types": "^1.30.0"
+    "ramda": "^0.30.1"
   }
 }

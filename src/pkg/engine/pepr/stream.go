@@ -23,12 +23,14 @@ type StreamKind string
 
 type StreamReader struct {
 	JSON            bool
+	Web             bool
 	FilterStream    StreamKind
 	filterNamespace string
 	filterName      string
 	indent          string
 	lastEntryHeader string
 	lastEntryBody   string
+	lastEntryTS     string
 	repeatCount     int
 	mutex           sync.Mutex
 }
@@ -84,6 +86,16 @@ const (
 	// FailureStream represents all admission controller deny logs and operator failure logs
 	FailureStream StreamKind = "failed"
 )
+
+// IsValidStreamFilter validates the stream kind
+func IsValidStreamFilter(kind StreamKind) bool {
+	switch StreamKind(kind) {
+	case AnyStream, PolicyStream, OperatorStream, AllowStream, DenyStream, MutateStream, FailureStream:
+		return true
+	default:
+		return false
+	}
+}
 
 // NewStreamReader creates a new PeprStreamReader
 func NewStreamReader(filterNamespace, filterName string) *StreamReader {
@@ -190,21 +202,6 @@ func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser, time
 			msgPayload = line
 		}
 
-		if p.JSON {
-			// If timestamps are enabled, append the timestamp to the JSON payload
-			// Replacing the last closing brace with a comma and the timestamp
-			if timestamp {
-				msgPayload = strings.TrimSuffix(msgPayload, "}")
-				msgPayload = fmt.Sprintf("%s, \"ts\": \"%s\"}", msgPayload, msgTimestamp)
-			}
-
-			if _, err := writer.Write([]byte("\n" + msgPayload)); err != nil {
-				message.WarnErr(err, "Error writing newline")
-			}
-
-			continue
-		}
-
 		// JSON parse the line
 		var event LogEntry
 		if err := json.Unmarshal([]byte(msgPayload), &event); err != nil {
@@ -221,52 +218,77 @@ func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser, time
 		// Process the JSON and generate formatted output
 		name := fmt.Sprintf("%v%v", event.Namespace, event.Name)
 
-		var header string
-		var body string
+		var header, body string
 
 		switch {
 		// Handle operator processing
 		case enableLogOperatorAny && isLogOperatorProcessing:
 			name = fmt.Sprintf("%v/%v", event.Metadata.Namespace, event.Metadata.Name)
-			header = style.RenderFmt(style.Purple, " ⚙️ OPERATOR  %s", name)
-			body = style.RenderFmt(style.WarmGray, "\n%s             %v", p.indent, event.Msg)
+
+			if p.JSON {
+				header = fmt.Sprintf("OPERATOR %s", name)
+			} else {
+				header = style.RenderFmt(style.Purple, " ⚙️ OPERATOR  %s", name)
+				body = style.RenderFmt(style.WarmGray, "\n%s             %v", p.indent, event.Msg)
+			}
 
 		// Handle operator status updates
 		case isLogOperatorStatus:
-			failed := strings.Contains(event.Msg, "Failed")
 			name = fmt.Sprintf("%v/%v", event.Namespace, event.Name)
-			header = style.RenderFmt(style.Purple, " ⚙️ OPERATOR  %s", name)
-			// Red if the status update is a failure
-			if failed {
-				body = style.RenderFmt(style.Red, "\n%s             %v", p.indent, event.Msg)
+
+			if p.JSON {
+				header = fmt.Sprintf("OPERATOR %s", name)
 			} else {
-				// Skip if operator events are not enabled for non-failures
-				if !enableLogOperatorAny {
-					continue
+				header = style.RenderFmt(style.Purple, " ⚙️ OPERATOR  %s", name)
+				// Red if the status update is a failure
+				if strings.Contains(event.Msg, "Failed") {
+					body = style.RenderFmt(style.Red, "\n%s             %v", p.indent, event.Msg)
+				} else {
+					// Skip if operator events are not enabled for non-failures
+					if !enableLogOperatorAny {
+						continue
+					}
+					body = style.RenderFmt(style.WarmGray, "\n%s             %v", p.indent, event.Msg)
 				}
-				body = style.RenderFmt(style.WarmGray, "\n%s             %v", p.indent, event.Msg)
 			}
 
 		// Handle operator events
 		case enableLogOperatorFailure && isLogOperatorEvent:
 			name = fmt.Sprintf("%v/%v", event.Namespace, event.Name)
-			header = style.RenderFmt(style.Purple, " ⚙️ OPERATOR  %s", name)
-			// Red because events are failures
-			body = "\n" + style.RenderFmt(style.Red, "%s             %v", p.indent, event.Msg)
+
+			if p.JSON {
+				header = fmt.Sprintf("OPERATOR %s", name)
+			} else {
+				header = style.RenderFmt(style.Purple, " ⚙️ OPERATOR  %s", name)
+				// Red because events are failures
+				body = "\n" + style.RenderFmt(style.Red, "%s             %v", p.indent, event.Msg)
+			}
 
 		// Handle mutations
 		case enableLogMutate && isLogAdmission && event.Res.PatchType != nil:
-			header = style.RenderFmt(style.Cyan, " ✎ MUTATED   %s", name)
-			body = p.renderMutation(event)
+			if p.JSON {
+				header = fmt.Sprintf("MUTATED %s", name)
+			} else {
+				header = style.RenderFmt(style.Cyan, " ✎ MUTATED   %s", name)
+				body = p.renderMutation(event)
+			}
 
 		// Handle validation success
 		case enableLogAllow && isLogAdmission && event.Res.Allowed:
-			header = style.RenderFmt(style.Green, " ✓ ALLOWED   %s", name)
+			if p.JSON {
+				header = fmt.Sprintf("ALLOWED %s", name)
+			} else {
+				header = style.RenderFmt(style.Green, " ✓ ALLOWED   %s", name)
+			}
 
 		// Handle validation failure and override the formatting
 		case enableLogDeny && isLogAdmission && !event.Res.Allowed:
-			header = style.RenderFmt(style.Red, " ✗ DENIED    %s", name)
-			body = p.renderDenied(event)
+			if p.JSON {
+				header = fmt.Sprintf("DENIED %s", name)
+			} else {
+				header = style.RenderFmt(style.Red, " ✗ DENIED    %s", name)
+				body = p.renderDenied(event)
+			}
 
 		default:
 			// Unmatched log line (should not happen)
@@ -278,20 +300,30 @@ func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser, time
 			p.updateRepeatCount(p.repeatCount + 1)
 		} else {
 			p.writeRepeatedEvent(writer)
-			p.updateLastEntry(header, body)
+			p.updateLastEntry(header, body, msgTimestamp)
+
+			var output string
+
+			switch {
+			// Handle JSON output
+			case p.JSON:
+				msgPayload = p.appendJSON(msgPayload, "ts", msgTimestamp)
+				msgPayload = p.appendJSON(msgPayload, "_name", name)
+				msgPayload = p.appendJSON(msgPayload, "header", header)
+				output = fmt.Sprintf("%s\n", strings.ReplaceAll(msgPayload, "\n", "\\n"))
 
 			// If timestamps are enabled, write the timestamp before the header
-			if timestamp {
-				_, err := writer.Write([]byte(fmt.Sprintf("\n\n%s  %v%v", msgTimestamp, style.Bold.Render(header), body)))
-				if err != nil {
-					return err
-				}
-			} else {
-				// Otherwise, write the header and body
-				_, err := writer.Write([]byte(fmt.Sprintf("\n\n%v%v", style.Bold.Render(header), body)))
-				if err != nil {
-					return err
-				}
+			case timestamp:
+				output = fmt.Sprintf("\n\n%s  %v%v", msgTimestamp, style.Bold.Render(header), body)
+
+			// Otherwise, write the header and body
+			default:
+				output = fmt.Sprintf("\n\n%v%v", style.Bold.Render(header), body)
+			}
+
+			_, err := writer.Write([]byte(output))
+			if err != nil {
+				return err
 			}
 		}
 	}
@@ -312,13 +344,14 @@ func (p *StreamReader) updateRepeatCount(count int) {
 	p.repeatCount = count
 }
 
-func (p *StreamReader) updateLastEntry(header, body string) {
+func (p *StreamReader) updateLastEntry(header, body, ts string) {
 	// Use a mutex to avoid conncurrent writes from multiple goroutines
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
 	p.lastEntryHeader = header
 	p.lastEntryBody = body
+	p.lastEntryTS = ts
 }
 
 func (p *StreamReader) writeRepeatedEvent(writer io.Writer) {
@@ -336,15 +369,22 @@ func (p *StreamReader) writeRepeatedEvent(writer io.Writer) {
 			offset = fmt.Sprintf("\n\n%s             ", p.indent)
 		}
 
-		countMsg := offset + style.RenderFmt(style.Gray, "(repeated %d time%s)", p.repeatCount, plural)
-		_, err := writer.Write([]byte(countMsg))
+		var output string
+
+		if p.JSON {
+			output = fmt.Sprintf("{\"header\":\"%s\",\"repeated\": %d, \"ts\":\"%s\"}", p.lastEntryHeader, p.repeatCount, p.lastEntryTS)
+		} else {
+			output = offset + style.RenderFmt(style.Gray, "(repeated %d time%s)", p.repeatCount, plural)
+		}
+
+		_, err := writer.Write([]byte(output))
 		if err != nil {
 			message.WarnErr(err, "Error writing repeated event")
 		}
 
 		// Reset the counter and last entry
 		p.updateRepeatCount(0)
-		p.updateLastEntry("", "")
+		p.updateLastEntry("", "", "")
 	}
 }
 
@@ -451,4 +491,9 @@ func (p *StreamReader) renderMutation(event LogEntry) string {
 	}
 
 	return "No patch available"
+}
+
+func (p *StreamReader) appendJSON(json, key, val string) string {
+	modified := strings.TrimSuffix(json, "}")
+	return fmt.Sprintf("%s, \"%s\": \"%s\"}", modified, key, val)
 }

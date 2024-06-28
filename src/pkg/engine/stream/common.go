@@ -78,7 +78,7 @@ func (s *Stream) Start(ctx context.Context) error {
 		go func(podName, container string) {
 			defer wg.Done()
 
-			message.Warnf("Spawning goroutine for pod %s", podName)
+			message.Debug("Spawning goroutine for pod %s", podName)
 
 			// Set up the pod log options
 			podOpts := &corev1.PodLogOptions{
