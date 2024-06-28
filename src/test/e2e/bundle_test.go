@@ -7,6 +7,7 @@ package test
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -660,21 +661,40 @@ func TestListImages(t *testing.T) {
 
 	t.Run("list images on bundle YAML only", func(t *testing.T) {
 		cmd := strings.Split(fmt.Sprintf("inspect %s --list-images --insecure", filepath.Join(bundleDir, config.BundleYAML)), " ")
-		stdout, stderr, err := e2e.UDS(cmd...)
+		stdout, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
-		require.Contains(t, stderr, "library/registry")
-		require.Contains(t, stderr, "ghcr.io/defenseunicorns/zarf/agent")
-		require.Contains(t, stderr, "nginx")
-		require.Contains(t, stderr, "quay.io/prometheus/node-exporter")
 		require.Contains(t, stdout, "library/registry")
 		require.Contains(t, stdout, "ghcr.io/defenseunicorns/zarf/agent")
 		require.Contains(t, stdout, "nginx")
 		require.Contains(t, stdout, "quay.io/prometheus/node-exporter")
 
 		// ensure non-req'd components got filtered
-		require.NotContains(t, stderr, "grafana")
-		require.NotContains(t, stderr, "gitea")
-		require.NotContains(t, stderr, "kiwix")
-		require.NotContains(t, stderr, "podinfo")
+		require.NotContains(t, stdout, "grafana")
+		require.NotContains(t, stdout, "gitea")
+		require.NotContains(t, stdout, "kiwix")
+		require.NotContains(t, stdout, "podinfo")
+	})
+
+	t.Run("list images outputted to a file", func(t *testing.T) {
+		args := strings.Split(fmt.Sprintf("inspect %s --list-images --insecure", filepath.Join(bundleDir, config.BundleYAML)), " ")
+		cmd := exec.Command(e2e.UDSBinPath, args...)
+
+		// open the out file for writing, and redirect the cmd output to that file
+		filename := "./out.txt"
+		outfile, err := os.Create(filename)
+		require.NoError(t, err)
+		defer outfile.Close()
+		defer os.Remove(filename)
+
+		cmd.Stdout = outfile
+
+		err = cmd.Run()
+		require.NoError(t, err)
+
+		// read in the file and check its contents
+		contents, err := os.ReadFile(filename)
+		require.NoError(t, err)
+		require.NotContains(t, string(contents), "\u001B") // ensure no color-related bytes
+		require.Contains(t, string(contents), "library/registry")
 	})
 }

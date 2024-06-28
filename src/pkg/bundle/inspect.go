@@ -7,7 +7,6 @@ package bundle
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,7 +21,6 @@ import (
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
-	"github.com/fatih/color"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pterm/pterm"
 )
@@ -95,12 +93,11 @@ func (b *Bundle) listImages() error {
 		return err
 	}
 
-	formattedImgs := pterm.Color(color.FgHiMagenta).Sprintf(strings.Join(imgs, "\n"))
+	formattedImgs := strings.Join(imgs, "\n")
 
 	// print to stdout to enable users to easily grab the output
-	// (and stderr for backwards compatibility)
-	pterm.SetDefaultOutput(io.MultiWriter(os.Stderr, os.Stdout))
-	pterm.Printfln("\n%s\n", formattedImgs)
+	pterm.SetDefaultOutput(os.Stdout)
+	pterm.Printfln("%s\n", formattedImgs)
 	return nil
 }
 
