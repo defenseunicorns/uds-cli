@@ -606,16 +606,17 @@ func formPkgViews(b *Bundle) []PkgView {
 					if strings.Contains(v.Path, ".") {
 						paths := strings.Split(v.Path, ".")
 
-						// hold the next {key: value} in the chain
-						chartVars[v.Name] = processedVars[paths[0]]
-						for i := range paths[1:] {
-							if chartVars[v.Name] == nil || chartVars[v.Name].(map[string]interface{})[paths[i+1]] == nil {
-								//delete any previously set entries of var.Name
+						chartVars[v.Name] = processedVars
+						for _, p := range paths {
+
+							val, ok := chartVars[v.Name].(map[string]interface{})[p]
+							if !ok {
+								// delete any previously set entry of v.Name
 								delete(chartVars, v.Name)
 								break
 							}
 
-							chartVars[v.Name] = chartVars[v.Name].(map[string]interface{})[paths[i+1]]
+							chartVars[v.Name] = val
 						}
 					} else {
 						if processedVars[v.Path] == nil {
