@@ -1,7 +1,12 @@
 import type { V1Pod } from '@kubernetes/client-node';
-import { ResourceStore, SearchByType, type ResourceWithTable, type TableRow } from './common';
+import {
+  ResourceStore,
+  type ColumnWrapper,
+  type ResourceStoreInterface,
+  type ResourceWithTable
+} from './common';
 
-interface PodRow extends TableRow {
+interface Row {
   name: string;
   namespace: string;
   containers: number;
@@ -12,24 +17,15 @@ interface PodRow extends TableRow {
   status: string;
 }
 
-export const headers = [
-  'name',
-  'namespace',
-  'containers',
-  'restarts',
-  'controller',
-  'node',
-  'age',
-  'status'
-];
+export type Columns = ColumnWrapper<Row>;
 
 /**
  * Create a new PodStore for streaming Pod resources
  *
  * @returns A new PodStore instance
  */
-export function createPodStore() {
-  const store = new ResourceStore<V1Pod, PodRow>(headers[0]);
+export function createStore(): ResourceStoreInterface<V1Pod, Row> {
+  const store = new ResourceStore<V1Pod, Row>('name');
 
   const start = () =>
     store.start(
@@ -48,7 +44,7 @@ export function createPodStore() {
             age: pod.metadata?.creationTimestamp ?? '',
             status: pod.status?.phase ?? ''
           }
-        })) as ResourceWithTable<V1Pod, PodRow>[]
+        })) as ResourceWithTable<V1Pod, Row>[]
     );
 
   return {
@@ -57,7 +53,3 @@ export function createPodStore() {
     sortByKey: store.sortByKey.bind(store)
   };
 }
-
-export type PodStore = ReturnType<typeof createPodStore>;
-export type PodResourceWithTable = ResourceWithTable<V1Pod, PodRow>;
-export { SearchByType };

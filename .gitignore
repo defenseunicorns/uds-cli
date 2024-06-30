@@ -18,7 +18,6 @@
 *.zst
 *.zim
 build
-data/
 dist/
 test-results/
 zarf-pki

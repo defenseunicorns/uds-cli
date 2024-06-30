@@ -7,8 +7,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 
@@ -17,6 +15,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 func Start() error {
@@ -46,41 +46,12 @@ func Start() error {
 		r.Get("/monitor/pepr/", monitor.Pepr)
 		r.Get("/monitor/pepr/{stream}", monitor.Pepr)
 
-		r.Get("/resources/pods", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
-			w.Header().Set("Cache-Control", "no-cache")
-			w.Header().Set("Connection", "keep-alive")
+		r.Get("/resources/namespaces", resources.Bind[*v1.Namespace](cache.Namespaces.GetResources, cache.Namespaces.Changes))
+		r.Get("/resources/pods", resources.Bind[*v1.Pod](cache.Pods.GetResources, cache.Pods.Changes))
+		r.Get("/resources/deployments", resources.Bind[*appsv1.Deployment](cache.Deployments.GetResources, cache.Deployments.Changes))
+		r.Get("/resources/daemonsets", resources.Bind[*appsv1.DaemonSet](cache.Daemonsets.GetResources, cache.Daemonsets.Changes))
+		r.Get("/resources/statefulsets", resources.Bind[*appsv1.StatefulSet](cache.Statefulsets.GetResources, cache.Statefulsets.Changes))
 
-			flusher, ok := w.(http.Flusher)
-			if !ok {
-				http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
-				return
-			}
-
-			sendData := func() {
-				pods := cache.Pods.GetPods()
-				data, err := json.Marshal(pods)
-				if err != nil {
-					fmt.Fprintf(w, "data: Error: %v\n\n", err)
-					flusher.Flush()
-					return
-				}
-				fmt.Fprintf(w, "data: %s\n\n", data)
-				flusher.Flush()
-			}
-
-			sendData()
-
-			for {
-				select {
-				case <-r.Context().Done():
-					return
-				case <-cache.Pods.Changes:
-					sendData()
-				}
-			}
-
-		})
 	})
 
 	log.Println("Starting server on :8080")

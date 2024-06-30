@@ -1,22 +1,39 @@
 import type { KubernetesObject } from '@kubernetes/client-node';
 import { derived, writable, type Writable } from 'svelte/store';
 
-export interface TableRow {
-  [key: string]: string | number;
-}
+export type ColumnWrapper<T> = [name: keyof T, styles?: string][];
 
-export interface ResourceWithTable<T extends KubernetesObject, U extends TableRow> {
+export interface ResourceWithTable<T extends KubernetesObject, U> {
   resource: T;
   table: U;
 }
 
-export enum SearchByType {
+enum SearchByType {
   ANYWHERE = 'Anywhere',
   METADATA = 'Metadata',
   NAME = 'Name'
 }
 
-export class ResourceStore<T extends KubernetesObject, U extends TableRow> {
+export interface ResourceStoreInterface<T extends KubernetesObject, U> {
+  // Start the EventSource and update the resources
+  start: () => () => void;
+  // Sort the table by the key
+  sortByKey: (key: keyof U) => void;
+  // Store for search text
+  search: Writable<string>;
+  // Store for search by type
+  searchBy: Writable<SearchByType>;
+  // Store for sortBy key
+  sortBy: Writable<keyof U>;
+  // Store for sort direction
+  sortAsc: Writable<boolean>;
+  // The list of search types
+  searchTypes: SearchByType[];
+  // Subscribe to the filtered and sorted resources
+  subscribe: (run: (value: ResourceWithTable<T, U>[]) => void) => () => void;
+}
+
+export class ResourceStore<T extends KubernetesObject, U> {
   // Keep an internal store for the resources
   private resources: Writable<ResourceWithTable<T, U>[]>;
 
@@ -30,6 +47,8 @@ export class ResourceStore<T extends KubernetesObject, U extends TableRow> {
   public sortBy: Writable<keyof U>;
   public sortAsc: Writable<boolean>;
 
+  // The list of search types
+  public searchTypes = Object.values(SearchByType);
   /**
    * Create a new ResourceStore instance
    *
@@ -145,8 +164,6 @@ export class ResourceStore<T extends KubernetesObject, U extends TableRow> {
 }
 
 // Factory function to create a ResourceStore instance
-export function createResourceStore<T extends KubernetesObject, U extends TableRow>(
-  initialSortBy: keyof U
-) {
+export function createResourceStore<T extends KubernetesObject, U>(initialSortBy: keyof U) {
   return new ResourceStore<T, U>(initialSortBy);
 }

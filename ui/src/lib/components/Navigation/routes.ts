@@ -27,6 +27,10 @@ export const routes = [
     icon: ServerSolid,
     children: [
       {
+        path: '/resources/namespaces',
+        name: 'Namespaces'
+      },
+      {
         path: '/resources/pods',
         name: 'Pods'
       },

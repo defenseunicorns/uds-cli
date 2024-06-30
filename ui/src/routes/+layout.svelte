@@ -5,9 +5,9 @@
   import 'flowbite/dist/flowbite.css';
   import { onMount } from 'svelte';
 
-  import Breadcrumb from '$lib/components/Navigation/Breadcrumb.svelte';
-  import Navbar from '$lib/components/Navigation/Navbar.svelte';
-  import Sidebar from '$lib/components/Navigation/Sidebar.svelte';
+  import Breadcrumb from '$lib/components/navigation/Breadcrumb.svelte';
+  import Navbar from '$lib/components/navigation/Navbar.svelte';
+  import Sidebar from '$lib/components/navigation/Sidebar.svelte';
   import { isSidebarExpanded } from '$lib/stores/layout';
   import '../app.postcss';
 
