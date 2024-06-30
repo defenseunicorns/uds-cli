@@ -1,4 +1,4 @@
-import type { V1Namespace } from '@kubernetes/client-node';
+import type { V1Namespace as Resource } from '@kubernetes/client-node';
 import {
   ResourceStore,
   type ColumnWrapper,
@@ -9,7 +9,7 @@ import {
 interface Row {
   name: string;
   status: string;
-  age: string;
+  age: Date | string;
 }
 
 export type Columns = ColumnWrapper<Row>;
@@ -19,26 +19,24 @@ export type Columns = ColumnWrapper<Row>;
  *
  * @returns A new NamespaceStore instance
  */
-export function createStore(): ResourceStoreInterface<V1Namespace, Row> {
-  const store = new ResourceStore<V1Namespace, Row>('name');
+export function createStore(): ResourceStoreInterface<Resource, Row> {
+  const url = `http://localhost:8080/api/v1/resources/namespaces`;
 
-  const start = () =>
-    store.start(
-      `http://localhost:8080/api/v1/resources/namespaces`,
-      (resources) =>
-        resources.map((r) => ({
-          resource: r,
-          table: {
-            name: r.metadata?.name ?? '',
-            status: r.status?.phase ?? '',
-            age: r.metadata?.creationTimestamp ?? ''
-          }
-        })) as ResourceWithTable<V1Namespace, Row>[]
-    );
+  const transform = (resources: Resource[]) =>
+    resources.map<ResourceWithTable<Resource, Row>>((r) => ({
+      resource: r,
+      table: {
+        name: r.metadata?.name ?? '',
+        status: r.status?.phase ?? '',
+        age: r.metadata?.creationTimestamp ?? ''
+      }
+    }));
+
+  const store = new ResourceStore<Resource, Row>('name');
 
   return {
     ...store,
-    start,
+    start: () => store.start(url, transform),
     sortByKey: store.sortByKey.bind(store)
   };
 }
