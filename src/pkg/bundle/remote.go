@@ -164,6 +164,9 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 	}
 
 	var layersToPull []ocispec.Descriptor
+	// need to keep track of all the bundle layers
+	var bundleLayers []ocispec.Descriptor
+
 	estimatedBytes := int64(0)
 
 	// get the bundle's root manifest
@@ -186,6 +189,7 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 		return nil, nil, err
 	}
 	layersToPull = append(layersToPull, bundleRootDesc)
+	bundleLayers = append(bundleLayers, layersToPull...)
 
 	for _, pkg := range bundle.Packages {
 		// go through the pkg's layers and figure out which ones to pull based on the req'd + selected components
@@ -206,6 +210,7 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 				estimatedBytes += layer.Size
 			}
 		}
+		bundleLayers = append(bundleLayers, pkgLayers...)
 	}
 
 	// grab the bundle root manifest and add it to the layers to pull
@@ -214,6 +219,7 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 		return nil, nil, err
 	}
 	layersToPull = append(layersToPull, rootDesc)
+	bundleLayers = append(bundleLayers, rootDesc)
 
 	// pull layers that didn't already exist on disk
 	if len(layersToPull) > 0 {
@@ -228,7 +234,7 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 		}
 	}
 
-	for _, layer := range layersToPull {
+	for _, layer := range bundleLayers {
 		sha := layer.Digest.Encoded()
 		loaded[sha] = filepath.Join(op.dst, config.BlobsDir, sha)
 	}
