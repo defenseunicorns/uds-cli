@@ -2,7 +2,7 @@
 
 When working with UDS configuration files, it can be useful to setup your IDE to know about the various schemas that UDS uses.
 
-The recommend method of validating schemas is by the use of the `yaml-language-server` file headers:
+The recommended method of validating schemas is by the use of `yaml-language-server` file headers:
 
 For `uds-bundle.yaml`
 ```yaml
