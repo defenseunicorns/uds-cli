@@ -75,6 +75,7 @@ func (b *Bundle) Inspect() error {
 		return err
 	}
 
+	// handle --list-variables flag
 	if b.cfg.InspectOpts.ListVariables {
 		err := b.listVariables()
 		if err != nil {
@@ -109,6 +110,7 @@ func (b *Bundle) listImages() error {
 	return nil
 }
 
+// listVariables prints the variables and overrides for each package in the bundle
 func (b *Bundle) listVariables() error {
 	message.HorizontalRule()
 	message.Title("Overrides and Variables:", "configurable helm overrides and Zarf variables by package")
@@ -133,7 +135,18 @@ func (b *Bundle) listVariables() error {
 			return err
 		}
 
-		varMap := map[string]map[string]interface{}{pkg.Name: {"Overrides": pkg.Overrides, "Zarf-Variables": zarfPkg.Variables}}
+		variables := make([]interface{}, 0)
+
+		// add each zarf var to variables for better formatting in output
+		for _, zarfVar := range zarfPkg.Variables {
+			variables = append(variables, zarfVar)
+		}
+
+		if len(pkg.Overrides) > 0 {
+			variables = append(variables, pkg.Overrides)
+		}
+
+		varMap := map[string]map[string]interface{}{pkg.Name: {"variables": variables}}
 		zarfUtils.ColorPrintYAML(varMap, nil, false)
 	}
 

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/cli/values"
 )
@@ -241,7 +242,7 @@ func TestLoadVariablesPrecedence(t *testing.T) {
 			if tc.loadEnvVar {
 				os.Setenv("UDS_FOO", "set using env var")
 			}
-			actualPkgVars := tc.bundle.loadVariables(tc.pkg, tc.bundleExportVars)
+			actualPkgVars, _ := tc.bundle.loadVariables(tc.pkg, tc.bundleExportVars)
 			require.Equal(t, tc.expectedPkgVars, actualPkgVars)
 		})
 	}
@@ -427,7 +428,7 @@ func TestHelmOverrideVariablePrecedence(t *testing.T) {
 				os.Setenv("UDS_FOO", "set using env var")
 			}
 			overrideMap := map[string]map[string]*values.Options{}
-			err := b.processOverrideVariables(&overrideMap, tc.args.pkgName, tc.args.variables, tc.args.componentName, tc.args.chartName)
+			err := b.processOverrideVariables(&overrideMap, tc.args.pkgName, *tc.args.variables, tc.args.componentName, tc.args.chartName)
 			require.NoError(t, err)
 			if tc.expectedVal == "" {
 				require.Equal(t, 0, len(overrideMap))
@@ -547,7 +548,6 @@ func TestFileVariableHandlers(t *testing.T) {
 			bundle: Bundle{
 				cfg: &types.BundleConfig{
 					DeployOpts: types.BundleDeployOptions{
-
 						Source: fmt.Sprintf("%s/uds-bundle-helm-overrides-amd64-0.0.1.tar.zst", relativePath),
 					},
 				},
@@ -605,7 +605,7 @@ func TestFileVariableHandlers(t *testing.T) {
 			}
 
 			overrideMap := map[string]map[string]*values.Options{}
-			err := tc.bundle.processOverrideVariables(&overrideMap, tc.args.pkgName, tc.args.variables, tc.args.componentName, tc.args.chartName)
+			err := tc.bundle.processOverrideVariables(&overrideMap, tc.args.pkgName, *tc.args.variables, tc.args.componentName, tc.args.chartName)
 
 			if tc.requireNoErr {
 				require.NoError(t, err)
@@ -617,10 +617,196 @@ func TestFileVariableHandlers(t *testing.T) {
 	}
 }
 
+func TestFormPkgViews(t *testing.T) {
+	const (
+		componentName = "test-component"
+		chartName     = "test-chart"
+		pkgName       = "test-package"
+	)
+
+	type TestCase struct {
+		name        string
+		bundle      Bundle
+		loadEnv     bool
+		expectedKey string
+		expectedVal string
+		envKey      string
+		envVal      string
+	}
+
+	setUpPkg := func(overVar types.BundleChartVariable) types.Package {
+		return types.Package{Name: pkgName,
+			Overrides: map[string]map[string]types.BundleChartOverrides{componentName: {chartName: {Variables: []types.BundleChartVariable{
+				overVar,
+			}}}}}
+	}
+
+	testCases := []TestCase{
+		{
+			name: "simple path, set by config",
+			bundle: Bundle{
+				cfg: &types.BundleConfig{
+					DeployOpts: types.BundleDeployOptions{
+						Config: "uds-config.yaml",
+						Variables: map[string]map[string]interface{}{
+							pkgName: {
+								"VAR1": "set-by-config",
+							},
+						},
+					},
+				},
+				bundle: types.UDSBundle{
+					Packages: []types.Package{setUpPkg(types.BundleChartVariable{Name: "VAR1", Path: "path"})},
+				},
+			},
+			expectedKey: "VAR1",
+			expectedVal: "set-by-config",
+		},
+		{
+			name: "complex path, set by bundle",
+			bundle: Bundle{
+				cfg: &types.BundleConfig{
+					DeployOpts: types.BundleDeployOptions{},
+				},
+				bundle: types.UDSBundle{
+					Packages: []types.Package{setUpPkg(types.BundleChartVariable{
+						Name:    "VAR1",
+						Path:    "a.complex.path",
+						Default: "set-by-bundle",
+					})},
+				},
+			},
+			expectedKey: "VAR1",
+			expectedVal: "set-by-bundle",
+		},
+		{
+			name: "mask env var",
+			bundle: Bundle{
+				cfg: &types.BundleConfig{
+					DeployOpts: types.BundleDeployOptions{},
+				},
+				bundle: types.UDSBundle{
+					Packages: []types.Package{setUpPkg(types.BundleChartVariable{Name: "VAR1", Path: "path"})},
+				},
+			},
+			loadEnv:     true,
+			envKey:      "UDS_VAR1",
+			envVal:      "gets-masked",
+			expectedKey: "VAR1",
+			expectedVal: "****",
+		},
+		{
+			name: "mask file var",
+			bundle: Bundle{
+				cfg: &types.BundleConfig{
+					DeployOpts: types.BundleDeployOptions{
+						Config: "uds-config.yaml",
+						Variables: map[string]map[string]interface{}{
+							pkgName: {
+								"VAR1": "../../test/bundles/07-helm-overrides/variable-files/test.cert",
+							},
+						},
+					},
+				},
+				bundle: types.UDSBundle{
+					Packages: []types.Package{setUpPkg(types.BundleChartVariable{
+						Name: "VAR1",
+						Path: "path",
+						Type: "file",
+					})},
+				},
+			},
+			expectedKey: "VAR1",
+			expectedVal: "****",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.loadEnv {
+				os.Setenv(tc.envKey, tc.envVal)
+			}
+
+			pkgViews := formPkgViews(&tc.bundle)
+
+			v := pkgViews[0].overrides["overrides"].([]interface{})[0].(map[string]map[string]interface{})[chartName]["variables"]
+
+			require.Contains(t, v.(map[string]interface{})[tc.expectedKey], tc.expectedVal)
+
+			// cleanup ENV Vars to avoid conflicts
+			if tc.loadEnv {
+				os.Unsetenv(tc.envKey)
+			}
+		})
+	}
+
+	zarfVarTest := TestCase{
+		name: "show zarf var",
+		bundle: Bundle{
+			cfg: &types.BundleConfig{
+				DeployOpts: types.BundleDeployOptions{
+					Config: "uds-config.yaml",
+					Variables: map[string]map[string]interface{}{
+						pkgName: {
+							"VAR1": "zarf-var-set-by-config",
+						},
+					},
+				},
+			},
+			bundle: types.UDSBundle{Packages: []types.Package{{Name: pkgName}}},
+		},
+		expectedKey: "VAR1",
+		expectedVal: "zarf-var-set-by-config",
+	}
+
+	t.Run("show zarf var", func(t *testing.T) {
+		pkgViews := formPkgViews(&zarfVarTest.bundle)
+
+		v := pkgViews[0].overrides["overrides"].([]interface{})[0]
+
+		require.Contains(t, v.(map[string]string)[zarfVarTest.expectedKey], zarfVarTest.expectedVal)
+	})
+
+	nilCheckTests := []TestCase{
+		{
+			name: "override not set",
+			bundle: Bundle{
+				cfg: &types.BundleConfig{
+					DeployOpts: types.BundleDeployOptions{},
+				},
+				bundle: types.UDSBundle{
+					Packages: []types.Package{setUpPkg(types.BundleChartVariable{Name: "VAR1", Path: "path"})},
+				},
+			},
+		},
+		{
+			name: "no overrides",
+			bundle: Bundle{
+				cfg: &types.BundleConfig{
+					DeployOpts: types.BundleDeployOptions{},
+				},
+				bundle: types.UDSBundle{
+					Packages: []types.Package{{Name: pkgName}},
+				},
+			},
+		},
+	}
+
+	for _, tc := range nilCheckTests {
+		t.Run(tc.name, func(t *testing.T) {
+			pkgViews := formPkgViews(&tc.bundle)
+
+			v := pkgViews[0].overrides["overrides"]
+
+			require.Equal(t, 0, len(v.([]interface{})))
+		})
+	}
+}
+
 func TestFilterOverrides(t *testing.T) {
 	chartVars := []types.BundleChartVariable{{Name: "over1"}, {Name: "over2"}}
-	pkgVars := map[string]string{"OVER1": "val", "ZARFVAR": "val"}
-	filtered := filterOutOverrides(chartVars, pkgVars)
-	actual := map[string]string{"ZARFVAR": "val"}
+	pkgVars := map[string]overrideView{"OVER1": {"val", valuesources.Config}, "ZARFVAR": {"val", valuesources.Env}}
+	filtered := filterOverrides(chartVars, pkgVars)
+	actual := map[string]overrideView{"ZARFVAR": {"val", valuesources.Env}}
 	require.Equal(t, actual, filtered)
 }

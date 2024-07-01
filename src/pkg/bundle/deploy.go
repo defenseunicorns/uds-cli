@@ -17,6 +17,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
@@ -99,7 +100,7 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 			publicKeyPath = ""
 		}
 
-		pkgVars := b.loadVariables(pkg, bundleExportedVars)
+		pkgVars, _ := b.loadVariables(pkg, bundleExportedVars)
 
 		valuesOverrides, nsOverrides, err := b.loadChartOverrides(pkg, pkgVars)
 		if err != nil {
@@ -228,7 +229,6 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 	for _, pkg := range pkgviews {
 		utils.ColorPrintYAML(pkg.meta, nil, false)
-		utils.ColorPrintYAML(pkg.zarfVars, nil, false)
 		utils.ColorPrintYAML(pkg.overrides, nil, false)
 	}
 
@@ -251,7 +251,6 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 type PkgView struct {
 	meta      map[string]string
-	zarfVars  map[string]map[string]string
 	overrides map[string]interface{}
 }
 
@@ -259,23 +258,26 @@ type PkgView struct {
 func formPkgViews(b *Bundle) []PkgView {
 	var pkgViews []PkgView
 	for _, pkg := range b.bundle.Packages {
-		pkgMeta := map[string]string{}
-		variables := make([]map[string]map[string]interface{}, 0)
+		pkgMeta := map[string]string{"name": pkg.Name, "ref": pkg.Ref}
+		variables := make([]interface{}, 0)
 
-		pkgMeta["name"] = pkg.Name
 		if pkg.Repository != "" {
 			pkgMeta["repo"] = pkg.Repository
 		} else {
 			pkgMeta["path"] = pkg.Path
 		}
-		pkgMeta["ref"] = pkg.Ref
 
-		pkgVars := b.loadVariables(pkg, nil)
-		valuesOverrides, _, _ := b.loadChartOverrides(pkg, pkgVars)
+		// process overrides and variables to get values
+		_, pkgOvers := b.loadVariables(pkg, nil)
+		valuesOverrides, _, _ := b.loadChartOverrides(pkg, map[string]string{})
+
+		// updated on each chart iteration
+		filteredVars := pkgOvers
 
 		for compName, component := range pkg.Overrides {
 			for chartName, chart := range component {
-				pkgVars = filterOutOverrides(chart.Variables, pkgVars)
+				// filter out the chart.Variables so left with Zarf Variables
+				filteredVars = filterOverrides(chart.Variables, filteredVars)
 
 				processedVars := valuesOverrides[compName][chartName]
 				if processedVars == nil {
@@ -285,20 +287,30 @@ func formPkgViews(b *Bundle) []PkgView {
 				chartVars := map[string]interface{}{}
 
 				for _, v := range chart.Variables {
+
+					// Mask potentially sensitive variables
+					if v.Type == "file" || v.Source == valuesources.Env {
+						chartVars[v.Name] = "****"
+						continue
+					}
+
 					// handle complex paths: var.helm.path = { var: { helm: { path: val } } }
 					if strings.Contains(v.Path, ".") {
 						paths := strings.Split(v.Path, ".")
 
-						// hold the next {key: value} in the chain
-						chartVars[v.Name] = processedVars[paths[0]]
-						for i := range paths[1:] {
-							if chartVars[v.Name] == nil || chartVars[v.Name].(map[string]interface{})[paths[i+1]] == nil {
-								//delete any previously set entries of var.Name
+						// set initial entry so iterations through paths can hold next key value pair until final value is found,
+						// removing the entry if map[path] returns nil
+						chartVars[v.Name] = processedVars
+						for _, path := range paths {
+
+							val, notNil := chartVars[v.Name].(map[string]interface{})[path]
+							if !notNil {
+								// delete previously set entry of v.Name and exit loop
 								delete(chartVars, v.Name)
 								break
 							}
 
-							chartVars[v.Name] = chartVars[v.Name].(map[string]interface{})[paths[i+1]]
+							chartVars[v.Name] = val
 						}
 					} else {
 						if processedVars[v.Path] == nil {
@@ -310,12 +322,23 @@ func formPkgViews(b *Bundle) []PkgView {
 				}
 
 				if len(chartVars) > 0 {
-					variables = append(variables, map[string]map[string]interface{}{chartName: {"Variables": chartVars}})
+					variables = append(variables, map[string]map[string]interface{}{chartName: {"variables": chartVars}})
 				}
 			}
 		}
 
-		pkgViews = append(pkgViews, PkgView{meta: pkgMeta, zarfVars: map[string]map[string]string{"Zarf-Variables": pkgVars}, overrides: map[string]interface{}{"Overrides": variables}})
+		for key, fv := range filteredVars {
+			// config is location of uds-config.yaml, not a variable
+			if key != "CONFIG" {
+				// Mask potentially secret ENV vars
+				if fv.source == valuesources.Env {
+					fv.value = "****"
+				}
+				variables = append(variables, map[string]string{key: fv.value})
+			}
+		}
+
+		pkgViews = append(pkgViews, PkgView{meta: pkgMeta, overrides: map[string]interface{}{"overrides": variables}})
 	}
 	return pkgViews
 }

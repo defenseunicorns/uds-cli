@@ -701,7 +701,7 @@ func TestListVariables(t *testing.T) {
 
 		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
 		cleaned := ansiRegex.ReplaceAllString(stderr, "")
-		require.Contains(t, cleaned, "prometheus:\n  Overrides: {}\n  Zarf-Variables: []\n")
+		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")
 	})
 
 	t.Run("list variables for remote tarball", func(t *testing.T) {
@@ -711,45 +711,6 @@ func TestListVariables(t *testing.T) {
 
 		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
 		cleaned := ansiRegex.ReplaceAllString(stderr, "")
-		require.Contains(t, cleaned, "prometheus:\n  Overrides: {}\n  Zarf-Variables: []\n")
+		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")
 	})
-}
-
-// run after TestListImages because stderr bleeds over between tests
-func TestConfirmBundleDeployView(t *testing.T) {
-	deployZarfInit(t)
-	zarfPkgPath := "src/test/packages/helm"
-	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-	bundleDir := "src/test/bundles/07-helm-overrides"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
-	createLocal(t, bundleDir, e2e.Arch)
-
-	os.Setenv("UDS_CONFIG", fmt.Sprintf("%s/uds-config.yaml", bundleDir))
-	_, stderr := deploy(t, bundlePath)
-
-	ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
-	cleaned := ansiRegex.ReplaceAllString(stderr, "")
-	require.Contains(t, cleaned, "log_level: debug")
-	require.Contains(t, cleaned, "ui_color: green, yellow")
-
-	remove(t, bundlePath)
-}
-
-func TestDeployViewNoOverrides(t *testing.T) {
-	deployZarfInit(t)
-
-	zarfPkgPath := "src/test/packages/podinfo"
-	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-
-	bundleDir := "src/test/bundles/03-local-and-remote"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
-	createLocal(t, bundleDir, e2e.Arch)
-
-	_, stderr := deploy(t, bundlePath)
-
-	ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
-	cleaned := ansiRegex.ReplaceAllString(stderr, "")
-	require.Contains(t, cleaned, "Overrides: []")
-
-	remove(t, bundlePath)
 }

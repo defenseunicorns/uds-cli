@@ -55,14 +55,20 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string
 	// Loop through each package component's charts and process overrides
 	for componentName, component := range pkg.Overrides {
 		for chartName, chart := range component {
-			chartCopy := chart // Create a copy of the chart
-			if err := b.processOverrideValues(&overrideMap, &chartCopy.Values, componentName, chartName, pkgVars); err != nil {
+
+			// create component and chart map
+			if len(chart.Values) > 0 || len(chart.Variables) > 0 {
+				overrideMap[componentName] = make(map[string]*values.Options)
+				overrideMap[componentName][chartName] = &values.Options{}
+			}
+
+			if err := b.processOverrideValues(&overrideMap, chart.Values, componentName, chartName, pkgVars); err != nil {
 				return nil, nil, err
 			}
-			if err := b.processOverrideVariables(&overrideMap, pkg.Name, &chartCopy.Variables, componentName, chartName); err != nil {
+			if err := b.processOverrideVariables(&overrideMap, pkg.Name, chart.Variables, componentName, chartName); err != nil {
 				return nil, nil, err
 			}
-			b.processOverrideNamespaces(nsOverrides, chartCopy.Namespace, componentName, chartName)
+			b.processOverrideNamespaces(nsOverrides, chart.Namespace, componentName, chartName)
 		}
 	}
 
@@ -87,24 +93,32 @@ func (b *Bundle) processOverrideNamespaces(overrideMap sources.NamespaceOverride
 }
 
 // processOverrideValues processes a bundles values overrides and adds them to the override map
-func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values *[]types.BundleChartValue, componentName string, chartName string, pkgVars map[string]string) error {
-	for _, v := range *values {
+func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values []types.BundleChartValue, componentName string, chartName string, pkgVars map[string]string) error {
+	for _, v := range values {
 		// Add the override to the map, or return an error if the path is invalid
-		if err := b.addOverride(*overrideMap, componentName, chartName, v, v.Value, pkgVars); err != nil {
+		if err := b.addOverride((*overrideMap)[componentName][chartName], v, v.Value, pkgVars); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
+type overrideView struct {
+	value  string
+	source valuesources.Source
+}
+
 // loadVariables loads and sets precedence for config-level and imported variables
-func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) map[string]string {
+func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) (map[string]string, map[string]overrideView) {
+
 	pkgVars := make(map[string]string)
+	forView := make(map[string]overrideView)
 
 	// load all exported variables
 	for _, exportedVarMap := range bundleExportedVars {
 		for varName, varValue := range exportedVarMap {
 			pkgVars[strings.ToUpper(varName)] = varValue
+			forView[strings.ToUpper(varName)] = overrideView{varValue, valuesources.Bundle}
 		}
 	}
 
@@ -112,21 +126,25 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 	// imported vars
 	for _, imp := range pkg.Imports {
 		pkgVars[strings.ToUpper(imp.Name)] = bundleExportedVars[imp.Package][imp.Name]
+		forView[strings.ToUpper(imp.Name)] = overrideView{bundleExportedVars[imp.Package][imp.Name], valuesources.Bundle}
 	}
 
 	// shared vars
 	for name, val := range b.cfg.DeployOpts.SharedVariables {
 		pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
+		forView[strings.ToUpper(name)] = overrideView{fmt.Sprint(val), valuesources.Config}
 	}
 	// config vars
 	for name, val := range b.cfg.DeployOpts.Variables[pkg.Name] {
 		pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
+		forView[strings.ToUpper(name)] = overrideView{fmt.Sprint(val), valuesources.Config}
 	}
 	// env vars (vars that start with UDS_)
 	for _, envVar := range os.Environ() {
 		if strings.HasPrefix(envVar, config.EnvVarPrefix) {
 			parts := strings.Split(envVar, "=")
 			pkgVars[strings.ToUpper(strings.TrimPrefix(parts[0], config.EnvVarPrefix))] = parts[1]
+			forView[strings.ToUpper(strings.TrimPrefix(parts[0], config.EnvVarPrefix))] = overrideView{parts[1], valuesources.Env}
 		}
 	}
 	// set vars (vars set with --set flag)
@@ -137,17 +155,20 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 			packageName, variableName := splitName[0], splitName[1]
 			if packageName == pkg.Name {
 				pkgVars[strings.ToUpper(variableName)] = fmt.Sprint(val)
+				forView[strings.ToUpper(variableName)] = overrideView{fmt.Sprint(val), valuesources.CLI}
 			}
 		} else {
 			pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
+			forView[strings.ToUpper(name)] = overrideView{fmt.Sprint(val), valuesources.CLI}
 		}
 	}
-	return pkgVars
+	return pkgVars, forView
 }
 
 // processOverrideVariables processes bundle variables overrides and adds them to the override map
-func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*values.Options, pkgName string, variables *[]types.BundleChartVariable, componentName string, chartName string) error {
-	for _, v := range *variables {
+func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*values.Options, pkgName string, variables []types.BundleChartVariable, componentName string, chartName string) error {
+	for i := range variables {
+		v := &variables[i]
 		var overrideVal interface{}
 		// Ensuring variable name is upper case since comparisons are being done against upper case env and config variables
 		v.Name = strings.ToUpper(v.Name)
@@ -190,7 +211,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 		}
 
 		// Add the override to the map, or return an error if the path is invalid
-		if err := b.addOverride(*overrideMap, componentName, chartName, v, overrideVal, nil); err != nil {
+		if err := b.addOverride((*overrideMap)[componentName][chartName], *v, overrideVal, nil); err != nil {
 			return err
 		}
 	}
@@ -199,17 +220,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 }
 
 // addOverride adds a value or variable to a PkgOverrideMap
-func (b *Bundle) addOverride(overrides map[string]map[string]*values.Options, component string, chart string, override interface{}, value interface{}, pkgVars map[string]string) error {
-	// Create the component map if it doesn't exist
-	if _, ok := overrides[component]; !ok {
-		overrides[component] = make(map[string]*values.Options)
-	}
-
-	// Create the chart map if it doesn't exist
-	if _, ok := overrides[component][chart]; !ok {
-		overrides[component][chart] = &values.Options{}
-	}
-
+func (b *Bundle) addOverride(overrides *values.Options, override interface{}, value interface{}, pkgVars map[string]string) error {
 	var valuePath string
 	var handleExports bool
 
@@ -221,8 +232,8 @@ func (b *Bundle) addOverride(overrides map[string]map[string]*values.Options, co
 		valuePath = v.Path
 		handleExports = false
 		if v.Type == types.File {
-			if fileVals, err := b.addFileValue(overrides[component][chart].FileValues, value.(string), v); err == nil {
-				overrides[component][chart].FileValues = fileVals
+			if fileVals, err := b.addFileValue(overrides.FileValues, value.(string), v); err == nil {
+				overrides.FileValues = fileVals
 			} else {
 				return err
 			}
@@ -248,7 +259,7 @@ func (b *Bundle) addOverride(overrides map[string]map[string]*values.Options, co
 		if handleExports {
 			jsonVals = setTemplatedVariables(jsonVals, pkgVars)
 		}
-		overrides[component][chart].JSONValues = append(overrides[component][chart].JSONValues, jsonVals)
+		overrides.JSONValues = append(overrides.JSONValues, jsonVals)
 	case map[string]interface{}:
 		// handle objects by parsing them as json and appending to Options.JSONValues
 		j, err := json.Marshal(v)
@@ -257,10 +268,10 @@ func (b *Bundle) addOverride(overrides map[string]map[string]*values.Options, co
 		}
 		// use JSONValues because we can easily marshal the YAML to JSON and Helm understands it
 		val := fmt.Sprintf("%s=%s", valuePath, j)
-		if pkgVars != nil {
+		if handleExports {
 			val = setTemplatedVariables(val, pkgVars)
 		}
-		overrides[component][chart].JSONValues = append(overrides[component][chart].JSONValues, val)
+		overrides.JSONValues = append(overrides.JSONValues, val)
 	default:
 		// Check for any templated variables if pkgVars set
 		if handleExports {
@@ -270,7 +281,7 @@ func (b *Bundle) addOverride(overrides map[string]map[string]*values.Options, co
 
 		// Handle default case of simple values like strings and numbers
 		helmVal := fmt.Sprintf("%s=%v", valuePath, value)
-		overrides[component][chart].Values = append(overrides[component][chart].Values, helmVal)
+		overrides.Values = append(overrides.Values, helmVal)
 	}
 	return nil
 }
@@ -337,10 +348,10 @@ func formFilePath(anchorPath string, filePath string) (string, error) {
 	return filePath, nil
 }
 
-func filterOutOverrides(chartVars []types.BundleChartVariable, pkgVars map[string]string) map[string]string {
+func filterOverrides(chartVars []types.BundleChartVariable, pkgVars map[string]overrideView) map[string]overrideView {
 	pkgVarsCopy := pkgVars
 	for _, cv := range chartVars {
-		if pkgVarsCopy[strings.ToUpper(cv.Name)] != "" {
+		if pkgVarsCopy[strings.ToUpper(cv.Name)].value != "" {
 			delete(pkgVarsCopy, strings.ToUpper(cv.Name))
 		}
 	}
