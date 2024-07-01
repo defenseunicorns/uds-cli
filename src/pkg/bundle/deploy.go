@@ -651,7 +651,7 @@ func formPkgViews(b *Bundle) []PkgView {
 				}
 
 				if len(chartVars) > 0 {
-					variables = append(variables, map[string]interface{}{chartName: map[string]interface{}{"variables": chartVars}})
+					variables = append(variables, map[string]map[string]interface{}{chartName: {"variables": chartVars}})
 				}
 			}
 		}
