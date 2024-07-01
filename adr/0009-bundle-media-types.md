@@ -31,7 +31,7 @@ The following solutions were attempted but did not work out:
 - Change the media type of the bundle root manifest itself. This results in `MANIFEST_INVALID` because both GHCR and Docker's registry/v2 expect the `index.json` to point to image manifests.
 
 Other potential solutions include:
-1. Force the media type of the layers in the bundle root manifest to be Zarf blobs layers,even though they actually point to image manifests. This is historically the way that UDS CLI has handled bundles and is verified to work. However, the cons of this approach include not being able to reuse existing Zarf OCI code and introducing custom OCI logic that can be difficult to grok.
+1. Force the media type of the layers in the bundle root manifest to be Zarf blobs layers,even though they actually point to Zarf image manifests. This is historically the way that UDS CLI has handled bundles and is verified to work. However, the cons of this approach include not being able to reuse existing Zarf OCI code and introducing custom OCI logic that can be difficult to grok.
     - **pros**: proven solution, works with existing UDS CLI code, code has been significantly refactored and commented for easier readability and maintainability, still reuses a lot of `zoci` and  `pkg/oci` code
     - **cons**: could potentially reuse even more `zoci` and `pkg/oci` code to make the solution more robust and easier to maintain, can still be difficult to grok
 
