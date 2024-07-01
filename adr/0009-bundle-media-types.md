@@ -8,8 +8,6 @@ Accepted
 
 ## Context
 
-
-
 The structure of a bundle OCI artifact is as follows:
 
 ![Bundle OCI Artifact Structure](../docs/.images/uds-bundle.png)
