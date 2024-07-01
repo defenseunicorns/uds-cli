@@ -20,89 +20,6 @@ import (
 	"helm.sh/helm/v3/pkg/getter"
 )
 
-func convertOverridesMap(overrideMap map[string]map[string]*values.Options) (PkgOverrideMap, error) {
-	processed := make(PkgOverrideMap)
-	// Convert the options.Values map (located in chart.MergeValues) to the PkgOverrideMap format
-	for componentName, component := range overrideMap {
-		componentMap := make(map[string]map[string]interface{})
-
-		for chartName, chart := range component {
-			//escape commas (with \\) in values so helm v3 can process them
-			for i, value := range chart.Values {
-				chart.Values[i] = strings.ReplaceAll(value, ",", "\\,")
-			}
-			// Merge the chart values with Helm
-			data, err := chart.MergeValues(getter.Providers{})
-			if err != nil {
-				return nil, err
-			}
-
-			componentMap[chartName] = data
-		}
-
-		processed[componentName] = componentMap
-	}
-	return processed, nil
-}
-
-// loadChartOverrides converts a helm path to a ValuesOverridesMap config for Zarf
-func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string) (PkgOverrideMap, sources.NamespaceOverrideMap, error) {
-
-	// Create nested maps to hold the overrides
-	overrideMap := make(map[string]map[string]*values.Options)
-	nsOverrides := make(sources.NamespaceOverrideMap)
-
-	// Loop through each package component's charts and process overrides
-	for componentName, component := range pkg.Overrides {
-		for chartName, chart := range component {
-
-			// create component and chart map
-			if len(chart.Values) > 0 || len(chart.Variables) > 0 {
-				overrideMap[componentName] = make(map[string]*values.Options)
-				overrideMap[componentName][chartName] = &values.Options{}
-			}
-
-			if err := b.processOverrideValues(&overrideMap, chart.Values, componentName, chartName, pkgVars); err != nil {
-				return nil, nil, err
-			}
-			if err := b.processOverrideVariables(&overrideMap, pkg.Name, chart.Variables, componentName, chartName); err != nil {
-				return nil, nil, err
-			}
-			b.processOverrideNamespaces(nsOverrides, chart.Namespace, componentName, chartName)
-		}
-	}
-
-	processed, err := convertOverridesMap(overrideMap)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return processed, nsOverrides, nil
-}
-
-// processOverrideNamespaces processes a bundles namespace overrides and adds them to the override map
-func (b *Bundle) processOverrideNamespaces(overrideMap sources.NamespaceOverrideMap, ns string, componentName string, chartName string) {
-	if ns == "" {
-		return // no namespace override
-	}
-	// check if component exists in override map
-	if _, ok := overrideMap[componentName]; !ok {
-		overrideMap[componentName] = make(map[string]string)
-	}
-	overrideMap[componentName][chartName] = ns
-}
-
-// processOverrideValues processes a bundles values overrides and adds them to the override map
-func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values []types.BundleChartValue, componentName string, chartName string, pkgVars map[string]string) error {
-	for _, v := range values {
-		// Add the override to the map, or return an error if the path is invalid
-		if err := b.addOverride((*overrideMap)[componentName][chartName], v, v.Value, pkgVars); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 type overrideView struct {
 	value  string
 	source valuesources.Source
@@ -165,8 +82,92 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 	return pkgVars, forView
 }
 
+// loadChartOverrides converts a helm path to a ValuesOverridesMap config for Zarf
+func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string) (PkgOverrideMap, sources.NamespaceOverrideMap, error) {
+
+	// Create nested maps to hold the overrides
+	overrideMap := make(map[string]map[string]*values.Options)
+	nsOverrides := make(sources.NamespaceOverrideMap)
+
+	// Loop through each package component's charts and process overrides
+	for componentName, component := range pkg.Overrides {
+		for chartName, chart := range component {
+
+			// create component and chart map
+			if len(chart.Values) > 0 || len(chart.Variables) > 0 {
+				overrideMap[componentName] = make(map[string]*values.Options)
+				overrideMap[componentName][chartName] = &values.Options{}
+			}
+
+			if err := b.processOverrideValues(overrideMap[componentName][chartName], chart.Values, pkgVars); err != nil {
+				return nil, nil, err
+			}
+			if err := b.processOverrideVariables(overrideMap[componentName][chartName], pkg.Name, chart.Variables); err != nil {
+				return nil, nil, err
+			}
+			b.processOverrideNamespaces(nsOverrides, chart.Namespace, componentName, chartName)
+		}
+	}
+
+	processed, err := convertOverridesMap(overrideMap)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return processed, nsOverrides, nil
+}
+
+// convertOverridesMap converts a map of overrides to a PkgOverrideMap
+func convertOverridesMap(overrideMap map[string]map[string]*values.Options) (PkgOverrideMap, error) {
+	processed := make(PkgOverrideMap)
+	// Convert the options.Values map (located in chart.MergeValues) to the PkgOverrideMap format
+	for componentName, component := range overrideMap {
+		componentMap := make(map[string]map[string]interface{})
+
+		for chartName, chart := range component {
+			//escape commas (with \\) in values so helm v3 can process them
+			for i, value := range chart.Values {
+				chart.Values[i] = strings.ReplaceAll(value, ",", "\\,")
+			}
+			// Merge the chart values with Helm
+			data, err := chart.MergeValues(getter.Providers{})
+			if err != nil {
+				return nil, err
+			}
+
+			componentMap[chartName] = data
+		}
+
+		processed[componentName] = componentMap
+	}
+	return processed, nil
+}
+
+// processOverrideNamespaces processes a bundles namespace overrides and adds them to the override map
+func (b *Bundle) processOverrideNamespaces(overrideMap sources.NamespaceOverrideMap, ns string, componentName string, chartName string) {
+	if ns == "" {
+		return // no namespace override
+	}
+	// check if component exists in override map
+	if _, ok := overrideMap[componentName]; !ok {
+		overrideMap[componentName] = make(map[string]string)
+	}
+	overrideMap[componentName][chartName] = ns
+}
+
+// processOverrideValues processes a bundles values overrides and adds them to the override map
+func (b *Bundle) processOverrideValues(overrideMap *values.Options, values []types.BundleChartValue, pkgVars map[string]string) error {
+	for _, v := range values {
+		// Add the override to the map, or return an error if the path is invalid
+		if err := b.addOverride(overrideMap, v, v.Value, pkgVars); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // processOverrideVariables processes bundle variables overrides and adds them to the override map
-func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*values.Options, pkgName string, variables []types.BundleChartVariable, componentName string, chartName string) error {
+func (b *Bundle) processOverrideVariables(overrideMap *values.Options, pkgName string, variables []types.BundleChartVariable) error {
 	for i := range variables {
 		v := &variables[i]
 		var overrideVal interface{}
@@ -211,7 +212,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 		}
 
 		// Add the override to the map, or return an error if the path is invalid
-		if err := b.addOverride((*overrideMap)[componentName][chartName], *v, overrideVal, nil); err != nil {
+		if err := b.addOverride(overrideMap, *v, overrideVal, nil); err != nil {
 			return err
 		}
 	}
@@ -220,7 +221,7 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 }
 
 // addOverride adds a value or variable to a PkgOverrideMap
-func (b *Bundle) addOverride(overrides *values.Options, override interface{}, value interface{}, pkgVars map[string]string) error {
+func (b *Bundle) addOverride(overrideOpts *values.Options, override interface{}, value interface{}, pkgVars map[string]string) error {
 	var valuePath string
 	var handleExports bool
 
@@ -232,8 +233,8 @@ func (b *Bundle) addOverride(overrides *values.Options, override interface{}, va
 		valuePath = v.Path
 		handleExports = false
 		if v.Type == types.File {
-			if fileVals, err := b.addFileValue(overrides.FileValues, value.(string), v); err == nil {
-				overrides.FileValues = fileVals
+			if fileVals, err := b.addFileValue(overrideOpts.FileValues, value.(string), v); err == nil {
+				overrideOpts.FileValues = fileVals
 			} else {
 				return err
 			}
@@ -259,7 +260,7 @@ func (b *Bundle) addOverride(overrides *values.Options, override interface{}, va
 		if handleExports {
 			jsonVals = setTemplatedVariables(jsonVals, pkgVars)
 		}
-		overrides.JSONValues = append(overrides.JSONValues, jsonVals)
+		overrideOpts.JSONValues = append(overrideOpts.JSONValues, jsonVals)
 	case map[string]interface{}:
 		// handle objects by parsing them as json and appending to Options.JSONValues
 		j, err := json.Marshal(v)
@@ -271,7 +272,7 @@ func (b *Bundle) addOverride(overrides *values.Options, override interface{}, va
 		if handleExports {
 			val = setTemplatedVariables(val, pkgVars)
 		}
-		overrides.JSONValues = append(overrides.JSONValues, val)
+		overrideOpts.JSONValues = append(overrideOpts.JSONValues, val)
 	default:
 		// Check for any templated variables if pkgVars set
 		if handleExports {
@@ -281,7 +282,7 @@ func (b *Bundle) addOverride(overrides *values.Options, override interface{}, va
 
 		// Handle default case of simple values like strings and numbers
 		helmVal := fmt.Sprintf("%s=%v", valuePath, value)
-		overrides.Values = append(overrides.Values, helmVal)
+		overrideOpts.Values = append(overrideOpts.Values, helmVal)
 	}
 	return nil
 }
