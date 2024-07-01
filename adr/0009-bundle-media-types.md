@@ -1,12 +1,14 @@
 # 9. Bundle OCI Media Types
 
-Date: 1 July 2024
+Date: 1 July 2024 [[1]](#footnotes)
 
 ## Status
 
 Accepted
 
 ## Context
+
+
 
 The structure of a bundle OCI artifact is as follows:
 
@@ -47,3 +49,7 @@ Option 1, keep the historical media types. This decision is based on the followi
 ## Consequences
 
 All UDS CLI contributors need to become intimately familiar with the OCI spec and the `oras-go` client to understand the nuances of the bundle OCI artifact. This is a complex area of the codebase that will require careful maintenance and documentation to ensure that future contributors can understand the code and make changes without breaking existing functionality.
+
+## Footnotes
+
+1. This ADR is largely historical and serves as developer documentation for why bundle OCI artifacts are stuctured the way they are. This has been the case since UDS CLI's inception in August 2023.
