@@ -1,6 +1,27 @@
 ## Schema Validation
 
-When working with UDS Bundle definitions it can be useful to setup your IDE to know about the schema that UDS Runner uses.
+When working with UDS configuration files, it can be useful to setup your IDE to know about the various schemas that UDS uses.
+
+The recommend method of validating schemas is by the use of the `yaml-language-server` file headers:
+
+For `uds-bundle.yaml`
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/defenseunicorns/uds-cli/main/uds.schema.json
+```
+
+For `zarf.yaml`
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/defenseunicorns/uds-cli/main/zarf.schema.json
+```
+
+For `tasks.yaml`
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/defenseunicorns/uds-cli/main/tasks.schema.json
+```
+
+This method works with both VSCode and Goland (Jetbrains IDEs).
+
+### Other IDE-specific Methods
 
 ### VS Code
 
@@ -18,30 +39,8 @@ You can also add the following line to the top of a yaml file as well:
 # yaml-language-server: $schema=https://raw.githubusercontent.com/defenseunicorns/uds-cli/main/uds.schema.json
 ```
 
-### Goland (Jetbrains IDEs)
+#### Goland (Jetbrains IDEs)
 
-There are 2 methods for performing schema validation in Jetbrains IDEs.
-
-#### 1. File Header (recommended)
-Alternatively, you can add the following line to the top of a YAML file:
-
-
-For `uds-bundle.yaml`
-```yaml
-# yaml-language-server: $schema=https://raw.githubusercontent.com/defenseunicorns/uds-cli/main/uds.schema.json
-```
-
-For `zarf.yaml`
-```yaml
-# yaml-language-server: $schema=https://raw.githubusercontent.com/defenseunicorns/uds-cli/main/zarf.schema.json
-```
-
-For `tasks.yaml`
-```yaml
-# yaml-language-server: $schema=https://raw.githubusercontent.com/defenseunicorns/uds-cli/main/tasks.schema.json
-```
-
-#### 2. IDE Settings
 Use this method if you want to apply the schema to all YAML files in your project without modifying them. Open the IDE settings and navigate to `Languages & Frameworks` -> `Schemas and DTDs` -> `JSON Schema Mappings` and add a new schema using the "+" icon as shown below:
 
 ![Goland Schema Mapping](.images/goland-json-schema.png)
