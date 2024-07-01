@@ -588,24 +588,25 @@ type PkgView struct {
 func formPkgViews(b *Bundle) []PkgView {
 	var pkgViews []PkgView
 	for _, pkg := range b.bundle.Packages {
-		pkgMeta := map[string]string{}
+		pkgMeta := map[string]string{"name": pkg.Name, "ref": pkg.Ref}
 		variables := make([]interface{}, 0)
 
-		pkgMeta["name"] = pkg.Name
 		if pkg.Repository != "" {
 			pkgMeta["repo"] = pkg.Repository
 		} else {
 			pkgMeta["path"] = pkg.Path
 		}
-		pkgMeta["ref"] = pkg.Ref
 
-		_, pkgVars := b.loadVariables(pkg, nil)
+		// process overrides and variables to get values
+		_, pkgOvers := b.loadVariables(pkg, nil)
 		valuesOverrides, _, _ := b.loadChartOverrides(pkg, map[string]string{})
-		filteredVars := pkgVars
+
+		// updated on each chart iteration
+		filteredVars := pkgOvers
 
 		for compName, component := range pkg.Overrides {
 			for chartName, chart := range component {
-				// for each chart filter out the chart.Variables so left with Zarf Variables
+				// filter out the chart.Variables so left with Zarf Variables
 				filteredVars = filterOverrides(chart.Variables, filteredVars)
 
 				processedVars := valuesOverrides[compName][chartName]
@@ -630,11 +631,11 @@ func formPkgViews(b *Bundle) []PkgView {
 						// set initial entry so iterations through paths can hold next key value pair until final value is found,
 						// removing the entry if map[path] returns nil
 						chartVars[v.Name] = processedVars
-						for _, p := range paths {
+						for _, path := range paths {
 
-							val, ok := chartVars[v.Name].(map[string]interface{})[p]
-							if !ok {
-								// delete previously set entry of v.Name
+							val, notNil := chartVars[v.Name].(map[string]interface{})[path]
+							if !notNil {
+								// delete previously set entry of v.Name and exit loop
 								delete(chartVars, v.Name)
 								break
 							}
@@ -657,6 +658,7 @@ func formPkgViews(b *Bundle) []PkgView {
 		}
 
 		for key, fv := range filteredVars {
+			// config is location of uds-config.yaml, not a variable
 			if key != "CONFIG" {
 				// Mask potentially secret ENV vars
 				if fv.source == valuesources.Env {
