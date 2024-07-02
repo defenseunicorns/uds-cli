@@ -85,8 +85,8 @@ const (
 
 	// uds dev
 	CmdDevShort                = "[beta] Commands useful for developing bundles"
-	CmdDevDeployShort          = "[beta] Creates and deploys a UDS bundle from a given directory in dev mode"
-	CmdDevDeployLong           = "[beta] Creates and deploys a UDS bundle from a given directory in dev mode, setting package options like YOLO mode for faster iteration."
+	CmdDevDeployShort          = "[beta] Creates and deploys a UDS bundle in dev mode"
+	CmdDevDeployLong           = "[beta] Creates and deploys a UDS bundle from a given directory or OCI repository in dev mode, setting package options like YOLO mode for faster iteration."
 	CmdBundleCreateForceCreate = "For local bundles with local packages, specify whether to create a zarf package even if it already exists."
 
 	// uds monitor

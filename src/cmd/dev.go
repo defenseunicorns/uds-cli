@@ -23,7 +23,7 @@ var devCmd = &cobra.Command{
 }
 
 var devDeployCmd = &cobra.Command{
-	Use:   "deploy",
+	Use:   "deploy [BUNDLE_DIR|OCI_REF]",
 	Args:  cobra.MaximumNArgs(1),
 	Short: lang.CmdDevDeployShort,
 	Long:  lang.CmdDevDeployLong,
