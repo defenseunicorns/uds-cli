@@ -25,7 +25,6 @@ import (
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content/file"
 )
 
@@ -249,20 +248,14 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 		}
 	}
 
-	store, err := file.New(r.TmpDir)
+	// create local file target for pkg layers
+	target, err := file.New(r.TmpDir)
 	if err != nil {
 		return nil, err
 	}
-	defer store.Close()
+	defer target.Close()
 
-	// copy zarf pkg to local store
-	copyOpts := boci.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
-	doneSaving := make(chan error)
-	go zarfUtils.RenderProgressBarForLocalDirWrite(r.TmpDir, estimatedBytes, doneSaving, fmt.Sprintf("Pulling bundled Zarf pkg: %s", r.Pkg.Name), fmt.Sprintf("Successfully pulled package: %s", r.Pkg.Name))
-
-	_, err = oras.Copy(ctx, r.Remote.Repo(), r.Remote.Repo().Reference.String(), store, "", copyOpts)
-	doneSaving <- err
-	<-doneSaving
+	_, err = boci.CopyLayers(layersToPull, estimatedBytes, r.TmpDir, r.Remote.Repo(), target, r.Pkg.Name)
 	if err != nil {
 		return nil, err
 	}
