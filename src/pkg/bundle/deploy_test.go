@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/cli/values"
@@ -479,7 +480,7 @@ func TestFileVariableHandlers(t *testing.T) {
 					{
 						Name:        varName,
 						Path:        path,
-						Type:        types.File,
+						Type:        chartvariable.File,
 						Description: "set the var from cli, so source path is current working directory (eg. /home/user/repos/uds-cli/...)",
 					},
 				},
@@ -502,7 +503,7 @@ func TestFileVariableHandlers(t *testing.T) {
 					{
 						Name:        varName,
 						Path:        path,
-						Type:        types.File,
+						Type:        chartvariable.File,
 						Description: "set the var from env, so source path is current working directory (eg. /home/user/repos/uds-cli/...)",
 					},
 				},
@@ -533,7 +534,7 @@ func TestFileVariableHandlers(t *testing.T) {
 					{
 						Name:        varName,
 						Path:        path,
-						Type:        types.File,
+						Type:        chartvariable.File,
 						Description: "set the var from config, so source path is config directory",
 					},
 				},
@@ -558,7 +559,7 @@ func TestFileVariableHandlers(t *testing.T) {
 					{
 						Name:        varName,
 						Path:        path,
-						Type:        types.File,
+						Type:        chartvariable.File,
 						Description: "set the var from bundle default, so source path is bundle directory",
 						Default:     "test.cert",
 					},
@@ -584,7 +585,7 @@ func TestFileVariableHandlers(t *testing.T) {
 					{
 						Name:        varName,
 						Path:        path,
-						Type:        types.File,
+						Type:        chartvariable.File,
 						Description: "set the var from bundle default, so source path is bundle directory",
 						Default:     "not-there-test.cert",
 					},
