@@ -584,101 +584,116 @@ type PkgView struct {
 	overrides map[string]interface{}
 }
 
-// formPkgViews creates a unique pre deploy view of each packages set overrides and Zarf variables
+// formPkgViews creates a unique pre deploy view of each package's set overrides and Zarf variables
 func formPkgViews(b *Bundle) []PkgView {
 	var pkgViews []PkgView
 	for _, pkg := range b.bundle.Packages {
-		pkgMeta := map[string]string{"name": pkg.Name, "ref": pkg.Ref}
 		variables := make([]interface{}, 0)
 
-		if pkg.Repository != "" {
-			pkgMeta["repo"] = pkg.Repository
-		} else {
-			pkgMeta["path"] = pkg.Path
-		}
-
-		// process overrides and variables to get values
-		_, pkgOvers := b.loadVariables(pkg, nil)
+		// process variables and overrides to get values
+		_, pkgVars := b.loadVariables(pkg, nil)
 		valuesOverrides, _, _ := b.loadChartOverrides(pkg, map[string]string{})
 
 		// updated on each chart iteration
-		filteredVars := pkgOvers
+		setZarfVars := pkgVars
 
 		for compName, component := range pkg.Overrides {
 			for chartName, chart := range component {
-				// filter out the chart.Variables so left with Zarf Variables
-				filteredVars = filterOverrides(chart.Variables, filteredVars)
+				// filter out bundle overrides so left with Zarf Variables
+				setZarfVars = removeOverrides(chart.Variables, setZarfVars)
 
 				processedVars := valuesOverrides[compName][chartName]
 				if processedVars == nil {
 					continue
 				}
 
-				chartVars := map[string]interface{}{}
+				// takes values from processedVars {path: value} and form new map of {name: value}
+				viewVars := extractValues(processedVars, chart.Variables)
 
-				for _, v := range chart.Variables {
-
-					// Mask potentially sensitive variables
-					if v.Type == "file" || v.Source == valuesources.Env {
-						chartVars[v.Name] = "****"
-						continue
-					}
-
-					// handle complex paths: var.helm.path = { var: { helm: { path: val } } }
-					if strings.Contains(v.Path, ".") {
-						paths := strings.Split(v.Path, ".")
-
-						// set initial entry so iterations through paths can hold next key value pair until final value is found,
-						// removing the entry if map[path] returns nil
-						chartVars[v.Name] = processedVars
-						for _, path := range paths {
-
-							val, notNil := chartVars[v.Name].(map[string]interface{})[path]
-							if !notNil {
-								// delete previously set entry of v.Name and exit loop
-								delete(chartVars, v.Name)
-								break
-							}
-
-							chartVars[v.Name] = val
-						}
-					} else {
-						if processedVars[v.Path] == nil {
-							continue
-						}
-
-						chartVars[v.Name] = processedVars[v.Path]
-					}
-				}
-
-				if len(chartVars) > 0 {
-					variables = append(variables, map[string]map[string]interface{}{chartName: {"variables": chartVars}})
+				if len(viewVars) > 0 {
+					variables = append(variables, map[string]map[string]interface{}{chartName: {"variables": viewVars}})
 				}
 			}
 		}
 
-		for key, fv := range filteredVars {
-			// config is location of uds-config.yaml, not a variable
-			if key != "CONFIG" {
-				// Mask potentially secret ENV vars
-				if fv.source == valuesources.Env {
-					fv.value = "****"
-				}
-				variables = append(variables, map[string]string{key: fv.value})
-			}
-		}
-
-		pkgViews = append(pkgViews, PkgView{meta: pkgMeta, overrides: map[string]interface{}{"overrides": variables}})
+		variables = addZarfVars(setZarfVars, variables)
+		pkgViews = append(pkgViews, PkgView{meta: formPkgMeta(pkg), overrides: map[string]interface{}{"overrides": variables}})
 	}
 	return pkgViews
 }
 
-func filterOverrides(chartVars []types.BundleChartVariable, varMap map[string]overrideView) map[string]overrideView {
-	varMapCopy := varMap
-	for _, cv := range chartVars {
-		if varMapCopy[strings.ToUpper(cv.Name)].value != "" {
-			delete(varMapCopy, strings.ToUpper(cv.Name))
+func formPkgMeta(pkg types.Package) map[string]string {
+	pkgMeta := map[string]string{"name": pkg.Name, "ref": pkg.Ref}
+	if pkg.Repository != "" {
+		pkgMeta["repo"] = pkg.Repository
+	} else {
+		pkgMeta["path"] = pkg.Path
+	}
+	return pkgMeta
+}
+
+func addZarfVars(setZarfVars map[string]overrideView, variables []interface{}) []interface{} {
+	for key, fv := range setZarfVars {
+		// config is location of uds-config.yaml, not a variable
+		// Mask potentially secret ENV vars
+		if key != "CONFIG" {
+			if fv.source == valuesources.Env {
+				fv.value = "****"
+			}
+			variables = append(variables, map[string]string{key: fv.value})
 		}
 	}
-	return varMapCopy
+	return variables
+}
+
+// extractValues returns a map of {name: value} from processedVars
+func extractValues(processedVars map[string]interface{}, variables []types.BundleChartVariable) map[string]interface{} {
+	viewVars := map[string]interface{}{}
+	for _, v := range variables {
+		// Mask potentially sensitive variables
+		if v.Type == "file" || v.Source == valuesources.Env {
+			viewVars[v.Name] = "****"
+			continue
+		}
+
+		// handle complex paths: var.helm.path = { var: { helm: { path: val } } }
+		if strings.Contains(v.Path, ".") {
+			paths := strings.Split(v.Path, ".")
+
+			// set initial entry so iterations through paths can hold next key value pair until final value is found,
+			// removing the entry if map[path] returns nil
+			viewVars[v.Name] = processedVars
+			for _, path := range paths {
+
+				val, exists := viewVars[v.Name].(map[string]interface{})[path]
+				if !exists {
+					// delete previously set entry of v.Name and exit loop
+					delete(viewVars, v.Name)
+					break
+				}
+
+				viewVars[v.Name] = val
+			}
+		} else {
+			if processedVars[v.Path] == nil {
+				continue
+			}
+
+			viewVars[v.Name] = processedVars[v.Path]
+		}
+	}
+	return viewVars
+}
+
+// removeOverrides removes bundle overrride variables, leaving only Zarf variables
+func removeOverrides(chartVars []types.BundleChartVariable, loadedVariables map[string]overrideView) map[string]overrideView {
+	for _, cv := range chartVars {
+		// remove the bundle override variable if exists in loadedVariables
+		_, exists := loadedVariables[strings.ToUpper(cv.Name)]
+		if exists {
+			delete(loadedVariables, strings.ToUpper(cv.Name))
+		}
+	}
+
+	return loadedVariables
 }

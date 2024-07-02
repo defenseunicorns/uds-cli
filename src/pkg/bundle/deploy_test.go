@@ -759,7 +759,7 @@ func TestFormPkgViews(t *testing.T) {
 		expectedVal: "zarf-var-set-by-config",
 	}
 
-	t.Run("show zarf var", func(t *testing.T) {
+	t.Run(zarfVarTest.name, func(t *testing.T) {
 		pkgViews := formPkgViews(&zarfVarTest.bundle)
 
 		v := pkgViews[0].overrides["overrides"].([]interface{})[0]
@@ -806,7 +806,7 @@ func TestFormPkgViews(t *testing.T) {
 func TestFilterOverrides(t *testing.T) {
 	chartVars := []types.BundleChartVariable{{Name: "over1"}, {Name: "over2"}}
 	pkgVars := map[string]overrideView{"OVER1": {"val", valuesources.Config}, "ZARFVAR": {"val", valuesources.Env}}
-	filtered := filterOverrides(chartVars, pkgVars)
+	filtered := removeOverrides(chartVars, pkgVars)
 	actual := map[string]overrideView{"ZARFVAR": {"val", valuesources.Env}}
 	require.Equal(t, actual, filtered)
 }
