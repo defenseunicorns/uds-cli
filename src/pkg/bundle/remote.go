@@ -144,7 +144,6 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 }
 
 // LoadBundle loads a bundle from a remote source
-// only called by when doing a pull
 func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.UDSBundle, types.PathMap, error) {
 	ctx := context.TODO()
 	var bundle types.UDSBundle
@@ -164,7 +163,7 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 	}
 
 	var layersToPull []ocispec.Descriptor
-	// need to keep track of all the bundle layers
+	// need to keep track of all the bundle layers (pulled and cached)
 	var bundleLayers []ocispec.Descriptor
 
 	estimatedBytes := int64(0)
@@ -212,14 +211,6 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 		}
 		bundleLayers = append(bundleLayers, pkgLayers...)
 	}
-
-	// grab the bundle root manifest and add it to the layers to pull
-	rootDesc, err := op.ResolveRoot(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	layersToPull = append(layersToPull, rootDesc)
-	bundleLayers = append(bundleLayers, rootDesc)
 
 	// pull layers that didn't already exist on disk
 	if len(layersToPull) > 0 {
