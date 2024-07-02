@@ -26,10 +26,9 @@ func CheckLayerExists(ctx context.Context, layer ocispec.Descriptor, store *ocis
 		return true, nil
 	} else if Exists(layer.Digest.Encoded()) {
 		err := Use(layer.Digest.Encoded(), filepath.Join(dstDir, config.BlobsDir))
-		if err != nil {
-			return false, err
+		if err == nil {
+			return true, nil
 		}
-		return true, nil
 	}
 	return false, nil
 }
@@ -49,10 +48,15 @@ func CopyLayers(layersToPull []ocispec.Descriptor, estimatedBytes int64, tmpDstD
 		return ocispec.Descriptor{}, err
 	}
 
-	go zarfUtils.RenderProgressBarForLocalDirWrite(tmpDstDir, estimatedBytes+tmpDirSize, doneSaving, fmt.Sprintf("Pulling: %s", artifactName), fmt.Sprintf("Successfully pulled: %s", artifactName))
+	expectedTotalSize := estimatedBytes + tmpDirSize
+
+	go zarfUtils.RenderProgressBarForLocalDirWrite(tmpDstDir, expectedTotalSize, doneSaving, fmt.Sprintf("Pulling: %s", artifactName), fmt.Sprintf("Successfully pulled: %s", artifactName))
+
 	rootDesc, err := oras.Copy(context.TODO(), repo, repo.Reference.String(), store, "", copyOpts)
+
 	doneSaving <- err
 	<-doneSaving
+
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
