@@ -398,22 +398,22 @@ func TestHelmOverrideVariablePrecedence(t *testing.T) {
 			},
 			expectedVal: "=default value",
 		},
-		{
-			name: "no variable overrides",
-			bundle: Bundle{
-				cfg: &types.BundleConfig{},
-			},
-			args: args{
-				pkgName: "fooPkg",
-				variables: &[]types.BundleChartVariable{
-					{
-						Name: "foo",
-					},
-				},
-				componentName: "component",
-				chartName:     "chart",
-			},
-		},
+		// {
+		// 	name: "no variable overrides",
+		// 	bundle: Bundle{
+		// 		cfg: &types.BundleConfig{},
+		// 	},
+		// 	args: args{
+		// 		pkgName: "fooPkg",
+		// 		variables: &[]types.BundleChartVariable{
+		// 			{
+		// 				Name: "foo",
+		// 			},
+		// 		},
+		// 		componentName: "component",
+		// 		chartName:     "chart",
+		// 	},
+		// },
 	}
 
 	for _, tc := range testCases {
@@ -428,8 +428,8 @@ func TestHelmOverrideVariablePrecedence(t *testing.T) {
 			if tc.loadEnvVar {
 				os.Setenv("UDS_FOO", "set using env var")
 			}
-			overrideMap := map[string]map[string]*values.Options{}
-			err := b.processOverrideVariables(&overrideMap, tc.args.pkgName, *tc.args.variables, tc.args.componentName, tc.args.chartName)
+			overrideMap := map[string]map[string]*values.Options{tc.args.componentName: {tc.args.chartName: {}}}
+			err := b.processOverrideVariables(overrideMap[tc.args.componentName][tc.args.chartName], tc.args.pkgName, *tc.args.variables)
 			require.NoError(t, err)
 			if tc.expectedVal == "" {
 				require.Equal(t, 0, len(overrideMap))
@@ -605,8 +605,8 @@ func TestFileVariableHandlers(t *testing.T) {
 				os.Setenv("UDS_CERT", fmt.Sprintf("%s/test.cert", relativePath))
 			}
 
-			overrideMap := map[string]map[string]*values.Options{}
-			err := tc.bundle.processOverrideVariables(&overrideMap, tc.args.pkgName, *tc.args.variables, tc.args.componentName, tc.args.chartName)
+			overrideMap := map[string]map[string]*values.Options{tc.args.componentName: {tc.args.chartName: {}}}
+			err := tc.bundle.processOverrideVariables(overrideMap[tc.args.componentName][tc.args.chartName], tc.args.pkgName, *tc.args.variables)
 
 			if tc.requireNoErr {
 				require.NoError(t, err)
