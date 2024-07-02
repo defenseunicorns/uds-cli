@@ -343,8 +343,12 @@ func FindBundledPkgLayers(ctx context.Context, pkg types.Package, rootManifest *
 
 	// go through manifest layers and add to layersToPull as appropriate
 	var imgIndex ocispec.Index
+	// map layer digests to their annotations
+	layerTitleAnnotations := map[string]string{}
+
 	for _, desc := range manifest.Layers {
 		descAnnotationTile := desc.Annotations[ocispec.AnnotationTitle]
+		layerTitleAnnotations[desc.Digest.Encoded()] = descAnnotationTile
 		if descAnnotationTile == "images/index.json" {
 			imgIndex, err = handleImgIndex(ctx, remote, desc)
 			if err != nil {
@@ -379,8 +383,12 @@ func FindBundledPkgLayers(ctx context.Context, pkg types.Package, rootManifest *
 		layersToPull = append(layersToPull, desc, imgManifest.Config)
 	}
 
-	// loop through layersToPull and add up bytes
-	for _, layer := range layersToPull {
+	// loop through layersToPull and add up bytes and set title annotations
+	for i, layer := range layersToPull {
+		title, hasTitle := layerTitleAnnotations[layer.Digest.Encoded()]
+		if layer.Annotations == nil && hasTitle {
+			layersToPull[i].Annotations = map[string]string{ocispec.AnnotationTitle: title}
+		}
 		estPkgBytes += layer.Size
 	}
 

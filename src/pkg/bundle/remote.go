@@ -219,7 +219,7 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 			return nil, nil, err
 		}
 
-		err = cache.AddPulledImgLayers(layersToPull, op.dst, true)
+		err = cache.AddPulledImgLayers(layersToPull, op.dst)
 		if err != nil {
 			return nil, nil, err
 		}

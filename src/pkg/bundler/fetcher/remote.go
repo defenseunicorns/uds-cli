@@ -93,7 +93,7 @@ func (f *remoteFetcher) copyRemotePkgLayers(layersToCopy []ocispec.Descriptor) (
 		f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, rootPkgDesc)
 
 		// cache only the image layers that were just pulled
-		err = cache.AddPulledImgLayers(layersToPull, f.cfg.TmpDstDir, false)
+		err = cache.AddPulledImgLayers(layersToPull, f.cfg.TmpDstDir)
 		if err != nil {
 			return nil, err
 		}

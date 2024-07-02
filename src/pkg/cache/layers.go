@@ -64,12 +64,9 @@ func CopyLayers(layersToPull []ocispec.Descriptor, estimatedBytes int64, tmpDstD
 }
 
 // AddPulledImgLayers caches the image layers that were just pulled
-func AddPulledImgLayers(pulledLayers []ocispec.Descriptor, dstDir string, allLayers bool) (err error) {
+func AddPulledImgLayers(pulledLayers []ocispec.Descriptor, dstDir string) (err error) {
 	for _, layer := range pulledLayers {
-		// when pulling remote 3rd party image layers, they might not have annotations set but we still want to cache them
-		// we provide an allLayers flag to cache all layers in this case.
-		// TODO: handle potential non-image layers that can get cached when passing allLayers=true
-		if allLayers || strings.Contains(layer.Annotations[ocispec.AnnotationTitle], config.BlobsDir) {
+		if strings.Contains(layer.Annotations[ocispec.AnnotationTitle], config.BlobsDir) {
 			err = Add(filepath.Join(dstDir, config.BlobsDir, layer.Digest.Encoded()))
 			if err != nil {
 				return err
