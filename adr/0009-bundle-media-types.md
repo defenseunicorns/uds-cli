@@ -50,4 +50,4 @@ All UDS CLI contributors need to become intimately familiar with the OCI spec an
 
 ## Footnotes
 
-1. This ADR is largely historical and serves as developer documentation for why bundle OCI artifacts are stuctured the way they are. This has been the case since UDS CLI's inception in August 2023.
+1. This ADR is largely historical and serves as developer documentation for why bundle OCI artifacts are structured the way they are. This has been the case since UDS CLI's inception in August 2023.
