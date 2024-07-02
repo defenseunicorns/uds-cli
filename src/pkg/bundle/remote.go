@@ -27,7 +27,6 @@ import (
 	"golang.org/x/exp/slices"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	// "oras.land/oras-go/v2"
 	ocistore "oras.land/oras-go/v2/content/oci"
 )
 
