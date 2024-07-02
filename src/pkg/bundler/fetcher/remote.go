@@ -82,7 +82,7 @@ func (f *remoteFetcher) copyRemotePkgLayers(layersToCopy []ocispec.Descriptor) (
 	}
 	// pull layers that didn't already exist on disk
 	if len(layersToPull) > 0 {
-		rootPkgDesc, err := cache.CopyLayers(layersToPull, estimatedBytes, f.cfg.TmpDstDir, f.remote.Repo(), f.cfg.Store, f.pkg.Name)
+		rootPkgDesc, err := boci.CopyLayers(layersToPull, estimatedBytes, f.cfg.TmpDstDir, f.remote.Repo(), f.cfg.Store, f.pkg.Name)
 		if err != nil {
 			return nil, err
 		}

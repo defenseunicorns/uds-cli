@@ -214,7 +214,7 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 
 	// pull layers that didn't already exist on disk
 	if len(layersToPull) > 0 {
-		_, err := cache.CopyLayers(layersToPull, estimatedBytes, op.dst, op.Repo(), store, bundle.Metadata.Name)
+		_, err := boci.CopyLayers(layersToPull, estimatedBytes, op.dst, op.Repo(), store, bundle.Metadata.Name)
 		if err != nil {
 			return nil, nil, err
 		}
