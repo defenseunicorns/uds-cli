@@ -725,18 +725,11 @@ func TestFormPkgViews(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.loadEnv {
 				os.Setenv(tc.envKey, tc.envVal)
+				defer os.Unsetenv(tc.envKey)
 			}
-
 			pkgViews := formPkgViews(&tc.bundle)
-
 			v := pkgViews[0].overrides["overrides"].([]interface{})[0].(map[string]map[string]interface{})[chartName]["variables"]
-
 			require.Contains(t, v.(map[string]interface{})[tc.expectedKey], tc.expectedVal)
-
-			// cleanup ENV Vars to avoid conflicts
-			if tc.loadEnv {
-				os.Unsetenv(tc.envKey)
-			}
 		})
 	}
 
@@ -779,6 +772,7 @@ func TestFormPkgViews(t *testing.T) {
 		t.Run(zarfVarTest.name, func(t *testing.T) {
 			if zarfVarTest.loadEnv {
 				os.Setenv(zarfVarTest.envKey, zarfVarTest.envVal)
+				defer os.Unsetenv(zarfVarTest.envKey)
 			}
 			pkgViews := formPkgViews(&zarfVarTest.bundle)
 			actualView := pkgViews[0].overrides["overrides"].([]interface{})[0]
@@ -825,7 +819,8 @@ func TestFormPkgViews(t *testing.T) {
 func TestFilterOverrides(t *testing.T) {
 	chartVars := []types.BundleChartVariable{{Name: "over1"}, {Name: "over2"}}
 	pkgVars := map[string]overrideView{"OVER1": {"val", valuesources.Config}, "ZARFVAR": {"val", valuesources.Env}}
-	filtered := removeOverrides(chartVars, pkgVars)
+	removeOverrides(pkgVars, chartVars)
+	filtered := pkgVars
 	actual := map[string]overrideView{"ZARFVAR": {"val", valuesources.Env}}
 	require.Equal(t, actual, filtered)
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
@@ -369,7 +370,7 @@ func (b *Bundle) addOverride(overrides map[string]map[string]*values.Options, co
 		valuePath = v.Path
 	case types.BundleChartVariable:
 		valuePath = v.Path
-		if v.Type == types.File {
+		if v.Type == chartvariable.File {
 			if fileVals, err := b.addFileValue(overrides[component][chart].FileValues, value.(string), v); err == nil {
 				overrides[component][chart].FileValues = fileVals
 			} else {
@@ -593,21 +594,18 @@ func formPkgViews(b *Bundle) []PkgView {
 		_, pkgVars := b.loadVariables(pkg, nil)
 		valuesOverrides, _, _ := b.loadChartOverrides(pkg, map[string]string{})
 
-		// updated on each chart iteration
-		setZarfVars := pkgVars
-
 		for compName, component := range pkg.Overrides {
 			for chartName, chart := range component {
-				// filter out bundle overrides so left with Zarf Variables
-				setZarfVars = removeOverrides(chart.Variables, setZarfVars)
+				// filter out bundle overrides so we're left with Zarf Variables
+				removeOverrides(pkgVars, chart.Variables)
 
-				processedVars := valuesOverrides[compName][chartName]
-				if processedVars == nil {
+				helmChartVars := valuesOverrides[compName][chartName]
+				if helmChartVars == nil {
 					continue
 				}
 
-				// takes values from processedVars {path: value} and form new map of {name: value}
-				viewVars := extractValues(processedVars, chart.Variables)
+				// takes values from helmChartVars {path: value} and form new map of {name: value}
+				viewVars := extractValues(helmChartVars, chart.Variables)
 
 				if len(viewVars) > 0 {
 					variables = append(variables, map[string]map[string]interface{}{chartName: {"variables": viewVars}})
@@ -615,7 +613,7 @@ func formPkgViews(b *Bundle) []PkgView {
 			}
 		}
 
-		variables = addZarfVars(setZarfVars, variables)
+		variables = addZarfVars(pkgVars, variables)
 		pkgViews = append(pkgViews, PkgView{meta: formPkgMeta(pkg), overrides: map[string]interface{}{"overrides": variables}})
 	}
 	return pkgViews
@@ -631,11 +629,11 @@ func formPkgMeta(pkg types.Package) map[string]string {
 	return pkgMeta
 }
 
-func addZarfVars(setZarfVars map[string]overrideView, variables []interface{}) []interface{} {
-	for key, fv := range setZarfVars {
-		// config is location of uds-config.yaml, not a variable
-		// Mask potentially secret ENV vars
+func addZarfVars(pkgVars map[string]overrideView, variables []interface{}) []interface{} {
+	for key, fv := range pkgVars {
+		// "CONFIG" refers to "UDS_CONFIG" which is not a Zarf variable or override so we skip it
 		if key != "CONFIG" {
+			// Mask potentially secret ENV vars
 			if fv.source == valuesources.Env {
 				fv.value = hiddenVar
 			}
@@ -645,12 +643,12 @@ func addZarfVars(setZarfVars map[string]overrideView, variables []interface{}) [
 	return variables
 }
 
-// extractValues returns a map of {name: value} from processedVars
-func extractValues(processedVars map[string]interface{}, variables []types.BundleChartVariable) map[string]interface{} {
-	viewVars := map[string]interface{}{}
+// extractValues returns a map of {name: value} from helmChartVars
+func extractValues(helmChartVars map[string]interface{}, variables []types.BundleChartVariable) map[string]interface{} {
+	viewVars := make(map[string]interface{})
 	for _, v := range variables {
 		// Mask potentially sensitive variables
-		if v.Type == "file" || v.Source == valuesources.Env {
+		if v.Type == chartvariable.File || v.Source == valuesources.Env {
 			viewVars[v.Name] = hiddenVar
 			continue
 		}
@@ -661,7 +659,7 @@ func extractValues(processedVars map[string]interface{}, variables []types.Bundl
 
 			// set initial entry so iterations through paths can hold next key value pair until final value is found,
 			// removing the entry if map[path] returns nil
-			viewVars[v.Name] = processedVars
+			viewVars[v.Name] = helmChartVars
 			for _, path := range paths {
 				val, exists := viewVars[v.Name].(map[string]interface{})[path]
 				if !exists {
@@ -673,26 +671,23 @@ func extractValues(processedVars map[string]interface{}, variables []types.Bundl
 				viewVars[v.Name] = val
 			}
 		} else {
-			if processedVars[v.Path] == nil {
+			if helmChartVars[v.Path] == nil {
 				continue
 			}
 
-			viewVars[v.Name] = processedVars[v.Path]
+			viewVars[v.Name] = helmChartVars[v.Path]
 		}
 	}
 	return viewVars
 }
 
-// removeOverrides removes bundle overrride variables, leaving only Zarf variables
-func removeOverrides(chartVars []types.BundleChartVariable, loadedVariables map[string]overrideView) map[string]overrideView {
-	//todo: ensure we aren't modifying loadedVariables
+// removeOverrides mutates pkgVars by removing bundle overrride variables, leaving only Zarf variables
+func removeOverrides(pkgVars map[string]overrideView, chartVars []types.BundleChartVariable) {
 	for _, cv := range chartVars {
-		// remove the bundle override variable if exists in loadedVariables
-		_, exists := loadedVariables[strings.ToUpper(cv.Name)]
+		// remove the bundle override variable if exists in pkgVars
+		_, exists := pkgVars[strings.ToUpper(cv.Name)]
 		if exists {
-			delete(loadedVariables, strings.ToUpper(cv.Name))
+			delete(pkgVars, strings.ToUpper(cv.Name))
 		}
 	}
-
-	return loadedVariables
 }

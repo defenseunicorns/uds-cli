@@ -4,13 +4,9 @@
 // Package types contains all the types used by UDS.
 package types
 
-import "github.com/defenseunicorns/uds-cli/src/types/valuesources"
-
-type ChartVariableType string
-
-const (
-	File ChartVariableType = "file"
-	Raw  ChartVariableType = "raw"
+import (
+	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
+	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 )
 
 // UDSBundle is the top-level structure of a UDS bundle
@@ -54,7 +50,7 @@ type BundleChartVariable struct {
 	Name        string              `json:"name" jsonschema:"name=Name of the variable to set"`
 	Description string              `json:"description,omitempty" jsonschema:"name=Description of the variable"`
 	Default     interface{}         `json:"default,omitempty" jsonschema:"name=The default value to set"`
-	Type        ChartVariableType   `json:"type,omitempty" jsonschema:"description=The type of value to be processed,enum=raw,enum=file"`
+	Type        chartvariable.Type  `json:"type,omitempty" jsonschema:"description=The type of value to be processed,enum=raw,enum=file"`
 	Source      valuesources.Source `json:"source,omitempty" jsonschema:"description=Where the value is set from,enum=config,enum=env,enum=cli,enum=bundle"`
 }
 
