@@ -693,7 +693,7 @@ func TestFormPkgViews(t *testing.T) {
 			envKey:      "UDS_VAR1",
 			envVal:      "gets-masked",
 			expectedKey: "VAR1",
-			expectedVal: "****",
+			expectedVal: hiddenVar,
 		},
 		{
 			name: "mask file var",
@@ -717,7 +717,7 @@ func TestFormPkgViews(t *testing.T) {
 				},
 			},
 			expectedKey: "VAR1",
-			expectedVal: "****",
+			expectedVal: hiddenVar,
 		},
 	}
 
@@ -740,36 +740,55 @@ func TestFormPkgViews(t *testing.T) {
 		})
 	}
 
-	zarfVarTest := TestCase{
-		name: "show zarf var",
-		bundle: Bundle{
-			cfg: &types.BundleConfig{
-				DeployOpts: types.BundleDeployOptions{
-					Config: "uds-config.yaml",
-					Variables: map[string]map[string]interface{}{
-						pkgName: {
-							"VAR1": "zarf-var-set-by-config",
+	zarfVarTests := []TestCase{
+		{
+			name: "show zarf var",
+			bundle: Bundle{
+				cfg: &types.BundleConfig{
+					DeployOpts: types.BundleDeployOptions{
+						Config: "uds-config.yaml",
+						Variables: map[string]map[string]interface{}{
+							pkgName: {
+								"VAR1": "zarf-var-set-by-config",
+							},
 						},
 					},
 				},
+				bundle: types.UDSBundle{Packages: []types.Package{{Name: pkgName}}},
 			},
-			bundle: types.UDSBundle{Packages: []types.Package{{Name: pkgName}}},
+			expectedKey: "VAR1",
+			expectedVal: "zarf-var-set-by-config",
 		},
-		expectedKey: "VAR1",
-		expectedVal: "zarf-var-set-by-config",
+		{
+			name:    "hide zarf var with env var",
+			loadEnv: true,
+			envKey:  "UDS_FOO",
+			envVal:  "zarf-var-set-by-env",
+			bundle: Bundle{
+				cfg: &types.BundleConfig{
+					DeployOpts: types.BundleDeployOptions{},
+				},
+				bundle: types.UDSBundle{Packages: []types.Package{{Name: pkgName}}},
+			},
+			expectedVal: hiddenVar,
+			expectedKey: "FOO",
+		},
 	}
 
-	t.Run(zarfVarTest.name, func(t *testing.T) {
-		pkgViews := formPkgViews(&zarfVarTest.bundle)
-
-		v := pkgViews[0].overrides["overrides"].([]interface{})[0]
-
-		require.Contains(t, v.(map[string]string)[zarfVarTest.expectedKey], zarfVarTest.expectedVal)
-	})
+	for _, zarfVarTest := range zarfVarTests {
+		t.Run(zarfVarTest.name, func(t *testing.T) {
+			if zarfVarTest.loadEnv {
+				os.Setenv(zarfVarTest.envKey, zarfVarTest.envVal)
+			}
+			pkgViews := formPkgViews(&zarfVarTest.bundle)
+			actualView := pkgViews[0].overrides["overrides"].([]interface{})[0]
+			require.Contains(t, actualView.(map[string]string)[zarfVarTest.expectedKey], zarfVarTest.expectedVal)
+		})
+	}
 
 	nilCheckTests := []TestCase{
 		{
-			name: "override not set",
+			name: "ensure nil when override doesn't have a default and is not set",
 			bundle: Bundle{
 				cfg: &types.BundleConfig{
 					DeployOpts: types.BundleDeployOptions{},
@@ -780,7 +799,7 @@ func TestFormPkgViews(t *testing.T) {
 			},
 		},
 		{
-			name: "no overrides",
+			name: "ensure nil when there are no overrides",
 			bundle: Bundle{
 				cfg: &types.BundleConfig{
 					DeployOpts: types.BundleDeployOptions{},

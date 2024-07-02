@@ -162,7 +162,6 @@ func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser, time
 	)
 
 	for scanner.Scan() {
-
 		line := scanner.Text()
 
 		isLogAdmission := strings.Contains(line, `"msg":"Check response"`)
@@ -444,7 +443,6 @@ func (p *StreamReader) renderMutation(event LogEntry) string {
 				val := style.Cyan.Render(string(op.Value))
 				formattedPatch.WriteString(fmt.Sprintf(format, p.indent, key, val))
 			}
-
 		}
 
 		return formattedPatch.String()

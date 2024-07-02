@@ -106,7 +106,6 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 
 	// validate access to packages as well as components referenced in the package
 	for idx, pkg := range bundle.Packages {
-
 		spinner.Updatef("Validating Bundle Package: %s", pkg.Name)
 		if pkg.Name == "" {
 			return fmt.Errorf("%s is missing required field: name", pkg)
@@ -203,7 +202,6 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 		if err != nil {
 			return err
 		}
-
 	}
 	return nil
 }

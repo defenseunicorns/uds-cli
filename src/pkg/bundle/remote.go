@@ -236,7 +236,6 @@ func getOCIValidatedSource(source string) (string, error) {
 	if err == nil {
 		source = sourceWithOCI
 		_, err = remote.ResolveRoot(ctx)
-
 	}
 	// if root didn't resolve, expand the path
 	if err != nil {

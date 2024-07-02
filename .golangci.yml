@@ -26,6 +26,7 @@ linters:
     - staticcheck
     - nilerr
     - revive
+    - whitespace
 
 linters-settings:
   govet:

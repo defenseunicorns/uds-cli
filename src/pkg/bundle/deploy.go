@@ -37,6 +37,9 @@ type PkgOverrideMap map[string]map[string]map[string]interface{}
 // templatedVarRegex is the regex for templated variables
 var templatedVarRegex = regexp.MustCompile(`\${([^}]+)}`)
 
+// hiddenVar is the value used to mask potentially sensitive variables
+const hiddenVar = "****"
+
 // Deploy deploys a bundle
 func (b *Bundle) Deploy() error {
 	resume := b.cfg.DeployOpts.Resume
@@ -165,7 +168,6 @@ type overrideView struct {
 
 // loadVariables loads and sets precedence for config-level and imported variables
 func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) (map[string]string, map[string]overrideView) {
-
 	pkgVars := make(map[string]string)
 	forView := make(map[string]overrideView)
 
@@ -222,7 +224,6 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 
 // loadChartOverrides converts a helm path to a ValuesOverridesMap config for Zarf
 func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string) (PkgOverrideMap, sources.NamespaceOverrideMap, error) {
-
 	// Create nested maps to hold the overrides
 	overrideMap := make(map[string]map[string]*values.Options)
 	nsOverrides := make(sources.NamespaceOverrideMap)
@@ -488,7 +489,6 @@ func formFilePath(anchorPath string, filePath string) (string, error) {
 
 // PreDeployValidation validates the bundle before deployment
 func (b *Bundle) PreDeployValidation() (string, string, string, error) {
-
 	// Check that provided oci source path is valid, and update it if it's missing the full path
 	source, err := CheckOCISourcePath(b.cfg.DeployOpts.Source)
 	if err != nil {
@@ -537,7 +537,6 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 
 // ConfirmBundleDeploy prompts the user to confirm bundle creation
 func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
-
 	pkgviews := formPkgViews(b)
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
@@ -638,7 +637,7 @@ func addZarfVars(setZarfVars map[string]overrideView, variables []interface{}) [
 		// Mask potentially secret ENV vars
 		if key != "CONFIG" {
 			if fv.source == valuesources.Env {
-				fv.value = "****"
+				fv.value = hiddenVar
 			}
 			variables = append(variables, map[string]string{key: fv.value})
 		}
@@ -652,7 +651,7 @@ func extractValues(processedVars map[string]interface{}, variables []types.Bundl
 	for _, v := range variables {
 		// Mask potentially sensitive variables
 		if v.Type == "file" || v.Source == valuesources.Env {
-			viewVars[v.Name] = "****"
+			viewVars[v.Name] = hiddenVar
 			continue
 		}
 
@@ -664,7 +663,6 @@ func extractValues(processedVars map[string]interface{}, variables []types.Bundl
 			// removing the entry if map[path] returns nil
 			viewVars[v.Name] = processedVars
 			for _, path := range paths {
-
 				val, exists := viewVars[v.Name].(map[string]interface{})[path]
 				if !exists {
 					// delete previously set entry of v.Name and exit loop
@@ -687,6 +685,7 @@ func extractValues(processedVars map[string]interface{}, variables []types.Bundl
 
 // removeOverrides removes bundle overrride variables, leaving only Zarf variables
 func removeOverrides(chartVars []types.BundleChartVariable, loadedVariables map[string]overrideView) map[string]overrideView {
+	//todo: ensure we aren't modifying loadedVariables
 	for _, cv := range chartVars {
 		// remove the bundle override variable if exists in loadedVariables
 		_, exists := loadedVariables[strings.ToUpper(cv.Name)]

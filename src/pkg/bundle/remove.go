@@ -22,7 +22,6 @@ import (
 
 // Remove removes packages deployed from a bundle
 func (b *Bundle) Remove() error {
-
 	// Check that provided oci source path is valid, and update it if it's missing the full path
 	source, err := CheckOCISourcePath(b.cfg.RemoveOpts.Source)
 	if err != nil {
@@ -78,7 +77,6 @@ func removePackages(packagesToRemove []types.Package, b *Bundle) error {
 	deployedPackageNames := GetDeployedPackageNames()
 
 	for i := len(packagesToRemove) - 1; i >= 0; i-- {
-
 		pkg := packagesToRemove[i]
 
 		if slices.Contains(deployedPackageNames, pkg.Name) {

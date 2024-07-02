@@ -123,7 +123,6 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	}
 
 	if len(f.pkg.OptionalComponents) > 0 {
-
 		// read in images/index.json
 		var imgIndex ocispec.Index
 		if pkgPaths.Images.Index != "" {

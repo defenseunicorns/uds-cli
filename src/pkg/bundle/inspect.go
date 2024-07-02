@@ -192,7 +192,6 @@ func (b *Bundle) getPackageImages() ([]string, error) {
 				imgMap[img] = img
 			}
 		}
-
 	}
 
 	// convert img map to list of strings
