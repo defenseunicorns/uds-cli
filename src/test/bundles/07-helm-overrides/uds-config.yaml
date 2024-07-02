@@ -19,10 +19,10 @@ variables:
     HOSTS:
       - host: podinfo.burning.boats
         paths:
-        - path: "/"
-          pathType: "Prefix"
+          - path: "/"
+            pathType: "Prefix"
       - host: podinfo.unicorns
         paths:
-        - path: "/"
-          pathType: "Prefix"
+          - path: "/"
+            pathType: "Prefix"
     secret_file_val: "./variable-files/test.cert"

@@ -65,7 +65,6 @@ func RootCmd() *cobra.Command {
 }
 
 func init() {
-
 	initViper()
 
 	// load uds-config if it exists

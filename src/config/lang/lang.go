@@ -40,11 +40,12 @@ const (
 	CmdBundleDeployFlagRef      = "Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used."
 
 	// bundle inspect
-	CmdBundleInspectShort            = "Display the metadata of a bundle"
-	CmdBundleInspectFlagKey          = "Path to a public key file that will be used to validate a signed bundle"
-	CmdPackageInspectFlagSBOM        = "Create a tarball of SBOMs contained in the bundle"
-	CmdPackageInspectFlagExtractSBOM = "Create a folder of SBOMs contained in the bundle"
-	CmdBundleInspectFlagFindImages   = "Derive images from a uds-bundle.yaml file and list them"
+	CmdBundleInspectShort             = "Display the metadata of a bundle"
+	CmdBundleInspectFlagKey           = "Path to a public key file that will be used to validate a signed bundle"
+	CmdPackageInspectFlagSBOM         = "Create a tarball of SBOMs contained in the bundle"
+	CmdPackageInspectFlagExtractSBOM  = "Create a folder of SBOMs contained in the bundle"
+	CmdBundleInspectFlagFindImages    = "Derive images from a uds-bundle.yaml file and list them"
+	CmdBundleInspectFlagListVariables = "List all configurable variables in a bundle (including zarf variables)"
 
 	// bundle remove
 	CmdBundleRemoveShort        = "Remove a bundle that has been deployed already"

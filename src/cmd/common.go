@@ -50,6 +50,7 @@ func deploy(bndlClient *bundle.Bundle) {
 	if err != nil {
 		message.Fatalf(err, "Failed to validate bundle: %s", err.Error())
 	}
+
 	// confirm deployment
 	if ok := bndlClient.ConfirmBundleDeploy(); !ok {
 		message.Fatal(nil, "bundle deployment cancelled")

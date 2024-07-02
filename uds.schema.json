@@ -84,6 +84,12 @@
           "description": "The type of value to be processed"
         },
         "source": {
+          "enum": [
+            "config",
+            "env",
+            "cli",
+            "bundle"
+          ],
           "type": "string",
           "description": "Where the value is set from"
         }

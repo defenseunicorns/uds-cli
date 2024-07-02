@@ -18,12 +18,15 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
+	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
+	"github.com/pterm/pterm"
 	"golang.org/x/exp/slices"
 	"helm.sh/helm/v3/pkg/cli/values"
 	"helm.sh/helm/v3/pkg/getter"
@@ -34,6 +37,9 @@ type PkgOverrideMap map[string]map[string]map[string]interface{}
 
 // templatedVarRegex is the regex for templated variables
 var templatedVarRegex = regexp.MustCompile(`\${([^}]+)}`)
+
+// hiddenVar is the value used to mask potentially sensitive variables
+const hiddenVar = "****"
 
 // Deploy deploys a bundle
 func (b *Bundle) Deploy() error {
@@ -77,7 +83,7 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 		packagesToDeploy = packages
 	}
 
-	// deploy each package
+	// setup each package client and deploy
 	for i, pkg := range packagesToDeploy {
 		// for dev mode update package ref for remote bundles, refs for local bundles updated on create
 		if config.Dev && !strings.Contains(b.cfg.DeployOpts.Source, "tar.zst") {
@@ -101,7 +107,12 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 			publicKeyPath = ""
 		}
 
-		pkgVars := b.loadVariables(pkg, bundleExportedVars)
+		pkgVars, _ := b.loadVariables(pkg, bundleExportedVars)
+
+		valuesOverrides, nsOverrides, err := b.loadChartOverrides(pkg, pkgVars)
+		if err != nil {
+			return err
+		}
 
 		opts := zarfTypes.ZarfPackageOptions{
 			PackageSource:      pkgTmp,
@@ -109,11 +120,6 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 			PublicKeyPath:      publicKeyPath,
 			SetVariables:       pkgVars,
 			Retries:            b.cfg.DeployOpts.Retries,
-		}
-
-		valuesOverrides, nsOverrides, err := b.loadChartOverrides(pkg, pkgVars)
-		if err != nil {
-			return err
 		}
 
 		zarfDeployOpts := zarfTypes.ZarfDeployOptions{
@@ -136,11 +142,9 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 		}
 
 		pkgClient := packager.NewOrDie(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
-
 		if err := pkgClient.Deploy(context.TODO()); err != nil {
 			return err
 		}
-
 		// save exported vars
 		pkgExportedVars := make(map[string]string)
 		variableConfig := pkgClient.GetVariableConfig()
@@ -154,17 +158,25 @@ func deployPackages(packages []types.Package, resume bool, b *Bundle) error {
 		}
 		bundleExportedVars[pkg.Name] = pkgExportedVars
 	}
+
 	return nil
 }
 
+type overrideView struct {
+	value  string
+	source valuesources.Source
+}
+
 // loadVariables loads and sets precedence for config-level and imported variables
-func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) map[string]string {
+func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) (map[string]string, map[string]overrideView) {
 	pkgVars := make(map[string]string)
+	forView := make(map[string]overrideView)
 
 	// load all exported variables
 	for _, exportedVarMap := range bundleExportedVars {
 		for varName, varValue := range exportedVarMap {
 			pkgVars[strings.ToUpper(varName)] = varValue
+			forView[strings.ToUpper(varName)] = overrideView{varValue, valuesources.Bundle}
 		}
 	}
 
@@ -172,20 +184,25 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 	// imported vars
 	for _, imp := range pkg.Imports {
 		pkgVars[strings.ToUpper(imp.Name)] = bundleExportedVars[imp.Package][imp.Name]
+		forView[strings.ToUpper(imp.Name)] = overrideView{bundleExportedVars[imp.Package][imp.Name], valuesources.Bundle}
 	}
+
 	// shared vars
 	for name, val := range b.cfg.DeployOpts.SharedVariables {
 		pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
+		forView[strings.ToUpper(name)] = overrideView{fmt.Sprint(val), valuesources.Config}
 	}
 	// config vars
 	for name, val := range b.cfg.DeployOpts.Variables[pkg.Name] {
 		pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
+		forView[strings.ToUpper(name)] = overrideView{fmt.Sprint(val), valuesources.Config}
 	}
 	// env vars (vars that start with UDS_)
 	for _, envVar := range os.Environ() {
 		if strings.HasPrefix(envVar, config.EnvVarPrefix) {
 			parts := strings.Split(envVar, "=")
 			pkgVars[strings.ToUpper(strings.TrimPrefix(parts[0], config.EnvVarPrefix))] = parts[1]
+			forView[strings.ToUpper(strings.TrimPrefix(parts[0], config.EnvVarPrefix))] = overrideView{parts[1], valuesources.Env}
 		}
 	}
 	// set vars (vars set with --set flag)
@@ -196,40 +213,18 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 			packageName, variableName := splitName[0], splitName[1]
 			if packageName == pkg.Name {
 				pkgVars[strings.ToUpper(variableName)] = fmt.Sprint(val)
+				forView[strings.ToUpper(variableName)] = overrideView{fmt.Sprint(val), valuesources.CLI}
 			}
 		} else {
 			pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
+			forView[strings.ToUpper(name)] = overrideView{fmt.Sprint(val), valuesources.CLI}
 		}
 	}
-	return pkgVars
-}
-
-// ConfirmBundleDeploy uses Zarf's pterm logging to prompt the user to confirm bundle creation
-func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
-
-	message.HeaderInfof("🎁 BUNDLE DEFINITION")
-	utils.ColorPrintYAML(b.bundle, nil, false)
-
-	message.HorizontalRule()
-
-	// Display prompt if not auto-confirmed
-	if config.CommonOptions.Confirm {
-		return config.CommonOptions.Confirm
-	}
-
-	prompt := &survey.Confirm{
-		Message: "Deploy this bundle?",
-	}
-
-	if err := survey.AskOne(prompt, &confirm); err != nil || !confirm {
-		return false
-	}
-	return true
+	return pkgVars, forView
 }
 
 // loadChartOverrides converts a helm path to a ValuesOverridesMap config for Zarf
 func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string) (PkgOverrideMap, sources.NamespaceOverrideMap, error) {
-
 	// Create nested maps to hold the overrides
 	overrideMap := make(map[string]map[string]*values.Options)
 	nsOverrides := make(sources.NamespaceOverrideMap)
@@ -237,16 +232,15 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string
 	// Loop through each package component's charts and process overrides
 	for componentName, component := range pkg.Overrides {
 		for chartName, chart := range component {
-			chartCopy := chart // Create a copy of the chart
-			err := b.processOverrideValues(&overrideMap, &chartCopy.Values, componentName, chartName, pkgVars)
+			err := b.processOverrideValues(&overrideMap, chart.Values, componentName, chartName, pkgVars)
 			if err != nil {
 				return nil, nil, err
 			}
-			err = b.processOverrideVariables(&overrideMap, pkg.Name, &chartCopy.Variables, componentName, chartName)
+			err = b.processOverrideVariables(&overrideMap, pkg.Name, chart.Variables, componentName, chartName)
 			if err != nil {
 				return nil, nil, err
 			}
-			b.processOverrideNamespaces(nsOverrides, chartCopy.Namespace, componentName, chartName)
+			b.processOverrideNamespaces(nsOverrides, chart.Namespace, componentName, chartName)
 		}
 	}
 
@@ -280,55 +274,6 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string
 	return processed, nsOverrides, nil
 }
 
-// PreDeployValidation validates the bundle before deployment
-func (b *Bundle) PreDeployValidation() (string, string, string, error) {
-
-	// Check that provided oci source path is valid, and update it if it's missing the full path
-	source, err := CheckOCISourcePath(b.cfg.DeployOpts.Source)
-	if err != nil {
-		return "", "", "", err
-	}
-	b.cfg.DeployOpts.Source = source
-
-	// create a new provider
-	provider, err := NewBundleProvider(b.cfg.DeployOpts.Source, b.tmp)
-	if err != nil {
-		return "", "", "", err
-	}
-
-	// pull the bundle's metadata + sig
-	loaded, err := provider.LoadBundleMetadata()
-	if err != nil {
-		return "", "", "", err
-	}
-
-	// validate the sig (if present)
-	if err := ValidateBundleSignature(loaded[config.BundleYAML], loaded[config.BundleYAMLSignature], b.cfg.DeployOpts.PublicKeyPath); err != nil {
-		return "", "", "", err
-	}
-
-	// read in file at config.BundleYAML
-	message.Debugf("Reading YAML at %s", loaded[config.BundleYAML])
-	bundleYAML, err := os.ReadFile(loaded[config.BundleYAML])
-	if err != nil {
-		return "", "", "", err
-	}
-
-	// todo: we also read the SHAs from the uds-bundle.yaml here, should we refactor so that we use the bundle's root manifest?
-	if err := goyaml.Unmarshal(bundleYAML, &b.bundle); err != nil {
-		return "", "", "", err
-	}
-
-	// validate bundle's arch against cluster
-	err = ValidateArch(config.GetArch(b.bundle.Build.Architecture))
-	if err != nil {
-		return "", "", "", err
-	}
-
-	bundleName := b.bundle.Metadata.Name
-	return bundleName, string(bundleYAML), source, err
-}
-
 // processOverrideNamespaces processes a bundles namespace overrides and adds them to the override map
 func (b *Bundle) processOverrideNamespaces(overrideMap sources.NamespaceOverrideMap, ns string, componentName string, chartName string) {
 	if ns == "" {
@@ -342,10 +287,10 @@ func (b *Bundle) processOverrideNamespaces(overrideMap sources.NamespaceOverride
 }
 
 // processOverrideValues processes a bundles values overrides and adds them to the override map
-func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values *[]types.BundleChartValue, componentName string, chartName string, pkgVars map[string]string) error {
-	for _, v := range *values {
+func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*values.Options, values []types.BundleChartValue, componentName string, chartName string, pkgVars map[string]string) error {
+	for _, v := range values {
 		// Add the override to the map, or return an error if the path is invalid
-		if err := addOverride(*overrideMap, componentName, chartName, v, v.Value, pkgVars); err != nil {
+		if err := b.addOverride(*overrideMap, componentName, chartName, v, v.Value, pkgVars); err != nil {
 			return err
 		}
 	}
@@ -353,8 +298,9 @@ func (b *Bundle) processOverrideValues(overrideMap *map[string]map[string]*value
 }
 
 // processOverrideVariables processes bundle variables overrides and adds them to the override map
-func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*values.Options, pkgName string, variables *[]types.BundleChartVariable, componentName string, chartName string) error {
-	for _, v := range *variables {
+func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*values.Options, pkgName string, variables []types.BundleChartVariable, componentName string, chartName string) error {
+	for i := range variables {
+		v := &variables[i]
 		var overrideVal interface{}
 		// Ensuring variable name is upper case since comparisons are being done against upper case env and config variables
 		v.Name = strings.ToUpper(v.Name)
@@ -366,47 +312,47 @@ func (b *Bundle) processOverrideVariables(overrideMap *map[string]map[string]*va
 				setVal := strings.Split(k, ".")
 				if setVal[0] == pkgName && strings.ToUpper(setVal[1]) == v.Name {
 					overrideVal = val
-					v.Source = b.getSourcePath(types.CLI)
+					v.Source = valuesources.CLI
 				}
 			} else if strings.ToUpper(k) == v.Name {
 				overrideVal = val
-				v.Source = b.getSourcePath(types.CLI)
+				v.Source = valuesources.CLI
 			}
 		}
 
 		// check for override in env vars if not in --set
 		if envVarOverride, exists := os.LookupEnv(strings.ToUpper(config.EnvVarPrefix + v.Name)); overrideVal == nil && exists {
 			overrideVal = envVarOverride
-			v.Source = b.getSourcePath(types.Env)
+			v.Source = valuesources.Env
 		}
 
 		// if not in --set or an env var, use the following precedence: configFile, sharedConfig, default
 		if overrideVal == nil {
 			if configFileOverride, existsInConfig := b.cfg.DeployOpts.Variables[pkgName][v.Name]; existsInConfig {
 				overrideVal = configFileOverride
-				v.Source = b.getSourcePath(types.Config)
+				v.Source = valuesources.Config
 			} else if sharedConfigOverride, existsInSharedConfig := b.cfg.DeployOpts.SharedVariables[v.Name]; existsInSharedConfig {
 				overrideVal = sharedConfigOverride
-				v.Source = b.getSourcePath(types.Config)
+				v.Source = valuesources.Config
 			} else if v.Default != nil {
 				overrideVal = v.Default
-				v.Source = b.getSourcePath(types.Bundle)
+				v.Source = valuesources.Bundle
 			} else {
 				continue
 			}
 		}
 
 		// Add the override to the map, or return an error if the path is invalid
-		if err := addOverride(*overrideMap, componentName, chartName, v, overrideVal, nil); err != nil {
+		if err := b.addOverride(*overrideMap, componentName, chartName, *v, overrideVal, nil); err != nil {
 			return err
 		}
-
 	}
+
 	return nil
 }
 
 // addOverride adds a value or variable to a PkgOverrideMap
-func addOverride[T types.ChartOverride](overrides map[string]map[string]*values.Options, component string, chart string, override T, value interface{}, pkgVars map[string]string) error {
+func (b *Bundle) addOverride(overrides map[string]map[string]*values.Options, component string, chart string, override interface{}, value interface{}, pkgVars map[string]string) error {
 	// Create the component map if it doesn't exist
 	if _, ok := overrides[component]; !ok {
 		overrides[component] = make(map[string]*values.Options)
@@ -424,8 +370,8 @@ func addOverride[T types.ChartOverride](overrides map[string]map[string]*values.
 		valuePath = v.Path
 	case types.BundleChartVariable:
 		valuePath = v.Path
-		if v.Type == types.File {
-			if fileVals, err := addFileValue(overrides[component][chart].FileValues, value.(string), v); err == nil {
+		if v.Type == chartvariable.File {
+			if fileVals, err := b.addFileValue(overrides[component][chart].FileValues, value.(string), v); err == nil {
 				overrides[component][chart].FileValues = fileVals
 			} else {
 				return err
@@ -479,23 +425,6 @@ func addOverride[T types.ChartOverride](overrides map[string]map[string]*values.
 	return nil
 }
 
-// getSourcePath returns the path from where a value is set
-func (b *Bundle) getSourcePath(pathType types.ValueSources) string {
-	var sourcePath string
-	switch pathType {
-	case types.CLI:
-		sourcePath, _ = os.Getwd()
-	case types.Env:
-		sourcePath, _ = os.Getwd()
-	case types.Bundle:
-		sourcePath = filepath.Dir(b.cfg.DeployOpts.Source)
-	case types.Config:
-		sourcePath = filepath.Dir(b.cfg.DeployOpts.Config)
-	}
-
-	return sourcePath
-}
-
 // setTemplatedVariables sets the value for the templated variables
 func setTemplatedVariables(templatedVariables string, pkgVars map[string]string) string {
 	// Use ReplaceAllStringFunc to handle all occurrences of templated variables
@@ -512,13 +441,30 @@ func setTemplatedVariables(templatedVariables string, pkgVars map[string]string)
 }
 
 // addFileValue adds a key=filepath string to helm FileValues
-func addFileValue(helmFileVals []string, filePath string, override types.BundleChartVariable) ([]string, error) {
-	verifiedPath, err := formFilePath(override.Source, filePath)
+func (b *Bundle) addFileValue(helmFileVals []string, filePath string, override types.BundleChartVariable) ([]string, error) {
+	verifiedPath, err := formFilePath(getSourcePath(override.Source, b), filePath)
 	if err != nil {
 		return nil, err
 	}
 	helmVal := fmt.Sprintf("%s=%v", override.Path, verifiedPath)
 	return append(helmFileVals, helmVal), nil
+}
+
+// getSourcePath returns the path from where a value is set
+func getSourcePath(pathType valuesources.Source, b *Bundle) string {
+	var sourcePath string
+	switch pathType {
+	case valuesources.CLI:
+		sourcePath, _ = os.Getwd()
+	case valuesources.Env:
+		sourcePath, _ = os.Getwd()
+	case valuesources.Bundle:
+		sourcePath = filepath.Dir(b.cfg.DeployOpts.Source)
+	case valuesources.Config:
+		sourcePath = filepath.Dir(b.cfg.DeployOpts.Config)
+	}
+
+	return sourcePath
 }
 
 // formFilePath merges relative paths together to form full path and checks if the file exists
@@ -540,4 +486,208 @@ func formFilePath(anchorPath string, filePath string) (string, error) {
 	}
 
 	return filePath, nil
+}
+
+// PreDeployValidation validates the bundle before deployment
+func (b *Bundle) PreDeployValidation() (string, string, string, error) {
+	// Check that provided oci source path is valid, and update it if it's missing the full path
+	source, err := CheckOCISourcePath(b.cfg.DeployOpts.Source)
+	if err != nil {
+		return "", "", "", err
+	}
+	b.cfg.DeployOpts.Source = source
+
+	// create a new provider
+	provider, err := NewBundleProvider(b.cfg.DeployOpts.Source, b.tmp)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// pull the bundle's metadata + sig
+	loaded, err := provider.LoadBundleMetadata()
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// validate the sig (if present)
+	if err := ValidateBundleSignature(loaded[config.BundleYAML], loaded[config.BundleYAMLSignature], b.cfg.DeployOpts.PublicKeyPath); err != nil {
+		return "", "", "", err
+	}
+
+	// read in file at config.BundleYAML
+	message.Debugf("Reading YAML at %s", loaded[config.BundleYAML])
+	bundleYAML, err := os.ReadFile(loaded[config.BundleYAML])
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// todo: we also read the SHAs from the uds-bundle.yaml here, should we refactor so that we use the bundle's root manifest?
+	if err := goyaml.Unmarshal(bundleYAML, &b.bundle); err != nil {
+		return "", "", "", err
+	}
+
+	// validate bundle's arch against cluster
+	err = ValidateArch(config.GetArch(b.bundle.Build.Architecture))
+	if err != nil {
+		return "", "", "", err
+	}
+
+	bundleName := b.bundle.Metadata.Name
+	return bundleName, string(bundleYAML), source, err
+}
+
+// ConfirmBundleDeploy prompts the user to confirm bundle creation
+func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
+	pkgviews := formPkgViews(b)
+
+	message.HeaderInfof("🎁 BUNDLE DEFINITION")
+	pterm.Println("kind: UDS Bundle")
+
+	message.HorizontalRule()
+
+	message.Title("Metatdata:", "information about this bundle")
+	utils.ColorPrintYAML(b.bundle.Metadata, nil, false)
+
+	message.HorizontalRule()
+
+	message.Title("Build:", "info about the machine, UDS version, and the user that created this bundle")
+	utils.ColorPrintYAML(b.bundle.Build, nil, false)
+
+	message.HorizontalRule()
+
+	message.Title("Packages:", "definition of packages this bundle deploys, including variable overrides")
+
+	for _, pkg := range pkgviews {
+		utils.ColorPrintYAML(pkg.meta, nil, false)
+		utils.ColorPrintYAML(pkg.overrides, nil, false)
+	}
+
+	message.HorizontalRule()
+
+	// Display prompt if not auto-confirmed
+	if config.CommonOptions.Confirm {
+		return config.CommonOptions.Confirm
+	}
+
+	prompt := &survey.Confirm{
+		Message: "Deploy this bundle?",
+	}
+
+	if err := survey.AskOne(prompt, &confirm); err != nil || !confirm {
+		return false
+	}
+	return true
+}
+
+type PkgView struct {
+	meta      map[string]string
+	overrides map[string]interface{}
+}
+
+// formPkgViews creates a unique pre deploy view of each package's set overrides and Zarf variables
+func formPkgViews(b *Bundle) []PkgView {
+	var pkgViews []PkgView
+	for _, pkg := range b.bundle.Packages {
+		variables := make([]interface{}, 0)
+
+		// process variables and overrides to get values
+		_, pkgVars := b.loadVariables(pkg, nil)
+		valuesOverrides, _, _ := b.loadChartOverrides(pkg, map[string]string{})
+
+		for compName, component := range pkg.Overrides {
+			for chartName, chart := range component {
+				// filter out bundle overrides so we're left with Zarf Variables
+				removeOverrides(pkgVars, chart.Variables)
+
+				helmChartVars := valuesOverrides[compName][chartName]
+				if helmChartVars == nil {
+					continue
+				}
+
+				// takes values from helmChartVars {path: value} and form new map of {name: value}
+				viewVars := extractValues(helmChartVars, chart.Variables)
+
+				if len(viewVars) > 0 {
+					variables = append(variables, map[string]map[string]interface{}{chartName: {"variables": viewVars}})
+				}
+			}
+		}
+
+		variables = addZarfVars(pkgVars, variables)
+		pkgViews = append(pkgViews, PkgView{meta: formPkgMeta(pkg), overrides: map[string]interface{}{"overrides": variables}})
+	}
+	return pkgViews
+}
+
+func formPkgMeta(pkg types.Package) map[string]string {
+	pkgMeta := map[string]string{"name": pkg.Name, "ref": pkg.Ref}
+	if pkg.Repository != "" {
+		pkgMeta["repo"] = pkg.Repository
+	} else {
+		pkgMeta["path"] = pkg.Path
+	}
+	return pkgMeta
+}
+
+func addZarfVars(pkgVars map[string]overrideView, variables []interface{}) []interface{} {
+	for key, fv := range pkgVars {
+		// "CONFIG" refers to "UDS_CONFIG" which is not a Zarf variable or override so we skip it
+		if key != "CONFIG" {
+			// Mask potentially secret ENV vars
+			if fv.source == valuesources.Env {
+				fv.value = hiddenVar
+			}
+			variables = append(variables, map[string]string{key: fv.value})
+		}
+	}
+	return variables
+}
+
+// extractValues returns a map of {name: value} from helmChartVars
+func extractValues(helmChartVars map[string]interface{}, variables []types.BundleChartVariable) map[string]interface{} {
+	viewVars := make(map[string]interface{})
+	for _, v := range variables {
+		// Mask potentially sensitive variables
+		if v.Type == chartvariable.File || v.Source == valuesources.Env {
+			viewVars[v.Name] = hiddenVar
+			continue
+		}
+
+		// handle complex paths: var.helm.path = { var: { helm: { path: val } } }
+		if strings.Contains(v.Path, ".") {
+			paths := strings.Split(v.Path, ".")
+
+			// set initial entry so iterations through paths can hold next key value pair until final value is found,
+			// removing the entry if map[path] returns nil
+			viewVars[v.Name] = helmChartVars
+			for _, path := range paths {
+				val, exists := viewVars[v.Name].(map[string]interface{})[path]
+				if !exists {
+					// delete previously set entry of v.Name and exit loop
+					delete(viewVars, v.Name)
+					break
+				}
+
+				viewVars[v.Name] = val
+			}
+		} else {
+			if helmChartVars[v.Path] == nil {
+				continue
+			}
+
+			viewVars[v.Name] = helmChartVars[v.Path]
+		}
+	}
+	return viewVars
+}
+
+// removeOverrides mutates pkgVars by removing bundle overrride variables, leaving only Zarf variables
+func removeOverrides(pkgVars map[string]overrideView, chartVars []types.BundleChartVariable) {
+	for _, cv := range chartVars {
+		// remove the bundle override variable if exists in pkgVars
+		_, exists := pkgVars[strings.ToUpper(cv.Name)]
+		if exists {
+			delete(pkgVars, strings.ToUpper(cv.Name))
+		}
+	}
 }

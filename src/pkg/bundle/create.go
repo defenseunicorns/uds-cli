@@ -23,7 +23,6 @@ import (
 
 // Create creates a bundle
 func (b *Bundle) Create() error {
-
 	// read the bundle's metadata into memory
 	if err := utils.ReadYAMLStrict(filepath.Join(b.cfg.CreateOpts.SourceDirectory, b.cfg.CreateOpts.BundleFile), &b.bundle); err != nil {
 		return err
@@ -102,7 +101,6 @@ func (b *Bundle) Create() error {
 
 // confirmBundleCreation prompts the user to confirm bundle creation
 func (b *Bundle) confirmBundleCreation() (confirm bool) {
-
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
 	zarfUtils.ColorPrintYAML(b.bundle, nil, false)
 

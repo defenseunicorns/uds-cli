@@ -46,6 +46,7 @@ type BundleInspectOptions struct {
 	IncludeSBOM   bool
 	ExtractSBOM   bool
 	ListImages    bool
+	ListVariables bool
 }
 
 // BundlePublishOptions is the options for the bundle.Publish() function

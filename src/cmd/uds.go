@@ -204,6 +204,7 @@ func init() {
 	inspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.ExtractSBOM, "extract", "e", false, lang.CmdPackageInspectFlagExtractSBOM)
 	inspectCmd.Flags().StringVarP(&bundleCfg.InspectOpts.PublicKeyPath, "key", "k", v.GetString(V_BNDL_INSPECT_KEY), lang.CmdBundleInspectFlagKey)
 	inspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.ListImages, "list-images", "i", false, lang.CmdBundleInspectFlagFindImages)
+	inspectCmd.Flags().BoolVarP(&bundleCfg.InspectOpts.ListVariables, "list-variables", "v", false, lang.CmdBundleInspectFlagListVariables)
 
 	// remove cmd flags
 	rootCmd.AddCommand(removeCmd)

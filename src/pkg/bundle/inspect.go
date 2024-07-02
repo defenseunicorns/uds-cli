@@ -13,9 +13,11 @@ import (
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/layout"
+	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
 	zarfSources "github.com/defenseunicorns/zarf/src/pkg/packager/sources"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -72,6 +74,15 @@ func (b *Bundle) Inspect() error {
 		return err
 	}
 
+	// handle --list-variables flag
+	if b.cfg.InspectOpts.ListVariables {
+		err := b.listVariables()
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
 	// show the bundle's metadata
 	zarfUtils.ColorPrintYAML(b.bundle, nil, false)
 
@@ -101,6 +112,49 @@ func (b *Bundle) listImages() error {
 	return nil
 }
 
+// listVariables prints the variables and overrides for each package in the bundle
+func (b *Bundle) listVariables() error {
+	message.HorizontalRule()
+	message.Title("Overrides and Variables:", "configurable helm overrides and Zarf variables by package")
+
+	for _, pkg := range b.bundle.Packages {
+		// get package source
+		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
+		source, err := sources.New(*b.cfg, pkg, zarfTypes.ZarfPackageOptions{}, sha, nil)
+		if err != nil {
+			return err
+		}
+
+		tmpDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
+		if err != nil {
+			return err
+		}
+		pkgPaths := layout.New(tmpDir)
+		defer os.RemoveAll(tmpDir)
+
+		zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), pkgPaths, false, true)
+		if err != nil {
+			return err
+		}
+
+		variables := make([]interface{}, 0)
+
+		// add each zarf var to variables for better formatting in output
+		for _, zarfVar := range zarfPkg.Variables {
+			variables = append(variables, zarfVar)
+		}
+
+		if len(pkg.Overrides) > 0 {
+			variables = append(variables, pkg.Overrides)
+		}
+
+		varMap := map[string]map[string]interface{}{pkg.Name: {"variables": variables}}
+		zarfUtils.ColorPrintYAML(varMap, nil, false)
+	}
+
+	return nil
+}
+
 func (b *Bundle) getPackageImages() ([]string, error) {
 	// use a map to track the images for easy de-duping
 	imgMap := make(map[string]string)
@@ -117,6 +171,8 @@ func (b *Bundle) getPackageImages() ([]string, error) {
 			return nil, err
 		}
 		pkgPaths := layout.New(tmpDir)
+		defer os.RemoveAll(tmpDir)
+
 		zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), pkgPaths, false, true)
 		if err != nil {
 			return nil, err
@@ -138,7 +194,6 @@ func (b *Bundle) getPackageImages() ([]string, error) {
 				imgMap[img] = img
 			}
 		}
-
 	}
 
 	// convert img map to list of strings
