@@ -21,21 +21,21 @@ import (
 	"helm.sh/helm/v3/pkg/getter"
 )
 
-type overrideView struct {
-	value  string
+type overrideData struct {
+	value  interface{}
 	source valuesources.Source
 }
 
 // loadVariables loads and sets precedence for config-level and imported variables
-func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) (map[string]string, map[string]overrideView) {
+func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) (map[string]string, map[string]overrideData) {
 	pkgVars := make(map[string]string)
-	forView := make(map[string]overrideView)
+	overVarsData := make(map[string]overrideData)
 
 	// load all exported variables
 	for _, exportedVarMap := range bundleExportedVars {
 		for varName, varValue := range exportedVarMap {
 			pkgVars[strings.ToUpper(varName)] = varValue
-			forView[strings.ToUpper(varName)] = overrideView{varValue, valuesources.Bundle}
+			overVarsData[strings.ToUpper(varName)] = overrideData{varValue, valuesources.Bundle}
 		}
 	}
 
@@ -43,25 +43,25 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 	// imported vars
 	for _, imp := range pkg.Imports {
 		pkgVars[strings.ToUpper(imp.Name)] = bundleExportedVars[imp.Package][imp.Name]
-		forView[strings.ToUpper(imp.Name)] = overrideView{bundleExportedVars[imp.Package][imp.Name], valuesources.Bundle}
+		overVarsData[strings.ToUpper(imp.Name)] = overrideData{bundleExportedVars[imp.Package][imp.Name], valuesources.Bundle}
 	}
 
 	// shared vars
 	for name, val := range b.cfg.DeployOpts.SharedVariables {
 		pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
-		forView[strings.ToUpper(name)] = overrideView{fmt.Sprint(val), valuesources.Config}
+		overVarsData[strings.ToUpper(name)] = overrideData{val, valuesources.Config}
 	}
 	// config vars
 	for name, val := range b.cfg.DeployOpts.Variables[pkg.Name] {
 		pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
-		forView[strings.ToUpper(name)] = overrideView{fmt.Sprint(val), valuesources.Config}
+		overVarsData[strings.ToUpper(name)] = overrideData{val, valuesources.Config}
 	}
 	// env vars (vars that start with UDS_)
 	for _, envVar := range os.Environ() {
 		if strings.HasPrefix(envVar, config.EnvVarPrefix) {
 			parts := strings.Split(envVar, "=")
 			pkgVars[strings.ToUpper(strings.TrimPrefix(parts[0], config.EnvVarPrefix))] = parts[1]
-			forView[strings.ToUpper(strings.TrimPrefix(parts[0], config.EnvVarPrefix))] = overrideView{parts[1], valuesources.Env}
+			overVarsData[strings.ToUpper(strings.TrimPrefix(parts[0], config.EnvVarPrefix))] = overrideData{parts[1], valuesources.Env}
 		}
 	}
 	// set vars (vars set with --set flag)
@@ -72,37 +72,39 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 			packageName, variableName := splitName[0], splitName[1]
 			if packageName == pkg.Name {
 				pkgVars[strings.ToUpper(variableName)] = fmt.Sprint(val)
-				forView[strings.ToUpper(variableName)] = overrideView{fmt.Sprint(val), valuesources.CLI}
+				overVarsData[strings.ToUpper(variableName)] = overrideData{val, valuesources.CLI}
 			}
 		} else {
 			pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
-			forView[strings.ToUpper(name)] = overrideView{fmt.Sprint(val), valuesources.CLI}
+			overVarsData[strings.ToUpper(name)] = overrideData{val, valuesources.CLI}
 		}
 	}
-	return pkgVars, forView
+	return pkgVars, overVarsData
 }
 
 // loadChartOverrides converts a helm path to a ValuesOverridesMap config for Zarf
-func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string) (PkgOverrideMap, sources.NamespaceOverrideMap, error) {
-
+func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string, overrideData map[string]overrideData) (PkgOverrideMap, sources.NamespaceOverrideMap, error) {
 	// Create nested maps to hold the overrides
 	overrideMap := make(map[string]map[string]*values.Options)
 	nsOverrides := make(sources.NamespaceOverrideMap)
 
 	// Loop through each package component's charts and process overrides
 	for componentName, component := range pkg.Overrides {
-		for chartName, chart := range component {
+		// create component map
+		overrideMap[componentName] = make(map[string]*values.Options)
 
-			// create component and chart map
+		for chartName, chart := range component {
+			// create chart map if overrides exist
 			if len(chart.Values) > 0 || len(chart.Variables) > 0 {
-				overrideMap[componentName] = make(map[string]*values.Options)
 				overrideMap[componentName][chartName] = &values.Options{}
 			}
 
-			if err := b.processOverrideValues(overrideMap[componentName][chartName], chart.Values, pkgVars); err != nil {
+			overrideOpts := overrideMap[componentName][chartName]
+
+			if err := b.processOverrideValues(overrideOpts, chart.Values, pkgVars); err != nil {
 				return nil, nil, err
 			}
-			if err := b.processOverrideVariables(overrideMap[componentName][chartName], pkg.Name, chart.Variables); err != nil {
+			if err := b.processOverrideVariables(overrideOpts, chart.Variables, overrideData); err != nil {
 				return nil, nil, err
 			}
 			b.processOverrideNamespaces(nsOverrides, chart.Namespace, componentName, chartName)
@@ -167,43 +169,19 @@ func (b *Bundle) processOverrideValues(overrideOpts *values.Options, values []ty
 }
 
 // processOverrideVariables processes bundle variables overrides and adds them to the override map
-func (b *Bundle) processOverrideVariables(overrideOpts *values.Options, pkgName string, variables []types.BundleChartVariable) error {
+func (b *Bundle) processOverrideVariables(overrideOpts *values.Options, variables []types.BundleChartVariable, overrideData map[string]overrideData) error {
 	for i := range variables {
 		v := &variables[i]
 		var overrideVal interface{}
 		// Ensuring variable name is upper case since comparisons are being done against upper case env and config variables
 		v.Name = strings.ToUpper(v.Name)
 
-		// check for override in --set vars
-		for k, val := range b.cfg.DeployOpts.SetVariables {
-			if strings.Contains(k, ".") {
-				// check for <pkg>.<var> syntax was used in --set and use uppercase for a non-case-sensitive comparison
-				setVal := strings.Split(k, ".")
-				if setVal[0] == pkgName && strings.ToUpper(setVal[1]) == v.Name {
-					overrideVal = val
-					v.Source = valuesources.CLI
-				}
-			} else if strings.ToUpper(k) == v.Name {
-				overrideVal = val
-				v.Source = valuesources.CLI
-			}
-		}
+		overrideVal = overrideData[v.Name].value
+		v.Source = overrideData[v.Name].source
 
-		// check for override in env vars if not in --set
-		if envVarOverride, exists := os.LookupEnv(strings.ToUpper(config.EnvVarPrefix + v.Name)); overrideVal == nil && exists {
-			overrideVal = envVarOverride
-			v.Source = valuesources.Env
-		}
-
-		// if not in --set or an env var, use the following precedence: configFile, sharedConfig, default
+		// if not found in overrideData, check for bundle default value, else was not set
 		if overrideVal == nil {
-			if configFileOverride, existsInConfig := b.cfg.DeployOpts.Variables[pkgName][v.Name]; existsInConfig {
-				overrideVal = configFileOverride
-				v.Source = valuesources.Config
-			} else if sharedConfigOverride, existsInSharedConfig := b.cfg.DeployOpts.SharedVariables[v.Name]; existsInSharedConfig {
-				overrideVal = sharedConfigOverride
-				v.Source = valuesources.Config
-			} else if v.Default != nil {
+			if v.Default != nil {
 				overrideVal = v.Default
 				v.Source = valuesources.Bundle
 			} else {

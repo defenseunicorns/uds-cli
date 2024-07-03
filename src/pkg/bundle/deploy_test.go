@@ -398,22 +398,6 @@ func TestHelmOverrideVariablePrecedence(t *testing.T) {
 			},
 			expectedVal: "=default value",
 		},
-		// {
-		// 	name: "no variable overrides",
-		// 	bundle: Bundle{
-		// 		cfg: &types.BundleConfig{},
-		// 	},
-		// 	args: args{
-		// 		pkgName: "fooPkg",
-		// 		variables: &[]types.BundleChartVariable{
-		// 			{
-		// 				Name: "foo",
-		// 			},
-		// 		},
-		// 		componentName: "component",
-		// 		chartName:     "chart",
-		// 	},
-		// },
 	}
 
 	for _, tc := range testCases {
@@ -429,7 +413,8 @@ func TestHelmOverrideVariablePrecedence(t *testing.T) {
 				os.Setenv("UDS_FOO", "set using env var")
 			}
 			overrideMap := map[string]map[string]*values.Options{tc.args.componentName: {tc.args.chartName: {}}}
-			err := b.processOverrideVariables(overrideMap[tc.args.componentName][tc.args.chartName], tc.args.pkgName, *tc.args.variables)
+			_, overrideData := b.loadVariables(types.Package{Name: tc.args.pkgName}, nil)
+			err := b.processOverrideVariables(overrideMap[tc.args.componentName][tc.args.chartName], *tc.args.variables, overrideData)
 			require.NoError(t, err)
 			if tc.expectedVal == "" {
 				require.Equal(t, 0, len(overrideMap))
@@ -606,7 +591,8 @@ func TestFileVariableHandlers(t *testing.T) {
 			}
 
 			overrideMap := map[string]map[string]*values.Options{tc.args.componentName: {tc.args.chartName: {}}}
-			err := tc.bundle.processOverrideVariables(overrideMap[tc.args.componentName][tc.args.chartName], tc.args.pkgName, *tc.args.variables)
+			_, overrideData := tc.bundle.loadVariables(types.Package{Name: tc.args.pkgName}, nil)
+			err := tc.bundle.processOverrideVariables(overrideMap[tc.args.componentName][tc.args.chartName], *tc.args.variables, overrideData)
 
 			if tc.requireNoErr {
 				require.NoError(t, err)
@@ -626,13 +612,15 @@ func TestFormPkgViews(t *testing.T) {
 	)
 
 	type TestCase struct {
-		name        string
-		bundle      Bundle
-		loadEnv     bool
-		expectedKey string
-		expectedVal string
-		envKey      string
-		envVal      string
+		name          string
+		bundle        Bundle
+		loadEnv       bool
+		expectedIndex int
+		expectedChart string
+		expectedKey   string
+		expectedVal   string
+		envKey        string
+		envVal        string
 	}
 
 	setUpPkg := func(overVar types.BundleChartVariable) types.Package {
@@ -720,6 +708,47 @@ func TestFormPkgViews(t *testing.T) {
 			expectedKey: "VAR1",
 			expectedVal: hiddenVar,
 		},
+		{
+			name: "ensure multiple charts under same component are handled",
+			bundle: Bundle{
+				cfg: &types.BundleConfig{
+					DeployOpts: types.BundleDeployOptions{
+						Config: "uds-config.yaml",
+						Variables: map[string]map[string]interface{}{
+							pkgName: {
+								"VAR1": "from-first-chart",
+								"VAR2": "from-second-chart",
+							},
+						},
+					},
+				},
+				bundle: types.UDSBundle{
+					Packages: []types.Package{
+						{
+							Name: pkgName,
+							Overrides: map[string]map[string]types.BundleChartOverrides{componentName: {
+								chartName: {Variables: []types.BundleChartVariable{
+									{
+										Name: "VAR1",
+										Path: "path",
+									},
+								}},
+								"second-chart": {Variables: []types.BundleChartVariable{
+									{
+										Name: "VAR2",
+										Path: "path",
+									},
+								}},
+							}},
+						},
+					},
+				},
+			},
+			expectedIndex: 1,
+			expectedChart: "second-chart",
+			expectedKey:   "VAR2",
+			expectedVal:   "from-second-chart",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -728,8 +757,13 @@ func TestFormPkgViews(t *testing.T) {
 				os.Setenv(tc.envKey, tc.envVal)
 				defer os.Unsetenv(tc.envKey)
 			}
+			if tc.expectedChart == "" {
+				tc.expectedChart = chartName
+			}
+			fmt.Println(tc.expectedChart)
 			pkgViews := formPkgViews(&tc.bundle)
-			v := pkgViews[0].overrides["overrides"].([]interface{})[0].(map[string]map[string]interface{})[chartName]["variables"]
+			v := pkgViews[0].overrides["overrides"].([]interface{})[tc.expectedIndex].(map[string]map[string]interface{})[tc.expectedChart]["variables"]
+			fmt.Println(v)
 			require.Contains(t, v.(map[string]interface{})[tc.expectedKey], tc.expectedVal)
 		})
 	}
@@ -777,7 +811,7 @@ func TestFormPkgViews(t *testing.T) {
 			}
 			pkgViews := formPkgViews(&zarfVarTest.bundle)
 			actualView := pkgViews[0].overrides["overrides"].([]interface{})[0]
-			require.Contains(t, actualView.(map[string]string)[zarfVarTest.expectedKey], zarfVarTest.expectedVal)
+			require.Contains(t, actualView.(map[string]interface{})[zarfVarTest.expectedKey], zarfVarTest.expectedVal)
 		})
 	}
 
@@ -819,9 +853,9 @@ func TestFormPkgViews(t *testing.T) {
 
 func TestFilterOverrides(t *testing.T) {
 	chartVars := []types.BundleChartVariable{{Name: "over1"}, {Name: "over2"}}
-	pkgVars := map[string]overrideView{"OVER1": {"val", valuesources.Config}, "ZARFVAR": {"val", valuesources.Env}}
+	pkgVars := map[string]overrideData{"OVER1": {"val", valuesources.Config}, "ZARFVAR": {"val", valuesources.Env}}
 	removeOverrides(pkgVars, chartVars)
 	filtered := pkgVars
-	actual := map[string]overrideView{"ZARFVAR": {"val", valuesources.Env}}
+	actual := map[string]overrideData{"ZARFVAR": {"val", valuesources.Env}}
 	require.Equal(t, actual, filtered)
 }
