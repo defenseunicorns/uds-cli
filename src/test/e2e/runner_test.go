@@ -24,6 +24,8 @@ func TestTaskRunner(t *testing.T) {
 	})
 
 	t.Run("when CI=true don't show progress", func(t *testing.T) {
+		t.Parallel()
+
 		os.Setenv("CI", "true")
 		defer os.Unsetenv("CI")
 		stdOut, stdErr, err := e2e.UDS("run", "action", "--file", "src/test/tasks/tasks.yaml")
