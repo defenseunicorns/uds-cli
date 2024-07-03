@@ -23,6 +23,14 @@ func TestTaskRunner(t *testing.T) {
 		require.Contains(t, stdErr, "specific test string")
 	})
 
+	t.Run("when CI=true don't show progress", func(t *testing.T) {
+		os.Setenv("CI", "true")
+		defer os.Unsetenv("CI")
+		stdOut, stdErr, err := e2e.UDS("run", "action", "--file", "src/test/tasks/tasks.yaml")
+		require.NoError(t, err, stdOut, stdErr)
+		require.NotContains(t, stdErr, "Waiting")
+	})
+
 	t.Run("run cmd-set-variable", func(t *testing.T) {
 		t.Parallel()
 
