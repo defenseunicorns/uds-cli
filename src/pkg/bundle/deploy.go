@@ -504,19 +504,19 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 	}
 
 	// pull the bundle's metadata + sig
-	loaded, err := provider.LoadBundleMetadata()
+	filepaths, err := provider.LoadBundleMetadata()
 	if err != nil {
 		return "", "", "", err
 	}
 
 	// validate the sig (if present)
-	if err := ValidateBundleSignature(loaded[config.BundleYAML], loaded[config.BundleYAMLSignature], b.cfg.DeployOpts.PublicKeyPath); err != nil {
+	if err := ValidateBundleSignature(filepaths[config.BundleYAML], filepaths[config.BundleYAMLSignature], b.cfg.DeployOpts.PublicKeyPath); err != nil {
 		return "", "", "", err
 	}
 
 	// read in file at config.BundleYAML
-	message.Debugf("Reading YAML at %s", loaded[config.BundleYAML])
-	bundleYAML, err := os.ReadFile(loaded[config.BundleYAML])
+	message.Debugf("Reading YAML at %s", filepaths[config.BundleYAML])
+	bundleYAML, err := os.ReadFile(filepaths[config.BundleYAML])
 	if err != nil {
 		return "", "", "", err
 	}

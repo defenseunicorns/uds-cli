@@ -28,11 +28,11 @@ func (b *Bundle) Publish() error {
 	if err != nil {
 		return err
 	}
-	loaded, err := provider.LoadBundleMetadata()
+	filepaths, err := provider.LoadBundleMetadata()
 	if err != nil {
 		return err
 	}
-	if err := utils.ReadYAMLStrict(loaded[config.BundleYAML], &b.bundle); err != nil {
+	if err := utils.ReadYAMLStrict(filepaths[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
 	err = os.RemoveAll(filepath.Join(b.tmp, "blobs")) // clear tmp dir

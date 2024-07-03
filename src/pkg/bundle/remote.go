@@ -65,7 +65,7 @@ func (op *ociProvider) LoadBundleMetadata() (types.PathMap, error) {
 		return nil, err
 	}
 
-	loaded := make(types.PathMap)
+	filepaths := make(types.PathMap)
 	for _, layer := range layers {
 		rel := layer.Annotations[ocispec.AnnotationTitle]
 		abs := filepath.Join(op.dst, config.BlobsDir, rel)
@@ -73,9 +73,9 @@ func (op *ociProvider) LoadBundleMetadata() (types.PathMap, error) {
 		if err := os.Rename(abs, absSha); err != nil {
 			return nil, err
 		}
-		loaded[rel] = absSha
+		filepaths[rel] = absSha
 	}
-	return loaded, nil
+	return filepaths, nil
 }
 
 // CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
@@ -148,16 +148,16 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 	var bundle types.UDSBundle
 
 	// pull the bundle's metadata + sig
-	loaded, err := op.LoadBundleMetadata()
+	filepaths, err := op.LoadBundleMetadata()
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := utils.ReadYAMLStrict(loaded[config.BundleYAML], &bundle); err != nil {
+	if err := utils.ReadYAMLStrict(filepaths[config.BundleYAML], &bundle); err != nil {
 		return nil, nil, err
 	}
 
 	// validate the sig (if present) before pulling the whole bundle
-	if err := ValidateBundleSignature(loaded[config.BundleYAML], loaded[config.BundleYAMLSignature], opts.PublicKeyPath); err != nil {
+	if err := ValidateBundleSignature(filepaths[config.BundleYAML], filepaths[config.BundleYAMLSignature], opts.PublicKeyPath); err != nil {
 		return nil, nil, err
 	}
 
@@ -226,10 +226,10 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 
 	for _, layer := range bundleLayers {
 		sha := layer.Digest.Encoded()
-		loaded[sha] = filepath.Join(op.dst, config.BlobsDir, sha)
+		filepaths[sha] = filepath.Join(op.dst, config.BlobsDir, sha)
 	}
 
-	return &bundle, loaded, nil
+	return &bundle, filepaths, nil
 }
 
 func (op *ociProvider) PublishBundle(_ types.UDSBundle, _ *oci.OrasRemote) error {

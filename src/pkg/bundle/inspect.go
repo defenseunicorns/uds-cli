@@ -52,13 +52,13 @@ func (b *Bundle) Inspect() error {
 	}
 
 	// pull the bundle's metadata + sig + sboms (optional)
-	loaded, err := provider.LoadBundleMetadata()
+	filepaths, err := provider.LoadBundleMetadata()
 	if err != nil {
 		return err
 	}
 
 	// validate the sig (if present)
-	if err := ValidateBundleSignature(loaded[config.BundleYAML], loaded[config.BundleYAMLSignature], b.cfg.InspectOpts.PublicKeyPath); err != nil {
+	if err := ValidateBundleSignature(filepaths[config.BundleYAML], filepaths[config.BundleYAMLSignature], b.cfg.InspectOpts.PublicKeyPath); err != nil {
 		return err
 	}
 
@@ -70,7 +70,7 @@ func (b *Bundle) Inspect() error {
 		}
 	}
 	// read the bundle's metadata into memory
-	if err := utils.ReadYAMLStrict(loaded[config.BundleYAML], &b.bundle); err != nil {
+	if err := utils.ReadYAMLStrict(filepaths[config.BundleYAML], &b.bundle); err != nil {
 		return err
 	}
 
