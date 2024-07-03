@@ -720,21 +720,21 @@ func TestListVariables(t *testing.T) {
 
 	t.Run("list variables for local tarball", func(t *testing.T) {
 		cmd := strings.Split(fmt.Sprintf("inspect %s --list-variables", bundlePath), " ")
-		_, stderr, err := e2e.UDS(cmd...)
+		stdout, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
 
 		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
-		cleaned := ansiRegex.ReplaceAllString(stderr, "")
+		cleaned := ansiRegex.ReplaceAllString(stdout, "")
 		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")
 	})
 
 	t.Run("list variables for remote tarball", func(t *testing.T) {
 		cmd := strings.Split(fmt.Sprintf("inspect %s --list-variables --insecure", fmt.Sprintf("%s/optional-components:0.0.1", ociRef)), " ")
-		_, stderr, err := e2e.UDS(cmd...)
+		stdout, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
 
 		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
-		cleaned := ansiRegex.ReplaceAllString(stderr, "")
+		cleaned := ansiRegex.ReplaceAllString(stdout, "")
 		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")
 	})
 }

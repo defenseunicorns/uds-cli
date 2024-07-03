@@ -148,6 +148,9 @@ func (b *Bundle) listVariables() error {
 			variables = append(variables, pkg.Overrides)
 		}
 
+		// print to stdout to enable users to easily grab the output
+		pterm.SetDefaultOutput(os.Stdout)
+
 		varMap := map[string]map[string]interface{}{pkg.Name: {"variables": variables}}
 		zarfUtils.ColorPrintYAML(varMap, nil, false)
 	}
