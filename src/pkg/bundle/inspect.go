@@ -29,6 +29,9 @@ import (
 
 // Inspect pulls/unpacks a bundle's metadata and shows it
 func (b *Bundle) Inspect() error {
+	// print to stdout to enable users to easily grab the output
+	pterm.SetDefaultOutput(os.Stdout)
+
 	//  handle --list-images flag
 	if b.cfg.InspectOpts.ListImages {
 		err := b.listImages()
@@ -106,8 +109,6 @@ func (b *Bundle) listImages() error {
 
 	formattedImgs := strings.Join(imgs, "\n")
 
-	// print to stdout to enable users to easily grab the output
-	pterm.SetDefaultOutput(os.Stdout)
 	pterm.Printfln("%s\n", formattedImgs)
 	return nil
 }
@@ -147,9 +148,6 @@ func (b *Bundle) listVariables() error {
 		if len(pkg.Overrides) > 0 {
 			variables = append(variables, pkg.Overrides)
 		}
-
-		// print to stdout to enable users to easily grab the output
-		pterm.SetDefaultOutput(os.Stdout)
 
 		varMap := map[string]map[string]interface{}{pkg.Name: {"variables": variables}}
 		zarfUtils.ColorPrintYAML(varMap, nil, false)
