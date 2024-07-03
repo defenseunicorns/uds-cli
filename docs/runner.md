@@ -51,6 +51,10 @@ tasks:
     - cmd: ./zarf tools kubectl get pods -A        # uses vendored Zarf
 ```
 
+{{% alert-note %}}
+UDS CLI automatically removes progress bars from `./uds` commands and if `CI=true`then it will also remove progress bars from `uds run` commands.
+{{% /alert-note %}}
+
 ### Architecture Environment Variable
 
 When running tasks with `uds run`, there is a special `UDS_ARCH` environment variable accessible within tasks that is automatically set to your system architecture, but is also configurable with a `UDS_ARCHITECTURE` environmental variable. For example:
