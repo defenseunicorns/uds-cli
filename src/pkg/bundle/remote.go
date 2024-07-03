@@ -15,18 +15,18 @@ import (
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/cache"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/cluster"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
-	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"golang.org/x/exp/slices"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"oras.land/oras-go/v2"
+
 	ocistore "oras.land/oras-go/v2/content/oci"
 )
 
@@ -146,6 +146,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.UDSBundle, types.PathMap, error) {
 	ctx := context.TODO()
 	var bundle types.UDSBundle
+
 	// pull the bundle's metadata + sig
 	loaded, err := op.LoadBundleMetadata()
 	if err != nil {
@@ -161,6 +162,9 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 	}
 
 	var layersToPull []ocispec.Descriptor
+	// need to keep track of all the bundle layers (pulled and cached)
+	var bundleLayers []ocispec.Descriptor
+
 	estimatedBytes := int64(0)
 
 	// get the bundle's root manifest
@@ -172,43 +176,55 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 	// grab root manifest config
 	layersToPull = append(layersToPull, rootManifest.Config)
 
-	for _, pkg := range bundle.Packages {
-		// go through the pkg's layers and figure out which ones to pull based on the req'd + selected components
-		pkgLayers, estPkgBytes, err := boci.FindBundledPkgLayers(ctx, pkg, rootManifest, op.OrasRemote)
-		if err != nil {
-			return nil, nil, err
-		}
-		layersToPull = append(layersToPull, pkgLayers...)
-		estimatedBytes += estPkgBytes
-	}
-
 	store, err := ocistore.NewWithContext(ctx, op.dst)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// grab the bundle root manifest and add it to the layers to pull
-	rootDesc, err := op.ResolveRoot(ctx)
+	bundleRootDesc, err := op.ResolveRoot(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	layersToPull = append(layersToPull, rootDesc)
+	layersToPull = append(layersToPull, bundleRootDesc)
+	bundleLayers = append(bundleLayers, layersToPull...)
 
-	// create copy options for oras.Copy()
-	copyOpts := boci.CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
+	for _, pkg := range bundle.Packages {
+		// go through the pkg's layers and figure out which ones to pull based on the req'd + selected components
+		pkgLayers, _, err := boci.FindBundledPkgLayers(ctx, pkg, rootManifest, op.OrasRemote)
+		if err != nil {
+			return nil, nil, err
+		}
 
-	// Create a thread to update a progress bar as we save the package to disk
-	doneSaving := make(chan error)
-	go zarfUtils.RenderProgressBarForLocalDirWrite(op.dst, estimatedBytes, doneSaving, fmt.Sprintf("Pulling bundle: %s", bundle.Metadata.Name), fmt.Sprintf("Successfully pulled bundle: %s", bundle.Metadata.Name))
-	// note that in this case oras.Copy() copies using the bundle root manifest, not the packages directly
-	_, err = oras.Copy(ctx, op.Repo(), op.Repo().Reference.String(), store, op.Repo().Reference.String(), copyOpts)
-	doneSaving <- err
-	<-doneSaving
-	if err != nil {
-		return nil, nil, err
+		// check if the layer already exists in the cache or the store
+		for _, layer := range pkgLayers {
+			exists, err := cache.CheckLayerExists(ctx, layer, store, op.dst)
+			if err != nil {
+				return nil, nil, err
+			}
+			// if layers don't already exist on disk, add to layersToPull
+			if !exists {
+				layersToPull = append(layersToPull, layer)
+				estimatedBytes += layer.Size
+			}
+		}
+		bundleLayers = append(bundleLayers, pkgLayers...)
 	}
 
-	for _, layer := range layersToPull {
+	// pull layers that didn't already exist on disk
+	if len(layersToPull) > 0 {
+		_, err := boci.CopyLayers(layersToPull, estimatedBytes, op.dst, op.Repo(), store, bundle.Metadata.Name)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		err = cache.AddPulledImgLayers(layersToPull, op.dst)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	for _, layer := range bundleLayers {
 		sha := layer.Digest.Encoded()
 		loaded[sha] = filepath.Join(op.dst, config.BlobsDir, sha)
 	}

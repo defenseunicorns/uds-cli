@@ -17,6 +17,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	"github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -25,11 +26,9 @@ import (
 // Pull pulls a bundle and saves it locally
 func (b *Bundle) Pull() error {
 	ctx := context.TODO()
-	// use uds-cache/packages as the dst dir for the pull to get auto caching
-	// we use an ORAS ocistore to make that dir look like an OCI artifact
-	cacheDir := filepath.Join(zarfConfig.GetAbsCachePath(), "packages")
-	if err := helpers.CreateDirectory(cacheDir, 0o755); err != nil {
-		return err
+	tmpDstDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
+	if err != nil {
+		return fmt.Errorf("pull bundle unable to create temp directory: %w", err)
 	}
 
 	// Get validated source path
@@ -39,7 +38,7 @@ func (b *Bundle) Pull() error {
 	}
 	b.cfg.PullOpts.Source = source
 
-	provider, err := NewBundleProvider(b.cfg.PullOpts.Source, cacheDir)
+	provider, err := NewBundleProvider(b.cfg.PullOpts.Source, tmpDstDir)
 	if err != nil {
 		return err
 	}
@@ -108,7 +107,7 @@ func (b *Bundle) Pull() error {
 
 	// put the index.json and oci-layout at the root of the tarball
 	pathMap[filepath.Join(b.tmp, "index.json")] = "index.json"
-	pathMap[filepath.Join(cacheDir, "oci-layout")] = "oci-layout"
+	pathMap[filepath.Join(tmpDstDir, "oci-layout")] = "oci-layout"
 
 	// re-map the paths to be relative to the cache directory
 	for sha, abs := range loaded {

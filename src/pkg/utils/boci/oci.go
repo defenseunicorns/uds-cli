@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
@@ -21,6 +22,7 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
 	"github.com/defenseunicorns/zarf/src/pkg/transform"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
@@ -29,6 +31,7 @@ import (
 	"oras.land/oras-go/v2/content"
 	ocistore "oras.land/oras-go/v2/content/oci"
 	"oras.land/oras-go/v2/errdef"
+	"oras.land/oras-go/v2/registry/remote"
 )
 
 // ToOCIStore takes an arbitrary type, typically a struct, marshals it into JSON and store it in a local OCI store
@@ -342,19 +345,25 @@ func FindBundledPkgLayers(ctx context.Context, pkg types.Package, rootManifest *
 
 	// go through manifest layers and add to layersToPull as appropriate
 	var imgIndex ocispec.Index
+
+	// map layer digests to their annotations, ensure annotations are included bc sometimes image layers don't have them
+	// and we use them to determine if a layer should be cached or not
+	layerTitleAnnotations := map[string]string{}
+
 	for _, desc := range manifest.Layers {
-		descAnnotationTile := desc.Annotations[ocispec.AnnotationTitle]
-		if descAnnotationTile == "images/index.json" {
+		descAnnotationTitle := desc.Annotations[ocispec.AnnotationTitle]
+		layerTitleAnnotations[desc.Digest.Encoded()] = descAnnotationTitle
+		if descAnnotationTitle == "images/index.json" {
 			imgIndex, err = handleImgIndex(ctx, remote, desc)
 			if err != nil {
 				return nil, 0, err
 			}
 			layersToPull = append(layersToPull, desc)
-		} else if strings.HasPrefix(descAnnotationTile, "components/") {
-			if shouldInclude := utils.IncludeComponent(descAnnotationTile, filteredComponents); shouldInclude {
+		} else if strings.HasPrefix(descAnnotationTitle, "components/") {
+			if shouldInclude := utils.IncludeComponent(descAnnotationTitle, filteredComponents); shouldInclude {
 				layersToPull = append(layersToPull, desc)
 			}
-		} else if !strings.Contains(descAnnotationTile, config.BlobsDir) {
+		} else if !strings.Contains(descAnnotationTitle, config.BlobsDir) {
 			// not a blob or component, add to layersToPull
 			layersToPull = append(layersToPull, desc)
 		}
@@ -378,12 +387,46 @@ func FindBundledPkgLayers(ctx context.Context, pkg types.Package, rootManifest *
 		layersToPull = append(layersToPull, desc, imgManifest.Config)
 	}
 
-	// loop through layersToPull and add up bytes
-	for _, layer := range layersToPull {
+	// loop through layersToPull and add up bytes and set title annotations
+	for i, layer := range layersToPull {
+		title, hasTitle := layerTitleAnnotations[layer.Digest.Encoded()]
+		if layer.Annotations == nil && hasTitle {
+			layersToPull[i].Annotations = map[string]string{ocispec.AnnotationTitle: title}
+		}
 		estPkgBytes += layer.Size
 	}
 
 	return layersToPull, estPkgBytes, nil
+}
+
+// CopyLayers uses ORAS to copy layers from a remote repo to a local OCI store
+func CopyLayers(layersToPull []ocispec.Descriptor, estimatedBytes int64, tmpDstDir string, repo *remote.Repository, target oras.Target, artifactName string) (ocispec.Descriptor, error) {
+	// copy Zarf pkg
+	copyOpts := CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
+	// Create a thread to update a progress bar as we save the package to disk
+	doneSaving := make(chan error)
+
+	// Grab tmpDirSize and add it to the estimatedBytes, otherwise the progress bar will be off
+	// because as multiple packages are pulled into the tmpDir, RenderProgressBarForLocalDirWrite continues to
+	// add their size which results in strange MB ratios
+	tmpDirSize, err := helpers.GetDirSize(tmpDstDir)
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
+
+	expectedTotalSize := estimatedBytes + tmpDirSize
+
+	go zarfUtils.RenderProgressBarForLocalDirWrite(tmpDstDir, expectedTotalSize, doneSaving, fmt.Sprintf("Pulling: %s", artifactName), fmt.Sprintf("Successfully pulled: %s", artifactName))
+
+	rootDesc, err := oras.Copy(context.TODO(), repo, repo.Reference.String(), target, "", copyOpts)
+
+	doneSaving <- err
+	<-doneSaving
+
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
+	return rootDesc, nil
 }
 
 func getImgManifest(ctx context.Context, remote *oci.OrasRemote, desc ocispec.Descriptor) (ocispec.Manifest, error) {
