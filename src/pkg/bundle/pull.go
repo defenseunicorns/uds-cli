@@ -44,7 +44,7 @@ func (b *Bundle) Pull() error {
 	}
 
 	// pull the bundle's uds-bundle.yaml and it's Zarf pkgs
-	bundle, loaded, err := provider.LoadBundle(b.cfg.PullOpts, zarfConfig.CommonOptions.OCIConcurrency)
+	bundle, filepaths, err := provider.LoadBundle(b.cfg.PullOpts, zarfConfig.CommonOptions.OCIConcurrency)
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func (b *Bundle) Pull() error {
 	pathMap[filepath.Join(tmpDstDir, "oci-layout")] = "oci-layout"
 
 	// re-map the paths to be relative to the cache directory
-	for sha, abs := range loaded {
+	for sha, abs := range filepaths {
 		if sha == config.BundleYAML || sha == config.BundleYAMLSignature {
 			sha = filepath.Base(abs)
 		}

@@ -199,14 +199,14 @@ func (tp *tarballBundleProvider) LoadBundleMetadata() (types.PathMap, error) {
 	}
 	pathsToExtract := config.BundleAlwaysPull
 
-	loaded := make(types.PathMap)
+	filepaths := make(types.PathMap)
 
 	for _, path := range pathsToExtract {
 		layer := bundleRootManifest.Locate(path)
 		if !oci.IsEmptyDescriptor(layer) {
 			pathInTarball := filepath.Join(config.BlobsDir, layer.Digest.Encoded())
 			abs := filepath.Join(tp.dst, pathInTarball)
-			loaded[path] = abs
+			filepaths[path] = abs
 			if !helpers.InvalidPath(abs) && helpers.SHAsMatch(abs, layer.Digest.Encoded()) == nil {
 				continue
 			}
@@ -215,7 +215,7 @@ func (tp *tarballBundleProvider) LoadBundleMetadata() (types.PathMap, error) {
 			}
 		}
 	}
-	return loaded, nil
+	return filepaths, nil
 }
 
 // getZarfLayers returns the layers of the Zarf package that are in the bundle

@@ -43,7 +43,7 @@ jobs:
 
       - name: Run e2e bundle tests
         run: |
-          build/uds run test:bundle --no-progress
+          build/uds run test:bundle
 
       - name: Save logs
         if: always()
@@ -65,7 +65,7 @@ jobs:
 
       - name: Run e2e dev tests
         run: |
-          build/uds run test:dev --no-progress
+          build/uds run test:dev
 
       - name: Save logs
         if: always()
@@ -87,7 +87,7 @@ jobs:
 
       - name: Run e2e variable tests
         run: |
-          build/uds run test:variable --no-progress
+          build/uds run test:variable
 
       - name: Save logs
         if: always()
@@ -109,7 +109,7 @@ jobs:
 
       - name: Run e2e optional bundle tests
         run: |
-          build/uds run test:optional-bundle --no-progress
+          build/uds run test:optional-bundle
 
       - name: Save logs
         if: always()
@@ -139,7 +139,7 @@ jobs:
 
       - name: Run e2e vendor tests
         run: |
-          build/uds run test:vendor --no-progress
+          build/uds run test:vendor
 
       - name: Save logs
         if: always()
@@ -161,7 +161,7 @@ jobs:
 
       - name: Run e2e optional bundle tests
         run: |
-          build/uds run test:engine-e2e --no-progress
+          build/uds run test:engine-e2e
 
       - name: Save logs
         if: always()

@@ -34,7 +34,17 @@ var runnerCmd = &cobra.Command{
 
 		// Maru by default uses the MARU_ env var prefix - to add any UDS_ env vars we have to add them here
 		archValue := config.GetArch(v.GetString(V_ARCHITECTURE))
-		runnerConfig.AddExtraEnv("UDS", "true")
+
+		// Disable progress bars for ./uds commands
+		runnerConfig.AddExtraEnv("UDS_NO_PROGRESS", "true")
+
+		// Disable Maru progress bars if CI=true (note this is the default for Github Actions)
+		// can potentially remove if https://github.com/defenseunicorns/maru-runner/issues/124 is completed
+		if os.Getenv("CI") == "true" {
+			os.Args = append(os.Args, "--no-progress")
+		}
+
+		// Add the UDS_ARCH env var to the runner
 		runnerConfig.AddExtraEnv("UDS_ARCH", archValue)
 
 		executablePath, err := exec.GetFinalExecutablePath()

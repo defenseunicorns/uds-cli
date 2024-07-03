@@ -50,7 +50,7 @@ jobs:
 
       - name: Run GHCR tests
         run: |
-          build/uds run test:e2e-ghcr --no-progress
+          build/uds run test:e2e-ghcr
         env:
           GITHUB_TOKEN: secrets.GITHUB_TOKEN
 
@@ -92,7 +92,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run UDS Core smoke test
-        run: build/uds run test:ci-uds-core-smoke-test --no-progress
+        run: build/uds run test:ci-uds-core-smoke-test
         shell: bash
 
       - name: Save logs
