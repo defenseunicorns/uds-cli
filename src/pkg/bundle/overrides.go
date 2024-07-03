@@ -198,18 +198,19 @@ func (b *Bundle) processOverrideVariables(overrideOpts *values.Options, variable
 	return nil
 }
 
-// addOverride adds a value or variable to a PkgOverrideMap
+// addOverride adds a value or variable to the override map helm values options
 func (b *Bundle) addOverride(overrideOpts *values.Options, override interface{}, value interface{}, pkgVars map[string]string) error {
 	var valuePath string
-	var handleExports bool
+	// only possible for types.BundleChartValue
+	var handleTemplatedVals bool
 
 	switch v := override.(type) {
 	case types.BundleChartValue:
 		valuePath = v.Path
-		handleExports = true
+		handleTemplatedVals = true
 	case types.BundleChartVariable:
 		valuePath = v.Path
-		handleExports = false
+		handleTemplatedVals = false
 		if v.Type == chartvariable.File {
 			if fileVals, err := b.addFileValue(overrideOpts.FileValues, value.(string), v); err == nil {
 				overrideOpts.FileValues = fileVals
@@ -235,25 +236,24 @@ func (b *Bundle) addOverride(overrideOpts *values.Options, override interface{},
 		}
 		// use JSONValues because we can easily marshal the YAML to JSON and Helm understands it
 		jsonVals := fmt.Sprintf("%s=[%s]", valuePath, strings.Join(jsonStrs, ","))
-		if handleExports {
+		if handleTemplatedVals {
 			jsonVals = setTemplatedVariables(jsonVals, pkgVars)
 		}
 		overrideOpts.JSONValues = append(overrideOpts.JSONValues, jsonVals)
 	case map[string]interface{}:
 		// handle objects by parsing them as json and appending to Options.JSONValues
-		j, err := json.Marshal(v)
+		json, err := json.Marshal(v)
 		if err != nil {
 			return err
 		}
 		// use JSONValues because we can easily marshal the YAML to JSON and Helm understands it
-		val := fmt.Sprintf("%s=%s", valuePath, j)
-		if handleExports {
+		val := fmt.Sprintf("%s=%s", valuePath, json)
+		if handleTemplatedVals {
 			val = setTemplatedVariables(val, pkgVars)
 		}
 		overrideOpts.JSONValues = append(overrideOpts.JSONValues, val)
 	default:
-		// Check for any templated variables if pkgVars set
-		if handleExports {
+		if handleTemplatedVals {
 			templatedVariable := fmt.Sprintf("%v", v)
 			value = setTemplatedVariables(templatedVariable, pkgVars)
 		}
