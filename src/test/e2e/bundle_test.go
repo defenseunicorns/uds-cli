@@ -28,11 +28,13 @@ func TestUDSCmd(t *testing.T) {
 }
 
 func TestUDSLogs(t *testing.T) {
-	inspectRemote(t, "ghcr.io/defenseunicorns/packages/uds-cli/test/publish/ghcr-test:0.0.1")
-	stderr, _, err := e2e.UDS("logs")
+	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+	createLocal(t, "src/test/bundles/11-real-simple", e2e.Arch)
+	stdout, _, err := e2e.UDS("logs")
 	require.NoError(t, err)
-	require.Contains(t, stderr, "DEBUG")
-	require.Contains(t, stderr, "UDSBundle")
+	require.Contains(t, stdout, "DEBUG")
+	require.Contains(t, stdout, "UDSBundle")
 }
 
 func TestSimpleBundleWithZarfAction(t *testing.T) {
