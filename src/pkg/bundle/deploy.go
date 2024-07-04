@@ -106,7 +106,7 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 
 		pkgVars, variableData := b.loadVariables(pkg, bundleExportedVars)
 
-		valuesOverrides, nsOverrides, err := b.loadChartOverrides(pkg, pkgVars, variableData)
+		valuesOverrides, nsOverrides, err := b.loadChartOverrides(pkg, variableData)
 		if err != nil {
 			return err
 		}
@@ -263,7 +263,7 @@ func formPkgViews(b *Bundle) []PkgView {
 
 		// process variables and overrides to get values
 		_, variableData := b.loadVariables(pkg, nil)
-		valuesOverrides, _, _ := b.loadChartOverrides(pkg, map[string]string{}, variableData)
+		valuesOverrides, _, _ := b.loadChartOverrides(pkg, variableData)
 
 		for compName, component := range pkg.Overrides {
 			for chartName, chart := range component {

@@ -25,11 +25,13 @@ type overrideData struct {
 	value  interface{}
 	source valuesources.Source
 }
+type BOverridesData map[string]overrideData
+type ZarfVarData map[string]string
 
 // loadVariables loads and sets precedence for config-level and imported variables
-func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) (map[string]string, map[string]overrideData) {
-	pkgVars := make(map[string]string)
-	overVarsData := make(map[string]overrideData)
+func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) (ZarfVarData, BOverridesData) {
+	pkgVars := make(ZarfVarData)
+	overVarsData := make(BOverridesData)
 
 	// load all exported variables
 	for _, exportedVarMap := range bundleExportedVars {
@@ -83,7 +85,7 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 }
 
 // loadChartOverrides converts a helm path to a ValuesOverridesMap config for Zarf
-func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string, overrideData map[string]overrideData) (PkgOverrideMap, sources.NamespaceOverrideMap, error) {
+func (b *Bundle) loadChartOverrides(pkg types.Package, overrideData BOverridesData) (PkgOverrideMap, sources.NamespaceOverrideMap, error) {
 	// Create nested maps to hold the overrides
 	overrideMap := make(map[string]map[string]*values.Options)
 	nsOverrides := make(sources.NamespaceOverrideMap)
@@ -101,7 +103,7 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, pkgVars map[string]string
 
 			overrideOpts := overrideMap[componentName][chartName]
 
-			if err := b.processOverrideValues(overrideOpts, chart.Values, pkgVars); err != nil {
+			if err := b.processOverrideValues(overrideOpts, chart.Values, overrideData); err != nil {
 				return nil, nil, err
 			}
 			if err := b.processOverrideVariables(overrideOpts, chart.Variables, overrideData); err != nil {
@@ -158,7 +160,7 @@ func (b *Bundle) processOverrideNamespaces(overrideMap sources.NamespaceOverride
 }
 
 // processOverrideValues processes a bundles values overrides and adds them to the override map
-func (b *Bundle) processOverrideValues(overrideOpts *values.Options, values []types.BundleChartValue, pkgVars map[string]string) error {
+func (b *Bundle) processOverrideValues(overrideOpts *values.Options, values []types.BundleChartValue, pkgVars BOverridesData) error {
 	for _, v := range values {
 		// Add the override to the map, or return an error if the path is invalid
 		if err := b.addOverride(overrideOpts, v, v.Value, pkgVars); err != nil {
@@ -199,7 +201,7 @@ func (b *Bundle) processOverrideVariables(overrideOpts *values.Options, variable
 }
 
 // addOverride adds a value or variable to the override map helm values options
-func (b *Bundle) addOverride(overrideOpts *values.Options, override interface{}, value interface{}, pkgVars map[string]string) error {
+func (b *Bundle) addOverride(overrideOpts *values.Options, override interface{}, value interface{}, pkgVars BOverridesData) error {
 	var valuePath string
 	// only possible for types.BundleChartValue
 	var handleTemplatedVals bool
@@ -266,14 +268,14 @@ func (b *Bundle) addOverride(overrideOpts *values.Options, override interface{},
 }
 
 // setTemplatedVariables sets the value for the templated variables
-func setTemplatedVariables(templatedVariables string, pkgVars map[string]string) string {
+func setTemplatedVariables(templatedVariables string, pkgVars BOverridesData) string {
 	// Use ReplaceAllStringFunc to handle all occurrences of templated variables
 	replacedValue := templatedVarRegex.ReplaceAllStringFunc(templatedVariables, func(match string) string {
 		// returns slice with the templated variable and the variable name
 		variableName := templatedVarRegex.FindStringSubmatch(match)[1]
 		// If we have a templated variable, get the value from pkgVars (use uppercase for case-insensitive comparison)
-		if varValue, ok := pkgVars[strings.ToUpper(variableName)]; ok {
-			return varValue
+		if data, ok := pkgVars[strings.ToUpper(variableName)]; ok {
+			return fmt.Sprint(data.value)
 		}
 		return fmt.Sprintf("${%s_not_found}", variableName)
 	})
