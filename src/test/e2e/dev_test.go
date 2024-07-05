@@ -157,15 +157,26 @@ func TestDevDeploy(t *testing.T) {
 	t.Run("Test dev deploy with excluded components", func(t *testing.T) {
 		// remove any lingering podinfo and nginx deployments
 		e2e.UDS(strings.Split("zarf tools kubectl delete deploy -n podinfo podinfo", " ")...)
-		e2e.UDS(strings.Split("zarf tools kubectl delete deploy -n nginx nginx", " ")...)
+		e2e.UDS(strings.Split("zarf tools kubectl delete deploy -n nginx nginx-deployment", " ")...)
 
 		bundleDir := "src/test/bundles/15-dev-deploy/optional"
+		bundleName := "dev-deploy-exclude"
+		bundleTarballPath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch))
 		// exclude nginx from podinfo-nginx pkg
 		runUDSCmd(t, "dev deploy "+bundleDir+" --exclude-components=podinfo-nginx.nginx")
 
+		// inspect created bundle and ensure nginx isn't included
+		// todo: refactor when we move 'inspect' to stdout and add --no-color flag
+		_, stderr := runUDSCmd(t, "inspect "+bundleTarballPath)
+		require.Contains(t, stderr, "-\x1b[95m podinfo\x1b[0m")
+		require.NotContains(t, stderr, "-\x1b[95m nginx\x1b[0m")
+
+		// ensure podinfo is deployed and nginx is not
 		cmd := strings.Split("zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
 		deployments, _, _ := e2e.UDS(cmd...)
 		require.NotContains(t, deployments, "nginx")
 		require.Contains(t, deployments, "podinfo")
+
+		remove(t, bundleTarballPath)
 	})
 }
