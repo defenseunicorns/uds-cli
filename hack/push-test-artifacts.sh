@@ -19,12 +19,13 @@ uds zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a ar
 cd ../../podinfo
 uds zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a amd64
 uds zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a arm64
+
 cd ./refs
 uds zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a amd64
 uds zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a arm64
 
 # create ghcr-test bundle
-cd ../../bundles/06-ghcr
+cd ../../../bundles/06-ghcr
 uds create . -o ghcr.io/defenseunicorns/packages/uds-cli/test/create-remote --confirm -a amd64
 uds create . -o ghcr.io/defenseunicorns/packages/uds-cli/test/create-remote --confirm -a arm64
 
