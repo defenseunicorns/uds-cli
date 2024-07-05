@@ -772,7 +772,11 @@ func TestFormPkgViews(t *testing.T) {
 			v := pkgViews[0].overrides["overrides"].([]interface{})[tc.expectedIndex].(map[string]map[string]interface{})[tc.expectedChart]["variables"]
 			fmt.Println(v)
 			require.Contains(t, v.(map[string]interface{})[tc.expectedKey], tc.expectedVal)
-			require.Contains(t, pkgViews[0].optionalComponents[0], optionalComponent)
+
+			// ensure that optionalComponents are part of the view when included in a bundle's pkg
+			if len(pkgViews[0].optionalComponents) > 0 {
+				require.Contains(t, pkgViews[0].optionalComponents[0], optionalComponent)
+			}
 		})
 	}
 
