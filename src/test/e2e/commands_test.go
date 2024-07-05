@@ -132,7 +132,7 @@ func devDeployPackages(t *testing.T, tarballPath string, packages string) (stdou
 	return stdout, stderr
 }
 
-func runCmd(t *testing.T, input string) (stdout string, stderr string) {
+func runUDSCmd(t *testing.T, input string) (stdout string, stderr string) {
 	cmd := strings.Split(input, " ")
 	stdout, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)

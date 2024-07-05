@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -82,8 +81,8 @@ func (b *Bundle) ClearPaths() {
 func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 	bundle := &b.bundle
 	if bundle.Metadata.Architecture == "" {
-		// ValidateBundle was erroneously called before CalculateBuildInfo
-		if err := b.CalculateBuildInfo(); err != nil {
+		// ValidateBundle was erroneously called before CreateBuildInfo
+		if err := b.CreateBuildInfo(); err != nil {
 			return err
 		}
 		if bundle.Metadata.Architecture == "" {
@@ -229,8 +228,8 @@ func getPkgPath(pkg types.Package, arch string, srcDir string) string {
 	return path
 }
 
-// CalculateBuildInfo calculates the build info for the bundle
-func (b *Bundle) CalculateBuildInfo() error {
+// CreateBuildInfo calculates the build info for the bundle
+func (b *Bundle) CreateBuildInfo() error {
 	now := time.Now()
 	b.bundle.Build.User = os.Getenv("USER")
 
@@ -349,7 +348,7 @@ func (b *Bundle) setPackageRef(pkg types.Package) types.Package {
 	if ref, ok := b.cfg.DevDeployOpts.Ref[pkg.Name]; ok {
 		// Can only set refs for remote packages
 		if pkg.Repository == "" {
-			message.Fatalf(errors.New("Invalid input"), "Cannot set ref for local packages: %s", pkg.Name)
+			message.Fatalf(errors.New("invalid input"), "Cannot set ref for local packages: %s", pkg.Name)
 		}
 
 		errMsg := fmt.Sprintf("Unable to access %s:%s", pkg.Repository, ref)
@@ -376,32 +375,4 @@ func (b *Bundle) setPackageRef(pkg types.Package) types.Package {
 		}
 	}
 	return pkg
-}
-
-// handleExcludedComponents removes excluded components from the bundle
-func (b *Bundle) handleExcludedComponents(excludedComponents []string) error {
-	for _, exclude := range excludedComponents {
-		// process exclude strings in the format <pkg>.<component>
-		parts := strings.Split(exclude, ".")
-		if len(parts) != 2 {
-			return fmt.Errorf("invalid exclude component: %s, must be of the format <pkg>.<component>", exclude)
-		}
-		excludedCompPkgName := parts[0]
-		excludedCompName := parts[1]
-		pkgExists := false // check if the excluded component's pkg actually exists in the bundle
-		for i, pkg := range b.bundle.Packages {
-			if excludedCompPkgName == pkg.Name {
-				pkgExists = true
-				if !slices.Contains(pkg.OptionalComponents, excludedCompName) {
-					return fmt.Errorf("component %s is not an optional component of package %s", excludedCompName, pkg)
-				}
-				// remove the excluded component from the package's OptionalComponents
-				b.bundle.Packages[i].OptionalComponents = helpers.RemoveMatches(b.bundle.Packages[i].OptionalComponents, func(s string) bool { return s == excludedCompName })
-			}
-		}
-		if !pkgExists {
-			return fmt.Errorf("package %s does not exist in bundle", excludedCompPkgName)
-		}
-	}
-	return nil
 }

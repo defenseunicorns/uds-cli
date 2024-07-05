@@ -17,6 +17,10 @@ func TestDevDeploy(t *testing.T) {
 
 	removeZarfInit()
 
+	// delete packages because other tests depend on them being created with SBOMs (ie. force other tests to re-create)
+	defer e2e.DeleteZarfPkg(t, "src/test/packages/podinfo")
+	defer e2e.DeleteZarfPkg(t, "src/test/packages/nginx")
+
 	t.Run("Test dev deploy with local and remote pkgs", func(t *testing.T) {
 
 		e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
@@ -129,7 +133,6 @@ func TestDevDeploy(t *testing.T) {
 		require.NoError(t, err)
 	})
 	t.Run("Test dev deploy with remote bundle", func(t *testing.T) {
-
 		bundle := "oci://ghcr.io/defenseunicorns/packages/uds-cli/test/publish/ghcr-test:0.0.1"
 
 		devDeploy(t, bundle)
@@ -145,13 +148,24 @@ func TestDevDeploy(t *testing.T) {
 	t.Run("Test dev deploy with --set flag", func(t *testing.T) {
 		bundleDir := "src/test/bundles/02-variables"
 		bundleTarballPath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-variables-%s-0.0.1.tar.zst", e2e.Arch))
-		_, stderr := runCmd(t, "dev deploy "+bundleDir+" --set ANIMAL=Longhorns --set COUNTRY=Texas -l=debug")
+		_, stderr := runUDSCmd(t, "dev deploy "+bundleDir+" --set ANIMAL=Longhorns --set COUNTRY=Texas -l=debug")
 		require.Contains(t, stderr, "This fun-fact was imported: Longhorns are the national animal of Texas")
 		require.NotContains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
 		remove(t, bundleTarballPath)
 	})
 
-	// delete packages because other tests depend on them being created with SBOMs (ie. force other tests to re-create)
-	e2e.DeleteZarfPkg(t, "src/test/packages/podinfo")
-	e2e.DeleteZarfPkg(t, "src/test/packages/nginx")
+	t.Run("Test dev deploy with excluded components", func(t *testing.T) {
+		// remove any lingering podinfo and nginx deployments
+		e2e.UDS(strings.Split("zarf tools kubectl delete deploy -n podinfo podinfo", " ")...)
+		e2e.UDS(strings.Split("zarf tools kubectl delete deploy -n nginx nginx", " ")...)
+
+		bundleDir := "src/test/bundles/15-dev-deploy/optional"
+		// exclude nginx from podinfo-nginx pkg
+		runUDSCmd(t, "dev deploy "+bundleDir+" --exclude-components=podinfo-nginx.nginx")
+
+		cmd := strings.Split("zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
+		deployments, _, _ := e2e.UDS(cmd...)
+		require.NotContains(t, deployments, "nginx")
+		require.Contains(t, deployments, "podinfo")
+	})
 }

@@ -586,11 +586,11 @@ func TestBundleTmpDir(t *testing.T) {
 	}()
 
 	// run create command with tmpDir
-	runCmd(t, "create "+bundleDir+" --tmpdir "+tmpDir+" --confirm --insecure")
+	runUDSCmd(t, "create "+bundleDir+" --tmpdir "+tmpDir+" --confirm --insecure")
 	// run deploy command with tmpDir
-	runCmd(t, "deploy "+bundlePath+" --tmpdir "+tmpDir+" --confirm --insecure")
+	runUDSCmd(t, "deploy "+bundlePath+" --tmpdir "+tmpDir+" --confirm --insecure")
 	// run remove command with tmpDir
-	runCmd(t, "remove "+bundlePath+" --tmpdir "+tmpDir+" --confirm --insecure")
+	runUDSCmd(t, "remove "+bundlePath+" --tmpdir "+tmpDir+" --confirm --insecure")
 
 	// handle errors and failures
 	select {

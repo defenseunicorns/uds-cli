@@ -1,9 +1,7 @@
-# uds dev deploy . --exclude-component podinfo-nginx.metrics-server
-
 kind: UDSBundle
 metadata:
-  name: dev-deploy-components
-  description: bundle for testing including and excluding components
+  name: dev-deploy-exclude
+  description: bundle to test excluding components
   version: 0.0.1
 
 packages:

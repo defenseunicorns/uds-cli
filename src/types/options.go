@@ -22,7 +22,7 @@ type BundleCreateOptions struct {
 	SigningKeyPath     string
 	SigningKeyPassword string
 	BundleFile         string
-	ExcludeComponents  string
+	ExcludeComponents  []string
 }
 
 // BundleDeployOptions is the options for the bundler.Deploy() function

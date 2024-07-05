@@ -606,9 +606,10 @@ func TestFileVariableHandlers(t *testing.T) {
 
 func TestFormPkgViews(t *testing.T) {
 	const (
-		componentName = "test-component"
-		chartName     = "test-chart"
-		pkgName       = "test-package"
+		componentName     = "test-component"
+		chartName         = "test-chart"
+		pkgName           = "test-package"
+		optionalComponent = "test-optional-component"
 	)
 
 	type TestCase struct {
@@ -625,9 +626,15 @@ func TestFormPkgViews(t *testing.T) {
 
 	setUpPkg := func(overVar types.BundleChartVariable) types.Package {
 		return types.Package{Name: pkgName,
-			Overrides: map[string]map[string]types.BundleChartOverrides{componentName: {chartName: {Variables: []types.BundleChartVariable{
-				overVar,
-			}}}}}
+			OptionalComponents: []string{optionalComponent},
+			Overrides: map[string]map[string]types.BundleChartOverrides{
+				componentName: {
+					chartName: {
+						Variables: []types.BundleChartVariable{overVar},
+					},
+				},
+			},
+		}
 	}
 
 	testCases := []TestCase{
@@ -765,6 +772,7 @@ func TestFormPkgViews(t *testing.T) {
 			v := pkgViews[0].overrides["overrides"].([]interface{})[tc.expectedIndex].(map[string]map[string]interface{})[tc.expectedChart]["variables"]
 			fmt.Println(v)
 			require.Contains(t, v.(map[string]interface{})[tc.expectedKey], tc.expectedVal)
+			require.Contains(t, pkgViews[0].optionalComponents[0], optionalComponent)
 		})
 	}
 

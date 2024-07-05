@@ -7,8 +7,11 @@ package bundle
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
@@ -28,6 +31,11 @@ func (b *Bundle) Create() error {
 		return err
 	}
 
+	// remove excluded optional components
+	if err := b.excludeComponents(b.cfg.CreateOpts.ExcludeComponents); err != nil {
+		return err
+	}
+
 	// Populate values from valuesFiles if provided
 	if err := b.processValuesFiles(); err != nil {
 		return err
@@ -38,8 +46,8 @@ func (b *Bundle) Create() error {
 		return fmt.Errorf("bundle creation cancelled")
 	}
 
-	// make the bundle's build information
-	if err := b.CalculateBuildInfo(); err != nil {
+	// create the bundle's build information
+	if err := b.CreateBuildInfo(); err != nil {
 		return err
 	}
 
@@ -182,4 +190,32 @@ func mergeBundleChartValues(bundleChartValueLists ...[]types.BundleChartValue) [
 	}
 
 	return merged
+}
+
+// excludeComponents removes excluded components from the bundle
+func (b *Bundle) excludeComponents(excludedComponents []string) error {
+	for _, exclude := range excludedComponents {
+		// process exclude strings in the format <pkg>.<component>
+		parts := strings.Split(exclude, ".")
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid exclude component: %s, must be of the format <pkg>.<component>", exclude)
+		}
+		excludedCompPkgName := parts[0]
+		excludedCompName := parts[1]
+		pkgExists := false // check if the excluded component's pkg actually exists in the bundle
+		for i, pkg := range b.bundle.Packages {
+			if excludedCompPkgName == pkg.Name {
+				pkgExists = true
+				if !slices.Contains(pkg.OptionalComponents, excludedCompName) {
+					return fmt.Errorf("component %s is not an optional component of package %s", excludedCompName, pkg)
+				}
+				// remove the excluded component from the package's OptionalComponents
+				b.bundle.Packages[i].OptionalComponents = helpers.RemoveMatches(b.bundle.Packages[i].OptionalComponents, func(s string) bool { return s == excludedCompName })
+			}
+		}
+		if !pkgExists {
+			return fmt.Errorf("package %s does not exist in bundle", excludedCompPkgName)
+		}
+	}
+	return nil
 }

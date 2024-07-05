@@ -70,6 +70,9 @@ var devDeployCmd = &cobra.Command{
 			bundleCfg.DeployOpts.Config = config
 		}
 
+		// pass dev deploy exclude option to create option because components are excluded during create
+		bundleCfg.CreateOpts.ExcludeComponents = bundleCfg.DevDeployOpts.ExcludeComponents
+
 		bndlClient := bundle.NewOrDie(&bundleCfg)
 		defer bndlClient.ClearPaths()
 

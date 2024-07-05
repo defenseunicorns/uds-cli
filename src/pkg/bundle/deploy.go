@@ -206,6 +206,7 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 	}
 
 	bundleName := b.bundle.Metadata.Name
+
 	return bundleName, string(bundleYAML), source, err
 }
 
@@ -232,6 +233,7 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 	for _, pkg := range pkgviews {
 		utils.ColorPrintYAML(pkg.meta, nil, false)
+		utils.ColorPrintYAML(map[string][]string{"optionalComponents": pkg.optionalComponents}, nil, false)
 		utils.ColorPrintYAML(pkg.overrides, nil, false)
 	}
 
@@ -253,8 +255,9 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 }
 
 type PkgView struct {
-	meta      map[string]string
-	overrides map[string]interface{}
+	meta               map[string]string
+	overrides          map[string]interface{}
+	optionalComponents []string
 }
 
 // formPkgViews creates a unique pre deploy view of each package's set overrides and Zarf variables
@@ -287,7 +290,11 @@ func formPkgViews(b *Bundle) []PkgView {
 		}
 
 		variables = addZarfVars(variableData, variables)
-		pkgViews = append(pkgViews, PkgView{meta: formPkgMeta(pkg), overrides: map[string]interface{}{"overrides": variables}})
+		pkgViews = append(pkgViews, PkgView{
+			meta:               formPkgMeta(pkg),
+			overrides:          map[string]interface{}{"overrides": variables},
+			optionalComponents: pkg.OptionalComponents,
+		})
 	}
 	return pkgViews
 }
