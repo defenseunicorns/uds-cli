@@ -1,0 +1,15 @@
+# uds dev deploy . --exclude-component podinfo-nginx.metrics-server
+
+kind: UDSBundle
+metadata:
+  name: dev-deploy-components
+  description: bundle for testing including and excluding components
+  version: 0.0.1
+
+packages:
+  - name: podinfo-nginx
+    path: "../../../packages/podinfo-nginx"
+    ref: 0.0.1
+    optionalComponents:
+      - podinfo
+      - nginx

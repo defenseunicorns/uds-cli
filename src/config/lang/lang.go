@@ -20,7 +20,8 @@ const (
 	CmdBundleLogsShort = "View most recent UDS CLI logs"
 
 	// bundle
-	CmdBundleFlagConcurrency = "Number of concurrent layer operations to perform when interacting with a remote bundle."
+	CmdBundleFlagConcurrency       = "Number of concurrent layer operations to perform when interacting with a remote bundle."
+	CmdBundleFlagExcludeComponents = "Optional components to exclude <pkg.component>"
 
 	// bundle create
 	CmdBundleCreateShort                  = "Create a bundle from a given directory or the current directory"

@@ -5,7 +5,7 @@ metadata:
   description: nginx deployment using image docker.io/library/nginx:1.26.0 for testing dev deploy --refs flag
 
 components:
-  - name: nginx-remote
+  - name: nginx
     required: true
     manifests:
       - name: simple-nginx-deployment

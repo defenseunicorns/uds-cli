@@ -56,7 +56,7 @@ func TestValidateDevDeployFlags(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			bundleCfg.DevDeployOpts = tc.DevDeployOpts
 
-			err := validateDevDeployFlags(tc.localBundle)
+			err := validatePkgCreateFlags(tc.localBundle)
 			if tc.expectError {
 				require.Error(t, err)
 			} else {

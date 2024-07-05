@@ -22,6 +22,7 @@ type BundleCreateOptions struct {
 	SigningKeyPath     string
 	SigningKeyPassword string
 	BundleFile         string
+	ExcludeComponents  string
 }
 
 // BundleDeployOptions is the options for the bundler.Deploy() function
@@ -79,10 +80,11 @@ type BundleCommonOptions struct {
 
 // BundleDevDeployOptions are the options for when doing a dev deploy
 type BundleDevDeployOptions struct {
-	FlavorInput string
-	Flavor      map[string]string
-	ForceCreate bool
-	Ref         map[string]string
+	FlavorInput       string
+	Flavor            map[string]string
+	ForceCreate       bool
+	Ref               map[string]string
+	ExcludeComponents []string
 }
 
 // PathMap is a map of either absolute paths to relative paths or relative paths to absolute paths

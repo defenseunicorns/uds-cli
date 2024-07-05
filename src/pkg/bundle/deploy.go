@@ -43,6 +43,8 @@ func (b *Bundle) Deploy() error {
 	packagesToDeploy := b.bundle.Packages
 
 	// Check if --packages flag is set and zarf packages have been specified
+	// todo: do we test if the packages specified by --packages are valid?
+	var packagesToDeploy []types.Package
 	if len(b.cfg.DeployOpts.Packages) != 0 {
 		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.DeployOpts.Packages[0], " ", ""), ",")
 		selectedPackages := []types.Package{}

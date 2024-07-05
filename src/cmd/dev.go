@@ -40,8 +40,8 @@ var devDeployCmd = &cobra.Command{
 		// Check if source is a local bundle
 		isLocalBundle := isLocalBundle(src)
 
-		// Validate flags
-		err := validateDevDeployFlags(isLocalBundle)
+		// Validate flags related to creating Zarf pkgs during dev deploy
+		err := validatePkgCreateFlags(isLocalBundle)
 		if err != nil {
 			message.Fatalf(err, "Failed to validate flags: %s", err.Error())
 		}
@@ -96,12 +96,12 @@ func isLocalBundle(src string) bool {
 	return helpers.IsDir(src) || strings.Contains(src, ".tar.zst")
 }
 
-// validateDevDeployFlags validates the flags for dev deploy
-func validateDevDeployFlags(isLocalBundle bool) error {
+// validatePkgCreateFlags validates the flags for dev deploy
+func validatePkgCreateFlags(isLocalBundle bool) error {
 	if !isLocalBundle {
 		//Throw error if trying to run with --flavor or --force-create flag with remote bundle
 		if len(bundleCfg.DevDeployOpts.Flavor) > 0 || bundleCfg.DevDeployOpts.ForceCreate {
-			return fmt.Errorf("Cannot use --flavor or --force-create flags with remote bundle")
+			return fmt.Errorf("cannot use --flavor or --force-create flags with remote bundle")
 		}
 	}
 	return nil
@@ -119,7 +119,7 @@ func populateFlavorMap() error {
 				if len(entrySplit) == 1 && i == 0 {
 					bundleCfg.DevDeployOpts.Flavor = map[string]string{"": bundleCfg.DevDeployOpts.FlavorInput}
 				} else {
-					return fmt.Errorf("Invalid flavor entry: %s", entry)
+					return fmt.Errorf("invalid flavor entry: %s", entry)
 				}
 			} else {
 				bundleCfg.DevDeployOpts.Flavor[entrySplit[0]] = entrySplit[1]
@@ -137,5 +137,6 @@ func init() {
 	devDeployCmd.Flags().StringToStringVarP(&bundleCfg.DevDeployOpts.Ref, "ref", "r", map[string]string{}, lang.CmdBundleDeployFlagRef)
 	devDeployCmd.Flags().StringVarP(&bundleCfg.DevDeployOpts.FlavorInput, "flavor", "f", "", lang.CmdBundleCreateFlagFlavor)
 	devDeployCmd.Flags().BoolVar(&bundleCfg.DevDeployOpts.ForceCreate, "force-create", false, lang.CmdBundleCreateForceCreate)
-	devDeployCmd.Flags().StringToStringVar(&bundleCfg.DeployOpts.SetVariables, "set", nil, lang.CmdBundleDeployFlagSet)
+	devDeployCmd.Flags().StringToStringVar(&bundleCfg.DeployOpts.SetVariables, "set", map[string]string{}, lang.CmdBundleDeployFlagSet)
+	devDeployCmd.Flags().StringSliceVarP(&bundleCfg.DevDeployOpts.ExcludeComponents, "exclude-components", "e", []string{}, lang.CmdBundleFlagExcludeComponents)
 }
