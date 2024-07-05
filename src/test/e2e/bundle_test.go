@@ -738,3 +738,17 @@ func TestListVariables(t *testing.T) {
 		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")
 	})
 }
+
+func TestExcludeComponentOnCreate(t *testing.T) {
+	bundleDir := "src/test/bundles/15-dev-deploy/optional"
+	bundleName := "dev-deploy-exclude"
+	bundleTarballPath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch))
+	// exclude nginx from podinfo-nginx pkg
+	runUDSCmd(t, "create "+bundleDir+" --exclude-components=podinfo-nginx.nginx --confirm")
+
+	// inspect created bundle and ensure nginx isn't included
+	// todo: refactor when we move 'inspect' to stdout and add --no-color flag
+	_, stderr := runUDSCmd(t, "inspect "+bundleTarballPath)
+	require.Contains(t, stderr, "-\x1b[95m podinfo\x1b[0m")
+	require.NotContains(t, stderr, "-\x1b[95m nginx\x1b[0m")
+}
