@@ -44,6 +44,18 @@ func TestSimpleBundleWithZarfAction(t *testing.T) {
 	require.Contains(t, stderr, "Log level set to debug")
 }
 
+func TestSimpleBundleWithNameAndVersionFlags(t *testing.T) {
+	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+	os.Setenv("UDS_LOG_LEVEL", "debug")
+	name, version := "name-from-flag", "version-from-flag"
+	bundlePath := "src/test/bundles/11-real-simple"
+	runCmd(t, fmt.Sprintf("create %s --confirm --name %s --version %s", bundlePath, name, version))
+	createLocal(t, "src/test/bundles/11-real-simple", e2e.Arch)
+	_, stderr := deploy(t, fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-%s-%s-%s.tar.zst", name, e2e.Arch, version))
+	require.Contains(t, stderr, "Log level set to debug")
+}
+
 func TestCreateWithNoPath(t *testing.T) {
 	// need to use remote pkgs because we move the uds-bundle.yaml to the current directory
 	zarfPkgPath1 := "src/test/packages/no-cluster/output-var"

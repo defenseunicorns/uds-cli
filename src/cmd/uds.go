@@ -189,6 +189,8 @@ func init() {
 	createCmd.Flags().StringVarP(&bundleCfg.CreateOpts.Output, "output", "o", v.GetString(V_BNDL_CREATE_OUTPUT), lang.CmdBundleCreateFlagOutput)
 	createCmd.Flags().StringVarP(&bundleCfg.CreateOpts.SigningKeyPath, "signing-key", "k", v.GetString(V_BNDL_CREATE_SIGNING_KEY), lang.CmdBundleCreateFlagSigningKey)
 	createCmd.Flags().StringVarP(&bundleCfg.CreateOpts.SigningKeyPassword, "signing-key-password", "p", v.GetString(V_BNDL_CREATE_SIGNING_KEY_PASSWORD), lang.CmdBundleCreateFlagSigningKeyPassword)
+	createCmd.Flags().StringVarP(&bundleCfg.CreateOpts.Version, "version", "n", "", lang.CmdBundleCreateFlagVersion)
+	createCmd.Flags().StringVarP(&bundleCfg.CreateOpts.Name, "name", "v", "", lang.CmdBundleCreateFlagName)
 
 	// deploy cmd flags
 	rootCmd.AddCommand(deployCmd)
