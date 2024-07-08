@@ -84,6 +84,10 @@ const (
 	// uds zarf
 	CmdZarfShort = "Run a zarf command"
 
+	// uds internal
+	CmdInternalGenerateCliDocsShort   = "Generate CLI documentation for UDS-CLI"
+	CmdInternalGenerateCliDocsSuccess = "Successfully generated CLI documentation"
+
 	// uds dev
 	CmdDevShort                = "[beta] Commands useful for developing bundles"
 	CmdDevDeployShort          = "[beta] Creates and deploys a UDS bundle in dev mode"
