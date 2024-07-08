@@ -36,3 +36,4 @@ uds logs [flags]
 ### SEE ALSO
 
 * [uds](/commands/uds/)	 - CLI for UDS Bundles
+

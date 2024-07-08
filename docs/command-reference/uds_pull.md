@@ -38,3 +38,4 @@ uds pull [OCI_REF] [flags]
 ### SEE ALSO
 
 * [uds](/commands/uds/)	 - CLI for UDS Bundles
+

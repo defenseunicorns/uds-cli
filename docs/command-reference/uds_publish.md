@@ -36,3 +36,4 @@ uds publish [BUNDLE_TARBALL] [OCI_REF] [flags]
 ### SEE ALSO
 
 * [uds](/commands/uds/)	 - CLI for UDS Bundles
+

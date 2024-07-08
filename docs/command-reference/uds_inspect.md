@@ -41,3 +41,4 @@ uds inspect [BUNDLE_TARBALL|OCI_REF|BUNDLE_YAML_FILE] [flags]
 ### SEE ALSO
 
 * [uds](/commands/uds/)	 - CLI for UDS Bundles
+

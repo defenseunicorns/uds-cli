@@ -42,3 +42,4 @@ uds COMMAND [flags]
 * [uds remove](/commands/uds_remove/)	 - Remove a bundle that has been deployed already
 * [uds run](/commands/uds_run/)	 - Run a task using maru-runner
 * [uds version](/commands/uds_version/)	 - Shows the version of the running UDS-CLI binary
+

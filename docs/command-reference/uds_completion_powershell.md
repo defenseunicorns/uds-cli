@@ -49,3 +49,4 @@ uds completion powershell [flags]
 ### SEE ALSO
 
 * [uds completion](/commands/uds_completion/)	 - Generate the autocompletion script for the specified shell
+

@@ -45,3 +45,4 @@ uds dev deploy [BUNDLE_DIR|OCI_REF] [flags]
 ### SEE ALSO
 
 * [uds dev](/commands/uds_dev/)	 - [beta] Commands useful for developing bundles
+
