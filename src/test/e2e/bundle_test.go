@@ -650,6 +650,7 @@ func TestArchCheck(t *testing.T) {
 }
 
 func TestListImages(t *testing.T) {
+	os.Unsetenv("UDS_CONFIG")
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
 
