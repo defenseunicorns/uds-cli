@@ -24,7 +24,6 @@ jobs:
       - name: Test docs
         run: uds run docs:test
 
-
       - name: Save logs
         if: always()
         uses: ./.github/actions/save-logs

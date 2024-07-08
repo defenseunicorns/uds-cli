@@ -18,9 +18,6 @@ issues:
     - path: 'test/.*'
       linters:
         - gosec
-    - path: 'docs/command-reference/.*'
-      linters:
-        - gosec
 linters:
   enable:
     - gofmt
