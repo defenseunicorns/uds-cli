@@ -21,8 +21,8 @@ uds dev deploy [BUNDLE_DIR|OCI_REF] [flags]
 ### Options
 
 ```
-  -f, --flavor string          Specify which zarf package flavor you want to use.
-      --force-create           For local bundles with local packages, specify whether to create a zarf package even if it already exists.
+  -f, --flavor string          [beta] Specify which zarf package flavor you want to use.
+      --force-create           [beta] For local bundles with local packages, specify whether to create a zarf package even if it already exists.
   -h, --help                   help for deploy
   -p, --packages stringArray   Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed.
   -r, --ref stringToString     Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used. (default [])
