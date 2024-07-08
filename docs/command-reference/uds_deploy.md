@@ -35,7 +35,7 @@ uds deploy [BUNDLE_TARBALL|OCI_REF] [flags]
       --no-progress           Disable fancy UI progress bars, spinners, logos, etc
       --oci-concurrency int   Number of concurrent layer operations to perform when interacting with a remote bundle. (default 3)
       --tmpdir string         Specify the temporary directory to use for intermediate files
-      --uds-cache string      Specify the location of the UDS cache directory (default "/Users/gedd/.uds-cache")
+      --uds-cache string      Specify the location of the UDS cache directory (default "~/.uds-cache")
 ```
 
 ### SEE ALSO

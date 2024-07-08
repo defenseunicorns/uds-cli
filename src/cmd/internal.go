@@ -63,6 +63,9 @@ var genCLIDocs = &cobra.Command{
 		rootCmd.RemoveCommand(zarfCmd)
 		rootCmd.RemoveCommand(scanCmd)
 
+		// Set the default value for the uds-cache flag
+		rootCmd.Flag("uds-cache").DefValue = "~/.uds-cache"
+
 		if err := os.RemoveAll("./docs/command-reference"); err != nil {
 			return err
 		}
