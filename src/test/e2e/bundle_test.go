@@ -697,7 +697,7 @@ func TestListImages(t *testing.T) {
 		// read in the file and check its contents
 		contents, err := os.ReadFile(filename)
 		require.NoError(t, err)
-		require.NotContains(t, string(contents), "\u001B") // ensure no color-related bytes
+		require.NotContains(t, string(contents), "\x1b") // ensure no color-related bytes
 		require.Contains(t, string(contents), "library/registry")
 	})
 }
