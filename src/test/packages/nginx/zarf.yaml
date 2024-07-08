@@ -4,7 +4,7 @@ metadata:
   version: 0.0.1
 
 components:
-  - name: nginx-remote
+  - name: nginx
     required: true
     manifests:
       - name: simple-nginx-deployment
