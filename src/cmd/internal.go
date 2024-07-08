@@ -63,7 +63,7 @@ var genCLIDocs = &cobra.Command{
 		rootCmd.RemoveCommand(zarfCmd)
 		rootCmd.RemoveCommand(scanCmd)
 
-		// Set the default value for the uds-cache flag
+		// Set the default value for the uds-cache flag (otherwise this defaults to the user's home directory)
 		rootCmd.Flag("uds-cache").DefValue = "~/.uds-cache"
 
 		if err := os.RemoveAll("./docs/command-reference"); err != nil {
@@ -96,7 +96,7 @@ tableOfContents: false
 		}
 
 		var linkHandler = func(link string) string {
-			return "/commands/" + link[:len(link)-3] + "/"
+			return "https://uds.defenseunicorns.com/cli/" + link[:len(link)-3] + "/"
 		}
 
 		if err := doc.GenMarkdownTreeCustom(rootCmd, "./docs/command-reference", prependTitle, linkHandler); err != nil {
