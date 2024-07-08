@@ -318,6 +318,7 @@ func TestBundleWithYmlFile(t *testing.T) {
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/09-uds-bundle-yml", "uds-config.yml"))
 	deploy(t, bundlePath)
 	remove(t, bundlePath)
+	os.Unsetenv("UDS_CONFIG")
 }
 
 func TestLocalBundleWithOutput(t *testing.T) {
@@ -687,7 +688,7 @@ func TestListImages(t *testing.T) {
 		outfile, err := os.Create(filename)
 		require.NoError(t, err)
 		defer outfile.Close()
-		defer os.Remove(filename)
+		// defer os.Remove(filename)
 
 		cmd.Stdout = outfile
 
@@ -697,7 +698,7 @@ func TestListImages(t *testing.T) {
 		// read in the file and check its contents
 		contents, err := os.ReadFile(filename)
 		require.NoError(t, err)
-		require.NotContains(t, string(contents), "\x1b") // ensure no color-related bytes
+		require.NotContains(t, string(contents), "\u001b") // ensure no color-related bytes
 		require.Contains(t, string(contents), "library/registry")
 	})
 }
