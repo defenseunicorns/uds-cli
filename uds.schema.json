@@ -301,7 +301,7 @@
         "name": {
           "pattern": "^[a-z0-9\\-]+$",
           "type": "string",
-          "description": "Name to identify this Zarf package"
+          "description": "Name to identify this UDS bundle"
         },
         "description": {
           "type": "string",
