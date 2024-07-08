@@ -17,54 +17,84 @@ import (
 	"helm.sh/helm/v3/pkg/cli/values"
 )
 
+type ConfigVariables map[string]map[string]interface{}
+type ConfigSharedVariables map[string]interface{}
+type SetVariables map[string]string
+type BundleExportVars map[string]map[string]string
+
+func newTestBundle(variables ConfigVariables, sharedVariables ConfigSharedVariables, setVariables SetVariables, udsConfigFile string, udsBundleFile string) Bundle {
+	cfg := &types.BundleConfig{
+		DeployOpts: types.BundleDeployOptions{
+			Variables:       variables,
+			SharedVariables: sharedVariables,
+			SetVariables:    setVariables,
+			Config:          udsConfigFile,
+			Source:          udsBundleFile,
+		},
+	}
+	return Bundle{
+		cfg: cfg,
+	}
+}
+
+func setUpPkg(pkgName string, componentName string, chartName string, overVar types.BundleChartVariable) types.Package {
+	return types.Package{Name: pkgName,
+		Overrides: map[string]map[string]types.BundleChartOverrides{componentName: {chartName: {Variables: []types.BundleChartVariable{
+			overVar,
+		}}}}}
+}
+
 func TestLoadVariablesPrecedence(t *testing.T) {
+
+	bundleExportVars := BundleExportVars{
+		"barPkg": {
+			"foo": "exported from another pkg",
+		},
+		"bazPkg": {
+			"foo": "imported from a specific pkg",
+		},
+	}
+
+	testPkg := types.Package{
+		Name: "fooPkg",
+		Imports: []types.BundleVariableImport{
+			{
+				Name:    "foo",
+				Package: "bazPkg",
+			},
+		},
+	}
+
 	testCases := []struct {
 		name             string
 		description      string
 		pkg              types.Package
 		bundle           Bundle
-		bundleExportVars map[string]map[string]string
+		bundleExportVars BundleExportVars
 		loadEnvVar       bool
 		expectedPkgVars  ZarfVarData
 	}{
 		{
 			name:       "--set flag precedence",
 			loadEnvVar: true,
-			pkg: types.Package{
-				Name: "fooPkg",
-				Imports: []types.BundleVariableImport{
-					{
-						Name:    "foo",
-						Package: "bazPkg",
+			pkg:        testPkg,
+			bundle: newTestBundle(
+				ConfigVariables{
+					"fooPkg": {
+						"foo": "set from variables key in uds-config.yaml",
 					},
 				},
-			},
-			bundle: Bundle{
-				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{
-						Variables: map[string]map[string]interface{}{
-							"fooPkg": {
-								"foo": "set from variables key in uds-config.yaml",
-							},
-						},
-						// set from uds-config.yaml
-						SharedVariables: map[string]interface{}{
-							"foo": "set from shared key in uds-config.yaml",
-						},
-						SetVariables: map[string]string{
-							"foo": "set using --set flag",
-						},
-					},
+				// set from uds-config.yaml
+				ConfigSharedVariables{
+					"foo": "set from shared key in uds-config.yaml",
 				},
-			},
-			bundleExportVars: map[string]map[string]string{
-				"barPkg": {
-					"foo": "exported from another pkg",
+				SetVariables{
+					"foo": "set using --set flag",
 				},
-				"bazPkg": {
-					"foo": "imported from a specific pkg",
-				},
-			},
+				"",
+				"",
+			),
+			bundleExportVars: bundleExportVars,
 			expectedPkgVars: ZarfVarData{
 				"FOO": "set using --set flag",
 			},
@@ -72,137 +102,70 @@ func TestLoadVariablesPrecedence(t *testing.T) {
 		{
 			name:       "env var precedence",
 			loadEnvVar: true,
-			pkg: types.Package{
-				Name: "fooPkg",
-				Imports: []types.BundleVariableImport{
-					{
-						Name:    "foo",
-						Package: "bazPkg",
+			pkg:        testPkg,
+			bundle: newTestBundle(
+				ConfigVariables{
+					"fooPkg": {
+						"foo": "set from variables key in uds-config.yaml",
 					},
 				},
-			},
-			bundle: Bundle{
-				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{
-						Variables: map[string]map[string]interface{}{
-							"fooPkg": {
-								"foo": "set from variables key in uds-config.yaml",
-							},
-						},
-						// set from uds-config.yaml
-						SharedVariables: map[string]interface{}{
-							"foo": "set from shared key in uds-config.yaml",
-						},
-					},
+				// set from uds-config.yaml
+				ConfigSharedVariables{
+					"foo": "set from shared key in uds-config.yaml",
 				},
-			},
-			bundleExportVars: map[string]map[string]string{
-				"barPkg": {
-					"foo": "exported from another pkg",
-				},
-				"bazPkg": {
-					"foo": "imported from a specific pkg",
-				},
-			},
+				nil,
+				"",
+				"",
+			),
+			bundleExportVars: bundleExportVars,
 			expectedPkgVars: ZarfVarData{
 				"FOO": "set using env var",
 			},
 		},
 		{
 			name: "uds-config variables key precedence",
-			pkg: types.Package{
-				Name: "fooPkg",
-				Imports: []types.BundleVariableImport{
-					{
-						Name:    "foo",
-						Package: "bazPkg",
+			pkg:  testPkg,
+			bundle: newTestBundle(
+				ConfigVariables{
+					"fooPkg": {
+						"foo": "set from variables key in uds-config.yaml",
 					},
 				},
-			},
-			bundle: Bundle{
-				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{
-						Variables: map[string]map[string]interface{}{
-							"fooPkg": {
-								"foo": "set from variables key in uds-config.yaml",
-							},
-						},
-						// set from uds-config.yaml
-						SharedVariables: map[string]interface{}{
-							"foo": "set from shared key in uds-config.yaml",
-						},
-					},
+				// set from uds-config.yaml
+				ConfigSharedVariables{
+					"foo": "set from shared key in uds-config.yaml",
 				},
-			},
-			bundleExportVars: map[string]map[string]string{
-				"barPkg": {
-					"foo": "exported from another pkg",
-				},
-				"bazPkg": {
-					"foo": "imported from a specific pkg",
-				},
-			},
+				nil,
+				"",
+				"",
+			),
+			bundleExportVars: bundleExportVars,
 			expectedPkgVars: ZarfVarData{
 				"FOO": "set from variables key in uds-config.yaml",
 			},
 		},
 		{
 			name: "uds-config shared key precedence",
-			pkg: types.Package{
-				Name: "fooPkg",
-				Imports: []types.BundleVariableImport{
-					{
-						Name:    "foo",
-						Package: "bazPkg",
-					},
+			pkg:  testPkg,
+			bundle: newTestBundle(
+				nil,
+				ConfigSharedVariables{
+					"foo": "set from shared key in uds-config.yaml",
 				},
-			},
-			bundle: Bundle{
-				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{
-						// set from uds-config.yaml
-						SharedVariables: map[string]interface{}{
-							"foo": "set from shared key in uds-config.yaml",
-						},
-					},
-				},
-			},
-			bundleExportVars: map[string]map[string]string{
-				"barPkg": {
-					"foo": "exported from another pkg",
-				},
-				"bazPkg": {
-					"foo": "imported from a specific pkg",
-				},
-			},
+				nil,
+				"",
+				"",
+			),
+			bundleExportVars: bundleExportVars,
 			expectedPkgVars: ZarfVarData{
 				"FOO": "set from shared key in uds-config.yaml",
 			},
 		},
 		{
-			name: "uds-config shared key precedence",
-			pkg: types.Package{
-				Name: "fooPkg",
-				Imports: []types.BundleVariableImport{
-					{
-						Name:    "foo",
-						Package: "bazPkg",
-					},
-				},
-			},
-			bundle: Bundle{
-				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{},
-				},
-			},
-			bundleExportVars: map[string]map[string]string{
-				"barPkg": {
-					"foo": "exported from another pkg",
-				},
-				"bazPkg": {
-					"foo": "imported from a specific pkg",
-				},
-			},
+			name:             "uds-config shared key precedence",
+			pkg:              testPkg,
+			bundle:           newTestBundle(nil, nil, nil, "", ""),
+			bundleExportVars: bundleExportVars,
 			expectedPkgVars: ZarfVarData{
 				"FOO": "imported from a specific pkg",
 			},
@@ -212,12 +175,8 @@ func TestLoadVariablesPrecedence(t *testing.T) {
 			pkg: types.Package{
 				Name: "fooPkg",
 			},
-			bundle: Bundle{
-				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{},
-				},
-			},
-			bundleExportVars: map[string]map[string]string{
+			bundle: newTestBundle(nil, nil, nil, "", ""),
+			bundleExportVars: BundleExportVars{
 				"barPkg": {
 					"foo": "exported from another pkg",
 				},
@@ -256,66 +215,46 @@ func TestFileVariableHandlers(t *testing.T) {
 		relativePath  = "../../../src/test/bundles/07-helm-overrides/variable-files/"
 	)
 
-	type args struct {
-		pkgName       string
-		variables     *[]types.BundleChartVariable
-		componentName string
-		chartName     string
-	}
 	testCases := []struct {
 		name         string
-		bundle       Bundle
-		args         args
+		Bundle       Bundle
 		loadEnv      bool
 		requireNoErr bool
 		expected     string
+		bundleVars   *[]types.BundleChartVariable
 	}{
 		{
 			name: "with --set",
-			bundle: Bundle{
-				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{
-						SetVariables: map[string]string{
-							varName: fmt.Sprintf("%s/test.cert", relativePath),
-						},
-					},
+			Bundle: newTestBundle(
+				nil,
+				nil,
+				SetVariables{
+					varName: fmt.Sprintf("%s/test.cert", relativePath),
 				},
-			},
-			args: args{
-				pkgName: pkgName,
-				variables: &[]types.BundleChartVariable{
-					{
-						Name:        varName,
-						Path:        path,
-						Type:        chartvariable.File,
-						Description: "set the var from cli, so source path is current working directory (eg. /home/user/repos/uds-cli/...)",
-					},
+				"",
+				"",
+			),
+			bundleVars: &[]types.BundleChartVariable{
+				{
+					Name:        varName,
+					Path:        path,
+					Type:        chartvariable.File,
+					Description: "set the var from cli, so source path is current working directory (eg. /home/user/repos/uds-cli/...)",
 				},
-				componentName: componentName,
-				chartName:     chartName,
 			},
 			requireNoErr: true,
 			expected:     fmt.Sprintf("%s=%s", path, filepath.Join(cwd, fmt.Sprintf("%s/test.cert", relativePath))),
 		},
 		{
-			name: "with UDS_VAR",
-			bundle: Bundle{
-				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{},
+			name:   "with UDS_VAR",
+			Bundle: newTestBundle(nil, nil, nil, "", ""),
+			bundleVars: &[]types.BundleChartVariable{
+				{
+					Name:        varName,
+					Path:        path,
+					Type:        chartvariable.File,
+					Description: "set the var from env, so source path is current working directory (eg. /home/user/repos/uds-cli/...)",
 				},
-			},
-			args: args{
-				pkgName: pkgName,
-				variables: &[]types.BundleChartVariable{
-					{
-						Name:        varName,
-						Path:        path,
-						Type:        chartvariable.File,
-						Description: "set the var from env, so source path is current working directory (eg. /home/user/repos/uds-cli/...)",
-					},
-				},
-				componentName: componentName,
-				chartName:     chartName,
 			},
 			loadEnv:      true,
 			requireNoErr: true,
@@ -323,82 +262,66 @@ func TestFileVariableHandlers(t *testing.T) {
 		},
 		{
 			name: "with Config",
-			bundle: Bundle{
-				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{
-						Config: fmt.Sprintf("%s/uds-config.yaml", relativePath),
-						Variables: map[string]map[string]interface{}{
-							pkgName: {
-								varName: "test.cert",
-							},
-						},
+			Bundle: newTestBundle(
+				ConfigVariables{
+					pkgName: {
+						varName: "test.cert",
 					},
 				},
-			},
-			args: args{
-				pkgName: pkgName,
-				variables: &[]types.BundleChartVariable{
-					{
-						Name:        varName,
-						Path:        path,
-						Type:        chartvariable.File,
-						Description: "set the var from config, so source path is config directory",
-					},
+				nil,
+				nil,
+				fmt.Sprintf("%s/uds-config.yaml", relativePath),
+				"",
+			),
+			bundleVars: &[]types.BundleChartVariable{
+				{
+					Name:        varName,
+					Path:        path,
+					Type:        chartvariable.File,
+					Description: "set the var from config, so source path is config directory",
 				},
-				componentName: componentName,
-				chartName:     chartName,
 			},
 			requireNoErr: true,
 			expected:     fmt.Sprintf("%s=%s", path, fmt.Sprintf("%stest.cert", relativePath)),
 		},
 		{
 			name: "with Bundle",
-			bundle: Bundle{
-				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{
-						Source: fmt.Sprintf("%s/uds-bundle-helm-overrides-amd64-0.0.1.tar.zst", relativePath),
-					},
+			Bundle: newTestBundle(
+				nil,
+				nil,
+				nil,
+				"",
+				fmt.Sprintf("%s/uds-bundle-helm-overrides-amd64-0.0.1.tar.zst", relativePath),
+			),
+			bundleVars: &[]types.BundleChartVariable{
+				{
+					Name:        varName,
+					Path:        path,
+					Type:        chartvariable.File,
+					Description: "set the var from bundle default, so source path is bundle directory",
+					Default:     "test.cert",
 				},
-			},
-			args: args{
-				pkgName: pkgName,
-				variables: &[]types.BundleChartVariable{
-					{
-						Name:        varName,
-						Path:        path,
-						Type:        chartvariable.File,
-						Description: "set the var from bundle default, so source path is bundle directory",
-						Default:     "test.cert",
-					},
-				},
-				componentName: componentName,
-				chartName:     chartName,
 			},
 			requireNoErr: true,
 			expected:     fmt.Sprintf("%s=%s", path, fmt.Sprintf("%stest.cert", relativePath)),
 		},
 		{
 			name: "file not found",
-			bundle: Bundle{
-				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{
-						Source: fmt.Sprintf("%s/uds-bundle-helm-overrides-amd64-0.0.1.tar.zst", relativePath),
-					},
+			Bundle: newTestBundle(
+				nil,
+				nil,
+				nil,
+				"",
+				fmt.Sprintf("%s/uds-bundle-helm-overrides-amd64-0.0.1.tar.zst", relativePath),
+			),
+			bundleVars: &[]types.BundleChartVariable{
+				{
+					Name:        varName,
+					Path:        path,
+					Type:        chartvariable.File,
+					Description: "set the var from bundle default, so source path is bundle directory",
+					Default:     "not-there-test.cert",
 				},
-			},
-			args: args{
-				pkgName: pkgName,
-				variables: &[]types.BundleChartVariable{
-					{
-						Name:        varName,
-						Path:        path,
-						Type:        chartvariable.File,
-						Description: "set the var from bundle default, so source path is bundle directory",
-						Default:     "not-there-test.cert",
-					},
-				},
-				componentName: componentName,
-				chartName:     chartName,
 			},
 			requireNoErr: false,
 			expected:     "",
@@ -412,9 +335,9 @@ func TestFileVariableHandlers(t *testing.T) {
 				os.Setenv("UDS_CERT", fmt.Sprintf("%s/test.cert", relativePath))
 			}
 
-			overrideMap := map[string]map[string]*values.Options{tc.args.componentName: {tc.args.chartName: {}}}
-			_, overrideData := tc.bundle.loadVariables(types.Package{Name: tc.args.pkgName}, nil)
-			err := tc.bundle.processOverrideVariables(overrideMap[tc.args.componentName][tc.args.chartName], *tc.args.variables, overrideData)
+			overrideMap := map[string]map[string]*values.Options{componentName: {chartName: {}}}
+			_, overrideData := tc.Bundle.loadVariables(types.Package{Name: pkgName}, nil)
+			err := tc.Bundle.processOverrideVariables(overrideMap[componentName][chartName], *tc.bundleVars, overrideData)
 
 			if tc.requireNoErr {
 				require.NoError(t, err)
@@ -435,7 +358,7 @@ func TestFormPkgViews(t *testing.T) {
 
 	type TestCase struct {
 		name          string
-		bundle        Bundle
+		Bundle        Bundle
 		loadEnv       bool
 		expectedIndex int
 		expectedChart string
@@ -443,63 +366,42 @@ func TestFormPkgViews(t *testing.T) {
 		expectedVal   string
 		envKey        string
 		envVal        string
-	}
-
-	setUpPkg := func(overVar types.BundleChartVariable) types.Package {
-		return types.Package{Name: pkgName,
-			Overrides: map[string]map[string]types.BundleChartOverrides{componentName: {chartName: {Variables: []types.BundleChartVariable{
-				overVar,
-			}}}}}
+		bundleVars    types.BundleChartVariable
 	}
 
 	testCases := []TestCase{
 		{
 			name: "simple path, set by config",
-			bundle: Bundle{
-				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{
-						Config: "uds-config.yaml",
-						Variables: map[string]map[string]interface{}{
-							pkgName: {
-								"VAR1": "set-by-config",
-							},
-						},
+			Bundle: newTestBundle(
+				ConfigVariables{
+					pkgName: {
+						"VAR1": "set-by-config",
 					},
 				},
-				bundle: types.UDSBundle{
-					Packages: []types.Package{setUpPkg(types.BundleChartVariable{Name: "VAR1", Path: "path"})},
-				},
-			},
+				nil,
+				nil,
+				"uds-config.yaml",
+				"",
+			),
+			bundleVars:  types.BundleChartVariable{Name: "VAR1", Path: "path"},
 			expectedKey: "VAR1",
 			expectedVal: "set-by-config",
 		},
 		{
-			name: "complex path, set by bundle",
-			bundle: Bundle{
-				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{},
-				},
-				bundle: types.UDSBundle{
-					Packages: []types.Package{setUpPkg(types.BundleChartVariable{
-						Name:    "VAR1",
-						Path:    "a.complex.path",
-						Default: "set-by-bundle",
-					})},
-				},
+			name:   "complex path, set by bundle",
+			Bundle: newTestBundle(nil, nil, nil, "", ""),
+			bundleVars: types.BundleChartVariable{
+				Name:    "VAR1",
+				Path:    "a.complex.path",
+				Default: "set-by-bundle",
 			},
 			expectedKey: "VAR1",
 			expectedVal: "set-by-bundle",
 		},
 		{
-			name: "mask env var",
-			bundle: Bundle{
-				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{},
-				},
-				bundle: types.UDSBundle{
-					Packages: []types.Package{setUpPkg(types.BundleChartVariable{Name: "VAR1", Path: "path"})},
-				},
-			},
+			name:        "mask env var",
+			Bundle:      newTestBundle(nil, nil, nil, "", ""),
+			bundleVars:  types.BundleChartVariable{Name: "VAR1", Path: "path"},
 			loadEnv:     true,
 			envKey:      "UDS_VAR1",
 			envVal:      "gets-masked",
@@ -508,31 +410,28 @@ func TestFormPkgViews(t *testing.T) {
 		},
 		{
 			name: "mask file var",
-			bundle: Bundle{
-				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{
-						Config: "uds-config.yaml",
-						Variables: map[string]map[string]interface{}{
-							pkgName: {
-								"VAR1": "../../test/bundles/07-helm-overrides/variable-files/test.cert",
-							},
-						},
+			Bundle: newTestBundle(
+				ConfigVariables{
+					pkgName: {
+						"VAR1": "../../test/bundles/07-helm-overrides/variable-files/test.cert",
 					},
 				},
-				bundle: types.UDSBundle{
-					Packages: []types.Package{setUpPkg(types.BundleChartVariable{
-						Name: "VAR1",
-						Path: "path",
-						Type: "file",
-					})},
-				},
+				nil,
+				nil,
+				"uds-config.yaml",
+				"",
+			),
+			bundleVars: types.BundleChartVariable{
+				Name: "VAR1",
+				Path: "path",
+				Type: "file",
 			},
 			expectedKey: "VAR1",
 			expectedVal: hiddenVar,
 		},
 		{
 			name: "ensure multiple charts under same component are handled",
-			bundle: Bundle{
+			Bundle: Bundle{
 				cfg: &types.BundleConfig{
 					DeployOpts: types.BundleDeployOptions{
 						Config: "uds-config.yaml",
@@ -582,10 +481,14 @@ func TestFormPkgViews(t *testing.T) {
 			if tc.expectedChart == "" {
 				tc.expectedChart = chartName
 			}
-			fmt.Println(tc.expectedChart)
-			pkgViews := formPkgViews(&tc.bundle)
+
+			if tc.bundleVars.Name != "" {
+				tc.Bundle.bundle = types.UDSBundle{Packages: []types.Package{setUpPkg(pkgName, componentName, chartName, tc.bundleVars)}}
+			}
+
+			pkgViews := formPkgViews(&tc.Bundle)
 			v := pkgViews[0].overrides["overrides"].([]interface{})[tc.expectedIndex].(map[string]map[string]interface{})[tc.expectedChart]["variables"]
-			fmt.Println(v)
+
 			require.Contains(t, v.(map[string]interface{})[tc.expectedKey], tc.expectedVal)
 		})
 	}
@@ -593,33 +496,26 @@ func TestFormPkgViews(t *testing.T) {
 	zarfVarTests := []TestCase{
 		{
 			name: "show zarf var",
-			bundle: Bundle{
-				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{
-						Config: "uds-config.yaml",
-						Variables: map[string]map[string]interface{}{
-							pkgName: {
-								"VAR1": "zarf-var-set-by-config",
-							},
-						},
+			Bundle: newTestBundle(
+				ConfigVariables{
+					pkgName: {
+						"VAR1": "zarf-var-set-by-config",
 					},
 				},
-				bundle: types.UDSBundle{Packages: []types.Package{{Name: pkgName}}},
-			},
+				nil,
+				nil,
+				"uds-config.yaml",
+				"",
+			),
 			expectedKey: "VAR1",
 			expectedVal: "zarf-var-set-by-config",
 		},
 		{
-			name:    "hide zarf var with env var",
-			loadEnv: true,
-			envKey:  "UDS_FOO",
-			envVal:  "zarf-var-set-by-env",
-			bundle: Bundle{
-				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{},
-				},
-				bundle: types.UDSBundle{Packages: []types.Package{{Name: pkgName}}},
-			},
+			name:        "hide zarf var with env var",
+			loadEnv:     true,
+			envKey:      "UDS_FOO",
+			envVal:      "zarf-var-set-by-env",
+			Bundle:      newTestBundle(nil, nil, nil, "", ""),
 			expectedVal: hiddenVar,
 			expectedKey: "FOO",
 		},
@@ -631,7 +527,9 @@ func TestFormPkgViews(t *testing.T) {
 				os.Setenv(zarfVarTest.envKey, zarfVarTest.envVal)
 				defer os.Unsetenv(zarfVarTest.envKey)
 			}
-			pkgViews := formPkgViews(&zarfVarTest.bundle)
+
+			zarfVarTest.Bundle.bundle = types.UDSBundle{Packages: []types.Package{{Name: pkgName}}}
+			pkgViews := formPkgViews(&zarfVarTest.Bundle)
 			actualView := pkgViews[0].overrides["overrides"].([]interface{})[0]
 			require.Contains(t, actualView.(map[string]interface{})[zarfVarTest.expectedKey], zarfVarTest.expectedVal)
 		})
@@ -639,35 +537,22 @@ func TestFormPkgViews(t *testing.T) {
 
 	nilCheckTests := []TestCase{
 		{
-			name: "ensure nil when override doesn't have a default and is not set",
-			bundle: Bundle{
-				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{},
-				},
-				bundle: types.UDSBundle{
-					Packages: []types.Package{setUpPkg(types.BundleChartVariable{Name: "VAR1", Path: "path"})},
-				},
-			},
+			name:       "ensure nil when override doesn't have a default and is not set",
+			Bundle:     newTestBundle(nil, nil, nil, "", ""),
+			bundleVars: types.BundleChartVariable{Name: "VAR1", Path: "path"},
 		},
 		{
-			name: "ensure nil when there are no overrides",
-			bundle: Bundle{
-				cfg: &types.BundleConfig{
-					DeployOpts: types.BundleDeployOptions{},
-				},
-				bundle: types.UDSBundle{
-					Packages: []types.Package{{Name: pkgName}},
-				},
-			},
+			name:   "ensure nil when there are no overrides",
+			Bundle: newTestBundle(nil, nil, nil, "", ""),
 		},
 	}
 
 	for _, tc := range nilCheckTests {
 		t.Run(tc.name, func(t *testing.T) {
-			pkgViews := formPkgViews(&tc.bundle)
+			tc.Bundle.bundle = types.UDSBundle{Packages: []types.Package{setUpPkg(pkgName, componentName, chartName, tc.bundleVars)}}
 
+			pkgViews := formPkgViews(&tc.Bundle)
 			v := pkgViews[0].overrides["overrides"]
-
 			require.Equal(t, 0, len(v.([]interface{})))
 		})
 	}
