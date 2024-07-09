@@ -51,7 +51,6 @@ func TestSimpleBundleWithNameAndVersionFlags(t *testing.T) {
 	name, version := "name-from-flag", "version-from-flag"
 	bundlePath := "src/test/bundles/11-real-simple"
 	runCmd(t, fmt.Sprintf("create %s --confirm --name %s --version %s", bundlePath, name, version))
-	createLocal(t, "src/test/bundles/11-real-simple", e2e.Arch)
 	_, stderr := deploy(t, fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-%s-%s-%s.tar.zst", name, e2e.Arch, version))
 	require.Contains(t, stderr, "Log level set to debug")
 }
