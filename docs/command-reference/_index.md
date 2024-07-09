@@ -1,5 +1,5 @@
 ---
 title: Command Reference
-linkTitle: Command Reference
 type: docs
+weight: 2
 ---
