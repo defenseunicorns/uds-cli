@@ -64,12 +64,12 @@ var genCLIDocs = &cobra.Command{
 		// Set the default value for the uds-cache flag (otherwise this defaults to the user's home directory)
 		rootCmd.Flag("uds-cache").DefValue = "~/.uds-cache"
 
-		if err := os.RemoveAll("./docs/command-reference"); err != nil {
-			return err
-		}
-		if err := os.Mkdir("./docs/command-reference", 0775); err != nil {
-			return err
-		}
+		//if err := os.RemoveAll("./docs/command-reference"); err != nil {
+		//	return err
+		//}
+		//if err := os.Mkdir("./docs/command-reference", 0775); err != nil {
+		//	return err
+		//}
 
 		//		var prependTitle = func(s string) string {
 		//			fmt.Println(s)
@@ -99,6 +99,9 @@ var genCLIDocs = &cobra.Command{
 		if err := doc.GenMarkdownTree(rootCmd, "./docs/command-reference"); err != nil {
 			return err
 		}
+
+		// Remove the PowerShell completion documentation
+		os.Remove("./docs/command-reference/uds_completion_powershell.md")
 
 		//if err := doc.GenMarkdownTreeCustom(rootCmd, "./docs/command-reference", prependTitle, linkHandler); err != nil {
 		//	return err
