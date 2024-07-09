@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -28,12 +27,6 @@ import (
 	"github.com/pterm/pterm"
 	"golang.org/x/exp/slices"
 )
-
-// PkgOverrideMap is a map of Zarf packages -> components -> Helm charts -> values/namespace
-type PkgOverrideMap map[string]map[string]map[string]interface{}
-
-// templatedVarRegex is the regex for templated variables
-var templatedVarRegex = regexp.MustCompile(`\${([^}]+)}`)
 
 // hiddenVar is the value used to mask potentially sensitive variables
 const hiddenVar = "****"

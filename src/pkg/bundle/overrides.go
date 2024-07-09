@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
@@ -20,6 +21,12 @@ import (
 	"helm.sh/helm/v3/pkg/cli/values"
 	"helm.sh/helm/v3/pkg/getter"
 )
+
+// PkgOverrideMap is a map of Zarf packages -> components -> Helm charts -> values/namespace
+type PkgOverrideMap map[string]map[string]map[string]interface{}
+
+// templatedVarRegex is the regex for templated variables
+var templatedVarRegex = regexp.MustCompile(`\${([^}]+)}`)
 
 type overrideData struct {
 	value  interface{}

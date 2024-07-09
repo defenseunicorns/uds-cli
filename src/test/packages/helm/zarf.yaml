@@ -19,6 +19,10 @@ components:
         localPath: ./unicorn-podinfo
         namespace: podinfo
         version: 0.0.1
+      - name: second-chart
+        localPath: ./second-chart
+        namespace: second-chart
+        version: 0.0.1
     actions:
       onDeploy:
         after:
