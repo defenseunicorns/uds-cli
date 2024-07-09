@@ -22,4 +22,4 @@ packages:
     path: ../../packages/podinfo-nginx
     ref: 0.0.1
     optionalComponents:
-      - nginx-remote
+      - nginx

@@ -7,10 +7,7 @@ package test
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
-	"strings"
 	"testing"
 	"time"
 
@@ -18,22 +15,7 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/registry"
-
-	"github.com/defenseunicorns/uds-cli/src/config"
 )
-
-func TestUDSCmd(t *testing.T) {
-	_, _, err := e2e.UDS()
-	require.NoError(t, err)
-}
-
-func TestUDSLogs(t *testing.T) {
-	inspectRemote(t, "ghcr.io/defenseunicorns/packages/uds-cli/test/publish/ghcr-test:0.0.1")
-	stderr, _, err := e2e.UDS("logs")
-	require.NoError(t, err)
-	require.Contains(t, stderr, "DEBUG")
-	require.Contains(t, stderr, "UDSBundle")
-}
 
 func TestSimpleBundleWithZarfAction(t *testing.T) {
 	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
@@ -42,34 +24,6 @@ func TestSimpleBundleWithZarfAction(t *testing.T) {
 	createLocal(t, "src/test/bundles/11-real-simple", e2e.Arch)
 	_, stderr := deploy(t, fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-real-simple-%s-0.0.1.tar.zst", e2e.Arch))
 	require.Contains(t, stderr, "Log level set to debug")
-}
-
-func TestCreateWithNoPath(t *testing.T) {
-	// need to use remote pkgs because we move the uds-bundle.yaml to the current directory
-	zarfPkgPath1 := "src/test/packages/no-cluster/output-var"
-	zarfPkgPath2 := "src/test/packages/no-cluster/receive-var"
-	e2e.CreateZarfPkg(t, zarfPkgPath1, false)
-	e2e.CreateZarfPkg(t, zarfPkgPath2, false)
-
-	e2e.SetupDockerRegistry(t, 888)
-	defer e2e.TeardownRegistry(t, 888)
-
-	pkg := filepath.Join(zarfPkgPath1, fmt.Sprintf("zarf-package-output-var-%s-0.0.1.tar.zst", e2e.Arch))
-	zarfPublish(t, pkg, "localhost:888")
-
-	pkg = filepath.Join(zarfPkgPath2, fmt.Sprintf("zarf-package-receive-var-%s-0.0.1.tar.zst", e2e.Arch))
-	zarfPublish(t, pkg, "localhost:888")
-
-	// move the bundle to the current directory so we can test the create command with no path
-	err := os.Link(fmt.Sprintf("src/test/bundles/02-variables/remote/%s", config.BundleYAML), config.BundleYAML)
-	require.NoError(t, err)
-	defer os.Remove(config.BundleYAML)
-	defer os.Remove(fmt.Sprintf("uds-bundle-variables-%s-0.0.1.tar.zst", e2e.Arch))
-
-	// create
-	cmd := strings.Split("create --confirm --insecure", " ")
-	_, _, err = e2e.UDS(cmd...)
-	require.NoError(t, err)
 }
 
 func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
@@ -138,116 +92,6 @@ func TestLocalBundleWithRemotePkgs(t *testing.T) {
 	remove(t, bundlePath)
 }
 
-func TestPackagesFlag(t *testing.T) {
-	deployZarfInit(t)
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
-	bundleDir := "src/test/bundles/03-local-and-remote"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
-
-	createLocal(t, bundleDir, e2e.Arch)
-
-	cmd := strings.Split("zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
-	t.Run("Test only podinfo deploy (local pkg)", func(t *testing.T) {
-		deployPackagesFlag(bundlePath, "podinfo")
-		deployments, _, _ := e2e.UDS(cmd...)
-		require.Contains(t, deployments, "podinfo")
-		require.NotContains(t, deployments, "nginx")
-
-		remove(t, bundlePath)
-		deployments, _, _ = e2e.UDS(cmd...)
-		require.NotContains(t, deployments, "podinfo")
-	})
-
-	t.Run("Test only nginx deploy and remove (remote pkg)", func(t *testing.T) {
-		deployPackagesFlag(bundlePath, "nginx")
-		deployments, _, _ := e2e.UDS(cmd...)
-		require.Contains(t, deployments, "nginx")
-		require.NotContains(t, deployments, "podinfo")
-		remove(t, bundlePath)
-
-		removePackagesFlag(bundlePath, "nginx")
-		deployments, _, _ = e2e.UDS(cmd...)
-		require.NotContains(t, deployments, "nginx")
-	})
-
-	t.Run("Test both podinfo and nginx deploy and remove", func(t *testing.T) {
-		deployPackagesFlag(bundlePath, "podinfo,nginx")
-		deployments, _, _ := e2e.UDS(cmd...)
-		require.Contains(t, deployments, "podinfo")
-		require.Contains(t, deployments, "nginx")
-
-		removePackagesFlag(bundlePath, "podinfo,nginx")
-		deployments, _, _ = e2e.UDS(cmd...)
-		require.NotContains(t, deployments, "podinfo")
-		require.NotContains(t, deployments, "nginx")
-	})
-
-	t.Run("Test invalid package deploy", func(t *testing.T) {
-		_, stderr := deployPackagesFlag(bundlePath, "podinfo,nginx,peanuts")
-		require.Contains(t, stderr, "invalid zarf packages specified by --packages")
-	})
-
-	t.Run("Test invalid package remove", func(t *testing.T) {
-		_, stderr := removePackagesFlag(bundlePath, "podinfo,nginx,peanuts")
-		require.Contains(t, stderr, "invalid zarf packages specified by --packages")
-	})
-}
-
-func TestResumeFlag(t *testing.T) {
-	deployZarfInit(t)
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
-	bundleDir := "src/test/bundles/03-local-and-remote"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
-
-	createLocal(t, bundleDir, e2e.Arch)
-	inspectLocal(t, bundlePath)
-	inspectLocalAndSBOMExtract(t, bundlePath)
-
-	getDeploymentsCmd := strings.Split("zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'", " ")
-
-	// Deploy only podinfo (local pkg)
-	deployPackagesFlag(bundlePath, "podinfo")
-	deployments, _, _ := e2e.UDS(getDeploymentsCmd...)
-	require.Contains(t, deployments, "podinfo")
-	require.NotContains(t, deployments, "nginx")
-
-	// Deploy bundle --resume (resumes remote pkg)
-	deployResumeFlag(t, bundlePath)
-	deployments, _, _ = e2e.UDS(getDeploymentsCmd...)
-	require.Contains(t, deployments, "podinfo")
-	require.Contains(t, deployments, "nginx")
-
-	// Remove only podinfo
-	removePackagesFlag(bundlePath, "podinfo")
-	deployments, _, _ = e2e.UDS(getDeploymentsCmd...)
-	require.NotContains(t, deployments, "podinfo")
-	require.Contains(t, deployments, "nginx")
-
-	// Deploy only nginx (remote pkg)
-	deployPackagesFlag(bundlePath, "nginx")
-	deployments, _, _ = e2e.UDS(getDeploymentsCmd...)
-	require.Contains(t, deployments, "nginx")
-	require.NotContains(t, deployments, "podinfo")
-
-	// Deploy bundle --resume (resumes remote pkg)
-	deployResumeFlag(t, bundlePath)
-	deployments, _, _ = e2e.UDS(getDeploymentsCmd...)
-	require.Contains(t, deployments, "podinfo")
-	require.Contains(t, deployments, "nginx")
-
-	// Remove only nginx
-	removePackagesFlag(bundlePath, "nginx")
-	deployments, _, _ = e2e.UDS(getDeploymentsCmd...)
-	require.NotContains(t, deployments, "nginx")
-	require.Contains(t, deployments, "podinfo")
-
-	// Remove bundle
-	remove(t, bundlePath)
-	deployments, _, _ = e2e.UDS(getDeploymentsCmd...)
-	require.NotContains(t, deployments, "podinfo")
-	require.NotContains(t, deployments, "nginx")
-}
-
 func TestRemoteBundleWithRemotePkgs(t *testing.T) {
 	deployZarfInit(t)
 	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false)
@@ -301,6 +145,8 @@ func TestBundleWithGitRepo(t *testing.T) {
 	createLocal(t, bundleDir, e2e.Arch)
 	deploy(t, bundlePath)
 	remove(t, bundlePath)
+
+	// TODO (holaday): no assertion; does this deploy make sense?
 }
 
 func TestBundleWithYmlFile(t *testing.T) {
@@ -316,59 +162,7 @@ func TestBundleWithYmlFile(t *testing.T) {
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/09-uds-bundle-yml", "uds-config.yml"))
 	deploy(t, bundlePath)
 	remove(t, bundlePath)
-}
-
-func TestLocalBundleWithOutput(t *testing.T) {
-	path := "src/test/packages/nginx"
-	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --confirm", path, path), " ")
-	_, _, err := e2e.UDS(args...)
-	require.NoError(t, err)
-
-	bundleDir := "src/test/bundles/09-uds-bundle-yml"
-	destDir := "src/test/test/"
-	bundlePath := filepath.Join(destDir, fmt.Sprintf("uds-bundle-yml-example-%s-0.0.1.tar.zst", e2e.Arch))
-	createLocalWithOuputFlag(t, bundleDir, destDir, e2e.Arch)
-
-	cmd := strings.Split(fmt.Sprintf("inspect %s", bundlePath), " ")
-	_, _, err = e2e.UDS(cmd...)
-	require.NoError(t, err)
-}
-
-func TestLocalBundleWithNoSBOM(t *testing.T) {
-	path := "src/test/packages/nginx"
-	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --skip-sbom --confirm", path, path), " ")
-	_, _, err := e2e.UDS(args...)
-	require.NoError(t, err)
-
-	bundleDir := "src/test/bundles/09-uds-bundle-yml"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-yml-example-%s-0.0.1.tar.zst", e2e.Arch))
-	createLocal(t, bundleDir, e2e.Arch)
-
-	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom --extract", bundlePath), " ")
-	_, stderr, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
-	require.Contains(t, stderr, "sboms.tar not found in Zarf pkg")
-}
-
-func TestRemoteBundleWithNoSBOM(t *testing.T) {
-	path := "src/test/packages/nginx"
-	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --skip-sbom --confirm", path, path), " ")
-	_, _, err := e2e.UDS(args...)
-	require.NoError(t, err)
-
-	e2e.SetupDockerRegistry(t, 888)
-	defer e2e.TeardownRegistry(t, 888)
-	bundleDir := "src/test/bundles/09-uds-bundle-yml"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-yml-example-%s-0.0.1.tar.zst", e2e.Arch))
-	createLocal(t, bundleDir, e2e.Arch)
-	publishInsecure(t, bundlePath, "localhost:888")
-
-	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom --extract", bundlePath), " ")
-	_, stderr, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
-	require.Contains(t, stderr, "sboms.tar not found in Zarf pkg")
+	// TODO (holaday): no assertion; does this deploy make sense?
 }
 
 func TestPackageNaming(t *testing.T) {
@@ -604,137 +398,4 @@ func TestBundleTmpDir(t *testing.T) {
 	// remove customtmp folder if it exists
 	err = os.RemoveAll("./customtmp")
 	require.NoError(t, err)
-}
-
-func TestInvalidConfig(t *testing.T) {
-	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config-invalid.yaml"))
-	zarfPkgPath := "src/test/packages/helm"
-	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
-	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --confirm", zarfPkgPath, zarfPkgPath), " ")
-	_, stdErr, err := e2e.UDS(args...)
-	require.Error(t, err)
-	require.Contains(t, stdErr, "invalid config option: log_levelx")
-	os.Unsetenv("UDS_CONFIG")
-}
-
-func TestInvalidBundle(t *testing.T) {
-	deployZarfInit(t)
-	zarfPkgPath := "src/test/packages/helm"
-	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
-	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-	bundleDir := "src/test/bundles/07-helm-overrides/invalid"
-	stderr := createLocalError(bundleDir, e2e.Arch)
-	require.Contains(t, stderr, "unknown field")
-}
-
-func TestArchCheck(t *testing.T) {
-	testArch := "arm64"
-
-	// use arch that is different from system arch
-	if e2e.Arch == "arm64" {
-		testArch = "amd64"
-	}
-
-	deployZarfInit(t)
-	zarfPkgPath := "src/test/packages/helm"
-	e2e.CreateZarfPkgWithArch(t, zarfPkgPath, false, testArch)
-	bundleDir := "src/test/bundles/07-helm-overrides"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", testArch))
-	createLocal(t, bundleDir, testArch)
-	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm", bundlePath), " ")
-	_, stderr, _ := e2e.UDS(cmd...)
-	require.Contains(t, stderr, fmt.Sprintf("arch %s does not match cluster arch, [%s]", testArch, e2e.Arch))
-}
-
-func TestListImages(t *testing.T) {
-	e2e.SetupDockerRegistry(t, 888)
-	defer e2e.TeardownRegistry(t, 888)
-
-	zarfPkgPath := "src/test/packages/prometheus"
-	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-prometheus-%s-0.0.1.tar.zst", e2e.Arch))
-	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-	zarfPublish(t, pkg, "localhost:888")
-
-	zarfPkgPath = "src/test/packages/podinfo-nginx"
-	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-
-	bundleDir := "src/test/bundles/14-optional-components"
-
-	t.Run("list images on bundle YAML only", func(t *testing.T) {
-		cmd := strings.Split(fmt.Sprintf("inspect %s --list-images --insecure", filepath.Join(bundleDir, config.BundleYAML)), " ")
-		stdout, _, err := e2e.UDS(cmd...)
-		require.NoError(t, err)
-		require.Contains(t, stdout, "library/registry")
-		require.Contains(t, stdout, "ghcr.io/defenseunicorns/zarf/agent")
-		require.Contains(t, stdout, "nginx")
-		require.Contains(t, stdout, "quay.io/prometheus/node-exporter")
-
-		// ensure non-req'd components got filtered
-		require.NotContains(t, stdout, "grafana")
-		require.NotContains(t, stdout, "gitea")
-		require.NotContains(t, stdout, "kiwix")
-		require.NotContains(t, stdout, "podinfo")
-	})
-
-	t.Run("list images outputted to a file", func(t *testing.T) {
-		args := strings.Split(fmt.Sprintf("inspect %s --list-images --insecure", filepath.Join(bundleDir, config.BundleYAML)), " ")
-		cmd := exec.Command(e2e.UDSBinPath, args...)
-
-		// open the out file for writing, and redirect the cmd output to that file
-		filename := "./out.txt"
-		outfile, err := os.Create(filename)
-		require.NoError(t, err)
-		defer outfile.Close()
-		defer os.Remove(filename)
-
-		cmd.Stdout = outfile
-
-		err = cmd.Run()
-		require.NoError(t, err)
-
-		// read in the file and check its contents
-		contents, err := os.ReadFile(filename)
-		require.NoError(t, err)
-		require.NotContains(t, string(contents), "\u001B") // ensure no color-related bytes
-		require.Contains(t, string(contents), "library/registry")
-	})
-}
-
-func TestListVariables(t *testing.T) {
-	e2e.SetupDockerRegistry(t, 888)
-	defer e2e.TeardownRegistry(t, 888)
-
-	zarfPkgPath := "src/test/packages/prometheus"
-	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-prometheus-%s-0.0.1.tar.zst", e2e.Arch))
-	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-	zarfPublish(t, pkg, "localhost:888")
-
-	zarfPkgPath = "src/test/packages/podinfo-nginx"
-	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-
-	bundleDir := "src/test/bundles/14-optional-components"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-optional-components-%s-0.0.1.tar.zst", e2e.Arch))
-	ociRef := "oci://localhost:888/test/bundles"
-	createLocal(t, bundleDir, e2e.Arch)
-	publishInsecure(t, bundlePath, ociRef)
-
-	t.Run("list variables for local tarball", func(t *testing.T) {
-		cmd := strings.Split(fmt.Sprintf("inspect %s --list-variables", bundlePath), " ")
-		_, stderr, err := e2e.UDS(cmd...)
-		require.NoError(t, err)
-
-		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
-		cleaned := ansiRegex.ReplaceAllString(stderr, "")
-		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")
-	})
-
-	t.Run("list variables for remote tarball", func(t *testing.T) {
-		cmd := strings.Split(fmt.Sprintf("inspect %s --list-variables --insecure", fmt.Sprintf("%s/optional-components:0.0.1", ociRef)), " ")
-		_, stderr, err := e2e.UDS(cmd...)
-		require.NoError(t, err)
-
-		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
-		cleaned := ansiRegex.ReplaceAllString(stderr, "")
-		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")
-	})
 }

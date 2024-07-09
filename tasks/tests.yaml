@@ -12,10 +12,30 @@ tasks:
     actions:
       - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m -run ".*GHCR.*"
 
-  - name: bundle
+  - name: bundle-create
     description: only run tests in bundle_test.go
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m bundle_test.go commands_test.go main_test.go
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m bundle_create_test.go commands_test.go main_test.go
+
+  - name: bundle-deploy
+    description: only run tests in bundle_test.go
+    actions:
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m bundle_deploy_test.go commands_test.go main_test.go
+  
+  - name: bundle-misc
+    description: only run tests in bundle_test.go
+    actions:
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m bundle_misc_test.go commands_test.go main_test.go
+
+  - name: bundle-inspect
+    description: run bundle inspect tests
+    actions:
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m bundle_inspect_test.go commands_test.go main_test.go
+
+  - name: bundle-flags
+    description: run bundle flag tests
+    actions:
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m bundle_flags_test.go commands_test.go main_test.go
 
   - name: dev
     description: only run tests in dev.go
