@@ -8,7 +8,7 @@ components:
     required: true
     repos:
       - https://github.com/defenseunicorns/uds-package-dubbd
-  - name: nginx-remote
+  - name: nginx
     required: true
     manifests:
       - name: simple-nginx-deployment

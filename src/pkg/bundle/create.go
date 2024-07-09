@@ -28,6 +28,14 @@ func (b *Bundle) Create() error {
 		return err
 	}
 
+	// set the bundle's name and version if provided via flag
+	if b.cfg.CreateOpts.Name != "" {
+		b.bundle.Metadata.Name = b.cfg.CreateOpts.Name
+	}
+	if b.cfg.CreateOpts.Version != "" {
+		b.bundle.Metadata.Version = b.cfg.CreateOpts.Version
+	}
+
 	// Populate values from valuesFiles if provided
 	if err := b.processValuesFiles(); err != nil {
 		return err
