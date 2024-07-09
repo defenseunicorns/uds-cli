@@ -1,7 +1,7 @@
 ---
 title: Bundle Overrides
 type: docs
-weight: 5
+weight: 2
 ---
 
 Bundle overrides provide a mechanism to customize Helm charts inside of Zarf packages.
