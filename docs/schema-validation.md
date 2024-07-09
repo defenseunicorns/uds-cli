@@ -1,3 +1,8 @@
+---
+title: UDS Runner
+type: docs
+weight: 5
+---
 ## Schema Validation
 
 When working with UDS configuration files, it can be useful to setup your IDE to know about the various schemas that UDS uses.
