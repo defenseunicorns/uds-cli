@@ -1,5 +1,5 @@
 ---
-title: Command reference - uds monitor pepr
+title: uds monitor pepr
 description: UDS CLI command reference for <code>uds monitor pepr</code>.
 type: docs
 ---

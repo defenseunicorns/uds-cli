@@ -1,5 +1,5 @@
 ---
-title: Command reference - uds completion
+title: uds completion
 description: UDS CLI command reference for <code>uds completion</code>.
 type: docs
 ---

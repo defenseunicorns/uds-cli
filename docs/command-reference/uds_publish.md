@@ -1,5 +1,5 @@
 ---
-title: Command reference - uds publish
+title: uds publish
 description: UDS CLI command reference for <code>uds publish</code>.
 type: docs
 ---

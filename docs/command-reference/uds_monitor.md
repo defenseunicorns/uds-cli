@@ -1,5 +1,5 @@
 ---
-title: Command reference - uds monitor
+title: uds monitor
 description: UDS CLI command reference for <code>uds monitor</code>.
 type: docs
 ---

@@ -1,5 +1,5 @@
 ---
-title: Command reference - uds completion zsh
+title: uds completion zsh
 description: UDS CLI command reference for <code>uds completion zsh</code>.
 type: docs
 ---

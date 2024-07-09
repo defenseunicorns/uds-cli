@@ -1,5 +1,5 @@
 ---
-title: Command reference - uds inspect
+title: uds inspect
 description: UDS CLI command reference for <code>uds inspect</code>.
 type: docs
 ---

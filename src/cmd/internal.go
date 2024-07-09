@@ -77,7 +77,7 @@ var genCLIDocs = &cobra.Command{
 			title := strings.Replace(name, "_", " ", -1)
 
 			return fmt.Sprintf(`---
-title: Command reference - %s
+title: %s
 description: UDS CLI command reference for <code>%s</code>.
 type: docs
 ---

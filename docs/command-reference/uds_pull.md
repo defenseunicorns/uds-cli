@@ -1,5 +1,5 @@
 ---
-title: Command reference - uds pull
+title: uds pull
 description: UDS CLI command reference for <code>uds pull</code>.
 type: docs
 ---

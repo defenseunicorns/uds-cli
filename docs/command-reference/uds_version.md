@@ -1,5 +1,5 @@
 ---
-title: Command reference - uds version
+title: uds version
 description: UDS CLI command reference for <code>uds version</code>.
 type: docs
 ---

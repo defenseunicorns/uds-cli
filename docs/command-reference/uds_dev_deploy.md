@@ -1,5 +1,5 @@
 ---
-title: Command reference - uds dev deploy
+title: uds dev deploy
 description: UDS CLI command reference for <code>uds dev deploy</code>.
 type: docs
 ---
