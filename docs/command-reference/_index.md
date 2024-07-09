@@ -1,5 +1,5 @@
 ---
-title: UDS CLI Command Reference
+title: Command Reference
 linkTitle: UDS CLI Command Reference
 type: docs
 menu:
