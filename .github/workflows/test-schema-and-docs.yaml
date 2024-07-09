@@ -1,4 +1,4 @@
-name: Validate Schema
+name: Validate Schema and Docs
 on:
   pull_request:
 
@@ -18,8 +18,11 @@ jobs:
       - name: Install UDS CLI
         uses: ./.github/actions/install-uds-cli
 
-      - name: Docs and schemas
+      - name: Test schemas
         run: uds run schema:test
+
+      - name: Test docs
+        run: uds run docs:test
 
       - name: Save logs
         if: always()

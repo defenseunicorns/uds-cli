@@ -1,7 +1,7 @@
 ---
 title: Bundle Anatomy
 type: docs
-weight: 6
+weight: 4
 ---
 
 ## Bundle Anatomy
