@@ -1,5 +1,5 @@
 ---
-title: uds run
+title: Command reference - uds run
 description: UDS CLI command reference for <code>uds run</code>.
 type: docs
 ---

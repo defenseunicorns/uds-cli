@@ -1,5 +1,5 @@
 ---
-title: uds remove
+title: Command reference - uds remove
 description: UDS CLI command reference for <code>uds remove</code>.
 type: docs
 ---

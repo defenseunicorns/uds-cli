@@ -66,13 +66,6 @@ var genCLIDocs = &cobra.Command{
 		// Set the default value for the uds-cache flag (otherwise this defaults to the user's home directory)
 		rootCmd.Flag("uds-cache").DefValue = "~/.uds-cache"
 
-		if err := os.RemoveAll("./docs/command-reference"); err != nil {
-			return err
-		}
-		if err := os.Mkdir("./docs/command-reference", 0775); err != nil {
-			return err
-		}
-
 		var prependTitle = func(s string) string {
 			fmt.Println(s)
 			name := filepath.Base(s)
@@ -84,7 +77,7 @@ var genCLIDocs = &cobra.Command{
 			title := strings.Replace(name, "_", " ", -1)
 
 			return fmt.Sprintf(`---
-title: %s
+title: Command reference - %s
 description: UDS CLI command reference for <code>%s</code>.
 type: docs
 ---

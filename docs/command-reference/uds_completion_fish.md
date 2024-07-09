@@ -1,5 +1,5 @@
 ---
-title: uds completion fish
+title: Command reference - uds completion fish
 description: UDS CLI command reference for <code>uds completion fish</code>.
 type: docs
 ---
