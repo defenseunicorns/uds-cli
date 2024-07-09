@@ -1,8 +1,5 @@
 ---
 title: Command Reference
-linkTitle: UDS CLI Command Reference
+linkTitle: Command Reference
 type: docs
-menu:
-    main:
-        weight: 30
 ---
