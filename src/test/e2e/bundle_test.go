@@ -689,7 +689,7 @@ func TestListImages(t *testing.T) {
 		outfile, err := os.Create(filename)
 		require.NoError(t, err)
 		defer outfile.Close()
-		// defer os.Remove(filename)
+		defer os.Remove(filename)
 
 		cmd.Stdout = outfile
 
@@ -722,14 +722,18 @@ func TestListVariables(t *testing.T) {
 	createLocal(t, bundleDir, e2e.Arch)
 	publishInsecure(t, bundlePath, ociRef)
 
-	t.Run("list variables for local tarball", func(t *testing.T) {
+	t.Run("list variables for local tarball with no color", func(t *testing.T) {
+		cmd := strings.Split(fmt.Sprintf("inspect %s --list-variables --no-color", bundlePath), " ")
+		stdout, _, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+		require.Contains(t, stdout, "prometheus:\n  variables: []\n")
+	})
+
+	t.Run("list variables for local tarball with color", func(t *testing.T) {
 		cmd := strings.Split(fmt.Sprintf("inspect %s --list-variables", bundlePath), " ")
 		stdout, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
-
-		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
-		cleaned := ansiRegex.ReplaceAllString(stdout, "")
-		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")
+		require.Contains(t, stdout, "\x1b")
 	})
 
 	t.Run("list variables for remote tarball", func(t *testing.T) {
