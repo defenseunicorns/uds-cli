@@ -23,27 +23,14 @@ import (
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
-	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pterm/pterm"
 )
-
-func printOutput(output interface{}) {
-	if config.CommonOptions.NoColor {
-		text, _ := goyaml.Marshal(output)
-		pterm.Println(string(text))
-	} else {
-		zarfUtils.ColorPrintYAML(output, nil, false)
-	}
-}
 
 // Inspect pulls/unpacks a bundle's metadata and shows it
 func (b *Bundle) Inspect() error {
 	// print to stdout to enable users to easily grab the output
 	pterm.SetDefaultOutput(os.Stdout)
-	if config.CommonOptions.NoColor {
-		pterm.DisableColor()
-	}
 
 	//  handle --list-images flag
 	if b.cfg.InspectOpts.ListImages {
@@ -99,7 +86,7 @@ func (b *Bundle) Inspect() error {
 		return nil
 	}
 
-	printOutput(b.bundle)
+	zarfUtils.ColorPrintYAML(b.bundle, nil, false)
 	return nil
 }
 
@@ -160,7 +147,7 @@ func (b *Bundle) listVariables() error {
 		}
 
 		varMap := map[string]map[string]interface{}{pkg.Name: {"variables": variables}}
-		printOutput(varMap)
+		zarfUtils.ColorPrintYAML(varMap, nil, false)
 	}
 
 	return nil
