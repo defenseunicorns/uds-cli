@@ -1,4 +1,3 @@
----
 run:
   concurrency: 6
   timeout: 5m
@@ -13,6 +12,8 @@ issues:
   # Default: 3
   max-same-issues: 0
   new-from-rev: ""
+  exclude-dirs:
+    - docs/command-reference
   exclude-rules:
     - path: 'test/.*'
       linters:

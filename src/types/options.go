@@ -22,6 +22,8 @@ type BundleCreateOptions struct {
 	SigningKeyPath     string
 	SigningKeyPassword string
 	BundleFile         string
+	Version            string
+	Name               string
 }
 
 // BundleDeployOptions is the options for the bundler.Deploy() function

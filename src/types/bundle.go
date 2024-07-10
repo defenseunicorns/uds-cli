@@ -69,7 +69,7 @@ type BundleVariableExport struct {
 
 // UDSMetadata lists information about the current UDS Bundle.
 type UDSMetadata struct {
-	Name              string `json:"name" jsonschema:"description=Name to identify this Zarf package,pattern=^[a-z0-9\\-]+$"`
+	Name              string `json:"name" jsonschema:"description=Name to identify this UDS bundle,pattern=^[a-z0-9\\-]+$"`
 	Description       string `json:"description,omitempty" jsonschema:"description=Additional information about this package"`
 	Version           string `json:"version,omitempty" jsonschema:"description=Generic string set by a package author to track the package version"`
 	URL               string `json:"url,omitempty" jsonschema:"description=Link to package information when online"`
