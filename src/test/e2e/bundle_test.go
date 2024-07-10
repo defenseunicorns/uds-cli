@@ -51,6 +51,7 @@ func TestSimpleBundleWithNameAndVersionFlags(t *testing.T) {
 	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 	os.Setenv("UDS_LOG_LEVEL", "debug")
+	defer os.Unsetenv("UDS_LOG_LEVEL")
 	name, version := "name-from-flag", "version-from-flag"
 	bundlePath := "src/test/bundles/11-real-simple"
 	runCmd(t, fmt.Sprintf("create %s --confirm --name %s --version %s", bundlePath, name, version))
