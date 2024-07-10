@@ -41,10 +41,10 @@ func TestSimpleBundleWithZarfAction(t *testing.T) {
 	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 	os.Setenv("UDS_LOG_LEVEL", "debug")
+	defer os.Unsetenv("UDS_LOG_LEVEL")
 	createLocal(t, "src/test/bundles/11-real-simple", e2e.Arch)
 	_, stderr := deploy(t, fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-real-simple-%s-0.0.1.tar.zst", e2e.Arch))
 	require.Contains(t, stderr, "Log level set to debug")
-	os.Unsetenv("UDS_LOG_LEVEL")
 }
 
 func TestCreateWithNoPath(t *testing.T) {
@@ -317,9 +317,9 @@ func TestBundleWithYmlFile(t *testing.T) {
 	inspectLocal(t, bundlePath)
 	inspectLocalAndSBOMExtract(t, bundlePath)
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/09-uds-bundle-yml", "uds-config.yml"))
+	defer os.Unsetenv("UDS_CONFIG")
 	deploy(t, bundlePath)
 	remove(t, bundlePath)
-	os.Unsetenv("UDS_CONFIG")
 }
 
 func TestLocalBundleWithOutput(t *testing.T) {
@@ -612,13 +612,13 @@ func TestBundleTmpDir(t *testing.T) {
 
 func TestInvalidConfig(t *testing.T) {
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config-invalid.yaml"))
+	defer os.Unsetenv("UDS_CONFIG")
 	zarfPkgPath := "src/test/packages/helm"
 	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
 	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --confirm", zarfPkgPath, zarfPkgPath), " ")
 	_, stdErr, err := e2e.UDS(args...)
 	require.Error(t, err)
 	require.Contains(t, stdErr, "invalid config option: log_levelx")
-	os.Unsetenv("UDS_CONFIG")
 }
 
 func TestInvalidBundle(t *testing.T) {
@@ -651,7 +651,6 @@ func TestArchCheck(t *testing.T) {
 }
 
 func TestListImages(t *testing.T) {
-	os.Unsetenv("UDS_CONFIG")
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
 
