@@ -28,17 +28,20 @@ func TestUDSCmd(t *testing.T) {
 }
 
 func TestUDSLogs(t *testing.T) {
-	inspectRemote(t, "ghcr.io/defenseunicorns/packages/uds-cli/test/publish/ghcr-test:0.0.1")
-	stderr, _, err := e2e.UDS("logs")
+	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+	createLocal(t, "src/test/bundles/11-real-simple", e2e.Arch)
+	stdout, _, err := e2e.UDS("logs")
 	require.NoError(t, err)
-	require.Contains(t, stderr, "DEBUG")
-	require.Contains(t, stderr, "UDSBundle")
+	require.Contains(t, stdout, "DEBUG")
+	require.Contains(t, stdout, "UDSBundle")
 }
 
 func TestSimpleBundleWithZarfAction(t *testing.T) {
 	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 	os.Setenv("UDS_LOG_LEVEL", "debug")
+	defer os.Unsetenv("UDS_LOG_LEVEL")
 	createLocal(t, "src/test/bundles/11-real-simple", e2e.Arch)
 	_, stderr := deploy(t, fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-real-simple-%s-0.0.1.tar.zst", e2e.Arch))
 	require.Contains(t, stderr, "Log level set to debug")
@@ -48,6 +51,7 @@ func TestSimpleBundleWithNameAndVersionFlags(t *testing.T) {
 	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 	os.Setenv("UDS_LOG_LEVEL", "debug")
+	defer os.Unsetenv("UDS_LOG_LEVEL")
 	name, version := "name-from-flag", "version-from-flag"
 	bundlePath := "src/test/bundles/11-real-simple"
 	runCmd(t, fmt.Sprintf("create %s --confirm --name %s --version %s", bundlePath, name, version))
@@ -325,6 +329,7 @@ func TestBundleWithYmlFile(t *testing.T) {
 	inspectLocal(t, bundlePath)
 	inspectLocalAndSBOMExtract(t, bundlePath)
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/09-uds-bundle-yml", "uds-config.yml"))
+	defer os.Unsetenv("UDS_CONFIG")
 	deploy(t, bundlePath)
 	remove(t, bundlePath)
 }
@@ -356,10 +361,10 @@ func TestLocalBundleWithNoSBOM(t *testing.T) {
 	createLocal(t, bundleDir, e2e.Arch)
 
 	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom --extract", bundlePath), " ")
-	_, stderr, err := e2e.UDS(cmd...)
+	stdout, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
-	require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
-	require.Contains(t, stderr, "sboms.tar not found in Zarf pkg")
+	require.Contains(t, stdout, "Cannot extract, no SBOMs found in bundle")
+	require.Contains(t, stdout, "sboms.tar not found in Zarf pkg")
 }
 
 func TestRemoteBundleWithNoSBOM(t *testing.T) {
@@ -376,10 +381,10 @@ func TestRemoteBundleWithNoSBOM(t *testing.T) {
 	publishInsecure(t, bundlePath, "localhost:888")
 
 	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom --extract", bundlePath), " ")
-	_, stderr, err := e2e.UDS(cmd...)
+	stdout, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
-	require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
-	require.Contains(t, stderr, "sboms.tar not found in Zarf pkg")
+	require.Contains(t, stdout, "Cannot extract, no SBOMs found in bundle")
+	require.Contains(t, stdout, "sboms.tar not found in Zarf pkg")
 }
 
 func TestPackageNaming(t *testing.T) {
@@ -619,13 +624,13 @@ func TestBundleTmpDir(t *testing.T) {
 
 func TestInvalidConfig(t *testing.T) {
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config-invalid.yaml"))
+	defer os.Unsetenv("UDS_CONFIG")
 	zarfPkgPath := "src/test/packages/helm"
 	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
 	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --confirm", zarfPkgPath, zarfPkgPath), " ")
 	_, stdErr, err := e2e.UDS(args...)
 	require.Error(t, err)
 	require.Contains(t, stdErr, "invalid config option: log_levelx")
-	os.Unsetenv("UDS_CONFIG")
 }
 
 func TestInvalidBundle(t *testing.T) {
@@ -706,7 +711,7 @@ func TestListImages(t *testing.T) {
 		// read in the file and check its contents
 		contents, err := os.ReadFile(filename)
 		require.NoError(t, err)
-		require.NotContains(t, string(contents), "\u001B") // ensure no color-related bytes
+		require.NotContains(t, string(contents), "\u001b") // ensure no color-related bytes
 		require.Contains(t, string(contents), "library/registry")
 	})
 }
@@ -729,23 +734,27 @@ func TestListVariables(t *testing.T) {
 	createLocal(t, bundleDir, e2e.Arch)
 	publishInsecure(t, bundlePath, ociRef)
 
-	t.Run("list variables for local tarball", func(t *testing.T) {
-		cmd := strings.Split(fmt.Sprintf("inspect %s --list-variables", bundlePath), " ")
-		_, stderr, err := e2e.UDS(cmd...)
+	t.Run("list variables for local tarball with no color", func(t *testing.T) {
+		cmd := strings.Split(fmt.Sprintf("inspect %s --list-variables --no-color", bundlePath), " ")
+		stdout, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
+		require.Contains(t, stdout, "prometheus:\n  variables: []\n")
+	})
 
-		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
-		cleaned := ansiRegex.ReplaceAllString(stderr, "")
-		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")
+	t.Run("list variables for local tarball with color", func(t *testing.T) {
+		cmd := strings.Split(fmt.Sprintf("inspect %s --list-variables", bundlePath), " ")
+		stdout, _, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+		require.Contains(t, stdout, "\x1b")
 	})
 
 	t.Run("list variables for remote tarball", func(t *testing.T) {
 		cmd := strings.Split(fmt.Sprintf("inspect %s --list-variables --insecure", fmt.Sprintf("%s/optional-components:0.0.1", ociRef)), " ")
-		_, stderr, err := e2e.UDS(cmd...)
+		stdout, _, err := e2e.UDS(cmd...)
 		require.NoError(t, err)
 
 		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
-		cleaned := ansiRegex.ReplaceAllString(stderr, "")
+		cleaned := ansiRegex.ReplaceAllString(stdout, "")
 		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")
 	})
 }

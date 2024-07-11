@@ -60,6 +60,9 @@ var (
 	// CommonOptions tracks user-defined values that apply across commands.
 	CommonOptions types.BundleCommonOptions
 
+	// NoColor is a flag to disable color output
+	NoColor bool
+
 	// CLIVersion track the version of the CLI
 	CLIVersion = "unset"
 
