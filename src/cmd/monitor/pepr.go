@@ -6,13 +6,13 @@ package monitor
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
 
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/engine/pepr"
 	"github.com/defenseunicorns/uds-cli/src/pkg/engine/stream"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/spf13/cobra"
 )
 
@@ -48,7 +48,7 @@ var peprCmd = &cobra.Command{
 	Short: lang.CmdMonitorPeprShort,
 	Long:  lang.CmdMonitorPeprLong,
 	Args:  cobra.MaximumNArgs(1),
-	Run: func(_ *cobra.Command, args []string) {
+	RunE: func(_ *cobra.Command, args []string) error {
 		// Set the stream kind from the CLI
 		var streamKind pepr.StreamKind
 		if len(args) > 0 && args[0] != "" {
@@ -59,7 +59,7 @@ var peprCmd = &cobra.Command{
 			case pepr.PolicyStream, pepr.OperatorStream, pepr.AllowStream, pepr.DenyStream, pepr.FailureStream, pepr.MutateStream:
 				// Valid stream kind
 			default:
-				message.Fatalf("Invalid stream kind: %s", string(streamKind))
+				return fmt.Errorf("Invalid stream kind: %s", string(streamKind))
 			}
 		}
 
@@ -76,8 +76,9 @@ var peprCmd = &cobra.Command{
 
 		// Start the stream
 		if err := peprStream.Start(context.TODO()); err != nil {
-			message.Fatalf(err, "Error streaming Pepr logs")
+			return fmt.Errorf("Error streaming Pepr logs")
 		}
+		return nil
 	},
 }
 

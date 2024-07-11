@@ -28,10 +28,10 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use: "uds COMMAND",
-	PersistentPreRun: func(cmd *cobra.Command, _ []string) {
+	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 		// Skip for vendor-only commands
 		if zarfCommon.CheckVendorOnlyFromPath(cmd) {
-			return
+			return nil
 		}
 
 		// Don't add the logo to the help command
@@ -41,16 +41,21 @@ var rootCmd = &cobra.Command{
 
 		// don't load log configs for the logs command
 		if cmd.Use != "logs" {
-			cliSetup(cmd)
+			err := cliSetup(cmd)
+			if err != nil {
+				return err
+			}
 		}
+		return nil
 	},
 	Short: lang.RootCmdShort,
-	Run: func(cmd *cobra.Command, _ []string) {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		_, _ = fmt.Fprintln(os.Stderr)
 		err := cmd.Help()
 		if err != nil {
-			message.Fatal(err, "error calling help command")
+			return fmt.Errorf("error calling help command")
 		}
+		return nil
 	},
 }
 
@@ -70,7 +75,7 @@ func init() {
 	// load uds-config if it exists
 	if v.ConfigFileUsed() != "" {
 		if err := loadViperConfig(); err != nil {
-			message.Fatalf(err, "Failed to load uds-config: %s", err.Error())
+			message.WarnErrf(err, "Failed to load uds-config: %s", err.Error())
 			return
 		}
 	}

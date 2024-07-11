@@ -15,7 +15,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/spf13/cobra"
 )
 
@@ -24,26 +23,34 @@ var createCmd = &cobra.Command{
 	Aliases: []string{"c"},
 	Args:    cobra.MaximumNArgs(1),
 	Short:   lang.CmdBundleCreateShort,
-	PreRun: func(_ *cobra.Command, args []string) {
-		setBundleFile(args)
+	PreRunE: func(_ *cobra.Command, args []string) error {
+		err := setBundleFile(args)
+		if err != nil {
+			return err
+		}
+		return nil
 	},
-	Run: func(_ *cobra.Command, args []string) {
+	RunE: func(_ *cobra.Command, args []string) error {
 		srcDir, err := os.Getwd()
 		if err != nil {
-			message.Fatalf(err, "error reading the current working directory")
+			return fmt.Errorf("error reading the current working directory")
 		}
 		if len(args) > 0 {
 			srcDir = args[0]
 		}
 		bundleCfg.CreateOpts.SourceDirectory = srcDir
 
-		bndlClient := bundle.NewOrDie(&bundleCfg)
+		bndlClient, err := bundle.New(&bundleCfg)
+		if err != nil {
+			return err
+		}
 		defer bndlClient.ClearPaths()
 
 		if err := bndlClient.Create(); err != nil {
 			bndlClient.ClearPaths()
-			message.Fatalf(err, "Failed to create bundle: %s", err.Error())
+			return fmt.Errorf("Failed to create bundle: %s", err.Error())
 		}
+		return nil
 	},
 }
 
@@ -52,8 +59,12 @@ var deployCmd = &cobra.Command{
 	Aliases: []string{"d"},
 	Short:   lang.CmdBundleDeployShort,
 	Args:    cobra.MaximumNArgs(1),
-	Run: func(_ *cobra.Command, args []string) {
-		bundleCfg.DeployOpts.Source = chooseBundle(args)
+	RunE: func(_ *cobra.Command, args []string) error {
+		var err error
+		bundleCfg.DeployOpts.Source, err = chooseBundle(args)
+		if err != nil {
+			return err
+		}
 		configureZarf()
 
 		// set DeployOptions.Config if exists
@@ -62,9 +73,16 @@ var deployCmd = &cobra.Command{
 		}
 
 		// create new bundle client and deploy
-		bndlClient := bundle.NewOrDie(&bundleCfg)
+		bndlClient, err := bundle.New(&bundleCfg)
+		if err != nil {
+			return err
+		}
 		defer bndlClient.ClearPaths()
-		deploy(bndlClient)
+		err = deploy(bndlClient)
+		if err != nil {
+			return err
+		}
+		return nil
 	},
 }
 
@@ -73,22 +91,31 @@ var inspectCmd = &cobra.Command{
 	Aliases: []string{"i"},
 	Short:   lang.CmdBundleInspectShort,
 	Args:    cobra.MaximumNArgs(1),
-	PreRun: func(cmd *cobra.Command, _ []string) {
+	PreRunE: func(cmd *cobra.Command, _ []string) error {
 		if cmd.Flag("extract").Value.String() == "true" && cmd.Flag("sbom").Value.String() == "false" {
-			message.Fatal(nil, "cannot use 'extract' flag without 'sbom' flag")
+			return fmt.Errorf("cannot use 'extract' flag without 'sbom' flag")
 		}
+		return nil
 	},
-	Run: func(_ *cobra.Command, args []string) {
-		bundleCfg.InspectOpts.Source = chooseBundle(args)
+	RunE: func(_ *cobra.Command, args []string) error {
+		var err error
+		bundleCfg.InspectOpts.Source, err = chooseBundle(args)
+		if err != nil {
+			return err
+		}
 		configureZarf()
 
-		bndlClient := bundle.NewOrDie(&bundleCfg)
+		bndlClient, err := bundle.New(&bundleCfg)
+		if err != nil {
+			return err
+		}
 		defer bndlClient.ClearPaths()
 
 		if err := bndlClient.Inspect(); err != nil {
 			bndlClient.ClearPaths()
-			message.Fatalf(err, "Failed to inspect bundle: %s", err.Error())
+			return fmt.Errorf("Failed to inspect bundle: %s", err.Error())
 		}
+		return nil
 	},
 }
 
@@ -97,17 +124,21 @@ var removeCmd = &cobra.Command{
 	Aliases: []string{"r"},
 	Args:    cobra.ExactArgs(1),
 	Short:   lang.CmdBundleRemoveShort,
-	Run: func(_ *cobra.Command, args []string) {
+	RunE: func(_ *cobra.Command, args []string) error {
 		bundleCfg.RemoveOpts.Source = args[0]
 		configureZarf()
 
-		bndlClient := bundle.NewOrDie(&bundleCfg)
+		bndlClient, err := bundle.New(&bundleCfg)
+		if err != nil {
+			return err
+		}
 		defer bndlClient.ClearPaths()
 
 		if err := bndlClient.Remove(); err != nil {
 			bndlClient.ClearPaths()
-			message.Fatalf(err, "Failed to remove bundle: %s", err.Error())
+			return fmt.Errorf("Failed to remove bundle: %s", err.Error())
 		}
+		return nil
 	},
 }
 
@@ -116,22 +147,27 @@ var publishCmd = &cobra.Command{
 	Aliases: []string{"p"},
 	Short:   lang.CmdPublishShort,
 	Args:    cobra.ExactArgs(2),
-	PreRun: func(_ *cobra.Command, args []string) {
+	PreRunE: func(_ *cobra.Command, args []string) error {
 		if _, err := os.Stat(args[0]); err != nil {
-			message.Fatalf(err, "First argument (%q) must be a valid local Bundle path: %s", args[0], err.Error())
+			return fmt.Errorf("First argument (%q) must be a valid local Bundle path: %s", args[0], err.Error())
 		}
+		return nil
 	},
-	Run: func(_ *cobra.Command, args []string) {
+	RunE: func(_ *cobra.Command, args []string) error {
 		bundleCfg.PublishOpts.Source = args[0]
 		bundleCfg.PublishOpts.Destination = args[1]
 		configureZarf()
-		bndlClient := bundle.NewOrDie(&bundleCfg)
+		bndlClient, err := bundle.New(&bundleCfg)
+		if err != nil {
+			return err
+		}
 		defer bndlClient.ClearPaths()
 
 		if err := bndlClient.Publish(); err != nil {
 			bndlClient.ClearPaths()
-			message.Fatalf(err, "Failed to publish bundle: %s", err.Error())
+			return fmt.Errorf("Failed to publish bundle: %s", err.Error())
 		}
+		return nil
 	},
 }
 
@@ -140,16 +176,20 @@ var pullCmd = &cobra.Command{
 	Aliases: []string{"p"},
 	Short:   lang.CmdBundlePullShort,
 	Args:    cobra.ExactArgs(1),
-	Run: func(_ *cobra.Command, args []string) {
+	RunE: func(_ *cobra.Command, args []string) error {
 		bundleCfg.PullOpts.Source = args[0]
 		configureZarf()
-		bndlClient := bundle.NewOrDie(&bundleCfg)
+		bndlClient, err := bundle.New(&bundleCfg)
+		if err != nil {
+			return err
+		}
 		defer bndlClient.ClearPaths()
 
 		if err := bndlClient.Pull(); err != nil {
 			bndlClient.ClearPaths()
-			message.Fatalf(err, "Failed to pull bundle: %s", err.Error())
+			return fmt.Errorf("Failed to pull bundle: %s", err.Error())
 		}
+		return nil
 	},
 }
 
@@ -157,7 +197,7 @@ var logsCmd = &cobra.Command{
 	Use:     "logs",
 	Aliases: []string{"l"},
 	Short:   lang.CmdBundleLogsShort,
-	Run: func(_ *cobra.Command, _ []string) {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		logFilePath := filepath.Join(config.CommonOptions.CachePath, config.CachedLogs)
 
 		// Open the cached log file
@@ -166,17 +206,18 @@ var logsCmd = &cobra.Command{
 			var pathError *os.PathError
 			if errors.As(err, &pathError) {
 				msg := fmt.Sprintf("No cached logs found at %s", logFilePath)
-				message.Fatalf(nil, msg)
+				return fmt.Errorf(msg)
 			}
-			message.Fatalf("Error opening log file: %s\n", err.Error())
+			return fmt.Errorf("error opening log file: %s", err.Error())
 		}
 		defer logfile.Close()
 
 		// Copy the contents of the log file to stdout
 		if _, err := io.Copy(os.Stdout, logfile); err != nil {
 			// Handle the error if the contents can't be read or written to stdout
-			message.Fatalf(err, "Error reading or printing log file: %v\n", err.Error())
+			return fmt.Errorf("error reading or printing log file: %v", err.Error())
 		}
+		return nil
 	},
 }
 
@@ -228,9 +269,9 @@ func init() {
 }
 
 // chooseBundle provides a file picker when users don't specify a file
-func chooseBundle(args []string) string {
+func chooseBundle(args []string) (string, error) {
 	if len(args) > 0 {
-		return args[0]
+		return args[0], nil
 	}
 	var path string
 	prompt := &survey.Input{
@@ -247,8 +288,8 @@ func chooseBundle(args []string) string {
 	}
 
 	if err := survey.AskOne(prompt, &path, survey.WithValidator(survey.Required)); err != nil {
-		message.Fatalf(nil, lang.CmdPackageChooseErr, err.Error())
+		return "", fmt.Errorf(lang.CmdPackageChooseErr, err.Error())
 	}
 
-	return path
+	return path, nil
 }

@@ -84,7 +84,10 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 	for i, pkg := range packagesToDeploy {
 		// for dev mode update package ref for remote bundles, refs for local bundles updated on create
 		if config.Dev && !strings.Contains(b.cfg.DeployOpts.Source, "tar.zst") {
-			pkg = b.setPackageRef(pkg)
+			pkg, err := b.setPackageRef(pkg)
+			if err != nil {
+				return err
+			}
 			b.bundle.Packages[i] = pkg
 		}
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
@@ -138,8 +141,11 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 			return err
 		}
 
-		pkgClient := packager.NewOrDie(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
-		if err := pkgClient.Deploy(context.TODO()); err != nil {
+		pkgClient, err := packager.New(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
+		if err != nil {
+			return err
+		}
+		if err = pkgClient.Deploy(context.TODO()); err != nil {
 			return err
 		}
 		// save exported vars

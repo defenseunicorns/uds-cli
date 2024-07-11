@@ -39,7 +39,11 @@ type Bundle struct {
 
 // New creates a new Bundle
 func New(cfg *types.BundleConfig) (*Bundle, error) {
-	message.Debugf("bundler.New(%s)", message.JSONValue(cfg))
+	jsonValue, err := utils.JSONValue(cfg)
+	if err != nil {
+		return nil, err
+	}
+	message.Debugf("bundler.New(%s)", jsonValue)
 
 	if cfg == nil {
 		return nil, errors.New("bundler.New() called with nil config")
@@ -58,18 +62,6 @@ func New(cfg *types.BundleConfig) (*Bundle, error) {
 	bundle.tmp = tmp
 
 	return bundle, nil
-}
-
-// NewOrDie creates a new Bundle or dies
-func NewOrDie(cfg *types.BundleConfig) *Bundle {
-	var (
-		err    error
-		bundle *Bundle
-	)
-	if bundle, err = New(cfg); err != nil {
-		message.Fatalf(err, "bundle unable to setup, bad config: %s", err.Error())
-	}
-	return bundle
 }
 
 // ClearPaths closes any files and clears out the paths used by Bundle
@@ -170,7 +162,11 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 			return err
 		}
 
-		message.Debug("Validating package:", message.JSONValue(pkg))
+		jsonValue, err := utils.JSONValue(pkg)
+		if err != nil {
+			return err
+		}
+		message.Debug("Validating package:", jsonValue)
 
 		// todo: need to packager.ValidatePackageSignature (or come up with a bundle-level signature scheme)
 		publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
@@ -344,11 +340,11 @@ func validateBundleVars(packages []types.Package) error {
 }
 
 // setPackageRef sets the package reference
-func (b *Bundle) setPackageRef(pkg types.Package) types.Package {
+func (b *Bundle) setPackageRef(pkg types.Package) (types.Package, error) {
 	if ref, ok := b.cfg.DevDeployOpts.Ref[pkg.Name]; ok {
 		// Can only set refs for remote packages
 		if pkg.Repository == "" {
-			message.Fatalf(errors.New("Invalid input"), "Cannot set ref for local packages: %s", pkg.Name)
+			return pkg, fmt.Errorf("Cannot set ref for local packages: %s", pkg.Name)
 		}
 
 		errMsg := fmt.Sprintf("Unable to access %s:%s", pkg.Repository, ref)
@@ -362,17 +358,17 @@ func (b *Bundle) setPackageRef(pkg types.Package) types.Package {
 		}
 		remote, err := zoci.NewRemote(url, platform)
 		if err != nil {
-			message.Fatalf(err, errMsg)
+			return pkg, fmt.Errorf(errMsg)
 		}
 		if err := remote.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
 			manifestDesc, err := remote.ResolveRoot(context.TODO())
 			if err != nil {
-				message.Fatalf(err, errMsg)
+				return pkg, fmt.Errorf(errMsg)
 			}
 			pkg.Ref = ref + "@sha256:" + manifestDesc.Digest.Encoded()
 		} else {
-			message.Fatalf(err, errMsg)
+			return pkg, fmt.Errorf(errMsg)
 		}
 	}
-	return pkg
+	return pkg, nil
 }

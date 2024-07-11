@@ -215,3 +215,12 @@ func CheckYAMLSourcePath(source string) error {
 
 	return nil
 }
+
+// JSONValue prints any value as JSON.
+func JSONValue(value any) (string, error) {
+	bytes, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), nil
+}

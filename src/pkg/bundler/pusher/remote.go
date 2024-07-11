@@ -11,6 +11,7 @@ import (
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
@@ -49,7 +50,12 @@ func (p *RemotePusher) Push() (ocispec.Descriptor, error) {
 	// ensure media type is a Zarf blob and append to bundle root manifest
 	zarfManifestDesc.MediaType = zoci.ZarfLayerMediaTypeBlob
 	url := fmt.Sprintf("%s:%s", p.pkg.Repository, p.pkg.Ref)
-	message.Debugf("Pushed %s sub-manifest into %s: %s", url, p.cfg.RemoteDst.Repo().Reference, message.JSONValue(zarfManifestDesc))
+
+	jsonValue, err := utils.JSONValue(zarfManifestDesc)
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
+	message.Debugf("Pushed %s sub-manifest into %s: %s", url, p.cfg.RemoteDst.Repo().Reference, jsonValue)
 
 	pushSpinner := message.NewProgressSpinner("")
 	defer pushSpinner.Stop()
