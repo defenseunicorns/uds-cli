@@ -1,9 +1,29 @@
 {
-  "$schema": "http://json-schema.org/draft-04/schema#",
-  "$ref": "#/definitions/TasksFile",
-  "definitions": {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/defenseunicorns/maru-runner/src/types/tasks-file",
+  "$ref": "#/$defs/TasksFile",
+  "$defs": {
     "Action": {
       "properties": {
+        "description": {
+          "type": "string",
+          "description": "Description of the action to be displayed during package execution instead of the command"
+        },
+        "cmd": {
+          "type": "string",
+          "description": "The command to run. Must specify either cmd or wait for the action to do anything."
+        },
+        "wait": {
+          "$ref": "#/$defs/ActionWait",
+          "description": "Wait for a condition to be met before continuing. Must specify either cmd or wait for the action."
+        },
+        "env": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Additional environment variables to set for the command"
+        },
         "mute": {
           "type": "boolean",
           "description": "Hide the output of the command during package deployment (default false)"
@@ -20,52 +40,24 @@
           "type": "string",
           "description": "The working directory to run the command in (default is CWD)"
         },
-        "env": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "description": "Additional environment variables to set for the command"
-        },
-        "cmd": {
-          "type": "string",
-          "description": "The command to run. Must specify either cmd or wait for the action to do anything."
-        },
         "shell": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/Shell",
+          "$ref": "#/$defs/ShellPreference",
           "description": "(cmd only) Indicates a preference for a shell for the provided cmd to be executed in on supported operating systems"
-        },
-        "setVariable": {
-          "pattern": "^[A-Z0-9_]+$",
-          "type": "string",
-          "description": "[Deprecated] (replaced by setVariables) (onDeploy/cmd only) The name of a variable to update with the output of the command. This variable will be available to all remaining actions and components in the package. This will be removed in Zarf v1.0.0"
         },
         "setVariables": {
           "items": {
-            "$ref": "#/definitions/Variable"
+            "$ref": "#/$defs/Variable"
           },
           "type": "array",
           "description": "(onDeploy/cmd only) An array of variables to update with the output of the command. These variables will be available to all remaining actions and components in the package."
-        },
-        "description": {
-          "type": "string",
-          "description": "Description of the action to be displayed during package execution instead of the command"
-        },
-        "wait": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/ZarfComponentActionWait",
-          "description": "Wait for a condition to be met before continuing. Must specify either cmd or wait for the action. See the 'zarf tools wait-for' command for more info."
         },
         "task": {
           "type": "string",
           "description": "The task to run"
         },
         "with": {
-          "patternProperties": {
-            "^[_a-zA-Z][a-zA-Z0-9_-]*$": {
-              "additionalProperties": true
-            }
+          "additionalProperties": {
+            "type": "string"
           },
           "type": "object",
           "description": "Input parameters to pass to the task"
@@ -77,10 +69,111 @@
         "^x-": {}
       }
     },
-    "InputParameter": {
+    "ActionWait": {
+      "properties": {
+        "cluster": {
+          "$ref": "#/$defs/ActionWaitCluster",
+          "description": "Wait for a condition to be met in the cluster before continuing. Only one of cluster or network can be specified."
+        },
+        "network": {
+          "$ref": "#/$defs/ActionWaitNetwork",
+          "description": "Wait for a condition to be met on the network before continuing. Only one of cluster or network can be specified."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
+    },
+    "ActionWaitCluster": {
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "The kind of resource to wait for",
+          "examples": [
+            "Pod",
+            "Deployment)"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the resource or selector to wait for",
+          "examples": [
+            "podinfo",
+            "app&#61;podinfo"
+          ]
+        },
+        "namespace": {
+          "type": "string",
+          "description": "The namespace of the resource to wait for"
+        },
+        "condition": {
+          "type": "string",
+          "description": "The condition or jsonpath state to wait for; defaults to exist",
+          "examples": [
+            "Ready",
+            "Available"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
       "required": [
-        "description"
+        "kind",
+        "name"
       ],
+      "patternProperties": {
+        "^x-": {}
+      }
+    },
+    "ActionWaitNetwork": {
+      "properties": {
+        "protocol": {
+          "type": "string",
+          "enum": [
+            "tcp",
+            "http",
+            "https"
+          ],
+          "description": "The protocol to wait for"
+        },
+        "address": {
+          "type": "string",
+          "description": "The address to wait for",
+          "examples": [
+            "localhost:8080",
+            "1.1.1.1"
+          ]
+        },
+        "code": {
+          "type": "integer",
+          "description": "The HTTP status code to wait for if using http or https",
+          "examples": [
+            200,
+            404
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "protocol",
+        "address"
+      ],
+      "patternProperties": {
+        "^x-": {}
+      }
+    },
+    "ExtraVariableInfo": {
+      "properties": {},
+      "additionalProperties": false,
+      "type": "object",
+      "patternProperties": {
+        "^x-": {}
+      }
+    },
+    "InputParameter": {
       "properties": {
         "description": {
           "type": "string",
@@ -92,7 +185,8 @@
         },
         "required": {
           "type": "boolean",
-          "description": "Whether the parameter is required"
+          "description": "Whether the parameter is required",
+          "default": true
         },
         "default": {
           "type": "string",
@@ -101,18 +195,26 @@
       },
       "additionalProperties": false,
       "type": "object",
+      "required": [
+        "description"
+      ],
       "patternProperties": {
         "^x-": {}
       }
     },
     "InteractiveVariable": {
-      "required": [
-        "Variable"
-      ],
       "properties": {
-        "Variable": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/Variable"
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Z0-9_]+$",
+          "description": "The name to be used for the variable"
+        },
+        "pattern": {
+          "type": "string",
+          "description": "An optional regex pattern that a variable value must match before a package deployment can continue."
+        },
+        "Extra": {
+          "$ref": "#/$defs/ExtraVariableInfo"
         },
         "description": {
           "type": "string",
@@ -129,11 +231,14 @@
       },
       "additionalProperties": false,
       "type": "object",
+      "required": [
+        "name"
+      ],
       "patternProperties": {
         "^x-": {}
       }
     },
-    "Shell": {
+    "ShellPreference": {
       "properties": {
         "windows": {
           "type": "string",
@@ -177,9 +282,6 @@
       }
     },
     "Task": {
-      "required": [
-        "name"
-      ],
       "properties": {
         "name": {
           "type": "string",
@@ -189,28 +291,16 @@
           "type": "string",
           "description": "Description of the task"
         },
-        "files": {
-          "items": {
-            "$schema": "http://json-schema.org/draft-04/schema#",
-            "$ref": "#/definitions/ZarfFile"
-          },
-          "type": "array",
-          "description": "Files or folders to download or copy"
-        },
         "actions": {
           "items": {
-            "$schema": "http://json-schema.org/draft-04/schema#",
-            "$ref": "#/definitions/Action"
+            "$ref": "#/$defs/Action"
           },
           "type": "array",
           "description": "Actions to take when running the task"
         },
         "inputs": {
-          "patternProperties": {
-            "^[_a-zA-Z][a-zA-Z0-9_-]*$": {
-              "$schema": "http://json-schema.org/draft-04/schema#",
-              "$ref": "#/definitions/InputParameter"
-            }
+          "additionalProperties": {
+            "$ref": "#/$defs/InputParameter"
           },
           "type": "object",
           "description": "Input parameters for the task"
@@ -222,21 +312,19 @@
       },
       "additionalProperties": false,
       "type": "object",
+      "required": [
+        "name"
+      ],
       "patternProperties": {
         "^x-": {}
       }
     },
     "TasksFile": {
-      "required": [
-        "tasks"
-      ],
       "properties": {
         "includes": {
           "items": {
-            "patternProperties": {
-              ".*": {
-                "type": "string"
-              }
+            "additionalProperties": {
+              "type": "string"
             },
             "type": "object"
           },
@@ -245,16 +333,14 @@
         },
         "variables": {
           "items": {
-            "$schema": "http://json-schema.org/draft-04/schema#",
-            "$ref": "#/definitions/InteractiveVariable"
+            "$ref": "#/$defs/InteractiveVariable"
           },
           "type": "array",
           "description": "Definitions and default values for variables used in run.yaml"
         },
         "tasks": {
           "items": {
-            "$schema": "http://json-schema.org/draft-04/schema#",
-            "$ref": "#/definitions/Task"
+            "$ref": "#/$defs/Task"
           },
           "type": "array",
           "description": "The list of tasks that can be run"
@@ -262,181 +348,33 @@
       },
       "additionalProperties": false,
       "type": "object",
+      "required": [
+        "tasks"
+      ],
       "patternProperties": {
         "^x-": {}
       }
     },
     "Variable": {
-      "required": [
-        "name"
-      ],
       "properties": {
         "name": {
-          "pattern": "^[A-Z0-9_]+$",
           "type": "string",
+          "pattern": "^[A-Z0-9_]+$",
           "description": "The name to be used for the variable"
-        },
-        "sensitive": {
-          "type": "boolean",
-          "description": "Whether to mark this variable as sensitive to not print it in the log"
-        },
-        "autoIndent": {
-          "type": "boolean",
-          "description": "Whether to automatically indent the variable's value (if multiline) when templating. Based on the number of chars before the start of ###ZARF_VAR_."
         },
         "pattern": {
           "type": "string",
           "description": "An optional regex pattern that a variable value must match before a package deployment can continue."
         },
-        "type": {
-          "enum": [
-            "raw",
-            "file"
-          ],
-          "type": "string",
-          "description": "Changes the handling of a variable to load contents differently (i.e. from a file rather than as a raw variable - templated files should be kept below 1 MiB)"
+        "Extra": {
+          "$ref": "#/$defs/ExtraVariableInfo"
         }
       },
       "additionalProperties": false,
       "type": "object",
-      "patternProperties": {
-        "^x-": {}
-      }
-    },
-    "ZarfComponentActionWait": {
-      "properties": {
-        "cluster": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/ZarfComponentActionWaitCluster",
-          "description": "Wait for a condition to be met in the cluster before continuing. Only one of cluster or network can be specified."
-        },
-        "network": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/ZarfComponentActionWaitNetwork",
-          "description": "Wait for a condition to be met on the network before continuing. Only one of cluster or network can be specified."
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "patternProperties": {
-        "^x-": {}
-      }
-    },
-    "ZarfComponentActionWaitCluster": {
       "required": [
-        "kind",
         "name"
       ],
-      "properties": {
-        "kind": {
-          "type": "string",
-          "description": "The kind of resource to wait for",
-          "examples": [
-            "Pod",
-            "Deployment)"
-          ]
-        },
-        "name": {
-          "type": "string",
-          "description": "The name of the resource or selector to wait for",
-          "examples": [
-            "podinfo",
-            "app&#61;podinfo"
-          ]
-        },
-        "namespace": {
-          "type": "string",
-          "description": "The namespace of the resource to wait for"
-        },
-        "condition": {
-          "type": "string",
-          "description": "The condition or jsonpath state to wait for; defaults to exist",
-          "examples": [
-            "Ready",
-            "Available"
-          ]
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "patternProperties": {
-        "^x-": {}
-      }
-    },
-    "ZarfComponentActionWaitNetwork": {
-      "required": [
-        "protocol",
-        "address"
-      ],
-      "properties": {
-        "protocol": {
-          "enum": [
-            "tcp",
-            "http",
-            "https"
-          ],
-          "type": "string",
-          "description": "The protocol to wait for"
-        },
-        "address": {
-          "type": "string",
-          "description": "The address to wait for",
-          "examples": [
-            "localhost:8080",
-            "1.1.1.1"
-          ]
-        },
-        "code": {
-          "type": "integer",
-          "description": "The HTTP status code to wait for if using http or https",
-          "examples": [
-            200,
-            404
-          ]
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "patternProperties": {
-        "^x-": {}
-      }
-    },
-    "ZarfFile": {
-      "required": [
-        "source",
-        "target"
-      ],
-      "properties": {
-        "source": {
-          "type": "string",
-          "description": "Local folder or file path or remote URL to pull into the package"
-        },
-        "shasum": {
-          "type": "string",
-          "description": "(files only) Optional SHA256 checksum of the file"
-        },
-        "target": {
-          "type": "string",
-          "description": "The absolute or relative path where the file or folder should be copied to during package deploy"
-        },
-        "executable": {
-          "type": "boolean",
-          "description": "(files only) Determines if the file should be made executable during package deploy"
-        },
-        "symlinks": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "description": "List of symlinks to create during package deploy"
-        },
-        "extractPath": {
-          "type": "string",
-          "description": "Local folder or file to be extracted from a 'source' archive"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
       "patternProperties": {
         "^x-": {}
       }

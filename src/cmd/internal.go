@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/jsonschema"
+	runnerCLI "github.com/defenseunicorns/maru-runner/src/cmd"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
@@ -43,13 +44,9 @@ var configTasksSchemaCmd = &cobra.Command{
 	Use:     "config-tasks-schema",
 	Aliases: []string{"c"},
 	Short:   lang.CmdInternalConfigSchemaShort,
-	Run: func(_ *cobra.Command, _ []string) {
-		schema := jsonschema.Reflect(&types.TasksFile{})
-		output, err := json.MarshalIndent(schema, "", "  ")
-		if err != nil {
-			message.Fatal(err, lang.CmdInternalConfigSchemaErr)
-		}
-		fmt.Print(string(output) + "\n")
+	Run: func(cmd *cobra.Command, input []string) {
+		runnerCLI.RootCmd().SetArgs([]string{"internal", "config-tasks-schema"})
+		runnerCLI.Execute()
 	},
 }
 
