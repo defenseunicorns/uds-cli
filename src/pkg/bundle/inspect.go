@@ -29,6 +29,9 @@ import (
 
 // Inspect pulls/unpacks a bundle's metadata and shows it
 func (b *Bundle) Inspect() error {
+	// print to stdout to enable users to easily grab the output
+	pterm.SetDefaultOutput(os.Stdout)
+
 	//  handle --list-images flag
 	if b.cfg.InspectOpts.ListImages {
 		err := b.listImages()
@@ -83,9 +86,7 @@ func (b *Bundle) Inspect() error {
 		return nil
 	}
 
-	// show the bundle's metadata
 	zarfUtils.ColorPrintYAML(b.bundle, nil, false)
-
 	return nil
 }
 
@@ -105,9 +106,6 @@ func (b *Bundle) listImages() error {
 	}
 
 	formattedImgs := strings.Join(imgs, "\n")
-
-	// print to stdout to enable users to easily grab the output
-	pterm.SetDefaultOutput(os.Stdout)
 	pterm.Printfln("%s\n", formattedImgs)
 	return nil
 }

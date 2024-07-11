@@ -760,10 +760,8 @@ func TestFormPkgViews(t *testing.T) {
 			if tc.expectedChart == "" {
 				tc.expectedChart = chartName
 			}
-			fmt.Println(tc.expectedChart)
 			pkgViews := formPkgViews(&tc.bundle)
 			v := pkgViews[0].overrides["overrides"].([]interface{})[tc.expectedIndex].(map[string]map[string]interface{})[tc.expectedChart]["variables"]
-			fmt.Println(v)
 			require.Contains(t, v.(map[string]interface{})[tc.expectedKey], tc.expectedVal)
 		})
 	}

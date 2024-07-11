@@ -31,6 +31,7 @@ var createCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
+		configureZarf()
 		srcDir, err := os.Getwd()
 		if err != nil {
 			return fmt.Errorf("error reading the current working directory")
