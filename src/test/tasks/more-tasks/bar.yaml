@@ -1,4 +1,0 @@
-tasks:
-  - name: bar
-    actions:
-      - cmd: "echo bar"

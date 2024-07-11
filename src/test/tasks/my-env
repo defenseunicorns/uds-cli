@@ -1,3 +1,0 @@
-SECRET_KEY=not-a-secret
-PORT=3000
-SPECIAL=$env/**/*var with#special%chars!
