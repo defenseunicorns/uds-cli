@@ -50,7 +50,7 @@ func isValidConfigOption(str string) bool {
 func deploy(bndlClient *bundle.Bundle) error {
 	_, _, _, err := bndlClient.PreDeployValidation()
 	if err != nil {
-		return fmt.Errorf("Failed to validate bundle: %s", err.Error())
+		return fmt.Errorf("failed to validate bundle: %s", err.Error())
 	}
 
 	// confirm deployment
@@ -61,7 +61,7 @@ func deploy(bndlClient *bundle.Bundle) error {
 	// deploy the bundle
 	if err := bndlClient.Deploy(); err != nil {
 		bndlClient.ClearPaths()
-		return fmt.Errorf("Failed to deploy bundle: %s", err.Error())
+		return fmt.Errorf("failed to deploy bundle: %s", err.Error())
 	}
 
 	return nil
@@ -94,7 +94,7 @@ func setBundleFile(args []string) error {
 	} else if _, err = os.Stat(filepath.Join(pathToBundleFile, bundleYml)); err == nil {
 		bundleCfg.CreateOpts.BundleFile = bundleYml
 	} else {
-		return fmt.Errorf("Neither %s or %s found", config.BundleYAML, bundleYml)
+		return fmt.Errorf("neither %s or %s found", config.BundleYAML, bundleYml)
 	}
 	return nil
 }

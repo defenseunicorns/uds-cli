@@ -23,7 +23,7 @@ func (b *Bundle) CreateZarfPkgs() error {
 	srcDir := b.cfg.CreateOpts.SourceDirectory
 	bundleYAMLPath := filepath.Join(srcDir, b.cfg.CreateOpts.BundleFile)
 	if err := utils.ReadYAMLStrict(bundleYAMLPath, &b.bundle); err != nil {
-		return fmt.Errorf("Failed to read %s, error in YAML: %s", b.cfg.CreateOpts.BundleFile, err.Error())
+		return fmt.Errorf("failed to read %s, error in YAML: %s", b.cfg.CreateOpts.BundleFile, err.Error())
 	}
 
 	zarfPackagePattern := `^zarf-.*\.tar\.zst$`
@@ -33,7 +33,7 @@ func (b *Bundle) CreateZarfPkgs() error {
 			// check if attempting to apply flavor to remote package
 			if (len(b.cfg.DevDeployOpts.Flavor) == 1 && b.cfg.DevDeployOpts.Flavor[""] != "") ||
 				(b.cfg.DevDeployOpts.Flavor[pkg.Name] != "") {
-				return fmt.Errorf("Cannot set flavor for remote packages: %s", pkg.Name)
+				return fmt.Errorf("cannot set flavor for remote packages: %s", pkg.Name)
 			}
 		}
 
@@ -44,7 +44,7 @@ func (b *Bundle) CreateZarfPkgs() error {
 			// get files in directory
 			files, err := os.ReadDir(pkgDir)
 			if err != nil {
-				return fmt.Errorf("Failed to obtain package %s: %s", pkg.Name, err.Error())
+				return fmt.Errorf("failed to obtain package %s: %s", pkg.Name, err.Error())
 			}
 			regex := regexp.MustCompile(zarfPackagePattern)
 

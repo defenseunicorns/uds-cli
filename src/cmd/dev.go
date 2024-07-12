@@ -42,14 +42,14 @@ var devDeployCmd = &cobra.Command{
 		// Validate flags
 		err := validateDevDeployFlags(isLocalBundle)
 		if err != nil {
-			return fmt.Errorf("Failed to validate flags: %s", err.Error())
+			return fmt.Errorf("failed to validate flags: %s", err.Error())
 		}
 
 		if isLocalBundle {
 			// Populate flavor map
 			err = populateFlavorMap()
 			if err != nil {
-				return fmt.Errorf("Failed to populate flavor map: %s", err.Error())
+				return fmt.Errorf("failed to populate flavor map: %s", err.Error())
 			}
 
 			// Create Bundle
@@ -66,7 +66,7 @@ var devDeployCmd = &cobra.Command{
 		// load uds-config if it exists
 		if config := v.ConfigFileUsed(); config != "" {
 			if err := loadViperConfig(); err != nil {
-				return fmt.Errorf("Failed to load uds-config: %s", err.Error())
+				return fmt.Errorf("failed to load uds-config: %s", err.Error())
 			}
 
 			bundleCfg.DeployOpts.Config = config
@@ -87,7 +87,7 @@ var devDeployCmd = &cobra.Command{
 			}
 
 			if err := bndlClient.Create(); err != nil {
-				return fmt.Errorf("Failed to create bundle: %s", err.Error())
+				return fmt.Errorf("failed to create bundle: %s", err.Error())
 			}
 			bndlClient.SetDeploySource(src)
 		} else {
@@ -113,7 +113,7 @@ func validateDevDeployFlags(isLocalBundle bool) error {
 	if !isLocalBundle {
 		//Throw error if trying to run with --flavor or --force-create flag with remote bundle
 		if len(bundleCfg.DevDeployOpts.Flavor) > 0 || bundleCfg.DevDeployOpts.ForceCreate {
-			return fmt.Errorf("Cannot use --flavor or --force-create flags with remote bundle")
+			return fmt.Errorf("cannot use --flavor or --force-create flags with remote bundle")
 		}
 	}
 	return nil
@@ -131,7 +131,7 @@ func populateFlavorMap() error {
 				if len(entrySplit) == 1 && i == 0 {
 					bundleCfg.DevDeployOpts.Flavor = map[string]string{"": bundleCfg.DevDeployOpts.FlavorInput}
 				} else {
-					return fmt.Errorf("Invalid flavor entry: %s", entry)
+					return fmt.Errorf("invalid flavor entry: %s", entry)
 				}
 			} else {
 				bundleCfg.DevDeployOpts.Flavor[entrySplit[0]] = entrySplit[1]

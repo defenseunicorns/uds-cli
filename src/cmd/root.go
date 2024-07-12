@@ -84,7 +84,7 @@ func init() {
 	if v.ConfigFileUsed() != "" {
 		if err := loadViperConfig(); err != nil {
 			message.WarnErrf(err, "Failed to load uds-config: %s", err.Error())
-			return
+			os.Exit(1)
 		}
 	}
 

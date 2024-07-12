@@ -59,7 +59,7 @@ var peprCmd = &cobra.Command{
 			case pepr.PolicyStream, pepr.OperatorStream, pepr.AllowStream, pepr.DenyStream, pepr.FailureStream, pepr.MutateStream:
 				// Valid stream kind
 			default:
-				return fmt.Errorf("Invalid stream kind: %s", string(streamKind))
+				return fmt.Errorf("invalid stream kind: %s", string(streamKind))
 			}
 		}
 
@@ -76,7 +76,7 @@ var peprCmd = &cobra.Command{
 
 		// Start the stream
 		if err := peprStream.Start(context.TODO()); err != nil {
-			return fmt.Errorf("Error streaming Pepr logs")
+			return fmt.Errorf("error streaming Pepr logs")
 		}
 		return nil
 	},

@@ -49,7 +49,7 @@ var createCmd = &cobra.Command{
 
 		if err := bndlClient.Create(); err != nil {
 			bndlClient.ClearPaths()
-			return fmt.Errorf("Failed to create bundle: %s", err.Error())
+			return fmt.Errorf("failed to create bundle: %s", err.Error())
 		}
 		return nil
 	},
@@ -114,7 +114,7 @@ var inspectCmd = &cobra.Command{
 
 		if err := bndlClient.Inspect(); err != nil {
 			bndlClient.ClearPaths()
-			return fmt.Errorf("Failed to inspect bundle: %s", err.Error())
+			return fmt.Errorf("failed to inspect bundle: %s", err.Error())
 		}
 		return nil
 	},
@@ -137,7 +137,7 @@ var removeCmd = &cobra.Command{
 
 		if err := bndlClient.Remove(); err != nil {
 			bndlClient.ClearPaths()
-			return fmt.Errorf("Failed to remove bundle: %s", err.Error())
+			return fmt.Errorf("failed to remove bundle: %s", err.Error())
 		}
 		return nil
 	},
@@ -150,7 +150,7 @@ var publishCmd = &cobra.Command{
 	Args:    cobra.ExactArgs(2),
 	PreRunE: func(_ *cobra.Command, args []string) error {
 		if _, err := os.Stat(args[0]); err != nil {
-			return fmt.Errorf("First argument (%q) must be a valid local Bundle path: %s", args[0], err.Error())
+			return fmt.Errorf("first argument (%q) must be a valid local Bundle path: %s", args[0], err.Error())
 		}
 		return nil
 	},
@@ -166,7 +166,7 @@ var publishCmd = &cobra.Command{
 
 		if err := bndlClient.Publish(); err != nil {
 			bndlClient.ClearPaths()
-			return fmt.Errorf("Failed to publish bundle: %s", err.Error())
+			return fmt.Errorf("failed to publish bundle: %s", err.Error())
 		}
 		return nil
 	},
@@ -188,7 +188,7 @@ var pullCmd = &cobra.Command{
 
 		if err := bndlClient.Pull(); err != nil {
 			bndlClient.ClearPaths()
-			return fmt.Errorf("Failed to pull bundle: %s", err.Error())
+			return fmt.Errorf("failed to pull bundle: %s", err.Error())
 		}
 		return nil
 	},
