@@ -252,6 +252,9 @@ func getOCIValidatedSource(source string) (string, error) {
 	if err == nil {
 		source = sourceWithOCI
 		_, err = remote.ResolveRoot(ctx)
+		if err != nil {
+			message.Debugf(err.Error())
+		}
 	}
 	// if root didn't resolve, expand the path
 	if err != nil {
@@ -262,7 +265,7 @@ func getOCIValidatedSource(source string) (string, error) {
 			_, err = remote.ResolveRoot(ctx)
 		}
 		if err != nil {
-			message.Debugf("%s: not found", source)
+			message.Debugf(err.Error())
 			// Check in delivery bundle path
 			source = GHCRDeliveryBundlePath + originalSource
 			remote, err = zoci.NewRemote(source, platform)
@@ -270,7 +273,7 @@ func getOCIValidatedSource(source string) (string, error) {
 				_, err = remote.ResolveRoot(ctx)
 			}
 			if err != nil {
-				message.Debugf("%s: not found", source)
+				message.Debugf(err.Error())
 				// Check in packages bundle path
 				source = GHCRPackagesPath + originalSource
 				remote, err = zoci.NewRemote(source, platform)
@@ -278,8 +281,8 @@ func getOCIValidatedSource(source string) (string, error) {
 					_, err = remote.ResolveRoot(ctx)
 				}
 				if err != nil {
-					errMsg := fmt.Sprintf("%s: not found", originalSource)
-					message.Debug(errMsg)
+					errMsg := fmt.Sprintf("%s: not found.", originalSource)
+					message.Debugf(err.Error())
 					return "", errors.New(errMsg)
 				}
 			}
