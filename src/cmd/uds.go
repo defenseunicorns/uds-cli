@@ -23,18 +23,14 @@ var createCmd = &cobra.Command{
 	Aliases: []string{"c"},
 	Args:    cobra.MaximumNArgs(1),
 	Short:   lang.CmdBundleCreateShort,
-	// PreRunE: func(_ *cobra.Command, args []string) error {
-	// 	err := setBundleFile(args)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	return nil
-	// },
-	RunE: func(_ *cobra.Command, args []string) error {
+	PreRunE: func(_ *cobra.Command, args []string) error {
 		err := setBundleFile(args)
 		if err != nil {
 			return err
 		}
+		return nil
+	},
+	RunE: func(_ *cobra.Command, args []string) error {
 		configureZarf()
 		srcDir, err := os.Getwd()
 		if err != nil {
