@@ -628,9 +628,10 @@ func TestInvalidConfig(t *testing.T) {
 	zarfPkgPath := "src/test/packages/helm"
 	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
 	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --confirm", zarfPkgPath, zarfPkgPath), " ")
-	_, stdErr, err := e2e.UDS(args...)
-	require.Error(t, err)
-	require.Contains(t, stdErr, "invalid config option: log_levelx")
+	_, stdErr, _ := e2e.UDS(args...)
+	count := strings.Count(stdErr, "invalid config option: log_levelx")
+	require.Equal(t, 1, count, "The string 'invalid config option: log_levelx' should appear exactly once")
+	require.NotContains(t, stdErr, "Usage:")
 }
 
 func TestInvalidBundle(t *testing.T) {

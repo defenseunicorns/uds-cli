@@ -11,7 +11,6 @@ import (
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
 
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
 	"github.com/spf13/cobra"
@@ -27,7 +26,7 @@ var devDeployCmd = &cobra.Command{
 	Args:  cobra.MaximumNArgs(1),
 	Short: lang.CmdDevDeployShort,
 	Long:  lang.CmdDevDeployLong,
-	Run: func(_ *cobra.Command, args []string) {
+	RunE: func(_ *cobra.Command, args []string) error {
 		config.Dev = true
 		config.CommonOptions.Confirm = true
 
@@ -43,18 +42,21 @@ var devDeployCmd = &cobra.Command{
 		// Validate flags
 		err := validateDevDeployFlags(isLocalBundle)
 		if err != nil {
-			message.Fatalf(err, "Failed to validate flags: %s", err.Error())
+			return fmt.Errorf("failed to validate flags: %s", err.Error())
 		}
 
 		if isLocalBundle {
 			// Populate flavor map
 			err = populateFlavorMap()
 			if err != nil {
-				message.Fatalf(err, "Failed to populate flavor map: %s", err.Error())
+				return fmt.Errorf("failed to populate flavor map: %s", err.Error())
 			}
 
 			// Create Bundle
-			setBundleFile(args)
+			err = setBundleFile(args)
+			if err != nil {
+				return err
+			}
 
 			bundleCfg.CreateOpts.SourceDirectory = src
 		}
@@ -64,22 +66,28 @@ var devDeployCmd = &cobra.Command{
 		// load uds-config if it exists
 		if config := v.ConfigFileUsed(); config != "" {
 			if err := loadViperConfig(); err != nil {
-				message.Fatalf(err, "Failed to load uds-config: %s", err.Error())
+				return fmt.Errorf("failed to load uds-config: %s", err.Error())
 			}
 
 			bundleCfg.DeployOpts.Config = config
 		}
 
-		bndlClient := bundle.NewOrDie(&bundleCfg)
+		bndlClient, err := bundle.New(&bundleCfg)
+		if err != nil {
+			return err
+		}
 		defer bndlClient.ClearPaths()
 
 		// Create dev bundle
 		if isLocalBundle {
 			// Check if local zarf packages need to be created
-			bndlClient.CreateZarfPkgs()
+			err = bndlClient.CreateZarfPkgs()
+			if err != nil {
+				return err
+			}
 
 			if err := bndlClient.Create(); err != nil {
-				message.Fatalf(err, "Failed to create bundle: %s", err.Error())
+				return fmt.Errorf("failed to create bundle: %s", err.Error())
 			}
 			bndlClient.SetDeploySource(src)
 		} else {
@@ -87,7 +95,11 @@ var devDeployCmd = &cobra.Command{
 		}
 
 		// Deploy bundle
-		deploy(bndlClient)
+		err = deploy(bndlClient)
+		if err != nil {
+			return err
+		}
+		return nil
 	},
 }
 
@@ -101,7 +113,7 @@ func validateDevDeployFlags(isLocalBundle bool) error {
 	if !isLocalBundle {
 		//Throw error if trying to run with --flavor or --force-create flag with remote bundle
 		if len(bundleCfg.DevDeployOpts.Flavor) > 0 || bundleCfg.DevDeployOpts.ForceCreate {
-			return fmt.Errorf("Cannot use --flavor or --force-create flags with remote bundle")
+			return fmt.Errorf("cannot use --flavor or --force-create flags with remote bundle")
 		}
 	}
 	return nil
@@ -119,7 +131,7 @@ func populateFlavorMap() error {
 				if len(entrySplit) == 1 && i == 0 {
 					bundleCfg.DevDeployOpts.Flavor = map[string]string{"": bundleCfg.DevDeployOpts.FlavorInput}
 				} else {
-					return fmt.Errorf("Invalid flavor entry: %s", entry)
+					return fmt.Errorf("invalid flavor entry: %s", entry)
 				}
 			} else {
 				bundleCfg.DevDeployOpts.Flavor[entrySplit[0]] = entrySplit[1]

@@ -149,7 +149,11 @@ func (lo *LocalBundle) create(signature []byte) error {
 			return err
 		}
 		rootManifest.Layers = append(rootManifest.Layers, signatureDesc)
-		message.Debug("Pushed", config.BundleYAMLSignature+":", message.JSONValue(signatureDesc))
+		jsonValue, err := utils.JSONValue(signatureDesc)
+		if err != nil {
+			return err
+		}
+		message.Debug("Pushed", config.BundleYAMLSignature+":", jsonValue)
 	}
 
 	// tag the local bundle artifact
@@ -191,7 +195,12 @@ func pushBundleYAMLToStore(store *ocistore.Store, bundle *types.UDSBundle) (ocis
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
-	message.Debug("Pushed", config.BundleYAML+":", message.JSONValue(bundleYamlDesc))
+
+	jsonValue, err := utils.JSONValue(bundleYamlDesc)
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
+	message.Debug("Pushed", config.BundleYAML+":", jsonValue)
 	return bundleYamlDesc, err
 }
 

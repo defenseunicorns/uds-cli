@@ -11,6 +11,7 @@ import (
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/pusher"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
@@ -112,7 +113,11 @@ func (r *RemoteBundle) create(signature []byte) error {
 		ocispec.AnnotationTitle: config.BundleYAML,
 	}
 
-	message.Debug("Pushed", config.BundleYAML+":", message.JSONValue(bundleYamlDesc))
+	jsonValue, err := utils.JSONValue(bundleYamlDesc)
+	if err != nil {
+		return err
+	}
+	message.Debug("Pushed", config.BundleYAML+":", jsonValue)
 	rootManifest.Layers = append(rootManifest.Layers, *bundleYamlDesc)
 
 	// push the bundle's signature
@@ -125,7 +130,11 @@ func (r *RemoteBundle) create(signature []byte) error {
 			ocispec.AnnotationTitle: config.BundleYAMLSignature,
 		}
 		rootManifest.Layers = append(rootManifest.Layers, *bundleYamlSigDesc)
-		message.Debug("Pushed", config.BundleYAMLSignature+":", message.JSONValue(bundleYamlSigDesc))
+		jsonValue, err := utils.JSONValue(bundleYamlSigDesc)
+		if err != nil {
+			return err
+		}
+		message.Debug("Pushed", config.BundleYAMLSignature+":", jsonValue)
 	}
 
 	// push the bundle manifest config
@@ -134,7 +143,11 @@ func (r *RemoteBundle) create(signature []byte) error {
 		return err
 	}
 
-	message.Debug("Pushed config:", message.JSONValue(configDesc))
+	jsonValue, err = utils.JSONValue(configDesc)
+	if err != nil {
+		return err
+	}
+	message.Debug("Pushed config:", jsonValue)
 
 	// check for existing index
 	index, err := boci.GetIndex(bundleRemote.OrasRemote, dstRef.String())
