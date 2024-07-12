@@ -30,13 +30,15 @@ var configUDSSchemaCmd = &cobra.Command{
 	Use:     "config-uds-schema",
 	Aliases: []string{"c"},
 	Short:   lang.CmdInternalConfigSchemaShort,
-	Run: func(_ *cobra.Command, _ []string) {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		schema := jsonschema.Reflect(&types.UDSBundle{})
 		output, err := json.MarshalIndent(schema, "", "  ")
 		if err != nil {
-			message.Fatal(err, lang.CmdInternalConfigSchemaErr)
+			return fmt.Errorf(lang.CmdInternalConfigSchemaErr)
 		}
 		fmt.Print(string(output) + "\n")
+
+		return nil
 	},
 }
 

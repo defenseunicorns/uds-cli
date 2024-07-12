@@ -6,7 +6,6 @@ package bundle
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,15 +16,14 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 
 	zarfCLI "github.com/defenseunicorns/zarf/src/cmd"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
 )
 
 // CreateZarfPkgs creates a zarf package if its missing when in dev mode
-func (b *Bundle) CreateZarfPkgs() {
+func (b *Bundle) CreateZarfPkgs() error {
 	srcDir := b.cfg.CreateOpts.SourceDirectory
 	bundleYAMLPath := filepath.Join(srcDir, b.cfg.CreateOpts.BundleFile)
 	if err := utils.ReadYAMLStrict(bundleYAMLPath, &b.bundle); err != nil {
-		message.Fatalf(err, "Failed to read %s, error in YAML: %s", b.cfg.CreateOpts.BundleFile, err.Error())
+		return fmt.Errorf("failed to read %s, error in YAML: %s", b.cfg.CreateOpts.BundleFile, err.Error())
 	}
 
 	zarfPackagePattern := `^zarf-.*\.tar\.zst$`
@@ -35,7 +33,7 @@ func (b *Bundle) CreateZarfPkgs() {
 			// check if attempting to apply flavor to remote package
 			if (len(b.cfg.DevDeployOpts.Flavor) == 1 && b.cfg.DevDeployOpts.Flavor[""] != "") ||
 				(b.cfg.DevDeployOpts.Flavor[pkg.Name] != "") {
-				message.Fatalf(errors.New("Invalid input"), "Cannot set flavor for remote packages: %s", pkg.Name)
+				return fmt.Errorf("cannot set flavor for remote packages: %s", pkg.Name)
 			}
 		}
 
@@ -46,7 +44,7 @@ func (b *Bundle) CreateZarfPkgs() {
 			// get files in directory
 			files, err := os.ReadDir(pkgDir)
 			if err != nil {
-				message.Fatalf(err, "Failed to obtain package %s: %s", pkg.Name, err.Error())
+				return fmt.Errorf("failed to obtain package %s: %s", pkg.Name, err.Error())
 			}
 			regex := regexp.MustCompile(zarfPackagePattern)
 
@@ -67,12 +65,10 @@ func (b *Bundle) CreateZarfPkgs() {
 					os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom"}
 				}
 				zarfCLI.Execute(context.TODO())
-				if err != nil {
-					message.Fatalf(err, "Failed to create package %s: %s", pkg.Name, err.Error())
-				}
 			}
 		}
 	}
+	return nil
 }
 
 func (b *Bundle) setPackageFlavor(pkg types.Package) types.Package {
