@@ -37,7 +37,7 @@ func newTestBundle(variables ConfigVariables, sharedVariables ConfigSharedVariab
 	}
 }
 
-func setUpPkg(pkgName string, componentName string, chartName string, overVar types.BundleChartVariable) types.Package {
+func newTestPkg(pkgName string, componentName string, chartName string, overVar types.BundleChartVariable) types.Package {
 	return types.Package{Name: pkgName,
 		Overrides: map[string]map[string]types.BundleChartOverrides{componentName: {chartName: {Variables: []types.BundleChartVariable{
 			overVar,
@@ -72,7 +72,7 @@ func TestLoadVariablesPrecedence(t *testing.T) {
 		bundle           Bundle
 		bundleExportVars BundleExportVars
 		loadEnvVar       bool
-		expectedPkgVars  ZarfVarData
+		expectedPkgVars  zarfVarData
 	}{
 		{
 			name:       "--set flag precedence",
@@ -95,7 +95,7 @@ func TestLoadVariablesPrecedence(t *testing.T) {
 				"",
 			),
 			bundleExportVars: bundleExportVars,
-			expectedPkgVars: ZarfVarData{
+			expectedPkgVars: zarfVarData{
 				"FOO": "set using --set flag",
 			},
 		},
@@ -118,7 +118,7 @@ func TestLoadVariablesPrecedence(t *testing.T) {
 				"",
 			),
 			bundleExportVars: bundleExportVars,
-			expectedPkgVars: ZarfVarData{
+			expectedPkgVars: zarfVarData{
 				"FOO": "set using env var",
 			},
 		},
@@ -140,7 +140,7 @@ func TestLoadVariablesPrecedence(t *testing.T) {
 				"",
 			),
 			bundleExportVars: bundleExportVars,
-			expectedPkgVars: ZarfVarData{
+			expectedPkgVars: zarfVarData{
 				"FOO": "set from variables key in uds-config.yaml",
 			},
 		},
@@ -157,7 +157,7 @@ func TestLoadVariablesPrecedence(t *testing.T) {
 				"",
 			),
 			bundleExportVars: bundleExportVars,
-			expectedPkgVars: ZarfVarData{
+			expectedPkgVars: zarfVarData{
 				"FOO": "set from shared key in uds-config.yaml",
 			},
 		},
@@ -166,7 +166,7 @@ func TestLoadVariablesPrecedence(t *testing.T) {
 			pkg:              testPkg,
 			bundle:           newTestBundle(nil, nil, nil, "", ""),
 			bundleExportVars: bundleExportVars,
-			expectedPkgVars: ZarfVarData{
+			expectedPkgVars: zarfVarData{
 				"FOO": "imported from a specific pkg",
 			},
 		},
@@ -181,7 +181,7 @@ func TestLoadVariablesPrecedence(t *testing.T) {
 					"foo": "exported from another pkg",
 				},
 			},
-			expectedPkgVars: ZarfVarData{
+			expectedPkgVars: zarfVarData{
 				"FOO": "exported from another pkg",
 			},
 		},
@@ -483,7 +483,7 @@ func TestFormPkgViews(t *testing.T) {
 			}
 
 			if tc.bundleVars.Name != "" {
-				tc.Bundle.bundle = types.UDSBundle{Packages: []types.Package{setUpPkg(pkgName, componentName, chartName, tc.bundleVars)}}
+				tc.Bundle.bundle = types.UDSBundle{Packages: []types.Package{newTestPkg(pkgName, componentName, chartName, tc.bundleVars)}}
 			}
 
 			pkgViews := formPkgViews(&tc.Bundle)
@@ -549,7 +549,7 @@ func TestFormPkgViews(t *testing.T) {
 
 	for _, tc := range nilCheckTests {
 		t.Run(tc.name, func(t *testing.T) {
-			tc.Bundle.bundle = types.UDSBundle{Packages: []types.Package{setUpPkg(pkgName, componentName, chartName, tc.bundleVars)}}
+			tc.Bundle.bundle = types.UDSBundle{Packages: []types.Package{newTestPkg(pkgName, componentName, chartName, tc.bundleVars)}}
 
 			pkgViews := formPkgViews(&tc.Bundle)
 			v := pkgViews[0].overrides["overrides"]

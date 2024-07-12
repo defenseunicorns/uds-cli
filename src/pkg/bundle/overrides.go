@@ -22,8 +22,8 @@ import (
 	"helm.sh/helm/v3/pkg/getter"
 )
 
-// PkgOverrideMap is a map of Zarf packages -> components -> Helm charts -> values/namespace
-type PkgOverrideMap map[string]map[string]map[string]interface{}
+// pkgOverrideMap is a map of Zarf packages -> components -> Helm charts -> values/namespace
+type pkgOverrideMap map[string]map[string]map[string]interface{}
 
 // templatedVarRegex is the regex for templated variables
 var templatedVarRegex = regexp.MustCompile(`\${([^}]+)}`)
@@ -32,13 +32,13 @@ type overrideData struct {
 	value  interface{}
 	source valuesources.Source
 }
-type BOverridesData map[string]overrideData
-type ZarfVarData map[string]string
+type bOverridesData map[string]overrideData
+type zarfVarData map[string]string
 
 // loadVariables loads and sets precedence for config-level and imported variables
-func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) (ZarfVarData, BOverridesData) {
-	pkgVars := make(ZarfVarData)
-	overVarsData := make(BOverridesData)
+func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) (zarfVarData, bOverridesData) {
+	pkgVars := make(zarfVarData)
+	overVarsData := make(bOverridesData)
 
 	// load all exported variables
 	for _, exportedVarMap := range bundleExportedVars {
@@ -92,7 +92,7 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 }
 
 // loadChartOverrides converts a helm path to a ValuesOverridesMap config for Zarf
-func (b *Bundle) loadChartOverrides(pkg types.Package, overrideData BOverridesData) (PkgOverrideMap, sources.NamespaceOverrideMap, error) {
+func (b *Bundle) loadChartOverrides(pkg types.Package, overrideData bOverridesData) (pkgOverrideMap, sources.NamespaceOverrideMap, error) {
 	// Create nested maps to hold the overrides
 	overrideMap := make(map[string]map[string]*values.Options)
 	nsOverrides := make(sources.NamespaceOverrideMap)
@@ -129,8 +129,8 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, overrideData BOverridesDa
 }
 
 // convertOverridesMap converts a map of overrides to a PkgOverrideMap
-func convertOverridesMap(overrideMap map[string]map[string]*values.Options) (PkgOverrideMap, error) {
-	processed := make(PkgOverrideMap)
+func convertOverridesMap(overrideMap map[string]map[string]*values.Options) (pkgOverrideMap, error) {
+	processed := make(pkgOverrideMap)
 	// Convert the options.Values map (located in chart.MergeValues) to the PkgOverrideMap format
 	for componentName, component := range overrideMap {
 		componentMap := make(map[string]map[string]interface{})
@@ -167,7 +167,7 @@ func (b *Bundle) processOverrideNamespaces(overrideMap sources.NamespaceOverride
 }
 
 // processOverrideValues processes a bundles values overrides and adds them to the override map
-func (b *Bundle) processOverrideValues(overrideOpts *values.Options, values []types.BundleChartValue, pkgVars BOverridesData) error {
+func (b *Bundle) processOverrideValues(overrideOpts *values.Options, values []types.BundleChartValue, pkgVars bOverridesData) error {
 	for _, v := range values {
 		// Add the override to the map, or return an error if the path is invalid
 		if err := b.addOverride(overrideOpts, v, v.Value, pkgVars); err != nil {
@@ -208,7 +208,7 @@ func (b *Bundle) processOverrideVariables(overrideOpts *values.Options, variable
 }
 
 // addOverride adds a value or variable to the override map helm values options
-func (b *Bundle) addOverride(overrideOpts *values.Options, override interface{}, value interface{}, pkgVars BOverridesData) error {
+func (b *Bundle) addOverride(overrideOpts *values.Options, override interface{}, value interface{}, pkgVars bOverridesData) error {
 	var valuePath string
 	// only possible for types.BundleChartValue
 	var handleTemplatedVals bool
@@ -275,7 +275,7 @@ func (b *Bundle) addOverride(overrideOpts *values.Options, override interface{},
 }
 
 // setTemplatedVariables sets the value for the templated variables
-func setTemplatedVariables(templatedVariables string, pkgVars BOverridesData) string {
+func setTemplatedVariables(templatedVariables string, pkgVars bOverridesData) string {
 	// Use ReplaceAllStringFunc to handle all occurrences of templated variables
 	replacedValue := templatedVarRegex.ReplaceAllStringFunc(templatedVariables, func(match string) string {
 		// returns slice with the templated variable and the variable name
