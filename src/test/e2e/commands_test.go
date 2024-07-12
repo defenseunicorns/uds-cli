@@ -92,9 +92,10 @@ func inspectRemoteAndSBOMExtract(t *testing.T, ref string) {
 }
 
 func inspectLocal(t *testing.T, tarballPath string) {
-	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom", tarballPath), " ")
-	_, _, err := e2e.UDS(cmd...)
+	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom --no-color", tarballPath), " ")
+	stdout, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
+	require.NotContains(t, stdout, "\x1b")
 	_, err = os.Stat(config.BundleSBOMTar)
 	require.NoError(t, err)
 	err = os.Remove(config.BundleSBOMTar)
