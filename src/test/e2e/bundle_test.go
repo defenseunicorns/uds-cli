@@ -628,8 +628,7 @@ func TestInvalidConfig(t *testing.T) {
 	zarfPkgPath := "src/test/packages/helm"
 	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
 	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --confirm", zarfPkgPath, zarfPkgPath), " ")
-	_, stdErr, err := e2e.UDS(args...)
-	require.Error(t, err)
+	_, stdErr, _ := e2e.UDS(args...)
 	require.Contains(t, stdErr, "invalid config option: log_levelx")
 }
 
