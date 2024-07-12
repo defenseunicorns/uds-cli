@@ -16,6 +16,7 @@ import (
 	zarfCommon "github.com/defenseunicorns/zarf/src/cmd/common"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	goyaml "github.com/goccy/go-yaml"
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
@@ -48,7 +49,9 @@ var rootCmd = &cobra.Command{
 		}
 		return nil
 	},
-	Short: lang.RootCmdShort,
+	Short:         lang.RootCmdShort,
+	SilenceUsage:  true,
+	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		_, _ = fmt.Fprintln(os.Stderr)
 		err := cmd.Help()
@@ -61,7 +64,12 @@ var rootCmd = &cobra.Command{
 
 // Execute is the entrypoint for the CLI.
 func Execute() {
-	cobra.CheckErr(rootCmd.Execute())
+	err := rootCmd.Execute()
+	if err == nil {
+		return
+	}
+	pterm.Error.Println(err.Error())
+	os.Exit(1)
 }
 
 // RootCmd returns the root command.
