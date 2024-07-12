@@ -38,12 +38,6 @@ var runnerCmd = &cobra.Command{
 		// Disable progress bars for ./uds commands
 		runnerConfig.AddExtraEnv("UDS_NO_PROGRESS", "true")
 
-		// Disable Maru progress bars if CI=true (note this is the default for Github Actions)
-		// can potentially remove if https://github.com/defenseunicorns/maru-runner/issues/124 is completed
-		if os.Getenv("CI") == "true" {
-			os.Args = append(os.Args, "--no-progress")
-		}
-
 		// Add the UDS_ARCH env var to the runner
 		runnerConfig.AddExtraEnv("UDS_ARCH", archValue)
 
