@@ -1,0 +1,14 @@
+includes:
+  - bar: ./bar.yaml
+
+variables:
+  - name: FOO_VAR
+
+tasks:
+  - name: foobar
+    actions:
+      - cmd: "echo foo"
+      - task: bar:bar
+  - name: fooybar
+    actions:
+      - cmd: echo "${FOO_VAR}"

@@ -1,0 +1,8 @@
+includes:
+  - even-more: even-more-tasks-to-import.yaml
+
+tasks:
+  # single task that is imported with name collision
+  - name: set-var
+    actions:
+      - task: even-more:set-var

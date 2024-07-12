@@ -1,0 +1,139 @@
+includes:
+  - foo: ./more-tasks/foo.yaml
+  - infinite: ./loop-task.yaml
+  - remote: https://raw.githubusercontent.com/defenseunicorns/uds-cli/${GIT_REVISION}/src/test/tasks/remote-import-tasks.yaml
+
+variables:
+  - name: REPLACE_ME
+    default: replaced
+  - name: FOO_VAR
+    default: default
+  - name: TO_BE_OVERWRITTEN
+    default: default
+  - name: COOL_DIR
+    default: src/test/tasks
+  - name: COOL_FILE
+    type: file
+    default: my-env
+
+tasks:
+  - name: default
+    description: Run Default Task
+    actions:
+      - cmd: echo "This is the default task"
+  - name: echo-env-var
+    description: Test that env vars take precedence over var defaults
+    actions:
+        - cmd: echo "${TO_BE_OVERWRITTEN}"
+  - name: remote-import
+    actions:
+      - task: remote:echo-var
+  - name: action
+    actions:
+      - cmd: echo "specific test string"
+  - name: cmd-set-variable
+    actions:
+      - cmd: echo unique-value
+        mute: true
+        setVariables:
+          - name: ACTION_VAR
+            sensitive: true
+      - cmd: echo "I'm set from setVariables - ${ACTION_VAR}"
+      - cmd: echo "I'm set from a runner var - ${REPLACE_ME}"
+      - cmd: echo "I'm set from a --set var - ${REPLACE_ME}"
+      - cmd: echo "I'm set from a new --set var - ${UNICORNS}"
+  - name: reference
+    actions:
+      - task: referenced
+  - name: referenced
+    actions:
+      - cmd: echo "other-task"
+  - name: recursive
+    actions:
+      - task: recursed
+  - name: recursed
+    actions:
+      - task: recursed1
+  - name: recursed1
+    actions:
+      - task: recursive
+  - name: rerun-tasks-child
+    actions:
+      - task: rerun-tasks
+  - name: rerun-tasks
+    actions:
+      - task: rerunnable-task
+      - task: rerunnable-task
+      - task: rerunnable-task2
+  - name: rerunnable-task
+    actions:
+      - task: rerunnable-echo
+  - name: rerunnable-task2
+    actions:
+      - task: rerunnable-task
+  - name: rerunnable-echo
+    actions:
+      - cmd: echo "I should be able to be called over and over within reason."
+  - name: rerun-tasks-recursive
+    actions:
+      - task: rerunnable-task
+      - task: rerunnable-task
+      - task: recursive
+  - name: foobar
+    actions:
+      - task: foo:foobar
+  - name: more-foobar
+    actions:
+      - task: foo:foobar
+      - task: remote:echo-var
+  - name: extra-foobar
+    actions:
+      - task: more-foobar
+  - name: more-foo
+    actions:
+      - task: foo:fooybar
+      - task: foo:foobar
+  - name: wait-success
+    actions:
+      - maxTotalSeconds: 1
+        wait:
+          network:
+            protocol: tcp
+            address: githubstatus.com:443
+  - name: wait-fail
+    actions:
+      - maxTotalSeconds: 1
+        wait:
+          network:
+            cluster:
+              kind: StatefulSet
+              name: cool-name
+              namespace: tasks
+  - name: include-loop
+    actions:
+      - task: infinite:loop
+  - name: env-from-file
+    envPath: "./my-env"
+    actions:
+      - cmd: echo $UDS_ARCH
+      - cmd: echo $SECRET_KEY
+      - cmd: echo $PORT
+      - cmd: echo $SPECIAL
+      - task: pass-env-vars
+      - task: overwrite-env-path
+  - name: pass-env-vars
+    actions:
+      - cmd: echo env var from calling task - $SECRET_KEY
+  - name: overwrite-env-path
+    envPath: "./my-other-env"
+    actions:
+      - cmd: echo overwritten env var - $PORT
+  - name: file-and-dir
+    description: Tests variables of type file and setting dir from variable
+    actions:
+      - cmd: cat ${COOL_FILE}
+        dir: ${COOL_DIR}
+  - name: echo-architecture
+    description: Echos the architecture being used for the task by the runner
+    actions:
+        - cmd: echo "${UDS_ARCH}"

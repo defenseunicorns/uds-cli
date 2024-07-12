@@ -1,0 +1,8 @@
+tasks:
+  - name: set-var
+    actions:
+      - cmd: |
+          echo "defenseunicorns"
+        setVariables:
+          - name: PRETTY_OK_COMPANY
+            sensitive: false

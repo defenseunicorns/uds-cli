@@ -1,0 +1,61 @@
+includes:
+  - with: ./tasks-with-inputs.yaml
+
+variables:
+  - name: FOO
+    default: default-value
+
+tasks:
+  - name: has-default-empty
+    actions:
+      - task: with:has-default
+
+  - name: has-default-and-required-empty
+    actions:
+      - task: with:has-default-and-required
+
+  - name: has-default-and-required-supplied
+    actions:
+      - task: with:has-default-and-required
+        with:
+          has-default-and-required: supplied-value
+
+  - name: no-default-empty
+    actions:
+      - task: with:no-default
+
+  - name: no-default-supplied
+    actions:
+      - task: with:no-default
+        with:
+          no-default: supplied-value
+
+  - name: no-default-and-required-empty
+    actions:
+      - task: with:no-default-and-required
+
+  - name: no-default-and-required-supplied
+    actions:
+      - task: with:no-default-and-required
+        with:
+          no-default-and-required: supplied-value
+
+  - name: no-default-and-required-supplied-extra
+    actions:
+      - task: with:no-default-and-required
+        with:
+          no-default-and-required: supplied-value
+          extra: extra-value
+
+  - name: deprecated-task
+    actions:
+      - task: with:deprecated-message
+        with:
+          deprecated-message: deprecated-value
+
+  - name: variable-as-input
+    description: demonstrates that variables can be passed into tasks as 'with' inputs
+    actions:
+      - task: with:no-default
+        with:
+          no-default: ${FOO}
