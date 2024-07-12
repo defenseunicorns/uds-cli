@@ -166,6 +166,15 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 		require.Contains(t, string(decoded), "ssh-rsa")
 	})
 
+	t.Run("check multiple charts under same component deploy", func(t *testing.T) {
+		cmd := strings.Split("zarf tools kubectl get secret -n second-chart second-chart-secret -o=jsonpath={.data.test}", " ")
+		stdout, _, err := e2e.UDS(cmd...)
+		require.NoError(t, err)
+		decoded, err := base64.StdEncoding.DecodeString(stdout)
+		require.NoError(t, err)
+		require.Contains(t, string(decoded), "ssh-rsa")
+	})
+
 	remove(t, bundlePath)
 }
 

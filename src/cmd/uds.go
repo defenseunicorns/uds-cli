@@ -28,6 +28,7 @@ var createCmd = &cobra.Command{
 		setBundleFile(args)
 	},
 	Run: func(_ *cobra.Command, args []string) {
+		configureZarf()
 		srcDir, err := os.Getwd()
 		if err != nil {
 			message.Fatalf(err, "error reading the current working directory")

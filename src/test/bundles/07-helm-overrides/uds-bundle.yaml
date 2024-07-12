@@ -56,3 +56,9 @@ packages:
               path: "testFileSecret"
               description: "testing setting secret with file"
               type: "file"
+        second-chart:
+          variables:
+            - path: "secondChartSecret"
+              name: SECOND_CHART_SECRET
+              description: "testing that overrides for second chart under same component get applied"
+              type: "file"

@@ -17,6 +17,7 @@ import (
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
@@ -72,6 +73,7 @@ func configureZarf() {
 		Confirm:        config.CommonOptions.Confirm,
 		CachePath:      config.CommonOptions.CachePath, // use uds-cache instead of zarf-cache
 	}
+	zarfConfig.NoColor = config.NoColor
 }
 
 func setBundleFile(args []string) {
@@ -102,6 +104,10 @@ func cliSetup(cmd *cobra.Command) {
 	}
 
 	printViperConfigUsed()
+
+	if config.NoColor {
+		pterm.DisableColor()
+	}
 
 	// No log level set, so use the default
 	if logLevel != "" {

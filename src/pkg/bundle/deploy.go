@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -28,12 +27,6 @@ import (
 	"github.com/pterm/pterm"
 	"golang.org/x/exp/slices"
 )
-
-// PkgOverrideMap is a map of Zarf packages -> components -> Helm charts -> values/namespace
-type PkgOverrideMap map[string]map[string]map[string]interface{}
-
-// templatedVarRegex is the regex for templated variables
-var templatedVarRegex = regexp.MustCompile(`\${([^}]+)}`)
 
 // hiddenVar is the value used to mask potentially sensitive variables
 const hiddenVar = "****"
@@ -106,7 +99,7 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 
 		pkgVars, variableData := b.loadVariables(pkg, bundleExportedVars)
 
-		valuesOverrides, nsOverrides, err := b.loadChartOverrides(pkg, pkgVars, variableData)
+		valuesOverrides, nsOverrides, err := b.loadChartOverrides(pkg, variableData)
 		if err != nil {
 			return err
 		}
@@ -263,7 +256,7 @@ func formPkgViews(b *Bundle) []PkgView {
 
 		// process variables and overrides to get values
 		_, variableData := b.loadVariables(pkg, nil)
-		valuesOverrides, _, _ := b.loadChartOverrides(pkg, map[string]string{}, variableData)
+		valuesOverrides, _, _ := b.loadChartOverrides(pkg, variableData)
 
 		for compName, component := range pkg.Overrides {
 			for chartName, chart := range component {
