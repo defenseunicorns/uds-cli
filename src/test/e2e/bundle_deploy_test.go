@@ -21,6 +21,7 @@ func TestSimpleBundleWithZarfAction(t *testing.T) {
 	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 	os.Setenv("UDS_LOG_LEVEL", "debug")
+	defer os.Unsetenv("UDS_LOG_LEVEL")
 	createLocal(t, "src/test/bundles/11-real-simple", e2e.Arch)
 	_, stderr := deploy(t, fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-real-simple-%s-0.0.1.tar.zst", e2e.Arch))
 	require.Contains(t, stderr, "Log level set to debug")
@@ -30,6 +31,7 @@ func TestSimpleBundleWithNameAndVersionFlags(t *testing.T) {
 	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 	os.Setenv("UDS_LOG_LEVEL", "debug")
+	defer os.Unsetenv("UDS_LOG_LEVEL")
 	name, version := "name-from-flag", "version-from-flag"
 	bundlePath := "src/test/bundles/11-real-simple"
 	runCmd(t, fmt.Sprintf("create %s --confirm --name %s --version %s", bundlePath, name, version))
@@ -171,9 +173,9 @@ func TestBundleWithYmlFile(t *testing.T) {
 	inspectLocal(t, bundlePath)
 	inspectLocalAndSBOMExtract(t, bundlePath)
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/09-uds-bundle-yml", "uds-config.yml"))
+	defer os.Unsetenv("UDS_CONFIG")
 	deploy(t, bundlePath)
 	remove(t, bundlePath)
-	// TODO (holaday): no assertion; does this deploy make sense?
 }
 
 func TestPackageNaming(t *testing.T) {

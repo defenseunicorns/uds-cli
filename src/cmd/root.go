@@ -16,6 +16,7 @@ import (
 	zarfCommon "github.com/defenseunicorns/zarf/src/cmd/common"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	goyaml "github.com/goccy/go-yaml"
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
@@ -28,10 +29,10 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use: "uds COMMAND",
-	PersistentPreRun: func(cmd *cobra.Command, _ []string) {
+	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 		// Skip for vendor-only commands
 		if zarfCommon.CheckVendorOnlyFromPath(cmd) {
-			return
+			return nil
 		}
 
 		// Don't add the logo to the help command
@@ -41,22 +42,34 @@ var rootCmd = &cobra.Command{
 
 		// don't load log configs for the logs command
 		if cmd.Use != "logs" {
-			cliSetup(cmd)
+			err := cliSetup(cmd)
+			if err != nil {
+				return err
+			}
 		}
+		return nil
 	},
-	Short: lang.RootCmdShort,
-	Run: func(cmd *cobra.Command, _ []string) {
+	Short:         lang.RootCmdShort,
+	SilenceUsage:  true,
+	SilenceErrors: true,
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		_, _ = fmt.Fprintln(os.Stderr)
 		err := cmd.Help()
 		if err != nil {
-			message.Fatal(err, "error calling help command")
+			return fmt.Errorf("error calling help command")
 		}
+		return nil
 	},
 }
 
 // Execute is the entrypoint for the CLI.
 func Execute() {
-	cobra.CheckErr(rootCmd.Execute())
+	err := rootCmd.Execute()
+	if err == nil {
+		return
+	}
+	pterm.Error.Println(err.Error())
+	os.Exit(1)
 }
 
 // RootCmd returns the root command.
@@ -70,8 +83,8 @@ func init() {
 	// load uds-config if it exists
 	if v.ConfigFileUsed() != "" {
 		if err := loadViperConfig(); err != nil {
-			message.Fatalf(err, "Failed to load uds-config: %s", err.Error())
-			return
+			message.WarnErrf(err, "Failed to load uds-config: %s", err.Error())
+			os.Exit(1)
 		}
 	}
 
@@ -80,6 +93,7 @@ func init() {
 	v.SetDefault(V_NO_LOG_FILE, false)
 	v.SetDefault(V_NO_PROGRESS, false)
 	v.SetDefault(V_INSECURE, false)
+	v.SetDefault(V_NO_COLOR, false)
 	v.SetDefault(V_TMP_DIR, "")
 	v.SetDefault(V_BNDL_OCI_CONCURRENCY, 3)
 
@@ -94,6 +108,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&config.CommonOptions.TempDirectory, "tmpdir", v.GetString(V_TMP_DIR), lang.RootCmdFlagTempDir)
 	rootCmd.PersistentFlags().BoolVar(&config.CommonOptions.Insecure, "insecure", v.GetBool(V_INSECURE), lang.RootCmdFlagInsecure)
 	rootCmd.PersistentFlags().IntVar(&config.CommonOptions.OCIConcurrency, "oci-concurrency", v.GetInt(V_BNDL_OCI_CONCURRENCY), lang.CmdBundleFlagConcurrency)
+	rootCmd.PersistentFlags().BoolVar(&config.NoColor, "no-color", v.GetBool(V_NO_COLOR), lang.RootCmdFlagNoColor)
 
 	rootCmd.AddCommand(monitor.Cmd)
 }

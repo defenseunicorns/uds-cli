@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -28,12 +27,6 @@ import (
 	"github.com/pterm/pterm"
 	"golang.org/x/exp/slices"
 )
-
-// PkgOverrideMap is a map of Zarf packages -> components -> Helm charts -> values/namespace
-type PkgOverrideMap map[string]map[string]map[string]interface{}
-
-// templatedVarRegex is the regex for templated variables
-var templatedVarRegex = regexp.MustCompile(`\${([^}]+)}`)
 
 // hiddenVar is the value used to mask potentially sensitive variables
 const hiddenVar = "****"
@@ -84,7 +77,10 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 	for i, pkg := range packagesToDeploy {
 		// for dev mode update package ref for remote bundles, refs for local bundles updated on create
 		if config.Dev && !strings.Contains(b.cfg.DeployOpts.Source, "tar.zst") {
-			pkg = b.setPackageRef(pkg)
+			pkg, err := b.setPackageRef(pkg)
+			if err != nil {
+				return err
+			}
 			b.bundle.Packages[i] = pkg
 		}
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
@@ -106,7 +102,7 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 
 		pkgVars, variableData := b.loadVariables(pkg, bundleExportedVars)
 
-		valuesOverrides, nsOverrides, err := b.loadChartOverrides(pkg, pkgVars, variableData)
+		valuesOverrides, nsOverrides, err := b.loadChartOverrides(pkg, variableData)
 		if err != nil {
 			return err
 		}
@@ -138,8 +134,11 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 			return err
 		}
 
-		pkgClient := packager.NewOrDie(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
-		if err := pkgClient.Deploy(context.TODO()); err != nil {
+		pkgClient, err := packager.New(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
+		if err != nil {
+			return err
+		}
+		if err = pkgClient.Deploy(context.TODO()); err != nil {
 			return err
 		}
 		// save exported vars
@@ -263,7 +262,7 @@ func formPkgViews(b *Bundle) []PkgView {
 
 		// process variables and overrides to get values
 		_, variableData := b.loadVariables(pkg, nil)
-		valuesOverrides, _, _ := b.loadChartOverrides(pkg, map[string]string{}, variableData)
+		valuesOverrides, _, _ := b.loadChartOverrides(pkg, variableData)
 
 		for compName, component := range pkg.Overrides {
 			for chartName, chart := range component {

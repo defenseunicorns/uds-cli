@@ -5,6 +5,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
@@ -45,22 +47,24 @@ func isValidConfigOption(str string) bool {
 }
 
 // deploy performs validation, confirmation and deployment of a bundle
-func deploy(bndlClient *bundle.Bundle) {
+func deploy(bndlClient *bundle.Bundle) error {
 	_, _, _, err := bndlClient.PreDeployValidation()
 	if err != nil {
-		message.Fatalf(err, "Failed to validate bundle: %s", err.Error())
+		return fmt.Errorf("failed to validate bundle: %s", err.Error())
 	}
 
 	// confirm deployment
 	if ok := bndlClient.ConfirmBundleDeploy(); !ok {
-		message.Fatal(nil, "bundle deployment cancelled")
+		return fmt.Errorf("bundle deployment cancelled")
 	}
 
 	// deploy the bundle
 	if err := bndlClient.Deploy(); err != nil {
 		bndlClient.ClearPaths()
-		message.Fatalf(err, "Failed to deploy bundle: %s", err.Error())
+		return fmt.Errorf("failed to deploy bundle: %s", err.Error())
 	}
+
+	return nil
 }
 
 // configureZarf copies configs from UDS-CLI to Zarf
@@ -72,13 +76,14 @@ func configureZarf() {
 		Confirm:        config.CommonOptions.Confirm,
 		CachePath:      config.CommonOptions.CachePath, // use uds-cache instead of zarf-cache
 	}
+	zarfConfig.NoColor = config.NoColor
 }
 
-func setBundleFile(args []string) {
+func setBundleFile(args []string) error {
 	pathToBundleFile := ""
 	if len(args) > 0 {
 		if !helpers.IsDir(args[0]) {
-			message.Fatalf(nil, "(%q) is not a valid path to a directory", args[0])
+			return fmt.Errorf("(%q) is not a valid path to a directory", args[0])
 		}
 		pathToBundleFile = filepath.Join(args[0])
 	}
@@ -89,11 +94,12 @@ func setBundleFile(args []string) {
 	} else if _, err = os.Stat(filepath.Join(pathToBundleFile, bundleYml)); err == nil {
 		bundleCfg.CreateOpts.BundleFile = bundleYml
 	} else {
-		message.Fatalf(err, "Neither %s or %s found", config.BundleYAML, bundleYml)
+		return fmt.Errorf("neither %s or %s found", config.BundleYAML, bundleYml)
 	}
+	return nil
 }
 
-func cliSetup(cmd *cobra.Command) {
+func cliSetup(cmd *cobra.Command) error {
 	match := map[string]message.LogLevel{
 		"warn":  message.WarnLevel,
 		"info":  message.InfoLevel,
@@ -102,6 +108,10 @@ func cliSetup(cmd *cobra.Command) {
 	}
 
 	printViperConfigUsed()
+
+	if config.NoColor {
+		pterm.DisableColor()
+	}
 
 	// No log level set, so use the default
 	if logLevel != "" {
@@ -116,7 +126,8 @@ func cliSetup(cmd *cobra.Command) {
 	if !config.SkipLogFile && !config.ListTasks {
 		err := utils.ConfigureLogs(cmd)
 		if err != nil {
-			message.Fatalf(err, "Error configuring logs")
+			return fmt.Errorf(err.Error())
 		}
 	}
+	return nil
 }

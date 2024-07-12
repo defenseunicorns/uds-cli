@@ -14,8 +14,8 @@ repos:
       - id: fix-byte-order-marker
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
-  - repo: https://github.com/sirosen/fix-smartquotes
-    rev: 0.2.0
+  - repo: https://github.com/sirosen/texthooks
+    rev: 0.6.4
     hooks:
       - id: fix-smartquotes
   - repo: https://github.com/dnephin/pre-commit-golang

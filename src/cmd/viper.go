@@ -24,6 +24,7 @@ const (
 	V_UDS_CACHE            = "options.uds_cache"
 	V_TMP_DIR              = "options.tmp_dir"
 	V_INSECURE             = "options.insecure"
+	V_NO_COLOR             = "options.no_color"
 	V_BNDL_OCI_CONCURRENCY = "options.oci_concurrency"
 
 	// Bundle create config keys

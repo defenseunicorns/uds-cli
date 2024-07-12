@@ -15,9 +15,13 @@ import (
 var versionCmd = &cobra.Command{
 	Use:     "version",
 	Aliases: []string{"v"},
-	PersistentPreRun: func(cmd *cobra.Command, _ []string) {
+	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 		config.SkipLogFile = true
-		cliSetup(cmd)
+		err := cliSetup(cmd)
+		if err != nil {
+			return err
+		}
+		return nil
 	},
 	Short: lang.CmdVersionShort,
 	Long:  lang.CmdVersionLong,
