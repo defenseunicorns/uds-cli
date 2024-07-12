@@ -29,4 +29,3 @@ jobs:
         uses: defenseunicorns/uds-common/.github/actions/save-logs@772b3337950b7c8e0882c527263684306bba7ce4 # v0.7.1
         with:
           suffix: validate-schema-and-docs
-
