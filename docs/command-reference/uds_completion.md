@@ -38,5 +38,6 @@ See each sub-command's help for details on how to use the generated script.
 * [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
 * [uds completion bash](/cli/command-reference/uds_completion_bash/)	 - Generate the autocompletion script for bash
 * [uds completion fish](/cli/command-reference/uds_completion_fish/)	 - Generate the autocompletion script for fish
+* [uds completion powershell](/cli/command-reference/uds_completion_powershell/)	 - Generate the autocompletion script for powershell
 * [uds completion zsh](/cli/command-reference/uds_completion_zsh/)	 - Generate the autocompletion script for zsh
 

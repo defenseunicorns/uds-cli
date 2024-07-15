@@ -88,6 +88,9 @@ func init() {
 		}
 	}
 
+	// disable default completion command
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
+
 	v.SetDefault(V_LOG_LEVEL, "info")
 	v.SetDefault(V_ARCHITECTURE, "")
 	v.SetDefault(V_NO_LOG_FILE, false)

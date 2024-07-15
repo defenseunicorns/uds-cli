@@ -46,7 +46,7 @@ var configTasksSchemaCmd = &cobra.Command{
 	Use:     "config-tasks-schema",
 	Aliases: []string{"c"},
 	Short:   lang.CmdInternalConfigSchemaShort,
-	Run: func(cmd *cobra.Command, input []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 		runnerCLI.RootCmd().SetArgs([]string{"internal", "config-tasks-schema"})
 		runnerCLI.Execute()
 	},
@@ -103,9 +103,6 @@ type: docs
 		if err != nil {
 			return err
 		}
-
-		// Remove the PowerShell completion documentation
-		os.Remove("./docs/command-reference/uds_completion_powershell.md")
 
 		message.Success(lang.CmdInternalGenerateCliDocsSuccess)
 		return nil
