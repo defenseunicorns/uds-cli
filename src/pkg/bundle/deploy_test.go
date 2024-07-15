@@ -190,7 +190,7 @@ func TestLoadVariablesPrecedence(t *testing.T) {
 	// Run test cases
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// unset arch vars that gets applied automatically when doing 'uds run' so it doesn't get in the way
+			// unset uds run vars that get applied automatically when doing 'uds run' so it doesn't get in the way
 			os.Unsetenv("UDS_ARCH")
 			os.Unsetenv("UDS_NO_PROGRESS")
 
