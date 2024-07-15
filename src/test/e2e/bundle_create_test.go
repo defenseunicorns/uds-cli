@@ -86,8 +86,8 @@ func TestRemoteBundleWithNoSBOM(t *testing.T) {
 	publishInsecure(t, bundlePath, "localhost:888")
 
 	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom --extract", bundlePath), " ")
-	_, stderr, err := e2e.UDS(cmd...)
+	stdout, _, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
-	require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
-	require.Contains(t, stderr, "sboms.tar not found in Zarf pkg")
+	require.Contains(t, stdout, "Cannot extract, no SBOMs found in bundle")
+	require.Contains(t, stdout, "sboms.tar not found in Zarf pkg")
 }

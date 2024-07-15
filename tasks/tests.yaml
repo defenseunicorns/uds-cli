@@ -21,7 +21,7 @@ tasks:
     description: only run tests in bundle_test.go
     actions:
       - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m bundle_deploy_test.go commands_test.go main_test.go
-  
+
   - name: bundle-misc
     description: only run tests in bundle_test.go
     actions:
