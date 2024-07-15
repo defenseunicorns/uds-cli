@@ -351,6 +351,9 @@ func TestFileVariableHandlers(t *testing.T) {
 }
 
 func TestFormPkgViews(t *testing.T) {
+	type anyArr = []interface{}
+	type viewOverVars = map[string]map[string]interface{}
+
 	const (
 		componentName = "test-component"
 		chartName     = "test-chart"
@@ -361,7 +364,6 @@ func TestFormPkgViews(t *testing.T) {
 		name          string
 		Bundle        Bundle
 		loadEnv       bool
-		expectedIndex int
 		expectedChart string
 		expectedKey   string
 		expectedVal   string
@@ -466,7 +468,6 @@ func TestFormPkgViews(t *testing.T) {
 					},
 				},
 			},
-			expectedIndex: 1,
 			expectedChart: "second-chart",
 			expectedKey:   "VAR2",
 			expectedVal:   "from-second-chart",
@@ -488,7 +489,12 @@ func TestFormPkgViews(t *testing.T) {
 			}
 
 			pkgViews := formPkgViews(&tc.Bundle)
-			v := pkgViews[0].overrides["overrides"].([]interface{})[tc.expectedIndex].(map[string]map[string]interface{})[tc.expectedChart]["variables"]
+			v, ok := pkgViews[0].overrides["overrides"].(anyArr)[0].(viewOverVars)[tc.expectedChart]["variables"]
+
+			// check if the second chart is being used -- Go maps don't have strict ordering so value could be in 0 index or 1 index
+			if !ok && len(pkgViews[0].overrides["overrides"].(anyArr)) > 1 {
+				v = pkgViews[0].overrides["overrides"].(anyArr)[1].(viewOverVars)[tc.expectedChart]["variables"]
+			}
 
 			require.Contains(t, v.(map[string]interface{})[tc.expectedKey], tc.expectedVal)
 		})
@@ -531,7 +537,7 @@ func TestFormPkgViews(t *testing.T) {
 
 			zarfVarTest.Bundle.bundle = types.UDSBundle{Packages: []types.Package{{Name: pkgName}}}
 			pkgViews := formPkgViews(&zarfVarTest.Bundle)
-			actualView := pkgViews[0].overrides["overrides"].([]interface{})[0]
+			actualView := pkgViews[0].overrides["overrides"].(anyArr)[0]
 			require.Contains(t, actualView.(map[string]interface{})[zarfVarTest.expectedKey], zarfVarTest.expectedVal)
 		})
 	}
@@ -554,7 +560,7 @@ func TestFormPkgViews(t *testing.T) {
 
 			pkgViews := formPkgViews(&tc.Bundle)
 			v := pkgViews[0].overrides["overrides"]
-			require.Equal(t, 0, len(v.([]interface{})))
+			require.Equal(t, 0, len(v.(anyArr)))
 		})
 	}
 }
