@@ -47,9 +47,10 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: ./.github/actions/save-logs
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@772b3337950b7c8e0882c527263684306bba7ce4 # v0.7.1
         with:
-          name: build
+          suffix: build
+
 
   test-dev:
     runs-on: ubuntu-latest
@@ -69,9 +70,10 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: ./.github/actions/save-logs
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@772b3337950b7c8e0882c527263684306bba7ce4 # v0.7.1
         with:
-          name: test-dev
+          suffix: test-dev
+
 
   test-variables:
     runs-on: ubuntu-latest
@@ -91,9 +93,10 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: ./.github/actions/save-logs
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@772b3337950b7c8e0882c527263684306bba7ce4 # v0.7.1
         with:
-          name: test-variables
+          suffix: test-variables
+
 
   test-optional-bundle:
     runs-on: ubuntu-latest
@@ -113,9 +116,10 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: ./.github/actions/save-logs
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@772b3337950b7c8e0882c527263684306bba7ce4 # v0.7.1
         with:
-          name: test-optional-bundle
+          suffix: test-optional-bundle
+
 
   test-vendor:
     runs-on: ubuntu-latest
@@ -143,9 +147,10 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: ./.github/actions/save-logs
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@772b3337950b7c8e0882c527263684306bba7ce4 # v0.7.1
         with:
-          name: test-vendor
+          suffix: test-vendor
+
 
   test-engine:
     runs-on: ubuntu-latest
@@ -165,6 +170,6 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: ./.github/actions/save-logs
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@772b3337950b7c8e0882c527263684306bba7ce4 # v0.7.1
         with:
-          name: test-engine
+          suffix: test-engine
