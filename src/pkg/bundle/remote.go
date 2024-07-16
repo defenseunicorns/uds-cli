@@ -7,7 +7,6 @@ package bundle
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -249,10 +248,12 @@ func getOCIValidatedSource(source string) (string, error) {
 	// Check provided repository path
 	sourceWithOCI := boci.EnsureOCIPrefix(source)
 	remote, err := zoci.NewRemote(sourceWithOCI, platform)
+	var originalErr error
 	if err == nil {
 		source = sourceWithOCI
 		_, err = remote.ResolveRoot(ctx)
 		if err != nil {
+			originalErr = err
 			message.Debugf(err.Error())
 		}
 	}
@@ -281,9 +282,8 @@ func getOCIValidatedSource(source string) (string, error) {
 					_, err = remote.ResolveRoot(ctx)
 				}
 				if err != nil {
-					errMsg := fmt.Sprintf("%s: not found.", originalSource)
 					message.Debugf(err.Error())
-					return "", errors.New(errMsg)
+					return "", originalErr
 				}
 			}
 		}
