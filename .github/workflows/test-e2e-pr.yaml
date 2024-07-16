@@ -11,7 +11,7 @@ on:
       - "docs/**"
       - "CODEOWNERS"
       - "goreleaser*.yml"
-      - ".github/workflows/release.yaml"
+      - ".github/workflows/*release*.yaml"
 
 permissions:
   contents: read
