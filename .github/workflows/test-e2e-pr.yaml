@@ -10,7 +10,7 @@ on:
       - "adr/**"
       - "docs/**"
       - "CODEOWNERS"
-      - "goreleaser.yml"
+      - "goreleaser*.yml"
       - ".github/workflows/release.yaml"
 
 permissions:
