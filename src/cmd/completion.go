@@ -5,7 +5,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
@@ -14,37 +13,40 @@ import (
 
 var completionCmd = &cobra.Command{
 	Use:   "completion [command]",
-	Short: lang.CmdCompletionShort,
+	Short: lang.CompletionCmdShort,
+	Long:  lang.CompletionCmdLong,
 }
+
+var noDesc = rootCmd.CompletionOptions.DisableDescriptions
 
 var bashCompletionCmd = &cobra.Command{
 	Use:                   "bash",
-	Short:                 lang.CmdCompletionShortBash,
+	Short:                 lang.CompletionCmdShortBash,
 	DisableFlagsInUseLine: true,
 	Args:                  cobra.NoArgs,
-	Long: fmt.Sprintf(`%s
+	Long: `Generate the autocompletion script for the bash shell.
 
 This script depends on the 'bash-completion' package.
 If it is not installed already, you can install it via your OS's package manager.
 
 To load completions in your current shell session:
 
-        source <(uds completion bash)
+	source <(uds completion bash)
 
 To load completions for every new session, execute once:
 
 #### Linux:
 
-        uds completion bash > /etc/bash_completion.d/uds
+	uds completion bash > /etc/bash_completion.d/uds
 
 #### macOS:
 
-        uds completion bash > $(brew --prefix)/etc/bash_completion.d/uds
+	uds completion bash > $(brew --prefix)/etc/bash_completion.d/uds
 
 You will need to start a new shell for this setup to take effect.
-`, lang.CmdCompletionShortBash),
+`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		err := cmd.Root().GenBashCompletionV2(os.Stdout, true)
+		err := cmd.Root().GenBashCompletionV2(os.Stdout, !noDesc)
 		if err != nil {
 			return err
 		}
@@ -53,33 +55,32 @@ You will need to start a new shell for this setup to take effect.
 }
 
 var zshCompletionCmd = &cobra.Command{
-	Use:                   "zsh",
-	Short:                 lang.CmdCompletionShortZsh,
-	DisableFlagsInUseLine: true,
-	Args:                  cobra.NoArgs,
-	Long: fmt.Sprintf(`%s
+	Use:   "zsh [flags]",
+	Short: lang.CompletionCmdShortZsh,
+	Args:  cobra.NoArgs,
+	Long: `Generate the autocompletion script for the zsh shell.
 
 If shell completion is not already enabled in your environment you will need
 to enable it.  You can execute the following once:
 
-        echo "autoload -U compinit; compinit" >> ~/.zshrc
+	echo "autoload -U compinit; compinit" >> ~/.zshrc
 
 To load completions in your current shell session:
 
-        source <(uds completion zsh)
+	source <(uds completion zsh)
 
 To load completions for every new session, execute once:
 
 #### Linux:
 
-        uds completion zsh > "${fpath[1]}/_uds"
+	uds completion zsh > "${fpath[1]}/_uds"
 
 #### macOS:
 
-        uds completion zsh > $(brew --prefix)/share/zsh/site-functions/_uds
+	uds completion zsh > $(brew --prefix)/share/zsh/site-functions/_uds
 
 You will need to start a new shell for this setup to take effect.
-`, lang.CmdCompletionShortZsh),
+`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		err := cmd.Root().GenZshCompletion(os.Stdout)
 		if err != nil {
@@ -90,24 +91,23 @@ You will need to start a new shell for this setup to take effect.
 }
 
 var fishCompletionCmd = &cobra.Command{
-	Use:                   "fish",
-	Short:                 lang.CmdCompletionShortFish,
-	DisableFlagsInUseLine: true,
-	Args:                  cobra.NoArgs,
-	Long: fmt.Sprintf(`%s
+	Use:   "fish [flags]",
+	Short: lang.CompletionCmdShortFish,
+	Args:  cobra.NoArgs,
+	Long: `Generate the autocompletion script for the fish shell.
 
 To load completions in your current shell session:
 
-        uds completion fish | source
+	uds completion fish | source
 
 To load completions for every new session, execute once:
 
-        uds completion fish > ~/.config/fish/completions/uds.fish
+	uds completion fish > ~/.config/fish/completions/uds.fish
 
 You will need to start a new shell for this setup to take effect.
-`, lang.CmdCompletionShortFish),
+`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		err := cmd.Root().GenFishCompletion(os.Stdout, true)
+		err := cmd.Root().GenFishCompletion(os.Stdout, !noDesc)
 		if err != nil {
 			return err
 		}
@@ -121,4 +121,11 @@ func init() {
 	completionCmd.AddCommand(bashCompletionCmd)
 	completionCmd.AddCommand(zshCompletionCmd)
 	completionCmd.AddCommand(fishCompletionCmd)
+
+	haveNoDescFlag := !rootCmd.CompletionOptions.DisableNoDescFlag && !rootCmd.CompletionOptions.DisableDescriptions
+	if haveNoDescFlag {
+		bashCompletionCmd.Flags().BoolVar(&noDesc, lang.CompletionNoDescFlagName, lang.CompletionNoDescFlagDefault, lang.CompletionNoDescFlagDesc)
+		fishCompletionCmd.Flags().BoolVar(&noDesc, lang.CompletionNoDescFlagName, lang.CompletionNoDescFlagDefault, lang.CompletionNoDescFlagDesc)
+		zshCompletionCmd.Flags().BoolVar(&noDesc, lang.CompletionNoDescFlagName, lang.CompletionNoDescFlagDefault, lang.CompletionNoDescFlagDesc)
+	}
 }
