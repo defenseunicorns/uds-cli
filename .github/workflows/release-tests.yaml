@@ -3,6 +3,14 @@ on:
   workflow_call: # This is the event that triggers the workflow
 
 jobs:
+  checkout:
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout the repo and setup the tooling for this job
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
   test:
     uses: ./.github/workflows/parallel-tests.yaml
     needs: checkout
