@@ -1,5 +1,5 @@
 ---
-title: UDS Runner
+title: Schema
 type: docs
 weight: 5
 ---
@@ -42,6 +42,6 @@ To do this in VS Code you can install the [YAML Extension](https://marketplace.v
 
 Use this method if you want to apply the schema to all YAML files in your project without modifying them. Open the IDE settings and navigate to `Languages & Frameworks` -> `Schemas and DTDs` -> `JSON Schema Mappings` and add a new schema using the "+" icon as shown below:
 
-![Goland Schema Mapping](.images/goland-json-schema.png)
+![Goland Schema Mapping](https://github.com/defenseunicorns/uds-cli/blob/main/docs/.images/goland-json-schema.png?raw=true)
 
 Don't forget to set the file path pattern for the JSON schema to apply to.

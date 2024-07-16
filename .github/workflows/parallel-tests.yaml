@@ -144,6 +144,7 @@ jobs:
       - name: Run e2e vendor tests
         run: |
           build/uds run test:vendor
+          build/uds run test:completion
 
       - name: Save logs
         if: always()

@@ -17,6 +17,16 @@ const (
 	RootCmdErrInvalidLogLevel = "Invalid log level. Valid options are: warn, info, debug, trace."
 	RootCmdFlagArch           = "Architecture for UDS bundles and Zarf packages"
 
+	// completion
+	CompletionCmdShort          = "Generate the autocompletion script for the specified shell"
+	CompletionCmdLong           = "Generate the autocompletion script for uds for the specified shell.\nSee each sub-command's help for details on how to use the generated script.\n"
+	CompletionCmdShortBash      = "Generate the autocompletion script for bash"
+	CompletionCmdShortZsh       = "Generate the autocompletion script for zsh"
+	CompletionCmdShortFish      = "Generate the autocompletion script for fish"
+	CompletionNoDescFlagName    = "no-descriptions"
+	CompletionNoDescFlagDesc    = "disable completion descriptions"
+	CompletionNoDescFlagDefault = false
+
 	// logs
 	CmdBundleLogsShort = "View most recent UDS CLI logs"
 
