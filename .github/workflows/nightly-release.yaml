@@ -54,14 +54,14 @@ jobs:
             github.rest.git.createRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              ref: 'refs/tags/v${{ needs.version.outputs.version }}',
+              ref: 'refs/tags/latest',
               sha: context.sha
             }).catch(err => {
               if (err.status !== 422) throw err;
               github.rest.git.updateRef({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                ref: 'tags/v${{ needs.version.outputs.version }}',
+                ref: 'tags/latest',
                 sha: context.sha
               });
             })
