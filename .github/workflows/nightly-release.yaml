@@ -1,12 +1,11 @@
-name: Release UDS-CLI on Tag
+name: Nightly Release
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *' ## Every day at midnight UTC
 
 permissions:
   contents: read
-
-on:
-  push:
-    tags:
-      - "v*"
 
 jobs:
   checkout:
@@ -45,21 +44,30 @@ jobs:
           name: build-artifacts
           path: build/
 
-      - name: Get Brew tap repo token
-        id: brew-tap-token
-        uses: actions/create-github-app-token@31c86eb3b33c9b601a1f60f98dcbfd1d70f379b4 # v1.10.3
+      - name: Create tag
+        uses: actions/github-script@@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
-          app-id: ${{ secrets.HOMEBREW_TAP_WORKFLOW_GITHUB_APP_ID }}
-          private-key: ${{ secrets.HOMEBREW_TAP_WORKFLOW_GITHUB_APP_SECRET }}
-          owner: defenseunicorns
-          repositories: homebrew-tap
+          script: |
+            github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'refs/tags/v${{ needs.version.outputs.version }}',
+              sha: context.sha
+            }).catch(err => {
+              if (err.status !== 422) throw err;
+              github.rest.git.updateRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: 'tags/v${{ needs.version.outputs.version }}',
+                sha: context.sha
+              });
+            })
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@286f3b13b1b49da4ac219696163fb8c1c93e1200 # v6.0.0
         with:
           distribution: goreleaser
           version: latest
-          args: release --clean --verbose --config .goreleaser.yaml
+          args: release --clean --verbose --config .goreleaser-nightly.yaml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN}}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.brew-tap-token.outputs.token }}
