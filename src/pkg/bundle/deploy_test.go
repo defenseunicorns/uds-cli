@@ -351,6 +351,7 @@ func TestFileVariableHandlers(t *testing.T) {
 }
 
 func TestFormPkgViews(t *testing.T) {
+	// types for readability in type assertions eg foo.(anyArr)[0].(viewOverVars)[bar]
 	type anyArr = []interface{}
 	type viewOverVars = map[string]map[string]interface{}
 
