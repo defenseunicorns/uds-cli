@@ -1,0 +1,90 @@
+name: E2E Tests
+on:
+  workflow_call: # This is the event that triggers the workflow
+
+jobs:
+  test:
+    uses: ./.github/workflows/parallel-tests.yaml
+
+  test-ghcr:
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: build-artifacts
+          path: build/
+
+      - name: setup-using-previous-job
+        uses: ./.github/actions/setup-from-previous
+
+      - name: Login to GHCR
+        uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446 # v3.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run GHCR tests
+        run: |
+          build/uds run test:e2e-ghcr
+        env:
+          GITHUB_TOKEN: secrets.GITHUB_TOKEN
+
+      - name: Save logs
+        if: always()
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@172a905901cb9bd76d096d2850bf31af5c5a4fa1 # v0.8.0
+        with:
+          suffix: test-ghcr
+
+
+  smoke-test:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      # Checkout the repo and setup the tooling for this job
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: build-artifacts
+          path: build/
+
+      - name: Setup golang
+        uses: ./.github/actions/golang
+
+      - name: Make UDS-CLI executable
+        run: |
+          chmod +x build/uds
+
+      - name: Setup K3d
+        uses: ./.github/actions/k3d
+
+      - name: Login to GHCR
+        uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446 # v3.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run UDS Core smoke test
+        run: build/uds run test:ci-uds-core-smoke-test
+        shell: bash
+
+      - name: Save logs
+        if: always()
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@172a905901cb9bd76d096d2850bf31af5c5a4fa1 # v0.8.0
+        with:
+          suffix: smoke-test

@@ -10,8 +10,8 @@ on:
       - "adr/**"
       - "docs/**"
       - "CODEOWNERS"
-      - "goreleaser.yml"
-      - ".github/workflows/release.yaml"
+      - "goreleaser*.y*ml"
+      - ".github/workflows/*release*.y*ml"
 
 permissions:
   contents: read
