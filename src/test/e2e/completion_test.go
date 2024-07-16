@@ -17,7 +17,7 @@ func TestCompletion(t *testing.T) {
 	t.Run("Test Completion", func(t *testing.T) {
 		cmd := strings.Split("completion", " ")
 		output, _, _ := e2e.UDS(cmd...)
-		require.Contains(t, output, lang.CompletionCmdShort)
+		require.Contains(t, output, lang.CompletionCmdLong)
 	})
 
 	t.Run("Test Bash Completion", func(t *testing.T) {
