@@ -11,6 +11,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// We manually create the completion cmds because autogen'ing the docs includes Powershell completions,
+// which we don't support. Cobra doesn't provide a neat mechanism for excluding just Powershell so if we want
+// these completion cmds built into the CLI we have to create them manually
 var completionCmd = &cobra.Command{
 	Use:   "completion [command]",
 	Short: lang.CompletionCmdShort,
