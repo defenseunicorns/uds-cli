@@ -9,6 +9,8 @@ permissions:
 
 jobs:
   test:
+    permissions:
+      contents: write
     uses: ./.github/workflows/release-tests.yaml
 
   push:
