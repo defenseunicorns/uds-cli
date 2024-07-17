@@ -7,6 +7,7 @@ package bundle
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -74,6 +75,12 @@ func (op *ociProvider) LoadBundleMetadata() (types.PathMap, error) {
 		}
 		filepaths[rel] = absSha
 	}
+
+	if len(filepaths) == 0 {
+		errMsg := fmt.Sprintf("failed to load bundle metadata from %s", op.src)
+		return nil, errors.New(errMsg)
+	}
+
 	return filepaths, nil
 }
 
@@ -281,8 +288,13 @@ func getOCIValidatedSource(source string) (string, error) {
 				if err == nil {
 					_, err = remote.ResolveRoot(ctx)
 				}
+				// All checks failed, return error
 				if err != nil {
 					message.Debugf(err.Error())
+					if originalErr == nil {
+						errMsg := fmt.Sprintf("%s: not found", originalSource)
+						return "", errors.New(errMsg)
+					}
 					return "", originalErr
 				}
 			}
