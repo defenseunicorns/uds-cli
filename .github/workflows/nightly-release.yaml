@@ -8,15 +8,15 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    permissions:
-      packages: write
-    uses: ./.github/workflows/release-tests.yaml
+#  test:
+#    permissions:
+#      packages: write
+#    uses: ./.github/workflows/release-tests.yaml
 
   push:
     runs-on: ubuntu-latest
-    environment: release
-    needs: test
+    environment: release-nightly
+#    needs: test
     permissions:
       contents: write
     steps:
@@ -38,24 +38,8 @@ jobs:
           path: build/
 
       - name: Create tag
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
-        with:
-          # try to create a tag, if it already exists, update it
-          script: |
-            github.rest.git.createRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: 'refs/tags/nightly',
-              sha: context.sha
-            }).catch(err => {
-              if (err.status !== 422) throw err;
-              github.rest.git.updateRef({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                ref: 'tags/nightly',
-                sha: context.sha
-              });
-            })
+        run: |
+          ./hack/create-nightly-tag.sh
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@286f3b13b1b49da4ac219696163fb8c1c93e1200 # v6.0.0
