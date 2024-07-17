@@ -10,7 +10,6 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    needs: checkout
     steps:
       - name: Run tests
         uses: ./.github/workflows/release-tests.yaml
