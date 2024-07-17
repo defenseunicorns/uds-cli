@@ -11,6 +11,7 @@ jobs:
   test:
     permissions:
       contents: write
+    secrets: inherit
     uses: ./.github/workflows/release-tests.yaml
 
   push:
