@@ -9,6 +9,7 @@ on:
       - "**.svg"
       - "adr/**"
       - "docs/**"
+      - "hack/**"
       - "CODEOWNERS"
       - "goreleaser*.y*ml"
       - ".github/workflows/*release*.y*ml"
