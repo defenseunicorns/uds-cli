@@ -9,10 +9,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Run tests
-        uses: ./.github/workflows/release-tests.yaml
+    uses: ./.github/workflows/release-tests.yaml
 
   push:
     runs-on: ubuntu-latest
