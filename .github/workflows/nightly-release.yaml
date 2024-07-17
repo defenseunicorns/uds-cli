@@ -13,10 +13,36 @@ jobs:
 #      packages: write
 #    uses: ./.github/workflows/release-tests.yaml
 
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      with:
+        fetch-depth: 0
+
+    - name: Setup golang
+      uses: ./.github/actions/golang
+
+    - name: Install UDS CLI
+      uses: ./.github/actions/install-uds-cli
+
+    - name: Build CLI
+      run: |
+        uds run build-cli-linux-amd
+
+    # Upload the contents of the build directory for later stages to use
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@0b2256b8c012f0828dc542b3febcab082c67f72b # v4.3.4
+      with:
+        name: build-artifacts
+        path: build/
+        retention-days: 1
   push:
     runs-on: ubuntu-latest
     environment: release-nightly
 #    needs: test
+    needs: build
     permissions:
       contents: write
     steps:
