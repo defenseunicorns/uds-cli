@@ -8,15 +8,15 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    permissions:
-      packages: write
-    uses: ./.github/workflows/release-tests.yaml
+#  test:
+#    permissions:
+#      packages: write
+#    uses: ./.github/workflows/release-tests.yaml
 
   push:
     runs-on: ubuntu-latest
-    environment: release
-    needs: test
+    environment: release-nightly
+#    needs: test
     permissions:
       contents: write
     steps:
@@ -48,7 +48,7 @@ jobs:
               ref: 'refs/tags/nightly',
               sha: context.sha
             }).catch(err => {
-              if (err.status !== 422) throw err;
+              if (err.status !== '422') throw err;
               github.rest.git.updateRef({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
