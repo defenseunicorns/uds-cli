@@ -54,6 +54,6 @@ release:
   github:
     owner: defenseunicorns
     name: uds-cli
-  prerelease: auto
+  prerelease: true
   mode: append
   draft: false

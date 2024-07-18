@@ -249,6 +249,9 @@ func (b *Bundle) CalculateBuildInfo() error {
 // ValidateBundleSignature validates the bundle signature
 func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string) error {
 	if helpers.InvalidPath(bundleYAMLPath) {
+		if bundleYAMLPath == "" {
+			return fmt.Errorf("path for %s is empty", config.BundleYAML)
+		}
 		return fmt.Errorf("path for %s at %s does not exist", config.BundleYAML, bundleYAMLPath)
 	}
 	// The package is not signed, and no public key was provided
