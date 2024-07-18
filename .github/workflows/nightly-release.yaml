@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: release-nightly
     needs: test
+    env:
+      GH_TOKEN: ${{ github.token }}
     permissions:
       contents: write
     steps:
