@@ -11,7 +11,7 @@ require (
 	github.com/defenseunicorns/pkg/helpers/v2 v2.0.1
 	github.com/defenseunicorns/pkg/oci v1.0.1
 	github.com/defenseunicorns/uds-security-hub v0.0.7
-	github.com/defenseunicorns/zarf v0.36.0
+	github.com/defenseunicorns/zarf v0.36.1
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/goccy/go-yaml v1.12.0
 	github.com/mholt/archiver/v3 v3.5.1
