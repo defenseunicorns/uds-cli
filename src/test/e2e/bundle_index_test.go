@@ -33,7 +33,7 @@ func TestBundleIndexInRemoteOnPublish(t *testing.T) {
 	// curl OCI registry for index
 	index, err := queryIndex(t, "http://localhost:888", bundleName)
 	require.NoError(t, err)
-	validateMultiArchIndex(t, index)
+	ValidateMultiArchIndex(t, index)
 
 	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName))
 	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), bundleTarballName) // test no oci prefix
@@ -43,7 +43,7 @@ func TestBundleIndexInRemoteOnPublish(t *testing.T) {
 	createRemoteInsecure(t, bundleDir, "oci://localhost:888", e2e.Arch)
 	index, err = queryIndex(t, "http://localhost:888", bundleName)
 	require.NoError(t, err)
-	validateMultiArchIndex(t, index)
+	ValidateMultiArchIndex(t, index)
 	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName))
 	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), bundleTarballName) // test no oci prefix
 	deployAndRemoveLocalAndRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), tarballPath)
@@ -66,7 +66,7 @@ func TestBundleIndexInRemoteOnCreate(t *testing.T) {
 	// curl OCI registry for index
 	index, err := queryIndex(t, "http://localhost:888", bundleName)
 	require.NoError(t, err)
-	validateMultiArchIndex(t, index)
+	ValidateMultiArchIndex(t, index)
 
 	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName))
 	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), bundleTarballName) // test no oci prefix
@@ -77,7 +77,7 @@ func TestBundleIndexInRemoteOnCreate(t *testing.T) {
 	publishInsecure(t, tarballPath, "localhost:888")
 	index, err = queryIndex(t, "http://localhost:888", bundleName)
 	require.NoError(t, err)
-	validateMultiArchIndex(t, index)
+	ValidateMultiArchIndex(t, index)
 	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName))
 	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), bundleTarballName) // test no oci prefix
 	deployAndRemoveLocalAndRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), tarballPath)

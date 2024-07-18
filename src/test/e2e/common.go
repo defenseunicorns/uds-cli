@@ -11,11 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// validateMultiArchIndex validates the given index is a multi-arch index with two manifests
-// not actually unused, but linter thinks it is
-//
-//nolint:unused
-func validateMultiArchIndex(t *testing.T, index ocispec.Index) {
+// ValidateMultiArchIndex validates the given index is a multi-arch index with two manifests
+func ValidateMultiArchIndex(t *testing.T, index ocispec.Index) {
 	require.Equal(t, 2, len(index.Manifests))
 	require.Equal(t, ocispec.MediaTypeImageIndex, index.MediaType)
 

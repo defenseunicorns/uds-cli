@@ -48,7 +48,7 @@ func TestBundleCreateAndPublishGHCR(t *testing.T) {
 	// ensure the bundle index is present
 	index, err := queryIndex(t, "https://ghcr.io", fmt.Sprintf("%s/%s", bundleGHCRPath, bundleName))
 	require.NoError(t, err)
-	validateMultiArchIndex(t, index)
+	ValidateMultiArchIndex(t, index)
 }
 
 // test the create -o path
@@ -73,7 +73,7 @@ func TestBundleCreateRemoteAndDeployGHCR(t *testing.T) {
 	// ensure the bundle index is present
 	index, err := queryIndex(t, "https://ghcr.io", fmt.Sprintf("%s/%s", bundleGHCRPath, bundleName))
 	require.NoError(t, err)
-	validateMultiArchIndex(t, index)
+	ValidateMultiArchIndex(t, index)
 }
 
 // This test requires the following to be published (based on src/test/bundles/06-ghcr/uds-bundle.yaml):
