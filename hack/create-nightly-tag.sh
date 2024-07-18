@@ -28,7 +28,7 @@ repositoryId=$(gh api graphql -f query='
               }' | jq -r '.data.repository.id')
 
 
-# get existing tag and save to existingTag var
+# get existing tag and save to existingRefId var
 existingRefId=$(gh api graphql -f query='
                 {
                   repository(owner: "defenseunicorns", name: "uds-cli") {
@@ -38,7 +38,7 @@ existingRefId=$(gh api graphql -f query='
                   }
                 }' | jq -r '.data.repository.ref.id')
 
-# remove any existing  nightly tags
+# remove any existing nightly tags
 gh api graphql -f query='
 mutation DeleteRef {
   deleteRef(input:{refId:"'$existingRefId'"}) {
