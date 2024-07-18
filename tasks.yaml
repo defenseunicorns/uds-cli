@@ -53,6 +53,14 @@ tasks:
         setVariables:
           - name: BUILD_ARGS
 
+  - name: build-all
+    description: build all the CLI binaries
+    actions:
+      - task: build-cli-linux-amd
+      - task: build-cli-linux-arm
+      - task: build-cli-mac-intel
+      - task: build-cli-mac-apple
+
   - name: build-cli-linux-amd
     description: build the CLI for Linux AMD64
     actions:
