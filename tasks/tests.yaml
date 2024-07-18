@@ -17,6 +17,21 @@ tasks:
     actions:
       - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m bundle_test.go commands_test.go main_test.go
 
+  - name: deploy-flags
+    description: only run tests in bundle_deploy_flags_test.go
+    actions:
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m bundle_deploy_flags_test.go commands_test.go main_test.go
+
+  - name: index
+    description: only run tests in bundle_index_test.go
+    actions:
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m bundle_index_test.go common.go commands_test.go main_test.go
+
+  - name: completion
+    description: only run tests in completion_test.go
+    actions:
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m completion_test.go main_test.go
+
   - name: dev
     description: only run tests in dev.go
     actions:

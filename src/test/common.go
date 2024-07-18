@@ -151,7 +151,7 @@ func (e2e *UDSE2ETest) GetUdsVersion(t *testing.T) string {
 // DownloadZarfInitPkg downloads the zarf init pkg used for testing if it doesn't already exist (todo: makefile?)
 func (e2e *UDSE2ETest) DownloadZarfInitPkg(t *testing.T, zarfVersion string) {
 	filename := fmt.Sprintf("zarf-init-%s-%s.tar.zst", e2e.Arch, zarfVersion)
-	zarfReleaseURL := fmt.Sprintf("https://github.com/defenseunicorns/zarf/releases/download/%s/%s", zarfVersion, filename)
+	zarfReleaseURL := fmt.Sprintf("https://github.com/zarf-dev/zarf/releases/download/%s/%s", zarfVersion, filename)
 	outputDir := "src/test/packages"
 
 	// Check if the file already exists
