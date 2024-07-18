@@ -17,8 +17,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: release-nightly
     needs: test
-    env:
-      GH_TOKEN: ${{ github.token }}
     permissions:
       contents: write
     steps:
@@ -38,6 +36,8 @@ jobs:
           uds run build-all
 
       - name: Update nightly-unstable tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN}}
         run: |
           # cleanup old release
           gh release delete nightly-unstable --cleanup-tag -y || true
