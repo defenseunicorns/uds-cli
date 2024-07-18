@@ -75,6 +75,12 @@ func (op *ociProvider) LoadBundleMetadata() (types.PathMap, error) {
 		}
 		filepaths[rel] = absSha
 	}
+
+	if len(filepaths) == 0 {
+		errMsg := fmt.Sprintf("failed to load bundle metadata from %s", op.src)
+		return nil, errors.New(errMsg)
+	}
+
 	return filepaths, nil
 }
 
@@ -249,9 +255,14 @@ func getOCIValidatedSource(source string) (string, error) {
 	// Check provided repository path
 	sourceWithOCI := boci.EnsureOCIPrefix(source)
 	remote, err := zoci.NewRemote(sourceWithOCI, platform)
+	var originalErr error
 	if err == nil {
 		source = sourceWithOCI
 		_, err = remote.ResolveRoot(ctx)
+		if err != nil {
+			originalErr = err
+			message.Debugf(err.Error())
+		}
 	}
 	// if root didn't resolve, expand the path
 	if err != nil {
@@ -262,7 +273,7 @@ func getOCIValidatedSource(source string) (string, error) {
 			_, err = remote.ResolveRoot(ctx)
 		}
 		if err != nil {
-			message.Debugf("%s: not found", source)
+			message.Debugf(err.Error())
 			// Check in delivery bundle path
 			source = GHCRDeliveryBundlePath + originalSource
 			remote, err = zoci.NewRemote(source, platform)
@@ -270,17 +281,21 @@ func getOCIValidatedSource(source string) (string, error) {
 				_, err = remote.ResolveRoot(ctx)
 			}
 			if err != nil {
-				message.Debugf("%s: not found", source)
+				message.Debugf(err.Error())
 				// Check in packages bundle path
 				source = GHCRPackagesPath + originalSource
 				remote, err = zoci.NewRemote(source, platform)
 				if err == nil {
 					_, err = remote.ResolveRoot(ctx)
 				}
+				// All checks failed, return error
 				if err != nil {
-					errMsg := fmt.Sprintf("%s: not found", originalSource)
-					message.Debug(errMsg)
-					return "", errors.New(errMsg)
+					message.Debugf(err.Error())
+					if originalErr == nil {
+						errMsg := fmt.Sprintf("%s: not found", originalSource)
+						return "", errors.New(errMsg)
+					}
+					return "", originalErr
 				}
 			}
 		}
