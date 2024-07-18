@@ -25,7 +25,7 @@ tasks:
   - name: index
     description: only run tests in bundle_deploy_flags_test.go
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m bundle_index_test.go commands_test.go main_test.go
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m bundle_index_test.go commands_test.go bundle_test.go main_test.go
 
   - name: completion
     description: only run tests in completion_test.go
