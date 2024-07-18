@@ -22,7 +22,7 @@
   ],
   "packageRules": [
     {
-      "matchPackageNames": ["defenseunicorns/zarf", "github.com/defenseunicorns/zarf"],
+      "matchPackageNames": ["zarf-dev/zarf", "github.com/zarf-dev/zarf"],
       "groupName": "zarf"
     },
     {
