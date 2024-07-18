@@ -15,7 +15,7 @@ jobs:
 
   push:
     runs-on: ubuntu-latest
-    environment: release-nightly
+#    environment: release-nightly
 #    needs: test
     permissions:
       contents: write
