@@ -53,7 +53,7 @@ jobs:
         if: always()
         uses: defenseunicorns/uds-common/.github/actions/save-logs@172a905901cb9bd76d096d2850bf31af5c5a4fa1 # v0.8.0
         with:
-          suffix: build
+          suffix: ${{ matrix.test }}
 
   test-dev:
     runs-on: ubuntu-latest

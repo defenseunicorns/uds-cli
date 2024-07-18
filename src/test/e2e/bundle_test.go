@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/registry"
 
@@ -313,26 +312,6 @@ func TestPackageNaming(t *testing.T) {
 	// Test create -o with zarf package names that don't match the zarf package name in the bundle
 	createRemoteInsecure(t, bundleDir, bundleRef.Registry, e2e.Arch)
 	deployAndRemoveLocalAndRemoteInsecure(t, bundleRef.String(), tarballPath)
-}
-
-func validateMultiArchIndex(t *testing.T, index ocispec.Index) {
-	require.Equal(t, 2, len(index.Manifests))
-	require.Equal(t, ocispec.MediaTypeImageIndex, index.MediaType)
-
-	var checkedAMD, checkedARM bool
-	for _, manifest := range index.Manifests {
-		require.Equal(t, ocispec.MediaTypeImageManifest, manifest.MediaType)
-		require.Equal(t, "multi", manifest.Platform.OS)
-		if manifest.Platform.Architecture == "amd64" {
-			require.Equal(t, "amd64", manifest.Platform.Architecture)
-			checkedAMD = true
-		} else {
-			require.Equal(t, "arm64", manifest.Platform.Architecture)
-			checkedARM = true
-		}
-	}
-	require.True(t, checkedAMD)
-	require.True(t, checkedARM)
 }
 
 func TestBundleWithComposedPkgComponent(t *testing.T) {
