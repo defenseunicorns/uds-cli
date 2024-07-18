@@ -25,9 +25,9 @@ require (
 	golang.org/x/mod v0.19.0
 	golang.org/x/sync v0.7.0
 	helm.sh/helm/v3 v3.15.3
-	k8s.io/api v0.30.2
-	k8s.io/apimachinery v0.30.2
-	k8s.io/client-go v0.30.2
+	k8s.io/api v0.30.3
+	k8s.io/apimachinery v0.30.3
+	k8s.io/client-go v0.30.3
 	oras.land/oras-go/v2 v2.5.0
 )
 
