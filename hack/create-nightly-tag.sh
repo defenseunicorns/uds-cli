@@ -3,6 +3,8 @@
 # This script creates and/or updates a nightly tag for the uds-cli repo
 # The nightly tag is created from the latest commit on the main branch
 
+tag="0.0.0-nightly"
+
 # get oid and repositoryId for GH API Graphql Mutation
 oid=$(gh api graphql -f query='
               {
@@ -26,17 +28,17 @@ repositoryId=$(gh api graphql -f query='
               }' | jq -r '.data.repository.id')
 
 
-# get existing nightly tag and save to existingTag var
+# get existing tag and save to existingTag var
 existingRefId=$(gh api graphql -f query='
                 {
                   repository(owner: "defenseunicorns", name: "uds-cli") {
-                    ref(qualifiedName: "refs/tags/nightly") {
+                    ref(qualifiedName: "refs/tags/'$tag'") {
                       id
                     }
                   }
                 }' | jq -r '.data.repository.ref.id')
 
-# remove any existing nightly tags
+# remove any existing  nightly tags
 gh api graphql -f query='
 mutation DeleteRef {
   deleteRef(input:{refId:"'$existingRefId'"}) {
@@ -44,12 +46,12 @@ mutation DeleteRef {
   }
 }' --silent &&
 
-echo "Existing nightly tag removed successfully"
+echo "Existing '$tag' tag removed successfully"
 
 # create a signed nightly tag
 gh api graphql -f query='
 mutation CreateRef {
-  createRef(input:{name:"refs/tags/nightly",oid:"'$oid'",repositoryId:"'$repositoryId'"}) {
+  createRef(input:{name:"refs/tags/'$tag'",oid:"'$oid'",repositoryId:"'$repositoryId'"}) {
         ref {
           id
           name
@@ -57,4 +59,4 @@ mutation CreateRef {
     }
 }' --silent &&
 
-echo "New nightly tag created successfully"
+echo "New '$tag' tag created successfully"
