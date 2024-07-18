@@ -9,13 +9,13 @@ metadata:
 packages:
   - name: init
     path: "../../packages"
-    # renovate: datasource=github-tags depName=defenseunicorns/zarf
+    # renovate: datasource=github-tags depName=zarf-dev/zarf
     ref: v0.36.0
     optionalComponents:
       - git-server
   - name: init
     repository: ghcr.io/defenseunicorns/packages/init
-    # renovate: datasource=github-tags depName=defenseunicorns/zarf
+    # renovate: datasource=github-tags depName=zarf-dev/zarf
     ref: v0.36.0
     optionalComponents:
       - git-server
