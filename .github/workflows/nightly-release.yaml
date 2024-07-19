@@ -2,7 +2,7 @@ name: Nightly Release
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 0 * * *" ## Every day at midnight UTC
+    - cron: "0 3 * * *" ## nightly at 3am UTC
 
 permissions:
   contents: read
@@ -35,6 +35,13 @@ jobs:
         run: |
           uds run build-all
 
+      - name: Rename artifacts for readability
+        run: |
+          mv build/uds build/uds-nightly-linux-amd64
+          mv build/uds-arm build/uds-nightly-linux-arm64
+          mv build/uds-mac-apple build/uds-nightly-darwin-arm64
+          mv build/uds-mac-intel build/uds-nightly-darwin-amd64
+
       - name: Update nightly-unstable tag
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN}}
@@ -42,7 +49,7 @@ jobs:
           # cleanup old release
           gh release delete nightly-unstable --cleanup-tag -y || true
           # generate new release
-          gh release create nightly-unstable './build/*' \
+          gh release create nightly-unstable ./build/* \
             -t "nightly-unstable" \
             --prerelease \
             -n 'Nightly unstable build'
