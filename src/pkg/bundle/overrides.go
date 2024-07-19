@@ -68,7 +68,7 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 	// env vars (vars that start with UDS_)
 	for _, envVar := range os.Environ() {
 		if strings.HasPrefix(envVar, config.EnvVarPrefix) {
-			parts := strings.Split(envVar, "=")
+			parts := strings.SplitN(envVar, "=", 2)
 			pkgVars[strings.ToUpper(strings.TrimPrefix(parts[0], config.EnvVarPrefix))] = parts[1]
 			overVarsData[strings.ToUpper(strings.TrimPrefix(parts[0], config.EnvVarPrefix))] = overrideData{parts[1], valuesources.Env}
 		}

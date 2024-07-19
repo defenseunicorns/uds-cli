@@ -267,7 +267,7 @@ func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 	e2e.HelmDepUpdate(t, "src/test/packages/helm/unicorn-podinfo")
 	e2e.CreateZarfPkg(t, "src/test/packages/helm", false)
 	color := "purple"
-	b64Secret := "dGhhdCBhaW50IG15IHRydWNr"
+	b64Secret := "dGhhdCBhaW50IG15IHRydWNrCg=="
 	err := os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/07-helm-overrides", "uds-config.yaml"))
 	require.NoError(t, err)
 	err = os.Setenv("UDS_UI_COLOR", color)
