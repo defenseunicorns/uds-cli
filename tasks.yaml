@@ -54,12 +54,13 @@ tasks:
           - name: BUILD_ARGS
 
   - name: build-all
-    description: build all the CLI binaries
+    description: build all the CLI binaries and gen checksums
     actions:
       - task: build-cli-linux-amd
       - task: build-cli-linux-arm
       - task: build-cli-mac-intel
       - task: build-cli-mac-apple
+      - cmd: sha256sum build/* > build/checksums.txt
 
   - name: build-cli-linux-amd
     description: build the CLI for Linux AMD64
