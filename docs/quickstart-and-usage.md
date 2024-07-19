@@ -5,7 +5,6 @@ weight: 1
 ---
 
 ## Install
-DOC TESTING
 Recommended installation method is with Brew:
 
 ```bash
