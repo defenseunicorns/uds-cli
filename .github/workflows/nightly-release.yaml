@@ -35,6 +35,13 @@ jobs:
         run: |
           uds run build-all
 
+      - name: Rename artifacts for readability
+        run: |
+          mv build/uds build/uds-nightly-linux-amd64
+          mv build/uds-arm build/uds-nightly-linux-arm64
+          mv build/uds-mac-apple build/uds-nightly-darwin-arm64
+          mv build/uds-mac-intel build/uds-nightly-darwin-amd64
+
       - name: Update nightly-unstable tag
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN}}
