@@ -18,11 +18,11 @@ func TestMonitor(t *testing.T) {
 	require.Contains(t, deployments, "pepr-uds-core-watcher")
 
 	// we expect this command to fail because UDS Core doesn't allow some of the configs in this package
-	_, _, err := e2e.UDS("zarf", "dev", "deploy", "src/test/packages/engine", "--retries=1")
+	_, _, err := runCmdWithErr("zarf dev deploy src/test/packages/engine --retries=1")
 	require.Error(t, err)
 
 	t.Run("test mutated policies", func(t *testing.T) {
-		stdout, _ := runCmd(t, "monitor pepr mutate")
+		stdout, _ := runCmd(t, "monitor pepr mutated")
 		require.Contains(t, stdout, "✎ MUTATED   podinfo")
 	})
 
