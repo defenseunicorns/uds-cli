@@ -55,12 +55,6 @@ func createRemoteInsecure(t *testing.T, bundlePath, registry, arch string) {
 	require.NoError(t, err)
 }
 
-func createRemote(t *testing.T, bundlePath, registry, arch string) {
-	cmd := strings.Split(fmt.Sprintf("create %s -o %s --confirm -a %s", bundlePath, registry, arch), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-}
-
 func inspectRemoteInsecure(t *testing.T, ref string) {
 	cmd := strings.Split(fmt.Sprintf("inspect %s --insecure --sbom", ref), " ")
 	_, _, err := e2e.UDS(cmd...)
@@ -90,11 +84,9 @@ func inspectRemoteAndSBOMExtract(t *testing.T, ref string) {
 }
 
 func inspectLocal(t *testing.T, tarballPath string) {
-	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom --no-color", tarballPath), " ")
-	stdout, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
+	stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --sbom --no-color", tarballPath))
 	require.NotContains(t, stdout, "\x1b")
-	_, err = os.Stat(config.BundleSBOMTar)
+	_, err := os.Stat(config.BundleSBOMTar)
 	require.NoError(t, err)
 	err = os.Remove(config.BundleSBOMTar)
 	require.NoError(t, err)
@@ -112,20 +104,6 @@ func inspectLocalAndSBOMExtract(t *testing.T, tarballPath string) {
 
 func deploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
 	cmd := strings.Split(fmt.Sprintf("deploy %s --retries 1 --confirm", tarballPath), " ")
-	stdout, stderr, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	return stdout, stderr
-}
-
-func devDeploy(t *testing.T, bundlePath string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("dev deploy %s", bundlePath), " ")
-	stdout, stderr, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	return stdout, stderr
-}
-
-func devDeployPackages(t *testing.T, tarballPath string, packages string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("dev deploy %s --packages %s", tarballPath, packages), " ")
 	stdout, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 	return stdout, stderr
@@ -169,15 +147,7 @@ func removePackagesFlag(tarballPath string, packages string) (stdout string, std
 }
 
 func deployInsecure(t *testing.T, ref string) {
-	cmd := strings.Split(fmt.Sprintf("deploy %s --insecure --confirm", ref), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-}
-
-func removeInsecure(t *testing.T, remote string) {
-	cmd := strings.Split(fmt.Sprintf("remove %s --insecure --confirm", remote), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
+	runCmd(t, fmt.Sprintf("deploy %s --insecure --confirm", ref))
 }
 
 func deployAndRemoveLocalAndRemoteInsecure(t *testing.T, ref string, tarballPath string) {
@@ -249,16 +219,8 @@ func pull(t *testing.T, ref string, tarballName string) {
 	}
 }
 
-func publish(t *testing.T, bundlePath, ociPath string) {
-	cmd := strings.Split(fmt.Sprintf("publish %s %s --oci-concurrency=10", bundlePath, ociPath), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-}
-
 func publishInsecure(t *testing.T, bundlePath, ociPath string) {
-	cmd := strings.Split(fmt.Sprintf("publish %s %s --insecure", bundlePath, ociPath), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
+	runCmd(t, fmt.Sprintf("publish %s %s --insecure", bundlePath, ociPath))
 }
 
 func queryIndex(t *testing.T, registryURL, bundlePath string) (ocispec.Index, error) {

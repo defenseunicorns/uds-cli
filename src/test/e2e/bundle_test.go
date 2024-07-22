@@ -21,17 +21,11 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 )
 
-func TestUDSCmd(t *testing.T) {
-	_, _, err := e2e.UDS()
-	require.NoError(t, err)
-}
-
 func TestUDSLogs(t *testing.T) {
 	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-	createLocal(t, "src/test/bundles/11-real-simple", e2e.Arch)
-	stdout, _, err := e2e.UDS("logs")
-	require.NoError(t, err)
+	runCmd(t, fmt.Sprintf("create src/test/bundles/11-real-simple --insecure --confirm -a %s", e2e.Arch))
+	stdout, _ := runCmd(t, "logs")
 	require.Contains(t, stdout, "DEBUG")
 	require.Contains(t, stdout, "UDSBundle")
 }
@@ -41,8 +35,9 @@ func TestSimpleBundleWithZarfAction(t *testing.T) {
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 	os.Setenv("UDS_LOG_LEVEL", "debug")
 	defer os.Unsetenv("UDS_LOG_LEVEL")
-	createLocal(t, "src/test/bundles/11-real-simple", e2e.Arch)
-	_, stderr := deploy(t, fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-real-simple-%s-0.0.1.tar.zst", e2e.Arch))
+	runCmd(t, fmt.Sprintf("create src/test/bundles/11-real-simple --insecure --confirm -a %s", e2e.Arch))
+	tarballPath := fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-real-simple-%s-0.0.1.tar.zst", e2e.Arch)
+	_, stderr := runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", tarballPath))
 	require.Contains(t, stderr, "Log level set to debug")
 }
 
@@ -54,7 +49,8 @@ func TestSimpleBundleWithNameAndVersionFlags(t *testing.T) {
 	name, version := "name-from-flag", "version-from-flag"
 	bundlePath := "src/test/bundles/11-real-simple"
 	runCmd(t, fmt.Sprintf("create %s --confirm --name %s --version %s", bundlePath, name, version))
-	_, stderr := deploy(t, fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-%s-%s-%s.tar.zst", name, e2e.Arch, version))
+	tarballPath := fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-%s-%s-%s.tar.zst", name, e2e.Arch, version)
+	_, stderr := runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", tarballPath))
 	require.Contains(t, stderr, "Log level set to debug")
 }
 
@@ -69,10 +65,10 @@ func TestCreateWithNoPath(t *testing.T) {
 	defer e2e.TeardownRegistry(t, 888)
 
 	pkg := filepath.Join(zarfPkgPath1, fmt.Sprintf("zarf-package-output-var-%s-0.0.1.tar.zst", e2e.Arch))
-	zarfPublish(t, pkg, "localhost:888")
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	pkg = filepath.Join(zarfPkgPath2, fmt.Sprintf("zarf-package-receive-var-%s-0.0.1.tar.zst", e2e.Arch))
-	zarfPublish(t, pkg, "localhost:888")
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	// move the bundle to the current directory so we can test the create command with no path
 	err := os.Link(fmt.Sprintf("src/test/bundles/02-variables/remote/%s", config.BundleYAML), config.BundleYAML)
@@ -81,9 +77,7 @@ func TestCreateWithNoPath(t *testing.T) {
 	defer os.Remove(fmt.Sprintf("uds-bundle-variables-%s-0.0.1.tar.zst", e2e.Arch))
 
 	// create
-	cmd := strings.Split("create --confirm --insecure", " ")
-	_, _, err = e2e.UDS(cmd...)
-	require.NoError(t, err)
+	runCmd(t, "create --confirm --insecure")
 }
 
 func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
@@ -105,23 +99,25 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 		Repository: "test-local-and-remote",
 		Reference:  "0.0.1",
 	}
-	createLocal(t, bundleDir, e2e.Arch)
+
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 	inspectLocal(t, bundlePath)
-	deploy(t, bundlePath)
-	remove(t, bundlePath)
+	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundlePath))
+	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
 
 	t.Run("Test pulling and deploying from the same registry", func(t *testing.T) {
-		publishInsecure(t, bundlePath, bundleRef.Registry)
+		runCmd(t, fmt.Sprintf("publish %s %s --insecure", bundlePath, bundleRef.Registry))
 		pull(t, bundleRef.String(), bundleTarballName) // note that pull pulls the bundle into the build dir
-		deploy(t, pulledBundlePath)
-		remove(t, pulledBundlePath)
+		runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", pulledBundlePath))
+		runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", pulledBundlePath))
 	})
 
 	t.Run(" Test publishing and deploying from different registries", func(t *testing.T) {
-		publishInsecure(t, bundlePath, bundleRef.Registry)
+		runCmd(t, fmt.Sprintf("publish %s %s --insecure", bundlePath, bundleRef.Registry))
 		pull(t, bundleRef.String(), bundleTarballName) // note that pull pulls the bundle into the build dir
 		publishInsecure(t, pulledBundlePath, "oci://localhost:889")
-		deployInsecure(t, bundleRef.String())
+		runCmd(t, fmt.Sprintf("publish %s %s --insecure", pulledBundlePath, "oci://localhost:889"))
+		runCmd(t, fmt.Sprintf("deploy %s --insecure --confirm", bundleRef.String()))
 	})
 }
 
