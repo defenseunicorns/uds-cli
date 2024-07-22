@@ -66,11 +66,13 @@ func TestBundleCreateRemoteAndDeployGHCR(t *testing.T) {
 		Repository: "ghcr-test",
 		Reference:  "0.0.1",
 	}
-	createRemote(t, bundleDir, registryURL, "arm64")
-	createRemote(t, bundleDir, registryURL, "amd64")
+
+	runCmd(t, fmt.Sprintf("create %s -o %s --confirm -a %s", bundleDir, registryURL, "arm64"))
+	runCmd(t, fmt.Sprintf("create %s -o %s --confirm -a %s", bundleDir, registryURL, "amd64"))
+
 	inspectRemote(t, bundleRef.String())
-	deploy(t, bundleRef.String())
-	remove(t, bundleRef.String())
+	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundleRef.String()))
+	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundleRef.String()))
 
 	// ensure the bundle index is present
 	index, err := queryIndex(t, "https://ghcr.io", fmt.Sprintf("%s/%s", bundleGHCRPath, bundleName))
