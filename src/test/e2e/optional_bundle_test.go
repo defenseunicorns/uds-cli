@@ -27,15 +27,15 @@ func TestBundleOptionalComponents(t *testing.T) {
 	zarfPkgPath = "src/test/packages/prometheus"
 	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-prometheus-%s-0.0.1.tar.zst", e2e.Arch))
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-	zarfPublish(t, pkg, "localhost:888")
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	// create bundle and publish
 	bundleDir := "src/test/bundles/14-optional-components"
 	bundleName := "optional-components"
 	bundleTarballName := fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch)
 	bundlePath := filepath.Join(bundleDir, bundleTarballName)
-	createLocal(t, bundleDir, e2e.Arch)
-	publishInsecure(t, bundlePath, "localhost:888")
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
+	runCmd(t, fmt.Sprintf("publish %s localhost:888 --insecure", bundlePath))
 
 	t.Run("look through contents of local bundle to ensure only selected components are present", func(t *testing.T) {
 		// local pkgs will have a correct pkg manifest (ie. missing non-selected optional component tarballs)
@@ -45,8 +45,8 @@ func TestBundleOptionalComponents(t *testing.T) {
 	})
 
 	t.Run("test local deploy", func(t *testing.T) {
-		deploy(t, bundlePath)
-		remove(t, bundlePath)
+		runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundlePath))
+		runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
 	})
 
 	t.Run("test remote deploy + pulled deploy", func(t *testing.T) {
@@ -69,9 +69,7 @@ func introspectOptionalComponentsBundle(t *testing.T) {
 
 	// decompress the bundle
 	bundlePath := fmt.Sprintf("src/test/bundles/14-optional-components/uds-bundle-optional-components-%s-0.0.1.tar.zst", e2e.Arch)
-	cmd := []string{"zarf", "tools", "archiver", "decompress", bundlePath, decompressionLoc}
-	_, _, err = e2e.UDS(cmd...)
-	require.NoError(t, err)
+	runCmd(t, fmt.Sprintf("zarf tools archiver decomporess %s %s", bundlePath, decompressionLoc))
 
 	// read in the bundle's index.json
 	index := ocispec.Index{}

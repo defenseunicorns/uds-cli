@@ -177,31 +177,20 @@ func removeInsecure(t *testing.T, remote string) {
 }
 
 func deployAndRemoveLocalAndRemoteInsecure(t *testing.T, ref string, tarballPath string) {
-	var cmd []string
 	// test both paths because we want to test that the pulled tarball works as well
 	t.Run(
 		"deploy+remove bundle via OCI",
 		func(t *testing.T) {
-			cmd = strings.Split(fmt.Sprintf("deploy %s --insecure --confirm", ref), " ")
-			_, _, err := e2e.UDS(cmd...)
-			require.NoError(t, err)
-
-			cmd = strings.Split(fmt.Sprintf("remove %s --confirm --insecure", ref), " ")
-			_, _, err = e2e.UDS(cmd...)
-			require.NoError(t, err)
+			runCmd(t, fmt.Sprintf("deploy %s --insecure --confirm", ref))
+			runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", ref))
 		},
 	)
 
 	t.Run(
 		"deploy+remove bundle via local tarball",
 		func(t *testing.T) {
-			cmd = strings.Split(fmt.Sprintf("deploy %s --confirm", tarballPath), " ")
-			_, _, err := e2e.UDS(cmd...)
-			require.NoError(t, err)
-
-			cmd = strings.Split(fmt.Sprintf("remove %s --confirm", tarballPath), " ")
-			_, _, err = e2e.UDS(cmd...)
-			require.NoError(t, err)
+			runCmd(t, fmt.Sprintf("deploy %s --confirm", tarballPath))
+			runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", tarballPath))
 		},
 	)
 }
@@ -217,16 +206,12 @@ func pull(t *testing.T, ref string, tarballName string) {
 		t.Fatalf("second arg to pull() must be the name a bundle tarball, got %s", tarballName)
 	}
 	// todo: output somewhere other than build?
-	cmd := strings.Split(fmt.Sprintf("pull %s -o build --insecure --oci-concurrency=10", ref), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
+	runCmd(t, fmt.Sprintf("pull %s -o build --insecure --oci-concurrency=10", ref))
 
 	decompressed := "build/decompressed-bundle"
 	defer e2e.CleanFiles(decompressed)
 
-	cmd = []string{"zarf", "tools", "archiver", "decompress", filepath.Join("build", tarballName), decompressed}
-	_, _, err = e2e.UDS(cmd...)
-	require.NoError(t, err)
+	runCmd(t, fmt.Sprintf("zarf tool archiver decompress %s %s", filepath.Join("build", tarballName), decompressed))
 
 	index := ocispec.Index{}
 	b, err := os.ReadFile(filepath.Join(decompressed, "index.json"))
