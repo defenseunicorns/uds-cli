@@ -17,10 +17,8 @@ import (
 
 // TestZarfLint tests to ensure that the `zarf dev lint` command functions (which requires the zarf schema to be embedded in main.go)
 func TestZarfLint(t *testing.T) {
-	cmd := strings.Split("zarf dev lint src/test/packages/podinfo", " ")
-	_, stdErr, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	require.Contains(t, stdErr, "Image not pinned with digest - ghcr.io/stefanprodan/podinfo:6.4.0")
+	_, stderr := runCmd(t, "zarf dev lint src/test/packages/podinfo")
+	require.Contains(t, stderr, "Image not pinned with digest - ghcr.io/stefanprodan/podinfo:6.4.0")
 }
 
 func TestZarfToolsVersions(t *testing.T) {
@@ -56,9 +54,7 @@ func TestZarfToolsVersions(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		cmdArgs := fmt.Sprintf("zarf tools %s version", tt.args.tool)
-		res, stdErr, err := e2e.UDS(strings.Split(cmdArgs, " ")...)
-		require.NoError(t, err)
+		res, stderr := runCmd(t, fmt.Sprintf("zarf tools %s version", tt.args.tool))
 
 		toolRepoVerArgs := fmt.Sprintf("list -f '{{.Version}}' -m %s", tt.args.toolRepo)
 		verRes, _, verErr := exec.Cmd("go", strings.Split(toolRepoVerArgs, " ")...)
@@ -67,7 +63,7 @@ func TestZarfToolsVersions(t *testing.T) {
 		toolVersion := strings.Split(verRes, "'")[1]
 		output := res
 		if res == "" {
-			output = stdErr
+			output = stderr
 		}
 		require.Contains(t, output, toolVersion)
 	}
