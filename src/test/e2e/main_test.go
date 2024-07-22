@@ -93,7 +93,7 @@ func doAllTheThings(m *testing.M) (int, error) {
 
 // deployZarfInit deploys Zarf init (from a bundle!) if it hasn't already been deployed.
 func deployZarfInit(t *testing.T) {
-	if !zarfInitDeployed(t) {
+	if !zarfInitDeployed() {
 		// get Zarf version from go.mod
 		b, err := os.ReadFile("go.mod")
 		require.NoError(t, err)
@@ -118,11 +118,11 @@ func deployZarfInit(t *testing.T) {
 	}
 }
 
-func zarfInitDeployed(t *testing.T) bool {
-	_, stderr := runCmd(t, "zarf tools kubectl get deployments zarf-docker-registry --namespace zarf")
+func zarfInitDeployed() bool {
+	_, stderr, _ := runCmdWithErr("zarf tools kubectl get deployments zarf-docker-registry --namespace zarf")
 	registryDeployed := !strings.Contains(stderr, "No resources found in zarf namespace") && !strings.Contains(stderr, "not found")
 
-	_, stderr = runCmd(t, "zarf tools kubectl get deployments agent-hook --namespace zarf")
+	_, stderr, _ = runCmdWithErr("zarf tools kubectl get deployments agent-hook --namespace zarf")
 	agentDeployed := !strings.Contains(stderr, "No resources found in zarf namespace") && !strings.Contains(stderr, "not found")
 	return registryDeployed && agentDeployed
 }

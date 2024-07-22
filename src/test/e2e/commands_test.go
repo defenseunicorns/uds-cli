@@ -72,10 +72,8 @@ func inspectRemoteInsecure(t *testing.T, ref string) {
 }
 
 func inspectRemote(t *testing.T, ref string) {
-	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom", ref), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	_, err = os.Stat(config.BundleSBOMTar)
+	runCmd(t, fmt.Sprintf("inspect %s --sbom", ref))
+	_, err := os.Stat(config.BundleSBOMTar)
 	require.NoError(t, err)
 	err = os.Remove(config.BundleSBOMTar)
 	require.NoError(t, err)
@@ -138,6 +136,12 @@ func runCmd(t *testing.T, input string) (stdout string, stderr string) {
 	stdout, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
 	return stdout, stderr
+}
+
+func runCmdWithErr(input string) (stdout string, stderr string, err error) {
+	cmd := strings.Split(input, " ")
+	stdout, stderr, err = e2e.UDS(cmd...)
+	return stdout, stderr, err
 }
 
 func deployPackagesFlag(tarballPath string, packages string) (stdout string, stderr string) {
