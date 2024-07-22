@@ -69,7 +69,7 @@ func introspectOptionalComponentsBundle(t *testing.T) {
 
 	// decompress the bundle
 	bundlePath := fmt.Sprintf("src/test/bundles/14-optional-components/uds-bundle-optional-components-%s-0.0.1.tar.zst", e2e.Arch)
-	runCmd(t, fmt.Sprintf("zarf tools archiver decomporess %s %s", bundlePath, decompressionLoc))
+	runCmd(t, fmt.Sprintf("zarf tools archiver decompress %s %s", bundlePath, decompressionLoc))
 
 	// read in the bundle's index.json
 	index := ocispec.Index{}

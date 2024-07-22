@@ -5,7 +5,6 @@
 package test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -14,8 +13,7 @@ import (
 func TestMonitor(t *testing.T) {
 	// this test assumes a running k3d cluster with the UDS operator and admission controller installed
 	// recommend running with uds run test:engine-e2e to install controllers
-	cmd := strings.Split("zarf tools kubectl get deployments -n pepr-system -o=jsonpath='{.items[*].metadata.name}'", " ")
-	deployments, _, _ := e2e.UDS(cmd...)
+	deployments, _ := runCmd(t, "zarf tools kubectl get deployments -n pepr-system -o=jsonpath='{.items[*].metadata.name}'")
 	require.Contains(t, deployments, "pepr-uds-core")
 	require.Contains(t, deployments, "pepr-uds-core-watcher")
 
