@@ -190,7 +190,7 @@ func deployAndRemoveLocalAndRemoteInsecure(t *testing.T, ref string, tarballPath
 		"deploy+remove bundle via local tarball",
 		func(t *testing.T) {
 			runCmd(t, fmt.Sprintf("deploy %s --confirm", tarballPath))
-			runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", tarballPath))
+			runCmd(t, fmt.Sprintf("remove %s --confirm", tarballPath))
 		},
 	)
 }
@@ -211,7 +211,7 @@ func pull(t *testing.T, ref string, tarballName string) {
 	decompressed := "build/decompressed-bundle"
 	defer e2e.CleanFiles(decompressed)
 
-	runCmd(t, fmt.Sprintf("zarf tool archiver decompress %s %s", filepath.Join("build", tarballName), decompressed))
+	runCmd(t, fmt.Sprintf("zarf tools archiver decompress %s %s", filepath.Join("build", tarballName), decompressed))
 
 	index := ocispec.Index{}
 	b, err := os.ReadFile(filepath.Join(decompressed, "index.json"))

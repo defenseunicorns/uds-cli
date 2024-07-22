@@ -93,7 +93,7 @@ func doAllTheThings(m *testing.M) (int, error) {
 
 // deployZarfInit deploys Zarf init (from a bundle!) if it hasn't already been deployed.
 func deployZarfInit(t *testing.T) {
-	if !zarfInitDeployed() {
+	if !zarfInitDeployed(t) {
 		// get Zarf version from go.mod
 		b, err := os.ReadFile("go.mod")
 		require.NoError(t, err)
@@ -111,24 +111,18 @@ func deployZarfInit(t *testing.T) {
 		bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-all-the-inits-%s-0.0.1.tar.zst", e2e.Arch))
 
 		// Create
-		cmd := strings.Split(fmt.Sprintf("create %s --confirm --insecure", bundleDir), " ")
-		_, _, err = e2e.UDS(cmd...)
-		require.NoError(t, err)
+		runCmd(t, fmt.Sprintf("create %s --confirm --insecure", bundleDir))
 
 		// Deploy
-		cmd = strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug", bundlePath), " ")
-		_, _, err = e2e.UDS(cmd...)
-		require.NoError(t, err)
+		runCmd(t, fmt.Sprintf("deploy %s --confirm -l=debug", bundlePath))
 	}
 }
 
-func zarfInitDeployed() bool {
-	cmd := strings.Split("zarf tools kubectl get deployments zarf-docker-registry --namespace zarf", " ")
-	_, stderr, _ := e2e.UDS(cmd...)
+func zarfInitDeployed(t *testing.T) bool {
+	_, stderr := runCmd(t, "zarf tools kubectl get deployments zarf-docker-registry --namespace zarf")
 	registryDeployed := !strings.Contains(stderr, "No resources found in zarf namespace") && !strings.Contains(stderr, "not found")
 
-	cmd = strings.Split("zarf tools kubectl get deployments agent-hook --namespace zarf", " ")
-	_, stderr, _ = e2e.UDS(cmd...)
+	_, stderr = runCmd(t, "zarf tools kubectl get deployments agent-hook --namespace zarf")
 	agentDeployed := !strings.Contains(stderr, "No resources found in zarf namespace") && !strings.Contains(stderr, "not found")
 	return registryDeployed && agentDeployed
 }
