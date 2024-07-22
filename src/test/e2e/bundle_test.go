@@ -115,7 +115,6 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 	t.Run(" Test publishing and deploying from different registries", func(t *testing.T) {
 		runCmd(t, fmt.Sprintf("publish %s %s --insecure", bundlePath, bundleRef.Registry))
 		pull(t, bundleRef.String(), bundleTarballName) // note that pull pulls the bundle into the build dir
-		publishInsecure(t, pulledBundlePath, "oci://localhost:889")
 		runCmd(t, fmt.Sprintf("publish %s %s --insecure", pulledBundlePath, "oci://localhost:889"))
 		runCmd(t, fmt.Sprintf("deploy %s --insecure --confirm", bundleRef.String()))
 	})
@@ -133,19 +132,19 @@ func TestLocalBundleWithRemotePkgs(t *testing.T) {
 	defer e2e.TeardownRegistry(t, 889)
 
 	pkg := fmt.Sprintf("src/test/packages/nginx/zarf-package-nginx-%s-0.0.1.tar.zst", e2e.Arch)
-	zarfPublish(t, pkg, "localhost:888")
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	pkg = fmt.Sprintf("src/test/packages/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
-	zarfPublish(t, pkg, "localhost:889")
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:889 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	bundleDir := "src/test/bundles/01-uds-bundle"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-example-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
-	createLocal(t, bundleDir, e2e.Arch)
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 	inspectLocal(t, bundlePath)
 	inspectLocalAndSBOMExtract(t, bundlePath)
-	deploy(t, bundlePath)
-	remove(t, bundlePath)
+	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundlePath))
+	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
 }
 
 func TestRemoteBundleWithRemotePkgs(t *testing.T) {
@@ -159,10 +158,10 @@ func TestRemoteBundleWithRemotePkgs(t *testing.T) {
 	defer e2e.TeardownRegistry(t, 889)
 
 	pkg := fmt.Sprintf("src/test/packages/nginx/zarf-package-nginx-%s-0.0.1.tar.zst", e2e.Arch)
-	zarfPublish(t, pkg, "localhost:888")
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	pkg = fmt.Sprintf("src/test/packages/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
-	zarfPublish(t, pkg, "localhost:889")
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:889 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	bundleRef := registry.Reference{
 		Registry: "oci://localhost:888",
@@ -174,10 +173,10 @@ func TestRemoteBundleWithRemotePkgs(t *testing.T) {
 	bundleTarballName := fmt.Sprintf("uds-bundle-example-remote-%s-0.0.1.tar.zst", e2e.Arch)
 	tarballPath := filepath.Join("build", bundleTarballName)
 	bundlePath := "src/test/bundles/01-uds-bundle"
-	createRemoteInsecure(t, bundlePath, bundleRef.Registry, e2e.Arch)
+	runCmd(t, fmt.Sprintf("create %s -o %s --confirm --insecure -a %s", bundlePath, bundleRef.Registry, e2e.Arch))
 
 	// Test without oci prefix
-	createRemoteInsecure(t, bundlePath, "localhost:888", e2e.Arch)
+	runCmd(t, fmt.Sprintf("create %s -o %s --confirm --insecure -a %s", bundlePath, "localhost:888", e2e.Arch))
 
 	pull(t, bundleRef.String(), bundleTarballName)
 	inspectRemoteInsecure(t, bundleRef.String())
@@ -198,9 +197,9 @@ func TestBundleWithGitRepo(t *testing.T) {
 	bundleDir := "src/test/bundles/05-gitrepo"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-gitrepo-%s-0.0.1.tar.zst", e2e.Arch))
 
-	createLocal(t, bundleDir, e2e.Arch)
-	deploy(t, bundlePath)
-	remove(t, bundlePath)
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
+	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundlePath))
+	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
 }
 
 func TestBundleWithYmlFile(t *testing.T) {
@@ -210,44 +209,35 @@ func TestBundleWithYmlFile(t *testing.T) {
 	bundleDir := "src/test/bundles/09-uds-bundle-yml"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-yml-example-%s-0.0.1.tar.zst", e2e.Arch))
 
-	createLocal(t, bundleDir, e2e.Arch)
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 	inspectLocal(t, bundlePath)
 	inspectLocalAndSBOMExtract(t, bundlePath)
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/09-uds-bundle-yml", "uds-config.yml"))
 	defer os.Unsetenv("UDS_CONFIG")
-	deploy(t, bundlePath)
-	remove(t, bundlePath)
+	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundlePath))
+	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
 }
 
 func TestLocalBundleWithOutput(t *testing.T) {
 	path := "src/test/packages/nginx"
-	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --confirm", path, path), " ")
-	_, _, err := e2e.UDS(args...)
-	require.NoError(t, err)
+	e2e.CreateZarfPkg(t, path, false)
 
 	bundleDir := "src/test/bundles/09-uds-bundle-yml"
 	destDir := "src/test/test/"
 	bundlePath := filepath.Join(destDir, fmt.Sprintf("uds-bundle-yml-example-%s-0.0.1.tar.zst", e2e.Arch))
-	createLocalWithOuputFlag(t, bundleDir, destDir, e2e.Arch)
-
-	cmd := strings.Split(fmt.Sprintf("inspect %s", bundlePath), " ")
-	_, _, err = e2e.UDS(cmd...)
-	require.NoError(t, err)
+	runCmd(t, fmt.Sprintf("create %s -o %s --insecure --confirm -a %s", bundleDir, destDir, e2e.Arch))
+	runCmd(t, fmt.Sprintf("inspect %s", bundlePath))
 }
 
 func TestLocalBundleWithNoSBOM(t *testing.T) {
 	path := "src/test/packages/nginx"
-	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --skip-sbom --confirm", path, path), " ")
-	_, _, err := e2e.UDS(args...)
-	require.NoError(t, err)
+	runCmd(t, fmt.Sprintf("zarf package create %s -o %s --skip-sbom --confirm", path, path))
 
 	bundleDir := "src/test/bundles/09-uds-bundle-yml"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-yml-example-%s-0.0.1.tar.zst", e2e.Arch))
-	createLocal(t, bundleDir, e2e.Arch)
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 
-	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom --extract", bundlePath), " ")
-	stdout, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
+	stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", bundlePath))
 	require.Contains(t, stdout, "Cannot extract, no SBOMs found in bundle")
 	require.Contains(t, stdout, "sboms.tar not found in Zarf pkg")
 }
@@ -262,12 +252,10 @@ func TestRemoteBundleWithNoSBOM(t *testing.T) {
 	defer e2e.TeardownRegistry(t, 888)
 	bundleDir := "src/test/bundles/09-uds-bundle-yml"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-yml-example-%s-0.0.1.tar.zst", e2e.Arch))
-	createLocal(t, bundleDir, e2e.Arch)
-	publishInsecure(t, bundlePath, "localhost:888")
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
+	runCmd(t, fmt.Sprintf("publish %s %s --insecure", bundlePath, "localhost:888"))
 
-	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom --extract", bundlePath), " ")
-	stdout, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
+	stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", bundlePath))
 	require.Contains(t, stdout, "Cannot extract, no SBOMs found in bundle")
 	require.Contains(t, stdout, "sboms.tar not found in Zarf pkg")
 }
@@ -284,10 +272,10 @@ func TestPackageNaming(t *testing.T) {
 	defer e2e.TeardownRegistry(t, 889)
 
 	pkg := fmt.Sprintf("src/test/packages/nginx/zarf-package-nginx-%s-0.0.1.tar.zst", e2e.Arch)
-	zarfPublish(t, pkg, "localhost:888")
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	pkg = fmt.Sprintf("src/test/packages/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
-	zarfPublish(t, pkg, "localhost:889")
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:889 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	bundleDir := "src/test/bundles/10-package-naming"
 	bundleTarballName := fmt.Sprintf("uds-bundle-package-naming-%s-0.0.1.tar.zst", e2e.Arch)
@@ -299,14 +287,15 @@ func TestPackageNaming(t *testing.T) {
 		Repository: "package-naming",
 		Reference:  "0.0.1",
 	}
-	createLocal(t, bundleDir, e2e.Arch) // todo: allow creating from both the folder containing and direct reference to uds-bundle.yaml
-	publishInsecure(t, bundlePath, bundleRef.Registry)
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch)) // todo: allow creating from both the folder containing and direct reference to uds-bundle.yaml
+	runCmd(t, fmt.Sprintf("publish %s %s --insecure", bundlePath, bundleRef.Registry))
+
 	pull(t, bundleRef.String(), bundleTarballName)
-	deploy(t, tarballPath)
-	remove(t, tarballPath)
+	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", tarballPath))
+	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", tarballPath))
 
 	// Test create -o with zarf package names that don't match the zarf package name in the bundle
-	createRemoteInsecure(t, bundleDir, bundleRef.Registry, e2e.Arch)
+	runCmd(t, fmt.Sprintf("create %s -o %s --confirm --insecure -a %s", bundlePath, bundleRef.Registry, e2e.Arch))
 	deployAndRemoveLocalAndRemoteInsecure(t, bundleRef.String(), tarballPath)
 }
 
@@ -317,14 +306,14 @@ func TestBundleWithComposedPkgComponent(t *testing.T) {
 	zarfPkgPath := "src/test/packages/prometheus"
 	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-prometheus-%s-0.0.1.tar.zst", e2e.Arch))
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-	zarfPublish(t, pkg, "localhost:888")
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	bundleDir := "src/test/bundles/13-composable-component"
 	bundleName := "with-composed"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch))
-	createLocal(t, bundleDir, e2e.Arch)
-	deploy(t, bundlePath)
-	remove(t, bundlePath)
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
+	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundlePath))
+	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
 }
 
 func TestBundleTmpDir(t *testing.T) {
@@ -421,8 +410,7 @@ func TestInvalidConfig(t *testing.T) {
 	defer os.Unsetenv("UDS_CONFIG")
 	zarfPkgPath := "src/test/packages/helm"
 	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
-	args := strings.Split(fmt.Sprintf("zarf package create %s -o %s --confirm", zarfPkgPath, zarfPkgPath), " ")
-	_, stdErr, _ := e2e.UDS(args...)
+	_, stdErr := runCmd(t, fmt.Sprintf("zarf package create %s -o %s --confirm", zarfPkgPath, zarfPkgPath))
 	count := strings.Count(stdErr, "invalid config option: log_levelx")
 	require.Equal(t, 1, count, "The string 'invalid config option: log_levelx' should appear exactly once")
 	require.NotContains(t, stdErr, "Usage:")
@@ -434,7 +422,7 @@ func TestInvalidBundle(t *testing.T) {
 	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 	bundleDir := "src/test/bundles/07-helm-overrides/invalid"
-	stderr := createLocalError(bundleDir, e2e.Arch)
+	_, stderr, _ := runCmdWithErr(fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 	require.Contains(t, stderr, "unknown field")
 }
 
@@ -451,9 +439,9 @@ func TestArchCheck(t *testing.T) {
 	e2e.CreateZarfPkgWithArch(t, zarfPkgPath, false, testArch)
 	bundleDir := "src/test/bundles/07-helm-overrides"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", testArch))
-	createLocal(t, bundleDir, testArch)
-	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm", bundlePath), " ")
-	_, stderr, _ := e2e.UDS(cmd...)
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, testArch))
+
+	_, stderr, _ := runCmdWithErr(fmt.Sprintf("deploy %s --confirm", bundlePath))
 	require.Contains(t, stderr, fmt.Sprintf("arch %s does not match cluster arch, [%s]", testArch, e2e.Arch))
 }
 
@@ -464,7 +452,7 @@ func TestListImages(t *testing.T) {
 	zarfPkgPath := "src/test/packages/prometheus"
 	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-prometheus-%s-0.0.1.tar.zst", e2e.Arch))
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-	zarfPublish(t, pkg, "localhost:888")
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	zarfPkgPath = "src/test/packages/podinfo-nginx"
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
@@ -472,9 +460,7 @@ func TestListImages(t *testing.T) {
 	bundleDir := "src/test/bundles/14-optional-components"
 
 	t.Run("list images on bundle YAML only", func(t *testing.T) {
-		cmd := strings.Split(fmt.Sprintf("inspect %s --list-images --insecure", filepath.Join(bundleDir, config.BundleYAML)), " ")
-		stdout, _, err := e2e.UDS(cmd...)
-		require.NoError(t, err)
+		stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --list-images --insecure", filepath.Join(bundleDir, config.BundleYAML)))
 		require.Contains(t, stdout, "library/registry")
 		require.Contains(t, stdout, "ghcr.io/defenseunicorns/zarf/agent")
 		require.Contains(t, stdout, "nginx")
@@ -518,7 +504,7 @@ func TestListVariables(t *testing.T) {
 	zarfPkgPath := "src/test/packages/prometheus"
 	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-prometheus-%s-0.0.1.tar.zst", e2e.Arch))
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-	zarfPublish(t, pkg, "localhost:888")
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	zarfPkgPath = "src/test/packages/podinfo-nginx"
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
@@ -526,28 +512,21 @@ func TestListVariables(t *testing.T) {
 	bundleDir := "src/test/bundles/14-optional-components"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-optional-components-%s-0.0.1.tar.zst", e2e.Arch))
 	ociRef := "oci://localhost:888/test/bundles"
-	createLocal(t, bundleDir, e2e.Arch)
-	publishInsecure(t, bundlePath, ociRef)
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
+	runCmd(t, fmt.Sprintf("publish %s %s --insecure", bundlePath, ociRef))
 
 	t.Run("list variables for local tarball with no color", func(t *testing.T) {
-		cmd := strings.Split(fmt.Sprintf("inspect %s --list-variables --no-color", bundlePath), " ")
-		stdout, _, err := e2e.UDS(cmd...)
-		require.NoError(t, err)
+		stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --list-variables --no-color", bundlePath))
 		require.Contains(t, stdout, "prometheus:\n  variables: []\n")
 	})
 
 	t.Run("list variables for local tarball with color", func(t *testing.T) {
-		cmd := strings.Split(fmt.Sprintf("inspect %s --list-variables", bundlePath), " ")
-		stdout, _, err := e2e.UDS(cmd...)
-		require.NoError(t, err)
+		stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --list-variables", bundlePath))
 		require.Contains(t, stdout, "\x1b")
 	})
 
 	t.Run("list variables for remote tarball", func(t *testing.T) {
-		cmd := strings.Split(fmt.Sprintf("inspect %s --list-variables --insecure", fmt.Sprintf("%s/optional-components:0.0.1", ociRef)), " ")
-		stdout, _, err := e2e.UDS(cmd...)
-		require.NoError(t, err)
-
+		stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --list-variables --insecure", fmt.Sprintf("%s/optional-components:0.0.1", ociRef)))
 		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
 		cleaned := ansiRegex.ReplaceAllString(stdout, "")
 		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")

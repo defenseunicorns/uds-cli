@@ -25,41 +25,17 @@ import (
 
 // This file contains helpers for running UDS CLI commands (ie. uds create/deploy/etc with various flags and options)
 
-func zarfPublish(t *testing.T, path string, reg string) {
-	args := strings.Split(fmt.Sprintf("zarf package publish %s oci://%s --insecure --oci-concurrency=10 -l debug --no-progress", path, reg), " ")
-	_, _, err := e2e.UDS(args...)
-	require.NoError(t, err)
-}
-
 func createLocal(t *testing.T, bundlePath string, arch string) {
-	cmd := strings.Split(fmt.Sprintf("create %s --insecure --confirm -a %s", bundlePath, arch), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-}
-
-func createLocalError(bundlePath string, arch string) (stderr string) {
-	cmd := strings.Split(fmt.Sprintf("create %s --insecure --confirm -a %s", bundlePath, arch), " ")
-	_, stderr, _ = e2e.UDS(cmd...)
-	return stderr
-}
-
-func createLocalWithOuputFlag(t *testing.T, bundlePath string, destPath string, arch string) {
-	cmd := strings.Split(fmt.Sprintf("create %s -o %s --insecure --confirm -a %s", bundlePath, destPath, arch), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundlePath, arch))
 }
 
 func createRemoteInsecure(t *testing.T, bundlePath, registry, arch string) {
-	cmd := strings.Split(fmt.Sprintf("create %s -o %s --confirm --insecure -a %s", bundlePath, registry, arch), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
+	runCmd(t, fmt.Sprintf("create %s -o %s --confirm --insecure -a %s", bundlePath, registry, arch))
 }
 
 func inspectRemoteInsecure(t *testing.T, ref string) {
-	cmd := strings.Split(fmt.Sprintf("inspect %s --insecure --sbom", ref), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	_, err = os.Stat(config.BundleSBOMTar)
+	runCmd(t, fmt.Sprintf("inspect %s --insecure --sbom", ref))
+	_, err := os.Stat(config.BundleSBOMTar)
 	require.NoError(t, err)
 	err = os.Remove(config.BundleSBOMTar)
 	require.NoError(t, err)
@@ -74,10 +50,8 @@ func inspectRemote(t *testing.T, ref string) {
 }
 
 func inspectRemoteAndSBOMExtract(t *testing.T, ref string) {
-	cmd := strings.Split(fmt.Sprintf("inspect %s --insecure --sbom --extract", ref), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	_, err = os.Stat(config.BundleSBOM)
+	runCmd(t, fmt.Sprintf("inspect %s --insecure --sbom --extract", ref))
+	_, err := os.Stat(config.BundleSBOM)
 	require.NoError(t, err)
 	err = os.RemoveAll(config.BundleSBOM)
 	require.NoError(t, err)
@@ -93,20 +67,11 @@ func inspectLocal(t *testing.T, tarballPath string) {
 }
 
 func inspectLocalAndSBOMExtract(t *testing.T, tarballPath string) {
-	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom --extract", tarballPath), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	_, err = os.Stat(config.BundleSBOM)
+	runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", tarballPath))
+	_, err := os.Stat(config.BundleSBOM)
 	require.NoError(t, err)
 	err = os.RemoveAll(config.BundleSBOM)
 	require.NoError(t, err)
-}
-
-func deploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("deploy %s --retries 1 --confirm", tarballPath), " ")
-	stdout, stderr, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	return stdout, stderr
 }
 
 func runCmd(t *testing.T, input string) (stdout string, stderr string) {
@@ -135,19 +100,13 @@ func deployResumeFlag(t *testing.T, tarballPath string) {
 }
 
 func remove(t *testing.T, source string) {
-	cmd := strings.Split(fmt.Sprintf("remove %s --confirm --insecure", source), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
+	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", source))
 }
 
 func removePackagesFlag(tarballPath string, packages string) (stdout string, stderr string) {
 	cmd := strings.Split(fmt.Sprintf("remove %s --confirm --insecure --packages %s", tarballPath, packages), " ")
 	stdout, stderr, _ = e2e.UDS(cmd...)
 	return stdout, stderr
-}
-
-func deployInsecure(t *testing.T, ref string) {
-	runCmd(t, fmt.Sprintf("deploy %s --insecure --confirm", ref))
 }
 
 func deployAndRemoveLocalAndRemoteInsecure(t *testing.T, ref string, tarballPath string) {
