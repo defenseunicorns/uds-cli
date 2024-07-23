@@ -58,6 +58,7 @@ const (
 	CmdPackageInspectFlagExtractSBOM  = "Create a folder of SBOMs contained in the bundle"
 	CmdBundleInspectFlagFindImages    = "Derive images from a uds-bundle.yaml file and list them"
 	CmdBundleInspectFlagListVariables = "List all configurable variables in a bundle (including zarf variables)"
+	CmdBundleInspectSignedNoPublicKey = "The package was signed but no public key was provided, skipping signature validation"
 
 	// bundle remove
 	CmdBundleRemoveShort        = "Remove a bundle that has been deployed already"

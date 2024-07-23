@@ -7,7 +7,10 @@ package bundler
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
+	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/pusher"
@@ -18,6 +21,9 @@ import (
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+
+	"github.com/defenseunicorns/zarf/src/pkg/interactive"
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 )
 
 // RemoteBundleOpts are the options for creating a remote bundle
@@ -44,9 +50,8 @@ func NewRemoteBundle(opts *RemoteBundleOpts) *RemoteBundle {
 }
 
 // create creates the bundle in a remote OCI registry publishes w/ optional signature to the remote repository.
-func (r *RemoteBundle) create(signature []byte) error {
+func (r *RemoteBundle) create(createOpts types.BundleCreateOptions) error {
 	ctx := context.TODO()
-
 	// set the bundle remote's reference from metadata
 	r.output = boci.EnsureOCIPrefix(r.output)
 	ref, err := referenceFromMetadata(r.output, &r.bundle.Metadata)
@@ -120,23 +125,6 @@ func (r *RemoteBundle) create(signature []byte) error {
 	message.Debug("Pushed", config.BundleYAML+":", jsonValue)
 	rootManifest.Layers = append(rootManifest.Layers, *bundleYamlDesc)
 
-	// push the bundle's signature
-	if len(signature) > 0 {
-		bundleYamlSigDesc, err := bundleRemote.PushLayer(ctx, signature, zoci.ZarfLayerMediaTypeBlob)
-		if err != nil {
-			return err
-		}
-		bundleYamlSigDesc.Annotations = map[string]string{
-			ocispec.AnnotationTitle: config.BundleYAMLSignature,
-		}
-		rootManifest.Layers = append(rootManifest.Layers, *bundleYamlSigDesc)
-		jsonValue, err := utils.JSONValue(bundleYamlSigDesc)
-		if err != nil {
-			return err
-		}
-		message.Debug("Pushed", config.BundleYAMLSignature+":", jsonValue)
-	}
-
 	// push the bundle manifest config
 	configDesc, err := pushManifestConfigFromMetadata(bundleRemote.OrasRemote, &bundle.Metadata, &bundle.Build)
 	if err != nil {
@@ -164,6 +152,14 @@ func (r *RemoteBundle) create(signature []byte) error {
 		return err
 	}
 
+	// Pull the bundle.yaml, sign it, and repush it to the remote along with the signature
+	if createOpts.SigningKeyPath != "" {
+		rootManifestDesc, err = r.signBundle(ctx, bundleRemote, createOpts, rootManifest)
+		if err != nil {
+			return err
+		}
+	}
+
 	// create or update, then push index.json
 	err = boci.UpdateIndex(index, bundleRemote.OrasRemote, bundle, *rootManifestDesc)
 	if err != nil {
@@ -181,4 +177,69 @@ func (r *RemoteBundle) create(signature []byte) error {
 	message.Command("pull oci://%s %s", dstRef, flags)
 
 	return nil
+}
+
+// signBundle signs the bundle.yaml layer and pushes the signature to the remote
+func (r *RemoteBundle) signBundle(ctx context.Context, bundleRemote *zoci.Remote, createOpts types.BundleCreateOptions, rootManifest ocispec.Manifest) (*ocispec.Descriptor, error) {
+	// pull the bundle.yaml
+	if err := helpers.CreateDirectory(filepath.Join(r.tmpDstDir, config.BlobsDir), 0700); err != nil {
+		return nil, err
+	}
+	layers, err := bundleRemote.PullPaths(context.TODO(), filepath.Join(r.tmpDstDir, config.BlobsDir), config.BundleAlwaysPull)
+	if err != nil {
+		return nil, err
+	}
+	filepaths := make(types.PathMap)
+	for _, layer := range layers {
+		rel := layer.Annotations[ocispec.AnnotationTitle]
+		abs := filepath.Join(r.tmpDstDir, config.BlobsDir, rel)
+		absSha := filepath.Join(r.tmpDstDir, config.BlobsDir, layer.Digest.Encoded())
+		if err := os.Rename(abs, absSha); err != nil {
+			return nil, err
+		}
+		filepaths[rel] = absSha
+	}
+	// sign the bundle.yaml layer
+	getSigCreatePassword := func(_ bool) ([]byte, error) {
+		if createOpts.SigningKeyPassword != "" {
+			return []byte(createOpts.SigningKeyPassword), nil
+		}
+		if config.CommonOptions.Confirm {
+			return nil, nil
+		}
+		return interactive.PromptSigPassword()
+	}
+	// sign the bundle layer
+	signaturePath := filepath.Join(r.tmpDstDir, config.BundleYAMLSignature)
+	_, err = zarfUtils.CosignSignBlob(filepaths[config.BundleYAML], signaturePath, createOpts.SigningKeyPath, getSigCreatePassword)
+	if err != nil {
+		return nil, err
+	}
+	// push the bundle's signature
+	signatureBytes, err := os.ReadFile(signaturePath)
+	if err != nil {
+		// Handle the error
+		fmt.Println("Error reading file:", err)
+		return nil, err
+	}
+
+	bundleYamlSigDesc, err := bundleRemote.PushLayer(ctx, signatureBytes, zoci.ZarfLayerMediaTypeBlob)
+	if err != nil {
+		return nil, err
+	}
+	bundleYamlSigDesc.Annotations = map[string]string{
+		ocispec.AnnotationTitle: config.BundleYAMLSignature,
+	}
+	rootManifest.Layers = append(rootManifest.Layers, *bundleYamlSigDesc)
+	jsonValue, err := utils.JSONValue(bundleYamlSigDesc)
+	if err != nil {
+		return nil, err
+	}
+	message.Debug("Pushed", config.BundleYAMLSignature+":", jsonValue)
+
+	rootManifestDesc, err := boci.ToOCIRemote(rootManifest, ocispec.MediaTypeImageManifest, bundleRemote.OrasRemote)
+	if err != nil {
+		return nil, err
+	}
+	return rootManifestDesc, nil
 }

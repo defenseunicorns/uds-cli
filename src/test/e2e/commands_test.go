@@ -140,6 +140,12 @@ func runCmd(t *testing.T, input string) (stdout string, stderr string) {
 	return stdout, stderr
 }
 
+func runCmdWithErr(input string) (stdout string, stderr string, err error) {
+	cmd := strings.Split(input, " ")
+	stdout, stderr, err = e2e.UDS(cmd...)
+	return stdout, stderr, err
+}
+
 func deployPackagesFlag(tarballPath string, packages string) (stdout string, stderr string) {
 	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --packages %s", tarballPath, packages), " ")
 	stdout, stderr, _ = e2e.UDS(cmd...)

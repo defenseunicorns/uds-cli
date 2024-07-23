@@ -41,16 +41,16 @@ func NewBundler(opts *Options) *Bundler {
 }
 
 // Create creates a bundle
-func (b *Bundler) Create() error {
+func (b *Bundler) Create(createOpts types.BundleCreateOptions) error {
 	if utils.IsRegistryURL(b.output) {
-		remoteBundle := NewRemoteBundle(&RemoteBundleOpts{Bundle: b.bundle, Output: b.output})
-		err := remoteBundle.create(nil)
+		remoteBundle := NewRemoteBundle(&RemoteBundleOpts{Bundle: b.bundle, TmpDstDir: b.tmpDstDir, Output: b.output})
+		err := remoteBundle.create(createOpts)
 		if err != nil {
 			return err
 		}
 	} else {
 		localBundle := NewLocalBundle(&LocalBundleOpts{Bundle: b.bundle, TmpDstDir: b.tmpDstDir, SourceDir: b.sourceDir, OutputDir: b.output})
-		err := localBundle.create(nil)
+		err := localBundle.create(createOpts)
 		if err != nil {
 			return err
 		}

@@ -14,7 +14,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
-	"github.com/defenseunicorns/zarf/src/pkg/interactive"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	"github.com/pterm/pterm"
@@ -66,28 +65,6 @@ func (b *Bundle) Create() error {
 	validateSpinner.Successf("Bundle Validated")
 	pterm.Print()
 
-	// sign the bundle if a signing key was provided
-	if b.cfg.CreateOpts.SigningKeyPath != "" {
-		// write the bundle to disk so we can sign it
-		bundlePath := filepath.Join(b.tmp, config.BundleYAML)
-		if err := zarfUtils.WriteYaml(bundlePath, &b.bundle, 0600); err != nil {
-			return err
-		}
-
-		getSigCreatePassword := func(_ bool) ([]byte, error) {
-			if b.cfg.CreateOpts.SigningKeyPassword != "" {
-				return []byte(b.cfg.CreateOpts.SigningKeyPassword), nil
-			}
-			return interactive.PromptSigPassword()
-		}
-		// sign the bundle
-		signaturePath := filepath.Join(b.tmp, config.BundleYAMLSignature)
-		_, err := zarfUtils.CosignSignBlob(bundlePath, signaturePath, b.cfg.CreateOpts.SigningKeyPath, getSigCreatePassword)
-		if err != nil {
-			return err
-		}
-	}
-
 	// for dev mode update package ref for local bundles, refs for remote bundles updated on deploy
 	if config.Dev && len(b.cfg.DevDeployOpts.Ref) != 0 {
 		for i, pkg := range b.bundle.Packages {
@@ -104,7 +81,7 @@ func (b *Bundle) Create() error {
 	}
 	bundlerClient := bundler.NewBundler(&opts)
 
-	return bundlerClient.Create()
+	return bundlerClient.Create(b.cfg.CreateOpts)
 }
 
 // confirmBundleCreation prompts the user to confirm bundle creation
