@@ -54,6 +54,14 @@ const (
 
 	// CachedLogs is a file containing cached logs
 	CachedLogs = "recent-logs"
+
+	// Special Zarf init configs, can potentially remove after https://github.com/zarf-dev/zarf/issues/1725
+	RegistryURL          = "REGISTRY-URL"
+	RegistryPushUsername = "REGISTRY-PUSH-USERNAME"
+	RegistryPushPassword = "REGISTRY-PUSH-PASSWORD"
+	RegistryPullUsername = "REGISTRY-PULL-USERNAME"
+	RegistryPullPassword = "REGISTRY-PULL-PASSWORD"
+	RegistrySecretName   = "REGISTRY-SECRET"
 )
 
 var (

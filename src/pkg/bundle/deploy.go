@@ -19,6 +19,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
+	"github.com/defenseunicorns/zarf/src/pkg/layout"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -120,12 +121,6 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 			Timeout:            config.HelmTimeout,
 		}
 
-		pkgCfg := zarfTypes.PackagerConfig{
-			PkgOpts:    opts,
-			InitOpts:   config.DefaultZarfInitOptions,
-			DeployOpts: zarfDeployOpts,
-		}
-
 		// Automatically confirm the package deployment
 		zarfConfig.CommonOptions.Confirm = true
 
@@ -134,10 +129,29 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 			return err
 		}
 
+		zarfInitOpts := config.DefaultZarfInitOptions
+
+		// handle zarf init flags that aren't Zarf variables (external registry only for now)
+		zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), layout.New(pkgTmp), false, false)
+		if err != nil {
+			return err
+		}
+		err = handleZarfInitOpts(zarfInitOpts, pkgVars, zarfPkg)
+		if err != nil {
+			return err
+		}
+
+		pkgCfg := zarfTypes.PackagerConfig{
+			PkgOpts:    opts,
+			InitOpts:   zarfInitOpts,
+			DeployOpts: zarfDeployOpts,
+		}
+
 		pkgClient, err := packager.New(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
 		if err != nil {
 			return err
 		}
+
 		if err = pkgClient.Deploy(context.TODO()); err != nil {
 			return err
 		}
@@ -155,6 +169,31 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 		bundleExportedVars[pkg.Name] = pkgExportedVars
 	}
 
+	return nil
+}
+
+// handleZarfInitOpts sets the ZarfInitOptions for a package if using custom Zarf init options
+func handleZarfInitOpts(zarfInitOpts zarfTypes.ZarfInitOptions, pkgVars zarfVarData, zarfPkg zarfTypes.ZarfPackage) error {
+	// only handling external registry for now until we get more validation with this approach
+	_, usingExternalRegistry := pkgVars[config.RegistryURL]
+	if zarfPkg.Kind == zarfTypes.ZarfInitConfig && usingExternalRegistry {
+		for k, v := range pkgVars {
+			switch k {
+			case config.RegistryURL:
+				zarfInitOpts.RegistryInfo.Address = v
+			case config.RegistryPushUsername:
+				zarfInitOpts.RegistryInfo.PushUsername = v
+			case config.RegistryPushPassword:
+				zarfInitOpts.RegistryInfo.PushPassword = v
+			case config.RegistryPullUsername:
+				zarfInitOpts.RegistryInfo.PullUsername = v
+			case config.RegistryPullPassword:
+				zarfInitOpts.RegistryInfo.PullPassword = v
+			case config.RegistrySecretName:
+				zarfInitOpts.RegistryInfo.Secret = v
+			}
+		}
+	}
 	return nil
 }
 
