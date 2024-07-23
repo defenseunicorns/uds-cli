@@ -30,7 +30,7 @@ tasks:
   - name: completion
     description: only run tests in completion_test.go
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m completion_test.go main_test.go
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m completion_test.go commands_test.go main_test.go
 
   - name: dev
     description: only run tests in dev.go

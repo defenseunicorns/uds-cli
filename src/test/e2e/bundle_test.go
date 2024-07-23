@@ -295,7 +295,7 @@ func TestPackageNaming(t *testing.T) {
 	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", tarballPath))
 
 	// Test create -o with zarf package names that don't match the zarf package name in the bundle
-	runCmd(t, fmt.Sprintf("create %s -o %s --confirm --insecure -a %s", bundlePath, bundleRef.Registry, e2e.Arch))
+	runCmd(t, fmt.Sprintf("create %s -o %s --confirm --insecure -a %s", bundleDir, bundleRef.Registry, e2e.Arch))
 	deployAndRemoveLocalAndRemoteInsecure(t, bundleRef.String(), tarballPath)
 }
 
