@@ -410,7 +410,7 @@ func TestInvalidConfig(t *testing.T) {
 	defer os.Unsetenv("UDS_CONFIG")
 	zarfPkgPath := "src/test/packages/helm"
 	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
-	_, stdErr := runCmd(t, fmt.Sprintf("zarf package create %s -o %s --confirm", zarfPkgPath, zarfPkgPath))
+	_, stdErr, _ := runCmdWithErr(fmt.Sprintf("zarf package create %s -o %s --confirm", zarfPkgPath, zarfPkgPath))
 	count := strings.Count(stdErr, "invalid config option: log_levelx")
 	require.Equal(t, 1, count, "The string 'invalid config option: log_levelx' should appear exactly once")
 	require.NotContains(t, stdErr, "Usage:")
