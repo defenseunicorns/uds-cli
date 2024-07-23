@@ -34,12 +34,14 @@ const (
 	architecture   configOption = "architecture"
 	noLogFile      configOption = "no_log_file"
 	noProgress     configOption = "no_progress"
+	noColor        configOption = "no_color"
+	ociConcurrency configOption = "oci_concurrency"
 )
 
 // isValidConfigOption checks if a string is a valid config option
 func isValidConfigOption(str string) bool {
 	switch configOption(str) {
-	case confirm, insecure, cachePath, tempDirectory, logLevelOption, architecture, noLogFile, noProgress:
+	case confirm, insecure, cachePath, tempDirectory, logLevelOption, architecture, noLogFile, noProgress, noColor, ociConcurrency:
 		return true
 	default:
 		return false
