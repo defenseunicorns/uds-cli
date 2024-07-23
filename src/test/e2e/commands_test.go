@@ -25,14 +25,6 @@ import (
 
 // This file contains helpers for running UDS CLI commands (ie. uds create/deploy/etc with various flags and options)
 
-func createLocal(t *testing.T, bundlePath string, arch string) {
-	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundlePath, arch))
-}
-
-func createRemoteInsecure(t *testing.T, bundlePath, registry, arch string) {
-	runCmd(t, fmt.Sprintf("create %s -o %s --confirm --insecure -a %s", bundlePath, registry, arch))
-}
-
 func inspectRemoteInsecure(t *testing.T, ref string) {
 	runCmd(t, fmt.Sprintf("inspect %s --insecure --sbom", ref))
 	_, err := os.Stat(config.BundleSBOMTar)
@@ -87,26 +79,8 @@ func runCmdWithErr(input string) (stdout string, stderr string, err error) {
 	return stdout, stderr, err
 }
 
-func deployPackagesFlag(tarballPath string, packages string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --packages %s", tarballPath, packages), " ")
-	stdout, stderr, _ = e2e.UDS(cmd...)
-	return stdout, stderr
-}
-
-func deployResumeFlag(t *testing.T, tarballPath string) {
-	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --resume", tarballPath), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-}
-
 func remove(t *testing.T, source string) {
 	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", source))
-}
-
-func removePackagesFlag(tarballPath string, packages string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("remove %s --confirm --insecure --packages %s", tarballPath, packages), " ")
-	stdout, stderr, _ = e2e.UDS(cmd...)
-	return stdout, stderr
 }
 
 func deployAndRemoveLocalAndRemoteInsecure(t *testing.T, ref string, tarballPath string) {
@@ -176,10 +150,6 @@ func pull(t *testing.T, ref string, tarballName string) {
 			}
 		}
 	}
-}
-
-func publishInsecure(t *testing.T, bundlePath, ociPath string) {
-	runCmd(t, fmt.Sprintf("publish %s %s --insecure", bundlePath, ociPath))
 }
 
 func queryIndex(t *testing.T, registryURL, bundlePath string) (ocispec.Index, error) {
