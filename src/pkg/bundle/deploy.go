@@ -129,23 +129,19 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 			return err
 		}
 
-		zarfInitOpts := config.DefaultZarfInitOptions
+		pkgCfg := zarfTypes.PackagerConfig{
+			PkgOpts:    opts,
+			DeployOpts: zarfDeployOpts,
+		}
 
-		// handle zarf init flags that aren't Zarf variables (external registry only for now)
+		// handle zarf init configs that aren't Zarf variables
 		zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), layout.New(pkgTmp), false, false)
 		if err != nil {
 			return err
 		}
-		err = handleZarfInitOpts(zarfInitOpts, pkgVars, zarfPkg)
-		if err != nil {
-			return err
-		}
 
-		pkgCfg := zarfTypes.PackagerConfig{
-			PkgOpts:    opts,
-			InitOpts:   zarfInitOpts,
-			DeployOpts: zarfDeployOpts,
-		}
+		zarfInitOpts := handleZarfInitOpts(pkgVars, zarfPkg.Kind)
+		pkgCfg.InitOpts = zarfInitOpts
 
 		pkgClient, err := packager.New(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
 		if err != nil {
@@ -173,28 +169,60 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 }
 
 // handleZarfInitOpts sets the ZarfInitOptions for a package if using custom Zarf init options
-func handleZarfInitOpts(zarfInitOpts zarfTypes.ZarfInitOptions, pkgVars zarfVarData, zarfPkg zarfTypes.ZarfPackage) error {
-	// only handling external registry for now until we get more validation with this approach
-	_, usingExternalRegistry := pkgVars[config.RegistryURL]
-	if zarfPkg.Kind == zarfTypes.ZarfInitConfig && usingExternalRegistry {
-		for k, v := range pkgVars {
-			switch k {
-			case config.RegistryURL:
-				zarfInitOpts.RegistryInfo.Address = v
-			case config.RegistryPushUsername:
-				zarfInitOpts.RegistryInfo.PushUsername = v
-			case config.RegistryPushPassword:
-				zarfInitOpts.RegistryInfo.PushPassword = v
-			case config.RegistryPullUsername:
-				zarfInitOpts.RegistryInfo.PullUsername = v
-			case config.RegistryPullPassword:
-				zarfInitOpts.RegistryInfo.PullPassword = v
-			case config.RegistrySecretName:
-				zarfInitOpts.RegistryInfo.Secret = v
-			}
+func handleZarfInitOpts(pkgVars zarfVarData, zarfPkgKind zarfTypes.ZarfPackageKind) zarfTypes.ZarfInitOptions {
+	if zarfPkgKind != zarfTypes.ZarfInitConfig {
+		return zarfTypes.ZarfInitOptions{}
+	}
+
+	// default zarf init opts
+	zarfInitOpts := zarfTypes.ZarfInitOptions{
+		GitServer: zarfTypes.GitServerInfo{
+			PushUsername: zarfTypes.ZarfGitPushUser,
+		},
+		RegistryInfo: zarfTypes.RegistryInfo{
+			PushUsername: zarfTypes.ZarfRegistryPushUser,
+		},
+	}
+	// populate zarf init opts from pkgVars
+	for k, v := range pkgVars {
+		switch k {
+		// registry info
+		case config.RegistryURL:
+			zarfInitOpts.RegistryInfo.Address = v
+		case config.RegistryPushUsername:
+			zarfInitOpts.RegistryInfo.PushUsername = v
+		case config.RegistryPushPassword:
+			zarfInitOpts.RegistryInfo.PushPassword = v
+		case config.RegistryPullUsername:
+			zarfInitOpts.RegistryInfo.PullUsername = v
+		case config.RegistryPullPassword:
+			zarfInitOpts.RegistryInfo.PullPassword = v
+		case config.RegistrySecretName:
+			zarfInitOpts.RegistryInfo.Secret = v
+		// git server info
+		case config.GitURL:
+			zarfInitOpts.GitServer.Address = v
+		case config.GitPushUsername:
+			zarfInitOpts.GitServer.PushUsername = v
+		case config.GitPushPassword:
+			zarfInitOpts.GitServer.PushPassword = v
+		case config.GitPullUsername:
+			zarfInitOpts.GitServer.PullUsername = v
+		case config.GitPullPassword:
+			zarfInitOpts.GitServer.PullPassword = v
+		// artifact server info
+		case config.ArtifactURL:
+			zarfInitOpts.ArtifactServer.Address = v
+		case config.ArtifactPushUsername:
+			zarfInitOpts.ArtifactServer.PushUsername = v
+		case config.ArtifactPushToken:
+			zarfInitOpts.ArtifactServer.PushToken = v
+		// storage class
+		case config.StorageClass:
+			zarfInitOpts.StorageClass = v
 		}
 	}
-	return nil
+	return zarfInitOpts
 }
 
 // PreDeployValidation validates the bundle before deployment

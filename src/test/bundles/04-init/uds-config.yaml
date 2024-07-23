@@ -1,8 +1,0 @@
-#variables:
-#  init:
-#    registry-url: fake.io
-#    registry-push-username: foo
-#    registry-push-password: pushpass
-#    registry-pull-username: bar
-#    registry-pull-password: pullpass
-#    registry-secret: baz

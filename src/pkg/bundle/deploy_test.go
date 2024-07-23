@@ -13,6 +13,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
+	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/cli/values"
 )
@@ -573,4 +574,64 @@ func TestFilterOverrides(t *testing.T) {
 	filtered := pkgVars
 	actual := map[string]overrideData{"ZARFVAR": {"val", valuesources.Env}}
 	require.Equal(t, actual, filtered)
+}
+
+func Test_handleZarfInitOpts(t *testing.T) {
+	tests := []struct {
+		name     string
+		pkgVars  zarfVarData
+		zarfPkg  zarfTypes.ZarfPackageKind
+		expected zarfTypes.ZarfInitOptions
+	}{
+		{
+			name: "init configs",
+			pkgVars: zarfVarData{
+				"INIT_REGISTRY_URL":           "fake.io",
+				"INIT_REGISTRY_PUSH_USERNAME": "push-user",
+				"INIT_REGISTRY_PUSH_PASSWORD": "push-secret!",
+				"INIT_REGISTRY_PULL_USERNAME": "pull-user",
+				"INIT_REGISTRY_PULL_PASSWORD": "pull-secret!",
+				"INIT_REGISTRY_SECRET":        "registry-secret",
+				"INIT_GIT_URL":                "fake.git",
+				"INIT_GIT_PUSH_USERNAME":      "push-user",
+				"INIT_GIT_PUSH_PASSWORD":      "push-secret!",
+				"INIT_GIT_PULL_USERNAME":      "pull-user",
+				"INIT_GIT_PULL_PASSWORD":      "pull-secret!",
+				"INIT_ARTIFACT_URL":           "fake.artifact",
+				"INIT_ARTIFACT_PUSH_USERNAME": "push-user",
+				"INIT_ARTIFACT_PUSH_TOKEN":    "push-token!",
+				"INIT_STORAGE_CLASS":          "ebs",
+			},
+			zarfPkg: zarfTypes.ZarfInitConfig,
+			expected: zarfTypes.ZarfInitOptions{
+				RegistryInfo: zarfTypes.RegistryInfo{
+					Address:      "fake.io",
+					PushUsername: "push-user",
+					PushPassword: "push-secret!",
+					PullUsername: "pull-user",
+					PullPassword: "pull-secret!",
+					Secret:       "registry-secret",
+				},
+				GitServer: zarfTypes.GitServerInfo{
+					Address:      "fake.git",
+					PushUsername: "push-user",
+					PushPassword: "push-secret!",
+					PullUsername: "pull-user",
+					PullPassword: "pull-secret!",
+				},
+				ArtifactServer: zarfTypes.ArtifactServerInfo{
+					Address:      "fake.artifact",
+					PushUsername: "push-user",
+					PushToken:    "push-token!",
+				},
+				StorageClass: "ebs",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := handleZarfInitOpts(tt.pkgVars, tt.zarfPkg)
+			require.Equal(t, tt.expected, actual)
+		})
+	}
 }
