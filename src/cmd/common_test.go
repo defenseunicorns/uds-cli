@@ -7,7 +7,19 @@ import (
 )
 
 func TestValidConfigOptions(t *testing.T) {
-	options := []string{"confirm", "insecure", "uds_cache", "tmp_dir", "log_level", "architecture", "no_log_file", "no_progress", "oci_concurrency"}
+	options := []string{
+		"confirm",
+		"insecure",
+		"uds_cache",
+		"tmp_dir",
+		"log_level",
+		"architecture",
+		"no_log_file",
+		"no_progress",
+		"oci_concurrency",
+		"no_color",
+	}
+
 	for _, option := range options {
 		t.Run("test-"+option, func(t *testing.T) {
 			res := isValidConfigOption(option)
