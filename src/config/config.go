@@ -56,16 +56,16 @@ const (
 
 	// Special Zarf init configs, can potentially refactor after https://github.com/zarf-dev/zarf/issues/1725
 	RegistryURL          = "INIT_REGISTRY_URL"
-	RegistryPushUsername = "INIT_REGISTRY_PUSH_USERNAME"
-	RegistryPushPassword = "INIT_REGISTRY_PUSH_PASSWORD"
-	RegistryPullUsername = "INIT_REGISTRY_PULL_USERNAME"
-	RegistryPullPassword = "INIT_REGISTRY_PULL_PASSWORD"
+	RegistryPushUsername = "INIT_REGISTRY_PUSH_USERNAME" // #nosec G101
+	RegistryPushPassword = "INIT_REGISTRY_PUSH_PASSWORD" // #nosec G101
+	RegistryPullUsername = "INIT_REGISTRY_PULL_USERNAME" // #nosec G101
+	RegistryPullPassword = "INIT_REGISTRY_PULL_PASSWORD" // #nosec G101
 	RegistrySecretName   = "INIT_REGISTRY_SECRET"
 	GitURL               = "INIT_GIT_URL"
-	GitPushUsername      = "INIT_GIT_PUSH_USERNAME"
-	GitPushPassword      = "INIT_GIT_PUSH_PASSWORD"
-	GitPullUsername      = "INIT_GIT_PULL_USERNAME"
-	GitPullPassword      = "INIT_GIT_PULL_PASSWORD"
+	GitPushUsername      = "INIT_GIT_PUSH_USERNAME" // #nosec G101
+	GitPushPassword      = "INIT_GIT_PUSH_PASSWORD" // #nosec G101
+	GitPullUsername      = "INIT_GIT_PULL_USERNAME" // #nosec G101
+	GitPullPassword      = "INIT_GIT_PULL_PASSWORD" // #nosec G101
 	ArtifactURL          = "INIT_ARTIFACT_URL"
 	ArtifactPushUsername = "INIT_ARTIFACT_PUSH_USERNAME"
 	ArtifactPushToken    = "INIT_ARTIFACT_PUSH_TOKEN"
