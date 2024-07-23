@@ -270,7 +270,7 @@ In a bundle, variables can come from 6 sources. Those sources and their preceden
 That is to say, variables set using the `--set` flag take precedence over all other variable sources.
 
 ### Configuring Zarf Init Packages
-Zarf init packages that are typically deployed using `zarf init` have a few special flags that are attached to that command. These configs can be configured like any other variable: specified in a `uds-config.yaml`, as an environment variable prefixed with `UDS_` or via the `--set` flag.
+Zarf init packages that are typically deployed using `zarf init` have a few special flags that are attached to that command. These options can be configured like any other variable: specified in a `uds-config.yaml`, as an environment variable prefixed with `UDS_` or via the `--set` flag.
 ```yaml
 # uds-config.yaml
 variables:
