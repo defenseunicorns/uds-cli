@@ -25,112 +25,45 @@ import (
 
 // This file contains helpers for running UDS CLI commands (ie. uds create/deploy/etc with various flags and options)
 
-func zarfPublish(t *testing.T, path string, reg string) {
-	args := strings.Split(fmt.Sprintf("zarf package publish %s oci://%s --insecure --oci-concurrency=10 -l debug --no-progress", path, reg), " ")
-	_, _, err := e2e.UDS(args...)
-	require.NoError(t, err)
-}
-
-func createLocal(t *testing.T, bundlePath string, arch string) {
-	cmd := strings.Split(fmt.Sprintf("create %s --insecure --confirm -a %s", bundlePath, arch), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-}
-
-func createLocalError(bundlePath string, arch string) (stderr string) {
-	cmd := strings.Split(fmt.Sprintf("create %s --insecure --confirm -a %s", bundlePath, arch), " ")
-	_, stderr, _ = e2e.UDS(cmd...)
-	return stderr
-}
-
-func createLocalWithOuputFlag(t *testing.T, bundlePath string, destPath string, arch string) {
-	cmd := strings.Split(fmt.Sprintf("create %s -o %s --insecure --confirm -a %s", bundlePath, destPath, arch), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-}
-
-func createRemoteInsecure(t *testing.T, bundlePath, registry, arch string) {
-	cmd := strings.Split(fmt.Sprintf("create %s -o %s --confirm --insecure -a %s", bundlePath, registry, arch), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-}
-
-func createRemote(t *testing.T, bundlePath, registry, arch string) {
-	cmd := strings.Split(fmt.Sprintf("create %s -o %s --confirm -a %s", bundlePath, registry, arch), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-}
-
 func inspectRemoteInsecure(t *testing.T, ref string) {
-	cmd := strings.Split(fmt.Sprintf("inspect %s --insecure --sbom", ref), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	_, err = os.Stat(config.BundleSBOMTar)
+	runCmd(t, fmt.Sprintf("inspect %s --insecure --sbom", ref))
+	_, err := os.Stat(config.BundleSBOMTar)
 	require.NoError(t, err)
 	err = os.Remove(config.BundleSBOMTar)
 	require.NoError(t, err)
 }
 
 func inspectRemote(t *testing.T, ref string) {
-	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom", ref), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	_, err = os.Stat(config.BundleSBOMTar)
+	runCmd(t, fmt.Sprintf("inspect %s --sbom", ref))
+	_, err := os.Stat(config.BundleSBOMTar)
 	require.NoError(t, err)
 	err = os.Remove(config.BundleSBOMTar)
 	require.NoError(t, err)
 }
 
 func inspectRemoteAndSBOMExtract(t *testing.T, ref string) {
-	cmd := strings.Split(fmt.Sprintf("inspect %s --insecure --sbom --extract", ref), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	_, err = os.Stat(config.BundleSBOM)
+	runCmd(t, fmt.Sprintf("inspect %s --insecure --sbom --extract", ref))
+	_, err := os.Stat(config.BundleSBOM)
 	require.NoError(t, err)
 	err = os.RemoveAll(config.BundleSBOM)
 	require.NoError(t, err)
 }
 
 func inspectLocal(t *testing.T, tarballPath string) {
-	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom --no-color", tarballPath), " ")
-	stdout, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
+	stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --sbom --no-color", tarballPath))
 	require.NotContains(t, stdout, "\x1b")
-	_, err = os.Stat(config.BundleSBOMTar)
+	_, err := os.Stat(config.BundleSBOMTar)
 	require.NoError(t, err)
 	err = os.Remove(config.BundleSBOMTar)
 	require.NoError(t, err)
 }
 
 func inspectLocalAndSBOMExtract(t *testing.T, tarballPath string) {
-	cmd := strings.Split(fmt.Sprintf("inspect %s --sbom --extract", tarballPath), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	_, err = os.Stat(config.BundleSBOM)
+	runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", tarballPath))
+	_, err := os.Stat(config.BundleSBOM)
 	require.NoError(t, err)
 	err = os.RemoveAll(config.BundleSBOM)
 	require.NoError(t, err)
-}
-
-func deploy(t *testing.T, tarballPath string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("deploy %s --retries 1 --confirm", tarballPath), " ")
-	stdout, stderr, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	return stdout, stderr
-}
-
-func devDeploy(t *testing.T, bundlePath string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("dev deploy %s", bundlePath), " ")
-	stdout, stderr, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	return stdout, stderr
-}
-
-func devDeployPackages(t *testing.T, tarballPath string, packages string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("dev deploy %s --packages %s", tarballPath, packages), " ")
-	stdout, stderr, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-	return stdout, stderr
 }
 
 func runCmd(t *testing.T, input string) (stdout string, stderr string) {
@@ -140,68 +73,27 @@ func runCmd(t *testing.T, input string) (stdout string, stderr string) {
 	return stdout, stderr
 }
 
-func deployPackagesFlag(tarballPath string, packages string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --packages %s", tarballPath, packages), " ")
-	stdout, stderr, _ = e2e.UDS(cmd...)
-	return stdout, stderr
-}
-
-func deployResumeFlag(t *testing.T, tarballPath string) {
-	cmd := strings.Split(fmt.Sprintf("deploy %s --confirm -l=debug --resume", tarballPath), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-}
-
-func remove(t *testing.T, source string) {
-	cmd := strings.Split(fmt.Sprintf("remove %s --confirm --insecure", source), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-}
-
-func removePackagesFlag(tarballPath string, packages string) (stdout string, stderr string) {
-	cmd := strings.Split(fmt.Sprintf("remove %s --confirm --insecure --packages %s", tarballPath, packages), " ")
-	stdout, stderr, _ = e2e.UDS(cmd...)
-	return stdout, stderr
-}
-
-func deployInsecure(t *testing.T, ref string) {
-	cmd := strings.Split(fmt.Sprintf("deploy %s --insecure --confirm", ref), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-}
-
-func removeInsecure(t *testing.T, remote string) {
-	cmd := strings.Split(fmt.Sprintf("remove %s --insecure --confirm", remote), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
+func runCmdWithErr(input string) (stdout string, stderr string, err error) {
+	cmd := strings.Split(input, " ")
+	stdout, stderr, err = e2e.UDS(cmd...)
+	return stdout, stderr, err
 }
 
 func deployAndRemoveLocalAndRemoteInsecure(t *testing.T, ref string, tarballPath string) {
-	var cmd []string
 	// test both paths because we want to test that the pulled tarball works as well
 	t.Run(
 		"deploy+remove bundle via OCI",
 		func(t *testing.T) {
-			cmd = strings.Split(fmt.Sprintf("deploy %s --insecure --confirm", ref), " ")
-			_, _, err := e2e.UDS(cmd...)
-			require.NoError(t, err)
-
-			cmd = strings.Split(fmt.Sprintf("remove %s --confirm --insecure", ref), " ")
-			_, _, err = e2e.UDS(cmd...)
-			require.NoError(t, err)
+			runCmd(t, fmt.Sprintf("deploy %s --insecure --confirm", ref))
+			runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", ref))
 		},
 	)
 
 	t.Run(
 		"deploy+remove bundle via local tarball",
 		func(t *testing.T) {
-			cmd = strings.Split(fmt.Sprintf("deploy %s --confirm", tarballPath), " ")
-			_, _, err := e2e.UDS(cmd...)
-			require.NoError(t, err)
-
-			cmd = strings.Split(fmt.Sprintf("remove %s --confirm", tarballPath), " ")
-			_, _, err = e2e.UDS(cmd...)
-			require.NoError(t, err)
+			runCmd(t, fmt.Sprintf("deploy %s --confirm", tarballPath))
+			runCmd(t, fmt.Sprintf("remove %s --confirm", tarballPath))
 		},
 	)
 }
@@ -217,16 +109,12 @@ func pull(t *testing.T, ref string, tarballName string) {
 		t.Fatalf("second arg to pull() must be the name a bundle tarball, got %s", tarballName)
 	}
 	// todo: output somewhere other than build?
-	cmd := strings.Split(fmt.Sprintf("pull %s -o build --insecure --oci-concurrency=10", ref), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
+	runCmd(t, fmt.Sprintf("pull %s -o build --insecure --oci-concurrency=10", ref))
 
 	decompressed := "build/decompressed-bundle"
 	defer e2e.CleanFiles(decompressed)
 
-	cmd = []string{"zarf", "tools", "archiver", "decompress", filepath.Join("build", tarballName), decompressed}
-	_, _, err = e2e.UDS(cmd...)
-	require.NoError(t, err)
+	runCmd(t, fmt.Sprintf("zarf tools archiver decompress %s %s", filepath.Join("build", tarballName), decompressed))
 
 	index := ocispec.Index{}
 	b, err := os.ReadFile(filepath.Join(decompressed, "index.json"))
@@ -260,18 +148,6 @@ func pull(t *testing.T, ref string, tarballName string) {
 	}
 }
 
-func publish(t *testing.T, bundlePath, ociPath string) {
-	cmd := strings.Split(fmt.Sprintf("publish %s %s --oci-concurrency=10", bundlePath, ociPath), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-}
-
-func publishInsecure(t *testing.T, bundlePath, ociPath string) {
-	cmd := strings.Split(fmt.Sprintf("publish %s %s --insecure", bundlePath, ociPath), " ")
-	_, _, err := e2e.UDS(cmd...)
-	require.NoError(t, err)
-}
-
 func queryIndex(t *testing.T, registryURL, bundlePath string) (ocispec.Index, error) {
 	url := fmt.Sprintf("%s/v2/%s/manifests/0.0.1", registryURL, bundlePath)
 	req, err := http.NewRequest("GET", url, nil)
@@ -300,10 +176,8 @@ func queryIndex(t *testing.T, registryURL, bundlePath string) (ocispec.Index, er
 }
 
 func removeZarfInit() {
-	cmd := strings.Split("zarf tools kubectl delete namespace zarf", " ")
-	_, _, err := e2e.UDS(cmd...)
+	_, _, err := runCmdWithErr("zarf tools kubectl delete namespace zarf")
 	message.WarnErr(err, "Failed to delete zarf namespace")
-	cmd = strings.Split("zarf tools kubectl delete mutatingwebhookconfiguration.admissionregistration.k8s.io/zarf", " ")
-	_, _, err = e2e.UDS(cmd...)
+	_, _, err = runCmdWithErr("zarf tools kubectl delete mutatingwebhookconfiguration.admissionregistration.k8s.io/zarf")
 	message.WarnErr(err, "Failed to delete zarf webhook")
 }

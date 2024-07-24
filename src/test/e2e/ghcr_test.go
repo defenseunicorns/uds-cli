@@ -34,16 +34,18 @@ func TestBundleCreateAndPublishGHCR(t *testing.T) {
 		Reference:  "0.0.1",
 	}
 
-	createLocal(t, bundleDir, "arm64")
-	createLocal(t, bundleDir, "amd64")
-	publish(t, bundlePathARM, registryURL)
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, "arm64"))
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, "amd64"))
+	runCmd(t, fmt.Sprintf("publish %s %s --oci-concurrency=10", bundlePathARM, registryURL))
+
 	// test without oci prefix
 	registryURL = "ghcr.io/defenseunicorns/packages/uds-cli/test/publish"
-	publish(t, bundlePathAMD, registryURL)
+	runCmd(t, fmt.Sprintf("publish %s %s --oci-concurrency=10", bundlePathAMD, registryURL))
+
 	inspectRemote(t, bundlePathARM)
 	pull(t, bundleRef.String(), bundleTarballName)
-	deploy(t, bundleRef.String())
-	remove(t, bundleRef.String())
+	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundleRef.String()))
+	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundleRef.String()))
 
 	// ensure the bundle index is present
 	index, err := queryIndex(t, "https://ghcr.io", fmt.Sprintf("%s/%s", bundleGHCRPath, bundleName))
@@ -64,11 +66,13 @@ func TestBundleCreateRemoteAndDeployGHCR(t *testing.T) {
 		Repository: "ghcr-test",
 		Reference:  "0.0.1",
 	}
-	createRemote(t, bundleDir, registryURL, "arm64")
-	createRemote(t, bundleDir, registryURL, "amd64")
+
+	runCmd(t, fmt.Sprintf("create %s -o %s --confirm -a %s", bundleDir, registryURL, "arm64"))
+	runCmd(t, fmt.Sprintf("create %s -o %s --confirm -a %s", bundleDir, registryURL, "amd64"))
+
 	inspectRemote(t, bundleRef.String())
-	deploy(t, bundleRef.String())
-	remove(t, bundleRef.String())
+	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundleRef.String()))
+	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundleRef.String()))
 
 	// ensure the bundle index is present
 	index, err := queryIndex(t, "https://ghcr.io", fmt.Sprintf("%s/%s", bundleGHCRPath, bundleName))
