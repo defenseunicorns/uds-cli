@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -199,6 +200,13 @@ func handleZarfInitOpts(pkgVars zarfVarData, zarfPkgKind zarfTypes.ZarfPackageKi
 			zarfInitOpts.RegistryInfo.PullPassword = v
 		case config.RegistrySecretName:
 			zarfInitOpts.RegistryInfo.Secret = v
+		case config.RegistryNodeport:
+			np, err := strconv.Atoi(v)
+			if err != nil {
+				message.Warnf("failed to parse nodeport %s: %v", v, err)
+				return zarfTypes.ZarfInitOptions{}
+			}
+			zarfInitOpts.RegistryInfo.NodePort = np
 		// git server info
 		case config.GitURL:
 			zarfInitOpts.GitServer.Address = v

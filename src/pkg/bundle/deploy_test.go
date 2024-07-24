@@ -592,6 +592,7 @@ func Test_handleZarfInitOpts(t *testing.T) {
 				"INIT_REGISTRY_PULL_USERNAME": "pull-user",
 				"INIT_REGISTRY_PULL_PASSWORD": "pull-secret!",
 				"INIT_REGISTRY_SECRET":        "registry-secret",
+				"INIT_REGISTRY_NODEPORT":      "1234",
 				"INIT_GIT_URL":                "fake.git",
 				"INIT_GIT_PUSH_USERNAME":      "push-user",
 				"INIT_GIT_PUSH_PASSWORD":      "push-secret!",
@@ -611,6 +612,7 @@ func Test_handleZarfInitOpts(t *testing.T) {
 					PullUsername: "pull-user",
 					PullPassword: "pull-secret!",
 					Secret:       "registry-secret",
+					NodePort:     1234,
 				},
 				GitServer: zarfTypes.GitServerInfo{
 					Address:      "fake.git",
