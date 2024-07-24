@@ -151,7 +151,7 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 		require.Contains(t, string(decoded), "ssh-rsa")
 	})
 
-	remove(t, bundlePath)
+	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
 }
 
 func TestBundleWithHelmOverridesValuesFile(t *testing.T) {
@@ -271,7 +271,7 @@ func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 		require.Equal(t, "'foo'", outputMsg)
 	})
 
-	remove(t, bundlePath)
+	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
 }
 
 func TestVariablePrecedence(t *testing.T) {
@@ -308,7 +308,7 @@ func TestVariablePrecedence(t *testing.T) {
 		require.Equal(t, fmt.Sprintf("'%s'", "burning.boats"), backend)
 	})
 
-	remove(t, bundlePath)
+	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
 }
 
 func TestExportVarsAsGlobalVars(t *testing.T) {
@@ -340,5 +340,5 @@ func TestExportVarsAsGlobalVars(t *testing.T) {
 		require.Contains(t, tolerations, "\"value\":\"defense\"")
 	})
 
-	remove(t, bundlePath)
+	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
 }

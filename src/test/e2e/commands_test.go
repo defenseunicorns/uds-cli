@@ -79,10 +79,6 @@ func runCmdWithErr(input string) (stdout string, stderr string, err error) {
 	return stdout, stderr, err
 }
 
-func remove(t *testing.T, source string) {
-	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", source))
-}
-
 func deployAndRemoveLocalAndRemoteInsecure(t *testing.T, ref string, tarballPath string) {
 	// test both paths because we want to test that the pulled tarball works as well
 	t.Run(
@@ -180,10 +176,8 @@ func queryIndex(t *testing.T, registryURL, bundlePath string) (ocispec.Index, er
 }
 
 func removeZarfInit() {
-	cmd := strings.Split("zarf tools kubectl delete namespace zarf", " ")
-	_, _, err := e2e.UDS(cmd...)
+	_, _, err := runCmdWithErr("zarf tools kubectl delete namespace zarf")
 	message.WarnErr(err, "Failed to delete zarf namespace")
-	cmd = strings.Split("zarf tools kubectl delete mutatingwebhookconfiguration.admissionregistration.k8s.io/zarf", " ")
-	_, _, err = e2e.UDS(cmd...)
+	_, _, err = runCmdWithErr("zarf tools kubectl delete mutatingwebhookconfiguration.admissionregistration.k8s.io/zarf")
 	message.WarnErr(err, "Failed to delete zarf webhook")
 }
