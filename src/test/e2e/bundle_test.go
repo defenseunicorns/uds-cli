@@ -21,6 +21,11 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 )
 
+func TestUDSCmd(t *testing.T) {
+	_, _, err := e2e.UDS()
+	require.NoError(t, err)
+}
+
 func TestUDSLogs(t *testing.T) {
 	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
