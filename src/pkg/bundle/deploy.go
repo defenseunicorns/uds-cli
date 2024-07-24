@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -19,6 +20,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	zarfConfig "github.com/defenseunicorns/zarf/src/config"
+	"github.com/defenseunicorns/zarf/src/pkg/layout"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/zarf/src/pkg/utils"
@@ -120,12 +122,6 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 			Timeout:            config.HelmTimeout,
 		}
 
-		pkgCfg := zarfTypes.PackagerConfig{
-			PkgOpts:    opts,
-			InitOpts:   config.DefaultZarfInitOptions,
-			DeployOpts: zarfDeployOpts,
-		}
-
 		// Automatically confirm the package deployment
 		zarfConfig.CommonOptions.Confirm = true
 
@@ -134,10 +130,25 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 			return err
 		}
 
+		pkgCfg := zarfTypes.PackagerConfig{
+			PkgOpts:    opts,
+			DeployOpts: zarfDeployOpts,
+		}
+
+		// handle zarf init configs that aren't Zarf variables
+		zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), layout.New(pkgTmp), false, false)
+		if err != nil {
+			return err
+		}
+
+		zarfInitOpts := handleZarfInitOpts(pkgVars, zarfPkg.Kind)
+		pkgCfg.InitOpts = zarfInitOpts
+
 		pkgClient, err := packager.New(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
 		if err != nil {
 			return err
 		}
+
 		if err = pkgClient.Deploy(context.TODO()); err != nil {
 			return err
 		}
@@ -156,6 +167,70 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 	}
 
 	return nil
+}
+
+// handleZarfInitOpts sets the ZarfInitOptions for a package if using custom Zarf init options
+func handleZarfInitOpts(pkgVars zarfVarData, zarfPkgKind zarfTypes.ZarfPackageKind) zarfTypes.ZarfInitOptions {
+	if zarfPkgKind != zarfTypes.ZarfInitConfig {
+		return zarfTypes.ZarfInitOptions{}
+	}
+
+	// default zarf init opts
+	zarfInitOpts := zarfTypes.ZarfInitOptions{
+		GitServer: zarfTypes.GitServerInfo{
+			PushUsername: zarfTypes.ZarfGitPushUser,
+		},
+		RegistryInfo: zarfTypes.RegistryInfo{
+			PushUsername: zarfTypes.ZarfRegistryPushUser,
+		},
+	}
+	// populate zarf init opts from pkgVars
+	for k, v := range pkgVars {
+		switch k {
+		// registry info
+		case config.RegistryURL:
+			zarfInitOpts.RegistryInfo.Address = v
+		case config.RegistryPushUsername:
+			zarfInitOpts.RegistryInfo.PushUsername = v
+		case config.RegistryPushPassword:
+			zarfInitOpts.RegistryInfo.PushPassword = v
+		case config.RegistryPullUsername:
+			zarfInitOpts.RegistryInfo.PullUsername = v
+		case config.RegistryPullPassword:
+			zarfInitOpts.RegistryInfo.PullPassword = v
+		case config.RegistrySecretName:
+			zarfInitOpts.RegistryInfo.Secret = v
+		case config.RegistryNodeport:
+			np, err := strconv.Atoi(v)
+			if err != nil {
+				message.Warnf("failed to parse nodeport %s: %v", v, err)
+				return zarfTypes.ZarfInitOptions{}
+			}
+			zarfInitOpts.RegistryInfo.NodePort = np
+		// git server info
+		case config.GitURL:
+			zarfInitOpts.GitServer.Address = v
+		case config.GitPushUsername:
+			zarfInitOpts.GitServer.PushUsername = v
+		case config.GitPushPassword:
+			zarfInitOpts.GitServer.PushPassword = v
+		case config.GitPullUsername:
+			zarfInitOpts.GitServer.PullUsername = v
+		case config.GitPullPassword:
+			zarfInitOpts.GitServer.PullPassword = v
+		// artifact server info
+		case config.ArtifactURL:
+			zarfInitOpts.ArtifactServer.Address = v
+		case config.ArtifactPushUsername:
+			zarfInitOpts.ArtifactServer.PushUsername = v
+		case config.ArtifactPushToken:
+			zarfInitOpts.ArtifactServer.PushToken = v
+		// storage class
+		case config.StorageClass:
+			zarfInitOpts.StorageClass = v
+		}
+	}
+	return zarfInitOpts
 }
 
 // PreDeployValidation validates the bundle before deployment
