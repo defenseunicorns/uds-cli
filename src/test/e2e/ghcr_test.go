@@ -7,8 +7,10 @@ package test
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/registry"
 )
@@ -74,6 +76,55 @@ func TestBundleCreateRemoteAndDeployGHCR(t *testing.T) {
 	index, err := queryIndex(t, "https://ghcr.io", fmt.Sprintf("%s/%s", bundleGHCRPath, bundleName))
 	require.NoError(t, err)
 	ValidateMultiArchIndex(t, index)
+}
+
+// test the create -o path
+func TestBundleCreateSignedRemoteAndDeployGHCR(t *testing.T) {
+	deployZarfInit(t)
+
+	bundleDir := "src/test/bundles/06-ghcr"
+	bundleGHCRPath := "defenseunicorns/packages/uds-cli/test/create-signed-remote"
+	privateKeyFlag := "--signing-key=src/test/e2e/bundle-test.prv-key"
+	publicKeyFlag := "--key=src/test/e2e/bundle-test.pub"
+	registryURL := fmt.Sprintf("ghcr.io/%s", bundleGHCRPath)
+	bundleRef := registry.Reference{
+		Registry:   registryURL,
+		Repository: "ghcr-test",
+		Reference:  "0.0.1",
+	}
+
+	// create arm64 bundle with private key
+	cmd := strings.Split(fmt.Sprintf("create %s -o %s %s --confirm -a %s", bundleDir, registryURL, privateKeyFlag, "arm64"), " ")
+	_, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+
+	// create amd64 bundle with private key
+	cmd = strings.Split(fmt.Sprintf("create %s -o %s %s --confirm -a %s", bundleDir, registryURL, privateKeyFlag, "amd64"), " ")
+	_, _, err = e2e.UDS(cmd...)
+	require.NoError(t, err)
+
+	// inspect signed bundle with public key
+	cmd = strings.Split(fmt.Sprintf("inspect %s %s", bundleRef.String(), publicKeyFlag), " ")
+	_, stderr, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	require.Contains(t, stderr, "Verified OK")
+
+	// inspect signed bundle without public key
+	cmd = strings.Split(fmt.Sprintf("inspect %s", bundleRef.String()), " ")
+	stdout, _, err := e2e.UDS(cmd...)
+	require.NoError(t, err)
+	require.Contains(t, stdout, lang.CmdBundleInspectSignedNoPublicKey)
+
+	// Test that we get an error when trying to deploy a package without providing the public key
+	_, stderr, err = runCmdWithErr(fmt.Sprintf("deploy %s --confirm", bundleRef.String()))
+	require.Error(t, err)
+	require.Contains(t, stderr, "failed to validate bundle: package is signed, but no public key was provided")
+
+	// Test that we get don't get an error when trying to deploy a package with a public key
+	_, stderr = runCmd(t, fmt.Sprintf("deploy %s %s --confirm", bundleRef.String(), publicKeyFlag))
+	require.Contains(t, stderr, "succeeded")
+
+	remove(t, bundleRef.String())
 }
 
 // This test requires the following to be published (based on src/test/bundles/06-ghcr/uds-bundle.yaml):

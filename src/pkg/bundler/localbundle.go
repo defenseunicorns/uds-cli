@@ -19,6 +19,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/defenseunicorns/zarf/src/pkg/interactive"
 	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	goyaml "github.com/goccy/go-yaml"
@@ -27,6 +28,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"oras.land/oras-go/v2/content"
 	ocistore "oras.land/oras-go/v2/content/oci"
+
+	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 )
 
 // LocalBundleOpts are the options for creating a local bundle
@@ -56,7 +59,7 @@ func NewLocalBundle(opts *LocalBundleOpts) *LocalBundle {
 }
 
 // create creates the bundle and outputs to a local tarball
-func (lo *LocalBundle) create(signature []byte) error {
+func (lo *LocalBundle) create(createOpts types.BundleCreateOptions) error {
 	bundle := lo.bundle
 	if bundle.Metadata.Architecture == "" {
 		return fmt.Errorf("architecture is required for bundling")
@@ -118,6 +121,14 @@ func (lo *LocalBundle) create(signature []byte) error {
 	digest := bundleYAMLDesc.Digest.Encoded()
 	artifactPathMap[filepath.Join(lo.tmpDstDir, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 
+	// sign bundle.yaml layer
+	if createOpts.SigningKeyPath != "" {
+		rootManifest, artifactPathMap, err = lo.signBundle(createOpts, digest, store, artifactPathMap, rootManifest)
+		if err != nil {
+			return err
+		}
+	}
+
 	// create and push bundle manifest config
 	manifestConfigDesc, err := pushManifestConfig(store, bundle.Metadata, bundle.Build)
 	if err != nil {
@@ -141,20 +152,6 @@ func (lo *LocalBundle) create(signature []byte) error {
 
 	// grab oci-layout
 	artifactPathMap[filepath.Join(lo.tmpDstDir, "oci-layout")] = "oci-layout"
-
-	// push the bundle's signature todo: need to understand functionality and add tests
-	if len(signature) > 0 {
-		signatureDesc, err := pushBundleSignature(store, signature)
-		if err != nil {
-			return err
-		}
-		rootManifest.Layers = append(rootManifest.Layers, signatureDesc)
-		jsonValue, err := utils.JSONValue(signatureDesc)
-		if err != nil {
-			return err
-		}
-		message.Debug("Pushed", config.BundleYAMLSignature+":", jsonValue)
-	}
 
 	// tag the local bundle artifact
 	// todo: no need to tag the local artifact
@@ -297,10 +294,49 @@ jobLoop:
 	return nil
 }
 
-func pushBundleSignature(store *ocistore.Store, signature []byte) (ocispec.Descriptor, error) {
+// signBundle signs the bundle layer
+func (lo *LocalBundle) signBundle(createOpts types.BundleCreateOptions, digest string, store *ocistore.Store, artifactPathMap types.PathMap, rootManifest ocispec.Manifest) (ocispec.Manifest, types.PathMap, error) {
+	getSigCreatePassword := func(_ bool) ([]byte, error) {
+		if createOpts.SigningKeyPassword != "" {
+			return []byte(createOpts.SigningKeyPassword), nil
+		}
+		if config.CommonOptions.Confirm {
+			return nil, nil
+		}
+		return interactive.PromptSigPassword()
+	}
+	// sign the bundle layer
+	signaturePath := filepath.Join(lo.tmpDstDir, config.BundleYAMLSignature)
+	_, err := zarfUtils.CosignSignBlob(filepath.Join(lo.tmpDstDir, config.BlobsDir, digest), signaturePath, createOpts.SigningKeyPath, getSigCreatePassword)
+	if err != nil {
+		return ocispec.Manifest{}, nil, err
+	}
+
+	// append uds-bundle.yaml.sig layer to rootManifest and grab path for archiving
+	signatureDesc, err := pushBundleSignature(store, lo.tmpDstDir)
+	if err != nil {
+		return ocispec.Manifest{}, nil, err
+	}
+	rootManifest.Layers = append(rootManifest.Layers, signatureDesc)
+	digest = signatureDesc.Digest.Encoded()
+	artifactPathMap[filepath.Join(lo.tmpDstDir, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
+
+	jsonValue, err := utils.JSONValue(signatureDesc)
+	if err != nil {
+		return ocispec.Manifest{}, nil, err
+	}
+	message.Debug("Pushed", config.BundleYAMLSignature+":", jsonValue)
+	return rootManifest, artifactPathMap, nil
+}
+
+func pushBundleSignature(store *ocistore.Store, tmpDstDir string) (ocispec.Descriptor, error) {
 	ctx := context.TODO()
-	signatureDesc := content.NewDescriptorFromBytes(zoci.ZarfLayerMediaTypeBlob, signature)
-	err := store.Push(ctx, signatureDesc, bytes.NewReader(signature))
+	signatureBytes, err := os.ReadFile(filepath.Join(tmpDstDir, config.BundleYAMLSignature))
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
+	signatureDesc := content.NewDescriptorFromBytes(zoci.ZarfLayerMediaTypeBlob, signatureBytes)
+	err = store.Push(ctx, signatureDesc, bytes.NewReader(signatureBytes))
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}

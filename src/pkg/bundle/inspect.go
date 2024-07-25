@@ -11,8 +11,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
@@ -61,7 +63,10 @@ func (b *Bundle) Inspect() error {
 	}
 
 	// validate the sig (if present)
-	if err := ValidateBundleSignature(filepaths[config.BundleYAML], filepaths[config.BundleYAMLSignature], b.cfg.InspectOpts.PublicKeyPath); err != nil {
+	// The package is signed, but no public key was provided
+	if !helpers.InvalidPath(filepaths[config.BundleYAMLSignature]) && helpers.InvalidPath(b.cfg.InspectOpts.PublicKeyPath) {
+		message.Warn(lang.CmdBundleInspectSignedNoPublicKey)
+	} else if err := ValidateBundleSignature(filepaths[config.BundleYAML], filepaths[config.BundleYAMLSignature], b.cfg.InspectOpts.PublicKeyPath); err != nil {
 		return err
 	}
 

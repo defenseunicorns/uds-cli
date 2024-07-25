@@ -38,6 +38,9 @@ const (
 	// Bundle pull config keys
 	V_BNDL_PULL_OUTPUT = "bundle.pull.output"
 	V_BNDL_PULL_KEY    = "bundle.pull.key"
+
+	// Bundle deploy config keys
+	V_BNDL_DEPLOY_KEY = "bundle.deploy.key"
 )
 
 var (
