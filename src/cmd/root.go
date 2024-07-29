@@ -13,11 +13,11 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	zarfCommon "github.com/defenseunicorns/zarf/src/cmd/common"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
+	zarfCommon "github.com/zarf-dev/zarf/src/cmd/common"
+	"github.com/zarf-dev/zarf/src/pkg/message"
 )
 
 var (
