@@ -13,13 +13,13 @@ import (
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/pkg/message"
+	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"oras.land/oras-go/v2/registry"
 )
 
-// copied from: https://github.com/defenseunicorns/zarf/blob/main/src/pkg/oci/push.go
+// copied from: https://github.com/zarf-dev/zarf/blob/main/src/pkg/oci/push.go
 func manifestAnnotationsFromMetadata(metadata *types.UDSMetadata) map[string]string {
 	annotations := map[string]string{
 		ocispec.AnnotationDescription: metadata.Description,
@@ -44,7 +44,7 @@ func manifestAnnotationsFromMetadata(metadata *types.UDSMetadata) map[string]str
 	return annotations
 }
 
-// copied from: https://github.com/defenseunicorns/zarf/blob/main/src/pkg/oci/push.go
+// copied from: https://github.com/zarf-dev/zarf/blob/main/src/pkg/oci/push.go
 func pushManifestConfigFromMetadata(r *oci.OrasRemote, metadata *types.UDSMetadata, build *types.UDSBuildData) (ocispec.Descriptor, error) {
 	annotations := map[string]string{
 		ocispec.AnnotationTitle:       metadata.Name,
@@ -62,7 +62,7 @@ func pushManifestConfigFromMetadata(r *oci.OrasRemote, metadata *types.UDSMetada
 	return *manifestConfigDesc, nil
 }
 
-// copied from: https://github.com/defenseunicorns/zarf/blob/main/src/pkg/oci/utils.go
+// copied from: https://github.com/zarf-dev/zarf/blob/main/src/pkg/oci/utils.go
 func referenceFromMetadata(registryLocation string, metadata *types.UDSMetadata) (string, error) {
 	ver := metadata.Version
 	if len(ver) == 0 {

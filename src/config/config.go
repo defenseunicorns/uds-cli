@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 const (
