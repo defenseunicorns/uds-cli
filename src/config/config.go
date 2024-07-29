@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
-	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 const (
@@ -54,6 +53,24 @@ const (
 
 	// CachedLogs is a file containing cached logs
 	CachedLogs = "recent-logs"
+
+	// Special Zarf init configs, can potentially refactor after https://github.com/zarf-dev/zarf/issues/1725
+	RegistryURL          = "INIT_REGISTRY_URL"
+	RegistryPushUsername = "INIT_REGISTRY_PUSH_USERNAME" // #nosec G101
+	RegistryPushPassword = "INIT_REGISTRY_PUSH_PASSWORD" // #nosec G101
+	RegistryPullUsername = "INIT_REGISTRY_PULL_USERNAME" // #nosec G101
+	RegistryPullPassword = "INIT_REGISTRY_PULL_PASSWORD" // #nosec G101
+	RegistrySecretName   = "INIT_REGISTRY_SECRET"
+	RegistryNodeport     = "INIT_REGISTRY_NODEPORT"
+	GitURL               = "INIT_GIT_URL"
+	GitPushUsername      = "INIT_GIT_PUSH_USERNAME" // #nosec G101
+	GitPushPassword      = "INIT_GIT_PUSH_PASSWORD" // #nosec G101
+	GitPullUsername      = "INIT_GIT_PULL_USERNAME" // #nosec G101
+	GitPullPassword      = "INIT_GIT_PULL_PASSWORD" // #nosec G101
+	ArtifactURL          = "INIT_ARTIFACT_URL"
+	ArtifactPushUsername = "INIT_ARTIFACT_PUSH_USERNAME"
+	ArtifactPushToken    = "INIT_ARTIFACT_PUSH_TOKEN"
+	StorageClass         = "INIT_STORAGE_CLASS"
 )
 
 var (
@@ -101,15 +118,3 @@ var (
 	// BundleAlwaysPull is a list of paths that will always be pulled from the remote repository.
 	BundleAlwaysPull = []string{BundleYAML, BundleYAMLSignature}
 )
-
-// DefaultZarfInitOptions set these in the case of deploying a Zarf init pkg
-// typically these are set as part of Zarf's Viper config, which we don't use in UDS
-// could technically remove, but it doesn't hurt anything for now
-var DefaultZarfInitOptions = zarfTypes.ZarfInitOptions{
-	GitServer: zarfTypes.GitServerInfo{
-		PushUsername: zarfTypes.ZarfGitPushUser,
-	},
-	RegistryInfo: zarfTypes.RegistryInfo{
-		PushUsername: zarfTypes.ZarfRegistryPushUser,
-	},
-}
