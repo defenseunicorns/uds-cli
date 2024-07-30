@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"github.com/stretchr/testify/require"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 func Test_validateBundleVars(t *testing.T) {

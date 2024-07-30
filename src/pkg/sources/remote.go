@@ -6,6 +6,7 @@ package sources
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,14 +18,14 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/pkg/layout"
-	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
-	"github.com/defenseunicorns/zarf/src/pkg/packager/sources"
-	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/zoci"
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/pkg/layout"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/packager/sources"
+	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
+	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"oras.land/oras-go/v2/content/file"
 )
 
@@ -94,7 +95,7 @@ func (r *RemoteBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths, 
 	if unarchiveAll {
 		for _, component := range pkg.Components {
 			if err := dst.Components.Unarchive(component); err != nil {
-				if layout.IsNotLoaded(err) {
+				if errors.Is(err, layout.ErrNotLoaded) {
 					_, err := dst.Components.Create(component)
 					if err != nil {
 						return zarfTypes.ZarfPackage{}, nil, err

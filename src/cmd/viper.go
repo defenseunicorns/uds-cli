@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
-	"github.com/defenseunicorns/zarf/src/cmd/common"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/spf13/viper"
+	"github.com/zarf-dev/zarf/src/cmd/common"
+	"github.com/zarf-dev/zarf/src/pkg/message"
 )
 
 const (

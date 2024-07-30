@@ -8,7 +8,7 @@ import (
 	"embed"
 
 	"github.com/defenseunicorns/uds-cli/src/cmd"
-	"github.com/defenseunicorns/zarf/src/pkg/packager/lint"
+	"github.com/zarf-dev/zarf/src/pkg/lint"
 )
 
 //go:embed zarf.schema.json

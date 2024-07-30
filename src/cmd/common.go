@@ -15,11 +15,12 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
-	zarfConfig "github.com/defenseunicorns/zarf/src/config"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
+	zarfCommon "github.com/zarf-dev/zarf/src/cmd/common"
+	zarfConfig "github.com/zarf-dev/zarf/src/config"
+	"github.com/zarf-dev/zarf/src/pkg/message"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 type configOption string
@@ -78,7 +79,6 @@ func configureZarf() {
 		Confirm:        config.CommonOptions.Confirm,
 		CachePath:      config.CommonOptions.CachePath, // use uds-cache instead of zarf-cache
 	}
-	zarfConfig.NoColor = config.NoColor
 }
 
 func setBundleFile(args []string) error {
@@ -131,5 +131,10 @@ func cliSetup(cmd *cobra.Command) error {
 			return fmt.Errorf(err.Error())
 		}
 	}
+
+	// TODO(schristoff): Leverage SDK and refactor
+	// This sets up zarf CLI with the same configuration options as UDSCLI
+	zarfCommon.SetupCLI(logLevel, config.SkipLogFile, config.NoColor)
+
 	return nil
 }

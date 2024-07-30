@@ -5,8 +5,8 @@
 package sources
 
 import (
-	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 // addNamespaceOverrides checks if pkg components have charts with namespace overrides and adds them

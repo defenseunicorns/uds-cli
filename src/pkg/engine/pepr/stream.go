@@ -14,7 +14,7 @@ import (
 	"sync"
 
 	"github.com/defenseunicorns/uds-cli/src/pkg/style"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
+	"github.com/zarf-dev/zarf/src/pkg/message"
 	corev1 "k8s.io/api/core/v1"
 )
 

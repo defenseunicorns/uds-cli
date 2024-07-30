@@ -13,9 +13,9 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
-	"github.com/defenseunicorns/zarf/src/pkg/zoci"
 	av3 "github.com/mholt/archiver/v3"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
 
 // Publish publishes a bundle to a remote OCI registry

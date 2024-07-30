@@ -16,15 +16,15 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/pkg/layout"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
-	zarfSources "github.com/defenseunicorns/zarf/src/pkg/packager/sources"
-	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/zoci"
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pterm/pterm"
+	"github.com/zarf-dev/zarf/src/pkg/layout"
+	"github.com/zarf-dev/zarf/src/pkg/message"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	zarfSources "github.com/zarf-dev/zarf/src/pkg/packager/sources"
+	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
+	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 // Inspect pulls/unpacks a bundle's metadata and shows it

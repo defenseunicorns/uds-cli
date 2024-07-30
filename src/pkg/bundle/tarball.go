@@ -18,11 +18,11 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
-	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
 	av3 "github.com/mholt/archiver/v3"
 	av4 "github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/pkg/message"
+	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"oras.land/oras-go/v2"
 	ocistore "oras.land/oras-go/v2/content/oci"
 )

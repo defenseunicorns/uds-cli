@@ -13,12 +13,12 @@ import (
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/layout"
-	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
-	zarfSources "github.com/defenseunicorns/zarf/src/pkg/packager/sources"
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/pkg/layout"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	zarfSources "github.com/zarf-dev/zarf/src/pkg/packager/sources"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 // loadPkg loads a package from a tarball source and filters out optional components

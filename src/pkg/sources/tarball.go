@@ -6,6 +6,7 @@ package sources
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,13 +16,13 @@ import (
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/pkg/layout"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
-	"github.com/defenseunicorns/zarf/src/pkg/packager/sources"
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	av4 "github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/pkg/layout"
+	"github.com/zarf-dev/zarf/src/pkg/message"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/packager/sources"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
@@ -76,7 +77,7 @@ func (t *TarballBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths,
 	if unarchiveAll {
 		for _, component := range pkg.Components {
 			if err := dst.Components.Unarchive(component); err != nil {
-				if layout.IsNotLoaded(err) {
+				if errors.Is(err, layout.ErrNotLoaded) {
 					_, err := dst.Components.Create(component)
 					if err != nil {
 						return zarfTypes.ZarfPackage{}, nil, err
