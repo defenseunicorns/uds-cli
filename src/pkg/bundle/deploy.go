@@ -22,6 +22,7 @@ import (
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/pterm/pterm"
 	zarfConfig "github.com/zarf-dev/zarf/src/config"
+	"github.com/zarf-dev/zarf/src/pkg/layout"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/utils"
