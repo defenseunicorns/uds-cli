@@ -51,7 +51,7 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@172a905901cb9bd76d096d2850bf31af5c5a4fa1 # v0.8.0
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@76287d41ec5f06ecbdd0a6453877a78675aceffe # v0.11.2
         with:
           suffix: ${{ matrix.test }}
 
@@ -73,7 +73,7 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@172a905901cb9bd76d096d2850bf31af5c5a4fa1 # v0.8.0
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@76287d41ec5f06ecbdd0a6453877a78675aceffe # v0.11.2
         with:
           suffix: test-dev
 
@@ -95,7 +95,7 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@172a905901cb9bd76d096d2850bf31af5c5a4fa1 # v0.8.0
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@76287d41ec5f06ecbdd0a6453877a78675aceffe # v0.11.2
         with:
           suffix: test-variables
 
@@ -117,7 +117,7 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@172a905901cb9bd76d096d2850bf31af5c5a4fa1 # v0.8.0
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@76287d41ec5f06ecbdd0a6453877a78675aceffe # v0.11.2
         with:
           suffix: test-optional-bundle
 
@@ -148,7 +148,7 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@172a905901cb9bd76d096d2850bf31af5c5a4fa1 # v0.8.0
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@76287d41ec5f06ecbdd0a6453877a78675aceffe # v0.11.2
         with:
           suffix: test-vendor
 
@@ -170,6 +170,6 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@172a905901cb9bd76d096d2850bf31af5c5a4fa1 # v0.8.0
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@76287d41ec5f06ecbdd0a6453877a78675aceffe # v0.11.2
         with:
           suffix: test-engine
