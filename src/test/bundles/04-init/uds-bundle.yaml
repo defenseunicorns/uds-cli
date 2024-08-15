@@ -7,14 +7,14 @@ metadata:
 # contrived bundle to test local + remote Zarf inits
 # cannot do uds remove on this pkg due to having the same name
 packages:
+#  - name: init
+#    path: "../../packages"
+#    # renovate: datasource=github-tags depName=zarf-dev/zarf
+#    ref: v0.37.0
+#    optionalComponents:
+#      - git-server
   - name: init
-    path: "../../packages"
-    # renovate: datasource=github-tags depName=zarf-dev/zarf
-    ref: v0.37.0
-    optionalComponents:
-      - git-server
-  - name: init
-    repository: ghcr.io/defenseunicorns/packages/init
+    repository: ghcr.io/zarf-dev/packages/init
     # renovate: datasource=github-tags depName=zarf-dev/zarf
     ref: v0.37.0
     optionalComponents:
