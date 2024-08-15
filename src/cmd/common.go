@@ -125,18 +125,19 @@ func cliSetup(cmd *cobra.Command) error {
 		}
 	}
 
-	if !config.SkipLogFile && !config.ListTasks {
-		err := utils.ConfigureLogs(cmd)
-		if err != nil {
-			return fmt.Errorf(err.Error())
-		}
-	}
-
 	// TODO(schristoff): Leverage SDK and refactor
 	// This sets up zarf CLI with the same configuration options as UDSCLI
 	err := zarfCommon.SetupCLI(logLevel, config.SkipLogFile, config.NoColor)
 	if err != nil {
 		return err
+	}
+
+	// configure logs for UDS after calling zarfCommon.SetupCLI
+	if !config.SkipLogFile && !config.ListTasks {
+		err := utils.ConfigureLogs(cmd)
+		if err != nil {
+			return fmt.Errorf(err.Error())
+		}
 	}
 
 	return nil

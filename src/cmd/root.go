@@ -40,7 +40,7 @@ var rootCmd = &cobra.Command{
 			config.SkipLogFile = true
 		}
 
-		// don't load log configs for the logs command
+		// don't load typical log configs for the logs command
 		if cmd.Use != "logs" {
 			err := cliSetup(cmd)
 			if err != nil {
