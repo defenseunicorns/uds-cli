@@ -269,6 +269,16 @@ In a bundle, variables can come from 6 sources. Those sources and their preceden
 
 That is to say, variables set using the `--set` flag take precedence over all other variable sources.
 
+### Configuring Zarf Init Packages
+Zarf init packages that are typically deployed using `zarf init` have a few special flags that are attached to that command. These options can be configured like any other variable: specified in a `uds-config.yaml`, as an environment variable prefixed with `UDS_` or via the `--set` flag.
+```yaml
+# uds-config.yaml
+variables:
+  zarf-init:
+    INIT_REGISTRY_URL: "https://my-registry.io"
+    INIT_REGISTRY_PUSH_USERNAME: "registry-user"
+```
+
 ## Duplicate Packages And Naming
 
 It is possible to deploy multiple instances of the same Zarf package in a bundle. For example, the following `uds-bundle.yaml` deploys 3 instances of the [helm-overrides](https://github.com/defenseunicorns/uds-cli/blob/main/src/test/packages/helm/zarf.yaml) Zarf packages:

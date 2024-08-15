@@ -5,7 +5,10 @@ tasks:
   - name: unit
     description: run all the unit tests
     actions:
-      - cmd: cd src/pkg && go test ./... -failfast -v -timeout 5m
+      - cmd: go test ./... -failfast -v -timeout 5m
+        dir: src/pkg
+      - cmd: go test ./... -failfast -v -timeout 5m
+        dir: src/cmd
 
   - name: e2e-ghcr
     description: run e2e tests that write to GHCR
