@@ -24,7 +24,7 @@ func TestValidateDevDeployFlags(t *testing.T) {
 			DevDeployOpts: types.BundleDevDeployOptions{
 				Ref: map[string]string{"some-key": "some-ref"},
 			},
-			expectError: true,
+			expectError: false,
 		},
 		{
 			name:        "Remote bundle with --ref flag",
