@@ -252,8 +252,18 @@ func (e2e *UDSE2ETest) GetGitRevision() (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
+// helmAddPodinfo runs 'helm repo add podinfo https://stefanprodan.github.io/podinfo'
+func (e2e *UDSE2ETest) helmAddPodinfo(t *testing.T) {
+	cmd := "helm"
+	args := strings.Split("repo add podinfo https://stefanprodan.github.io/podinfo", " ")
+	tmp := exec.PrintCfg()
+	_, _, err := exec.CmdWithContext(context.TODO(), tmp, cmd, args...)
+	require.NoError(t, err)
+}
+
 // HelmDepUpdate runs 'helm dependency update .' on the given path
 func (e2e *UDSE2ETest) HelmDepUpdate(t *testing.T, path string) {
+	e2e.helmAddPodinfo(t)
 	cmd := "helm"
 	args := strings.Split("dependency update .", " ")
 	tmp := exec.PrintCfg()
