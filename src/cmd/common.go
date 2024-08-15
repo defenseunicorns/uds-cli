@@ -134,7 +134,10 @@ func cliSetup(cmd *cobra.Command) error {
 
 	// TODO(schristoff): Leverage SDK and refactor
 	// This sets up zarf CLI with the same configuration options as UDSCLI
-	zarfCommon.SetupCLI(logLevel, config.SkipLogFile, config.NoColor)
+	err := zarfCommon.SetupCLI(logLevel, config.SkipLogFile, config.NoColor)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

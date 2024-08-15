@@ -1060,6 +1060,7 @@ github.com/defenseunicorns/pkg/oci v1.0.1 h1:WPrWRrae1L19X1vuhy6yYMR2zrTzgBbJHp3
 github.com/defenseunicorns/pkg/oci v1.0.1/go.mod h1:qZ3up/d0P81taW37fKR4lb19jJhQZJVtNOEJMu00dHQ=
 github.com/defenseunicorns/uds-security-hub v0.0.7 h1:4leg+FDagyoFdr3aSeFGlega4XG5+FwXnAdQsB2MebM=
 github.com/defenseunicorns/uds-security-hub v0.0.7/go.mod h1:4c1w8sRRyQfMDEQ3d+i3/7ENwQGgkNRkvjF5+4D2LZ4=
+github.com/defenseunicorns/zarf v0.36.1/go.mod h1:tLj5XZGOzYIbdD3phJB5d4B2QkGDzhYvnCfd/kqvanc=
 github.com/deitch/magic v0.0.0-20230404182410-1ff89d7342da h1:ZOjWpVsFZ06eIhnh4mkaceTiVoktdU67+M7KDHJ268M=
 github.com/deitch/magic v0.0.0-20230404182410-1ff89d7342da/go.mod h1:B3tI9iGHi4imdLi4Asdha1Sc6feLMTfPLXh9IUYmysk=
 github.com/depcheck-test/depcheck-test v0.0.0-20220607135614-199033aaa936 h1:foGzavPWwtoyBvjWyKJYDYsyzy+23iBV7NKTwdk+LRY=
