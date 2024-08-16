@@ -467,7 +467,7 @@ func TestListImages(t *testing.T) {
 	t.Run("list images on bundle YAML only", func(t *testing.T) {
 		stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --list-images --insecure", filepath.Join(bundleDir, config.BundleYAML)))
 		require.Contains(t, stdout, "library/registry")
-		require.Contains(t, stdout, "ghcr.io/defenseunicorns/zarf/agent")
+		require.Contains(t, stdout, "ghcr.io/zarf-dev/zarf/agent")
 		require.Contains(t, stdout, "nginx")
 		require.Contains(t, stdout, "quay.io/prometheus/node-exporter")
 

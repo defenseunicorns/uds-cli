@@ -13,16 +13,16 @@ import (
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/layout"
-	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
-	zarfSources "github.com/defenseunicorns/zarf/src/pkg/packager/sources"
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/layout"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	zarfSources "github.com/zarf-dev/zarf/src/pkg/packager/sources"
 )
 
 // loadPkg loads a package from a tarball source and filters out optional components
-func loadPkg(pkgTmp string, pkgSrc zarfSources.PackageSource, optionalComponents []string) (zarfTypes.ZarfPackage, *layout.PackagePaths, error) {
+func loadPkg(pkgTmp string, pkgSrc zarfSources.PackageSource, optionalComponents []string) (v1alpha1.ZarfPackage, *layout.PackagePaths, error) {
 	// create empty layout and source
 	pkgPaths := layout.New(pkgTmp)
 
@@ -34,7 +34,7 @@ func loadPkg(pkgTmp string, pkgSrc zarfSources.PackageSource, optionalComponents
 	// load the package with the filter (calling LoadPackage populates the pkgPaths with the files from the tarball)
 	pkg, _, err := pkgSrc.LoadPackage(context.TODO(), pkgPaths, createFilter, false)
 	if err != nil {
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
 	return pkg, pkgPaths, nil
 }
@@ -62,7 +62,7 @@ func getImgLayerDigests(manifestsToInclude []ocispec.Descriptor, pkgPaths *layou
 }
 
 // filterPkgPaths grabs paths that either not in the blobs dir or are in includeLayers
-func filterPkgPaths(pkgPaths *layout.PackagePaths, includeLayers []string, optionalComponents []zarfTypes.ZarfComponent) []string {
+func filterPkgPaths(pkgPaths *layout.PackagePaths, includeLayers []string, optionalComponents []v1alpha1.ZarfComponent) []string {
 	var filteredPaths []string
 	paths := pkgPaths.Files()
 	for _, path := range paths {

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/defenseunicorns/zarf/src/pkg/utils/exec"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/pkg/utils/exec"
 )
 
 // NOTE: These tests test that the embedded `zarf` commands are imported properly and function as expected

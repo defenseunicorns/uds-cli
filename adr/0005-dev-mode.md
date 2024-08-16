@@ -57,4 +57,4 @@ By using the existing local artifacts solution, we can leverage current function
 Commands under `dev` are meant to be used in **development** environments, and are **not** meant to be used in **production** environments. There is still the possibility that a user will use `uds dev deploy` in a production environment, but the command name and documentation will make it clear that this is not the intended use case.
 
 ## Related Decisions
- - [Zarf `dev` command](https://github.com/defenseunicorns/zarf/blob/main/adr/0022-dev-cmd.md)
+ - [Zarf `dev` command](https://github.com/zarf-dev/zarf/blob/main/adr/0022-dev-cmd.md)

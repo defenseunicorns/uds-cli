@@ -15,9 +15,9 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
-	zarfCLI "github.com/defenseunicorns/zarf/src/cmd"
-	zarfConfig "github.com/defenseunicorns/zarf/src/config"
 	"github.com/spf13/cobra"
+	zarfCLI "github.com/zarf-dev/zarf/src/cmd"
+	zarfConfig "github.com/zarf-dev/zarf/src/config"
 
 	securityHub "github.com/defenseunicorns/uds-security-hub/cmd"
 )
@@ -94,7 +94,7 @@ func init() {
 	// grab Zarf version to make Zarf library checks happy
 	if buildInfo, ok := debug.ReadBuildInfo(); ok {
 		for _, dep := range buildInfo.Deps {
-			if dep.Path == "github.com/defenseunicorns/zarf" {
+			if dep.Path == "github.com/zarf-dev/zarf" {
 				zarfConfig.CLIVersion = dep.Version
 			}
 		}
