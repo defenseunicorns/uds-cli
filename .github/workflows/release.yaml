@@ -26,6 +26,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Free up disk space
+        run: rm -rf /opt/hostedtoolcache
+
       - name: Setup golang
         uses: ./.github/actions/golang
 
