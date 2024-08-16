@@ -9,7 +9,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/stretchr/testify/require"
-	zarfTypes "github.com/zarf-dev/zarf/src/types"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 )
 
 func Test_validateBundleVars(t *testing.T) {
@@ -73,7 +73,7 @@ func Test_validateOverrides(t *testing.T) {
 		name          string
 		description   string
 		bundlePackage types.Package
-		zarfPackage   zarfTypes.ZarfPackage
+		zarfPackage   v1alpha1.ZarfPackage
 		wantErr       bool
 	}{
 		{
@@ -81,9 +81,9 @@ func Test_validateOverrides(t *testing.T) {
 			description: "Respective components and charts exist for override",
 			bundlePackage: types.Package{
 				Name: "foo", Overrides: map[string]map[string]types.BundleChartOverrides{"component": {"chart": {}}}},
-			zarfPackage: zarfTypes.ZarfPackage{
-				Components: []zarfTypes.ZarfComponent{
-					{Name: "component", Charts: []zarfTypes.ZarfChart{{Name: "chart"}}},
+			zarfPackage: v1alpha1.ZarfPackage{
+				Components: []v1alpha1.ZarfComponent{
+					{Name: "component", Charts: []v1alpha1.ZarfChart{{Name: "chart"}}},
 				},
 			},
 			wantErr: false,
@@ -93,10 +93,10 @@ func Test_validateOverrides(t *testing.T) {
 			description: "Respective components and charts exist for override when multiple charts and components are present",
 			bundlePackage: types.Package{
 				Name: "foo", Overrides: map[string]map[string]types.BundleChartOverrides{"component-a": {"chart-1": {}}}},
-			zarfPackage: zarfTypes.ZarfPackage{
-				Components: []zarfTypes.ZarfComponent{
-					{Name: "component-a", Charts: []zarfTypes.ZarfChart{{Name: "chart-1"}, {Name: "chart-2"}}},
-					{Name: "component-b", Charts: []zarfTypes.ZarfChart{{Name: "chart-b"}}},
+			zarfPackage: v1alpha1.ZarfPackage{
+				Components: []v1alpha1.ZarfComponent{
+					{Name: "component-a", Charts: []v1alpha1.ZarfChart{{Name: "chart-1"}, {Name: "chart-2"}}},
+					{Name: "component-b", Charts: []v1alpha1.ZarfChart{{Name: "chart-b"}}},
 				},
 			},
 			wantErr: false,
@@ -106,9 +106,9 @@ func Test_validateOverrides(t *testing.T) {
 			description: "Component does not exist for override",
 			bundlePackage: types.Package{
 				Name: "foo", Overrides: map[string]map[string]types.BundleChartOverrides{"hell-unleashed": {"chart": {}}}},
-			zarfPackage: zarfTypes.ZarfPackage{
-				Components: []zarfTypes.ZarfComponent{
-					{Name: "hello-world", Charts: []zarfTypes.ZarfChart{{Name: "chart"}}},
+			zarfPackage: v1alpha1.ZarfPackage{
+				Components: []v1alpha1.ZarfComponent{
+					{Name: "hello-world", Charts: []v1alpha1.ZarfChart{{Name: "chart"}}},
 				},
 			},
 			wantErr: true,
@@ -118,9 +118,9 @@ func Test_validateOverrides(t *testing.T) {
 			description: "Chart does not exist for override",
 			bundlePackage: types.Package{
 				Name: "foo", Overrides: map[string]map[string]types.BundleChartOverrides{"component": {"hell-unleashed": {}}}},
-			zarfPackage: zarfTypes.ZarfPackage{
-				Components: []zarfTypes.ZarfComponent{
-					{Name: "component", Charts: []zarfTypes.ZarfChart{{Name: "hello-world"}}},
+			zarfPackage: v1alpha1.ZarfPackage{
+				Components: []v1alpha1.ZarfComponent{
+					{Name: "component", Charts: []v1alpha1.ZarfChart{{Name: "hello-world"}}},
 				},
 			},
 			wantErr: true,

@@ -18,6 +18,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	av4 "github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/layout"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
@@ -42,36 +43,36 @@ type TarballBundle struct {
 }
 
 // LoadPackage loads a Zarf package from a local tarball bundle
-func (t *TarballBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (zarfTypes.ZarfPackage, []string, error) {
+func (t *TarballBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (v1alpha1.ZarfPackage, []string, error) {
 	packageSpinner := message.NewProgressSpinner("Loading bundled Zarf package: %s", t.Pkg.Name)
 	defer packageSpinner.Stop()
 
 	files, err := t.extractPkgFromBundle()
 	if err != nil {
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
-	var pkg zarfTypes.ZarfPackage
+	var pkg v1alpha1.ZarfPackage
 	if err = utils.ReadYAMLStrict(dst.ZarfYAML, &pkg); err != nil {
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
 	// if in dev mode and package is a zarf init config, return an empty package
-	if config.Dev && pkg.Kind == zarfTypes.ZarfInitConfig {
-		return zarfTypes.ZarfPackage{}, nil, nil
+	if config.Dev && pkg.Kind == v1alpha1.ZarfInitConfig {
+		return v1alpha1.ZarfPackage{}, nil, nil
 	}
 
 	// filter pkg components and determine if its a partial pkg
 	filteredComps, isPartialPkg, err := handleFilter(pkg, filter)
 	if err != nil {
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
 	pkg.Components = filteredComps
 
 	dst.SetFromPaths(files)
 
 	if err := sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, isPartialPkg); err != nil {
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
 	if unarchiveAll {
@@ -80,17 +81,17 @@ func (t *TarballBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths,
 				if errors.Is(err, layout.ErrNotLoaded) {
 					_, err := dst.Components.Create(component)
 					if err != nil {
-						return zarfTypes.ZarfPackage{}, nil, err
+						return v1alpha1.ZarfPackage{}, nil, err
 					}
 				} else {
-					return zarfTypes.ZarfPackage{}, nil, err
+					return v1alpha1.ZarfPackage{}, nil, err
 				}
 			}
 		}
 
 		if dst.SBOMs.Path != "" {
 			if err := dst.SBOMs.Unarchive(); err != nil {
-				return zarfTypes.ZarfPackage{}, nil, err
+				return v1alpha1.ZarfPackage{}, nil, err
 			}
 		}
 	}
@@ -107,7 +108,7 @@ func (t *TarballBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths,
 }
 
 // LoadPackageMetadata loads a Zarf package's metadata from a local tarball bundle
-func (t *TarballBundle) LoadPackageMetadata(_ context.Context, dst *layout.PackagePaths, _ bool, _ bool) (zarfTypes.ZarfPackage, []string, error) {
+func (t *TarballBundle) LoadPackageMetadata(_ context.Context, dst *layout.PackagePaths, _ bool, _ bool) (v1alpha1.ZarfPackage, []string, error) {
 	ctx := context.TODO()
 	format := av4.CompressedArchive{
 		Compression: av4.Zstd{},
@@ -116,12 +117,12 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, dst *layout.Packa
 
 	sourceArchive, err := os.Open(t.BundleLocation)
 	if err != nil {
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
 	var imageManifest oci.Manifest
 	if err := format.Extract(ctx, sourceArchive, []string{filepath.Join(config.BlobsDir, t.PkgManifestSHA)}, utils.ExtractJSON(&imageManifest)); err != nil {
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
 	var zarfYamlSHA string
@@ -133,7 +134,7 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, dst *layout.Packa
 	}
 
 	if zarfYamlSHA == "" {
-		return zarfTypes.ZarfPackage{}, nil, fmt.Errorf(fmt.Sprintf("zarf.yaml with SHA %s not found", zarfYamlSHA))
+		return v1alpha1.ZarfPackage{}, nil, fmt.Errorf(fmt.Sprintf("zarf.yaml with SHA %s not found", zarfYamlSHA))
 	}
 
 	// grab SHA of checksums.txt
@@ -148,7 +149,7 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, dst *layout.Packa
 	// reset file reader
 	_, err = sourceArchive.Seek(0, 0)
 	if err != nil {
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
 	// grab zarf.yaml and checksums.txt
@@ -178,21 +179,21 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, dst *layout.Packa
 	}); err != nil {
 		err = sourceArchive.Close()
 		if err != nil {
-			return zarfTypes.ZarfPackage{}, nil, err
+			return v1alpha1.ZarfPackage{}, nil, err
 		}
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
 	// deserialize zarf.yaml to grab checksum for validating pkg integrity
-	var pkg zarfTypes.ZarfPackage
+	var pkg v1alpha1.ZarfPackage
 	err = utils.ReadYAMLStrict(dst.ZarfYAML, &pkg)
 	if err != nil {
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
 	dst.SetFromPaths(filePaths)
 	if err := sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, true); err != nil {
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
 	err = sourceArchive.Close()

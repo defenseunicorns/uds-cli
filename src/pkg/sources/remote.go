@@ -20,6 +20,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/layout"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/sources"
@@ -41,7 +42,7 @@ type RemoteBundle struct {
 }
 
 // LoadPackage loads a Zarf package from a remote bundle
-func (r *RemoteBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (zarfTypes.ZarfPackage, []string, error) {
+func (r *RemoteBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (v1alpha1.ZarfPackage, []string, error) {
 	// todo: progress bar??
 	var layers []ocispec.Descriptor
 	var err error
@@ -65,23 +66,23 @@ func (r *RemoteBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths, 
 	}
 
 	if err != nil {
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
-	var pkg zarfTypes.ZarfPackage
+	var pkg v1alpha1.ZarfPackage
 	if err = utils.ReadYAMLStrict(dst.ZarfYAML, &pkg); err != nil {
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
 	// if in dev mode and package is a zarf init config, return an empty package
-	if config.Dev && pkg.Kind == zarfTypes.ZarfInitConfig {
-		return zarfTypes.ZarfPackage{}, nil, nil
+	if config.Dev && pkg.Kind == v1alpha1.ZarfInitConfig {
+		return v1alpha1.ZarfPackage{}, nil, nil
 	}
 
 	// filter pkg components and determine if its a partial pkg
 	filteredComps, isPartialPkg, err := handleFilter(pkg, filter)
 	if err != nil {
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
 	pkg.Components = filteredComps
 
@@ -89,7 +90,7 @@ func (r *RemoteBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths, 
 
 	err = sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, isPartialPkg)
 	if err != nil {
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
 	if unarchiveAll {
@@ -98,17 +99,17 @@ func (r *RemoteBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths, 
 				if errors.Is(err, layout.ErrNotLoaded) {
 					_, err := dst.Components.Create(component)
 					if err != nil {
-						return zarfTypes.ZarfPackage{}, nil, err
+						return v1alpha1.ZarfPackage{}, nil, err
 					}
 				} else {
-					return zarfTypes.ZarfPackage{}, nil, err
+					return v1alpha1.ZarfPackage{}, nil, err
 				}
 			}
 		}
 
 		if dst.SBOMs.Path != "" {
 			if err := dst.SBOMs.Unarchive(); err != nil {
-				return zarfTypes.ZarfPackage{}, nil, err
+				return v1alpha1.ZarfPackage{}, nil, err
 			}
 		}
 	}
@@ -124,21 +125,21 @@ func (r *RemoteBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths, 
 }
 
 // LoadPackageMetadata loads a Zarf package's metadata from a remote bundle
-func (r *RemoteBundle) LoadPackageMetadata(_ context.Context, dst *layout.PackagePaths, _ bool, _ bool) (zarfTypes.ZarfPackage, []string, error) {
+func (r *RemoteBundle) LoadPackageMetadata(_ context.Context, dst *layout.PackagePaths, _ bool, _ bool) (v1alpha1.ZarfPackage, []string, error) {
 	ctx := context.TODO()
 	root, err := r.Remote.FetchRoot(ctx)
 	if err != nil {
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
 	pkgManifestDesc := root.Locate(r.PkgManifestSHA)
 	if oci.IsEmptyDescriptor(pkgManifestDesc) {
-		return zarfTypes.ZarfPackage{}, nil, fmt.Errorf("zarf package %s with manifest sha %s not found", r.Pkg.Name, r.PkgManifestSHA)
+		return v1alpha1.ZarfPackage{}, nil, fmt.Errorf("zarf package %s with manifest sha %s not found", r.Pkg.Name, r.PkgManifestSHA)
 	}
 
 	// look at Zarf pkg manifest, grab zarf.yaml desc and download it
 	pkgManifest, err := r.Remote.FetchManifest(ctx, pkgManifestDesc)
 	if err != nil {
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
 	var zarfYAMLDesc ocispec.Descriptor
@@ -150,15 +151,15 @@ func (r *RemoteBundle) LoadPackageMetadata(_ context.Context, dst *layout.Packag
 	}
 	pkgBytes, err := r.Remote.FetchLayer(ctx, zarfYAMLDesc)
 	if err != nil {
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
-	var pkg zarfTypes.ZarfPackage
+	var pkg v1alpha1.ZarfPackage
 	if err = goyaml.Unmarshal(pkgBytes, &pkg); err != nil {
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
 	err = zarfUtils.WriteYaml(filepath.Join(dst.Base, config.ZarfYAML), pkg, 0600)
 	if err != nil {
-		return zarfTypes.ZarfPackage{}, nil, err
+		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
 	// grab checksums.txt so we can validate pkg integrity
@@ -167,11 +168,11 @@ func (r *RemoteBundle) LoadPackageMetadata(_ context.Context, dst *layout.Packag
 		if layer.Annotations[ocispec.AnnotationTitle] == config.ChecksumsTxt {
 			checksumBytes, err := r.Remote.FetchLayer(ctx, layer)
 			if err != nil {
-				return zarfTypes.ZarfPackage{}, nil, err
+				return v1alpha1.ZarfPackage{}, nil, err
 			}
 			err = os.WriteFile(filepath.Join(dst.Base, config.ChecksumsTxt), checksumBytes, 0600)
 			if err != nil {
-				return zarfTypes.ZarfPackage{}, nil, err
+				return v1alpha1.ZarfPackage{}, nil, err
 			}
 			checksumLayer = layer
 			break
