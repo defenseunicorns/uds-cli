@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -32,8 +31,7 @@ func TestBundleVariables(t *testing.T) {
 
 	t.Run("bad var name in import", func(t *testing.T) {
 		bundleDir := "src/test/bundles/02-variables/bad-var-name"
-		cmd := strings.Split(fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch), " ")
-		_, stderr, _ := e2e.UDS(cmd...)
+		_, stderr, _ := runCmdWithErr(fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 		require.Contains(t, stderr, "does not have a matching export")
 	})
 
