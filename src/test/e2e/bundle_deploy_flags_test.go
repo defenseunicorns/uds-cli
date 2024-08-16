@@ -39,7 +39,6 @@ func TestPackagesFlag(t *testing.T) {
 
 		require.Contains(t, deployments, "nginx")
 		require.NotContains(t, deployments, "podinfo")
-		runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
 
 		runCmd(t, fmt.Sprintf("remove %s --confirm --insecure --packages %s", bundlePath, "nginx"))
 		deployments, _ = runCmd(t, cmd)
