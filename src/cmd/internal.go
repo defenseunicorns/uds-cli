@@ -15,9 +15,9 @@ import (
 	runnerCLI "github.com/defenseunicorns/maru-runner/src/cmd"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
+	"github.com/zarf-dev/zarf/src/pkg/message"
 )
 
 var internalCmd = &cobra.Command{

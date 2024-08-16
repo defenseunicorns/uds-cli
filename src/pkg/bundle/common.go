@@ -19,12 +19,12 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/fetcher"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/pkg/cluster"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
-	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/zoci"
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/cluster"
+	"github.com/zarf-dev/zarf/src/pkg/message"
+	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
+	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
 
 // Bundle handles bundler operations
@@ -114,7 +114,7 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 		if pkg.Ref == "" {
 			return fmt.Errorf("%s .packages[%s] is missing required field: ref", config.BundleYAML, pkg.Repository)
 		}
-		var zarfYAML zarfTypes.ZarfPackage
+		var zarfYAML v1alpha1.ZarfPackage
 		var url string
 		// if using a remote repository
 		// todo: refactor these hash checks using the fetcher
@@ -180,7 +180,7 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 		if len(pkg.OptionalComponents) > 0 {
 			// validate the optional components exist in the package and support the bundle's target architecture
 			for _, component := range pkg.OptionalComponents {
-				c := helpers.Find(zarfYAML.Components, func(c zarfTypes.ZarfComponent) bool {
+				c := helpers.Find(zarfYAML.Components, func(c v1alpha1.ZarfComponent) bool {
 					return c.Name == component
 				})
 				// make sure the component exists
@@ -268,7 +268,7 @@ func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string
 	}
 
 	// The package is signed, and a public key was provided
-	return zarfUtils.CosignVerifyBlob(bundleYAMLPath, signaturePath, publicKeyPath)
+	return zarfUtils.CosignVerifyBlob(context.TODO(), bundleYAMLPath, signaturePath, publicKeyPath)
 }
 
 // GetDeployedPackageNames returns the names of the packages that have been deployed
@@ -285,9 +285,9 @@ func GetDeployedPackageNames() []string {
 }
 
 // validateOverrides ensures that the overrides have matching components and charts in the zarf package
-func validateOverrides(pkg types.Package, zarfYAML zarfTypes.ZarfPackage) error {
+func validateOverrides(pkg types.Package, zarfYAML v1alpha1.ZarfPackage) error {
 	for componentName, chartsValues := range pkg.Overrides {
-		var foundComponent *zarfTypes.ZarfComponent
+		var foundComponent *v1alpha1.ZarfComponent
 		for _, component := range zarfYAML.Components {
 			if component.Name == componentName {
 				componentCopy := component // Create a copy of the component
@@ -300,7 +300,7 @@ func validateOverrides(pkg types.Package, zarfYAML zarfTypes.ZarfPackage) error 
 		}
 
 		for chartName := range chartsValues {
-			var foundChart *zarfTypes.ZarfChart
+			var foundChart *v1alpha1.ZarfChart
 			for _, chart := range foundComponent.Charts {
 				if chart.Name == chartName {
 					chartCopy := chart // Create a copy of the chart

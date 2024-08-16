@@ -5,12 +5,12 @@
 package sources
 
 import (
-	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 )
 
 // addNamespaceOverrides checks if pkg components have charts with namespace overrides and adds them
-func addNamespaceOverrides(pkg *zarfTypes.ZarfPackage, nsOverrides NamespaceOverrideMap) {
+func addNamespaceOverrides(pkg *v1alpha1.ZarfPackage, nsOverrides NamespaceOverrideMap) {
 	if len(nsOverrides) == 0 {
 		return
 	}
@@ -26,7 +26,7 @@ func addNamespaceOverrides(pkg *zarfTypes.ZarfPackage, nsOverrides NamespaceOver
 }
 
 // setAsYOLO sets the YOLO flag on a package and strips out all images and repos
-func setAsYOLO(pkg *zarfTypes.ZarfPackage) {
+func setAsYOLO(pkg *v1alpha1.ZarfPackage) {
 	pkg.Metadata.YOLO = true
 	// strip out all images and repos
 	for idx := range pkg.Components {
@@ -36,7 +36,7 @@ func setAsYOLO(pkg *zarfTypes.ZarfPackage) {
 }
 
 // handleFilter filters components and checks if a package is a partial package by checking its number of components
-func handleFilter(pkg zarfTypes.ZarfPackage, filter filters.ComponentFilterStrategy) ([]zarfTypes.ZarfComponent, bool, error) {
+func handleFilter(pkg v1alpha1.ZarfPackage, filter filters.ComponentFilterStrategy) ([]v1alpha1.ZarfComponent, bool, error) {
 	numComponents := len(pkg.Components)
 	filteredComps, err := filter.Apply(pkg)
 	if err != nil {

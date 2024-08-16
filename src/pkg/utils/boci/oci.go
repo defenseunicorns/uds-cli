@@ -19,14 +19,14 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
-	"github.com/defenseunicorns/zarf/src/pkg/packager/filters"
-	"github.com/defenseunicorns/zarf/src/pkg/transform"
-	zarfUtils "github.com/defenseunicorns/zarf/src/pkg/utils"
-	"github.com/defenseunicorns/zarf/src/pkg/zoci"
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/message"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/transform"
+	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
+	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
 	ocistore "oras.land/oras-go/v2/content/oci"
@@ -263,7 +263,7 @@ func FindPkgLayers(remote zoci.Remote, pkgRootManifest *oci.Manifest, optionalCo
 	}
 
 	// ensure we're only pulling required components and optional components and images
-	var components []zarfTypes.ZarfComponent
+	var components []v1alpha1.ZarfComponent
 	for _, c := range zarfPkg.Components {
 		if c.Required != nil || slices.Contains(optionalComponents, c.Name) {
 			components = append(components, c)
@@ -288,7 +288,7 @@ func FindPkgLayers(remote zoci.Remote, pkgRootManifest *oci.Manifest, optionalCo
 }
 
 // FilterImageIndex filters out optional components from the images index
-func FilterImageIndex(components []zarfTypes.ZarfComponent, imgIndex ocispec.Index) ([]ocispec.Descriptor, error) {
+func FilterImageIndex(components []v1alpha1.ZarfComponent, imgIndex ocispec.Index) ([]ocispec.Descriptor, error) {
 	// include only images that are in the components using a map to dedup manifests
 	manifestIncludeMap := map[string]ocispec.Descriptor{}
 	for _, manifest := range imgIndex.Manifests {
@@ -462,9 +462,9 @@ func handleImgIndex(ctx context.Context, remote *oci.OrasRemote, desc ocispec.De
 	return index, nil
 }
 
-func getFilteredComponents(ctx context.Context, remote *oci.OrasRemote, manifest oci.Manifest, optionalComponents []string) ([]zarfTypes.ZarfComponent, error) {
+func getFilteredComponents(ctx context.Context, remote *oci.OrasRemote, manifest oci.Manifest, optionalComponents []string) ([]v1alpha1.ZarfComponent, error) {
 	// get Zarf pkg from manifest
-	var zarfPkg zarfTypes.ZarfPackage
+	var zarfPkg v1alpha1.ZarfPackage
 	for _, desc := range manifest.Layers {
 		if desc.Annotations[ocispec.AnnotationTitle] == config.ZarfYAML {
 			zarfYAMLBytes, err := remote.FetchLayer(ctx, desc)

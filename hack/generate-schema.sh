@@ -29,19 +29,5 @@ awk '{gsub(/\[github\.com\/defenseunicorns\/maru-runner\/src\/pkg\/variables\.Ex
 
 mv temp_tasks.schema.json tasks.schema.json
 
-# Create the json schema for zarf.yaml
-go run main.go zarf internal gen-config-schema > zarf.schema.json
-
-# Adds pattern properties to all definitions to allow for yaml extensions
-jq '
-  def addPatternProperties:
-    . +
-    if has("properties") then
-      {"patternProperties": {"^x-": {}}}
-    else
-      {}
-    end;
-
-  walk(if type == "object" then addPatternProperties else . end)
-' zarf.schema.json > temp_zarf.schema.json
-mv temp_zarf.schema.json zarf.schema.json
+# Download the Zarf schema
+curl -O https://raw.githubusercontent.com/zarf-dev/zarf/v0.38.2/zarf.schema.json
