@@ -49,6 +49,16 @@
         "# renovate: datasource=(?<datasource>.*) depName=(?<depName>.*)\\n\\s*(-\\s.*:)(?<currentValue>.*)"
       ],
       "datasourceTemplate": "github-tags"
+    },
+    {
+      "fileMatch": [
+        "generate-schema\\.sh"
+      ],
+      "matchStrings": [
+        "https://raw\\.githubusercontent\\.com/zarf-dev/zarf/v(?<currentValue>\\d+\\.\\d+\\.\\d+)/zarf\\.schema\\.json"
+      ],
+      "depNameTemplate": "zarf-dev/zarf",
+      "datasourceTemplate": "github-releases"
     }
   ]
 }
