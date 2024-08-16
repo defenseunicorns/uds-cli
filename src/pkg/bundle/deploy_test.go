@@ -14,6 +14,8 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"helm.sh/helm/v3/pkg/cli/values"
 )
 
@@ -579,7 +581,7 @@ func Test_handleZarfInitOpts(t *testing.T) {
 	tests := []struct {
 		name     string
 		pkgVars  zarfVarData
-		zarfPkg  zarfTypes.ZarfPackageKind
+		zarfPkg  v1alpha1.ZarfPackageKind
 		expected zarfTypes.ZarfInitOptions
 	}{
 		{
@@ -602,7 +604,7 @@ func Test_handleZarfInitOpts(t *testing.T) {
 				"INIT_ARTIFACT_PUSH_TOKEN":    "push-token!",
 				"INIT_STORAGE_CLASS":          "ebs",
 			},
-			zarfPkg: zarfTypes.ZarfInitConfig,
+			zarfPkg: v1alpha1.ZarfInitConfig,
 			expected: zarfTypes.ZarfInitOptions{
 				RegistryInfo: zarfTypes.RegistryInfo{
 					Address:      "fake.io",
