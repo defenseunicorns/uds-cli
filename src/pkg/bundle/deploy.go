@@ -21,6 +21,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/pterm/pterm"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	zarfConfig "github.com/zarf-dev/zarf/src/config"
 	"github.com/zarf-dev/zarf/src/pkg/layout"
 	"github.com/zarf-dev/zarf/src/pkg/message"
@@ -170,8 +171,8 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 }
 
 // handleZarfInitOpts sets the ZarfInitOptions for a package if using custom Zarf init options
-func handleZarfInitOpts(pkgVars zarfVarData, zarfPkgKind zarfTypes.ZarfPackageKind) zarfTypes.ZarfInitOptions {
-	if zarfPkgKind != zarfTypes.ZarfInitConfig {
+func handleZarfInitOpts(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKind) zarfTypes.ZarfInitOptions {
+	if zarfPkgKind != v1alpha1.ZarfInitConfig {
 		return zarfTypes.ZarfInitOptions{}
 	}
 

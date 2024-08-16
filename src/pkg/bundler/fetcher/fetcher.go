@@ -13,15 +13,15 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
-	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	ocistore "oras.land/oras-go/v2/content/oci"
 )
 
 // Fetcher is the interface for fetching packages
 type Fetcher interface {
 	Fetch() ([]ocispec.Descriptor, error)
-	GetPkgMetadata() (zarfTypes.ZarfPackage, error)
+	GetPkgMetadata() (v1alpha1.ZarfPackage, error)
 }
 
 // Config is the configuration for the fetcher

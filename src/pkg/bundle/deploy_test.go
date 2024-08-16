@@ -14,7 +14,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	"github.com/stretchr/testify/require"
-	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"helm.sh/helm/v3/pkg/cli/values"
 )
 

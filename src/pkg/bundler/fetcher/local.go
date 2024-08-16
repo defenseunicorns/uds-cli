@@ -19,6 +19,7 @@ import (
 	av4 "github.com/mholt/archiver/v4"
 	"github.com/opencontainers/image-spec/specs-go"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	zarfSources "github.com/zarf-dev/zarf/src/pkg/packager/sources"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
@@ -54,17 +55,17 @@ func (f *localFetcher) Fetch() ([]ocispec.Descriptor, error) {
 }
 
 // GetPkgMetadata grabs metadata from a local Zarf package's zarf.yaml
-func (f *localFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
+func (f *localFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
 	// todo: can we refactor to use Zarf fns?
 	tmpDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 	if err != nil {
-		return zarfTypes.ZarfPackage{}, err
+		return v1alpha1.ZarfPackage{}, err
 	}
 	defer os.RemoveAll(tmpDir) //nolint:errcheck
 
 	zarfTarball, err := os.Open(f.cfg.Bundle.Packages[f.cfg.PkgIter].Path)
 	if err != nil {
-		return zarfTypes.ZarfPackage{}, err
+		return v1alpha1.ZarfPackage{}, err
 	}
 	format := av4.CompressedArchive{
 		Compression: av4.Zstd{},
@@ -90,13 +91,13 @@ func (f *localFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
 		return nil
 	}); err != nil {
 		zarfTarball.Close()
-		return zarfTypes.ZarfPackage{}, err
+		return v1alpha1.ZarfPackage{}, err
 	}
-	zarfYAML := zarfTypes.ZarfPackage{}
+	zarfYAML := v1alpha1.ZarfPackage{}
 	zarfYAMLPath := filepath.Join(tmpDir, config.ZarfYAML)
 	err = utils.ReadYAMLStrict(zarfYAMLPath, &zarfYAML)
 	if err != nil {
-		return zarfTypes.ZarfPackage{}, err
+		return v1alpha1.ZarfPackage{}, err
 	}
 	return zarfYAML, err
 }
@@ -220,7 +221,7 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	return descs, err
 }
 
-func generatePkgManifestConfig(store *ocistore.Store, metadata *zarfTypes.ZarfMetadata, build *zarfTypes.ZarfBuildData) (ocispec.Descriptor, error) {
+func generatePkgManifestConfig(store *ocistore.Store, metadata *v1alpha1.ZarfMetadata, build *v1alpha1.ZarfBuildData) (ocispec.Descriptor, error) {
 	annotations := map[string]string{
 		ocispec.AnnotationTitle:       metadata.Name,
 		ocispec.AnnotationDescription: metadata.Description,

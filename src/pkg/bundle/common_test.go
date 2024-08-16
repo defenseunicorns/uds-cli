@@ -9,7 +9,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/stretchr/testify/require"
-	zarfTypes "github.com/zarf-dev/zarf/src/types"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 )
 
 func Test_validateBundleVars(t *testing.T) {
@@ -82,7 +82,7 @@ func Test_validateOverrides(t *testing.T) {
 			bundlePackage: types.Package{
 				Name: "foo", Overrides: map[string]map[string]types.BundleChartOverrides{"component": {"chart": {}}}},
 			zarfPackage: zarfTypes.ZarfPackage{
-				Components: []zarfTypes.ZarfComponent{
+				Components: []v1alpha1.ZarfComponent{
 					{Name: "component", Charts: []zarfTypes.ZarfChart{{Name: "chart"}}},
 				},
 			},
@@ -94,7 +94,7 @@ func Test_validateOverrides(t *testing.T) {
 			bundlePackage: types.Package{
 				Name: "foo", Overrides: map[string]map[string]types.BundleChartOverrides{"component-a": {"chart-1": {}}}},
 			zarfPackage: zarfTypes.ZarfPackage{
-				Components: []zarfTypes.ZarfComponent{
+				Components: []v1alpha1.ZarfComponent{
 					{Name: "component-a", Charts: []zarfTypes.ZarfChart{{Name: "chart-1"}, {Name: "chart-2"}}},
 					{Name: "component-b", Charts: []zarfTypes.ZarfChart{{Name: "chart-b"}}},
 				},
@@ -107,7 +107,7 @@ func Test_validateOverrides(t *testing.T) {
 			bundlePackage: types.Package{
 				Name: "foo", Overrides: map[string]map[string]types.BundleChartOverrides{"hell-unleashed": {"chart": {}}}},
 			zarfPackage: zarfTypes.ZarfPackage{
-				Components: []zarfTypes.ZarfComponent{
+				Components: []v1alpha1.ZarfComponent{
 					{Name: "hello-world", Charts: []zarfTypes.ZarfChart{{Name: "chart"}}},
 				},
 			},
@@ -119,7 +119,7 @@ func Test_validateOverrides(t *testing.T) {
 			bundlePackage: types.Package{
 				Name: "foo", Overrides: map[string]map[string]types.BundleChartOverrides{"component": {"hell-unleashed": {}}}},
 			zarfPackage: zarfTypes.ZarfPackage{
-				Components: []zarfTypes.ZarfComponent{
+				Components: []v1alpha1.ZarfComponent{
 					{Name: "component", Charts: []zarfTypes.ZarfChart{{Name: "hello-world"}}},
 				},
 			},

@@ -16,10 +16,10 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
-	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 // remoteFetcher fetches remote Zarf pkgs for local bundles
@@ -117,7 +117,7 @@ func (f *remoteFetcher) copyRemotePkgLayers(layersToCopy []ocispec.Descriptor) (
 	return descsToBundle, nil
 }
 
-func (f *remoteFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
+func (f *remoteFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
 	ctx := context.TODO()
 	platform := ocispec.Platform{
 		Architecture: config.GetArch(),
@@ -128,24 +128,24 @@ func (f *remoteFetcher) GetPkgMetadata() (zarfTypes.ZarfPackage, error) {
 	url := fmt.Sprintf("%s:%s", f.pkg.Repository, f.pkg.Ref)
 	remote, err := zoci.NewRemote(url, platform)
 	if err != nil {
-		return zarfTypes.ZarfPackage{}, err
+		return v1alpha1.ZarfPackage{}, err
 	}
 
 	// get package metadata
 	tmpDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 	if err != nil {
-		return zarfTypes.ZarfPackage{}, fmt.Errorf("bundler unable to create temp directory: %w", err)
+		return v1alpha1.ZarfPackage{}, fmt.Errorf("bundler unable to create temp directory: %w", err)
 	}
 	if _, err := remote.PullPackageMetadata(ctx, tmpDir); err != nil {
-		return zarfTypes.ZarfPackage{}, err
+		return v1alpha1.ZarfPackage{}, err
 	}
 
 	// read metadata
-	zarfYAML := zarfTypes.ZarfPackage{}
+	zarfYAML := v1alpha1.ZarfPackage{}
 	zarfYAMLPath := filepath.Join(tmpDir, config.ZarfYAML)
 	err = utils.ReadYAMLStrict(zarfYAMLPath, &zarfYAML)
 	if err != nil {
-		return zarfTypes.ZarfPackage{}, err
+		return v1alpha1.ZarfPackage{}, err
 	}
 	return zarfYAML, err
 }

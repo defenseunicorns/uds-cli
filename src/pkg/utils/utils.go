@@ -16,15 +16,14 @@ import (
 	"strings"
 	"time"
 
-	goyaml "github.com/goccy/go-yaml"
-	zarfTypes "github.com/zarf-dev/zarf/src/types"
-
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	goyaml "github.com/goccy/go-yaml"
 	av4 "github.com/mholt/archiver/v4"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 )
 
@@ -45,7 +44,7 @@ func IsValidTarballPath(path string) bool {
 }
 
 // IncludeComponent checks if a component has been specified in a a list of components (used for filtering optional components)
-func IncludeComponent(componentToCheck string, filteredComponents []zarfTypes.ZarfComponent) bool {
+func IncludeComponent(componentToCheck string, filteredComponents []v1alpha1.ZarfComponent) bool {
 	for _, component := range filteredComponents {
 		// get component name from annotation
 		nameWithSuffix := strings.Split(componentToCheck, "components/")[1]
