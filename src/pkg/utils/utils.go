@@ -16,16 +16,16 @@ import (
 	"strings"
 	"time"
 
-	zarfTypes "github.com/defenseunicorns/zarf/src/types"
 	goyaml "github.com/goccy/go-yaml"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/defenseunicorns/zarf/src/pkg/message"
 	av4 "github.com/mholt/archiver/v4"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
+	"github.com/zarf-dev/zarf/src/pkg/message"
 )
 
 // IsValidTarballPath returns true if the path is a valid tarball path to a bundle tarball

@@ -801,8 +801,12 @@ github.com/anchore/bubbly v0.0.0-20231115134915-def0aba654a9 h1:p0ZIe0htYOX284Y4
 github.com/anchore/bubbly v0.0.0-20231115134915-def0aba654a9/go.mod h1:3ZsFB9tzW3vl4gEiUeuSOMDnwroWxIxJelOOHUp8dSw=
 github.com/anchore/clio v0.0.0-20240408173007-3c4abf89e72f h1:2xJPf4KWzxFDwZK/yax+h8QHP2Gnn4fgXUCCeizhbyU=
 github.com/anchore/clio v0.0.0-20240408173007-3c4abf89e72f/go.mod h1:1k7cwq2CeVH9dgAl0X/JBBfJ4y/E8h2R9KqByDkrCA4=
+github.com/anchore/clio v0.0.0-20240705045624-ac88e09ad9d0 h1:rtO6Bcc5KX1i6Ndj4pFcFUkE5PaiKv0J4hKSlmbEIXQ=
+github.com/anchore/clio v0.0.0-20240705045624-ac88e09ad9d0/go.mod h1:U3M+opzBUkSBUIRUXsQj6ZgrX9i7Nn0YLn4CjmhKMNI=
 github.com/anchore/fangs v0.0.0-20231201140849-5075d28d6d8b h1:L/djgY7ZbZ/38+wUtdkk398W3PIBJLkt1N8nU/7e47A=
 github.com/anchore/fangs v0.0.0-20231201140849-5075d28d6d8b/go.mod h1:TLcE0RE5+8oIx2/NPWem/dq1DeaMoC+fPEH7hoSzPLo=
+github.com/anchore/fangs v0.0.0-20240508143433-f016b099950f h1:NOhzafCyNYFi88qxkBFjMzQo4dRa1vDhBzx+0Uovx8Q=
+github.com/anchore/fangs v0.0.0-20240508143433-f016b099950f/go.mod h1:sVpRS2yNCw6tLVpvA1QSDVWTJVpCuAm8JNZgn4Sjz/k=
 github.com/anchore/go-logger v0.0.0-20230725134548-c21dafa1ec5a h1:nJ2G8zWKASyVClGVgG7sfM5mwoZlZ2zYpIzN2OhjWkw=
 github.com/anchore/go-logger v0.0.0-20230725134548-c21dafa1ec5a/go.mod h1:ubLFmlsv8/DFUQrZwY5syT5/8Er3ugSr4rDFwHsE3hg=
 github.com/anchore/go-macholibre v0.0.0-20220308212642-53e6d0aaf6fb h1:iDMnx6LIjtjZ46C0akqveX83WFzhpTD3eqOthawb5vU=
@@ -1056,7 +1060,6 @@ github.com/defenseunicorns/pkg/oci v1.0.1 h1:WPrWRrae1L19X1vuhy6yYMR2zrTzgBbJHp3
 github.com/defenseunicorns/pkg/oci v1.0.1/go.mod h1:qZ3up/d0P81taW37fKR4lb19jJhQZJVtNOEJMu00dHQ=
 github.com/defenseunicorns/uds-security-hub v0.0.7 h1:4leg+FDagyoFdr3aSeFGlega4XG5+FwXnAdQsB2MebM=
 github.com/defenseunicorns/uds-security-hub v0.0.7/go.mod h1:4c1w8sRRyQfMDEQ3d+i3/7ENwQGgkNRkvjF5+4D2LZ4=
-github.com/defenseunicorns/zarf v0.36.1 h1:G1KRMt0O3JrXrQfiOUEtkoFoPYR1q9DPKrzgS53u3Zc=
 github.com/defenseunicorns/zarf v0.36.1/go.mod h1:tLj5XZGOzYIbdD3phJB5d4B2QkGDzhYvnCfd/kqvanc=
 github.com/deitch/magic v0.0.0-20230404182410-1ff89d7342da h1:ZOjWpVsFZ06eIhnh4mkaceTiVoktdU67+M7KDHJ268M=
 github.com/deitch/magic v0.0.0-20230404182410-1ff89d7342da/go.mod h1:B3tI9iGHi4imdLi4Asdha1Sc6feLMTfPLXh9IUYmysk=
@@ -1170,10 +1173,14 @@ github.com/felixge/httpsnoop v1.0.4 h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2
 github.com/felixge/httpsnoop v1.0.4/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
 github.com/fluxcd/helm-controller/api v0.37.4 h1:rkBMqYXexyf1s5BS8QpxGi691DsCi+yugIFCM5fNKLU=
 github.com/fluxcd/helm-controller/api v0.37.4/go.mod h1:KFdP5Lbrc4Vv+Jt4xRj6UUo3qiwdBqBPl1xiiAnBe9c=
+github.com/fluxcd/helm-controller/api v1.0.1 h1:Gn9qEVuif6D5+gHmVwTEZkR4+nmLOcOhKx4Sw2gL2EA=
+github.com/fluxcd/helm-controller/api v1.0.1/go.mod h1:/6AD5a2qjo/ttxVM8GR33syLZwqigta60DCLdy8GrME=
 github.com/fluxcd/pkg/apis/acl v0.3.0 h1:UOrKkBTOJK+OlZX7n8rWt2rdBmDCoTK+f5TY2LcZi8A=
 github.com/fluxcd/pkg/apis/acl v0.3.0/go.mod h1:WVF9XjSMVBZuU+HTTiSebGAWMgM7IYexFLyVWbK9bNY=
 github.com/fluxcd/pkg/apis/kustomize v1.3.0 h1:qvB46CfaOWcL1SyR2RiVWN/j7/035D0OtB1ltLN7rgI=
 github.com/fluxcd/pkg/apis/kustomize v1.3.0/go.mod h1:PCXf5kktTzNav0aH2Ns3jsowqwmA9xTcsrEOoPzx/K8=
+github.com/fluxcd/pkg/apis/kustomize v1.5.0 h1:ah4sfqccnio+/5Edz/tVz6LetFhiBoDzXAElj6fFCzU=
+github.com/fluxcd/pkg/apis/kustomize v1.5.0/go.mod h1:nEzhnhHafhWOUUV8VMFLojUOH+HHDEsL75y54mt/c30=
 github.com/fluxcd/pkg/apis/meta v1.5.0 h1:/G82d2Az5D9op3F+wJUpD8jw/eTV0suM6P7+cSURoUM=
 github.com/fluxcd/pkg/apis/meta v1.5.0/go.mod h1:Y3u7JomuuKtr5fvP1Iji2/50FdRe5GcBug2jawNVkdM=
 github.com/fluxcd/source-controller/api v1.3.0 h1:Z5Lq0aJY87yg0cQDEuwGLKS60GhdErCHtsi546HUt10=
@@ -2232,6 +2239,11 @@ github.com/yuin/gopher-lua v1.1.1 h1:kYKnWBjvbNP4XLT3+bPEwAXJx262OhaHDWDVOPjL46M
 github.com/yuin/gopher-lua v1.1.1/go.mod h1:GBR0iDaNXjAgGg9zfCvksxSRnQx76gclCIb7kdAd1Pw=
 github.com/zalando/go-keyring v0.2.2 h1:f0xmpYiSrHtSNAVgwip93Cg8tuF45HJM6rHq/A5RI/4=
 github.com/zalando/go-keyring v0.2.2/go.mod h1:sI3evg9Wvpw3+n4SqplGSJUMwtDeROfD4nsFz4z9PG0=
+github.com/zarf-dev/zarf v0.36.1 h1:G1KRMt0O3JrXrQfiOUEtkoFoPYR1q9DPKrzgS53u3Zc=
+github.com/zarf-dev/zarf v0.36.1 h1:jCen5rTrQaCqFD3SMGnlpKv96Oo88Cq3ZFkAih59agA=
+github.com/zarf-dev/zarf v0.36.1/go.mod h1:tLj5XZGOzYIbdD3phJB5d4B2QkGDzhYvnCfd/kqvanc=
+github.com/zarf-dev/zarf v0.37.0 h1:AnzGZtp7nF/C37CeayrMGwPuryMvO53DkX0jkigX8gA=
+github.com/zarf-dev/zarf v0.37.0/go.mod h1:uHWvlqhxuef0bSmgLim1Yjsj5BofIdrNB24XfcU4taQ=
 github.com/zclconf/go-cty v1.14.0 h1:/Xrd39K7DXbHzlisFP9c4pHao4yyf+/Ug9LEz+Y/yhc=
 github.com/zclconf/go-cty v1.14.0/go.mod h1:VvMs5i0vgZdhYawQNq5kePSpLAoz8u1xvZgrPIxfnZE=
 github.com/zeebo/assert v1.3.0/go.mod h1:Pq9JiuJQpG8JLJdtkwrJESF0Foym2/D9XMU5ciN/wJ0=

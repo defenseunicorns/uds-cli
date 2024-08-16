@@ -17,8 +17,8 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/test"
 
-	"github.com/defenseunicorns/zarf/src/pkg/message"
 	"github.com/pterm/pterm"
+	"github.com/zarf-dev/zarf/src/pkg/message"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 )
@@ -101,7 +101,7 @@ func deployZarfInit(t *testing.T) {
 		require.NoError(t, err)
 		var zarfVersion string
 		for _, r := range f.Require {
-			if r.Mod.Path == "github.com/defenseunicorns/zarf" {
+			if r.Mod.Path == "github.com/zarf-dev/zarf" {
 				zarfVersion = r.Mod.Version
 			}
 		}

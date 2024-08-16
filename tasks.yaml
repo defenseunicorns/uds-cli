@@ -43,12 +43,12 @@ tasks:
       - cmd: |
           cat <<EOF
           -s -w -X 'github.com/defenseunicorns/uds-cli/src/config.CLIVersion=${CLI_VERSION}' \
-            -X 'github.com/defenseunicorns/zarf/src/config.ActionsCommandZarfPrefix=zarf' \
+            -X 'github.com/zarf-dev/zarf/src/config.ActionsCommandZarfPrefix=zarf' \
             -X 'github.com/derailed/k9s/cmd.version=${K9S_VERSION}' \
             -X 'github.com/google/go-containerregistry/cmd/crane/cmd.Version=${CRANE_VERSION}' \
-            -X 'github.com/defenseunicorns/zarf/src/cmd/tools.syftVersion=${SYFT_VERSION}' \
-            -X 'github.com/defenseunicorns/zarf/src/cmd/tools.archiverVersion=${ARCHIVER_VERSION}' \
-            -X 'github.com/defenseunicorns/zarf/src/cmd/tools.helmVersion=${HELM_VERSION}'
+            -X 'github.com/zarf-dev/zarf/src/cmd/tools.syftVersion=${SYFT_VERSION}' \
+            -X 'github.com/zarf-dev/zarf/src/cmd/tools.archiverVersion=${ARCHIVER_VERSION}' \
+            -X 'github.com/zarf-dev/zarf/src/cmd/tools.helmVersion=${HELM_VERSION}'
           EOF
         setVariables:
           - name: BUILD_ARGS
