@@ -1,8 +1,5 @@
 # Bundle state
 
-## Decision
-Use secrets to store metadata about a bundle that has been deployed to the cluster
-
 ## Context
 As a user of the UDS-CLI, I want to be able to see the state of my bundles in the cluster so that I can understand what is currently deployed. This information is useful to know before applying upgrades, troubleshooting, removing bundles, etc.
 
@@ -66,3 +63,6 @@ Pros:
 Cons:
 - we would be overloading the package metadata with bundle information, which could be confusing.
 - we compromise the integrity of the package by modifying it.
+
+## Decision
+Use secrets to store metadata about a bundle that has been deployed to the cluster
