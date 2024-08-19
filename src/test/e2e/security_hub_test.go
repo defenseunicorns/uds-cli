@@ -5,6 +5,7 @@
 package test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -24,8 +25,7 @@ func TestScanCommand(t *testing.T) {
 		defer os.RemoveAll(tempDir)
 		outputFile := filepath.Join(tempDir, "zarf-init.csv")
 
-		_, stdErr, err := e2e.UDS("scan", "--org", "defenseunicorns", "--package-name", "packages/init", "--tag", "v0.34.0", "--output-file", outputFile)
-		require.NoError(t, err, stdErr)
+		_, stdErr := runCmd(t, fmt.Sprintf("scan --org defenseunicorns --package-name packages/init --tag v0.36.1 --output-file %s", outputFile))
 		require.FileExists(t, outputFile)
 		fileInfo, err := os.Stat(outputFile)
 		require.NoError(t, err)
