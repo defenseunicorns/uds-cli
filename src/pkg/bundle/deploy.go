@@ -87,7 +87,7 @@ func (b *Bundle) Deploy() error {
 		return err
 	}
 
-	// update state with bundled packages
+	// update state with packages to be deployed
 	warns, err := sc.AddPackages(b.bundle.Metadata.Name, packagesToDeploy)
 	if err != nil {
 		return err

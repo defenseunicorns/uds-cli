@@ -38,6 +38,7 @@ const (
 	stateNs   = "uds"
 )
 
+// NewClient creates a new state client
 func NewClient(client kubernetes.Interface) (*Client, error) {
 	stateClient := &Client{
 		client: client,
@@ -45,6 +46,8 @@ func NewClient(client kubernetes.Interface) (*Client, error) {
 	return stateClient, nil
 }
 
+// InitBundleState initializes the bundle state in the K8s cluster if it doesn't exist
+// this can safely be called multiple times
 func (c *Client) InitBundleState(bundleName string) error {
 	err := c.ensureNamespace()
 	if err != nil {
@@ -58,6 +61,7 @@ func (c *Client) InitBundleState(bundleName string) error {
 	return err
 }
 
+// ensureNamespace creates the uds namespace if it doesn't exist
 func (c *Client) ensureNamespace() error {
 	_, err := c.client.CoreV1().Namespaces().Get(context.TODO(), stateNs, metav1.GetOptions{})
 	if err != nil {
@@ -78,6 +82,7 @@ func (c *Client) ensureNamespace() error {
 	return nil
 }
 
+// getOrCreateBundleState gets or creates the bundle state in the K8s cluster
 func (c *Client) getOrCreateBundleState(bundleName string) (*BundleState, error) {
 	var state *BundleState
 	stateSecretName := fmt.Sprintf("uds-bundle-%s", bundleName)
@@ -128,6 +133,7 @@ func (c *Client) getOrCreateBundleState(bundleName string) (*BundleState, error)
 	return state, nil
 }
 
+// AddPackages adds packages to the bundle state
 func (c *Client) AddPackages(bundleName string, packagesToDeploy []types.Package) ([]string, error) {
 	// track warnings
 	warnings := make([]string, 0)
@@ -190,6 +196,7 @@ func (c *Client) AddPackages(bundleName string, packagesToDeploy []types.Package
 	return warnings, nil
 }
 
+// UpdateBundleState updates the bundle state in the K8s cluster (not the packages in the state)
 func (c *Client) UpdateBundleState(bundleName string, status string) error {
 	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", bundleName), metav1.GetOptions{})
 	if err != nil {
@@ -216,6 +223,7 @@ func (c *Client) UpdateBundleState(bundleName string, status string) error {
 	return nil
 }
 
+// GetBundleState gets the bundle state from the K8s cluster
 func (c *Client) GetBundleState(bundleName string) (*BundleState, error) {
 	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", bundleName), metav1.GetOptions{})
 	if err != nil {
