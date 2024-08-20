@@ -16,6 +16,7 @@ import (
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
+	"github.com/defenseunicorns/uds-cli/src/pkg/state"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
@@ -23,6 +24,7 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	zarfConfig "github.com/zarf-dev/zarf/src/config"
+	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/layout"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
@@ -69,7 +71,30 @@ func (b *Bundle) Deploy() error {
 		packagesToDeploy = notDeployed
 	}
 
-	return deployPackages(packagesToDeploy, b)
+	// create bundle state client
+	c, err := cluster.NewCluster()
+	if err != nil {
+		return err
+	}
+	stateClient, err := state.NewClient(c.Clientset)
+	if err != nil {
+		return err
+	}
+
+	// update state with bundle status
+	warns, err := stateClient.UpdateBundleState(b.bundle.Metadata.Name, packagesToDeploy)
+	if err != nil {
+		return err
+	}
+
+	err = deployPackages(packagesToDeploy, b)
+
+	// print warnings
+	for _, warn := range warns {
+		message.Warn(warn)
+	}
+
+	return err
 }
 
 func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
@@ -151,8 +176,11 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 		}
 
 		if err = pkgClient.Deploy(context.TODO()); err != nil {
+			// todo: update state with error
 			return err
 		}
+		// todo: update state with success
+
 		// save exported vars
 		pkgExportedVars := make(map[string]string)
 		variableConfig := pkgClient.GetVariableConfig()

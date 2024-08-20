@@ -5,9 +5,9 @@ metadata:
   version: 0.0.1
 
 packages:
-  - name: podinfo
-    repository: ghcr.io/defenseunicorns/uds-cli/podinfo
-    ref: 0.0.1
+#  - name: podinfo
+#    repository: ghcr.io/defenseunicorns/uds-cli/podinfo
+#    ref: 0.0.1
   - name: nginx
     repository: ghcr.io/defenseunicorns/uds-cli/nginx
     ref: 0.0.1
