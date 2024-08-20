@@ -19,9 +19,9 @@ func TestNewClientNoNamespace(t *testing.T) {
 	require.NotNil(t, client)
 
 	// Check if the namespace was created
-	ns, err := fakeClient.CoreV1().Namespaces().Get(context.TODO(), udsNamespace, metav1.GetOptions{})
+	ns, err := fakeClient.CoreV1().Namespaces().Get(context.TODO(), stateNs, metav1.GetOptions{})
 	require.NoError(t, err)
-	require.Equal(t, udsNamespace, ns.Name)
+	require.Equal(t, stateNs, ns.Name)
 }
 
 func TestNewClientExistingNamespace(t *testing.T) {
@@ -29,7 +29,7 @@ func TestNewClientExistingNamespace(t *testing.T) {
 
 	// Create the UDS namespace
 	_, err := fakeClient.CoreV1().Namespaces().Create(context.TODO(),
-		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: udsNamespace}}, metav1.CreateOptions{})
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: stateNs}}, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	client, err := NewClient(fakeClient)
@@ -37,12 +37,12 @@ func TestNewClientExistingNamespace(t *testing.T) {
 	require.NotNil(t, client)
 
 	// Check if the namespace was created
-	ns, err := fakeClient.CoreV1().Namespaces().Get(context.TODO(), udsNamespace, metav1.GetOptions{})
+	ns, err := fakeClient.CoreV1().Namespaces().Get(context.TODO(), stateNs, metav1.GetOptions{})
 	require.NoError(t, err)
-	require.Equal(t, udsNamespace, ns.Name)
+	require.Equal(t, stateNs, ns.Name)
 }
 
-func TestUpdateBundleState(t *testing.T) {
+func TestUpdateBundleStateWithPackageRemoval(t *testing.T) {
 	fakeClient := fake.NewClientset()
 	client, _ := NewClient(fakeClient)
 
@@ -50,10 +50,10 @@ func TestUpdateBundleState(t *testing.T) {
 	initialState := &BundleState{
 		Name:     "test-bundle",
 		Packages: []PkgStatus{{Name: "pkg1", Status: "deployed"}},
-		Status:   "deployed",
+		Status:   "deployed", // todo: const
 	}
 	initialStateJSON, _ := json.Marshal(initialState)
-	_, err := fakeClient.CoreV1().Secrets(udsNamespace).Create(context.TODO(), &corev1.Secret{
+	_, err := fakeClient.CoreV1().Secrets(stateNs).Create(context.TODO(), &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: "uds-bundle-test-bundle"},
 		Data:       map[string][]byte{"data": initialStateJSON},
 	}, metav1.CreateOptions{})
@@ -68,7 +68,7 @@ func TestUpdateBundleState(t *testing.T) {
 	require.Contains(t, warnings[0], "pkg1 has been removed")
 
 	// Verify the updated state
-	updatedSecret, err := fakeClient.CoreV1().Secrets(udsNamespace).Get(context.TODO(), "uds-bundle-test-bundle", metav1.GetOptions{})
+	updatedSecret, err := fakeClient.CoreV1().Secrets(stateNs).Get(context.TODO(), "uds-bundle-test-bundle", metav1.GetOptions{})
 	require.NoError(t, err)
 
 	var updatedState BundleState
@@ -91,7 +91,7 @@ func TestGetBundleState(t *testing.T) {
 		Status:   "deployed",
 	}
 	testStateJSON, _ := json.Marshal(testState)
-	_, err := fakeClient.CoreV1().Secrets(udsNamespace).Create(context.TODO(), &corev1.Secret{
+	_, err := fakeClient.CoreV1().Secrets(stateNs).Create(context.TODO(), &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: "uds-bundle-test-bundle"},
 		Data:       map[string][]byte{"data": testStateJSON},
 	}, metav1.CreateOptions{})

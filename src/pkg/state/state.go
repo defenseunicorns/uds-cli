@@ -30,26 +30,26 @@ type Client struct {
 	client kubernetes.Interface
 }
 
-const udsNamespace = "uds"
+const stateNs = "uds"
 
 func NewClient(client kubernetes.Interface) (*Client, error) {
 	stateClient := &Client{
 		client: client,
 	}
-	err := stateClient.ensureNamespace()
+	err := stateClient.getOrCreateNamespace()
 	if err != nil {
 		return nil, err
 	}
 	return stateClient, nil
 }
 
-func (m *Client) ensureNamespace() error {
-	_, err := m.client.CoreV1().Namespaces().Get(context.TODO(), udsNamespace, metav1.GetOptions{})
+func (m *Client) getOrCreateNamespace() error {
+	_, err := m.client.CoreV1().Namespaces().Get(context.TODO(), stateNs, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			ns := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: udsNamespace,
+					Name: stateNs,
 				},
 			}
 			_, err = m.client.CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
@@ -65,7 +65,7 @@ func (m *Client) ensureNamespace() error {
 
 func (m *Client) getOrCreateBundleState(bundleName string) (*corev1.Secret, error) {
 	stateSecretName := fmt.Sprintf("uds-bundle-%s", bundleName)
-	stateSecret, err := m.client.CoreV1().Secrets(udsNamespace).Get(context.TODO(), stateSecretName, metav1.GetOptions{})
+	stateSecret, err := m.client.CoreV1().Secrets(stateNs).Get(context.TODO(), stateSecretName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Create an empty secret
@@ -75,7 +75,7 @@ func (m *Client) getOrCreateBundleState(bundleName string) (*corev1.Secret, erro
 				},
 				// Leave StringData empty
 			}
-			stateSecret, err = m.client.CoreV1().Secrets(udsNamespace).Create(context.TODO(), emptySecret, metav1.CreateOptions{})
+			stateSecret, err = m.client.CoreV1().Secrets(stateNs).Create(context.TODO(), emptySecret, metav1.CreateOptions{})
 			if err != nil {
 				return nil, fmt.Errorf("failed to create uds state secret: %w", err)
 			}
@@ -138,7 +138,7 @@ func (m *Client) UpdateBundleState(bundleName string, packagesToDeploy []types.P
 		"data": jsonBundleState,
 	}
 
-	_, err = m.client.CoreV1().Secrets(udsNamespace).Update(context.TODO(), stateSecret, metav1.UpdateOptions{})
+	_, err = m.client.CoreV1().Secrets(stateNs).Update(context.TODO(), stateSecret, metav1.UpdateOptions{})
 	if err != nil {
 		warnings = append(warnings, fmt.Sprintf("failed to update secret: %s", err))
 	}
