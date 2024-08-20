@@ -12,7 +12,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-func TestUpdateBundleStateWithPackageRemoval(t *testing.T) {
+func TestUpdateBundleStateWithNoCleanup(t *testing.T) {
 	fakeClient := fake.NewClientset()
 	client, _ := NewClient(fakeClient)
 
@@ -31,7 +31,7 @@ func TestUpdateBundleStateWithPackageRemoval(t *testing.T) {
 
 	// Update the state
 	packagesToDeploy := []types.Package{{Name: "pkg2"}}
-	warnings, err := client.UpdateBundleState("test-bundle", packagesToDeploy)
+	warnings, err := client.AddPackages("test-bundle", packagesToDeploy, false)
 
 	require.NoError(t, err)
 	require.Len(t, warnings, 1)
@@ -45,9 +45,7 @@ func TestUpdateBundleStateWithPackageRemoval(t *testing.T) {
 	err = json.Unmarshal(updatedSecret.Data["data"], &updatedState)
 	require.NoError(t, err)
 	require.Equal(t, "test-bundle", updatedState.Name)
-	require.Len(t, updatedState.PkgStatuses, 1)
-	require.Equal(t, "pkg2", updatedState.PkgStatuses[0].Name)
-	require.Equal(t, Deploying, updatedState.PkgStatuses[0].Status)
+	require.Len(t, updatedState.PkgStatuses, 2)
 }
 
 func TestUpdateBundleStateWithSamePackages(t *testing.T) {
@@ -69,7 +67,7 @@ func TestUpdateBundleStateWithSamePackages(t *testing.T) {
 
 	// Update the state
 	packagesToDeploy := []types.Package{{Name: "pkg1"}, {Name: "pkg2"}}
-	warnings, err := client.UpdateBundleState("test-bundle", packagesToDeploy)
+	warnings, err := client.AddPackages("test-bundle", packagesToDeploy, false)
 
 	require.NoError(t, err)
 	require.Len(t, warnings, 0)

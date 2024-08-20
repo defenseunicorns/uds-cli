@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -127,7 +128,7 @@ func (c *Client) getOrCreateBundleState(bundleName string) (*BundleState, error)
 	return state, nil
 }
 
-func (c *Client) UpdateBundleState(bundleName string, packagesToDeploy []types.Package) ([]string, error) {
+func (c *Client) AddPackages(bundleName string, packagesToDeploy []types.Package) ([]string, error) {
 	// track warnings
 	warnings := make([]string, 0)
 
@@ -155,9 +156,14 @@ func (c *Client) UpdateBundleState(bundleName string, packagesToDeploy []types.P
 		newPkgStatuses[i] = PkgStatus{Name: pkg.Name, Status: Deploying}
 	}
 
+	// dedup new packages with existing packages
+	dedupedPkgStatuses := helpers.MergeSlices[PkgStatus](currentState.PkgStatuses, newPkgStatuses, func(i, j PkgStatus) bool {
+		return i.Name == j.Name
+	})
+
 	newState := &BundleState{
 		Name:        bundleName,
-		PkgStatuses: newPkgStatuses,
+		PkgStatuses: dedupedPkgStatuses,
 		Status:      Deploying,
 	}
 
@@ -182,6 +188,32 @@ func (c *Client) UpdateBundleState(bundleName string, packagesToDeploy []types.P
 	}
 
 	return warnings, nil
+}
+
+func (c *Client) UpdateBundleState(bundleName string, status string) error {
+	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", bundleName), metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get bundle state: %w", err)
+	}
+	bundleState, err := c.unmarshalBundleState(stateSecret)
+	if err != nil {
+		return err
+	}
+
+	bundleState.Status = status
+
+	jsonBundleState, err := json.Marshal(bundleState)
+	if err != nil {
+		return fmt.Errorf("failed to marshal bundle state: %w", err)
+	}
+
+	stateSecret.Data["data"] = jsonBundleState
+	_, err = c.client.CoreV1().Secrets(stateNs).Update(context.TODO(), stateSecret, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to update secret: %w", err)
+	}
+
+	return nil
 }
 
 func (c *Client) GetBundleState(bundleName string) (*BundleState, error) {

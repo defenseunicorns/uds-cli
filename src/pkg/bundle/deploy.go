@@ -59,6 +59,7 @@ func (b *Bundle) Deploy() error {
 	}
 
 	// if resume, filter for packages not yet deployed
+	// todo: think through this logic more, we should prob use our new state here
 	if b.cfg.DeployOpts.Resume {
 		deployedPackageNames := GetDeployedPackageNames()
 		var notDeployed []types.Package
@@ -87,19 +88,31 @@ func (b *Bundle) Deploy() error {
 	}
 
 	// update state with bundled packages
-	warns, err := sc.UpdateBundleState(b.bundle.Metadata.Name, packagesToDeploy)
+	warns, err := sc.AddPackages(b.bundle.Metadata.Name, packagesToDeploy)
 	if err != nil {
 		return err
 	}
 
-	err = deployPackages(sc, packagesToDeploy, b)
-
-	// print warnings
-	for _, warn := range warns {
-		message.Warn(warn)
+	deployErr := deployPackages(sc, packagesToDeploy, b)
+	if deployErr != nil {
+		_ = sc.UpdateBundleState(b.bundle.Metadata.Name, state.Failed)
+		return deployErr
 	}
 
-	return err
+	// update bundle state with success
+	err = sc.UpdateBundleState(b.bundle.Metadata.Name, state.Success)
+	if err != nil {
+		return err
+	}
+
+	// print warnings only if --packages hasn't been set
+	if len(b.cfg.DeployOpts.Packages) == 0 {
+		for _, warn := range warns {
+			message.Warn(warn)
+		}
+	}
+
+	return nil
 }
 
 func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundle) error {
