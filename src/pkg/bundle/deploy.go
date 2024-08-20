@@ -58,20 +58,6 @@ func (b *Bundle) Deploy() error {
 		}
 	}
 
-	// if resume, filter for packages not yet deployed
-	// todo: think through this logic more, we should prob use our new state here
-	if b.cfg.DeployOpts.Resume {
-		deployedPackageNames := GetDeployedPackageNames()
-		var notDeployed []types.Package
-
-		for _, pkg := range packagesToDeploy {
-			if !slices.Contains(deployedPackageNames, pkg.Name) {
-				notDeployed = append(notDeployed, pkg)
-			}
-		}
-		packagesToDeploy = notDeployed
-	}
-
 	// create bundle state
 	kc, err := cluster.NewCluster()
 	if err != nil {
@@ -85,6 +71,20 @@ func (b *Bundle) Deploy() error {
 	err = sc.InitBundleState(b.bundle.Metadata.Name)
 	if err != nil {
 		return err
+	}
+
+	// if resume, filter for packages not yet deployed
+	if b.cfg.DeployOpts.Resume {
+		var resumePkgs []types.Package
+		for _, pkg := range packagesToDeploy {
+			if exists, err := sc.PkgExistsInState(b.bundle.Metadata.Name, pkg.Name); !exists && err == nil {
+				// package not in state, add to deploy list
+				resumePkgs = append(resumePkgs, pkg)
+			} else if err != nil {
+				return err
+			}
+		}
+		packagesToDeploy = resumePkgs
 	}
 
 	// update state with packages to be deployed

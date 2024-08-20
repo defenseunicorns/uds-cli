@@ -273,3 +273,18 @@ func (c *Client) UpdateBundlePkgState(bundleName string, pkgName string, status 
 	}
 	return nil
 }
+
+// PkgExistsInState checks if a package exists in the bundle state
+func (c *Client) PkgExistsInState(bundleName string, pkgName string) (bool, error) {
+	state, err := c.GetBundleState(bundleName)
+	if err != nil {
+		return false, err
+	}
+
+	for _, pkg := range state.PkgStatuses {
+		if pkg.Name == pkgName {
+			return true, nil
+		}
+	}
+	return false, nil
+}

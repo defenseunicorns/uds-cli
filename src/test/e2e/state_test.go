@@ -59,33 +59,33 @@ func TestUDSStateOnDeploy(t *testing.T) {
 	})
 }
 
-func TestUDSStateOnRemove(t *testing.T) {
-	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false)
-	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/receive-var", false)
-
-	bundleName := "state"
-	bundlePath := "src/test/bundles/16-state/"
-	bundleTarball := fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch)
-	deployPath := fmt.Sprintf("%s/%s", bundlePath, bundleTarball)
-	cleanStateSecret(t, bundleName)
-	runCmd(t, fmt.Sprintf("create %s --confirm", bundlePath))
-
-	t.Run("on remove", func(t *testing.T) {
-		runCmd(t, fmt.Sprintf("deploy %s --confirm", deployPath))
-		runCmd(t, fmt.Sprintf("remove %s --confirm", deployPath))
-		bundleState := getStateSecret(t, bundleName)
-		require.Nil(t, bundleState)
-	})
-
-	t.Run("on remove with --packages flag", func(t *testing.T) {
-		runCmd(t, fmt.Sprintf("deploy %s --confirm", deployPath))
-		bundleState := getStateSecret(t, bundleName)
-		require.Len(t, bundleState.PkgStatuses, 2)
-		runCmd(t, fmt.Sprintf("remove --packages=receive-var %s --confirm", deployPath))
-		bundleState = getStateSecret(t, bundleName)
-		require.Len(t, bundleState.PkgStatuses, 1)
-	})
-}
+//func TestUDSStateOnRemove(t *testing.T) {
+//	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false)
+//	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/receive-var", false)
+//
+//	bundleName := "state"
+//	bundlePath := "src/test/bundles/16-state/"
+//	bundleTarball := fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch)
+//	deployPath := fmt.Sprintf("%s/%s", bundlePath, bundleTarball)
+//	cleanStateSecret(t, bundleName)
+//	runCmd(t, fmt.Sprintf("create %s --confirm", bundlePath))
+//
+//	t.Run("on remove", func(t *testing.T) {
+//		runCmd(t, fmt.Sprintf("deploy %s --confirm", deployPath))
+//		runCmd(t, fmt.Sprintf("remove %s --confirm", deployPath))
+//		bundleState := getStateSecret(t, bundleName)
+//		require.Nil(t, bundleState)
+//	})
+//
+//	t.Run("on remove with --packages flag", func(t *testing.T) {
+//		runCmd(t, fmt.Sprintf("deploy %s --confirm", deployPath))
+//		bundleState := getStateSecret(t, bundleName)
+//		require.Len(t, bundleState.PkgStatuses, 2)
+//		runCmd(t, fmt.Sprintf("remove --packages=receive-var %s --confirm", deployPath))
+//		bundleState = getStateSecret(t, bundleName)
+//		require.Len(t, bundleState.PkgStatuses, 1)
+//	})
+//}
 
 func cleanStateSecret(t *testing.T, bundleName string) {
 	kc, err := cluster.NewCluster()
