@@ -61,7 +61,7 @@ func (b *Bundle) Deploy() error {
 	// if resume, filter for packages not yet deployed
 	if b.cfg.DeployOpts.Resume {
 		deployedPackageNames := GetDeployedPackageNames()
-		notDeployed := []types.Package{}
+		var notDeployed []types.Package
 
 		for _, pkg := range packagesToDeploy {
 			if !slices.Contains(deployedPackageNames, pkg.Name) {
@@ -71,23 +71,28 @@ func (b *Bundle) Deploy() error {
 		packagesToDeploy = notDeployed
 	}
 
-	// create bundle state client
-	c, err := cluster.NewCluster()
+	// create bundle state
+	kc, err := cluster.NewCluster()
 	if err != nil {
 		return err
 	}
-	stateClient, err := state.NewClient(c.Clientset)
-	if err != nil {
-		return err
-	}
-
-	// update state with bundle status
-	warns, err := stateClient.UpdateBundleState(b.bundle.Metadata.Name, packagesToDeploy)
+	sc, err := state.NewClient(kc.Clientset)
 	if err != nil {
 		return err
 	}
 
-	err = deployPackages(packagesToDeploy, b)
+	err = sc.InitBundleState(b.bundle.Metadata.Name)
+	if err != nil {
+		return err
+	}
+
+	// update state with bundled packages
+	warns, err := sc.UpdateBundleState(b.bundle.Metadata.Name, packagesToDeploy)
+	if err != nil {
+		return err
+	}
+
+	err = deployPackages(sc, packagesToDeploy, b)
 
 	// print warnings
 	for _, warn := range warns {
@@ -97,7 +102,7 @@ func (b *Bundle) Deploy() error {
 	return err
 }
 
-func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
+func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundle) error {
 	// map of Zarf pkgs and their vars
 	bundleExportedVars := make(map[string]map[string]string)
 
@@ -176,10 +181,10 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 		}
 
 		if err = pkgClient.Deploy(context.TODO()); err != nil {
-			// todo: update state with error
+			sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Failed)
 			return err
 		}
-		// todo: update state with success
+		sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Success)
 
 		// save exported vars
 		pkgExportedVars := make(map[string]string)

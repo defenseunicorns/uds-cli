@@ -21,30 +21,44 @@ type PkgStatus struct {
 }
 
 type BundleState struct {
-	Name     string      `json:"name"`
-	Packages []PkgStatus `json:"packages"`
-	Status   string      `json:"status"`
+	Name        string      `json:"name"`
+	PkgStatuses []PkgStatus `json:"packages"`
+	Status      string      `json:"status"`
 }
 
 type Client struct {
 	client kubernetes.Interface
 }
 
-const stateNs = "uds"
+const (
+	Success   = "success"
+	Failed    = "failed"
+	Deploying = "deploying"
+	stateNs   = "uds"
+)
 
 func NewClient(client kubernetes.Interface) (*Client, error) {
 	stateClient := &Client{
 		client: client,
 	}
-	err := stateClient.getOrCreateNamespace()
-	if err != nil {
-		return nil, err
-	}
 	return stateClient, nil
 }
 
-func (m *Client) getOrCreateNamespace() error {
-	_, err := m.client.CoreV1().Namespaces().Get(context.TODO(), stateNs, metav1.GetOptions{})
+func (c *Client) InitBundleState(bundleName string) error {
+	err := c.ensureNamespace()
+	if err != nil {
+		return err
+	}
+	_, err = c.getOrCreateBundleState(bundleName)
+	if err != nil {
+		return err
+	}
+
+	return err
+}
+
+func (c *Client) ensureNamespace() error {
+	_, err := c.client.CoreV1().Namespaces().Get(context.TODO(), stateNs, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			ns := &corev1.Namespace{
@@ -52,7 +66,7 @@ func (m *Client) getOrCreateNamespace() error {
 					Name: stateNs,
 				},
 			}
-			_, err = m.client.CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
+			_, err = c.client.CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
 			if err != nil {
 				return fmt.Errorf("failed to create namespace: %w", err)
 			}
@@ -63,45 +77,63 @@ func (m *Client) getOrCreateNamespace() error {
 	return nil
 }
 
-func (m *Client) getOrCreateBundleState(bundleName string) (*corev1.Secret, error) {
+func (c *Client) getOrCreateBundleState(bundleName string) (*BundleState, error) {
+	var state *BundleState
 	stateSecretName := fmt.Sprintf("uds-bundle-%s", bundleName)
-	stateSecret, err := m.client.CoreV1().Secrets(stateNs).Get(context.TODO(), stateSecretName, metav1.GetOptions{})
+	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), stateSecretName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
-			// Create an empty secret
-			emptySecret := &corev1.Secret{
+			// init state and secret
+			state = &BundleState{
+				Name:        bundleName,
+				PkgStatuses: []PkgStatus{},
+			}
+
+			stateSecret = &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: stateSecretName,
 				},
-				// Leave StringData empty
+				Data: map[string][]byte{
+					"data": {},
+				},
 			}
-			stateSecret, err = m.client.CoreV1().Secrets(stateNs).Create(context.TODO(), emptySecret, metav1.CreateOptions{})
+			_, err = c.client.CoreV1().Secrets(stateNs).Create(context.TODO(), stateSecret, metav1.CreateOptions{})
 			if err != nil {
-				return nil, fmt.Errorf("failed to create uds state secret: %w", err)
+				return nil, err
 			}
-		} else {
-			return nil, fmt.Errorf("failed to get uds state secret: %w", err)
+		}
+	} else {
+		state, err = c.unmarshalBundleState(stateSecret)
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	return stateSecret, nil
+	// update bundle state with Deploying status
+	state.Status = Deploying
+
+	// marshal into K8s secret and save
+	jsonBundleState, err := json.Marshal(state)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal bundle state: %w", err)
+	}
+
+	stateSecret.Data["data"] = jsonBundleState
+	_, err = c.client.CoreV1().Secrets(stateNs).Update(context.TODO(), stateSecret, metav1.UpdateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update secret: %w", err)
+	}
+
+	return state, nil
 }
 
-func (m *Client) UpdateBundleState(bundleName string, packagesToDeploy []types.Package) ([]string, error) {
+func (c *Client) UpdateBundleState(bundleName string, packagesToDeploy []types.Package) ([]string, error) {
 	// track warnings
 	warnings := make([]string, 0)
 
-	stateSecret, err := m.getOrCreateBundleState(bundleName)
+	currentState, err := c.GetBundleState(bundleName)
 	if err != nil {
-		return warnings, err
-	}
-
-	var currentState BundleState
-	if len(stateSecret.Data["data"]) > 0 { // ensure state isn't empty before trying to unmarshal
-		err = json.Unmarshal(stateSecret.Data["data"], &currentState)
-		if err != nil {
-			return warnings, fmt.Errorf("failed to unmarshal current state: %w", err)
-		}
+		return nil, err
 	}
 
 	// Create a map of new packages for easy lookup
@@ -111,34 +143,40 @@ func (m *Client) UpdateBundleState(bundleName string, packagesToDeploy []types.P
 	}
 
 	// Check for removed packages
-	for _, currentPkg := range currentState.Packages {
+	for _, currentPkg := range currentState.PkgStatuses {
 		if _, exists := newPkgs[currentPkg.Name]; !exists {
 			warnings = append(warnings, fmt.Sprintf("package %s has been removed from the bundle", currentPkg.Name))
 		}
 	}
 
-	// Create new package statuses from packagesToDeploy
+	// Create new package statuses from packagesToDeploy (set all packages to status: Deploying)
 	newPkgStatuses := make([]PkgStatus, len(packagesToDeploy))
 	for i, pkg := range packagesToDeploy {
-		newPkgStatuses[i] = PkgStatus{Name: pkg.Name, Status: "deploying"} // todo: const "deploying"
+		newPkgStatuses[i] = PkgStatus{Name: pkg.Name, Status: Deploying}
 	}
 
-	bundleState := &BundleState{
-		Name:     bundleName,
-		Packages: newPkgStatuses,
-		Status:   "deploying",
+	newState := &BundleState{
+		Name:        bundleName,
+		PkgStatuses: newPkgStatuses,
+		Status:      Deploying,
 	}
 
-	jsonBundleState, err := json.Marshal(bundleState)
+	jsonBundleState, err := json.Marshal(newState)
 	if err != nil {
 		return warnings, fmt.Errorf("failed to marshal bundle state: %w", err)
 	}
 
-	stateSecret.Data = map[string][]byte{
-		"data": jsonBundleState,
+	// marshal into K8s secret
+	stateSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fmt.Sprintf("uds-bundle-%s", bundleName),
+		},
+		Data: map[string][]byte{
+			"data": jsonBundleState,
+		},
 	}
 
-	_, err = m.client.CoreV1().Secrets(stateNs).Update(context.TODO(), stateSecret, metav1.UpdateOptions{})
+	_, err = c.client.CoreV1().Secrets(stateNs).Update(context.TODO(), stateSecret, metav1.UpdateOptions{})
 	if err != nil {
 		warnings = append(warnings, fmt.Sprintf("failed to update secret: %s", err))
 	}
@@ -146,24 +184,52 @@ func (m *Client) UpdateBundleState(bundleName string, packagesToDeploy []types.P
 	return warnings, nil
 }
 
-func (m *Client) GetBundleState(bundleName string) (*BundleState, error) {
-	stateSecret, err := m.getOrCreateBundleState(bundleName)
+func (c *Client) GetBundleState(bundleName string) (*BundleState, error) {
+	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", bundleName), metav1.GetOptions{})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get bundle state: %w", err)
 	}
-
-	return m.unmarshalBundleState(stateSecret)
+	return c.unmarshalBundleState(stateSecret)
 }
 
-func (m *Client) unmarshalBundleState(secret *corev1.Secret) (*BundleState, error) {
+func (c *Client) unmarshalBundleState(secret *corev1.Secret) (*BundleState, error) {
 	var bundleState BundleState
 	if data, ok := secret.Data["data"]; ok {
 		err := json.Unmarshal(data, &bundleState)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal existing bundle state: %w", err)
 		}
-	} else {
-		return nil, fmt.Errorf("no data found in secret")
 	}
 	return &bundleState, nil
+}
+
+func (c *Client) UpdateBundlePkgState(bundleName string, pkgName string, status string) error {
+	// get state
+	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", bundleName), metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	bundleState, err := c.unmarshalBundleState(stateSecret)
+	if err != nil {
+		return err
+	}
+
+	// update pkg status
+	for i, pkg := range bundleState.PkgStatuses {
+		if pkg.Name == pkgName {
+			bundleState.PkgStatuses[i].Status = status
+		}
+	}
+
+	// save state
+	jsonBundleState, err := json.Marshal(bundleState)
+	if err != nil {
+		return err
+	}
+	stateSecret.Data["data"] = jsonBundleState
+	_, err = c.client.CoreV1().Secrets(stateNs).Update(context.TODO(), stateSecret, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
 }
