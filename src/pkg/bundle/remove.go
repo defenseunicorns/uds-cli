@@ -53,8 +53,9 @@ func (b *Bundle) Remove() error {
 	}
 
 	// Check if --packages flag is set and zarf packages have been specified
-	var packagesToRemove []types.Package
+	packagesToRemove := b.bundle.Packages
 
+	// todo: handle bundle state
 	if len(b.cfg.RemoveOpts.Packages) != 0 {
 		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.RemoveOpts.Packages[0], " ", ""), ",")
 		for _, pkg := range b.bundle.Packages {
@@ -67,8 +68,9 @@ func (b *Bundle) Remove() error {
 		if len(userSpecifiedPackages) != len(packagesToRemove) {
 			return fmt.Errorf("invalid zarf packages specified by --packages")
 		}
-		return removePackages(packagesToRemove, b)
 	}
+
+	// todo: handle bundle state
 	return removePackages(b.bundle.Packages, b)
 }
 
