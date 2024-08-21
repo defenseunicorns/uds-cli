@@ -11,8 +11,10 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
+	"github.com/defenseunicorns/uds-cli/src/pkg/state"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
@@ -53,9 +55,8 @@ func (b *Bundle) Remove() error {
 	}
 
 	// Check if --packages flag is set and zarf packages have been specified
-	packagesToRemove := b.bundle.Packages
+	var packagesToRemove []types.Package
 
-	// todo: handle bundle state
 	if len(b.cfg.RemoveOpts.Packages) != 0 {
 		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.RemoveOpts.Packages[0], " ", ""), ",")
 		for _, pkg := range b.bundle.Packages {
@@ -68,20 +69,72 @@ func (b *Bundle) Remove() error {
 		if len(userSpecifiedPackages) != len(packagesToRemove) {
 			return fmt.Errorf("invalid zarf packages specified by --packages")
 		}
+	} else {
+		packagesToRemove = b.bundle.Packages
 	}
 
-	// todo: handle bundle state
-	return removePackages(b.bundle.Packages, b)
+	// get bundle state
+	kc, err := cluster.NewCluster()
+	if err != nil {
+		return err
+	}
+	sc, err := state.NewClient(kc.Clientset)
+	if err != nil {
+		return err
+	}
+
+	err = sc.InitBundleState(b.bundle.Metadata.Name)
+	if err != nil {
+		return err
+	}
+
+	err = sc.UpdateBundleState(b.bundle.Metadata.Name, state.Removing)
+	if err != nil {
+		return err
+	}
+
+	// remove packages
+	removeErr := removePackages(sc, packagesToRemove, b)
+	if removeErr != nil {
+		return removeErr
+	}
+
+	// remove bundle state secret
+	warns, err := sc.RemoveBundleState(b.bundle.Metadata.Name)
+	if err != nil {
+		return err
+	}
+
+	// print warnings
+	for _, warn := range warns {
+		message.Warn(warn)
+	}
+
+	return nil
 }
 
-func removePackages(packagesToRemove []types.Package, b *Bundle) error {
-	// Get deployed packages
+func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundle) error {
+	// Get deployed packages from Zarf state
 	deployedPackageNames := GetDeployedPackageNames()
+
+	// also check bundle state
+	bundleState, err := sc.GetBundleState(b.bundle.Metadata.Name)
+	if err != nil {
+		return err
+	}
+	for _, pkg := range bundleState.PkgStatuses {
+		deployedPackageNames = append(deployedPackageNames, pkg.Name)
+	}
 
 	for i := len(packagesToRemove) - 1; i >= 0; i-- {
 		pkg := packagesToRemove[i]
 
 		if slices.Contains(deployedPackageNames, pkg.Name) {
+			err := sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Removing)
+			if err != nil {
+				return err
+			}
+
 			opts := zarfTypes.ZarfPackageOptions{
 				PackageSource: b.cfg.RemoveOpts.Source,
 			}
@@ -108,6 +161,9 @@ func removePackages(packagesToRemove []types.Package, b *Bundle) error {
 			if err := pkgClient.Remove(context.TODO()); err != nil {
 				return err
 			}
+
+			err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Removed)
+
 		} else {
 			message.Warnf("Skipping removal of %s. Package not deployed", pkg.Name)
 		}

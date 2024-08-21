@@ -58,7 +58,7 @@ func (b *Bundle) Deploy() error {
 		}
 	}
 
-	// create bundle state
+	// get bundle state
 	kc, err := cluster.NewCluster()
 	if err != nil {
 		return err

@@ -35,6 +35,8 @@ const (
 	Success   = "success"
 	Failed    = "failed"
 	Deploying = "deploying"
+	Removing  = "removing"
+	Removed   = "removed"
 	stateNs   = "uds"
 )
 
@@ -46,8 +48,8 @@ func NewClient(client kubernetes.Interface) (*Client, error) {
 	return stateClient, nil
 }
 
-// InitBundleState initializes the bundle state in the K8s cluster if it doesn't exist
-// this can safely be called multiple times
+// InitBundleState initializes the bundle state in the K8s cluster if it doesn't exist.
+// This can safely be called multiple times
 func (c *Client) InitBundleState(bundleName string) error {
 	err := c.ensureNamespace()
 	if err != nil {
@@ -287,4 +289,73 @@ func (c *Client) PkgExistsInState(bundleName string, pkgName string) (bool, erro
 		}
 	}
 	return false, nil
+}
+
+func (c *Client) RemovePackageState(name string, pkgToRemove types.Package) error {
+	state, err := c.GetBundleState(name)
+	if err != nil {
+		return err
+	}
+
+	// find pkg in state and remove
+	newPkgStatuses := make([]PkgStatus, 0)
+	for i, p := range state.PkgStatuses {
+		if p.Name != pkgToRemove.Name {
+			newPkgStatuses = append(newPkgStatuses, state.PkgStatuses[i])
+		}
+	}
+
+	// save state
+	state.PkgStatuses = newPkgStatuses
+	jsonBundleState, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	stateSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fmt.Sprintf("uds-bundle-%s", name),
+		},
+		Data: map[string][]byte{
+			"data": jsonBundleState,
+		},
+	}
+	_, err = c.client.CoreV1().Secrets(stateNs).Update(context.TODO(), stateSecret, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) RemoveBundleState(bundleName string) ([]string, error) {
+	warns := make([]string, 0)
+
+	// ensure all packages have been removed before deleting
+	state, err := c.GetBundleState(bundleName)
+	if err != nil {
+		return nil, err
+	}
+
+	partialRemoval := false
+	for _, pkg := range state.PkgStatuses {
+		if pkg.Status != Removed {
+			partialRemoval = true
+			warns = append(warns, fmt.Sprintf("not removing state for bundle: %s, package %s still exists in state", bundleName, pkg.Name))
+		}
+	}
+
+	if partialRemoval {
+		err = c.UpdateBundleState(bundleName, Success)
+		if err != nil {
+			return nil, err
+		}
+		return warns, nil
+	}
+
+	// remove bundle state if no warnings
+	err = c.client.CoreV1().Secrets(stateNs).Delete(context.TODO(),
+		fmt.Sprintf("uds-bundle-%s", bundleName), metav1.DeleteOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil
 }
