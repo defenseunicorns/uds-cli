@@ -100,7 +100,7 @@ func (b *Bundle) Remove() error {
 	}
 
 	// remove bundle state secret
-	err := sc.RemoveBundleState(b.bundle.Metadata.Name)
+	err = sc.RemoveBundleState(b.bundle.Metadata.Name)
 	if err != nil {
 		return err
 	}
