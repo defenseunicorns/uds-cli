@@ -10,6 +10,7 @@ import (
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/zarf-dev/zarf/src/pkg/message"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -136,7 +137,7 @@ func (c *Client) getOrCreateBundleState(bundleName string) (*BundleState, error)
 }
 
 // AddPackages adds packages to the bundle state
-func (c *Client) AddPackages(bundleName string, packagesToDeploy []types.Package) ([]string, error) {
+func (c *Client) AddPackages(bundleName string, packagesToDeploy []types.Package, skipRemoval bool) ([]string, error) {
 	// track warnings
 	warnings := make([]string, 0)
 
@@ -152,9 +153,11 @@ func (c *Client) AddPackages(bundleName string, packagesToDeploy []types.Package
 	}
 
 	// Check for removed packages
-	for _, currentPkg := range currentState.PkgStatuses {
-		if _, exists := newPkgs[currentPkg.Name]; !exists {
-			warnings = append(warnings, fmt.Sprintf("package %s has been removed from the bundle", currentPkg.Name))
+	if !skipRemoval {
+		for _, currentPkg := range currentState.PkgStatuses {
+			if _, exists := newPkgs[currentPkg.Name]; !exists {
+				warnings = append(warnings, fmt.Sprintf("package %s has been removed from the bundle", currentPkg.Name))
+			}
 		}
 	}
 
@@ -276,19 +279,19 @@ func (c *Client) UpdateBundlePkgState(bundleName string, pkgName string, status 
 	return nil
 }
 
-// PkgExistsInState checks if a package exists in the bundle state
-func (c *Client) PkgExistsInState(bundleName string, pkgName string) (bool, error) {
+// GetBundlePkg checks if a package exists in the bundle state
+func (c *Client) GetBundlePkg(bundleName string, pkgName string) (*PkgStatus, error) {
 	state, err := c.GetBundleState(bundleName)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	for _, pkg := range state.PkgStatuses {
 		if pkg.Name == pkgName {
-			return true, nil
+			return &pkg, nil
 		}
 	}
-	return false, nil
+	return nil, nil
 }
 
 func (c *Client) RemovePackageState(name string, pkgToRemove types.Package) error {
@@ -326,36 +329,34 @@ func (c *Client) RemovePackageState(name string, pkgToRemove types.Package) erro
 	return nil
 }
 
-func (c *Client) RemoveBundleState(bundleName string) ([]string, error) {
-	warns := make([]string, 0)
-
+func (c *Client) RemoveBundleState(bundleName string) error {
 	// ensure all packages have been removed before deleting
 	state, err := c.GetBundleState(bundleName)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	partialRemoval := false
 	for _, pkg := range state.PkgStatuses {
 		if pkg.Status != Removed {
 			partialRemoval = true
-			warns = append(warns, fmt.Sprintf("not removing state for bundle: %s, package %s still exists in state", bundleName, pkg.Name))
+			message.Debugf("not removing state for bundle: %s, package %s still exists in state", bundleName, pkg.Name)
 		}
 	}
 
 	if partialRemoval {
-		err = c.UpdateBundleState(bundleName, Success)
+		err = c.UpdateBundleState(bundleName, Success) // not removing entire bundle, reset status
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return warns, nil
+		return nil
 	}
 
-	// remove bundle state if no warnings
+	// remove bundle state
 	err = c.client.CoreV1().Secrets(stateNs).Delete(context.TODO(),
 		fmt.Sprintf("uds-bundle-%s", bundleName), metav1.DeleteOptions{})
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return nil, nil
+	return nil
 }

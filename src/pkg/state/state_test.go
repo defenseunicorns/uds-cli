@@ -31,7 +31,7 @@ func TestUpdateBundleStateWithNoCleanup(t *testing.T) {
 
 	// Update the state
 	packagesToDeploy := []types.Package{{Name: "pkg2"}}
-	warnings, err := client.AddPackages("test-bundle", packagesToDeploy)
+	warnings, err := client.AddPackages("test-bundle", packagesToDeploy, false)
 
 	require.NoError(t, err)
 	require.Len(t, warnings, 1)
@@ -67,7 +67,7 @@ func TestUpdateBundleStateWithSamePackages(t *testing.T) {
 
 	// Update the state
 	packagesToDeploy := []types.Package{{Name: "pkg1"}, {Name: "pkg2"}}
-	warnings, err := client.AddPackages("test-bundle", packagesToDeploy)
+	warnings, err := client.AddPackages("test-bundle", packagesToDeploy, false)
 
 	require.NoError(t, err)
 	require.Len(t, warnings, 0)

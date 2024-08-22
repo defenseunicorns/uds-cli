@@ -77,10 +77,13 @@ func (b *Bundle) Deploy() error {
 	if b.cfg.DeployOpts.Resume {
 		var resumePkgs []types.Package
 		for _, pkg := range packagesToDeploy {
-			if exists, err := sc.PkgExistsInState(b.bundle.Metadata.Name, pkg.Name); !exists && err == nil {
-				// package not in state, add to deploy list
-				resumePkgs = append(resumePkgs, pkg)
-			} else if err != nil {
+			if pkgStatus, err := sc.GetBundlePkg(b.bundle.Metadata.Name, pkg.Name); err == nil {
+				if pkgStatus == nil {
+					resumePkgs = append(resumePkgs, pkg)
+				} else if pkgStatus.Status != state.Success {
+					resumePkgs = append(resumePkgs, pkg)
+				}
+			} else {
 				return err
 			}
 		}
@@ -88,7 +91,9 @@ func (b *Bundle) Deploy() error {
 	}
 
 	// update state with packages to be deployed
-	warns, err := sc.AddPackages(b.bundle.Metadata.Name, packagesToDeploy)
+	message.Debugf("Adding packages to bundle state: %v", packagesToDeploy)
+	skipRemoval := b.cfg.DeployOpts.Resume // don't remove packages from state if using --resume
+	warns, err := sc.AddPackages(b.bundle.Metadata.Name, packagesToDeploy, skipRemoval)
 	if err != nil {
 		return err
 	}

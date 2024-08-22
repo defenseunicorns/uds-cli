@@ -100,14 +100,9 @@ func (b *Bundle) Remove() error {
 	}
 
 	// remove bundle state secret
-	warns, err := sc.RemoveBundleState(b.bundle.Metadata.Name)
+	err := sc.RemoveBundleState(b.bundle.Metadata.Name)
 	if err != nil {
 		return err
-	}
-
-	// print warnings
-	for _, warn := range warns {
-		message.Warn(warn)
 	}
 
 	return nil
@@ -123,7 +118,9 @@ func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundl
 		return err
 	}
 	for _, pkg := range bundleState.PkgStatuses {
-		deployedPackageNames = append(deployedPackageNames, pkg.Name)
+		if pkg.Status != state.Removed {
+			deployedPackageNames = append(deployedPackageNames, pkg.Name)
+		}
 	}
 
 	for i := len(packagesToRemove) - 1; i >= 0; i-- {
@@ -165,7 +162,7 @@ func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundl
 			err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Removed)
 
 		} else {
-			message.Warnf("Skipping removal of %s. Package not deployed", pkg.Name)
+			message.Infof("Skipped removal of %s, package not deployed", pkg.Name)
 		}
 	}
 
