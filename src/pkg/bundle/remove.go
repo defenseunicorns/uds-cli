@@ -112,6 +112,11 @@ func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundl
 	// Get deployed packages from Zarf state
 	deployedPackageNames := GetDeployedPackageNames()
 
+	bundleState, err := sc.GetBundleState(b.bundle.Metadata.Name)
+	if err != nil {
+		return err
+	}
+
 	for i := len(packagesToRemove) - 1; i >= 0; i-- {
 		pkg := packagesToRemove[i]
 
@@ -151,7 +156,17 @@ func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundl
 			err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Removed)
 
 		} else {
-			message.Infof("Skipped removal of %s, package not deployed", pkg.Name)
+			// update bundle state if exists in bundle but not in cluster (ie. simple Zarf pkgs with no artifacts)
+			for _, pkgState := range bundleState.PkgStatuses {
+				if pkgState.Name == pkg.Name {
+					err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Removed)
+					if err != nil {
+						return err
+					}
+					break
+				}
+			}
+			message.Debugf("Skipped removal of %s, package not found in Zarf or UDS state", pkg.Name)
 		}
 	}
 
