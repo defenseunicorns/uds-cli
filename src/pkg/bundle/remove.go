@@ -112,17 +112,6 @@ func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundl
 	// Get deployed packages from Zarf state
 	deployedPackageNames := GetDeployedPackageNames()
 
-	// also check bundle state
-	bundleState, err := sc.GetBundleState(b.bundle.Metadata.Name)
-	if err != nil {
-		return err
-	}
-	for _, pkg := range bundleState.PkgStatuses {
-		if pkg.Status != state.Removed {
-			deployedPackageNames = append(deployedPackageNames, pkg.Name)
-		}
-	}
-
 	for i := len(packagesToRemove) - 1; i >= 0; i-- {
 		pkg := packagesToRemove[i]
 

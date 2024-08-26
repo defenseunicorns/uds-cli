@@ -35,7 +35,7 @@ const (
 	Success        = "success"
 	Failed         = "failed"
 	Deploying      = "deploying"
-	AwaitingDeploy = "awaiting_deploy"
+	AwaitingDeploy = "awaiting_deploy" // package is in the bundle but not yet deployed
 	Removing       = "removing"
 	Removed        = "removed"
 	stateNs        = "uds"
