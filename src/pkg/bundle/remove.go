@@ -83,7 +83,7 @@ func (b *Bundle) Remove() error {
 		return err
 	}
 
-	err = sc.InitBundleState(b.bundle.Metadata.Name)
+	err = sc.InitBundleState(b.bundle)
 	if err != nil {
 		return err
 	}

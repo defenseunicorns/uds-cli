@@ -68,7 +68,7 @@ func (b *Bundle) Deploy() error {
 		return err
 	}
 
-	err = sc.InitBundleState(b.bundle.Metadata.Name)
+	err = sc.InitBundleState(b.bundle)
 	if err != nil {
 		return err
 	}
@@ -90,14 +90,6 @@ func (b *Bundle) Deploy() error {
 		packagesToDeploy = resumePkgs
 	}
 
-	// update state with packages to be deployed
-	message.Debugf("Adding packages to bundle state: %v", packagesToDeploy)
-	skipRemoval := b.cfg.DeployOpts.Resume // don't remove packages from state if using --resume
-	warns, err := sc.AddPackages(b.bundle.Metadata.Name, packagesToDeploy, skipRemoval)
-	if err != nil {
-		return err
-	}
-
 	deployErr := deployPackages(sc, packagesToDeploy, b)
 	if deployErr != nil {
 		_ = sc.UpdateBundleState(b.bundle.Metadata.Name, state.Failed)
@@ -108,13 +100,6 @@ func (b *Bundle) Deploy() error {
 	err = sc.UpdateBundleState(b.bundle.Metadata.Name, state.Success)
 	if err != nil {
 		return err
-	}
-
-	// print warnings only if --packages hasn't been set
-	if len(b.cfg.DeployOpts.Packages) == 0 {
-		for _, warn := range warns {
-			message.Warn(warn)
-		}
 	}
 
 	return nil
@@ -198,11 +183,17 @@ func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundl
 			return err
 		}
 
-		if err = pkgClient.Deploy(context.TODO()); err != nil {
-			sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Failed)
+		if pkgDeployErr := pkgClient.Deploy(context.TODO()); pkgDeployErr != nil {
+			err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Failed)
+			if err != nil {
+				return err
+			}
+			return pkgDeployErr
+		}
+		err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Success)
+		if err != nil {
 			return err
 		}
-		sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Success)
 
 		// save exported vars
 		pkgExportedVars := make(map[string]string)

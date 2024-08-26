@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	corev1 "k8s.io/api/core/v1"
@@ -33,12 +32,13 @@ type Client struct {
 }
 
 const (
-	Success   = "success"
-	Failed    = "failed"
-	Deploying = "deploying"
-	Removing  = "removing"
-	Removed   = "removed"
-	stateNs   = "uds"
+	Success        = "success"
+	Failed         = "failed"
+	Deploying      = "deploying"
+	AwaitingDeploy = "awaiting_deploy"
+	Removing       = "removing"
+	Removed        = "removed"
+	stateNs        = "uds"
 )
 
 // NewClient creates a new state client
@@ -51,12 +51,12 @@ func NewClient(client kubernetes.Interface) (*Client, error) {
 
 // InitBundleState initializes the bundle state in the K8s cluster if it doesn't exist.
 // This can safely be called multiple times
-func (c *Client) InitBundleState(bundleName string) error {
+func (c *Client) InitBundleState(b types.UDSBundle) error {
 	err := c.ensureNamespace()
 	if err != nil {
 		return err
 	}
-	_, err = c.getOrCreateBundleState(bundleName)
+	_, err = c.getOrCreateBundleState(b)
 	if err != nil {
 		return err
 	}
@@ -86,16 +86,21 @@ func (c *Client) ensureNamespace() error {
 }
 
 // getOrCreateBundleState gets or creates the bundle state in the K8s cluster
-func (c *Client) getOrCreateBundleState(bundleName string) (*BundleState, error) {
+func (c *Client) getOrCreateBundleState(b types.UDSBundle) (*BundleState, error) {
 	var state *BundleState
+	bundleName := b.Metadata.Name
 	stateSecretName := fmt.Sprintf("uds-bundle-%s", bundleName)
 	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), stateSecretName, metav1.GetOptions{})
+	var pkgStatuses []PkgStatus
+	for _, pkg := range b.Packages {
+		pkgStatuses = append(pkgStatuses, PkgStatus{Name: pkg.Name, Status: AwaitingDeploy})
+	}
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// init state and secret
 			state = &BundleState{
 				Name:        bundleName,
-				PkgStatuses: []PkgStatus{},
+				PkgStatuses: pkgStatuses,
 			}
 
 			stateSecret = &corev1.Secret{
@@ -134,71 +139,6 @@ func (c *Client) getOrCreateBundleState(bundleName string) (*BundleState, error)
 	}
 
 	return state, nil
-}
-
-// AddPackages adds packages to the bundle state
-func (c *Client) AddPackages(bundleName string, packagesToDeploy []types.Package, skipRemoval bool) ([]string, error) {
-	// track warnings
-	warnings := make([]string, 0)
-
-	currentState, err := c.GetBundleState(bundleName)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create a map of new packages for easy lookup
-	newPkgs := make(map[string]bool)
-	for _, pkg := range packagesToDeploy {
-		newPkgs[pkg.Name] = true
-	}
-
-	// Check for removed packages
-	if !skipRemoval {
-		for _, currentPkg := range currentState.PkgStatuses {
-			if _, exists := newPkgs[currentPkg.Name]; !exists {
-				warnings = append(warnings, fmt.Sprintf("package %s has been removed from the bundle", currentPkg.Name))
-			}
-		}
-	}
-
-	// Create new package statuses from packagesToDeploy (set all packages to status: Deploying)
-	newPkgStatuses := make([]PkgStatus, len(packagesToDeploy))
-	for i, pkg := range packagesToDeploy {
-		newPkgStatuses[i] = PkgStatus{Name: pkg.Name, Status: Deploying}
-	}
-
-	// dedup new packages with existing packages
-	dedupedPkgStatuses := helpers.MergeSlices[PkgStatus](currentState.PkgStatuses, newPkgStatuses, func(i, j PkgStatus) bool {
-		return i.Name == j.Name
-	})
-
-	newState := &BundleState{
-		Name:        bundleName,
-		PkgStatuses: dedupedPkgStatuses,
-		Status:      Deploying,
-	}
-
-	jsonBundleState, err := json.Marshal(newState)
-	if err != nil {
-		return warnings, fmt.Errorf("failed to marshal bundle state: %w", err)
-	}
-
-	// marshal into K8s secret
-	stateSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("uds-bundle-%s", bundleName),
-		},
-		Data: map[string][]byte{
-			"data": jsonBundleState,
-		},
-	}
-
-	_, err = c.client.CoreV1().Secrets(stateNs).Update(context.TODO(), stateSecret, metav1.UpdateOptions{})
-	if err != nil {
-		warnings = append(warnings, fmt.Sprintf("failed to update secret: %s", err))
-	}
-
-	return warnings, nil
 }
 
 // UpdateBundleState updates the bundle state in the K8s cluster (not the packages in the state)
