@@ -121,7 +121,7 @@ func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundl
 		pkg := packagesToRemove[i]
 
 		if slices.Contains(deployedPackageNames, pkg.Name) {
-			err := sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Removing)
+			err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Removing)
 			if err != nil {
 				return err
 			}
@@ -149,11 +149,18 @@ func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundl
 			}
 			defer pkgClient.ClearTempPaths()
 
-			if err := pkgClient.Remove(context.TODO()); err != nil {
-				return err
+			if removeErr := pkgClient.Remove(context.TODO()); removeErr != nil {
+				err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.FailedRemove)
+				if err != nil {
+					return err
+				}
+				return removeErr
 			}
 
 			err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Removed)
+			if err != nil {
+				return err
+			}
 
 		} else {
 			// update bundle state if exists in bundle but not in cluster (ie. simple Zarf pkgs with no artifacts)

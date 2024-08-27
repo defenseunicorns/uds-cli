@@ -33,13 +33,14 @@ type Client struct {
 }
 
 const (
-	Success     = "success"
-	Failed      = "failed"
-	Deploying   = "deploying"
-	NotDeployed = "not_deployed" // package is in the bundle but not deployed
-	Removing    = "removing"
-	Removed     = "removed"
-	stateNs     = "uds"
+	Success      = "success"
+	Failed       = "failed"
+	Deploying    = "deploying"
+	NotDeployed  = "not_deployed" // package is in the bundle but not deployed
+	Removing     = "removing"
+	Removed      = "removed"
+	FailedRemove = "failed_remove"
+	stateNs      = "uds"
 )
 
 // NewClient creates a new state client
