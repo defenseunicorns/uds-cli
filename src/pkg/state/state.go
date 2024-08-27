@@ -105,36 +105,31 @@ func (c *Client) getOrCreateBundleState(b types.UDSBundle) (*BundleState, error)
 				PkgStatuses: pkgStatuses,
 			}
 
+			// marshal into K8s secret and save
+			jsonBundleState, err := json.Marshal(state)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal bundle state: %w", err)
+			}
 			stateSecret = &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: stateSecretName,
 				},
 				Data: map[string][]byte{
-					"data": {},
+					"data": jsonBundleState,
 				},
 			}
 			_, err = c.client.CoreV1().Secrets(stateNs).Create(context.TODO(), stateSecret, metav1.CreateOptions{})
 			if err != nil {
 				return nil, err
 			}
+		} else {
+			return nil, err
 		}
 	} else {
 		state, err = c.unmarshalBundleState(stateSecret)
 		if err != nil {
 			return nil, err
 		}
-	}
-
-	// marshal into K8s secret and save
-	jsonBundleState, err := json.Marshal(state)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal bundle state: %w", err)
-	}
-
-	stateSecret.Data["data"] = jsonBundleState
-	_, err = c.client.CoreV1().Secrets(stateNs).Update(context.TODO(), stateSecret, metav1.UpdateOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to update secret: %w", err)
 	}
 
 	return state, nil
