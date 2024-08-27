@@ -234,41 +234,6 @@ func (c *Client) GetBundlePkg(bundleName string, pkgName string) (*PkgStatus, er
 	return nil, nil
 }
 
-func (c *Client) RemovePackageState(name string, pkgToRemove types.Package) error {
-	state, err := c.GetBundleState(name)
-	if err != nil {
-		return err
-	}
-
-	// find pkg in state and remove
-	newPkgStatuses := make([]PkgStatus, 0)
-	for i, p := range state.PkgStatuses {
-		if p.Name != pkgToRemove.Name {
-			newPkgStatuses = append(newPkgStatuses, state.PkgStatuses[i])
-		}
-	}
-
-	// save state
-	state.PkgStatuses = newPkgStatuses
-	jsonBundleState, err := json.Marshal(state)
-	if err != nil {
-		return err
-	}
-	stateSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("uds-bundle-%s", name),
-		},
-		Data: map[string][]byte{
-			"data": jsonBundleState,
-		},
-	}
-	_, err = c.client.CoreV1().Secrets(stateNs).Update(context.TODO(), stateSecret, metav1.UpdateOptions{})
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (c *Client) RemoveBundleState(bundleName string) error {
 	// ensure all packages have been removed before deleting
 	state, err := c.GetBundleState(bundleName)
