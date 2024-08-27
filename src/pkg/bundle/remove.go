@@ -110,7 +110,7 @@ func (b *Bundle) Remove() error {
 
 func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundle) error {
 	// Get deployed packages from Zarf state
-	deployedPackageNames := GetDeployedPackageNames()
+	deployedPackageNames := state.GetDeployedPackageNames()
 
 	bundleState, err := sc.GetBundleState(b.bundle.Metadata.Name)
 	if err != nil {

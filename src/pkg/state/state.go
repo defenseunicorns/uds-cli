@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -32,13 +33,13 @@ type Client struct {
 }
 
 const (
-	Success        = "success"
-	Failed         = "failed"
-	Deploying      = "deploying"
-	AwaitingDeploy = "awaiting_deploy" // package is in the bundle but not yet deployed
-	Removing       = "removing"
-	Removed        = "removed"
-	stateNs        = "uds"
+	Success     = "success"
+	Failed      = "failed"
+	Deploying   = "deploying"
+	NotDeployed = "not_deployed" // package is in the bundle but not deployed
+	Removing    = "removing"
+	Removed     = "removed"
+	stateNs     = "uds"
 )
 
 // NewClient creates a new state client
@@ -91,12 +92,13 @@ func (c *Client) getOrCreateBundleState(b types.UDSBundle) (*BundleState, error)
 	bundleName := b.Metadata.Name
 	stateSecretName := fmt.Sprintf("uds-bundle-%s", bundleName)
 	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), stateSecretName, metav1.GetOptions{})
-	var pkgStatuses []PkgStatus
-	for _, pkg := range b.Packages {
-		pkgStatuses = append(pkgStatuses, PkgStatus{Name: pkg.Name, Status: AwaitingDeploy})
-	}
 	if err != nil {
 		if errors.IsNotFound(err) {
+			var pkgStatuses []PkgStatus
+			for _, pkg := range b.Packages {
+				pkgStatuses = append(pkgStatuses, PkgStatus{Name: pkg.Name, Status: NotDeployed})
+			}
+
 			// init state and secret
 			state = &BundleState{
 				Name:        bundleName,
@@ -122,9 +124,6 @@ func (c *Client) getOrCreateBundleState(b types.UDSBundle) (*BundleState, error)
 			return nil, err
 		}
 	}
-
-	// update bundle state with Deploying status
-	state.Status = Deploying
 
 	// marshal into K8s secret and save
 	jsonBundleState, err := json.Marshal(state)
@@ -243,7 +242,7 @@ func (c *Client) RemoveBundleState(bundleName string) error {
 
 	partialRemoval := false
 	for _, pkg := range state.PkgStatuses {
-		if pkg.Status != Removed {
+		if pkg.Status != Removed && pkg.Status != NotDeployed {
 			partialRemoval = true
 			message.Debugf("not removing state for bundle: %s, package %s still exists in state", bundleName, pkg.Name)
 		}
@@ -264,4 +263,17 @@ func (c *Client) RemoveBundleState(bundleName string) error {
 		return err
 	}
 	return nil
+}
+
+// GetDeployedPackageNames returns the names of the packages that have been deployed
+func GetDeployedPackageNames() []string {
+	var deployedPackageNames []string
+	c, _ := cluster.NewCluster()
+	if c != nil {
+		deployedPackages, _ := c.GetDeployedZarfPackages(context.TODO())
+		for _, pkg := range deployedPackages {
+			deployedPackageNames = append(deployedPackageNames, pkg.Name)
+		}
+	}
+	return deployedPackageNames
 }

@@ -14,6 +14,7 @@ import (
 )
 
 func TestUDSStateOnDeploy(t *testing.T) {
+	// even though we're using /no-cluster packages, we still need a cluster to create the state secret
 	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false)
 	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/receive-var", false)
 
@@ -51,7 +52,7 @@ func TestUDSStateOnDeploy(t *testing.T) {
 		require.Equal(t, state.Success, bundleState.Status)
 		require.Len(t, bundleState.PkgStatuses, 2)
 		require.Equal(t, state.Success, bundleState.PkgStatuses[0].Status)
-		require.Equal(t, state.AwaitingDeploy, bundleState.PkgStatuses[1].Status)
+		require.Equal(t, state.NotDeployed, bundleState.PkgStatuses[1].Status)
 
 		runCmd(t, fmt.Sprintf("deploy --resume %s --confirm", deployPath))
 		bundleState = getStateSecret(t, bundleName)

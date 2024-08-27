@@ -73,14 +73,15 @@ func (b *Bundle) Deploy() error {
 		return err
 	}
 
+	// update bundle state with deploying
+	err = sc.UpdateBundleState(b.bundle.Metadata.Name, state.Deploying)
+
 	// if resume, filter for packages not yet deployed
 	if b.cfg.DeployOpts.Resume {
 		var resumePkgs []types.Package
 		for _, pkg := range packagesToDeploy {
 			if pkgStatus, err := sc.GetBundlePkg(b.bundle.Metadata.Name, pkg.Name); err == nil {
-				if pkgStatus == nil {
-					resumePkgs = append(resumePkgs, pkg)
-				} else if pkgStatus.Status != state.Success {
+				if pkgStatus.Status != state.Success {
 					resumePkgs = append(resumePkgs, pkg)
 				}
 			} else {
