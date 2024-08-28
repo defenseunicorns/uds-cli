@@ -184,7 +184,7 @@ func TestRemoteBundleWithRemotePkgs(t *testing.T) {
 	runCmd(t, fmt.Sprintf("create %s -o %s --confirm --insecure -a %s", bundlePath, "localhost:888", e2e.Arch))
 
 	pull(t, bundleRef.String(), bundleTarballName)
-	inspectRemoteInsecure(t, bundleRef.String())
+	inspectRemoteInsecure(t, bundleRef.String(), "example-remote")
 	inspectRemoteAndSBOMExtract(t, bundleRef.String())
 	deployAndRemoveLocalAndRemoteInsecure(t, bundleRef.String(), tarballPath)
 

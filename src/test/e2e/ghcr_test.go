@@ -42,7 +42,7 @@ func TestBundleCreateAndPublishGHCR(t *testing.T) {
 	registryURL = "ghcr.io/defenseunicorns/packages/uds-cli/test/publish"
 	runCmd(t, fmt.Sprintf("publish %s %s --oci-concurrency=10", bundlePathAMD, registryURL))
 
-	inspectRemote(t, bundlePathARM)
+	inspectRemote(t, bundlePathARM, bundleName)
 	pull(t, bundleRef.String(), bundleTarballName)
 	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundleRef.String()))
 	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundleRef.String()))
@@ -70,7 +70,7 @@ func TestBundleCreateRemoteAndDeployGHCR(t *testing.T) {
 	runCmd(t, fmt.Sprintf("create %s -o %s --confirm -a %s", bundleDir, registryURL, "arm64"))
 	runCmd(t, fmt.Sprintf("create %s -o %s --confirm -a %s", bundleDir, registryURL, "amd64"))
 
-	inspectRemote(t, bundleRef.String())
+	inspectRemote(t, bundleRef.String(), bundleName)
 	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundleRef.String()))
 	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundleRef.String()))
 
@@ -90,14 +90,14 @@ func TestBundleCreateRemoteAndDeployGHCR(t *testing.T) {
 // The default bundle location if no source path provided is defenseunicorns/packages/uds/bundles/"
 func TestGHCRPathExpansion(t *testing.T) {
 	bundleName := "ghcr-test:0.0.1"
-	inspectRemote(t, bundleName)
+	inspectRemote(t, bundleName, "ghcr-test")
 
 	bundleName = fmt.Sprintf("ghcr-delivery-test:0.0.1-%s", e2e.Arch)
-	inspectRemote(t, bundleName)
+	inspectRemote(t, bundleName, "ghcr-test")
 
 	bundleName = fmt.Sprintf("delivery/ghcr-test:0.0.1-%s", e2e.Arch)
-	inspectRemote(t, bundleName)
+	inspectRemote(t, bundleName, "ghcr-test")
 
 	bundleName = "ghcr.io/defenseunicorns/packages/delivery/ghcr-delivery-test:0.0.1"
-	inspectRemote(t, bundleName)
+	inspectRemote(t, bundleName, "ghcr-test")
 }
