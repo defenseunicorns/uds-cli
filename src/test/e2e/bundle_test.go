@@ -573,4 +573,12 @@ func TestListVariables(t *testing.T) {
 		cleaned := ansiRegex.ReplaceAllString(stdout, "")
 		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")
 	})
+
+	t.Run("list variables for bundle YAML", func(t *testing.T) {
+		stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --list-variables --insecure", filepath.Join(bundleDir, config.BundleYAML)))
+		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
+		cleaned := ansiRegex.ReplaceAllString(stdout, "")
+		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")
+
+	})
 }
