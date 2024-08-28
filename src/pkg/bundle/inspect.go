@@ -16,6 +16,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pterm/pterm"
 	"github.com/zarf-dev/zarf/src/pkg/layout"
@@ -100,13 +101,16 @@ func (b *Bundle) listImages() error {
 	}
 
 	// find images in the packages taking into account optional components
-	imgs, err := b.getPackageImages()
+	pkgImgs, err := b.getPackageImages()
 	if err != nil {
 		return err
 	}
 
-	formattedImgs := strings.Join(imgs, "\n")
-	pterm.Printfln("%s\n", formattedImgs)
+	pkgImgYaml, err := goyaml.Marshal(pkgImgs)
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(pkgImgYaml))
 	return nil
 }
 
@@ -153,11 +157,12 @@ func (b *Bundle) listVariables() error {
 	return nil
 }
 
-func (b *Bundle) getPackageImages() ([]string, error) {
-	// use a map to track the images for easy de-duping
-	imgMap := make(map[string]string)
+func (b *Bundle) getPackageImages() (map[string][]string, error) {
+	pkgImgMap := make(map[string][]string)
 
 	for _, pkg := range b.bundle.Packages {
+		pkgImgMap[pkg.Name] = make([]string, 0)
+
 		// get package source
 		source, err := b.getSource(pkg)
 		if err != nil {
@@ -189,18 +194,12 @@ func (b *Bundle) getPackageImages() ([]string, error) {
 		// grab images from each filtered component
 		for _, component := range filteredComponents {
 			for _, img := range component.Images {
-				imgMap[img] = img
+				pkgImgMap[pkg.Name] = append(pkgImgMap[pkg.Name], img)
 			}
 		}
 	}
 
-	// convert img map to list of strings
-	var images []string
-	for _, img := range imgMap {
-		images = append(images, img)
-	}
-
-	return images, nil
+	return pkgImgMap, nil
 }
 
 func (b *Bundle) getSource(pkg types.Package) (zarfSources.PackageSource, error) {

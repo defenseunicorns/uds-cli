@@ -475,7 +475,8 @@ func TestListImages(t *testing.T) {
 		require.NotContains(t, stdout, "grafana")
 		require.NotContains(t, stdout, "gitea")
 		require.NotContains(t, stdout, "kiwix")
-		require.NotContains(t, stdout, "podinfo")
+		// use full image because output now contains package name podinfo-nginx
+		require.NotContains(t, stdout, "ghcr.io/stefanprodan/podinfo")
 	})
 
 	t.Run("list images outputted to a file", func(t *testing.T) {
@@ -498,6 +499,9 @@ func TestListImages(t *testing.T) {
 		contents, err := os.ReadFile(filename)
 		require.NoError(t, err)
 		require.NotContains(t, string(contents), "\u001b") // ensure no color-related bytes
+		//Check for package name
+		require.Contains(t, string(contents), "init")
+		//Check for image name
 		require.Contains(t, string(contents), "library/registry")
 	})
 }
