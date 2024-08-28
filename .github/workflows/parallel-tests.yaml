@@ -55,7 +55,7 @@ jobs:
         with:
           suffix: ${{ matrix.test }}
 
-  test-dev:
+  test-dev-and-state:
     runs-on: ubuntu-latest
     needs: build
     steps:
@@ -67,9 +67,9 @@ jobs:
       - name: setup-using-previous-job
         uses: ./.github/actions/setup-from-previous
 
-      - name: Run e2e dev tests
+      - name: Run e2e dev and state tests
         run: |
-          build/uds run test:dev
+          build/uds run test:dev-and-state
 
       - name: Save logs
         if: always()
