@@ -34,9 +34,8 @@ func (b *Bundle) Inspect() error {
 	// print to stdout to enable users to easily grab the output
 	pterm.SetDefaultOutput(os.Stdout)
 
-	isYaml := false
 	if err := utils.CheckYAMLSourcePath(b.cfg.InspectOpts.Source); err == nil {
-		isYaml = true
+		b.cfg.InspectOpts.IsYAMLFile = true
 		if err := utils.ReadYAMLStrict(b.cfg.InspectOpts.Source, &b.bundle); err != nil {
 			return err
 		}
@@ -80,7 +79,7 @@ func (b *Bundle) Inspect() error {
 
 	// handle --list-variables flag
 	if b.cfg.InspectOpts.ListVariables {
-		err := b.listVariables(isYaml)
+		err := b.listVariables()
 		if err != nil {
 			return err
 		}
@@ -89,7 +88,7 @@ func (b *Bundle) Inspect() error {
 
 	//  handle --list-images flag
 	if b.cfg.InspectOpts.ListImages {
-		err := b.listImages(isYaml)
+		err := b.listImages()
 		if err != nil {
 			return err
 		}
@@ -100,14 +99,14 @@ func (b *Bundle) Inspect() error {
 	return nil
 }
 
-func (b *Bundle) listImages(isYaml bool) error {
+func (b *Bundle) listImages() error {
 	// find images in the packages taking into account optional components
 	pkgImgMap := make(map[string][]string)
 
 	for _, pkg := range b.bundle.Packages {
 		pkgImgMap[pkg.Name] = make([]string, 0)
 
-		zarfPkg, err := loadPackage(*b, pkg, isYaml)
+		zarfPkg, err := loadPackage(*b, pkg)
 		if err != nil {
 			return err
 		}
@@ -137,12 +136,12 @@ func (b *Bundle) listImages(isYaml bool) error {
 }
 
 // listVariables prints the variables and overrides for each package in the bundle
-func (b *Bundle) listVariables(isYaml bool) error {
+func (b *Bundle) listVariables() error {
 	message.HorizontalRule()
 	message.Title("Overrides and Variables:", "configurable helm overrides and Zarf variables by package")
 
 	for _, pkg := range b.bundle.Packages {
-		zarfPkg, err := loadPackage(*b, pkg, isYaml)
+		zarfPkg, err := loadPackage(*b, pkg)
 		if err != nil {
 			return err
 		}
@@ -165,10 +164,10 @@ func (b *Bundle) listVariables(isYaml bool) error {
 	return nil
 }
 
-func loadPackage(b Bundle, pkg types.Package, isYaml bool) (v1alpha1.ZarfPackage, error) {
+func loadPackage(b Bundle, pkg types.Package) (v1alpha1.ZarfPackage, error) {
 	var source zarfSources.PackageSource
 
-	source, err := b.getSource(pkg, isYaml)
+	source, err := b.getSource(pkg)
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, err
 	}
@@ -189,10 +188,10 @@ func loadPackage(b Bundle, pkg types.Package, isYaml bool) (v1alpha1.ZarfPackage
 }
 
 // getSource returns a package source based on if inspecting bundle yaml or bundle artifact
-func (b *Bundle) getSource(pkg types.Package, isYaml bool) (zarfSources.PackageSource, error) {
+func (b *Bundle) getSource(pkg types.Package) (zarfSources.PackageSource, error) {
 	var source zarfSources.PackageSource
 
-	if !isYaml {
+	if !b.cfg.InspectOpts.IsYAMLFile {
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 		fromTarball, err := sources.New(*b.cfg, pkg, zarfTypes.ZarfPackageOptions{}, sha, nil)
 		if err != nil {
