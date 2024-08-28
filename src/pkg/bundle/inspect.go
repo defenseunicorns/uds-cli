@@ -65,16 +65,17 @@ func (b *Bundle) Inspect() error {
 		return err
 	}
 
-	// pull sbom
-	if b.cfg.InspectOpts.IncludeSBOM {
-		err := provider.CreateBundleSBOM(b.cfg.InspectOpts.ExtractSBOM)
-		if err != nil {
-			return err
-		}
-	}
 	// read the bundle's metadata into memory
 	if err := utils.ReadYAMLStrict(filepaths[config.BundleYAML], &b.bundle); err != nil {
 		return err
+	}
+
+	// pull sbom
+	if b.cfg.InspectOpts.IncludeSBOM {
+		err := provider.CreateBundleSBOM(b.cfg.InspectOpts.ExtractSBOM, b.bundle.Metadata.Name)
+		if err != nil {
+			return err
+		}
 	}
 
 	// handle --list-variables flag

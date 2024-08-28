@@ -6,6 +6,7 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -14,8 +15,8 @@ import (
 )
 
 // CreateSBOMArtifact creates sbom artifacts in the form of a tar archive
-func CreateSBOMArtifact(SBOMArtifactPathMap map[string]string) error {
-	out, err := os.Create(config.BundleSBOMTar)
+func CreateSBOMArtifact(SBOMArtifactPathMap map[string]string, bundleName string) error {
+	out, err := os.Create(fmt.Sprintf("%s-%s", bundleName, config.BundleSBOMTar))
 	if err != nil {
 		return err
 	}

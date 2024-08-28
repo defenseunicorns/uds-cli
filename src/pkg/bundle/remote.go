@@ -85,13 +85,14 @@ func (op *ociProvider) LoadBundleMetadata() (types.PathMap, error) {
 }
 
 // CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
-func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
+func (op *ociProvider) CreateBundleSBOM(extractSBOM bool, bundleName string) error {
 	ctx := context.TODO()
 	SBOMArtifactPathMap := make(types.PathMap)
 	root, err := op.FetchRoot(ctx)
 	if err != nil {
 		return err
 	}
+
 	// make tmp dir for pkg SBOM extraction
 	err = os.Mkdir(filepath.Join(op.dst, config.BundleSBOM), 0700)
 	if err != nil {
@@ -140,7 +141,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool) error {
 			return err
 		}
 	} else {
-		err = utils.CreateSBOMArtifact(SBOMArtifactPathMap)
+		err = utils.CreateSBOMArtifact(SBOMArtifactPathMap, bundleName)
 		if err != nil {
 			return err
 		}
