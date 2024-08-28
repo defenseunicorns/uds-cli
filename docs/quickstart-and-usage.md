@@ -114,7 +114,7 @@ Inspect the `uds-bundle.yaml` of a bundle
 
 #### Viewing Images in a Bundle
 
-It is possible to derive images from a `uds-bundle.yaml` or local and remote tarballs. This can be useful for situations where you need to know what images will be bundled before you actually create the bundle or what images will be deployed if using an already created bundle. This is accomplished with the `--list-images` flag. For example:
+It is possible to derive images from a `uds-bundle.yaml`, local UDS tarball artifacts, and remote OCI repos. This can be useful for situations where you need to know what images will be bundled before you actually create the bundle or what images will be deployed if using an already created bundle. This is accomplished with the `--list-images` flag. For example:
 
 `uds inspect --list-images [BUNDLE_YAML_FILE|BUNDLE_TARBALL|OCI_REF]`
 
