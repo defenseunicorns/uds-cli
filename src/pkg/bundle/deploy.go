@@ -16,6 +16,7 @@ import (
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
+	"github.com/defenseunicorns/uds-cli/src/pkg/state"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
@@ -23,6 +24,7 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	zarfConfig "github.com/zarf-dev/zarf/src/config"
+	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/layout"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
@@ -56,23 +58,55 @@ func (b *Bundle) Deploy() error {
 		}
 	}
 
-	// if resume, filter for packages not yet deployed
-	if b.cfg.DeployOpts.Resume {
-		deployedPackageNames := GetDeployedPackageNames()
-		notDeployed := []types.Package{}
-
-		for _, pkg := range packagesToDeploy {
-			if !slices.Contains(deployedPackageNames, pkg.Name) {
-				notDeployed = append(notDeployed, pkg)
-			}
-		}
-		packagesToDeploy = notDeployed
+	// get bundle state
+	kc, err := cluster.NewCluster()
+	if err != nil {
+		return err
+	}
+	sc, err := state.NewClient(kc.Clientset)
+	if err != nil {
+		return err
 	}
 
-	return deployPackages(packagesToDeploy, b)
+	err = sc.InitBundleState(b.bundle)
+	if err != nil {
+		return err
+	}
+
+	// update bundle state with deploying
+	err = sc.UpdateBundleState(b.bundle.Metadata.Name, state.Deploying)
+
+	// if resume, filter for packages not yet deployed
+	if b.cfg.DeployOpts.Resume {
+		var resumePkgs []types.Package
+		for _, pkg := range packagesToDeploy {
+			if pkgStatus, err := sc.GetBundlePkg(b.bundle.Metadata.Name, pkg.Name); err == nil {
+				if pkgStatus.Status != state.Success {
+					resumePkgs = append(resumePkgs, pkg)
+				}
+			} else {
+				return err
+			}
+		}
+		packagesToDeploy = resumePkgs
+	}
+
+	deployErr := deployPackages(sc, packagesToDeploy, b)
+	if deployErr != nil {
+		_ = sc.UpdateBundleState(b.bundle.Metadata.Name, state.Failed)
+		return deployErr
+	}
+
+	// update bundle state with success
+	err = sc.UpdateBundleState(b.bundle.Metadata.Name, state.Success)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
+func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundle) error {
 	// map of Zarf pkgs and their vars
 	bundleExportedVars := make(map[string]map[string]string)
 
@@ -150,9 +184,18 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 			return err
 		}
 
-		if err = pkgClient.Deploy(context.TODO()); err != nil {
+		if pkgDeployErr := pkgClient.Deploy(context.TODO()); pkgDeployErr != nil {
+			err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Failed)
+			if err != nil {
+				return err
+			}
+			return pkgDeployErr
+		}
+		err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Success)
+		if err != nil {
 			return err
 		}
+
 		// save exported vars
 		pkgExportedVars := make(map[string]string)
 		variableConfig := pkgClient.GetVariableConfig()
