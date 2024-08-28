@@ -120,7 +120,7 @@ It is possible to derive images from a `uds-bundle.yaml`, local UDS tarball arti
 
 This command will return a list of images derived from the bundle's packages, taking into account optional and required package components.
 
-> !Warning *Breaking Change*   
+> !Warning *Breaking Change*  
 > As of release 0.14.3, images are no longer de-duped and listed in an unformatted text output but are instead grouped by Zarf package and outputted in YAML format.
 
 #### Viewing SBOMs
