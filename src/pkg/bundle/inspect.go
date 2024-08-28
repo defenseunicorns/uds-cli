@@ -92,25 +92,50 @@ func (b *Bundle) Inspect() error {
 }
 
 func (b *Bundle) listImages() error {
-	if err := utils.CheckYAMLSourcePath(b.cfg.InspectOpts.Source); err != nil {
-		return err
-	}
+	isYaml := false
+	// check if the source is a local yaml file
+	if err := utils.CheckYAMLSourcePath(b.cfg.InspectOpts.Source); err == nil {
+		isYaml = true
+		if err := utils.ReadYAMLStrict(b.cfg.InspectOpts.Source, &b.bundle); err != nil {
+			return err
+		}
+	} else {
+		// Check that provided oci source path is valid, and update it if it's missing the full path
+		source, err := CheckOCISourcePath(b.cfg.InspectOpts.Source)
+		if err != nil {
+			return fmt.Errorf("source %s is either invalid or doesn't exist", b.cfg.InspectOpts.Source)
+		}
+		b.cfg.InspectOpts.Source = source
 
-	if err := utils.ReadYAMLStrict(b.cfg.InspectOpts.Source, &b.bundle); err != nil {
-		return err
+		// create a new provider
+		provider, err := NewBundleProvider(b.cfg.InspectOpts.Source, b.tmp)
+		if err != nil {
+			return err
+		}
+
+		// pull the bundle's metadata + sig + sboms (optional)
+		filepaths, err := provider.LoadBundleMetadata()
+		if err != nil {
+			return err
+		}
+
+		// read the bundle's metadata into memory
+		if err := utils.ReadYAMLStrict(filepaths[config.BundleYAML], &b.bundle); err != nil {
+			return err
+		}
 	}
 
 	// find images in the packages taking into account optional components
-	pkgImgs, err := b.getPackageImages()
+	pkgImgs, err := b.getPackageImages(isYaml)
 	if err != nil {
 		return err
 	}
 
-	pkgImgYaml, err := goyaml.Marshal(pkgImgs)
+	pkgImgsOut, err := goyaml.Marshal(pkgImgs)
 	if err != nil {
 		return err
 	}
-	fmt.Println(string(pkgImgYaml))
+	fmt.Println(string(pkgImgsOut))
 	return nil
 }
 
@@ -157,16 +182,27 @@ func (b *Bundle) listVariables() error {
 	return nil
 }
 
-func (b *Bundle) getPackageImages() (map[string][]string, error) {
+func (b *Bundle) getPackageImages(isYaml bool) (map[string][]string, error) {
 	pkgImgMap := make(map[string][]string)
 
 	for _, pkg := range b.bundle.Packages {
 		pkgImgMap[pkg.Name] = make([]string, 0)
-
+		var source zarfSources.PackageSource
 		// get package source
-		source, err := b.getSource(pkg)
-		if err != nil {
-			return nil, err
+		if isYaml {
+			// handle local yaml files
+			fromYaml, err := b.getSource(pkg)
+			if err != nil {
+				return nil, err
+			}
+			source = fromYaml
+		} else {
+			sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
+			fromTarball, err := sources.New(*b.cfg, pkg, zarfTypes.ZarfPackageOptions{}, sha, nil)
+			if err != nil {
+				return nil, err
+			}
+			source = fromTarball
 		}
 
 		tmpDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
@@ -193,9 +229,7 @@ func (b *Bundle) getPackageImages() (map[string][]string, error) {
 
 		// grab images from each filtered component
 		for _, component := range filteredComponents {
-			for _, img := range component.Images {
-				pkgImgMap[pkg.Name] = append(pkgImgMap[pkg.Name], img)
-			}
+			pkgImgMap[pkg.Name] = append(pkgImgMap[pkg.Name], component.Images...)
 		}
 	}
 
