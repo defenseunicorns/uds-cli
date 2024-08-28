@@ -1,0 +1,10 @@
+kind: UDSBundle
+metadata:
+  name: test-prune
+  description: updated bundle to demonstrate pruning
+  version: 0.0.1
+
+packages:
+  - name: nginx
+    repository: ghcr.io/defenseunicorns/uds-cli/nginx
+    ref: 0.0.1

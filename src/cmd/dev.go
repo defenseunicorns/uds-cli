@@ -150,4 +150,7 @@ func init() {
 	devDeployCmd.Flags().StringVarP(&bundleCfg.DevDeployOpts.FlavorInput, "flavor", "f", "", lang.CmdBundleCreateFlagFlavor)
 	devDeployCmd.Flags().BoolVar(&bundleCfg.DevDeployOpts.ForceCreate, "force-create", false, lang.CmdBundleCreateForceCreate)
 	devDeployCmd.Flags().StringToStringVar(&bundleCfg.DeployOpts.SetVariables, "set", nil, lang.CmdBundleDeployFlagSet)
+
+	// todo: make GH issue for de-duping deploy and dev deploy flags
+	devDeployCmd.Flags().BoolVarP(&bundleCfg.DeployOpts.Prune, "prune", "P", false, lang.CmdBundleDeployFlagPrune)
 }

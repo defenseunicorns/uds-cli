@@ -106,6 +106,39 @@ func TestUDSStateOnRemove(t *testing.T) {
 	})
 }
 
+func TestPkgPruning(t *testing.T) {
+	// using dev deploy
+	removeZarfInit()
+
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false)
+
+	bundleName := "test-prune"
+	originalBundlePath := "src/test/bundles/16-state/prune"
+	updatedBundlePath := "src/test/bundles/16-state/prune/updated"
+	cleanStateSecret(t, bundleName)
+
+	runCmd(t, fmt.Sprintf("dev deploy %s", originalBundlePath))
+
+	getDeploymentsCmd := "zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'"
+	deployments, _ := runCmd(t, getDeploymentsCmd)
+	require.Contains(t, deployments, "nginx")
+	require.Contains(t, deployments, "podinfo")
+
+	t.Run("update bundle with pkg removed from bundle YAML", func(t *testing.T) {
+		runCmd(t, fmt.Sprintf("dev deploy --prune %s", updatedBundlePath))
+		bundleState := getStateSecret(t, bundleName)
+		require.Len(t, bundleState.PkgStatuses, 1)
+		require.Equal(t, state.Success, bundleState.PkgStatuses[1].Status)
+		require.Equal(t, state.Success, bundleState.Status)
+
+		// ensure podinfo deployment no longer exists
+		deployments, _ = runCmd(t, getDeploymentsCmd)
+		require.Contains(t, deployments, "nginx")
+		require.NotContains(t, deployments, "podinfo")
+	})
+}
+
 func cleanStateSecret(t *testing.T, bundleName string) {
 	kc, err := cluster.NewCluster()
 	require.NoError(t, err)
