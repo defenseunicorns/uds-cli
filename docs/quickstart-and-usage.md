@@ -114,9 +114,9 @@ Inspect the `uds-bundle.yaml` of a bundle
 
 #### Viewing Images in a Bundle
 
-It is possible to derive images from a `uds-bundle.yaml`. This can be useful for situations where you need to know what images will be bundled before you actually create the bundle. This is accomplished with the `--list-images` flag. For example:
+It is possible to derive images from a `uds-bundle.yaml` or local and remote tarballs. This can be useful for situations where you need to know what images will be bundled before you actually create the bundle or what images will be deployed if using an already created bundle. This is accomplished with the `--list-images` flag. For example:
 
-`uds inspect ./uds-bundle.yaml --list-images`
+`uds inspect --list-images [BUNDLE_YAML_FILE|BUNDLE_TARBALL|OCI_REF]`
 
 This command will return a list of images derived from the bundle's packages, taking into account optional and required package components.
 
@@ -133,7 +133,7 @@ This functionality will use the `sboms.tar` of the underlying Zarf packages to c
 
 To view the configurable overrides and Zarf variables of a bundle's packages:
 
-`uds inspect --list-variables BUNDLE_TARBALL|OCI_REF]`
+`uds inspect --list-variables [BUNDLE_YAML_FILE|BUNDLE_TARBALL|OCI_REF]`
 
 ### Bundle Publish
 
