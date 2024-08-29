@@ -78,7 +78,7 @@ tasks:
   - name: ci-uds-core-smoke-test
     description: deploy UDS Core (slim dev) and run validations
     actions:
-      - cmd: build/uds deploy k3d-core-slim-dev:latest
+      - cmd: build/uds deploy k3d-core-slim-dev:latest --confirm
       - cmd: |
           build/uds zarf tools wait-for gateway admin-gateway -n istio-admin-gateway --timeout 10s
           build/uds zarf tools wait-for gateway tenant-gateway -n istio-tenant-gateway --timeout 10s
