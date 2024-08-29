@@ -114,11 +114,43 @@ Inspect the `uds-bundle.yaml` of a bundle
 
 #### Viewing Images in a Bundle
 
-It is possible to derive images from a `uds-bundle.yaml`. This can be useful for situations where you need to know what images will be bundled before you actually create the bundle. This is accomplished with the `--list-images` flag. For example:
+It is possible to derive images from a `uds-bundle.yaml`, local UDS tarball artifacts, and remote OCI repos. This can be useful for situations where you need to know what images will be bundled before you actually create the bundle or what images will be deployed if using an already created bundle. This is accomplished with the `--list-images` flag. For example:
 
-`uds inspect ./uds-bundle.yaml --list-images`
+`uds inspect --list-images [BUNDLE_YAML_FILE|BUNDLE_TARBALL|OCI_REF]`
 
 This command will return a list of images derived from the bundle's packages, taking into account optional and required package components.
+
+The list of images will be grouped by package they are derived from and outputted in a YAML format.
+
+e.g.
+`uds inspect k3d-core-slim-dev:0.26.0 --list-images`
+
+```yaml
+core-slim-dev:
+- docker.io/istio/pilot:1.22.3-distroless
+- docker.io/istio/proxyv2:1.22.3-distroless
+- ghcr.io/defenseunicorns/pepr/controller:v0.34.1
+- quay.io/keycloak/keycloak:24.0.5
+- ghcr.io/defenseunicorns/uds/identity-config:0.6.0
+init:
+- library/registry:2.8.3
+- library/registry:2.8.3
+- ghcr.io/zarf-dev/zarf/agent:v0.38.2
+```
+
+*To extract only the image names and de-dupe*:
+
+`uds inspect k3d-core-slim-dev:0.26.0 --list-images | yq '.[] | .[]'` | sort | uniq
+```yaml
+docker.io/istio/pilot:1.22.3-distroless
+docker.io/istio/proxyv2:1.22.3-distroless
+ghcr.io/defenseunicorns/pepr/controller:v0.34.1
+ghcr.io/defenseunicorns/uds/identity-config:0.6.0
+ghcr.io/zarf-dev/zarf/agent:v0.38.2
+library/registry:2.8.3
+quay.io/keycloak/keycloak:24.0.5
+```
+
 
 #### Viewing SBOMs
 
@@ -133,7 +165,7 @@ This functionality will use the `sboms.tar` of the underlying Zarf packages to c
 
 To view the configurable overrides and Zarf variables of a bundle's packages:
 
-`uds inspect --list-variables BUNDLE_TARBALL|OCI_REF]`
+`uds inspect --list-variables [BUNDLE_YAML_FILE|BUNDLE_TARBALL|OCI_REF]`
 
 ### Bundle Publish
 

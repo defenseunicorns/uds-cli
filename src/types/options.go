@@ -49,6 +49,7 @@ type BundleInspectOptions struct {
 	ExtractSBOM   bool
 	ListImages    bool
 	ListVariables bool
+	IsYAMLFile    bool
 }
 
 // BundlePublishOptions is the options for the bundle.Publish() function

@@ -463,8 +463,11 @@ func TestListImages(t *testing.T) {
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 
 	bundleDir := "src/test/bundles/14-optional-components"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-optional-components-%s-0.0.1.tar.zst", e2e.Arch))
+	runCmd(t, fmt.Sprintf("create %s --confirm --insecure -a %s", bundleDir, e2e.Arch))
+	runCmd(t, fmt.Sprintf("publish %s oci://localhost:888 --insecure", bundlePath))
 
-	t.Run("list images on bundle YAML only", func(t *testing.T) {
+	t.Run("list images on bundle YAML", func(t *testing.T) {
 		stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --list-images --insecure", filepath.Join(bundleDir, config.BundleYAML)))
 		require.Contains(t, stdout, "library/registry")
 		require.Contains(t, stdout, "ghcr.io/zarf-dev/zarf/agent")
@@ -475,7 +478,8 @@ func TestListImages(t *testing.T) {
 		require.NotContains(t, stdout, "grafana")
 		require.NotContains(t, stdout, "gitea")
 		require.NotContains(t, stdout, "kiwix")
-		require.NotContains(t, stdout, "podinfo")
+		// use full image because output now contains package name podinfo-nginx
+		require.NotContains(t, stdout, "ghcr.io/stefanprodan/podinfo")
 	})
 
 	t.Run("list images outputted to a file", func(t *testing.T) {
@@ -498,7 +502,40 @@ func TestListImages(t *testing.T) {
 		contents, err := os.ReadFile(filename)
 		require.NoError(t, err)
 		require.NotContains(t, string(contents), "\u001b") // ensure no color-related bytes
+		//Check for package name
+		require.Contains(t, string(contents), "init")
+		//Check for image name
 		require.Contains(t, string(contents), "library/registry")
+	})
+
+	t.Run("list images on local tarball", func(t *testing.T) {
+		stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --list-images", bundlePath))
+		require.Contains(t, stdout, "library/registry")
+		require.Contains(t, stdout, "ghcr.io/zarf-dev/zarf/agent")
+		require.Contains(t, stdout, "nginx")
+		require.Contains(t, stdout, "quay.io/prometheus/node-exporter")
+
+		// ensure non-req'd components got filtered
+		require.NotContains(t, stdout, "grafana")
+		require.NotContains(t, stdout, "gitea")
+		require.NotContains(t, stdout, "kiwix")
+		// use full image because output now contains package name podinfo-nginx
+		require.NotContains(t, stdout, "ghcr.io/stefanprodan/podinfo")
+	})
+
+	t.Run("list images on remote tarball", func(t *testing.T) {
+		stdout, _ := runCmd(t, "inspect oci://localhost:888/optional-components:0.0.1 --list-images --insecure")
+		require.Contains(t, stdout, "library/registry")
+		require.Contains(t, stdout, "ghcr.io/zarf-dev/zarf/agent")
+		require.Contains(t, stdout, "nginx")
+		require.Contains(t, stdout, "quay.io/prometheus/node-exporter")
+
+		// ensure non-req'd components got filtered
+		require.NotContains(t, stdout, "grafana")
+		require.NotContains(t, stdout, "gitea")
+		require.NotContains(t, stdout, "kiwix")
+		// use full image because output now contains package name podinfo-nginx
+		require.NotContains(t, stdout, "ghcr.io/stefanprodan/podinfo")
 	})
 }
 
@@ -532,6 +569,13 @@ func TestListVariables(t *testing.T) {
 
 	t.Run("list variables for remote tarball", func(t *testing.T) {
 		stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --list-variables --insecure", fmt.Sprintf("%s/optional-components:0.0.1", ociRef)))
+		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
+		cleaned := ansiRegex.ReplaceAllString(stdout, "")
+		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")
+	})
+
+	t.Run("list variables for bundle YAML", func(t *testing.T) {
+		stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --list-variables --insecure", filepath.Join(bundleDir, config.BundleYAML)))
 		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
 		cleaned := ansiRegex.ReplaceAllString(stdout, "")
 		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")
