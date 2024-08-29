@@ -38,7 +38,7 @@ type tarballBundleProvider struct {
 }
 
 // CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
-func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool) error {
+func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName string) error {
 	rootManifest, err := tp.getBundleManifest()
 	if err != nil {
 		return err
@@ -109,7 +109,7 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool) error {
 			return err
 		}
 	} else {
-		err = utils.CreateSBOMArtifact(SBOMArtifactPathMap)
+		err = utils.CreateSBOMArtifact(SBOMArtifactPathMap, bundleName)
 		if err != nil {
 			return err
 		}

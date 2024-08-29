@@ -78,7 +78,7 @@ func TestResumeFlag(t *testing.T) {
 
 	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 
-	inspectLocal(t, bundlePath)
+	inspectLocal(t, bundlePath, "test-local-and-remote")
 	inspectLocalAndSBOMExtract(t, bundlePath)
 
 	getDeploymentsCmd := "zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'"

@@ -36,7 +36,7 @@ func TestBundleIndexInRemoteOnPublish(t *testing.T) {
 	require.NoError(t, err)
 	ValidateMultiArchIndex(t, index)
 
-	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName))
+	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), bundleName)
 	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), bundleTarballName) // test no oci prefix
 	deployAndRemoveLocalAndRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), tarballPath)
 
@@ -46,7 +46,7 @@ func TestBundleIndexInRemoteOnPublish(t *testing.T) {
 	index, err = queryIndex(t, "http://localhost:888", bundleName)
 	require.NoError(t, err)
 	ValidateMultiArchIndex(t, index)
-	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName))
+	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), bundleName)
 	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), bundleTarballName) // test no oci prefix
 	deployAndRemoveLocalAndRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), tarballPath)
 }
@@ -70,7 +70,7 @@ func TestBundleIndexInRemoteOnCreate(t *testing.T) {
 	require.NoError(t, err)
 	ValidateMultiArchIndex(t, index)
 
-	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName))
+	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), bundleName)
 	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), bundleTarballName) // test no oci prefix
 	deployAndRemoveLocalAndRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), tarballPath)
 
@@ -81,7 +81,7 @@ func TestBundleIndexInRemoteOnCreate(t *testing.T) {
 	index, err = queryIndex(t, "http://localhost:888", bundleName)
 	require.NoError(t, err)
 	ValidateMultiArchIndex(t, index)
-	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName))
+	inspectRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), bundleName)
 	pull(t, fmt.Sprintf("localhost:888/%s:0.0.1", bundleName), bundleTarballName) // test no oci prefix
 	deployAndRemoveLocalAndRemoteInsecure(t, fmt.Sprintf("oci://localhost:888/%s:0.0.1", bundleName), tarballPath)
 }

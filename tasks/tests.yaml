@@ -76,10 +76,10 @@ tasks:
       - cmd: find src/test -type f -name '*.tar.zst' -delete
 
   - name: ci-uds-core-smoke-test
-    description: deploy UDS Core and runs a couple of validations
+    description: deploy UDS Core (slim dev) and run validations
     actions:
-      - cmd: build/uds deploy k3d-core-istio-dev:0.16.1 --confirm
+      - cmd: build/uds deploy k3d-core-slim-dev:latest --confirm
       - cmd: |
           build/uds zarf tools wait-for gateway admin-gateway -n istio-admin-gateway --timeout 10s
-          build/uds zarf tools wait-for gateway admin-gateway -n istio-admin-gateway --timeout 10s
-          build/uds zarf tools wait-for gateway admin-gateway -n istio-admin-gateway --timeout 10s
+          build/uds zarf tools wait-for gateway tenant-gateway -n istio-tenant-gateway --timeout 10s
+          build/uds zarf tools wait-for package keycloak -n keycloak --timeout 10s
