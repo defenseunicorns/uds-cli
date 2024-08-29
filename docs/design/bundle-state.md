@@ -21,7 +21,7 @@ In order to address the above issues, the team has decided to implement a state 
 - Keep state as simple as possible. Meaning that we should think of state as a record of an event, as opposed to a complex object that drives CLI behavior.
 - No destructive action should be taken based on UDS state unless the user explicitly requests it.
 - State should be backwards compatible and should not interfere with existing UDS CLI functionality.
-  - On backards compatibility: if a user attempts an action that is based on state but state does not exist, CLI should fail quickly and indicate to the user that state does not exist and provide instructions on how to create it (likely simply re-deploying the bundle)
+  - On backwards compatibility: if a user attempts an action that is based on state but state does not exist, CLI should fail quickly and indicate to the user that state does not exist and provide instructions on how to create it (likely simply re-deploying the bundle)
 
 ## State Storage
 
