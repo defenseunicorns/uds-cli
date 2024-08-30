@@ -242,7 +242,7 @@ var uiCmd = &cobra.Command{
 		defer os.RemoveAll(tmpDir)
 
 		// Walk through the embedded files and write them to the temporary directory
-		err = fs.WalkDir(embeddedFiles, "bin/uds-runtime", func(path string, d fs.DirEntry, err error) error {
+		err = fs.WalkDir(embeddedFiles, "bin", func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -255,7 +255,7 @@ var uiCmd = &cobra.Command{
 				return err
 			}
 
-			relPath, err := filepath.Rel("bin/uds-runtime", path)
+			relPath, err := filepath.Rel("bin", path)
 			if err != nil {
 				return err
 			}
@@ -264,8 +264,9 @@ var uiCmd = &cobra.Command{
 			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
 				return err
 			}
-
-			err = os.WriteFile(destPath, data, 0600)
+			// Need the runtime binaries to be executable
+			//nolint:gosec
+			err = os.WriteFile(destPath, data, 0700)
 
 			return err
 		})
