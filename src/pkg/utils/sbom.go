@@ -39,7 +39,7 @@ func MoveExtractedSBOMs(bundleName, src, dst string) error {
 	extractDirName := fmt.Sprintf("%s-%s", bundleName, config.BundleSBOM)
 	sbomDir := filepath.Join(dst, extractDirName)
 
-	// is sbomDir already exists, remove to make room for new sboms
+	// if sbomDir already exists, remove to make room for new sboms
 	if _, err := os.Stat(sbomDir); err == nil {
 		err = os.RemoveAll(sbomDir)
 		if err != nil {
