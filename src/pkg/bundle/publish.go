@@ -49,7 +49,13 @@ func (b *Bundle) Publish() error {
 	// create new OCI artifact in remote
 	ociURL := b.cfg.PublishOpts.Destination
 	bundleName := b.bundle.Metadata.Name
+
+	// tag bundle with metadata.version, unless user specifies a version
 	bundleTag := b.bundle.Metadata.Version
+	if b.cfg.PublishOpts.Version != "" {
+		bundleTag = b.cfg.PublishOpts.Version
+	}
+
 	platform := ocispec.Platform{
 		Architecture: config.GetArch(),
 		OS:           oci.MultiOS,

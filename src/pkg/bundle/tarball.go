@@ -104,7 +104,7 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName s
 		if err != nil {
 			return err
 		}
-		err = utils.MoveExtractedSBOMs(tp.dst, currentDir)
+		err = utils.MoveExtractedSBOMs(bundleName, tp.dst, currentDir)
 		if err != nil {
 			return err
 		}
@@ -286,10 +286,12 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	remote.SetProgressWriter(progressBar)
 	defer remote.ClearProgressWriter()
 
-	ref := bundle.Metadata.Version
+	srcRef := bundle.Metadata.Version
+	// use tag given to remote e.g. ghcr.io/path/my-bundle:tag
+	dstRef := remote.Repo().Reference.Reference
 
 	// check for existing index
-	index, err := boci.GetIndex(remote, ref)
+	index, err := boci.GetIndex(remote, srcRef)
 	if err != nil {
 		return err
 	}
@@ -305,7 +307,7 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	}
 
 	for {
-		_, err = oras.Copy(tp.ctx, store, ref, remote.Repo(), ref, copyOpts)
+		_, err = oras.Copy(tp.ctx, store, srcRef, remote.Repo(), dstRef, copyOpts)
 		if err != nil && retries < maxRetries {
 			retries++
 			message.Debugf("Encountered err during publish: %s\nRetrying %d/%d", err, retries, maxRetries)
