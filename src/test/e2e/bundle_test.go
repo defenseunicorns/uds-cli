@@ -123,6 +123,13 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 		runCmd(t, fmt.Sprintf("publish %s %s --insecure", pulledBundlePath, "oci://localhost:889"))
 		runCmd(t, fmt.Sprintf("deploy %s --insecure --confirm", bundleRef.String()))
 	})
+
+	t.Run("test custom tags", func(t *testing.T) {
+		runCmd(t, fmt.Sprintf("publish %s %s --insecure --version my-custom-tag", bundlePath, bundleRef.Registry))
+		pull(t, "oci://localhost:888/test-local-and-remote:my-custom-tag", bundleTarballName)
+		runCmd(t, fmt.Sprintf("deploy %s --insecure --confirm", pulledBundlePath))
+		runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", pulledBundlePath))
+	})
 }
 
 func TestLocalBundleWithRemotePkgs(t *testing.T) {
