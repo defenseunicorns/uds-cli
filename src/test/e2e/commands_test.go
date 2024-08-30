@@ -66,11 +66,12 @@ func inspectLocal(t *testing.T, tarballPath string, bundleName string) {
 	require.NoError(t, err)
 }
 
-func inspectLocalAndSBOMExtract(t *testing.T, tarballPath string) {
+func inspectLocalAndSBOMExtract(t *testing.T, bundleName, tarballPath string) {
 	runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", tarballPath))
-	_, err := os.Stat(config.BundleSBOM)
+	sbomDir := fmt.Sprintf("%s-%s", bundleName, config.BundleSBOM)
+	_, err := os.Stat(sbomDir)
 	require.NoError(t, err)
-	err = os.RemoveAll(config.BundleSBOM)
+	err = os.RemoveAll(sbomDir)
 	require.NoError(t, err)
 }
 
