@@ -14,8 +14,8 @@ uds publish [BUNDLE_TARBALL] [OCI_REF] [flags]
 ### Options
 
 ```
-  -h, --help         help for publish
-  -t, --tag string   Specify the tag for the published bundle
+  -h, --help             help for publish
+  -v, --version string   Specify the version for the published bundle
 ```
 
 ### Options inherited from parent commands
