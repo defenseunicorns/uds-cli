@@ -66,7 +66,7 @@ const (
 
 	// bundle publish
 	CmdPublishShort       = "Publish a bundle from the local file system to a remote registry"
-	CmdPublishVersionFlag = "Specify the version for the published bundle"
+	CmdPublishVersionFlag = "Specify the version of the bundle to be published"
 
 	// bundle pull
 	CmdBundlePullShort      = "Pull a bundle from a remote registry and save to the local file system"
