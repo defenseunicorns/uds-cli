@@ -259,6 +259,7 @@ func init() {
 
 	// publish cmd flags
 	rootCmd.AddCommand(publishCmd)
+	publishCmd.Flags().StringVarP(&bundleCfg.PublishOpts.Tag, "tag", "t", "", lang.CmdPublishTagFlag)
 
 	// pull cmd flags
 	rootCmd.AddCommand(pullCmd)

@@ -174,6 +174,12 @@ Local bundles can be published to an OCI registry like so:
 
 As an example: `uds publish uds-bundle-example-arm64-0.0.1.tar.zst oci://ghcr.io/github_user`
 
+#### Tagging
+
+Bundles, by default, are tagged based on the bundle version found in the metadata of the `uds-bundle.yaml` file. To override the default tag, you can use the `--tag` flag like so:
+
+`uds publish uds-bundle-example-arm64-0.0.1.tar.zst oci://ghcr.io/github_user --tag <custom-tag>`
+
 ### Bundle Remove
 
 Removes the bundle
