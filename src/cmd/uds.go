@@ -259,6 +259,7 @@ func init() {
 
 	// publish cmd flags
 	rootCmd.AddCommand(publishCmd)
+	publishCmd.Flags().StringVarP(&bundleCfg.PublishOpts.Version, "version", "v", "", lang.CmdPublishVersionFlag)
 
 	// pull cmd flags
 	rootCmd.AddCommand(pullCmd)
