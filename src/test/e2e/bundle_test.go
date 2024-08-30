@@ -123,6 +123,13 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 		runCmd(t, fmt.Sprintf("publish %s %s --insecure", pulledBundlePath, "oci://localhost:889"))
 		runCmd(t, fmt.Sprintf("deploy %s --insecure --confirm", bundleRef.String()))
 	})
+
+	t.Run("test custom tags", func(t *testing.T) {
+		runCmd(t, fmt.Sprintf("publish %s %s --insecure --tag my-custom-tag", bundlePath, bundleRef.Registry))
+		pull(t, "oci://localhost:888/test-local-and-remote:my-custom-tag", bundleTarballName)
+		runCmd(t, fmt.Sprintf("deploy %s --insecure --confirm", pulledBundlePath))
+		runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", pulledBundlePath))
+	})
 }
 
 func TestLocalBundleWithRemotePkgs(t *testing.T) {
@@ -580,24 +587,4 @@ func TestListVariables(t *testing.T) {
 		cleaned := ansiRegex.ReplaceAllString(stdout, "")
 		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")
 	})
-}
-
-func TestPublishTag(t *testing.T) {
-	deployZarfInit(t)
-	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
-
-	e2e.SetupDockerRegistry(t, 888)
-	defer e2e.TeardownRegistry(t, 888)
-
-	bundleDir := "src/test/bundles/03-local-and-remote"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
-	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
-	// publish bundle with default version tag
-	runCmd(t, fmt.Sprintf("publish %s oci://localhost:888 --insecure", bundlePath))
-	// publish bundle with custom tag
-	runCmd(t, fmt.Sprintf("publish %s oci://localhost:888 --insecure --tag my-custom-tag", bundlePath))
-
-	// pull bundle based on tags
-	pull(t, "oci://localhost:888/test-local-and-remote:0.0.1", fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
-	pull(t, "oci://localhost:888/test-local-and-remote:my-custom-tag", fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 }
