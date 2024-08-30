@@ -185,7 +185,7 @@ func TestRemoteBundleWithRemotePkgs(t *testing.T) {
 
 	pull(t, bundleRef.String(), bundleTarballName)
 	inspectRemoteInsecure(t, bundleRef.String(), "example-remote")
-	inspectRemoteAndSBOMExtract(t, bundleRef.String())
+	inspectRemoteAndSBOMExtract(t, bundleRef.Repository, bundleRef.String())
 	deployAndRemoveLocalAndRemoteInsecure(t, bundleRef.String(), tarballPath)
 
 	bundleRef = registry.Reference{

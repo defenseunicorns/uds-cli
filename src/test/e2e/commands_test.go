@@ -33,19 +33,27 @@ func inspectRemoteInsecure(t *testing.T, ref string, bundleName string) {
 	require.NoError(t, err)
 }
 
-func inspectRemote(t *testing.T, ref string, bundleName string) {
-	runCmd(t, fmt.Sprintf("inspect %s --sbom", ref))
+func inspectRemote(t *testing.T, path, bundleName, ref string) {
+	// ensure slash at end of path unless it's empty
+	if path != "" && !strings.HasSuffix(path, "/") {
+		path = path + "/"
+	}
+
+	fullBundleRef := fmt.Sprintf("%s%s:%s", path, bundleName, ref)
+	runCmd(t, fmt.Sprintf("inspect %s --sbom", fullBundleRef))
 	_, err := os.Stat(fmt.Sprintf("%s-%s", bundleName, config.BundleSBOMTar))
 	require.NoError(t, err)
 	err = os.Remove(fmt.Sprintf("%s-%s", bundleName, config.BundleSBOMTar))
 	require.NoError(t, err)
 }
 
-func inspectRemoteAndSBOMExtract(t *testing.T, ref string) {
+// todo: how is this working?  bc we didn't rename the extracted folder?
+func inspectRemoteAndSBOMExtract(t *testing.T, bundleName, ref string) {
 	runCmd(t, fmt.Sprintf("inspect %s --insecure --sbom --extract", ref))
-	_, err := os.Stat(config.BundleSBOM)
+	sbomName := fmt.Sprintf("%s-%s", bundleName, config.BundleSBOM)
+	_, err := os.Stat(sbomName)
 	require.NoError(t, err)
-	err = os.RemoveAll(config.BundleSBOM)
+	err = os.RemoveAll(sbomName)
 	require.NoError(t, err)
 }
 
