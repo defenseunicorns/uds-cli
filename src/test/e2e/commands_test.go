@@ -47,7 +47,6 @@ func inspectRemote(t *testing.T, path, bundleName, ref string) {
 	require.NoError(t, err)
 }
 
-// todo: how is this working?  bc we didn't rename the extracted folder?
 func inspectRemoteAndSBOMExtract(t *testing.T, bundleName, ref string) {
 	runCmd(t, fmt.Sprintf("inspect %s --insecure --sbom --extract", ref))
 	sbomName := fmt.Sprintf("%s-%s", bundleName, config.BundleSBOM)
