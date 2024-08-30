@@ -104,7 +104,7 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName s
 		if err != nil {
 			return err
 		}
-		err = utils.MoveExtractedSBOMs(tp.dst, currentDir)
+		err = utils.MoveExtractedSBOMs(bundleName, tp.dst, currentDir)
 		if err != nil {
 			return err
 		}

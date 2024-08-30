@@ -154,7 +154,7 @@ func TestLocalBundleWithRemotePkgs(t *testing.T) {
 
 	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 	inspectLocal(t, bundlePath, "example-remote")
-	inspectLocalAndSBOMExtract(t, bundlePath)
+	inspectLocalAndSBOMExtract(t, "example-remote", bundlePath)
 	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundlePath))
 	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
 }
@@ -192,7 +192,7 @@ func TestRemoteBundleWithRemotePkgs(t *testing.T) {
 
 	pull(t, bundleRef.String(), bundleTarballName)
 	inspectRemoteInsecure(t, bundleRef.String(), "example-remote")
-	inspectRemoteAndSBOMExtract(t, bundleRef.String())
+	inspectRemoteAndSBOMExtract(t, bundleRef.Repository, bundleRef.String())
 	deployAndRemoveLocalAndRemoteInsecure(t, bundleRef.String(), tarballPath)
 
 	bundleRef = registry.Reference{
@@ -223,7 +223,7 @@ func TestBundleWithYmlFile(t *testing.T) {
 
 	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 	inspectLocal(t, bundlePath, "yml-example")
-	inspectLocalAndSBOMExtract(t, bundlePath)
+	inspectLocalAndSBOMExtract(t, "yml-example", bundlePath)
 	os.Setenv("UDS_CONFIG", filepath.Join("src/test/bundles/09-uds-bundle-yml", "uds-config.yml"))
 	defer os.Unsetenv("UDS_CONFIG")
 	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundlePath))
