@@ -37,9 +37,8 @@ jobs:
         run: |
           chmod +x build/uds
 
-      - name: Install-k3d
-        run: "curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash"
-        shell: bash
+      - name: Setup K3d
+        uses: ./.github/actions/k3d
 
       - name: Run UDS Core smoke test
         run: build/uds run test:ci-uds-core-smoke-test
