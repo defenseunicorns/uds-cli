@@ -50,10 +50,10 @@ func (b *Bundle) Publish() error {
 	ociURL := b.cfg.PublishOpts.Destination
 	bundleName := b.bundle.Metadata.Name
 
-	// tag bundle with version, unless user specifies a tag
+	// tag bundle with metadata.version, unless user specifies a version
 	bundleTag := b.bundle.Metadata.Version
-	if b.cfg.PublishOpts.Tag != "" {
-		bundleTag = b.cfg.PublishOpts.Tag
+	if b.cfg.PublishOpts.Version != "" {
+		bundleTag = b.cfg.PublishOpts.Version
 	}
 
 	platform := ocispec.Platform{

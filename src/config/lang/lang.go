@@ -65,8 +65,8 @@ const (
 	CmdBundleRemoveFlagPackages = "Specify which zarf packages you would like to remove from the bundle. By default all zarf packages in the bundle are removed."
 
 	// bundle publish
-	CmdPublishShort   = "Publish a bundle from the local file system to a remote registry"
-	CmdPublishTagFlag = "Specify the tag for the published bundle"
+	CmdPublishShort       = "Publish a bundle from the local file system to a remote registry"
+	CmdPublishVersionFlag = "Specify the version for the published bundle"
 
 	// bundle pull
 	CmdBundlePullShort      = "Pull a bundle from a remote registry and save to the local file system"

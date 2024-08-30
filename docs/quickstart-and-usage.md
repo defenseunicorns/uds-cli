@@ -176,9 +176,9 @@ As an example: `uds publish uds-bundle-example-arm64-0.0.1.tar.zst oci://ghcr.io
 
 #### Tagging
 
-Bundles, by default, are tagged based on the bundle version found in the metadata of the `uds-bundle.yaml` file. To override the default tag, you can use the `--tag` flag like so:
+Bundles, by default, are tagged based on the bundle version found in the metadata of the `uds-bundle.yaml` file. To override the default tag, you can use the `--version` flag like so:
 
-`uds publish uds-bundle-example-arm64-0.0.1.tar.zst oci://ghcr.io/github_user --tag <custom-tag>`
+`uds publish uds-bundle-example-arm64-0.0.1.tar.zst oci://ghcr.io/github_user --version <custom-tag>`
 
 ### Bundle Remove
 

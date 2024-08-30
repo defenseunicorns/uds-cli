@@ -56,7 +56,7 @@ type BundleInspectOptions struct {
 type BundlePublishOptions struct {
 	Source      string
 	Destination string
-	Tag         string
+	Version     string
 }
 
 // BundlePullOptions is the options for the bundler.Pull() function
