@@ -136,7 +136,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool, bundleName string) err
 		if err != nil {
 			return err
 		}
-		err = utils.MoveExtractedSBOMs(op.dst, currentDir)
+		err = utils.MoveExtractedSBOMs(bundleName, op.dst, currentDir)
 		if err != nil {
 			return err
 		}
