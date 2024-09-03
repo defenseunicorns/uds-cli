@@ -33,3 +33,5 @@ checksums.txt
 *.tape
 tmp/
 out.txt
+*.gif
+*.mp4
