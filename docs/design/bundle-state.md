@@ -47,9 +47,10 @@ Each UDS bundle deployed in the cluster will have its own state secret. The stat
 
 ```go
 type PkgStatus struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	Status  string `json:"status"`
+	Name        string    `json:"name"`
+	Version     string    `json:"version"`
+	Status      string    `json:"status"`
+	DateUpdated time.Time `json:"date_updated"`
 }
 
 type BundleState struct {
@@ -57,6 +58,7 @@ type BundleState struct {
 	Version     string      `json:"version"`
 	PkgStatuses []PkgStatus `json:"packages"`
 	Status      string      `json:"status"`
+	DateUpdated time.Time   `json:"date_updated"`
 }
 ```
 
