@@ -94,18 +94,20 @@ func (c *Client) ensureNamespace() error {
 func (c *Client) getOrCreateBundleState(b types.UDSBundle) (*BundleState, error) {
 	var state *BundleState
 	bundleName := b.Metadata.Name
+	version := b.Metadata.Version
 	stateSecretName := fmt.Sprintf("uds-bundle-%s", bundleName)
 	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), stateSecretName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			var pkgStatuses []PkgStatus
 			for _, pkg := range b.Packages {
-				pkgStatuses = append(pkgStatuses, PkgStatus{Name: pkg.Name, Status: NotDeployed})
+				pkgStatuses = append(pkgStatuses, PkgStatus{Name: pkg.Name, Version: pkg.Ref, Status: NotDeployed})
 			}
 
 			// init state and secret
 			state = &BundleState{
 				Name:        bundleName,
+				Version:     version,
 				PkgStatuses: pkgStatuses,
 			}
 
@@ -140,8 +142,8 @@ func (c *Client) getOrCreateBundleState(b types.UDSBundle) (*BundleState, error)
 }
 
 // UpdateBundleState updates the bundle state in the K8s cluster (not the packages in the state)
-func (c *Client) UpdateBundleState(bundleName string, status string) error {
-	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", bundleName), metav1.GetOptions{})
+func (c *Client) UpdateBundleState(b types.UDSBundle, status string) error {
+	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", b), metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get bundle state: %w", err)
 	}
@@ -217,8 +219,8 @@ func (c *Client) UpdateBundlePkgState(bundleName string, pkgName string, status 
 	return nil
 }
 
-// GetBundlePkg checks if a package exists in the bundle state
-func (c *Client) GetBundlePkg(bundleName string, pkgName string) (*PkgStatus, error) {
+// GetBundlePkgState checks if a package exists in the bundle state
+func (c *Client) GetBundlePkgState(bundleName string, pkgName string) (*PkgStatus, error) {
 	state, err := c.GetBundleState(bundleName)
 	if err != nil {
 		return nil, err
@@ -232,6 +234,7 @@ func (c *Client) GetBundlePkg(bundleName string, pkgName string) (*PkgStatus, er
 	return nil, nil
 }
 
+// RemoveBundleState removes the bundle state from the K8s cluster
 func (c *Client) RemoveBundleState(bundleName string) error {
 	// ensure all packages have been removed before deleting
 	state, err := c.GetBundleState(bundleName)

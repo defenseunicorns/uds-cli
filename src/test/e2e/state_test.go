@@ -30,8 +30,10 @@ func TestUDSStateOnDeploy(t *testing.T) {
 	t.Run("on deploy", func(t *testing.T) {
 		bundleState := getStateSecret(t, bundleName)
 		require.Equal(t, bundleName, bundleState.Name)
+		require.Equal(t, "0.0.1", bundleState.Version)
 		require.Equal(t, state.Success, bundleState.Status)
 		require.Len(t, bundleState.PkgStatuses, 2)
+		require.Equal(t, "0.0.1", bundleState.PkgStatuses[0].Version)
 		require.Equal(t, state.Success, bundleState.PkgStatuses[0].Status)
 	})
 

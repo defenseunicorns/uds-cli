@@ -74,7 +74,7 @@ func (b *Bundle) Deploy() error {
 	}
 
 	// update bundle state with deploying
-	err = sc.UpdateBundleState(b.bundle.Metadata.Name, state.Deploying)
+	err = sc.UpdateBundleState(b.bundle, state.Deploying)
 
 	// if resume, filter for packages not yet deployed
 	if b.cfg.DeployOpts.Resume {
