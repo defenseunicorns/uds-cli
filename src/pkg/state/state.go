@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
@@ -18,9 +19,10 @@ import (
 )
 
 type PkgStatus struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	Status  string `json:"status"`
+	Name        string    `json:"name"`
+	Version     string    `json:"version"`
+	Status      string    `json:"status"`
+	DateUpdated time.Time `json:"date_updated"`
 }
 
 type BundleState struct {
@@ -28,6 +30,7 @@ type BundleState struct {
 	Version     string      `json:"version"`
 	PkgStatuses []PkgStatus `json:"packages"`
 	Status      string      `json:"status"`
+	DateUpdated time.Time   `json:"date_updated"`
 }
 
 type Client struct {
@@ -101,7 +104,12 @@ func (c *Client) getOrCreateBundleState(b types.UDSBundle) (*BundleState, error)
 		if errors.IsNotFound(err) {
 			var pkgStatuses []PkgStatus
 			for _, pkg := range b.Packages {
-				pkgStatuses = append(pkgStatuses, PkgStatus{Name: pkg.Name, Version: pkg.Ref, Status: NotDeployed})
+				pkgStatuses = append(pkgStatuses, PkgStatus{
+					Name:        pkg.Name,
+					Version:     pkg.Ref,
+					Status:      NotDeployed,
+					DateUpdated: time.Now(),
+				})
 			}
 
 			// init state and secret
@@ -109,6 +117,7 @@ func (c *Client) getOrCreateBundleState(b types.UDSBundle) (*BundleState, error)
 				Name:        bundleName,
 				Version:     version,
 				PkgStatuses: pkgStatuses,
+				DateUpdated: time.Now(),
 			}
 
 			// marshal into K8s secret and save
@@ -143,7 +152,7 @@ func (c *Client) getOrCreateBundleState(b types.UDSBundle) (*BundleState, error)
 
 // UpdateBundleState updates the bundle state in the K8s cluster (not the packages in the state)
 func (c *Client) UpdateBundleState(b types.UDSBundle, status string) error {
-	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", b), metav1.GetOptions{})
+	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", b.Metadata.Name), metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get bundle state: %w", err)
 	}
@@ -153,6 +162,8 @@ func (c *Client) UpdateBundleState(b types.UDSBundle, status string) error {
 	}
 
 	bundleState.Status = status
+	bundleState.Version = b.Metadata.Version
+	bundleState.DateUpdated = time.Now()
 
 	jsonBundleState, err := json.Marshal(bundleState)
 	if err != nil {
@@ -188,7 +199,7 @@ func (c *Client) unmarshalBundleState(secret *corev1.Secret) (*BundleState, erro
 	return &bundleState, nil
 }
 
-func (c *Client) UpdateBundlePkgState(bundleName string, pkgName string, status string) error {
+func (c *Client) UpdateBundlePkgState(bundleName string, bundledPkg types.Package, status string) error {
 	// get state
 	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", bundleName), metav1.GetOptions{})
 	if err != nil {
@@ -201,8 +212,11 @@ func (c *Client) UpdateBundlePkgState(bundleName string, pkgName string, status 
 
 	// update pkg status
 	for i, pkg := range bundleState.PkgStatuses {
-		if pkg.Name == pkgName {
+		if pkg.Name == bundledPkg.Name {
 			bundleState.PkgStatuses[i].Status = status
+			bundleState.PkgStatuses[i].Version = bundledPkg.Ref
+			bundleState.PkgStatuses[i].DateUpdated = time.Now()
+			break
 		}
 	}
 
@@ -235,8 +249,9 @@ func (c *Client) GetBundlePkgState(bundleName string, pkgName string) (*PkgStatu
 }
 
 // RemoveBundleState removes the bundle state from the K8s cluster
-func (c *Client) RemoveBundleState(bundleName string) error {
+func (c *Client) RemoveBundleState(b types.UDSBundle) error {
 	// ensure all packages have been removed before deleting
+	bundleName := b.Metadata.Name
 	state, err := c.GetBundleState(bundleName)
 	if err != nil {
 		return err
@@ -251,7 +266,7 @@ func (c *Client) RemoveBundleState(bundleName string) error {
 	}
 
 	if partialRemoval {
-		err = c.UpdateBundleState(bundleName, Success) // not removing entire bundle, reset status
+		err = c.UpdateBundleState(b, Success) // not removing entire bundle, reset status
 		if err != nil {
 			return err
 		}

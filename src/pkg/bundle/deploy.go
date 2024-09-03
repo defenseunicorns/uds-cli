@@ -78,7 +78,7 @@ func (b *Bundle) Deploy() error {
 
 	// if resume, filter for packages not yet deployed
 	if b.cfg.DeployOpts.Resume {
-		deployedPackageNames := GetDeployedPackageNames()
+		deployedPackageNames := state.GetDeployedPackageNames()
 		var notDeployed []types.Package
 
 		for _, pkg := range packagesToDeploy {
@@ -91,12 +91,12 @@ func (b *Bundle) Deploy() error {
 
 	deployErr := deployPackages(sc, packagesToDeploy, b)
 	if deployErr != nil {
-		_ = sc.UpdateBundleState(b.bundle.Metadata.Name, state.Failed)
+		_ = sc.UpdateBundleState(b.bundle, state.Failed)
 		return deployErr
 	}
 
 	// update bundle state with success
-	err = sc.UpdateBundleState(b.bundle.Metadata.Name, state.Success)
+	err = sc.UpdateBundleState(b.bundle, state.Success)
 	if err != nil {
 		return err
 	}
@@ -183,13 +183,13 @@ func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundl
 		}
 
 		if pkgDeployErr := pkgClient.Deploy(context.TODO()); pkgDeployErr != nil {
-			err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Failed)
+			err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg, state.Failed)
 			if err != nil {
 				return err
 			}
 			return pkgDeployErr
 		}
-		err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Success)
+		err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg, state.Success)
 		if err != nil {
 			return err
 		}
@@ -477,17 +477,4 @@ func removeOverrides(pkgVars map[string]overrideData, chartVars []types.BundleCh
 			delete(pkgVars, strings.ToUpper(cv.Name))
 		}
 	}
-}
-
-// GetDeployedPackageNames returns the names of the packages that have been deployed
-func GetDeployedPackageNames() []string {
-	var deployedPackageNames []string
-	c, _ := cluster.NewCluster()
-	if c != nil {
-		deployedPackages, _ := c.GetDeployedZarfPackages(context.TODO())
-		for _, pkg := range deployedPackages {
-			deployedPackageNames = append(deployedPackageNames, pkg.Name)
-		}
-	}
-	return deployedPackageNames
 }
