@@ -74,31 +74,29 @@ func (b *Bundle) Deploy() error {
 	}
 
 	// update bundle state with deploying
-	err = sc.UpdateBundleState(b.bundle.Metadata.Name, state.Deploying)
+	err = sc.UpdateBundleState(b.bundle, state.Deploying)
 
 	// if resume, filter for packages not yet deployed
 	if b.cfg.DeployOpts.Resume {
-		var resumePkgs []types.Package
+		deployedPackageNames := state.GetDeployedPackageNames()
+		var notDeployed []types.Package
+
 		for _, pkg := range packagesToDeploy {
-			if pkgStatus, err := sc.GetBundlePkg(b.bundle.Metadata.Name, pkg.Name); err == nil {
-				if pkgStatus.Status != state.Success {
-					resumePkgs = append(resumePkgs, pkg)
-				}
-			} else {
-				return err
+			if !slices.Contains(deployedPackageNames, pkg.Name) {
+				notDeployed = append(notDeployed, pkg)
 			}
 		}
-		packagesToDeploy = resumePkgs
+		packagesToDeploy = notDeployed
 	}
 
 	deployErr := deployPackages(sc, packagesToDeploy, b)
 	if deployErr != nil {
-		_ = sc.UpdateBundleState(b.bundle.Metadata.Name, state.Failed)
+		_ = sc.UpdateBundleState(b.bundle, state.Failed)
 		return deployErr
 	}
 
 	// update bundle state with success
-	err = sc.UpdateBundleState(b.bundle.Metadata.Name, state.Success)
+	err = sc.UpdateBundleState(b.bundle, state.Success)
 	if err != nil {
 		return err
 	}
@@ -185,13 +183,13 @@ func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundl
 		}
 
 		if pkgDeployErr := pkgClient.Deploy(context.TODO()); pkgDeployErr != nil {
-			err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Failed)
+			err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg, state.Failed)
 			if err != nil {
 				return err
 			}
 			return pkgDeployErr
 		}
-		err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg.Name, state.Success)
+		err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg, state.Success)
 		if err != nil {
 			return err
 		}

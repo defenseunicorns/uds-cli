@@ -27,12 +27,23 @@ func TestUDSStateOnDeploy(t *testing.T) {
 	runCmd(t, fmt.Sprintf("create %s --confirm", bundlePath))
 	runCmd(t, fmt.Sprintf("deploy %s --confirm", deployPath))
 
-	t.Run("on deploy", func(t *testing.T) {
+	t.Run("on deploy + update", func(t *testing.T) {
 		bundleState := getStateSecret(t, bundleName)
+		originalDeployTimestamp := bundleState.DateUpdated
 		require.Equal(t, bundleName, bundleState.Name)
+		require.Equal(t, "0.0.1", bundleState.Version)
 		require.Equal(t, state.Success, bundleState.Status)
+		require.NotNil(t, bundleState.DateUpdated)
 		require.Len(t, bundleState.PkgStatuses, 2)
+		require.Contains(t, bundleState.PkgStatuses[0].Version, "0.0.1@") // using Contains because ref is mutated when bundle is created
 		require.Equal(t, state.Success, bundleState.PkgStatuses[0].Status)
+		require.NotNil(t, bundleState.PkgStatuses[0].DateUpdated)
+
+		// update the bundle
+		runCmd(t, fmt.Sprintf("deploy %s --confirm", deployPath))
+		bundleState = getStateSecret(t, bundleName)
+		require.NotNil(t, bundleState.DateUpdated)
+		require.True(t, bundleState.DateUpdated.After(originalDeployTimestamp))
 	})
 
 	t.Run("on deploy with --packages flag", func(t *testing.T) {
