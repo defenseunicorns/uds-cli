@@ -21,6 +21,7 @@ In order to address the above issues, the team has decided to implement a state 
 - Keep state as simple as possible. Meaning that we should think of state as a record of an event, as opposed to a complex object that drives CLI behavior.
 - No destructive action should be taken based on UDS state unless the user explicitly requests it.
 - State should be backwards compatible and should not interfere with existing UDS CLI functionality.
+  - For now, do not base any UDS CLI business logic on UDS state
   - On backwards compatibility: if a user attempts an action that is based on state but state does not exist, CLI should fail quickly and indicate to the user that state does not exist and provide instructions on how to create it (likely simply re-deploying the bundle)
 
 ## State Storage
@@ -67,6 +68,9 @@ The `BundleState` struct will be stored in the secret's `data` field as a base64
 #### Namespace
 
 The UDS state secret will be stored in the `uds` namespace. If the `uds` namespace doesn't exist, the CLI will create it.
+
+### Viewing State
+For now, we will not introduce a dedicated UDS CLI command for users to view state. To view state, useres can either used the vendored tools (`kubectl` and/or `k9s`) or view the state in UDS Runtime.
 
 ## State Implementation
 
