@@ -18,12 +18,14 @@ import (
 )
 
 type PkgStatus struct {
-	Name   string `json:"name"`
-	Status string `json:"status"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Status  string `json:"status"`
 }
 
 type BundleState struct {
 	Name        string      `json:"name"`
+	Version     string      `json:"version"`
 	PkgStatuses []PkgStatus `json:"packages"`
 	Status      string      `json:"status"`
 }
@@ -33,13 +35,14 @@ type Client struct {
 }
 
 const (
-	Success      = "success"
-	Failed       = "failed"
-	Deploying    = "deploying"
-	NotDeployed  = "not_deployed" // package is in the bundle but not deployed
-	Removing     = "removing"
-	Removed      = "removed"
-	FailedRemove = "failed_remove"
+	Success      = "success"       // deployed successfully
+	Failed       = "failed"        // failed to deploy
+	Deploying    = "deploying"     // deployment in progress
+	NotDeployed  = "not_deployed"  // package is in the bundle but not deployed
+	Removing     = "removing"      // removal in progress
+	Removed      = "removed"       // package removed (does not apply to BundleState)
+	FailedRemove = "failed_remove" // package failed to be removed (does not apply to BundleState)
+	Orphaned     = "orphaned"      // package has been removed from the bundle but still exists in the cluster
 	stateNs      = "uds"
 )
 

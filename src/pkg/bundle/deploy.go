@@ -78,17 +78,15 @@ func (b *Bundle) Deploy() error {
 
 	// if resume, filter for packages not yet deployed
 	if b.cfg.DeployOpts.Resume {
-		var resumePkgs []types.Package
+		deployedPackageNames := GetDeployedPackageNames()
+		var notDeployed []types.Package
+
 		for _, pkg := range packagesToDeploy {
-			if pkgStatus, err := sc.GetBundlePkg(b.bundle.Metadata.Name, pkg.Name); err == nil {
-				if pkgStatus.Status != state.Success {
-					resumePkgs = append(resumePkgs, pkg)
-				}
-			} else {
-				return err
+			if !slices.Contains(deployedPackageNames, pkg.Name) {
+				notDeployed = append(notDeployed, pkg)
 			}
 		}
-		packagesToDeploy = resumePkgs
+		packagesToDeploy = notDeployed
 	}
 
 	deployErr := deployPackages(sc, packagesToDeploy, b)
@@ -479,4 +477,17 @@ func removeOverrides(pkgVars map[string]overrideData, chartVars []types.BundleCh
 			delete(pkgVars, strings.ToUpper(cv.Name))
 		}
 	}
+}
+
+// GetDeployedPackageNames returns the names of the packages that have been deployed
+func GetDeployedPackageNames() []string {
+	var deployedPackageNames []string
+	c, _ := cluster.NewCluster()
+	if c != nil {
+		deployedPackages, _ := c.GetDeployedZarfPackages(context.TODO())
+		for _, pkg := range deployedPackages {
+			deployedPackageNames = append(deployedPackageNames, pkg.Name)
+		}
+	}
+	return deployedPackageNames
 }
