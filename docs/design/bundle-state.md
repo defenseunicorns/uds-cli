@@ -77,16 +77,15 @@ Generally speaking, UDS CLI will update a bundle's state during deploy and remov
 - The state secret will be deleted when a bundle is removed.
 - If using the `--packages` flag, the CLI will only update the state for the specified packages, but the bundle secret will indicate that a package in the bundle hasn't been deployed, or in the case of removal, that a package has been removed.
 
-
 ### API Design
 UDS CLI will provide a bundle state API in the form of a Go pkg called `github.com/defenseunicorns/uds-cli/src/pkg/state`. This package will provide an API for creating and interacting with state during the bundle lifecycle. Proposed public methods include:
 
 - `NewClient`: creates a new state client
 - `InitBundleState`: creates the `uds` namespace if it doesn't exist; creates a new state secret or returns an existing state secret for a previously deployed bundle
 - `GetBundleState`: retrieves the state for a given bundle
-- `GetBundlePkg`: retrieves the state for a given package inside a bundle
+- `GetBundlePkgState`: retrieves the state for a given package inside a bundle
 - `UpdateBundleState`: updates the state for a given bundle
-- `UpdateBundlePkgStat`: updates the state for a given package inside a bundle
+- `UpdateBundlePkgState`: updates the state for a given package inside a bundle
 - `RemoveBundleState`: deletes the state for a given bundle; note that this will remove the K8s secret containing the state
 
 ### Statuses
