@@ -435,7 +435,7 @@ func extractValues(helmChartVars map[string]interface{}, variables []types.Bundl
 	viewVars := make(map[string]interface{})
 	for _, v := range variables {
 		// Mask potentially sensitive variables
-		if v.Type == chartvariable.File || v.Source == valuesources.Env {
+		if v.Type == chartvariable.File || v.Source == valuesources.Env || v.Sensitive {
 			viewVars[v.Name] = hiddenVar
 			continue
 		}
