@@ -17,6 +17,7 @@ uds deploy [BUNDLE_TARBALL|OCI_REF] [flags]
   -c, --confirm                Confirms bundle deployment without prompting. ONLY use with bundles you trust
   -h, --help                   help for deploy
   -p, --packages stringArray   Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed.
+  -P, --prune                  Forces the removal of packages that are no longer in the bundle
   -r, --resume                 Only deploys packages from the bundle which haven't already been deployed
       --retries int            Specify the number of retries for package deployments (applies to all pkgs in a bundle) (default 3)
       --set stringToString     Specify deployment variables to set on the command line (KEY=value) (default [])
