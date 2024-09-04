@@ -118,18 +118,34 @@ func TestPkgPruning(t *testing.T) {
 	updatedBundlePath := "src/test/bundles/16-state/prune/updated"
 	cleanStateSecret(t, bundleName)
 
+	// deploy the original bundle and ensure deployments exist
 	runCmd(t, fmt.Sprintf("dev deploy %s", originalBundlePath))
-
 	getDeploymentsCmd := "zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'"
 	deployments, _ := runCmd(t, getDeploymentsCmd)
 	require.Contains(t, deployments, "nginx")
 	require.Contains(t, deployments, "podinfo")
 
-	t.Run("update bundle with pkg removed from bundle YAML", func(t *testing.T) {
+	t.Run("remove pkg from bundle and check status", func(t *testing.T) {
+		runCmd(t, fmt.Sprintf("dev deploy %s", updatedBundlePath))
+		bundleState := getStateSecret(t, bundleName)
+		require.Len(t, bundleState.PkgStatuses, 2)
+		require.Equal(t, state.Success, bundleState.PkgStatuses[0].Status)
+		require.Equal(t, state.Success, bundleState.Status)
+
+		// ensure podinfo pkg is marked as unreferenced
+		require.Equal(t, state.Unreferenced, bundleState.PkgStatuses[1].Status)
+
+		// ensure podinfo still exists and wasn't pruned
+		deployments, _ = runCmd(t, getDeploymentsCmd)
+		require.Contains(t, deployments, "nginx")
+		require.Contains(t, deployments, "podinfo")
+	})
+
+	t.Run("remove pkg from bundle and prune", func(t *testing.T) {
 		runCmd(t, fmt.Sprintf("dev deploy --prune %s", updatedBundlePath))
 		bundleState := getStateSecret(t, bundleName)
 		require.Len(t, bundleState.PkgStatuses, 1)
-		require.Equal(t, state.Success, bundleState.PkgStatuses[1].Status)
+		require.Equal(t, state.Success, bundleState.PkgStatuses[0].Status)
 		require.Equal(t, state.Success, bundleState.Status)
 
 		// ensure podinfo deployment no longer exists

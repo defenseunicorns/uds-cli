@@ -20,6 +20,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
+	"github.com/fatih/color"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/pterm/pterm"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
@@ -28,7 +29,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/layout"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
-	"github.com/zarf-dev/zarf/src/pkg/utils"
+	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"golang.org/x/exp/slices"
 )
@@ -43,7 +44,7 @@ func (b *Bundle) Deploy() error {
 	// Check if --packages flag is set and zarf packages have been specified
 	if len(b.cfg.DeployOpts.Packages) != 0 {
 		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.DeployOpts.Packages[0], " ", ""), ",")
-		selectedPackages := []types.Package{}
+		var selectedPackages []types.Package
 		for _, pkg := range b.bundle.Packages {
 			if slices.Contains(userSpecifiedPackages, pkg.Name) {
 				selectedPackages = append(selectedPackages, pkg)
@@ -68,13 +69,19 @@ func (b *Bundle) Deploy() error {
 		return err
 	}
 
-	err = sc.InitBundleState(b.bundle)
+	err = sc.InitBundleState(&b.bundle)
+	if err != nil {
+		return err
+	}
+
+	// mark unreferenced packages in bundle
+	err = sc.MarkUnreferencedPackages(&b.bundle)
 	if err != nil {
 		return err
 	}
 
 	// update bundle state with deploying
-	err = sc.UpdateBundleState(b.bundle, state.Deploying)
+	err = sc.UpdateBundleState(&b.bundle, state.Deploying)
 
 	// if resume, filter for packages not yet deployed
 	if b.cfg.DeployOpts.Resume {
@@ -91,14 +98,99 @@ func (b *Bundle) Deploy() error {
 
 	deployErr := deployPackages(sc, packagesToDeploy, b)
 	if deployErr != nil {
-		_ = sc.UpdateBundleState(b.bundle, state.Failed)
+		_ = sc.UpdateBundleState(&b.bundle, state.Failed)
 		return deployErr
 	}
 
 	// update bundle state with success
-	err = sc.UpdateBundleState(b.bundle, state.Success)
+	err = sc.UpdateBundleState(&b.bundle, state.Success)
 	if err != nil {
 		return err
+	}
+
+	// prune unreferenced packages
+	if b.cfg.DeployOpts.Prune {
+		// todo: do we need to handle the case of actions-only Zarf pkgs?
+		// get any unreferenced pkgs
+		unreferencedPkgs, err := sc.GetUnreferencedPackages(&b.bundle)
+		if err != nil {
+			return err
+		}
+		if len(unreferencedPkgs) > 0 {
+			// Create a formatted list of unreferenced packages
+			fmt.Println("\n", message.RuleLine)
+			message.HeaderInfof("🪓 PRUNING UNREFERENCED PACKAGES")
+			unreferencedPkgNames := make([]string, 0)
+			for _, pkg := range unreferencedPkgs {
+				unreferencedPkgNames = append(unreferencedPkgNames, pkg.Name)
+			}
+			pkgList := strings.Join(unreferencedPkgNames, "\n  - ")
+
+			// prompt user if no --confirm
+			confirm := config.CommonOptions.Confirm
+			if !confirm {
+				cyan := color.New(color.FgCyan).SprintFunc()
+				styledBundleName := cyan(b.bundle.Metadata.Name)
+				promptMessage := fmt.Sprintf("The following packages are no longer referenced by the bundle %s:\n  - %s\n\nAttempt removal of these packages?", styledBundleName, pkgList)
+				prompt := &survey.Confirm{
+					Message: promptMessage,
+				}
+				if err := survey.AskOne(prompt, &confirm); err != nil {
+					return fmt.Errorf("failed to prompt user: %w", err)
+				}
+				if !confirm {
+					return nil // User chose not to proceed with pruning
+				}
+			}
+
+			// remove unreferenced packages
+			for _, pkg := range unreferencedPkgs {
+				message.Infof("Removing unreferenced package: %v", pkg.Name)
+				err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Removing)
+				if err != nil {
+					return err
+				}
+
+				opts := zarfTypes.ZarfPackageOptions{
+					PackageSource: b.cfg.RemoveOpts.Source,
+				}
+				pkgCfg := zarfTypes.PackagerConfig{
+					PkgOpts: opts,
+				}
+				pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
+				if err != nil {
+					return err
+				}
+
+				// todo: pkg doesn't exist in bundle anymore...so what do we do about source for removal?
+				sha := strings.Split(pkg.Ref, "sha256:")[1]
+				source, err := sources.New(*b.cfg, pkg, opts, sha, nil)
+				if err != nil {
+					return err
+				}
+
+				pkgClient, err := packager.New(&pkgCfg, packager.WithSource(source), packager.WithTemp(pkgTmp))
+				if err != nil {
+					return err
+				}
+				defer pkgClient.ClearTempPaths()
+
+				if removeErr := pkgClient.Remove(context.TODO()); removeErr != nil {
+					err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.FailedRemove)
+					if err != nil {
+						return err
+					}
+					return removeErr
+				}
+
+				err = sc.RemovePackageFromState(&b.bundle, pkg.Name)
+				if err != nil {
+					return err
+				}
+
+				message.Success("Package removed")
+			}
+		}
 	}
 
 	return nil
@@ -119,7 +211,7 @@ func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundl
 			b.bundle.Packages[i] = pkg
 		}
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
-		pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
+		pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
 			return err
 		}
@@ -183,13 +275,13 @@ func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundl
 		}
 
 		if pkgDeployErr := pkgClient.Deploy(context.TODO()); pkgDeployErr != nil {
-			err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg, state.Failed)
+			err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Failed)
 			if err != nil {
 				return err
 			}
 			return pkgDeployErr
 		}
-		err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg, state.Success)
+		err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Success)
 		if err != nil {
 			return err
 		}
@@ -201,6 +293,7 @@ func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundl
 			// ensure if variable exists in package
 			setVariable, ok := variableConfig.GetSetVariable(exp.Name)
 			if !ok {
+				// todo: don't fail on missing variable, just log (need a way to log warning at end of deploy?)
 				return fmt.Errorf("cannot export variable %s because it does not exist in package %s", exp.Name, pkg.Name)
 			}
 			pkgExportedVars[strings.ToUpper(exp.Name)] = setVariable.Value
@@ -333,20 +426,20 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 	message.HorizontalRule()
 
 	message.Title("Metatdata:", "information about this bundle")
-	utils.ColorPrintYAML(b.bundle.Metadata, nil, false)
+	zarfUtils.ColorPrintYAML(b.bundle.Metadata, nil, false)
 
 	message.HorizontalRule()
 
 	message.Title("Build:", "info about the machine, UDS version, and the user that created this bundle")
-	utils.ColorPrintYAML(b.bundle.Build, nil, false)
+	zarfUtils.ColorPrintYAML(b.bundle.Build, nil, false)
 
 	message.HorizontalRule()
 
 	message.Title("Packages:", "definition of packages this bundle deploys, including variable overrides")
 
 	for _, pkg := range pkgviews {
-		utils.ColorPrintYAML(pkg.meta, nil, false)
-		utils.ColorPrintYAML(pkg.overrides, nil, false)
+		zarfUtils.ColorPrintYAML(pkg.meta, nil, false)
+		zarfUtils.ColorPrintYAML(pkg.overrides, nil, false)
 	}
 
 	message.HorizontalRule()

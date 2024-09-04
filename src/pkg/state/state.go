@@ -45,7 +45,7 @@ const (
 	Removing     = "removing"      // removal in progress
 	Removed      = "removed"       // package removed (does not apply to BundleState)
 	FailedRemove = "failed_remove" // package failed to be removed (does not apply to BundleState)
-	Orphaned     = "orphaned"      // package has been removed from the bundle but still exists in the cluster
+	Unreferenced = "unreferenced"  // package has been removed from the bundle but still exists in the cluster
 	stateNs      = "uds"
 )
 
@@ -59,7 +59,7 @@ func NewClient(client kubernetes.Interface) (*Client, error) {
 
 // InitBundleState initializes the bundle state in the K8s cluster if it doesn't exist.
 // This can safely be called multiple times
-func (c *Client) InitBundleState(b types.UDSBundle) error {
+func (c *Client) InitBundleState(b *types.UDSBundle) error {
 	err := c.ensureNamespace()
 	if err != nil {
 		return err
@@ -94,7 +94,7 @@ func (c *Client) ensureNamespace() error {
 }
 
 // getOrCreateBundleState gets or creates the bundle state in the K8s cluster
-func (c *Client) getOrCreateBundleState(b types.UDSBundle) (*BundleState, error) {
+func (c *Client) getOrCreateBundleState(b *types.UDSBundle) (*BundleState, error) {
 	var state *BundleState
 	bundleName := b.Metadata.Name
 	version := b.Metadata.Version
@@ -151,7 +151,7 @@ func (c *Client) getOrCreateBundleState(b types.UDSBundle) (*BundleState, error)
 }
 
 // UpdateBundleState updates the bundle state in the K8s cluster (not the packages in the state)
-func (c *Client) UpdateBundleState(b types.UDSBundle, status string) error {
+func (c *Client) UpdateBundleState(b *types.UDSBundle, status string) error {
 	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", b.Metadata.Name), metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get bundle state: %w", err)
@@ -180,7 +180,8 @@ func (c *Client) UpdateBundleState(b types.UDSBundle, status string) error {
 }
 
 // GetBundleState gets the bundle state from the K8s cluster
-func (c *Client) GetBundleState(bundleName string) (*BundleState, error) {
+func (c *Client) GetBundleState(b *types.UDSBundle) (*BundleState, error) {
+	bundleName := b.Metadata.Name
 	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", bundleName), metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get bundle state: %w", err)
@@ -199,8 +200,9 @@ func (c *Client) unmarshalBundleState(secret *corev1.Secret) (*BundleState, erro
 	return &bundleState, nil
 }
 
-func (c *Client) UpdateBundlePkgState(bundleName string, bundledPkg types.Package, status string) error {
+func (c *Client) UpdateBundlePkgState(b *types.UDSBundle, bundledPkg types.Package, status string) error {
 	// get state
+	bundleName := b.Metadata.Name
 	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", bundleName), metav1.GetOptions{})
 	if err != nil {
 		return err
@@ -221,6 +223,7 @@ func (c *Client) UpdateBundlePkgState(bundleName string, bundledPkg types.Packag
 	}
 
 	// save state
+	bundleState.DateUpdated = time.Now()
 	jsonBundleState, err := json.Marshal(bundleState)
 	if err != nil {
 		return err
@@ -234,8 +237,8 @@ func (c *Client) UpdateBundlePkgState(bundleName string, bundledPkg types.Packag
 }
 
 // GetBundlePkgState checks if a package exists in the bundle state
-func (c *Client) GetBundlePkgState(bundleName string, pkgName string) (*PkgStatus, error) {
-	state, err := c.GetBundleState(bundleName)
+func (c *Client) GetBundlePkgState(b *types.UDSBundle, pkgName string) (*PkgStatus, error) {
+	state, err := c.GetBundleState(b)
 	if err != nil {
 		return nil, err
 	}
@@ -249,10 +252,10 @@ func (c *Client) GetBundlePkgState(bundleName string, pkgName string) (*PkgStatu
 }
 
 // RemoveBundleState removes the bundle state from the K8s cluster
-func (c *Client) RemoveBundleState(b types.UDSBundle) error {
+func (c *Client) RemoveBundleState(b *types.UDSBundle) error {
 	// ensure all packages have been removed before deleting
 	bundleName := b.Metadata.Name
-	state, err := c.GetBundleState(bundleName)
+	state, err := c.GetBundleState(b)
 	if err != nil {
 		return err
 	}
@@ -279,6 +282,89 @@ func (c *Client) RemoveBundleState(b types.UDSBundle) error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+// MarkUnreferencedPackages marks packages as Unreferenced if they are in the bundle state but not in the bundle YAML
+func (c *Client) MarkUnreferencedPackages(b *types.UDSBundle) error {
+	state, err := c.GetBundleState(b)
+	if err != nil {
+		return err
+	}
+
+	if len(state.PkgStatuses) == 0 {
+		return nil // Early return if there are no packages in the state
+	}
+
+	// Create a map for quick lookup of packages in the bundle
+	bundlePkgs := make(map[string]types.Package, len(b.Packages))
+	for _, p := range b.Packages {
+		bundlePkgs[p.Name] = p
+	}
+
+	// check if packages in bundle state are in the bundle
+	for _, pkg := range state.PkgStatuses {
+		if _, exists := bundlePkgs[pkg.Name]; !exists {
+			if err := c.UpdateBundlePkgState(b, types.Package{
+				Name: pkg.Name,
+				Ref:  pkg.Version,
+			}, Unreferenced); err != nil {
+				return fmt.Errorf("failed to update package state for %s: %w", pkg.Name, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (c *Client) GetUnreferencedPackages(b *types.UDSBundle) ([]types.Package, error) {
+	state, err := c.GetBundleState(b)
+	if err != nil {
+		return nil, err
+	}
+
+	var unreferencedPkgs []types.Package
+	for _, p := range state.PkgStatuses {
+		if p.Status == Unreferenced {
+			unreferencedPkgs = append(unreferencedPkgs, types.Package{Name: p.Name, Ref: p.Version})
+		}
+	}
+
+	return unreferencedPkgs, nil
+}
+
+func (c *Client) RemovePackageFromState(b *types.UDSBundle, pkgToRemove string) error {
+	state, err := c.GetBundleState(b)
+	if err != nil {
+		return err
+	}
+
+	// remove pkg from list of statuses
+	var newPkgStatuses []PkgStatus
+	for _, p := range state.PkgStatuses {
+		if p.Name != pkgToRemove {
+			newPkgStatuses = append(newPkgStatuses, p)
+		}
+	}
+
+	// update state
+	state.PkgStatuses = newPkgStatuses
+	state.DateUpdated = time.Now()
+	jsonBundleState, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+
+	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", b.Metadata.Name), metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	stateSecret.Data["data"] = jsonBundleState
+	_, err = c.client.CoreV1().Secrets(stateNs).Update(context.TODO(), stateSecret, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
