@@ -43,6 +43,7 @@ packages:
             - name: SECRET_VAL
               path: "testSecret"
               description: "testing a secret value"
+              sensitive: true
             - name: SECURITY_CTX
               path: "podinfo.securityContext"
               description: "testing an object"

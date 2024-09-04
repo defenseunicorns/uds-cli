@@ -99,7 +99,7 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 	for idx, pkg := range bundle.Packages {
 		spinner.Updatef("Validating Bundle Package: %s", pkg.Name)
 		if pkg.Name == "" {
-			return fmt.Errorf("%s is missing required field: name", pkg)
+			return fmt.Errorf("%v is missing required field: name", pkg)
 		}
 
 		if pkg.Repository == "" && pkg.Path == "" {

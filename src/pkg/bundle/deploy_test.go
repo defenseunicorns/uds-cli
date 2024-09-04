@@ -415,6 +415,27 @@ func TestFormPkgViews(t *testing.T) {
 			expectedVal: hiddenVar,
 		},
 		{
+			name: "mask sensitive config var",
+			Bundle: newTestBundle(
+				ConfigVariables{
+					pkgName: {
+						"VAR1": "iamsensitive",
+					},
+				},
+				nil,
+				nil,
+				"uds-config.yaml",
+				"",
+			),
+			bundleVars: types.BundleChartVariable{
+				Name:      "VAR1",
+				Path:      "path",
+				Sensitive: true,
+			},
+			expectedKey: "VAR1",
+			expectedVal: hiddenVar,
+		},
+		{
 			name: "mask file var",
 			Bundle: newTestBundle(
 				ConfigVariables{

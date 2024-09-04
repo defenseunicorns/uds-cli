@@ -313,6 +313,30 @@ UDS CLI does not encrypt or base64 encode any file contents before passing said 
 For example, if the file contains a key to be used in a Kubernetes secret, it must be base64 encoded before being ingested by UDS CLI.
 {{% /alert-note %}}
 
+### Sensitive
+
+Variables can be specified as sensitive, which means their values, regardless of how they're set, will be masked in output.
+
+```yaml
+kind: UDSBundle
+metadata:
+   name: example-bundle
+   version: 0.0.1
+
+packages:
+   - name: helm-overrides-package
+     path: "../../packages/helm"
+     ref: 0.0.1
+     overrides:
+        podinfo-component:
+          unicorn-podinfo:
+           variables:
+            - name: SECRET_VAL
+                path: "testSecret"
+                description: "should be masked in output"
+                sensitive: true
+```
+
 ### Namespace
 
 It's also possible to specify a namespace for a packaged Helm chart to be installed in. For example, to deploy the a chart in the `custom-podinfo` namespace, you can specify the `namespace` in the `overrides` block:
