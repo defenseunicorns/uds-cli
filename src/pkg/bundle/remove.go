@@ -138,7 +138,7 @@ func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundl
 			}
 
 			sha := strings.Split(pkg.Ref, "sha256:")[1]
-			source, err := sources.New(*b.cfg, pkg, opts, sha, nil)
+			source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nil)
 			if err != nil {
 				return err
 			}

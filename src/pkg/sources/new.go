@@ -17,8 +17,8 @@ import (
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
-// New creates a new package source based on pkgLocation
-func New(bundleCfg types.BundleConfig, pkg types.Package, opts zarfTypes.ZarfPackageOptions, sha string, nsOverrides NamespaceOverrideMap) (zarfSources.PackageSource, error) {
+// NewFromLocation creates a new package source based on pkgLocation
+func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, opts zarfTypes.ZarfPackageOptions, sha string, nsOverrides NamespaceOverrideMap) (zarfSources.PackageSource, error) {
 	var source zarfSources.PackageSource
 	var pkgLocation string
 	if bundleCfg.DeployOpts.Source != "" {

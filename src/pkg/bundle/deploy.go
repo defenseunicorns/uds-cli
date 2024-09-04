@@ -251,7 +251,7 @@ func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundl
 		// Automatically confirm the package deployment
 		zarfConfig.CommonOptions.Confirm = true
 
-		source, err := sources.New(*b.cfg, pkg, opts, sha, nsOverrides)
+		source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nsOverrides)
 		if err != nil {
 			return err
 		}

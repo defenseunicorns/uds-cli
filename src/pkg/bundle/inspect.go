@@ -194,7 +194,7 @@ func (b *Bundle) getSource(pkg types.Package) (zarfSources.PackageSource, error)
 
 	if !b.cfg.InspectOpts.IsYAMLFile {
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
-		fromTarball, err := sources.New(*b.cfg, pkg, zarfTypes.ZarfPackageOptions{}, sha, nil)
+		fromTarball, err := sources.NewFromLocation(*b.cfg, pkg, zarfTypes.ZarfPackageOptions{}, sha, nil)
 		if err != nil {
 			return nil, err
 		}
