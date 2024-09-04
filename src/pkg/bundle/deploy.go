@@ -20,7 +20,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
-	"github.com/fatih/color"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/pterm/pterm"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
@@ -32,7 +31,6 @@ import (
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"golang.org/x/exp/slices"
-	"k8s.io/apimachinery/pkg/api/errors"
 )
 
 // hiddenVar is the value used to mask potentially sensitive variables
@@ -75,12 +73,6 @@ func (b *Bundle) Deploy() error {
 		return err
 	}
 
-	// mark unreferenced packages in bundle
-	err = sc.MarkUnreferencedPackages(&b.bundle)
-	if err != nil {
-		return err
-	}
-
 	// update bundle state with deploying
 	err = sc.UpdateBundleState(&b.bundle, state.Deploying)
 
@@ -111,88 +103,9 @@ func (b *Bundle) Deploy() error {
 
 	// prune unreferenced packages
 	if b.cfg.DeployOpts.Prune {
-		// get any unreferenced pkgs
-		unreferencedPkgs, err := sc.GetUnreferencedPackages(&b.bundle)
+		err = b.handlePrune(sc, kc)
 		if err != nil {
 			return err
-		}
-		if len(unreferencedPkgs) > 0 {
-			// Create a formatted list of unreferenced packages
-			fmt.Println("\n", message.RuleLine)
-			message.HeaderInfof("🪓 PRUNING UNREFERENCED PACKAGES")
-			unreferencedPkgNames := make([]string, 0)
-			for _, pkg := range unreferencedPkgs {
-				unreferencedPkgNames = append(unreferencedPkgNames, pkg.Name)
-			}
-			pkgList := strings.Join(unreferencedPkgNames, "\n  - ")
-
-			// prompt user if no --confirm
-			confirm := config.CommonOptions.Confirm
-			if !confirm {
-				cyan := color.New(color.FgCyan).SprintFunc()
-				styledBundleName := cyan(b.bundle.Metadata.Name)
-				promptMessage := fmt.Sprintf("The following packages are no longer referenced by the bundle %s:\n  - %s\n\nAttempt removal of these packages?", styledBundleName, pkgList)
-				prompt := &survey.Confirm{
-					Message: promptMessage,
-				}
-				if err := survey.AskOne(prompt, &confirm); err != nil {
-					return fmt.Errorf("failed to prompt user: %w", err)
-				}
-				if !confirm {
-					return nil // User chose not to proceed with pruning
-				}
-			}
-
-			// remove unreferenced packages
-			for _, pkg := range unreferencedPkgs {
-				message.Infof("Removing unreferenced package: %v", pkg.Name)
-				err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Removing) // todo: remove
-				if err != nil {
-					return err
-				}
-
-				opts := zarfTypes.ZarfPackageOptions{
-					PackageSource: b.cfg.RemoveOpts.Source,
-				}
-				pkgCfg := zarfTypes.PackagerConfig{
-					PkgOpts: opts,
-				}
-				pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
-				if err != nil {
-					return err
-				}
-
-				source, err := sources.NewFromZarfState(kc.Clientset, pkg.Name)
-				if err != nil {
-					if errors.IsNotFound(err) {
-						// handles case where Zarf pkg is not found in cluster (or pkgs with only actions)
-						message.Warnf("Package %s state secret not found in cluster, skipping removal", pkg.Name)
-						continue
-					}
-					return err
-				}
-
-				pkgClient, err := packager.New(&pkgCfg, packager.WithSource(source), packager.WithTemp(pkgTmp))
-				if err != nil {
-					return err
-				}
-				defer pkgClient.ClearTempPaths()
-
-				if removeErr := pkgClient.Remove(context.TODO()); removeErr != nil {
-					err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.FailedRemove)
-					if err != nil {
-						return err
-					}
-					return removeErr
-				}
-
-				err = sc.RemovePackageFromState(&b.bundle, pkg.Name)
-				if err != nil {
-					return err
-				}
-
-				message.Success("Package removed")
-			}
 		}
 	}
 

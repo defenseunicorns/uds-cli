@@ -64,11 +64,57 @@ func (c *Client) InitBundleState(b *types.UDSBundle) error {
 	if err != nil {
 		return err
 	}
-	_, err = c.getOrCreateBundleState(b)
+	bundleState, isNewState, err := c.getOrCreateBundleState(b)
 	if err != nil {
 		return err
+	} else if isNewState {
+		message.Infof("Initialized bundle state for %s", b.Metadata.Name)
+		return nil
 	}
 
+	// if existing state, update bundle state packages based on bundle YAML
+	// create map of bundled packages for easy lookup
+	bundledPkgs := make(map[string]types.Package, len(b.Packages))
+	for _, pkg := range b.Packages {
+		bundledPkgs[pkg.Name] = pkg
+	}
+
+	// create map of state packages for easy lookup
+	statePkgs := make(map[string]PkgStatus, len(bundleState.PkgStatuses))
+	for _, pkg := range bundleState.PkgStatuses {
+		statePkgs[pkg.Name] = pkg
+	}
+
+	// check for updates and dropped/unreferenced packages
+	for i, pkgStatus := range bundleState.PkgStatuses {
+		_, exists := bundledPkgs[pkgStatus.Name] // check if bundled pkg is in state
+		if exists {
+			// existing package, update version and timestamp
+			bundleState.PkgStatuses[i].Version = pkgStatus.Version
+			bundleState.PkgStatuses[i].DateUpdated = time.Now()
+		} else {
+			// package no longer in bundle
+			bundleState.PkgStatuses[i].Status = Unreferenced
+			bundleState.PkgStatuses[i].DateUpdated = time.Now()
+		}
+	}
+
+	// add new packages to state
+	for _, pkg := range b.Packages {
+		if _, exists := statePkgs[pkg.Name]; !exists {
+			bundleState.PkgStatuses = append(bundleState.PkgStatuses, PkgStatus{
+				Name:        pkg.Name,
+				Version:     pkg.Ref,
+				Status:      NotDeployed,
+				DateUpdated: time.Now(),
+			})
+		}
+	}
+
+	// update state
+	bundleState.Version = b.Metadata.Version
+	bundleState.DateUpdated = time.Now()
+	err = c.saveBundleState(bundleState)
 	return err
 }
 
@@ -94,8 +140,9 @@ func (c *Client) ensureNamespace() error {
 }
 
 // getOrCreateBundleState gets or creates the bundle state in the K8s cluster
-func (c *Client) getOrCreateBundleState(b *types.UDSBundle) (*BundleState, error) {
+func (c *Client) getOrCreateBundleState(b *types.UDSBundle) (*BundleState, bool, error) {
 	var state *BundleState
+	isNewState := false
 	bundleName := b.Metadata.Name
 	version := b.Metadata.Version
 	stateSecretName := fmt.Sprintf("uds-bundle-%s", bundleName)
@@ -103,6 +150,7 @@ func (c *Client) getOrCreateBundleState(b *types.UDSBundle) (*BundleState, error
 	if err != nil {
 		if errors.IsNotFound(err) {
 			var pkgStatuses []PkgStatus
+			isNewState = true
 			for _, pkg := range b.Packages {
 				pkgStatuses = append(pkgStatuses, PkgStatus{
 					Name:        pkg.Name,
@@ -123,7 +171,7 @@ func (c *Client) getOrCreateBundleState(b *types.UDSBundle) (*BundleState, error
 			// marshal into K8s secret and save
 			jsonBundleState, err := json.Marshal(state)
 			if err != nil {
-				return nil, fmt.Errorf("failed to marshal bundle state: %w", err)
+				return nil, isNewState, fmt.Errorf("failed to marshal bundle state: %w", err)
 			}
 			stateSecret = &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
@@ -135,22 +183,22 @@ func (c *Client) getOrCreateBundleState(b *types.UDSBundle) (*BundleState, error
 			}
 			_, err = c.client.CoreV1().Secrets(stateNs).Create(context.TODO(), stateSecret, metav1.CreateOptions{})
 			if err != nil {
-				return nil, err
+				return nil, isNewState, err
 			}
 		} else {
-			return nil, err
+			return nil, isNewState, err
 		}
 	} else {
 		state, err = c.unmarshalBundleState(stateSecret)
 		if err != nil {
-			return nil, err
+			return nil, isNewState, err
 		}
 	}
 
-	return state, nil
+	return state, isNewState, nil
 }
 
-// UpdateBundleState updates the bundle state in the K8s cluster (not the packages in the state)
+// UpdateBundleState updates the bundle state in the K8s cluster
 func (c *Client) UpdateBundleState(b *types.UDSBundle, status string) error {
 	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", b.Metadata.Name), metav1.GetOptions{})
 	if err != nil {
@@ -165,18 +213,9 @@ func (c *Client) UpdateBundleState(b *types.UDSBundle, status string) error {
 	bundleState.Version = b.Metadata.Version
 	bundleState.DateUpdated = time.Now()
 
-	jsonBundleState, err := json.Marshal(bundleState)
-	if err != nil {
-		return fmt.Errorf("failed to marshal bundle state: %w", err)
-	}
-
-	stateSecret.Data["data"] = jsonBundleState
-	_, err = c.client.CoreV1().Secrets(stateNs).Update(context.TODO(), stateSecret, metav1.UpdateOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to update secret: %w", err)
-	}
-
-	return nil
+	// update state
+	err = c.saveBundleState(bundleState)
+	return err
 }
 
 // GetBundleState gets the bundle state from the K8s cluster
@@ -198,6 +237,24 @@ func (c *Client) unmarshalBundleState(secret *corev1.Secret) (*BundleState, erro
 		}
 	}
 	return &bundleState, nil
+}
+
+// saveBundleState saves the bundle state to the K8s cluster (but doesn't create a new state)
+func (c *Client) saveBundleState(stateToSave *BundleState) error {
+	jsonBundleState, err := json.Marshal(stateToSave)
+	if err != nil {
+		return err
+	}
+	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", stateToSave.Name), metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	stateSecret.Data["data"] = jsonBundleState
+	_, err = c.client.CoreV1().Secrets(stateNs).Update(context.TODO(), stateSecret, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *Client) UpdateBundlePkgState(b *types.UDSBundle, bundledPkg types.Package, status string) error {
@@ -224,16 +281,8 @@ func (c *Client) UpdateBundlePkgState(b *types.UDSBundle, bundledPkg types.Packa
 
 	// save state
 	bundleState.DateUpdated = time.Now()
-	jsonBundleState, err := json.Marshal(bundleState)
-	if err != nil {
-		return err
-	}
-	stateSecret.Data["data"] = jsonBundleState
-	_, err = c.client.CoreV1().Secrets(stateNs).Update(context.TODO(), stateSecret, metav1.UpdateOptions{})
-	if err != nil {
-		return err
-	}
-	return nil
+	err = c.saveBundleState(bundleState)
+	return err
 }
 
 // GetBundlePkgState checks if a package exists in the bundle state
@@ -285,38 +334,6 @@ func (c *Client) RemoveBundleState(b *types.UDSBundle) error {
 	return nil
 }
 
-// MarkUnreferencedPackages marks packages as Unreferenced if they are in the bundle state but not in the bundle YAML
-func (c *Client) MarkUnreferencedPackages(b *types.UDSBundle) error {
-	state, err := c.GetBundleState(b)
-	if err != nil {
-		return err
-	}
-
-	if len(state.PkgStatuses) == 0 {
-		return nil // Early return if there are no packages in the state
-	}
-
-	// Create a map for quick lookup of packages in the bundle
-	bundlePkgs := make(map[string]types.Package, len(b.Packages))
-	for _, p := range b.Packages {
-		bundlePkgs[p.Name] = p
-	}
-
-	// check if packages in bundle state are in the bundle
-	for _, pkg := range state.PkgStatuses {
-		if _, exists := bundlePkgs[pkg.Name]; !exists {
-			if err := c.UpdateBundlePkgState(b, types.Package{
-				Name: pkg.Name,
-				Ref:  pkg.Version,
-			}, Unreferenced); err != nil {
-				return fmt.Errorf("failed to update package state for %s: %w", pkg.Name, err)
-			}
-		}
-	}
-
-	return nil
-}
-
 func (c *Client) GetUnreferencedPackages(b *types.UDSBundle) ([]types.Package, error) {
 	state, err := c.GetBundleState(b)
 	if err != nil {
@@ -350,22 +367,8 @@ func (c *Client) RemovePackageFromState(b *types.UDSBundle, pkgToRemove string) 
 	// update state
 	state.PkgStatuses = newPkgStatuses
 	state.DateUpdated = time.Now()
-	jsonBundleState, err := json.Marshal(state)
-	if err != nil {
-		return err
-	}
-
-	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", b.Metadata.Name), metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-	stateSecret.Data["data"] = jsonBundleState
-	_, err = c.client.CoreV1().Secrets(stateNs).Update(context.TODO(), stateSecret, metav1.UpdateOptions{})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	err = c.saveBundleState(state)
+	return err
 }
 
 // GetDeployedPackageNames returns the names of the packages that have been deployed

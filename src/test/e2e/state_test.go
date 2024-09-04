@@ -27,7 +27,7 @@ func TestUDSStateOnDeploy(t *testing.T) {
 	runCmd(t, fmt.Sprintf("create %s --confirm", bundlePath))
 	runCmd(t, fmt.Sprintf("deploy %s --confirm", deployPath))
 
-	t.Run("on deploy + update", func(t *testing.T) {
+	t.Run("on deploy + update/re-deploy", func(t *testing.T) {
 		bundleState := getStateSecret(t, bundleName)
 		originalDeployTimestamp := bundleState.DateUpdated
 		require.Equal(t, bundleName, bundleState.Name)
@@ -39,7 +39,7 @@ func TestUDSStateOnDeploy(t *testing.T) {
 		require.Equal(t, state.Success, bundleState.PkgStatuses[0].Status)
 		require.NotNil(t, bundleState.PkgStatuses[0].DateUpdated)
 
-		// update the bundle
+		// update the bundle (same version and number of packages, effectively a re-deploy)
 		runCmd(t, fmt.Sprintf("deploy %s --confirm", deployPath))
 		bundleState = getStateSecret(t, bundleName)
 		require.NotNil(t, bundleState.DateUpdated)
@@ -73,6 +73,8 @@ func TestUDSStateOnDeploy(t *testing.T) {
 		require.Equal(t, state.Success, bundleState.PkgStatuses[1].Status)
 	})
 }
+
+// todo: test updates with new version and added + removed packages!
 
 func TestUDSStateOnRemove(t *testing.T) {
 	// using dev deploy
