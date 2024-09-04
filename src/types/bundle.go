@@ -51,6 +51,7 @@ type BundleChartVariable struct {
 	Description string              `json:"description,omitempty" jsonschema:"name=Description of the variable"`
 	Default     interface{}         `json:"default,omitempty" jsonschema:"name=The default value to set"`
 	Type        chartvariable.Type  `json:"type,omitempty" jsonschema:"description=The type of value to be processed,enum=raw,enum=file"`
+	Sensitive   bool                `json:"sensitive,omitempty" jsonschema:"description=Whether the value is sensitive"`
 	Source      valuesources.Source `json:"source,omitempty" jsonschema:"description=Where the value is set from,enum=config,enum=env,enum=cli,enum=bundle"`
 }
 
