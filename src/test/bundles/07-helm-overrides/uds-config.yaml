@@ -27,4 +27,3 @@ variables:
             pathType: "Prefix"
     secret_file_val: "./variable-files/test.cert"
     second_chart_secret: "./variable-files/test.cert"
-    secret_val: "test"
