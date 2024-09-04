@@ -165,7 +165,7 @@ func (b *Bundle) Deploy() error {
 				// todo: pkg doesn't exist in bundle anymore...so what do we do about source for removal?
 				// todo: try using Zarf secret state as source!
 				//sha := strings.Split(pkg.Ref, "sha256:")[1]
-				source, err := sources.NewZarfStateSource(kc.Clientset, pkg.Name)
+				source, err := sources.NewFromZarfState(kc.Clientset, pkg.Name)
 				if err != nil {
 					return err
 				}
