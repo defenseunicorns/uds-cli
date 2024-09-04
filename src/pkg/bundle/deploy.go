@@ -146,7 +146,7 @@ func (b *Bundle) Deploy() error {
 			// remove unreferenced packages
 			for _, pkg := range unreferencedPkgs {
 				message.Infof("Removing unreferenced package: %v", pkg.Name)
-				err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Removing)
+				err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Removing) // todo: remove
 				if err != nil {
 					return err
 				}
@@ -163,8 +163,9 @@ func (b *Bundle) Deploy() error {
 				}
 
 				// todo: pkg doesn't exist in bundle anymore...so what do we do about source for removal?
-				sha := strings.Split(pkg.Ref, "sha256:")[1]
-				source, err := sources.New(*b.cfg, pkg, opts, sha, nil)
+				// todo: try using Zarf secret state as source!
+				//sha := strings.Split(pkg.Ref, "sha256:")[1]
+				source, err := sources.NewZarfStateSource(kc.Clientset, pkg.Name)
 				if err != nil {
 					return err
 				}
