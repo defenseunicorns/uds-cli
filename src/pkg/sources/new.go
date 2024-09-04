@@ -73,7 +73,7 @@ func NewFromZarfState(client kubernetes.Interface, pkgName string) (*ZarfState, 
 	secretName := fmt.Sprintf("zarf-package-%s", pkgName)
 	sec, err := client.CoreV1().Secrets("zarf").Get(context.TODO(), secretName, metav1.GetOptions{})
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 
 	// marshal secret to state
@@ -83,5 +83,5 @@ func NewFromZarfState(client kubernetes.Interface, pkgName string) (*ZarfState, 
 		return nil, err
 	}
 
-	return &ZarfState{state: state}, nil
+	return &ZarfState{state: &state}, nil
 }

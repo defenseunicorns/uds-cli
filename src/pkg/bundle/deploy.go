@@ -32,6 +32,7 @@ import (
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"golang.org/x/exp/slices"
+	"k8s.io/apimachinery/pkg/api/errors"
 )
 
 // hiddenVar is the value used to mask potentially sensitive variables
@@ -110,7 +111,6 @@ func (b *Bundle) Deploy() error {
 
 	// prune unreferenced packages
 	if b.cfg.DeployOpts.Prune {
-		// todo: do we need to handle the case of actions-only Zarf pkgs?
 		// get any unreferenced pkgs
 		unreferencedPkgs, err := sc.GetUnreferencedPackages(&b.bundle)
 		if err != nil {
@@ -162,11 +162,13 @@ func (b *Bundle) Deploy() error {
 					return err
 				}
 
-				// todo: pkg doesn't exist in bundle anymore...so what do we do about source for removal?
-				// todo: try using Zarf secret state as source!
-				//sha := strings.Split(pkg.Ref, "sha256:")[1]
 				source, err := sources.NewFromZarfState(kc.Clientset, pkg.Name)
 				if err != nil {
+					if errors.IsNotFound(err) {
+						// handles case where Zarf pkg is not found in cluster (or pkgs with only actions)
+						message.Warnf("Package %s state secret not found in cluster, skipping removal", pkg.Name)
+						continue
+					}
 					return err
 				}
 
@@ -294,7 +296,6 @@ func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundl
 			// ensure if variable exists in package
 			setVariable, ok := variableConfig.GetSetVariable(exp.Name)
 			if !ok {
-				// todo: don't fail on missing variable, just log (need a way to log warning at end of deploy?)
 				return fmt.Errorf("cannot export variable %s because it does not exist in package %s", exp.Name, pkg.Name)
 			}
 			pkgExportedVars[strings.ToUpper(exp.Name)] = setVariable.Value
