@@ -1,7 +1,10 @@
 kind: UDSBundle
 metadata:
   name: test-prune
-  description: updated bundle to demonstrate pruning
+  description: |
+    updated bundle to demonstrate pruning
+    - this is the "update" to the bundle in the 16-state/prune/uds-bundle.yaml
+    - noting that this bundle removes podinfo
   version: 0.0.1
 
 packages:

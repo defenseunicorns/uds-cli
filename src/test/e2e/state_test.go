@@ -14,9 +14,12 @@ import (
 )
 
 func TestUDSStateOnDeploy(t *testing.T) {
-	// even though we're using /no-cluster packages, we still need a cluster to create the state secret
+	// we are intentionally using no-cluster Zarf pkgs to this test super fast!
+	// even though we're using no-cluster packages, we still need a cluster to create the state secret
 	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false)
 	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/receive-var", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/real-simple", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var-collision", false)
 
 	// deploy bundle
 	bundleName := "state"
@@ -72,9 +75,60 @@ func TestUDSStateOnDeploy(t *testing.T) {
 		require.Equal(t, state.Success, bundleState.PkgStatuses[0].Status)
 		require.Equal(t, state.Success, bundleState.PkgStatuses[1].Status)
 	})
-}
 
-// todo: test updates with new version and added + removed packages!
+	t.Run("deploy multiple updates", func(t *testing.T) {
+		// deploy bundle update: bumps version and adds a Zarf pkg
+		bundlePath = "src/test/bundles/16-state/updated"
+		bundleTarball = fmt.Sprintf("uds-bundle-%s-%s-0.0.2.tar.zst", bundleName, e2e.Arch)
+		deployPath = fmt.Sprintf("%s/%s", bundlePath, bundleTarball)
+		runCmd(t, fmt.Sprintf("create %s --confirm", bundlePath))
+		runCmd(t, fmt.Sprintf("deploy %s --confirm", deployPath))
+
+		// ensure state got updated
+		bundleState := getStateSecret(t, bundleName)
+		require.Equal(t, "0.0.2", bundleState.Version)
+		require.Equal(t, state.Success, bundleState.Status)
+		require.Len(t, bundleState.PkgStatuses, 3)
+		for _, pkgStatus := range bundleState.PkgStatuses {
+			require.Equal(t, state.Success, pkgStatus.Status)
+		}
+
+		// deploy another bundle update: bumps version and adds a Zarf pkg + removes a Zarf pkg
+		bundlePath = "src/test/bundles/16-state/updated/updated-again"
+		bundleTarball = fmt.Sprintf("uds-bundle-%s-%s-0.0.3.tar.zst", bundleName, e2e.Arch)
+		deployPath = fmt.Sprintf("%s/%s", bundlePath, bundleTarball)
+		runCmd(t, fmt.Sprintf("create %s --confirm", bundlePath))
+		runCmd(t, fmt.Sprintf("deploy %s --confirm", deployPath))
+
+		// ensure state got updated
+		bundleState = getStateSecret(t, bundleName)
+		require.Equal(t, "0.0.3", bundleState.Version)
+		require.Equal(t, state.Success, bundleState.Status)
+		require.Len(t, bundleState.PkgStatuses, 4) // noting that we didn't call prune
+		checkedUnreferenced := false
+		successCount := 0
+		for _, pkgStatus := range bundleState.PkgStatuses {
+			if pkgStatus.Name == "output-var" {
+				require.Equal(t, state.Unreferenced, pkgStatus.Status)
+				checkedUnreferenced = true
+				continue
+			}
+			require.Equal(t, state.Success, pkgStatus.Status)
+			successCount++
+		}
+		require.True(t, checkedUnreferenced)
+		require.Equal(t, 3, successCount)
+
+		// re-deploy latest update with prune and check state
+		runCmd(t, fmt.Sprintf("deploy --prune %s --confirm", deployPath))
+		bundleState = getStateSecret(t, bundleName)
+		require.Len(t, bundleState.PkgStatuses, 3)
+		for _, pkgStatus := range bundleState.PkgStatuses {
+			require.Equal(t, state.Success, pkgStatus.Status)
+		}
+	})
+
+}
 
 func TestUDSStateOnRemove(t *testing.T) {
 	// using dev deploy
@@ -112,6 +166,7 @@ func TestPkgPruning(t *testing.T) {
 	// using dev deploy
 	removeZarfInit()
 
+	// using podinfo and nginx packages so we can test is deployments get pruned
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false)
 

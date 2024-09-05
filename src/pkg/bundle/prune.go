@@ -34,11 +34,13 @@ func (b *Bundle) handlePrune(sc *state.Client, kc *cluster.Cluster) error {
 		message.HeaderInfof("🪓 PRUNING UNREFERENCED PACKAGES")
 
 		// prompt user if no --confirm (noting dev deploy confirms automatically)
-		err, cancel := b.prunePrompt(unreferencedPkgs)
-		if err != nil {
-			return err
-		} else if cancel {
-			return nil
+		if !config.CommonOptions.Confirm {
+			err, cancel := b.prunePrompt(unreferencedPkgs)
+			if err != nil {
+				return err
+			} else if cancel {
+				return nil
+			}
 		}
 
 		// remove unreferenced packages
@@ -60,8 +62,12 @@ func (b *Bundle) handlePrune(sc *state.Client, kc *cluster.Cluster) error {
 			source, err := sources.NewFromZarfState(kc.Clientset, pkg.Name)
 			if err != nil {
 				if errors.IsNotFound(err) {
-					// handles case where Zarf pkg is not found in cluster (or pkgs with only actions)
-					message.Warnf("Package %s state secret not found in cluster, skipping removal", pkg.Name)
+					// handles case where Zarf pkg is not found in cluster, but exists in UDS state (ie. pkgs with only actions)
+					message.Debugf("Package %s state secret not found in cluster, updating UDS state", pkg.Name)
+					err = sc.RemovePackageFromState(&b.bundle, pkg.Name)
+					if err != nil {
+						return err
+					}
 					continue
 				}
 				return err
@@ -93,28 +99,26 @@ func (b *Bundle) handlePrune(sc *state.Client, kc *cluster.Cluster) error {
 }
 
 func (b *Bundle) prunePrompt(unreferencedPkgs []types.Package) (error, bool) {
-	confirm := config.CommonOptions.Confirm
-	if !confirm {
-		// format a list of pkg names and print prompt
-		unreferencedPkgNames := make([]string, 0)
-		for _, pkg := range unreferencedPkgs {
-			unreferencedPkgNames = append(unreferencedPkgNames, pkg.Name)
-		}
-		pkgList := strings.Join(unreferencedPkgNames, "\n  - ")
-		cyan := color.New(color.FgCyan).SprintFunc()
-		styledBundleName := cyan(b.bundle.Metadata.Name)
-		promptMessage := fmt.Sprintf("The following packages are no longer referenced by the bundle %s:\n  - %s\n\nAttempt removal of these packages?", styledBundleName, pkgList)
-		prompt := &survey.Confirm{
-			Message: promptMessage,
-		}
-		if err := survey.AskOne(prompt, &confirm); err != nil {
-			return fmt.Errorf("failed to prompt user: %w", err), true
-		}
-
-		if !confirm {
-			message.Info("Canceled prune operation")
-			return nil, true
-		}
+	// format a list of pkg names and print prompt
+	unreferencedPkgNames := make([]string, 0)
+	for _, pkg := range unreferencedPkgs {
+		unreferencedPkgNames = append(unreferencedPkgNames, pkg.Name)
 	}
+	pkgList := strings.Join(unreferencedPkgNames, "\n  - ")
+	cyan := color.New(color.FgCyan).SprintFunc()
+	styledBundleName := cyan(b.bundle.Metadata.Name)
+	promptMessage := fmt.Sprintf("The following packages are no longer referenced by the bundle %s:\n  - %s\n\nAttempt removal of these packages?", styledBundleName, pkgList)
+	prompt := &survey.Confirm{
+		Message: promptMessage,
+	}
+	if err := survey.AskOne(prompt, &config.CommonOptions.Confirm); err != nil {
+		return fmt.Errorf("failed to prompt user: %w", err), true
+	}
+
+	if !config.CommonOptions.Confirm {
+		message.Info("Canceled prune operation")
+		return nil, true
+	}
+
 	return nil, false
 }

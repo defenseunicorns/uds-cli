@@ -83,5 +83,5 @@ func NewFromZarfState(client kubernetes.Interface, pkgName string) (*ZarfState, 
 		return nil, err
 	}
 
-	return &ZarfState{state: &state}, nil
+	return &ZarfState{pkgName: pkgName, state: &state}, nil
 }

@@ -21,7 +21,7 @@ type ZarfState struct {
 }
 
 func (z *ZarfState) LoadPackageMetadata(_ context.Context, _ *layout.PackagePaths, _ bool, _ bool) (pkg v1alpha1.ZarfPackage, warnings []string, err error) {
-	if z.state != nil {
+	if z.state == nil {
 		return v1alpha1.ZarfPackage{}, nil, fmt.Errorf("missing metadata from deployed pkg: %s", z.pkgName)
 	}
 	return z.state.Data, nil, nil
