@@ -335,7 +335,6 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 	pkgviews := formPkgViews(b)
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
-	message.HorizontalRule()
 
 	message.Title("Metatdata:", "information about this bundle")
 	zarfUtils.ColorPrintYAML(map[string]string{"kind": b.bundle.Kind}, nil, false)
