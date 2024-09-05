@@ -28,7 +28,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/layout"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
-	"github.com/zarf-dev/zarf/src/pkg/utils"
+	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"golang.org/x/exp/slices"
 )
@@ -43,7 +43,7 @@ func (b *Bundle) Deploy() error {
 	// Check if --packages flag is set and zarf packages have been specified
 	if len(b.cfg.DeployOpts.Packages) != 0 {
 		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.DeployOpts.Packages[0], " ", ""), ",")
-		selectedPackages := []types.Package{}
+		var selectedPackages []types.Package
 		for _, pkg := range b.bundle.Packages {
 			if slices.Contains(userSpecifiedPackages, pkg.Name) {
 				selectedPackages = append(selectedPackages, pkg)
@@ -68,13 +68,13 @@ func (b *Bundle) Deploy() error {
 		return err
 	}
 
-	err = sc.InitBundleState(b.bundle)
+	err = sc.InitBundleState(&b.bundle)
 	if err != nil {
 		return err
 	}
 
 	// update bundle state with deploying
-	err = sc.UpdateBundleState(b.bundle, state.Deploying)
+	err = sc.UpdateBundleState(&b.bundle, state.Deploying)
 
 	// if resume, filter for packages not yet deployed
 	if b.cfg.DeployOpts.Resume {
@@ -91,14 +91,22 @@ func (b *Bundle) Deploy() error {
 
 	deployErr := deployPackages(sc, packagesToDeploy, b)
 	if deployErr != nil {
-		_ = sc.UpdateBundleState(b.bundle, state.Failed)
+		_ = sc.UpdateBundleState(&b.bundle, state.Failed)
 		return deployErr
 	}
 
 	// update bundle state with success
-	err = sc.UpdateBundleState(b.bundle, state.Success)
+	err = sc.UpdateBundleState(&b.bundle, state.Success)
 	if err != nil {
 		return err
+	}
+
+	// prune unreferenced packages
+	if b.cfg.DeployOpts.Prune {
+		err = b.handlePrune(sc, kc)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -119,7 +127,7 @@ func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundl
 			b.bundle.Packages[i] = pkg
 		}
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
-		pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
+		pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
 			return err
 		}
@@ -158,7 +166,7 @@ func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundl
 		// Automatically confirm the package deployment
 		zarfConfig.CommonOptions.Confirm = true
 
-		source, err := sources.New(*b.cfg, pkg, opts, sha, nsOverrides)
+		source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nsOverrides)
 		if err != nil {
 			return err
 		}
@@ -183,13 +191,13 @@ func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundl
 		}
 
 		if pkgDeployErr := pkgClient.Deploy(context.TODO()); pkgDeployErr != nil {
-			err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg, state.Failed)
+			err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Failed)
 			if err != nil {
 				return err
 			}
 			return pkgDeployErr
 		}
-		err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg, state.Success)
+		err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Success)
 		if err != nil {
 			return err
 		}
@@ -333,20 +341,20 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 	message.HorizontalRule()
 
 	message.Title("Metatdata:", "information about this bundle")
-	utils.ColorPrintYAML(b.bundle.Metadata, nil, false)
+	zarfUtils.ColorPrintYAML(b.bundle.Metadata, nil, false)
 
 	message.HorizontalRule()
 
 	message.Title("Build:", "info about the machine, UDS version, and the user that created this bundle")
-	utils.ColorPrintYAML(b.bundle.Build, nil, false)
+	zarfUtils.ColorPrintYAML(b.bundle.Build, nil, false)
 
 	message.HorizontalRule()
 
 	message.Title("Packages:", "definition of packages this bundle deploys, including variable overrides")
 
 	for _, pkg := range pkgviews {
-		utils.ColorPrintYAML(pkg.meta, nil, false)
-		utils.ColorPrintYAML(pkg.overrides, nil, false)
+		zarfUtils.ColorPrintYAML(pkg.meta, nil, false)
+		zarfUtils.ColorPrintYAML(pkg.overrides, nil, false)
 	}
 
 	message.HorizontalRule()

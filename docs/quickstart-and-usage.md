@@ -97,6 +97,20 @@ By default all the packages in the bundle are deployed, regardless of if they ha
 
 As an example: `uds deploy uds-bundle-<name>.tar.zst --resume`
 
+### Pruning Unreferenced Packages
+
+In the process of upgrading bundles, it's common to swap or remove packages from a `uds-bundle.yaml`. These packages can become `unreferenced`, meaning that they are still deployed to the cluster, but are no longer referenced by a bundle. To remove these packages from the cluster, you can use the `--prune` flag when deploying a bundle.
+
+```bash
+uds deploy <bundle> --prune
+```
+
+This command will prompt and inform the user of any packages that are unreferenced and will be pruned from the cluster. To skip the prompt, you can add the `--confirm` flag to the command.
+
+{{% alert-note %}}
+Currently, pruning will occur _after_ the bundle has been deployed.
+{{% /alert-note %}}
+
 #### Pre-Deploy View
 
 When `uds deploy` is executed, the bundle's metadata, along with a list of its packages and each package's overrides and Zarf variables, will be outputted to the terminal. Unlike [`inspect --list-variables`](#viewing-variables), this output will show the value set for each override or Zarf variable. Overrides and variables that have not been set will not be shown in the output.

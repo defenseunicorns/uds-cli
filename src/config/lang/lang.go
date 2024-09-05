@@ -50,6 +50,7 @@ const (
 	CmdBundleDeployFlagSet      = "Specify deployment variables to set on the command line (KEY=value)"
 	CmdBundleDeployFlagRetries  = "Specify the number of retries for package deployments (applies to all pkgs in a bundle)"
 	CmdBundleDeployFlagRef      = "Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used."
+	CmdBundleDeployFlagPrune    = "Forces the removal of packages that are no longer in the bundle"
 
 	// bundle inspect
 	CmdBundleInspectShort             = "Display the metadata of a bundle"

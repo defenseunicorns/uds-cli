@@ -8,9 +8,9 @@ The following 2 issues provide context driving the need for a UDS state tracking
 
 UDS CLI users have requested the ability to see the state of their bundles that are currently deployed in K8s cluster. This information is useful to know before applying upgrades, troubleshooting, removing bundles, etc. Currently, Zarf provides a `package list` command that lists all the packages in the cluster and users would like similar functionality for bundles.
 
-#### 2. Orphaned Zarf Packages
+#### 2. Unreferenced Zarf Packages
 
-Today it's possible for packages that have been removed from a `uds-bundle.yaml` but previously deployed in the cluster to become orphaned. For example, an engineer has created a UDS bundle consisting of 3 packages and deployed this bundle to a mission environment. Later, the engineer decides one of those packages is no longer needed, so they remove it from the bundle and deploy the bundle again. The package that was removed from the bundle is still present in the cluster and is now orphaned, and the engineer must manually remove it.
+Today it's possible for packages that have been removed from a `uds-bundle.yaml` but previously deployed in the cluster to become unreferenced. For example, an engineer has created a UDS bundle consisting of 3 packages and deployed this bundle to a mission environment. Later, the engineer decides one of those packages is no longer needed, so they remove it from the bundle and deploy the bundle again. The package that was removed from the bundle is still present in the cluster and is now unreferenced, and the engineer must manually remove it.
 
 ## UDS State
 
@@ -21,6 +21,7 @@ In order to address the above issues, the team has decided to implement a state 
 - Keep state as simple as possible. Meaning that we should think of state as a record of an event, as opposed to a complex object that drives CLI behavior.
 - No destructive action should be taken based on UDS state unless the user explicitly requests it.
 - State should be backwards compatible and should not interfere with existing UDS CLI functionality.
+  - For now, do not base any UDS CLI business logic on UDS state
   - On backwards compatibility: if a user attempts an action that is based on state but state does not exist, CLI should fail quickly and indicate to the user that state does not exist and provide instructions on how to create it (likely simply re-deploying the bundle)
 
 ## State Storage
@@ -62,11 +63,14 @@ type BundleState struct {
 }
 ```
 
-The `BundleState` struct will be stored in the secret's `data` field as a base64 encoded JSON string.
+Note that the `BundleState.DateUpdated` field refers to the last time the bundle itself or any of the bundled packages were updated. The `BundleState` struct will be stored in the secret's `data` field as a base64 encoded JSON string.
 
 #### Namespace
 
 The UDS state secret will be stored in the `uds` namespace. If the `uds` namespace doesn't exist, the CLI will create it.
+
+### Viewing State
+For now, we will not introduce a dedicated UDS CLI command for users to view state. To view state, users can either used the vendored tools (`kubectl` and/or `k9s`) or view the state in UDS Runtime.
 
 ## State Implementation
 
@@ -102,23 +106,23 @@ UDS CLI will provide a bundle state API in the form of a Go pkg called `github.c
   Removing     = "removing" // removal in progress
   Removed      = "removed" // package removed (does not apply to BundleState)
   FailedRemove = "failed_remove" // package failed to be removed (does not apply to BundleState)
-  Orphaned     = "orphaned" // package has been removed from the bundle but still exists in the cluster
+  Unreferenced     = "Unreferenced" // package has been removed from the bundle but still exists in the cluster
 ```
 
 We will intentionally keep the list of statuses small to reduce the need for more complex state management.
 
 ### Pruning
 
-If a package is removed from a bundle, the CLI will provide a mechanism to prune the cluster of orphaned packages and update state. The general algorithm for pruning is as follows:
+If a package is removed from a bundle, the CLI will provide a mechanism to prune the cluster of unreferenced packages and update state. The general algorithm for pruning is as follows:
 
 1. An engineer deploys a bundle containing package `foo` and package `bar`
 1. UDS state is updated to reflect the bundle and its 2 packages have deployed successfully
 1. Later, the engineer decides they no longer need package `bar` and removes it from their `uds-bundle.yaml`
-1. Upon the next deployment, the CLI will update the state to reflect that package `bar` is no longer in the bundle and will mark it as `Orphaned`
+1. Upon the next deployment, the CLI will update the state to reflect that package `bar` is no longer in the bundle and will mark it as `Unreferenced`
 
 #### Pruning Mechanisms
 
-There are 2 mechanisms for removing `Orphaned` packages from the cluster. Using the example above:
+There are 2 mechanisms for removing `Unreferenced` packages from the cluster. Using the example above:
 1. If the engineer runs `uds deploy ... --prune` then the CLI will remove package `bar` from the cluster and update the state to reflect that package `bar` has been removed, by removing `bar` from the bundle's state
-1. If the engineer runs `uds prune <bundle tarball>` then the user will be shown a list of orphaned packages and asked to confirm removal. The CLI will then remove the orphaned packages from the cluster and update the state to reflect that the packages have been removed.
-    - `uds prune` will also have a flag `--confirm` to automatically remove orphaned packages without user confirmation
+1. If the engineer runs `uds prune <bundle tarball>` then the user will be shown a list of unreferenced packages and asked to confirm removal. The CLI will then remove the unreferenced packages from the cluster and update the state to reflect that the packages have been removed.
+    - `uds prune` will also have a flag `--confirm` to automatically remove unreferenced packages without user confirmation

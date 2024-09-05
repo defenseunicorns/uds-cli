@@ -83,12 +83,12 @@ func (b *Bundle) Remove() error {
 		return err
 	}
 
-	err = sc.InitBundleState(b.bundle)
+	err = sc.InitBundleState(&b.bundle)
 	if err != nil {
 		return err
 	}
 
-	err = sc.UpdateBundleState(b.bundle, state.Removing)
+	err = sc.UpdateBundleState(&b.bundle, state.Removing)
 	if err != nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func (b *Bundle) Remove() error {
 	}
 
 	// remove bundle state secret
-	err = sc.RemoveBundleState(b.bundle)
+	err = sc.RemoveBundleState(&b.bundle)
 	if err != nil {
 		return err
 	}
@@ -112,7 +112,7 @@ func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundl
 	// Get deployed packages from Zarf state
 	deployedPackageNames := state.GetDeployedPackageNames()
 
-	bundleState, err := sc.GetBundleState(b.bundle.Metadata.Name)
+	bundleState, err := sc.GetBundleState(&b.bundle)
 	if err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundl
 		pkg := packagesToRemove[i]
 
 		if slices.Contains(deployedPackageNames, pkg.Name) {
-			err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg, state.Removing)
+			err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Removing)
 			if err != nil {
 				return err
 			}
@@ -138,7 +138,7 @@ func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundl
 			}
 
 			sha := strings.Split(pkg.Ref, "sha256:")[1]
-			source, err := sources.New(*b.cfg, pkg, opts, sha, nil)
+			source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nil)
 			if err != nil {
 				return err
 			}
@@ -150,14 +150,14 @@ func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundl
 			defer pkgClient.ClearTempPaths()
 
 			if removeErr := pkgClient.Remove(context.TODO()); removeErr != nil {
-				err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg, state.FailedRemove)
+				err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.FailedRemove)
 				if err != nil {
 					return err
 				}
 				return removeErr
 			}
 
-			err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg, state.Removed)
+			err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Removed)
 			if err != nil {
 				return err
 			}
@@ -166,7 +166,7 @@ func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundl
 			// update bundle state if exists in bundle but not in cluster (ie. simple Zarf pkgs with no artifacts)
 			for _, pkgState := range bundleState.PkgStatuses {
 				if pkgState.Name == pkg.Name {
-					err = sc.UpdateBundlePkgState(b.bundle.Metadata.Name, pkg, state.Removed)
+					err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Removed)
 					if err != nil {
 						return err
 					}
