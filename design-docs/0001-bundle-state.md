@@ -70,7 +70,7 @@ Note that the `BundleState.DateUpdated` field refers to the last time the bundle
 The UDS state secret will be stored in the `uds` namespace. If the `uds` namespace doesn't exist, the CLI will create it.
 
 ### Viewing State
-For now, we will not introduce a dedicated UDS CLI command for users to view state. To view state, useres can either used the vendored tools (`kubectl` and/or `k9s`) or view the state in UDS Runtime.
+For now, we will not introduce a dedicated UDS CLI command for users to view state. To view state, users can either used the vendored tools (`kubectl` and/or `k9s`) or view the state in UDS Runtime.
 
 ## State Implementation
 
