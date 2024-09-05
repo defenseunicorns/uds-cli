@@ -21,7 +21,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	goyaml "github.com/goccy/go-yaml"
-	"github.com/pterm/pterm"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	zarfConfig "github.com/zarf-dev/zarf/src/config"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
@@ -336,11 +335,10 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 	pkgviews := formPkgViews(b)
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
-	pterm.Println("kind: UDS Bundle")
-
 	message.HorizontalRule()
 
 	message.Title("Metatdata:", "information about this bundle")
+	zarfUtils.ColorPrintYAML(map[string]string{"kind": b.bundle.Kind}, nil, false)
 	zarfUtils.ColorPrintYAML(b.bundle.Metadata, nil, false)
 
 	message.HorizontalRule()
