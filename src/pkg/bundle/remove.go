@@ -75,20 +75,12 @@ func (b *Bundle) Remove() error {
 
 	// get bundle state
 	kc, err := cluster.NewCluster()
-	if err != nil {
-		return err
-	}
-	sc, err := state.NewClient(kc.Clientset)
-	if err != nil {
-		return err
-	}
-
-	err = sc.InitBundleState(&b.bundle)
+	sc, err := state.NewClient(kc, true)
 	if err != nil {
 		return err
 	}
 
-	err = sc.UpdateBundleState(&b.bundle, state.Removing)
+	err = sc.InitBundleState(&b.bundle, state.Removing)
 	if err != nil {
 		return err
 	}
@@ -119,6 +111,20 @@ func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundl
 
 	for i := len(packagesToRemove) - 1; i >= 0; i-- {
 		pkg := packagesToRemove[i]
+
+		// check if disconnected from cluster
+		kc, err := cluster.NewCluster()
+		if err != nil {
+			// cluster no longer available, disable state client
+			// (common scenario when running Zarf actions after cluster has been deleted)
+			sc.Enabled = false
+		} else if !sc.Enabled {
+			// re-enable state client if cluster was previously disconnected but we're now connected again
+			sc, err = state.NewClient(kc, true)
+			if err != nil {
+				return err
+			}
+		}
 
 		if slices.Contains(deployedPackageNames, pkg.Name) {
 			err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Removing)
