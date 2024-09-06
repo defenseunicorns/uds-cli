@@ -358,8 +358,7 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
 
-	message.Title("Metatdata:", "information about this bundle")
-	zarfUtils.ColorPrintYAML(map[string]string{"kind": b.bundle.Kind}, nil, false)
+	message.Title("Metadata:", "information about this bundle")
 	zarfUtils.ColorPrintYAML(b.bundle.Metadata, nil, false)
 
 	message.HorizontalRule()
