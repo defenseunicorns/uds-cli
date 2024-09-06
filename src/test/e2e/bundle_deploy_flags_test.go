@@ -70,7 +70,8 @@ func TestPackagesFlag(t *testing.T) {
 
 func TestResumeFlag(t *testing.T) {
 	// delete nginx, podinfo, and uds (state) namespaces if they exist
-	runCmdWithErr("zarf tools kubectl delete ns nginx podinfo uds")
+	// todo: add 'uds' to this list of namespaces once the state feature is turned on
+	runCmdWithErr("zarf tools kubectl delete ns nginx podinfo") // intentionally not err checking this cmd
 	deployZarfInit(t)
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 	bundleDir := "src/test/bundles/03-local-and-remote"

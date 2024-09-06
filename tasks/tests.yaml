@@ -38,7 +38,9 @@ tasks:
   - name: dev-and-state
     description: only run tests in dev_test.go and state_test.go (grouped bc neither require zarf init)
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m dev_test.go state_test.go commands_test.go main_test.go
+      # commenting out state tests for now as its behind a feature flag and not ready for CI
+      #- cmd: cd src/test/e2e && go test -failfast -v -timeout 30m dev_test.go state_test.go commands_test.go main_test.go
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m dev_test.go commands_test.go main_test.go
 
   - name: variable
     description: only run tests in variable_test.go
