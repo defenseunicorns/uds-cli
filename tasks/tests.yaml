@@ -80,6 +80,8 @@ tasks:
     actions:
       - cmd: build/uds deploy k3d-core-slim-dev:latest --confirm
       - cmd: |
+          # basic status checks
           build/uds zarf tools wait-for gateway admin-gateway -n istio-admin-gateway --timeout 10s
           build/uds zarf tools wait-for gateway tenant-gateway -n istio-tenant-gateway --timeout 10s
           build/uds zarf tools wait-for package keycloak -n keycloak --timeout 10s
+      - cmd: ./hack/validate-uds-core-state.sh
