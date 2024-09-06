@@ -4,7 +4,6 @@ metadata:
   description: uses very simple packages to test state
   version: 0.0.1
 
-
 packages:
   - name: output-var
     path: ../../packages/no-cluster/output-var
