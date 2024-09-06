@@ -171,10 +171,9 @@ func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundl
 			if err != nil {
 				return err
 			}
-
 		} else {
-			// update bundle state if exists in bundle but not in cluster (ie. simple Zarf pkgs with no artifacts)
 			if config.FF_STATE_ENABLED {
+				// update bundle state if exists in bundle but not in cluster (ie. simple Zarf pkgs with no artifacts)
 				for _, pkgState := range bundleState.PkgStatuses {
 					if pkgState.Name == pkg.Name {
 						err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Removed)
