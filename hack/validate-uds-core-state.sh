@@ -2,12 +2,26 @@
 
 # This script runs as part of the nightly UDS Core smoke tests and validates the state of the UDS Core bundle after deployment
 
-secret_data=$(kubectl get secret uds-bundle-k3d-core-slim-dev -n uds -o json | \
-  jq -r '.data.data' | \
-  base64 -d)
+set -e
 
-echo "Secret data:"
-echo "$secret_data" | jq '.'
+echo "Validating UDS Core state"
+
+get_secret_data() {
+  kubectl get secret uds-bundle-k3d-core-slim-dev -n uds -o json | \
+    jq -r '.data.data' | \
+    base64 -d
+}
+
+secret_data=$(get_secret_data) || {
+  echo "Error: Failed to retrieve secret data"
+  exit 1
+}
+
+echo "State data:"
+echo "$secret_data" | jq '.' || {
+  echo "Error: Failed to parse secret data as JSON"
+  exit 1
+}
 
 all_statuses_success=$(echo "$secret_data" | \
   jq -r '
@@ -16,7 +30,10 @@ all_statuses_success=$(echo "$secret_data" | \
     else
       "false"
     end
-  ')
+  ') || {
+  echo "Error: Failed to check statuses"
+  exit 1
+}
 
 if [ "$all_statuses_success" != "true" ]; then
   echo "Error: Not all statuses are successful"
@@ -26,7 +43,7 @@ if [ "$all_statuses_success" != "true" ]; then
       if .status != "success" then "Top-level status is not success" else empty end,
       (.packages[] | select(.status != "success") | "Package \(.name) status is not success")
     ] | .[]
-  '
+  ' || echo "Error: Failed to list issues"
   exit 1
 else
   echo "All statuses are successful"
