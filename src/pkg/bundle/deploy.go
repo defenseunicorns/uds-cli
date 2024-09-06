@@ -60,11 +60,10 @@ func (b *Bundle) Deploy() error {
 	// get bundle state
 	var sc *state.Client
 	var kc *cluster.Cluster
-	enabledState := true
-	if !config.FF_STATE_ENABLED {
+	if config.FF_STATE_ENABLED {
 		message.Debugf("state management disabled, skipping bundle state management")
-		enabledState = false
 		var err error
+		var enabledState bool
 		kc, err = cluster.NewCluster()
 		if err != nil {
 			// common scenario for Zarf actions run before cluster is available
@@ -78,6 +77,10 @@ func (b *Bundle) Deploy() error {
 		err = sc.InitBundleState(&b.bundle, state.Deploying)
 		if err != nil {
 			return err
+		}
+	} else {
+		sc = &state.Client{
+			Enabled: false,
 		}
 	}
 
@@ -221,7 +224,7 @@ func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundl
 		bundleExportedVars[pkg.Name] = pkgExportedVars
 
 		// if state client is still disabled, check for cluster connection
-		if !config.FF_STATE_ENABLED {
+		if config.FF_STATE_ENABLED {
 			if !sc.Enabled {
 				kc, err := cluster.NewCluster()
 				if err != nil {

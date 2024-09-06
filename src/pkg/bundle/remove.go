@@ -74,15 +74,24 @@ func (b *Bundle) Remove() error {
 	}
 
 	// get bundle state
-	kc, err := cluster.NewCluster()
-	sc, err := state.NewClient(kc, true)
-	if err != nil {
-		return err
-	}
+	var sc *state.Client
+	var kc *cluster.Cluster
+	if config.FF_STATE_ENABLED {
+		var err error
+		kc, err = cluster.NewCluster()
+		sc, err = state.NewClient(kc, true)
+		if err != nil {
+			return err
+		}
 
-	err = sc.InitBundleState(&b.bundle, state.Removing)
-	if err != nil {
-		return err
+		err = sc.InitBundleState(&b.bundle, state.Removing)
+		if err != nil {
+			return err
+		}
+	} else {
+		sc = &state.Client{
+			Enabled: false,
+		}
 	}
 
 	// remove packages
@@ -112,11 +121,13 @@ func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundl
 	for i := len(packagesToRemove) - 1; i >= 0; i-- {
 		pkg := packagesToRemove[i]
 
-		// check if disconnected from cluster
-		_, err = cluster.NewCluster()
-		if err != nil {
-			// cluster no longer available, disable state client (common scenario when running Zarf actions after cluster has been deleted)
-			sc.Enabled = false
+		if config.FF_STATE_ENABLED {
+			// check if disconnected from cluster
+			_, err = cluster.NewCluster()
+			if err != nil {
+				// cluster no longer available, disable state client (common scenario when running Zarf actions after cluster has been deleted)
+				sc.Enabled = false
+			}
 		}
 
 		if slices.Contains(deployedPackageNames, pkg.Name) {
@@ -163,16 +174,18 @@ func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundl
 
 		} else {
 			// update bundle state if exists in bundle but not in cluster (ie. simple Zarf pkgs with no artifacts)
-			for _, pkgState := range bundleState.PkgStatuses {
-				if pkgState.Name == pkg.Name {
-					err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Removed)
-					if err != nil {
-						return err
+			if config.FF_STATE_ENABLED {
+				for _, pkgState := range bundleState.PkgStatuses {
+					if pkgState.Name == pkg.Name {
+						err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Removed)
+						if err != nil {
+							return err
+						}
+						break
 					}
-					break
 				}
+				message.Debugf("Skipped removal of %s, package not found in Zarf or UDS state", pkg.Name)
 			}
-			message.Debugf("Skipped removal of %s, package not found in Zarf or UDS state", pkg.Name)
 		}
 	}
 
