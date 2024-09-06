@@ -34,7 +34,8 @@ type BundleState struct {
 }
 
 type Client struct {
-	client kubernetes.Interface
+	Client  kubernetes.Interface
+	Enabled bool
 }
 
 const (
@@ -49,22 +50,39 @@ const (
 	stateNs      = "uds"
 )
 
-// NewClient creates a new state client
-func NewClient(client kubernetes.Interface) (*Client, error) {
+// NewClient creates a new state Client
+func NewClient(kc *cluster.Cluster, enableState bool) (*Client, error) {
 	stateClient := &Client{
-		client: client,
+		Enabled: enableState,
 	}
+	if kc == nil {
+		stateClient.Client = nil
+		return stateClient, nil
+	}
+	stateClient.Client = kc.Clientset
 	return stateClient, nil
+}
+
+// stateDisabled indicates to the caller that state is currently disabled
+func (c *Client) stateDisabled() bool {
+	if !c.Enabled {
+		message.Debugf("state client is not enabled")
+		return true
+	}
+	return false
 }
 
 // InitBundleState initializes the bundle state in the K8s cluster if it doesn't exist.
 // This can safely be called multiple times
-func (c *Client) InitBundleState(b *types.UDSBundle) error {
+func (c *Client) InitBundleState(b *types.UDSBundle, status string) error {
+	if c.stateDisabled() {
+		return nil
+	}
 	err := c.ensureNamespace()
 	if err != nil {
 		return err
 	}
-	bundleState, isNewState, err := c.getOrCreateBundleState(b)
+	bundleState, isNewState, err := c.getOrCreateBundleState(b, status)
 	if err != nil {
 		return err
 	} else if isNewState {
@@ -113,6 +131,7 @@ func (c *Client) InitBundleState(b *types.UDSBundle) error {
 
 	// update state
 	bundleState.Version = b.Metadata.Version
+	bundleState.Status = status
 	bundleState.DateUpdated = time.Now()
 	err = c.saveBundleState(bundleState)
 	return err
@@ -120,7 +139,7 @@ func (c *Client) InitBundleState(b *types.UDSBundle) error {
 
 // ensureNamespace creates the uds namespace if it doesn't exist
 func (c *Client) ensureNamespace() error {
-	_, err := c.client.CoreV1().Namespaces().Get(context.TODO(), stateNs, metav1.GetOptions{})
+	_, err := c.Client.CoreV1().Namespaces().Get(context.TODO(), stateNs, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			ns := &corev1.Namespace{
@@ -128,7 +147,7 @@ func (c *Client) ensureNamespace() error {
 					Name: stateNs,
 				},
 			}
-			_, err = c.client.CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
+			_, err = c.Client.CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
 			if err != nil {
 				return fmt.Errorf("failed to create namespace: %w", err)
 			}
@@ -140,13 +159,13 @@ func (c *Client) ensureNamespace() error {
 }
 
 // getOrCreateBundleState gets or creates the bundle state in the K8s cluster
-func (c *Client) getOrCreateBundleState(b *types.UDSBundle) (*BundleState, bool, error) {
+func (c *Client) getOrCreateBundleState(b *types.UDSBundle, status string) (*BundleState, bool, error) {
 	var state *BundleState
 	isNewState := false
 	bundleName := b.Metadata.Name
 	version := b.Metadata.Version
 	stateSecretName := fmt.Sprintf("uds-bundle-%s", bundleName)
-	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), stateSecretName, metav1.GetOptions{})
+	stateSecret, err := c.Client.CoreV1().Secrets(stateNs).Get(context.TODO(), stateSecretName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			var pkgStatuses []PkgStatus
@@ -166,6 +185,7 @@ func (c *Client) getOrCreateBundleState(b *types.UDSBundle) (*BundleState, bool,
 				Version:     version,
 				PkgStatuses: pkgStatuses,
 				DateUpdated: time.Now(),
+				Status:      status,
 			}
 
 			// marshal into K8s secret and save
@@ -181,7 +201,7 @@ func (c *Client) getOrCreateBundleState(b *types.UDSBundle) (*BundleState, bool,
 					"data": jsonBundleState,
 				},
 			}
-			_, err = c.client.CoreV1().Secrets(stateNs).Create(context.TODO(), stateSecret, metav1.CreateOptions{})
+			_, err = c.Client.CoreV1().Secrets(stateNs).Create(context.TODO(), stateSecret, metav1.CreateOptions{})
 			if err != nil {
 				return nil, isNewState, err
 			}
@@ -200,7 +220,10 @@ func (c *Client) getOrCreateBundleState(b *types.UDSBundle) (*BundleState, bool,
 
 // UpdateBundleState updates the bundle state in the K8s cluster
 func (c *Client) UpdateBundleState(b *types.UDSBundle, status string) error {
-	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", b.Metadata.Name), metav1.GetOptions{})
+	if c.stateDisabled() {
+		return nil
+	}
+	stateSecret, err := c.Client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", b.Metadata.Name), metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get bundle state: %w", err)
 	}
@@ -220,8 +243,11 @@ func (c *Client) UpdateBundleState(b *types.UDSBundle, status string) error {
 
 // GetBundleState gets the bundle state from the K8s cluster
 func (c *Client) GetBundleState(b *types.UDSBundle) (*BundleState, error) {
+	if c.stateDisabled() {
+		return nil, nil
+	}
 	bundleName := b.Metadata.Name
-	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", bundleName), metav1.GetOptions{})
+	stateSecret, err := c.Client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", bundleName), metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get bundle state: %w", err)
 	}
@@ -245,12 +271,12 @@ func (c *Client) saveBundleState(stateToSave *BundleState) error {
 	if err != nil {
 		return err
 	}
-	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", stateToSave.Name), metav1.GetOptions{})
+	stateSecret, err := c.Client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", stateToSave.Name), metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
 	stateSecret.Data["data"] = jsonBundleState
-	_, err = c.client.CoreV1().Secrets(stateNs).Update(context.TODO(), stateSecret, metav1.UpdateOptions{})
+	_, err = c.Client.CoreV1().Secrets(stateNs).Update(context.TODO(), stateSecret, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}
@@ -258,9 +284,12 @@ func (c *Client) saveBundleState(stateToSave *BundleState) error {
 }
 
 func (c *Client) UpdateBundlePkgState(b *types.UDSBundle, bundledPkg types.Package, status string) error {
+	if c.stateDisabled() {
+		return nil
+	}
 	// get state
 	bundleName := b.Metadata.Name
-	stateSecret, err := c.client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", bundleName), metav1.GetOptions{})
+	stateSecret, err := c.Client.CoreV1().Secrets(stateNs).Get(context.TODO(), fmt.Sprintf("uds-bundle-%s", bundleName), metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -287,6 +316,9 @@ func (c *Client) UpdateBundlePkgState(b *types.UDSBundle, bundledPkg types.Packa
 
 // GetBundlePkgState checks if a package exists in the bundle state
 func (c *Client) GetBundlePkgState(b *types.UDSBundle, pkgName string) (*PkgStatus, error) {
+	if c.stateDisabled() {
+		return nil, nil
+	}
 	state, err := c.GetBundleState(b)
 	if err != nil {
 		return nil, err
@@ -302,6 +334,9 @@ func (c *Client) GetBundlePkgState(b *types.UDSBundle, pkgName string) (*PkgStat
 
 // RemoveBundleState removes the bundle state from the K8s cluster
 func (c *Client) RemoveBundleState(b *types.UDSBundle) error {
+	if c.stateDisabled() {
+		return nil
+	}
 	// ensure all packages have been removed before deleting
 	bundleName := b.Metadata.Name
 	state, err := c.GetBundleState(b)
@@ -326,7 +361,7 @@ func (c *Client) RemoveBundleState(b *types.UDSBundle) error {
 	}
 
 	// remove bundle state
-	err = c.client.CoreV1().Secrets(stateNs).Delete(context.TODO(),
+	err = c.Client.CoreV1().Secrets(stateNs).Delete(context.TODO(),
 		fmt.Sprintf("uds-bundle-%s", bundleName), metav1.DeleteOptions{})
 	if err != nil {
 		return err
@@ -335,6 +370,9 @@ func (c *Client) RemoveBundleState(b *types.UDSBundle) error {
 }
 
 func (c *Client) GetUnreferencedPackages(b *types.UDSBundle) ([]types.Package, error) {
+	if c.stateDisabled() {
+		return nil, nil
+	}
 	state, err := c.GetBundleState(b)
 	if err != nil {
 		return nil, err
@@ -351,6 +389,9 @@ func (c *Client) GetUnreferencedPackages(b *types.UDSBundle) ([]types.Package, e
 }
 
 func (c *Client) RemovePackageFromState(b *types.UDSBundle, pkgToRemove string) error {
+	if c.stateDisabled() {
+		return nil
+	}
 	state, err := c.GetBundleState(b)
 	if err != nil {
 		return err

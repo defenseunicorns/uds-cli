@@ -58,22 +58,21 @@ func (b *Bundle) Deploy() error {
 	}
 
 	// get bundle state
+	enabledState := true
 	kc, err := cluster.NewCluster()
 	if err != nil {
-		return err
+		// common scenario for Zarf actions run before cluster is available
+		enabledState = false
 	}
-	sc, err := state.NewClient(kc.Clientset)
+	sc, err := state.NewClient(kc, enabledState)
 	if err != nil {
 		return err
 	}
 
-	err = sc.InitBundleState(&b.bundle)
+	err = sc.InitBundleState(&b.bundle, state.Deploying)
 	if err != nil {
 		return err
 	}
-
-	// update bundle state with deploying
-	err = sc.UpdateBundleState(&b.bundle, state.Deploying)
 
 	// if resume, filter for packages not yet deployed
 	if b.cfg.DeployOpts.Resume {
@@ -213,6 +212,29 @@ func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundl
 			pkgExportedVars[strings.ToUpper(exp.Name)] = setVariable.Value
 		}
 		bundleExportedVars[pkg.Name] = pkgExportedVars
+
+		// if state client is still disabled, check for cluster connection
+		if !sc.Enabled {
+			kc, err := cluster.NewCluster()
+			if err != nil {
+				message.Debugf("not connected to cluster, skipping bundle state management")
+			} else {
+				message.Debugf("connected to cluster, enabling bundle state management")
+				sc.Client = kc.Clientset
+				sc.Enabled = true
+				err = sc.InitBundleState(&b.bundle, state.Deploying)
+				if err != nil {
+					return err
+				}
+				// got a cluster now! update UDS state with the pkgs that were deployed before the cluster was up
+				for j := 0; j <= i; j++ {
+					err = sc.UpdateBundlePkgState(&b.bundle, packagesToDeploy[j], state.Success)
+					if err != nil {
+						return err
+					}
+				}
+			}
+		}
 	}
 
 	return nil
