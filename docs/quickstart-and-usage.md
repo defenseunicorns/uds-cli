@@ -509,3 +509,7 @@ uds scan --org <organization> --package-name <package-name> --tag <tag> [options
 ```sh
 uds scan -o defenseunicorns -n packages/uds/gitlab-runner -g 16.10.0-uds.0-upstream -u docker-username -p docker-password -f gitlab-runner.csv
 ```
+
+## UDS Runtime
+
+The `uds ui` command launches UDS Runtime, which gives you a user interface to view what is running in your cluster. More information regarding UDS Runtime can be found [here](https://github.com/defenseunicorns/uds-runtime).
