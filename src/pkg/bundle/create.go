@@ -41,6 +41,13 @@ func (b *Bundle) Create() error {
 		return err
 	}
 
+	// validate bundle name to avoid bad characters
+	name, err := utils.FormatBundleName(b.bundle.Metadata.Name)
+	if err != nil {
+		return err
+	}
+	b.bundle.Metadata.Name = name
+
 	// confirm creation
 	if ok := b.confirmBundleCreation(); !ok {
 		return fmt.Errorf("bundle creation cancelled")
