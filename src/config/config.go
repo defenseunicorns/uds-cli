@@ -118,3 +118,8 @@ var (
 	// BundleAlwaysPull is a list of paths that will always be pulled from the remote repository.
 	BundleAlwaysPull = []string{BundleYAML, BundleYAMLSignature}
 )
+
+// feature flag to enable/disable features
+const (
+	FF_STATE_ENABLED = false
+)

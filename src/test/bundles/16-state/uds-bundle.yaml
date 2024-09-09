@@ -1,0 +1,14 @@
+kind: UDSBundle
+metadata:
+  name: state
+  description: uses very simple packages to test state
+  version: 0.0.1
+
+packages:
+  - name: output-var
+    path: ../../packages/no-cluster/output-var
+    ref: 0.0.1
+
+  - name: receive-var
+    path: ../../packages/no-cluster/receive-var
+    ref: 0.0.1

@@ -22,6 +22,7 @@ uds dev deploy [BUNDLE_DIR|OCI_REF] [flags]
       --force-create           [beta] For local bundles with local packages, specify whether to create a zarf package even if it already exists.
   -h, --help                   help for deploy
   -p, --packages stringArray   Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed.
+  -P, --prune                  Forces the removal of packages that are no longer in the bundle
   -r, --ref stringToString     Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used. (default [])
       --set stringToString     Specify deployment variables to set on the command line (KEY=value) (default [])
 ```

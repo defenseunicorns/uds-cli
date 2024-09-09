@@ -83,6 +83,10 @@
           "type": "string",
           "description": "The type of value to be processed"
         },
+        "sensitive": {
+          "type": "boolean",
+          "description": "Whether the value is sensitive"
+        },
         "source": {
           "enum": [
             "config",

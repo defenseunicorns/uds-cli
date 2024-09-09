@@ -69,6 +69,9 @@ func TestPackagesFlag(t *testing.T) {
 }
 
 func TestResumeFlag(t *testing.T) {
+	// delete nginx, podinfo, and uds (state) namespaces if they exist
+	// todo: add 'uds' to this list of namespaces once the state feature is turned on
+	runCmdWithErr("zarf tools kubectl delete ns nginx podinfo") // intentionally not err checking this cmd
 	deployZarfInit(t)
 	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 	bundleDir := "src/test/bundles/03-local-and-remote"
@@ -76,8 +79,9 @@ func TestResumeFlag(t *testing.T) {
 
 	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 
-	inspectLocal(t, bundlePath)
-	inspectLocalAndSBOMExtract(t, bundlePath)
+	bundleName := "test-local-and-remote"
+	inspectLocal(t, bundlePath, bundleName)
+	inspectLocalAndSBOMExtract(t, bundleName, bundlePath)
 
 	getDeploymentsCmd := "zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'"
 
@@ -112,7 +116,7 @@ func TestResumeFlag(t *testing.T) {
 	require.Contains(t, deployments, "nginx")
 
 	// Remove only nginx
-	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure --packages %s", bundlePath, "nginx"))
+	runCmd(t, fmt.Sprintf("remove %s --confirm --packages %s", bundlePath, "nginx"))
 	deployments, _ = runCmd(t, getDeploymentsCmd)
 	require.NotContains(t, deployments, "nginx")
 	require.Contains(t, deployments, "podinfo")

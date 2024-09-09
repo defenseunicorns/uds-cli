@@ -50,6 +50,7 @@ const (
 	CmdBundleDeployFlagSet      = "Specify deployment variables to set on the command line (KEY=value)"
 	CmdBundleDeployFlagRetries  = "Specify the number of retries for package deployments (applies to all pkgs in a bundle)"
 	CmdBundleDeployFlagRef      = "Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used."
+	CmdBundleDeployFlagPrune    = "Forces the removal of packages that are no longer in the bundle"
 
 	// bundle inspect
 	CmdBundleInspectShort             = "Display the metadata of a bundle"
@@ -65,7 +66,8 @@ const (
 	CmdBundleRemoveFlagPackages = "Specify which zarf packages you would like to remove from the bundle. By default all zarf packages in the bundle are removed."
 
 	// bundle publish
-	CmdPublishShort = "Publish a bundle from the local file system to a remote registry"
+	CmdPublishShort       = "Publish a bundle from the local file system to a remote registry"
+	CmdPublishVersionFlag = "Specify the version of the bundle to be published"
 
 	// bundle pull
 	CmdBundlePullShort      = "Pull a bundle from a remote registry and save to the local file system"

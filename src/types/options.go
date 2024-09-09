@@ -32,6 +32,7 @@ type BundleDeployOptions struct {
 	Source        string
 	Config        string
 	Packages      []string
+	Prune         bool
 	PublicKeyPath string
 	SetVariables  map[string]string `json:"setVariables" jsonschema:"description=Key-Value map of variable names and their corresponding values that will be used by Zarf packages in a bundle"`
 	// Variables and SharedVariables are read in from uds-config.yaml
@@ -49,12 +50,14 @@ type BundleInspectOptions struct {
 	ExtractSBOM   bool
 	ListImages    bool
 	ListVariables bool
+	IsYAMLFile    bool
 }
 
 // BundlePublishOptions is the options for the bundle.Publish() function
 type BundlePublishOptions struct {
 	Source      string
 	Destination string
+	Version     string
 }
 
 // BundlePullOptions is the options for the bundler.Pull() function

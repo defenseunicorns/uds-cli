@@ -38,7 +38,7 @@ type tarballBundleProvider struct {
 }
 
 // CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
-func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool) error {
+func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName string) error {
 	rootManifest, err := tp.getBundleManifest()
 	if err != nil {
 		return err
@@ -104,12 +104,12 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool) error {
 		if err != nil {
 			return err
 		}
-		err = utils.MoveExtractedSBOMs(tp.dst, currentDir)
+		err = utils.MoveExtractedSBOMs(bundleName, tp.dst, currentDir)
 		if err != nil {
 			return err
 		}
 	} else {
-		err = utils.CreateSBOMArtifact(SBOMArtifactPathMap)
+		err = utils.CreateSBOMArtifact(SBOMArtifactPathMap, bundleName)
 		if err != nil {
 			return err
 		}
@@ -286,10 +286,12 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	remote.SetProgressWriter(progressBar)
 	defer remote.ClearProgressWriter()
 
-	ref := bundle.Metadata.Version
+	srcRef := bundle.Metadata.Version
+	// use tag given to remote e.g. ghcr.io/path/my-bundle:tag
+	dstRef := remote.Repo().Reference.Reference
 
 	// check for existing index
-	index, err := boci.GetIndex(remote, ref)
+	index, err := boci.GetIndex(remote, srcRef)
 	if err != nil {
 		return err
 	}
@@ -305,7 +307,7 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	}
 
 	for {
-		_, err = oras.Copy(tp.ctx, store, ref, remote.Repo(), ref, copyOpts)
+		_, err = oras.Copy(tp.ctx, store, srcRef, remote.Repo(), dstRef, copyOpts)
 		if err != nil && retries < maxRetries {
 			retries++
 			message.Debugf("Encountered err during publish: %s\nRetrying %d/%d", err, retries, maxRetries)

@@ -1,0 +1,20 @@
+kind: UDSBundle
+metadata:
+  name: state
+  description: |
+    - this is the "update" to the bundle in the 16-state/updated/uds-bundle.yaml
+    - noting that this bundle adds a new pkg, removes a pkg, and bumps the bundle version
+  version: 0.0.3
+
+packages:
+  - name: output-var-collision
+    path: ../../../../packages/no-cluster/output-var-collision
+    ref: 0.0.1
+
+  - name: receive-var
+    path: ../../../../packages/no-cluster/receive-var
+    ref: 0.0.1
+
+  - name: real-simple
+    path: ../../../../packages/no-cluster/real-simple
+    ref: 0.0.1

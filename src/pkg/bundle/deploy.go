@@ -16,17 +16,18 @@ import (
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
+	"github.com/defenseunicorns/uds-cli/src/pkg/state"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	goyaml "github.com/goccy/go-yaml"
-	"github.com/pterm/pterm"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	zarfConfig "github.com/zarf-dev/zarf/src/config"
+	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/layout"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
-	"github.com/zarf-dev/zarf/src/pkg/utils"
+	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"golang.org/x/exp/slices"
 )
@@ -41,7 +42,7 @@ func (b *Bundle) Deploy() error {
 	// Check if --packages flag is set and zarf packages have been specified
 	if len(b.cfg.DeployOpts.Packages) != 0 {
 		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.DeployOpts.Packages[0], " ", ""), ",")
-		selectedPackages := []types.Package{}
+		var selectedPackages []types.Package
 		for _, pkg := range b.bundle.Packages {
 			if slices.Contains(userSpecifiedPackages, pkg.Name) {
 				selectedPackages = append(selectedPackages, pkg)
@@ -56,10 +57,37 @@ func (b *Bundle) Deploy() error {
 		}
 	}
 
+	// get bundle state
+	var sc *state.Client
+	var kc *cluster.Cluster
+	if config.FF_STATE_ENABLED {
+		message.Debugf("state management disabled, skipping bundle state management")
+		var err error
+		var enabledState bool
+		kc, err = cluster.NewCluster()
+		if err != nil {
+			// common scenario for Zarf actions run before cluster is available
+			enabledState = false
+		}
+		sc, err = state.NewClient(kc, enabledState)
+		if err != nil {
+			return err
+		}
+
+		err = sc.InitBundleState(&b.bundle, state.Deploying)
+		if err != nil {
+			return err
+		}
+	} else {
+		sc = &state.Client{
+			Enabled: false,
+		}
+	}
+
 	// if resume, filter for packages not yet deployed
 	if b.cfg.DeployOpts.Resume {
-		deployedPackageNames := GetDeployedPackageNames()
-		notDeployed := []types.Package{}
+		deployedPackageNames := state.GetDeployedPackageNames()
+		var notDeployed []types.Package
 
 		for _, pkg := range packagesToDeploy {
 			if !slices.Contains(deployedPackageNames, pkg.Name) {
@@ -69,10 +97,30 @@ func (b *Bundle) Deploy() error {
 		packagesToDeploy = notDeployed
 	}
 
-	return deployPackages(packagesToDeploy, b)
+	deployErr := deployPackages(sc, packagesToDeploy, b)
+	if deployErr != nil {
+		_ = sc.UpdateBundleState(&b.bundle, state.Failed)
+		return deployErr
+	}
+
+	// update bundle state with success
+	err := sc.UpdateBundleState(&b.bundle, state.Success)
+	if err != nil {
+		return err
+	}
+
+	// prune unreferenced packages
+	if b.cfg.DeployOpts.Prune {
+		err = b.handlePrune(sc, kc)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
+func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundle) error {
 	// map of Zarf pkgs and their vars
 	bundleExportedVars := make(map[string]map[string]string)
 
@@ -87,7 +135,7 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 			b.bundle.Packages[i] = pkg
 		}
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
-		pkgTmp, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
+		pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
 			return err
 		}
@@ -126,7 +174,7 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 		// Automatically confirm the package deployment
 		zarfConfig.CommonOptions.Confirm = true
 
-		source, err := sources.New(*b.cfg, pkg, opts, sha, nsOverrides)
+		source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nsOverrides)
 		if err != nil {
 			return err
 		}
@@ -150,9 +198,18 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 			return err
 		}
 
-		if err = pkgClient.Deploy(context.TODO()); err != nil {
+		if pkgDeployErr := pkgClient.Deploy(context.TODO()); pkgDeployErr != nil {
+			err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Failed)
+			if err != nil {
+				return err
+			}
+			return pkgDeployErr
+		}
+		err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Success)
+		if err != nil {
 			return err
 		}
+
 		// save exported vars
 		pkgExportedVars := make(map[string]string)
 		variableConfig := pkgClient.GetVariableConfig()
@@ -165,8 +222,33 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 			pkgExportedVars[strings.ToUpper(exp.Name)] = setVariable.Value
 		}
 		bundleExportedVars[pkg.Name] = pkgExportedVars
-	}
 
+		// if state client is still disabled, check for cluster connection
+		if config.FF_STATE_ENABLED {
+			if !sc.Enabled {
+				kc, err := cluster.NewCluster()
+				if err != nil {
+					message.Debugf("not connected to cluster, skipping bundle state management")
+				} else {
+					message.Debugf("connected to cluster, enabling bundle state management")
+					sc.Client = kc.Clientset
+					sc.Enabled = true
+					err = sc.InitBundleState(&b.bundle, state.Deploying)
+					if err != nil {
+						return err
+					}
+					// got a cluster now! update UDS state with the pkgs that were deployed before the cluster was up
+					for j := 0; j <= i; j++ {
+						err = sc.UpdateBundlePkgState(&b.bundle, packagesToDeploy[j], state.Success)
+						if err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+
+	}
 	return nil
 }
 
@@ -287,25 +369,22 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 	pkgviews := formPkgViews(b)
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
-	pterm.Println("kind: UDS Bundle")
 
-	message.HorizontalRule()
-
-	message.Title("Metatdata:", "information about this bundle")
-	utils.ColorPrintYAML(b.bundle.Metadata, nil, false)
+	message.Title("Metadata:", "information about this bundle")
+	zarfUtils.ColorPrintYAML(b.bundle.Metadata, nil, false)
 
 	message.HorizontalRule()
 
 	message.Title("Build:", "info about the machine, UDS version, and the user that created this bundle")
-	utils.ColorPrintYAML(b.bundle.Build, nil, false)
+	zarfUtils.ColorPrintYAML(b.bundle.Build, nil, false)
 
 	message.HorizontalRule()
 
 	message.Title("Packages:", "definition of packages this bundle deploys, including variable overrides")
 
 	for _, pkg := range pkgviews {
-		utils.ColorPrintYAML(pkg.meta, nil, false)
-		utils.ColorPrintYAML(pkg.overrides, nil, false)
+		zarfUtils.ColorPrintYAML(pkg.meta, nil, false)
+		zarfUtils.ColorPrintYAML(pkg.overrides, nil, false)
 	}
 
 	message.HorizontalRule()
@@ -394,7 +473,7 @@ func extractValues(helmChartVars map[string]interface{}, variables []types.Bundl
 	viewVars := make(map[string]interface{})
 	for _, v := range variables {
 		// Mask potentially sensitive variables
-		if v.Type == chartvariable.File || v.Source == valuesources.Env {
+		if v.Type == chartvariable.File || v.Source == valuesources.Env || v.Sensitive {
 			viewVars[v.Name] = hiddenVar
 			continue
 		}

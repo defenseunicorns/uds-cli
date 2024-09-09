@@ -6,6 +6,7 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -14,8 +15,8 @@ import (
 )
 
 // CreateSBOMArtifact creates sbom artifacts in the form of a tar archive
-func CreateSBOMArtifact(SBOMArtifactPathMap map[string]string) error {
-	out, err := os.Create(config.BundleSBOMTar)
+func CreateSBOMArtifact(SBOMArtifactPathMap map[string]string, bundleName string) error {
+	out, err := os.Create(fmt.Sprintf("%s-%s", bundleName, config.BundleSBOMTar))
 	if err != nil {
 		return err
 	}
@@ -33,13 +34,24 @@ func CreateSBOMArtifact(SBOMArtifactPathMap map[string]string) error {
 }
 
 // MoveExtractedSBOMs moves the extracted SBOM HTML and JSON files from src to dst
-func MoveExtractedSBOMs(src, dst string) error {
+func MoveExtractedSBOMs(bundleName, src, dst string) error {
 	srcSBOMPath := filepath.Join(src, config.BundleSBOM)
-	sbomDir := filepath.Join(dst, config.BundleSBOM)
+	extractDirName := fmt.Sprintf("%s-%s", bundleName, config.BundleSBOM)
+	sbomDir := filepath.Join(dst, extractDirName)
+
+	// if sbomDir already exists, remove to make room for new sboms
+	if _, err := os.Stat(sbomDir); err == nil {
+		err = os.RemoveAll(sbomDir)
+		if err != nil {
+			return err
+		}
+	}
+
 	err := os.Rename(srcSBOMPath, sbomDir)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 

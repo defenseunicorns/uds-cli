@@ -35,9 +35,11 @@ tasks:
     actions:
       - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m completion_test.go commands_test.go main_test.go
 
-  - name: dev
-    description: only run tests in dev.go
+  - name: dev-and-state
+    description: only run tests in dev_test.go and state_test.go (grouped bc neither require zarf init)
     actions:
+      # commenting out state tests for now as its behind a feature flag and not ready for CI
+      #- cmd: cd src/test/e2e && go test -failfast -v -timeout 30m dev_test.go state_test.go commands_test.go main_test.go
       - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m dev_test.go commands_test.go main_test.go
 
   - name: variable
@@ -76,10 +78,13 @@ tasks:
       - cmd: find src/test -type f -name '*.tar.zst' -delete
 
   - name: ci-uds-core-smoke-test
-    description: deploy UDS Core and runs a couple of validations
+    description: deploy UDS Core (slim dev) and run validations
     actions:
-      - cmd: build/uds deploy k3d-core-istio-dev:0.16.1 --confirm
+      - cmd: build/uds deploy k3d-core-slim-dev:latest --confirm
       - cmd: |
+          # basic status checks
           build/uds zarf tools wait-for gateway admin-gateway -n istio-admin-gateway --timeout 10s
-          build/uds zarf tools wait-for gateway admin-gateway -n istio-admin-gateway --timeout 10s
-          build/uds zarf tools wait-for gateway admin-gateway -n istio-admin-gateway --timeout 10s
+          build/uds zarf tools wait-for gateway tenant-gateway -n istio-tenant-gateway --timeout 10s
+          build/uds zarf tools wait-for package keycloak -n keycloak --timeout 10s
+# commenting out state tests until we re-enable the feature
+#      - cmd: ./hack/validate-uds-core-state.sh

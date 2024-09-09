@@ -6,9 +6,11 @@ package test
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/registry"
 )
@@ -42,7 +44,7 @@ func TestBundleCreateAndPublishGHCR(t *testing.T) {
 	registryURL = "ghcr.io/defenseunicorns/packages/uds-cli/test/publish"
 	runCmd(t, fmt.Sprintf("publish %s %s --oci-concurrency=10", bundlePathAMD, registryURL))
 
-	inspectRemote(t, bundlePathARM)
+	inspectRemote(t, registryURL, bundleName, "0.0.1")
 	pull(t, bundleRef.String(), bundleTarballName)
 	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundleRef.String()))
 	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundleRef.String()))
@@ -70,7 +72,7 @@ func TestBundleCreateRemoteAndDeployGHCR(t *testing.T) {
 	runCmd(t, fmt.Sprintf("create %s -o %s --confirm -a %s", bundleDir, registryURL, "arm64"))
 	runCmd(t, fmt.Sprintf("create %s -o %s --confirm -a %s", bundleDir, registryURL, "amd64"))
 
-	inspectRemote(t, bundleRef.String())
+	inspectRemote(t, registryURL, bundleName, bundleRef.Reference)
 	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundleRef.String()))
 	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundleRef.String()))
 
@@ -82,22 +84,23 @@ func TestBundleCreateRemoteAndDeployGHCR(t *testing.T) {
 
 // This test requires the following to be published (based on src/test/bundles/06-ghcr/uds-bundle.yaml):
 // ghcr.io/defenseunicorns/packages/uds/bundles/ghcr-test:0.0.1
-// ghcr.io/defenseunicorns/packages/uds/bundles/ghcr-test:0.0.1
 // ghcr.io/defenseunicorns/packages/delivery/ghcr-test:0.0.1
-// ghcr.io/defenseunicorns/packages/delivery/ghcr-test:0.0.1
-// ghcr.io/defenseunicorns/packages/delivery/ghcr-delivery-test:0.0.1
 // ghcr.io/defenseunicorns/packages/delivery/ghcr-delivery-test:0.0.1
 // The default bundle location if no source path provided is defenseunicorns/packages/uds/bundles/"
 func TestGHCRPathExpansion(t *testing.T) {
-	bundleName := "ghcr-test:0.0.1"
-	inspectRemote(t, bundleName)
+	ref := "0.0.1"
+	bundleName := "ghcr-test"
 
-	bundleName = fmt.Sprintf("ghcr-delivery-test:0.0.1-%s", e2e.Arch)
-	inspectRemote(t, bundleName)
+	// remove any existing sbom tar files
+	_ = os.Remove(fmt.Sprintf("%s-%s", bundleName, config.BundleSBOMTar))
 
-	bundleName = fmt.Sprintf("delivery/ghcr-test:0.0.1-%s", e2e.Arch)
-	inspectRemote(t, bundleName)
+	// test shorthand for: ghcr.io/defenseunicorns/packages/uds/bundles/ghcr-test:0.0.1
+	inspectRemote(t, "", bundleName, ref)
 
-	bundleName = "ghcr.io/defenseunicorns/packages/delivery/ghcr-delivery-test:0.0.1"
-	inspectRemote(t, bundleName)
+	// test shorthand for: ghcr.io/defenseunicorns/packages/delivery/ghcr-test:0.0.1
+	inspectRemote(t, "delivery/", bundleName, ref)
+
+	// test shorthand for: ghcr.io/defenseunicorns/packages/delivery/ghcr-delivery-test:0.0.1
+	bundleName = "ghcr-delivery-test"
+	inspectRemote(t, "", bundleName, ref)
 }

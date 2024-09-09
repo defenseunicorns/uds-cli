@@ -5,6 +5,8 @@
 package sources
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -15,10 +17,12 @@ import (
 	zarfSources "github.com/zarf-dev/zarf/src/pkg/packager/sources"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
-// New creates a new package source based on pkgLocation
-func New(bundleCfg types.BundleConfig, pkg types.Package, opts zarfTypes.ZarfPackageOptions, sha string, nsOverrides NamespaceOverrideMap) (zarfSources.PackageSource, error) {
+// NewFromLocation creates a new package source based on pkgLocation
+func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, opts zarfTypes.ZarfPackageOptions, sha string, nsOverrides NamespaceOverrideMap) (zarfSources.PackageSource, error) {
 	var source zarfSources.PackageSource
 	var pkgLocation string
 	if bundleCfg.DeployOpts.Source != "" {
@@ -60,4 +64,24 @@ func New(bundleCfg types.BundleConfig, pkg types.Package, opts zarfTypes.ZarfPac
 		}
 	}
 	return source, nil
+}
+
+// NewFromZarfState creates a new ZarfState package source
+// only used for remove operations on prune
+func NewFromZarfState(client kubernetes.Interface, pkgName string) (*ZarfState, error) {
+	// get secret from K8s
+	secretName := fmt.Sprintf("zarf-package-%s", pkgName)
+	sec, err := client.CoreV1().Secrets("zarf").Get(context.TODO(), secretName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	// marshal secret to state
+	var state zarfTypes.DeployedPackage
+	err = json.Unmarshal(sec.Data["data"], &state)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ZarfState{pkgName: pkgName, state: &state}, nil
 }

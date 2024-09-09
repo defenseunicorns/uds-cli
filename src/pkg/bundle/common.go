@@ -21,7 +21,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
@@ -100,7 +99,7 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 	for idx, pkg := range bundle.Packages {
 		spinner.Updatef("Validating Bundle Package: %s", pkg.Name)
 		if pkg.Name == "" {
-			return fmt.Errorf("%s is missing required field: name", pkg)
+			return fmt.Errorf("%v is missing required field: name", pkg)
 		}
 
 		if pkg.Repository == "" && pkg.Path == "" {
@@ -269,19 +268,6 @@ func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string
 
 	// The package is signed, and a public key was provided
 	return zarfUtils.CosignVerifyBlob(context.TODO(), bundleYAMLPath, signaturePath, publicKeyPath)
-}
-
-// GetDeployedPackageNames returns the names of the packages that have been deployed
-func GetDeployedPackageNames() []string {
-	var deployedPackageNames []string
-	c, _ := cluster.NewCluster()
-	if c != nil {
-		deployedPackages, _ := c.GetDeployedZarfPackages(context.TODO())
-		for _, pkg := range deployedPackages {
-			deployedPackageNames = append(deployedPackageNames, pkg.Name)
-		}
-	}
-	return deployedPackageNames
 }
 
 // validateOverrides ensures that the overrides have matching components and charts in the zarf package
