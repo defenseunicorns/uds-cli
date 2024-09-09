@@ -39,5 +39,6 @@ uds COMMAND [flags]
 * [uds pull](/cli/command-reference/uds_pull/)	 - Pull a bundle from a remote registry and save to the local file system
 * [uds remove](/cli/command-reference/uds_remove/)	 - Remove a bundle that has been deployed already
 * [uds run](/cli/command-reference/uds_run/)	 - Run a task using maru-runner
+* [uds ui](/cli/command-reference/uds_ui/)	 - [beta] Deploy UDS Runtime and view UI
 * [uds version](/cli/command-reference/uds_version/)	 - Shows the version of the running UDS-CLI binary
 
