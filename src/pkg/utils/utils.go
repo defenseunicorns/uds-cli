@@ -7,6 +7,7 @@ package utils
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -222,4 +223,16 @@ func JSONValue(value any) (string, error) {
 		return "", err
 	}
 	return string(bytes), nil
+}
+
+// formatBundleName first validates the bundle name does not have bad characters
+// and then returns a lowercased version, with spaces (" ") replaced with "-".
+func FormatBundleName(src string) (string, error) {
+	if regexp.MustCompile(`[^a-zA-Z0-9 -]+`).MatchString(src) {
+		return "", errors.New("invalid bundle name found; only use letters, numbers, and hypens")
+	}
+	src = strings.TrimSpace(src)
+	src = regexp.MustCompile(` +`).ReplaceAllString(src, "-")
+	src = strings.ToLower(src)
+	return src, nil
 }
