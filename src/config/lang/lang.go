@@ -122,5 +122,5 @@ const (
 	CmdPeprMonitorJSONFlag      = "Return the raw JSON output of the logs"
 
 	// ui
-	CmdUIShort = "Deploy UDS Runtime and view UI"
+	CmdUIShort = "[beta] Deploy UDS Runtime and view UI"
 )

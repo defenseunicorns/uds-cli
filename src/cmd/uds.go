@@ -287,7 +287,7 @@ var uiCmd = &cobra.Command{
 		runtimeBinaryPath := filepath.Join(tmpDir, binName)
 
 		cmd := exec.Command(runtimeBinaryPath)
-		cmd.Env = append(os.Environ(), "API_AUTH_ENABLED=true")
+		cmd.Env = append(os.Environ(), "API_AUTH_DISABLED=false")
 
 		// Set the command's standard output and error to the current process's output and error
 		cmd.Stdout = os.Stdout
