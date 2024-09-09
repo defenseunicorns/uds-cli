@@ -229,7 +229,7 @@ func JSONValue(value any) (string, error) {
 // and then returns a lowercased version, with spaces (" ") replaced with "-".
 func FormatBundleName(src string) (string, error) {
 	if regexp.MustCompile(`[^a-zA-Z0-9 -]+`).MatchString(src) {
-		return "", errors.New("invalid bundle name found; only use letters, numbers, and hypens")
+		return "", errors.New("bundle names should only include letters, numbers, and hypens")
 	}
 	src = strings.TrimSpace(src)
 	src = regexp.MustCompile(` +`).ReplaceAllString(src, "-")
