@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
@@ -234,6 +233,7 @@ var uiCmd = &cobra.Command{
 	Aliases: []string{"u"},
 	Short:   lang.CmdUIShort,
 	RunE: func(_ *cobra.Command, _ []string) error {
+
 		// Create a temporary directory to hold the embedded files
 		tmpDir, err := os.MkdirTemp("", "uds-runtime-*")
 		if err != nil {
@@ -241,7 +241,9 @@ var uiCmd = &cobra.Command{
 		}
 		defer os.RemoveAll(tmpDir)
 
-		// Walk through the embedded files and write them to the temporary directory
+		var runtimeBinaryPath string
+		// Walk through the embedded files and write them to the temporary directory, eventhough we only expect one file
+		// to be embedded, the name of the binary is based on the architecture and os
 		err = fs.WalkDir(embeddedFiles, "bin", func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
@@ -268,24 +270,16 @@ var uiCmd = &cobra.Command{
 			//nolint:gosec
 			err = os.WriteFile(destPath, data, 0700)
 
+			runtimeBinaryPath = destPath
+
 			return err
 		})
+
 		if err != nil {
-			return fmt.Errorf("failed to write embedded files: %v", err)
+			return fmt.Errorf("failed to write embedded file: %v", err)
 		}
 
-		// Execute the binary based on architecture and os
-		arch := config.GetArch()
-		if arch != "amd64" && arch != "arm64" {
-			return fmt.Errorf("unsupported architecture: %s", arch)
-		}
-		operatingSystem := runtime.GOOS
-		if operatingSystem != "darwin" && operatingSystem != "linux" {
-			return fmt.Errorf("unsupported OS: %s", operatingSystem)
-		}
-		binName := fmt.Sprintf("uds-runtime-%s-%s", operatingSystem, arch)
-		runtimeBinaryPath := filepath.Join(tmpDir, binName)
-
+		// Execute the runtime binary
 		cmd := exec.Command(runtimeBinaryPath)
 		cmd.Env = append(os.Environ(), "API_AUTH_DISABLED=false")
 

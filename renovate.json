@@ -28,18 +28,6 @@
     {
       "matchPackageNames": ["stefanprodan/podinfo", "github.com/stefanprodan/podinfo", "podinfo"],
       "groupName": "podinfo"
-    },
-    {
-      "matchPackageNames": [
-        "uds-runtime-darwin-amd64",
-        "uds-runtime-darwin-arm64",
-        "uds-runtime-linux-amd64",
-        "uds-runtime-linux-arm64"
-      ],
-      "enabled": true,
-      "semanticCommitType": "chore",
-      "semanticCommitScope": "deps",
-      "postUpdateOptions": ["runScripts"]
     }
   ],
   "regexManagers": [
@@ -73,16 +61,9 @@
       "datasourceTemplate": "github-releases"
     },
     {
-      "fileMatch": ["src/cmd/bin/version.txt"],
-      "matchStrings": ["^(?<currentValue>\\d+\\.\\d+\\.\\d+)$"],
-      "replaceString": "${version}"
+      "fileMatch": ["hack/update-uds-runtime-binaries.sh"],
+      "matchStrings": ["CURRENT_VERSION=\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""],
+      "replaceString": "CURRENT_VERSION=\"${version}\""
     }
-  ],
-  "scripts": {
-    "preCommit": [
-      {
-        "file": "hack/update-uds-runtime-binaries.sh"
-      }
-    ]
-  }
+  ]
 }

@@ -35,3 +35,4 @@ tmp/
 out.txt
 *.gif
 *.mp4
+src/cmd/bin
