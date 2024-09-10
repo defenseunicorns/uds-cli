@@ -5,7 +5,7 @@ type: docs
 ---
 ## uds ui
 
-[beta] Deploy UDS Runtime and view UI
+[beta] Launch UDS Runtime and view UI
 
 ```
 uds ui [flags]
