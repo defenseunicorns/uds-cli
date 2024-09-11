@@ -23,7 +23,7 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/zarf-dev/zarf v0.39.0
 	golang.org/x/exp v0.0.0-20240823005443-9b4947da3948
-	golang.org/x/mod v0.20.0
+	golang.org/x/mod v0.21.0
 	golang.org/x/sync v0.8.0
 	helm.sh/helm/v3 v3.15.4
 	k8s.io/api v0.31.0
