@@ -512,4 +512,4 @@ uds scan -o defenseunicorns -n packages/uds/gitlab-runner -g 16.10.0-uds.0-upstr
 
 ## UDS Runtime
 
-The `uds ui` command launches UDS Runtime, which gives you a user interface to view what is running in your cluster. More information regarding UDS Runtime can be found [here](https://github.com/defenseunicorns/uds-runtime).
+The `uds ui` command launches UDS Runtime, which provides a web-based user interface to view what is running in your K8s cluster. More information regarding UDS Runtime can be found [here](https://github.com/defenseunicorns/uds-runtime).
