@@ -125,11 +125,16 @@ func cliSetup(cmd *cobra.Command) error {
 		}
 	}
 
-	// TODO(schristoff): Leverage SDK and refactor
-	// This sets up zarf CLI with the same configuration options as UDSCLI
-	err := zarfCommon.SetupCLI(logLevel, config.SkipLogFile, config.NoColor)
-	if err != nil {
-		return err
+	// don't configure Zarf CLI directly if we're calling vendored Zarf
+	if !strings.HasPrefix(cmd.Use, "zarf") {
+		pterm.DisableOutput() // don't print extra Zarf note about logs
+		// TODO(schristoff): Leverage SDK and refactor
+		// This sets up zarf CLI with the same configuration options as UDSCLI
+		err := zarfCommon.SetupCLI(logLevel, config.SkipLogFile, config.NoColor)
+		if err != nil {
+			return err
+		}
+		pterm.EnableOutput()
 	}
 
 	// configure logs for UDS after calling zarfCommon.SetupCLI
