@@ -15,7 +15,7 @@ Bundle the UDS Runtime binaries as a part of uds-cli allowing users to launch UD
 
 ### Scope and Requirements
 
-Allow users to launch UDS Runtime from uds-cli
+Allow users to launch UDS Runtime locally from uds-cli. When running UDS Runtime locally, api token authentication is required. This is implemented programmatically and is transparent to the user.
 
 ### Implementation Details
 
