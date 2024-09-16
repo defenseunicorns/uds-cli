@@ -7,10 +7,10 @@ package cmd
 import (
 	"embed"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/spf13/cobra"
@@ -25,53 +25,43 @@ var uiCmd = &cobra.Command{
 	Short:   lang.CmdUIShort,
 	RunE: func(_ *cobra.Command, _ []string) error {
 
-		// Create a temporary directory to hold the embedded files
-		tmpDir, err := os.MkdirTemp("", "uds-runtime-*")
+		// Create a temporary file to hold the embedded runtime binary
+		tmpFile, err := os.CreateTemp("", "uds-runtime-*")
 		if err != nil {
-			return fmt.Errorf("failed to create temp directory: %v", err)
+			return fmt.Errorf("failed to create temp file: %v", err)
 		}
-		defer os.RemoveAll(tmpDir)
+		defer os.Remove(tmpFile.Name())
 
-		var runtimeBinaryPath string
-		// Walk through the embedded files and write them to the temporary directory, eventhough we only expect one file
-		// to be embedded, the name of the binary is based on the architecture and os
-		err = fs.WalkDir(embeddedFiles, "bin", func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if d.IsDir() {
-				return nil
-			}
+		// Get the name of the runtime binary for the current OS and architecture
+		var runtimeBinaryPath = fmt.Sprintf("bin/uds-runtime-%s-%s", runtime.GOOS, runtime.GOARCH)
 
-			data, err := embeddedFiles.ReadFile(path)
-			if err != nil {
-				return err
-			}
-
-			relPath, err := filepath.Rel("bin", path)
-			if err != nil {
-				return err
-			}
-
-			destPath := filepath.Join(tmpDir, relPath)
-			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-				return err
-			}
-			// Need the runtime binaries to be executable
-			//nolint:gosec
-			err = os.WriteFile(destPath, data, 0700)
-
-			runtimeBinaryPath = destPath
-
-			return err
-		})
-
+		// Read the embedded runtime binary
+		data, err := embeddedFiles.ReadFile(runtimeBinaryPath)
 		if err != nil {
-			return fmt.Errorf("failed to write embedded file: %v", err)
+			return err
+		}
+
+		// Write the binary data to the temporary file
+		if _, err := tmpFile.Write(data); err != nil {
+			return fmt.Errorf("failed to write to temp file: %v", err)
+		}
+		if err := tmpFile.Close(); err != nil {
+			return fmt.Errorf("failed to close temp file: %v", err)
+		}
+
+		// Make the temporary file executable
+		if err := os.Chmod(tmpFile.Name(), 0700); err != nil {
+			return fmt.Errorf("failed to make temp file executable: %v", err)
+		}
+
+		// Validate the temporary file path
+		tmpFilePath := tmpFile.Name()
+		if !filepath.IsAbs(tmpFilePath) {
+			return fmt.Errorf("temporary file path is not absolute: %s", tmpFilePath)
 		}
 
 		// Execute the runtime binary
-		cmd := exec.Command(runtimeBinaryPath)
+		cmd := exec.Command(tmpFilePath)
 		cmd.Env = append(os.Environ(), "API_AUTH_DISABLED=false")
 
 		// Set the command's standard output and error to the current process's output and error
