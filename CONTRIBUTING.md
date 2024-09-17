@@ -62,6 +62,8 @@ We strive to test all changes made to UDS CLI. If you're adding a new feature or
 #### Unit Tests
 Unit tests reside alongside the source code in a `*_test.go` file. These tests should be used to test individual functions or methods in isolation. Unit tests should be fast and focused on a single piece of functionality.
 
+In order to run the unit tests in `src/cmd`, you must ensure that you have pulled the UDS Runtime binary into the `src/cmd/bin` dir. This can be done by running the `./hack/update-uds-runtime-binaries.sh` script or by running the build task for your os/architectecture (eg. `uds run build-cli-mac-apple`).
+
 #### E2E Tests
 E2E tests reside in the `src/test/e2e` directory. They use bundles located in the `src/test/e2e/bundles` which contain Zarf packages from the `src/test/e2e/packages` directory. Feel free to add new bundles and packages where appropriate. It's encouraged to write comments/metadata in any new bundles or packages to explain what they are testing.
 

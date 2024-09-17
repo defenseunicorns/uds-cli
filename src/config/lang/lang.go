@@ -120,4 +120,7 @@ const (
 	CmdPeprMonitorTimestampFlag = "Show timestamps in Pepr logs"
 	CmdPeprMonitorSinceFlag     = "Only return logs newer than a relative duration like 5s, 2m, or 3h. Defaults to all logs."
 	CmdPeprMonitorJSONFlag      = "Return the raw JSON output of the logs"
+
+	// ui
+	CmdUIShort = "[beta] Launch UDS Runtime and view UI"
 )
