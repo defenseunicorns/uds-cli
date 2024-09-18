@@ -82,6 +82,16 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName s
 		}
 
 		sbomFilePath := filepath.Join(config.BlobsDir, sbomDesc.Digest.Encoded())
+
+		// check if file path already exists and remove
+		// this fixes a bug where multiple pkgs have an empty SBOM tar archive
+		if _, err := os.Stat(filepath.Join(tp.dst, sbomFilePath)); err == nil {
+			err = os.Remove(filepath.Join(tp.dst, sbomFilePath))
+			if err != nil {
+				return err, warns
+			}
+		}
+
 		if err := av3.Extract(tp.src, sbomFilePath, tp.dst); err != nil {
 			return fmt.Errorf("failed to extract %s from %s: %w", layer.Digest.Encoded(), tp.src, err), warns
 		}
@@ -91,26 +101,21 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName s
 		}
 		extractor := utils.SBOMExtractor(tp.dst, SBOMArtifactPathMap)
 
-		// check if sbom tar is empty
-		empty, err := isTarEmpty(filepath.Join(tp.dst, sbomFilePath))
-		if err != nil {
-			return err, warns
-		}
-		if empty {
-			// remove empty sbom tar archive, this prevents a bug when other packages have the same empty tar archive
-			message.Debugf("Removing empty SBOM tar archive: %s", sbomFilePath)
-			err = os.Remove(filepath.Join(tp.dst, sbomFilePath))
-			if err != nil {
-				return err, warns
-			}
-			continue
-		}
-
 		// extract SBOMs from tar
 		err = av4.Tar{}.Extract(context.TODO(), bytes.NewReader(sbomTarBytes), nil, extractor)
 		if err != nil {
 			return err, warns
 		}
+
+		// remove empty sbom tar archive, this prevents a bug when other packages have the same empty tar archive
+		//if len(SBOMArtifactPathMap) == 0 {
+		//	message.Debugf("Removing empty SBOM tar archive: %s", sbomFilePath)
+		//	err = os.Remove(filepath.Join(tp.dst, sbomFilePath))
+		//	if err != nil {
+		//		return err, warns
+		//	}
+		//}
+
 	}
 	if extractSBOM {
 		if len(SBOMArtifactPathMap) == 0 {
@@ -345,32 +350,4 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 
 	progressBar.Successf("Published %s", remote.Repo().Reference)
 	return nil
-}
-
-func isTarEmpty(filename string) (bool, error) {
-	tarFile, err := os.Open(filename)
-	if err != nil {
-		return false, err
-	}
-	defer tarFile.Close()
-
-	tar := av3.NewTar()
-	err = tar.Open(tarFile, 0)
-	if err != nil {
-		return false, err
-	}
-	defer tar.Close()
-
-	// Try to read the first entry
-	buf, err := tar.Read()
-	if err != nil {
-		return false, err
-	}
-	if buf.Size() == 0 {
-		// Archive is empty
-		return true, nil
-	}
-
-	// Archive is not empty
-	return false, nil
 }
