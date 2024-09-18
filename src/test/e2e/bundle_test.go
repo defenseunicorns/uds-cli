@@ -251,8 +251,8 @@ func TestSimplePackagesWithSBOMs(t *testing.T) {
 	t.Run("test local bundle with simple packages and no SBOMs", func(t *testing.T) {
 		_, stderr := runCmd(t, fmt.Sprintf("inspect %s --sbom", bundlePath))
 		require.Contains(t, stderr, "No SBOMs found in bundle")
-		//_, stderr = runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", bundlePath))
-		//require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
+		_, stderr = runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", bundlePath))
+		require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
 	})
 
 	t.Run("test remote bundle with simple packages and no SBOMs", func(t *testing.T) {
