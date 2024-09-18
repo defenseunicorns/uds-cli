@@ -11,3 +11,9 @@ packages:
   - name: podinfo
     path: "../../packages/podinfo"
     ref: 0.0.1
+  - name: output-var
+    path: "../../packages/no-cluster/output-var"
+    ref: 0.0.1
+  - name: receive-var
+    path: "../../packages/no-cluster/receive-var"
+    ref: 0.0.1

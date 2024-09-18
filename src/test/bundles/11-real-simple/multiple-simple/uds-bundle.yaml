@@ -1,0 +1,15 @@
+kind: UDSBundle
+metadata:
+  name: multiple-simple
+  description: |
+    bundles multiple simple pkgs to test SBOM generation during inspect,
+    note that no sboms are in the bundled pkgs
+  version: 0.0.1
+
+packages:
+  - name: real-simple
+    path: "../../../packages/no-cluster/real-simple"
+    ref: 0.0.1
+  - name: output-var
+    path: "../../../packages/no-cluster/output-var"
+    ref: 0.0.1

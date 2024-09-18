@@ -38,7 +38,7 @@ type Provider interface {
 	LoadBundle(options types.BundlePullOptions, concurrency int) (*types.UDSBundle, types.PathMap, error)
 
 	// CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
-	CreateBundleSBOM(extractSBOM bool, bundleName string) error
+	CreateBundleSBOM(extractSBOM bool, bundleName string) (error, []string)
 
 	// PublishBundle publishes a bundle to a remote OCI repo
 	PublishBundle(bundle types.UDSBundle, remote *oci.OrasRemote) error
