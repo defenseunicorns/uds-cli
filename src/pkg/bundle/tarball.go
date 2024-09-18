@@ -106,16 +106,6 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName s
 		if err != nil {
 			return err, warns
 		}
-
-		// remove empty sbom tar archive, this prevents a bug when other packages have the same empty tar archive
-		//if len(SBOMArtifactPathMap) == 0 {
-		//	message.Debugf("Removing empty SBOM tar archive: %s", sbomFilePath)
-		//	err = os.Remove(filepath.Join(tp.dst, sbomFilePath))
-		//	if err != nil {
-		//		return err, warns
-		//	}
-		//}
-
 	}
 	if extractSBOM {
 		if len(SBOMArtifactPathMap) == 0 {
