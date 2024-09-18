@@ -72,7 +72,7 @@ func (b *Bundle) Inspect() error {
 
 		// pull sbom
 		if b.cfg.InspectOpts.IncludeSBOM {
-			err, warns = provider.CreateBundleSBOM(b.cfg.InspectOpts.ExtractSBOM, b.bundle.Metadata.Name)
+			warns, err = provider.CreateBundleSBOM(b.cfg.InspectOpts.ExtractSBOM, b.bundle.Metadata.Name)
 			if err != nil {
 				return err
 			}

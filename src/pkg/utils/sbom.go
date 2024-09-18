@@ -14,8 +14,8 @@ import (
 	"github.com/mholt/archiver/v4"
 )
 
-// CreateSBOMArtifact creates sbom artifacts in the form of a tar archive
-func CreateSBOMArtifact(SBOMArtifactPathMap map[string]string, bundleName string) error {
+// createSBOMArtifact creates sbom artifacts in the form of a tar archive
+func createSBOMArtifact(SBOMArtifactPathMap map[string]string, bundleName string) error {
 	out, err := os.Create(fmt.Sprintf("%s-%s", bundleName, config.BundleSBOMTar))
 	if err != nil {
 		return err
@@ -33,8 +33,8 @@ func CreateSBOMArtifact(SBOMArtifactPathMap map[string]string, bundleName string
 	return nil
 }
 
-// MoveExtractedSBOMs moves the extracted SBOM HTML and JSON files from src to dst
-func MoveExtractedSBOMs(bundleName, src, dst string) error {
+// moveExtractedSBOMs moves the extracted SBOM HTML and JSON files from src to dst
+func moveExtractedSBOMs(bundleName, src, dst string) error {
 	srcSBOMPath := filepath.Join(src, config.BundleSBOM)
 	extractDirName := fmt.Sprintf("%s-%s", bundleName, config.BundleSBOM)
 	sbomDir := filepath.Join(dst, extractDirName)
@@ -85,4 +85,33 @@ func SBOMExtractor(dst string, SBOMArtifactPathMap map[string]string) func(_ con
 		return nil
 	}
 	return extractor
+}
+
+// HandleSBOM handles the extraction and creation of bundle SBOMs after populating SBOMArtifactPathMap
+func HandleSBOM(extractSBOM bool, SBOMArtifactPathMap map[string]string, bundleName, dstPath string) ([]string, error) {
+	var warns []string
+
+	if extractSBOM {
+		if len(SBOMArtifactPathMap) == 0 {
+			warns = append(warns, "Cannot extract, no SBOMs found in bundle")
+			return warns, nil
+		}
+		currentDir, err := os.Getwd()
+		if err != nil {
+			return warns, err
+		}
+		err = moveExtractedSBOMs(bundleName, dstPath, currentDir)
+		if err != nil {
+			return warns, err
+		}
+	} else if len(SBOMArtifactPathMap) > 0 {
+		err := createSBOMArtifact(SBOMArtifactPathMap, bundleName)
+		if err != nil {
+			return warns, err
+		}
+	} else {
+		warns = append(warns, "No SBOMs found in bundle")
+	}
+
+	return warns, nil
 }

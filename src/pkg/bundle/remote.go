@@ -85,19 +85,19 @@ func (op *ociProvider) LoadBundleMetadata() (types.PathMap, error) {
 }
 
 // CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
-func (op *ociProvider) CreateBundleSBOM(extractSBOM bool, bundleName string) (error, []string) {
+func (op *ociProvider) CreateBundleSBOM(extractSBOM bool, bundleName string) ([]string, error) {
 	var warns []string
 	ctx := context.TODO()
 	SBOMArtifactPathMap := make(types.PathMap)
 	root, err := op.FetchRoot(ctx)
 	if err != nil {
-		return err, warns
+		return warns, err
 	}
 
 	// make tmp dir for pkg SBOM extraction
 	err = os.Mkdir(filepath.Join(op.dst, config.BundleSBOM), 0700)
 	if err != nil {
-		return err, warns
+		return warns, err
 	}
 
 	// iterate through Zarf image manifests and find the Zarf pkg's sboms.tar
@@ -107,7 +107,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool, bundleName string) (er
 		}
 		zarfManifest, err := op.OrasRemote.FetchManifest(ctx, layer)
 		if err != nil {
-			return err, warns
+			return warns, err
 		}
 		// grab descriptor for sboms.tar
 		sbomDesc := zarfManifest.Locate(config.SBOMsTar)
@@ -118,37 +118,22 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool, bundleName string) (er
 		// grab sboms.tar and extract
 		sbomBytes, err := op.OrasRemote.FetchLayer(ctx, sbomDesc)
 		if err != nil {
-			return err, warns
+			return warns, err
 		}
 
 		extractor := utils.SBOMExtractor(op.dst, SBOMArtifactPathMap)
 		err = archiver.Tar{}.Extract(context.TODO(), bytes.NewReader(sbomBytes), nil, extractor)
 		if err != nil {
-			return err, warns
+			return warns, err
 		}
 	}
-	if extractSBOM {
-		if len(SBOMArtifactPathMap) == 0 {
-			warns = append(warns, "Cannot extract, no SBOMs found in bundle")
-			return nil, warns
-		}
-		currentDir, err := os.Getwd()
-		if err != nil {
-			return err, warns
-		}
-		err = utils.MoveExtractedSBOMs(bundleName, op.dst, currentDir)
-		if err != nil {
-			return err, warns
-		}
-	} else if len(SBOMArtifactPathMap) > 0 {
-		err = utils.CreateSBOMArtifact(SBOMArtifactPathMap, bundleName)
-		if err != nil {
-			return err, warns
-		}
-	} else {
-		warns = append(warns, "No SBOMs found in bundle")
+	handleSBOMWarns, err := utils.HandleSBOM(extractSBOM, SBOMArtifactPathMap, bundleName, op.dst)
+	if err != nil {
+		return warns, err
 	}
-	return nil, warns
+	warns = append(warns, handleSBOMWarns...)
+
+	return warns, nil
 }
 
 // LoadBundle loads a bundle from a remote source

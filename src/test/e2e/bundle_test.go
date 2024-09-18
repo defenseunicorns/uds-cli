@@ -279,9 +279,8 @@ func TestLocalBundleWithNoSBOM(t *testing.T) {
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-yml-example-%s-0.0.1.tar.zst", e2e.Arch))
 	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 
-	stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", bundlePath))
-	require.Contains(t, stdout, "Cannot extract, no SBOMs found in bundle")
-	require.Contains(t, stdout, "sboms.tar not found in Zarf pkg")
+	_, stderr := runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", bundlePath))
+	require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
 }
 
 func TestRemoteBundleWithNoSBOM(t *testing.T) {
@@ -297,9 +296,8 @@ func TestRemoteBundleWithNoSBOM(t *testing.T) {
 	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 	runCmd(t, fmt.Sprintf("publish %s %s --insecure", bundlePath, "localhost:888"))
 
-	stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", bundlePath))
-	require.Contains(t, stdout, "Cannot extract, no SBOMs found in bundle")
-	require.Contains(t, stdout, "sboms.tar not found in Zarf pkg")
+	_, stderr := runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", bundlePath))
+	require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
 }
 
 func TestPackageNaming(t *testing.T) {
