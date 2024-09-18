@@ -247,6 +247,7 @@ func TestSimplePackagesWithSBOMs(t *testing.T) {
 
 	bundleDir := "src/test/bundles/11-real-simple/multiple-simple"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-multiple-simple-%s-0.0.1.tar.zst", e2e.Arch))
+	runCmd(t, fmt.Sprintf("create %s --confirm -a %s", bundleDir, e2e.Arch))
 
 	t.Run("test local bundle with simple packages and no SBOMs", func(t *testing.T) {
 		_, stderr := runCmd(t, fmt.Sprintf("inspect %s --sbom", bundlePath))
