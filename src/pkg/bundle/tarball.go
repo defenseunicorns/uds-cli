@@ -107,13 +107,8 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName s
 			return warns, err
 		}
 	}
-	handleSBOMWarns, err := utils.HandleSBOM(extractSBOM, SBOMArtifactPathMap, bundleName, tp.dst)
-	if err != nil {
-		return warns, err
-	}
-	warns = append(warns, handleSBOMWarns...)
 
-	return warns, nil
+	return utils.HandleSBOM(extractSBOM, SBOMArtifactPathMap, bundleName, tp.dst)
 }
 
 func (tp *tarballBundleProvider) getBundleManifest() (*oci.Manifest, error) {

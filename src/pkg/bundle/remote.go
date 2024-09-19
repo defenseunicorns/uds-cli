@@ -127,13 +127,8 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool, bundleName string) ([]
 			return warns, err
 		}
 	}
-	handleSBOMWarns, err := utils.HandleSBOM(extractSBOM, SBOMArtifactPathMap, bundleName, op.dst)
-	if err != nil {
-		return warns, err
-	}
-	warns = append(warns, handleSBOMWarns...)
 
-	return warns, nil
+	return utils.HandleSBOM(extractSBOM, SBOMArtifactPathMap, bundleName, op.dst)
 }
 
 // LoadBundle loads a bundle from a remote source
