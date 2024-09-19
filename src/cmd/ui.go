@@ -5,35 +5,70 @@
 package cmd
 
 import (
+	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
+	"syscall"
 
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/spf13/cobra"
+	"github.com/zarf-dev/zarf/src/pkg/message"
 )
 
 //go:embed bin/uds-runtime-*
 var embeddedFiles embed.FS
 
 var uiCmd = &cobra.Command{
-	Use:     "ui",
-	Aliases: []string{"u"},
-	Short:   lang.CmdUIShort,
-	RunE: func(_ *cobra.Command, _ []string) error {
+	Use:   "ui",
+	Short: lang.CmdUIShort,
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		ctx, cancel := context.WithCancel(cmd.Context())
+		defer cancel()
 
 		// Create a temporary file to hold the embedded runtime binary
 		tmpFile, err := os.CreateTemp("", "uds-runtime-*")
 		if err != nil {
 			return fmt.Errorf("failed to create temp file: %v", err)
 		}
-		defer os.Remove(tmpFile.Name())
+		tmpFilePath := tmpFile.Name()
+
+		// Set up cleanup to run on both normal exit and interrupt
+		cleanupDone := make(chan struct{})
+		go func() {
+			sigChan := make(chan os.Signal, 1)
+			signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+			select {
+			case <-sigChan:
+				cancel()
+			case <-ctx.Done():
+			}
+			err := tmpFile.Close()
+			if err != nil && !errors.Is(err, os.ErrClosed) {
+				message.Debug("Failed to close temporary runtime bin: %v", err)
+			}
+			err = os.Remove(tmpFilePath)
+			if err != nil {
+				message.Debug("Failed to remove temporary runtime bin: %v", err)
+			}
+			message.Debug("Temporary runtime bin removed")
+			close(cleanupDone)
+		}()
+
+		// Ensure cleanup happens even if the function returns early
+		defer func() {
+			cancel()
+			<-cleanupDone
+			message.Debug("Cleanup complete")
+		}()
 
 		// Get the name of the runtime binary for the current OS and architecture
-		var runtimeBinaryPath = fmt.Sprintf("bin/uds-runtime-%s-%s", runtime.GOOS, runtime.GOARCH)
+		runtimeBinaryPath := fmt.Sprintf("bin/uds-runtime-%s-%s", runtime.GOOS, runtime.GOARCH)
 
 		// Read the embedded runtime binary
 		data, err := embeddedFiles.ReadFile(runtimeBinaryPath)
@@ -50,27 +85,29 @@ var uiCmd = &cobra.Command{
 		}
 
 		// Make the temporary file executable
-		if err := os.Chmod(tmpFile.Name(), 0700); err != nil {
+		if err := os.Chmod(tmpFilePath, 0700); err != nil {
 			return fmt.Errorf("failed to make temp file executable: %v", err)
 		}
 
 		// Validate the temporary file path
-		tmpFilePath := tmpFile.Name()
 		if !filepath.IsAbs(tmpFilePath) {
 			return fmt.Errorf("temporary file path is not absolute: %s", tmpFilePath)
 		}
 
-		// Execute the runtime binary
-		cmd := exec.Command(tmpFilePath)
-		cmd.Env = append(os.Environ(), "API_AUTH_DISABLED=false")
+		// Execute the runtime binary with context
+		execCmd := exec.CommandContext(ctx, tmpFilePath)
+		execCmd.Env = append(os.Environ(), "API_AUTH_DISABLED=false")
+		execCmd.Stdout = os.Stdout
+		execCmd.Stderr = os.Stderr
 
-		// Set the command's standard output and error to the current process's output and error
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		if err := execCmd.Start(); err != nil {
+			return fmt.Errorf("failed to start binary: %v", err)
+		}
 
-		// Run the command
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to run binary: %v", err)
+		// Wait for the command to finish
+		err = execCmd.Wait()
+		if err != nil && ctx.Err() == nil {
+			return fmt.Errorf("binary execution failed: %v", err)
 		}
 
 		return nil
