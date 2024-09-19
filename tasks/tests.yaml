@@ -53,9 +53,8 @@ tasks:
       - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m optional_bundle_test.go commands_test.go main_test.go
 
   - name: vendor
-    description: only run tests in zarf_test.go and runner_test.go
-    actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m zarf_test.go runner_test.go security_hub_test.go commands_test.go main_test.go
+    description: only run tests for vendored apps (zarf, maru, runtime, security hub)
+      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m zarf_test.go runner_test.go ui_test.go security_hub_test.go commands_test.go main_test.go
 
   - name: engine-e2e
     description: only run engine e2e tests
