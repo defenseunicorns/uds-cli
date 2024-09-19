@@ -242,6 +242,7 @@ func TestLocalBundleWithOutput(t *testing.T) {
 }
 
 func TestSimplePackagesWithSBOMs(t *testing.T) {
+	// tests that this bug is resolved: https://github.com/defenseunicorns/uds-cli/issues/923
 	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false)
 	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/real-simple", false)
 
