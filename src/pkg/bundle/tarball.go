@@ -38,18 +38,20 @@ type tarballBundleProvider struct {
 }
 
 // CreateBundleSBOM creates a bundle-level SBOM from the underlying Zarf packages, if the Zarf package contains an SBOM
-func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName string) error {
+func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName string) ([]string, error) {
+	var warns []string
 	rootManifest, err := tp.getBundleManifest()
 	if err != nil {
-		return err
+		return warns, err
 	}
 	// make tmp dir for pkg SBOM extraction
 	err = os.Mkdir(filepath.Join(tp.dst, config.BundleSBOM), 0o700)
 	if err != nil {
-		return err
+		return warns, err
 	}
+
+	// track SBOM artifact paths, used for extraction and creation of bundleSBOM artifact
 	SBOMArtifactPathMap := make(types.PathMap)
-	containsSBOMs := false
 
 	for _, layer := range rootManifest.Layers {
 		// get Zarf image manifests from bundle manifest
@@ -58,17 +60,17 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName s
 		}
 		layerFilePath := filepath.Join(config.BlobsDir, layer.Digest.Encoded())
 		if err := av3.Extract(tp.src, layerFilePath, tp.dst); err != nil {
-			return fmt.Errorf("failed to extract %s from %s: %w", layer.Digest.Encoded(), tp.src, err)
+			return warns, fmt.Errorf("failed to extract %s from %s: %w", layer.Digest.Encoded(), tp.src, err)
 		}
 
 		// read in and unmarshal Zarf image manifest
 		zarfManifestBytes, err := os.ReadFile(filepath.Join(tp.dst, layerFilePath))
 		if err != nil {
-			return err
+			return warns, err
 		}
 		var zarfImageManifest *oci.Manifest
 		if err := json.Unmarshal(zarfManifestBytes, &zarfImageManifest); err != nil {
-			return err
+			return warns, err
 		}
 
 		// find sbom layer descriptor and extract sbom tar from archive
@@ -76,45 +78,37 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName s
 
 		// if sbomDesc doesn't exist, continue
 		if oci.IsEmptyDescriptor(sbomDesc) {
-			message.Warnf("%s not found in Zarf pkg", config.SBOMsTar)
 			continue
 		}
 
 		sbomFilePath := filepath.Join(config.BlobsDir, sbomDesc.Digest.Encoded())
+
+		// check if file path already exists and remove
+		// this fixes a bug where multiple pkgs have an empty SBOM tar archive
+		if _, err := os.Stat(filepath.Join(tp.dst, sbomFilePath)); err == nil {
+			err = os.Remove(filepath.Join(tp.dst, sbomFilePath))
+			if err != nil {
+				return warns, err
+			}
+		}
+
 		if err := av3.Extract(tp.src, sbomFilePath, tp.dst); err != nil {
-			return fmt.Errorf("failed to extract %s from %s: %w", layer.Digest.Encoded(), tp.src, err)
+			return warns, fmt.Errorf("failed to extract %s from %s: %w", layer.Digest.Encoded(), tp.src, err)
 		}
 		sbomTarBytes, err := os.ReadFile(filepath.Join(tp.dst, sbomFilePath))
 		if err != nil {
-			return err
+			return warns, err
 		}
 		extractor := utils.SBOMExtractor(tp.dst, SBOMArtifactPathMap)
+
+		// extract SBOMs from tar
 		err = av4.Tar{}.Extract(context.TODO(), bytes.NewReader(sbomTarBytes), nil, extractor)
 		if err != nil {
-			return err
-		}
-		containsSBOMs = true
-	}
-	if extractSBOM {
-		if !containsSBOMs {
-			message.Warnf("Cannot extract, no SBOMs found in bundle")
-			return nil
-		}
-		currentDir, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		err = utils.MoveExtractedSBOMs(bundleName, tp.dst, currentDir)
-		if err != nil {
-			return err
-		}
-	} else {
-		err = utils.CreateSBOMArtifact(SBOMArtifactPathMap, bundleName)
-		if err != nil {
-			return err
+			return warns, err
 		}
 	}
-	return nil
+
+	return utils.HandleSBOM(extractSBOM, SBOMArtifactPathMap, bundleName, tp.dst)
 }
 
 func (tp *tarballBundleProvider) getBundleManifest() (*oci.Manifest, error) {

@@ -241,6 +241,37 @@ func TestLocalBundleWithOutput(t *testing.T) {
 	runCmd(t, fmt.Sprintf("inspect %s", bundlePath))
 }
 
+func TestSimplePackagesWithSBOMs(t *testing.T) {
+	// tests that this bug is resolved: https://github.com/defenseunicorns/uds-cli/issues/923
+	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/real-simple", false)
+
+	bundleDir := "src/test/bundles/11-real-simple/multiple-simple"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-multiple-simple-%s-0.0.1.tar.zst", e2e.Arch))
+	runCmd(t, fmt.Sprintf("create %s --confirm -a %s", bundleDir, e2e.Arch))
+
+	t.Run("test local bundle with simple packages and no SBOMs", func(t *testing.T) {
+		_, stderr := runCmd(t, fmt.Sprintf("inspect %s --sbom", bundlePath))
+		require.Contains(t, stderr, "No SBOMs found in bundle")
+		_, stderr = runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", bundlePath))
+		require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
+	})
+
+	t.Run("test remote bundle with simple packages and no SBOMs", func(t *testing.T) {
+		// publish bundle to registry
+		e2e.SetupDockerRegistry(t, 888)
+		defer e2e.TeardownRegistry(t, 888)
+		runCmd(t, fmt.Sprintf("publish %s %s --insecure", bundlePath, "localhost:888"))
+
+		// inspect bundle for sboms
+		remoteBundlePath := "localhost:888/multiple-simple:0.0.1"
+		_, stderr := runCmd(t, fmt.Sprintf("inspect %s --insecure --sbom", remoteBundlePath))
+		require.Contains(t, stderr, "No SBOMs found in bundle")
+		_, stderr = runCmd(t, fmt.Sprintf("inspect %s --insecure --sbom --extract", remoteBundlePath))
+		require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
+	})
+}
+
 func TestLocalBundleWithNoSBOM(t *testing.T) {
 	path := "src/test/packages/nginx"
 	runCmd(t, fmt.Sprintf("zarf package create %s -o %s --skip-sbom --confirm", path, path))
@@ -249,9 +280,8 @@ func TestLocalBundleWithNoSBOM(t *testing.T) {
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-yml-example-%s-0.0.1.tar.zst", e2e.Arch))
 	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 
-	stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", bundlePath))
-	require.Contains(t, stdout, "Cannot extract, no SBOMs found in bundle")
-	require.Contains(t, stdout, "sboms.tar not found in Zarf pkg")
+	_, stderr := runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", bundlePath))
+	require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
 }
 
 func TestRemoteBundleWithNoSBOM(t *testing.T) {
@@ -267,9 +297,8 @@ func TestRemoteBundleWithNoSBOM(t *testing.T) {
 	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 	runCmd(t, fmt.Sprintf("publish %s %s --insecure", bundlePath, "localhost:888"))
 
-	stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", bundlePath))
-	require.Contains(t, stdout, "Cannot extract, no SBOMs found in bundle")
-	require.Contains(t, stdout, "sboms.tar not found in Zarf pkg")
+	_, stderr := runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", bundlePath))
+	require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
 }
 
 func TestPackageNaming(t *testing.T) {

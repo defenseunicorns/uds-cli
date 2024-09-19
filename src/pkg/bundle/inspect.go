@@ -33,6 +33,7 @@ import (
 func (b *Bundle) Inspect() error {
 	// print to stdout to enable users to easily grab the output
 	pterm.SetDefaultOutput(os.Stdout)
+	var warns []string
 
 	if err := utils.CheckYAMLSourcePath(b.cfg.InspectOpts.Source); err == nil {
 		b.cfg.InspectOpts.IsYAMLFile = true
@@ -71,7 +72,7 @@ func (b *Bundle) Inspect() error {
 
 		// pull sbom
 		if b.cfg.InspectOpts.IncludeSBOM {
-			err := provider.CreateBundleSBOM(b.cfg.InspectOpts.ExtractSBOM, b.bundle.Metadata.Name)
+			warns, err = provider.CreateBundleSBOM(b.cfg.InspectOpts.ExtractSBOM, b.bundle.Metadata.Name)
 			if err != nil {
 				return err
 			}
@@ -97,6 +98,13 @@ func (b *Bundle) Inspect() error {
 	}
 
 	zarfUtils.ColorPrintYAML(b.bundle, nil, false)
+
+	// print warnings to stderr
+	pterm.SetDefaultOutput(os.Stderr)
+	for _, warn := range warns {
+		message.Warnf(warn)
+	}
+
 	return nil
 }
 
