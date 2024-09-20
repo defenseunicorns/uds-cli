@@ -63,7 +63,8 @@
     {
       "fileMatch": ["hack/update-uds-runtime-binaries.sh"],
       "matchStrings": ["CURRENT_VERSION=\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""],
-      "replaceString": "CURRENT_VERSION=\"${version}\""
+      "depNameTemplate": "defenseunicorns/uds-runtime",
+      "datasourceTemplate": "github-releases"
     }
   ]
 }
