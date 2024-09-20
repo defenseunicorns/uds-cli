@@ -57,6 +57,7 @@ var runnerCmd = &cobra.Command{
 		}
 
 		runnerCLI.RootCmd().SetArgs(os.Args)
+		runnerCLI.RootCmd().PersistentFlags().Set("log-level", "warn")
 		runnerCLI.Execute()
 
 		return nil
