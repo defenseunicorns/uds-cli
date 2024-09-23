@@ -1,7 +1,5 @@
 ---
 title: Quickstart and Usage
-type: docs
-weight: 1
 ---
 
 ## Install
@@ -453,7 +451,7 @@ Stream UDS Policy mutation logs:
 uds monitor pepr mutated
 ```
 
-Stream UDS Policy deny logs and UDS Operator error logs:  
+Stream UDS Policy deny logs and UDS Operator error logs:
 `uds monitor pepr failed`
 
 #### Monitor Flags

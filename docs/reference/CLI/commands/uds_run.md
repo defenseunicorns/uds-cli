@@ -1,20 +1,18 @@
 ---
-title: uds ui
-description: UDS CLI command reference for <code>uds ui</code>.
-type: docs
+title: uds run
 ---
-## uds ui
+## uds run
 
-[beta] Launch UDS Runtime and view UI
+Run a task using maru-runner
 
 ```
-uds ui [flags]
+uds run [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for ui
+  -h, --help   help for run
 ```
 
 ### Options inherited from parent commands
@@ -34,4 +32,3 @@ uds ui [flags]
 ### SEE ALSO
 
 * [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
-

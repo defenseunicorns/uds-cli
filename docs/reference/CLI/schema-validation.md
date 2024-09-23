@@ -1,10 +1,6 @@
 ---
-title: Schema
-type: docs
-weight: 5
+title: Schema Validation
 ---
-## Schema Validation
-
 When working with UDS configuration files, it can be useful to setup your IDE to know about the various schemas that UDS uses.
 
 The recommended method of validating schemas is by the use of `yaml-language-server` file headers:
@@ -34,7 +30,7 @@ To do this in VS Code you can install the [YAML Extension](https://marketplace.v
 
 ```json
     "yaml.schemas": {
-        "https://raw.githubusercontent.com/defenseunicorns/uds-cli/main/uds.schema.json": "uds-bundle.yaml"
+        "https://raw.githubusercontent.com/defenseunicorns/cli-commands/main/uds.schema.json": "uds-bundle.yaml"
     },
 ```
 

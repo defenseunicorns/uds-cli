@@ -1,7 +1,5 @@
 ---
 title: UDS Runner
-type: docs
-weight: 3
 ---
 UDS CLI contains vendors and configures the [maru-runner](https://github.com/defenseunicorns/maru-runner) build tool to make compiling and building UDS bundles simple.
 
@@ -51,9 +49,9 @@ tasks:
     - cmd: ./zarf tools kubectl get pods -A        # uses vendored Zarf
 ```
 
-{{% alert-note %}}
+:::note
 UDS CLI automatically removes progress bars from `./uds` commands and if `CI=true`then it will also remove progress bars from `uds run` commands.
-{{% /alert-note %}}
+:::
 
 ### Architecture Environment Variable
 

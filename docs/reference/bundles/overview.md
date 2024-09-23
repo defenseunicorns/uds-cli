@@ -1,7 +1,8 @@
 ---
-title: Bundle Anatomy
-type: docs
-weight: 4
+title: Overview
+
+sidebar:
+  order: 1
 ---
 
 ## Bundle Anatomy

@@ -1,36 +1,23 @@
 ---
-title: uds completion fish
-description: UDS CLI command reference for <code>uds completion fish</code>.
-type: docs
+title: uds inspect
 ---
-## uds completion fish
+## uds inspect
 
-Generate the autocompletion script for fish
-
-### Synopsis
-
-Generate the autocompletion script for the fish shell.
-
-To load completions in your current shell session:
-
-	uds completion fish | source
-
-To load completions for every new session, execute once:
-
-	uds completion fish > ~/.config/fish/completions/uds.fish
-
-You will need to start a new shell for this setup to take effect.
-
+Display the metadata of a bundle
 
 ```
-uds completion fish [flags]
+uds inspect [BUNDLE_TARBALL|OCI_REF|BUNDLE_YAML_FILE] [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help              help for fish
-      --no-descriptions   disable completion descriptions
+  -e, --extract          Create a folder of SBOMs contained in the bundle
+  -h, --help             help for inspect
+  -k, --key string       Path to a public key file that will be used to validate a signed bundle
+  -i, --list-images      Derive images from a uds-bundle.yaml file and list them
+  -v, --list-variables   List all configurable variables in a bundle (including zarf variables)
+  -s, --sbom             Create a tarball of SBOMs contained in the bundle
 ```
 
 ### Options inherited from parent commands
@@ -49,5 +36,4 @@ uds completion fish [flags]
 
 ### SEE ALSO
 
-* [uds completion](/cli/command-reference/uds_completion/)	 - Generate the autocompletion script for the specified shell
-
+* [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
