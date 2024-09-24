@@ -1,5 +1,13 @@
 # Bundle State
 
+### Update September 24th, 2024
+
+After initial rollout we decided to remove state due to unforeseen issues. For
+posterity this document is left intact, but the state feature described has been
+removed. We will very likely revisit the idea in the future.
+
+------
+
 ## Context
 
 The following 2 issues provide context driving the need for a UDS state tracking mechanism:
