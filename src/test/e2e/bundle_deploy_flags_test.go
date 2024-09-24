@@ -115,6 +115,7 @@ func TestResumeFlag(t *testing.T) {
 	require.Contains(t, deployments, "nginx")
 
 	// Remove only nginx
+	runCmd(t, fmt.Sprintf("remove %s --confirm --packages %s", bundlePath, "nginx"))
 	deployments, _ = runCmd(t, getDeploymentsCmd)
 	require.NotContains(t, deployments, "nginx")
 	require.Contains(t, deployments, "podinfo")
