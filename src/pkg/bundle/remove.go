@@ -1,4 +1,3 @@
-
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present The UDS Authors
 
@@ -93,7 +92,7 @@ func removePackages(packagesToRemove []types.Package, b *Bundle) error {
 			}
 
 			sha := strings.Split(pkg.Ref, "sha256:")[1]
-			source, err := sources.New(*b.cfg, pkg, opts, sha, nil)
+			source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nil)
 			if err != nil {
 				return err
 			}
