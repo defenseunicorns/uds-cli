@@ -58,7 +58,7 @@ func (b *Bundle) Deploy() error {
 	// if resume, filter for packages not yet deployed
 	if b.cfg.DeployOpts.Resume {
 		deployedPackageNames := GetDeployedPackageNames()
-		notDeployed := []types.Package{}
+		var notDeployed []types.Package
 
 		for _, pkg := range packagesToDeploy {
 			if !slices.Contains(deployedPackageNames, pkg.Name) {
