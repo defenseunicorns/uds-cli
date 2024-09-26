@@ -4,7 +4,7 @@ description: "Install k3d and create a cluster"
 inputs:
   create-clutser:
     description: "Boolean specifying if k3d should create a cluster after installation"
-    required: true
+    required: false
     default: 'true'
 
 runs:
