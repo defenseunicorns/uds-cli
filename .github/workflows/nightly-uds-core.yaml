@@ -42,14 +42,12 @@ jobs:
       - name: Make UDS-CLI executable
         run: |
           chmod +x build/uds
-      
+
       - name: Setup K3d
         uses: ./.github/actions/k3d
         with:
           create-cluster: ${{ matrix.create-cluster }}
-  
 
       - name: Run UDS Core smoke test
         run: build/uds run test:ci-uds-core-smoke-test
         shell: bash
-
