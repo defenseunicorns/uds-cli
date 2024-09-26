@@ -16,3 +16,4 @@ runs:
     - if: ${{ inputs.create-cluster }}
       run: k3d cluster delete && k3d cluster create
       shell: bash
+

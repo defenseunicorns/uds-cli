@@ -52,3 +52,4 @@ jobs:
       - name: Run UDS Core smoke test
         run: build/uds run test:ci-uds-core-smoke-test
         shell: bash
+
