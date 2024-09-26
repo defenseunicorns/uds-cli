@@ -52,7 +52,9 @@ jobs:
         existing-cluster: [with-cluster, without-cluster]
         include:
           - existing-cluster: without-cluster
-            create-cluster: false
+            create-cluster: 'false'
+          - existing-cluster: with-cluster
+            create-cluster: 'true'
     steps:
       # Checkout the repo and setup the tooling for this job
       - name: Checkout

@@ -21,7 +21,9 @@ jobs:
         existing-cluster: [with-cluster, without-cluster]
         include:
           - existing-cluster: without-cluster
-            create-cluster: false
+            create-cluster: 'false'
+          - existing-cluster: with-cluster
+            create-cluster: 'true'
     permissions:
       contents: read
     steps:
