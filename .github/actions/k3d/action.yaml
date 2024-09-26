@@ -10,9 +10,11 @@ inputs:
 runs:
   using: composite
   steps:
-    - run: "curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash"
+    - name: install k3d
+      run: "curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash"
       shell: bash
 
-    - if: ${{ inputs.create-cluster == 'true' }}
+    - name: create cluster
+      if: ${{ inputs.create-cluster == 'true' }}
       run: k3d cluster delete && k3d cluster create
       shell: bash
