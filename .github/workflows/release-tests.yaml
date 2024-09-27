@@ -1,4 +1,4 @@
-name: E2E Tests
+name: E2E Release Tests
 on:
   workflow_call: # This is the event that triggers the workflow
 
@@ -47,6 +47,9 @@ jobs:
   smoke-test:
     runs-on: ubuntu-latest
     needs: test
+    strategy:
+      matrix:
+        type: [with-cluster, without-cluster]
     steps:
       # Checkout the repo and setup the tooling for this job
       - name: Checkout
@@ -69,6 +72,8 @@ jobs:
 
       - name: Setup K3d
         uses: ./.github/actions/k3d
+        with:
+          create-cluster: "${{ matrix.type == 'with-cluster' && 'true' || 'false'}}"
 
       - name: Login to GHCR
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
