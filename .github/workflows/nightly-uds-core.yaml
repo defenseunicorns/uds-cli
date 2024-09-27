@@ -18,12 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        existing-cluster: [with-cluster, without-cluster]
-        include:
-          - existing-cluster: without-cluster
-            create-cluster: 'false'
-          - existing-cluster: with-cluster
-            create-cluster: 'true'
+        type: [with-cluster, without-cluster]
     permissions:
       contents: read
     steps:
