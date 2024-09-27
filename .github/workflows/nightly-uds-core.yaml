@@ -43,7 +43,7 @@ jobs:
       - name: Setup K3d
         uses: ./.github/actions/k3d
         with:
-          create-cluster: ${{ matrix.create-cluster }}
+          create-cluster: "${{ matrix.type == 'with-cluster' && 'false' || 'true'}}"
 
       - name: Run UDS Core smoke test
         run: build/uds run test:ci-uds-core-smoke-test
