@@ -49,12 +49,7 @@ jobs:
     needs: test
     strategy:
       matrix:
-        existing-cluster: [with-cluster, without-cluster]
-        include:
-          - existing-cluster: without-cluster
-            create-cluster: 'false'
-          - existing-cluster: with-cluster
-            create-cluster: 'true'
+        type: [with-cluster, without-cluster]
     steps:
       # Checkout the repo and setup the tooling for this job
       - name: Checkout
@@ -78,7 +73,7 @@ jobs:
       - name: Setup K3d
         uses: ./.github/actions/k3d
         with:
-          create-cluster: ${{ matrix.create-cluster }}
+          create-cluster: "${{ matrix.type == 'with-cluster' && 'true' || 'false'}}"
 
       - name: Login to GHCR
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
