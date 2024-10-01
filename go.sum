@@ -1733,8 +1733,8 @@ github.com/yuin/gopher-lua v1.1.1 h1:kYKnWBjvbNP4XLT3+bPEwAXJx262OhaHDWDVOPjL46M
 github.com/yuin/gopher-lua v1.1.1/go.mod h1:GBR0iDaNXjAgGg9zfCvksxSRnQx76gclCIb7kdAd1Pw=
 github.com/zalando/go-keyring v0.2.2 h1:f0xmpYiSrHtSNAVgwip93Cg8tuF45HJM6rHq/A5RI/4=
 github.com/zalando/go-keyring v0.2.2/go.mod h1:sI3evg9Wvpw3+n4SqplGSJUMwtDeROfD4nsFz4z9PG0=
-github.com/zarf-dev/zarf v0.39.0 h1:pWcYHITUtKDdRoNKZCSpOtQMj5g32XgQmq2x2kqmgWI=
-github.com/zarf-dev/zarf v0.39.0/go.mod h1:heZFZKR4G+ap+B5fLBVRitQ516rMH5zHWoO4Eh2KcEk=
+github.com/zarf-dev/zarf v0.40.1 h1:4PH5sTg0AI8RZptkRZc7kc73SQdjTvHktgKU0gk3ZJU=
+github.com/zarf-dev/zarf v0.40.1/go.mod h1:heZFZKR4G+ap+B5fLBVRitQ516rMH5zHWoO4Eh2KcEk=
 github.com/zclconf/go-cty v1.14.0 h1:/Xrd39K7DXbHzlisFP9c4pHao4yyf+/Ug9LEz+Y/yhc=
 github.com/zclconf/go-cty v1.14.0/go.mod h1:VvMs5i0vgZdhYawQNq5kePSpLAoz8u1xvZgrPIxfnZE=
 github.com/zeebo/errs v1.3.0 h1:hmiaKqgYZzcVgRL1Vkc1Mn2914BbzB0IBxs+ebeutGs=
