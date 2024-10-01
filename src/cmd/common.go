@@ -79,6 +79,17 @@ func configureZarf() {
 		Confirm:        config.CommonOptions.Confirm,
 		CachePath:      config.CommonOptions.CachePath, // use uds-cache instead of zarf-cache
 	}
+
+	// Zarf split it's "insecure" in to two flags, PlainHTTP and
+	// InsecureSkipTLSVerify, with Insecure is converted to both being set to true.
+	// UDS does not currently expose those flags and effectively shares the
+	// --insecure flag with zarf, so when we set the common options we need to
+	// set those additional flags here as well.
+	// See https://github.com/zarf-dev/zarf/pull/2936 for more information.
+	if config.CommonOptions.Insecure {
+		zarfConfig.CommonOptions.PlainHTTP = true
+		zarfConfig.CommonOptions.InsecureSkipTLSVerify = true
+	}
 }
 
 func setBundleFile(args []string) error {
