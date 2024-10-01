@@ -16,14 +16,12 @@ import (
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
-	"github.com/defenseunicorns/uds-cli/src/pkg/state"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	zarfConfig "github.com/zarf-dev/zarf/src/config"
-	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/layout"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
@@ -57,70 +55,23 @@ func (b *Bundle) Deploy() error {
 		}
 	}
 
-	// get bundle state
-	var sc *state.Client
-	var kc *cluster.Cluster
-	if config.FF_STATE_ENABLED {
-		message.Debugf("state management disabled, skipping bundle state management")
-		var err error
-		var enabledState bool
-		kc, err = cluster.NewCluster()
-		if err != nil {
-			// common scenario for Zarf actions run before cluster is available
-			enabledState = false
-		}
-		sc, err = state.NewClient(kc, enabledState)
-		if err != nil {
-			return err
-		}
-
-		err = sc.InitBundleState(&b.bundle, state.Deploying)
-		if err != nil {
-			return err
-		}
-	} else {
-		sc = &state.Client{
-			Enabled: false,
-		}
-	}
-
 	// if resume, filter for packages not yet deployed
 	if b.cfg.DeployOpts.Resume {
-		deployedPackageNames := state.GetDeployedPackageNames()
+		deployedPackageNames := GetDeployedPackageNames()
 		var notDeployed []types.Package
 
 		for _, pkg := range packagesToDeploy {
 			if !slices.Contains(deployedPackageNames, pkg.Name) {
 				notDeployed = append(notDeployed, pkg)
 			}
-		}
-		packagesToDeploy = notDeployed
-	}
-
-	deployErr := deployPackages(sc, packagesToDeploy, b)
-	if deployErr != nil {
-		_ = sc.UpdateBundleState(&b.bundle, state.Failed)
-		return deployErr
-	}
-
-	// update bundle state with success
-	err := sc.UpdateBundleState(&b.bundle, state.Success)
-	if err != nil {
-		return err
-	}
-
-	// prune unreferenced packages
-	if b.cfg.DeployOpts.Prune {
-		err = b.handlePrune(sc, kc)
-		if err != nil {
-			return err
+			packagesToDeploy = notDeployed
 		}
 	}
 
-	return nil
+	return deployPackages(packagesToDeploy, b)
 }
 
-func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundle) error {
+func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 	// map of Zarf pkgs and their vars
 	bundleExportedVars := make(map[string]map[string]string)
 
@@ -198,15 +149,7 @@ func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundl
 			return err
 		}
 
-		if pkgDeployErr := pkgClient.Deploy(context.TODO()); pkgDeployErr != nil {
-			err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Failed)
-			if err != nil {
-				return err
-			}
-			return pkgDeployErr
-		}
-		err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Success)
-		if err != nil {
+		if err = pkgClient.Deploy(context.TODO()); err != nil {
 			return err
 		}
 
@@ -222,31 +165,6 @@ func deployPackages(sc *state.Client, packagesToDeploy []types.Package, b *Bundl
 			pkgExportedVars[strings.ToUpper(exp.Name)] = setVariable.Value
 		}
 		bundleExportedVars[pkg.Name] = pkgExportedVars
-
-		// if state client is still disabled, check for cluster connection
-		if config.FF_STATE_ENABLED {
-			if !sc.Enabled {
-				kc, err := cluster.NewCluster()
-				if err != nil {
-					message.Debugf("not connected to cluster, skipping bundle state management")
-				} else {
-					message.Debugf("connected to cluster, enabling bundle state management")
-					sc.Client = kc.Clientset
-					sc.Enabled = true
-					err = sc.InitBundleState(&b.bundle, state.Deploying)
-					if err != nil {
-						return err
-					}
-					// got a cluster now! update UDS state with the pkgs that were deployed before the cluster was up
-					for j := 0; j <= i; j++ {
-						err = sc.UpdateBundlePkgState(&b.bundle, packagesToDeploy[j], state.Success)
-						if err != nil {
-							return err
-						}
-					}
-				}
-			}
-		}
 
 	}
 	return nil

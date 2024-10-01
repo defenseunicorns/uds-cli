@@ -22,7 +22,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
         with:
           fetch-depth: 0
 
@@ -49,6 +49,13 @@ jobs:
           private-key: ${{ secrets.HOMEBREW_TAP_WORKFLOW_GITHUB_APP_SECRET }}
           owner: defenseunicorns
           repositories: homebrew-tap
+
+      - name: Download Runtime binaries for embedding
+        run: |
+            ./hack/update-uds-runtime-binaries.sh uds-runtime-linux-amd64
+            ./hack/update-uds-runtime-binaries.sh uds-runtime-linux-arm64
+            ./hack/update-uds-runtime-binaries.sh uds-runtime-darwin-amd64
+            ./hack/update-uds-runtime-binaries.sh uds-runtime-darwin-arm64
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@286f3b13b1b49da4ac219696163fb8c1c93e1200 # v6.0.0

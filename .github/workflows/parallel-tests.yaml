@@ -8,7 +8,7 @@ jobs:
     steps:
       # Checkout the repo and setup the tooling for this job
       - name: Checkout
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
         with:
           fetch-depth: 0
 
@@ -38,7 +38,7 @@ jobs:
         test: [bundle, deploy-flags, index]
     steps:
       - name: Checkout
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
         with:
           fetch-depth: 0
 
@@ -51,29 +51,29 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@24c8a2a48eeb33773b76b3587c489cb17496c9e0 # v0.12.0
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@ea9db8ab9bfc4a5d87acd7d1af385aa8e44206d3 # v0.13.0
         with:
           suffix: ${{ matrix.test }}
 
-  test-dev-and-state:
+  test-dev:
     runs-on: ubuntu-latest
     needs: build
     steps:
       - name: Checkout
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
         with:
           fetch-depth: 0
 
       - name: setup-using-previous-job
         uses: ./.github/actions/setup-from-previous
 
-      - name: Run e2e dev and state tests
+      - name: Run e2e dev
         run: |
-          build/uds run test:dev-and-state
+          build/uds run test:dev
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@24c8a2a48eeb33773b76b3587c489cb17496c9e0 # v0.12.0
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@ea9db8ab9bfc4a5d87acd7d1af385aa8e44206d3 # v0.13.0
         with:
           suffix: test-dev
 
@@ -82,7 +82,7 @@ jobs:
     needs: build
     steps:
       - name: Checkout
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
         with:
           fetch-depth: 0
 
@@ -95,7 +95,7 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@24c8a2a48eeb33773b76b3587c489cb17496c9e0 # v0.12.0
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@ea9db8ab9bfc4a5d87acd7d1af385aa8e44206d3 # v0.13.0
         with:
           suffix: test-variables
 
@@ -104,7 +104,7 @@ jobs:
     needs: build
     steps:
       - name: Checkout
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
         with:
           fetch-depth: 0
 
@@ -117,7 +117,7 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@24c8a2a48eeb33773b76b3587c489cb17496c9e0 # v0.12.0
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@ea9db8ab9bfc4a5d87acd7d1af385aa8e44206d3 # v0.13.0
         with:
           suffix: test-optional-bundle
 
@@ -126,7 +126,7 @@ jobs:
     needs: build
     steps:
       - name: Checkout
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
         with:
           fetch-depth: 0
 
@@ -148,7 +148,7 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@24c8a2a48eeb33773b76b3587c489cb17496c9e0 # v0.12.0
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@ea9db8ab9bfc4a5d87acd7d1af385aa8e44206d3 # v0.13.0
         with:
           suffix: test-vendor
 
@@ -157,7 +157,7 @@ jobs:
     needs: build
     steps:
       - name: Checkout
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
         with:
           fetch-depth: 0
 
@@ -170,6 +170,6 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@24c8a2a48eeb33773b76b3587c489cb17496c9e0 # v0.12.0
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@ea9db8ab9bfc4a5d87acd7d1af385aa8e44206d3 # v0.13.0
         with:
           suffix: test-engine

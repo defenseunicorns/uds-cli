@@ -101,16 +101,6 @@ As an example: `uds deploy uds-bundle-<name>.tar.zst --resume`
 
 In the process of upgrading bundles, it's common to swap or remove packages from a `uds-bundle.yaml`. These packages can become `unreferenced`, meaning that they are still deployed to the cluster, but are no longer referenced by a bundle. To remove these packages from the cluster, you can use the `--prune` flag when deploying a bundle.
 
-```bash
-uds deploy <bundle> --prune
-```
-
-This command will prompt and inform the user of any packages that are unreferenced and will be pruned from the cluster. To skip the prompt, you can add the `--confirm` flag to the command.
-
-{{% alert-note %}}
-Currently, pruning will occur _after_ the bundle has been deployed.
-{{% /alert-note %}}
-
 #### Pre-Deploy View
 
 When `uds deploy` is executed, the bundle's metadata, along with a list of its packages and each package's overrides and Zarf variables, will be outputted to the terminal. Unlike [`inspect --list-variables`](#viewing-variables), this output will show the value set for each override or Zarf variable. Overrides and variables that have not been set will not be shown in the output.
@@ -478,7 +468,7 @@ Stream UDS Policy deny logs and UDS Operator error logs:
 
 ## Scan
 
-{{% alert-note %}}> Scan is an ALPHA feature.
+{{% alert-note %}}
 Trivy is a prerequisite for scanning container images and filesystem for vulnerabilities. You can find more information and installation instructions at [Trivy's official documentation](https://aquasecurity.github.io/trivy).
 {{% /alert-note %}}
 
@@ -513,3 +503,9 @@ uds scan -o defenseunicorns -n packages/uds/gitlab-runner -g 16.10.0-uds.0-upstr
 ## UDS Runtime
 
 The `uds ui` command launches UDS Runtime, which provides a web-based user interface to view what is running in your K8s cluster. More information regarding UDS Runtime can be found [here](https://github.com/defenseunicorns/uds-runtime).
+
+To exit UDS Runtime, press `Ctrl+C`.
+
+{{% alert-note %}}
+There is currently a known data loading [issue](https://github.com/defenseunicorns/uds-runtime/issues/365) with opening UDS Runtime via `uds ui` in multiple tabs or windows. If you encounter this issue, please ensure there is only one tab or window of UDS Runtime open at a time.
+{{% /alert-note %}}

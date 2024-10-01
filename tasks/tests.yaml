@@ -35,7 +35,7 @@ tasks:
     actions:
       - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m completion_test.go commands_test.go main_test.go
 
-  - name: dev-and-state
+  - name: dev
     description: only run tests in dev_test.go and state_test.go (grouped bc neither require zarf init)
     actions:
       # commenting out state tests for now as its behind a feature flag and not ready for CI
@@ -85,5 +85,3 @@ tasks:
           build/uds zarf tools wait-for gateway admin-gateway -n istio-admin-gateway --timeout 10s
           build/uds zarf tools wait-for gateway tenant-gateway -n istio-tenant-gateway --timeout 10s
           build/uds zarf tools wait-for package keycloak -n keycloak --timeout 10s
-# commenting out state tests until we re-enable the feature
-#      - cmd: ./hack/validate-uds-core-state.sh

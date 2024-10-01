@@ -6,10 +6,10 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
 	github.com/charmbracelet/lipgloss v0.13.0
-	github.com/defenseunicorns/maru-runner v0.2.2
+	github.com/defenseunicorns/maru-runner v0.2.3
 	github.com/defenseunicorns/pkg/exec v0.0.1
 	github.com/defenseunicorns/pkg/helpers/v2 v2.0.1
-	github.com/defenseunicorns/pkg/oci v1.0.1
+	github.com/defenseunicorns/pkg/oci v1.0.2
 	github.com/defenseunicorns/uds-security-hub v0.0.7
 	github.com/fatih/color v1.17.0
 	github.com/fsnotify/fsnotify v1.7.0
@@ -26,9 +26,9 @@ require (
 	golang.org/x/mod v0.21.0
 	golang.org/x/sync v0.8.0
 	helm.sh/helm/v3 v3.16.1
-	k8s.io/api v0.31.0
-	k8s.io/apimachinery v0.31.0
-	k8s.io/client-go v0.31.0
+	k8s.io/api v0.31.1
+	k8s.io/apimachinery v0.31.1
+	k8s.io/client-go v0.31.1
 	oras.land/oras-go/v2 v2.5.0
 )
 
@@ -190,7 +190,7 @@ require (
 	github.com/digitorus/timestamp v0.0.0-20231217203849-220c5c2851b7 // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/distribution/reference v0.5.0 // indirect
-	github.com/docker/cli v27.1.1+incompatible // indirect
+	github.com/docker/cli v27.2.1+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker v26.1.4+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.2 // indirect
@@ -391,9 +391,9 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/profile v1.7.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_golang v1.19.1 // indirect
+	github.com/prometheus/client_golang v1.20.0 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
-	github.com/prometheus/common v0.55.0 // indirect
+	github.com/prometheus/common v0.59.1 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/protocolbuffers/txtpbfmt v0.0.0-20231025115547-084445ff1adf // indirect
 	github.com/rakyll/hey v0.1.4 // indirect
@@ -485,7 +485,7 @@ require (
 	go4.org v0.0.0-20200411211856-f5505b9728dd // indirect
 	golang.org/x/crypto v0.27.0 // indirect
 	golang.org/x/net v0.29.0 // indirect
-	golang.org/x/oauth2 v0.21.0 // indirect
+	golang.org/x/oauth2 v0.22.0 // indirect
 	golang.org/x/sys v0.25.0 // indirect
 	golang.org/x/term v0.24.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
@@ -531,8 +531,6 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
-
-replace github.com/prometheus/common => github.com/prometheus/common v0.55.0
 
 replace github.com/docker/docker => github.com/docker/docker v24.0.9+incompatible
 
