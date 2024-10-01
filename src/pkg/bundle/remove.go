@@ -11,10 +11,8 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
-	"github.com/defenseunicorns/uds-cli/src/pkg/state"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
@@ -22,7 +20,7 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-// Remove removes a bundle from the cluster
+// Remove removes packages deployed from a bundle
 func (b *Bundle) Remove() error {
 	// Check that provided oci source path is valid, and update it if it's missing the full path
 	source, err := CheckOCISourcePath(b.cfg.RemoveOpts.Source)
@@ -69,73 +67,19 @@ func (b *Bundle) Remove() error {
 		if len(userSpecifiedPackages) != len(packagesToRemove) {
 			return fmt.Errorf("invalid zarf packages specified by --packages")
 		}
-	} else {
-		packagesToRemove = b.bundle.Packages
+		return removePackages(packagesToRemove, b)
 	}
-
-	// get bundle state
-	var sc *state.Client
-	var kc *cluster.Cluster
-	if config.FF_STATE_ENABLED {
-		var err error
-		kc, err = cluster.NewCluster()
-		sc, err = state.NewClient(kc, true)
-		if err != nil {
-			return err
-		}
-
-		err = sc.InitBundleState(&b.bundle, state.Removing)
-		if err != nil {
-			return err
-		}
-	} else {
-		sc = &state.Client{
-			Enabled: false,
-		}
-	}
-
-	// remove packages
-	removeErr := removePackages(sc, packagesToRemove, b)
-	if removeErr != nil {
-		return removeErr
-	}
-
-	// remove bundle state secret
-	err = sc.RemoveBundleState(&b.bundle)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return removePackages(b.bundle.Packages, b)
 }
 
-func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundle) error {
-	// Get deployed packages from Zarf state
-	deployedPackageNames := state.GetDeployedPackageNames()
-
-	bundleState, err := sc.GetBundleState(&b.bundle)
-	if err != nil {
-		return err
-	}
+func removePackages(packagesToRemove []types.Package, b *Bundle) error {
+	// Get deployed packages
+	deployedPackageNames := GetDeployedPackageNames()
 
 	for i := len(packagesToRemove) - 1; i >= 0; i-- {
 		pkg := packagesToRemove[i]
 
-		if config.FF_STATE_ENABLED {
-			// check if disconnected from cluster
-			_, err = cluster.NewCluster()
-			if err != nil {
-				// cluster no longer available, disable state client (common scenario when running Zarf actions after cluster has been deleted)
-				sc.Enabled = false
-			}
-		}
-
 		if slices.Contains(deployedPackageNames, pkg.Name) {
-			err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Removing)
-			if err != nil {
-				return err
-			}
-
 			opts := zarfTypes.ZarfPackageOptions{
 				PackageSource: b.cfg.RemoveOpts.Source,
 			}
@@ -159,32 +103,11 @@ func removePackages(sc *state.Client, packagesToRemove []types.Package, b *Bundl
 			}
 			defer pkgClient.ClearTempPaths()
 
-			if removeErr := pkgClient.Remove(context.TODO()); removeErr != nil {
-				err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.FailedRemove)
-				if err != nil {
-					return err
-				}
-				return removeErr
-			}
-
-			err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Removed)
-			if err != nil {
+			if err := pkgClient.Remove(context.TODO()); err != nil {
 				return err
 			}
 		} else {
-			if config.FF_STATE_ENABLED {
-				// update bundle state if exists in bundle but not in cluster (ie. simple Zarf pkgs with no artifacts)
-				for _, pkgState := range bundleState.PkgStatuses {
-					if pkgState.Name == pkg.Name {
-						err = sc.UpdateBundlePkgState(&b.bundle, pkg, state.Removed)
-						if err != nil {
-							return err
-						}
-						break
-					}
-				}
-				message.Debugf("Skipped removal of %s, package not found in Zarf or UDS state", pkg.Name)
-			}
+			message.Warnf("Skipping removal of %s. Package not deployed", pkg.Name)
 		}
 	}
 

@@ -21,6 +21,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
@@ -360,4 +361,17 @@ func (b *Bundle) setPackageRef(pkg types.Package) (types.Package, error) {
 		}
 	}
 	return pkg, nil
+}
+
+// GetDeployedPackageNames returns the names of the packages that have been deployed
+func GetDeployedPackageNames() []string {
+	var deployedPackageNames []string
+	c, _ := cluster.NewCluster()
+	if c != nil {
+		deployedPackages, _ := c.GetDeployedZarfPackages(context.TODO())
+		for _, pkg := range deployedPackages {
+			deployedPackageNames = append(deployedPackageNames, pkg.Name)
+		}
+	}
+	return deployedPackageNames
 }
