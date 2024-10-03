@@ -161,6 +161,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6
+        with:
+          node-version: 20
+
       - name: setup-using-previous-job
         uses: ./.github/actions/setup-from-previous
 
