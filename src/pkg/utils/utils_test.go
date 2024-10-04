@@ -88,3 +88,55 @@ func Test_IsRegistryURL(t *testing.T) {
 		})
 	}
 }
+
+func Test_formatBundleName(t *testing.T) {
+	tests := map[string]struct {
+		src       string
+		expected  string
+		shouldErr bool // not used yet
+	}{
+		"valid": {
+			src:      "wordpress",
+			expected: "wordpress",
+		},
+		"valid mixed caps": {
+			src:      "woRdprEsS",
+			expected: "wordpress",
+		},
+		"valid spaces": {
+			src:      "woRdprEsS version 1",
+			expected: "wordpress-version-1",
+		},
+		"valid leading spaces": {
+			// leading spaces trimmed but the space after the first "-" is
+			// converted to "-"
+			src:      "   - woRdprEsS version 1    ",
+			expected: "--wordpress-version-1",
+		},
+		"invalid chars": {
+			src:       "woRdprEsS*version 1",
+			shouldErr: true,
+		},
+		"more invalid chars": {
+			src:       "&*^woRdprEsS*version 1",
+			shouldErr: true,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			result, err := FormatBundleName(tt.src)
+			if tt.shouldErr && err != nil {
+				// expected error
+				return
+			}
+			if tt.shouldErr && err == nil {
+				t.Fatalf("expected error but got none")
+			}
+			if !tt.shouldErr && err != nil {
+				t.Fatalf("got error but expected none: %s", err)
+			}
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
