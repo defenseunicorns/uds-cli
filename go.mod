@@ -6,12 +6,11 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
 	github.com/charmbracelet/lipgloss v0.13.0
-	github.com/defenseunicorns/maru-runner v0.2.3
+	github.com/defenseunicorns/maru-runner v0.3.0
 	github.com/defenseunicorns/pkg/exec v0.0.1
 	github.com/defenseunicorns/pkg/helpers/v2 v2.0.1
 	github.com/defenseunicorns/pkg/oci v1.0.2
 	github.com/defenseunicorns/uds-security-hub v0.0.7
-	github.com/fatih/color v1.17.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/goccy/go-yaml v1.12.0
 	github.com/mholt/archiver/v3 v3.5.1
@@ -211,6 +210,7 @@ require (
 	github.com/facebookincubator/nvdtools v0.1.5 // indirect
 	github.com/fairwindsops/pluto/v5 v5.18.4 // indirect
 	github.com/fatih/camelcase v1.0.0 // indirect
+	github.com/fatih/color v1.17.0 // indirect
 	github.com/felixge/fgprof v0.9.3 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fluxcd/helm-controller/api v1.0.1 // indirect
