@@ -1,1 +1,5 @@
-* @UncleGedd @jeff-mccoy @decleaver @TristanHoladay @catsby
+* @defenseunicorns/uds-core
+
+# Additional privileged files
+/CODEOWNERS @jeff-mccoy @catsby @UncleGedd @daveworth
+/LICENSE @jeff-mccoy @austenbryan
