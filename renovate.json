@@ -2,9 +2,7 @@
   "enabled": true,
   "forkProcessing": "enabled",
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:base"
-  ],
+  "extends": ["config:base"],
   "ignorePaths": [],
   "timezone": "America/New_York",
   "repositories": ["defenseunicorns/uds-cli"],
@@ -17,43 +15,38 @@
   "rebaseWhen": "conflicted",
   "commitBodyTable": true,
   "suppressNotifications": ["prIgnoreNotification"],
-  "postUpdateOptions": [
-    "gomodTidy"
-  ],
+  "postUpdateOptions": ["gomodTidy"],
   "packageRules": [
     {
       "matchPackageNames": ["zarf-dev/zarf", "github.com/zarf-dev/zarf"],
       "groupName": "zarf"
     },
     {
-      "matchPackageNames": ["stefanprodan/podinfo", "github.com/stefanprodan/podinfo", "podinfo"],
+      "matchPackageNames": [
+        "stefanprodan/podinfo",
+        "github.com/stefanprodan/podinfo",
+        "podinfo"
+      ],
       "groupName": "podinfo"
     }
   ],
   "regexManagers": [
     {
-      "fileMatch": [
-        "uds-bundle.yaml",
-        "action.yaml"
-      ],
+      "fileMatch": ["uds-bundle.yaml", "action.yaml"],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>.*) depName=(?<depName>.*)\\n\\s*(version|ref): (?<currentValue>.*)"
       ],
       "versioningTemplate": "semver"
     },
     {
-      "fileMatch": [
-        "zarf.yaml"
-      ],
+      "fileMatch": ["zarf.yaml"],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>.*) depName=(?<depName>.*)\\n\\s*(-\\s.*:)(?<currentValue>.*)"
       ],
       "datasourceTemplate": "github-tags"
     },
     {
-      "fileMatch": [
-        "generate-schema\\.sh"
-      ],
+      "fileMatch": ["generate-schema\\.sh"],
       "matchStrings": [
         "https://raw\\.githubusercontent\\.com/zarf-dev/zarf/v(?<currentValue>\\d+\\.\\d+\\.\\d+)/zarf\\.schema\\.json"
       ],
@@ -61,8 +54,10 @@
       "datasourceTemplate": "github-releases"
     },
     {
-      "fileMatch": ["hack/update-uds-runtime-binaries.sh"],
-      "matchStrings": ["CURRENT_VERSION=\"v(?<currentValue>\\d+\\.\\d+\\.\\d+)\""],
+      "fileMatch": ["hack/download-uds-runtime-assets.sh"],
+      "matchStrings": [
+        "CURRENT_VERSION=\"v(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ],
       "depNameTemplate": "defenseunicorns/uds-runtime",
       "datasourceTemplate": "github-releases"
     }
