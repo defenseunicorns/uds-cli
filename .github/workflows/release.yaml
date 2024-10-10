@@ -48,11 +48,7 @@ jobs:
           repositories: homebrew-tap
 
       - name: Download Runtime assets for embedding
-        run: |
-          ./hack/download-uds-runtime-assets.sh 
-          ./hack/download-uds-runtime-assets.sh 
-          ./hack/download-uds-runtime-assets.sh
-          ./hack/download-uds-runtime-assets.sh
+        run: ./hack/download-uds-runtime-assets.sh
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@286f3b13b1b49da4ac219696163fb8c1c93e1200 # v6.0.0
