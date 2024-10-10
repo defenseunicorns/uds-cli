@@ -2,7 +2,7 @@
 
 OWNER="defenseunicorns"
 REPO="uds-runtime"
-BASE_PATH="./src/cmd/ui"
+BASE_PATH="./src/cmd/"
 CERTS_PATH="./src/cmd/ui/certs"
 ARCHIVE_NAME="uds-runtime-ui.tar.gz"
 CURRENT_VERSION="v0.5.0"
@@ -43,22 +43,22 @@ download_certs() {
 }
 
 # Check if the current version is different from the latest or the archive doesn't exist
-# if [[ "$LATEST_VERSION" != "$CURRENT_VERSION" ]] || [[ ! -f "${BASE_PATH}/${ARCHIVE_NAME}" ]]; then
-#     echo "Updating UDS Runtime UI to version $LATEST_VERSION"
+if [[ "$LATEST_VERSION" != "$CURRENT_VERSION" ]] || [[ ! -f "${BASE_PATH}/${ARCHIVE_NAME}" ]]; then
+    echo "Updating UDS Runtime UI to version $LATEST_VERSION"
 
-#     # Clean up old files before downloading the new release
-#     clean_old_files
+    # Clean up old files before downloading the new release
+    clean_old_files
 
-#     # Download and extract the latest release archive
-#     download_release
-#     extract_release
+    # Download and extract the latest release archive
+    download_release
+    extract_release
 
-#     # Update the current version
-#     CURRENT_VERSION="$LATEST_VERSION"
-#     echo "Updated to version $LATEST_VERSION"
-# else
-#     echo "UDS Runtime UI is up to date."
-# fi
+    # Update the current version
+    CURRENT_VERSION="$LATEST_VERSION"
+    echo "Updated to version $LATEST_VERSION"
+else
+    echo "UDS Runtime UI is up to date."
+fi
 
 # Download certs files
 download_certs
