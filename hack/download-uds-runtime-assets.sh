@@ -5,7 +5,7 @@ REPO="uds-runtime"
 BASE_PATH="./src/cmd/"
 CERTS_PATH="./src/cmd/ui/certs"
 ARCHIVE_NAME="uds-runtime-ui.tar.gz"
-CURRENT_VERSION="v0.5.0"
+CURRENT_VERSION="v0.6.0"
 
 # Get the latest release version from GitHub API
 LATEST_VERSION=$(curl -s "https://api.github.com/repos/$OWNER/$REPO/releases/latest" | jq -r .tag_name)
