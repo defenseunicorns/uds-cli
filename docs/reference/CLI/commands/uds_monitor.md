@@ -1,22 +1,19 @@
 ---
-title: uds remove
-description: UDS CLI command reference for <code>uds remove</code>.
-type: docs
+title: uds monitor
 ---
-## uds remove
+## uds monitor
 
-Remove a bundle that has been deployed already
+Monitor a UDS Cluster
 
-```
-uds remove [BUNDLE_TARBALL|OCI_REF] [flags]
-```
+### Synopsis
+
+Tools for monitoring a UDS Cluster and connecting to the UDS Engine for advanced troubleshooting
 
 ### Options
 
 ```
-  -c, --confirm                REQUIRED. Confirm the removal action to prevent accidental deletions
-  -h, --help                   help for remove
-  -p, --packages stringArray   Specify which zarf packages you would like to remove from the bundle. By default all zarf packages in the bundle are removed.
+  -h, --help               help for monitor
+  -n, --namespace string   Limit monitoring to a specific namespace
 ```
 
 ### Options inherited from parent commands
@@ -36,4 +33,4 @@ uds remove [BUNDLE_TARBALL|OCI_REF] [flags]
 ### SEE ALSO
 
 * [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
-
+* [uds monitor pepr](/cli/command-reference/uds_monitor_pepr/)	 - Observe Pepr operations in a UDS Cluster

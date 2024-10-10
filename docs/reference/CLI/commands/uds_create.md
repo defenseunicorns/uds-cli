@@ -1,20 +1,24 @@
 ---
-title: uds run
-description: UDS CLI command reference for <code>uds run</code>.
-type: docs
+title: uds create
 ---
-## uds run
+## uds create
 
-Run a task using maru-runner
+Create a bundle from a given directory or the current directory
 
 ```
-uds run [flags]
+uds create [DIRECTORY] [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for run
+  -c, --confirm                       Confirm bundle creation without prompting
+  -h, --help                          help for create
+  -n, --name string                   Specify the name of the bundle
+  -o, --output string                 Specify the output (an oci:// URL) for the created bundle
+  -k, --signing-key string            Path to private key file for signing bundles
+  -p, --signing-key-password string   Password to the private key file used for signing bundles
+  -v, --version string                Specify the version of the bundle
 ```
 
 ### Options inherited from parent commands
@@ -34,4 +38,3 @@ uds run [flags]
 ### SEE ALSO
 
 * [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
-

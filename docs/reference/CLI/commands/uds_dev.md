@@ -1,47 +1,14 @@
 ---
-title: uds completion zsh
-description: UDS CLI command reference for <code>uds completion zsh</code>.
-type: docs
+title: uds dev
 ---
-## uds completion zsh
+## uds dev
 
-Generate the autocompletion script for zsh
-
-### Synopsis
-
-Generate the autocompletion script for the zsh shell.
-
-If shell completion is not already enabled in your environment you will need
-to enable it.  You can execute the following once:
-
-	echo "autoload -U compinit; compinit" >> ~/.zshrc
-
-To load completions in your current shell session:
-
-	source <(uds completion zsh)
-
-To load completions for every new session, execute once:
-
-#### Linux:
-
-	uds completion zsh > "${fpath[1]}/_uds"
-
-#### macOS:
-
-	uds completion zsh > $(brew --prefix)/share/zsh/site-functions/_uds
-
-You will need to start a new shell for this setup to take effect.
-
-
-```
-uds completion zsh [flags]
-```
+[beta] Commands useful for developing bundles
 
 ### Options
 
 ```
-  -h, --help              help for zsh
-      --no-descriptions   disable completion descriptions
+  -h, --help   help for dev
 ```
 
 ### Options inherited from parent commands
@@ -60,5 +27,5 @@ uds completion zsh [flags]
 
 ### SEE ALSO
 
-* [uds completion](/cli/command-reference/uds_completion/)	 - Generate the autocompletion script for the specified shell
-
+* [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
+* [uds dev deploy](/cli/command-reference/uds_dev_deploy/)	 - [beta] Creates and deploys a UDS bundle in dev mode

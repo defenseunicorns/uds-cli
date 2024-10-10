@@ -1,7 +1,5 @@
 ---
 title: uds
-description: UDS CLI command reference for <code>uds</code>.
-type: docs
 ---
 ## uds
 
@@ -41,4 +39,3 @@ uds COMMAND [flags]
 * [uds run](/cli/command-reference/uds_run/)	 - Run a task using maru-runner
 * [uds ui](/cli/command-reference/uds_ui/)	 - [beta] Launch UDS Runtime and view UI
 * [uds version](/cli/command-reference/uds_version/)	 - Shows the version of the running UDS-CLI binary
-

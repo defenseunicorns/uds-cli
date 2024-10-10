@@ -1,22 +1,27 @@
 ---
-title: uds completion
-description: UDS CLI command reference for <code>uds completion</code>.
-type: docs
+title: uds dev deploy
 ---
-## uds completion
+## uds dev deploy
 
-Generate the autocompletion script for the specified shell
+[beta] Creates and deploys a UDS bundle in dev mode
 
 ### Synopsis
 
-Generate the autocompletion script for uds for the specified shell.
-See each sub-command's help for details on how to use the generated script.
+[beta] Creates and deploys a UDS bundle from a given directory or OCI repository in dev mode, setting package options like YOLO mode for faster iteration.
 
+```
+uds dev deploy [BUNDLE_DIR|OCI_REF] [flags]
+```
 
 ### Options
 
 ```
-  -h, --help   help for completion
+  -f, --flavor string          [beta] Specify which zarf package flavor you want to use.
+      --force-create           [beta] For local bundles with local packages, specify whether to create a zarf package even if it already exists.
+  -h, --help                   help for deploy
+  -p, --packages stringArray   Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed.
+  -r, --ref stringToString     Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used. (default [])
+      --set stringToString     Specify deployment variables to set on the command line (KEY=value) (default [])
 ```
 
 ### Options inherited from parent commands
@@ -35,8 +40,4 @@ See each sub-command's help for details on how to use the generated script.
 
 ### SEE ALSO
 
-* [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
-* [uds completion bash](/cli/command-reference/uds_completion_bash/)	 - Generate the autocompletion script for bash
-* [uds completion fish](/cli/command-reference/uds_completion_fish/)	 - Generate the autocompletion script for fish
-* [uds completion zsh](/cli/command-reference/uds_completion_zsh/)	 - Generate the autocompletion script for zsh
-
+* [uds dev](/cli/command-reference/uds_dev/)	 - [beta] Commands useful for developing bundles

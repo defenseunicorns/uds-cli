@@ -1,45 +1,20 @@
 ---
-title: uds completion bash
-description: UDS CLI command reference for <code>uds completion bash</code>.
-type: docs
+title: uds remove
 ---
-## uds completion bash
+## uds remove
 
-Generate the autocompletion script for bash
-
-### Synopsis
-
-Generate the autocompletion script for the bash shell.
-
-This script depends on the 'bash-completion' package.
-If it is not installed already, you can install it via your OS's package manager.
-
-To load completions in your current shell session:
-
-	source <(uds completion bash)
-
-To load completions for every new session, execute once:
-
-#### Linux:
-
-	uds completion bash > /etc/bash_completion.d/uds
-
-#### macOS:
-
-	uds completion bash > $(brew --prefix)/etc/bash_completion.d/uds
-
-You will need to start a new shell for this setup to take effect.
-
+Remove a bundle that has been deployed already
 
 ```
-uds completion bash
+uds remove [BUNDLE_TARBALL|OCI_REF] [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help              help for bash
-      --no-descriptions   disable completion descriptions
+  -c, --confirm                REQUIRED. Confirm the removal action to prevent accidental deletions
+  -h, --help                   help for remove
+  -p, --packages stringArray   Specify which zarf packages you would like to remove from the bundle. By default all zarf packages in the bundle are removed.
 ```
 
 ### Options inherited from parent commands
@@ -58,5 +33,4 @@ uds completion bash
 
 ### SEE ALSO
 
-* [uds completion](/cli/command-reference/uds_completion/)	 - Generate the autocompletion script for the specified shell
-
+* [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
