@@ -10,16 +10,13 @@ import (
 	ui "github.com/defenseunicorns/uds-runtime/pkg/api"
 )
 
-// //go:embed bin/uds-runtime-*
-// var embeddedFiles embed.FS
-
-//go:embed ui/build/*
+//go:embed assets/ui/build/*
 var assets embed.FS
 
-//go:embed ui/certs/cert.pem
+//go:embed assets/certs/cert.pem
 var localCert []byte
 
-//go:embed ui/certs/key.pem
+//go:embed assets/certs/key.pem
 var localKey []byte
 
 func startUI() error {

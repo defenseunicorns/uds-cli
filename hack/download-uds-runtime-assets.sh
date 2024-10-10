@@ -2,8 +2,8 @@
 
 OWNER="defenseunicorns"
 REPO="uds-runtime"
-BASE_PATH="./src/cmd/"
-CERTS_PATH="./src/cmd/ui/certs"
+BASE_PATH="./src/cmd/assets"
+CERTS_PATH="${BASE_PATH}/certs"
 ARCHIVE_NAME="uds-runtime-ui.tar.gz"
 CURRENT_VERSION="v0.6.0"
 
@@ -29,7 +29,7 @@ extract_release() {
 # Remove old files in the base path
 clean_old_files() {
     echo "Cleaning up old files"
-    rm -rf "${BASE_PATH:?}/*"
+    rm -rf "${BASE_PATH:?}/ui"
 }
 
 # Download raw certs files from the repository's main branch
