@@ -35,7 +35,7 @@ Specifically:
 - We create immutable release artifacts
 
 ## How to Contribute
-Please ensure there is a Gitub issue for your proposed change, this helps the UDS CLI team to understand the context of the change and to track the progress of the work. If there isn't an issue for your change, please create one before starting work. The recommended workflow for contributing is as follows:
+Please ensure there is a GitHub issue for your proposed change, this helps the UDS CLI team to understand the context of the change and to track the progress of the work. If there isn't an issue for your change, please create one before starting work. The recommended workflow for contributing is as follows:
 
 
 *Before starting development, we highly recommend reading through the UDS CLI [documentation](https://uds.defenseunicorns.com/cli/) and our [ADRs](./adr).
