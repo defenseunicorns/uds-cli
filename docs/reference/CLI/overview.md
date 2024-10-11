@@ -1,10 +1,5 @@
 ---
 title: Overview
-linkTitle: UDS CLI
-type: docs
-menu:
-    main:
-        weight: 30
 ---
 
 The [UDS CLI](https://github.com/defenseunicorns/uds-cli) is the primary interface for users to interact with various components within the UDS landscape. It streamlines the deployment process of mission applications and secure infrastructure, simplifying tasks involved in running mission applications while maintaining regulatory compliance in a unified and efficient manner.

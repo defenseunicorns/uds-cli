@@ -1,25 +1,20 @@
 ---
-title: uds inspect
-description: UDS CLI command reference for <code>uds inspect</code>.
-type: docs
+title: uds pull
 ---
-## uds inspect
+## uds pull
 
-Display the metadata of a bundle
+Pull a bundle from a remote registry and save to the local file system
 
 ```
-uds inspect [BUNDLE_TARBALL|OCI_REF|BUNDLE_YAML_FILE] [flags]
+uds pull [OCI_REF] [flags]
 ```
 
 ### Options
 
 ```
-  -e, --extract          Create a folder of SBOMs contained in the bundle
-  -h, --help             help for inspect
-  -k, --key string       Path to a public key file that will be used to validate a signed bundle
-  -i, --list-images      Derive images from a uds-bundle.yaml file and list them
-  -v, --list-variables   List all configurable variables in a bundle (including zarf variables)
-  -s, --sbom             Create a tarball of SBOMs contained in the bundle
+  -h, --help            help for pull
+  -k, --key string      Path to a public key file that will be used to validate a signed bundle
+  -o, --output string   Specify the output directory for the pulled bundle
 ```
 
 ### Options inherited from parent commands
@@ -39,4 +34,3 @@ uds inspect [BUNDLE_TARBALL|OCI_REF|BUNDLE_YAML_FILE] [flags]
 ### SEE ALSO
 
 * [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
-

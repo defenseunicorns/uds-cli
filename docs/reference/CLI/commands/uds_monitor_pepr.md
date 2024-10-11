@@ -1,7 +1,5 @@
 ---
 title: uds monitor pepr
-description: UDS CLI command reference for <code>uds monitor pepr</code>.
-type: docs
 ---
 ## uds monitor pepr
 
@@ -69,4 +67,3 @@ uds monitor pepr [policies | operator | allowed | denied | failed | mutated] [fl
 ### SEE ALSO
 
 * [uds monitor](/cli/command-reference/uds_monitor/)	 - Monitor a UDS Cluster
-
