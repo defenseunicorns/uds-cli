@@ -21,7 +21,6 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/message"
 )
 
-//go:embed bin/uds-runtime-*
 var embeddedFiles embed.FS
 
 var uiCmd = &cobra.Command{
