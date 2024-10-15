@@ -6,6 +6,7 @@ includes:
   - schema: tasks/schema.yaml
   - docs: tasks/docs.yaml
   - dev: tasks/dev.yaml
+  - lint: ./tasks/lint.yaml
 
 tasks:
   # build tasks
