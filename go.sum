@@ -620,8 +620,8 @@ github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/daviddengcn/go-colortext v1.0.0 h1:ANqDyC0ys6qCSvuEK7l3g5RaehL/Xck9EX8ATG8oKsE=
 github.com/daviddengcn/go-colortext v1.0.0/go.mod h1:zDqEI5NVUop5QPpVJUxE9UO10hRnmkD5G4Pmri9+m4c=
-github.com/defenseunicorns/maru-runner v0.3.0 h1:oPeXM2M74APfkzgKKUCTRtWm+BKTHzfp6ET1sFapa0E=
-github.com/defenseunicorns/maru-runner v0.3.0/go.mod h1:cjONaC1/RnqqEyIUe4MAEs3waE6h38dlmUjh/VlrSGM=
+github.com/defenseunicorns/maru-runner v0.3.1 h1:9pt6558DUfXJD5ph1En05fxd2L9gzlEcVoaOhSZAlxA=
+github.com/defenseunicorns/maru-runner v0.3.1/go.mod h1:cjONaC1/RnqqEyIUe4MAEs3waE6h38dlmUjh/VlrSGM=
 github.com/defenseunicorns/pkg/exec v0.0.1 h1:mZtkZvwvOgInZOi+hvEjT0JAtjOgbeIo4RkpqMzU85g=
 github.com/defenseunicorns/pkg/exec v0.0.1/go.mod h1:F/OPhrZuoXM6e2RgeDUlaSYFFW8I3rsErJnytLSkLFo=
 github.com/defenseunicorns/pkg/helpers v1.1.1 h1:p3pKeK5SeFaoZUJZIX9sEsJqX1CGGMS8OpQMPgJtSqM=
