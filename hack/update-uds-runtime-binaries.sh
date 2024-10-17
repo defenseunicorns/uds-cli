@@ -7,7 +7,7 @@ OWNER="defenseunicorns"
 REPO="uds-runtime"
 
 BASE_PATH="./src/cmd/bin"
-CURRENT_VERSION="v0.5.0"
+CURRENT_VERSION="v0.6.1"
 
 # Get the latest release version from GitHub API
 LATEST_VERSION=$(curl -s "https://api.github.com/repos/$OWNER/$REPO/releases/latest" | jq -r .tag_name)

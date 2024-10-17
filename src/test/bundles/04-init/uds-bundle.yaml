@@ -13,12 +13,12 @@ packages:
   - name: init
     path: "../../packages"
     # renovate: datasource=github-tags depName=zarf-dev/zarf
-    ref: v0.40.1
+    ref: v0.41.0
     optionalComponents:
       - git-server
   - name: init
     repository: ghcr.io/zarf-dev/packages/init
     # renovate: datasource=github-tags depName=zarf-dev/zarf
-    ref: v0.40.1
+    ref: v0.41.0
     optionalComponents:
       - git-server
