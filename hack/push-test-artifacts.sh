@@ -1,4 +1,7 @@
 #!/usr/bin/env sh
+# Copyright 2024 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
 
 # script to push the UDS bundle and Zarf artifacts that we use for testing GHCR
 # ensure you have the proper creds and are logged in to GHCR for defenseunicorns

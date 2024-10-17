@@ -1,3 +1,6 @@
+# Copyright 2024 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
 # Since every task and includes gets processed when running a task, and because this task file has an includes entry that
 # points back to the original task file, any task in this file will fail due to this infinite loop.
 
