@@ -49,6 +49,6 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@e3008473beab00b12a94f9fcc7340124338d5c08 # v0.13.1
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@f0164622ffc2007e96a0e1deaa3f5064db04b148 # v1.1.0
         with:
           suffix: nightly-ghcr
