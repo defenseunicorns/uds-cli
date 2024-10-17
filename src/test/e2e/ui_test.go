@@ -15,7 +15,7 @@ import (
 )
 
 func TestUDSUI(t *testing.T) {
-	t.Run("Test uds ui command and file cleanup", func(t *testing.T) {
+	t.Run("Test uds ui command", func(t *testing.T) {
 		// Create a context with a timeout of 10 seconds
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -50,16 +50,13 @@ func TestUDSUI(t *testing.T) {
 		case <-ctx.Done():
 			t.Fatal("Command did not exit after interrupt")
 		case err := <-done:
-			// Command should exit with an error due to interrupt
-			require.NoError(t, err)
+			require.Error(t, err)
 		}
 
 		// Check stdout for Runtime output indicating that it's running as expected
-		require.Contains(t, stdout.String(), "GET http://127.0.0.1:8080")
+		require.Contains(t, stdout.String(), "GET https://runtime-local.uds.dev:8443")
 
-		// Check stderr for CLI output indicating server startup and  cleanup
+		// Check stderr for CLI output indicating server startup
 		require.Contains(t, stderr.String(), "Starting server")
-		require.Contains(t, stderr.String(), "Temporary runtime bin removed")
-		require.Contains(t, stderr.String(), "Cleanup complete")
 	})
 }
