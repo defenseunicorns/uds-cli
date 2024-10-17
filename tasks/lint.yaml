@@ -1,0 +1,67 @@
+# Copyright 2024 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+tasks:
+  - name: deps
+    description: Install linting tool dependencies
+    actions:
+      - description: Install addlicense via go
+        # renovate: datasource=github-tags depName=google/addlicense versioning=semver
+        cmd: GOPATH="$HOME/go" go install github.com/google/addlicense@v1.1.1
+
+  - name: all
+    description: Run all linting commands
+    actions:
+      - task: license
+
+  - name: license
+    description: Lint for the SPDX license identifier being in source files
+    actions:
+      - shell:
+          darwin: bash
+          linux: bash
+        cmd: |
+          # check for addlicense bin
+          if [ -x "$HOME/go/bin/addlicense" ]; then
+              echo "addlicense installed in $HOME/go/bin"
+          else
+              echo "Error: addlicense is not installed in $HOME/go/bin" >&2
+              exit 1
+          fi
+
+          ignore_flags=()
+          while IFS= read -r line; do
+            # Skip comments and empty lines
+            [ -z "$line" ] || [[ "$line" =~ ^# ]] && continue
+            # Add the line to ignore_flags array with quotes around it
+            ignore_flags+=("-ignore" "\"$line\"")
+          done < .gitignore
+
+          # Construct the command as a string
+          eval "$HOME/go/bin/addlicense -l \"AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial\" -check -s=only -v -c \"Defense Unicorns\" ${ignore_flags[*]} . 2>/dev/null"
+
+  - name: fix-license
+    description: Add the SPDX license identifier to source files
+    actions:
+      - shell:
+          darwin: bash
+          linux: bash
+        cmd: |
+          # check for addlicense bin
+          if [ -x "$HOME/go/bin/addlicense" ]; then
+              echo "addlicense installed in $HOME/go/bin"
+          else
+              echo "Error: addlicense is not installed in $HOME/go/bin" >&2
+              exit 1
+          fi
+
+          ignore_flags=()
+          while IFS= read -r line; do
+            # Skip comments and empty lines
+            [ -z "$line" ] || [[ "$line" =~ ^# ]] && continue
+            # Add the line to ignore_flags array with quotes around it
+            ignore_flags+=("-ignore" "\"$line\"")
+          done < .gitignore
+
+          # Construct the command as a string
+          eval "$HOME/go/bin/addlicense -l \"AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial\" -s=only -v -c \"Defense Unicorns\" ${ignore_flags[*]} . 2>/dev/null"

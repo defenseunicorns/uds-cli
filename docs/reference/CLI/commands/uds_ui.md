@@ -5,6 +5,10 @@ title: uds ui
 
 [beta] Launch UDS Runtime and view UI
 
+### Synopsis
+
+[beta] Launch UDS Runtime and view UI
+
 ```
 uds ui [flags]
 ```

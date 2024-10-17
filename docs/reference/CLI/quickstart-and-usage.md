@@ -503,7 +503,3 @@ uds scan -o defenseunicorns -n packages/uds/gitlab-runner -g 16.10.0-uds.0-upstr
 The `uds ui` command launches UDS Runtime, which provides a web-based user interface to view what is running in your K8s cluster. More information regarding UDS Runtime can be found [here](https://github.com/defenseunicorns/uds-runtime).
 
 To exit UDS Runtime, press `Ctrl+C`.
-
-:::note
-There is currently a known data loading [issue](https://github.com/defenseunicorns/uds-runtime/issues/365) with opening UDS Runtime via `uds ui` in multiple tabs or windows. If you encounter this issue, please ensure there is only one tab or window of UDS Runtime open at a time.
-:::
