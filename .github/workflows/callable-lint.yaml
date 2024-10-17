@@ -1,0 +1,37 @@
+# Copyright 2024 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+name: Lint
+
+on:
+  # This workflow is triggered on pull requests to the main branch.
+  pull_request:
+    # milestoned is added here as a workaround for release-please not triggering PR workflows (PRs should be added to a milestone to trigger the workflow).
+    types: [milestoned, opened, reopened, synchronize]
+  # This allows other repositories to call this workflow in a reusable way
+  workflow_call:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # Allows reading the repo contents
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        with:
+          fetch-depth: 0
+
+      - name: Install UDS CLI
+        uses: defenseunicorns/setup-uds@b987a32bac3baeb67bfb08f5e1544e2f9076ee8a # v1.0.0
+        with:
+          version: v0.17.0
+
+      - name: Install lint deps
+        run: |
+          uds run lint:deps --no-progress
+
+      - name: Lint the repository
+        run: |
+          uds run lint:all --no-progress
