@@ -1,16 +1,20 @@
 ---
-title: uds dev
-description: UDS CLI command reference for <code>uds dev</code>.
-type: docs
+title: uds remove
 ---
-## uds dev
+## uds remove
 
-[beta] Commands useful for developing bundles
+Remove a bundle that has been deployed already
+
+```
+uds remove [BUNDLE_TARBALL|OCI_REF] [flags]
+```
 
 ### Options
 
 ```
-  -h, --help   help for dev
+  -c, --confirm                REQUIRED. Confirm the removal action to prevent accidental deletions
+  -h, --help                   help for remove
+  -p, --packages stringArray   Specify which zarf packages you would like to remove from the bundle. By default all zarf packages in the bundle are removed.
 ```
 
 ### Options inherited from parent commands
@@ -30,5 +34,3 @@ type: docs
 ### SEE ALSO
 
 * [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
-* [uds dev deploy](/cli/command-reference/uds_dev_deploy/)	 - [beta] Creates and deploys a UDS bundle in dev mode
-

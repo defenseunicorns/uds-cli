@@ -1,22 +1,18 @@
 ---
-title: uds remove
-description: UDS CLI command reference for <code>uds remove</code>.
-type: docs
+title: uds logs
 ---
-## uds remove
+## uds logs
 
-Remove a bundle that has been deployed already
+View most recent UDS CLI logs
 
 ```
-uds remove [BUNDLE_TARBALL|OCI_REF] [flags]
+uds logs [flags]
 ```
 
 ### Options
 
 ```
-  -c, --confirm                REQUIRED. Confirm the removal action to prevent accidental deletions
-  -h, --help                   help for remove
-  -p, --packages stringArray   Specify which zarf packages you would like to remove from the bundle. By default all zarf packages in the bundle are removed.
+  -h, --help   help for logs
 ```
 
 ### Options inherited from parent commands
@@ -36,4 +32,3 @@ uds remove [BUNDLE_TARBALL|OCI_REF] [flags]
 ### SEE ALSO
 
 * [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
-

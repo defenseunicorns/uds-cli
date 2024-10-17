@@ -1,7 +1,5 @@
 ---
 title: Quickstart and Usage
-type: docs
-weight: 1
 ---
 
 ## Install
@@ -72,9 +70,9 @@ There are 2 ways to create Bundles:
 1. Inside an OCI registry: `uds create <dir> -o ghcr.io/defenseunicorns/dev`
 1. Locally on your filesystem: `uds create <dir>`
 
-{{% alert-note %}}
+:::note
 The `--insecure` flag is necessary when interacting with a local registry, but not from secure, remote registries such as GHCR.
-{{% /alert-note %}}
+:::
 
 ### Bundle Deploy
 
@@ -105,9 +103,9 @@ In the process of upgrading bundles, it's common to swap or remove packages from
 
 When `uds deploy` is executed, the bundle's metadata, along with a list of its packages and each package's overrides and Zarf variables, will be outputted to the terminal. Unlike [`inspect --list-variables`](#viewing-variables), this output will show the value set for each override or Zarf variable. Overrides and variables that have not been set will not be shown in the output.
 
-{{% alert-note %}}
+:::note
 To view this output more easily or for troubleshooting, run `deploy` without the `--confirm` flag.
-{{% /alert-note %}}
+:::
 
 ### Bundle Inspect
 
@@ -131,21 +129,20 @@ e.g.
 
 ```yaml
 core-slim-dev:
-  - docker.io/istio/pilot:1.22.3-distroless
-  - docker.io/istio/proxyv2:1.22.3-distroless
-  - ghcr.io/defenseunicorns/pepr/controller:v0.34.1
-  - quay.io/keycloak/keycloak:24.0.5
-  - ghcr.io/defenseunicorns/uds/identity-config:0.6.0
+- docker.io/istio/pilot:1.22.3-distroless
+- docker.io/istio/proxyv2:1.22.3-distroless
+- ghcr.io/defenseunicorns/pepr/controller:v0.34.1
+- quay.io/keycloak/keycloak:24.0.5
+- ghcr.io/defenseunicorns/uds/identity-config:0.6.0
 init:
-  - library/registry:2.8.3
-  - library/registry:2.8.3
-  - ghcr.io/zarf-dev/zarf/agent:v0.38.2
+- library/registry:2.8.3
+- library/registry:2.8.3
+- ghcr.io/zarf-dev/zarf/agent:v0.38.2
 ```
 
-_To extract only the image names and de-dupe_:
+*To extract only the image names and de-dupe*:
 
 `uds inspect k3d-core-slim-dev:0.26.0 --list-images | yq '.[] | .[]'` | sort | uniq
-
 ```yaml
 docker.io/istio/pilot:1.22.3-distroless
 docker.io/istio/proxyv2:1.22.3-distroless
@@ -155,6 +152,7 @@ ghcr.io/zarf-dev/zarf/agent:v0.38.2
 library/registry:2.8.3
 quay.io/keycloak/keycloak:24.0.5
 ```
+
 
 #### Viewing SBOMs
 
@@ -199,9 +197,9 @@ As an example: `uds remove uds-bundle-<name>.tar.zst --packages init,nginx`
 
 ### Logs
 
-{{% alert-note %}}
+:::note
 Only works with `uds deploy` for now, may work for other operations but isn't guaranteed.
-{{% /alert-note %}}
+:::
 
 The `uds logs` command can be used to view the most recent logs of a bundle operation. Note that depending on your OS temporary directory and file settings, recent logs are purged after a certain amount of time, so this command may return an error if the logs are no longer available.
 
@@ -222,9 +220,9 @@ UDS CLI supports multi-arch bundles. This means you can push bundles with differ
 
 When deploying a local bundle, the bundle's architecture will be used for comparison against the cluster architecture to ensure compatibility. If deploying a remote bundle, by default the bundle is pulled based on system architecture, which is then checked against the cluster.
 
-{{% alert-note %}}
+:::note
 It is possible to override the bundle architecture used at validation time by using the `--architecture` / `-a` flag.
-{{% /alert-note %}}
+:::
 
 If, for example, you have a multi-arch remote bundle that you want to deploy from an arm64 machine to an amd64 cluster, the validation with fail because the system arch does not match the cluster arch. However, you can pull the correct bundle version by specifying the arch with the command line architecture flag.
 
@@ -312,9 +310,7 @@ In a bundle, variables can come from 6 sources. Those sources and their preceden
 That is to say, variables set using the `--set` flag take precedence over all other variable sources.
 
 ### Configuring Zarf Init Packages
-
 Zarf init packages that are typically deployed using `zarf init` have a few special flags that are attached to that command. These options can be configured like any other variable: specified in a `uds-config.yaml`, as an environment variable prefixed with `UDS_` or via the `--set` flag.
-
 ```yaml
 # uds-config.yaml
 variables:
@@ -368,9 +364,9 @@ The naming conventions for deploying duplicate packages are as follows:
 1. The duplicate packages must be deployed in different namespaces
 1. In order to deploy duplicates of local packages, the `path` field must point to a Zarf package tarball instead of to a folder.
 
-{{% alert-note %}}
+:::note
 Today the duplicate packages feature is only supported for packages with Helm charts. This is because Helm charts' [namespaces can be overridden](https://github.com/defenseunicorns/uds-cli/blob/main/docs/overrides.md) at deploy time.
-{{% /alert-note %}}
+:::
 
 ## Zarf Integration
 
@@ -378,9 +374,9 @@ UDS CLI includes a vendored version of Zarf inside of its binary. To use Zarf, s
 
 ## Dev Mode
 
-{{% alert-note %}}
+:::note
 Dev mode is a BETA feature
-{{% /alert-note %}}
+:::
 
 Dev mode facilitates faster dev cycles when developing and testing bundles
 
@@ -455,7 +451,7 @@ Stream UDS Policy mutation logs:
 uds monitor pepr mutated
 ```
 
-Stream UDS Policy deny logs and UDS Operator error logs:  
+Stream UDS Policy deny logs and UDS Operator error logs:
 `uds monitor pepr failed`
 
 #### Monitor Flags
@@ -470,9 +466,9 @@ Stream UDS Policy deny logs and UDS Operator error logs:
 
 ## Scan
 
-{{% alert-note %}}
+:::note
 Trivy is a prerequisite for scanning container images and filesystem for vulnerabilities. You can find more information and installation instructions at [Trivy's official documentation](https://aquasecurity.github.io/trivy).
-{{% /alert-note %}}
+:::
 
 The `scan` command is used to scan a Zarf package for vulnerabilities and generate a report. This command is currently in ALPHA.
 

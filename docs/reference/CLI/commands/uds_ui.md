@@ -1,22 +1,22 @@
 ---
-title: uds pull
-description: UDS CLI command reference for <code>uds pull</code>.
-type: docs
+title: uds ui
 ---
-## uds pull
+## uds ui
 
-Pull a bundle from a remote registry and save to the local file system
+[beta] Launch UDS Runtime and view UI
+
+### Synopsis
+
+[beta] Launch UDS Runtime and view UI
 
 ```
-uds pull [OCI_REF] [flags]
+uds ui [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help            help for pull
-  -k, --key string      Path to a public key file that will be used to validate a signed bundle
-  -o, --output string   Specify the output directory for the pulled bundle
+  -h, --help   help for ui
 ```
 
 ### Options inherited from parent commands
@@ -36,4 +36,3 @@ uds pull [OCI_REF] [flags]
 ### SEE ALSO
 
 * [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
-

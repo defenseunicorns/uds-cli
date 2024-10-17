@@ -1,20 +1,14 @@
 ---
-title: uds logs
-description: UDS CLI command reference for <code>uds logs</code>.
-type: docs
+title: uds dev
 ---
-## uds logs
+## uds dev
 
-View most recent UDS CLI logs
-
-```
-uds logs [flags]
-```
+[beta] Commands useful for developing bundles
 
 ### Options
 
 ```
-  -h, --help   help for logs
+  -h, --help   help for dev
 ```
 
 ### Options inherited from parent commands
@@ -34,4 +28,4 @@ uds logs [flags]
 ### SEE ALSO
 
 * [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
-
+* [uds dev deploy](/cli/command-reference/uds_dev_deploy/)	 - [beta] Creates and deploys a UDS bundle in dev mode

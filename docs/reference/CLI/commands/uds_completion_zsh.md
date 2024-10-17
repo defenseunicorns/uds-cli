@@ -1,44 +1,44 @@
 ---
-title: uds completion bash
-description: UDS CLI command reference for <code>uds completion bash</code>.
-type: docs
+title: uds completion zsh
 ---
-## uds completion bash
+## uds completion zsh
 
-Generate the autocompletion script for bash
+Generate the autocompletion script for zsh
 
 ### Synopsis
 
-Generate the autocompletion script for the bash shell.
+Generate the autocompletion script for the zsh shell.
 
-This script depends on the 'bash-completion' package.
-If it is not installed already, you can install it via your OS's package manager.
+If shell completion is not already enabled in your environment you will need
+to enable it.  You can execute the following once:
+
+	echo "autoload -U compinit; compinit" >> ~/.zshrc
 
 To load completions in your current shell session:
 
-	source <(uds completion bash)
+	source <(uds completion zsh)
 
 To load completions for every new session, execute once:
 
 #### Linux:
 
-	uds completion bash > /etc/bash_completion.d/uds
+	uds completion zsh > "${fpath[1]}/_uds"
 
 #### macOS:
 
-	uds completion bash > $(brew --prefix)/etc/bash_completion.d/uds
+	uds completion zsh > $(brew --prefix)/share/zsh/site-functions/_uds
 
 You will need to start a new shell for this setup to take effect.
 
 
 ```
-uds completion bash
+uds completion zsh [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help              help for bash
+  -h, --help              help for zsh
       --no-descriptions   disable completion descriptions
 ```
 
@@ -59,4 +59,3 @@ uds completion bash
 ### SEE ALSO
 
 * [uds completion](/cli/command-reference/uds_completion/)	 - Generate the autocompletion script for the specified shell
-

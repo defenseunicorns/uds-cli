@@ -1,21 +1,18 @@
 ---
-title: uds publish
-description: UDS CLI command reference for <code>uds publish</code>.
-type: docs
+title: uds run
 ---
-## uds publish
+## uds run
 
-Publish a bundle from the local file system to a remote registry
+Run a task using maru-runner
 
 ```
-uds publish [BUNDLE_TARBALL] [OCI_REF] [flags]
+uds run [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help             help for publish
-  -v, --version string   Specify the version of the bundle to be published
+  -h, --help   help for run
 ```
 
 ### Options inherited from parent commands
@@ -35,4 +32,3 @@ uds publish [BUNDLE_TARBALL] [OCI_REF] [flags]
 ### SEE ALSO
 
 * [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
-

@@ -1,26 +1,19 @@
 ---
-title: uds create
-description: UDS CLI command reference for <code>uds create</code>.
-type: docs
+title: uds monitor
 ---
-## uds create
+## uds monitor
 
-Create a bundle from a given directory or the current directory
+Monitor a UDS Cluster
 
-```
-uds create [DIRECTORY] [flags]
-```
+### Synopsis
+
+Tools for monitoring a UDS Cluster and connecting to the UDS Engine for advanced troubleshooting
 
 ### Options
 
 ```
-  -c, --confirm                       Confirm bundle creation without prompting
-  -h, --help                          help for create
-  -n, --name string                   Specify the name of the bundle
-  -o, --output string                 Specify the output (an oci:// URL) for the created bundle
-  -k, --signing-key string            Path to private key file for signing bundles
-  -p, --signing-key-password string   Password to the private key file used for signing bundles
-  -v, --version string                Specify the version of the bundle
+  -h, --help               help for monitor
+  -n, --namespace string   Limit monitoring to a specific namespace
 ```
 
 ### Options inherited from parent commands
@@ -40,4 +33,4 @@ uds create [DIRECTORY] [flags]
 ### SEE ALSO
 
 * [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
-
+* [uds monitor pepr](/cli/command-reference/uds_monitor_pepr/)	 - Observe Pepr operations in a UDS Cluster
