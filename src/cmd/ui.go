@@ -28,7 +28,7 @@ func startUI() error {
 	}
 	err = ui.Serve(r, localCert, localKey, incluster)
 	if err != nil {
-		slog.Error("Failed to serve UI", err)
+		slog.Error("failed to serve UI", "error", err)
 		return err
 	}
 	return nil
