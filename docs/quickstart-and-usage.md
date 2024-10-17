@@ -131,20 +131,21 @@ e.g.
 
 ```yaml
 core-slim-dev:
-- docker.io/istio/pilot:1.22.3-distroless
-- docker.io/istio/proxyv2:1.22.3-distroless
-- ghcr.io/defenseunicorns/pepr/controller:v0.34.1
-- quay.io/keycloak/keycloak:24.0.5
-- ghcr.io/defenseunicorns/uds/identity-config:0.6.0
+  - docker.io/istio/pilot:1.22.3-distroless
+  - docker.io/istio/proxyv2:1.22.3-distroless
+  - ghcr.io/defenseunicorns/pepr/controller:v0.34.1
+  - quay.io/keycloak/keycloak:24.0.5
+  - ghcr.io/defenseunicorns/uds/identity-config:0.6.0
 init:
-- library/registry:2.8.3
-- library/registry:2.8.3
-- ghcr.io/zarf-dev/zarf/agent:v0.38.2
+  - library/registry:2.8.3
+  - library/registry:2.8.3
+  - ghcr.io/zarf-dev/zarf/agent:v0.38.2
 ```
 
-*To extract only the image names and de-dupe*:
+_To extract only the image names and de-dupe_:
 
 `uds inspect k3d-core-slim-dev:0.26.0 --list-images | yq '.[] | .[]'` | sort | uniq
+
 ```yaml
 docker.io/istio/pilot:1.22.3-distroless
 docker.io/istio/proxyv2:1.22.3-distroless
@@ -154,7 +155,6 @@ ghcr.io/zarf-dev/zarf/agent:v0.38.2
 library/registry:2.8.3
 quay.io/keycloak/keycloak:24.0.5
 ```
-
 
 #### Viewing SBOMs
 
@@ -312,7 +312,9 @@ In a bundle, variables can come from 6 sources. Those sources and their preceden
 That is to say, variables set using the `--set` flag take precedence over all other variable sources.
 
 ### Configuring Zarf Init Packages
+
 Zarf init packages that are typically deployed using `zarf init` have a few special flags that are attached to that command. These options can be configured like any other variable: specified in a `uds-config.yaml`, as an environment variable prefixed with `UDS_` or via the `--set` flag.
+
 ```yaml
 # uds-config.yaml
 variables:
@@ -505,7 +507,3 @@ uds scan -o defenseunicorns -n packages/uds/gitlab-runner -g 16.10.0-uds.0-upstr
 The `uds ui` command launches UDS Runtime, which provides a web-based user interface to view what is running in your K8s cluster. More information regarding UDS Runtime can be found [here](https://github.com/defenseunicorns/uds-runtime).
 
 To exit UDS Runtime, press `Ctrl+C`.
-
-{{% alert-note %}}
-There is currently a known data loading [issue](https://github.com/defenseunicorns/uds-runtime/issues/365) with opening UDS Runtime via `uds ui` in multiple tabs or windows. If you encounter this issue, please ensure there is only one tab or window of UDS Runtime open at a time.
-{{% /alert-note %}}

@@ -96,9 +96,12 @@ var uiCmd = &cobra.Command{
 	Use:   "ui",
 	Short: lang.CmdUIShort,
 	Long:  lang.CmdUIShort,
-	Run: func(_ *cobra.Command, _ []string) {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		os.Args = os.Args[1:] // grab 'ui' and onward from the CLI args
-		startUI()
+		if err := startUI(); err != nil {
+			return err
+		}
+		return nil
 	},
 	DisableFlagParsing: true,
 }

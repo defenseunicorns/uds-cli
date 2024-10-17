@@ -6,25 +6,30 @@ package cmd
 
 import (
 	"embed"
+	"log/slog"
 
 	ui "github.com/defenseunicorns/uds-runtime/pkg/api"
 )
 
-//go:embed assets/ui/build/*
-var assets embed.FS
+//go:embed ui/build/*
+var uiBuild embed.FS
 
-//go:embed assets/certs/cert.pem
+//go:embed certs/cert.pem
 var localCert []byte
 
-//go:embed assets/certs/key.pem
+//go:embed certs/key.pem
 var localKey []byte
 
 func startUI() error {
-	r, incluster, err := ui.Setup(&assets)
+	r, incluster, err := ui.Setup(&uiBuild)
 	if err != nil {
+		slog.Error("Failed to setup UI server", err)
 		return err
 	}
-	ui.Serve(r, localCert, localKey, incluster)
-
+	err = ui.Serve(r, localCert, localKey, incluster)
+	if err != nil {
+		slog.Error("Failed to serve UI", err)
+		return err
+	}
 	return nil
 }
