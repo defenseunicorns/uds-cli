@@ -23,7 +23,7 @@ var localKey []byte
 func startUI() error {
 	r, incluster, err := ui.Setup(&uiBuild)
 	if err != nil {
-		slog.Error("Failed to setup UI server", err)
+		slog.Error("failed to setup UI server", "error", err)
 		return err
 	}
 	err = ui.Serve(r, localCert, localKey, incluster)
