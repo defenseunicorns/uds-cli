@@ -47,4 +47,4 @@ uds completion fish [flags]
 
 ### SEE ALSO
 
-* [uds completion](/cli/command-reference/uds_completion/)	 - Generate the autocompletion script for the specified shell
+* [uds completion](/reference/cli/commands/uds_completion/)	 - Generate the autocompletion script for the specified shell

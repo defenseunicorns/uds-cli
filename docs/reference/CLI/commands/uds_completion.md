@@ -33,7 +33,7 @@ See each sub-command's help for details on how to use the generated script.
 
 ### SEE ALSO
 
-* [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
-* [uds completion bash](/cli/command-reference/uds_completion_bash/)	 - Generate the autocompletion script for bash
-* [uds completion fish](/cli/command-reference/uds_completion_fish/)	 - Generate the autocompletion script for fish
-* [uds completion zsh](/cli/command-reference/uds_completion_zsh/)	 - Generate the autocompletion script for zsh
+* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds completion bash](/reference/cli/commands/uds_completion_bash/)	 - Generate the autocompletion script for bash
+* [uds completion fish](/reference/cli/commands/uds_completion_fish/)	 - Generate the autocompletion script for fish
+* [uds completion zsh](/reference/cli/commands/uds_completion_zsh/)	 - Generate the autocompletion script for zsh

@@ -27,5 +27,5 @@ title: uds dev
 
 ### SEE ALSO
 
-* [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
-* [uds dev deploy](/cli/command-reference/uds_dev_deploy/)	 - [beta] Creates and deploys a UDS bundle in dev mode
+* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds dev deploy](/reference/cli/commands/uds_dev_deploy/)	 - [beta] Creates and deploys a UDS bundle in dev mode

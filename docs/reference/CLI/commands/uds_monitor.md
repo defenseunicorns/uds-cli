@@ -32,5 +32,5 @@ Tools for monitoring a UDS Cluster and connecting to the UDS Engine for advanced
 
 ### SEE ALSO
 
-* [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
-* [uds monitor pepr](/cli/command-reference/uds_monitor_pepr/)	 - Observe Pepr operations in a UDS Cluster
+* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds monitor pepr](/reference/cli/commands/uds_monitor_pepr/)	 - Observe Pepr operations in a UDS Cluster
