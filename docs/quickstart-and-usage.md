@@ -413,9 +413,9 @@ To monitor the status of a UDS cluster's admission and operator controllers, run
 
 UDS clusters contain two Kubernetes controllers, both created using [Pepr](https://pepr.dev/):
 
-1. **Admission Controller**: Corresponds to the `pepr-uds-core` pods in the cluster. This controller is responsible for validating and mutating resources in the cluster including the enforcement of [UDS Exemptions](https://uds.defenseunicorns.com/core/configuration/uds-configure-policy-exemptions/).
+1. **Admission Controller**: Corresponds to the `pepr-uds-core` pods in the cluster. This controller is responsible for validating and mutating resources in the cluster including the enforcement of [UDS Exemptions](https://uds.defenseunicorns.com/reference/configuration/uds-configure-policy-exemptions).
 
-1. **Operator Controller**: Corresponds to the `pepr-uds-core-watcher` pods. This controller is responsible for managing the lifecyle of [UDS Package](https://uds.defenseunicorns.com/core/configuration/uds-operator/) resources in the cluster.
+1. **Operator Controller**: Corresponds to the `pepr-uds-core-watcher` pods. This controller is responsible for managing the lifecyle of [UDS Package](https://uds.defenseunicorns.com/reference/configuration/uds-operator/) resources in the cluster.
 
 #### Monitor Args
 
