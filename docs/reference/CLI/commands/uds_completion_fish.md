@@ -1,6 +1,6 @@
 ---
 title: uds completion fish
-description: UDS CLI command reference for <code>%s</code>.
+description: UDS CLI command reference for <code>uds completion fish</code>.
 ---
 ## uds completion fish
 
@@ -49,3 +49,4 @@ uds completion fish [flags]
 ### SEE ALSO
 
 * [uds completion](/reference/cli/commands/uds_completion/)	 - Generate the autocompletion script for the specified shell
+

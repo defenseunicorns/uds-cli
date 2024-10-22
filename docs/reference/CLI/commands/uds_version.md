@@ -1,6 +1,6 @@
 ---
 title: uds version
-description: UDS CLI command reference for <code>%s</code>.
+description: UDS CLI command reference for <code>uds version</code>.
 ---
 ## uds version
 
@@ -37,3 +37,4 @@ uds version [flags]
 ### SEE ALSO
 
 * [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+

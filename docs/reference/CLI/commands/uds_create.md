@@ -1,6 +1,6 @@
 ---
 title: uds create
-description: UDS CLI command reference for <code>%s</code>.
+description: UDS CLI command reference for <code>uds create</code>.
 ---
 ## uds create
 
@@ -39,3 +39,4 @@ uds create [DIRECTORY] [flags]
 ### SEE ALSO
 
 * [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+

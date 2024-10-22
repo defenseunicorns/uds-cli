@@ -95,7 +95,7 @@ description: UDS CLI command reference for <code>%s</code>.
 		}
 
 		var linkHandler = func(link string) string {
-			return "/reference/CLI/commands/" + link[:len(link)-3] + "/"
+			return "/reference/cli/commands/" + link[:len(link)-3] + "/"
 		}
 
 		// glob, err := filepath.Glob("./docs/reference/CLI/commands/uds*.md")

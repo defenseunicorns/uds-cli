@@ -1,6 +1,6 @@
 ---
 title: uds monitor
-description: UDS CLI command reference for <code>%s</code>.
+description: UDS CLI command reference for <code>uds monitor</code>.
 ---
 ## uds monitor
 
@@ -35,3 +35,4 @@ Tools for monitoring a UDS Cluster and connecting to the UDS Engine for advanced
 
 * [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
 * [uds monitor pepr](/reference/cli/commands/uds_monitor_pepr/)	 - Observe Pepr operations in a UDS Cluster
+

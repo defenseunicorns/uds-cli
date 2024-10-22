@@ -1,6 +1,6 @@
 ---
 title: uds completion zsh
-description: UDS CLI command reference for <code>%s</code>.
+description: UDS CLI command reference for <code>uds completion zsh</code>.
 ---
 ## uds completion zsh
 
@@ -60,3 +60,4 @@ uds completion zsh [flags]
 ### SEE ALSO
 
 * [uds completion](/reference/cli/commands/uds_completion/)	 - Generate the autocompletion script for the specified shell
+

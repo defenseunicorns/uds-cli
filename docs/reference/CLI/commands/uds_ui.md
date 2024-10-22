@@ -1,6 +1,6 @@
 ---
 title: uds ui
-description: UDS CLI command reference for <code>%s</code>.
+description: UDS CLI command reference for <code>uds ui</code>.
 ---
 ## uds ui
 
@@ -37,3 +37,4 @@ uds ui [flags]
 ### SEE ALSO
 
 * [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+

@@ -1,6 +1,6 @@
 ---
 title: uds dev deploy
-description: UDS CLI command reference for <code>%s</code>.
+description: UDS CLI command reference for <code>uds dev deploy</code>.
 ---
 ## uds dev deploy
 
@@ -42,3 +42,4 @@ uds dev deploy [BUNDLE_DIR|OCI_REF] [flags]
 ### SEE ALSO
 
 * [uds dev](/reference/cli/commands/uds_dev/)	 - [beta] Commands useful for developing bundles
+

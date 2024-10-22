@@ -1,6 +1,6 @@
 ---
 title: uds run
-description: UDS CLI command reference for <code>%s</code>.
+description: UDS CLI command reference for <code>uds run</code>.
 ---
 ## uds run
 
@@ -33,3 +33,4 @@ uds run [flags]
 ### SEE ALSO
 
 * [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+

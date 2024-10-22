@@ -1,6 +1,6 @@
 ---
 title: uds deploy
-description: UDS CLI command reference for <code>%s</code>.
+description: UDS CLI command reference for <code>uds deploy</code>.
 ---
 ## uds deploy
 
@@ -38,3 +38,4 @@ uds deploy [BUNDLE_TARBALL|OCI_REF] [flags]
 ### SEE ALSO
 
 * [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+

@@ -1,6 +1,6 @@
 ---
 title: uds inspect
-description: UDS CLI command reference for <code>%s</code>.
+description: UDS CLI command reference for <code>uds inspect</code>.
 ---
 ## uds inspect
 
@@ -38,3 +38,4 @@ uds inspect [BUNDLE_TARBALL|OCI_REF|BUNDLE_YAML_FILE] [flags]
 ### SEE ALSO
 
 * [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+

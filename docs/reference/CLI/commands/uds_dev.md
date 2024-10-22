@@ -1,6 +1,6 @@
 ---
 title: uds dev
-description: UDS CLI command reference for <code>%s</code>.
+description: UDS CLI command reference for <code>uds dev</code>.
 ---
 ## uds dev
 
@@ -30,3 +30,4 @@ description: UDS CLI command reference for <code>%s</code>.
 
 * [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
 * [uds dev deploy](/reference/cli/commands/uds_dev_deploy/)	 - [beta] Creates and deploys a UDS bundle in dev mode
+

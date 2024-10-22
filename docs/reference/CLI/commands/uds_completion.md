@@ -1,6 +1,6 @@
 ---
 title: uds completion
-description: UDS CLI command reference for <code>%s</code>.
+description: UDS CLI command reference for <code>uds completion</code>.
 ---
 ## uds completion
 
@@ -38,3 +38,4 @@ See each sub-command's help for details on how to use the generated script.
 * [uds completion bash](/reference/cli/commands/uds_completion_bash/)	 - Generate the autocompletion script for bash
 * [uds completion fish](/reference/cli/commands/uds_completion_fish/)	 - Generate the autocompletion script for fish
 * [uds completion zsh](/reference/cli/commands/uds_completion_zsh/)	 - Generate the autocompletion script for zsh
+

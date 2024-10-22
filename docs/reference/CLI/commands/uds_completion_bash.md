@@ -1,6 +1,6 @@
 ---
 title: uds completion bash
-description: UDS CLI command reference for <code>%s</code>.
+description: UDS CLI command reference for <code>uds completion bash</code>.
 ---
 ## uds completion bash
 
@@ -58,3 +58,4 @@ uds completion bash
 ### SEE ALSO
 
 * [uds completion](/reference/cli/commands/uds_completion/)	 - Generate the autocompletion script for the specified shell
+

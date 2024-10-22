@@ -1,6 +1,6 @@
 ---
 title: uds pull
-description: UDS CLI command reference for <code>%s</code>.
+description: UDS CLI command reference for <code>uds pull</code>.
 ---
 ## uds pull
 
@@ -35,3 +35,4 @@ uds pull [OCI_REF] [flags]
 ### SEE ALSO
 
 * [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+

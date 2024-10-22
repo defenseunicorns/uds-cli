@@ -1,6 +1,6 @@
 ---
 title: uds logs
-description: UDS CLI command reference for <code>%s</code>.
+description: UDS CLI command reference for <code>uds logs</code>.
 ---
 ## uds logs
 
@@ -33,3 +33,4 @@ uds logs [flags]
 ### SEE ALSO
 
 * [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+
