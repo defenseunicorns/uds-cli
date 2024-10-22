@@ -30,7 +30,7 @@ To do this in VS Code you can install the [YAML Extension](https://marketplace.v
 
 ```json
     "yaml.schemas": {
-        "https://raw.githubusercontent.com/defenseunicorns/cli-commands/main/uds.schema.json": "uds-bundle.yaml"
+        "https://raw.githubusercontent.com/defenseunicorns/uds-cli/main/uds.schema.json": "uds-bundle.yaml"
     },
 ```
 
