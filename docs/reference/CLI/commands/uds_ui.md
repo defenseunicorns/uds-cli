@@ -1,22 +1,23 @@
 ---
-title: uds remove
-description: UDS CLI command reference for <code>uds remove</code>.
-type: docs
+title: uds ui
+description: UDS CLI command reference for <code>uds ui</code>.
 ---
-## uds remove
+## uds ui
 
-Remove a bundle that has been deployed already
+[beta] Launch UDS Runtime and view UI
+
+### Synopsis
+
+[beta] Launch UDS Runtime and view UI
 
 ```
-uds remove [BUNDLE_TARBALL|OCI_REF] [flags]
+uds ui [flags]
 ```
 
 ### Options
 
 ```
-  -c, --confirm                REQUIRED. Confirm the removal action to prevent accidental deletions
-  -h, --help                   help for remove
-  -p, --packages stringArray   Specify which zarf packages you would like to remove from the bundle. By default all zarf packages in the bundle are removed.
+  -h, --help   help for ui
 ```
 
 ### Options inherited from parent commands
@@ -35,5 +36,5 @@ uds remove [BUNDLE_TARBALL|OCI_REF] [flags]
 
 ### SEE ALSO
 
-* [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
+* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
 

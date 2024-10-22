@@ -1,45 +1,20 @@
 ---
-title: uds completion bash
-description: UDS CLI command reference for <code>uds completion bash</code>.
-type: docs
+title: uds publish
+description: UDS CLI command reference for <code>uds publish</code>.
 ---
-## uds completion bash
+## uds publish
 
-Generate the autocompletion script for bash
-
-### Synopsis
-
-Generate the autocompletion script for the bash shell.
-
-This script depends on the 'bash-completion' package.
-If it is not installed already, you can install it via your OS's package manager.
-
-To load completions in your current shell session:
-
-	source <(uds completion bash)
-
-To load completions for every new session, execute once:
-
-#### Linux:
-
-	uds completion bash > /etc/bash_completion.d/uds
-
-#### macOS:
-
-	uds completion bash > $(brew --prefix)/etc/bash_completion.d/uds
-
-You will need to start a new shell for this setup to take effect.
-
+Publish a bundle from the local file system to a remote registry
 
 ```
-uds completion bash
+uds publish [BUNDLE_TARBALL] [OCI_REF] [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help              help for bash
-      --no-descriptions   disable completion descriptions
+  -h, --help             help for publish
+  -v, --version string   Specify the version of the bundle to be published
 ```
 
 ### Options inherited from parent commands
@@ -58,5 +33,5 @@ uds completion bash
 
 ### SEE ALSO
 
-* [uds completion](/cli/command-reference/uds_completion/)	 - Generate the autocompletion script for the specified shell
+* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
 

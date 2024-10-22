@@ -1,47 +1,24 @@
 ---
-title: uds completion zsh
-description: UDS CLI command reference for <code>uds completion zsh</code>.
-type: docs
+title: uds deploy
+description: UDS CLI command reference for <code>uds deploy</code>.
 ---
-## uds completion zsh
+## uds deploy
 
-Generate the autocompletion script for zsh
-
-### Synopsis
-
-Generate the autocompletion script for the zsh shell.
-
-If shell completion is not already enabled in your environment you will need
-to enable it.  You can execute the following once:
-
-	echo "autoload -U compinit; compinit" >> ~/.zshrc
-
-To load completions in your current shell session:
-
-	source <(uds completion zsh)
-
-To load completions for every new session, execute once:
-
-#### Linux:
-
-	uds completion zsh > "${fpath[1]}/_uds"
-
-#### macOS:
-
-	uds completion zsh > $(brew --prefix)/share/zsh/site-functions/_uds
-
-You will need to start a new shell for this setup to take effect.
-
+Deploy a bundle from a local tarball or oci:// URL
 
 ```
-uds completion zsh [flags]
+uds deploy [BUNDLE_TARBALL|OCI_REF] [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help              help for zsh
-      --no-descriptions   disable completion descriptions
+  -c, --confirm                Confirms bundle deployment without prompting. ONLY use with bundles you trust
+  -h, --help                   help for deploy
+  -p, --packages stringArray   Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed.
+  -r, --resume                 Only deploys packages from the bundle which haven't already been deployed
+      --retries int            Specify the number of retries for package deployments (applies to all pkgs in a bundle) (default 3)
+      --set stringToString     Specify deployment variables to set on the command line (KEY=value) (default [])
 ```
 
 ### Options inherited from parent commands
@@ -60,5 +37,5 @@ uds completion zsh [flags]
 
 ### SEE ALSO
 
-* [uds completion](/cli/command-reference/uds_completion/)	 - Generate the autocompletion script for the specified shell
+* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
 

@@ -1,36 +1,20 @@
 ---
-title: uds completion fish
-description: UDS CLI command reference for <code>uds completion fish</code>.
-type: docs
+title: uds monitor
+description: UDS CLI command reference for <code>uds monitor</code>.
 ---
-## uds completion fish
+## uds monitor
 
-Generate the autocompletion script for fish
+Monitor a UDS Cluster
 
 ### Synopsis
 
-Generate the autocompletion script for the fish shell.
-
-To load completions in your current shell session:
-
-	uds completion fish | source
-
-To load completions for every new session, execute once:
-
-	uds completion fish > ~/.config/fish/completions/uds.fish
-
-You will need to start a new shell for this setup to take effect.
-
-
-```
-uds completion fish [flags]
-```
+Tools for monitoring a UDS Cluster and connecting to the UDS Engine for advanced troubleshooting
 
 ### Options
 
 ```
-  -h, --help              help for fish
-      --no-descriptions   disable completion descriptions
+  -h, --help               help for monitor
+  -n, --namespace string   Limit monitoring to a specific namespace
 ```
 
 ### Options inherited from parent commands
@@ -49,5 +33,6 @@ uds completion fish [flags]
 
 ### SEE ALSO
 
-* [uds completion](/cli/command-reference/uds_completion/)	 - Generate the autocompletion script for the specified shell
+* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds monitor pepr](/reference/cli/commands/uds_monitor_pepr/)	 - Observe Pepr operations in a UDS Cluster
 

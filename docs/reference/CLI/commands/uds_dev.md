@@ -1,22 +1,15 @@
 ---
-title: uds completion
-description: UDS CLI command reference for <code>uds completion</code>.
-type: docs
+title: uds dev
+description: UDS CLI command reference for <code>uds dev</code>.
 ---
-## uds completion
+## uds dev
 
-Generate the autocompletion script for the specified shell
-
-### Synopsis
-
-Generate the autocompletion script for uds for the specified shell.
-See each sub-command's help for details on how to use the generated script.
-
+[beta] Commands useful for developing bundles
 
 ### Options
 
 ```
-  -h, --help   help for completion
+  -h, --help   help for dev
 ```
 
 ### Options inherited from parent commands
@@ -35,8 +28,6 @@ See each sub-command's help for details on how to use the generated script.
 
 ### SEE ALSO
 
-* [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
-* [uds completion bash](/cli/command-reference/uds_completion_bash/)	 - Generate the autocompletion script for bash
-* [uds completion fish](/cli/command-reference/uds_completion_fish/)	 - Generate the autocompletion script for fish
-* [uds completion zsh](/cli/command-reference/uds_completion_zsh/)	 - Generate the autocompletion script for zsh
+* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds dev deploy](/reference/cli/commands/uds_dev_deploy/)	 - [beta] Creates and deploys a UDS bundle in dev mode
 

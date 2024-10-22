@@ -1,25 +1,25 @@
 ---
-title: uds inspect
-description: UDS CLI command reference for <code>uds inspect</code>.
-type: docs
+title: uds create
+description: UDS CLI command reference for <code>uds create</code>.
 ---
-## uds inspect
+## uds create
 
-Display the metadata of a bundle
+Create a bundle from a given directory or the current directory
 
 ```
-uds inspect [BUNDLE_TARBALL|OCI_REF|BUNDLE_YAML_FILE] [flags]
+uds create [DIRECTORY] [flags]
 ```
 
 ### Options
 
 ```
-  -e, --extract          Create a folder of SBOMs contained in the bundle
-  -h, --help             help for inspect
-  -k, --key string       Path to a public key file that will be used to validate a signed bundle
-  -i, --list-images      Derive images from a uds-bundle.yaml file and list them
-  -v, --list-variables   List all configurable variables in a bundle (including zarf variables)
-  -s, --sbom             Create a tarball of SBOMs contained in the bundle
+  -c, --confirm                       Confirm bundle creation without prompting
+  -h, --help                          help for create
+  -n, --name string                   Specify the name of the bundle
+  -o, --output string                 Specify the output (an oci:// URL) for the created bundle
+  -k, --signing-key string            Path to private key file for signing bundles
+  -p, --signing-key-password string   Password to the private key file used for signing bundles
+  -v, --version string                Specify the version of the bundle
 ```
 
 ### Options inherited from parent commands
@@ -38,5 +38,5 @@ uds inspect [BUNDLE_TARBALL|OCI_REF|BUNDLE_YAML_FILE] [flags]
 
 ### SEE ALSO
 
-* [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
+* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
 

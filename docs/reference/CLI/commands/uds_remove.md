@@ -1,26 +1,21 @@
 ---
-title: uds create
-description: UDS CLI command reference for <code>uds create</code>.
-type: docs
+title: uds remove
+description: UDS CLI command reference for <code>uds remove</code>.
 ---
-## uds create
+## uds remove
 
-Create a bundle from a given directory or the current directory
+Remove a bundle that has been deployed already
 
 ```
-uds create [DIRECTORY] [flags]
+uds remove [BUNDLE_TARBALL|OCI_REF] [flags]
 ```
 
 ### Options
 
 ```
-  -c, --confirm                       Confirm bundle creation without prompting
-  -h, --help                          help for create
-  -n, --name string                   Specify the name of the bundle
-  -o, --output string                 Specify the output (an oci:// URL) for the created bundle
-  -k, --signing-key string            Path to private key file for signing bundles
-  -p, --signing-key-password string   Password to the private key file used for signing bundles
-  -v, --version string                Specify the version of the bundle
+  -c, --confirm                REQUIRED. Confirm the removal action to prevent accidental deletions
+  -h, --help                   help for remove
+  -p, --packages stringArray   Specify which zarf packages you would like to remove from the bundle. By default all zarf packages in the bundle are removed.
 ```
 
 ### Options inherited from parent commands
@@ -39,5 +34,5 @@ uds create [DIRECTORY] [flags]
 
 ### SEE ALSO
 
-* [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
+* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
 

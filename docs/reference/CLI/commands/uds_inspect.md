@@ -1,20 +1,24 @@
 ---
-title: uds run
-description: UDS CLI command reference for <code>uds run</code>.
-type: docs
+title: uds inspect
+description: UDS CLI command reference for <code>uds inspect</code>.
 ---
-## uds run
+## uds inspect
 
-Run a task using maru-runner
+Display the metadata of a bundle
 
 ```
-uds run [flags]
+uds inspect [BUNDLE_TARBALL|OCI_REF|BUNDLE_YAML_FILE] [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for run
+  -e, --extract          Create a folder of SBOMs contained in the bundle
+  -h, --help             help for inspect
+  -k, --key string       Path to a public key file that will be used to validate a signed bundle
+  -i, --list-images      Derive images from a uds-bundle.yaml file and list them
+  -v, --list-variables   List all configurable variables in a bundle (including zarf variables)
+  -s, --sbom             Create a tarball of SBOMs contained in the bundle
 ```
 
 ### Options inherited from parent commands
@@ -33,5 +37,5 @@ uds run [flags]
 
 ### SEE ALSO
 
-* [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
+* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
 

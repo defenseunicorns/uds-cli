@@ -1,7 +1,5 @@
 ---
 title: Bundle Overrides
-type: docs
-weight: 2
 ---
 
 Bundle overrides provide a mechanism to customize Helm charts inside of Zarf packages.
@@ -246,9 +244,9 @@ There are 3 ways to override the `UI_COLOR` variable:
 
    > **:warning: Warning**: Because Helm override variables and Zarf variables share the same --set syntax, be careful with variable names to avoid conflicts.
 
-{{% alert-note %}}  
+:::note
 A variable that is not overridden by any of the methods above and has no default will be ignored.
-{{% /alert-note %}}
+:::
 
 #### Variable Precedence
 
@@ -263,9 +261,9 @@ Variable precedence is as follows:
 
 Variables can be of either type `raw` or `file`. The type will default to raw if not set explicitly.
 
-{{% alert-caution %}}  
+:::caution
 If a variable is set to accept a file as its value, but is missing the `file` type, then the file will not be processed.
-{{% /alert-caution %}}
+:::
 
 ```yaml
 kind: UDSBundle
@@ -307,11 +305,11 @@ This means when `test.cert` is evaluated it will first be appended to the config
 
 If the file path is already set to the same relative path as the config, then no merging will take place.
 
-{{% alert-note %}}  
+:::note
 UDS CLI does not encrypt or base64 encode any file contents before passing said data to Zarf or Helm.
 
 For example, if the file contains a key to be used in a Kubernetes secret, it must be base64 encoded before being ingested by UDS CLI.
-{{% /alert-note %}}
+:::
 
 ### Sensitive
 

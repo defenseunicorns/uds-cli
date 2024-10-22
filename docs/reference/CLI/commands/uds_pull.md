@@ -1,21 +1,21 @@
 ---
-title: uds publish
-description: UDS CLI command reference for <code>uds publish</code>.
-type: docs
+title: uds pull
+description: UDS CLI command reference for <code>uds pull</code>.
 ---
-## uds publish
+## uds pull
 
-Publish a bundle from the local file system to a remote registry
+Pull a bundle from a remote registry and save to the local file system
 
 ```
-uds publish [BUNDLE_TARBALL] [OCI_REF] [flags]
+uds pull [OCI_REF] [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help             help for publish
-  -v, --version string   Specify the version of the bundle to be published
+  -h, --help            help for pull
+  -k, --key string      Path to a public key file that will be used to validate a signed bundle
+  -o, --output string   Specify the output directory for the pulled bundle
 ```
 
 ### Options inherited from parent commands
@@ -34,5 +34,5 @@ uds publish [BUNDLE_TARBALL] [OCI_REF] [flags]
 
 ### SEE ALSO
 
-* [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
+* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
 

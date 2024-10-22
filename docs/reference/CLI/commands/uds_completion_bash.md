@@ -1,24 +1,44 @@
 ---
-title: uds ui
-description: UDS CLI command reference for <code>uds ui</code>.
-type: docs
+title: uds completion bash
+description: UDS CLI command reference for <code>uds completion bash</code>.
 ---
-## uds ui
+## uds completion bash
 
-[beta] Launch UDS Runtime and view UI
+Generate the autocompletion script for bash
 
 ### Synopsis
 
-[beta] Launch UDS Runtime and view UI
+Generate the autocompletion script for the bash shell.
+
+This script depends on the 'bash-completion' package.
+If it is not installed already, you can install it via your OS's package manager.
+
+To load completions in your current shell session:
+
+	source <(uds completion bash)
+
+To load completions for every new session, execute once:
+
+#### Linux:
+
+	uds completion bash > /etc/bash_completion.d/uds
+
+#### macOS:
+
+	uds completion bash > $(brew --prefix)/etc/bash_completion.d/uds
+
+You will need to start a new shell for this setup to take effect.
+
 
 ```
-uds ui [flags]
+uds completion bash
 ```
 
 ### Options
 
 ```
-  -h, --help   help for ui
+  -h, --help              help for bash
+      --no-descriptions   disable completion descriptions
 ```
 
 ### Options inherited from parent commands
@@ -37,5 +57,5 @@ uds ui [flags]
 
 ### SEE ALSO
 
-* [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
+* [uds completion](/reference/cli/commands/uds_completion/)	 - Generate the autocompletion script for the specified shell
 

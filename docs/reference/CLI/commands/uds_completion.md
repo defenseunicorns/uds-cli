@@ -1,25 +1,21 @@
 ---
-title: uds deploy
-description: UDS CLI command reference for <code>uds deploy</code>.
-type: docs
+title: uds completion
+description: UDS CLI command reference for <code>uds completion</code>.
 ---
-## uds deploy
+## uds completion
 
-Deploy a bundle from a local tarball or oci:// URL
+Generate the autocompletion script for the specified shell
 
-```
-uds deploy [BUNDLE_TARBALL|OCI_REF] [flags]
-```
+### Synopsis
+
+Generate the autocompletion script for uds for the specified shell.
+See each sub-command's help for details on how to use the generated script.
+
 
 ### Options
 
 ```
-  -c, --confirm                Confirms bundle deployment without prompting. ONLY use with bundles you trust
-  -h, --help                   help for deploy
-  -p, --packages stringArray   Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed.
-  -r, --resume                 Only deploys packages from the bundle which haven't already been deployed
-      --retries int            Specify the number of retries for package deployments (applies to all pkgs in a bundle) (default 3)
-      --set stringToString     Specify deployment variables to set on the command line (KEY=value) (default [])
+  -h, --help   help for completion
 ```
 
 ### Options inherited from parent commands
@@ -38,5 +34,8 @@ uds deploy [BUNDLE_TARBALL|OCI_REF] [flags]
 
 ### SEE ALSO
 
-* [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
+* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds completion bash](/reference/cli/commands/uds_completion_bash/)	 - Generate the autocompletion script for bash
+* [uds completion fish](/reference/cli/commands/uds_completion_fish/)	 - Generate the autocompletion script for fish
+* [uds completion zsh](/reference/cli/commands/uds_completion_zsh/)	 - Generate the autocompletion script for zsh
 

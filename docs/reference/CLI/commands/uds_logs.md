@@ -1,21 +1,19 @@
 ---
-title: uds monitor
-description: UDS CLI command reference for <code>uds monitor</code>.
-type: docs
+title: uds logs
+description: UDS CLI command reference for <code>uds logs</code>.
 ---
-## uds monitor
+## uds logs
 
-Monitor a UDS Cluster
+View most recent UDS CLI logs
 
-### Synopsis
-
-Tools for monitoring a UDS Cluster and connecting to the UDS Engine for advanced troubleshooting
+```
+uds logs [flags]
+```
 
 ### Options
 
 ```
-  -h, --help               help for monitor
-  -n, --namespace string   Limit monitoring to a specific namespace
+  -h, --help   help for logs
 ```
 
 ### Options inherited from parent commands
@@ -34,6 +32,5 @@ Tools for monitoring a UDS Cluster and connecting to the UDS Engine for advanced
 
 ### SEE ALSO
 
-* [uds](/cli/command-reference/uds/)	 - CLI for UDS Bundles
-* [uds monitor pepr](/cli/command-reference/uds_monitor_pepr/)	 - Observe Pepr operations in a UDS Cluster
+* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
 
