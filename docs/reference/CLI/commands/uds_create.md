@@ -1,5 +1,6 @@
 ---
 title: uds create
+description: UDS CLI command reference for <code>%s</code>.
 ---
 ## uds create
 

@@ -1,5 +1,6 @@
 ---
 title: uds dev deploy
+description: UDS CLI command reference for <code>%s</code>.
 ---
 ## uds dev deploy
 

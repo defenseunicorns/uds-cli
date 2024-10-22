@@ -1,5 +1,6 @@
 ---
 title: uds completion bash
+description: UDS CLI command reference for <code>%s</code>.
 ---
 ## uds completion bash
 

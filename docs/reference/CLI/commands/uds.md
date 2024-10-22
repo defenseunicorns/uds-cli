@@ -1,5 +1,6 @@
 ---
 title: uds
+description: UDS CLI command reference for <code>%s</code>.
 ---
 ## uds
 

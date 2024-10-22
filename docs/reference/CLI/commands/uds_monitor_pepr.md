@@ -1,5 +1,6 @@
 ---
 title: uds monitor pepr
+description: UDS CLI command reference for <code>%s</code>.
 ---
 ## uds monitor pepr
 
