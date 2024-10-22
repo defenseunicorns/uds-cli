@@ -1,6 +1,8 @@
 module github.com/defenseunicorns/uds-cli
 
-go 1.22.8
+go 1.23
+
+toolchain go1.23.2
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
@@ -11,7 +13,7 @@ require (
 	github.com/defenseunicorns/pkg/helpers/v2 v2.0.1
 	github.com/defenseunicorns/pkg/oci v1.0.2
 	github.com/defenseunicorns/uds-runtime v0.7.0
-	github.com/defenseunicorns/uds-security-hub v0.0.7
+	github.com/defenseunicorns/uds-security-hub v0.2.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/goccy/go-yaml v1.12.0
 	github.com/mholt/archiver/v3 v3.5.1
@@ -103,9 +105,9 @@ require (
 	github.com/anchore/clio v0.0.0-20240705045624-ac88e09ad9d0 // indirect
 	github.com/anchore/fangs v0.0.0-20240903175602-e716ef12c23d // indirect
 	github.com/anchore/go-collections v0.0.0-20240216171411-9321230ce537 // indirect
-	github.com/anchore/go-logger v0.0.0-20230725134548-c21dafa1ec5a // indirect
+	github.com/anchore/go-logger v0.0.0-20240217160628-ee28a485904f // indirect
 	github.com/anchore/go-macholibre v0.0.0-20220308212642-53e6d0aaf6fb // indirect
-	github.com/anchore/go-struct-converter v0.0.0-20221118182256-c68fdcfa2092 // indirect
+	github.com/anchore/go-struct-converter v0.0.0-20230627203149-c72ef8859ca9 // indirect
 	github.com/anchore/go-version v1.2.2-0.20210903204242-51efa5b487c4 // indirect
 	github.com/anchore/grype v0.77.0 // indirect
 	github.com/anchore/packageurl-go v0.1.1-0.20240507183024-848e011fc24f // indirect
@@ -227,7 +229,7 @@ require (
 	github.com/fluxcd/source-controller/api v1.4.1 // indirect
 	github.com/fvbommel/sortorder v1.1.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.4 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.5 // indirect
 	github.com/gdamore/encoding v1.0.0 // indirect
 	github.com/github/go-spdx/v2 v2.3.2 // indirect
 	github.com/glebarez/go-sqlite v1.21.2 // indirect
@@ -522,7 +524,7 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gorm.io/gorm v1.25.10 // indirect
+	gorm.io/gorm v1.25.12 // indirect
 	k8s.io/apiextensions-apiserver v0.31.1 // indirect
 	k8s.io/apiserver v0.31.1 // indirect
 	k8s.io/cli-runtime v0.31.1 // indirect
