@@ -8,7 +8,7 @@ import (
 	"embed"
 	"log/slog"
 
-	ui "github.com/defenseunicorns/uds-runtime/pkg/api"
+	ui "github.com/defenseunicorns/uds-runtime/src/pkg/api"
 )
 
 //go:embed ui/build/*

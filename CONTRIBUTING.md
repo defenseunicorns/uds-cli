@@ -38,7 +38,7 @@ Specifically:
 Please ensure there is a GitHub issue for your proposed change, this helps the UDS CLI team to understand the context of the change and to track the progress of the work. If there isn't an issue for your change, please create one before starting work. The recommended workflow for contributing is as follows:
 
 
-*Before starting development, we highly recommend reading through the UDS CLI [documentation](https://uds.defenseunicorns.com/cli/) and our [ADRs](./adr).
+*Before starting development, we highly recommend reading through the UDS CLI [documentation](https://uds.defenseunicorns.com/reference/cli/overview/) and our [ADRs](./adr).
 
 1. **Fork this repo** and clone it locally
 1. **Create a branch** for your changes
