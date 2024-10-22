@@ -89,16 +89,17 @@ var genCLIDocs = &cobra.Command{
 
 			return fmt.Sprintf(`---
 title: %s
+description: UDS CLI command reference for <code>%s</code>.
 ---
-`, title)
+`, title, title)
 		}
 
 		var linkHandler = func(link string) string {
-			return "/reference/cli/commands/" + link[:len(link)-3] + "/"
+			return "/reference/CLI/commands/" + link[:len(link)-3] + "/"
 		}
 
 		// glob, err := filepath.Glob("./docs/reference/CLI/commands/uds*.md")
-		err = doc.GenMarkdownTreeCustom(rootCmd, "./docs/reference/cli/commands/", prependTitle, linkHandler)
+		err = doc.GenMarkdownTreeCustom(rootCmd, "./docs/reference/CLI/commands/", prependTitle, linkHandler)
 		if err != nil {
 			return err
 		}

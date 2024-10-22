@@ -13,7 +13,7 @@ repos:
           - "--allow-missing-credentials"
       - id: detect-private-key
       - id: end-of-file-fixer
-        exclude: docs/command-reference
+        exclude: docs/reference/CLI/commands
       - id: fix-byte-order-marker
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]

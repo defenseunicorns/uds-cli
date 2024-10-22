@@ -16,9 +16,9 @@ issues:
   max-same-issues: 0
   new-from-rev: ""
   exclude-dirs:
-    - docs/command-reference
+    - docs/reference/CLI/commands
   exclude-rules:
-    - path: 'test/.*'
+    - path: "test/.*"
       linters:
         - gosec
 linters:
