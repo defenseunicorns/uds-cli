@@ -28,6 +28,10 @@
         "podinfo"
       ],
       "groupName": "podinfo"
+    },
+    {
+      "fileMatch": ["action.yaml"],
+      "groupName": "actions"
     }
   ],
   "regexManagers": [
