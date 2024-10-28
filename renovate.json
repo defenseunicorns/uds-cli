@@ -30,7 +30,7 @@
       "groupName": "podinfo"
     },
     {
-      "fileMatch": ["action.yaml"],
+      "matchFileNames": ["action.yaml"],
       "groupName": "actions"
     }
   ],
