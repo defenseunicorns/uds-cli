@@ -10,7 +10,7 @@ require (
 	github.com/defenseunicorns/pkg/exec v0.0.1
 	github.com/defenseunicorns/pkg/helpers/v2 v2.0.1
 	github.com/defenseunicorns/pkg/oci v1.0.2
-	github.com/defenseunicorns/uds-runtime v0.7.0
+	github.com/defenseunicorns/uds-runtime v0.8.0
 	github.com/defenseunicorns/uds-security-hub v0.0.7
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/goccy/go-yaml v1.13.0
@@ -453,7 +453,7 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/swaggo/files/v2 v2.0.1 // indirect
 	github.com/swaggo/http-swagger/v2 v2.0.2 // indirect
-	github.com/swaggo/swag v1.16.3 // indirect
+	github.com/swaggo/swag v1.16.4 // indirect
 	github.com/sylabs/sif/v2 v2.17.1 // indirect
 	github.com/sylabs/squashfs v1.0.0 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6d // indirect
@@ -531,7 +531,7 @@ require (
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240816214639-573285566f34 // indirect
 	k8s.io/kubectl v0.31.1 // indirect
-	k8s.io/metrics v0.31.1 // indirect
+	k8s.io/metrics v0.31.2 // indirect
 	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8 // indirect
 	modernc.org/libc v1.55.3 // indirect
 	modernc.org/mathutil v1.6.0 // indirect
