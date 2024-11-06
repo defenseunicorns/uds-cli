@@ -21,9 +21,6 @@ jobs:
       - name: Install UDS CLI
         uses: ./.github/actions/install-uds-cli
 
-      - name: Pull UDS Runtime Assets
-        run: ./hack/download-uds-runtime-assets.sh
-
       - name: Test schemas
         run: uds run schema:test
 
