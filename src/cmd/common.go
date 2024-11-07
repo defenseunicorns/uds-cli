@@ -160,6 +160,7 @@ func cliSetup(cmd *cobra.Command) error {
 // of v0.42.0 before it's removal. See:
 // https://github.com/zarf-dev/zarf/blob/f60a70a0546026b578ea2781efe5c3a9bfac0fa7/src/cmd/common/setup.go
 func setupCLI(logLevel string, skipLogFile, noColor bool) error {
+	pterm.DisableOutput()
 	if noColor {
 		message.DisableColor()
 	}
@@ -200,5 +201,6 @@ func setupCLI(logLevel string, skipLogFile, noColor bool) error {
 		pterm.SetDefaultOutput(io.MultiWriter(os.Stderr, logFile))
 		message.Notef("Saving log file to %s", f.Name())
 	}
+	pterm.EnableOutput()
 	return nil
 }
