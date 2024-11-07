@@ -237,7 +237,7 @@ func getOCIValidatedSource(source string) (string, error) {
 	}
 	// Check provided repository path
 	sourceWithOCI := boci.EnsureOCIPrefix(source)
-	remote, err := zoci.NewRemote(sourceWithOCI, platform)
+	remote, err := zoci.NewRemote(ctx, sourceWithOCI, platform)
 	var originalErr error
 	if err == nil {
 		source = sourceWithOCI
@@ -251,7 +251,7 @@ func getOCIValidatedSource(source string) (string, error) {
 	if err != nil {
 		// Check in ghcr uds bundle path
 		source = GHCRUDSBundlePath + originalSource
-		remote, err = zoci.NewRemote(source, platform)
+		remote, err = zoci.NewRemote(ctx, source, platform)
 		if err == nil {
 			_, err = remote.ResolveRoot(ctx)
 		}
@@ -259,7 +259,7 @@ func getOCIValidatedSource(source string) (string, error) {
 			message.Debugf(err.Error())
 			// Check in delivery bundle path
 			source = GHCRDeliveryBundlePath + originalSource
-			remote, err = zoci.NewRemote(source, platform)
+			remote, err = zoci.NewRemote(ctx, source, platform)
 			if err == nil {
 				_, err = remote.ResolveRoot(ctx)
 			}
@@ -267,7 +267,7 @@ func getOCIValidatedSource(source string) (string, error) {
 				message.Debugf(err.Error())
 				// Check in packages bundle path
 				source = GHCRPackagesPath + originalSource
-				remote, err = zoci.NewRemote(source, platform)
+				remote, err = zoci.NewRemote(ctx, source, platform)
 				if err == nil {
 					_, err = remote.ResolveRoot(ctx)
 				}

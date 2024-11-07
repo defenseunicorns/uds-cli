@@ -37,17 +37,17 @@ type Config struct {
 // NewPkgFetcher creates a fetcher object to pull Zarf pkgs into a local bundle
 func NewPkgFetcher(pkg types.Package, fetcherConfig Config) (Fetcher, error) {
 	var fetcher Fetcher
+	ctx := context.TODO()
 	if utils.IsRemotePkg(pkg) {
 		platform := ocispec.Platform{
 			Architecture: config.GetArch(),
 			OS:           oci.MultiOS,
 		}
 		url := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
-		remote, err := zoci.NewRemote(url, platform)
+		remote, err := zoci.NewRemote(ctx, url, platform)
 		if err != nil {
 			return nil, err
 		}
-		ctx := context.TODO()
 		pkgRootManifest, err := remote.FetchRoot(ctx)
 		if err != nil {
 			return nil, err

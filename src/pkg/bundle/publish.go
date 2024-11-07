@@ -5,6 +5,7 @@
 package bundle
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -60,7 +61,7 @@ func (b *Bundle) Publish() error {
 		Architecture: config.GetArch(),
 		OS:           oci.MultiOS,
 	}
-	remote, err := zoci.NewRemote(fmt.Sprintf("%s/%s:%s", ociURL, bundleName, bundleTag), platform)
+	remote, err := zoci.NewRemote(context.TODO(), fmt.Sprintf("%s/%s:%s", ociURL, bundleName, bundleTag), platform)
 	if err != nil {
 		return err
 	}

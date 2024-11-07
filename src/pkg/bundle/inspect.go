@@ -215,7 +215,7 @@ func (b *Bundle) getSource(pkg types.Package) (zarfSources.PackageSource, error)
 				Architecture: config.GetArch(),
 				OS:           oci.MultiOS,
 			}
-			remote, err := zoci.NewRemote(url, platform)
+			remote, err := zoci.NewRemote(context.TODO(), url, platform)
 			if err != nil {
 				return nil, err
 			}
