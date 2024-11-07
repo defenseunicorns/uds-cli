@@ -68,7 +68,6 @@ tasks:
     actions:
       - task: get-versions
       - task: build-args
-      - cmd: ./hack/download-uds-runtime-assets.sh
       - cmd: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="${BUILD_ARGS}" -o build/uds main.go
 
   - name: build-cli-linux-arm
@@ -76,7 +75,6 @@ tasks:
     actions:
       - task: get-versions
       - task: build-args
-      - cmd: ./hack/download-uds-runtime-assets.sh
       - cmd: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="${BUILD_ARGS}" -o build/uds-arm main.go
 
   - name: build-cli-mac-intel
@@ -84,7 +82,6 @@ tasks:
     actions:
       - task: get-versions
       - task: build-args
-      - cmd: ./hack/download-uds-runtime-assets.sh
       - cmd: GOOS=darwin GOARCH=amd64 go build -ldflags="${BUILD_ARGS}" -o build/uds-mac-intel main.go
 
   - name: build-cli-mac-apple
@@ -92,5 +89,4 @@ tasks:
     actions:
       - task: get-versions
       - task: build-args
-      - cmd: ./hack/download-uds-runtime-assets.sh
       - cmd: GOOS=darwin GOARCH=arm64 go build -ldflags="${BUILD_ARGS}" -o build/uds-mac-apple main.go

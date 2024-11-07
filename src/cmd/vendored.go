@@ -91,21 +91,6 @@ var scanCmd = &cobra.Command{
 	DisableFlagParsing: true,
 }
 
-// uds-runtime
-var uiCmd = &cobra.Command{
-	Use:   "ui",
-	Short: lang.CmdUIShort,
-	Long:  lang.CmdUIShort,
-	RunE: func(_ *cobra.Command, _ []string) error {
-		os.Args = os.Args[1:] // grab 'ui' and onward from the CLI args
-		if err := startUI(); err != nil {
-			return err
-		}
-		return nil
-	},
-	DisableFlagParsing: true,
-}
-
 func init() {
 	// grab Zarf version to make Zarf library checks happy
 	if buildInfo, ok := debug.ReadBuildInfo(); ok {
@@ -126,5 +111,4 @@ func init() {
 	rootCmd.AddCommand(runnerCmd)
 	rootCmd.AddCommand(zarfCmd)
 	rootCmd.AddCommand(scanCmd) // uds-security-hub CLI command
-	rootCmd.AddCommand(uiCmd)
 }
