@@ -20,10 +20,10 @@ require (
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.9.0
-	github.com/zarf-dev/zarf v0.42.2
+	github.com/zarf-dev/zarf v0.42.3-0.20241108185040-f4c80cbc4fcf
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	golang.org/x/mod v0.21.0
-	golang.org/x/sync v0.8.0
+	golang.org/x/sync v0.9.0
 	helm.sh/helm/v3 v3.16.2
 	k8s.io/api v0.31.2
 	k8s.io/apimachinery v0.31.2
@@ -497,8 +497,8 @@ require (
 	golang.org/x/crypto v0.28.0 // indirect
 	golang.org/x/net v0.30.0 // indirect
 	golang.org/x/oauth2 v0.23.0 // indirect
-	golang.org/x/sys v0.26.0 // indirect
-	golang.org/x/term v0.25.0 // indirect
+	golang.org/x/sys v0.27.0 // indirect
+	golang.org/x/term v0.26.0 // indirect
 	golang.org/x/text v0.19.0 // indirect
 	golang.org/x/time v0.7.0 // indirect
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
@@ -541,5 +541,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
-
-replace github.com/zarf-dev/zarf => ../../zarf-dev/zarf/
