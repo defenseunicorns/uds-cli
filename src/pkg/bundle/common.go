@@ -116,6 +116,7 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 		}
 		var zarfYAML v1alpha1.ZarfPackage
 		var url string
+		ctx := context.TODO()
 		// if using a remote repository
 		// todo: refactor these hash checks using the fetcher
 		if pkg.Repository != "" {
@@ -128,12 +129,12 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 				Architecture: config.GetArch(),
 				OS:           oci.MultiOS,
 			}
-			remote, err := zoci.NewRemote(url, platform)
+			remote, err := zoci.NewRemote(ctx, url, platform)
 			if err != nil {
 				return err
 			}
 			if err := remote.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
-				manifestDesc, err := remote.ResolveRoot(context.TODO())
+				manifestDesc, err := remote.ResolveRoot(ctx)
 				if err != nil {
 					return err
 				}
@@ -331,6 +332,7 @@ func validateBundleVars(packages []types.Package) error {
 
 // setPackageRef sets the package reference
 func (b *Bundle) setPackageRef(pkg types.Package) (types.Package, error) {
+	ctx := context.TODO()
 	if ref, ok := b.cfg.DevDeployOpts.Ref[pkg.Name]; ok {
 		// Can only set refs for remote packages
 		if pkg.Repository == "" {
@@ -346,12 +348,12 @@ func (b *Bundle) setPackageRef(pkg types.Package) (types.Package, error) {
 			Architecture: config.GetArch(),
 			OS:           oci.MultiOS,
 		}
-		remote, err := zoci.NewRemote(url, platform)
+		remote, err := zoci.NewRemote(ctx, url, platform)
 		if err != nil {
 			return pkg, fmt.Errorf(errMsg)
 		}
 		if err := remote.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
-			manifestDesc, err := remote.ResolveRoot(context.TODO())
+			manifestDesc, err := remote.ResolveRoot(ctx)
 			if err != nil {
 				return pkg, fmt.Errorf(errMsg)
 			}

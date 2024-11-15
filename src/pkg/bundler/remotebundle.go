@@ -59,7 +59,7 @@ func (r *RemoteBundle) create(signature []byte) error {
 	}
 
 	// create the bundle remote
-	bundleRemote, err := zoci.NewRemote(ref, platform)
+	bundleRemote, err := zoci.NewRemote(ctx, ref, platform)
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,7 @@ func (r *RemoteBundle) create(signature []byte) error {
 	for i, pkg := range bundle.Packages {
 		// todo: can leave this block here or move to pusher.NewPkgPusher (would be closer to NewPkgFetcher pattern)
 		pkgURL := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
-		src, err := zoci.NewRemote(pkgURL, platform)
+		src, err := zoci.NewRemote(ctx, pkgURL, platform)
 		if err != nil {
 			return err
 		}

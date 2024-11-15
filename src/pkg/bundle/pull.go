@@ -55,7 +55,7 @@ func (b *Bundle) Pull() error {
 		Architecture: config.GetArch(),
 		OS:           oci.MultiOS,
 	}
-	remote, err := zoci.NewRemote(b.cfg.PullOpts.Source, platform)
+	remote, err := zoci.NewRemote(ctx, b.cfg.PullOpts.Source, platform)
 	if err != nil {
 		return err
 	}

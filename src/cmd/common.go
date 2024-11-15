@@ -17,7 +17,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
-	zarfCommon "github.com/zarf-dev/zarf/src/cmd/common"
+	zarfCLI "github.com/zarf-dev/zarf/src/cmd"
 	zarfConfig "github.com/zarf-dev/zarf/src/config"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
@@ -138,14 +138,14 @@ func cliSetup(cmd *cobra.Command) error {
 
 	// don't configure Zarf CLI directly if we're calling vendored Zarf
 	if !strings.HasPrefix(cmd.Use, "zarf") {
-		pterm.DisableOutput() // don't print extra Zarf note about logs
-		// TODO(schristoff): Leverage SDK and refactor
-		// This sets up zarf CLI with the same configuration options as UDSCLI
-		err := zarfCommon.SetupCLI(logLevel, config.SkipLogFile, config.NoColor)
-		if err != nil {
+		if err := zarfCLI.SetupMessage(zarfCLI.MessageCfg{
+			Level:       logLevel,
+			SkipLogFile: config.SkipLogFile,
+			NoColor:     config.NoColor,
+		},
+		); err != nil {
 			return err
 		}
-		pterm.EnableOutput()
 	}
 
 	// configure logs for UDS after calling zarfCommon.SetupCLI

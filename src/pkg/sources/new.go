@@ -5,6 +5,7 @@
 package sources
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -45,7 +46,7 @@ func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, opts zarfT
 			Architecture: config.GetArch(),
 			OS:           oci.MultiOS,
 		}
-		remote, err := zoci.NewRemote(pkgLocation, platform)
+		remote, err := zoci.NewRemote(context.TODO(), pkgLocation, platform)
 		if err != nil {
 			return nil, err
 		}

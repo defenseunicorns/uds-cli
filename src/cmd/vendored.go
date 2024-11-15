@@ -68,7 +68,7 @@ var runnerCmd = &cobra.Command{
 	},
 }
 
-var zarfCmd = &cobra.Command{
+var zarfCli = &cobra.Command{
 	Use:     "zarf COMMAND",
 	Aliases: []string{"z"},
 	Short:   lang.CmdZarfShort,
@@ -109,6 +109,6 @@ func init() {
 
 	initViper()
 	rootCmd.AddCommand(runnerCmd)
-	rootCmd.AddCommand(zarfCmd)
+	rootCmd.AddCommand(zarfCli)
 	rootCmd.AddCommand(scanCmd) // uds-security-hub CLI command
 }

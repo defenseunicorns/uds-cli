@@ -57,7 +57,7 @@ func NewBundleProvider(source, destination string) (Provider, error) {
 			OS:           oci.MultiOS,
 		}
 		// get remote client
-		remote, err := zoci.NewRemote(source, platform)
+		remote, err := zoci.NewRemote(ctx, source, platform)
 		if err != nil {
 			return nil, err
 		}

@@ -42,7 +42,7 @@ type RemoteBundle struct {
 }
 
 // LoadPackage loads a Zarf package from a remote bundle
-func (r *RemoteBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (v1alpha1.ZarfPackage, []string, error) {
+func (r *RemoteBundle) LoadPackage(ctx context.Context, dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (v1alpha1.ZarfPackage, []string, error) {
 	// todo: progress bar??
 	var layers []ocispec.Descriptor
 	var err error
@@ -56,8 +56,8 @@ func (r *RemoteBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths, 
 			}
 			// get remote client
 			repoUrl := fmt.Sprintf("%s:%s", r.Pkg.Repository, r.Pkg.Ref)
-			remote, _ := zoci.NewRemote(repoUrl, platform)
-			layers, err = remote.PullPackage(context.TODO(), r.TmpDir, config.CommonOptions.OCIConcurrency)
+			remote, _ := zoci.NewRemote(ctx, repoUrl, platform)
+			layers, err = remote.PullPackage(ctx, r.TmpDir, config.CommonOptions.OCIConcurrency)
 		} else {
 			layers, err = r.downloadPkgFromRemoteBundle()
 		}
@@ -125,8 +125,7 @@ func (r *RemoteBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths, 
 }
 
 // LoadPackageMetadata loads a Zarf package's metadata from a remote bundle
-func (r *RemoteBundle) LoadPackageMetadata(_ context.Context, dst *layout.PackagePaths, _ bool, _ bool) (v1alpha1.ZarfPackage, []string, error) {
-	ctx := context.TODO()
+func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, dst *layout.PackagePaths, _ bool, _ bool) (v1alpha1.ZarfPackage, []string, error) {
 	root, err := r.Remote.FetchRoot(ctx)
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
