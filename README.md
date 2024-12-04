@@ -10,6 +10,12 @@ Recommended installation method is with Brew:
 ```
 brew tap defenseunicorns/tap && brew install uds
 ```
+
+An `install.sh` file is also available for installation with curl (requires `sudo`):
+```
+curl -sSL https://raw.githubusercontent.com/defenseunicorns/uds-cli/main/install.sh | bash
+```
+
 UDS CLI binaries are also included with each [Github Release](https://github.com/defenseunicorns/uds-cli/releases)
 
 ## Official Documentation
