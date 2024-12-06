@@ -1,6 +1,8 @@
 module github.com/defenseunicorns/uds-cli
 
-go 1.22.8
+go 1.23
+
+toolchain go1.23.4
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
@@ -10,7 +12,7 @@ require (
 	github.com/defenseunicorns/pkg/exec v0.0.1
 	github.com/defenseunicorns/pkg/helpers/v2 v2.0.1
 	github.com/defenseunicorns/pkg/oci v1.0.2
-	github.com/defenseunicorns/uds-security-hub v0.0.7
+	github.com/defenseunicorns/uds-security-hub v0.2.0
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/goccy/go-yaml v1.15.6
 	github.com/mholt/archiver/v3 v3.5.1
@@ -101,9 +103,9 @@ require (
 	github.com/anchore/clio v0.0.0-20241015191535-f538a9016e10 // indirect
 	github.com/anchore/fangs v0.0.0-20241014201141-b6e4b3469f10 // indirect
 	github.com/anchore/go-collections v0.0.0-20240216171411-9321230ce537 // indirect
-	github.com/anchore/go-logger v0.0.0-20230725134548-c21dafa1ec5a // indirect
+	github.com/anchore/go-logger v0.0.0-20240217160628-ee28a485904f // indirect
 	github.com/anchore/go-macholibre v0.0.0-20220308212642-53e6d0aaf6fb // indirect
-	github.com/anchore/go-struct-converter v0.0.0-20221118182256-c68fdcfa2092 // indirect
+	github.com/anchore/go-struct-converter v0.0.0-20230627203149-c72ef8859ca9 // indirect
 	github.com/anchore/go-version v1.2.2-0.20210903204242-51efa5b487c4 // indirect
 	github.com/anchore/grype v0.77.0 // indirect
 	github.com/anchore/packageurl-go v0.1.1-0.20241018175412-5c22e6360c4f // indirect
@@ -515,7 +517,7 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gorm.io/gorm v1.25.10 // indirect
+	gorm.io/gorm v1.25.12 // indirect
 	k8s.io/apiextensions-apiserver v0.31.1 // indirect
 	k8s.io/apiserver v0.31.1 // indirect
 	k8s.io/cli-runtime v0.31.2 // indirect
