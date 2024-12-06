@@ -23,7 +23,7 @@ require (
 	github.com/zarf-dev/zarf v0.43.1
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	golang.org/x/mod v0.22.0
-	golang.org/x/sync v0.9.0
+	golang.org/x/sync v0.10.0
 	helm.sh/helm/v3 v3.16.3
 	k8s.io/api v0.31.3
 	k8s.io/apimachinery v0.31.3
