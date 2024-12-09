@@ -29,6 +29,6 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@e3008473beab00b12a94f9fcc7340124338d5c08 # v0.13.1
+        uses: defenseunicorns/uds-common/.github/actions/save-logs@dd9f310a238e555a9ce433a171a2b310f9e49f62 # v1.5.0
         with:
           suffix: validate-schema-and-docs
