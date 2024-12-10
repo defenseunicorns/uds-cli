@@ -165,7 +165,6 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 			pkgExportedVars[strings.ToUpper(exp.Name)] = setVariable.Value
 		}
 		bundleExportedVars[pkg.Name] = pkgExportedVars
-
 	}
 	return nil
 }
@@ -289,20 +288,28 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
 
 	message.Title("Metadata:", "information about this bundle")
-	zarfUtils.ColorPrintYAML(b.bundle.Metadata, nil, false)
+	if err := zarfUtils.ColorPrintYAML(b.bundle.Metadata, nil, false); err != nil {
+		message.WarnErr(err, "unable to print bundle metadata yaml")
+	}
 
 	message.HorizontalRule()
 
 	message.Title("Build:", "info about the machine, UDS version, and the user that created this bundle")
-	zarfUtils.ColorPrintYAML(b.bundle.Build, nil, false)
+	if err := zarfUtils.ColorPrintYAML(b.bundle.Build, nil, false); err != nil {
+		message.WarnErr(err, "unable to print bundle build yaml")
+	}
 
 	message.HorizontalRule()
 
 	message.Title("Packages:", "definition of packages this bundle deploys, including variable overrides")
 
 	for _, pkg := range pkgviews {
-		zarfUtils.ColorPrintYAML(pkg.meta, nil, false)
-		zarfUtils.ColorPrintYAML(pkg.overrides, nil, false)
+		if err := zarfUtils.ColorPrintYAML(pkg.meta, nil, false); err != nil {
+			message.WarnErr(err, "unable to print package metadata yaml")
+		}
+		if err := zarfUtils.ColorPrintYAML(pkg.overrides, nil, false); err != nil {
+			message.WarnErr(err, "unable to print package overrides yaml")
+		}
 	}
 
 	message.HorizontalRule()

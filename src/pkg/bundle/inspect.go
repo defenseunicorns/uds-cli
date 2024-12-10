@@ -97,12 +97,14 @@ func (b *Bundle) Inspect() error {
 		return nil
 	}
 
-	zarfUtils.ColorPrintYAML(b.bundle, nil, false)
+	if err := zarfUtils.ColorPrintYAML(b.bundle, nil, false); err != nil {
+		message.Warn("error printing bundle yaml")
+	}
 
 	// print warnings to stderr
 	pterm.SetDefaultOutput(os.Stderr)
 	for _, warn := range warns {
-		message.Warnf(warn)
+		message.Warn(warn)
 	}
 
 	return nil
@@ -167,7 +169,9 @@ func (b *Bundle) listVariables() error {
 		}
 
 		varMap := map[string]map[string]interface{}{pkg.Name: {"variables": variables}}
-		zarfUtils.ColorPrintYAML(varMap, nil, false)
+		if err := zarfUtils.ColorPrintYAML(varMap, nil, false); err != nil {
+			message.Warn("error printing variables")
+		}
 	}
 
 	return nil

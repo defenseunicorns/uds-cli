@@ -134,7 +134,7 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, dst *layout.Packa
 	}
 
 	if zarfYamlSHA == "" {
-		return v1alpha1.ZarfPackage{}, nil, fmt.Errorf(fmt.Sprintf("zarf.yaml with SHA %s not found", zarfYamlSHA))
+		return v1alpha1.ZarfPackage{}, nil, fmt.Errorf("zarf.yaml with SHA %s not found", zarfYamlSHA)
 	}
 
 	// grab SHA of checksums.txt
