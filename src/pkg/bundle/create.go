@@ -110,7 +110,9 @@ func (b *Bundle) Create() error {
 // confirmBundleCreation prompts the user to confirm bundle creation
 func (b *Bundle) confirmBundleCreation() (confirm bool) {
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
-	zarfUtils.ColorPrintYAML(b.bundle, nil, false)
+	if err := zarfUtils.ColorPrintYAML(b.bundle, nil, false); err != nil {
+		message.WarnErr(err, "unable to print yaml")
+	}
 
 	message.HorizontalRule()
 	pterm.Println()

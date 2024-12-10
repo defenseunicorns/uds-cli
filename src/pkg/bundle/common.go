@@ -350,16 +350,16 @@ func (b *Bundle) setPackageRef(pkg types.Package) (types.Package, error) {
 		}
 		remote, err := zoci.NewRemote(ctx, url, platform)
 		if err != nil {
-			return pkg, fmt.Errorf(errMsg)
+			return pkg, errors.New(errMsg)
 		}
 		if err := remote.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
 			manifestDesc, err := remote.ResolveRoot(ctx)
 			if err != nil {
-				return pkg, fmt.Errorf(errMsg)
+				return pkg, errors.New(errMsg)
 			}
 			pkg.Ref = ref + "@sha256:" + manifestDesc.Digest.Encoded()
 		} else {
-			return pkg, fmt.Errorf(errMsg)
+			return pkg, errors.New(errMsg)
 		}
 	}
 	return pkg, nil

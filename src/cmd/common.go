@@ -152,7 +152,7 @@ func cliSetup(cmd *cobra.Command) error {
 	if !config.SkipLogFile && !config.ListTasks {
 		err := utils.ConfigureLogs(cmd)
 		if err != nil {
-			return fmt.Errorf(err.Error())
+			return err
 		}
 	}
 
