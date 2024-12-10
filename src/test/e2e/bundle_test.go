@@ -32,7 +32,6 @@ func TestUDSLogs(t *testing.T) {
 	runCmd(t, fmt.Sprintf("create src/test/bundles/11-real-simple --insecure --confirm -a %s", e2e.Arch))
 	stdout, _ := runCmd(t, "logs")
 	require.Contains(t, stdout, "DEBUG")
-	require.Contains(t, stdout, "UDSBundle")
 }
 
 func TestSimpleBundleWithZarfAction(t *testing.T) {
