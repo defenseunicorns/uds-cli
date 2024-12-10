@@ -56,7 +56,7 @@ BINARY_NAME="uds"
 # Set full path to binary download
 FULL_PATH="releases/download/${VERSION}/uds-cli_${VERSION}_${OS}_${ARCH}"
 
-UDS_TMP_DIR="$(mktemp -dt uds-binary)"
+UDS_TMP_DIR="$(mktemp -d -t uds-binary-XXXXXX)"
 UDS_TMP_FILE="${UDS_TMP_DIR}/${BINARY_NAME}"
 
 # Download the binary
