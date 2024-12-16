@@ -7,10 +7,10 @@ metadata:
   version: 0.0.1
 
 components:
-  - name: dubbd-repo
+  - name: mattermost
     required: true
     repos:
-      - https://github.com/defenseunicorns/uds-package-dubbd
+      - https://github.com/defenseunicorns/uds-package-mattermost@v10.2.0-uds.1
   - name: nginx
     required: true
     manifests:

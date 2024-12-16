@@ -11,6 +11,8 @@ import (
 
 	runnerCLI "github.com/defenseunicorns/maru-runner/src/cmd"
 	runnerConfig "github.com/defenseunicorns/maru-runner/src/config"
+	"github.com/zarf-dev/zarf/src/pkg/message"
+
 	"github.com/defenseunicorns/pkg/exec"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
@@ -57,7 +59,9 @@ var runnerCmd = &cobra.Command{
 		}
 
 		runnerCLI.RootCmd().SetArgs(os.Args)
-		runnerCLI.RootCmd().PersistentFlags().Set("log-level", "warn")
+		if err := runnerCLI.RootCmd().PersistentFlags().Set("log-level", "warn"); err != nil {
+			message.Warnf("unable to set log-level: %s", err)
+		}
 		runnerCLI.Execute()
 
 		return nil

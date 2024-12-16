@@ -206,17 +206,16 @@ var logsCmd = &cobra.Command{
 		if err != nil {
 			var pathError *os.PathError
 			if errors.As(err, &pathError) {
-				msg := fmt.Sprintf("No cached logs found at %s", logFilePath)
-				return fmt.Errorf(msg)
+				return fmt.Errorf("no cached logs found at %s", logFilePath)
 			}
-			return fmt.Errorf("error opening log file: %s", err.Error())
+			return fmt.Errorf("error opening log file: %w", err)
 		}
 		defer logfile.Close()
 
 		// Copy the contents of the log file to stdout
 		if _, err := io.Copy(os.Stdout, logfile); err != nil {
 			// Handle the error if the contents can't be read or written to stdout
-			return fmt.Errorf("error reading or printing log file: %v", err.Error())
+			return fmt.Errorf("error reading or printing log file: %w", err)
 		}
 		return nil
 	},
