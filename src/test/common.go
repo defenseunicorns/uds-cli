@@ -182,6 +182,7 @@ func (e2e *UDSE2ETest) CreateZarfPkg(t *testing.T, path string, forceCreate bool
 
 // CreateZarfPkgWithArch creates a Zarf package of a user specified arch in the given path
 func (e2e *UDSE2ETest) CreateZarfPkgWithArch(t *testing.T, path string, forceCreate bool, arch string) {
+	t.Helper()
 	//  check if pkg already exists
 	pattern := fmt.Sprintf("%s/*-%s-*.tar.zst", path, arch)
 	matches, err := filepath.Glob(pattern)
