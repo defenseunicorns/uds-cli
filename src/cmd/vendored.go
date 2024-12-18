@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"runtime/debug"
 
@@ -51,10 +50,10 @@ var runnerCmd = &cobra.Command{
 		if err = exec.RegisterCmdMutation("uds", executablePath); err != nil {
 			return err
 		}
-		if err = exec.RegisterCmdMutation("zarf", fmt.Sprintf("%s zarf", executablePath)); err != nil {
+		if err = exec.RegisterCmdMutation("zarf", executablePath+" zarf"); err != nil {
 			return err
 		}
-		if err = exec.RegisterCmdMutation("kubectl", fmt.Sprintf("%s zarf tools kubectl", executablePath)); err != nil {
+		if err = exec.RegisterCmdMutation("kubectl", executablePath+" zarf tools kubectl"); err != nil {
 			return err
 		}
 

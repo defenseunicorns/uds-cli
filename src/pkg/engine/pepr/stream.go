@@ -380,7 +380,7 @@ func (p *StreamReader) renderDenied(event LogEntry) string {
 	}
 
 	// Prepend `Authorized:` and `Found:` with newlines
-	failureIndent := fmt.Sprintf("%s             ", p.indent)
+	failureIndent := p.indent + "             "
 
 	// Break the second part of the message into authorized and found messages
 	splitMsg = strings.Split(splitMsg[1], " Found: ")

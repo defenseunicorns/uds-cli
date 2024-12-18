@@ -5,7 +5,7 @@
 package bundle
 
 import (
-	"fmt"
+	"errors"
 	"path/filepath"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -43,7 +43,7 @@ func (b *Bundle) Create() error {
 
 	// confirm creation
 	if ok := b.confirmBundleCreation(); !ok {
-		return fmt.Errorf("bundle creation cancelled")
+		return errors.New("bundle creation cancelled")
 	}
 
 	// make the bundle's build information

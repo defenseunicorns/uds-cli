@@ -416,7 +416,7 @@ func CopyLayers(layersToPull []ocispec.Descriptor, estimatedBytes int64, tmpDstD
 
 	expectedTotalSize := estimatedBytes + tmpDirSize
 
-	go zarfUtils.RenderProgressBarForLocalDirWrite(tmpDstDir, expectedTotalSize, doneSaving, fmt.Sprintf("Pulling: %s", artifactName), fmt.Sprintf("Successfully pulled: %s", artifactName))
+	go zarfUtils.RenderProgressBarForLocalDirWrite(tmpDstDir, expectedTotalSize, doneSaving, "Pulling: "+artifactName, "Successfully pulled: "+artifactName)
 
 	rootDesc, err := oras.Copy(context.TODO(), repo, repo.Reference.String(), target, "", copyOpts)
 

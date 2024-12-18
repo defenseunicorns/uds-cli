@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -56,7 +57,7 @@ var rootCmd = &cobra.Command{
 		_, _ = fmt.Fprintln(os.Stderr)
 		err := cmd.Help()
 		if err != nil {
-			return fmt.Errorf("error calling help command")
+			return errors.New("error calling help command")
 		}
 		return nil
 	},

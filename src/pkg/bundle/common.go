@@ -261,11 +261,11 @@ func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string
 	}
 	// The package is not signed, but a public key was provided
 	if helpers.InvalidPath(signaturePath) && !helpers.InvalidPath(publicKeyPath) {
-		return fmt.Errorf("package is not signed, but a public key was provided")
+		return errors.New("package is not signed, but a public key was provided")
 	}
 	// The package is signed, but no public key was provided
 	if !helpers.InvalidPath(signaturePath) && helpers.InvalidPath(publicKeyPath) {
-		return fmt.Errorf("package is signed, but no public key was provided")
+		return errors.New("package is signed, but no public key was provided")
 	}
 
 	// The package is signed, and a public key was provided
@@ -309,7 +309,7 @@ func validateBundleVars(packages []types.Package) error {
 	exports := make(map[string]string)
 	for i, pkg := range packages {
 		if i == 0 && pkg.Imports != nil {
-			return fmt.Errorf("first package in bundle cannot have imports")
+			return errors.New("first package in bundle cannot have imports")
 		}
 		// capture exported vars from all Zarf pkgs
 		if pkg.Exports != nil {

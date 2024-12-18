@@ -6,6 +6,7 @@ package bundle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -51,7 +52,7 @@ func (b *Bundle) Deploy() error {
 
 		// Check if invalid packages were specified
 		if len(userSpecifiedPackages) != len(packagesToDeploy) {
-			return fmt.Errorf("invalid zarf packages specified by --packages")
+			return errors.New("invalid zarf packages specified by --packages")
 		}
 	}
 
