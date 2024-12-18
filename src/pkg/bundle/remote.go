@@ -50,7 +50,7 @@ func (op *ociProvider) getBundleManifest() (*oci.Manifest, error) {
 	if op.rootManifest != nil {
 		return op.rootManifest, nil
 	}
-	return nil, fmt.Errorf("bundle root manifest not loaded")
+	return nil, errors.New("bundle root manifest not loaded")
 }
 
 // LoadBundleMetadata loads a remote bundle's metadata
@@ -77,8 +77,7 @@ func (op *ociProvider) LoadBundleMetadata() (types.PathMap, error) {
 	}
 
 	if len(filepaths) == 0 {
-		errMsg := fmt.Sprintf("failed to load bundle metadata from %s", op.src)
-		return nil, errors.New(errMsg)
+		return nil, errors.New("failed to load bundle metadata from " + op.src)
 	}
 
 	return filepaths, nil
@@ -223,7 +222,7 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 
 func (op *ociProvider) PublishBundle(_ types.UDSBundle, _ *oci.OrasRemote) error {
 	// todo: implement moving bundles from one registry to another
-	return fmt.Errorf("moving bundles in between remote registries not yet supported")
+	return errors.New("moving bundles in between remote registries not yet supported")
 }
 
 // Returns the validated source path based on the provided oci source path
@@ -275,8 +274,7 @@ func getOCIValidatedSource(source string) (string, error) {
 				if err != nil {
 					message.Debug(err)
 					if originalErr == nil {
-						errMsg := fmt.Sprintf("%s: not found", originalSource)
-						return "", errors.New(errMsg)
+						return "", errors.New(originalSource + ": not found")
 					}
 					return "", originalErr
 				}
@@ -299,7 +297,7 @@ func ValidateArch(arch string) error {
 	if c != nil {
 		nodeList, err := c.Clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			return fmt.Errorf("unable to get cluster architectures")
+			return errors.New("unable to get cluster architectures")
 		}
 
 		for _, node := range nodeList.Items {
