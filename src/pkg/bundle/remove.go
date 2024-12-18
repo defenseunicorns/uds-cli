@@ -6,7 +6,7 @@ package bundle
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
@@ -65,7 +65,7 @@ func (b *Bundle) Remove() error {
 
 		// Check if invalid packages were specified
 		if len(userSpecifiedPackages) != len(packagesToRemove) {
-			return fmt.Errorf("invalid zarf packages specified by --packages")
+			return errors.New("invalid zarf packages specified by --packages")
 		}
 		return removePackages(packagesToRemove, b)
 	}

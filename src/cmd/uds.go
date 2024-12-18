@@ -34,7 +34,7 @@ var createCmd = &cobra.Command{
 		configureZarf()
 		srcDir, err := os.Getwd()
 		if err != nil {
-			return fmt.Errorf("error reading the current working directory")
+			return errors.New("error reading the current working directory")
 		}
 		if len(args) > 0 {
 			srcDir = args[0]
@@ -94,7 +94,7 @@ var inspectCmd = &cobra.Command{
 	Args:    cobra.MaximumNArgs(1),
 	PreRunE: func(cmd *cobra.Command, _ []string) error {
 		if cmd.Flag("extract").Value.String() == "true" && cmd.Flag("sbom").Value.String() == "false" {
-			return fmt.Errorf("cannot use 'extract' flag without 'sbom' flag")
+			return errors.New("cannot use 'extract' flag without 'sbom' flag")
 		}
 		return nil
 	},

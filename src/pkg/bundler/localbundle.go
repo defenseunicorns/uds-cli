@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -59,7 +60,7 @@ func NewLocalBundle(opts *LocalBundleOpts) *LocalBundle {
 func (lo *LocalBundle) create(signature []byte) error {
 	bundle := lo.bundle
 	if bundle.Metadata.Architecture == "" {
-		return fmt.Errorf("architecture is required for bundling")
+		return errors.New("architecture is required for bundling")
 	}
 	store, err := ocistore.NewWithContext(context.TODO(), lo.tmpDstDir)
 	ctx := context.TODO()

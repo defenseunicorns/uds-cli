@@ -6,6 +6,7 @@ package bundler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/defenseunicorns/pkg/oci"
@@ -65,7 +66,7 @@ func (r *RemoteBundle) create(signature []byte) error {
 	}
 	bundle := r.bundle
 	if bundle.Metadata.Architecture == "" {
-		return fmt.Errorf("architecture is required for bundling")
+		return errors.New("architecture is required for bundling")
 	}
 	dstRef := bundleRemote.Repo().Reference
 	message.Debug("Bundling", bundle.Metadata.Name, "to", dstRef)

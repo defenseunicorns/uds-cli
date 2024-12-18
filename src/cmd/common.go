@@ -5,6 +5,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -58,7 +59,7 @@ func deploy(bndlClient *bundle.Bundle) error {
 
 	// confirm deployment
 	if ok := bndlClient.ConfirmBundleDeploy(); !ok {
-		return fmt.Errorf("bundle deployment cancelled")
+		return errors.New("bundle deployment cancelled")
 	}
 
 	// deploy the bundle
