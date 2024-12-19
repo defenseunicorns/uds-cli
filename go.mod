@@ -8,13 +8,13 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
 	github.com/charmbracelet/lipgloss v1.0.0
-	github.com/defenseunicorns/maru-runner v0.4.0
+	github.com/defenseunicorns/maru-runner v0.4.1
 	github.com/defenseunicorns/pkg/exec v0.0.1
 	github.com/defenseunicorns/pkg/helpers/v2 v2.0.1
 	github.com/defenseunicorns/pkg/oci v1.0.2
 	github.com/defenseunicorns/uds-security-hub v0.0.7
 	github.com/fsnotify/fsnotify v1.8.0
-	github.com/goccy/go-yaml v1.15.10
+	github.com/goccy/go-yaml v1.15.11
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/mholt/archiver/v4 v4.0.0-alpha.8
 	github.com/opencontainers/image-spec v1.1.0
