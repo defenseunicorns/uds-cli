@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -115,7 +116,7 @@ func (tp *tarballBundleProvider) getBundleManifest() (*oci.Manifest, error) {
 	if tp.rootManifest != nil {
 		return tp.rootManifest, nil
 	}
-	return nil, fmt.Errorf("bundle root manifest not loaded")
+	return nil, errors.New("bundle root manifest not loaded")
 }
 
 // loadBundleManifest loads the bundle's root manifest and desc into the tarballBundleProvider so we don't have to load it multiple times
@@ -182,7 +183,7 @@ func (tp *tarballBundleProvider) loadBundleManifest() error {
 
 // LoadBundle loads a bundle from a tarball
 func (tp *tarballBundleProvider) LoadBundle(_ types.BundlePullOptions, _ int) (*types.UDSBundle, types.PathMap, error) {
-	return nil, nil, fmt.Errorf("uds pull does not support pulling local bundles")
+	return nil, nil, errors.New("uds pull does not support pulling local bundles")
 }
 
 // LoadBundleMetadata loads a bundle's metadata from a tarball

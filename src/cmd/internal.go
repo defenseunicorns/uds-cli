@@ -6,6 +6,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -34,7 +35,7 @@ var configUDSSchemaCmd = &cobra.Command{
 		schema := jsonschema.Reflect(&types.UDSBundle{})
 		output, err := json.MarshalIndent(schema, "", "  ")
 		if err != nil {
-			return fmt.Errorf(lang.CmdInternalConfigSchemaErr)
+			return errors.New(lang.CmdInternalConfigSchemaErr)
 		}
 		fmt.Print(string(output) + "\n")
 

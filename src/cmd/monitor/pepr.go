@@ -6,6 +6,7 @@ package monitor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -76,7 +77,7 @@ var peprCmd = &cobra.Command{
 
 		// Start the stream
 		if err := peprStream.Start(context.TODO()); err != nil {
-			return fmt.Errorf("error streaming Pepr logs")
+			return errors.New("error streaming Pepr logs")
 		}
 		return nil
 	},
