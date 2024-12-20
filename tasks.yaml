@@ -37,6 +37,18 @@ tasks:
         mute: true
         setVariables:
           - name: CLI_VERSION
+      - cmd: go list -f '{{.Version}}' -m k8s.io/client-go | sed 's/^v//' | tr '.' ' '
+        mute: true
+        setVariables:
+          - name: K8S_MODULES_VER
+      - cmd: echo ${K8S_MODULES_VER} | awk '{print $$1 + 1}'
+        mute: true
+        setVariables:
+          - name: K8S_MODULES_MAJOR_VER
+      - cmd: echo ${K8S_MODULES_VER} | awk '{print substr($0, 3, 2)}'
+        mute: true
+        setVariables:
+          - name: K8S_MODULES_MINOR_VER
 
   - name: build-args
     description: generates the build args for building UDS CLI
@@ -44,6 +56,10 @@ tasks:
       - cmd: |
           cat <<EOF
           -s -w -X 'github.com/defenseunicorns/uds-cli/src/config.CLIVersion=${CLI_VERSION}' \
+            -X 'helm.sh/helm/v3/pkg/lint/rules.k8sVersionMajor=${K8S_MODULES_MAJOR_VER}' \
+            -X 'helm.sh/helm/v3/pkg/lint/rules.k8sVersionMinor=${K8S_MODULES_MINOR_VER}' \
+            -X 'helm.sh/helm/v3/pkg/chartutil.k8sVersionMajor=${K8S_MODULES_MAJOR_VER}' \
+            -X 'helm.sh/helm/v3/pkg/chartutil.k8sVersionMinor=${K8S_MODULES_MINOR_VER}' \
             -X 'github.com/zarf-dev/zarf/src/config.ActionsCommandZarfPrefix=zarf' \
             -X 'github.com/derailed/k9s/cmd.version=${K9S_VERSION}' \
             -X 'github.com/google/go-containerregistry/cmd/crane/cmd.Version=${CRANE_VERSION}' \
