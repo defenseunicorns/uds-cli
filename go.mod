@@ -14,7 +14,7 @@ require (
 	github.com/defenseunicorns/pkg/oci v1.0.2
 	github.com/defenseunicorns/uds-security-hub v0.0.7
 	github.com/fsnotify/fsnotify v1.8.0
-	github.com/goccy/go-yaml v1.15.11
+	github.com/goccy/go-yaml v1.15.12
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/mholt/archiver/v4 v4.0.0-alpha.8
 	github.com/opencontainers/image-spec v1.1.0
