@@ -54,6 +54,13 @@ tasks:
         setVariables:
           - name: BUILD_ARGS
 
+  # TODO: This is a naive (AND BROKEN!!!) solution. This will only work for a single architecture.
+  #       We need to create subcommands to install specific arch + OS versions of Tofu
+  - name: copy-tofu-bin
+    description: download tofu for go:embed
+    actions:
+      - cmd: cp -Lr $(which tofu) src/cmd/bin/
+
   - name: build-all
     description: build all the CLI binaries and gen checksums
     actions:
@@ -68,6 +75,7 @@ tasks:
     actions:
       - task: get-versions
       - task: build-args
+      - task: copy-tofu-bin
       - cmd: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="${BUILD_ARGS}" -o build/uds main.go
 
   - name: build-cli-linux-arm
@@ -75,6 +83,7 @@ tasks:
     actions:
       - task: get-versions
       - task: build-args
+      - task: copy-tofu-bin
       - cmd: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="${BUILD_ARGS}" -o build/uds-arm main.go
 
   - name: build-cli-mac-intel
@@ -82,6 +91,7 @@ tasks:
     actions:
       - task: get-versions
       - task: build-args
+      - task: copy-tofu-bin
       - cmd: GOOS=darwin GOARCH=amd64 go build -ldflags="${BUILD_ARGS}" -o build/uds-mac-intel main.go
 
   - name: build-cli-mac-apple
@@ -89,4 +99,5 @@ tasks:
     actions:
       - task: get-versions
       - task: build-args
+      - task: copy-tofu-bin
       - cmd: GOOS=darwin GOARCH=arm64 go build -ldflags="${BUILD_ARGS}" -o build/uds-mac-apple main.go

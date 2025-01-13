@@ -4,9 +4,13 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	_ "embed"
 	"fmt"
+	"io"
 	"os"
+	osExec "os/exec"
 	"runtime/debug"
 
 	runnerCLI "github.com/defenseunicorns/maru-runner/src/cmd"
@@ -23,6 +27,11 @@ import (
 
 	securityHub "github.com/defenseunicorns/uds-security-hub/cmd"
 )
+
+// NOTE: the bin directory needs to be within the directory or subdirectories of this file at compile time
+
+//go:embed bin/tofu
+var tofuCLI []byte
 
 var runnerCmd = &cobra.Command{
 	Use:     "run",
@@ -83,6 +92,48 @@ var zarfCli = &cobra.Command{
 	DisableFlagParsing: true,
 }
 
+func useEmbeddedTofu() error {
+	// Create an executable tofu binary
+	tmpTofuBinary, err := os.CreateTemp(config.CommonOptions.TempDirectory, "tofu")
+	if err != nil {
+		return err
+	}
+	if err = tmpTofuBinary.Chmod(0755); err != nil {
+		return err
+	}
+	defer os.Remove(tmpTofuBinary.Name())
+
+	io.Copy(tmpTofuBinary, io.NopCloser(bytes.NewReader(tofuCLI)))
+
+	// ignore 'uds', grab the high level tofu command ('apply', 'plan', etc.) and onward from the CLI args
+	os.Args = os.Args[1:]
+	cmd := osExec.Command(tmpTofuBinary.Name(), os.Args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	return err
+}
+
+var planCmd = &cobra.Command{
+	Use:   "plan",
+	Short: lang.CmdBundlePlanShort,
+	// Args:  cobra.MaximumNArgs(0),
+	RunE: func(_ *cobra.Command, args []string) error {
+		return useEmbeddedTofu()
+	},
+	DisableFlagParsing: true,
+}
+
+var applyCmd = &cobra.Command{
+	Use:   "apply",
+	Short: lang.CmdBundleApplyShort,
+	Args:  cobra.MaximumNArgs(0),
+	RunE: func(_ *cobra.Command, args []string) error {
+		return useEmbeddedTofu()
+	},
+	DisableFlagParsing: true,
+}
+
 // uds-security-hub CLI command
 var scanCmd = &cobra.Command{
 	Use:   "scan",
@@ -114,5 +165,8 @@ func init() {
 	initViper()
 	rootCmd.AddCommand(runnerCmd)
 	rootCmd.AddCommand(zarfCli)
-	rootCmd.AddCommand(scanCmd) // uds-security-hub CLI command
+	rootCmd.AddCommand(scanCmd)  // uds-security-hub CLI command
+	rootCmd.AddCommand(planCmd)  // tofu plan
+	rootCmd.AddCommand(applyCmd) // tofu apply
+
 }
