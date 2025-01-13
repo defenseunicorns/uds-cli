@@ -21,6 +21,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
+	"github.com/defenseunicorns/uds-cli/src/pkg/featureflags"
 	"github.com/spf13/cobra"
 	zarfCLI "github.com/zarf-dev/zarf/src/cmd"
 	zarfConfig "github.com/zarf-dev/zarf/src/config"
@@ -121,6 +122,10 @@ var planCmd = &cobra.Command{
 	Short: lang.CmdBundlePlanShort,
 	// Args:  cobra.MaximumNArgs(0),
 	RunE: func(_ *cobra.Command, _ []string) error {
+		if !featureflags.IsEnabled("tofu") {
+			fmt.Println("The 'plan' command is not enabled. Use the '--feature=tofu' flag or set the FEATURE_FLAG environment variable.")
+			return nil
+		}
 		return useEmbeddedTofu()
 	},
 	DisableFlagParsing: true,
@@ -131,6 +136,11 @@ var applyCmd = &cobra.Command{
 	Short: lang.CmdBundleApplyShort,
 	Args:  cobra.MaximumNArgs(0),
 	RunE: func(_ *cobra.Command, _ []string) error {
+		if !featureflags.IsEnabled("tofu") {
+			fmt.Println("The 'apply' command is not enabled. Use the '--feature=tofu' flag or set the FEATURE_FLAG environment variable.")
+			return nil
+		}
+
 		return useEmbeddedTofu()
 	},
 	DisableFlagParsing: true,

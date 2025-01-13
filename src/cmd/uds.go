@@ -267,6 +267,7 @@ func init() {
 
 	// logs cmd
 	rootCmd.AddCommand(logsCmd)
+
 }
 
 // chooseBundle provides a file picker when users don't specify a file

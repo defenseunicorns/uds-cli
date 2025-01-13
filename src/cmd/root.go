@@ -12,6 +12,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/cmd/monitor"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
+	"github.com/defenseunicorns/uds-cli/src/pkg/featureflags"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/pterm/pterm"
@@ -25,6 +26,8 @@ var (
 
 	// Default global config for the bundler
 	bundleCfg = types.BundleConfig{}
+
+	cliFeatures string
 )
 
 var rootCmd = &cobra.Command{
@@ -47,6 +50,12 @@ var rootCmd = &cobra.Command{
 				return err
 			}
 		}
+		// Enable features from the --feature flag
+		if cliFeatures != "" {
+			for _, feature := range strings.Split(cliFeatures, ",") {
+				featureflags.EnableFeature(feature)
+			}
+		}
 		return nil
 	},
 	Short:         lang.RootCmdShort,
@@ -64,6 +73,8 @@ var rootCmd = &cobra.Command{
 
 // Execute is the entrypoint for the CLI.
 func Execute() {
+	// initialize feature flags
+	featureflags.Initialize()
 	err := rootCmd.Execute()
 	if err == nil {
 		return
@@ -112,6 +123,9 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&config.CommonOptions.Insecure, "insecure", v.GetBool(V_INSECURE), lang.RootCmdFlagInsecure)
 	rootCmd.PersistentFlags().IntVar(&config.CommonOptions.OCIConcurrency, "oci-concurrency", v.GetInt(V_BNDL_OCI_CONCURRENCY), lang.CmdBundleFlagConcurrency)
 	rootCmd.PersistentFlags().BoolVar(&config.NoColor, "no-color", v.GetBool(V_NO_COLOR), lang.RootCmdFlagNoColor)
+
+	// Add a persistent flag for setting features
+	rootCmd.PersistentFlags().StringVar(&cliFeatures, "feature", "", "Comma-separated list of features to enable (e.g., 'tofu')")
 
 	rootCmd.AddCommand(monitor.Cmd)
 }
