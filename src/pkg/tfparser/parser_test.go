@@ -36,8 +36,8 @@ terraform {
 provider "uds" {}
 
 resource "uds_package" "init" {
-  oci_url = "ghcr.io/zarf-dev/packages/init@v0.45.0"
-  ref = "v0.45.0"
+  oci_url = "ghcr.io/zarf-dev/packages/init@v0.46.0"
+  ref = "v0.46.0"
 }
 
 resource "uds_package" "prometheus" {
@@ -57,8 +57,8 @@ resource "uds_package" "prometheus" {
 				Packages: []Packages{
 					{
 						Name:   "init",
-						OCIUrl: "ghcr.io/zarf-dev/packages/init@v0.45.0",
-						Ref:    "v0.45.0",
+						OCIUrl: "ghcr.io/zarf-dev/packages/init@v0.46.0",
+						Ref:    "v0.46.0",
 						Type:   "uds_package",
 					},
 					{
@@ -108,8 +108,8 @@ terraform {
 provider "uds" {}
 
 resource "uds_package" "init" {
-  oci_url = "ghcr.io/zarf-dev/packages/init@v0.45.0"
-  ref = "v0.45.0"
+  oci_url = "ghcr.io/zarf-dev/packages/init@v0.46.0"
+  ref = "v0.46.0"
 }
 
 resource "aws_instance" "test" {
@@ -130,8 +130,8 @@ resource "aws_instance" "test" {
 				Packages: []Packages{
 					{
 						Name:   "init",
-						OCIUrl: "ghcr.io/zarf-dev/packages/init@v0.45.0",
-						Ref:    "v0.45.0",
+						OCIUrl: "ghcr.io/zarf-dev/packages/init@v0.46.0",
+						Ref:    "v0.46.0",
 						Type:   "uds_package",
 					},
 				},
