@@ -169,14 +169,6 @@
         "^x-": {}
       }
     },
-    "ExtraVariableInfo": {
-      "properties": {},
-      "additionalProperties": false,
-      "type": "object",
-      "patternProperties": {
-        "^x-": {}
-      }
-    },
     "InputParameter": {
       "properties": {
         "description": {
@@ -216,9 +208,6 @@
         "pattern": {
           "type": "string",
           "description": "An optional regex pattern that a variable value must match before a package deployment can continue."
-        },
-        "Extra": {
-          "$ref": "#/$defs/ExtraVariableInfo"
         },
         "description": {
           "type": "string",
@@ -369,9 +358,6 @@
         "pattern": {
           "type": "string",
           "description": "An optional regex pattern that a variable value must match before a package deployment can continue."
-        },
-        "Extra": {
-          "$ref": "#/$defs/ExtraVariableInfo"
         }
       },
       "additionalProperties": false,
