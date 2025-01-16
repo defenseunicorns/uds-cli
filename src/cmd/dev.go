@@ -103,6 +103,40 @@ var devDeployCmd = &cobra.Command{
 	},
 }
 
+// NOTE: This is intended to be a temporary command. This logic will soon be baked directly into
+// NOTE: the deploy command so the Terraform Provider can directly access the Zarf Package Tarballs
+var extractCmd = &cobra.Command{
+	Use:   "extract [BUNDLE_TARBALL|OCI_REF] [EXTRACT_DIR]",
+	Short: "[beta] Extract the Zarf Package tarballs from a Bundle",
+	Args:  cobra.ExactArgs(2),
+	RunE: func(_ *cobra.Command, args []string) error {
+		var err error
+
+		// load the bundle source from the CLI args
+		bundleCfg.DeployOpts.Source, err = chooseBundle(args)
+		if err != nil {
+			return err
+		}
+		configureZarf()
+
+		// create new bundle client for ex
+		bndlClient, err := bundle.New(&bundleCfg)
+		if err != nil {
+			return err
+		}
+
+		// NOTE: I am obviously not chcking any of the outputs here, but this call is what sets
+		//       bndleClient.cfg.DeployOpts.Source which we need later...
+		_, _, _, err = bndlClient.PreDeployValidation()
+		if err != nil {
+			return err
+		}
+
+		err = bndlClient.Extract(args[1])
+		return err
+	},
+}
+
 // isLocalBundle checks if the bundle source is a local bundle
 func isLocalBundle(src string) bool {
 	return helpers.IsDir(src) || strings.Contains(src, ".tar.zst")
@@ -150,4 +184,6 @@ func init() {
 	devDeployCmd.Flags().StringVarP(&bundleCfg.DevDeployOpts.FlavorInput, "flavor", "f", "", lang.CmdBundleCreateFlagFlavor)
 	devDeployCmd.Flags().BoolVar(&bundleCfg.DevDeployOpts.ForceCreate, "force-create", false, lang.CmdBundleCreateForceCreate)
 	devDeployCmd.Flags().StringToStringVar(&bundleCfg.DeployOpts.SetVariables, "set", nil, lang.CmdBundleDeployFlagSet)
+
+	devCmd.AddCommand(extractCmd)
 }
