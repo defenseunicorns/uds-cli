@@ -52,7 +52,6 @@ const (
 	CmdBundleDeployFlagRef      = "Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used."
 
 	// bundle plan
-	//TODO: @JPERRY come up with better strings for here..
 	CmdBundlePlanShort = "Generate a Tofu execution plan"
 
 	// bundle plan
