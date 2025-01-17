@@ -106,12 +106,11 @@ var devDeployCmd = &cobra.Command{
 // NOTE: This is intended to be a temporary command. This logic will soon be baked directly into
 // NOTE: the deploy command so the Terraform Provider can directly access the Zarf Package Tarballs
 var extractCmd = &cobra.Command{
-	Use:   "extract [BUNDLE_TARBALL|OCI_REF] [EXTRACT_DIR]",
+	Use:   "extract {BUNDLE_TARBALL|OCI_REF} [EXTRACT_DIR]",
 	Short: "[alpha] Extract the Zarf Package tarballs from a Bundle",
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE: func(_ *cobra.Command, args []string) error {
 		var err error
-
 		// load the bundle source from the CLI args
 		bundleCfg.DeployOpts.Source, err = chooseBundle(args)
 		if err != nil {
@@ -132,7 +131,11 @@ var extractCmd = &cobra.Command{
 			return err
 		}
 
-		err = bndlClient.Extract(args[1])
+		outputDir := "."
+		if len(args) == 2 {
+			outputDir = args[1]
+		}
+		err = bndlClient.Extract(outputDir)
 		return err
 	},
 }

@@ -97,12 +97,11 @@ func (b *Bundle) SetDeploySource(srcDir string) {
 }
 
 func (b *Bundle) extractPackage(path string, pkg types.Package) error {
-	pkgTmpPath := filepath.Join(path, pkg.Name)
-	pkgTmp, err := zarfUtils.MakeTempDir(pkgTmpPath)
+	pkgTmp, err := zarfUtils.MakeTempDir("")
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(pkgTmpPath)
+	defer os.RemoveAll(pkgTmp)
 
 	nsOverrides := sources.NamespaceOverrideMap{}
 	sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
@@ -136,6 +135,7 @@ func (b *Bundle) extractPackage(path string, pkg types.Package) error {
 }
 
 func (b *Bundle) Extract(path string) error {
+	// Create the directory that we will store the extract tarballs into
 	if err := helpers.CreateDirectory(path, helpers.ReadWriteExecuteUser); err != nil {
 		return err
 	}
