@@ -6,7 +6,7 @@ package cmd
 import (
 	"bytes"
 	"context"
-	_ "embed"
+	_ "embed" //embed tofuCLI as a vendored depednecy
 	"fmt"
 	"io"
 	"os"
@@ -103,11 +103,13 @@ func useEmbeddedTofu() error {
 	}
 	defer os.Remove(tmpTofuBinary.Name())
 
-	io.Copy(tmpTofuBinary, io.NopCloser(bytes.NewReader(tofuCLI)))
+	if _, err = io.Copy(tmpTofuBinary, io.NopCloser(bytes.NewReader(tofuCLI))); err != nil {
+		return err
+	}
 
 	// ignore 'uds', grab the high level tofu command ('apply', 'plan', etc.) and onward from the CLI args
 	os.Args = os.Args[1:]
-	cmd := osExec.Command(tmpTofuBinary.Name(), os.Args...)
+	cmd := osExec.Command(tmpTofuBinary.Name(), os.Args...) //nolint:gosec
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
@@ -118,7 +120,7 @@ var planCmd = &cobra.Command{
 	Use:   "plan",
 	Short: lang.CmdBundlePlanShort,
 	// Args:  cobra.MaximumNArgs(0),
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		return useEmbeddedTofu()
 	},
 	DisableFlagParsing: true,
@@ -128,7 +130,7 @@ var applyCmd = &cobra.Command{
 	Use:   "apply",
 	Short: lang.CmdBundleApplyShort,
 	Args:  cobra.MaximumNArgs(0),
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		return useEmbeddedTofu()
 	},
 	DisableFlagParsing: true,
@@ -168,5 +170,4 @@ func init() {
 	rootCmd.AddCommand(scanCmd)  // uds-security-hub CLI command
 	rootCmd.AddCommand(planCmd)  // tofu plan
 	rootCmd.AddCommand(applyCmd) // tofu apply
-
 }
