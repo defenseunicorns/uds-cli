@@ -59,7 +59,8 @@ tasks:
   - name: copy-tofu-bin
     description: download tofu for go:embed
     actions:
-      - cmd: cp -Lr $(which tofu) src/cmd/bin/
+      - cmd: mkdir -p src/cmd/bin
+      - cmd: cp -Lf $(which tofu) src/cmd/bin/
 
   - name: build-all
     description: build all the CLI binaries and gen checksums
