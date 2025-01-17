@@ -107,7 +107,7 @@ var devDeployCmd = &cobra.Command{
 // NOTE: the deploy command so the Terraform Provider can directly access the Zarf Package Tarballs
 var extractCmd = &cobra.Command{
 	Use:   "extract [BUNDLE_TARBALL|OCI_REF] [EXTRACT_DIR]",
-	Short: "[beta] Extract the Zarf Package tarballs from a Bundle",
+	Short: "[alpha] Extract the Zarf Package tarballs from a Bundle",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(_ *cobra.Command, args []string) error {
 		var err error

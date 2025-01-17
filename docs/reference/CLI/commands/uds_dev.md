@@ -30,5 +30,5 @@ description: UDS CLI command reference for <code>uds dev</code>.
 
 * [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
 * [uds dev deploy](/reference/cli/commands/uds_dev_deploy/)	 - [beta] Creates and deploys a UDS bundle in dev mode
-* [uds dev extract](/reference/cli/commands/uds_dev_extract/)	 - [beta] Extract the Zarf Package tarballs from a Bundle
+* [uds dev extract](/reference/cli/commands/uds_dev_extract/)	 - [alpha] Extract the Zarf Package tarballs from a Bundle
 

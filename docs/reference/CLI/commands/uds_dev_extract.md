@@ -4,7 +4,7 @@ description: UDS CLI command reference for <code>uds dev extract</code>.
 ---
 ## uds dev extract
 
-[beta] Extract the Zarf Package tarballs from a Bundle
+[alpha] Extract the Zarf Package tarballs from a Bundle
 
 ```
 uds dev extract [BUNDLE_TARBALL|OCI_REF] [EXTRACT_DIR] [flags]
