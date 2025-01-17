@@ -125,7 +125,9 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&config.NoColor, "no-color", v.GetBool(V_NO_COLOR), lang.RootCmdFlagNoColor)
 
 	// Add a persistent flag for setting features
-	rootCmd.PersistentFlags().StringVar(&cliFeatures, "feature", "", "Comma-separated list of features to enable (e.g., 'tofu')")
+	rootCmd.PersistentFlags().StringVar(&cliFeatures, "feature", "", "Comma-separated list of features to enable via a flag")
+	// hide the 'feature' flag for now
+	_ = rootCmd.PersistentFlags().MarkHidden("feature")
 
 	rootCmd.AddCommand(monitor.Cmd)
 }

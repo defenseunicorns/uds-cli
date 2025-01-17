@@ -56,6 +56,7 @@ const (
 
 	// bundle apply
 	CmdBundleApplyShort = "Create or update infrastructure with Tofu"
+	CmdBundleInitShort  = "Initialize OpenTofu"
 
 	// bundle inspect
 	CmdBundleInspectShort             = "Display the metadata of a bundle"

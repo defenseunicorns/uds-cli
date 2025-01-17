@@ -158,6 +158,23 @@ var scanCmd = &cobra.Command{
 	DisableFlagParsing: true,
 }
 
+// uds init [bundle-name] will initialize tofu in the current directory. If a
+// bundle name is provided, it will use the bundle as the source for the Tofu
+// providers and uds-bundle.tf file.
+var initCmd = &cobra.Command{
+	Use:   "init [BUNDLE_TARBALL]",
+	Short: lang.CmdBundleApplyShort,
+	Args:  cobra.MaximumNArgs(0),
+	RunE: func(_ *cobra.Command, _ []string) error {
+		if !featureflags.IsEnabled("tofu") {
+			fmt.Println("The 'init' command is not enabled. Use the '--feature=tofu' flag or set the FEATURE_FLAG environment variable.")
+			return nil
+		}
+		return useEmbeddedTofu()
+	},
+	DisableFlagParsing: true,
+}
+
 func init() {
 	// grab Zarf version to make Zarf library checks happy
 	if buildInfo, ok := debug.ReadBuildInfo(); ok {
@@ -180,4 +197,5 @@ func init() {
 	rootCmd.AddCommand(scanCmd)  // uds-security-hub CLI command
 	rootCmd.AddCommand(planCmd)  // tofu plan
 	rootCmd.AddCommand(applyCmd) // tofu apply
+	rootCmd.AddCommand(initCmd)  // tofu init
 }

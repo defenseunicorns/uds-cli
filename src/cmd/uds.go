@@ -36,6 +36,7 @@ var createCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("error reading the current working directory")
 		}
+
 		if len(args) > 0 {
 			srcDir = args[0]
 		}
