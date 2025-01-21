@@ -35,6 +35,12 @@ terraform {
 
 provider "uds" {}
 
+resource "uds_bundle_metadata" "basic" {
+  kind        = "UDSBundle"
+  version     = "0.1.0"
+  description = "This is a basic bundle"
+}
+
 resource "uds_package" "init" {
   oci_url = "ghcr.io/zarf-dev/packages/init@v0.45.0"
   ref = "v0.45.0"
@@ -66,6 +72,12 @@ resource "uds_package" "prometheus" {
 						OCIUrl: "localhost:888/prometheus@v0.1.0",
 						Type:   "uds_package",
 					},
+				},
+				Metadata: &BundleMetadata{
+					Kind:        "UDSBundle",
+					Name:        "basic",
+					Version:     "0.1.0",
+					Description: stringPtr("This is a basic bundle"),
 				},
 			},
 			wantErr: false,
@@ -170,6 +182,19 @@ terraform {
 			},
 			wantErr: false,
 		},
+
+		{
+			name: "invalid metadata",
+			content: `
+resource "uds_bundle_metadata" "basic" {
+  kind        = "UDSBundle"
+  // missing version
+  description = "This is a basic bundle"
+}
+`,
+
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -199,4 +224,8 @@ terraform {
 			}
 		})
 	}
+}
+
+func stringPtr(s string) *string {
+	return &s
 }
