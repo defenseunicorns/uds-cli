@@ -54,6 +54,42 @@ tasks:
         setVariables:
           - name: BUILD_ARGS
 
+  - name: download-tofu-mac-intel
+    description: download tofu for go:embed
+    actions:
+      - cmd: mkdir -p src/cmd/bin
+      - cmd: rm -f src/cmd/bin/tofu
+      - cmd: wget https://github.com/opentofu/opentofu/releases/download/v1.9.0/tofu_1.9.0_darwin_amd64.zip -O src/cmd/bin/tofu_1.9.0_darwin_amd64.zip
+      - cmd: unzip -p src/cmd/bin/tofu_1.9.0_darwin_amd64.zip tofu > src/cmd/bin/tofu
+      - cmd: rm src/cmd/bin/tofu_1.9.0_darwin_amd64.zip
+
+  - name: download-tofu-mac-apple
+    description: download tofu for go:embed
+    actions:
+      - cmd: mkdir -p src/cmd/bin
+      - cmd: rm -f src/cmd/bin/tofu
+      - cmd: wget https://github.com/opentofu/opentofu/releases/download/v1.9.0/tofu_1.9.0_darwin_arm64.zip -O src/cmd/bin/tofu_1.9.0_darwin_arm64.zip
+      - cmd: unzip -p src/cmd/bin/tofu_1.9.0_darwin_arm64.zip tofu > src/cmd/bin/tofu
+      - cmd: rm src/cmd/bin/tofu_1.9.0_darwin_arm64.zip
+
+  - name: download-tofu-linux-arm
+    description: download tofu for go:embed
+    actions:
+      - cmd: mkdir -p src/cmd/bin
+      - cmd: rm -f src/cmd/bin/tofu
+      - cmd: wget https://github.com/opentofu/opentofu/releases/download/v1.9.0/tofu_1.9.0_linux_arm64.zip -O src/cmd/bin/tofu_1.9.0_linux_arm64.zip
+      - cmd: unzip -p src/cmd/bin/tofu_1.9.0_linux_arm64.zip tofu > src/cmd/bin/tofu
+      - cmd: rm src/cmd/bin/tofu_1.9.0_linux_arm64.zip
+
+  - name: download-tofu-linux-amd
+    description: download tofu for go:embed
+    actions:
+      - cmd: mkdir -p src/cmd/bin
+      - cmd: rm -f src/cmd/bin/tofu
+      - cmd: wget https://github.com/opentofu/opentofu/releases/download/v1.9.0/tofu_1.9.0_linux_amd64.zip -O src/cmd/bin/tofu_1.9.0_linux_amd64.zip
+      - cmd: unzip -p src/cmd/bin/tofu_1.9.0_linux_amd64.zip tofu > src/cmd/bin/tofu
+      - cmd: rm src/cmd/bin/tofu_1.9.0_linux_amd64.zip
+
   - name: build-all
     description: build all the CLI binaries and gen checksums
     actions:
@@ -68,6 +104,7 @@ tasks:
     actions:
       - task: get-versions
       - task: build-args
+      - task: download-tofu-linux-amd
       - cmd: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="${BUILD_ARGS}" -o build/uds main.go
 
   - name: build-cli-linux-arm
@@ -75,6 +112,7 @@ tasks:
     actions:
       - task: get-versions
       - task: build-args
+      - task: download-tofu-linux-arm
       - cmd: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="${BUILD_ARGS}" -o build/uds-arm main.go
 
   - name: build-cli-mac-intel
@@ -82,6 +120,7 @@ tasks:
     actions:
       - task: get-versions
       - task: build-args
+      - task: download-tofu-mac-intel
       - cmd: GOOS=darwin GOARCH=amd64 go build -ldflags="${BUILD_ARGS}" -o build/uds-mac-intel main.go
 
   - name: build-cli-mac-apple
@@ -89,4 +128,5 @@ tasks:
     actions:
       - task: get-versions
       - task: build-args
+      - task: download-tofu-mac-apple
       - cmd: GOOS=darwin GOARCH=arm64 go build -ldflags="${BUILD_ARGS}" -o build/uds-mac-apple main.go
