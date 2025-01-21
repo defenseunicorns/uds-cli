@@ -1,15 +1,19 @@
 ---
-title: uds dev
-description: UDS CLI command reference for <code>uds dev</code>.
+title: uds dev extract
+description: UDS CLI command reference for <code>uds dev extract</code>.
 ---
-## uds dev
+## uds dev extract
 
-[beta] Commands useful for developing bundles
+[alpha] Extract the Zarf Package tarballs from a Bundle
+
+```
+uds dev extract {BUNDLE_TARBALL|OCI_REF} [EXTRACT_DIR] [flags]
+```
 
 ### Options
 
 ```
-  -h, --help   help for dev
+  -h, --help   help for extract
 ```
 
 ### Options inherited from parent commands
@@ -28,7 +32,5 @@ description: UDS CLI command reference for <code>uds dev</code>.
 
 ### SEE ALSO
 
-* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
-* [uds dev deploy](/reference/cli/commands/uds_dev_deploy/)	 - [beta] Creates and deploys a UDS bundle in dev mode
-* [uds dev extract](/reference/cli/commands/uds_dev_extract/)	 - [alpha] Extract the Zarf Package tarballs from a Bundle
+* [uds dev](/reference/cli/commands/uds_dev/)	 - [beta] Commands useful for developing bundles
 

@@ -38,5 +38,6 @@ out.txt
 src/cmd/bin
 src/cmd/certs
 *.pem
+__debug*
 bin/
 tofu

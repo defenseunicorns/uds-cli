@@ -10,10 +10,18 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
+	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	zarfTools "github.com/zarf-dev/zarf/src/cmd/tools"
+	"github.com/zarf-dev/zarf/src/pkg/layout"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 
 	zarfCLI "github.com/zarf-dev/zarf/src/cmd"
 )
@@ -86,4 +94,58 @@ func (b *Bundle) setPackageFlavor(pkg types.Package) types.Package {
 func (b *Bundle) SetDeploySource(srcDir string) {
 	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, b.bundle.Metadata.Name, b.bundle.Metadata.Architecture, b.bundle.Metadata.Version)
 	b.cfg.DeployOpts.Source = filepath.Join(srcDir, filename)
+}
+
+func (b *Bundle) extractPackage(path string, pkg types.Package) error {
+	pkgTmp, err := zarfUtils.MakeTempDir("")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(pkgTmp)
+
+	nsOverrides := sources.NamespaceOverrideMap{}
+	sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
+	opts := zarfTypes.ZarfPackageOptions{PackageSource: pkgTmp}
+
+	// NOTE: The source.Collect() methods are not implemented for these 'sources'. It would be more convient if they were.
+	// NOTE: The below code would simplfy down to `source.Collect(...)`
+	source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nsOverrides)
+	if err != nil {
+		return err
+	}
+
+	packagePath := layout.New(pkgTmp)
+	filters := filters.Empty()
+	loadedPkg, _, err := source.LoadPackage(context.TODO(), packagePath, filters, false)
+	if err != nil {
+		return err
+	}
+
+	// NOTE: filepath.Join() strips the trailing '/' and we need that for this command
+	archiveFilePath := pkgTmp + string(filepath.Separator)
+	tarballName := fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", pkg.Name, loadedPkg.Metadata.Architecture, loadedPkg.Metadata.Version)
+	archiveCmd := zarfTools.NewArchiverCompressCommand()
+	archiveCmd.SetArgs([]string{archiveFilePath, filepath.Join(path, tarballName)})
+	err = archiveCmd.Execute()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (b *Bundle) Extract(path string) error {
+	// Create the directory that we will store the extract tarballs into
+	if err := helpers.CreateDirectory(path, helpers.ReadWriteExecuteUser); err != nil {
+		return err
+	}
+
+	// Extract each Zarf Package that is within the bundle
+	for _, pkg := range b.bundle.Packages {
+		if err := b.extractPackage(path, pkg); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
