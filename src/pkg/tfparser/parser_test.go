@@ -57,7 +57,7 @@ resource "uds_package" "prometheus" {
 				Providers: map[string]Provider{
 					"uds": {
 						Source:  "defenseunicorns/uds",
-						Version: "0.1.0",
+						Version: stringPtr("0.1.0"),
 					},
 				},
 				Packages: []Packages{
@@ -132,11 +132,11 @@ resource "aws_instance" "test" {
 				Providers: map[string]Provider{
 					"uds": {
 						Source:  "defenseunicorns/uds",
-						Version: "0.1.0",
+						Version: stringPtr("0.1.0"),
 					},
 					"aws": {
 						Source:  "hashicorp/aws",
-						Version: "4.0.0",
+						Version: stringPtr("4.0.0"),
 					},
 				},
 				Packages: []Packages{
@@ -171,18 +171,16 @@ terraform {
 				Providers: map[string]Provider{
 					"uds": {
 						Source:  "defenseunicorns/uds",
-						Version: "0.1.0",
+						Version: stringPtr("0.1.0"),
 					},
 					"aws": {
 						Source:  "hashicorp/aws",
-						Version: "4.0.0",
+						Version: stringPtr("4.0.0"),
 					},
 				},
-				Packages: []Packages{},
 			},
 			wantErr: false,
 		},
-
 		{
 			name: "invalid metadata",
 			content: `
@@ -194,6 +192,42 @@ resource "uds_bundle_metadata" "basic" {
 `,
 
 			wantErr: true,
+		},
+		{
+			name: "invalid required providers",
+			content: `
+terraform {
+  required_providers {
+    uds = {
+    	version = "0.1.0"
+    }
+  }
+}
+
+provider "uds" {}
+`,
+			wantErr: true,
+		},
+		{
+			name: "source with no version is valid configuration",
+			content: `
+terraform {
+  required_providers {
+    uds = {
+      source = "defenseunicorns/uds"
+      // version = "0.1.0"
+    }
+  }
+}
+`,
+			expected: &TerraformConfig{
+				Providers: map[string]Provider{
+					"uds": {
+						Source: "defenseunicorns/uds",
+					},
+				},
+			},
+			wantErr: false,
 		},
 	}
 
@@ -224,8 +258,4 @@ resource "uds_bundle_metadata" "basic" {
 			}
 		})
 	}
-}
-
-func stringPtr(s string) *string {
-	return &s
 }

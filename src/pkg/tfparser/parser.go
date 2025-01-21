@@ -4,6 +4,7 @@
 package tfparser
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/hashicorp/hcl/v2"
@@ -13,8 +14,8 @@ import (
 
 // Provider represents a provider requirement in Terraform
 type Provider struct {
-	Source  string `json:"source"`
-	Version string `json:"version"`
+	Source  string  `json:"source"`
+	Version *string `json:"version"`
 }
 
 // Packages represents a uds_package resource in Terraform
@@ -55,7 +56,6 @@ func ParseFile(filename string) (*TerraformConfig, error) {
 
 	config := &TerraformConfig{
 		Providers: make(map[string]Provider),
-		Packages:  make([]Packages, 0),
 	}
 
 	content, diags := f.Body.Content(&hcl.BodySchema{
@@ -128,11 +128,20 @@ func parseTerraformBlock(block *hcl.Block, config *TerraformConfig) error {
 
 			if value.Type().IsObjectType() {
 				provider := Provider{}
-				if v := value.GetAttr("source"); v.Type() == cty.String {
-					provider.Source = v.AsString()
+				if value.Type().HasAttribute("source") {
+					if v := value.GetAttr("source"); v.Type() == cty.String {
+						provider.Source = v.AsString()
+					}
 				}
-				if v := value.GetAttr("version"); v.Type() == cty.String {
-					provider.Version = v.AsString()
+
+				if value.Type().HasAttribute("version") {
+					if v := value.GetAttr("version"); v.Type() == cty.String {
+						provider.Version = stringPtr(v.AsString())
+					}
+				}
+
+				if provider.Source == "" {
+					return errors.New("provider source is required")
 				}
 				config.Providers[key] = provider
 			}
@@ -215,8 +224,7 @@ func parseUDSBundleMetadataBlock(block *hcl.Block) (*BundleMetadata, error) {
 		if diags.HasErrors() {
 			return nil, fmt.Errorf("ref error: %s", diags.Error())
 		}
-		str := value.AsString()
-		metadata.Description = &str
+		metadata.Description = stringPtr(value.AsString())
 	}
 
 	if attr, exists := attrs["url"]; exists {
@@ -249,4 +257,9 @@ func parseUDSBundleMetadataBlock(block *hcl.Block) (*BundleMetadata, error) {
 	}
 
 	return metadata, nil
+}
+
+// stringToPtr is a convienence method to convert a string to a *string
+func stringPtr(s string) *string {
+	return &s
 }
