@@ -123,7 +123,7 @@ var planCmd = &cobra.Command{
 	// Args:  cobra.MaximumNArgs(0),
 	RunE: func(_ *cobra.Command, _ []string) error {
 		if !featureflags.IsEnabled("tofu") {
-			fmt.Println("The 'plan' command is not enabled. Use the '--feature=tofu' flag or set the FEATURE_FLAG environment variable.")
+			message.Warn("The 'plan' command is not enabled. Use the '--feature=tofu' flag or set the FEATURE_FLAG environment variable.")
 			return nil
 		}
 		return useEmbeddedTofu()
@@ -137,7 +137,7 @@ var applyCmd = &cobra.Command{
 	Args:  cobra.MaximumNArgs(0),
 	RunE: func(_ *cobra.Command, _ []string) error {
 		if !featureflags.IsEnabled("tofu") {
-			fmt.Println("The 'apply' command is not enabled. Use the '--feature=tofu' flag or set the FEATURE_FLAG environment variable.")
+			message.Warn("The 'apply' command is not enabled. Use the '--feature=tofu' flag or set the FEATURE_FLAG environment variable.")
 			return nil
 		}
 
