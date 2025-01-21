@@ -5,6 +5,8 @@ tasks:
   - name: unit
     description: run all the unit tests
     actions:
+      - cmd: mkdir -p src/cmd/bin
+      - cmd: touch src/cmd/bin/tofu
       - cmd: go test ./... -failfast -v -timeout 5m
         dir: src/pkg
       - cmd: go test ./... -failfast -v -timeout 5m
