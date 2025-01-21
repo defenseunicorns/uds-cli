@@ -54,7 +54,7 @@ const (
 	// bundle plan
 	CmdBundlePlanShort = "Generate a Tofu execution plan"
 
-	// bundle plan
+	// bundle apply
 	CmdBundleApplyShort = "Create or update infrastructure with Tofu"
 
 	// bundle inspect
