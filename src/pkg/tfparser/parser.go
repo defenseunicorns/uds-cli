@@ -4,6 +4,7 @@
 package tfparser
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/hashicorp/hcl/v2"
@@ -13,8 +14,8 @@ import (
 
 // Provider represents a provider requirement in Terraform
 type Provider struct {
-	Source  string `json:"source"`
-	Version string `json:"version"`
+	Source  string  `json:"source"`
+	Version *string `json:"version"`
 }
 
 // Packages represents a uds_package resource in Terraform
@@ -29,6 +30,19 @@ type Packages struct {
 type TerraformConfig struct {
 	Providers map[string]Provider `json:"required_providers"`
 	Packages  []Packages          `json:"uds_packages"`
+	Metadata  *BundleMetadata     `json:"uds_bundle_metadata"`
+}
+
+// BundleMetadata describes the resource data model.
+type BundleMetadata struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	// Kind reflects the type of package; typicaly always UDSBundle
+	Kind string `json:"kind"`
+	// these are optional
+	Description  *string `json:"description"`
+	URL          *string `json:"url"`
+	Architecture *string `json:"architecture"`
 }
 
 // ParseFile reads and parses a Terraform file, returning the structured configuration
@@ -42,7 +56,6 @@ func ParseFile(filename string) (*TerraformConfig, error) {
 
 	config := &TerraformConfig{
 		Providers: make(map[string]Provider),
-		Packages:  make([]Packages, 0),
 	}
 
 	content, diags := f.Body.Content(&hcl.BodySchema{
@@ -70,6 +83,14 @@ func ParseFile(filename string) (*TerraformConfig, error) {
 					return nil, err
 				}
 				config.Packages = append(config.Packages, *pkg)
+			}
+
+			if len(block.Labels) == 2 && block.Labels[0] == "uds_bundle_metadata" {
+				meta, err := parseUDSBundleMetadataBlock(block)
+				if err != nil {
+					return nil, err
+				}
+				config.Metadata = meta
 			}
 		}
 	}
@@ -107,11 +128,20 @@ func parseTerraformBlock(block *hcl.Block, config *TerraformConfig) error {
 
 			if value.Type().IsObjectType() {
 				provider := Provider{}
-				if v := value.GetAttr("source"); v.Type() == cty.String {
-					provider.Source = v.AsString()
+				if value.Type().HasAttribute("source") {
+					if v := value.GetAttr("source"); v.Type() == cty.String {
+						provider.Source = v.AsString()
+					}
 				}
-				if v := value.GetAttr("version"); v.Type() == cty.String {
-					provider.Version = v.AsString()
+
+				if value.Type().HasAttribute("version") {
+					if v := value.GetAttr("version"); v.Type() == cty.String {
+						provider.Version = stringPtr(v.AsString())
+					}
+				}
+
+				if provider.Source == "" {
+					return errors.New("provider source is required")
 				}
 				config.Providers[key] = provider
 			}
@@ -155,4 +185,81 @@ func parseUDSPackageBlock(block *hcl.Block) (*Packages, error) {
 	}
 
 	return pkg, nil
+}
+
+// parseUDSBundleMetadataBlock parses the uds_block in the given hcl.Block. At
+// this time Name, Kind, and Version are required, and all other fields are
+// optional.
+func parseUDSBundleMetadataBlock(block *hcl.Block) (*BundleMetadata, error) {
+	// labels are in the resource "title", ex:
+	// resource "uds_bundle_metadata" "core_slim_dev" {}
+	metadata := &BundleMetadata{
+		Name: block.Labels[1], // "core_slim_dev"
+	}
+
+	attrs, diags := block.Body.JustAttributes()
+	if diags.HasErrors() {
+		return nil, fmt.Errorf("uds_bundle_metadata block error: %s", diags.Error())
+	}
+
+	ctx := &hcl.EvalContext{}
+	if attr, exists := attrs["version"]; exists {
+		value, diags := attr.Expr.Value(ctx)
+		if diags.HasErrors() {
+			return nil, fmt.Errorf("version error: %s", diags.Error())
+		}
+		metadata.Version = value.AsString()
+	}
+
+	if attr, exists := attrs["kind"]; exists {
+		value, diags := attr.Expr.Value(ctx)
+		if diags.HasErrors() {
+			return nil, fmt.Errorf("ref error: %s", diags.Error())
+		}
+		metadata.Kind = value.AsString()
+	}
+
+	if attr, exists := attrs["description"]; exists {
+		value, diags := attr.Expr.Value(ctx)
+		if diags.HasErrors() {
+			return nil, fmt.Errorf("ref error: %s", diags.Error())
+		}
+		metadata.Description = stringPtr(value.AsString())
+	}
+
+	if attr, exists := attrs["url"]; exists {
+		value, diags := attr.Expr.Value(ctx)
+		if diags.HasErrors() {
+			return nil, fmt.Errorf("ref error: %s", diags.Error())
+		}
+		str := value.AsString()
+		metadata.URL = &str
+	}
+
+	if attr, exists := attrs["architecture"]; exists {
+		value, diags := attr.Expr.Value(ctx)
+		if diags.HasErrors() {
+			return nil, fmt.Errorf("ref error: %s", diags.Error())
+		}
+		str := value.AsString()
+		metadata.Architecture = &str
+	}
+
+	// validate that we have the required fields set
+	if metadata.Kind == "" {
+		return nil, fmt.Errorf("uds_bundle_metadata kind is required")
+	}
+	if metadata.Version == "" {
+		return nil, fmt.Errorf("uds_bundle_metadata version is required")
+	}
+	if metadata.Name == "" {
+		return nil, fmt.Errorf("uds_bundle_metadata name is required")
+	}
+
+	return metadata, nil
+}
+
+// stringToPtr is a convienence method to convert a string to a *string
+func stringPtr(s string) *string {
+	return &s
 }

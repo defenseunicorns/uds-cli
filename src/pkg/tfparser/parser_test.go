@@ -35,6 +35,12 @@ terraform {
 
 provider "uds" {}
 
+resource "uds_bundle_metadata" "basic" {
+  kind        = "UDSBundle"
+  version     = "0.1.0"
+  description = "This is a basic bundle"
+}
+
 resource "uds_package" "init" {
   oci_url = "ghcr.io/zarf-dev/packages/init@v0.46.0"
   ref = "v0.46.0"
@@ -51,7 +57,7 @@ resource "uds_package" "prometheus" {
 				Providers: map[string]Provider{
 					"uds": {
 						Source:  "defenseunicorns/uds",
-						Version: "0.1.0",
+						Version: stringPtr("0.1.0"),
 					},
 				},
 				Packages: []Packages{
@@ -66,6 +72,12 @@ resource "uds_package" "prometheus" {
 						OCIUrl: "localhost:888/prometheus@v0.1.0",
 						Type:   "uds_package",
 					},
+				},
+				Metadata: &BundleMetadata{
+					Kind:        "UDSBundle",
+					Name:        "basic",
+					Version:     "0.1.0",
+					Description: stringPtr("This is a basic bundle"),
 				},
 			},
 			wantErr: false,
@@ -120,11 +132,11 @@ resource "aws_instance" "test" {
 				Providers: map[string]Provider{
 					"uds": {
 						Source:  "defenseunicorns/uds",
-						Version: "0.1.0",
+						Version: stringPtr("0.1.0"),
 					},
 					"aws": {
 						Source:  "hashicorp/aws",
-						Version: "4.0.0",
+						Version: stringPtr("4.0.0"),
 					},
 				},
 				Packages: []Packages{
@@ -159,14 +171,61 @@ terraform {
 				Providers: map[string]Provider{
 					"uds": {
 						Source:  "defenseunicorns/uds",
-						Version: "0.1.0",
+						Version: stringPtr("0.1.0"),
 					},
 					"aws": {
 						Source:  "hashicorp/aws",
-						Version: "4.0.0",
+						Version: stringPtr("4.0.0"),
 					},
 				},
-				Packages: []Packages{},
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid metadata",
+			content: `
+resource "uds_bundle_metadata" "basic" {
+  kind        = "UDSBundle"
+  // missing version
+  description = "This is a basic bundle"
+}
+`,
+
+			wantErr: true,
+		},
+		{
+			name: "invalid required providers",
+			content: `
+terraform {
+  required_providers {
+    uds = {
+    	version = "0.1.0"
+    }
+  }
+}
+
+provider "uds" {}
+`,
+			wantErr: true,
+		},
+		{
+			name: "source with no version is valid configuration",
+			content: `
+terraform {
+  required_providers {
+    uds = {
+      source = "defenseunicorns/uds"
+      // version = "0.1.0"
+    }
+  }
+}
+`,
+			expected: &TerraformConfig{
+				Providers: map[string]Provider{
+					"uds": {
+						Source: "defenseunicorns/uds",
+					},
+				},
 			},
 			wantErr: false,
 		},
