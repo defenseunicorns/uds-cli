@@ -15,6 +15,7 @@ type Bundler struct {
 	output    string
 	tmpDstDir string
 	sourceDir string
+	isTofu    bool
 }
 
 // Pusher is the interface for pushing bundles
@@ -27,6 +28,7 @@ type Options struct {
 	Output    string
 	TmpDstDir string
 	SourceDir string
+	IsTofu    bool
 }
 
 // NewBundler creates a new bundler
@@ -36,6 +38,7 @@ func NewBundler(opts *Options) *Bundler {
 		output:    opts.Output,
 		tmpDstDir: opts.TmpDstDir,
 		sourceDir: opts.SourceDir,
+		isTofu:    opts.IsTofu,
 	}
 	return &b
 }
@@ -43,13 +46,14 @@ func NewBundler(opts *Options) *Bundler {
 // Create creates a bundle
 func (b *Bundler) Create() error {
 	if utils.IsRegistryURL(b.output) {
+		// TODO: @JPERRY Remote bundles have not been implemented to work with tofu based bundles yet
 		remoteBundle := NewRemoteBundle(&RemoteBundleOpts{Bundle: b.bundle, Output: b.output})
 		err := remoteBundle.create(nil)
 		if err != nil {
 			return err
 		}
 	} else {
-		localBundle := NewLocalBundle(&LocalBundleOpts{Bundle: b.bundle, TmpDstDir: b.tmpDstDir, SourceDir: b.sourceDir, OutputDir: b.output})
+		localBundle := NewLocalBundle(&LocalBundleOpts{Bundle: b.bundle, TmpDstDir: b.tmpDstDir, SourceDir: b.sourceDir, OutputDir: b.output, IsTofu: b.isTofu})
 		err := localBundle.create(nil)
 		if err != nil {
 			return err

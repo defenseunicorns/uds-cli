@@ -35,6 +35,7 @@ type LocalBundleOpts struct {
 	TmpDstDir string
 	SourceDir string
 	OutputDir string
+	IsTofu    bool
 }
 
 // LocalBundle enables create ops with local bundles
@@ -43,6 +44,7 @@ type LocalBundle struct {
 	tmpDstDir string
 	sourceDir string
 	outputDir string
+	isTofu    bool
 }
 
 // NewLocalBundle creates a new local bundle
@@ -52,6 +54,7 @@ func NewLocalBundle(opts *LocalBundleOpts) *LocalBundle {
 		tmpDstDir: opts.TmpDstDir,
 		sourceDir: opts.SourceDir,
 		outputDir: opts.OutputDir,
+		isTofu:    opts.IsTofu,
 	}
 }
 
@@ -107,15 +110,23 @@ func (lo *LocalBundle) create(signature []byte) error {
 
 	message.HeaderInfof("🚧 Building Bundle")
 
-	// push uds-bundle.yaml to OCI store
-	bundleYAMLDesc, err := pushBundleYAMLToStore(store, bundle)
-	if err != nil {
-		return err
+	var bundleManifestDesc ocispec.Descriptor
+	if lo.isTofu {
+		bundleManifestDesc, err = pushBundleTFToStore(store, bundle)
+		if err != nil {
+			return err
+		}
+	} else {
+		// push uds-bundle.yaml to OCI store
+		bundleManifestDesc, err = pushBundleYAMLToStore(store, bundle)
+		if err != nil {
+			return err
+		}
 	}
 
 	// append uds-bundle.yaml layer to rootManifest and grab path for archiving
-	rootManifest.Layers = append(rootManifest.Layers, bundleYAMLDesc)
-	digest := bundleYAMLDesc.Digest.Encoded()
+	rootManifest.Layers = append(rootManifest.Layers, bundleManifestDesc)
+	digest := bundleManifestDesc.Digest.Encoded()
 	artifactPathMap[filepath.Join(lo.tmpDstDir, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 
 	// create and push bundle manifest config
@@ -178,6 +189,31 @@ func (lo *LocalBundle) create(signature []byte) error {
 	}
 
 	return nil
+}
+
+func pushBundleTFToStore(store *ocistore.Store, _ *types.UDSBundle) (ocispec.Descriptor, error) {
+	descriptor := ocispec.Descriptor{}
+	bundleTFBytes, err := os.ReadFile(config.BundleTF)
+	if err != nil {
+		return descriptor, err
+	}
+
+	bundleTFDesc := content.NewDescriptorFromBytes(zoci.ZarfLayerMediaTypeBlob, bundleTFBytes)
+	bundleTFDesc.Annotations = map[string]string{
+		ocispec.AnnotationTitle: config.BundleTF,
+	}
+
+	err = store.Push(context.TODO(), bundleTFDesc, bytes.NewReader(bundleTFBytes))
+	if err != nil {
+		return descriptor, err
+	}
+
+	jsonValue, err := utils.JSONValue(bundleTFDesc)
+	if err != nil {
+		return descriptor, err
+	}
+	message.Debug("Pushed uds-bundle.tf:", jsonValue)
+	return bundleTFDesc, err
 }
 
 // pushBundleYAMLToStore pushes the uds-bundle.yaml to a provided OCI store

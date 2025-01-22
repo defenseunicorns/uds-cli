@@ -6,6 +6,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
@@ -19,6 +20,44 @@ import (
 var devCmd = &cobra.Command{
 	Use:   "dev",
 	Short: lang.CmdDevShort,
+}
+
+var tofuCreateCmd = &cobra.Command{
+	Use:     "tofu-create [DIRECTORY]",
+	Aliases: []string{"c"},
+	Args:    cobra.MaximumNArgs(1),
+	Short:   "create bundle from a uds-bundle.tf config",
+	PreRunE: func(_ *cobra.Command, args []string) error {
+		err := setTofuFile(args)
+		if err != nil {
+			return err
+		}
+		return nil
+	},
+	RunE: func(_ *cobra.Command, args []string) error {
+		configureZarf()
+		srcDir, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("error reading the current working directory")
+		}
+		if len(args) > 0 {
+			srcDir = args[0]
+		}
+		bundleCfg.CreateOpts.SourceDirectory = srcDir
+		bundleCfg.IsTofu = true
+
+		bndlClient, err := bundle.New(&bundleCfg)
+		if err != nil {
+			return err
+		}
+		defer bndlClient.ClearPaths()
+
+		if err := bndlClient.Create(); err != nil {
+			bndlClient.ClearPaths()
+			return fmt.Errorf("failed to create bundle: %s", err.Error())
+		}
+		return nil
+	},
 }
 
 var devDeployCmd = &cobra.Command{
@@ -189,4 +228,5 @@ func init() {
 	devDeployCmd.Flags().StringToStringVar(&bundleCfg.DeployOpts.SetVariables, "set", nil, lang.CmdBundleDeployFlagSet)
 
 	devCmd.AddCommand(extractCmd)
+	devCmd.AddCommand(tofuCreateCmd)
 }
