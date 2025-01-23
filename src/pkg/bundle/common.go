@@ -17,6 +17,7 @@ import (
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/fetcher"
+	"github.com/defenseunicorns/uds-cli/src/pkg/tfparser"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -32,7 +33,8 @@ type Bundle struct {
 	// cfg is the Bundle's configuration options
 	cfg *types.BundleConfig
 	// bundle is the bundle's metadata read into memory
-	bundle types.UDSBundle
+	bundle   types.UDSBundle
+	tfConfig tfparser.TerraformConfig
 	// tmp is the temporary directory used by the Bundle cleaned up with ClearPaths()
 	tmp string
 }
