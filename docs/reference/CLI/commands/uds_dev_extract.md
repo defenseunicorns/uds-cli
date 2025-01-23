@@ -13,7 +13,8 @@ uds dev extract {BUNDLE_TARBALL|OCI_REF} [EXTRACT_DIR] [flags]
 ### Options
 
 ```
-  -h, --help   help for extract
+  -h, --help      help for extract
+      --is-tofu   indicates if the package was built from a uds-bundle.tf
 ```
 
 ### Options inherited from parent commands
