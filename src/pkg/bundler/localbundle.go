@@ -129,6 +129,18 @@ func (lo *LocalBundle) create(signature []byte) error {
 	digest := bundleManifestDesc.Digest.Encoded()
 	artifactPathMap[filepath.Join(lo.tmpDstDir, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 
+	if lo.isTofu {
+		bundleConfigManifestDesc, err := pushBundleTFConfigToStore(store, bundle)
+		if err != nil {
+			return err
+		}
+
+		// append uds-bundle.yaml layer to rootManifest and grab path for archiving
+		rootManifest.Layers = append(rootManifest.Layers, bundleConfigManifestDesc)
+		digest := bundleConfigManifestDesc.Digest.Encoded()
+		artifactPathMap[filepath.Join(lo.tmpDstDir, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
+	}
+
 	// create and push bundle manifest config
 	manifestConfigDesc, err := pushManifestConfig(store, bundle.Metadata, bundle.Build)
 	if err != nil {
@@ -191,28 +203,31 @@ func (lo *LocalBundle) create(signature []byte) error {
 	return nil
 }
 
+func pushBundleTFConfigToStore(store *ocistore.Store, bundle *types.UDSBundle) (ocispec.Descriptor, error) {
+	tfConfigHelper := types.TFConfigHelper{Packages: bundle.Packages}
+	configYAMLBytes, err := goyaml.Marshal(tfConfigHelper)
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
+	configYAMLDesc := content.NewDescriptorFromBytes(zoci.ZarfLayerMediaTypeBlob, configYAMLBytes)
+	configYAMLDesc.Annotations = map[string]string{
+		ocispec.AnnotationTitle: config.BundleTFConfig,
+	}
+	err = store.Push(context.TODO(), configYAMLDesc, bytes.NewReader(configYAMLBytes))
+	return configYAMLDesc, err
+}
+
 func pushBundleTFToStore(store *ocistore.Store, _ *types.UDSBundle) (ocispec.Descriptor, error) {
-	descriptor := ocispec.Descriptor{}
 	bundleTFBytes, err := os.ReadFile(config.BundleTF)
 	if err != nil {
-		return descriptor, err
+		return ocispec.Descriptor{}, err
 	}
 
 	bundleTFDesc := content.NewDescriptorFromBytes(zoci.ZarfLayerMediaTypeBlob, bundleTFBytes)
 	bundleTFDesc.Annotations = map[string]string{
 		ocispec.AnnotationTitle: config.BundleTF,
 	}
-
 	err = store.Push(context.TODO(), bundleTFDesc, bytes.NewReader(bundleTFBytes))
-	if err != nil {
-		return descriptor, err
-	}
-
-	jsonValue, err := utils.JSONValue(bundleTFDesc)
-	if err != nil {
-		return descriptor, err
-	}
-	message.Debug("Pushed uds-bundle.tf:", jsonValue)
 	return bundleTFDesc, err
 }
 
