@@ -93,19 +93,19 @@ func configureZarf() {
 }
 
 func setTofuFile(args []string) error {
-	pathToTofuFile := ""
+	pathToTofuDir := ""
 	if len(args) > 0 {
 		if !helpers.IsDir(args[0]) {
 			return fmt.Errorf("(%q) is not a valid path to a directory", args[0])
 		}
-		pathToTofuFile = filepath.Join(args[0])
+		pathToTofuDir = filepath.Join(args[0])
 	}
 
-	if _, err := os.Stat(filepath.Join(pathToTofuFile, config.BundleTF)); err != nil {
+	tofuFilePath := filepath.Join(pathToTofuDir, config.BundleTF)
+	if _, err := os.Stat(tofuFilePath); err != nil {
 		return fmt.Errorf("%s not found", config.BundleTF)
 	}
-	bundleCfg.CreateOpts.BundleFile = config.BundleTF
-
+	bundleCfg.CreateOpts.BundleFile = tofuFilePath
 	return nil
 }
 

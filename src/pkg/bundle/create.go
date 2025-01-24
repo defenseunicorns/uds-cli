@@ -28,7 +28,7 @@ func (b *Bundle) Create() error {
 	if b.cfg.IsTofu {
 		// read the .tf data to determine which resources (packages) we are creating
 		// TODO: @JEPRRY consider making a helper function for this
-		tfConfig, err := tfparser.ParseFile(filepath.Join(b.cfg.CreateOpts.SourceDirectory, b.cfg.CreateOpts.BundleFile))
+		tfConfig, err := tfparser.ParseFile(b.cfg.CreateOpts.BundleFile)
 		if err != nil {
 			return err
 		}

@@ -112,7 +112,7 @@ func (lo *LocalBundle) create(signature []byte) error {
 
 	var bundleManifestDesc ocispec.Descriptor
 	if lo.isTofu {
-		bundleManifestDesc, err = pushBundleTFToStore(store, bundle)
+		bundleManifestDesc, err = pushBundleTFToStore(store, filepath.Join(lo.sourceDir, config.BundleTF))
 		if err != nil {
 			return err
 		}
@@ -217,8 +217,8 @@ func pushBundleTFConfigToStore(store *ocistore.Store, bundle *types.UDSBundle) (
 	return configYAMLDesc, err
 }
 
-func pushBundleTFToStore(store *ocistore.Store, _ *types.UDSBundle) (ocispec.Descriptor, error) {
-	bundleTFBytes, err := os.ReadFile(config.BundleTF)
+func pushBundleTFToStore(store *ocistore.Store, bundleSourcePath string) (ocispec.Descriptor, error) {
+	bundleTFBytes, err := os.ReadFile(bundleSourcePath)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
