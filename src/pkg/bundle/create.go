@@ -36,9 +36,10 @@ func (b *Bundle) Create() error {
 		// Fake metadata for now
 		b.bundle.Kind = "UDSBundle"
 		b.bundle.Metadata = types.UDSMetadata{
-			Name:         "test-tf-bundle",
-			Version:      "0.0.0",
-			Architecture: "arm64",
+			Name:         tfConfig.Metadata.Name,
+			Version:      tfConfig.Metadata.Version,
+			Architecture: *tfConfig.Metadata.Architecture,
+			Description:  *tfConfig.Metadata.Description,
 		}
 
 		// Parse each Package resoruce and convert it types.Package type
