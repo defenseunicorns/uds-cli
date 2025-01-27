@@ -165,14 +165,11 @@ var extractCmd = &cobra.Command{
 
 		if bundleCfg.IsTofu {
 			_, _, _, err = bndlClient.PreDeployValidationTF()
-			if err != nil {
-				return err
-			}
 		} else {
 			_, _, _, err = bndlClient.PreDeployValidation()
-			if err != nil {
-				return err
-			}
+		}
+		if err != nil {
+			return err
 		}
 
 		outputDir := "."

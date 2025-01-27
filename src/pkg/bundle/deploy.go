@@ -254,7 +254,7 @@ func (b *Bundle) PreDeployValidationTF() (string, string, string, error) {
 	config.BundleAlwaysPull = []string{config.BundleTF, config.BundleTFConfig}
 	filepaths, err := provider.LoadBundleMetadata()
 	if err != nil {
-		message.Warnf("@JPERRY error when loading the metadtaa of the .tf bundle: %s\n", err.Error())
+		message.Warnf("unable to load the metadata of the .tf bundle: %s\n", err.Error())
 		return "", "", "", err
 	}
 
@@ -272,7 +272,7 @@ func (b *Bundle) PreDeployValidationTF() (string, string, string, error) {
 	b.tfConfig = *tfConfig
 
 	//read the file at conifg.BundleTFConfig and unmarshal it
-	message.Infof("Reading uds-tf-config.yam at %s\n", filepaths[config.BundleTFConfig])
+	message.Infof("Reading uds-tf-config.yaml at %s\n", filepaths[config.BundleTFConfig])
 	bundleTFConfigYAML, err := os.ReadFile(filepaths[config.BundleTFConfig])
 	if err != nil {
 		return "", "", "", err
