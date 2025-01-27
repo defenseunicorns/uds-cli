@@ -163,9 +163,11 @@ var extractCmd = &cobra.Command{
 			return err
 		}
 
-		// NOTE: I am obviously not chcking any of the outputs here, but this call is what sets
-		//       bndleClient.cfg.DeployOpts.Source which we need later...
-		_, _, _, err = bndlClient.PreDeployValidation()
+		if bundleCfg.IsTofu {
+			_, _, _, err = bndlClient.PreDeployValidationTF()
+		} else {
+			_, _, _, err = bndlClient.PreDeployValidation()
+		}
 		if err != nil {
 			return err
 		}
@@ -228,5 +230,6 @@ func init() {
 	devDeployCmd.Flags().StringToStringVar(&bundleCfg.DeployOpts.SetVariables, "set", nil, lang.CmdBundleDeployFlagSet)
 
 	devCmd.AddCommand(extractCmd)
+	extractCmd.Flags().BoolVar(&bundleCfg.IsTofu, "is-tofu", false, "indicates if the package was built from a uds-bundle.tf")
 	devCmd.AddCommand(tofuCreateCmd)
 }
