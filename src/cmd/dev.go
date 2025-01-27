@@ -22,6 +22,40 @@ var devCmd = &cobra.Command{
 	Short: lang.CmdDevShort,
 }
 
+var tofuDeployCmd = &cobra.Command{
+	Use:     "tofu-deploy [BUNDLE_TARBALL|OCI_REF]",
+	Aliases: []string{"d"},
+	Short:   lang.CmdBundleDeployShort,
+	Args:    cobra.MaximumNArgs(1),
+	RunE: func(_ *cobra.Command, args []string) error {
+		var err error
+		bundleCfg.DeployOpts.Source, err = chooseBundle(args)
+		if err != nil {
+			return err
+		}
+		configureZarf()
+
+		// set DeployOptions.Config if exists
+		if config := v.ConfigFileUsed(); config != "" {
+			bundleCfg.DeployOpts.Config = config
+		}
+
+		bundleCfg.IsTofu = true
+
+		// create new bundle client and deploy
+		bndlClient, err := bundle.New(&bundleCfg)
+		if err != nil {
+			return err
+		}
+		defer bndlClient.ClearPaths()
+		err = deploy(bndlClient)
+		if err != nil {
+			return err
+		}
+		return nil
+	},
+}
+
 var tofuCreateCmd = &cobra.Command{
 	Use:     "tofu-create [DIRECTORY]",
 	Aliases: []string{"c"},
@@ -232,4 +266,5 @@ func init() {
 	devCmd.AddCommand(extractCmd)
 	extractCmd.Flags().BoolVar(&bundleCfg.IsTofu, "is-tofu", false, "indicates if the package was built from a uds-bundle.tf")
 	devCmd.AddCommand(tofuCreateCmd)
+	devCmd.AddCommand(tofuDeployCmd)
 }

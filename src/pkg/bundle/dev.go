@@ -134,6 +134,10 @@ func (b *Bundle) extractPackage(path string, pkg types.Package) error {
 	return nil
 }
 
+func (b *Bundle) GetDefaultExtractPath() string {
+	return filepath.Join(b.tmp, "extracted-packages")
+}
+
 func (b *Bundle) Extract(path string) error {
 	// Create the directory that we will store the extract tarballs into
 	if err := helpers.CreateDirectory(path, helpers.ReadWriteExecuteUser); err != nil {

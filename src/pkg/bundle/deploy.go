@@ -264,6 +264,14 @@ func (b *Bundle) PreDeployValidationTF() (string, string, string, error) {
 	if err != nil {
 		return "", "", "", err
 	}
+
+	// Copy the .tf contents from the file at `/{tmpdir}/blobs/sha256/{SHASUM}` to `/{tmpdir}/main.tf`
+	// This makes it a lot easier for tofu to find and use the config file
+	err = os.WriteFile(filepath.Join(b.tmp, "main.tf"), bundleTF, 0600)
+	if err != nil {
+		return "", "", "", err
+	}
+
 	// parse the tf config
 	tfConfig, err := tfparser.ParseFile(filepaths[config.BundleTF])
 	if err != nil {

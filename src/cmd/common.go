@@ -51,7 +51,12 @@ func isValidConfigOption(str string) bool {
 
 // deploy performs validation, confirmation and deployment of a bundle
 func deploy(bndlClient *bundle.Bundle) error {
-	_, _, _, err := bndlClient.PreDeployValidation()
+	var err error
+	if bundleCfg.IsTofu {
+		_, _, _, err = bndlClient.PreDeployValidationTF()
+	} else {
+		_, _, _, err = bndlClient.PreDeployValidation()
+	}
 	if err != nil {
 		return fmt.Errorf("failed to validate bundle: %s", err.Error())
 	}
@@ -62,9 +67,30 @@ func deploy(bndlClient *bundle.Bundle) error {
 	}
 
 	// deploy the bundle
-	if err := bndlClient.Deploy(); err != nil {
-		bndlClient.ClearPaths()
-		return fmt.Errorf("failed to deploy bundle: %s", err.Error())
+	if bundleCfg.IsTofu {
+		// extract the tarballs!
+		if err := bndlClient.Extract(bndlClient.GetDefaultExtractPath()); err != nil {
+			return fmt.Errorf("failed to extract packages from budnle: %s", err.Error())
+		}
+
+		// TODO: @JPERRY Everything below this feels absoutly gross, but I want to get this to a working state before I start cleaning up and optimizing
+		// Navigate to the directory that the `main.tf` file was written to (the tmp dir)
+		if err := os.Chdir(filepath.Dir(bndlClient.GetDefaultExtractPath())); err != nil {
+			return fmt.Errorf("unable to change directories to where the main.tf is stored: %s", err.Error())
+		}
+
+		// Run the `tofu apply` command
+		os.Args = []string{"tofu", "apply"}
+		err := useEmbeddedTofu()
+		if err != nil {
+			message.Warnf("unable to deploy bundle that was built from a .tf file: %s", err.Error())
+			return err
+		}
+	} else {
+		if err := bndlClient.Deploy(); err != nil {
+			bndlClient.ClearPaths()
+			return fmt.Errorf("failed to deploy bundle: %s", err.Error())
+		}
 	}
 
 	return nil
