@@ -33,7 +33,6 @@ func (b *Bundle) Create() error {
 			return err
 		}
 
-		// Fake metadata for now
 		b.bundle.Kind = "UDSBundle"
 		b.bundle.Metadata = types.UDSMetadata{
 			Name:         tfConfig.Metadata.Name,
@@ -42,7 +41,7 @@ func (b *Bundle) Create() error {
 			Description:  *tfConfig.Metadata.Description,
 		}
 
-		// Parse each Package resoruce and convert it types.Package type
+		// Parse each tfparser.Packages resource and convert it to types.Package type
 		for _, pkg := range tfConfig.Packages {
 			newPackage := types.Package{
 				Name:       pkg.Name,
@@ -120,7 +119,7 @@ func (b *Bundle) Create() error {
 		}
 	}
 
-	// TODO: @JPERRY this dev eploy block has not been validated to work with tofu based bundles yet
+	// TODO: @JPERRY this dev deploy block has not been validated to work with tofu based bundles yet
 	// for dev mode update package ref for local bundles, refs for remote bundles updated on deploy
 	if config.Dev && len(b.cfg.DevDeployOpts.Ref) != 0 {
 		for i, pkg := range b.bundle.Packages {

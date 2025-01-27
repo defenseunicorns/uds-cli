@@ -110,18 +110,15 @@ func (lo *LocalBundle) create(signature []byte) error {
 
 	message.HeaderInfof("🚧 Building Bundle")
 
+	// push bundle manifest to OCI stoer
 	var bundleManifestDesc ocispec.Descriptor
 	if lo.isTofu {
 		bundleManifestDesc, err = pushBundleTFToStore(store, filepath.Join(lo.sourceDir, config.BundleTF))
-		if err != nil {
-			return err
-		}
 	} else {
-		// push uds-bundle.yaml to OCI store
 		bundleManifestDesc, err = pushBundleYAMLToStore(store, bundle)
-		if err != nil {
-			return err
-		}
+	}
+	if err != nil {
+		return err
 	}
 
 	// append uds-bundle.yaml layer to rootManifest and grab path for archiving
