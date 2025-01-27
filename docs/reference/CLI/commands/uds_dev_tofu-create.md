@@ -1,15 +1,19 @@
 ---
-title: uds dev
-description: UDS CLI command reference for <code>uds dev</code>.
+title: uds dev tofu-create
+description: UDS CLI command reference for <code>uds dev tofu-create</code>.
 ---
-## uds dev
+## uds dev tofu-create
 
-[beta] Commands useful for developing bundles
+create bundle from a uds-bundle.tf config
+
+```
+uds dev tofu-create [DIRECTORY] [flags]
+```
 
 ### Options
 
 ```
-  -h, --help   help for dev
+  -h, --help   help for tofu-create
 ```
 
 ### Options inherited from parent commands
@@ -28,8 +32,5 @@ description: UDS CLI command reference for <code>uds dev</code>.
 
 ### SEE ALSO
 
-* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
-* [uds dev deploy](/reference/cli/commands/uds_dev_deploy/)	 - [beta] Creates and deploys a UDS bundle in dev mode
-* [uds dev extract](/reference/cli/commands/uds_dev_extract/)	 - [alpha] Extract the Zarf Package tarballs from a Bundle
-* [uds dev tofu-create](/reference/cli/commands/uds_dev_tofu-create/)	 - create bundle from a uds-bundle.tf config
+* [uds dev](/reference/cli/commands/uds_dev/)	 - [beta] Commands useful for developing bundles
 
