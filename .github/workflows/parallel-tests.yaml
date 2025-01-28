@@ -164,7 +164,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@48b90677b6048efbc723b11a94acb950d3f1ac36
+      - uses: actions/setup-node@802632921f8532d2409ae6eac3313b6f81f11122
         with:
           node-version: 20
 
