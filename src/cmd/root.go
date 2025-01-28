@@ -16,7 +16,6 @@ import (
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
-	zarfCommon "github.com/zarf-dev/zarf/src/cmd/common"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 )
 
@@ -30,10 +29,6 @@ var (
 var rootCmd = &cobra.Command{
 	Use: "uds COMMAND",
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-		// Skip for vendor-only commands
-		if zarfCommon.CheckVendorOnlyFromPath(cmd) {
-			return nil
-		}
 
 		// Don't add the logo to the help command
 		if cmd.Parent() == nil {

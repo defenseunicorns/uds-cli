@@ -11,7 +11,6 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/spf13/viper"
-	"github.com/zarf-dev/zarf/src/cmd/common"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 )
 
@@ -55,11 +54,6 @@ func initViper() {
 	}
 
 	v = viper.New()
-
-	// Skip for vendor-only commands
-	if common.CheckVendorOnlyFromArgs() {
-		return
-	}
 
 	// Specify an alternate config file
 	cfgFile := os.Getenv("UDS_CONFIG")
