@@ -62,15 +62,15 @@ resource "uds_package" "prometheus" {
 				},
 				Packages: []Packages{
 					{
-						Name:   "init",
-						OCIUrl: "ghcr.io/zarf-dev/packages/init@v0.46.0",
-						Ref:    "v0.46.0",
-						Type:   "uds_package",
+						Name:       "init",
+						Repository: "ghcr.io/zarf-dev/packages/init@v0.46.0",
+						Version:    "v0.46.0",
+						Type:       "uds_package",
 					},
 					{
-						Name:   "prometheus",
-						OCIUrl: "localhost:888/prometheus@v0.1.0",
-						Type:   "uds_package",
+						Name:       "prometheus",
+						Repository: "localhost:888/prometheus@v0.1.0",
+						Type:       "uds_package",
 					},
 				},
 				Metadata: &BundleMetadata{
@@ -141,10 +141,10 @@ resource "aws_instance" "test" {
 				},
 				Packages: []Packages{
 					{
-						Name:   "init",
-						OCIUrl: "ghcr.io/zarf-dev/packages/init@v0.46.0",
-						Ref:    "v0.46.0",
-						Type:   "uds_package",
+						Name:       "init",
+						Repository: "ghcr.io/zarf-dev/packages/init@v0.46.0",
+						Version:    "v0.46.0",
+						Type:       "uds_package",
 					},
 				},
 			},

@@ -20,10 +20,14 @@ type Provider struct {
 
 // Packages represents a uds_package resource in Terraform
 type Packages struct {
-	Name   string `json:"name"`
-	Type   string `json:"type"`
-	OCIUrl string `json:"oci_url"`
-	Ref    string `json:"ref,omitempty"`
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Repository string `json:"repository"`
+	Version    string `json:"version,omitempty"`
+	Path       string `json:"path,omitempty"`
+
+	Kind       string   `json:"kind"`
+	Components []string `json:"components"`
 }
 
 // TerraformConfig represents the root Terraform configuration
@@ -39,7 +43,10 @@ type BundleMetadata struct {
 	Version string `json:"version"`
 	// Kind reflects the type of package; typicaly always UDSBundle
 	Kind string `json:"kind"`
+
 	// these are optional
+	// TODO: Even if these are optional, these should probably be set to empty string so
+	//       that panics don't happen if someone attempts to dereference them in the future?
 	Description  *string `json:"description"`
 	URL          *string `json:"url"`
 	Architecture *string `json:"architecture"`
@@ -93,6 +100,11 @@ func ParseFile(filename string) (*TerraformConfig, error) {
 				config.Metadata = meta
 			}
 		}
+	}
+
+	// After parsing the bundle config, we should expect to have parsed at least one 'uds_package' resource
+	if len(config.Packages) == 0 {
+		return config, fmt.Errorf("expected to parse a uds_package but none found")
 	}
 
 	return config, nil
@@ -168,20 +180,28 @@ func parseUDSPackageBlock(block *hcl.Block) (*Packages, error) {
 
 	ctx := &hcl.EvalContext{}
 
-	if attr, exists := attrs["oci_url"]; exists {
+	if attr, exists := attrs["repository"]; exists {
 		value, diags := attr.Expr.Value(ctx)
 		if diags.HasErrors() {
-			return nil, fmt.Errorf("oci_url error: %s", diags.Error())
+			return nil, fmt.Errorf("repository error: %s", diags.Error())
 		}
-		pkg.OCIUrl = value.AsString()
+		pkg.Repository = value.AsString()
 	}
 
-	if attr, exists := attrs["ref"]; exists {
+	if attr, exists := attrs["version"]; exists {
 		value, diags := attr.Expr.Value(ctx)
 		if diags.HasErrors() {
-			return nil, fmt.Errorf("ref error: %s", diags.Error())
+			return nil, fmt.Errorf("version error: %s", diags.Error())
 		}
-		pkg.Ref = value.AsString()
+		pkg.Version = value.AsString()
+	}
+
+	if attr, exists := attrs["path"]; exists {
+		value, diags := attr.Expr.Value(ctx)
+		if diags.HasErrors() {
+			return nil, fmt.Errorf("path error: %s", diags.Error())
+		}
+		pkg.Path = value.AsString()
 	}
 
 	return pkg, nil
