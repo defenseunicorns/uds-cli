@@ -25,7 +25,7 @@ import (
 // Create creates a bundle
 func (b *Bundle) Create() error {
 	// populate the b.bundle struct with information on the packages we are creating
-	if b.cfg.IsTofu {
+	if b.cfg.TofuOpts.IsTofu {
 		// read the .tf data to determine which resources (packages) we are creating
 		// TODO: @JEPRRY consider making a helper function for this
 		tfConfig, err := tfparser.ParseFile(b.cfg.CreateOpts.BundleFile)
@@ -45,8 +45,8 @@ func (b *Bundle) Create() error {
 		for _, pkg := range tfConfig.Packages {
 			newPackage := types.Package{
 				Name:       pkg.Name,
-				Repository: pkg.OCIUrl,
-				Ref:        pkg.Ref,
+				Repository: pkg.Repository,
+				Ref:        pkg.Version,
 			}
 			b.bundle.Packages = append(b.bundle.Packages, newPackage)
 		}
@@ -133,7 +133,7 @@ func (b *Bundle) Create() error {
 		Output:    b.cfg.CreateOpts.Output,
 		TmpDstDir: b.tmp,
 		SourceDir: b.cfg.CreateOpts.SourceDirectory,
-		IsTofu:    b.cfg.IsTofu,
+		IsTofu:    b.cfg.TofuOpts.IsTofu,
 	}
 	bundlerClient := bundler.NewBundler(&opts)
 

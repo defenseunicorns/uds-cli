@@ -13,7 +13,11 @@ type BundleConfig struct {
 	InspectOpts   BundleInspectOptions
 	RemoveOpts    BundleRemoveOptions
 	DevDeployOpts BundleDevDeployOptions
-	IsTofu        bool
+	TofuOpts      TofuOptions
+}
+
+type TofuOptions struct {
+	IsTofu          bool
 }
 
 // BundleCreateOptions is the options for the bundler.Create() function

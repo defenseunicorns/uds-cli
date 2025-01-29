@@ -28,6 +28,8 @@ var tofuDeployCmd = &cobra.Command{
 	Short:   lang.CmdBundleDeployShort,
 	Args:    cobra.MaximumNArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
+		config.CommonOptions.Confirm = true
+
 		var err error
 		bundleCfg.DeployOpts.Source, err = chooseBundle(args)
 		if err != nil {
@@ -40,7 +42,7 @@ var tofuDeployCmd = &cobra.Command{
 			bundleCfg.DeployOpts.Config = config
 		}
 
-		bundleCfg.IsTofu = true
+		bundleCfg.TofuOpts.IsTofu = true
 
 		// create new bundle client and deploy
 		bndlClient, err := bundle.New(&bundleCfg)
@@ -78,7 +80,7 @@ var tofuCreateCmd = &cobra.Command{
 			srcDir = args[0]
 		}
 		bundleCfg.CreateOpts.SourceDirectory = srcDir
-		bundleCfg.IsTofu = true
+		bundleCfg.TofuOpts.IsTofu = true
 
 		bndlClient, err := bundle.New(&bundleCfg)
 		if err != nil {
@@ -197,7 +199,7 @@ var extractCmd = &cobra.Command{
 			return err
 		}
 
-		if bundleCfg.IsTofu {
+		if bundleCfg.TofuOpts.IsTofu {
 			_, _, _, err = bndlClient.PreDeployValidationTF()
 		} else {
 			_, _, _, err = bndlClient.PreDeployValidation()
@@ -264,7 +266,7 @@ func init() {
 	devDeployCmd.Flags().StringToStringVar(&bundleCfg.DeployOpts.SetVariables, "set", nil, lang.CmdBundleDeployFlagSet)
 
 	devCmd.AddCommand(extractCmd)
-	extractCmd.Flags().BoolVar(&bundleCfg.IsTofu, "is-tofu", false, "indicates if the package was built from a uds-bundle.tf")
+	extractCmd.Flags().BoolVar(&bundleCfg.TofuOpts.IsTofu, "is-tofu", false, "indicates if the package was built from a uds-bundle.tf")
 	devCmd.AddCommand(tofuCreateCmd)
 	devCmd.AddCommand(tofuDeployCmd)
 }

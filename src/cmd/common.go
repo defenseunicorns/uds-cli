@@ -52,7 +52,7 @@ func isValidConfigOption(str string) bool {
 // deploy performs validation, confirmation and deployment of a bundle
 func deploy(bndlClient *bundle.Bundle) error {
 	var err error
-	if bundleCfg.IsTofu {
+	if bundleCfg.TofuOpts.IsTofu {
 		_, _, _, err = bndlClient.PreDeployValidationTF()
 	} else {
 		_, _, _, err = bndlClient.PreDeployValidation()
@@ -67,8 +67,8 @@ func deploy(bndlClient *bundle.Bundle) error {
 	}
 
 	// deploy the bundle
-	if bundleCfg.IsTofu {
-		// extract the tarballs!
+	if bundleCfg.TofuOpts.IsTofu {
+		// extract the tarballs of the Zarf Packages within the bundle
 		if err := bndlClient.Extract(bndlClient.GetDefaultExtractPath()); err != nil {
 			return fmt.Errorf("failed to extract packages from budnle: %s", err.Error())
 		}
