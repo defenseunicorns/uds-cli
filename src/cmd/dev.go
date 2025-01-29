@@ -269,4 +269,5 @@ func init() {
 	extractCmd.Flags().BoolVar(&bundleCfg.TofuOpts.IsTofu, "is-tofu", false, "indicates if the package was built from a uds-bundle.tf")
 	devCmd.AddCommand(tofuCreateCmd)
 	devCmd.AddCommand(tofuDeployCmd)
+	tofuDeployCmd.Flags().StringVar(&bundleCfg.TofuOpts.TFStateFilepath, "tf-state", "terraform.tfstate", "Path to TF statefile")
 }

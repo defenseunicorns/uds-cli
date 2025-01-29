@@ -379,3 +379,7 @@ func GetDeployedPackageNames() []string {
 	}
 	return deployedPackageNames
 }
+
+func (b *Bundle) GetTofuStateFilepath() string {
+	return b.cfg.TofuOpts.TFStateFilepath
+}

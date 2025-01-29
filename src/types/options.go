@@ -18,6 +18,7 @@ type BundleConfig struct {
 
 type TofuOptions struct {
 	IsTofu          bool
+	TFStateFilepath string
 }
 
 // BundleCreateOptions is the options for the bundler.Create() function

@@ -73,15 +73,20 @@ func deploy(bndlClient *bundle.Bundle) error {
 			return fmt.Errorf("failed to extract packages from budnle: %s", err.Error())
 		}
 
-		// TODO: @JPERRY Everything below this feels absoutly gross, but I want to get this to a working state before I start cleaning up and optimizing
-		// Navigate to the directory that the `main.tf` file was written to (the tmp dir)
-		if err := os.Chdir(filepath.Dir(bndlClient.GetDefaultExtractPath())); err != nil {
-			return fmt.Errorf("unable to change directories to where the main.tf is stored: %s", err.Error())
+		// Determine the location of the local tfstate file
+		// stateFile := filepath.Join(cwd, "terraform.tfstate")
+		stateFilepath, err := filepath.Abs(bndlClient.GetTofuStateFilepath())
+		if err != nil {
+			return fmt.Errorf("failed to locate path to tfstate file: %s", err.Error())
 		}
+		stateFlag := fmt.Sprintf("-state=%s", stateFilepath)
+
+		// Determine the location of the extracted *.tf files
+		chdirFlag := fmt.Sprintf("-chdir=%s", filepath.Dir(bndlClient.GetDefaultExtractPath()))
 
 		// Run the `tofu apply` command
-		os.Args = []string{"tofu", "apply"}
-		err := useEmbeddedTofu()
+		os.Args = []string{"tofu", chdirFlag, "apply", "-input=false", "-auto-approve", stateFlag}
+		err = useEmbeddedTofu()
 		if err != nil {
 			message.Warnf("unable to deploy bundle that was built from a .tf file: %s", err.Error())
 			return err
