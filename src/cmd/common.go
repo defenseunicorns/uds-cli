@@ -74,7 +74,6 @@ func deploy(bndlClient *bundle.Bundle) error {
 		}
 
 		// Determine the location of the local tfstate file
-		// stateFile := filepath.Join(cwd, "terraform.tfstate")
 		stateFilepath, err := filepath.Abs(bndlClient.GetTofuStateFilepath())
 		if err != nil {
 			return fmt.Errorf("failed to locate path to tfstate file: %s", err.Error())
