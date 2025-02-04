@@ -42,12 +42,13 @@ resource "uds_bundle_metadata" "basic" {
 }
 
 resource "uds_package" "init" {
-  oci_url = "ghcr.io/zarf-dev/packages/init@v0.46.0"
-  ref = "v0.46.0"
+  repository = "ghcr.io/zarf-dev/packages/init"
+  version = "v0.46.0"
 }
 
 resource "uds_package" "prometheus" {
-  oci_url = "localhost:888/prometheus@v0.1.0"
+  repository = "localhost:888/prometheus"
+  version = "v0.1.0"
   depends_on = [
     uds_package.init
   ]
@@ -62,15 +63,16 @@ resource "uds_package" "prometheus" {
 				},
 				Packages: []Packages{
 					{
-						Name:   "init",
-						OCIUrl: "ghcr.io/zarf-dev/packages/init@v0.46.0",
-						Ref:    "v0.46.0",
-						Type:   "uds_package",
+						Name:       "init",
+						Repository: "ghcr.io/zarf-dev/packages/init",
+						Version:    "v0.46.0",
+						Type:       "uds_package",
 					},
 					{
-						Name:   "prometheus",
-						OCIUrl: "localhost:888/prometheus@v0.1.0",
-						Type:   "uds_package",
+						Name:       "prometheus",
+						Repository: "localhost:888/prometheus",
+						Version:    "v0.1.0",
+						Type:       "uds_package",
 					},
 				},
 				Metadata: &BundleMetadata{
@@ -120,8 +122,8 @@ terraform {
 provider "uds" {}
 
 resource "uds_package" "init" {
-  oci_url = "ghcr.io/zarf-dev/packages/init@v0.46.0"
-  ref = "v0.46.0"
+  repository = "ghcr.io/zarf-dev/packages/init"
+  version = "v0.46.0"
 }
 
 resource "aws_instance" "test" {
@@ -141,10 +143,10 @@ resource "aws_instance" "test" {
 				},
 				Packages: []Packages{
 					{
-						Name:   "init",
-						OCIUrl: "ghcr.io/zarf-dev/packages/init@v0.46.0",
-						Ref:    "v0.46.0",
-						Type:   "uds_package",
+						Name:       "init",
+						Repository: "ghcr.io/zarf-dev/packages/init",
+						Version:    "v0.46.0",
+						Type:       "uds_package",
 					},
 				},
 			},
@@ -166,7 +168,9 @@ terraform {
       version = "4.0.0"
     }
   }
-}`,
+}
+resource "uds_package" "empty" {}
+`,
 			expected: &TerraformConfig{
 				Providers: map[string]Provider{
 					"uds": {
@@ -176,6 +180,12 @@ terraform {
 					"aws": {
 						Source:  "hashicorp/aws",
 						Version: stringPtr("4.0.0"),
+					},
+				},
+				Packages: []Packages{
+					{
+						Name: "empty",
+						Type: "uds_package",
 					},
 				},
 			},
@@ -219,11 +229,18 @@ terraform {
     }
   }
 }
+resource "uds_package" "empty" {}
 `,
 			expected: &TerraformConfig{
 				Providers: map[string]Provider{
 					"uds": {
 						Source: "defenseunicorns/uds",
+					},
+				},
+				Packages: []Packages{
+					{
+						Name: "empty",
+						Type: "uds_package",
 					},
 				},
 			},

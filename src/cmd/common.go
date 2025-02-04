@@ -51,7 +51,12 @@ func isValidConfigOption(str string) bool {
 
 // deploy performs validation, confirmation and deployment of a bundle
 func deploy(bndlClient *bundle.Bundle) error {
-	_, _, _, err := bndlClient.PreDeployValidation()
+	var err error
+	if bundleCfg.TofuOpts.IsTofu {
+		_, _, _, err = bndlClient.PreDeployValidationTF()
+	} else {
+		_, _, _, err = bndlClient.PreDeployValidation()
+	}
 	if err != nil {
 		return fmt.Errorf("failed to validate bundle: %s", err.Error())
 	}
@@ -62,9 +67,34 @@ func deploy(bndlClient *bundle.Bundle) error {
 	}
 
 	// deploy the bundle
-	if err := bndlClient.Deploy(); err != nil {
-		bndlClient.ClearPaths()
-		return fmt.Errorf("failed to deploy bundle: %s", err.Error())
+	if bundleCfg.TofuOpts.IsTofu {
+		// extract the tarballs of the Zarf Packages within the bundle
+		if err := bndlClient.Extract(bndlClient.GetDefaultExtractPath()); err != nil {
+			return fmt.Errorf("failed to extract packages from budnle: %s", err.Error())
+		}
+
+		// Determine the location of the local tfstate file
+		stateFilepath, err := filepath.Abs(bndlClient.GetTofuStateFilepath())
+		if err != nil {
+			return fmt.Errorf("failed to locate path to tfstate file: %s", err.Error())
+		}
+		stateFlag := fmt.Sprintf("-state=%s", stateFilepath)
+
+		// Determine the location of the extracted *.tf files
+		chdirFlag := fmt.Sprintf("-chdir=%s", filepath.Dir(bndlClient.GetDefaultExtractPath()))
+
+		// Run the `tofu apply` command
+		os.Args = []string{"tofu", chdirFlag, "apply", "-input=false", "-auto-approve", stateFlag}
+		err = useEmbeddedTofu()
+		if err != nil {
+			message.Warnf("unable to deploy bundle that was built from a .tf file: %s", err.Error())
+			return err
+		}
+	} else {
+		if err := bndlClient.Deploy(); err != nil {
+			bndlClient.ClearPaths()
+			return fmt.Errorf("failed to deploy bundle: %s", err.Error())
+		}
 	}
 
 	return nil
