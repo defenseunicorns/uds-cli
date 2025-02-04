@@ -6,9 +6,11 @@ package tfparser
 import (
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -50,6 +52,36 @@ type BundleMetadata struct {
 	Description  *string `json:"description"`
 	URL          *string `json:"url"`
 	Architecture *string `json:"architecture"`
+}
+
+type TerraformRC struct {
+	ProviderInstallation struct {
+		DevOverrides map[string]string `json:"dev_overrides"`
+		Direct       map[string]string `json:"direct"`
+	} `json:"provider_installation"`
+}
+
+func (rc TerraformRC) WriteHCL(filepath string) error {
+	f := hclwrite.NewEmptyFile()
+	rootBody := f.Body()
+
+	// Create provider_installation block
+	providerBlock := rootBody.AppendNewBlock("provider_installation", nil)
+	providerBody := providerBlock.Body()
+
+	// Add dev_overrides
+	if len(rc.ProviderInstallation.DevOverrides) > 0 {
+		devOverridesBlock := providerBody.AppendNewBlock("dev_overrides", nil)
+		devOverridesBody := devOverridesBlock.Body()
+		for key, value := range rc.ProviderInstallation.DevOverrides {
+			devOverridesBody.SetAttributeValue(fmt.Sprintf("\"%s\"", key), cty.StringVal(value))
+		}
+	}
+
+	// NOTE: This block is necessary, even if empty, so that tofu is able to find providers not listed in dev_overrides
+	providerBody.AppendNewBlock("direct", nil)
+
+	return os.WriteFile(filepath, f.Bytes(), 0600)
 }
 
 // ParseFile reads and parses a Terraform file, returning the structured configuration

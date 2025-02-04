@@ -251,7 +251,7 @@ func (b *Bundle) PreDeployValidationTF() (string, string, string, error) {
 	}
 
 	// pull the bundles metadata
-	config.BundleAlwaysPull = []string{config.BundleTF, config.BundleTFConfig}
+	config.BundleAlwaysPull = []string{config.BundleTF, config.BundleTFConfig, config.TerraformProvider, config.TerraformRC}
 	filepaths, err := provider.LoadBundleMetadata()
 	if err != nil {
 		message.Warnf("unable to load the metadata of the .tf bundle: %s\n", err.Error())
@@ -292,6 +292,26 @@ func (b *Bundle) PreDeployValidationTF() (string, string, string, error) {
 		return "", "", "", err
 	}
 	b.bundle.Packages = tfHelperConfig.Packages
+
+	// Write a custom .terraformrc that points to the provider we brought
+	customTFRC := tfparser.TerraformRC{}
+	customTFRC.ProviderInstallation.Direct = make(map[string]string)
+	customTFRC.ProviderInstallation.DevOverrides = make(map[string]string)
+	customTFRC.ProviderInstallation.DevOverrides["defenseunicorns/uds"] = b.tmp
+	err = customTFRC.WriteHCL(filepath.Join(b.tmp, config.TerraformRC))
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// Copy the contents of the terraform provider binary into a file in the tmpdir
+	terraformProvider, err := os.ReadFile(filepaths[config.TerraformProvider])
+	if err != nil {
+		return "", "", "", err
+	}
+	err = os.WriteFile(filepath.Join(b.tmp, config.TerraformProvider), terraformProvider, 0777) //nolint:gosec
+	if err != nil {
+		return "", "", "", err
+	}
 
 	// validate bundle's arch against cluster
 	err = ValidateArch(config.GetArch(b.bundle.Build.Architecture))
