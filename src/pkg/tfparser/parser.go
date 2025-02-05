@@ -25,7 +25,7 @@ type Packages struct {
 	Name       string `json:"name"`
 	Type       string `json:"type"`
 	Repository string `json:"repository"`
-	Version    string `json:"version,omitempty"`
+	Ref        string `json:"ref,omitempty"`
 	Path       string `json:"path,omitempty"`
 
 	Kind       string   `json:"kind"`
@@ -220,12 +220,12 @@ func parseUDSPackageBlock(block *hcl.Block) (*Packages, error) {
 		pkg.Repository = value.AsString()
 	}
 
-	if attr, exists := attrs["version"]; exists {
+	if attr, exists := attrs["ref"]; exists {
 		value, diags := attr.Expr.Value(ctx)
 		if diags.HasErrors() {
 			return nil, fmt.Errorf("version error: %s", diags.Error())
 		}
-		pkg.Version = value.AsString()
+		pkg.Ref = value.AsString()
 	}
 
 	if attr, exists := attrs["path"]; exists {

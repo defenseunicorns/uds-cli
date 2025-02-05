@@ -46,7 +46,7 @@ func (b *Bundle) Create() error {
 			newPackage := types.Package{
 				Name:       pkg.Name,
 				Repository: pkg.Repository,
-				Ref:        pkg.Version,
+				Ref:        pkg.Ref,
 			}
 			b.bundle.Packages = append(b.bundle.Packages, newPackage)
 		}
