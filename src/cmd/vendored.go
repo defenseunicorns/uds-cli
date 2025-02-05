@@ -125,7 +125,7 @@ var planCmd = &cobra.Command{
 	Short: lang.CmdBundlePlanShort,
 	// Args:  cobra.MaximumNArgs(0),
 	RunE: func(_ *cobra.Command, _ []string) error {
-		return useEmbeddedTofu(map[string]string{})
+		return useEmbeddedTofu(nil)
 	},
 	DisableFlagParsing: true,
 }
@@ -135,7 +135,7 @@ var applyCmd = &cobra.Command{
 	Short: lang.CmdBundleApplyShort,
 	Args:  cobra.MaximumNArgs(0),
 	RunE: func(_ *cobra.Command, _ []string) error {
-		return useEmbeddedTofu(map[string]string{})
+		return useEmbeddedTofu(nil)
 	},
 	DisableFlagParsing: true,
 }

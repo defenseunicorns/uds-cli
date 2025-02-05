@@ -7,6 +7,7 @@ package bundle
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -304,11 +305,17 @@ func (b *Bundle) PreDeployValidationTF() (string, string, string, error) {
 	}
 
 	// Copy the contents of the terraform provider binary into a file in the tmpdir
-	terraformProvider, err := os.ReadFile(filepaths[config.TerraformProvider])
+	providerSrc, err := os.Open(filepaths[config.TerraformProvider])
 	if err != nil {
 		return "", "", "", err
 	}
-	err = os.WriteFile(filepath.Join(b.tmp, config.TerraformProvider), terraformProvider, 0777) //nolint:gosec
+	defer providerSrc.Close()
+	providerDst, err := os.Create(filepath.Join(b.tmp, config.TerraformProvider))
+	if err != nil {
+		return "", "", "", err
+	}
+	defer providerDst.Close()
+	_, err = io.Copy(providerDst, providerSrc)
 	if err != nil {
 		return "", "", "", err
 	}
