@@ -319,6 +319,9 @@ func (b *Bundle) PreDeployValidationTF() (string, string, string, error) {
 	if err != nil {
 		return "", "", "", err
 	}
+	if err := os.Chmod(filepath.Join(b.tmp, config.TerraformProvider), 0555); err != nil {
+		return "", "", "", err
+	}
 
 	// validate bundle's arch against cluster
 	err = ValidateArch(config.GetArch(b.bundle.Build.Architecture))
