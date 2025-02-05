@@ -142,7 +142,7 @@ func (lo *LocalBundle) create(signature []byte) error {
 		// TODO:: This is pulling from the local filesystem until we start publishing the provider externally
 		goBinPath := os.Getenv("GOBIN")
 		if goBinPath == "" {
-			return fmt.Errorf("GOBIN environment variable was not set, unable to locate the locally installed terraform-provuder-uds binary")
+			return fmt.Errorf("GOBIN environment variable was not set, unable to locate the locally installed terraform-provider-uds binary")
 		}
 		providerPath := filepath.Join(goBinPath, config.TerraformProvider)
 		terraformProviderManifestDesc, err := pushFileToStore(store, providerPath, config.TerraformProvider)
