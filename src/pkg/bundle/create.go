@@ -46,7 +46,7 @@ func (b *Bundle) Create() error {
 			newPackage := types.Package{
 				Name:       pkg.Name,
 				Repository: pkg.Repository,
-				Ref:        pkg.Version,
+				Ref:        pkg.Ref,
 				Path:       pkg.Path,
 			}
 			b.bundle.Packages = append(b.bundle.Packages, newPackage)
@@ -102,7 +102,7 @@ func (b *Bundle) Create() error {
 	if b.cfg.CreateOpts.SigningKeyPath != "" {
 		// write the bundle to disk so we can sign it
 		bundlePath := filepath.Join(b.tmp, config.BundleYAML)
-		if err := zarfUtils.WriteYaml(bundlePath, &b.bundle, 0600); err != nil {
+		if err := zarfUtils.WriteYaml(bundlePath, &b.bundle, 0o600); err != nil {
 			return err
 		}
 

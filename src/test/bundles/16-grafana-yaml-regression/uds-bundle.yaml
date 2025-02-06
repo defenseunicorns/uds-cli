@@ -1,0 +1,20 @@
+# Copyright 2024 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+kind: UDSBundle
+metadata:
+  name: grafana-yaml-regression
+  description: test bundle with optional components in its pkgs
+  version: 0.0.1
+
+packages:
+  - name: init
+    repository: ghcr.io/zarf-dev/packages/init
+    # renovate: datasource=github-tags depName=zarf-dev/zarf
+    ref: v0.43.1
+
+  # deploys prometheus as a required component and upload-image as an optional component (with noOptionalComponents key)
+  - name: grafana-regression
+    # repository: localhost:888/grafana
+    path: ../../packages/grafana-regression/
+    ref: 0.0.1
