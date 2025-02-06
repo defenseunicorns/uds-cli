@@ -16,6 +16,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/pterm/pterm"
+	"github.com/ryboe/q"
 	"github.com/spf13/cobra"
 	zarfCLI "github.com/zarf-dev/zarf/src/cmd"
 	zarfConfig "github.com/zarf-dev/zarf/src/config"
@@ -92,6 +93,7 @@ func deploy(bndlClient *bundle.Bundle) error {
 
 		// Custom envvar that the provider reads to know to use the extracted Zarf packages
 		envMap["UDS_LOCAL_PATH_OVERRIDE"] = bndlClient.GetDefaultExtractPath()
+		q.Q(":: env map:", envMap)
 
 		// Run the `tofu apply` command
 		os.Args = []string{"tofu", chdirFlag, "apply", "-input=false", "-auto-approve", stateFlag}
@@ -210,6 +212,68 @@ func cliSetup(cmd *cobra.Command) error {
 		err := utils.ConfigureLogs(cmd)
 		if err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+// Plan performs validation, confirmation and deployment of a bundle
+func plan(bndlClient *bundle.Bundle) error {
+	var err error
+	if bundleCfg.TofuOpts.IsTofu {
+		_, _, _, err = bndlClient.PreDeployValidationTF()
+	} else {
+		_, _, _, err = bndlClient.PreDeployValidation()
+	}
+	if err != nil {
+		return fmt.Errorf("failed to validate bundle: %s", err.Error())
+	}
+
+	// confirm deployment
+	if ok := bndlClient.ConfirmBundleDeploy(); !ok {
+		return fmt.Errorf("bundle deployment cancelled")
+	}
+
+	// deploy the bundle
+	if bundleCfg.TofuOpts.IsTofu {
+		// extract the tarballs of the Zarf Packages within the bundle
+		if err := bndlClient.Extract(bndlClient.GetDefaultExtractPath()); err != nil {
+			return fmt.Errorf("failed to extract packages from budnle: %s", err.Error())
+		}
+
+		// Determine the location of the local tfstate file
+		stateFilepath, err := filepath.Abs(bndlClient.GetTofuStateFilepath())
+		if err != nil {
+			return fmt.Errorf("failed to locate path to tfstate file: %s", err.Error())
+		}
+		stateFlag := fmt.Sprintf("-state=%s", stateFilepath)
+
+		// Determine the location of the extracted *.tf files
+		chdirFlag := fmt.Sprintf("-chdir=%s", filepath.Dir(bndlClient.GetDefaultExtractPath()))
+
+		// configure extra environments variables to use during future tofu commands
+		envMap := make(map[string]string)
+
+		// Configure tofu to use the terraformrc file that came with the bundle so it knows where to locate the providers
+		customRCPath := filepath.Join(filepath.Dir(bndlClient.GetDefaultExtractPath()), config.TerraformRC)
+		envMap["TF_CLI_CONFIG_FILE"] = customRCPath
+
+		// Custom envvar that the provider reads to know to use the extracted Zarf packages
+		envMap["UDS_LOCAL_PATH_OVERRIDE"] = bndlClient.GetDefaultExtractPath()
+		q.Q(":: env map:", envMap)
+
+		// Run the `tofu apply` command
+		os.Args = []string{"tofu", chdirFlag, "plan", "-input=false", stateFlag}
+		err = useEmbeddedTofu(envMap)
+		if err != nil {
+			message.Warnf("unable to deploy bundle that was built from a .tf file: %s", err.Error())
+			return err
+		}
+	} else {
+		if err := bndlClient.Deploy(); err != nil {
+			bndlClient.ClearPaths()
+			return fmt.Errorf("failed to deploy bundle: %s", err.Error())
 		}
 	}
 

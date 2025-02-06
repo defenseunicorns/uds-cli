@@ -21,6 +21,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/ryboe/q"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/message"
@@ -51,24 +52,24 @@ func New(cfg *types.BundleConfig) (*Bundle, error) {
 		return nil, errors.New("bundler.New() called with nil config")
 	}
 
-	var (
-		bundle = &Bundle{
-			cfg: cfg,
-		}
-	)
+	bundle := &Bundle{
+		cfg: cfg,
+	}
 
 	tmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 	if err != nil {
 		return nil, fmt.Errorf("bundler unable to create temp directory: %w", err)
 	}
 	bundle.tmp = tmp
+	q.Q(" bundle tmp:", bundle.tmp)
 
 	return bundle, nil
 }
 
 // ClearPaths closes any files and clears out the paths used by Bundle
 func (b *Bundle) ClearPaths() {
-	_ = os.RemoveAll(b.tmp)
+	q.Q("-- clear paths called")
+	// _ = os.RemoveAll(b.tmp)
 }
 
 // ValidateBundleResources validates the bundle's metadata and package references

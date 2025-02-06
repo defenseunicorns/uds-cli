@@ -22,6 +22,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	goyaml "github.com/goccy/go-yaml"
+	"github.com/ryboe/q"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	zarfConfig "github.com/zarf-dev/zarf/src/config"
 	"github.com/zarf-dev/zarf/src/pkg/layout"
@@ -243,6 +244,7 @@ func (b *Bundle) PreDeployValidationTF() (string, string, string, error) {
 	if err != nil {
 		return "", "", "", err
 	}
+	q.Q("source: pre:", source)
 	b.cfg.DeployOpts.Source = source
 
 	// create a new provider
@@ -268,7 +270,7 @@ func (b *Bundle) PreDeployValidationTF() (string, string, string, error) {
 
 	// Copy the .tf contents from the file at `/{tmpdir}/blobs/sha256/{SHASUM}` to `/{tmpdir}/main.tf`
 	// This makes it a lot easier for tofu to find and use the config file
-	err = os.WriteFile(filepath.Join(b.tmp, "main.tf"), bundleTF, 0600)
+	err = os.WriteFile(filepath.Join(b.tmp, "main.tf"), bundleTF, 0o600)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -280,7 +282,7 @@ func (b *Bundle) PreDeployValidationTF() (string, string, string, error) {
 	}
 	b.tfConfig = *tfConfig
 
-	//read the file at conifg.BundleTFConfig and unmarshal it
+	//  read the file at conifg.BundleTFConfig and unmarshal it
 	message.Infof("Reading uds-tf-config.yaml at %s\n", filepaths[config.BundleTFConfig])
 	bundleTFConfigYAML, err := os.ReadFile(filepaths[config.BundleTFConfig])
 	if err != nil {
@@ -319,7 +321,7 @@ func (b *Bundle) PreDeployValidationTF() (string, string, string, error) {
 	if err != nil {
 		return "", "", "", err
 	}
-	if err := os.Chmod(filepath.Join(b.tmp, config.TerraformProvider), 0555); err != nil {
+	if err := os.Chmod(filepath.Join(b.tmp, config.TerraformProvider), 0o555); err != nil {
 		return "", "", "", err
 	}
 
