@@ -91,8 +91,19 @@ func SBOMExtractor(dst string, SBOMArtifactPathMap map[string]string) func(_ con
 func HandleSBOM(extractSBOM bool, SBOMArtifactPathMap map[string]string, bundleName, dstPath string) ([]string, error) {
 	var warns []string
 
+	// NOTE: As of Zarf v0.47.0 all package sboms contain a 'compare.html' file even if no SBOMs are present in the package
+	//       If the only files in the PathMap are 'compare.html' files, this the same as having no files in the PathMap
+	sbomArtifactCount := 0
+	if len(SBOMArtifactPathMap) > 0 {
+		for _, v := range SBOMArtifactPathMap {
+			if v != "compare.html" {
+				sbomArtifactCount++
+			}
+		}
+	}
+
 	if extractSBOM {
-		if len(SBOMArtifactPathMap) == 0 {
+		if len(SBOMArtifactPathMap) == 0 || sbomArtifactCount == 0 {
 			warns = append(warns, "Cannot extract, no SBOMs found in bundle")
 			return warns, nil
 		}
@@ -104,7 +115,7 @@ func HandleSBOM(extractSBOM bool, SBOMArtifactPathMap map[string]string, bundleN
 		if err != nil {
 			return warns, err
 		}
-	} else if len(SBOMArtifactPathMap) > 0 {
+	} else if len(SBOMArtifactPathMap) > 0 && sbomArtifactCount > 0 {
 		err := createSBOMArtifact(SBOMArtifactPathMap, bundleName)
 		if err != nil {
 			return warns, err
