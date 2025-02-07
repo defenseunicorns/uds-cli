@@ -51,7 +51,7 @@ jobs:
         run: uds run build-cli-linux-amd
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@4f3212b61783c3c68e8309a0f18a699764811cda # v3.27.1
+        uses: github/codeql-action/init@9e8d0789d4a0fa9ceb6b1738f7e269594bdd67f0 # v3.28.9
         env:
           CODEQL_EXTRACTOR_GO_BUILD_TRACING: on
         with:
@@ -60,6 +60,6 @@ jobs:
 
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@4f3212b61783c3c68e8309a0f18a699764811cda # v3.27.1
+        uses: github/codeql-action/analyze@9e8d0789d4a0fa9ceb6b1738f7e269594bdd67f0 # v3.28.9
         with:
           category: "/language:${{matrix.language}}"
