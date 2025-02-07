@@ -7,16 +7,11 @@
   ],
   "ignorePaths": [],
   "timezone": "America/New_York",
-  "repositories": [
-    "defenseunicorns/uds-cli"
-  ],
   "schedule": [
     "after 12pm every weekday",
     "before 11am every weekday"
   ],
   "dependencyDashboard": true,
-  "platform": "github",
-  "onboarding": false,
   "dependencyDashboardTitle": "Renovate Dashboard 🤖",
   "rebaseWhen": "conflicted",
   "commitBodyTable": true,
