@@ -2,23 +2,36 @@
   "enabled": true,
   "forkProcessing": "enabled",
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:base"],
+  "extends": [
+    "config:recommended"
+  ],
   "ignorePaths": [],
   "timezone": "America/New_York",
-  "repositories": ["defenseunicorns/uds-cli"],
-  "rebaseStalePrs": true,
-  "schedule": ["after 12pm and before 11am every weekday"],
+  "repositories": [
+    "defenseunicorns/uds-cli"
+  ],
+  "schedule": [
+    "after 12pm every weekday",
+    "before 11am every weekday"
+  ],
   "dependencyDashboard": true,
   "platform": "github",
   "onboarding": false,
   "dependencyDashboardTitle": "Renovate Dashboard 🤖",
   "rebaseWhen": "conflicted",
   "commitBodyTable": true,
-  "suppressNotifications": ["prIgnoreNotification"],
-  "postUpdateOptions": ["gomodTidy"],
+  "suppressNotifications": [
+    "prIgnoreNotification"
+  ],
+  "postUpdateOptions": [
+    "gomodTidy"
+  ],
   "packageRules": [
     {
-      "matchPackageNames": ["zarf-dev/zarf", "github.com/zarf-dev/zarf"],
+      "matchPackageNames": [
+        "zarf-dev/zarf",
+        "github.com/zarf-dev/zarf"
+      ],
       "groupName": "zarf"
     },
     {
@@ -30,27 +43,39 @@
       "groupName": "podinfo"
     },
     {
-      "matchFileNames": ["action.yaml"],
+      "matchFileNames": [
+        "action.yaml"
+      ],
       "groupName": "actions"
     }
   ],
-  "regexManagers": [
+  "customManagers": [
     {
-      "fileMatch": ["uds-bundle.yaml", "action.yaml"],
+      "customType": "regex",
+      "fileMatch": [
+        "uds-bundle.yaml",
+        "action.yaml"
+      ],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>.*) depName=(?<depName>.*)\\n\\s*(version|ref): (?<currentValue>.*)"
       ],
       "versioningTemplate": "semver"
     },
     {
-      "fileMatch": ["zarf.yaml"],
+      "customType": "regex",
+      "fileMatch": [
+        "zarf.yaml"
+      ],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>.*) depName=(?<depName>.*)\\n\\s*(-\\s.*:)(?<currentValue>.*)"
       ],
       "datasourceTemplate": "github-tags"
     },
     {
-      "fileMatch": ["generate-schema\\.sh"],
+      "customType": "regex",
+      "fileMatch": [
+        "generate-schema\\.sh"
+      ],
       "matchStrings": [
         "https://raw\\.githubusercontent\\.com/zarf-dev/zarf/v(?<currentValue>\\d+\\.\\d+\\.\\d+)/zarf\\.schema\\.json"
       ],
