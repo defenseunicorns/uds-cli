@@ -54,7 +54,7 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@e3008473beab00b12a94f9fcc7340124338d5c08 # v0.13.1
+        uses: ./.github/actions/save-logs
         with:
           suffix: ${{ matrix.test }}
 
@@ -76,7 +76,7 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@e3008473beab00b12a94f9fcc7340124338d5c08 # v0.13.1
+        uses: ./.github/actions/save-logs
         with:
           suffix: test-dev
 
@@ -98,7 +98,7 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@e3008473beab00b12a94f9fcc7340124338d5c08 # v0.13.1
+        uses: ./.github/actions/save-logs
         with:
           suffix: test-variables
 
@@ -120,7 +120,7 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@e3008473beab00b12a94f9fcc7340124338d5c08 # v0.13.1
+        uses: ./.github/actions/save-logs
         with:
           suffix: test-optional-bundle
 
@@ -151,7 +151,7 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@e3008473beab00b12a94f9fcc7340124338d5c08 # v0.13.1
+        uses: ./.github/actions/save-logs
         with:
           suffix: test-vendor
 
@@ -177,6 +177,6 @@ jobs:
 
       - name: Save logs
         if: always()
-        uses: defenseunicorns/uds-common/.github/actions/save-logs@e3008473beab00b12a94f9fcc7340124338d5c08 # v0.13.1
+        uses: ./.github/actions/save-logs
         with:
           suffix: test-engine

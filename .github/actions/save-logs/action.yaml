@@ -1,0 +1,47 @@
+name: save-logs
+description: Save debug logs
+
+inputs:
+  suffix:
+    description: Suffix to append to the debug log
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Pull logs from containerd
+      run: |
+        CONTAINER_NAME="k3d-uds-server-0"
+        if docker ps | grep -q "$CONTAINER_NAME"; then
+          echo "Container $CONTAINER_NAME is running. Proceeding with log copy..."
+          docker cp ${CONTAINER_NAME}:/var/log/ /tmp/uds-containerd-logs
+        else
+          echo "Container $CONTAINER_NAME is not running. Skipping log copy."
+        fi
+      shell: bash
+
+    - name: Dump Node Logs
+      run: |
+        docker ps --filter "name=k3d" --format "{{.Names}}" | while read line; do
+          docker logs "$line" 2> /tmp/$line.log
+        done
+      shell: bash
+
+    - name: Fix log permissions
+      run: |
+        sudo chown $USER /tmp/zarf-*.log || echo ""
+        sudo chown $USER /tmp/uds-*.log || echo ""
+      shell: bash
+
+    - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+      with:
+        name: debug-log${{ inputs.suffix }}
+        path: |
+          /tmp/zarf-*.log
+          /tmp/uds-*.log
+          /tmp/maru-*.log
+          /tmp/debug-*.log
+          /tmp/uds-containerd-logs
+          /tmp/k3d-uds-*.log
+          /tmp/oscal-assessment-results.yaml
