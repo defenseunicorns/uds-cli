@@ -5,12 +5,10 @@
   "extends": [
     "config:recommended"
   ],
+  "branchConcurrentLimit": 0,
+  "prConcurrentLimit": 0,
+  "prHourlyLimit": 0,
   "ignorePaths": [],
-  "timezone": "America/New_York",
-  "schedule": [
-    "after 12pm every weekday",
-    "before 11am every weekday"
-  ],
   "dependencyDashboard": true,
   "dependencyDashboardTitle": "Renovate Dashboard 🤖",
   "rebaseWhen": "conflicted",
@@ -23,25 +21,27 @@
   ],
   "packageRules": [
     {
+      "matchFileNames": [".github/**"],
+      "groupName": "github-actions",
+      "commitMessageTopic": "github actions"
+    },
+    {
+      "matchFileNames": ["src/test/**", "tasks/**"],
+      "groupName": "test-dependencies",
+      "commitMessageTopic": "test dependencies"
+    },
+    {
+      "matchFileNames": ["go.mod", "go.sum"],
+      "groupName": "go-dependencies",
+      "commitMessageTopic": "go dependencies"
+    },
+    {
       "matchPackageNames": [
         "zarf-dev/zarf",
         "github.com/zarf-dev/zarf"
       ],
-      "groupName": "zarf"
-    },
-    {
-      "matchPackageNames": [
-        "stefanprodan/podinfo",
-        "github.com/stefanprodan/podinfo",
-        "podinfo"
-      ],
-      "groupName": "podinfo"
-    },
-    {
-      "matchFileNames": [
-        "action.yaml"
-      ],
-      "groupName": "actions"
+      "groupName": "zarf",
+      "commitMessageTopic": "zarf"
     }
   ],
   "customManagers": [
