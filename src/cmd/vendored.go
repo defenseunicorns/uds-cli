@@ -21,6 +21,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
+	"github.com/defenseunicorns/uds-cli/src/pkg/featureflags"
 	"github.com/spf13/cobra"
 	zarfCLI "github.com/zarf-dev/zarf/src/cmd"
 	zarfConfig "github.com/zarf-dev/zarf/src/config"
@@ -121,6 +122,10 @@ var planCmd = &cobra.Command{
 	Short: lang.CmdBundlePlanShort,
 	// Args:  cobra.MaximumNArgs(0),
 	RunE: func(_ *cobra.Command, _ []string) error {
+		if !featureflags.IsEnabled("tofu") {
+			message.Warn("The 'plan' command is not enabled. Use the '--feature=tofu' flag or set the FEATURE_FLAG environment variable.")
+			return nil
+		}
 		return useEmbeddedTofu()
 	},
 	DisableFlagParsing: true,
@@ -131,6 +136,11 @@ var applyCmd = &cobra.Command{
 	Short: lang.CmdBundleApplyShort,
 	Args:  cobra.MaximumNArgs(0),
 	RunE: func(_ *cobra.Command, _ []string) error {
+		if !featureflags.IsEnabled("tofu") {
+			message.Warn("The 'apply' command is not enabled. Use the '--feature=tofu' flag or set the FEATURE_FLAG environment variable.")
+			return nil
+		}
+
 		return useEmbeddedTofu()
 	},
 	DisableFlagParsing: true,
@@ -144,6 +154,23 @@ var scanCmd = &cobra.Command{
 	Run: func(_ *cobra.Command, _ []string) {
 		os.Args = os.Args[1:] // grab 'scan' and onward from the CLI args
 		securityHub.Execute(os.Args)
+	},
+	DisableFlagParsing: true,
+}
+
+// uds init [bundle-name] will initialize tofu in the current directory. If a
+// bundle name is provided, it will use the bundle as the source for the Tofu
+// providers and uds-bundle.tf file.
+var initCmd = &cobra.Command{
+	Use:   "init [BUNDLE_TARBALL]",
+	Short: lang.CmdBundleApplyShort,
+	Args:  cobra.MaximumNArgs(0),
+	RunE: func(_ *cobra.Command, _ []string) error {
+		if !featureflags.IsEnabled("tofu") {
+			fmt.Println("The 'init' command is not enabled. Use the '--feature=tofu' flag or set the FEATURE_FLAG environment variable.")
+			return nil
+		}
+		return useEmbeddedTofu()
 	},
 	DisableFlagParsing: true,
 }
@@ -170,4 +197,5 @@ func init() {
 	rootCmd.AddCommand(scanCmd)  // uds-security-hub CLI command
 	rootCmd.AddCommand(planCmd)  // tofu plan
 	rootCmd.AddCommand(applyCmd) // tofu apply
+	rootCmd.AddCommand(initCmd)  // tofu init
 }
