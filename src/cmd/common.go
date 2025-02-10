@@ -16,7 +16,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/pterm/pterm"
-	"github.com/ryboe/q"
 	"github.com/spf13/cobra"
 	zarfCLI "github.com/zarf-dev/zarf/src/cmd"
 	zarfConfig "github.com/zarf-dev/zarf/src/config"
@@ -93,7 +92,6 @@ func deploy(bndlClient *bundle.Bundle) error {
 
 		// Custom envvar that the provider reads to know to use the extracted Zarf packages
 		envMap["UDS_LOCAL_PATH_OVERRIDE"] = bndlClient.GetDefaultExtractPath()
-		q.Q(":: env map:", envMap)
 
 		// Run the `tofu apply` command
 		os.Args = []string{"tofu", chdirFlag, "apply", "-input=false", "-auto-approve", stateFlag}
@@ -261,7 +259,6 @@ func plan(bndlClient *bundle.Bundle) error {
 
 		// Custom envvar that the provider reads to know to use the extracted Zarf packages
 		envMap["UDS_LOCAL_PATH_OVERRIDE"] = bndlClient.GetDefaultExtractPath()
-		q.Q(":: env map:", envMap)
 
 		// Run the `tofu apply` command
 		os.Args = []string{"tofu", chdirFlag, "plan", "-input=false", stateFlag}

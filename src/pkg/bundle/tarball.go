@@ -21,7 +21,6 @@ import (
 	av3 "github.com/mholt/archiver/v3"
 	av4 "github.com/mholt/archiver/v4"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/ryboe/q"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"oras.land/oras-go/v2"
@@ -188,7 +187,6 @@ func (tp *tarballBundleProvider) LoadBundle(_ types.BundlePullOptions, _ int) (*
 
 // LoadBundleMetadata loads a bundle's metadata from a tarball
 func (tp *tarballBundleProvider) LoadBundleMetadata() (types.PathMap, error) {
-	q.Q("-- here in tar load bundle meta")
 	bundleRootManifest, err := tp.getBundleManifest()
 	if err != nil {
 		return nil, err
@@ -201,9 +199,7 @@ func (tp *tarballBundleProvider) LoadBundleMetadata() (types.PathMap, error) {
 		layer := bundleRootManifest.Locate(path)
 		if !oci.IsEmptyDescriptor(layer) {
 			pathInTarball := filepath.Join(config.BlobsDir, layer.Digest.Encoded())
-			q.Q(":: path in tarbal:", pathInTarball)
 			abs := filepath.Join(tp.dst, pathInTarball)
-			q.Q("ab:", abs)
 			filepaths[path] = abs
 			if !helpers.InvalidPath(abs) && helpers.SHAsMatch(abs, layer.Digest.Encoded()) == nil {
 				continue

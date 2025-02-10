@@ -22,7 +22,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	goyaml "github.com/goccy/go-yaml"
-	"github.com/ryboe/q"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	zarfConfig "github.com/zarf-dev/zarf/src/config"
 	"github.com/zarf-dev/zarf/src/pkg/layout"
@@ -244,7 +243,6 @@ func (b *Bundle) PreDeployValidationTF() (string, string, string, error) {
 	if err != nil {
 		return "", "", "", err
 	}
-	q.Q("source: pre:", source)
 	b.cfg.DeployOpts.Source = source
 
 	// create a new provider

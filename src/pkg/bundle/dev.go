@@ -17,7 +17,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/ryboe/q"
 	zarfTools "github.com/zarf-dev/zarf/src/cmd/tools"
 	"github.com/zarf-dev/zarf/src/pkg/layout"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
@@ -99,7 +98,6 @@ func (b *Bundle) SetDeploySource(srcDir string) {
 
 func (b *Bundle) extractPackage(path string, pkg types.Package) error {
 	pkgTmp, err := zarfUtils.MakeTempDir("")
-	q.Q("-- pkgtmp dir:", pkgTmp)
 	if err != nil {
 		return err
 	}
@@ -126,7 +124,6 @@ func (b *Bundle) extractPackage(path string, pkg types.Package) error {
 	// NOTE: filepath.Join() strips the trailing '/' and we need that for this command
 	archiveFilePath := pkgTmp + string(filepath.Separator)
 	prefix := "zarf-package"
-	q.Q("-- pkg name:", pkg.Name)
 	if pkg.Name == "init" {
 		prefix = "zarf"
 	}
