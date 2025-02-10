@@ -113,7 +113,7 @@ func (lo *LocalBundle) create(signature []byte) error {
 	// push bundle manifest to OCI stoer
 	var bundleManifestDesc ocispec.Descriptor
 	if lo.isTofu {
-		bundleManifestDesc, err = pushBundleTFToStore(store, filepath.Join(lo.sourceDir, config.BundleTF))
+		bundleManifestDesc, err = pushFileToStore(store, filepath.Join(lo.sourceDir, config.BundleTF), config.BundleTF)
 	} else {
 		bundleManifestDesc, err = pushBundleYAMLToStore(store, bundle)
 	}
@@ -121,21 +121,37 @@ func (lo *LocalBundle) create(signature []byte) error {
 		return err
 	}
 
-	// append uds-bundle.yaml layer to rootManifest and grab path for archiving
+	// append uds-bundle.yaml (or uds-bundle.tf) layer to rootManifest and grab path for archiving
 	rootManifest.Layers = append(rootManifest.Layers, bundleManifestDesc)
 	digest := bundleManifestDesc.Digest.Encoded()
 	artifactPathMap[filepath.Join(lo.tmpDstDir, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
 
+	// if source is a .tf file, push an additional config file and the uds_provider to the bundle
 	if lo.isTofu {
-		bundleConfigManifestDesc, err := pushBundleTFConfigToStore(store, bundle)
+		// append uds-tf-config.yaml layer to rootManifest and grab path for archiving
+		tfConfig := types.TFConfigHelper{Packages: bundle.Packages}
+		bundleConfigManifestDesc, err := pushBundleTFConfigToStore(store, tfConfig)
 		if err != nil {
 			return err
 		}
-
-		// append uds-bundle.yaml layer to rootManifest and grab path for archiving
 		rootManifest.Layers = append(rootManifest.Layers, bundleConfigManifestDesc)
 		digest := bundleConfigManifestDesc.Digest.Encoded()
 		artifactPathMap[filepath.Join(lo.tmpDstDir, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
+
+		// append the terraform provider binary to the bundle
+		// TODO:: This is pulling from the local filesystem until we start publishing the provider externally
+		goBinPath := os.Getenv("GOBIN")
+		if goBinPath == "" {
+			return fmt.Errorf("GOBIN environment variable was not set, unable to locate the locally installed terraform-provider-uds binary")
+		}
+		providerPath := filepath.Join(goBinPath, config.TerraformProvider)
+		terraformProviderManifestDesc, err := pushFileToStore(store, providerPath, config.TerraformProvider)
+		if err != nil {
+			return err
+		}
+		rootManifest.Layers = append(rootManifest.Layers, terraformProviderManifestDesc)
+		terraformProviderDigest := terraformProviderManifestDesc.Digest.Encoded()
+		artifactPathMap[filepath.Join(lo.tmpDstDir, config.BlobsDir, terraformProviderDigest)] = filepath.Join(config.BlobsDir, terraformProviderDigest)
 	}
 
 	// create and push bundle manifest config
@@ -200,9 +216,8 @@ func (lo *LocalBundle) create(signature []byte) error {
 	return nil
 }
 
-func pushBundleTFConfigToStore(store *ocistore.Store, bundle *types.UDSBundle) (ocispec.Descriptor, error) {
-	tfConfigHelper := types.TFConfigHelper{Packages: bundle.Packages}
-	configYAMLBytes, err := goyaml.Marshal(tfConfigHelper)
+func pushBundleTFConfigToStore(store *ocistore.Store, tfConfig types.TFConfigHelper) (ocispec.Descriptor, error) {
+	configYAMLBytes, err := goyaml.Marshal(tfConfig)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
@@ -214,18 +229,19 @@ func pushBundleTFConfigToStore(store *ocistore.Store, bundle *types.UDSBundle) (
 	return configYAMLDesc, err
 }
 
-func pushBundleTFToStore(store *ocistore.Store, bundleSourcePath string) (ocispec.Descriptor, error) {
-	bundleTFBytes, err := os.ReadFile(bundleSourcePath)
+func pushFileToStore(store *ocistore.Store, filePath string, title string) (ocispec.Descriptor, error) {
+	fileBytes, err := os.ReadFile(filePath)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
 
-	bundleTFDesc := content.NewDescriptorFromBytes(zoci.ZarfLayerMediaTypeBlob, bundleTFBytes)
-	bundleTFDesc.Annotations = map[string]string{
-		ocispec.AnnotationTitle: config.BundleTF,
+	fileDesc := content.NewDescriptorFromBytes(zoci.ZarfLayerMediaTypeBlob, fileBytes)
+	fileDesc.Annotations = map[string]string{
+		ocispec.AnnotationTitle: title,
 	}
-	err = store.Push(context.TODO(), bundleTFDesc, bytes.NewReader(bundleTFBytes))
-	return bundleTFDesc, err
+
+	err = store.Push(context.TODO(), fileDesc, bytes.NewReader(fileBytes))
+	return fileDesc, err
 }
 
 // pushBundleYAMLToStore pushes the uds-bundle.yaml to a provided OCI store

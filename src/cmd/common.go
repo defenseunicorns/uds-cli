@@ -83,9 +83,19 @@ func deploy(bndlClient *bundle.Bundle) error {
 		// Determine the location of the extracted *.tf files
 		chdirFlag := fmt.Sprintf("-chdir=%s", filepath.Dir(bndlClient.GetDefaultExtractPath()))
 
+		// configure extra environments variables to use during future tofu commands
+		envMap := make(map[string]string)
+
+		// Configure tofu to use the terraformrc file that came with the bundle so it knows where to locate the providers
+		customRCPath := filepath.Join(filepath.Dir(bndlClient.GetDefaultExtractPath()), config.TerraformRC)
+		envMap["TF_CLI_CONFIG_FILE"] = customRCPath
+
+		// Custom envvar that the provider reads to know to use the extracted Zarf packages
+		envMap["UDS_LOCAL_PATH_OVERRIDE"] = bndlClient.GetDefaultExtractPath()
+
 		// Run the `tofu apply` command
 		os.Args = []string{"tofu", chdirFlag, "apply", "-input=false", "-auto-approve", stateFlag}
-		err = useEmbeddedTofu()
+		err = useEmbeddedTofu(envMap)
 		if err != nil {
 			message.Warnf("unable to deploy bundle that was built from a .tf file: %s", err.Error())
 			return err

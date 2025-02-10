@@ -43,12 +43,12 @@ resource "uds_bundle_metadata" "basic" {
 
 resource "uds_package" "init" {
   repository = "ghcr.io/zarf-dev/packages/init"
-  version = "v0.46.0"
+  ref = "v0.46.0"
 }
 
 resource "uds_package" "prometheus" {
   repository = "localhost:888/prometheus"
-  version = "v0.1.0"
+  ref = "v0.1.0"
   depends_on = [
     uds_package.init
   ]
@@ -65,13 +65,13 @@ resource "uds_package" "prometheus" {
 					{
 						Name:       "init",
 						Repository: "ghcr.io/zarf-dev/packages/init",
-						Version:    "v0.46.0",
+						Ref:        "v0.46.0",
 						Type:       "uds_package",
 					},
 					{
 						Name:       "prometheus",
 						Repository: "localhost:888/prometheus",
-						Version:    "v0.1.0",
+						Ref:        "v0.1.0",
 						Type:       "uds_package",
 					},
 				},
@@ -123,7 +123,7 @@ provider "uds" {}
 
 resource "uds_package" "init" {
   repository = "ghcr.io/zarf-dev/packages/init"
-  version = "v0.46.0"
+  ref = "v0.46.0"
 }
 
 resource "aws_instance" "test" {
@@ -145,7 +145,7 @@ resource "aws_instance" "test" {
 					{
 						Name:       "init",
 						Repository: "ghcr.io/zarf-dev/packages/init",
-						Version:    "v0.46.0",
+						Ref:        "v0.46.0",
 						Type:       "uds_package",
 					},
 				},

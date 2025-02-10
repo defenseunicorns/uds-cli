@@ -6,9 +6,11 @@ package tfparser
 import (
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -23,7 +25,7 @@ type Packages struct {
 	Name       string `json:"name"`
 	Type       string `json:"type"`
 	Repository string `json:"repository"`
-	Version    string `json:"version,omitempty"`
+	Ref        string `json:"ref,omitempty"`
 	Path       string `json:"path,omitempty"`
 
 	Kind       string   `json:"kind"`
@@ -50,6 +52,36 @@ type BundleMetadata struct {
 	Description  *string `json:"description"`
 	URL          *string `json:"url"`
 	Architecture *string `json:"architecture"`
+}
+
+type TerraformRC struct {
+	ProviderInstallation struct {
+		DevOverrides map[string]string `json:"dev_overrides"`
+		Direct       map[string]string `json:"direct"`
+	} `json:"provider_installation"`
+}
+
+func (rc TerraformRC) WriteHCL(filepath string) error {
+	f := hclwrite.NewEmptyFile()
+	rootBody := f.Body()
+
+	// Create provider_installation block
+	providerBlock := rootBody.AppendNewBlock("provider_installation", nil)
+	providerBody := providerBlock.Body()
+
+	// Add dev_overrides
+	if len(rc.ProviderInstallation.DevOverrides) > 0 {
+		devOverridesBlock := providerBody.AppendNewBlock("dev_overrides", nil)
+		devOverridesBody := devOverridesBlock.Body()
+		for key, value := range rc.ProviderInstallation.DevOverrides {
+			devOverridesBody.SetAttributeValue(fmt.Sprintf("\"%s\"", key), cty.StringVal(value))
+		}
+	}
+
+	// NOTE: This block is necessary, even if empty, so that tofu is able to find providers not listed in dev_overrides
+	providerBody.AppendNewBlock("direct", nil)
+
+	return os.WriteFile(filepath, f.Bytes(), 0600)
 }
 
 // ParseFile reads and parses a Terraform file, returning the structured configuration
@@ -188,12 +220,12 @@ func parseUDSPackageBlock(block *hcl.Block) (*Packages, error) {
 		pkg.Repository = value.AsString()
 	}
 
-	if attr, exists := attrs["version"]; exists {
+	if attr, exists := attrs["ref"]; exists {
 		value, diags := attr.Expr.Value(ctx)
 		if diags.HasErrors() {
 			return nil, fmt.Errorf("version error: %s", diags.Error())
 		}
-		pkg.Version = value.AsString()
+		pkg.Ref = value.AsString()
 	}
 
 	if attr, exists := attrs["path"]; exists {

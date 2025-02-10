@@ -92,7 +92,7 @@ var zarfCli = &cobra.Command{
 	DisableFlagParsing: true,
 }
 
-func useEmbeddedTofu() error {
+func useEmbeddedTofu(envMap map[string]string) error {
 	// Create an executable tofu binary
 	tmpTofuBinary, err := os.CreateTemp(config.CommonOptions.TempDirectory, "tofu")
 	if err != nil {
@@ -112,6 +112,10 @@ func useEmbeddedTofu() error {
 	cmd := osExec.Command(tmpTofuBinary.Name(), os.Args...) //nolint:gosec
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Env = os.Environ()
+	for key, val := range envMap {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, val))
+	}
 	err = cmd.Run()
 	return err
 }
@@ -121,7 +125,7 @@ var planCmd = &cobra.Command{
 	Short: lang.CmdBundlePlanShort,
 	// Args:  cobra.MaximumNArgs(0),
 	RunE: func(_ *cobra.Command, _ []string) error {
-		return useEmbeddedTofu()
+		return useEmbeddedTofu(nil)
 	},
 	DisableFlagParsing: true,
 }
@@ -131,7 +135,7 @@ var applyCmd = &cobra.Command{
 	Short: lang.CmdBundleApplyShort,
 	Args:  cobra.MaximumNArgs(0),
 	RunE: func(_ *cobra.Command, _ []string) error {
-		return useEmbeddedTofu()
+		return useEmbeddedTofu(nil)
 	},
 	DisableFlagParsing: true,
 }
