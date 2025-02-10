@@ -101,7 +101,7 @@ func (b *Bundle) extractPackage(path string, pkg types.Package) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(pkgTmp)
+	// defer os.RemoveAll(pkgTmp)
 
 	nsOverrides := sources.NamespaceOverrideMap{}
 	sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
@@ -123,7 +123,11 @@ func (b *Bundle) extractPackage(path string, pkg types.Package) error {
 
 	// NOTE: filepath.Join() strips the trailing '/' and we need that for this command
 	archiveFilePath := pkgTmp + string(filepath.Separator)
-	tarballName := fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", pkg.Name, loadedPkg.Metadata.Architecture, loadedPkg.Metadata.Version)
+	prefix := "zarf-package"
+	if pkg.Name == "init" {
+		prefix = "zarf"
+	}
+	tarballName := fmt.Sprintf("%s-%s-%s-%s.tar.zst", prefix, pkg.Name, loadedPkg.Metadata.Architecture, loadedPkg.Metadata.Version)
 	archiveCmd := zarfTools.NewArchiverCompressCommand()
 	archiveCmd.SetArgs([]string{archiveFilePath, filepath.Join(path, tarballName)})
 	err = archiveCmd.Execute()

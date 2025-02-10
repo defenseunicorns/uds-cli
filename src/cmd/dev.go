@@ -58,6 +58,42 @@ var tofuDeployCmd = &cobra.Command{
 	},
 }
 
+var tofuPlanyCmd = &cobra.Command{
+	Use:     "tofu-plan [BUNDLE_TARBALL|OCI_REF]",
+	Aliases: []string{"d"},
+	Short:   lang.CmdBundleDeployShort,
+	Args:    cobra.MaximumNArgs(1),
+	RunE: func(_ *cobra.Command, args []string) error {
+		config.CommonOptions.Confirm = true
+
+		var err error
+		bundleCfg.DeployOpts.Source, err = chooseBundle(args)
+		if err != nil {
+			return err
+		}
+		configureZarf()
+
+		// set DeployOptions.Config if exists
+		if config := v.ConfigFileUsed(); config != "" {
+			bundleCfg.DeployOpts.Config = config
+		}
+
+		bundleCfg.TofuOpts.IsTofu = true
+
+		// create new bundle client and deploy
+		bndlClient, err := bundle.New(&bundleCfg)
+		if err != nil {
+			return err
+		}
+		defer bndlClient.ClearPaths()
+		err = plan(bndlClient)
+		if err != nil {
+			return err
+		}
+		return nil
+	},
+}
+
 var tofuCreateCmd = &cobra.Command{
 	Use:     "tofu-create [DIRECTORY]",
 	Aliases: []string{"c"},
@@ -225,7 +261,7 @@ func isLocalBundle(src string) bool {
 // validateDevDeployFlags validates the flags for dev deploy
 func validateDevDeployFlags(isLocalBundle bool) error {
 	if !isLocalBundle {
-		//Throw error if trying to run with --flavor or --force-create flag with remote bundle
+		// Throw error if trying to run with --flavor or --force-create flag with remote bundle
 		if len(bundleCfg.DevDeployOpts.Flavor) > 0 || bundleCfg.DevDeployOpts.ForceCreate {
 			return fmt.Errorf("cannot use --flavor or --force-create flags with remote bundle")
 		}
@@ -270,4 +306,6 @@ func init() {
 	devCmd.AddCommand(tofuCreateCmd)
 	devCmd.AddCommand(tofuDeployCmd)
 	tofuDeployCmd.Flags().StringVar(&bundleCfg.TofuOpts.TFStateFilepath, "tf-state", "terraform.tfstate", "Path to TF statefile")
+	devCmd.AddCommand(tofuPlanyCmd)
+	tofuPlanyCmd.Flags().StringVar(&bundleCfg.TofuOpts.TFStateFilepath, "tf-state", "terraform.tfstate", "Path to TF statefile")
 }

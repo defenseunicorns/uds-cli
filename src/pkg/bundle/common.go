@@ -51,11 +51,9 @@ func New(cfg *types.BundleConfig) (*Bundle, error) {
 		return nil, errors.New("bundler.New() called with nil config")
 	}
 
-	var (
-		bundle = &Bundle{
-			cfg: cfg,
-		}
-	)
+	bundle := &Bundle{
+		cfg: cfg,
+	}
 
 	tmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 	if err != nil {
