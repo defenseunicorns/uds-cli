@@ -12,6 +12,7 @@ import (
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/tfparser"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	av3 "github.com/mholt/archiver/v3"
@@ -33,8 +34,18 @@ func (b *Bundle) Publish() error {
 	if err != nil {
 		return err
 	}
-	if err := utils.ReadYAMLStrict(filepaths[config.BundleYAML], &b.bundle); err != nil {
-		return err
+
+	_, err = os.Stat(filepaths[config.BundleTF])
+	if err == nil {
+		// Parse the 'uds-bundle.tf' file into the bundle struct
+		if err := tfparser.ParseBundle(filepaths[config.BundleTF], filepaths[config.BundleTFConfig], &b.bundle); err != nil {
+			return err
+		}
+	} else {
+		// Parse the 'uds-bundle.yaml' file into the bundle struct
+		if err := utils.ReadYAMLStrict(filepaths[config.BundleYAML], &b.bundle); err != nil {
+			return err
+		}
 	}
 	err = os.RemoveAll(filepath.Join(b.tmp, "blobs")) // clear tmp dir
 	if err != nil {

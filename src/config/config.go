@@ -123,5 +123,14 @@ func GetArch(archs ...string) string {
 
 var (
 	// BundleAlwaysPull is a list of paths that will always be pulled from the remote repository.
-	BundleAlwaysPull = []string{BundleYAML, BundleYAMLSignature}
+	BundleAlwaysPull = []string{BundleYAML, BundleYAMLSignature, BundleTF, BundleTFConfig, TerraformProvider}
+
+	// UDSLayerNames is a map representation of BundleAlwaysPull for easy indexing
+	UDSLayerNames = map[string]bool{
+		BundleYAML:          true,
+		BundleYAMLSignature: true,
+		BundleTF:            true,
+		BundleTFConfig:      true,
+		TerraformProvider:   true,
+	}
 )

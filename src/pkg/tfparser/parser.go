@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"os"
 
+	goyaml "github.com/goccy/go-yaml"
+
+	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -309,6 +312,33 @@ func parseUDSBundleMetadataBlock(block *hcl.Block) (*BundleMetadata, error) {
 	}
 
 	return metadata, nil
+}
+
+func ParseBundle(tfPath string, tfConfigPath string, bundle *types.UDSBundle) error {
+	tfConfig, err := ParseFile(tfPath)
+	if err != nil {
+		return err
+	}
+
+	bundle.Kind = "UDSBundle"
+	bundle.Metadata = types.UDSMetadata{
+		Name:         tfConfig.Metadata.Name,
+		Version:      tfConfig.Metadata.Version,
+		Architecture: *tfConfig.Metadata.Architecture,
+		Description:  *tfConfig.Metadata.Description,
+	}
+
+	// todo: we also read the SHAs from the uds-bundle.yaml here, should we refactor so that we use the bundle's root manifest?
+	bundleTFConfigYAML, err := os.ReadFile(tfConfigPath)
+	if err != nil {
+		return err
+	}
+	tfHelperConfig := types.TFConfigHelper{}
+	if err := goyaml.Unmarshal(bundleTFConfigYAML, &tfHelperConfig); err != nil {
+		return err
+	}
+	bundle.Packages = tfHelperConfig.Packages
+	return nil
 }
 
 // stringToPtr is a convienence method to convert a string to a *string

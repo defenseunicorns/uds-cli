@@ -111,7 +111,7 @@ func (b *Bundle) Pull() error {
 
 	// re-map the paths to be relative to the cache directory
 	for sha, abs := range filepaths {
-		if sha == config.BundleYAML || sha == config.BundleYAMLSignature {
+		if _, ok := config.UDSLayerNames[sha]; ok {
 			sha = filepath.Base(abs)
 		}
 		pathMap[abs] = filepath.Join(config.BlobsDir, sha)
