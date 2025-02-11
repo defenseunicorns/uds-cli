@@ -17,7 +17,9 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	zarfTools "github.com/zarf-dev/zarf/src/cmd/tools"
+	zarfCmd "github.com/zarf-dev/zarf/src/cmd"
+
+	// zarfTools "github.com/zarf-dev/zarf/src/cmd/tools"
 	"github.com/zarf-dev/zarf/src/pkg/layout"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
@@ -124,9 +126,9 @@ func (b *Bundle) extractPackage(path string, pkg types.Package) error {
 	// NOTE: filepath.Join() strips the trailing '/' and we need that for this command
 	archiveFilePath := pkgTmp + string(filepath.Separator)
 	tarballName := fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", pkg.Name, loadedPkg.Metadata.Architecture, loadedPkg.Metadata.Version)
-	archiveCmd := zarfTools.NewArchiverCompressCommand()
-	archiveCmd.SetArgs([]string{archiveFilePath, filepath.Join(path, tarballName)})
-	err = archiveCmd.Execute()
+	zarfCmd := zarfCmd.NewZarfCommand()
+	zarfCmd.SetArgs([]string{"tools", "archiver", "compress", archiveFilePath, filepath.Join(path, tarballName)})
+	err = zarfCmd.Execute()
 	if err != nil {
 		return err
 	}
