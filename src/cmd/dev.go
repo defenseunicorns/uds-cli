@@ -71,6 +71,7 @@ var tofuCreateCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
+		config.CommonOptions.Confirm = true
 		configureZarf()
 		srcDir, err := os.Getwd()
 		if err != nil {
