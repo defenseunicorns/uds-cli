@@ -16,6 +16,7 @@ import (
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/cache"
+	"github.com/defenseunicorns/uds-cli/src/pkg/tfparser"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
@@ -141,13 +142,21 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := utils.ReadYAMLStrict(filepaths[config.BundleYAML], &bundle); err != nil {
-		return nil, nil, err
-	}
 
-	// validate the sig (if present) before pulling the whole bundle
-	if err := ValidateBundleSignature(filepaths[config.BundleYAML], filepaths[config.BundleYAMLSignature], opts.PublicKeyPath); err != nil {
-		return nil, nil, err
+	if _, err := os.Stat(filepaths[config.BundleYAML]); err == nil {
+		// Parse the 'uds-bundle.yaml' file into the bundle struct
+		if err := utils.ReadYAMLStrict(filepaths[config.BundleYAML], &bundle); err != nil {
+			return nil, nil, err
+		}
+		// validate the sig (if present) before pulling the whole bundle
+		if err := ValidateBundleSignature(filepaths[config.BundleYAML], filepaths[config.BundleYAMLSignature], opts.PublicKeyPath); err != nil {
+			return nil, nil, err
+		}
+	} else {
+		// Parse the 'uds-bundle.tf' file into the bundle struct
+		if err := tfparser.ParseBundle(filepaths[config.BundleTF], filepaths[config.BundleTFConfig], &bundle); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	var layersToPull []ocispec.Descriptor

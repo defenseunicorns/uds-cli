@@ -259,9 +259,11 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	// push bundle layers to remote
 	for _, manifestDesc := range bundleRootManifest.Layers {
 		layersToPush = append(layersToPush, manifestDesc)
-		if manifestDesc.Annotations[ocispec.AnnotationTitle] == config.BundleYAML {
-			continue // uds-bundle.yaml doesn't have layers
+		if _, ok := config.UDSLayerNames[manifestDesc.Annotations[ocispec.AnnotationTitle]]; ok {
+			// UDSLayers (not Zarf Packages) do not have recursive layers to process
+			continue
 		}
+
 		layers, estimatedPkgSize, err := tp.getZarfLayers(store, manifestDesc)
 		estimatedBytes += estimatedPkgSize
 		if err != nil {
