@@ -73,6 +73,7 @@ func deploy(bndlClient *bundle.Bundle) error {
 
 // configureZarf copies configs from UDS-CLI to Zarf
 func configureZarf() {
+	zarfCLI.LogFormat = "legacy"
 	zarfConfig.CommonOptions = zarfTypes.ZarfCommonOptions{
 		Insecure:       config.CommonOptions.Insecure,
 		TempDirectory:  config.CommonOptions.TempDirectory,
