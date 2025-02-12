@@ -1,8 +1,6 @@
 module github.com/defenseunicorns/uds-cli
 
-go 1.23.3
-
-toolchain go1.23.4
+go 1.23.6
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
@@ -12,9 +10,9 @@ require (
 	github.com/defenseunicorns/pkg/exec v0.0.1
 	github.com/defenseunicorns/pkg/helpers/v2 v2.0.1
 	github.com/defenseunicorns/pkg/oci v1.0.2
-	github.com/defenseunicorns/uds-security-hub v0.0.7
+	github.com/defenseunicorns/uds-security-hub v0.2.0
 	github.com/fsnotify/fsnotify v1.8.0
-	github.com/goccy/go-yaml v1.15.17
+	github.com/goccy/go-yaml v1.15.22
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/mholt/archiver/v4 v4.0.0-alpha.8
 	github.com/opencontainers/image-spec v1.1.0
@@ -23,8 +21,8 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
 	github.com/zarf-dev/zarf v0.48.1
-	golang.org/x/exp v0.0.0-20250103183323-7d7fa50e5329
-	golang.org/x/mod v0.22.0
+	golang.org/x/exp v0.0.0-20250210185358-939b2ce775ac
+	golang.org/x/mod v0.23.0
 	golang.org/x/sync v0.11.0
 	helm.sh/helm/v3 v3.17.0
 	k8s.io/api v0.32.1
@@ -111,9 +109,9 @@ require (
 	github.com/anchore/clio v0.0.0-20241115144204-29e89f9fa837 // indirect
 	github.com/anchore/fangs v0.0.0-20241014225144-4e1713cafd77 // indirect
 	github.com/anchore/go-collections v0.0.0-20240216171411-9321230ce537 // indirect
-	github.com/anchore/go-logger v0.0.0-20230725134548-c21dafa1ec5a // indirect
+	github.com/anchore/go-logger v0.0.0-20240217160628-ee28a485904f // indirect
 	github.com/anchore/go-macholibre v0.0.0-20220308212642-53e6d0aaf6fb // indirect
-	github.com/anchore/go-struct-converter v0.0.0-20221118182256-c68fdcfa2092 // indirect
+	github.com/anchore/go-struct-converter v0.0.0-20230627203149-c72ef8859ca9 // indirect
 	github.com/anchore/go-version v1.2.2-0.20210903204242-51efa5b487c4 // indirect
 	github.com/anchore/grype v0.84.0 // indirect
 	github.com/anchore/packageurl-go v0.1.1-0.20250117185454-edf36a908b10 // indirect
@@ -522,14 +520,14 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	go4.org v0.0.0-20200411211856-f5505b9728dd // indirect
-	golang.org/x/crypto v0.32.0 // indirect
-	golang.org/x/net v0.34.0 // indirect
+	golang.org/x/crypto v0.33.0 // indirect
+	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/oauth2 v0.25.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/term v0.29.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
 	golang.org/x/time v0.8.0 // indirect
-	golang.org/x/tools v0.29.0 // indirect
+	golang.org/x/tools v0.30.0 // indirect
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
 	google.golang.org/api v0.215.0 // indirect
 	google.golang.org/genproto v0.0.0-20241118233622-e639e219e697 // indirect
