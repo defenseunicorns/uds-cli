@@ -13,6 +13,12 @@ type BundleConfig struct {
 	InspectOpts   BundleInspectOptions
 	RemoveOpts    BundleRemoveOptions
 	DevDeployOpts BundleDevDeployOptions
+	TofuOpts      TofuOptions
+}
+
+type TofuOptions struct {
+	IsTofu          bool
+	TFStateFilepath string
 }
 
 // BundleCreateOptions is the options for the bundler.Create() function
@@ -92,3 +98,9 @@ type BundleDevDeployOptions struct {
 // PathMap is a map of either absolute paths to relative paths or relative paths to absolute paths
 // used to map filenames during local bundle tarball creation
 type PathMap map[string]string
+
+// TFConfigHelper is a subset of the Bundle struct, this is where configs will go that the TF bundle will need when deploying (such as shasum of the package manifest within the OCI tarball)
+// I appologize for such a long comment - I didn't have the ~time~ understanding to write a short one
+type TFConfigHelper struct {
+	Packages []Package `json:"packages" jsonschema:"description=List of Zarf packages"`
+}

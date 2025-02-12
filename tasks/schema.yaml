@@ -5,6 +5,8 @@ tasks:
   - name: update
     description: updates the JSON schema
     actions:
+      - cmd: mkdir -p src/cmd/bin/
+      - cmd: touch src/cmd/bin/tofu
       - cmd: ./hack/generate-schema.sh
 
   - name: test

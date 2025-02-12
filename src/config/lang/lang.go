@@ -51,6 +51,12 @@ const (
 	CmdBundleDeployFlagRetries  = "Specify the number of retries for package deployments (applies to all pkgs in a bundle)"
 	CmdBundleDeployFlagRef      = "Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used."
 
+	// bundle plan
+	CmdBundlePlanShort = "Generate a Tofu execution plan"
+
+	// bundle apply
+	CmdBundleApplyShort = "Create or update infrastructure with Tofu"
+
 	// bundle inspect
 	CmdBundleInspectShort             = "Display the metadata of a bundle"
 	CmdBundleInspectFlagKey           = "Path to a public key file that will be used to validate a signed bundle"

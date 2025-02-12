@@ -61,6 +61,8 @@ var genCLIDocs = &cobra.Command{
 
 		rootCmd.RemoveCommand(zarfCli)
 		rootCmd.RemoveCommand(scanCmd)
+		rootCmd.RemoveCommand(planCmd)
+		rootCmd.RemoveCommand(applyCmd)
 
 		// Set the default value for the uds-cache flag (otherwise this defaults to the user's home directory)
 		rootCmd.Flag("uds-cache").DefValue = "~/.uds-cache"

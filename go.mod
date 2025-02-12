@@ -15,6 +15,7 @@ require (
 	github.com/defenseunicorns/uds-security-hub v0.0.7
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/goccy/go-yaml v1.15.17
+	github.com/hashicorp/hcl/v2 v2.23.0
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/mholt/archiver/v4 v4.0.0-alpha.8
 	github.com/opencontainers/image-spec v1.1.0
@@ -23,6 +24,7 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
 	github.com/zarf-dev/zarf v0.48.1
+	github.com/zclconf/go-cty v1.14.0
 	golang.org/x/exp v0.0.0-20250103183323-7d7fa50e5329
 	golang.org/x/mod v0.22.0
 	golang.org/x/sync v0.11.0
@@ -313,7 +315,6 @@ require (
 	github.com/hashicorp/go-sockaddr v1.0.5 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
-	github.com/hashicorp/hcl/v2 v2.23.0 // indirect
 	github.com/hashicorp/vault/api v1.15.0 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/iancoleman/orderedmap v0.0.0-20190318233801-ac98e3ecb4b0 // indirect
@@ -500,7 +501,6 @@ require (
 	github.com/yashtewari/glob-intersection v0.2.0 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/zalando/go-keyring v0.2.6 // indirect
-	github.com/zclconf/go-cty v1.14.0 // indirect
 	github.com/zeebo/errs v1.3.0 // indirect
 	github.com/zyedidia/generic v1.2.2-0.20230320175451-4410d2372cb1 // indirect
 	go.mongodb.org/mongo-driver v1.14.0 // indirect

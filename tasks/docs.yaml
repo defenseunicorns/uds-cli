@@ -5,6 +5,8 @@ tasks:
   - name: update
     description: updates the CLI docs
     actions:
+      - cmd: mkdir -p src/cmd/bin/
+      - cmd: touch src/cmd/bin/tofu
       - cmd: ./hack/generate-docs.sh
 
   - name: test

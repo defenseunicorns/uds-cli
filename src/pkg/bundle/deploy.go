@@ -7,6 +7,7 @@ package bundle
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,6 +17,7 @@ import (
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
+	"github.com/defenseunicorns/uds-cli/src/pkg/tfparser"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
@@ -231,6 +233,106 @@ func handleZarfInitOpts(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKin
 		}
 	}
 	return zarfInitOpts
+}
+
+// PreDeployValidationTF validates a bundle that has been built from a .tf file before deployment
+// TODO: This function shares (copied) a lot of code from PreDeployValidation(). Work towards consolidating what makes sense.
+func (b *Bundle) PreDeployValidationTF() (string, string, string, error) {
+	// Check that provided oci source path is valid, and update it if it's missing the full path
+	source, err := CheckOCISourcePath(b.cfg.DeployOpts.Source)
+	if err != nil {
+		return "", "", "", err
+	}
+	b.cfg.DeployOpts.Source = source
+
+	// create a new provider
+	provider, err := NewBundleProvider(b.cfg.DeployOpts.Source, b.tmp)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// pull the bundles metadata
+	config.BundleAlwaysPull = []string{config.BundleTF, config.BundleTFConfig, config.TerraformProvider, config.TerraformRC}
+	filepaths, err := provider.LoadBundleMetadata()
+	if err != nil {
+		message.Warnf("unable to load the metadata of the .tf bundle: %s\n", err.Error())
+		return "", "", "", err
+	}
+
+	// load the uds-bundle.tf
+	message.Infof("Reading .tf at %s\n", filepaths[config.BundleTF])
+	bundleTF, err := os.ReadFile(filepaths[config.BundleTF])
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// Copy the .tf contents from the file at `/{tmpdir}/blobs/sha256/{SHASUM}` to `/{tmpdir}/main.tf`
+	// This makes it a lot easier for tofu to find and use the config file
+	err = os.WriteFile(filepath.Join(b.tmp, "main.tf"), bundleTF, 0600)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// parse the tf config
+	tfConfig, err := tfparser.ParseFile(filepaths[config.BundleTF])
+	if err != nil {
+		return "", "", "", err
+	}
+	b.tfConfig = *tfConfig
+
+	//read the file at conifg.BundleTFConfig and unmarshal it
+	message.Infof("Reading uds-tf-config.yaml at %s\n", filepaths[config.BundleTFConfig])
+	bundleTFConfigYAML, err := os.ReadFile(filepaths[config.BundleTFConfig])
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// todo: we also read the SHAs from the uds-bundle.yaml here, should we refactor so that we use the bundle's root manifest?
+	tfHelperConfig := types.TFConfigHelper{}
+	if err := goyaml.Unmarshal(bundleTFConfigYAML, &tfHelperConfig); err != nil {
+		return "", "", "", err
+	}
+	b.bundle.Packages = tfHelperConfig.Packages
+
+	// Write a custom .terraformrc that points to the provider we brought
+	customTFRC := tfparser.TerraformRC{}
+	customTFRC.ProviderInstallation.Direct = make(map[string]string)
+	customTFRC.ProviderInstallation.DevOverrides = make(map[string]string)
+	customTFRC.ProviderInstallation.DevOverrides["defenseunicorns/uds"] = b.tmp
+	err = customTFRC.WriteHCL(filepath.Join(b.tmp, config.TerraformRC))
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// Copy the contents of the terraform provider binary into a file in the tmpdir
+	providerSrc, err := os.Open(filepaths[config.TerraformProvider])
+	if err != nil {
+		return "", "", "", err
+	}
+	defer providerSrc.Close()
+	providerDst, err := os.Create(filepath.Join(b.tmp, config.TerraformProvider))
+	if err != nil {
+		return "", "", "", err
+	}
+	defer providerDst.Close()
+	_, err = io.Copy(providerDst, providerSrc)
+	if err != nil {
+		return "", "", "", err
+	}
+	if err := os.Chmod(filepath.Join(b.tmp, config.TerraformProvider), 0555); err != nil {
+		return "", "", "", err
+	}
+
+	// validate bundle's arch against cluster
+	err = ValidateArch(config.GetArch(b.bundle.Build.Architecture))
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// TODO: Read this metadata from the new metadata resource
+	bundleConfigString := string(bundleTF)
+	bundleName := "test-tf-bundle"
+	return bundleName, bundleConfigString, source, err
 }
 
 // PreDeployValidation validates the bundle before deployment

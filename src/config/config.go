@@ -21,6 +21,13 @@ const (
 	// BundleYAML is the string for uds-bundle.yaml
 	BundleYAML = "uds-bundle.yaml"
 
+	// BundleTF is the string for uds-bundle.tf
+	BundleTF       = "uds-bundle.tf"
+	BundleTFConfig = "uds-tf-config.yaml"
+
+	TerraformProvider = "terraform-provider-uds"
+	TerraformRC       = ".terraformrc-custom"
+
 	// BundlePrefix is the prefix for compiled uds bundles
 	BundlePrefix = "uds-bundle-"
 

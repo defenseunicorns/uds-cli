@@ -11,6 +11,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler"
+	"github.com/defenseunicorns/uds-cli/src/pkg/tfparser"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/pterm/pterm"
@@ -23,9 +24,38 @@ import (
 
 // Create creates a bundle
 func (b *Bundle) Create() error {
-	// read the bundle's metadata into memory
-	if err := utils.ReadYAMLStrict(filepath.Join(b.cfg.CreateOpts.SourceDirectory, b.cfg.CreateOpts.BundleFile), &b.bundle); err != nil {
-		return err
+	// populate the b.bundle struct with information on the packages we are creating
+	if b.cfg.TofuOpts.IsTofu {
+		// read the .tf data to determine which resources (packages) we are creating
+		// TODO: @JEPRRY consider making a helper function for this
+		tfConfig, err := tfparser.ParseFile(b.cfg.CreateOpts.BundleFile)
+		if err != nil {
+			return err
+		}
+
+		b.bundle.Kind = "UDSBundle"
+		b.bundle.Metadata = types.UDSMetadata{
+			Name:         tfConfig.Metadata.Name,
+			Version:      tfConfig.Metadata.Version,
+			Architecture: *tfConfig.Metadata.Architecture,
+			Description:  *tfConfig.Metadata.Description,
+		}
+
+		// Parse each tfparser.Packages resource and convert it to types.Package type
+		for _, pkg := range tfConfig.Packages {
+			newPackage := types.Package{
+				Name:       pkg.Name,
+				Repository: pkg.Repository,
+				Ref:        pkg.Ref,
+				Path:       pkg.Path,
+			}
+			b.bundle.Packages = append(b.bundle.Packages, newPackage)
+		}
+	} else {
+		// read the bundle's metadata into memory
+		if err := utils.ReadYAMLStrict(filepath.Join(b.cfg.CreateOpts.SourceDirectory, b.cfg.CreateOpts.BundleFile), &b.bundle); err != nil {
+			return err
+		}
 	}
 
 	// set the bundle's name and version if provided via flag
@@ -36,6 +66,7 @@ func (b *Bundle) Create() error {
 		b.bundle.Metadata.Version = b.cfg.CreateOpts.Version
 	}
 
+	// TODO: @JPERRY this valuesFile block has not been modified to work with tofu based bundles yet
 	// Populate values from valuesFiles if provided
 	if err := b.processValuesFiles(); err != nil {
 		return err
@@ -66,11 +97,12 @@ func (b *Bundle) Create() error {
 	validateSpinner.Successf("Bundle Validated")
 	pterm.Print()
 
+	// TODO: @JPERRY This signingkey block has not been modified to work with tofu based bundles yet
 	// sign the bundle if a signing key was provided
 	if b.cfg.CreateOpts.SigningKeyPath != "" {
 		// write the bundle to disk so we can sign it
 		bundlePath := filepath.Join(b.tmp, config.BundleYAML)
-		if err := zarfUtils.WriteYaml(bundlePath, &b.bundle, 0600); err != nil {
+		if err := zarfUtils.WriteYaml(bundlePath, &b.bundle, 0o600); err != nil {
 			return err
 		}
 
@@ -88,6 +120,7 @@ func (b *Bundle) Create() error {
 		}
 	}
 
+	// TODO: @JPERRY this dev deploy block has not been validated to work with tofu based bundles yet
 	// for dev mode update package ref for local bundles, refs for remote bundles updated on deploy
 	if config.Dev && len(b.cfg.DevDeployOpts.Ref) != 0 {
 		for i, pkg := range b.bundle.Packages {
@@ -101,6 +134,7 @@ func (b *Bundle) Create() error {
 		Output:    b.cfg.CreateOpts.Output,
 		TmpDstDir: b.tmp,
 		SourceDir: b.cfg.CreateOpts.SourceDirectory,
+		IsTofu:    b.cfg.TofuOpts.IsTofu,
 	}
 	bundlerClient := bundler.NewBundler(&opts)
 

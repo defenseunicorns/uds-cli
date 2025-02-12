@@ -51,7 +51,12 @@ func isValidConfigOption(str string) bool {
 
 // deploy performs validation, confirmation and deployment of a bundle
 func deploy(bndlClient *bundle.Bundle) error {
-	_, _, _, err := bndlClient.PreDeployValidation()
+	var err error
+	if bundleCfg.TofuOpts.IsTofu {
+		_, _, _, err = bndlClient.PreDeployValidationTF()
+	} else {
+		_, _, _, err = bndlClient.PreDeployValidation()
+	}
 	if err != nil {
 		return fmt.Errorf("failed to validate bundle: %s", err.Error())
 	}
@@ -62,9 +67,44 @@ func deploy(bndlClient *bundle.Bundle) error {
 	}
 
 	// deploy the bundle
-	if err := bndlClient.Deploy(); err != nil {
-		bndlClient.ClearPaths()
-		return fmt.Errorf("failed to deploy bundle: %s", err.Error())
+	if bundleCfg.TofuOpts.IsTofu {
+		// extract the tarballs of the Zarf Packages within the bundle
+		if err := bndlClient.Extract(bndlClient.GetDefaultExtractPath()); err != nil {
+			return fmt.Errorf("failed to extract packages from budnle: %s", err.Error())
+		}
+
+		// Determine the location of the local tfstate file
+		stateFilepath, err := filepath.Abs(bndlClient.GetTofuStateFilepath())
+		if err != nil {
+			return fmt.Errorf("failed to locate path to tfstate file: %s", err.Error())
+		}
+		stateFlag := fmt.Sprintf("-state=%s", stateFilepath)
+
+		// Determine the location of the extracted *.tf files
+		chdirFlag := fmt.Sprintf("-chdir=%s", filepath.Dir(bndlClient.GetDefaultExtractPath()))
+
+		// configure extra environments variables to use during future tofu commands
+		envMap := make(map[string]string)
+
+		// Configure tofu to use the terraformrc file that came with the bundle so it knows where to locate the providers
+		customRCPath := filepath.Join(filepath.Dir(bndlClient.GetDefaultExtractPath()), config.TerraformRC)
+		envMap["TF_CLI_CONFIG_FILE"] = customRCPath
+
+		// Custom envvar that the provider reads to know to use the extracted Zarf packages
+		envMap["UDS_LOCAL_PATH_OVERRIDE"] = bndlClient.GetDefaultExtractPath()
+
+		// Run the `tofu apply` command
+		os.Args = []string{"tofu", chdirFlag, "apply", "-input=false", "-auto-approve", stateFlag}
+		err = useEmbeddedTofu(envMap)
+		if err != nil {
+			message.Warnf("unable to deploy bundle that was built from a .tf file: %s", err.Error())
+			return err
+		}
+	} else {
+		if err := bndlClient.Deploy(); err != nil {
+			bndlClient.ClearPaths()
+			return fmt.Errorf("failed to deploy bundle: %s", err.Error())
+		}
 	}
 
 	return nil
@@ -91,6 +131,23 @@ func configureZarf() {
 		zarfConfig.CommonOptions.PlainHTTP = true
 		zarfConfig.CommonOptions.InsecureSkipTLSVerify = true
 	}
+}
+
+func setTofuFile(args []string) error {
+	pathToTofuDir := ""
+	if len(args) > 0 {
+		if !helpers.IsDir(args[0]) {
+			return fmt.Errorf("(%q) is not a valid path to a directory", args[0])
+		}
+		pathToTofuDir = filepath.Join(args[0])
+	}
+
+	tofuFilePath := filepath.Join(pathToTofuDir, config.BundleTF)
+	if _, err := os.Stat(tofuFilePath); err != nil {
+		return fmt.Errorf("%s not found", config.BundleTF)
+	}
+	bundleCfg.CreateOpts.BundleFile = tofuFilePath
+	return nil
 }
 
 func setBundleFile(args []string) error {

@@ -6,6 +6,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
@@ -19,6 +20,80 @@ import (
 var devCmd = &cobra.Command{
 	Use:   "dev",
 	Short: lang.CmdDevShort,
+}
+
+var tofuDeployCmd = &cobra.Command{
+	Use:     "tofu-deploy [BUNDLE_TARBALL|OCI_REF]",
+	Aliases: []string{"d"},
+	Short:   lang.CmdBundleDeployShort,
+	Args:    cobra.MaximumNArgs(1),
+	RunE: func(_ *cobra.Command, args []string) error {
+		config.CommonOptions.Confirm = true
+
+		var err error
+		bundleCfg.DeployOpts.Source, err = chooseBundle(args)
+		if err != nil {
+			return err
+		}
+		configureZarf()
+
+		// set DeployOptions.Config if exists
+		if config := v.ConfigFileUsed(); config != "" {
+			bundleCfg.DeployOpts.Config = config
+		}
+
+		bundleCfg.TofuOpts.IsTofu = true
+
+		// create new bundle client and deploy
+		bndlClient, err := bundle.New(&bundleCfg)
+		if err != nil {
+			return err
+		}
+		defer bndlClient.ClearPaths()
+		err = deploy(bndlClient)
+		if err != nil {
+			return err
+		}
+		return nil
+	},
+}
+
+var tofuCreateCmd = &cobra.Command{
+	Use:     "tofu-create [DIRECTORY]",
+	Aliases: []string{"c"},
+	Args:    cobra.MaximumNArgs(1),
+	Short:   "create bundle from a uds-bundle.tf config",
+	PreRunE: func(_ *cobra.Command, args []string) error {
+		err := setTofuFile(args)
+		if err != nil {
+			return err
+		}
+		return nil
+	},
+	RunE: func(_ *cobra.Command, args []string) error {
+		configureZarf()
+		srcDir, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("error reading the current working directory")
+		}
+		if len(args) > 0 {
+			srcDir = args[0]
+		}
+		bundleCfg.CreateOpts.SourceDirectory = srcDir
+		bundleCfg.TofuOpts.IsTofu = true
+
+		bndlClient, err := bundle.New(&bundleCfg)
+		if err != nil {
+			return err
+		}
+		defer bndlClient.ClearPaths()
+
+		if err := bndlClient.Create(); err != nil {
+			bndlClient.ClearPaths()
+			return fmt.Errorf("failed to create bundle: %s", err.Error())
+		}
+		return nil
+	},
 }
 
 var devDeployCmd = &cobra.Command{
@@ -103,6 +178,45 @@ var devDeployCmd = &cobra.Command{
 	},
 }
 
+// NOTE: This is intended to be a temporary command. This logic will soon be baked directly into
+// NOTE: the deploy command so the Terraform Provider can directly access the Zarf Package Tarballs
+var extractCmd = &cobra.Command{
+	Use:   "extract {BUNDLE_TARBALL|OCI_REF} [EXTRACT_DIR]",
+	Short: "[alpha] Extract the Zarf Package tarballs from a Bundle",
+	Args:  cobra.RangeArgs(1, 2),
+	RunE: func(_ *cobra.Command, args []string) error {
+		var err error
+		// load the bundle source from the CLI args
+		bundleCfg.DeployOpts.Source, err = chooseBundle(args)
+		if err != nil {
+			return err
+		}
+		configureZarf()
+
+		// create new bundle client for ex
+		bndlClient, err := bundle.New(&bundleCfg)
+		if err != nil {
+			return err
+		}
+
+		if bundleCfg.TofuOpts.IsTofu {
+			_, _, _, err = bndlClient.PreDeployValidationTF()
+		} else {
+			_, _, _, err = bndlClient.PreDeployValidation()
+		}
+		if err != nil {
+			return err
+		}
+
+		outputDir := "."
+		if len(args) == 2 {
+			outputDir = args[1]
+		}
+		err = bndlClient.Extract(outputDir)
+		return err
+	},
+}
+
 // isLocalBundle checks if the bundle source is a local bundle
 func isLocalBundle(src string) bool {
 	return helpers.IsDir(src) || strings.Contains(src, ".tar.zst")
@@ -150,4 +264,10 @@ func init() {
 	devDeployCmd.Flags().StringVarP(&bundleCfg.DevDeployOpts.FlavorInput, "flavor", "f", "", lang.CmdBundleCreateFlagFlavor)
 	devDeployCmd.Flags().BoolVar(&bundleCfg.DevDeployOpts.ForceCreate, "force-create", false, lang.CmdBundleCreateForceCreate)
 	devDeployCmd.Flags().StringToStringVar(&bundleCfg.DeployOpts.SetVariables, "set", nil, lang.CmdBundleDeployFlagSet)
+
+	devCmd.AddCommand(extractCmd)
+	extractCmd.Flags().BoolVar(&bundleCfg.TofuOpts.IsTofu, "is-tofu", false, "indicates if the package was built from a uds-bundle.tf")
+	devCmd.AddCommand(tofuCreateCmd)
+	devCmd.AddCommand(tofuDeployCmd)
+	tofuDeployCmd.Flags().StringVar(&bundleCfg.TofuOpts.TFStateFilepath, "tf-state", "terraform.tfstate", "Path to TF statefile")
 }
