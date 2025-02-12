@@ -125,7 +125,14 @@ func (b *Bundle) extractPackage(path string, pkg types.Package) error {
 
 	// NOTE: filepath.Join() strips the trailing '/' and we need that for this command
 	archiveFilePath := pkgTmp + string(filepath.Separator)
-	tarballName := fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", pkg.Name, loadedPkg.Metadata.Architecture, loadedPkg.Metadata.Version)
+
+	tarballNameTemplate := "zarf-package-%s-%s-%s.tar.zst"
+	if pkg.Name == "init" {
+		// zarf-init packages are 'special' and don't have the 'zarf-package' prefix
+		tarballNameTemplate = "zarf-%s-%s-%s.tar.zst"
+	}
+	tarballName := fmt.Sprintf(tarballNameTemplate, pkg.Name, loadedPkg.Metadata.Architecture, loadedPkg.Metadata.Version)
+
 	zarfCmd := zarfCmd.NewZarfCommand()
 	zarfCmd.SetArgs([]string{"tools", "archiver", "compress", archiveFilePath, filepath.Join(path, tarballName)})
 	err = zarfCmd.Execute()
