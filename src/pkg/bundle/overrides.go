@@ -80,11 +80,11 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 		if len(splitName) == 2 {
 			packageName, variableName := splitName[0], splitName[1]
 			if packageName == pkg.Name {
-				pkgVars[strings.ToUpper(variableName)] = fmt.Sprint(val)
+				pkgVars[strings.ToUpper(variableName)] = val
 				overVarsData[strings.ToUpper(variableName)] = overrideData{val, valuesources.CLI}
 			}
 		} else {
-			pkgVars[strings.ToUpper(name)] = fmt.Sprint(val)
+			pkgVars[strings.ToUpper(name)] = val
 			overVarsData[strings.ToUpper(name)] = overrideData{val, valuesources.CLI}
 		}
 	}

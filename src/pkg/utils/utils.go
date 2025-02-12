@@ -7,6 +7,7 @@ package utils
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -205,7 +206,7 @@ func CheckYAMLSourcePath(source string) error {
 	// check if the source is a YAML file
 	isYaml := strings.HasSuffix(source, ".yaml") || strings.HasSuffix(source, ".yml")
 	if !isYaml {
-		return fmt.Errorf("source must have .yaml or yml file extension")
+		return errors.New("source must have .yaml or yml file extension")
 	}
 	// Check if the file exists
 	if isInvalid := helpers.InvalidPath(source); isInvalid {

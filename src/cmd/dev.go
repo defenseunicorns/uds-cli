@@ -5,6 +5,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -113,7 +114,7 @@ func validateDevDeployFlags(isLocalBundle bool) error {
 	if !isLocalBundle {
 		//Throw error if trying to run with --flavor or --force-create flag with remote bundle
 		if len(bundleCfg.DevDeployOpts.Flavor) > 0 || bundleCfg.DevDeployOpts.ForceCreate {
-			return fmt.Errorf("cannot use --flavor or --force-create flags with remote bundle")
+			return errors.New("cannot use --flavor or --force-create flags with remote bundle")
 		}
 	}
 	return nil
