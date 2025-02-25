@@ -19,7 +19,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/mholt/archiver/v4"
+	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/message"
@@ -121,7 +121,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool, bundleName string) ([]
 		}
 
 		extractor := utils.SBOMExtractor(op.dst, SBOMArtifactPathMap)
-		err = archiver.Tar{}.Extract(context.TODO(), bytes.NewReader(sbomBytes), nil, extractor)
+		archives.Tar{}.Extract(context.TODO(), bytes.NewReader(sbomBytes), extractor)
 		if err != nil {
 			return warns, err
 		}

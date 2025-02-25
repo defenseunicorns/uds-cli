@@ -15,7 +15,7 @@ import (
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/mholt/archiver/v4"
+	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	zarfConfig "github.com/zarf-dev/zarf/src/config"
 	"github.com/zarf-dev/zarf/src/pkg/message"
@@ -98,9 +98,10 @@ func (b *Bundle) Pull() error {
 
 	// TODO: support an --uncompressed flag?
 
-	format := archiver.CompressedArchive{
-		Compression: archiver.Zstd{},
-		Archival:    archiver.Tar{},
+	format := archives.CompressedArchive{
+		Compression: archives.Zstd{},
+		Archival:    archives.Tar{},
+		Extraction:  archives.Tar{},
 	}
 
 	pathMap := make(types.PathMap)
@@ -117,7 +118,7 @@ func (b *Bundle) Pull() error {
 		pathMap[abs] = filepath.Join(config.BlobsDir, sha)
 	}
 
-	files, err := archiver.FilesFromDisk(nil, pathMap)
+	files, err := archives.FilesFromDisk(context.TODO(), nil, pathMap)
 	if err != nil {
 		return err
 	}

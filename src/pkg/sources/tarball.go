@@ -11,12 +11,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	av4 "github.com/mholt/archiver/v4"
+	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/layout"
@@ -110,9 +111,10 @@ func (t *TarballBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths,
 // LoadPackageMetadata loads a Zarf package's metadata from a local tarball bundle
 func (t *TarballBundle) LoadPackageMetadata(_ context.Context, dst *layout.PackagePaths, _ bool, _ bool) (v1alpha1.ZarfPackage, []string, error) {
 	ctx := context.TODO()
-	format := av4.CompressedArchive{
-		Compression: av4.Zstd{},
-		Archival:    av4.Tar{},
+	format := archives.CompressedArchive{
+		Compression: archives.Zstd{},
+		Archival:    archives.Tar{},
+		Extraction:  archives.Tar{},
 	}
 
 	sourceArchive, err := os.Open(t.BundleLocation)
@@ -121,7 +123,7 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, dst *layout.Packa
 	}
 
 	var imageManifest oci.Manifest
-	if err := format.Extract(ctx, sourceArchive, []string{filepath.Join(config.BlobsDir, t.PkgManifestSHA)}, utils.ExtractJSON(&imageManifest)); err != nil {
+	if err := format.Extract(ctx, sourceArchive, utils.ExtractJSON(&imageManifest, filepath.Join(config.BlobsDir, t.PkgManifestSHA))); err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
@@ -154,7 +156,11 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, dst *layout.Packa
 
 	// grab zarf.yaml and checksums.txt
 	filePaths := []string{filepath.Join(config.BlobsDir, zarfYamlSHA), filepath.Join(config.BlobsDir, checksumsSHA)}
-	if err := format.Extract(ctx, sourceArchive, filePaths, func(_ context.Context, fileInArchive av4.File) error {
+	if err := format.Extract(ctx, sourceArchive, func(_ context.Context, fileInArchive archives.FileInfo) error {
+		if !slices.Contains(filePaths, fileInArchive.NameInArchive) {
+			return nil
+		}
+
 		var fileDst string
 		if strings.Contains(fileInArchive.Name(), zarfYamlSHA) {
 			fileDst = filepath.Join(dst.Base, config.ZarfYAML)
@@ -210,9 +216,10 @@ func (t *TarballBundle) Collect(_ context.Context, _ string) (string, error) {
 // extractPkgFromBundle extracts a Zarf package from a local tarball bundle
 func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 	var files []string
-	format := av4.CompressedArchive{
-		Compression: av4.Zstd{},
-		Archival:    av4.Tar{},
+	format := archives.CompressedArchive{
+		Compression: archives.Zstd{},
+		Archival:    archives.Tar{},
+		Extraction:  archives.Tar{},
 	}
 	sourceArchive, err := os.Open(t.BundleLocation)
 	if err != nil {
@@ -220,7 +227,7 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 	}
 
 	var manifest oci.Manifest
-	if err := format.Extract(context.TODO(), sourceArchive, []string{filepath.Join(config.BlobsDir, t.PkgManifestSHA)}, utils.ExtractJSON(&manifest)); err != nil {
+	if err := format.Extract(context.TODO(), sourceArchive, utils.ExtractJSON(&manifest, filepath.Join(config.BlobsDir, t.PkgManifestSHA))); err != nil {
 		if err := sourceArchive.Close(); err != nil {
 			return nil, err
 		}
@@ -230,9 +237,12 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 	if err := sourceArchive.Close(); err != nil {
 		return nil, err
 	}
-
-	extractLayer := func(_ context.Context, file av4.File) error {
-		if file.IsDir() {
+	var layersToExtract []string
+	for _, layer := range manifest.Layers {
+		layersToExtract = append(layersToExtract, filepath.Join(config.BlobsDir, layer.Digest.Encoded()))
+	}
+	extractLayer := func(_ context.Context, file archives.FileInfo) error {
+		if file.IsDir() || !slices.Contains(layersToExtract, file.NameInArchive) {
 			return nil
 		}
 		stream, err := file.Open()
@@ -275,17 +285,11 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 		return nil
 	}
 
-	var layersToExtract []string
-
-	for _, layer := range manifest.Layers {
-		layersToExtract = append(layersToExtract, filepath.Join(config.BlobsDir, layer.Digest.Encoded()))
-	}
-
 	sourceArchive, err = os.Open(t.BundleLocation) //reopen to reset reader
 	if err != nil {
 		return nil, err
 	}
 	defer sourceArchive.Close()
-	err = format.Extract(context.TODO(), sourceArchive, layersToExtract, extractLayer)
+	err = format.Extract(context.TODO(), sourceArchive, extractLayer)
 	return files, err
 }
