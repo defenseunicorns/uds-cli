@@ -16,7 +16,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	av4 "github.com/mholt/archiver/v4"
+	"github.com/mholt/archives"
 	"github.com/opencontainers/image-spec/specs-go"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
@@ -67,11 +67,15 @@ func (f *localFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, err
 	}
-	format := av4.CompressedArchive{
-		Compression: av4.Zstd{},
-		Archival:    av4.Tar{},
+	format := archives.CompressedArchive{
+		Compression: archives.Zstd{},
+		Archival:    archives.Tar{},
+		Extraction:  archives.Tar{},
 	}
-	if err := format.Extract(context.TODO(), zarfTarball, []string{config.ZarfYAML}, func(_ context.Context, fileInArchive av4.File) error {
+	if err := format.Extract(context.TODO(), zarfTarball, func(_ context.Context, fileInArchive archives.FileInfo) error {
+		if fileInArchive.NameInArchive != config.ZarfYAML {
+			return nil
+		}
 		// write zarf.yaml to tmp for checking optional components later on
 		dst := filepath.Join(tmpDir, fileInArchive.NameInArchive)
 		outFile, err := os.Create(dst)

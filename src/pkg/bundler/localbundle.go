@@ -21,7 +21,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	goyaml "github.com/goccy/go-yaml"
-	"github.com/mholt/archiver/v4"
+	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
@@ -226,9 +226,10 @@ func pushManifestConfig(store *ocistore.Store, metadata types.UDSMetadata, build
 
 // writeTarball builds and writes a bundle tarball to disk based on a file map
 func writeTarball(bundle *types.UDSBundle, artifactPathMap types.PathMap, outputDir string) error {
-	format := archiver.CompressedArchive{
-		Compression: archiver.Zstd{},
-		Archival:    archiver.Tar{},
+	format := archives.CompressedArchive{
+		Compression: archives.Zstd{},
+		Archival:    archives.Tar{},
+		Extraction:  archives.Tar{},
 	}
 	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, bundle.Metadata.Name, bundle.Metadata.Architecture, bundle.Metadata.Version)
 
@@ -248,16 +249,16 @@ func writeTarball(bundle *types.UDSBundle, artifactPathMap types.PathMap, output
 		return err
 	}
 	defer out.Close()
-	files, err := archiver.FilesFromDisk(nil, artifactPathMap)
+	files, err := archives.FilesFromDisk(context.TODO(), nil, artifactPathMap)
 	if err != nil {
 		return err
 	}
 
 	archiveErrorChan := make(chan error, len(files))
-	jobs := make(chan archiver.ArchiveAsyncJob, len(files))
+	jobs := make(chan archives.ArchiveAsyncJob, len(files))
 
 	for _, file := range files {
-		archiveJob := archiver.ArchiveAsyncJob{
+		archiveJob := archives.ArchiveAsyncJob{
 			File:   file,
 			Result: archiveErrorChan,
 		}

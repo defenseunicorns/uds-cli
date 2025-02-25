@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/mholt/archiver/v4"
+	"github.com/mholt/archives"
 )
 
 // createSBOMArtifact creates sbom artifacts in the form of a tar archive
@@ -21,11 +21,11 @@ func createSBOMArtifact(SBOMArtifactPathMap map[string]string, bundleName string
 		return err
 	}
 	defer out.Close()
-	files, err := archiver.FilesFromDisk(nil, SBOMArtifactPathMap)
+	files, err := archives.FilesFromDisk(context.TODO(), nil, SBOMArtifactPathMap)
 	if err != nil {
 		return err
 	}
-	format := archiver.Tar{}
+	format := archives.Tar{}
 	err = format.Archive(context.TODO(), out, files)
 	if err != nil {
 		return err
@@ -56,8 +56,8 @@ func moveExtractedSBOMs(bundleName, src, dst string) error {
 }
 
 // SBOMExtractor is the extraction fn for extracting HTML and JSON files from an sboms.tar archive
-func SBOMExtractor(dst string, SBOMArtifactPathMap map[string]string) func(_ context.Context, f archiver.File) error {
-	extractor := func(_ context.Context, f archiver.File) error {
+func SBOMExtractor(dst string, SBOMArtifactPathMap map[string]string) archives.FileHandler {
+	extractor := func(_ context.Context, f archives.FileInfo) error {
 		open, err := f.Open()
 		if err != nil {
 			return err
