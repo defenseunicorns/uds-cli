@@ -21,7 +21,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	goyaml "github.com/goccy/go-yaml"
-	av4 "github.com/mholt/archiver/v4"
+	"github.com/mholt/archives"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
@@ -99,8 +99,12 @@ func ConfigureLogs(cmd *cobra.Command) error {
 }
 
 // ExtractJSON extracts and unmarshals a tarballed JSON file into a type
-func ExtractJSON(j any) func(context.Context, av4.File) error {
-	return func(_ context.Context, file av4.File) error {
+func ExtractJSON(j any, expectedFilepath string) archives.FileHandler {
+	return func(_ context.Context, file archives.FileInfo) error {
+		if file.NameInArchive != expectedFilepath {
+			return nil
+		}
+
 		stream, err := file.Open()
 		if err != nil {
 			return err
