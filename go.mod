@@ -14,7 +14,6 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/goccy/go-yaml v1.15.23
 	github.com/mholt/archiver/v3 v3.5.1
-	github.com/mholt/archiver/v4 v4.0.0-alpha.9
 	github.com/mholt/archives v0.1.0
 	github.com/opencontainers/image-spec v1.1.0
 	github.com/pterm/pterm v0.12.80
