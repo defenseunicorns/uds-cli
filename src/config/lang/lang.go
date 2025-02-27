@@ -66,7 +66,7 @@ const (
 
 	// bundle publish
 	CmdPublishShort       = "Publish a bundle from the local file system to a remote registry"
-	CmdPublishVersionFlag = "Specify the version of the bundle to be published"
+	CmdPublishVersionFlag = "[Deprecated] Specify the version of the bundle to be published. This flag will be removed in a future version. Users should use the --version flag during creation to override the version defined in uds-bundle.yaml"
 
 	// bundle pull
 	CmdBundlePullShort      = "Pull a bundle from a remote registry and save to the local file system"

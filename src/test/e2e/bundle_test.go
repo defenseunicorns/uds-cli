@@ -124,6 +124,7 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 	})
 
 	t.Run("test custom tags", func(t *testing.T) {
+		// TODO: the --version flag for publish is going away so we can remove this test when that happens
 		runCmd(t, fmt.Sprintf("publish %s %s --insecure --version my-custom-tag", bundlePath, bundleRef.Registry))
 		pull(t, "oci://localhost:888/test-local-and-remote:my-custom-tag", bundleTarballName)
 		runCmd(t, fmt.Sprintf("deploy %s --insecure --confirm", pulledBundlePath))

@@ -14,7 +14,7 @@ uds publish [BUNDLE_TARBALL] [OCI_REF] [flags]
 
 ```
   -h, --help             help for publish
-  -v, --version string   Specify the version of the bundle to be published
+  -v, --version string   [Deprecated] Specify the version of the bundle to be published. This flag will be removed in a future version. Users should use the --version flag during creation to override the version defined in uds-bundle.yaml
 ```
 
 ### Options inherited from parent commands
