@@ -143,6 +143,7 @@ init:
 *To extract only the image names and de-dupe*:
 
 `uds inspect k3d-core-slim-dev:0.26.0 --list-images | yq '.[] | .[]'` | sort | uniq
+
 ```yaml
 docker.io/istio/pilot:1.22.3-distroless
 docker.io/istio/proxyv2:1.22.3-distroless
@@ -152,7 +153,6 @@ ghcr.io/zarf-dev/zarf/agent:v0.38.2
 library/registry:2.8.3
 quay.io/keycloak/keycloak:24.0.5
 ```
-
 
 #### Viewing SBOMs
 
@@ -177,6 +177,10 @@ Local bundles can be published to an OCI registry like so:
 As an example: `uds publish uds-bundle-example-arm64-0.0.1.tar.zst oci://ghcr.io/github_user`
 
 #### Tagging
+
+:::note
+Using the `version` flag with `uds publish` is deprecated, and will be removed in a future version. Users should use the `--version` flag in `uds create` to override the version specified in `uds-bundle.yaml`.
+:::
 
 Bundles, by default, are tagged based on the bundle version found in the metadata of the `uds-bundle.yaml` file. To override the default tag, you can use the `--version` flag like so:
 
@@ -310,7 +314,9 @@ In a bundle, variables can come from 6 sources. Those sources and their preceden
 That is to say, variables set using the `--set` flag take precedence over all other variable sources.
 
 ### Configuring Zarf Init Packages
+
 Zarf init packages that are typically deployed using `zarf init` have a few special flags that are attached to that command. These options can be configured like any other variable: specified in a `uds-config.yaml`, as an environment variable prefixed with `UDS_` or via the `--set` flag.
+
 ```yaml
 # uds-config.yaml
 variables:

@@ -16,6 +16,8 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
 	"github.com/spf13/cobra"
+
+	"github.com/zarf-dev/zarf/src/pkg/message"
 )
 
 var createCmd = &cobra.Command{
@@ -151,6 +153,10 @@ var publishCmd = &cobra.Command{
 	PreRunE: func(_ *cobra.Command, args []string) error {
 		if _, err := os.Stat(args[0]); err != nil {
 			return fmt.Errorf("first argument (%q) must be a valid local Bundle path: %s", args[0], err.Error())
+		}
+
+		if bundleCfg.PublishOpts.Version != "" {
+			message.Warnf("the --version flag is deprecated and will be removed in a future version")
 		}
 		return nil
 	},
