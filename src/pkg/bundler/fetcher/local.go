@@ -105,11 +105,17 @@ func (f *localFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
 // toBundle transfers a Zarf package to a given Bundle
 func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	ctx := context.TODO()
+	var err error
+	f.pkg.PublicKey, err = getAbsKeyPath(f.pkg.PublicKey, f.cfg.CreateSrcDir)
+	if err != nil {
+		return nil, err
+	}
 
 	// load pkg and layout of pkg paths
 	pkgSrc := zarfSources.TarballSource{
 		ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{
 			PackageSource: f.pkg.Path,
+			PublicKeyPath: f.pkg.PublicKey,
 		},
 	}
 	pkg, pkgPaths, err := loadPkg(pkgTmp, &pkgSrc, f.pkg.OptionalComponents)

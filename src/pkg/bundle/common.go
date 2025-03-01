@@ -116,31 +116,9 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 		}
 		var zarfYAML v1alpha1.ZarfPackage
 		var url string
-		ctx := context.TODO()
 		// if using a remote repository
-		// todo: refactor these hash checks using the fetcher
 		if pkg.Repository != "" {
 			url = fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
-			if strings.Contains(pkg.Ref, "@sha256:") {
-				url = fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
-			}
-
-			platform := ocispec.Platform{
-				Architecture: config.GetArch(),
-				OS:           oci.MultiOS,
-			}
-			remote, err := zoci.NewRemote(ctx, url, platform)
-			if err != nil {
-				return err
-			}
-			if err := remote.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
-				manifestDesc, err := remote.ResolveRoot(ctx)
-				if err != nil {
-					return err
-				}
-				// todo: don't do this here, a "validate" fn shouldn't be modifying the bundle
-				bundle.Packages[idx].Ref = pkg.Ref + "@sha256:" + manifestDesc.Digest.Encoded()
-			}
 		} else {
 			// atm we don't support outputting a bundle with local pkgs outputting to OCI
 			if utils.IsRegistryURL(b.cfg.CreateOpts.Output) {
