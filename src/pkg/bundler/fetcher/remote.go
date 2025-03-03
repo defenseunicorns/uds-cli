@@ -36,11 +36,20 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	fetchSpinner := message.NewProgressSpinner("Fetching package %s", f.pkg.Name)
 	defer fetchSpinner.Stop()
 
+	// Create the tmpdir for the pulled package
+	outputDir := filepath.Join(f.cfg.TmpDstDir, "pulledPacakges", f.pkg.Name)
+	err := os.MkdirAll(outputDir, 0o755)
+	if err != nil {
+		message.Warn("unable to create a new dir in tmpdir..")
+		return nil, err
+	}
+	defer os.RemoveAll(outputDir)
+
 	// Pull the remote package local tmpdir
 	zarfCmd := zarfCmd.NewZarfCommand()
 	zarfCfg.CLIArch = config.GetArch()
 	ociURL := "oci://" + f.pkg.Repository + ":" + f.pkg.Ref
-	outFlag := "--output-directory=" + f.cfg.TmpDstDir
+	outFlag := "--output-directory=" + outputDir
 	cmdArgs := []string{
 		"package",
 		"pull",
@@ -49,7 +58,6 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	}
 
 	// Add path to public key if provided
-	var err error
 	f.pkg.PublicKey, err = getAbsKeyPath(f.pkg.PublicKey, f.cfg.CreateSrcDir)
 	if err != nil {
 		return nil, err
@@ -68,16 +76,14 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 		pkg: f.pkg,
 		cfg: f.cfg,
 	}
-	zarfPkgName := fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", f.pkg.Name, config.GetArch(), f.pkg.Ref)
-	if _, err := os.Stat(filepath.Join(f.cfg.TmpDstDir, zarfPkgName)); err != nil {
-		// the downloaded packge might have been an 'init' package with a different file name
-		zarfPkgName = fmt.Sprintf("zarf-%s-%s-%s.tar.zst", f.pkg.Name, config.GetArch(), f.pkg.Ref)
-		if _, err := os.Stat(filepath.Join(f.cfg.TmpDstDir, zarfPkgName)); err != nil {
-			return nil, fmt.Errorf("Unable to fetch upstream package %s", ociURL)
-		}
-	}
-	localFetcher.pkg.Path = filepath.Join(f.cfg.TmpDstDir, zarfPkgName)
 
+	matches, err := filepath.Glob(filepath.Join(outputDir, "zarf-*.tar.zst"))
+	if err != nil {
+		return nil, err
+	} else if len(matches) != 1 {
+		return nil, fmt.Errorf("unable to pull pacakge %s", f.pkg.Name)
+	}
+	localFetcher.pkg.Path = matches[0]
 	return localFetcher.Fetch()
 }
 
