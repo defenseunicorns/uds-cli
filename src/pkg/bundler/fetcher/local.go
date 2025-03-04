@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
@@ -220,7 +221,7 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	descs = append(descs, rootManifest, manifestConfigDesc)
 
 	// put digest in uds-bundle.yaml to reference during deploy
-	f.cfg.Bundle.Packages[f.cfg.PkgIter].Ref = f.cfg.Bundle.Packages[f.cfg.PkgIter].Ref + "@" + rootManifest.Digest.String()
+	f.cfg.Bundle.Packages[f.cfg.PkgIter].Ref = strings.Split(f.cfg.Bundle.Packages[f.cfg.PkgIter].Ref, "@")[0] + "@" + rootManifest.Digest.String()
 
 	// append zarf image manifest to bundle root manifest and grab path for archiving
 	f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, rootManifest)
