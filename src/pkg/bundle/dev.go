@@ -69,7 +69,7 @@ func (b *Bundle) CreateZarfPkgs() error {
 				zarfCLI.Execute(context.TODO())
 
 				// NOTE: After executing the zarfCLI we need to reset the pterm stdout if we want logs..
-				pterm.SetDefaultOutput(os.Stdout)
+				pterm.SetDefaultOutput(os.Stderr)
 			}
 		}
 	}
