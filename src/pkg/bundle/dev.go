@@ -15,6 +15,8 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 
+	"github.com/pterm/pterm"
+
 	zarfCLI "github.com/zarf-dev/zarf/src/cmd"
 )
 
@@ -65,6 +67,9 @@ func (b *Bundle) CreateZarfPkgs() error {
 					os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom"}
 				}
 				zarfCLI.Execute(context.TODO())
+
+				// NOTE: After executing the zarfCLI we need to reset the pterm stdout if we want logs..
+				pterm.SetDefaultOutput(os.Stdout)
 			}
 		}
 	}
