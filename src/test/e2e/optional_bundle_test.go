@@ -99,12 +99,11 @@ func introspectOptionalComponentsBundle(t *testing.T) {
 
 	// for this remote pkg, ensure component tars exist in img manifest, but not in the bundle
 	componentName := "optional-kiwix"
-	verifyComponentNotIncluded := false
+	verifyComponentNotIncluded := true
 	for _, desc := range remotePkgManifest.Layers {
 		if strings.Contains(desc.Annotations[ocispec.AnnotationTitle], fmt.Sprintf("components/%s.tar", componentName)) {
-			_, err = os.ReadFile(filepath.Join(blobsDir, desc.Digest.Encoded()))
-			require.ErrorContains(t, err, "no such file or directory")
-			verifyComponentNotIncluded = true
+			// component shouldn't exist in pkg manifest for locally sourced pkgs
+			verifyComponentNotIncluded = false
 		}
 	}
 	require.True(t, verifyComponentNotIncluded)
