@@ -20,7 +20,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	av3 "github.com/mholt/archiver/v3"
-	av4 "github.com/mholt/archiver/v4"
+	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
@@ -103,7 +103,7 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName s
 		extractor := utils.SBOMExtractor(tp.dst, SBOMArtifactPathMap)
 
 		// extract SBOMs from tar
-		err = av4.Tar{}.Extract(context.TODO(), bytes.NewReader(sbomTarBytes), nil, extractor)
+		err = archives.Tar{}.Extract(context.TODO(), bytes.NewReader(sbomTarBytes), extractor)
 		if err != nil {
 			return warns, err
 		}
