@@ -119,6 +119,56 @@ func ExtractJSON(j any, expectedFilepath string) archives.FileHandler {
 	}
 }
 
+// ExtractBytes returns an archives.FileHandler that extracts a byte contents of a file from an archive
+func ExtractBytes(b *[]byte, expectedFilepath string) archives.FileHandler {
+	return func(_ context.Context, file archives.FileInfo) error {
+		if file.NameInArchive != expectedFilepath {
+			return nil
+		}
+
+		stream, err := file.Open()
+		if err != nil {
+			return err
+		}
+		defer stream.Close()
+
+		fileBytes, err := io.ReadAll(stream)
+		if err != nil {
+			return err
+		}
+
+		*b = fileBytes
+		return nil
+	}
+}
+
+// ExtractFile returns an archives.FileHandler that extracts a file from an archive
+func ExtractFile(expectedFilepath string, outFilepath string) archives.FileHandler {
+	return func(_ context.Context, file archives.FileInfo) error {
+		if file.NameInArchive != expectedFilepath {
+			return nil
+		}
+
+		stream, err := file.Open()
+		if err != nil {
+			return err
+		}
+		defer stream.Close()
+
+		fileBytes, err := io.ReadAll(stream)
+		if err != nil {
+			return err
+		}
+
+		err = os.MkdirAll(filepath.Dir(outFilepath), 0744)
+		if err != nil {
+			return err
+		}
+
+		return os.WriteFile(outFilepath, fileBytes, 0600)
+	}
+}
+
 // ToLocalFile takes an arbitrary type, typically a struct, marshals it into JSON and stores it as a local file
 func ToLocalFile(t any, filePath string) error {
 	b, err := json.Marshal(t)
