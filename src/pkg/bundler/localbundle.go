@@ -78,6 +78,7 @@ func (lo *LocalBundle) create(signature []byte) error {
 		TmpDstDir:          lo.tmpDstDir,
 		NumPkgs:            len(lo.bundle.Packages),
 		BundleRootManifest: &rootManifest,
+		CreateSrcDir:       lo.sourceDir,
 	}
 
 	message.Debug("Bundling", bundle.Metadata.Name, "to", lo.tmpDstDir)

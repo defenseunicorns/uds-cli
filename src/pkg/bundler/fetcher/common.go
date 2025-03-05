@@ -99,3 +99,11 @@ func filterPkgPaths(pkgPaths *layout.PackagePaths, includeLayers []string, optio
 
 	return filteredPaths
 }
+
+func getAbsKeyPath(keyPath string, prefixDir string) (string, error) {
+	if keyPath == "" || filepath.IsAbs(keyPath) || helpers.IsURL(keyPath) {
+		return keyPath, nil
+	}
+
+	return filepath.Abs(filepath.Join(prefixDir, keyPath))
+}

@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
@@ -109,11 +110,17 @@ func (f *localFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
 // toBundle transfers a Zarf package to a given Bundle
 func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	ctx := context.TODO()
+	var err error
+	f.pkg.PublicKey, err = getAbsKeyPath(f.pkg.PublicKey, f.cfg.CreateSrcDir)
+	if err != nil {
+		return nil, err
+	}
 
 	// load pkg and layout of pkg paths
 	pkgSrc := zarfSources.TarballSource{
 		ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{
 			PackageSource: f.pkg.Path,
+			PublicKeyPath: f.pkg.PublicKey,
 		},
 	}
 	pkg, pkgPaths, err := loadPkg(pkgTmp, &pkgSrc, f.pkg.OptionalComponents)
@@ -218,7 +225,7 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	descs = append(descs, rootManifest, manifestConfigDesc)
 
 	// put digest in uds-bundle.yaml to reference during deploy
-	f.cfg.Bundle.Packages[f.cfg.PkgIter].Ref = f.cfg.Bundle.Packages[f.cfg.PkgIter].Ref + "@" + rootManifest.Digest.String()
+	f.cfg.Bundle.Packages[f.cfg.PkgIter].Ref = strings.Split(f.cfg.Bundle.Packages[f.cfg.PkgIter].Ref, "@")[0] + "@" + rootManifest.Digest.String()
 
 	// append zarf image manifest to bundle root manifest and grab path for archiving
 	f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, rootManifest)
