@@ -61,7 +61,10 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	f.pkg.PublicKey, err = getAbsKeyPath(f.pkg.PublicKey, f.cfg.CreateSrcDir)
 	if err != nil {
 		return nil, err
-	} else if f.pkg.PublicKey != "" {
+	}
+
+	// If the publicKey was provided, add the key flag to the args list
+	if f.pkg.PublicKey != "" {
 		cmdArgs = append(cmdArgs, "--key="+f.pkg.PublicKey)
 	}
 
@@ -80,9 +83,11 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	matches, err := filepath.Glob(filepath.Join(outputDir, "zarf-*.tar.zst"))
 	if err != nil {
 		return nil, err
-	} else if len(matches) != 1 {
+	}
+	if len(matches) != 1 {
 		return nil, fmt.Errorf("unable to pull pacakge %s", f.pkg.Name)
 	}
+
 	localFetcher.pkg.Path = matches[0]
 	return localFetcher.Fetch()
 }
