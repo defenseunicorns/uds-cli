@@ -96,14 +96,6 @@ func (b *Bundle) Pull() error {
 	}
 	defer out.Close()
 
-	// TODO: support an --uncompressed flag?
-
-	format := archives.CompressedArchive{
-		Compression: archives.Zstd{},
-		Archival:    archives.Tar{},
-		Extraction:  archives.Tar{},
-	}
-
 	pathMap := make(types.PathMap)
 
 	// put the index.json and oci-layout at the root of the tarball
@@ -124,7 +116,7 @@ func (b *Bundle) Pull() error {
 	}
 
 	// tarball the bundle
-	if err := format.Archive(ctx, out, files); err != nil {
+	if err := config.BundleArchiveFormat.Archive(ctx, out, files); err != nil {
 		return err
 	}
 

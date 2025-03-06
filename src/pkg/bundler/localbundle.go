@@ -226,11 +226,6 @@ func pushManifestConfig(store *ocistore.Store, metadata types.UDSMetadata, build
 
 // writeTarball builds and writes a bundle tarball to disk based on a file map
 func writeTarball(bundle *types.UDSBundle, artifactPathMap types.PathMap, outputDir string) error {
-	format := archives.CompressedArchive{
-		Compression: archives.Zstd{},
-		Archival:    archives.Tar{},
-		Extraction:  archives.Tar{},
-	}
 	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, bundle.Metadata.Name, bundle.Metadata.Architecture, bundle.Metadata.Version)
 
 	if !helpers.IsDir(outputDir) {
@@ -274,7 +269,7 @@ func writeTarball(bundle *types.UDSBundle, artifactPathMap types.PathMap, output
 	defer archiveBar.Close()
 
 	archiveErrGroup.Go(func() error {
-		return format.ArchiveAsync(ctx, out, jobs)
+		return config.BundleArchiveFormat.ArchiveAsync(ctx, out, jobs)
 	})
 
 jobLoop:

@@ -111,11 +111,6 @@ func (t *TarballBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths,
 // LoadPackageMetadata loads a Zarf package's metadata from a local tarball bundle
 func (t *TarballBundle) LoadPackageMetadata(_ context.Context, dst *layout.PackagePaths, _ bool, _ bool) (v1alpha1.ZarfPackage, []string, error) {
 	ctx := context.TODO()
-	format := archives.CompressedArchive{
-		Compression: archives.Zstd{},
-		Archival:    archives.Tar{},
-		Extraction:  archives.Tar{},
-	}
 
 	sourceArchive, err := os.Open(t.BundleLocation)
 	if err != nil {
@@ -123,7 +118,7 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, dst *layout.Packa
 	}
 
 	var imageManifest oci.Manifest
-	if err := format.Extract(ctx, sourceArchive, utils.ExtractJSON(&imageManifest, filepath.Join(config.BlobsDir, t.PkgManifestSHA))); err != nil {
+	if err := config.BundleArchiveFormat.Extract(ctx, sourceArchive, utils.ExtractJSON(&imageManifest, filepath.Join(config.BlobsDir, t.PkgManifestSHA))); err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
@@ -156,7 +151,7 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, dst *layout.Packa
 
 	// grab zarf.yaml and checksums.txt
 	filePaths := []string{filepath.Join(config.BlobsDir, zarfYamlSHA), filepath.Join(config.BlobsDir, checksumsSHA)}
-	if err := format.Extract(ctx, sourceArchive, func(_ context.Context, fileInArchive archives.FileInfo) error {
+	if err := config.BundleArchiveFormat.Extract(ctx, sourceArchive, func(_ context.Context, fileInArchive archives.FileInfo) error {
 		if !slices.Contains(filePaths, fileInArchive.NameInArchive) {
 			return nil
 		}
@@ -216,18 +211,13 @@ func (t *TarballBundle) Collect(_ context.Context, _ string) (string, error) {
 // extractPkgFromBundle extracts a Zarf package from a local tarball bundle
 func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 	var files []string
-	format := archives.CompressedArchive{
-		Compression: archives.Zstd{},
-		Archival:    archives.Tar{},
-		Extraction:  archives.Tar{},
-	}
 	sourceArchive, err := os.Open(t.BundleLocation)
 	if err != nil {
 		return nil, err
 	}
 
 	var manifest oci.Manifest
-	if err := format.Extract(context.TODO(), sourceArchive, utils.ExtractJSON(&manifest, filepath.Join(config.BlobsDir, t.PkgManifestSHA))); err != nil {
+	if err := config.BundleArchiveFormat.Extract(context.TODO(), sourceArchive, utils.ExtractJSON(&manifest, filepath.Join(config.BlobsDir, t.PkgManifestSHA))); err != nil {
 		if err := sourceArchive.Close(); err != nil {
 			return nil, err
 		}
@@ -290,6 +280,6 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 		return nil, err
 	}
 	defer sourceArchive.Close()
-	err = format.Extract(context.TODO(), sourceArchive, extractLayer)
+	err = config.BundleArchiveFormat.Extract(context.TODO(), sourceArchive, extractLayer)
 	return files, err
 }
