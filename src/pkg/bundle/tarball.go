@@ -89,7 +89,7 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName s
 			}
 		}
 
-		fileHandler = utils.ExtractFile(sbomFilePath, filepath.Join(tp.dst, sbomFilePath))
+		fileHandler = utils.ExtractFile(sbomFilePath, tp.dst)
 		err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(tarBytes), fileHandler)
 		if err != nil {
 			return warns, err
@@ -149,7 +149,7 @@ func (tp *tarballBundleProvider) loadBundleManifest() error {
 	manifestPath := filepath.Join(secureTempDir, manifestRelativePath)
 	defer os.Remove(manifestPath)
 
-	fileHandler = utils.ExtractFile(manifestRelativePath, manifestPath)
+	fileHandler = utils.ExtractFile(manifestRelativePath, secureTempDir)
 	err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(tarBytes), fileHandler)
 	if err != nil {
 		return err
@@ -203,7 +203,7 @@ func (tp *tarballBundleProvider) LoadBundleMetadata() (types.PathMap, error) {
 			if err != nil {
 				return nil, err
 			}
-			fileHandler := utils.ExtractFile(pathInTarball, abs)
+			fileHandler := utils.ExtractFile(pathInTarball, tp.dst)
 			err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(tarBytes), fileHandler)
 			if err != nil {
 				return nil, err

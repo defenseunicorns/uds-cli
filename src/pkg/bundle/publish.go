@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 
@@ -16,7 +15,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
-	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
@@ -43,38 +41,13 @@ func (b *Bundle) Publish() error {
 		return err
 	}
 
-	// construct a fileHandler that extracts all files from the archive with the same relative pathing
-	fileHandler := func(_ context.Context, file archives.FileInfo) error {
-		extractPath := filepath.Join(b.tmp, file.NameInArchive)
-
-		if file.IsDir() {
-			return os.MkdirAll(extractPath, 0744)
-		}
-
-		if err = os.MkdirAll(filepath.Dir(extractPath), 0744); err != nil {
-			return err
-		}
-
-		stream, err := file.Open()
-		if err != nil {
-			return err
-		}
-		defer stream.Close()
-
-		fileBytes, err := io.ReadAll(stream)
-		if err != nil {
-			return err
-		}
-
-		return os.WriteFile(extractPath, fileBytes, 0644)
-	}
-
 	bundleBytes, err := os.ReadFile(b.cfg.PublishOpts.Source)
 	if err != nil {
 		return err
 	}
 
-	err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(bundleBytes), fileHandler)
+	// extract all files from the archive into a tmpdir
+	err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(bundleBytes), utils.ExtractAllFiles(b.tmp))
 	if err != nil {
 		return err
 	}

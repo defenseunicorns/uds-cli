@@ -142,11 +142,23 @@ func ExtractBytes(b *[]byte, expectedFilepath string) archives.FileHandler {
 	}
 }
 
+func ExtractAllFiles(outDirPath string) archives.FileHandler {
+	return ExtractFile("", outDirPath)
+}
+
 // ExtractFile returns an archives.FileHandler that extracts a file from an archive
-func ExtractFile(expectedFilepath string, outFilepath string) archives.FileHandler {
+// NOTE: if expectedFilepath is an emtpy string, all files within the archive will be extracted
+func ExtractFile(expectedFilepath string, outDirPath string) archives.FileHandler {
 	return func(_ context.Context, file archives.FileInfo) error {
-		if file.NameInArchive != expectedFilepath {
+		if expectedFilepath == "" || file.NameInArchive != expectedFilepath {
 			return nil
+		}
+
+		outPath := filepath.Join(outDirPath, file.NameInArchive)
+
+		// If the name name in the archive is a directory, create the directory!
+		if file.IsDir() {
+			return os.MkdirAll(outPath, 0755)
 		}
 
 		stream, err := file.Open()
@@ -160,12 +172,12 @@ func ExtractFile(expectedFilepath string, outFilepath string) archives.FileHandl
 			return err
 		}
 
-		err = os.MkdirAll(filepath.Dir(outFilepath), 0744)
+		err = os.MkdirAll(filepath.Dir(outPath), 0755)
 		if err != nil {
 			return err
 		}
 
-		return os.WriteFile(outFilepath, fileBytes, 0600)
+		return os.WriteFile(outPath, fileBytes, 0600)
 	}
 }
 
