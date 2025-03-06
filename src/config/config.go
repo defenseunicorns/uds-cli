@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/mholt/archives"
 )
 
 const (
@@ -97,6 +98,13 @@ var (
 
 	// Dev specifies if we are running in dev mode
 	Dev = false
+
+	// BundleArchiveFormat is the mholt/archives compression format for managing bundles on disk
+	BundleArchiveFormat = archives.CompressedArchive{
+		Compression: archives.Zstd{},
+		Archival:    archives.Tar{},
+		Extraction:  archives.Tar{},
+	}
 )
 
 // GetArch returns the arch based on a priority list with options for overriding.

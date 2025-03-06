@@ -121,7 +121,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool, bundleName string) ([]
 		}
 
 		extractor := utils.SBOMExtractor(op.dst, SBOMArtifactPathMap)
-		archives.Tar{}.Extract(context.TODO(), bytes.NewReader(sbomBytes), extractor)
+		err = archives.Tar{}.Extract(context.TODO(), bytes.NewReader(sbomBytes), extractor)
 		if err != nil {
 			return warns, err
 		}
