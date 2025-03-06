@@ -119,6 +119,75 @@ func ExtractJSON(j any, expectedFilepath string) archives.FileHandler {
 	}
 }
 
+// ExtractBytes returns an archives.FileHandler that extracts a byte contents of a file from an archive
+func ExtractBytes(b *[]byte, expectedFilepath string) archives.FileHandler {
+	return func(_ context.Context, file archives.FileInfo) error {
+		if file.NameInArchive != expectedFilepath {
+			return nil
+		}
+
+		stream, err := file.Open()
+		if err != nil {
+			return err
+		}
+		defer stream.Close()
+
+		fileBytes, err := io.ReadAll(stream)
+		if err != nil {
+			return err
+		}
+
+		*b = fileBytes
+		return nil
+	}
+}
+
+// ExtractFiles returns an archives.FileHandler that extracts a file from an archive
+func ExtractFile(expectedFilepath, outDirPath string) archives.FileHandler {
+	return extractFiles(expectedFilepath, outDirPath)
+}
+
+// ExtractAllFiles returns a archives.FileHandler that extracts all the contents of the archive into the provided outDirPath
+func ExtractAllFiles(outDirPath string) archives.FileHandler {
+	return extractFiles("", outDirPath)
+}
+
+// extractFiles returns an archives.FileHandler that extracts file(s) from an archive.
+// If the provided extractedPath is empty, all files will be extracted
+func extractFiles(expectedFilepath string, outDirPath string) archives.FileHandler {
+	return func(_ context.Context, file archives.FileInfo) error {
+		// If an expectedFilepath was provided and it doesn't match the name of this file; do nothing
+		if expectedFilepath != "" && file.NameInArchive != expectedFilepath {
+			return nil
+		}
+
+		outPath := filepath.Join(outDirPath, file.NameInArchive)
+
+		// If the name name in the archive is a directory, create the directory!
+		if file.IsDir() {
+			return os.MkdirAll(outPath, 0755)
+		}
+
+		stream, err := file.Open()
+		if err != nil {
+			return err
+		}
+		defer stream.Close()
+
+		fileBytes, err := io.ReadAll(stream)
+		if err != nil {
+			return err
+		}
+
+		err = os.MkdirAll(filepath.Dir(outPath), 0755)
+		if err != nil {
+			return err
+		}
+
+		return os.WriteFile(outPath, fileBytes, 0600)
+	}
+}
+
 // ToLocalFile takes an arbitrary type, typically a struct, marshals it into JSON and stores it as a local file
 func ToLocalFile(t any, filePath string) error {
 	b, err := json.Marshal(t)

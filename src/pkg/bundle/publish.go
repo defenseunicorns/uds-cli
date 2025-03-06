@@ -5,6 +5,7 @@
 package bundle
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -14,7 +15,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
-	av3 "github.com/mholt/archiver/v3"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
@@ -41,8 +41,13 @@ func (b *Bundle) Publish() error {
 		return err
 	}
 
-	// unarchive bundle into empty tmp dir
-	err = av3.Unarchive(b.cfg.PublishOpts.Source, b.tmp) // todo: awkward to use old version of mholt/archiver
+	bundleBytes, err := os.ReadFile(b.cfg.PublishOpts.Source)
+	if err != nil {
+		return err
+	}
+
+	// extract all files from the archive into a tmpdir
+	err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(bundleBytes), utils.ExtractAllFiles(b.tmp))
 	if err != nil {
 		return err
 	}

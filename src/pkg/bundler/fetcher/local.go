@@ -68,12 +68,7 @@ func (f *localFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, err
 	}
-	format := archives.CompressedArchive{
-		Compression: archives.Zstd{},
-		Archival:    archives.Tar{},
-		Extraction:  archives.Tar{},
-	}
-	if err := format.Extract(context.TODO(), zarfTarball, func(_ context.Context, fileInArchive archives.FileInfo) error {
+	if err := config.BundleArchiveFormat.Extract(context.TODO(), zarfTarball, func(_ context.Context, fileInArchive archives.FileInfo) error {
 		if fileInArchive.NameInArchive != config.ZarfYAML {
 			return nil
 		}

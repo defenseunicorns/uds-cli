@@ -19,7 +19,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	av3 "github.com/mholt/archiver/v3"
 	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/message"
@@ -59,18 +58,15 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName s
 		if layer.Annotations[ocispec.AnnotationTitle] == config.BundleYAML {
 			continue
 		}
-		layerFilePath := filepath.Join(config.BlobsDir, layer.Digest.Encoded())
-		if err := av3.Extract(tp.src, layerFilePath, tp.dst); err != nil {
-			return warns, fmt.Errorf("failed to extract %s from %s: %w", layer.Digest.Encoded(), tp.src, err)
-		}
 
-		// read in and unmarshal Zarf image manifest
-		zarfManifestBytes, err := os.ReadFile(filepath.Join(tp.dst, layerFilePath))
+		tarBytes, err := os.ReadFile(tp.src)
 		if err != nil {
 			return warns, err
 		}
 		var zarfImageManifest *oci.Manifest
-		if err := json.Unmarshal(zarfManifestBytes, &zarfImageManifest); err != nil {
+		fileHandler := utils.ExtractJSON(&zarfImageManifest, filepath.Join(config.BlobsDir, layer.Digest.Encoded()))
+		err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(tarBytes), fileHandler)
+		if err != nil {
 			return warns, err
 		}
 
@@ -93,16 +89,18 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName s
 			}
 		}
 
-		if err := av3.Extract(tp.src, sbomFilePath, tp.dst); err != nil {
-			return warns, fmt.Errorf("failed to extract %s from %s: %w", layer.Digest.Encoded(), tp.src, err)
+		fileHandler = utils.ExtractFile(sbomFilePath, tp.dst)
+		err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(tarBytes), fileHandler)
+		if err != nil {
+			return warns, err
 		}
+
+		// extract SBOMs from tar
 		sbomTarBytes, err := os.ReadFile(filepath.Join(tp.dst, sbomFilePath))
 		if err != nil {
 			return warns, err
 		}
 		extractor := utils.SBOMExtractor(tp.dst, SBOMArtifactPathMap)
-
-		// extract SBOMs from tar
 		err = archives.Tar{}.Extract(context.TODO(), bytes.NewReader(sbomTarBytes), extractor)
 		if err != nil {
 			return warns, err
@@ -128,22 +126,17 @@ func (tp *tarballBundleProvider) loadBundleManifest() error {
 	}
 	defer os.RemoveAll(secureTempDir) // Ensure cleanup of the temp directory
 
-	if err := av3.Extract(tp.src, "index.json", secureTempDir); err != nil {
-		return fmt.Errorf("failed to extract index.json from %s: %w", tp.src, err)
-	}
-	indexPath := filepath.Join(secureTempDir, "index.json")
-
-	defer os.Remove(indexPath)
-
-	b, err := os.ReadFile(indexPath)
-	if err != nil {
-		return fmt.Errorf("failed to read index.json: %w", err)
-	}
-
 	var index ocispec.Index
-	if err := json.Unmarshal(b, &index); err != nil {
-		return fmt.Errorf("failed to unmarshal index.json: %w", err)
+	tarBytes, err := os.ReadFile(tp.src)
+	if err != nil {
+		return err
 	}
+	fileHandler := utils.ExtractJSON(&index, "index.json")
+	err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(tarBytes), fileHandler)
+	if err != nil {
+		return err
+	}
+
 	// local bundles only have one manifest entry in their index.json
 	bundleManifestDesc := index.Manifests[0]
 	tp.bundleRootDesc = bundleManifestDesc
@@ -153,20 +146,20 @@ func (tp *tarballBundleProvider) loadBundleManifest() error {
 	}
 
 	manifestRelativePath := filepath.Join(config.BlobsDir, bundleManifestDesc.Digest.Encoded())
-
-	if err := av3.Extract(tp.src, manifestRelativePath, secureTempDir); err != nil {
-		return fmt.Errorf("failed to extract %s from %s: %w", bundleManifestDesc.Digest.Encoded(), tp.src, err)
-	}
-
 	manifestPath := filepath.Join(secureTempDir, manifestRelativePath)
-
 	defer os.Remove(manifestPath)
+
+	fileHandler = utils.ExtractFile(manifestRelativePath, secureTempDir)
+	err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(tarBytes), fileHandler)
+	if err != nil {
+		return err
+	}
 
 	if err := helpers.SHAsMatch(manifestPath, bundleManifestDesc.Digest.Encoded()); err != nil {
 		return err
 	}
 
-	b, err = os.ReadFile(manifestPath)
+	b, err := os.ReadFile(manifestPath)
 	if err != nil {
 		return err
 	}
@@ -205,8 +198,15 @@ func (tp *tarballBundleProvider) LoadBundleMetadata() (types.PathMap, error) {
 			if !helpers.InvalidPath(abs) && helpers.SHAsMatch(abs, layer.Digest.Encoded()) == nil {
 				continue
 			}
-			if err := av3.Extract(tp.src, pathInTarball, tp.dst); err != nil {
-				return nil, fmt.Errorf("failed to extract %s from %s: %w", path, tp.src, err)
+
+			tarBytes, err := os.ReadFile(tp.src)
+			if err != nil {
+				return nil, err
+			}
+			fileHandler := utils.ExtractFile(pathInTarball, tp.dst)
+			err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(tarBytes), fileHandler)
+			if err != nil {
+				return nil, err
 			}
 		}
 	}
