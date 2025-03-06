@@ -142,6 +142,7 @@ func ExtractBytes(b *[]byte, expectedFilepath string) archives.FileHandler {
 	}
 }
 
+// ExtractAllFiles returns a archives.FileHandler that extracts all the contents of the archive into the provided outDirPath
 func ExtractAllFiles(outDirPath string) archives.FileHandler {
 	return ExtractFile("", outDirPath)
 }
