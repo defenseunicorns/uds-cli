@@ -142,14 +142,19 @@ func ExtractBytes(b *[]byte, expectedFilepath string) archives.FileHandler {
 	}
 }
 
-// ExtractAllFiles returns a archives.FileHandler that extracts all the contents of the archive into the provided outDirPath
-func ExtractAllFiles(outDirPath string) archives.FileHandler {
-	return ExtractFile("", outDirPath)
+// ExtractFiles returns an archives.FileHandler that extracts a file from an archive
+func ExtractFile(expectedFilepath, outDirPath string) archives.FileHandler {
+	return extractFiles(expectedFilepath, outDirPath)
 }
 
-// ExtractFile returns an archives.FileHandler that extracts a file from an archive
-// NOTE: if expectedFilepath is an emtpy string, all files within the archive will be extracted
-func ExtractFile(expectedFilepath string, outDirPath string) archives.FileHandler {
+// ExtractAllFiles returns a archives.FileHandler that extracts all the contents of the archive into the provided outDirPath
+func ExtractAllFiles(outDirPath string) archives.FileHandler {
+	return extractFiles("", outDirPath)
+}
+
+// extractFiles returns an archives.FileHandler that extracts file(s) from an archive.
+// If the provided extractedPath is empty, all files will be extracted
+func extractFiles(expectedFilepath string, outDirPath string) archives.FileHandler {
 	return func(_ context.Context, file archives.FileInfo) error {
 		// If an expectedFilepath was provided and it doesn't match the name of this file; do nothing
 		if expectedFilepath != "" && file.NameInArchive != expectedFilepath {
