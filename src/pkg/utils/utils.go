@@ -151,7 +151,8 @@ func ExtractAllFiles(outDirPath string) archives.FileHandler {
 // NOTE: if expectedFilepath is an emtpy string, all files within the archive will be extracted
 func ExtractFile(expectedFilepath string, outDirPath string) archives.FileHandler {
 	return func(_ context.Context, file archives.FileInfo) error {
-		if expectedFilepath == "" || file.NameInArchive != expectedFilepath {
+		// If an expectedFilepath was provided and it doesn't match the name of this file; do nothing
+		if expectedFilepath != "" && file.NameInArchive != expectedFilepath {
 			return nil
 		}
 
