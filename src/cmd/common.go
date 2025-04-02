@@ -114,31 +114,33 @@ func setBundleFile(args []string) error {
 }
 
 func cliSetup(cmd *cobra.Command) error {
-	match := map[string]message.LogLevel{
-		"warn":  message.WarnLevel,
-		"info":  message.InfoLevel,
-		"debug": message.DebugLevel,
-		"trace": message.TraceLevel,
-	}
-
 	printViperConfigUsed()
 
 	if config.NoColor {
 		pterm.DisableColor()
 	}
 
-	// No log level set, so use the default
+	cfg := logger.Config{
+		Level:       logger.Info,
+		// TODO UDS will need to decide if they want to support other formats like json and if so, get that from a cli flag
+		Format:      logger.FormatConsole,
+		Destination: logger.DestinationDefault,
+		Color:       logger.Color(!config.NoColor),
+	}
 	if logLevel != "" {
-		if lvl, ok := match[logLevel]; ok {
-			message.SetLogLevel(lvl)
-			message.Debug("Log level set to " + logLevel)
-		} else {
+		lvl, err := logger.ParseLevel(logLevel)
+		if err != nil {
 			message.Warn(lang.RootCmdErrInvalidLogLevel)
+		} else {
+			cfg.Level = lvl
 		}
 	}
+	l, err := logger.New(cfg)
+	if err != nil {
+		return err
+	}
 
-	// don't configure Zarf CLI directly if we're calling vendored Zarf
-	logger.SetDefault(logger.Default())
+	logger.SetDefault(l)
 
 	// configure logs for UDS after calling zarfCommon.SetupCLI
 	if !config.SkipLogFile && !config.ListTasks {
