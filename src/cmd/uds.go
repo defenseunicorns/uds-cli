@@ -17,6 +17,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
 	"github.com/spf13/cobra"
 
+	"github.com/zarf-dev/zarf/src/pkg/logger"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 )
 
@@ -32,8 +33,11 @@ var createCmd = &cobra.Command{
 		}
 		return nil
 	},
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		configureZarf()
+		ctx := cmd.Context()
+		// example log message
+		logger.From(ctx).Info("Creating bundle...")
 		srcDir, err := os.Getwd()
 		if err != nil {
 			return errors.New("error reading the current working directory")

@@ -114,6 +114,7 @@ func setBundleFile(args []string) error {
 }
 
 func cliSetup(cmd *cobra.Command) error {
+	ctx := cmd.Context()
 	printViperConfigUsed()
 
 	if config.NoColor {
@@ -121,7 +122,7 @@ func cliSetup(cmd *cobra.Command) error {
 	}
 
 	cfg := logger.Config{
-		Level:       logger.Info,
+		Level: logger.Info,
 		// TODO UDS will need to decide if they want to support other formats like json and if so, get that from a cli flag
 		Format:      logger.FormatConsole,
 		Destination: logger.DestinationDefault,
@@ -140,7 +141,10 @@ func cliSetup(cmd *cobra.Command) error {
 		return err
 	}
 
-	logger.SetDefault(l)
+	// This is using the same logger as Zarf, uds-cli could also make it's own logger
+	ctx = logger.WithContext(ctx, l)
+	cmd.SetContext(ctx)
+	l.Debug("logger successfully initialized", "cfg", cfg)
 
 	// configure logs for UDS after calling zarfCommon.SetupCLI
 	if !config.SkipLogFile && !config.ListTasks {
