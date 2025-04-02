@@ -12,14 +12,14 @@ require (
 	github.com/defenseunicorns/pkg/oci v1.0.2
 	github.com/defenseunicorns/uds-security-hub v0.2.0
 	github.com/fsnotify/fsnotify v1.8.0
-	github.com/goccy/go-yaml v1.15.23
+	github.com/goccy/go-yaml v1.16.0
 	github.com/mholt/archives v0.1.0
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/pterm/pterm v0.12.79
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
-	github.com/zarf-dev/zarf v0.50.0
+	github.com/zarf-dev/zarf v0.50.1-0.20250401202306-d296656aeac5
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394
 	golang.org/x/mod v0.24.0
 	golang.org/x/sync v0.12.0
@@ -206,7 +206,7 @@ require (
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/cli v27.5.1+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
-	github.com/docker/docker v27.5.0+incompatible // indirect
+	github.com/docker/docker v27.5.1+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.2 // indirect
 	github.com/docker/go v1.5.1-1.0.20160303222718-d30aec9fd63c // indirect
 	github.com/docker/go-connections v0.5.0 // indirect

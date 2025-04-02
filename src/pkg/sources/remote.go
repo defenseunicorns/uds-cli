@@ -86,7 +86,7 @@ func (r *RemoteBundle) LoadPackage(ctx context.Context, dst *layout.PackagePaths
 	}
 	pkg.Components = filteredComps
 
-	dst.SetFromLayers(layers)
+	dst.SetFromLayers(ctx, layers)
 
 	err = sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, isPartialPkg)
 	if err != nil {
@@ -95,7 +95,7 @@ func (r *RemoteBundle) LoadPackage(ctx context.Context, dst *layout.PackagePaths
 
 	if unarchiveAll {
 		for _, component := range pkg.Components {
-			if err := dst.Components.Unarchive(component); err != nil {
+			if err := dst.Components.Unarchive(ctx, component); err != nil {
 				if errors.Is(err, layout.ErrNotLoaded) {
 					_, err := dst.Components.Create(component)
 					if err != nil {
@@ -178,7 +178,7 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, dst *layout.Pack
 		}
 	}
 
-	dst.SetFromLayers([]ocispec.Descriptor{pkgManifestDesc, checksumLayer})
+	dst.SetFromLayers(ctx, []ocispec.Descriptor{pkgManifestDesc, checksumLayer})
 
 	err = sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, true)
 	// ensure we're using the correct package name as specified by the bundle
