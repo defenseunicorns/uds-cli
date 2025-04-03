@@ -199,12 +199,14 @@ func (tp *tarballBundleProvider) LoadBundleMetadata() (types.PathMap, error) {
 				continue
 			}
 
-			tarBytes, err := os.ReadFile(tp.src)
+			file, err := os.Open(tp.src)
 			if err != nil {
 				return nil, err
 			}
+			defer file.Close()
+
 			fileHandler := utils.ExtractFile(pathInTarball, tp.dst)
-			err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(tarBytes), fileHandler)
+			err = config.BundleArchiveFormat.Extract(context.TODO(), file, fileHandler)
 			if err != nil {
 				return nil, err
 			}
