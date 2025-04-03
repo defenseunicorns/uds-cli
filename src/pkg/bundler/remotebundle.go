@@ -93,14 +93,6 @@ func (r *RemoteBundle) create(signature []byte) error {
 		pusherConfig.PkgRootManifest = pkgRootManifest
 		pusherConfig.PkgIter = i
 
-		if err := src.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
-			manifestDesc, err := src.ResolveRoot(ctx)
-			if err != nil {
-				return err
-			}
-			pusherConfig.Bundle.Packages[i].Ref = pkg.Ref + "@sha256:" + manifestDesc.Digest.Encoded()
-		}
-
 		remotePusher := pusher.NewPkgPusher(pkg, pusherConfig)
 		zarfManifestDesc, err := remotePusher.Push()
 		if err != nil {
