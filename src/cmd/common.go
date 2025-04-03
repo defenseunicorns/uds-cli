@@ -134,6 +134,9 @@ func cliSetup(cmd *cobra.Command) error {
 			message.Warn(lang.RootCmdErrInvalidLogLevel)
 		} else {
 			cfg.Level = lvl
+			// Convert string logLevel to message.LogLevel for Zarf
+			zarfLogLevel := stringToMessageLogLevel(logLevel)
+			message.SetLogLevel(zarfLogLevel)
 		}
 	}
 	l, err := logger.New(cfg)
@@ -155,4 +158,21 @@ func cliSetup(cmd *cobra.Command) error {
 	}
 
 	return nil
+}
+
+// stringToMessageLogLevel converts a string log level to message.LogLevel type
+func stringToMessageLogLevel(level string) message.LogLevel {
+	switch strings.ToLower(level) {
+	case "warn", "warning":
+		return message.WarnLevel
+	case "info":
+		return message.InfoLevel
+	case "debug":
+		return message.DebugLevel
+	case "trace":
+		return message.TraceLevel
+	default:
+		// Default to InfoLevel if not recognized
+		return message.InfoLevel
+	}
 }
