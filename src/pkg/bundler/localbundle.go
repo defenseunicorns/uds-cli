@@ -57,13 +57,12 @@ func NewLocalBundle(opts *LocalBundleOpts) *LocalBundle {
 }
 
 // create creates the bundle and outputs to a local tarball
-func (lo *LocalBundle) create(signature []byte) error {
+func (lo *LocalBundle) create(ctx context.Context, signature []byte) error {
 	bundle := lo.bundle
 	if bundle.Metadata.Architecture == "" {
 		return errors.New("architecture is required for bundling")
 	}
 	store, err := ocistore.NewWithContext(context.TODO(), lo.tmpDstDir)
-	ctx := context.TODO()
 
 	message.HeaderInfof("🐕 Fetching Packages")
 
@@ -229,7 +228,7 @@ func writeTarball(bundle *types.UDSBundle, artifactPathMap types.PathMap, output
 	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, bundle.Metadata.Name, bundle.Metadata.Architecture, bundle.Metadata.Version)
 
 	if !helpers.IsDir(outputDir) {
-		err := os.MkdirAll(outputDir, 0755)
+		err := os.MkdirAll(outputDir, 0o755)
 		if err != nil {
 			return err
 		}

@@ -17,6 +17,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
 	"github.com/spf13/cobra"
 
+	"github.com/zarf-dev/zarf/src/pkg/logger"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 )
 
@@ -32,8 +33,11 @@ var createCmd = &cobra.Command{
 		}
 		return nil
 	},
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		configureZarf()
+		ctx := cmd.Context()
+		// example log message
+		logger.From(ctx).Info("Creating bundle...")
 		srcDir, err := os.Getwd()
 		if err != nil {
 			return errors.New("error reading the current working directory")
@@ -49,7 +53,7 @@ var createCmd = &cobra.Command{
 		}
 		defer bndlClient.ClearPaths()
 
-		if err := bndlClient.Create(); err != nil {
+		if err := bndlClient.Create(ctx); err != nil {
 			bndlClient.ClearPaths()
 			return fmt.Errorf("failed to create bundle: %s", err.Error())
 		}
@@ -62,7 +66,8 @@ var deployCmd = &cobra.Command{
 	Aliases: []string{"d"},
 	Short:   lang.CmdBundleDeployShort,
 	Args:    cobra.MaximumNArgs(1),
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := cmd.Context()
 		var err error
 		bundleCfg.DeployOpts.Source, err = chooseBundle(args)
 		if err != nil {
@@ -81,7 +86,7 @@ var deployCmd = &cobra.Command{
 			return err
 		}
 		defer bndlClient.ClearPaths()
-		err = deploy(bndlClient)
+		err = deploy(ctx, bndlClient)
 		if err != nil {
 			return err
 		}
