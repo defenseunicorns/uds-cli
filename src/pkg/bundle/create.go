@@ -70,7 +70,7 @@ func (b *Bundle) Create() error {
 	if b.cfg.CreateOpts.SigningKeyPath != "" {
 		// write the bundle to disk so we can sign it
 		bundlePath := filepath.Join(b.tmp, config.BundleYAML)
-		if err := zarfUtils.WriteYaml(bundlePath, &b.bundle, 0600); err != nil {
+		if err := zarfUtils.WriteYaml(bundlePath, &b.bundle, 0o600); err != nil {
 			return err
 		}
 

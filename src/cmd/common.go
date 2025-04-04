@@ -5,6 +5,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -51,7 +52,7 @@ func isValidConfigOption(str string) bool {
 }
 
 // deploy performs validation, confirmation and deployment of a bundle
-func deploy(bndlClient *bundle.Bundle) error {
+func deploy(ctx context.Context, bndlClient *bundle.Bundle) error {
 	_, _, _, err := bndlClient.PreDeployValidation()
 	if err != nil {
 		return fmt.Errorf("failed to validate bundle: %s", err.Error())
@@ -63,7 +64,7 @@ func deploy(bndlClient *bundle.Bundle) error {
 	}
 
 	// deploy the bundle
-	if err := bndlClient.Deploy(); err != nil {
+	if err := bndlClient.Deploy(ctx); err != nil {
 		bndlClient.ClearPaths()
 		return fmt.Errorf("failed to deploy bundle: %s", err.Error())
 	}

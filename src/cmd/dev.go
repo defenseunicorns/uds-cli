@@ -27,7 +27,8 @@ var devDeployCmd = &cobra.Command{
 	Args:  cobra.MaximumNArgs(1),
 	Short: lang.CmdDevDeployShort,
 	Long:  lang.CmdDevDeployLong,
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := cmd.Context()
 		config.Dev = true
 		config.CommonOptions.Confirm = true
 
@@ -96,7 +97,7 @@ var devDeployCmd = &cobra.Command{
 		}
 
 		// Deploy bundle
-		err = deploy(bndlClient)
+		err = deploy(ctx, bndlClient)
 		if err != nil {
 			return err
 		}
@@ -112,7 +113,7 @@ func isLocalBundle(src string) bool {
 // validateDevDeployFlags validates the flags for dev deploy
 func validateDevDeployFlags(isLocalBundle bool) error {
 	if !isLocalBundle {
-		//Throw error if trying to run with --flavor or --force-create flag with remote bundle
+		// Throw error if trying to run with --flavor or --force-create flag with remote bundle
 		if len(bundleCfg.DevDeployOpts.Flavor) > 0 || bundleCfg.DevDeployOpts.ForceCreate {
 			return errors.New("cannot use --flavor or --force-create flags with remote bundle")
 		}

@@ -66,7 +66,8 @@ var deployCmd = &cobra.Command{
 	Aliases: []string{"d"},
 	Short:   lang.CmdBundleDeployShort,
 	Args:    cobra.MaximumNArgs(1),
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := cmd.Context()
 		var err error
 		bundleCfg.DeployOpts.Source, err = chooseBundle(args)
 		if err != nil {
@@ -85,7 +86,7 @@ var deployCmd = &cobra.Command{
 			return err
 		}
 		defer bndlClient.ClearPaths()
-		err = deploy(bndlClient)
+		err = deploy(ctx, bndlClient)
 		if err != nil {
 			return err
 		}

@@ -35,7 +35,7 @@ import (
 const hiddenVar = "****"
 
 // Deploy deploys a bundle
-func (b *Bundle) Deploy() error {
+func (b *Bundle) Deploy(ctx context.Context) error {
 	packagesToDeploy := b.bundle.Packages
 
 	// Check if --packages flag is set and zarf packages have been specified
@@ -69,10 +69,10 @@ func (b *Bundle) Deploy() error {
 		}
 	}
 
-	return deployPackages(packagesToDeploy, b)
+	return deployPackages(ctx, packagesToDeploy, b)
 }
 
-func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
+func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bundle) error {
 	// map of Zarf pkgs and their vars
 	bundleExportedVars := make(map[string]map[string]string)
 
@@ -150,7 +150,7 @@ func deployPackages(packagesToDeploy []types.Package, b *Bundle) error {
 			return err
 		}
 
-		if err = pkgClient.Deploy(context.TODO()); err != nil {
+		if err = pkgClient.Deploy(ctx); err != nil {
 			return err
 		}
 
