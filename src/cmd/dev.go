@@ -88,7 +88,7 @@ var devDeployCmd = &cobra.Command{
 				return err
 			}
 
-			if err := bndlClient.Create(); err != nil {
+			if err := bndlClient.Create(ctx); err != nil {
 				return fmt.Errorf("failed to create bundle: %s", err.Error())
 			}
 			bndlClient.SetDeploySource(src)

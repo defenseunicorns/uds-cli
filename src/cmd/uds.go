@@ -53,7 +53,7 @@ var createCmd = &cobra.Command{
 		}
 		defer bndlClient.ClearPaths()
 
-		if err := bndlClient.Create(); err != nil {
+		if err := bndlClient.Create(ctx); err != nil {
 			bndlClient.ClearPaths()
 			return fmt.Errorf("failed to create bundle: %s", err.Error())
 		}
