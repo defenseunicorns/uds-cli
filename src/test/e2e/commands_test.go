@@ -75,7 +75,6 @@ func inspectLocalAndSBOMExtract(t *testing.T, bundleName, tarballPath string) {
 }
 
 func runCmd(t *testing.T, input string) (stdout string, stderr string) {
-	t.Helper()
 	cmd := strings.Split(input, " ")
 	stdout, stderr, err := e2e.UDS(cmd...)
 	require.NoError(t, err)
