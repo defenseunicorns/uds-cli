@@ -147,6 +147,8 @@ func cliSetup(cmd *cobra.Command) error {
 
 	// This is using the same logger as Zarf, uds-cli could also make it's own logger
 	ctx = logger.WithContext(ctx, l)
+	// Sets the context on the command, to be inherited by other commands. We do this so that we can pass
+	// the configured Zarf logger context down to Zarf commands and has the proper log level configured.
 	cmd.SetContext(ctx)
 	l.Debug("logger successfully initialized", "cfg", cfg)
 
