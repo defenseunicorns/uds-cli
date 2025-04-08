@@ -39,7 +39,9 @@ func TestSimpleBundleWithZarfAction(t *testing.T) {
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 	runCmd(t, fmt.Sprintf("create src/test/bundles/11-real-simple --insecure --confirm -a %s", e2e.Arch))
 	tarballPath := fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-real-simple-%s-0.0.1.tar.zst", e2e.Arch)
-	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", tarballPath))
+	// runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", tarballPath))
+	_, stderr := runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", tarballPath))
+	require.Contains(t, stderr, "Pulling ghcr.io")
 }
 
 func TestSimpleBundleWithNameAndVersionFlags(t *testing.T) {
