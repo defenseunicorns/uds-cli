@@ -1,5 +1,6 @@
 # Copyright 2024 Defense Unicorns
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+version: 2
 
 before:
   hooks:
@@ -31,7 +32,7 @@ builds:
 
 # Save the built artifacts as binaries (instead of wrapping them in a tarball)
 archives:
-  - format: binary
+  - formats: binary
     name_template: "{{ .ProjectName }}_{{ .Tag }}_{{- title .Os }}_{{ .Arch }}"
 
 # generate a sha256 checksum of all release artifacts
@@ -46,7 +47,7 @@ sboms:
       - "sbom_{{ .ProjectName }}_{{ .Tag }}_{{- title .Os }}_{{ .Arch }}.sbom"
 
 snapshot:
-  name_template: "{{ incpatch .Version }}-snapshot"
+  version_template: "{{ incpatch .Version }}-snapshot"
 
 # Use the auto-generated changelog github provides
 changelog:
@@ -110,4 +111,3 @@ git:
   # Templates: allowed.
   ignore_tags:
     - nightly-unstable
-    - "{{.Env.IGNORE_TAG}}"
