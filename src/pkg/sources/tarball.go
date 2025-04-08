@@ -44,7 +44,7 @@ type TarballBundle struct {
 }
 
 // LoadPackage loads a Zarf package from a local tarball bundle
-func (t *TarballBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (v1alpha1.ZarfPackage, []string, error) {
+func (t *TarballBundle) LoadPackage(ctx context.Context, dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (v1alpha1.ZarfPackage, []string, error) {
 	packageSpinner := message.NewProgressSpinner("Loading bundled Zarf package: %s", t.Pkg.Name)
 	defer packageSpinner.Stop()
 
@@ -70,7 +70,7 @@ func (t *TarballBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths,
 	}
 	pkg.Components = filteredComps
 
-	dst.SetFromPaths(files)
+	dst.SetFromPaths(ctx, files)
 
 	if err := sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, isPartialPkg); err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
@@ -78,7 +78,7 @@ func (t *TarballBundle) LoadPackage(_ context.Context, dst *layout.PackagePaths,
 
 	if unarchiveAll {
 		for _, component := range pkg.Components {
-			if err := dst.Components.Unarchive(component); err != nil {
+			if err := dst.Components.Unarchive(ctx, component); err != nil {
 				if errors.Is(err, layout.ErrNotLoaded) {
 					_, err := dst.Components.Create(component)
 					if err != nil {
@@ -192,7 +192,7 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, dst *layout.Packa
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
-	dst.SetFromPaths(filePaths)
+	dst.SetFromPaths(ctx, filePaths)
 	if err := sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, true); err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}

@@ -5,6 +5,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -18,8 +19,8 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
-	zarfCLI "github.com/zarf-dev/zarf/src/cmd"
 	zarfConfig "github.com/zarf-dev/zarf/src/config"
+	"github.com/zarf-dev/zarf/src/pkg/logger"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
@@ -51,7 +52,7 @@ func isValidConfigOption(str string) bool {
 }
 
 // deploy performs validation, confirmation and deployment of a bundle
-func deploy(bndlClient *bundle.Bundle) error {
+func deploy(ctx context.Context, bndlClient *bundle.Bundle) error {
 	_, _, _, err := bndlClient.PreDeployValidation()
 	if err != nil {
 		return fmt.Errorf("failed to validate bundle: %s", err.Error())
@@ -63,7 +64,7 @@ func deploy(bndlClient *bundle.Bundle) error {
 	}
 
 	// deploy the bundle
-	if err := bndlClient.Deploy(); err != nil {
+	if err := bndlClient.Deploy(ctx); err != nil {
 		bndlClient.ClearPaths()
 		return fmt.Errorf("failed to deploy bundle: %s", err.Error())
 	}
@@ -73,7 +74,6 @@ func deploy(bndlClient *bundle.Bundle) error {
 
 // configureZarf copies configs from UDS-CLI to Zarf
 func configureZarf() {
-	zarfCLI.LogFormat = "legacy"
 	zarfConfig.CommonOptions = zarfTypes.ZarfCommonOptions{
 		Insecure:       config.CommonOptions.Insecure,
 		TempDirectory:  config.CommonOptions.TempDirectory,
@@ -115,40 +115,42 @@ func setBundleFile(args []string) error {
 }
 
 func cliSetup(cmd *cobra.Command) error {
-	match := map[string]message.LogLevel{
-		"warn":  message.WarnLevel,
-		"info":  message.InfoLevel,
-		"debug": message.DebugLevel,
-		"trace": message.TraceLevel,
-	}
-
+	ctx := cmd.Context()
 	printViperConfigUsed()
 
 	if config.NoColor {
 		pterm.DisableColor()
 	}
 
-	// No log level set, so use the default
+	cfg := logger.Config{
+		Level: logger.Info,
+		// TODO UDS will need to decide if they want to support other formats like json and if so, get that from a cli flag
+		Format:      logger.FormatConsole,
+		Destination: logger.DestinationDefault,
+		Color:       logger.Color(!config.NoColor),
+	}
 	if logLevel != "" {
-		if lvl, ok := match[logLevel]; ok {
-			message.SetLogLevel(lvl)
-			message.Debug("Log level set to " + logLevel)
-		} else {
+		lvl, err := logger.ParseLevel(logLevel)
+		if err != nil {
 			message.Warn(lang.RootCmdErrInvalidLogLevel)
+		} else {
+			cfg.Level = lvl
+			// Convert string logLevel to message.LogLevel for Zarf
+			zarfLogLevel := stringToMessageLogLevel(logLevel)
+			message.SetLogLevel(zarfLogLevel)
 		}
+	}
+	l, err := logger.New(cfg)
+	if err != nil {
+		return err
 	}
 
-	// don't configure Zarf CLI directly if we're calling vendored Zarf
-	if !strings.HasPrefix(cmd.Use, "zarf") {
-		if err := zarfCLI.SetupMessage(zarfCLI.MessageCfg{
-			Level:       logLevel,
-			SkipLogFile: config.SkipLogFile,
-			NoColor:     config.NoColor,
-		},
-		); err != nil {
-			return err
-		}
-	}
+	// This is using the same logger as Zarf, uds-cli could also make it's own logger
+	ctx = logger.WithContext(ctx, l)
+	// Sets the context on the command, to be inherited by other commands. We do this so that we can pass
+	// the configured Zarf logger context down to Zarf commands and has the proper log level configured.
+	cmd.SetContext(ctx)
+	l.Debug("logger successfully initialized", "cfg", cfg)
 
 	// configure logs for UDS after calling zarfCommon.SetupCLI
 	if !config.SkipLogFile && !config.ListTasks {
@@ -159,4 +161,21 @@ func cliSetup(cmd *cobra.Command) error {
 	}
 
 	return nil
+}
+
+// stringToMessageLogLevel converts a string log level to message.LogLevel type
+func stringToMessageLogLevel(level string) message.LogLevel {
+	switch strings.ToLower(level) {
+	case "warn", "warning":
+		return message.WarnLevel
+	case "info":
+		return message.InfoLevel
+	case "debug":
+		return message.DebugLevel
+	case "trace":
+		return message.TraceLevel
+	default:
+		// Default to InfoLevel if not recognized
+		return message.InfoLevel
+	}
 }
