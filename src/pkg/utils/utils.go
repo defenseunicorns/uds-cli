@@ -111,11 +111,10 @@ func ExtractJSON(j any, expectedFilepath string) archives.FileHandler {
 		}
 		defer stream.Close()
 
-		fileBytes, err := io.ReadAll(stream)
-		if err != nil {
-			return err
-		}
-		return json.Unmarshal(fileBytes, &j)
+		// Use json.NewDecoder to decode directly from the stream
+		// instead of reading the entire file into memory first
+		decoder := json.NewDecoder(stream)
+		return decoder.Decode(&j)
 	}
 }
 
@@ -165,26 +164,32 @@ func extractFiles(expectedFilepath string, outDirPath string) archives.FileHandl
 
 		// If the name name in the archive is a directory, create the directory!
 		if file.IsDir() {
-			return os.MkdirAll(outPath, 0755)
+			return os.MkdirAll(outPath, 0o755)
 		}
 
+		// Ensure parent directory exists
+		err := os.MkdirAll(filepath.Dir(outPath), 0o755)
+		if err != nil {
+			return err
+		}
+
+		// Create the output file
+		outFile, err := os.OpenFile(outPath, os.O_CREATE|os.O_WRONLY, 0o600)
+		if err != nil {
+			return err
+		}
+		defer outFile.Close()
+
+		// Open the input stream
 		stream, err := file.Open()
 		if err != nil {
 			return err
 		}
 		defer stream.Close()
 
-		fileBytes, err := io.ReadAll(stream)
-		if err != nil {
-			return err
-		}
-
-		err = os.MkdirAll(filepath.Dir(outPath), 0755)
-		if err != nil {
-			return err
-		}
-
-		return os.WriteFile(outPath, fileBytes, 0600)
+		// Stream directly from input to output instead of loading entire file into memory
+		_, err = io.Copy(outFile, stream)
+		return err
 	}
 }
 
