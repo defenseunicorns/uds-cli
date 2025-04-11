@@ -56,7 +56,7 @@ func (op *ociProvider) getBundleManifest() (*oci.Manifest, error) {
 // LoadBundleMetadata loads a remote bundle's metadata
 func (op *ociProvider) LoadBundleMetadata() (types.PathMap, error) {
 	ctx := context.TODO()
-	if err := helpers.CreateDirectory(filepath.Join(op.dst, config.BlobsDir), 0700); err != nil {
+	if err := helpers.CreateDirectory(filepath.Join(op.dst, config.BlobsDir), 0o700); err != nil {
 		return nil, err
 	}
 
@@ -94,7 +94,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool, bundleName string) ([]
 	}
 
 	// make tmp dir for pkg SBOM extraction
-	err = os.Mkdir(filepath.Join(op.dst, config.BundleSBOM), 0700)
+	err = os.Mkdir(filepath.Join(op.dst, config.BundleSBOM), 0o700)
 	if err != nil {
 		return warns, err
 	}

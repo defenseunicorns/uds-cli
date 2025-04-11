@@ -5,7 +5,6 @@
 package bundle
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -21,6 +20,7 @@ import (
 
 // Publish publishes a bundle to a remote OCI registry
 func (b *Bundle) Publish() error {
+	ctx := context.TODO()
 	b.cfg.PublishOpts.Destination = boci.EnsureOCIPrefix(b.cfg.PublishOpts.Destination)
 
 	// load bundle metadata into memory
@@ -41,13 +41,13 @@ func (b *Bundle) Publish() error {
 		return err
 	}
 
-	bundleBytes, err := os.ReadFile(b.cfg.PublishOpts.Source)
+	file, err := os.Open(b.cfg.PublishOpts.Source)
 	if err != nil {
 		return err
 	}
 
 	// extract all files from the archive into a tmpdir
-	err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(bundleBytes), utils.ExtractAllFiles(b.tmp))
+	err = config.BundleArchiveFormat.Extract(ctx, file, utils.ExtractAllFiles(b.tmp))
 	if err != nil {
 		return err
 	}
@@ -66,7 +66,7 @@ func (b *Bundle) Publish() error {
 		Architecture: config.GetArch(),
 		OS:           oci.MultiOS,
 	}
-	remote, err := zoci.NewRemote(context.TODO(), fmt.Sprintf("%s/%s:%s", ociURL, bundleName, bundleTag), platform)
+	remote, err := zoci.NewRemote(ctx, fmt.Sprintf("%s/%s:%s", ociURL, bundleName, bundleTag), platform)
 	if err != nil {
 		return err
 	}

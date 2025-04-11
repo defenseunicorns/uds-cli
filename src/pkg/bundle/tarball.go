@@ -59,13 +59,13 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName s
 			continue
 		}
 
-		tarBytes, err := os.ReadFile(tp.src)
+		tarBytes, err := os.Open(tp.src)
 		if err != nil {
 			return warns, err
 		}
 		var zarfImageManifest *oci.Manifest
 		fileHandler := utils.ExtractJSON(&zarfImageManifest, filepath.Join(config.BlobsDir, layer.Digest.Encoded()))
-		err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(tarBytes), fileHandler)
+		err = config.BundleArchiveFormat.Extract(context.TODO(), tarBytes, fileHandler)
 		if err != nil {
 			return warns, err
 		}
@@ -90,18 +90,18 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName s
 		}
 
 		fileHandler = utils.ExtractFile(sbomFilePath, tp.dst)
-		err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(tarBytes), fileHandler)
+		err = config.BundleArchiveFormat.Extract(context.TODO(), tarBytes, fileHandler)
 		if err != nil {
 			return warns, err
 		}
 
 		// extract SBOMs from tar
-		sbomTarBytes, err := os.ReadFile(filepath.Join(tp.dst, sbomFilePath))
+		sbomTarBytes, err := os.Open(filepath.Join(tp.dst, sbomFilePath))
 		if err != nil {
 			return warns, err
 		}
 		extractor := utils.SBOMExtractor(tp.dst, SBOMArtifactPathMap)
-		err = archives.Tar{}.Extract(context.TODO(), bytes.NewReader(sbomTarBytes), extractor)
+		err = archives.Tar{}.Extract(context.TODO(), sbomTarBytes, extractor)
 		if err != nil {
 			return warns, err
 		}
@@ -128,6 +128,7 @@ func (tp *tarballBundleProvider) loadBundleManifest() error {
 
 	var index ocispec.Index
 	tarBytes, err := os.ReadFile(tp.src)
+	// tarBytes, err := os.(tp.src)
 	if err != nil {
 		return err
 	}
