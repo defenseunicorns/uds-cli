@@ -45,9 +45,7 @@ func NewRemoteBundle(opts *RemoteBundleOpts) *RemoteBundle {
 }
 
 // create creates the bundle in a remote OCI registry publishes w/ optional signature to the remote repository.
-func (r *RemoteBundle) create(signature []byte) error {
-	ctx := context.TODO()
-
+func (r *RemoteBundle) create(ctx context.Context, signature []byte) error {
 	// set the bundle remote's reference from metadata
 	r.output = boci.EnsureOCIPrefix(r.output)
 	ref, err := referenceFromMetadata(r.output, &r.bundle.Metadata)
@@ -92,14 +90,6 @@ func (r *RemoteBundle) create(signature []byte) error {
 		}
 		pusherConfig.PkgRootManifest = pkgRootManifest
 		pusherConfig.PkgIter = i
-
-		if err := src.Repo().Reference.ValidateReferenceAsDigest(); err != nil {
-			manifestDesc, err := src.ResolveRoot(ctx)
-			if err != nil {
-				return err
-			}
-			pusherConfig.Bundle.Packages[i].Ref = pkg.Ref + "@sha256:" + manifestDesc.Digest.Encoded()
-		}
 
 		remotePusher := pusher.NewPkgPusher(pkg, pusherConfig)
 		zarfManifestDesc, err := remotePusher.Push()

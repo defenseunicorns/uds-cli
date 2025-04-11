@@ -5,6 +5,7 @@
 package bundle
 
 import (
+	"context"
 	"errors"
 	"path/filepath"
 
@@ -22,7 +23,7 @@ import (
 )
 
 // Create creates a bundle
-func (b *Bundle) Create() error {
+func (b *Bundle) Create(ctx context.Context) error {
 	// read the bundle's metadata into memory
 	if err := utils.ReadYAMLStrict(filepath.Join(b.cfg.CreateOpts.SourceDirectory, b.cfg.CreateOpts.BundleFile), &b.bundle); err != nil {
 		return err
@@ -70,7 +71,7 @@ func (b *Bundle) Create() error {
 	if b.cfg.CreateOpts.SigningKeyPath != "" {
 		// write the bundle to disk so we can sign it
 		bundlePath := filepath.Join(b.tmp, config.BundleYAML)
-		if err := zarfUtils.WriteYaml(bundlePath, &b.bundle, 0600); err != nil {
+		if err := zarfUtils.WriteYaml(bundlePath, &b.bundle, 0o600); err != nil {
 			return err
 		}
 
@@ -104,7 +105,7 @@ func (b *Bundle) Create() error {
 	}
 	bundlerClient := bundler.NewBundler(&opts)
 
-	return bundlerClient.Create()
+	return bundlerClient.Create(ctx)
 }
 
 // confirmBundleCreation prompts the user to confirm bundle creation
