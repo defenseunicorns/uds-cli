@@ -5,7 +5,6 @@
 package bundle
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -41,13 +40,15 @@ func (b *Bundle) Publish() error {
 		return err
 	}
 
-	bundleBytes, err := os.ReadFile(b.cfg.PublishOpts.Source)
+	// Open the bundle file for streaming instead of loading it all into memory
+	bundleFile, err := os.Open(b.cfg.PublishOpts.Source)
 	if err != nil {
 		return err
 	}
+	defer bundleFile.Close()
 
-	// extract all files from the archive into a tmpdir
-	err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(bundleBytes), utils.ExtractAllFiles(b.tmp))
+	// Extract all files from the archive into a tmpdir using streaming
+	err = config.BundleArchiveFormat.Extract(context.TODO(), bundleFile, utils.ExtractAllFiles(b.tmp))
 	if err != nil {
 		return err
 	}
