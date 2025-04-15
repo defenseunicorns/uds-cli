@@ -5,7 +5,6 @@
 package bundle
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -59,13 +58,16 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName s
 			continue
 		}
 
-		tarBytes, err := os.ReadFile(tp.src)
+		// Open the tarball file for streaming instead of loading it all at once
+		tarFile, err := os.Open(tp.src)
 		if err != nil {
 			return warns, err
 		}
+
 		var zarfImageManifest *oci.Manifest
 		fileHandler := utils.ExtractJSON(&zarfImageManifest, filepath.Join(config.BlobsDir, layer.Digest.Encoded()))
-		err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(tarBytes), fileHandler)
+		err = config.BundleArchiveFormat.Extract(context.TODO(), tarFile, fileHandler)
+		tarFile.Close() // Close the file after extraction
 		if err != nil {
 			return warns, err
 		}
@@ -89,19 +91,28 @@ func (tp *tarballBundleProvider) CreateBundleSBOM(extractSBOM bool, bundleName s
 			}
 		}
 
-		fileHandler = utils.ExtractFile(sbomFilePath, tp.dst)
-		err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(tarBytes), fileHandler)
+		// Open the tarball file again for streaming
+		tarFile, err = os.Open(tp.src)
 		if err != nil {
 			return warns, err
 		}
 
-		// extract SBOMs from tar
-		sbomTarBytes, err := os.ReadFile(filepath.Join(tp.dst, sbomFilePath))
+		fileHandler = utils.ExtractFile(sbomFilePath, tp.dst)
+		err = config.BundleArchiveFormat.Extract(context.TODO(), tarFile, fileHandler)
+		tarFile.Close() // Close the file after extraction
 		if err != nil {
 			return warns, err
 		}
+
+		// Open the extracted SBOM tar file for streaming
+		sbomTarFile, err := os.Open(filepath.Join(tp.dst, sbomFilePath))
+		if err != nil {
+			return warns, err
+		}
+
 		extractor := utils.SBOMExtractor(tp.dst, SBOMArtifactPathMap)
-		err = archives.Tar{}.Extract(context.TODO(), bytes.NewReader(sbomTarBytes), extractor)
+		err = archives.Tar{}.Extract(context.TODO(), sbomTarFile, extractor)
+		sbomTarFile.Close() // Close the file after extraction
 		if err != nil {
 			return warns, err
 		}
@@ -127,12 +138,16 @@ func (tp *tarballBundleProvider) loadBundleManifest() error {
 	defer os.RemoveAll(secureTempDir) // Ensure cleanup of the temp directory
 
 	var index ocispec.Index
-	tarBytes, err := os.ReadFile(tp.src)
+
+	// Open the tarball file for streaming
+	tarFile, err := os.Open(tp.src)
 	if err != nil {
 		return err
 	}
+	defer tarFile.Close()
+
 	fileHandler := utils.ExtractJSON(&index, "index.json")
-	err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(tarBytes), fileHandler)
+	err = config.BundleArchiveFormat.Extract(context.TODO(), tarFile, fileHandler)
 	if err != nil {
 		return err
 	}
@@ -149,8 +164,15 @@ func (tp *tarballBundleProvider) loadBundleManifest() error {
 	manifestPath := filepath.Join(secureTempDir, manifestRelativePath)
 	defer os.Remove(manifestPath)
 
+	// Open the tarball file again for streaming
+	tarFile, err = os.Open(tp.src)
+	if err != nil {
+		return err
+	}
+	defer tarFile.Close()
+
 	fileHandler = utils.ExtractFile(manifestRelativePath, secureTempDir)
-	err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(tarBytes), fileHandler)
+	err = config.BundleArchiveFormat.Extract(context.TODO(), tarFile, fileHandler)
 	if err != nil {
 		return err
 	}
@@ -159,14 +181,16 @@ func (tp *tarballBundleProvider) loadBundleManifest() error {
 		return err
 	}
 
-	b, err := os.ReadFile(manifestPath)
+	// Open the manifest file for streaming
+	manifestFile, err := os.Open(manifestPath)
 	if err != nil {
 		return err
 	}
+	defer manifestFile.Close()
 
 	var manifest *oci.Manifest
-
-	if err := json.Unmarshal(b, &manifest); err != nil {
+	decoder := json.NewDecoder(manifestFile)
+	if err := decoder.Decode(&manifest); err != nil {
 		return err
 	}
 
@@ -199,12 +223,15 @@ func (tp *tarballBundleProvider) LoadBundleMetadata() (types.PathMap, error) {
 				continue
 			}
 
-			tarBytes, err := os.ReadFile(tp.src)
+			// Open the tarball file for streaming
+			tarFile, err := os.Open(tp.src)
 			if err != nil {
 				return nil, err
 			}
+
 			fileHandler := utils.ExtractFile(pathInTarball, tp.dst)
-			err = config.BundleArchiveFormat.Extract(context.TODO(), bytes.NewReader(tarBytes), fileHandler)
+			err = config.BundleArchiveFormat.Extract(context.TODO(), tarFile, fileHandler)
+			tarFile.Close() // Close the file after extraction
 			if err != nil {
 				return nil, err
 			}
@@ -218,13 +245,16 @@ func (tp *tarballBundleProvider) getZarfLayers(store *ocistore.Store, pkgManifes
 	var layersToPull []ocispec.Descriptor
 	estimatedPkgSize := int64(0)
 
-	layerBytes, err := os.ReadFile(filepath.Join(tp.dst, config.BlobsDir, pkgManifestDesc.Digest.Encoded()))
+	// Open the layer file for streaming
+	layerFile, err := os.Open(filepath.Join(tp.dst, config.BlobsDir, pkgManifestDesc.Digest.Encoded()))
 	if err != nil {
 		return nil, int64(0), err
 	}
+	defer layerFile.Close()
 
 	var zarfImageManifest *oci.Manifest
-	if err := json.Unmarshal(layerBytes, &zarfImageManifest); err != nil {
+	decoder := json.NewDecoder(layerFile)
+	if err := decoder.Decode(&zarfImageManifest); err != nil {
 		return nil, int64(0), err
 	}
 
