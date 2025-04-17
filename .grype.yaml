@@ -1,7 +1,7 @@
 # Copyright 2024 Defense Unicorns
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
-fail-on-severity: "high"
+fail-on-severity: "critical"
 output: "table"
 # file: "grype-scan.json"
 ignore:

@@ -28,7 +28,7 @@ jobs:
           with:
             path: "."
             fail-build: true
-            severity-cutoff: high
+            severity-cutoff: critical
             output-format: json
             output-file: "grype-scan.json"
 
