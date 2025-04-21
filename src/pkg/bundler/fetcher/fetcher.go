@@ -32,7 +32,6 @@ type Config struct {
 	NumPkgs            int
 	BundleRootManifest *ocispec.Manifest
 	Bundle             *types.UDSBundle
-	CreateSrcDir       string
 }
 
 // NewPkgFetcher creates a fetcher object to pull Zarf pkgs into a local bundle

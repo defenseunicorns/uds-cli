@@ -7,17 +7,16 @@ package fetcher
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/cache"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	zarfCmd "github.com/zarf-dev/zarf/src/cmd"
-	zarfCfg "github.com/zarf-dev/zarf/src/config"
 	"github.com/zarf-dev/zarf/src/pkg/message"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
@@ -36,60 +35,86 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	fetchSpinner := message.NewProgressSpinner("Fetching package %s", f.pkg.Name)
 	defer fetchSpinner.Stop()
 
-	// Create the tmpdir for the pulled package
-	outputDir := filepath.Join(f.cfg.TmpDstDir, "pulledPacakges", f.pkg.Name)
-	err := os.MkdirAll(outputDir, 0o755)
+	// find layers in remote
+	fetchSpinner.Updatef("Fetching %s package layer metadata (package %d of %d)", f.pkg.Name, f.cfg.PkgIter+1, f.cfg.NumPkgs)
+	layersToCopy, err := boci.FindPkgLayers(*f.remote, f.pkgRootManifest, f.pkg.OptionalComponents)
 	if err != nil {
-		message.Warn("unable to create a new dir in tmpdir..")
 		return nil, err
 	}
-	defer os.RemoveAll(outputDir)
+	fetchSpinner.Stop()
 
-	// Pull the remote package local tmpdir
-	zarfCmd := zarfCmd.NewZarfCommand()
-	zarfCfg.CLIArch = config.GetArch()
-	ociURL := "oci://" + f.pkg.Repository + ":" + f.pkg.Ref
-	outFlag := "--output-directory=" + outputDir
-	cmdArgs := []string{
-		"package",
-		"pull",
-		ociURL,
-		outFlag,
-	}
-
-	// Add path to public key if provided
-	f.pkg.PublicKey, err = getAbsKeyPath(f.pkg.PublicKey, f.cfg.CreateSrcDir)
+	// copy layers to local bundle
+	fetchSpinner.Updatef("Pushing package %s layers to bundle (package %d of %d)", f.pkg.Name, f.cfg.PkgIter+1, f.cfg.NumPkgs)
+	pkgDescs, err := f.copyRemotePkgLayers(layersToCopy)
 	if err != nil {
 		return nil, err
 	}
 
-	// If the publicKey was provided, add the key flag to the args list
-	if f.pkg.PublicKey != "" {
-		cmdArgs = append(cmdArgs, "--key="+f.pkg.PublicKey)
-	}
+	fetchSpinner.Successf("Fetched package: %s", f.pkg.Name)
+	return pkgDescs, nil
+}
 
-	zarfCmd.SetArgs(cmdArgs)
-	err = zarfCmd.Execute()
-	if err != nil {
-		return []ocispec.Descriptor{}, err
-	}
+// copyRemotePkgLayers copies a remote Zarf pkg to a local OCI store
+func (f *remoteFetcher) copyRemotePkgLayers(layersToCopy []ocispec.Descriptor) ([]ocispec.Descriptor, error) {
+	ctx := context.TODO()
+	// pull layers from remote and write to OCI artifact dir
+	var descsToBundle []ocispec.Descriptor
+	var layersToPull []ocispec.Descriptor
+	estimatedBytes := int64(0)
 
-	// Fetch the descriptor layers from the, now local, zarf package
-	localFetcher := localFetcher{
-		pkg: f.pkg,
-		cfg: f.cfg,
-	}
+	// grab descriptors of layers to copy
+	for _, layer := range layersToCopy {
+		if layer.Digest == "" {
+			continue
+		}
 
-	matches, err := filepath.Glob(filepath.Join(outputDir, "zarf-*.tar.zst"))
-	if err != nil {
-		return nil, err
+		exists, err := cache.CheckLayerExists(ctx, layer, f.cfg.Store, f.cfg.TmpDstDir)
+		if err != nil {
+			return nil, err
+		}
+		// if layers don't already exist on disk, add to layersToPull
+		// but don't grab Zarf root manifest (id'd by image manifest) because we get it automatically during oras.Copy()
+		if !exists && layer.MediaType != ocispec.MediaTypeImageManifest {
+			layersToPull = append(layersToPull, layer)
+			estimatedBytes += layer.Size
+		}
+		descsToBundle = append(descsToBundle, layer)
 	}
-	if len(matches) != 1 {
-		return nil, fmt.Errorf("unable to pull pacakge %s", f.pkg.Name)
-	}
+	// pull layers that didn't already exist on disk
+	if len(layersToPull) > 0 {
+		rootPkgDesc, err := boci.CopyLayers(layersToPull, estimatedBytes, f.cfg.TmpDstDir, f.remote.Repo(), f.cfg.Store, f.pkg.Name)
+		if err != nil {
+			return nil, err
+		}
 
-	localFetcher.pkg.Path = matches[0]
-	return localFetcher.Fetch()
+		// grab pkg root manifest for archiving and save it to bundle root manifest
+		descsToBundle = append(descsToBundle, rootPkgDesc)
+		rootPkgDesc.MediaType = zoci.ZarfLayerMediaTypeBlob // force media type to Zarf blob
+		f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, rootPkgDesc)
+
+		// cache only the image layers that were just pulled
+		err = cache.AddPulledImgLayers(layersToPull, f.cfg.TmpDstDir)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// no layers to pull but need to grab pkg root manifest and config manually bc we didn't use oras.Copy()
+		pkgManifestDesc, err := boci.ToOCIStore(f.pkgRootManifest, ocispec.MediaTypeImageManifest, f.cfg.Store)
+		if err != nil {
+			return nil, err
+		}
+
+		// save pkg manifest to bundle root manifest
+		pkgManifestDesc.MediaType = zoci.ZarfLayerMediaTypeBlob // force media type to Zarf blob
+		f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, pkgManifestDesc)
+
+		manifestConfigDesc, err := boci.ToOCIStore(f.pkgRootManifest.Config, zoci.ZarfConfigMediaType, f.cfg.Store)
+		if err != nil {
+			return nil, err
+		}
+		descsToBundle = append(descsToBundle, pkgManifestDesc, manifestConfigDesc)
+	}
+	return descsToBundle, nil
 }
 
 func (f *remoteFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {

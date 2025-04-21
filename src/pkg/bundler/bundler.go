@@ -5,6 +5,8 @@
 package bundler
 
 import (
+	"context"
+
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 )
@@ -18,8 +20,7 @@ type Bundler struct {
 }
 
 // Pusher is the interface for pushing bundles
-type Pusher interface {
-}
+type Pusher interface{}
 
 // Options are the options for creating a bundler
 type Options struct {
@@ -41,16 +42,16 @@ func NewBundler(opts *Options) *Bundler {
 }
 
 // Create creates a bundle
-func (b *Bundler) Create() error {
+func (b *Bundler) Create(ctx context.Context) error {
 	if utils.IsRegistryURL(b.output) {
 		remoteBundle := NewRemoteBundle(&RemoteBundleOpts{Bundle: b.bundle, Output: b.output})
-		err := remoteBundle.create(nil)
+		err := remoteBundle.create(ctx, nil)
 		if err != nil {
 			return err
 		}
 	} else {
 		localBundle := NewLocalBundle(&LocalBundleOpts{Bundle: b.bundle, TmpDstDir: b.tmpDstDir, SourceDir: b.sourceDir, OutputDir: b.output})
-		err := localBundle.create(nil)
+		err := localBundle.create(ctx, nil)
 		if err != nil {
 			return err
 		}

@@ -37,25 +37,20 @@ func TestUDSLogs(t *testing.T) {
 func TestSimpleBundleWithZarfAction(t *testing.T) {
 	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-	os.Setenv("UDS_LOG_LEVEL", "debug")
-	defer os.Unsetenv("UDS_LOG_LEVEL")
 	runCmd(t, fmt.Sprintf("create src/test/bundles/11-real-simple --insecure --confirm -a %s", e2e.Arch))
 	tarballPath := fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-real-simple-%s-0.0.1.tar.zst", e2e.Arch)
 	_, stderr := runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", tarballPath))
-	require.Contains(t, stderr, "Log level set to debug")
+	require.Contains(t, stderr, "Pulling ghcr.io")
 }
 
 func TestSimpleBundleWithNameAndVersionFlags(t *testing.T) {
 	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-	os.Setenv("UDS_LOG_LEVEL", "debug")
-	defer os.Unsetenv("UDS_LOG_LEVEL")
 	name, version := "name-from-flag", "version-from-flag"
 	bundlePath := "src/test/bundles/11-real-simple"
 	runCmd(t, fmt.Sprintf("create %s --confirm --name %s --version %s", bundlePath, name, version))
 	tarballPath := fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-%s-%s-%s.tar.zst", name, e2e.Arch, version)
-	_, stderr := runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", tarballPath))
-	require.Contains(t, stderr, "Log level set to debug")
+	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", tarballPath))
 }
 
 func TestCreateWithNoPath(t *testing.T) {
@@ -538,9 +533,9 @@ func TestListImages(t *testing.T) {
 		contents, err := os.ReadFile(filename)
 		require.NoError(t, err)
 		require.NotContains(t, string(contents), "\u001b") // ensure no color-related bytes
-		//Check for package name
+		// Check for package name
 		require.Contains(t, string(contents), "init")
-		//Check for image name
+		// Check for image name
 		require.Contains(t, string(contents), "library/registry")
 	})
 

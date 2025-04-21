@@ -469,37 +469,3 @@ Stream UDS Policy deny logs and UDS Operator error logs:
 `--since duration Only return logs newer than a relative duration like 5s, 2m, or 3h. Defaults to all logs.
 
 `-t, --timestamps` Show timestamps in Pepr log
-
-## Scan
-
-:::note
-Trivy is a prerequisite for scanning container images and filesystem for vulnerabilities. You can find more information and installation instructions at [Trivy's official documentation](https://aquasecurity.github.io/trivy).
-:::
-
-The `scan` command is used to scan a Zarf package for vulnerabilities and generate a report. This command is currently in ALPHA.
-
-### Usage
-
-To use the `scan` command, run:
-
-```sh
-uds scan --org <organization> --package-name <package-name> --tag <tag> [options]
-```
-
-### Required Parameters
-
-- `--org` or `-o`: Organization name (default: `defenseunicorns`)
-- `--package-name` or `-n`: Name of the package (e.g., `packages/uds/gitlab-runner`)
-- `--tag` or `-g`: Tag name (e.g., `16.10.0-uds.0-upstream`)
-- `--output-file` or `-f`: Output file for CSV results
-
-### Optional Parameters
-
-- `--docker-username` or `-u`: Docker username for registry access, accepts CSV values
-- `--docker-password` or `-p`: Docker password for registry access, accepts CSV values
-
-### Example Usage
-
-```sh
-uds scan -o defenseunicorns -n packages/uds/gitlab-runner -g 16.10.0-uds.0-upstream -u docker-username -p docker-password -f gitlab-runner.csv
-```

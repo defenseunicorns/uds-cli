@@ -142,7 +142,7 @@ func ExtractBytes(b *[]byte, expectedFilepath string) archives.FileHandler {
 	}
 }
 
-// ExtractFiles returns an archives.FileHandler that extracts a file from an archive
+// ExtractFile returns an archives.FileHandler that extracts a file from an archive
 func ExtractFile(expectedFilepath, outDirPath string) archives.FileHandler {
 	return extractFiles(expectedFilepath, outDirPath)
 }
@@ -163,28 +163,34 @@ func extractFiles(expectedFilepath string, outDirPath string) archives.FileHandl
 
 		outPath := filepath.Join(outDirPath, file.NameInArchive)
 
-		// If the name name in the archive is a directory, create the directory!
+		// If the entry is a directory, just create it and return
 		if file.IsDir() {
 			return os.MkdirAll(outPath, 0755)
 		}
 
+		// For files, ensure parent directory exists
+		err := os.MkdirAll(filepath.Dir(outPath), 0755)
+		if err != nil {
+			return err
+		}
+
+		// Create the output file
+		outFile, err := os.OpenFile(outPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+		if err != nil {
+			return err
+		}
+		defer outFile.Close()
+
+		// Open the stream from the archive
 		stream, err := file.Open()
 		if err != nil {
 			return err
 		}
 		defer stream.Close()
 
-		fileBytes, err := io.ReadAll(stream)
-		if err != nil {
-			return err
-		}
-
-		err = os.MkdirAll(filepath.Dir(outPath), 0755)
-		if err != nil {
-			return err
-		}
-
-		return os.WriteFile(outPath, fileBytes, 0600)
+		// Stream directly from the archive to the file without loading everything into memory
+		_, err = io.Copy(outFile, stream)
+		return err
 	}
 }
 
@@ -258,15 +264,24 @@ func IsRegistryURL(s string) bool {
 func ReadYAMLStrict(path string, destConfig any) error {
 	message.Debugf("Reading YAML at %s", path)
 
-	file, err := os.ReadFile(path)
+	file, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("failed to open file at %s: %v", path, err)
+	}
+	defer file.Close()
+
+	// First try with strict mode
+	fileBytes, err := io.ReadAll(file)
 	if err != nil {
 		return fmt.Errorf("failed to read file at %s: %v", path, err)
 	}
 
-	err = goyaml.UnmarshalWithOptions(file, destConfig, goyaml.Strict())
+	err = goyaml.UnmarshalWithOptions(fileBytes, destConfig, goyaml.Strict())
 	if err != nil {
 		message.Warnf("failed strict unmarshalling of YAML at %s: %v", path, err)
-		err = goyaml.UnmarshalWithOptions(file, destConfig)
+
+		// Try again with non-strict mode
+		err = goyaml.UnmarshalWithOptions(fileBytes, destConfig)
 		if err != nil {
 			return fmt.Errorf("failed to unmarshal YAML at %s: %v", path, err)
 		}
