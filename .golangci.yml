@@ -1,73 +1,81 @@
 # Copyright 2024 Defense Unicorns
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
+version: "2"
 run:
   concurrency: 6
-  timeout: 6m
   tests: false
+linters:
+  enable:
+    - gosec
+    - nilerr
+    - perfsprint
+    - revive
+    - whitespace
+  settings:
+    govet:
+      disable:
+        - shadow
+        - fieldalignment
+        - unusedwrite
+      enable-all: true
+    nolintlint:
+      require-specific: true
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: if-return
+        - name: increment-decrement
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unused-parameter
+        - name: unreachable-code
+        - name: redefines-builtin-id
+    unused:
+      local-variables-are-used: false
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - gosec
+        path: test/.*
+    paths:
+      - docs/reference/CLI/commands
+      - third_party$
+      - builtin$
+      - examples$
 issues:
-  # Maximum issues count per one linter.
-  # Set to 0 to disable.
-  # Default: 50
   max-issues-per-linter: 0
-  # Maximum count of issues with the same text.
-  # Set to 0 to disable.
-  # Default: 3
   max-same-issues: 0
   new-from-rev: ""
-  exclude-dirs:
-    - docs/reference/CLI/commands
-  exclude-rules:
-    - path: "test/.*"
-      linters:
-        - gosec
-linters:
+formatters:
   enable:
     - gofmt
     - goimports
-    - gosec
-    - govet
-    - staticcheck
-    - nilerr
-    - revive
-    - whitespace
-    - perfsprint
-
-linters-settings:
-  govet:
-    enable-all: true
-    disable:
-      - shadow
-      - fieldalignment
-      - unusedwrite
-  nolintlint:
-    require-specific: true
-
-  unused:
-    local-variables-are-used: false
-
-  revive:
-    rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: exported
-      - name: if-return
-      - name: increment-decrement
-      - name: var-declaration
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-      - name: indent-error-flow
-      - name: errorf
-      - name: empty-block
-      - name: superfluous-else
-      - name: unused-parameter
-      - name: unreachable-code
-      - name: redefines-builtin-id
+  exclusions:
+    generated: lax
+    paths:
+      - docs/reference/CLI/commands
+      - third_party$
+      - builtin$
+      - examples$
