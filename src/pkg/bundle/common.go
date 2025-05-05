@@ -368,7 +368,7 @@ func (b *Bundle) setPackageRef(pkg types.Package) (types.Package, error) {
 // GetDeployedPackageNames returns the names of the packages that have been deployed
 func GetDeployedPackageNames() []string {
 	var deployedPackageNames []string
-	c, _ := cluster.NewCluster()
+	c, _ := cluster.New(context.TODO())
 	if c != nil {
 		deployedPackages, _ := c.GetDeployedZarfPackages(context.TODO())
 		for _, pkg := range deployedPackages {
