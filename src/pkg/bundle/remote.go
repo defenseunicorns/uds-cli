@@ -289,7 +289,7 @@ func getOCIValidatedSource(source string) (string, error) {
 func ValidateArch(arch string) error {
 	// compare bundle arch and cluster arch
 	clusterArchs := []string{}
-	c, err := cluster.NewCluster()
+	c, err := cluster.New(context.TODO())
 	if err != nil {
 		message.Debugf("error creating cluster object: %s", err)
 	}
