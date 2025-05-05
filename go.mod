@@ -7,9 +7,9 @@ require (
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/defenseunicorns/maru-runner v0.6.0
-	github.com/defenseunicorns/pkg/exec v0.0.1
-	github.com/defenseunicorns/pkg/helpers/v2 v2.0.1
-	github.com/defenseunicorns/pkg/oci v1.0.4
+	github.com/defenseunicorns/pkg/exec v0.0.2
+	github.com/defenseunicorns/pkg/helpers/v2 v2.0.3
+	github.com/defenseunicorns/pkg/oci v1.1.1
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/goccy/go-yaml v1.17.1
 	github.com/mholt/archives v0.1.1
@@ -21,7 +21,7 @@ require (
 	github.com/zarf-dev/zarf v0.54.0
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0
 	golang.org/x/mod v0.24.0
-	golang.org/x/sync v0.13.0
+	golang.org/x/sync v0.14.0
 	helm.sh/helm/v3 v3.17.3
 	k8s.io/api v0.33.0
 	k8s.io/apimachinery v0.33.0
@@ -193,7 +193,6 @@ require (
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
 	github.com/danieljoos/wincred v1.2.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/defenseunicorns/pkg/helpers v1.1.1 // indirect
 	github.com/deitch/magic v0.0.0-20230404182410-1ff89d7342da // indirect
 	github.com/derailed/k9s v0.40.5 // indirect
 	github.com/derailed/popeye v0.11.3 // indirect
@@ -431,7 +430,7 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/saferwall/pe v1.5.6 // indirect
-	github.com/sagikazarmark/locafero v0.6.0 // indirect
+	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
 	github.com/sahilm/fuzzy v0.1.1 // indirect
 	github.com/saintfish/chardet v0.0.0-20230101081208-5e3ef4b5456d // indirect
@@ -462,7 +461,7 @@ require (
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spdx/tools-golang v0.5.5 // indirect
 	github.com/spf13/afero v1.12.0 // indirect
-	github.com/spf13/cast v1.7.0 // indirect
+	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.3.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
