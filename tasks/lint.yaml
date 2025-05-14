@@ -37,6 +37,9 @@ tasks:
             ignore_flags+=("-ignore" "\"$line\"")
           done < .gitignore
 
+          # Ignore eslint config
+          ignore_flags+=("-ignore" "eslint.config.mjs")
+
           # Construct the command as a string
           eval "$HOME/go/bin/addlicense -l \"AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial\" -check -s=only -v -c \"Defense Unicorns\" ${ignore_flags[*]} . 2>/dev/null"
 
@@ -62,6 +65,9 @@ tasks:
             # Add the line to ignore_flags array with quotes around it
             ignore_flags+=("-ignore" "\"$line\"")
           done < .gitignore
+          
+          # Ignore eslint config
+          ignore_flags+=("-ignore" "eslint.config.mjs")
 
           # Construct the command as a string
           eval "$HOME/go/bin/addlicense -l \"AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial\" -s=only -v -c \"Defense Unicorns\" ${ignore_flags[*]} . 2>/dev/null"
