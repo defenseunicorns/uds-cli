@@ -16,7 +16,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/pterm/pterm v0.12.79
 	github.com/spf13/cobra v1.9.1
-	github.com/spf13/viper v1.20.0
+	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
 	github.com/zarf-dev/zarf v0.55.2
 	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6
