@@ -269,7 +269,7 @@ func FindPkgLayers(remote zoci.Remote, pkgRootManifest *oci.Manifest, optionalCo
 			components = append(components, c)
 		}
 	}
-	layersFromComponents, err := remote.LayersFromRequestedComponents(ctx, components)
+	layersFromComponents, _, err := remote.LayersFromComponents(ctx, zarfPkg, components)
 	if err != nil {
 		return nil, err
 	}
