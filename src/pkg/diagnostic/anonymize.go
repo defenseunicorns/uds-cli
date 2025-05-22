@@ -144,15 +144,15 @@ func (s *streamingAnonymizer) AnonymizeStream(r io.Reader, w io.Writer) error {
 	}
 
 	// Default: buffered line-by-line scanning to manage memory usage
-	s := bufio.NewScanner(r)
-	s.Buffer(make([]byte, bufio.MaxScanTokenSize), s.bufferSize)
-	for s.Scan() {
-		sanitized := s.AnonymizeOutput(s.Text())
+	sc := bufio.NewScanner(r)
+	sc.Buffer(make([]byte, bufio.MaxScanTokenSize), s.bufferSize)
+	for sc.Scan() {
+		sanitized := s.AnonymizeOutput(sc.Text())
 		if _, err := w.Write([]byte(sanitized + "\n")); err != nil {
 			return err
 		}
 	}
-	return s.Err()
+	return sc.Err()
 }
 
 // GetReplacementCount reports how many replacements have occurred.
@@ -165,12 +165,13 @@ func (s *streamingAnonymizer) GetReplacementCount() (int64, error) {
 }
 
 // defaultPatterns lists common regex patterns for sensitive data detection.
+// Comments explain each pattern's intent.
 var defaultPatterns = []string{
-	`AKIA[0-9A-Z]{16}`,
-	`[A-Za-z0-9/+=]{40}`,
-	`([A-Za-z0-9_-]+\.){2}[A-Za-z0-9_-]+`,
-	`[A-Za-z0-9+/]{20,}={0,2}`,
-	`\b\d{1,3}(?:\.\d{1,3}){3}\b`,
-	`[\w\.\-]+@[\w\.\-]+\.\w+`,
-	`https?://[^:\\s]+:[^@\\s]+@[^/\\s]+`,
+	`AKIA[0-9A-Z]{16}`,                   // AWS Access Key ID format (16-char suffix)
+	`[A-Za-z0-9/+=]{40}`,                 // AWS Secret Access Key (40 base64 chars)
+	`([A-Za-z0-9_-]+\.){2}[A-Za-z0-9_-]+`, // JWT token (three base64url segments)
+	`[A-Za-z0-9+/]{20,}={0,2}`,           // Generic Base64 blob (>=20 chars)
+	`\b\d{1,3}(?:\.\d{1,3}){3}\b`,     // IPv4 addresses
+	`[\w.\-]+@[\w.\-]+\.\w+`,         // Email addresses
+	`https?://[^:\s]+:[^@\s]+@[^/\s]+`,   // URLs with embedded credentials (user:pass@)
 }
