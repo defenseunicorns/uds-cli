@@ -107,6 +107,10 @@ const (
 	CmdDevDeployLong           = "[beta] Creates and deploys a UDS bundle from a given directory or OCI repository in dev mode, setting package options like YOLO mode for faster iteration."
 	CmdBundleCreateForceCreate = "[beta] For local bundles with local packages, specify whether to create a zarf package even if it already exists."
 
+	// uds diagnostic
+	CmdDiagnosticShort        = "[alpha] Diagnostic commands for UDS"
+	CmdDiagnosticCollectShort = "Collect diagnostic information for UDS"
+
 	// uds monitor
 	CmdMonitorShort = "Monitor a UDS Cluster"
 	CmdMonitorLong  = "Tools for monitoring a UDS Cluster and connecting to the UDS Engine for advanced troubleshooting"
