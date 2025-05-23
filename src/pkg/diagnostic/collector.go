@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/defenseunicorns/uds-cli/src/pkg/diagnostic/collectors"
+	"github.com/goccy/go-yaml"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -28,7 +29,7 @@ type RawFile struct {
 
 // Collector defines a unit that gathers RawFile entries from the cluster.
 type Collector interface {
-	Collect(ctx context.Context, namespace string, filter Filter) ([]RawFile, error)
+	Collect(ctx context.Context, namespace string, filter Filter, anonymizer Anonymizer) ([]RawFile, error)
 }
 
 var _ Collector = &ScriptCollector{}
@@ -38,7 +39,7 @@ type ScriptCollector struct {
 }
 
 // Collect runs the script, filters its output, and returns raw (unmasked) content.
-func (s *ScriptCollector) Collect(ctx context.Context, namespace string, filter Filter) ([]RawFile, error) {
+func (s *ScriptCollector) Collect(ctx context.Context, namespace string, filter Filter, anonymizer Anonymizer) ([]RawFile, error) {
 	if s.ScriptName == "" {
 		return nil, fmt.Errorf("no script provided")
 	}
@@ -70,9 +71,9 @@ var _ Collector = &LogsCollector{}
 type LogsCollector struct{}
 
 // Collect streams pod logs, applies filter, and returns raw (unmasked) log files.
-func (s *LogsCollector) Collect(ctx context.Context, namespace string, filter Filter) ([]RawFile, error) {
+func (s *LogsCollector) Collect(ctx context.Context, namespace string, filter Filter, anonymizer Anonymizer) ([]RawFile, error) {
 	type logInfo struct {
-		pod, container string
+		pod, container, namespace string
 	}
 
 	// initialize Kubernetes client
@@ -94,14 +95,14 @@ func (s *LogsCollector) Collect(ctx context.Context, namespace string, filter Fi
 	var toCollect []logInfo
 	for _, pod := range pods.Items {
 		for _, ctr := range pod.Spec.Containers {
-			toCollect = append(toCollect, logInfo{pod.Name, ctr.Name})
+			toCollect = append(toCollect, logInfo{pod.Name, ctr.Name, pod.Namespace})
 		}
 	}
 
 	var results []RawFile
 	// fetch and aggregate logs per container
 	for _, li := range toCollect {
-		stream, err := client.CoreV1().Pods(namespace).GetLogs(li.pod, &corev1.PodLogOptions{
+		stream, err := client.CoreV1().Pods(li.namespace).GetLogs(li.pod, &corev1.PodLogOptions{
 			Follow:    false,
 			TailLines: ptr.To(int64(100)),
 			Container: li.container,
@@ -117,11 +118,11 @@ func (s *LogsCollector) Collect(ctx context.Context, namespace string, filter Fi
 		for scanner.Scan() {
 			line := scanner.Text() + "\n"
 			if filter.Accept(line) {
-				buf = append(buf, []byte(line)...)
+				buf = append(buf, []byte(anonymizer.AnonymizeOutput(line, false))...)
 			}
 		}
 		results = append(results, RawFile{
-			Name:    fmt.Sprintf("logs-%s-%s-%s", namespace, li.pod, li.container),
+			Name:    fmt.Sprintf("logs-%s-%s-%s", li.namespace, li.pod, li.container),
 			content: buf,
 		})
 	}
@@ -129,35 +130,68 @@ func (s *LogsCollector) Collect(ctx context.Context, namespace string, filter Fi
 	return results, nil
 }
 
-// CollectionResult aggregates all RawFile outputs and any errors encountered.
+var _ Collector = &SecretCollector{}
+
+type SecretCollector struct{}
+
+func (s *SecretCollector) Collect(ctx context.Context, namespace string, filter Filter, anonymizer Anonymizer) ([]RawFile, error) {
+	kubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
+	cfg, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+	client, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	secrets, err := client.CoreV1().Secrets(namespace).List(ctx, v1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for i := range secrets.Items {
+		item := secrets.Items[i]
+		//if filter.Accept(&item) {
+		for k, v := range item.Data {
+			item.Data[k] = []byte(anonymizer.AnonymizeOutput(string(v), true))
+		}
+	}
+
+	textOutput, err := yaml.Marshal(secrets)
+	if err != nil {
+		return nil, err
+	}
+
+	return []RawFile{
+		{
+			Name:    "secrets",
+			content: textOutput,
+		},
+	}, nil
+}
+
+// CollectionResult aggregates all RawFile outputs and any Errors encountered.
 type CollectionResult struct {
-	rawObjects []RawFile
-	errors     []error
-	namespace  string
-	context    string
+	RawObjects []RawFile
+	Errors     []error
+	Namespace  string
 }
 
 // Collect invokes each Collector, then applies anonymization exactly once per file.
 func Collect(ctx context.Context, namespace string, filter Filter, collectors []Collector, anonymizer Anonymizer) CollectionResult {
-	result := CollectionResult{namespace: namespace}
+	result := CollectionResult{Namespace: namespace}
 
 	for _, coll := range collectors {
-		files, err := coll.Collect(ctx, namespace, filter)
-		errMsg := ""
-		if err != nil {
-			errMsg = fmt.Sprintf(redColor+" error: %v"+resetColor, err)
-		}
-		fmt.Printf("[%T] collected %d files%s\n", coll, len(files), errMsg)
-
+		files, err := coll.Collect(ctx, namespace, filter, anonymizer)
 		// Apply anonymization in one central place
 		for _, rf := range files {
-			clean := anonymizer.AnonymizeOutput(string(rf.content))
-			rf.content = []byte(clean)
-			result.rawObjects = append(result.rawObjects, rf)
+			//clean := anonymizer.AnonymizeOutput(string(rf.content), false)
+			//rf.content = []byte(clean)
+			result.RawObjects = append(result.RawObjects, rf)
 		}
 
 		if err != nil {
-			result.errors = append(result.errors, err)
+			result.Errors = append(result.Errors, err)
 		}
 	}
 

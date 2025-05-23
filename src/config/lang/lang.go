@@ -110,6 +110,7 @@ const (
 	// uds diagnostic
 	CmdDiagnosticShort        = "[alpha] Diagnostic commands for UDS"
 	CmdDiagnosticCollectShort = "Collect diagnostic information for UDS"
+	CmdDiagnosticUploadShort  = "Upload diagnostic information to Defence Unicorns"
 
 	// uds monitor
 	CmdMonitorShort = "Monitor a UDS Cluster"

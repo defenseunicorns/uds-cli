@@ -22,10 +22,10 @@ func WriteToFile(path string, collectionResults ...CollectionResult) (string, st
 		return "", "", err
 	}
 	for _, collectionResult := range collectionResults {
-		for _, obj := range collectionResult.rawObjects {
+		for _, obj := range collectionResult.RawObjects {
 			var fileName string = fmt.Sprintf("%s/%s.txt", path, obj.Name)
-			if len(collectionResult.namespace) > 0 {
-				fileName = fmt.Sprintf("%s/%s-%s.txt", path, obj.Name, collectionResult.namespace)
+			if len(collectionResult.Namespace) > 0 {
+				fileName = fmt.Sprintf("%s/%s-%s.txt", path, obj.Name, collectionResult.Namespace)
 			}
 			err = os.WriteFile(fileName, obj.content, os.ModePerm)
 			if err != nil {
@@ -89,7 +89,7 @@ func compressDirectory(path string) (string, error) {
 	return fileName, nil
 }
 
-func DebugDirectory() (string, error) {
+func DiagnosticDirectory() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err

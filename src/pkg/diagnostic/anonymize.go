@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"regexp"
 	"strings"
-	"sync/atomic"
 )
 
 const (
@@ -18,9 +17,11 @@ const (
 // Anonymizer masks sensitive content in strings and streams.
 type Anonymizer interface {
 	// AnonymizeOutput processes an input string and replaces sensitive data.
-	AnonymizeOutput(input string) string
+	AnonymizeOutput(input string, force bool) string
 	// AnonymizeStream reads from r and writes the sanitized output to w.
 	AnonymizeStream(r io.Reader, w io.Writer) error
+
+	AnonymizedEntries() int
 }
 
 // Builder configures patterns and behavior before creating an Anonymizer.
@@ -34,7 +35,7 @@ type Builder struct {
 
 // NewBuilder initializes a Builder with default sensitive patterns.
 func NewBuilder() *Builder {
-	return &Builder{patterns: defaultPatterns}
+	return &Builder{patterns: defaultPatterns, metrics: true}
 }
 
 // WithPatterns overrides the Builder's pattern list for custom detection.
@@ -97,7 +98,7 @@ func (b *Builder) Build() (Anonymizer, error) {
 		r:          re,
 		dynamic:    b.dynamicMode,
 		metrics:    b.metrics,
-		replaceCnt: new(int64),
+		replaceCnt: 0,
 		multiLine:  b.multiLineMode,
 		bufferSize: bufio.MaxScanTokenSize * 16,
 	}, nil
@@ -108,22 +109,32 @@ type streamingAnonymizer struct {
 	r          *regexp.Regexp
 	dynamic    bool
 	metrics    bool
-	replaceCnt *int64
+	replaceCnt int
 	multiLine  bool
 	bufferSize int
 }
 
+func (s *streamingAnonymizer) AnonymizedEntries() int {
+	return s.replaceCnt
+}
+
 // AnonymizeOutput replaces all regex matches in the input string with masks.
-func (s *streamingAnonymizer) AnonymizeOutput(input string) string {
+func (s *streamingAnonymizer) AnonymizeOutput(input string, force bool) string {
+	if force {
+		s.replaceCnt = s.replaceCnt + 1
+		return MASKED_TEXT
+	}
+
 	replace := func(match string) string {
 		// Increment replacement count if metrics enabled
 		if s.metrics {
-			atomic.AddInt64(s.replaceCnt, 1)
+			s.replaceCnt = s.replaceCnt + 1
 		}
 		// Choose mask format: dynamic preserves length, static is uniform
 		if s.dynamic {
 			return fmt.Sprintf(MASKED_DYNAMIC_FMT, len(match))
 		}
+		fmt.Printf("Anonymized: %s\n", match)
 		return MASKED_TEXT
 	}
 	// Perform a single-pass replace using the compiled regex
@@ -139,7 +150,7 @@ func (s *streamingAnonymizer) AnonymizeStream(r io.Reader, w io.Writer) error {
 		if err != nil {
 			return err
 		}
-		_, err = w.Write([]byte(s.AnonymizeOutput(string(data))))
+		_, err = w.Write([]byte(s.AnonymizeOutput(string(data), false)))
 		return err
 	}
 
@@ -147,7 +158,7 @@ func (s *streamingAnonymizer) AnonymizeStream(r io.Reader, w io.Writer) error {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, bufio.MaxScanTokenSize), s.bufferSize)
 	for sc.Scan() {
-		sanitized := s.AnonymizeOutput(sc.Text())
+		sanitized := s.AnonymizeOutput(sc.Text(), false)
 		if _, err := w.Write([]byte(sanitized + "\n")); err != nil {
 			return err
 		}
@@ -155,23 +166,14 @@ func (s *streamingAnonymizer) AnonymizeStream(r io.Reader, w io.Writer) error {
 	return sc.Err()
 }
 
-// GetReplacementCount reports how many replacements have occurred.
-// Returns an error if metrics were not enabled during build.
-func (s *streamingAnonymizer) GetReplacementCount() (int64, error) {
-	if !s.metrics {
-		return 0, fmt.Errorf("metrics not enabled")
-	}
-	return atomic.LoadInt64(s.replaceCnt), nil
-}
-
 // defaultPatterns lists common regex patterns for sensitive data detection.
 // Comments explain each pattern's intent.
 var defaultPatterns = []string{
-	`AKIA[0-9A-Z]{16}`,                   // AWS Access Key ID format (16-char suffix)
-	`[A-Za-z0-9/+=]{40}`,                 // AWS Secret Access Key (40 base64 chars)
-	`([A-Za-z0-9_-]+\.){2}[A-Za-z0-9_-]+`, // JWT token (three base64url segments)
-	`[A-Za-z0-9+/]{20,}={0,2}`,           // Generic Base64 blob (>=20 chars)
-	`\b\d{1,3}(?:\.\d{1,3}){3}\b`,     // IPv4 addresses
-	`[\w.\-]+@[\w.\-]+\.\w+`,         // Email addresses
-	`https?://[^:\s]+:[^@\s]+@[^/\s]+`,   // URLs with embedded credentials (user:pass@)
+	`AKIA[0-9A-Z]{16}`, // AWS Access Key ID format (16-char suffix)
+	//`[A-Za-z0-9/+=]{40}`, // AWS Secret Access Key (40 base64 chars)
+	//`([A-Za-z0-9_-]+\.){2}[A-Za-z0-9_-]+`, // JWT token (three base64url segments)
+	//`[A-Za-z0-9+/]{20,}={0,2}`,            // Generic Base64 blob (>=20 chars)
+	//`\b\d{1,3}(?:\.\d{1,3}){3}\b`,         // IPv4 addresses
+	//`[\w.\-]+@[\w.\-]+\.\w+`,           // Email addresses
+	`https?://[^:\s]+:[^@\s]+@[^/\s]+`, // URLs with embedded credentials (user:pass@)
 }

@@ -16,14 +16,14 @@ var diagnosticCmd = &cobra.Command{
 	Short: lang.CmdDiagnosticShort,
 }
 
+var optionUploadArchive bool = false
+
 var diagnosticCollectCmd = &cobra.Command{
 	Use:   "collect",
 	Args:  cobra.MaximumNArgs(0),
 	Short: lang.CmdDiagnosticCollectShort,
 	Long:  lang.CmdDiagnosticCollectShort,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		//ctx := cmd.Context()
-
 		fmt.Println("Collecting diagnostic information...\n")
 
 		var collectors []diagnostic.Collector
@@ -37,8 +37,9 @@ var diagnosticCollectCmd = &cobra.Command{
 			ScriptName: "overview",
 		})
 		collectors = append(collectors, &diagnostic.LogsCollector{})
+		collectors = append(collectors, &diagnostic.SecretCollector{})
 
-		anonymizer := &diagnostic.SensitiveDataAnonymizer{}
+		anonymizer, _ := diagnostic.NewBuilder().Build()
 
 		filter := &diagnostic.AcceptAllFilter{}
 
@@ -48,7 +49,7 @@ var diagnosticCollectCmd = &cobra.Command{
 
 		fmt.Printf("\n\n==== Collected Data ====\n\n")
 
-		storeDirectory, err := diagnostic.DebugDirectory()
+		storeDirectory, err := diagnostic.DiagnosticDirectory()
 		if err != nil {
 			fmt.Printf("failed to obtain directory for collecting the results: %v", err)
 			return err
@@ -59,8 +60,32 @@ var diagnosticCollectCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Debug data file (compressed): %v\n", compressedFileName)
-			fmt.Printf("Debug data directory: %v\n", directoryName)
+
+			fmt.Printf("Collected %d files\n", len(collectionResults[0].RawObjects))
+			fmt.Printf("Anonymized %d objects\n", anonymizer.AnonymizedEntries())
+			if (len(collectionResults[0].Errors)) > 0 {
+				for _, err := range collectionResults[0].Errors {
+					fmt.Printf("Collection error %s\n", err)
+				}
+			}
+
+			fmt.Printf("Diagnostic data file (compressed): %v\n", compressedFileName)
+			fmt.Printf("Diagnostic data directory: %v\n", directoryName)
+
+			uploader := diagnostic.S3Uploader{
+				BucketName: "sebastian-2025-dash-days",
+				Region:     "us-gov-west-1",
+			}
+
+			if optionUploadArchive {
+				err = uploader.UploadFile(cmd.Context(), compressedFileName)
+				if err != nil {
+					fmt.Printf("failed to upload file to S3: %v", err)
+					return err
+				}
+
+				fmt.Printf("Diagnostic data uploaded to sebastian-2025-dash-days bucket\n")
+			}
 		}
 
 		return nil
@@ -71,4 +96,5 @@ func init() {
 	initViper()
 	rootCmd.AddCommand(diagnosticCmd)
 	diagnosticCmd.AddCommand(diagnosticCollectCmd)
+	diagnosticCollectCmd.Flags().BoolVar(&optionUploadArchive, "upload", false, lang.CmdDiagnosticUploadShort)
 }
