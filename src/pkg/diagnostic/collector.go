@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 )
 
 const (
@@ -76,12 +77,15 @@ func (s *LogsCollector) Collect(ctx context.Context, namespace string, filter Fi
 		pod, container, namespace string
 	}
 
-	// initialize Kubernetes client
 	kubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
 	cfg, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
 		return nil, err
 	}
+	// Disable Client-side throttling
+	cfg.QPS = -1
+	cfg.Burst = 0
+
 	client, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
 		return nil, err
@@ -101,31 +105,41 @@ func (s *LogsCollector) Collect(ctx context.Context, namespace string, filter Fi
 
 	var results []RawFile
 	// fetch and aggregate logs per container
-	for _, li := range toCollect {
-		stream, err := client.CoreV1().Pods(li.namespace).GetLogs(li.pod, &corev1.PodLogOptions{
-			Follow:    false,
-			TailLines: ptr.To(int64(100)),
-			Container: li.container,
-		}).Stream(ctx)
-		if err != nil {
-			fmt.Printf(redColor+"[LogsCollector] error from %s/%s, ignoring: %v"+resetColor, namespace, li.pod, err)
-			continue
-		}
-		defer stream.Close()
+	var wg sync.WaitGroup
+	var mu sync.Mutex // do bezpiecznego zapisu do results
 
-		scanner := bufio.NewScanner(stream)
-		var buf []byte
-		for scanner.Scan() {
-			line := scanner.Text() + "\n"
-			if filter.Accept(line) {
-				buf = append(buf, []byte(anonymizer.AnonymizeOutput(line, false))...)
+	for _, li := range toCollect {
+		wg.Add(1)
+		go func(li logInfo) {
+			defer wg.Done()
+			stream, err := client.CoreV1().Pods(li.namespace).GetLogs(li.pod, &corev1.PodLogOptions{
+				Follow:    false,
+				TailLines: ptr.To(int64(100)),
+				Container: li.container,
+			}).Stream(ctx)
+			if err != nil {
+				fmt.Printf(redColor+"[LogsCollector] error from %s/%s, ignoring: %v"+resetColor, namespace, li.pod, err)
+				return
 			}
-		}
-		results = append(results, RawFile{
-			Name:    fmt.Sprintf("logs-%s-%s-%s", li.namespace, li.pod, li.container),
-			content: buf,
-		})
+			defer stream.Close()
+
+			scanner := bufio.NewScanner(stream)
+			var buf []byte
+			for scanner.Scan() {
+				line := scanner.Text() + "\n"
+				if filter.Accept(line) {
+					buf = append(buf, []byte(anonymizer.AnonymizeOutput(line, false))...)
+				}
+			}
+			mu.Lock()
+			results = append(results, RawFile{
+				Name:    fmt.Sprintf("logs-%s-%s-%s", li.namespace, li.pod, li.container),
+				content: buf,
+			})
+			mu.Unlock()
+		}(li)
 	}
+	wg.Wait()
 
 	return results, nil
 }
