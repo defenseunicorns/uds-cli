@@ -1,0 +1,8 @@
+#!/bin/bash
+
+NAMESPACE="$1"
+if [ -z "$NAMESPACE" ]; then
+  uds zarf tools kubectl get all --all-namespaces
+else
+  uds zarf tools kubectl get all -n "$NAMESPACE"
+fi
