@@ -11,7 +11,7 @@ require (
 	github.com/defenseunicorns/pkg/helpers/v2 v2.0.4
 	github.com/defenseunicorns/pkg/oci v1.3.0
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/goccy/go-yaml v1.17.1
+	github.com/goccy/go-yaml v1.18.0
 	github.com/mholt/archives v0.1.2
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/pterm/pterm v0.12.79
@@ -19,7 +19,7 @@ require (
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
 	github.com/zarf-dev/zarf v0.55.6
-	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6
+	golang.org/x/exp v0.0.0-20250531010427-b6e5de432a8b
 	golang.org/x/mod v0.24.0
 	golang.org/x/sync v0.14.0
 	helm.sh/helm/v3 v3.17.3
