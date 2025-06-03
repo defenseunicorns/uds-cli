@@ -8,7 +8,7 @@
 ## Install
 Recommended installation method is with Brew:
 ```
-brew tap defenseunicorns/tap && brew install uds
+brew install defenseunicorns/tap/uds
 ```
 UDS CLI binaries are also included with each [Github Release](https://github.com/defenseunicorns/uds-cli/releases)
 
