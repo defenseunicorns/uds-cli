@@ -33,4 +33,4 @@ awk '{gsub(/\[github\.com\/defenseunicorns\/maru-runner\/src\/pkg\/variables\.Ex
 mv temp_tasks.schema.json tasks.schema.json
 
 # Download the Zarf schema
-curl -O https://raw.githubusercontent.com/zarf-dev/zarf/v0.55.5/zarf.schema.json
+curl -O https://raw.githubusercontent.com/zarf-dev/zarf/v0.55.6/zarf.schema.json
