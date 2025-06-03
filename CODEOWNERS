@@ -1,5 +1,4 @@
-* @defenseunicorns/uds-experience
-* @defenseunicorns/uds-cli
+* @defenseunicorns/uds-experience @defenseunicorns/uds-cli
 
 # Additional privileged files
 /CODEOWNERS @jeff-mccoy @daveworth
