@@ -1,0 +1,8 @@
+#!/bin/bash
+
+NAMESPACE="$1"
+if [ -z "$NAMESPACE" ]; then
+  uds zarf tools kubectl get statefulsets --all-namespaces -o yaml
+else
+  uds zarf tools kubectl get statefulsets -n "$NAMESPACE" -o yaml
+fi
