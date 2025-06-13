@@ -23,7 +23,7 @@ jobs:
         - name: Checkout
           uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-        - uses: anchore/scan-action@2c901ab7378897c01b8efaa2d0c9bf519cc64b9e # v6
+        - uses: anchore/scan-action@be7a22da4f22dde446c4c4c099887ff5b256526c # v6
           id: scan
           with:
             path: "."
