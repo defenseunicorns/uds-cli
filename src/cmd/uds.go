@@ -232,6 +232,39 @@ var logsCmd = &cobra.Command{
 	},
 }
 
+var mirrorCmd = &cobra.Command{
+	Use:     "mirror-resources [BUNDLE_TARBALL|OCI_REF]",
+	Aliases: []string{"mr"},
+	Short:   lang.CmdBundleDeployShort,
+	Args:    cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := cmd.Context()
+		var err error
+		bundleCfg.DeployOpts.Source, err = chooseBundle(args)
+		if err != nil {
+			return err
+		}
+		configureZarf()
+
+		// set DeployOptions.Config if exists
+		if config := v.ConfigFileUsed(); config != "" {
+			bundleCfg.DeployOpts.Config = config
+		}
+
+		// create new bundle client and deploy
+		bndlClient, err := bundle.New(&bundleCfg)
+		if err != nil {
+			return err
+		}
+		defer bndlClient.ClearPaths()
+		err = mirror(ctx, bndlClient)
+		if err != nil {
+			return err
+		}
+		return nil
+	},
+}
+
 func init() {
 	initViper()
 
@@ -251,6 +284,14 @@ func init() {
 	deployCmd.Flags().StringArrayVarP(&bundleCfg.DeployOpts.Packages, "packages", "p", []string{}, lang.CmdBundleDeployFlagPackages)
 	deployCmd.Flags().BoolVarP(&bundleCfg.DeployOpts.Resume, "resume", "r", false, lang.CmdBundleDeployFlagResume)
 	deployCmd.Flags().IntVar(&bundleCfg.DeployOpts.Retries, "retries", 3, lang.CmdBundleDeployFlagRetries)
+
+	// mirror cmd flags
+	rootCmd.AddCommand(mirrorCmd)
+	mirrorCmd.Flags().StringToStringVar(&bundleCfg.DeployOpts.SetVariables, "set", nil, lang.CmdBundleDeployFlagSet)
+	mirrorCmd.Flags().BoolVarP(&config.CommonOptions.Confirm, "confirm", "c", false, lang.CmdBundleDeployFlagConfirm)
+	mirrorCmd.Flags().StringArrayVarP(&bundleCfg.DeployOpts.Packages, "packages", "p", []string{}, lang.CmdBundleDeployFlagPackages)
+	mirrorCmd.Flags().BoolVarP(&bundleCfg.DeployOpts.Resume, "resume", "r", false, lang.CmdBundleDeployFlagResume)
+	mirrorCmd.Flags().IntVar(&bundleCfg.DeployOpts.Retries, "retries", 3, lang.CmdBundleDeployFlagRetries)
 
 	// inspect cmd flags
 	rootCmd.AddCommand(inspectCmd)
