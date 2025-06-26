@@ -7,13 +7,16 @@ package bundle
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/zarf-dev/zarf/src/pkg/message"
+	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
@@ -80,15 +83,14 @@ func removePackages(packagesToRemove []types.Package, b *Bundle) error {
 		pkg := packagesToRemove[i]
 
 		if slices.Contains(deployedPackageNames, pkg.Name) {
-			opts := zarfTypes.ZarfPackageOptions{
-				PackageSource: b.cfg.RemoveOpts.Source,
-			}
-			pkgCfg := zarfTypes.PackagerConfig{
-				PkgOpts: opts,
-			}
 			pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 			if err != nil {
 				return err
+			}
+			defer os.RemoveAll(pkgTmp)
+
+			opts := zarfTypes.ZarfPackageOptions{
+				PackageSource: b.cfg.RemoveOpts.Source,
 			}
 
 			sha := strings.Split(pkg.Ref, "sha256:")[1]
@@ -97,15 +99,52 @@ func removePackages(packagesToRemove []types.Package, b *Bundle) error {
 				return err
 			}
 
-			pkgClient, err := packager.New(&pkgCfg, packager.WithSource(source), packager.WithTemp(pkgTmp))
+			loadOpts := source.NewLoadOptionsForRemove()
+			var c *cluster.Cluster = nil
+			ctx := context.TODO()
+			zarfPkg, err := packager.GetPackageFromSourceOrCluster(ctx, c, pkg.Name, loadOpts)
 			if err != nil {
-				return err
+				return fmt.Errorf("unable to load the package: %w", err)
 			}
-			defer pkgClient.ClearTempPaths()
 
-			if err := pkgClient.Remove(context.TODO()); err != nil {
+			removeOpt := packager.RemoveOptions{
+				Cluster: c,
+				Timeout: config.HelmTimeout,
+			}
+			if err := packager.Remove(ctx, zarfPkg, removeOpt); err != nil {
 				return err
 			}
+
+			/*
+				opts := zarfTypes.ZarfPackageOptions{
+					PackageSource: b.cfg.RemoveOpts.Source,
+				}
+				pkgCfg := zarfTypes.PackagerConfig{
+					PkgOpts: opts,
+				}
+				pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
+				if err != nil {
+					return err
+				}
+				defer os.RemoveAll(pkgTmp)
+
+				sha := strings.Split(pkg.Ref, "sha256:")[1]
+				source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nil)
+				if err != nil {
+					return err
+				}
+
+				pkgClient, err := packager.New(&pkgCfg, packager.WithSource(source), packager.WithTemp(pkgTmp))
+				if err != nil {
+					return err
+				}
+				defer pkgClient.ClearTempPaths()
+
+				if err := pkgClient.Remove(context.TODO()); err != nil {
+					return err
+				}
+			*/
+
 		} else {
 			message.Warnf("Skipping removal of %s. Package not deployed", pkg.Name)
 		}
