@@ -13,6 +13,7 @@ import (
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
@@ -20,9 +21,9 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pterm/pterm"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	"github.com/zarf-dev/zarf/src/pkg/layout"
-	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+
 	zarfSources "github.com/zarf-dev/zarf/src/pkg/packager/sources"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
@@ -189,8 +190,9 @@ func loadPackage(b Bundle, pkg types.Package) (v1alpha1.ZarfPackage, error) {
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, err
 	}
-	pkgPaths := layout.New(tmpDir)
 	defer os.RemoveAll(tmpDir)
+
+	pkgPaths := layout.New(tmpDir)
 
 	zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), pkgPaths, false, true)
 	if err != nil {

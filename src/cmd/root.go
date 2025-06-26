@@ -13,11 +13,11 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/cmd/monitor"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
-	"github.com/zarf-dev/zarf/src/pkg/message"
 )
 
 var (

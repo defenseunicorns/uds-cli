@@ -15,12 +15,12 @@ import (
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/pkg/message"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"oras.land/oras-go/v2"
 	ocistore "oras.land/oras-go/v2/content/oci"
@@ -303,6 +303,8 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 
 	// grab image config
 	layersToPush = append(layersToPush, bundleRootManifest.Config)
+
+	var pw helpers.ProgressWriter
 
 	// copy bundle
 	copyOpts := boci.CreateCopyOpts(layersToPush, config.CommonOptions.OCIConcurrency)

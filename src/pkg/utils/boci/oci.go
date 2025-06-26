@@ -17,15 +17,14 @@ import (
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/transform"
-	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
@@ -269,7 +268,7 @@ func FindPkgLayers(remote zoci.Remote, pkgRootManifest *oci.Manifest, optionalCo
 			components = append(components, c)
 		}
 	}
-	isSkeleton := zarfPkg.Build.Architecture == zoci.SkeletonArch || strings.HasSuffix(remote.Repo().Reference.Reference, zoci.SkeletonArch)
+	isSkeleton := zarfPkg.Build.Architecture == v1alpha1.SkeletonArch || strings.HasSuffix(remote.Repo().Reference.Reference, v1alpha1.SkeletonArch)
 	layersFromComponents, err := remote.AssembleLayers(ctx, components, isSkeleton, zoci.AllLayers)
 	if err != nil {
 		return nil, err
@@ -417,7 +416,7 @@ func CopyLayers(layersToPull []ocispec.Descriptor, estimatedBytes int64, tmpDstD
 
 	expectedTotalSize := estimatedBytes + tmpDirSize
 
-	go zarfUtils.RenderProgressBarForLocalDirWrite(tmpDstDir, expectedTotalSize, doneSaving, "Pulling: "+artifactName, "Successfully pulled: "+artifactName)
+	go utils.RenderProgressBarForLocalDirWrite(tmpDstDir, expectedTotalSize, doneSaving, "Pulling: "+artifactName, "Successfully pulled: "+artifactName)
 
 	rootDesc, err := oras.Copy(context.TODO(), repo, repo.Reference.String(), target, "", copyOpts)
 

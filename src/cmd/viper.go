@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/spf13/viper"
-	"github.com/zarf-dev/zarf/src/pkg/message"
 )
 
 const (
