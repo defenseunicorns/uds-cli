@@ -16,6 +16,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
@@ -23,9 +24,9 @@ import (
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	zarfConfig "github.com/zarf-dev/zarf/src/config"
-	"github.com/zarf-dev/zarf/src/pkg/layout"
-	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/state"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"golang.org/x/exp/slices"
@@ -178,11 +179,11 @@ func handleZarfInitOpts(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKin
 
 	// default zarf init opts
 	zarfInitOpts := zarfTypes.ZarfInitOptions{
-		GitServer: zarfTypes.GitServerInfo{
-			PushUsername: zarfTypes.ZarfGitPushUser,
+		GitServer: state.GitServerInfo{
+			PushUsername: state.ZarfGitPushUser,
 		},
-		RegistryInfo: zarfTypes.RegistryInfo{
-			PushUsername: zarfTypes.ZarfRegistryPushUser,
+		RegistryInfo: state.RegistryInfo{
+			PushUsername: state.ZarfRegistryPushUser,
 		},
 	}
 	// populate zarf init opts from pkgVars
