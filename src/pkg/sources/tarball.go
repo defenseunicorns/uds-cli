@@ -5,30 +5,24 @@
 package sources
 
 import (
-	"context"
-	"errors"
-	"fmt"
-	"io"
-	"os"
-	"path/filepath"
-	"slices"
+	"runtime"
 	"strings"
 
-	"github.com/defenseunicorns/pkg/helpers/v2"
-	"github.com/defenseunicorns/pkg/oci"
-	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/mholt/archives"
-	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	"github.com/zarf-dev/zarf/src/pkg/layout"
-	"github.com/zarf-dev/zarf/src/pkg/message"
-	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
-	"github.com/zarf-dev/zarf/src/pkg/packager/sources"
-	zarfTypes "github.com/zarf-dev/zarf/src/types"
-
 	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/types"
+	zarfConfig "github.com/zarf-dev/zarf/src/config"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
+
+// TODO(move): Move this to somewhere sane
+func remoteOptions() packager.RemoteOptions {
+	return packager.RemoteOptions{
+		PlainHTTP:             zarfConfig.CommonOptions.PlainHTTP,
+		InsecureSkipTLSVerify: zarfConfig.CommonOptions.InsecureSkipTLSVerify,
+	}
+}
 
 // NamespaceOverrideMap is a map of component names to a map of chart names to namespace overrides
 type NamespaceOverrideMap = map[string]map[string]string
@@ -42,6 +36,26 @@ type TarballBundle struct {
 	Pkg            types.Package
 	nsOverrides    NamespaceOverrideMap
 }
+
+func (t *TarballBundle) NewLoadOptionsForRemove() packager.LoadOptions {
+	filter := filters.Combine(
+		filters.ByLocalOS(runtime.GOOS),
+		filters.BySelectState(strings.Join(t.Pkg.OptionalComponents, ",")),
+	)
+	// From Zarf cmd
+	return packager.LoadOptions{
+		//SkipSignatureValidation: // TODO: Where is this?
+		Architecture: config.GetArch(),
+		Filter:       filter,
+		//PublicKeyPath:  t.PkgOpts.PublicKeyPath, // TODO: Where is this?
+		OCIConcurrency: config.CommonOptions.OCIConcurrency,
+		RemoteOptions:  remoteOptions(),
+		CachePath:      config.CommonOptions.CachePath,
+	}
+}
+
+/*
+// TODO: Is this still needed?
 
 // LoadPackage loads a Zarf package from a local tarball bundle
 func (t *TarballBundle) LoadPackage(ctx context.Context, dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (v1alpha1.ZarfPackage, []string, error) {
@@ -283,3 +297,4 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 	err = config.BundleArchiveFormat.Extract(context.TODO(), sourceArchive, extractLayer)
 	return files, err
 }
+*/

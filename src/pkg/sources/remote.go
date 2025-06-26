@@ -5,29 +5,15 @@
 package sources
 
 import (
-	"context"
-	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/pkg/cache"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	goyaml "github.com/goccy/go-yaml"
-	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	"github.com/zarf-dev/zarf/src/pkg/layout"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
-	"github.com/zarf-dev/zarf/src/pkg/packager/sources"
-	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
-	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
-	"oras.land/oras-go/v2/content/file"
 )
 
 // RemoteBundle is a package source for remote bundles that implements Zarf's packager.PackageSource
@@ -41,6 +27,24 @@ type RemoteBundle struct {
 	bundleCfg      types.BundleConfig
 }
 
+func (r *RemoteBundle) NewLoadOptionsForRemove() packager.LoadOptions {
+	filter := filters.Combine(
+		filters.ByLocalOS(runtime.GOOS),
+		filters.BySelectState(strings.Join(r.Pkg.OptionalComponents, ",")),
+	)
+	// From Zarf cmd
+	return packager.LoadOptions{
+		//SkipSignatureValidation: // TODO: Where is this?
+		Architecture: config.GetArch(),
+		Filter:       filter,
+		//PublicKeyPath:  // TODO: Where is this?
+		OCIConcurrency: config.CommonOptions.OCIConcurrency,
+		RemoteOptions:  remoteOptions(),
+		CachePath:      config.CommonOptions.CachePath,
+	}
+}
+
+/*
 // LoadPackage loads a Zarf package from a remote bundle
 func (r *RemoteBundle) LoadPackage(ctx context.Context, dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (v1alpha1.ZarfPackage, []string, error) {
 	// todo: progress bar??
@@ -263,3 +267,4 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 
 	return layersInBundle, nil
 }
+*/
