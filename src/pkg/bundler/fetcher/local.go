@@ -11,8 +11,10 @@ import (
 	"os"
 	"path/filepath"
 
+	bpackager "github.com/brandtkeller/zarf/src/pkg/packager"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
@@ -20,7 +22,6 @@ import (
 	"github.com/opencontainers/image-spec/specs-go"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	"github.com/zarf-dev/zarf/src/pkg/message"
 	zarfSources "github.com/zarf-dev/zarf/src/pkg/packager/sources"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
@@ -116,10 +117,55 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 		return nil, err
 	}
 
+	loadOpts := bpackager.LoadOptions{}
+
+	pkgLayout, err := bpackager.LoadPackage(ctx, f.pkg.Path, loadOpts)
+
 	// get paths from pkgs to put in the bundle
 	var pathsToBundle []string
+	var newPathsToBundle []string
 	for _, fullPath := range pkgPaths.Files() {
 		pathsToBundle = append(pathsToBundle, fullPath)
+	}
+
+	files, err := pkgLayout.Files()
+	if err != nil {
+		return nil, err
+	}
+	for _, file := range files {
+		newPathsToBundle = append(newPathsToBundle, file)
+	}
+
+	if len(f.pkg.OptionalComponents) > 0 {
+		// check if the images/index.json file exists in the pkgLayout using pkgLayout.GetImagesDirectory()
+		imageDir := pkgLayout.GetImageDirPath()
+		// check if the index.json file exists in the imageDir
+		var imgIndex ocispec.Index
+		if _, err := os.Stat(filepath.Join(imageDir, "index.json")); err == nil {
+			indexBytes, err := os.ReadFile(pkgPaths.Images.Index)
+			if err != nil {
+				return nil, err
+			}
+			err = json.Unmarshal(indexBytes, &imgIndex)
+			if err != nil {
+				return nil, err
+			}
+		}
+		// go into the pkg's image index and filter out optional components, grabbing img manifests of imgs to include
+		imgManifestsToInclude, err := boci.FilterImageIndex(pkgLayout.Pkg.Components, imgIndex)
+		if err != nil {
+			return nil, err
+		}
+
+		// go through image index and get all images' config + layers
+		includeLayers, err := getImgLayerDigests(imgManifestsToInclude, pkgPaths)
+		if err != nil {
+			return nil, err
+		}
+
+		// filter paths to only include layers that are in includeLayers
+		filteredPaths := filterPkgPaths(pkgPaths, includeLayers, pkg.Components)
+		pathsToBundle = filteredPaths
 	}
 
 	if len(f.pkg.OptionalComponents) > 0 {

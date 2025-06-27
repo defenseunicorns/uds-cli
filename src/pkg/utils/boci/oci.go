@@ -14,19 +14,16 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/defenseunicorns/pkg/helpers/v2"
+	"github.com/brandtkeller/zarf/src/api/v1alpha1"
+	"github.com/brandtkeller/zarf/src/pkg/packager/filters"
+	"github.com/brandtkeller/zarf/src/pkg/transform"
+	"github.com/brandtkeller/zarf/src/pkg/zoci"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	"github.com/zarf-dev/zarf/src/pkg/message"
-	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
-	"github.com/zarf-dev/zarf/src/pkg/transform"
-	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
-	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
 	ocistore "oras.land/oras-go/v2/content/oci"
@@ -73,7 +70,7 @@ func ToOCIRemote(t any, mediaType string, remote *oci.OrasRemote) (*ocispec.Desc
 		}
 	}
 
-	message.Successf("Published %s [%s]", remote.Repo().Reference.String(), layerDesc.MediaType)
+	// message.Successf("Published %s [%s]", remote.Repo().Reference.String(), layerDesc.MediaType)
 	return layerDesc, nil
 }
 
@@ -405,24 +402,24 @@ func CopyLayers(layersToPull []ocispec.Descriptor, estimatedBytes int64, tmpDstD
 	// copy Zarf pkg
 	copyOpts := CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
 	// Create a thread to update a progress bar as we save the package to disk
-	doneSaving := make(chan error)
+	// doneSaving := make(chan error)
 
 	// Grab tmpDirSize and add it to the estimatedBytes, otherwise the progress bar will be off
 	// because as multiple packages are pulled into the tmpDir, RenderProgressBarForLocalDirWrite continues to
 	// add their size which results in strange MB ratios
-	tmpDirSize, err := helpers.GetDirSize(tmpDstDir)
-	if err != nil {
-		return ocispec.Descriptor{}, err
-	}
+	// tmpDirSize, err := helpers.GetDirSize(tmpDstDir)
+	// if err != nil {
+	// 	return ocispec.Descriptor{}, err
+	// }
 
-	expectedTotalSize := estimatedBytes + tmpDirSize
+	// expectedTotalSize := estimatedBytes + tmpDirSize
 
-	go zarfUtils.RenderProgressBarForLocalDirWrite(tmpDstDir, expectedTotalSize, doneSaving, "Pulling: "+artifactName, "Successfully pulled: "+artifactName)
+	// go message.RenderProgressBarForLocalDirWrite(tmpDstDir, expectedTotalSize, doneSaving, "Pulling: "+artifactName, "Successfully pulled: "+artifactName)
 
 	rootDesc, err := oras.Copy(context.TODO(), repo, repo.Reference.String(), target, "", copyOpts)
 
-	doneSaving <- err
-	<-doneSaving
+	// doneSaving <- err
+	// <-doneSaving
 
 	if err != nil {
 		return ocispec.Descriptor{}, err

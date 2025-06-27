@@ -10,10 +10,10 @@ import (
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"

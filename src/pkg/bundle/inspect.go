@@ -13,6 +13,7 @@ import (
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
@@ -21,7 +22,6 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/layout"
-	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	zarfSources "github.com/zarf-dev/zarf/src/pkg/packager/sources"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"

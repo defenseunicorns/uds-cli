@@ -11,10 +11,10 @@ import (
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"oras.land/oras-go/v2/registry"
 )
