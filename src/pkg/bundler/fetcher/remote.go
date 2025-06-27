@@ -7,19 +7,16 @@ package fetcher
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
+	"github.com/brandtkeller/zarf/src/api/v1alpha1"
+	"github.com/brandtkeller/zarf/src/pkg/zoci"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/cache"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
-	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
 
 // remoteFetcher fetches remote Zarf pkgs for local bundles
@@ -131,21 +128,5 @@ func (f *remoteFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
 		return v1alpha1.ZarfPackage{}, err
 	}
 
-	// get package metadata
-	tmpDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
-	if err != nil {
-		return v1alpha1.ZarfPackage{}, fmt.Errorf("bundler unable to create temp directory: %w", err)
-	}
-	if _, err := remote.PullPackageMetadata(ctx, tmpDir); err != nil {
-		return v1alpha1.ZarfPackage{}, err
-	}
-
-	// read metadata
-	zarfYAML := v1alpha1.ZarfPackage{}
-	zarfYAMLPath := filepath.Join(tmpDir, config.ZarfYAML)
-	err = utils.ReadYAMLStrict(zarfYAMLPath, &zarfYAML)
-	if err != nil {
-		return v1alpha1.ZarfPackage{}, err
-	}
-	return zarfYAML, err
+	return remote.FetchZarfYAML(ctx)
 }

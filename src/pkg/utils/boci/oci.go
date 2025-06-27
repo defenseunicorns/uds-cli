@@ -266,7 +266,7 @@ func FindPkgLayers(remote zoci.Remote, pkgRootManifest *oci.Manifest, optionalCo
 			components = append(components, c)
 		}
 	}
-	isSkeleton := zarfPkg.Build.Architecture == zoci.SkeletonArch || strings.HasSuffix(remote.Repo().Reference.Reference, zoci.SkeletonArch)
+	isSkeleton := zarfPkg.Build.Architecture == v1alpha1.SkeletonArch || strings.HasSuffix(remote.Repo().Reference.Reference, v1alpha1.SkeletonArch)
 	layersFromComponents, err := remote.AssembleLayers(ctx, components, isSkeleton, zoci.AllLayers)
 	if err != nil {
 		return nil, err

@@ -168,36 +168,36 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 		pathsToBundle = filteredPaths
 	}
 
-	if len(f.pkg.OptionalComponents) > 0 {
-		// read in images/index.json
-		var imgIndex ocispec.Index
-		if pkgPaths.Images.Index != "" {
-			indexBytes, err := os.ReadFile(pkgPaths.Images.Index)
-			if err != nil {
-				return nil, err
-			}
-			err = json.Unmarshal(indexBytes, &imgIndex)
-			if err != nil {
-				return nil, err
-			}
-		}
+	// if len(f.pkg.OptionalComponents) > 0 {
+	// 	// read in images/index.json
+	// 	var imgIndex ocispec.Index
+	// 	if pkgPaths.Images.Index != "" {
+	// 		indexBytes, err := os.ReadFile(pkgPaths.Images.Index)
+	// 		if err != nil {
+	// 			return nil, err
+	// 		}
+	// 		err = json.Unmarshal(indexBytes, &imgIndex)
+	// 		if err != nil {
+	// 			return nil, err
+	// 		}
+	// 	}
 
-		// go into the pkg's image index and filter out optional components, grabbing img manifests of imgs to include
-		imgManifestsToInclude, err := boci.FilterImageIndex(pkg.Components, imgIndex)
-		if err != nil {
-			return nil, err
-		}
+	// 	// go into the pkg's image index and filter out optional components, grabbing img manifests of imgs to include
+	// 	imgManifestsToInclude, err := boci.FilterImageIndex(pkg.Components, imgIndex)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
 
-		// go through image index and get all images' config + layers
-		includeLayers, err := getImgLayerDigests(imgManifestsToInclude, pkgPaths)
-		if err != nil {
-			return nil, err
-		}
+	// 	// go through image index and get all images' config + layers
+	// 	includeLayers, err := getImgLayerDigests(imgManifestsToInclude, pkgPaths)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
 
-		// filter paths to only include layers that are in includeLayers
-		filteredPaths := filterPkgPaths(pkgPaths, includeLayers, pkg.Components)
-		pathsToBundle = filteredPaths
-	}
+	// 	// filter paths to only include layers that are in includeLayers
+	// 	filteredPaths := filterPkgPaths(pkgPaths, includeLayers, pkg.Components)
+	// 	pathsToBundle = filteredPaths
+	// }
 
 	// create a file store in the same tmp dir as the Zarf pkg (used to create descs + layers)
 	src, err := file.New(pkgTmp)
