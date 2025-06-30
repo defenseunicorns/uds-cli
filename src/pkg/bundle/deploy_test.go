@@ -10,12 +10,13 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/brandtkeller/zarf/src/api/v1alpha1"
+	"github.com/brandtkeller/zarf/src/pkg/state"
+	zarfTypes "github.com/brandtkeller/zarf/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	"github.com/stretchr/testify/require"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"helm.sh/helm/v3/pkg/cli/values"
 )
 
@@ -627,7 +628,7 @@ func Test_handleZarfInitOpts(t *testing.T) {
 			},
 			zarfPkg: v1alpha1.ZarfInitConfig,
 			expected: zarfTypes.ZarfInitOptions{
-				RegistryInfo: zarfTypes.RegistryInfo{
+				RegistryInfo: state.RegistryInfo{
 					Address:      "fake.io",
 					PushUsername: "push-user",
 					PushPassword: "push-secret!",
@@ -636,14 +637,14 @@ func Test_handleZarfInitOpts(t *testing.T) {
 					Secret:       "registry-secret",
 					NodePort:     1234,
 				},
-				GitServer: zarfTypes.GitServerInfo{
+				GitServer: state.GitServerInfo{
 					Address:      "fake.git",
 					PushUsername: "push-user",
 					PushPassword: "push-secret!",
 					PullUsername: "pull-user",
 					PullPassword: "pull-secret!",
 				},
-				ArtifactServer: zarfTypes.ArtifactServerInfo{
+				ArtifactServer: state.ArtifactServerInfo{
 					Address:      "fake.artifact",
 					PushUsername: "push-user",
 					PushToken:    "push-token!",

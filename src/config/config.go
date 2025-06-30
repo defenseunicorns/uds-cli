@@ -55,7 +55,7 @@ const (
 	// CachedLogs is a file containing cached logs
 	CachedLogs = "recent-logs"
 
-	// Special Zarf init configs, can potentially refactor after https://github.com/zarf-dev/zarf/issues/1725
+	// Special Zarf init configs, can potentially refactor after https://github.com/brandtkeller/zarf/issues/1725
 	RegistryURL          = "INIT_REGISTRY_URL"
 	RegistryPushUsername = "INIT_REGISTRY_PUSH_USERNAME" // #nosec G101
 	RegistryPushPassword = "INIT_REGISTRY_PUSH_PASSWORD" // #nosec G101

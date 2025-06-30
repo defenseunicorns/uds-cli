@@ -11,7 +11,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/brandtkeller/zarf/src/api/v1alpha1"
 	bpackager "github.com/brandtkeller/zarf/src/pkg/packager"
+	zarfUtils "github.com/brandtkeller/zarf/src/pkg/utils"
+	"github.com/brandtkeller/zarf/src/pkg/zoci"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
@@ -21,11 +24,6 @@ import (
 	"github.com/mholt/archives"
 	"github.com/opencontainers/image-spec/specs-go"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	zarfSources "github.com/zarf-dev/zarf/src/pkg/packager/sources"
-	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
-	"github.com/zarf-dev/zarf/src/pkg/zoci"
-	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"oras.land/oras-go/v2/content/file"
 	ocistore "oras.land/oras-go/v2/content/oci"
 )
@@ -106,34 +104,19 @@ func (f *localFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
 func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	ctx := context.TODO()
 
-	// load pkg and layout of pkg paths
-	pkgSrc := zarfSources.TarballSource{
-		ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{
-			PackageSource: f.pkg.Path,
-		},
-	}
-	pkg, pkgPaths, err := loadPkg(pkgTmp, &pkgSrc, f.pkg.OptionalComponents)
-	if err != nil {
-		return nil, err
-	}
-
 	loadOpts := bpackager.LoadOptions{}
 
 	pkgLayout, err := bpackager.LoadPackage(ctx, f.pkg.Path, loadOpts)
 
 	// get paths from pkgs to put in the bundle
 	var pathsToBundle []string
-	var newPathsToBundle []string
-	for _, fullPath := range pkgPaths.Files() {
-		pathsToBundle = append(pathsToBundle, fullPath)
-	}
 
 	files, err := pkgLayout.Files()
 	if err != nil {
 		return nil, err
 	}
 	for _, file := range files {
-		newPathsToBundle = append(newPathsToBundle, file)
+		pathsToBundle = append(pathsToBundle, file)
 	}
 
 	if len(f.pkg.OptionalComponents) > 0 {
@@ -142,7 +125,7 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 		// check if the index.json file exists in the imageDir
 		var imgIndex ocispec.Index
 		if _, err := os.Stat(filepath.Join(imageDir, "index.json")); err == nil {
-			indexBytes, err := os.ReadFile(pkgPaths.Images.Index)
+			indexBytes, err := os.ReadFile(filepath.Join(imageDir, "index.json"))
 			if err != nil {
 				return nil, err
 			}
@@ -158,46 +141,15 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 		}
 
 		// go through image index and get all images' config + layers
-		includeLayers, err := getImgLayerDigests(imgManifestsToInclude, pkgPaths)
+		includeLayers, err := getImgLayerDigests(imgManifestsToInclude)
 		if err != nil {
 			return nil, err
 		}
 
 		// filter paths to only include layers that are in includeLayers
-		filteredPaths := filterPkgPaths(pkgPaths, includeLayers, pkg.Components)
+		filteredPaths := filterPkgPaths(pkgLayout, includeLayers, pkgLayout.Pkg.Components)
 		pathsToBundle = filteredPaths
 	}
-
-	// if len(f.pkg.OptionalComponents) > 0 {
-	// 	// read in images/index.json
-	// 	var imgIndex ocispec.Index
-	// 	if pkgPaths.Images.Index != "" {
-	// 		indexBytes, err := os.ReadFile(pkgPaths.Images.Index)
-	// 		if err != nil {
-	// 			return nil, err
-	// 		}
-	// 		err = json.Unmarshal(indexBytes, &imgIndex)
-	// 		if err != nil {
-	// 			return nil, err
-	// 		}
-	// 	}
-
-	// 	// go into the pkg's image index and filter out optional components, grabbing img manifests of imgs to include
-	// 	imgManifestsToInclude, err := boci.FilterImageIndex(pkg.Components, imgIndex)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-
-	// 	// go through image index and get all images' config + layers
-	// 	includeLayers, err := getImgLayerDigests(imgManifestsToInclude, pkgPaths)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-
-	// 	// filter paths to only include layers that are in includeLayers
-	// 	filteredPaths := filterPkgPaths(pkgPaths, includeLayers, pkg.Components)
-	// 	pathsToBundle = filteredPaths
-	// }
 
 	// create a file store in the same tmp dir as the Zarf pkg (used to create descs + layers)
 	src, err := file.New(pkgTmp)
@@ -247,7 +199,7 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	}
 
 	// create a pkg root manifest + config because it doesn't come with local Zarf pkgs
-	manifestConfigDesc, err := generatePkgManifestConfig(f.cfg.Store, &pkg.Metadata, &pkg.Build)
+	manifestConfigDesc, err := generatePkgManifestConfig(f.cfg.Store, &pkgLayout.Pkg.Metadata, &pkgLayout.Pkg.Build)
 	if err != nil {
 		return nil, err
 	}

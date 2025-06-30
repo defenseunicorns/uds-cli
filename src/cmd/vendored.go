@@ -14,11 +14,11 @@ import (
 
 	"github.com/defenseunicorns/pkg/exec"
 
+	zarfCLI "github.com/brandtkeller/zarf/src/cmd"
+	zarfConfig "github.com/brandtkeller/zarf/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/spf13/cobra"
-	zarfCLI "github.com/zarf-dev/zarf/src/cmd"
-	zarfConfig "github.com/zarf-dev/zarf/src/config"
 )
 
 var runnerCmd = &cobra.Command{
@@ -84,7 +84,7 @@ func init() {
 	// grab Zarf version to make Zarf library checks happy
 	if buildInfo, ok := debug.ReadBuildInfo(); ok {
 		for _, dep := range buildInfo.Deps {
-			if dep.Path == "github.com/zarf-dev/zarf" {
+			if dep.Path == "github.com/brandtkeller/zarf" {
 				zarfConfig.CLIVersion = dep.Version
 			}
 		}
