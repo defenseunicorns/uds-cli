@@ -10,14 +10,14 @@ import (
 	"os"
 	"strings"
 
-	"github.com/brandtkeller/zarf/src/pkg/packager"
-	"github.com/brandtkeller/zarf/src/pkg/packager/filters"
-	zarfUtils "github.com/brandtkeller/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/pterm/pterm"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 )
 
 // Inspect pulls/unpacks a bundle's metadata and shows it

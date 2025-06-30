@@ -959,8 +959,6 @@ github.com/boombuler/barcode v1.0.0/go.mod h1:paBWMcWSl3LHKBqUq+rly7CNSldXjb2rDl
 github.com/boombuler/barcode v1.0.1/go.mod h1:paBWMcWSl3LHKBqUq+rly7CNSldXjb2rDl3JlRe0mD8=
 github.com/bradleyjkemp/cupaloy/v2 v2.8.0 h1:any4BmKE+jGIaMpnU8YgH/I2LPiLBufr6oMMlVBbn9M=
 github.com/bradleyjkemp/cupaloy/v2 v2.8.0/go.mod h1:bm7JXdkRd4BHJk9HpwqAI8BoAY1lps46Enkdqw6aRX0=
-github.com/brandtkeller/zarf v0.57.1-0.20250627211258-d12cd8f01286 h1:PLJxHePzsHVVZsk7hBnK/HAiPHj2F14peIHalvra4WM=
-github.com/brandtkeller/zarf v0.57.1-0.20250627211258-d12cd8f01286/go.mod h1:hRAVb7PFLBJB2O/ttLxLZnXtHKnXGX5HRR6kWIJ59C4=
 github.com/bshuster-repo/logrus-logstash-hook v1.0.0 h1:e+C0SB5R1pu//O4MQ3f9cFuPGoOVeF2fE4Og9otCc70=
 github.com/bshuster-repo/logrus-logstash-hook v1.0.0/go.mod h1:zsTqEiSzDgAa/8GZR7E1qaXrhYNDKBYy5/dWPTIflbk=
 github.com/buger/jsonparser v1.1.1 h1:2PnMjfWD7wBILjqQbt530v576A/cAbQvEW9gGIpYMUs=
@@ -2292,6 +2290,10 @@ github.com/zalando/go-keyring v0.2.6 h1:r7Yc3+H+Ux0+M72zacZoItR3UDxeWfKTcabvkI8u
 github.com/zalando/go-keyring v0.2.6/go.mod h1:2TCrxYrbUNYfNS/Kgy/LSrkSQzZ5UPVH85RwfczwvcI=
 github.com/zarf-dev/zarf v0.55.6 h1:23b7CWn02lPKblo1eLZgHAnzedsYLmf1SdbngfP17Bg=
 github.com/zarf-dev/zarf v0.55.6/go.mod h1:+D2IU+t3MUzBh4roUyc9p402pFO3hcHgAQ5YTJScLmA=
+github.com/zarf-dev/zarf v0.56.0 h1:RbzO8cL9oUxnEtcm4gr1FgIZM2kYcknnZ3WpB0ElbGc=
+github.com/zarf-dev/zarf v0.56.0/go.mod h1:X2PA/aooFJkceh2/cjoWvjxfjy9NKhsZ3CVeQbhCWNM=
+github.com/zarf-dev/zarf v0.57.1-0.20250627211258-d12cd8f01286 h1:PLJxHePzsHVVZsk7hBnK/HAiPHj2F14peIHalvra4WM=
+github.com/zarf-dev/zarf v0.57.1-0.20250627211258-d12cd8f01286/go.mod h1:hRAVb7PFLBJB2O/ttLxLZnXtHKnXGX5HRR6kWIJ59C4=
 github.com/zclconf/go-cty v1.14.0 h1:/Xrd39K7DXbHzlisFP9c4pHao4yyf+/Ug9LEz+Y/yhc=
 github.com/zclconf/go-cty v1.14.0/go.mod h1:VvMs5i0vgZdhYawQNq5kePSpLAoz8u1xvZgrPIxfnZE=
 github.com/zclconf/go-cty-debug v0.0.0-20240509010212-0d6042c53940 h1:4r45xpDWB6ZMSMNJFMOjqrGHynW3DIBuR2H9j0ug+Mo=

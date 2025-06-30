@@ -11,13 +11,13 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/brandtkeller/zarf/src/pkg/cluster"
-	"github.com/brandtkeller/zarf/src/pkg/packager"
-	"github.com/brandtkeller/zarf/src/pkg/packager/filters"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/zarf-dev/zarf/src/pkg/cluster"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"golang.org/x/exp/slices"
 )
 
@@ -126,7 +126,7 @@ func removePackages(packagesToRemove []types.Package, b *Bundle) error {
 			}
 
 			// TODO: validate that package name is the same as the pkg.metadata.name
-			pkg, err := packager.GetPackageFromSourceOrCluster(ctx, c, pkg.Name, "", loadOpts)
+			pkg, err := packager.GetPackageFromSourceOrCluster(ctx, c, pkg.Name, loadOpts)
 			if err != nil {
 				return fmt.Errorf("unable to load the package: %w", err)
 			}

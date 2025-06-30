@@ -11,10 +11,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/brandtkeller/zarf/src/api/v1alpha1"
-	"github.com/brandtkeller/zarf/src/pkg/packager"
-	zarfUtils "github.com/brandtkeller/zarf/src/pkg/utils"
-	"github.com/brandtkeller/zarf/src/pkg/zoci"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
@@ -24,6 +20,10 @@ import (
 	"github.com/mholt/archives"
 	"github.com/opencontainers/image-spec/specs-go"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
+	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
+	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"oras.land/oras-go/v2/content/file"
 	ocistore "oras.land/oras-go/v2/content/oci"
 )

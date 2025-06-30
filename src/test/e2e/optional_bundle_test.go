@@ -38,7 +38,7 @@ func TestBundleOptionalComponents(t *testing.T) {
 	runCmd(t, fmt.Sprintf("publish %s localhost:888 --insecure", bundlePath))
 
 	t.Run("look through contents of local bundle to ensure only selected components are present", func(t *testing.T) {
-		// This functionality was removed in Zarf v0.55.2, see https://github.com/brandtkeller/zarf/issues/3829 for updates
+		// This functionality was removed in Zarf v0.55.2, see https://github.com/zarf-dev/zarf/issues/3829 for updates
 		t.Skip("Test disabled: skipping optional component bundle content inspection")
 		// local pkgs will have a correct pkg manifest (ie. missing non-selected optional component tarballs)
 		// remote pkgs will not, they will contain non-selected optional component tarballs

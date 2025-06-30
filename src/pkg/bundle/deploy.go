@@ -13,12 +13,6 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/brandtkeller/zarf/src/api/v1alpha1"
-	"github.com/brandtkeller/zarf/src/pkg/packager"
-	"github.com/brandtkeller/zarf/src/pkg/packager/filters"
-	"github.com/brandtkeller/zarf/src/pkg/state"
-	zarfUtils "github.com/brandtkeller/zarf/src/pkg/utils"
-	zarfTypes "github.com/brandtkeller/zarf/src/types"
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
@@ -26,6 +20,12 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	goyaml "github.com/goccy/go-yaml"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/state"
+	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"golang.org/x/exp/slices"
 )
 

@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 
-	zarfUtils "github.com/brandtkeller/zarf/src/pkg/utils"
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
@@ -22,6 +21,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"oras.land/oras-go/v2"
 	ocistore "oras.land/oras-go/v2/content/oci"
 )

@@ -12,9 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	zarfConfig "github.com/brandtkeller/zarf/src/config"
-	"github.com/brandtkeller/zarf/src/pkg/logger"
-	zarfTypes "github.com/brandtkeller/zarf/src/types"
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
@@ -23,6 +20,9 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
+	zarfConfig "github.com/zarf-dev/zarf/src/config"
+	"github.com/zarf-dev/zarf/src/pkg/logger"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 type configOption string
@@ -87,7 +87,7 @@ func configureZarf() {
 	// UDS does not currently expose those flags and effectively shares the
 	// --insecure flag with zarf, so when we set the common options we need to
 	// set those additional flags here as well.
-	// See https://github.com/brandtkeller/zarf/pull/2936 for more information.
+	// See https://github.com/zarf-dev/zarf/pull/2936 for more information.
 	if config.CommonOptions.Insecure {
 		zarfConfig.CommonOptions.PlainHTTP = true
 		zarfConfig.CommonOptions.InsecureSkipTLSVerify = true

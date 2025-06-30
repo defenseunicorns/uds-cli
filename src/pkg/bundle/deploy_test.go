@@ -10,13 +10,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/brandtkeller/zarf/src/api/v1alpha1"
-	"github.com/brandtkeller/zarf/src/pkg/state"
-	zarfTypes "github.com/brandtkeller/zarf/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/state"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"helm.sh/helm/v3/pkg/cli/values"
 )
 

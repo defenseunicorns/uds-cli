@@ -13,10 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/brandtkeller/zarf/src/api/v1alpha1"
-	"github.com/brandtkeller/zarf/src/pkg/cluster"
-	zarfUtils "github.com/brandtkeller/zarf/src/pkg/utils"
-	"github.com/brandtkeller/zarf/src/pkg/zoci"
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
@@ -25,6 +21,10 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/cluster"
+	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
+	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
 
 // Bundle handles bundler operations

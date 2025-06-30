@@ -15,7 +15,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 
-	zarfCLI "github.com/brandtkeller/zarf/src/cmd"
+	zarfCLI "github.com/zarf-dev/zarf/src/cmd"
 )
 
 // CreateZarfPkgs creates a zarf package if its missing when in dev mode

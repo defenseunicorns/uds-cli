@@ -17,7 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/brandtkeller/zarf/src/api/v1alpha1"
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
@@ -26,6 +25,7 @@ import (
 	"github.com/mholt/archives"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 )
 
 // IsValidTarballPath returns true if the path is a valid tarball path to a bundle tarball

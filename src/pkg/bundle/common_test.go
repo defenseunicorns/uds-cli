@@ -7,9 +7,9 @@ package bundle
 import (
 	"testing"
 
-	"github.com/brandtkeller/zarf/src/api/v1alpha1"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 )
 
 func Test_validateBundleVars(t *testing.T) {

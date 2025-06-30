@@ -5,7 +5,6 @@ go 1.24.2
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
-	github.com/brandtkeller/zarf v0.57.1-0.20250627211258-d12cd8f01286
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/defenseunicorns/maru-runner v0.6.0
 	github.com/defenseunicorns/pkg/exec v0.0.2
@@ -19,7 +18,7 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
-	github.com/zarf-dev/zarf v0.55.6
+	github.com/zarf-dev/zarf v0.56.0
 	golang.org/x/exp v0.0.0-20250606033433-dcc06ee1d476
 	golang.org/x/mod v0.25.0
 	golang.org/x/sync v0.15.0

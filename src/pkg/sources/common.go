@@ -5,8 +5,8 @@
 package sources
 
 import (
-	"github.com/brandtkeller/zarf/src/api/v1alpha1"
-	"github.com/brandtkeller/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 )
 
 // addNamespaceOverrides checks if pkg components have charts with namespace overrides and adds them
