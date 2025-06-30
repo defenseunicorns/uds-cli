@@ -7,7 +7,6 @@ package bundle
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -15,16 +14,14 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/brandtkeller/zarf/src/api/v1alpha1"
-	zarfConfig "github.com/brandtkeller/zarf/src/config"
-	"github.com/brandtkeller/zarf/src/pkg/layout"
 	"github.com/brandtkeller/zarf/src/pkg/packager"
+	"github.com/brandtkeller/zarf/src/pkg/packager/filters"
 	"github.com/brandtkeller/zarf/src/pkg/state"
 	zarfUtils "github.com/brandtkeller/zarf/src/pkg/utils"
 	zarfTypes "github.com/brandtkeller/zarf/src/types"
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
-	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
@@ -34,6 +31,8 @@ import (
 
 // hiddenVar is the value used to mask potentially sensitive variables
 const hiddenVar = "****"
+
+type NamespaceOverrideMap = map[string]map[string]string
 
 // Deploy deploys a bundle
 func (b *Bundle) Deploy(ctx context.Context) error {
@@ -87,7 +86,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			}
 			b.bundle.Packages[i] = pkg
 		}
-		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
+		// sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 		pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
 			return err
@@ -111,62 +110,94 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
-		opts := zarfTypes.ZarfPackageOptions{
-			PackageSource:      pkgTmp,
-			OptionalComponents: strings.Join(pkg.OptionalComponents, ","),
-			PublicKeyPath:      publicKeyPath,
+		// opts := zarfTypes.ZarfPackageOptions{
+		// 	PackageSource:      pkgTmp,
+		// 	OptionalComponents: strings.Join(pkg.OptionalComponents, ","),
+		// 	PublicKeyPath:      publicKeyPath,
+		// 	SetVariables:       pkgVars,
+		// 	Retries:            b.cfg.DeployOpts.Retries,
+		// }
+
+		// zarfDeployOpts := zarfTypes.ZarfDeployOptions{
+		// 	ValuesOverridesMap: valuesOverrides,
+		// 	Timeout:            config.HelmTimeout,
+		// }
+
+		// // Automatically confirm the package deployment
+		// zarfConfig.CommonOptions.Confirm = true
+
+		// source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nsOverrides)
+		// if err != nil {
+		// 	return err
+		// }
+
+		// pkgCfg := zarfTypes.PackagerConfig{
+		// 	PkgOpts:    opts,
+		// 	DeployOpts: zarfDeployOpts,
+		// }
+
+		// // handle zarf init configs that aren't Zarf variables
+		// zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), layout.New(pkgTmp), false, false)
+		// if err != nil {
+		// 	return err
+		// }
+
+		// zarfInitOpts := handleZarfInitOpts(pkgVars, zarfPkg.Kind)
+		// pkgCfg.InitOpts = zarfInitOpts
+
+		// pkgClient, err := packager.New(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
+		// if err != nil {
+		// 	return err
+		// }
+
+		// if err = pkgClient.Deploy(ctx); err != nil {
+		// 	return err
+		// }
+
+		// TODO: consume from source of truth
+		remoteOpts := packager.RemoteOptions{
+			PlainHTTP:             false,
+			InsecureSkipTLSVerify: false,
+		}
+
+		loadOpts := packager.LoadOptions{
+			Architecture:            config.GetArch(b.bundle.Build.Architecture),
+			SkipSignatureValidation: false,
+			Filter:                  filters.Empty(),
+			PublicKeyPath:           publicKeyPath,
+			RemoteOptions:           remoteOpts,
+		}
+
+		pkgLayout, err := packager.LoadPackage(ctx, pkg.Path, loadOpts)
+		if err != nil {
+			return err
+		}
+
+		addNamespaceOverrides(&pkgLayout.Pkg, nsOverrides)
+
+		// zarfInitOpts := handleZarfInitOpts(pkgVars, pkgLayout.Pkg.Kind)
+
+		deployOpts := packager.DeployOptions{
+			Timeout:            config.HelmTimeout,
 			SetVariables:       pkgVars,
+			ValuesOverridesMap: valuesOverrides,
 			Retries:            b.cfg.DeployOpts.Retries,
 		}
 
-		zarfDeployOpts := zarfTypes.ZarfDeployOptions{
-			ValuesOverridesMap: valuesOverrides,
-			Timeout:            config.HelmTimeout,
-		}
+		packager.Deploy(ctx, pkgLayout, deployOpts)
 
-		// Automatically confirm the package deployment
-		zarfConfig.CommonOptions.Confirm = true
-
-		source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nsOverrides)
-		if err != nil {
-			return err
-		}
-
-		pkgCfg := zarfTypes.PackagerConfig{
-			PkgOpts:    opts,
-			DeployOpts: zarfDeployOpts,
-		}
-
-		// handle zarf init configs that aren't Zarf variables
-		zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), layout.New(pkgTmp), false, false)
-		if err != nil {
-			return err
-		}
-
-		zarfInitOpts := handleZarfInitOpts(pkgVars, zarfPkg.Kind)
-		pkgCfg.InitOpts = zarfInitOpts
-
-		pkgClient, err := packager.New(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
-		if err != nil {
-			return err
-		}
-
-		if err = pkgClient.Deploy(ctx); err != nil {
-			return err
-		}
-
-		// save exported vars
-		pkgExportedVars := make(map[string]string)
-		variableConfig := pkgClient.GetVariableConfig()
-		for _, exp := range pkg.Exports {
-			// ensure if variable exists in package
-			setVariable, ok := variableConfig.GetSetVariable(exp.Name)
-			if !ok {
-				return fmt.Errorf("cannot export variable %s because it does not exist in package %s", exp.Name, pkg.Name)
-			}
-			pkgExportedVars[strings.ToUpper(exp.Name)] = setVariable.Value
-		}
-		bundleExportedVars[pkg.Name] = pkgExportedVars
+		// // save exported vars
+		// pkgExportedVars := make(map[string]string)
+		// variableConfig := pkgClient.GetVariableConfig()
+		// for _, exp := range pkg.Exports {
+		// 	// ensure if variable exists in package
+		// 	setVariable, ok := variableConfig.GetSetVariable(exp.Name)
+		// 	if !ok {
+		// 		return fmt.Errorf("cannot export variable %s because it does not exist in package %s", exp.Name, pkg.Name)
+		// 	}
+		// 	pkgExportedVars[strings.ToUpper(exp.Name)] = setVariable.Value
+		// }
+		// bundleExportedVars[pkg.Name] = pkgExportedVars
 	}
 	return nil
 }
@@ -440,6 +471,21 @@ func removeOverrides(pkgVars map[string]overrideData, chartVars []types.BundleCh
 		_, exists := pkgVars[strings.ToUpper(cv.Name)]
 		if exists {
 			delete(pkgVars, strings.ToUpper(cv.Name))
+		}
+	}
+}
+
+func addNamespaceOverrides(pkg *v1alpha1.ZarfPackage, nsOverrides NamespaceOverrideMap) {
+	if len(nsOverrides) == 0 {
+		return
+	}
+	for i, comp := range pkg.Components {
+		if _, exists := nsOverrides[comp.Name]; exists {
+			for j, chart := range comp.Charts {
+				if _, exists = nsOverrides[comp.Name][chart.Name]; exists {
+					pkg.Components[i].Charts[j].Namespace = nsOverrides[comp.Name][comp.Charts[j].Name]
+				}
+			}
 		}
 	}
 }

@@ -5,25 +5,25 @@
 package sources
 
 import (
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/brandtkeller/zarf/src/api/v1alpha1"
+	"github.com/brandtkeller/zarf/src/pkg/packager/filters"
 )
 
 // addNamespaceOverrides checks if pkg components have charts with namespace overrides and adds them
-func addNamespaceOverrides(pkg *v1alpha1.ZarfPackage, nsOverrides NamespaceOverrideMap) {
-	if len(nsOverrides) == 0 {
-		return
-	}
-	for i, comp := range pkg.Components {
-		if _, exists := nsOverrides[comp.Name]; exists {
-			for j, chart := range comp.Charts {
-				if _, exists = nsOverrides[comp.Name][chart.Name]; exists {
-					pkg.Components[i].Charts[j].Namespace = nsOverrides[comp.Name][comp.Charts[j].Name]
-				}
-			}
-		}
-	}
-}
+// func addNamespaceOverrides(pkg *v1alpha1.ZarfPackage, nsOverrides NamespaceOverrideMap) {
+// 	if len(nsOverrides) == 0 {
+// 		return
+// 	}
+// 	for i, comp := range pkg.Components {
+// 		if _, exists := nsOverrides[comp.Name]; exists {
+// 			for j, chart := range comp.Charts {
+// 				if _, exists = nsOverrides[comp.Name][chart.Name]; exists {
+// 					pkg.Components[i].Charts[j].Namespace = nsOverrides[comp.Name][comp.Charts[j].Name]
+// 				}
+// 			}
+// 		}
+// 	}
+// }
 
 // setAsYOLO sets the YOLO flag on a package and strips out all images and repos
 func setAsYOLO(pkg *v1alpha1.ZarfPackage) {

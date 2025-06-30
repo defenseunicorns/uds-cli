@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 
 	"github.com/brandtkeller/zarf/src/api/v1alpha1"
-	bpackager "github.com/brandtkeller/zarf/src/pkg/packager"
+	"github.com/brandtkeller/zarf/src/pkg/packager"
 	zarfUtils "github.com/brandtkeller/zarf/src/pkg/utils"
 	"github.com/brandtkeller/zarf/src/pkg/zoci"
 	"github.com/defenseunicorns/pkg/oci"
@@ -104,9 +104,9 @@ func (f *localFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
 func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	ctx := context.TODO()
 
-	loadOpts := bpackager.LoadOptions{}
+	loadOpts := packager.LoadOptions{}
 
-	pkgLayout, err := bpackager.LoadPackage(ctx, f.pkg.Path, loadOpts)
+	pkgLayout, err := packager.LoadPackage(ctx, f.pkg.Path, loadOpts)
 
 	// get paths from pkgs to put in the bundle
 	var pathsToBundle []string

@@ -11,6 +11,9 @@ import (
 	"os"
 	"path/filepath"
 
+	zarfConfig "github.com/brandtkeller/zarf/src/config"
+	zarfUtils "github.com/brandtkeller/zarf/src/pkg/utils"
+	"github.com/brandtkeller/zarf/src/pkg/zoci"
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
@@ -18,9 +21,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	zarfConfig "github.com/zarf-dev/zarf/src/config"
-	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
-	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
 
 // Pull pulls a bundle and saves it locally

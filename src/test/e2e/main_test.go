@@ -102,7 +102,7 @@ func deployZarfInit(t *testing.T) {
 		require.NoError(t, err)
 		var zarfVersion string
 		for _, r := range f.Require {
-			if r.Mod.Path == "github.com/zarf-dev/zarf" {
+			if r.Mod.Path == "github.com/brandtkeller/zarf" {
 				zarfVersion = r.Mod.Version
 			}
 		}

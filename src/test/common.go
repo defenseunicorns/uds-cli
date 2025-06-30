@@ -17,10 +17,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/brandtkeller/zarf/src/pkg/utils/exec"
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/stretchr/testify/require"
-	"github.com/zarf-dev/zarf/src/pkg/utils/exec"
 )
 
 // UDSE2ETest Struct holding common fields most of the tests will utilize.
@@ -151,7 +151,7 @@ func (e2e *UDSE2ETest) GetUdsVersion(t *testing.T) string {
 // DownloadZarfInitPkg downloads the zarf init pkg used for testing if it doesn't already exist (todo: makefile?)
 func (e2e *UDSE2ETest) DownloadZarfInitPkg(t *testing.T, zarfVersion string) {
 	filename := fmt.Sprintf("zarf-init-%s-%s.tar.zst", e2e.Arch, zarfVersion)
-	zarfReleaseURL := fmt.Sprintf("https://github.com/zarf-dev/zarf/releases/download/%s/%s", zarfVersion, filename)
+	zarfReleaseURL := fmt.Sprintf("https://github.com/brandtkeller/zarf/releases/download/%s/%s", zarfVersion, filename)
 	outputDir := "src/test/packages"
 
 	// Check if the file already exists
