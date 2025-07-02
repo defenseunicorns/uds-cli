@@ -166,8 +166,8 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 	// go through the paths that should be bundled and add them to the bundle store
 	var descs []ocispec.Descriptor
 	for _, path := range pathsToBundle {
-		pkgPath := filepath.Join(pkgLayout.DirPath(), path)
-		name, err := filepath.Rel(pkgTmp, pkgPath)
+		// pkgPath := filepath.Join(pkgLayout.DirPath(), path)
+		name, err := filepath.Rel(pkgTmp, path)
 		if err != nil {
 			return nil, pkgTmp, err
 		}
@@ -176,16 +176,16 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 		mediaType := zoci.ZarfLayerMediaTypeBlob
 
 		// if using a custom tmp dir that is not an absolute path, get working dir and prepend to path to make it absolute
-		if !filepath.IsAbs(pkgPath) {
+		if !filepath.IsAbs(path) {
 			wd, err := os.Getwd()
 			if err != nil {
 				return nil, pkgTmp, err
 			}
-			pkgPath = filepath.Join(wd, pkgPath)
+			path = filepath.Join(wd, path)
 		}
 
 		// use the file store to create descs + layers that will be used to create the pkg root manifest
-		desc, err := src.Add(ctx, name, mediaType, pkgPath)
+		desc, err := src.Add(ctx, name, mediaType, path)
 		if err != nil {
 			return nil, pkgTmp, err
 		}

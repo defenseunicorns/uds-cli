@@ -47,7 +47,7 @@ func filterPkgPaths(pkgLayout *layout.PackageLayout, includeLayers []string, opt
 	if err != nil {
 		return nil
 	}
-	for _, path := range paths {
+	for path, _ := range paths {
 		// include all paths that aren't in the blobs dir
 		if !strings.Contains(path, config.BlobsDir) {
 			// only grab req'd + specified optional components
@@ -71,9 +71,10 @@ func filterPkgPaths(pkgLayout *layout.PackageLayout, includeLayers []string, opt
 
 	// ensure zarf.yaml, checksums and SBOMS (if exists) are always included
 	// note we may have extra SBOMs because they are not filtered or modified
-	alwaysInclude := []string{layout.ZarfYAML, layout.Checksums}
+	pkgDir := pkgLayout.DirPath()
+	alwaysInclude := []string{filepath.Join(pkgDir, layout.ZarfYAML), filepath.Join(pkgDir, layout.Checksums)}
 	if pkgLayout.ContainsSBOM() {
-		alwaysInclude = append(alwaysInclude, layout.SBOMTar)
+		alwaysInclude = append(alwaysInclude, filepath.Join(pkgDir, layout.SBOMTar))
 	}
 	filteredPaths = helpers.MergeSlices(filteredPaths, alwaysInclude, func(a, b string) bool {
 		return a == b
