@@ -107,6 +107,9 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	loadOpts := packager.LoadOptions{}
 
 	pkgLayout, err := packager.LoadPackage(ctx, f.pkg.Path, loadOpts)
+	if err != nil {
+		return nil, err
+	}
 
 	// get paths from pkgs to put in the bundle
 	var pathsToBundle []string
@@ -115,8 +118,8 @@ func (f *localFetcher) toBundle(pkgTmp string) ([]ocispec.Descriptor, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, file := range files {
-		pathsToBundle = append(pathsToBundle, file)
+	for fullpath, _ := range files {
+		pathsToBundle = append(pathsToBundle, fullpath)
 	}
 
 	if len(f.pkg.OptionalComponents) > 0 {
