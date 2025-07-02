@@ -19,11 +19,11 @@ import (
 )
 
 // getImgLayerDigests grabs the digests of the layers from the images in the image index
-func getImgLayerDigests(manifestsToInclude []ocispec.Descriptor) ([]string, error) {
+func getImgLayerDigests(pkgDir string, manifestsToInclude []ocispec.Descriptor) ([]string, error) {
 	var includeLayers []string
 	for _, manifest := range manifestsToInclude {
 		includeLayers = append(includeLayers, manifest.Digest.Hex()) // be sure to include image manifest
-		manifestBytes, err := os.ReadFile(filepath.Join(layout.ImagesBlobsDir, manifest.Digest.Hex()))
+		manifestBytes, err := os.ReadFile(filepath.Join(pkgDir, layout.ImagesBlobsDir, manifest.Digest.Hex()))
 		if err != nil {
 			return nil, err
 		}
@@ -73,7 +73,7 @@ func filterPkgPaths(pkgLayout *layout.PackageLayout, includeLayers []string, opt
 	// note we may have extra SBOMs because they are not filtered or modified
 	alwaysInclude := []string{layout.ZarfYAML, layout.Checksums}
 	if pkgLayout.ContainsSBOM() {
-		alwaysInclude = append(alwaysInclude, layout.SBOMDir)
+		alwaysInclude = append(alwaysInclude, layout.SBOMTar)
 	}
 	filteredPaths = helpers.MergeSlices(filteredPaths, alwaysInclude, func(a, b string) bool {
 		return a == b
