@@ -17,10 +17,10 @@ import (
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/zarf-dev/zarf/src/pkg/message"
 )
 
 // This file contains helpers for running UDS CLI commands (ie. uds create/deploy/etc with various flags and options)
@@ -100,7 +100,7 @@ func deployAndRemoveLocalAndRemoteInsecure(t *testing.T, ref string, tarballPath
 	t.Run(
 		"deploy+remove bundle via local tarball",
 		func(t *testing.T) {
-			runCmd(t, fmt.Sprintf("deploy %s --confirm", tarballPath))
+			runCmd(t, fmt.Sprintf("deploy %s --insecure --confirm", tarballPath))
 			runCmd(t, fmt.Sprintf("remove %s --confirm", tarballPath))
 		},
 	)

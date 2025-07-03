@@ -7,7 +7,6 @@ package bundle
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,16 +15,15 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	zarfConfig "github.com/zarf-dev/zarf/src/config"
-	"github.com/zarf-dev/zarf/src/pkg/layout"
-	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/state"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"golang.org/x/exp/slices"
@@ -33,6 +31,8 @@ import (
 
 // hiddenVar is the value used to mask potentially sensitive variables
 const hiddenVar = "****"
+
+type NamespaceOverrideMap = map[string]map[string]string
 
 // Deploy deploys a bundle
 func (b *Bundle) Deploy(ctx context.Context) error {
@@ -86,7 +86,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			}
 			b.bundle.Packages[i] = pkg
 		}
-		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
+		// sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 		pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
 			return err
@@ -110,62 +110,58 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
-		opts := zarfTypes.ZarfPackageOptions{
-			PackageSource:      pkgTmp,
-			OptionalComponents: strings.Join(pkg.OptionalComponents, ","),
-			PublicKeyPath:      publicKeyPath,
-			SetVariables:       pkgVars,
-			Retries:            b.cfg.DeployOpts.Retries,
+		// TODO: determine better way to delineate local vs remote packages
+		source, err := getPkgSource(pkg, config.GetArch(b.bundle.Metadata.Architecture), b.cfg.CreateOpts.SourceDirectory)
+		if err != nil {
+			return err
 		}
 
-		zarfDeployOpts := zarfTypes.ZarfDeployOptions{
-			ValuesOverridesMap: valuesOverrides,
+		// TODO: consume from source of truth
+		remoteOpts := packager.RemoteOptions{
+			PlainHTTP:             config.CommonOptions.Insecure,
+			InsecureSkipTLSVerify: config.CommonOptions.Insecure,
+		}
+
+		loadOpts := packager.LoadOptions{
+			Architecture:            config.GetArch(b.bundle.Build.Architecture),
+			SkipSignatureValidation: false,
+			Filter:                  filters.Empty(),
+			PublicKeyPath:           publicKeyPath,
+			RemoteOptions:           remoteOpts,
+			CachePath:               config.CommonOptions.CachePath,
+		}
+
+		pkgLayout, err := packager.LoadPackage(ctx, source, loadOpts)
+		if err != nil {
+			return err
+		}
+
+		addNamespaceOverrides(&pkgLayout.Pkg, nsOverrides)
+
+		// zarfInitOpts := handleZarfInitOpts(pkgVars, pkgLayout.Pkg.Kind)
+
+		deployOpts := packager.DeployOptions{
 			Timeout:            config.HelmTimeout,
+			SetVariables:       pkgVars,
+			ValuesOverridesMap: valuesOverrides,
+			Retries:            b.cfg.DeployOpts.Retries,
+			RemoteOptions:      remoteOpts,
 		}
 
-		// Automatically confirm the package deployment
-		zarfConfig.CommonOptions.Confirm = true
+		packager.Deploy(ctx, pkgLayout, deployOpts)
 
-		source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nsOverrides)
-		if err != nil {
-			return err
-		}
-
-		pkgCfg := zarfTypes.PackagerConfig{
-			PkgOpts:    opts,
-			DeployOpts: zarfDeployOpts,
-		}
-
-		// handle zarf init configs that aren't Zarf variables
-		zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), layout.New(pkgTmp), false, false)
-		if err != nil {
-			return err
-		}
-
-		zarfInitOpts := handleZarfInitOpts(pkgVars, zarfPkg.Kind)
-		pkgCfg.InitOpts = zarfInitOpts
-
-		pkgClient, err := packager.New(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
-		if err != nil {
-			return err
-		}
-
-		if err = pkgClient.Deploy(ctx); err != nil {
-			return err
-		}
-
-		// save exported vars
-		pkgExportedVars := make(map[string]string)
-		variableConfig := pkgClient.GetVariableConfig()
-		for _, exp := range pkg.Exports {
-			// ensure if variable exists in package
-			setVariable, ok := variableConfig.GetSetVariable(exp.Name)
-			if !ok {
-				return fmt.Errorf("cannot export variable %s because it does not exist in package %s", exp.Name, pkg.Name)
-			}
-			pkgExportedVars[strings.ToUpper(exp.Name)] = setVariable.Value
-		}
-		bundleExportedVars[pkg.Name] = pkgExportedVars
+		// // save exported vars
+		// pkgExportedVars := make(map[string]string)
+		// variableConfig := pkgClient.GetVariableConfig()
+		// for _, exp := range pkg.Exports {
+		// 	// ensure if variable exists in package
+		// 	setVariable, ok := variableConfig.GetSetVariable(exp.Name)
+		// 	if !ok {
+		// 		return fmt.Errorf("cannot export variable %s because it does not exist in package %s", exp.Name, pkg.Name)
+		// 	}
+		// 	pkgExportedVars[strings.ToUpper(exp.Name)] = setVariable.Value
+		// }
+		// bundleExportedVars[pkg.Name] = pkgExportedVars
 	}
 	return nil
 }
@@ -178,11 +174,11 @@ func handleZarfInitOpts(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKin
 
 	// default zarf init opts
 	zarfInitOpts := zarfTypes.ZarfInitOptions{
-		GitServer: zarfTypes.GitServerInfo{
-			PushUsername: zarfTypes.ZarfGitPushUser,
+		GitServer: state.GitServerInfo{
+			PushUsername: state.ZarfGitPushUser,
 		},
-		RegistryInfo: zarfTypes.RegistryInfo{
-			PushUsername: zarfTypes.ZarfRegistryPushUser,
+		RegistryInfo: state.RegistryInfo{
+			PushUsername: state.ZarfRegistryPushUser,
 		},
 	}
 	// populate zarf init opts from pkgVars
@@ -439,6 +435,21 @@ func removeOverrides(pkgVars map[string]overrideData, chartVars []types.BundleCh
 		_, exists := pkgVars[strings.ToUpper(cv.Name)]
 		if exists {
 			delete(pkgVars, strings.ToUpper(cv.Name))
+		}
+	}
+}
+
+func addNamespaceOverrides(pkg *v1alpha1.ZarfPackage, nsOverrides NamespaceOverrideMap) {
+	if len(nsOverrides) == 0 {
+		return
+	}
+	for i, comp := range pkg.Components {
+		if _, exists := nsOverrides[comp.Name]; exists {
+			for j, chart := range comp.Charts {
+				if _, exists = nsOverrides[comp.Name][chart.Name]; exists {
+					pkg.Components[i].Charts[j].Namespace = nsOverrides[comp.Name][comp.Charts[j].Name]
+				}
+			}
 		}
 	}
 }

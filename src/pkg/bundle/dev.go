@@ -39,7 +39,10 @@ func (b *Bundle) CreateZarfPkgs() error {
 
 		// if pkg is a local zarf package, attempt to create it if it doesn't exist
 		if pkg.Path != "" {
-			path := getPkgPath(pkg, config.GetArch(b.bundle.Metadata.Architecture), srcDir)
+			path, err := getPkgPath(pkg, config.GetArch(b.bundle.Metadata.Architecture), srcDir)
+			if err != nil {
+				return err
+			}
 			pkgDir := filepath.Dir(path)
 			// get files in directory
 			files, err := os.ReadDir(pkgDir)
