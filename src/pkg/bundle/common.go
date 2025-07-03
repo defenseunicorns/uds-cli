@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -146,7 +147,10 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 			if utils.IsRegistryURL(b.cfg.CreateOpts.Output) {
 				return fmt.Errorf("detected local Zarf package: %s, outputting to an OCI registry is not supported when using local Zarf packages", pkg.Name)
 			}
-			path := getPkgPath(pkg, bundle.Metadata.Architecture, b.cfg.CreateOpts.SourceDirectory)
+			path, err := getPkgPath(pkg, bundle.Metadata.Architecture, b.cfg.CreateOpts.SourceDirectory)
+			if err != nil {
+				return err
+			}
 			bundle.Packages[idx].Path = path
 		}
 
@@ -203,26 +207,80 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 	return nil
 }
 
-func getPkgPath(pkg types.Package, arch string, srcDir string) string {
-	var fullPkgName string
-	var path string
-	// Set path relative to the source directory if not absolute
-	if !filepath.IsAbs(pkg.Path) {
-		pkg.Path = filepath.Join(srcDir, pkg.Path)
+func getPkgPath(pkg types.Package, arch string, manifestPath string) (string, error) {
+
+	manifestDir, err := normalizeDir(manifestPath)
+	if err != nil {
+		return "", fmt.Errorf("manifest path: %w", err)
 	}
-	if strings.HasSuffix(pkg.Path, ".tar.zst") {
-		// use the provided pkg tarball
-		path = pkg.Path
-	} else if pkg.Name == "init" {
-		// Zarf init pkgs have a specific naming convention
-		fullPkgName = fmt.Sprintf("zarf-%s-%s-%s.tar.zst", pkg.Name, arch, pkg.Ref)
-		path = filepath.Join(pkg.Path, fullPkgName)
+	// 1. Resolve pkg.Path relative to the manifest directory.
+	base := pkg.Path
+	if !filepath.IsAbs(base) {
+		base = filepath.Join(manifestDir, base)
+	}
+
+	// 2. Canonicalise to eliminate “.” / “..”.
+	absBase, err := filepath.Abs(base)
+	if err != nil {
+		return "", fmt.Errorf("resolve %q: %w", base, err)
+	}
+
+	// 3. Decide the final file name (or reuse if already a tarball).
+	if strings.HasSuffix(absBase, ".tar.zst") {
+		return absBase, nil
+	}
+
+	var fileName string
+	if pkg.Name == "init" {
+		fileName = fmt.Sprintf("zarf-%s-%s-%s.tar.zst", pkg.Name, arch, pkg.Ref)
 	} else {
-		// infer the name of the local Zarf pkg
-		fullPkgName = fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", pkg.Name, arch, pkg.Ref)
-		path = filepath.Join(pkg.Path, fullPkgName)
+		fileName = fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", pkg.Name, arch, pkg.Ref)
 	}
-	return path
+
+	return filepath.Join(absBase, fileName), nil
+}
+
+func normalizeDir(path string) (string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			// The path hasn't been created yet. Assume caller passed a file
+			// path (manifest or otherwise) and strip the filename.
+			return filepath.Dir(path), nil
+		}
+		return "", err
+	}
+
+	// Regular file → return its parent directory.
+	if info.Mode().IsRegular() {
+		return filepath.Dir(path), nil
+	}
+
+	// Directory → already good.
+	if info.IsDir() {
+		return path, nil
+	}
+
+	// Anything else (socket, device, etc.) is unexpected.
+	return "", fmt.Errorf("path %q is neither file nor directory", path)
+}
+
+func getPkgSource(pkg types.Package, arch string, srcDir string) (string, error) {
+
+	if pkg.Repository != "" {
+		source := fmt.Sprintf("oci://%s:%s", pkg.Repository, pkg.Ref)
+		if strings.Contains(pkg.Ref, "@sha256:") {
+			source = fmt.Sprintf("oci://%s:%s", pkg.Repository, pkg.Ref)
+		}
+		return source, nil
+	}
+
+	source, err := getPkgPath(pkg, arch, srcDir)
+	if err != nil {
+		return "", err
+	}
+	return source, nil
+
 }
 
 // CalculateBuildInfo calculates the build info for the bundle

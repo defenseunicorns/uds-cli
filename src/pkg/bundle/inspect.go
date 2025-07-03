@@ -119,9 +119,9 @@ func (b *Bundle) listImages() error {
 		)
 
 		// TODO: determine better way to delineate local vs remote packages
-		source := pkg.Path
-		if source == "" {
-			source = fmt.Sprintf("oci://%s:%s", pkg.Repository, pkg.Ref)
+		source, err := getPkgSource(pkg, config.GetArch(b.bundle.Metadata.Architecture), b.cfg.InspectOpts.Source)
+		if err != nil {
+			return err
 		}
 
 		remoteOpts := packager.RemoteOptions{
@@ -174,10 +174,9 @@ func (b *Bundle) listVariables() error {
 
 	for _, pkg := range b.bundle.Packages {
 
-		// TODO: determine better way to delineate local vs remote packages
-		source := pkg.Path
-		if source == "" {
-			source = fmt.Sprintf("oci://%s:%s", pkg.Repository, pkg.Ref)
+		source, err := getPkgSource(pkg, config.GetArch(b.bundle.Metadata.Architecture), b.cfg.CreateOpts.SourceDirectory)
+		if err != nil {
+			return err
 		}
 
 		remoteOpts := packager.RemoteOptions{

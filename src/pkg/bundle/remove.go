@@ -82,32 +82,6 @@ func removePackages(packagesToRemove []types.Package, b *Bundle) error {
 		pkg := packagesToRemove[i]
 
 		if slices.Contains(deployedPackageNames, pkg.Name) {
-			// opts := zarfTypes.ZarfPackageOptions{
-			// 	PackageSource: b.cfg.RemoveOpts.Source,
-			// }
-			// pkgCfg := zarfTypes.PackagerConfig{
-			// 	PkgOpts: opts,
-			// }
-			// pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
-			// if err != nil {
-			// 	return err
-			// }
-
-			// sha := strings.Split(pkg.Ref, "sha256:")[1]
-			// source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nil)
-			// if err != nil {
-			// 	return err
-			// }
-
-			// pkgClient, err := packager.New(&pkgCfg, packager.WithSource(source), packager.WithTemp(pkgTmp))
-			// if err != nil {
-			// 	return err
-			// }
-			// defer pkgClient.ClearTempPaths()
-
-			// if err := pkgClient.Remove(context.TODO()); err != nil {
-			// 	return err
-			// }
 
 			filter := filters.Combine(
 				filters.ByLocalOS(runtime.GOOS),

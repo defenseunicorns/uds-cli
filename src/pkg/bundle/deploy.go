@@ -7,7 +7,6 @@ package bundle
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -111,54 +110,10 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
-		// opts := zarfTypes.ZarfPackageOptions{
-		// 	PackageSource:      pkgTmp,
-		// 	OptionalComponents: strings.Join(pkg.OptionalComponents, ","),
-		// 	PublicKeyPath:      publicKeyPath,
-		// 	SetVariables:       pkgVars,
-		// 	Retries:            b.cfg.DeployOpts.Retries,
-		// }
-
-		// zarfDeployOpts := zarfTypes.ZarfDeployOptions{
-		// 	ValuesOverridesMap: valuesOverrides,
-		// 	Timeout:            config.HelmTimeout,
-		// }
-
-		// // Automatically confirm the package deployment
-		// zarfConfig.CommonOptions.Confirm = true
-
-		// source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nsOverrides)
-		// if err != nil {
-		// 	return err
-		// }
-
-		// pkgCfg := zarfTypes.PackagerConfig{
-		// 	PkgOpts:    opts,
-		// 	DeployOpts: zarfDeployOpts,
-		// }
-
-		// // handle zarf init configs that aren't Zarf variables
-		// zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), layout.New(pkgTmp), false, false)
-		// if err != nil {
-		// 	return err
-		// }
-
-		// zarfInitOpts := handleZarfInitOpts(pkgVars, zarfPkg.Kind)
-		// pkgCfg.InitOpts = zarfInitOpts
-
-		// pkgClient, err := packager.New(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
-		// if err != nil {
-		// 	return err
-		// }
-
-		// if err = pkgClient.Deploy(ctx); err != nil {
-		// 	return err
-		// }
-
 		// TODO: determine better way to delineate local vs remote packages
-		source := pkg.Path
-		if source == "" {
-			source = fmt.Sprintf("oci://%s:%s", pkg.Repository, pkg.Ref)
+		source, err := getPkgSource(pkg, config.GetArch(b.bundle.Metadata.Architecture), b.cfg.CreateOpts.SourceDirectory)
+		if err != nil {
+			return err
 		}
 
 		// TODO: consume from source of truth
