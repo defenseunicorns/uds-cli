@@ -118,14 +118,27 @@ func (b *Bundle) listImages() error {
 			filters.ForDeploy(strings.Join(pkg.OptionalComponents, ","), false),
 		)
 
+		// TODO: determine better way to delineate local vs remote packages
+		source := pkg.Path
+		if source == "" {
+			source = fmt.Sprintf("oci://%s:%s", pkg.Repository, pkg.Ref)
+		}
+
+		remoteOpts := packager.RemoteOptions{
+			PlainHTTP:             config.CommonOptions.Insecure,
+			InsecureSkipTLSVerify: config.CommonOptions.Insecure,
+		}
+
 		loadOpts := packager.LoadOptions{
 			Filter:                  inspectFilter,
 			SkipSignatureValidation: false,
 			Architecture:            config.GetArch(),
 			PublicKeyPath:           b.cfg.DeployOpts.PublicKeyPath,
+			CachePath:               config.CommonOptions.CachePath,
+			RemoteOptions:           remoteOpts,
 		}
 
-		pkgLayout, err := packager.LoadPackage(context.TODO(), pkg.Path, loadOpts)
+		pkgLayout, err := packager.LoadPackage(context.TODO(), source, loadOpts)
 		if err != nil {
 			return err
 		}
@@ -160,19 +173,28 @@ func (b *Bundle) listVariables() error {
 	message.Title("Overrides and Variables:", "configurable helm overrides and Zarf variables by package")
 
 	for _, pkg := range b.bundle.Packages {
-		// zarfPkg, err := loadPackage(*b, pkg)
-		// if err != nil {
-		// 	return err
-		// }
+
+		// TODO: determine better way to delineate local vs remote packages
+		source := pkg.Path
+		if source == "" {
+			source = fmt.Sprintf("oci://%s:%s", pkg.Repository, pkg.Ref)
+		}
+
+		remoteOpts := packager.RemoteOptions{
+			PlainHTTP:             config.CommonOptions.Insecure,
+			InsecureSkipTLSVerify: config.CommonOptions.Insecure,
+		}
 
 		loadOpts := packager.LoadOptions{
 			Filter:                  filters.Empty(),
 			SkipSignatureValidation: false,
 			Architecture:            config.GetArch(),
 			PublicKeyPath:           b.cfg.DeployOpts.PublicKeyPath,
+			CachePath:               config.CommonOptions.CachePath,
+			RemoteOptions:           remoteOpts,
 		}
 
-		pkgLayout, err := packager.LoadPackage(context.TODO(), pkg.Path, loadOpts)
+		pkgLayout, err := packager.LoadPackage(context.TODO(), source, loadOpts)
 		if err != nil {
 			return err
 		}

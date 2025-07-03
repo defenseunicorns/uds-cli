@@ -7,6 +7,7 @@ package bundle
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -154,10 +155,16 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		// 	return err
 		// }
 
+		// TODO: determine better way to delineate local vs remote packages
+		source := pkg.Path
+		if source == "" {
+			source = fmt.Sprintf("oci://%s:%s", pkg.Repository, pkg.Ref)
+		}
+
 		// TODO: consume from source of truth
 		remoteOpts := packager.RemoteOptions{
-			PlainHTTP:             false,
-			InsecureSkipTLSVerify: false,
+			PlainHTTP:             config.CommonOptions.Insecure,
+			InsecureSkipTLSVerify: config.CommonOptions.Insecure,
 		}
 
 		loadOpts := packager.LoadOptions{
@@ -166,9 +173,10 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			Filter:                  filters.Empty(),
 			PublicKeyPath:           publicKeyPath,
 			RemoteOptions:           remoteOpts,
+			CachePath:               config.CommonOptions.CachePath,
 		}
 
-		pkgLayout, err := packager.LoadPackage(ctx, pkg.Path, loadOpts)
+		pkgLayout, err := packager.LoadPackage(ctx, source, loadOpts)
 		if err != nil {
 			return err
 		}
@@ -182,6 +190,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			SetVariables:       pkgVars,
 			ValuesOverridesMap: valuesOverrides,
 			Retries:            b.cfg.DeployOpts.Retries,
+			RemoteOptions:      remoteOpts,
 		}
 
 		packager.Deploy(ctx, pkgLayout, deployOpts)

@@ -105,7 +105,9 @@ func (f *localFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
 func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 	ctx := context.TODO()
 
-	loadOpts := packager.LoadOptions{}
+	loadOpts := packager.LoadOptions{
+		CachePath: config.CommonOptions.CachePath,
+	}
 
 	pkgLayout, err := packager.LoadPackage(ctx, f.pkg.Path, loadOpts)
 	if err != nil {

@@ -40,7 +40,7 @@ func TestSimpleBundleWithZarfAction(t *testing.T) {
 	runCmd(t, fmt.Sprintf("create src/test/bundles/11-real-simple --insecure --confirm -a %s", e2e.Arch))
 	tarballPath := fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-real-simple-%s-0.0.1.tar.zst", e2e.Arch)
 	_, stderr := runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", tarballPath))
-	require.Contains(t, stderr, "Pulling ghcr.io")
+	require.Contains(t, stderr, "pulling package")
 }
 
 func TestSimpleBundleWithNameAndVersionFlags(t *testing.T) {
@@ -150,7 +150,7 @@ func TestLocalBundleWithRemotePkgs(t *testing.T) {
 	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 	inspectLocal(t, bundlePath, "example-remote")
 	inspectLocalAndSBOMExtract(t, "example-remote", bundlePath)
-	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundlePath))
+	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm --insecure", bundlePath))
 	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
 }
 
@@ -327,7 +327,7 @@ func TestPackageNaming(t *testing.T) {
 	runCmd(t, fmt.Sprintf("publish %s %s --insecure", bundlePath, bundleRef.Registry))
 
 	pull(t, bundleRef.String(), bundleTarballName)
-	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", tarballPath))
+	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --insecure --confirm", tarballPath))
 	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", tarballPath))
 
 	// Test create -o with zarf package names that don't match the zarf package name in the bundle
@@ -348,7 +348,7 @@ func TestBundleWithComposedPkgComponent(t *testing.T) {
 	bundleName := "with-composed"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch))
 	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
-	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundlePath))
+	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --insecure --confirm", bundlePath))
 	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
 }
 
