@@ -4,47 +4,58 @@
 // Package sources contains Zarf packager sources
 package sources
 
-// NewFromLocation creates a new package source based on pkgLocation
-// func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, opts zarfTypes.ZarfPackageOptions, sha string, nsOverrides NamespaceOverrideMap) (zarfSources.PackageSource, error) {
-// 	var source zarfSources.PackageSource
-// 	var pkgLocation string
-// 	if bundleCfg.DeployOpts.Source != "" {
-// 		pkgLocation = bundleCfg.DeployOpts.Source
-// 	} else if bundleCfg.RemoveOpts.Source != "" {
-// 		pkgLocation = bundleCfg.RemoveOpts.Source
-// 	} else if bundleCfg.InspectOpts.Source != "" {
-// 		pkgLocation = bundleCfg.InspectOpts.Source
-// 	} else {
-// 		return nil, fmt.Errorf("no source provided for package %s", pkg.Name)
-// 	}
+import (
+	"fmt"
+	"strings"
 
-// 	if strings.Contains(pkgLocation, "tar.zst") {
-// 		source = &TarballBundle{
-// 			Pkg:            pkg,
-// 			PkgOpts:        &opts,
-// 			PkgManifestSHA: sha,
-// 			TmpDir:         opts.PackageSource,
-// 			BundleLocation: pkgLocation,
-// 			nsOverrides:    nsOverrides,
-// 		}
-// 	} else {
-// 		platform := ocispec.Platform{
-// 			Architecture: config.GetArch(),
-// 			OS:           oci.MultiOS,
-// 		}
-// 		remote, err := zoci.NewRemote(context.TODO(), pkgLocation, platform)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		source = &RemoteBundle{
-// 			Pkg:            pkg,
-// 			PkgOpts:        &opts,
-// 			PkgManifestSHA: sha,
-// 			TmpDir:         opts.PackageSource,
-// 			Remote:         remote.OrasRemote,
-// 			nsOverrides:    nsOverrides,
-// 			bundleCfg:      bundleCfg,
-// 		}
-// 	}
-// 	return source, nil
-// }
+	"github.com/defenseunicorns/uds-cli/src/types"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
+)
+
+// NewFromLocation creates a new package source based on pkgLocation
+func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, opts zarfTypes.ZarfPackageOptions, sha string, nsOverrides NamespaceOverrideMap) (PackageSource, error) {
+	var source PackageSource
+	var pkgLocation string
+	if bundleCfg.DeployOpts.Source != "" {
+		pkgLocation = bundleCfg.DeployOpts.Source
+	} else if bundleCfg.RemoveOpts.Source != "" {
+		pkgLocation = bundleCfg.RemoveOpts.Source
+	} else if bundleCfg.InspectOpts.Source != "" {
+		pkgLocation = bundleCfg.InspectOpts.Source
+	} else {
+		return nil, fmt.Errorf("no source provided for package %s", pkg.Name)
+	}
+
+	if strings.Contains(pkgLocation, "tar.zst") {
+		source = &TarballBundle{
+			Pkg:            pkg,
+			PkgOpts:        &opts,
+			PkgManifestSHA: sha,
+			TmpDir:         opts.PackageSource,
+			BundleLocation: pkgLocation,
+			nsOverrides:    nsOverrides,
+		}
+	} else {
+		// platform := ocispec.Platform{
+		// 	Architecture: config.GetArch(),
+		// 	OS:           oci.MultiOS,
+		// }
+		// remote, err := zoci.NewRemote(context.TODO(), pkgLocation, platform)
+		// if err != nil {
+		// 	return nil, err
+		// }
+		// source = &RemoteBundle{
+		// 	Pkg:            pkg,
+		// 	PkgOpts:        &opts,
+		// 	PkgManifestSHA: sha,
+		// 	TmpDir:         opts.PackageSource,
+		// 	Remote:         remote.OrasRemote,
+		// 	nsOverrides:    nsOverrides,
+		// 	bundleCfg:      bundleCfg,
+		// }
+
+		return nil, fmt.Errorf("unsupported package source: %s", pkgLocation)
+
+	}
+	return source, nil
+}

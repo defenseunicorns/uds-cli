@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
+	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
@@ -110,28 +112,54 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
-		// TODO: determine better way to delineate local vs remote packages
-		source, err := getPkgSource(pkg, config.GetArch(b.bundle.Metadata.Architecture), b.cfg.CreateOpts.SourceDirectory)
-		if err != nil {
-			return err
-		}
+		// // TODO: determine better way to delineate local vs remote packages
+		// source, err := getPkgSource(pkg, config.GetArch(b.bundle.Metadata.Architecture), b.cfg.CreateOpts.SourceDirectory)
+		// if err != nil {
+		// 	return err
+		// }
 
-		// TODO: consume from source of truth
+		// // TODO: consume from source of truth
 		remoteOpts := packager.RemoteOptions{
 			PlainHTTP:             config.CommonOptions.Insecure,
 			InsecureSkipTLSVerify: config.CommonOptions.Insecure,
 		}
 
-		loadOpts := packager.LoadOptions{
-			Architecture:            config.GetArch(b.bundle.Build.Architecture),
-			SkipSignatureValidation: false,
-			Filter:                  filters.Empty(),
-			PublicKeyPath:           publicKeyPath,
-			RemoteOptions:           remoteOpts,
-			CachePath:               config.CommonOptions.CachePath,
+		// loadOpts := packager.LoadOptions{
+		// 	Architecture:            config.GetArch(b.bundle.Build.Architecture),
+		// 	SkipSignatureValidation: false,
+		// 	Filter:                  filters.Empty(),
+		// 	PublicKeyPath:           publicKeyPath,
+		// 	RemoteOptions:           remoteOpts,
+		// 	CachePath:               config.CommonOptions.CachePath,
+		// }
+
+		// pkgLayout, err := packager.LoadPackage(ctx, source, loadOpts)
+		// if err != nil {
+		// 	return err
+		// }
+
+		opts := zarfTypes.ZarfPackageOptions{
+			PackageSource:      pkgTmp,
+			OptionalComponents: strings.Join(pkg.OptionalComponents, ","),
+			PublicKeyPath:      publicKeyPath,
+			SetVariables:       pkgVars,
+			Retries:            b.cfg.DeployOpts.Retries,
 		}
 
-		pkgLayout, err := packager.LoadPackage(ctx, source, loadOpts)
+		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
+
+		source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nsOverrides)
+		if err != nil {
+			return err
+		}
+
+		// filter after confirmation to allow users to view the entire package interactively
+		filter := filters.Combine(
+			filters.ByLocalOS(runtime.GOOS),
+			filters.ForDeploy(pkgConfig.PkgOpts.OptionalComponents, !config.CommonOptions.Confirm),
+		)
+
+		pkgLayout, _, err := source.LoadPackage(ctx, filter, false)
 		if err != nil {
 			return err
 		}
@@ -148,7 +176,10 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			RemoteOptions:      remoteOpts,
 		}
 
-		packager.Deploy(ctx, pkgLayout, deployOpts)
+		_, err = packager.Deploy(ctx, pkgLayout, deployOpts)
+		if err != nil {
+			return err
+		}
 
 		// // save exported vars
 		// pkgExportedVars := make(map[string]string)
