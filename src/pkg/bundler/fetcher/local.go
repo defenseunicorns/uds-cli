@@ -10,6 +10,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
@@ -22,6 +24,7 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"oras.land/oras-go/v2/content/file"
@@ -105,7 +108,13 @@ func (f *localFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
 func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 	ctx := context.TODO()
 
+	filter := filters.Combine(
+		filters.ByLocalOS(runtime.GOOS),
+		filters.ForDeploy(strings.Join(f.pkg.OptionalComponents, ","), false),
+	)
+
 	loadOpts := packager.LoadOptions{
+		Filter:    filter,
 		CachePath: config.CommonOptions.CachePath,
 	}
 

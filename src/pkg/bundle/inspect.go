@@ -219,8 +219,7 @@ func (b *Bundle) listVariables() error {
 }
 
 // func loadPackage(b Bundle, pkg types.Package) (v1alpha1.ZarfPackage, error) {
-// 	var source zarfSources.PackageSource
-
+// 	var source sources.PackageSource
 // 	source, err := b.getSource(pkg)
 // 	if err != nil {
 // 		return v1alpha1.ZarfPackage{}, err
@@ -242,9 +241,10 @@ func (b *Bundle) listVariables() error {
 // }
 
 // // getSource returns a package source based on if inspecting bundle yaml or bundle artifact
-// func (b *Bundle) getSource(pkg types.Package) (zarfSources.PackageSource, error) {
-// 	var source zarfSources.PackageSource
+// func (b *Bundle) getSource(pkg types.Package) (sources.PackageSource, error) {
+// 	var source sources.PackageSource
 
+// 	// If the inspect target is not a yaml file
 // 	if !b.cfg.InspectOpts.IsYAMLFile {
 // 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 // 		fromTarball, err := sources.NewFromLocation(*b.cfg, pkg, zarfTypes.ZarfPackageOptions{}, sha, nil)

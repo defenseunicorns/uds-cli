@@ -60,48 +60,22 @@ func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.Componen
 		return nil, nil, nil
 	}
 
-	// // filter pkg components and determine if its a partial pkg
-	// filteredComps, _, err := handleFilter(pkg, filter)
-	// if err != nil {
-	// 	return v1alpha1.ZarfPackage{}, nil, err
-	// }
-	// pkg.Components = filteredComps
-
-	// dst.SetFromPaths(ctx, files)
-
-	// if err := sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, isPartialPkg); err != nil {
-	// 	return v1alpha1.ZarfPackage{}, nil, err
-	// }
-
-	// if unarchiveAll {
-	// 	for _, component := range pkg.Components {
-	// 		if err := dst.Components.Unarchive(ctx, component); err != nil {
-	// 			if errors.Is(err, layout.ErrNotLoaded) {
-	// 				_, err := dst.Components.Create(component)
-	// 				if err != nil {
-	// 					return v1alpha1.ZarfPackage{}, nil, err
-	// 				}
-	// 			} else {
-	// 				return v1alpha1.ZarfPackage{}, nil, err
-	// 			}
-	// 		}
-	// 	}
-
-	// 	if dst.SBOMs.Path != "" {
-	// 		if err := dst.SBOMs.Unarchive(); err != nil {
-	// 			return v1alpha1.ZarfPackage{}, nil, err
-	// 		}
-	// 	}
-	// }
-
-	// addNamespaceOverrides(&pkg, t.nsOverrides)
-
 	if config.Dev {
 		setAsYOLO(&pkg)
 	}
 
+	// filter pkg components and determine if its a partial pkg
+	filteredComps, isPartialPkg, err := handleFilter(pkg, filter)
+	if err != nil {
+		return nil, nil, err
+	}
+	pkg.Components = filteredComps
+
 	layoutOpts := layout.PackageLayoutOptions{
-		Filter: filter,
+		PublicKeyPath:           "",
+		SkipSignatureValidation: false,
+		IsPartial:               isPartialPkg,
+		Filter:                  filter,
 	}
 
 	pkgLayout, err := layout.LoadFromDir(ctx, t.TmpDir, layoutOpts)

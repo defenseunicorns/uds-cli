@@ -9,7 +9,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 
@@ -112,31 +111,11 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
-		// // TODO: determine better way to delineate local vs remote packages
-		// source, err := getPkgSource(pkg, config.GetArch(b.bundle.Metadata.Architecture), b.cfg.CreateOpts.SourceDirectory)
-		// if err != nil {
-		// 	return err
-		// }
-
 		// // TODO: consume from source of truth
 		remoteOpts := packager.RemoteOptions{
 			PlainHTTP:             config.CommonOptions.Insecure,
 			InsecureSkipTLSVerify: config.CommonOptions.Insecure,
 		}
-
-		// loadOpts := packager.LoadOptions{
-		// 	Architecture:            config.GetArch(b.bundle.Build.Architecture),
-		// 	SkipSignatureValidation: false,
-		// 	Filter:                  filters.Empty(),
-		// 	PublicKeyPath:           publicKeyPath,
-		// 	RemoteOptions:           remoteOpts,
-		// 	CachePath:               config.CommonOptions.CachePath,
-		// }
-
-		// pkgLayout, err := packager.LoadPackage(ctx, source, loadOpts)
-		// if err != nil {
-		// 	return err
-		// }
 
 		opts := zarfTypes.ZarfPackageOptions{
 			PackageSource:      pkgTmp,
@@ -153,10 +132,8 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
-		// filter after confirmation to allow users to view the entire package interactively
 		filter := filters.Combine(
-			filters.ByLocalOS(runtime.GOOS),
-			filters.ForDeploy(pkgConfig.PkgOpts.OptionalComponents, !config.CommonOptions.Confirm),
+			filters.ForDeploy(strings.Join(pkg.OptionalComponents, ","), false),
 		)
 
 		pkgLayout, _, err := source.LoadPackage(ctx, filter, false)
@@ -177,6 +154,11 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		}
 
 		_, err = packager.Deploy(ctx, pkgLayout, deployOpts)
+		if err != nil {
+			return err
+		}
+
+		err = pkgLayout.Cleanup()
 		if err != nil {
 			return err
 		}
