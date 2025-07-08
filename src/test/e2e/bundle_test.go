@@ -612,3 +612,19 @@ func TestListVariables(t *testing.T) {
 		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")
 	})
 }
+
+func TestBundleWithComponentNamedAuth(t *testing.T) {
+	zarfPkgPath := "src/test/packages/zarf-bug"
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+
+	bundleDir := "src/test/bundles/16-zarf-bug"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-zarf-component-name-bug-%s-0.0.1.tar.zst", e2e.Arch))
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
+
+	t.Run("expect component with auth in name to error", func(t *testing.T) {
+		_, stderr, _ := runCmdWithErr(fmt.Sprintf("deploy %s --retries 1 --confirm --insecure", bundlePath))
+		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
+		cleaned := ansiRegex.ReplaceAllString(stderr, "")
+		require.Contains(t, cleaned, "failed to deploy bundle: unable to deploy component \"authservice\": unable to decompress:")
+	})
+}

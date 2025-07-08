@@ -1,0 +1,13 @@
+# Copyright 2024 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+kind: UDSBundle
+metadata:
+  name: zarf-component-name-bug
+  description: testing a bundle with a component named authservice to trigger bug on components with 'auth' in the name
+  version: 0.0.1
+
+packages:
+  - name: zarf-component-name-bug
+    path: "../../packages/zarf-bug"
+    ref: 0.0.1
