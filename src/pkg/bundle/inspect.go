@@ -12,12 +12,16 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
+	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/defenseunicorns/uds-cli/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/pterm/pterm"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 // Inspect pulls/unpacks a bundle's metadata and shows it
@@ -108,54 +112,25 @@ func (b *Bundle) listImages() error {
 	for _, pkg := range b.bundle.Packages {
 		pkgImgMap[pkg.Name] = make([]string, 0)
 
-		// zarfPkg, err := loadPackage(*b, pkg)
-		// if err != nil {
-		// 	return err
-		// }
+		zarfPkg, err := b.getMetadata(pkg)
+		if err != nil {
+			return err
+		}
 
 		// create filter for optional components
 		inspectFilter := filters.Combine(
 			filters.ForDeploy(strings.Join(pkg.OptionalComponents, ","), false),
 		)
 
-		// TODO: determine better way to delineate local vs remote packages
-		source, err := getPkgSource(pkg, config.GetArch(b.bundle.Metadata.Architecture), b.cfg.InspectOpts.Source)
+		filteredComponents, err := inspectFilter.Apply(zarfPkg)
 		if err != nil {
 			return err
 		}
-
-		remoteOpts := packager.RemoteOptions{
-			PlainHTTP:             config.CommonOptions.Insecure,
-			InsecureSkipTLSVerify: config.CommonOptions.Insecure,
-		}
-
-		loadOpts := packager.LoadOptions{
-			Filter:                  inspectFilter,
-			SkipSignatureValidation: false,
-			Architecture:            config.GetArch(),
-			PublicKeyPath:           b.cfg.DeployOpts.PublicKeyPath,
-			CachePath:               config.CommonOptions.CachePath,
-			RemoteOptions:           remoteOpts,
-		}
-
-		pkgLayout, err := packager.LoadPackage(context.TODO(), source, loadOpts)
-		if err != nil {
-			return err
-		}
-
-		for _, component := range pkgLayout.Pkg.Components {
-			pkgImgMap[pkg.Name] = append(pkgImgMap[pkg.Name], component.Images...)
-		}
-
-		// filteredComponents, err := inspectFilter.Apply(zarfPkg)
-		// if err != nil {
-		// 	return err
-		// }
 
 		// grab images from each filtered component
-		// for _, component := range filteredComponents {
-		// 	pkgImgMap[pkg.Name] = append(pkgImgMap[pkg.Name], component.Images...)
-		// }
+		for _, component := range filteredComponents {
+			pkgImgMap[pkg.Name] = append(pkgImgMap[pkg.Name], component.Images...)
+		}
 
 	}
 
@@ -174,26 +149,7 @@ func (b *Bundle) listVariables() error {
 
 	for _, pkg := range b.bundle.Packages {
 
-		source, err := getPkgSource(pkg, config.GetArch(b.bundle.Metadata.Architecture), b.cfg.CreateOpts.SourceDirectory)
-		if err != nil {
-			return err
-		}
-
-		remoteOpts := packager.RemoteOptions{
-			PlainHTTP:             config.CommonOptions.Insecure,
-			InsecureSkipTLSVerify: config.CommonOptions.Insecure,
-		}
-
-		loadOpts := packager.LoadOptions{
-			Filter:                  filters.Empty(),
-			SkipSignatureValidation: false,
-			Architecture:            config.GetArch(),
-			PublicKeyPath:           b.cfg.DeployOpts.PublicKeyPath,
-			CachePath:               config.CommonOptions.CachePath,
-			RemoteOptions:           remoteOpts,
-		}
-
-		pkgLayout, err := packager.LoadPackage(context.TODO(), source, loadOpts)
+		zarfPkg, err := b.getMetadata(pkg)
 		if err != nil {
 			return err
 		}
@@ -201,7 +157,7 @@ func (b *Bundle) listVariables() error {
 		variables := make([]interface{}, 0)
 
 		// add each zarf var to variables for better formatting in output
-		for _, zarfVar := range pkgLayout.Pkg.Variables {
+		for _, zarfVar := range zarfPkg.Variables {
 			variables = append(variables, zarfVar)
 		}
 
@@ -240,11 +196,70 @@ func (b *Bundle) listVariables() error {
 // 	return zarfPkg, nil
 // }
 
+func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
+	// if we are inspecting a built bundle, get the metadata from the bundle
+	if !b.cfg.InspectOpts.IsYAMLFile {
+		pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
+		if err != nil {
+			return v1alpha1.ZarfPackage{}, err
+		}
+		defer os.RemoveAll(pkgTmp)
+
+		opts := zarfTypes.ZarfPackageOptions{
+			PackageSource:      pkgTmp,
+			OptionalComponents: strings.Join(pkg.OptionalComponents, ","),
+			PublicKeyPath:      "",
+		}
+
+		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
+		source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nil)
+		if err != nil {
+			return v1alpha1.ZarfPackage{}, err
+		}
+		zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), false, true)
+		if err != nil {
+			return v1alpha1.ZarfPackage{}, err
+		}
+
+		return zarfPkg, nil
+	}
+
+	// otherwise we are inspecting a yaml file, get the metadata from the packages directly
+	sourceDir := strings.TrimSuffix(b.cfg.InspectOpts.Source, config.BundleYAML)
+
+	source, err := getPkgSource(pkg, config.GetArch(b.bundle.Metadata.Architecture), sourceDir)
+	if err != nil {
+		return v1alpha1.ZarfPackage{}, err
+	}
+
+	remoteOpts := packager.RemoteOptions{
+		PlainHTTP:             config.CommonOptions.Insecure,
+		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
+	}
+
+	loadOpts := packager.LoadOptions{
+		Filter:                  filters.Empty(),
+		SkipSignatureValidation: false,
+		Architecture:            config.GetArch(),
+		PublicKeyPath:           b.cfg.DeployOpts.PublicKeyPath,
+		CachePath:               config.CommonOptions.CachePath,
+		RemoteOptions:           remoteOpts,
+	}
+
+	pkgLayout, err := packager.LoadPackage(context.TODO(), source, loadOpts)
+	if err != nil {
+		return v1alpha1.ZarfPackage{}, err
+	}
+
+	defer pkgLayout.Cleanup()
+
+	return pkgLayout.Pkg, nil
+}
+
 // // getSource returns a package source based on if inspecting bundle yaml or bundle artifact
 // func (b *Bundle) getSource(pkg types.Package) (sources.PackageSource, error) {
 // 	var source sources.PackageSource
 
-// 	// If the inspect target is not a yaml file
 // 	if !b.cfg.InspectOpts.IsYAMLFile {
 // 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 // 		fromTarball, err := sources.NewFromLocation(*b.cfg, pkg, zarfTypes.ZarfPackageOptions{}, sha, nil)
