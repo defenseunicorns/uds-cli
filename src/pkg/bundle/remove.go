@@ -68,12 +68,12 @@ func (b *Bundle) Remove() error {
 		if len(userSpecifiedPackages) != len(packagesToRemove) {
 			return errors.New("invalid zarf packages specified by --packages")
 		}
-		return removePackages(packagesToRemove, b)
+		return removePackages(packagesToRemove)
 	}
-	return removePackages(b.bundle.Packages, b)
+	return removePackages(b.bundle.Packages)
 }
 
-func removePackages(packagesToRemove []types.Package, b *Bundle) error {
+func removePackages(packagesToRemove []types.Package) error {
 	ctx := context.TODO()
 	// Get deployed packages
 	deployedPackageNames := GetDeployedPackageNames()
@@ -82,7 +82,6 @@ func removePackages(packagesToRemove []types.Package, b *Bundle) error {
 		pkg := packagesToRemove[i]
 
 		if slices.Contains(deployedPackageNames, pkg.Name) {
-
 			filter := filters.Combine(
 				filters.ByLocalOS(runtime.GOOS),
 			)
@@ -106,7 +105,6 @@ func removePackages(packagesToRemove []types.Package, b *Bundle) error {
 			if err != nil {
 				return err
 			}
-
 		} else {
 			message.Warnf("Skipping removal of %s. Package not deployed", pkg.Name)
 		}

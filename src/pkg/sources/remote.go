@@ -40,7 +40,7 @@ type RemoteBundle struct {
 }
 
 // LoadPackage loads a Zarf package from a remote bundle
-func (r *RemoteBundle) LoadPackage(ctx context.Context, filter filters.ComponentFilterStrategy, unarchiveAll bool) (*layout.PackageLayout, []string, error) {
+func (r *RemoteBundle) LoadPackage(ctx context.Context, filter filters.ComponentFilterStrategy) (*layout.PackageLayout, []string, error) {
 	// todo: progress bar??
 	var err error
 

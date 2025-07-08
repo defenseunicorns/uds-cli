@@ -263,7 +263,7 @@ func TableWithWriter(writer io.Writer, header []string, data [][]string) {
 	dataCopy := make([][]string, len(data))
 	copy(dataCopy, data)
 	if len(headerCopy) > 0 {
-		headerCopy[0] = fmt.Sprintf("     %s", headerCopy[0])
+		headerCopy[0] = fmt.Sprintf("     %s", headerCopy[0]) //nolint:perfsprint
 	}
 
 	table := pterm.TableData{
@@ -272,7 +272,7 @@ func TableWithWriter(writer io.Writer, header []string, data [][]string) {
 
 	for _, row := range dataCopy {
 		if len(row) > 0 {
-			row[0] = fmt.Sprintf("     %s", row[0])
+			row[0] = fmt.Sprintf("     %s", row[0]) //nolint:perfsprint
 		}
 		table = append(table, pterm.TableData{row}...)
 	}

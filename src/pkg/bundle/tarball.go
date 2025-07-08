@@ -259,7 +259,7 @@ func (tp *tarballBundleProvider) getZarfLayers(store *ocistore.Store, pkgManifes
 	}
 
 	// only grab image layers that we want
-	for _, layer := range zarfImageManifest.Manifest.Layers {
+	for _, layer := range zarfImageManifest.Manifest.Layers { //nolint:staticcheck
 		ok, err := store.Exists(tp.ctx, layer)
 		if err != nil {
 			return nil, int64(0), err

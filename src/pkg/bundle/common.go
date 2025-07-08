@@ -208,7 +208,6 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 }
 
 func getPkgPath(pkg types.Package, arch string, manifestPath string) (string, error) {
-
 	manifestDir, err := normalizeDir(manifestPath)
 	if err != nil {
 		return "", fmt.Errorf("manifest path: %w", err)
@@ -219,7 +218,7 @@ func getPkgPath(pkg types.Package, arch string, manifestPath string) (string, er
 		base = filepath.Join(manifestDir, base)
 	}
 
-	// 2. Canonicalise to eliminate “.” / “..”.
+	// 2. Canonicalise to eliminate "." / "..".
 	absBase, err := filepath.Abs(base)
 	if err != nil {
 		return "", fmt.Errorf("resolve %q: %w", base, err)
@@ -266,7 +265,6 @@ func normalizeDir(path string) (string, error) {
 }
 
 func getPkgSource(pkg types.Package, arch string, srcDir string) (string, error) {
-
 	if pkg.Repository != "" {
 		source := fmt.Sprintf("oci://%s:%s", pkg.Repository, pkg.Ref)
 		if strings.Contains(pkg.Ref, "@sha256:") {
@@ -280,7 +278,6 @@ func getPkgSource(pkg types.Package, arch string, srcDir string) (string, error)
 		return "", err
 	}
 	return source, nil
-
 }
 
 // CalculateBuildInfo calculates the build info for the bundle

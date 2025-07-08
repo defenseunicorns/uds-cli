@@ -133,7 +133,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			filters.ForDeploy(strings.Join(pkg.OptionalComponents, ","), false),
 		)
 
-		pkgLayout, _, err := source.LoadPackage(ctx, filter, false)
+		pkgLayout, _, err := source.LoadPackage(ctx, filter)
 		if err != nil {
 			return err
 		}

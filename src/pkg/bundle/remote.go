@@ -104,7 +104,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool, bundleName string) ([]
 		if layer.Annotations[ocispec.AnnotationTitle] == config.BundleYAML {
 			continue
 		}
-		zarfManifest, err := op.OrasRemote.FetchManifest(ctx, layer)
+		zarfManifest, err := op.OrasRemote.FetchManifest(ctx, layer) //nolint:staticcheck
 		if err != nil {
 			return warns, err
 		}

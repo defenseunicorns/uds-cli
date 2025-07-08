@@ -399,7 +399,7 @@ func FindBundledPkgLayers(ctx context.Context, pkg types.Package, rootManifest *
 }
 
 // CopyLayers uses ORAS to copy layers from a remote repo to a local OCI store
-func CopyLayers(layersToPull []ocispec.Descriptor, estimatedBytes int64, tmpDstDir string, repo *remote.Repository, target oras.Target, artifactName string) (ocispec.Descriptor, error) {
+func CopyLayers(layersToPull []ocispec.Descriptor, estimatedBytes int64, tmpDstDir string, repo *remote.Repository, target oras.Target, artifactName string) (ocispec.Descriptor, error) { //nolint:revive
 	// copy Zarf pkg
 	copyOpts := CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
 	// Create a thread to update a progress bar as we save the package to disk

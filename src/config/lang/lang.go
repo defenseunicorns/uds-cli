@@ -88,7 +88,7 @@ const (
 	// uds-cli internal
 	CmdInternalShort             = "Internal cmds used by UDS-CLI"
 	CmdInternalConfigSchemaShort = "Generates a JSON schema for the uds-bundle.yaml configuration"
-	CmdInternalConfigSchemaErr   = "Unable to generate the uds-bundle.yaml schema"
+	CmdInternalConfigSchemaErr   = "unable to generate the uds-bundle.yaml schema"
 
 	// uds run
 	CmdRunShort = "Run a task using maru-runner"

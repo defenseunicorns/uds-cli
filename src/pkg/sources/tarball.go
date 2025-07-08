@@ -41,7 +41,7 @@ type TarballBundle struct {
 }
 
 // LoadPackage loads a Zarf package from a local tarball bundle
-func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.ComponentFilterStrategy, unarchiveAll bool) (*layout.PackageLayout, []string, error) {
+func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.ComponentFilterStrategy) (*layout.PackageLayout, []string, error) {
 	packageSpinner := message.NewProgressSpinner("Loading bundled Zarf package: %s", t.Pkg.Name)
 	defer packageSpinner.Stop()
 

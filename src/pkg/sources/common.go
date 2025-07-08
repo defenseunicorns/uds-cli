@@ -14,7 +14,7 @@ import (
 
 type PackageSource interface {
 	// LoadPackage loads a package from a source.
-	LoadPackage(ctx context.Context, filter filters.ComponentFilterStrategy, unarchiveAll bool) (pkgLayout *layout.PackageLayout, warnings []string, err error)
+	LoadPackage(ctx context.Context, filter filters.ComponentFilterStrategy) (pkgLayout *layout.PackageLayout, warnings []string, err error)
 
 	// LoadPackageMetadata loads a package's metadata from a source.
 	LoadPackageMetadata(ctx context.Context, wantSBOM bool, skipValidation bool) (pkg v1alpha1.ZarfPackage, warnings []string, err error)

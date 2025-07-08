@@ -47,7 +47,7 @@ func filterPkgPaths(pkgLayout *layout.PackageLayout, includeLayers []string, opt
 	if err != nil {
 		return nil
 	}
-	for path, _ := range paths {
+	for path := range paths {
 		// include all paths that aren't in the blobs dir
 		if !strings.Contains(path, config.BlobsDir) {
 			// only grab req'd + specified optional components

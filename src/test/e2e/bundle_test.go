@@ -614,6 +614,7 @@ func TestListVariables(t *testing.T) {
 }
 
 func TestBundleWithComponentNamedAuth(t *testing.T) {
+	t.Skip("Bug identified in Zarf - https://github.com/zarf-dev/zarf/issues/3917")
 	zarfPkgPath := "src/test/packages/zarf-bug"
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 

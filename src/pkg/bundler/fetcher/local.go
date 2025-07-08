@@ -126,7 +126,7 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 	if err != nil {
 		return nil, pkgTmp, err
 	}
-	for fullpath, _ := range files {
+	for fullpath := range files {
 		pathsToBundle = append(pathsToBundle, fullpath)
 	}
 

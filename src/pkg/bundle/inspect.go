@@ -131,7 +131,6 @@ func (b *Bundle) listImages() error {
 		for _, component := range filteredComponents {
 			pkgImgMap[pkg.Name] = append(pkgImgMap[pkg.Name], component.Images...)
 		}
-
 	}
 
 	pkgImgsOut, err := goyaml.Marshal(pkgImgMap)
@@ -148,7 +147,6 @@ func (b *Bundle) listVariables() error {
 	message.Title("Overrides and Variables:", "configurable helm overrides and Zarf variables by package")
 
 	for _, pkg := range b.bundle.Packages {
-
 		zarfPkg, err := b.getMetadata(pkg)
 		if err != nil {
 			return err
@@ -229,7 +227,10 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		return v1alpha1.ZarfPackage{}, err
 	}
 
-	defer pkgLayout.Cleanup()
+	err = pkgLayout.Cleanup()
+	if err != nil {
+		return v1alpha1.ZarfPackage{}, err
+	}
 
 	return pkgLayout.Pkg, nil
 }
