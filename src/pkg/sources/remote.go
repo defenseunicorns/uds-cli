@@ -97,7 +97,7 @@ func (r *RemoteBundle) LoadPackage(ctx context.Context, filter filters.Component
 	}
 
 	if config.Dev {
-		setAsYOLO(&pkg)
+		setAsYOLO(&pkgLayout.Pkg)
 	}
 
 	// ensure we're using the correct package name as specified by the bundle

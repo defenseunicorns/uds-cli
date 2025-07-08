@@ -60,10 +60,6 @@ func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.Componen
 		return nil, nil, nil
 	}
 
-	if config.Dev {
-		setAsYOLO(&pkg)
-	}
-
 	// filter pkg components and determine if its a partial pkg
 	filteredComps, isPartialPkg, err := handleFilter(pkg, filter)
 	if err != nil {
@@ -81,6 +77,10 @@ func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.Componen
 	pkgLayout, err := layout.LoadFromDir(ctx, t.TmpDir, layoutOpts)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if config.Dev {
+		setAsYOLO(&pkgLayout.Pkg)
 	}
 
 	packageSpinner.Successf("Loaded bundled Zarf package: %s", t.Pkg.Name)
