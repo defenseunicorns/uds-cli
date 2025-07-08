@@ -58,7 +58,6 @@ func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, opts zarfT
 			nsOverrides:    nsOverrides,
 			bundleCfg:      bundleCfg,
 		}
-
 	}
 	return source, nil
 }

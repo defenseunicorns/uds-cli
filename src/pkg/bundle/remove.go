@@ -85,21 +85,15 @@ func removePackages(packagesToRemove []types.Package, b *Bundle) error {
 
 			filter := filters.Combine(
 				filters.ByLocalOS(runtime.GOOS),
-				// filters.BySelectState(pkgConfig.PkgOpts.OptionalComponents),
 			)
 
 			c, _ := cluster.New(ctx) //nolint:errcheck
 			loadOpts := packager.LoadOptions{
-				SkipSignatureValidation: false,
-				Architecture:            config.GetArch(),
-				Filter:                  filter,
-				// PublicKeyPath:           pkgConfig.PkgOpts.PublicKeyPath,
+				Architecture:   config.GetArch(),
+				Filter:         filter,
 				OCIConcurrency: config.CommonOptions.OCIConcurrency,
-				// RemoteOptions:           defaultRemoteOptions(),
-				// CachePath:               cachePath,
 			}
 
-			// TODO: validate that package name is the same as the pkg.metadata.name
 			pkg, err := packager.GetPackageFromSourceOrCluster(ctx, c, pkg.Name, loadOpts)
 			if err != nil {
 				return fmt.Errorf("unable to load the package: %w", err)

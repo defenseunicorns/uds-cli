@@ -77,7 +77,6 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 	// map of Zarf pkgs and their vars
 	bundleExportedVars := make(map[string]map[string]string)
 
-	// setup each package client and deploy
 	for i, pkg := range packagesToDeploy {
 		// for dev mode update package ref for remote bundles, refs for local bundles updated on create
 		if config.Dev && !strings.Contains(b.cfg.DeployOpts.Source, "tar.zst") {
@@ -87,7 +86,6 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			}
 			b.bundle.Packages[i] = pkg
 		}
-		// sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 		pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
 			return err
@@ -111,7 +109,6 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
-		// // TODO: consume from source of truth
 		remoteOpts := packager.RemoteOptions{
 			PlainHTTP:             config.CommonOptions.Insecure,
 			InsecureSkipTLSVerify: config.CommonOptions.Insecure,

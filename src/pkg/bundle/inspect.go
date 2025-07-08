@@ -174,28 +174,6 @@ func (b *Bundle) listVariables() error {
 	return nil
 }
 
-// func loadPackage(b Bundle, pkg types.Package) (v1alpha1.ZarfPackage, error) {
-// 	var source sources.PackageSource
-// 	source, err := b.getSource(pkg)
-// 	if err != nil {
-// 		return v1alpha1.ZarfPackage{}, err
-// 	}
-
-// 	tmpDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
-// 	if err != nil {
-// 		return v1alpha1.ZarfPackage{}, err
-// 	}
-// 	pkgPaths := layout.New(tmpDir)
-// 	defer os.RemoveAll(tmpDir)
-
-// 	zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), pkgPaths, false, true)
-// 	if err != nil {
-// 		return v1alpha1.ZarfPackage{}, err
-// 	}
-
-// 	return zarfPkg, nil
-// }
-
 func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 	// if we are inspecting a built bundle, get the metadata from the bundle
 	if !b.cfg.InspectOpts.IsYAMLFile {
@@ -240,7 +218,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 	loadOpts := packager.LoadOptions{
 		Filter:                  filters.Empty(),
 		SkipSignatureValidation: false,
-		Architecture:            config.GetArch(),
+		Architecture:            config.GetArch(b.bundle.Metadata.Architecture),
 		PublicKeyPath:           b.cfg.DeployOpts.PublicKeyPath,
 		CachePath:               config.CommonOptions.CachePath,
 		RemoteOptions:           remoteOpts,
@@ -255,53 +233,3 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 
 	return pkgLayout.Pkg, nil
 }
-
-// // getSource returns a package source based on if inspecting bundle yaml or bundle artifact
-// func (b *Bundle) getSource(pkg types.Package) (sources.PackageSource, error) {
-// 	var source sources.PackageSource
-
-// 	if !b.cfg.InspectOpts.IsYAMLFile {
-// 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
-// 		fromTarball, err := sources.NewFromLocation(*b.cfg, pkg, zarfTypes.ZarfPackageOptions{}, sha, nil)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		source = fromTarball
-// 	} else {
-// 		if pkg.Repository != "" {
-// 			// handle remote packages
-// 			url := fmt.Sprintf("oci://%s:%s", pkg.Repository, pkg.Ref)
-// 			platform := ocispec.Platform{
-// 				Architecture: config.GetArch(),
-// 				OS:           oci.MultiOS,
-// 			}
-// 			remote, err := zoci.NewRemote(context.TODO(), url, platform)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-
-// 			source = &zarfSources.OCISource{
-// 				ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{},
-// 				Remote:             remote,
-// 			}
-// 		} else if pkg.Path != "" {
-// 			// handle local packages
-// 			err := os.Chdir(filepath.Dir(b.cfg.InspectOpts.Source)) // change to the bundle's directory
-// 			if err != nil {
-// 				return nil, err
-// 			}
-
-// 			bundleArch := config.GetArch(b.bundle.Metadata.Architecture)
-// 			tarballName := fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", pkg.Name, bundleArch, pkg.Ref)
-// 			source = &zarfSources.TarballSource{
-// 				ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{
-// 					PackageSource: filepath.Join(pkg.Path, tarballName),
-// 				},
-// 			}
-// 		} else {
-// 			return nil, fmt.Errorf("package %s is missing a repository or path", pkg.Name)
-// 		}
-// 	}
-
-// 	return source, nil
-// }

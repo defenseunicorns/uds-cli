@@ -41,12 +41,6 @@ type localFetcher struct {
 func (f *localFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	fetchSpinner := message.NewProgressSpinner("Fetching package %s", f.pkg.Name)
 	defer fetchSpinner.Stop()
-	// pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
-	// defer os.RemoveAll(pkgTmp)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// f.extractDst = pkgTmp
 
 	layerDescs, pkgTmp, err := f.toBundle()
 	if err != nil {

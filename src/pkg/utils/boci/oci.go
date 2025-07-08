@@ -16,6 +16,7 @@ import (
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	goyaml "github.com/goccy/go-yaml"
@@ -70,7 +71,7 @@ func ToOCIRemote(t any, mediaType string, remote *oci.OrasRemote) (*ocispec.Desc
 		}
 	}
 
-	// message.Successf("Published %s [%s]", remote.Repo().Reference.String(), layerDesc.MediaType)
+	message.Successf("Published %s [%s]", remote.Repo().Reference.String(), layerDesc.MediaType)
 	return layerDesc, nil
 }
 

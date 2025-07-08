@@ -68,10 +68,8 @@ func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.Componen
 	pkg.Components = filteredComps
 
 	layoutOpts := layout.PackageLayoutOptions{
-		PublicKeyPath:           "",
-		SkipSignatureValidation: false,
-		IsPartial:               isPartialPkg,
-		Filter:                  filter,
+		IsPartial: isPartialPkg,
+		Filter:    filter,
 	}
 
 	pkgLayout, err := layout.LoadFromDir(ctx, t.TmpDir, layoutOpts)
@@ -173,7 +171,6 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, _ bool, _ bool) (
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
-	// dst.SetFromPaths(ctx, filePaths)
 	// if err := sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, true); err != nil {
 	// 	return v1alpha1.ZarfPackage{}, nil, err
 	// }

@@ -1,7 +1,7 @@
-// // Copyright 2024 Defense Unicorns
-// // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+// Copyright 2024 Defense Unicorns
+// SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
-// // Package sources contains Zarf packager sources
+// Package sources contains Zarf packager sources
 package sources
 
 import (
@@ -42,7 +42,6 @@ type RemoteBundle struct {
 // LoadPackage loads a Zarf package from a remote bundle
 func (r *RemoteBundle) LoadPackage(ctx context.Context, filter filters.ComponentFilterStrategy, unarchiveAll bool) (*layout.PackageLayout, []string, error) {
 	// todo: progress bar??
-	// var layers []ocispec.Descriptor
 	var err error
 
 	if config.Dev {
@@ -143,7 +142,6 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) 
 	}
 
 	// grab checksums.txt so we can validate pkg integrity
-	// var checksumLayer ocispec.Descriptor
 	for _, layer := range pkgManifest.Layers {
 		if layer.Annotations[ocispec.AnnotationTitle] == config.ChecksumsTxt {
 			checksumBytes, err := r.Remote.FetchLayer(ctx, layer)
@@ -154,23 +152,15 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) 
 			if err != nil {
 				return v1alpha1.ZarfPackage{}, nil, err
 			}
-			// checksumLayer = layer
 			break
 		}
 	}
-
-	// dst.SetFromLayers(ctx, []ocispec.Descriptor{pkgManifestDesc, checksumLayer})
 
 	// err = sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, true)
 	// ensure we're using the correct package name as specified by the bundle
 	pkg.Metadata.Name = r.Pkg.Name
 	return pkg, nil, err
 }
-
-// // Collect doesn't need to be implemented
-// func (r *RemoteBundle) Collect(_ context.Context, _ string) (string, error) {
-// 	return "", fmt.Errorf("not implemented in %T", r)
-// }
 
 // downloadPkgFromRemoteBundle downloads a Zarf package from a remote bundle
 func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, error) {

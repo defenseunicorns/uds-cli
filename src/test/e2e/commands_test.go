@@ -100,7 +100,7 @@ func deployAndRemoveLocalAndRemoteInsecure(t *testing.T, ref string, tarballPath
 	t.Run(
 		"deploy+remove bundle via local tarball",
 		func(t *testing.T) {
-			runCmd(t, fmt.Sprintf("deploy %s --insecure --confirm", tarballPath))
+			runCmd(t, fmt.Sprintf("deploy %s --confirm", tarballPath))
 			runCmd(t, fmt.Sprintf("remove %s --confirm", tarballPath))
 		},
 	)
