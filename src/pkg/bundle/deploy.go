@@ -143,14 +143,20 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 
 		addNamespaceOverrides(&pkgLayout.Pkg, nsOverrides)
 
-		// zarfInitOpts := handleZarfInitOpts(pkgVars, pkgLayout.Pkg.Kind)
+		zarfInitOpts := handleZarfInitOpts(pkgVars, pkgLayout.Pkg.Kind)
 
 		deployOpts := packager.DeployOptions{
-			Timeout:            config.HelmTimeout,
-			SetVariables:       pkgVars,
-			ValuesOverridesMap: valuesOverrides,
-			Retries:            b.cfg.DeployOpts.Retries,
-			RemoteOptions:      remoteOpts,
+			Timeout:                config.HelmTimeout,
+			SetVariables:           pkgVars,
+			ValuesOverridesMap:     valuesOverrides,
+			Retries:                b.cfg.DeployOpts.Retries,
+			RemoteOptions:          remoteOpts,
+			AdoptExistingResources: false,
+			OCIConcurrency:         0,
+			GitServer:              zarfInitOpts.GitServer,
+			RegistryInfo:           zarfInitOpts.RegistryInfo,
+			ArtifactServer:         zarfInitOpts.ArtifactServer,
+			StorageClass:           zarfInitOpts.StorageClass,
 		}
 
 		_, err = packager.Deploy(ctx, pkgLayout, deployOpts)
@@ -162,7 +168,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		if err != nil {
 			return err
 		}
-
+		// // TODO:(@brandtkeller): https://github.com/zarf-dev/zarf/issues/3975
 		// // save exported vars
 		// pkgExportedVars := make(map[string]string)
 		// variableConfig := pkgClient.GetVariableConfig()
