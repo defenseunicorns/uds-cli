@@ -4,7 +4,7 @@
 kind: ZarfPackageConfig
 metadata:
   name: zarf-component-name-bug
-  description: Zarf pkg with component named authservice to trigger bug on components with 'auth' in the name
+  description: Zarf pkg with component named authservice to trigger bug on components with 'auth' in the name: https://github.com/zarf-dev/zarf/issues/3917
   version: 0.0.1
 
 variables:
