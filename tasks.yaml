@@ -25,7 +25,7 @@ tasks:
         mute: true
         setVariables:
           - name: CRANE_VERSION
-      - cmd: go list -f '{{.Version}}' -m github.com/mholt/archiver/v3
+      - cmd: go list -f '{{.Version}}' -m github.com/mholt/archives
         mute: true
         setVariables:
           - name: ARCHIVER_VERSION

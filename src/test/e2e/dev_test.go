@@ -111,7 +111,6 @@ func TestDevDeploy(t *testing.T) {
 	})
 
 	t.Run("Test dev deploy with --set flag", func(t *testing.T) {
-		t.Skip("Missing support for VariableConfig in zarf packager library - https://github.com/zarf-dev/zarf/issues/3975")
 		bundleDir := "src/test/bundles/02-variables"
 		bundleTarballPath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-variables-%s-0.0.1.tar.zst", e2e.Arch))
 		_, stderr := runCmd(t, "dev deploy "+bundleDir+" --set ANIMAL=Longhorns --set COUNTRY=Texas -l=debug")

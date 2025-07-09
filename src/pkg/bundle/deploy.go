@@ -7,6 +7,7 @@ package bundle
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -156,7 +157,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			StorageClass:           zarfInitOpts.StorageClass,
 		}
 
-		_, err = packager.Deploy(ctx, pkgLayout, deployOpts)
+		result, err := packager.Deploy(ctx, pkgLayout, deployOpts)
 		if err != nil {
 			return err
 		}
@@ -165,19 +166,19 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		if err != nil {
 			return err
 		}
-		// // TODO:(@brandtkeller): https://github.com/zarf-dev/zarf/issues/3975
-		// // save exported vars
-		// pkgExportedVars := make(map[string]string)
-		// variableConfig := pkgClient.GetVariableConfig()
-		// for _, exp := range pkg.Exports {
-		// 	// ensure if variable exists in package
-		// 	setVariable, ok := variableConfig.GetSetVariable(exp.Name)
-		// 	if !ok {
-		// 		return fmt.Errorf("cannot export variable %s because it does not exist in package %s", exp.Name, pkg.Name)
-		// 	}
-		// 	pkgExportedVars[strings.ToUpper(exp.Name)] = setVariable.Value
-		// }
-		// bundleExportedVars[pkg.Name] = pkgExportedVars
+		// TODO:(@brandtkeller): https://github.com/zarf-dev/zarf/issues/3975
+		// save exported vars
+		pkgExportedVars := make(map[string]string)
+		variableConfig := result.VariableConfig
+		for _, exp := range pkg.Exports {
+			// ensure if variable exists in package
+			setVariable, ok := variableConfig.GetSetVariable(exp.Name)
+			if !ok {
+				return fmt.Errorf("cannot export variable %s because it does not exist in package %s", exp.Name, pkg.Name)
+			}
+			pkgExportedVars[strings.ToUpper(exp.Name)] = setVariable.Value
+		}
+		bundleExportedVars[pkg.Name] = pkgExportedVars
 	}
 	return nil
 }

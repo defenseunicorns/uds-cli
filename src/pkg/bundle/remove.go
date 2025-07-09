@@ -93,7 +93,7 @@ func removePackages(packagesToRemove []types.Package) error {
 				OCIConcurrency: config.CommonOptions.OCIConcurrency,
 			}
 
-			pkg, err := packager.GetPackageFromSourceOrCluster(ctx, c, pkg.Name, loadOpts)
+			pkg, err := packager.GetPackageFromSourceOrCluster(ctx, c, pkg.Name, "", loadOpts)
 			if err != nil {
 				return fmt.Errorf("unable to load the package: %w", err)
 			}
