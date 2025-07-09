@@ -156,7 +156,6 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) 
 		}
 	}
 
-	// err = sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, true)
 	// ensure we're using the correct package name as specified by the bundle
 	pkg.Metadata.Name = r.Pkg.Name
 	return pkg, nil, err
