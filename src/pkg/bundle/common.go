@@ -243,9 +243,8 @@ func normalizeDir(path string) (string, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			// The path hasn't been created yet. Assume caller passed a file
-			// path (manifest or otherwise) and strip the filename.
-			return filepath.Dir(path), nil
+			// The path hasn't been created yet. Assume caller passed a directory
+			return path, nil
 		}
 		return "", err
 	}
