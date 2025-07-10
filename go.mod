@@ -20,7 +20,6 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/zarf-dev/zarf v0.57.1-0.20250709234331-16a3ba1f9726
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b
-	golang.org/x/mod v0.25.0
 	golang.org/x/sync v0.15.0
 	helm.sh/helm/v3 v3.17.3
 	k8s.io/api v0.33.2
@@ -47,7 +46,6 @@ require (
 	cuelabs.dev/go/oci/ociregistry v0.0.0-20241125120445-2c00c104c6e1 // indirect
 	cuelang.org/go v0.12.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20230306123547-8075edf89bb0 // indirect
 	github.com/AliyunContainerService/ack-ram-tool/pkg/credentials/provider v0.14.0 // indirect
@@ -267,7 +265,6 @@ require (
 	github.com/go-openapi/strfmt v0.23.0 // indirect
 	github.com/go-openapi/swag v0.23.1 // indirect
 	github.com/go-openapi/validate v0.24.0 // indirect
-	github.com/go-piv/piv-go v1.11.0 // indirect
 	github.com/go-piv/piv-go/v2 v2.3.0 // indirect
 	github.com/go-restruct/restruct v1.2.0-alpha // indirect
 	github.com/go-viper/mapstructure/v2 v2.3.0 // indirect
@@ -287,13 +284,11 @@ require (
 	github.com/google/gnostic-models v0.6.9 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-containerregistry v0.20.6 // indirect
-	github.com/google/go-github/v55 v55.0.0 // indirect
 	github.com/google/go-github/v72 v72.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/licensecheck v0.3.1 // indirect
 	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
-	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.2 // indirect
@@ -497,7 +492,6 @@ require (
 	github.com/wagoodman/go-progress v0.0.0-20230925121702-07e42b3cdba0 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	github.com/xanzy/go-gitlab v0.109.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
@@ -527,13 +521,13 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.36.0 // indirect
 	go.opentelemetry.io/otel/trace v1.36.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.6.0 // indirect
-	go.step.sm/crypto v0.66.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.3 // indirect
 	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
 	golang.org/x/crypto v0.39.0 // indirect
+	golang.org/x/mod v0.25.0 // indirect
 	golang.org/x/net v0.41.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
@@ -553,7 +547,6 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/op/go-logging.v1 v1.0.0-20160211212156-b2cb9fa56473 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/gorm v1.25.12 // indirect
 	k8s.io/apiextensions-apiserver v0.33.0 // indirect
