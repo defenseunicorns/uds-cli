@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/test"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/mod/modfile"
 
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/pterm/pterm"
@@ -92,18 +94,18 @@ func doAllTheThings(m *testing.M) (int, error) {
 func deployZarfInit(t *testing.T) {
 	t.Helper()
 	if !zarfInitDeployed() {
-		// // get Zarf version from go.mod
-		// b, err := os.ReadFile("go.mod")
-		// require.NoError(t, err)
-		// f, err := modfile.Parse("go.mod", b, nil)
-		// require.NoError(t, err)
-		// var zarfVersion string
-		// for _, r := range f.Require {
-		// 	if r.Mod.Path == "github.com/zarf-dev/zarf" {
-		// 		zarfVersion = r.Mod.Version
-		// 	}
-		// }
-		e2e.DownloadZarfInitPkg(t, "v0.57.0")
+		// get Zarf version from go.mod
+		b, err := os.ReadFile("go.mod")
+		require.NoError(t, err)
+		f, err := modfile.Parse("go.mod", b, nil)
+		require.NoError(t, err)
+		var zarfVersion string
+		for _, r := range f.Require {
+			if r.Mod.Path == "github.com/zarf-dev/zarf" {
+				zarfVersion = r.Mod.Version
+			}
+		}
+		e2e.DownloadZarfInitPkg(t, zarfVersion)
 
 		bundleDir := "src/test/bundles/04-init"
 		bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-all-the-inits-%s-0.0.1.tar.zst", e2e.Arch))

@@ -2307,6 +2307,8 @@ github.com/zalando/go-keyring v0.2.6 h1:r7Yc3+H+Ux0+M72zacZoItR3UDxeWfKTcabvkI8u
 github.com/zalando/go-keyring v0.2.6/go.mod h1:2TCrxYrbUNYfNS/Kgy/LSrkSQzZ5UPVH85RwfczwvcI=
 github.com/zarf-dev/zarf v0.57.1-0.20250709234331-16a3ba1f9726 h1:BIFNlyBQQ7PBV893CVAG/n+P4fauM6mFNIqWUtTEjac=
 github.com/zarf-dev/zarf v0.57.1-0.20250709234331-16a3ba1f9726/go.mod h1:lvMOI8Pf1/rT78n/gqyEPed7jXgWNtlMy8+RrNF3+Rw=
+github.com/zarf-dev/zarf v0.58.0 h1:3f7pAFnBcWe152bKrXu3DXF//XvCOlwGH+oUcakI1jg=
+github.com/zarf-dev/zarf v0.58.0/go.mod h1:lvMOI8Pf1/rT78n/gqyEPed7jXgWNtlMy8+RrNF3+Rw=
 github.com/zclconf/go-cty v1.14.0 h1:/Xrd39K7DXbHzlisFP9c4pHao4yyf+/Ug9LEz+Y/yhc=
 github.com/zclconf/go-cty v1.14.0/go.mod h1:VvMs5i0vgZdhYawQNq5kePSpLAoz8u1xvZgrPIxfnZE=
 github.com/zclconf/go-cty-debug v0.0.0-20240509010212-0d6042c53940 h1:4r45xpDWB6ZMSMNJFMOjqrGHynW3DIBuR2H9j0ug+Mo=

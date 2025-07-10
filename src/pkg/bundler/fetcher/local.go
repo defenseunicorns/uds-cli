@@ -171,7 +171,6 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 	// go through the paths that should be bundled and add them to the bundle store
 	var descs []ocispec.Descriptor
 	for _, path := range pathsToBundle {
-		// pkgPath := filepath.Join(pkgLayout.DirPath(), path)
 		name, err := filepath.Rel(pkgTmp, path)
 		if err != nil {
 			return nil, pkgTmp, err
