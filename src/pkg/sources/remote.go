@@ -95,12 +95,14 @@ func (r *RemoteBundle) LoadPackage(ctx context.Context, filter filters.Component
 		return nil, nil, err
 	}
 
+	addNamespaceOverrides(&pkgLayout.Pkg, r.nsOverrides)
+
 	if config.Dev {
 		setAsYOLO(&pkgLayout.Pkg)
 	}
 
 	// ensure we're using the correct package name as specified by the bundle
-	pkg.Metadata.Name = r.Pkg.Name
+	pkgLayout.Pkg.Metadata.Name = r.Pkg.Name
 	return pkgLayout, nil, err
 }
 

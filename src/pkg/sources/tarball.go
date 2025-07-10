@@ -77,13 +77,15 @@ func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.Componen
 		return nil, nil, err
 	}
 
+	addNamespaceOverrides(&pkgLayout.Pkg, t.nsOverrides)
+
 	if config.Dev {
 		setAsYOLO(&pkgLayout.Pkg)
 	}
 
 	packageSpinner.Successf("Loaded bundled Zarf package: %s", t.Pkg.Name)
 	// ensure we're using the correct package name as specified by the bundle
-	// pkg.Metadata.Name = t.Pkg.Name
+	pkgLayout.Pkg.Metadata.Name = t.Pkg.Name
 	return pkgLayout, nil, err
 }
 
@@ -170,10 +172,6 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, _ bool, _ bool) (
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
-
-	// if err := sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, true); err != nil {
-	// 	return v1alpha1.ZarfPackage{}, nil, err
-	// }
 
 	err = sourceArchive.Close()
 	// ensure we're using the correct package name as specified by the bundle

@@ -139,8 +139,6 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
-		addNamespaceOverrides(&pkgLayout.Pkg, nsOverrides)
-
 		zarfInitOpts := handleZarfInitOpts(pkgVars, pkgLayout.Pkg.Kind)
 
 		deployOpts := packager.DeployOptions{
@@ -166,7 +164,6 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		if err != nil {
 			return err
 		}
-		// TODO:(@brandtkeller): https://github.com/zarf-dev/zarf/issues/3975
 		// save exported vars
 		pkgExportedVars := make(map[string]string)
 		variableConfig := result.VariableConfig
@@ -452,21 +449,6 @@ func removeOverrides(pkgVars map[string]overrideData, chartVars []types.BundleCh
 		_, exists := pkgVars[strings.ToUpper(cv.Name)]
 		if exists {
 			delete(pkgVars, strings.ToUpper(cv.Name))
-		}
-	}
-}
-
-func addNamespaceOverrides(pkg *v1alpha1.ZarfPackage, nsOverrides NamespaceOverrideMap) {
-	if len(nsOverrides) == 0 {
-		return
-	}
-	for i, comp := range pkg.Components {
-		if _, exists := nsOverrides[comp.Name]; exists {
-			for j, chart := range comp.Charts {
-				if _, exists = nsOverrides[comp.Name][chart.Name]; exists {
-					pkg.Components[i].Charts[j].Namespace = nsOverrides[comp.Name][comp.Charts[j].Name]
-				}
-			}
 		}
 	}
 }

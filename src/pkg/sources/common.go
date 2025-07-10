@@ -12,6 +12,22 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
+// addNamespaceOverrides checks if pkg components have charts with namespace overrides and adds them
+func addNamespaceOverrides(pkg *v1alpha1.ZarfPackage, nsOverrides NamespaceOverrideMap) {
+	if len(nsOverrides) == 0 {
+		return
+	}
+	for i, comp := range pkg.Components {
+		if _, exists := nsOverrides[comp.Name]; exists {
+			for j, chart := range comp.Charts {
+				if _, exists = nsOverrides[comp.Name][chart.Name]; exists {
+					pkg.Components[i].Charts[j].Namespace = nsOverrides[comp.Name][comp.Charts[j].Name]
+				}
+			}
+		}
+	}
+}
+
 type PackageSource interface {
 	// LoadPackage loads a package from a source.
 	LoadPackage(ctx context.Context, filter filters.ComponentFilterStrategy) (pkgLayout *layout.PackageLayout, warnings []string, err error)
