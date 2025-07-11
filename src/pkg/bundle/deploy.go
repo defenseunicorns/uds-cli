@@ -16,16 +16,16 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	zarfConfig "github.com/zarf-dev/zarf/src/config"
-	"github.com/zarf-dev/zarf/src/pkg/layout"
-	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/state"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"golang.org/x/exp/slices"
@@ -33,6 +33,8 @@ import (
 
 // hiddenVar is the value used to mask potentially sensitive variables
 const hiddenVar = "****"
+
+type NamespaceOverrideMap = map[string]map[string]string
 
 // Deploy deploys a bundle
 func (b *Bundle) Deploy(ctx context.Context) error {
@@ -76,7 +78,6 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 	// map of Zarf pkgs and their vars
 	bundleExportedVars := make(map[string]map[string]string)
 
-	// setup each package client and deploy
 	for i, pkg := range packagesToDeploy {
 		// for dev mode update package ref for remote bundles, refs for local bundles updated on create
 		if config.Dev && !strings.Contains(b.cfg.DeployOpts.Source, "tar.zst") {
@@ -86,7 +87,6 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			}
 			b.bundle.Packages[i] = pkg
 		}
-		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 		pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
 			return err
@@ -110,6 +110,11 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
+		remoteOpts := packager.RemoteOptions{
+			PlainHTTP:             config.CommonOptions.Insecure,
+			InsecureSkipTLSVerify: config.CommonOptions.Insecure,
+		}
+
 		opts := zarfTypes.ZarfPackageOptions{
 			PackageSource:      pkgTmp,
 			OptionalComponents: strings.Join(pkg.OptionalComponents, ","),
@@ -118,45 +123,50 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			Retries:            b.cfg.DeployOpts.Retries,
 		}
 
-		zarfDeployOpts := zarfTypes.ZarfDeployOptions{
-			ValuesOverridesMap: valuesOverrides,
-			Timeout:            config.HelmTimeout,
-		}
-
-		// Automatically confirm the package deployment
-		zarfConfig.CommonOptions.Confirm = true
+		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 
 		source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nsOverrides)
 		if err != nil {
 			return err
 		}
 
-		pkgCfg := zarfTypes.PackagerConfig{
-			PkgOpts:    opts,
-			DeployOpts: zarfDeployOpts,
-		}
+		filter := filters.Combine(
+			filters.ForDeploy(strings.Join(pkg.OptionalComponents, ","), false),
+		)
 
-		// handle zarf init configs that aren't Zarf variables
-		zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), layout.New(pkgTmp), false, false)
+		pkgLayout, _, err := source.LoadPackage(ctx, filter)
 		if err != nil {
 			return err
 		}
 
-		zarfInitOpts := handleZarfInitOpts(pkgVars, zarfPkg.Kind)
-		pkgCfg.InitOpts = zarfInitOpts
+		zarfInitOpts := handleZarfInitOpts(pkgVars, pkgLayout.Pkg.Kind)
 
-		pkgClient, err := packager.New(&pkgCfg, packager.WithSource(source), packager.WithTemp(opts.PackageSource))
+		deployOpts := packager.DeployOptions{
+			Timeout:                config.HelmTimeout,
+			SetVariables:           pkgVars,
+			ValuesOverridesMap:     valuesOverrides,
+			Retries:                b.cfg.DeployOpts.Retries,
+			RemoteOptions:          remoteOpts,
+			AdoptExistingResources: false,
+			OCIConcurrency:         0,
+			GitServer:              zarfInitOpts.GitServer,
+			RegistryInfo:           zarfInitOpts.RegistryInfo,
+			ArtifactServer:         zarfInitOpts.ArtifactServer,
+			StorageClass:           zarfInitOpts.StorageClass,
+		}
+
+		result, err := packager.Deploy(ctx, pkgLayout, deployOpts)
 		if err != nil {
 			return err
 		}
 
-		if err = pkgClient.Deploy(ctx); err != nil {
+		err = pkgLayout.Cleanup()
+		if err != nil {
 			return err
 		}
-
 		// save exported vars
 		pkgExportedVars := make(map[string]string)
-		variableConfig := pkgClient.GetVariableConfig()
+		variableConfig := result.VariableConfig
 		for _, exp := range pkg.Exports {
 			// ensure if variable exists in package
 			setVariable, ok := variableConfig.GetSetVariable(exp.Name)
@@ -178,11 +188,11 @@ func handleZarfInitOpts(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKin
 
 	// default zarf init opts
 	zarfInitOpts := zarfTypes.ZarfInitOptions{
-		GitServer: zarfTypes.GitServerInfo{
-			PushUsername: zarfTypes.ZarfGitPushUser,
+		GitServer: state.GitServerInfo{
+			PushUsername: state.ZarfGitPushUser,
 		},
-		RegistryInfo: zarfTypes.RegistryInfo{
-			PushUsername: zarfTypes.ZarfRegistryPushUser,
+		RegistryInfo: state.RegistryInfo{
+			PushUsername: state.ZarfRegistryPushUser,
 		},
 	}
 	// populate zarf init opts from pkgVars

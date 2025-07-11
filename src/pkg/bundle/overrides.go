@@ -14,7 +14,6 @@ import (
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
@@ -92,10 +91,10 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 }
 
 // loadChartOverrides converts a helm path to a ValuesOverridesMap config for Zarf
-func (b *Bundle) loadChartOverrides(pkg types.Package, overrideData bOverridesData) (pkgOverrideMap, sources.NamespaceOverrideMap, error) {
+func (b *Bundle) loadChartOverrides(pkg types.Package, overrideData bOverridesData) (pkgOverrideMap, NamespaceOverrideMap, error) {
 	// Create nested maps to hold the overrides
 	overrideMap := make(map[string]map[string]*values.Options)
-	nsOverrides := make(sources.NamespaceOverrideMap)
+	nsOverrides := make(NamespaceOverrideMap)
 
 	// Loop through each package component's charts and process overrides
 	for componentName, component := range pkg.Overrides {
@@ -155,7 +154,7 @@ func convertOverridesMap(overrideMap map[string]map[string]*values.Options) (pkg
 }
 
 // processOverrideNamespaces processes a bundles namespace overrides and adds them to the override map
-func (b *Bundle) processOverrideNamespaces(overrideMap sources.NamespaceOverrideMap, ns string, componentName string, chartName string) {
+func (b *Bundle) processOverrideNamespaces(overrideMap NamespaceOverrideMap, ns string, componentName string, chartName string) {
 	if ns == "" {
 		return // no namespace override
 	}

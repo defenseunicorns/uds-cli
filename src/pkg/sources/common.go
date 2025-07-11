@@ -5,8 +5,11 @@
 package sources
 
 import (
+	"context"
+
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
 // addNamespaceOverrides checks if pkg components have charts with namespace overrides and adds them
@@ -23,6 +26,14 @@ func addNamespaceOverrides(pkg *v1alpha1.ZarfPackage, nsOverrides NamespaceOverr
 			}
 		}
 	}
+}
+
+type PackageSource interface {
+	// LoadPackage loads a package from a source.
+	LoadPackage(ctx context.Context, filter filters.ComponentFilterStrategy) (pkgLayout *layout.PackageLayout, warnings []string, err error)
+
+	// LoadPackageMetadata loads a package's metadata from a source.
+	LoadPackageMetadata(ctx context.Context, wantSBOM bool, skipValidation bool) (pkg v1alpha1.ZarfPackage, warnings []string, err error)
 }
 
 // setAsYOLO sets the YOLO flag on a package and strips out all images and repos

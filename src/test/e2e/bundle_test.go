@@ -40,7 +40,7 @@ func TestSimpleBundleWithZarfAction(t *testing.T) {
 	runCmd(t, fmt.Sprintf("create src/test/bundles/11-real-simple --insecure --confirm -a %s", e2e.Arch))
 	tarballPath := fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-real-simple-%s-0.0.1.tar.zst", e2e.Arch)
 	_, stderr := runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", tarballPath))
-	require.Contains(t, stderr, "Pulling ghcr.io")
+	require.Contains(t, stderr, "pulling package")
 }
 
 func TestSimpleBundleWithNameAndVersionFlags(t *testing.T) {
@@ -610,5 +610,21 @@ func TestListVariables(t *testing.T) {
 		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
 		cleaned := ansiRegex.ReplaceAllString(stdout, "")
 		require.Contains(t, cleaned, "prometheus:\n  variables: []\n")
+	})
+}
+
+func TestBundleWithComponentNamedAuth(t *testing.T) {
+	zarfPkgPath := "src/test/packages/zarf-bug"
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+
+	bundleDir := "src/test/bundles/16-zarf-bug"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-zarf-component-name-bug-%s-0.0.1.tar.zst", e2e.Arch))
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
+
+	t.Run("expect component with auth in name to error", func(t *testing.T) {
+		_, stderr, _ := runCmdWithErr(fmt.Sprintf("deploy %s --retries 1 --confirm --insecure", bundlePath))
+		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
+		cleaned := ansiRegex.ReplaceAllString(stderr, "")
+		require.NotContains(t, cleaned, "failed to deploy bundle: unable to deploy component \"authservice\": unable to decompress:")
 	})
 }

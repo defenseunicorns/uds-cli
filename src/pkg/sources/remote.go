@@ -6,7 +6,6 @@ package sources
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,9 +20,8 @@ import (
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	"github.com/zarf-dev/zarf/src/pkg/layout"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
-	"github.com/zarf-dev/zarf/src/pkg/packager/sources"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
@@ -42,9 +40,8 @@ type RemoteBundle struct {
 }
 
 // LoadPackage loads a Zarf package from a remote bundle
-func (r *RemoteBundle) LoadPackage(ctx context.Context, dst *layout.PackagePaths, filter filters.ComponentFilterStrategy, unarchiveAll bool) (v1alpha1.ZarfPackage, []string, error) {
+func (r *RemoteBundle) LoadPackage(ctx context.Context, filter filters.ComponentFilterStrategy) (*layout.PackageLayout, []string, error) {
 	// todo: progress bar??
-	var layers []ocispec.Descriptor
 	var err error
 
 	if config.Dev {
@@ -57,75 +54,60 @@ func (r *RemoteBundle) LoadPackage(ctx context.Context, dst *layout.PackagePaths
 			// get remote client
 			repoUrl := fmt.Sprintf("%s:%s", r.Pkg.Repository, r.Pkg.Ref)
 			remote, _ := zoci.NewRemote(ctx, repoUrl, platform)
-			layers, err = remote.PullPackage(ctx, r.TmpDir, config.CommonOptions.OCIConcurrency)
+			_, err = remote.PullPackage(ctx, r.TmpDir, config.CommonOptions.OCIConcurrency)
 		} else {
-			layers, err = r.downloadPkgFromRemoteBundle()
+			_, err = r.downloadPkgFromRemoteBundle()
 		}
 	} else {
-		layers, err = r.downloadPkgFromRemoteBundle()
+		_, err = r.downloadPkgFromRemoteBundle()
 	}
 
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, nil, err
+		return nil, nil, err
 	}
 
 	var pkg v1alpha1.ZarfPackage
-	if err = utils.ReadYAMLStrict(dst.ZarfYAML, &pkg); err != nil {
-		return v1alpha1.ZarfPackage{}, nil, err
+	if err = utils.ReadYAMLStrict(filepath.Join(r.TmpDir, layout.ZarfYAML), &pkg); err != nil {
+		return nil, nil, err
 	}
 
 	// if in dev mode and package is a zarf init config, return an empty package
 	if config.Dev && pkg.Kind == v1alpha1.ZarfInitConfig {
-		return v1alpha1.ZarfPackage{}, nil, nil
+		return nil, nil, nil
 	}
 
 	// filter pkg components and determine if its a partial pkg
 	filteredComps, isPartialPkg, err := handleFilter(pkg, filter)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, nil, err
+		return nil, nil, err
 	}
 	pkg.Components = filteredComps
 
-	dst.SetFromLayers(ctx, layers)
+	layoutOpts := layout.PackageLayoutOptions{
+		PublicKeyPath:           "",
+		SkipSignatureValidation: false,
+		IsPartial:               isPartialPkg,
+		Filter:                  filter,
+	}
 
-	err = sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, isPartialPkg)
+	pkgLayout, err := layout.LoadFromDir(ctx, r.TmpDir, layoutOpts)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, nil, err
+		return nil, nil, err
 	}
 
-	if unarchiveAll {
-		for _, component := range pkg.Components {
-			if err := dst.Components.Unarchive(ctx, component); err != nil {
-				if errors.Is(err, layout.ErrNotLoaded) {
-					_, err := dst.Components.Create(component)
-					if err != nil {
-						return v1alpha1.ZarfPackage{}, nil, err
-					}
-				} else {
-					return v1alpha1.ZarfPackage{}, nil, err
-				}
-			}
-		}
-
-		if dst.SBOMs.Path != "" {
-			if err := dst.SBOMs.Unarchive(); err != nil {
-				return v1alpha1.ZarfPackage{}, nil, err
-			}
-		}
-	}
-	addNamespaceOverrides(&pkg, r.nsOverrides)
+	addNamespaceOverrides(&pkgLayout.Pkg, r.nsOverrides)
 
 	if config.Dev {
-		setAsYOLO(&pkg)
+		setAsYOLO(&pkgLayout.Pkg)
 	}
 
 	// ensure we're using the correct package name as specified by the bundle
-	pkg.Metadata.Name = r.Pkg.Name
-	return pkg, nil, err
+	pkgLayout.Pkg.Metadata.Name = r.Pkg.Name
+	return pkgLayout, nil, err
 }
 
 // LoadPackageMetadata loads a Zarf package's metadata from a remote bundle
-func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, dst *layout.PackagePaths, _ bool, _ bool) (v1alpha1.ZarfPackage, []string, error) {
+func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) (v1alpha1.ZarfPackage, []string, error) {
 	root, err := r.Remote.FetchRoot(ctx)
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
@@ -156,39 +138,29 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, dst *layout.Pack
 	if err = goyaml.Unmarshal(pkgBytes, &pkg); err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
-	err = zarfUtils.WriteYaml(filepath.Join(dst.Base, config.ZarfYAML), pkg, 0600)
+	err = zarfUtils.WriteYaml(filepath.Join(r.TmpDir, layout.ZarfYAML), pkg, 0600)
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
 	// grab checksums.txt so we can validate pkg integrity
-	var checksumLayer ocispec.Descriptor
 	for _, layer := range pkgManifest.Layers {
 		if layer.Annotations[ocispec.AnnotationTitle] == config.ChecksumsTxt {
 			checksumBytes, err := r.Remote.FetchLayer(ctx, layer)
 			if err != nil {
 				return v1alpha1.ZarfPackage{}, nil, err
 			}
-			err = os.WriteFile(filepath.Join(dst.Base, config.ChecksumsTxt), checksumBytes, 0600)
+			err = os.WriteFile(filepath.Join(r.TmpDir, layout.Checksums), checksumBytes, 0600)
 			if err != nil {
 				return v1alpha1.ZarfPackage{}, nil, err
 			}
-			checksumLayer = layer
 			break
 		}
 	}
 
-	dst.SetFromLayers(ctx, []ocispec.Descriptor{pkgManifestDesc, checksumLayer})
-
-	err = sources.ValidatePackageIntegrity(dst, pkg.Metadata.AggregateChecksum, true)
 	// ensure we're using the correct package name as specified by the bundle
 	pkg.Metadata.Name = r.Pkg.Name
 	return pkg, nil, err
-}
-
-// Collect doesn't need to be implemented
-func (r *RemoteBundle) Collect(_ context.Context, _ string) (string, error) {
-	return "", fmt.Errorf("not implemented in %T", r)
 }
 
 // downloadPkgFromRemoteBundle downloads a Zarf package from a remote bundle
@@ -255,7 +227,6 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 		return nil, err
 	}
 	defer target.Close()
-
 	_, err = boci.CopyLayers(layersToPull, estimatedBytes, r.TmpDir, r.Remote.Repo(), target, r.Pkg.Name)
 	if err != nil {
 		return nil, err

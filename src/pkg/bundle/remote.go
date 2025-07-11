@@ -16,13 +16,13 @@ import (
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/cache"
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
-	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"golang.org/x/exp/slices"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -104,7 +104,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool, bundleName string) ([]
 		if layer.Annotations[ocispec.AnnotationTitle] == config.BundleYAML {
 			continue
 		}
-		zarfManifest, err := op.OrasRemote.FetchManifest(ctx, layer)
+		zarfManifest, err := op.OrasRemote.FetchManifest(ctx, layer) //nolint:staticcheck
 		if err != nil {
 			return warns, err
 		}

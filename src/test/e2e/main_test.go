@@ -12,13 +12,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/src/test"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/mod/modfile"
 
-	"github.com/defenseunicorns/uds-cli/src/test"
-
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/pterm/pterm"
-	"github.com/zarf-dev/zarf/src/pkg/message"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 )

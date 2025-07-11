@@ -10,7 +10,7 @@ import (
 
 	runnerCLI "github.com/defenseunicorns/maru-runner/src/cmd"
 	runnerConfig "github.com/defenseunicorns/maru-runner/src/config"
-	"github.com/zarf-dev/zarf/src/pkg/message"
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 
 	"github.com/defenseunicorns/pkg/exec"
 

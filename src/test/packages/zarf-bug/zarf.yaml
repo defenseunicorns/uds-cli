@@ -1,0 +1,24 @@
+# Copyright 2024 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+kind: ZarfPackageConfig
+metadata:
+  name: zarf-component-name-bug
+  description: "Zarf pkg with component named authservice to trigger bug on components with 'auth' in the name: https://github.com/zarf-dev/zarf/issues/3917"
+  version: 0.0.1
+
+variables:
+  - name: DOMAIN
+    default: uds.dev
+
+components:
+  - name: authservice
+    required: true
+    images:
+      # renovate: datasource=github-tags depName=stefanprodan/podinfo
+      - ghcr.io/stefanprodan/podinfo:6.9.0
+    charts:
+      - name: unicorn-podinfo
+        localPath: ../helm/unicorn-podinfo
+        namespace: podinfo
+        version: 0.0.1

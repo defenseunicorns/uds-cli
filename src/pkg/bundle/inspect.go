@@ -8,24 +8,19 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
-	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	goyaml "github.com/goccy/go-yaml"
-	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pterm/pterm"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	"github.com/zarf-dev/zarf/src/pkg/layout"
-	"github.com/zarf-dev/zarf/src/pkg/message"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
-	zarfSources "github.com/zarf-dev/zarf/src/pkg/packager/sources"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
-	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
@@ -117,7 +112,7 @@ func (b *Bundle) listImages() error {
 	for _, pkg := range b.bundle.Packages {
 		pkgImgMap[pkg.Name] = make([]string, 0)
 
-		zarfPkg, err := loadPackage(*b, pkg)
+		zarfPkg, err := b.getMetadata(pkg)
 		if err != nil {
 			return err
 		}
@@ -152,7 +147,7 @@ func (b *Bundle) listVariables() error {
 	message.Title("Overrides and Variables:", "configurable helm overrides and Zarf variables by package")
 
 	for _, pkg := range b.bundle.Packages {
-		zarfPkg, err := loadPackage(*b, pkg)
+		zarfPkg, err := b.getMetadata(pkg)
 		if err != nil {
 			return err
 		}
@@ -177,75 +172,65 @@ func (b *Bundle) listVariables() error {
 	return nil
 }
 
-func loadPackage(b Bundle, pkg types.Package) (v1alpha1.ZarfPackage, error) {
-	var source zarfSources.PackageSource
-
-	source, err := b.getSource(pkg)
-	if err != nil {
-		return v1alpha1.ZarfPackage{}, err
-	}
-
-	tmpDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
-	if err != nil {
-		return v1alpha1.ZarfPackage{}, err
-	}
-	pkgPaths := layout.New(tmpDir)
-	defer os.RemoveAll(tmpDir)
-
-	zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), pkgPaths, false, true)
-	if err != nil {
-		return v1alpha1.ZarfPackage{}, err
-	}
-
-	return zarfPkg, nil
-}
-
-// getSource returns a package source based on if inspecting bundle yaml or bundle artifact
-func (b *Bundle) getSource(pkg types.Package) (zarfSources.PackageSource, error) {
-	var source zarfSources.PackageSource
-
+func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
+	// if we are inspecting a built bundle, get the metadata from the bundle
 	if !b.cfg.InspectOpts.IsYAMLFile {
-		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
-		fromTarball, err := sources.NewFromLocation(*b.cfg, pkg, zarfTypes.ZarfPackageOptions{}, sha, nil)
+		pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
-			return nil, err
+			return v1alpha1.ZarfPackage{}, err
 		}
-		source = fromTarball
-	} else {
-		if pkg.Repository != "" {
-			// handle remote packages
-			url := fmt.Sprintf("oci://%s:%s", pkg.Repository, pkg.Ref)
-			platform := ocispec.Platform{
-				Architecture: config.GetArch(),
-				OS:           oci.MultiOS,
-			}
-			remote, err := zoci.NewRemote(context.TODO(), url, platform)
-			if err != nil {
-				return nil, err
-			}
+		defer os.RemoveAll(pkgTmp)
 
-			source = &zarfSources.OCISource{
-				ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{},
-				Remote:             remote,
-			}
-		} else if pkg.Path != "" {
-			// handle local packages
-			err := os.Chdir(filepath.Dir(b.cfg.InspectOpts.Source)) // change to the bundle's directory
-			if err != nil {
-				return nil, err
-			}
-
-			bundleArch := config.GetArch(b.bundle.Metadata.Architecture)
-			tarballName := fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", pkg.Name, bundleArch, pkg.Ref)
-			source = &zarfSources.TarballSource{
-				ZarfPackageOptions: &zarfTypes.ZarfPackageOptions{
-					PackageSource: filepath.Join(pkg.Path, tarballName),
-				},
-			}
-		} else {
-			return nil, fmt.Errorf("package %s is missing a repository or path", pkg.Name)
+		opts := zarfTypes.ZarfPackageOptions{
+			PackageSource:      pkgTmp,
+			OptionalComponents: strings.Join(pkg.OptionalComponents, ","),
+			PublicKeyPath:      "",
 		}
+
+		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
+		source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nil)
+		if err != nil {
+			return v1alpha1.ZarfPackage{}, err
+		}
+		zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), false, true)
+		if err != nil {
+			return v1alpha1.ZarfPackage{}, err
+		}
+
+		return zarfPkg, nil
 	}
 
-	return source, nil
+	// otherwise we are inspecting a yaml file, get the metadata from the packages directly
+	sourceDir := strings.TrimSuffix(b.cfg.InspectOpts.Source, config.BundleYAML)
+
+	source, err := getPkgSource(pkg, config.GetArch(b.bundle.Metadata.Architecture), sourceDir)
+	if err != nil {
+		return v1alpha1.ZarfPackage{}, err
+	}
+
+	remoteOpts := packager.RemoteOptions{
+		PlainHTTP:             config.CommonOptions.Insecure,
+		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
+	}
+
+	loadOpts := packager.LoadOptions{
+		Filter:                  filters.Empty(),
+		SkipSignatureValidation: false,
+		Architecture:            config.GetArch(b.bundle.Metadata.Architecture),
+		PublicKeyPath:           b.cfg.DeployOpts.PublicKeyPath,
+		CachePath:               config.CommonOptions.CachePath,
+		RemoteOptions:           remoteOpts,
+	}
+
+	pkgLayout, err := packager.LoadPackage(context.TODO(), source, loadOpts)
+	if err != nil {
+		return v1alpha1.ZarfPackage{}, err
+	}
+
+	err = pkgLayout.Cleanup()
+	if err != nil {
+		return v1alpha1.ZarfPackage{}, err
+	}
+
+	return pkgLayout.Pkg, nil
 }

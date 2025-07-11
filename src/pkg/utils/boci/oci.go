@@ -14,18 +14,16 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	"github.com/zarf-dev/zarf/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/transform"
-	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
@@ -269,7 +267,7 @@ func FindPkgLayers(remote zoci.Remote, pkgRootManifest *oci.Manifest, optionalCo
 			components = append(components, c)
 		}
 	}
-	isSkeleton := zarfPkg.Build.Architecture == zoci.SkeletonArch || strings.HasSuffix(remote.Repo().Reference.Reference, zoci.SkeletonArch)
+	isSkeleton := zarfPkg.Build.Architecture == v1alpha1.SkeletonArch || strings.HasSuffix(remote.Repo().Reference.Reference, v1alpha1.SkeletonArch)
 	layersFromComponents, err := remote.AssembleLayers(ctx, components, isSkeleton, zoci.AllLayers)
 	if err != nil {
 		return nil, err
@@ -401,28 +399,28 @@ func FindBundledPkgLayers(ctx context.Context, pkg types.Package, rootManifest *
 }
 
 // CopyLayers uses ORAS to copy layers from a remote repo to a local OCI store
-func CopyLayers(layersToPull []ocispec.Descriptor, estimatedBytes int64, tmpDstDir string, repo *remote.Repository, target oras.Target, artifactName string) (ocispec.Descriptor, error) {
+func CopyLayers(layersToPull []ocispec.Descriptor, estimatedBytes int64, tmpDstDir string, repo *remote.Repository, target oras.Target, artifactName string) (ocispec.Descriptor, error) { //nolint:revive
 	// copy Zarf pkg
 	copyOpts := CreateCopyOpts(layersToPull, config.CommonOptions.OCIConcurrency)
 	// Create a thread to update a progress bar as we save the package to disk
-	doneSaving := make(chan error)
+	// doneSaving := make(chan error)
 
 	// Grab tmpDirSize and add it to the estimatedBytes, otherwise the progress bar will be off
 	// because as multiple packages are pulled into the tmpDir, RenderProgressBarForLocalDirWrite continues to
 	// add their size which results in strange MB ratios
-	tmpDirSize, err := helpers.GetDirSize(tmpDstDir)
-	if err != nil {
-		return ocispec.Descriptor{}, err
-	}
+	// tmpDirSize, err := helpers.GetDirSize(tmpDstDir)
+	// if err != nil {
+	// 	return ocispec.Descriptor{}, err
+	// }
 
-	expectedTotalSize := estimatedBytes + tmpDirSize
+	// expectedTotalSize := estimatedBytes + tmpDirSize
 
-	go zarfUtils.RenderProgressBarForLocalDirWrite(tmpDstDir, expectedTotalSize, doneSaving, "Pulling: "+artifactName, "Successfully pulled: "+artifactName)
+	// go message.RenderProgressBarForLocalDirWrite(tmpDstDir, expectedTotalSize, doneSaving, "Pulling: "+artifactName, "Successfully pulled: "+artifactName)
 
 	rootDesc, err := oras.Copy(context.TODO(), repo, repo.Reference.String(), target, "", copyOpts)
 
-	doneSaving <- err
-	<-doneSaving
+	// doneSaving <- err
+	// <-doneSaving
 
 	if err != nil {
 		return ocispec.Descriptor{}, err

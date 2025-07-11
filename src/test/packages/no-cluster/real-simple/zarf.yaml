@@ -13,4 +13,4 @@ components:
       onDeploy:
         after:
           - cmd: |
-              ./zarf p inspect oci://ghcr.io/defenseunicorns/uds-cli/nginx:0.0.1
+              ./zarf p inspect definition oci://ghcr.io/defenseunicorns/uds-cli/nginx:0.0.1

@@ -13,14 +13,13 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	zarfSources "github.com/zarf-dev/zarf/src/pkg/packager/sources"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 // NewFromLocation creates a new package source based on pkgLocation
-func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, opts zarfTypes.ZarfPackageOptions, sha string, nsOverrides NamespaceOverrideMap) (zarfSources.PackageSource, error) {
-	var source zarfSources.PackageSource
+func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, opts zarfTypes.ZarfPackageOptions, sha string, nsOverrides NamespaceOverrideMap) (PackageSource, error) {
+	var source PackageSource
 	var pkgLocation string
 	if bundleCfg.DeployOpts.Source != "" {
 		pkgLocation = bundleCfg.DeployOpts.Source
