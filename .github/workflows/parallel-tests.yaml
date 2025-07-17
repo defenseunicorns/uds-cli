@@ -4,6 +4,12 @@
 name: Helper workflow for E2E Tests
 on:
   workflow_call: # This is the event that triggers the workflow
+    inputs:
+        fetch_zarf:
+          description: "Set to true to fetch the Zarf package from main"
+          required: false
+          type: boolean
+          default: false
 
 jobs:
   build:
@@ -20,6 +26,12 @@ jobs:
 
       - name: Install UDS CLI
         uses: ./.github/actions/install-uds-cli
+
+      # Conditional step to fetch zarf@main
+      - name: Fetch Zarf Package
+        if: ${{ inputs.fetch_zarf }}
+        run: |
+          go get -d github.com/zarf-dev/zarf@main
 
       - name: Build CLI
         run: |
