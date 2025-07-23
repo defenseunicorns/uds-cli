@@ -30,13 +30,15 @@ import (
 
 // RemoteBundle is a package source for remote bundles that implements Zarf's packager.PackageSource
 type RemoteBundle struct {
-	Pkg            types.Package
-	PkgOpts        *zarfTypes.ZarfPackageOptions
-	PkgManifestSHA string
-	TmpDir         string
-	Remote         *oci.OrasRemote
-	nsOverrides    NamespaceOverrideMap
-	bundleCfg      types.BundleConfig
+	Pkg                     types.Package
+	PkgOpts                 *zarfTypes.ZarfPackageOptions
+	PkgManifestSHA          string
+	TmpDir                  string
+	PublicKeyPath           string
+	Remote                  *oci.OrasRemote
+	nsOverrides             NamespaceOverrideMap
+	bundleCfg               types.BundleConfig
+	SkipSignatureValidation bool
 }
 
 // LoadPackage loads a Zarf package from a remote bundle
@@ -84,8 +86,8 @@ func (r *RemoteBundle) LoadPackage(ctx context.Context, filter filters.Component
 	pkg.Components = filteredComps
 
 	layoutOpts := layout.PackageLayoutOptions{
-		PublicKeyPath:           "",
-		SkipSignatureValidation: false,
+		PublicKeyPath:           r.PublicKeyPath,
+		SkipSignatureValidation: r.SkipSignatureValidation,
 		IsPartial:               isPartialPkg,
 		Filter:                  filter,
 	}

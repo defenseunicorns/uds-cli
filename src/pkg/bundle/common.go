@@ -390,7 +390,7 @@ func (b *Bundle) setPackageRef(pkg types.Package) (types.Package, error) {
 	if ref, ok := b.cfg.DevDeployOpts.Ref[pkg.Name]; ok {
 		// Can only set refs for remote packages
 		if pkg.Repository == "" {
-			return pkg, fmt.Errorf("Cannot set ref for local packages: %s", pkg.Name)
+			return pkg, fmt.Errorf("cannot set ref for local packages: %s", pkg.Name)
 		}
 
 		errMsg := fmt.Sprintf("Unable to access %s:%s", pkg.Repository, ref)
