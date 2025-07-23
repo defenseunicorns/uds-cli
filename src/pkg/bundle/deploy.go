@@ -116,11 +116,12 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		}
 
 		opts := zarfTypes.ZarfPackageOptions{
-			PackageSource:      pkgTmp,
-			OptionalComponents: strings.Join(pkg.OptionalComponents, ","),
-			PublicKeyPath:      publicKeyPath,
-			SetVariables:       pkgVars,
-			Retries:            b.cfg.DeployOpts.Retries,
+			PackageSource:           pkgTmp,
+			OptionalComponents:      strings.Join(pkg.OptionalComponents, ","),
+			PublicKeyPath:           publicKeyPath,
+			SetVariables:            pkgVars,
+			Retries:                 b.cfg.DeployOpts.Retries,
+			SkipSignatureValidation: config.CommonOptions.Insecure,
 		}
 
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
