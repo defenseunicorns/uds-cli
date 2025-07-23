@@ -121,7 +121,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			PublicKeyPath:           publicKeyPath,
 			SetVariables:            pkgVars,
 			Retries:                 b.cfg.DeployOpts.Retries,
-			SkipSignatureValidation: config.CommonOptions.Insecure,
+			SkipSignatureValidation: config.CommonOptions.SkipSignatureValidation,
 		}
 
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
