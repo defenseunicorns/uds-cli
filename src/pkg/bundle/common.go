@@ -156,7 +156,7 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 
 		// grab the Zarf pkg metadata
 		f, err := fetcher.NewPkgFetcher(pkg, fetcher.Config{
-			PkgIter: idx, Bundle: bundle,
+			PkgIter: idx, Bundle: bundle, SkipSignatureValidation: config.CommonOptions.SkipSignatureValidation,
 		})
 		if err != nil {
 			return err

@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
@@ -102,14 +103,33 @@ func (f *localFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
 func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 	ctx := context.TODO()
 
+	// Create a temporary directory for public key storage - should this go somewhere else?
+	tmpDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
+	if err != nil {
+		return nil, "", err
+	}
+	defer os.RemoveAll(tmpDir) //nolint:errcheck
+
+	// create the public key such that we can reference it for load
+	publicKeyPath := filepath.Join(tmpDir, config.PublicKeyFile)
+	if f.pkg.PublicKey != "" {
+		if err := os.WriteFile(publicKeyPath, []byte(f.pkg.PublicKey), helpers.ReadWriteUser); err != nil {
+			return nil, "", err
+		}
+	} else {
+		publicKeyPath = ""
+	}
+
 	filter := filters.Combine(
 		filters.ByLocalOS(runtime.GOOS),
 		filters.ForDeploy(strings.Join(f.pkg.OptionalComponents, ","), false),
 	)
 
 	loadOpts := packager.LoadOptions{
-		Filter:    filter,
-		CachePath: config.CommonOptions.CachePath,
+		Filter:                  filter,
+		CachePath:               config.CommonOptions.CachePath,
+		PublicKeyPath:           publicKeyPath,
+		SkipSignatureValidation: f.cfg.SkipSignatureValidation,
 	}
 
 	pkgLayout, err := packager.LoadPackage(ctx, f.pkg.Path, loadOpts)
