@@ -33,12 +33,14 @@ func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, opts zarfT
 
 	if strings.Contains(pkgLocation, "tar.zst") {
 		source = &TarballBundle{
-			Pkg:            pkg,
-			PkgOpts:        &opts,
-			PkgManifestSHA: sha,
-			TmpDir:         opts.PackageSource,
-			BundleLocation: pkgLocation,
-			nsOverrides:    nsOverrides,
+			Pkg:                     pkg,
+			PkgOpts:                 &opts,
+			PkgManifestSHA:          sha,
+			TmpDir:                  opts.PackageSource,
+			BundleLocation:          pkgLocation,
+			nsOverrides:             nsOverrides,
+			PublicKeyPath:           opts.PublicKeyPath,
+			SkipSignatureValidation: opts.SkipSignatureValidation,
 		}
 	} else {
 		platform := ocispec.Platform{
@@ -50,13 +52,15 @@ func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, opts zarfT
 			return nil, err
 		}
 		source = &RemoteBundle{
-			Pkg:            pkg,
-			PkgOpts:        &opts,
-			PkgManifestSHA: sha,
-			TmpDir:         opts.PackageSource,
-			Remote:         remote.OrasRemote,
-			nsOverrides:    nsOverrides,
-			bundleCfg:      bundleCfg,
+			Pkg:                     pkg,
+			PkgOpts:                 &opts,
+			PkgManifestSHA:          sha,
+			TmpDir:                  opts.PackageSource,
+			Remote:                  remote.OrasRemote,
+			nsOverrides:             nsOverrides,
+			bundleCfg:               bundleCfg,
+			PublicKeyPath:           opts.PublicKeyPath,
+			SkipSignatureValidation: opts.SkipSignatureValidation,
 		}
 	}
 	return source, nil
