@@ -62,9 +62,9 @@ tasks:
       - cmd: rm -fr tmp && git clone --depth=1 https://github.com/defenseunicorns/uds-core.git tmp/uds-core
         description: clone UDS Core
       - cmd: |
-          uds zarf tools kubectl apply -f tmp/uds-core/src/pepr/uds-cluster-crds/templates/clusterconfig.uds.dev.yaml
-          uds zarf tools kubectl create namespace pepr-system
-          uds zarf tools kubectl apply -f - <<EOF
+          ./build/uds zarf tools kubectl apply -f tmp/uds-core/src/pepr/uds-cluster-crds/templates/clusterconfig.uds.dev.yaml
+          ./build/uds zarf tools kubectl create namespace pepr-system
+          ./build/uds zarf tools kubectl apply -f - <<EOF
           apiVersion: uds.dev/v1alpha1
           kind: ClusterConfig
           metadata:
