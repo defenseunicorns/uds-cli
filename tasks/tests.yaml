@@ -83,7 +83,7 @@ tasks:
             policy:
               allowAllNsExemptions: false
           EOF
-          uds zarf tools kubectl apply -f - <<EOF
+          build/uds zarf tools kubectl apply -f - <<EOF
           apiVersion: v1
           kind: Secret
           metadata:
