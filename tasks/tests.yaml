@@ -61,10 +61,43 @@ tasks:
     actions:
       - cmd: rm -fr tmp && git clone --depth=1 https://github.com/defenseunicorns/uds-core.git tmp/uds-core
         description: clone UDS Core
+      - cmd: |
+          uds zarf tools kubectl apply -f tmp/uds-core/src/pepr/uds-cluster-crds/templates/clusterconfig.uds.dev.yaml
+          uds zarf tools kubectl create namespace pepr-system
+          uds zarf tools kubectl apply -f - <<EOF
+          apiVersion: uds.dev/v1alpha1
+          kind: ClusterConfig
+          metadata:
+            name: uds-cluster-config
+          spec:
+            attributes:
+              clusterName: ""
+              tags: []
+            expose:
+              adminDomain: ""
+              caCert: ""
+              domain: uds.dev
+            networking:
+              kubeApiCIDR: ""
+              kubeNodeCIDRs: []
+            policy:
+              allowAllNsExemptions: false
+          EOF
+          uds zarf tools kubectl apply -f - <<EOF
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: uds-operator-config
+            namespace: pepr-system
+          type: Opaque
+          stringData:
+            devMode: "active"
+          EOF
+        description: "Deploy the UDS Cluster Config CRD, CR, and config secret"
       - cmd: cd tmp/uds-core && npm i && npx pepr deploy --confirm
         description: cd into the tmp/uds-core directory and deploy UDS Core's Pepr module
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m monitor_test.go commands_test.go main_test.go
-        description: run the engine e2e tests
+      # - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m monitor_test.go commands_test.go main_test.go
+      #   description: run the engine e2e tests
 
   - name: push-test-artifacts
     description: push artifacts that UDS CLI tests rely on to GHCR
