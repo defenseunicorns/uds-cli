@@ -6,16 +6,17 @@ package lang
 
 const (
 	// root UDS-CLI cmds
-	RootCmdShort              = "CLI for UDS Bundles"
-	RootCmdFlagSkipLogFile    = "Disable log file creation"
-	RootCmdFlagNoProgress     = "Disable fancy UI progress bars, spinners, logos, etc"
-	RootCmdFlagCachePath      = "Specify the location of the UDS cache directory"
-	RootCmdFlagTempDir        = "Specify the temporary directory to use for intermediate files"
-	RootCmdFlagInsecure       = "Allow access to insecure registries and disable other recommended security enforcements such as package checksum and signature validation. This flag should only be used if you have a specific reason and accept the reduced security posture."
-	RootCmdFlagNoColor        = "Disable color output"
-	RootCmdFlagLogLevel       = "Log level when running UDS-CLI. Valid options are: warn, info, debug, trace"
-	RootCmdErrInvalidLogLevel = "Invalid log level. Valid options are: warn, info, debug, trace."
-	RootCmdFlagArch           = "Architecture for UDS bundles and Zarf packages"
+	RootCmdShort                       = "CLI for UDS Bundles"
+	RootCmdFlagSkipLogFile             = "Disable log file creation"
+	RootCmdFlagNoProgress              = "Disable fancy UI progress bars, spinners, logos, etc"
+	RootCmdFlagCachePath               = "Specify the location of the UDS cache directory"
+	RootCmdFlagTempDir                 = "Specify the temporary directory to use for intermediate files"
+	RootCmdFlagInsecure                = "Allow access to insecure registries and disable other recommended security enforcements such as package checksum and signature validation. This flag should only be used if you have a specific reason and accept the reduced security posture."
+	RootCmdFlagSkipSignatureValidation = "Skip signature validation for packages"
+	RootCmdFlagNoColor                 = "Disable color output"
+	RootCmdFlagLogLevel                = "Log level when running UDS-CLI. Valid options are: warn, info, debug, trace"
+	RootCmdErrInvalidLogLevel          = "Invalid log level. Valid options are: warn, info, debug, trace."
+	RootCmdFlagArch                    = "Architecture for UDS bundles and Zarf packages"
 
 	// completion
 	CompletionCmdShort          = "Generate the autocompletion script for the specified shell"
