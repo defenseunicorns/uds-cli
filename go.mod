@@ -14,7 +14,7 @@ require (
 	github.com/goccy/go-yaml v1.18.0
 	github.com/mholt/archives v0.1.3
 	github.com/opencontainers/image-spec v1.1.1
-	github.com/pterm/pterm v0.12.81
+	github.com/pterm/pterm v0.12.79
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
