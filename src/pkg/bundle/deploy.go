@@ -26,6 +26,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/state"
+	zarfState "github.com/zarf-dev/zarf/src/pkg/state"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"golang.org/x/exp/slices"
@@ -177,6 +178,18 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			pkgExportedVars[strings.ToUpper(exp.Name)] = setVariable.Value
 		}
 		bundleExportedVars[pkg.Name] = pkgExportedVars
+
+		if !pkgLayout.Pkg.IsInitConfig() {
+			connectStrings := zarfState.ConnectStrings{}
+			for _, comp := range result.DeployedComponents {
+				for _, chart := range comp.InstalledCharts {
+					for k, v := range chart.ConnectStrings {
+						connectStrings[k] = v
+					}
+				}
+			}
+			message.PrintConnectStringTable(connectStrings)
+		}
 	}
 	return nil
 }

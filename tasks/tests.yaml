@@ -94,7 +94,7 @@ tasks:
             devMode: "active"
           EOF
         description: "Deploy the UDS Cluster Config CRD, CR, and config secret"
-      - cmd: cd tmp/uds-core && npm i && npx pepr deploy --confirm
+      - cmd: cd tmp/uds-core && npm i && npx pepr deploy --yes
         description: cd into the tmp/uds-core directory and deploy UDS Core's Pepr module
       - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m monitor_test.go commands_test.go main_test.go
         description: run the engine e2e tests
