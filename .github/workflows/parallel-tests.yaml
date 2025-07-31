@@ -27,11 +27,14 @@ jobs:
       - name: Install UDS CLI
         uses: ./.github/actions/install-uds-cli
 
-      # Conditional step to fetch zarf@main
+      # Conditional step to fetch zarf@main and update bundles that hardcode the ref
       - name: Fetch Zarf Package
         if: ${{ inputs.fetch_zarf }}
         run: |
           go get -d github.com/zarf-dev/zarf@main
+          ZARF_VERSION=$(go list -m all | grep github.com/zarf-dev/zarf | awk '{print $2}')
+          yq eval "(.packages[] | select(.name == \"init\")).ref = \"$ZARF_VERSION\"" -i src/test/bundles/04-init/uds-bundle.yaml
+          yq eval "(.packages[] | select(.name == \"init\")).ref = \"$ZARF_VERSION\"" -i src/test/bundles/14-optional-components/uds-bundle.yaml
 
       - name: Build CLI
         run: |
