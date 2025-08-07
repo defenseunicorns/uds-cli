@@ -31,8 +31,8 @@ jobs:
       - name: Fetch Zarf Package
         if: ${{ inputs.fetch_zarf }}
         run: |
-          go get -d github.com/zarf-dev/zarf@main
-          ZARF_VERSION=$(go list -m all | grep github.com/zarf-dev/zarf | awk '{print $2}')
+          go get github.com/zarf-dev/zarf@main
+          ZARF_VERSION=$(go list -m -json github.com/zarf-dev/zarf | jq -r .Version)
           yq eval "(.packages[] | select(.name == \"init\")).ref = \"$ZARF_VERSION\"" -i src/test/bundles/04-init/uds-bundle.yaml
           yq eval "(.packages[] | select(.name == \"init\")).ref = \"$ZARF_VERSION\"" -i src/test/bundles/14-optional-components/uds-bundle.yaml
 
