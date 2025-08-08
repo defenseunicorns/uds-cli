@@ -371,7 +371,7 @@ The naming conventions for deploying duplicate packages are as follows:
 1. In order to deploy duplicates of local packages, the `path` field must point to a Zarf package tarball instead of to a folder.
 
 :::note
-Today the duplicate packages feature is only supported for packages with Helm charts. This is because Helm charts' [namespaces can be overridden](https://github.com/defenseunicorns/uds-cli/blob/main/docs/overrides.md) at deploy time.
+Today the duplicate packages feature is only supported for packages with Helm charts. This is because Helm charts' [namespaces can be overridden](https://github.com/defenseunicorns/uds-cli/blob/main/docs/reference/bundles/overrides.md) at deploy time.
 :::
 
 ## Zarf Integration
