@@ -58,13 +58,13 @@ func TestPackagesFlag(t *testing.T) {
 	})
 
 	t.Run("Test invalid package deploy", func(t *testing.T) {
-		_, stderr, _ := runCmdWithErr(fmt.Sprintf("deploy %s --confirm -l=debug --packages %s", bundlePath, "podinfo,nginx,peanuts"))
-		require.Contains(t, stderr, "invalid zarf packages specified by --packages")
+		stdout, _, _ := runCmdWithErr(fmt.Sprintf("deploy %s --confirm -l=debug --packages %s", bundlePath, "podinfo,nginx,peanuts"))
+		require.Contains(t, stdout, "invalid zarf packages specified by --packages")
 	})
 
 	t.Run("Test invalid package remove", func(t *testing.T) {
-		_, stderr, _ := runCmdWithErr(fmt.Sprintf("remove %s --confirm --insecure --packages %s", bundlePath, "podinfo,nginx,peanuts"))
-		require.Contains(t, stderr, "invalid zarf packages specified by --packages")
+		stdout, _, _ := runCmdWithErr(fmt.Sprintf("remove %s --confirm --insecure --packages %s", bundlePath, "podinfo,nginx,peanuts"))
+		require.Contains(t, stdout, "invalid zarf packages specified by --packages")
 	})
 }
 
