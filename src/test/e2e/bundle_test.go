@@ -246,10 +246,10 @@ func TestSimplePackagesWithSBOMs(t *testing.T) {
 	runCmd(t, fmt.Sprintf("create %s --confirm -a %s", bundleDir, e2e.Arch))
 
 	t.Run("test local bundle with simple packages and no SBOMs", func(t *testing.T) {
-		_, stderr := runCmd(t, fmt.Sprintf("inspect %s --sbom", bundlePath))
-		require.Contains(t, stderr, "No SBOMs found in bundle")
-		_, stderr = runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", bundlePath))
-		require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
+		stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --sbom", bundlePath))
+		require.Contains(t, stdout, "No SBOMs found in bundle")
+		stdout, _ = runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", bundlePath))
+		require.Contains(t, stdout, "Cannot extract, no SBOMs found in bundle")
 	})
 
 	t.Run("test remote bundle with simple packages and no SBOMs", func(t *testing.T) {
@@ -260,10 +260,10 @@ func TestSimplePackagesWithSBOMs(t *testing.T) {
 
 		// inspect bundle for sboms
 		remoteBundlePath := "localhost:888/multiple-simple:0.0.1"
-		_, stderr := runCmd(t, fmt.Sprintf("inspect %s --insecure --sbom", remoteBundlePath))
-		require.Contains(t, stderr, "No SBOMs found in bundle")
-		_, stderr = runCmd(t, fmt.Sprintf("inspect %s --insecure --sbom --extract", remoteBundlePath))
-		require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
+		stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --insecure --sbom", remoteBundlePath))
+		require.Contains(t, stdout, "No SBOMs found in bundle")
+		stdout, _ = runCmd(t, fmt.Sprintf("inspect %s --insecure --sbom --extract", remoteBundlePath))
+		require.Contains(t, stdout, "Cannot extract, no SBOMs found in bundle")
 	})
 }
 
@@ -275,8 +275,8 @@ func TestLocalBundleWithNoSBOM(t *testing.T) {
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-yml-example-%s-0.0.1.tar.zst", e2e.Arch))
 	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 
-	_, stderr := runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", bundlePath))
-	require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
+	stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", bundlePath))
+	require.Contains(t, stdout, "Cannot extract, no SBOMs found in bundle")
 }
 
 func TestRemoteBundleWithNoSBOM(t *testing.T) {
@@ -292,8 +292,8 @@ func TestRemoteBundleWithNoSBOM(t *testing.T) {
 	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 	runCmd(t, fmt.Sprintf("publish %s %s --insecure", bundlePath, "localhost:888"))
 
-	_, stderr := runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", bundlePath))
-	require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
+	stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --sbom --extract", bundlePath))
+	require.Contains(t, stdout, "Cannot extract, no SBOMs found in bundle")
 }
 
 func TestPackageNaming(t *testing.T) {
@@ -446,10 +446,10 @@ func TestInvalidConfig(t *testing.T) {
 	defer os.Unsetenv("UDS_CONFIG")
 	zarfPkgPath := "src/test/packages/helm"
 	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
-	_, stdErr, _ := runCmdWithErr(fmt.Sprintf("zarf package create %s -o %s --confirm", zarfPkgPath, zarfPkgPath))
-	count := strings.Count(stdErr, "invalid config option: log_levelx")
+	stdout, _, _ := runCmdWithErr(fmt.Sprintf("zarf package create %s -o %s --confirm", zarfPkgPath, zarfPkgPath))
+	count := strings.Count(stdout, "invalid config option: log_levelx")
 	require.Equal(t, 1, count, "The string 'invalid config option: log_levelx' should appear exactly once")
-	require.NotContains(t, stdErr, "Usage:")
+	require.NotContains(t, stdout, "Usage:")
 }
 
 func TestInvalidBundle(t *testing.T) {
@@ -458,8 +458,8 @@ func TestInvalidBundle(t *testing.T) {
 	e2e.HelmDepUpdate(t, fmt.Sprintf("%s/unicorn-podinfo", zarfPkgPath))
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 	bundleDir := "src/test/bundles/07-helm-overrides/invalid"
-	_, stderr, _ := runCmdWithErr(fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
-	require.Contains(t, stderr, "unknown field")
+	stdout, _, _ := runCmdWithErr(fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
+	require.Contains(t, stdout, "unknown field")
 }
 
 func TestArchCheck(t *testing.T) {
@@ -477,8 +477,8 @@ func TestArchCheck(t *testing.T) {
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-helm-overrides-%s-0.0.1.tar.zst", testArch))
 	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, testArch))
 
-	_, stderr, _ := runCmdWithErr(fmt.Sprintf("deploy %s --confirm", bundlePath))
-	require.Contains(t, stderr, fmt.Sprintf("arch %s does not match cluster arch, [%s]", testArch, e2e.Arch))
+	stdout, _, _ := runCmdWithErr(fmt.Sprintf("deploy %s --confirm", bundlePath))
+	require.Contains(t, stdout, fmt.Sprintf("arch %s does not match cluster arch, [%s]", testArch, e2e.Arch))
 }
 
 func TestListImages(t *testing.T) {
