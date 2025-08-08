@@ -56,6 +56,12 @@ func (d *DebugWriter) Write(raw []byte) (int, error) {
 
 func init() {
 	InitializePTerm(os.Stderr)
+
+	pterm.Warning.Writer = os.Stderr
+	pterm.Error.Writer = os.Stderr
+	pterm.Info.Writer = os.Stderr
+	pterm.Debug.Writer = os.Stderr
+	pterm.Success.Writer = os.Stderr
 }
 
 // InitializePTerm sets the default styles and output for pterm.
