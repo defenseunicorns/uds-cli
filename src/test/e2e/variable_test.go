@@ -23,16 +23,16 @@ func TestBundleVariables(t *testing.T) {
 	t.Run("simple vars and global export", func(t *testing.T) {
 		bundleDir := "src/test/bundles/02-variables"
 		bundleTarballPath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-variables-%s-0.0.1.tar.zst", e2e.Arch))
-		stdout, _ := runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
-		require.Contains(t, stdout, "failed strict unmarshalling")
-		_, stderr := runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundleTarballPath))
+		_, stderr := runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
+		require.Contains(t, stderr, "failed strict unmarshalling")
+		_, stderr = runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundleTarballPath))
 		bundleVariablesTestChecks(t, stderr, bundleTarballPath)
 	})
 
 	t.Run("bad var name in import", func(t *testing.T) {
 		bundleDir := "src/test/bundles/02-variables/bad-var-name"
-		stdout, _, _ := runCmdWithErr(fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
-		require.Contains(t, stdout, "does not have a matching export")
+		_, stderr, _ := runCmdWithErr(fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
+		require.Contains(t, stderr, "does not have a matching export")
 	})
 
 	t.Run("var name collision with exported vars", func(t *testing.T) {
