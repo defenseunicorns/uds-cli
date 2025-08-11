@@ -72,6 +72,27 @@ func deploy(ctx context.Context, bndlClient *bundle.Bundle) error {
 	return nil
 }
 
+// deploy performs validation, confirmation and deployment of a bundle
+func mirror(ctx context.Context, bndlClient *bundle.Bundle) error {
+	_, _, _, err := bndlClient.PreDeployValidation()
+	if err != nil {
+		return fmt.Errorf("failed to validate bundle: %s", err.Error())
+	}
+
+	// confirm deployment
+	if ok := bndlClient.ConfirmBundleDeploy(); !ok {
+		return errors.New("bundle deployment cancelled")
+	}
+
+	// deploy the bundle
+	if err := bndlClient.Mirror(ctx); err != nil {
+		bndlClient.ClearPaths()
+		return fmt.Errorf("failed to deploy bundle: %s", err.Error())
+	}
+
+	return nil
+}
+
 // configureZarf copies configs from UDS-CLI to Zarf
 func configureZarf() {
 	zarfConfig.CommonOptions = zarfTypes.ZarfCommonOptions{
