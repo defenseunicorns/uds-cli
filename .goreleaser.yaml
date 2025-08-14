@@ -111,3 +111,16 @@ git:
   # Templates: allowed.
   ignore_tags:
     - nightly-unstable
+
+# UPX compression to minimize binary size
+upx:
+  - enabled: true
+    compress: best
+    lzma: true
+    brute: false
+    goos:
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
