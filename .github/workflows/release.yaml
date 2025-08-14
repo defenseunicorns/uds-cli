@@ -38,6 +38,11 @@ jobs:
       - name: Install tools
         uses: ./.github/actions/install-tools
 
+      - name: Install UPX
+        uses: crazy-max/ghaction-upx@v3
+        with:
+          install-only: true
+
       - name: Download build artifacts
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
