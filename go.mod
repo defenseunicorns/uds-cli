@@ -18,7 +18,7 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
-	github.com/zarf-dev/zarf v0.60.0
+	github.com/zarf-dev/zarf v0.61.0
 	golang.org/x/exp v0.0.0-20250808145144-a408d31f581a
 	golang.org/x/mod v0.27.0
 	golang.org/x/sync v0.16.0
