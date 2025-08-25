@@ -1,6 +1,6 @@
 module github.com/defenseunicorns/uds-cli
 
-go 1.24.4
+go 1.24.6
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
@@ -18,14 +18,14 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
-	github.com/zarf-dev/zarf v0.60.0
+	github.com/zarf-dev/zarf v0.61.0
 	golang.org/x/exp v0.0.0-20250808145144-a408d31f581a
 	golang.org/x/mod v0.27.0
 	golang.org/x/sync v0.16.0
-	helm.sh/helm/v3 v3.18.4
-	k8s.io/api v0.33.3
-	k8s.io/apimachinery v0.33.3
-	k8s.io/client-go v0.33.3
+	helm.sh/helm/v3 v3.18.6
+	k8s.io/api v0.33.4
+	k8s.io/apimachinery v0.33.4
+	k8s.io/client-go v0.33.4
 	oras.land/oras-go/v2 v2.6.0
 )
 
@@ -119,7 +119,7 @@ require (
 	github.com/anchore/grype v0.95.0 // indirect
 	github.com/anchore/packageurl-go v0.1.1-0.20250220190351-d62adb6e1115 // indirect
 	github.com/anchore/stereoscope v0.1.8 // indirect
-	github.com/anchore/syft v1.29.1 // indirect
+	github.com/anchore/syft v1.31.0 // indirect
 	github.com/andybalholm/brotli v1.1.2-0.20250424173009-453214e765f3 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/aquasecurity/go-pep440-version v0.0.1 // indirect
@@ -232,7 +232,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20210407135951-1de76d718b3f // indirect
 	github.com/facebookincubator/nvdtools v0.1.5 // indirect
-	github.com/fairwindsops/pluto/v5 v5.22.2 // indirect
+	github.com/fairwindsops/pluto/v5 v5.22.5 // indirect
 	github.com/fatih/camelcase v1.0.0 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/felixge/fgprof v0.9.5 // indirect
@@ -445,6 +445,7 @@ require (
 	github.com/sagikazarmark/locafero v0.9.0 // indirect
 	github.com/sahilm/fuzzy v0.1.1 // indirect
 	github.com/saintfish/chardet v0.0.0-20230101081208-5e3ef4b5456d // indirect
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/sassoftware/go-rpmutils v0.4.0 // indirect
 	github.com/sassoftware/relic v7.2.1+incompatible // indirect
 	github.com/scylladb/go-set v1.0.3-0.20200225121959-cc7b2070d91e // indirect
@@ -557,15 +558,15 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/gorm v1.30.0 // indirect
-	k8s.io/apiextensions-apiserver v0.33.2 // indirect
-	k8s.io/apiserver v0.33.2 // indirect
-	k8s.io/cli-runtime v0.33.3 // indirect
-	k8s.io/component-base v0.33.3 // indirect
-	k8s.io/component-helpers v0.33.3 // indirect
+	k8s.io/apiextensions-apiserver v0.33.3 // indirect
+	k8s.io/apiserver v0.33.3 // indirect
+	k8s.io/cli-runtime v0.33.4 // indirect
+	k8s.io/component-base v0.33.4 // indirect
+	k8s.io/component-helpers v0.33.4 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff // indirect
-	k8s.io/kubectl v0.33.3 // indirect
-	k8s.io/metrics v0.33.3 // indirect
+	k8s.io/kubectl v0.33.4 // indirect
+	k8s.io/metrics v0.33.4 // indirect
 	k8s.io/utils v0.0.0-20250502105355-0f33e8f1c979 // indirect
 	modernc.org/libc v1.66.3 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
