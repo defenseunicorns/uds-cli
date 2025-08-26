@@ -59,7 +59,7 @@ func TestDevDeploy(t *testing.T) {
 	})
 
 	t.Run("Test dev deploy with flavor flag", func(t *testing.T) {
-		e2e.DeleteZarfPkg(t, "src/test/packages/podinfo/flavors")
+		e2e.CreateZarfPkg(t, "src/test/packages/podinfo/flavors", false)
 		bundleDir := "src/test/bundles/15-dev-deploy"
 
 		runCmd(t, fmt.Sprintf("dev deploy %s --flavor %s", bundleDir, "podinfo=patchVersion3"))
