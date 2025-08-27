@@ -232,14 +232,14 @@ func getPkgPath(pkg types.Package, arch string, manifestPath string) (string, er
 
 	packageSuffix := ".tar.zst"
 	if pkg.Flavor != "" {
-		packageSuffix = fmt.Sprintf("%s.tar.zst", pkg.Flavor)
+		packageSuffix = fmt.Sprintf("-%s.tar.zst", pkg.Flavor)
 	}
 
 	var fileName string
 	if pkg.Name == "init" {
-		fileName = fmt.Sprintf("zarf-%s-%s-%s-%s", pkg.Name, arch, pkg.Ref, packageSuffix)
+		fileName = fmt.Sprintf("zarf-%s-%s-%s%s", pkg.Name, arch, pkg.Ref, packageSuffix)
 	} else {
-		fileName = fmt.Sprintf("zarf-package-%s-%s-%s-%s", pkg.Name, arch, pkg.Ref, packageSuffix)
+		fileName = fmt.Sprintf("zarf-package-%s-%s-%s%s", pkg.Name, arch, pkg.Ref, packageSuffix)
 	}
 
 	return filepath.Join(absBase, fileName), nil
