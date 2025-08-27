@@ -99,6 +99,7 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 
 	// validate access to packages as well as components referenced in the package
 	for idx, pkg := range bundle.Packages {
+		pkg = b.setPackageFlavor(pkg)
 		spinner.Updatef("Validating Bundle Package: %s", pkg.Name)
 		if pkg.Name == "" {
 			return fmt.Errorf("%v is missing required field: name", pkg)
@@ -229,11 +230,16 @@ func getPkgPath(pkg types.Package, arch string, manifestPath string) (string, er
 		return absBase, nil
 	}
 
+	packageSuffix := ".tar.zst"
+	if pkg.Flavor != "" {
+		packageSuffix = fmt.Sprintf("%s.tar.zst", pkg.Flavor)
+	}
+
 	var fileName string
 	if pkg.Name == "init" {
-		fileName = fmt.Sprintf("zarf-%s-%s-%s.tar.zst", pkg.Name, arch, pkg.Ref)
+		fileName = fmt.Sprintf("zarf-%s-%s-%s-%s", pkg.Name, arch, pkg.Ref, packageSuffix)
 	} else {
-		fileName = fmt.Sprintf("zarf-package-%s-%s-%s.tar.zst", pkg.Name, arch, pkg.Ref)
+		fileName = fmt.Sprintf("zarf-package-%s-%s-%s-%s", pkg.Name, arch, pkg.Ref, packageSuffix)
 	}
 
 	return filepath.Join(absBase, fileName), nil

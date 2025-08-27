@@ -28,6 +28,7 @@ func (b *Bundle) CreateZarfPkgs() error {
 
 	zarfPackagePattern := `^zarf-.*\.tar\.zst$`
 	for _, pkg := range b.bundle.Packages {
+		pkg = b.setPackageFlavor(pkg)
 		// Can only set flavors for local packages
 		if pkg.Path == "" {
 			// check if attempting to apply flavor to remote package
@@ -62,7 +63,6 @@ func (b *Bundle) CreateZarfPkgs() error {
 			// create local zarf package if it doesn't exist
 			if !packageFound || b.cfg.DevDeployOpts.ForceCreate {
 				if len(b.cfg.DevDeployOpts.Flavor) != 0 {
-					pkg = b.setPackageFlavor(pkg)
 					os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom", "--flavor", pkg.Flavor}
 				} else {
 					os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom"}
