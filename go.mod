@@ -18,7 +18,7 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
-	github.com/zarf-dev/zarf v0.61.1
+	github.com/zarf-dev/zarf v0.61.2
 	golang.org/x/exp v0.0.0-20250808145144-a408d31f581a
 	golang.org/x/mod v0.27.0
 	golang.org/x/sync v0.16.0
@@ -491,7 +491,7 @@ require (
 	github.com/transparency-dev/formats v0.0.0-20250421220931-bb8ad4d07c26 // indirect
 	github.com/transparency-dev/merkle v0.0.2 // indirect
 	github.com/transparency-dev/tessera v0.2.1-0.20250610150926-8ee4e93b2823 // indirect
-	github.com/ulikunitz/xz v0.5.12 // indirect
+	github.com/ulikunitz/xz v0.5.14 // indirect
 	github.com/vbatts/go-mtree v0.5.4 // indirect
 	github.com/vbatts/tar-split v0.12.1 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.28 // indirect
