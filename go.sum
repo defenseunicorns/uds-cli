@@ -2263,8 +2263,8 @@ github.com/transparency-dev/tessera v0.2.1-0.20250610150926-8ee4e93b2823/go.mod 
 github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926/go.mod h1:9ESjWnEqriFuLhtthL60Sar/7RFoluCcXsuvEwTV5KM=
 github.com/ulikunitz/xz v0.5.8/go.mod h1:nbz6k7qbPmH4IRqmfOplQw/tblSgqTqBwxkY0oWt/14=
 github.com/ulikunitz/xz v0.5.10/go.mod h1:nbz6k7qbPmH4IRqmfOplQw/tblSgqTqBwxkY0oWt/14=
-github.com/ulikunitz/xz v0.5.12 h1:37Nm15o69RwBkXM0J6A5OlE67RZTfzUxTj8fB3dfcsc=
-github.com/ulikunitz/xz v0.5.12/go.mod h1:nbz6k7qbPmH4IRqmfOplQw/tblSgqTqBwxkY0oWt/14=
+github.com/ulikunitz/xz v0.5.14 h1:uv/0Bq533iFdnMHZdRBTOlaNMdb1+ZxXIlHDZHIHcvg=
+github.com/ulikunitz/xz v0.5.14/go.mod h1:nbz6k7qbPmH4IRqmfOplQw/tblSgqTqBwxkY0oWt/14=
 github.com/vbatts/go-mtree v0.5.4 h1:OMAb8jaCyiFA7zXj0Zc/oARcxBDBoeu2LizjB8BVJl0=
 github.com/vbatts/go-mtree v0.5.4/go.mod h1:5GqJbVhm9BBiCc4K5uc/c42FPgXulHaQs4sFUEfIWMo=
 github.com/vbatts/tar-split v0.12.1 h1:CqKoORW7BUWBe7UL/iqTVvkTBOF8UvOMKOIZykxnnbo=
@@ -2327,8 +2327,8 @@ github.com/yuin/gopher-lua v1.1.1 h1:kYKnWBjvbNP4XLT3+bPEwAXJx262OhaHDWDVOPjL46M
 github.com/yuin/gopher-lua v1.1.1/go.mod h1:GBR0iDaNXjAgGg9zfCvksxSRnQx76gclCIb7kdAd1Pw=
 github.com/zalando/go-keyring v0.2.6 h1:r7Yc3+H+Ux0+M72zacZoItR3UDxeWfKTcabvkI8ua9s=
 github.com/zalando/go-keyring v0.2.6/go.mod h1:2TCrxYrbUNYfNS/Kgy/LSrkSQzZ5UPVH85RwfczwvcI=
-github.com/zarf-dev/zarf v0.61.1 h1:j0zSXFRW23CtPXFiaTahlZZj4klTZRLtww+sDyqjt6Q=
-github.com/zarf-dev/zarf v0.61.1/go.mod h1:Os4oTuduINuNd2C7jp1NP+evAqz9f4hvVneOlaMZdMc=
+github.com/zarf-dev/zarf v0.61.2 h1:NN3YA9MD3zoA38O3GN2HdZPwont/tovnoYE3ntkRbZI=
+github.com/zarf-dev/zarf v0.61.2/go.mod h1:nLLT/IFNMQruv50CPo3ipd7rUeMZDog3Nv01saZM0ZU=
 github.com/zclconf/go-cty v1.14.0/go.mod h1:VvMs5i0vgZdhYawQNq5kePSpLAoz8u1xvZgrPIxfnZE=
 github.com/zclconf/go-cty v1.16.3 h1:osr++gw2T61A8KVYHoQiFbFd1Lh3JOCXc/jFLJXKTxk=
 github.com/zclconf/go-cty v1.16.3/go.mod h1:VvMs5i0vgZdhYawQNq5kePSpLAoz8u1xvZgrPIxfnZE=
