@@ -200,7 +200,7 @@ var pullCmd = &cobra.Command{
 
 		// ensure we can create files in the directory the pulled bundle will be placed
 		if !utils.CanWriteToDir(bundleCfg.PullOpts.OutputDirectory) {
-			return fmt.Errorf("failed to pull bundle: unable to write to output directory '%s'", bundleCfg.PullOpts.OutputDirectory)
+			return fmt.Errorf("failed to pull bundle: unable to write to output directory %q", bundleCfg.PullOpts.OutputDirectory)
 		}
 
 		if err := bndlClient.Pull(); err != nil {

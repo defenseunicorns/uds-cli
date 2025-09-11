@@ -65,7 +65,7 @@ func (lo *LocalBundle) create(ctx context.Context, signature []byte) error {
 	store, err := ocistore.NewWithContext(context.TODO(), lo.tmpDstDir)
 
 	if !utils.CanWriteToDir(lo.outputDir) {
-		return fmt.Errorf("failed to create bundle: unable to write to output directory '%s'", lo.outputDir)
+		return fmt.Errorf("failed to create bundle: unable to write to output directory %q", lo.outputDir)
 	}
 
 	message.HeaderInfof("🐕 Fetching Packages")
