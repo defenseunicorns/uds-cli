@@ -320,7 +320,7 @@ func CanWriteToDir(dir string) error {
 		return err
 	}
 
-	// we don't care much for errors on closing & removing, we only want to validate that we can write to this dir
+	// we don't care much for errors on closing & removing, we only want to validate that we can create
 	_ = file.Close()
 	_ = os.Remove((file.Name()))
 
