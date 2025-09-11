@@ -312,3 +312,17 @@ func JSONValue(value any) (string, error) {
 	}
 	return string(bytes), nil
 }
+
+// CanWriteToDir verifies the process can write to the provided directory
+func CanWriteToDir(dir string) error {
+	file, err := os.CreateTemp(dir, ".permcheck")
+	if err != nil {
+		return err
+	}
+
+	// we don't care much for errors on closing & removing, we only want to validate that we can create
+	_ = file.Close()
+	_ = os.Remove((file.Name()))
+
+	return nil
+}
