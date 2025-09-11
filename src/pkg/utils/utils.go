@@ -319,8 +319,10 @@ func CanWriteToDir(dir string) bool {
 	if err != nil {
 		return false
 	}
-	file.Close()
-	os.Remove((file.Name()))
+
+	// we don't care much for errors on closing & removing, we only want to validate that we can write to this dir
+	_ = file.Close()
+	_ = os.Remove((file.Name()))
 
 	return true
 }
