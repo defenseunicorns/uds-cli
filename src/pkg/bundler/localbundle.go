@@ -64,6 +64,10 @@ func (lo *LocalBundle) create(ctx context.Context, signature []byte) error {
 	}
 	store, err := ocistore.NewWithContext(context.TODO(), lo.tmpDstDir)
 
+	if !utils.CanWriteToDir(lo.outputDir) {
+		return fmt.Errorf("failed to create bundle: unable to write to output directory '%s'", lo.outputDir)
+	}
+
 	message.HeaderInfof("🐕 Fetching Packages")
 
 	// create root manifest for bundle, will populate with ref to uds-bundle.yaml and zarf image manifests
