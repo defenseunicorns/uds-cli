@@ -283,7 +283,7 @@ func setTemplatedVariables(templatedVariables string, pkgVars bOverridesData) st
 		if data, ok := pkgVars[strings.ToUpper(variableName)]; ok {
 			return fmt.Sprint(data.value)
 		}
-		return fmt.Sprintf("${%s_not_found}", variableName)
+		return fmt.Sprintf("${%s}", variableName)
 	})
 	return replacedValue
 }
