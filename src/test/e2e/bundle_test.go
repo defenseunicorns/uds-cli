@@ -231,6 +231,8 @@ func TestLocalBundleWithOutput(t *testing.T) {
 
 	bundleDir := "src/test/bundles/09-uds-bundle-yml"
 	destDir := "src/test/test/"
+	os.MkdirAll(destDir, 0755)
+
 	bundlePath := filepath.Join(destDir, fmt.Sprintf("uds-bundle-yml-example-%s-0.0.1.tar.zst", e2e.Arch))
 	runCmd(t, fmt.Sprintf("create %s -o %s --insecure --confirm -a %s", bundleDir, destDir, e2e.Arch))
 	runCmd(t, fmt.Sprintf("inspect %s", bundlePath))
