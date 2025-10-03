@@ -315,6 +315,14 @@ func JSONValue(value any) (string, error) {
 
 // CanWriteToDir verifies the process can write to the provided directory
 func CanWriteToDir(dir string) error {
+	if dir == "" {
+		dir = "."
+	}
+
+	if err := os.MkdirAll(dir, 0o0755); err != nil {
+		return fmt.Errorf("failed to create directory %q: %w", dir, err)
+	}
+
 	file, err := os.CreateTemp(dir, ".permcheck")
 	if err != nil {
 		return err
@@ -322,7 +330,7 @@ func CanWriteToDir(dir string) error {
 
 	// we don't care much for errors on closing & removing, we only want to validate that we can create
 	_ = file.Close()
-	_ = os.Remove((file.Name()))
+	_ = os.Remove(file.Name())
 
 	return nil
 }
