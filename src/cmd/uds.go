@@ -15,6 +15,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/config/lang"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/spf13/cobra"
 
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
@@ -196,6 +197,11 @@ var pullCmd = &cobra.Command{
 			return err
 		}
 		defer bndlClient.ClearPaths()
+
+		// ensure we can create files in the directory the pulled bundle will be placed
+		if err := utils.CanWriteToDir(bundleCfg.PullOpts.OutputDirectory); err != nil {
+			return fmt.Errorf("failed to pull bundle: unable to write to output directory %q: %s", bundleCfg.PullOpts.OutputDirectory, err.Error())
+		}
 
 		if err := bndlClient.Pull(); err != nil {
 			bndlClient.ClearPaths()
