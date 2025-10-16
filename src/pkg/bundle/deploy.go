@@ -116,18 +116,9 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			InsecureSkipTLSVerify: config.CommonOptions.Insecure,
 		}
 
-		opts := zarfTypes.ZarfPackageOptions{
-			PackageSource:           pkgTmp,
-			OptionalComponents:      strings.Join(pkg.OptionalComponents, ","),
-			PublicKeyPath:           publicKeyPath,
-			SetVariables:            pkgVars,
-			Retries:                 b.cfg.DeployOpts.Retries,
-			SkipSignatureValidation: config.CommonOptions.SkipSignatureValidation,
-		}
-
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 
-		source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nsOverrides)
+		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, publicKeyPath, config.CommonOptions.SkipSignatureValidation, sha, nsOverrides)
 		if err != nil {
 			return err
 		}

@@ -24,7 +24,6 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
-	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 // NamespaceOverrideMap is a map of component names to a map of chart names to namespace overrides
@@ -32,7 +31,6 @@ type NamespaceOverrideMap = map[string]map[string]string
 
 // TarballBundle is a package source for local tarball bundles that implements Zarf's packager.PackageSource
 type TarballBundle struct {
-	PkgOpts                 *zarfTypes.ZarfPackageOptions
 	PkgManifestSHA          string
 	TmpDir                  string
 	BundleLocation          string
