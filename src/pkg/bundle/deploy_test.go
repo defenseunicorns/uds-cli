@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/state"
-	zarfState "github.com/zarf-dev/zarf/src/pkg/state"
 	"helm.sh/helm/v3/pkg/cli/values"
 )
 
@@ -622,12 +621,12 @@ func Test_newGitServerInfo(t *testing.T) {
 	tests := []struct {
 		name     string
 		pkgKind  v1alpha1.ZarfPackageKind
-		expected zarfState.GitServerInfo
+		expected state.GitServerInfo
 	}{
 		{
 			name:    "init config kind returns git server info",
 			pkgKind: v1alpha1.ZarfInitConfig,
-			expected: zarfState.GitServerInfo{
+			expected: state.GitServerInfo{
 				Address:      "fake.git",
 				PushUsername: "push-user",
 				PushPassword: "push-secret!",
@@ -638,12 +637,12 @@ func Test_newGitServerInfo(t *testing.T) {
 		{
 			name:     "package config kind returns empty git server info",
 			pkgKind:  v1alpha1.ZarfPackageConfig,
-			expected: zarfState.GitServerInfo{},
+			expected: state.GitServerInfo{},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			//t.Parallel()
+			t.Parallel()
 			actual := newGitServerInfo(pkgVars, tt.pkgKind)
 			require.Equal(t, tt.expected, actual)
 		})
@@ -673,12 +672,12 @@ func Test_newRegistryInfo(t *testing.T) {
 	tests := []struct {
 		name     string
 		pkgKind  v1alpha1.ZarfPackageKind
-		expected zarfState.RegistryInfo
+		expected state.RegistryInfo
 	}{
 		{
 			name:    "init config kind returns registry info",
 			pkgKind: v1alpha1.ZarfInitConfig,
-			expected: zarfState.RegistryInfo{
+			expected: state.RegistryInfo{
 				Address:      "fake.io",
 				PushUsername: "push-user",
 				PushPassword: "push-secret!",
@@ -691,7 +690,7 @@ func Test_newRegistryInfo(t *testing.T) {
 		{
 			name:     "package config kind returns empty registry info",
 			pkgKind:  v1alpha1.ZarfPackageConfig,
-			expected: zarfState.RegistryInfo{},
+			expected: state.RegistryInfo{},
 		},
 	}
 	for _, tt := range tests {
