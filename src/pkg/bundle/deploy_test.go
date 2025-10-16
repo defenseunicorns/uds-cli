@@ -600,7 +600,7 @@ func TestFilterOverrides(t *testing.T) {
 }
 
 func Test_newGitServerInfo(t *testing.T) {
-	?/t.Parallel()
+	t.Parallel()
 	pkgVars := zarfVarData{
 		"INIT_REGISTRY_URL":           "any",
 		"INIT_REGISTRY_PUSH_USERNAME": "any",
@@ -643,7 +643,7 @@ func Test_newGitServerInfo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+			//t.Parallel()
 			actual := newGitServerInfo(pkgVars, tt.pkgKind)
 			require.Equal(t, tt.expected, actual)
 		})
@@ -651,7 +651,7 @@ func Test_newGitServerInfo(t *testing.T) {
 }
 
 func Test_newRegistryInfo(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 	pkgVars := zarfVarData{
 		"INIT_REGISTRY_URL":           "fake.io",
 		"INIT_REGISTRY_PUSH_USERNAME": "push-user",
@@ -696,7 +696,7 @@ func Test_newRegistryInfo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			//t.Parallel()
+			t.Parallel()
 			actual := newRegistryInfo(pkgVars, tt.pkgKind)
 			require.Equal(t, tt.expected, actual)
 		})
@@ -704,7 +704,7 @@ func Test_newRegistryInfo(t *testing.T) {
 }
 
 func Test_newArtifactServerInfo(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 	pkgVars := zarfVarData{
 		"INIT_REGISTRY_URL":           "any",
 		"INIT_REGISTRY_PUSH_USERNAME": "any",
@@ -745,7 +745,7 @@ func Test_newArtifactServerInfo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			//t.Parallel()
+			t.Parallel()
 			actual := newArtifactServerInfo(pkgVars, tt.pkgKind)
 			require.Equal(t, tt.expected, actual)
 		})
@@ -753,7 +753,7 @@ func Test_newArtifactServerInfo(t *testing.T) {
 }
 
 func Test_newStorageClass(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 	pkgVars := zarfVarData{
 		"INIT_REGISTRY_URL":           "any",
 		"INIT_REGISTRY_PUSH_USERNAME": "any",
@@ -790,7 +790,7 @@ func Test_newStorageClass(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			//t.Parallel()
+			t.Parallel()
 			actual := newStorageClass(pkgVars, tt.pkgKind)
 			require.Equal(t, tt.expected, actual)
 		})
