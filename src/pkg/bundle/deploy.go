@@ -441,11 +441,26 @@ func formPkgMeta(pkg types.Package) map[string]string {
 }
 
 func addZarfVars(pkgVars map[string]overrideData, variables []interface{}) []interface{} {
+	// Built-in sensitive variables that should be sanitized
+	sensitiveBuiltInVars := map[string]bool{
+		config.RegistryPushUsername: true,
+		config.RegistryPushPassword: true,
+		config.RegistryPullUsername: true,
+		config.RegistryPullPassword: true,
+		config.RegistrySecretName:   true,
+		config.GitPushUsername:      true,
+		config.GitPushPassword:      true,
+		config.GitPullUsername:      true,
+		config.GitPullPassword:      true,
+		config.ArtifactPushUsername: true,
+		config.ArtifactPushToken:    true,
+	}
+
 	for key, fv := range pkgVars {
 		// "CONFIG" refers to "UDS_CONFIG" which is not a Zarf variable or override so we skip it
 		if key != "CONFIG" {
-			// Mask potentially secret ENV vars
-			if fv.source == valuesources.Env {
+			// Mask potentially secret ENV vars or built-in sensitive variables
+			if fv.source == valuesources.Env || sensitiveBuiltInVars[key] {
 				fv.value = hiddenVar
 			}
 			variables = append(variables, map[string]interface{}{key: fv.value})
