@@ -17,12 +17,10 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"helm.sh/helm/v3/pkg/cli/values"
 	"helm.sh/helm/v3/pkg/getter"
 )
-
-// pkgOverrideMap is a map of Zarf packages -> components -> Helm charts -> values/namespace
-type pkgOverrideMap map[string]map[string]map[string]interface{}
 
 // templatedVarRegex is the regex for templated variables
 var templatedVarRegex = regexp.MustCompile(`\${([^}]+)}`)
@@ -91,7 +89,7 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 }
 
 // loadChartOverrides converts a helm path to a ValuesOverridesMap config for Zarf
-func (b *Bundle) loadChartOverrides(pkg types.Package, overrideData bOverridesData) (pkgOverrideMap, NamespaceOverrideMap, error) {
+func (b *Bundle) loadChartOverrides(pkg types.Package, overrideData bOverridesData) (packager.ValuesOverrides, NamespaceOverrideMap, error) {
 	// Create nested maps to hold the overrides
 	overrideMap := make(map[string]map[string]*values.Options)
 	nsOverrides := make(NamespaceOverrideMap)
@@ -128,8 +126,8 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, overrideData bOverridesDa
 }
 
 // convertOverridesMap converts a map of overrides to a PkgOverrideMap
-func convertOverridesMap(overrideMap map[string]map[string]*values.Options) (pkgOverrideMap, error) {
-	processed := make(pkgOverrideMap)
+func convertOverridesMap(overrideMap map[string]map[string]*values.Options) (packager.ValuesOverrides, error) {
+	processed := make(packager.ValuesOverrides)
 	// Convert the options.Values map (located in chart.MergeValues) to the PkgOverrideMap format
 	for componentName, component := range overrideMap {
 		componentMap := make(map[string]map[string]interface{})
