@@ -28,7 +28,6 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/state"
 	zarfState "github.com/zarf-dev/zarf/src/pkg/state"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
-	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"golang.org/x/exp/slices"
 )
 
@@ -116,18 +115,9 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			InsecureSkipTLSVerify: config.CommonOptions.Insecure,
 		}
 
-		opts := zarfTypes.ZarfPackageOptions{
-			PackageSource:           pkgTmp,
-			OptionalComponents:      strings.Join(pkg.OptionalComponents, ","),
-			PublicKeyPath:           publicKeyPath,
-			SetVariables:            pkgVars,
-			Retries:                 b.cfg.DeployOpts.Retries,
-			SkipSignatureValidation: config.CommonOptions.SkipSignatureValidation,
-		}
-
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 
-		source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nsOverrides)
+		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, publicKeyPath, config.CommonOptions.SkipSignatureValidation, sha, nsOverrides)
 		if err != nil {
 			return err
 		}
@@ -141,8 +131,6 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
-		zarfInitOpts := handleZarfInitOpts(pkgVars, pkgLayout.Pkg.Kind)
-
 		deployOpts := packager.DeployOptions{
 			Timeout:                config.HelmTimeout,
 			SetVariables:           pkgVars,
@@ -151,10 +139,10 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			RemoteOptions:          remoteOpts,
 			AdoptExistingResources: false,
 			OCIConcurrency:         0,
-			GitServer:              zarfInitOpts.GitServer,
-			RegistryInfo:           zarfInitOpts.RegistryInfo,
-			ArtifactServer:         zarfInitOpts.ArtifactServer,
-			StorageClass:           zarfInitOpts.StorageClass,
+			GitServer:              newGitServerInfo(pkgVars, pkgLayout.Pkg.Kind),
+			RegistryInfo:           newRegistryInfo(pkgVars, pkgLayout.Pkg.Kind),
+			ArtifactServer:         newArtifactServerInfo(pkgVars, pkgLayout.Pkg.Kind),
+			StorageClass:           newStorageClass(pkgVars, pkgLayout.Pkg.Kind),
 		}
 
 		result, err := packager.Deploy(ctx, pkgLayout, deployOpts)
@@ -194,68 +182,115 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 	return nil
 }
 
-// handleZarfInitOpts sets the ZarfInitOptions for a package if using custom Zarf init options
-func handleZarfInitOpts(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKind) zarfTypes.ZarfInitOptions {
+// newGitServerInfo creates a new GitServerInfo for a package if using custom Zarf init options
+func newGitServerInfo(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKind) state.GitServerInfo {
 	if zarfPkgKind != v1alpha1.ZarfInitConfig {
-		return zarfTypes.ZarfInitOptions{}
+		return state.GitServerInfo{}
 	}
 
-	// default zarf init opts
-	zarfInitOpts := zarfTypes.ZarfInitOptions{
-		GitServer: state.GitServerInfo{
-			PushUsername: state.ZarfGitPushUser,
-		},
-		RegistryInfo: state.RegistryInfo{
-			PushUsername: state.ZarfRegistryPushUser,
-		},
+	// default git server info
+	gitServerInfo := state.GitServerInfo{
+		PushUsername: state.ZarfGitPushUser,
 	}
-	// populate zarf init opts from pkgVars
+
+	// populate git server info from pkgVars
+	for k, v := range pkgVars {
+		switch k {
+		case config.GitURL:
+			gitServerInfo.Address = v
+		case config.GitPushUsername:
+			gitServerInfo.PushUsername = v
+		case config.GitPushPassword:
+			gitServerInfo.PushPassword = v
+		case config.GitPullUsername:
+			gitServerInfo.PullUsername = v
+		case config.GitPullPassword:
+			gitServerInfo.PullPassword = v
+		}
+	}
+	return gitServerInfo
+}
+
+// newRegistryInfo creates a new RegistryInfo for a package if using custom Zarf init options
+func newRegistryInfo(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKind) state.RegistryInfo {
+	if zarfPkgKind != v1alpha1.ZarfInitConfig {
+		return state.RegistryInfo{}
+	}
+
+	// default registry info
+	registryInfo := state.RegistryInfo{
+		PushUsername: state.ZarfRegistryPushUser,
+	}
+
+	// populate registry info from pkgVars
 	for k, v := range pkgVars {
 		switch k {
 		// registry info
 		case config.RegistryURL:
-			zarfInitOpts.RegistryInfo.Address = v
+			registryInfo.Address = v
 		case config.RegistryPushUsername:
-			zarfInitOpts.RegistryInfo.PushUsername = v
+			registryInfo.PushUsername = v
 		case config.RegistryPushPassword:
-			zarfInitOpts.RegistryInfo.PushPassword = v
+			registryInfo.PushPassword = v
 		case config.RegistryPullUsername:
-			zarfInitOpts.RegistryInfo.PullUsername = v
+			registryInfo.PullUsername = v
 		case config.RegistryPullPassword:
-			zarfInitOpts.RegistryInfo.PullPassword = v
+			registryInfo.PullPassword = v
 		case config.RegistrySecretName:
-			zarfInitOpts.RegistryInfo.Secret = v
+			registryInfo.Secret = v
 		case config.RegistryNodeport:
 			np, err := strconv.Atoi(v)
 			if err != nil {
 				message.Warnf("failed to parse nodeport %s: %v", v, err)
-				return zarfTypes.ZarfInitOptions{}
+				return state.RegistryInfo{}
 			}
-			zarfInitOpts.RegistryInfo.NodePort = np
-		// git server info
-		case config.GitURL:
-			zarfInitOpts.GitServer.Address = v
-		case config.GitPushUsername:
-			zarfInitOpts.GitServer.PushUsername = v
-		case config.GitPushPassword:
-			zarfInitOpts.GitServer.PushPassword = v
-		case config.GitPullUsername:
-			zarfInitOpts.GitServer.PullUsername = v
-		case config.GitPullPassword:
-			zarfInitOpts.GitServer.PullPassword = v
-		// artifact server info
-		case config.ArtifactURL:
-			zarfInitOpts.ArtifactServer.Address = v
-		case config.ArtifactPushUsername:
-			zarfInitOpts.ArtifactServer.PushUsername = v
-		case config.ArtifactPushToken:
-			zarfInitOpts.ArtifactServer.PushToken = v
-		// storage class
-		case config.StorageClass:
-			zarfInitOpts.StorageClass = v
+			registryInfo.NodePort = np
 		}
 	}
-	return zarfInitOpts
+	return registryInfo
+}
+
+// newArtifactServerInfo creates a new ArtifactServerInfo for a package if using custom Zarf init options
+func newArtifactServerInfo(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKind) state.ArtifactServerInfo {
+	if zarfPkgKind != v1alpha1.ZarfInitConfig {
+		return state.ArtifactServerInfo{}
+	}
+
+	// default artifact server info
+	artifactServerInfo := state.ArtifactServerInfo{}
+
+	// populate artifact server info from pkgVars
+	for k, v := range pkgVars {
+		switch k {
+		case config.ArtifactURL:
+			artifactServerInfo.Address = v
+		case config.ArtifactPushUsername:
+			artifactServerInfo.PushUsername = v
+		case config.ArtifactPushToken:
+			artifactServerInfo.PushToken = v
+		}
+	}
+	return artifactServerInfo
+}
+
+// newStorageClass creates a new storage class for a package if using custom Zarf init options
+func newStorageClass(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKind) string {
+	if zarfPkgKind != v1alpha1.ZarfInitConfig {
+		return ""
+	}
+
+	// default storage class
+	storageClass := ""
+
+	// populate storage class from pkgVars
+	for k, v := range pkgVars {
+		switch k {
+		// storage class
+		case config.StorageClass:
+			storageClass = v
+		}
+	}
+	return storageClass
 }
 
 // PreDeployValidation validates the bundle before deployment

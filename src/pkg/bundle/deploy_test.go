@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/state"
-	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"helm.sh/helm/v3/pkg/cli/values"
 )
 
@@ -599,63 +598,199 @@ func TestFilterOverrides(t *testing.T) {
 	require.Equal(t, actual, filtered)
 }
 
-func Test_handleZarfInitOpts(t *testing.T) {
+func Test_newGitServerInfo(t *testing.T) {
+	t.Parallel()
+	pkgVars := zarfVarData{
+		"INIT_REGISTRY_URL":           "any",
+		"INIT_REGISTRY_PUSH_USERNAME": "any",
+		"INIT_REGISTRY_PUSH_PASSWORD": "any",
+		"INIT_REGISTRY_PULL_USERNAME": "any",
+		"INIT_REGISTRY_PULL_PASSWORD": "any",
+		"INIT_REGISTRY_SECRET":        "any",
+		"INIT_REGISTRY_NODEPORT":      "any",
+		"INIT_GIT_URL":                "fake.git",
+		"INIT_GIT_PUSH_USERNAME":      "push-user",
+		"INIT_GIT_PUSH_PASSWORD":      "push-secret!",
+		"INIT_GIT_PULL_USERNAME":      "pull-user",
+		"INIT_GIT_PULL_PASSWORD":      "pull-secret!",
+		"INIT_ARTIFACT_URL":           "any",
+		"INIT_ARTIFACT_PUSH_USERNAME": "any",
+		"INIT_ARTIFACT_PUSH_TOKEN":    "any",
+		"INIT_STORAGE_CLASS":          "any",
+	}
 	tests := []struct {
 		name     string
-		pkgVars  zarfVarData
-		zarfPkg  v1alpha1.ZarfPackageKind
-		expected zarfTypes.ZarfInitOptions
+		pkgKind  v1alpha1.ZarfPackageKind
+		expected state.GitServerInfo
 	}{
 		{
-			name: "init configs",
-			pkgVars: zarfVarData{
-				"INIT_REGISTRY_URL":           "fake.io",
-				"INIT_REGISTRY_PUSH_USERNAME": "push-user",
-				"INIT_REGISTRY_PUSH_PASSWORD": "push-secret!",
-				"INIT_REGISTRY_PULL_USERNAME": "pull-user",
-				"INIT_REGISTRY_PULL_PASSWORD": "pull-secret!",
-				"INIT_REGISTRY_SECRET":        "registry-secret",
-				"INIT_REGISTRY_NODEPORT":      "1234",
-				"INIT_GIT_URL":                "fake.git",
-				"INIT_GIT_PUSH_USERNAME":      "push-user",
-				"INIT_GIT_PUSH_PASSWORD":      "push-secret!",
-				"INIT_GIT_PULL_USERNAME":      "pull-user",
-				"INIT_GIT_PULL_PASSWORD":      "pull-secret!",
-				"INIT_ARTIFACT_URL":           "fake.artifact",
-				"INIT_ARTIFACT_PUSH_USERNAME": "push-user",
-				"INIT_ARTIFACT_PUSH_TOKEN":    "push-token!",
-				"INIT_STORAGE_CLASS":          "ebs",
+			name:    "init config kind returns git server info",
+			pkgKind: v1alpha1.ZarfInitConfig,
+			expected: state.GitServerInfo{
+				Address:      "fake.git",
+				PushUsername: "push-user",
+				PushPassword: "push-secret!",
+				PullUsername: "pull-user",
+				PullPassword: "pull-secret!",
 			},
-			zarfPkg: v1alpha1.ZarfInitConfig,
-			expected: zarfTypes.ZarfInitOptions{
-				RegistryInfo: state.RegistryInfo{
-					Address:      "fake.io",
-					PushUsername: "push-user",
-					PushPassword: "push-secret!",
-					PullUsername: "pull-user",
-					PullPassword: "pull-secret!",
-					Secret:       "registry-secret",
-					NodePort:     1234,
-				},
-				GitServer: state.GitServerInfo{
-					Address:      "fake.git",
-					PushUsername: "push-user",
-					PushPassword: "push-secret!",
-					PullUsername: "pull-user",
-					PullPassword: "pull-secret!",
-				},
-				ArtifactServer: state.ArtifactServerInfo{
-					Address:      "fake.artifact",
-					PushUsername: "push-user",
-					PushToken:    "push-token!",
-				},
-				StorageClass: "ebs",
-			},
+		},
+		{
+			name:     "package config kind returns empty git server info",
+			pkgKind:  v1alpha1.ZarfPackageConfig,
+			expected: state.GitServerInfo{},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual := handleZarfInitOpts(tt.pkgVars, tt.zarfPkg)
+			t.Parallel()
+			actual := newGitServerInfo(pkgVars, tt.pkgKind)
+			require.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func Test_newRegistryInfo(t *testing.T) {
+	t.Parallel()
+	pkgVars := zarfVarData{
+		"INIT_REGISTRY_URL":           "fake.io",
+		"INIT_REGISTRY_PUSH_USERNAME": "push-user",
+		"INIT_REGISTRY_PUSH_PASSWORD": "push-secret!",
+		"INIT_REGISTRY_PULL_USERNAME": "pull-user",
+		"INIT_REGISTRY_PULL_PASSWORD": "pull-secret!",
+		"INIT_REGISTRY_SECRET":        "registry-secret",
+		"INIT_REGISTRY_NODEPORT":      "1234",
+		"INIT_GIT_URL":                "any",
+		"INIT_GIT_PUSH_USERNAME":      "any",
+		"INIT_GIT_PUSH_PASSWORD":      "any",
+		"INIT_GIT_PULL_USERNAME":      "any",
+		"INIT_GIT_PULL_PASSWORD":      "any",
+		"INIT_ARTIFACT_URL":           "any",
+		"INIT_ARTIFACT_PUSH_USERNAME": "any",
+		"INIT_ARTIFACT_PUSH_TOKEN":    "any",
+		"INIT_STORAGE_CLASS":          "any",
+	}
+	tests := []struct {
+		name     string
+		pkgKind  v1alpha1.ZarfPackageKind
+		expected state.RegistryInfo
+	}{
+		{
+			name:    "init config kind returns registry info",
+			pkgKind: v1alpha1.ZarfInitConfig,
+			expected: state.RegistryInfo{
+				Address:      "fake.io",
+				PushUsername: "push-user",
+				PushPassword: "push-secret!",
+				PullUsername: "pull-user",
+				PullPassword: "pull-secret!",
+				Secret:       "registry-secret",
+				NodePort:     1234,
+			},
+		},
+		{
+			name:     "package config kind returns empty registry info",
+			pkgKind:  v1alpha1.ZarfPackageConfig,
+			expected: state.RegistryInfo{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			actual := newRegistryInfo(pkgVars, tt.pkgKind)
+			require.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func Test_newArtifactServerInfo(t *testing.T) {
+	t.Parallel()
+	pkgVars := zarfVarData{
+		"INIT_REGISTRY_URL":           "any",
+		"INIT_REGISTRY_PUSH_USERNAME": "any",
+		"INIT_REGISTRY_PUSH_PASSWORD": "any",
+		"INIT_REGISTRY_PULL_USERNAME": "any",
+		"INIT_REGISTRY_PULL_PASSWORD": "any",
+		"INIT_REGISTRY_SECRET":        "any",
+		"INIT_REGISTRY_NODEPORT":      "any",
+		"INIT_GIT_URL":                "any",
+		"INIT_GIT_PUSH_USERNAME":      "any",
+		"INIT_GIT_PUSH_PASSWORD":      "any",
+		"INIT_GIT_PULL_USERNAME":      "any",
+		"INIT_GIT_PULL_PASSWORD":      "any",
+		"INIT_ARTIFACT_URL":           "fake.artifact",
+		"INIT_ARTIFACT_PUSH_USERNAME": "push-user",
+		"INIT_ARTIFACT_PUSH_TOKEN":    "push-token!",
+		"INIT_STORAGE_CLASS":          "any",
+	}
+	tests := []struct {
+		name     string
+		pkgKind  v1alpha1.ZarfPackageKind
+		expected state.ArtifactServerInfo
+	}{
+		{
+			name:    "init config kind returns artifact info",
+			pkgKind: v1alpha1.ZarfInitConfig,
+			expected: state.ArtifactServerInfo{
+				Address:      "fake.artifact",
+				PushUsername: "push-user",
+				PushToken:    "push-token!",
+			},
+		},
+		{
+			name:     "package config kind returns empty artifact info",
+			pkgKind:  v1alpha1.ZarfPackageConfig,
+			expected: state.ArtifactServerInfo{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			actual := newArtifactServerInfo(pkgVars, tt.pkgKind)
+			require.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func Test_newStorageClass(t *testing.T) {
+	t.Parallel()
+	pkgVars := zarfVarData{
+		"INIT_REGISTRY_URL":           "any",
+		"INIT_REGISTRY_PUSH_USERNAME": "any",
+		"INIT_REGISTRY_PUSH_PASSWORD": "any",
+		"INIT_REGISTRY_PULL_USERNAME": "any",
+		"INIT_REGISTRY_PULL_PASSWORD": "any",
+		"INIT_REGISTRY_SECRET":        "any",
+		"INIT_REGISTRY_NODEPORT":      "any",
+		"INIT_GIT_URL":                "any",
+		"INIT_GIT_PUSH_USERNAME":      "any",
+		"INIT_GIT_PUSH_PASSWORD":      "any",
+		"INIT_GIT_PULL_USERNAME":      "any",
+		"INIT_GIT_PULL_PASSWORD":      "any",
+		"INIT_ARTIFACT_URL":           "any",
+		"INIT_ARTIFACT_PUSH_USERNAME": "any",
+		"INIT_ARTIFACT_PUSH_TOKEN":    "any",
+		"INIT_STORAGE_CLASS":          "ebs",
+	}
+	tests := []struct {
+		name     string
+		pkgKind  v1alpha1.ZarfPackageKind
+		expected string
+	}{
+		{
+			name:     "init config kind returns storage class",
+			pkgKind:  v1alpha1.ZarfInitConfig,
+			expected: "ebs",
+		},
+		{
+			name:     "package config kind returns empty storage class",
+			pkgKind:  v1alpha1.ZarfPackageConfig,
+			expected: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			actual := newStorageClass(pkgVars, tt.pkgKind)
 			require.Equal(t, tt.expected, actual)
 		})
 	}

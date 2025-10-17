@@ -24,14 +24,12 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
-	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"oras.land/oras-go/v2/content/file"
 )
 
 // RemoteBundle is a package source for remote bundles that implements Zarf's packager.PackageSource
 type RemoteBundle struct {
 	Pkg                     types.Package
-	PkgOpts                 *zarfTypes.ZarfPackageOptions
 	PkgManifestSHA          string
 	TmpDir                  string
 	PublicKeyPath           string

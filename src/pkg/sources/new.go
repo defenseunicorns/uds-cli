@@ -14,11 +14,10 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
-	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 // NewFromLocation creates a new package source based on pkgLocation
-func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, opts zarfTypes.ZarfPackageOptions, sha string, nsOverrides NamespaceOverrideMap) (PackageSource, error) {
+func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, packageSource string, publicKeyPath string, skipSignatureValidation bool, sha string, nsOverrides NamespaceOverrideMap) (PackageSource, error) {
 	var source PackageSource
 	var pkgLocation string
 	if bundleCfg.DeployOpts.Source != "" {
@@ -34,13 +33,12 @@ func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, opts zarfT
 	if strings.Contains(pkgLocation, "tar.zst") {
 		source = &TarballBundle{
 			Pkg:                     pkg,
-			PkgOpts:                 &opts,
 			PkgManifestSHA:          sha,
-			TmpDir:                  opts.PackageSource,
+			TmpDir:                  packageSource,
 			BundleLocation:          pkgLocation,
 			nsOverrides:             nsOverrides,
-			PublicKeyPath:           opts.PublicKeyPath,
-			SkipSignatureValidation: opts.SkipSignatureValidation,
+			PublicKeyPath:           publicKeyPath,
+			SkipSignatureValidation: skipSignatureValidation,
 		}
 	} else {
 		platform := ocispec.Platform{
@@ -53,14 +51,13 @@ func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, opts zarfT
 		}
 		source = &RemoteBundle{
 			Pkg:                     pkg,
-			PkgOpts:                 &opts,
 			PkgManifestSHA:          sha,
-			TmpDir:                  opts.PackageSource,
+			TmpDir:                  packageSource,
 			Remote:                  remote.OrasRemote,
 			nsOverrides:             nsOverrides,
 			bundleCfg:               bundleCfg,
-			PublicKeyPath:           opts.PublicKeyPath,
-			SkipSignatureValidation: opts.SkipSignatureValidation,
+			PublicKeyPath:           publicKeyPath,
+			SkipSignatureValidation: skipSignatureValidation,
 		}
 	}
 	return source, nil

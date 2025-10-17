@@ -21,7 +21,6 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
-	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 // Inspect pulls/unpacks a bundle's metadata and shows it
@@ -181,14 +180,10 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		}
 		defer os.RemoveAll(pkgTmp)
 
-		opts := zarfTypes.ZarfPackageOptions{
-			PackageSource:      pkgTmp,
-			OptionalComponents: strings.Join(pkg.OptionalComponents, ","),
-			PublicKeyPath:      "",
-		}
-
+		publicKeyPath := ""
+		skipSignatureValidation := false
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
-		source, err := sources.NewFromLocation(*b.cfg, pkg, opts, sha, nil)
+		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, publicKeyPath, skipSignatureValidation, sha, nil)
 		if err != nil {
 			return v1alpha1.ZarfPackage{}, err
 		}
