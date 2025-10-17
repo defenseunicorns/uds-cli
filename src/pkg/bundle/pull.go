@@ -18,7 +18,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	zarfConfig "github.com/zarf-dev/zarf/src/config"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
@@ -44,7 +43,7 @@ func (b *Bundle) Pull() error {
 	}
 
 	// pull the bundle's uds-bundle.yaml and it's Zarf pkgs
-	bundle, filepaths, err := provider.LoadBundle(b.cfg.PullOpts, zarfConfig.CommonOptions.OCIConcurrency)
+	bundle, filepaths, err := provider.LoadBundle(b.cfg.PullOpts, config.CommonOptions.OCIConcurrency)
 	if err != nil {
 		return err
 	}

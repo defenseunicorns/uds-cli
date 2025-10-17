@@ -215,6 +215,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		PublicKeyPath:           b.cfg.DeployOpts.PublicKeyPath,
 		CachePath:               config.CommonOptions.CachePath,
 		RemoteOptions:           remoteOpts,
+		OCIConcurrency:          config.CommonOptions.OCIConcurrency,
 	}
 
 	pkgLayout, err := packager.LoadPackage(context.TODO(), source, loadOpts)
