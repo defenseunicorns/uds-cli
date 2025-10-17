@@ -138,11 +138,12 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			Retries:                b.cfg.DeployOpts.Retries,
 			RemoteOptions:          remoteOpts,
 			AdoptExistingResources: false,
-			OCIConcurrency:         0,
+			OCIConcurrency:         config.CommonOptions.OCIConcurrency,
 			GitServer:              newGitServerInfo(pkgVars, pkgLayout.Pkg.Kind),
 			RegistryInfo:           newRegistryInfo(pkgVars, pkgLayout.Pkg.Kind),
 			ArtifactServer:         newArtifactServerInfo(pkgVars, pkgLayout.Pkg.Kind),
 			StorageClass:           newStorageClass(pkgVars, pkgLayout.Pkg.Kind),
+			IsInteractive:          !config.CommonOptions.Confirm,
 		}
 
 		result, err := packager.Deploy(ctx, pkgLayout, deployOpts)
