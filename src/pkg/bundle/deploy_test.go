@@ -550,6 +550,102 @@ func TestFormPkgViews(t *testing.T) {
 			expectedVal: hiddenVar,
 			expectedKey: "FOO",
 		},
+		{
+			name: "hide built-in sensitive registry push password",
+			Bundle: newTestBundle(
+				ConfigVariables{
+					pkgName: {
+						"INIT_REGISTRY_PUSH_PASSWORD": "super-secret-password",
+					},
+				},
+				nil,
+				nil,
+				"uds-config.yaml",
+				"",
+			),
+			expectedKey: "INIT_REGISTRY_PUSH_PASSWORD",
+			expectedVal: hiddenVar,
+		},
+		{
+			name: "hide built-in sensitive git push password",
+			Bundle: newTestBundle(
+				ConfigVariables{
+					pkgName: {
+						"INIT_GIT_PUSH_PASSWORD": "git-secret-password",
+					},
+				},
+				nil,
+				nil,
+				"uds-config.yaml",
+				"",
+			),
+			expectedKey: "INIT_GIT_PUSH_PASSWORD",
+			expectedVal: hiddenVar,
+		},
+		{
+			name: "hide built-in sensitive artifact push token",
+			Bundle: newTestBundle(
+				ConfigVariables{
+					pkgName: {
+						"INIT_ARTIFACT_PUSH_TOKEN": "artifact-token-123",
+					},
+				},
+				nil,
+				nil,
+				"uds-config.yaml",
+				"",
+			),
+			expectedKey: "INIT_ARTIFACT_PUSH_TOKEN",
+			expectedVal: hiddenVar,
+		},
+		{
+			name: "hide built-in sensitive registry push username",
+			Bundle: newTestBundle(
+				ConfigVariables{
+					pkgName: {
+						"INIT_REGISTRY_PUSH_USERNAME": "registry-push-user",
+					},
+				},
+				nil,
+				nil,
+				"uds-config.yaml",
+				"",
+			),
+			expectedKey: "INIT_REGISTRY_PUSH_USERNAME",
+			expectedVal: hiddenVar,
+		},
+		{
+			name: "hide built-in sensitive git pull username",
+			Bundle: newTestBundle(
+				ConfigVariables{
+					pkgName: {
+						"INIT_GIT_PULL_USERNAME": "git-pull-user",
+					},
+				},
+				nil,
+				nil,
+				"uds-config.yaml",
+				"",
+			),
+			expectedKey: "INIT_GIT_PULL_USERNAME",
+			expectedVal: hiddenVar,
+		},
+		{
+			name: "hide built-in sensitive artifact push username",
+			Bundle: newTestBundle(
+				ConfigVariables{
+					pkgName: {
+						"INIT_ARTIFACT_PUSH_USERNAME": "artifact-push-user",
+					},
+				},
+				nil,
+				nil,
+				"uds-config.yaml",
+				"",
+			),
+			expectedKey: "INIT_ARTIFACT_PUSH_USERNAME",
+			expectedVal: hiddenVar,
+		},
 	}
 
 	for _, zarfVarTest := range zarfVarTests {
