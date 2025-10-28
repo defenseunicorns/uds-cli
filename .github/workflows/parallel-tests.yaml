@@ -42,7 +42,7 @@ jobs:
 
       # Upload the contents of the build directory for later stages to use
       - name: Upload build artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: build-artifacts
           path: build/
@@ -181,7 +181,7 @@ jobs:
 
       - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903
         with:
-          node-version: 22
+          node-version: 24
 
       - name: setup-using-previous-job
         uses: ./.github/actions/setup-from-previous
