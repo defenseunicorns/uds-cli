@@ -18,6 +18,6 @@ packages:
   - name: init
     repository: ghcr.io/zarf-dev/packages/init
     # renovate: datasource=github-tags depName=zarf-dev/zarf
-    ref: v0.65.0-rc1
+    ref: v0.65.1
     optionalComponents:
       - git-server
