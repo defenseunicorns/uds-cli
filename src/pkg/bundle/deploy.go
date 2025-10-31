@@ -221,6 +221,7 @@ func newRegistryInfo(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKind) 
 	// default registry info
 	registryInfo := state.RegistryInfo{
 		PushUsername: state.ZarfRegistryPushUser,
+		RegistryMode: state.RegistryModeNodePort,
 	}
 
 	// populate registry info from pkgVars
@@ -229,6 +230,8 @@ func newRegistryInfo(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKind) 
 		// registry info
 		case config.RegistryURL:
 			registryInfo.Address = v
+		case config.RegistryMode:
+			registryInfo.RegistryMode = state.RegistryMode(v)
 		case config.RegistryPushUsername:
 			registryInfo.PushUsername = v
 		case config.RegistryPushPassword:
