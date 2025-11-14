@@ -19,8 +19,8 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 	github.com/zarf-dev/zarf v0.66.0
-	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546
-	golang.org/x/mod v0.29.0
+	golang.org/x/exp v0.0.0-20251113190631-e25ba8c21ef6
+	golang.org/x/mod v0.30.0
 	golang.org/x/sync v0.18.0
 	helm.sh/helm/v3 v3.18.4
 	k8s.io/api v0.34.2
@@ -188,7 +188,7 @@ require (
 	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be // indirect
 	github.com/containerd/cgroups v1.1.0 // indirect
 	github.com/containerd/console v1.0.5 // indirect
-	github.com/containerd/containerd v1.7.28 // indirect
+	github.com/containerd/containerd v1.7.29 // indirect
 	github.com/containerd/containerd/api v1.8.0 // indirect
 	github.com/containerd/continuity v0.4.4 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
@@ -555,14 +555,14 @@ require (
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
-	golang.org/x/crypto v0.43.0 // indirect
-	golang.org/x/net v0.46.0 // indirect
+	golang.org/x/crypto v0.44.0 // indirect
+	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/oauth2 v0.31.0 // indirect
-	golang.org/x/sys v0.37.0 // indirect
-	golang.org/x/term v0.36.0 // indirect
-	golang.org/x/text v0.30.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/term v0.37.0 // indirect
+	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/time v0.13.0 // indirect
-	golang.org/x/tools v0.38.0 // indirect
+	golang.org/x/tools v0.39.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240716161551-93cc26a95ae9 // indirect
 	google.golang.org/api v0.251.0 // indirect
 	google.golang.org/genproto v0.0.0-20250922171735-9219d122eba9 // indirect
