@@ -81,9 +81,13 @@ func (b *Bundle) Create(ctx context.Context) error {
 			}
 			return interactive.PromptSigPassword()
 		}
+
 		// sign the bundle
-		signaturePath := filepath.Join(b.tmp, config.BundleYAMLSignature)
-		_, err := zarfUtils.CosignSignBlob(bundlePath, signaturePath, b.cfg.CreateOpts.SigningKeyPath, getSigCreatePassword)
+		signBlobOptions := zarfUtils.DefaultSignBlobOptions()
+		signBlobOptions.OutputSignature = filepath.Join(b.tmp, config.BundleYAMLSignature)
+		signBlobOptions.PassFunc = getSigCreatePassword
+		signBlobOptions.KeyRef = b.cfg.CreateOpts.SigningKeyPath
+		_, err := zarfUtils.CosignSignBlobWithOptions(ctx, bundlePath, signBlobOptions)
 		if err != nil {
 			return err
 		}
