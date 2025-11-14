@@ -18,7 +18,7 @@ jobs:
     uses: ./.github/workflows/release-tests.yaml
 
   push:
-    runs-on: ubuntu-latest
+    runs-on: uds-ubuntu-big-boy-16-core
     environment: release
     needs: test
     permissions:
