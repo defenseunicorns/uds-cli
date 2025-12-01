@@ -7,10 +7,10 @@ metadata:
   version: 0.0.1
 
 components:
-  - name: mattermost
+  - name: neuvector
     required: true
     repos:
-      - https://github.com/defenseunicorns/uds-package-mattermost@v10.2.0-uds.1
+      - https://github.com/uds-packages/neuvector@5.4.7-uds.1-upstream
   - name: nginx
     required: true
     manifests:
