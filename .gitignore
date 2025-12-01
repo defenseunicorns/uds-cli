@@ -39,3 +39,4 @@ src/cmd/bin
 src/cmd/certs
 *.pem
 grype-scan.json
+uds-docs/
