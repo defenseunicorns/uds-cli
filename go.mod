@@ -11,18 +11,18 @@ require (
 	github.com/defenseunicorns/pkg/helpers/v2 v2.0.4
 	github.com/defenseunicorns/pkg/oci v1.3.0
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/goccy/go-yaml v1.18.0
+	github.com/goccy/go-yaml v1.19.0
 	github.com/mholt/archives v0.1.5
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/pterm/pterm v0.12.82
-	github.com/spf13/cobra v1.10.1
+	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 	github.com/zarf-dev/zarf v0.66.0
-	golang.org/x/exp v0.0.0-20251113190631-e25ba8c21ef6
+	golang.org/x/exp v0.0.0-20251125195548-87e1e737ad39
 	golang.org/x/mod v0.30.0
 	golang.org/x/sync v0.18.0
-	helm.sh/helm/v3 v3.18.4
+	helm.sh/helm/v3 v3.19.2
 	k8s.io/api v0.34.2
 	k8s.io/apimachinery v0.34.2
 	k8s.io/client-go v0.34.2
@@ -464,6 +464,7 @@ require (
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/sahilm/fuzzy v0.1.1 // indirect
 	github.com/saintfish/chardet v0.0.0-20230101081208-5e3ef4b5456d // indirect
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/sassoftware/go-rpmutils v0.4.0 // indirect
 	github.com/sassoftware/relic v7.2.1+incompatible // indirect
 	github.com/scylladb/go-set v1.0.3-0.20200225121959-cc7b2070d91e // indirect
