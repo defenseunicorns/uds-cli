@@ -106,3 +106,14 @@ tasks:
       - task: get-versions
       - task: build-args
       - cmd: GOOS=darwin GOARCH=arm64 go build -ldflags="${BUILD_ARGS}" -o build/uds-mac-apple main.go
+
+  - name: uds-docs-validate
+    description: "Validate and build uds-docs with latest uds-cli docs"
+    actions:
+      - description: "Cleanup previous runs"
+        cmd: |
+          rm -rf uds-docs
+      - description: "Clone the docs repo"
+        cmd: git clone https://github.com/defenseunicorns/uds-docs.git uds-docs
+      - description: "UDS Docs Integration Script"
+        cmd: cd uds-docs && npm i && DOCS_OVERRIDES="uds-cli=$(pwd)/.." npm run build
