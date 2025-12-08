@@ -49,6 +49,10 @@ tasks:
         mute: true
         setVariables:
           - name: K8S_MODULES_MINOR_VER
+      - cmd: echo ${K8S_MODULES_VER} | awk '{print $3}'
+        mute: true
+        setVariables:
+          - name: K8S_MODULES_PATCH_VER
 
   - name: build-args
     description: generates the build args for building UDS CLI
@@ -66,6 +70,7 @@ tasks:
             -X 'github.com/zarf-dev/zarf/src/cmd/tools.syftVersion=${SYFT_VERSION}' \
             -X 'github.com/zarf-dev/zarf/src/cmd/tools.archiverVersion=${ARCHIVER_VERSION}' \
             -X 'github.com/zarf-dev/zarf/src/cmd/tools.helmVersion=${HELM_VERSION}'
+            -X 'k8s.io/component-base/version.gitVersion=v${K8S_MODULES_MAJOR_VER}.${K8S_MODULES_MINOR_VER}.${K8S_MODULES_PATCH_VER}'
           EOF
         setVariables:
           - name: BUILD_ARGS
