@@ -828,8 +828,6 @@ github.com/alibabacloud-go/tea-xml v1.1.3/go.mod h1:Rq08vgCcCAjHyRi/M7xlHKUykZCE
 github.com/aliyun/credentials-go v1.1.2/go.mod h1:ozcZaMR5kLM7pwtCMEpVmQ242suV6qTJya2bDq4X1Tw=
 github.com/aliyun/credentials-go v1.3.2 h1:L4WppI9rctC8PdlMgyTkF8bBsy9pyKQEzBD1bHMRl+g=
 github.com/aliyun/credentials-go v1.3.2/go.mod h1:tlpz4uys4Rn7Ik4/piGRrTbXy2uLKvePgQJJduE+Y5c=
-github.com/anchore/archiver/v3 v3.5.3-0.20241210171143-5b1d8d1c7c51 h1:yhk+P8lF3ZiROjmaVRao9WGTRo4b/wYjoKEiAHWrKwc=
-github.com/anchore/archiver/v3 v3.5.3-0.20241210171143-5b1d8d1c7c51/go.mod h1:nwuGSd7aZp0rtYt79YggCGafz1RYsclE7pi3fhLwvuw=
 github.com/anchore/bubbly v0.0.0-20250717181826-8a411f9d8cbf h1:UY7SQkfVVaeGUpPZrJxqmTc8M0ZSWc5ChiKF6I6aL3I=
 github.com/anchore/bubbly v0.0.0-20250717181826-8a411f9d8cbf/go.mod h1:w8Br1ZKk1Nk82YRSh10pcD7LO7avPyFmNnaY1TRPgs0=
 github.com/anchore/clio v0.0.0-20250715152405-a0fa658e5084 h1:7DUAXEdAxoANPlDgxYiaSRKnWnTygvdrrWhnmvEjNLg=
@@ -857,8 +855,8 @@ github.com/anchore/go-testutils v0.0.0-20200925183923-d5f45b0d3c04 h1:VzprUTpc0v
 github.com/anchore/go-testutils v0.0.0-20200925183923-d5f45b0d3c04/go.mod h1:6dK64g27Qi1qGQZ67gFmBFvEHScy0/C8qhQhNe5B5pQ=
 github.com/anchore/go-version v1.2.2-0.20210903204242-51efa5b487c4 h1:rmZG77uXgE+o2gozGEBoUMpX27lsku+xrMwlmBZJtbg=
 github.com/anchore/go-version v1.2.2-0.20210903204242-51efa5b487c4/go.mod h1:Bkc+JYWjMCF8OyZ340IMSIi2Ebf3uwByOk6ho4wne1E=
-github.com/anchore/grype v0.101.1 h1:OaANaT1oaKmiZkX7NMFsA8vcJWMIkFlbYF7l/bo8Nw8=
-github.com/anchore/grype v0.101.1/go.mod h1:gj2M5L9EeUSOvIMHrBBRWMBs6RNTC0jbZGOapOcwG/E=
+github.com/anchore/grype v0.104.1 h1:tIP1pivUGpWFr1LHqkIiypSb8e40897vE4nPZk+9lBg=
+github.com/anchore/grype v0.104.1/go.mod h1:1DQI9U/OL+xwmHzULVDoRRI84kstmP26IcBH1E3gSE4=
 github.com/anchore/packageurl-go v0.1.1-0.20250220190351-d62adb6e1115 h1:ZyRCmiEjnoGJZ1+Ah0ZZ/mKKqNhGcUZBl0s7PTTDzvY=
 github.com/anchore/packageurl-go v0.1.1-0.20250220190351-d62adb6e1115/go.mod h1:KoYIv7tdP5+CC9VGkeZV4/vGCKsY55VvoG+5dadg4YI=
 github.com/anchore/stereoscope v0.1.13 h1:32GKF4+t8j0w+l6aOuEaofkPBLjlVCbsBCiVv3/+8u0=
@@ -1979,8 +1977,6 @@ github.com/nozzle/throttler v0.0.0-20180817012639-2ea982251481 h1:Up6+btDp321ZG5
 github.com/nozzle/throttler v0.0.0-20180817012639-2ea982251481/go.mod h1:yKZQO8QE2bHlgozqWDiRVqTFlLQSj30K/6SAK8EeYFw=
 github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249 h1:NHrXEjTNQY7P0Zfx1aMrNhpgxHmow66XQtm0aQLY0AE=
 github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249/go.mod h1:mpRZBD8SJ55OIICQ3iWH0Yz3cjzA61JdqMLoWXeB2+8=
-github.com/nwaples/rardecode v1.1.3 h1:cWCaZwfM5H7nAD6PyEdcVnczzV8i/JtotnyW/dD9lEc=
-github.com/nwaples/rardecode v1.1.3/go.mod h1:5DzqNKiOdpKKBH87u8VlvAnPZMXcGRhxWkRpHbbfGS0=
 github.com/nwaples/rardecode/v2 v2.2.0 h1:4ufPGHiNe1rYJxYfehALLjup4Ls3ck42CWwjKiOqu0A=
 github.com/nwaples/rardecode/v2 v2.2.0/go.mod h1:7uz379lSxPe6j9nvzxUZ+n7mnJNgjsRNb6IbvGVHRmw=
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=
