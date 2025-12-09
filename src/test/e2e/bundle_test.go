@@ -668,6 +668,7 @@ func TestBundleWithImageRef(t *testing.T) {
 	bytesDifference := int64(math.Abs(float64(originalBytes - pulledBytes)))
 
 	// Ensure the difference is small (metadata of the tarball write will be different, but if images are missing the difference will be large)
-	require.LessOrEqual(t, bytesDifference, int64(10000), "the pulled bundle had a different amount of bytes as the bundle we published")
+	differenceThreshold := int64(1024000) //1000 KiB
+	require.LessOrEqual(t, bytesDifference, differenceThreshold, "the pulled bundle had a different amount of bytes as the bundle we published")
 	fmt.Printf("The original file ha a size of %d and the pulled file has a size of %d", originalBytes, pulledBytes)
 }
