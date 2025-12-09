@@ -300,8 +300,10 @@ func FilterImageIndex(components []v1alpha1.ZarfComponent, imgIndex ocispec.Inde
 
 				// include backwards compatibility shim for older Zarf versions that would leave docker.io off of image annotations
 				dockerShimPath := refInfo.Host + "/" + refInfo.Path + refInfo.TagOrDigest
-				if manifest.Annotations[ocispec.AnnotationBaseImageName] == imgName ||
-					(refInfo.Host == "docker.io" && manifest.Annotations[ocispec.AnnotationBaseImageName] == dockerShimPath) {
+				annotationBaseImageName := manifest.Annotations[ocispec.AnnotationBaseImageName]
+				if annotationBaseImageName == imgName ||
+					(refInfo.Host == "docker.io" && annotationBaseImageName == dockerShimPath) ||
+					annotationBaseImageName == refInfo.Reference {
 					manifestIncludeMap[manifest.Digest.Hex()] = manifest
 				}
 			}

@@ -1,0 +1,37 @@
+# Copyright 2024 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+kind: ZarfPackageConfig
+metadata:
+  name: podinfo-ref
+  description: used to test bundles with optional components
+  version: 0.0.1
+
+components:
+  - name: podinfo
+    required: true
+    charts:
+      - name: podinfo
+        version: 6.4.0
+        namespace: podinfo
+        url: https://github.com/stefanprodan/podinfo.git
+        gitPath: charts/podinfo
+    images:
+      - stefanprodan/podinfo:6.4.0@sha256:d37d27b92cce4fb1383d5fbe32540382ea3d9662c7be3555f5a0f6a044099e1b
+    only:
+      cluster:
+        architecture: amd64
+
+  - name: podinfo
+    required: true
+    charts:
+      - name: podinfo
+        version: 6.4.0
+        namespace: podinfo
+        url: https://github.com/stefanprodan/podinfo.git
+        gitPath: charts/podinfo
+    images:
+      - stefanprodan/podinfo:6.4.0@sha256:ae7a741c67feb6426db3ffc24ac426a57b4903f0ab6b00e27324499aefc4b22e
+    only:
+      cluster:
+        architecture: arm64
