@@ -112,6 +112,14 @@ tasks:
       - task: build-args
       - cmd: GOOS=darwin GOARCH=arm64 go build -ldflags="${BUILD_ARGS}" -o build/uds-mac-apple main.go
 
+  - name: build-goreleaser
+    description: build the CLI using goreleaser
+    actions:
+      - task: get-versions
+      - cmd: |
+          export ARCHIVES_VERSION=${ARCHIVER_VERSION}
+          goreleaser build --clean --snapshot
+
   - name: uds-docs-validate
     description: "Validate and build uds-docs with latest uds-cli docs"
     actions:
