@@ -6,6 +6,7 @@ package test
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -629,4 +630,45 @@ func TestBundleWithComponentNamedAuth(t *testing.T) {
 		cleaned := ansiRegex.ReplaceAllString(stderr, "")
 		require.NotContains(t, cleaned, "failed to deploy bundle: unable to deploy component \"authservice\": unable to decompress:")
 	})
+}
+
+func TestBundleWithImageRef(t *testing.T) {
+	zarfPkgPath := "src/test/packages/podinfo-refs"
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+
+	bundleDir := "src/test/bundles/19-zarf-image-ref"
+	bundleName := fmt.Sprintf("uds-bundle-zarf-image-ref-%s-0.1.0.tar.zst", e2e.Arch)
+	bundlePath := filepath.Join(bundleDir, bundleName)
+
+	bundleRef := registry.Reference{
+		Registry:   "oci://localhost:888",
+		Repository: "zarf-image-ref",
+		Reference:  "0.1.0",
+	}
+
+	// Create, publish, and pull the same bundle
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
+	runCmd(t, fmt.Sprintf("publish %s %s --insecure", bundlePath, bundleRef.Registry))
+	runCmd(t, fmt.Sprintf("pull %s -o tester --insecure", bundleRef.String()))
+
+	// Read the bytes of the bundle we created & pushed
+	info, err := os.Stat(bundlePath)
+	require.NoError(t, err, fmt.Sprintf("unable to read the file info of a created bundle %s", bundlePath))
+	originalBytes := info.Size()
+
+	// Read the bytes of the bundle we pulled from the registry
+	info, err = os.Stat(filepath.Join("tester", bundleName))
+	require.NoError(t, err, "unable to read the file info of the bundle we pulled from the registry")
+	pulledBytes := info.Size()
+
+	// Get the difference in size between the bundles
+	bytesDifference := int64(math.Abs(float64(originalBytes - pulledBytes)))
+
+	// Ensure the difference is small (metadata of the tarball write will be different, but if images are missing the difference will be large)
+	differenceThreshold := int64(1024000) //1000 KiB
+	require.LessOrEqual(t, bytesDifference, differenceThreshold, "the pulled bundle had a different amount of bytes as the bundle we published")
+	fmt.Printf("The original file ha a size of %d and the pulled file has a size of %d", originalBytes, pulledBytes)
 }
