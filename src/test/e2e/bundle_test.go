@@ -680,12 +680,11 @@ func TestBundleList(t *testing.T) {
 
 	deployZarfInit(t)
 
-	// Create and deploy a simple bundle
-	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
-	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+	// Create the podinfo package which actually deploys resources to the cluster
+	e2e.CreateZarfPkg(t, "src/test/packages/podinfo", false)
 
-	bundleDir := "src/test/bundles/11-real-simple"
-	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-real-simple-%s-0.0.1.tar.zst", e2e.Arch))
+	bundleDir := "src/test/bundles/03-local-and-remote"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
 	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundlePath))
@@ -698,7 +697,7 @@ func TestBundleList(t *testing.T) {
 		require.Contains(t, stdout, "BUNDLE NAME", "output should contain table header")
 		require.Contains(t, stdout, "VERSION", "output should contain version column")
 		require.Contains(t, stdout, "PACKAGES", "output should contain packages column")
-		require.Contains(t, stdout, "real-simple", "output should contain the bundle name")
+		require.Contains(t, stdout, "test-local-and-remote", "output should contain the bundle name")
 		require.Contains(t, stdout, "0.0.1", "output should contain the bundle version")
 	})
 
@@ -708,7 +707,8 @@ func TestBundleList(t *testing.T) {
 		// Verify the package name and version are displayed together with tree character
 		require.Contains(t, stdout, "└─", "output should contain tree formatting")
 		// The package version should be shown with the package name in format "pkg:version"
-		require.Regexp(t, regexp.MustCompile(`└─ real-simple:\d+\.\d+\.\d+`), stdout, "output should show package with version in tree format")
+		// Podinfo should be in the output since it actually deploys to the cluster
+		require.Regexp(t, regexp.MustCompile(`└─ podinfo:\d+\.\d+\.\d+`), stdout, "output should show podinfo package with version in tree format")
 	})
 
 	// Clean up
