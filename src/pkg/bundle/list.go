@@ -14,8 +14,8 @@ import (
 
 const (
 	// Annotation keys for bundle metadata (following OCI image spec)
-	AnnotationBundleName    = "dev.defenseunicorns.uds.bundle.name"
-	AnnotationBundleVersion = "dev.defenseunicorns.uds.bundle.version"
+	AnnotationBundleName    = "dev.uds.bundle.name"
+	AnnotationBundleVersion = "dev.uds.bundle.version"
 )
 
 // BundleDeployment represents a deployed bundle with its packages
@@ -27,7 +27,6 @@ type BundleDeployment struct {
 
 // ListDeployedBundles retrieves all deployed Zarf packages and maps them to bundles
 func ListDeployedBundles(ctx context.Context) ([]BundleDeployment, error) {
-	// Create cluster client
 	c, err := cluster.New(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to cluster: %w", err)
@@ -57,17 +56,15 @@ func ListDeployedBundles(ctx context.Context) ([]BundleDeployment, error) {
 			continue
 		}
 
-		// Create bundle key (name:version)
 		bundleKey := fmt.Sprintf("%s:%s", bundleName, bundleVersion)
 
-		// Add or update bundle in map
 		if bundle, exists := bundleMap[bundleKey]; exists {
-			bundle.Packages = append(bundle.Packages, pkg.Name)
+			bundle.Packages = append(bundle.Packages, fmt.Sprintf("%s:%s", pkg.Name, pkg.Data.Metadata.Version))
 		} else {
 			bundleMap[bundleKey] = &BundleDeployment{
 				Name:     bundleName,
 				Version:  bundleVersion,
-				Packages: []string{pkg.Name},
+				Packages: []string{fmt.Sprintf("%s:%s", pkg.Name, pkg.Data.Metadata.Version)},
 			}
 		}
 	}
