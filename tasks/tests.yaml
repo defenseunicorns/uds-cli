@@ -64,35 +64,11 @@ tasks:
       - cmd: |
           build/uds zarf tools kubectl apply -f tmp/uds-core/src/pepr/uds-cluster-crds/templates/clusterconfig.uds.dev.yaml
           build/uds zarf tools kubectl create namespace pepr-system
-          build/uds zarf tools kubectl apply -f - <<EOF
-          apiVersion: uds.dev/v1alpha1
-          kind: ClusterConfig
-          metadata:
-            name: uds-cluster-config
-          spec:
-            attributes:
-              clusterName: ""
-              tags: []
-            expose:
-              adminDomain: ""
-              caCert: ""
-              domain: uds.dev
-            networking:
-              kubeApiCIDR: ""
-              kubeNodeCIDRs: []
-            policy:
-              allowAllNsExemptions: false
-          EOF
-          build/uds zarf tools kubectl apply -f - <<EOF
-          apiVersion: v1
-          kind: Secret
-          metadata:
-            name: uds-operator-config
-            namespace: pepr-system
-          type: Opaque
-          stringData:
-            devMode: "active"
-          EOF
+          build/uds zarf tools kubectl apply -f tmp/uds-core/hack/dev-manifests/uds-ca-certs.yaml
+          build/uds zarf tools kubectl apply -f tmp/uds-core/hack/dev-manifests/cluster-config-init.yaml          
+          build/uds zarf tools kubectl apply -f tmp/uds-core/hack/dev-manifests/uds-operator-config-secret.yaml
+          build/uds zarf tools kubectl create namespace istio-system
+          build/uds zarf tools kubectl apply -f tmp/uds-core/hack/dev-manifests/sso-ca-cert-secret.yaml
         description: "Deploy the UDS Cluster Config CRD, CR, and config secret"
       - cmd: cd tmp/uds-core && npm i && npx pepr deploy --yes
         description: cd into the tmp/uds-core directory and deploy UDS Core's Pepr module
