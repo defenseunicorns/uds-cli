@@ -96,23 +96,20 @@ func mapPackagesToBundles(deployedPackages []state.DeployedPackage) []BundleDepl
 	return bundles
 }
 
-// PrintBundleList prints the deployed bundles in a formatted table
+// PrintBundleList prints the deployed bundles in a formatted table to stdout
 func PrintBundleList(bundles []BundleDeployment) {
 	if len(bundles) == 0 {
-		message.Warn("No deployed bundles found in the cluster")
+		fmt.Fprintln(message.OutputWriter, "No deployed bundles found in the cluster")
 		return
 	}
 
-	message.Title("Deployed Bundles", "")
-	message.HorizontalRule()
+	fmt.Fprintln(message.OutputWriter, "BUNDLE NAME      VERSION    PACKAGES")
+	fmt.Fprintln(message.OutputWriter, "───────────────────────────────────────────────────────────────────────")
 
 	for _, bundle := range bundles {
-		message.Infof("Bundle: %s", bundle.Name)
-		message.Infof("Version: %s", bundle.Version)
-		message.Infof("Packages (%d):", len(bundle.Packages))
+		fmt.Fprintf(message.OutputWriter, "%-16s %-10s %d\n", bundle.Name, bundle.Version, len(bundle.Packages))
 		for _, pkg := range bundle.Packages {
-			message.Infof("  - %s", pkg)
+			fmt.Fprintf(message.OutputWriter, "  └─ %s\n", pkg)
 		}
-		message.HorizontalRule()
 	}
 }

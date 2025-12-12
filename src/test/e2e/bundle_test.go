@@ -694,20 +694,21 @@ func TestBundleList(t *testing.T) {
 	t.Run("list deployed bundles", func(t *testing.T) {
 		stdout, _ := runCmd(t, "list")
 
-		// Verify output contains expected bundle information
-		require.Contains(t, stdout, "Deployed Bundles", "output should contain 'Deployed Bundles' title")
-		require.Contains(t, stdout, "Bundle: real-simple", "output should contain the bundle name")
-		require.Contains(t, stdout, "Version: 0.0.1", "output should contain the bundle version")
-		require.Contains(t, stdout, "Packages", "output should contain packages section")
+		// Verify output contains expected bundle information (table header)
+		require.Contains(t, stdout, "BUNDLE NAME", "output should contain table header")
+		require.Contains(t, stdout, "VERSION", "output should contain version column")
+		require.Contains(t, stdout, "PACKAGES", "output should contain packages column")
+		require.Contains(t, stdout, "real-simple", "output should contain the bundle name")
+		require.Contains(t, stdout, "0.0.1", "output should contain the bundle version")
 	})
 
 	t.Run("list shows package with version", func(t *testing.T) {
 		stdout, _ := runCmd(t, "list")
 
-		// Verify the package name and version are displayed together
-		require.Contains(t, stdout, "real-simple", "output should contain package name")
+		// Verify the package name and version are displayed together with tree character
+		require.Contains(t, stdout, "└─", "output should contain tree formatting")
 		// The package version should be shown with the package name in format "pkg:version"
-		require.Regexp(t, regexp.MustCompile(`real-simple:\d+\.\d+\.\d+`), stdout, "output should show package with version")
+		require.Regexp(t, regexp.MustCompile(`└─ real-simple:\d+\.\d+\.\d+`), stdout, "output should show package with version in tree format")
 	})
 
 	// Clean up
@@ -717,7 +718,6 @@ func TestBundleList(t *testing.T) {
 		stdout, _ := runCmd(t, "list")
 
 		// After removal, should show no bundles message or not contain the removed bundle
-		// The real-simple bundle should no longer appear
-		require.NotContains(t, stdout, "Bundle: real-simple", "removed bundle should not appear in list")
+		require.Contains(t, stdout, "No deployed bundles found", "should show 'no bundles' message after removal")
 	})
 }
