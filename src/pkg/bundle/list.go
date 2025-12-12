@@ -10,6 +10,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
+	"github.com/zarf-dev/zarf/src/pkg/state"
 )
 
 const (
@@ -26,6 +27,7 @@ type BundleDeployment struct {
 }
 
 // ListDeployedBundles retrieves all deployed Zarf packages and maps them to bundles
+// This is an entrypoint to extension if required (beyond zarf package annotation mapping)
 func ListDeployedBundles(ctx context.Context) ([]BundleDeployment, error) {
 	c, err := cluster.New(ctx)
 	if err != nil {
@@ -38,6 +40,11 @@ func ListDeployedBundles(ctx context.Context) ([]BundleDeployment, error) {
 		return nil, fmt.Errorf("failed to get deployed packages: %w", err)
 	}
 
+	return mapPackagesToBundles(deployedPackages), nil
+}
+
+// mapPackagesToBundles maps deployed packages to bundles based on annotations
+func mapPackagesToBundles(deployedPackages []state.DeployedPackage) []BundleDeployment {
 	// Map packages to bundles based on annotations
 	bundleMap := make(map[string]*BundleDeployment)
 
@@ -57,14 +64,15 @@ func ListDeployedBundles(ctx context.Context) ([]BundleDeployment, error) {
 		}
 
 		bundleKey := fmt.Sprintf("%s:%s", bundleName, bundleVersion)
+		pkgIdentifier := fmt.Sprintf("%s:%s", pkg.Name, pkg.Data.Metadata.Version)
 
 		if bundle, exists := bundleMap[bundleKey]; exists {
-			bundle.Packages = append(bundle.Packages, fmt.Sprintf("%s:%s", pkg.Name, pkg.Data.Metadata.Version))
+			bundle.Packages = append(bundle.Packages, pkgIdentifier)
 		} else {
 			bundleMap[bundleKey] = &BundleDeployment{
 				Name:     bundleName,
 				Version:  bundleVersion,
-				Packages: []string{fmt.Sprintf("%s:%s", pkg.Name, pkg.Data.Metadata.Version)},
+				Packages: []string{pkgIdentifier},
 			}
 		}
 	}
@@ -85,7 +93,7 @@ func ListDeployedBundles(ctx context.Context) ([]BundleDeployment, error) {
 		return bundles[i].Version < bundles[j].Version
 	})
 
-	return bundles, nil
+	return bundles
 }
 
 // PrintBundleList prints the deployed bundles in a formatted table

@@ -672,3 +672,52 @@ func TestBundleWithImageRef(t *testing.T) {
 	require.LessOrEqual(t, bytesDifference, differenceThreshold, "the pulled bundle had a different amount of bytes as the bundle we published")
 	fmt.Printf("The original file ha a size of %d and the pulled file has a size of %d", originalBytes, pulledBytes)
 }
+
+func TestBundleList(t *testing.T) {
+	if !e2e.RunClusterTests {
+		t.Skip("Skipping list test since cluster tests are disabled")
+	}
+
+	deployZarfInit(t)
+
+	// Create and deploy a simple bundle
+	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
+	e2e.CreateZarfPkg(t, zarfPkgPath, false)
+
+	bundleDir := "src/test/bundles/11-real-simple"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-real-simple-%s-0.0.1.tar.zst", e2e.Arch))
+
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
+	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundlePath))
+
+	// Test the list command
+	t.Run("list deployed bundles", func(t *testing.T) {
+		stdout, _ := runCmd(t, "list")
+
+		// Verify output contains expected bundle information
+		require.Contains(t, stdout, "Deployed Bundles", "output should contain 'Deployed Bundles' title")
+		require.Contains(t, stdout, "Bundle: real-simple", "output should contain the bundle name")
+		require.Contains(t, stdout, "Version: 0.0.1", "output should contain the bundle version")
+		require.Contains(t, stdout, "Packages", "output should contain packages section")
+	})
+
+	t.Run("list shows package with version", func(t *testing.T) {
+		stdout, _ := runCmd(t, "list")
+
+		// Verify the package name and version are displayed together
+		require.Contains(t, stdout, "real-simple", "output should contain package name")
+		// The package version should be shown with the package name in format "pkg:version"
+		require.Regexp(t, regexp.MustCompile(`real-simple:\d+\.\d+\.\d+`), stdout, "output should show package with version")
+	})
+
+	// Clean up
+	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
+
+	t.Run("list shows no bundles after removal", func(t *testing.T) {
+		stdout, _ := runCmd(t, "list")
+
+		// After removal, should show no bundles message or not contain the removed bundle
+		// The real-simple bundle should no longer appear
+		require.NotContains(t, stdout, "Bundle: real-simple", "removed bundle should not appear in list")
+	})
+}
