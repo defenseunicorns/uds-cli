@@ -31,13 +31,13 @@ type NamespaceOverrideMap = map[string]map[string]string
 
 // TarballBundle is a package source for local tarball bundles that implements Zarf's packager.PackageSource
 type TarballBundle struct {
-	PkgManifestSHA          string
-	TmpDir                  string
-	BundleLocation          string
-	Pkg                     types.Package
-	PublicKeyPath           string
-	nsOverrides             NamespaceOverrideMap
-	SkipSignatureValidation bool
+	PkgManifestSHA string
+	TmpDir         string
+	BundleLocation string
+	Pkg            types.Package
+	PublicKeyPath  string
+	nsOverrides    NamespaceOverrideMap
+	Verify         bool
 }
 
 // LoadPackage loads a Zarf package from a local tarball bundle
@@ -67,11 +67,17 @@ func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.Componen
 	}
 	pkg.Components = filteredComps
 
+	// default Zarf stance is to attempt verification but not enforce
+	verificationStrategy := layout.VerifyIfPossible
+	if t.Verify {
+		verificationStrategy = layout.VerifyAlways
+	}
+
 	layoutOpts := layout.PackageLayoutOptions{
-		PublicKeyPath:           t.PublicKeyPath,
-		SkipSignatureValidation: t.SkipSignatureValidation,
-		IsPartial:               isPartialPkg,
-		Filter:                  filter,
+		PublicKeyPath:        t.PublicKeyPath,
+		VerificationStrategy: verificationStrategy,
+		IsPartial:            isPartialPkg,
+		Filter:               filter,
 	}
 
 	pkgLayout, err := layout.LoadFromDir(ctx, t.TmpDir, layoutOpts)
