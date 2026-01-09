@@ -14,14 +14,14 @@ require (
 	github.com/defenseunicorns/pkg/helpers/v2 v2.0.4
 	github.com/defenseunicorns/pkg/oci v1.3.0
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/goccy/go-yaml v1.19.1
+	github.com/goccy/go-yaml v1.19.2
 	github.com/mholt/archives v0.1.5
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/pterm/pterm v0.12.82
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
-	github.com/zarf-dev/zarf v0.68.1
+	github.com/zarf-dev/zarf v0.69.0
 	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93
 	golang.org/x/mod v0.31.0
 	golang.org/x/sync v0.19.0
@@ -70,7 +70,7 @@ require (
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
-	github.com/BurntSushi/toml v1.5.0 // indirect
+	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/CycloneDX/cyclonedx-go v0.9.3 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.30.0 // indirect
@@ -131,27 +131,27 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/avast/retry-go/v4 v4.7.0 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.40.0 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.41.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.3 // indirect
-	github.com/aws/aws-sdk-go-v2/config v1.32.2 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.2 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.14 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.14 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.14 // indirect
+	github.com/aws/aws-sdk-go-v2/config v1.32.5 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.5 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.16 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.16 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.16 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.14 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.51.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.38.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.14 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.16 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.14 // indirect
 	github.com/aws/aws-sdk-go-v2/service/kms v1.49.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.92.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.0.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.30.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.10 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.41.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.0.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.30.7 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.12 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.41.5 // indirect
 	github.com/aws/smithy-go v1.24.0 // indirect
 	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.11.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
@@ -249,7 +249,7 @@ require (
 	github.com/felixge/fgprof v0.9.5 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fluxcd/pkg/apis/acl v0.9.0 // indirect
-	github.com/fluxcd/pkg/apis/meta v1.23.0 // indirect
+	github.com/fluxcd/pkg/apis/meta v1.24.0 // indirect
 	github.com/fluxcd/source-controller/api v1.7.4 // indirect
 	github.com/fvbommel/sortorder v1.1.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
@@ -491,10 +491,10 @@ require (
 	github.com/sigstore/rekor-tiles/v2 v2.0.1 // indirect
 	github.com/sigstore/sigstore v1.10.0 // indirect
 	github.com/sigstore/sigstore-go v1.1.4-0.20251201121426-2cdedea80894 // indirect
-	github.com/sigstore/sigstore/pkg/signature/kms/aws v1.10.2 // indirect
-	github.com/sigstore/sigstore/pkg/signature/kms/azure v1.10.2 // indirect
-	github.com/sigstore/sigstore/pkg/signature/kms/gcp v1.10.2 // indirect
-	github.com/sigstore/sigstore/pkg/signature/kms/hashivault v1.10.2 // indirect
+	github.com/sigstore/sigstore/pkg/signature/kms/aws v1.10.3 // indirect
+	github.com/sigstore/sigstore/pkg/signature/kms/azure v1.10.3 // indirect
+	github.com/sigstore/sigstore/pkg/signature/kms/gcp v1.10.3 // indirect
+	github.com/sigstore/sigstore/pkg/signature/kms/hashivault v1.10.3 // indirect
 	github.com/sigstore/timestamp-authority/v2 v2.0.3 // indirect
 	github.com/sirupsen/logrus v1.9.4-0.20230606125235-dd1b4c2e81af // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
