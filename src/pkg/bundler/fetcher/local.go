@@ -126,11 +126,11 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 	)
 
 	loadOpts := packager.LoadOptions{
-		Filter:                  filter,
-		CachePath:               config.CommonOptions.CachePath,
-		PublicKeyPath:           publicKeyPath,
-		SkipSignatureValidation: f.cfg.SkipSignatureValidation,
-		OCIConcurrency:          config.CommonOptions.OCIConcurrency,
+		Filter:         filter,
+		CachePath:      config.CommonOptions.CachePath,
+		PublicKeyPath:  publicKeyPath,
+		Verify:         f.cfg.Verify,
+		OCIConcurrency: config.CommonOptions.OCIConcurrency,
 	}
 
 	pkgLayout, err := packager.LoadPackage(ctx, f.pkg.Path, loadOpts)

@@ -117,7 +117,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 
-		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, publicKeyPath, config.CommonOptions.SkipSignatureValidation, sha, nsOverrides)
+		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, publicKeyPath, config.CommonOptions.Verify, sha, nsOverrides)
 		if err != nil {
 			return err
 		}

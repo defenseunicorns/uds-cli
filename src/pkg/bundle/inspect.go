@@ -181,9 +181,8 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		defer os.RemoveAll(pkgTmp)
 
 		publicKeyPath := ""
-		skipSignatureValidation := false
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
-		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, publicKeyPath, skipSignatureValidation, sha, nil)
+		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, publicKeyPath, config.CommonOptions.Verify, sha, nil)
 		if err != nil {
 			return v1alpha1.ZarfPackage{}, err
 		}
@@ -209,13 +208,13 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 	}
 
 	loadOpts := packager.LoadOptions{
-		Filter:                  filters.Empty(),
-		SkipSignatureValidation: false,
-		Architecture:            config.GetArch(b.bundle.Metadata.Architecture),
-		PublicKeyPath:           b.cfg.DeployOpts.PublicKeyPath,
-		CachePath:               config.CommonOptions.CachePath,
-		RemoteOptions:           remoteOpts,
-		OCIConcurrency:          config.CommonOptions.OCIConcurrency,
+		Filter:         filters.Empty(),
+		Verify:         config.CommonOptions.Verify,
+		Architecture:   config.GetArch(b.bundle.Metadata.Architecture),
+		PublicKeyPath:  b.cfg.DeployOpts.PublicKeyPath,
+		CachePath:      config.CommonOptions.CachePath,
+		RemoteOptions:  remoteOpts,
+		OCIConcurrency: config.CommonOptions.OCIConcurrency,
 	}
 
 	pkgLayout, err := packager.LoadPackage(context.TODO(), source, loadOpts)
