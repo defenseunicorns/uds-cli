@@ -26,6 +26,7 @@ const (
 	V_NO_COLOR                  = "options.no_color"
 	V_BNDL_OCI_CONCURRENCY      = "options.oci_concurrency"
 	V_SKIP_SIGNATURE_VALIDATION = "options.skip_signature_validation"
+	V_VERIFY                    = "options.verify"
 
 	// Bundle create config keys
 	V_BNDL_CREATE_OUTPUT               = "create.output"
