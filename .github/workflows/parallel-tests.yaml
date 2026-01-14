@@ -179,7 +179,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@65d868f8d4d85d7d4abb7de0875cde3fcc8798f5
+      - uses: actions/setup-node@2951748f4c016b747952f8ca7e75fc64f2f62b53
         with:
           node-version: 24
 
