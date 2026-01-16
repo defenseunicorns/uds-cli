@@ -238,7 +238,7 @@ There are 3 ways to override the `UI_COLOR` variable:
    # by default ui_color will apply to all packages in the bundle
    uds deploy example-bundle --set ui_color=green
 
-   # to specify a specific package that the variable should apply to you can prepend th package name to the variable
+   # to specify a specific package that the variable should apply to you can prepend the package name to the variable
    uds deploy example-bundle --set helm-overrides-package.ui_color=green
    ```
 
