@@ -5,6 +5,7 @@
 package bundle
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
+	goyaml "github.com/goccy/go-yaml"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"helm.sh/helm/v3/pkg/cli/values"
 	"helm.sh/helm/v3/pkg/getter"
@@ -31,6 +33,7 @@ type overrideData struct {
 }
 type bOverridesData map[string]overrideData
 type zarfVarData map[string]string
+type ZarfValues map[string]any
 
 // loadVariables loads and sets precedence for config-level and imported variables
 func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]map[string]string) (zarfVarData, bOverridesData) {
@@ -123,6 +126,186 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, overrideData bOverridesDa
 	}
 
 	return processed, nsOverrides, nil
+}
+
+func resolveValuesFilePath(file string, baseDir string) (string, error) {
+	if filepath.IsAbs(file) {
+		if helpers.InvalidPath(file) {
+			return "", fmt.Errorf("values file not found: %s", file)
+		}
+		return file, nil
+	}
+
+	resolved := filepath.Join(baseDir, file)
+	if helpers.InvalidPath(resolved) {
+		return "", fmt.Errorf("values file not found: %s (resolved to %s)", file, resolved)
+	}
+	return resolved, nil
+}
+
+// parseValuesFile reads and parses a YAML values file
+func parseValuesFile(path string) (ZarfValues, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var vals ZarfValues
+	if err := goyaml.Unmarshal(data, &vals); err != nil {
+		return nil, err
+	}
+
+	return vals, nil
+}
+
+// deepMergeValues recursively merges source values into destination
+func deepMergeValues(dst, src ZarfValues) {
+	for key, srcVal := range src {
+		if dstVal, exists := dst[key]; exists {
+			srcMap, srcIsMap := srcVal.(map[string]any)
+			dstMap, dstIsMap := dstVal.(map[string]any)
+			if srcIsMap && dstIsMap {
+				deepMergeValues(dstMap, srcMap)
+			} else {
+				dst[key] = srcVal
+			}
+		} else {
+			dst[key] = srcVal
+		}
+	}
+}
+
+// setValueAtPath sets a value at a dot-notation path (e.g., ".app.replicas")
+func setValueAtPath(vals ZarfValues, path string, value interface{}) error {
+	if path == "" || !strings.HasPrefix(path, ".") {
+		return fmt.Errorf("invalid path format: %s (must start with '.')", path)
+	}
+
+	// Handle root path "."
+	if path == "." {
+		valueMap, ok := value.(map[string]any)
+		if !ok {
+			return fmt.Errorf("cannot merge non-map value at root path")
+		}
+		for k, v := range valueMap {
+			vals[k] = v
+		}
+		return nil
+	}
+
+	// Split path into parts (remove leading dot)
+	parts := strings.Split(path[1:], ".")
+
+	// Navigate to the nested location and set the value
+	current := vals
+	for i, part := range parts {
+		if i == len(parts)-1 {
+			current[part] = value
+		} else {
+			if _, exists := current[part]; !exists {
+				current[part] = make(map[string]any)
+			}
+
+			nextMap, ok := current[part].(map[string]any)
+			if !ok {
+				return fmt.Errorf("conflict at %q, expected map but got %T", strings.Join(parts[:i+1], "."), current[part])
+			}
+			current = nextMap
+		}
+	}
+
+	return nil
+}
+
+// getValuesVariables extracts variables with their original types preserved for use with Zarf values.
+// This is needed because loadVariables converts values to strings for legacy Zarf variable compatibility,
+// but Zarf values can accept complex objects (maps, arrays).
+func getValuesVariables(overrideData bOverridesData) map[string]interface{} {
+	result := make(map[string]interface{})
+	for name, data := range overrideData {
+		result[name] = data.value
+	}
+	return result
+}
+
+func (b *Bundle) loadPackageValues(ctx context.Context, pkg types.Package, variables map[string]interface{}) (ZarfValues, error) {
+	result := make(ZarfValues)
+
+	// Skip if no values configured
+	if pkg.Values == nil && b.cfg.DeployOpts.PackageValues == nil {
+		return result, nil
+	}
+
+	bundleDir := filepath.Dir(b.cfg.DeployOpts.Source)
+	configDir := filepath.Dir(b.cfg.DeployOpts.Config)
+
+	// 1. Load bundle-level values files (lowest precedence for files)
+	if pkg.Values != nil {
+		for _, file := range pkg.Values.Files {
+			resolvedPath, err := resolveValuesFilePath(file, bundleDir)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve bundle values file %s: %w", file, err)
+			}
+			fileVals, err := parseValuesFile(resolvedPath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse bundle values file %s: %w", resolvedPath, err)
+			}
+			deepMergeValues(result, fileVals)
+		}
+
+		// 2. Apply bundle-level set values
+		for path, val := range pkg.Values.Set {
+			if err := setValueAtPath(result, path, val); err != nil {
+				return nil, fmt.Errorf("failed to set bundle value at path %s: %w", path, err)
+			}
+		}
+
+		// 3. Apply bundle values.variables (resolve from UDS variables)
+		// Values can be complex objects (maps, arrays) or simple values (strings, numbers)
+		for _, v := range pkg.Values.Variables {
+			varName := strings.ToUpper(v.Name)
+			var varValue interface{}
+
+			if val, ok := variables[varName]; ok {
+				varValue = val
+			} else if v.Default != nil {
+				varValue = v.Default
+			} else {
+				continue // Skip if no value and no default
+			}
+
+			if err := setValueAtPath(result, v.Path, varValue); err != nil {
+				return nil, fmt.Errorf("failed to set value variable %s at path %s: %w", v.Name, v.Path, err)
+			}
+		}
+	}
+
+	// 4. Load config-level values (higher precedence)
+	if b.cfg.DeployOpts.PackageValues != nil {
+		if pkgConfig, ok := b.cfg.DeployOpts.PackageValues[pkg.Name]; ok {
+			// Load config values files
+			for _, file := range pkgConfig.Files {
+				resolvedPath, err := resolveValuesFilePath(file, configDir)
+				if err != nil {
+					return nil, fmt.Errorf("failed to resolve config values file %s: %w", file, err)
+				}
+				fileVals, err := parseValuesFile(resolvedPath)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse config values file %s: %w", resolvedPath, err)
+				}
+				deepMergeValues(result, fileVals)
+			}
+
+			// Apply config set values (highest precedence)
+			for path, val := range pkgConfig.Set {
+				if err := setValueAtPath(result, path, val); err != nil {
+					return nil, fmt.Errorf("failed to set config value at path %s: %w", path, err)
+				}
+			}
+		}
+	}
+
+	return result, nil
 }
 
 // convertOverridesMap converts a map of overrides to a PkgOverrideMap

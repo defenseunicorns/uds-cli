@@ -21,6 +21,7 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	zarfConfig "github.com/zarf-dev/zarf/src/config"
+	"github.com/zarf-dev/zarf/src/pkg/feature"
 	"github.com/zarf-dev/zarf/src/pkg/logger"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
@@ -89,6 +90,9 @@ func configureZarf() {
 	if config.CommonOptions.Insecure {
 		zarfConfig.CommonOptions.PlainHTTP = true
 		zarfConfig.CommonOptions.InsecureSkipTLSVerify = true
+	}
+	if err := feature.Set([]feature.Feature{{Name: feature.Values, Enabled: true}}); err != nil {
+		message.Warnf("Failed to enable the values feature automatically: %s. If you set ZARF_FEATURES env variable, please make sure to enable `values` feature", err.Error())
 	}
 }
 

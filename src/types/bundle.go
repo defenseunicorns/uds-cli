@@ -30,6 +30,22 @@ type Package struct {
 	Imports            []BundleVariableImport                     `json:"imports,omitempty" jsonschema:"description=List of Zarf variables to import from another Zarf package"`
 	Exports            []BundleVariableExport                     `json:"exports,omitempty" jsonschema:"description=List of Zarf variables to export from the Zarf package"`
 	Overrides          map[string]map[string]BundleChartOverrides `json:"overrides,omitempty" jsonschema:"description=Map of Helm chart overrides to set. The format is <component>:, <chart-name>:"`
+	Values             *PackageValues                             `json:"values,omitempty" jsonschema:"description=Values configuration for Zarf packages using the values feature (alpha)"`
+}
+
+// PackageValues represents values configuration for Zarf packages using the values feature (alpha)
+type PackageValues struct {
+	Files     []string               `json:"files,omitempty" jsonschema:"description=Paths to values YAML files to pass to the package (relative to bundle root)"`
+	Set       map[string]interface{} `json:"set,omitempty" jsonschema:"description=Values to set using dot notation paths (e.g. .app.replicas)"`
+	Variables []BundleValuesVariable `json:"variables,omitempty" jsonschema:"description=Map UDS variables to Zarf values paths"`
+}
+
+// BundleValuesVariable maps a UDS variable to a Zarf values path
+type BundleValuesVariable struct {
+	Name        string      `json:"name" jsonschema:"description=UDS variable name,required"`
+	Path        string      `json:"path" jsonschema:"description=Dot notation path in Zarf values (e.g. .app.replicas),required"`
+	Description string      `json:"description,omitempty" jsonschema:"description=Description of the variable"`
+	Default     interface{} `json:"default,omitempty" jsonschema:"description=Default value if not provided"`
 }
 
 // BundleChartOverrides represents a Helm chart override to set via UDS variables

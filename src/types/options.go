@@ -37,8 +37,16 @@ type BundleDeployOptions struct {
 	// Variables and SharedVariables are read in from uds-config.yaml
 	Variables       map[string]map[string]interface{} `yaml:"variables,omitempty"`
 	SharedVariables map[string]interface{}            `yaml:"shared,omitempty"`
-	Retries         int                               `yaml:"retries"`
-	Options         map[string]interface{}            `yaml:"options,omitempty"`
+	// PackageValues contains per-package Zarf values configuration from uds-config.yaml
+	PackageValues map[string]PackageValuesConfig `yaml:"values,omitempty"`
+	Retries       int                            `yaml:"retries"`
+	Options       map[string]interface{}         `yaml:"options,omitempty"`
+}
+
+// PackageValuesConfig represents per-package Zarf values configuration from uds-config.yaml
+type PackageValuesConfig struct {
+	Files []string               `yaml:"files,omitempty" json:"files,omitempty" jsonschema:"description=Paths to values YAML files"`
+	Set   map[string]interface{} `yaml:"set,omitempty" json:"set,omitempty" jsonschema:"description=Values to set using dot notation paths"`
 }
 
 // BundleInspectOptions is the options for the bundler.Inspect() function
