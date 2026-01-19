@@ -142,6 +142,14 @@ func (b *Bundle) confirmBundleCreation() (confirm bool) {
 func (b *Bundle) processValuesFiles() error {
 	// Populate values from valuesFiles if provided
 	for i, pkg := range b.bundle.Packages {
+		// Process package-level values files (for Zarf values feature)
+		if pkg.Values != nil && len(pkg.Values.Files) > 0 {
+			if err := b.processPackageValuesFiles(i); err != nil {
+				return err
+			}
+		}
+
+		// Process chart override values files (existing behavior)
 		for componentName, overrides := range pkg.Overrides {
 			for chartName, bundleChartOverrides := range overrides {
 				valuesFilesToMerge := make([][]types.BundleChartValue, 0)
@@ -175,6 +183,86 @@ func (b *Bundle) processValuesFiles() error {
 		}
 	}
 	return nil
+}
+
+// processPackageValuesFiles reads package-level values files and merges them into Set
+// This is processed at create time so the values are embedded in the bundle
+func (b *Bundle) processPackageValuesFiles(pkgIdx int) error {
+	pkg := &b.bundle.Packages[pkgIdx]
+
+	// Initialize Set map if nil
+	if pkg.Values.Set == nil {
+		pkg.Values.Set = make(map[string]interface{})
+	}
+
+	// Build merged values from all files (later files override earlier)
+	mergedValues := make(map[string]interface{})
+
+	for _, valuesFile := range pkg.Values.Files {
+		// Resolve file path relative to bundle source directory
+		fileName := filepath.Join(b.cfg.CreateOpts.SourceDirectory, valuesFile)
+		if filepath.IsAbs(valuesFile) {
+			fileName = valuesFile
+		}
+
+		// Read and parse the values file
+		values, err := chartutil.ReadValuesFile(fileName)
+		if err != nil {
+			return err
+		}
+
+		// Deep merge into accumulated values
+		for key, value := range values {
+			mergedValues[key] = deepMergeForCreate(mergedValues[key], value)
+		}
+	}
+
+	// Merge file values into Set, with existing Set values taking precedence
+	// Files are processed first (lower precedence), then existing Set values override
+	finalSet := make(map[string]interface{})
+
+	// First, add all values from files using dot-notation paths
+	flattenToSet(mergedValues, ".", finalSet)
+
+	// Then, apply existing Set values (higher precedence)
+	for path, val := range pkg.Values.Set {
+		finalSet[path] = val
+	}
+
+	pkg.Values.Set = finalSet
+
+	// Clear Files since they've been processed and embedded in Set
+	pkg.Values.Files = nil
+
+	return nil
+}
+
+// deepMergeForCreate recursively merges src into dst, returning the merged result
+func deepMergeForCreate(dst, src interface{}) interface{} {
+	if dst == nil {
+		return src
+	}
+
+	dstMap, dstIsMap := dst.(map[string]interface{})
+	srcMap, srcIsMap := src.(map[string]interface{})
+
+	if dstIsMap && srcIsMap {
+		for key, srcVal := range srcMap {
+			dstMap[key] = deepMergeForCreate(dstMap[key], srcVal)
+		}
+		return dstMap
+	}
+
+	// Non-map values: src overwrites dst
+	return src
+}
+
+// flattenToSet converts a nested map to dot-notation paths in the Set map
+func flattenToSet(values map[string]interface{}, prefix string, set map[string]interface{}) {
+	for key, value := range values {
+		path := prefix + key
+		set[path] = value
+	}
 }
 
 // mergeBundleChartValues merges lists of BundleChartValue using the values from the last list if there are any duplicates

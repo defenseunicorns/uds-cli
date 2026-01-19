@@ -247,18 +247,7 @@ func TestLoadPackageValuesPrecedence(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
-	// Create bundle values file
-	bundleValuesFile := filepath.Join(tmpDir, "bundle-values.yaml")
-	err = os.WriteFile(bundleValuesFile, []byte(`
-app:
-  name: "from-bundle-file"
-  environment: "from-bundle-file"
-  replicas: 1
-  fromBundleFile: true
-`), 0644)
-	require.NoError(t, err)
-
-	// Create config values file
+	// Create config values file (config files are still loaded at deploy time)
 	configValuesFile := filepath.Join(tmpDir, "config-values.yaml")
 	err = os.WriteFile(configValuesFile, []byte(`
 app:
@@ -267,7 +256,9 @@ app:
 `), 0644)
 	require.NoError(t, err)
 
-	t.Run("bundle values.set overrides values.files", func(t *testing.T) {
+	t.Run("bundle values.set works correctly", func(t *testing.T) {
+		// Note: Bundle-level Files are processed at CREATE time and merged into Set.
+		// At deploy time, only Set is used (Files would be nil after create processing).
 		b := &Bundle{
 			cfg: &types.BundleConfig{
 				DeployOpts: types.BundleDeployOptions{
@@ -276,12 +267,19 @@ app:
 			},
 		}
 
+		// Simulate post-create state where files have been processed into Set
 		pkg := types.Package{
 			Name: "test-pkg",
 			Values: &types.PackageValues{
-				Files: []string{"bundle-values.yaml"},
+				// Files would be nil at deploy time (processed at create time)
 				Set: map[string]interface{}{
-					".app.replicas": 5,
+					".app": map[string]interface{}{
+						"name":           "from-bundle-file",
+						"environment":    "from-bundle-file",
+						"replicas":       1,
+						"fromBundleFile": true,
+					},
+					".app.replicas": 5, // This overrides the value from file
 				},
 			},
 		}
@@ -290,9 +288,9 @@ app:
 		require.NoError(t, err)
 
 		app := vals["app"].(map[string]any)
-		require.Equal(t, "from-bundle-file", app["name"]) // from file
-		require.Equal(t, 5, app["replicas"])              // overridden by set
-		require.Equal(t, true, app["fromBundleFile"])     // preserved from file
+		require.Equal(t, "from-bundle-file", app["name"])
+		require.Equal(t, 5, app["replicas"])          // overridden by more specific path
+		require.Equal(t, true, app["fromBundleFile"]) // preserved
 	})
 
 	t.Run("bundle values.variables overrides values.set", func(t *testing.T) {
@@ -307,7 +305,6 @@ app:
 		pkg := types.Package{
 			Name: "test-pkg",
 			Values: &types.PackageValues{
-				Files: []string{"bundle-values.yaml"},
 				Set: map[string]interface{}{
 					".app.replicas": 5,
 				},
@@ -331,6 +328,7 @@ app:
 	})
 
 	t.Run("config values override bundle values", func(t *testing.T) {
+		// Config files are still loaded at deploy time (they come from uds-config.yaml)
 		b := &Bundle{
 			cfg: &types.BundleConfig{
 				DeployOpts: types.BundleDeployOptions{
@@ -348,12 +346,17 @@ app:
 			},
 		}
 
+		// Simulate post-create state where bundle files have been processed into Set
 		pkg := types.Package{
 			Name: "test-pkg",
 			Values: &types.PackageValues{
-				Files: []string{"bundle-values.yaml"},
 				Set: map[string]interface{}{
-					".app.replicas": 5,
+					".app": map[string]interface{}{
+						"name":           "from-bundle-file",
+						"environment":    "from-bundle-file",
+						"replicas":       5,
+						"fromBundleFile": true,
+					},
 				},
 			},
 		}
@@ -365,24 +368,11 @@ app:
 		require.Equal(t, "from-config-set", app["name"])         // highest: config set
 		require.Equal(t, "from-config-file", app["environment"]) // config file overrides bundle
 		require.Equal(t, 5, app["replicas"])                     // from bundle set (not in config)
-		require.Equal(t, true, app["fromBundleFile"])            // preserved from bundle file
+		require.Equal(t, true, app["fromBundleFile"])            // preserved from bundle
 		require.Equal(t, true, app["fromConfigFile"])            // added by config file
 	})
 
 	t.Run("deep merge preserves nested values", func(t *testing.T) {
-		// Create a file with nested structure
-		nestedFile := filepath.Join(tmpDir, "nested-values.yaml")
-		err = os.WriteFile(nestedFile, []byte(`
-app:
-  config:
-    database:
-      host: "localhost"
-      port: 5432
-    cache:
-      enabled: true
-`), 0644)
-		require.NoError(t, err)
-
 		b := &Bundle{
 			cfg: &types.BundleConfig{
 				DeployOpts: types.BundleDeployOptions{
@@ -391,12 +381,23 @@ app:
 			},
 		}
 
+		// Simulate post-create state with nested values in Set
 		pkg := types.Package{
 			Name: "test-pkg",
 			Values: &types.PackageValues{
-				Files: []string{"nested-values.yaml"},
 				Set: map[string]interface{}{
-					".app.config.database.host": "production-db",
+					".app": map[string]interface{}{
+						"config": map[string]interface{}{
+							"database": map[string]interface{}{
+								"host": "localhost",
+								"port": 5432,
+							},
+							"cache": map[string]interface{}{
+								"enabled": true,
+							},
+						},
+					},
+					".app.config.database.host": "production-db", // Override specific path
 				},
 			},
 		}
@@ -410,7 +411,7 @@ app:
 		cache := config["cache"].(map[string]any)
 
 		require.Equal(t, "production-db", database["host"]) // overridden
-		require.Equal(t, uint64(5432), database["port"])    // preserved
+		require.Equal(t, 5432, database["port"])            // preserved
 		require.Equal(t, true, cache["enabled"])            // preserved (different branch)
 	})
 }
@@ -545,5 +546,165 @@ func TestLoadPackageValuesComplexObjects(t *testing.T) {
 		app, ok := vals["app"].(map[string]any)
 		require.True(t, ok, "expected app to be a map")
 		require.Equal(t, "my-app", app["name"])
+	})
+}
+
+func TestProcessPackageFiles(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "process-values-files-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	t.Run("valuesFiles are processed and merged into Set", func(t *testing.T) {
+		// Create test values file
+		valuesFile := filepath.Join(tmpDir, "gitlab-values.yaml")
+		err = os.WriteFile(valuesFile, []byte(`
+database:
+  endpoint: "pg-cluster.postgres.svc.cluster.local"
+  username: "gitlab"
+redis:
+  endpoint: "valkey-primary.valkey.svc.cluster.local"
+ssh:
+  enabled: true
+  port: 2230
+`), 0644)
+		require.NoError(t, err)
+
+		b := &Bundle{
+			cfg: &types.BundleConfig{
+				CreateOpts: types.BundleCreateOptions{
+					SourceDirectory: tmpDir,
+				},
+			},
+			bundle: types.UDSBundle{
+				Packages: []types.Package{
+					{
+						Name: "gitlab",
+						Values: &types.PackageValues{
+							Files: []string{"gitlab-values.yaml"},
+						},
+					},
+				},
+			},
+		}
+
+		err = b.processValuesFiles()
+		require.NoError(t, err)
+
+		// Files should be cleared after processing
+		require.Nil(t, b.bundle.Packages[0].Values.Files)
+
+		// Set should contain the values from the file
+		set := b.bundle.Packages[0].Values.Set
+		require.NotNil(t, set)
+
+		// Check that top-level keys are in Set with dot prefix
+		database, ok := set[".database"].(map[string]interface{})
+		require.True(t, ok, "expected .database in Set")
+		require.Equal(t, "pg-cluster.postgres.svc.cluster.local", database["endpoint"])
+		require.Equal(t, "gitlab", database["username"])
+
+		redis, ok := set[".redis"].(map[string]interface{})
+		require.True(t, ok, "expected .redis in Set")
+		require.Equal(t, "valkey-primary.valkey.svc.cluster.local", redis["endpoint"])
+
+		ssh, ok := set[".ssh"].(map[string]interface{})
+		require.True(t, ok, "expected .ssh in Set")
+		require.Equal(t, true, ssh["enabled"])
+		require.Equal(t, float64(2230), ssh["port"])
+	})
+
+	t.Run("existing Set values take precedence over valuesFiles", func(t *testing.T) {
+		// Create test values file
+		valuesFile := filepath.Join(tmpDir, "base-values.yaml")
+		err = os.WriteFile(valuesFile, []byte(`
+app:
+  name: "from-file"
+  replicas: 3
+`), 0644)
+		require.NoError(t, err)
+
+		b := &Bundle{
+			cfg: &types.BundleConfig{
+				CreateOpts: types.BundleCreateOptions{
+					SourceDirectory: tmpDir,
+				},
+			},
+			bundle: types.UDSBundle{
+				Packages: []types.Package{
+					{
+						Name: "test-pkg",
+						Values: &types.PackageValues{
+							Files: []string{"base-values.yaml"},
+							Set: map[string]interface{}{
+								".app.replicas": 5, // This should override the file value
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err = b.processValuesFiles()
+		require.NoError(t, err)
+
+		set := b.bundle.Packages[0].Values.Set
+
+		// The inline Set value should take precedence
+		require.Equal(t, 5, set[".app.replicas"])
+
+		// The file value should still be present for other keys
+		app, ok := set[".app"].(map[string]interface{})
+		require.True(t, ok, "expected .app in Set")
+		require.Equal(t, "from-file", app["name"])
+	})
+
+	t.Run("multiple valuesFiles are merged in order", func(t *testing.T) {
+		// Create two values files
+		file1 := filepath.Join(tmpDir, "values1.yaml")
+		err = os.WriteFile(file1, []byte(`
+config:
+  name: "from-file1"
+  value1: "only-in-file1"
+`), 0644)
+		require.NoError(t, err)
+
+		file2 := filepath.Join(tmpDir, "values2.yaml")
+		err = os.WriteFile(file2, []byte(`
+config:
+  name: "from-file2"
+  value2: "only-in-file2"
+`), 0644)
+		require.NoError(t, err)
+
+		b := &Bundle{
+			cfg: &types.BundleConfig{
+				CreateOpts: types.BundleCreateOptions{
+					SourceDirectory: tmpDir,
+				},
+			},
+			bundle: types.UDSBundle{
+				Packages: []types.Package{
+					{
+						Name: "test-pkg",
+						Values: &types.PackageValues{
+							Files: []string{"values1.yaml", "values2.yaml"},
+						},
+					},
+				},
+			},
+		}
+
+		err = b.processValuesFiles()
+		require.NoError(t, err)
+
+		set := b.bundle.Packages[0].Values.Set
+		config, ok := set[".config"].(map[string]interface{})
+		require.True(t, ok, "expected .config in Set")
+
+		// Later file should override earlier file for same key
+		require.Equal(t, "from-file2", config["name"])
+		// Values from both files should be present
+		require.Equal(t, "only-in-file1", config["value1"])
+		require.Equal(t, "only-in-file2", config["value2"])
 	})
 }

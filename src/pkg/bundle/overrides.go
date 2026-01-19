@@ -236,31 +236,17 @@ func (b *Bundle) loadPackageValues(ctx context.Context, pkg types.Package, varia
 		return result, nil
 	}
 
-	bundleDir := filepath.Dir(b.cfg.DeployOpts.Source)
 	configDir := filepath.Dir(b.cfg.DeployOpts.Config)
 
-	// 1. Load bundle-level values files (lowest precedence for files)
+	// 1. Apply bundle-level set values (files are processed at create time and merged into Set)
 	if pkg.Values != nil {
-		for _, file := range pkg.Values.Files {
-			resolvedPath, err := resolveValuesFilePath(file, bundleDir)
-			if err != nil {
-				return nil, fmt.Errorf("failed to resolve bundle values file %s: %w", file, err)
-			}
-			fileVals, err := parseValuesFile(resolvedPath)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse bundle values file %s: %w", resolvedPath, err)
-			}
-			deepMergeValues(result, fileVals)
-		}
-
-		// 2. Apply bundle-level set values
 		for path, val := range pkg.Values.Set {
 			if err := setValueAtPath(result, path, val); err != nil {
 				return nil, fmt.Errorf("failed to set bundle value at path %s: %w", path, err)
 			}
 		}
 
-		// 3. Apply bundle values.variables (resolve from UDS variables)
+		// 2. Apply bundle values.variables (resolve from UDS variables)
 		// Values can be complex objects (maps, arrays) or simple values (strings, numbers)
 		for _, v := range pkg.Values.Variables {
 			varName := strings.ToUpper(v.Name)
@@ -280,7 +266,7 @@ func (b *Bundle) loadPackageValues(ctx context.Context, pkg types.Package, varia
 		}
 	}
 
-	// 4. Load config-level values (higher precedence)
+	// 3. Load config-level values (higher precedence, processed at deploy time)
 	if b.cfg.DeployOpts.PackageValues != nil {
 		if pkgConfig, ok := b.cfg.DeployOpts.PackageValues[pkg.Name]; ok {
 			// Load config values files

@@ -35,7 +35,7 @@ type Package struct {
 
 // PackageValues represents values configuration for Zarf packages using the values feature (alpha)
 type PackageValues struct {
-	Files     []string               `json:"files,omitempty" jsonschema:"description=Paths to values YAML files to pass to the package (relative to bundle root)"`
+	Files     []string               `json:"files,omitempty" jsonschema:"description=Paths to values YAML files (relative to bundle directory, processed at create time and embedded in bundle)"`
 	Set       map[string]interface{} `json:"set,omitempty" jsonschema:"description=Values to set using dot notation paths (e.g. .app.replicas)"`
 	Variables []BundleValuesVariable `json:"variables,omitempty" jsonschema:"description=Map UDS variables to Zarf values paths"`
 }
