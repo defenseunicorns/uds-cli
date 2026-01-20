@@ -75,7 +75,6 @@ func deploy(ctx context.Context, bndlClient *bundle.Bundle) error {
 // configureZarf copies configs from UDS-CLI to Zarf
 func configureZarf() {
 	zarfConfig.CommonOptions = zarfTypes.ZarfCommonOptions{
-		Insecure:      config.CommonOptions.Insecure,
 		TempDirectory: config.CommonOptions.TempDirectory,
 		CachePath:     config.CommonOptions.CachePath, // use uds-cache instead of zarf-cache
 	}
