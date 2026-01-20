@@ -65,10 +65,10 @@ func TestCreateWithNoPath(t *testing.T) {
 	defer e2e.TeardownRegistry(t, 888)
 
 	pkg := filepath.Join(zarfPkgPath1, fmt.Sprintf("zarf-package-output-var-%s-0.0.1.tar.zst", e2e.Arch))
-	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --plain-http --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	pkg = filepath.Join(zarfPkgPath2, fmt.Sprintf("zarf-package-receive-var-%s-0.0.1.tar.zst", e2e.Arch))
-	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --plain-http --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	// move the bundle to the current directory so we can test the create command with no path
 	err := os.Link(fmt.Sprintf("src/test/bundles/02-variables/remote/%s", config.BundleYAML), config.BundleYAML)
