@@ -166,10 +166,10 @@ func TestRemoteBundleWithRemotePkgs(t *testing.T) {
 	defer e2e.TeardownRegistry(t, 889)
 
 	pkg := fmt.Sprintf("src/test/packages/nginx/zarf-package-nginx-%s-0.0.1.tar.zst", e2e.Arch)
-	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --plain-http --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	pkg = fmt.Sprintf("src/test/packages/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
-	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:889 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:889 --plain-http --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	bundleRef := registry.Reference{
 		Registry: "oci://localhost:888",
@@ -311,10 +311,10 @@ func TestPackageNaming(t *testing.T) {
 	defer e2e.TeardownRegistry(t, 889)
 
 	pkg := fmt.Sprintf("src/test/packages/nginx/zarf-package-nginx-%s-0.0.1.tar.zst", e2e.Arch)
-	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --plain-http --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	pkg = fmt.Sprintf("src/test/packages/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
-	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:889 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:889 --plain-http --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	bundleDir := "src/test/bundles/10-package-naming"
 	bundleTarballName := fmt.Sprintf("uds-bundle-package-naming-%s-0.0.1.tar.zst", e2e.Arch)
