@@ -129,7 +129,7 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 		Filter:         filter,
 		CachePath:      config.CommonOptions.CachePath,
 		PublicKeyPath:  publicKeyPath,
-		Verify:         f.cfg.Verify,
+		Verify:         f.cfg.VerifyPackages,
 		OCIConcurrency: config.CommonOptions.OCIConcurrency,
 	}
 
