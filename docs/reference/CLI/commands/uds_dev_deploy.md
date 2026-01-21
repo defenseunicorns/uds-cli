@@ -18,6 +18,7 @@ uds dev deploy [BUNDLE_DIR|OCI_REF] [flags]
 
 ```
   -f, --flavor string          [beta] Specify which zarf package flavor you want to use.
+      --force-conflicts        Force server-side apply conflicts to be overwritten. Defaults to false
       --force-create           [beta] For local bundles with local packages, specify whether to create a zarf package even if it already exists.
   -h, --help                   help for deploy
   -p, --packages stringArray   Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed.
