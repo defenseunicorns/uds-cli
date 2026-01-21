@@ -81,7 +81,7 @@ func (lo *LocalBundle) create(ctx context.Context, signature []byte) error {
 		TmpDstDir:          lo.tmpDstDir,
 		NumPkgs:            len(lo.bundle.Packages),
 		BundleRootManifest: &rootManifest,
-		Verify:             config.CommonOptions.Verify,
+		VerifyPackages:     config.CommonOptions.VerifyPackages,
 	}
 
 	message.Debug("Bundling", bundle.Metadata.Name, "to", lo.tmpDstDir)

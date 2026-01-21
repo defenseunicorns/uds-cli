@@ -182,7 +182,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 
 		publicKeyPath := ""
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
-		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, publicKeyPath, config.CommonOptions.Verify, sha, nil)
+		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, publicKeyPath, config.CommonOptions.VerifyPackages, sha, nil)
 		if err != nil {
 			return v1alpha1.ZarfPackage{}, err
 		}
@@ -209,7 +209,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 
 	loadOpts := packager.LoadOptions{
 		Filter:         filters.Empty(),
-		Verify:         config.CommonOptions.Verify,
+		Verify:         config.CommonOptions.VerifyPackages,
 		Architecture:   config.GetArch(b.bundle.Metadata.Architecture),
 		PublicKeyPath:  b.cfg.DeployOpts.PublicKeyPath,
 		CachePath:      config.CommonOptions.CachePath,

@@ -29,7 +29,7 @@ Tools for monitoring a UDS Cluster and connecting to the UDS Engine for advanced
       --oci-concurrency int   Number of concurrent layer operations to perform when interacting with a remote bundle. (default 3)
       --tmpdir string         Specify the temporary directory to use for intermediate files
       --uds-cache string      Specify the location of the UDS cache directory (default "~/.uds-cache")
-      --verify                Verify enforces package verification
+      --verify-packages       Enforces signature verification for all packages
 ```
 
 ### SEE ALSO

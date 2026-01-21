@@ -13,7 +13,7 @@ const (
 	RootCmdFlagTempDir                 = "Specify the temporary directory to use for intermediate files"
 	RootCmdFlagInsecure                = "Allow access to insecure registries and disable other recommended security enforcements such as package checksum and signature validation. This flag should only be used if you have a specific reason and accept the reduced security posture."
 	RootCmdFlagSkipSignatureValidation = "Skip signature validation for packages"
-	RootCmdFlagVerify                  = "Verify enforces package verification"
+	RootCmdFlagVerifyPackages          = "Enforces signature verification for all packages"
 	RootCmdFlagNoColor                 = "Disable color output"
 	RootCmdFlagLogLevel                = "Log level when running UDS-CLI. Valid options are: warn, info, debug, trace"
 	RootCmdErrInvalidLogLevel          = "Invalid log level. Valid options are: warn, info, debug, trace."
