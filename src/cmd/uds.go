@@ -238,6 +238,24 @@ var logsCmd = &cobra.Command{
 	},
 }
 
+var listCmd = &cobra.Command{
+	Use:     "list",
+	Aliases: []string{"ls"},
+	Short:   lang.CmdBundleListShort,
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		ctx := cmd.Context()
+		configureZarf()
+
+		bundles, err := bundle.ListDeployedBundles(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to list deployed bundles: %w", err)
+		}
+
+		bundle.PrintBundleList(bundles)
+		return nil
+	},
+}
+
 func init() {
 	initViper()
 
@@ -284,6 +302,9 @@ func init() {
 
 	// logs cmd
 	rootCmd.AddCommand(logsCmd)
+
+	// list cmd
+	rootCmd.AddCommand(listCmd)
 }
 
 // chooseBundle provides a file picker when users don't specify a file
