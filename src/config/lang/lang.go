@@ -45,11 +45,11 @@ const (
 	CmdBundleCreateFlagName               = "Specify the name of the bundle"
 
 	// bundle deploy
-	CmdBundleDeployShort        = "Deploy a bundle from a local tarball or oci:// URL"
-	CmdBundleDeployFlagConfirm  = "Confirms bundle deployment without prompting. ONLY use with bundles you trust"
-	CmdBundleDeployFlagPackages = "Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed."
-	CmdBundleDeployFlagResume   = "Only deploys packages from the bundle which haven't already been deployed"
-	CmdBundleDeployFlagSet      = "Specify deployment variables to set on the command line (KEY=value)"
+	CmdBundleDeployShort              = "Deploy a bundle from a local tarball or oci:// URL"
+	CmdBundleDeployFlagConfirm        = "Confirms bundle deployment without prompting. ONLY use with bundles you trust"
+	CmdBundleDeployFlagPackages       = "Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed."
+	CmdBundleDeployFlagResume         = "Only deploys packages from the bundle which haven't already been deployed"
+	CmdBundleDeployFlagSet            = "Specify deployment variables to set on the command line (KEY=value)"
 	CmdBundleDeployFlagRetries        = "Specify the number of retries for package deployments (applies to all pkgs in a bundle)"
 	CmdBundleDeployFlagRef            = "Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used."
 	CmdBundleDeployFlagForceConflicts = "Force server-side apply conflicts to be overwritten. Defaults to false"
