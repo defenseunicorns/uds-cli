@@ -111,7 +111,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 		valuesVariables := getValuesVariables(variableData)
-		zarfValues, err := b.loadPackageValues(ctx, pkg, valuesVariables)
+		zarfValues, err := b.loadPackageValues(pkg, valuesVariables)
 		if err != nil {
 			return err
 		}
@@ -381,6 +381,11 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 		if err := zarfUtils.ColorPrintYAML(pkg.meta, nil, false); err != nil {
 			message.WarnErr(err, "unable to print package metadata yaml")
 		}
+		if len(pkg.values) > 0 {
+			if err := zarfUtils.ColorPrintYAML(map[string]interface{}{"values": pkg.values}, nil, false); err != nil {
+				message.WarnErr(err, "unable to print package values yaml")
+			}
+		}
 		if err := zarfUtils.ColorPrintYAML(pkg.overrides, nil, false); err != nil {
 			message.WarnErr(err, "unable to print package overrides yaml")
 		}
@@ -405,6 +410,7 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 type PkgView struct {
 	meta      map[string]string
+	values    map[string]interface{}
 	overrides map[string]interface{}
 }
 
@@ -438,7 +444,12 @@ func formPkgViews(b *Bundle) []PkgView {
 		}
 
 		variables = addZarfVars(variableData, variables)
-		pkgViews = append(pkgViews, PkgView{meta: formPkgMeta(pkg), overrides: map[string]interface{}{"overrides": variables}})
+		valuesVariables := getValuesVariables(variableData)
+		zarfValues, err := b.loadPackageValues(pkg, valuesVariables)
+		if err != nil {
+			message.Warnf("Failed to load package %s values: %v", pkg.Name, err)
+		}
+		pkgViews = append(pkgViews, PkgView{meta: formPkgMeta(pkg), values: zarfValues, overrides: map[string]interface{}{"overrides": variables}})
 	}
 	return pkgViews
 }

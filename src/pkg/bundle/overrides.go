@@ -5,7 +5,6 @@
 package bundle
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -228,7 +227,7 @@ func getValuesVariables(overrideData bOverridesData) map[string]interface{} {
 	return result
 }
 
-func (b *Bundle) loadPackageValues(ctx context.Context, pkg types.Package, variables map[string]interface{}) (ZarfValues, error) {
+func (b *Bundle) loadPackageValues(pkg types.Package, variables map[string]interface{}) (ZarfValues, error) {
 	result := make(ZarfValues)
 
 	// Skip if no values configured

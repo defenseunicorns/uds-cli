@@ -284,7 +284,7 @@ app:
 			},
 		}
 
-		vals, err := b.loadPackageValues(t.Context(), pkg, map[string]interface{}{})
+		vals, err := b.loadPackageValues(pkg, map[string]interface{}{})
 		require.NoError(t, err)
 
 		app := vals["app"].(map[string]any)
@@ -315,13 +315,13 @@ app:
 		}
 
 		// Without UDS variable set, uses default from variables
-		vals, err := b.loadPackageValues(t.Context(), pkg, map[string]interface{}{})
+		vals, err := b.loadPackageValues(pkg, map[string]interface{}{})
 		require.NoError(t, err)
 		app := vals["app"].(map[string]any)
 		require.Equal(t, 10, app["replicas"]) // from variables default, overrides set
 
 		// With UDS variable set (integer preserved, not stringified)
-		vals, err = b.loadPackageValues(t.Context(), pkg, map[string]interface{}{"REPLICAS": 20})
+		vals, err = b.loadPackageValues(pkg, map[string]interface{}{"REPLICAS": 20})
 		require.NoError(t, err)
 		app = vals["app"].(map[string]any)
 		require.Equal(t, 20, app["replicas"]) // from UDS variable, type preserved
@@ -361,7 +361,7 @@ app:
 			},
 		}
 
-		vals, err := b.loadPackageValues(t.Context(), pkg, map[string]interface{}{})
+		vals, err := b.loadPackageValues(pkg, map[string]interface{}{})
 		require.NoError(t, err)
 
 		app := vals["app"].(map[string]any)
@@ -402,7 +402,7 @@ app:
 			},
 		}
 
-		vals, err := b.loadPackageValues(t.Context(), pkg, map[string]interface{}{})
+		vals, err := b.loadPackageValues(pkg, map[string]interface{}{})
 		require.NoError(t, err)
 
 		app := vals["app"].(map[string]any)
@@ -431,7 +431,7 @@ func TestLoadPackageValuesNoConfig(t *testing.T) {
 			Values: nil, // no values configured
 		}
 
-		vals, err := b.loadPackageValues(t.Context(), pkg, map[string]interface{}{})
+		vals, err := b.loadPackageValues(pkg, map[string]interface{}{})
 		require.NoError(t, err)
 		require.Empty(t, vals)
 	})
@@ -468,7 +468,7 @@ func TestLoadPackageValuesComplexObjects(t *testing.T) {
 			},
 		}
 
-		vals, err := b.loadPackageValues(t.Context(), pkg, map[string]interface{}{
+		vals, err := b.loadPackageValues(pkg, map[string]interface{}{
 			"RESOURCES": complexValue,
 		})
 		require.NoError(t, err)
@@ -506,7 +506,7 @@ func TestLoadPackageValuesComplexObjects(t *testing.T) {
 
 		arrayValue := []interface{}{"/GitLab Admin", "/UDS Core/Admin"}
 
-		vals, err := b.loadPackageValues(t.Context(), pkg, map[string]interface{}{
+		vals, err := b.loadPackageValues(pkg, map[string]interface{}{
 			"ADMIN_GROUPS": arrayValue,
 		})
 		require.NoError(t, err)
@@ -538,7 +538,7 @@ func TestLoadPackageValuesComplexObjects(t *testing.T) {
 			},
 		}
 
-		vals, err := b.loadPackageValues(t.Context(), pkg, map[string]interface{}{
+		vals, err := b.loadPackageValues(pkg, map[string]interface{}{
 			"APP_NAME": "my-app",
 		})
 		require.NoError(t, err)

@@ -685,6 +685,49 @@ func TestFormPkgViews(t *testing.T) {
 	}
 }
 
+func TestFormPkgViewsValues(t *testing.T) {
+	t.Run("values.set appears in view as nested object", func(t *testing.T) {
+		b := newTestBundle(nil, nil, nil, "", "")
+		b.bundle = types.UDSBundle{
+			Packages: []types.Package{{
+				Name: "test-pkg",
+				Values: &types.PackageValues{
+					Set: map[string]interface{}{
+						".app.replicas":  3,
+						".database.host": "localhost",
+					},
+				},
+			}},
+		}
+
+		pkgViews := formPkgViews(&b)
+
+		require.Len(t, pkgViews, 1)
+		require.NotEmpty(t, pkgViews[0].values)
+
+		app := pkgViews[0].values["app"].(map[string]interface{})
+		require.Equal(t, 3, app["replicas"])
+
+		db := pkgViews[0].values["database"].(map[string]interface{})
+		require.Equal(t, "localhost", db["host"])
+	})
+
+	t.Run("no values configured returns empty", func(t *testing.T) {
+		b := newTestBundle(nil, nil, nil, "", "")
+		b.bundle = types.UDSBundle{
+			Packages: []types.Package{{
+				Name: "test-pkg",
+				// Values: nil
+			}},
+		}
+
+		pkgViews := formPkgViews(&b)
+
+		require.Len(t, pkgViews, 1)
+		require.Empty(t, pkgViews[0].values)
+	})
+}
+
 func TestFilterOverrides(t *testing.T) {
 	chartVars := []types.BundleChartVariable{{Name: "over1"}, {Name: "over2"}}
 	pkgVars := map[string]overrideData{"OVER1": {"val", valuesources.Config}, "ZARFVAR": {"val", valuesources.Env}}
