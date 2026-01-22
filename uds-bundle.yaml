@@ -1,0 +1,20 @@
+kind: UDSBundle
+metadata:
+  name: test
+  description: Test large bundle size
+  architecture: amd64
+  version: 0.0.1
+
+packages:
+  - name: gitlab1
+    repository: todo-gitlab-package
+    ref: 18.6.2-uds.0-unicorn
+  - name: gitlab2
+    repository: todo-gitlab-package
+    ref: 18.6.1-uds.0-unicorn
+  - name: gitlab3
+    repository: todo-gitlab-package
+    ref: 18.5.2-uds.0-unicorn
+  - name: gitlab4
+    repository: todo-gitlab-package
+    ref: 18.5.1-uds.0-unicorn
