@@ -18,6 +18,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"golang.org/x/exp/slices"
 )
 
@@ -86,11 +87,17 @@ func removePackages(packagesToRemove []types.Package) error {
 				filters.ByLocalOS(runtime.GOOS),
 			)
 
+			verificationStrategy := layout.VerifyIfPossible
+			if config.CommonOptions.VerifyPackages {
+				verificationStrategy = layout.VerifyAlways
+			}
+
 			c, _ := cluster.New(ctx) //nolint:errcheck
 			loadOpts := packager.LoadOptions{
-				Architecture:   config.GetArch(),
-				Filter:         filter,
-				OCIConcurrency: config.CommonOptions.OCIConcurrency,
+				Architecture:         config.GetArch(),
+				Filter:               filter,
+				OCIConcurrency:       config.CommonOptions.OCIConcurrency,
+				VerificationStrategy: verificationStrategy,
 			}
 
 			pkg, err := packager.GetPackageFromSourceOrCluster(ctx, c, pkg.Name, "", loadOpts)
