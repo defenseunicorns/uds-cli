@@ -207,16 +207,27 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		if err != nil {
 			return v1alpha1.ZarfPackage{}, err
 		}
-		pkgLayout, _, err := source.LoadPackage(context.TODO(), filters.Empty())
-		if err != nil {
-			return v1alpha1.ZarfPackage{}, err
-		}
-		err = pkgLayout.Cleanup()
-		if err != nil {
-			return v1alpha1.ZarfPackage{}, err
-		}
 
-		return pkgLayout.Pkg, nil
+		// If verification is requested, load the full package (to enforce signature verification).
+		// Otherwise, load metadata only to avoid the extra I/O.
+		if config.CommonOptions.VerifyPackages {
+			pkgLayout, _, err := source.LoadPackage(context.TODO(), filters.Empty())
+			if err != nil {
+				return v1alpha1.ZarfPackage{}, err
+			}
+			err = pkgLayout.Cleanup()
+			if err != nil {
+				return v1alpha1.ZarfPackage{}, err
+			}
+
+			return pkgLayout.Pkg, nil
+		} else {
+			zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), false, true)
+			if err != nil {
+				return v1alpha1.ZarfPackage{}, err
+			}
+			return zarfPkg, nil
+		}
 	}
 
 	// otherwise we are inspecting a yaml file, get the metadata from the packages directly
