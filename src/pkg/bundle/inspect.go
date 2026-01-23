@@ -8,8 +8,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
@@ -172,6 +174,16 @@ func (b *Bundle) listVariables() error {
 }
 
 func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
+
+	publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
+	if pkg.PublicKey != "" {
+		if err := os.WriteFile(publicKeyPath, []byte(pkg.PublicKey), helpers.ReadWriteUser); err != nil {
+			return v1alpha1.ZarfPackage{}, err
+		}
+		defer os.Remove(publicKeyPath)
+	} else {
+		publicKeyPath = ""
+	}
 	// if we are inspecting a built bundle, get the metadata from the bundle
 	if !b.cfg.InspectOpts.IsYAMLFile {
 		pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
@@ -180,7 +192,6 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		}
 		defer os.RemoveAll(pkgTmp)
 
-		publicKeyPath := ""
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, publicKeyPath, config.CommonOptions.VerifyPackages, sha, nil)
 		if err != nil {
@@ -211,7 +222,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		Filter:         filters.Empty(),
 		Verify:         config.CommonOptions.VerifyPackages,
 		Architecture:   config.GetArch(b.bundle.Metadata.Architecture),
-		PublicKeyPath:  b.cfg.DeployOpts.PublicKeyPath,
+		PublicKeyPath:  publicKeyPath,
 		CachePath:      config.CommonOptions.CachePath,
 		RemoteOptions:  remoteOpts,
 		OCIConcurrency: config.CommonOptions.OCIConcurrency,
