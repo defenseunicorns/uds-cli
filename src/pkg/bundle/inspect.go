@@ -197,12 +197,16 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		if err != nil {
 			return v1alpha1.ZarfPackage{}, err
 		}
-		zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), false, true)
+		pkgLayout, _, err := source.LoadPackage(context.TODO(), filters.Empty())
+		if err != nil {
+			return v1alpha1.ZarfPackage{}, err
+		}
+		err = pkgLayout.Cleanup()
 		if err != nil {
 			return v1alpha1.ZarfPackage{}, err
 		}
 
-		return zarfPkg, nil
+		return pkgLayout.Pkg, nil
 	}
 
 	// otherwise we are inspecting a yaml file, get the metadata from the packages directly
