@@ -75,16 +75,6 @@ func (b *Bundle) Inspect() error {
 		}
 	}
 
-	// If the user requested package verification but did not choose a mode that already
-	// loads package metadata (like --list-variables/--list-images), verify packages now.
-	if config.CommonOptions.VerifyPackages && !b.cfg.InspectOpts.ListVariables && !b.cfg.InspectOpts.ListImages {
-		for _, pkg := range b.bundle.Packages {
-			if _, err := b.getMetadata(pkg); err != nil {
-				return err
-			}
-		}
-	}
-
 	// handle --list-variables flag
 	if b.cfg.InspectOpts.ListVariables {
 		err := b.listVariables()
@@ -101,6 +91,16 @@ func (b *Bundle) Inspect() error {
 			return err
 		}
 		return nil
+	}
+
+	// If the user requested package verification but did not choose a mode that already
+	// loaded package metadata (like --list-variables/--list-images), verify packages now.
+	if config.CommonOptions.VerifyPackages {
+		for _, pkg := range b.bundle.Packages {
+			if _, err := b.getMetadata(pkg); err != nil {
+				return err
+			}
+		}
 	}
 
 	if err := zarfUtils.ColorPrintYAML(b.bundle, nil, false); err != nil {
@@ -221,13 +221,13 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 			}
 
 			return pkgLayout.Pkg, nil
-		} else {
-			zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), false, true)
-			if err != nil {
-				return v1alpha1.ZarfPackage{}, err
-			}
-			return zarfPkg, nil
 		}
+
+		zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), false, true)
+		if err != nil {
+			return v1alpha1.ZarfPackage{}, err
+		}
+		return zarfPkg, nil
 	}
 
 	// otherwise we are inspecting a yaml file, get the metadata from the packages directly
