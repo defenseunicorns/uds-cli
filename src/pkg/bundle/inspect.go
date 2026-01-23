@@ -75,6 +75,16 @@ func (b *Bundle) Inspect() error {
 		}
 	}
 
+	// If the user requested package verification but did not choose a mode that already
+	// loads package metadata (like --list-variables/--list-images), verify packages now.
+	if config.CommonOptions.VerifyPackages && !b.cfg.InspectOpts.ListVariables && !b.cfg.InspectOpts.ListImages {
+		for _, pkg := range b.bundle.Packages {
+			if _, err := b.getMetadata(pkg); err != nil {
+				return err
+			}
+		}
+	}
+
 	// handle --list-variables flag
 	if b.cfg.InspectOpts.ListVariables {
 		err := b.listVariables()
