@@ -65,10 +65,10 @@ func TestCreateWithNoPath(t *testing.T) {
 	defer e2e.TeardownRegistry(t, 888)
 
 	pkg := filepath.Join(zarfPkgPath1, fmt.Sprintf("zarf-package-output-var-%s-0.0.1.tar.zst", e2e.Arch))
-	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --plain-http --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	pkg = filepath.Join(zarfPkgPath2, fmt.Sprintf("zarf-package-receive-var-%s-0.0.1.tar.zst", e2e.Arch))
-	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --plain-http --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	// move the bundle to the current directory so we can test the create command with no path
 	err := os.Link(fmt.Sprintf("src/test/bundles/02-variables/remote/%s", config.BundleYAML), config.BundleYAML)
@@ -140,10 +140,10 @@ func TestLocalBundleWithRemotePkgs(t *testing.T) {
 	defer e2e.TeardownRegistry(t, 889)
 
 	pkg := fmt.Sprintf("src/test/packages/nginx/zarf-package-nginx-%s-0.0.1.tar.zst", e2e.Arch)
-	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --plain-http --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	pkg = fmt.Sprintf("src/test/packages/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
-	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:889 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:889 --plain-http --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	bundleDir := "src/test/bundles/01-uds-bundle"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-example-remote-%s-0.0.1.tar.zst", e2e.Arch))
@@ -166,10 +166,10 @@ func TestRemoteBundleWithRemotePkgs(t *testing.T) {
 	defer e2e.TeardownRegistry(t, 889)
 
 	pkg := fmt.Sprintf("src/test/packages/nginx/zarf-package-nginx-%s-0.0.1.tar.zst", e2e.Arch)
-	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --plain-http --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	pkg = fmt.Sprintf("src/test/packages/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
-	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:889 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:889 --plain-http --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	bundleRef := registry.Reference{
 		Registry: "oci://localhost:888",
@@ -311,10 +311,10 @@ func TestPackageNaming(t *testing.T) {
 	defer e2e.TeardownRegistry(t, 889)
 
 	pkg := fmt.Sprintf("src/test/packages/nginx/zarf-package-nginx-%s-0.0.1.tar.zst", e2e.Arch)
-	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --plain-http --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	pkg = fmt.Sprintf("src/test/packages/podinfo/zarf-package-podinfo-%s-0.0.1.tar.zst", e2e.Arch)
-	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:889 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:889 --plain-http --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	bundleDir := "src/test/bundles/10-package-naming"
 	bundleTarballName := fmt.Sprintf("uds-bundle-package-naming-%s-0.0.1.tar.zst", e2e.Arch)
@@ -345,7 +345,7 @@ func TestBundleWithComposedPkgComponent(t *testing.T) {
 	zarfPkgPath := "src/test/packages/prometheus"
 	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-prometheus-%s-0.0.1.tar.zst", e2e.Arch))
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --plain-http --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	bundleDir := "src/test/bundles/13-composable-component"
 	bundleName := "with-composed"
@@ -491,7 +491,7 @@ func TestListImages(t *testing.T) {
 	zarfPkgPath := "src/test/packages/prometheus"
 	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-prometheus-%s-0.0.1.tar.zst", e2e.Arch))
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --plain-http --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	zarfPkgPath = "src/test/packages/podinfo-nginx"
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
@@ -580,7 +580,7 @@ func TestListVariables(t *testing.T) {
 	zarfPkgPath := "src/test/packages/prometheus"
 	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-prometheus-%s-0.0.1.tar.zst", e2e.Arch))
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug --no-progress", pkg))
+	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --plain-http --oci-concurrency=10 -l debug --no-progress", pkg))
 
 	zarfPkgPath = "src/test/packages/podinfo-nginx"
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)

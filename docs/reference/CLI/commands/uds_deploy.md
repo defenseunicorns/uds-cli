@@ -14,6 +14,7 @@ uds deploy [BUNDLE_TARBALL|OCI_REF] [flags]
 
 ```
   -c, --confirm                Confirms bundle deployment without prompting. ONLY use with bundles you trust
+      --force-conflicts        Force server-side apply conflicts to be overwritten. Defaults to false
   -h, --help                   help for deploy
   -p, --packages stringArray   Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed.
   -r, --resume                 Only deploys packages from the bundle which haven't already been deployed

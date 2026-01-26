@@ -53,7 +53,8 @@ func (b *Bundle) Create(ctx context.Context) error {
 	}
 
 	// populate Zarf config
-	zarfConfig.CommonOptions.Insecure = config.CommonOptions.Insecure
+	zarfConfig.CommonOptions.PlainHTTP = config.CommonOptions.Insecure
+	zarfConfig.CommonOptions.InsecureSkipTLSVerify = config.CommonOptions.Insecure
 
 	validateSpinner := message.NewProgressSpinner("Validating bundle")
 
