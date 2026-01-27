@@ -92,10 +92,16 @@ func removePackages(packagesToRemove []types.Package) error {
 				verificationStrategy = layout.VerifyAlways
 			}
 
+			remoteOpts := packager.RemoteOptions{
+				PlainHTTP:             config.CommonOptions.Insecure,
+				InsecureSkipTLSVerify: config.CommonOptions.Insecure,
+			}
+
 			c, _ := cluster.New(ctx) //nolint:errcheck
 			loadOpts := packager.LoadOptions{
 				Architecture:         config.GetArch(),
 				Filter:               filter,
+				RemoteOptions:        remoteOpts,
 				OCIConcurrency:       config.CommonOptions.OCIConcurrency,
 				VerificationStrategy: verificationStrategy,
 			}

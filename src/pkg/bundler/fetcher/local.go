@@ -131,10 +131,16 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 		verificationStrategy = layout.VerifyAlways
 	}
 
+	remoteOpts := packager.RemoteOptions{
+		PlainHTTP:             config.CommonOptions.Insecure,
+		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
+	}
+
 	loadOpts := packager.LoadOptions{
 		Filter:               filter,
 		CachePath:            config.CommonOptions.CachePath,
 		PublicKeyPath:        publicKeyPath,
+		RemoteOptions:        remoteOpts,
 		VerificationStrategy: verificationStrategy,
 		OCIConcurrency:       config.CommonOptions.OCIConcurrency,
 	}
