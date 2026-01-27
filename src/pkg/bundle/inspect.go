@@ -22,6 +22,7 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 )
 
@@ -218,14 +219,19 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
 	}
 
+	verificationStrategy := layout.VerifyIfPossible
+	if config.CommonOptions.VerifyPackages {
+		verificationStrategy = layout.VerifyAlways
+	}
+
 	loadOpts := packager.LoadOptions{
-		Filter:         filters.Empty(),
-		Verify:         config.CommonOptions.VerifyPackages,
-		Architecture:   config.GetArch(b.bundle.Metadata.Architecture),
-		PublicKeyPath:  publicKeyPath,
-		CachePath:      config.CommonOptions.CachePath,
-		RemoteOptions:  remoteOpts,
-		OCIConcurrency: config.CommonOptions.OCIConcurrency,
+		Filter:               filters.Empty(),
+		VerificationStrategy: verificationStrategy,
+		Architecture:         config.GetArch(b.bundle.Metadata.Architecture),
+		PublicKeyPath:        publicKeyPath,
+		CachePath:            config.CommonOptions.CachePath,
+		RemoteOptions:        remoteOpts,
+		OCIConcurrency:       config.CommonOptions.OCIConcurrency,
 	}
 
 	pkgLayout, err := packager.LoadPackage(context.TODO(), source, loadOpts)
