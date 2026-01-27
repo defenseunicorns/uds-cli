@@ -68,7 +68,6 @@ tasks:
           build/uds zarf tools kubectl apply -f tmp/uds-core/hack/dev-manifests/cluster-config-init.yaml
           build/uds zarf tools kubectl apply -f tmp/uds-core/hack/dev-manifests/uds-operator-config-secret.yaml
           build/uds zarf tools kubectl create namespace istio-system
-          build/uds zarf tools kubectl apply -f tmp/uds-core/hack/dev-manifests/sso-ca-cert-secret.yaml
         description: "Deploy the UDS Cluster Config CRD, CR, and config secret"
       - cmd: cd tmp/uds-core && npm i && npx pepr deploy --yes
         description: cd into the tmp/uds-core directory and deploy UDS Core's Pepr module
