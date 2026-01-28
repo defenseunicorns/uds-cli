@@ -26,6 +26,7 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
 // IsValidTarballPath returns true if the path is a valid tarball path to a bundle tarball
@@ -333,4 +334,11 @@ func CanWriteToDir(dir string) error {
 	_ = os.Remove(file.Name())
 
 	return nil
+}
+
+func GetPackageVerificationStrategy(skipSignatureValidation bool) layout.VerificationStrategy {
+	if skipSignatureValidation {
+		return layout.VerifyNever
+	}
+	return layout.VerifyAlways
 }

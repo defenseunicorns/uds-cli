@@ -29,14 +29,14 @@ import (
 
 // RemoteBundle is a package source for remote bundles that implements Zarf's packager.PackageSource
 type RemoteBundle struct {
-	Pkg            types.Package
-	PkgManifestSHA string
-	TmpDir         string
-	PublicKeyPath  string
-	Remote         *oci.OrasRemote
-	nsOverrides    NamespaceOverrideMap
-	bundleCfg      types.BundleConfig
-	Verify         bool
+	Pkg                     types.Package
+	PkgManifestSHA          string
+	TmpDir                  string
+	PublicKeyPath           string
+	Remote                  *oci.OrasRemote
+	nsOverrides             NamespaceOverrideMap
+	bundleCfg               types.BundleConfig
+	SkipSignatureValidation bool
 }
 
 // LoadPackage loads a Zarf package from a remote bundle
@@ -83,15 +83,9 @@ func (r *RemoteBundle) LoadPackage(ctx context.Context, filter filters.Component
 	}
 	pkg.Components = filteredComps
 
-	// default Zarf stance is to attempt verification but not enforce
-	verificationStrategy := layout.VerifyIfPossible
-	if r.Verify {
-		verificationStrategy = layout.VerifyAlways
-	}
-
 	layoutOpts := layout.PackageLayoutOptions{
 		PublicKeyPath:        r.PublicKeyPath,
-		VerificationStrategy: verificationStrategy,
+		VerificationStrategy: utils.GetPackageVerificationStrategy(r.SkipSignatureValidation),
 		IsPartial:            isPartialPkg,
 		Filter:               filter,
 	}

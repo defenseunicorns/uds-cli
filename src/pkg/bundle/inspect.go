@@ -22,7 +22,6 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
-	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 )
 
@@ -185,6 +184,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 	} else {
 		publicKeyPath = ""
 	}
+
 	// if we are inspecting a built bundle, get the metadata from the bundle
 	if !b.cfg.InspectOpts.IsYAMLFile {
 		pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
@@ -194,7 +194,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		defer os.RemoveAll(pkgTmp)
 
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
-		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, publicKeyPath, config.CommonOptions.VerifyPackages, sha, nil)
+		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, publicKeyPath, config.CommonOptions.SkipSignatureValidation, sha, nil)
 		if err != nil {
 			return v1alpha1.ZarfPackage{}, err
 		}
@@ -219,14 +219,9 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
 	}
 
-	verificationStrategy := layout.VerifyIfPossible
-	if config.CommonOptions.VerifyPackages {
-		verificationStrategy = layout.VerifyAlways
-	}
-
 	loadOpts := packager.LoadOptions{
 		Filter:               filters.Empty(),
-		VerificationStrategy: verificationStrategy,
+		VerificationStrategy: utils.GetPackageVerificationStrategy(config.CommonOptions.SkipSignatureValidation),
 		Architecture:         config.GetArch(b.bundle.Metadata.Architecture),
 		PublicKeyPath:        publicKeyPath,
 		CachePath:            config.CommonOptions.CachePath,
