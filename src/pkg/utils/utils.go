@@ -336,6 +336,7 @@ func CanWriteToDir(dir string) error {
 	return nil
 }
 
+// GetPackageVerificationStrategy determines the package verification strategy in which to pass to the Zarf SDK based on the skipSignatureValidation flag
 func GetPackageVerificationStrategy(skipSignatureValidation bool) layout.VerificationStrategy {
 	if skipSignatureValidation {
 		return layout.VerifyNever
