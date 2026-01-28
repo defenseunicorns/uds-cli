@@ -5,11 +5,11 @@ name: Helper workflow for E2E Tests
 on:
   workflow_call: # This is the event that triggers the workflow
     inputs:
-        fetch_zarf:
-          description: "Set to true to fetch the Zarf package from main"
-          required: false
-          type: boolean
-          default: false
+      fetch_zarf:
+        description: "Set to true to fetch the Zarf package from main"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -185,6 +185,12 @@ jobs:
 
       - name: setup-using-previous-job
         uses: ./.github/actions/setup-from-previous
+        with:
+          create-cluster: "false"
+
+      - name: Deploy k3d-core-slim-dev:latest
+        run: |
+          build/uds deploy oci://ghcr.io/defenseunicorns/packages/uds/snapshots/bundles/k3d-core-slim-dev:latest --confirm --packages uds-k3d-dev,init,core-base
 
       - name: Run e2e optional bundle tests
         run: |

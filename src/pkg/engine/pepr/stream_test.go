@@ -6,6 +6,7 @@ package pepr
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"regexp"
 	"strings"
@@ -377,6 +378,49 @@ func TestRenderMutation(t *testing.T) {
 			actual := normalizeWhitespace(result)
 
 			require.Equal(t, expected, actual)
+		})
+	}
+}
+
+// TestLogEntryUnmarshal validates that pepr log events can be successfully unmarshaled into a LogEntry.
+// Test cases are a sample of actual pepr log messages from before and after the pepr logging format was
+// changed in UDS Core v0.59.0 .
+func TestLogEntryUnmarshal(t *testing.T) {
+	testCases := []struct {
+		name string
+		log  string
+	}{
+		{
+			name: "UDSCorePre0.59.0_SimpleLog",
+			log:  `{"level":30,"time":1769531906082,"pid":14,"hostname":"pepr-uds-core-f68d74745-5lgnn","prefix":"uds-core-operator: V1Service","msg":"Mutate Action configured for CREATEORUPDATE"}`,
+		},
+		{
+			name: "UDSCorePre0.59.0_AdmissionAllowed",
+			log:  `{"level":30,"time":1769531941187,"pid":14,"hostname":"pepr-uds-core-f68d74745-5lgnn","uid":"e2371efb-0e95-4bc6-8cb7-02deff45b21d","namespace":"istio-admin-gateway","name":"/admin-ingressgateway","res":{"uid":"e2371efb-0e95-4bc6-8cb7-02deff45b21d","allowed":true},"msg":"Check response"}`,
+		},
+		{
+			name: "UDSCorePre0.59.0_AdmissionMutated",
+			log:  `{"level":30,"time":1769531928462,"pid":14,"hostname":"pepr-uds-core-f68d74745-ch2tn","uid":"5ea1f989-f82e-456e-ba19-d6e47352249e","namespace":"istio-system","name":"/istiod","res":{"uid":"5ea1f989-f82e-456e-ba19-d6e47352249e","allowed":true,"patchType":"JSONPatch","patch":"W3sib3AiOiJhZGQiLCJwYXRoIjoiL21ldGFkYXRhL2Fubm90YXRpb25zL3Vkcy1jb3JlLnBlcHIuZGV2fjF1ZHMtY29yZS1vcGVyYXRvciIsInZhbHVlIjoic3VjY2VlZGVkIn0seyJvcCI6ImFkZCIsInBhdGgiOiIvbWV0YWRhdGEvYW5ub3RhdGlvbnMvdWRzLWNvcmUucGVwci5kZXZ+MXVkcy1jb3JlLXBvbGljaWVzIiwidmFsdWUiOiJzdWNjZWVkZWQifV0="},"msg":"Check response"}`,
+		},
+		{
+			name: "UDSCorePost0.59.0_SimpleLog",
+			log:  `{"level":30,"time":"2026-01-27T15:11:50.800Z","pid":14,"hostname":"pepr-uds-core-7559885c78-4vzxp","prefix":"uds-core-operator: V1Service","msg":"Mutate Action configured for CREATEORUPDATE"}`,
+		},
+		{
+			name: "UDSCorePost0.59.0_AdmissionAllowed",
+			log:  `{"level":30,"time":"2026-01-27T15:12:50.995Z","pid":14,"hostname":"pepr-uds-core-7559885c78-4vzxp","uid":"8781c2f4-8b25-4d5b-99d7-fa629190ad05","namespace":"keycloak","name":"/keycloak-waypoint","res":{"uid":"8781c2f4-8b25-4d5b-99d7-fa629190ad05","allowed":true},"msg":"Check response"}`,
+		},
+		{
+			name: "UDSCorePost0.59.0_AdmissionMutated",
+			log:  `{"level":30,"time":"2026-01-27T15:12:50.924Z","pid":14,"hostname":"pepr-uds-core-7559885c78-4vzxp","uid":"fcaf614f-33af-45c2-8548-bf5b9b17ad8f","namespace":"keycloak","name":"/keycloak-headless","res":{"uid":"fcaf614f-33af-45c2-8548-bf5b9b17ad8f","allowed":true,"patchType":"JSONPatch","patch":"W3sib3AiOiJhZGQiLCJwYXRoIjoiL21ldGFkYXRhL2Fubm90YXRpb25zL3Vkcy1jb3JlLnBlcHIuZGV2fjF1ZHMtY29yZS1vcGVyYXRvciIsInZhbHVlIjoic3VjY2VlZGVkIn0seyJvcCI6ImFkZCIsInBhdGgiOiIvbWV0YWRhdGEvYW5ub3RhdGlvbnMvdWRzLWNvcmUucGVwci5kZXZ+MXVkcy1jb3JlLXBvbGljaWVzIiwidmFsdWUiOiJzdWNjZWVkZWQifV0="},"msg":"Check response"}`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var entry LogEntry
+			err := json.Unmarshal([]byte(tc.log), &entry)
+			require.NoError(t, err, "failed to unmarshal log entry")
 		})
 	}
 }
