@@ -186,7 +186,7 @@ jobs:
       - name: setup-using-previous-job
         uses: ./.github/actions/setup-from-previous
         with:
-          setup-k3d: "false"
+          create-cluster: "false"
 
       - name: Deploy k3d-core-slim-dev:latest
         run: |
