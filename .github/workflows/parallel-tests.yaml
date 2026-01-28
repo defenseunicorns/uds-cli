@@ -190,7 +190,7 @@ jobs:
 
       - name: Deploy k3d-core-slim-dev:latest
         run: |
-          build/uds deploy k3d-core-slim-dev:latest --confirm --packages uds-k3d-dev,init,core-base
+          build/uds deploy oci://ghcr.io/defenseunicorns/packages/uds/snapshots/bundles/k3d-core-slim-dev:latest --confirm --packages uds-k3d-dev,init,core-base
 
       - name: Run e2e optional bundle tests
         run: |
