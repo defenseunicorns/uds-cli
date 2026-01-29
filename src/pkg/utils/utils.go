@@ -359,7 +359,7 @@ func LoadPackage(ctx context.Context, source string, opts packager.LoadOptions) 
 
 	// Verify if package is signed and verificationStrategy not set to never (skip)
 	if pkgLayout.IsSigned() && verificationStrategy != layout.VerifyNever {
-		verifyOpts := zarfUtils.VerifyBlobOptions{}
+		verifyOpts := zarfUtils.DefaultVerifyBlobOptions()
 		verifyOpts.KeyRef = opts.PublicKeyPath
 		err := pkgLayout.VerifyPackageSignature(ctx, verifyOpts)
 		if err != nil {
@@ -383,7 +383,7 @@ func LoadPackageFromDir(ctx context.Context, dirPath string, opts layout.Package
 
 	// Verify if package is signed and verificationStrategy not set to never (skip)
 	if pkgLayout.IsSigned() && verificationStrategy != layout.VerifyNever {
-		verifyOpts := zarfUtils.VerifyBlobOptions{}
+		verifyOpts := zarfUtils.DefaultVerifyBlobOptions()
 		verifyOpts.KeyRef = opts.PublicKeyPath
 		err := pkgLayout.VerifyPackageSignature(ctx, verifyOpts)
 		if err != nil {
