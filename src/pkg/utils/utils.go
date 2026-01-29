@@ -346,7 +346,7 @@ func GetPackageVerificationStrategy(skipSignatureValidation bool) layout.Verific
 	return layout.VerifyAlways
 }
 
-// LoadPackage fetches, verifies, and loads a Zarf package from the specified source.
+// LoadPackage fetches, verifies (only if signed), and loads a Zarf package from the specified source.
 func LoadPackage(ctx context.Context, source string, opts packager.LoadOptions) (_ *layout.PackageLayout, err error) {
 	verificationStrategy := opts.VerificationStrategy
 
@@ -357,7 +357,7 @@ func LoadPackage(ctx context.Context, source string, opts packager.LoadOptions) 
 		return pkgLayout, err
 	}
 
-	// Verify is package is signed and verificationStrategy not set to never (skip)
+	// Verify if package is signed and verificationStrategy not set to never (skip)
 	if pkgLayout.IsSigned() && verificationStrategy != layout.VerifyNever {
 		verifyOpts := zarfUtils.VerifyBlobOptions{}
 		verifyOpts.KeyRef = opts.PublicKeyPath
@@ -370,6 +370,7 @@ func LoadPackage(ctx context.Context, source string, opts packager.LoadOptions) 
 	return pkgLayout, nil
 }
 
+// LoadFromDir loads and verifies a package (only if signed), from the given directory path.
 func LoadPackageFromDir(ctx context.Context, dirPath string, opts layout.PackageLayoutOptions) (*layout.PackageLayout, error) {
 	verificationStrategy := opts.VerificationStrategy
 
@@ -380,7 +381,7 @@ func LoadPackageFromDir(ctx context.Context, dirPath string, opts layout.Package
 		return pkgLayout, err
 	}
 
-	// Verify is package is signed and verificationStrategy not set to never (skip)
+	// Verify if package is signed and verificationStrategy not set to never (skip)
 	if pkgLayout.IsSigned() && verificationStrategy != layout.VerifyNever {
 		verifyOpts := zarfUtils.VerifyBlobOptions{}
 		verifyOpts.KeyRef = opts.PublicKeyPath
