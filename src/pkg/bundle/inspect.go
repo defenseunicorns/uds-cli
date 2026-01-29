@@ -229,7 +229,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		OCIConcurrency:       config.CommonOptions.OCIConcurrency,
 	}
 
-	pkgLayout, err := packager.LoadPackage(context.TODO(), source, loadOpts)
+	pkgLayout, err := utils.LoadPackage(context.TODO(), source, loadOpts)
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, err
 	}

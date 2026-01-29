@@ -74,7 +74,7 @@ func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.Componen
 		Filter:               filter,
 	}
 
-	pkgLayout, err := layout.LoadFromDir(ctx, t.TmpDir, layoutOpts)
+	pkgLayout, err := utils.LoadPackageFromDir(ctx, t.TmpDir, layoutOpts)
 	if err != nil {
 		return nil, nil, err
 	}

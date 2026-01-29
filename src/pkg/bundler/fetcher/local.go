@@ -139,7 +139,7 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 		OCIConcurrency:       config.CommonOptions.OCIConcurrency,
 	}
 
-	pkgLayout, err := packager.LoadPackage(ctx, f.pkg.Path, loadOpts)
+	pkgLayout, err := utils.LoadPackage(ctx, f.pkg.Path, loadOpts)
 	if err != nil {
 		return nil, "", err
 	}

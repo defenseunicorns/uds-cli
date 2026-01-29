@@ -90,7 +90,7 @@ func (r *RemoteBundle) LoadPackage(ctx context.Context, filter filters.Component
 		Filter:               filter,
 	}
 
-	pkgLayout, err := layout.LoadFromDir(ctx, r.TmpDir, layoutOpts)
+	pkgLayout, err := utils.LoadPackageFromDir(ctx, r.TmpDir, layoutOpts)
 	if err != nil {
 		return nil, nil, err
 	}
