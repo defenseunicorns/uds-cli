@@ -94,6 +94,16 @@ func (b *Bundle) Inspect() error {
 		return nil
 	}
 
+	// If the user requested package verification but did not choose a mode that already
+	// loaded package metadata (like --list-variables/--list-images), verify packages now.
+	if config.CommonOptions.VerifyPackages {
+		for _, pkg := range b.bundle.Packages {
+			if _, err := b.getMetadata(pkg); err != nil {
+				return err
+			}
+		}
+	}
+
 	if err := zarfUtils.ColorPrintYAML(b.bundle, nil, false); err != nil {
 		message.Warn("error printing bundle yaml")
 	}
@@ -198,11 +208,26 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		if err != nil {
 			return v1alpha1.ZarfPackage{}, err
 		}
+
+		// If verification is requested, load the full package (to enforce signature verification).
+		// Otherwise, load metadata only to avoid the extra I/O.
+		if config.CommonOptions.VerifyPackages {
+			pkgLayout, _, err := source.LoadPackage(context.TODO(), filters.Empty())
+			if err != nil {
+				return v1alpha1.ZarfPackage{}, err
+			}
+			err = pkgLayout.Cleanup()
+			if err != nil {
+				return v1alpha1.ZarfPackage{}, err
+			}
+
+			return pkgLayout.Pkg, nil
+		}
+
 		zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), false, true)
 		if err != nil {
 			return v1alpha1.ZarfPackage{}, err
 		}
-
 		return zarfPkg, nil
 	}
 
