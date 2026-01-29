@@ -43,12 +43,6 @@ var rootCmd = &cobra.Command{
 				return err
 			}
 		}
-		if cmd.Flags().Changed("skip-signature-validation") {
-			if cmd.Flags().Changed("verify-packages") {
-				return nil
-			}
-			config.CommonOptions.VerifyPackages = !config.CommonOptions.SkipSignatureValidation
-		}
 		return nil
 	},
 	Short:         lang.RootCmdShort,
@@ -113,8 +107,6 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&config.CommonOptions.TempDirectory, "tmpdir", v.GetString(V_TMP_DIR), lang.RootCmdFlagTempDir)
 	rootCmd.PersistentFlags().BoolVar(&config.CommonOptions.Insecure, "insecure", v.GetBool(V_INSECURE), lang.RootCmdFlagInsecure)
 	rootCmd.PersistentFlags().BoolVar(&config.CommonOptions.SkipSignatureValidation, "skip-signature-validation", v.GetBool(V_SKIP_SIGNATURE_VALIDATION), lang.RootCmdFlagSkipSignatureValidation)
-	_ = rootCmd.PersistentFlags().MarkDeprecated("skip-signature-validation", "Signature verification now occurs on every execution, but is not enforced by default. Use --verify-packages to enforce validation.")
-	rootCmd.PersistentFlags().BoolVar(&config.CommonOptions.VerifyPackages, "verify-packages", v.GetBool(V_VERIFY_PACKAGES), lang.RootCmdFlagVerifyPackages)
 	rootCmd.PersistentFlags().IntVar(&config.CommonOptions.OCIConcurrency, "oci-concurrency", v.GetInt(V_BNDL_OCI_CONCURRENCY), lang.CmdBundleFlagConcurrency)
 	rootCmd.PersistentFlags().BoolVar(&config.NoColor, "no-color", v.GetBool(V_NO_COLOR), lang.RootCmdFlagNoColor)
 

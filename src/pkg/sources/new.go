@@ -17,7 +17,7 @@ import (
 )
 
 // NewFromLocation creates a new package source based on pkgLocation
-func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, packageSource string, publicKeyPath string, verify bool, sha string, nsOverrides NamespaceOverrideMap) (PackageSource, error) {
+func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, packageSource string, publicKeyPath string, skipSignatureValidation bool, sha string, nsOverrides NamespaceOverrideMap) (PackageSource, error) {
 	var source PackageSource
 	var pkgLocation string
 	if bundleCfg.DeployOpts.Source != "" {
@@ -32,13 +32,13 @@ func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, packageSou
 
 	if strings.Contains(pkgLocation, "tar.zst") {
 		source = &TarballBundle{
-			Pkg:            pkg,
-			PkgManifestSHA: sha,
-			TmpDir:         packageSource,
-			BundleLocation: pkgLocation,
-			nsOverrides:    nsOverrides,
-			PublicKeyPath:  publicKeyPath,
-			Verify:         verify,
+			Pkg:                     pkg,
+			PkgManifestSHA:          sha,
+			TmpDir:                  packageSource,
+			BundleLocation:          pkgLocation,
+			nsOverrides:             nsOverrides,
+			PublicKeyPath:           publicKeyPath,
+			SkipSignatureValidation: skipSignatureValidation,
 		}
 	} else {
 		platform := ocispec.Platform{
@@ -50,14 +50,14 @@ func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, packageSou
 			return nil, err
 		}
 		source = &RemoteBundle{
-			Pkg:            pkg,
-			PkgManifestSHA: sha,
-			TmpDir:         packageSource,
-			Remote:         remote.OrasRemote,
-			nsOverrides:    nsOverrides,
-			bundleCfg:      bundleCfg,
-			PublicKeyPath:  publicKeyPath,
-			Verify:         verify,
+			Pkg:                     pkg,
+			PkgManifestSHA:          sha,
+			TmpDir:                  packageSource,
+			Remote:                  remote.OrasRemote,
+			nsOverrides:             nsOverrides,
+			bundleCfg:               bundleCfg,
+			PublicKeyPath:           publicKeyPath,
+			SkipSignatureValidation: skipSignatureValidation,
 		}
 	}
 	return source, nil

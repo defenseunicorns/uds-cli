@@ -76,12 +76,12 @@ func (lo *LocalBundle) create(ctx context.Context, signature []byte) error {
 	}
 
 	fetcherConfig := fetcher.Config{
-		Bundle:             bundle,
-		Store:              store,
-		TmpDstDir:          lo.tmpDstDir,
-		NumPkgs:            len(lo.bundle.Packages),
-		BundleRootManifest: &rootManifest,
-		VerifyPackages:     config.CommonOptions.VerifyPackages,
+		Bundle:                  bundle,
+		Store:                   store,
+		TmpDstDir:               lo.tmpDstDir,
+		NumPkgs:                 len(lo.bundle.Packages),
+		BundleRootManifest:      &rootManifest,
+		SkipSignatureValidation: config.CommonOptions.SkipSignatureValidation,
 	}
 
 	message.Debug("Bundling", bundle.Metadata.Name, "to", lo.tmpDstDir)
