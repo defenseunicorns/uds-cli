@@ -217,7 +217,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 
 		if !config.CommonOptions.SkipSignatureValidation {
 			if err := verifyPackageSignature(pkgTmp, publicKeyPath, zarfPkg); err != nil {
-				return v1alpha1.ZarfPackage{}, err
+				return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 			}
 		}
 
@@ -249,7 +249,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 
 	pkgLayout, err := utils.LoadPackage(context.TODO(), source, loadOpts)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, err
+		return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 	}
 
 	err = pkgLayout.Cleanup()
@@ -279,7 +279,7 @@ func verifyPackageSignature(pkgDir, publicKeyPath string, pkg v1alpha1.ZarfPacka
 	}
 
 	if publicKeyPath == "" {
-		return fmt.Errorf("package is signed, but no public key was provided")
+		return fmt.Errorf("package is signed but no verification material was provided (Public Key, etc.)")
 	}
 
 	verifyOpts := zarfUtils.DefaultVerifyBlobOptions()
