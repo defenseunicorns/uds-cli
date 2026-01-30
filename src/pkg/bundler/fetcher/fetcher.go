@@ -26,13 +26,13 @@ type Fetcher interface {
 
 // Config is the configuration for the fetcher
 type Config struct {
-	Store              *ocistore.Store
-	TmpDstDir          string
-	PkgIter            int
-	NumPkgs            int
-	BundleRootManifest *ocispec.Manifest
-	Bundle             *types.UDSBundle
-	Verify             bool
+	Store                   *ocistore.Store
+	TmpDstDir               string
+	PkgIter                 int
+	NumPkgs                 int
+	BundleRootManifest      *ocispec.Manifest
+	Bundle                  *types.UDSBundle
+	SkipSignatureValidation bool
 }
 
 // NewPkgFetcher creates a fetcher object to pull Zarf pkgs into a local bundle

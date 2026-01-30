@@ -36,7 +36,6 @@ type StreamReader struct {
 // LogEntry represents a log entry from Pepr
 type LogEntry struct {
 	Level     int    `json:"level"`
-	Time      int64  `json:"time"`
 	Pid       int    `json:"pid"`
 	Hostname  string `json:"hostname"`
 	Uid       string `json:"uid"`

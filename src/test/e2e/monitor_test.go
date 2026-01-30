@@ -11,8 +11,8 @@ import (
 )
 
 func TestMonitor(t *testing.T) {
-	// this test assumes a running k3d cluster with the UDS operator and admission controller installed
-	// recommend running with uds run test:engine-e2e to install controllers
+	// this test assumes a running cluster with the UDS installed (i.e. k3d-core-slim-dev)
+	// recommend running this test after deploying with `uds deploy k3d-core-slim-dev:latest --packages uds-k3d-dev,init,core-base`
 	deployments, _ := runCmd(t, "zarf tools kubectl get deployments -n pepr-system -o=jsonpath='{.items[*].metadata.name}'")
 	require.Contains(t, deployments, "pepr-uds-core")
 	require.Contains(t, deployments, "pepr-uds-core-watcher")
