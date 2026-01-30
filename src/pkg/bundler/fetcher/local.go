@@ -26,7 +26,6 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
-	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"oras.land/oras-go/v2/content/file"
@@ -126,11 +125,6 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 		filters.ForDeploy(strings.Join(f.pkg.OptionalComponents, ","), false),
 	)
 
-	verificationStrategy := layout.VerifyIfPossible
-	if f.cfg.VerifyPackages {
-		verificationStrategy = layout.VerifyAlways
-	}
-
 	remoteOpts := packager.RemoteOptions{
 		PlainHTTP:             config.CommonOptions.Insecure,
 		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
@@ -141,11 +135,11 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 		CachePath:            config.CommonOptions.CachePath,
 		PublicKeyPath:        publicKeyPath,
 		RemoteOptions:        remoteOpts,
-		VerificationStrategy: verificationStrategy,
+		VerificationStrategy: utils.GetPackageVerificationStrategy(f.cfg.SkipSignatureValidation),
 		OCIConcurrency:       config.CommonOptions.OCIConcurrency,
 	}
 
-	pkgLayout, err := packager.LoadPackage(ctx, f.pkg.Path, loadOpts)
+	pkgLayout, err := utils.LoadPackage(ctx, f.pkg.Path, loadOpts)
 	if err != nil {
 		return nil, "", err
 	}
