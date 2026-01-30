@@ -18,7 +18,6 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
-	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"golang.org/x/exp/slices"
 )
 
@@ -87,11 +86,6 @@ func removePackages(packagesToRemove []types.Package) error {
 				filters.ByLocalOS(runtime.GOOS),
 			)
 
-			verificationStrategy := layout.VerifyIfPossible
-			if config.CommonOptions.VerifyPackages {
-				verificationStrategy = layout.VerifyAlways
-			}
-
 			remoteOpts := packager.RemoteOptions{
 				PlainHTTP:             config.CommonOptions.Insecure,
 				InsecureSkipTLSVerify: config.CommonOptions.Insecure,
@@ -103,9 +97,11 @@ func removePackages(packagesToRemove []types.Package) error {
 				Filter:               filter,
 				RemoteOptions:        remoteOpts,
 				OCIConcurrency:       config.CommonOptions.OCIConcurrency,
-				VerificationStrategy: verificationStrategy,
+				VerificationStrategy: utils.GetPackageVerificationStrategy(config.CommonOptions.SkipSignatureValidation),
 			}
 
+			// This gets the package from the cluster (not source), which does not trigger signature verification regardless
+			// of what loadOpts.VerificationStrategy is set to.
 			pkg, err := packager.GetPackageFromSourceOrCluster(ctx, c, pkg.Name, "", loadOpts)
 			if err != nil {
 				return fmt.Errorf("unable to load the package: %w", err)

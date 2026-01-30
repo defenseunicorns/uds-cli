@@ -26,6 +26,9 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 )
 
 // IsValidTarballPath returns true if the path is a valid tarball path to a bundle tarball
@@ -333,4 +336,60 @@ func CanWriteToDir(dir string) error {
 	_ = os.Remove(file.Name())
 
 	return nil
+}
+
+// GetPackageVerificationStrategy determines the package verification strategy in which to pass to the Zarf SDK based on the skipSignatureValidation flag
+func GetPackageVerificationStrategy(skipSignatureValidation bool) layout.VerificationStrategy {
+	if skipSignatureValidation {
+		return layout.VerifyNever
+	}
+	return layout.VerifyAlways
+}
+
+// LoadPackage fetches, verifies (only if signed), and loads a Zarf package from the specified source.
+func LoadPackage(ctx context.Context, source string, opts packager.LoadOptions) (_ *layout.PackageLayout, err error) {
+	verificationStrategy := opts.VerificationStrategy
+
+	// Load the package without package verification, in case it is unsigned
+	opts.VerificationStrategy = layout.VerifyNever
+	pkgLayout, err := packager.LoadPackage(ctx, source, opts)
+	if err != nil {
+		return pkgLayout, err
+	}
+
+	// Verify if package is signed and verificationStrategy not set to never (skip)
+	if pkgLayout.IsSigned() && verificationStrategy != layout.VerifyNever {
+		verifyOpts := zarfUtils.DefaultVerifyBlobOptions()
+		verifyOpts.KeyRef = opts.PublicKeyPath
+		err := pkgLayout.VerifyPackageSignature(ctx, verifyOpts)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return pkgLayout, nil
+}
+
+// LoadFromDir loads and verifies a package (only if signed), from the given directory path.
+func LoadPackageFromDir(ctx context.Context, dirPath string, opts layout.PackageLayoutOptions) (*layout.PackageLayout, error) {
+	verificationStrategy := opts.VerificationStrategy
+
+	// Load the package without package verification, in case it is unsigned
+	opts.VerificationStrategy = layout.VerifyNever
+	pkgLayout, err := layout.LoadFromDir(ctx, dirPath, opts)
+	if err != nil {
+		return pkgLayout, err
+	}
+
+	// Verify if package is signed and verificationStrategy not set to never (skip)
+	if pkgLayout.IsSigned() && verificationStrategy != layout.VerifyNever {
+		verifyOpts := zarfUtils.DefaultVerifyBlobOptions()
+		verifyOpts.KeyRef = opts.PublicKeyPath
+		err := pkgLayout.VerifyPackageSignature(ctx, verifyOpts)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return pkgLayout, nil
 }
