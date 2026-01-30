@@ -93,9 +93,9 @@ func (b *Bundle) Inspect() error {
 		return nil
 	}
 
-	// If the user requested package verification but did not choose a mode that already
+	// If the user is not skipping validation amd did not choose a mode that already
 	// loaded package metadata (like --list-variables/--list-images), verify packages now.
-	if config.CommonOptions.VerifyPackages {
+	if !config.CommonOptions.SkipSignatureValidation {
 		for _, pkg := range b.bundle.Packages {
 			if _, err := b.getMetadata(pkg); err != nil {
 				return err
@@ -209,10 +209,13 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 			return v1alpha1.ZarfPackage{}, err
 		}
 
-		// If verification is requested, load the full package (to enforce signature verification).
-		// Otherwise, load metadata only to avoid the extra I/O.
-		if config.CommonOptions.VerifyPackages {
-			pkgLayout, _, err := source.LoadPackage(context.TODO(), filters.Empty())
+		// If validation is not being skipped, load the full package (to enforce signature verification).
+		// Otherwise, load metadata only to avoid the extra load time and I/O.
+		if !config.CommonOptions.SkipSignatureValidation {
+			inspectFilter := filters.Combine(
+				filters.ForDeploy(strings.Join(pkg.OptionalComponents, ","), false),
+			)
+			pkgLayout, _, err := source.LoadPackage(context.TODO(), inspectFilter)
 			if err != nil {
 				return v1alpha1.ZarfPackage{}, err
 			}
