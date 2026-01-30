@@ -272,9 +272,6 @@ func verifyPackageSignature(pkgDir, publicKeyPath string, pkg v1alpha1.ZarfPacka
 	}
 
 	if !signed {
-		if publicKeyPath != "" {
-			return fmt.Errorf("package is not signed, but a public key was provided")
-		}
 		return nil
 	}
 

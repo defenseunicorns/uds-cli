@@ -1,0 +1,28 @@
+# Copyright 2024 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+kind: UDSBundle
+metadata:
+  name: signed-with-key
+  description: bundle with a signed package and a public key
+  version: 0.0.1
+
+packages:
+  - name: dos-games
+    repository: ghcr.io/zarf-dev/packages/dos-games
+    ref: 1.3.0
+    publicKey: |
+      -----BEGIN PUBLIC KEY-----
+      MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAvzCVJ8lhKn7VrH8TyGRq
+      Ie7BZhILJMsEJYUJTI/2meoEqHwsESM606QRIftD9KG3tk7eVA5h9Fnw8hPathwq
+      9HGgfQAwdSUlEZK152u1QRD50elcT2EFs1FcFyFdoSYyORAFwAGY/nsEklfslpbc
+      a7KXOgEMGKbOsdcIMjDzemBL6oyiwUEJWu+ZElCOkRgF7v+VpJhvqlGok2dPcNRt
+      OLML3rU+sKrbsYRR89H32AOrrXnyQ6jHbPQ4DOhVQGGUCpKgHTrdp2Io+8ixEjRr
+      kDm1ya9SzekXf9Yc7pHTjrTF7BkaxfeLKHHqT5DkmLlEjQqmYvvFmfVjrEEFJai4
+      Gseul1aZMPHmLYLjoCeNFbJ9LaJVZ1KLTzPG3Js0lfTInfxMvcp9la2XJwViXvtO
+      uSmVJEMe9bY7lrgwl/X022DArgz5R3EdQW64TLXvtKUQl232cC9wB4p4B5a0Dd+6
+      yTUHHSj+0HpsInJWYk7+IJen8i28AVFdQxXIwI2sfWhwLg/udImhpKZdgRlsscjl
+      +sHpe+RvqCRjKWhbDee/AcvIzvvsJfv+5OkqKlZBAu5NG6zOjDU+eHl1DhSdKsKZ
+      XIhyiT1ZGF9PplLixSjg/9ZkXemg0ImybX/q3kMZiwL5Vii6ZLUUwQ1+SSTazfLg
+      wJLcBrRj83HRenrsBoERXj0CAwEAAQ==
+      -----END PUBLIC KEY-----
