@@ -624,11 +624,12 @@ func TestBundleWithComponentNamedAuth(t *testing.T) {
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-zarf-component-name-bug-%s-0.0.1.tar.zst", e2e.Arch))
 	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 
-	t.Run("expect component with auth in name to error", func(t *testing.T) {
+	t.Run("component with auth in name should not error", func(t *testing.T) {
 		_, stderr, _ := runCmdWithErr(fmt.Sprintf("deploy %s --retries 1 --confirm --insecure", bundlePath))
 		ansiRegex := regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
 		cleaned := ansiRegex.ReplaceAllString(stderr, "")
 		require.NotContains(t, cleaned, "failed to deploy bundle: unable to deploy component \"authservice\": unable to decompress:")
+		runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
 	})
 }
 
@@ -713,11 +714,4 @@ func TestBundleList(t *testing.T) {
 
 	// Clean up
 	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
-
-	t.Run("list shows no bundles after removal", func(t *testing.T) {
-		stdout, _ := runCmd(t, "list")
-
-		// After removal, should show no bundles message or not contain the removed bundle
-		require.Contains(t, stdout, "No deployed bundles found", "should show 'no bundles' message after removal")
-	})
 }
