@@ -22,6 +22,7 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 )
 
@@ -209,28 +210,17 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 			return v1alpha1.ZarfPackage{}, err
 		}
 
-		// If validation is not being skipped, load the full package (to enforce signature verification).
-		// Otherwise, load metadata only to avoid the extra load time and I/O.
-		if !config.CommonOptions.SkipSignatureValidation {
-			inspectFilter := filters.Combine(
-				filters.ForDeploy(strings.Join(pkg.OptionalComponents, ","), false),
-			)
-			pkgLayout, _, err := source.LoadPackage(context.TODO(), inspectFilter)
-			if err != nil {
-				return v1alpha1.ZarfPackage{}, err
-			}
-			err = pkgLayout.Cleanup()
-			if err != nil {
-				return v1alpha1.ZarfPackage{}, err
-			}
-
-			return pkgLayout.Pkg, nil
-		}
-
 		zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), false, true)
 		if err != nil {
 			return v1alpha1.ZarfPackage{}, err
 		}
+
+		if !config.CommonOptions.SkipSignatureValidation {
+			if err := verifyPackageSignature(pkgTmp, publicKeyPath, zarfPkg); err != nil {
+				return v1alpha1.ZarfPackage{}, err
+			}
+		}
+
 		return zarfPkg, nil
 	}
 
@@ -268,4 +258,32 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 	}
 
 	return pkgLayout.Pkg, nil
+}
+
+func verifyPackageSignature(pkgDir, publicKeyPath string, pkg v1alpha1.ZarfPackage) error {
+	signaturePath := filepath.Join(pkgDir, layout.Signature)
+	zarfYAMLPath := filepath.Join(pkgDir, layout.ZarfYAML)
+
+	signed := false
+	if pkg.Build.Signed != nil {
+		signed = *pkg.Build.Signed
+	} else if _, err := os.Stat(signaturePath); err == nil {
+		signed = true
+	}
+
+	if !signed {
+		if publicKeyPath != "" {
+			return fmt.Errorf("package is not signed, but a public key was provided")
+		}
+		return nil
+	}
+
+	if publicKeyPath == "" {
+		return fmt.Errorf("package is signed, but no public key was provided")
+	}
+
+	verifyOpts := zarfUtils.DefaultVerifyBlobOptions()
+	verifyOpts.KeyRef = publicKeyPath
+	verifyOpts.SigRef = signaturePath
+	return zarfUtils.CosignVerifyBlobWithOptions(context.TODO(), zarfYAMLPath, verifyOpts)
 }
