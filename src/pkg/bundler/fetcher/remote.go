@@ -7,15 +7,24 @@ package fetcher
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 
+	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/cache"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
 
@@ -31,6 +40,13 @@ type remoteFetcher struct {
 func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 	fetchSpinner := message.NewProgressSpinner("Fetching package %s", f.pkg.Name)
 	defer fetchSpinner.Stop()
+
+	if !f.cfg.SkipSignatureValidation {
+		err := f.verifyPackageSignature()
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// find layers in remote
 	fetchSpinner.Updatef("Fetching %s package layer metadata (package %d of %d)", f.pkg.Name, f.cfg.PkgIter+1, f.cfg.NumPkgs)
@@ -112,6 +128,53 @@ func (f *remoteFetcher) copyRemotePkgLayers(layersToCopy []ocispec.Descriptor) (
 		descsToBundle = append(descsToBundle, pkgManifestDesc, manifestConfigDesc)
 	}
 	return descsToBundle, nil
+}
+
+// verifyPackageSignature verifies a remote (OCI) package by loading the package via Zarf SDK
+func (f *remoteFetcher) verifyPackageSignature() error {
+	ctx := context.TODO()
+
+	// create the public key such that we can reference it for load
+	publicKeyPath := filepath.Join(f.cfg.TmpDstDir, config.PublicKeyFile)
+	if f.pkg.PublicKey != "" {
+		if err := os.WriteFile(publicKeyPath, []byte(f.pkg.PublicKey), helpers.ReadWriteUser); err != nil {
+			return err
+		}
+	} else {
+		publicKeyPath = ""
+	}
+
+	filter := filters.Combine(
+		filters.ByLocalOS(runtime.GOOS),
+		filters.ForDeploy(strings.Join(f.pkg.OptionalComponents, ","), false),
+	)
+
+	remoteOpts := packager.RemoteOptions{
+		PlainHTTP:             config.CommonOptions.Insecure,
+		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
+	}
+
+	loadOpts := packager.LoadOptions{
+		Filter:               filter,
+		CachePath:            config.CommonOptions.CachePath,
+		PublicKeyPath:        publicKeyPath,
+		RemoteOptions:        remoteOpts,
+		VerificationStrategy: layout.VerifyAlways,
+		OCIConcurrency:       config.CommonOptions.OCIConcurrency,
+	}
+
+	// arch & sourceDir are not used for remote package source
+	source, err := utils.GetPkgSource(f.pkg, "", "")
+	if err != nil {
+		return err
+	}
+
+	_, err = utils.LoadPackage(ctx, source, loadOpts)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (f *remoteFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
