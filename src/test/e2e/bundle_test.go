@@ -80,6 +80,21 @@ func TestCreateWithNoPath(t *testing.T) {
 	runCmd(t, "create --confirm --insecure")
 }
 
+func TestCreateRemotePackageWithoutPublicKey(t *testing.T) {
+	bundleDir := "src/test/bundles/20-signed-no-key"
+
+	t.Run("bundle create errors without public key", func(t *testing.T) {
+		_, stderr, err := runCmdWithErr(fmt.Sprintf("create --confirm --insecure %s", bundleDir))
+		require.Error(t, err)
+		require.Contains(t, stderr, "failed to create bundle: package is signed but no verification material was provided")
+	})
+
+	t.Run("bundle create with skip signature validation succeeds", func(t *testing.T) {
+		_, _, err := runCmdWithErr(fmt.Sprintf("create --confirm --insecure %s --skip-signature-validation", bundleDir))
+		require.NoError(t, err)
+	})
+}
+
 func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 	deployZarfInit(t)
 	e2e.SetupDockerRegistry(t, 888)
