@@ -395,7 +395,7 @@ func LoadPackageFromDir(ctx context.Context, dirPath string, opts layout.Package
 	return pkgLayout, nil
 }
 
-// GetPkgsource returns the normalized remote or local source path for a package
+// GetPkgSource returns the normalized remote or local source path for a package
 func GetPkgSource(pkg types.Package, arch string, srcDir string) (string, error) {
 	if pkg.Repository != "" {
 		source := fmt.Sprintf("oci://%s:%s", pkg.Repository, pkg.Ref)
