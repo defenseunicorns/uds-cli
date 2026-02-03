@@ -227,7 +227,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 	// otherwise we are inspecting a yaml file, get the metadata from the packages directly
 	sourceDir := strings.TrimSuffix(b.cfg.InspectOpts.Source, config.BundleYAML)
 
-	source, err := getPkgSource(pkg, config.GetArch(b.bundle.Metadata.Architecture), sourceDir)
+	source, err := utils.GetPkgSource(pkg, config.GetArch(b.bundle.Metadata.Architecture), sourceDir)
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, err
 	}
