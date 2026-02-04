@@ -33,7 +33,7 @@ uds COMMAND [flags]
 * [uds deploy](/reference/cli/commands/uds_deploy/)	 - Deploy a bundle from a local tarball or oci:// URL
 * [uds dev](/reference/cli/commands/uds_dev/)	 - [beta] Commands useful for developing bundles
 * [uds inspect](/reference/cli/commands/uds_inspect/)	 - Display the metadata of a bundle
-* [uds list](/reference/cli/commands/uds_list/)	 - List deployed bundles in the cluster
+* [uds list](/reference/cli/commands/uds_list/)	 - [alpha] List deployed bundles in the cluster
 * [uds logs](/reference/cli/commands/uds_logs/)	 - View most recent UDS CLI logs
 * [uds monitor](/reference/cli/commands/uds_monitor/)	 - Monitor a UDS Cluster
 * [uds publish](/reference/cli/commands/uds_publish/)	 - Publish a bundle from the local file system to a remote registry

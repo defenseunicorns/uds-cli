@@ -4,7 +4,7 @@ description: UDS CLI command reference for <code>uds list</code>.
 ---
 ## uds list
 
-List deployed bundles in the cluster
+[alpha] List deployed bundles in the cluster
 
 ```
 uds list [flags]

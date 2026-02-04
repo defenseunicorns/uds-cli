@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
@@ -103,11 +104,35 @@ func PrintBundleList(bundles []BundleDeployment) {
 		return
 	}
 
-	fmt.Fprintln(message.OutputWriter, "BUNDLE NAME      VERSION    PACKAGES")
-	fmt.Fprintln(message.OutputWriter, "───────────────────────────────────────────────────────────────────────")
+	// Calculate max widths for dynamic column sizing
+	nameWidth := len("BUNDLE NAME")
+	versionWidth := len("VERSION")
 
 	for _, bundle := range bundles {
-		fmt.Fprintf(message.OutputWriter, "%-16s %-10s %d\n", bundle.Name, bundle.Version, len(bundle.Packages))
+		if len(bundle.Name) > nameWidth {
+			nameWidth = len(bundle.Name)
+		}
+		if len(bundle.Version) > versionWidth {
+			versionWidth = len(bundle.Version)
+		}
+	}
+
+	// Add padding
+	nameWidth += 2
+	versionWidth += 2
+
+	// Build format string dynamically
+	headerFmt := fmt.Sprintf("%%-%ds %%-%ds %%s\n", nameWidth, versionWidth)
+	rowFmt := fmt.Sprintf("%%-%ds %%-%ds %%d\n", nameWidth, versionWidth)
+
+	fmt.Fprintf(message.OutputWriter, headerFmt, "BUNDLE NAME", "VERSION", "PACKAGES")
+
+	// Dynamic separator line
+	totalWidth := nameWidth + versionWidth + len("PACKAGES")
+	fmt.Fprintln(message.OutputWriter, strings.Repeat("─", totalWidth))
+
+	for _, bundle := range bundles {
+		fmt.Fprintf(message.OutputWriter, rowFmt, bundle.Name, bundle.Version, len(bundle.Packages))
 		for _, pkg := range bundle.Packages {
 			fmt.Fprintf(message.OutputWriter, "  └─ %s\n", pkg)
 		}
