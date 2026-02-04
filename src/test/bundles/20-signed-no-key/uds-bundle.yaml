@@ -1,0 +1,13 @@
+# Copyright 2024 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+kind: UDSBundle
+metadata:
+  name: signed-no-key
+  description: bundle with a signed package missing a public key
+  version: 0.0.1
+
+packages:
+  - name: dos-games-no-key
+    repository: ghcr.io/zarf-dev/packages/dos-games
+    ref: 1.3.0

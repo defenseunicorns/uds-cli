@@ -80,6 +80,21 @@ func TestCreateWithNoPath(t *testing.T) {
 	runCmd(t, "create --confirm --insecure")
 }
 
+func TestCreateRemotePackageWithoutPublicKey(t *testing.T) {
+	bundleDir := "src/test/bundles/20-signed-no-key"
+
+	t.Run("bundle create errors without public key", func(t *testing.T) {
+		_, stderr, err := runCmdWithErr(fmt.Sprintf("create --confirm --insecure %s", bundleDir))
+		require.Error(t, err)
+		require.Contains(t, stderr, "failed to create bundle: package is signed but no verification material was provided")
+	})
+
+	t.Run("bundle create with skip signature validation succeeds", func(t *testing.T) {
+		_, _, err := runCmdWithErr(fmt.Sprintf("create --confirm --insecure %s --skip-signature-validation", bundleDir))
+		require.NoError(t, err)
+	})
+}
+
 func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 	deployZarfInit(t)
 	e2e.SetupDockerRegistry(t, 888)
@@ -237,6 +252,72 @@ func TestLocalBundleWithOutput(t *testing.T) {
 	bundlePath := filepath.Join(destDir, fmt.Sprintf("uds-bundle-yml-example-%s-0.0.1.tar.zst", e2e.Arch))
 	runCmd(t, fmt.Sprintf("create %s -o %s --insecure --confirm -a %s", bundleDir, destDir, e2e.Arch))
 	runCmd(t, fmt.Sprintf("inspect %s", bundlePath))
+}
+
+func TestInspectBundleSignedNoKeyScenarios(t *testing.T) {
+	bundleDir := "src/test/bundles/20-signed-no-key"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-signed-no-key-%s-0.0.1.tar.zst", e2e.Arch))
+
+	runCmd(t, fmt.Sprintf("create %s --confirm --insecure --skip-signature-validation -a %s", bundleDir, e2e.Arch))
+
+	t.Run("bundle yaml inspect", func(t *testing.T) {
+		_, stderr, err := runCmdWithErr(fmt.Sprintf("inspect %s", filepath.Join(bundleDir, config.BundleYAML)))
+		require.Error(t, err)
+		require.Contains(t, stderr, "failed to inspect bundle: package \"dos-games-no-key\": package is signed but no verification material was provided")
+	})
+
+	t.Run("bundle yaml list images", func(t *testing.T) {
+		_, stderr, err := runCmdWithErr(fmt.Sprintf("inspect %s --list-images", filepath.Join(bundleDir, config.BundleYAML)))
+		require.Error(t, err)
+		require.Contains(t, stderr, "failed to inspect bundle: package \"dos-games-no-key\": package is signed but no verification material was provided")
+	})
+
+	t.Run("bundle tarball inspect", func(t *testing.T) {
+		_, stderr, err := runCmdWithErr(fmt.Sprintf("inspect %s", bundlePath))
+		require.Error(t, err)
+		require.Contains(t, stderr, "failed to inspect bundle: package \"dos-games-no-key\": package is signed but no verification material was provided")
+	})
+
+	t.Run("bundle tarball list images", func(t *testing.T) {
+		_, stderr, err := runCmdWithErr(fmt.Sprintf("inspect %s --list-images", bundlePath))
+		require.Error(t, err)
+		require.Contains(t, stderr, "failed to inspect bundle: package \"dos-games-no-key\": package is signed but no verification material was provided")
+	})
+
+	t.Run("bundle yaml inspect with skip signature validation", func(t *testing.T) {
+		_, _, err := runCmdWithErr(fmt.Sprintf("inspect %s --skip-signature-validation", filepath.Join(bundleDir, config.BundleYAML)))
+		require.NoError(t, err)
+	})
+
+	t.Run("bundle tarball inspect with skip signature validation", func(t *testing.T) {
+		_, _, err := runCmdWithErr(fmt.Sprintf("inspect %s --skip-signature-validation", bundlePath))
+		require.NoError(t, err)
+	})
+}
+
+func TestInspectBundleSignedWithKeyScenarios(t *testing.T) {
+	bundleDir := "src/test/bundles/21-signed-with-key"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-signed-with-key-%s-0.0.1.tar.zst", e2e.Arch))
+
+	runCmd(t, fmt.Sprintf("create %s --confirm --insecure --skip-signature-validation -a %s", bundleDir, e2e.Arch))
+
+	t.Run("bundle yaml inspect", func(t *testing.T) {
+		runCmd(t, fmt.Sprintf("inspect %s", filepath.Join(bundleDir, config.BundleYAML)))
+	})
+
+	t.Run("bundle yaml list images", func(t *testing.T) {
+		stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --list-images", filepath.Join(bundleDir, config.BundleYAML)))
+		require.Contains(t, stdout, "dos-games")
+	})
+
+	t.Run("bundle tarball inspect", func(t *testing.T) {
+		runCmd(t, fmt.Sprintf("inspect %s", bundlePath))
+	})
+
+	t.Run("bundle tarball list images", func(t *testing.T) {
+		stdout, _ := runCmd(t, fmt.Sprintf("inspect %s --list-images", bundlePath))
+		require.Contains(t, stdout, "dos-games")
+	})
 }
 
 func TestSimplePackagesWithSBOMs(t *testing.T) {

@@ -22,6 +22,7 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 )
 
@@ -91,6 +92,16 @@ func (b *Bundle) Inspect() error {
 			return err
 		}
 		return nil
+	}
+
+	// If the user is not skipping validation amd did not choose a mode that already
+	// loaded package metadata (like --list-variables/--list-images), verify packages now.
+	if !config.CommonOptions.SkipSignatureValidation {
+		for _, pkg := range b.bundle.Packages {
+			if _, err := b.getMetadata(pkg); err != nil {
+				return err
+			}
+		}
 	}
 
 	if err := zarfUtils.ColorPrintYAML(b.bundle, nil, false); err != nil {
@@ -198,9 +209,16 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		if err != nil {
 			return v1alpha1.ZarfPackage{}, err
 		}
+
 		zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), false, true)
 		if err != nil {
 			return v1alpha1.ZarfPackage{}, err
+		}
+
+		if !config.CommonOptions.SkipSignatureValidation {
+			if err := verifyPackageSignature(pkgTmp, publicKeyPath, zarfPkg); err != nil {
+				return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
+			}
 		}
 
 		return zarfPkg, nil
@@ -209,7 +227,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 	// otherwise we are inspecting a yaml file, get the metadata from the packages directly
 	sourceDir := strings.TrimSuffix(b.cfg.InspectOpts.Source, config.BundleYAML)
 
-	source, err := getPkgSource(pkg, config.GetArch(b.bundle.Metadata.Architecture), sourceDir)
+	source, err := utils.GetPkgSource(pkg, config.GetArch(b.bundle.Metadata.Architecture), sourceDir)
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, err
 	}
@@ -231,7 +249,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 
 	pkgLayout, err := utils.LoadPackage(context.TODO(), source, loadOpts)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, err
+		return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 	}
 
 	err = pkgLayout.Cleanup()
@@ -240,4 +258,29 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 	}
 
 	return pkgLayout.Pkg, nil
+}
+
+func verifyPackageSignature(pkgDir, publicKeyPath string, pkg v1alpha1.ZarfPackage) error {
+	signaturePath := filepath.Join(pkgDir, layout.Signature)
+	zarfYAMLPath := filepath.Join(pkgDir, layout.ZarfYAML)
+
+	signed := false
+	if pkg.Build.Signed != nil {
+		signed = *pkg.Build.Signed
+	} else if _, err := os.Stat(signaturePath); err == nil {
+		signed = true
+	}
+
+	if !signed {
+		return nil
+	}
+
+	if publicKeyPath == "" {
+		return fmt.Errorf("package is signed but no verification material was provided (Public Key, etc.)")
+	}
+
+	verifyOpts := zarfUtils.DefaultVerifyBlobOptions()
+	verifyOpts.KeyRef = publicKeyPath
+	verifyOpts.SigRef = signaturePath
+	return zarfUtils.CosignVerifyBlobWithOptions(context.TODO(), zarfYAMLPath, verifyOpts)
 }

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -392,4 +393,84 @@ func LoadPackageFromDir(ctx context.Context, dirPath string, opts layout.Package
 	}
 
 	return pkgLayout, nil
+}
+
+// GetPkgSource returns the normalized remote or local source path for a package
+func GetPkgSource(pkg types.Package, arch string, srcDir string) (string, error) {
+	if pkg.Repository != "" {
+		source := fmt.Sprintf("oci://%s:%s", pkg.Repository, pkg.Ref)
+		if strings.Contains(pkg.Ref, "@sha256:") {
+			source = fmt.Sprintf("oci://%s:%s", pkg.Repository, pkg.Ref)
+		}
+		return source, nil
+	}
+
+	source, err := GetPkgPath(pkg, arch, srcDir)
+	if err != nil {
+		return "", err
+	}
+	return source, nil
+}
+
+// GetPkgPath returns the normalized path for a local package
+func GetPkgPath(pkg types.Package, arch string, manifestPath string) (string, error) {
+	manifestDir, err := NormalizeDir(manifestPath)
+	if err != nil {
+		return "", fmt.Errorf("manifest path: %w", err)
+	}
+	// 1. Resolve pkg.Path relative to the manifest directory.
+	base := pkg.Path
+	if !filepath.IsAbs(base) {
+		base = filepath.Join(manifestDir, base)
+	}
+
+	// 2. Canonicalise to eliminate "." / "..".
+	absBase, err := filepath.Abs(base)
+	if err != nil {
+		return "", fmt.Errorf("resolve %q: %w", base, err)
+	}
+
+	// 3. Decide the final file name (or reuse if already a tarball).
+	if strings.HasSuffix(absBase, ".tar.zst") {
+		return absBase, nil
+	}
+
+	packageSuffix := ".tar.zst"
+	if pkg.Flavor != "" {
+		packageSuffix = fmt.Sprintf("-%s.tar.zst", pkg.Flavor)
+	}
+
+	var fileName string
+	if pkg.Name == "init" {
+		fileName = fmt.Sprintf("zarf-%s-%s-%s%s", pkg.Name, arch, pkg.Ref, packageSuffix)
+	} else {
+		fileName = fmt.Sprintf("zarf-package-%s-%s-%s%s", pkg.Name, arch, pkg.Ref, packageSuffix)
+	}
+
+	return filepath.Join(absBase, fileName), nil
+}
+
+// NormalizeDir returns the directory path for the file/dir path specified
+func NormalizeDir(path string) (string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			// The path hasn't been created yet. Assume caller passed a directory
+			return path, nil
+		}
+		return "", err
+	}
+
+	// Regular file → return its parent directory.
+	if info.Mode().IsRegular() {
+		return filepath.Dir(path), nil
+	}
+
+	// Directory → already good.
+	if info.IsDir() {
+		return path, nil
+	}
+
+	// Anything else (socket, device, etc.) is unexpected.
+	return "", fmt.Errorf("path %q is neither file nor directory", path)
 }

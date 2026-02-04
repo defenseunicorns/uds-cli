@@ -22,7 +22,6 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
-	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"oras.land/oras-go/v2/content/file"
 )
@@ -134,12 +133,12 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) 
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
-	var pkg v1alpha1.ZarfPackage
-	if err = goyaml.Unmarshal(pkgBytes, &pkg); err != nil {
+	if err = os.WriteFile(filepath.Join(r.TmpDir, layout.ZarfYAML), pkgBytes, 0600); err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
-	err = zarfUtils.WriteYaml(filepath.Join(r.TmpDir, layout.ZarfYAML), pkg, 0600)
-	if err != nil {
+
+	var pkg v1alpha1.ZarfPackage
+	if err = goyaml.Unmarshal(pkgBytes, &pkg); err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
@@ -151,6 +150,21 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) 
 				return v1alpha1.ZarfPackage{}, nil, err
 			}
 			err = os.WriteFile(filepath.Join(r.TmpDir, layout.Checksums), checksumBytes, 0600)
+			if err != nil {
+				return v1alpha1.ZarfPackage{}, nil, err
+			}
+			break
+		}
+	}
+
+	// grab signature if present
+	for _, layer := range pkgManifest.Layers {
+		if layer.Annotations[ocispec.AnnotationTitle] == layout.Signature {
+			signatureBytes, err := r.Remote.FetchLayer(ctx, layer)
+			if err != nil {
+				return v1alpha1.ZarfPackage{}, nil, err
+			}
+			err = os.WriteFile(filepath.Join(r.TmpDir, layout.Signature), signatureBytes, 0600)
 			if err != nil {
 				return v1alpha1.ZarfPackage{}, nil, err
 			}
