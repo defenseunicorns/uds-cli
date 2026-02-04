@@ -74,6 +74,9 @@ const (
 	CmdBundlePullFlagOutput = "Specify the output directory for the pulled bundle"
 	CmdBundlePullFlagKey    = "Path to a public key file that will be used to validate a signed bundle"
 
+	// bundle list
+	CmdBundleListShort = "[alpha] List deployed bundles in the cluster"
+
 	// cmd viper setup
 	CmdViperErrLoadingConfigFile = "failed to load config file: %s"
 	CmdViperInfoUsingConfigFile  = "Using config file %s"

@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -145,6 +146,15 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			StorageClass:           newStorageClass(pkgVars, pkgLayout.Pkg.Kind),
 			IsInteractive:          !config.CommonOptions.Confirm,
 		}
+
+		// Merge package annotations with bundle annotations; bundle annotations take precedence
+		bundleAnnotations := make(map[string]string)
+		maps.Copy(bundleAnnotations, pkgLayout.Pkg.Metadata.Annotations)
+		bundleAnnotations[AnnotationBundleName] = b.bundle.Metadata.Name
+		bundleAnnotations[AnnotationBundleVersion] = b.bundle.Metadata.Version
+
+		// Set the merged annotations back on the package
+		pkgLayout.Pkg.Metadata.Annotations = bundleAnnotations
 
 		result, err := packager.Deploy(ctx, pkgLayout, deployOpts)
 		if err != nil {
