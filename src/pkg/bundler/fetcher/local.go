@@ -30,6 +30,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"oras.land/oras-go/v2/content/file"
 	ocistore "oras.land/oras-go/v2/content/oci"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 type localFetcher struct {
@@ -125,7 +126,7 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 		filters.ForDeploy(strings.Join(f.pkg.OptionalComponents, ","), false),
 	)
 
-	remoteOpts := packager.RemoteOptions{
+	remoteOpts := zarfTypes.RemoteOptions{
 		PlainHTTP:             config.CommonOptions.Insecure,
 		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
 	}

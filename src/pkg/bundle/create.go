@@ -17,7 +17,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/pterm/pterm"
-	zarfConfig "github.com/zarf-dev/zarf/src/config"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"helm.sh/helm/v3/pkg/chartutil"
 )
@@ -51,10 +50,6 @@ func (b *Bundle) Create(ctx context.Context) error {
 	if err := b.CalculateBuildInfo(); err != nil {
 		return err
 	}
-
-	// populate Zarf config
-	zarfConfig.CommonOptions.PlainHTTP = config.CommonOptions.Insecure
-	zarfConfig.CommonOptions.InsecureSkipTLSVerify = config.CommonOptions.Insecure
 
 	validateSpinner := message.NewProgressSpinner("Validating bundle")
 
