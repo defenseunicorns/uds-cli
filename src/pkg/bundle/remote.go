@@ -15,6 +15,7 @@ import (
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/fetcher"
 	"github.com/defenseunicorns/uds-cli/src/pkg/cache"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
@@ -23,7 +24,6 @@ import (
 	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
-	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"golang.org/x/exp/slices"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -236,7 +236,7 @@ func getOCIValidatedSource(source string) (string, error) {
 	}
 	// Check provided repository path
 	sourceWithOCI := boci.EnsureOCIPrefix(source)
-	remote, err := zoci.NewRemote(ctx, sourceWithOCI, platform)
+	remote, err := fetcher.NewZarfOCIRemote(ctx, sourceWithOCI, platform)
 	var originalErr error
 	if err == nil {
 		source = sourceWithOCI
@@ -250,7 +250,7 @@ func getOCIValidatedSource(source string) (string, error) {
 	if err != nil {
 		// Check in ghcr uds bundle path
 		source = GHCRUDSBundlePath + originalSource
-		remote, err = zoci.NewRemote(ctx, source, platform)
+		remote, err = fetcher.NewZarfOCIRemote(ctx, source, platform)
 		if err == nil {
 			_, err = remote.ResolveRoot(ctx)
 		}
@@ -258,7 +258,7 @@ func getOCIValidatedSource(source string) (string, error) {
 			message.Debug(err)
 			// Check in delivery bundle path
 			source = GHCRDeliveryBundlePath + originalSource
-			remote, err = zoci.NewRemote(ctx, source, platform)
+			remote, err = fetcher.NewZarfOCIRemote(ctx, source, platform)
 			if err == nil {
 				_, err = remote.ResolveRoot(ctx)
 			}
@@ -266,7 +266,7 @@ func getOCIValidatedSource(source string) (string, error) {
 				message.Debug()
 				// Check in packages bundle path
 				source = GHCRPackagesPath + originalSource
-				remote, err = zoci.NewRemote(ctx, source, platform)
+				remote, err = fetcher.NewZarfOCIRemote(ctx, source, platform)
 				if err == nil {
 					_, err = remote.ResolveRoot(ctx)
 				}

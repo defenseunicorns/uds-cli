@@ -24,7 +24,6 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
-	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
 
 // Bundle handles bundler operations
@@ -130,7 +129,7 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 				Architecture: config.GetArch(),
 				OS:           oci.MultiOS,
 			}
-			remote, err := zoci.NewRemote(ctx, url, platform)
+			remote, err := fetcher.NewZarfOCIRemote(ctx, url, platform)
 			if err != nil {
 				return err
 			}
@@ -333,7 +332,7 @@ func (b *Bundle) setPackageRef(pkg types.Package) (types.Package, error) {
 			Architecture: config.GetArch(),
 			OS:           oci.MultiOS,
 		}
-		remote, err := zoci.NewRemote(ctx, url, platform)
+		remote, err := fetcher.NewZarfOCIRemote(ctx, url, platform)
 		if err != nil {
 			return pkg, errors.New(errMsg)
 		}

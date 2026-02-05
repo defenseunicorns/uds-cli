@@ -14,12 +14,12 @@ import (
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/fetcher"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
-	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
 
 // Pull pulls a bundle and saves it locally
@@ -54,7 +54,7 @@ func (b *Bundle) Pull() error {
 		Architecture: config.GetArch(),
 		OS:           oci.MultiOS,
 	}
-	remote, err := zoci.NewRemote(ctx, b.cfg.PullOpts.Source, platform)
+	remote, err := fetcher.NewZarfOCIRemote(ctx, b.cfg.PullOpts.Source, platform)
 	if err != nil {
 		return err
 	}

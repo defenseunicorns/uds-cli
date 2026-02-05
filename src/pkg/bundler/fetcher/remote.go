@@ -187,7 +187,7 @@ func (f *remoteFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
 
 	// create OCI remote
 	url := fmt.Sprintf("%s:%s", f.pkg.Repository, f.pkg.Ref)
-	remote, err := zoci.NewRemote(ctx, url, platform)
+	remote, err := NewZarfOCIRemote(ctx, url, platform)
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, err
 	}
