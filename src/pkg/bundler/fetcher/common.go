@@ -25,7 +25,7 @@ func NewZarfOCIRemote(ctx context.Context, url string, platform ocispec.Platform
 	modifiers := append([]oci.Modifier{
 		oci.WithUserAgent("uds-cli/" + config.CLIVersion),
 		oci.WithInsecureSkipVerify(config.CommonOptions.Insecure),
-		oci.WithInsecureSkipVerify(config.CommonOptions.Insecure),
+		oci.WithPlainHTTP(config.CommonOptions.Insecure),
 	}, mods...)
 	return zoci.NewRemote(ctx, url, platform, modifiers...)
 }
