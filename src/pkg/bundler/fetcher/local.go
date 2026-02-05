@@ -28,9 +28,9 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"oras.land/oras-go/v2/content/file"
 	ocistore "oras.land/oras-go/v2/content/oci"
-	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 type localFetcher struct {
