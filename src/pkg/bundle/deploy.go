@@ -29,6 +29,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/state"
 	zarfState "github.com/zarf-dev/zarf/src/pkg/state"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"golang.org/x/exp/slices"
 )
 
@@ -111,7 +112,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
-		remoteOpts := packager.RemoteOptions{
+		remoteOpts := zarfTypes.RemoteOptions{
 			PlainHTTP:             config.CommonOptions.Insecure,
 			InsecureSkipTLSVerify: config.CommonOptions.Insecure,
 		}

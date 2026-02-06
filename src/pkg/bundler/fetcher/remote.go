@@ -26,6 +26,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 // remoteFetcher fetches remote Zarf pkgs for local bundles
@@ -149,7 +150,7 @@ func (f *remoteFetcher) verifyPackageSignature() error {
 		filters.ForDeploy(strings.Join(f.pkg.OptionalComponents, ","), false),
 	)
 
-	remoteOpts := packager.RemoteOptions{
+	remoteOpts := zarfTypes.RemoteOptions{
 		PlainHTTP:             config.CommonOptions.Insecure,
 		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
 	}
@@ -186,7 +187,7 @@ func (f *remoteFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
 
 	// create OCI remote
 	url := fmt.Sprintf("%s:%s", f.pkg.Repository, f.pkg.Ref)
-	remote, err := zoci.NewRemote(ctx, url, platform)
+	remote, err := NewZarfOCIRemote(ctx, url, platform)
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, err
 	}

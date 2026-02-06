@@ -14,7 +14,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	ocistore "oras.land/oras-go/v2/content/oci"
 )
 
@@ -45,7 +44,7 @@ func NewPkgFetcher(pkg types.Package, fetcherConfig Config) (Fetcher, error) {
 			OS:           oci.MultiOS,
 		}
 		url := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
-		remote, err := zoci.NewRemote(ctx, url, platform)
+		remote, err := NewZarfOCIRemote(ctx, url, platform)
 		if err != nil {
 			return nil, err
 		}

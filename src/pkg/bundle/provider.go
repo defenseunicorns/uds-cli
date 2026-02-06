@@ -11,10 +11,10 @@ import (
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/fetcher"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
 
 // Provider is an interface for processing bundles
@@ -57,7 +57,7 @@ func NewBundleProvider(source, destination string) (Provider, error) {
 			OS:           oci.MultiOS,
 		}
 		// get remote client
-		remote, err := zoci.NewRemote(ctx, source, platform)
+		remote, err := fetcher.NewZarfOCIRemote(ctx, source, platform)
 		if err != nil {
 			return nil, err
 		}
