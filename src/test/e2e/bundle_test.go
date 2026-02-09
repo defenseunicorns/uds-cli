@@ -835,5 +835,4 @@ func Test_GetBundleMetadata(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "real-simple", bndlClient.GetBundleMetadata().Name)
 	require.Equal(t, "0.0.1", bndlClient.GetBundleMetadata().Version)
-	//require.Equal(t, bndlClient.GetPackagesInBundle()[0].Name, "real-simple")
 }
