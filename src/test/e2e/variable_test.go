@@ -193,11 +193,7 @@ func TestBundleWithDupPkgs(t *testing.T) {
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
 	name := "duplicates"
 	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-helm-overrides-%s-0.0.1.tar.zst", e2e.Arch))
-<<<<<<< Updated upstream
-	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --plain-http --oci-concurrency=10 -l debug --no-progress", pkg))
-=======
 	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug", pkg))
->>>>>>> Stashed changes
 	bundleDir := "src/test/bundles/07-helm-overrides/duplicate"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", name, e2e.Arch))
 

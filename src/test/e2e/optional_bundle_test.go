@@ -27,11 +27,7 @@ func TestBundleOptionalComponents(t *testing.T) {
 	zarfPkgPath = "src/test/packages/prometheus"
 	pkg := filepath.Join(zarfPkgPath, fmt.Sprintf("zarf-package-prometheus-%s-0.0.1.tar.zst", e2e.Arch))
 	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-<<<<<<< Updated upstream
-	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --plain-http --oci-concurrency=10 -l debug --no-progress", pkg))
-=======
 	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --insecure --oci-concurrency=10 -l debug", pkg))
->>>>>>> Stashed changes
 
 	// create bundle and publish
 	bundleDir := "src/test/bundles/14-optional-components"
