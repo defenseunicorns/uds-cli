@@ -367,3 +367,8 @@ func GetDeployedPackageNames() []string {
 func (b *Bundle) GetPackagesInBundle() []types.Package {
 	return b.bundle.Packages
 }
+
+// GetBundleMetadata returns the bundle metadata
+func (b *Bundle) GetBundleMetadata() types.UDSMetadata {
+	return b.bundle.Metadata
+}
