@@ -192,3 +192,64 @@ func Test_getPkgPath(t *testing.T) {
 		})
 	}
 }
+
+func Test_GetPackagesInBundle(t *testing.T) {
+	tests := []struct {
+		name           string
+		packages       []types.Package
+		expectedNames  []string
+		expectedRefs   []string
+		expectedLength int
+	}{
+		{
+			name:           "single package",
+			packages:       []types.Package{{Name: "test", Ref: "0.0.1", Path: "../fake/path/custom-init.tar.zst"}},
+			expectedNames:  []string{"test"},
+			expectedRefs:   []string{"0.0.1"},
+			expectedLength: 1,
+		},
+		{
+			name:           "multiple packages",
+			packages:       []types.Package{{Name: "test", Ref: "0.0.1", Path: "../fake/path/custom-init.tar.zst"}, {Name: "test2", Ref: "1.2.3", Path: "../fake/path/custom-init.tar.zst"}},
+			expectedNames:  []string{"test", "test2"},
+			expectedRefs:   []string{"0.0.1", "1.2.3"},
+			expectedLength: 2,
+		},
+		{
+			name:           "no packages",
+			packages:       []types.Package{},
+			expectedNames:  []string{},
+			expectedRefs:   []string{},
+			expectedLength: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bundleCfg := types.BundleConfig{}
+			bundleCfg.DeployOpts.Source = "fake"
+			bndlClient, _ := New(&bundleCfg)
+			bndlClient.bundle.Packages = tt.packages
+
+			require.Equal(t, tt.expectedLength, len(bndlClient.GetPackagesInBundle()))
+			for i, pkg := range bndlClient.GetPackagesInBundle() {
+				require.Equal(t, tt.expectedNames[i], pkg.Name)
+				require.Equal(t, tt.expectedRefs[i], pkg.Ref)
+			}
+		})
+	}
+}
+
+func Test_GetBundleMetadata(t *testing.T) {
+	bundleCfg := types.BundleConfig{}
+	bundleCfg.DeployOpts.Source = "fake"
+	bndlClient, _ := New(&bundleCfg)
+	bndlClient.bundle.Metadata = types.UDSMetadata{
+		Name:        "test-metadata",
+		Description: "test-description",
+		Version:     "0.0.1",
+	}
+
+	require.Equal(t, "test-metadata", bndlClient.GetBundleMetadata().Name)
+	require.Equal(t, "test-description", bndlClient.GetBundleMetadata().Description)
+	require.Equal(t, "0.0.1", bndlClient.GetBundleMetadata().Version)
+}

@@ -15,13 +15,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/registry"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
-	"github.com/defenseunicorns/uds-cli/src/pkg/bundle"
 )
 
 func TestUDSCmd(t *testing.T) {
@@ -797,42 +795,4 @@ func TestBundleList(t *testing.T) {
 
 	// Clean up
 	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
-}
-
-func Test_GetPackagesInBundle(t *testing.T) {
-	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
-	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-	runCmd(t, fmt.Sprintf("create src/test/bundles/11-real-simple --insecure --confirm -a %s", e2e.Arch))
-	tarballPath := fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-real-simple-%s-0.0.1.tar.zst", e2e.Arch)
-
-	bundleCfg := types.BundleConfig{}
-	bundleCfg.DeployOpts.Source = tarballPath
-	bndlClient, err := bundle.New(&bundleCfg)
-	require.NoError(t, err)
-	_, _, _, err = bndlClient.PreDeployValidation()
-	if err != nil {
-		return
-	}
-	require.NoError(t, err)
-	require.Equal(t, 1, len(bndlClient.GetPackagesInBundle()))
-	require.Equal(t, "real-simple", bndlClient.GetPackagesInBundle()[0].Name)
-}
-
-func Test_GetBundleMetadata(t *testing.T) {
-	zarfPkgPath := "src/test/packages/no-cluster/real-simple"
-	e2e.CreateZarfPkg(t, zarfPkgPath, false)
-	runCmd(t, fmt.Sprintf("create src/test/bundles/11-real-simple --insecure --confirm -a %s", e2e.Arch))
-	tarballPath := fmt.Sprintf("src/test/bundles/11-real-simple/uds-bundle-real-simple-%s-0.0.1.tar.zst", e2e.Arch)
-
-	bundleCfg := types.BundleConfig{}
-	bundleCfg.DeployOpts.Source = tarballPath
-	bndlClient, err := bundle.New(&bundleCfg)
-	require.NoError(t, err)
-	_, _, _, err = bndlClient.PreDeployValidation()
-	if err != nil {
-		return
-	}
-	require.NoError(t, err)
-	require.Equal(t, "real-simple", bndlClient.GetBundleMetadata().Name)
-	require.Equal(t, "0.0.1", bndlClient.GetBundleMetadata().Version)
 }
