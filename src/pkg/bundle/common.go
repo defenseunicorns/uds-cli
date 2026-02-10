@@ -362,13 +362,13 @@ func GetDeployedPackageNames() []string {
 	return deployedPackageNames
 }
 
-// GetPackagesInBundle returns the packages contained within the bundle
+// GetPackages returns the packages contained within the bundle
 // Useful for exposing package information to external tooling integrating the UDS ecosystem
-func (b *Bundle) GetPackagesInBundle() []types.Package {
+func (b *Bundle) GetPackages() []types.Package {
 	return b.bundle.Packages
 }
 
-// GetBundleMetadata returns the bundle metadata
-func (b *Bundle) GetBundleMetadata() types.UDSMetadata {
+// GetMetadata returns the bundle metadata
+func (b *Bundle) GetMetadata() types.UDSMetadata {
 	return b.bundle.Metadata
 }

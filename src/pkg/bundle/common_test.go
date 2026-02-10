@@ -230,8 +230,8 @@ func Test_GetPackagesInBundle(t *testing.T) {
 			bndlClient, _ := New(&bundleCfg)
 			bndlClient.bundle.Packages = tt.packages
 
-			require.Equal(t, tt.expectedLength, len(bndlClient.GetPackagesInBundle()))
-			for i, pkg := range bndlClient.GetPackagesInBundle() {
+			require.Equal(t, tt.expectedLength, len(bndlClient.GetPackages()))
+			for i, pkg := range bndlClient.GetPackages() {
 				require.Equal(t, tt.expectedNames[i], pkg.Name)
 				require.Equal(t, tt.expectedRefs[i], pkg.Ref)
 			}
@@ -249,7 +249,7 @@ func Test_GetBundleMetadata(t *testing.T) {
 		Version:     "0.0.1",
 	}
 
-	require.Equal(t, "test-metadata", bndlClient.GetBundleMetadata().Name)
-	require.Equal(t, "test-description", bndlClient.GetBundleMetadata().Description)
-	require.Equal(t, "0.0.1", bndlClient.GetBundleMetadata().Version)
+	require.Equal(t, "test-metadata", bndlClient.GetMetadata().Name)
+	require.Equal(t, "test-description", bndlClient.GetMetadata().Description)
+	require.Equal(t, "0.0.1", bndlClient.GetMetadata().Version)
 }
