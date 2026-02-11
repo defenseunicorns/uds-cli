@@ -24,7 +24,7 @@ func TestVersionCommand_Integration(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 
-	if !bytes.Contains(out.Bytes(), []byte("uds-cli-next version")) {
+	if !bytes.Contains(out.Bytes(), []byte("uds version")) {
 		t.Errorf("unexpected output: %s", out.String())
 	}
 }

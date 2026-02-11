@@ -13,6 +13,22 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
+func TestInspectCommand_Integration(t *testing.T) {
+	streams, _, out, _ := iostreams.NewTestIOStreams()
+
+	cmd := bundle.NewInspectCommand(streams)
+	cmd.SetArgs([]string{"ghcr.io/test:v1"})
+
+	err := cmd.Execute()
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if !bytes.Contains(out.Bytes(), []byte("Bundle inspect command - placeholder")) {
+		t.Errorf("unexpected output: %s", out.String())
+	}
+}
+
 func TestCreateCommand_Integration(t *testing.T) {
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 

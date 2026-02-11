@@ -31,7 +31,7 @@ func NewVersionCommand(streams iostreams.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print the version information",
-		Long:  "Print the version, git commit, and build date of uds-cli-next",
+		Long:  "Print the version, git commit, and build date of the UDS CLI",
 		Run: func(cmd *cobra.Command, args []string) {
 			util.CheckErr(o.Complete(cmd, args))
 			util.CheckErr(o.Validate())
@@ -56,7 +56,7 @@ func (o *Options) Validate() error {
 
 // Run executes the version command.
 func (o *Options) Run() error {
-	fmt.Fprintf(o.Out, "uds-cli-next version %s\n", version.Version)
+	fmt.Fprintf(o.Out, "uds version %s\n", version.Version)
 	fmt.Fprintf(o.Out, "Git commit: %s\n", version.GitCommit)
 	fmt.Fprintf(o.Out, "Build date: %s\n", version.BuildDate)
 	return nil

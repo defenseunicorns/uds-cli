@@ -10,12 +10,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewRootCommand creates the root command for uds-cli-next.
+// NewRootCommand creates the root command for uds.
 func NewRootCommand(streams iostreams.IOStreams) *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:   "uds-cli-next",
-		Short: "UDS CLI Next - A tool for managing UDS Bundles",
-		Long:  `UDS CLI Next is a command-line tool for creating, pushing, pulling, deploying, and removing UDS Bundles.`,
+		Use:   "uds",
+		Short: "UDS CLI - The entrypoint to the Defense Unicorns ecosystem",
+		Long:  `UDS CLI is a command-line tool for managing UDS Bundles and interacting with the Defense Unicorns ecosystem.`,
 	}
 
 	rootCmd.AddCommand(cmdversion.NewVersionCommand(streams))

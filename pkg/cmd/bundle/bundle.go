@@ -13,9 +13,11 @@ func NewBundleCommand(streams iostreams.IOStreams) *cobra.Command {
 	bundleCmd := &cobra.Command{
 		Use:   "bundle",
 		Short: "Manage UDS bundles",
-		Long:  "Create, push, pull, deploy, and remove UDS bundles",
+		Long:  "Manage UDS bundles, which are collections of resources that can be created, deployed, and removed together",
 	}
 
+	// Add subcommands
+	bundleCmd.AddCommand(NewInspectCommand(streams))
 	bundleCmd.AddCommand(NewCreateCommand(streams))
 	bundleCmd.AddCommand(NewPushCommand(streams))
 	bundleCmd.AddCommand(NewPullCommand(streams))

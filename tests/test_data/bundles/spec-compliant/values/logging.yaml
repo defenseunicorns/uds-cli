@@ -1,0 +1,20 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+# Logging configuration values
+# These values are passed to the core-logging Zarf package
+#
+# This file demonstrates deploy-time variable templating using {{ .vars.* }} syntax.
+# Variables are provided at deploy time via config.uds.hcl
+
+loki:
+  enabled: true
+  persistence:
+    size: {{ .vars.logging.lokiStorageSize }}
+
+vector:
+  enabled: {{ .vars.logging.vectorEnabled }}
+  role: {{ .vars.logging.vectorRole }}
+  customConfig:
+    acknowledgements:
+      enabled: {{ .vars.logging.vectorAcknowledgements }}

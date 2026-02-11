@@ -1,0 +1,22 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+# Monitoring configuration values
+# These values are passed to the core-monitoring Zarf package
+#
+# This file demonstrates deploy-time variable templating using {{ .vars.* }} syntax.
+# Variables are provided at deploy time via config.uds.hcl
+
+prometheus:
+  enabled: true
+  server:
+    retention: {{ .vars.monitoring.retentionDays }}
+    persistentVolume:
+      size: {{ .vars.monitoring.prometheusStorageSize }}
+
+grafana:
+  enabled: true
+  adminPassword: {{ .vars.monitoring.grafanaAdminPassword }}
+  persistence:
+    enabled: true
+    size: {{ .vars.monitoring.grafanaStorageSize }}
