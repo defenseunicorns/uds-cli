@@ -3,7 +3,7 @@ module github.com/defenseunicorns/uds-cli
 go 1.25.5
 
 // TODO: awaiting release of derailed/k9s to include grype version bump: from https://github.com/zarf-dev/zarf/blob/6243c86df7c2de9abd28631108b6e84b5fecf29f/go.mod#L12
-replace github.com/anchore/grype => github.com/anchore/grype v0.104.1
+replace github.com/anchore/grype => github.com/anchore/grype v0.104.1 // renovate: ignore
 
 replace github.com/zarf-dev/zarf => github.com/zarf-dev/zarf v0.69.1-0.20260122175402-a333c3ffc485
 
@@ -23,7 +23,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
-	github.com/zarf-dev/zarf v0.69.0
+	github.com/zarf-dev/zarf v0.70.1
 	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93
 	golang.org/x/mod v0.31.0
 	golang.org/x/sync v0.19.0

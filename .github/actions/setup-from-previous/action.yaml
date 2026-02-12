@@ -4,11 +4,17 @@
 name: setup-from-previous
 description: grabs artifact from a previous job and sets up the env for tests
 
+inputs:
+  create-cluster:
+    description: Whether to create a K3d cluster
+    required: false
+    default: "true"
+
 runs:
   using: composite
   steps:
     - name: Download build artifacts
-      uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
       with:
         name: build-artifacts
         path: build/
@@ -23,3 +29,5 @@ runs:
 
     - name: Setup K3d
       uses: ./.github/actions/k3d
+      with:
+        create-cluster: ${{ inputs.create-cluster }}

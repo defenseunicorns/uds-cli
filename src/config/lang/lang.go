@@ -13,7 +13,6 @@ const (
 	RootCmdFlagTempDir                 = "Specify the temporary directory to use for intermediate files"
 	RootCmdFlagInsecure                = "Allow access to insecure registries and disable other recommended security enforcements such as package checksum and signature validation. This flag should only be used if you have a specific reason and accept the reduced security posture."
 	RootCmdFlagSkipSignatureValidation = "Skip signature validation for packages"
-	RootCmdFlagVerify                  = "Verify enforces package verification"
 	RootCmdFlagNoColor                 = "Disable color output"
 	RootCmdFlagLogLevel                = "Log level when running UDS-CLI. Valid options are: warn, info, debug, trace"
 	RootCmdErrInvalidLogLevel          = "Invalid log level. Valid options are: warn, info, debug, trace."
@@ -75,6 +74,9 @@ const (
 	CmdBundlePullShort      = "Pull a bundle from a remote registry and save to the local file system"
 	CmdBundlePullFlagOutput = "Specify the output directory for the pulled bundle"
 	CmdBundlePullFlagKey    = "Path to a public key file that will be used to validate a signed bundle"
+
+	// bundle list
+	CmdBundleListShort = "[alpha] List deployed bundles in the cluster"
 
 	// cmd viper setup
 	CmdViperErrLoadingConfigFile = "failed to load config file: %s"

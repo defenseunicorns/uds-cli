@@ -7,6 +7,7 @@ package bundle
 import (
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
@@ -185,7 +186,7 @@ func Test_getPkgPath(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			path, err := getPkgPath(tt.pkg, tt.arch, tt.srcDir)
+			path, err := utils.GetPkgPath(tt.pkg, tt.arch, tt.srcDir)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, path)
 		})

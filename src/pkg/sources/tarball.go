@@ -31,13 +31,13 @@ type NamespaceOverrideMap = map[string]map[string]string
 
 // TarballBundle is a package source for local tarball bundles that implements Zarf's packager.PackageSource
 type TarballBundle struct {
-	PkgManifestSHA string
-	TmpDir         string
-	BundleLocation string
-	Pkg            types.Package
-	PublicKeyPath  string
-	nsOverrides    NamespaceOverrideMap
-	Verify         bool
+	PkgManifestSHA          string
+	TmpDir                  string
+	BundleLocation          string
+	Pkg                     types.Package
+	PublicKeyPath           string
+	nsOverrides             NamespaceOverrideMap
+	SkipSignatureValidation bool
 }
 
 // LoadPackage loads a Zarf package from a local tarball bundle
@@ -67,20 +67,14 @@ func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.Componen
 	}
 	pkg.Components = filteredComps
 
-	// default Zarf stance is to attempt verification but not enforce
-	verificationStrategy := layout.VerifyIfPossible
-	if t.Verify {
-		verificationStrategy = layout.VerifyAlways
-	}
-
 	layoutOpts := layout.PackageLayoutOptions{
 		PublicKeyPath:        t.PublicKeyPath,
-		VerificationStrategy: verificationStrategy,
+		VerificationStrategy: utils.GetPackageVerificationStrategy(t.SkipSignatureValidation),
 		IsPartial:            isPartialPkg,
 		Filter:               filter,
 	}
 
-	pkgLayout, err := layout.LoadFromDir(ctx, t.TmpDir, layoutOpts)
+	pkgLayout, err := utils.LoadPackageFromDir(ctx, t.TmpDir, layoutOpts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -132,23 +126,38 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, _ bool, _ bool) (
 		}
 	}
 
+	// grab SHA of signature (if present)
+	var signatureSHA string
+	for _, layer := range imageManifest.Layers {
+		if layer.Annotations[ocispec.AnnotationTitle] == layout.Signature {
+			signatureSHA = layer.Digest.Encoded()
+			break
+		}
+	}
+
 	// reset file reader
 	_, err = sourceArchive.Seek(0, 0)
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
-	// grab zarf.yaml and checksums.txt
+	// grab zarf.yaml, checksums.txt, and signature (if present)
 	filePaths := []string{filepath.Join(config.BlobsDir, zarfYamlSHA), filepath.Join(config.BlobsDir, checksumsSHA)}
+	if signatureSHA != "" {
+		filePaths = append(filePaths, filepath.Join(config.BlobsDir, signatureSHA))
+	}
 	if err := config.BundleArchiveFormat.Extract(ctx, sourceArchive, func(_ context.Context, fileInArchive archives.FileInfo) error {
 		if !slices.Contains(filePaths, fileInArchive.NameInArchive) {
 			return nil
 		}
 
 		var fileDst string
-		if strings.Contains(fileInArchive.Name(), zarfYamlSHA) {
+		switch {
+		case strings.Contains(fileInArchive.Name(), zarfYamlSHA):
 			fileDst = filepath.Join(t.TmpDir, layout.ZarfYAML)
-		} else {
+		case signatureSHA != "" && strings.Contains(fileInArchive.Name(), signatureSHA):
+			fileDst = filepath.Join(t.TmpDir, layout.Signature)
+		default:
 			fileDst = filepath.Join(t.TmpDir, layout.Checksums)
 		}
 		outFile, err := os.Create(fileDst)

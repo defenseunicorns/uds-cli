@@ -125,15 +125,21 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 		filters.ForDeploy(strings.Join(f.pkg.OptionalComponents, ","), false),
 	)
 
-	loadOpts := packager.LoadOptions{
-		Filter:         filter,
-		CachePath:      config.CommonOptions.CachePath,
-		PublicKeyPath:  publicKeyPath,
-		Verify:         f.cfg.Verify,
-		OCIConcurrency: config.CommonOptions.OCIConcurrency,
+	remoteOpts := packager.RemoteOptions{
+		PlainHTTP:             config.CommonOptions.Insecure,
+		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
 	}
 
-	pkgLayout, err := packager.LoadPackage(ctx, f.pkg.Path, loadOpts)
+	loadOpts := packager.LoadOptions{
+		Filter:               filter,
+		CachePath:            config.CommonOptions.CachePath,
+		PublicKeyPath:        publicKeyPath,
+		RemoteOptions:        remoteOpts,
+		VerificationStrategy: utils.GetPackageVerificationStrategy(f.cfg.SkipSignatureValidation),
+		OCIConcurrency:       config.CommonOptions.OCIConcurrency,
+	}
+
+	pkgLayout, err := utils.LoadPackage(ctx, f.pkg.Path, loadOpts)
 	if err != nil {
 		return nil, "", err
 	}

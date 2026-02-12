@@ -86,13 +86,22 @@ func removePackages(packagesToRemove []types.Package) error {
 				filters.ByLocalOS(runtime.GOOS),
 			)
 
-			c, _ := cluster.New(ctx) //nolint:errcheck
-			loadOpts := packager.LoadOptions{
-				Architecture:   config.GetArch(),
-				Filter:         filter,
-				OCIConcurrency: config.CommonOptions.OCIConcurrency,
+			remoteOpts := packager.RemoteOptions{
+				PlainHTTP:             config.CommonOptions.Insecure,
+				InsecureSkipTLSVerify: config.CommonOptions.Insecure,
 			}
 
+			c, _ := cluster.New(ctx) //nolint:errcheck
+			loadOpts := packager.LoadOptions{
+				Architecture:         config.GetArch(),
+				Filter:               filter,
+				RemoteOptions:        remoteOpts,
+				OCIConcurrency:       config.CommonOptions.OCIConcurrency,
+				VerificationStrategy: utils.GetPackageVerificationStrategy(config.CommonOptions.SkipSignatureValidation),
+			}
+
+			// This gets the package from the cluster (not source), which does not trigger signature verification regardless
+			// of what loadOpts.VerificationStrategy is set to.
 			pkg, err := packager.GetPackageFromSourceOrCluster(ctx, c, pkg.Name, "", loadOpts)
 			if err != nil {
 				return fmt.Errorf("unable to load the package: %w", err)

@@ -22,21 +22,20 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
-	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"oras.land/oras-go/v2/content/file"
 )
 
 // RemoteBundle is a package source for remote bundles that implements Zarf's packager.PackageSource
 type RemoteBundle struct {
-	Pkg            types.Package
-	PkgManifestSHA string
-	TmpDir         string
-	PublicKeyPath  string
-	Remote         *oci.OrasRemote
-	nsOverrides    NamespaceOverrideMap
-	bundleCfg      types.BundleConfig
-	Verify         bool
+	Pkg                     types.Package
+	PkgManifestSHA          string
+	TmpDir                  string
+	PublicKeyPath           string
+	Remote                  *oci.OrasRemote
+	nsOverrides             NamespaceOverrideMap
+	bundleCfg               types.BundleConfig
+	SkipSignatureValidation bool
 }
 
 // LoadPackage loads a Zarf package from a remote bundle
@@ -83,20 +82,14 @@ func (r *RemoteBundle) LoadPackage(ctx context.Context, filter filters.Component
 	}
 	pkg.Components = filteredComps
 
-	// default Zarf stance is to attempt verification but not enforce
-	verificationStrategy := layout.VerifyIfPossible
-	if r.Verify {
-		verificationStrategy = layout.VerifyAlways
-	}
-
 	layoutOpts := layout.PackageLayoutOptions{
 		PublicKeyPath:        r.PublicKeyPath,
-		VerificationStrategy: verificationStrategy,
+		VerificationStrategy: utils.GetPackageVerificationStrategy(r.SkipSignatureValidation),
 		IsPartial:            isPartialPkg,
 		Filter:               filter,
 	}
 
-	pkgLayout, err := layout.LoadFromDir(ctx, r.TmpDir, layoutOpts)
+	pkgLayout, err := utils.LoadPackageFromDir(ctx, r.TmpDir, layoutOpts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -140,12 +133,12 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) 
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
-	var pkg v1alpha1.ZarfPackage
-	if err = goyaml.Unmarshal(pkgBytes, &pkg); err != nil {
+	if err = os.WriteFile(filepath.Join(r.TmpDir, layout.ZarfYAML), pkgBytes, 0600); err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
-	err = zarfUtils.WriteYaml(filepath.Join(r.TmpDir, layout.ZarfYAML), pkg, 0600)
-	if err != nil {
+
+	var pkg v1alpha1.ZarfPackage
+	if err = goyaml.Unmarshal(pkgBytes, &pkg); err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
@@ -157,6 +150,21 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) 
 				return v1alpha1.ZarfPackage{}, nil, err
 			}
 			err = os.WriteFile(filepath.Join(r.TmpDir, layout.Checksums), checksumBytes, 0600)
+			if err != nil {
+				return v1alpha1.ZarfPackage{}, nil, err
+			}
+			break
+		}
+	}
+
+	// grab signature if present
+	for _, layer := range pkgManifest.Layers {
+		if layer.Annotations[ocispec.AnnotationTitle] == layout.Signature {
+			signatureBytes, err := r.Remote.FetchLayer(ctx, layer)
+			if err != nil {
+				return v1alpha1.ZarfPackage{}, nil, err
+			}
+			err = os.WriteFile(filepath.Join(r.TmpDir, layout.Signature), signatureBytes, 0600)
 			if err != nil {
 				return v1alpha1.ZarfPackage{}, nil, err
 			}
