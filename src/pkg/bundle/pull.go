@@ -119,6 +119,6 @@ func (b *Bundle) Pull() error {
 		return err
 	}
 
-	message.Infof("Create tarball saved to", dst)
+	message.Infof("Create tarball saved to %s", dst)
 	return nil
 }
