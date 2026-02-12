@@ -18,6 +18,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"golang.org/x/exp/slices"
 )
 
@@ -86,7 +87,7 @@ func removePackages(packagesToRemove []types.Package) error {
 				filters.ByLocalOS(runtime.GOOS),
 			)
 
-			remoteOpts := packager.RemoteOptions{
+			remoteOpts := zarfTypes.RemoteOptions{
 				PlainHTTP:             config.CommonOptions.Insecure,
 				InsecureSkipTLSVerify: config.CommonOptions.Insecure,
 			}

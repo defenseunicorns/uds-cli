@@ -5,18 +5,30 @@
 package fetcher
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
+	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
+
+func NewZarfOCIRemote(ctx context.Context, url string, platform ocispec.Platform, mods ...oci.Modifier) (*zoci.Remote, error) {
+	modifiers := append([]oci.Modifier{
+		oci.WithUserAgent("uds-cli/" + config.CLIVersion),
+		oci.WithInsecureSkipVerify(config.CommonOptions.Insecure),
+		oci.WithPlainHTTP(config.CommonOptions.Insecure),
+	}, mods...)
+	return zoci.NewRemote(ctx, url, platform, modifiers...)
+}
 
 // getImgLayerDigests grabs the digests of the layers from the images in the image index
 func getImgLayerDigests(pkgDir string, manifestsToInclude []ocispec.Descriptor) ([]string, error) {

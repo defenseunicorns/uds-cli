@@ -11,9 +11,9 @@ import (
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/fetcher"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
 
 // NewFromLocation creates a new package source based on pkgLocation
@@ -45,7 +45,7 @@ func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, packageSou
 			Architecture: config.GetArch(),
 			OS:           oci.MultiOS,
 		}
-		remote, err := zoci.NewRemote(context.TODO(), pkgLocation, platform)
+		remote, err := fetcher.NewZarfOCIRemote(context.TODO(), pkgLocation, platform)
 		if err != nil {
 			return nil, err
 		}

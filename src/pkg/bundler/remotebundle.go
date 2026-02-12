@@ -11,6 +11,7 @@ import (
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/fetcher"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/pusher"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
@@ -58,7 +59,7 @@ func (r *RemoteBundle) create(ctx context.Context, signature []byte) error {
 	}
 
 	// create the bundle remote
-	bundleRemote, err := zoci.NewRemote(ctx, ref, platform)
+	bundleRemote, err := fetcher.NewZarfOCIRemote(ctx, ref, platform)
 	if err != nil {
 		return err
 	}
@@ -79,7 +80,7 @@ func (r *RemoteBundle) create(ctx context.Context, signature []byte) error {
 	for i, pkg := range bundle.Packages {
 		// todo: can leave this block here or move to pusher.NewPkgPusher (would be closer to NewPkgFetcher pattern)
 		pkgURL := fmt.Sprintf("%s:%s", pkg.Repository, pkg.Ref)
-		src, err := zoci.NewRemote(ctx, pkgURL, platform)
+		src, err := fetcher.NewZarfOCIRemote(ctx, pkgURL, platform)
 		if err != nil {
 			return err
 		}

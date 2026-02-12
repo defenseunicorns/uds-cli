@@ -24,6 +24,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 // Inspect pulls/unpacks a bundle's metadata and shows it
@@ -232,7 +233,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		return v1alpha1.ZarfPackage{}, err
 	}
 
-	remoteOpts := packager.RemoteOptions{
+	remoteOpts := zarfTypes.RemoteOptions{
 		PlainHTTP:             config.CommonOptions.Insecure,
 		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
 	}

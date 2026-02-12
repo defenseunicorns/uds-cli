@@ -13,6 +13,7 @@ import (
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
+	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/fetcher"
 	"github.com/defenseunicorns/uds-cli/src/pkg/cache"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
@@ -52,7 +53,7 @@ func (r *RemoteBundle) LoadPackage(ctx context.Context, filter filters.Component
 			}
 			// get remote client
 			repoUrl := fmt.Sprintf("%s:%s", r.Pkg.Repository, r.Pkg.Ref)
-			remote, _ := zoci.NewRemote(ctx, repoUrl, platform)
+			remote, _ := fetcher.NewZarfOCIRemote(ctx, repoUrl, platform)
 			_, err = remote.PullPackage(ctx, r.TmpDir, config.CommonOptions.OCIConcurrency)
 		} else {
 			_, err = r.downloadPkgFromRemoteBundle()
