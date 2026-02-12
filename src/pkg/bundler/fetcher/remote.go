@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
@@ -146,7 +145,6 @@ func (f *remoteFetcher) verifyPackageSignature() error {
 	}
 
 	filter := filters.Combine(
-		filters.ByLocalOS(runtime.GOOS),
 		filters.ForDeploy(strings.Join(f.pkg.OptionalComponents, ","), false),
 	)
 
