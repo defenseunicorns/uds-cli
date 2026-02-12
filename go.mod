@@ -5,7 +5,7 @@ go 1.25.5
 // TODO: awaiting release of derailed/k9s to include grype version bump: from https://github.com/zarf-dev/zarf/blob/6243c86df7c2de9abd28631108b6e84b5fecf29f/go.mod#L12
 replace github.com/anchore/grype => github.com/anchore/grype v0.104.1 // renovate: ignore
 
-replace github.com/zarf-dev/zarf => github.com/zarf-dev/zarf v0.69.1-0.20260122175402-a333c3ffc485
+replace github.com/zarf-dev/zarf => github.com/zarf-dev/zarf v0.71.2-0.20260212141945-6c0fed521bde
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
@@ -253,7 +253,7 @@ require (
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/felixge/fgprof v0.9.5 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/fluxcd/cli-utils v0.36.0-flux.14 // indirect
+	github.com/fluxcd/cli-utils v0.37.0-flux.1 // indirect
 	github.com/fluxcd/pkg/apis/acl v0.9.0 // indirect
 	github.com/fluxcd/pkg/apis/meta v1.24.0 // indirect
 	github.com/fluxcd/source-controller/api v1.7.4 // indirect
@@ -268,7 +268,7 @@ require (
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.7.0 // indirect
-	github.com/go-git/go-git/v5 v5.16.4 // indirect
+	github.com/go-git/go-git/v5 v5.16.5 // indirect
 	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
@@ -520,7 +520,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6d // indirect
 	github.com/tchap/go-patricia/v2 v2.3.3 // indirect
 	github.com/tetratelabs/wabin v0.0.0-20230304001439-f6f874872834 // indirect
-	github.com/tetratelabs/wazero v1.9.0 // indirect
+	github.com/tetratelabs/wazero v1.11.0 // indirect
 	github.com/thales-e-security/pool v0.0.2 // indirect
 	github.com/therootcompany/xz v1.0.1 // indirect
 	github.com/theupdateframework/go-tuf v0.7.0 // indirect
@@ -553,7 +553,7 @@ require (
 	github.com/zclconf/go-cty v1.17.0 // indirect
 	github.com/zyedidia/generic v1.2.2-0.20230320175451-4410d2372cb1 // indirect
 	gitlab.com/gitlab-org/api/client-go v1.11.0 // indirect
-	go.etcd.io/bbolt v1.4.2 // indirect
+	go.etcd.io/bbolt v1.4.3 // indirect
 	go.mongodb.org/mongo-driver v1.17.6 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
@@ -598,9 +598,9 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/gorm v1.31.1 // indirect
-	helm.sh/helm/v4 v4.0.5 // indirect
-	k8s.io/apiextensions-apiserver v0.34.2 // indirect
-	k8s.io/apiserver v0.34.2 // indirect
+	helm.sh/helm/v4 v4.1.1 // indirect
+	k8s.io/apiextensions-apiserver v0.35.0 // indirect
+	k8s.io/apiserver v0.35.0 // indirect
 	k8s.io/cli-runtime v0.35.0 // indirect
 	k8s.io/component-base v0.35.0 // indirect
 	k8s.io/component-helpers v0.35.0 // indirect
@@ -614,7 +614,7 @@ require (
 	modernc.org/memory v1.11.0 // indirect
 	modernc.org/sqlite v1.40.1 // indirect
 	sigs.k8s.io/cli-utils v0.37.2 // indirect
-	sigs.k8s.io/controller-runtime v0.22.4 // indirect
+	sigs.k8s.io/controller-runtime v0.23.0 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/kustomize/api v0.21.0 // indirect
 	sigs.k8s.io/kustomize/kustomize/v5 v5.7.1 // indirect
