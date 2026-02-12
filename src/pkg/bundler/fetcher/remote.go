@@ -149,7 +149,7 @@ func (f *remoteFetcher) verifyPackageSignature() error {
 	}
 
 	loadOpts := packager.LoadOptions{
-		Filter:               filters.Empty(),
+		Filter:               filters.Empty(), // explicitly set to empty for this operation (create)
 		CachePath:            config.CommonOptions.CachePath,
 		PublicKeyPath:        publicKeyPath,
 		RemoteOptions:        remoteOpts,
