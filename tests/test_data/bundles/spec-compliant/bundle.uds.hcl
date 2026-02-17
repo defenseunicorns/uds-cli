@@ -35,6 +35,10 @@ locals {
 # Base package - no dependencies, deployed first
 package "core_base" {
   source = "oci://${local.repo}/${local.pkgs.base}:${local.version}"
+  optional_components = [
+    "istio-passthrough-gateway",
+    "istio-egress-gateway",
+  ]
 }
 
 # Logging package - depends on base being deployed first
@@ -42,7 +46,8 @@ package "core_logging" {
   source     = "oci://${local.repo}/${local.pkgs.logging}:${local.version}"
   depends_on = ["core_base"]
   value_files = [
-    "values/logging.yaml",
+    "values/loki.yaml",
+    "values/vector.yaml",
   ]
 }
 

@@ -7,54 +7,36 @@ import (
 	"bytes"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewIOStreams(t *testing.T) {
 	streams := NewIOStreams()
 
-	if streams.In != os.Stdin {
-		t.Errorf("NewIOStreams().In = %v, want %v", streams.In, os.Stdin)
-	}
-	if streams.Out != os.Stdout {
-		t.Errorf("NewIOStreams().Out = %v, want %v", streams.Out, os.Stdout)
-	}
-	if streams.ErrOut != os.Stderr {
-		t.Errorf("NewIOStreams().ErrOut = %v, want %v", streams.ErrOut, os.Stderr)
-	}
+	assert.Equal(t, os.Stdin, streams.In)
+	assert.Equal(t, os.Stdout, streams.Out)
+	assert.Equal(t, os.Stderr, streams.ErrOut)
 }
 
 func TestNewTestIOStreams(t *testing.T) {
 	streams, in, out, errOut := NewTestIOStreams()
 
-	if streams.In == nil {
-		t.Error("NewTestIOStreams().In should not be nil")
-	}
-	if streams.Out == nil {
-		t.Error("NewTestIOStreams().Out should not be nil")
-	}
-	if streams.ErrOut == nil {
-		t.Error("NewTestIOStreams().ErrOut should not be nil")
-	}
+	assert.NotNil(t, streams.In)
+	assert.NotNil(t, streams.Out)
+	assert.NotNil(t, streams.ErrOut)
 
 	testData := "test data"
 
 	in.WriteString(testData)
-	if in.String() != testData {
-		t.Errorf("in buffer = %q, want %q", in.String(), testData)
-	}
+	assert.Equal(t, testData, in.String())
 
 	out.WriteString(testData)
-	if out.String() != testData {
-		t.Errorf("out buffer = %q, want %q", out.String(), testData)
-	}
+	assert.Equal(t, testData, out.String())
 
 	errOut.WriteString(testData)
-	if errOut.String() != testData {
-		t.Errorf("errOut buffer = %q, want %q", errOut.String(), testData)
-	}
+	assert.Equal(t, testData, errOut.String())
 
 	streams.In.(*bytes.Buffer).WriteString("input")
-	if in.String() != testData+"input" {
-		t.Errorf("streams.In not connected to in buffer")
-	}
+	assert.Equal(t, testData+"input", in.String())
 }

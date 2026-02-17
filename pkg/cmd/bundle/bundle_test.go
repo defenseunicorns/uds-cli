@@ -6,6 +6,9 @@ package bundle
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
@@ -31,8 +34,10 @@ func TestPullOptions_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			o := &PullOptions{OCIReference: tt.ociReference}
 			err := o.Validate()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -60,8 +65,10 @@ func TestPushOptions_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			o := &PushOptions{OCIReference: tt.ociReference}
 			err := o.Validate()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -89,8 +96,10 @@ func TestRemoveOptions_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			o := &RemoveOptions{OCIReference: tt.ociReference}
 			err := o.Validate()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -102,12 +111,8 @@ func TestPullOptions_Complete(t *testing.T) {
 	cmd := NewPullCommand(streams)
 
 	err := o.Complete(cmd, []string{"ghcr.io/test:v1"})
-	if err != nil {
-		t.Errorf("Complete() error = %v", err)
-	}
-	if o.OCIReference != "ghcr.io/test:v1" {
-		t.Errorf("Complete() OCIReference = %q, want %q", o.OCIReference, "ghcr.io/test:v1")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "ghcr.io/test:v1", o.OCIReference)
 }
 
 func TestPushOptions_Complete(t *testing.T) {
@@ -116,12 +121,8 @@ func TestPushOptions_Complete(t *testing.T) {
 	cmd := NewPushCommand(streams)
 
 	err := o.Complete(cmd, []string{"ghcr.io/test:v1"})
-	if err != nil {
-		t.Errorf("Complete() error = %v", err)
-	}
-	if o.OCIReference != "ghcr.io/test:v1" {
-		t.Errorf("Complete() OCIReference = %q, want %q", o.OCIReference, "ghcr.io/test:v1")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "ghcr.io/test:v1", o.OCIReference)
 }
 
 func TestRemoveOptions_Complete(t *testing.T) {
@@ -130,10 +131,6 @@ func TestRemoveOptions_Complete(t *testing.T) {
 	cmd := NewRemoveCommand(streams)
 
 	err := o.Complete(cmd, []string{"ghcr.io/test:v1"})
-	if err != nil {
-		t.Errorf("Complete() error = %v", err)
-	}
-	if o.OCIReference != "ghcr.io/test:v1" {
-		t.Errorf("Complete() OCIReference = %q, want %q", o.OCIReference, "ghcr.io/test:v1")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "ghcr.io/test:v1", o.OCIReference)
 }

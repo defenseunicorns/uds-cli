@@ -4,6 +4,7 @@
 package version
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
@@ -56,8 +57,16 @@ func (o *Options) Validate() error {
 
 // Run executes the version command.
 func (o *Options) Run() error {
-	fmt.Fprintf(o.Out, "uds version %s\n", version.Version)
-	fmt.Fprintf(o.Out, "Git commit: %s\n", version.GitCommit)
-	fmt.Fprintf(o.Out, "Build date: %s\n", version.BuildDate)
-	return nil
+	var out bytes.Buffer
+	if _, err := fmt.Fprintf(&out, "uds version %s\n", version.Version); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(&out, "Git commit: %s\n", version.GitCommit); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(&out, "Build date: %s\n", version.BuildDate); err != nil {
+		return err
+	}
+	_, err := o.Out.Write(out.Bytes())
+	return err
 }

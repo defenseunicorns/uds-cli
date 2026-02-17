@@ -6,8 +6,10 @@
 package version_test
 
 import (
-	"bytes"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	cmdversion "github.com/defenseunicorns/uds-cli/pkg/cmd/version"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -20,11 +22,7 @@ func TestVersionCommand_Integration(t *testing.T) {
 	cmd.SetArgs([]string{})
 
 	err := cmd.Execute()
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
+	require.NoError(t, err)
 
-	if !bytes.Contains(out.Bytes(), []byte("uds version")) {
-		t.Errorf("unexpected output: %s", out.String())
-	}
+	assert.Contains(t, out.String(), "uds version")
 }

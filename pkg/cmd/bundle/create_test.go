@@ -6,6 +6,9 @@ package bundle
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
@@ -35,13 +38,13 @@ func TestCreateOptions_Run(t *testing.T) {
 
 			err := o.Run()
 
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Run() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
 
-			if got := out.String(); got != tt.wantOutput {
-				t.Errorf("Run() output = %q, want %q", got, tt.wantOutput)
-			}
+			assert.Equal(t, tt.wantOutput, out.String())
 		})
 	}
 }
@@ -70,8 +73,10 @@ func TestCreateOptions_Validate(t *testing.T) {
 
 			err := o.Validate()
 
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -84,13 +89,8 @@ func TestCreateOptions_Complete(t *testing.T) {
 	cmd := NewCreateCommand(streams)
 
 	err := o.Complete(cmd, []string{"my-bundle.hcl"})
-	if err != nil {
-		t.Errorf("Complete() error = %v", err)
-	}
-
-	if o.BundleFile != "my-bundle.hcl" {
-		t.Errorf("Complete() BundleFile = %q, want %q", o.BundleFile, "my-bundle.hcl")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "my-bundle.hcl", o.BundleFile)
 }
 
 func TestCreateOptions_Complete_NoArgs(t *testing.T) {
@@ -100,11 +100,6 @@ func TestCreateOptions_Complete_NoArgs(t *testing.T) {
 	cmd := NewCreateCommand(streams)
 
 	err := o.Complete(cmd, []string{})
-	if err != nil {
-		t.Errorf("Complete() error = %v", err)
-	}
-
-	if o.BundleFile != "" {
-		t.Errorf("Complete() BundleFile = %q, want empty string", o.BundleFile)
-	}
+	require.NoError(t, err)
+	assert.Empty(t, o.BundleFile)
 }

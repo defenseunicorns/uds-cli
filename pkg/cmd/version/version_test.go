@@ -4,8 +4,10 @@
 package version
 
 import (
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/defenseunicorns/uds-cli/pkg/version"
@@ -36,20 +38,12 @@ func TestVersionOptions_Run(t *testing.T) {
 	}
 
 	err := o.Run()
-	if err != nil {
-		t.Errorf("Run() error = %v, want nil", err)
-	}
+	require.NoError(t, err)
 
 	output := out.String()
-	if !strings.Contains(output, "test-version") {
-		t.Errorf("Run() output missing version, got: %s", output)
-	}
-	if !strings.Contains(output, "abc123") {
-		t.Errorf("Run() output missing git commit, got: %s", output)
-	}
-	if !strings.Contains(output, "2026-02-03") {
-		t.Errorf("Run() output missing build date, got: %s", output)
-	}
+	assert.Contains(t, output, "test-version")
+	assert.Contains(t, output, "abc123")
+	assert.Contains(t, output, "2026-02-03")
 }
 
 func TestVersionOptions_Complete(t *testing.T) {
@@ -58,9 +52,7 @@ func TestVersionOptions_Complete(t *testing.T) {
 
 	cmd := NewVersionCommand(streams)
 	err := o.Complete(cmd, []string{})
-	if err != nil {
-		t.Errorf("Complete() error = %v, want nil", err)
-	}
+	require.NoError(t, err)
 }
 
 func TestVersionOptions_Validate(t *testing.T) {
@@ -68,7 +60,5 @@ func TestVersionOptions_Validate(t *testing.T) {
 	o := NewOptions(streams)
 
 	err := o.Validate()
-	if err != nil {
-		t.Errorf("Validate() error = %v, want nil", err)
-	}
+	require.NoError(t, err)
 }

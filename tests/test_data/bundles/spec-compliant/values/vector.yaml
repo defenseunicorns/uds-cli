@@ -7,11 +7,6 @@
 # This file demonstrates deploy-time variable templating using {{ .vars.* }} syntax.
 # Variables are provided at deploy time via config.uds.hcl
 
-loki:
-  enabled: true
-  persistence:
-    size: {{ .vars.logging.lokiStorageSize }}
-
 vector:
   enabled: {{ .vars.logging.vectorEnabled }}
   role: {{ .vars.logging.vectorRole }}

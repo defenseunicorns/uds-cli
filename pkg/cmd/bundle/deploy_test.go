@@ -6,6 +6,9 @@ package bundle
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
@@ -35,13 +38,13 @@ func TestDeployOptions_Run(t *testing.T) {
 
 			err := o.Run()
 
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Run() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
 
-			if got := out.String(); got != tt.wantOutput {
-				t.Errorf("Run() output = %q, want %q", got, tt.wantOutput)
-			}
+			assert.Equal(t, tt.wantOutput, out.String())
 		})
 	}
 }
@@ -70,8 +73,10 @@ func TestDeployOptions_Validate(t *testing.T) {
 
 			err := o.Validate()
 
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -84,11 +89,6 @@ func TestDeployOptions_Complete(t *testing.T) {
 	cmd := NewDeployCommand(streams)
 
 	err := o.Complete(cmd, []string{"ghcr.io/test:v1"})
-	if err != nil {
-		t.Errorf("Complete() error = %v", err)
-	}
-
-	if o.OCIReference != "ghcr.io/test:v1" {
-		t.Errorf("Complete() OCIReference = %q, want %q", o.OCIReference, "ghcr.io/test:v1")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "ghcr.io/test:v1", o.OCIReference)
 }
