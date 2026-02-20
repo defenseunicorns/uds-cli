@@ -5,7 +5,7 @@ go 1.25.5
 // TODO: awaiting release of derailed/k9s to include grype version bump: from https://github.com/zarf-dev/zarf/blob/6243c86df7c2de9abd28631108b6e84b5fecf29f/go.mod#L12
 replace github.com/anchore/grype => github.com/anchore/grype v0.104.1 // renovate: ignore
 
-replace github.com/zarf-dev/zarf => github.com/zarf-dev/zarf v0.72.1-0.20260220201719-e91a87fb3429
+replace github.com/zarf-dev/zarf => github.com/zarf-dev/zarf v0.72.1-0.20260220214023-db3cd9d5e31a
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
