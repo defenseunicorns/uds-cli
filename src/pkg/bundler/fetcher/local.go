@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
@@ -122,7 +121,6 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 	}
 
 	filter := filters.Combine(
-		filters.ByLocalOS(runtime.GOOS),
 		filters.ForDeploy(strings.Join(f.pkg.OptionalComponents, ","), false),
 	)
 

@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
-	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
@@ -145,18 +143,13 @@ func (f *remoteFetcher) verifyPackageSignature() error {
 		publicKeyPath = ""
 	}
 
-	filter := filters.Combine(
-		filters.ByLocalOS(runtime.GOOS),
-		filters.ForDeploy(strings.Join(f.pkg.OptionalComponents, ","), false),
-	)
-
 	remoteOpts := zarfTypes.RemoteOptions{
 		PlainHTTP:             config.CommonOptions.Insecure,
 		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
 	}
 
 	loadOpts := packager.LoadOptions{
-		Filter:               filter,
+		Filter:               filters.Empty(), // explicitly set to empty for this operation (create)
 		CachePath:            config.CommonOptions.CachePath,
 		PublicKeyPath:        publicKeyPath,
 		RemoteOptions:        remoteOpts,
