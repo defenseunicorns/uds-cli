@@ -5,6 +5,8 @@ go 1.25.5
 // TODO: awaiting release of derailed/k9s to include grype version bump: from https://github.com/zarf-dev/zarf/blob/6243c86df7c2de9abd28631108b6e84b5fecf29f/go.mod#L12
 replace github.com/anchore/grype => github.com/anchore/grype v0.104.1 // renovate: ignore
 
+replace github.com/zarf-dev/zarf => github.com/zarf-dev/zarf v0.72.1-0.20260220201719-e91a87fb3429
+
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
@@ -566,14 +568,14 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.3 // indirect
 	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
-	golang.org/x/crypto v0.47.0 // indirect
+	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
-	golang.org/x/sys v0.40.0 // indirect
-	golang.org/x/term v0.39.0 // indirect
-	golang.org/x/text v0.33.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/term v0.40.0 // indirect
+	golang.org/x/text v0.34.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
-	golang.org/x/tools v0.40.0 // indirect
+	golang.org/x/tools v0.41.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gonum.org/v1/gonum v0.16.0 // indirect
 	google.golang.org/api v0.267.0 // indirect
@@ -591,13 +593,13 @@ require (
 	gorm.io/gorm v1.31.1 // indirect
 	k8s.io/apiextensions-apiserver v0.35.0 // indirect
 	k8s.io/apiserver v0.35.0 // indirect
-	k8s.io/cli-runtime v0.35.0 // indirect
-	k8s.io/component-base v0.35.0 // indirect
-	k8s.io/component-helpers v0.35.0 // indirect
+	k8s.io/cli-runtime v0.35.1 // indirect
+	k8s.io/component-base v0.35.1 // indirect
+	k8s.io/component-helpers v0.35.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20251125145642-4e65d59e963e // indirect
-	k8s.io/kubectl v0.35.0 // indirect
-	k8s.io/metrics v0.35.0 // indirect
+	k8s.io/kubectl v0.35.1 // indirect
+	k8s.io/metrics v0.35.1 // indirect
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4 // indirect
 	modernc.org/libc v1.66.10 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
