@@ -73,9 +73,14 @@ var zarfCli = &cobra.Command{
 	Use:     "zarf COMMAND",
 	Aliases: []string{"z"},
 	Short:   lang.CmdZarfShort,
-	Run: func(_ *cobra.Command, _ []string) {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		os.Args = os.Args[1:] // grab 'zarf' and onward from the CLI args
-		zarfCLI.Execute(context.TODO())
+		err := zarfCLI.Execute(context.TODO())
+		if err != nil {
+			cmd.SilenceErrors = true
+			cmd.SilenceUsage = true
+		}
+		return err
 	},
 	DisableFlagParsing: true,
 }
