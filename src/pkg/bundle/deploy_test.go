@@ -781,7 +781,6 @@ func Test_newRegistryInfo(t *testing.T) {
 				PullPassword: "pull-secret!",
 				Secret:       "registry-secret",
 				NodePort:     1234,
-				RegistryMode: "nodeport",
 			},
 		},
 		{
