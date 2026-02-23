@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package bundle contains functions for interacting with, managing and deploying UDS packages
@@ -133,9 +133,9 @@ func convertOverridesMap(overrideMap map[string]map[string]*values.Options) (pac
 		componentMap := make(map[string]map[string]interface{})
 
 		for chartName, chart := range component {
-			//escape commas (with \\) in values so helm v3 can process them
+			// escape characters Helm interprets in --set parsing so literal values are preserved
 			for i, value := range chart.Values {
-				chart.Values[i] = strings.ReplaceAll(value, ",", "\\,")
+				chart.Values[i] = escapeHelmSetSpecialChars(value)
 			}
 			// Merge the chart values with Helm
 			data, err := chart.MergeValues(getter.Providers{})
@@ -149,6 +149,18 @@ func convertOverridesMap(overrideMap map[string]map[string]*values.Options) (pac
 		processed[componentName] = componentMap
 	}
 	return processed, nil
+}
+
+// escapeHelmSetSpecialChars escapes characters that Helm's --set parser treats as list or map delimiters.
+func escapeHelmSetSpecialChars(val string) string {
+	replacer := strings.NewReplacer(
+		",", "\\,",
+		"{", "\\{",
+		"}", "\\}",
+		"[", "\\[",
+		"]", "\\]",
+	)
+	return replacer.Replace(val)
 }
 
 // processOverrideNamespaces processes a bundles namespace overrides and adds them to the override map

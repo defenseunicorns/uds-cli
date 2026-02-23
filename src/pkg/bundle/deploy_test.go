@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package bundle contains functions for interacting with, managing and deploying UDS packages
@@ -692,6 +692,24 @@ func TestFilterOverrides(t *testing.T) {
 	filtered := pkgVars
 	actual := map[string]overrideData{"ZARFVAR": {"val", valuesources.Env}}
 	require.Equal(t, actual, filtered)
+}
+
+func TestConvertOverridesMapEscapesHelmSetSpecialChars(t *testing.T) {
+	overrideMap := map[string]map[string]*values.Options{
+		"component": {
+			"chart": {
+				Values: []string{
+					"path={needs,braces}",
+					"list=[1,2]",
+				},
+			},
+		},
+	}
+
+	processed, err := convertOverridesMap(overrideMap)
+	require.NoError(t, err)
+	require.Equal(t, "{needs,braces}", processed["component"]["chart"]["path"])
+	require.Equal(t, "[1,2]", processed["component"]["chart"]["list"])
 }
 
 func Test_newGitServerInfo(t *testing.T) {
