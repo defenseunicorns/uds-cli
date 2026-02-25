@@ -6,8 +6,6 @@
 package bundle_test
 
 import (
-	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,19 +14,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
-
-// testDataPath returns the absolute path to a file under tests/test_data/.
-func testDataPath(t *testing.T, relPath string) string {
-	t.Helper()
-	_, thisFile, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("cannot determine test file location")
-	}
-	// thisFile is tests/integration/cmd/bundle/bundle_integration_test.go
-	// project root is 4 directories up
-	root := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..")
-	return filepath.Join(root, "tests", "test_data", relPath)
-}
 
 func TestInspectCommand_Integration(t *testing.T) {
 	bundlePath := testDataPath(t, "bundles/spec-compliant/bundle.uds.hcl")
@@ -67,18 +52,6 @@ func TestInspectCommand_Integration(t *testing.T) {
 
 // Note: Error cases (OCI reference, file not found) are tested in unit tests
 // because CheckErr calls os.Exit(1) which would terminate the test process.
-
-func TestCreateCommand_Integration(t *testing.T) {
-	streams, _, out, _ := iostreams.NewTestIOStreams()
-
-	cmd := bundle.NewCreateCommand(streams)
-	cmd.SetArgs([]string{"test-bundle.hcl"})
-
-	err := cmd.Execute()
-	require.NoError(t, err)
-
-	assert.Contains(t, out.String(), "Creating bundle")
-}
 
 func TestDeployCommand_Integration(t *testing.T) {
 	streams, _, out, _ := iostreams.NewTestIOStreams()

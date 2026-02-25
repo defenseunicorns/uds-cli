@@ -16,11 +16,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	// BundleFileName is the standard name for UDS bundle definition files
-	BundleFileName = "bundle.uds.hcl"
-)
-
 // InspectOptions holds the options for the inspect command.
 type InspectOptions struct {
 	BundleRef string
@@ -76,7 +71,7 @@ func (o *InspectOptions) Validate() error {
 	}
 
 	// Check for OCI reference (before checking if it exists as a file)
-	if strings.Contains(o.BundleRef, "://") || isOCIRef(o.BundleRef) {
+	if util.IsOCIRef(o.BundleRef) {
 		return fmt.Errorf("OCI inspection not yet supported. Please provide a local .hcl file path or directory")
 	}
 
@@ -88,9 +83,9 @@ func (o *InspectOptions) Validate() error {
 
 	if info.IsDir() {
 		// If it's a directory, check if bundle.uds.hcl exists in it
-		bundlePath := filepath.Join(o.BundleRef, BundleFileName)
+		bundlePath := filepath.Join(o.BundleRef, util.BundleFileName)
 		if _, err := os.Stat(bundlePath); err != nil {
-			return fmt.Errorf("directory does not contain %s: %s", BundleFileName, o.BundleRef)
+			return fmt.Errorf("directory does not contain %s: %s", util.BundleFileName, o.BundleRef)
 		}
 		// Update BundleRef to point to the actual file
 		o.BundleRef = bundlePath
@@ -98,8 +93,8 @@ func (o *InspectOptions) Validate() error {
 	}
 
 	// It's a file - validate it's named bundle.uds.hcl
-	if filepath.Base(o.BundleRef) != BundleFileName {
-		return fmt.Errorf("expected file named '%s', got: %s", BundleFileName, filepath.Base(o.BundleRef))
+	if filepath.Base(o.BundleRef) != util.BundleFileName {
+		return fmt.Errorf("expected file named '%s', got: %s", util.BundleFileName, filepath.Base(o.BundleRef))
 	}
 
 	return nil
@@ -122,29 +117,4 @@ func (o *InspectOptions) Run() error {
 	}
 	_, err = o.Out.Write(out.Bytes())
 	return err
-}
-
-// isOCIRef checks if a string looks like an OCI registry reference
-// (e.g., "ghcr.io/org/repo:tag" or "registry.example.com/image").
-// It should NOT match local file paths.
-func isOCIRef(s string) bool {
-	// If it starts with a path separator or contains backslash, it's a file path
-	if strings.HasPrefix(s, "/") || strings.HasPrefix(s, "./") || strings.HasPrefix(s, "../") || strings.Contains(s, "\\") {
-		return false
-	}
-
-	// If it's the bundle filename or has file extensions, it's a file path
-	if s == BundleFileName || strings.Contains(s, BundleFileName) || strings.Contains(s, ".tar") || strings.Contains(s, ".yaml") || strings.Contains(s, ".yml") {
-		return false
-	}
-
-	// An OCI ref typically looks like: domain/path or domain/path:tag
-	// It must contain both a dot (in the domain) and a slash (in the path)
-	// and should not have spaces
-	if strings.Contains(s, " ") {
-		return false
-	}
-
-	// Must have both a dot and a slash to be considered an OCI ref
-	return strings.Contains(s, ".") && strings.Contains(s, "/")
 }

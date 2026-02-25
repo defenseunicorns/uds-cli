@@ -6,14 +6,18 @@ package bundle
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // Validate checks that the bundle satisfies all required constraints.
 func (b *UDSBundle) Validate() error {
 	var errs []error
 
+	const supportedAPIVersion = "uds.dev/v1alpha1"
 	if b.UDS.BundleAPIVersion == "" {
 		errs = append(errs, fmt.Errorf("uds.bundle_api_version is required"))
+	} else if b.UDS.BundleAPIVersion != supportedAPIVersion {
+		errs = append(errs, fmt.Errorf("uds.bundle_api_version %q is not supported; expected %q", b.UDS.BundleAPIVersion, supportedAPIVersion))
 	}
 
 	if b.Metadata.Name == "" {
@@ -28,6 +32,9 @@ func (b *UDSBundle) Validate() error {
 	for i, pkg := range b.Packages {
 		if pkg.Name == "" {
 			errs = append(errs, fmt.Errorf("package[%d]: name (block label) is required", i))
+		}
+		if strings.ContainsAny(pkg.Name, "/\\") || pkg.Name == "." || pkg.Name == ".." {
+			errs = append(errs, fmt.Errorf("package[%d]: name %q must not contain path separators or be a dot path", i, pkg.Name))
 		}
 		if packageNames[pkg.Name] {
 			errs = append(errs, fmt.Errorf("package[%d]: duplicate package name %q", i, pkg.Name))

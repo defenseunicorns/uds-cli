@@ -45,7 +45,7 @@ package "core_base" {
 package "core_logging" {
   source     = "oci://${local.repo}/${local.pkgs.logging}:${local.version}"
   depends_on = ["core_base"]
-  value_files = [
+  values_files = [
     "values/loki.yaml",
     "values/vector.yaml",
   ]
@@ -56,7 +56,7 @@ package "core_monitoring" {
   source     = "oci://${local.repo}/${local.pkgs.monitoring}:${local.version}"
   depends_on = ["core_base", "core_logging"]
   namespace  = "monitoring"
-  value_files = [
+  values_files = [
     "values/monitoring.yaml",
   ]
 }

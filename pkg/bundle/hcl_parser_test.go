@@ -245,6 +245,15 @@ func TestValidate(t *testing.T) {
 			wantErr: "bundle_api_version",
 		},
 		{
+			name: "unsupported api version",
+			bundle: UDSBundle{
+				UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v2beta1"},
+				Metadata: Metadata{Name: "test"},
+				Packages: []Package{{Name: "pkg1", Source: "oci://example.com/pkg:v1"}},
+			},
+			wantErr: "not supported",
+		},
+		{
 			name: "missing name",
 			bundle: UDSBundle{
 				UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},

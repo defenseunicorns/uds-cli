@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/spf13/cobra"
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
@@ -108,7 +109,7 @@ func TestRemoveOptions_Validate(t *testing.T) {
 func TestPullOptions_Complete(t *testing.T) {
 	streams, _, _, _ := iostreams.NewTestIOStreams()
 	o := &PullOptions{IOStreams: streams}
-	cmd := NewPullCommand(streams)
+	cmd := &cobra.Command{}
 
 	err := o.Complete(cmd, []string{"ghcr.io/test:v1"})
 	require.NoError(t, err)
@@ -118,7 +119,7 @@ func TestPullOptions_Complete(t *testing.T) {
 func TestPushOptions_Complete(t *testing.T) {
 	streams, _, _, _ := iostreams.NewTestIOStreams()
 	o := &PushOptions{IOStreams: streams}
-	cmd := NewPushCommand(streams)
+	cmd := &cobra.Command{}
 
 	err := o.Complete(cmd, []string{"ghcr.io/test:v1"})
 	require.NoError(t, err)
@@ -128,7 +129,7 @@ func TestPushOptions_Complete(t *testing.T) {
 func TestRemoveOptions_Complete(t *testing.T) {
 	streams, _, _, _ := iostreams.NewTestIOStreams()
 	o := &RemoveOptions{IOStreams: streams}
-	cmd := NewRemoveCommand(streams)
+	cmd := &cobra.Command{}
 
 	err := o.Complete(cmd, []string{"ghcr.io/test:v1"})
 	require.NoError(t, err)

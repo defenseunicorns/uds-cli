@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/spf13/cobra"
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
@@ -42,7 +43,7 @@ func TestInspectOptions_Complete(t *testing.T) {
 			streams, _, _, _ := iostreams.NewTestIOStreams()
 			o := NewInspectOptions(streams)
 
-			cmd := NewInspectCommand(streams)
+			cmd := &cobra.Command{}
 			err := o.Complete(cmd, tt.args)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantBundleRef, o.BundleRef)

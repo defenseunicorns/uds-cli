@@ -5,6 +5,7 @@ package bundle
 
 import (
 	"context"
+	"io"
 
 	"github.com/hashicorp/hcl/v2"
 )
@@ -43,6 +44,34 @@ type Package struct {
 	Source             string   `hcl:"source"`
 	Namespace          string   `hcl:"namespace,optional"`
 	DependsOn          []string `hcl:"depends_on,optional"`
-	ValueFiles         []string `hcl:"value_files,optional"`
+	ValueFiles         []string `hcl:"values_files,optional"`
 	OptionalComponents []string `hcl:"optional_components,optional"`
+}
+
+// Creator is implemented by types that can create UDS bundle artifacts.
+// It handles per-package ingestion and output naming, allowing library
+// consumers to substitute or mock the creation logic independently.
+type Creator interface {
+	// CreatePackage ingests a single package into the OCI layout at opts.BlobDir.
+	CreatePackage(ctx context.Context, pkg *Package, opts CreatePackageOptions) error
+	// BundleName returns the output filename for the bundle artifact.
+	BundleName(b *UDSBundle) string
+}
+
+// CreateOptions holds configuration for the top-level bundle create operation.
+type CreateOptions struct {
+	BundleFile string
+	// Arch is the target CPU architecture (e.g. "amd64", "arm64").
+	// Defaults to runtime.GOARCH when empty.
+	Arch string
+	Out  io.Writer
+}
+
+// CreatePackageOptions holds per-package configuration during bundle creation.
+type CreatePackageOptions struct {
+	BlobDir   string
+	BundleDir string
+	// Arch is the target CPU architecture forwarded from CreateOptions.
+	Arch string
+	Out  io.Writer
 }

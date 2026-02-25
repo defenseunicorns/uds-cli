@@ -4,102 +4,91 @@
 package bundle
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/spf13/cobra"
 )
 
-func TestCreateOptions_Run(t *testing.T) {
-	tests := []struct {
-		name       string
-		bundleFile string
-		wantOutput string
-		wantErr    bool
-	}{
-		{
-			name:       "valid bundle file",
-			bundleFile: "test-bundle.hcl",
-			wantOutput: "Creating bundle from file: test-bundle.hcl\n",
-			wantErr:    false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			streams, _, out, _ := iostreams.NewTestIOStreams()
-
-			o := &CreateOptions{
-				BundleFile: tt.bundleFile,
-				IOStreams:  streams,
-			}
-
-			err := o.Run()
-
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-
-			assert.Equal(t, tt.wantOutput, out.String())
-		})
-	}
+type fakeFileInfo struct {
+	name  string
+	isDir bool
 }
 
+func (fi fakeFileInfo) Name() string       { return fi.name }
+func (fi fakeFileInfo) Size() int64        { return 0 }
+func (fi fakeFileInfo) Mode() os.FileMode  { return 0 }
+func (fi fakeFileInfo) ModTime() time.Time { return time.Time{} }
+func (fi fakeFileInfo) IsDir() bool        { return fi.isDir }
+func (fi fakeFileInfo) Sys() any           { return nil }
+
 func TestCreateOptions_Validate(t *testing.T) {
-	tests := []struct {
-		name       string
-		bundleFile string
-		wantErr    bool
-	}{
-		{
-			name:       "empty bundle file",
-			bundleFile: "",
-			wantErr:    true,
-		},
-		{
-			name:       "valid bundle file",
-			bundleFile: "test.hcl",
-			wantErr:    false,
-		},
+	dir := filepath.Join("some", "dir")
+	bundlePath := filepath.Join(dir, util.BundleFileName)
+	emptyDir := filepath.Join("some", "empty")
+
+	statMap := map[string]os.FileInfo{
+		dir:        fakeFileInfo{name: filepath.Base(dir), isDir: true},
+		bundlePath: fakeFileInfo{name: util.BundleFileName, isDir: false},
+		emptyDir:   fakeFileInfo{name: filepath.Base(emptyDir), isDir: true},
+	}
+	statFn := func(path string) (os.FileInfo, error) {
+		if fi, ok := statMap[path]; ok {
+			return fi, nil
+		}
+		return nil, os.ErrNotExist
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			o := &CreateOptions{BundleFile: tt.bundleFile}
+	t.Run("empty string", func(t *testing.T) {
+		o := &CreateOptions{BundleFile: "", StatFn: statFn}
+		require.Error(t, o.Validate())
+	})
 
-			err := o.Validate()
+	t.Run("path not found", func(t *testing.T) {
+		o := &CreateOptions{BundleFile: filepath.Join("does", "not", "exist"), StatFn: statFn}
+		require.Error(t, o.Validate())
+	})
 
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
+	t.Run("not a directory", func(t *testing.T) {
+		o := &CreateOptions{BundleFile: bundlePath, StatFn: statFn}
+		require.Error(t, o.Validate())
+	})
+
+	t.Run("directory missing bundle file", func(t *testing.T) {
+		o := &CreateOptions{BundleFile: emptyDir, StatFn: statFn}
+		require.Error(t, o.Validate())
+	})
+
+	t.Run("directory containing bundle file", func(t *testing.T) {
+		o := &CreateOptions{BundleFile: dir, StatFn: statFn}
+		require.NoError(t, o.Validate())
+		require.Equal(t, bundlePath, o.BundleFile)
+	})
 }
 
 func TestCreateOptions_Complete(t *testing.T) {
 	streams, _, _, _ := iostreams.NewTestIOStreams()
 	o := &CreateOptions{IOStreams: streams}
+	cmd := &cobra.Command{}
 
-	cmd := NewCreateCommand(streams)
-
-	err := o.Complete(cmd, []string{"my-bundle.hcl"})
+	err := o.Complete(cmd, []string{"my-bundle-dir"})
 	require.NoError(t, err)
-	assert.Equal(t, "my-bundle.hcl", o.BundleFile)
+	assert.Equal(t, "my-bundle-dir", o.BundleFile)
 }
 
 func TestCreateOptions_Complete_NoArgs(t *testing.T) {
 	streams, _, _, _ := iostreams.NewTestIOStreams()
 	o := &CreateOptions{IOStreams: streams}
-
-	cmd := NewCreateCommand(streams)
+	cmd := &cobra.Command{}
 
 	err := o.Complete(cmd, []string{})
 	require.NoError(t, err)
-	assert.Empty(t, o.BundleFile)
+	assert.Equal(t, ".", o.BundleFile)
 }
