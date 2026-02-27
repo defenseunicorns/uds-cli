@@ -133,8 +133,13 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
+		timeout, err := resolvePackageTimeout(pkg)
+		if err != nil {
+			return err
+		}
+
 		deployOpts := packager.DeployOptions{
-			Timeout:                config.HelmTimeout,
+			Timeout:                timeout,
 			SetVariables:           pkgVars,
 			ValuesOverridesMap:     valuesOverrides,
 			Retries:                b.cfg.DeployOpts.Retries,
@@ -345,6 +350,10 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 		return "", "", "", err
 	}
 
+	if err := validatePackageTimeouts(b.bundle.Packages); err != nil {
+		return "", "", "", err
+	}
+
 	// validate bundle's arch against cluster
 	err = ValidateArch(config.GetArch(b.bundle.Build.Architecture))
 	if err != nil {
@@ -445,6 +454,9 @@ func formPkgViews(b *Bundle) []PkgView {
 
 func formPkgMeta(pkg types.Package) map[string]string {
 	pkgMeta := map[string]string{"name": pkg.Name, "ref": pkg.Ref}
+	if pkg.Timeout != "" {
+		pkgMeta["timeout"] = pkg.Timeout
+	}
 	if pkg.Repository != "" {
 		pkgMeta["repo"] = pkg.Repository
 	} else {
