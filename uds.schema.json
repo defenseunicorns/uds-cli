@@ -169,6 +169,10 @@
           "type": "string",
           "description": "Ref (tag) of the Zarf package"
         },
+        "timeout": {
+          "type": "string",
+          "description": "Timeout for deploying the package. Use duration format such as 30s 10m or 1h30m"
+        },
         "flavor": {
           "type": "string",
           "description": "Flavor of the Zarf package"

@@ -103,6 +103,10 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 			return fmt.Errorf("%v is missing required field: name", pkg)
 		}
 
+		if _, err := resolvePackageTimeout(pkg); err != nil {
+			return err
+		}
+
 		if pkg.Repository == "" && pkg.Path == "" {
 			return fmt.Errorf("zarf pkg %s must have either a repository or path field", pkg.Name)
 		}

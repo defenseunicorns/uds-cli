@@ -24,6 +24,7 @@ type Package struct {
 	Repository         string                                     `json:"repository,omitempty" jsonschema:"description=The repository to import the package from"`
 	Path               string                                     `json:"path,omitempty" jsonschema:"description=The local path to import the package from"`
 	Ref                string                                     `json:"ref" jsonschema:"description=Ref (tag) of the Zarf package"`
+	Timeout            string                                     `json:"timeout,omitempty" jsonschema:"description=Timeout for deploying the package. Use duration format such as 30s 10m or 1h30m"`
 	Flavor             string                                     `json:"flavor,omitempty" jsonschema:"description=Flavor of the Zarf package"`
 	OptionalComponents []string                                   `json:"optionalComponents,omitempty" jsonschema:"description=List of optional components to include from the package (required components are always included)"`
 	PublicKey          string                                     `json:"publicKey,omitempty" jsonschema:"description=The public key to use to verify the package"`

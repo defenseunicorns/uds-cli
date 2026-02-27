@@ -95,6 +95,14 @@ func TestCreateRemotePackageWithoutPublicKey(t *testing.T) {
 	})
 }
 
+func TestCreateBundleWithInvalidPackageTimeout(t *testing.T) {
+	bundleDir := "src/test/bundles/22-invalid-timeout"
+
+	_, stderr, err := runCmdWithErr(fmt.Sprintf("create %s --confirm --insecure -a %s", bundleDir, e2e.Arch))
+	require.Error(t, err)
+	require.Contains(t, stderr, `invalid timeout for package "real-simple": "definitely-not-a-duration"`)
+}
+
 func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 	deployZarfInit(t)
 	e2e.SetupDockerRegistry(t, 888)
