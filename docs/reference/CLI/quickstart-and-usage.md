@@ -31,6 +31,7 @@ packages:
   - name: init
     repository: ghcr.io/defenseunicorns/packages/init
     ref: v0.33.0
+    timeout: 20m
     optionalComponents:
       - git-server
   - name: podinfo
@@ -94,6 +95,20 @@ As an example: `uds deploy uds-bundle-<name>.tar.zst --packages init,nginx`
 By default all the packages in the bundle are deployed, regardless of if they have already been deployed, but you can also choose to only deploy packages that have not already been deployed by using the `--resume` flag
 
 As an example: `uds deploy uds-bundle-<name>.tar.zst --resume`
+
+#### Setting a package timeout
+
+By default, UDS uses a shared deploy timeout for all packages in a bundle. To override this for a specific package, set `timeout` on that package in `uds-bundle.yaml`.
+
+```yaml
+packages:
+  - name: init
+    repository: ghcr.io/defenseunicorns/packages/init
+    ref: v0.33.0
+    timeout: 20m
+```
+
+The value uses Go duration format (for example `30s`, `10m`, or `1h30m`).
 
 ### Pruning Unreferenced Packages
 
