@@ -239,7 +239,7 @@ func readTarZstEntries(t *testing.T, path string) map[string][]byte {
 		if err != nil {
 			return err
 		}
-		defer rc.Close()
+		defer func() { _ = rc.Close() }()
 		b, err := io.ReadAll(rc)
 		if err != nil {
 			return err

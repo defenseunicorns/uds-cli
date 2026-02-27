@@ -6,8 +6,6 @@ package bundle
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
@@ -17,9 +15,8 @@ import (
 
 // CreateOptions holds options for the create command.
 type CreateOptions struct {
-	BundleFile string
+	BundlePath string // Path to bundle file or directory (user input, resolved in Run)
 	Arch       string
-	StatFn     func(string) (os.FileInfo, error)
 
 	iostreams.IOStreams
 }
@@ -28,7 +25,6 @@ type CreateOptions struct {
 func NewCreateOptions(streams iostreams.IOStreams) *CreateOptions {
 	return &CreateOptions{
 		IOStreams: streams,
-		StatFn:   os.Stat,
 	}
 }
 
@@ -56,50 +52,34 @@ func NewCreateCommand(streams iostreams.IOStreams) *cobra.Command {
 // Complete fills in options from command line args.
 func (o *CreateOptions) Complete(_ *cobra.Command, args []string) error {
 	if len(args) > 0 {
-		o.BundleFile = args[0]
+		o.BundlePath = args[0]
 	} else {
-		o.BundleFile = "."
+		o.BundlePath = "."
 	}
 	return nil
 }
 
-// Validate validates the options. It expects a directory containing bundle.uds.hcl
-// and resolves BundleFile to the full path of that file.
+// Validate validates the options without modifying state.
 func (o *CreateOptions) Validate() error {
-	if o.BundleFile == "" {
-		return fmt.Errorf("directory is required")
-	}
-	statFn := o.StatFn
-	if statFn == nil {
-		statFn = os.Stat
-	}
-	info, err := statFn(o.BundleFile)
-	if err != nil {
-		return fmt.Errorf("path not found: %s", o.BundleFile)
-	}
-	if !info.IsDir() {
-		return fmt.Errorf("expected a directory containing %s, got: %s", util.BundleFileName, o.BundleFile)
-	}
-	bundlePath := filepath.Join(o.BundleFile, util.BundleFileName)
-	if _, err := statFn(bundlePath); err != nil {
-		return fmt.Errorf("directory does not contain %s: %s", util.BundleFileName, o.BundleFile)
-	}
-	o.BundleFile = bundlePath
-	return nil
+	return ValidateBundlePath(o.BundlePath)
 }
 
 // Run executes the create command.
 func (o *CreateOptions) Run() error {
 	ctx := context.Background()
-	fmt.Fprintf(o.Out, "Creating bundle from file: %s\n", o.BundleFile)
+
+	// Resolve the bundle path
+	bundlePath := ResolveBundlePath(o.BundlePath)
+
+	_, _ = fmt.Fprintf(o.Out, "Creating bundle from file: %s\n", bundlePath)
 	outPath, err := bundle.Create(ctx, bundle.CreateOptions{
-		BundleFile: o.BundleFile,
+		BundleFile: bundlePath,
 		Arch:       o.Arch,
 		Out:        o.Out,
 	})
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(o.Out, "Bundle created: %s\n", outPath)
+	_, _ = fmt.Fprintf(o.Out, "Bundle created: %s\n", outPath)
 	return nil
 }

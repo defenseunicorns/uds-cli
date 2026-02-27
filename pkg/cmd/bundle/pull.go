@@ -46,7 +46,7 @@ func NewPullCommand(streams iostreams.IOStreams) *cobra.Command {
 }
 
 // Complete fills in options from command line args.
-func (o *PullOptions) Complete(cmd *cobra.Command, args []string) error {
+func (o *PullOptions) Complete(_ *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		o.OCIReference = args[0]
 	}
@@ -63,6 +63,6 @@ func (o *PullOptions) Validate() error {
 
 // Run executes the pull command.
 func (o *PullOptions) Run() error {
-	fmt.Fprintf(o.Out, "Pulling bundle from OCI registry: %s\n", o.OCIReference)
+	_, _ = fmt.Fprintf(o.Out, "Pulling bundle from OCI registry: %s\n", o.OCIReference)
 	return bundle.Pull(o.OCIReference)
 }

@@ -77,7 +77,7 @@ func extractTarZst(ctx context.Context, src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	ca := archives.CompressedArchive{
 		Extraction:  archives.Tar{},
@@ -112,7 +112,7 @@ func extractHandler(dst string) archives.FileHandler {
 		if err != nil {
 			return err
 		}
-		defer rc.Close()
+		defer func() { _ = rc.Close() }()
 
 		out, err := os.Create(full)
 		if err != nil {

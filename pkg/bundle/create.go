@@ -11,8 +11,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-
-	cmdutil "github.com/defenseunicorns/uds-cli/pkg/cmd/util"
 )
 
 // Compile-time check: localCreator must implement Creator.
@@ -44,18 +42,15 @@ func newLocalCreator(arch string) *localCreator {
 // CreatePackage ingests pkg into the OCI blob store at opts.BlobDir and
 // accumulates the resulting ociManifest descriptors for index construction.
 func (c *localCreator) CreatePackage(ctx context.Context, pkg *Package, opts CreatePackageOptions) error {
-	fmt.Fprintf(opts.Out, "Ingesting package %q...\n", pkg.Name)
+	_, _ = fmt.Fprintf(opts.Out, "Ingesting package %q...\n", pkg.Name)
 
 	var manifests []ociManifest
 	var err error
 
-	if cmdutil.IsOCIRef(pkg.Source) {
+	if IsOCIReference(pkg.Source) {
 		// Strip any explicit scheme prefix (e.g. "oci://") before handing to
 		// go-containerregistry which does not expect it.
-		refName := pkg.Source
-		if idx := strings.Index(refName, "://"); idx >= 0 {
-			refName = refName[idx+3:]
-		}
+		refName := TrimScheme(pkg.Source)
 		manifests, err = ingestRemoteReference(ctx, opts.BlobDir, refName, opts.Arch)
 		if err != nil {
 			return fmt.Errorf("package %q: %w", pkg.Name, err)
@@ -115,7 +110,7 @@ func Create(ctx context.Context, opts CreateOptions) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer os.RemoveAll(root)
+	defer func() { _ = os.RemoveAll(root) }()
 
 	if err := writeBundleHCL(root, opts.BundleFile); err != nil {
 		return "", err
@@ -255,4 +250,3 @@ func writeOCIIndex(path string, idx *ociIndex) error {
 	}
 	return os.WriteFile(path, append(b, '\n'), 0o644)
 }
-

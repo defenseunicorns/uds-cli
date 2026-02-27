@@ -54,15 +54,53 @@ func TestInspectCommand_Integration(t *testing.T) {
 // because CheckErr calls os.Exit(1) which would terminate the test process.
 
 func TestDeployCommand_Integration(t *testing.T) {
-	streams, _, out, _ := iostreams.NewTestIOStreams()
+	bundlePath := testDataPath(t, "bundles/deploy/init")
+
+	streams, in, out, _ := iostreams.NewTestIOStreams()
+	// Simulate user declining the deployment
+	in.WriteString("n\n")
 
 	cmd := bundle.NewDeployCommand(streams)
-	cmd.SetArgs([]string{"ghcr.io/test:v1"})
+	cmd.SetArgs([]string{bundlePath})
 
 	err := cmd.Execute()
 	require.NoError(t, err)
 
-	assert.Contains(t, out.String(), "Deploying bundle")
+	output := out.String()
+
+	// Verify bundle metadata is displayed
+	assert.Contains(t, output, "BUNDLE METADATA")
+	assert.Contains(t, output, "Name:        k3d-core-init")
+
+	// Verify packages are displayed
+	assert.Contains(t, output, "PACKAGES (2)")
+	assert.Contains(t, output, "uds_k3d_dev")
+	assert.Contains(t, output, "init")
+
+	// Verify confirmation prompt was shown
+	assert.Contains(t, output, "Deploy this bundle?")
+	assert.Contains(t, output, "Deployment cancelled")
+}
+
+func TestDeployCommand_WithBundleFile_Integration(t *testing.T) {
+	bundlePath := testDataPath(t, "bundles/deploy/init/bundle.uds.hcl")
+
+	streams, in, out, _ := iostreams.NewTestIOStreams()
+	// Simulate user declining the deployment
+	in.WriteString("n\n")
+
+	cmd := bundle.NewDeployCommand(streams)
+	cmd.SetArgs([]string{bundlePath})
+
+	err := cmd.Execute()
+	require.NoError(t, err)
+
+	output := out.String()
+
+	// Verify bundle metadata is displayed
+	assert.Contains(t, output, "Name:        k3d-core-init")
+	// Verify confirmation prompt was shown
+	assert.Contains(t, output, "Deploy this bundle?")
 }
 
 func TestPullCommand_Integration(t *testing.T) {

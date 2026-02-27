@@ -79,7 +79,7 @@ func TestIngestZarfPackage(t *testing.T) {
 		m := manifests[0]
 		assert.Equal(t, "application/vnd.oci.image.manifest.v1+json", m.MediaType)
 		assert.NotEmpty(t, m.Digest)
-		assert.Greater(t, m.Size, int64(0))
+		assert.Positive(t, m.Size)
 		require.NotNil(t, m.Platform)
 		assert.Equal(t, "amd64", m.Platform.Architecture)
 		assert.Equal(t, "linux", m.Platform.OS)

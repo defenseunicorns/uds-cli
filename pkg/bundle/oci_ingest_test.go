@@ -36,7 +36,7 @@ func TestFilterDescriptorsByArch(t *testing.T) {
 		assert.Equal(t, amd64, got[0].Platform)
 		assert.Nil(t, got[1].Platform)
 		assert.NotNil(t, got[2].Platform)
-		assert.Equal(t, "", got[2].Platform.Architecture)
+		assert.Empty(t, got[2].Platform.Architecture)
 	})
 
 	t.Run("arm64 keeps arm64 and nil-platform", func(t *testing.T) {
@@ -136,7 +136,7 @@ func TestFindOCILayoutRoot(t *testing.T) {
 
 		found, err := findOCILayoutRoot(root)
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "no OCI image layout found")
+		require.ErrorContains(t, err, "no OCI image layout found")
 		assert.Empty(t, found)
 	})
 

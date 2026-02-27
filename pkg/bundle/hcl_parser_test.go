@@ -36,12 +36,16 @@ func TestParseBundleFile_SpecCompliant(t *testing.T) {
 
 	// core_logging: depends_on and valuesFiles
 	assert.Equal(t, "core_logging", b.Packages[1].Name)
-	assert.Equal(t, []string{"core_base"}, b.Packages[1].DependsOn)
+	require.Len(t, b.Packages[1].DependsOn, 1)
+	assert.Equal(t, "core_base", b.Packages[1].DependsOn[0].Name)
 	assert.Equal(t, []string{"values/loki.yaml", "values/vector.yaml"}, b.Packages[1].ValueFiles)
 
 	// core_monitoring: namespace, depends_on with 2 entries
 	assert.Equal(t, "monitoring", b.Packages[2].Namespace)
-	assert.Len(t, b.Packages[2].DependsOn, 2)
+	require.Len(t, b.Packages[2].DependsOn, 2)
+	depNames := []string{b.Packages[2].DependsOn[0].Name, b.Packages[2].DependsOn[1].Name}
+	assert.Contains(t, depNames, "core_base")
+	assert.Contains(t, depNames, "core_logging")
 	assert.Equal(t, []string{"values/monitoring.yaml"}, b.Packages[2].ValueFiles)
 }
 
@@ -200,6 +204,60 @@ package "pkg1" { }
 	require.Error(t, err)
 }
 
+func TestParseBundleFile_DependsOnStringLiteral(t *testing.T) {
+	// Test that string literals in depends_on are rejected (must use expression syntax)
+	hcl := `
+uds { bundle_api_version = "uds.dev/v1alpha1" }
+metadata { name = "test" }
+package "pkg1" { source = "oci://example.com/pkg:v1" }
+package "pkg2" {
+  source     = "oci://example.com/pkg:v2"
+  depends_on = ["pkg1"]
+}
+`
+	path := writeTempHCL(t, hcl)
+
+	_, err := NewHCLParser().ParseBundleFile(context.Background(), path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "package reference")
+}
+
+func TestParseBundleFile_DependsOnWrongRootName(t *testing.T) {
+	// Test that traversals with wrong root name are rejected (must start with 'package')
+	hcl := `
+uds { bundle_api_version = "uds.dev/v1alpha1" }
+metadata { name = "test" }
+package "pkg1" { source = "oci://example.com/pkg:v1" }
+package "pkg2" {
+  source     = "oci://example.com/pkg:v2"
+  depends_on = [module.pkg1]
+}
+`
+	path := writeTempHCL(t, hcl)
+
+	_, err := NewHCLParser().ParseBundleFile(context.Background(), path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must start with 'package'")
+}
+
+func TestParseBundleFile_DependsOnTooManyParts(t *testing.T) {
+	// Test that traversals with too many parts are rejected (must be package.<name>)
+	hcl := `
+uds { bundle_api_version = "uds.dev/v1alpha1" }
+metadata { name = "test" }
+package "pkg1" { source = "oci://example.com/pkg:v1" }
+package "pkg2" {
+  source     = "oci://example.com/pkg:v2"
+  depends_on = [package.pkg1.extra]
+}
+`
+	path := writeTempHCL(t, hcl)
+
+	_, err := NewHCLParser().ParseBundleFile(context.Background(), path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expected package.<name>")
+}
+
 func TestParseBundleFile_InvalidDependsOn(t *testing.T) {
 	hcl := `
 uds { bundle_api_version = "uds.dev/v1alpha1" }
@@ -207,7 +265,7 @@ metadata { name = "test" }
 package "pkg1" { source = "oci://example.com/pkg:v1" }
 package "pkg2" {
   source     = "oci://example.com/pkg:v2"
-  depends_on = ["nonexistent"]
+  depends_on = [package.nonexistent]
 }
 `
 	path := writeTempHCL(t, hcl)
@@ -288,7 +346,7 @@ func TestValidate(t *testing.T) {
 				UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
 				Metadata: Metadata{Name: "test"},
 				Packages: []Package{
-					{Name: "pkg1", Source: "oci://a:v1", DependsOn: []string{"missing"}},
+					{Name: "pkg1", Source: "oci://a:v1", DependsOn: []PackageRef{{Name: "missing"}}},
 				},
 			},
 			wantErr: "unknown package",
@@ -308,7 +366,7 @@ func TestValidate(t *testing.T) {
 				UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
 				Metadata: Metadata{Name: "test"},
 				Packages: []Package{
-					{Name: "pkg1", Source: "oci://a:v1", DependsOn: []string{"pkg1"}},
+					{Name: "pkg1", Source: "oci://a:v1", DependsOn: []PackageRef{{Name: "pkg1"}}},
 				},
 			},
 			wantErr: "cannot depend on itself",

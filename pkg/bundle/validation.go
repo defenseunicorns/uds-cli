@@ -46,11 +46,11 @@ func (b *UDSBundle) Validate() error {
 		}
 
 		for _, dep := range pkg.DependsOn {
-			if dep == pkg.Name {
+			if dep.Name == pkg.Name {
 				errs = append(errs, fmt.Errorf("package %q: cannot depend on itself", pkg.Name))
 			}
-			if !containsPackage(b.Packages, dep) {
-				errs = append(errs, fmt.Errorf("package %q: depends_on references unknown package %q", pkg.Name, dep))
+			if !containsPackage(b.Packages, dep.Name) {
+				errs = append(errs, fmt.Errorf("package %q: depends_on references unknown package %q", pkg.Name, dep.Name))
 			}
 		}
 

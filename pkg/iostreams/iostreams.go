@@ -1,6 +1,7 @@
 // Copyright 2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
+// Package iostreams provides standard I/O stream abstractions for CLI commands.
 package iostreams
 
 import (

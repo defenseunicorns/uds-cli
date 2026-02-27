@@ -1,6 +1,7 @@
 // Copyright 2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
+// Package version provides the version command for the UDS CLI.
 package version
 
 import (
@@ -44,7 +45,7 @@ func NewVersionCommand(streams iostreams.IOStreams) *cobra.Command {
 }
 
 // Complete fills in options from command line args.
-func (o *Options) Complete(cmd *cobra.Command, args []string) error {
+func (o *Options) Complete(_ *cobra.Command, _ []string) error {
 	// No args or flags to process for version command
 	return nil
 }

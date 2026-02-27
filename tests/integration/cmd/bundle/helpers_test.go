@@ -118,3 +118,17 @@ func testDataPath(t *testing.T, relPath string) string {
 	root := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..")
 	return filepath.Join(root, "tests", "test_data", relPath)
 }
+
+// udsCLIPath returns the path to the built UDS CLI binary.
+// Skips the test if UDS_CLI_PATH is not set.
+func udsCLIPath(t *testing.T) string {
+	t.Helper()
+	path := os.Getenv("UDS_CLI_PATH")
+	if path == "" {
+		t.Skip("UDS_CLI_PATH not set — run via 'maru run test:integration'")
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("UDS_CLI_PATH binary not found at %s: %v", path, err)
+	}
+	return path
+}

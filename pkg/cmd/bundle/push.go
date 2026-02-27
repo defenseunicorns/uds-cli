@@ -46,7 +46,7 @@ func NewPushCommand(streams iostreams.IOStreams) *cobra.Command {
 }
 
 // Complete fills in options from command line args.
-func (o *PushOptions) Complete(cmd *cobra.Command, args []string) error {
+func (o *PushOptions) Complete(_ *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		o.OCIReference = args[0]
 	}
@@ -63,6 +63,6 @@ func (o *PushOptions) Validate() error {
 
 // Run executes the push command.
 func (o *PushOptions) Run() error {
-	fmt.Fprintf(o.Out, "Pushing bundle to OCI registry: %s\n", o.OCIReference)
+	_, _ = fmt.Fprintf(o.Out, "Pushing bundle to OCI registry: %s\n", o.OCIReference)
 	return bundle.Push(o.OCIReference)
 }

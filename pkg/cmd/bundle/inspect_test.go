@@ -17,24 +17,24 @@ import (
 
 func TestInspectOptions_Complete(t *testing.T) {
 	tests := []struct {
-		name          string
-		args          []string
-		wantBundleRef string
+		name           string
+		args           []string
+		wantBundlePath string
 	}{
 		{
-			name:          "with file path",
-			args:          []string{"path/to/bundle.uds.hcl"},
-			wantBundleRef: "path/to/bundle.uds.hcl",
+			name:           "with file path",
+			args:           []string{"path/to/bundle.uds.hcl"},
+			wantBundlePath: "path/to/bundle.uds.hcl",
 		},
 		{
-			name:          "without args defaults to current directory",
-			args:          []string{},
-			wantBundleRef: ".",
+			name:           "without args defaults to current directory",
+			args:           []string{},
+			wantBundlePath: ".",
 		},
 		{
-			name:          "with directory path",
-			args:          []string{"path/to/dir"},
-			wantBundleRef: "path/to/dir",
+			name:           "with directory path",
+			args:           []string{"path/to/dir"},
+			wantBundlePath: "path/to/dir",
 		},
 	}
 
@@ -46,7 +46,7 @@ func TestInspectOptions_Complete(t *testing.T) {
 			cmd := &cobra.Command{}
 			err := o.Complete(cmd, tt.args)
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantBundleRef, o.BundleRef)
+			assert.Equal(t, tt.wantBundlePath, o.BundlePath)
 		})
 	}
 }
@@ -94,80 +94,74 @@ func TestInspectOptions_Validate(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		bundleRef        string
-		wantErr          string
-		wantBundleRef    string // The expected BundleRef after validation (if different)
-		expectRefChanged bool   // Whether we expect BundleRef to be modified
+		name       string
+		bundlePath string
+		wantErr    string
 	}{
 		{
-			name:      "valid HCL file that exists",
-			bundleRef: existingFile,
-			wantErr:   "",
+			name:       "valid HCL file that exists",
+			bundlePath: existingFile,
+			wantErr:    "",
 		},
 		{
-			name:             "valid directory with bundle.uds.hcl",
-			bundleRef:        existingDir,
-			wantErr:          "",
-			wantBundleRef:    filepath.Join(existingDir, "bundle.uds.hcl"),
-			expectRefChanged: true,
+			name:       "valid directory with bundle.uds.hcl",
+			bundlePath: existingDir,
+			wantErr:    "",
 		},
 		{
-			name:             "valid directory created in test",
-			bundleRef:        validDir,
-			wantErr:          "",
-			wantBundleRef:    validBundleFile,
-			expectRefChanged: true,
+			name:       "valid directory created in test",
+			bundlePath: validDir,
+			wantErr:    "",
 		},
 		{
-			name:      "empty path",
-			bundleRef: "",
-			wantErr:   "bundle file path is required",
+			name:       "empty path",
+			bundlePath: "",
+			wantErr:    "bundle file path is required",
 		},
 		{
-			name:      "OCI reference with scheme",
-			bundleRef: "oci://ghcr.io/test/bundle:v1",
-			wantErr:   "OCI inspection not yet supported",
+			name:       "OCI reference with scheme",
+			bundlePath: "oci://ghcr.io/test/bundle:v1",
+			wantErr:    "OCI bundle references not yet supported",
 		},
 		{
-			name:      "OCI reference without scheme",
-			bundleRef: "ghcr.io/test/bundle:v1",
-			wantErr:   "OCI inspection not yet supported",
+			name:       "OCI reference without scheme",
+			bundlePath: "ghcr.io/test/bundle:v1",
+			wantErr:    "OCI bundle references not yet supported",
 		},
 		{
-			name:      "tar.zst archive",
-			bundleRef: tarZstFile,
-			wantErr:   "tar.zst inspection not yet supported",
+			name:       "tar.zst archive",
+			bundlePath: tarZstFile,
+			wantErr:    "tar.zst bundles not yet supported",
 		},
 		{
-			name:      "tar.zst archive path that doesn't exist",
-			bundleRef: "bundle.tar.zst",
-			wantErr:   "tar.zst inspection not yet supported",
+			name:       "tar.zst archive path that doesn't exist",
+			bundlePath: "bundle.tar.zst",
+			wantErr:    "tar.zst bundles not yet supported",
 		},
 		{
-			name:      "non-HCL file",
-			bundleRef: "bundle.yaml",
-			wantErr:   "bundle path not found",
+			name:       "non-HCL file",
+			bundlePath: "bundle.yaml",
+			wantErr:    "bundle path not found",
 		},
 		{
-			name:      "HCL file that does not exist",
-			bundleRef: "/nonexistent/bundle.uds.hcl",
-			wantErr:   "bundle path not found",
+			name:       "HCL file that does not exist",
+			bundlePath: "/nonexistent/bundle.uds.hcl",
+			wantErr:    "bundle path not found",
 		},
 		{
-			name:      "HCL file with wrong name",
-			bundleRef: wrongNameFile,
-			wantErr:   "expected file named 'bundle.uds.hcl'",
+			name:       "HCL file with wrong name",
+			bundlePath: wrongNameFile,
+			wantErr:    "expected file named 'bundle.uds.hcl'",
 		},
 		{
-			name:      "directory with .hcl suffix",
-			bundleRef: hclSuffixDir,
-			wantErr:   "directory does not contain bundle.uds.hcl",
+			name:       "directory with .hcl suffix",
+			bundlePath: hclSuffixDir,
+			wantErr:    "directory does not contain bundle.uds.hcl",
 		},
 		{
-			name:      "directory without bundle.uds.hcl",
-			bundleRef: emptyDir,
-			wantErr:   "directory does not contain bundle.uds.hcl",
+			name:       "directory without bundle.uds.hcl",
+			bundlePath: emptyDir,
+			wantErr:    "directory does not contain bundle.uds.hcl",
 		},
 	}
 
@@ -175,16 +169,15 @@ func TestInspectOptions_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			streams, _, _, _ := iostreams.NewTestIOStreams()
 			o := &InspectOptions{
-				BundleRef: tt.bundleRef,
-				IOStreams: streams,
+				BundlePath: tt.bundlePath,
+				IOStreams:  streams,
 			}
 
 			err := o.Validate()
 			if tt.wantErr == "" {
 				require.NoError(t, err)
-				if tt.expectRefChanged {
-					assert.Equal(t, tt.wantBundleRef, o.BundleRef, "BundleRef should be updated to point to the HCL file")
-				}
+				// Validate should not modify BundlePath
+				assert.Equal(t, tt.bundlePath, o.BundlePath, "Validate() should not modify BundlePath")
 			} else {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErr)
@@ -195,16 +188,25 @@ func TestInspectOptions_Validate(t *testing.T) {
 
 func TestInspectOptions_Run(t *testing.T) {
 	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "spec-compliant", "bundle.uds.hcl")
+	existingDir := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "spec-compliant")
 
 	tests := []struct {
-		name      string
-		bundleRef string
-		wantErr   bool
+		name       string
+		bundlePath string
+		wantErr    bool
+		wantOutput []string
 	}{
 		{
-			name:      "valid bundle file",
-			bundleRef: existingFile,
-			wantErr:   false,
+			name:       "valid bundle file",
+			bundlePath: existingFile,
+			wantErr:    false,
+			wantOutput: []string{"uds-core-example", "core_base"},
+		},
+		{
+			name:       "valid directory (resolved in Run)",
+			bundlePath: existingDir,
+			wantErr:    false,
+			wantOutput: []string{"uds-core-example", "core_base"},
 		},
 	}
 
@@ -212,8 +214,8 @@ func TestInspectOptions_Run(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			streams, _, out, _ := iostreams.NewTestIOStreams()
 			o := &InspectOptions{
-				BundleRef: tt.bundleRef,
-				IOStreams: streams,
+				BundlePath: tt.bundlePath,
+				IOStreams:  streams,
 			}
 
 			err := o.Run()
@@ -222,8 +224,9 @@ func TestInspectOptions_Run(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				// Verify that output was written
-				assert.Contains(t, out.String(), "uds-core-example")
-				assert.Contains(t, out.String(), "core_base")
+				for _, expected := range tt.wantOutput {
+					assert.Contains(t, out.String(), expected)
+				}
 			}
 		})
 	}

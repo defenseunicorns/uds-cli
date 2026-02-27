@@ -44,7 +44,7 @@ package "core_base" {
 # Logging package - depends on base being deployed first
 package "core_logging" {
   source     = "oci://${local.repo}/${local.pkgs.logging}:${local.version}"
-  depends_on = ["core_base"]
+  depends_on = [package.core_base]
   values_files = [
     "values/loki.yaml",
     "values/vector.yaml",
@@ -54,7 +54,7 @@ package "core_logging" {
 # Monitoring package - depends on both base and logging
 package "core_monitoring" {
   source     = "oci://${local.repo}/${local.pkgs.monitoring}:${local.version}"
-  depends_on = ["core_base", "core_logging"]
+  depends_on = [package.core_base, package.core_logging]
   namespace  = "monitoring"
   values_files = [
     "values/monitoring.yaml",

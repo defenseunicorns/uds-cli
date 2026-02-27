@@ -46,7 +46,7 @@ func NewRemoveCommand(streams iostreams.IOStreams) *cobra.Command {
 }
 
 // Complete fills in options from command line args.
-func (o *RemoveOptions) Complete(cmd *cobra.Command, args []string) error {
+func (o *RemoveOptions) Complete(_ *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		o.OCIReference = args[0]
 	}
@@ -63,6 +63,6 @@ func (o *RemoveOptions) Validate() error {
 
 // Run executes the remove command.
 func (o *RemoveOptions) Run() error {
-	fmt.Fprintf(o.Out, "Removing bundle from Kubernetes cluster: %s\n", o.OCIReference)
+	_, _ = fmt.Fprintf(o.Out, "Removing bundle from Kubernetes cluster: %s\n", o.OCIReference)
 	return bundle.Remove(o.OCIReference)
 }

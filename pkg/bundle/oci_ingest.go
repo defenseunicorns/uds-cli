@@ -208,7 +208,7 @@ func writeBlobLayerIfMissingAndVerify(blobDir string, hash v1.Hash, layer v1.Lay
 	if err != nil {
 		return err
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	tmp, err := os.CreateTemp(blobDir, ".blob-*.tmp")
 	if err != nil {
@@ -473,7 +473,7 @@ func copyBlobFileIfMissingAndVerify(dstBlobDir, srcPath string, hash v1.Hash) er
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 
 	tmp, err := os.CreateTemp(dstBlobDir, ".blob-*.tmp")
 	if err != nil {
@@ -592,7 +592,7 @@ func ingestZarfPackage(ctx context.Context, blobDir, pkgRoot, arch string) ([]oc
 		if err != nil {
 			return err
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 
 		h := sha256.New()
 		size, err := io.Copy(h, f)
