@@ -5,6 +5,7 @@ package bundle
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
@@ -63,6 +64,10 @@ func (o *RemoveOptions) Validate() error {
 
 // Run executes the remove command.
 func (o *RemoveOptions) Run() error {
-	_, _ = fmt.Fprintf(o.Out, "Removing bundle from Kubernetes cluster: %s\n", o.OCIReference)
-	return bundle.Remove(o.OCIReference)
+	slog.Debug("removing bundle", "reference", o.OCIReference)
+	if err := bundle.Remove(o.OCIReference); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(o.Out, "✓ Bundle removed successfully: %s\n", o.OCIReference)
+	return nil
 }

@@ -16,6 +16,7 @@ package bundle
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 )
@@ -30,15 +31,18 @@ import (
 // shared util functions at the command layer.
 func Deploy(ctx context.Context, opts DeployOptions) error {
 	// Parse the bundle (path already validated by command layer via util.ValidateBundlePath)
+	slog.Debug("parsing bundle", "path", opts.BundlePath)
 	bundle, err := NewHCLParser().ParseBundleFile(ctx, opts.BundlePath)
 	if err != nil {
 		return fmt.Errorf("failed to parse bundle: %w", err)
 	}
+	slog.Debug("bundle parsed", "name", bundle.Metadata.Name, "packages", len(bundle.Packages))
 
 	// Validate the bundle
 	if err := bundle.Validate(); err != nil {
 		return fmt.Errorf("bundle validation failed: %w", err)
 	}
+	slog.Debug("bundle validation passed")
 
 	// Build the hcl.Traversal-based dependency graph
 	dag, err := BuildDependencyGraph(bundle)
@@ -51,6 +55,7 @@ func Deploy(ctx context.Context, opts DeployOptions) error {
 	if err != nil {
 		return fmt.Errorf("failed to compute deployment levels: %w", err)
 	}
+	slog.Debug("dependency graph built", "levels", len(levels))
 
 	// Create deployer
 	tempDir := os.TempDir()
@@ -83,14 +88,11 @@ func Deploy(ctx context.Context, opts DeployOptions) error {
 
 	pkgNum := 0
 	for levelIdx, level := range levels {
-		_, _ = fmt.Fprintf(opts.Out, "\n=== Deployment Level %d/%d (%d package(s)) ===\n",
-			levelIdx+1, len(levels), len(level))
+		slog.Info("starting deployment level", "level", levelIdx+1, "total_levels", len(levels), "packages", len(level))
 
 		for _, pkg := range level {
 			pkgNum++
-			_, _ = fmt.Fprintf(opts.Out, "\nDeploying package %d/%d: %s\n",
-				pkgNum, totalPkgs, pkg.Name)
-			_, _ = fmt.Fprintf(opts.Out, "  Source: %s\n", pkg.Source)
+			slog.Info("deploying package", "name", pkg.Name, "source", pkg.Source, "package", pkgNum, "total", totalPkgs)
 
 			pkgOpts := DeployPackageOptions{
 				BundleDir: bundleDir,
@@ -107,10 +109,10 @@ func Deploy(ctx context.Context, opts DeployOptions) error {
 				return fmt.Errorf("failed to deploy package %q: %w", pkg.Name, err)
 			}
 
-			_, _ = fmt.Fprintf(opts.Out, "  ✓ Package %s deployed successfully\n", pkg.Name)
+			slog.Info("package deployed", "name", pkg.Name)
 		}
 
-		_, _ = fmt.Fprintf(opts.Out, "\n=== Level %d complete ===\n", levelIdx+1)
+		slog.Debug("deployment level complete", "level", levelIdx+1)
 	}
 	// =========================================================================
 

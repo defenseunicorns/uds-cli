@@ -6,6 +6,7 @@ package bundle
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
@@ -87,6 +88,7 @@ func (o *DeployOptions) Run() error {
 
 	// Resolve the bundle path
 	bundlePath := ResolveBundlePath(o.BundlePath)
+	slog.Debug("deploying bundle", "path", bundlePath, "confirm", o.Confirm)
 
 	// Parse bundle for display (BundlePath already validated by Validate)
 	parsedBundle, err := bundle.NewHCLParser().ParseBundleFile(ctx, bundlePath)
@@ -100,11 +102,7 @@ func (o *DeployOptions) Run() error {
 	}
 
 	// Display bundle information before deployment
-	out, err := parsedBundle.BufferString()
-	if err != nil {
-		return err
-	}
-	_, err = o.Out.Write(out.Bytes())
+	_, err = o.Out.Write(parsedBundle.BufferString().Bytes())
 	if err != nil {
 		return err
 	}
@@ -121,7 +119,7 @@ func (o *DeployOptions) Run() error {
 		o.Confirm = true
 	}
 
-	_, _ = fmt.Fprintf(o.Out, "\nStarting deployment of bundle: %s\n", parsedBundle.Metadata.Name)
+	slog.Info("starting deployment", "name", parsedBundle.Metadata.Name)
 
 	// Deploy the bundle
 	deployOpts := bundle.DeployOptions{
@@ -134,6 +132,7 @@ func (o *DeployOptions) Run() error {
 		return fmt.Errorf("deployment failed: %w", err)
 	}
 
+	slog.Info("bundle deployed successfully", "name", parsedBundle.Metadata.Name)
 	_, _ = fmt.Fprintln(o.Out, "\n✓ Bundle deployed successfully")
 	return nil
 }

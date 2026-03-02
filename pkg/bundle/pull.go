@@ -3,13 +3,11 @@
 
 package bundle
 
-import (
-	"fmt"
-)
+import "log/slog"
 
 // Pull pulls a UDS bundle from an OCI registry.
 func Pull(ociRef string) error {
-	fmt.Printf("Pulling bundle from OCI registry: %s\n", ociRef)
+	slog.Info("pulling bundle from OCI registry", "ref", ociRef)
 	// TODO: Implement bundle pull logic
 	return nil
 }

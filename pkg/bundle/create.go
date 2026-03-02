@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -42,7 +43,7 @@ func newLocalCreator(arch string) *localCreator {
 // CreatePackage ingests pkg into the OCI blob store at opts.BlobDir and
 // accumulates the resulting ociManifest descriptors for index construction.
 func (c *localCreator) CreatePackage(ctx context.Context, pkg *Package, opts CreatePackageOptions) error {
-	_, _ = fmt.Fprintf(opts.Out, "Ingesting package %q...\n", pkg.Name)
+	slog.Info("ingesting package", "name", pkg.Name, "source", pkg.Source)
 
 	var manifests []ociManifest
 	var err error
@@ -90,18 +91,23 @@ func (c *localCreator) BundleName(b *UDSBundle) string {
 // It parses, validates, ingests all packages via a localCreator, and writes
 // the resulting archive next to the bundle file.
 func Create(ctx context.Context, opts CreateOptions) (string, error) {
+	slog.Debug("parsing bundle file", "path", opts.BundleFile)
 	parser := NewHCLParser()
 	b, err := parser.ParseBundleFile(ctx, opts.BundleFile)
 	if err != nil {
 		return "", err
 	}
+	slog.Debug("bundle parsed", "name", b.Metadata.Name, "packages", len(b.Packages))
+
 	if err := b.Validate(); err != nil {
 		return "", err
 	}
+	slog.Debug("bundle validation passed")
 
 	arch := opts.Arch
 	if arch == "" {
 		arch = runtime.GOARCH
+		slog.Debug("using system architecture", "arch", arch)
 	}
 	creator := newLocalCreator(arch)
 
@@ -140,6 +146,7 @@ func Create(ctx context.Context, opts CreateOptions) (string, error) {
 		}
 	}
 
+	slog.Debug("cleaning unreferenced blobs")
 	if err := gcUnreferencedBlobs(blobDir, creator.manifests); err != nil {
 		return "", fmt.Errorf("cleaning up unreferenced blobs: %w", err)
 	}
@@ -154,9 +161,11 @@ func Create(ctx context.Context, opts CreateOptions) (string, error) {
 	}
 
 	outPath := filepath.Join(srcDir, creator.BundleName(b))
+	slog.Debug("writing bundle archive", "output", outPath)
 	if err := writeTarZst(ctx, outPath, root); err != nil {
 		return "", err
 	}
+	slog.Info("bundle archive written", "output", outPath)
 	return outPath, nil
 }
 

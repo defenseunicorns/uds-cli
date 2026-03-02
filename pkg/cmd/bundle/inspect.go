@@ -6,6 +6,7 @@ package bundle
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
@@ -66,20 +67,19 @@ func (o *InspectOptions) Validate() error {
 func (o *InspectOptions) Run() error {
 	// Resolve the bundle path
 	bundlePath := ResolveBundlePath(o.BundlePath)
+	slog.Debug("inspecting bundle", "path", bundlePath)
 
 	b, err := bundle.NewHCLParser().ParseBundleFile(context.Background(), bundlePath)
 	if err != nil {
 		return err
 	}
+	slog.Debug("bundle parsed successfully", "name", b.Metadata.Name, "packages", len(b.Packages))
 
 	if err := b.Validate(); err != nil {
 		return fmt.Errorf("invalid bundle: %w", err)
 	}
+	slog.Debug("bundle validation passed")
 
-	out, err := b.BufferString()
-	if err != nil {
-		return err
-	}
-	_, err = o.Out.Write(out.Bytes())
+	_, err = o.Out.Write(b.BufferString().Bytes())
 	return err
 }

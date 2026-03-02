@@ -3,13 +3,11 @@
 
 package bundle
 
-import (
-	"fmt"
-)
+import "log/slog"
 
 // Remove removes a UDS bundle from a Kubernetes cluster.
 func Remove(ociRef string) error {
-	fmt.Printf("Removing bundle from Kubernetes cluster: %s\n", ociRef)
+	slog.Info("removing bundle from cluster", "ref", ociRef)
 	// TODO: Implement bundle remove logic
 	return nil
 }

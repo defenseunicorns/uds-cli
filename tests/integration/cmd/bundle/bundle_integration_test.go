@@ -112,7 +112,7 @@ func TestPullCommand_Integration(t *testing.T) {
 	err := cmd.Execute()
 	require.NoError(t, err)
 
-	assert.Contains(t, out.String(), "Pulling bundle")
+	assert.Contains(t, out.String(), "Bundle pulled successfully")
 }
 
 func TestPushCommand_Integration(t *testing.T) {
@@ -124,7 +124,7 @@ func TestPushCommand_Integration(t *testing.T) {
 	err := cmd.Execute()
 	require.NoError(t, err)
 
-	assert.Contains(t, out.String(), "Pushing bundle")
+	assert.Contains(t, out.String(), "Bundle pushed successfully")
 }
 
 func TestRemoveCommand_Integration(t *testing.T) {
@@ -136,5 +136,5 @@ func TestRemoveCommand_Integration(t *testing.T) {
 	err := cmd.Execute()
 	require.NoError(t, err)
 
-	assert.Contains(t, out.String(), "Removing bundle")
+	assert.Contains(t, out.String(), "Bundle removed successfully")
 }

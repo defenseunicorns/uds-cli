@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -17,6 +18,7 @@ import (
 )
 
 func writeTarZst(ctx context.Context, dst, srcDir string) (retErr error) {
+	slog.Debug("writing tar.zst archive", "dst", dst)
 	if st, err := os.Stat(dst); err == nil {
 		if st.IsDir() {
 			return fmt.Errorf("output path %q is a directory", dst)
@@ -73,6 +75,7 @@ func writeTarZst(ctx context.Context, dst, srcDir string) (retErr error) {
 }
 
 func extractTarZst(ctx context.Context, src, dst string) error {
+	slog.Debug("extracting tar.zst archive", "src", src, "dst", dst)
 	f, err := os.Open(src)
 	if err != nil {
 		return err

@@ -22,7 +22,11 @@ type IOStreams struct {
 
 // NewIOStreams returns an IOStreams pointing to os.Stdin, os.Stdout, and os.Stderr.
 func NewIOStreams() IOStreams {
-	return IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+	return IOStreams{
+		In:     os.Stdin,
+		Out:    os.Stdout,
+		ErrOut: os.Stderr,
+	}
 }
 
 // NewTestIOStreams returns a valid IOStreams for testing with bytes.Buffer.

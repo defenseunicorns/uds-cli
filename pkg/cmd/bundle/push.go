@@ -5,6 +5,7 @@ package bundle
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
@@ -63,6 +64,10 @@ func (o *PushOptions) Validate() error {
 
 // Run executes the push command.
 func (o *PushOptions) Run() error {
-	_, _ = fmt.Fprintf(o.Out, "Pushing bundle to OCI registry: %s\n", o.OCIReference)
-	return bundle.Push(o.OCIReference)
+	slog.Debug("pushing bundle", "reference", o.OCIReference)
+	if err := bundle.Push(o.OCIReference); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(o.Out, "✓ Bundle pushed successfully: %s\n", o.OCIReference)
+	return nil
 }

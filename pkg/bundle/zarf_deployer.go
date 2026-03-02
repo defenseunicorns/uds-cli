@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"runtime"
 	"strings"
@@ -43,6 +44,8 @@ func NewZarfDeployer(tempDir string, out io.Writer) *ZarfDeployer {
 //
 // Reference implementation: .ai/example-repos/uds-cli/src/pkg/bundle/deploy.go
 func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts DeployPackageOptions) error {
+	slog.Info("deploying zarf package", "name", pkg.Name, "source", pkg.Source)
+
 	// Validate that the source is an OCI reference
 	if !IsOCIReference(pkg.Source) {
 		return fmt.Errorf("package %q has unsupported source type: %s (only oci:// sources are supported)", pkg.Name, pkg.Source)
@@ -59,12 +62,12 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 	defer func() {
 		err := os.RemoveAll(pkgTmp)
 		if err != nil {
-			_, _ = fmt.Fprintf(d.Out, "  Warning: failed to remove the temporary directory: %v\n", err)
+			slog.Warn("failed to remove temporary directory", "path", pkgTmp, "error", err)
 		}
 	}()
 
 	// Load the package from its OCI source
-	_, _ = fmt.Fprintf(d.Out, "  Pulling package from %s\n", pkg.Source)
+	slog.Info("pulling package", "source", pkg.Source)
 
 	pkgLayout, err := d.pullAndLoadPackage(ctx, pkg.Source, pkgTmp, pkg.OptionalComponents)
 	if err != nil {
@@ -73,7 +76,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 	defer func() {
 		err := pkgLayout.Cleanup()
 		if err != nil {
-			_, _ = fmt.Fprintf(d.Out, "  Warning: failed to clean up package layout: %v\n", err)
+			slog.Warn("failed to clean up package layout", "name", pkg.Name, "error", err)
 		}
 	}()
 
@@ -84,7 +87,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 		NamespaceOverride: pkg.Namespace, // empty string is fine - Zarf ignores it
 	}
 
-	_, _ = fmt.Fprintf(d.Out, "  Deploying package %s...\n", pkg.Name)
+	slog.Info("deploying zarf package to cluster", "name", pkg.Name)
 
 	// Deploy using Zarf packager
 	_, err = packager.Deploy(ctx, pkgLayout, deployOpts)
@@ -92,6 +95,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 		return fmt.Errorf("failed to deploy package %q: %w", pkg.Name, err)
 	}
 
+	slog.Info("zarf package deployed", "name", pkg.Name)
 	return nil
 }
 
@@ -126,7 +130,7 @@ func (d *ZarfDeployer) pullAndLoadPackage(ctx context.Context, source, tmpDir st
 		OS:           oci.MultiOS,
 	}
 
-	_, _ = fmt.Fprintf(d.Out, "  Creating OCI remote for %s\n", ociRef)
+	slog.Debug("creating OCI remote", "ref", ociRef)
 
 	// Create remote client for the OCI registry
 	remote, err := zoci.NewRemote(ctx, ociRef, platform)
@@ -139,7 +143,7 @@ func (d *ZarfDeployer) pullAndLoadPackage(ctx context.Context, source, tmpDir st
 	// and only included when explicitly requested via optional_components.
 	filter := BuildComponentFilter(optionalComponents)
 
-	_, _ = fmt.Fprintf(d.Out, "  Assembling layers...\n")
+	slog.Debug("assembling layers")
 
 	// Assemble layers to pull (all layers for now)
 	layers, err := remote.AssembleLayers(ctx, nil, false, zoci.AllLayers)
@@ -147,7 +151,7 @@ func (d *ZarfDeployer) pullAndLoadPackage(ctx context.Context, source, tmpDir st
 		return nil, fmt.Errorf("failed to assemble layers: %w", err)
 	}
 
-	_, _ = fmt.Fprintf(d.Out, "  Pulling %d layers to %s...\n", len(layers), tmpDir)
+	slog.Debug("pulling layers", "count", len(layers), "dest", tmpDir)
 
 	// Pull the package to the temp directory
 	_, err = remote.PullPackage(ctx, tmpDir, zoci.DefaultConcurrency, layers...)
@@ -155,7 +159,7 @@ func (d *ZarfDeployer) pullAndLoadPackage(ctx context.Context, source, tmpDir st
 		return nil, fmt.Errorf("failed to pull package: %w", err)
 	}
 
-	_, _ = fmt.Fprintf(d.Out, "  Loading package layout...\n")
+	slog.Debug("loading package layout")
 
 	// Load the package layout from the pulled files
 	layoutOpts := layout.PackageLayoutOptions{

@@ -5,6 +5,7 @@ package bundle
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
@@ -63,6 +64,10 @@ func (o *PullOptions) Validate() error {
 
 // Run executes the pull command.
 func (o *PullOptions) Run() error {
-	_, _ = fmt.Fprintf(o.Out, "Pulling bundle from OCI registry: %s\n", o.OCIReference)
-	return bundle.Pull(o.OCIReference)
+	slog.Debug("pulling bundle", "reference", o.OCIReference)
+	if err := bundle.Pull(o.OCIReference); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(o.Out, "✓ Bundle pulled successfully: %s\n", o.OCIReference)
+	return nil
 }

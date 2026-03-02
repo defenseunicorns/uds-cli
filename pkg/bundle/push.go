@@ -3,13 +3,11 @@
 
 package bundle
 
-import (
-	"fmt"
-)
+import "log/slog"
 
 // Push pushes a UDS bundle to an OCI registry.
 func Push(ociRef string) error {
-	fmt.Printf("Pushing bundle to OCI registry: %s\n", ociRef)
+	slog.Info("pushing bundle to OCI registry", "ref", ociRef)
 	// TODO: Implement bundle push logic
 	return nil
 }

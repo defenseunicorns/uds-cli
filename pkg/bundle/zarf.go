@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -105,6 +106,7 @@ func filterZarfOptionalComponents(blobDir string, m ociManifest, keepComponents 
 	for _, l := range im.Layers {
 		compName, isComp := zarfComponentNameFromTitle(l.Annotations[zarfLayerTitleAnnotation])
 		if isComp && optionalNames[compName] && !keepSet[compName] {
+			slog.Debug("excluding optional component", "component", compName)
 			continue
 		}
 		filtered = append(filtered, l)
@@ -113,6 +115,7 @@ func filterZarfOptionalComponents(blobDir string, m ociManifest, keepComponents 
 	if len(filtered) == len(im.Layers) {
 		return m, nil
 	}
+	slog.Debug("filtered optional components", "original_layers", len(im.Layers), "filtered_layers", len(filtered))
 
 	im.Layers = filtered
 	newManifestBytes, err := json.Marshal(im)

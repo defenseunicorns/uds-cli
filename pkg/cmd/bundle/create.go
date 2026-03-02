@@ -6,6 +6,7 @@ package bundle
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
@@ -70,8 +71,8 @@ func (o *CreateOptions) Run() error {
 
 	// Resolve the bundle path
 	bundlePath := ResolveBundlePath(o.BundlePath)
+	slog.Debug("creating bundle", "path", bundlePath)
 
-	_, _ = fmt.Fprintf(o.Out, "Creating bundle from file: %s\n", bundlePath)
 	outPath, err := bundle.Create(ctx, bundle.CreateOptions{
 		BundleFile: bundlePath,
 		Arch:       o.Arch,
@@ -80,6 +81,7 @@ func (o *CreateOptions) Run() error {
 	if err != nil {
 		return err
 	}
+	slog.Info("bundle created successfully", "output", outPath)
 	_, _ = fmt.Fprintf(o.Out, "Bundle created: %s\n", outPath)
 	return nil
 }

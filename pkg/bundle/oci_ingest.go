@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +25,7 @@ import (
 )
 
 func ingestRemoteReference(ctx context.Context, blobDir, refName, arch string) ([]ociManifest, error) {
+	slog.Debug("ingesting remote reference", "ref", refName, "arch", arch)
 	ref, err := name.ParseReference(refName)
 	if err != nil {
 		return nil, err
@@ -239,6 +241,7 @@ func writeBlobLayerIfMissingAndVerify(blobDir string, hash v1.Hash, layer v1.Lay
 }
 
 func ingestLocalReference(ctx context.Context, blobDir, bundleDir, src, arch string) ([]ociManifest, error) {
+	slog.Debug("ingesting local reference", "source", src, "arch", arch)
 	path := src
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(bundleDir, src)
@@ -350,6 +353,7 @@ func filterOCIManifestsByArch(manifests []ociManifest, arch string) []ociManifes
 // Call this after all optional-component filtering is complete so that excluded
 // component layers are not shipped in the final bundle.
 func gcUnreferencedBlobs(blobDir string, manifests []ociManifest) error {
+	slog.Debug("garbage collecting unreferenced blobs", "manifests", len(manifests))
 	keep := make(map[string]bool)
 	for _, m := range manifests {
 		mh, err := v1.NewHash(m.Digest)
@@ -558,6 +562,7 @@ func isZarfPackage(dir string) bool {
 // and ingests it into the bundle blob store. Each file in the Zarf package becomes
 // an OCI layer with org.opencontainers.image.title annotation and file permissions.
 func ingestZarfPackage(ctx context.Context, blobDir, pkgRoot, arch string) ([]ociManifest, error) {
+	slog.Debug("ingesting zarf package", "root", pkgRoot, "arch", arch)
 	// Parse zarf.yaml for metadata if it exists
 	zarfMeta := readZarfMetadata(filepath.Join(pkgRoot, "zarf.yaml"))
 

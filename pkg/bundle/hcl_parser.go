@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"log/slog"
 	"maps"
 	"os"
 	"slices"
@@ -34,6 +35,7 @@ var _ Parser = &HCLParser{}
 // The caller is responsible for validating the returned bundle.
 // The context parameter is currently unused as none of the HCL parsing methods supports cancellation.
 func (p *HCLParser) ParseBundleFile(_ context.Context, filePath string) (*UDSBundle, error) {
+	slog.Debug("reading bundle file", "path", filePath)
 	src, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read bundle file: %w", err)
@@ -43,11 +45,13 @@ func (p *HCLParser) ParseBundleFile(_ context.Context, filePath string) (*UDSBun
 	if hclDiagnostics.HasErrors() {
 		return nil, fmt.Errorf("failed to parse HCL: %s", hclDiagnostics.Error())
 	}
+	slog.Debug("HCL syntax parsed successfully")
 
 	locals, err := extractLocals(hclFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract locals: %w", err)
 	}
+	slog.Debug("locals extracted", "count", len(locals))
 
 	return decodeBundleWithLocals(hclFile, locals)
 }

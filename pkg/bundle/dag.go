@@ -5,6 +5,7 @@ package bundle
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/hashicorp/hcl/v2"
 )
@@ -73,6 +74,7 @@ func BuildDependencyGraph(bundle *UDSBundle) (*DAG, error) {
 		return nil, err
 	}
 
+	slog.Debug("dependency graph constructed", "packages", len(packages), "edges", len(edges))
 	return dag, nil
 }
 
