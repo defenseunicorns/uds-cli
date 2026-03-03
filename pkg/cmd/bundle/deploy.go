@@ -18,7 +18,7 @@ import (
 // DeployOptions holds options for the deploy command.
 type DeployOptions struct {
 	BundlePath string // Path to bundle file or directory (user input, resolved in Run)
-	Confirm    bool   // Auto-confirm deployment (skip confirmation prompt)
+	Prompt     bool   // Enable interactive prompts (non-interactive by default per ADR 0005)
 
 	iostreams.IOStreams
 }
@@ -44,15 +44,18 @@ The bundle-path can be:
   - A path to a bundle.uds.hcl file
   - If omitted, uses the current directory
 
+The CLI is non-interactive by default (suitable for CI/CD pipelines).
+Use --prompt to enable interactive confirmation before deployment.
+
 Examples:
-  # Deploy bundle in current directory
+  # Deploy bundle in current directory (non-interactive)
   uds bundle deploy
 
   # Deploy bundle from specific directory
   uds bundle deploy ./my-bundle
 
-  # Deploy with auto-confirmation (for CI/CD)
-  uds bundle deploy --confirm`,
+  # Deploy with interactive confirmation prompt
+  uds bundle deploy --prompt`,
 		Args: cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			util.CheckErr(o.Complete(cmd, args))
@@ -61,7 +64,7 @@ Examples:
 		},
 	}
 
-	cmd.Flags().BoolVarP(&o.Confirm, "confirm", "y", false, "Auto-confirm deployment (skip confirmation prompt)")
+	cmd.Flags().BoolVar(&o.Prompt, "prompt", false, "Enable interactive confirmation before deployment")
 
 	return cmd
 }
@@ -88,7 +91,7 @@ func (o *DeployOptions) Run() error {
 
 	// Resolve the bundle path
 	bundlePath := ResolveBundlePath(o.BundlePath)
-	slog.Debug("deploying bundle", "path", bundlePath, "confirm", o.Confirm)
+	slog.Debug("deploying bundle", "path", bundlePath, "prompt", o.Prompt)
 
 	// Parse bundle for display (BundlePath already validated by Validate)
 	parsedBundle, err := bundle.NewHCLParser().ParseBundleFile(ctx, bundlePath)
@@ -107,7 +110,7 @@ func (o *DeployOptions) Run() error {
 		return err
 	}
 
-	if !o.Confirm {
+	if o.Prompt {
 		confirmed, err := o.promptConfirmation()
 		if err != nil {
 			return err
@@ -116,7 +119,6 @@ func (o *DeployOptions) Run() error {
 			_, _ = fmt.Fprintln(o.Out, "Deployment cancelled")
 			return nil
 		}
-		o.Confirm = true
 	}
 
 	slog.Info("starting deployment", "name", parsedBundle.Metadata.Name)
@@ -124,7 +126,7 @@ func (o *DeployOptions) Run() error {
 	// Deploy the bundle
 	deployOpts := bundle.DeployOptions{
 		BundlePath: bundlePath,
-		Confirm:    o.Confirm,
+		Prompt:     o.Prompt,
 		Out:        o.Out,
 	}
 

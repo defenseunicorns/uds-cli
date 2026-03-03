@@ -81,9 +81,9 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 	}()
 
 	// Build deploy options for Zarf
-	// IsInteractive is the opposite of Confirm - if user confirmed, we don't need interactive prompts
+	// IsInteractive matches Prompt - only show interactive prompts when user opted in via --prompt
 	deployOpts := packager.DeployOptions{
-		IsInteractive:     !opts.Confirm,
+		IsInteractive:     opts.Prompt,
 		NamespaceOverride: pkg.Namespace, // empty string is fine - Zarf ignores it
 	}
 

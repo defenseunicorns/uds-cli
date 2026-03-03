@@ -57,11 +57,11 @@ func TestDeployCommand_Integration(t *testing.T) {
 	bundlePath := testDataPath(t, "bundles/deploy/init")
 
 	streams, in, out, _ := iostreams.NewTestIOStreams()
-	// Simulate user declining the deployment
+	// Simulate user declining the deployment via --prompt
 	in.WriteString("n\n")
 
 	cmd := bundle.NewDeployCommand(streams)
-	cmd.SetArgs([]string{bundlePath})
+	cmd.SetArgs([]string{bundlePath, "--prompt"})
 
 	err := cmd.Execute()
 	require.NoError(t, err)
@@ -77,7 +77,7 @@ func TestDeployCommand_Integration(t *testing.T) {
 	assert.Contains(t, output, "uds_k3d_dev")
 	assert.Contains(t, output, "init")
 
-	// Verify confirmation prompt was shown
+	// Verify confirmation prompt was shown (requires --prompt)
 	assert.Contains(t, output, "Deploy this bundle?")
 	assert.Contains(t, output, "Deployment cancelled")
 }
@@ -86,11 +86,11 @@ func TestDeployCommand_WithBundleFile_Integration(t *testing.T) {
 	bundlePath := testDataPath(t, "bundles/deploy/init/bundle.uds.hcl")
 
 	streams, in, out, _ := iostreams.NewTestIOStreams()
-	// Simulate user declining the deployment
+	// Simulate user declining the deployment via --prompt
 	in.WriteString("n\n")
 
 	cmd := bundle.NewDeployCommand(streams)
-	cmd.SetArgs([]string{bundlePath})
+	cmd.SetArgs([]string{bundlePath, "--prompt"})
 
 	err := cmd.Execute()
 	require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestDeployCommand_WithBundleFile_Integration(t *testing.T) {
 
 	// Verify bundle metadata is displayed
 	assert.Contains(t, output, "Name:        k3d-core-init")
-	// Verify confirmation prompt was shown
+	// Verify confirmation prompt was shown (requires --prompt)
 	assert.Contains(t, output, "Deploy this bundle?")
 }
 

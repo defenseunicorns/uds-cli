@@ -163,24 +163,22 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 	}
 }
 
-func TestDeployOptions_Run(t *testing.T) {
+func TestDeployOptions_Run_PromptDecline(t *testing.T) {
+	// Test the --prompt flag behavior: user declines deployment.
+	// Non-interactive (default) Run tests that proceed to actual deployment
+	// are covered by integration tests since they require OCI registries.
 	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", BundleFileName)
-	existingDir := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init")
 
 	tests := []struct {
 		name       string
 		bundlePath string
-		input      string // Simulated user input for confirmation prompt
-		confirm    bool   // --confirm flag
-		wantErr    bool
+		input      string   // Simulated user input for confirmation prompt
 		wantOutput []string // Strings that should appear in output
 	}{
 		{
-			name:       "valid bundle file - user confirms no",
+			name:       "prompt flag - user confirms no",
 			bundlePath: existingFile,
 			input:      "n\n",
-			confirm:    false,
-			wantErr:    false,
 			wantOutput: []string{
 				"k3d-core-init",
 				"uds_k3d_dev",
@@ -190,22 +188,9 @@ func TestDeployOptions_Run(t *testing.T) {
 			},
 		},
 		{
-			name:       "valid directory - user confirms no",
-			bundlePath: existingDir,
-			input:      "n\n",
-			confirm:    false,
-			wantErr:    false,
-			wantOutput: []string{
-				"k3d-core-init",
-				"Deployment cancelled",
-			},
-		},
-		{
-			name:       "valid bundle - empty input treated as no",
+			name:       "prompt flag - empty input treated as no",
 			bundlePath: existingFile,
 			input:      "",
-			confirm:    false,
-			wantErr:    false,
 			wantOutput: []string{
 				"Deployment cancelled",
 			},
@@ -219,22 +204,24 @@ func TestDeployOptions_Run(t *testing.T) {
 
 			o := &DeployOptions{
 				BundlePath: tt.bundlePath,
-				Confirm:    tt.confirm,
+				Prompt:     true,
 				IOStreams:  streams,
 			}
 
 			err := o.Run()
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				// Verify that expected output was written
-				for _, expected := range tt.wantOutput {
-					assert.Contains(t, out.String(), expected)
-				}
+			require.NoError(t, err)
+			for _, expected := range tt.wantOutput {
+				assert.Contains(t, out.String(), expected)
 			}
 		})
 	}
+}
+
+func TestDeployOptions_NoninteractivePrompt(t *testing.T) {
+	streams, _, _, _ := iostreams.NewTestIOStreams()
+	o := NewDeployOptions(streams)
+
+	assert.False(t, o.Prompt, "Prompt should default to false (non-interactive)")
 }
 
 func TestDeployOptions_PromptConfirmation(t *testing.T) {
@@ -277,9 +264,8 @@ func TestDeployOptions_Flags(t *testing.T) {
 	streams, _, _, _ := iostreams.NewTestIOStreams()
 	cmd := NewDeployCommand(streams)
 
-	// Verify flags are defined
-
-	confirmFlag := cmd.Flags().Lookup("confirm")
-	require.NotNil(t, confirmFlag, "confirm flag should be defined")
-	assert.Equal(t, "y", confirmFlag.Shorthand)
+	// Verify --prompt flag is defined
+	promptFlag := cmd.Flags().Lookup("prompt")
+	require.NotNil(t, promptFlag, "prompt flag should be defined")
+	assert.Equal(t, "false", promptFlag.DefValue, "prompt should default to false (non-interactive)")
 }

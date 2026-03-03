@@ -29,8 +29,8 @@ type DeployPackageOptions struct {
 	// BundleDir is the directory containing the bundle (for resolving relative paths)
 	BundleDir string
 
-	// Confirm skips interactive prompts
-	Confirm bool
+	// Prompt enables interactive prompts (non-interactive by default per ADR 0005)
+	Prompt bool
 }
 
 // DeployOptions contains options for deploying an entire bundle.
@@ -38,8 +38,8 @@ type DeployOptions struct {
 	// BundlePath is the path to the bundle directory containing bundle.uds.hcl
 	BundlePath string
 
-	// Confirm skips the confirmation prompt
-	Confirm bool
+	// Prompt enables interactive prompts (non-interactive by default per ADR 0005)
+	Prompt bool
 
 	// Out is the writer for output messages
 	Out io.Writer

@@ -96,7 +96,7 @@ func Deploy(ctx context.Context, opts DeployOptions) error {
 
 			pkgOpts := DeployPackageOptions{
 				BundleDir: bundleDir,
-				Confirm:   opts.Confirm,
+				Prompt:    opts.Prompt,
 			}
 
 			if err := deployer.DeployPackage(ctx, pkg, pkgOpts); err != nil {
