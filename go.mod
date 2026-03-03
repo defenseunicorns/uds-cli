@@ -1,6 +1,6 @@
 module github.com/defenseunicorns/uds-cli
 
-go 1.25.5
+go 1.25.7
 
 // TODO: awaiting release of derailed/k9s to include grype version bump: from https://github.com/zarf-dev/zarf/blob/6243c86df7c2de9abd28631108b6e84b5fecf29f/go.mod#L12
 replace github.com/anchore/grype => github.com/anchore/grype v0.104.1 // renovate: ignore
