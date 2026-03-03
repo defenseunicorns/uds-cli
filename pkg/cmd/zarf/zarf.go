@@ -60,6 +60,8 @@ import (
 
 	"github.com/spf13/cobra"
 	zarfCLI "github.com/zarf-dev/zarf/src/cmd"
+
+	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
 )
 
 // NewZarfCommand creates the user-facing zarf subcommand under "uds tools".
@@ -101,7 +103,7 @@ This path is suitable for all other Zarf commands:
 			// Remove "uds" and "tools" from args, keeping "zarf" and everything after.
 			// os.Args: ["/path/to/uds", "tools", "zarf", ...] → ["zarf", ...]
 			os.Args = os.Args[2:]
-			zarfCLI.Execute(context.Background())
+			util.CheckErr(zarfCLI.Execute(context.Background()))
 		},
 		// Disable flag parsing so all flags are passed to Zarf
 		DisableFlagParsing: true,
@@ -125,7 +127,7 @@ func NewInternalZarfCommand() *cobra.Command {
 			// Remove "uds" from args, keeping "zarf" and everything after.
 			// os.Args: ["/path/to/uds", "zarf", ...] → ["zarf", ...]
 			os.Args = os.Args[1:]
-			zarfCLI.Execute(context.Background())
+			util.CheckErr(zarfCLI.Execute(context.Background()))
 		},
 		DisableFlagParsing: true,
 	}
