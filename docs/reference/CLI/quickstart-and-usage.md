@@ -31,7 +31,6 @@ packages:
   - name: init
     repository: ghcr.io/defenseunicorns/packages/init
     ref: v0.33.0
-    timeout: 20m
     optionalComponents:
       - git-server
   - name: podinfo
@@ -105,7 +104,7 @@ packages:
   - name: init
     repository: ghcr.io/defenseunicorns/packages/init
     ref: v0.33.0
-    timeout: 20m
+    timeout: 5m
 ```
 
 The value uses Go duration format (for example `30s`, `10m`, or `1h30m`).

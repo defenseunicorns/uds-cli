@@ -29,7 +29,6 @@ packages:
   - name: init
     repository: ghcr.io/defenseunicorns/packages/init
     ref: v0.33.0
-    timeout: 20m
     optionalComponents:
       - git-server
   - name: podinfo
