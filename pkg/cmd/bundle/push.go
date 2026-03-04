@@ -9,6 +9,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
+	"github.com/defenseunicorns/uds-cli/pkg/config"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 )
@@ -16,6 +17,7 @@ import (
 // PushOptions holds options for the push command.
 type PushOptions struct {
 	OCIReference string
+	Config       config.BundleConfig
 
 	iostreams.IOStreams
 }
@@ -47,10 +49,11 @@ func NewPushCommand(streams iostreams.IOStreams) *cobra.Command {
 }
 
 // Complete fills in options from command line args.
-func (o *PushOptions) Complete(_ *cobra.Command, args []string) error {
+func (o *PushOptions) Complete(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		o.OCIReference = args[0]
 	}
+	o.Config = config.BuildBundleConfig(cmd)
 	return nil
 }
 
@@ -59,7 +62,7 @@ func (o *PushOptions) Validate() error {
 	if o.OCIReference == "" {
 		return fmt.Errorf("OCI reference is required")
 	}
-	return nil
+	return ValidateBundleConfig(o.Config)
 }
 
 // Run executes the push command.

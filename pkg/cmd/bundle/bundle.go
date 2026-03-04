@@ -5,6 +5,7 @@
 package bundle
 
 import (
+	"github.com/defenseunicorns/uds-cli/pkg/config"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 )
@@ -16,6 +17,16 @@ func NewBundleCommand(streams iostreams.IOStreams) *cobra.Command {
 		Short: "Manage UDS bundles",
 		Long:  "Manage UDS bundles, which are collections of resources that can be created, deployed, and removed together",
 	}
+
+	// Bundle-component persistent flags (inherited by all subcommands).
+	// Defaults here match config.DefaultBundleConfig() so that flag values
+	// can be read directly without needing Changed() checks.
+	defaults := config.DefaultBundleConfig()
+	bundleCmd.PersistentFlags().StringP("architecture", "a", defaults.Architecture, "target architecture")
+	bundleCmd.PersistentFlags().Bool("plain-http", defaults.PlainHTTP, "use plain HTTP for registry communication")
+	bundleCmd.PersistentFlags().Bool("skip-tls-verify", defaults.SkipTLSVerify, "skip TLS certificate verification")
+	bundleCmd.PersistentFlags().String("tmp-dir", defaults.TmpDir, "directory for temporary files")
+	bundleCmd.PersistentFlags().Int("concurrency", defaults.Concurrency, "degree of parallelism for concurrent operations")
 
 	// Add subcommands
 	bundleCmd.AddCommand(NewInspectCommand(streams))

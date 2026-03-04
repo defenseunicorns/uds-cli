@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/pkg/config"
 )
 
 // BundleFileName is the standard name for UDS bundle definition files.
@@ -92,4 +93,33 @@ func ResolveBundlePath(ref string) string {
 // IsTarZst checks if a string ends with .tar.zst extension.
 func IsTarZst(s string) bool {
 	return strings.HasSuffix(s, ".tar.zst")
+}
+
+// ValidateBundleConfig checks that the BundleConfig has valid values.
+func ValidateBundleConfig(cfg config.BundleConfig) error {
+	if cfg.Concurrency < 1 {
+		return fmt.Errorf("concurrency must be >= 1, got %d", cfg.Concurrency)
+	}
+	if err := ValidateDir(cfg.TmpDir); err != nil {
+		return fmt.Errorf("--tmp-dir: %w", err)
+	}
+	return nil
+}
+
+// ValidateDir checks that the given path exists and is a directory.
+func ValidateDir(path string) error {
+	if path == "" {
+		return nil
+	}
+	st, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("directory does not exist: %s", path)
+		}
+		return fmt.Errorf("failed to stat directory %s: %w", path, err)
+	}
+	if !st.IsDir() {
+		return fmt.Errorf("path is not a directory: %s", path)
+	}
+	return nil
 }

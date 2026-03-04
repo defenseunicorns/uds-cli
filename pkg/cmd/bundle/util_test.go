@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -180,6 +181,73 @@ func TestIsTarZst(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestValidateDir(t *testing.T) {
+	t.Run("valid directory", func(t *testing.T) {
+		require.NoError(t, ValidateDir(t.TempDir()))
+	})
+
+	t.Run("empty path", func(t *testing.T) {
+		require.NoError(t, ValidateDir(""))
+	})
+
+	t.Run("nonexistent path", func(t *testing.T) {
+		err := ValidateDir("/nonexistent/path/tmp")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "directory does not exist")
+	})
+
+	t.Run("path is a file", func(t *testing.T) {
+		f := filepath.Join(t.TempDir(), "afile")
+		require.NoError(t, os.WriteFile(f, []byte("x"), 0o644))
+		err := ValidateDir(f)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "path is not a directory")
+	})
+}
+
+func TestValidateBundleConfig(t *testing.T) {
+	t.Run("valid config", func(t *testing.T) {
+		cfg := config.DefaultBundleConfig()
+		require.NoError(t, ValidateBundleConfig(cfg))
+	})
+
+	t.Run("zero concurrency", func(t *testing.T) {
+		cfg := config.DefaultBundleConfig()
+		cfg.Concurrency = 0
+		err := ValidateBundleConfig(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "concurrency must be >= 1")
+	})
+
+	t.Run("negative concurrency", func(t *testing.T) {
+		cfg := config.DefaultBundleConfig()
+		cfg.Concurrency = -1
+		err := ValidateBundleConfig(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "concurrency must be >= 1")
+	})
+
+	t.Run("nonexistent tmp-dir", func(t *testing.T) {
+		cfg := config.DefaultBundleConfig()
+		cfg.TmpDir = "/nonexistent/path/tmp"
+		err := ValidateBundleConfig(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--tmp-dir")
+		assert.Contains(t, err.Error(), "directory does not exist")
+	})
+
+	t.Run("tmp-dir is a file", func(t *testing.T) {
+		f := filepath.Join(t.TempDir(), "afile")
+		require.NoError(t, os.WriteFile(f, []byte("x"), 0o644))
+		cfg := config.DefaultBundleConfig()
+		cfg.TmpDir = f
+		err := ValidateBundleConfig(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--tmp-dir")
+		assert.Contains(t, err.Error(), "path is not a directory")
+	})
 }
 
 func TestValidateBundlePath(t *testing.T) {

@@ -39,10 +39,12 @@ func createBundleFromTestData(t *testing.T, testDataRelPath, arch string) string
 
 	streams, _, _, _ := iostreams.NewTestIOStreams()
 
+	regOpts := bundlepkg.DefaultRegistryOptions()
+	regOpts.Arch = arch
 	outPath, err := bundlepkg.Create(t.Context(), bundlepkg.CreateOptions{
-		BundleFile: filepath.Join(dir, "bundle.uds.hcl"),
-		Arch:       arch,
-		Out:        streams.Out,
+		RegistryOptions: regOpts,
+		BundleFile:      filepath.Join(dir, "bundle.uds.hcl"),
+		Out:             streams.Out,
 	})
 	require.NoError(t, err)
 

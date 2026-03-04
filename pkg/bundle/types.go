@@ -6,6 +6,7 @@ package bundle
 import (
 	"context"
 	"io"
+	"runtime"
 
 	"github.com/hashicorp/hcl/v2"
 )
@@ -14,6 +15,30 @@ import (
 type Parser interface {
 	// ParseBundleFile reads and parses an HCL bundle file with locals support.
 	ParseBundleFile(ctx context.Context, filePath string) (*UDSBundle, error)
+}
+
+// RegistryOptions holds shared OCI registry settings used across create, deploy,
+// pull, and push operations.
+type RegistryOptions struct {
+	// Arch is the target CPU architecture (e.g. "amd64", "arm64").
+	Arch string
+
+	// PlainHTTP allows registry communication over plain HTTP.
+	PlainHTTP bool
+
+	// SkipTLSVerify skips TLS certificate verification for registries.
+	SkipTLSVerify bool
+
+	// Concurrency controls the degree of parallelism for concurrent operations.
+	Concurrency int
+}
+
+// DefaultRegistryOptions returns RegistryOptions with default architecture and concurrency.
+func DefaultRegistryOptions() RegistryOptions {
+	return RegistryOptions{
+		Arch:        runtime.GOARCH,
+		Concurrency: 10,
+	}
 }
 
 // Deployer is the interface for deploying packages to a target.
@@ -26,6 +51,8 @@ type Deployer interface {
 
 // DeployPackageOptions contains options for deploying a single package.
 type DeployPackageOptions struct {
+	RegistryOptions
+
 	// BundleDir is the directory containing the bundle (for resolving relative paths)
 	BundleDir string
 
@@ -35,11 +62,16 @@ type DeployPackageOptions struct {
 
 // DeployOptions contains options for deploying an entire bundle.
 type DeployOptions struct {
+	RegistryOptions
+
 	// BundlePath is the path to the bundle directory containing bundle.uds.hcl
 	BundlePath string
 
 	// Prompt enables interactive prompts (non-interactive by default per ADR 0005)
 	Prompt bool
+
+	// TmpDir is the base directory for temporary files.
+	TmpDir string
 
 	// Out is the writer for output messages
 	Out io.Writer
@@ -125,20 +157,23 @@ type Creator interface {
 	BundleName(b *UDSBundle) string
 }
 
-// CreateOptions holds configuration for the top-level bundle create operation.
-type CreateOptions struct {
-	BundleFile string
-	// Arch is the target CPU architecture (e.g. "amd64", "arm64").
-	// Defaults to runtime.GOARCH when empty.
-	Arch string
-	Out  io.Writer
-}
-
 // CreatePackageOptions holds per-package configuration during bundle creation.
 type CreatePackageOptions struct {
+	RegistryOptions
+
 	BlobDir   string
 	BundleDir string
-	// Arch is the target CPU architecture forwarded from CreateOptions.
-	Arch string
-	Out  io.Writer
+	Out       io.Writer
+}
+
+// CreateOptions holds configuration for the top-level bundle create operation.
+type CreateOptions struct {
+	RegistryOptions
+
+	BundleFile string
+
+	// TmpDir is the base directory for temporary files.
+	TmpDir string
+
+	Out io.Writer
 }

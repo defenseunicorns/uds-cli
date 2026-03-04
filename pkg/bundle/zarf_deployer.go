@@ -9,7 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"runtime"
+
 	"strings"
 
 	"github.com/defenseunicorns/pkg/oci"
@@ -69,7 +69,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 	// Load the package from its OCI source
 	slog.Info("pulling package", "source", pkg.Source)
 
-	pkgLayout, err := d.pullAndLoadPackage(ctx, pkg.Source, pkgTmp, pkg.OptionalComponents)
+	pkgLayout, err := d.pullAndLoadPackage(ctx, pkg.Source, pkgTmp, pkg.OptionalComponents, opts)
 	if err != nil {
 		return fmt.Errorf("failed to load package %q from %s: %w", pkg.Name, pkg.Source, err)
 	}
@@ -118,22 +118,25 @@ func (d *ZarfDeployer) setupLoggerContext(ctx context.Context) context.Context {
 
 // pullAndLoadPackage pulls a Zarf package from an OCI registry and loads it into a PackageLayout.
 // Reference: .ai/example-repos/uds-cli/src/pkg/sources/remote.go and zarf/src/pkg/zoci/
-func (d *ZarfDeployer) pullAndLoadPackage(ctx context.Context, source, tmpDir string, optionalComponents []string) (*layout.PackageLayout, error) {
+func (d *ZarfDeployer) pullAndLoadPackage(ctx context.Context, source, tmpDir string, optionalComponents []string, opts DeployPackageOptions) (*layout.PackageLayout, error) {
 	// Strip oci:// prefix if present
 	ociRef := TrimScheme(source)
 
-	// Create platform for current architecture
 	platform := ocispec.Platform{
-		// TODO: This is a temporary approach that will be clarified after https://github.com/defenseunicorns/uds-cli/issues/23
-		// is done.
-		Architecture: runtime.GOARCH,
+		Architecture: opts.Arch,
 		OS:           oci.MultiOS,
 	}
 
-	slog.Debug("creating OCI remote", "ref", ociRef)
+	slog.Debug("creating OCI remote", "ref", ociRef, "arch", opts.Arch)
+
+	// Build OCI modifiers for registry options
+	mods := []oci.Modifier{
+		oci.WithPlainHTTP(opts.PlainHTTP),
+		oci.WithInsecureSkipVerify(opts.SkipTLSVerify),
+	}
 
 	// Create remote client for the OCI registry
-	remote, err := zoci.NewRemote(ctx, ociRef, platform)
+	remote, err := zoci.NewRemote(ctx, ociRef, platform, mods...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create OCI remote: %w", err)
 	}
@@ -154,7 +157,7 @@ func (d *ZarfDeployer) pullAndLoadPackage(ctx context.Context, source, tmpDir st
 	slog.Debug("pulling layers", "count", len(layers), "dest", tmpDir)
 
 	// Pull the package to the temp directory
-	_, err = remote.PullPackage(ctx, tmpDir, zoci.DefaultConcurrency, layers...)
+	_, err = remote.PullPackage(ctx, tmpDir, opts.Concurrency, layers...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to pull package: %w", err)
 	}

@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 )
 
@@ -52,7 +51,7 @@ func (c *localCreator) CreatePackage(ctx context.Context, pkg *Package, opts Cre
 		// Strip any explicit scheme prefix (e.g. "oci://") before handing to
 		// go-containerregistry which does not expect it.
 		refName := TrimScheme(pkg.Source)
-		manifests, err = ingestRemoteReference(ctx, opts.BlobDir, refName, opts.Arch)
+		manifests, err = ingestRemoteReference(ctx, opts.BlobDir, refName, opts.RegistryOptions)
 		if err != nil {
 			return fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
@@ -104,15 +103,10 @@ func Create(ctx context.Context, opts CreateOptions) (string, error) {
 	}
 	slog.Debug("bundle validation passed")
 
-	arch := opts.Arch
-	if arch == "" {
-		arch = runtime.GOARCH
-		slog.Debug("using system architecture", "arch", arch)
-	}
-	creator := newLocalCreator(arch)
+	creator := newLocalCreator(opts.Arch)
 
 	srcDir := filepath.Dir(opts.BundleFile)
-	root, err := os.MkdirTemp("", "uds-bundle-create-*")
+	root, err := os.MkdirTemp(opts.TmpDir, "uds-bundle-create-*")
 	if err != nil {
 		return "", err
 	}
@@ -135,10 +129,10 @@ func Create(ctx context.Context, opts CreateOptions) (string, error) {
 	}
 
 	pkgOpts := CreatePackageOptions{
-		BlobDir:   blobDir,
-		BundleDir: srcDir,
-		Arch:      arch,
-		Out:       opts.Out,
+		RegistryOptions: opts.RegistryOptions,
+		BlobDir:         blobDir,
+		BundleDir:       srcDir,
+		Out:             opts.Out,
 	}
 	for i := range b.Packages {
 		if err := creator.CreatePackage(ctx, &b.Packages[i], pkgOpts); err != nil {

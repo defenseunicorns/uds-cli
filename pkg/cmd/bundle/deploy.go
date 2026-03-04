@@ -11,6 +11,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
+	"github.com/defenseunicorns/uds-cli/pkg/config"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 )
@@ -19,6 +20,7 @@ import (
 type DeployOptions struct {
 	BundlePath string // Path to bundle file or directory (user input, resolved in Run)
 	Prompt     bool   // Enable interactive prompts (non-interactive by default per ADR 0005)
+	Config     config.BundleConfig
 
 	iostreams.IOStreams
 }
@@ -70,18 +72,22 @@ Examples:
 }
 
 // Complete fills in options from command line args.
-func (o *DeployOptions) Complete(_ *cobra.Command, args []string) error {
+func (o *DeployOptions) Complete(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		o.BundlePath = args[0]
 	} else {
 		// Default to looking for bundle.uds.hcl in current directory
 		o.BundlePath = "."
 	}
+	o.Config = config.BuildBundleConfig(cmd)
 	return nil
 }
 
 // Validate validates the options without modifying state.
 func (o *DeployOptions) Validate() error {
+	if err := ValidateBundleConfig(o.Config); err != nil {
+		return err
+	}
 	return ValidateBundlePath(o.BundlePath)
 }
 
@@ -125,8 +131,15 @@ func (o *DeployOptions) Run() error {
 
 	// Deploy the bundle
 	deployOpts := bundle.DeployOptions{
+		RegistryOptions: bundle.RegistryOptions{
+			Arch:          o.Config.Architecture,
+			PlainHTTP:     o.Config.PlainHTTP,
+			SkipTLSVerify: o.Config.SkipTLSVerify,
+			Concurrency:   o.Config.Concurrency,
+		},
 		BundlePath: bundlePath,
 		Prompt:     o.Prompt,
+		TmpDir:     o.Config.TmpDir,
 		Out:        o.Out,
 	}
 

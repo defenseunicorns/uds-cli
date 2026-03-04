@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/defenseunicorns/uds-cli/pkg/config"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
@@ -147,6 +148,7 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 			streams, _, _, _ := iostreams.NewTestIOStreams()
 			o := &DeployOptions{
 				BundlePath: tt.bundlePath,
+				Config:     config.DefaultBundleConfig(),
 				IOStreams:  streams,
 			}
 
@@ -205,6 +207,7 @@ func TestDeployOptions_Run_PromptDecline(t *testing.T) {
 			o := &DeployOptions{
 				BundlePath: tt.bundlePath,
 				Prompt:     true,
+				Config:     config.DefaultBundleConfig(),
 				IOStreams:  streams,
 			}
 

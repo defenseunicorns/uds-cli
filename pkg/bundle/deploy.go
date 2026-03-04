@@ -17,7 +17,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
 )
 
@@ -58,8 +57,7 @@ func Deploy(ctx context.Context, opts DeployOptions) error {
 	slog.Debug("dependency graph built", "levels", len(levels))
 
 	// Create deployer
-	tempDir := os.TempDir()
-	deployer := NewZarfDeployer(tempDir, opts.Out)
+	deployer := NewZarfDeployer(opts.TmpDir, opts.Out)
 
 	// =========================================================================
 	// DEPLOY PACKAGES BY LEVEL (prepared for future parallel execution)
@@ -81,6 +79,12 @@ func Deploy(ctx context.Context, opts DeployOptions) error {
 	//       if err := g.Wait(); err != nil { return err }
 	//   }
 	bundleDir := filepath.Dir(opts.BundlePath)
+	pkgOpts := DeployPackageOptions{
+		RegistryOptions: opts.RegistryOptions,
+		BundleDir:       bundleDir,
+		Prompt:          opts.Prompt,
+	}
+
 	totalPkgs := 0
 	for _, level := range levels {
 		totalPkgs += len(level)
@@ -93,11 +97,6 @@ func Deploy(ctx context.Context, opts DeployOptions) error {
 		for _, pkg := range level {
 			pkgNum++
 			slog.Info("deploying package", "name", pkg.Name, "source", pkg.Source, "package", pkgNum, "total", totalPkgs)
-
-			pkgOpts := DeployPackageOptions{
-				BundleDir: bundleDir,
-				Prompt:    opts.Prompt,
-			}
 
 			if err := deployer.DeployPackage(ctx, pkg, pkgOpts); err != nil {
 				// Use DAG's GetTraversal for enhanced error with source location

@@ -6,12 +6,14 @@ package bundle
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,16 +26,23 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func ingestRemoteReference(ctx context.Context, blobDir, refName, arch string) ([]ociManifest, error) {
-	slog.Debug("ingesting remote reference", "ref", refName, "arch", arch)
-	ref, err := name.ParseReference(refName)
+func ingestRemoteReference(ctx context.Context, blobDir, refName string, reg RegistryOptions) ([]ociManifest, error) {
+	slog.Debug("ingesting remote reference", "ref", refName, "arch", reg.Arch)
+
+	// Build name.Option slice for reference parsing.
+	// name.Insecure is a toggle (not bool-accepting), so only include when true.
+	var nameOpts []name.Option
+	if reg.PlainHTTP {
+		nameOpts = append(nameOpts, name.Insecure)
+	}
+
+	ref, err := name.ParseReference(refName, nameOpts...)
 	if err != nil {
 		return nil, err
 	}
-	opts := []remote.Option{
-		remote.WithContext(ctx),
-		remote.WithAuthFromKeychain(authn.DefaultKeychain),
-	}
+
+	// Build remote.Option slice — always configure TLS transport with the requested setting
+	opts := remoteOpts(ctx, reg.SkipTLSVerify)
 
 	desc, err := remote.Get(ref, opts...)
 	if err != nil {
@@ -48,7 +57,7 @@ func ingestRemoteReference(ctx context.Context, blobDir, refName, arch string) (
 		if err != nil {
 			return nil, err
 		}
-		m, err := ingestRemoteImage(blobDir, img, string(desc.MediaType), nil)
+		m, err := ingestRemoteImage(blobDir, img, string(desc.MediaType), nil, reg.Concurrency)
 		if err != nil {
 			return nil, err
 		}
@@ -66,30 +75,26 @@ func ingestRemoteReference(ctx context.Context, blobDir, refName, arch string) (
 		return nil, err
 	}
 
-	filtered := filterDescriptorsByArch(idxManifest.Manifests, arch)
+	filtered := filterDescriptorsByArch(idxManifest.Manifests, reg.Arch)
 	if len(filtered) == 0 {
-		return nil, fmt.Errorf("no manifests found matching architecture %q in %q", arch, refName)
+		return nil, fmt.Errorf("no manifests found matching architecture %q in %q", reg.Arch, refName)
 	}
 
 	manifests := make([]ociManifest, len(filtered))
 	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(10)
+	g.SetLimit(reg.Concurrency)
 	for i, mDesc := range filtered {
 		g.Go(func() error {
 			digestRef := ref.Context().Name() + "@" + mDesc.Digest.String()
-			imgRef, err := name.NewDigest(digestRef)
+			imgRef, err := name.NewDigest(digestRef, nameOpts...)
 			if err != nil {
 				return err
 			}
-			imgOpts := []remote.Option{
-				remote.WithContext(gctx),
-				remote.WithAuthFromKeychain(authn.DefaultKeychain),
-			}
-			img, err := remote.Image(imgRef, imgOpts...)
+			img, err := remote.Image(imgRef, remoteOpts(gctx, reg.SkipTLSVerify)...)
 			if err != nil {
 				return err
 			}
-			m, err := ingestRemoteImage(blobDir, img, string(mDesc.MediaType), mDesc.Platform)
+			m, err := ingestRemoteImage(blobDir, img, string(mDesc.MediaType), mDesc.Platform, reg.Concurrency)
 			if err != nil {
 				return err
 			}
@@ -107,7 +112,23 @@ func ingestRemoteReference(ctx context.Context, blobDir, refName, arch string) (
 	return manifests, nil
 }
 
-func ingestRemoteImage(blobDir string, img v1.Image, mediaType string, platform *v1.Platform) (ociManifest, error) {
+// remoteOpts builds a common set of remote.Option for go-containerregistry calls,
+// always configuring TLS transport with the requested insecure setting.
+func remoteOpts(ctx context.Context, skipTLSVerify bool) []remote.Option {
+	// Clone the default transport to preserve proxy config, timeouts,
+	// keep-alives, and HTTP/2 support while customizing TLS behavior.
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: skipTLSVerify} //nolint:gosec // user-controlled via --skip-tls-verify
+
+	opts := []remote.Option{
+		remote.WithContext(ctx),
+		remote.WithAuthFromKeychain(authn.DefaultKeychain),
+		remote.WithTransport(transport),
+	}
+	return opts
+}
+
+func ingestRemoteImage(blobDir string, img v1.Image, mediaType string, platform *v1.Platform, concurrency int) (ociManifest, error) {
 	manifestHash, err := img.Digest()
 	if err != nil {
 		return ociManifest{}, err
@@ -137,7 +158,7 @@ func ingestRemoteImage(blobDir string, img v1.Image, mediaType string, platform 
 		return ociManifest{}, err
 	}
 	lg := new(errgroup.Group)
-	lg.SetLimit(10)
+	lg.SetLimit(concurrency)
 	for _, layer := range layers {
 		lg.Go(func() error {
 			layerHash, err := layer.Digest()
@@ -515,9 +536,9 @@ func writeBlobFileIfMissingAndVerify(dstBlobDir, srcPath string, hash v1.Hash) e
 
 // findOCILayoutRoot locates the OCI image layout directory within root.
 // Search order:
-//   1. root itself (minimal test layouts, single-image packages)
-//   2. root/oci (UDS bundles created by this CLI)
-//   3. root/images (extracted Zarf package tar archives)
+//  1. root itself (minimal test layouts, single-image packages)
+//  2. root/oci (UDS bundles created by this CLI)
+//  3. root/images (extracted Zarf package tar archives)
 func findOCILayoutRoot(root string) (string, error) {
 	if isOCILayoutDir(root) {
 		return root, nil
@@ -617,9 +638,9 @@ func ingestZarfPackage(ctx context.Context, blobDir, pkgRoot, arch string) ([]oc
 
 		// Store file permissions and size
 		annotations := map[string]string{
-			"org.opencontainers.image.title":       title,
-			"org.defenseunicorns.zarf.file.mode":   fmt.Sprintf("%o", info.Mode().Perm()),
-			"org.defenseunicorns.zarf.file.mtime":  info.ModTime().UTC().Format("2006-01-02T15:04:05Z"),
+			"org.opencontainers.image.title":      title,
+			"org.defenseunicorns.zarf.file.mode":  fmt.Sprintf("%o", info.Mode().Perm()),
+			"org.defenseunicorns.zarf.file.mtime": info.ModTime().UTC().Format("2006-01-02T15:04:05Z"),
 		}
 
 		layers = append(layers, ociDescriptor{

@@ -43,7 +43,11 @@ package "pkg1" {
 }
 `), 0o644))
 
-	_, err := Create(context.Background(), CreateOptions{BundleFile: bundleFile, Out: io.Discard})
+	_, err := Create(context.Background(), CreateOptions{
+		RegistryOptions: DefaultRegistryOptions(),
+		BundleFile:      bundleFile,
+		Out:             io.Discard,
+	})
 	require.NoError(t, err)
 
 	outPath := filepath.Join(dir, "uds-bundle-test-"+runtime.GOARCH+"-0.0.1.tar.zst")
@@ -145,10 +149,12 @@ package "pkg1" {
 `), 0o644))
 
 	// Build for amd64 explicitly.
+	regOpts := DefaultRegistryOptions()
+	regOpts.Arch = "amd64"
 	_, err := Create(context.Background(), CreateOptions{
-		BundleFile: bundleFile,
-		Arch:       "amd64",
-		Out:        io.Discard,
+		RegistryOptions: regOpts,
+		BundleFile:      bundleFile,
+		Out:             io.Discard,
 	})
 	require.NoError(t, err)
 
@@ -203,9 +209,9 @@ package "pkg1" {
 `), 0o644))
 
 	_, err := Create(context.Background(), CreateOptions{
-		BundleFile: bundleFile,
-		Arch:       runtime.GOARCH,
-		Out:        io.Discard,
+		RegistryOptions: DefaultRegistryOptions(),
+		BundleFile:      bundleFile,
+		Out:             io.Discard,
 	})
 	require.NoError(t, err)
 

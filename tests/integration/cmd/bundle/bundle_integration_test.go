@@ -20,10 +20,10 @@ func TestInspectCommand_Integration(t *testing.T) {
 
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 
-	cmd := bundle.NewInspectCommand(streams)
-	cmd.SetArgs([]string{bundlePath})
+	root := bundle.NewBundleCommand(streams)
+	root.SetArgs([]string{"inspect", bundlePath})
 
-	err := cmd.Execute()
+	err := root.Execute()
 	require.NoError(t, err)
 
 	output := out.String()
@@ -60,10 +60,10 @@ func TestDeployCommand_Integration(t *testing.T) {
 	// Simulate user declining the deployment via --prompt
 	in.WriteString("n\n")
 
-	cmd := bundle.NewDeployCommand(streams)
-	cmd.SetArgs([]string{bundlePath, "--prompt"})
+	root := bundle.NewBundleCommand(streams)
+	root.SetArgs([]string{"deploy", bundlePath, "--prompt"})
 
-	err := cmd.Execute()
+	err := root.Execute()
 	require.NoError(t, err)
 
 	output := out.String()
@@ -89,10 +89,10 @@ func TestDeployCommand_WithBundleFile_Integration(t *testing.T) {
 	// Simulate user declining the deployment via --prompt
 	in.WriteString("n\n")
 
-	cmd := bundle.NewDeployCommand(streams)
-	cmd.SetArgs([]string{bundlePath, "--prompt"})
+	root := bundle.NewBundleCommand(streams)
+	root.SetArgs([]string{"deploy", bundlePath, "--prompt"})
 
-	err := cmd.Execute()
+	err := root.Execute()
 	require.NoError(t, err)
 
 	output := out.String()
@@ -106,10 +106,10 @@ func TestDeployCommand_WithBundleFile_Integration(t *testing.T) {
 func TestPullCommand_Integration(t *testing.T) {
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 
-	cmd := bundle.NewPullCommand(streams)
-	cmd.SetArgs([]string{"ghcr.io/test:v1"})
+	root := bundle.NewBundleCommand(streams)
+	root.SetArgs([]string{"pull", "ghcr.io/test:v1"})
 
-	err := cmd.Execute()
+	err := root.Execute()
 	require.NoError(t, err)
 
 	assert.Contains(t, out.String(), "Bundle pulled successfully")
@@ -118,10 +118,10 @@ func TestPullCommand_Integration(t *testing.T) {
 func TestPushCommand_Integration(t *testing.T) {
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 
-	cmd := bundle.NewPushCommand(streams)
-	cmd.SetArgs([]string{"ghcr.io/test:v1"})
+	root := bundle.NewBundleCommand(streams)
+	root.SetArgs([]string{"push", "ghcr.io/test:v1"})
 
-	err := cmd.Execute()
+	err := root.Execute()
 	require.NoError(t, err)
 
 	assert.Contains(t, out.String(), "Bundle pushed successfully")
@@ -130,10 +130,10 @@ func TestPushCommand_Integration(t *testing.T) {
 func TestRemoveCommand_Integration(t *testing.T) {
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 
-	cmd := bundle.NewRemoveCommand(streams)
-	cmd.SetArgs([]string{"ghcr.io/test:v1"})
+	root := bundle.NewBundleCommand(streams)
+	root.SetArgs([]string{"remove", "ghcr.io/test:v1"})
 
-	err := cmd.Execute()
+	err := root.Execute()
 	require.NoError(t, err)
 
 	assert.Contains(t, out.String(), "Bundle removed successfully")

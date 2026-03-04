@@ -10,6 +10,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
+	"github.com/defenseunicorns/uds-cli/pkg/config"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 )
@@ -17,7 +18,7 @@ import (
 // CreateOptions holds options for the create command.
 type CreateOptions struct {
 	BundlePath string // Path to bundle file or directory (user input, resolved in Run)
-	Arch       string
+	Config     config.BundleConfig
 
 	iostreams.IOStreams
 }
@@ -45,23 +46,25 @@ func NewCreateCommand(streams iostreams.IOStreams) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&o.Arch, "arch", "a", "", "architecture to create bundle for (defaults to system architecture)")
-
 	return cmd
 }
 
 // Complete fills in options from command line args.
-func (o *CreateOptions) Complete(_ *cobra.Command, args []string) error {
+func (o *CreateOptions) Complete(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		o.BundlePath = args[0]
 	} else {
 		o.BundlePath = "."
 	}
+	o.Config = config.BuildBundleConfig(cmd)
 	return nil
 }
 
 // Validate validates the options without modifying state.
 func (o *CreateOptions) Validate() error {
+	if err := ValidateBundleConfig(o.Config); err != nil {
+		return err
+	}
 	return ValidateBundlePath(o.BundlePath)
 }
 
@@ -74,8 +77,14 @@ func (o *CreateOptions) Run() error {
 	slog.Debug("creating bundle", "path", bundlePath)
 
 	outPath, err := bundle.Create(ctx, bundle.CreateOptions{
+		RegistryOptions: bundle.RegistryOptions{
+			Arch:          o.Config.Architecture,
+			PlainHTTP:     o.Config.PlainHTTP,
+			SkipTLSVerify: o.Config.SkipTLSVerify,
+			Concurrency:   o.Config.Concurrency,
+		},
 		BundleFile: bundlePath,
-		Arch:       o.Arch,
+		TmpDir:     o.Config.TmpDir,
 		Out:        o.Out,
 	})
 	if err != nil {

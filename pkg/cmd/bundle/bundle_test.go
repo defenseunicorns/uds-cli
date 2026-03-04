@@ -6,10 +6,11 @@ package bundle
 import (
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/spf13/cobra"
 
+	"github.com/defenseunicorns/uds-cli/pkg/config"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
@@ -33,7 +34,7 @@ func TestPullOptions_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			o := &PullOptions{OCIReference: tt.ociReference}
+			o := &PullOptions{OCIReference: tt.ociReference, Config: config.DefaultBundleConfig()}
 			err := o.Validate()
 			if tt.wantErr {
 				require.Error(t, err)
@@ -64,7 +65,7 @@ func TestPushOptions_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			o := &PushOptions{OCIReference: tt.ociReference}
+			o := &PushOptions{OCIReference: tt.ociReference, Config: config.DefaultBundleConfig()}
 			err := o.Validate()
 			if tt.wantErr {
 				require.Error(t, err)

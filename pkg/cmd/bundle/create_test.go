@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/defenseunicorns/uds-cli/pkg/config"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 )
@@ -32,51 +33,53 @@ func TestCreateOptions_Validate(t *testing.T) {
 	wrongNameFile := filepath.Join(tempDir, "wrongname.hcl")
 	require.NoError(t, os.WriteFile(wrongNameFile, []byte("test"), 0o644))
 
+	cfg := config.DefaultBundleConfig()
+
 	t.Run("empty string", func(t *testing.T) {
-		o := &CreateOptions{BundlePath: ""}
+		o := &CreateOptions{BundlePath: "", Config: cfg}
 		require.Error(t, o.Validate())
 	})
 
 	t.Run("path not found", func(t *testing.T) {
-		o := &CreateOptions{BundlePath: filepath.Join(tempDir, "does", "not", "exist")}
+		o := &CreateOptions{BundlePath: filepath.Join(tempDir, "does", "not", "exist"), Config: cfg}
 		require.Error(t, o.Validate())
 	})
 
 	t.Run("file with wrong name", func(t *testing.T) {
-		o := &CreateOptions{BundlePath: wrongNameFile}
+		o := &CreateOptions{BundlePath: wrongNameFile, Config: cfg}
 		err := o.Validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "expected file named 'bundle.uds.hcl'")
 	})
 
 	t.Run("directory missing bundle file", func(t *testing.T) {
-		o := &CreateOptions{BundlePath: emptyDir}
+		o := &CreateOptions{BundlePath: emptyDir, Config: cfg}
 		err := o.Validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "directory does not contain bundle.uds.hcl")
 	})
 
 	t.Run("valid directory containing bundle file", func(t *testing.T) {
-		o := &CreateOptions{BundlePath: validDir}
+		o := &CreateOptions{BundlePath: validDir, Config: cfg}
 		require.NoError(t, o.Validate())
 		// Validate should not modify BundlePath
 		assert.Equal(t, validDir, o.BundlePath, "Validate() should not modify BundlePath")
 	})
 
 	t.Run("valid bundle file directly", func(t *testing.T) {
-		o := &CreateOptions{BundlePath: validBundleFile}
+		o := &CreateOptions{BundlePath: validBundleFile, Config: cfg}
 		require.NoError(t, o.Validate())
 	})
 
 	t.Run("OCI reference", func(t *testing.T) {
-		o := &CreateOptions{BundlePath: "oci://ghcr.io/test/bundle:v1"}
+		o := &CreateOptions{BundlePath: "oci://ghcr.io/test/bundle:v1", Config: cfg}
 		err := o.Validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "OCI bundle references not yet supported")
 	})
 
 	t.Run("tar.zst archive", func(t *testing.T) {
-		o := &CreateOptions{BundlePath: "bundle.tar.zst"}
+		o := &CreateOptions{BundlePath: "bundle.tar.zst", Config: cfg}
 		err := o.Validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "tar.zst bundles not yet supported")
