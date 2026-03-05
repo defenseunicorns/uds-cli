@@ -81,6 +81,7 @@ func TestValidatePackageTimeouts(t *testing.T) {
 
 	err := validatePackageTimeouts([]types.Package{
 		{Name: "nginx", Timeout: "5m"},
+		{Name: "grafana", Timeout: ""},
 		{Name: "podinfo", Timeout: "not-a-duration"},
 	})
 
