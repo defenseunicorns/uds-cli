@@ -11,6 +11,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/state"
 )
 
 func Test_validateBundleVars(t *testing.T) {
@@ -252,4 +253,76 @@ func Test_GetBundleMetadata(t *testing.T) {
 	require.Equal(t, "test-metadata", bndlClient.GetMetadata().Name)
 	require.Equal(t, "test-description", bndlClient.GetMetadata().Description)
 	require.Equal(t, "0.0.1", bndlClient.GetMetadata().Version)
+}
+
+func Test_deployedPackageIsSuccessful(t *testing.T) {
+	boolPtr := func(v bool) *bool {
+		return &v
+	}
+
+	tests := []struct {
+		name        string
+		description string
+		pkg         state.DeployedPackage
+		want        bool
+	}{
+		{
+			name:        "SuccessAllSucceededRequiredPresent",
+			description: "returns true when all deployed components succeeded and required components are present",
+			pkg: state.DeployedPackage{
+				Name: "test",
+				Data: v1alpha1.ZarfPackage{
+					Components: []v1alpha1.ZarfComponent{
+						{Name: "component-a", Required: boolPtr(true)},
+						{Name: "component-b"},
+					},
+				},
+				DeployedComponents: []state.DeployedComponent{
+					{Name: "component-a", Status: state.ComponentStatusSucceeded},
+					{Name: "component-b", Status: state.ComponentStatusSucceeded},
+				},
+			},
+			want: true,
+		},
+		{
+			name:        "FailRequiredMissing",
+			description: "returns false when a required component is missing from deployed components",
+			pkg: state.DeployedPackage{
+				Name: "test",
+				Data: v1alpha1.ZarfPackage{
+					Components: []v1alpha1.ZarfComponent{
+						{Name: "component-a", Required: boolPtr(true)},
+						{Name: "component-b"},
+					},
+				},
+				DeployedComponents: []state.DeployedComponent{
+					{Name: "component-b", Status: state.ComponentStatusSucceeded},
+				},
+			},
+			want: false,
+		},
+		{
+			name:        "FailDeployedComponentNotSucceeded",
+			description: "returns false when any deployed component is not succeeded",
+			pkg: state.DeployedPackage{
+				Name: "test",
+				Data: v1alpha1.ZarfPackage{
+					Components: []v1alpha1.ZarfComponent{
+						{Name: "component-a", Required: boolPtr(true)},
+					},
+				},
+				DeployedComponents: []state.DeployedComponent{
+					{Name: "component-a", Status: state.ComponentStatusFailed},
+				},
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := deployedPackageIsSuccessful(tt.pkg)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }
