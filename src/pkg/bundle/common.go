@@ -23,6 +23,7 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
+	"github.com/zarf-dev/zarf/src/pkg/state"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 )
 
@@ -360,6 +361,43 @@ func GetDeployedPackageNames() []string {
 		}
 	}
 	return deployedPackageNames
+}
+
+func GetSuccessfullyDeployedPackageNames() []string {
+	var deployedPackageNames []string
+	c, _ := cluster.New(context.TODO())
+	if c != nil {
+		deployedPackages, _ := c.GetDeployedZarfPackages(context.TODO())
+		for _, pkg := range deployedPackages {
+			if deployedPackageIsSuccessful(pkg) {
+				deployedPackageNames = append(deployedPackageNames, pkg.Name)
+			}
+		}
+	}
+	return deployedPackageNames
+}
+
+func deployedPackageIsSuccessful(pkg state.DeployedPackage) bool {
+	deployedComponents := make(map[string]state.DeployedComponent, len(pkg.DeployedComponents))
+	for _, deployedComponent := range pkg.DeployedComponents {
+		deployedComponents[deployedComponent.Name] = deployedComponent
+		if deployedComponent.Status != state.ComponentStatusSucceeded {
+			return false
+		}
+	}
+
+	for _, component := range pkg.Data.Components {
+		if !component.IsRequired() {
+			continue
+		}
+
+		_, ok := deployedComponents[component.Name]
+		if !ok {
+			return false
+		}
+	}
+
+	return true
 }
 
 // GetPackages returns the packages contained within the bundle
