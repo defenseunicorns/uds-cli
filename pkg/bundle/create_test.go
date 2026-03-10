@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/mholt/archives"
@@ -53,15 +54,147 @@ package "pkg1" {
 	outPath := filepath.Join(dir, "uds-bundle-test-"+runtime.GOARCH+"-0.0.1.tar.zst")
 	entries := readTarZstEntries(t, outPath)
 
-	require.Contains(t, entries, "uds-bundle.hcl")
-	require.Contains(t, entries, "values/pkg1/0.yaml")
-	require.Equal(t, "a: 1\n", string(entries["values/pkg1/0.yaml"]))
-
 	require.Contains(t, entries, "oci/oci-layout")
 	require.Contains(t, entries, "oci/index.json")
 	require.Contains(t, entries, "oci/blobs/sha256/"+manifestHex)
 	require.Contains(t, entries, "oci/blobs/sha256/"+configHex)
 	require.Contains(t, entries, "oci/blobs/sha256/"+layerHex)
+	require.True(t, bundleDefinitionContainsLayerTitle(t, entries, "bundle.uds.hcl"))
+	require.True(t, bundleDefinitionContainsLayerTitle(t, entries, "values/pkg1/0.yaml"))
+
+	// Parse the OCI index and locate the bundle config manifest by artifactType.
+	var idx struct {
+		Manifests []struct {
+			Digest       string `json:"digest"`
+			ArtifactType string `json:"artifactType"`
+		} `json:"manifests"`
+	}
+	require.NoError(t, json.Unmarshal(entries["oci/index.json"], &idx))
+	require.Len(t, idx.Manifests, 2) // config manifest + package manifest
+
+	var cfgDigest string
+	for _, m := range idx.Manifests {
+		if m.ArtifactType == MediaTypeBundleDefinition {
+			cfgDigest = m.Digest
+		}
+	}
+	require.NotEmpty(t, cfgDigest, "bundle config manifest not found in OCI index")
+
+	// Parse the config manifest and verify layer titles and content.
+	cfgBlob := entries["oci/blobs/sha256/"+strings.TrimPrefix(cfgDigest, "sha256:")]
+	require.NotNil(t, cfgBlob)
+
+	var cfgManifest struct {
+		ArtifactType string `json:"artifactType"`
+		Layers       []struct {
+			Digest      string            `json:"digest"`
+			Annotations map[string]string `json:"annotations"`
+		} `json:"layers"`
+	}
+	require.NoError(t, json.Unmarshal(cfgBlob, &cfgManifest))
+	require.Equal(t, MediaTypeBundleDefinition, cfgManifest.ArtifactType)
+	require.Len(t, cfgManifest.Layers, 2) // HCL + 1 values file
+
+	titles := make([]string, len(cfgManifest.Layers))
+	for i, l := range cfgManifest.Layers {
+		titles[i] = l.Annotations["org.opencontainers.image.title"]
+	}
+	require.Contains(t, titles, "bundle.uds.hcl")
+	require.Contains(t, titles, "values/pkg1/0.yaml")
+
+	// Verify the values file content is preserved in the blob.
+	for _, l := range cfgManifest.Layers {
+		if l.Annotations["org.opencontainers.image.title"] == "values/pkg1/0.yaml" {
+			blob := entries["oci/blobs/sha256/"+strings.TrimPrefix(l.Digest, "sha256:")]
+			require.Equal(t, "a: 1\n", string(blob))
+		}
+	}
+}
+
+func TestCreate_SharedValuesFileDeduplicatedInOCIStore(t *testing.T) {
+	dir := t.TempDir()
+
+	writeMinimalOCILayout(t, filepath.Join(dir, "pkg1"))
+	writeMinimalOCILayout(t, filepath.Join(dir, "pkg2"))
+
+	valuesDir := filepath.Join(dir, "values")
+	require.NoError(t, os.MkdirAll(valuesDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(valuesDir, "shared.yaml"), []byte("shared: true\n"), 0o644))
+
+	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
+	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+
+metadata {
+  name    = "shared-values-test"
+  version = "0.0.1"
+}
+
+package "pkg1" {
+  source = "pkg1"
+  values_files = ["values/shared.yaml"]
+}
+
+package "pkg2" {
+  source = "pkg2"
+  values_files = ["values/shared.yaml"]
+}
+`), 0o644))
+
+	_, err := Create(context.Background(), CreateOptions{
+		RegistryOptions: DefaultRegistryOptions(),
+		BundleFile:      bundleFile,
+		Out:             io.Discard,
+	})
+	require.NoError(t, err)
+
+	outPath := filepath.Join(dir, "uds-bundle-shared-values-test-"+runtime.GOARCH+"-0.0.1.tar.zst")
+	entries := readTarZstEntries(t, outPath)
+
+	// Locate the bundle definition manifest.
+	var idx struct {
+		Manifests []struct {
+			Digest       string `json:"digest"`
+			ArtifactType string `json:"artifactType"`
+		} `json:"manifests"`
+	}
+	require.NoError(t, json.Unmarshal(entries["oci/index.json"], &idx))
+
+	var defManifestBytes []byte
+	for _, m := range idx.Manifests {
+		if m.ArtifactType == MediaTypeBundleDefinition {
+			hex := strings.TrimPrefix(m.Digest, "sha256:")
+			defManifestBytes = entries["oci/blobs/sha256/"+hex]
+			break
+		}
+	}
+	require.NotNil(t, defManifestBytes, "bundle definition manifest not found")
+
+	var defManifest struct {
+		Layers []struct {
+			Digest      string            `json:"digest"`
+			Annotations map[string]string `json:"annotations"`
+		} `json:"layers"`
+	}
+	require.NoError(t, json.Unmarshal(defManifestBytes, &defManifest))
+
+	// Each package must have its own titled layer entry.
+	layersByTitle := make(map[string]string)
+	for _, l := range defManifest.Layers {
+		title := l.Annotations["org.opencontainers.image.title"]
+		layersByTitle[title] = l.Digest
+	}
+	require.Contains(t, layersByTitle, "values/pkg1/0.yaml")
+	require.Contains(t, layersByTitle, "values/pkg2/0.yaml")
+
+	// Both layer entries must point to the same blob digest.
+	require.Equal(t, layersByTitle["values/pkg1/0.yaml"], layersByTitle["values/pkg2/0.yaml"],
+		"shared values file content should map to a single deduplicated blob")
+
+	// Only one blob should exist in the OCI store for that digest.
+	blobPath := "oci/blobs/sha256/" + strings.TrimPrefix(layersByTitle["values/pkg1/0.yaml"], "sha256:")
+	require.Contains(t, entries, blobPath)
 }
 
 func TestSanitizeFileComponent(t *testing.T) {
@@ -166,8 +299,9 @@ package "pkg1" {
 	require.True(t, ok, "oci/index.json not found in bundle")
 
 	type indexEntry struct {
-		Digest   string `json:"digest"`
-		Platform *struct {
+		Digest       string `json:"digest"`
+		ArtifactType string `json:"artifactType,omitempty"`
+		Platform     *struct {
 			Architecture string `json:"architecture"`
 		} `json:"platform,omitempty"`
 	}
@@ -177,10 +311,18 @@ package "pkg1" {
 	var idx indexFile
 	require.NoError(t, json.Unmarshal(idxRaw, &idx))
 
-	// Exactly one manifest should be present and it should be amd64.
-	require.Len(t, idx.Manifests, 1, "expected exactly one platform manifest in bundle index")
-	require.NotNil(t, idx.Manifests[0].Platform)
-	require.Equal(t, "amd64", idx.Manifests[0].Platform.Architecture)
+	// Filter out the bundle config manifest; only package manifests remain.
+	var pkgManifests []indexEntry
+	for _, m := range idx.Manifests {
+		if m.ArtifactType != MediaTypeBundleDefinition {
+			pkgManifests = append(pkgManifests, m)
+		}
+	}
+
+	// Exactly one package manifest should be present and it should be amd64.
+	require.Len(t, pkgManifests, 1, "expected exactly one platform manifest in bundle index")
+	require.NotNil(t, pkgManifests[0].Platform)
+	require.Equal(t, "amd64", pkgManifests[0].Platform.Architecture)
 }
 
 // TestCreate_OptionalComponentBlobsRemoved verifies that when a Zarf package is

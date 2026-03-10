@@ -17,6 +17,8 @@ import (
 
 	"github.com/mholt/archives"
 	"github.com/stretchr/testify/require"
+
+	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 )
 
 // readBundleEntries reads a bundle tar.zst and returns:
@@ -62,14 +64,11 @@ func readBundleEntries(t *testing.T, tarPath string) (allPaths map[string]bool, 
 	return allPaths, small
 }
 
-// bundleContainsLayerTitle reports whether the bundle archive at tarPath contains:
-//  1. a layer entry in a manifest whose org.opencontainers.image.title == title, AND
-//  2. the corresponding blob file is present in the archive.
-//
-// It searches all manifests listed in oci/index.json.
-func bundleContainsLayerTitle(t *testing.T, tarPath, title string) bool {
+// bundleContainsLayerTitle reports whether the given bundle entries contain:
+//  1. a layer in any manifest whose org.opencontainers.image.title == title, AND
+//  2. the corresponding blob present in allPaths.
+func bundleContainsLayerTitle(t *testing.T, allPaths map[string]bool, small map[string][]byte, title string) bool {
 	t.Helper()
-	allPaths, small := readBundleEntries(t, tarPath)
 
 	idxBytes, ok := small["oci/index.json"]
 	require.True(t, ok, "oci/index.json not found in bundle")
@@ -96,6 +95,49 @@ func bundleContainsLayerTitle(t *testing.T, tarPath, title string) bool {
 		if err := json.Unmarshal(manifestBytes, &im); err != nil {
 			continue
 		}
+		for _, l := range im.Layers {
+			if l.Annotations["org.opencontainers.image.title"] == title {
+				layerHex := strings.TrimPrefix(l.Digest, "sha256:")
+				return allPaths["oci/blobs/sha256/"+layerHex]
+			}
+		}
+	}
+	return false
+}
+
+// bundleDefinitionContainsLayerTitle reports whether the bundle definition manifest
+// (identified by artifactType == MediaTypeBundleDefinition) contains a layer with
+// the given org.opencontainers.image.title AND the corresponding blob is present.
+func bundleDefinitionContainsLayerTitle(t *testing.T, allPaths map[string]bool, small map[string][]byte, title string) bool {
+	t.Helper()
+
+	idxBytes, ok := small["oci/index.json"]
+	require.True(t, ok, "oci/index.json not found in bundle")
+
+	var idx struct {
+		Manifests []struct {
+			Digest       string `json:"digest"`
+			ArtifactType string `json:"artifactType"`
+		} `json:"manifests"`
+	}
+	require.NoError(t, json.Unmarshal(idxBytes, &idx))
+
+	for _, m := range idx.Manifests {
+		if m.ArtifactType != bundlepkg.MediaTypeBundleDefinition {
+			continue
+		}
+		hex := strings.TrimPrefix(m.Digest, "sha256:")
+		manifestBytes, ok := small["oci/blobs/sha256/"+hex]
+		if !ok {
+			continue
+		}
+		var im struct {
+			Layers []struct {
+				Digest      string            `json:"digest"`
+				Annotations map[string]string `json:"annotations"`
+			} `json:"layers"`
+		}
+		require.NoError(t, json.Unmarshal(manifestBytes, &im))
 		for _, l := range im.Layers {
 			if l.Annotations["org.opencontainers.image.title"] == title {
 				layerHex := strings.TrimPrefix(l.Digest, "sha256:")

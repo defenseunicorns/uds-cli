@@ -4,13 +4,21 @@
 package bundle
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	oras "oras.land/oras-go/v2"
+	"oras.land/oras-go/v2/content"
+	oraci "oras.land/oras-go/v2/content/oci"
+	"oras.land/oras-go/v2/errdef"
 )
 
 // Compile-time check: localCreator must implement Creator.
@@ -112,13 +120,6 @@ func Create(ctx context.Context, opts CreateOptions) (string, error) {
 	}
 	defer func() { _ = os.RemoveAll(root) }()
 
-	if err := writeBundleHCL(root, opts.BundleFile); err != nil {
-		return "", err
-	}
-	if err := writeValues(root, srcDir, b.Packages); err != nil {
-		return "", err
-	}
-
 	ociDir := filepath.Join(root, "oci")
 	blobDir := filepath.Join(ociDir, "blobs", "sha256")
 	if err := os.MkdirAll(blobDir, 0o755); err != nil {
@@ -140,15 +141,22 @@ func Create(ctx context.Context, opts CreateOptions) (string, error) {
 		}
 	}
 
+	slog.Debug("creating bundle config manifest")
+	cfgManifest, err := createBundleDefinitionManifest(ctx, ociDir, opts.BundleFile, srcDir, b.Packages)
+	if err != nil {
+		return "", err
+	}
+	allManifests := append([]ociManifest{cfgManifest}, creator.manifests...)
+
 	slog.Debug("cleaning unreferenced blobs")
-	if err := gcUnreferencedBlobs(blobDir, creator.manifests); err != nil {
+	if err := gcUnreferencedBlobs(blobDir, allManifests); err != nil {
 		return "", fmt.Errorf("cleaning up unreferenced blobs: %w", err)
 	}
 
 	idx := &ociIndex{
 		SchemaVersion: 2,
 		MediaType:     "application/vnd.oci.image.index.v1+json",
-		Manifests:     creator.manifests,
+		Manifests:     allManifests,
 	}
 	if err := writeOCIIndex(filepath.Join(ociDir, "index.json"), idx); err != nil {
 		return "", err
@@ -197,15 +205,41 @@ func sanitizeFileComponent(s string) string {
 	return strings.Trim(b.String(), "-")
 }
 
-func writeBundleHCL(root, bundleFile string) error {
-	src, err := os.ReadFile(bundleFile)
+// createBundleDefinitionManifest builds an OCI 1.1 artifact manifest that stores the bundle HCL file and all package values files as
+// content-addressed layers. The manifest does not contain an "org.opencontainers.image.ref.name" annotation since it is from local
+// files on disk and not from a remote registry. It is identified by artifactType so consumers can better identify it in the index.
+func createBundleDefinitionManifest(ctx context.Context, ociDir, bundleFile, bundleDir string, pkgs []Package) (ociManifest, error) {
+	store, err := oraci.New(ociDir)
 	if err != nil {
-		return fmt.Errorf("cannot read bundle file: %w", err)
+		return ociManifest{}, fmt.Errorf("opening OCI store: %w", err)
 	}
-	return os.WriteFile(filepath.Join(root, "uds-bundle.hcl"), src, 0o644)
-}
+	// We write index.json ourselves at the end of Create(); prevent ORAS from
+	// overwriting it on every Push/Tag call.
+	store.AutoSaveIndex = false
 
-func writeValues(root, bundleDir string, pkgs []Package) error {
+	pushBlob := func(mediaType string, data []byte, annotations map[string]string) (ocispec.Descriptor, error) {
+		desc := content.NewDescriptorFromBytes(mediaType, data)
+		desc.Annotations = annotations
+		if err := store.Push(ctx, desc, bytes.NewReader(data)); err != nil && !errors.Is(err, errdef.ErrAlreadyExists) {
+			return ocispec.Descriptor{}, err
+		}
+		return desc, nil
+	}
+
+	// HCL file as the first layer.
+	hclData, err := os.ReadFile(bundleFile)
+	if err != nil {
+		return ociManifest{}, fmt.Errorf("reading bundle file: %w", err)
+	}
+	hclDesc, err := pushBlob(MediaTypeBundleHCL, hclData, map[string]string{
+		ocispec.AnnotationTitle: "bundle.uds.hcl",
+	})
+	if err != nil {
+		return ociManifest{}, fmt.Errorf("pushing bundle HCL: %w", err)
+	}
+
+	// Values files as subsequent layers, preserving logical path in the annotation.
+	layers := []ocispec.Descriptor{hclDesc}
 	for _, pkg := range pkgs {
 		for i, vf := range pkg.ValueFiles {
 			src := vf
@@ -214,28 +248,43 @@ func writeValues(root, bundleDir string, pkgs []Package) error {
 			}
 			st, err := os.Stat(src)
 			if err != nil {
-				return fmt.Errorf("package %q: cannot stat value file %q: %w", pkg.Name, vf, err)
+				return ociManifest{}, fmt.Errorf("package %q: cannot stat value file %q: %w", pkg.Name, vf, err)
 			}
 			if st.IsDir() {
-				return fmt.Errorf("package %q: value file %q is a directory", pkg.Name, vf)
+				return ociManifest{}, fmt.Errorf("package %q: value file %q is a directory", pkg.Name, vf)
 			}
-
-			dstDir := filepath.Join(root, "values", pkg.Name)
-			if err := os.MkdirAll(dstDir, 0o755); err != nil {
-				return err
-			}
-			dst := filepath.Join(dstDir, fmt.Sprintf("%d.yaml", i))
-
-			contents, err := os.ReadFile(src)
+			data, err := os.ReadFile(src)
 			if err != nil {
-				return err
+				return ociManifest{}, fmt.Errorf("package %q: reading value file %q: %w", pkg.Name, vf, err)
 			}
-			if err := os.WriteFile(dst, contents, 0o644); err != nil {
-				return err
+			valDesc, err := pushBlob(MediaTypeBundleValuesYAML, data, map[string]string{
+				ocispec.AnnotationTitle: fmt.Sprintf("values/%s/%d.yaml", pkg.Name, i),
+			})
+			if err != nil {
+				return ociManifest{}, fmt.Errorf("package %q: pushing value file: %w", pkg.Name, err)
 			}
+			layers = append(layers, valDesc)
 		}
 	}
-	return nil
+
+	// PackManifest pushes the empty-JSON config blob, builds the OCI 1.1 artifact manifest with our artifactType,
+	// and pushes the manifest blob.  We pin the created timestamp so the manifest digest is reproducible.
+	desc, err := oras.PackManifest(ctx, store, oras.PackManifestVersion1_1, MediaTypeBundleDefinition, oras.PackManifestOptions{
+		Layers: layers,
+		ManifestAnnotations: map[string]string{
+			ocispec.AnnotationCreated: "1970-01-01T00:00:00Z",
+		},
+	})
+	if err != nil {
+		return ociManifest{}, fmt.Errorf("packing bundle config manifest: %w", err)
+	}
+
+	return ociManifest{
+		MediaType:    ocispec.MediaTypeImageManifest,
+		ArtifactType: MediaTypeBundleDefinition,
+		Digest:       desc.Digest.String(),
+		Size:         desc.Size,
+	}, nil
 }
 
 func writeOCILayout(path string) error {

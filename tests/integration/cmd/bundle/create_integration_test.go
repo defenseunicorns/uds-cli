@@ -76,30 +76,31 @@ func copyDir(src, dst string) error {
 }
 
 // assertValidBundleStructure checks that the bundle archive contains the
-// expected OCI layout structure and the HCL source file.
-func assertValidBundleStructure(t *testing.T, entries map[string]bool) {
+// expected OCI layout structure and that bundle.uds.hcl is a layer in the
+// bundle config manifest. Returns the entries for callers that need further checks.
+func assertValidBundleStructure(t *testing.T, tarPath string) (allPaths map[string]bool, small map[string][]byte) {
 	t.Helper()
-	assert.True(t, entries["oci/oci-layout"], "bundle should contain oci-layout file")
-	assert.True(t, entries["oci/index.json"], "bundle should contain index.json")
-	assert.True(t, entries["uds-bundle.hcl"], "bundle should contain uds-bundle.hcl")
+	allPaths, small = readBundleEntries(t, tarPath)
+	assert.True(t, allPaths["oci/oci-layout"], "bundle should contain oci-layout file")
+	assert.True(t, allPaths["oci/index.json"], "bundle should contain index.json")
+	assert.True(t, bundleDefinitionContainsLayerTitle(t, allPaths, small, "bundle.uds.hcl"), "bundle.uds.hcl should be a layer in the bundle config manifest")
 
 	foundBlob := false
-	for path := range entries {
+	for path := range allPaths {
 		if strings.HasPrefix(path, "oci/blobs/sha256/") && path != "oci/blobs/sha256/" {
 			foundBlob = true
 			break
 		}
 	}
 	assert.True(t, foundBlob, "bundle should contain at least one blob under oci/blobs/sha256/")
+	return allPaths, small
 }
 
 // TestCreate_InitBundle verifies that the base init bundle
 // creates a valid bundle archive with proper OCI layout structure.
 func TestCreate_InitBundle(t *testing.T) {
 	outPath := createBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
-
-	entries, _ := readBundleEntries(t, outPath)
-	assertValidBundleStructure(t, entries)
+	assertValidBundleStructure(t, outPath)
 }
 
 // TestCreate_InitBundle_OptionalComponentIncluded verifies that when k3s is listed
@@ -107,10 +108,9 @@ func TestCreate_InitBundle(t *testing.T) {
 func TestCreate_InitBundle_OptionalComponentIncluded(t *testing.T) {
 	outPath := createBundleFromTestData(t, "bundles/create/init-k3s", runtime.GOARCH)
 
-	entries, _ := readBundleEntries(t, outPath)
-	assertValidBundleStructure(t, entries)
+	allPaths, small := assertValidBundleStructure(t, outPath)
 
-	assert.True(t, bundleContainsLayerTitle(t, outPath, k3sLayerTitle),
+	assert.True(t, bundleContainsLayerTitle(t, allPaths, small, k3sLayerTitle),
 		"k3s layer blob should be present when k3s is listed in optional_components")
 }
 
@@ -119,10 +119,9 @@ func TestCreate_InitBundle_OptionalComponentIncluded(t *testing.T) {
 func TestCreate_InitBundle_OptionalComponentExcluded(t *testing.T) {
 	outPath := createBundleFromTestData(t, "bundles/create/init-no-k3s", runtime.GOARCH)
 
-	entries, _ := readBundleEntries(t, outPath)
-	assertValidBundleStructure(t, entries)
+	allPaths, small := assertValidBundleStructure(t, outPath)
 
-	assert.False(t, bundleContainsLayerTitle(t, outPath, k3sLayerTitle),
+	assert.False(t, bundleContainsLayerTitle(t, allPaths, small, k3sLayerTitle),
 		"k3s layer blob should be absent when optional_components is omitted")
 }
 
@@ -137,8 +136,7 @@ func TestCreate_InitBundle_MultiArch(t *testing.T) {
 			assert.True(t, strings.HasSuffix(outPath, expectedSuffix),
 				"bundle filename should contain arch %q, got: %s", arch, filepath.Base(outPath))
 
-			entries, _ := readBundleEntries(t, outPath)
-			assertValidBundleStructure(t, entries)
+			assertValidBundleStructure(t, outPath)
 		})
 	}
 }

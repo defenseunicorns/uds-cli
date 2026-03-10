@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -217,4 +218,48 @@ func WriteZarfLikeOCILayout(t *testing.T, layoutDir string, required, optional [
 	require.NoError(t, os.WriteFile(filepath.Join(layoutDir, "oci-layout"), ociLayoutBytes, 0o644))
 
 	return zarfLayoutDigests{ComponentHexes: compDigests}
+}
+
+// bundleDefinitionContainsLayerTitle reports whether the bundle definition manifest
+// (identified by artifactType == MediaTypeBundleDefinition) contains a layer with
+// the given org.opencontainers.image.title AND the corresponding blob is present.
+func bundleDefinitionContainsLayerTitle(t *testing.T, entries map[string][]byte, title string) bool {
+	t.Helper()
+
+	idxBytes, ok := entries["oci/index.json"]
+	require.True(t, ok, "oci/index.json not found in bundle")
+
+	var idx struct {
+		Manifests []struct {
+			Digest       string `json:"digest"`
+			ArtifactType string `json:"artifactType"`
+		} `json:"manifests"`
+	}
+	require.NoError(t, json.Unmarshal(idxBytes, &idx))
+
+	for _, m := range idx.Manifests {
+		if m.ArtifactType != MediaTypeBundleDefinition {
+			continue
+		}
+		hex := strings.TrimPrefix(m.Digest, "sha256:")
+		manifestBytes, ok := entries["oci/blobs/sha256/"+hex]
+		if !ok {
+			continue
+		}
+		var im struct {
+			Layers []struct {
+				Digest      string            `json:"digest"`
+				Annotations map[string]string `json:"annotations"`
+			} `json:"layers"`
+		}
+		require.NoError(t, json.Unmarshal(manifestBytes, &im))
+		for _, l := range im.Layers {
+			if l.Annotations["org.opencontainers.image.title"] == title {
+				layerHex := strings.TrimPrefix(l.Digest, "sha256:")
+				_, ok := entries["oci/blobs/sha256/"+layerHex]
+				return ok
+			}
+		}
+	}
+	return false
 }
