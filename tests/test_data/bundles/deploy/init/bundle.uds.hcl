@@ -17,11 +17,11 @@ metadata {
 }
 
 package "uds_k3d_dev" {
-  source = "oci://ghcr.io/defenseunicorns/packages/uds-k3d:0.19.4"
+  source = "oci://ghcr.io/defenseunicorns/packages/uds-k3d:0.19.5"
 }
 
 package "init" {
-  source     = "oci://ghcr.io/zarf-dev/packages/init:v0.71.1"
+  source     = "oci://ghcr.io/zarf-dev/packages/init:v0.73.1"
   depends_on = [package.uds_k3d_dev]
 }
 
