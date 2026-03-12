@@ -43,7 +43,8 @@ func TestDeployOptions_Complete(t *testing.T) {
 			streams, _, _, _ := iostreams.NewTestIOStreams()
 			o := NewDeployOptions(streams)
 
-			cmd := NewDeployCommand(streams)
+			bundleCmd := NewBundleCommand(streams)
+			cmd, _, _ := bundleCmd.Find([]string{"deploy"})
 			err := o.Complete(cmd, tt.args)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantBundlePath, o.BundlePath)
@@ -271,4 +272,73 @@ func TestDeployOptions_Flags(t *testing.T) {
 	promptFlag := cmd.Flags().Lookup("prompt")
 	require.NotNil(t, promptFlag, "prompt flag should be defined")
 	assert.Equal(t, "false", promptFlag.DefValue, "prompt should default to false (non-interactive)")
+
+	// Verify --config flag is inherited from parent bundle command
+	bundleCmd := NewBundleCommand(streams)
+	configFlag := bundleCmd.PersistentFlags().Lookup("config")
+	require.NotNil(t, configFlag, "config flag should be defined on parent bundle command")
+	assert.Empty(t, configFlag.DefValue)
+}
+
+func TestDeployValidate_Config(t *testing.T) {
+	// Write a minimal valid config file to a temp dir
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.uds.hcl")
+	require.NoError(t, os.WriteFile(configPath, []byte(`variables = { x = "y" }`), 0o644))
+
+	tests := []struct {
+		name       string
+		configPath string
+		wantErr    string
+	}{
+		{
+			name:       "no config flag: no validation",
+			configPath: "",
+			wantErr:    "",
+		},
+		{
+			name:       "existing config file: no error",
+			configPath: configPath,
+			wantErr:    "",
+		},
+		{
+			name:       "non-existent config path: clear error",
+			configPath: "/nonexistent/config.uds.hcl",
+			wantErr:    "config file not found",
+		},
+		{
+			name:       "directory instead of file",
+			configPath: t.TempDir(),
+			wantErr:    "config path is a directory",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Use a temp dir with a bundle.uds.hcl so bundle path validation passes
+			bundleDir := t.TempDir()
+			require.NoError(t, os.WriteFile(
+				filepath.Join(bundleDir, BundleFileName),
+				[]byte(`uds { bundle_api_version = "uds.dev/v1alpha1" }
+metadata { name = "test" }
+package "p" { source = "oci://example.com/p:v1" }`),
+				0o644,
+			))
+
+			streams, _, _, _ := iostreams.NewTestIOStreams()
+			o := &DeployOptions{
+				BundlePath: bundleDir,
+				ConfigPath: tt.configPath,
+				Config:     config.DefaultBundleConfig(),
+				IOStreams:  streams,
+			}
+			err := o.Validate()
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }

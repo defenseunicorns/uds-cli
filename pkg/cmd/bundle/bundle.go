@@ -27,6 +27,7 @@ func NewBundleCommand(streams iostreams.IOStreams) *cobra.Command {
 	bundleCmd.PersistentFlags().Bool("skip-tls-verify", defaults.SkipTLSVerify, "skip TLS certificate verification")
 	bundleCmd.PersistentFlags().String("tmp-dir", defaults.TmpDir, "directory for temporary files")
 	bundleCmd.PersistentFlags().Int("concurrency", defaults.Concurrency, "degree of parallelism for concurrent operations")
+	bundleCmd.PersistentFlags().String("config", "", "path to config.uds.hcl for deploy-time variables and options")
 
 	// Add subcommands
 	bundleCmd.AddCommand(NewInspectCommand(streams))

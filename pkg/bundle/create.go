@@ -241,7 +241,7 @@ func createBundleDefinitionManifest(ctx context.Context, ociDir, bundleFile, bun
 	// Values files as subsequent layers, preserving logical path in the annotation.
 	layers := []ocispec.Descriptor{hclDesc}
 	for _, pkg := range pkgs {
-		for i, vf := range pkg.ValueFiles {
+		for i, vf := range pkg.ValuesFiles {
 			src := vf
 			if !filepath.IsAbs(src) {
 				src = filepath.Join(bundleDir, vf)

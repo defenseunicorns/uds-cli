@@ -191,3 +191,63 @@ func (s *DeploySuite) TestDeployCommand_NonInteractiveDefault() {
 	assert.NotContains(s.T(), outputStr, "Deploy this bundle?")
 	assert.Contains(s.T(), outputStr, "starting deployment")
 }
+
+// TestDeployCommand_ConfigFlagInHelp verifies that the --config flag is documented.
+func (s *DeploySuite) TestDeployCommand_ConfigFlagInHelp() {
+	cmd := exec.Command(s.uds, "bundle", "deploy", "--help")
+	output, err := cmd.CombinedOutput()
+	require.NoError(s.T(), err, "help should succeed")
+
+	assert.Contains(s.T(), string(output), "--config",
+		"help output should document --config flag")
+}
+
+// TestDeployCommand_InvalidConfigPath verifies that a non-existent --config path
+// fails at the validation phase without requiring a cluster.
+func (s *DeploySuite) TestDeployCommand_InvalidConfigPath() {
+	bundlePath := testDataPath(s.T(), "bundles/deploy/init")
+
+	cmd := exec.Command(s.uds, "bundle", "deploy", bundlePath, "--config", "/nonexistent/config.uds.hcl")
+	output, err := cmd.CombinedOutput()
+
+	assert.Error(s.T(), err, "deploy with non-existent config should fail")
+	assert.Contains(s.T(), string(output), "config",
+		"error output should mention config")
+}
+
+// TestDeployCommand_InvalidConfigSyntax verifies that a syntactically invalid
+// config.uds.hcl file is rejected with an HCL parse error before deployment begins.
+func (s *DeploySuite) TestDeployCommand_InvalidConfigSyntax() {
+	// Write an invalid HCL file
+	dir := s.T().TempDir()
+	invalidConfig := dir + "/config.uds.hcl"
+	if err := os.WriteFile(invalidConfig, []byte("this is not valid HCL }{"), 0o600); err != nil {
+		s.T().Fatalf("failed to write invalid config: %v", err)
+	}
+
+	bundlePath := testDataPath(s.T(), "bundles/deploy/init")
+
+	cmd := exec.Command(s.uds, "bundle", "deploy", bundlePath, "--config", invalidConfig)
+	output, err := cmd.CombinedOutput()
+
+	assert.Error(s.T(), err, "deploy with invalid config HCL should fail")
+	assert.Contains(s.T(), string(output), "failed to parse",
+		"error output should indicate a parse error")
+}
+
+// TestDeployCommand_MissingTemplateVariable verifies that a values_files template
+// referencing an undefined variable fails with missingkey=error before any registry
+// or cluster access is attempted.
+func (s *DeploySuite) TestDeployCommand_MissingTemplateVariable() {
+	bundlePath := testDataPath(s.T(), "bundles/deploy/variables")
+	// config-missing-var.uds.hcl has other_var but not cluster_name,
+	// so k3d.yaml (which uses {{ .vars.cluster_name }}) should fail at template time.
+	configPath := testDataPath(s.T(), "bundles/deploy/variables/config-missing-var.uds.hcl")
+
+	cmd := exec.Command(s.uds, "bundle", "deploy", bundlePath, "--config", configPath)
+	output, err := cmd.CombinedOutput()
+
+	assert.Error(s.T(), err, "deploy with missing template variable should fail")
+	assert.Contains(s.T(), string(output), "map has no entry for key",
+		"error should indicate the missing variable")
+}

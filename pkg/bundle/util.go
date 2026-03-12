@@ -3,7 +3,9 @@
 
 package bundle
 
-import "strings"
+import (
+	"strings"
+)
 
 // TrimScheme removes the scheme from a reference name
 // (e.g., "oci://ghcr.io/org/repo:tag" -> "ghcr.io/org/repo:tag")

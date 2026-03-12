@@ -29,6 +29,114 @@ func NewHCLParser() *HCLParser {
 // Compile-time check to ensure HCLParser implements Parser.
 var _ Parser = &HCLParser{}
 
+// ParseBundleConfig reads and parses a config.uds.hcl file.
+// It uses gohcl.DecodeBody to decode the options block via HCL struct tags on
+// UDSBundleConfig, and hcl:",remain" to capture the free-form variables attribute
+// which is then manually extracted and converted from cty.Value to map[string]any.
+// The context parameter is currently unused as none of the HCL parsing methods supports cancellation.
+func (p *HCLParser) ParseBundleConfig(_ context.Context, filePath string) (*UDSBundleConfig, error) {
+	src, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read config file: %w", err)
+	}
+
+	hclFile, hclDiagnostics := hclsyntax.ParseConfig(src, filePath, hcl.Pos{Line: 1, Column: 1})
+	if hclDiagnostics.HasErrors() {
+		return nil, fmt.Errorf("failed to parse config HCL: %s", hclDiagnostics.Error())
+	}
+
+	// Decode structured fields (options block) via gohcl; free-form content lands in Remain
+	cfg := &UDSBundleConfig{}
+	diags := gohcl.DecodeBody(hclFile.Body, nil, cfg)
+	if diags.HasErrors() {
+		return nil, fmt.Errorf("failed to decode config: %s", diags.Error())
+	}
+
+	// Extract the free-form variables attribute from Remain
+	if cfg.Remain != nil {
+		vars, err := extractVariablesFromRemain(cfg.Remain)
+		if err != nil {
+			return nil, err
+		}
+		cfg.Variables = vars
+	}
+
+	return cfg, nil
+}
+
+// extractVariablesFromRemain extracts the optional "variables" attribute from the
+// remaining HCL body. Variables are free-form (arbitrary nesting of scalars and objects),
+// so they can't be decoded via struct tags and must be manually converted from cty.Value.
+func extractVariablesFromRemain(body hcl.Body) (Variables, error) {
+	schema := &hcl.BodySchema{
+		Attributes: []hcl.AttributeSchema{
+			{Name: "variables", Required: false},
+		},
+	}
+
+	content, _, diags := body.PartialContent(schema)
+	if diags.HasErrors() {
+		return nil, fmt.Errorf("failed to read variables: %s", diags.Error())
+	}
+
+	attr, ok := content.Attributes["variables"]
+	if !ok {
+		return nil, nil
+	}
+
+	val, diags := attr.Expr.Value(nil)
+	if diags.HasErrors() {
+		return nil, fmt.Errorf("failed to evaluate variables: %s", diags.Error())
+	}
+
+	goVal, err := ctyValueToGo(val)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert variables: %w", err)
+	}
+
+	m, ok := goVal.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("variables must be an object, got %T", goVal)
+	}
+
+	return Variables(m), nil
+}
+
+// ctyValueToGo recursively converts a cty.Value to a Go value.
+// Supported cty types: String → string, Number → float64, Bool → bool,
+// Object → map[string]any (recursive). Null and unknown values return an error.
+func ctyValueToGo(val cty.Value) (any, error) {
+	if val.IsNull() {
+		return nil, fmt.Errorf("null values are not supported in config")
+	}
+	if !val.IsKnown() {
+		return nil, fmt.Errorf("unknown values are not supported in config")
+	}
+
+	ty := val.Type()
+	switch {
+	case ty == cty.String:
+		return val.AsString(), nil
+	case ty == cty.Number:
+		f, _ := val.AsBigFloat().Float64()
+		return f, nil
+	case ty == cty.Bool:
+		return val.True(), nil
+	case ty.IsObjectType():
+		m := make(map[string]any)
+		for k := range ty.AttributeTypes() {
+			child, err := ctyValueToGo(val.GetAttr(k))
+			if err != nil {
+				return nil, fmt.Errorf("variable %q: %w", k, err)
+			}
+			m[k] = child
+		}
+		return m, nil
+	default:
+		return nil, fmt.Errorf("unsupported variable type: %s", ty.FriendlyName())
+	}
+}
+
 // ParseBundleFile reads and parses an HCL bundle file with locals support.
 // It uses a two-pass approach: first extracting and evaluating locals,
 // then decoding the full bundle with an EvalContext containing those locals.

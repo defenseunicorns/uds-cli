@@ -79,8 +79,8 @@ func writePackageEntry(out *bytes.Buffer, pkg *Package, level int) {
 		}
 		fmt.Fprintf(out, "    DependsOn: %s\n", strings.Join(depNames, ", "))
 	}
-	if len(pkg.ValueFiles) > 0 {
-		fmt.Fprintf(out, "    Value Files: %s\n", strings.Join(pkg.ValueFiles, ", "))
+	if len(pkg.ValuesFiles) > 0 {
+		fmt.Fprintf(out, "    Value Files: %s\n", strings.Join(pkg.ValuesFiles, ", "))
 	}
 	out.WriteString("\n")
 }

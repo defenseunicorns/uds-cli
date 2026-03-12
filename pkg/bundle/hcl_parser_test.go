@@ -38,7 +38,7 @@ func TestParseBundleFile_SpecCompliant(t *testing.T) {
 	assert.Equal(t, "core_logging", b.Packages[1].Name)
 	require.Len(t, b.Packages[1].DependsOn, 1)
 	assert.Equal(t, "core_base", b.Packages[1].DependsOn[0].Name)
-	assert.Equal(t, []string{"values/loki.yaml", "values/vector.yaml"}, b.Packages[1].ValueFiles)
+	assert.Equal(t, []string{"values/loki.yaml", "values/vector.yaml"}, b.Packages[1].ValuesFiles)
 
 	// core_monitoring: namespace, depends_on with 2 entries
 	assert.Equal(t, "monitoring", b.Packages[2].Namespace)
@@ -46,7 +46,7 @@ func TestParseBundleFile_SpecCompliant(t *testing.T) {
 	depNames := []string{b.Packages[2].DependsOn[0].Name, b.Packages[2].DependsOn[1].Name}
 	assert.Contains(t, depNames, "core_base")
 	assert.Contains(t, depNames, "core_logging")
-	assert.Equal(t, []string{"values/monitoring.yaml"}, b.Packages[2].ValueFiles)
+	assert.Equal(t, []string{"values/monitoring.yaml"}, b.Packages[2].ValuesFiles)
 }
 
 func TestParseBundleFile_MinimalBundle(t *testing.T) {
@@ -111,7 +111,7 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 	assert.Empty(t, b.Metadata.Version)
 	assert.Empty(t, b.Packages[0].Namespace)
 	assert.Empty(t, b.Packages[0].DependsOn)
-	assert.Empty(t, b.Packages[0].ValueFiles)
+	assert.Empty(t, b.Packages[0].ValuesFiles)
 	assert.Empty(t, b.Packages[0].OptionalComponents)
 }
 
@@ -416,4 +416,232 @@ func writeTempHCL(t *testing.T, content string) string {
 		t.Fatalf("failed to write temp HCL file: %v", err)
 	}
 	return path
+}
+
+func TestParseBundleConfig(t *testing.T) {
+	specCompliantPath := filepath.Join("..", "..", "tests", "test_data",
+		"bundles", "spec-compliant", "config.uds.hcl")
+
+	tests := []struct {
+		name    string
+		hcl     string // written to a temp file; empty when fixture is used
+		fixture string // path to a fixture file; takes precedence over hcl
+		wantErr string // substring expected in error; empty means "any error is fine" for error cases
+		wantOK  bool   // true means success expected; false with non-empty wantErr means error expected
+		check   func(t *testing.T, cfg *UDSBundleConfig)
+	}{
+		// ---- fixture: all options + nested variables ----
+		{
+			name:    "spec-compliant full config",
+			fixture: specCompliantPath,
+			wantOK:  true,
+			check: func(t *testing.T, cfg *UDSBundleConfig) {
+				// Options (all seven fields from uds-bundle-options.md)
+				assert.Equal(t, "info", cfg.Options.LogLevel)
+				assert.Equal(t, "amd64", cfg.Options.Architecture)
+				assert.False(t, cfg.Options.PlainHTTP)
+				assert.False(t, cfg.Options.SkipTLSVerify)
+				assert.Equal(t, "/tmp/uds-cache", cfg.Options.UDSCache)
+				assert.Equal(t, "/tmp/uds-tmp", cfg.Options.TmpDir)
+				assert.Equal(t, 10, cfg.Options.Concurrency)
+				// Top-level scalar variable
+				assert.Equal(t, "uds.dev", cfg.Variables["domain"])
+				// Nested object preserved as map[string]any
+				logging, ok := cfg.Variables["logging"].(map[string]any)
+				require.True(t, ok, "logging should decode to map[string]any")
+				assert.True(t, logging["vectorEnabled"].(bool))
+				assert.Equal(t, "collector", logging["vectorRole"])
+				monitoring, ok := cfg.Variables["monitoring"].(map[string]any)
+				require.True(t, ok)
+				assert.Equal(t, "15d", monitoring["retentionDays"])
+			},
+		},
+
+		// ---- options block only, no variables ----
+		{
+			name:   "options only",
+			wantOK: true,
+			hcl: `
+options {
+  log_level    = "debug"
+  architecture = "arm64"
+  concurrency  = 5
+}`,
+			check: func(t *testing.T, cfg *UDSBundleConfig) {
+				assert.Equal(t, "debug", cfg.Options.LogLevel)
+				assert.Equal(t, "arm64", cfg.Options.Architecture)
+				assert.Equal(t, 5, cfg.Options.Concurrency)
+				assert.Nil(t, cfg.Variables)
+			},
+		},
+
+		// ---- variables only, no options block ----
+		{
+			name:   "variables only",
+			wantOK: true,
+			hcl:    `variables = { domain = "example.com" }`,
+			check: func(t *testing.T, cfg *UDSBundleConfig) {
+				assert.Nil(t, cfg.Options)
+				assert.Equal(t, "example.com", cfg.Variables["domain"])
+			},
+		},
+
+		// ---- empty file: no error, everything zero ----
+		{
+			name:   "empty file",
+			wantOK: true,
+			hcl:    ``,
+			check: func(t *testing.T, cfg *UDSBundleConfig) {
+				assert.Nil(t, cfg.Options)
+				assert.Nil(t, cfg.Variables)
+			},
+		},
+
+		// ---- all scalar types: string, number, bool ----
+		{
+			name:   "scalar types: string number bool",
+			wantOK: true,
+			hcl: `
+variables = {
+  str  = "hello"
+  num  = 42
+  flag = true
+}`,
+			check: func(t *testing.T, cfg *UDSBundleConfig) {
+				assert.Equal(t, "hello", cfg.Variables["str"])
+				assert.InDelta(t, float64(42), cfg.Variables["num"], 0.001)
+				assert.True(t, cfg.Variables["flag"].(bool))
+			},
+		},
+
+		// ---- float number ----
+		{
+			name:   "float variable",
+			wantOK: true,
+			hcl:    `variables = { ratio = 1.5 }`,
+			check: func(t *testing.T, cfg *UDSBundleConfig) {
+				assert.InEpsilon(t, float64(1.5), cfg.Variables["ratio"], 0.0001)
+			},
+		},
+
+		// ---- empty variables object ----
+		{
+			name:   "empty variables object",
+			wantOK: true,
+			hcl:    `variables = {}`,
+			check: func(t *testing.T, cfg *UDSBundleConfig) {
+				assert.Empty(t, cfg.Variables)
+			},
+		},
+
+		// ---- deep nesting (3 levels) ----
+		{
+			name:   "three levels of nesting",
+			wantOK: true,
+			hcl: `
+variables = {
+  a = {
+    b = {
+      c = "deep"
+    }
+  }
+}`,
+			check: func(t *testing.T, cfg *UDSBundleConfig) {
+				a, ok := cfg.Variables["a"].(map[string]any)
+				require.True(t, ok)
+				b, ok := a["b"].(map[string]any)
+				require.True(t, ok)
+				assert.Equal(t, "deep", b["c"])
+			},
+		},
+
+		// ---- bool options fields ----
+		{
+			name:   "bool options",
+			wantOK: true,
+			hcl: `
+options {
+  plain_http      = true
+  skip_tls_verify = true
+}`,
+			check: func(t *testing.T, cfg *UDSBundleConfig) {
+				assert.True(t, cfg.Options.PlainHTTP)
+				assert.True(t, cfg.Options.SkipTLSVerify)
+			},
+		},
+
+		// ---- concurrency zero value (explicit) ----
+		{
+			name:   "concurrency explicit zero",
+			wantOK: true,
+			hcl:    `options { concurrency = 0 }`,
+			check: func(t *testing.T, cfg *UDSBundleConfig) {
+				assert.Equal(t, 0, cfg.Options.Concurrency)
+			},
+		},
+
+		// ---- file not found ----
+		{
+			name:    "file not found",
+			fixture: "/nonexistent/config.uds.hcl",
+			wantErr: "cannot read",
+		},
+
+		// ---- malformed HCL (any error expected) ----
+		{
+			name:    "invalid HCL syntax",
+			hcl:     `options { = "broken" }`,
+			wantErr: "",
+		},
+
+		// ---- unknown option attribute (gohcl rejects it) ----
+		{
+			name:    "unknown option attribute",
+			hcl:     `options { unknown_field = "x" }`,
+			wantErr: "",
+		},
+
+		// ---- duplicate options block ----
+		{
+			name: "duplicate options blocks",
+			hcl: `
+options { log_level = "info" }
+options { log_level = "debug" }`,
+			wantErr: "",
+		},
+
+		// ---- variables must be an object ----
+		{
+			name:    "variables is a string not an object",
+			hcl:     `variables = "not-an-object"`,
+			wantErr: "variables must be an object",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var path string
+			if tt.fixture != "" {
+				path = tt.fixture
+			} else {
+				path = writeTempHCL(t, tt.hcl)
+			}
+
+			cfg, err := NewHCLParser().ParseBundleConfig(context.Background(), path)
+
+			// Error cases: either wantErr substring pinned, or any error is fine
+			if !tt.wantOK {
+				require.Error(t, err)
+				if tt.wantErr != "" {
+					assert.Contains(t, err.Error(), tt.wantErr)
+				}
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, cfg)
+			if tt.check != nil {
+				tt.check(t, cfg)
+			}
+		})
+	}
 }

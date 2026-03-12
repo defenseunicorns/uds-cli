@@ -10,12 +10,16 @@
 
 # CLI options for bundle deployment
 options {
-  log_level       = "info"
+  # Global
+  log_level = "info"
+
+  # Bundle component
   architecture    = "amd64"
-  no_log_file     = false
-  no_progress     = false
-  insecure        = false
-  oci_concurrency = 3
+  plain_http      = false
+  skip_tls_verify = false
+  uds_cache       = "/tmp/uds-cache"
+  tmp_dir         = "/tmp/uds-tmp"
+  concurrency     = 10
 }
 
 # Variables used to template out values files AND passed to any matching Zarf variables

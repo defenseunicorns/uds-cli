@@ -6,11 +6,7 @@
 // Below is an illustration of the data flow
 //
 //	bundle.uds.hcl ──▶ HCLParser ──▶ UDSBundle ──▶ Validate ──▶ DAG ──▶ Levels ──▶ Deploy
-//	     │                              │                        │          │
-//	     │                              │                        │          │
-//	   locals                      []Package                  detect     [level0]
-//	   resolved                   + []PackageRef              cycles     [level1]
-//	   via EvalContext                                                   [level2]
+//	config.uds.hcl ──▶ HCLParser ──▶ UDSBundleConfig ───────────────────────────────────┘
 package bundle
 
 import (
@@ -21,30 +17,47 @@ import (
 )
 
 // Deploy deploys a UDS bundle to a Kubernetes cluster.
-// It uses the hcl.Traversal-based DAG from Milestone 3 to determine deployment order.
+// It parses both the bundle and optional config files, validates the bundle,
+// then deploys packages in topological order derived from the dependency graph.
+//
+// When opts.Bundle is set, parsing and validation of the bundle file is skipped
+// (the caller is responsible for having already validated the bundle).
 //
 // IMPORTANT: The caller (pkg/cmd/bundle/deploy.go) is responsible for validating the bundle path
 // via util.ValidateBundlePath() and resolving it via util.ResolveBundlePath() before calling this function.
-// This function receives an already-validated path to a bundle.uds.hcl file. OCI reference detection,
-// tar.zst rejection, path existence checks, and directory resolution are all handled by the
-// shared util functions at the command layer.
 func Deploy(ctx context.Context, opts DeployOptions) error {
-	// Parse the bundle (path already validated by command layer via util.ValidateBundlePath)
-	slog.Debug("parsing bundle", "path", opts.BundlePath)
-	bundle, err := NewHCLParser().ParseBundleFile(ctx, opts.BundlePath)
-	if err != nil {
-		return fmt.Errorf("failed to parse bundle: %w", err)
-	}
-	slog.Debug("bundle parsed", "name", bundle.Metadata.Name, "packages", len(bundle.Packages))
+	parser := NewHCLParser()
 
-	// Validate the bundle
-	if err := bundle.Validate(); err != nil {
-		return fmt.Errorf("bundle validation failed: %w", err)
+	// Use pre-parsed bundle if provided, otherwise parse from BundlePath
+	b := opts.Bundle
+	if b == nil {
+		slog.Debug("parsing bundle", "path", opts.BundlePath)
+		var err error
+		b, err = parser.ParseBundleFile(ctx, opts.BundlePath)
+		if err != nil {
+			return fmt.Errorf("failed to parse bundle: %w", err)
+		}
+		slog.Debug("bundle parsed", "name", b.Metadata.Name, "packages", len(b.Packages))
+
+		// Validate only when freshly parsed (caller is responsible for pre-parsed bundles)
+		if err := b.Validate(); err != nil {
+			return fmt.Errorf("bundle validation failed: %w", err)
+		}
+		slog.Debug("bundle validation passed")
 	}
-	slog.Debug("bundle validation passed")
+
+	// Parse the config (symmetric with bundle parsing above)
+	var cfg *UDSBundleConfig
+	if opts.ConfigPath != "" {
+		var err error
+		cfg, err = parser.ParseBundleConfig(ctx, opts.ConfigPath)
+		if err != nil {
+			return fmt.Errorf("failed to parse config: %w", err)
+		}
+	}
 
 	// Build the hcl.Traversal-based dependency graph
-	dag, err := BuildDependencyGraph(bundle)
+	dag, err := BuildDependencyGraph(b)
 	if err != nil {
 		return fmt.Errorf("failed to build dependency graph: %w", err)
 	}
@@ -83,6 +96,7 @@ func Deploy(ctx context.Context, opts DeployOptions) error {
 		RegistryOptions: opts.RegistryOptions,
 		BundleDir:       bundleDir,
 		Prompt:          opts.Prompt,
+		Config:          cfg,
 	}
 
 	totalPkgs := 0

@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
@@ -20,6 +21,7 @@ import (
 type DeployOptions struct {
 	BundlePath string // Path to bundle file or directory (user input, resolved in Run)
 	Prompt     bool   // Enable interactive prompts (non-interactive by default per ADR 0005)
+	ConfigPath string // Optional path to config.uds.hcl for deploy-time variables
 	Config     config.BundleConfig
 
 	iostreams.IOStreams
@@ -80,6 +82,7 @@ func (o *DeployOptions) Complete(cmd *cobra.Command, args []string) error {
 		o.BundlePath = "."
 	}
 	o.Config = config.BuildBundleConfig(cmd)
+	o.ConfigPath, _ = cmd.Flags().GetString("config")
 	return nil
 }
 
@@ -88,7 +91,22 @@ func (o *DeployOptions) Validate() error {
 	if err := ValidateBundleConfig(o.Config); err != nil {
 		return err
 	}
-	return ValidateBundlePath(o.BundlePath)
+	if err := ValidateBundlePath(o.BundlePath); err != nil {
+		return err
+	}
+	if o.ConfigPath != "" {
+		info, err := os.Stat(o.ConfigPath)
+		if os.IsNotExist(err) {
+			return fmt.Errorf("config file not found: %s", o.ConfigPath)
+		}
+		if err != nil {
+			return fmt.Errorf("cannot access config file: %w", err)
+		}
+		if info.IsDir() {
+			return fmt.Errorf("config path is a directory, expected a file: %s", o.ConfigPath)
+		}
+	}
+	return nil
 }
 
 // Run executes the deploy command.
@@ -129,7 +147,6 @@ func (o *DeployOptions) Run() error {
 
 	slog.Info("starting deployment", "name", parsedBundle.Metadata.Name)
 
-	// Deploy the bundle
 	deployOpts := bundle.DeployOptions{
 		RegistryOptions: bundle.RegistryOptions{
 			Arch:          o.Config.Architecture,
@@ -138,6 +155,8 @@ func (o *DeployOptions) Run() error {
 			Concurrency:   o.Config.Concurrency,
 		},
 		BundlePath: bundlePath,
+		Bundle:     parsedBundle,
+		ConfigPath: o.ConfigPath,
 		Prompt:     o.Prompt,
 		TmpDir:     o.Config.TmpDir,
 		Out:        o.Out,

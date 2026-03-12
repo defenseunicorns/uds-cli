@@ -11,10 +11,50 @@ import (
 	"github.com/hashicorp/hcl/v2"
 )
 
+// Variables is a named type for the nested user-defined variable map parsed
+// from the variables block in config.uds.hcl.
+// Leaf values are scalars (string, float64, bool); intermediate nodes are
+// nested Variables maps decoded from HCL object expressions.
+// nil means no --config was provided.
+//
+// Using a named type (rather than bare map[string]any) follows the same
+// pattern as Zarf's value.Values and allows behaviour to be attached as
+// methods — in particular Flatten(), which keeps that logic intrinsic to
+// the type rather than as a scattered private helper.
+type Variables map[string]any
+
+// UDSBundleConfig represents the parsed content of a config.uds.hcl file.
+// The Options block is decoded via gohcl using HCL struct tags.
+// Variables are free-form and captured via hcl:",remain" for manual extraction,
+// since they have no fixed schema.
+type UDSBundleConfig struct {
+	Options   *ConfigOptions `hcl:"options,block"`
+	Variables Variables      // populated after decode from Remain
+	Remain    hcl.Body       `hcl:",remain"` // captures variables and any other unstructured top-level attributes
+}
+
+// ConfigOptions holds deploy-time CLI options from the options block.
+// Fields are defined by the Opinionated CLI Settings ADR (uds-bundle-options.md).
+// All fields are optional; unset fields default to their zero values.
+type ConfigOptions struct {
+	// Global
+	LogLevel string `hcl:"log_level,optional"`
+
+	// Bundle component
+	Architecture  string `hcl:"architecture,optional"`
+	PlainHTTP     bool   `hcl:"plain_http,optional"`
+	SkipTLSVerify bool   `hcl:"skip_tls_verify,optional"`
+	UDSCache      string `hcl:"uds_cache,optional"`
+	TmpDir        string `hcl:"tmp_dir,optional"`
+	Concurrency   int    `hcl:"concurrency,optional"`
+}
+
 // Parser defines the interface for parsing bundle files.
 type Parser interface {
-	// ParseBundleFile reads and parses an HCL bundle file with locals support.
+	// ParseBundleFile reads and parses a bundle.uds.hcl file with locals support.
 	ParseBundleFile(ctx context.Context, filePath string) (*UDSBundle, error)
+	// ParseBundleConfig reads and parses a config.uds.hcl file.
+	ParseBundleConfig(ctx context.Context, filePath string) (*UDSBundleConfig, error)
 }
 
 // RegistryOptions holds shared OCI registry settings used across create, deploy,
@@ -58,6 +98,9 @@ type DeployPackageOptions struct {
 
 	// Prompt enables interactive prompts (non-interactive by default per ADR 0005)
 	Prompt bool
+
+	// Config is the optional parsed config.uds.hcl; nil when no --config was provided.
+	Config *UDSBundleConfig
 }
 
 // DeployOptions contains options for deploying an entire bundle.
@@ -66,6 +109,14 @@ type DeployOptions struct {
 
 	// BundlePath is the path to the bundle directory containing bundle.uds.hcl
 	BundlePath string
+
+	// Bundle is the pre-parsed bundle. When set, Deploy() skips parsing BundlePath.
+	// This avoids double-parsing when the caller has already parsed the bundle.
+	Bundle *UDSBundle
+
+	// ConfigPath is the optional path to config.uds.hcl.
+	// Empty string means no config was provided.
+	ConfigPath string
 
 	// Prompt enables interactive prompts (non-interactive by default per ADR 0005)
 	Prompt bool
@@ -114,7 +165,7 @@ type Package struct {
 	Source             string       `hcl:"source"`
 	Namespace          string       `hcl:"namespace,optional"`
 	DependsOn          []PackageRef // Populated from Remain after HCL decoding
-	ValueFiles         []string     `hcl:"values_files,optional"`
+	ValuesFiles        []string     `hcl:"values_files,optional"`
 	OptionalComponents []string     `hcl:"optional_components,optional"`
 	Remain             hcl.Body     `hcl:",remain"` // Captures depends_on for post-processing
 }
