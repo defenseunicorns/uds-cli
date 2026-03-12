@@ -385,7 +385,7 @@ The naming conventions for deploying duplicate packages are as follows:
 1. In order to deploy duplicates of local packages, the `path` field must point to a Zarf package tarball instead of to a folder.
 
 :::note
-Today the duplicate packages feature is only supported for packages with Helm charts. This is because Helm charts' [namespaces can be overridden](/reference/bundles/overrides/) at deploy time.
+Today the duplicate packages feature is only supported for packages with Helm charts. This is because Helm charts' [namespaces can be overridden](/cli/reference/bundles/overrides/) at deploy time.
 :::
 
 ## Zarf Integration
@@ -429,9 +429,9 @@ To monitor the status of a UDS cluster's admission and operator controllers, run
 
 UDS clusters contain two Kubernetes controllers, both created using [Pepr](https://pepr.dev/):
 
-1. **Admission Controller**: Corresponds to the `pepr-uds-core` pods in the cluster. This controller is responsible for validating and mutating resources in the cluster including the enforcement of [UDS Exemptions](/reference/configuration/uds-configure-policy-exemptions).
+1. **Admission Controller**: Corresponds to the `pepr-uds-core` pods in the cluster. This controller is responsible for validating and mutating resources in the cluster including the enforcement of UDS Exemptions.
 
-1. **Operator Controller**: Corresponds to the `pepr-uds-core-watcher` pods. This controller is responsible for managing the lifecyle of [UDS Package](/reference/configuration/uds-operator/package/) resources in the cluster.
+1. **Operator Controller**: Corresponds to the `pepr-uds-core-watcher` pods. This controller is responsible for managing the lifecyle of UDS Package resources in the cluster.
 
 #### Monitor Args
 
