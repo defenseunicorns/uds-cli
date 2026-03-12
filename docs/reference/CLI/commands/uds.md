@@ -28,17 +28,17 @@ uds COMMAND [flags]
 
 ### SEE ALSO
 
-* [uds completion](/reference/cli/commands/uds_completion/)	 - Generate the autocompletion script for the specified shell
-* [uds create](/reference/cli/commands/uds_create/)	 - Create a bundle from a given directory or the current directory
-* [uds deploy](/reference/cli/commands/uds_deploy/)	 - Deploy a bundle from a local tarball or oci:// URL
-* [uds dev](/reference/cli/commands/uds_dev/)	 - [beta] Commands useful for developing bundles
-* [uds inspect](/reference/cli/commands/uds_inspect/)	 - Display the metadata of a bundle
-* [uds list](/reference/cli/commands/uds_list/)	 - [alpha] List deployed bundles in the cluster
-* [uds logs](/reference/cli/commands/uds_logs/)	 - View most recent UDS CLI logs
-* [uds monitor](/reference/cli/commands/uds_monitor/)	 - Monitor a UDS Cluster
-* [uds publish](/reference/cli/commands/uds_publish/)	 - Publish a bundle from the local file system to a remote registry
-* [uds pull](/reference/cli/commands/uds_pull/)	 - Pull a bundle from a remote registry and save to the local file system
-* [uds remove](/reference/cli/commands/uds_remove/)	 - Remove a bundle that has been deployed already
-* [uds run](/reference/cli/commands/uds_run/)	 - Run a task using maru-runner
-* [uds version](/reference/cli/commands/uds_version/)	 - Shows the version of the running UDS-CLI binary
+* [uds completion](/cli/reference/cli/commands/uds_completion/)	 - Generate the autocompletion script for the specified shell
+* [uds create](/cli/reference/cli/commands/uds_create/)	 - Create a bundle from a given directory or the current directory
+* [uds deploy](/cli/reference/cli/commands/uds_deploy/)	 - Deploy a bundle from a local tarball or oci:// URL
+* [uds dev](/cli/reference/cli/commands/uds_dev/)	 - [beta] Commands useful for developing bundles
+* [uds inspect](/cli/reference/cli/commands/uds_inspect/)	 - Display the metadata of a bundle
+* [uds list](/cli/reference/cli/commands/uds_list/)	 - [alpha] List deployed bundles in the cluster
+* [uds logs](/cli/reference/cli/commands/uds_logs/)	 - View most recent UDS CLI logs
+* [uds monitor](/cli/reference/cli/commands/uds_monitor/)	 - Monitor a UDS Cluster
+* [uds publish](/cli/reference/cli/commands/uds_publish/)	 - Publish a bundle from the local file system to a remote registry
+* [uds pull](/cli/reference/cli/commands/uds_pull/)	 - Pull a bundle from a remote registry and save to the local file system
+* [uds remove](/cli/reference/cli/commands/uds_remove/)	 - Remove a bundle that has been deployed already
+* [uds run](/cli/reference/cli/commands/uds_run/)	 - Run a task using maru-runner
+* [uds version](/cli/reference/cli/commands/uds_version/)	 - Shows the version of the running UDS-CLI binary
 

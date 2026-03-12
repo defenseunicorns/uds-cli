@@ -60,5 +60,5 @@ uds completion zsh [flags]
 
 ### SEE ALSO
 
-* [uds completion](/reference/cli/commands/uds_completion/)	 - Generate the autocompletion script for the specified shell
+* [uds completion](/cli/reference/cli/commands/uds_completion/)	 - Generate the autocompletion script for the specified shell
 
