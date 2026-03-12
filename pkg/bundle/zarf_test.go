@@ -29,7 +29,7 @@ func buildTestBlobDir(t *testing.T) (blobDir string, m ociManifest) {
 
 	root := t.TempDir()
 	blobDir = filepath.Join(root, "blobs", "sha256")
-	require.NoError(t, os.MkdirAll(blobDir, 0o755))
+	require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
 
 	reqTrue := true
 	reqFalse := false
@@ -110,7 +110,7 @@ func writeBlob(t *testing.T, blobDir string, b []byte) string {
 	t.Helper()
 	sum := sha256.Sum256(b)
 	hex := hex.EncodeToString(sum[:])
-	require.NoError(t, os.WriteFile(filepath.Join(blobDir, hex), b, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(blobDir, hex), b, tmpFilePerm))
 	return hex
 }
 
@@ -138,7 +138,7 @@ func TestFilterZarfOptionalComponents_EmptyKeepRemovesAllOptionals(t *testing.T)
 func TestFilterZarfOptionalComponents_NonZarfPackage(t *testing.T) {
 	dir := t.TempDir()
 	blobDir := filepath.Join(dir, "blobs", "sha256")
-	require.NoError(t, os.MkdirAll(blobDir, 0o755))
+	require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
 
 	// Build a manifest with no zarf.yaml layer.
 	configBytes := []byte("{}")
@@ -245,7 +245,7 @@ func writeZarfLikeOCILayout(t *testing.T, layoutDir string, required, optional [
 	t.Helper()
 
 	blobDir := filepath.Join(layoutDir, "blobs", "sha256")
-	require.NoError(t, os.MkdirAll(blobDir, 0o755))
+	require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
 
 	reqTrue := true
 	reqFalse := false
@@ -309,11 +309,11 @@ func writeZarfLikeOCILayout(t *testing.T, layoutDir string, required, optional [
 	}
 	idxBytes, err := json.Marshal(idx)
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(layoutDir, "index.json"), idxBytes, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(layoutDir, "index.json"), idxBytes, tmpFilePerm))
 
 	ociLayoutBytes, err := json.Marshal(ociLayout{ImageLayoutVersion: "1.0.0"})
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(layoutDir, "oci-layout"), ociLayoutBytes, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(layoutDir, "oci-layout"), ociLayoutBytes, tmpFilePerm))
 
 	return compDigests
 }

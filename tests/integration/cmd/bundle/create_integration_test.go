@@ -77,13 +77,13 @@ func copyDir(src, dst string) error {
 
 // assertValidBundleStructure checks that the bundle archive contains the
 // expected OCI layout structure and that bundle.uds.hcl is a layer in the
-// bundle config manifest. Returns the entries for callers that need further checks.
+// bundle definition manifest. Returns the entries for callers that need further checks.
 func assertValidBundleStructure(t *testing.T, tarPath string) (allPaths map[string]bool, small map[string][]byte) {
 	t.Helper()
 	allPaths, small = readBundleEntries(t, tarPath)
 	assert.True(t, allPaths["oci/oci-layout"], "bundle should contain oci-layout file")
 	assert.True(t, allPaths["oci/index.json"], "bundle should contain index.json")
-	assert.True(t, bundleDefinitionContainsLayerTitle(t, allPaths, small, "bundle.uds.hcl"), "bundle.uds.hcl should be a layer in the bundle config manifest")
+	assert.True(t, bundleDefinitionContainsLayerTitle(t, allPaths, small, "bundle.uds.hcl"), "bundle.uds.hcl should be a layer in the bundle definition manifest")
 
 	foundBlob := false
 	for path := range allPaths {

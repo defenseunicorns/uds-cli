@@ -96,9 +96,9 @@ func TestFilterOCIManifestsByArch(t *testing.T) {
 func TestFindOCILayoutRoot(t *testing.T) {
 	t.Run("finds OCI layout in root directory", func(t *testing.T) {
 		root := t.TempDir()
-		require.NoError(t, os.MkdirAll(filepath.Join(root, "blobs", "sha256"), 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(root, "oci-layout"), []byte(`{"imageLayoutVersion": "1.0.0"}`), 0o644))
-		require.NoError(t, os.WriteFile(filepath.Join(root, "index.json"), []byte(`{"schemaVersion": 2}`), 0o644))
+		require.NoError(t, os.MkdirAll(filepath.Join(root, "blobs", "sha256"), tempDirPerm))
+		require.NoError(t, os.WriteFile(filepath.Join(root, "oci-layout"), []byte(`{"imageLayoutVersion": "1.0.0"}`), tmpFilePerm))
+		require.NoError(t, os.WriteFile(filepath.Join(root, "index.json"), []byte(`{"schemaVersion": 2}`), tmpFilePerm))
 
 		found, err := findOCILayoutRoot(root)
 		require.NoError(t, err)
@@ -108,9 +108,9 @@ func TestFindOCILayoutRoot(t *testing.T) {
 	t.Run("finds OCI layout in oci subdirectory", func(t *testing.T) {
 		root := t.TempDir()
 		ociDir := filepath.Join(root, "oci")
-		require.NoError(t, os.MkdirAll(filepath.Join(ociDir, "blobs", "sha256"), 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(ociDir, "oci-layout"), []byte(`{"imageLayoutVersion": "1.0.0"}`), 0o644))
-		require.NoError(t, os.WriteFile(filepath.Join(ociDir, "index.json"), []byte(`{"schemaVersion": 2}`), 0o644))
+		require.NoError(t, os.MkdirAll(filepath.Join(ociDir, "blobs", "sha256"), tempDirPerm))
+		require.NoError(t, os.WriteFile(filepath.Join(ociDir, "oci-layout"), []byte(`{"imageLayoutVersion": "1.0.0"}`), tmpFilePerm))
+		require.NoError(t, os.WriteFile(filepath.Join(ociDir, "index.json"), []byte(`{"schemaVersion": 2}`), tmpFilePerm))
 
 		found, err := findOCILayoutRoot(root)
 		require.NoError(t, err)
@@ -120,9 +120,9 @@ func TestFindOCILayoutRoot(t *testing.T) {
 	t.Run("finds OCI layout in images subdirectory", func(t *testing.T) {
 		root := t.TempDir()
 		imagesDir := filepath.Join(root, "images")
-		require.NoError(t, os.MkdirAll(filepath.Join(imagesDir, "blobs", "sha256"), 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(imagesDir, "oci-layout"), []byte(`{"imageLayoutVersion": "1.0.0"}`), 0o644))
-		require.NoError(t, os.WriteFile(filepath.Join(imagesDir, "index.json"), []byte(`{"schemaVersion": 2}`), 0o644))
+		require.NoError(t, os.MkdirAll(filepath.Join(imagesDir, "blobs", "sha256"), tempDirPerm))
+		require.NoError(t, os.WriteFile(filepath.Join(imagesDir, "oci-layout"), []byte(`{"imageLayoutVersion": "1.0.0"}`), tmpFilePerm))
+		require.NoError(t, os.WriteFile(filepath.Join(imagesDir, "index.json"), []byte(`{"schemaVersion": 2}`), tmpFilePerm))
 
 		found, err := findOCILayoutRoot(root)
 		require.NoError(t, err)
@@ -132,7 +132,7 @@ func TestFindOCILayoutRoot(t *testing.T) {
 	t.Run("returns error when no OCI layout found", func(t *testing.T) {
 		root := t.TempDir()
 		// Create some random files but no OCI layout
-		require.NoError(t, os.WriteFile(filepath.Join(root, "random.txt"), []byte("not an oci layout"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(root, "random.txt"), []byte("not an oci layout"), tmpFilePerm))
 
 		found, err := findOCILayoutRoot(root)
 		require.Error(t, err)
@@ -144,15 +144,15 @@ func TestFindOCILayoutRoot(t *testing.T) {
 		root := t.TempDir()
 
 		// Create OCI layout in root
-		require.NoError(t, os.MkdirAll(filepath.Join(root, "blobs", "sha256"), 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(root, "oci-layout"), []byte(`{"imageLayoutVersion": "1.0.0"}`), 0o644))
-		require.NoError(t, os.WriteFile(filepath.Join(root, "index.json"), []byte(`{"schemaVersion": 2}`), 0o644))
+		require.NoError(t, os.MkdirAll(filepath.Join(root, "blobs", "sha256"), tempDirPerm))
+		require.NoError(t, os.WriteFile(filepath.Join(root, "oci-layout"), []byte(`{"imageLayoutVersion": "1.0.0"}`), tmpFilePerm))
+		require.NoError(t, os.WriteFile(filepath.Join(root, "index.json"), []byte(`{"schemaVersion": 2}`), tmpFilePerm))
 
 		// Also create OCI layout in subdirectories (should be ignored)
 		ociDir := filepath.Join(root, "oci")
-		require.NoError(t, os.MkdirAll(filepath.Join(ociDir, "blobs", "sha256"), 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(ociDir, "oci-layout"), []byte(`{"imageLayoutVersion": "1.0.0"}`), 0o644))
-		require.NoError(t, os.WriteFile(filepath.Join(ociDir, "index.json"), []byte(`{"schemaVersion": 2}`), 0o644))
+		require.NoError(t, os.MkdirAll(filepath.Join(ociDir, "blobs", "sha256"), tempDirPerm))
+		require.NoError(t, os.WriteFile(filepath.Join(ociDir, "oci-layout"), []byte(`{"imageLayoutVersion": "1.0.0"}`), tmpFilePerm))
+		require.NoError(t, os.WriteFile(filepath.Join(ociDir, "index.json"), []byte(`{"schemaVersion": 2}`), tmpFilePerm))
 
 		found, err := findOCILayoutRoot(root)
 		require.NoError(t, err)

@@ -118,11 +118,16 @@ func Create(ctx context.Context, opts CreateOptions) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer func() { _ = os.RemoveAll(root) }()
+	defer func() {
+		err = os.RemoveAll(root)
+		if err != nil {
+			slog.Warn("failed to remove temporary directory", "path", root, "error", err)
+		}
+	}()
 
 	ociDir := filepath.Join(root, "oci")
 	blobDir := filepath.Join(ociDir, "blobs", "sha256")
-	if err := os.MkdirAll(blobDir, 0o755); err != nil {
+	if err := os.MkdirAll(blobDir, tempDirPerm); err != nil {
 		return "", err
 	}
 	if err := writeOCILayout(filepath.Join(ociDir, "oci-layout")); err != nil {
@@ -141,7 +146,7 @@ func Create(ctx context.Context, opts CreateOptions) (string, error) {
 		}
 	}
 
-	slog.Debug("creating bundle config manifest")
+	slog.Debug("creating bundle definition manifest")
 	cfgManifest, err := createBundleDefinitionManifest(ctx, ociDir, opts.BundleFile, srcDir, b.Packages)
 	if err != nil {
 		return "", err
@@ -276,7 +281,7 @@ func createBundleDefinitionManifest(ctx context.Context, ociDir, bundleFile, bun
 		},
 	})
 	if err != nil {
-		return ociManifest{}, fmt.Errorf("packing bundle config manifest: %w", err)
+		return ociManifest{}, fmt.Errorf("packing bundle definition manifest: %w", err)
 	}
 
 	return ociManifest{
@@ -292,7 +297,7 @@ func writeOCILayout(path string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(b, '\n'), 0o644)
+	return os.WriteFile(path, append(b, '\n'), tmpFilePerm)
 }
 
 func writeOCIIndex(path string, idx *ociIndex) error {
@@ -300,5 +305,5 @@ func writeOCIIndex(path string, idx *ociIndex) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(b, '\n'), 0o644)
+	return os.WriteFile(path, append(b, '\n'), tmpFilePerm)
 }

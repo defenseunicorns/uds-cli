@@ -279,7 +279,12 @@ func ingestLocalReference(ctx context.Context, blobDir, bundleDir, src, arch str
 		if err != nil {
 			return nil, err
 		}
-		cleanup = func() { _ = os.RemoveAll(tmp) }
+		cleanup = func() {
+			err = os.RemoveAll(tmp)
+			if err != nil {
+				slog.Warn("failed to remove temporary directory", "path", tmp, "error", err)
+			}
+		}
 
 		if strings.HasSuffix(path, ".tar.zst") {
 			if err := extractTarZst(ctx, path, tmp); err != nil {

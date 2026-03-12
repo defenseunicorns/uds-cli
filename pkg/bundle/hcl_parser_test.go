@@ -279,6 +279,26 @@ package "pkg2" {
 	assert.Contains(t, err.Error(), "unknown package")
 }
 
+func TestParseBundleBytes_ValidHCL(t *testing.T) {
+	src := []byte(`
+uds { bundle_api_version = "uds.dev/v1alpha1" }
+metadata {
+  name    = "my-bundle"
+  version = "1.0.0"
+}
+package "pkg1" { source = "oci://example.com/pkg:v1" }
+`)
+	b, err := NewHCLParser().ParseBundleBytes(context.Background(), src)
+	require.NoError(t, err)
+	assert.Equal(t, "my-bundle", b.Metadata.Name)
+	assert.Equal(t, "1.0.0", b.Metadata.Version)
+}
+
+func TestParseBundleBytes_InvalidHCL(t *testing.T) {
+	_, err := NewHCLParser().ParseBundleBytes(context.Background(), []byte("this is not valid HCL {{{"))
+	require.ErrorContains(t, err, "failed to parse HCL")
+}
+
 func TestValidate(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -412,7 +432,7 @@ func writeTempHCL(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bundle.uds.hcl")
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(content), tmpFilePerm); err != nil {
 		t.Fatalf("failed to write temp HCL file: %v", err)
 	}
 	return path

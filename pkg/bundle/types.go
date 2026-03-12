@@ -9,6 +9,7 @@ import (
 	"runtime"
 
 	"github.com/hashicorp/hcl/v2"
+	oras "oras.land/oras-go/v2"
 )
 
 // Variables is a named type for the nested user-defined variable map parsed
@@ -53,6 +54,8 @@ type ConfigOptions struct {
 type Parser interface {
 	// ParseBundleFile reads and parses a bundle.uds.hcl file with locals support.
 	ParseBundleFile(ctx context.Context, filePath string) (*UDSBundle, error)
+	// ParseBundleBytes parses HCL bundle content from an in-memory byte slice.
+	ParseBundleBytes(ctx context.Context, src []byte) (*UDSBundle, error)
 	// ParseBundleConfig reads and parses a config.uds.hcl file.
 	ParseBundleConfig(ctx context.Context, filePath string) (*UDSBundleConfig, error)
 }
@@ -227,4 +230,40 @@ type CreateOptions struct {
 	TmpDir string
 
 	Out io.Writer
+}
+
+// PullOptions holds configuration for pulling a bundle from an OCI registry.
+type PullOptions struct {
+	RegistryOptions
+
+	// OCIReference is the source OCI registry reference (e.g. ghcr.io/org/bundle:v1).
+	OCIReference string
+
+	// OutputDir is the directory where the pulled bundle tarball will be written.
+	OutputDir string
+
+	// TmpDir is the base directory for temporary files.
+	TmpDir string
+
+	// remoteRepo overrides the remote registry source. When nil (production),
+	// newRemoteRepository is used. Set in unit tests to inject an in-memory store.
+	remoteRepo oras.ReadOnlyTarget
+}
+
+// PushOptions holds configuration for pushing a bundle to an OCI registry.
+type PushOptions struct {
+	RegistryOptions
+
+	// BundleTarball is the path to the .tar.zst bundle file.
+	BundleTarball string
+
+	// OCIReference is the target OCI registry reference (e.g. ghcr.io/org/bundle:v1).
+	OCIReference string
+
+	// TmpDir is the base directory for temporary files.
+	TmpDir string
+
+	// remoteRepo overrides the remote registry destination. When nil (production),
+	// newRemoteRepository is used. Set in unit tests to inject an in-memory store.
+	remoteRepo oras.Target
 }

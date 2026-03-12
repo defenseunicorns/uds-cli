@@ -9,12 +9,14 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/google/go-containerregistry/pkg/registry"
 	"github.com/mholt/archives"
 	"github.com/stretchr/testify/require"
 
@@ -159,6 +161,14 @@ func testDataPath(t *testing.T, relPath string) string {
 	// project root is 4 directories up
 	root := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..")
 	return filepath.Join(root, "tests", "test_data", relPath)
+}
+
+// startLocalRegistry starts an in-memory OCI registry and returns its host (host:port).
+func startLocalRegistry(t *testing.T) string {
+	t.Helper()
+	s := httptest.NewServer(registry.New())
+	t.Cleanup(s.Close)
+	return strings.TrimPrefix(s.URL, "http://")
 }
 
 // udsCLIPath returns the path to the built UDS CLI binary.

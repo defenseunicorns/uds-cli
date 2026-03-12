@@ -26,7 +26,7 @@ func digestToHex(t *testing.T, digest string) string {
 func TestIsZarfPackage(t *testing.T) {
 	t.Run("returns true when zarf.yaml exists", func(t *testing.T) {
 		root := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(root, "zarf.yaml"), []byte("metadata:\n  name: test"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(root, "zarf.yaml"), []byte("metadata:\n  name: test"), tmpFilePerm))
 
 		got := isZarfPackage(root)
 		assert.True(t, got)
@@ -34,7 +34,7 @@ func TestIsZarfPackage(t *testing.T) {
 
 	t.Run("returns false when zarf.yaml does not exist", func(t *testing.T) {
 		root := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(root, "other.yaml"), []byte("test"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(root, "other.yaml"), []byte("test"), tmpFilePerm))
 
 		got := isZarfPackage(root)
 		assert.False(t, got)
@@ -59,17 +59,17 @@ func TestIngestZarfPackage(t *testing.T) {
 	t.Run("successfully ingests simple Zarf package", func(t *testing.T) {
 		// Create a minimal Zarf package
 		pkgRoot := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(pkgRoot, "zarf.yaml"), []byte("metadata:\n  name: test\n  version: 1.0.0"), 0o644))
-		require.NoError(t, os.WriteFile(filepath.Join(pkgRoot, "checksums.txt"), []byte("abc123"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(pkgRoot, "zarf.yaml"), []byte("metadata:\n  name: test\n  version: 1.0.0"), tmpFilePerm))
+		require.NoError(t, os.WriteFile(filepath.Join(pkgRoot, "checksums.txt"), []byte("abc123"), tmpFilePerm))
 
 		// Create components directory
 		componentsDir := filepath.Join(pkgRoot, "components")
-		require.NoError(t, os.MkdirAll(componentsDir, 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(componentsDir, "test.tar"), []byte("test component data"), 0o644))
+		require.NoError(t, os.MkdirAll(componentsDir, tempDirPerm))
+		require.NoError(t, os.WriteFile(filepath.Join(componentsDir, "test.tar"), []byte("test component data"), tmpFilePerm))
 
 		// Create blob directory
 		blobDir := t.TempDir()
-		require.NoError(t, os.MkdirAll(filepath.Join(blobDir), 0o755))
+		require.NoError(t, os.MkdirAll(filepath.Join(blobDir), tempDirPerm))
 
 		manifests, err := ingestZarfPackage(ctx, blobDir, pkgRoot, "amd64")
 		require.NoError(t, err)
@@ -123,15 +123,15 @@ func TestIngestZarfPackage(t *testing.T) {
 
 	t.Run("uses forward slashes in layer titles", func(t *testing.T) {
 		pkgRoot := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(pkgRoot, "zarf.yaml"), []byte("test"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(pkgRoot, "zarf.yaml"), []byte("test"), tmpFilePerm))
 
 		// Create nested directory structure
 		nestedDir := filepath.Join(pkgRoot, "a", "b", "c")
-		require.NoError(t, os.MkdirAll(nestedDir, 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(nestedDir, "file.txt"), []byte("nested"), 0o644))
+		require.NoError(t, os.MkdirAll(nestedDir, tempDirPerm))
+		require.NoError(t, os.WriteFile(filepath.Join(nestedDir, "file.txt"), []byte("nested"), tmpFilePerm))
 
 		blobDir := t.TempDir()
-		require.NoError(t, os.MkdirAll(blobDir, 0o755))
+		require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
 
 		manifests, err := ingestZarfPackage(ctx, blobDir, pkgRoot, "amd64")
 		require.NoError(t, err)
@@ -161,7 +161,7 @@ func TestIngestZarfPackage(t *testing.T) {
 		// No files in package
 
 		blobDir := t.TempDir()
-		require.NoError(t, os.MkdirAll(blobDir, 0o755))
+		require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
 
 		_, err := ingestZarfPackage(ctx, blobDir, pkgRoot, "arm64")
 		require.Error(t, err)
@@ -170,15 +170,15 @@ func TestIngestZarfPackage(t *testing.T) {
 
 	t.Run("skips symlinks", func(t *testing.T) {
 		pkgRoot := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(pkgRoot, "zarf.yaml"), []byte("test"), 0o644))
-		require.NoError(t, os.WriteFile(filepath.Join(pkgRoot, "target.txt"), []byte("target"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(pkgRoot, "zarf.yaml"), []byte("test"), tmpFilePerm))
+		require.NoError(t, os.WriteFile(filepath.Join(pkgRoot, "target.txt"), []byte("target"), tmpFilePerm))
 
 		// Create a symlink
 		linkPath := filepath.Join(pkgRoot, "link.txt")
 		require.NoError(t, os.Symlink("target.txt", linkPath))
 
 		blobDir := t.TempDir()
-		require.NoError(t, os.MkdirAll(blobDir, 0o755))
+		require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
 
 		manifests, err := ingestZarfPackage(ctx, blobDir, pkgRoot, "amd64")
 		require.NoError(t, err)
@@ -205,14 +205,14 @@ func TestIngestZarfPackage(t *testing.T) {
 
 	t.Run("preserves file permissions", func(t *testing.T) {
 		pkgRoot := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(pkgRoot, "zarf.yaml"), []byte("test"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(pkgRoot, "zarf.yaml"), []byte("test"), tmpFilePerm))
 
 		// Create executable file
 		execPath := filepath.Join(pkgRoot, "script.sh")
 		require.NoError(t, os.WriteFile(execPath, []byte("#!/bin/bash\necho test"), 0o755))
 
 		blobDir := t.TempDir()
-		require.NoError(t, os.MkdirAll(blobDir, 0o755))
+		require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
 
 		manifests, err := ingestZarfPackage(ctx, blobDir, pkgRoot, "amd64")
 		require.NoError(t, err)

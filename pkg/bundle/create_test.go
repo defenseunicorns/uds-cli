@@ -25,8 +25,8 @@ func TestCreate_BuildsTarZstWithExpectedLayout(t *testing.T) {
 	manifestHex, configHex, layerHex := digests.ManifestHex, digests.ConfigHex, digests.LayerHex
 
 	valuesDir := filepath.Join(dir, "values")
-	require.NoError(t, os.MkdirAll(valuesDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(valuesDir, "a.yaml"), []byte("a: 1\n"), 0o644))
+	require.NoError(t, os.MkdirAll(valuesDir, tempDirPerm))
+	require.NoError(t, os.WriteFile(filepath.Join(valuesDir, "a.yaml"), []byte("a: 1\n"), tmpFilePerm))
 
 	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
 	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
@@ -42,7 +42,7 @@ package "pkg1" {
   source = "localpkg"
   values_files = ["values/a.yaml"]
 }
-`), 0o644))
+`), tmpFilePerm))
 
 	_, err := Create(context.Background(), CreateOptions{
 		RegistryOptions: DefaultRegistryOptions(),
@@ -62,7 +62,7 @@ package "pkg1" {
 	require.True(t, bundleDefinitionContainsLayerTitle(t, entries, "bundle.uds.hcl"))
 	require.True(t, bundleDefinitionContainsLayerTitle(t, entries, "values/pkg1/0.yaml"))
 
-	// Parse the OCI index and locate the bundle config manifest by artifactType.
+	// Parse the OCI index and locate the bundle definition manifest by artifactType.
 	var idx struct {
 		Manifests []struct {
 			Digest       string `json:"digest"`
@@ -78,7 +78,7 @@ package "pkg1" {
 			cfgDigest = m.Digest
 		}
 	}
-	require.NotEmpty(t, cfgDigest, "bundle config manifest not found in OCI index")
+	require.NotEmpty(t, cfgDigest, "bundle definition manifest not found in OCI index")
 
 	// Parse the config manifest and verify layer titles and content.
 	cfgBlob := entries["oci/blobs/sha256/"+strings.TrimPrefix(cfgDigest, "sha256:")]
@@ -118,8 +118,8 @@ func TestCreate_SharedValuesFileDeduplicatedInOCIStore(t *testing.T) {
 	writeMinimalOCILayout(t, filepath.Join(dir, "pkg2"))
 
 	valuesDir := filepath.Join(dir, "values")
-	require.NoError(t, os.MkdirAll(valuesDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(valuesDir, "shared.yaml"), []byte("shared: true\n"), 0o644))
+	require.NoError(t, os.MkdirAll(valuesDir, tempDirPerm))
+	require.NoError(t, os.WriteFile(filepath.Join(valuesDir, "shared.yaml"), []byte("shared: true\n"), tmpFilePerm))
 
 	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
 	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
@@ -140,7 +140,7 @@ package "pkg2" {
   source = "pkg2"
   values_files = ["values/shared.yaml"]
 }
-`), 0o644))
+`), tmpFilePerm))
 
 	_, err := Create(context.Background(), CreateOptions{
 		RegistryOptions: DefaultRegistryOptions(),
@@ -279,7 +279,7 @@ metadata {
 package "pkg1" {
   source = "multipkg"
 }
-`), 0o644))
+`), tmpFilePerm))
 
 	// Build for amd64 explicitly.
 	regOpts := DefaultRegistryOptions()
@@ -311,7 +311,7 @@ package "pkg1" {
 	var idx indexFile
 	require.NoError(t, json.Unmarshal(idxRaw, &idx))
 
-	// Filter out the bundle config manifest; only package manifests remain.
+	// Filter out the bundle definition manifest; only package manifests remain.
 	var pkgManifests []indexEntry
 	for _, m := range idx.Manifests {
 		if m.ArtifactType != MediaTypeBundleDefinition {
@@ -348,7 +348,7 @@ metadata {
 package "pkg1" {
   source = "zarfpkg"
 }
-`), 0o644))
+`), tmpFilePerm))
 
 	_, err := Create(context.Background(), CreateOptions{
 		RegistryOptions: DefaultRegistryOptions(),

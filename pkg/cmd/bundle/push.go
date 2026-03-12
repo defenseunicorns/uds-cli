@@ -4,8 +4,11 @@
 package bundle
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"strings"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
@@ -16,6 +19,7 @@ import (
 
 // PushOptions holds options for the push command.
 type PushOptions struct {
+	Tarball      string
 	OCIReference string
 	Config       config.BundleConfig
 
@@ -34,10 +38,10 @@ func NewPushCommand(streams iostreams.IOStreams) *cobra.Command {
 	o := NewPushOptions(streams)
 
 	cmd := &cobra.Command{
-		Use:   "push <bundle-oci-reference>",
+		Use:   "push <bundle-tarball> <oci-reference>",
 		Short: "Push a bundle to an OCI registry",
-		Long:  "Push a UDS bundle to an OCI registry using the provided OCI reference",
-		Args:  cobra.ExactArgs(1),
+		Long:  "Push a UDS bundle tarball to a remote OCI registry",
+		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			util.CheckErr(o.Complete(cmd, args))
 			util.CheckErr(o.Validate())
@@ -51,7 +55,10 @@ func NewPushCommand(streams iostreams.IOStreams) *cobra.Command {
 // Complete fills in options from command line args.
 func (o *PushOptions) Complete(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
-		o.OCIReference = args[0]
+		o.Tarball = args[0]
+	}
+	if len(args) > 1 {
+		o.OCIReference = args[1]
 	}
 	o.Config = config.BuildBundleConfig(cmd)
 	return nil
@@ -59,6 +66,12 @@ func (o *PushOptions) Complete(cmd *cobra.Command, args []string) error {
 
 // Validate validates the options.
 func (o *PushOptions) Validate() error {
+	if o.Tarball == "" || !strings.HasSuffix(o.Tarball, ".tar.zst") {
+		return fmt.Errorf("source must be a .tar.zst bundle file")
+	}
+	if _, err := os.Stat(o.Tarball); os.IsNotExist(err) {
+		return fmt.Errorf("bundle file not found: %s", o.Tarball)
+	}
 	if o.OCIReference == "" {
 		return fmt.Errorf("OCI reference is required")
 	}
@@ -67,10 +80,18 @@ func (o *PushOptions) Validate() error {
 
 // Run executes the push command.
 func (o *PushOptions) Run() error {
-	slog.Debug("pushing bundle", "reference", o.OCIReference)
-	if err := bundle.Push(o.OCIReference); err != nil {
+	slog.Debug("pushing bundle", "tarball", o.Tarball, "reference", o.OCIReference)
+	if err := bundle.Push(context.Background(), bundle.PushOptions{
+		RegistryOptions: bundle.RegistryOptions{
+			PlainHTTP:     o.Config.PlainHTTP,
+			SkipTLSVerify: o.Config.SkipTLSVerify,
+		},
+		BundleTarball: o.Tarball,
+		OCIReference:  o.OCIReference,
+		TmpDir:        o.Config.TmpDir,
+	}); err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(o.Out, "✓ Bundle pushed successfully: %s\n", o.OCIReference)
+	_, _ = fmt.Fprintf(o.Out, "Bundle pushed successfully: %s\n", o.OCIReference)
 	return nil
 }

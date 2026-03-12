@@ -1,0 +1,198 @@
+// Copyright 2026 Defense Unicorns
+// SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+package bundle
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	oraci "oras.land/oras-go/v2/content/oci"
+)
+
+func TestPush_NoOCILayout(t *testing.T) {
+	t.Parallel()
+
+	// Build a tar.zst with no oci/ directory at all, simulating a v0 bundle.
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "some-file.txt"), []byte("not a bundle"), tmpFilePerm))
+
+	tarball := filepath.Join(t.TempDir(), "v0-bundle.tar.zst")
+	require.NoError(t, writeTarZst(context.Background(), tarball, srcDir))
+
+	err := Push(context.Background(), PushOptions{
+		BundleTarball: tarball,
+		OCIReference:  "example.com/test/v0-bundle:v1.0.0",
+		TmpDir:        t.TempDir(),
+	})
+
+	require.ErrorContains(t, err, "does not appear to be a UDS bundle")
+	assert.ErrorContains(t, err, "no OCI layout found")
+}
+
+func TestPush_NonUDSBundle(t *testing.T) {
+	t.Parallel()
+
+	// Build a tar.zst containing a valid OCI layout but with no bundle definition manifest.
+	srcDir := t.TempDir()
+	ociDir := filepath.Join(srcDir, "oci")
+	blobDir := filepath.Join(ociDir, "blobs", "sha256")
+	require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
+
+	// Write a plain image manifest with no ArtifactType.
+	manifestBytes := []byte(`{"schemaVersion":2,"config":{"digest":"sha256:abc","size":2},"layers":[]}`)
+	manifestHex := writeTestBlob(t, blobDir, manifestBytes)
+	idxBytes, err := json.Marshal(ociIndex{
+		SchemaVersion: 2,
+		Manifests: []ociManifest{{
+			Digest: "sha256:" + manifestHex,
+			Size:   int64(len(manifestBytes)),
+		}},
+	})
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(ociDir, "index.json"), idxBytes, tmpFilePerm))
+
+	tarball := filepath.Join(t.TempDir(), "not-a-bundle.tar.zst")
+	require.NoError(t, writeTarZst(context.Background(), tarball, srcDir))
+
+	err = Push(context.Background(), PushOptions{
+		BundleTarball: tarball,
+		OCIReference:  "example.com/test/not-a-bundle:v1.0.0",
+		TmpDir:        t.TempDir(),
+	})
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "does not appear to be a UDS bundle")
+}
+
+func TestPush_HappyPath(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	writeMinimalOCILayout(t, filepath.Join(dir, "localpkg"))
+	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
+	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+metadata {
+  name    = "push-test"
+  version = "1.0.0"
+}
+package "pkg1" {
+  source = "localpkg"
+}
+`), tmpFilePerm))
+
+	tarball, err := Create(context.Background(), CreateOptions{
+		RegistryOptions: DefaultRegistryOptions(),
+		BundleFile:      bundleFile,
+		Out:             os.Stderr,
+	})
+	require.NoError(t, err)
+
+	dst, err := oraci.New(t.TempDir())
+	require.NoError(t, err)
+
+	err = Push(context.Background(), PushOptions{
+		BundleTarball: tarball,
+		OCIReference:  "example.com/test/push-test:1.0.0",
+		TmpDir:        t.TempDir(),
+		remoteRepo:    dst,
+	})
+	require.NoError(t, err)
+
+	// Verify the manifest is accessible at the expected tag in the in-memory store.
+	_, err = dst.Resolve(t.Context(), "1.0.0")
+	require.NoError(t, err, "manifest should be present in store after push")
+}
+
+func TestPush_TarballNotFound(t *testing.T) {
+	t.Parallel()
+
+	err := Push(context.Background(), PushOptions{
+		BundleTarball: "/nonexistent/bundle.tar.zst",
+		OCIReference:  "example.com/test/bundle:v1.0.0",
+		TmpDir:        t.TempDir(),
+	})
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "no such file or directory")
+}
+
+func TestPush_InvalidOCIReference(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// Create a minimal bundle tarball.
+	writeMinimalOCILayout(t, filepath.Join(dir, "localpkg"))
+	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
+	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+metadata {
+  name    = "push-test"
+  version = "1.0.0"
+}
+package "pkg1" {
+  source = "localpkg"
+}
+`), tmpFilePerm))
+	tarball, err := Create(context.Background(), CreateOptions{
+		RegistryOptions: DefaultRegistryOptions(),
+		BundleFile:      bundleFile,
+		Out:             os.Stderr,
+	})
+	require.NoError(t, err)
+
+	err = Push(context.Background(), PushOptions{
+		BundleTarball: tarball,
+		OCIReference:  ":::invalid:::",
+		TmpDir:        t.TempDir(),
+	})
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "invalid reference")
+}
+
+func TestPush_RegistryUnreachable(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	writeMinimalOCILayout(t, filepath.Join(dir, "localpkg"))
+	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
+	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+metadata {
+  name    = "push-test"
+  version = "1.0.0"
+}
+package "pkg1" {
+  source = "localpkg"
+}
+`), tmpFilePerm))
+	tarball, err := Create(context.Background(), CreateOptions{
+		RegistryOptions: DefaultRegistryOptions(),
+		BundleFile:      bundleFile,
+		Out:             os.Stderr,
+	})
+	require.NoError(t, err)
+
+	err = Push(context.Background(), PushOptions{
+		BundleTarball: tarball,
+		OCIReference:  "localhost:0/test/bundle:v1.0.0",
+		TmpDir:        t.TempDir(),
+		RegistryOptions: RegistryOptions{
+			PlainHTTP: true,
+		},
+	})
+
+	// The specific error message varies by OS and connection failure type
+	// (e.g. "connection refused", "can't assign requested address").
+	require.Error(t, err)
+}

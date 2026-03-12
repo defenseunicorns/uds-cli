@@ -4,7 +4,14 @@
 package bundle
 
 import (
+	"io/fs"
 	"strings"
+)
+
+const (
+	// temp dir/file permissions modes (owner-only) for directories/files created inside temporary or test working areas.
+	tempDirPerm fs.FileMode = 0o700
+	tmpFilePerm fs.FileMode = 0o600
 )
 
 // TrimScheme removes the scheme from a reference name

@@ -105,10 +105,10 @@ func extractHandler(dst string) archives.FileHandler {
 		}
 
 		if info.IsDir() {
-			return os.MkdirAll(full, 0o755)
+			return os.MkdirAll(full, tempDirPerm)
 		}
 
-		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(full), tempDirPerm); err != nil {
 			return err
 		}
 		rc, err := info.Open()
@@ -117,7 +117,7 @@ func extractHandler(dst string) archives.FileHandler {
 		}
 		defer func() { _ = rc.Close() }()
 
-		out, err := os.Create(full)
+		out, err := os.OpenFile(full, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, tmpFilePerm)
 		if err != nil {
 			return err
 		}

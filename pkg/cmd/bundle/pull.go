@@ -4,6 +4,7 @@
 package bundle
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
@@ -17,6 +18,7 @@ import (
 // PullOptions holds options for the pull command.
 type PullOptions struct {
 	OCIReference string
+	OutputDir    string
 	Config       config.BundleConfig
 
 	iostreams.IOStreams
@@ -45,6 +47,8 @@ func NewPullCommand(streams iostreams.IOStreams) *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringVarP(&o.OutputDir, "output-dir", "o", ".", "directory to write the pulled bundle tarball")
+
 	return cmd
 }
 
@@ -62,15 +66,29 @@ func (o *PullOptions) Validate() error {
 	if o.OCIReference == "" {
 		return fmt.Errorf("OCI reference is required")
 	}
+	if err := ValidateDir(o.OutputDir); err != nil {
+		return fmt.Errorf("--output-dir: %w", err)
+	}
 	return ValidateBundleConfig(o.Config)
 }
 
 // Run executes the pull command.
 func (o *PullOptions) Run() error {
-	slog.Debug("pulling bundle", "reference", o.OCIReference)
-	if err := bundle.Pull(o.OCIReference); err != nil {
+	slog.Debug("pulling bundle", "reference", o.OCIReference, "output-dir", o.OutputDir)
+	outPath, err := bundle.Pull(context.Background(), bundle.PullOptions{
+		RegistryOptions: bundle.RegistryOptions{
+			Arch:          o.Config.Architecture,
+			PlainHTTP:     o.Config.PlainHTTP,
+			SkipTLSVerify: o.Config.SkipTLSVerify,
+			Concurrency:   o.Config.Concurrency,
+		},
+		OCIReference: o.OCIReference,
+		OutputDir:    o.OutputDir,
+		TmpDir:       o.Config.TmpDir,
+	})
+	if err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(o.Out, "✓ Bundle pulled successfully: %s\n", o.OCIReference)
+	_, _ = fmt.Fprintf(o.Out, "Bundle pulled successfully: %s\n", outPath)
 	return nil
 }

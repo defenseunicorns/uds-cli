@@ -138,9 +138,6 @@ func ctyValueToGo(val cty.Value) (any, error) {
 }
 
 // ParseBundleFile reads and parses an HCL bundle file with locals support.
-// It uses a two-pass approach: first extracting and evaluating locals,
-// then decoding the full bundle with an EvalContext containing those locals.
-// The caller is responsible for validating the returned bundle.
 // The context parameter is currently unused as none of the HCL parsing methods supports cancellation.
 func (p *HCLParser) ParseBundleFile(_ context.Context, filePath string) (*UDSBundle, error) {
 	slog.Debug("reading bundle file", "path", filePath)
@@ -148,8 +145,20 @@ func (p *HCLParser) ParseBundleFile(_ context.Context, filePath string) (*UDSBun
 	if err != nil {
 		return nil, fmt.Errorf("cannot read bundle file: %w", err)
 	}
+	return parseBundleContent(src, filePath)
+}
 
-	hclFile, hclDiagnostics := hclsyntax.ParseConfig(src, filePath, hcl.Pos{Line: 1, Column: 1})
+// ParseBundleBytes parses HCL bundle content from an in-memory byte slice.
+// The context parameter is currently unused as none of the HCL parsing methods supports cancellation.
+func (p *HCLParser) ParseBundleBytes(_ context.Context, src []byte) (*UDSBundle, error) {
+	return parseBundleContent(src, "bundle.uds.hcl")
+}
+
+// parseBundleContent parses HCL content using a two-pass approach: first extracting
+// and evaluating locals, then decoding the full bundle with an EvalContext containing
+// those locals. filename is used only for error message attribution.
+func parseBundleContent(src []byte, filename string) (*UDSBundle, error) {
+	hclFile, hclDiagnostics := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
 	if hclDiagnostics.HasErrors() {
 		return nil, fmt.Errorf("failed to parse HCL: %s", hclDiagnostics.Error())
 	}

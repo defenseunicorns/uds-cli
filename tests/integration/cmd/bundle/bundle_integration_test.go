@@ -6,11 +6,14 @@
 package bundle_test
 
 import (
+	"fmt"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
@@ -104,27 +107,83 @@ func TestDeployCommand_WithBundleFile_Integration(t *testing.T) {
 }
 
 func TestPullCommand_Integration(t *testing.T) {
+	// Push a bundle programmatically so we can test the pull cobra wiring.
+	bundlePath := createBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
+	registryHost := startLocalRegistry(t)
+	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
+
+	err := bundlepkg.Push(t.Context(), bundlepkg.PushOptions{
+		BundleTarball:   bundlePath,
+		OCIReference:    ref,
+		TmpDir:          t.TempDir(),
+		RegistryOptions: bundlepkg.RegistryOptions{PlainHTTP: true},
+	})
+	require.NoError(t, err)
+
+	outDir := t.TempDir()
 	streams, _, out, _ := iostreams.NewTestIOStreams()
-
 	root := bundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"pull", "ghcr.io/test:v1"})
+	root.SetArgs([]string{"pull", ref, "--output-dir", outDir, "--plain-http"})
 
-	err := root.Execute()
+	err = root.Execute()
 	require.NoError(t, err)
 
 	assert.Contains(t, out.String(), "Bundle pulled successfully")
 }
 
 func TestPushCommand_Integration(t *testing.T) {
-	streams, _, out, _ := iostreams.NewTestIOStreams()
+	bundlePath := createBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
+	registryHost := startLocalRegistry(t)
+	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
 
+	streams, _, out, _ := iostreams.NewTestIOStreams()
 	root := bundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"push", "ghcr.io/test:v1"})
+	root.SetArgs([]string{"push", bundlePath, ref, "--plain-http"})
 
 	err := root.Execute()
 	require.NoError(t, err)
 
 	assert.Contains(t, out.String(), "Bundle pushed successfully")
+}
+
+// TestPushPull_RoundTrip verifies that a bundle produced by Create can be pushed
+// to a local OCI registry and pulled back, and that the pulled tarball contains
+// exactly the same set of blob digests as the original.
+func TestPushPull_RoundTrip(t *testing.T) {
+	arch := runtime.GOARCH
+	registryHost := startLocalRegistry(t)
+	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
+
+	// create the bundle from test data.
+	originalPath := createBundleFromTestData(t, "bundles/create/init", arch)
+	assertValidBundleStructure(t, originalPath)
+
+	// push the bundle to the local registry.
+	err := bundlepkg.Push(t.Context(), bundlepkg.PushOptions{
+		BundleTarball: originalPath,
+		OCIReference:  ref,
+		TmpDir:        t.TempDir(),
+		RegistryOptions: bundlepkg.RegistryOptions{
+			PlainHTTP: true,
+		},
+	})
+	require.NoError(t, err, "Push should succeed against local registry")
+
+	// pull the bundle from the local registry.
+	outDir := t.TempDir()
+	pulledPath, err := bundlepkg.Pull(t.Context(), bundlepkg.PullOptions{
+		OCIReference: ref,
+		OutputDir:    outDir,
+		TmpDir:       t.TempDir(),
+		RegistryOptions: bundlepkg.RegistryOptions{
+			PlainHTTP: true,
+			Arch:      arch,
+		},
+	})
+	require.NoError(t, err, "Pull should succeed against local registry")
+
+	assertValidBundleStructure(t, pulledPath)
+	assertBundleTarballsEqual(t, originalPath, pulledPath)
 }
 
 func TestRemoveCommand_Integration(t *testing.T) {

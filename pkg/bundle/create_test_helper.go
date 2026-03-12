@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -136,7 +137,7 @@ func writeTestBlob(t *testing.T, blobDir string, b []byte) string {
 	t.Helper()
 	sum := sha256.Sum256(b)
 	h := hex.EncodeToString(sum[:])
-	require.NoError(t, os.WriteFile(filepath.Join(blobDir, h), b, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(blobDir, h), b, tmpFilePerm))
 	return h
 }
 
@@ -147,7 +148,7 @@ func WriteZarfLikeOCILayout(t *testing.T, layoutDir string, required, optional [
 	t.Helper()
 
 	blobDir := filepath.Join(layoutDir, "blobs", "sha256")
-	require.NoError(t, os.MkdirAll(blobDir, 0o755))
+	require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
 
 	reqTrue := true
 	reqFalse := false
@@ -211,11 +212,11 @@ func WriteZarfLikeOCILayout(t *testing.T, layoutDir string, required, optional [
 	}
 	idxBytes, err := json.Marshal(idx)
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(layoutDir, "index.json"), idxBytes, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(layoutDir, "index.json"), idxBytes, tmpFilePerm))
 
 	ociLayoutBytes, err := json.Marshal(ociLayoutTest{ImageLayoutVersion: "1.0.0"})
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(layoutDir, "oci-layout"), ociLayoutBytes, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(layoutDir, "oci-layout"), ociLayoutBytes, tmpFilePerm))
 
 	return zarfLayoutDigests{ComponentHexes: compDigests}
 }
@@ -262,4 +263,51 @@ func bundleDefinitionContainsLayerTitle(t *testing.T, entries map[string][]byte,
 		}
 	}
 	return false
+}
+
+// writeBundleOCILayout writes a minimal bundle OCI layout to a temp dir and
+// returns the directory path. The layout contains a bundle definition manifest
+// with an HCL layer holding a valid bundle definition.
+func writeBundleOCILayout(t *testing.T, bundleName, version string) string {
+	t.Helper()
+	ociDir := t.TempDir()
+	blobDir := filepath.Join(ociDir, "blobs", "sha256")
+	require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
+
+	hcl := fmt.Sprintf(`uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+metadata {
+  name    = "%s"
+  version = "%s"
+}
+`, bundleName, version)
+	hclHex := writeTestBlob(t, blobDir, []byte(hcl))
+
+	cfgManifest := ociImageManifest{
+		SchemaVersion: 2,
+		Config:        ociDescriptor{Digest: "sha256:abc", Size: 2},
+		Layers: []ociDescriptor{{
+			MediaType: MediaTypeBundleHCL,
+			Digest:    "sha256:" + hclHex,
+			Size:      int64(len(hcl)),
+		}},
+	}
+	cfgBytes, err := json.Marshal(cfgManifest)
+	require.NoError(t, err)
+	cfgHex := writeTestBlob(t, blobDir, cfgBytes)
+
+	idx := ociIndex{
+		SchemaVersion: 2,
+		Manifests: []ociManifest{{
+			ArtifactType: MediaTypeBundleDefinition,
+			Digest:       "sha256:" + cfgHex,
+			Size:         int64(len(cfgBytes)),
+		}},
+	}
+	idxBytes, err := json.Marshal(idx)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(ociDir, "index.json"), idxBytes, tmpFilePerm))
+
+	return ociDir
 }
