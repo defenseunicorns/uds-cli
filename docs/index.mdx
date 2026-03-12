@@ -7,19 +7,88 @@ prev: false
 next: false
 ---
 
-The [UDS CLI](https://github.com/defenseunicorns/uds-cli) is the primary interface for deploying and managing UDS bundles and mission applications. It simplifies deployment by bundling multiple Zarf packages into a single deployable artifact and extends that capability at runtime through Pepr.
+import { CardGrid, Card, LinkButton } from '@astrojs/starlight/components';
 
-import { CardGrid, Card } from '@astrojs/starlight/components';
+<div class="hero-section">
+  <p class="hero-tagline">The primary interface for deploying and managing UDS bundles and mission applications.</p>
+  <div class="hero-actions">
+    <LinkButton href="/cli/reference/cli/quickstart-and-usage/">Get Started</LinkButton>
+    <LinkButton href="https://github.com/defenseunicorns/uds-cli" variant="secondary" icon="github" target="_blank">GitHub</LinkButton>
+  </div>
+</div>
 
 <CardGrid>
-  <Card title="CLI Reference">
-    Full command reference, quickstart usage, schema validation, and the UDS runner.
+  <Card title="Quickstart & Usage" icon="rocket">
+    Deploy your first bundle, run tasks with the UDS runner, and understand core CLI workflows.
 
-    [CLI Overview](/cli/reference/cli/overview/)
+    <ul class="doc-links">
+      <li>[Quickstart & Usage](/cli/reference/cli/quickstart-and-usage/)</li>
+      <li>[CLI Overview](/cli/reference/cli/overview/)</li>
+      <li>[Schema Validation](/cli/reference/cli/schema-validation/)</li>
+    </ul>
   </Card>
-  <Card title="Bundles">
-    Learn how to configure and override UDS bundles.
 
-    [Bundles Overview](/cli/reference/bundles/overview/)
+  <Card title="Bundles" icon="puzzle">
+    Bundle multiple Zarf packages into a single deployable artifact and customize them at deploy time.
+
+    <ul class="doc-links">
+      <li>[Bundles Overview](/cli/reference/bundles/overview/)</li>
+      <li>[Bundle Overrides](/cli/reference/bundles/overrides/)</li>
+    </ul>
+  </Card>
+
+  <Card title="Command Reference" icon="list-format">
+    Full reference for every `uds` command, flag, and subcommand.
+
+    <ul class="doc-links">
+      <li>[uds](/cli/reference/cli/commands/uds/)</li>
+      <li>[uds deploy](/cli/reference/cli/commands/uds_deploy/)</li>
+      <li>[uds create](/cli/reference/cli/commands/uds_create/)</li>
+      <li>[uds run](/cli/reference/cli/commands/uds_run/)</li>
+    </ul>
+  </Card>
+
+  <Card title="UDS Runner" icon="setting">
+    A task runner built into the CLI for automating bundle workflows.
+
+    <ul class="doc-links">
+      <li>[UDS Runner](/cli/reference/cli/uds-runner/)</li>
+    </ul>
   </Card>
 </CardGrid>
+
+<style>
+  .hero-section {
+    text-align: center;
+    padding: 1.5rem 0 2rem;
+  }
+
+  .hero-tagline {
+    font-size: 1.2rem;
+    color: var(--sl-color-gray-2);
+    margin-bottom: 1.5rem;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .doc-links {
+    list-style: none;
+    padding: 0;
+    margin: 0.75rem 0 0;
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .doc-links a {
+    text-decoration: none;
+  }
+
+  .doc-links a:hover {
+    text-decoration: underline;
+  }
+</style>
