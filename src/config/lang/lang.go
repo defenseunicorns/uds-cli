@@ -37,7 +37,7 @@ const (
 	// bundle create
 	CmdBundleCreateShort                  = "Create a bundle from a given directory or the current directory"
 	CmdBundleCreateFlagConfirm            = "Confirm bundle creation without prompting"
-	CmdBundleCreateFlagOutput             = "Specify the output (an oci:// URL) for the created bundle"
+	CmdBundleCreateFlagOutput             = "Specify the output directory or oci:// URL for the created bundle"
 	CmdBundleCreateFlagSigningKey         = "Path to private key file for signing bundles"
 	CmdBundleCreateFlagSigningKeyPassword = "Password to the private key file used for signing bundles"
 	CmdBundleCreateFlagVersion            = "Specify the version of the bundle"

@@ -14,7 +14,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Dependency Review
-        uses: actions/dependency-review-action@3c4e3dcb1aa7874d2c16be7d79418e9b7efd6261 # v4.8.2
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
         with:
           fail-on-severity: high
   grype-scan:
@@ -38,7 +38,7 @@ jobs:
           run: jq . grype-scan.json
 
         - name: Upload Grype Scan Report
-          uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+          uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
           if: always()
           with:
             name: grype-scan-report
@@ -66,7 +66,7 @@ jobs:
             output-file: govulncheck.json
 
         - name: Upload Govulncheck Report
-          uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+          uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
           with:
             name: govulncheck-report
             path: govulncheck.json

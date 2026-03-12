@@ -95,6 +95,20 @@ By default all the packages in the bundle are deployed, regardless of if they ha
 
 As an example: `uds deploy uds-bundle-<name>.tar.zst --resume`
 
+#### Setting a package timeout
+
+By default, UDS uses a shared deploy timeout for all packages in a bundle. To override this for a specific package, set `timeout` on that package in `uds-bundle.yaml`.
+
+```yaml
+packages:
+  - name: init
+    repository: ghcr.io/defenseunicorns/packages/init
+    ref: v0.33.0
+    timeout: 5m
+```
+
+The value uses Go duration format (for example `30s`, `10m`, or `1h30m`).
+
 ### Pruning Unreferenced Packages
 
 In the process of upgrading bundles, it's common to swap or remove packages from a `uds-bundle.yaml`. These packages can become `unreferenced`, meaning that they are still deployed to the cluster, but are no longer referenced by a bundle. To remove these packages from the cluster, you can use the `--prune` flag when deploying a bundle.
