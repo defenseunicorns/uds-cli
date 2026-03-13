@@ -1,0 +1,80 @@
+---
+title: Installation
+sidebar:
+  order: 2.2
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Install UDS CLI
+
+<Tabs>
+  <TabItem label="Homebrew (macOS / Linux)">
+
+<Steps>
+
+1. **Add the Defense Unicorns tap**
+
+   ```bash
+   brew tap defenseunicorns/tap
+   ```
+
+2. **Install UDS CLI**
+
+   ```bash
+   brew install uds
+   ```
+
+3. **Verify the installation**
+
+   ```bash
+   uds version
+   ```
+
+</Steps>
+
+  </TabItem>
+  <TabItem label="Binary (all platforms)">
+
+<Steps>
+
+1. **Download the binary for your platform**
+
+   All releases are available on the [UDS CLI GitHub releases page](https://github.com/defenseunicorns/uds-cli/releases/latest). Download the binary matching your OS and architecture.
+
+2. **Make it executable and move it to your `PATH`**
+
+   ```bash
+   chmod +x uds-linux-amd64
+   sudo mv uds-linux-amd64 /usr/local/bin/uds
+   ```
+
+3. **Verify the installation**
+
+   ```bash
+   uds version
+   ```
+
+</Steps>
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Verify
+
+After installation, confirm the CLI is available and working:
+
+```bash
+uds version
+uds --help
+```
+
+`--help` shows the full list of available commands.
+
+---
+
+## Next Steps
+
+- [Quickstart](/cli/getting-started/quickstart/) — create and deploy your first UDS Bundle

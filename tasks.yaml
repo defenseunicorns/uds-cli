@@ -120,6 +120,13 @@ tasks:
           export ARCHIVES_VERSION=${ARCHIVER_VERSION}
           goreleaser build --clean --snapshot
 
+  - name: dev-docs
+    description: "Run the docs site locally with CLI docs overlay"
+    actions:
+      - cmd: |
+          cd ../uds-core/uds-docs && \
+          DOCS_OVERRIDES="uds-cli=$(pwd)/../../uds-cli" npm run dev
+
   - name: uds-docs-validate
     description: "Validate and build uds-docs with latest uds-cli docs"
     actions:

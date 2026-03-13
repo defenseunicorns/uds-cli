@@ -1,0 +1,41 @@
+---
+title: Getting Started with UDS CLI
+sidebar:
+  order: 2.1
+---
+
+import { Card, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Choose your path based on your goal.
+
+<CardGrid>
+  <Card title="Install UDS CLI" icon="rocket">
+    Get the binary on your machine via Homebrew or direct download.
+
+    - **Time:** ~2 minutes
+    - **Needs:** macOS or Linux (Windows via WSL2)
+    - **Result:** `uds` available on your `PATH`
+
+    <LinkCard title="Install UDS CLI" href="/cli/getting-started/installation/" />
+  </Card>
+
+  <Card title="Quickstart" icon="open-book">
+    Write a `uds-bundle.yaml`, create a bundle, and deploy it to a cluster end-to-end.
+
+    - **Time:** ~10 minutes
+    - **Needs:** UDS CLI installed, a running Kubernetes cluster
+    - **Result:** A deployed UDS Bundle
+
+    <LinkCard title="Run the Quickstart" href="/cli/getting-started/quickstart/" />
+  </Card>
+</CardGrid>
+
+---
+
+## What's Next
+
+Once you have the CLI installed and have deployed a basic bundle, explore the how-to guides:
+
+- [Use Bundle Overrides](/cli/how-to-guides/use-bundle-overrides/) — customize Helm chart values at deploy time
+- [Use UDS Runner](/cli/how-to-guides/use-uds-runner/) — automate bundle workflows with `tasks.yaml`
+- [Monitor a Cluster](/cli/how-to-guides/monitor-cluster/) — stream real-time Pepr logs from a running cluster

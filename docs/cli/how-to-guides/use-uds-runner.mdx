@@ -1,0 +1,155 @@
+---
+title: Use UDS Runner
+sidebar:
+  order: 3.3
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+## What You'll Accomplish
+
+UDS CLI ships with a vendored build of [maru-runner](https://github.com/defenseunicorns/maru-runner) called **UDS Runner**. By the end of this guide you'll know how to:
+
+- Run tasks from a `tasks.yaml`
+- Set task variables via environment variables
+- Invoke `uds` and `zarf` commands from within tasks
+- Use the built-in `UDS_ARCH` variable
+
+---
+
+## Prerequisites
+
+- [UDS CLI installed](/cli/getting-started/installation/)
+- A `tasks.yaml` file in your project
+
+---
+
+## Steps
+
+<Steps>
+
+1. **Create a `tasks.yaml`**
+
+   ```yaml title="tasks.yaml"
+   tasks:
+     - name: echo-hello
+       description: "Print a greeting"
+       actions:
+         - cmd: echo "Hello from UDS Runner"
+   ```
+
+2. **Run a task**
+
+   ```bash
+   uds run echo-hello
+   ```
+
+   To run a task from a specific file (not the default `tasks.yaml`):
+
+   ```bash
+   uds run -f path/to/other-tasks.yaml my-task
+   ```
+
+3. **Use variables**
+
+   Define variables with defaults and override them at runtime:
+
+   ```yaml title="tasks.yaml"
+   variables:
+     - name: FOO
+       default: foo
+
+   tasks:
+     - name: echo-foo
+       actions:
+         - cmd: echo ${FOO}
+   ```
+
+   Override via environment variable (prefix with `UDS_`):
+
+   ```bash
+   UDS_FOO=bar uds run echo-foo
+   # prints: bar
+   ```
+
+4. **Run UDS and Zarf commands from tasks**
+
+   Use `./uds` to call your system UDS binary and `./zarf` to call the vendored Zarf binary:
+
+   ```yaml title="tasks.yaml"
+   tasks:
+     - name: inspect-and-check
+       actions:
+         - cmd: ./uds inspect k3d-core-istio-dev:0.16.1
+         - cmd: ./zarf tools kubectl get pods -A
+   ```
+
+   > [!NOTE]
+   > UDS CLI automatically strips progress bars from `./uds` commands in tasks. When `CI=true`, progress bars are also removed from `uds run` output.
+
+   Since Zarf is vendored inside UDS CLI, there is no separate Zarf installation required.
+
+5. **Use the architecture variable**
+
+   `UDS_ARCH` is automatically set to your system architecture and is available inside any task:
+
+   ```yaml title="tasks.yaml"
+   tasks:
+     - name: print-arch
+       actions:
+         - cmd: echo ${UDS_ARCH}
+   ```
+
+   ```bash
+   uds run print-arch
+   # prints: amd64 (or arm64)
+
+   UDS_ARCHITECTURE=amd64 uds run print-arch
+   # prints: amd64
+   ```
+
+6. **Organize tasks with includes**
+
+   Break large task sets across multiple files using `includes`:
+
+   ```yaml title="tasks.yaml"
+   includes:
+     - test: tasks/tests.yaml
+     - build: tasks/build.yaml
+
+   tasks:
+     - name: full-ci
+       actions:
+         - task: build:build-all
+         - task: test:run-all
+   ```
+
+</Steps>
+
+---
+
+## Verify
+
+List all tasks defined in your `tasks.yaml`:
+
+```bash
+uds run --list
+```
+
+---
+
+## Troubleshooting
+
+| Symptom | Check |
+|---|---|
+| `task not found` | Verify the task name matches exactly (case-sensitive) |
+| Variable not applied | Confirm the env var uses the `UDS_` prefix |
+| `./zarf` command not found | Ensure you are using `./zarf`, not `zarf` — the vendored binary requires the `./` prefix |
+| Wrong architecture detected | Override with `UDS_ARCHITECTURE=amd64` (or `arm64`) |
+
+---
+
+## Next Steps
+
+- [Monitor a Cluster](/cli/how-to-guides/monitor-cluster/) — stream real-time Pepr logs
+- [Use Bundle Overrides](/cli/how-to-guides/use-bundle-overrides/) — customize deployments at runtime
