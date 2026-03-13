@@ -1,48 +1,85 @@
 ---
 title: UDS CLI
 description: The primary interface for deploying and managing UDS bundles and mission applications.
-tableOfContents: false
-sidebar:
-  hidden: true
-prev: false
-next: false
 ---
 
 import { CardGrid, Card } from '@astrojs/starlight/components';
 
-<p style="font-size: 1.1rem; color: var(--sl-color-gray-2); margin-bottom: 2rem;">The primary interface for deploying and managing UDS bundles and mission applications.</p>
+<style>{`
+  .main-pane .content-panel:has(h1#_top) { display: none; }
+  .main-pane .content-panel:has(h1#_top) + .content-panel { border-top: none; }
+  .custom-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem 0 0.5rem;
+  }
+  .custom-hero .hero-logo {
+    max-width: 36rem !important;
+    width: 100%;
+    height: auto;
+  }
+`}</style>
+
+<div class="custom-hero">
+  <img src="/assets/UDS_CLI_Logo_White.svg" alt="UDS CLI" class="hero-logo hero-logo-dark" data-zoom-off />
+  <img src="/assets/UDS_CLI_Logo_Dark.svg" alt="UDS CLI" class="hero-logo hero-logo-light" data-zoom-off />
+</div>
+
+UDS CLI streamlines deployment by bundling multiple Zarf packages into a single deployable artifact — a **UDS Bundle**. It also includes a built-in task runner ([UDS Runner](/cli/how-to-guides/use-uds-runner/)) for automating workflows and a `monitor` command for observing cluster state in real time.
+
+---
+
+## Key Commands
+
+| Command | Description |
+|---|---|
+| `uds create` | Build a UDS Bundle from a `uds-bundle.yaml` |
+| `uds deploy` | Deploy a bundle from a local file or OCI registry |
+| `uds inspect` | Inspect bundle metadata, images, SBOMs, and variables |
+| `uds publish` | Publish a bundle to an OCI registry |
+| `uds remove` | Remove a deployed bundle from a cluster |
+| `uds run` | Execute tasks from a `tasks.yaml` via UDS Runner |
+| `uds monitor pepr` | Stream Pepr admission and operator logs |
+| `uds zarf` | Access the vendored Zarf CLI |
+
+Full command reference is available via `uds --help` and `uds <command> --help`, or on the [UDS CLI releases page](https://github.com/defenseunicorns/uds-cli/releases).
+
+---
 
 <CardGrid>
-  <Card title="Quickstart & Usage">
-    Deploy your first bundle, run tasks with the UDS runner, and understand core CLI workflows.
+  <Card title="Getting Started">
+    Install UDS CLI and deploy your first bundle.
 
-    - [Quickstart & Usage](/cli/reference/cli/quickstart-and-usage/)
-    - [CLI Overview](/cli/reference/cli/overview/)
-    - [Schema Validation](/cli/reference/cli/schema-validation/)
+    - [Installation](/cli/getting-started/installation/)
+    - [Quickstart](/cli/getting-started/quickstart/)
   </Card>
 
-  <Card title="Bundles">
-    Bundle multiple Zarf packages into a single deployable artifact and customize them at deploy time.
+  <Card title="How-to Guides">
+    Common operational patterns.
 
-    - [Bundles Overview](/cli/reference/bundles/overview/)
-    - [Bundle Overrides](/cli/reference/bundles/overrides/)
-  </Card>
-
-  <Card title="Command Reference">
-    Full reference for every `uds` command, flag, and subcommand.
-
-    - [uds](/cli/reference/cli/commands/uds/)
-    - [uds deploy](/cli/reference/cli/commands/uds_deploy/)
-    - [uds create](/cli/reference/cli/commands/uds_create/)
-    - [uds run](/cli/reference/cli/commands/uds_run/)
-  </Card>
-
-  <Card title="UDS Runner">
-    A task runner built into the CLI for automating bundle workflows.
-
-    - [UDS Runner](/cli/reference/cli/uds-runner/)
+    - [Use Bundle Overrides](/cli/how-to-guides/use-bundle-overrides/)
+    - [Use UDS Runner](/cli/how-to-guides/use-uds-runner/)
+    - [Monitor a Cluster](/cli/how-to-guides/monitor-cluster/)
   </Card>
 </CardGrid>
+
+---
+
+## Schema Validation & IDE Setup
+
+UDS CLI ships with a JSON schema for `uds-bundle.yaml`. To enable IDE autocompletion and validation, see the [schema validation docs](https://github.com/defenseunicorns/uds-cli/blob/main/dev-docs/schema-validation.md) in the repository.
+
+---
+
+## Ecosystem Context
+
+UDS CLI works alongside UDS Core — the platform layer providing networking, identity, security, and observability. To understand how bundles fit into the broader UDS ecosystem, see:
+
+- [Bundles concept](/core/concepts/configuration-and-packaging/bundles/)
+- [UDS Core overview](/core/)
+
+---
 
 <div style="margin-top: 1.25rem; padding: 0.9rem 1rem; border: 1px solid var(--sl-color-hairline); border-radius: 0.75rem; font-size: 0.95rem;">
   <strong>Get Involved</strong>

@@ -264,6 +264,14 @@ Run `uds deploy` without `--confirm` to see the pre-deploy summary showing all c
 
 ---
 
+## Duplicate Packages
+
+You can deploy multiple instances of the same Zarf package in a bundle by giving each a unique `name` and deploying them into different namespaces using `overrides`. This requires the `namespace` override on any Helm charts in those packages.
+
+For full details and examples, see [duplicate packages in the repository](https://github.com/defenseunicorns/uds-cli/blob/main/dev-docs/reference/CLI/quickstart-and-usage.md#duplicate-packages-and-naming).
+
+---
+
 ## Next Steps
 
 - [Use UDS Runner](/cli/how-to-guides/use-uds-runner/) — automate workflows with `tasks.yaml`

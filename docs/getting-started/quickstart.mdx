@@ -14,7 +14,7 @@ By the end of this quickstart you'll have:
 - Created a bundle locally
 - Deployed it to a Kubernetes cluster
 
-To understand how bundles fit into the UDS ecosystem, see [Bundles](/concepts/configuration-and-packaging/bundles/).
+To understand how bundles fit into the UDS ecosystem, see [Bundles](/core/concepts/configuration-and-packaging/bundles/).
 
 ---
 
@@ -97,6 +97,12 @@ uds zarf tools kubectl get pods -A
 
 ---
 
+## Bundle Anatomy
+
+A UDS Bundle is an OCI artifact containing one or more Zarf packages along with a `uds-bundle.yaml` manifest. See the [bundle anatomy diagram](https://github.com/defenseunicorns/uds-cli/blob/main/docs/.images/uds-bundle.png?raw=true) in the repository.
+
+---
+
 ## Bundle Syntax Notes
 
 **The `uds-bundle.yaml` is entirely declarative.** UDS CLI will not prompt for optional Zarf components at deploy time. To include an optional component, list it explicitly:
@@ -117,6 +123,15 @@ packages:
 uds deploy unicorn-bundle:v0.1.0
 uds deploy ghcr.io/defenseunicorns/packages/uds/bundles/unicorn-bundle:v0.1.0
 ```
+
+**Multi-arch support** — UDS CLI supports multi-arch bundles. You can push `amd64` and `arm64` bundles to the same OCI tag. Architecture is determined in this order (highest precedence first):
+
+1. `--architecture` / `-a` flag
+2. `UDS_ARCHITECTURE` environment variable
+3. `options.architecture` in `uds-config.yaml`
+4. `metadata.architecture` in `uds-bundle.yaml`
+
+For full details on multi-arch bundles and architecture validation, see the [uds-cli repository](https://github.com/defenseunicorns/uds-cli/blob/main/dev-docs/reference/CLI/quickstart-and-usage.md#bundle-architecture-and-multi-arch-support).
 
 ---
 
