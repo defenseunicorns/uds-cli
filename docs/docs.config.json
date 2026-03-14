@@ -1,0 +1,9 @@
+{
+  "id": "cli",
+  "label": "CLI",
+  "contentDir": "cli",
+  "sidebarOrder": [
+    "getting-started",
+    { "dir": "how-to-guides", "label": "How-to Guides" }
+  ]
+}
