@@ -113,8 +113,8 @@ func deployZarfInit(t *testing.T) {
 		// Create
 		runCmd(t, fmt.Sprintf("create %s --confirm --insecure", bundleDir))
 
-		// Deploy
-		runCmd(t, fmt.Sprintf("deploy %s --confirm -l=debug", bundlePath))
+		// Deploy. For now use force conflicts to make sure tests pass, the newest version of the Zarf init package, shouldn't need this
+		runCmd(t, fmt.Sprintf("deploy %s --confirm --force-conflicts -l=debug", bundlePath))
 	}
 }
 
