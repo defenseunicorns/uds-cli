@@ -4,7 +4,7 @@ sidebar:
   order: 3.2
 ---
 
-import { Steps, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { Steps, Tabs, TabItem, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 ## What you'll accomplish
 
@@ -17,10 +17,10 @@ Bundle overrides let you customize Helm charts inside Zarf packages without modi
 
 ## Prerequisites
 
-- [UDS CLI installed](/cli/getting-started/installation/)
+- [UDS CLI installed](/getting-started/installation/)
 - A `uds-bundle.yaml` referencing at least one Zarf package with Helm charts
 
-## Overview
+## Before you begin
 
 The `overrides` block in `uds-bundle.yaml` maps to the structure of a Zarf package:
 
@@ -96,22 +96,26 @@ overrides:
    Unlike `values`, `variables` can be overridden at deploy time:
 
    ```yaml title="uds-bundle.yaml"
-   overrides:
-     helm-overrides-component:
-       podinfo:
-         variables:
-           - name: UI_COLOR
-             path: "ui.color"
-             description: "Set the color for podinfo's UI"
-             default: "purple"
-           - name: SECRET_VAL
-             path: "testSecret"
-             description: "A sensitive value, masked in output"
-             sensitive: true
-           - name: TLS_CERT
-             path: "tls.cert"
-             description: "Path to a certificate file"
-             type: file
+   packages:
+     - name: helm-overrides-package
+       path: "path/to/pkg"
+       ref: 0.0.1
+       overrides:
+         helm-overrides-component:
+           podinfo:
+             variables:
+               - name: UI_COLOR
+                 path: "ui.color"
+                 description: "Set the color for podinfo's UI"
+                 default: "purple"
+               - name: SECRET_VAL
+                 path: "testSecret"
+                 description: "A sensitive value, masked in output"
+                 sensitive: true
+               - name: TLS_CERT
+                 path: "tls.cert"
+                 description: "Path to a certificate file"
+                 type: file
    ```
 
    Variable types:
@@ -123,9 +127,12 @@ overrides:
 
 4. **Override a variable at deploy time**
 
-   Three methods, in order of increasing precedence:
+   Three methods are available, in order of increasing precedence:
 
-   **Via `uds-config.yaml`** (place in the same directory as the bundle):
+   <Tabs>
+     <TabItem label="uds-config.yaml">
+
+   Place a `uds-config.yaml` in the same directory as the bundle:
 
    ```yaml title="uds-config.yaml"
    variables:
@@ -133,13 +140,17 @@ overrides:
        ui_color: green   # variable names are case-insensitive
    ```
 
-   **Via environment variable** (prefix with `UDS_`):
+     </TabItem>
+     <TabItem label="Environment variable">
+
+   Prefix the variable name with `UDS_`:
 
    ```bash
    UDS_UI_COLOR=green uds deploy uds-bundle-helm-overrides.tar.zst --confirm
    ```
 
-   **Via `--set` flag**:
+     </TabItem>
+     <TabItem label="--set flag">
 
    ```bash
    # Apply to all packages
@@ -151,6 +162,12 @@ overrides:
 
    > [!CAUTION]
    > Helm override variables and Zarf variables share the same `--set` syntax. Avoid naming conflicts between them.
+
+     </TabItem>
+   </Tabs>
+
+   > [!NOTE]
+   > **Variable precedence** (least to most specific): Zarf package default → `import`'ed export → `shared` in `uds-config.yaml` → `variables` in `uds-config.yaml` → `UDS_` env var → `--set` flag. For `values` overrides: earlier `valuesFile` → later `valuesFile` → static `values` block.
 
 5. **Share a value across all packages with `uds-config.yaml`**
 
@@ -197,28 +214,10 @@ overrides:
              value: 1
    ```
 
+   > [!TIP]
+   > You can deploy multiple instances of the same Zarf package by giving each a unique `name` and using the `namespace` override to place them in different namespaces.
+
 </Steps>
-
-## Variable Precedence
-
-From least to most specific:
-
-| Source | Precedence |
-|---|---|
-| Declared in Zarf package | Lowest |
-| `import`'ed from another package's `export` | |
-| `shared` key in `uds-config.yaml` | |
-| `variables` key in `uds-config.yaml` | |
-| `UDS_` prefixed environment variable | |
-| `--set` flag | Highest |
-
-For override `values` specifically:
-
-| Source | Precedence |
-|---|---|
-| Earlier `valuesFile` | Lowest |
-| Later `valuesFile` | |
-| Static `values` in `overrides` block | Highest |
 
 ## Verification
 
@@ -256,11 +255,9 @@ Run `uds deploy` without `--confirm` to see the pre-deploy summary showing all c
 
 **Solution:** Relative file paths are resolved relative to the `uds-config.yaml` directory.
 
-## Duplicate Packages
-
-You can deploy multiple instances of the same Zarf package in a bundle by giving each a unique `name` and deploying them into different namespaces using `overrides`. Each instance must have a unique `name` in the bundle and a `namespace` override on all Helm charts in that package to avoid conflicts.
-
 ## Next steps
+
+These guides and concepts may be useful to explore next:
 
 <CardGrid>
   <LinkCard

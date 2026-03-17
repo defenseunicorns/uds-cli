@@ -4,7 +4,7 @@ sidebar:
   order: 3.4
 ---
 
-import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { Steps, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 ## What you'll accomplish
 
@@ -16,76 +16,92 @@ UDS clusters include two Kubernetes controllers built with [Pepr](https://pepr.d
 
 ## Prerequisites
 
-- [UDS CLI installed](/cli/getting-started/installation/)
+- [UDS CLI installed](/getting-started/installation/)
 - Access to a running UDS cluster
 
-## UDS Controllers
+## Before you begin
+
+UDS Core runs two Pepr-based controllers that `uds monitor` streams logs from:
 
 | Controller | Pod prefix | Responsibility |
 |---|---|---|
 | **Admission Controller** | `pepr-uds-core` | Validates and mutates resources; enforces UDS Exemptions |
 | **Operator Controller** | `pepr-uds-core-watcher` | Manages lifecycle of UDS Package resources |
 
-## Stream Logs
+## Steps
 
-**All logs** — aggregate admission and operator logs into a single stream:
+<Steps>
 
-```bash
-uds monitor pepr
-```
+1. **Confirm the controllers are running**
 
-**Operator logs only** — UDS Package processing, status updates, and errors:
+   ```bash
+   uds zarf tools kubectl get pods -n pepr-system
+   ```
 
-```bash
-uds monitor pepr operator
-```
+   You should see `pepr-uds-core-*` and `pepr-uds-core-watcher-*` pods in a `Running` state before proceeding.
 
-**All policy decisions** (allow, deny, mutate):
+2. **Stream logs**
 
-```bash
-uds monitor pepr policies
-```
+   Run the command matching what you want to observe:
 
-**Specific policy actions:**
+   **All logs** — aggregate admission and operator logs into a single stream:
 
-```bash
-uds monitor pepr allowed   # allow logs
-uds monitor pepr denied    # deny logs
-uds monitor pepr mutated   # mutation logs
-uds monitor pepr failed    # deny + operator error logs
-```
+   ```bash
+   uds monitor pepr
+   ```
 
-## Monitor Flags
+   **Operator logs only** — UDS Package processing, status updates, and errors:
 
-| Flag | Description |
-|---|---|
-| `-f`, `--follow` | Continuously stream logs (keep the session open) |
-| `--json` | Return raw JSON output |
-| `--since <duration>` | Only show logs newer than the given duration (e.g., `5s`, `2m`, `3h`). Defaults to all logs. |
-| `-t`, `--timestamps` | Show timestamps in log output |
+   ```bash
+   uds monitor pepr operator
+   ```
 
-Examples:
+   **All policy decisions** (allow, deny, mutate):
 
-```bash
-# Follow all logs with timestamps
-uds monitor pepr --follow --timestamps
+   ```bash
+   uds monitor pepr policies
+   ```
 
-# Show only the last 5 minutes of policy deny logs
-uds monitor pepr denied --since 5m
+   **Specific policy actions:**
 
-# Get raw JSON for programmatic processing
-uds monitor pepr --json
-```
+   ```bash
+   uds monitor pepr allowed   # allow logs
+   uds monitor pepr denied    # deny logs
+   uds monitor pepr mutated   # mutation logs
+   uds monitor pepr failed    # deny + operator error logs
+   ```
+
+3. **(Optional) Refine with flags**
+
+   | Flag | Description |
+   |---|---|
+   | `-f`, `--follow` | Continuously stream logs (keep the session open) |
+   | `--json` | Return raw JSON output |
+   | `--since <duration>` | Only show logs newer than the given duration (e.g., `5s`, `2m`, `3h`). Defaults to all logs. |
+   | `-t`, `--timestamps` | Show timestamps in log output |
+
+   ```bash
+   # Follow all logs with timestamps
+   uds monitor pepr --follow --timestamps
+
+   # Show only the last 5 minutes of policy deny logs
+   uds monitor pepr denied --since 5m
+
+   # Get raw JSON for programmatic processing
+   uds monitor pepr --json
+   ```
+
+</Steps>
 
 ## Verification
 
-Confirm both controllers are present in the cluster:
+Confirm logs are streaming by running:
 
 ```bash
-uds zarf tools kubectl get pods -n pepr-system
+uds monitor pepr --follow
 ```
 
-You should see `pepr-uds-core-*` and `pepr-uds-core-watcher-*` pods in a `Running` state.
+You should see a continuous stream of admission and operator events as activity occurs in the cluster.
 
 ## Troubleshooting
 
@@ -108,6 +124,8 @@ You should see `pepr-uds-core-*` and `pepr-uds-core-watcher-*` pods in a `Runnin
 **Solution:** Add `--follow` to keep the stream open.
 
 ## Next steps
+
+These guides and concepts may be useful to explore next:
 
 <CardGrid>
   <LinkCard
