@@ -119,7 +119,6 @@ tasks:
           export ARCHIVES_VERSION=${ARCHIVER_VERSION}
           goreleaser build --clean --snapshot
 
-  # Note that due to cloning the docs repo (which is private) this task will require organization access to the repo
   # TODO: update branch to main once sidebar-generation-from-upstream-configuration is merged
   - name: dev-docs
     description: "Build and preview the docs site using local uds-cli docs"

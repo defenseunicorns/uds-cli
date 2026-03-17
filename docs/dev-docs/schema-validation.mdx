@@ -1,0 +1,42 @@
+---
+title: Schema Validation & IDE Setup
+sidebar:
+  order: 1
+---
+
+UDS CLI ships with JSON schemas for its configuration files. Setting up schema validation in your IDE enables autocompletion and inline validation.
+
+## Recommended Method (All IDEs)
+
+Add a `yaml-language-server` header comment to your file:
+
+**`uds-bundle.yaml`**
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/defenseunicorns/uds-cli/main/uds.schema.json
+```
+
+**`zarf.yaml`**
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/defenseunicorns/uds-cli/main/zarf.schema.json
+```
+
+**`tasks.yaml`**
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/defenseunicorns/uds-cli/main/tasks.schema.json
+```
+
+This works with both VS Code and GoLand (JetBrains IDEs).
+
+## VS Code
+
+Install the [YAML Extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) and add the following to your `settings.json` (pin `main` to your UDS CLI version if desired):
+
+```json
+"yaml.schemas": {
+    "https://raw.githubusercontent.com/defenseunicorns/uds-cli/main/uds.schema.json": "uds-bundle.yaml"
+}
+```
+
+## GoLand (JetBrains IDEs)
+
+To apply the schema globally without modifying individual files, open **Settings → Languages & Frameworks → Schemas and DTDs → JSON Schema Mappings** and add a new entry using the schema URL and a file path pattern.
