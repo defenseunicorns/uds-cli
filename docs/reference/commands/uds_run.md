@@ -1,19 +1,19 @@
 ---
-title: uds logs
-description: UDS CLI command reference for <code>uds logs</code>.
+title: uds run
+description: UDS CLI command reference for <code>uds run</code>.
 ---
-## uds logs
+## uds run
 
-View most recent UDS CLI logs
+Run a task using maru-runner
 
 ```
-uds logs [flags]
+uds run [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for logs
+  -h, --help   help for run
 ```
 
 ### Options inherited from parent commands
@@ -33,5 +33,5 @@ uds logs [flags]
 
 ### SEE ALSO
 
-* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds](/reference/commands/uds/)	 - CLI for UDS Bundles
 

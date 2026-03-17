@@ -66,7 +66,7 @@ var genCLIDocs = &cobra.Command{
 		rootCmd.Flag("uds-cache").DefValue = "~/.uds-cache"
 
 		// remove existing docs but ignore the _index.md
-		glob, err := filepath.Glob("./docs/reference/CLI/commands/uds*.md")
+		glob, err := filepath.Glob("./docs/reference/commands/uds*.md")
 		if err != nil {
 			return err
 		}
@@ -95,11 +95,11 @@ description: UDS CLI command reference for <code>%s</code>.
 		}
 
 		var linkHandler = func(link string) string {
-			return "/reference/cli/commands/" + link[:len(link)-3] + "/"
+			return "/reference/commands/" + link[:len(link)-3] + "/"
 		}
 
-		// glob, err := filepath.Glob("./docs/reference/CLI/commands/uds*.md")
-		err = doc.GenMarkdownTreeCustom(rootCmd, "./docs/reference/CLI/commands/", prependTitle, linkHandler)
+		
+		err = doc.GenMarkdownTreeCustom(rootCmd, "./docs/reference/commands/", prependTitle, linkHandler)
 		if err != nil {
 			return err
 		}

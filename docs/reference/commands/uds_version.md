@@ -1,24 +1,23 @@
 ---
-title: uds inspect
-description: UDS CLI command reference for <code>uds inspect</code>.
+title: uds version
+description: UDS CLI command reference for <code>uds version</code>.
 ---
-## uds inspect
+## uds version
 
-Display the metadata of a bundle
+Shows the version of the running UDS-CLI binary
+
+### Synopsis
+
+Displays the version of the UDS-CLI release that the current binary was built from.
 
 ```
-uds inspect [BUNDLE_TARBALL|OCI_REF|BUNDLE_YAML_FILE] [flags]
+uds version [flags]
 ```
 
 ### Options
 
 ```
-  -e, --extract          Create a folder of SBOMs contained in the bundle
-  -h, --help             help for inspect
-  -k, --key string       Path to a public key file that will be used to validate a signed bundle
-  -i, --list-images      Derive images from a uds-bundle.yaml file and list them
-  -v, --list-variables   List all configurable variables in a bundle (including zarf variables)
-  -s, --sbom             Create a tarball of SBOMs contained in the bundle
+  -h, --help   help for version
 ```
 
 ### Options inherited from parent commands
@@ -38,5 +37,5 @@ uds inspect [BUNDLE_TARBALL|OCI_REF|BUNDLE_YAML_FILE] [flags]
 
 ### SEE ALSO
 
-* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds](/reference/commands/uds/)	 - CLI for UDS Bundles
 

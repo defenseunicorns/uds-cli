@@ -1,23 +1,24 @@
 ---
-title: uds version
-description: UDS CLI command reference for <code>uds version</code>.
+title: uds deploy
+description: UDS CLI command reference for <code>uds deploy</code>.
 ---
-## uds version
+## uds deploy
 
-Shows the version of the running UDS-CLI binary
-
-### Synopsis
-
-Displays the version of the UDS-CLI release that the current binary was built from.
+Deploy a bundle from a local tarball or oci:// URL
 
 ```
-uds version [flags]
+uds deploy [BUNDLE_TARBALL|OCI_REF] [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for version
+  -c, --confirm                Confirms bundle deployment without prompting. ONLY use with bundles you trust
+  -h, --help                   help for deploy
+  -p, --packages stringArray   Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed.
+  -r, --resume                 Only deploys packages from the bundle which haven't already been deployed
+      --retries int            Specify the number of retries for package deployments (applies to all pkgs in a bundle) (default 3)
+      --set stringToString     Specify deployment variables to set on the command line (KEY=value) (default [])
 ```
 
 ### Options inherited from parent commands
@@ -37,5 +38,5 @@ uds version [flags]
 
 ### SEE ALSO
 
-* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds](/reference/commands/uds/)	 - CLI for UDS Bundles
 

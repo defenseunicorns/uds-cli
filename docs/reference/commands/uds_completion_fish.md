@@ -1,20 +1,35 @@
 ---
-title: uds publish
-description: UDS CLI command reference for <code>uds publish</code>.
+title: uds completion fish
+description: UDS CLI command reference for <code>uds completion fish</code>.
 ---
-## uds publish
+## uds completion fish
 
-Publish a bundle from the local file system to a remote registry
+Generate the autocompletion script for fish
+
+### Synopsis
+
+Generate the autocompletion script for the fish shell.
+
+To load completions in your current shell session:
+
+	uds completion fish | source
+
+To load completions for every new session, execute once:
+
+	uds completion fish > ~/.config/fish/completions/uds.fish
+
+You will need to start a new shell for this setup to take effect.
+
 
 ```
-uds publish [BUNDLE_TARBALL] [OCI_REF] [flags]
+uds completion fish [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help             help for publish
-  -v, --version string   [Deprecated] Specify the version of the bundle to be published. This flag will be removed in a future version. Users should use the --version flag during creation to override the version defined in uds-bundle.yaml
+  -h, --help              help for fish
+      --no-descriptions   disable completion descriptions
 ```
 
 ### Options inherited from parent commands
@@ -34,5 +49,5 @@ uds publish [BUNDLE_TARBALL] [OCI_REF] [flags]
 
 ### SEE ALSO
 
-* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds completion](/reference/commands/uds_completion/)	 - Generate the autocompletion script for the specified shell
 

@@ -1,21 +1,25 @@
 ---
-title: uds pull
-description: UDS CLI command reference for <code>uds pull</code>.
+title: uds create
+description: UDS CLI command reference for <code>uds create</code>.
 ---
-## uds pull
+## uds create
 
-Pull a bundle from a remote registry and save to the local file system
+Create a bundle from a given directory or the current directory
 
 ```
-uds pull [OCI_REF] [flags]
+uds create [DIRECTORY] [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help            help for pull
-  -k, --key string      Path to a public key file that will be used to validate a signed bundle
-  -o, --output string   Specify the output directory for the pulled bundle
+  -c, --confirm                       Confirm bundle creation without prompting
+  -h, --help                          help for create
+  -n, --name string                   Specify the name of the bundle
+  -o, --output string                 Specify the output directory or oci:// URL for the created bundle
+  -k, --signing-key string            Path to private key file for signing bundles
+  -p, --signing-key-password string   Password to the private key file used for signing bundles
+  -v, --version string                Specify the version of the bundle
 ```
 
 ### Options inherited from parent commands
@@ -35,5 +39,5 @@ uds pull [OCI_REF] [flags]
 
 ### SEE ALSO
 
-* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds](/reference/commands/uds/)	 - CLI for UDS Bundles
 

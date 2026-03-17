@@ -1,19 +1,20 @@
 ---
-title: uds run
-description: UDS CLI command reference for <code>uds run</code>.
+title: uds monitor
+description: UDS CLI command reference for <code>uds monitor</code>.
 ---
-## uds run
+## uds monitor
 
-Run a task using maru-runner
+Monitor a UDS Cluster
 
-```
-uds run [flags]
-```
+### Synopsis
+
+Tools for monitoring a UDS Cluster and connecting to the UDS Engine for advanced troubleshooting
 
 ### Options
 
 ```
-  -h, --help   help for run
+  -h, --help               help for monitor
+  -n, --namespace string   Limit monitoring to a specific namespace
 ```
 
 ### Options inherited from parent commands
@@ -33,5 +34,6 @@ uds run [flags]
 
 ### SEE ALSO
 
-* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds](/reference/commands/uds/)	 - CLI for UDS Bundles
+* [uds monitor pepr](/reference/commands/uds_monitor_pepr/)	 - Observe Pepr operations in a UDS Cluster
 
