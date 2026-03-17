@@ -1,0 +1,14 @@
+# Copyright 2024 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+tasks:
+  - name: update
+    description: updates the CLI docs
+    actions:
+      - cmd: ./hack/generate-docs.sh
+
+  - name: test
+    description: tests if the CLI docs have been modified
+    actions:
+      - task: update
+      - cmd: ./hack/test-docs.sh
