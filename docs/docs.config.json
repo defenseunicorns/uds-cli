@@ -1,0 +1,8 @@
+{
+  "id": "cli",
+  "label": "CLI",
+  "contentDir": "cli",
+  "sidebarOrder": [
+    "reference"
+  ]
+}
