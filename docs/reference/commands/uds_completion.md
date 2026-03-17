@@ -39,4 +39,3 @@ See each sub-command's help for details on how to use the generated script.
 * [uds completion bash](/reference/commands/uds_completion_bash/)	 - Generate the autocompletion script for bash
 * [uds completion fish](/reference/commands/uds_completion_fish/)	 - Generate the autocompletion script for fish
 * [uds completion zsh](/reference/commands/uds_completion_zsh/)	 - Generate the autocompletion script for zsh
-

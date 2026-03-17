@@ -98,7 +98,6 @@ description: UDS CLI command reference for <code>%s</code>.
 			return "/reference/commands/" + link[:len(link)-3] + "/"
 		}
 
-		
 		err = doc.GenMarkdownTreeCustom(rootCmd, "./docs/reference/commands/", prependTitle, linkHandler)
 		if err != nil {
 			return err

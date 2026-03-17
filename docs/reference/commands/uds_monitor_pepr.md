@@ -69,4 +69,3 @@ uds monitor pepr [policies | operator | allowed | denied | failed | mutated] [fl
 ### SEE ALSO
 
 * [uds monitor](/reference/commands/uds_monitor/)	 - Monitor a UDS Cluster
-
