@@ -4,7 +4,7 @@ sidebar:
   order: 2.2
 ---
 
-import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Steps, Tabs, TabItem, LinkCard } from '@astrojs/starlight/components';
 
 ## Install UDS CLI
 
@@ -60,9 +60,7 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
   </TabItem>
 </Tabs>
 
----
-
-## Verify
+## Verification
 
 After installation, confirm the CLI is available and working:
 
@@ -73,8 +71,10 @@ uds --help
 
 `--help` shows the full list of available commands.
 
----
+## Next steps
 
-## Next Steps
-
-- [Quickstart](/cli/getting-started/quickstart/) — create and deploy your first UDS Bundle
+<LinkCard
+  title="Quickstart"
+  description="Create and deploy your first UDS Bundle."
+  href="/cli/getting-started/quickstart/"
+/>

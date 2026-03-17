@@ -4,9 +4,9 @@ sidebar:
   order: 3.3
 ---
 
-import { Steps } from '@astrojs/starlight/components';
+import { Steps, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-## What You'll Accomplish
+## What you'll accomplish
 
 UDS CLI ships with a vendored build of [maru-runner](https://github.com/defenseunicorns/maru-runner) called **UDS Runner**. By the end of this guide you'll know how to:
 
@@ -15,14 +15,9 @@ UDS CLI ships with a vendored build of [maru-runner](https://github.com/defenseu
 - Invoke `uds` and `zarf` commands from within tasks
 - Use the built-in `UDS_ARCH` variable
 
----
-
 ## Prerequisites
 
 - [UDS CLI installed](/cli/getting-started/installation/)
-- A `tasks.yaml` file in your project
-
----
 
 ## Steps
 
@@ -85,9 +80,7 @@ UDS CLI ships with a vendored build of [maru-runner](https://github.com/defenseu
    ```
 
    > [!NOTE]
-   > UDS CLI automatically strips progress bars from `./uds` commands in tasks. When `CI=true`, progress bars are also removed from `uds run` output.
-
-   Since Zarf is vendored inside UDS CLI, there is no separate Zarf installation required.
+   > Using `./uds` and `./zarf` (rather than bare `uds` and `zarf`) ensures tasks are portable even if those binaries are not on `PATH`. UDS CLI automatically strips progress bars from `./uds` commands in tasks. Since Zarf is vendored inside UDS CLI, no separate Zarf installation is required.
 
 5. **Use the architecture variable**
 
@@ -126,30 +119,52 @@ UDS CLI ships with a vendored build of [maru-runner](https://github.com/defenseu
 
 </Steps>
 
----
+## Verification
 
-## Verify
-
-List all tasks defined in your `tasks.yaml`:
+List tasks defined in your `tasks.yaml`:
 
 ```bash
-uds run --list
+uds run --list       # tasks in the current file
+uds run --list-all   # tasks in the current file and all included files
 ```
-
----
 
 ## Troubleshooting
 
-| Symptom | Check |
-|---|---|
-| `task not found` | Verify the task name matches exactly (case-sensitive) |
-| Variable not applied | Confirm the env var uses the `UDS_` prefix |
-| `./zarf` command not found | Ensure you are using `./zarf`, not `zarf` — the vendored binary requires the `./` prefix |
-| Wrong architecture detected | Override with `UDS_ARCHITECTURE=amd64` (or `arm64`) |
+### Problem: Task not found
 
----
+**Symptom:** `task not found` error when running `uds run <task-name>`.
 
-## Next Steps
+**Solution:** Verify the task name matches exactly — task names are case-sensitive.
 
-- [Monitor a Cluster](/cli/how-to-guides/monitor-cluster/) — stream real-time Pepr logs
-- [Use Bundle Overrides](/cli/how-to-guides/use-bundle-overrides/) — customize deployments at runtime
+### Problem: Variable not applied
+
+**Symptom:** A task variable retains its default value despite setting an environment variable.
+
+**Solution:** Confirm the environment variable uses the `UDS_` prefix (e.g., `UDS_FOO=bar`).
+
+### Problem: `./zarf` command not found
+
+**Symptom:** A task using `./zarf` fails with a "command not found" error.
+
+**Solution:** Ensure you are using `./zarf`, not bare `zarf` — the vendored binary requires the `./` prefix.
+
+### Problem: Wrong architecture detected
+
+**Symptom:** `UDS_ARCH` resolves to an unexpected value.
+
+**Solution:** Override with `UDS_ARCHITECTURE=amd64` (or `arm64`) before running the task.
+
+## Next steps
+
+<CardGrid>
+  <LinkCard
+    title="Monitor a Cluster"
+    description="Stream real-time Pepr admission and operator logs."
+    href="/cli/how-to-guides/monitor-cluster/"
+  />
+  <LinkCard
+    title="Use Bundle Overrides"
+    description="Customize deployments at runtime with Helm overrides and variables."
+    href="/cli/how-to-guides/use-bundle-overrides/"
+  />
+</CardGrid>

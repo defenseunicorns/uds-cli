@@ -4,26 +4,24 @@ sidebar:
   order: 3.1
 ---
 
-import { CardGrid, Card } from '@astrojs/starlight/components';
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 Task-oriented guides for common UDS CLI operations. Each guide assumes you have [UDS CLI installed](/cli/getting-started/installation/) and a working cluster.
 
 <CardGrid>
-  <Card title="Use Bundle Overrides">
-    Customize Helm chart values, variables, and namespaces in deployed Zarf packages — including `uds-config.yaml` and variable precedence rules.
-
-    [Read guide →](/cli/how-to-guides/use-bundle-overrides/)
-  </Card>
-
-  <Card title="Use UDS Runner">
-    Automate bundle workflows using `tasks.yaml`. Run UDS and Zarf commands as tasks, set variables via environment variables, and leverage the built-in architecture variable.
-
-    [Read guide →](/cli/how-to-guides/use-uds-runner/)
-  </Card>
-
-  <Card title="Monitor a Cluster">
-    Stream real-time Pepr admission and operator logs from a running UDS cluster to observe policy decisions, package processing, and errors.
-
-    [Read guide →](/cli/how-to-guides/monitor-cluster/)
-  </Card>
+  <LinkCard
+    title="Use Bundle Overrides"
+    description="Customize Helm chart values, variables, and namespaces in deployed Zarf packages — including uds-config.yaml and variable precedence rules."
+    href="/cli/how-to-guides/use-bundle-overrides/"
+  />
+  <LinkCard
+    title="Use UDS Runner"
+    description="Automate bundle workflows using tasks.yaml. Run UDS and Zarf commands as tasks, set variables via environment variables, and leverage the built-in architecture variable."
+    href="/cli/how-to-guides/use-uds-runner/"
+  />
+  <LinkCard
+    title="Monitor a Cluster"
+    description="Stream real-time Pepr admission and operator logs from a running UDS cluster to observe policy decisions, package processing, and errors."
+    href="/cli/how-to-guides/monitor-cluster/"
+  />
 </CardGrid>

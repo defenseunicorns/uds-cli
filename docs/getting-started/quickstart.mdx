@@ -4,9 +4,9 @@ sidebar:
   order: 2.3
 ---
 
-import { Steps } from '@astrojs/starlight/components';
+import { Steps, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-## What You'll Accomplish
+## What you'll accomplish
 
 By the end of this quickstart you'll have:
 
@@ -16,14 +16,10 @@ By the end of this quickstart you'll have:
 
 To understand how bundles fit into the UDS ecosystem, see [Bundles](/core/concepts/configuration-and-packaging/bundles/).
 
----
-
 ## Prerequisites
 
 - [UDS CLI installed](/cli/getting-started/installation/)
-- A running Kubernetes cluster with `kubectl` configured (e.g., k3d, kind)
-
----
+- Access to a Kubernetes cluster
 
 ## Steps
 
@@ -42,14 +38,14 @@ To understand how bundles fit into the UDS ecosystem, see [Bundles](/core/concep
 
    packages:
      - name: init
-       repository: ghcr.io/defenseunicorns/packages/init
-       ref: v0.33.0
-     - name: podinfo
-       repository: ghcr.io/defenseunicorns/uds-cli/podinfo
-       ref: 0.0.1
+       repository: ghcr.io/zarf-dev/packages/init
+       ref: v0.73.1
+     - name: dos-games
+       repository: ghcr.io/zarf-dev/packages/dos-games
+       ref: 1.3.0
    ```
 
-   This bundle deploys the Zarf init package followed by [podinfo](https://github.com/stefanprodan/podinfo).
+   This bundle deploys the Zarf init package followed by [dos-games](https://github.com/zarf-dev/zarf/tree/main/examples/dos-games).
 
 2. **Create the bundle**
 
@@ -65,8 +61,8 @@ To understand how bundles fit into the UDS ecosystem, see [Bundles](/core/concep
    uds-bundle-my-first-bundle-amd64-0.0.1.tar.zst
    ```
 
-   > [!NOTE]
-   > To create directly into an OCI registry instead: `uds create . -o ghcr.io/<your-org>/dev`
+   > [!TIP]
+   > Add `--confirm` to skip the creation prompt. To create directly into an OCI registry: `uds create . -o ghcr.io/<your-org>/dev`
 
 3. **Deploy the bundle**
 
@@ -85,9 +81,7 @@ To understand how bundles fit into the UDS ecosystem, see [Bundles](/core/concep
 
 </Steps>
 
----
-
-## Verify
+## Verification
 
 After deployment, confirm the pods are running:
 
@@ -95,64 +89,45 @@ After deployment, confirm the pods are running:
 uds zarf tools kubectl get pods -A
 ```
 
----
-
-## Bundle Anatomy
-
-A UDS Bundle is an OCI artifact containing one or more Zarf packages along with a `uds-bundle.yaml` manifest. See the [bundle anatomy diagram](https://github.com/defenseunicorns/uds-cli/blob/main/docs/.images/uds-bundle.png?raw=true) in the repository.
-
----
-
-## Bundle Syntax Notes
-
-**The `uds-bundle.yaml` is entirely declarative.** UDS CLI will not prompt for optional Zarf components at deploy time. To include an optional component, list it explicitly:
-
-```yaml title="uds-bundle.yaml"
-packages:
-  - name: init
-    repository: ghcr.io/defenseunicorns/packages/init
-    ref: v0.33.0
-    optionalComponents:
-      - git-server
-```
-
-**Defense Unicorns shorthand** — when running `deploy`, `inspect`, `remove`, or `pull`, short paths automatically expand to the Defense Unicorns GHCR org:
-
-```bash
-# These are equivalent:
-uds deploy unicorn-bundle:v0.1.0
-uds deploy ghcr.io/defenseunicorns/packages/uds/bundles/unicorn-bundle:v0.1.0
-```
-
-**Multi-arch support** — UDS CLI supports multi-arch bundles. You can push `amd64` and `arm64` bundles to the same OCI tag. Architecture is determined in this order (highest precedence first):
-
-1. `--architecture` / `-a` flag
-2. `UDS_ARCHITECTURE` environment variable
-3. `options.architecture` in `uds-config.yaml`
-4. `metadata.architecture` in `uds-bundle.yaml`
-
-For full details on multi-arch bundles and architecture validation, see the [uds-cli repository](https://github.com/defenseunicorns/uds-cli/blob/main/dev-docs/reference/CLI/quickstart-and-usage.md#bundle-architecture-and-multi-arch-support).
-
----
+> [!NOTE]
+> A UDS Bundle is an OCI artifact containing one or more Zarf packages and a `uds-bundle.yaml` manifest. The manifest is entirely declarative — UDS CLI will not prompt for optional Zarf components at deploy time. To include an optional component, list it explicitly with `optionalComponents`.
 
 ## Troubleshooting
 
-| Symptom | Check |
-|---|---|
-| `bundle architecture mismatch` | Use `-a amd64` or `-a arm64` to specify target arch explicitly |
-| OCI pull errors | Verify registry credentials with `uds zarf tools registry login` |
-| Package deploy timeout | Set `timeout` on the package in `uds-bundle.yaml` (e.g., `timeout: 10m`) |
+### Problem: Bundle architecture mismatch
 
-To retrieve logs from the most recent operation:
+**Symptom:** `bundle architecture mismatch` error during deploy.
 
-```bash
-uds logs
-```
+**Solution:** Use `-a amd64` or `-a arm64` to specify the target architecture explicitly.
 
----
+### Problem: OCI pull errors
 
-## Next Steps
+**Symptom:** Errors pulling packages from an OCI registry.
 
-- [Use Bundle Overrides](/cli/how-to-guides/use-bundle-overrides/) — customize Helm values at deploy time
-- [Use UDS Runner](/cli/how-to-guides/use-uds-runner/) — automate bundle workflows
-- [Monitor a Cluster](/cli/how-to-guides/monitor-cluster/) — stream real-time Pepr logs
+**Solution:** Verify registry credentials with `uds zarf tools registry login`.
+
+### Problem: Package deploy timeout
+
+**Symptom:** A package deployment times out before completing.
+
+**Solution:** Set `timeout` on the package in `uds-bundle.yaml` (e.g., `timeout: 10m`). To retrieve logs from the most recent operation, run `uds logs`.
+
+## Next steps
+
+<CardGrid>
+  <LinkCard
+    title="Use Bundle Overrides"
+    description="Customize Helm values, variables, and namespaces at deploy time."
+    href="/cli/how-to-guides/use-bundle-overrides/"
+  />
+  <LinkCard
+    title="Use UDS Runner"
+    description="Automate bundle workflows with tasks.yaml."
+    href="/cli/how-to-guides/use-uds-runner/"
+  />
+  <LinkCard
+    title="Monitor a Cluster"
+    description="Stream real-time Pepr admission and operator logs."
+    href="/cli/how-to-guides/monitor-cluster/"
+  />
+</CardGrid>

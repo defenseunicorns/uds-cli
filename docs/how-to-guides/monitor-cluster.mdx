@@ -4,7 +4,9 @@ sidebar:
   order: 3.4
 ---
 
-## What You'll Accomplish
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## What you'll accomplish
 
 UDS clusters include two Kubernetes controllers built with [Pepr](https://pepr.dev/). By the end of this guide you'll know how to:
 
@@ -12,14 +14,10 @@ UDS clusters include two Kubernetes controllers built with [Pepr](https://pepr.d
 - Filter logs by controller type or policy action
 - Use flags to control output format and history
 
----
-
 ## Prerequisites
 
 - [UDS CLI installed](/cli/getting-started/installation/)
-- A running UDS cluster with `kubectl` configured
-
----
+- Access to a running UDS cluster
 
 ## UDS Controllers
 
@@ -27,8 +25,6 @@ UDS clusters include two Kubernetes controllers built with [Pepr](https://pepr.d
 |---|---|---|
 | **Admission Controller** | `pepr-uds-core` | Validates and mutates resources; enforces UDS Exemptions |
 | **Operator Controller** | `pepr-uds-core-watcher` | Manages lifecycle of UDS Package resources |
-
----
 
 ## Stream Logs
 
@@ -59,8 +55,6 @@ uds monitor pepr mutated   # mutation logs
 uds monitor pepr failed    # deny + operator error logs
 ```
 
----
-
 ## Monitor Flags
 
 | Flag | Description |
@@ -83,9 +77,7 @@ uds monitor pepr denied --since 5m
 uds monitor pepr --json
 ```
 
----
-
-## Verify
+## Verification
 
 Confirm both controllers are present in the cluster:
 
@@ -95,19 +87,37 @@ uds zarf tools kubectl get pods -n pepr-system
 
 You should see `pepr-uds-core-*` and `pepr-uds-core-watcher-*` pods in a `Running` state.
 
----
-
 ## Troubleshooting
 
-| Symptom | Check |
-|---|---|
-| No logs returned | Confirm the cluster is a UDS cluster with Pepr installed |
-| Connection error | Verify `kubectl` can reach the cluster (`kubectl get nodes`) |
-| Logs cut off immediately | Add `--follow` to keep the stream open |
+### Problem: No logs returned
 
----
+**Symptom:** `uds monitor pepr` returns immediately with no output.
 
-## Next Steps
+**Solution:** Confirm the cluster is a UDS cluster with Pepr installed.
 
-- [Use Bundle Overrides](/cli/how-to-guides/use-bundle-overrides/) — tune deployments at runtime
-- [Use UDS Runner](/cli/how-to-guides/use-uds-runner/) — automate workflows with `tasks.yaml`
+### Problem: Connection error
+
+**Symptom:** An error connecting to the cluster when running `uds monitor pepr`.
+
+**Solution:** Verify `kubectl` can reach the cluster with `kubectl get nodes`.
+
+### Problem: Log stream cuts off
+
+**Symptom:** Logs stop streaming after a short time.
+
+**Solution:** Add `--follow` to keep the stream open.
+
+## Next steps
+
+<CardGrid>
+  <LinkCard
+    title="Use Bundle Overrides"
+    description="Tune deployments at runtime with Helm overrides and variables."
+    href="/cli/how-to-guides/use-bundle-overrides/"
+  />
+  <LinkCard
+    title="Use UDS Runner"
+    description="Automate workflows with tasks.yaml."
+    href="/cli/how-to-guides/use-uds-runner/"
+  />
+</CardGrid>

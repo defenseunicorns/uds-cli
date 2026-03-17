@@ -4,6 +4,7 @@
   "contentDir": "cli",
   "sidebarOrder": [
     "getting-started",
-    { "dir": "how-to-guides", "label": "How-to Guides" }
+    { "dir": "how-to-guides", "label": "How-to Guides" },
+    { "dir": "reference", "label": "Reference" }
   ]
 }

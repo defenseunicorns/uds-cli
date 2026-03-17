@@ -4,9 +4,9 @@ sidebar:
   order: 3.2
 ---
 
-import { Steps } from '@astrojs/starlight/components';
+import { Steps, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-## What You'll Accomplish
+## What you'll accomplish
 
 Bundle overrides let you customize Helm charts inside Zarf packages without modifying the packages themselves. By the end of this guide you'll know how to:
 
@@ -15,14 +15,10 @@ Bundle overrides let you customize Helm charts inside Zarf packages without modi
 - Use `uds-config.yaml` to manage configuration
 - Understand variable precedence across all override sources
 
----
-
 ## Prerequisites
 
 - [UDS CLI installed](/cli/getting-started/installation/)
 - A `uds-bundle.yaml` referencing at least one Zarf package with Helm charts
-
----
 
 ## Overview
 
@@ -37,8 +33,6 @@ overrides:
       values: [...]
       variables: [...]
 ```
-
----
 
 ## Steps
 
@@ -74,14 +68,18 @@ overrides:
    For bulk overrides, provide a YAML file via `valuesFiles`:
 
    ```yaml title="uds-bundle.yaml"
-   overrides:
-     helm-overrides-component:
-       podinfo:
-         valuesFiles:
-           - overrides/podinfo-values.yaml
-         values:
-           - path: "replicaCount"
-             value: 2
+   packages:
+     - name: helm-overrides-package
+       path: "path/to/pkg"
+       ref: 0.0.1
+       overrides:
+         helm-overrides-component:
+           podinfo:
+             valuesFiles:
+               - overrides/podinfo-values.yaml
+             values:
+               - path: "replicaCount"
+                 value: 2
    ```
 
    ```yaml title="overrides/podinfo-values.yaml"
@@ -154,31 +152,16 @@ overrides:
    > [!CAUTION]
    > Helm override variables and Zarf variables share the same `--set` syntax. Avoid naming conflicts between them.
 
-5. **Configure global options with `uds-config.yaml`**
+5. **Share a value across all packages with `uds-config.yaml`**
 
-   The `uds-config.yaml` supports global CLI options, shared variables, and per-package variables:
+   Use the `shared` key to apply a variable to every package in the bundle without repeating it per-package:
 
    ```yaml title="uds-config.yaml"
-   options:
-     log_level: debug
-     architecture: arm64
-     no_log_file: false
-     no_progress: false
-     uds_cache: /tmp/uds-cache
-     tmp_dir: /tmp/tmp_dir
-     insecure: false
-     oci_concurrency: 3
-
    shared:
      domain: uds.dev  # applied to all packages in the bundle
-
-   variables:
-     my-zarf-package:
-       ui_color: green
-       ui_msg: "Hello Unicorn"
    ```
 
-   Place the file in your working directory or set its path via the `UDS_CONFIG` environment variable.
+   Place the file in your working directory or set its path via the `UDS_CONFIG` environment variable. The `uds-config.yaml` also supports `options` (global CLI settings) and `variables` (per-package overrides) — see the [full reference](https://github.com/defenseunicorns/uds-cli/blob/main/docs/reference/CLI/commands/uds_deploy.md) for details.
 
 6. **Share variables across packages**
 
@@ -216,8 +199,6 @@ overrides:
 
 </Steps>
 
----
-
 ## Variable Precedence
 
 From least to most specific:
@@ -239,9 +220,7 @@ For override `values` specifically:
 | Later `valuesFile` | |
 | Static `values` in `overrides` block | Highest |
 
----
-
-## Verify
+## Verification
 
 View all configurable overrides and variables for a bundle before deploying:
 
@@ -251,28 +230,47 @@ uds inspect --list-variables uds-bundle-<name>.tar.zst
 
 Run `uds deploy` without `--confirm` to see the pre-deploy summary showing all currently set values.
 
----
-
 ## Troubleshooting
 
-| Symptom | Check |
-|---|---|
-| Override has no effect | Verify the `<component>` and `<chart>` names match those in the Zarf package's `zarf.yaml` |
-| File variable not applied | Ensure the variable has `type: file` set |
-| Sensitive value visible in output | Confirm `sensitive: true` is set on the variable |
-| File path not resolving | Relative file paths are resolved relative to the `uds-config.yaml` directory |
+### Problem: Override has no effect
 
----
+**Symptom:** A value or variable override is not applied after deployment.
+
+**Solution:** Verify the `<component>` and `<chart>` names match those in the Zarf package's `zarf.yaml`.
+
+### Problem: File variable not applied
+
+**Symptom:** A file-type variable is not resolved at deploy time.
+
+**Solution:** Ensure the variable has `type: file` set in the bundle definition.
+
+### Problem: Sensitive value visible in output
+
+**Symptom:** A secret value is printed in plain text during deploy.
+
+**Solution:** Confirm `sensitive: true` is set on the variable in the bundle definition.
+
+### Problem: File path not resolving
+
+**Symptom:** A relative file path in a variable is not found at deploy time.
+
+**Solution:** Relative file paths are resolved relative to the `uds-config.yaml` directory.
 
 ## Duplicate Packages
 
-You can deploy multiple instances of the same Zarf package in a bundle by giving each a unique `name` and deploying them into different namespaces using `overrides`. This requires the `namespace` override on any Helm charts in those packages.
+You can deploy multiple instances of the same Zarf package in a bundle by giving each a unique `name` and deploying them into different namespaces using `overrides`. Each instance must have a unique `name` in the bundle and a `namespace` override on all Helm charts in that package to avoid conflicts.
 
-For full details and examples, see [duplicate packages in the repository](https://github.com/defenseunicorns/uds-cli/blob/main/dev-docs/reference/CLI/quickstart-and-usage.md#duplicate-packages-and-naming).
+## Next steps
 
----
-
-## Next Steps
-
-- [Use UDS Runner](/cli/how-to-guides/use-uds-runner/) — automate workflows with `tasks.yaml`
-- [Monitor a Cluster](/cli/how-to-guides/monitor-cluster/) — stream cluster logs in real time
+<CardGrid>
+  <LinkCard
+    title="Use UDS Runner"
+    description="Automate workflows with tasks.yaml."
+    href="/cli/how-to-guides/use-uds-runner/"
+  />
+  <LinkCard
+    title="Monitor a Cluster"
+    description="Stream real-time Pepr logs from a running cluster."
+    href="/cli/how-to-guides/monitor-cluster/"
+  />
+</CardGrid>
