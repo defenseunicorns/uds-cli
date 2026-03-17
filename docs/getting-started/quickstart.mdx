@@ -1,5 +1,6 @@
 ---
 title: Quickstart
+prev: true
 sidebar:
   order: 2.3
 ---
@@ -111,25 +112,3 @@ uds zarf tools kubectl get pods -A
 **Symptom:** A package deployment times out before completing.
 
 **Solution:** Set `timeout` on the package in `uds-bundle.yaml` (e.g., `timeout: 10m`). To retrieve logs from the most recent operation, run `uds logs`.
-
-## Next steps
-
-These guides and concepts may be useful to explore next:
-
-<CardGrid>
-  <LinkCard
-    title="Use Bundle Overrides"
-    description="Customize Helm values, variables, and namespaces at deploy time."
-    href="/cli/how-to-guides/use-bundle-overrides/"
-  />
-  <LinkCard
-    title="Use UDS Runner"
-    description="Automate bundle workflows with tasks.yaml."
-    href="/cli/how-to-guides/use-uds-runner/"
-  />
-  <LinkCard
-    title="Monitor a Cluster"
-    description="Stream real-time Pepr admission and operator logs."
-    href="/cli/how-to-guides/monitor-cluster/"
-  />
-</CardGrid>
