@@ -1,35 +1,19 @@
 ---
-title: uds completion fish
-description: UDS CLI command reference for <code>uds completion fish</code>.
+title: uds logs
+description: UDS CLI command reference for <code>uds logs</code>.
 ---
-## uds completion fish
+## uds logs
 
-Generate the autocompletion script for fish
-
-### Synopsis
-
-Generate the autocompletion script for the fish shell.
-
-To load completions in your current shell session:
-
-	uds completion fish | source
-
-To load completions for every new session, execute once:
-
-	uds completion fish > ~/.config/fish/completions/uds.fish
-
-You will need to start a new shell for this setup to take effect.
-
+View most recent UDS CLI logs
 
 ```
-uds completion fish [flags]
+uds logs [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help              help for fish
-      --no-descriptions   disable completion descriptions
+  -h, --help   help for logs
 ```
 
 ### Options inherited from parent commands
@@ -49,5 +33,5 @@ uds completion fish [flags]
 
 ### SEE ALSO
 
-* [uds completion](/reference/cli/commands/uds_completion/)	 - Generate the autocompletion script for the specified shell
+* [uds](/reference/commands/uds/)	 - CLI for UDS Bundles
 

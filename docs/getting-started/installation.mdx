@@ -1,0 +1,82 @@
+---
+title: Installation
+next: true
+sidebar:
+  order: 2.2
+---
+
+import { Steps, Tabs, TabItem, LinkCard } from '@astrojs/starlight/components';
+
+## What you'll accomplish
+
+By the end of this guide you'll have UDS CLI installed and available on your `PATH`.
+
+## Prerequisites
+
+- macOS or Linux (Windows via WSL2)
+- Homebrew installed, or the ability to download and move a binary
+
+## Steps
+
+<Tabs>
+  <TabItem label="Homebrew (macOS / Linux)">
+
+<Steps>
+
+1. **Add the Defense Unicorns tap**
+
+   ```bash
+   brew tap defenseunicorns/tap
+   ```
+
+2. **Install UDS CLI**
+
+   ```bash
+   brew install uds
+   ```
+
+3. **Verify the installation**
+
+   ```bash
+   uds version
+   ```
+
+</Steps>
+
+  </TabItem>
+  <TabItem label="Binary (all platforms)">
+
+<Steps>
+
+1. **Download the binary for your platform**
+
+   All releases are available on the [UDS CLI GitHub releases page](https://github.com/defenseunicorns/uds-cli/releases/latest). Download the binary matching your OS and architecture.
+
+2. **Make it executable and move it to your `PATH`**
+
+   ```bash
+   chmod +x uds-linux-amd64
+   sudo mv uds-linux-amd64 /usr/local/bin/uds
+   ```
+
+3. **Verify the installation**
+
+   ```bash
+   uds version
+   ```
+
+</Steps>
+
+  </TabItem>
+</Tabs>
+
+## Verification
+
+Confirm the CLI is available and working:
+
+```bash
+uds version
+uds --help
+```
+
+`--help` shows the full list of available commands.

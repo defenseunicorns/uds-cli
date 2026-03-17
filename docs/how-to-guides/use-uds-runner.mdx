@@ -1,0 +1,172 @@
+---
+title: Use UDS Runner
+sidebar:
+  order: 3.3
+---
+
+import { Steps, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## What you'll accomplish
+
+UDS CLI ships with a vendored build of [maru-runner](https://github.com/defenseunicorns/maru-runner) called **UDS Runner**. By the end of this guide you'll know how to:
+
+- Run tasks from a `tasks.yaml`
+- Set task variables via environment variables
+- Invoke `uds` and `zarf` commands from within tasks
+- Use the built-in `UDS_ARCH` variable
+
+## Prerequisites
+
+- [UDS CLI installed](/getting-started/installation/)
+
+## Steps
+
+<Steps>
+
+1. **Create a `tasks.yaml`**
+
+   ```yaml title="tasks.yaml"
+   tasks:
+     - name: echo-hello
+       description: "Print a greeting"
+       actions:
+         - cmd: echo "Hello from UDS Runner"
+   ```
+
+2. **Run a task**
+
+   ```bash
+   uds run echo-hello
+   ```
+
+   To run a task from a specific file (not the default `tasks.yaml`):
+
+   ```bash
+   uds run -f path/to/other-tasks.yaml my-task
+   ```
+
+3. **Use variables**
+
+   Define variables with defaults and override them at runtime:
+
+   ```yaml title="tasks.yaml"
+   variables:
+     - name: FOO
+       default: foo
+
+   tasks:
+     - name: echo-foo
+       actions:
+         - cmd: echo ${FOO}
+   ```
+
+   Override via environment variable (prefix with `UDS_`):
+
+   ```bash
+   UDS_FOO=bar uds run echo-foo
+   # prints: bar
+   ```
+
+4. **Run UDS and Zarf commands from tasks**
+
+   Use `./uds` to call your system UDS binary and `./zarf` to call the vendored Zarf binary:
+
+   ```yaml title="tasks.yaml"
+   tasks:
+     - name: inspect-and-check
+       actions:
+         - cmd: ./uds inspect k3d-core-istio-dev:0.16.1
+         - cmd: ./zarf tools kubectl get pods -A
+   ```
+
+   > [!NOTE]
+   > Using `./uds` and `./zarf` (rather than bare `uds` and `zarf`) ensures tasks are portable even if those binaries are not on `PATH`. UDS CLI automatically strips progress bars from `./uds` commands in tasks. Since Zarf is vendored inside UDS CLI, no separate Zarf installation is required.
+
+5. **Use the architecture variable**
+
+   `UDS_ARCH` is automatically set to your system architecture and is available inside any task:
+
+   ```yaml title="tasks.yaml"
+   tasks:
+     - name: print-arch
+       actions:
+         - cmd: echo ${UDS_ARCH}
+   ```
+
+   ```bash
+   uds run print-arch
+   # prints: amd64 (or arm64)
+
+   UDS_ARCHITECTURE=amd64 uds run print-arch
+   # prints: amd64
+   ```
+
+6. **Organize tasks with includes**
+
+   Break large task sets across multiple files using `includes`:
+
+   ```yaml title="tasks.yaml"
+   includes:
+     - test: tasks/tests.yaml
+     - build: tasks/build.yaml
+
+   tasks:
+     - name: full-ci
+       actions:
+         - task: build:build-all
+         - task: test:run-all
+   ```
+
+</Steps>
+
+## Verification
+
+List tasks defined in your `tasks.yaml`:
+
+```bash
+uds run --list       # tasks in the current file
+uds run --list-all   # tasks in the current file and all included files
+```
+
+## Troubleshooting
+
+### Problem: Task not found
+
+**Symptom:** `task not found` error when running `uds run <task-name>`.
+
+**Solution:** Verify the task name matches exactly — task names are case-sensitive.
+
+### Problem: Variable not applied
+
+**Symptom:** A task variable retains its default value despite setting an environment variable.
+
+**Solution:** Confirm the environment variable uses the `UDS_` prefix (e.g., `UDS_FOO=bar`).
+
+### Problem: `./zarf` command not found
+
+**Symptom:** A task using `./zarf` fails with a "command not found" error.
+
+**Solution:** Ensure you are using `./zarf`, not bare `zarf` — the vendored binary requires the `./` prefix.
+
+### Problem: Wrong architecture detected
+
+**Symptom:** `UDS_ARCH` resolves to an unexpected value.
+
+**Solution:** Override with `UDS_ARCHITECTURE=amd64` (or `arm64`) before running the task.
+
+## Next steps
+
+These guides and concepts may be useful to explore next:
+
+<CardGrid>
+  <LinkCard
+    title="Monitor a Cluster"
+    description="Stream real-time Pepr admission and operator logs."
+    href="/cli/how-to-guides/monitor-cluster/"
+  />
+  <LinkCard
+    title="Use Bundle Overrides"
+    description="Customize deployments at runtime with Helm overrides and variables."
+    href="/cli/how-to-guides/use-bundle-overrides/"
+  />
+</CardGrid>

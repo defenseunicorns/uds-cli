@@ -1,19 +1,20 @@
 ---
-title: uds list
-description: UDS CLI command reference for <code>uds list</code>.
+title: uds publish
+description: UDS CLI command reference for <code>uds publish</code>.
 ---
-## uds list
+## uds publish
 
-[alpha] List deployed bundles in the cluster
+Publish a bundle from the local file system to a remote registry
 
 ```
-uds list [flags]
+uds publish [BUNDLE_TARBALL] [OCI_REF] [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for list
+  -h, --help             help for publish
+  -v, --version string   [Deprecated] Specify the version of the bundle to be published. This flag will be removed in a future version. Users should use the --version flag during creation to override the version defined in uds-bundle.yaml
 ```
 
 ### Options inherited from parent commands
@@ -33,5 +34,5 @@ uds list [flags]
 
 ### SEE ALSO
 
-* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds](/reference/commands/uds/)	 - CLI for UDS Bundles
 

@@ -1,21 +1,28 @@
 ---
-title: uds remove
-description: UDS CLI command reference for <code>uds remove</code>.
+title: uds dev deploy
+description: UDS CLI command reference for <code>uds dev deploy</code>.
 ---
-## uds remove
+## uds dev deploy
 
-Remove a bundle that has been deployed already
+[beta] Creates and deploys a UDS bundle in dev mode
+
+### Synopsis
+
+[beta] Creates and deploys a UDS bundle from a given directory or OCI repository in dev mode, setting package options like YOLO mode for faster iteration.
 
 ```
-uds remove [BUNDLE_TARBALL|OCI_REF] [flags]
+uds dev deploy [BUNDLE_DIR|OCI_REF] [flags]
 ```
 
 ### Options
 
 ```
-  -c, --confirm                REQUIRED. Confirm the removal action to prevent accidental deletions
-  -h, --help                   help for remove
-  -p, --packages stringArray   Specify which zarf packages you would like to remove from the bundle. By default all zarf packages in the bundle are removed.
+  -f, --flavor string          [beta] Specify which zarf package flavor you want to use.
+      --force-create           [beta] For local bundles with local packages, specify whether to create a zarf package even if it already exists.
+  -h, --help                   help for deploy
+  -p, --packages stringArray   Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed.
+  -r, --ref stringToString     Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used. (default [])
+      --set stringToString     Specify deployment variables to set on the command line (KEY=value) (default [])
 ```
 
 ### Options inherited from parent commands
@@ -35,5 +42,5 @@ uds remove [BUNDLE_TARBALL|OCI_REF] [flags]
 
 ### SEE ALSO
 
-* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds dev](/reference/commands/uds_dev/)	 - [beta] Commands useful for developing bundles
 

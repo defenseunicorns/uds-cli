@@ -3,6 +3,8 @@
   "label": "CLI",
   "contentDir": "cli",
   "sidebarOrder": [
-    "reference"
+    "getting-started",
+    { "dir": "how-to-guides", "label": "How-to Guides" },
+    { "dir": "reference", "label": "Reference" }
   ]
 }

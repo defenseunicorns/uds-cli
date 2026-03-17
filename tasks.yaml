@@ -120,6 +120,16 @@ tasks:
           export ARCHIVES_VERSION=${ARCHIVER_VERSION}
           goreleaser build --clean --snapshot
 
+  - name: dev-docs
+    description: "Build and preview the docs site using local uds-cli docs"
+    actions:
+      - description: "Cleanup previous runs"
+        cmd: rm -rf uds-docs
+      - description: "Clone the docs repo"
+        cmd: git clone https://github.com/defenseunicorns/uds-docs.git uds-docs
+      - description: "Build and preview the docs site with npm"
+        cmd: cd uds-docs && npm i && DOCS_OVERRIDES="uds-cli=$(pwd)/.." npm run build && npm run preview
+
   - name: uds-docs-validate
     description: "Validate and build uds-docs with latest uds-cli docs"
     actions:

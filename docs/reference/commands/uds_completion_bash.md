@@ -1,28 +1,44 @@
 ---
-title: uds dev deploy
-description: UDS CLI command reference for <code>uds dev deploy</code>.
+title: uds completion bash
+description: UDS CLI command reference for <code>uds completion bash</code>.
 ---
-## uds dev deploy
+## uds completion bash
 
-[beta] Creates and deploys a UDS bundle in dev mode
+Generate the autocompletion script for bash
 
 ### Synopsis
 
-[beta] Creates and deploys a UDS bundle from a given directory or OCI repository in dev mode, setting package options like YOLO mode for faster iteration.
+Generate the autocompletion script for the bash shell.
+
+This script depends on the 'bash-completion' package.
+If it is not installed already, you can install it via your OS's package manager.
+
+To load completions in your current shell session:
+
+	source <(uds completion bash)
+
+To load completions for every new session, execute once:
+
+#### Linux:
+
+	uds completion bash > /etc/bash_completion.d/uds
+
+#### macOS:
+
+	uds completion bash > $(brew --prefix)/etc/bash_completion.d/uds
+
+You will need to start a new shell for this setup to take effect.
+
 
 ```
-uds dev deploy [BUNDLE_DIR|OCI_REF] [flags]
+uds completion bash
 ```
 
 ### Options
 
 ```
-  -f, --flavor string          [beta] Specify which zarf package flavor you want to use.
-      --force-create           [beta] For local bundles with local packages, specify whether to create a zarf package even if it already exists.
-  -h, --help                   help for deploy
-  -p, --packages stringArray   Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed.
-  -r, --ref stringToString     Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used. (default [])
-      --set stringToString     Specify deployment variables to set on the command line (KEY=value) (default [])
+  -h, --help              help for bash
+      --no-descriptions   disable completion descriptions
 ```
 
 ### Options inherited from parent commands
@@ -42,5 +58,5 @@ uds dev deploy [BUNDLE_DIR|OCI_REF] [flags]
 
 ### SEE ALSO
 
-* [uds dev](/reference/cli/commands/uds_dev/)	 - [beta] Commands useful for developing bundles
+* [uds completion](/reference/commands/uds_completion/)	 - Generate the autocompletion script for the specified shell
 

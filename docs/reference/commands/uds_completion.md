@@ -1,20 +1,21 @@
 ---
-title: uds monitor
-description: UDS CLI command reference for <code>uds monitor</code>.
+title: uds completion
+description: UDS CLI command reference for <code>uds completion</code>.
 ---
-## uds monitor
+## uds completion
 
-Monitor a UDS Cluster
+Generate the autocompletion script for the specified shell
 
 ### Synopsis
 
-Tools for monitoring a UDS Cluster and connecting to the UDS Engine for advanced troubleshooting
+Generate the autocompletion script for uds for the specified shell.
+See each sub-command's help for details on how to use the generated script.
+
 
 ### Options
 
 ```
-  -h, --help               help for monitor
-  -n, --namespace string   Limit monitoring to a specific namespace
+  -h, --help   help for completion
 ```
 
 ### Options inherited from parent commands
@@ -34,6 +35,8 @@ Tools for monitoring a UDS Cluster and connecting to the UDS Engine for advanced
 
 ### SEE ALSO
 
-* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
-* [uds monitor pepr](/reference/cli/commands/uds_monitor_pepr/)	 - Observe Pepr operations in a UDS Cluster
+* [uds](/reference/commands/uds/)	 - CLI for UDS Bundles
+* [uds completion bash](/reference/commands/uds_completion_bash/)	 - Generate the autocompletion script for bash
+* [uds completion fish](/reference/commands/uds_completion_fish/)	 - Generate the autocompletion script for fish
+* [uds completion zsh](/reference/commands/uds_completion_zsh/)	 - Generate the autocompletion script for zsh
 
