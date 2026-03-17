@@ -50,3 +50,4 @@ uds completion fish [flags]
 ### SEE ALSO
 
 * [uds completion](/reference/commands/uds_completion/)	 - Generate the autocompletion script for the specified shell
+
