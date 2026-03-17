@@ -1,0 +1,158 @@
+---
+title: Quickstart
+sidebar:
+  order: 2.3
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+## What You'll Accomplish
+
+By the end of this quickstart you'll have:
+
+- Written a `uds-bundle.yaml` referencing two Zarf packages
+- Created a bundle locally
+- Deployed it to a Kubernetes cluster
+
+To understand how bundles fit into the UDS ecosystem, see [Bundles](/core/concepts/configuration-and-packaging/bundles/).
+
+---
+
+## Prerequisites
+
+- [UDS CLI installed](/cli/getting-started/installation/)
+- A running Kubernetes cluster with `kubectl` configured (e.g., k3d, kind)
+
+---
+
+## Steps
+
+<Steps>
+
+1. **Create a `uds-bundle.yaml`**
+
+   Create a new directory and add a `uds-bundle.yaml`:
+
+   ```yaml title="uds-bundle.yaml"
+   kind: UDSBundle
+   metadata:
+     name: my-first-bundle
+     description: A minimal UDS bundle example
+     version: 0.0.1
+
+   packages:
+     - name: init
+       repository: ghcr.io/defenseunicorns/packages/init
+       ref: v0.33.0
+     - name: podinfo
+       repository: ghcr.io/defenseunicorns/uds-cli/podinfo
+       ref: 0.0.1
+   ```
+
+   This bundle deploys the Zarf init package followed by [podinfo](https://github.com/stefanprodan/podinfo).
+
+2. **Create the bundle**
+
+   From the directory containing your `uds-bundle.yaml`:
+
+   ```bash
+   uds create .
+   ```
+
+   UDS CLI pulls the referenced Zarf packages from their OCI registries and assembles them into a local tarball:
+
+   ```text
+   uds-bundle-my-first-bundle-amd64-0.0.1.tar.zst
+   ```
+
+   > [!NOTE]
+   > To create directly into an OCI registry instead: `uds create . -o ghcr.io/<your-org>/dev`
+
+3. **Deploy the bundle**
+
+   ```bash
+   uds deploy uds-bundle-my-first-bundle-amd64-0.0.1.tar.zst --confirm
+   ```
+
+   > [!TIP]
+   > Omit `--confirm` to see a pre-deploy summary of all packages, overrides, and variables before confirming.
+
+   To deploy from an OCI registry instead:
+
+   ```bash
+   uds deploy ghcr.io/<your-org>/dev/my-first-bundle:0.0.1 --confirm
+   ```
+
+</Steps>
+
+---
+
+## Verify
+
+After deployment, confirm the pods are running:
+
+```bash
+uds zarf tools kubectl get pods -A
+```
+
+---
+
+## Bundle Anatomy
+
+A UDS Bundle is an OCI artifact containing one or more Zarf packages along with a `uds-bundle.yaml` manifest. See the [bundle anatomy diagram](https://github.com/defenseunicorns/uds-cli/blob/main/docs/.images/uds-bundle.png?raw=true) in the repository.
+
+---
+
+## Bundle Syntax Notes
+
+**The `uds-bundle.yaml` is entirely declarative.** UDS CLI will not prompt for optional Zarf components at deploy time. To include an optional component, list it explicitly:
+
+```yaml title="uds-bundle.yaml"
+packages:
+  - name: init
+    repository: ghcr.io/defenseunicorns/packages/init
+    ref: v0.33.0
+    optionalComponents:
+      - git-server
+```
+
+**Defense Unicorns shorthand** — when running `deploy`, `inspect`, `remove`, or `pull`, short paths automatically expand to the Defense Unicorns GHCR org:
+
+```bash
+# These are equivalent:
+uds deploy unicorn-bundle:v0.1.0
+uds deploy ghcr.io/defenseunicorns/packages/uds/bundles/unicorn-bundle:v0.1.0
+```
+
+**Multi-arch support** — UDS CLI supports multi-arch bundles. You can push `amd64` and `arm64` bundles to the same OCI tag. Architecture is determined in this order (highest precedence first):
+
+1. `--architecture` / `-a` flag
+2. `UDS_ARCHITECTURE` environment variable
+3. `options.architecture` in `uds-config.yaml`
+4. `metadata.architecture` in `uds-bundle.yaml`
+
+For full details on multi-arch bundles and architecture validation, see the [uds-cli repository](https://github.com/defenseunicorns/uds-cli/blob/main/dev-docs/reference/CLI/quickstart-and-usage.md#bundle-architecture-and-multi-arch-support).
+
+---
+
+## Troubleshooting
+
+| Symptom | Check |
+|---|---|
+| `bundle architecture mismatch` | Use `-a amd64` or `-a arm64` to specify target arch explicitly |
+| OCI pull errors | Verify registry credentials with `uds zarf tools registry login` |
+| Package deploy timeout | Set `timeout` on the package in `uds-bundle.yaml` (e.g., `timeout: 10m`) |
+
+To retrieve logs from the most recent operation:
+
+```bash
+uds logs
+```
+
+---
+
+## Next Steps
+
+- [Use Bundle Overrides](/cli/how-to-guides/use-bundle-overrides/) — customize Helm values at deploy time
+- [Use UDS Runner](/cli/how-to-guides/use-uds-runner/) — automate bundle workflows
+- [Monitor a Cluster](/cli/how-to-guides/monitor-cluster/) — stream real-time Pepr logs

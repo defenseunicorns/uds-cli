@@ -4,7 +4,6 @@
 includes:
   - test: tasks/tests.yaml
   - schema: tasks/schema.yaml
-  - docs: tasks/docs.yaml
   - dev: tasks/dev.yaml
   - lint: ./tasks/lint.yaml
 
@@ -119,6 +118,18 @@ tasks:
       - cmd: |
           export ARCHIVES_VERSION=${ARCHIVER_VERSION}
           goreleaser build --clean --snapshot
+
+  # Note that due to cloning the docs repo (which is private) this task will require organization access to the repo
+  # TODO: update branch to main once sidebar-generation-from-upstream-configuration is merged
+  - name: dev-docs
+    description: "Build and preview the docs site using local uds-cli docs"
+    actions:
+      - description: "Cleanup previous runs"
+        cmd: rm -rf uds-docs
+      - description: "Clone the docs repo"
+        cmd: git clone --branch sidebar-generation-from-upstream-configuration https://github.com/defenseunicorns/uds-docs.git uds-docs
+      - description: "Build and preview the docs site with npm"
+        cmd: cd uds-docs && npm i && DOCS_OVERRIDES="uds-cli=$(pwd)/.." npm run build && npm run preview
 
   - name: uds-docs-validate
     description: "Validate and build uds-docs with latest uds-cli docs"

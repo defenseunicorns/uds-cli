@@ -1,0 +1,113 @@
+---
+title: Monitor a Cluster
+sidebar:
+  order: 3.4
+---
+
+## What You'll Accomplish
+
+UDS clusters include two Kubernetes controllers built with [Pepr](https://pepr.dev/). By the end of this guide you'll know how to:
+
+- Stream logs from both controllers in a single view
+- Filter logs by controller type or policy action
+- Use flags to control output format and history
+
+---
+
+## Prerequisites
+
+- [UDS CLI installed](/cli/getting-started/installation/)
+- A running UDS cluster with `kubectl` configured
+
+---
+
+## UDS Controllers
+
+| Controller | Pod prefix | Responsibility |
+|---|---|---|
+| **Admission Controller** | `pepr-uds-core` | Validates and mutates resources; enforces UDS Exemptions |
+| **Operator Controller** | `pepr-uds-core-watcher` | Manages lifecycle of UDS Package resources |
+
+---
+
+## Stream Logs
+
+**All logs** — aggregate admission and operator logs into a single stream:
+
+```bash
+uds monitor pepr
+```
+
+**Operator logs only** — UDS Package processing, status updates, and errors:
+
+```bash
+uds monitor pepr operator
+```
+
+**All policy decisions** (allow, deny, mutate):
+
+```bash
+uds monitor pepr policies
+```
+
+**Specific policy actions:**
+
+```bash
+uds monitor pepr allowed   # allow logs
+uds monitor pepr denied    # deny logs
+uds monitor pepr mutated   # mutation logs
+uds monitor pepr failed    # deny + operator error logs
+```
+
+---
+
+## Monitor Flags
+
+| Flag | Description |
+|---|---|
+| `-f`, `--follow` | Continuously stream logs (keep the session open) |
+| `--json` | Return raw JSON output |
+| `--since <duration>` | Only show logs newer than the given duration (e.g., `5s`, `2m`, `3h`). Defaults to all logs. |
+| `-t`, `--timestamps` | Show timestamps in log output |
+
+Examples:
+
+```bash
+# Follow all logs with timestamps
+uds monitor pepr --follow --timestamps
+
+# Show only the last 5 minutes of policy deny logs
+uds monitor pepr denied --since 5m
+
+# Get raw JSON for programmatic processing
+uds monitor pepr --json
+```
+
+---
+
+## Verify
+
+Confirm both controllers are present in the cluster:
+
+```bash
+uds zarf tools kubectl get pods -n pepr-system
+```
+
+You should see `pepr-uds-core-*` and `pepr-uds-core-watcher-*` pods in a `Running` state.
+
+---
+
+## Troubleshooting
+
+| Symptom | Check |
+|---|---|
+| No logs returned | Confirm the cluster is a UDS cluster with Pepr installed |
+| Connection error | Verify `kubectl` can reach the cluster (`kubectl get nodes`) |
+| Logs cut off immediately | Add `--follow` to keep the stream open |
+
+---
+
+## Next Steps
+
+- [Use Bundle Overrides](/cli/how-to-guides/use-bundle-overrides/) — tune deployments at runtime
+- [Use UDS Runner](/cli/how-to-guides/use-uds-runner/) — automate workflows with `tasks.yaml`
