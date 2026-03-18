@@ -5,7 +5,7 @@ sidebar:
   order: 2.3
 ---
 
-import { Steps, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight/components';
 
 ## What you'll accomplish
 
@@ -113,24 +113,8 @@ uds zarf tools kubectl get pods -A
 
 **Solution:** Set `timeout` on the package in `uds-bundle.yaml` (e.g., `timeout: 10m`). To retrieve logs from the most recent operation, run `uds logs`.
 
-## Next steps
+## Related Documentation
 
-These guides may be useful to explore next:
-
-<CardGrid>
-  <LinkCard
-    title="Use Bundle Overrides"
-    href="/how-to-guides/use-bundle-overrides/"
-    description="Customize package configuration at deploy time without modifying the bundle."
-  />
-  <LinkCard
-    title="Use UDS Runner"
-    href="/how-to-guides/use-uds-runner/"
-    description="Automate tasks with UDS Runner's built-in task execution."
-  />
-  <LinkCard
-    title="Monitor a Cluster"
-    href="/how-to-guides/monitor-cluster/"
-    description="Inspect running workloads and Pepr events from the CLI."
-  />
-</CardGrid>
+- [Use Bundle Overrides](/how-to-guides/use-bundle-overrides/) — Customize package configuration at deploy time without modifying the bundle.
+- [Use UDS Runner](/how-to-guides/use-uds-runner/) — Automate tasks with UDS Runner's built-in task execution.
+- [Monitor a Cluster](/how-to-guides/monitor-cluster/) — Inspect running workloads and Pepr events from the CLI.
