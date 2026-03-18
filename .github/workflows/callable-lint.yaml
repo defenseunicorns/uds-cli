@@ -8,6 +8,20 @@ on:
   pull_request:
     # milestoned is added here as a workaround for release-please not triggering PR workflows (PRs should be added to a milestone to trigger the workflow).
     types: [milestoned, opened, reopened, synchronize]
+    paths-ignore:
+      - "**.md"
+      - "**.mdx"
+      - "**.jpg"
+      - "**.png"
+      - "**.gif"
+      - "**.svg"
+      - docs/**
+      - .vscode/**
+      - .gitignore
+      - renovate.json
+      - CODEOWNERS
+      - LICENSE
+      - hack/**
   # This allows other repositories to call this workflow in a reusable way
   workflow_call:
 

@@ -2,7 +2,22 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 name: Validate Lint
-on: pull_request
+on:
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "**.mdx"
+      - "**.jpg"
+      - "**.png"
+      - "**.gif"
+      - "**.svg"
+      - docs/**
+      - .vscode/**
+      - .gitignore
+      - renovate.json
+      - CODEOWNERS
+      - LICENSE
+      - hack/**
 
 permissions:
   contents: read
