@@ -5,8 +5,8 @@
 //
 // Below is an illustration of the data flow
 //
-//	bundle.uds.hcl ──▶ HCLParser ──▶ UDSBundle ──▶ Validate ──▶ DAG ──▶ Levels ──▶ Deploy
-//	config.uds.hcl ──▶ HCLParser ──▶ UDSBundleConfig ───────────────────────────────────┘
+//	bundle.uds.hcl ──▶ HCLParser ──▶ UDSBundle ──▶ Validate ──▶ DAG ──▶ Levels ──▶ Deploy(opts)
+//	                                                              UDSBundleConfig (pre-resolved) ──┘
 package bundle
 
 import (
@@ -17,8 +17,9 @@ import (
 )
 
 // Deploy deploys a UDS bundle to a Kubernetes cluster.
-// It parses both the bundle and optional config files, validates the bundle,
-// then deploys packages in topological order derived from the dependency graph.
+// It validates the bundle, builds a dependency graph, and deploys packages
+// in topological order. Config resolution is handled by the caller;
+// opts.Config must be non-nil (see ValidateConfig).
 //
 // When opts.Bundle is set, parsing and validation of the bundle file is skipped
 // (the caller is responsible for having already validated the bundle).
@@ -26,6 +27,10 @@ import (
 // IMPORTANT: The caller (pkg/cmd/bundle/deploy.go) is responsible for validating the bundle path
 // via util.ValidateBundlePath() and resolving it via util.ResolveBundlePath() before calling this function.
 func Deploy(ctx context.Context, opts DeployOptions) error {
+	if err := ValidateConfig(opts.Config); err != nil {
+		return err
+	}
+
 	parser := NewHCLParser()
 
 	// Use pre-parsed bundle if provided, otherwise parse from BundlePath
@@ -46,16 +51,6 @@ func Deploy(ctx context.Context, opts DeployOptions) error {
 		slog.Debug("bundle validation passed")
 	}
 
-	// Parse the config (symmetric with bundle parsing above)
-	var cfg *UDSBundleConfig
-	if opts.ConfigPath != "" {
-		var err error
-		cfg, err = parser.ParseBundleConfig(ctx, opts.ConfigPath)
-		if err != nil {
-			return fmt.Errorf("failed to parse config: %w", err)
-		}
-	}
-
 	// Build the hcl.Traversal-based dependency graph
 	dag, err := BuildDependencyGraph(b)
 	if err != nil {
@@ -70,7 +65,7 @@ func Deploy(ctx context.Context, opts DeployOptions) error {
 	slog.Debug("dependency graph built", "levels", len(levels))
 
 	// Create deployer
-	deployer := NewZarfDeployer(opts.TmpDir, opts.Out)
+	deployer := NewZarfDeployer(opts.Out)
 
 	// =========================================================================
 	// DEPLOY PACKAGES BY LEVEL (prepared for future parallel execution)
@@ -93,10 +88,9 @@ func Deploy(ctx context.Context, opts DeployOptions) error {
 	//   }
 	bundleDir := filepath.Dir(opts.BundlePath)
 	pkgOpts := DeployPackageOptions{
-		RegistryOptions: opts.RegistryOptions,
-		BundleDir:       bundleDir,
-		Prompt:          opts.Prompt,
-		Config:          cfg,
+		Config:    opts.Config,
+		BundleDir: bundleDir,
+		Prompt:    opts.Prompt,
 	}
 
 	totalPkgs := 0

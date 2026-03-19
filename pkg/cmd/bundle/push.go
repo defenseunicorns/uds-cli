@@ -12,7 +12,6 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
-	"github.com/defenseunicorns/uds-cli/pkg/config"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 )
@@ -21,7 +20,7 @@ import (
 type PushOptions struct {
 	Tarball      string
 	OCIReference string
-	Config       config.BundleConfig
+	Config       *bundle.UDSBundleConfig
 
 	iostreams.IOStreams
 }
@@ -60,12 +59,20 @@ func (o *PushOptions) Complete(cmd *cobra.Command, args []string) error {
 	if len(args) > 1 {
 		o.OCIReference = args[1]
 	}
-	o.Config = config.BuildBundleConfig(cmd)
+
+	cfg, _, err := NewConfigResolver().Resolve(cmd)
+	if err != nil {
+		return err
+	}
+	o.Config = cfg
 	return nil
 }
 
 // Validate validates the options.
 func (o *PushOptions) Validate() error {
+	if err := bundle.ValidateConfig(o.Config); err != nil {
+		return err
+	}
 	if o.Tarball == "" || !strings.HasSuffix(o.Tarball, ".tar.zst") {
 		return fmt.Errorf("source must be a .tar.zst bundle file")
 	}
@@ -75,7 +82,7 @@ func (o *PushOptions) Validate() error {
 	if o.OCIReference == "" {
 		return fmt.Errorf("OCI reference is required")
 	}
-	return ValidateBundleConfig(o.Config)
+	return ValidateConfigOptions(*o.Config.Options)
 }
 
 // Run executes the push command.
@@ -83,12 +90,12 @@ func (o *PushOptions) Run() error {
 	slog.Debug("pushing bundle", "tarball", o.Tarball, "reference", o.OCIReference)
 	if err := bundle.Push(context.Background(), bundle.PushOptions{
 		RegistryOptions: bundle.RegistryOptions{
-			PlainHTTP:     o.Config.PlainHTTP,
-			SkipTLSVerify: o.Config.SkipTLSVerify,
+			PlainHTTP:     o.Config.Options.PlainHTTP,
+			SkipTLSVerify: o.Config.Options.SkipTLSVerify,
 		},
 		BundleTarball: o.Tarball,
 		OCIReference:  o.OCIReference,
-		TmpDir:        o.Config.TmpDir,
+		TmpDir:        o.Config.Options.TmpDir,
 	}); err != nil {
 		return err
 	}

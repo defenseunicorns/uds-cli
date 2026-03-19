@@ -59,7 +59,7 @@ func (c *localCreator) CreatePackage(ctx context.Context, pkg *Package, opts Cre
 		// Strip any explicit scheme prefix (e.g. "oci://") before handing to
 		// go-containerregistry which does not expect it.
 		refName := TrimScheme(pkg.Source)
-		manifests, err = ingestRemoteReference(ctx, opts.BlobDir, refName, opts.RegistryOptions)
+		manifests, err = ingestRemoteReference(ctx, opts.BlobDir, refName, opts.Config)
 		if err != nil {
 			return fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
@@ -67,7 +67,7 @@ func (c *localCreator) CreatePackage(ctx context.Context, pkg *Package, opts Cre
 			ensureAnnotation(&manifests[i], "org.opencontainers.image.ref.name", refName)
 		}
 	} else {
-		manifests, err = ingestLocalReference(ctx, opts.BlobDir, opts.BundleDir, pkg.Source, opts.Arch)
+		manifests, err = ingestLocalReference(ctx, opts.BlobDir, opts.BundleDir, pkg.Source, opts.Config.Options.Architecture)
 		if err != nil {
 			return fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
@@ -98,6 +98,10 @@ func (c *localCreator) BundleName(b *UDSBundle) string {
 // It parses, validates, ingests all packages via a localCreator, and writes
 // the resulting archive next to the bundle file.
 func Create(ctx context.Context, opts CreateOptions) (string, error) {
+	if err := ValidateConfig(opts.Config); err != nil {
+		return "", err
+	}
+
 	slog.Debug("parsing bundle file", "path", opts.BundleFile)
 	parser := NewHCLParser()
 	b, err := parser.ParseBundleFile(ctx, opts.BundleFile)
@@ -111,10 +115,10 @@ func Create(ctx context.Context, opts CreateOptions) (string, error) {
 	}
 	slog.Debug("bundle validation passed")
 
-	creator := newLocalCreator(opts.Arch)
+	creator := newLocalCreator(opts.Config.Options.Architecture)
 
 	srcDir := filepath.Dir(opts.BundleFile)
-	root, err := os.MkdirTemp(opts.TmpDir, "uds-bundle-create-*")
+	root, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-create-*")
 	if err != nil {
 		return "", err
 	}
@@ -135,10 +139,10 @@ func Create(ctx context.Context, opts CreateOptions) (string, error) {
 	}
 
 	pkgOpts := CreatePackageOptions{
-		RegistryOptions: opts.RegistryOptions,
-		BlobDir:         blobDir,
-		BundleDir:       srcDir,
-		Out:             opts.Out,
+		Config:    opts.Config,
+		BlobDir:   blobDir,
+		BundleDir: srcDir,
+		Out:       opts.Out,
 	}
 	for i := range b.Packages {
 		if err := creator.CreatePackage(ctx, &b.Packages[i], pkgOpts); err != nil {

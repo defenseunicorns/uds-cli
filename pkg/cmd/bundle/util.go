@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
-	"github.com/defenseunicorns/uds-cli/pkg/config"
 )
 
 // BundleFileName is the standard name for UDS bundle definition files.
@@ -95,12 +94,12 @@ func IsTarZst(s string) bool {
 	return strings.HasSuffix(s, ".tar.zst")
 }
 
-// ValidateBundleConfig checks that the BundleConfig has valid values.
-func ValidateBundleConfig(cfg config.BundleConfig) error {
-	if cfg.Concurrency < 1 {
-		return fmt.Errorf("concurrency must be >= 1, got %d", cfg.Concurrency)
+// ValidateConfigOptions checks that the ConfigOptions has valid values.
+func ValidateConfigOptions(opts bundle.ConfigOptions) error {
+	if opts.Concurrency < 1 {
+		return fmt.Errorf("concurrency must be >= 1, got %d", opts.Concurrency)
 	}
-	if err := ValidateDir(cfg.TmpDir); err != nil {
+	if err := ValidateDir(opts.TmpDir); err != nil {
 		return fmt.Errorf("--tmp-dir: %w", err)
 	}
 	return nil

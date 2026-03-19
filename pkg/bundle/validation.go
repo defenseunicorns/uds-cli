@@ -69,6 +69,22 @@ func (b *UDSBundle) Validate() error {
 	return errors.Join(errs...)
 }
 
+// ValidateConfig checks that cfg, its Global, and its Options are non-nil.
+// This guards public bundle entry points against direct library usage
+// that bypasses the CLI's ConfigResolver.
+func ValidateConfig(cfg *UDSBundleConfig) error {
+	if cfg == nil {
+		return fmt.Errorf("config is required (UDSBundleConfig must not be nil)")
+	}
+	if cfg.Global == nil {
+		return fmt.Errorf("config.Global is required (GlobalOptions must not be nil)")
+	}
+	if cfg.Options == nil {
+		return fmt.Errorf("config.Options is required (ConfigOptions must not be nil)")
+	}
+	return nil
+}
+
 func containsPackage(packages []Package, name string) bool {
 	for _, p := range packages {
 		if p.Name == name {

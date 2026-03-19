@@ -17,6 +17,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// newTestConfig returns a *UDSBundleConfig with defaults suitable for tests.
+func newTestConfig() *UDSBundleConfig {
+	opts := ConfigOptions{
+		Architecture: runtime.GOARCH,
+		TmpDir:       os.TempDir(),
+		Concurrency:  10,
+	}
+	return &UDSBundleConfig{Global: &GlobalOptions{}, Options: &opts}
+}
+
+// newTestConfigWithArch returns a *UDSBundleConfig with the given architecture.
+func newTestConfigWithArch(arch string) *UDSBundleConfig {
+	opts := ConfigOptions{
+		Architecture: arch,
+		TmpDir:       os.TempDir(),
+		Concurrency:  10,
+	}
+	return &UDSBundleConfig{Global: &GlobalOptions{}, Options: &opts}
+}
+
 func TestCreate_BuildsTarZstWithExpectedLayout(t *testing.T) {
 	dir := t.TempDir()
 
@@ -45,9 +65,9 @@ package "pkg1" {
 `), tmpFilePerm))
 
 	_, err := Create(context.Background(), CreateOptions{
-		RegistryOptions: DefaultRegistryOptions(),
-		BundleFile:      bundleFile,
-		Out:             io.Discard,
+		Config:     newTestConfig(),
+		BundleFile: bundleFile,
+		Out:        io.Discard,
 	})
 	require.NoError(t, err)
 
@@ -143,9 +163,9 @@ package "pkg2" {
 `), tmpFilePerm))
 
 	_, err := Create(context.Background(), CreateOptions{
-		RegistryOptions: DefaultRegistryOptions(),
-		BundleFile:      bundleFile,
-		Out:             io.Discard,
+		Config:     newTestConfig(),
+		BundleFile: bundleFile,
+		Out:        io.Discard,
 	})
 	require.NoError(t, err)
 
@@ -282,12 +302,10 @@ package "pkg1" {
 `), tmpFilePerm))
 
 	// Build for amd64 explicitly.
-	regOpts := DefaultRegistryOptions()
-	regOpts.Arch = "amd64"
 	_, err := Create(context.Background(), CreateOptions{
-		RegistryOptions: regOpts,
-		BundleFile:      bundleFile,
-		Out:             io.Discard,
+		Config:     newTestConfigWithArch("amd64"),
+		BundleFile: bundleFile,
+		Out:        io.Discard,
 	})
 	require.NoError(t, err)
 
@@ -351,9 +369,9 @@ package "pkg1" {
 `), tmpFilePerm))
 
 	_, err := Create(context.Background(), CreateOptions{
-		RegistryOptions: DefaultRegistryOptions(),
-		BundleFile:      bundleFile,
-		Out:             io.Discard,
+		Config:     newTestConfig(),
+		BundleFile: bundleFile,
+		Out:        io.Discard,
 	})
 	require.NoError(t, err)
 

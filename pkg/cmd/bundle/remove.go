@@ -16,6 +16,7 @@ import (
 // RemoveOptions holds options for the remove command.
 type RemoveOptions struct {
 	OCIReference string
+	Config       *bundle.UDSBundleConfig
 
 	iostreams.IOStreams
 }
@@ -47,10 +48,16 @@ func NewRemoveCommand(streams iostreams.IOStreams) *cobra.Command {
 }
 
 // Complete fills in options from command line args.
-func (o *RemoveOptions) Complete(_ *cobra.Command, args []string) error {
+func (o *RemoveOptions) Complete(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		o.OCIReference = args[0]
 	}
+
+	cfg, _, err := NewConfigResolver().Resolve(cmd)
+	if err != nil {
+		return err
+	}
+	o.Config = cfg
 	return nil
 }
 

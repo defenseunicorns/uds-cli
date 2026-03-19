@@ -6,7 +6,6 @@ package bundle
 import (
 	"context"
 	"io"
-	"runtime"
 
 	"github.com/hashicorp/hcl/v2"
 	oras "oras.land/oras-go/v2"
@@ -24,24 +23,32 @@ import (
 // the type rather than as a scattered private helper.
 type Variables map[string]any
 
+// GlobalOptions holds process-wide CLI options that apply to all commands.
+// Prompt is populated exclusively from the CLI flag, not from config.uds.hcl.
+// LogLevel can be controlled by both config file and CLI flag.
+// Prompt is controlled by the --prompt flag on the deploy command (see ADR-0005).
+type GlobalOptions struct {
+	LogLevel string
+	Prompt   bool
+}
+
 // UDSBundleConfig represents the parsed content of a config.uds.hcl file.
+// Global holds process-wide options populated by the CLI layer (not from HCL).
 // The Options block is decoded via gohcl using HCL struct tags.
 // Variables are free-form and captured via hcl:",remain" for manual extraction,
 // since they have no fixed schema.
 type UDSBundleConfig struct {
+	Global    *GlobalOptions
 	Options   *ConfigOptions `hcl:"options,block"`
 	Variables Variables      // populated after decode from Remain
 	Remain    hcl.Body       `hcl:",remain"` // captures variables and any other unstructured top-level attributes
 }
 
-// ConfigOptions holds deploy-time CLI options from the options block.
-// Fields are defined by the Opinionated CLI Settings ADR (uds-bundle-options.md).
+// ConfigOptions holds bundle-component CLI options from the options block.
+// Fields are defined by the Opinionated CLI Settings ADR (ADR-0006).
 // All fields are optional; unset fields default to their zero values.
 type ConfigOptions struct {
-	// Global
-	LogLevel string `hcl:"log_level,optional"`
-
-	// Bundle component
+	LogLevel      string `hcl:"log_level,optional"`
 	Architecture  string `hcl:"architecture,optional"`
 	PlainHTTP     bool   `hcl:"plain_http,optional"`
 	SkipTLSVerify bool   `hcl:"skip_tls_verify,optional"`
@@ -76,14 +83,6 @@ type RegistryOptions struct {
 	Concurrency int
 }
 
-// DefaultRegistryOptions returns RegistryOptions with default architecture and concurrency.
-func DefaultRegistryOptions() RegistryOptions {
-	return RegistryOptions{
-		Arch:        runtime.GOARCH,
-		Concurrency: 10,
-	}
-}
-
 // Deployer is the interface for deploying packages to a target.
 // Implementations can include: ZarfDeployer (local), TofuDeployer, RemoteAgentDeployer.
 type Deployer interface {
@@ -94,21 +93,20 @@ type Deployer interface {
 
 // DeployPackageOptions contains options for deploying a single package.
 type DeployPackageOptions struct {
-	RegistryOptions
+	// Config is the merged config (options + variables); always non-nil.
+	Config *UDSBundleConfig
 
 	// BundleDir is the directory containing the bundle (for resolving relative paths)
 	BundleDir string
 
 	// Prompt enables interactive prompts (non-interactive by default per ADR 0005)
 	Prompt bool
-
-	// Config is the optional parsed config.uds.hcl; nil when no --config was provided.
-	Config *UDSBundleConfig
 }
 
 // DeployOptions contains options for deploying an entire bundle.
 type DeployOptions struct {
-	RegistryOptions
+	// Config is the merged config (options + variables); always non-nil.
+	Config *UDSBundleConfig
 
 	// BundlePath is the path to the bundle directory containing bundle.uds.hcl
 	BundlePath string
@@ -117,15 +115,8 @@ type DeployOptions struct {
 	// This avoids double-parsing when the caller has already parsed the bundle.
 	Bundle *UDSBundle
 
-	// ConfigPath is the optional path to config.uds.hcl.
-	// Empty string means no config was provided.
-	ConfigPath string
-
 	// Prompt enables interactive prompts (non-interactive by default per ADR 0005)
 	Prompt bool
-
-	// TmpDir is the base directory for temporary files.
-	TmpDir string
 
 	// Out is the writer for output messages
 	Out io.Writer
@@ -213,7 +204,8 @@ type Creator interface {
 
 // CreatePackageOptions holds per-package configuration during bundle creation.
 type CreatePackageOptions struct {
-	RegistryOptions
+	// Config is the merged config; always non-nil.
+	Config *UDSBundleConfig
 
 	BlobDir   string
 	BundleDir string
@@ -222,12 +214,10 @@ type CreatePackageOptions struct {
 
 // CreateOptions holds configuration for the top-level bundle create operation.
 type CreateOptions struct {
-	RegistryOptions
+	// Config is the merged config (options only, no variables for create); always non-nil.
+	Config *UDSBundleConfig
 
 	BundleFile string
-
-	// TmpDir is the base directory for temporary files.
-	TmpDir string
 
 	Out io.Writer
 }

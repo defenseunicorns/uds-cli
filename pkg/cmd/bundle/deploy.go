@@ -7,12 +7,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
-	"github.com/defenseunicorns/uds-cli/pkg/config"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 )
@@ -20,9 +18,7 @@ import (
 // DeployOptions holds options for the deploy command.
 type DeployOptions struct {
 	BundlePath string // Path to bundle file or directory (user input, resolved in Run)
-	Prompt     bool   // Enable interactive prompts (non-interactive by default per ADR 0005)
-	ConfigPath string // Optional path to config.uds.hcl for deploy-time variables
-	Config     config.BundleConfig
+	Config     *bundle.UDSBundleConfig
 
 	iostreams.IOStreams
 }
@@ -68,8 +64,6 @@ Examples:
 		},
 	}
 
-	cmd.Flags().BoolVar(&o.Prompt, "prompt", false, "Enable interactive confirmation before deployment")
-
 	return cmd
 }
 
@@ -81,30 +75,25 @@ func (o *DeployOptions) Complete(cmd *cobra.Command, args []string) error {
 		// Default to looking for bundle.uds.hcl in current directory
 		o.BundlePath = "."
 	}
-	o.Config = config.BuildBundleConfig(cmd)
-	o.ConfigPath, _ = cmd.Flags().GetString("config")
+
+	cfg, _, err := NewConfigResolver().Resolve(cmd)
+	if err != nil {
+		return err
+	}
+	o.Config = cfg
 	return nil
 }
 
 // Validate validates the options without modifying state.
 func (o *DeployOptions) Validate() error {
-	if err := ValidateBundleConfig(o.Config); err != nil {
+	if err := bundle.ValidateConfig(o.Config); err != nil {
+		return err
+	}
+	if err := ValidateConfigOptions(*o.Config.Options); err != nil {
 		return err
 	}
 	if err := ValidateBundlePath(o.BundlePath); err != nil {
 		return err
-	}
-	if o.ConfigPath != "" {
-		info, err := os.Stat(o.ConfigPath)
-		if os.IsNotExist(err) {
-			return fmt.Errorf("config file not found: %s", o.ConfigPath)
-		}
-		if err != nil {
-			return fmt.Errorf("cannot access config file: %w", err)
-		}
-		if info.IsDir() {
-			return fmt.Errorf("config path is a directory, expected a file: %s", o.ConfigPath)
-		}
 	}
 	return nil
 }
@@ -115,7 +104,7 @@ func (o *DeployOptions) Run() error {
 
 	// Resolve the bundle path
 	bundlePath := ResolveBundlePath(o.BundlePath)
-	slog.Debug("deploying bundle", "path", bundlePath, "prompt", o.Prompt)
+	slog.Debug("deploying bundle", "path", bundlePath, "prompt", o.Config.Global.Prompt)
 
 	// Parse bundle for display (BundlePath already validated by Validate)
 	parsedBundle, err := bundle.NewHCLParser().ParseBundleFile(ctx, bundlePath)
@@ -134,7 +123,7 @@ func (o *DeployOptions) Run() error {
 		return err
 	}
 
-	if o.Prompt {
+	if o.Config.Global.Prompt {
 		confirmed, err := o.promptConfirmation()
 		if err != nil {
 			return err
@@ -148,17 +137,10 @@ func (o *DeployOptions) Run() error {
 	slog.Info("starting deployment", "name", parsedBundle.Metadata.Name)
 
 	deployOpts := bundle.DeployOptions{
-		RegistryOptions: bundle.RegistryOptions{
-			Arch:          o.Config.Architecture,
-			PlainHTTP:     o.Config.PlainHTTP,
-			SkipTLSVerify: o.Config.SkipTLSVerify,
-			Concurrency:   o.Config.Concurrency,
-		},
+		Config:     o.Config,
 		BundlePath: bundlePath,
 		Bundle:     parsedBundle,
-		ConfigPath: o.ConfigPath,
-		Prompt:     o.Prompt,
-		TmpDir:     o.Config.TmpDir,
+		Prompt:     o.Config.Global.Prompt,
 		Out:        o.Out,
 	}
 

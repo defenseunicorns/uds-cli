@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
+	bundlecmd "github.com/defenseunicorns/uds-cli/pkg/cmd/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
@@ -39,12 +40,14 @@ func createBundleFromTestData(t *testing.T, testDataRelPath, arch string) string
 
 	streams, _, _, _ := iostreams.NewTestIOStreams()
 
-	regOpts := bundlepkg.DefaultRegistryOptions()
-	regOpts.Arch = arch
+	resolver := bundlecmd.NewConfigResolver()
+	opts := resolver.Defaults()
+	opts.Architecture = arch
+	global := &bundlepkg.GlobalOptions{LogLevel: opts.LogLevel}
 	outPath, err := bundlepkg.Create(t.Context(), bundlepkg.CreateOptions{
-		RegistryOptions: regOpts,
-		BundleFile:      filepath.Join(dir, "bundle.uds.hcl"),
-		Out:             streams.Out,
+		Config:     &bundlepkg.UDSBundleConfig{Global: global, Options: &opts},
+		BundleFile: filepath.Join(dir, "bundle.uds.hcl"),
+		Out:        streams.Out,
 	})
 	require.NoError(t, err)
 

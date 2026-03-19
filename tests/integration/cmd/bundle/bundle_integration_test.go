@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/pkg/cmd"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
@@ -63,8 +64,9 @@ func TestDeployCommand_Integration(t *testing.T) {
 	// Simulate user declining the deployment via --prompt
 	in.WriteString("n\n")
 
-	root := bundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"deploy", bundlePath, "--prompt"})
+	// Use root command because --prompt is a root-level persistent flag
+	root := cmd.NewRootCommand(streams)
+	root.SetArgs([]string{"bundle", "deploy", bundlePath, "--prompt"})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -92,8 +94,9 @@ func TestDeployCommand_WithBundleFile_Integration(t *testing.T) {
 	// Simulate user declining the deployment via --prompt
 	in.WriteString("n\n")
 
-	root := bundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"deploy", bundlePath, "--prompt"})
+	// Use root command because --prompt is a root-level persistent flag
+	root := cmd.NewRootCommand(streams)
+	root.SetArgs([]string{"bundle", "deploy", bundlePath, "--prompt"})
 
 	err := root.Execute()
 	require.NoError(t, err)

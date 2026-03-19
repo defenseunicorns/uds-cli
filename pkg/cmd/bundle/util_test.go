@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
-	"github.com/defenseunicorns/uds-cli/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -207,32 +206,32 @@ func TestValidateDir(t *testing.T) {
 	})
 }
 
-func TestValidateBundleConfig(t *testing.T) {
+func TestValidateConfigOptions(t *testing.T) {
 	t.Run("valid config", func(t *testing.T) {
-		cfg := config.DefaultBundleConfig()
-		require.NoError(t, ValidateBundleConfig(cfg))
+		opts := NewConfigResolver().Defaults()
+		require.NoError(t, ValidateConfigOptions(opts))
 	})
 
 	t.Run("zero concurrency", func(t *testing.T) {
-		cfg := config.DefaultBundleConfig()
-		cfg.Concurrency = 0
-		err := ValidateBundleConfig(cfg)
+		opts := NewConfigResolver().Defaults()
+		opts.Concurrency = 0
+		err := ValidateConfigOptions(opts)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "concurrency must be >= 1")
 	})
 
 	t.Run("negative concurrency", func(t *testing.T) {
-		cfg := config.DefaultBundleConfig()
-		cfg.Concurrency = -1
-		err := ValidateBundleConfig(cfg)
+		opts := NewConfigResolver().Defaults()
+		opts.Concurrency = -1
+		err := ValidateConfigOptions(opts)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "concurrency must be >= 1")
 	})
 
 	t.Run("nonexistent tmp-dir", func(t *testing.T) {
-		cfg := config.DefaultBundleConfig()
-		cfg.TmpDir = "/nonexistent/path/tmp"
-		err := ValidateBundleConfig(cfg)
+		opts := NewConfigResolver().Defaults()
+		opts.TmpDir = "/nonexistent/path/tmp"
+		err := ValidateConfigOptions(opts)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "--tmp-dir")
 		assert.Contains(t, err.Error(), "directory does not exist")
@@ -241,9 +240,9 @@ func TestValidateBundleConfig(t *testing.T) {
 	t.Run("tmp-dir is a file", func(t *testing.T) {
 		f := filepath.Join(t.TempDir(), "afile")
 		require.NoError(t, os.WriteFile(f, []byte("x"), 0o644))
-		cfg := config.DefaultBundleConfig()
-		cfg.TmpDir = f
-		err := ValidateBundleConfig(cfg)
+		opts := NewConfigResolver().Defaults()
+		opts.TmpDir = f
+		err := ValidateConfigOptions(opts)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "--tmp-dir")
 		assert.Contains(t, err.Error(), "path is not a directory")

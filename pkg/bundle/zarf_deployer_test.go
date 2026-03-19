@@ -249,7 +249,7 @@ func TestZarfDeployer_DeployPackage_UnsupportedSource(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			out := &bytes.Buffer{}
-			deployer := NewZarfDeployer(t.TempDir(), out)
+			deployer := NewZarfDeployer(out)
 
 			pkg := &Package{
 				Name:   "test-pkg",
@@ -265,12 +265,10 @@ func TestZarfDeployer_DeployPackage_UnsupportedSource(t *testing.T) {
 
 func TestNewZarfDeployer(t *testing.T) {
 	out := &bytes.Buffer{}
-	tempDir := "/tmp/test"
 
-	deployer := NewZarfDeployer(tempDir, out)
+	deployer := NewZarfDeployer(out)
 
 	assert.NotNil(t, deployer)
-	assert.Equal(t, tempDir, deployer.TempDir)
 	assert.Equal(t, out, deployer.Out)
 }
 

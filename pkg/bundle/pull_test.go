@@ -186,9 +186,9 @@ package "pkg1" {
 `), tmpFilePerm))
 
 	tarball, err := Create(context.Background(), CreateOptions{
-		RegistryOptions: DefaultRegistryOptions(),
-		BundleFile:      bundleFile,
-		Out:             os.Stderr,
+		Config:     newTestConfig(),
+		BundleFile: bundleFile,
+		Out:        os.Stderr,
 	})
 	require.NoError(t, err)
 

@@ -36,15 +36,12 @@ var enableValuesOnce sync.Once
 // ZarfDeployer implements Deployer using the Zarf Go library.
 // Reference: .ai/example-repos/uds-cli/src/pkg/bundle/deploy.go lines 38-165
 type ZarfDeployer struct {
-	// TempDir is the base directory for temporary files
-	TempDir string
-
 	// Out is the writer for output messages
 	Out io.Writer
 }
 
 // NewZarfDeployer creates a new ZarfDeployer.
-func NewZarfDeployer(tempDir string, out io.Writer) *ZarfDeployer {
+func NewZarfDeployer(out io.Writer) *ZarfDeployer {
 	// Enable the Zarf "values" feature flag so packager.Deploy accepts
 	// DeployOptions.Values (Helm values from values_files).
 	enableValuesOnce.Do(func() {
@@ -55,8 +52,7 @@ func NewZarfDeployer(tempDir string, out io.Writer) *ZarfDeployer {
 		}})
 	})
 	return &ZarfDeployer{
-		TempDir: tempDir,
-		Out:     out,
+		Out: out,
 	}
 }
 
@@ -69,7 +65,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 
 	ctx = d.setupLoggerContext(ctx)
 
-	pkgTmp, err := os.MkdirTemp(d.TempDir, "zarf-pkg-*")
+	pkgTmp, err := os.MkdirTemp(opts.Config.Options.TmpDir, "zarf-pkg-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
@@ -130,7 +126,7 @@ func (d *ZarfDeployer) prepareValuesAndVariables(ctx context.Context, pkg *Packa
 		resolved := resolveValuesFiles(pkg.ValuesFiles, opts.BundleDir)
 
 		// 2. Template {{ .vars.* }} placeholders using config variables
-		filesToParse, err := templateValuesFiles(ctx, resolved, configVars, d.TempDir)
+		filesToParse, err := templateValuesFiles(ctx, resolved, configVars, opts.Config.Options.TmpDir)
 		// Temp files are fully consumed by ParseFiles below; clean up on return.
 		if configVars != nil {
 			defer cleanupTempFiles(filesToParse)
@@ -252,16 +248,16 @@ func (d *ZarfDeployer) pullAndLoadPackage(ctx context.Context, source, tmpDir st
 	ociRef := TrimScheme(source)
 
 	platform := ocispec.Platform{
-		Architecture: opts.Arch,
+		Architecture: opts.Config.Options.Architecture,
 		OS:           oci.MultiOS,
 	}
 
-	slog.Debug("creating OCI remote", "ref", ociRef, "arch", opts.Arch)
+	slog.Debug("creating OCI remote", "ref", ociRef, "arch", opts.Config.Options.Architecture)
 
 	// Build OCI modifiers for registry options
 	mods := []oci.Modifier{
-		oci.WithPlainHTTP(opts.PlainHTTP),
-		oci.WithInsecureSkipVerify(opts.SkipTLSVerify),
+		oci.WithPlainHTTP(opts.Config.Options.PlainHTTP),
+		oci.WithInsecureSkipVerify(opts.Config.Options.SkipTLSVerify),
 	}
 
 	// Create remote client for the OCI registry
@@ -286,7 +282,7 @@ func (d *ZarfDeployer) pullAndLoadPackage(ctx context.Context, source, tmpDir st
 	slog.Debug("pulling layers", "count", len(layers), "dest", tmpDir)
 
 	// Pull the package to the temp directory
-	_, err = remote.PullPackage(ctx, tmpDir, opts.Concurrency, layers...)
+	_, err = remote.PullPackage(ctx, tmpDir, opts.Config.Options.Concurrency, layers...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to pull package: %w", err)
 	}

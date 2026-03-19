@@ -8,10 +8,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/spf13/cobra"
 
+	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
@@ -165,11 +166,14 @@ func TestInspectOptions_Validate(t *testing.T) {
 		},
 	}
 
+	defaults := NewConfigResolver().Defaults()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			streams, _, _, _ := iostreams.NewTestIOStreams()
 			o := &InspectOptions{
 				BundlePath: tt.bundlePath,
+				Config:     &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults},
 				IOStreams:  streams,
 			}
 

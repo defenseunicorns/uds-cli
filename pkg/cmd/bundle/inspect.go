@@ -17,6 +17,7 @@ import (
 // InspectOptions holds the options for the inspect command.
 type InspectOptions struct {
 	BundlePath string // Path to bundle file or directory (user input, resolved in Run)
+	Config     *bundle.UDSBundleConfig
 
 	iostreams.IOStreams
 }
@@ -48,18 +49,27 @@ func NewInspectCommand(streams iostreams.IOStreams) *cobra.Command {
 }
 
 // Complete fills in options from command line args.
-func (o *InspectOptions) Complete(_ *cobra.Command, args []string) error {
+func (o *InspectOptions) Complete(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		o.BundlePath = args[0]
 	} else {
 		// Default to looking for bundle.uds.hcl in current directory
 		o.BundlePath = "."
 	}
+
+	cfg, _, err := NewConfigResolver().Resolve(cmd)
+	if err != nil {
+		return err
+	}
+	o.Config = cfg
 	return nil
 }
 
 // Validate validates the options without modifying state.
 func (o *InspectOptions) Validate() error {
+	if err := bundle.ValidateConfig(o.Config); err != nil {
+		return err
+	}
 	return ValidateBundlePath(o.BundlePath)
 }
 

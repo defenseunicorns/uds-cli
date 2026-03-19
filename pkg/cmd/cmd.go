@@ -40,6 +40,7 @@ func NewRootCommand(streams iostreams.IOStreams) *cobra.Command {
 	}
 
 	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "l", "info", "log level (debug, info, warn, error)")
+	rootCmd.PersistentFlags().Bool("prompt", false, "enable interactive confirmation prompts")
 
 	rootCmd.AddCommand(cmdversion.NewVersionCommand(streams))
 	rootCmd.AddCommand(bundle.NewBundleCommand(streams))

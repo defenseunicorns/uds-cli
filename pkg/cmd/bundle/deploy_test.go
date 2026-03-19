@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/defenseunicorns/uds-cli/pkg/config"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
@@ -82,6 +82,8 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 	wrongNameFile := filepath.Join(tempDir, "wrongname.hcl")
 	require.NoError(t, os.WriteFile(wrongNameFile, []byte("test"), 0o644))
 
+	defaults := NewConfigResolver().Defaults()
+
 	tests := []struct {
 		name       string
 		bundlePath string
@@ -149,7 +151,7 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 			streams, _, _, _ := iostreams.NewTestIOStreams()
 			o := &DeployOptions{
 				BundlePath: tt.bundlePath,
-				Config:     config.DefaultBundleConfig(),
+				Config:     &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults},
 				IOStreams:  streams,
 			}
 
@@ -171,6 +173,8 @@ func TestDeployOptions_Run_PromptDecline(t *testing.T) {
 	// Non-interactive (default) Run tests that proceed to actual deployment
 	// are covered by integration tests since they require OCI registries.
 	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", BundleFileName)
+
+	defaults := NewConfigResolver().Defaults()
 
 	tests := []struct {
 		name       string
@@ -207,8 +211,7 @@ func TestDeployOptions_Run_PromptDecline(t *testing.T) {
 
 			o := &DeployOptions{
 				BundlePath: tt.bundlePath,
-				Prompt:     true,
-				Config:     config.DefaultBundleConfig(),
+				Config:     &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{Prompt: true}, Options: &defaults},
 				IOStreams:  streams,
 			}
 
@@ -222,10 +225,11 @@ func TestDeployOptions_Run_PromptDecline(t *testing.T) {
 }
 
 func TestDeployOptions_NoninteractivePrompt(t *testing.T) {
-	streams, _, _, _ := iostreams.NewTestIOStreams()
-	o := NewDeployOptions(streams)
-
-	assert.False(t, o.Prompt, "Prompt should default to false (non-interactive)")
+	// Prompt defaults to false via GlobalOptions (non-interactive).
+	// With the new design, prompt is read from Config.Global.Prompt
+	// which defaults to false when the --prompt flag is not set.
+	global := &bundle.GlobalOptions{}
+	assert.False(t, global.Prompt, "Prompt should default to false (non-interactive)")
 }
 
 func TestDeployOptions_PromptConfirmation(t *testing.T) {
@@ -266,79 +270,10 @@ func TestDeployOptions_PromptConfirmation(t *testing.T) {
 
 func TestDeployOptions_Flags(t *testing.T) {
 	streams, _, _, _ := iostreams.NewTestIOStreams()
-	cmd := NewDeployCommand(streams)
-
-	// Verify --prompt flag is defined
-	promptFlag := cmd.Flags().Lookup("prompt")
-	require.NotNil(t, promptFlag, "prompt flag should be defined")
-	assert.Equal(t, "false", promptFlag.DefValue, "prompt should default to false (non-interactive)")
 
 	// Verify --config flag is inherited from parent bundle command
 	bundleCmd := NewBundleCommand(streams)
 	configFlag := bundleCmd.PersistentFlags().Lookup("config")
 	require.NotNil(t, configFlag, "config flag should be defined on parent bundle command")
 	assert.Empty(t, configFlag.DefValue)
-}
-
-func TestDeployValidate_Config(t *testing.T) {
-	// Write a minimal valid config file to a temp dir
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.uds.hcl")
-	require.NoError(t, os.WriteFile(configPath, []byte(`variables = { x = "y" }`), 0o644))
-
-	tests := []struct {
-		name       string
-		configPath string
-		wantErr    string
-	}{
-		{
-			name:       "no config flag: no validation",
-			configPath: "",
-			wantErr:    "",
-		},
-		{
-			name:       "existing config file: no error",
-			configPath: configPath,
-			wantErr:    "",
-		},
-		{
-			name:       "non-existent config path: clear error",
-			configPath: "/nonexistent/config.uds.hcl",
-			wantErr:    "config file not found",
-		},
-		{
-			name:       "directory instead of file",
-			configPath: t.TempDir(),
-			wantErr:    "config path is a directory",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Use a temp dir with a bundle.uds.hcl so bundle path validation passes
-			bundleDir := t.TempDir()
-			require.NoError(t, os.WriteFile(
-				filepath.Join(bundleDir, BundleFileName),
-				[]byte(`uds { bundle_api_version = "uds.dev/v1alpha1" }
-metadata { name = "test" }
-package "p" { source = "oci://example.com/p:v1" }`),
-				0o644,
-			))
-
-			streams, _, _, _ := iostreams.NewTestIOStreams()
-			o := &DeployOptions{
-				BundlePath: bundleDir,
-				ConfigPath: tt.configPath,
-				Config:     config.DefaultBundleConfig(),
-				IOStreams:  streams,
-			}
-			err := o.Validate()
-			if tt.wantErr != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
 }

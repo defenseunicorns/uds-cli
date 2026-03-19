@@ -10,10 +10,7 @@
 
 # CLI options for bundle deployment
 options {
-  # Global
-  log_level = "info"
-
-  # Bundle component
+  log_level       = "info"
   architecture    = "amd64"
   plain_http      = false
   skip_tls_verify = false

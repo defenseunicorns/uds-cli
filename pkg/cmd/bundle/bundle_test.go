@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/defenseunicorns/uds-cli/pkg/config"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
@@ -52,10 +52,11 @@ func TestPullOptions_Validate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			defaults := NewConfigResolver().Defaults()
 			o := &PullOptions{
 				OCIReference: tt.ociReference,
 				OutputDir:    tt.outputDir,
-				Config:       config.DefaultBundleConfig(),
+				Config:       &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults},
 			}
 			err := o.Validate()
 			if tt.wantErr != "" {
@@ -108,12 +109,11 @@ func TestPushOptions_Validate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			streams, _, _, _ := iostreams.NewTestIOStreams()
+			defaults := NewConfigResolver().Defaults()
 			o := &PushOptions{
-				IOStreams:     streams,
-				Tarball:       tt.tarball,
-				OCIReference:  tt.ociReference,
-				Config:        config.DefaultBundleConfig(),
+				Tarball:      tt.tarball,
+				OCIReference: tt.ociReference,
+				Config:       &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults},
 			}
 			err := o.Validate()
 			if tt.wantErr != "" {

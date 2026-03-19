@@ -5,7 +5,6 @@
 package bundle
 
 import (
-	"github.com/defenseunicorns/uds-cli/pkg/config"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 )
@@ -19,9 +18,9 @@ func NewBundleCommand(streams iostreams.IOStreams) *cobra.Command {
 	}
 
 	// Bundle-component persistent flags (inherited by all subcommands).
-	// Defaults here match config.DefaultBundleConfig() so that flag values
+	// Defaults here match ConfigResolver.Defaults() so that flag values
 	// can be read directly without needing Changed() checks.
-	defaults := config.DefaultBundleConfig()
+	defaults := NewConfigResolver().Defaults()
 	bundleCmd.PersistentFlags().StringP("architecture", "a", defaults.Architecture, "target architecture")
 	bundleCmd.PersistentFlags().Bool("plain-http", defaults.PlainHTTP, "use plain HTTP for registry communication")
 	bundleCmd.PersistentFlags().Bool("skip-tls-verify", defaults.SkipTLSVerify, "skip TLS certificate verification")

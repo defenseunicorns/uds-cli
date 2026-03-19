@@ -26,13 +26,14 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func ingestRemoteReference(ctx context.Context, blobDir, refName string, reg RegistryOptions) ([]ociManifest, error) {
-	slog.Debug("ingesting remote reference", "ref", refName, "arch", reg.Arch)
+func ingestRemoteReference(ctx context.Context, blobDir, refName string, cfg *UDSBundleConfig) ([]ociManifest, error) {
+	cfgOpts := cfg.Options
+	slog.Debug("ingesting remote reference", "ref", refName, "arch", cfgOpts.Architecture)
 
 	// Build name.Option slice for reference parsing.
 	// name.Insecure is a toggle (not bool-accepting), so only include when true.
 	var nameOpts []name.Option
-	if reg.PlainHTTP {
+	if cfgOpts.PlainHTTP {
 		nameOpts = append(nameOpts, name.Insecure)
 	}
 
@@ -42,7 +43,7 @@ func ingestRemoteReference(ctx context.Context, blobDir, refName string, reg Reg
 	}
 
 	// Build remote.Option slice — always configure TLS transport with the requested setting
-	opts := remoteOpts(ctx, reg.SkipTLSVerify)
+	opts := remoteOpts(ctx, cfgOpts.SkipTLSVerify)
 
 	desc, err := remote.Get(ref, opts...)
 	if err != nil {
@@ -57,7 +58,7 @@ func ingestRemoteReference(ctx context.Context, blobDir, refName string, reg Reg
 		if err != nil {
 			return nil, err
 		}
-		m, err := ingestRemoteImage(blobDir, img, string(desc.MediaType), nil, reg.Concurrency)
+		m, err := ingestRemoteImage(blobDir, img, string(desc.MediaType), nil, cfgOpts.Concurrency)
 		if err != nil {
 			return nil, err
 		}
@@ -75,14 +76,14 @@ func ingestRemoteReference(ctx context.Context, blobDir, refName string, reg Reg
 		return nil, err
 	}
 
-	filtered := filterDescriptorsByArch(idxManifest.Manifests, reg.Arch)
+	filtered := filterDescriptorsByArch(idxManifest.Manifests, cfgOpts.Architecture)
 	if len(filtered) == 0 {
-		return nil, fmt.Errorf("no manifests found matching architecture %q in %q", reg.Arch, refName)
+		return nil, fmt.Errorf("no manifests found matching architecture %q in %q", cfgOpts.Architecture, refName)
 	}
 
 	manifests := make([]ociManifest, len(filtered))
 	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(reg.Concurrency)
+	g.SetLimit(cfgOpts.Concurrency)
 	for i, mDesc := range filtered {
 		g.Go(func() error {
 			digestRef := ref.Context().Name() + "@" + mDesc.Digest.String()
@@ -90,11 +91,11 @@ func ingestRemoteReference(ctx context.Context, blobDir, refName string, reg Reg
 			if err != nil {
 				return err
 			}
-			img, err := remote.Image(imgRef, remoteOpts(gctx, reg.SkipTLSVerify)...)
+			img, err := remote.Image(imgRef, remoteOpts(gctx, cfgOpts.SkipTLSVerify)...)
 			if err != nil {
 				return err
 			}
-			m, err := ingestRemoteImage(blobDir, img, string(mDesc.MediaType), mDesc.Platform, reg.Concurrency)
+			m, err := ingestRemoteImage(blobDir, img, string(mDesc.MediaType), mDesc.Platform, cfgOpts.Concurrency)
 			if err != nil {
 				return err
 			}

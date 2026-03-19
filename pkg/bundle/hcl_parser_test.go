@@ -456,7 +456,7 @@ func TestParseBundleConfig(t *testing.T) {
 			fixture: specCompliantPath,
 			wantOK:  true,
 			check: func(t *testing.T, cfg *UDSBundleConfig) {
-				// Options (all seven fields from uds-bundle-options.md)
+				// Options (seven fields from ADR-0006)
 				assert.Equal(t, "info", cfg.Options.LogLevel)
 				assert.Equal(t, "amd64", cfg.Options.Architecture)
 				assert.False(t, cfg.Options.PlainHTTP)
@@ -483,12 +483,10 @@ func TestParseBundleConfig(t *testing.T) {
 			wantOK: true,
 			hcl: `
 options {
-  log_level    = "debug"
   architecture = "arm64"
   concurrency  = 5
 }`,
 			check: func(t *testing.T, cfg *UDSBundleConfig) {
-				assert.Equal(t, "debug", cfg.Options.LogLevel)
 				assert.Equal(t, "arm64", cfg.Options.Architecture)
 				assert.Equal(t, 5, cfg.Options.Concurrency)
 				assert.Nil(t, cfg.Variables)
@@ -625,8 +623,8 @@ options {
 		{
 			name: "duplicate options blocks",
 			hcl: `
-options { log_level = "info" }
-options { log_level = "debug" }`,
+options { architecture = "amd64" }
+options { architecture = "arm64" }`,
 			wantErr: "",
 		},
 
