@@ -1,19 +1,21 @@
 ---
-title: uds list
-description: UDS CLI command reference for <code>uds list</code>.
+title: uds remove
+description: UDS CLI command reference for <code>uds remove</code>.
 ---
-## uds list
+## uds remove
 
-[alpha] List deployed bundles in the cluster
+Remove a bundle that has been deployed already
 
 ```
-uds list [flags]
+uds remove [BUNDLE_TARBALL|OCI_REF] [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for list
+  -c, --confirm                REQUIRED. Confirm the removal action to prevent accidental deletions
+  -h, --help                   help for remove
+  -p, --packages stringArray   Specify which zarf packages you would like to remove from the bundle. By default all zarf packages in the bundle are removed.
 ```
 
 ### Options inherited from parent commands
@@ -33,5 +35,5 @@ uds list [flags]
 
 ### SEE ALSO
 
-* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds](/reference/commands/uds/)	 - CLI for UDS Bundles
 

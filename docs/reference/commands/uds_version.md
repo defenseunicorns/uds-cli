@@ -1,25 +1,23 @@
 ---
-title: uds create
-description: UDS CLI command reference for <code>uds create</code>.
+title: uds version
+description: UDS CLI command reference for <code>uds version</code>.
 ---
-## uds create
+## uds version
 
-Create a bundle from a given directory or the current directory
+Shows the version of the running UDS-CLI binary
+
+### Synopsis
+
+Displays the version of the UDS-CLI release that the current binary was built from.
 
 ```
-uds create [DIRECTORY] [flags]
+uds version [flags]
 ```
 
 ### Options
 
 ```
-  -c, --confirm                       Confirm bundle creation without prompting
-  -h, --help                          help for create
-  -n, --name string                   Specify the name of the bundle
-  -o, --output string                 Specify the output directory or oci:// URL for the created bundle
-  -k, --signing-key string            Path to private key file for signing bundles
-  -p, --signing-key-password string   Password to the private key file used for signing bundles
-  -v, --version string                Specify the version of the bundle
+  -h, --help   help for version
 ```
 
 ### Options inherited from parent commands
@@ -39,5 +37,5 @@ uds create [DIRECTORY] [flags]
 
 ### SEE ALSO
 
-* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds](/reference/commands/uds/)	 - CLI for UDS Bundles
 

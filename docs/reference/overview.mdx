@@ -1,0 +1,22 @@
+---
+title: Reference
+sidebar:
+  order: 4.1
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Authoritative details for UDS CLI configuration surfaces, command syntax, and schema validation. Use this section when you need exact flag behavior, field-level schema details, or IDE setup instructions.
+
+<CardGrid>
+  <LinkCard
+    title="CLI Commands"
+    description="Full command reference for all UDS CLI commands, flags, and usage examples."
+    href="/cli/reference/commands/uds/"
+  />
+  <LinkCard
+    title="Schema Validation & IDE Setup"
+    description="JSON schemas for uds-bundle.yaml and tasks.yaml with autocompletion and inline validation setup for VS Code, JetBrains, and other editors."
+    href="/cli/reference/schema-validation/"
+  />
+</CardGrid>

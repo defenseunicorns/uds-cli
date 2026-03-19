@@ -1,0 +1,261 @@
+---
+title: Use Bundle Overrides
+sidebar:
+  order: 3.2
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+## What you'll accomplish
+
+Bundle overrides let you customize Helm charts inside Zarf packages without modifying the packages themselves. By the end of this guide you'll know how to:
+
+- Override static Helm values at bundle-creation time
+- Define runtime-configurable variables
+- Use `uds-config.yaml` to manage configuration
+- Understand variable precedence across all override sources
+
+## Prerequisites
+
+- [UDS CLI installed](/getting-started/installation/)
+- A `uds-bundle.yaml` referencing at least one Zarf package with Helm charts
+
+## Before you begin
+
+The `overrides` block in `uds-bundle.yaml` maps to the structure of a Zarf package:
+
+```yaml
+overrides:
+  <component-name>:    # Zarf component containing the chart
+    <chart-name>:      # Helm chart name within that component
+      namespace: ...
+      valuesFiles: [...]
+      values: [...]
+      variables: [...]
+```
+
+## Steps
+
+<Steps>
+
+1. **Add static value overrides**
+
+   Use the `values` key to set Helm values that are fixed at bundle-creation time and **cannot be changed** at deploy time:
+
+   ```yaml title="uds-bundle.yaml"
+   packages:
+     - name: helm-overrides-package
+       path: "path/to/pkg"
+       ref: 0.0.1
+       overrides:
+         helm-overrides-component:
+           podinfo:
+             values:
+               - path: "replicaCount"
+                 value: 2
+               - path: "podinfo.tolerations"
+                 value:
+                   - key: "unicorn"
+                     operator: "Equal"
+                     value: "defense"
+                     effect: "NoSchedule"
+   ```
+
+   The `path` uses dot notation to locate the value in the chart's `values.yaml`.
+
+2. **Add a values file**
+
+   For bulk overrides, provide a YAML file via `valuesFiles`:
+
+   ```yaml title="uds-bundle.yaml"
+   packages:
+     - name: helm-overrides-package
+       path: "path/to/pkg"
+       ref: 0.0.1
+       overrides:
+         helm-overrides-component:
+           podinfo:
+             valuesFiles:
+               - overrides/podinfo-values.yaml
+             values:
+               - path: "replicaCount"
+                 value: 2
+   ```
+
+   ```yaml title="overrides/podinfo-values.yaml"
+   podAnnotations:
+     customAnnotation: "customValue"
+   ui:
+     message: "Hello from bundle"
+   ```
+
+   When multiple `valuesFiles` are listed, later files take precedence over earlier ones. Static `values` take precedence over all `valuesFiles`.
+
+3. **Add runtime-configurable variables**
+
+   Unlike `values`, `variables` can be overridden at deploy time:
+
+   ```yaml title="uds-bundle.yaml"
+   packages:
+     - name: helm-overrides-package
+       path: "path/to/pkg"
+       ref: 0.0.1
+       overrides:
+         helm-overrides-component:
+           podinfo:
+             variables:
+               - name: UI_COLOR
+                 path: "ui.color"
+                 description: "Set the color for podinfo's UI"
+                 default: "purple"
+               - name: SECRET_VAL
+                 path: "testSecret"
+                 description: "A sensitive value, masked in output"
+                 sensitive: true
+               - name: TLS_CERT
+                 path: "tls.cert"
+                 description: "Path to a certificate file"
+                 type: file
+   ```
+
+   Variable types:
+   - `raw` (default) — string, int, map, etc.
+   - `file` — the variable resolves to the **contents** of the referenced file
+
+   > [!CAUTION]
+   > If a variable accepts a file value but is missing `type: file`, the file will not be processed.
+
+4. **Override a variable at deploy time**
+
+   Three methods are available, in order of increasing precedence:
+
+   <Tabs>
+     <TabItem label="uds-config.yaml">
+
+   Place a `uds-config.yaml` in the same directory as the bundle:
+
+   ```yaml title="uds-config.yaml"
+   variables:
+     helm-overrides-package:
+       ui_color: green   # variable names are case-insensitive
+   ```
+
+     </TabItem>
+     <TabItem label="Environment variable">
+
+   Prefix the variable name with `UDS_`:
+
+   ```bash
+   UDS_UI_COLOR=green uds deploy uds-bundle-helm-overrides.tar.zst --confirm
+   ```
+
+     </TabItem>
+     <TabItem label="--set flag">
+
+   ```bash
+   # Apply to all packages
+   uds deploy uds-bundle-helm-overrides.tar.zst --set ui_color=green
+
+   # Apply to a specific package only
+   uds deploy uds-bundle-helm-overrides.tar.zst --set helm-overrides-package.ui_color=green
+   ```
+
+   > [!CAUTION]
+   > Helm override variables and Zarf variables share the same `--set` syntax. Avoid naming conflicts between them.
+
+     </TabItem>
+   </Tabs>
+
+   > [!NOTE]
+   > **Variable precedence** (least to most specific): Zarf package default → `import`'ed export → `shared` in `uds-config.yaml` → `variables` in `uds-config.yaml` → `UDS_` env var → `--set` flag. For `values` overrides: earlier `valuesFile` → later `valuesFile` → static `values` block.
+
+5. **Share a value across all packages with `uds-config.yaml`**
+
+   Use the `shared` key to apply a variable to every package in the bundle without repeating it per-package:
+
+   ```yaml title="uds-config.yaml"
+   shared:
+     domain: uds.dev  # applied to all packages in the bundle
+   ```
+
+   Place the file in your working directory or set its path via the `UDS_CONFIG` environment variable. The `uds-config.yaml` also supports `options` (global CLI settings) and `variables` (per-package overrides) — see the [full reference](https://github.com/defenseunicorns/uds-cli/blob/main/docs/reference/CLI/commands/uds_deploy.md) for details.
+
+6. **Share variables across packages**
+
+   Use `exports` and `imports` to pass a variable from one package to another:
+
+   ```yaml title="uds-bundle.yaml"
+   packages:
+     - name: output-var
+       repository: localhost:888/output-var
+       ref: 0.0.1
+       exports:
+         - name: OUTPUT
+
+     - name: receive-var
+       repository: localhost:888/receive-var
+       ref: 0.0.1
+       imports:
+         - name: OUTPUT
+           package: output-var
+   ```
+
+   For variables shared across all packages without import/export, use the `shared` key in `uds-config.yaml` or a `UDS_`-prefixed environment variable.
+
+7. **Override a Helm chart's namespace**
+
+   ```yaml title="uds-bundle.yaml"
+   overrides:
+     podinfo-component:
+       unicorn-podinfo:
+         namespace: custom-podinfo
+         values:
+           - path: "replicaCount"
+             value: 1
+   ```
+
+   > [!TIP]
+   > You can deploy multiple instances of the same Zarf package by giving each a unique `name` and using the `namespace` override to place them in different namespaces.
+
+</Steps>
+
+## Verification
+
+View all configurable overrides and variables for a bundle before deploying:
+
+```bash
+uds inspect --list-variables uds-bundle-<name>.tar.zst
+```
+
+Run `uds deploy` without `--confirm` to see the pre-deploy summary showing all currently set values.
+
+## Troubleshooting
+
+### Problem: Override has no effect
+
+**Symptom:** A value or variable override is not applied after deployment.
+
+**Solution:** Verify the `<component>` and `<chart>` names match those in the Zarf package's `zarf.yaml`.
+
+### Problem: File variable not applied
+
+**Symptom:** A file-type variable is not resolved at deploy time.
+
+**Solution:** Ensure the variable has `type: file` set in the bundle definition.
+
+### Problem: Sensitive value visible in output
+
+**Symptom:** A secret value is printed in plain text during deploy.
+
+**Solution:** Confirm `sensitive: true` is set on the variable in the bundle definition.
+
+### Problem: File path not resolving
+
+**Symptom:** A relative file path in a variable is not found at deploy time.
+
+**Solution:** Relative file paths are resolved relative to the `uds-config.yaml` directory.
+
+## Related Documentation
+
+- [Use UDS Runner](/cli/how-to-guides/use-uds-runner/) — Automate workflows with `tasks.yaml`.
+- [Monitor a Cluster](/cli/how-to-guides/monitor-cluster/) — Stream real-time Pepr logs from a running cluster.

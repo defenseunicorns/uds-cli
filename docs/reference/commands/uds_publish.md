@@ -1,21 +1,20 @@
 ---
-title: uds completion
-description: UDS CLI command reference for <code>uds completion</code>.
+title: uds publish
+description: UDS CLI command reference for <code>uds publish</code>.
 ---
-## uds completion
+## uds publish
 
-Generate the autocompletion script for the specified shell
+Publish a bundle from the local file system to a remote registry
 
-### Synopsis
-
-Generate the autocompletion script for uds for the specified shell.
-See each sub-command's help for details on how to use the generated script.
-
+```
+uds publish [BUNDLE_TARBALL] [OCI_REF] [flags]
+```
 
 ### Options
 
 ```
-  -h, --help   help for completion
+  -h, --help             help for publish
+  -v, --version string   [Deprecated] Specify the version of the bundle to be published. This flag will be removed in a future version. Users should use the --version flag during creation to override the version defined in uds-bundle.yaml
 ```
 
 ### Options inherited from parent commands
@@ -35,8 +34,5 @@ See each sub-command's help for details on how to use the generated script.
 
 ### SEE ALSO
 
-* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
-* [uds completion bash](/reference/cli/commands/uds_completion_bash/)	 - Generate the autocompletion script for bash
-* [uds completion fish](/reference/cli/commands/uds_completion_fish/)	 - Generate the autocompletion script for fish
-* [uds completion zsh](/reference/cli/commands/uds_completion_zsh/)	 - Generate the autocompletion script for zsh
+* [uds](/reference/commands/uds/)	 - CLI for UDS Bundles
 

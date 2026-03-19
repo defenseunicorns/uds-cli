@@ -1,23 +1,44 @@
 ---
-title: uds version
-description: UDS CLI command reference for <code>uds version</code>.
+title: uds completion bash
+description: UDS CLI command reference for <code>uds completion bash</code>.
 ---
-## uds version
+## uds completion bash
 
-Shows the version of the running UDS-CLI binary
+Generate the autocompletion script for bash
 
 ### Synopsis
 
-Displays the version of the UDS-CLI release that the current binary was built from.
+Generate the autocompletion script for the bash shell.
+
+This script depends on the 'bash-completion' package.
+If it is not installed already, you can install it via your OS's package manager.
+
+To load completions in your current shell session:
+
+	source <(uds completion bash)
+
+To load completions for every new session, execute once:
+
+#### Linux:
+
+	uds completion bash > /etc/bash_completion.d/uds
+
+#### macOS:
+
+	uds completion bash > $(brew --prefix)/etc/bash_completion.d/uds
+
+You will need to start a new shell for this setup to take effect.
+
 
 ```
-uds version [flags]
+uds completion bash
 ```
 
 ### Options
 
 ```
-  -h, --help   help for version
+  -h, --help              help for bash
+      --no-descriptions   disable completion descriptions
 ```
 
 ### Options inherited from parent commands
@@ -37,5 +58,5 @@ uds version [flags]
 
 ### SEE ALSO
 
-* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds completion](/reference/commands/uds_completion/)	 - Generate the autocompletion script for the specified shell
 

@@ -1,19 +1,21 @@
 ---
-title: uds run
-description: UDS CLI command reference for <code>uds run</code>.
+title: uds pull
+description: UDS CLI command reference for <code>uds pull</code>.
 ---
-## uds run
+## uds pull
 
-Run a task using maru-runner
+Pull a bundle from a remote registry and save to the local file system
 
 ```
-uds run [flags]
+uds pull [OCI_REF] [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for run
+  -h, --help            help for pull
+  -k, --key string      Path to a public key file that will be used to validate a signed bundle
+  -o, --output string   Specify the output directory for the pulled bundle
 ```
 
 ### Options inherited from parent commands
@@ -33,5 +35,5 @@ uds run [flags]
 
 ### SEE ALSO
 
-* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds](/reference/commands/uds/)	 - CLI for UDS Bundles
 

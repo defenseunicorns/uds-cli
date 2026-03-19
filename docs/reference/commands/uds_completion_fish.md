@@ -1,21 +1,35 @@
 ---
-title: uds pull
-description: UDS CLI command reference for <code>uds pull</code>.
+title: uds completion fish
+description: UDS CLI command reference for <code>uds completion fish</code>.
 ---
-## uds pull
+## uds completion fish
 
-Pull a bundle from a remote registry and save to the local file system
+Generate the autocompletion script for fish
+
+### Synopsis
+
+Generate the autocompletion script for the fish shell.
+
+To load completions in your current shell session:
+
+	uds completion fish | source
+
+To load completions for every new session, execute once:
+
+	uds completion fish > ~/.config/fish/completions/uds.fish
+
+You will need to start a new shell for this setup to take effect.
+
 
 ```
-uds pull [OCI_REF] [flags]
+uds completion fish [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help            help for pull
-  -k, --key string      Path to a public key file that will be used to validate a signed bundle
-  -o, --output string   Specify the output directory for the pulled bundle
+  -h, --help              help for fish
+      --no-descriptions   disable completion descriptions
 ```
 
 ### Options inherited from parent commands
@@ -35,5 +49,5 @@ uds pull [OCI_REF] [flags]
 
 ### SEE ALSO
 
-* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds completion](/reference/commands/uds_completion/)	 - Generate the autocompletion script for the specified shell
 

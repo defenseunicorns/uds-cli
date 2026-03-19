@@ -1,24 +1,21 @@
 ---
-title: uds inspect
-description: UDS CLI command reference for <code>uds inspect</code>.
+title: uds completion
+description: UDS CLI command reference for <code>uds completion</code>.
 ---
-## uds inspect
+## uds completion
 
-Display the metadata of a bundle
+Generate the autocompletion script for the specified shell
 
-```
-uds inspect [BUNDLE_TARBALL|OCI_REF|BUNDLE_YAML_FILE] [flags]
-```
+### Synopsis
+
+Generate the autocompletion script for uds for the specified shell.
+See each sub-command's help for details on how to use the generated script.
+
 
 ### Options
 
 ```
-  -e, --extract          Create a folder of SBOMs contained in the bundle
-  -h, --help             help for inspect
-  -k, --key string       Path to a public key file that will be used to validate a signed bundle
-  -i, --list-images      Derive images from a uds-bundle.yaml file and list them
-  -v, --list-variables   List all configurable variables in a bundle (including zarf variables)
-  -s, --sbom             Create a tarball of SBOMs contained in the bundle
+  -h, --help   help for completion
 ```
 
 ### Options inherited from parent commands
@@ -38,5 +35,8 @@ uds inspect [BUNDLE_TARBALL|OCI_REF|BUNDLE_YAML_FILE] [flags]
 
 ### SEE ALSO
 
-* [uds](/reference/cli/commands/uds/)	 - CLI for UDS Bundles
+* [uds](/reference/commands/uds/)	 - CLI for UDS Bundles
+* [uds completion bash](/reference/commands/uds_completion_bash/)	 - Generate the autocompletion script for bash
+* [uds completion fish](/reference/commands/uds_completion_fish/)	 - Generate the autocompletion script for fish
+* [uds completion zsh](/reference/commands/uds_completion_zsh/)	 - Generate the autocompletion script for zsh
 
