@@ -139,6 +139,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		}
 
 		deployOpts := packager.DeployOptions{
+			ForceConflicts:         b.cfg.DeployOpts.ForceConflicts,
 			Timeout:                timeout,
 			SetVariables:           pkgVars,
 			ValuesOverridesMap:     valuesOverrides,

@@ -14,6 +14,7 @@ uds deploy [BUNDLE_TARBALL|OCI_REF] [flags]
 
 ```
   -c, --confirm                Confirms bundle deployment without prompting. ONLY use with bundles you trust
+      --force-conflicts        Force Helm to take ownership of conflicting fields during Server-Side Apply operations. Use when external tools (kubectl, HPAs, etc.) have modified resources. Defaults to false.
   -h, --help                   help for deploy
   -p, --packages stringArray   Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed.
   -r, --resume                 Only deploys packages from the bundle which haven't already been deployed
