@@ -6,12 +6,13 @@ package main
 
 import (
 	"github.com/defenseunicorns/uds-cli/src/cmd"
+	"github.com/zarf-dev/zarf/src/pkg/cluster"
+	"helm.sh/helm/v3/pkg/kube"
 )
 
 func main() {
-	// Decision point here for the uds-cli team, with ssa deploys what do you want your field manager to be named
-	// You could name it "zarf" to be consistent with the name set by Zarf, this will allow users to deploy the same resources with packages and bundles interchangeably
-	// Alternatively, you could name it uds, if you want to introduce friction if a user deploys a package previously owned by uds-cli with Zarf or vice versa
-	// kube.ManagedFieldsManager = "uds|zarf" (there is a constant cluster.FieldManagerName if using zarf)
+	// Set the Helm field manager name to match Zarf's so that resources deployed via UDS bundles
+	// and resources deployed directly via Zarf are interchangeable without requiring --force-conflicts.
+	kube.ManagedFieldsManager = cluster.FieldManagerName
 	cmd.Execute()
 }
