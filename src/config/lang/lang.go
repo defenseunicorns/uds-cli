@@ -51,7 +51,7 @@ const (
 	CmdBundleDeployFlagSet            = "Specify deployment variables to set on the command line (KEY=value)"
 	CmdBundleDeployFlagRetries        = "Specify the number of retries for package deployments (applies to all pkgs in a bundle)"
 	CmdBundleDeployFlagRef            = "Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used."
-	CmdBundleDeployFlagForceConflicts = "Force server-side apply conflicts to be overwritten. Defaults to false"
+	CmdBundleDeployFlagForceConflicts = "Force Helm to take ownership of conflicting fields during Server-Side Apply operations. Use when external tools (kubectl, HPAs, etc.) have modified resources. Defaults to false."
 
 	// bundle inspect
 	CmdBundleInspectShort             = "Display the metadata of a bundle"
