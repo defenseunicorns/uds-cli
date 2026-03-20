@@ -1,4 +1,4 @@
-# Copyright 2024 Defense Unicorns
+# Copyright 2026 Defense Unicorns
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 name: CI Docs
@@ -25,8 +25,8 @@ on:
       - renovate.json
       - CODEOWNERS
       - LICENSE
-      - hack/** # scripts used specifically for non-testing workflows
-      - .github/workflows/docs-shim.yaml
+      - hack/generate-docs.sh
+      - hack/test-docs.sh
 
 jobs:
   lint-check:
@@ -70,8 +70,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: "22"
+
       - name: Install UDS CLI
         uses: ./.github/actions/install-uds-cli
 
       - name: Check UDS Docs links
         run: uds run uds-docs-validate
+
+  # Shim required checks so docs-only PRs can merge without running full E2E CI
+  test:
+    uses: ./.github/workflows/test-shim.yaml

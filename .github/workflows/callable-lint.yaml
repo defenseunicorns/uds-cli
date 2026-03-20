@@ -21,7 +21,8 @@ on:
       - renovate.json
       - CODEOWNERS
       - LICENSE
-      - hack/**
+      - hack/generate-docs.sh
+      - hack/test-docs.sh
   # This allows other repositories to call this workflow in a reusable way
   workflow_call:
 

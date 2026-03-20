@@ -17,7 +17,8 @@ on:
       - renovate.json
       - CODEOWNERS
       - LICENSE
-      - hack/**
+      - hack/generate-docs.sh
+      - hack/test-docs.sh
 
 permissions:
   contents: read

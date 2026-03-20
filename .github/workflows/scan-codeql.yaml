@@ -23,7 +23,8 @@ on:
       - renovate.json
       - CODEOWNERS
       - LICENSE
-      - hack/**
+      - hack/generate-docs.sh
+      - hack/test-docs.sh
   schedule:
     - cron: "32 2 * * 5"
 
