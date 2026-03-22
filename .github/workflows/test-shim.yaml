@@ -1,0 +1,28 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+name: Test Shim
+
+# Permissions for the GITHUB_TOKEN used by the workflow.
+permissions:
+  contents: read # Allows reading the content of the repository.
+
+on:
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skipped
+        run: echo "skipped"
+
+  test-bundle:
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      matrix:
+        test: [bundle, deploy-flags, index]
+    steps:
+      - name: Skipped
+        run: echo "skipped"

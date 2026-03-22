@@ -1,9 +1,24 @@
 # Copyright 2024 Defense Unicorns
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
-name: Validate Schema and Docs
+name: Validate Schema
 on:
   pull_request:
+    paths-ignore:
+      - "**.md"
+      - "**.mdx"
+      - "**.jpg"
+      - "**.png"
+      - "**.gif"
+      - "**.svg"
+      - docs/**
+      - .vscode/**
+      - .gitignore
+      - renovate.json
+      - CODEOWNERS
+      - LICENSE
+      - hack/generate-docs.sh
+      - hack/test-docs.sh
 
 permissions:
   contents: read
@@ -23,9 +38,6 @@ jobs:
 
       - name: Test schemas
         run: uds run schema:test
-
-      - name: Test docs
-        run: uds run docs:test
 
       - name: Save logs
         if: always()
