@@ -1,5 +1,6 @@
 ---
 title: Quickstart
+description: Write a uds-bundle.yaml, create a bundle from Zarf packages, and deploy it in a complete end-to-end walkthrough.
 prev: true
 sidebar:
   order: 2.3
@@ -91,7 +92,7 @@ uds zarf tools kubectl get pods -A
 ```
 
 > [!NOTE]
-> A UDS Bundle is an OCI artifact containing one or more Zarf packages and a `uds-bundle.yaml` manifest. The manifest is entirely declarative — UDS CLI will not prompt for optional Zarf components at deploy time. To include an optional component, list it explicitly with `optionalComponents`.
+> A UDS Bundle is an OCI artifact containing one or more Zarf packages and a `uds-bundle.yaml` manifest. The manifest is entirely declarative; UDS CLI will not prompt for optional Zarf components at deploy time. To include an optional component, list it explicitly with `optionalComponents`.
 
 ## Troubleshooting
 
@@ -115,6 +116,6 @@ uds zarf tools kubectl get pods -A
 
 ## Related Documentation
 
-- [Use Bundle Overrides](/how-to-guides/use-bundle-overrides/) — Customize package configuration at deploy time without modifying the bundle.
-- [Use UDS Runner](/how-to-guides/use-uds-runner/) — Automate tasks with UDS Runner's built-in task execution.
-- [Monitor a Cluster](/how-to-guides/monitor-cluster/) — Inspect running workloads and Pepr events from the CLI.
+- [Use Bundle Overrides](/how-to-guides/use-bundle-overrides/): Customize package configuration at deploy time without modifying the bundle.
+- [Use UDS Runner](/how-to-guides/use-uds-runner/): Automate tasks with UDS Runner's built-in task execution.
+- [Monitor a Cluster](/how-to-guides/monitor-cluster/): Inspect running workloads and Pepr events from the CLI.

@@ -1,5 +1,6 @@
 ---
 title: Use UDS Runner
+description: Define and run complex build and operational workflows using UDS Runner's task system with tasks.yaml.
 sidebar:
   order: 3.3
 ---
@@ -134,7 +135,7 @@ uds run --list-all   # tasks in the current file and all included files
 
 **Symptom:** `task not found` error when running `uds run <task-name>`.
 
-**Solution:** Verify the task name matches exactly — task names are case-sensitive.
+**Solution:** Verify the task name matches exactly; task names are case-sensitive.
 
 ### Problem: Variable not applied
 
@@ -146,7 +147,7 @@ uds run --list-all   # tasks in the current file and all included files
 
 **Symptom:** A task using `./zarf` fails with a "command not found" error.
 
-**Solution:** Ensure you are using `./zarf`, not bare `zarf` — the vendored binary requires the `./` prefix.
+**Solution:** Ensure you are using `./zarf`, not bare `zarf`; the vendored binary requires the `./` prefix.
 
 ### Problem: Wrong architecture detected
 
@@ -156,5 +157,5 @@ uds run --list-all   # tasks in the current file and all included files
 
 ## Related Documentation
 
-- [Monitor a Cluster](/cli/how-to-guides/monitor-cluster/) — Stream real-time Pepr admission and operator logs.
-- [Use Bundle Overrides](/cli/how-to-guides/use-bundle-overrides/) — Customize deployments at runtime with Helm overrides and variables.
+- [Monitor a Cluster](/cli/how-to-guides/monitor-cluster/): Stream real-time Pepr admission and operator logs.
+- [Use Bundle Overrides](/cli/how-to-guides/use-bundle-overrides/): Customize deployments at runtime with Helm overrides and variables.

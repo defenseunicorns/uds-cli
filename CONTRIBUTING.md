@@ -5,6 +5,7 @@ Below are some notes on our core software design philosophies that should help g
 
 ## Table of Contents
 1. [Code Quality and Standards](#code-quality-and-standards)
+1. [Documentation Standards](#documentation-standards)
 1. [How to Contribute](#how-to-contribute)
     - [Building the app](#building-the-app)
     - [Pre-Commit Hooks and Linting](#pre-commit-hooks-and-linting)
@@ -33,6 +34,43 @@ Specifically:
 - We don't merge code into `main` that isn't releasable
 - We perform automated testing on all changes before they get merged to `main`
 - We create immutable release artifacts
+
+## Documentation Standards
+
+UDS CLI docs live under `docs/` in this repo and are published to the [UDS docs site](https://uds.defenseunicorns.com) via automated integration. If you add or change user-facing behavior, update the relevant docs page.
+
+### Docs structure
+
+| Directory | Content |
+|---|---|
+| `docs/getting-started/` | Installation and quickstart guides |
+| `docs/how-to-guides/` | Task-oriented guides for common CLI operations |
+| `docs/reference/` | Command reference (auto-generated) and configuration schemas |
+
+> [!NOTE]
+> Files under `docs/reference/commands/` are auto-generated from the CLI source. Do not edit them manually; changes will be overwritten on the next release.
+
+### Required: `description` frontmatter
+
+Every docs page must have a `description` field in its frontmatter. This is required, not optional.
+
+```yaml
+---
+title: Use Bundle Overrides
+description: Customize Helm chart values and variables inside Zarf packages using bundle overrides in uds-bundle.yaml and uds-config.yaml.
+---
+```
+
+**Why it's required:**
+- **`llms.txt`**: the UDS docs site generates AI-readable index files used by LLMs and AI coding assistants. The description appears next to each page link so LLMs can navigate to the right content without downloading everything.
+- **Search**: shown as the result snippet on the docs site.
+- **SEO**: used as the HTML `<meta name="description">` tag.
+
+**Writing a good description** (1–2 sentences, active voice):
+- How-to guide: start with a verb, for example "Configure...", "Use...", "Set up..."
+- Reference page: summarize what is documented
+- Overview/index page: start with "Guides for..." or "Index of...", e.g. "Guides for common UDS CLI operations: bundle overrides, the UDS Runner task system, and cluster monitoring."
+- Avoid "This page..." or "Learn about..." openings
 
 ## How to Contribute
 Please ensure there is a GitHub issue for your proposed change, this helps the UDS CLI team to understand the context of the change and to track the progress of the work. If there isn't an issue for your change, please create one before starting work. The recommended workflow for contributing is as follows:

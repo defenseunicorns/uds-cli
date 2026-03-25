@@ -1,5 +1,6 @@
 ---
 title: Monitor a Cluster
+description: Stream and filter logs from the UDS Pepr controllers to monitor policy actions and operator behavior in a running cluster.
 sidebar:
   order: 3.4
 ---
@@ -44,13 +45,13 @@ UDS Core runs two Pepr-based controllers that `uds monitor` streams logs from:
 
    Run the command matching what you want to observe:
 
-   **All logs** — aggregate admission and operator logs into a single stream:
+   **All logs**: aggregate admission and operator logs into a single stream:
 
    ```bash
    uds monitor pepr
    ```
 
-   **Operator logs only** — UDS Package processing, status updates, and errors:
+   **Operator logs only**: UDS Package processing, status updates, and errors:
 
    ```bash
    uds monitor pepr operator
@@ -125,5 +126,5 @@ You should see a continuous stream of admission and operator events as activity 
 
 ## Related Documentation
 
-- [Use Bundle Overrides](/cli/how-to-guides/use-bundle-overrides/) — Tune deployments at runtime with Helm overrides and variables.
-- [Use UDS Runner](/cli/how-to-guides/use-uds-runner/) — Automate workflows with `tasks.yaml`.
+- [Use Bundle Overrides](/cli/how-to-guides/use-bundle-overrides/): Tune deployments at runtime with Helm overrides and variables.
+- [Use UDS Runner](/cli/how-to-guides/use-uds-runner/): Automate workflows with `tasks.yaml`.

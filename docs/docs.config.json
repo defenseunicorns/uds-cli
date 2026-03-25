@@ -2,6 +2,7 @@
   "id": "cli",
   "label": "CLI",
   "contentDir": "cli",
+  "description": "The command-line tool for creating and deploying UDS Bundles. Wraps Zarf to add multi-package bundles (`uds-bundle.yaml`), a task runner (`uds run`), and cluster monitoring.",
   "sidebarOrder": [
     "getting-started",
     { "dir": "how-to-guides", "label": "How-to Guides" },
