@@ -12,14 +12,19 @@ on:
   pull_request:
     paths-ignore:
       - "**.md"
+      - "**.mdx"
       - "**.jpg"
       - "**.png"
       - "**.gif"
       - "**.svg"
-      - "adr/**"
-      - "docs/**"
-      - "CODEOWNERS"
-      - "goreleaser.yml"
+      - docs/**
+      - .vscode/**
+      - .gitignore
+      - renovate.json
+      - CODEOWNERS
+      - LICENSE
+      - hack/generate-docs.sh
+      - hack/test-docs.sh
   schedule:
     - cron: "32 2 * * 5"
 
