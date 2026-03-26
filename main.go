@@ -7,7 +7,7 @@ package main
 import (
 	"github.com/defenseunicorns/uds-cli/src/cmd"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
-	"helm.sh/helm/v3/pkg/kube"
+	"helm.sh/helm/v4/pkg/kube"
 )
 
 func main() {
