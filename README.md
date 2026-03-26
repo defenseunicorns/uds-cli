@@ -13,7 +13,7 @@ brew install defenseunicorns/tap/uds
 UDS CLI binaries are also included with each [Github Release](https://github.com/defenseunicorns/uds-cli/releases)
 
 ## Official Documentation
-Official documentation is located at [uds.defenseunicorns.com/reference/cli/overview/](https://uds.defenseunicorns.com/reference/cli/overview/)
+Official documentation is located at [docs.defenseunicorns.com/cli/](https://docs.defenseunicorns.com/cli/)
 
 ## Quickstart
 UDS-CLI provides a mechanism to bundle and deploy multiple, independent Zarf packages. To create a `UDSBundle` of Zarf packages, create a `uds-bundle.yaml` file like so:
