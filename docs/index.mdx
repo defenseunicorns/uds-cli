@@ -3,7 +3,7 @@ title: UDS CLI
 description: The primary interface for deploying and managing UDS bundles and mission applications.
 ---
 
-import { CardGrid, Card } from '@astrojs/starlight/components';
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 <div class="custom-hero">
   <img src="/assets/UDS_CLI_Logo_White.svg" alt="UDS CLI" class="hero-logo hero-logo-dark" data-zoom-off />
@@ -30,17 +30,16 @@ Full command reference is available via `uds --help` and `uds <command> --help`.
 ---
 
 <CardGrid>
-  <Card title="Getting Started">
-    Install UDS CLI and deploy your first bundle.
-
-    [Get started →](/getting-started/overview/)
-  </Card>
-
-  <Card title="How-to Guides">
-    Common operational patterns.
-
-    [Browse guides →](/how-to-guides/overview/)
-  </Card>
+  <LinkCard
+    title="Getting Started"
+    description="Install UDS CLI and deploy your first bundle."
+    href="/getting-started/overview/"
+  />
+  <LinkCard
+    title="How-to Guides"
+    description="Common operational patterns."
+    href="/how-to-guides/overview/"
+  />
 </CardGrid>
 
 ---
