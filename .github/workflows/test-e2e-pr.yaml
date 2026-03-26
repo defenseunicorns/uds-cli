@@ -6,16 +6,19 @@ on:
   pull_request:
     paths-ignore:
       - "**.md"
+      - "**.mdx"
       - "**.jpg"
       - "**.png"
       - "**.gif"
       - "**.svg"
-      - "adr/**"
-      - "docs/**"
-      - "hack/**"
-      - "CODEOWNERS"
-      - "goreleaser*.y*ml"
-      - ".github/workflows/*release*.y*ml"
+      - docs/**
+      - .vscode/**
+      - .gitignore
+      - renovate.json
+      - CODEOWNERS
+      - LICENSE
+      - hack/generate-docs.sh
+      - hack/test-docs.sh
 
 permissions:
   contents: read

@@ -1,7 +1,7 @@
 # Copyright 2024 Defense Unicorns
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
-name: Unit Tests
+name: Validate Schema
 on:
   pull_request:
     paths-ignore:
@@ -23,13 +23,8 @@ on:
 permissions:
   contents: read
 
-# Abort prior jobs in the same workflow / PR
-concurrency:
-  group: unit-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  test:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -41,11 +36,29 @@ jobs:
       - name: Install UDS CLI
         uses: ./.github/actions/install-uds-cli
 
-      - name: Run unit tests
-        run: uds run test:unit
+      - name: Test schemas
+        run: uds run schema:test
 
       - name: Save logs
         if: always()
         uses: ./.github/actions/save-logs
         with:
-          suffix: unit
+          suffix: validate-schema-and-docs
+
+  docs-link-check:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: "22"
+
+      - name: Install UDS CLI
+        uses: ./.github/actions/install-uds-cli
+
+      - name: Check UDS Docs links
+        run: uds run uds-docs-validate
