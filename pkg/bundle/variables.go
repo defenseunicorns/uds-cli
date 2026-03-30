@@ -6,7 +6,40 @@ package bundle
 import (
 	"strconv"
 	"strings"
+
+	"github.com/zarf-dev/zarf/src/pkg/value"
 )
+
+// MergeVariables deep-merges variables from overrides into base, returning a new Variables map.  This function
+// leverages Zarf's deep-merge for values.
+func MergeVariables(base, overrides Variables) Variables {
+	if base == nil && overrides == nil {
+		return nil
+	}
+	result := make(Variables, len(base))
+	for k, v := range base {
+		if m, ok := v.(map[string]any); ok {
+			result[k] = deepCopyMap(m)
+		} else {
+			result[k] = v
+		}
+	}
+	value.Values(result).DeepMerge(value.Values(overrides))
+	return result
+}
+
+// deepCopyMap recursively copies a map[string]any so that mutations to the copy do not affect the original.
+func deepCopyMap(m map[string]any) map[string]any {
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		if nested, ok := v.(map[string]any); ok {
+			out[k] = deepCopyMap(nested)
+		} else {
+			out[k] = v
+		}
+	}
+	return out
+}
 
 // Flatten returns the top-level scalar values (string, float64, bool) as an
 // uppercased string map suitable for Zarf's SetVariables passthrough.

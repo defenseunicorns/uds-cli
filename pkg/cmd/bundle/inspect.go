@@ -57,7 +57,7 @@ func (o *InspectOptions) Complete(cmd *cobra.Command, args []string) error {
 		o.BundlePath = "."
 	}
 
-	cfg, _, err := NewConfigResolver().Resolve(cmd)
+	cfg, _, err := NewConfigResolver().Resolve(cmd, o.BundlePath)
 	if err != nil {
 		return err
 	}

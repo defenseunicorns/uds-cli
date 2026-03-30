@@ -385,6 +385,120 @@ package "pkg1" {
 	require.NotContains(t, entries, loggingBlob, "optional component blob should be absent when not requested")
 }
 
+func TestCreate_DefaultsHCLIncludedWhenPresent(t *testing.T) {
+	dir := t.TempDir()
+
+	writeMinimalOCILayout(t, filepath.Join(dir, "localpkg"))
+
+	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
+	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+
+metadata {
+  name    = "defaults-test"
+  version = "0.0.1"
+}
+
+package "pkg1" {
+  source = "localpkg"
+}
+`), tmpFilePerm))
+
+	defaultsContent := []byte(`options {
+  architecture = "amd64"
+}
+
+variables = {
+  a = "a-default-value"
+  b = "b-default-value"
+}
+`)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, DefaultBundleConfigFileName), defaultsContent, tmpFilePerm))
+
+	_, err := Create(context.Background(), CreateOptions{
+		Config:     newTestConfig(),
+		BundleFile: bundleFile,
+		Out:        io.Discard,
+	})
+	require.NoError(t, err)
+
+	outPath := filepath.Join(dir, "uds-bundle-defaults-test-"+runtime.GOARCH+"-0.0.1.tar.zst")
+	entries := readTarZstEntries(t, outPath)
+
+	require.True(t, bundleDefinitionContainsLayerTitle(t, entries, "bundle.uds.hcl"))
+	require.True(t, bundleDefinitionContainsLayerTitle(t, entries, DefaultBundleConfigFileName))
+
+	// Verify defaults.uds.hcl content is preserved in the blob.
+	var idx struct {
+		Manifests []struct {
+			Digest       string `json:"digest"`
+			ArtifactType string `json:"artifactType"`
+		} `json:"manifests"`
+	}
+	require.NoError(t, json.Unmarshal(entries["oci/index.json"], &idx))
+
+	var defManifestBytes []byte
+	for _, m := range idx.Manifests {
+		if m.ArtifactType == MediaTypeBundleDefinition {
+			hex := strings.TrimPrefix(m.Digest, "sha256:")
+			defManifestBytes = entries["oci/blobs/sha256/"+hex]
+			break
+		}
+	}
+	require.NotNil(t, defManifestBytes)
+
+	var defManifest struct {
+		Layers []struct {
+			Digest      string            `json:"digest"`
+			Annotations map[string]string `json:"annotations"`
+		} `json:"layers"`
+	}
+	require.NoError(t, json.Unmarshal(defManifestBytes, &defManifest))
+
+	for _, l := range defManifest.Layers {
+		if l.Annotations["org.opencontainers.image.title"] == DefaultBundleConfigFileName {
+			blob := entries["oci/blobs/sha256/"+strings.TrimPrefix(l.Digest, "sha256:")]
+			require.Equal(t, string(defaultsContent), string(blob))
+		}
+	}
+}
+
+func TestCreate_NoDefaultsHCL_NotIncluded(t *testing.T) {
+	dir := t.TempDir()
+
+	writeMinimalOCILayout(t, filepath.Join(dir, "localpkg"))
+
+	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
+	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+
+metadata {
+  name    = "no-defaults-test"
+  version = "0.0.1"
+}
+
+package "pkg1" {
+  source = "localpkg"
+}
+`), tmpFilePerm))
+
+	_, err := Create(context.Background(), CreateOptions{
+		Config:     newTestConfig(),
+		BundleFile: bundleFile,
+		Out:        io.Discard,
+	})
+	require.NoError(t, err)
+
+	outPath := filepath.Join(dir, "uds-bundle-no-defaults-test-"+runtime.GOARCH+"-0.0.1.tar.zst")
+	entries := readTarZstEntries(t, outPath)
+
+	require.True(t, bundleDefinitionContainsLayerTitle(t, entries, "bundle.uds.hcl"))
+	require.False(t, bundleDefinitionContainsLayerTitle(t, entries, DefaultBundleConfigFileName),
+		"defaults.uds.hcl should not be in the bundle when the file does not exist")
+}
+
 func readTarZstEntries(t *testing.T, path string) map[string][]byte {
 	t.Helper()
 

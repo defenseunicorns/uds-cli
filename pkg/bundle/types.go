@@ -11,8 +11,14 @@ import (
 	oras "oras.land/oras-go/v2"
 )
 
+// DefaultBundleConfigFileName is the name of the optional bundle-level defaults file.
+// When present alongside bundle.uds.hcl, it is auto-discovered and applied as the
+// lowest-priority configuration layer. Only the variables block is supported;
+// the options block is not allowed and will produce an error.
+const DefaultBundleConfigFileName = "defaults.uds.hcl"
+
 // Variables is a named type for the nested user-defined variable map parsed
-// from the variables block in config.uds.hcl.
+// from the variables block in defaults.uds.hcl and config.uds.hcl.
 // Leaf values are scalars (string, float64, bool); intermediate nodes are
 // nested Variables maps decoded from HCL object expressions.
 // nil means no --config was provided.

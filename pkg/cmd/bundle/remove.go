@@ -53,7 +53,7 @@ func (o *RemoveOptions) Complete(cmd *cobra.Command, args []string) error {
 		o.OCIReference = args[0]
 	}
 
-	cfg, _, err := NewConfigResolver().Resolve(cmd)
+	cfg, _, err := NewConfigResolver().Resolve(cmd, "")
 	if err != nil {
 		return err
 	}

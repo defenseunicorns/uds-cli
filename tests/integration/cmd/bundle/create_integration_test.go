@@ -128,6 +128,58 @@ func TestCreate_InitBundle_OptionalComponentExcluded(t *testing.T) {
 		"k3s layer blob should be absent when optional_components is omitted")
 }
 
+// TestCreate_DefaultsConfig_Applied verifies that when a defaults.uds.hcl exists
+// alongside bundle.uds.hcl, its variables are applied during create
+func TestCreate_DefaultsConfig_Applied(t *testing.T) {
+	srcDir := testDataPath(t, "bundles/create/init-with-defaults")
+
+	dir := t.TempDir()
+	require.NoError(t, copyDir(srcDir, dir))
+
+	// Exercise cobra wiring: create the bundle via the bundle command
+	streams, _, out, _ := iostreams.NewTestIOStreams()
+
+	root := bundlecmd.NewBundleCommand(streams)
+	root.SetArgs([]string{"create", dir})
+
+	err := root.Execute()
+	require.NoError(t, err)
+
+	output := out.String()
+	assert.Contains(t, output, "Bundle created")
+
+	// Verify defaults variables are resolved through ConfigResolver
+	resolver := bundlecmd.NewConfigResolver()
+	cmd := bundlecmd.NewBundleCommand(streams)
+	// Find the create subcommand to get its flags
+	createCmd, _, _ := cmd.Find([]string{"create"})
+	createCmd.Flags().String("config", "", "config path")
+	resolved, _, err := resolver.Resolve(createCmd, dir)
+	require.NoError(t, err)
+
+	// Variables from defaults.uds.hcl
+	require.NotNil(t, resolved.Variables)
+	assert.Equal(t, "a-default-value", resolved.Variables["a"])
+	assert.Equal(t, float64(0), resolved.Variables["b"])
+	c, ok := resolved.Variables["c"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, true, c["d"])
+	assert.Equal(t, false, c["e"])
+}
+
+// TestCreate_DefaultsConfig_IncludedAsOCILayer verifies that when defaults.uds.hcl exists alongside
+// bundle.uds.hcl, it is included as a layer in the bundle definition manifest in the OCI layout.
+func TestCreate_DefaultsConfig_IncludedAsOCILayer(t *testing.T) {
+	outPath := createBundleFromTestData(t, "bundles/create/init-with-defaults", runtime.GOARCH)
+
+	allPaths, small := assertValidBundleStructure(t, outPath)
+
+	assert.True(t,
+		bundleDefinitionContainsLayerTitle(t, allPaths, small, "defaults.uds.hcl"),
+		"defaults.uds.hcl should be a layer in the bundle definition manifest",
+	)
+}
+
 // TestCreate_InitBundle_MultiArch verifies that the init bundle can be created
 // for multiple architectures and that each output is named correctly.
 func TestCreate_InitBundle_MultiArch(t *testing.T) {

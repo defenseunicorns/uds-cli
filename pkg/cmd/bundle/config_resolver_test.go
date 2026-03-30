@@ -315,112 +315,218 @@ func TestOverlayCLI_LogLevelChanged(t *testing.T) {
 	assert.Equal(t, "debug", result.LogLevel, "CLI --log-level should override base")
 }
 
-func TestThreeLayerPrecedence(t *testing.T) {
+func TestMultiLayerPrecedence(t *testing.T) {
 	r := NewConfigResolver()
+	builtinLogLevel := "info"
+	builtinArch := runtime.GOARCH
+	builtinConcurrency := 10
+	builtinPlainHTTP := false
 
 	tests := []struct {
-		name          string
-		hclOpts       *bundle.ConfigOptions // nil means no config.uds.hcl
-		cliFlags      map[string]string     // flags to set via cmd.Flags().Set()
-		wantLogLevel  string
-		wantArch      string
-		wantConc      int
-		wantPlainHTTP bool
+		name            string
+		configFileOpts  *bundle.ConfigOptions // config.uds.hcl options, nil means no specified
+		cliFlags        map[string]string     // layer 4: CLI flags
+		defaultFileVars bundle.Variables      // defaults.uds.hcl (variables only), nil means no file
+		configFileVars  bundle.Variables      // config.uds.hcl variables, nil means not specified
+		wantLogLevel    string
+		wantArch        string
+		wantConc        int
+		wantPlainHTTP   bool
+		wantVars        bundle.Variables
 	}{
+		// -- Option Overrides
 		{
-			name:         "all defaults, no HCL, no CLI",
-			hclOpts:      nil,
-			cliFlags:     nil,
-			wantLogLevel: "info",
-			wantArch:     runtime.GOARCH,
-			wantConc:     10,
+			name:            "no defaults file, no config file, no CLI options uses built-in default options and no variables",
+			configFileOpts:  nil,
+			cliFlags:        nil,
+			defaultFileVars: nil,
+			configFileVars:  nil,
+			wantLogLevel:    builtinLogLevel,
+			wantArch:        builtinArch,
+			wantConc:        builtinConcurrency,
+			wantPlainHTTP:   builtinPlainHTTP,
+			wantVars:        nil,
 		},
 		{
-			name:         "HCL overrides default",
-			hclOpts:      &bundle.ConfigOptions{Architecture: "arm64"},
-			cliFlags:     nil,
-			wantLogLevel: "info",
-			wantArch:     "arm64",
-			wantConc:     10,
+			name:            "config file options overrides built-in default options",
+			configFileOpts:  &bundle.ConfigOptions{LogLevel: "debug", Architecture: "ia64", Concurrency: 1, PlainHTTP: true},
+			cliFlags:        nil,
+			defaultFileVars: nil,
+			configFileVars:  nil,
+			wantLogLevel:    "debug",
+			wantArch:        "ia64",
+			wantConc:        1,
+			wantPlainHTTP:   true,
+			wantVars:        nil,
 		},
 		{
-			name:         "CLI overrides default",
-			hclOpts:      nil,
-			cliFlags:     map[string]string{"architecture": "arm64"},
-			wantLogLevel: "info",
-			wantArch:     "arm64",
-			wantConc:     10,
+			name:            "config file options partial overrides built-in default options",
+			configFileOpts:  &bundle.ConfigOptions{LogLevel: "debug", Concurrency: 1},
+			cliFlags:        nil,
+			defaultFileVars: nil,
+			configFileVars:  nil,
+			wantLogLevel:    "debug",
+			wantArch:        builtinArch,
+			wantConc:        1,
+			wantPlainHTTP:   builtinPlainHTTP,
+			wantVars:        nil,
 		},
 		{
-			name:         "CLI overrides HCL",
-			hclOpts:      &bundle.ConfigOptions{Architecture: "arm64"},
-			cliFlags:     map[string]string{"architecture": "s390x"},
-			wantLogLevel: "info",
-			wantArch:     "s390x",
-			wantConc:     10,
+			name:            "CLI options overrides built-in default options",
+			configFileOpts:  nil,
+			cliFlags:        map[string]string{"log-level": "warning", "architecture": "s390x", "concurrency": "2", "plain-http": "true"},
+			defaultFileVars: nil,
+			configFileVars:  nil,
+			wantLogLevel:    "warning",
+			wantArch:        "s390x",
+			wantConc:        2,
+			wantPlainHTTP:   true,
+			wantVars:        nil,
 		},
 		{
-			name:         "partial HCL (only concurrency)",
-			hclOpts:      &bundle.ConfigOptions{Concurrency: 5},
-			cliFlags:     nil,
-			wantLogLevel: "info",
-			wantArch:     runtime.GOARCH,
-			wantConc:     5,
+			name:            "CLI options partial overrides built-in default options",
+			configFileOpts:  nil,
+			cliFlags:        map[string]string{"log-level": "warning", "architecture": "s390x"},
+			defaultFileVars: nil,
+			configFileVars:  nil,
+			wantLogLevel:    "warning",
+			wantArch:        "s390x",
+			wantConc:        builtinConcurrency,
+			wantPlainHTTP:   builtinPlainHTTP,
+			wantVars:        nil,
 		},
 		{
-			name:          "HCL bool true, no CLI",
-			hclOpts:       &bundle.ConfigOptions{PlainHTTP: true},
-			cliFlags:      nil,
-			wantLogLevel:  "info",
-			wantArch:      runtime.GOARCH,
-			wantConc:      10,
-			wantPlainHTTP: true,
+			name:            "CLI options overrides config file options",
+			configFileOpts:  &bundle.ConfigOptions{LogLevel: "debug", Architecture: "ia64", Concurrency: 1, PlainHTTP: true},
+			cliFlags:        map[string]string{"log-level": "warning", "architecture": "s390x", "concurrency": "2", "plain-http": "false"},
+			defaultFileVars: nil,
+			configFileVars:  nil,
+			wantLogLevel:    "warning",
+			wantArch:        "s390x",
+			wantConc:        2,
+			wantPlainHTTP:   false,
+			wantVars:        nil,
 		},
 		{
-			name:         "HCL bool false (indistinguishable from unset)",
-			hclOpts:      &bundle.ConfigOptions{PlainHTTP: false},
-			cliFlags:     nil,
-			wantLogLevel: "info",
-			wantArch:     runtime.GOARCH,
-			wantConc:     10,
+			name:            "CLI options partial overrides config file options",
+			configFileOpts:  &bundle.ConfigOptions{LogLevel: "debug", Architecture: "ia64", Concurrency: 1, PlainHTTP: true},
+			cliFlags:        map[string]string{"architecture": "s390x", "concurrency": "2"},
+			defaultFileVars: nil,
+			configFileVars:  nil,
+			wantLogLevel:    "debug",
+			wantArch:        "s390x",
+			wantConc:        2,
+			wantPlainHTTP:   true,
+			wantVars:        nil,
+		},
+		// -- Variable overrides
+		{
+			name:            "defaults file vars applied with no config file vars",
+			configFileOpts:  nil,
+			cliFlags:        nil,
+			defaultFileVars: bundle.Variables{"a": "a-default-value", "b": map[string]any{"c": true, "d": "d-default-value"}},
+			configFileVars:  nil,
+			wantLogLevel:    builtinLogLevel,
+			wantArch:        builtinArch,
+			wantConc:        builtinConcurrency,
+			wantPlainHTTP:   builtinPlainHTTP,
+			wantVars:        bundle.Variables{"a": "a-default-value", "b": map[string]any{"c": true, "d": "d-default-value"}},
 		},
 		{
-			name:         "CLI sets concurrency to 1",
-			hclOpts:      &bundle.ConfigOptions{Concurrency: 5},
-			cliFlags:     map[string]string{"concurrency": "1"},
-			wantLogLevel: "info",
-			wantArch:     runtime.GOARCH,
-			wantConc:     1,
+			name:            "config file vars applied with no default file vars",
+			configFileOpts:  nil,
+			cliFlags:        nil,
+			defaultFileVars: nil,
+			configFileVars:  bundle.Variables{"a": "a-config-value", "b": map[string]any{"c": false, "d": "d-config-value"}},
+			wantLogLevel:    builtinLogLevel,
+			wantArch:        builtinArch,
+			wantConc:        builtinConcurrency,
+			wantPlainHTTP:   builtinPlainHTTP,
+			wantVars:        bundle.Variables{"a": "a-config-value", "b": map[string]any{"c": false, "d": "d-config-value"}},
 		},
 		{
-			name:         "HCL overrides log_level",
-			hclOpts:      &bundle.ConfigOptions{LogLevel: "debug"},
-			cliFlags:     nil,
-			wantLogLevel: "debug",
-			wantArch:     runtime.GOARCH,
-			wantConc:     10,
+			name:            "config file variables overrides default file variables",
+			configFileOpts:  nil,
+			cliFlags:        nil,
+			defaultFileVars: bundle.Variables{"a": "a-default-value", "b": map[string]any{"c": true, "d": "d-default-value"}},
+			configFileVars:  bundle.Variables{"a": "a-config-value", "b": map[string]any{"c": false, "d": "d-config-value"}},
+			wantLogLevel:    builtinLogLevel,
+			wantArch:        builtinArch,
+			wantConc:        builtinConcurrency,
+			wantPlainHTTP:   builtinPlainHTTP,
+			wantVars:        bundle.Variables{"a": "a-config-value", "b": map[string]any{"c": false, "d": "d-config-value"}},
 		},
 		{
-			name:         "CLI log-level overrides HCL log_level",
-			hclOpts:      &bundle.ConfigOptions{LogLevel: "debug"},
-			cliFlags:     map[string]string{"log-level": "error"},
-			wantLogLevel: "error",
-			wantArch:     runtime.GOARCH,
-			wantConc:     10,
+			name:            "config file vars partial override defaults file vars",
+			configFileOpts:  nil,
+			cliFlags:        nil,
+			defaultFileVars: bundle.Variables{"a": "a-default-value", "b": map[string]any{"c": true, "d": "d-default-value"}},
+			configFileVars:  bundle.Variables{"a": "a-config-value"},
+			wantLogLevel:    builtinLogLevel,
+			wantArch:        builtinArch,
+			wantConc:        builtinConcurrency,
+			wantPlainHTTP:   builtinPlainHTTP,
+			wantVars:        bundle.Variables{"a": "a-config-value", "b": map[string]any{"c": true, "d": "d-default-value"}},
+		},
+		{
+			name:            "config file vars partial override nested map defaults file vars",
+			configFileOpts:  nil,
+			cliFlags:        nil,
+			defaultFileVars: bundle.Variables{"a": "a-default-value", "b": map[string]any{"c": true, "d": "d-default-value"}},
+			configFileVars:  bundle.Variables{"b": map[string]any{"d": "d-config-value"}},
+			wantLogLevel:    builtinLogLevel,
+			wantArch:        builtinArch,
+			wantConc:        builtinConcurrency,
+			wantPlainHTTP:   builtinPlainHTTP,
+			wantVars:        bundle.Variables{"a": "a-default-value", "b": map[string]any{"c": true, "d": "d-config-value"}},
+		},
+		{
+			name:            "default and config file vars merged if no conflict",
+			configFileOpts:  nil,
+			cliFlags:        nil,
+			defaultFileVars: bundle.Variables{"a": "a-default-value", "b": map[string]any{"c": true, "d": "d-default-value"}},
+			configFileVars:  bundle.Variables{"e": "e-config-value", "f": map[string]any{"g": false, "h": "h-config-value"}},
+			wantLogLevel:    builtinLogLevel,
+			wantArch:        builtinArch,
+			wantConc:        builtinConcurrency,
+			wantPlainHTTP:   builtinPlainHTTP,
+			wantVars: bundle.Variables{
+				"a": "a-default-value",
+				"b": map[string]any{"c": true, "d": "d-default-value"},
+				"e": "e-config-value",
+				"f": map[string]any{"g": false, "h": "h-config-value"},
+			},
+		},
+		// -- Config file has both options and variables
+		{
+			name:            "config file options and variables are applied independently",
+			configFileOpts:  &bundle.ConfigOptions{LogLevel: "debug", Architecture: "ia64"},
+			cliFlags:        nil,
+			defaultFileVars: bundle.Variables{"a": "a-default-value"},
+			configFileVars:  bundle.Variables{"a": "a-config-value", "b": "b-config-value"},
+			wantLogLevel:    "debug",
+			wantArch:        "ia64",
+			wantConc:        builtinConcurrency,
+			wantPlainHTTP:   builtinPlainHTTP,
+			wantVars:        bundle.Variables{"a": "a-config-value", "b": "b-config-value"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Step 1: Start from defaults
+			// Layer 1: Go defaults
 			base := r.Defaults()
 
-			// Step 2: Merge HCL options if provided
-			if tt.hclOpts != nil {
-				base = r.MergeHCL(base, tt.hclOpts)
-			}
+			// Layer 2: defaults.uds.hcl variables (options not supported)
+			vars := bundle.MergeVariables(nil, tt.defaultFileVars)
 
-			// Step 3: Overlay CLI flags
+			// Layer 3: config.uds.hcl options and variables
+			if tt.configFileOpts != nil {
+				base = r.MergeHCL(base, tt.configFileOpts)
+			}
+			vars = bundle.MergeVariables(vars, tt.configFileVars)
+
+			// Layer 4: CLI flags (options only; variables are not settable via CLI)
 			cmd := &cobra.Command{}
 			registerTestFlags(cmd)
 			for k, v := range tt.cliFlags {
@@ -432,6 +538,7 @@ func TestThreeLayerPrecedence(t *testing.T) {
 			assert.Equal(t, tt.wantArch, result.Architecture)
 			assert.Equal(t, tt.wantConc, result.Concurrency)
 			assert.Equal(t, tt.wantPlainHTTP, result.PlainHTTP)
+			assert.Equal(t, tt.wantVars, vars)
 		})
 	}
 }
@@ -442,7 +549,7 @@ func TestResolve_DefaultsOnly(t *testing.T) {
 	registerTestFlags(cmd)
 	cmd.Flags().String("config", "", "config path")
 
-	resolved, configPath, err := r.Resolve(cmd)
+	resolved, configPath, err := r.Resolve(cmd, "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -477,7 +584,7 @@ variables = {
 	cmd.Flags().String("config", "", "config path")
 	require.NoError(t, cmd.Flags().Set("config", configPath))
 
-	resolved, resolvedConfigPath, err := r.Resolve(cmd)
+	resolved, resolvedConfigPath, err := r.Resolve(cmd, "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -506,7 +613,7 @@ options {
 	require.NoError(t, cmd.Flags().Set("config", configPath))
 	require.NoError(t, cmd.Flags().Set("architecture", "s390x"))
 
-	resolved, _, err := r.Resolve(cmd)
+	resolved, _, err := r.Resolve(cmd, "")
 	require.NoError(t, err)
 
 	assert.Equal(t, "s390x", resolved.Options.Architecture, "CLI should override HCL")
@@ -520,7 +627,7 @@ func TestResolve_InvalidConfigPath(t *testing.T) {
 	cmd.Flags().String("config", "", "config path")
 	require.NoError(t, cmd.Flags().Set("config", "/nonexistent/config.uds.hcl"))
 
-	_, _, err := r.Resolve(cmd)
+	_, _, err := r.Resolve(cmd, "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse config")
 }
@@ -533,7 +640,7 @@ func TestResolve_NoConfigFlag(t *testing.T) {
 	registerTestFlags(cmd)
 	// Deliberately not registering --config flag
 
-	resolved, configPath, err := r.Resolve(cmd)
+	resolved, configPath, err := r.Resolve(cmd, "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -550,7 +657,7 @@ func TestResolve_LogLevelCLIOverride(t *testing.T) {
 	cmd.Flags().String("config", "", "config path")
 	require.NoError(t, cmd.Flags().Set("log-level", "debug"))
 
-	resolved, _, err := r.Resolve(cmd)
+	resolved, _, err := r.Resolve(cmd, "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -573,7 +680,7 @@ options {
 	cmd.Flags().String("config", "", "config path")
 	require.NoError(t, cmd.Flags().Set("config", configPath))
 
-	resolved, _, err := r.Resolve(cmd)
+	resolved, _, err := r.Resolve(cmd, "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -597,7 +704,7 @@ options {
 	require.NoError(t, cmd.Flags().Set("config", configPath))
 	require.NoError(t, cmd.Flags().Set("log-level", "error"))
 
-	resolved, _, err := r.Resolve(cmd)
+	resolved, _, err := r.Resolve(cmd, "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -612,7 +719,7 @@ func TestResolve_PromptFromFlag(t *testing.T) {
 	cmd.Flags().String("config", "", "config path")
 	require.NoError(t, cmd.Flags().Set("prompt", "true"))
 
-	resolved, _, err := r.Resolve(cmd)
+	resolved, _, err := r.Resolve(cmd, "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -634,7 +741,118 @@ options {
 	cmd.Flags().String("config", "", "config path")
 	require.NoError(t, cmd.Flags().Set("config", configPath))
 
-	_, _, err := r.Resolve(cmd)
+	_, _, err := r.Resolve(cmd, "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid log level")
+}
+
+// --- defaults.uds.hcl tests ---
+
+func TestResolve_DefaultsFile_VariablesApplied(t *testing.T) {
+	r := NewConfigResolver()
+	bundleDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundle.DefaultBundleConfigFileName), []byte(`
+variables = {
+  domain = "default.dev"
+  feature = {
+    auth = true
+  }
+}
+`), 0o644))
+
+	cmd := &cobra.Command{}
+	registerTestFlags(cmd)
+	cmd.Flags().String("config", "", "config path")
+
+	resolved, _, err := r.Resolve(cmd, bundleDir)
+	require.NoError(t, err)
+
+	assert.Equal(t, "default.dev", resolved.Variables["domain"])
+	feature, ok := resolved.Variables["feature"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, true, feature["auth"])
+}
+
+func TestResolve_NoDefaultsFile_Skipped(t *testing.T) {
+	r := NewConfigResolver()
+	bundleDir := t.TempDir() // no defaults.uds.hcl
+
+	cmd := &cobra.Command{}
+	registerTestFlags(cmd)
+	cmd.Flags().String("config", "", "config path")
+
+	resolved, _, err := r.Resolve(cmd, bundleDir)
+	require.NoError(t, err)
+
+	assert.Equal(t, runtime.GOARCH, resolved.Options.Architecture, "should use Go defaults when no defaults file")
+	assert.Nil(t, resolved.Variables)
+}
+
+func TestResolve_InvalidBundleDir_Skipped(t *testing.T) {
+	r := NewConfigResolver()
+
+	cmd := &cobra.Command{}
+	registerTestFlags(cmd)
+	cmd.Flags().String("config", "", "config path")
+
+	resolved, _, err := r.Resolve(cmd, "/nonexistent/path")
+	require.NoError(t, err, "invalid bundleDir should be skipped; ValidateBundlePath catches this later")
+	assert.Equal(t, runtime.GOARCH, resolved.Options.Architecture)
+}
+
+func TestResolve_DefaultsFile_OptionsBlockNotAllowed(t *testing.T) {
+	r := NewConfigResolver()
+	bundleDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundle.DefaultBundleConfigFileName), []byte(`
+options {
+  architecture = "amd64"
+}
+`), 0o644))
+
+	cmd := &cobra.Command{}
+	registerTestFlags(cmd)
+	cmd.Flags().String("config", "", "config path")
+
+	_, _, err := r.Resolve(cmd, bundleDir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), bundle.DefaultBundleConfigFileName)
+	assert.Contains(t, err.Error(), "options block")
+}
+
+func TestResolve_DefaultsFile_InvalidHCL(t *testing.T) {
+	r := NewConfigResolver()
+	bundleDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundle.DefaultBundleConfigFileName), []byte(`
+this is not valid HCL {{{
+`), 0o644))
+
+	cmd := &cobra.Command{}
+	registerTestFlags(cmd)
+	cmd.Flags().String("config", "", "config path")
+
+	_, _, err := r.Resolve(cmd, bundleDir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), bundle.DefaultBundleConfigFileName)
+}
+
+func TestResolve_DefaultsFile_BundleDirIsFilePath(t *testing.T) {
+	r := NewConfigResolver()
+	bundleDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundle.DefaultBundleConfigFileName), []byte(`
+variables = {
+  a = "a-default-value"
+}
+`), 0o644))
+	// Simulate passing a file path (e.g. /path/to/bundle.uds.hcl) instead of directory
+	bundleFilePath := filepath.Join(bundleDir, BundleFileName)
+	require.NoError(t, os.WriteFile(bundleFilePath, []byte(""), 0o644))
+
+	cmd := &cobra.Command{}
+	registerTestFlags(cmd)
+	cmd.Flags().String("config", "", "config path")
+
+	resolved, _, err := r.Resolve(cmd, bundleFilePath)
+	require.NoError(t, err)
+
+	assert.Equal(t, "a-default-value", resolved.Variables["a"], "should find defaults.uds.hcl in parent dir of file path")
 }
