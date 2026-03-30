@@ -24,7 +24,7 @@ metadata {
 locals {
   repo    = "ghcr.io/defenseunicorns/packages/uds"
   // renovate: datasource=docker depName=ghcr.io/defenseunicorns/packages/uds/core versioning=docker
-  version = "0.59.1-upstream"
+  version = "0.63.0-upstream"
 
   pkgs = {
     base       = "core-base"

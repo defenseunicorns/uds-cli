@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,10 +29,15 @@ func TestParseBundleFile_SpecCompliant(t *testing.T) {
 	// Package count
 	require.Len(t, b.Packages, 3)
 
-	// core_base: locals fully resolved
+	// core_base: locals fully resolved — verify structure, not pinned version
 	assert.Equal(t, "core_base", b.Packages[0].Name)
-	wantSource := "oci://ghcr.io/defenseunicorns/packages/uds/core-base:0.59.1-upstream"
-	assert.Equal(t, wantSource, b.Packages[0].Source)
+	wantSourcePrefix := "oci://ghcr.io/defenseunicorns/packages/uds/core-base:"
+	assert.True(t, strings.HasPrefix(b.Packages[0].Source, wantSourcePrefix),
+		"expected source to start with %q, got %q", wantSourcePrefix, b.Packages[0].Source)
+	// Ensure the version suffix was resolved (not left as a template)
+	version := strings.TrimPrefix(b.Packages[0].Source, wantSourcePrefix)
+	assert.NotEmpty(t, version, "version tag should not be empty")
+	assert.NotContains(t, version, "${", "version should not contain unresolved template expressions")
 	assert.Equal(t, []string{"istio-passthrough-gateway", "istio-egress-gateway"}, b.Packages[0].OptionalComponents)
 
 	// core_logging: depends_on and valuesFiles

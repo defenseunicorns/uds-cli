@@ -43,8 +43,9 @@ func TestInspectCommand_Integration(t *testing.T) {
 	// Verify locals were fully resolved
 	assert.NotContains(t, output, "${local.")
 
-	// Verify resolved source URLs
-	assert.Contains(t, output, "oci://ghcr.io/defenseunicorns/packages/uds/core-base:0.59.1-upstream")
+	// Verify resolved source URLs contain the expected OCI prefix (version is managed by Renovate)
+	assert.Contains(t, output, "oci://ghcr.io/defenseunicorns/packages/uds/core-base:")
+	assert.NotContains(t, output, "${local.version}")
 
 	// Verify depends_on and valuesFiles
 	assert.Contains(t, output, "DependsOn: core_base")
