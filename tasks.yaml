@@ -29,6 +29,10 @@ tasks:
         mute: true
         setVariables:
           - name: ARCHIVER_VERSION
+      - cmd: go list -f '{{.Version}}' -m helm.sh/helm/v4
+        mute: true
+        setVariables:
+          - name: HELM_VERSION
       - cmd: git describe --tags 2>/dev/null || echo "UnknownVersion"
         mute: true
         setVariables:
@@ -61,7 +65,8 @@ tasks:
             -X 'github.com/derailed/k9s/cmd.version=${K9S_VERSION}' \
             -X 'github.com/google/go-containerregistry/cmd/crane/cmd.Version=${CRANE_VERSION}' \
             -X 'github.com/zarf-dev/zarf/src/cmd.syftVersion=${SYFT_VERSION}' \
-            -X 'github.com/zarf-dev/zarf/src/cmd.archivesVersion=${ARCHIVER_VERSION}'
+            -X 'github.com/zarf-dev/zarf/src/cmd.archivesVersion=${ARCHIVER_VERSION}' \
+            -X 'helm.sh/helm/v4/internal/version.version=${HELM_VERSION}'
           EOF
         setVariables:
           - name: BUILD_ARGS
