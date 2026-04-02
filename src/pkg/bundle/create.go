@@ -18,7 +18,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/pterm/pterm"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
-	"helm.sh/helm/v3/pkg/chartutil"
+	"helm.sh/helm/v4/pkg/chart/common"
 )
 
 // Create creates a bundle
@@ -149,7 +149,7 @@ func (b *Bundle) processValuesFiles() error {
 						fileName = valuesFile
 					}
 					// read values from valuesFile
-					values, err := chartutil.ReadValuesFile(fileName)
+					values, err := common.ReadValuesFile(fileName)
 					if err != nil {
 						return err
 					}
