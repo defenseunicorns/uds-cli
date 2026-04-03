@@ -34,7 +34,7 @@ func TestZarfToolsVersions(t *testing.T) {
 		{
 			name:        "HelmVersion",
 			description: "zarf tools helm version",
-			args:        args{tool: "helm", toolRepo: "helm.sh/helm/v3"},
+			args:        args{tool: "helm", toolRepo: "helm.sh/helm/v4"},
 		},
 		{
 			name:        "CraneVersion",
