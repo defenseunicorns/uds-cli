@@ -32,10 +32,11 @@ func TestInspectCommand_Integration(t *testing.T) {
 
 	output := out.String()
 
-	// Verify BUNDLE METADATA section
-	assert.Contains(t, output, "BUNDLE METADATA")
-	assert.Contains(t, output, "Name:        uds-core-example")
-	assert.Contains(t, output, "Version:     0.1.0")
+	// Verify result fields (now via ResourcePrinter text output)
+	assert.Contains(t, output, "Name:")
+	assert.Contains(t, output, "uds-core-example")
+	assert.Contains(t, output, "Version:")
+	assert.Contains(t, output, "0.1.0")
 
 	// Verify PACKAGES section
 	assert.Contains(t, output, "PACKAGES (3)")
@@ -48,11 +49,13 @@ func TestInspectCommand_Integration(t *testing.T) {
 	assert.NotContains(t, output, "${local.version}")
 
 	// Verify depends_on and valuesFiles
-	assert.Contains(t, output, "DependsOn: core_base")
-	assert.Contains(t, output, "DependsOn: core_base, core_logging")
-	assert.Contains(t, output, "Value Files: values/loki.yaml, values/vector.yaml")
-	assert.Contains(t, output, "Value Files: values/monitoring.yaml")
-	assert.Contains(t, output, "Namespace: monitoring")
+	assert.Contains(t, output, "DependsOn:")
+	assert.Contains(t, output, "core_base")
+	assert.Contains(t, output, "Value Files:")
+	assert.Contains(t, output, "values/loki.yaml, values/vector.yaml")
+	assert.Contains(t, output, "values/monitoring.yaml")
+	assert.Contains(t, output, "Namespace:")
+	assert.Contains(t, output, "monitoring")
 }
 
 // Note: Error cases (OCI reference, file not found) are tested in unit tests
@@ -61,7 +64,7 @@ func TestInspectCommand_Integration(t *testing.T) {
 func TestDeployCommand_Integration(t *testing.T) {
 	bundlePath := testDataPath(t, "bundles/deploy/init")
 
-	streams, in, out, _ := iostreams.NewTestIOStreams()
+	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	// Simulate user declining the deployment via --prompt
 	in.WriteString("n\n")
 
@@ -72,26 +75,15 @@ func TestDeployCommand_Integration(t *testing.T) {
 	err := root.Execute()
 	require.NoError(t, err)
 
-	output := out.String()
-
-	// Verify bundle metadata is displayed
-	assert.Contains(t, output, "BUNDLE METADATA")
-	assert.Contains(t, output, "Name:        k3d-core-init")
-
-	// Verify packages are displayed
-	assert.Contains(t, output, "PACKAGES (2)")
-	assert.Contains(t, output, "uds_k3d_dev")
-	assert.Contains(t, output, "init")
-
-	// Verify confirmation prompt was shown (requires --prompt)
-	assert.Contains(t, output, "Deploy this bundle?")
-	assert.Contains(t, output, "Deployment cancelled")
+	// The confirmation prompt is written to ErrOut (IOStreams stderr)
+	errOutput := errOut.String()
+	assert.Contains(t, errOutput, "Deploy this bundle?")
 }
 
 func TestDeployCommand_WithBundleFile_Integration(t *testing.T) {
 	bundlePath := testDataPath(t, "bundles/deploy/init/bundle.uds.hcl")
 
-	streams, in, out, _ := iostreams.NewTestIOStreams()
+	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	// Simulate user declining the deployment via --prompt
 	in.WriteString("n\n")
 
@@ -102,12 +94,9 @@ func TestDeployCommand_WithBundleFile_Integration(t *testing.T) {
 	err := root.Execute()
 	require.NoError(t, err)
 
-	output := out.String()
-
-	// Verify bundle metadata is displayed
-	assert.Contains(t, output, "Name:        k3d-core-init")
-	// Verify confirmation prompt was shown (requires --prompt)
-	assert.Contains(t, output, "Deploy this bundle?")
+	// The confirmation prompt is written to ErrOut (IOStreams stderr)
+	errOutput := errOut.String()
+	assert.Contains(t, errOutput, "Deploy this bundle?")
 }
 
 func TestPullCommand_Integration(t *testing.T) {
@@ -116,7 +105,7 @@ func TestPullCommand_Integration(t *testing.T) {
 	registryHost := startLocalRegistry(t)
 	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
 
-	err := bundlepkg.Push(t.Context(), bundlepkg.PushOptions{
+	_, err := bundlepkg.Push(t.Context(), bundlepkg.PushOptions{
 		BundleTarball:   bundlePath,
 		OCIReference:    ref,
 		TmpDir:          t.TempDir(),
@@ -132,7 +121,8 @@ func TestPullCommand_Integration(t *testing.T) {
 	err = root.Execute()
 	require.NoError(t, err)
 
-	assert.Contains(t, out.String(), "Bundle pulled successfully")
+	assert.Contains(t, out.String(), "OCI Reference:")
+	assert.Contains(t, out.String(), "Output Path:")
 }
 
 func TestPushCommand_Integration(t *testing.T) {
@@ -147,7 +137,7 @@ func TestPushCommand_Integration(t *testing.T) {
 	err := root.Execute()
 	require.NoError(t, err)
 
-	assert.Contains(t, out.String(), "Bundle pushed successfully")
+	assert.Contains(t, out.String(), "OCI Reference:")
 }
 
 // TestPushPull_RoundTrip verifies that a bundle produced by Create can be pushed
@@ -163,7 +153,7 @@ func TestPushPull_RoundTrip(t *testing.T) {
 	assertValidBundleStructure(t, originalPath)
 
 	// push the bundle to the local registry.
-	err := bundlepkg.Push(t.Context(), bundlepkg.PushOptions{
+	_, err := bundlepkg.Push(t.Context(), bundlepkg.PushOptions{
 		BundleTarball: originalPath,
 		OCIReference:  ref,
 		TmpDir:        t.TempDir(),
@@ -175,7 +165,7 @@ func TestPushPull_RoundTrip(t *testing.T) {
 
 	// pull the bundle from the local registry.
 	outDir := t.TempDir()
-	pulledPath, err := bundlepkg.Pull(t.Context(), bundlepkg.PullOptions{
+	pullResult, err := bundlepkg.Pull(t.Context(), bundlepkg.PullOptions{
 		OCIReference: ref,
 		OutputDir:    outDir,
 		TmpDir:       t.TempDir(),
@@ -186,8 +176,8 @@ func TestPushPull_RoundTrip(t *testing.T) {
 	})
 	require.NoError(t, err, "Pull should succeed against local registry")
 
-	assertValidBundleStructure(t, pulledPath)
-	assertBundleTarballsEqual(t, originalPath, pulledPath)
+	assertValidBundleStructure(t, pullResult.OutputPath)
+	assertBundleTarballsEqual(t, originalPath, pullResult.OutputPath)
 }
 
 func TestRemoveCommand_Integration(t *testing.T) {
@@ -199,5 +189,5 @@ func TestRemoveCommand_Integration(t *testing.T) {
 	err := root.Execute()
 	require.NoError(t, err)
 
-	assert.Contains(t, out.String(), "Bundle removed successfully")
+	assert.Contains(t, out.String(), "OCI Reference:")
 }

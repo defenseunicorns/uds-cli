@@ -27,6 +27,7 @@ func NewBundleCommand(streams iostreams.IOStreams) *cobra.Command {
 	bundleCmd.PersistentFlags().String("tmp-dir", defaults.TmpDir, "directory for temporary files")
 	bundleCmd.PersistentFlags().Int("concurrency", defaults.Concurrency, "degree of parallelism for concurrent operations")
 	bundleCmd.PersistentFlags().String("config", "", "path to config.uds.hcl for deploy-time variables and options")
+	bundleCmd.PersistentFlags().StringP("output", "o", "text", "output format (text, json, yaml)")
 
 	// Add subcommands
 	bundleCmd.AddCommand(NewInspectCommand(streams))

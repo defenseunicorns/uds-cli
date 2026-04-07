@@ -11,6 +11,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/printer"
 	"github.com/spf13/cobra"
 )
 
@@ -19,6 +20,7 @@ type PullOptions struct {
 	OCIReference string
 	OutputDir    string
 	Config       *bundle.UDSBundleConfig
+	Printer      printer.ResourcePrinter
 
 	iostreams.IOStreams
 }
@@ -46,7 +48,7 @@ func NewPullCommand(streams iostreams.IOStreams) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&o.OutputDir, "output-dir", "o", ".", "directory to write the pulled bundle tarball")
+	cmd.Flags().StringVarP(&o.OutputDir, "output-dir", "d", ".", "directory to write the pulled bundle tarball")
 
 	return cmd
 }
@@ -62,6 +64,13 @@ func (o *PullOptions) Complete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	o.Config = cfg
+
+	p, err := ResolvePrinter(cmd)
+	if err != nil {
+		return err
+	}
+	o.Printer = p
+
 	return nil
 }
 
@@ -81,8 +90,8 @@ func (o *PullOptions) Validate() error {
 
 // Run executes the pull command.
 func (o *PullOptions) Run() error {
-	slog.Debug("pulling bundle", "reference", o.OCIReference, "output-dir", o.OutputDir)
-	outPath, err := bundle.Pull(context.Background(), bundle.PullOptions{
+	slog.Debug("pulling bundle", "ref", o.OCIReference, "output", o.OutputDir)
+	result, err := bundle.Pull(context.Background(), bundle.PullOptions{
 		RegistryOptions: bundle.RegistryOptions{
 			Arch:          o.Config.Options.Architecture,
 			PlainHTTP:     o.Config.Options.PlainHTTP,
@@ -96,6 +105,5 @@ func (o *PullOptions) Run() error {
 	if err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(o.Out, "Bundle pulled successfully: %s\n", outPath)
-	return nil
+	return o.Printer.PrintObj(result, o.Out)
 }

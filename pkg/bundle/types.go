@@ -246,6 +246,52 @@ type PullOptions struct {
 	remoteRepo oras.ReadOnlyTarget
 }
 
+// InspectResult represents the output of a bundle inspect operation.
+type InspectResult struct {
+	Name        string           `json:"name"        yaml:"name"        text:"Name"`
+	Description string           `json:"description" yaml:"description" text:"Description,omitempty"`
+	Version     string           `json:"version"     yaml:"version"     text:"Version,omitempty"`
+	Packages    []PackageSummary `json:"packages"    yaml:"packages"    text:"PACKAGES"`
+}
+
+// PackageSummary is a serializable summary of a package within a bundle.
+// Packages are listed in DAG (deployment) order.
+type PackageSummary struct {
+	Name        string   `json:"name"                          yaml:"name"                          text:"Name"`
+	Source      string   `json:"source"                        yaml:"source"                        text:"Source"`
+	Namespace   string   `json:"namespace,omitempty"           yaml:"namespace,omitempty"           text:"Namespace,omitempty"`
+	DependsOn   []string `json:"dependsOn,omitempty"           yaml:"dependsOn,omitempty"           text:"DependsOn,omitempty"`
+	ValuesFiles []string `json:"valuesFiles,omitempty"         yaml:"valuesFiles,omitempty"         text:"Value Files,omitempty"`
+}
+
+// CreateResult represents the output of a bundle create operation.
+type CreateResult struct {
+	BundleName string `json:"bundleName" yaml:"bundleName" text:"Bundle Name"`
+	OutputPath string `json:"outputPath" yaml:"outputPath" text:"Output Path"`
+}
+
+// DeployResult represents the output of a bundle deploy operation.
+type DeployResult struct {
+	BundleName string `json:"bundleName" yaml:"bundleName" text:"Bundle Name"`
+	Packages   int    `json:"packages"   yaml:"packages"   text:"Packages"`
+}
+
+// PullResult represents the output of a bundle pull operation.
+type PullResult struct {
+	OCIReference string `json:"ociReference" yaml:"ociReference" text:"OCI Reference"`
+	OutputPath   string `json:"outputPath"   yaml:"outputPath"   text:"Output Path"`
+}
+
+// PushResult represents the output of a bundle push operation.
+type PushResult struct {
+	OCIReference string `json:"ociReference" yaml:"ociReference" text:"OCI Reference"`
+}
+
+// RemoveResult represents the output of a bundle remove operation.
+type RemoveResult struct {
+	OCIReference string `json:"ociReference" yaml:"ociReference" text:"OCI Reference"`
+}
+
 // PushOptions holds configuration for pushing a bundle to an OCI registry.
 type PushOptions struct {
 	RegistryOptions

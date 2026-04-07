@@ -11,6 +11,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/printer"
 	"github.com/spf13/cobra"
 )
 
@@ -18,6 +19,7 @@ import (
 type InspectOptions struct {
 	BundlePath string // Path to bundle file or directory (user input, resolved in Run)
 	Config     *bundle.UDSBundleConfig
+	Printer    printer.ResourcePrinter
 
 	iostreams.IOStreams
 }
@@ -62,6 +64,13 @@ func (o *InspectOptions) Complete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	o.Config = cfg
+
+	p, err := ResolvePrinter(cmd)
+	if err != nil {
+		return err
+	}
+	o.Printer = p
+
 	return nil
 }
 
@@ -79,17 +88,22 @@ func (o *InspectOptions) Run() error {
 	bundlePath := ResolveBundlePath(o.BundlePath)
 	slog.Debug("inspecting bundle", "path", bundlePath)
 
+	// This method diverges from the 0004-logging-and-output-strategy.md recommendation and does not have a clear
+	// business layer method. Perhaps we'll introduce it in the future once there are more logic there than just
+	// bundle parsing.
 	b, err := bundle.NewHCLParser().ParseBundleFile(context.Background(), bundlePath)
 	if err != nil {
 		return err
 	}
-	slog.Debug("bundle parsed successfully", "name", b.Metadata.Name, "packages", len(b.Packages))
 
 	if err := b.Validate(); err != nil {
 		return fmt.Errorf("invalid bundle: %w", err)
 	}
-	slog.Debug("bundle validation passed")
 
-	_, err = o.Out.Write(b.BufferString().Bytes())
-	return err
+	result, err := b.ToInspectResult()
+	if err != nil {
+		return fmt.Errorf("inspecting bundle: %w", err)
+	}
+
+	return o.Printer.PrintObj(result, o.Out)
 }

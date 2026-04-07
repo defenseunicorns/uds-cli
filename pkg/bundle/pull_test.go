@@ -139,13 +139,14 @@ func TestPull_NonUDSBundle(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := Pull(t.Context(), PullOptions{
+			result, err := Pull(t.Context(), PullOptions{
 				OCIReference: "example.com/test/not-a-bundle:v1.0.0",
 				OutputDir:    tt.outputDir,
 				TmpDir:       t.TempDir(),
 				remoteRepo:   srcStore,
 			})
 			require.ErrorContains(t, err, "does not appear to be a UDS bundle")
+			assert.Nil(t, result)
 		})
 	}
 }
@@ -157,7 +158,7 @@ func TestPull_TagNotFound(t *testing.T) {
 	require.NoError(t, err)
 
 	ref := "example.com/test/bundle:v1.0.0"
-	_, err = Pull(t.Context(), PullOptions{
+	result, err := Pull(t.Context(), PullOptions{
 		OCIReference: ref,
 		OutputDir:    t.TempDir(),
 		TmpDir:       t.TempDir(),
@@ -165,6 +166,7 @@ func TestPull_TagNotFound(t *testing.T) {
 	})
 
 	require.ErrorContains(t, err, ref)
+	assert.Nil(t, result)
 }
 
 func TestPull_HappyPath(t *testing.T) {
@@ -195,16 +197,17 @@ package "pkg1" {
 	// Push to an in-memory store.
 	store, err := oraci.New(t.TempDir())
 	require.NoError(t, err)
-	require.NoError(t, Push(context.Background(), PushOptions{
-		BundleTarball: tarball,
+	_, pushErr := Push(context.Background(), PushOptions{
+		BundleTarball: tarball.OutputPath,
 		OCIReference:  "example.com/test/pull-test:1.0.0",
 		TmpDir:        t.TempDir(),
 		remoteRepo:    store,
-	}))
+	})
+	require.NoError(t, pushErr)
 
 	// Pull from the same store.
 	outDir := t.TempDir()
-	pulledPath, err := Pull(t.Context(), PullOptions{
+	result, err := Pull(t.Context(), PullOptions{
 		OCIReference: "example.com/test/pull-test:1.0.0",
 		OutputDir:    outDir,
 		TmpDir:       t.TempDir(),
@@ -213,7 +216,8 @@ package "pkg1" {
 	require.NoError(t, err)
 
 	expectedName := fmt.Sprintf("uds-bundle-pull-test-%s-1.0.0.tar.zst", runtime.GOARCH)
-	assert.Equal(t, filepath.Join(outDir, expectedName), pulledPath)
-	_, statErr := os.Stat(pulledPath)
+	assert.Equal(t, filepath.Join(outDir, expectedName), result.OutputPath)
+	assert.Equal(t, "example.com/test/pull-test:1.0.0", result.OCIReference)
+	_, statErr := os.Stat(result.OutputPath)
 	require.NoError(t, statErr, "pulled tarball should exist on disk")
 }

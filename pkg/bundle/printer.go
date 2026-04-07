@@ -9,6 +9,48 @@ import (
 	"strings"
 )
 
+// ToInspectResult converts a UDSBundle to a serializable InspectResult.
+// Packages are listed in DAG (deployment) order.
+func (b *UDSBundle) ToInspectResult() (*InspectResult, error) {
+	dag, err := BuildDependencyGraph(b)
+	if err != nil {
+		return nil, fmt.Errorf("building dependency graph: %w", err)
+	}
+
+	sorted, err := dag.TopologicalSort()
+	if err != nil {
+		return nil, fmt.Errorf("topological sort: %w", err)
+	}
+
+	result := &InspectResult{
+		Name:        b.Metadata.Name,
+		Description: b.Metadata.Description,
+		Version:     b.Metadata.Version,
+		Packages:    make([]PackageSummary, len(sorted)),
+	}
+	for i, pkg := range sorted {
+		result.Packages[i] = toPackageSummary(pkg)
+	}
+	return result, nil
+}
+
+func toPackageSummary(pkg *Package) PackageSummary {
+	var depNames []string
+	if len(pkg.DependsOn) > 0 {
+		depNames = make([]string, len(pkg.DependsOn))
+		for i, ref := range pkg.DependsOn {
+			depNames[i] = ref.Name
+		}
+	}
+	return PackageSummary{
+		Name:        pkg.Name,
+		Source:      pkg.Source,
+		Namespace:   pkg.Namespace,
+		DependsOn:   depNames,
+		ValuesFiles: pkg.ValuesFiles,
+	}
+}
+
 // BufferString returns a human-readable summary of the bundle as a buffer.
 // Packages are displayed in deployment order (topological sort) when the
 // dependency graph can be built. Falls back to declaration order on error.

@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/pkg/printer"
+	"github.com/spf13/cobra"
 )
 
 // BundleFileName is the standard name for UDS bundle definition files.
@@ -103,6 +105,20 @@ func ValidateConfigOptions(opts bundle.ConfigOptions) error {
 		return fmt.Errorf("--tmp-dir: %w", err)
 	}
 	return nil
+}
+
+// ResolvePrinter resolves the --output flag into a ResourcePrinter.
+// This centralizes the printer resolution logic shared by all bundle commands.
+func ResolvePrinter(cmd *cobra.Command) (printer.ResourcePrinter, error) {
+	var outputFormat string
+	if f := cmd.Flags().Lookup("output"); f != nil {
+		outputFormat = f.Value.String()
+	}
+	format, err := printer.ParseFormat(outputFormat)
+	if err != nil {
+		return nil, err
+	}
+	return printer.NewPrinter(format)
 }
 
 // ValidateDir checks that the given path exists and is a directory.

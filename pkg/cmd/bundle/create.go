@@ -5,12 +5,12 @@ package bundle
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/printer"
 	"github.com/spf13/cobra"
 )
 
@@ -18,6 +18,7 @@ import (
 type CreateOptions struct {
 	BundlePath string // Path to bundle file or directory (user input, resolved in Run)
 	Config     *bundle.UDSBundleConfig
+	Printer    printer.ResourcePrinter
 
 	iostreams.IOStreams
 }
@@ -61,6 +62,13 @@ func (o *CreateOptions) Complete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	o.Config = cfg
+
+	p, err := ResolvePrinter(cmd)
+	if err != nil {
+		return err
+	}
+	o.Printer = p
+
 	return nil
 }
 
@@ -83,7 +91,7 @@ func (o *CreateOptions) Run() error {
 	bundlePath := ResolveBundlePath(o.BundlePath)
 	slog.Debug("creating bundle", "path", bundlePath)
 
-	outPath, err := bundle.Create(ctx, bundle.CreateOptions{
+	result, err := bundle.Create(ctx, bundle.CreateOptions{
 		Config:     o.Config,
 		BundleFile: bundlePath,
 		Out:        o.Out,
@@ -91,7 +99,6 @@ func (o *CreateOptions) Run() error {
 	if err != nil {
 		return err
 	}
-	slog.Info("bundle created successfully", "output", outPath)
-	_, _ = fmt.Fprintf(o.Out, "Bundle created: %s\n", outPath)
-	return nil
+
+	return o.Printer.PrintObj(result, o.Out)
 }

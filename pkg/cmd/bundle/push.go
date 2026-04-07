@@ -13,6 +13,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/printer"
 	"github.com/spf13/cobra"
 )
 
@@ -21,6 +22,7 @@ type PushOptions struct {
 	Tarball      string
 	OCIReference string
 	Config       *bundle.UDSBundleConfig
+	Printer      printer.ResourcePrinter
 
 	iostreams.IOStreams
 }
@@ -65,6 +67,13 @@ func (o *PushOptions) Complete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	o.Config = cfg
+
+	p, err := ResolvePrinter(cmd)
+	if err != nil {
+		return err
+	}
+	o.Printer = p
+
 	return nil
 }
 
@@ -87,8 +96,8 @@ func (o *PushOptions) Validate() error {
 
 // Run executes the push command.
 func (o *PushOptions) Run() error {
-	slog.Debug("pushing bundle", "tarball", o.Tarball, "reference", o.OCIReference)
-	if err := bundle.Push(context.Background(), bundle.PushOptions{
+	slog.Debug("pushing bundle", "tarball", o.Tarball, "ref", o.OCIReference)
+	result, err := bundle.Push(context.Background(), bundle.PushOptions{
 		RegistryOptions: bundle.RegistryOptions{
 			PlainHTTP:     o.Config.Options.PlainHTTP,
 			SkipTLSVerify: o.Config.Options.SkipTLSVerify,
@@ -96,9 +105,9 @@ func (o *PushOptions) Run() error {
 		BundleTarball: o.Tarball,
 		OCIReference:  o.OCIReference,
 		TmpDir:        o.Config.Options.TmpDir,
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(o.Out, "Bundle pushed successfully: %s\n", o.OCIReference)
-	return nil
+	return o.Printer.PrintObj(result, o.Out)
 }

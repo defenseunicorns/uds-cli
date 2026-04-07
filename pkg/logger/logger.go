@@ -8,12 +8,15 @@ import (
 	"io"
 	"log/slog"
 	"strings"
+
+	console "github.com/phsym/console-slog"
 )
 
-// New creates a new *slog.Logger that writes to w.
+// New creates a new *slog.Logger that writes to w using console-slog for
+// human-friendly colored output, unified with Zarf's log format.
 // Passing a *slog.LevelVar as level allows the level to be changed at runtime.
 func New(w io.Writer, level slog.Leveler) *slog.Logger {
-	return slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: level}))
+	return slog.New(console.NewHandler(w, &console.HandlerOptions{Level: level}))
 }
 
 // ParseLevel converts a string to a slog.Level.

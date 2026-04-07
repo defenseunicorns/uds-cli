@@ -26,12 +26,12 @@ import (
 // the remote registry into a local OCI layout, then reconstructs index.json
 // from the fetched root descriptor so the layout is identical to what Create
 // produces. The resulting tarball can be pushed without modification.
-func Pull(ctx context.Context, opts PullOptions) (string, error) {
+func Pull(ctx context.Context, opts PullOptions) (*PullResult, error) {
 	slog.Info("pulling bundle", "ref", opts.OCIReference)
 
 	tmp, err := os.MkdirTemp(opts.TmpDir, "uds-bundle-pull-*")
 	if err != nil {
-		return "", fmt.Errorf("creating temp dir: %w", err)
+		return nil, fmt.Errorf("creating temp dir: %w", err)
 	}
 	defer func() {
 		err = os.RemoveAll(tmp)
@@ -42,13 +42,13 @@ func Pull(ctx context.Context, opts PullOptions) (string, error) {
 
 	ociDir := filepath.Join(tmp, "oci")
 	if err := os.MkdirAll(ociDir, tempDirPerm); err != nil {
-		return "", fmt.Errorf("creating OCI dir: %w", err)
+		return nil, fmt.Errorf("creating OCI dir: %w", err)
 	}
 
 	// oraci.New writes oci-layout and initialises blobs/sha256/.
 	store, err := oraci.New(ociDir)
 	if err != nil {
-		return "", fmt.Errorf("creating OCI store: %w", err)
+		return nil, fmt.Errorf("creating OCI store: %w", err)
 	}
 	// We write index.json ourselves below; prevent ORAS from clobbering it.
 	store.AutoSaveIndex = false
@@ -59,14 +59,14 @@ func Pull(ctx context.Context, opts PullOptions) (string, error) {
 	} else {
 		repo, err := newRemoteRepository(TrimScheme(opts.OCIReference), opts.RegistryOptions)
 		if err != nil {
-			return "", fmt.Errorf("creating remote repository: %w", err)
+			return nil, fmt.Errorf("creating remote repository: %w", err)
 		}
 		src = repo
 	}
 
 	ref, err := name.ParseReference(TrimScheme(opts.OCIReference))
 	if err != nil {
-		return "", fmt.Errorf("parsing OCI reference: %w", err)
+		return nil, fmt.Errorf("parsing OCI reference: %w", err)
 	}
 	tag := ref.Identifier()
 
@@ -76,7 +76,7 @@ func Pull(ctx context.Context, opts PullOptions) (string, error) {
 	slog.Debug("copying bundle from registry", "ref", opts.OCIReference, "tag", tag)
 	rootDesc, err := oras.Copy(ctx, src, tag, store, tag, copyOpts)
 	if err != nil {
-		return "", fmt.Errorf("pulling bundle from %s: %w", opts.OCIReference, err)
+		return nil, fmt.Errorf("pulling bundle from %s: %w", opts.OCIReference, err)
 	}
 
 	// The root descriptor is the OCI image index that was pushed as the bundle.
@@ -84,30 +84,30 @@ func Pull(ctx context.Context, opts PullOptions) (string, error) {
 	// as index.json to restore the layout format produced by Create.
 	rc, err := store.Fetch(ctx, rootDesc)
 	if err != nil {
-		return "", fmt.Errorf("fetching bundle index: %w", err)
+		return nil, fmt.Errorf("fetching bundle index: %w", err)
 	}
 	const maxIndexSize = 10 << 20 // 10 MiB
 	idxBytes, err := io.ReadAll(io.LimitReader(rc, maxIndexSize+1))
 	_ = rc.Close()
 	if err != nil {
-		return "", fmt.Errorf("reading bundle index: %w", err)
+		return nil, fmt.Errorf("reading bundle index: %w", err)
 	}
 	if int64(len(idxBytes)) > maxIndexSize {
-		return "", fmt.Errorf("bundle index exceeds maximum allowed size of %d bytes", maxIndexSize)
+		return nil, fmt.Errorf("bundle index exceeds maximum allowed size of %d bytes", maxIndexSize)
 	}
 
 	if err := os.WriteFile(filepath.Join(ociDir, "index.json"), idxBytes, tmpFilePerm); err != nil {
-		return "", fmt.Errorf("writing index.json: %w", err)
+		return nil, fmt.Errorf("writing index.json: %w", err)
 	}
 
 	var idx ociIndex
 	if err := json.Unmarshal(idxBytes, &idx); err != nil {
-		return "", fmt.Errorf("parsing bundle index: %w", err)
+		return nil, fmt.Errorf("parsing bundle index: %w", err)
 	}
 
 	// Validate this is a UDS bundle before doing anything else with the content.
 	if !isBundleIndex(idx) {
-		return "", fmt.Errorf("%s does not appear to be a UDS bundle: no bundle definition manifest found in index", opts.OCIReference)
+		return nil, fmt.Errorf("%s does not appear to be a UDS bundle: no bundle definition manifest found in index", opts.OCIReference)
 	}
 
 	// oras.Copy stores the root index as a blob in addition to us writing it as
@@ -115,22 +115,25 @@ func Pull(ctx context.Context, opts PullOptions) (string, error) {
 	// only in index.json, never as a blob).
 	idxBlobPath := filepath.Join(ociDir, "blobs", "sha256", rootDesc.Digest.Hex())
 	if err := os.Remove(idxBlobPath); err != nil && !os.IsNotExist(err) {
-		return "", fmt.Errorf("removing duplicate index blob: %w", err)
+		return nil, fmt.Errorf("removing duplicate index blob: %w", err)
 	}
 
 	outName, err := bundleNameFromDefinitionLayer(ctx, ociDir, idx, opts.Arch)
 	if err != nil {
-		return "", fmt.Errorf("reading bundle definition from %s: %w", opts.OCIReference, err)
+		return nil, fmt.Errorf("reading bundle definition from %s: %w", opts.OCIReference, err)
 	}
 
 	outPath := filepath.Join(opts.OutputDir, outName)
 	slog.Debug("writing bundle archive", "output", outPath)
 	if err := writeTarZst(ctx, outPath, tmp); err != nil {
-		return "", err
+		return nil, err
 	}
 
-	slog.Info("bundle pulled successfully", "output", outPath)
-	return outPath, nil
+	slog.Info("bundle pulled", "output", outPath)
+	return &PullResult{
+		OCIReference: opts.OCIReference,
+		OutputPath:   outPath,
+	}, nil
 }
 
 // isBundleIndex reports whether idx is a UDS bundle index

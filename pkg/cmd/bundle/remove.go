@@ -10,6 +10,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/printer"
 	"github.com/spf13/cobra"
 )
 
@@ -17,6 +18,7 @@ import (
 type RemoveOptions struct {
 	OCIReference string
 	Config       *bundle.UDSBundleConfig
+	Printer      printer.ResourcePrinter
 
 	iostreams.IOStreams
 }
@@ -58,6 +60,13 @@ func (o *RemoveOptions) Complete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	o.Config = cfg
+
+	p, err := ResolvePrinter(cmd)
+	if err != nil {
+		return err
+	}
+	o.Printer = p
+
 	return nil
 }
 
@@ -71,10 +80,10 @@ func (o *RemoveOptions) Validate() error {
 
 // Run executes the remove command.
 func (o *RemoveOptions) Run() error {
-	slog.Debug("removing bundle", "reference", o.OCIReference)
-	if err := bundle.Remove(o.OCIReference); err != nil {
+	slog.Debug("removing bundle", "ref", o.OCIReference)
+	result, err := bundle.Remove(o.OCIReference)
+	if err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(o.Out, "✓ Bundle removed successfully: %s\n", o.OCIReference)
-	return nil
+	return o.Printer.PrintObj(result, o.Out)
 }

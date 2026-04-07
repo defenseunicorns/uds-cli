@@ -139,18 +139,14 @@ func (s *DeploySuite) TestDeployCommand_DisplaysPreview() {
 
 	outputStr := string(output)
 
-	// Verify bundle metadata is displayed
-	assert.Contains(s.T(), outputStr, "BUNDLE METADATA")
-	assert.Contains(s.T(), outputStr, "Name:        k3d-core-init")
-
-	// Verify packages are displayed
-	assert.Contains(s.T(), outputStr, "PACKAGES (2)")
-	assert.Contains(s.T(), outputStr, "uds_k3d_dev")
-	assert.Contains(s.T(), outputStr, "init")
+	// Bundle metadata is now logged to stderr via slog.Info (not formatted with BUNDLE METADATA header)
+	// CombinedOutput captures both stdout and stderr, so we verify the slog message
+	assert.Contains(s.T(), outputStr, "bundle to deploy")
+	assert.Contains(s.T(), outputStr, "k3d-core-init")
 
 	// Verify confirmation prompt was shown
 	assert.Contains(s.T(), outputStr, "Deploy this bundle?")
-	assert.Contains(s.T(), outputStr, "Deployment cancelled")
+	assert.Contains(s.T(), outputStr, "deployment cancelled")
 }
 
 // TestDeployCommand_CancellationDoesNotDeploy verifies that declining the confirmation
@@ -166,11 +162,10 @@ func (s *DeploySuite) TestDeployCommand_CancellationDoesNotDeploy() {
 
 	outputStr := string(output)
 
-	// Verify deployment was cancelled
-	assert.Contains(s.T(), outputStr, "Deployment cancelled")
+	// Verify deployment was cancelled (slog outputs lowercase message)
+	assert.Contains(s.T(), outputStr, "deployment cancelled")
 
-	// Verify deployment did not start
-	assert.NotContains(s.T(), outputStr, "starting deployment")
+	// Verify deployment did not start (no deployment level logs)
 	assert.NotContains(s.T(), outputStr, "starting deployment level")
 }
 
@@ -186,10 +181,10 @@ func (s *DeploySuite) TestDeployCommand_NonInteractiveDefault() {
 
 	outputStr := string(output)
 
-	// Should show bundle info and proceed to deployment without asking
+	// Should show bundle info (via slog) and proceed to deployment without asking
 	assert.Contains(s.T(), outputStr, "k3d-core-init")
 	assert.NotContains(s.T(), outputStr, "Deploy this bundle?")
-	assert.Contains(s.T(), outputStr, "starting deployment")
+	assert.Contains(s.T(), outputStr, "starting deployment level")
 }
 
 // TestDeployCommand_ConfigFlagInHelp verifies that the --config flag is documented.

@@ -6,6 +6,7 @@ package bundle
 import (
 	"fmt"
 	"log/slog"
+	"sort"
 
 	"github.com/hashicorp/hcl/v2"
 )
@@ -137,6 +138,11 @@ func (d *DAG) TopologicalLevels() ([][]*Package, error) {
 		if len(currentLevel) == 0 {
 			return nil, fmt.Errorf("cycle detected in package dependencies")
 		}
+
+		// Sort packages within a level by name for deterministic output.
+		sort.Slice(currentLevel, func(i, j int) bool {
+			return currentLevel[i].Name < currentLevel[j].Name
+		})
 
 		levels = append(levels, currentLevel)
 		remaining -= len(currentLevel)

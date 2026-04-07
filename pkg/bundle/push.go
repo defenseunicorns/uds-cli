@@ -24,12 +24,12 @@ import (
 // It extracts the bundle, opens the embedded OCI layout, and copies all
 // content (blobs, manifests, and the top-level image index) to the registry
 // reference given in opts.OCIReference.
-func Push(ctx context.Context, opts PushOptions) error {
+func Push(ctx context.Context, opts PushOptions) (*PushResult, error) {
 	slog.Info("pushing bundle", "tarball", opts.BundleTarball, "ref", opts.OCIReference)
 
 	tmp, err := os.MkdirTemp(opts.TmpDir, "uds-bundle-push-*")
 	if err != nil {
-		return fmt.Errorf("creating temp dir: %w", err)
+		return nil, fmt.Errorf("creating temp dir: %w", err)
 	}
 	defer func() {
 		err = os.RemoveAll(tmp)
@@ -38,9 +38,9 @@ func Push(ctx context.Context, opts PushOptions) error {
 		}
 	}()
 
-	slog.Debug("extracting bundle", "src", opts.BundleTarball, "dst", tmp)
+	slog.Debug("extracting bundle", "source", opts.BundleTarball, "output", tmp)
 	if err := extractTarZst(ctx, opts.BundleTarball, tmp); err != nil {
-		return fmt.Errorf("extracting bundle: %w", err)
+		return nil, fmt.Errorf("extracting bundle: %w", err)
 	}
 
 	ociDir := filepath.Join(tmp, "oci")
@@ -50,17 +50,17 @@ func Push(ctx context.Context, opts PushOptions) error {
 	idxBytes, err := os.ReadFile(filepath.Join(ociDir, "index.json"))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("%s does not appear to be a UDS bundle: no OCI layout found", opts.BundleTarball)
+			return nil, fmt.Errorf("%s does not appear to be a UDS bundle: no OCI layout found", opts.BundleTarball)
 		}
-		return fmt.Errorf("reading index.json: %w", err)
+		return nil, fmt.Errorf("reading index.json: %w", err)
 	}
 
 	var idx ociIndex
 	if err := json.Unmarshal(idxBytes, &idx); err != nil {
-		return fmt.Errorf("parsing bundle index: %w", err)
+		return nil, fmt.Errorf("parsing bundle index: %w", err)
 	}
 	if !isBundleIndex(idx) {
-		return fmt.Errorf("%s does not appear to be a UDS bundle: no bundle definition manifest found in index", opts.BundleTarball)
+		return nil, fmt.Errorf("%s does not appear to be a UDS bundle: no bundle definition manifest found in index", opts.BundleTarball)
 	}
 
 	// Write the index bytes as a blob so the ORAS OCI store can fetch and serve it.
@@ -70,19 +70,19 @@ func Push(ctx context.Context, opts PushOptions) error {
 	h := sha256.Sum256(idxBytes)
 	idxHex := hex.EncodeToString(h[:])
 	if err := os.WriteFile(filepath.Join(blobDir, idxHex), idxBytes, tmpFilePerm); err != nil {
-		return fmt.Errorf("staging index blob: %w", err)
+		return nil, fmt.Errorf("staging index blob: %w", err)
 	}
 
 	store, err := oraci.New(ociDir)
 	if err != nil {
-		return fmt.Errorf("opening OCI store: %w", err)
+		return nil, fmt.Errorf("opening OCI store: %w", err)
 	}
 	store.AutoSaveIndex = false
 
 	// Build the index descriptor and tag it so oras.Copy can resolve it.
 	idxDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageIndex, idxBytes)
 	if err := store.Tag(ctx, idxDesc, "bundle"); err != nil {
-		return fmt.Errorf("tagging index: %w", err)
+		return nil, fmt.Errorf("tagging index: %w", err)
 	}
 
 	var dst oras.Target
@@ -91,7 +91,7 @@ func Push(ctx context.Context, opts PushOptions) error {
 	} else {
 		repo, err := newRemoteRepository(TrimScheme(opts.OCIReference), opts.RegistryOptions)
 		if err != nil {
-			return fmt.Errorf("creating remote repository: %w", err)
+			return nil, fmt.Errorf("creating remote repository: %w", err)
 		}
 		dst = repo
 	}
@@ -99,16 +99,18 @@ func Push(ctx context.Context, opts PushOptions) error {
 	// Parse the tag/digest from the reference using go-containerregistry; default to "latest".
 	ref, err := name.ParseReference(TrimScheme(opts.OCIReference))
 	if err != nil {
-		return fmt.Errorf("parsing OCI reference: %w", err)
+		return nil, fmt.Errorf("parsing OCI reference: %w", err)
 	}
 	dstTag := ref.Identifier()
 
 	slog.Debug("copying bundle to registry", "ref", opts.OCIReference, "tag", dstTag)
 	if _, err := oras.Copy(ctx, store, "bundle", dst, dstTag, oras.DefaultCopyOptions); err != nil {
-		return fmt.Errorf("pushing bundle to %s: %w", opts.OCIReference, err)
+		return nil, fmt.Errorf("pushing bundle to %s: %w", opts.OCIReference, err)
 	}
 
-	slog.Info("bundle pushed successfully", "ref", opts.OCIReference)
-	return nil
+	slog.Info("bundle pushed", "ref", opts.OCIReference)
+	return &PushResult{
+		OCIReference: opts.OCIReference,
+	}, nil
 }
 

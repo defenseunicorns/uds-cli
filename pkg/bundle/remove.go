@@ -6,8 +6,8 @@ package bundle
 import "log/slog"
 
 // Remove removes a UDS bundle from a Kubernetes cluster.
-func Remove(ociRef string) error {
+func Remove(ociRef string) (*RemoveResult, error) {
 	slog.Info("removing bundle from cluster", "ref", ociRef)
 	// TODO: Implement bundle remove logic
-	return nil
+	return &RemoveResult{OCIReference: ociRef}, nil
 }

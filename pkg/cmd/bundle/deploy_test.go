@@ -13,6 +13,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/printer"
 )
 
 func TestDeployOptions_Complete(t *testing.T) {
@@ -177,48 +178,46 @@ func TestDeployOptions_Run_PromptDecline(t *testing.T) {
 	defaults := NewConfigResolver().Defaults()
 
 	tests := []struct {
-		name       string
-		bundlePath string
-		input      string   // Simulated user input for confirmation prompt
-		wantOutput []string // Strings that should appear in output
+		name          string
+		bundlePath    string
+		input         string   // Simulated user input for confirmation prompt
+		wantErrOutput []string // Strings that should appear in stderr output
 	}{
 		{
 			name:       "prompt flag - user confirms no",
 			bundlePath: existingFile,
 			input:      "n\n",
-			wantOutput: []string{
-				"k3d-core-init",
-				"uds_k3d_dev",
-				"init",
+			wantErrOutput: []string{
 				"Deploy this bundle?",
-				"Deployment cancelled",
 			},
 		},
 		{
 			name:       "prompt flag - empty input treated as no",
 			bundlePath: existingFile,
 			input:      "",
-			wantOutput: []string{
-				"Deployment cancelled",
-			},
+			wantErrOutput: []string{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			streams, in, out, _ := iostreams.NewTestIOStreams()
+			streams, in, out, errOut := iostreams.NewTestIOStreams()
 			in.WriteString(tt.input)
+			textPrinter, _ := printer.NewPrinter(printer.FormatText)
 
 			o := &DeployOptions{
 				BundlePath: tt.bundlePath,
 				Config:     &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{Prompt: true}, Options: &defaults},
-				IOStreams:  streams,
+				Printer:    textPrinter,
+				IOStreams:   streams,
 			}
 
 			err := o.Run()
 			require.NoError(t, err)
-			for _, expected := range tt.wantOutput {
-				assert.Contains(t, out.String(), expected)
+			// Stdout should be empty when deployment is cancelled (no result printed)
+			assert.Empty(t, out.String(), "stdout should be empty when deployment is cancelled")
+			for _, expected := range tt.wantErrOutput {
+				assert.Contains(t, errOut.String(), expected)
 			}
 		})
 	}

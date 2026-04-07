@@ -97,30 +97,30 @@ func (c *localCreator) BundleName(b *UDSBundle) string {
 // Create creates a UDS bundle tar.zst from the given bundle definition file.
 // It parses, validates, ingests all packages via a localCreator, and writes
 // the resulting archive next to the bundle file.
-func Create(ctx context.Context, opts CreateOptions) (string, error) {
+func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	if err := ValidateConfig(opts.Config); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	slog.Debug("parsing bundle file", "path", opts.BundleFile)
 	parser := NewHCLParser()
 	b, err := parser.ParseBundleFile(ctx, opts.BundleFile)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	slog.Debug("bundle parsed", "name", b.Metadata.Name, "packages", len(b.Packages))
 
 	if err := b.Validate(); err != nil {
-		return "", err
+		return nil, err
 	}
-	slog.Debug("bundle validation passed")
+	slog.Debug("bundle validated")
 
 	creator := newLocalCreator(opts.Config.Options.Architecture)
 
 	srcDir := filepath.Dir(opts.BundleFile)
 	root, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-create-*")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer func() {
 		err = os.RemoveAll(root)
@@ -132,10 +132,10 @@ func Create(ctx context.Context, opts CreateOptions) (string, error) {
 	ociDir := filepath.Join(root, "oci")
 	blobDir := filepath.Join(ociDir, "blobs", "sha256")
 	if err := os.MkdirAll(blobDir, tempDirPerm); err != nil {
-		return "", err
+		return nil, err
 	}
 	if err := writeOCILayout(filepath.Join(ociDir, "oci-layout")); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	pkgOpts := CreatePackageOptions{
@@ -146,20 +146,20 @@ func Create(ctx context.Context, opts CreateOptions) (string, error) {
 	}
 	for i := range b.Packages {
 		if err := creator.CreatePackage(ctx, &b.Packages[i], pkgOpts); err != nil {
-			return "", err
+			return nil, err
 		}
 	}
 
 	slog.Debug("creating bundle definition manifest")
 	cfgManifest, err := createBundleDefinitionManifest(ctx, ociDir, opts.BundleFile, srcDir, b.Packages)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	allManifests := append([]ociManifest{cfgManifest}, creator.manifests...)
 
 	slog.Debug("cleaning unreferenced blobs")
 	if err := gcUnreferencedBlobs(blobDir, allManifests); err != nil {
-		return "", fmt.Errorf("cleaning up unreferenced blobs: %w", err)
+		return nil, fmt.Errorf("cleaning up unreferenced blobs: %w", err)
 	}
 
 	idx := &ociIndex{
@@ -168,16 +168,16 @@ func Create(ctx context.Context, opts CreateOptions) (string, error) {
 		Manifests:     allManifests,
 	}
 	if err := writeOCIIndex(filepath.Join(ociDir, "index.json"), idx); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	outPath := filepath.Join(srcDir, creator.BundleName(b))
 	slog.Debug("writing bundle archive", "output", outPath)
 	if err := writeTarZst(ctx, outPath, root); err != nil {
-		return "", err
+		return nil, err
 	}
 	slog.Info("bundle archive written", "output", outPath)
-	return outPath, nil
+	return &CreateResult{BundleName: b.Metadata.Name, OutputPath: outPath}, nil
 }
 
 func bundleOutputName(b *UDSBundle, arch string) string {

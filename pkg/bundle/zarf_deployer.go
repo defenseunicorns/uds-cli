@@ -63,7 +63,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 		return fmt.Errorf("package %q has unsupported source type: %s (only oci:// sources are supported)", pkg.Name, pkg.Source)
 	}
 
-	ctx = d.setupLoggerContext(ctx)
+	ctx = d.setupLoggerContext(ctx, opts.Config.Global.LogLevel)
 
 	pkgTmp, err := os.MkdirTemp(opts.Config.Options.TmpDir, "zarf-pkg-*")
 	if err != nil {
@@ -107,7 +107,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 		return fmt.Errorf("failed to deploy package %q: %w", pkg.Name, err)
 	}
 
-	slog.Info("zarf package deployed", "name", pkg.Name)
+	slog.Info("package deployed", "name", pkg.Name)
 	return nil
 }
 
@@ -224,11 +224,13 @@ func cleanupTempFiles(files []string) {
 	}
 }
 
-// setupLoggerContext creates a context with a Zarf logger configured
-func (d *ZarfDeployer) setupLoggerContext(ctx context.Context) context.Context {
-	// Create a Zarf logger that writes to our output
+// setupLoggerContext creates a context with a Zarf logger configured at the given log level.
+// logLevel is already validated by the config resolver; ParseLevel will not fail here.
+func (d *ZarfDeployer) setupLoggerContext(ctx context.Context, logLevel string) context.Context {
+	level, _ := logger.ParseLevel(logLevel)
+
 	cfg := logger.Config{
-		Level:       logger.Info,
+		Level:       level,
 		Format:      logger.FormatConsole,
 		Destination: logger.Destination(d.Out),
 		Color:       true,
@@ -279,7 +281,7 @@ func (d *ZarfDeployer) pullAndLoadPackage(ctx context.Context, source, tmpDir st
 		return nil, fmt.Errorf("failed to assemble layers: %w", err)
 	}
 
-	slog.Debug("pulling layers", "count", len(layers), "dest", tmpDir)
+	slog.Debug("pulling layers", "count", len(layers), "output", tmpDir)
 
 	// Pull the package to the temp directory
 	_, err = remote.PullPackage(ctx, tmpDir, opts.Config.Options.Concurrency, layers...)

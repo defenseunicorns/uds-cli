@@ -4,6 +4,7 @@
 package bundle
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,9 +12,11 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/printer"
 )
 
 func TestInspectOptions_Complete(t *testing.T) {
@@ -217,9 +220,11 @@ func TestInspectOptions_Run(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			streams, _, out, _ := iostreams.NewTestIOStreams()
+			textPrinter, _ := printer.NewPrinter(printer.FormatText)
 			o := &InspectOptions{
 				BundlePath: tt.bundlePath,
-				IOStreams:  streams,
+				Printer:    textPrinter,
+				IOStreams:   streams,
 			}
 
 			err := o.Run()
@@ -234,4 +239,52 @@ func TestInspectOptions_Run(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInspectOptions_Run_JSONOutput(t *testing.T) {
+	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "spec-compliant", "bundle.uds.hcl")
+
+	streams, _, out, _ := iostreams.NewTestIOStreams()
+	jsonPrinter, err := printer.NewPrinter(printer.FormatJSON)
+	require.NoError(t, err)
+
+	o := &InspectOptions{
+		BundlePath: existingFile,
+		Printer:    jsonPrinter,
+		IOStreams:   streams,
+	}
+
+	require.NoError(t, o.Run())
+
+	// Verify stdout contains valid JSON with expected fields
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(out.Bytes(), &result), "output should be valid JSON")
+	assert.Equal(t, "uds-core-example", result["name"])
+	packages, ok := result["packages"].([]any)
+	require.True(t, ok, "packages should be an array")
+	assert.NotEmpty(t, packages)
+}
+
+func TestInspectOptions_Run_YAMLOutput(t *testing.T) {
+	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "spec-compliant", "bundle.uds.hcl")
+
+	streams, _, out, _ := iostreams.NewTestIOStreams()
+	yamlPrinter, err := printer.NewPrinter(printer.FormatYAML)
+	require.NoError(t, err)
+
+	o := &InspectOptions{
+		BundlePath: existingFile,
+		Printer:    yamlPrinter,
+		IOStreams:   streams,
+	}
+
+	require.NoError(t, o.Run())
+
+	// Verify stdout contains valid YAML with expected fields
+	var result map[string]any
+	require.NoError(t, yaml.Unmarshal(out.Bytes(), &result), "output should be valid YAML")
+	assert.Equal(t, "uds-core-example", result["name"])
+	packages, ok := result["packages"].([]any)
+	require.True(t, ok, "packages should be an array")
+	assert.NotEmpty(t, packages)
 }

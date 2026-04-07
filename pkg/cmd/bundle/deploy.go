@@ -12,6 +12,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/printer"
 	"github.com/spf13/cobra"
 )
 
@@ -19,6 +20,7 @@ import (
 type DeployOptions struct {
 	BundlePath string // Path to bundle file or directory (user input, resolved in Run)
 	Config     *bundle.UDSBundleConfig
+	Printer    printer.ResourcePrinter
 
 	iostreams.IOStreams
 }
@@ -81,6 +83,13 @@ func (o *DeployOptions) Complete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	o.Config = cfg
+
+	p, err := ResolvePrinter(cmd)
+	if err != nil {
+		return err
+	}
+	o.Printer = p
+
 	return nil
 }
 
@@ -117,11 +126,8 @@ func (o *DeployOptions) Run() error {
 		return fmt.Errorf("invalid bundle: %w", err)
 	}
 
-	// Display bundle information before deployment
-	_, err = o.Out.Write(parsedBundle.BufferString().Bytes())
-	if err != nil {
-		return err
-	}
+	// Display bundle information to stderr (diagnostic, not structured output)
+	slog.Info("bundle to deploy", "name", parsedBundle.Metadata.Name, "packages", len(parsedBundle.Packages))
 
 	if o.Config.Global.Prompt {
 		confirmed, err := o.promptConfirmation()
@@ -129,33 +135,30 @@ func (o *DeployOptions) Run() error {
 			return err
 		}
 		if !confirmed {
-			_, _ = fmt.Fprintln(o.Out, "Deployment cancelled")
+			slog.Info("deployment cancelled")
 			return nil
 		}
 	}
-
-	slog.Info("starting deployment", "name", parsedBundle.Metadata.Name)
 
 	deployOpts := bundle.DeployOptions{
 		Config:     o.Config,
 		BundlePath: bundlePath,
 		Bundle:     parsedBundle,
 		Prompt:     o.Config.Global.Prompt,
-		Out:        o.Out,
+		Out:        o.ErrOut,
 	}
 
-	if err := bundle.Deploy(ctx, deployOpts); err != nil {
+	result, err := bundle.Deploy(ctx, deployOpts)
+	if err != nil {
 		return fmt.Errorf("deployment failed: %w", err)
 	}
 
-	slog.Info("bundle deployed successfully", "name", parsedBundle.Metadata.Name)
-	_, _ = fmt.Fprintln(o.Out, "\n✓ Bundle deployed successfully")
-	return nil
+	return o.Printer.PrintObj(result, o.Out)
 }
 
 // promptConfirmation asks the user to confirm deployment.
 func (o *DeployOptions) promptConfirmation() (bool, error) {
-	_, _ = fmt.Fprint(o.Out, "\nDeploy this bundle? [y/N]: ")
+	_, _ = fmt.Fprint(o.ErrOut, "\nDeploy this bundle? [y/N]: ")
 
 	var response string
 	_, err := fmt.Fscanln(o.In, &response)

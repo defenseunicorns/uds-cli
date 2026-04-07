@@ -26,9 +26,9 @@ import (
 //
 // IMPORTANT: The caller (pkg/cmd/bundle/deploy.go) is responsible for validating the bundle path
 // via util.ValidateBundlePath() and resolving it via util.ResolveBundlePath() before calling this function.
-func Deploy(ctx context.Context, opts DeployOptions) error {
+func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
 	if err := ValidateConfig(opts.Config); err != nil {
-		return err
+		return nil, err
 	}
 
 	parser := NewHCLParser()
@@ -40,27 +40,27 @@ func Deploy(ctx context.Context, opts DeployOptions) error {
 		var err error
 		b, err = parser.ParseBundleFile(ctx, opts.BundlePath)
 		if err != nil {
-			return fmt.Errorf("failed to parse bundle: %w", err)
+			return nil, fmt.Errorf("failed to parse bundle: %w", err)
 		}
 		slog.Debug("bundle parsed", "name", b.Metadata.Name, "packages", len(b.Packages))
 
 		// Validate only when freshly parsed (caller is responsible for pre-parsed bundles)
 		if err := b.Validate(); err != nil {
-			return fmt.Errorf("bundle validation failed: %w", err)
+			return nil, fmt.Errorf("bundle validation failed: %w", err)
 		}
-		slog.Debug("bundle validation passed")
+		slog.Debug("bundle validated")
 	}
 
 	// Build the hcl.Traversal-based dependency graph
 	dag, err := BuildDependencyGraph(b)
 	if err != nil {
-		return fmt.Errorf("failed to build dependency graph: %w", err)
+		return nil, fmt.Errorf("failed to build dependency graph: %w", err)
 	}
 
 	// Get packages grouped by deployment levels (waves)
 	levels, err := dag.TopologicalLevels()
 	if err != nil {
-		return fmt.Errorf("failed to compute deployment levels: %w", err)
+		return nil, fmt.Errorf("failed to compute deployment levels: %w", err)
 	}
 	slog.Debug("dependency graph built", "levels", len(levels))
 
@@ -110,10 +110,10 @@ func Deploy(ctx context.Context, opts DeployOptions) error {
 				// Use DAG's GetTraversal for enhanced error with source location
 				if trav, ok := dag.GetTraversal(pkg.Name); ok {
 					srcRange := trav.SourceRange()
-					return fmt.Errorf("failed to deploy package %q at %s: %w",
+					return nil, fmt.Errorf("failed to deploy package %q at %s: %w",
 						pkg.Name, srcRange.String(), err)
 				}
-				return fmt.Errorf("failed to deploy package %q: %w", pkg.Name, err)
+				return nil, fmt.Errorf("failed to deploy package %q: %w", pkg.Name, err)
 			}
 
 			slog.Info("package deployed", "name", pkg.Name)
@@ -123,5 +123,8 @@ func Deploy(ctx context.Context, opts DeployOptions) error {
 	}
 	// =========================================================================
 
-	return nil
+	return &DeployResult{
+		BundleName: b.Metadata.Name,
+		Packages:   len(b.Packages),
+	}, nil
 }

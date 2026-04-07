@@ -44,16 +44,16 @@ func createBundleFromTestData(t *testing.T, testDataRelPath, arch string) string
 	opts := resolver.Defaults()
 	opts.Architecture = arch
 	global := &bundlepkg.GlobalOptions{LogLevel: opts.LogLevel}
-	outPath, err := bundlepkg.Create(t.Context(), bundlepkg.CreateOptions{
+	result, err := bundlepkg.Create(t.Context(), bundlepkg.CreateOptions{
 		Config:     &bundlepkg.UDSBundleConfig{Global: global, Options: &opts},
 		BundleFile: filepath.Join(dir, "bundle.uds.hcl"),
 		Out:        streams.Out,
 	})
 	require.NoError(t, err)
 
-	_, err = os.Stat(outPath)
+	_, err = os.Stat(result.OutputPath)
 	require.NoError(t, err, "expected bundle output file to exist")
-	return outPath
+	return result.OutputPath
 }
 
 // copyDir recursively copies the contents of src into dst.
@@ -146,7 +146,7 @@ func TestCreate_DefaultsConfig_Applied(t *testing.T) {
 	require.NoError(t, err)
 
 	output := out.String()
-	assert.Contains(t, output, "Bundle created")
+	assert.Contains(t, output, "Bundle Name:")
 
 	// Verify defaults variables are resolved through ConfigResolver
 	resolver := bundlecmd.NewConfigResolver()

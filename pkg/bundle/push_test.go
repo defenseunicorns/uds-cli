@@ -25,14 +25,15 @@ func TestPush_NoOCILayout(t *testing.T) {
 	tarball := filepath.Join(t.TempDir(), "v0-bundle.tar.zst")
 	require.NoError(t, writeTarZst(context.Background(), tarball, srcDir))
 
-	err := Push(context.Background(), PushOptions{
+	result, err := Push(context.Background(), PushOptions{
 		BundleTarball: tarball,
 		OCIReference:  "example.com/test/v0-bundle:v1.0.0",
 		TmpDir:        t.TempDir(),
 	})
 
 	require.ErrorContains(t, err, "does not appear to be a UDS bundle")
-	assert.ErrorContains(t, err, "no OCI layout found")
+	require.ErrorContains(t, err, "no OCI layout found")
+	assert.Nil(t, result)
 }
 
 func TestPush_NonUDSBundle(t *testing.T) {
@@ -60,14 +61,15 @@ func TestPush_NonUDSBundle(t *testing.T) {
 	tarball := filepath.Join(t.TempDir(), "not-a-bundle.tar.zst")
 	require.NoError(t, writeTarZst(context.Background(), tarball, srcDir))
 
-	err = Push(context.Background(), PushOptions{
+	result, err := Push(context.Background(), PushOptions{
 		BundleTarball: tarball,
 		OCIReference:  "example.com/test/not-a-bundle:v1.0.0",
 		TmpDir:        t.TempDir(),
 	})
 
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "does not appear to be a UDS bundle")
+	require.ErrorContains(t, err, "does not appear to be a UDS bundle")
+	assert.Nil(t, result)
 }
 
 func TestPush_HappyPath(t *testing.T) {
@@ -98,13 +100,14 @@ package "pkg1" {
 	dst, err := oraci.New(t.TempDir())
 	require.NoError(t, err)
 
-	err = Push(context.Background(), PushOptions{
-		BundleTarball: tarball,
+	result, err := Push(context.Background(), PushOptions{
+		BundleTarball: tarball.OutputPath,
 		OCIReference:  "example.com/test/push-test:1.0.0",
 		TmpDir:        t.TempDir(),
 		remoteRepo:    dst,
 	})
 	require.NoError(t, err)
+	assert.Equal(t, "example.com/test/push-test:1.0.0", result.OCIReference)
 
 	// Verify the manifest is accessible at the expected tag in the in-memory store.
 	_, err = dst.Resolve(t.Context(), "1.0.0")
@@ -114,14 +117,15 @@ package "pkg1" {
 func TestPush_TarballNotFound(t *testing.T) {
 	t.Parallel()
 
-	err := Push(context.Background(), PushOptions{
+	result, err := Push(context.Background(), PushOptions{
 		BundleTarball: "/nonexistent/bundle.tar.zst",
 		OCIReference:  "example.com/test/bundle:v1.0.0",
 		TmpDir:        t.TempDir(),
 	})
 
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "no such file or directory")
+	require.ErrorContains(t, err, "no such file or directory")
+	assert.Nil(t, result)
 }
 
 func TestPush_InvalidOCIReference(t *testing.T) {
@@ -149,14 +153,15 @@ package "pkg1" {
 	})
 	require.NoError(t, err)
 
-	err = Push(context.Background(), PushOptions{
-		BundleTarball: tarball,
+	result, err := Push(context.Background(), PushOptions{
+		BundleTarball: tarball.OutputPath,
 		OCIReference:  ":::invalid:::",
 		TmpDir:        t.TempDir(),
 	})
 
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "invalid reference")
+	require.ErrorContains(t, err, "invalid reference")
+	assert.Nil(t, result)
 }
 
 func TestPush_RegistryUnreachable(t *testing.T) {
@@ -183,8 +188,8 @@ package "pkg1" {
 	})
 	require.NoError(t, err)
 
-	err = Push(context.Background(), PushOptions{
-		BundleTarball: tarball,
+	result, err := Push(context.Background(), PushOptions{
+		BundleTarball: tarball.OutputPath,
 		OCIReference:  "localhost:0/test/bundle:v1.0.0",
 		TmpDir:        t.TempDir(),
 		RegistryOptions: RegistryOptions{
@@ -195,4 +200,5 @@ package "pkg1" {
 	// The specific error message varies by OS and connection failure type
 	// (e.g. "connection refused", "can't assign requested address").
 	require.Error(t, err)
+	assert.Nil(t, result)
 }
