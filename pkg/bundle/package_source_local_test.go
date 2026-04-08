@@ -11,8 +11,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/pkg/oci"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 )
 
 // digestToHex extracts the hex portion from a digest string for test assertions.
@@ -21,6 +23,74 @@ func digestToHex(t *testing.T, digest string) string {
 	parts := strings.SplitN(digest, ":", 2)
 	require.Len(t, parts, 2, "invalid digest format: %s", digest)
 	return parts[1]
+}
+
+func TestLocalSource_IngestFiltered_ZarfPackage(t *testing.T) {
+	pkgDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte("metadata:\n  name: test\n  version: 1.0.0\ncomponents: []\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "checksums.txt"), []byte(""), 0o644))
+
+	blobDir := t.TempDir()
+
+	src := &localSource{path: pkgDir, arch: "amd64", bundleDir: ""}
+	manifests, err := src.IngestFiltered(context.Background(), filters.Empty(), blobDir)
+	require.NoError(t, err)
+	assert.Len(t, manifests, 1)
+	assert.Equal(t, "application/vnd.oci.image.manifest.v1+json", manifests[0].MediaType)
+}
+
+func TestLocalSource_IngestFiltered_OCILayout(t *testing.T) {
+	layoutDir := t.TempDir()
+	writeMinimalOCILayout(t, layoutDir)
+
+	blobDir := t.TempDir()
+
+	src := &localSource{path: layoutDir, arch: "amd64", bundleDir: ""}
+	manifests, err := src.IngestFiltered(context.Background(), filters.Empty(), blobDir)
+	require.NoError(t, err)
+	assert.NotEmpty(t, manifests)
+}
+
+func TestLocalSource_IngestFiltered_RelativePath(t *testing.T) {
+	bundleDir := t.TempDir()
+	pkgDir := filepath.Join(bundleDir, "my-pkg")
+	require.NoError(t, os.MkdirAll(pkgDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte("metadata:\n  name: rel-test\n  version: 0.1.0\ncomponents: []\n"), 0o644))
+
+	blobDir := t.TempDir()
+
+	src := &localSource{path: "my-pkg", arch: "amd64", bundleDir: bundleDir}
+	manifests, err := src.IngestFiltered(context.Background(), filters.Empty(), blobDir)
+	require.NoError(t, err)
+	assert.Len(t, manifests, 1)
+}
+
+func TestLocalSource_ResolvedPath(t *testing.T) {
+	tests := []struct {
+		name      string
+		path      string
+		bundleDir string
+		want      string
+	}{
+		{
+			name:      "absolute path unchanged",
+			path:      "/abs/path/pkg",
+			bundleDir: "/bundle",
+			want:      "/abs/path/pkg",
+		},
+		{
+			name:      "relative path joined with bundleDir",
+			path:      "my-pkg",
+			bundleDir: "/bundle/dir",
+			want:      "/bundle/dir/my-pkg",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			src := &localSource{path: tt.path, bundleDir: tt.bundleDir}
+			assert.Equal(t, tt.want, src.resolvedPath())
+		})
+	}
 }
 
 func TestIsZarfPackage(t *testing.T) {
@@ -82,7 +152,7 @@ func TestIngestZarfPackage(t *testing.T) {
 		assert.Positive(t, m.Size)
 		require.NotNil(t, m.Platform)
 		assert.Equal(t, "amd64", m.Platform.Architecture)
-		assert.Equal(t, "linux", m.Platform.OS)
+		assert.Equal(t, oci.MultiOS, m.Platform.OS)
 
 		// Verify manifest blob was written
 		manifestHex := digestToHex(t, m.Digest)

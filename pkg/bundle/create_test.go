@@ -351,7 +351,8 @@ func TestCreate_OptionalComponentBlobsRemoved(t *testing.T) {
 
 	// Create a Zarf-like local layout: "core" (required) + "logging" (optional).
 	layoutDir := filepath.Join(dir, "zarfpkg")
-	compDigests := writeZarfLikeOCILayout(t, layoutDir, []string{"core"}, []string{"logging"})
+	digests := WriteZarfLikeOCILayout(t, layoutDir, []string{"core"}, []string{"logging"})
+	compDigests := digests.ComponentHexes
 
 	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
 	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {

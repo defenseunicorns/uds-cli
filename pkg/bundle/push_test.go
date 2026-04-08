@@ -28,7 +28,7 @@ func TestPush_NoOCILayout(t *testing.T) {
 	result, err := Push(context.Background(), PushOptions{
 		BundleTarball: tarball,
 		OCIReference:  "example.com/test/v0-bundle:v1.0.0",
-		TmpDir:        t.TempDir(),
+		Options:       ConfigOptions{TmpDir: t.TempDir()},
 	})
 
 	require.ErrorContains(t, err, "does not appear to be a UDS bundle")
@@ -64,7 +64,7 @@ func TestPush_NonUDSBundle(t *testing.T) {
 	result, err := Push(context.Background(), PushOptions{
 		BundleTarball: tarball,
 		OCIReference:  "example.com/test/not-a-bundle:v1.0.0",
-		TmpDir:        t.TempDir(),
+		Options:       ConfigOptions{TmpDir: t.TempDir()},
 	})
 
 	require.Error(t, err)
@@ -103,7 +103,7 @@ package "pkg1" {
 	result, err := Push(context.Background(), PushOptions{
 		BundleTarball: tarball.OutputPath,
 		OCIReference:  "example.com/test/push-test:1.0.0",
-		TmpDir:        t.TempDir(),
+		Options:       ConfigOptions{TmpDir: t.TempDir()},
 		remoteRepo:    dst,
 	})
 	require.NoError(t, err)
@@ -120,7 +120,7 @@ func TestPush_TarballNotFound(t *testing.T) {
 	result, err := Push(context.Background(), PushOptions{
 		BundleTarball: "/nonexistent/bundle.tar.zst",
 		OCIReference:  "example.com/test/bundle:v1.0.0",
-		TmpDir:        t.TempDir(),
+		Options:       ConfigOptions{TmpDir: t.TempDir()},
 	})
 
 	require.Error(t, err)
@@ -156,7 +156,7 @@ package "pkg1" {
 	result, err := Push(context.Background(), PushOptions{
 		BundleTarball: tarball.OutputPath,
 		OCIReference:  ":::invalid:::",
-		TmpDir:        t.TempDir(),
+		Options:       ConfigOptions{TmpDir: t.TempDir()},
 	})
 
 	require.Error(t, err)
@@ -191,10 +191,7 @@ package "pkg1" {
 	result, err := Push(context.Background(), PushOptions{
 		BundleTarball: tarball.OutputPath,
 		OCIReference:  "localhost:0/test/bundle:v1.0.0",
-		TmpDir:        t.TempDir(),
-		RegistryOptions: RegistryOptions{
-			PlainHTTP: true,
-		},
+		Options: ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true},
 	})
 
 	// The specific error message varies by OS and connection failure type

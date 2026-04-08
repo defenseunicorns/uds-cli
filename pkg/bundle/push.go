@@ -27,7 +27,7 @@ import (
 func Push(ctx context.Context, opts PushOptions) (*PushResult, error) {
 	slog.Info("pushing bundle", "tarball", opts.BundleTarball, "ref", opts.OCIReference)
 
-	tmp, err := os.MkdirTemp(opts.TmpDir, "uds-bundle-push-*")
+	tmp, err := os.MkdirTemp(opts.Options.TmpDir, "uds-bundle-push-*")
 	if err != nil {
 		return nil, fmt.Errorf("creating temp dir: %w", err)
 	}
@@ -89,7 +89,7 @@ func Push(ctx context.Context, opts PushOptions) (*PushResult, error) {
 	if opts.remoteRepo != nil {
 		dst = opts.remoteRepo
 	} else {
-		repo, err := newRemoteRepository(TrimScheme(opts.OCIReference), opts.RegistryOptions)
+		repo, err := newRemoteRepository(TrimScheme(opts.OCIReference), opts.Options)
 		if err != nil {
 			return nil, fmt.Errorf("creating remote repository: %w", err)
 		}

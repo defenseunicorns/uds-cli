@@ -223,26 +223,18 @@ func TestTemplateValuesFiles(t *testing.T) {
 	}
 }
 
-func TestZarfDeployer_DeployPackage_UnsupportedSource(t *testing.T) {
+func TestZarfDeployer_DeployPackage_InvalidSource(t *testing.T) {
 	tests := []struct {
-		name    string
-		source  string
-		wantErr string
+		name   string
+		source string
 	}{
 		{
-			name:    "local tarball not supported",
-			source:  "/path/to/package.tar.zst",
-			wantErr: "unsupported source type",
+			name:   "nonexistent local tarball",
+			source: "/path/to/package.tar.zst",
 		},
 		{
-			name:    "http URL not supported",
-			source:  "https://example.com/package.tar.zst",
-			wantErr: "unsupported source type",
-		},
-		{
-			name:    "empty source",
-			source:  "",
-			wantErr: "unsupported source type",
+			name:   "empty source",
+			source: "",
 		},
 	}
 
@@ -256,9 +248,11 @@ func TestZarfDeployer_DeployPackage_UnsupportedSource(t *testing.T) {
 				Source: tt.source,
 			}
 
-			err := deployer.DeployPackage(context.Background(), pkg, DeployPackageOptions{})
+			err := deployer.DeployPackage(context.Background(), pkg, DeployPackageOptions{
+				Config: &UDSBundleConfig{Global: &GlobalOptions{}, Options: &ConfigOptions{}},
+			})
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.wantErr)
+			assert.Contains(t, err.Error(), "failed to load package")
 		})
 	}
 }

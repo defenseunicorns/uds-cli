@@ -106,10 +106,9 @@ func TestPullCommand_Integration(t *testing.T) {
 	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
 
 	_, err := bundlepkg.Push(t.Context(), bundlepkg.PushOptions{
-		BundleTarball:   bundlePath,
-		OCIReference:    ref,
-		TmpDir:          t.TempDir(),
-		RegistryOptions: bundlepkg.RegistryOptions{PlainHTTP: true},
+		BundleTarball: bundlePath,
+		OCIReference:  ref,
+		Options:       bundlepkg.ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true},
 	})
 	require.NoError(t, err)
 
@@ -156,10 +155,7 @@ func TestPushPull_RoundTrip(t *testing.T) {
 	_, err := bundlepkg.Push(t.Context(), bundlepkg.PushOptions{
 		BundleTarball: originalPath,
 		OCIReference:  ref,
-		TmpDir:        t.TempDir(),
-		RegistryOptions: bundlepkg.RegistryOptions{
-			PlainHTTP: true,
-		},
+		Options:       bundlepkg.ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true},
 	})
 	require.NoError(t, err, "Push should succeed against local registry")
 
@@ -168,11 +164,7 @@ func TestPushPull_RoundTrip(t *testing.T) {
 	pullResult, err := bundlepkg.Pull(t.Context(), bundlepkg.PullOptions{
 		OCIReference: ref,
 		OutputDir:    outDir,
-		TmpDir:       t.TempDir(),
-		RegistryOptions: bundlepkg.RegistryOptions{
-			PlainHTTP: true,
-			Arch:      arch,
-		},
+		Options:      bundlepkg.ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true, Architecture: arch},
 	})
 	require.NoError(t, err, "Pull should succeed against local registry")
 

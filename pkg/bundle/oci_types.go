@@ -12,6 +12,9 @@ const (
 	MediaTypeBundleDefinition = "application/vnd.defenseunicorns.uds.bundle.definition.v1"
 	MediaTypeBundleHCL        = "application/vnd.defenseunicorns.uds.bundle.hcl.v1"
 	MediaTypeBundleValuesYAML = "application/vnd.defenseunicorns.uds.bundle.values.v1+yaml"
+
+	// MediaTypeZarfLayer is the media type for Zarf package file layers.
+	MediaTypeZarfLayer = "application/vnd.defenseunicorns.zarf.layer.v1"
 )
 
 // ociIndex is the top-level OCI image index written to index.json.

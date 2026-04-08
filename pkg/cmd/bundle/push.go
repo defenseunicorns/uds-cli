@@ -98,13 +98,9 @@ func (o *PushOptions) Validate() error {
 func (o *PushOptions) Run() error {
 	slog.Debug("pushing bundle", "tarball", o.Tarball, "ref", o.OCIReference)
 	result, err := bundle.Push(context.Background(), bundle.PushOptions{
-		RegistryOptions: bundle.RegistryOptions{
-			PlainHTTP:     o.Config.Options.PlainHTTP,
-			SkipTLSVerify: o.Config.Options.SkipTLSVerify,
-		},
+		Options:       *o.Config.Options,
 		BundleTarball: o.Tarball,
 		OCIReference:  o.OCIReference,
-		TmpDir:        o.Config.Options.TmpDir,
 	})
 	if err != nil {
 		return err

@@ -92,15 +92,9 @@ func (o *PullOptions) Validate() error {
 func (o *PullOptions) Run() error {
 	slog.Debug("pulling bundle", "ref", o.OCIReference, "output", o.OutputDir)
 	result, err := bundle.Pull(context.Background(), bundle.PullOptions{
-		RegistryOptions: bundle.RegistryOptions{
-			Arch:          o.Config.Options.Architecture,
-			PlainHTTP:     o.Config.Options.PlainHTTP,
-			SkipTLSVerify: o.Config.Options.SkipTLSVerify,
-			Concurrency:   o.Config.Options.Concurrency,
-		},
+		Options:      *o.Config.Options,
 		OCIReference: o.OCIReference,
 		OutputDir:    o.OutputDir,
-		TmpDir:       o.Config.Options.TmpDir,
 	})
 	if err != nil {
 		return err

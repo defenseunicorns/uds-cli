@@ -29,7 +29,7 @@ import (
 func Pull(ctx context.Context, opts PullOptions) (*PullResult, error) {
 	slog.Info("pulling bundle", "ref", opts.OCIReference)
 
-	tmp, err := os.MkdirTemp(opts.TmpDir, "uds-bundle-pull-*")
+	tmp, err := os.MkdirTemp(opts.Options.TmpDir, "uds-bundle-pull-*")
 	if err != nil {
 		return nil, fmt.Errorf("creating temp dir: %w", err)
 	}
@@ -57,7 +57,7 @@ func Pull(ctx context.Context, opts PullOptions) (*PullResult, error) {
 	if opts.remoteRepo != nil {
 		src = opts.remoteRepo
 	} else {
-		repo, err := newRemoteRepository(TrimScheme(opts.OCIReference), opts.RegistryOptions)
+		repo, err := newRemoteRepository(TrimScheme(opts.OCIReference), opts.Options)
 		if err != nil {
 			return nil, fmt.Errorf("creating remote repository: %w", err)
 		}
@@ -71,7 +71,7 @@ func Pull(ctx context.Context, opts PullOptions) (*PullResult, error) {
 	tag := ref.Identifier()
 
 	copyOpts := oras.DefaultCopyOptions
-	copyOpts.Concurrency = opts.Concurrency
+	copyOpts.Concurrency = opts.Options.Concurrency
 
 	slog.Debug("copying bundle from registry", "ref", opts.OCIReference, "tag", tag)
 	rootDesc, err := oras.Copy(ctx, src, tag, store, tag, copyOpts)
@@ -118,7 +118,7 @@ func Pull(ctx context.Context, opts PullOptions) (*PullResult, error) {
 		return nil, fmt.Errorf("removing duplicate index blob: %w", err)
 	}
 
-	outName, err := bundleNameFromDefinitionLayer(ctx, ociDir, idx, opts.Arch)
+	outName, err := bundleNameFromDefinitionLayer(ctx, ociDir, idx, opts.Options.Architecture)
 	if err != nil {
 		return nil, fmt.Errorf("reading bundle definition from %s: %w", opts.OCIReference, err)
 	}

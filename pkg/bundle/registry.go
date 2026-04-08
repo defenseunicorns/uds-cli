@@ -16,7 +16,7 @@ import (
 
 // newRemoteRepository creates an ORAS remote repository configured with TLS
 // settings and credentials loaded from the Docker credential store.
-func newRemoteRepository(ref string, opts RegistryOptions) (*orasregistry.Repository, error) {
+func newRemoteRepository(ref string, opts ConfigOptions) (*orasregistry.Repository, error) {
 	repo, err := orasregistry.NewRepository(ref)
 	if err != nil {
 		return nil, err

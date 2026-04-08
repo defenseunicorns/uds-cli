@@ -8,6 +8,8 @@ import (
 	"io"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	oras "oras.land/oras-go/v2"
 )
 
@@ -73,21 +75,6 @@ type Parser interface {
 	ParseBundleConfig(ctx context.Context, filePath string) (*UDSBundleConfig, error)
 }
 
-// RegistryOptions holds shared OCI registry settings used across create, deploy,
-// pull, and push operations.
-type RegistryOptions struct {
-	// Arch is the target CPU architecture (e.g. "amd64", "arm64").
-	Arch string
-
-	// PlainHTTP allows registry communication over plain HTTP.
-	PlainHTTP bool
-
-	// SkipTLSVerify skips TLS certificate verification for registries.
-	SkipTLSVerify bool
-
-	// Concurrency controls the degree of parallelism for concurrent operations.
-	Concurrency int
-}
 
 // Deployer is the interface for deploying packages to a target.
 // Implementations can include: ZarfDeployer (local), TofuDeployer, RemoteAgentDeployer.
@@ -208,6 +195,24 @@ type Creator interface {
 	BundleName(b *UDSBundle) string
 }
 
+// PackageSource abstracts how a Zarf package is fetched, supporting both
+// OCI registries and local paths. Remote implementations apply component
+// filtering before downloading to avoid pulling unnecessary layers; local
+// implementations may apply filtering after reading package contents.
+type PackageSource interface {
+	// PullFiltered pulls a Zarf package to tmpDir, applying the filter as part
+	// of retrieval. For remote sources the filter is applied before downloading
+	// layers when possible. Returns a PackageLayout ready for packager.Deploy().
+	// Used by the Deploy command.
+	PullFiltered(ctx context.Context, filter filters.ComponentFilterStrategy, tmpDir string) (*layout.PackageLayout, error)
+
+	// IngestFiltered ingests a Zarf package into an OCI blob directory at blobDir,
+	// applying the filter during ingestion. For remote sources the filter is
+	// applied before downloading layers when possible. Returns manifest
+	// descriptors for the bundle's OCI index. Used by the Create command.
+	IngestFiltered(ctx context.Context, filter filters.ComponentFilterStrategy, blobDir string) ([]ociManifest, error)
+}
+
 // CreatePackageOptions holds per-package configuration during bundle creation.
 type CreatePackageOptions struct {
 	// Config is the merged config; always non-nil.
@@ -230,16 +235,14 @@ type CreateOptions struct {
 
 // PullOptions holds configuration for pulling a bundle from an OCI registry.
 type PullOptions struct {
-	RegistryOptions
+	// Options provides configuration for the operation.
+	Options ConfigOptions
 
 	// OCIReference is the source OCI registry reference (e.g. ghcr.io/org/bundle:v1).
 	OCIReference string
 
 	// OutputDir is the directory where the pulled bundle tarball will be written.
 	OutputDir string
-
-	// TmpDir is the base directory for temporary files.
-	TmpDir string
 
 	// remoteRepo overrides the remote registry source. When nil (production),
 	// newRemoteRepository is used. Set in unit tests to inject an in-memory store.
@@ -294,16 +297,14 @@ type RemoveResult struct {
 
 // PushOptions holds configuration for pushing a bundle to an OCI registry.
 type PushOptions struct {
-	RegistryOptions
+	// Options provides configuration for the operation.
+	Options ConfigOptions
 
 	// BundleTarball is the path to the .tar.zst bundle file.
 	BundleTarball string
 
 	// OCIReference is the target OCI registry reference (e.g. ghcr.io/org/bundle:v1).
 	OCIReference string
-
-	// TmpDir is the base directory for temporary files.
-	TmpDir string
 
 	// remoteRepo overrides the remote registry destination. When nil (production),
 	// newRemoteRepository is used. Set in unit tests to inject an in-memory store.

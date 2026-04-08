@@ -52,37 +52,22 @@ func newLocalCreator(arch string) *localCreator {
 func (c *localCreator) CreatePackage(ctx context.Context, pkg *Package, opts CreatePackageOptions) error {
 	slog.Info("ingesting package", "name", pkg.Name, "source", pkg.Source)
 
-	var manifests []ociManifest
-	var err error
+	source := NewPackageSource(pkg.Source, *opts.Config.Options, opts.BundleDir)
 
-	if IsOCIReference(pkg.Source) {
-		// Strip any explicit scheme prefix (e.g. "oci://") before handing to
-		// go-containerregistry which does not expect it.
-		refName := TrimScheme(pkg.Source)
-		manifests, err = ingestRemoteReference(ctx, opts.BlobDir, refName, opts.Config)
-		if err != nil {
-			return fmt.Errorf("package %q: %w", pkg.Name, err)
-		}
-		for i := range manifests {
-			ensureAnnotation(&manifests[i], "org.opencontainers.image.ref.name", refName)
-		}
-	} else {
-		manifests, err = ingestLocalReference(ctx, opts.BlobDir, opts.BundleDir, pkg.Source, opts.Config.Options.Architecture)
-		if err != nil {
-			return fmt.Errorf("package %q: %w", pkg.Name, err)
-		}
-		for i := range manifests {
-			ensureAnnotation(&manifests[i], "org.opencontainers.image.ref.name", pkg.Name)
-		}
+	filter := BuildComponentFilter(pkg.OptionalComponents)
+
+	manifests, err := source.IngestFiltered(ctx, filter, opts.BlobDir)
+	if err != nil {
+		return fmt.Errorf("package %q: %w", pkg.Name, err)
 	}
 
-	// Filter optional components: with no explicit list, all optionals are excluded.
-	for i, m := range manifests {
-		filtered, err := filterZarfOptionalComponents(opts.BlobDir, m, pkg.OptionalComponents)
-		if err != nil {
-			return fmt.Errorf("package %q: optional component filtering: %w", pkg.Name, err)
-		}
-		manifests[i] = filtered
+	// Set the OCI reference annotation for each manifest
+	refName := pkg.Name
+	if IsOCIReference(pkg.Source) {
+		refName = TrimScheme(pkg.Source)
+	}
+	for i := range manifests {
+		ensureAnnotation(&manifests[i], "org.opencontainers.image.ref.name", refName)
 	}
 
 	c.manifests = append(c.manifests, manifests...)

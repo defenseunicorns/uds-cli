@@ -142,7 +142,7 @@ func TestPull_NonUDSBundle(t *testing.T) {
 			result, err := Pull(t.Context(), PullOptions{
 				OCIReference: "example.com/test/not-a-bundle:v1.0.0",
 				OutputDir:    tt.outputDir,
-				TmpDir:       t.TempDir(),
+				Options:      ConfigOptions{TmpDir: t.TempDir()},
 				remoteRepo:   srcStore,
 			})
 			require.ErrorContains(t, err, "does not appear to be a UDS bundle")
@@ -161,7 +161,7 @@ func TestPull_TagNotFound(t *testing.T) {
 	result, err := Pull(t.Context(), PullOptions{
 		OCIReference: ref,
 		OutputDir:    t.TempDir(),
-		TmpDir:       t.TempDir(),
+		Options:      ConfigOptions{TmpDir: t.TempDir()},
 		remoteRepo:   srcStore,
 	})
 
@@ -200,7 +200,7 @@ package "pkg1" {
 	_, pushErr := Push(context.Background(), PushOptions{
 		BundleTarball: tarball.OutputPath,
 		OCIReference:  "example.com/test/pull-test:1.0.0",
-		TmpDir:        t.TempDir(),
+		Options:       ConfigOptions{TmpDir: t.TempDir()},
 		remoteRepo:    store,
 	})
 	require.NoError(t, pushErr)
@@ -210,7 +210,7 @@ package "pkg1" {
 	result, err := Pull(t.Context(), PullOptions{
 		OCIReference: "example.com/test/pull-test:1.0.0",
 		OutputDir:    outDir,
-		TmpDir:       t.TempDir(),
+		Options:      ConfigOptions{TmpDir: t.TempDir()},
 		remoteRepo:   store,
 	})
 	require.NoError(t, err)
