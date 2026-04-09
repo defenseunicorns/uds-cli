@@ -16,5 +16,5 @@ metadata {
 }
 
 package "init" {
-  source     = "oci://ghcr.io/zarf-dev/packages/init:v0.74.0"
+  source     = "oci://ghcr.io/zarf-dev/packages/init:v0.74.2"
 }
