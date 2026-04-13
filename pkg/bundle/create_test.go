@@ -415,7 +415,7 @@ variables = {
   b = "b-default-value"
 }
 `)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, DefaultBundleConfigFileName), defaultsContent, tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, BundleDefaultsFileName), defaultsContent, tmpFilePerm))
 
 	_, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfig(),
@@ -428,7 +428,7 @@ variables = {
 	entries := readTarZstEntries(t, outPath)
 
 	require.True(t, bundleDefinitionContainsLayerTitle(t, entries, "bundle.uds.hcl"))
-	require.True(t, bundleDefinitionContainsLayerTitle(t, entries, DefaultBundleConfigFileName))
+	require.True(t, bundleDefinitionContainsLayerTitle(t, entries, BundleDefaultsFileName))
 
 	// Verify defaults.uds.hcl content is preserved in the blob.
 	var idx struct {
@@ -458,7 +458,7 @@ variables = {
 	require.NoError(t, json.Unmarshal(defManifestBytes, &defManifest))
 
 	for _, l := range defManifest.Layers {
-		if l.Annotations["org.opencontainers.image.title"] == DefaultBundleConfigFileName {
+		if l.Annotations["org.opencontainers.image.title"] == BundleDefaultsFileName {
 			blob := entries["oci/blobs/sha256/"+strings.TrimPrefix(l.Digest, "sha256:")]
 			require.Equal(t, string(defaultsContent), string(blob))
 		}
@@ -496,7 +496,7 @@ package "pkg1" {
 	entries := readTarZstEntries(t, outPath)
 
 	require.True(t, bundleDefinitionContainsLayerTitle(t, entries, "bundle.uds.hcl"))
-	require.False(t, bundleDefinitionContainsLayerTitle(t, entries, DefaultBundleConfigFileName),
+	require.False(t, bundleDefinitionContainsLayerTitle(t, entries, BundleDefaultsFileName),
 		"defaults.uds.hcl should not be in the bundle when the file does not exist")
 }
 

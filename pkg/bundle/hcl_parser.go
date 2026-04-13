@@ -137,6 +137,57 @@ func ctyValueToGo(val cty.Value) (any, error) {
 	}
 }
 
+// ParseDefaults reads a defaults file from disk and validates it.
+// A valid defaults file contains at most one top-level attribute named "variables"
+// and no blocks. Returns the parsed Variables, or nil if the file has no variables.
+// The context parameter is currently unused as none of the HCL parsing methods supports cancellation.
+func ParseDefaults(_ context.Context, path string) (Variables, error) {
+	src, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read defaults file: %w", err)
+	}
+
+	hclFile, diags := hclsyntax.ParseConfig(src, path, hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return nil, fmt.Errorf("failed to parse defaults HCL: %s", diags.Error())
+	}
+
+	// JustAttributes rejects any blocks (e.g. options {}).
+	attrs, diags := hclFile.Body.JustAttributes()
+	if diags.HasErrors() {
+		return nil, fmt.Errorf("defaults file must not contain blocks: %s", diags.Error())
+	}
+
+	// Only "variables" is allowed at the top level.
+	for name := range attrs {
+		if name != "variables" {
+			return nil, fmt.Errorf("defaults file contains unexpected attribute %q; only \"variables\" is allowed", name)
+		}
+	}
+
+	attr, ok := attrs["variables"]
+	if !ok {
+		return nil, nil
+	}
+
+	val, diags := attr.Expr.Value(nil)
+	if diags.HasErrors() {
+		return nil, fmt.Errorf("failed to evaluate variables: %s", diags.Error())
+	}
+
+	goVal, err := ctyValueToGo(val)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert variables: %w", err)
+	}
+
+	m, ok := goVal.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("variables must be an object, got %T", goVal)
+	}
+
+	return Variables(m), nil
+}
+
 // ParseBundleFile reads and parses an HCL bundle file with locals support.
 // The context parameter is currently unused as none of the HCL parsing methods supports cancellation.
 func (p *HCLParser) ParseBundleFile(_ context.Context, filePath string) (*UDSBundle, error) {

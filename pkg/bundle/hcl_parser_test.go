@@ -444,6 +444,96 @@ func writeTempHCL(t *testing.T, content string) string {
 	return path
 }
 
+func TestParseDefaults(t *testing.T) {
+	tests := []struct {
+		name    string
+		hcl     string
+		fixture string // file path; takes precedence over hcl
+		wantErr string // substring expected in error; empty means any error
+		wantOK  bool
+		check   func(t *testing.T, vars Variables)
+	}{
+		{
+			name:   "valid with nested variables",
+			wantOK: true,
+			hcl: `variables = {
+  domain = "example.com"
+  replicas = 3
+  nested = {
+    enabled = true
+  }
+}`,
+			check: func(t *testing.T, vars Variables) {
+				assert.Equal(t, "example.com", vars["domain"])
+				assert.InDelta(t, float64(3), vars["replicas"], 0.001)
+				nested, ok := vars["nested"].(map[string]any)
+				require.True(t, ok)
+				assert.Equal(t, true, nested["enabled"])
+			},
+		},
+		{
+			name:   "empty file returns nil variables",
+			wantOK: true,
+			hcl:    "",
+			check: func(t *testing.T, vars Variables) {
+				assert.Nil(t, vars)
+			},
+		},
+		{
+			name:    "rejects block (options)",
+			hcl:     `options { architecture = "amd64" }`,
+			wantErr: "block",
+		},
+		{
+			name:    "rejects block (arbitrary)",
+			hcl:     `something { foo = "bar" }`,
+			wantErr: "block",
+		},
+		{
+			name:    "rejects unknown top-level attribute",
+			hcl:     "variables = { a = \"b\" }\nunknown_key = \"bad\"",
+			wantErr: "unknown_key",
+		},
+		{
+			name:    "rejects malformed HCL",
+			hcl:     `not valid hcl {{{`,
+			wantErr: "",
+		},
+		{
+			name:    "file not found",
+			fixture: "/nonexistent/defaults.uds.hcl",
+			wantErr: "cannot read",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var path string
+			if tt.fixture != "" {
+				path = tt.fixture
+			} else {
+				path = filepath.Join(t.TempDir(), "defaults.uds.hcl")
+				require.NoError(t, os.WriteFile(path, []byte(tt.hcl), tmpFilePerm))
+			}
+
+			vars, err := ParseDefaults(context.Background(), path)
+
+			if !tt.wantOK {
+				require.Error(t, err)
+				if tt.wantErr != "" {
+					assert.Contains(t, err.Error(), tt.wantErr)
+				}
+				return
+			}
+			require.NoError(t, err)
+			if tt.check != nil {
+				tt.check(t, vars)
+			}
+		})
+	}
+}
+
 func TestParseBundleConfig(t *testing.T) {
 	specCompliantPath := filepath.Join("..", "..", "tests", "test_data",
 		"bundles", "spec-compliant", "config.uds.hcl")

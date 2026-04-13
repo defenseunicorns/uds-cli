@@ -113,7 +113,7 @@ func (r *ConfigResolver) Resolve(cmd *cobra.Command, bundlePath string) (*bundle
 	var variables bundle.Variables
 
 	// Merge variables from defaults.uds.hcl, if exists
-	defaults, err := r.loadBundleDefaultConfig(cmd.Context(), bundlePath)
+	defaults, err := r.loadBundleDefaults(cmd.Context(), bundlePath)
 	if err != nil {
 		return nil, "", err
 	}
@@ -150,10 +150,9 @@ func (r *ConfigResolver) Resolve(cmd *cobra.Command, bundlePath string) (*bundle
 	}, configPath, nil
 }
 
-// loadBundleDefaultConfig looks for defaults.uds.hcl in the bundle directory and parses it if present.
-// Returns nil (not an error) when the file does not exist or bundlePath is not accessible. Invalid paths
-// will be caught later by ValidateBundlePath.
-func (r *ConfigResolver) loadBundleDefaultConfig(ctx context.Context, bundlePath string) (*bundle.UDSBundleConfig, error) {
+// loadBundleDefaults looks for defaults.uds.hcl in the bundle directory and parses it if present.
+// Returns nil (not an error) when the file does not exist or bundlePath is not accessible.
+func (r *ConfigResolver) loadBundleDefaults(ctx context.Context, bundlePath string) (*bundle.UDSBundleConfig, error) {
 	if bundlePath == "" {
 		return nil, nil
 	}
@@ -169,7 +168,7 @@ func (r *ConfigResolver) loadBundleDefaultConfig(ctx context.Context, bundlePath
 		dir = filepath.Dir(bundlePath)
 	}
 
-	defaultsPath := filepath.Join(dir, bundle.DefaultBundleConfigFileName)
+	defaultsPath := filepath.Join(dir, bundle.BundleDefaultsFileName)
 	if _, err := os.Stat(defaultsPath); os.IsNotExist(err) {
 		return nil, nil
 	} else if err != nil {
@@ -177,14 +176,10 @@ func (r *ConfigResolver) loadBundleDefaultConfig(ctx context.Context, bundlePath
 	}
 
 	slog.Debug("loading bundle defaults", "path", defaultsPath)
-	cfg, err := bundle.NewHCLParser().ParseBundleConfig(ctx, defaultsPath)
+	vars, err := bundle.ParseDefaults(ctx, defaultsPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse %s: %w", bundle.DefaultBundleConfigFileName, err)
+		return nil, fmt.Errorf("failed to parse %s: %w", bundle.BundleDefaultsFileName, err)
 	}
 
-	// options block is not supported in defaults file
-	if cfg.Options != nil {
-		return nil, fmt.Errorf("%s does not support the options block", bundle.DefaultBundleConfigFileName)
-	}
-	return cfg, nil
+	return &bundle.UDSBundleConfig{Variables: vars}, nil
 }

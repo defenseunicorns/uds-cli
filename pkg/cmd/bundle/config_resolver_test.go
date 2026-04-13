@@ -751,7 +751,7 @@ options {
 func TestResolve_DefaultsFile_VariablesApplied(t *testing.T) {
 	r := NewConfigResolver()
 	bundleDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundle.DefaultBundleConfigFileName), []byte(`
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundle.BundleDefaultsFileName), []byte(`
 variables = {
   domain = "default.dev"
   feature = {
@@ -803,7 +803,7 @@ func TestResolve_InvalidBundleDir_Skipped(t *testing.T) {
 func TestResolve_DefaultsFile_OptionsBlockNotAllowed(t *testing.T) {
 	r := NewConfigResolver()
 	bundleDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundle.DefaultBundleConfigFileName), []byte(`
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundle.BundleDefaultsFileName), []byte(`
 options {
   architecture = "amd64"
 }
@@ -815,14 +815,14 @@ options {
 
 	_, _, err := r.Resolve(cmd, bundleDir)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), bundle.DefaultBundleConfigFileName)
-	assert.Contains(t, err.Error(), "options block")
+	assert.Contains(t, err.Error(), bundle.BundleDefaultsFileName)
+	assert.Contains(t, err.Error(), "block")
 }
 
 func TestResolve_DefaultsFile_InvalidHCL(t *testing.T) {
 	r := NewConfigResolver()
 	bundleDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundle.DefaultBundleConfigFileName), []byte(`
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundle.BundleDefaultsFileName), []byte(`
 this is not valid HCL {{{
 `), 0o644))
 
@@ -832,13 +832,13 @@ this is not valid HCL {{{
 
 	_, _, err := r.Resolve(cmd, bundleDir)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), bundle.DefaultBundleConfigFileName)
+	assert.Contains(t, err.Error(), bundle.BundleDefaultsFileName)
 }
 
 func TestResolve_DefaultsFile_BundleDirIsFilePath(t *testing.T) {
 	r := NewConfigResolver()
 	bundleDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundle.DefaultBundleConfigFileName), []byte(`
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundle.BundleDefaultsFileName), []byte(`
 variables = {
   a = "a-default-value"
 }

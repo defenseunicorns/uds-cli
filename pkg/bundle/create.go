@@ -234,10 +234,10 @@ func createBundleDefinitionManifest(ctx context.Context, ociDir, bundleFile, bun
 
 	// defaults.uds.hcl as an optional layer if present alongside bundle.uds.hcl.
 	layers := []ocispec.Descriptor{hclDesc}
-	defaultsPath := filepath.Join(bundleDir, DefaultBundleConfigFileName)
+	defaultsPath := filepath.Join(bundleDir, BundleDefaultsFileName)
 	if defaultsData, err := os.ReadFile(defaultsPath); err == nil {
 		defaultsDesc, err := pushBlob(MediaTypeBundleHCL, defaultsData, map[string]string{
-			ocispec.AnnotationTitle: DefaultBundleConfigFileName,
+			ocispec.AnnotationTitle: BundleDefaultsFileName,
 		})
 		if err != nil {
 			return ociManifest{}, fmt.Errorf("pushing defaults HCL: %w", err)

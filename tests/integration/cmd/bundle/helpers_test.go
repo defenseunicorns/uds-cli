@@ -171,6 +171,89 @@ func startLocalRegistry(t *testing.T) string {
 	return strings.TrimPrefix(s.URL, "http://")
 }
 
+// extractLayerFromBundle extracts a layer's blob content by title from the bundle definition manifest.
+func extractLayerFromBundle(t *testing.T, small map[string][]byte, title string) []byte {
+	t.Helper()
+
+	idxBytes, ok := small["oci/index.json"]
+	require.True(t, ok)
+
+	var idx struct {
+		Manifests []struct {
+			Digest       string `json:"digest"`
+			ArtifactType string `json:"artifactType"`
+		} `json:"manifests"`
+	}
+	require.NoError(t, json.Unmarshal(idxBytes, &idx))
+
+	for _, m := range idx.Manifests {
+		if m.ArtifactType != bundlepkg.MediaTypeBundleDefinition {
+			continue
+		}
+		hex := strings.TrimPrefix(m.Digest, "sha256:")
+		manifestBytes, ok := small["oci/blobs/sha256/"+hex]
+		if !ok {
+			continue
+		}
+		var manifest struct {
+			Layers []struct {
+				Digest      string            `json:"digest"`
+				Annotations map[string]string `json:"annotations"`
+			} `json:"layers"`
+		}
+		require.NoError(t, json.Unmarshal(manifestBytes, &manifest))
+		for _, l := range manifest.Layers {
+			if l.Annotations["org.opencontainers.image.title"] == title {
+				layerHex := strings.TrimPrefix(l.Digest, "sha256:")
+				data, ok := small["oci/blobs/sha256/"+layerHex]
+				require.True(t, ok, "%s blob not found", title)
+				return data
+			}
+		}
+	}
+	t.Fatalf("%s layer not found in bundle definition manifest", title)
+	return nil
+}
+
+// assertHasReconfiguredAnnotation verifies the bundle definition manifest has the provenance annotation.
+func assertHasReconfiguredAnnotation(t *testing.T, small map[string][]byte) {
+	t.Helper()
+
+	idxBytes, ok := small["oci/index.json"]
+	require.True(t, ok)
+
+	var idx struct {
+		Manifests []struct {
+			Digest       string `json:"digest"`
+			ArtifactType string `json:"artifactType"`
+		} `json:"manifests"`
+	}
+	require.NoError(t, json.Unmarshal(idxBytes, &idx))
+
+	for _, m := range idx.Manifests {
+		if m.ArtifactType != bundlepkg.MediaTypeBundleDefinition {
+			continue
+		}
+		hex := strings.TrimPrefix(m.Digest, "sha256:")
+		manifestBytes, ok := small["oci/blobs/sha256/"+hex]
+		require.True(t, ok)
+
+		var manifest struct {
+			Annotations map[string]string `json:"annotations"`
+		}
+		require.NoError(t, json.Unmarshal(manifestBytes, &manifest))
+
+		if _, has := manifest.Annotations[bundlepkg.AnnotationReconfiguredFrom]; !has {
+			t.Fatal("bundle definition manifest missing reconfigured-from annotation")
+		}
+		if !strings.HasPrefix(manifest.Annotations[bundlepkg.AnnotationReconfiguredFrom], "sha256:") {
+			t.Fatal("reconfigured-from annotation should be a sha256 digest")
+		}
+		return
+	}
+	t.Fatal("bundle definition manifest not found")
+}
+
 // udsCLIPath returns the path to the built UDS CLI binary.
 // Skips the test if UDS_CLI_PATH is not set.
 func udsCLIPath(t *testing.T) string {

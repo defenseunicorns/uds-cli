@@ -36,6 +36,7 @@ func NewBundleCommand(streams iostreams.IOStreams) *cobra.Command {
 	bundleCmd.AddCommand(NewPullCommand(streams))
 	bundleCmd.AddCommand(NewDeployCommand(streams))
 	bundleCmd.AddCommand(NewRemoveCommand(streams))
+	bundleCmd.AddCommand(NewReconfigureCommand(streams))
 
 	return bundleCmd
 }

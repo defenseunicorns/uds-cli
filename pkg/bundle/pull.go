@@ -136,15 +136,10 @@ func Pull(ctx context.Context, opts PullOptions) (*PullResult, error) {
 	}, nil
 }
 
-// isBundleIndex reports whether idx is a UDS bundle index
+// isBundleIndex reports whether idx is a UDS bundle index.
 func isBundleIndex(idx ociIndex) bool {
-	for _, m := range idx.Manifests {
-		// Check for bundle definition manifest entry
-		if m.ArtifactType == MediaTypeBundleDefinition {
-			return true
-		}
-	}
-	return false
+	_, _, err := findBundleDefinitionEntry(idx)
+	return err == nil
 }
 
 // bundleNameFromDefinitionLayer reads the bundle HCL from the bundle definition manifest

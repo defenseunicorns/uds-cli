@@ -13,11 +13,13 @@ import (
 	oras "oras.land/oras-go/v2"
 )
 
-// DefaultBundleConfigFileName is the name of the optional bundle-level defaults file.
+// BundleFileName is the name of the bundle definition file.
+const BundleFileName = "bundle.uds.hcl"
+
+// BundleDefaultsFileName is the name of the optional bundle-level defaults file.
 // When present alongside bundle.uds.hcl, it is auto-discovered and applied as the
-// lowest-priority configuration layer. Only the variables block is supported;
-// the options block is not allowed and will produce an error.
-const DefaultBundleConfigFileName = "defaults.uds.hcl"
+// lowest-priority variable layer. Only the variables attribute is supported.
+const BundleDefaultsFileName = "defaults.uds.hcl"
 
 // Variables is a named type for the nested user-defined variable map parsed
 // from the variables block in defaults.uds.hcl and config.uds.hcl.
@@ -293,6 +295,41 @@ type PushResult struct {
 // RemoveResult represents the output of a bundle remove operation.
 type RemoveResult struct {
 	OCIReference string `json:"ociReference" yaml:"ociReference" text:"OCI Reference"`
+}
+
+// Reconfigurer replaces the defaults layer in a bundle artifact,
+// producing a new derivative artifact.
+type Reconfigurer interface {
+	Reconfigure(ctx context.Context, opts ReconfigureOptions) (*ReconfigureResult, error)
+}
+
+// ReconfigureOptions holds configuration for the bundle reconfigure operation.
+type ReconfigureOptions struct {
+	// Source is the local .tar.zst path or OCI reference (oci://...) to reconfigure.
+	Source string
+
+	// DefaultsFile is the path to the new defaults.uds.hcl on disk.
+	DefaultsFile string
+
+	// Suffix is appended to the output artifact name (default: "-reconfigured").
+	Suffix string
+
+	// OutputDir is the directory where the reconfigured local tarball is written.
+	// Only valid for local sources; must be empty for OCI sources.
+	OutputDir string
+
+	// Options provides shared CLI configuration for the operation.
+	Options ConfigOptions
+
+	// remoteRepo overrides the remote registry target. When nil (production),
+	// newRemoteRepository is used. Set in tests to inject a fake ORAS store.
+	remoteRepo oras.Target
+}
+
+// ReconfigureResult represents the output of a bundle reconfigure operation.
+type ReconfigureResult struct {
+	OutputPath   string `json:"outputPath,omitempty"   yaml:"outputPath,omitempty"   text:"Output Path,omitempty"`
+	OCIReference string `json:"ociReference,omitempty" yaml:"ociReference,omitempty" text:"OCI Reference,omitempty"`
 }
 
 // PushOptions holds configuration for pushing a bundle to an OCI registry.
