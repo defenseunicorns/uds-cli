@@ -22,7 +22,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 	github.com/zarf-dev/zarf v0.74.2
-	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546
+	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f
 	golang.org/x/mod v0.35.0
 	golang.org/x/sync v0.20.0
 	helm.sh/helm/v4 v4.1.3
