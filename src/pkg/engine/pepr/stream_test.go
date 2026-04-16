@@ -183,8 +183,8 @@ func TestLogFlush(t *testing.T) {
 	var buf bytes.Buffer
 	reader.LogFlush(&buf)
 
-	expected := " (repeated 3 times)"
-	require.Equal(t, expected, buf.String())
+	expected := "(repeated 3 times)"
+	require.Equal(t, expected, normalizeWhitespace(buf.String()))
 }
 
 func TestSkipResource(t *testing.T) {
