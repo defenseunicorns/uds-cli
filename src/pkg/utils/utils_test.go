@@ -120,3 +120,31 @@ func TestVerifyBlobOptionsFromKey(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveVerifyBlobOptions(t *testing.T) {
+	customOpts := zarfUtils.VerifyBlobOptions{}
+	customOpts.KeyRef = "/path/to/key.pub"
+
+	tests := []struct {
+		name string
+		opts *zarfUtils.VerifyBlobOptions
+		want zarfUtils.VerifyBlobOptions
+	}{
+		{
+			name: "nil input returns defaults",
+			opts: nil,
+			want: zarfUtils.DefaultVerifyBlobOptions(),
+		},
+		{
+			name: "non-nil input returned as-is",
+			opts: &customOpts,
+			want: customOpts,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := resolveVerifyBlobOptions(tt.opts)
+			require.Equal(t, tt.want, result)
+		})
+	}
+}
