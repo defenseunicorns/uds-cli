@@ -132,7 +132,7 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 	loadOpts := packager.LoadOptions{
 		Filter:               filter,
 		CachePath:            config.CommonOptions.CachePath,
-		PublicKeyPath:        publicKeyPath,
+		VerifyBlobOptions:    utils.VerifyBlobOptionsFromKey(publicKeyPath),
 		RemoteOptions:        remoteOpts,
 		VerificationStrategy: utils.GetPackageVerificationStrategy(f.cfg.SkipSignatureValidation),
 		OCIConcurrency:       config.CommonOptions.OCIConcurrency,

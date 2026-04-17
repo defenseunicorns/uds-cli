@@ -151,7 +151,7 @@ func (f *remoteFetcher) verifyPackageSignature() error {
 	loadOpts := packager.LoadOptions{
 		Filter:               filters.Empty(), // explicitly set to empty for this operation (create)
 		CachePath:            config.CommonOptions.CachePath,
-		PublicKeyPath:        publicKeyPath,
+		VerifyBlobOptions:    utils.VerifyBlobOptionsFromKey(publicKeyPath),
 		RemoteOptions:        remoteOpts,
 		VerificationStrategy: layout.VerifyAlways,
 		OCIConcurrency:       config.CommonOptions.OCIConcurrency,
