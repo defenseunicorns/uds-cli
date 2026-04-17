@@ -84,7 +84,7 @@ func (r *RemoteBundle) LoadPackage(ctx context.Context, filter filters.Component
 	pkg.Components = filteredComps
 
 	layoutOpts := layout.PackageLayoutOptions{
-		PublicKeyPath:        r.PublicKeyPath,
+		VerifyBlobOptions:    utils.VerifyBlobOptionsFromKey(r.PublicKeyPath),
 		VerificationStrategy: utils.GetPackageVerificationStrategy(r.SkipSignatureValidation),
 		IsPartial:            isPartialPkg,
 		Filter:               filter,

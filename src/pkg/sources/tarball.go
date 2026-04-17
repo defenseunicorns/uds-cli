@@ -68,7 +68,7 @@ func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.Componen
 	pkg.Components = filteredComps
 
 	layoutOpts := layout.PackageLayoutOptions{
-		PublicKeyPath:        t.PublicKeyPath,
+		VerifyBlobOptions:    utils.VerifyBlobOptionsFromKey(t.PublicKeyPath),
 		VerificationStrategy: utils.GetPackageVerificationStrategy(t.SkipSignatureValidation),
 		IsPartial:            isPartialPkg,
 		Filter:               filter,

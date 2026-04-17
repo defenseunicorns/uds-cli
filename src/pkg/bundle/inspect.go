@@ -242,7 +242,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		Filter:               filters.Empty(),
 		VerificationStrategy: utils.GetPackageVerificationStrategy(config.CommonOptions.SkipSignatureValidation),
 		Architecture:         config.GetArch(b.bundle.Metadata.Architecture),
-		PublicKeyPath:        publicKeyPath,
+		VerifyBlobOptions:    utils.VerifyBlobOptionsFromKey(publicKeyPath),
 		CachePath:            config.CommonOptions.CachePath,
 		RemoteOptions:        remoteOpts,
 		OCIConcurrency:       config.CommonOptions.OCIConcurrency,

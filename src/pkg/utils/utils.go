@@ -361,8 +361,7 @@ func LoadPackage(ctx context.Context, source string, opts packager.LoadOptions) 
 
 	// Verify if package is signed and verificationStrategy not set to never (skip)
 	if pkgLayout.IsSigned() && verificationStrategy != layout.VerifyNever {
-		verifyOpts := zarfUtils.DefaultVerifyBlobOptions()
-		verifyOpts.KeyRef = opts.PublicKeyPath
+		verifyOpts := resolveVerifyBlobOptions(opts.VerifyBlobOptions)
 		err := pkgLayout.VerifyPackageSignature(ctx, verifyOpts)
 		if err != nil {
 			return nil, err
@@ -385,8 +384,7 @@ func LoadPackageFromDir(ctx context.Context, dirPath string, opts layout.Package
 
 	// Verify if package is signed and verificationStrategy not set to never (skip)
 	if pkgLayout.IsSigned() && verificationStrategy != layout.VerifyNever {
-		verifyOpts := zarfUtils.DefaultVerifyBlobOptions()
-		verifyOpts.KeyRef = opts.PublicKeyPath
+		verifyOpts := resolveVerifyBlobOptions(opts.VerifyBlobOptions)
 		err := pkgLayout.VerifyPackageSignature(ctx, verifyOpts)
 		if err != nil {
 			return nil, err
@@ -394,6 +392,25 @@ func LoadPackageFromDir(ctx context.Context, dirPath string, opts layout.Package
 	}
 
 	return pkgLayout, nil
+}
+
+// VerifyBlobOptionsFromKey constructs VerifyBlobOptions from a public key path.
+// Returns nil if keyPath is empty.
+func VerifyBlobOptionsFromKey(keyPath string) *zarfUtils.VerifyBlobOptions {
+	if keyPath == "" {
+		return nil
+	}
+	opts := zarfUtils.DefaultVerifyBlobOptions()
+	opts.KeyRef = keyPath
+	return &opts
+}
+
+// resolveVerifyBlobOptions returns the provided options if non-nil, otherwise returns defaults.
+func resolveVerifyBlobOptions(opts *zarfUtils.VerifyBlobOptions) zarfUtils.VerifyBlobOptions {
+	if opts != nil {
+		return *opts
+	}
+	return zarfUtils.DefaultVerifyBlobOptions()
 }
 
 // GetPkgSource returns the normalized remote or local source path for a package
