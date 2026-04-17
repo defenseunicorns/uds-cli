@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 )
 
 func Test_IsRegistryURL(t *testing.T) {
@@ -88,6 +89,34 @@ func Test_IsRegistryURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := IsRegistryURL(tt.output)
 			require.Equal(t, tt.wantResult, result, tt.description)
+		})
+	}
+}
+
+func TestVerifyBlobOptionsFromKey(t *testing.T) {
+	tests := []struct {
+		name    string
+		keyPath string
+		wantNil bool
+	}{
+		{name: "empty key path returns nil", keyPath: "", wantNil: true},
+		{name: "non-empty key path sets KeyRef", keyPath: "/path/to/key.pub"},
+		{name: "any non-empty string sets KeyRef", keyPath: "mykey"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := VerifyBlobOptionsFromKey(tt.keyPath)
+			if tt.wantNil {
+				require.Nil(t, result)
+				return
+			}
+			require.NotNil(t, result)
+			require.Equal(t, tt.keyPath, result.KeyRef)
+
+			// Verify that other fields are set to their default values
+			defaults := zarfUtils.DefaultVerifyBlobOptions()
+			defaults.KeyRef = tt.keyPath
+			require.Equal(t, defaults, *result)
 		})
 	}
 }
