@@ -21,5 +21,5 @@ package "uds_k3d_dev" {
 }
 
 package "init" {
-  source     = "oci://ghcr.io/zarf-dev/packages/init:v0.74.2"
+  source     = "oci://ghcr.io/zarf-dev/packages/init:v0.75.0"
 }
