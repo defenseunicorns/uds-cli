@@ -6,7 +6,6 @@ package bundle
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -294,18 +293,3 @@ func createBundleDefinitionManifest(ctx context.Context, ociDir, bundleFile, bun
 	}, nil
 }
 
-func writeOCILayout(path string) error {
-	b, err := json.Marshal(ociLayout{ImageLayoutVersion: "1.0.0"})
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, append(b, '\n'), tmpFilePerm)
-}
-
-func writeOCIIndex(path string, idx *ociIndex) error {
-	b, err := json.MarshalIndent(idx, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, append(b, '\n'), tmpFilePerm)
-}

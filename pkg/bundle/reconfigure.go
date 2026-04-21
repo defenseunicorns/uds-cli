@@ -496,16 +496,6 @@ func rebuildDefinitionManifest(original ociImageManifest, newDefaultsDesc ociDes
 	return json.Marshal(manifest)
 }
 
-// findLayerByTitle finds a layer descriptor in the manifest by its title annotation.
-func findLayerByTitle(manifest ociImageManifest, title string) (ociDescriptor, error) {
-	for _, l := range manifest.Layers {
-		if l.Annotations[ocispec.AnnotationTitle] == title {
-			return l, nil
-		}
-	}
-	return ociDescriptor{}, fmt.Errorf("%s layer not found in manifest", title)
-}
-
 // reconfiguredFileOutputName inserts the suffix before the arch/version tokens so the
 // filename matches bundleOutputName's "uds-bundle-<name>-<arch>-<version>.tar.zst"
 // convention. Falls back to appending if no known arch token is found.
@@ -518,15 +508,4 @@ func reconfiguredFileOutputName(sourceBaseName, suffix string) string {
 		}
 	}
 	return stem + suffix + ".tar.zst"
-}
-
-// findBundleDefinitionEntry locates the bundle definition manifest entry in an OCI index.
-// Returns the entry, its position in the Manifests slice, and any error.
-func findBundleDefinitionEntry(idx ociIndex) (*ociManifest, int, error) {
-	for i := range idx.Manifests {
-		if idx.Manifests[i].ArtifactType == MediaTypeBundleDefinition {
-			return &idx.Manifests[i], i, nil
-		}
-	}
-	return nil, -1, fmt.Errorf("bundle definition manifest not found in index")
 }

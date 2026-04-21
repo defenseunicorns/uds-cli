@@ -136,12 +136,6 @@ func Pull(ctx context.Context, opts PullOptions) (*PullResult, error) {
 	}, nil
 }
 
-// isBundleIndex reports whether idx is a UDS bundle index.
-func isBundleIndex(idx ociIndex) bool {
-	_, _, err := findBundleDefinitionEntry(idx)
-	return err == nil
-}
-
 // bundleNameFromDefinitionLayer reads the bundle HCL from the bundle definition manifest
 // in the OCI index and derives the output filename using bundleOutputName.
 // It assumes isBundleIndex has already been called to confirm the index is valid.

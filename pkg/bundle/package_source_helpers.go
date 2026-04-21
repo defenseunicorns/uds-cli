@@ -73,44 +73,6 @@ func filterOCIManifestsByArch(manifests []ociManifest, arch string) []ociManifes
 	return filtered
 }
 
-// findOCILayoutRoot locates the OCI image layout directory within root.
-// Search order:
-//  1. root itself (minimal test layouts, single-image packages)
-//  2. root/oci (UDS bundles created by this CLI)
-//  3. root/images (extracted Zarf package tar archives)
-func findOCILayoutRoot(root string) (string, error) {
-	if isOCILayoutDir(root) {
-		return root, nil
-	}
-	ociDir := filepath.Join(root, "oci")
-	if isOCILayoutDir(ociDir) {
-		return ociDir, nil
-	}
-	images := filepath.Join(root, "images")
-	if isOCILayoutDir(images) {
-		return images, nil
-	}
-	return "", fmt.Errorf("no OCI image layout found in %q", root)
-}
-
-func isOCILayoutDir(dir string) bool {
-	if dir == "" {
-		return false
-	}
-	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
-		return false
-	}
-	if _, err := os.Stat(filepath.Join(dir, "oci-layout")); err != nil {
-		return false
-	}
-	if _, err := os.Stat(filepath.Join(dir, "index.json")); err != nil {
-		return false
-	}
-	if st, err := os.Stat(filepath.Join(dir, "blobs", "sha256")); err != nil || !st.IsDir() {
-		return false
-	}
-	return true
-}
 
 // isZarfPackage checks if the directory is a Zarf package by looking for zarf.yaml
 func isZarfPackage(dir string) bool {

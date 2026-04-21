@@ -19,36 +19,6 @@ import (
 	oraci "oras.land/oras-go/v2/content/oci"
 )
 
-func TestFindBundleDefinitionEntry_Found(t *testing.T) {
-	t.Parallel()
-	idx := ociIndex{
-		SchemaVersion: 2,
-		Manifests: []ociManifest{
-			{Digest: "sha256:aaa", ArtifactType: "other"},
-			{Digest: "sha256:bbb", ArtifactType: MediaTypeBundleDefinition},
-		},
-	}
-
-	entry, pos, err := findBundleDefinitionEntry(idx)
-	require.NoError(t, err)
-	assert.Equal(t, 1, pos)
-	assert.Equal(t, "sha256:bbb", entry.Digest)
-}
-
-func TestFindBundleDefinitionEntry_NotFound(t *testing.T) {
-	t.Parallel()
-	idx := ociIndex{
-		SchemaVersion: 2,
-		Manifests: []ociManifest{
-			{Digest: "sha256:aaa", ArtifactType: "other"},
-		},
-	}
-
-	_, _, err := findBundleDefinitionEntry(idx)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
-}
-
 func TestReconfiguredFileOutputName(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
