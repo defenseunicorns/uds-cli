@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -15,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/mholt/archives"
+	zarfarchive "github.com/zarf-dev/zarf/src/pkg/archive"
 )
 
 func writeTarZst(ctx context.Context, dst, srcDir string) (retErr error) {
@@ -76,61 +76,5 @@ func writeTarZst(ctx context.Context, dst, srcDir string) (retErr error) {
 
 func extractTarZst(ctx context.Context, src, dst string) error {
 	slog.Debug("extracting tar.zst archive", "src", src, "dst", dst)
-	f, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = f.Close() }()
-
-	ca := archives.CompressedArchive{
-		Extraction:  archives.Tar{},
-		Compression: archives.Zstd{},
-	}
-	return ca.Extract(ctx, f, extractHandler(dst))
-}
-
-
-func extractHandler(dst string) archives.FileHandler {
-	return func(ctx context.Context, info archives.FileInfo) error {
-		name := filepath.Clean(info.NameInArchive)
-		if filepath.IsAbs(name) || name == ".." || strings.HasPrefix(name, ".."+string(filepath.Separator)) {
-			return fmt.Errorf("invalid archive path %q", info.NameInArchive)
-		}
-		if name == "." || name == "" {
-			return nil
-		}
-		full := filepath.Join(dst, name)
-		if !strings.HasPrefix(full, filepath.Clean(dst)+string(filepath.Separator)) {
-			return fmt.Errorf("invalid archive path %q", info.NameInArchive)
-		}
-
-		if info.IsDir() {
-			return os.MkdirAll(full, tempDirPerm)
-		}
-
-		if err := os.MkdirAll(filepath.Dir(full), tempDirPerm); err != nil {
-			return err
-		}
-		rc, err := info.Open()
-		if err != nil {
-			return err
-		}
-		defer func() { _ = rc.Close() }()
-
-		out, err := os.OpenFile(full, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, tmpFilePerm)
-		if err != nil {
-			return err
-		}
-		_, copyErr := io.Copy(out, rc)
-		closeErr := out.Close()
-		if copyErr != nil {
-			_ = os.Remove(full)
-			return copyErr
-		}
-		if closeErr != nil {
-			_ = os.Remove(full)
-			return closeErr
-		}
-		return nil
-	}
+	return zarfarchive.Decompress(ctx, src, dst, zarfarchive.DecompressOpts{OverwriteExisting: true})
 }
