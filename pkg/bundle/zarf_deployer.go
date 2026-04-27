@@ -29,6 +29,8 @@ import (
 // were already set by the embedding application, which takes precedence.
 var enableValuesOnce sync.Once
 
+var _ Deployer = &ZarfDeployer{}
+
 // ZarfDeployer implements Deployer using the Zarf Go library.
 // Reference: .ai/example-repos/uds-cli/src/pkg/bundle/deploy.go lines 38-165
 type ZarfDeployer struct {

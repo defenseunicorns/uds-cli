@@ -275,7 +275,7 @@ func TestBuildDependencyGraph_SpecCompliantBundle(t *testing.T) {
 	assert.Equal(t, "core_monitoring", levels[2][0].Name)
 }
 
-func TestDAG_GetLevel(t *testing.T) {
+func TestDAG_Level(t *testing.T) {
 	dag, err := BuildDependencyGraph(bundleWith(
 		pkg("a"),
 		pkg("b", "a"),
@@ -283,21 +283,21 @@ func TestDAG_GetLevel(t *testing.T) {
 	))
 	require.NoError(t, err)
 
-	assert.Equal(t, 0, dag.GetLevel("a"))
-	assert.Equal(t, 1, dag.GetLevel("b"))
-	assert.Equal(t, 2, dag.GetLevel("c"))
-	assert.Equal(t, -1, dag.GetLevel("nonexistent"))
+	assert.Equal(t, 0, dag.Level("a"))
+	assert.Equal(t, 1, dag.Level("b"))
+	assert.Equal(t, 2, dag.Level("c"))
+	assert.Equal(t, -1, dag.Level("nonexistent"))
 }
 
-func TestDAG_GetTraversal(t *testing.T) {
+func TestDAG_Traversal(t *testing.T) {
 	dag, err := BuildDependencyGraph(bundleWith(pkg("my_pkg")))
 	require.NoError(t, err)
 
-	trav, ok := dag.GetTraversal("my_pkg")
+	trav, ok := dag.Traversal("my_pkg")
 	assert.True(t, ok)
 	require.Len(t, trav, 2)
 
-	_, ok = dag.GetTraversal("nonexistent")
+	_, ok = dag.Traversal("nonexistent")
 	assert.False(t, ok)
 }
 
@@ -305,7 +305,7 @@ func TestDAG_TraversalToName(t *testing.T) {
 	dag, err := BuildDependencyGraph(bundleWith(pkg("test_pkg")))
 	require.NoError(t, err)
 
-	trav, ok := dag.GetTraversal("test_pkg")
+	trav, ok := dag.Traversal("test_pkg")
 	require.True(t, ok)
 
 	name := dag.traversalToName(trav)

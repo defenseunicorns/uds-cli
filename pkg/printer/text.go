@@ -10,6 +10,8 @@ import (
 	"strings"
 )
 
+var _ ResourcePrinter = &TextPrinter{}
+
 // TextPrinter formats result objects as human-readable text using reflection
 // and `text` struct tags for field labels.
 //

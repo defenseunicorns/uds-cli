@@ -163,10 +163,10 @@ func (d *DAG) TopologicalLevels() ([][]*Package, error) {
 	return levels, nil
 }
 
-// GetLevel returns the deployment level (wave) for a specific package.
+// Level returns the deployment level (wave) for a specific package.
 // Level 0 packages have no dependencies, level 1 depends only on level 0, etc.
 // Returns -1 if the package is not found or if levels cannot be computed.
-func (d *DAG) GetLevel(name string) int {
+func (d *DAG) Level(name string) int {
 	levels, err := d.TopologicalLevels()
 	if err != nil {
 		return -1
@@ -182,9 +182,9 @@ func (d *DAG) GetLevel(name string) int {
 	return -1
 }
 
-// GetTraversal returns the hcl.Traversal for a package by name.
+// Traversal returns the hcl.Traversal for a package by name.
 // This can be used for enhanced error messages with HCL source locations.
-func (d *DAG) GetTraversal(name string) (hcl.Traversal, bool) {
+func (d *DAG) Traversal(name string) (hcl.Traversal, bool) {
 	pt, exists := d.packages[name]
 	if !exists {
 		return nil, false

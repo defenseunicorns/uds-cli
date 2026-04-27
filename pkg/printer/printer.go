@@ -40,6 +40,8 @@ func ParseFormat(s string) (Format, error) {
 	}
 }
 
+var _ ResourcePrinter = &JSONPrinter{}
+
 // JSONPrinter formats result objects as indented JSON.
 type JSONPrinter struct{}
 
@@ -48,6 +50,8 @@ func (p *JSONPrinter) PrintObj(obj any, w io.Writer) error {
 	enc.SetIndent("", "  ")
 	return enc.Encode(obj)
 }
+
+var _ ResourcePrinter = &YAMLPrinter{}
 
 // YAMLPrinter formats result objects as YAML.
 type YAMLPrinter struct{}

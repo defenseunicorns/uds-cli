@@ -107,8 +107,7 @@ func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
 			slog.Info("deploying package", "name", pkg.Name, "source", pkg.Source, "package", pkgNum, "total", totalPkgs)
 
 			if err := deployer.DeployPackage(ctx, pkg, pkgOpts); err != nil {
-				// Use DAG's GetTraversal for enhanced error with source location
-				if trav, ok := dag.GetTraversal(pkg.Name); ok {
+				if trav, ok := dag.Traversal(pkg.Name); ok {
 					srcRange := trav.SourceRange()
 					return nil, fmt.Errorf("failed to deploy package %q at %s: %w",
 						pkg.Name, srcRange.String(), err)
