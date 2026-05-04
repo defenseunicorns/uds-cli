@@ -16,6 +16,6 @@ metadata {
 }
 
 package "init" {
-  source              = "oci://ghcr.io/zarf-dev/packages/init:v0.75.0"
+  source              = "oci://ghcr.io/zarf-dev/packages/init:v0.75.1"
   optional_components = ["k3s"]
 }
