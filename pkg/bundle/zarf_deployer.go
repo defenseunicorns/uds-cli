@@ -16,7 +16,6 @@ import (
 	"text/template"
 
 	"github.com/zarf-dev/zarf/src/pkg/feature"
-	"github.com/zarf-dev/zarf/src/pkg/logger"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/value"
@@ -58,7 +57,7 @@ func NewZarfDeployer(out io.Writer) *ZarfDeployer {
 func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts DeployPackageOptions) error {
 	slog.Info("deploying zarf package", "name", pkg.Name, "source", pkg.Source)
 
-	ctx = d.setupLoggerContext(ctx, opts.Config.Global.LogLevel)
+	ctx = newZarfLoggerContext(ctx, d.Out, opts.Config.Global.LogLevel)
 
 	pkgTmp, err := os.MkdirTemp(opts.Config.Options.TmpDir, "zarf-pkg-*")
 	if err != nil {
@@ -220,25 +219,6 @@ func cleanupTempFiles(files []string) {
 			slog.Warn("failed to remove temp file", "path", f, "error", err)
 		}
 	}
-}
-
-// setupLoggerContext creates a context with a Zarf logger configured at the given log level.
-// logLevel is already validated by the config resolver; ParseLevel will not fail here.
-func (d *ZarfDeployer) setupLoggerContext(ctx context.Context, logLevel string) context.Context {
-	level, _ := logger.ParseLevel(logLevel)
-
-	cfg := logger.Config{
-		Level:       level,
-		Format:      logger.FormatConsole,
-		Destination: logger.Destination(d.Out),
-		Color:       true,
-	}
-	l, err := logger.New(cfg)
-	if err != nil {
-		// Fall back to default logger if config fails
-		l = logger.Default()
-	}
-	return logger.WithContext(ctx, l)
 }
 
 // BuildComponentFilter creates a component filter strategy from optional component names.

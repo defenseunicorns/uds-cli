@@ -6,6 +6,7 @@ package bundle
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -85,6 +86,27 @@ func ValidateConfig(cfg *UDSBundleConfig) error {
 	return nil
 }
 
+// ValidatePackageNames checks that all names exist in the bundle's package list.
+func ValidatePackageNames(names []string, packages []Package) error {
+	if len(names) == 0 {
+		return nil
+	}
+	known := make(map[string]bool, len(packages))
+	for _, p := range packages {
+		known[p.Name] = true
+	}
+	var unknown []string
+	for _, n := range names {
+		if !known[n] {
+			unknown = append(unknown, n)
+		}
+	}
+	if len(unknown) > 0 {
+		return fmt.Errorf("unknown packages: %v", unknown)
+	}
+	return nil
+}
+
 func containsPackage(packages []Package, name string) bool {
 	for _, p := range packages {
 		if p.Name == name {
@@ -92,4 +114,71 @@ func containsPackage(packages []Package, name string) bool {
 		}
 	}
 	return false
+}
+
+// ValidateRemovalSafety returns an error if removing the named packages would
+// leave any remaining bundle package with a missing dependency. Empty
+// packageNames (full bundle removal) or no offending dependents both yield nil.
+// The error message instructs the user to use --force to override.
+func ValidateRemovalSafety(b *UDSBundle, packageNames []string) error {
+	if len(packageNames) == 0 {
+		return nil
+	}
+	dag, err := BuildDependencyGraph(b)
+	if err != nil {
+		return fmt.Errorf("failed to build dependency graph: %w", err)
+	}
+	blockers := dependentBlockers(dag, packageNames)
+	if len(blockers) == 0 {
+		return nil
+	}
+	return formatBlockersError(blockers)
+}
+
+// dependentBlockers returns, for each package being removed, the names of
+// other bundle packages that depend on it but are NOT themselves being removed.
+// Only direct dependents are reported; transitive impacts surface through the
+// chain (if B depends on A and C depends on B, removing A flags B; the user can
+// re-run after deciding what to do about B).
+func dependentBlockers(dag *DAG, removeNames []string) map[string][]string {
+	removeSet := make(map[string]bool, len(removeNames))
+	for _, n := range removeNames {
+		removeSet[n] = true
+	}
+
+	blockers := make(map[string][]string)
+	for name, deps := range dag.edges {
+		if removeSet[name] {
+			continue
+		}
+		for _, trav := range deps {
+			depName := dag.traversalToName(trav)
+			if removeSet[depName] {
+				blockers[depName] = append(blockers[depName], name)
+			}
+		}
+	}
+
+	for k := range blockers {
+		sort.Strings(blockers[k])
+	}
+	return blockers
+}
+
+// formatBlockersError produces the user-facing error returned by
+// ValidateRemovalSafety when at least one dependent would be left stranded.
+func formatBlockersError(blockers map[string][]string) error {
+	names := make([]string, 0, len(blockers))
+	for k := range blockers {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+
+	var b strings.Builder
+	b.WriteString("cannot remove package(s) with bundle dependents:\n")
+	for _, n := range names {
+		fmt.Fprintf(&b, "  - %q is required by: %s\n", n, strings.Join(blockers[n], ", "))
+	}
+	b.WriteString("re-run with --force to override")
+	return errors.New(b.String())
 }

@@ -337,3 +337,93 @@ func packageNames(pkgs []*Package) []string {
 	}
 	return names
 }
+
+// makeLevels builds a [][]*Package from a list of name groups for tests.
+func makeLevels(groups ...[]string) [][]*Package {
+	var levels [][]*Package
+	for _, group := range groups {
+		var level []*Package
+		for _, name := range group {
+			level = append(level, &Package{Name: name})
+		}
+		levels = append(levels, level)
+	}
+	return levels
+}
+
+func TestFilterLevels(t *testing.T) {
+	// 3 levels: [core] -> [nginx] -> [podinfo]
+	levels := makeLevels([]string{"core"}, []string{"nginx"}, []string{"podinfo"})
+
+	tests := []struct {
+		name        string
+		filterNames []string
+		// wantLevels is a flat shape: outer slice is levels, inner is package names
+		wantLevels [][]string
+		wantErr    string
+	}{
+		{
+			name:        "empty filter returns all levels",
+			filterNames: nil,
+			wantLevels:  [][]string{{"core"}, {"nginx"}, {"podinfo"}},
+		},
+		{
+			name:        "filter by single package",
+			filterNames: []string{"nginx"},
+			wantLevels:  [][]string{{"nginx"}},
+		},
+		{
+			name:        "filter by multiple preserves topological level order",
+			filterNames: []string{"podinfo", "nginx"},
+			wantLevels:  [][]string{{"nginx"}, {"podinfo"}},
+		},
+		{
+			name:        "duplicates are deduped",
+			filterNames: []string{"nginx", "nginx"},
+			wantLevels:  [][]string{{"nginx"}},
+		},
+		{
+			name:        "invalid package name",
+			filterNames: []string{"nginx", "nonexistent"},
+			wantErr:     `package "nonexistent" is not in the bundle`,
+		},
+		{
+			name:        "all invalid package names",
+			filterNames: []string{"bogus"},
+			wantErr:     `package "bogus" is not in the bundle`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := filterLevels(levels, tt.filterNames)
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			got := make([][]string, 0, len(result))
+			for _, level := range result {
+				names := make([]string, 0, len(level))
+				for _, p := range level {
+					names = append(names, p.Name)
+				}
+				got = append(got, names)
+			}
+			assert.Equal(t, tt.wantLevels, got)
+		})
+	}
+}
+
+func TestFilterLevels_DropsEmptyLevels(t *testing.T) {
+	// 3 levels with multiple packages
+	levels := makeLevels([]string{"a", "b"}, []string{"c", "d"}, []string{"e"})
+
+	// Filter only middle level package — outer levels should be dropped
+	result, err := filterLevels(levels, []string{"c"})
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	require.Len(t, result[0], 1)
+	assert.Equal(t, "c", result[0][0].Name)
+}

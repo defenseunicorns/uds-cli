@@ -163,6 +163,47 @@ func (d *DAG) TopologicalLevels() ([][]*Package, error) {
 	return levels, nil
 }
 
+// filterLevels keeps only packages whose names appear in filterNames, preserving
+// the topological level structure. When filterNames is empty, all levels are
+// returned unchanged. Empty levels (after filtering) are dropped. Duplicate
+// names are deduped. Returns an error if any requested name is not in the bundle.
+func filterLevels(levels [][]*Package, filterNames []string) ([][]*Package, error) {
+	if len(filterNames) == 0 {
+		return levels, nil
+	}
+
+	requested := make(map[string]bool, len(filterNames))
+	for _, name := range filterNames {
+		requested[name] = true
+	}
+
+	bundleNames := make(map[string]bool)
+	for _, level := range levels {
+		for _, pkg := range level {
+			bundleNames[pkg.Name] = true
+		}
+	}
+	for name := range requested {
+		if !bundleNames[name] {
+			return nil, fmt.Errorf("package %q is not in the bundle", name)
+		}
+	}
+
+	var filtered [][]*Package
+	for _, level := range levels {
+		var kept []*Package
+		for _, pkg := range level {
+			if requested[pkg.Name] {
+				kept = append(kept, pkg)
+			}
+		}
+		if len(kept) > 0 {
+			filtered = append(filtered, kept)
+		}
+	}
+	return filtered, nil
+}
+
 // Level returns the deployment level (wave) for a specific package.
 // Level 0 packages have no dependencies, level 1 depends only on level 0, etc.
 // Returns -1 if the package is not found or if levels cannot be computed.

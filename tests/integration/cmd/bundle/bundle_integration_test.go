@@ -173,13 +173,85 @@ func TestPushPull_RoundTrip(t *testing.T) {
 }
 
 func TestRemoveCommand_Integration(t *testing.T) {
-	streams, _, out, _ := iostreams.NewTestIOStreams()
+	bundlePath := testDataPath(t, "bundles/deploy/init")
 
-	root := bundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"remove", "ghcr.io/test:v1"})
+	streams, in, _, errOut := iostreams.NewTestIOStreams()
+	// Simulate user declining the removal via --prompt
+	in.WriteString("n\n")
+
+	root := cmd.NewRootCommand(streams)
+	root.SetArgs([]string{"bundle", "remove", bundlePath, "--prompt"})
 
 	err := root.Execute()
 	require.NoError(t, err)
 
-	assert.Contains(t, out.String(), "OCI Reference:")
+	errOutput := errOut.String()
+	assert.Contains(t, errOutput, "Remove this bundle?")
+}
+
+func TestRemoveCommand_WithBundleFile_Integration(t *testing.T) {
+	bundlePath := testDataPath(t, "bundles/deploy/init/bundle.uds.hcl")
+
+	streams, in, _, errOut := iostreams.NewTestIOStreams()
+	in.WriteString("n\n")
+
+	root := cmd.NewRootCommand(streams)
+	root.SetArgs([]string{"bundle", "remove", bundlePath, "--prompt"})
+
+	err := root.Execute()
+	require.NoError(t, err)
+
+	errOutput := errOut.String()
+	assert.Contains(t, errOutput, "Remove this bundle?")
+}
+
+func TestRemoveCommand_PackagesFlag_Integration(t *testing.T) {
+	bundlePath := testDataPath(t, "bundles/deploy/init")
+
+	streams, in, _, errOut := iostreams.NewTestIOStreams()
+	in.WriteString("n\n")
+
+	root := cmd.NewRootCommand(streams)
+	root.SetArgs([]string{"bundle", "remove", bundlePath, "--packages", "init", "--prompt"})
+
+	err := root.Execute()
+	require.NoError(t, err)
+
+	errOutput := errOut.String()
+	assert.Contains(t, errOutput, "Remove this bundle?")
+}
+
+// Note: Invalid --packages error cases are tested in unit tests because
+// CheckErr calls os.Exit(1) which would terminate the test process.
+
+func TestRemoveCommand_HelpOutput_Integration(t *testing.T) {
+	streams, _, out, errOut := iostreams.NewTestIOStreams()
+
+	// Use root command so --prompt (a root-level persistent flag) is visible
+	root := cmd.NewRootCommand(streams)
+	root.SetArgs([]string{"bundle", "remove", "--help"})
+
+	err := root.Execute()
+	require.NoError(t, err)
+
+	output := out.String() + errOut.String()
+	assert.Contains(t, output, "--packages")
+	assert.Contains(t, output, "--prompt")
+	assert.Contains(t, output, "Remove a UDS bundle from a Kubernetes cluster")
+}
+
+func TestRemoveCommand_CustomDirWithPackages_Integration(t *testing.T) {
+	bundlePath := testDataPath(t, "bundles/deploy/init")
+
+	streams, in, _, errOut := iostreams.NewTestIOStreams()
+	in.WriteString("n\n")
+
+	root := cmd.NewRootCommand(streams)
+	root.SetArgs([]string{"bundle", "remove", bundlePath, "--packages", "init,uds_k3d_dev", "--prompt"})
+
+	err := root.Execute()
+	require.NoError(t, err)
+
+	errOutput := errOut.String()
+	assert.Contains(t, errOutput, "Remove this bundle?")
 }

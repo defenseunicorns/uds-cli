@@ -5,6 +5,7 @@ package bundle
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"github.com/hashicorp/hcl/v2"
@@ -12,6 +13,11 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	oras "oras.land/oras-go/v2"
 )
+
+// ErrPackageNotDeployed is returned by Remover.RemovePackage when the requested
+// package is not present on the target. The orchestrator treats this as a skip
+// rather than a failure.
+var ErrPackageNotDeployed = errors.New("package not deployed")
 
 // BundleFileName is the name of the bundle definition file.
 const BundleFileName = "bundle.uds.hcl"
@@ -292,9 +298,61 @@ type PushResult struct {
 	OCIReference string `json:"ociReference" yaml:"ociReference" text:"OCI Reference"`
 }
 
+// Remover is the interface for removing packages from a target. It exposes
+// both a low-level per-package primitive and a high-level bundle-level entry
+// point so callers can choose the abstraction that fits their use case.
+// RemoveBundle iterates the bundle and delegates each package to RemovePackage
+// internally.
+//
+// Implementations are responsible for any cluster-state checks (e.g. whether
+// the package is currently deployed). When the package is not present on the
+// target, RemovePackage must return ErrPackageNotDeployed so the caller can
+// count it as skipped rather than failed.
+//
+// Implementations can include: ZarfRemover (delegates to Zarf packager.Remove).
+type Remover interface {
+	// RemovePackage removes a single package from the target. It must return
+	// ErrPackageNotDeployed if the package is not currently deployed.
+	RemovePackage(ctx context.Context, pkg *Package, opts RemovePackageOptions) error
+
+	// RemoveBundle removes the bundle's packages from the target, calling
+	// RemovePackage for each package internally. The implementation handles
+	// dependency ordering (reverse topological order), deployment-status
+	// checks, and skip behavior. When packages is non-empty, only those
+	// package names are removed.
+	RemoveBundle(ctx context.Context, b *UDSBundle, packages []string, opts RemovePackageOptions) (*RemoveResult, error)
+}
+
+// RemovePackageOptions contains options for removing a single package.
+type RemovePackageOptions struct {
+	// Config is the merged config (options + variables); always non-nil.
+	Config *UDSBundleConfig
+}
+
+// RemoveOptions contains options for removing an entire bundle.
+type RemoveOptions struct {
+	// Config is the merged config; always non-nil.
+	Config *UDSBundleConfig
+
+	// BundlePath is the path to the bundle definition file (bundle.uds.hcl).
+	BundlePath string
+
+	// Bundle is the pre-parsed bundle. When set, Remove() skips parsing BundlePath.
+	Bundle *UDSBundle
+
+	// Packages is an optional list of specific package names to remove.
+	// When empty, all packages in the bundle are removed.
+	Packages []string
+
+	// Out is the writer for output messages.
+	Out io.Writer
+}
+
 // RemoveResult represents the output of a bundle remove operation.
 type RemoveResult struct {
-	OCIReference string `json:"ociReference" yaml:"ociReference" text:"OCI Reference"`
+	BundleName string `json:"bundleName" yaml:"bundleName" text:"Bundle Name"`
+	Removed    int    `json:"removed"    yaml:"removed"    text:"Removed"`
+	Skipped    int    `json:"skipped"    yaml:"skipped"    text:"Skipped"`
 }
 
 // Reconfigurer replaces the defaults layer in a bundle artifact,
