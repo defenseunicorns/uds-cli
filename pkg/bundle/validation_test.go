@@ -4,6 +4,9 @@
 package bundle
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -11,34 +14,127 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestValidateConfig_Nil(t *testing.T) {
-	err := ValidateConfig(nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "config is required")
+// validBaseConfig returns a fully-valid UDSBundleConfig used as the starting
+// point for table-driven validation tests.
+func validBaseConfig() *UDSBundleConfig {
+	return &UDSBundleConfig{
+		Global:  &GlobalOptions{LogLevel: "info"},
+		Options: &ConfigOptions{Concurrency: 10},
+	}
 }
 
-func TestValidateConfig_NilGlobal(t *testing.T) {
-	err := ValidateConfig(&UDSBundleConfig{
-		Options: &ConfigOptions{},
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "config.Global is required")
-}
+func TestValidateConfig_Structure(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     *UDSBundleConfig
+		wantErr string
+	}{
+		{
+			name:    "nil config",
+			cfg:     nil,
+			wantErr: "config is required",
+		},
+		{
+			name: "nil Global",
+			cfg: &UDSBundleConfig{
+				Options: &ConfigOptions{Concurrency: 10},
+			},
+			wantErr: "config.Global is required",
+		},
+		{
+			name: "nil Options",
+			cfg: &UDSBundleConfig{
+				Global: &GlobalOptions{},
+			},
+			wantErr: "config.Options is required",
+		},
+	}
 
-func TestValidateConfig_NilOptions(t *testing.T) {
-	err := ValidateConfig(&UDSBundleConfig{
-		Global: &GlobalOptions{},
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "config.Options is required")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateConfig(tt.cfg)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
 }
 
 func TestValidateConfig_Valid(t *testing.T) {
-	err := ValidateConfig(&UDSBundleConfig{
-		Global:  &GlobalOptions{},
-		Options: &ConfigOptions{},
+	require.NoError(t, ValidateConfig(validBaseConfig()))
+}
+
+func TestValidateConcurrency(t *testing.T) {
+	tests := []struct {
+		name        string
+		concurrency int
+		wantErr     string
+	}{
+		{name: "zero rejected", concurrency: 0, wantErr: "concurrency must be >= 1"},
+		{name: "negative rejected", concurrency: -1, wantErr: "concurrency must be >= 1"},
+		{name: "negative-large rejected", concurrency: -100, wantErr: "concurrency must be >= 1"},
+		{name: "above max rejected", concurrency: MaxConcurrency + 1, wantErr: fmt.Sprintf("concurrency must be <= %d", MaxConcurrency)},
+		{name: "way above max rejected", concurrency: 9999, wantErr: fmt.Sprintf("concurrency must be <= %d", MaxConcurrency)},
+		{name: "lower bound accepted", concurrency: 1},
+		{name: "default accepted", concurrency: 10},
+		{name: "upper bound accepted", concurrency: MaxConcurrency},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validBaseConfig()
+			cfg.Options.Concurrency = tt.concurrency
+			err := ValidateConfig(cfg)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
+func TestValidateTmpDir(t *testing.T) {
+	t.Run("empty allowed", func(t *testing.T) {
+		cfg := validBaseConfig()
+		cfg.Options.TmpDir = ""
+		require.NoError(t, ValidateConfig(cfg))
 	})
-	require.NoError(t, err)
+
+	t.Run("existing directory accepted", func(t *testing.T) {
+		cfg := validBaseConfig()
+		cfg.Options.TmpDir = t.TempDir()
+		require.NoError(t, ValidateConfig(cfg))
+	})
+
+	t.Run("nonexistent path rejected", func(t *testing.T) {
+		cfg := validBaseConfig()
+		cfg.Options.TmpDir = "/nonexistent/path/tmp"
+		err := ValidateConfig(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "tmp_dir")
+		assert.Contains(t, err.Error(), "directory does not exist")
+	})
+
+	t.Run("file rejected", func(t *testing.T) {
+		f := filepath.Join(t.TempDir(), "afile")
+		require.NoError(t, os.WriteFile(f, []byte("x"), 0o644))
+		cfg := validBaseConfig()
+		cfg.Options.TmpDir = f
+		err := ValidateConfig(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "tmp_dir")
+		assert.Contains(t, err.Error(), "path is not a directory")
+	})
+}
+
+func TestValidateConfig_StopsOnFirstError(t *testing.T) {
+	// Confirms ValidateConfig short-circuits: a nil structure should be reported
+	// before field-level errors are evaluated.
+	err := ValidateConfig(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "config is required")
+	assert.NotContains(t, err.Error(), "concurrency")
 }
 
 func TestValidatePackageNames(t *testing.T) {

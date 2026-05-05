@@ -22,6 +22,13 @@ var ErrPackageNotDeployed = errors.New("package not deployed")
 // BundleFileName is the name of the bundle definition file.
 const BundleFileName = "bundle.uds.hcl"
 
+// MaxConcurrency is the upper bound for parallel package deploys within a level.
+// Each concurrent deploy pulls an OCI package to disk, creates a temp directory,
+// and runs a Helm install against the cluster. Values above this limit risk
+// exhausting disk, overwhelming the Kubernetes API server, or hitting OCI
+// registry rate limits.
+const MaxConcurrency = 25
+
 // BundleDefaultsFileName is the name of the optional bundle-level defaults file.
 // When present alongside bundle.uds.hcl, it is auto-discovered and applied as the
 // lowest-priority variable layer. Only the variables attribute is supported.
@@ -84,12 +91,26 @@ type Parser interface {
 }
 
 
-// Deployer is the interface for deploying packages to a target.
+// Deployer is the interface for deploying packages to a target. It exposes
+// both a low-level per-package primitive and a high-level bundle-level entry
+// point so callers can choose the abstraction that fits their use case.
+// DeployBundle iterates the bundle and delegates each package to DeployPackage
+// internally.
+//
+// Implementations are responsible for dependency ordering, concurrency control,
+// and any target-specific orchestration concerns.
+//
 // Implementations can include: ZarfDeployer (local), TofuDeployer, RemoteAgentDeployer.
 type Deployer interface {
 	// DeployPackage deploys a single package.
-	// Called in topological order - dependencies are already deployed.
+	// Called in topological order, dependencies are already deployed.
 	DeployPackage(ctx context.Context, pkg *Package, opts DeployPackageOptions) error
+
+	// DeployBundle deploys the bundle's packages to the target, calling
+	// DeployPackage for each package internally. The implementation handles
+	// dependency ordering (topological order), parallelism within levels, and
+	// concurrency limits.
+	DeployBundle(ctx context.Context, b *UDSBundle, opts DeployOptions) (*DeployResult, error)
 }
 
 // DeployPackageOptions contains options for deploying a single package.

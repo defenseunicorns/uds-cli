@@ -206,49 +206,6 @@ func TestValidateDir(t *testing.T) {
 	})
 }
 
-func TestValidateConfigOptions(t *testing.T) {
-	t.Run("valid config", func(t *testing.T) {
-		opts := NewConfigResolver().Defaults()
-		require.NoError(t, ValidateConfigOptions(opts))
-	})
-
-	t.Run("zero concurrency", func(t *testing.T) {
-		opts := NewConfigResolver().Defaults()
-		opts.Concurrency = 0
-		err := ValidateConfigOptions(opts)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "concurrency must be >= 1")
-	})
-
-	t.Run("negative concurrency", func(t *testing.T) {
-		opts := NewConfigResolver().Defaults()
-		opts.Concurrency = -1
-		err := ValidateConfigOptions(opts)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "concurrency must be >= 1")
-	})
-
-	t.Run("nonexistent tmp-dir", func(t *testing.T) {
-		opts := NewConfigResolver().Defaults()
-		opts.TmpDir = "/nonexistent/path/tmp"
-		err := ValidateConfigOptions(opts)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "--tmp-dir")
-		assert.Contains(t, err.Error(), "directory does not exist")
-	})
-
-	t.Run("tmp-dir is a file", func(t *testing.T) {
-		f := filepath.Join(t.TempDir(), "afile")
-		require.NoError(t, os.WriteFile(f, []byte("x"), 0o644))
-		opts := NewConfigResolver().Defaults()
-		opts.TmpDir = f
-		err := ValidateConfigOptions(opts)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "--tmp-dir")
-		assert.Contains(t, err.Error(), "path is not a directory")
-	})
-}
-
 func TestValidateBundlePath(t *testing.T) {
 	// Set up temporary test files and directories
 	tempDir := t.TempDir()

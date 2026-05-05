@@ -96,17 +96,6 @@ func IsTarZst(s string) bool {
 	return strings.HasSuffix(s, ".tar.zst")
 }
 
-// ValidateConfigOptions checks that the ConfigOptions has valid values.
-func ValidateConfigOptions(opts bundle.ConfigOptions) error {
-	if opts.Concurrency < 1 {
-		return fmt.Errorf("concurrency must be >= 1, got %d", opts.Concurrency)
-	}
-	if err := ValidateDir(opts.TmpDir); err != nil {
-		return fmt.Errorf("--tmp-dir: %w", err)
-	}
-	return nil
-}
-
 // ResolvePrinter resolves the --output flag into a ResourcePrinter.
 // This centralizes the printer resolution logic shared by all bundle commands.
 func ResolvePrinter(cmd *cobra.Command) (printer.ResourcePrinter, error) {

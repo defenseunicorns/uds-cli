@@ -75,17 +75,15 @@ func (o *PullOptions) Complete(cmd *cobra.Command, args []string) error {
 }
 
 // Validate validates the options.
+// Config validation is performed during Resolve(); this only checks command-specific inputs.
 func (o *PullOptions) Validate() error {
-	if err := bundle.ValidateConfig(o.Config); err != nil {
-		return err
-	}
 	if o.OCIReference == "" {
 		return fmt.Errorf("OCI reference is required")
 	}
 	if err := ValidateDir(o.OutputDir); err != nil {
 		return fmt.Errorf("--output-dir: %w", err)
 	}
-	return ValidateConfigOptions(*o.Config.Options)
+	return nil
 }
 
 // Run executes the pull command.

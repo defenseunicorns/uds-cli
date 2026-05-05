@@ -123,9 +123,6 @@ func (o *RemoveOptions) Validate() error {
 	if err := bundle.ValidateConfig(o.Config); err != nil {
 		return err
 	}
-	if err := ValidateConfigOptions(*o.Config.Options); err != nil {
-		return err
-	}
 	if err := ValidateBundlePath(o.BundlePath); err != nil {
 		return err
 	}

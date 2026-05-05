@@ -46,18 +46,26 @@ The bundle-path can be:
   - A path to a bundle.uds.hcl file
   - If omitted, uses the current directory
 
-The CLI is non-interactive by default (suitable for CI/CD pipelines).
+The CLI is non-interactive by default (suitable for CI/CD pipelines) and
+deploys packages within a level in parallel (see --concurrency, default 10).
 Use --prompt to enable interactive confirmation before deployment.
 
+Interactive mode is incompatible with parallel deploys: when --prompt is set
+without an explicit --concurrency, concurrency is forced to 1. Passing
+--prompt together with --concurrency > 1 is rejected.
+
 Examples:
-  # Deploy bundle in current directory (non-interactive)
+  # Deploy bundle in current directory (parallel, non-interactive)
   uds bundle deploy
 
   # Deploy bundle from specific directory
   uds bundle deploy ./my-bundle
 
-  # Deploy with interactive confirmation prompt
-  uds bundle deploy --prompt`,
+  # Deploy with interactive confirmation prompt (concurrency auto-forced to 1)
+  uds bundle deploy --prompt
+
+  # Deploy serially without prompt
+  uds bundle deploy --concurrency 1`,
 		Args: cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			util.CheckErr(o.Complete(cmd, args))
@@ -84,6 +92,14 @@ func (o *DeployOptions) Complete(cmd *cobra.Command, args []string) error {
 	}
 	o.Config = cfg
 
+	// Interactive prompts cannot run in parallel. When a user passes --prompt
+	// without explicitly setting --concurrency, force concurrency to 1 rather
+	// than failing on the default (10, per ADR-0006). If the user passes both
+	// flags with incompatible values, Validate() rejects it.
+	if cmd.Flags().Changed("prompt") && !cmd.Flags().Changed("concurrency") {
+		o.Config.Options.Concurrency = 1
+	}
+
 	p, err := ResolvePrinter(cmd)
 	if err != nil {
 		return err
@@ -94,15 +110,16 @@ func (o *DeployOptions) Complete(cmd *cobra.Command, args []string) error {
 }
 
 // Validate validates the options without modifying state.
+// Config validation is performed during Resolve(); this only checks
+// command-specific inputs and cross-field rules involving CLI-only fields.
 func (o *DeployOptions) Validate() error {
-	if err := bundle.ValidateConfig(o.Config); err != nil {
-		return err
-	}
-	if err := ValidateConfigOptions(*o.Config.Options); err != nil {
-		return err
-	}
 	if err := ValidateBundlePath(o.BundlePath); err != nil {
 		return err
+	}
+	// Interactive prompts cannot run in parallel. --prompt is CLI-only (ADR-0005),
+	// so this cross-field rule lives here, not in the bundle layer.
+	if o.Config.Global.Prompt && o.Config.Options.Concurrency > 1 {
+		return fmt.Errorf("--prompt is incompatible with concurrency > 1; interactive prompts cannot run in parallel")
 	}
 	return nil
 }

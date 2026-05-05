@@ -78,10 +78,8 @@ func (o *PushOptions) Complete(cmd *cobra.Command, args []string) error {
 }
 
 // Validate validates the options.
+// Config validation is performed during Resolve(); this only checks command-specific inputs.
 func (o *PushOptions) Validate() error {
-	if err := bundle.ValidateConfig(o.Config); err != nil {
-		return err
-	}
 	if o.Tarball == "" || !strings.HasSuffix(o.Tarball, ".tar.zst") {
 		return fmt.Errorf("source must be a .tar.zst bundle file")
 	}
@@ -91,7 +89,7 @@ func (o *PushOptions) Validate() error {
 	if o.OCIReference == "" {
 		return fmt.Errorf("OCI reference is required")
 	}
-	return ValidateConfigOptions(*o.Config.Options)
+	return nil
 }
 
 // Run executes the push command.

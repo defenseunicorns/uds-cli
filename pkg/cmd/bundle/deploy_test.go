@@ -169,6 +169,78 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 	}
 }
 
+func TestDeployOptions_Complete_PromptForcesSerial(t *testing.T) {
+	tests := []struct {
+		name             string
+		flags            []string
+		wantConcurrency  int
+	}{
+		{name: "prompt without concurrency forces 1", flags: []string{"--prompt"}, wantConcurrency: 1},
+		{name: "prompt with explicit concurrency=1 keeps 1", flags: []string{"--prompt", "--concurrency", "1"}, wantConcurrency: 1},
+		{name: "no prompt keeps default 10", flags: nil, wantConcurrency: 10},
+		{name: "explicit concurrency without prompt preserved", flags: []string{"--concurrency", "5"}, wantConcurrency: 5},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			streams, _, _, _ := iostreams.NewTestIOStreams()
+			bundleCmd := NewBundleCommand(streams)
+			// --prompt is registered on root in production; simulate that on the
+			// bundle command so the deploy subcommand can see it via the parent chain.
+			bundleCmd.PersistentFlags().Bool("prompt", false, "enable interactive confirmation prompts")
+
+			deployCmd, _, err := bundleCmd.Find([]string{"deploy"})
+			require.NoError(t, err)
+			require.NoError(t, deployCmd.ParseFlags(tt.flags))
+
+			o := NewDeployOptions(streams)
+			require.NoError(t, o.Complete(deployCmd, nil))
+			assert.Equal(t, tt.wantConcurrency, o.Config.Options.Concurrency)
+		})
+	}
+}
+
+func TestDeployOptions_Validate_PromptIncompatibleWithParallel(t *testing.T) {
+	existingDir := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init")
+	defaults := NewConfigResolver().Defaults()
+	streams, _, _, _ := iostreams.NewTestIOStreams()
+
+	tests := []struct {
+		name        string
+		prompt      bool
+		concurrency int
+		wantErr     string
+	}{
+		{name: "prompt off, concurrency > 1 allowed", prompt: false, concurrency: 5, wantErr: ""},
+		{name: "prompt on, concurrency 1 allowed", prompt: true, concurrency: 1, wantErr: ""},
+		{name: "prompt on, concurrency 2 rejected", prompt: true, concurrency: 2, wantErr: "--prompt is incompatible with concurrency > 1"},
+		{name: "prompt on, concurrency 10 rejected", prompt: true, concurrency: 10, wantErr: "--prompt is incompatible with concurrency > 1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := defaults
+			opts.Concurrency = tt.concurrency
+			o := &DeployOptions{
+				BundlePath: existingDir,
+				Config: &bundle.UDSBundleConfig{
+					Global:  &bundle.GlobalOptions{Prompt: tt.prompt},
+					Options: &opts,
+				},
+				IOStreams: streams,
+			}
+
+			err := o.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestDeployOptions_Run_PromptDecline(t *testing.T) {
 	// Test the --prompt flag behavior: user declines deployment.
 	// Non-interactive (default) Run tests that proceed to actual deployment

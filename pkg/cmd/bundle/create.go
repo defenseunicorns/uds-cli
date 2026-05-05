@@ -73,13 +73,8 @@ func (o *CreateOptions) Complete(cmd *cobra.Command, args []string) error {
 }
 
 // Validate validates the options without modifying state.
+// Config validation is performed during Resolve(); this only checks command-specific inputs.
 func (o *CreateOptions) Validate() error {
-	if err := bundle.ValidateConfig(o.Config); err != nil {
-		return err
-	}
-	if err := ValidateConfigOptions(*o.Config.Options); err != nil {
-		return err
-	}
 	return ValidateBundlePath(o.BundlePath)
 }
 

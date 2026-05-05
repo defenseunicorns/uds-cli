@@ -4,6 +4,7 @@
 package bundle
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -833,6 +834,64 @@ this is not valid HCL {{{
 	_, _, err := r.Resolve(cmd, bundleDir)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), bundle.BundleDefaultsFileName)
+}
+
+// --- validation triggered at Resolve time ---
+
+func TestResolve_RejectsInvalidConcurrency(t *testing.T) {
+	r := NewConfigResolver()
+	cmd := &cobra.Command{}
+	registerTestFlags(cmd)
+	cmd.Flags().String("config", "", "config path")
+	require.NoError(t, cmd.Flags().Set("concurrency", "0"))
+
+	_, _, err := r.Resolve(cmd, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "concurrency must be >= 1")
+}
+
+func TestResolve_RejectsConcurrencyAboveMax(t *testing.T) {
+	r := NewConfigResolver()
+	cmd := &cobra.Command{}
+	registerTestFlags(cmd)
+	cmd.Flags().String("config", "", "config path")
+	require.NoError(t, cmd.Flags().Set("concurrency", fmt.Sprintf("%d", bundle.MaxConcurrency+1)))
+
+	_, _, err := r.Resolve(cmd, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), fmt.Sprintf("concurrency must be <= %d", bundle.MaxConcurrency))
+}
+
+func TestResolve_RejectsInvalidConcurrencyFromHCL(t *testing.T) {
+	r := NewConfigResolver()
+	configDir := t.TempDir()
+	configPath := filepath.Join(configDir, "config.uds.hcl")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+options {
+  concurrency = -1
+}
+`), 0o644))
+
+	cmd := &cobra.Command{}
+	registerTestFlags(cmd)
+	cmd.Flags().String("config", "", "config path")
+	require.NoError(t, cmd.Flags().Set("config", configPath))
+
+	_, _, err := r.Resolve(cmd, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "concurrency must be >= 1")
+}
+
+func TestResolve_RejectsInvalidTmpDir(t *testing.T) {
+	r := NewConfigResolver()
+	cmd := &cobra.Command{}
+	registerTestFlags(cmd)
+	cmd.Flags().String("config", "", "config path")
+	require.NoError(t, cmd.Flags().Set("tmp-dir", "/nonexistent/tmp/path"))
+
+	_, _, err := r.Resolve(cmd, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "tmp_dir")
 }
 
 func TestResolve_DefaultsFile_BundleDirIsFilePath(t *testing.T) {

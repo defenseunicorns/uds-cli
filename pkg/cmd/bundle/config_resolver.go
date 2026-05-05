@@ -143,11 +143,19 @@ func (r *ConfigResolver) Resolve(cmd *cobra.Command, bundlePath string) (*bundle
 		return nil, "", err
 	}
 
-	return &bundle.UDSBundleConfig{
+	cfg := &bundle.UDSBundleConfig{
 		Global:    global,
 		Options:   &merged,
 		Variables: variables,
-	}, configPath, nil
+	}
+
+	// Single point of truth for config validation. Downstream consumers
+	// (CLI Validate(), library entry points) trust the config from here on.
+	if err := bundle.ValidateConfig(cfg); err != nil {
+		return nil, "", err
+	}
+
+	return cfg, configPath, nil
 }
 
 // loadBundleDefaults looks for defaults.uds.hcl in the bundle directory and parses it if present.

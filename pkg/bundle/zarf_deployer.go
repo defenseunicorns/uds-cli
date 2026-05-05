@@ -28,16 +28,55 @@ import (
 // were already set by the embedding application, which takes precedence.
 var enableValuesOnce sync.Once
 
-var _ Deployer = &ZarfDeployer{}
+var _ Deployer = (*ZarfDeployer)(nil)
+
+// Output synchronization
+//
+// Parallel deploys within a level have N goroutines all writing human-readable
+// output destined for a single terminal, so synchronization is required
+// somewhere in the pipeline to keep writes from corrupting one another. The
+// choice of granularity is a UX trade-off:
+//
+//   - byte-level (this implementation, via syncWriter): every Write call is
+//     serialized. Cheapest and simplest; preserves real-time output but
+//     individual lines from different packages can still interleave on screen.
+//   - line-level: lines stay atomic but lines from different packages still
+//     intermix.
+//   - package-level: each package writes to its own buffer, flushed under a
+//     mutex when the package completes. Coherent per-package log blocks at
+//     the cost of no live progress within a package.
+//
+// We picked byte-level (syncWriter) because Zarf's logger emits frequent
+// progress updates that users expect to see live during a deploy; deferring
+// per-package output until completion would feel like the deploy stalled.
+// Mid-line interleaving is rare in practice (Zarf's writer emits one line
+// per Write) and acceptable given the live-feedback gain.
+
+// syncWriter wraps an io.Writer with a mutex so concurrent goroutines
+// (parallel package deploys within a level) do not corrupt each other's
+// writes. See the "Output synchronization" doc above for the rationale.
+type syncWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (sw *syncWriter) Write(p []byte) (int, error) {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	return sw.w.Write(p)
+}
 
 // ZarfDeployer implements Deployer using the Zarf Go library.
 // Reference: .ai/example-repos/uds-cli/src/pkg/bundle/deploy.go lines 38-165
 type ZarfDeployer struct {
-	// Out is the writer for output messages
+	// Out is the writer for output messages. Wrapped in a syncWriter by
+	// NewZarfDeployer so concurrent DeployPackage calls produce clean output.
 	Out io.Writer
 }
 
 // NewZarfDeployer creates a new ZarfDeployer.
+// The provided writer is wrapped with a mutex so concurrent deploys within
+// a level do not produce interleaved output.
 func NewZarfDeployer(out io.Writer) *ZarfDeployer {
 	// Enable the Zarf "values" feature flag so packager.Deploy accepts
 	// DeployOptions.Values (Helm values from values_files).
@@ -49,8 +88,43 @@ func NewZarfDeployer(out io.Writer) *ZarfDeployer {
 		}})
 	})
 	return &ZarfDeployer{
-		Out: out,
+		Out: &syncWriter{w: out},
 	}
+}
+
+// DeployBundle deploys the bundle's packages in topological order, parallelising
+// within levels and serialising across them.
+func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts DeployOptions) (*DeployResult, error) {
+	dag, err := BuildDependencyGraph(b)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build dependency graph: %w", err)
+	}
+
+	levels, err := dag.TopologicalLevels()
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute deployment levels: %w", err)
+	}
+	slog.Debug("dependency graph built", "levels", len(levels))
+
+	concurrency := opts.Config.Options.Concurrency
+
+	pkgOpts := DeployPackageOptions{
+		Config:    opts.Config,
+		BundleDir: filepath.Dir(opts.BundlePath),
+		Prompt:    opts.Prompt,
+	}
+
+	slog.Info("deploying bundle", "packages", len(b.Packages), "levels", len(levels), "concurrency", concurrency)
+
+	orch := newDeployOrchestrator(d.DeployPackage, dag, levels, concurrency, pkgOpts)
+	if err := orch.Run(ctx); err != nil {
+		return nil, err
+	}
+
+	return &DeployResult{
+		BundleName: b.Metadata.Name,
+		Packages:   len(b.Packages),
+	}, nil
 }
 
 // DeployPackage deploys a single Zarf package using the Zarf Go library.

@@ -6,6 +6,7 @@ package bundle
 import (
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 )
@@ -70,10 +71,22 @@ func (b *UDSBundle) Validate() error {
 	return errors.Join(errs...)
 }
 
-// ValidateConfig checks that cfg, its Global, and its Options are non-nil.
-// This guards public bundle entry points against direct library usage
-// that bypasses the CLI's ConfigResolver.
+// ValidateConfig is the single entry point for validating a fully-resolved
+// UDSBundleConfig. It runs nil-checks on the structure and then delegates
+// field-level checks to focused sub-validators.
+//
+// Call this once at the boundary where config is produced (e.g. from the
+// ConfigResolver). Downstream consumers should trust the config and skip
+// re-validation.
 func ValidateConfig(cfg *UDSBundleConfig) error {
+	if err := validateConfigStructure(cfg); err != nil {
+		return err
+	}
+	return validateOptions(cfg.Options)
+}
+
+// validateConfigStructure asserts that cfg and its required sub-structs are non-nil.
+func validateConfigStructure(cfg *UDSBundleConfig) error {
 	if cfg == nil {
 		return fmt.Errorf("config is required (UDSBundleConfig must not be nil)")
 	}
@@ -82,6 +95,44 @@ func ValidateConfig(cfg *UDSBundleConfig) error {
 	}
 	if cfg.Options == nil {
 		return fmt.Errorf("config.Options is required (ConfigOptions must not be nil)")
+	}
+	return nil
+}
+
+// validateOptions validates ConfigOptions field invariants.
+func validateOptions(opts *ConfigOptions) error {
+	if err := validateConcurrency(opts.Concurrency); err != nil {
+		return err
+	}
+	return validateTmpDir(opts.TmpDir)
+}
+
+// validateConcurrency enforces the [1, MaxConcurrency] range.
+func validateConcurrency(concurrency int) error {
+	if concurrency < 1 {
+		return fmt.Errorf("concurrency must be >= 1, got %d", concurrency)
+	}
+	if concurrency > MaxConcurrency {
+		return fmt.Errorf("concurrency must be <= %d, got %d", MaxConcurrency, concurrency)
+	}
+	return nil
+}
+
+// validateTmpDir asserts that, when set, TmpDir refers to an existing directory.
+// An empty value is valid and means "use the OS default".
+func validateTmpDir(path string) error {
+	if path == "" {
+		return nil
+	}
+	st, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("tmp_dir: directory does not exist: %s", path)
+		}
+		return fmt.Errorf("tmp_dir: failed to stat directory %s: %w", path, err)
+	}
+	if !st.IsDir() {
+		return fmt.Errorf("tmp_dir: path is not a directory: %s", path)
 	}
 	return nil
 }

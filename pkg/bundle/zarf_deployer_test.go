@@ -6,6 +6,7 @@ package bundle
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -263,7 +264,10 @@ func TestNewZarfDeployer(t *testing.T) {
 	deployer := NewZarfDeployer(out)
 
 	assert.NotNil(t, deployer)
-	assert.Equal(t, out, deployer.Out)
+	assert.NotNil(t, deployer.Out)
+	// Out is wrapped in a syncWriter for concurrent safety; verify writes still reach the buffer.
+	_, _ = fmt.Fprint(deployer.Out, "hello")
+	assert.Equal(t, "hello", out.String())
 }
 
 func TestBuildComponentFilter(t *testing.T) {
