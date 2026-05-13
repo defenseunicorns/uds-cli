@@ -1,0 +1,33 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+kind: ZarfPackageConfig
+metadata:
+  name: podinfo
+  version: 0.1.0
+  description: Podinfo with Zarf Values templating
+values:
+  files:
+    - values.yaml
+
+components:
+  - name: podinfo
+    required: true
+    images:
+      - ghcr.io/stefanprodan/podinfo:6.11.2
+    charts:
+      - name: podinfo
+        version: 6.11.2
+        namespace: podinfo
+        url: oci://ghcr.io/stefanprodan/charts/podinfo
+        values:
+          - sourcePath: ".service.enabled"
+            targetPath: ".service.enabled"
+          - sourcePath: ".pod.annotations"
+            targetPath: ".podAnnotations"
+          - sourcePath: ".pod.tolerations"
+            targetPath: ".tolerations"
+          - sourcePath: ".pod.replicaCount"
+            targetPath: ".replicaCount"
+          - sourcePath: ".logLevel"
+            targetPath: ".logLevel"

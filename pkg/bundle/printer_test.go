@@ -164,3 +164,4 @@ func TestInspectResult_YAMLRoundTrip(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal(data, &decoded))
 	assert.Equal(t, original.Name, decoded.Name)
 }
+

@@ -22,7 +22,7 @@ func Remove(ctx context.Context, opts RemoveOptions) (*RemoveResult, error) {
 		return nil, err
 	}
 
-	parser := NewHCLParser()
+	parser := NewHCLParser(opts.Config.Options.Architecture)
 
 	// Use pre-parsed bundle if provided, otherwise parse from BundlePath
 	b := opts.Bundle

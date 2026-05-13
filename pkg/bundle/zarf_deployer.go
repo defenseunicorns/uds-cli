@@ -192,13 +192,15 @@ func (d *ZarfDeployer) prepareValuesAndVariables(ctx context.Context, pkg *Packa
 		configVars = opts.Config.Variables
 	}
 
+	var loadedFileCount int
 	if len(pkg.ValuesFiles) > 0 {
 		// 1. Resolve relative paths against the bundle directory
 		resolved := resolveValuesFiles(pkg.ValuesFiles, opts.BundleDir)
 
 		// 2. Template {{ .vars.* }} placeholders using config variables
-		filesToParse, err := templateValuesFiles(ctx, resolved, configVars, opts.Config.Options.TmpDir)
-		// Temp files are fully consumed by ParseFiles below; clean up on return.
+		var filesToParse []string
+		filesToParse, err = templateValuesFiles(ctx, resolved, configVars, opts.Config.Options.TmpDir)
+		// Temp files are fully consumed by ParseFiles below or any subsequent error; clean up on return.
 		if configVars != nil {
 			defer cleanupTempFiles(filesToParse)
 		}
@@ -211,11 +213,19 @@ func (d *ZarfDeployer) prepareValuesAndVariables(ctx context.Context, pkg *Packa
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to parse values files for package %q: %w", pkg.Name, err)
 		}
-		_, _ = fmt.Fprintf(d.Out, "  Loaded %d values file(s)\n", len(filesToParse))
+		loadedFileCount = len(filesToParse)
 	}
 
-	// Flatten top-level scalar variables for Zarf ###ZARF_PKG_VAR_*### substitution
-	setVars = configVars.Flatten()
+	// Flatten top-level scalar variables for Zarf ###ZARF_PKG_VAR_*### substitution.
+	// Non-scalars are skipped here and flow through values_files instead.
+	setVars, err = configVars.Flatten()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to flatten variables for package %q: %w", pkg.Name, err)
+	}
+
+	if loadedFileCount > 0 {
+		slog.Debug("loaded values files", "package", pkg.Name, "count", loadedFileCount)
+	}
 	return zarfValues, setVars, nil
 }
 
@@ -243,6 +253,10 @@ func resolveValuesFiles(files []string, bundleDir string) []string {
 // Template context: { "vars": vars }
 // Access: {{ .vars.domain }}, {{ .vars.logging.vectorEnabled }}, etc.
 //
+// Templates are rendered by Go's stdlib text/template — authors get range, if,
+// with, index, printf, dot-access, pipe, and whitespace-trim markers.
+// Lists and maps are rendered with explicit range loops.
+//
 // Missing keys produce a clear error (template.Option("missingkey=error")).
 // If vars is nil, the original file paths are returned unchanged (no temp copies created).
 func templateValuesFiles(_ context.Context, files []string, vars Variables, tmpDir string) ([]string, error) {
@@ -250,7 +264,9 @@ func templateValuesFiles(_ context.Context, files []string, vars Variables, tmpD
 		return files, nil
 	}
 
-	data := map[string]any{"vars": map[string]any(vars)}
+	// Variables is map[string]any underneath, and Go templates traverse named map
+	// types via reflection at any depth, so no conversion of nested levels is needed.
+	data := map[string]any{"vars": vars}
 	result := make([]string, 0, len(files))
 
 	for _, f := range files {
@@ -273,6 +289,8 @@ func templateValuesFiles(_ context.Context, files []string, vars Variables, tmpD
 		if err != nil {
 			return result, fmt.Errorf("failed to create temp file for values: %w", err)
 		}
+		// Append immediately so the caller's cleanup catches the file even if Write/Close fails.
+		result = append(result, tmp.Name())
 		if _, err := tmp.Write(buf.Bytes()); err != nil {
 			_ = tmp.Close()
 			return result, fmt.Errorf("failed to write temp values file: %w", err)
@@ -280,7 +298,6 @@ func templateValuesFiles(_ context.Context, files []string, vars Variables, tmpD
 		if err := tmp.Close(); err != nil {
 			return result, fmt.Errorf("failed to close temp values file: %w", err)
 		}
-		result = append(result, tmp.Name())
 	}
 	return result, nil
 }

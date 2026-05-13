@@ -217,14 +217,17 @@ func TestInspectOptions_Run(t *testing.T) {
 		},
 	}
 
+	defaults := NewConfigResolver().Defaults()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			streams, _, out, _ := iostreams.NewTestIOStreams()
 			textPrinter, _ := printer.NewPrinter(printer.FormatText)
 			o := &InspectOptions{
 				BundlePath: tt.bundlePath,
+				Config:     &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults},
 				Printer:    textPrinter,
-				IOStreams:   streams,
+				IOStreams:  streams,
 			}
 
 			err := o.Run()
@@ -248,10 +251,12 @@ func TestInspectOptions_Run_JSONOutput(t *testing.T) {
 	jsonPrinter, err := printer.NewPrinter(printer.FormatJSON)
 	require.NoError(t, err)
 
+	defaults := NewConfigResolver().Defaults()
 	o := &InspectOptions{
 		BundlePath: existingFile,
+		Config:     &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults},
 		Printer:    jsonPrinter,
-		IOStreams:   streams,
+		IOStreams:  streams,
 	}
 
 	require.NoError(t, o.Run())
@@ -272,10 +277,12 @@ func TestInspectOptions_Run_YAMLOutput(t *testing.T) {
 	yamlPrinter, err := printer.NewPrinter(printer.FormatYAML)
 	require.NoError(t, err)
 
+	defaults := NewConfigResolver().Defaults()
 	o := &InspectOptions{
 		BundlePath: existingFile,
+		Config:     &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults},
 		Printer:    yamlPrinter,
-		IOStreams:   streams,
+		IOStreams:  streams,
 	}
 
 	require.NoError(t, o.Run())

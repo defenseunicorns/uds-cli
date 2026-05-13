@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -121,7 +122,7 @@ func TestTemplateValuesFiles(t *testing.T) {
 		{
 			name:         "nested variable access",
 			fileContents: []string{"enabled: {{ .vars.logging.enabled }}"},
-			vars:         Variables{"logging": map[string]any{"enabled": true}},
+			vars:         Variables{"logging": Variables{"enabled": true}},
 			wantOutputs:  []string{"enabled: true"},
 		},
 		{
@@ -169,7 +170,7 @@ func TestTemplateValuesFiles(t *testing.T) {
 		{
 			name:         "missing nested key",
 			fileContents: []string{"x: {{ .vars.a.missing }}"},
-			vars:         Variables{"a": map[string]any{"present": "yes"}},
+			vars:         Variables{"a": Variables{"present": "yes"}},
 			wantErr:      "map has no entry for key",
 		},
 		{
@@ -183,6 +184,61 @@ func TestTemplateValuesFiles(t *testing.T) {
 			fileContents: []string{"x: {{ .vars.k }}"},
 			vars:         Variables{},
 			wantErr:      "map has no entry for key",
+		},
+		{
+			name: "range over list of objects",
+			fileContents: []string{
+				"service:\n  ports:\n{{- range .vars.ports }}\n    - name: {{ .name }}\n      port: {{ .port }}\n{{- end }}",
+			},
+			vars: Variables{"ports": []any{
+				Variables{"name": "a", "port": float64(80)},
+				Variables{"name": "b", "port": float64(90)},
+			}},
+			wantOutputs: []string{
+				"service:\n  ports:\n    - name: a\n      port: 80\n    - name: b\n      port: 90",
+			},
+		},
+		{
+			name: "range over list of objects with nested map",
+			fileContents: []string{
+				"keycloak:\n  extraVolumes:\n{{- range .vars.vols }}\n    - name: {{ .name }}\n      secret:\n        secretName: {{ .secret.secretName }}\n{{- end }}",
+			},
+			vars: Variables{"vols": []any{
+				Variables{"name": "tls-certs", "secret": Variables{"secretName": "kc-tls"}},
+			}},
+			wantOutputs: []string{
+				"keycloak:\n  extraVolumes:\n    - name: tls-certs\n      secret:\n        secretName: kc-tls",
+			},
+		},
+		{
+			name:         "if guard around optional list",
+			fileContents: []string{"obj:\n{{- if .vars.tags }}\n  tags:\n{{- range .vars.tags }}\n    - {{ . }}\n{{- end }}\n{{- end }}"},
+			vars:         Variables{"tags": []any{"prod", "logs"}},
+			wantOutputs:  []string{"obj:\n  tags:\n    - prod\n    - logs"},
+		},
+		{
+			name:         "with scope over nested map",
+			fileContents: []string{"{{- with .vars.db }}host: {{ .host }}\nport: {{ .port }}{{- end }}"},
+			vars:         Variables{"db": Variables{"host": "localhost", "port": float64(5432)}},
+			wantOutputs:  []string{"host: localhost\nport: 5432"},
+		},
+		{
+			name:         "env helper is undefined",
+			fileContents: []string{"x: {{ env \"PATH\" }}"},
+			vars:         Variables{"k": "v"},
+			wantErr:      "function \"env\" not defined",
+		},
+		{
+			name:         "default helper is undefined",
+			fileContents: []string{"x: {{ default \"fallback\" .vars.present }}"},
+			vars:         Variables{"present": "yes"},
+			wantErr:      "function \"default\" not defined",
+		},
+		{
+			name:         "toYaml helper is undefined",
+			fileContents: []string{"x: {{ toYaml .vars.x }}"},
+			vars:         Variables{"x": "y"},
+			wantErr:      "function \"toYaml\" not defined",
 		},
 	}
 
@@ -222,6 +278,104 @@ func TestTemplateValuesFiles(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPrepareValuesAndVariables(t *testing.T) {
+	t.Run("scalars produce flattened SetVariables", func(t *testing.T) {
+		dir := t.TempDir()
+		valuesPath := writeTempYAML(t, "host: {{ .vars.domain }}")
+
+		d := NewZarfDeployer(io.Discard)
+		pkg := &Package{Name: "p", ValuesFiles: []string{valuesPath}}
+		opts := DeployPackageOptions{
+			Config: &UDSBundleConfig{
+				Options:   &ConfigOptions{TmpDir: dir},
+				Variables: Variables{"domain": "uds.dev"},
+			},
+		}
+
+		_, setVars, err := d.prepareValuesAndVariables(context.Background(), pkg, opts)
+		require.NoError(t, err)
+		assert.Equal(t, "uds.dev", setVars["DOMAIN"])
+	})
+
+	t.Run("collection variable skipped from SetVariables, passed via values file", func(t *testing.T) {
+		dir := t.TempDir()
+		// values file uses range so it can iterate over the nested list variable
+		valuesPath := writeTempYAML(t,
+			"ports:\n{{- range .vars.ports }}\n  - {{ .name }}\n{{- end }}",
+		)
+
+		d := NewZarfDeployer(io.Discard)
+		pkg := &Package{Name: "p", ValuesFiles: []string{valuesPath}}
+		opts := DeployPackageOptions{
+			Config: &UDSBundleConfig{
+				Options: &ConfigOptions{TmpDir: dir},
+				Variables: Variables{"ports": []any{
+					Variables{"name": "a"},
+					Variables{"name": "b"},
+				}},
+			},
+		}
+
+		_, setVars, err := d.prepareValuesAndVariables(context.Background(), pkg, opts)
+		require.NoError(t, err)
+		// Complex types are skipped from Flatten and must flow through values_files
+		assert.NotContains(t, setVars, "PORTS")
+	})
+
+	t.Run("no values files, only variables", func(t *testing.T) {
+		d := NewZarfDeployer(io.Discard)
+		pkg := &Package{Name: "p"}
+		opts := DeployPackageOptions{
+			Config: &UDSBundleConfig{
+				Options:   &ConfigOptions{},
+				Variables: Variables{"x": "y"},
+			},
+		}
+
+		zv, setVars, err := d.prepareValuesAndVariables(context.Background(), pkg, opts)
+		require.NoError(t, err)
+		assert.Nil(t, zv)
+		assert.Equal(t, "y", setVars["X"])
+	})
+
+	t.Run("non-scalar variables silently skipped in Flatten", func(t *testing.T) {
+		d := NewZarfDeployer(io.Discard)
+		pkg := &Package{Name: "p"}
+		opts := DeployPackageOptions{
+			Config: &UDSBundleConfig{
+				Options: &ConfigOptions{},
+				// chan is a non-scalar, synthetic type; never produced by HCL parser
+				// Flatten silently skips non-scalars instead of erroring
+				Variables: Variables{"k": []any{make(chan int)}},
+			},
+		}
+
+		_, setVars, err := d.prepareValuesAndVariables(context.Background(), pkg, opts)
+		require.NoError(t, err)
+		// Non-scalar "k" is omitted from setVars
+		assert.NotContains(t, setVars, "K")
+	})
+
+	t.Run("template error wraps with package name", func(t *testing.T) {
+		dir := t.TempDir()
+		valuesPath := writeTempYAML(t, "x: {{ .vars.missing }}")
+
+		d := NewZarfDeployer(io.Discard)
+		pkg := &Package{Name: "broken", ValuesFiles: []string{valuesPath}}
+		opts := DeployPackageOptions{
+			Config: &UDSBundleConfig{
+				Options:   &ConfigOptions{TmpDir: dir},
+				Variables: Variables{"present": "yes"},
+			},
+		}
+
+		_, _, err := d.prepareValuesAndVariables(context.Background(), pkg, opts)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `"broken"`)
+		assert.Contains(t, err.Error(), "failed to template")
+	})
 }
 
 func TestZarfDeployer_DeployPackage_InvalidSource(t *testing.T) {

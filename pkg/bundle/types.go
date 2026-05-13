@@ -34,10 +34,10 @@ const MaxConcurrency = 25
 // lowest-priority variable layer. Only the variables attribute is supported.
 const BundleDefaultsFileName = "defaults.uds.hcl"
 
-// Variables is a named type for the nested user-defined variable map parsed
-// from the variables block in defaults.uds.hcl and config.uds.hcl.
-// Leaf values are scalars (string, float64, bool); intermediate nodes are
-// nested Variables maps decoded from HCL object expressions.
+// Variables is a named type for the user-defined variable map parsed from the
+// variables block in defaults.uds.hcl and config.uds.hcl. Leaf values are scalars
+// (string, float64, bool); intermediate nodes are nested Variables maps decoded
+// from HCL object/map expressions. List, set, and tuple values are []any.
 // nil means no --config was provided.
 //
 // Using a named type (rather than bare map[string]any) follows the same

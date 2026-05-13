@@ -124,7 +124,7 @@ func (r *ConfigResolver) Resolve(cmd *cobra.Command, bundlePath string) (*bundle
 	// Merge config.uds.hcl if --config flag is set
 	configPath, _ := cmd.Flags().GetString("config")
 	if configPath != "" {
-		cfg, err := bundle.NewHCLParser().ParseBundleConfig(cmd.Context(), configPath)
+		cfg, err := bundle.NewHCLParser("").ParseBundleConfig(cmd.Context(), configPath)
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to parse config: %w", err)
 		}

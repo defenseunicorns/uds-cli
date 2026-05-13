@@ -133,7 +133,7 @@ func (o *DeployOptions) Run() error {
 	slog.Debug("deploying bundle", "path", bundlePath, "prompt", o.Config.Global.Prompt)
 
 	// Parse bundle for display (BundlePath already validated by Validate)
-	parsedBundle, err := bundle.NewHCLParser().ParseBundleFile(ctx, bundlePath)
+	parsedBundle, err := bundle.NewHCLParser(o.Config.Options.Architecture).ParseBundleFile(ctx, bundlePath)
 	if err != nil {
 		return fmt.Errorf("failed to parse bundle: %w", err)
 	}

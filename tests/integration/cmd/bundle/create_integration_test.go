@@ -161,7 +161,7 @@ func TestCreate_DefaultsConfig_Applied(t *testing.T) {
 	require.NotNil(t, resolved.Variables)
 	assert.Equal(t, "a-default-value", resolved.Variables["a"])
 	assert.Equal(t, float64(0), resolved.Variables["b"])
-	c, ok := resolved.Variables["c"].(map[string]any)
+	c, ok := resolved.Variables["c"].(bundlepkg.Variables)
 	require.True(t, ok)
 	assert.Equal(t, true, c["d"])
 	assert.Equal(t, false, c["e"])

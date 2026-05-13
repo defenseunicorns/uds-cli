@@ -1,0 +1,18 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+service:
+  enabled: {{ .vars.service_enabled }}
+pod:
+  annotations:
+    {{- range $k, $v := .vars.annotations }}
+    {{ printf "%q" $k }}: {{ printf "%q" $v }}
+    {{- end }}
+  tolerations:
+    {{- range .vars.tolerations }}
+    - key: {{ printf "%q" .key }}
+      operator: {{ printf "%q" .operator }}
+      effect: {{ printf "%q" .effect }}
+    {{- end }}
+  replicaCount: {{ .vars.replica_count }}
+logLevel: {{ .vars.log_level }}

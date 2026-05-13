@@ -91,7 +91,7 @@ func (o *InspectOptions) Run() error {
 	// This method diverges from the 0004-logging-and-output-strategy.md recommendation and does not have a clear
 	// business layer method. Perhaps we'll introduce it in the future once there are more logic there than just
 	// bundle parsing.
-	b, err := bundle.NewHCLParser().ParseBundleFile(context.Background(), bundlePath)
+	b, err := bundle.NewHCLParser(o.Config.Options.Architecture).ParseBundleFile(context.Background(), bundlePath)
 	if err != nil {
 		return err
 	}

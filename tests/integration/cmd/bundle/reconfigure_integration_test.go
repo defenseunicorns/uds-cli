@@ -79,7 +79,7 @@ func TestReconfigure_LocalTarball(t *testing.T) {
 
 	// Verify the bundle name was updated to include the suffix.
 	hclContent := extractLayerFromBundle(t, reconfigSmall, "bundle.uds.hcl")
-	bundle, err := bundlepkg.NewHCLParser().ParseBundleBytes(t.Context(), hclContent)
+	bundle, err := bundlepkg.NewHCLParser("").ParseBundleBytes(t.Context(), hclContent)
 	require.NoError(t, err)
 	assert.Equal(t, "defaults-test-prod", bundle.Metadata.Name)
 
@@ -216,7 +216,7 @@ func TestReconfigure_OCI(t *testing.T) {
 
 	// Verify the bundle name was updated.
 	hclContent := extractLayerFromBundle(t, reconfigSmall, "bundle.uds.hcl")
-	bundle, err := bundlepkg.NewHCLParser().ParseBundleBytes(t.Context(), hclContent)
+	bundle, err := bundlepkg.NewHCLParser("").ParseBundleBytes(t.Context(), hclContent)
 	require.NoError(t, err)
 	assert.Equal(t, "defaults-test-oci-test", bundle.Metadata.Name)
 

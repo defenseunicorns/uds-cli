@@ -87,7 +87,7 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	}
 
 	slog.Debug("parsing bundle file", "path", opts.BundleFile)
-	parser := NewHCLParser()
+	parser := NewHCLParser(opts.Config.Options.Architecture)
 	b, err := parser.ParseBundleFile(ctx, opts.BundleFile)
 	if err != nil {
 		return nil, err

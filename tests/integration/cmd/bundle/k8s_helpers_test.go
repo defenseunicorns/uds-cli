@@ -171,6 +171,62 @@ func (c *K8sClient) WaitForNamespace(namespace string, timeout time.Duration) {
 	}
 }
 
+// AssertDeploymentPodAnnotation verifies that a deployment's pod template has the given annotation key/value.
+func (c *K8sClient) AssertDeploymentPodAnnotation(namespace, name, key, value string) {
+	c.t.Helper()
+	ctx := context.Background()
+
+	deployment, err := c.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+	require.NoError(c.t, err, "deployment %q in namespace %q should exist", name, namespace)
+	annotations := deployment.Spec.Template.Annotations
+	require.Equal(c.t, value, annotations[key],
+		"pod template annotation %q should be %q on deployment %q", key, value, name)
+	c.t.Logf("✓ deployment %q pod template annotation %q=%q", name, key, value)
+}
+
+// AssertDeploymentPodToleration verifies that a deployment's pod template has a matching toleration.
+func (c *K8sClient) AssertDeploymentPodToleration(namespace, name, key string, operator corev1.TolerationOperator, effect corev1.TaintEffect) {
+	c.t.Helper()
+	ctx := context.Background()
+
+	deployment, err := c.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+	require.NoError(c.t, err, "deployment %q in namespace %q should exist", name, namespace)
+	for _, t := range deployment.Spec.Template.Spec.Tolerations {
+		if t.Key == key && t.Operator == operator && t.Effect == effect {
+			c.t.Logf("✓ deployment %q has toleration key=%s operator=%s effect=%s", name, key, operator, effect)
+			return
+		}
+	}
+	c.t.Errorf("deployment %q missing toleration key=%s operator=%s effect=%s", name, key, operator, effect)
+}
+
+// AssertDeploymentReplicas verifies that a deployment's desired replica count matches expected.
+func (c *K8sClient) AssertDeploymentReplicas(namespace, name string, expected int32) {
+	c.t.Helper()
+	ctx := context.Background()
+
+	deployment, err := c.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+	require.NoError(c.t, err, "deployment %q in namespace %q should exist", name, namespace)
+	require.NotNil(c.t, deployment.Spec.Replicas, "deployment %q spec.replicas should not be nil", name)
+	require.Equal(c.t, expected, *deployment.Spec.Replicas,
+		"deployment %q in namespace %q should have %d replica(s)", name, namespace, expected)
+	c.t.Logf("✓ deployment %q in namespace %q has %d replica(s)", name, namespace, expected)
+}
+
+// AssertServiceNotExists verifies that a service does not exist in the given namespace.
+// A non-NotFound API error (network, RBAC, etc.) is surfaced rather than treated as "not exists".
+func (c *K8sClient) AssertServiceNotExists(namespace, name string) {
+	c.t.Helper()
+	ctx := context.Background()
+
+	_, err := c.CoreV1().Services(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil && !errors.IsNotFound(err) {
+		require.NoError(c.t, err, "unexpected error checking service %q in namespace %q", name, namespace)
+	}
+	require.True(c.t, errors.IsNotFound(err), "service %q in namespace %q should not exist", name, namespace)
+	c.t.Logf("✓ service %q in namespace %q does not exist", name, namespace)
+}
+
 // WaitForDeploymentReady waits for a deployment to have all replicas ready.
 func (c *K8sClient) WaitForDeploymentReady(namespace, name string, timeout time.Duration) {
 	c.t.Helper()

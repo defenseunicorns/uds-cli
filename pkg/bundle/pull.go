@@ -179,7 +179,7 @@ func bundleNameFromDefinitionLayer(ctx context.Context, ociDir string, idx ociIn
 		return "", fmt.Errorf("reading HCL blob: %w", err)
 	}
 
-	b, err := NewHCLParser().ParseBundleBytes(ctx, hclBytes)
+	b, err := NewHCLParser(arch).ParseBundleBytes(ctx, hclBytes)
 	if err != nil {
 		return "", fmt.Errorf("parsing bundle HCL: %w", err)
 	}

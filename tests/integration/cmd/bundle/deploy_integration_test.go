@@ -18,12 +18,16 @@ package bundle_test
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	corev1 "k8s.io/api/core/v1"
 )
 
 // checkDockerRunning verifies Docker is running.
@@ -65,6 +69,7 @@ func (s *DeploySuite) SetupSuite() {
 // TearDownTest runs automatically after every test in the suite.
 func (s *DeploySuite) TearDownTest() {
 	deleteK3dCluster(s.T(), "uds")
+	deleteK3dCluster(s.T(), "uds-vars-test")
 }
 
 // TestDeploySuite is the entry point that runs the suite.
@@ -230,6 +235,34 @@ func (s *DeploySuite) TestDeployCommand_InvalidConfigSyntax() {
 		"error output should indicate a parse error")
 }
 
+// TestDeployCommand_ListVariableTemplating verifies that list/object variables in
+// config.uds.hcl flow through values_files templating without errors. Deploy proceeds
+// past templating; later cluster/registry-access failure is tolerated.
+func (s *DeploySuite) TestDeployCommand_ListVariableTemplating() {
+	bundlePath := testDataPath(s.T(), "bundles/deploy/variables")
+	configPath := testDataPath(s.T(), "bundles/deploy/variables/config.uds.hcl")
+
+	cmd := exec.Command(s.uds, "bundle", "deploy", bundlePath, "--config", configPath)
+	output, _ := cmd.CombinedOutput()
+	outputStr := string(output)
+
+	// Templating must not fail — these are the negative assertions that prove
+	// the parser accepts list/object/nested-map and the templater renders them.
+	assert.NotContains(s.T(), outputStr, "unsupported variable type",
+		"variable conversion must accept lists/objects/nested maps")
+	assert.NotContains(s.T(), outputStr, "failed to convert variables",
+		"variable conversion must succeed")
+	assert.NotContains(s.T(), outputStr, "failed to template values files",
+		"templating must succeed")
+	assert.NotContains(s.T(), outputStr, "map has no entry for key",
+		"all referenced variables must be present")
+
+	// Positive marker: deploy reaches the deployment phase, proving parsing
+	// and templating both succeeded.
+	assert.Contains(s.T(), outputStr, "starting deployment level",
+		"deploy must reach the deployment phase after successful templating")
+}
+
 // TestDeployCommand_MissingTemplateVariable verifies that a values_files template
 // referencing an undefined variable fails with missingkey=error before any registry
 // or cluster access is attempted.
@@ -245,4 +278,100 @@ func (s *DeploySuite) TestDeployCommand_MissingTemplateVariable() {
 	assert.Error(s.T(), err, "deploy with missing template variable should fail")
 	assert.Contains(s.T(), string(output), "map has no entry for key",
 		"error should indicate the missing variable")
+}
+
+// TestDeployVariablesBundleWithPodinfo builds the podinfo Zarf package for the
+// current architecture, deploys it via the variables bundle with a non-default
+// config (1 replica, service disabled, custom annotations/tolerations), and
+// validates the resulting cluster state.
+func (s *DeploySuite) TestDeployVariablesBundleWithPodinfo() {
+	checkDockerRunning(s.T())
+
+	arch := runtime.GOARCH
+
+	// Create a temp bundle dir with the values files and the built package.
+	bundleTmpDir := s.T().TempDir()
+	valuesDir := filepath.Join(bundleTmpDir, "values")
+	require.NoError(s.T(), os.MkdirAll(valuesDir, 0o755))
+
+	srcValuesDir := testDataPath(s.T(), "bundles/deploy/variables/values")
+	require.NoError(s.T(), os.CopyFS(valuesDir, os.DirFS(srcValuesDir)))
+
+	// Build the podinfo Zarf package for the current arch directly into the bundle dir.
+	buildZarfPackage(s.T(), s.uds, testDataPath(s.T(), "packages/podinfo"), bundleTmpDir, arch)
+
+	// Bundle: uds-k3d creates the cluster, init provides zarf-state, podinfo deploys the app.
+	// sys.arch resolves to runtime.GOARCH automatically — no substitution required.
+	bundleHCL := `# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+
+metadata {
+  name    = "variables-test"
+  version = "0.1.0"
+}
+
+package "uds_k3d_dev" {
+  source       = "oci://ghcr.io/defenseunicorns/packages/uds-k3d:0.20.0"
+  values_files = ["values/k3d.yaml"]
+}
+
+package "init" {
+  source     = "oci://ghcr.io/zarf-dev/packages/init:v0.75.1"
+  depends_on = [package.uds_k3d_dev]
+}
+
+package "podinfo" {
+  source       = "./zarf-package-podinfo-${sys.arch}-0.1.0.tar.zst"
+  values_files = ["values/podinfo.yaml"]
+  depends_on   = [package.init]
+}
+`
+	require.NoError(s.T(), os.WriteFile(filepath.Join(bundleTmpDir, "bundle.uds.hcl"), []byte(bundleHCL), 0o644))
+
+	configPath := testDataPath(s.T(), "bundles/deploy/variables/config.uds.hcl")
+
+	s.T().Log("Deploying variables bundle with podinfo...")
+	cmd := exec.Command(s.uds, "bundle", "deploy", bundleTmpDir, "--config", configPath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Env = os.Environ()
+	require.NoError(s.T(), cmd.Run(), "bundle deploy should succeed")
+
+	k8s := NewK8sClient(s.T())
+
+	k8s.WaitForDeploymentReady("podinfo", "podinfo", 5*time.Minute)
+
+	// replica_count = 1 from config (default is 2)
+	k8s.AssertDeploymentReplicas("podinfo", "podinfo", 1)
+
+	// service_enabled = false — no Service resource created
+	k8s.AssertServiceNotExists("podinfo", "podinfo")
+
+	// annotations from config propagated to pod template
+	k8s.AssertDeploymentPodAnnotation("podinfo", "podinfo", "app.kubernetes.io/managed-by", "uds")
+	k8s.AssertDeploymentPodAnnotation("podinfo", "podinfo", "team", "platform")
+
+	// tolerations from config applied to pod template
+	k8s.AssertDeploymentPodToleration("podinfo", "podinfo",
+		"node.kubernetes.io/not-ready", corev1.TolerationOpExists, corev1.TaintEffectNoExecute)
+
+	s.T().Log("✓ Podinfo deploy validation complete")
+}
+
+// buildZarfPackage runs `uds zarf package create` on the given directory and places
+// the resulting archive in outputDir. Fails the test if the build fails.
+func buildZarfPackage(t *testing.T, uds, zarfYamlDir, outputDir, arch string) {
+	t.Helper()
+
+	cmd := exec.Command(uds, "zarf", "package", "create", zarfYamlDir,
+		"--output", outputDir,
+		"--architecture", arch,
+		"--features", "values=true",
+		"--confirm")
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "zarf package build failed:\n%s", out)
 }

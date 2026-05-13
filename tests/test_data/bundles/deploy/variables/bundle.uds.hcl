@@ -14,3 +14,9 @@ package "uds_k3d_dev" {
   source       = "oci://ghcr.io/defenseunicorns/packages/uds-k3d:0.20.0"
   values_files = ["values/k3d.yaml"]
 }
+
+package "podinfo" {
+  source       = "./zarf-package-podinfo-${sys.arch}-0.1.0.tar.zst"
+  values_files = ["values/podinfo.yaml"]
+  depends_on   = [package.uds_k3d_dev]
+}

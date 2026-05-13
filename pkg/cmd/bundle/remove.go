@@ -128,7 +128,7 @@ func (o *RemoveOptions) Validate() error {
 	}
 
 	bundlePath := ResolveBundlePath(o.BundlePath)
-	parsedBundle, err := bundle.NewHCLParser().ParseBundleFile(context.Background(), bundlePath)
+	parsedBundle, err := bundle.NewHCLParser(o.Config.Options.Architecture).ParseBundleFile(context.Background(), bundlePath)
 	if err != nil {
 		return fmt.Errorf("failed to parse bundle: %w", err)
 	}

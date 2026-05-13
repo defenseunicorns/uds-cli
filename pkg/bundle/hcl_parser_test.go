@@ -7,17 +7,20 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func TestParseBundleFile_SpecCompliant(t *testing.T) {
 	path := filepath.Join("..", "..", "tests", "test_data", "bundles", "spec-compliant", "bundle.uds.hcl")
 
-	b, err := NewHCLParser().ParseBundleFile(context.Background(), path)
+	b, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
 	require.NoError(t, err)
 
 	// Metadata assertions
@@ -63,7 +66,7 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 `
 	path := writeTempHCL(t, hcl)
 
-	b, err := NewHCLParser().ParseBundleFile(context.Background(), path)
+	b, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
 	require.NoError(t, err)
 	assert.Equal(t, "minimal", b.Metadata.Name)
 	require.Len(t, b.Packages, 1)
@@ -78,7 +81,7 @@ package "app" { source = "oci://example.com/app:v2" }
 `
 	path := writeTempHCL(t, hcl)
 
-	b, err := NewHCLParser().ParseBundleFile(context.Background(), path)
+	b, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
 	require.NoError(t, err)
 	assert.Equal(t, "oci://example.com/app:v2", b.Packages[0].Source)
 }
@@ -98,7 +101,7 @@ package "app" { source = "oci://${local.registry}/${local.pkgs.app}:${local.ver}
 `
 	path := writeTempHCL(t, hcl)
 
-	b, err := NewHCLParser().ParseBundleFile(context.Background(), path)
+	b, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
 	require.NoError(t, err)
 	assert.Equal(t, "oci://ghcr.io/myorg/my-app:1.0.0", b.Packages[0].Source)
 }
@@ -111,7 +114,7 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 `
 	path := writeTempHCL(t, hcl)
 
-	b, err := NewHCLParser().ParseBundleFile(context.Background(), path)
+	b, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
 	require.NoError(t, err)
 	assert.Empty(t, b.Metadata.Description)
 	assert.Empty(t, b.Metadata.Version)
@@ -135,7 +138,7 @@ package "core" {
 `
 	path := writeTempHCL(t, hcl)
 
-	b, err := NewHCLParser().ParseBundleFile(context.Background(), path)
+	b, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
 	require.NoError(t, err)
 	require.Len(t, b.Packages, 1)
 	assert.Equal(t, []string{"istio-passthrough-gateway", "istio-egress-gateway"}, b.Packages[0].OptionalComponents)
@@ -152,13 +155,13 @@ package "core" {
 `
 	path := writeTempHCL(t, hcl)
 
-	b, err := NewHCLParser().ParseBundleFile(context.Background(), path)
+	b, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
 	require.NoError(t, err)
 	assert.Empty(t, b.Packages[0].OptionalComponents)
 }
 
 func TestParseBundleFile_FileNotFound(t *testing.T) {
-	_, err := NewHCLParser().ParseBundleFile(context.Background(), "/nonexistent/bundle.uds.hcl")
+	_, err := NewHCLParser("").ParseBundleFile(context.Background(), "/nonexistent/bundle.uds.hcl")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot read bundle file")
 }
@@ -166,7 +169,7 @@ func TestParseBundleFile_FileNotFound(t *testing.T) {
 func TestParseBundleFile_InvalidHCL(t *testing.T) {
 	path := writeTempHCL(t, "this is not valid HCL {{{}}")
 
-	_, err := NewHCLParser().ParseBundleFile(context.Background(), path)
+	_, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
 	require.Error(t, err)
 }
 
@@ -179,7 +182,7 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 	path := writeTempHCL(t, hcl)
 
 	// HCL enforces bundle_api_version as required at decode time
-	_, err := NewHCLParser().ParseBundleFile(context.Background(), path)
+	_, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bundle_api_version")
 }
@@ -192,7 +195,7 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 `
 	path := writeTempHCL(t, hcl)
 
-	_, err := NewHCLParser().ParseBundleFile(context.Background(), path)
+	_, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
 	require.Error(t, err)
 	// HCL enforces "name" as required at parse time since it has no optional tag
 	assert.Contains(t, err.Error(), "name")
@@ -206,7 +209,7 @@ package "pkg1" { }
 `
 	path := writeTempHCL(t, hcl)
 
-	_, err := NewHCLParser().ParseBundleFile(context.Background(), path)
+	_, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
 	require.Error(t, err)
 }
 
@@ -223,7 +226,7 @@ package "pkg2" {
 `
 	path := writeTempHCL(t, hcl)
 
-	_, err := NewHCLParser().ParseBundleFile(context.Background(), path)
+	_, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "package reference")
 }
@@ -241,7 +244,7 @@ package "pkg2" {
 `
 	path := writeTempHCL(t, hcl)
 
-	_, err := NewHCLParser().ParseBundleFile(context.Background(), path)
+	_, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must start with 'package'")
 }
@@ -259,7 +262,7 @@ package "pkg2" {
 `
 	path := writeTempHCL(t, hcl)
 
-	_, err := NewHCLParser().ParseBundleFile(context.Background(), path)
+	_, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "expected package.<name>")
 }
@@ -277,7 +280,7 @@ package "pkg2" {
 	path := writeTempHCL(t, hcl)
 
 	// Parses successfully — validation is the caller's responsibility
-	b, err := NewHCLParser().ParseBundleFile(context.Background(), path)
+	b, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
 	require.NoError(t, err)
 
 	err = b.Validate()
@@ -294,15 +297,38 @@ metadata {
 }
 package "pkg1" { source = "oci://example.com/pkg:v1" }
 `)
-	b, err := NewHCLParser().ParseBundleBytes(context.Background(), src)
+	b, err := NewHCLParser("").ParseBundleBytes(context.Background(), src)
 	require.NoError(t, err)
 	assert.Equal(t, "my-bundle", b.Metadata.Name)
 	assert.Equal(t, "1.0.0", b.Metadata.Version)
 }
 
 func TestParseBundleBytes_InvalidHCL(t *testing.T) {
-	_, err := NewHCLParser().ParseBundleBytes(context.Background(), []byte("this is not valid HCL {{{"))
+	_, err := NewHCLParser("").ParseBundleBytes(context.Background(), []byte("this is not valid HCL {{{"))
 	require.ErrorContains(t, err, "failed to parse HCL")
+}
+
+func TestParseBundleBytes_SysArch(t *testing.T) {
+	src := []byte(`
+uds { bundle_api_version = "uds.dev/v1alpha1" }
+metadata {
+  name    = "arch-test"
+  version = "1.0.0"
+}
+package "pkg" { source = "./pkg-${sys.arch}-1.0.0.tar.zst" }
+`)
+
+	t.Run("explicit arch wins", func(t *testing.T) {
+		b, err := NewHCLParser("amd64").ParseBundleBytes(context.Background(), src)
+		require.NoError(t, err)
+		assert.Equal(t, "./pkg-amd64-1.0.0.tar.zst", b.Packages[0].Source)
+	})
+
+	t.Run("empty arch falls back to runtime.GOARCH", func(t *testing.T) {
+		b, err := NewHCLParser("").ParseBundleBytes(context.Background(), src)
+		require.NoError(t, err)
+		assert.Equal(t, "./pkg-"+runtime.GOARCH+"-1.0.0.tar.zst", b.Packages[0].Source)
+	})
 }
 
 func TestValidate(t *testing.T) {
@@ -434,6 +460,186 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+// TestCtyValueToGo exercises every type branch of ctyValueToGo directly via
+// synthesized cty.Value instances, bypassing the HCL parse layer. This makes
+// branch coverage and error-path assertions unambiguous.
+func TestCtyValueToGo(t *testing.T) {
+	t.Run("string", func(t *testing.T) {
+		got, err := ctyValueToGo(cty.StringVal("x"))
+		require.NoError(t, err)
+		assert.Equal(t, "x", got)
+	})
+
+	t.Run("number", func(t *testing.T) {
+		got, err := ctyValueToGo(cty.NumberIntVal(7))
+		require.NoError(t, err)
+		assert.InDelta(t, float64(7), got, 0.001)
+	})
+
+	t.Run("bool", func(t *testing.T) {
+		got, err := ctyValueToGo(cty.BoolVal(true))
+		require.NoError(t, err)
+		assert.Equal(t, true, got)
+	})
+
+	t.Run("null is rejected", func(t *testing.T) {
+		_, err := ctyValueToGo(cty.NullVal(cty.String))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "null values are not supported")
+	})
+
+	t.Run("unknown is rejected", func(t *testing.T) {
+		_, err := ctyValueToGo(cty.UnknownVal(cty.String))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unknown values are not supported")
+	})
+
+	t.Run("list", func(t *testing.T) {
+		got, err := ctyValueToGo(cty.ListVal([]cty.Value{
+			cty.StringVal("a"),
+			cty.StringVal("b"),
+		}))
+		require.NoError(t, err)
+		assert.Equal(t, []any{"a", "b"}, got)
+	})
+
+	t.Run("empty list non-nil", func(t *testing.T) {
+		got, err := ctyValueToGo(cty.ListValEmpty(cty.String))
+		require.NoError(t, err)
+		s, ok := got.([]any)
+		require.True(t, ok, "expected []any, got %T", got)
+		assert.NotNil(t, s)
+		assert.Empty(t, s)
+	})
+
+	t.Run("set deduplicates", func(t *testing.T) {
+		got, err := ctyValueToGo(cty.SetVal([]cty.Value{
+			cty.NumberIntVal(1),
+			cty.NumberIntVal(1),
+			cty.NumberIntVal(2),
+		}))
+		require.NoError(t, err)
+		s, ok := got.([]any)
+		require.True(t, ok)
+		assert.Len(t, s, 2)
+	})
+
+	t.Run("tuple heterogeneous", func(t *testing.T) {
+		got, err := ctyValueToGo(cty.TupleVal([]cty.Value{
+			cty.NumberIntVal(1),
+			cty.StringVal("two"),
+			cty.BoolVal(true),
+		}))
+		require.NoError(t, err)
+		s, ok := got.([]any)
+		require.True(t, ok)
+		require.Len(t, s, 3)
+		assert.InDelta(t, float64(1), s[0], 0.001)
+		assert.Equal(t, "two", s[1])
+		assert.Equal(t, true, s[2])
+	})
+
+	t.Run("empty tuple non-nil", func(t *testing.T) {
+		got, err := ctyValueToGo(cty.EmptyTupleVal)
+		require.NoError(t, err)
+		s, ok := got.([]any)
+		require.True(t, ok)
+		assert.NotNil(t, s)
+		assert.Empty(t, s)
+	})
+
+	t.Run("map is unsupported (loud-fail)", func(t *testing.T) {
+		// cty.Map is unreachable from HCL literals (no tomap()/typed inputs).
+		// If one surfaces, the default branch reports it as unsupported.
+		_, err := ctyValueToGo(cty.MapVal(map[string]cty.Value{
+			"a": cty.StringVal("x"),
+		}))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported variable type:")
+	})
+
+	t.Run("object returns Variables", func(t *testing.T) {
+		got, err := ctyValueToGo(cty.ObjectVal(map[string]cty.Value{
+			"a": cty.StringVal("x"),
+		}))
+		require.NoError(t, err)
+		v, ok := got.(Variables)
+		require.True(t, ok, "expected Variables, got %T", got)
+		assert.Equal(t, "x", v["a"])
+	})
+
+	t.Run("null in collection produces path-aware error", func(t *testing.T) {
+		_, err := ctyValueToGo(cty.TupleVal([]cty.Value{
+			cty.StringVal("a"),
+			cty.NullVal(cty.String),
+		}))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "[1]:")
+		assert.Contains(t, err.Error(), "null values are not supported")
+	})
+
+	t.Run("null deep in nested object produces full path", func(t *testing.T) {
+		// variables.inner[1].bad = null
+		_, err := ctyValueToGo(cty.ObjectVal(map[string]cty.Value{
+			"inner": cty.TupleVal([]cty.Value{
+				cty.ObjectVal(map[string]cty.Value{"good": cty.NumberIntVal(1)}),
+				cty.ObjectVal(map[string]cty.Value{"bad": cty.NullVal(cty.String)}),
+			}),
+		}))
+		require.Error(t, err)
+		msg := err.Error()
+		assert.Contains(t, msg, `"inner"`)
+		assert.Contains(t, msg, "[1]:")
+		assert.Contains(t, msg, `"bad"`)
+		assert.Contains(t, msg, "null values are not supported")
+	})
+
+	t.Run("unsupported type at deep path is loud-fail with full path", func(t *testing.T) {
+		// Capsule type is a stand-in for any non-handled cty type.
+		caps := cty.Capsule("custom", reflect.TypeOf(struct{}{}))
+		capsVal := cty.CapsuleVal(caps, &struct{}{})
+		_, err := ctyValueToGo(cty.ObjectVal(map[string]cty.Value{
+			"ports": cty.TupleVal([]cty.Value{
+				cty.ObjectVal(map[string]cty.Value{"weird": capsVal}),
+			}),
+		}))
+		require.Error(t, err)
+		msg := err.Error()
+		// Path-aware wrapping
+		assert.Contains(t, msg, `"ports"`)
+		assert.Contains(t, msg, "[0]:")
+		assert.Contains(t, msg, `"weird"`)
+		// Magic string is part of the API contract — pin it.
+		assert.Contains(t, msg, "unsupported variable type:")
+	})
+
+	t.Run("deeply nested mixed structure round-trips", func(t *testing.T) {
+		// object → list → object → object → string (no Map; that branch is unsupported)
+		v := cty.ObjectVal(map[string]cty.Value{
+			"a": cty.TupleVal([]cty.Value{
+				cty.ObjectVal(map[string]cty.Value{
+					"b": cty.ObjectVal(map[string]cty.Value{
+						"c": cty.StringVal("deep"),
+					}),
+				}),
+			}),
+		})
+		got, err := ctyValueToGo(v)
+		require.NoError(t, err)
+
+		obj, ok := got.(Variables)
+		require.True(t, ok)
+		list, ok := obj["a"].([]any)
+		require.True(t, ok)
+		require.Len(t, list, 1)
+		inner, ok := list[0].(Variables)
+		require.True(t, ok)
+		m, ok := inner["b"].(Variables)
+		require.True(t, ok)
+		assert.Equal(t, "deep", m["c"])
+	})
+}
+
 func writeTempHCL(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -466,7 +672,7 @@ func TestParseDefaults(t *testing.T) {
 			check: func(t *testing.T, vars Variables) {
 				assert.Equal(t, "example.com", vars["domain"])
 				assert.InDelta(t, float64(3), vars["replicas"], 0.001)
-				nested, ok := vars["nested"].(map[string]any)
+				nested, ok := vars["nested"].(Variables)
 				require.True(t, ok)
 				assert.Equal(t, true, nested["enabled"])
 			},
@@ -503,6 +709,39 @@ func TestParseDefaults(t *testing.T) {
 			name:    "file not found",
 			fixture: "/nonexistent/defaults.uds.hcl",
 			wantErr: "cannot read",
+		},
+		{
+			name:   "list of objects (defaults)",
+			wantOK: true,
+			hcl: `variables = {
+  ports = [
+    { name = "tcp-foo", port = 8080 },
+    { name = "tcp-bar", port = 9090 },
+  ]
+}`,
+			check: func(t *testing.T, vars Variables) {
+				ports, ok := vars["ports"].([]any)
+				require.True(t, ok)
+				require.Len(t, ports, 2)
+				first, ok := ports[0].(Variables)
+				require.True(t, ok)
+				assert.Equal(t, "tcp-foo", first["name"])
+			},
+		},
+		{
+			name:   "primitive list (defaults)",
+			wantOK: true,
+			hcl:    `variables = { tags = ["a", "b"] }`,
+			check: func(t *testing.T, vars Variables) {
+				tags, ok := vars["tags"].([]any)
+				require.True(t, ok)
+				assert.Equal(t, []any{"a", "b"}, tags)
+			},
+		},
+		{
+			name:    "null in list rejected with path (defaults)",
+			hcl:     `variables = { x = ["a", null] }`,
+			wantErr: "[1]:",
 		},
 	}
 
@@ -562,12 +801,12 @@ func TestParseBundleConfig(t *testing.T) {
 				assert.Equal(t, 10, cfg.Options.Concurrency)
 				// Top-level scalar variable
 				assert.Equal(t, "uds.dev", cfg.Variables["domain"])
-				// Nested object preserved as map[string]any
-				logging, ok := cfg.Variables["logging"].(map[string]any)
-				require.True(t, ok, "logging should decode to map[string]any")
+				// Nested object preserved as Variables
+				logging, ok := cfg.Variables["logging"].(Variables)
+				require.True(t, ok, "logging should decode to Variables")
 				assert.True(t, logging["vectorEnabled"].(bool))
 				assert.Equal(t, "collector", logging["vectorRole"])
-				monitoring, ok := cfg.Variables["monitoring"].(map[string]any)
+				monitoring, ok := cfg.Variables["monitoring"].(Variables)
 				require.True(t, ok)
 				assert.Equal(t, "15d", monitoring["retentionDays"])
 			},
@@ -661,9 +900,9 @@ variables = {
   }
 }`,
 			check: func(t *testing.T, cfg *UDSBundleConfig) {
-				a, ok := cfg.Variables["a"].(map[string]any)
+				a, ok := cfg.Variables["a"].(Variables)
 				require.True(t, ok)
-				b, ok := a["b"].(map[string]any)
+				b, ok := a["b"].(Variables)
 				require.True(t, ok)
 				assert.Equal(t, "deep", b["c"])
 			},
@@ -730,6 +969,134 @@ options { architecture = "arm64" }`,
 			hcl:     `variables = "not-an-object"`,
 			wantErr: "variables must be an object",
 		},
+
+		// ---- list of strings (tuple) ----
+		{
+			name:   "list of strings",
+			wantOK: true,
+			hcl:    `variables = { tags = ["a", "b", "c"] }`,
+			check: func(t *testing.T, cfg *UDSBundleConfig) {
+				tags, ok := cfg.Variables["tags"].([]any)
+				require.True(t, ok, "expected []any, got %T", cfg.Variables["tags"])
+				assert.Equal(t, []any{"a", "b", "c"}, tags)
+			},
+		},
+
+		// ---- list of numbers ----
+		{
+			name:   "list of numbers",
+			wantOK: true,
+			hcl:    `variables = { ports = [80, 443, 8080] }`,
+			check: func(t *testing.T, cfg *UDSBundleConfig) {
+				ports, ok := cfg.Variables["ports"].([]any)
+				require.True(t, ok)
+				assert.Equal(t, []any{float64(80), float64(443), float64(8080)}, ports)
+			},
+		},
+
+		// ---- empty list non-nil ----
+		{
+			name:   "empty list",
+			wantOK: true,
+			hcl:    `variables = { x = [] }`,
+			check: func(t *testing.T, cfg *UDSBundleConfig) {
+				x, ok := cfg.Variables["x"].([]any)
+				require.True(t, ok)
+				assert.NotNil(t, x)
+				assert.Empty(t, x)
+			},
+		},
+
+		// ---- heterogeneous tuple ----
+		{
+			name:   "heterogeneous tuple",
+			wantOK: true,
+			hcl:    `variables = { x = [1, "two", true] }`,
+			check: func(t *testing.T, cfg *UDSBundleConfig) {
+				x, ok := cfg.Variables["x"].([]any)
+				require.True(t, ok)
+				require.Len(t, x, 3)
+				assert.InDelta(t, float64(1), x[0], 0.001)
+				assert.Equal(t, "two", x[1])
+				assert.Equal(t, true, x[2])
+			},
+		},
+
+		// ---- list of homogeneous objects (TENANT_SERVICE_PORTS shape) ----
+		{
+			name:   "list of homogeneous objects",
+			wantOK: true,
+			hcl: `
+variables = {
+  ports = [
+    { name = "tcp-foo", port = 8080 },
+    { name = "tcp-bar", port = 9090 },
+  ]
+}`,
+			check: func(t *testing.T, cfg *UDSBundleConfig) {
+				ports, ok := cfg.Variables["ports"].([]any)
+				require.True(t, ok)
+				require.Len(t, ports, 2)
+				first, ok := ports[0].(Variables)
+				require.True(t, ok, "list element must decode to Variables")
+				assert.Equal(t, "tcp-foo", first["name"])
+				assert.InDelta(t, float64(8080), first["port"], 0.001)
+			},
+		},
+
+		// ---- list of heterogeneous objects (KEYCLOAK_EXTRA_VOLUMES shape) ----
+		{
+			name:   "list of heterogeneous objects",
+			wantOK: true,
+			hcl: `
+variables = {
+  vols = [
+    { name = "tls-certs", secret = { secretName = "kc-tls" } },
+    { name = "config" },
+  ]
+}`,
+			check: func(t *testing.T, cfg *UDSBundleConfig) {
+				vols, ok := cfg.Variables["vols"].([]any)
+				require.True(t, ok)
+				require.Len(t, vols, 2)
+				first, ok := vols[0].(Variables)
+				require.True(t, ok)
+				secret, ok := first["secret"].(Variables)
+				require.True(t, ok)
+				assert.Equal(t, "kc-tls", secret["secretName"])
+				second, ok := vols[1].(Variables)
+				require.True(t, ok)
+				assert.Equal(t, "config", second["name"])
+			},
+		},
+
+		// ---- nested object containing list ----
+		{
+			name:   "nested object containing list",
+			wantOK: true,
+			hcl: `
+variables = {
+  keycloak = {
+    extraVolumes = [
+      { name = "x" },
+    ]
+  }
+}`,
+			check: func(t *testing.T, cfg *UDSBundleConfig) {
+				keycloak, ok := cfg.Variables["keycloak"].(Variables)
+				require.True(t, ok)
+				vols, ok := keycloak["extraVolumes"].([]any)
+				require.True(t, ok)
+				require.Len(t, vols, 1)
+			},
+		},
+
+		// ---- null in collection produces path-aware error ----
+		{
+			name:    "null in list rejected with index",
+			hcl:     `variables = { x = ["a", null] }`,
+			wantErr: "[1]:",
+		},
 	}
 
 	for _, tt := range tests {
@@ -741,7 +1108,7 @@ options { architecture = "arm64" }`,
 				path = writeTempHCL(t, tt.hcl)
 			}
 
-			cfg, err := NewHCLParser().ParseBundleConfig(context.Background(), path)
+			cfg, err := NewHCLParser("").ParseBundleConfig(context.Background(), path)
 
 			// Error cases: either wantErr substring pinned, or any error is fine
 			if !tt.wantOK {

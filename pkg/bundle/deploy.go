@@ -34,7 +34,7 @@ func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
 	b := opts.Bundle
 	if b == nil {
 		slog.Debug("parsing bundle", "path", opts.BundlePath)
-		parser := NewHCLParser()
+		parser := NewHCLParser(opts.Config.Options.Architecture)
 		var err error
 		b, err = parser.ParseBundleFile(ctx, opts.BundlePath)
 		if err != nil {
