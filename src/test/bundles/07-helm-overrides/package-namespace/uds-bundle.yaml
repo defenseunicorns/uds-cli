@@ -8,7 +8,7 @@ metadata:
   version: 0.0.1
 
 packages:
-  - name: nginx
-    path: "../../../packages/nginx"
+  - name: nginx-namespace-override
+    path: "../../../packages/nginx-namespace-override"
     ref: 0.0.1
     namespace: package-override-ns

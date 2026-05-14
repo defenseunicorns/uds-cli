@@ -96,6 +96,10 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 		return fmt.Errorf("error validating bundle vars: %s", err)
 	}
 
+	if err := validatePackageNamespaces(bundle.Packages); err != nil {
+		return err
+	}
+
 	// validate access to packages as well as components referenced in the package
 	for idx, pkg := range bundle.Packages {
 		pkg = b.setPackageFlavor(pkg)

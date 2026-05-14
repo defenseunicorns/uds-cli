@@ -1,0 +1,18 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+kind: ZarfPackageConfig
+metadata:
+  name: nginx-namespace-override
+  version: 0.0.1
+
+components:
+  - name: nginx
+    required: true
+    manifests:
+      - name: simple-nginx-deployment
+        namespace: nginx
+        files:
+          - https://k8s.io/examples/application/deployment.yaml@c57f73449b26eae02ca2a549c388807d49ef6d3f2dc040a9bbb1290128d97157
+    images:
+      - nginx:1.14.2

@@ -363,6 +363,10 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 		return "", "", "", err
 	}
 
+	if err := validatePackageNamespaces(b.bundle.Packages); err != nil {
+		return "", "", "", err
+	}
+
 	// validate bundle's arch against cluster
 	err = ValidateArch(config.GetArch(b.bundle.Build.Architecture))
 	if err != nil {

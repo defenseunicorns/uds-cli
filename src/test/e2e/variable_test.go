@@ -229,7 +229,7 @@ func TestBundleWithDupPkgs(t *testing.T) {
 
 func TestBundleWithPackageNamespaceOverride(t *testing.T) {
 	deployZarfInit(t)
-	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx-namespace-override", false)
 	bundleDir := "src/test/bundles/07-helm-overrides/package-namespace"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-package-namespace-%s-0.0.1.tar.zst", e2e.Arch))
 	waitForDeployment := func(condition, timeout string) (string, string, error) {
@@ -241,7 +241,7 @@ func TestBundleWithPackageNamespaceOverride(t *testing.T) {
 		_, _, _ = runCmdWithErr(fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
 	}()
 
-	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundlePath))
+	runCmd(t, fmt.Sprintf("deploy %s --confirm", bundlePath))
 
 	_, _, err := waitForDeployment("available", "30s")
 	require.NoError(t, err)
