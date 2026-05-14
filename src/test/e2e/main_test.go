@@ -94,17 +94,18 @@ func doAllTheThings(m *testing.M) (int, error) {
 func deployZarfInit(t *testing.T) {
 	t.Helper()
 	if !zarfInitDeployed() {
-		// get Zarf version from go.mod
-		b, err := os.ReadFile("go.mod")
-		require.NoError(t, err)
-		f, err := modfile.Parse("go.mod", b, nil)
-		require.NoError(t, err)
-		var zarfVersion string
-		for _, r := range f.Require {
-			if r.Mod.Path == "github.com/zarf-dev/zarf" {
-				zarfVersion = r.Mod.Version
-			}
-		}
+		// // get Zarf version from go.mod
+		// b, err := os.ReadFile("go.mod")
+		// require.NoError(t, err)
+		// f, err := modfile.Parse("go.mod", b, nil)
+		// require.NoError(t, err)
+		// var zarfVersion string
+		// for _, r := range f.Require {
+		// 	if r.Mod.Path == "github.com/zarf-dev/zarf" {
+		// 		zarfVersion = r.Mod.Version
+		// 	}
+		// }
+		zarfVersion := "v0.75.1"
 		e2e.DownloadZarfInitPkg(t, zarfVersion)
 
 		bundleDir := "src/test/bundles/04-init"
