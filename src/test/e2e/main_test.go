@@ -13,8 +13,6 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/test"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/mod/modfile"
 
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/pterm/pterm"
