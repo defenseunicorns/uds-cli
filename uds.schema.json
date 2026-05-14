@@ -171,7 +171,7 @@
         },
         "namespace": {
           "type": "string",
-          "description": "The namespace to deploy the package to"
+          "description": "[Alpha] Override the namespace for the entire package deployment. Requires the package to have only one distinct namespace defined."
         },
         "timeout": {
           "type": "string",
