@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -233,27 +232,24 @@ func TestBundleWithPackageNamespaceOverride(t *testing.T) {
 	e2e.CreateZarfPkg(t, "src/test/packages/nginx", false)
 	bundleDir := "src/test/bundles/07-helm-overrides/package-namespace"
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-package-namespace-%s-0.0.1.tar.zst", e2e.Arch))
-	kubectl := func(args ...string) ([]byte, error) {
-		cmd := exec.Command("kubectl", args...)
-		return cmd.CombinedOutput()
+	waitForDeployment := func(condition, timeout string) (string, string, error) {
+		return runCmdWithErr(fmt.Sprintf("zarf tools wait-for resource deployment nginx-deployment %s -n package-override-ns --timeout %s", condition, timeout))
 	}
 
 	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 	defer func() {
-		_, _ = kubectl("delete", "ns", "package-override-ns", "--ignore-not-found=true")
+		_, _, _ = runCmdWithErr(fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
 	}()
 
 	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundlePath))
 
-	deployment, err := kubectl("get", "deploy", "nginx-deployment", "-n", "package-override-ns", "-o=jsonpath={.metadata.name}")
+	_, _, err := waitForDeployment("available", "30s")
 	require.NoError(t, err)
-	require.Equal(t, "nginx-deployment", string(deployment))
 
 	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
 
-	deployment, err = kubectl("get", "deploy", "nginx-deployment", "-n", "package-override-ns", "-o=jsonpath={.metadata.name}")
-	require.Error(t, err)
-	require.Contains(t, string(deployment), "not found")
+	_, _, err = waitForDeployment("delete", "30s")
+	require.NoError(t, err)
 }
 
 func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
