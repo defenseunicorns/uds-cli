@@ -1,0 +1,14 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+kind: UDSBundle
+metadata:
+  name: package-namespace
+  description: testing a bundle with a package namespace override
+  version: 0.0.1
+
+packages:
+  - name: nginx
+    path: "../../../packages/nginx"
+    ref: 0.0.1
+    namespace: package-override-ns

@@ -11,6 +11,8 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
 )
 
 func TestResolvePackageTimeout(t *testing.T) {
@@ -96,9 +98,11 @@ func TestFormPkgMetaTimeout(t *testing.T) {
 		Name:       "podinfo",
 		Ref:        "0.0.1",
 		Repository: "ghcr.io/example/podinfo",
+		Namespace:  "podinfo-system",
 		Timeout:    "5m",
 	})
 
+	require.Equal(t, "podinfo-system", metaWithTimeout["namespace"])
 	require.Equal(t, "5m", metaWithTimeout["timeout"])
 
 	metaWithoutTimeout := formPkgMeta(types.Package{
@@ -109,4 +113,25 @@ func TestFormPkgMetaTimeout(t *testing.T) {
 
 	_, exists := metaWithoutTimeout["timeout"]
 	require.False(t, exists)
+
+	_, exists = metaWithoutTimeout["namespace"]
+	require.False(t, exists)
+}
+
+func TestNewDeployOptionsUsesPackageNamespace(t *testing.T) {
+	t.Parallel()
+
+	bndl := Bundle{cfg: &types.BundleConfig{DeployOpts: types.BundleDeployOptions{Retries: 2, ForceConflicts: true}}}
+
+	deployOpts, err := bndl.newDeployOptions(
+		types.Package{Name: "podinfo", Namespace: "podinfo-system"},
+		zarfVarData{"THING": "value"},
+		packager.ValuesOverrides{},
+		v1alpha1.ZarfPackageConfig,
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, "podinfo-system", deployOpts.NamespaceOverride)
+	require.True(t, deployOpts.ForceConflicts)
+	require.Equal(t, 2, deployOpts.Retries)
 }

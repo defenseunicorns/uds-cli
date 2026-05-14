@@ -80,9 +80,9 @@ func removePackages(packagesToRemove []types.Package) error {
 	deployedPackageNames := GetDeployedPackageNames()
 
 	for i := len(packagesToRemove) - 1; i >= 0; i-- {
-		pkg := packagesToRemove[i]
+		bundlePkg := packagesToRemove[i]
 
-		if slices.Contains(deployedPackageNames, pkg.Name) {
+		if slices.Contains(deployedPackageNames, bundlePkg.Name) {
 			filter := filters.Combine(
 				filters.ByLocalOS(runtime.GOOS),
 			)
@@ -103,22 +103,27 @@ func removePackages(packagesToRemove []types.Package) error {
 
 			// This gets the package from the cluster (not source), which does not trigger signature verification regardless
 			// of what loadOpts.VerificationStrategy is set to.
-			pkg, err := packager.GetPackageFromSourceOrCluster(ctx, c, pkg.Name, "", loadOpts)
+			pkg, err := packager.GetPackageFromSourceOrCluster(ctx, c, bundlePkg.Name, bundlePkg.Namespace, loadOpts)
 			if err != nil {
 				return fmt.Errorf("unable to load the package: %w", err)
 			}
-			removeOpt := packager.RemoveOptions{
-				Cluster: c,
-				Timeout: config.HelmTimeout,
-			}
+			removeOpt := newRemoveOptions(bundlePkg.Namespace, c)
 			err = packager.Remove(ctx, pkg, removeOpt)
 			if err != nil {
 				return err
 			}
 		} else {
-			message.Warnf("Skipping removal of %s. Package not deployed", pkg.Name)
+			message.Warnf("Skipping removal of %s. Package not deployed", bundlePkg.Name)
 		}
 	}
 
 	return nil
+}
+
+func newRemoveOptions(namespace string, c *cluster.Cluster) packager.RemoveOptions {
+	return packager.RemoveOptions{
+		Cluster:           c,
+		Timeout:           config.HelmTimeout,
+		NamespaceOverride: namespace,
+	}
 }
