@@ -281,7 +281,7 @@ func verifyPackageSignature(pkgDir, publicKeyPath string, pkg v1alpha1.ZarfPacka
 	}
 
 	verifyOpts := zarfUtils.DefaultVerifyBlobOptions()
-	verifyOpts.KeyRef = publicKeyPath
-	verifyOpts.SigRef = signaturePath
+	verifyOpts.Key = publicKeyPath
+	verifyOpts.Signature = signaturePath
 	return zarfUtils.CosignVerifyBlobWithOptions(context.TODO(), zarfYAMLPath, verifyOpts)
 }

@@ -256,8 +256,8 @@ func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string
 
 	// The package is signed, and a public key was provided
 	verifyBlobOptions := zarfUtils.DefaultVerifyBlobOptions()
-	verifyBlobOptions.SigRef = signaturePath
-	verifyBlobOptions.KeyRef = publicKeyPath
+	verifyBlobOptions.Signature = signaturePath
+	verifyBlobOptions.Key = publicKeyPath
 	return zarfUtils.CosignVerifyBlobWithOptions(context.TODO(), bundleYAMLPath, verifyBlobOptions)
 }
 
