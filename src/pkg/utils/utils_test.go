@@ -100,8 +100,8 @@ func TestVerifyBlobOptionsFromKey(t *testing.T) {
 		wantNil bool
 	}{
 		{name: "empty key path returns nil", keyPath: "", wantNil: true},
-		{name: "non-empty key path sets KeyRef", keyPath: "/path/to/key.pub"},
-		{name: "any non-empty string sets KeyRef", keyPath: "mykey"},
+		{name: "non-empty key path sets Key", keyPath: "/path/to/key.pub"},
+		{name: "any non-empty string sets Key", keyPath: "mykey"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -111,11 +111,11 @@ func TestVerifyBlobOptionsFromKey(t *testing.T) {
 				return
 			}
 			require.NotNil(t, result)
-			require.Equal(t, tt.keyPath, result.KeyRef)
+			require.Equal(t, tt.keyPath, result.Key)
 
 			// Verify that other fields are set to their default values
 			defaults := zarfUtils.DefaultVerifyBlobOptions()
-			defaults.KeyRef = tt.keyPath
+			defaults.Key = tt.keyPath
 			require.Equal(t, defaults, *result)
 		})
 	}
@@ -123,7 +123,7 @@ func TestVerifyBlobOptionsFromKey(t *testing.T) {
 
 func TestResolveVerifyBlobOptions(t *testing.T) {
 	customOpts := zarfUtils.VerifyBlobOptions{}
-	customOpts.KeyRef = "/path/to/key.pub"
+	customOpts.Key = "/path/to/key.pub"
 
 	tests := []struct {
 		name string

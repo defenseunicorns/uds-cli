@@ -82,7 +82,7 @@ func (b *Bundle) Create(ctx context.Context) error {
 		signBlobOptions := zarfUtils.DefaultSignBlobOptions()
 		signBlobOptions.OutputSignature = filepath.Join(b.tmp, config.BundleYAMLSignature)
 		signBlobOptions.PassFunc = getSigCreatePassword
-		signBlobOptions.KeyRef = b.cfg.CreateOpts.SigningKeyPath
+		signBlobOptions.Key = b.cfg.CreateOpts.SigningKeyPath
 		_, err := zarfUtils.CosignSignBlobWithOptions(ctx, bundlePath, signBlobOptions)
 		if err != nil {
 			return err

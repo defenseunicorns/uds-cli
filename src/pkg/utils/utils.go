@@ -401,7 +401,7 @@ func VerifyBlobOptionsFromKey(keyPath string) *zarfUtils.VerifyBlobOptions {
 		return nil
 	}
 	opts := zarfUtils.DefaultVerifyBlobOptions()
-	opts.KeyRef = keyPath
+	opts.Key = keyPath
 	return &opts
 }
 
