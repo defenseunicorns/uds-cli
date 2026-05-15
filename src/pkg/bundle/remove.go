@@ -77,12 +77,13 @@ func (b *Bundle) Remove() error {
 func removePackages(packagesToRemove []types.Package) error {
 	ctx := context.TODO()
 	// Get deployed packages
-	deployedPackageNames := GetDeployedPackageNames()
+	deployedPackageIDs := GetDeployedPackageIDs()
 
 	for i := len(packagesToRemove) - 1; i >= 0; i-- {
 		bundlePkg := packagesToRemove[i]
+		packageID := bundlePackageLifecycleID(bundlePkg)
 
-		if slices.Contains(deployedPackageNames, bundlePkg.Name) {
+		if slices.Contains(deployedPackageIDs, packageID) {
 			filter := filters.Combine(
 				filters.ByLocalOS(runtime.GOOS),
 			)
@@ -113,7 +114,7 @@ func removePackages(packagesToRemove []types.Package) error {
 				return err
 			}
 		} else {
-			message.Warnf("Skipping removal of %s. Package not deployed", bundlePkg.Name)
+			message.Warnf("Skipping removal of %s. Package not deployed", packageID)
 		}
 	}
 

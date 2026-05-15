@@ -62,11 +62,11 @@ func (b *Bundle) Deploy(ctx context.Context) error {
 
 	// if resume, filter for packages not yet deployed successfully
 	if b.cfg.DeployOpts.Resume {
-		deployedPackageNames := GetSuccessfullyDeployedPackageNames()
+		deployedPackageIDs := GetSuccessfullyDeployedPackageIDs()
 		var notDeployedSuccessfully []types.Package
 
 		for _, pkg := range packagesToDeploy {
-			if !slices.Contains(deployedPackageNames, pkg.Name) {
+			if !slices.Contains(deployedPackageIDs, bundlePackageLifecycleID(pkg)) {
 				notDeployedSuccessfully = append(notDeployedSuccessfully, pkg)
 			}
 		}

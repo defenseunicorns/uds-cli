@@ -358,31 +358,47 @@ func (b *Bundle) setPackageRef(pkg types.Package) (types.Package, error) {
 	return pkg, nil
 }
 
-// GetDeployedPackageNames returns the names of the packages that have been deployed
-func GetDeployedPackageNames() []string {
-	var deployedPackageNames []string
+func bundlePackageLifecycleID(pkg types.Package) string {
+	if pkg.Namespace == "" {
+		return pkg.Name
+	}
+
+	return fmt.Sprintf("%s/%s", pkg.Name, pkg.Namespace)
+}
+
+func deployedPackageLifecycleID(pkg state.DeployedPackage) string {
+	if pkg.NamespaceOverride == "" {
+		return pkg.Name
+	}
+
+	return fmt.Sprintf("%s/%s", pkg.Name, pkg.NamespaceOverride)
+}
+
+// GetDeployedPackageIDs returns lifecycle-aware package identifiers for deployed packages.
+func GetDeployedPackageIDs() []string {
+	var deployedPackageIDs []string
 	c, _ := cluster.New(context.TODO())
 	if c != nil {
 		deployedPackages, _ := c.GetDeployedZarfPackages(context.TODO())
 		for _, pkg := range deployedPackages {
-			deployedPackageNames = append(deployedPackageNames, pkg.Name)
+			deployedPackageIDs = append(deployedPackageIDs, deployedPackageLifecycleID(pkg))
 		}
 	}
-	return deployedPackageNames
+	return deployedPackageIDs
 }
 
-func GetSuccessfullyDeployedPackageNames() []string {
-	var deployedPackageNames []string
+func GetSuccessfullyDeployedPackageIDs() []string {
+	var deployedPackageIDs []string
 	c, _ := cluster.New(context.TODO())
 	if c != nil {
 		deployedPackages, _ := c.GetDeployedZarfPackages(context.TODO())
 		for _, pkg := range deployedPackages {
 			if deployedPackageIsSuccessful(pkg) {
-				deployedPackageNames = append(deployedPackageNames, pkg.Name)
+				deployedPackageIDs = append(deployedPackageIDs, deployedPackageLifecycleID(pkg))
 			}
 		}
 	}
-	return deployedPackageNames
+	return deployedPackageIDs
 }
 
 func deployedPackageIsSuccessful(pkg state.DeployedPackage) bool {
