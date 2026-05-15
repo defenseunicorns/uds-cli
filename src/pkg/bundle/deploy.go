@@ -62,11 +62,11 @@ func (b *Bundle) Deploy(ctx context.Context) error {
 
 	// if resume, filter for packages not yet deployed successfully
 	if b.cfg.DeployOpts.Resume {
-		deployedPackageNames := GetSuccessfullyDeployedPackageNames()
+		deployedPackageIDs := GetSuccessfullyDeployedPackageIDs()
 		var notDeployedSuccessfully []types.Package
 
 		for _, pkg := range packagesToDeploy {
-			if !slices.Contains(deployedPackageNames, pkg.Name) {
+			if !slices.Contains(deployedPackageIDs, bundlePackageLifecycleID(pkg)) {
 				notDeployedSuccessfully = append(notDeployedSuccessfully, pkg)
 			}
 		}
@@ -112,11 +112,6 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
-		remoteOpts := zarfTypes.RemoteOptions{
-			PlainHTTP:             config.CommonOptions.Insecure,
-			InsecureSkipTLSVerify: config.CommonOptions.Insecure,
-		}
-
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 
 		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, publicKeyPath, config.CommonOptions.SkipSignatureValidation, sha, nsOverrides)
@@ -133,25 +128,9 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
-		timeout, err := resolvePackageTimeout(pkg)
+		deployOpts, err := b.newDeployOptions(pkg, pkgVars, valuesOverrides, pkgLayout.Pkg.Kind)
 		if err != nil {
 			return err
-		}
-
-		deployOpts := packager.DeployOptions{
-			ForceConflicts:         b.cfg.DeployOpts.ForceConflicts,
-			Timeout:                timeout,
-			SetVariables:           pkgVars,
-			ValuesOverridesMap:     valuesOverrides,
-			Retries:                b.cfg.DeployOpts.Retries,
-			RemoteOptions:          remoteOpts,
-			AdoptExistingResources: false,
-			OCIConcurrency:         config.CommonOptions.OCIConcurrency,
-			GitServer:              newGitServerInfo(pkgVars, pkgLayout.Pkg.Kind),
-			RegistryInfo:           newRegistryInfo(pkgVars, pkgLayout.Pkg.Kind),
-			ArtifactServer:         newArtifactServerInfo(pkgVars, pkgLayout.Pkg.Kind),
-			StorageClass:           newStorageClass(pkgVars, pkgLayout.Pkg.Kind),
-			IsInteractive:          !config.CommonOptions.Confirm,
 		}
 
 		// Merge package annotations with bundle annotations; bundle annotations take precedence
@@ -198,6 +177,35 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		}
 	}
 	return nil
+}
+
+func (b *Bundle) newDeployOptions(pkg types.Package, pkgVars zarfVarData, valuesOverrides packager.ValuesOverrides, pkgKind v1alpha1.ZarfPackageKind) (packager.DeployOptions, error) {
+	remoteOpts := zarfTypes.RemoteOptions{
+		PlainHTTP:             config.CommonOptions.Insecure,
+		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
+	}
+
+	timeout, err := resolvePackageTimeout(pkg)
+	if err != nil {
+		return packager.DeployOptions{}, err
+	}
+
+	return packager.DeployOptions{
+		ForceConflicts:         b.cfg.DeployOpts.ForceConflicts,
+		Timeout:                timeout,
+		SetVariables:           pkgVars,
+		ValuesOverridesMap:     valuesOverrides,
+		Retries:                b.cfg.DeployOpts.Retries,
+		NamespaceOverride:      pkg.Namespace,
+		RemoteOptions:          remoteOpts,
+		AdoptExistingResources: false,
+		OCIConcurrency:         config.CommonOptions.OCIConcurrency,
+		GitServer:              newGitServerInfo(pkgVars, pkgKind),
+		RegistryInfo:           newRegistryInfo(pkgVars, pkgKind),
+		ArtifactServer:         newArtifactServerInfo(pkgVars, pkgKind),
+		StorageClass:           newStorageClass(pkgVars, pkgKind),
+		IsInteractive:          !config.CommonOptions.Confirm,
+	}, nil
 }
 
 // newGitServerInfo creates a new GitServerInfo for a package if using custom Zarf init options
@@ -355,6 +363,10 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 		return "", "", "", err
 	}
 
+	if err := validatePackageNamespaces(b.bundle.Packages); err != nil {
+		return "", "", "", err
+	}
+
 	// validate bundle's arch against cluster
 	err = ValidateArch(config.GetArch(b.bundle.Build.Architecture))
 	if err != nil {
@@ -455,6 +467,9 @@ func formPkgViews(b *Bundle) []PkgView {
 
 func formPkgMeta(pkg types.Package) map[string]string {
 	pkgMeta := map[string]string{"name": pkg.Name, "ref": pkg.Ref}
+	if pkg.Namespace != "" {
+		pkgMeta["namespace"] = pkg.Namespace
+	}
 	if pkg.Timeout != "" {
 		pkgMeta["timeout"] = pkg.Timeout
 	}

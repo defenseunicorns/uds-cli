@@ -1,0 +1,19 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+kind: UDSBundle
+metadata:
+  name: package-namespace-resume
+  description: testing resume with duplicate package names and different package namespace overrides
+  version: 0.0.1
+
+packages:
+  - name: nginx-namespace-override
+    path: "../../../packages/nginx-namespace-override"
+    ref: 0.0.1
+    namespace: resume-override-a
+
+  - name: nginx-namespace-override
+    path: "../../../packages/nginx-namespace-override"
+    ref: 0.0.1
+    namespace: resume-override-b

@@ -227,6 +227,31 @@ func TestBundleWithDupPkgs(t *testing.T) {
 	})
 }
 
+func TestBundleWithPackageNamespaceOverride(t *testing.T) {
+	deployZarfInit(t)
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx-namespace-override", false)
+	bundleDir := "src/test/bundles/07-helm-overrides/package-namespace"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-package-namespace-%s-0.0.1.tar.zst", e2e.Arch))
+	waitForDeployment := func(condition, timeout string) (string, string, error) {
+		return runCmdWithErr(fmt.Sprintf("zarf tools wait-for resource deployment nginx-deployment %s -n package-override-ns --timeout %s", condition, timeout))
+	}
+
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
+	defer func() {
+		_, _, _ = runCmdWithErr(fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
+	}()
+
+	runCmd(t, fmt.Sprintf("deploy %s --confirm", bundlePath))
+
+	_, _, err := waitForDeployment("available", "30s")
+	require.NoError(t, err)
+
+	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
+
+	_, _, err = waitForDeployment("delete", "30s")
+	require.NoError(t, err)
+}
+
 func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 	// set up configs and env vars
 	deployZarfInit(t)

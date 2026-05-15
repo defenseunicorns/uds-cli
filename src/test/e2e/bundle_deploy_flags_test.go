@@ -126,3 +126,36 @@ func TestResumeFlag(t *testing.T) {
 	require.NotContains(t, deployments, "podinfo")
 	require.NotContains(t, deployments, "nginx")
 }
+
+func TestResumeFlagWithPackageNamespaceOverrideDuplicates(t *testing.T) {
+	deployZarfInit(t)
+	e2e.CreateZarfPkg(t, "src/test/packages/nginx-namespace-override", false)
+	seedBundleDir := "src/test/bundles/07-helm-overrides/package-namespace-resume-seed"
+	seedBundlePath := filepath.Join(seedBundleDir, fmt.Sprintf("uds-bundle-package-namespace-resume-seed-%s-0.0.1.tar.zst", e2e.Arch))
+	bundleDir := "src/test/bundles/07-helm-overrides/package-namespace-resume"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-package-namespace-resume-%s-0.0.1.tar.zst", e2e.Arch))
+	waitForDeployment := func(namespace, condition, timeout string) (string, string, error) {
+		return runCmdWithErr(fmt.Sprintf("zarf tools wait-for resource deployment nginx-deployment %s -n %s --timeout %s", condition, namespace, timeout))
+	}
+
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", seedBundleDir, e2e.Arch))
+	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
+	defer func() {
+		_, _, _ = runCmdWithErr(fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
+		_, _, _ = runCmdWithErr(fmt.Sprintf("remove %s --confirm --insecure", seedBundlePath))
+	}()
+
+	runCmd(t, fmt.Sprintf("deploy %s --confirm", seedBundlePath))
+	_, _, err := waitForDeployment("resume-override-a", "available", "30s")
+	require.NoError(t, err)
+
+	runCmd(t, fmt.Sprintf("deploy %s --confirm --resume", bundlePath))
+	_, _, err = waitForDeployment("resume-override-b", "available", "30s")
+	require.NoError(t, err)
+
+	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
+	_, _, err = waitForDeployment("resume-override-a", "delete", "30s")
+	require.NoError(t, err)
+	_, _, err = waitForDeployment("resume-override-b", "delete", "30s")
+	require.NoError(t, err)
+}
