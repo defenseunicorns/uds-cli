@@ -39,7 +39,7 @@ func checkDockerRunning(t *testing.T) {
 	}
 }
 
-// deleteK3dCluster deletes the k3d cluster created by the test.
+// deleteK3dCluster deletes the k3d cluster by name.
 func deleteK3dCluster(t *testing.T, clusterName string) {
 	t.Helper()
 	t.Logf("Cleaning up k3d cluster: %s", clusterName)
@@ -58,12 +58,26 @@ func deleteK3dCluster(t *testing.T, clusterName string) {
 // k3d cluster is always cleaned up regardless of test outcome.
 type DeploySuite struct {
 	suite.Suite
-	uds string
+	uds            string
+	podinfoZarfPkg string
 }
 
-// SetupSuite resolves the UDS CLI binary path once for the whole suite.
+// SetupSuite resolves the UDS CLI binary path and builds shared test prerequisites once for the whole suite.
 func (s *DeploySuite) SetupSuite() {
 	s.uds = udsCLIPath(s.T())
+
+	// Pre-build the podinfo Zarf package for the variables bundle test. This will be cleaned up in the TearDownSuite.
+	arch := runtime.GOARCH
+	varsBundleDir := testDataPath(s.T(), "bundles/deploy/variables")
+	buildZarfPackage(s.T(), s.uds, testDataPath(s.T(), "packages/podinfo"), varsBundleDir, arch)
+	s.podinfoZarfPkg = filepath.Join(varsBundleDir, "zarf-package-podinfo-"+arch+"-0.1.0.tar.zst")
+}
+
+// TearDownSuite cleans up suite-level prerequisites.
+func (s *DeploySuite) TearDownSuite() {
+	if s.podinfoZarfPkg != "" {
+		_ = os.Remove(s.podinfoZarfPkg)
+	}
 }
 
 // TearDownTest runs automatically after every test in the suite.
@@ -332,7 +346,7 @@ package "podinfo" {
 `
 	require.NoError(s.T(), os.WriteFile(filepath.Join(bundleTmpDir, "bundle.uds.hcl"), []byte(bundleHCL), 0o644))
 
-	configPath := testDataPath(s.T(), "bundles/deploy/variables/config.uds.hcl")
+	configPath := testDataPath(s.T(), "bundles/deploy/variables/full-config.uds.hcl")
 
 	s.T().Log("Deploying variables bundle with podinfo...")
 	cmd := exec.Command(s.uds, "bundle", "deploy", bundleTmpDir, "--config", configPath)
@@ -360,6 +374,46 @@ package "podinfo" {
 		"node.kubernetes.io/not-ready", corev1.TolerationOpExists, corev1.TaintEffectNoExecute)
 
 	s.T().Log("✓ Podinfo deploy validation complete")
+}
+
+// TestDeployFromArtifact deploys from a .tar.zst bundle artifact and verifies
+// that configuration is applied using embedded defaults and the specified config
+// file according to precedence order.
+func (s *DeploySuite) TestDeployFromArtifact() {
+	checkDockerRunning(s.T())
+
+	// Build bundle artifact from variables test data (Zarf package already built in SetupSuite).
+	artifactPath := createBundleFromTestData(s.T(), "bundles/deploy/variables", runtime.GOARCH)
+
+	// Move the artifact into a clean temp dir to verify deploy works without bundle source files.
+	deployDir := s.T().TempDir()
+	deployArtifact := filepath.Join(deployDir, filepath.Base(artifactPath))
+	require.NoError(s.T(), os.Rename(artifactPath, deployArtifact))
+
+	configPath := testDataPath(s.T(), "bundles/deploy/variables/config.uds.hcl")
+
+	cmd := exec.Command(s.uds, "bundle", "deploy", deployArtifact, "--config", configPath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Env = os.Environ()
+	require.NoError(s.T(), cmd.Run(), "bundle deploy from artifact should succeed")
+
+	k8s := NewK8sClient(s.T())
+
+	k8s.WaitForDeploymentReady("podinfo", "podinfo", 5*time.Minute)
+
+	// replica_count = 1 from config (overrides embedded default of 2)
+	k8s.AssertDeploymentReplicas("podinfo", "podinfo", 1)
+
+	// Assert (non-overridden)config from defaults was applied
+	// service_enabled = false from embedded defaults — no Service resource created
+	// annotations from embedded defaults propagated to pod template
+	// tolerations from embedded defaults applied to pod template
+	k8s.AssertServiceNotExists("podinfo", "podinfo")
+	k8s.AssertDeploymentPodAnnotation("podinfo", "podinfo", "app.kubernetes.io/managed-by", "uds")
+	k8s.AssertDeploymentPodAnnotation("podinfo", "podinfo", "team", "platform")
+	k8s.AssertDeploymentPodToleration("podinfo", "podinfo",
+		"node.kubernetes.io/not-ready", corev1.TolerationOpExists, corev1.TaintEffectNoExecute)
 }
 
 // buildZarfPackage runs `uds zarf package create` on the given directory and places

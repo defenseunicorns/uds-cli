@@ -135,12 +135,12 @@ func TestInspectOptions_Validate(t *testing.T) {
 		{
 			name:       "tar.zst archive",
 			bundlePath: tarZstFile,
-			wantErr:    "tar.zst bundles not yet supported",
+			wantErr:    "tar.zst bundles are not supported",
 		},
 		{
 			name:       "tar.zst archive path that doesn't exist",
 			bundlePath: "bundle.tar.zst",
-			wantErr:    "tar.zst bundles not yet supported",
+			wantErr:    "tar.zst bundles are not supported",
 		},
 		{
 			name:       "non-HCL file",

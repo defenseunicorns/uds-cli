@@ -126,61 +126,6 @@ func TestIsOCIReference(t *testing.T) {
 	}
 }
 
-func TestIsTarZst(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-		want  bool
-	}{
-		{
-			name:  "tar.zst file",
-			input: "bundle.tar.zst",
-			want:  true,
-		},
-		{
-			name:  "tar.zst file with path",
-			input: "/path/to/bundle.tar.zst",
-			want:  true,
-		},
-		{
-			name:  "tar.zst file with relative path",
-			input: "./bundle.tar.zst",
-			want:  true,
-		},
-		{
-			name:  "not a tar.zst file",
-			input: "bundle.uds.hcl",
-			want:  false,
-		},
-		{
-			name:  "tar file without zst",
-			input: "bundle.tar",
-			want:  false,
-		},
-		{
-			name:  "zst file without tar",
-			input: "bundle.zst",
-			want:  false,
-		},
-		{
-			name:  "empty string",
-			input: "",
-			want:  false,
-		},
-		{
-			name:  "tar.zst in middle of string",
-			input: "bundle.tar.zst.backup",
-			want:  false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := IsTarZst(tt.input)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
 
 func TestValidateDir(t *testing.T) {
 	t.Run("valid directory", func(t *testing.T) {
@@ -213,7 +158,7 @@ func TestValidateBundlePath(t *testing.T) {
 	// Create a valid directory with bundle.uds.hcl
 	validDir := filepath.Join(tempDir, "valid")
 	require.NoError(t, os.Mkdir(validDir, 0o755))
-	validBundleFile := filepath.Join(validDir, BundleFileName)
+	validBundleFile := filepath.Join(validDir, bundle.BundleFileName)
 	require.NoError(t, os.WriteFile(validBundleFile, []byte("test content"), 0o644))
 
 	// Create an empty directory (no bundle.uds.hcl)
@@ -265,16 +210,16 @@ func TestValidateBundlePath(t *testing.T) {
 			ref:     "ghcr.io/test/bundle:v1",
 			wantErr: "OCI bundle references not yet supported",
 		},
-		// Error cases - tar.zst (not yet supported)
+		// Error cases - tar.zst (are not supported by ValidateBundlePath)
 		{
 			name:    "tar.zst archive that exists",
 			ref:     tarZstFile,
-			wantErr: "tar.zst bundles not yet supported",
+			wantErr: "tar.zst bundles are not supported",
 		},
 		{
 			name:    "tar.zst archive path that doesn't exist",
 			ref:     "nonexistent.tar.zst",
-			wantErr: "tar.zst bundles not yet supported",
+			wantErr: "tar.zst bundles are not supported",
 		},
 		// Error cases - file not found
 		{
@@ -315,42 +260,37 @@ func TestValidateBundlePath(t *testing.T) {
 	}
 }
 
-func TestResolveBundlePath(t *testing.T) {
-	// Set up temporary test files and directories
+func TestValidateBundlePath_AllowArtifact(t *testing.T) {
 	tempDir := t.TempDir()
 
-	// Create a valid directory with bundle.uds.hcl
+	tarZstFile := filepath.Join(tempDir, "bundle.tar.zst")
+	require.NoError(t, os.WriteFile(tarZstFile, []byte("test"), 0o644))
+
 	validDir := filepath.Join(tempDir, "valid")
 	require.NoError(t, os.Mkdir(validDir, 0o755))
-	validBundleFile := filepath.Join(validDir, BundleFileName)
-	require.NoError(t, os.WriteFile(validBundleFile, []byte("test content"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(validDir, bundle.BundleFileName), []byte(""), 0o644))
 
 	tests := []struct {
-		name     string
-		ref      string
-		wantPath string
+		name    string
+		ref     string
+		wantErr string
 	}{
-		{
-			name:     "file path returns as-is",
-			ref:      validBundleFile,
-			wantPath: validBundleFile,
-		},
-		{
-			name:     "directory path resolves to bundle file",
-			ref:      validDir,
-			wantPath: validBundleFile,
-		},
-		{
-			name:     "non-existent path returns as-is",
-			ref:      "/nonexistent/path",
-			wantPath: "/nonexistent/path",
-		},
+		{name: "tar.zst that exists", ref: tarZstFile, wantErr: ""},
+		{name: "tar.zst that does not exist", ref: "nonexistent.tar.zst", wantErr: "bundle artifact not found"},
+		{name: "valid directory", ref: validDir, wantErr: ""},
+		{name: "OCI reference rejected", ref: "oci://ghcr.io/test/bundle:v1", wantErr: "OCI bundle references not yet supported"},
+		{name: "empty string", ref: "", wantErr: "bundle file path is required"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ResolveBundlePath(tt.ref)
-			assert.Equal(t, tt.wantPath, got)
+			err := ValidateBundlePath(tt.ref, AllowArtifactBundlePath())
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }
@@ -358,7 +298,7 @@ func TestResolveBundlePath(t *testing.T) {
 func TestValidateBundlePath_WithRealBundle(t *testing.T) {
 	// Test with the actual spec-compliant bundle from test data
 	bundleDir := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "spec-compliant")
-	bundleFile := filepath.Join(bundleDir, BundleFileName)
+	bundleFile := filepath.Join(bundleDir, bundle.BundleFileName)
 
 	t.Run("validate directory", func(t *testing.T) {
 		err := ValidateBundlePath(bundleDir)
@@ -371,18 +311,3 @@ func TestValidateBundlePath_WithRealBundle(t *testing.T) {
 	})
 }
 
-func TestResolveBundlePath_WithRealBundle(t *testing.T) {
-	// Test with the actual spec-compliant bundle from test data
-	bundleDir := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "spec-compliant")
-	bundleFile := filepath.Join(bundleDir, BundleFileName)
-
-	t.Run("resolve directory to bundle file", func(t *testing.T) {
-		got := ResolveBundlePath(bundleDir)
-		assert.Equal(t, bundleFile, got)
-	})
-
-	t.Run("resolve file directly", func(t *testing.T) {
-		got := ResolveBundlePath(bundleFile)
-		assert.Equal(t, bundleFile, got)
-	})
-}

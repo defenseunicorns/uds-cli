@@ -127,7 +127,7 @@ func (o *RemoveOptions) Validate() error {
 		return err
 	}
 
-	bundlePath := ResolveBundlePath(o.BundlePath)
+	bundlePath := bundle.ResolveBundlePath(o.BundlePath)
 	parsedBundle, err := bundle.NewHCLParser(o.Config.Options.Architecture).ParseBundleFile(context.Background(), bundlePath)
 	if err != nil {
 		return fmt.Errorf("failed to parse bundle: %w", err)
@@ -153,7 +153,7 @@ func (o *RemoveOptions) Validate() error {
 func (o *RemoveOptions) Run() error {
 	ctx := context.Background()
 
-	bundlePath := ResolveBundlePath(o.BundlePath)
+	bundlePath := bundle.ResolveBundlePath(o.BundlePath)
 	slog.Debug("removing bundle", "path", bundlePath, "prompt", o.Config.Global.Prompt)
 
 	slog.Info("bundle to remove", "name", o.parsedBundle.Metadata.Name, "packages", len(o.parsedBundle.Packages))

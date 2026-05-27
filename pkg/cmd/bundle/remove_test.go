@@ -54,7 +54,7 @@ func TestRemoveOptions_Complete(t *testing.T) {
 }
 
 func TestRemoveOptions_Validate(t *testing.T) {
-	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", BundleFileName)
+	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundle.BundleFileName)
 	existingDir := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init")
 
 	tempDir := t.TempDir()
@@ -64,7 +64,7 @@ func TestRemoveOptions_Validate(t *testing.T) {
 
 	validDir := filepath.Join(tempDir, "valid")
 	require.NoError(t, os.Mkdir(validDir, 0o755))
-	validBundleFile := filepath.Join(validDir, BundleFileName)
+	validBundleFile := filepath.Join(validDir, bundle.BundleFileName)
 	require.NoError(t, os.WriteFile(validBundleFile, []byte(`
 uds { bundle_api_version = "uds.dev/v1alpha1" }
 metadata { name = "test" }
@@ -109,7 +109,7 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 		{
 			name:       "tar.zst archive",
 			bundlePath: tarZstFile,
-			wantErr:    "tar.zst bundles not yet supported",
+			wantErr:    "tar.zst bundles are not supported",
 		},
 		{
 			name:       "HCL file that does not exist",
@@ -129,7 +129,7 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 			o := &RemoveOptions{
 				BundlePath: tt.bundlePath,
 				Config:     &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults},
-				IOStreams:   streams,
+				IOStreams:  streams,
 			}
 
 			err := o.Validate()
@@ -144,7 +144,7 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 }
 
 func TestRemoveOptions_Run_PromptDecline(t *testing.T) {
-	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", BundleFileName)
+	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundle.BundleFileName)
 	defaults := NewConfigResolver().Defaults()
 
 	tests := []struct {
@@ -258,7 +258,7 @@ func TestRemoveOptions_Complete_WithPackagesFlag(t *testing.T) {
 // `uds_k3d_dev`. Removing the dependency without removing the dependent (and
 // without --force) must error; --force or removing only the leaf must succeed.
 func TestRemoveOptions_Validate_DependencyCheck(t *testing.T) {
-	bundlePath := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", BundleFileName)
+	bundlePath := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundle.BundleFileName)
 	defaults := NewConfigResolver().Defaults()
 
 	tests := []struct {

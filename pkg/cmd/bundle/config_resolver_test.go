@@ -903,7 +903,7 @@ variables = {
 }
 `), 0o644))
 	// Simulate passing a file path (e.g. /path/to/bundle.uds.hcl) instead of directory
-	bundleFilePath := filepath.Join(bundleDir, BundleFileName)
+	bundleFilePath := filepath.Join(bundleDir, bundle.BundleFileName)
 	require.NoError(t, os.WriteFile(bundleFilePath, []byte(""), 0o644))
 
 	cmd := &cobra.Command{}

@@ -83,7 +83,7 @@ func (o *CreateOptions) Run() error {
 	ctx := context.Background()
 
 	// Resolve the bundle path
-	bundlePath := ResolveBundlePath(o.BundlePath)
+	bundlePath := bundle.ResolveBundlePath(o.BundlePath)
 	slog.Debug("creating bundle", "path", bundlePath)
 
 	result, err := bundle.Create(ctx, bundle.CreateOptions{

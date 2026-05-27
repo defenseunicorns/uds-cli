@@ -18,9 +18,16 @@ import (
 
 // DeployOptions holds options for the deploy command.
 type DeployOptions struct {
-	BundlePath string // Path to bundle file or directory (user input, resolved in Run)
+	BundlePath string // Path to bundle file, directory, or .tar.zst artifact (user input, resolved in Run)
 	Config     *bundle.UDSBundleConfig
 	Printer    printer.ResourcePrinter
+
+	// TODO: For now, cmd is stashed from Complete so Run can invoke ConfigResolver
+	// against the extracted artifact workspace in which defaults.uds.hcl is
+	// materialized. This argument should be refactored to be a different structure
+	// than the cobra.Command, probably in the refactor to support deployments
+	// through an SDK.
+	cmd *cobra.Command
 
 	iostreams.IOStreams
 }
@@ -44,6 +51,7 @@ func NewDeployCommand(streams iostreams.IOStreams) *cobra.Command {
 The bundle-path can be:
   - A directory containing bundle.uds.hcl
   - A path to a bundle.uds.hcl file
+  - A path to a .tar.zst bundle artifact
   - If omitted, uses the current directory
 
 The CLI is non-interactive by default (suitable for CI/CD pipelines) and
@@ -60,6 +68,9 @@ Examples:
 
   # Deploy bundle from specific directory
   uds bundle deploy ./my-bundle
+
+  # Deploy bundle from artifact
+  uds bundle deploy uds-bundle-example-amd64-0.1.0.tar.zst
 
   # Deploy with interactive confirmation prompt (concurrency auto-forced to 1)
   uds bundle deploy --prompt
@@ -79,25 +90,12 @@ Examples:
 
 // Complete fills in options from command line args.
 func (o *DeployOptions) Complete(cmd *cobra.Command, args []string) error {
+	o.cmd = cmd
 	if len(args) > 0 {
 		o.BundlePath = args[0]
 	} else {
 		// Default to looking for bundle.uds.hcl in current directory
 		o.BundlePath = "."
-	}
-
-	cfg, _, err := NewConfigResolver().Resolve(cmd, o.BundlePath)
-	if err != nil {
-		return err
-	}
-	o.Config = cfg
-
-	// Interactive prompts cannot run in parallel. When a user passes --prompt
-	// without explicitly setting --concurrency, force concurrency to 1 rather
-	// than failing on the default (10, per ADR-0006). If the user passes both
-	// flags with incompatible values, Validate() rejects it.
-	if cmd.Flags().Changed("prompt") && !cmd.Flags().Changed("concurrency") {
-		o.Config.Options.Concurrency = 1
 	}
 
 	p, err := ResolvePrinter(cmd)
@@ -110,15 +108,21 @@ func (o *DeployOptions) Complete(cmd *cobra.Command, args []string) error {
 }
 
 // Validate validates the options without modifying state.
-// Config validation is performed during Resolve(); this only checks
-// command-specific inputs and cross-field rules involving CLI-only fields.
+// Config-dependent validation runs in Run() after Resolve(), since Config
+// is built from the extracted artifact workspace (not available until Run).
 func (o *DeployOptions) Validate() error {
-	if err := ValidateBundlePath(o.BundlePath); err != nil {
-		return err
+	return ValidateBundlePath(o.BundlePath, AllowArtifactBundlePath())
+}
+
+// applyConcurrencyOverride enforces the --prompt/--concurrency interaction:
+// prompts cannot run in parallel. When --prompt is set without an explicit
+// --concurrency, concurrency is forced to 1. When both are set with
+// incompatible values, an error is returned.
+func applyConcurrencyOverride(cmd *cobra.Command, cfg *bundle.UDSBundleConfig) error {
+	if cmd.Flags().Changed("prompt") && !cmd.Flags().Changed("concurrency") {
+		cfg.Options.Concurrency = 1
 	}
-	// Interactive prompts cannot run in parallel. --prompt is CLI-only (ADR-0005),
-	// so this cross-field rule lives here, not in the bundle layer.
-	if o.Config.Global.Prompt && o.Config.Options.Concurrency > 1 {
+	if cfg.Global.Prompt && cfg.Options.Concurrency > 1 {
 		return fmt.Errorf("--prompt is incompatible with concurrency > 1; interactive prompts cannot run in parallel")
 	}
 	return nil
@@ -126,24 +130,43 @@ func (o *DeployOptions) Validate() error {
 
 // Run executes the deploy command.
 func (o *DeployOptions) Run() error {
+	if o.cmd == nil {
+		return fmt.Errorf("cmd must not be nil")
+	}
+
 	ctx := context.Background()
 
-	// Resolve the bundle path
-	bundlePath := ResolveBundlePath(o.BundlePath)
-	slog.Debug("deploying bundle", "path", bundlePath, "prompt", o.Config.Global.Prompt)
+	deploySrc, err := bundle.PrepareDeploySource(ctx, o.BundlePath, "")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := deploySrc.Close(); err != nil {
+			slog.Warn("failed to close deploy source", "error", err)
+		}
+	}()
 
-	// Parse bundle for display (BundlePath already validated by Validate)
-	parsedBundle, err := bundle.NewHCLParser(o.Config.Options.Architecture).ParseBundleFile(ctx, bundlePath)
+	// Resolve config against the bundle-source or extracted bundle archive workspace
+	cfg, _, err := NewConfigResolver().Resolve(o.cmd, deploySrc.BundlePath)
+	if err != nil {
+		return err
+	}
+	o.Config = cfg
+
+	if err := applyConcurrencyOverride(o.cmd, o.Config); err != nil {
+		return err
+	}
+
+	slog.Debug("deploying bundle", "path", deploySrc.BundlePath, "prompt", o.Config.Global.Prompt)
+
+	parsedBundle, err := bundle.NewHCLParser(o.Config.Options.Architecture).ParseBundleFile(ctx, deploySrc.BundlePath)
 	if err != nil {
 		return fmt.Errorf("failed to parse bundle: %w", err)
 	}
-
-	// Validate the bundle
 	if err := parsedBundle.Validate(); err != nil {
 		return fmt.Errorf("invalid bundle: %w", err)
 	}
 
-	// Display bundle information to stderr (diagnostic, not structured output)
 	slog.Info("bundle to deploy", "name", parsedBundle.Metadata.Name, "packages", len(parsedBundle.Packages))
 
 	if o.Config.Global.Prompt {
@@ -157,15 +180,14 @@ func (o *DeployOptions) Run() error {
 		}
 	}
 
-	deployOpts := bundle.DeployOptions{
+	result, err := bundle.Deploy(ctx, bundle.DeployOptions{
 		Config:     o.Config,
-		BundlePath: bundlePath,
+		BundlePath: deploySrc.BundlePath,
 		Bundle:     parsedBundle,
+		Source:     deploySrc,
 		Prompt:     o.Config.Global.Prompt,
 		Out:        o.ErrOut,
-	}
-
-	result, err := bundle.Deploy(ctx, deployOpts)
+	})
 	if err != nil {
 		return fmt.Errorf("deployment failed: %w", err)
 	}

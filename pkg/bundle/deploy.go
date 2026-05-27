@@ -48,6 +48,26 @@ func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
 		slog.Debug("bundle validated")
 	}
 
-	deployer := NewZarfDeployer(opts.Out)
+	if opts.Source != nil && opts.Source.ValuesFilesOverride != nil {
+		applyValuesFilesOverride(b.Packages, opts.Source.ValuesFilesOverride)
+	}
+
+	var loader PackageLayoutLoader
+	if opts.Source != nil {
+		loader = opts.Source.Loader
+	}
+
+	deployer := NewZarfDeployer(opts.Out, loader)
 	return deployer.DeployBundle(ctx, b, opts)
+}
+
+// applyValuesFilesOverride replaces every package's ValuesFiles with the
+// corresponding entry from override. Packages absent from the map get nil.
+// An artifact deployment must never fall back to HCL-defined paths that may no
+// longer exist on disk. An empty map is a valid override that sets all
+// packages' ValuesFiles to nil.
+func applyValuesFilesOverride(pkgs []Package, override map[string][]string) {
+	for i := range pkgs {
+		pkgs[i].ValuesFiles = override[pkgs[i].Name]
+	}
 }

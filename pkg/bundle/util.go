@@ -5,6 +5,8 @@ package bundle
 
 import (
 	"io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -13,6 +15,27 @@ const (
 	tempDirPerm fs.FileMode = 0o700
 	tmpFilePerm fs.FileMode = 0o600
 )
+
+// IsTarZst reports whether s has a .tar.zst extension.
+func IsTarZst(s string) bool {
+	return strings.HasSuffix(s, ".tar.zst")
+}
+
+// ResolveBundlePath resolves a user-provided bundle reference to the path of
+// the bundle.uds.hcl file. If ref is a directory, the bundle file inside it is
+// returned; otherwise ref is returned as-is.
+//
+// Assumes the path has already been validated with ValidateBundlePath.
+func ResolveBundlePath(ref string) string {
+	info, err := os.Stat(ref)
+	if err != nil {
+		return ref
+	}
+	if info.IsDir() {
+		return filepath.Join(ref, BundleFileName)
+	}
+	return ref
+}
 
 // TrimScheme removes the scheme from a reference name
 // (e.g., "oci://ghcr.io/org/repo:tag" -> "ghcr.io/org/repo:tag")

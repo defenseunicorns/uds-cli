@@ -72,12 +72,18 @@ type ZarfDeployer struct {
 	// Out is the writer for output messages. Wrapped in a syncWriter by
 	// NewZarfDeployer so concurrent DeployPackage calls produce clean output.
 	Out io.Writer
+
+	// Loader, when non-nil, is used instead of NewPackageSource to obtain each
+	// package's layout. Used when deploying from a pre-extracted workspace (ADR-0009).
+	Loader PackageLayoutLoader
 }
 
-// NewZarfDeployer creates a new ZarfDeployer.
-// The provided writer is wrapped with a mutex so concurrent deploys within
-// a level do not produce interleaved output.
-func NewZarfDeployer(out io.Writer) *ZarfDeployer {
+// NewZarfDeployer creates a ZarfDeployer.
+// When loader is nil, packages are loaded from their declared source using
+// SourcePackageLayoutLoader. For local artifact deploys, provide a
+// PackageLayoutLoader implementation that loads packages from the extracted
+// artifact's OCI layout instead of pulling from the declared source.
+func NewZarfDeployer(out io.Writer, loader PackageLayoutLoader) *ZarfDeployer {
 	// Enable the Zarf "values" feature flag so packager.Deploy accepts
 	// DeployOptions.Values (Helm values from values_files).
 	enableValuesOnce.Do(func() {
@@ -88,7 +94,8 @@ func NewZarfDeployer(out io.Writer) *ZarfDeployer {
 		}})
 	})
 	return &ZarfDeployer{
-		Out: &syncWriter{w: out},
+		Out:    &syncWriter{w: out},
+		Loader: loader,
 	}
 }
 
@@ -148,14 +155,14 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 		return err
 	}
 
-	slog.Info("pulling package", "source", pkg.Source)
+	loader := d.Loader
+	if loader == nil {
+		loader = &SourcePackageLayoutLoader{configOpts: *opts.Config.Options, bundleDir: opts.BundleDir}
+	}
 
-	source := NewPackageSource(pkg.Source, *opts.Config.Options, opts.BundleDir)
-	filter := BuildComponentFilter(pkg.OptionalComponents)
-
-	pkgLayout, err := source.PullFiltered(ctx, filter, pkgTmp)
+	pkgLayout, err := loader.LoadPackageLayout(ctx, pkg, pkgTmp)
 	if err != nil {
-		return fmt.Errorf("failed to load package %q from %s: %w", pkg.Name, pkg.Source, err)
+		return err
 	}
 	defer func() {
 		if err := pkgLayout.Cleanup(); err != nil {

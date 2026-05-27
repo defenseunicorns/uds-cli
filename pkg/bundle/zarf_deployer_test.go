@@ -285,7 +285,7 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 		dir := t.TempDir()
 		valuesPath := writeTempYAML(t, "host: {{ .vars.domain }}")
 
-		d := NewZarfDeployer(io.Discard)
+		d := NewZarfDeployer(io.Discard, nil)
 		pkg := &Package{Name: "p", ValuesFiles: []string{valuesPath}}
 		opts := DeployPackageOptions{
 			Config: &UDSBundleConfig{
@@ -306,7 +306,7 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 			"ports:\n{{- range .vars.ports }}\n  - {{ .name }}\n{{- end }}",
 		)
 
-		d := NewZarfDeployer(io.Discard)
+		d := NewZarfDeployer(io.Discard, nil)
 		pkg := &Package{Name: "p", ValuesFiles: []string{valuesPath}}
 		opts := DeployPackageOptions{
 			Config: &UDSBundleConfig{
@@ -325,7 +325,7 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 	})
 
 	t.Run("no values files, only variables", func(t *testing.T) {
-		d := NewZarfDeployer(io.Discard)
+		d := NewZarfDeployer(io.Discard, nil)
 		pkg := &Package{Name: "p"}
 		opts := DeployPackageOptions{
 			Config: &UDSBundleConfig{
@@ -341,7 +341,7 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 	})
 
 	t.Run("non-scalar variables silently skipped in Flatten", func(t *testing.T) {
-		d := NewZarfDeployer(io.Discard)
+		d := NewZarfDeployer(io.Discard, nil)
 		pkg := &Package{Name: "p"}
 		opts := DeployPackageOptions{
 			Config: &UDSBundleConfig{
@@ -362,7 +362,7 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 		dir := t.TempDir()
 		valuesPath := writeTempYAML(t, "x: {{ .vars.missing }}")
 
-		d := NewZarfDeployer(io.Discard)
+		d := NewZarfDeployer(io.Discard, nil)
 		pkg := &Package{Name: "broken", ValuesFiles: []string{valuesPath}}
 		opts := DeployPackageOptions{
 			Config: &UDSBundleConfig{
@@ -396,7 +396,7 @@ func TestZarfDeployer_DeployPackage_InvalidSource(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			out := &bytes.Buffer{}
-			deployer := NewZarfDeployer(out)
+			deployer := NewZarfDeployer(out, nil)
 
 			pkg := &Package{
 				Name:   "test-pkg",
@@ -415,7 +415,7 @@ func TestZarfDeployer_DeployPackage_InvalidSource(t *testing.T) {
 func TestNewZarfDeployer(t *testing.T) {
 	out := &bytes.Buffer{}
 
-	deployer := NewZarfDeployer(out)
+	deployer := NewZarfDeployer(out, nil)
 
 	assert.NotNil(t, deployer)
 	assert.NotNil(t, deployer.Out)

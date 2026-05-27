@@ -3,14 +3,5 @@
 
 variables = {
   cluster_name    = "uds-vars-test"
-  service_enabled = false
   replica_count   = 1
-  log_level       = "info"
-  annotations = {
-    "app.kubernetes.io/managed-by" = "uds"
-    "team"                          = "platform"
-  }
-  tolerations = [
-    { key = "node.kubernetes.io/not-ready", operator = "Exists", effect = "NoExecute" },
-  ]
 }

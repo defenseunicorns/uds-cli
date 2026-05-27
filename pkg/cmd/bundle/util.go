@@ -8,36 +8,65 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/printer"
 	"github.com/spf13/cobra"
 )
 
-// BundleFileName is the standard name for UDS bundle definition files.
-const BundleFileName = "bundle.uds.hcl"
+// validateBundlePathConfig holds options for ValidateBundlePath.
+type validateBundlePathConfig struct {
+	allowArtifactBundlePath bool
+}
+
+// ValidateBundlePathOption configures ValidateBundlePath behavior.
+type ValidateBundlePathOption func(*validateBundlePathConfig)
+
+// AllowArtifactBundlePath enables .tar.zst bundle artifact paths in ValidateBundlePath.
+// Pass this to commands that support artifact deployment (e.g. deploy).
+func AllowArtifactBundlePath() ValidateBundlePathOption {
+	return func(c *validateBundlePathConfig) { c.allowArtifactBundlePath = true }
+}
 
 // ValidateBundlePath checks if a user-provided bundle reference is valid.
-// Use this in Validate() methods.
+// Use this in Validate() methods. Pass AllowArtifactBundlePath() for commands that also
+// accept .tar.zst bundle artifact.
 //
 // It checks:
 //   - Empty string → error
 //   - OCI references → error (not yet supported)
-//   - tar.zst archives → error (not yet supported)
+//   - tar.zst archives → validated for existence if AllowArtifactBundlePath(); error otherwise
 //   - Path exists on filesystem
 //   - If directory, contains bundle.uds.hcl
 //   - If file, is named bundle.uds.hcl
 //
 // Returns nil if valid, or an error describing the problem.
-func ValidateBundlePath(ref string) error {
+func ValidateBundlePath(ref string, opts ...ValidateBundlePathOption) error {
+	cfg := &validateBundlePathConfig{}
+	for _, o := range opts {
+		o(cfg)
+	}
+
 	if ref == "" {
 		return fmt.Errorf("bundle file path is required")
 	}
 
 	// Check for tar.zst archive (before filesystem checks)
-	if strings.HasSuffix(ref, ".tar.zst") {
-		return fmt.Errorf("tar.zst bundles not yet supported, use a local .hcl file path or directory")
+	if bundle.IsTarZst(ref) {
+		if !cfg.allowArtifactBundlePath {
+			return fmt.Errorf("tar.zst bundles are not supported for this command")
+		}
+		info, err := os.Stat(ref)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("bundle artifact not found: %s", ref)
+			}
+			return fmt.Errorf("cannot access bundle artifact %s: %w", ref, err)
+		}
+		if info.IsDir() {
+			return fmt.Errorf("bundle artifact path is a directory: %s", ref)
+		}
+		return nil
 	}
 
 	// Check for OCI reference (before filesystem checks)
@@ -53,47 +82,19 @@ func ValidateBundlePath(ref string) error {
 
 	if info.IsDir() {
 		// If it's a directory, check if bundle.uds.hcl exists in it
-		bundlePath := filepath.Join(ref, BundleFileName)
+		bundlePath := filepath.Join(ref, bundle.BundleFileName)
 		if _, err := os.Stat(bundlePath); err != nil {
-			return fmt.Errorf("directory does not contain %s: %s", BundleFileName, ref)
+			return fmt.Errorf("directory does not contain %s: %s", bundle.BundleFileName, ref)
 		}
 		return nil
 	}
 
 	// It's a file - validate it's named bundle.uds.hcl
-	if filepath.Base(ref) != BundleFileName {
-		return fmt.Errorf("expected file named '%s', got: %s", BundleFileName, filepath.Base(ref))
+	if filepath.Base(ref) != bundle.BundleFileName {
+		return fmt.Errorf("expected file named '%s', got: %s", bundle.BundleFileName, filepath.Base(ref))
 	}
 
 	return nil
-}
-
-// ResolveBundlePath resolves a user-provided bundle reference into
-// the path to the bundle.uds.hcl file. Use this in Run() methods.
-//
-// It handles:
-//   - Directory path → returns directory/bundle.uds.hcl
-//   - File path → returns the path as-is
-//
-// This function assumes the path has already been validated with ValidateBundlePath.
-// If the path is invalid, behavior is undefined.
-func ResolveBundlePath(ref string) string {
-	info, err := os.Stat(ref)
-	if err != nil {
-		// Path doesn't exist - return as-is (caller should have validated)
-		return ref
-	}
-
-	if info.IsDir() {
-		return filepath.Join(ref, BundleFileName)
-	}
-
-	return ref
-}
-
-// IsTarZst checks if a string ends with .tar.zst extension.
-func IsTarZst(s string) bool {
-	return strings.HasSuffix(s, ".tar.zst")
 }
 
 // ResolvePrinter resolves the --output flag into a ResourcePrinter.

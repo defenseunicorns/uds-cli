@@ -90,7 +90,6 @@ type Parser interface {
 	ParseBundleConfig(ctx context.Context, filePath string) (*UDSBundleConfig, error)
 }
 
-
 // Deployer is the interface for deploying packages to a target. It exposes
 // both a low-level per-package primitive and a high-level bundle-level entry
 // point so callers can choose the abstraction that fits their use case.
@@ -125,6 +124,31 @@ type DeployPackageOptions struct {
 	Prompt bool
 }
 
+// DeploySource abstracts the differences between bundle deployment pipeline
+// sources: a local source bundle directory vs an extracted .tar.zst bundle OCI
+// artifact workspace. It owns any temporary resources needed to read the bundle
+// and provides source-specific package loading behavior when the default source
+// loader is not applicable.
+type DeploySource struct {
+	// BundlePath is the absolute path to the bundle definition file (bundle.uds.hcl).
+	BundlePath string
+	// Loader overrides how package layouts are obtained; nil means use default source package loader.
+	Loader PackageLayoutLoader
+	// ValuesFilesOverride maps package name to ordered values file paths to apply
+	// in lieu of the values files in the bundle definition HCL. Nil for source-directory deploys.
+	ValuesFilesOverride map[string][]string
+
+	closer io.Closer
+}
+
+// Close releases any temporary resources allocated during source preparation.
+func (s *DeploySource) Close() error {
+	if s == nil || s.closer == nil {
+		return nil
+	}
+	return s.closer.Close()
+}
+
 // DeployOptions contains options for deploying an entire bundle.
 type DeployOptions struct {
 	// Config is the merged config (options + variables); always non-nil.
@@ -136,6 +160,10 @@ type DeployOptions struct {
 	// Bundle is the pre-parsed bundle. When set, Deploy() skips parsing BundlePath.
 	// This avoids double-parsing when the caller has already parsed the bundle.
 	Bundle *UDSBundle
+
+	// Source is the prepared deploy source from PrepareDeploySource. When non-nil,
+	// Deploy() uses Source.Loader for the deployer and applies Source.ValuesFilesOverride.
+	Source *DeploySource
 
 	// Prompt enables interactive prompts (non-interactive by default per ADR 0005)
 	Prompt bool
@@ -222,6 +250,14 @@ type Creator interface {
 	CreatePackage(ctx context.Context, pkg *Package, opts CreatePackageOptions) error
 	// BundleName returns the output filename for the bundle artifact.
 	BundleName(b *UDSBundle) string
+}
+
+// PackageLayoutLoader abstracts how a per-package layout is obtained for deploy.
+type PackageLayoutLoader interface {
+	// LoadPackageLayout stages the package's contents into dstDir and returns a
+	// PackageLayout ready for packager.Deploy. dstDir must already exist and
+	// is owned by the caller.
+	LoadPackageLayout(ctx context.Context, pkg *Package, dstDir string) (*layout.PackageLayout, error)
 }
 
 // PackageSource abstracts how a Zarf package is fetched, supporting both

@@ -15,8 +15,13 @@ package "uds_k3d_dev" {
   values_files = ["values/k3d.yaml"]
 }
 
+package "init" {
+  source     = "oci://ghcr.io/zarf-dev/packages/init:v0.75.1"
+  depends_on = [package.uds_k3d_dev]
+}
+
 package "podinfo" {
   source       = "./zarf-package-podinfo-${sys.arch}-0.1.0.tar.zst"
   values_files = ["values/podinfo.yaml"]
-  depends_on   = [package.uds_k3d_dev]
+  depends_on   = [package.init]
 }

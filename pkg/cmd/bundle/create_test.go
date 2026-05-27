@@ -22,7 +22,7 @@ func TestCreateOptions_Validate(t *testing.T) {
 	// Create a valid directory with bundle.uds.hcl
 	validDir := filepath.Join(tempDir, "valid")
 	require.NoError(t, os.Mkdir(validDir, 0o755))
-	validBundleFile := filepath.Join(validDir, BundleFileName)
+	validBundleFile := filepath.Join(validDir, bundle.BundleFileName)
 	require.NoError(t, os.WriteFile(validBundleFile, []byte("test content"), 0o644))
 
 	// Create an empty directory (no bundle.uds.hcl)
@@ -82,7 +82,7 @@ func TestCreateOptions_Validate(t *testing.T) {
 		o := &CreateOptions{BundlePath: "bundle.tar.zst", Config: &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults}}
 		err := o.Validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "tar.zst bundles not yet supported")
+		assert.Contains(t, err.Error(), "tar.zst bundles are not supported")
 	})
 }
 

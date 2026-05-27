@@ -55,7 +55,7 @@ func TestDeployOptions_Complete(t *testing.T) {
 
 func TestDeployOptions_Validate(t *testing.T) {
 	// Use the existing deploy/init bundle for valid file test case
-	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", BundleFileName)
+	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundle.BundleFileName)
 	existingDir := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init")
 
 	// Create temporary test files and directories
@@ -68,7 +68,7 @@ func TestDeployOptions_Validate(t *testing.T) {
 	// Create a valid directory with bundle.uds.hcl
 	validDir := filepath.Join(tempDir, "valid")
 	require.NoError(t, os.Mkdir(validDir, 0o755))
-	validBundleFile := filepath.Join(validDir, BundleFileName)
+	validBundleFile := filepath.Join(validDir, bundle.BundleFileName)
 	require.NoError(t, os.WriteFile(validBundleFile, []byte(`
 uds { bundle_api_version = "uds.dev/v1alpha1" }
 metadata { name = "test" }
@@ -82,8 +82,6 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 	// Create an HCL file with wrong name
 	wrongNameFile := filepath.Join(tempDir, "wrongname.hcl")
 	require.NoError(t, os.WriteFile(wrongNameFile, []byte("test"), 0o644))
-
-	defaults := NewConfigResolver().Defaults()
 
 	tests := []struct {
 		name       string
@@ -121,14 +119,14 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 			wantErr:    "OCI bundle references not yet supported",
 		},
 		{
-			name:       "tar.zst archive",
+			name:       "tar.zst archive that exists",
 			bundlePath: tarZstFile,
-			wantErr:    "tar.zst bundles not yet supported",
+			wantErr:    "",
 		},
 		{
 			name:       "tar.zst archive path that doesn't exist",
 			bundlePath: "bundle.tar.zst",
-			wantErr:    "tar.zst bundles not yet supported",
+			wantErr:    "bundle artifact not found",
 		},
 		{
 			name:       "HCL file that does not exist",
@@ -152,7 +150,6 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 			streams, _, _, _ := iostreams.NewTestIOStreams()
 			o := &DeployOptions{
 				BundlePath: tt.bundlePath,
-				Config:     &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults},
 				IOStreams:  streams,
 			}
 
@@ -169,85 +166,88 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 	}
 }
 
-func TestDeployOptions_Complete_PromptForcesSerial(t *testing.T) {
+func TestApplyConcurrencyOverride(t *testing.T) {
+	defaults := NewConfigResolver().Defaults()
+
 	tests := []struct {
-		name             string
-		flags            []string
-		wantConcurrency  int
+		name            string
+		flags           []string
+		prompt          bool
+		concurrency     int
+		wantConcurrency int
+		wantErr         string
 	}{
-		{name: "prompt without concurrency forces 1", flags: []string{"--prompt"}, wantConcurrency: 1},
-		{name: "prompt with explicit concurrency=1 keeps 1", flags: []string{"--prompt", "--concurrency", "1"}, wantConcurrency: 1},
-		{name: "no prompt keeps default 10", flags: nil, wantConcurrency: 10},
-		{name: "explicit concurrency without prompt preserved", flags: []string{"--concurrency", "5"}, wantConcurrency: 5},
+		{name: "prompt without concurrency forces 1", flags: []string{"--prompt"}, prompt: true, concurrency: 10, wantConcurrency: 1},
+		{name: "prompt with explicit concurrency=1 keeps 1", flags: []string{"--prompt", "--concurrency", "1"}, prompt: true, concurrency: 1, wantConcurrency: 1},
+		{name: "no prompt keeps default 10", flags: nil, prompt: false, concurrency: 10, wantConcurrency: 10},
+		{name: "explicit concurrency without prompt preserved", flags: []string{"--concurrency", "5"}, prompt: false, concurrency: 5, wantConcurrency: 5},
+		{name: "prompt on concurrency 2 rejected", flags: []string{"--prompt", "--concurrency", "2"}, prompt: true, concurrency: 2, wantErr: "--prompt is incompatible with concurrency > 1"},
+		{name: "prompt on concurrency 10 rejected", flags: []string{"--prompt", "--concurrency", "10"}, prompt: true, concurrency: 10, wantErr: "--prompt is incompatible with concurrency > 1"},
+		{name: "prompt off concurrency > 1 allowed", flags: []string{"--concurrency", "5"}, prompt: false, concurrency: 5, wantConcurrency: 5},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			streams, _, _, _ := iostreams.NewTestIOStreams()
 			bundleCmd := NewBundleCommand(streams)
-			// --prompt is registered on root in production; simulate that on the
-			// bundle command so the deploy subcommand can see it via the parent chain.
 			bundleCmd.PersistentFlags().Bool("prompt", false, "enable interactive confirmation prompts")
 
 			deployCmd, _, err := bundleCmd.Find([]string{"deploy"})
 			require.NoError(t, err)
 			require.NoError(t, deployCmd.ParseFlags(tt.flags))
 
-			o := NewDeployOptions(streams)
-			require.NoError(t, o.Complete(deployCmd, nil))
-			assert.Equal(t, tt.wantConcurrency, o.Config.Options.Concurrency)
+			opts := defaults
+			opts.Concurrency = tt.concurrency
+			cfg := &bundle.UDSBundleConfig{
+				Global:  &bundle.GlobalOptions{Prompt: tt.prompt},
+				Options: &opts,
+			}
+
+			err = applyConcurrencyOverride(deployCmd, cfg)
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantConcurrency, cfg.Options.Concurrency)
+			}
 		})
 	}
 }
 
-func TestDeployOptions_Validate_PromptIncompatibleWithParallel(t *testing.T) {
-	existingDir := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init")
-	defaults := NewConfigResolver().Defaults()
+// TestDeployOptions_Run_PromptIncompatibleWithParallel documents that the deploy
+// pipeline enforces the --prompt/--concurrency cross-field rule. applyConcurrencyOverride
+// is unit-tested in isolation by TestApplyConcurrencyOverride; this test confirms it
+// is wired into the deploy Run() path.
+func TestDeployOptions_Run_PromptIncompatibleWithParallel(t *testing.T) {
+	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundle.BundleFileName)
+
 	streams, _, _, _ := iostreams.NewTestIOStreams()
+	textPrinter, _ := printer.NewPrinter(printer.FormatText)
 
-	tests := []struct {
-		name        string
-		prompt      bool
-		concurrency int
-		wantErr     string
-	}{
-		{name: "prompt off, concurrency > 1 allowed", prompt: false, concurrency: 5, wantErr: ""},
-		{name: "prompt on, concurrency 1 allowed", prompt: true, concurrency: 1, wantErr: ""},
-		{name: "prompt on, concurrency 2 rejected", prompt: true, concurrency: 2, wantErr: "--prompt is incompatible with concurrency > 1"},
-		{name: "prompt on, concurrency 10 rejected", prompt: true, concurrency: 10, wantErr: "--prompt is incompatible with concurrency > 1"},
+	bundleCmd := NewBundleCommand(streams)
+	bundleCmd.PersistentFlags().Bool("prompt", false, "enable interactive confirmation prompts")
+	deployCmd, _, err := bundleCmd.Find([]string{"deploy"})
+	require.NoError(t, err)
+	require.NoError(t, deployCmd.ParseFlags([]string{"--prompt", "--concurrency", "2"}))
+
+	o := &DeployOptions{
+		BundlePath: existingFile,
+		Printer:    textPrinter,
+		cmd:        deployCmd,
+		IOStreams:  streams,
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			opts := defaults
-			opts.Concurrency = tt.concurrency
-			o := &DeployOptions{
-				BundlePath: existingDir,
-				Config: &bundle.UDSBundleConfig{
-					Global:  &bundle.GlobalOptions{Prompt: tt.prompt},
-					Options: &opts,
-				},
-				IOStreams: streams,
-			}
-
-			err := o.Validate()
-			if tt.wantErr == "" {
-				require.NoError(t, err)
-			} else {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
-			}
-		})
-	}
+	err = o.Run()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--prompt is incompatible with concurrency > 1")
 }
 
 func TestDeployOptions_Run_PromptDecline(t *testing.T) {
 	// Test the --prompt flag behavior: user declines deployment.
 	// Non-interactive (default) Run tests that proceed to actual deployment
 	// are covered by integration tests since they require OCI registries.
-	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", BundleFileName)
-
-	defaults := NewConfigResolver().Defaults()
+	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundle.BundleFileName)
 
 	tests := []struct {
 		name          string
@@ -264,9 +264,9 @@ func TestDeployOptions_Run_PromptDecline(t *testing.T) {
 			},
 		},
 		{
-			name:       "prompt flag - empty input treated as no",
-			bundlePath: existingFile,
-			input:      "",
+			name:          "prompt flag - empty input treated as no",
+			bundlePath:    existingFile,
+			input:         "",
 			wantErrOutput: []string{},
 		},
 	}
@@ -277,14 +277,21 @@ func TestDeployOptions_Run_PromptDecline(t *testing.T) {
 			in.WriteString(tt.input)
 			textPrinter, _ := printer.NewPrinter(printer.FormatText)
 
+			// Wire a cobra cmd with --prompt set so Run's Resolve picks it up.
+			bundleCmd := NewBundleCommand(streams)
+			bundleCmd.PersistentFlags().Bool("prompt", false, "enable interactive confirmation prompts")
+			deployCmd, _, err := bundleCmd.Find([]string{"deploy"})
+			require.NoError(t, err)
+			require.NoError(t, deployCmd.ParseFlags([]string{"--prompt"}))
+
 			o := &DeployOptions{
 				BundlePath: tt.bundlePath,
-				Config:     &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{Prompt: true}, Options: &defaults},
 				Printer:    textPrinter,
-				IOStreams:   streams,
+				cmd:        deployCmd,
+				IOStreams:  streams,
 			}
 
-			err := o.Run()
+			err = o.Run()
 			require.NoError(t, err)
 			// Stdout should be empty when deployment is cancelled (no result printed)
 			assert.Empty(t, out.String(), "stdout should be empty when deployment is cancelled")

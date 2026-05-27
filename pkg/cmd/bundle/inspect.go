@@ -85,7 +85,7 @@ func (o *InspectOptions) Validate() error {
 // Run executes the inspect command.
 func (o *InspectOptions) Run() error {
 	// Resolve the bundle path
-	bundlePath := ResolveBundlePath(o.BundlePath)
+	bundlePath := bundle.ResolveBundlePath(o.BundlePath)
 	slog.Debug("inspecting bundle", "path", bundlePath)
 
 	// This method diverges from the 0004-logging-and-output-strategy.md recommendation and does not have a clear
