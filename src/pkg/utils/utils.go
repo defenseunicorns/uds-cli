@@ -30,7 +30,7 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
-	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
+	"github.com/zarf-dev/zarf/src/pkg/signing"
 )
 
 // IsValidTarballPath returns true if the path is a valid tarball path to a bundle tarball
@@ -396,21 +396,21 @@ func LoadPackageFromDir(ctx context.Context, dirPath string, opts layout.Package
 
 // VerifyBlobOptionsFromKey constructs VerifyBlobOptions from a public key path.
 // Returns nil if keyPath is empty.
-func VerifyBlobOptionsFromKey(keyPath string) *zarfUtils.VerifyBlobOptions {
+func VerifyBlobOptionsFromKey(keyPath string) *signing.VerifyBlobOptions {
 	if keyPath == "" {
 		return nil
 	}
-	opts := zarfUtils.DefaultVerifyBlobOptions()
+	opts := signing.DefaultVerifyBlobOptions()
 	opts.Key = keyPath
 	return &opts
 }
 
 // resolveVerifyBlobOptions returns the provided options if non-nil, otherwise returns defaults.
-func resolveVerifyBlobOptions(opts *zarfUtils.VerifyBlobOptions) zarfUtils.VerifyBlobOptions {
+func resolveVerifyBlobOptions(opts *signing.VerifyBlobOptions) signing.VerifyBlobOptions {
 	if opts != nil {
 		return *opts
 	}
-	return zarfUtils.DefaultVerifyBlobOptions()
+	return signing.DefaultVerifyBlobOptions()
 }
 
 // GetPkgSource returns the normalized remote or local source path for a package

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
+	"github.com/zarf-dev/zarf/src/pkg/signing"
 )
 
 func Test_IsRegistryURL(t *testing.T) {
@@ -114,7 +114,7 @@ func TestVerifyBlobOptionsFromKey(t *testing.T) {
 			require.Equal(t, tt.keyPath, result.Key)
 
 			// Verify that other fields are set to their default values
-			defaults := zarfUtils.DefaultVerifyBlobOptions()
+			defaults := signing.DefaultVerifyBlobOptions()
 			defaults.Key = tt.keyPath
 			require.Equal(t, defaults, *result)
 		})
@@ -122,18 +122,18 @@ func TestVerifyBlobOptionsFromKey(t *testing.T) {
 }
 
 func TestResolveVerifyBlobOptions(t *testing.T) {
-	customOpts := zarfUtils.VerifyBlobOptions{}
+	customOpts := signing.VerifyBlobOptions{}
 	customOpts.Key = "/path/to/key.pub"
 
 	tests := []struct {
 		name string
-		opts *zarfUtils.VerifyBlobOptions
-		want zarfUtils.VerifyBlobOptions
+		opts *signing.VerifyBlobOptions
+		want signing.VerifyBlobOptions
 	}{
 		{
 			name: "nil input returns defaults",
 			opts: nil,
-			want: zarfUtils.DefaultVerifyBlobOptions(),
+			want: signing.DefaultVerifyBlobOptions(),
 		},
 		{
 			name: "non-nil input returned as-is",

@@ -23,6 +23,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/signing"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
@@ -280,8 +281,8 @@ func verifyPackageSignature(pkgDir, publicKeyPath string, pkg v1alpha1.ZarfPacka
 		return fmt.Errorf("package is signed but no verification material was provided (Public Key, etc.)")
 	}
 
-	verifyOpts := zarfUtils.DefaultVerifyBlobOptions()
+	verifyOpts := signing.DefaultVerifyBlobOptions()
 	verifyOpts.Key = publicKeyPath
 	verifyOpts.Signature = signaturePath
-	return zarfUtils.CosignVerifyBlobWithOptions(context.TODO(), zarfYAMLPath, verifyOpts)
+	return signing.CosignVerifyBlobWithOptions(context.TODO(), zarfYAMLPath, verifyOpts)
 }

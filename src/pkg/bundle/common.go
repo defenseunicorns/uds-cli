@@ -24,6 +24,7 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/state"
+	"github.com/zarf-dev/zarf/src/pkg/signing"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 )
 
@@ -259,10 +260,10 @@ func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string
 	}
 
 	// The package is signed, and a public key was provided
-	verifyBlobOptions := zarfUtils.DefaultVerifyBlobOptions()
+	verifyBlobOptions := signing.DefaultVerifyBlobOptions()
 	verifyBlobOptions.Signature = signaturePath
 	verifyBlobOptions.Key = publicKeyPath
-	return zarfUtils.CosignVerifyBlobWithOptions(context.TODO(), bundleYAMLPath, verifyBlobOptions)
+	return signing.CosignVerifyBlobWithOptions(context.TODO(), bundleYAMLPath, verifyBlobOptions)
 }
 
 // validateOverrides ensures that the overrides have matching components and charts in the zarf package
