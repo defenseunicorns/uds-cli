@@ -190,7 +190,7 @@
         },
         "publicKey": {
           "type": "string",
-          "description": "The public key to use to verify the package. Mutually exclusive with certIdentity/certOIDCIssuer."
+          "description": "The public key to use to verify the package. Mutually exclusive with certificateIdentity/certificateOIDCIssuer."
         },
         "certificateIdentity": {
           "type": "string",

@@ -405,11 +405,24 @@ func VerifyBlobOptionsFromKey(keyPath string) *signing.VerifyBlobOptions {
 	return &opts
 }
 
-// ValidateVerifyBlobConfig checks that publicKey and keyless options are not both set.
-// Unlike BuildVerifyBlobOptions, this has no file I/O side effects.
+// ValidateVerifyBlobConfig validates the package signing configuration.
 func ValidateVerifyBlobConfig(pkg types.Package) error {
 	if pkg.HasPublicKey() && pkg.HasKeylessConfig() {
 		return fmt.Errorf("cannot use publicKey together with keyless verification options (certificateIdentity, certificateOIDCIssuer, trustedRoot, skipTLogVerify, useSignedTimestamps); specify one or the other")
+	}
+	if pkg.CertificateIdentity != "" && pkg.CertificateIdentityRegexp != "" {
+		return fmt.Errorf("certificateIdentity and certificateIdentityRegexp are mutually exclusive; specify one or the other")
+	}
+	if pkg.CertificateOIDCIssuer != "" && pkg.CertificateOIDCIssuerRegexp != "" {
+		return fmt.Errorf("certificateOIDCIssuer and certificateOIDCIssuerRegexp are mutually exclusive; specify one or the other")
+	}
+	if pkg.HasKeylessConfig() {
+		if !pkg.HasCertificateIdentityConfig() {
+			return fmt.Errorf("keyless verification requires certificateIdentity or certificateIdentityRegexp")
+		}
+		if !pkg.HasCertificateOIDCIssuerConfig() {
+			return fmt.Errorf("keyless verification requires certificateOIDCIssuer or certificateOIDCIssuerRegexp")
+		}
 	}
 	return nil
 }

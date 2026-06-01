@@ -28,7 +28,7 @@ type Package struct {
 	Timeout                     string                                     `json:"timeout,omitempty" jsonschema:"description=Timeout for deploying the package. Use duration format such as 30s 10m or 1h30m"`
 	Flavor                      string                                     `json:"flavor,omitempty" jsonschema:"description=Flavor of the Zarf package"`
 	OptionalComponents          []string                                   `json:"optionalComponents,omitempty" jsonschema:"description=List of optional components to include from the package (required components are always included)"`
-	PublicKey                   string                                     `json:"publicKey,omitempty" jsonschema:"description=The public key to use to verify the package. Mutually exclusive with certIdentity/certOIDCIssuer."`
+	PublicKey                   string                                     `json:"publicKey,omitempty" jsonschema:"description=The public key to use to verify the package. Mutually exclusive with certificateIdentity/certificateOIDCIssuer."`
 	CertificateIdentity         string                                     `json:"certificateIdentity,omitempty" jsonschema:"description=Certificate identity for keyless signature verification (e.g. https://github.com/org/repo/.github/workflows/release.yml@refs/heads/main). Mutually exclusive with publicKey."`
 	CertificateIdentityRegexp   string                                     `json:"certificateIdentityRegexp,omitempty" jsonschema:"description=Regex variant of certificateIdentity for keyless signature verification"`
 	CertificateOIDCIssuer       string                                     `json:"certificateOIDCIssuer,omitempty" jsonschema:"description=OIDC issuer for keyless signature verification (e.g. https://token.actions.githubusercontent.com). Mutually exclusive with publicKey."`
@@ -46,11 +46,26 @@ func (p Package) HasPublicKey() bool {
 	return p.PublicKey != ""
 }
 
+// HasCertificateIdentityConfig returns true if a certificate identity constraint is set.
+func (p Package) HasCertificateIdentityConfig() bool {
+	return p.CertificateIdentity != "" || p.CertificateIdentityRegexp != ""
+}
+
+// HasCertificateOIDCIssuerConfig returns true if a certificate OIDC issuer constraint is set.
+func (p Package) HasCertificateOIDCIssuerConfig() bool {
+	return p.CertificateOIDCIssuer != "" || p.CertificateOIDCIssuerRegexp != ""
+}
+
+// HasKeylessModifierConfig returns true if any keyless modifier option is set (trustedRoot,
+// skipTLogVerify, or useSignedTimestamps). These modify keyless verification behaviour but are
+// not identity or issuer constraints on their own.
+func (p Package) HasKeylessModifierConfig() bool {
+	return p.TrustedRoot != "" || p.SkipTLogVerify || p.UseSignedTimestamps
+}
+
 // HasKeylessConfig returns true if any keyless signature verification option is set.
 func (p Package) HasKeylessConfig() bool {
-	return p.CertificateIdentity != "" || p.CertificateIdentityRegexp != "" ||
-		p.CertificateOIDCIssuer != "" || p.CertificateOIDCIssuerRegexp != "" ||
-		p.TrustedRoot != "" || p.SkipTLogVerify || p.UseSignedTimestamps
+	return p.HasCertificateIdentityConfig() || p.HasCertificateOIDCIssuerConfig() || p.HasKeylessModifierConfig()
 }
 
 // BundleChartOverrides represents a Helm chart override to set via UDS variables

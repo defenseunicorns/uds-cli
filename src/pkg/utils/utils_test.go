@@ -276,6 +276,53 @@ func TestValidateVerifyBlobConfig(t *testing.T) {
 			},
 			wantErr: "cannot use publicKey together with keyless verification options",
 		},
+		{
+			name:    "trustedRoot alone requires identity and issuer",
+			pkg:     types.Package{TrustedRoot: `{"mediaType":"application/vnd.dev.sigstore.trustedroot+json"}`},
+			wantErr: "keyless verification requires certificateIdentity or certificateIdentityRegexp",
+		},
+		{
+			name:    "skipTLogVerify alone requires identity and issuer",
+			pkg:     types.Package{SkipTLogVerify: true},
+			wantErr: "keyless verification requires certificateIdentity or certificateIdentityRegexp",
+		},
+		{
+			name:    "useSignedTimestamps alone requires identity and issuer",
+			pkg:     types.Package{UseSignedTimestamps: true},
+			wantErr: "keyless verification requires certificateIdentity or certificateIdentityRegexp",
+		},
+		{
+			name: "keyless with identity but missing issuer",
+			pkg: types.Package{
+				CertificateIdentity: "https://example.com/workflow",
+			},
+			wantErr: "keyless verification requires certificateOIDCIssuer or certificateOIDCIssuerRegexp",
+		},
+		{
+			name: "keyless with issuer but missing identity",
+			pkg: types.Package{
+				CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+			},
+			wantErr: "keyless verification requires certificateIdentity or certificateIdentityRegexp",
+		},
+		{
+			name: "certificateIdentity and certificateIdentityRegexp are mutually exclusive",
+			pkg: types.Package{
+				CertificateIdentity:       "https://example.com/workflow",
+				CertificateIdentityRegexp: "https://.*",
+				CertificateOIDCIssuer:     "https://token.actions.githubusercontent.com",
+			},
+			wantErr: "certificateIdentity and certificateIdentityRegexp are mutually exclusive",
+		},
+		{
+			name: "certificateOIDCIssuer and certificateOIDCIssuerRegexp are mutually exclusive",
+			pkg: types.Package{
+				CertificateIdentity:         "https://example.com/workflow",
+				CertificateOIDCIssuer:       "https://token.actions.githubusercontent.com",
+				CertificateOIDCIssuerRegexp: "https://.*",
+			},
+			wantErr: "certificateOIDCIssuer and certificateOIDCIssuerRegexp are mutually exclusive",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
