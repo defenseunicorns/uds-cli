@@ -127,15 +127,16 @@ func TestBuildVerifyBlobOptions(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	tests := []struct {
-		name             string
-		pkg              types.Package
-		wantNil          bool
-		wantErr          string
-		wantKey          bool
-		wantIgnoreTlog   bool
-		wantSignedTS     bool
-		wantCertIdentity string
-		wantOIDCIssuer   string
+		name                string
+		pkg                 types.Package
+		wantNil             bool
+		wantErr             string
+		wantKey             bool
+		wantIgnoreTlog      bool
+		wantSignedTS        bool
+		wantCertIdentity    string
+		wantOIDCIssuer      string
+		wantTrustedRootPath bool
 	}{
 		{
 			name:    "no signing config returns nil",
@@ -176,6 +177,15 @@ func TestBuildVerifyBlobOptions(t *testing.T) {
 				UseSignedTimestamps:   true,
 			},
 			wantSignedTS: true,
+		},
+		{
+			name: "trustedRoot writes file and sets TrustedRootPath",
+			pkg: types.Package{
+				CertificateIdentity:   "https://example.com/workflow",
+				CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+				TrustedRoot:           `{"mediaType":"application/vnd.dev.sigstore.trustedroot+json"}`,
+			},
+			wantTrustedRootPath: true,
 		},
 		{
 			name: "publicKey and keyless fields are mutually exclusive",
@@ -225,6 +235,12 @@ func TestBuildVerifyBlobOptions(t *testing.T) {
 			}
 			if tt.wantOIDCIssuer != "" {
 				require.Equal(t, tt.wantOIDCIssuer, result.CertVerify.CertOidcIssuer)
+			}
+			if tt.wantTrustedRootPath {
+				require.NotEmpty(t, result.CommonVerifyOptions.TrustedRootPath)
+				rootContent, err := os.ReadFile(result.CommonVerifyOptions.TrustedRootPath)
+				require.NoError(t, err)
+				require.Equal(t, tt.pkg.TrustedRoot, string(rootContent))
 			}
 		})
 	}
