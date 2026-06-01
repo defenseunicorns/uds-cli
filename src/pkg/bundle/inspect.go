@@ -289,10 +289,11 @@ func verifyPackageSignature(pkgDir string, verifyOpts *signing.VerifyBlobOptions
 		return fmt.Errorf("package is signed but no verification material was provided (public key, certificate identity, etc.)")
 	}
 
-	if verifyOpts.Key != "" {
-		verifyOpts.Signature = signaturePath
+	opts := *verifyOpts
+	if opts.Key != "" {
+		opts.Signature = signaturePath
 	} else {
-		verifyOpts.BundlePath = bundlePath
+		opts.BundlePath = bundlePath
 	}
-	return signing.CosignVerifyBlobWithOptions(context.TODO(), zarfYAMLPath, *verifyOpts)
+	return signing.CosignVerifyBlobWithOptions(context.TODO(), zarfYAMLPath, opts)
 }
