@@ -4,8 +4,10 @@
 package utils
 
 import (
+	"os"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/pkg/signing"
 )
@@ -117,6 +119,113 @@ func TestVerifyBlobOptionsFromKey(t *testing.T) {
 			defaults := signing.DefaultVerifyBlobOptions()
 			defaults.Key = tt.keyPath
 			require.Equal(t, defaults, *result)
+		})
+	}
+}
+
+func TestBuildVerifyBlobOptions(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	tests := []struct {
+		name             string
+		pkg              types.Package
+		wantNil          bool
+		wantErr          string
+		wantKey          bool
+		wantIgnoreTlog   bool
+		wantSignedTS     bool
+		wantCertIdentity string
+		wantOIDCIssuer   string
+	}{
+		{
+			name:    "no signing config returns nil",
+			pkg:     types.Package{},
+			wantNil: true,
+		},
+		{
+			name:    "publicKey returns key-based opts with IgnoreTlog true",
+			pkg:     types.Package{PublicKey: "fake-key-content"},
+			wantKey: true,
+			// key-based uses DefaultVerifyBlobOptions which has IgnoreTlog=true
+			wantIgnoreTlog: true,
+		},
+		{
+			name: "certificateIdentity sets keyless opts with IgnoreTlog false",
+			pkg: types.Package{
+				CertificateIdentity: "https://github.com/org/repo/.github/workflows/release.yml@refs/heads/main",
+				CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+			},
+			wantCertIdentity: "https://github.com/org/repo/.github/workflows/release.yml@refs/heads/main",
+			wantOIDCIssuer:   "https://token.actions.githubusercontent.com",
+			wantIgnoreTlog:   false,
+		},
+		{
+			name: "skipTLogVerify true sets IgnoreTlog true",
+			pkg: types.Package{
+				CertificateIdentity:   "https://example.com/workflow",
+				CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+				SkipTLogVerify:        true,
+			},
+			wantIgnoreTlog: true,
+		},
+		{
+			name: "useSignedTimestamps sets flag on opts",
+			pkg: types.Package{
+				CertificateIdentity:   "https://example.com/workflow",
+				CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+				UseSignedTimestamps:   true,
+			},
+			wantSignedTS: true,
+		},
+		{
+			name: "publicKey and keyless fields are mutually exclusive",
+			pkg: types.Package{
+				PublicKey:             "fake-key-content",
+				CertificateIdentity:   "https://example.com/workflow",
+				CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+			},
+			wantErr: "cannot use publicKey together with keyless verification options",
+		},
+		{
+			name: "publicKey and skipTLogVerify are mutually exclusive",
+			pkg: types.Package{
+				PublicKey:      "fake-key-content",
+				SkipTLogVerify: true,
+			},
+			wantErr: "cannot use publicKey together with keyless verification options",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := BuildVerifyBlobOptions(tt.pkg, tmpDir)
+
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+
+			if tt.wantNil {
+				require.Nil(t, result)
+				return
+			}
+			require.NotNil(t, result)
+
+			if tt.wantKey {
+				require.NotEmpty(t, result.Key)
+				keyContent, err := os.ReadFile(result.Key)
+				require.NoError(t, err)
+				require.Equal(t, tt.pkg.PublicKey, string(keyContent))
+			}
+			require.Equal(t, tt.wantIgnoreTlog, result.CommonVerifyOptions.IgnoreTlog)
+			require.Equal(t, tt.wantSignedTS, result.CommonVerifyOptions.UseSignedTimestamps)
+			if tt.wantCertIdentity != "" {
+				require.Equal(t, tt.wantCertIdentity, result.CertVerify.CertIdentity)
+			}
+			if tt.wantOIDCIssuer != "" {
+				require.Equal(t, tt.wantOIDCIssuer, result.CertVerify.CertOidcIssuer)
+			}
 		})
 	}
 }

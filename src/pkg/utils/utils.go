@@ -405,6 +405,49 @@ func VerifyBlobOptionsFromKey(keyPath string) *signing.VerifyBlobOptions {
 	return &opts
 }
 
+// BuildVerifyBlobOptions builds VerifyBlobOptions from a package's signing configuration.
+// Writes any inline key/trusted-root content to files in tmpDir (caller owns cleanup).
+// Returns an error if both publicKey and keyless fields are specified together.
+// Returns nil if no signing configuration is present.
+func BuildVerifyBlobOptions(pkg types.Package, tmpDir string) (*signing.VerifyBlobOptions, error) {
+	hasKey := pkg.PublicKey != ""
+	hasKeyless := pkg.CertificateIdentity != "" || pkg.CertificateIdentityRegexp != "" ||
+		pkg.CertificateOIDCIssuer != "" || pkg.CertificateOIDCIssuerRegexp != "" ||
+		pkg.TrustedRoot != "" || pkg.SkipTLogVerify || pkg.UseSignedTimestamps
+
+	if hasKey && hasKeyless {
+		return nil, fmt.Errorf("cannot use publicKey together with keyless verification options (certificateIdentity, certificateOIDCIssuer, trustedRoot, skipTLogVerify, useSignedTimestamps); specify one or the other")
+	}
+
+	if hasKey {
+		keyPath := filepath.Join(tmpDir, config.PublicKeyFile)
+		if err := os.WriteFile(keyPath, []byte(pkg.PublicKey), helpers.ReadWriteUser); err != nil {
+			return nil, err
+		}
+		return VerifyBlobOptionsFromKey(keyPath), nil
+	}
+
+	if hasKeyless {
+		opts := signing.DefaultVerifyBlobOptions()
+		opts.CommonVerifyOptions.IgnoreTlog = pkg.SkipTLogVerify
+		opts.CommonVerifyOptions.UseSignedTimestamps = pkg.UseSignedTimestamps
+		opts.CertVerify.CertIdentity = pkg.CertificateIdentity
+		opts.CertVerify.CertIdentityRegexp = pkg.CertificateIdentityRegexp
+		opts.CertVerify.CertOidcIssuer = pkg.CertificateOIDCIssuer
+		opts.CertVerify.CertOidcIssuerRegexp = pkg.CertificateOIDCIssuerRegexp
+		if pkg.TrustedRoot != "" {
+			rootPath := filepath.Join(tmpDir, config.TrustedRootFile)
+			if err := os.WriteFile(rootPath, []byte(pkg.TrustedRoot), helpers.ReadWriteUser); err != nil {
+				return nil, err
+			}
+			opts.CommonVerifyOptions.TrustedRootPath = rootPath
+		}
+		return &opts, nil
+	}
+
+	return nil, nil
+}
+
 // resolveVerifyBlobOptions returns the provided options if non-nil, otherwise returns defaults.
 func resolveVerifyBlobOptions(opts *signing.VerifyBlobOptions) signing.VerifyBlobOptions {
 	if opts != nil {
