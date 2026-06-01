@@ -136,16 +136,28 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, _ bool, _ bool) (
 		}
 	}
 
+	// grab SHA of keyless bundle signature (if present)
+	var bundleSigSHA string
+	for _, layer := range imageManifest.Layers {
+		if layer.Annotations[ocispec.AnnotationTitle] == layout.Bundle {
+			bundleSigSHA = layer.Digest.Encoded()
+			break
+		}
+	}
+
 	// reset file reader
 	_, err = sourceArchive.Seek(0, 0)
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
-	// grab zarf.yaml, checksums.txt, and signature (if present)
+	// grab zarf.yaml, checksums.txt, and signature(s) (if present)
 	filePaths := []string{filepath.Join(config.BlobsDir, zarfYamlSHA), filepath.Join(config.BlobsDir, checksumsSHA)}
 	if signatureSHA != "" {
 		filePaths = append(filePaths, filepath.Join(config.BlobsDir, signatureSHA))
+	}
+	if bundleSigSHA != "" {
+		filePaths = append(filePaths, filepath.Join(config.BlobsDir, bundleSigSHA))
 	}
 	if err := config.BundleArchiveFormat.Extract(ctx, sourceArchive, func(_ context.Context, fileInArchive archives.FileInfo) error {
 		if !slices.Contains(filePaths, fileInArchive.NameInArchive) {
@@ -158,6 +170,8 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, _ bool, _ bool) (
 			fileDst = filepath.Join(t.TmpDir, layout.ZarfYAML)
 		case signatureSHA != "" && strings.Contains(fileInArchive.Name(), signatureSHA):
 			fileDst = filepath.Join(t.TmpDir, layout.Signature)
+		case bundleSigSHA != "" && strings.Contains(fileInArchive.Name(), bundleSigSHA):
+			fileDst = filepath.Join(t.TmpDir, layout.Bundle)
 		default:
 			fileDst = filepath.Join(t.TmpDir, layout.Checksums)
 		}
