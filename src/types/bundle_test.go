@@ -29,7 +29,7 @@ func TestPackageHasCertificateOIDCIssuerConfig(t *testing.T) {
 func TestPackageHasKeylessModifierConfig(t *testing.T) {
 	require.False(t, Package{}.HasKeylessModifierConfig())
 	require.True(t, Package{TrustedRoot: `{"mediaType":"application/vnd.dev.sigstore.trustedroot+json"}`}.HasKeylessModifierConfig())
-	require.True(t, Package{SkipTLogVerify: true}.HasKeylessModifierConfig())
+	require.True(t, Package{InsecureIgnoreTlog: true}.HasKeylessModifierConfig())
 	require.True(t, Package{UseSignedTimestamps: true}.HasKeylessModifierConfig())
 	require.False(t, Package{CertificateIdentity: "https://example.com"}.HasKeylessModifierConfig())
 }
@@ -41,6 +41,6 @@ func TestPackageHasKeylessConfig(t *testing.T) {
 	require.True(t, Package{CertificateOIDCIssuer: "https://token.actions.githubusercontent.com"}.HasKeylessConfig())
 	require.True(t, Package{CertificateOIDCIssuerRegexp: "https://.*"}.HasKeylessConfig())
 	require.True(t, Package{TrustedRoot: `{"mediaType":"application/vnd.dev.sigstore.trustedroot+json"}`}.HasKeylessConfig())
-	require.True(t, Package{SkipTLogVerify: true}.HasKeylessConfig())
+	require.True(t, Package{InsecureIgnoreTlog: true}.HasKeylessConfig())
 	require.True(t, Package{UseSignedTimestamps: true}.HasKeylessConfig())
 }

@@ -408,7 +408,7 @@ func VerifyBlobOptionsFromKey(keyPath string) *signing.VerifyBlobOptions {
 // ValidateVerifyBlobConfig validates the package signing configuration.
 func ValidateVerifyBlobConfig(pkg types.Package) error {
 	if pkg.HasPublicKey() && pkg.HasKeylessConfig() {
-		return fmt.Errorf("cannot use publicKey together with keyless verification options (certificateIdentity, certificateOIDCIssuer, trustedRoot, skipTLogVerify, useSignedTimestamps); specify one or the other")
+		return fmt.Errorf("cannot use publicKey together with keyless verification options (certificateIdentity, certificateOIDCIssuer, trustedRoot, insecureIgnoreTlog, useSignedTimestamps); specify one or the other")
 	}
 	if pkg.CertificateIdentity != "" && pkg.CertificateIdentityRegexp != "" {
 		return fmt.Errorf("certificateIdentity and certificateIdentityRegexp are mutually exclusive; specify one or the other")
@@ -446,7 +446,7 @@ func BuildVerifyBlobOptions(pkg types.Package, tmpDir string) (*signing.VerifyBl
 
 	if pkg.HasKeylessConfig() {
 		opts := signing.DefaultVerifyBlobOptions()
-		opts.CommonVerifyOptions.IgnoreTlog = pkg.SkipTLogVerify
+		opts.CommonVerifyOptions.IgnoreTlog = pkg.InsecureIgnoreTlog
 		opts.CommonVerifyOptions.UseSignedTimestamps = pkg.UseSignedTimestamps
 		opts.CertVerify.CertIdentity = pkg.CertificateIdentity
 		opts.CertVerify.CertIdentityRegexp = pkg.CertificateIdentityRegexp

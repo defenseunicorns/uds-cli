@@ -161,11 +161,11 @@ func TestBuildVerifyBlobOptions(t *testing.T) {
 			wantIgnoreTlog:   false,
 		},
 		{
-			name: "skipTLogVerify true sets IgnoreTlog true",
+			name: "insecureIgnoreTlog true sets IgnoreTlog true",
 			pkg: types.Package{
 				CertificateIdentity:   "https://example.com/workflow",
 				CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
-				SkipTLogVerify:        true,
+				InsecureIgnoreTlog:        true,
 			},
 			wantIgnoreTlog: true,
 		},
@@ -197,10 +197,10 @@ func TestBuildVerifyBlobOptions(t *testing.T) {
 			wantErr: "cannot use publicKey together with keyless verification options",
 		},
 		{
-			name: "publicKey and skipTLogVerify are mutually exclusive",
+			name: "publicKey and insecureIgnoreTlog are mutually exclusive",
 			pkg: types.Package{
 				PublicKey:      "fake-key-content",
-				SkipTLogVerify: true,
+				InsecureIgnoreTlog: true,
 			},
 			wantErr: "cannot use publicKey together with keyless verification options",
 		},
@@ -277,10 +277,10 @@ func TestValidateVerifyBlobConfig(t *testing.T) {
 			wantErr: "cannot use publicKey together with keyless verification options",
 		},
 		{
-			name: "publicKey and skipTLogVerify are mutually exclusive",
+			name: "publicKey and insecureIgnoreTlog are mutually exclusive",
 			pkg: types.Package{
 				PublicKey:      "fake-key",
-				SkipTLogVerify: true,
+				InsecureIgnoreTlog: true,
 			},
 			wantErr: "cannot use publicKey together with keyless verification options",
 		},
@@ -298,8 +298,8 @@ func TestValidateVerifyBlobConfig(t *testing.T) {
 			wantErr: "keyless verification requires certificateIdentity or certificateIdentityRegexp",
 		},
 		{
-			name:    "skipTLogVerify alone requires identity and issuer",
-			pkg:     types.Package{SkipTLogVerify: true},
+			name:    "insecureIgnoreTlog alone requires identity and issuer",
+			pkg:     types.Package{InsecureIgnoreTlog: true},
 			wantErr: "keyless verification requires certificateIdentity or certificateIdentityRegexp",
 		},
 		{
