@@ -19,26 +19,26 @@ type UDSBundle struct {
 
 // Package represents a Zarf package in a UDS bundle
 type Package struct {
-	Name               string                                     `json:"name" jsonschema:"name=Name of the Zarf package"`
-	Description        string                                     `json:"description,omitempty" jsonschema:"description=Description of the Zarf package"`
-	Repository         string                                     `json:"repository,omitempty" jsonschema:"description=The repository to import the package from"`
-	Path               string                                     `json:"path,omitempty" jsonschema:"description=The local path to import the package from"`
-	Ref                string                                     `json:"ref" jsonschema:"description=Ref (tag) of the Zarf package"`
-	Namespace          string                                     `json:"namespace,omitempty" jsonschema:"description=[Alpha] Override the namespace for the entire package deployment. Requires the package to have only one distinct namespace defined"`
-	Timeout            string                                     `json:"timeout,omitempty" jsonschema:"description=Timeout for deploying the package. Use duration format such as 30s 10m or 1h30m"`
-	Flavor             string                                     `json:"flavor,omitempty" jsonschema:"description=Flavor of the Zarf package"`
-	OptionalComponents []string                                   `json:"optionalComponents,omitempty" jsonschema:"description=List of optional components to include from the package (required components are always included)"`
-	PublicKey            string                                     `json:"publicKey,omitempty" jsonschema:"description=The public key to use to verify the package. Mutually exclusive with certIdentity/certOIDCIssuer."`
+	Name                        string                                     `json:"name" jsonschema:"name=Name of the Zarf package"`
+	Description                 string                                     `json:"description,omitempty" jsonschema:"description=Description of the Zarf package"`
+	Repository                  string                                     `json:"repository,omitempty" jsonschema:"description=The repository to import the package from"`
+	Path                        string                                     `json:"path,omitempty" jsonschema:"description=The local path to import the package from"`
+	Ref                         string                                     `json:"ref" jsonschema:"description=Ref (tag) of the Zarf package"`
+	Namespace                   string                                     `json:"namespace,omitempty" jsonschema:"description=[Alpha] Override the namespace for the entire package deployment. Requires the package to have only one distinct namespace defined"`
+	Timeout                     string                                     `json:"timeout,omitempty" jsonschema:"description=Timeout for deploying the package. Use duration format such as 30s 10m or 1h30m"`
+	Flavor                      string                                     `json:"flavor,omitempty" jsonschema:"description=Flavor of the Zarf package"`
+	OptionalComponents          []string                                   `json:"optionalComponents,omitempty" jsonschema:"description=List of optional components to include from the package (required components are always included)"`
+	PublicKey                   string                                     `json:"publicKey,omitempty" jsonschema:"description=The public key to use to verify the package. Mutually exclusive with certIdentity/certOIDCIssuer."`
 	CertificateIdentity         string                                     `json:"certificateIdentity,omitempty" jsonschema:"description=Certificate identity for keyless signature verification (e.g. https://github.com/org/repo/.github/workflows/release.yml@refs/heads/main). Mutually exclusive with publicKey."`
 	CertificateIdentityRegexp   string                                     `json:"certificateIdentityRegexp,omitempty" jsonschema:"description=Regex variant of certificateIdentity for keyless signature verification"`
 	CertificateOIDCIssuer       string                                     `json:"certificateOIDCIssuer,omitempty" jsonschema:"description=OIDC issuer for keyless signature verification (e.g. https://token.actions.githubusercontent.com). Mutually exclusive with publicKey."`
 	CertificateOIDCIssuerRegexp string                                     `json:"certificateOIDCIssuerRegexp,omitempty" jsonschema:"description=Regex variant of certificateOIDCIssuer for keyless signature verification"`
-	TrustedRoot          string                                     `json:"trustedRoot,omitempty" jsonschema:"description=Sigstore TrustedRoot JSON content for keyless signature verification. Omit to use Zarf's embedded TrustedRoot."`
-	SkipTLogVerify       bool                                       `json:"skipTLogVerify,omitempty" jsonschema:"description=Skip transparency log (Rekor) verification for keyless signatures. Defaults to false when any keyless option is specified; set to true only for air-gapped or private Sigstore infrastructure. Mirrors zarf package verify --insecure-skip-tlog-verify."`
-	UseSignedTimestamps  bool                                       `json:"useSignedTimestamps,omitempty" jsonschema:"description=Verify RFC 3161 signed timestamps instead of the transparency log for keyless signatures. Use with private TSA infrastructure. Mirrors zarf package verify --use-signed-timestamps."`
-	Imports            []BundleVariableImport                     `json:"imports,omitempty" jsonschema:"description=List of Zarf variables to import from another Zarf package"`
-	Exports            []BundleVariableExport                     `json:"exports,omitempty" jsonschema:"description=List of Zarf variables to export from the Zarf package"`
-	Overrides          map[string]map[string]BundleChartOverrides `json:"overrides,omitempty" jsonschema:"description=Map of Helm chart overrides to set. The format is <component>:, <chart-name>:"`
+	TrustedRoot                 string                                     `json:"trustedRoot,omitempty" jsonschema:"description=Sigstore TrustedRoot JSON content for keyless signature verification. Omit to use Zarf's embedded TrustedRoot."`
+	SkipTLogVerify              bool                                       `json:"skipTLogVerify,omitempty" jsonschema:"description=Skip transparency log (Rekor) verification for keyless signatures. Defaults to false when any keyless option is specified; set to true only for air-gapped or private Sigstore infrastructure. Mirrors zarf package verify --insecure-skip-tlog-verify."`
+	UseSignedTimestamps         bool                                       `json:"useSignedTimestamps,omitempty" jsonschema:"description=Verify RFC 3161 signed timestamps instead of the transparency log for keyless signatures. Use with private TSA infrastructure. Mirrors zarf package verify --use-signed-timestamps."`
+	Imports                     []BundleVariableImport                     `json:"imports,omitempty" jsonschema:"description=List of Zarf variables to import from another Zarf package"`
+	Exports                     []BundleVariableExport                     `json:"exports,omitempty" jsonschema:"description=List of Zarf variables to export from the Zarf package"`
+	Overrides                   map[string]map[string]BundleChartOverrides `json:"overrides,omitempty" jsonschema:"description=Map of Helm chart overrides to set. The format is <component>:, <chart-name>:"`
 }
 
 // BundleChartOverrides represents a Helm chart override to set via UDS variables

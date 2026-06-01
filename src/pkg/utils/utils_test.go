@@ -152,7 +152,7 @@ func TestBuildVerifyBlobOptions(t *testing.T) {
 		{
 			name: "certificateIdentity sets keyless opts with IgnoreTlog false",
 			pkg: types.Package{
-				CertificateIdentity: "https://github.com/org/repo/.github/workflows/release.yml@refs/heads/main",
+				CertificateIdentity:   "https://github.com/org/repo/.github/workflows/release.yml@refs/heads/main",
 				CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
 			},
 			wantCertIdentity: "https://github.com/org/repo/.github/workflows/release.yml@refs/heads/main",
