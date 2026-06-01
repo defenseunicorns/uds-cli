@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
@@ -103,21 +102,15 @@ func (f *localFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
 func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 	ctx := context.TODO()
 
-	// Create a temporary directory for public key storage - should this go somewhere else?
 	tmpDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 	if err != nil {
 		return nil, "", err
 	}
 	defer os.RemoveAll(tmpDir) //nolint:errcheck
 
-	// create the public key such that we can reference it for load
-	publicKeyPath := filepath.Join(tmpDir, config.PublicKeyFile)
-	if f.pkg.PublicKey != "" {
-		if err := os.WriteFile(publicKeyPath, []byte(f.pkg.PublicKey), helpers.ReadWriteUser); err != nil {
-			return nil, "", err
-		}
-	} else {
-		publicKeyPath = ""
+	verifyOpts, err := utils.BuildVerifyBlobOptions(f.pkg, tmpDir)
+	if err != nil {
+		return nil, "", err
 	}
 
 	filter := filters.Combine(
@@ -132,7 +125,7 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 	loadOpts := packager.LoadOptions{
 		Filter:               filter,
 		CachePath:            config.CommonOptions.CachePath,
-		VerifyBlobOptions:    utils.VerifyBlobOptionsFromKey(publicKeyPath),
+		VerifyBlobOptions:    verifyOpts,
 		RemoteOptions:        remoteOpts,
 		VerificationStrategy: utils.GetPackageVerificationStrategy(f.cfg.SkipSignatureValidation),
 		OCIConcurrency:       config.CommonOptions.OCIConcurrency,

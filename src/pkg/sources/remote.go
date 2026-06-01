@@ -23,6 +23,7 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/signing"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"oras.land/oras-go/v2/content/file"
 )
@@ -32,7 +33,7 @@ type RemoteBundle struct {
 	Pkg                     types.Package
 	PkgManifestSHA          string
 	TmpDir                  string
-	PublicKeyPath           string
+	VerifyBlobOptions       *signing.VerifyBlobOptions
 	Remote                  *oci.OrasRemote
 	nsOverrides             NamespaceOverrideMap
 	bundleCfg               types.BundleConfig
@@ -84,7 +85,7 @@ func (r *RemoteBundle) LoadPackage(ctx context.Context, filter filters.Component
 	pkg.Components = filteredComps
 
 	layoutOpts := layout.PackageLayoutOptions{
-		VerifyBlobOptions:    utils.VerifyBlobOptionsFromKey(r.PublicKeyPath),
+		VerifyBlobOptions:    r.VerifyBlobOptions,
 		VerificationStrategy: utils.GetPackageVerificationStrategy(r.SkipSignatureValidation),
 		IsPartial:            isPartialPkg,
 		Filter:               filter,

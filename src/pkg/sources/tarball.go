@@ -24,6 +24,7 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/signing"
 )
 
 // NamespaceOverrideMap is a map of component names to a map of chart names to namespace overrides
@@ -35,7 +36,7 @@ type TarballBundle struct {
 	TmpDir                  string
 	BundleLocation          string
 	Pkg                     types.Package
-	PublicKeyPath           string
+	VerifyBlobOptions       *signing.VerifyBlobOptions
 	nsOverrides             NamespaceOverrideMap
 	SkipSignatureValidation bool
 }
@@ -68,7 +69,7 @@ func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.Componen
 	pkg.Components = filteredComps
 
 	layoutOpts := layout.PackageLayoutOptions{
-		VerifyBlobOptions:    utils.VerifyBlobOptionsFromKey(t.PublicKeyPath),
+		VerifyBlobOptions:    t.VerifyBlobOptions,
 		VerificationStrategy: utils.GetPackageVerificationStrategy(t.SkipSignatureValidation),
 		IsPartial:            isPartialPkg,
 		Filter:               filter,

@@ -190,7 +190,35 @@
         },
         "publicKey": {
           "type": "string",
-          "description": "The public key to use to verify the package"
+          "description": "The public key to use to verify the package. Mutually exclusive with certIdentity/certOIDCIssuer."
+        },
+        "certificateIdentity": {
+          "type": "string",
+          "description": "Certificate identity for keyless signature verification (e.g. https://github.com/org/repo/.github/workflows/release.yml@refs/heads/main). Mutually exclusive with publicKey."
+        },
+        "certificateIdentityRegexp": {
+          "type": "string",
+          "description": "Regex variant of certificateIdentity for keyless signature verification"
+        },
+        "certificateOIDCIssuer": {
+          "type": "string",
+          "description": "OIDC issuer for keyless signature verification (e.g. https://token.actions.githubusercontent.com). Mutually exclusive with publicKey."
+        },
+        "certificateOIDCIssuerRegexp": {
+          "type": "string",
+          "description": "Regex variant of certificateOIDCIssuer for keyless signature verification"
+        },
+        "trustedRoot": {
+          "type": "string",
+          "description": "Sigstore TrustedRoot JSON content for keyless signature verification. Omit to use Zarf's embedded TrustedRoot."
+        },
+        "skipTLogVerify": {
+          "type": "boolean",
+          "description": "Skip transparency log (Rekor) verification for keyless signatures. Defaults to false when any keyless option is specified; set to true only for air-gapped or private Sigstore infrastructure. Mirrors zarf package verify --insecure-skip-tlog-verify."
+        },
+        "useSignedTimestamps": {
+          "type": "boolean",
+          "description": "Verify RFC 3161 signed timestamps instead of the transparency log for keyless signatures. Use with private TSA infrastructure. Mirrors zarf package verify --use-signed-timestamps."
         },
         "imports": {
           "items": {

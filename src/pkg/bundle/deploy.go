@@ -10,15 +10,14 @@ import (
 	"fmt"
 	"maps"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
@@ -95,14 +94,9 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		}
 		defer os.RemoveAll(pkgTmp)
 
-		publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
-		if pkg.PublicKey != "" {
-			if err := os.WriteFile(publicKeyPath, []byte(pkg.PublicKey), helpers.ReadWriteUser); err != nil {
-				return err
-			}
-			defer os.Remove(publicKeyPath)
-		} else {
-			publicKeyPath = ""
+		verifyOpts, err := utils.BuildVerifyBlobOptions(pkg, pkgTmp)
+		if err != nil {
+			return fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
 
 		pkgVars, variableData := b.loadVariables(pkg, bundleExportedVars)
@@ -114,7 +108,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 
-		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, publicKeyPath, config.CommonOptions.SkipSignatureValidation, sha, nsOverrides)
+		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, verifyOpts, config.CommonOptions.SkipSignatureValidation, sha, nsOverrides)
 		if err != nil {
 			return err
 		}

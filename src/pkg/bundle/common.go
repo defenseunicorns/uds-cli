@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -183,12 +182,8 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 		message.Debug("Validating package:", jsonValue)
 
 		// todo: need to packager.ValidatePackageSignature (or come up with a bundle-level signature scheme)
-		publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
-		if pkg.PublicKey != "" {
-			if err := os.WriteFile(publicKeyPath, []byte(pkg.PublicKey), helpers.ReadWriteUser); err != nil {
-				return err
-			}
-			defer os.Remove(publicKeyPath)
+		if _, err := utils.BuildVerifyBlobOptions(pkg, b.tmp); err != nil {
+			return fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
 
 		if len(pkg.OptionalComponents) > 0 {

@@ -40,6 +40,9 @@ const (
 	// PublicKeyFile is the name of the public key file
 	PublicKeyFile = "public.key"
 
+	// TrustedRootFile is the name of the Sigstore TrustedRoot JSON file
+	TrustedRootFile = "trusted-root.json"
+
 	// ChecksumsTxt is the name of the checksums.txt file in a Zarf pkg
 	ChecksumsTxt = "checksums.txt"
 

@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
@@ -188,16 +187,6 @@ func (b *Bundle) listVariables() error {
 
 func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 
-	publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
-	if pkg.PublicKey != "" {
-		if err := os.WriteFile(publicKeyPath, []byte(pkg.PublicKey), helpers.ReadWriteUser); err != nil {
-			return v1alpha1.ZarfPackage{}, err
-		}
-		defer os.Remove(publicKeyPath)
-	} else {
-		publicKeyPath = ""
-	}
-
 	// if we are inspecting a built bundle, get the metadata from the bundle
 	if !b.cfg.InspectOpts.IsYAMLFile {
 		pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
@@ -206,8 +195,13 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		}
 		defer os.RemoveAll(pkgTmp)
 
+		verifyOpts, err := utils.BuildVerifyBlobOptions(pkg, pkgTmp)
+		if err != nil {
+			return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
+		}
+
 		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
-		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, publicKeyPath, config.CommonOptions.SkipSignatureValidation, sha, nil)
+		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, verifyOpts, config.CommonOptions.SkipSignatureValidation, sha, nil)
 		if err != nil {
 			return v1alpha1.ZarfPackage{}, err
 		}
@@ -218,7 +212,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		}
 
 		if !config.CommonOptions.SkipSignatureValidation {
-			if err := verifyPackageSignature(pkgTmp, publicKeyPath, zarfPkg); err != nil {
+			if err := verifyPackageSignature(pkgTmp, verifyOpts, zarfPkg); err != nil {
 				return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 			}
 		}
@@ -234,6 +228,17 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		return v1alpha1.ZarfPackage{}, err
 	}
 
+	yamlTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
+	if err != nil {
+		return v1alpha1.ZarfPackage{}, err
+	}
+	defer os.RemoveAll(yamlTmp)
+
+	verifyOpts, err := utils.BuildVerifyBlobOptions(pkg, yamlTmp)
+	if err != nil {
+		return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
+	}
+
 	remoteOpts := zarfTypes.RemoteOptions{
 		PlainHTTP:             config.CommonOptions.Insecure,
 		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
@@ -243,7 +248,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		Filter:               filters.Empty(),
 		VerificationStrategy: utils.GetPackageVerificationStrategy(config.CommonOptions.SkipSignatureValidation),
 		Architecture:         config.GetArch(b.bundle.Metadata.Architecture),
-		VerifyBlobOptions:    utils.VerifyBlobOptionsFromKey(publicKeyPath),
+		VerifyBlobOptions:    verifyOpts,
 		CachePath:            config.CommonOptions.CachePath,
 		RemoteOptions:        remoteOpts,
 		OCIConcurrency:       config.CommonOptions.OCIConcurrency,
@@ -262,7 +267,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 	return pkgLayout.Pkg, nil
 }
 
-func verifyPackageSignature(pkgDir, publicKeyPath string, pkg v1alpha1.ZarfPackage) error {
+func verifyPackageSignature(pkgDir string, verifyOpts *signing.VerifyBlobOptions, pkg v1alpha1.ZarfPackage) error {
 	signaturePath := filepath.Join(pkgDir, layout.Signature)
 	zarfYAMLPath := filepath.Join(pkgDir, layout.ZarfYAML)
 
@@ -277,12 +282,10 @@ func verifyPackageSignature(pkgDir, publicKeyPath string, pkg v1alpha1.ZarfPacka
 		return nil
 	}
 
-	if publicKeyPath == "" {
-		return fmt.Errorf("package is signed but no verification material was provided (Public Key, etc.)")
+	if verifyOpts == nil {
+		return fmt.Errorf("package is signed but no verification material was provided (public key, certificate identity, etc.)")
 	}
 
-	verifyOpts := signing.DefaultVerifyBlobOptions()
-	verifyOpts.Key = publicKeyPath
 	verifyOpts.Signature = signaturePath
-	return signing.CosignVerifyBlobWithOptions(context.TODO(), zarfYAMLPath, verifyOpts)
+	return signing.CosignVerifyBlobWithOptions(context.TODO(), zarfYAMLPath, *verifyOpts)
 }

@@ -7,10 +7,7 @@ package fetcher
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 
-	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/cache"
@@ -133,14 +130,9 @@ func (f *remoteFetcher) copyRemotePkgLayers(layersToCopy []ocispec.Descriptor) (
 func (f *remoteFetcher) verifyPackageSignature() error {
 	ctx := context.TODO()
 
-	// create the public key such that we can reference it for load
-	publicKeyPath := filepath.Join(f.cfg.TmpDstDir, config.PublicKeyFile)
-	if f.pkg.PublicKey != "" {
-		if err := os.WriteFile(publicKeyPath, []byte(f.pkg.PublicKey), helpers.ReadWriteUser); err != nil {
-			return err
-		}
-	} else {
-		publicKeyPath = ""
+	verifyOpts, err := utils.BuildVerifyBlobOptions(f.pkg, f.cfg.TmpDstDir)
+	if err != nil {
+		return err
 	}
 
 	remoteOpts := zarfTypes.RemoteOptions{
@@ -151,7 +143,7 @@ func (f *remoteFetcher) verifyPackageSignature() error {
 	loadOpts := packager.LoadOptions{
 		Filter:               filters.Empty(), // explicitly set to empty for this operation (create)
 		CachePath:            config.CommonOptions.CachePath,
-		VerifyBlobOptions:    utils.VerifyBlobOptionsFromKey(publicKeyPath),
+		VerifyBlobOptions:    verifyOpts,
 		RemoteOptions:        remoteOpts,
 		VerificationStrategy: layout.VerifyAlways,
 		OCIConcurrency:       config.CommonOptions.OCIConcurrency,
