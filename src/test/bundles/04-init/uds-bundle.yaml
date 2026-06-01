@@ -13,6 +13,8 @@ packages:
     path: "../../packages"
     # renovate: datasource=github-tags depName=zarf-dev/zarf
     ref: v0.77.0
+    certificateIdentityRegexp: https://github\.com/zarf-dev/zarf/\.github/workflows/release\.yml@refs/tags/v\d+\.\d+\.\d+
+    certificateOIDCIssuer: https://token.actions.githubusercontent.com
     optionalComponents:
       - git-server
   - name: init
