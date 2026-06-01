@@ -39,7 +39,10 @@
       }
     },
     "BundleChartValue": {
-      "required": ["path", "value"],
+      "required": [
+        "path",
+        "value"
+      ],
       "properties": {
         "path": {
           "type": "string"
@@ -55,7 +58,10 @@
       }
     },
     "BundleChartVariable": {
-      "required": ["path", "name"],
+      "required": [
+        "path",
+        "name"
+      ],
       "properties": {
         "path": {
           "type": "string"
@@ -70,7 +76,10 @@
           "additionalProperties": true
         },
         "type": {
-          "enum": ["raw", "file"],
+          "enum": [
+            "raw",
+            "file"
+          ],
           "type": "string",
           "description": "The type of value to be processed"
         },
@@ -79,7 +88,12 @@
           "description": "Whether the value is sensitive"
         },
         "source": {
-          "enum": ["config", "env", "cli", "bundle"],
+          "enum": [
+            "config",
+            "env",
+            "cli",
+            "bundle"
+          ],
           "type": "string",
           "description": "Where the value is set from"
         }
@@ -91,7 +105,9 @@
       }
     },
     "BundleVariableExport": {
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "properties": {
         "name": {
           "type": "string"
@@ -107,7 +123,10 @@
       }
     },
     "BundleVariableImport": {
-      "required": ["name", "package"],
+      "required": [
+        "name",
+        "package"
+      ],
       "properties": {
         "name": {
           "type": "string"
@@ -126,7 +145,10 @@
       }
     },
     "Package": {
-      "required": ["name", "ref"],
+      "required": [
+        "name",
+        "ref"
+      ],
       "properties": {
         "name": {
           "type": "string"
@@ -237,7 +259,13 @@
       }
     },
     "UDSBuildData": {
-      "required": ["terminal", "user", "architecture", "timestamp", "version"],
+      "required": [
+        "terminal",
+        "user",
+        "architecture",
+        "timestamp",
+        "version"
+      ],
       "properties": {
         "terminal": {
           "type": "string",
@@ -267,10 +295,16 @@
       }
     },
     "UDSBundle": {
-      "required": ["kind", "metadata", "packages"],
+      "required": [
+        "kind",
+        "metadata",
+        "packages"
+      ],
       "properties": {
         "kind": {
-          "enum": ["UDSBundle"],
+          "enum": [
+            "UDSBundle"
+          ],
           "type": "string",
           "description": "The kind of UDS package"
         },
@@ -300,7 +334,9 @@
       }
     },
     "UDSMetadata": {
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "properties": {
         "name": {
           "pattern": "^[a-z0-9\\-]+$",
@@ -326,7 +362,10 @@
         "architecture": {
           "type": "string",
           "description": "The target cluster architecture for this package",
-          "examples": ["arm64", "amd64"]
+          "examples": [
+            "arm64",
+            "amd64"
+          ]
         },
         "authors": {
           "type": "string",
