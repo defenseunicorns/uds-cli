@@ -21,8 +21,8 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
-	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
+	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
