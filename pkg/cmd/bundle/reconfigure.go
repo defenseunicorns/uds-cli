@@ -47,7 +47,8 @@ func NewReconfigureCommand(streams iostreams.IOStreams) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			util.CheckErr(o.Complete(cmd, args))
 			util.CheckErr(o.Validate())
-			util.CheckErr(o.Run())
+			ctx := cmd.Context()
+			util.CheckErr(o.Run(ctx))
 		},
 	}
 
@@ -83,7 +84,12 @@ func (o *ReconfigureOptions) Complete(cmd *cobra.Command, args []string) error {
 	}
 
 	// Resolve config options from persistent flags (plain-http, skip-tls-verify, etc.)
-	cfg, _, err := NewConfigResolver().Resolve(cmd, "")
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	flags := SnapshotFlags(cmd)
+	cfg, _, err := NewConfigResolver().Resolve(ctx, flags, "")
 	if err != nil {
 		return err
 	}
@@ -123,8 +129,8 @@ func (o *ReconfigureOptions) Validate() error {
 }
 
 // Run executes the reconfigure command.
-func (o *ReconfigureOptions) Run() error {
-	result, err := bundle.Reconfigure(context.Background(), bundle.ReconfigureOptions{
+func (o *ReconfigureOptions) Run(ctx context.Context) error {
+	result, err := bundle.Reconfigure(ctx, bundle.ReconfigureOptions{
 		Source:       o.Source,
 		DefaultsFile: o.DefaultsFile,
 		Suffix:       o.Suffix,

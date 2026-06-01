@@ -14,6 +14,9 @@ import (
 // which any temporary files or directories should be created. If empty, the
 // system default temp directory will be used.
 func PrepareDeploySource(ctx context.Context, path, tmpDir string) (*DeploySource, error) {
+	if path == "" {
+		return nil, errEmpty("path")
+	}
 	if IsTarZst(path) {
 		return prepareExtractedArtifactSource(ctx, path, tmpDir)
 	}

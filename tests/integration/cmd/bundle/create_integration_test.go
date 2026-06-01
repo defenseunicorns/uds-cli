@@ -6,6 +6,7 @@
 package bundle_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -154,7 +155,7 @@ func TestCreate_DefaultsConfig_Applied(t *testing.T) {
 	// Find the create subcommand to get its flags
 	createCmd, _, _ := cmd.Find([]string{"create"})
 	createCmd.Flags().String("config", "", "config path")
-	resolved, _, err := resolver.Resolve(createCmd, dir)
+	resolved, _, err := resolver.Resolve(context.Background(), bundlecmd.SnapshotFlags(createCmd), dir)
 	require.NoError(t, err)
 
 	// Variables from defaults.uds.hcl

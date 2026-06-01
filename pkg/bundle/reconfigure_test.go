@@ -527,11 +527,11 @@ func TestLocalReconfigure_RejectsNonTarZstSource(t *testing.T) {
 func pushTestBundle(t *testing.T, store oras.Target, bundleHCL string, defaultsHCL string, ref string) {
 	t.Helper()
 	tarball := createTestBundle(t, bundleHCL, defaultsHCL)
-	_, err := Push(context.Background(), PushOptions{
-		BundleTarball: tarball,
-		OCIReference:  ref,
-		Options:       ConfigOptions{TmpDir: t.TempDir()},
-		remoteRepo:    store,
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
+	_, err := Push(context.Background(), tarball, ref, PushOptions{
+		Config:     cfg,
+		remoteRepo: store,
 	})
 	require.NoError(t, err)
 }

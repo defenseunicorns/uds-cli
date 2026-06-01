@@ -25,10 +25,10 @@ func TestPush_NoOCILayout(t *testing.T) {
 	tarball := filepath.Join(t.TempDir(), "v0-bundle.tar.zst")
 	require.NoError(t, writeTarZst(context.Background(), tarball, srcDir))
 
-	result, err := Push(context.Background(), PushOptions{
-		BundleTarball: tarball,
-		OCIReference:  "example.com/test/v0-bundle:v1.0.0",
-		Options:       ConfigOptions{TmpDir: t.TempDir()},
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
+	result, err := Push(context.Background(), tarball, "example.com/test/v0-bundle:v1.0.0", PushOptions{
+		Config: cfg,
 	})
 
 	require.ErrorContains(t, err, "does not appear to be a UDS bundle")
@@ -61,10 +61,10 @@ func TestPush_NonUDSBundle(t *testing.T) {
 	tarball := filepath.Join(t.TempDir(), "not-a-bundle.tar.zst")
 	require.NoError(t, writeTarZst(context.Background(), tarball, srcDir))
 
-	result, err := Push(context.Background(), PushOptions{
-		BundleTarball: tarball,
-		OCIReference:  "example.com/test/not-a-bundle:v1.0.0",
-		Options:       ConfigOptions{TmpDir: t.TempDir()},
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
+	result, err := Push(context.Background(), tarball, "example.com/test/not-a-bundle:v1.0.0", PushOptions{
+		Config: cfg,
 	})
 
 	require.Error(t, err)
@@ -100,11 +100,11 @@ package "pkg1" {
 	dst, err := oraci.New(t.TempDir())
 	require.NoError(t, err)
 
-	result, err := Push(context.Background(), PushOptions{
-		BundleTarball: tarball.OutputPath,
-		OCIReference:  "example.com/test/push-test:1.0.0",
-		Options:       ConfigOptions{TmpDir: t.TempDir()},
-		remoteRepo:    dst,
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
+	result, err := Push(context.Background(), tarball.OutputPath, "example.com/test/push-test:1.0.0", PushOptions{
+		Config:     cfg,
+		remoteRepo: dst,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "example.com/test/push-test:1.0.0", result.OCIReference)
@@ -117,10 +117,10 @@ package "pkg1" {
 func TestPush_TarballNotFound(t *testing.T) {
 	t.Parallel()
 
-	result, err := Push(context.Background(), PushOptions{
-		BundleTarball: "/nonexistent/bundle.tar.zst",
-		OCIReference:  "example.com/test/bundle:v1.0.0",
-		Options:       ConfigOptions{TmpDir: t.TempDir()},
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
+	result, err := Push(context.Background(), "/nonexistent/bundle.tar.zst", "example.com/test/bundle:v1.0.0", PushOptions{
+		Config: cfg,
 	})
 
 	require.Error(t, err)
@@ -153,10 +153,10 @@ package "pkg1" {
 	})
 	require.NoError(t, err)
 
-	result, err := Push(context.Background(), PushOptions{
-		BundleTarball: tarball.OutputPath,
-		OCIReference:  ":::invalid:::",
-		Options:       ConfigOptions{TmpDir: t.TempDir()},
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
+	result, err := Push(context.Background(), tarball.OutputPath, ":::invalid:::", PushOptions{
+		Config: cfg,
 	})
 
 	require.Error(t, err)
@@ -188,10 +188,11 @@ package "pkg1" {
 	})
 	require.NoError(t, err)
 
-	result, err := Push(context.Background(), PushOptions{
-		BundleTarball: tarball.OutputPath,
-		OCIReference:  "localhost:0/test/bundle:v1.0.0",
-		Options: ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true},
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
+	cfg.Options.PlainHTTP = true
+	result, err := Push(context.Background(), tarball.OutputPath, "localhost:0/test/bundle:v1.0.0", PushOptions{
+		Config: cfg,
 	})
 
 	// The specific error message varies by OS and connection failure type

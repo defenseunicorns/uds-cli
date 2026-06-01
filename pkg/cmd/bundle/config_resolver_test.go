@@ -4,7 +4,7 @@
 package bundle
 
 import (
-	"fmt"
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -209,7 +209,7 @@ func TestOverlayCLI_NoFlagsChanged(t *testing.T) {
 		TmpDir:       "/custom",
 	}
 
-	result := r.OverlayCLI(cmd, base)
+	result := r.OverlayCLI(SnapshotFlags(cmd), base)
 	assert.Equal(t, base, result, "no flags changed; base should be returned unchanged")
 }
 
@@ -232,7 +232,7 @@ func TestOverlayCLI_AllFlagsChanged(t *testing.T) {
 		TmpDir:       "/hcl-tmp",
 	}
 
-	result := r.OverlayCLI(cmd, base)
+	result := r.OverlayCLI(SnapshotFlags(cmd), base)
 
 	assert.Equal(t, "error", result.LogLevel)
 	assert.Equal(t, "s390x", result.Architecture)
@@ -257,7 +257,7 @@ func TestOverlayCLI_PartialFlags(t *testing.T) {
 		PlainHTTP:    true,
 	}
 
-	result := r.OverlayCLI(cmd, base)
+	result := r.OverlayCLI(SnapshotFlags(cmd), base)
 
 	assert.Equal(t, "info", result.LogLevel, "unchanged flag should preserve base")
 	assert.Equal(t, "arm64", result.Architecture, "CLI flag should override")
@@ -279,7 +279,7 @@ func TestOverlayCLI_CLIOverridesHCL(t *testing.T) {
 		Concurrency:  10,
 	}
 
-	result := r.OverlayCLI(cmd, base)
+	result := r.OverlayCLI(SnapshotFlags(cmd), base)
 	assert.Equal(t, "s390x", result.Architecture, "CLI should override HCL")
 }
 
@@ -295,7 +295,7 @@ func TestOverlayCLI_CLISetsZeroishValue(t *testing.T) {
 		Concurrency:  5,
 	}
 
-	result := r.OverlayCLI(cmd, base)
+	result := r.OverlayCLI(SnapshotFlags(cmd), base)
 	assert.Equal(t, 1, result.Concurrency, "CLI should set concurrency to 1")
 }
 
@@ -312,7 +312,7 @@ func TestOverlayCLI_LogLevelChanged(t *testing.T) {
 		Concurrency:  10,
 	}
 
-	result := r.OverlayCLI(cmd, base)
+	result := r.OverlayCLI(SnapshotFlags(cmd), base)
 	assert.Equal(t, "debug", result.LogLevel, "CLI --log-level should override base")
 }
 
@@ -533,7 +533,7 @@ func TestMultiLayerPrecedence(t *testing.T) {
 			for k, v := range tt.cliFlags {
 				require.NoError(t, cmd.Flags().Set(k, v))
 			}
-			result := r.OverlayCLI(cmd, base)
+			result := r.OverlayCLI(SnapshotFlags(cmd), base)
 
 			assert.Equal(t, tt.wantLogLevel, result.LogLevel)
 			assert.Equal(t, tt.wantArch, result.Architecture)
@@ -550,7 +550,7 @@ func TestResolve_DefaultsOnly(t *testing.T) {
 	registerTestFlags(cmd)
 	cmd.Flags().String("config", "", "config path")
 
-	resolved, configPath, err := r.Resolve(cmd, "")
+	resolved, configPath, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -585,7 +585,7 @@ variables = {
 	cmd.Flags().String("config", "", "config path")
 	require.NoError(t, cmd.Flags().Set("config", configPath))
 
-	resolved, resolvedConfigPath, err := r.Resolve(cmd, "")
+	resolved, resolvedConfigPath, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -614,7 +614,7 @@ options {
 	require.NoError(t, cmd.Flags().Set("config", configPath))
 	require.NoError(t, cmd.Flags().Set("architecture", "s390x"))
 
-	resolved, _, err := r.Resolve(cmd, "")
+	resolved, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
 	assert.Equal(t, "s390x", resolved.Options.Architecture, "CLI should override HCL")
@@ -628,7 +628,7 @@ func TestResolve_InvalidConfigPath(t *testing.T) {
 	cmd.Flags().String("config", "", "config path")
 	require.NoError(t, cmd.Flags().Set("config", "/nonexistent/config.uds.hcl"))
 
-	_, _, err := r.Resolve(cmd, "")
+	_, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse config")
 }
@@ -641,7 +641,7 @@ func TestResolve_NoConfigFlag(t *testing.T) {
 	registerTestFlags(cmd)
 	// Deliberately not registering --config flag
 
-	resolved, configPath, err := r.Resolve(cmd, "")
+	resolved, configPath, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -658,7 +658,7 @@ func TestResolve_LogLevelCLIOverride(t *testing.T) {
 	cmd.Flags().String("config", "", "config path")
 	require.NoError(t, cmd.Flags().Set("log-level", "debug"))
 
-	resolved, _, err := r.Resolve(cmd, "")
+	resolved, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -681,7 +681,7 @@ options {
 	cmd.Flags().String("config", "", "config path")
 	require.NoError(t, cmd.Flags().Set("config", configPath))
 
-	resolved, _, err := r.Resolve(cmd, "")
+	resolved, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -705,7 +705,7 @@ options {
 	require.NoError(t, cmd.Flags().Set("config", configPath))
 	require.NoError(t, cmd.Flags().Set("log-level", "error"))
 
-	resolved, _, err := r.Resolve(cmd, "")
+	resolved, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -720,7 +720,7 @@ func TestResolve_PromptFromFlag(t *testing.T) {
 	cmd.Flags().String("config", "", "config path")
 	require.NoError(t, cmd.Flags().Set("prompt", "true"))
 
-	resolved, _, err := r.Resolve(cmd, "")
+	resolved, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -742,7 +742,7 @@ options {
 	cmd.Flags().String("config", "", "config path")
 	require.NoError(t, cmd.Flags().Set("config", configPath))
 
-	_, _, err := r.Resolve(cmd, "")
+	_, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid log level")
 }
@@ -765,7 +765,7 @@ variables = {
 	registerTestFlags(cmd)
 	cmd.Flags().String("config", "", "config path")
 
-	resolved, _, err := r.Resolve(cmd, bundleDir)
+	resolved, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), bundleDir)
 	require.NoError(t, err)
 
 	assert.Equal(t, "default.dev", resolved.Variables["domain"])
@@ -782,7 +782,7 @@ func TestResolve_NoDefaultsFile_Skipped(t *testing.T) {
 	registerTestFlags(cmd)
 	cmd.Flags().String("config", "", "config path")
 
-	resolved, _, err := r.Resolve(cmd, bundleDir)
+	resolved, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), bundleDir)
 	require.NoError(t, err)
 
 	assert.Equal(t, runtime.GOARCH, resolved.Options.Architecture, "should use Go defaults when no defaults file")
@@ -796,7 +796,7 @@ func TestResolve_InvalidBundleDir_Skipped(t *testing.T) {
 	registerTestFlags(cmd)
 	cmd.Flags().String("config", "", "config path")
 
-	resolved, _, err := r.Resolve(cmd, "/nonexistent/path")
+	resolved, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "/nonexistent/path")
 	require.NoError(t, err, "invalid bundleDir should be skipped; ValidateBundlePath catches this later")
 	assert.Equal(t, runtime.GOARCH, resolved.Options.Architecture)
 }
@@ -814,7 +814,7 @@ options {
 	registerTestFlags(cmd)
 	cmd.Flags().String("config", "", "config path")
 
-	_, _, err := r.Resolve(cmd, bundleDir)
+	_, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), bundleDir)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), bundle.BundleDefaultsFileName)
 	assert.Contains(t, err.Error(), "block")
@@ -831,67 +831,9 @@ this is not valid HCL {{{
 	registerTestFlags(cmd)
 	cmd.Flags().String("config", "", "config path")
 
-	_, _, err := r.Resolve(cmd, bundleDir)
+	_, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), bundleDir)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), bundle.BundleDefaultsFileName)
-}
-
-// --- validation triggered at Resolve time ---
-
-func TestResolve_RejectsInvalidConcurrency(t *testing.T) {
-	r := NewConfigResolver()
-	cmd := &cobra.Command{}
-	registerTestFlags(cmd)
-	cmd.Flags().String("config", "", "config path")
-	require.NoError(t, cmd.Flags().Set("concurrency", "0"))
-
-	_, _, err := r.Resolve(cmd, "")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "concurrency must be >= 1")
-}
-
-func TestResolve_RejectsConcurrencyAboveMax(t *testing.T) {
-	r := NewConfigResolver()
-	cmd := &cobra.Command{}
-	registerTestFlags(cmd)
-	cmd.Flags().String("config", "", "config path")
-	require.NoError(t, cmd.Flags().Set("concurrency", fmt.Sprintf("%d", bundle.MaxConcurrency+1)))
-
-	_, _, err := r.Resolve(cmd, "")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), fmt.Sprintf("concurrency must be <= %d", bundle.MaxConcurrency))
-}
-
-func TestResolve_RejectsInvalidConcurrencyFromHCL(t *testing.T) {
-	r := NewConfigResolver()
-	configDir := t.TempDir()
-	configPath := filepath.Join(configDir, "config.uds.hcl")
-	require.NoError(t, os.WriteFile(configPath, []byte(`
-options {
-  concurrency = -1
-}
-`), 0o644))
-
-	cmd := &cobra.Command{}
-	registerTestFlags(cmd)
-	cmd.Flags().String("config", "", "config path")
-	require.NoError(t, cmd.Flags().Set("config", configPath))
-
-	_, _, err := r.Resolve(cmd, "")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "concurrency must be >= 1")
-}
-
-func TestResolve_RejectsInvalidTmpDir(t *testing.T) {
-	r := NewConfigResolver()
-	cmd := &cobra.Command{}
-	registerTestFlags(cmd)
-	cmd.Flags().String("config", "", "config path")
-	require.NoError(t, cmd.Flags().Set("tmp-dir", "/nonexistent/tmp/path"))
-
-	_, _, err := r.Resolve(cmd, "")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "tmp_dir")
 }
 
 func TestResolve_DefaultsFile_BundleDirIsFilePath(t *testing.T) {
@@ -910,8 +852,73 @@ variables = {
 	registerTestFlags(cmd)
 	cmd.Flags().String("config", "", "config path")
 
-	resolved, _, err := r.Resolve(cmd, bundleFilePath)
+	resolved, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), bundleFilePath)
 	require.NoError(t, err)
 
 	assert.Equal(t, "a-default-value", resolved.Variables["a"], "should find defaults.uds.hcl in parent dir of file path")
+}
+
+// --- SnapshotFlags tests ---
+
+func TestSnapshotFlags_NoFlagsChanged(t *testing.T) {
+	cmd := &cobra.Command{}
+	registerTestFlags(cmd)
+	cmd.Flags().String("config", "", "config path")
+
+	f := SnapshotFlags(cmd)
+
+	assert.False(t, f.LogLevelChanged)
+	assert.False(t, f.ArchitectureChanged)
+	assert.False(t, f.PlainHTTPChanged)
+	assert.False(t, f.SkipTLSVerifyChanged)
+	assert.False(t, f.TmpDirChanged)
+	assert.False(t, f.ConcurrencyChanged)
+	assert.False(t, f.PromptChanged)
+	assert.Empty(t, f.ConfigPath)
+}
+
+func TestSnapshotFlags_AllFlagsChanged(t *testing.T) {
+	cmd := &cobra.Command{}
+	registerTestFlags(cmd)
+	cmd.Flags().String("config", "", "config path")
+
+	require.NoError(t, cmd.Flags().Set("log-level", "debug"))
+	require.NoError(t, cmd.Flags().Set("architecture", "arm64"))
+	require.NoError(t, cmd.Flags().Set("plain-http", "true"))
+	require.NoError(t, cmd.Flags().Set("skip-tls-verify", "true"))
+	require.NoError(t, cmd.Flags().Set("tmp-dir", "/custom"))
+	require.NoError(t, cmd.Flags().Set("concurrency", "5"))
+	require.NoError(t, cmd.Flags().Set("prompt", "true"))
+	require.NoError(t, cmd.Flags().Set("config", "/some/config.uds.hcl"))
+
+	f := SnapshotFlags(cmd)
+
+	assert.True(t, f.LogLevelChanged)
+	assert.Equal(t, "debug", f.LogLevel)
+	assert.True(t, f.ArchitectureChanged)
+	assert.Equal(t, "arm64", f.Architecture)
+	assert.True(t, f.PlainHTTPChanged)
+	assert.True(t, f.PlainHTTP)
+	assert.True(t, f.SkipTLSVerifyChanged)
+	assert.True(t, f.SkipTLSVerify)
+	assert.True(t, f.TmpDirChanged)
+	assert.Equal(t, "/custom", f.TmpDir)
+	assert.True(t, f.ConcurrencyChanged)
+	assert.Equal(t, 5, f.Concurrency)
+	assert.True(t, f.PromptChanged)
+	assert.True(t, f.Prompt)
+	assert.Equal(t, "/some/config.uds.hcl", f.ConfigPath)
+}
+
+func TestSnapshotFlags_MissingFlagsNoPanic(t *testing.T) {
+	// SnapshotFlags on a command that has none of the expected flags must not panic.
+	cmd := &cobra.Command{}
+	// No flags registered at all
+
+	require.NotPanics(t, func() {
+		f := SnapshotFlags(cmd)
+		// All Changed bits must be false; values are zero
+		assert.False(t, f.LogLevelChanged)
+		assert.False(t, f.ConcurrencyChanged)
+	})
 }

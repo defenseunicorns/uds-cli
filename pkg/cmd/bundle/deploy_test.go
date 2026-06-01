@@ -4,6 +4,7 @@
 package bundle
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -175,14 +176,11 @@ func TestApplyConcurrencyOverride(t *testing.T) {
 		prompt          bool
 		concurrency     int
 		wantConcurrency int
-		wantErr         string
 	}{
 		{name: "prompt without concurrency forces 1", flags: []string{"--prompt"}, prompt: true, concurrency: 10, wantConcurrency: 1},
 		{name: "prompt with explicit concurrency=1 keeps 1", flags: []string{"--prompt", "--concurrency", "1"}, prompt: true, concurrency: 1, wantConcurrency: 1},
 		{name: "no prompt keeps default 10", flags: nil, prompt: false, concurrency: 10, wantConcurrency: 10},
 		{name: "explicit concurrency without prompt preserved", flags: []string{"--concurrency", "5"}, prompt: false, concurrency: 5, wantConcurrency: 5},
-		{name: "prompt on concurrency 2 rejected", flags: []string{"--prompt", "--concurrency", "2"}, prompt: true, concurrency: 2, wantErr: "--prompt is incompatible with concurrency > 1"},
-		{name: "prompt on concurrency 10 rejected", flags: []string{"--prompt", "--concurrency", "10"}, prompt: true, concurrency: 10, wantErr: "--prompt is incompatible with concurrency > 1"},
 		{name: "prompt off concurrency > 1 allowed", flags: []string{"--concurrency", "5"}, prompt: false, concurrency: 5, wantConcurrency: 5},
 	}
 
@@ -203,23 +201,16 @@ func TestApplyConcurrencyOverride(t *testing.T) {
 				Options: &opts,
 			}
 
-			err = applyConcurrencyOverride(deployCmd, cfg)
-			if tt.wantErr != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tt.wantConcurrency, cfg.Options.Concurrency)
-			}
+			applyConcurrencyOverride(SnapshotFlags(deployCmd), cfg)
+			assert.Equal(t, tt.wantConcurrency, cfg.Options.Concurrency)
 		})
 	}
 }
 
-// TestDeployOptions_Run_PromptIncompatibleWithParallel documents that the deploy
-// pipeline enforces the --prompt/--concurrency cross-field rule. applyConcurrencyOverride
-// is unit-tested in isolation by TestApplyConcurrencyOverride; this test confirms it
-// is wired into the deploy Run() path.
-func TestDeployOptions_Run_PromptIncompatibleWithParallel(t *testing.T) {
+// TestDeployOptions_Validate_PromptIncompatibleWithParallel documents that the deploy
+// pipeline rejects --prompt + --concurrency > 1 at the Validate() step.
+// validatePromptConcurrencyFlags is the unit under test; Validate() wires it in.
+func TestDeployOptions_Validate_PromptIncompatibleWithParallel(t *testing.T) {
 	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundle.BundleFileName)
 
 	streams, _, _, _ := iostreams.NewTestIOStreams()
@@ -234,11 +225,11 @@ func TestDeployOptions_Run_PromptIncompatibleWithParallel(t *testing.T) {
 	o := &DeployOptions{
 		BundlePath: existingFile,
 		Printer:    textPrinter,
-		cmd:        deployCmd,
+		flags:      SnapshotFlags(deployCmd),
 		IOStreams:  streams,
 	}
 
-	err = o.Run()
+	err = o.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "--prompt is incompatible with concurrency > 1")
 }
@@ -287,11 +278,11 @@ func TestDeployOptions_Run_PromptDecline(t *testing.T) {
 			o := &DeployOptions{
 				BundlePath: tt.bundlePath,
 				Printer:    textPrinter,
-				cmd:        deployCmd,
+				flags:      SnapshotFlags(deployCmd),
 				IOStreams:  streams,
 			}
 
-			err = o.Run()
+			err = o.Run(context.Background())
 			require.NoError(t, err)
 			// Stdout should be empty when deployment is cancelled (no result printed)
 			assert.Empty(t, out.String(), "stdout should be empty when deployment is cancelled")

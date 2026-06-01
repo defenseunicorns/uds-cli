@@ -129,23 +129,24 @@ func TestPull_NonUDSBundle(t *testing.T) {
 	require.NoError(t, srcStore.Tag(t.Context(), manifestDesc, "v1.0.0"))
 
 	tests := []struct {
-		name      string
-		outputDir string
+		name         string
+		outputDir    string
+		expectedErr  string
 	}{
-		{"with output dir", t.TempDir()},
-		{"without output dir", ""},
+		{"with output dir", t.TempDir(), "does not appear to be a UDS bundle"},
+		{"without output dir", "", "targetDir must not be empty"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result, err := Pull(t.Context(), PullOptions{
-				OCIReference: "example.com/test/not-a-bundle:v1.0.0",
-				OutputDir:    tt.outputDir,
-				Options:      ConfigOptions{TmpDir: t.TempDir()},
-				remoteRepo:   srcStore,
+			cfg := newTestConfig()
+			cfg.Options.TmpDir = t.TempDir()
+			result, err := Pull(t.Context(), "example.com/test/not-a-bundle:v1.0.0", tt.outputDir, PullOptions{
+				Config:     cfg,
+				remoteRepo: srcStore,
 			})
-			require.ErrorContains(t, err, "does not appear to be a UDS bundle")
+			require.ErrorContains(t, err, tt.expectedErr)
 			assert.Nil(t, result)
 		})
 	}
@@ -157,12 +158,12 @@ func TestPull_TagNotFound(t *testing.T) {
 	srcStore, err := oraci.New(t.TempDir())
 	require.NoError(t, err)
 
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
 	ref := "example.com/test/bundle:v1.0.0"
-	result, err := Pull(t.Context(), PullOptions{
-		OCIReference: ref,
-		OutputDir:    t.TempDir(),
-		Options:      ConfigOptions{TmpDir: t.TempDir()},
-		remoteRepo:   srcStore,
+	result, err := Pull(t.Context(), ref, t.TempDir(), PullOptions{
+		Config:     cfg,
+		remoteRepo: srcStore,
 	})
 
 	require.ErrorContains(t, err, ref)
@@ -197,21 +198,21 @@ package "pkg1" {
 	// Push to an in-memory store.
 	store, err := oraci.New(t.TempDir())
 	require.NoError(t, err)
-	_, pushErr := Push(context.Background(), PushOptions{
-		BundleTarball: tarball.OutputPath,
-		OCIReference:  "example.com/test/pull-test:1.0.0",
-		Options:       ConfigOptions{TmpDir: t.TempDir()},
-		remoteRepo:    store,
+	pushCfg := newTestConfig()
+	pushCfg.Options.TmpDir = t.TempDir()
+	_, pushErr := Push(context.Background(), tarball.OutputPath, "example.com/test/pull-test:1.0.0", PushOptions{
+		Config:     pushCfg,
+		remoteRepo: store,
 	})
 	require.NoError(t, pushErr)
 
 	// Pull from the same store.
 	outDir := t.TempDir()
-	result, err := Pull(t.Context(), PullOptions{
-		OCIReference: "example.com/test/pull-test:1.0.0",
-		OutputDir:    outDir,
-		Options:      ConfigOptions{TmpDir: t.TempDir()},
-		remoteRepo:   store,
+	pullCfg := newTestConfig()
+	pullCfg.Options.TmpDir = t.TempDir()
+	result, err := Pull(t.Context(), "example.com/test/pull-test:1.0.0", outDir, PullOptions{
+		Config:     pullCfg,
+		remoteRepo: store,
 	})
 	require.NoError(t, err)
 

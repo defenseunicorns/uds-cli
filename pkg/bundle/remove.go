@@ -18,7 +18,7 @@ import (
 // the bundle path via util.ValidateBundlePath() and resolving it via
 // util.ResolveBundlePath() before calling this function.
 func Remove(ctx context.Context, opts RemoveOptions) (*RemoveResult, error) {
-	if err := ValidateConfig(opts.Config); err != nil {
+	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -26,6 +26,11 @@ func Remove(ctx context.Context, opts RemoveOptions) (*RemoveResult, error) {
 
 	// Use pre-parsed bundle if provided, otherwise parse from BundlePath
 	b := opts.Bundle
+	if b != nil {
+		if err := b.Validate(); err != nil {
+			return nil, fmt.Errorf("bundle validation failed: %w", err)
+		}
+	}
 	if b == nil {
 		slog.Debug("parsing bundle", "path", opts.BundlePath)
 		var err error

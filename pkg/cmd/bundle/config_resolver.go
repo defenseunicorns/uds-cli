@@ -16,6 +16,49 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// CLIFlags holds a snapshot of CLI flag values together with their Changed() bits.
+// It exists so ConfigResolver.Resolve() does not depend on *cobra.Command, which
+// lets command Run() methods stay cobra-free (per ADR-0011 and CLI-191).
+type CLIFlags struct {
+	ConfigPath           string // --config (always read; empty when unset)
+	LogLevel             string
+	LogLevelChanged      bool
+	Architecture         string
+	ArchitectureChanged  bool
+	PlainHTTP            bool
+	PlainHTTPChanged     bool
+	SkipTLSVerify        bool
+	SkipTLSVerifyChanged bool
+	TmpDir               string
+	TmpDirChanged        bool
+	Concurrency          int
+	ConcurrencyChanged   bool
+	Prompt               bool
+	PromptChanged        bool
+}
+
+// SnapshotFlags reads every CLI flag the resolver needs from cmd, plus its Changed() bit.
+// This is the only place that touches cobra.Command for config resolution in the post-CLI-191 pipeline.
+func SnapshotFlags(cmd *cobra.Command) CLIFlags {
+	var f CLIFlags
+	f.ConfigPath, _ = cmd.Flags().GetString("config")
+	f.LogLevel, _ = cmd.Flags().GetString("log-level")
+	f.LogLevelChanged = cmd.Flags().Changed("log-level")
+	f.Architecture, _ = cmd.Flags().GetString("architecture")
+	f.ArchitectureChanged = cmd.Flags().Changed("architecture")
+	f.PlainHTTP, _ = cmd.Flags().GetBool("plain-http")
+	f.PlainHTTPChanged = cmd.Flags().Changed("plain-http")
+	f.SkipTLSVerify, _ = cmd.Flags().GetBool("skip-tls-verify")
+	f.SkipTLSVerifyChanged = cmd.Flags().Changed("skip-tls-verify")
+	f.TmpDir, _ = cmd.Flags().GetString("tmp-dir")
+	f.TmpDirChanged = cmd.Flags().Changed("tmp-dir")
+	f.Concurrency, _ = cmd.Flags().GetInt("concurrency")
+	f.ConcurrencyChanged = cmd.Flags().Changed("concurrency")
+	f.Prompt, _ = cmd.Flags().GetBool("prompt")
+	f.PromptChanged = cmd.Flags().Changed("prompt")
+	return f
+}
+
 // ConfigResolver encapsulates the four-layer config resolution logic:
 // defaults → defaults.uds.hcl → config.uds.hcl → CLI flags.
 type ConfigResolver struct{}
@@ -73,27 +116,27 @@ func (r *ConfigResolver) MergeHCL(base bundle.ConfigOptions, hcl *bundle.ConfigO
 }
 
 // OverlayCLI overlays CLI flag values onto a base ConfigOptions.
-// Only flags explicitly set by the user (cmd.Flags().Changed()) are applied.
+// Only flags explicitly set by the user (Changed bits in flags) are applied.
 // This ensures config.uds.hcl values are preserved unless the user overrides
 // them on the command line.
-func (r *ConfigResolver) OverlayCLI(cmd *cobra.Command, base bundle.ConfigOptions) bundle.ConfigOptions {
-	if cmd.Flags().Changed("log-level") {
-		base.LogLevel, _ = cmd.Flags().GetString("log-level")
+func (r *ConfigResolver) OverlayCLI(flags CLIFlags, base bundle.ConfigOptions) bundle.ConfigOptions {
+	if flags.LogLevelChanged {
+		base.LogLevel = flags.LogLevel
 	}
-	if cmd.Flags().Changed("architecture") {
-		base.Architecture, _ = cmd.Flags().GetString("architecture")
+	if flags.ArchitectureChanged {
+		base.Architecture = flags.Architecture
 	}
-	if cmd.Flags().Changed("plain-http") {
-		base.PlainHTTP, _ = cmd.Flags().GetBool("plain-http")
+	if flags.PlainHTTPChanged {
+		base.PlainHTTP = flags.PlainHTTP
 	}
-	if cmd.Flags().Changed("skip-tls-verify") {
-		base.SkipTLSVerify, _ = cmd.Flags().GetBool("skip-tls-verify")
+	if flags.SkipTLSVerifyChanged {
+		base.SkipTLSVerify = flags.SkipTLSVerify
 	}
-	if cmd.Flags().Changed("tmp-dir") {
-		base.TmpDir, _ = cmd.Flags().GetString("tmp-dir")
+	if flags.TmpDirChanged {
+		base.TmpDir = flags.TmpDir
 	}
-	if cmd.Flags().Changed("concurrency") {
-		base.Concurrency, _ = cmd.Flags().GetInt("concurrency")
+	if flags.ConcurrencyChanged {
+		base.Concurrency = flags.Concurrency
 	}
 	return base
 }
@@ -108,12 +151,12 @@ func (r *ConfigResolver) OverlayCLI(cmd *cobra.Command, base bundle.ConfigOption
 //  3. If --config flag is set, parse config.uds.hcl and merge its options and variables
 //  4. Overlay any explicitly-set CLI flags
 //  5. Build GlobalOptions from merged log_level and the --prompt flag
-func (r *ConfigResolver) Resolve(cmd *cobra.Command, bundlePath string) (*bundle.UDSBundleConfig, string, error) {
+func (r *ConfigResolver) Resolve(ctx context.Context, flags CLIFlags, bundlePath string) (*bundle.UDSBundleConfig, string, error) {
 	base := r.Defaults()
 	var variables bundle.Variables
 
 	// Merge variables from defaults.uds.hcl, if exists
-	defaults, err := r.loadBundleDefaults(cmd.Context(), bundlePath)
+	defaults, err := r.loadBundleDefaults(ctx, bundlePath)
 	if err != nil {
 		return nil, "", err
 	}
@@ -122,9 +165,9 @@ func (r *ConfigResolver) Resolve(cmd *cobra.Command, bundlePath string) (*bundle
 	}
 
 	// Merge config.uds.hcl if --config flag is set
-	configPath, _ := cmd.Flags().GetString("config")
+	configPath := flags.ConfigPath
 	if configPath != "" {
-		cfg, err := bundle.NewHCLParser("").ParseBundleConfig(cmd.Context(), configPath)
+		cfg, err := bundle.NewHCLParser("").ParseBundleConfig(ctx, configPath)
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to parse config: %w", err)
 		}
@@ -134,11 +177,11 @@ func (r *ConfigResolver) Resolve(cmd *cobra.Command, bundlePath string) (*bundle
 		variables = bundle.MergeVariables(variables, cfg.Variables)
 	}
 
-	merged := r.OverlayCLI(cmd, base)
+	merged := r.OverlayCLI(flags, base)
 
 	// Resolve global options (log level, prompt) via the shared config package.
 	// This is command-group agnostic — future groups reuse the same function.
-	global, err := cmdconfig.ResolveGlobalOptions(cmd, merged.LogLevel)
+	global, err := cmdconfig.ResolveGlobalOptions(flags.Prompt, flags.LogLevel, merged.LogLevel)
 	if err != nil {
 		return nil, "", err
 	}
@@ -147,12 +190,6 @@ func (r *ConfigResolver) Resolve(cmd *cobra.Command, bundlePath string) (*bundle
 		Global:    global,
 		Options:   &merged,
 		Variables: variables,
-	}
-
-	// Single point of truth for config validation. Downstream consumers
-	// (CLI Validate(), library entry points) trust the config from here on.
-	if err := bundle.ValidateConfig(cfg); err != nil {
-		return nil, "", err
 	}
 
 	return cfg, configPath, nil

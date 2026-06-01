@@ -22,12 +22,10 @@ type DeployOptions struct {
 	Config     *bundle.UDSBundleConfig
 	Printer    printer.ResourcePrinter
 
-	// TODO: For now, cmd is stashed from Complete so Run can invoke ConfigResolver
-	// against the extracted artifact workspace in which defaults.uds.hcl is
-	// materialized. This argument should be refactored to be a different structure
-	// than the cobra.Command, probably in the refactor to support deployments
-	// through an SDK.
-	cmd *cobra.Command
+	// flags is a snapshot of CLI flag values taken in Complete. Resolve() is
+	// deferred to Run() because for tar.zst artifact deploys the bundle
+	// directory (where defaults.uds.hcl lives) only exists after extraction.
+	flags CLIFlags
 
 	iostreams.IOStreams
 }
@@ -81,22 +79,26 @@ Examples:
 		Run: func(cmd *cobra.Command, args []string) {
 			util.CheckErr(o.Complete(cmd, args))
 			util.CheckErr(o.Validate())
-			util.CheckErr(o.Run())
+			ctx := cmd.Context()
+			util.CheckErr(o.Run(ctx))
 		},
 	}
 
 	return cmd
 }
 
-// Complete fills in options from command line args.
+// Complete fills in options from command line args. It snapshots CLI flags for
+// later use in Run(); config resolution is deferred to Run() because for
+// tar.zst artifact deploys defaults.uds.hcl only exists after extraction.
 func (o *DeployOptions) Complete(cmd *cobra.Command, args []string) error {
-	o.cmd = cmd
 	if len(args) > 0 {
 		o.BundlePath = args[0]
 	} else {
 		// Default to looking for bundle.uds.hcl in current directory
 		o.BundlePath = "."
 	}
+
+	o.flags = SnapshotFlags(cmd)
 
 	p, err := ResolvePrinter(cmd)
 	if err != nil {
@@ -108,34 +110,37 @@ func (o *DeployOptions) Complete(cmd *cobra.Command, args []string) error {
 }
 
 // Validate validates the options without modifying state.
-// Config-dependent validation runs in Run() after Resolve(), since Config
-// is built from the extracted artifact workspace (not available until Run).
 func (o *DeployOptions) Validate() error {
-	return ValidateBundlePath(o.BundlePath, AllowArtifactBundlePath())
+	if err := ValidateBundlePath(o.BundlePath, AllowArtifactBundlePath()); err != nil {
+		return err
+	}
+	return validatePromptConcurrencyFlags(o.flags)
 }
 
-// applyConcurrencyOverride enforces the --prompt/--concurrency interaction:
-// prompts cannot run in parallel. When --prompt is set without an explicit
-// --concurrency, concurrency is forced to 1. When both are set with
-// incompatible values, an error is returned.
-func applyConcurrencyOverride(cmd *cobra.Command, cfg *bundle.UDSBundleConfig) error {
-	if cmd.Flags().Changed("prompt") && !cmd.Flags().Changed("concurrency") {
-		cfg.Options.Concurrency = 1
-	}
-	if cfg.Global.Prompt && cfg.Options.Concurrency > 1 {
+// validatePromptConcurrencyFlags rejects the combination of --prompt with an
+// explicit --concurrency > 1 before config resolution. The force-to-1 case
+// (--prompt without explicit --concurrency) is handled in applyConcurrencyOverride
+// after Resolve() produces the final config.
+func validatePromptConcurrencyFlags(flags CLIFlags) error {
+	if flags.PromptChanged && flags.ConcurrencyChanged && flags.Concurrency > 1 {
 		return fmt.Errorf("--prompt is incompatible with concurrency > 1; interactive prompts cannot run in parallel")
 	}
 	return nil
 }
 
-// Run executes the deploy command.
-func (o *DeployOptions) Run() error {
-	if o.cmd == nil {
-		return fmt.Errorf("cmd must not be nil")
+// applyConcurrencyOverride enforces the --prompt/--concurrency interaction
+// after config resolution. When --prompt is set without an explicit
+// --concurrency, concurrency is forced to 1. The explicit incompatible-value
+// case is already caught by validatePromptConcurrencyFlags in Validate().
+func applyConcurrencyOverride(flags CLIFlags, cfg *bundle.UDSBundleConfig) {
+	// --prompt without explicit --concurrency: force to 1 (auto-serial mode).
+	if flags.PromptChanged && !flags.ConcurrencyChanged {
+		cfg.Options.Concurrency = 1
 	}
+}
 
-	ctx := context.Background()
-
+// Run executes the deploy command.
+func (o *DeployOptions) Run(ctx context.Context) error {
 	deploySrc, err := bundle.PrepareDeploySource(ctx, o.BundlePath, "")
 	if err != nil {
 		return err
@@ -146,16 +151,16 @@ func (o *DeployOptions) Run() error {
 		}
 	}()
 
-	// Resolve config against the bundle-source or extracted bundle archive workspace
-	cfg, _, err := NewConfigResolver().Resolve(o.cmd, deploySrc.BundlePath)
+	// Resolve config against the bundle-source or extracted bundle archive workspace.
+	// This must happen after PrepareDeploySource because for tar.zst artifacts
+	// defaults.uds.hcl is only available in the extracted workspace.
+	cfg, _, err := NewConfigResolver().Resolve(ctx, o.flags, deploySrc.BundlePath)
 	if err != nil {
 		return err
 	}
 	o.Config = cfg
 
-	if err := applyConcurrencyOverride(o.cmd, o.Config); err != nil {
-		return err
-	}
+	applyConcurrencyOverride(o.flags, o.Config)
 
 	slog.Debug("deploying bundle", "path", deploySrc.BundlePath, "prompt", o.Config.Global.Prompt)
 

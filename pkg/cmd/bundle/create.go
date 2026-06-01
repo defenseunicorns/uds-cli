@@ -42,7 +42,8 @@ func NewCreateCommand(streams iostreams.IOStreams) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			util.CheckErr(o.Complete(cmd, args))
 			util.CheckErr(o.Validate())
-			util.CheckErr(o.Run())
+			ctx := cmd.Context()
+			util.CheckErr(o.Run(ctx))
 		},
 	}
 
@@ -57,7 +58,12 @@ func (o *CreateOptions) Complete(cmd *cobra.Command, args []string) error {
 		o.BundlePath = "."
 	}
 
-	cfg, _, err := NewConfigResolver().Resolve(cmd, o.BundlePath)
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	flags := SnapshotFlags(cmd)
+	cfg, _, err := NewConfigResolver().Resolve(ctx, flags, o.BundlePath)
 	if err != nil {
 		return err
 	}
@@ -73,15 +79,13 @@ func (o *CreateOptions) Complete(cmd *cobra.Command, args []string) error {
 }
 
 // Validate validates the options without modifying state.
-// Config validation is performed during Resolve(); this only checks command-specific inputs.
+// Config validation is performed by the library entry point.
 func (o *CreateOptions) Validate() error {
 	return ValidateBundlePath(o.BundlePath)
 }
 
 // Run executes the create command.
-func (o *CreateOptions) Run() error {
-	ctx := context.Background()
-
+func (o *CreateOptions) Run(ctx context.Context) error {
 	// Resolve the bundle path
 	bundlePath := bundle.ResolveBundlePath(o.BundlePath)
 	slog.Debug("creating bundle", "path", bundlePath)

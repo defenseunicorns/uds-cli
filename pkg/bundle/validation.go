@@ -137,6 +137,96 @@ func validateTmpDir(path string) error {
 	return nil
 }
 
+// Validate checks that DeployOptions is valid. Config must be non-nil and valid;
+// at least one of BundlePath or Bundle must be provided.
+func (o DeployOptions) Validate() error {
+	if err := ValidateConfig(o.Config); err != nil {
+		return err
+	}
+	if o.BundlePath == "" && o.Bundle == nil {
+		return fmt.Errorf("at least one of BundlePath or Bundle must be provided")
+	}
+	return nil
+}
+
+// Validate checks that DeployPackageOptions is valid.
+func (o DeployPackageOptions) Validate() error {
+	if err := ValidateConfig(o.Config); err != nil {
+		return err
+	}
+	if o.BundleDir == "" {
+		return fmt.Errorf("BundleDir is required")
+	}
+	return nil
+}
+
+// Validate checks that RemoveOptions is valid. Config must be non-nil and valid;
+// at least one of BundlePath or Bundle must be provided.
+func (o RemoveOptions) Validate() error {
+	if err := ValidateConfig(o.Config); err != nil {
+		return err
+	}
+	if o.BundlePath == "" && o.Bundle == nil {
+		return fmt.Errorf("at least one of BundlePath or Bundle must be provided")
+	}
+	return nil
+}
+
+// Validate checks that RemovePackageOptions is valid.
+func (o RemovePackageOptions) Validate() error {
+	return ValidateConfig(o.Config)
+}
+
+// Validate checks that CreateOptions is valid.
+func (o CreateOptions) Validate() error {
+	if err := ValidateConfig(o.Config); err != nil {
+		return err
+	}
+	if o.BundleFile == "" {
+		return fmt.Errorf("BundleFile is required")
+	}
+	return nil
+}
+
+// Validate checks that CreatePackageOptions is valid.
+func (o CreatePackageOptions) Validate() error {
+	if err := ValidateConfig(o.Config); err != nil {
+		return err
+	}
+	if o.BlobDir == "" {
+		return fmt.Errorf("BlobDir is required")
+	}
+	if o.BundleDir == "" {
+		return fmt.Errorf("BundleDir is required")
+	}
+	return nil
+}
+
+// Validate checks that PullOptions is valid.
+func (o PullOptions) Validate() error {
+	return ValidateConfig(o.Config)
+}
+
+// Validate checks that PushOptions is valid.
+func (o PushOptions) Validate() error {
+	return ValidateConfig(o.Config)
+}
+
+// Validate checks that ReconfigureOptions is valid.
+// Checks Source, DefaultsFile, and Suffix shape.
+func (o ReconfigureOptions) Validate() error {
+	if o.Source == "" {
+		return fmt.Errorf("source is required")
+	}
+	if o.DefaultsFile == "" {
+		return fmt.Errorf("defaults file is required")
+	}
+	if !validSuffix.MatchString(o.Suffix) {
+		return fmt.Errorf("invalid suffix %q: must start with '-' and contain only alphanumeric characters, dots, underscores, and hyphens", o.Suffix)
+	}
+	return nil
+}
+
 // ValidatePackageNames checks that all names exist in the bundle's package list.
 func ValidatePackageNames(names []string, packages []Package) error {
 	if len(names) == 0 {

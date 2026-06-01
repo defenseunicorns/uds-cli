@@ -19,6 +19,10 @@ import (
 // rather than a failure.
 var ErrPackageNotDeployed = errors.New("package not deployed")
 
+// ErrNotImplemented is returned by interface stub methods that have no
+// production implementation yet.
+var ErrNotImplemented = errors.New("not yet implemented")
+
 // BundleFileName is the name of the bundle definition file.
 const BundleFileName = "bundle.uds.hcl"
 
@@ -300,14 +304,8 @@ type CreateOptions struct {
 
 // PullOptions holds configuration for pulling a bundle from an OCI registry.
 type PullOptions struct {
-	// Options provides configuration for the operation.
-	Options ConfigOptions
-
-	// OCIReference is the source OCI registry reference (e.g. ghcr.io/org/bundle:v1).
-	OCIReference string
-
-	// OutputDir is the directory where the pulled bundle tarball will be written.
-	OutputDir string
+	// Config is the merged config; always non-nil in production.
+	Config *UDSBundleConfig
 
 	// remoteRepo overrides the remote registry source. When nil (production),
 	// newRemoteRepository is used. Set in unit tests to inject an in-memory store.
@@ -380,6 +378,27 @@ type Remover interface {
 	RemoveBundle(ctx context.Context, b *UDSBundle, packages []string, opts RemovePackageOptions) (*RemoveResult, error)
 }
 
+// Puller is the interface for pulling bundle artifacts from an OCI registry.
+// OCIReference and targetDir are method-level parameters; config and extensibility
+// belong in PullOptions. This matches the Technical Design Doc surface.
+type Puller interface {
+	// PullBundle pulls a bundle from the given OCI reference and writes it to targetDir.
+	PullBundle(ctx context.Context, ociReference, targetDir string, opts PullOptions) (*PullResult, error)
+	// PullPackage pulls a single Zarf package from the given OCI reference to targetDir.
+	PullPackage(ctx context.Context, ociReference, targetDir string, opts PullOptions) (*PullResult, error)
+}
+
+// Pusher is the interface for pushing bundle artifacts to an OCI registry.
+// bundleDir/packageDir and OCIReference are method-level parameters; config and
+// extensibility belong in PushOptions.
+type Pusher interface {
+	// PushBundle pushes the OCI layout in bundleDir to the given OCI reference.
+	// bundleDir must contain an oci/ subdirectory with a valid OCI layout (index.json + blobs/).
+	PushBundle(ctx context.Context, bundleDir, ociReference string, opts PushOptions) (*PushResult, error)
+	// PushPackage pushes a single Zarf package from packageDir to the given OCI reference.
+	PushPackage(ctx context.Context, packageDir, ociReference string, opts PushOptions) (*PushResult, error)
+}
+
 // RemovePackageOptions contains options for removing a single package.
 type RemovePackageOptions struct {
 	// Config is the merged config (options + variables); always non-nil.
@@ -449,14 +468,8 @@ type ReconfigureResult struct {
 
 // PushOptions holds configuration for pushing a bundle to an OCI registry.
 type PushOptions struct {
-	// Options provides configuration for the operation.
-	Options ConfigOptions
-
-	// BundleTarball is the path to the .tar.zst bundle file.
-	BundleTarball string
-
-	// OCIReference is the target OCI registry reference (e.g. ghcr.io/org/bundle:v1).
-	OCIReference string
+	// Config is the merged config; always non-nil in production.
+	Config *UDSBundleConfig
 
 	// remoteRepo overrides the remote registry destination. When nil (production),
 	// newRemoteRepository is used. Set in unit tests to inject an in-memory store.

@@ -82,7 +82,8 @@ Examples:
 		Run: func(cmd *cobra.Command, args []string) {
 			util.CheckErr(o.Complete(cmd, args))
 			util.CheckErr(o.Validate())
-			util.CheckErr(o.Run())
+			ctx := cmd.Context()
+			util.CheckErr(o.Run(ctx))
 		},
 	}
 
@@ -100,7 +101,12 @@ func (o *RemoveOptions) Complete(cmd *cobra.Command, args []string) error {
 		o.BundlePath = "."
 	}
 
-	cfg, _, err := NewConfigResolver().Resolve(cmd, o.BundlePath)
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	flags := SnapshotFlags(cmd)
+	cfg, _, err := NewConfigResolver().Resolve(ctx, flags, o.BundlePath)
 	if err != nil {
 		return err
 	}
@@ -120,9 +126,6 @@ func (o *RemoveOptions) Complete(cmd *cobra.Command, args []string) error {
 // safety check) can run before Run(). The parsed bundle is cached on
 // o.parsedBundle for Run() to consume.
 func (o *RemoveOptions) Validate() error {
-	if err := bundle.ValidateConfig(o.Config); err != nil {
-		return err
-	}
 	if err := ValidateBundlePath(o.BundlePath); err != nil {
 		return err
 	}
@@ -150,9 +153,7 @@ func (o *RemoveOptions) Validate() error {
 
 // Run executes the remove command. Validate() must have populated
 // o.parsedBundle.
-func (o *RemoveOptions) Run() error {
-	ctx := context.Background()
-
+func (o *RemoveOptions) Run(ctx context.Context) error {
 	bundlePath := bundle.ResolveBundlePath(o.BundlePath)
 	slog.Debug("removing bundle", "path", bundlePath, "prompt", o.Config.Global.Prompt)
 

@@ -43,7 +43,8 @@ func NewInspectCommand(streams iostreams.IOStreams) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			util.CheckErr(o.Complete(cmd, args))
 			util.CheckErr(o.Validate())
-			util.CheckErr(o.Run())
+			ctx := cmd.Context()
+			util.CheckErr(o.Run(ctx))
 		},
 	}
 
@@ -59,7 +60,12 @@ func (o *InspectOptions) Complete(cmd *cobra.Command, args []string) error {
 		o.BundlePath = "."
 	}
 
-	cfg, _, err := NewConfigResolver().Resolve(cmd, o.BundlePath)
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	flags := SnapshotFlags(cmd)
+	cfg, _, err := NewConfigResolver().Resolve(ctx, flags, o.BundlePath)
 	if err != nil {
 		return err
 	}
@@ -76,14 +82,11 @@ func (o *InspectOptions) Complete(cmd *cobra.Command, args []string) error {
 
 // Validate validates the options without modifying state.
 func (o *InspectOptions) Validate() error {
-	if err := bundle.ValidateConfig(o.Config); err != nil {
-		return err
-	}
 	return ValidateBundlePath(o.BundlePath)
 }
 
 // Run executes the inspect command.
-func (o *InspectOptions) Run() error {
+func (o *InspectOptions) Run(ctx context.Context) error {
 	// Resolve the bundle path
 	bundlePath := bundle.ResolveBundlePath(o.BundlePath)
 	slog.Debug("inspecting bundle", "path", bundlePath)
@@ -91,7 +94,7 @@ func (o *InspectOptions) Run() error {
 	// This method diverges from the 0004-logging-and-output-strategy.md recommendation and does not have a clear
 	// business layer method. Perhaps we'll introduce it in the future once there are more logic there than just
 	// bundle parsing.
-	b, err := bundle.NewHCLParser(o.Config.Options.Architecture).ParseBundleFile(context.Background(), bundlePath)
+	b, err := bundle.NewHCLParser(o.Config.Options.Architecture).ParseBundleFile(ctx, bundlePath)
 	if err != nil {
 		return err
 	}

@@ -194,6 +194,216 @@ func TestValidatePackageNames(t *testing.T) {
 	}
 }
 
+func TestValidateDeployOptions(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    DeployOptions
+		wantErr string
+	}{
+		{name: "nil config rejected", opts: DeployOptions{}, wantErr: "config is required"},
+		{name: "no bundle path or bundle rejected", opts: DeployOptions{Config: validBaseConfig()}, wantErr: "at least one of BundlePath or Bundle must be provided"},
+		{name: "bundle path accepted", opts: DeployOptions{Config: validBaseConfig(), BundlePath: "/some/path"}},
+		{name: "bundle accepted", opts: DeployOptions{Config: validBaseConfig(), Bundle: &UDSBundle{}}},
+		{name: "both set accepted", opts: DeployOptions{Config: validBaseConfig(), BundlePath: "/some/path", Bundle: &UDSBundle{}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.opts.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateDeployPackageOptions(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    DeployPackageOptions
+		wantErr string
+	}{
+		{name: "nil config rejected", opts: DeployPackageOptions{}, wantErr: "config is required"},
+		{name: "empty BundleDir rejected", opts: DeployPackageOptions{Config: validBaseConfig()}, wantErr: "BundleDir is required"},
+		{name: "valid opts accepted", opts: DeployPackageOptions{Config: validBaseConfig(), BundleDir: "/some/dir"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.opts.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateRemoveOptions(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    RemoveOptions
+		wantErr string
+	}{
+		{name: "nil config rejected", opts: RemoveOptions{}, wantErr: "config is required"},
+		{name: "no bundle path or bundle rejected", opts: RemoveOptions{Config: validBaseConfig()}, wantErr: "at least one of BundlePath or Bundle must be provided"},
+		{name: "bundle path accepted", opts: RemoveOptions{Config: validBaseConfig(), BundlePath: "/some/path"}},
+		{name: "bundle accepted", opts: RemoveOptions{Config: validBaseConfig(), Bundle: &UDSBundle{}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.opts.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateRemovePackageOptions(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    RemovePackageOptions
+		wantErr string
+	}{
+		{name: "nil config rejected", opts: RemovePackageOptions{}, wantErr: "config is required"},
+		{name: "valid config accepted", opts: RemovePackageOptions{Config: validBaseConfig()}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.opts.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateCreateOptions(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    CreateOptions
+		wantErr string
+	}{
+		{name: "nil config rejected", opts: CreateOptions{}, wantErr: "config is required"},
+		{name: "empty BundleFile rejected", opts: CreateOptions{Config: validBaseConfig()}, wantErr: "BundleFile is required"},
+		{name: "valid opts accepted", opts: CreateOptions{Config: validBaseConfig(), BundleFile: "/some/bundle.uds.hcl"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.opts.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateCreatePackageOptions(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    CreatePackageOptions
+		wantErr string
+	}{
+		{name: "nil config rejected", opts: CreatePackageOptions{}, wantErr: "config is required"},
+		{name: "empty BlobDir rejected", opts: CreatePackageOptions{Config: validBaseConfig(), BundleDir: "/some/dir"}, wantErr: "BlobDir is required"},
+		{name: "empty BundleDir rejected", opts: CreatePackageOptions{Config: validBaseConfig(), BlobDir: "/some/blobs"}, wantErr: "BundleDir is required"},
+		{name: "valid opts accepted", opts: CreatePackageOptions{Config: validBaseConfig(), BlobDir: "/some/blobs", BundleDir: "/some/dir"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.opts.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidatePullOptions(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    PullOptions
+		wantErr string
+	}{
+		{name: "nil config rejected", opts: PullOptions{}, wantErr: "config is required"},
+		{name: "valid config accepted", opts: PullOptions{Config: validBaseConfig()}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.opts.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidatePushOptions(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    PushOptions
+		wantErr string
+	}{
+		{name: "nil config rejected", opts: PushOptions{}, wantErr: "config is required"},
+		{name: "valid config accepted", opts: PushOptions{Config: validBaseConfig()}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.opts.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateReconfigureOptions(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    ReconfigureOptions
+		wantErr string
+	}{
+		{name: "empty source rejected", opts: ReconfigureOptions{DefaultsFile: "defaults.uds.hcl", Suffix: "-v2"}, wantErr: "source is required"},
+		{name: "empty defaults file rejected", opts: ReconfigureOptions{Source: "bundle.tar.zst", Suffix: "-v2"}, wantErr: "defaults file is required"},
+		{name: "invalid suffix no leading dash", opts: ReconfigureOptions{Source: "bundle.tar.zst", DefaultsFile: "defaults.uds.hcl", Suffix: "nosuffix"}, wantErr: "invalid suffix"},
+		{name: "empty suffix rejected", opts: ReconfigureOptions{Source: "bundle.tar.zst", DefaultsFile: "defaults.uds.hcl", Suffix: ""}, wantErr: "invalid suffix"},
+		{name: "valid opts accepted", opts: ReconfigureOptions{Source: "bundle.tar.zst", DefaultsFile: "defaults.uds.hcl", Suffix: "-v2"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.opts.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
 // TestValidateRemovalSafety covers the public dependency-safety check the CLI
 // invokes from RemoveOptions.Validate(). The fixture below mirrors a typical
 // UDS Core layering:

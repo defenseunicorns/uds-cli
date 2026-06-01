@@ -110,6 +110,15 @@ func (r *ZarfRemover) deployedPackages(ctx context.Context) (map[string]struct{}
 // is non-empty, only those package names are removed. Packages that are not
 // currently deployed are skipped via the ErrPackageNotDeployed sentinel.
 func (r *ZarfRemover) RemoveBundle(ctx context.Context, b *UDSBundle, packages []string, opts RemovePackageOptions) (*RemoveResult, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+	if b == nil {
+		return nil, errNil("bundle")
+	}
+	if err := b.Validate(); err != nil {
+		return nil, fmt.Errorf("bundle validation failed: %w", err)
+	}
 	dag, err := BuildDependencyGraph(b)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build dependency graph: %w", err)
@@ -190,6 +199,12 @@ func (r *ZarfRemover) removePackages(ctx context.Context, dag *DAG, levels [][]*
 // Zarf package's metadata.name. To find the deployed package on the cluster
 // we load metadata from pkg.Source and look up by (zarfMetadataName, namespace).
 func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *Package, opts RemovePackageOptions) error {
+	if err := opts.Validate(); err != nil {
+		return err
+	}
+	if pkg == nil {
+		return errNil("package")
+	}
 	slog.Info("removing zarf package", "name", pkg.Name, "source", pkg.Source)
 
 	ctx = newZarfLoggerContext(ctx, r.Out, opts.Config.Global.LogLevel)

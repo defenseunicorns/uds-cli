@@ -4,6 +4,7 @@
 package bundle
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -182,7 +183,7 @@ func TestRemoveOptions_Run_PromptDecline(t *testing.T) {
 
 			// Validate() populates o.parsedBundle, which Run() consumes.
 			require.NoError(t, o.Validate())
-			err := o.Run()
+			err := o.Run(context.Background())
 			require.NoError(t, err)
 			assert.Empty(t, out.String(), "stdout should be empty when removal is cancelled")
 			for _, expected := range tt.wantErrOutput {

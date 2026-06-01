@@ -56,6 +56,10 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 		return nil, fmt.Errorf("parsing manifest for package %q: %w", pkg.Name, err)
 	}
 
+	cleanDstDir, err := filepath.Abs(filepath.Clean(dstDir))
+	if err != nil {
+		return nil, fmt.Errorf("resolving destination directory: %w", err)
+	}
 	for _, layer := range manifest.Layers {
 		title := layer.Annotations[ocispec.AnnotationTitle]
 		if title == "" {
@@ -63,14 +67,14 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 		}
 		layerHex := strings.TrimPrefix(layer.Digest, "sha256:")
 		src := filepath.Join(blobDir, layerHex)
-		dst, err := safeLayerDestinationPath(dstDir, title)
+		dst, err := safeLayerDestinationPath(cleanDstDir, dstDir, title)
 		if err != nil {
 			return nil, err
 		}
 		if err := os.MkdirAll(filepath.Dir(dst), tempDirPerm); err != nil {
 			return nil, fmt.Errorf("creating dir for layer %q: %w", title, err)
 		}
-		if err := copyFileContents(ctx, src, dst); err != nil {
+		if err := linkOrCopy(ctx, src, dst); err != nil {
 			return nil, fmt.Errorf("staging layer %q for package %q: %w", title, pkg.Name, err)
 		}
 	}
@@ -105,6 +109,19 @@ func (l *SourcePackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *
 	return pkgLayout, nil
 }
 
+// linkOrCopy creates a hard link from src to dst; on cross-device link errors it falls back to a full copy.
+// linkOrCopy links or copies a file from src to dst. When a hard link succeeds,
+// the destination shares an inode with the source and must be treated as read-only
+// since mutations would affect both. The OCI blobs written by this function are
+// immutable and digest-addressed, and callers read and decompress them into
+// separate temporary directories before use, so read-only access is safe.
+func linkOrCopy(ctx context.Context, src, dst string) error {
+	if err := os.Link(src, dst); err == nil {
+		return nil
+	}
+	return copyFileContents(ctx, src, dst)
+}
+
 func copyFileContents(ctx context.Context, src, dst string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -116,19 +133,28 @@ func copyFileContents(ctx context.Context, src, dst string) error {
 	}
 	defer func() { _ = in.Close() }()
 
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, tmpFilePerm)
+	// Write to a temp file first; rename to dst only on success to prevent partial files.
+	tmp := dst + ".tmp"
+	out, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, tmpFilePerm)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = out.Close() }()
 
-	if _, err := io.Copy(out, &ctxReader{ctx: ctx, r: in}); err != nil {
-		return err
+	_, copyErr := io.Copy(out, &ctxReader{ctx: ctx, r: in})
+	closeErr := out.Close()
+
+	if copyErr != nil || ctx.Err() != nil {
+		_ = os.Remove(tmp)
+		if copyErr != nil {
+			return copyErr
+		}
+		return ctx.Err()
 	}
-	if err := ctx.Err(); err != nil {
-		return err
+	if closeErr != nil {
+		_ = os.Remove(tmp)
+		return closeErr
 	}
-	return out.Sync()
+	return os.Rename(tmp, dst)
 }
 
 // ctxReader wraps an io.Reader and checks ctx on every Read so large copies observe cancellation.

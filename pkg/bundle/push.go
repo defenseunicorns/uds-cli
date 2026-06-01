@@ -20,37 +20,34 @@ import (
 	oraci "oras.land/oras-go/v2/content/oci"
 )
 
-// Push pushes a UDS bundle tarball to a remote OCI registry.
-// It extracts the bundle, opens the embedded OCI layout, and copies all
-// content (blobs, manifests, and the top-level image index) to the registry
-// reference given in opts.OCIReference.
-func Push(ctx context.Context, opts PushOptions) (*PushResult, error) {
-	slog.Info("pushing bundle", "tarball", opts.BundleTarball, "ref", opts.OCIReference)
+type defaultPusher struct{}
 
-	tmp, err := os.MkdirTemp(opts.Options.TmpDir, "uds-bundle-push-*")
-	if err != nil {
-		return nil, fmt.Errorf("creating temp dir: %w", err)
+var _ Pusher = (*defaultPusher)(nil)
+
+// NewDefaultPusher returns the default Pusher implementation.
+func NewDefaultPusher() Pusher { return &defaultPusher{} }
+
+// PushBundle pushes an already-extracted bundle workspace to a remote OCI registry.
+// bundleDir must contain an oci/ subdirectory with a valid OCI layout (index.json + blobs/).
+func (p *defaultPusher) PushBundle(ctx context.Context, bundleDir, ociReference string, opts PushOptions) (*PushResult, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
 	}
-	defer func() {
-		err = os.RemoveAll(tmp)
-		if err != nil {
-			slog.Warn("failed to remove temporary directory", "path", tmp, "error", err)
-		}
-	}()
-
-	slog.Debug("extracting bundle", "source", opts.BundleTarball, "output", tmp)
-	if err := extractTarZst(ctx, opts.BundleTarball, tmp); err != nil {
-		return nil, fmt.Errorf("extracting bundle: %w", err)
+	if bundleDir == "" {
+		return nil, errEmpty("bundleDir")
+	}
+	if ociReference == "" {
+		return nil, errEmpty("ociReference")
 	}
 
-	ociDir := filepath.Join(tmp, "oci")
+	ociDir := filepath.Join(bundleDir, "oci")
 	blobDir := filepath.Join(ociDir, "blobs", "sha256")
 
 	// Read the OCI image index from index.json.
 	idxBytes, err := os.ReadFile(filepath.Join(ociDir, "index.json"))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("%s does not appear to be a UDS bundle: no OCI layout found", opts.BundleTarball)
+			return nil, fmt.Errorf("%s does not appear to be a UDS bundle: no OCI layout found", bundleDir)
 		}
 		return nil, fmt.Errorf("reading index.json: %w", err)
 	}
@@ -60,7 +57,7 @@ func Push(ctx context.Context, opts PushOptions) (*PushResult, error) {
 		return nil, fmt.Errorf("parsing bundle index: %w", err)
 	}
 	if !isBundleIndex(idx) {
-		return nil, fmt.Errorf("%s does not appear to be a UDS bundle: no bundle definition manifest found in index", opts.BundleTarball)
+		return nil, fmt.Errorf("%s does not appear to be a UDS bundle: no bundle definition manifest found in index", bundleDir)
 	}
 
 	// Write the index bytes as a blob so the ORAS OCI store can fetch and serve it.
@@ -89,7 +86,7 @@ func Push(ctx context.Context, opts PushOptions) (*PushResult, error) {
 	if opts.remoteRepo != nil {
 		dst = opts.remoteRepo
 	} else {
-		repo, err := newRemoteRepository(TrimScheme(opts.OCIReference), opts.Options)
+		repo, err := newRemoteRepository(TrimScheme(ociReference), *opts.Config.Options)
 		if err != nil {
 			return nil, fmt.Errorf("creating remote repository: %w", err)
 		}
@@ -97,20 +94,51 @@ func Push(ctx context.Context, opts PushOptions) (*PushResult, error) {
 	}
 
 	// Parse the tag/digest from the reference using go-containerregistry; default to "latest".
-	ref, err := name.ParseReference(TrimScheme(opts.OCIReference))
+	ref, err := name.ParseReference(TrimScheme(ociReference))
 	if err != nil {
 		return nil, fmt.Errorf("parsing OCI reference: %w", err)
 	}
 	dstTag := ref.Identifier()
 
-	slog.Debug("copying bundle to registry", "ref", opts.OCIReference, "tag", dstTag)
+	slog.Debug("copying bundle to registry", "ref", ociReference, "tag", dstTag)
 	if _, err := oras.Copy(ctx, store, "bundle", dst, dstTag, oras.DefaultCopyOptions); err != nil {
-		return nil, fmt.Errorf("pushing bundle to %s: %w", opts.OCIReference, err)
+		return nil, fmt.Errorf("pushing bundle to %s: %w", ociReference, err)
 	}
 
-	slog.Info("bundle pushed", "ref", opts.OCIReference)
+	slog.Info("bundle pushed", "ref", ociReference)
 	return &PushResult{
-		OCIReference: opts.OCIReference,
+		OCIReference: ociReference,
 	}, nil
 }
 
+// PushPackage is not yet implemented.
+// TODO: implement single-package push.
+func (p *defaultPusher) PushPackage(_ context.Context, _, _ string, _ PushOptions) (*PushResult, error) {
+	return nil, fmt.Errorf("PushPackage: %w", ErrNotImplemented)
+}
+
+// Push is a compatibility adapter that extracts the tarball and delegates to NewDefaultPusher().PushBundle.
+// It preserves the current CLI tarball UX at the adapter layer.
+func Push(ctx context.Context, bundleTarball, ociReference string, opts PushOptions) (*PushResult, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+	slog.Info("pushing bundle", "tarball", bundleTarball, "ref", ociReference)
+
+	tmp, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-push-*")
+	if err != nil {
+		return nil, fmt.Errorf("creating temp dir: %w", err)
+	}
+	defer func() {
+		if rerr := os.RemoveAll(tmp); rerr != nil {
+			slog.Warn("failed to remove temporary directory", "path", tmp, "error", rerr)
+		}
+	}()
+
+	slog.Debug("extracting bundle", "source", bundleTarball, "output", tmp)
+	if err := extractTarZst(ctx, bundleTarball, tmp); err != nil {
+		return nil, fmt.Errorf("extracting bundle: %w", err)
+	}
+
+	return NewDefaultPusher().PushBundle(ctx, tmp, ociReference, opts)
+}

@@ -20,18 +20,23 @@ import (
 // traversal, ordering, parallelism, concurrency limits) to the Deployer
 // implementation.
 //
-// When opts.Bundle is set, parsing and validation of the bundle file is skipped
-// (the caller is responsible for having already validated the bundle).
+// When opts.Bundle is set, bundle file parsing is skipped; the provided
+// Bundle is still re-validated before deployment.
 //
 // IMPORTANT: The caller (pkg/cmd/bundle/deploy.go) is responsible for validating
 // the bundle path via util.ValidateBundlePath() and resolving it via
 // util.ResolveBundlePath() before calling this function.
 func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
-	if err := ValidateConfig(opts.Config); err != nil {
+	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
 	b := opts.Bundle
+	if b != nil {
+		if err := b.Validate(); err != nil {
+			return nil, fmt.Errorf("bundle validation failed: %w", err)
+		}
+	}
 	if b == nil {
 		slog.Debug("parsing bundle", "path", opts.BundlePath)
 		parser := NewHCLParser(opts.Config.Options.Architecture)

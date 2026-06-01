@@ -54,6 +54,9 @@ var _ Parser = &HCLParser{}
 // which is then manually extracted and converted from cty.Value to Variables.
 // The context parameter is currently unused as none of the HCL parsing methods supports cancellation.
 func (p *HCLParser) ParseBundleConfig(_ context.Context, filePath string) (*UDSBundleConfig, error) {
+	if filePath == "" {
+		return nil, errEmpty("filePath")
+	}
 	src, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read config file: %w", err)
@@ -188,6 +191,9 @@ func ctyValueToGo(val cty.Value) (any, error) {
 // and no blocks. Returns the parsed Variables, or nil if the file has no variables.
 // The context parameter is currently unused as none of the HCL parsing methods supports cancellation.
 func ParseDefaults(_ context.Context, path string) (Variables, error) {
+	if path == "" {
+		return nil, errEmpty("path")
+	}
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read defaults file: %w", err)
@@ -237,6 +243,9 @@ func ParseDefaults(_ context.Context, path string) (Variables, error) {
 // ParseBundleFile reads and parses an HCL bundle file with locals support.
 // The context parameter is currently unused as none of the HCL parsing methods supports cancellation.
 func (p *HCLParser) ParseBundleFile(_ context.Context, filePath string) (*UDSBundle, error) {
+	if filePath == "" {
+		return nil, errEmpty("filePath")
+	}
 	slog.Debug("reading bundle file", "path", filePath)
 	src, err := os.ReadFile(filePath)
 	if err != nil {
@@ -248,6 +257,9 @@ func (p *HCLParser) ParseBundleFile(_ context.Context, filePath string) (*UDSBun
 // ParseBundleBytes parses HCL bundle content from an in-memory byte slice.
 // The context parameter is currently unused as none of the HCL parsing methods supports cancellation.
 func (p *HCLParser) ParseBundleBytes(_ context.Context, src []byte) (*UDSBundle, error) {
+	if len(src) == 0 {
+		return nil, errEmpty("src")
+	}
 	return p.parseBundleContent(src, "bundle.uds.hcl")
 }
 

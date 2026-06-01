@@ -102,6 +102,15 @@ func NewZarfDeployer(out io.Writer, loader PackageLayoutLoader) *ZarfDeployer {
 // DeployBundle deploys the bundle's packages in topological order, parallelising
 // within levels and serialising across them.
 func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts DeployOptions) (*DeployResult, error) {
+	if err := ValidateConfig(opts.Config); err != nil {
+		return nil, err
+	}
+	if b == nil {
+		return nil, errNil("bundle")
+	}
+	if err := b.Validate(); err != nil {
+		return nil, fmt.Errorf("bundle validation failed: %w", err)
+	}
 	dag, err := BuildDependencyGraph(b)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build dependency graph: %w", err)
@@ -136,6 +145,12 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts Depl
 
 // DeployPackage deploys a single Zarf package using the Zarf Go library.
 func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts DeployPackageOptions) error {
+	if err := opts.Validate(); err != nil {
+		return err
+	}
+	if pkg == nil {
+		return errNil("package")
+	}
 	slog.Info("deploying zarf package", "name", pkg.Name, "source", pkg.Source)
 
 	ctx = newZarfLoggerContext(ctx, d.Out, opts.Config.Global.LogLevel)

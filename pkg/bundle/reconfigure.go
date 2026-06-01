@@ -37,12 +37,11 @@ var _ Reconfigurer = &localReconfigurer{}
 // Reconfigure validates the defaults file and dispatches to the appropriate
 // implementation based on whether the source is a local tarball or OCI reference.
 func Reconfigure(ctx context.Context, opts ReconfigureOptions) (*ReconfigureResult, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
 	if _, err := ParseDefaults(ctx, opts.DefaultsFile); err != nil {
 		return nil, fmt.Errorf("invalid defaults file: %w", err)
-	}
-
-	if !validSuffix.MatchString(opts.Suffix) {
-		return nil, fmt.Errorf("invalid suffix %q: must start with '-' and contain only alphanumeric characters, dots, underscores, and hyphens", opts.Suffix)
 	}
 
 	var r Reconfigurer

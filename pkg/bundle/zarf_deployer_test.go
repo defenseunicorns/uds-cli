@@ -404,7 +404,8 @@ func TestZarfDeployer_DeployPackage_InvalidSource(t *testing.T) {
 			}
 
 			err := deployer.DeployPackage(context.Background(), pkg, DeployPackageOptions{
-				Config: &UDSBundleConfig{Global: &GlobalOptions{}, Options: &ConfigOptions{}},
+				Config:    newTestConfig(),
+				BundleDir: t.TempDir(),
 			})
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "failed to load package")

@@ -175,6 +175,10 @@ func ExtractArtifact(ctx context.Context, tarPath, dstDir string) (*ExtractedBun
 // definition manifest to disk at their annotated title paths under dstDir.
 // Returns the absolute path to the materialized bundle.uds.hcl file.
 func materializeBundleSrcFiles(bundleDef ociImageManifest, blobDir, dstDir string) (string, error) {
+	cleanDstDir, err := filepath.Abs(filepath.Clean(dstDir))
+	if err != nil {
+		return "", fmt.Errorf("resolving destination directory: %w", err)
+	}
 	var bundleDefPath string
 	for _, layer := range bundleDef.Layers {
 		title := layer.Annotations[ocispec.AnnotationTitle]
@@ -182,6 +186,7 @@ func materializeBundleSrcFiles(bundleDef ociImageManifest, blobDir, dstDir strin
 			continue
 		}
 		if layer.MediaType != MediaTypeBundleHCL && layer.MediaType != MediaTypeBundleValuesYAML {
+			slog.Debug("skipping layer with unknown media type", "title", title, "mediaType", layer.MediaType)
 			continue
 		}
 
@@ -191,7 +196,7 @@ func materializeBundleSrcFiles(bundleDef ociImageManifest, blobDir, dstDir strin
 			return "", fmt.Errorf("reading layer blob %s (%s): %w", title, layer.Digest, err)
 		}
 
-		dst, err := safeLayerDestinationPath(dstDir, title)
+		dst, err := safeLayerDestinationPath(cleanDstDir, dstDir, title)
 		if err != nil {
 			return "", err
 		}
@@ -213,13 +218,10 @@ func materializeBundleSrcFiles(bundleDef ociImageManifest, blobDir, dstDir strin
 
 // safeLayerDestinationPath returns the filesystem destination for an OCI layer
 // title under dstDir and rejects titles that would escape dstDir.
-func safeLayerDestinationPath(dstDir, title string) (string, error) {
+// cleanDstDir must be filepath.Abs(filepath.Clean(dstDir)), pre-computed by the caller.
+func safeLayerDestinationPath(cleanDstDir, dstDir, title string) (string, error) {
 	dst := filepath.Join(dstDir, filepath.FromSlash(title))
 
-	cleanDstDir, err := filepath.Abs(filepath.Clean(dstDir))
-	if err != nil {
-		return "", fmt.Errorf("resolving destination directory: %w", err)
-	}
 	cleanDst, err := filepath.Abs(filepath.Clean(dst))
 	if err != nil {
 		return "", fmt.Errorf("resolving layer title %q: %w", title, err)

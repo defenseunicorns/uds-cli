@@ -44,7 +44,8 @@ func NewPullCommand(streams iostreams.IOStreams) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			util.CheckErr(o.Complete(cmd, args))
 			util.CheckErr(o.Validate())
-			util.CheckErr(o.Run())
+			ctx := cmd.Context()
+			util.CheckErr(o.Run(ctx))
 		},
 	}
 
@@ -59,7 +60,12 @@ func (o *PullOptions) Complete(cmd *cobra.Command, args []string) error {
 		o.OCIReference = args[0]
 	}
 
-	cfg, _, err := NewConfigResolver().Resolve(cmd, "")
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	flags := SnapshotFlags(cmd)
+	cfg, _, err := NewConfigResolver().Resolve(ctx, flags, "")
 	if err != nil {
 		return err
 	}
@@ -75,7 +81,7 @@ func (o *PullOptions) Complete(cmd *cobra.Command, args []string) error {
 }
 
 // Validate validates the options.
-// Config validation is performed during Resolve(); this only checks command-specific inputs.
+// Config validation is performed by the library entry point.
 func (o *PullOptions) Validate() error {
 	if o.OCIReference == "" {
 		return fmt.Errorf("OCI reference is required")
@@ -87,12 +93,10 @@ func (o *PullOptions) Validate() error {
 }
 
 // Run executes the pull command.
-func (o *PullOptions) Run() error {
+func (o *PullOptions) Run(ctx context.Context) error {
 	slog.Debug("pulling bundle", "ref", o.OCIReference, "output", o.OutputDir)
-	result, err := bundle.Pull(context.Background(), bundle.PullOptions{
-		Options:      *o.Config.Options,
-		OCIReference: o.OCIReference,
-		OutputDir:    o.OutputDir,
+	result, err := bundle.Pull(ctx, o.OCIReference, o.OutputDir, bundle.PullOptions{
+		Config: o.Config,
 	})
 	if err != nil {
 		return err

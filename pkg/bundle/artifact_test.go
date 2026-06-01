@@ -173,6 +173,8 @@ func buildBundleArtifactInner(t *testing.T, bundleHCL, defaultsHCL string, value
 
 func TestSafeLayerDestinationPath(t *testing.T) {
 	dstDir := t.TempDir()
+	cleanDstDir, err := filepath.Abs(filepath.Clean(dstDir))
+	require.NoError(t, err)
 
 	tests := []struct {
 		name        string
@@ -209,7 +211,7 @@ func TestSafeLayerDestinationPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := safeLayerDestinationPath(dstDir, tt.title)
+			got, err := safeLayerDestinationPath(cleanDstDir, dstDir, tt.title)
 			if tt.wantErrFrag != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErrFrag)

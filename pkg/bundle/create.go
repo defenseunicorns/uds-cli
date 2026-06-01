@@ -49,6 +49,9 @@ func newLocalCreator(arch string) *localCreator {
 // CreatePackage ingests pkg into the OCI blob store at opts.BlobDir and
 // accumulates the resulting ociManifest descriptors for index construction.
 func (c *localCreator) CreatePackage(ctx context.Context, pkg *Package, opts CreatePackageOptions) error {
+	if err := opts.Validate(); err != nil {
+		return err
+	}
 	slog.Info("ingesting package", "name", pkg.Name, "source", pkg.Source)
 
 	source := NewPackageSource(pkg.Source, *opts.Config.Options, opts.BundleDir)
@@ -82,7 +85,7 @@ func (c *localCreator) BundleName(b *UDSBundle) string {
 // It parses, validates, ingests all packages via a localCreator, and writes
 // the resulting archive next to the bundle file.
 func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
-	if err := ValidateConfig(opts.Config); err != nil {
+	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
