@@ -41,6 +41,18 @@ type Package struct {
 	Overrides                   map[string]map[string]BundleChartOverrides `json:"overrides,omitempty" jsonschema:"description=Map of Helm chart overrides to set. The format is <component>:, <chart-name>:"`
 }
 
+// HasPublicKey returns true if the package has a public key for signature verification.
+func (p Package) HasPublicKey() bool {
+	return p.PublicKey != ""
+}
+
+// HasKeylessConfig returns true if any keyless signature verification option is set.
+func (p Package) HasKeylessConfig() bool {
+	return p.CertificateIdentity != "" || p.CertificateIdentityRegexp != "" ||
+		p.CertificateOIDCIssuer != "" || p.CertificateOIDCIssuerRegexp != "" ||
+		p.TrustedRoot != "" || p.SkipTLogVerify || p.UseSignedTimestamps
+}
+
 // BundleChartOverrides represents a Helm chart override to set via UDS variables
 type BundleChartOverrides struct {
 	Values      []BundleChartValue    `json:"values,omitempty" jsonschema:"description=List of Helm chart values to set statically"`

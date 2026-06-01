@@ -405,21 +405,25 @@ func VerifyBlobOptionsFromKey(keyPath string) *signing.VerifyBlobOptions {
 	return &opts
 }
 
+// ValidateVerifyBlobConfig checks that publicKey and keyless options are not both set.
+// Unlike BuildVerifyBlobOptions, this has no file I/O side effects.
+func ValidateVerifyBlobConfig(pkg types.Package) error {
+	if pkg.HasPublicKey() && pkg.HasKeylessConfig() {
+		return fmt.Errorf("cannot use publicKey together with keyless verification options (certificateIdentity, certificateOIDCIssuer, trustedRoot, skipTLogVerify, useSignedTimestamps); specify one or the other")
+	}
+	return nil
+}
+
 // BuildVerifyBlobOptions builds VerifyBlobOptions from a package's signing configuration.
 // Writes any inline key/trusted-root content to files in tmpDir (caller owns cleanup).
 // Returns an error if both publicKey and keyless fields are specified together.
 // Returns nil if no signing configuration is present.
 func BuildVerifyBlobOptions(pkg types.Package, tmpDir string) (*signing.VerifyBlobOptions, error) {
-	hasKey := pkg.PublicKey != ""
-	hasKeyless := pkg.CertificateIdentity != "" || pkg.CertificateIdentityRegexp != "" ||
-		pkg.CertificateOIDCIssuer != "" || pkg.CertificateOIDCIssuerRegexp != "" ||
-		pkg.TrustedRoot != "" || pkg.SkipTLogVerify || pkg.UseSignedTimestamps
-
-	if hasKey && hasKeyless {
-		return nil, fmt.Errorf("cannot use publicKey together with keyless verification options (certificateIdentity, certificateOIDCIssuer, trustedRoot, skipTLogVerify, useSignedTimestamps); specify one or the other")
+	if err := ValidateVerifyBlobConfig(pkg); err != nil {
+		return nil, err
 	}
 
-	if hasKey {
+	if pkg.HasPublicKey() {
 		keyPath := filepath.Join(tmpDir, config.PublicKeyFile)
 		if err := os.WriteFile(keyPath, []byte(pkg.PublicKey), helpers.ReadWriteUser); err != nil {
 			return nil, err
@@ -427,7 +431,7 @@ func BuildVerifyBlobOptions(pkg types.Package, tmpDir string) (*signing.VerifyBl
 		return VerifyBlobOptionsFromKey(keyPath), nil
 	}
 
-	if hasKeyless {
+	if pkg.HasKeylessConfig() {
 		opts := signing.DefaultVerifyBlobOptions()
 		opts.CommonVerifyOptions.IgnoreTlog = pkg.SkipTLogVerify
 		opts.CommonVerifyOptions.UseSignedTimestamps = pkg.UseSignedTimestamps

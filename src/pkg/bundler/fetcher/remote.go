@@ -7,6 +7,7 @@ package fetcher
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
@@ -21,6 +22,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
@@ -130,7 +132,13 @@ func (f *remoteFetcher) copyRemotePkgLayers(layersToCopy []ocispec.Descriptor) (
 func (f *remoteFetcher) verifyPackageSignature() error {
 	ctx := context.TODO()
 
-	verifyOpts, err := utils.BuildVerifyBlobOptions(f.pkg, f.cfg.TmpDstDir)
+	verifyTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(verifyTmp) //nolint:errcheck
+
+	verifyOpts, err := utils.BuildVerifyBlobOptions(f.pkg, verifyTmp)
 	if err != nil {
 		return err
 	}

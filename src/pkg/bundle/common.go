@@ -182,7 +182,7 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 		message.Debug("Validating package:", jsonValue)
 
 		// todo: need to packager.ValidatePackageSignature (or come up with a bundle-level signature scheme)
-		if _, err := utils.BuildVerifyBlobOptions(pkg, b.tmp); err != nil {
+		if err := utils.ValidateVerifyBlobConfig(pkg); err != nil {
 			return fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
 

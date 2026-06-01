@@ -230,6 +230,65 @@ func TestBuildVerifyBlobOptions(t *testing.T) {
 	}
 }
 
+func TestValidateVerifyBlobConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		pkg     types.Package
+		wantErr string
+	}{
+		{
+			name: "no signing config is valid",
+			pkg:  types.Package{},
+		},
+		{
+			name: "publicKey only is valid",
+			pkg:  types.Package{PublicKey: "fake-key"},
+		},
+		{
+			name: "keyless only is valid",
+			pkg: types.Package{
+				CertificateIdentity:   "https://example.com/workflow",
+				CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+			},
+		},
+		{
+			name: "publicKey and certificateIdentity are mutually exclusive",
+			pkg: types.Package{
+				PublicKey:             "fake-key",
+				CertificateIdentity:   "https://example.com/workflow",
+				CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+			},
+			wantErr: "cannot use publicKey together with keyless verification options",
+		},
+		{
+			name: "publicKey and skipTLogVerify are mutually exclusive",
+			pkg: types.Package{
+				PublicKey:      "fake-key",
+				SkipTLogVerify: true,
+			},
+			wantErr: "cannot use publicKey together with keyless verification options",
+		},
+		{
+			name: "publicKey and trustedRoot are mutually exclusive",
+			pkg: types.Package{
+				PublicKey:   "fake-key",
+				TrustedRoot: `{"mediaType":"application/vnd.dev.sigstore.trustedroot+json"}`,
+			},
+			wantErr: "cannot use publicKey together with keyless verification options",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateVerifyBlobConfig(tt.pkg)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestResolveVerifyBlobOptions(t *testing.T) {
 	customOpts := signing.VerifyBlobOptions{}
 	customOpts.Key = "/path/to/key.pub"
