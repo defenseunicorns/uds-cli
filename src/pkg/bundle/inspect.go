@@ -269,12 +269,15 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 
 func verifyPackageSignature(pkgDir string, verifyOpts *signing.VerifyBlobOptions, pkg v1alpha1.ZarfPackage) error {
 	signaturePath := filepath.Join(pkgDir, layout.Signature)
+	bundlePath := filepath.Join(pkgDir, layout.Bundle)
 	zarfYAMLPath := filepath.Join(pkgDir, layout.ZarfYAML)
 
 	signed := false
 	if pkg.Build.Signed != nil {
 		signed = *pkg.Build.Signed
 	} else if _, err := os.Stat(signaturePath); err == nil {
+		signed = true
+	} else if _, err := os.Stat(bundlePath); err == nil {
 		signed = true
 	}
 
@@ -286,6 +289,10 @@ func verifyPackageSignature(pkgDir string, verifyOpts *signing.VerifyBlobOptions
 		return fmt.Errorf("package is signed but no verification material was provided (public key, certificate identity, etc.)")
 	}
 
-	verifyOpts.Signature = signaturePath
+	if verifyOpts.Key != "" {
+		verifyOpts.Signature = signaturePath
+	} else {
+		verifyOpts.BundlePath = bundlePath
+	}
 	return signing.CosignVerifyBlobWithOptions(context.TODO(), zarfYAMLPath, *verifyOpts)
 }
