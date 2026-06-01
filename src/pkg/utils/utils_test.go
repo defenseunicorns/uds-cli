@@ -165,7 +165,7 @@ func TestBuildVerifyBlobOptions(t *testing.T) {
 			pkg: types.Package{
 				CertificateIdentity:   "https://example.com/workflow",
 				CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
-				InsecureIgnoreTlog:        true,
+				InsecureIgnoreTlog:    true,
 			},
 			wantIgnoreTlog: true,
 		},
@@ -199,7 +199,7 @@ func TestBuildVerifyBlobOptions(t *testing.T) {
 		{
 			name: "publicKey and insecureIgnoreTlog are mutually exclusive",
 			pkg: types.Package{
-				PublicKey:      "fake-key-content",
+				PublicKey:          "fake-key-content",
 				InsecureIgnoreTlog: true,
 			},
 			wantErr: "cannot use publicKey together with keyless verification options",
@@ -279,7 +279,7 @@ func TestValidateVerifyBlobConfig(t *testing.T) {
 		{
 			name: "publicKey and insecureIgnoreTlog are mutually exclusive",
 			pkg: types.Package{
-				PublicKey:      "fake-key",
+				PublicKey:          "fake-key",
 				InsecureIgnoreTlog: true,
 			},
 			wantErr: "cannot use publicKey together with keyless verification options",
