@@ -94,7 +94,15 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		}
 		defer os.RemoveAll(pkgTmp)
 
-		verifyOpts, err := utils.BuildVerifyBlobOptions(pkg, pkgTmp)
+		// BuildVerifyBlobOptions may write a key file to the given dir; use a separate
+		// temp dir so pkgTmp contains only package files and passes LoadFromDir integrity checks.
+		keyTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
+		if err != nil {
+			return err
+		}
+		defer os.RemoveAll(keyTmp)
+
+		verifyOpts, err := utils.BuildVerifyBlobOptions(pkg, keyTmp)
 		if err != nil {
 			return fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
