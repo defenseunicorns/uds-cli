@@ -297,14 +297,10 @@ func verifyPackageSignature(pkgDir string, verifyOpts *signing.VerifyBlobOptions
 // signature file format exists. zarf.bundle.sig is preferred when present because
 // it supports both key-based and keyless verification in the v0.77+ bundle format.
 func selectPackageVerifyOpts(opts signing.VerifyBlobOptions, signaturePath, bundlePath string) signing.VerifyBlobOptions {
-	if opts.Key != "" {
-		if _, err := os.Stat(bundlePath); err == nil {
-			opts.BundlePath = bundlePath
-		} else {
-			opts.Signature = signaturePath
-		}
-	} else {
+	if _, err := os.Stat(bundlePath); err == nil {
 		opts.BundlePath = bundlePath
+	} else {
+		opts.Signature = signaturePath
 	}
 	return opts
 }

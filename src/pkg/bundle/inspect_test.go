@@ -18,27 +18,29 @@ import (
 func Test_selectPackageVerifyOpts(t *testing.T) {
 	tests := []struct {
 		name           string
-		key            string
 		createBundle   bool
 		createSig      bool
 		wantBundlePath bool
 		wantSignature  bool
 	}{
 		{
-			name:           "key + bundle sig exists prefers BundlePath",
-			key:            "mykey.pub",
+			name:           "bundle sig exists uses BundlePath",
 			createBundle:   true,
 			wantBundlePath: true,
 		},
 		{
-			name:          "key + only legacy sig falls back to Signature",
-			key:           "mykey.pub",
+			name:          "only legacy sig falls back to Signature",
 			createSig:     true,
 			wantSignature: true,
 		},
 		{
-			name:           "keyless always uses BundlePath",
+			name:          "neither file exists falls back to Signature",
+			wantSignature: true,
+		},
+		{
+			name:           "both files exist prefers BundlePath",
 			createBundle:   true,
+			createSig:      true,
 			wantBundlePath: true,
 		},
 	}
@@ -55,7 +57,7 @@ func Test_selectPackageVerifyOpts(t *testing.T) {
 				require.NoError(t, os.WriteFile(sigPath, []byte("sig"), 0600))
 			}
 
-			result := selectPackageVerifyOpts(signing.VerifyBlobOptions{Key: tt.key}, sigPath, bundlePath)
+			result := selectPackageVerifyOpts(signing.VerifyBlobOptions{}, sigPath, bundlePath)
 
 			if tt.wantBundlePath {
 				require.Equal(t, bundlePath, result.BundlePath)
