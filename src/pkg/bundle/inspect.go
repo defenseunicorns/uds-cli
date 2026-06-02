@@ -266,4 +266,3 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 
 	return pkgLayout.Pkg, nil
 }
-
