@@ -19,26 +19,31 @@ type UDSBundle struct {
 
 // Package represents a Zarf package in a UDS bundle
 type Package struct {
-	Name                        string                                     `json:"name" jsonschema:"name=Name of the Zarf package"`
-	Description                 string                                     `json:"description,omitempty" jsonschema:"description=Description of the Zarf package"`
-	Repository                  string                                     `json:"repository,omitempty" jsonschema:"description=The repository to import the package from"`
-	Path                        string                                     `json:"path,omitempty" jsonschema:"description=The local path to import the package from"`
-	Ref                         string                                     `json:"ref" jsonschema:"description=Ref (tag) of the Zarf package"`
-	Namespace                   string                                     `json:"namespace,omitempty" jsonschema:"description=[Alpha] Override the namespace for the entire package deployment. Requires the package to have only one distinct namespace defined"`
-	Timeout                     string                                     `json:"timeout,omitempty" jsonschema:"description=Timeout for deploying the package. Use duration format such as 30s 10m or 1h30m"`
-	Flavor                      string                                     `json:"flavor,omitempty" jsonschema:"description=Flavor of the Zarf package"`
-	OptionalComponents          []string                                   `json:"optionalComponents,omitempty" jsonschema:"description=List of optional components to include from the package (required components are always included)"`
-	PublicKey                   string                                     `json:"publicKey,omitempty" jsonschema:"description=The public key to use to verify the package. Mutually exclusive with certificateIdentity/certificateOIDCIssuer."`
-	CertificateIdentity         string                                     `json:"certificateIdentity,omitempty" jsonschema:"description=Required identity claim in the signing certificate (keyless verify)."`
-	CertificateIdentityRegexp   string                                     `json:"certificateIdentityRegexp,omitempty" jsonschema:"description=Regex-based alternative to certificateIdentity for pattern matching."`
-	CertificateOIDCIssuer       string                                     `json:"certificateOIDCIssuer,omitempty" jsonschema:"description=Required OIDC issuer claim in the signing certificate (keyless verify)."`
-	CertificateOIDCIssuerRegexp string                                     `json:"certificateOIDCIssuerRegexp,omitempty" jsonschema:"description=Regex-based variant of certificateOIDCIssuer."`
-	TrustedRoot                 string                                     `json:"trustedRoot,omitempty" jsonschema:"description=Sigstore TrustedRoot JSON content for keyless signature verification. Omit to use Zarf's embedded TrustedRoot."`
-	InsecureIgnoreTlog          bool                                       `json:"insecureIgnoreTlog,omitempty" jsonschema:"description=Skip Rekor transparency log inclusion verification. Auto-disabled when keyless identity flags are set. Set to true only for air-gapped or private Sigstore infrastructure."`
-	UseSignedTimestamps         bool                                       `json:"useSignedTimestamps,omitempty" jsonschema:"description=Verify RFC3161 signed timestamps in the bundle. Use when signing was done with a TSA and Rekor was not used."`
-	Imports                     []BundleVariableImport                     `json:"imports,omitempty" jsonschema:"description=List of Zarf variables to import from another Zarf package"`
-	Exports                     []BundleVariableExport                     `json:"exports,omitempty" jsonschema:"description=List of Zarf variables to export from the Zarf package"`
-	Overrides                   map[string]map[string]BundleChartOverrides `json:"overrides,omitempty" jsonschema:"description=Map of Helm chart overrides to set. The format is <component>:, <chart-name>:"`
+	Name                string                                     `json:"name" jsonschema:"name=Name of the Zarf package"`
+	Description         string                                     `json:"description,omitempty" jsonschema:"description=Description of the Zarf package"`
+	Repository          string                                     `json:"repository,omitempty" jsonschema:"description=The repository to import the package from"`
+	Path                string                                     `json:"path,omitempty" jsonschema:"description=The local path to import the package from"`
+	Ref                 string                                     `json:"ref" jsonschema:"description=Ref (tag) of the Zarf package"`
+	Namespace           string                                     `json:"namespace,omitempty" jsonschema:"description=[Alpha] Override the namespace for the entire package deployment. Requires the package to have only one distinct namespace defined"`
+	Timeout             string                                     `json:"timeout,omitempty" jsonschema:"description=Timeout for deploying the package. Use duration format such as 30s 10m or 1h30m"`
+	Flavor              string                                     `json:"flavor,omitempty" jsonschema:"description=Flavor of the Zarf package"`
+	OptionalComponents  []string                                   `json:"optionalComponents,omitempty" jsonschema:"description=List of optional components to include from the package (required components are always included)"`
+	PublicKey           string                                     `json:"publicKey,omitempty" jsonschema:"description=The public key to use to verify the package. Mutually exclusive with keylessVerification."`
+	KeylessVerification *KeylessVerification                       `json:"keylessVerification,omitempty" jsonschema:"description=Keyless signature verification config. Mutually exclusive with publicKey."`
+	Imports             []BundleVariableImport                     `json:"imports,omitempty" jsonschema:"description=List of Zarf variables to import from another Zarf package"`
+	Exports             []BundleVariableExport                     `json:"exports,omitempty" jsonschema:"description=List of Zarf variables to export from the Zarf package"`
+	Overrides           map[string]map[string]BundleChartOverrides `json:"overrides,omitempty" jsonschema:"description=Map of Helm chart overrides to set. The format is <component>:, <chart-name>:"`
+}
+
+// KeylessVerification holds Sigstore keyless signature verification config for a package.
+type KeylessVerification struct {
+	CertificateIdentity         string `json:"certificateIdentity,omitempty" jsonschema:"description=Required identity claim in the signing certificate."`
+	CertificateIdentityRegexp   string `json:"certificateIdentityRegexp,omitempty" jsonschema:"description=Regex-based alternative to certificateIdentity for pattern matching."`
+	CertificateOIDCIssuer       string `json:"certificateOIDCIssuer,omitempty" jsonschema:"description=Required OIDC issuer claim in the signing certificate."`
+	CertificateOIDCIssuerRegexp string `json:"certificateOIDCIssuerRegexp,omitempty" jsonschema:"description=Regex-based variant of certificateOIDCIssuer."`
+	TrustedRoot                 string `json:"trustedRoot,omitempty" jsonschema:"description=Sigstore TrustedRoot JSON content for keyless signature verification. Omit to use Zarf's embedded TrustedRoot."`
+	InsecureIgnoreTlog          bool   `json:"insecureIgnoreTlog,omitempty" jsonschema:"description=Skip Rekor transparency log inclusion verification. Set to true only for air-gapped or private Sigstore infrastructure."`
+	UseSignedTimestamps         bool   `json:"useSignedTimestamps,omitempty" jsonschema:"description=Verify RFC3161 signed timestamps in the bundle. Use when signing was done with a TSA and Rekor was not used."`
 }
 
 // HasPublicKey returns true if the package has a public key for signature verification.
@@ -46,26 +51,19 @@ func (p Package) HasPublicKey() bool {
 	return p.PublicKey != ""
 }
 
+// HasKeylessConfig returns true if a keylessVerification block is present.
+func (p Package) HasKeylessConfig() bool {
+	return p.KeylessVerification != nil
+}
+
 // HasCertificateIdentityConfig returns true if a certificate identity constraint is set.
 func (p Package) HasCertificateIdentityConfig() bool {
-	return p.CertificateIdentity != "" || p.CertificateIdentityRegexp != ""
+	return p.HasKeylessConfig() && (p.KeylessVerification.CertificateIdentity != "" || p.KeylessVerification.CertificateIdentityRegexp != "")
 }
 
 // HasCertificateOIDCIssuerConfig returns true if a certificate OIDC issuer constraint is set.
 func (p Package) HasCertificateOIDCIssuerConfig() bool {
-	return p.CertificateOIDCIssuer != "" || p.CertificateOIDCIssuerRegexp != ""
-}
-
-// HasKeylessModifierConfig returns true if any keyless modifier option is set (trustedRoot,
-// insecureIgnoreTlog, or useSignedTimestamps). These modify keyless verification behaviour but are
-// not identity or issuer constraints on their own.
-func (p Package) HasKeylessModifierConfig() bool {
-	return p.TrustedRoot != "" || p.InsecureIgnoreTlog || p.UseSignedTimestamps
-}
-
-// HasKeylessConfig returns true if any keyless signature verification option is set.
-func (p Package) HasKeylessConfig() bool {
-	return p.HasCertificateIdentityConfig() || p.HasCertificateOIDCIssuerConfig() || p.HasKeylessModifierConfig()
+	return p.HasKeylessConfig() && (p.KeylessVerification.CertificateOIDCIssuer != "" || p.KeylessVerification.CertificateOIDCIssuerRegexp != "")
 }
 
 // BundleChartOverrides represents a Helm chart override to set via UDS variables

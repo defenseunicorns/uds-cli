@@ -153,8 +153,10 @@ func TestBuildVerifyBlobOptions(t *testing.T) {
 		{
 			name: "certificateIdentity sets keyless opts with IgnoreTlog false",
 			pkg: types.Package{
-				CertificateIdentity:   "https://github.com/org/repo/.github/workflows/release.yml@refs/heads/main",
-				CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity:   "https://github.com/org/repo/.github/workflows/release.yml@refs/heads/main",
+					CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+				},
 			},
 			wantCertIdentity: "https://github.com/org/repo/.github/workflows/release.yml@refs/heads/main",
 			wantOIDCIssuer:   "https://token.actions.githubusercontent.com",
@@ -163,44 +165,54 @@ func TestBuildVerifyBlobOptions(t *testing.T) {
 		{
 			name: "insecureIgnoreTlog true sets IgnoreTlog true",
 			pkg: types.Package{
-				CertificateIdentity:   "https://example.com/workflow",
-				CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
-				InsecureIgnoreTlog:    true,
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity:   "https://example.com/workflow",
+					CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+					InsecureIgnoreTlog:    true,
+				},
 			},
 			wantIgnoreTlog: true,
 		},
 		{
 			name: "useSignedTimestamps sets flag on opts",
 			pkg: types.Package{
-				CertificateIdentity:   "https://example.com/workflow",
-				CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
-				UseSignedTimestamps:   true,
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity:   "https://example.com/workflow",
+					CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+					UseSignedTimestamps:   true,
+				},
 			},
 			wantSignedTS: true,
 		},
 		{
 			name: "trustedRoot writes file and sets TrustedRootPath",
 			pkg: types.Package{
-				CertificateIdentity:   "https://example.com/workflow",
-				CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
-				TrustedRoot:           `{"mediaType":"application/vnd.dev.sigstore.trustedroot+json"}`,
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity:   "https://example.com/workflow",
+					CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+					TrustedRoot:           `{"mediaType":"application/vnd.dev.sigstore.trustedroot+json"}`,
+				},
 			},
 			wantTrustedRootPath: true,
 		},
 		{
 			name: "publicKey and keyless fields are mutually exclusive",
 			pkg: types.Package{
-				PublicKey:             "fake-key-content",
-				CertificateIdentity:   "https://example.com/workflow",
-				CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+				PublicKey: "fake-key-content",
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity:   "https://example.com/workflow",
+					CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+				},
 			},
 			wantErr: "cannot use publicKey together with keyless verification options",
 		},
 		{
 			name: "publicKey and insecureIgnoreTlog are mutually exclusive",
 			pkg: types.Package{
-				PublicKey:          "fake-key-content",
-				InsecureIgnoreTlog: true,
+				PublicKey: "fake-key-content",
+				KeylessVerification: &types.KeylessVerification{
+					InsecureIgnoreTlog: true,
+				},
 			},
 			wantErr: "cannot use publicKey together with keyless verification options",
 		},
@@ -240,7 +252,7 @@ func TestBuildVerifyBlobOptions(t *testing.T) {
 				require.NotEmpty(t, result.CommonVerifyOptions.TrustedRootPath)
 				rootContent, err := os.ReadFile(result.CommonVerifyOptions.TrustedRootPath)
 				require.NoError(t, err)
-				require.Equal(t, tt.pkg.TrustedRoot, string(rootContent))
+				require.Equal(t, tt.pkg.KeylessVerification.TrustedRoot, string(rootContent))
 			}
 		})
 	}
@@ -263,79 +275,107 @@ func TestValidateVerifyBlobConfig(t *testing.T) {
 		{
 			name: "keyless only is valid",
 			pkg: types.Package{
-				CertificateIdentity:   "https://example.com/workflow",
-				CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity:   "https://example.com/workflow",
+					CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+				},
 			},
 		},
 		{
 			name: "publicKey and certificateIdentity are mutually exclusive",
 			pkg: types.Package{
-				PublicKey:             "fake-key",
-				CertificateIdentity:   "https://example.com/workflow",
-				CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+				PublicKey: "fake-key",
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity:   "https://example.com/workflow",
+					CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+				},
 			},
 			wantErr: "cannot use publicKey together with keyless verification options",
 		},
 		{
 			name: "publicKey and insecureIgnoreTlog are mutually exclusive",
 			pkg: types.Package{
-				PublicKey:          "fake-key",
-				InsecureIgnoreTlog: true,
+				PublicKey: "fake-key",
+				KeylessVerification: &types.KeylessVerification{
+					InsecureIgnoreTlog: true,
+				},
 			},
 			wantErr: "cannot use publicKey together with keyless verification options",
 		},
 		{
 			name: "publicKey and trustedRoot are mutually exclusive",
 			pkg: types.Package{
-				PublicKey:   "fake-key",
-				TrustedRoot: `{"mediaType":"application/vnd.dev.sigstore.trustedroot+json"}`,
+				PublicKey: "fake-key",
+				KeylessVerification: &types.KeylessVerification{
+					TrustedRoot: `{"mediaType":"application/vnd.dev.sigstore.trustedroot+json"}`,
+				},
 			},
 			wantErr: "cannot use publicKey together with keyless verification options",
 		},
 		{
-			name:    "trustedRoot alone requires identity and issuer",
-			pkg:     types.Package{TrustedRoot: `{"mediaType":"application/vnd.dev.sigstore.trustedroot+json"}`},
+			name: "trustedRoot alone requires identity and issuer",
+			pkg: types.Package{
+				KeylessVerification: &types.KeylessVerification{
+					TrustedRoot: `{"mediaType":"application/vnd.dev.sigstore.trustedroot+json"}`,
+				},
+			},
 			wantErr: "keyless verification requires certificateIdentity or certificateIdentityRegexp",
 		},
 		{
-			name:    "insecureIgnoreTlog alone requires identity and issuer",
-			pkg:     types.Package{InsecureIgnoreTlog: true},
+			name: "insecureIgnoreTlog alone requires identity and issuer",
+			pkg: types.Package{
+				KeylessVerification: &types.KeylessVerification{
+					InsecureIgnoreTlog: true,
+				},
+			},
 			wantErr: "keyless verification requires certificateIdentity or certificateIdentityRegexp",
 		},
 		{
-			name:    "useSignedTimestamps alone requires identity and issuer",
-			pkg:     types.Package{UseSignedTimestamps: true},
+			name: "useSignedTimestamps alone requires identity and issuer",
+			pkg: types.Package{
+				KeylessVerification: &types.KeylessVerification{
+					UseSignedTimestamps: true,
+				},
+			},
 			wantErr: "keyless verification requires certificateIdentity or certificateIdentityRegexp",
 		},
 		{
 			name: "keyless with identity but missing issuer",
 			pkg: types.Package{
-				CertificateIdentity: "https://example.com/workflow",
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity: "https://example.com/workflow",
+				},
 			},
 			wantErr: "keyless verification requires certificateOIDCIssuer or certificateOIDCIssuerRegexp",
 		},
 		{
 			name: "keyless with issuer but missing identity",
 			pkg: types.Package{
-				CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+				KeylessVerification: &types.KeylessVerification{
+					CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+				},
 			},
 			wantErr: "keyless verification requires certificateIdentity or certificateIdentityRegexp",
 		},
 		{
 			name: "certificateIdentity and certificateIdentityRegexp are mutually exclusive",
 			pkg: types.Package{
-				CertificateIdentity:       "https://example.com/workflow",
-				CertificateIdentityRegexp: "https://.*",
-				CertificateOIDCIssuer:     "https://token.actions.githubusercontent.com",
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity:       "https://example.com/workflow",
+					CertificateIdentityRegexp: "https://.*",
+					CertificateOIDCIssuer:     "https://token.actions.githubusercontent.com",
+				},
 			},
 			wantErr: "certificateIdentity and certificateIdentityRegexp are mutually exclusive",
 		},
 		{
 			name: "certificateOIDCIssuer and certificateOIDCIssuerRegexp are mutually exclusive",
 			pkg: types.Package{
-				CertificateIdentity:         "https://example.com/workflow",
-				CertificateOIDCIssuer:       "https://token.actions.githubusercontent.com",
-				CertificateOIDCIssuerRegexp: "https://.*",
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity:         "https://example.com/workflow",
+					CertificateOIDCIssuer:       "https://token.actions.githubusercontent.com",
+					CertificateOIDCIssuerRegexp: "https://.*",
+				},
 			},
 			wantErr: "certificateOIDCIssuer and certificateOIDCIssuerRegexp are mutually exclusive",
 		},

@@ -11,8 +11,9 @@ packages:
     repository: ghcr.io/zarf-dev/packages/init
     # renovate: datasource=github-tags depName=zarf-dev/zarf
     ref: v0.77.0
-    certificateIdentityRegexp: https://github\.com/zarf-dev/zarf/\.github/workflows/release\.yml@refs/tags/v\d+\.\d+\.\d+
-    certificateOIDCIssuer: https://token.actions.githubusercontent.com
+    keylessVerification:
+      certificateIdentityRegexp: https://github\.com/zarf-dev/zarf/\.github/workflows/release\.yml@refs/tags/v\d+\.\d+\.\d+
+      certificateOIDCIssuer: https://token.actions.githubusercontent.com
   # deploys prometheus as a required component and upload-image as an optional component (with noOptionalComponents key)
   - name: prometheus
     repository: localhost:888/prometheus

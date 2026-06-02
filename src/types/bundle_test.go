@@ -14,33 +14,19 @@ func TestPackageHasPublicKey(t *testing.T) {
 	require.True(t, Package{PublicKey: "fake-key"}.HasPublicKey())
 }
 
+func TestPackageHasKeylessConfig(t *testing.T) {
+	require.False(t, Package{}.HasKeylessConfig())
+	require.True(t, Package{KeylessVerification: &KeylessVerification{}}.HasKeylessConfig())
+}
+
 func TestPackageHasCertificateIdentityConfig(t *testing.T) {
 	require.False(t, Package{}.HasCertificateIdentityConfig())
-	require.True(t, Package{CertificateIdentity: "https://example.com"}.HasCertificateIdentityConfig())
-	require.True(t, Package{CertificateIdentityRegexp: "https://.*"}.HasCertificateIdentityConfig())
+	require.True(t, Package{KeylessVerification: &KeylessVerification{CertificateIdentity: "https://example.com"}}.HasCertificateIdentityConfig())
+	require.True(t, Package{KeylessVerification: &KeylessVerification{CertificateIdentityRegexp: "https://.*"}}.HasCertificateIdentityConfig())
 }
 
 func TestPackageHasCertificateOIDCIssuerConfig(t *testing.T) {
 	require.False(t, Package{}.HasCertificateOIDCIssuerConfig())
-	require.True(t, Package{CertificateOIDCIssuer: "https://token.actions.githubusercontent.com"}.HasCertificateOIDCIssuerConfig())
-	require.True(t, Package{CertificateOIDCIssuerRegexp: "https://.*"}.HasCertificateOIDCIssuerConfig())
-}
-
-func TestPackageHasKeylessModifierConfig(t *testing.T) {
-	require.False(t, Package{}.HasKeylessModifierConfig())
-	require.True(t, Package{TrustedRoot: `{"mediaType":"application/vnd.dev.sigstore.trustedroot+json"}`}.HasKeylessModifierConfig())
-	require.True(t, Package{InsecureIgnoreTlog: true}.HasKeylessModifierConfig())
-	require.True(t, Package{UseSignedTimestamps: true}.HasKeylessModifierConfig())
-	require.False(t, Package{CertificateIdentity: "https://example.com"}.HasKeylessModifierConfig())
-}
-
-func TestPackageHasKeylessConfig(t *testing.T) {
-	require.False(t, Package{}.HasKeylessConfig())
-	require.True(t, Package{CertificateIdentity: "https://example.com"}.HasKeylessConfig())
-	require.True(t, Package{CertificateIdentityRegexp: "https://.*"}.HasKeylessConfig())
-	require.True(t, Package{CertificateOIDCIssuer: "https://token.actions.githubusercontent.com"}.HasKeylessConfig())
-	require.True(t, Package{CertificateOIDCIssuerRegexp: "https://.*"}.HasKeylessConfig())
-	require.True(t, Package{TrustedRoot: `{"mediaType":"application/vnd.dev.sigstore.trustedroot+json"}`}.HasKeylessConfig())
-	require.True(t, Package{InsecureIgnoreTlog: true}.HasKeylessConfig())
-	require.True(t, Package{UseSignedTimestamps: true}.HasKeylessConfig())
+	require.True(t, Package{KeylessVerification: &KeylessVerification{CertificateOIDCIssuer: "https://token.actions.githubusercontent.com"}}.HasCertificateOIDCIssuerConfig())
+	require.True(t, Package{KeylessVerification: &KeylessVerification{CertificateOIDCIssuerRegexp: "https://.*"}}.HasCertificateOIDCIssuerConfig())
 }

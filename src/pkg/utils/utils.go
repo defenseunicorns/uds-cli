@@ -408,15 +408,16 @@ func VerifyBlobOptionsFromKey(keyPath string) *signing.VerifyBlobOptions {
 // ValidateVerifyBlobConfig validates the package signing configuration.
 func ValidateVerifyBlobConfig(pkg types.Package) error {
 	if pkg.HasPublicKey() && pkg.HasKeylessConfig() {
-		return fmt.Errorf("cannot use publicKey together with keyless verification options (certificateIdentity, certificateOIDCIssuer, trustedRoot, insecureIgnoreTlog, useSignedTimestamps); specify one or the other")
-	}
-	if pkg.CertificateIdentity != "" && pkg.CertificateIdentityRegexp != "" {
-		return fmt.Errorf("certificateIdentity and certificateIdentityRegexp are mutually exclusive; specify one or the other")
-	}
-	if pkg.CertificateOIDCIssuer != "" && pkg.CertificateOIDCIssuerRegexp != "" {
-		return fmt.Errorf("certificateOIDCIssuer and certificateOIDCIssuerRegexp are mutually exclusive; specify one or the other")
+		return fmt.Errorf("cannot use publicKey together with keyless verification options; specify one or the other")
 	}
 	if pkg.HasKeylessConfig() {
+		kv := pkg.KeylessVerification
+		if kv.CertificateIdentity != "" && kv.CertificateIdentityRegexp != "" {
+			return fmt.Errorf("certificateIdentity and certificateIdentityRegexp are mutually exclusive; specify one or the other")
+		}
+		if kv.CertificateOIDCIssuer != "" && kv.CertificateOIDCIssuerRegexp != "" {
+			return fmt.Errorf("certificateOIDCIssuer and certificateOIDCIssuerRegexp are mutually exclusive; specify one or the other")
+		}
 		if !pkg.HasCertificateIdentityConfig() {
 			return fmt.Errorf("keyless verification requires certificateIdentity or certificateIdentityRegexp")
 		}
@@ -445,16 +446,17 @@ func BuildVerifyBlobOptions(pkg types.Package, tmpDir string) (*signing.VerifyBl
 	}
 
 	if pkg.HasKeylessConfig() {
+		kv := pkg.KeylessVerification
 		opts := signing.DefaultVerifyBlobOptions()
-		opts.CommonVerifyOptions.IgnoreTlog = pkg.InsecureIgnoreTlog
-		opts.CommonVerifyOptions.UseSignedTimestamps = pkg.UseSignedTimestamps
-		opts.CertVerify.CertIdentity = pkg.CertificateIdentity
-		opts.CertVerify.CertIdentityRegexp = pkg.CertificateIdentityRegexp
-		opts.CertVerify.CertOidcIssuer = pkg.CertificateOIDCIssuer
-		opts.CertVerify.CertOidcIssuerRegexp = pkg.CertificateOIDCIssuerRegexp
-		if pkg.TrustedRoot != "" {
+		opts.CommonVerifyOptions.IgnoreTlog = kv.InsecureIgnoreTlog
+		opts.CommonVerifyOptions.UseSignedTimestamps = kv.UseSignedTimestamps
+		opts.CertVerify.CertIdentity = kv.CertificateIdentity
+		opts.CertVerify.CertIdentityRegexp = kv.CertificateIdentityRegexp
+		opts.CertVerify.CertOidcIssuer = kv.CertificateOIDCIssuer
+		opts.CertVerify.CertOidcIssuerRegexp = kv.CertificateOIDCIssuerRegexp
+		if kv.TrustedRoot != "" {
 			rootPath := filepath.Join(tmpDir, config.TrustedRootFile)
-			if err := os.WriteFile(rootPath, []byte(pkg.TrustedRoot), helpers.ReadWriteUser); err != nil {
+			if err := os.WriteFile(rootPath, []byte(kv.TrustedRoot), helpers.ReadWriteUser); err != nil {
 				return nil, err
 			}
 			opts.CommonVerifyOptions.TrustedRootPath = rootPath
