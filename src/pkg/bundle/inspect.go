@@ -289,11 +289,22 @@ func verifyPackageSignature(pkgDir string, verifyOpts *signing.VerifyBlobOptions
 		return fmt.Errorf("package is signed but no verification material was provided (public key, certificate identity, etc.)")
 	}
 
-	opts := *verifyOpts
+	opts := selectPackageVerifyOpts(*verifyOpts, signaturePath, bundlePath)
+	return signing.CosignVerifyBlobWithOptions(context.TODO(), zarfYAMLPath, opts)
+}
+
+// selectPackageVerifyOpts sets BundlePath or Signature on opts based on which
+// signature file format exists. zarf.bundle.sig is preferred when present because
+// it supports both key-based and keyless verification in the v0.77+ bundle format.
+func selectPackageVerifyOpts(opts signing.VerifyBlobOptions, signaturePath, bundlePath string) signing.VerifyBlobOptions {
 	if opts.Key != "" {
-		opts.Signature = signaturePath
+		if _, err := os.Stat(bundlePath); err == nil {
+			opts.BundlePath = bundlePath
+		} else {
+			opts.Signature = signaturePath
+		}
 	} else {
 		opts.BundlePath = bundlePath
 	}
-	return signing.CosignVerifyBlobWithOptions(context.TODO(), zarfYAMLPath, opts)
+	return opts
 }
