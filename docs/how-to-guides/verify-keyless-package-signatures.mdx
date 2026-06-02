@@ -1,0 +1,162 @@
+---
+title: Verify Keyless Package Signatures
+description: Verify keyless-signed Zarf packages in a UDS bundle using Sigstore certificate identity and issuer configuration.
+sidebar:
+  order: 3.5
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+## What you'll accomplish
+
+UDS CLI validates package signatures when it creates, inspects, or deploys packages from a bundle. By the end of this guide you'll know how to:
+
+- Verify a package with Sigstore keyless certificate identity and issuer constraints
+- Configure exact-match or regex-based keyless constraints
+- Add advanced keyless options when your environment requires them
+- Disable package signature validation only when you explicitly accept that risk
+
+## Prerequisites
+
+- [UDS CLI installed](/getting-started/installation/)
+- A `uds-bundle.yaml` referencing one or more keyless-signed Zarf packages
+- The expected signing certificate identity and OIDC issuer from the package publisher
+
+## Before you begin
+
+Keyless package signature verification is configured per package in `uds-bundle.yaml` with `keylessVerification`.
+
+> [!NOTE]
+> Each package can use one verification method. For keyless-signed packages, configure `keylessVerification` and leave `publicKey` unset.
+
+Keyless verification requires one certificate identity constraint and one OIDC issuer constraint. Use exact-match fields when the publisher's signing identity is stable. Use regex fields when the trusted identity changes predictably, such as a release workflow identity that includes a version tag.
+
+```yaml
+packages:
+  - name: example
+    repository: ghcr.io/example/package
+    ref: 1.0.0
+    keylessVerification:
+      certificateIdentity: https://github.com/example/repo/.github/workflows/release.yml@refs/tags/v1.0.0
+      certificateOIDCIssuer: https://token.actions.githubusercontent.com
+```
+
+> [!CAUTION]
+> Keep keyless constraints specific to the publisher identities you trust. Broad regex patterns can match more signing identities than intended.
+
+## Steps
+
+<Steps>
+
+1. **Get the expected signing identity**
+
+   Ask the package publisher for the certificate identity and OIDC issuer used to sign the package. For GitHub Actions keyless signing, the issuer is commonly `https://token.actions.githubusercontent.com`.
+
+2. **Configure keyless verification**
+
+   Add `keylessVerification` to the package entry with certificate identity and OIDC issuer constraints:
+
+   ```yaml title="uds-bundle.yaml"
+   kind: UDSBundle
+   metadata:
+     name: keyless-package-example
+     version: 0.0.1
+
+   packages:
+     - name: init
+       repository: ghcr.io/zarf-dev/packages/init
+       ref: v0.77.0
+       keylessVerification:
+         certificateIdentityRegexp: https://github\.com/zarf-dev/zarf/\.github/workflows/release\.yml@refs/tags/v\d+\.\d+\.\d+
+         certificateOIDCIssuer: https://token.actions.githubusercontent.com
+   ```
+
+   Keyless verification requires one identity field and one issuer field:
+
+   | Required constraint | Exact match | Regex match |
+   |---|---|---|
+   | Certificate identity | `certificateIdentity` | `certificateIdentityRegexp` |
+   | OIDC issuer | `certificateOIDCIssuer` | `certificateOIDCIssuerRegexp` |
+
+   Use exact matches when the signing identity is stable. Use regex matches when the trusted identity changes predictably, such as a release workflow identity that includes a version tag.
+
+3. **Add advanced keyless options only when needed**
+
+   Most keyless verification should use the default trusted root and transparency log verification. Add these fields only when the package publisher or your environment requires them:
+
+   ```yaml title="uds-bundle.yaml"
+   packages:
+     - name: private-package
+       repository: registry.example.com/packages/private-package
+       ref: 1.0.0
+       keylessVerification:
+         certificateIdentity: https://github.com/example/repo/.github/workflows/release.yml@refs/tags/v1.0.0
+         certificateOIDCIssuer: https://token.actions.githubusercontent.com
+         trustedRoot: |
+           <sigstore-trusted-root-json>
+         useSignedTimestamps: true
+         insecureIgnoreTlog: true
+   ```
+
+   > [!CAUTION]
+   > Set `insecureIgnoreTlog: true` only when your environment cannot use Rekor transparency log verification, such as private or air-gapped Sigstore infrastructure.
+
+4. **Run a UDS CLI command that verifies package signatures**
+
+   Package signatures are verified automatically during bundle create, inspect, and deploy operations unless signature validation is skipped. Use the commands in the Verification section to confirm the configuration works.
+
+</Steps>
+
+## Verification
+
+Inspect the bundle configuration before creating the bundle:
+
+```bash
+uds inspect uds-bundle.yaml
+```
+
+Create the bundle:
+
+```bash
+uds create . --confirm
+```
+
+Deploy the bundle without `--skip-signature-validation`:
+
+```bash
+uds deploy uds-bundle.tar.zst --confirm
+```
+
+If verification fails, UDS CLI stops before continuing with the package operation.
+
+To bypass package signature verification, use `--skip-signature-validation`:
+
+```bash
+uds inspect uds-bundle.yaml --skip-signature-validation
+```
+
+> [!CAUTION]
+> Skipping signature validation bypasses this verification step. Use it only when you have a specific reason and trust the package source.
+
+## Troubleshooting
+
+### Problem: Keyless verification is missing identity or issuer
+
+**Symptom:** UDS CLI returns an error saying keyless verification requires certificate identity or OIDC issuer configuration.
+
+**Solution:** Set one identity field (`certificateIdentity` or `certificateIdentityRegexp`) and one issuer field (`certificateOIDCIssuer` or `certificateOIDCIssuerRegexp`).
+
+### Problem: Package is signed but keyless verification is not configured
+
+**Symptom:** UDS CLI returns an error saying the package is signed but no verification material was provided.
+
+**Solution:** Add `keylessVerification` for the signed package, or use `--skip-signature-validation` only if you have verified the package through another trusted process.
+
+## Related Documentation
+
+- [uds inspect command reference](/reference/commands/uds_inspect/)
+- [uds create command reference](/reference/commands/uds_create/)
+- [uds deploy command reference](/reference/commands/uds_deploy/)
+- [Zarf package verify](https://docs.zarf.dev/commands/zarf_package_verify/)
+- [Zarf Package Signing](https://docs.zarf.dev/ref/package-signing/)
+- [Schema Validation & IDE Setup](/reference/schema-validation/)
