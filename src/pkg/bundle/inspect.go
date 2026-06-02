@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
@@ -22,7 +21,6 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
-	"github.com/zarf-dev/zarf/src/pkg/signing"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
@@ -206,18 +204,20 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 			return v1alpha1.ZarfPackage{}, err
 		}
 
-		zarfPkg, _, err := source.LoadPackageMetadata(context.TODO(), false, true)
-		if err != nil {
+		if _, _, err := source.LoadPackageMetadata(context.TODO(), false, true); err != nil {
 			return v1alpha1.ZarfPackage{}, err
 		}
 
-		if !config.CommonOptions.SkipSignatureValidation {
-			if err := verifyPackageSignature(pkgTmp, verifyOpts, zarfPkg); err != nil {
-				return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
-			}
+		pkgLayout, err := utils.LoadPackageFromDir(context.TODO(), pkgTmp, layout.PackageLayoutOptions{
+			IsPartial:            true,
+			VerificationStrategy: utils.GetPackageVerificationStrategy(config.CommonOptions.SkipSignatureValidation),
+			VerifyBlobOptions:    verifyOpts,
+		})
+		if err != nil {
+			return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
 
-		return zarfPkg, nil
+		return pkgLayout.Pkg, nil
 	}
 
 	// otherwise we are inspecting a yaml file, get the metadata from the packages directly
@@ -267,40 +267,3 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 	return pkgLayout.Pkg, nil
 }
 
-func verifyPackageSignature(pkgDir string, verifyOpts *signing.VerifyBlobOptions, pkg v1alpha1.ZarfPackage) error {
-	signaturePath := filepath.Join(pkgDir, layout.Signature)
-	bundlePath := filepath.Join(pkgDir, layout.Bundle)
-	zarfYAMLPath := filepath.Join(pkgDir, layout.ZarfYAML)
-
-	signed := false
-	if pkg.Build.Signed != nil {
-		signed = *pkg.Build.Signed
-	} else if _, err := os.Stat(signaturePath); err == nil {
-		signed = true
-	} else if _, err := os.Stat(bundlePath); err == nil {
-		signed = true
-	}
-
-	if !signed {
-		return nil
-	}
-
-	if verifyOpts == nil {
-		return fmt.Errorf("package is signed but no verification material was provided (public key, certificate identity, etc.)")
-	}
-
-	opts := selectPackageVerifyOpts(*verifyOpts, signaturePath, bundlePath)
-	return signing.CosignVerifyBlobWithOptions(context.TODO(), zarfYAMLPath, opts)
-}
-
-// selectPackageVerifyOpts sets BundlePath or Signature on opts based on which
-// signature file format exists. zarf.bundle.sig is preferred when present because
-// it supports both key-based and keyless verification in the v0.77+ bundle format.
-func selectPackageVerifyOpts(opts signing.VerifyBlobOptions, signaturePath, bundlePath string) signing.VerifyBlobOptions {
-	if _, err := os.Stat(bundlePath); err == nil {
-		opts.BundlePath = bundlePath
-	} else {
-		opts.Signature = signaturePath
-	}
-	return opts
-}
