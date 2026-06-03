@@ -4,10 +4,12 @@
 package utils
 
 import (
+	"os"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/stretchr/testify/require"
-	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
+	"github.com/zarf-dev/zarf/src/pkg/signing"
 )
 
 func Test_IsRegistryURL(t *testing.T) {
@@ -114,26 +116,295 @@ func TestVerifyBlobOptionsFromKey(t *testing.T) {
 			require.Equal(t, tt.keyPath, result.Key)
 
 			// Verify that other fields are set to their default values
-			defaults := zarfUtils.DefaultVerifyBlobOptions()
+			defaults := signing.DefaultVerifyBlobOptions()
 			defaults.Key = tt.keyPath
 			require.Equal(t, defaults, *result)
 		})
 	}
 }
 
+func TestBuildVerifyBlobOptions(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	tests := []struct {
+		name                string
+		pkg                 types.Package
+		wantNil             bool
+		wantErr             string
+		wantKey             bool
+		wantIgnoreTlog      bool
+		wantSignedTS        bool
+		wantCertIdentity    string
+		wantOIDCIssuer      string
+		wantTrustedRootPath bool
+	}{
+		{
+			name:    "no signing config returns nil",
+			pkg:     types.Package{},
+			wantNil: true,
+		},
+		{
+			name:    "publicKey returns key-based opts with IgnoreTlog true",
+			pkg:     types.Package{PublicKey: "fake-key-content"},
+			wantKey: true,
+			// key-based uses DefaultVerifyBlobOptions which has IgnoreTlog=true
+			wantIgnoreTlog: true,
+		},
+		{
+			name: "certificateIdentity sets keyless opts with IgnoreTlog false",
+			pkg: types.Package{
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity:   "https://github.com/org/repo/.github/workflows/release.yml@refs/heads/main",
+					CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+				},
+			},
+			wantCertIdentity: "https://github.com/org/repo/.github/workflows/release.yml@refs/heads/main",
+			wantOIDCIssuer:   "https://token.actions.githubusercontent.com",
+			wantIgnoreTlog:   false,
+		},
+		{
+			name: "insecureIgnoreTlog true sets IgnoreTlog true",
+			pkg: types.Package{
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity:   "https://example.com/workflow",
+					CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+					InsecureIgnoreTlog:    true,
+				},
+			},
+			wantIgnoreTlog: true,
+		},
+		{
+			name: "useSignedTimestamps sets flag on opts",
+			pkg: types.Package{
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity:   "https://example.com/workflow",
+					CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+					UseSignedTimestamps:   true,
+				},
+			},
+			wantSignedTS: true,
+		},
+		{
+			name: "trustedRoot writes file and sets TrustedRootPath",
+			pkg: types.Package{
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity:   "https://example.com/workflow",
+					CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+					TrustedRoot:           `{"mediaType":"application/vnd.dev.sigstore.trustedroot+json"}`,
+				},
+			},
+			wantTrustedRootPath: true,
+		},
+		{
+			name: "publicKey and keyless fields are mutually exclusive",
+			pkg: types.Package{
+				PublicKey: "fake-key-content",
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity:   "https://example.com/workflow",
+					CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+				},
+			},
+			wantErr: "cannot use publicKey together with keyless verification options",
+		},
+		{
+			name: "publicKey and insecureIgnoreTlog are mutually exclusive",
+			pkg: types.Package{
+				PublicKey: "fake-key-content",
+				KeylessVerification: &types.KeylessVerification{
+					InsecureIgnoreTlog: true,
+				},
+			},
+			wantErr: "cannot use publicKey together with keyless verification options",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := BuildVerifyBlobOptions(tt.pkg, tmpDir)
+
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+
+			if tt.wantNil {
+				require.Nil(t, result)
+				return
+			}
+			require.NotNil(t, result)
+
+			if tt.wantKey {
+				require.NotEmpty(t, result.Key)
+				keyContent, err := os.ReadFile(result.Key)
+				require.NoError(t, err)
+				require.Equal(t, tt.pkg.PublicKey, string(keyContent))
+			}
+			require.Equal(t, tt.wantIgnoreTlog, result.CommonVerifyOptions.IgnoreTlog)
+			require.Equal(t, tt.wantSignedTS, result.CommonVerifyOptions.UseSignedTimestamps)
+			if tt.wantCertIdentity != "" {
+				require.Equal(t, tt.wantCertIdentity, result.CertVerify.CertIdentity)
+			}
+			if tt.wantOIDCIssuer != "" {
+				require.Equal(t, tt.wantOIDCIssuer, result.CertVerify.CertOidcIssuer)
+			}
+			if tt.wantTrustedRootPath {
+				require.NotEmpty(t, result.CommonVerifyOptions.TrustedRootPath)
+				rootContent, err := os.ReadFile(result.CommonVerifyOptions.TrustedRootPath)
+				require.NoError(t, err)
+				require.Equal(t, tt.pkg.KeylessVerification.TrustedRoot, string(rootContent))
+			}
+		})
+	}
+}
+
+func TestValidateVerifyBlobConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		pkg     types.Package
+		wantErr string
+	}{
+		{
+			name: "no signing config is valid",
+			pkg:  types.Package{},
+		},
+		{
+			name: "publicKey only is valid",
+			pkg:  types.Package{PublicKey: "fake-key"},
+		},
+		{
+			name: "keyless only is valid",
+			pkg: types.Package{
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity:   "https://example.com/workflow",
+					CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+				},
+			},
+		},
+		{
+			name: "publicKey and certificateIdentity are mutually exclusive",
+			pkg: types.Package{
+				PublicKey: "fake-key",
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity:   "https://example.com/workflow",
+					CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+				},
+			},
+			wantErr: "cannot use publicKey together with keyless verification options",
+		},
+		{
+			name: "publicKey and insecureIgnoreTlog are mutually exclusive",
+			pkg: types.Package{
+				PublicKey: "fake-key",
+				KeylessVerification: &types.KeylessVerification{
+					InsecureIgnoreTlog: true,
+				},
+			},
+			wantErr: "cannot use publicKey together with keyless verification options",
+		},
+		{
+			name: "publicKey and trustedRoot are mutually exclusive",
+			pkg: types.Package{
+				PublicKey: "fake-key",
+				KeylessVerification: &types.KeylessVerification{
+					TrustedRoot: `{"mediaType":"application/vnd.dev.sigstore.trustedroot+json"}`,
+				},
+			},
+			wantErr: "cannot use publicKey together with keyless verification options",
+		},
+		{
+			name: "trustedRoot alone requires identity and issuer",
+			pkg: types.Package{
+				KeylessVerification: &types.KeylessVerification{
+					TrustedRoot: `{"mediaType":"application/vnd.dev.sigstore.trustedroot+json"}`,
+				},
+			},
+			wantErr: "keyless verification requires certificateIdentity or certificateIdentityRegexp",
+		},
+		{
+			name: "insecureIgnoreTlog alone requires identity and issuer",
+			pkg: types.Package{
+				KeylessVerification: &types.KeylessVerification{
+					InsecureIgnoreTlog: true,
+				},
+			},
+			wantErr: "keyless verification requires certificateIdentity or certificateIdentityRegexp",
+		},
+		{
+			name: "useSignedTimestamps alone requires identity and issuer",
+			pkg: types.Package{
+				KeylessVerification: &types.KeylessVerification{
+					UseSignedTimestamps: true,
+				},
+			},
+			wantErr: "keyless verification requires certificateIdentity or certificateIdentityRegexp",
+		},
+		{
+			name: "keyless with identity but missing issuer",
+			pkg: types.Package{
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity: "https://example.com/workflow",
+				},
+			},
+			wantErr: "keyless verification requires certificateOIDCIssuer or certificateOIDCIssuerRegexp",
+		},
+		{
+			name: "keyless with issuer but missing identity",
+			pkg: types.Package{
+				KeylessVerification: &types.KeylessVerification{
+					CertificateOIDCIssuer: "https://token.actions.githubusercontent.com",
+				},
+			},
+			wantErr: "keyless verification requires certificateIdentity or certificateIdentityRegexp",
+		},
+		{
+			name: "certificateIdentity and certificateIdentityRegexp are mutually exclusive",
+			pkg: types.Package{
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity:       "https://example.com/workflow",
+					CertificateIdentityRegexp: "https://.*",
+					CertificateOIDCIssuer:     "https://token.actions.githubusercontent.com",
+				},
+			},
+			wantErr: "certificateIdentity and certificateIdentityRegexp are mutually exclusive",
+		},
+		{
+			name: "certificateOIDCIssuer and certificateOIDCIssuerRegexp are mutually exclusive",
+			pkg: types.Package{
+				KeylessVerification: &types.KeylessVerification{
+					CertificateIdentity:         "https://example.com/workflow",
+					CertificateOIDCIssuer:       "https://token.actions.githubusercontent.com",
+					CertificateOIDCIssuerRegexp: "https://.*",
+				},
+			},
+			wantErr: "certificateOIDCIssuer and certificateOIDCIssuerRegexp are mutually exclusive",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateVerifyBlobConfig(tt.pkg)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestResolveVerifyBlobOptions(t *testing.T) {
-	customOpts := zarfUtils.VerifyBlobOptions{}
+	customOpts := signing.VerifyBlobOptions{}
 	customOpts.Key = "/path/to/key.pub"
 
 	tests := []struct {
 		name string
-		opts *zarfUtils.VerifyBlobOptions
-		want zarfUtils.VerifyBlobOptions
+		opts *signing.VerifyBlobOptions
+		want signing.VerifyBlobOptions
 	}{
 		{
 			name: "nil input returns defaults",
 			opts: nil,
-			want: zarfUtils.DefaultVerifyBlobOptions(),
+			want: signing.DefaultVerifyBlobOptions(),
 		},
 		{
 			name: "non-nil input returned as-is",

@@ -23,6 +23,7 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/signing"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"oras.land/oras-go/v2/content/file"
 )
@@ -32,7 +33,7 @@ type RemoteBundle struct {
 	Pkg                     types.Package
 	PkgManifestSHA          string
 	TmpDir                  string
-	PublicKeyPath           string
+	VerifyBlobOptions       *signing.VerifyBlobOptions
 	Remote                  *oci.OrasRemote
 	nsOverrides             NamespaceOverrideMap
 	bundleCfg               types.BundleConfig
@@ -84,7 +85,7 @@ func (r *RemoteBundle) LoadPackage(ctx context.Context, filter filters.Component
 	pkg.Components = filteredComps
 
 	layoutOpts := layout.PackageLayoutOptions{
-		VerifyBlobOptions:    utils.VerifyBlobOptionsFromKey(r.PublicKeyPath),
+		VerifyBlobOptions:    r.VerifyBlobOptions,
 		VerificationStrategy: utils.GetPackageVerificationStrategy(r.SkipSignatureValidation),
 		IsPartial:            isPartialPkg,
 		Filter:               filter,
@@ -158,18 +159,25 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) 
 		}
 	}
 
-	// grab signature if present
+	// grab signature(s) if present (key-based: zarf.yaml.sig, keyless: zarf.bundle.sig)
 	for _, layer := range pkgManifest.Layers {
-		if layer.Annotations[ocispec.AnnotationTitle] == layout.Signature {
+		switch layer.Annotations[ocispec.AnnotationTitle] {
+		case layout.Signature:
 			signatureBytes, err := r.Remote.FetchLayer(ctx, layer)
 			if err != nil {
 				return v1alpha1.ZarfPackage{}, nil, err
 			}
-			err = os.WriteFile(filepath.Join(r.TmpDir, layout.Signature), signatureBytes, 0600)
+			if err = os.WriteFile(filepath.Join(r.TmpDir, layout.Signature), signatureBytes, 0600); err != nil {
+				return v1alpha1.ZarfPackage{}, nil, err
+			}
+		case layout.Bundle:
+			bundleSigBytes, err := r.Remote.FetchLayer(ctx, layer)
 			if err != nil {
 				return v1alpha1.ZarfPackage{}, nil, err
 			}
-			break
+			if err = os.WriteFile(filepath.Join(r.TmpDir, layout.Bundle), bundleSigBytes, 0600); err != nil {
+				return v1alpha1.ZarfPackage{}, nil, err
+			}
 		}
 	}
 

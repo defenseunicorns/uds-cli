@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -23,6 +22,7 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
+	"github.com/zarf-dev/zarf/src/pkg/signing"
 	"github.com/zarf-dev/zarf/src/pkg/state"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 )
@@ -182,12 +182,8 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 		message.Debug("Validating package:", jsonValue)
 
 		// todo: need to packager.ValidatePackageSignature (or come up with a bundle-level signature scheme)
-		publicKeyPath := filepath.Join(b.tmp, config.PublicKeyFile)
-		if pkg.PublicKey != "" {
-			if err := os.WriteFile(publicKeyPath, []byte(pkg.PublicKey), helpers.ReadWriteUser); err != nil {
-				return err
-			}
-			defer os.Remove(publicKeyPath)
+		if err := utils.ValidateVerifyBlobConfig(pkg); err != nil {
+			return fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
 
 		if len(pkg.OptionalComponents) > 0 {
@@ -259,10 +255,10 @@ func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string
 	}
 
 	// The package is signed, and a public key was provided
-	verifyBlobOptions := zarfUtils.DefaultVerifyBlobOptions()
+	verifyBlobOptions := signing.DefaultVerifyBlobOptions()
 	verifyBlobOptions.Signature = signaturePath
 	verifyBlobOptions.Key = publicKeyPath
-	return zarfUtils.CosignVerifyBlobWithOptions(context.TODO(), bundleYAMLPath, verifyBlobOptions)
+	return signing.CosignVerifyBlobWithOptions(context.TODO(), bundleYAMLPath, verifyBlobOptions)
 }
 
 // validateOverrides ensures that the overrides have matching components and charts in the zarf package

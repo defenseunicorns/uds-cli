@@ -14,10 +14,11 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/fetcher"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/pkg/signing"
 )
 
 // NewFromLocation creates a new package source based on pkgLocation
-func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, packageSource string, publicKeyPath string, skipSignatureValidation bool, sha string, nsOverrides NamespaceOverrideMap) (PackageSource, error) {
+func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, packageSource string, verifyOpts *signing.VerifyBlobOptions, skipSignatureValidation bool, sha string, nsOverrides NamespaceOverrideMap) (PackageSource, error) {
 	var source PackageSource
 	var pkgLocation string
 	if bundleCfg.DeployOpts.Source != "" {
@@ -37,7 +38,7 @@ func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, packageSou
 			TmpDir:                  packageSource,
 			BundleLocation:          pkgLocation,
 			nsOverrides:             nsOverrides,
-			PublicKeyPath:           publicKeyPath,
+			VerifyBlobOptions:       verifyOpts,
 			SkipSignatureValidation: skipSignatureValidation,
 		}
 	} else {
@@ -56,7 +57,7 @@ func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, packageSou
 			Remote:                  remote.OrasRemote,
 			nsOverrides:             nsOverrides,
 			bundleCfg:               bundleCfg,
-			PublicKeyPath:           publicKeyPath,
+			VerifyBlobOptions:       verifyOpts,
 			SkipSignatureValidation: skipSignatureValidation,
 		}
 	}

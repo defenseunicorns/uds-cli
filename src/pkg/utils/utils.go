@@ -30,7 +30,7 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
-	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
+	"github.com/zarf-dev/zarf/src/pkg/signing"
 )
 
 // IsValidTarballPath returns true if the path is a valid tarball path to a bundle tarball
@@ -396,21 +396,83 @@ func LoadPackageFromDir(ctx context.Context, dirPath string, opts layout.Package
 
 // VerifyBlobOptionsFromKey constructs VerifyBlobOptions from a public key path.
 // Returns nil if keyPath is empty.
-func VerifyBlobOptionsFromKey(keyPath string) *zarfUtils.VerifyBlobOptions {
+func VerifyBlobOptionsFromKey(keyPath string) *signing.VerifyBlobOptions {
 	if keyPath == "" {
 		return nil
 	}
-	opts := zarfUtils.DefaultVerifyBlobOptions()
+	opts := signing.DefaultVerifyBlobOptions()
 	opts.Key = keyPath
 	return &opts
 }
 
+// ValidateVerifyBlobConfig validates the package signing configuration.
+func ValidateVerifyBlobConfig(pkg types.Package) error {
+	if pkg.HasPublicKey() && pkg.HasKeylessConfig() {
+		return fmt.Errorf("cannot use publicKey together with keyless verification options; specify one or the other")
+	}
+	if pkg.HasKeylessConfig() {
+		kv := pkg.KeylessVerification
+		if kv.CertificateIdentity != "" && kv.CertificateIdentityRegexp != "" {
+			return fmt.Errorf("certificateIdentity and certificateIdentityRegexp are mutually exclusive; specify one or the other")
+		}
+		if kv.CertificateOIDCIssuer != "" && kv.CertificateOIDCIssuerRegexp != "" {
+			return fmt.Errorf("certificateOIDCIssuer and certificateOIDCIssuerRegexp are mutually exclusive; specify one or the other")
+		}
+		if !pkg.HasCertificateIdentityConfig() {
+			return fmt.Errorf("keyless verification requires certificateIdentity or certificateIdentityRegexp")
+		}
+		if !pkg.HasCertificateOIDCIssuerConfig() {
+			return fmt.Errorf("keyless verification requires certificateOIDCIssuer or certificateOIDCIssuerRegexp")
+		}
+	}
+	return nil
+}
+
+// BuildVerifyBlobOptions builds VerifyBlobOptions from a package's signing configuration.
+// Writes any inline key/trusted-root content to files in tmpDir (caller owns cleanup).
+// Returns an error if both publicKey and keyless fields are specified together.
+// Returns nil if no signing configuration is present.
+func BuildVerifyBlobOptions(pkg types.Package, tmpDir string) (*signing.VerifyBlobOptions, error) {
+	if err := ValidateVerifyBlobConfig(pkg); err != nil {
+		return nil, err
+	}
+
+	if pkg.HasPublicKey() {
+		keyPath := filepath.Join(tmpDir, config.PublicKeyFile)
+		if err := os.WriteFile(keyPath, []byte(pkg.PublicKey), helpers.ReadWriteUser); err != nil {
+			return nil, err
+		}
+		return VerifyBlobOptionsFromKey(keyPath), nil
+	}
+
+	if pkg.HasKeylessConfig() {
+		kv := pkg.KeylessVerification
+		opts := signing.DefaultVerifyBlobOptions()
+		opts.CommonVerifyOptions.IgnoreTlog = kv.InsecureIgnoreTlog
+		opts.CommonVerifyOptions.UseSignedTimestamps = kv.UseSignedTimestamps
+		opts.CertVerify.CertIdentity = kv.CertificateIdentity
+		opts.CertVerify.CertIdentityRegexp = kv.CertificateIdentityRegexp
+		opts.CertVerify.CertOidcIssuer = kv.CertificateOIDCIssuer
+		opts.CertVerify.CertOidcIssuerRegexp = kv.CertificateOIDCIssuerRegexp
+		if kv.TrustedRoot != "" {
+			rootPath := filepath.Join(tmpDir, config.TrustedRootFile)
+			if err := os.WriteFile(rootPath, []byte(kv.TrustedRoot), helpers.ReadWriteUser); err != nil {
+				return nil, err
+			}
+			opts.CommonVerifyOptions.TrustedRootPath = rootPath
+		}
+		return &opts, nil
+	}
+
+	return nil, nil
+}
+
 // resolveVerifyBlobOptions returns the provided options if non-nil, otherwise returns defaults.
-func resolveVerifyBlobOptions(opts *zarfUtils.VerifyBlobOptions) zarfUtils.VerifyBlobOptions {
+func resolveVerifyBlobOptions(opts *signing.VerifyBlobOptions) signing.VerifyBlobOptions {
 	if opts != nil {
 		return *opts
 	}
-	return zarfUtils.DefaultVerifyBlobOptions()
+	return signing.DefaultVerifyBlobOptions()
 }
 
 // GetPkgSource returns the normalized remote or local source path for a package

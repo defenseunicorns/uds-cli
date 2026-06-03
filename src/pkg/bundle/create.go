@@ -17,6 +17,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/pterm/pterm"
+	"github.com/zarf-dev/zarf/src/pkg/signing"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"helm.sh/helm/v4/pkg/chart/common"
 )
@@ -79,11 +80,11 @@ func (b *Bundle) Create(ctx context.Context) error {
 		}
 
 		// sign the bundle
-		signBlobOptions := zarfUtils.DefaultSignBlobOptions()
+		signBlobOptions := signing.DefaultSignBlobOptions()
 		signBlobOptions.OutputSignature = filepath.Join(b.tmp, config.BundleYAMLSignature)
 		signBlobOptions.PassFunc = getSigCreatePassword
 		signBlobOptions.Key = b.cfg.CreateOpts.SigningKeyPath
-		_, err := zarfUtils.CosignSignBlobWithOptions(ctx, bundlePath, signBlobOptions)
+		_, err := signing.CosignSignBlobWithOptions(ctx, bundlePath, signBlobOptions)
 		if err != nil {
 			return err
 		}
