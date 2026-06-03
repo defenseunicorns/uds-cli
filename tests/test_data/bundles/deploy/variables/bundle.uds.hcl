@@ -16,7 +16,7 @@ package "uds_k3d_dev" {
 }
 
 package "init" {
-  source     = "oci://ghcr.io/zarf-dev/packages/init:v0.75.1"
+  source     = "oci://ghcr.io/zarf-dev/packages/init:v0.77.0"
   depends_on = [package.uds_k3d_dev]
 }
 
