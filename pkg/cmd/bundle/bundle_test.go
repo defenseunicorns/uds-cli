@@ -147,4 +147,3 @@ func TestPushOptions_Complete(t *testing.T) {
 	assert.Equal(t, "bundle.tar.zst", o.Tarball)
 	assert.Equal(t, "ghcr.io/org/bundle:v1", o.OCIReference)
 }
-

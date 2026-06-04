@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/pkg/oci"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
@@ -141,7 +142,7 @@ func TestIngestZarfPackage(t *testing.T) {
 		blobDir := t.TempDir()
 		require.NoError(t, os.MkdirAll(filepath.Join(blobDir), tempDirPerm))
 
-		manifests, err := ingestZarfPackage(ctx, blobDir, pkgRoot, "amd64")
+		manifests, err := ingestZarfPackage(ctx, iostreams.IOStreams{}, blobDir, pkgRoot, "amd64")
 		require.NoError(t, err)
 		require.Len(t, manifests, 1)
 
@@ -203,7 +204,7 @@ func TestIngestZarfPackage(t *testing.T) {
 		blobDir := t.TempDir()
 		require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
 
-		manifests, err := ingestZarfPackage(ctx, blobDir, pkgRoot, "amd64")
+		manifests, err := ingestZarfPackage(ctx, iostreams.IOStreams{}, blobDir, pkgRoot, "amd64")
 		require.NoError(t, err)
 
 		// Read manifest and check layer titles
@@ -233,7 +234,7 @@ func TestIngestZarfPackage(t *testing.T) {
 		blobDir := t.TempDir()
 		require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
 
-		_, err := ingestZarfPackage(ctx, blobDir, pkgRoot, "arm64")
+		_, err := ingestZarfPackage(ctx, iostreams.IOStreams{}, blobDir, pkgRoot, "arm64")
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "no files found")
 	})
@@ -250,7 +251,7 @@ func TestIngestZarfPackage(t *testing.T) {
 		blobDir := t.TempDir()
 		require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
 
-		manifests, err := ingestZarfPackage(ctx, blobDir, pkgRoot, "amd64")
+		manifests, err := ingestZarfPackage(ctx, iostreams.IOStreams{}, blobDir, pkgRoot, "amd64")
 		require.NoError(t, err)
 
 		// Read manifest
@@ -284,7 +285,7 @@ func TestIngestZarfPackage(t *testing.T) {
 		blobDir := t.TempDir()
 		require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
 
-		manifests, err := ingestZarfPackage(ctx, blobDir, pkgRoot, "amd64")
+		manifests, err := ingestZarfPackage(ctx, iostreams.IOStreams{}, blobDir, pkgRoot, "amd64")
 		require.NoError(t, err)
 
 		// Read manifest

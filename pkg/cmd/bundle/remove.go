@@ -6,12 +6,12 @@ package bundle
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/logger"
 	"github.com/defenseunicorns/uds-cli/pkg/printer"
 	"github.com/spf13/cobra"
 )
@@ -82,8 +82,7 @@ Examples:
 		Run: func(cmd *cobra.Command, args []string) {
 			util.CheckErr(o.Complete(cmd, args))
 			util.CheckErr(o.Validate())
-			ctx := cmd.Context()
-			util.CheckErr(o.Run(ctx))
+			util.CheckErr(o.Run(cmd.Context()))
 		},
 	}
 
@@ -106,7 +105,7 @@ func (o *RemoveOptions) Complete(cmd *cobra.Command, args []string) error {
 		ctx = context.Background()
 	}
 	flags := SnapshotFlags(cmd)
-	cfg, _, err := NewConfigResolver().Resolve(ctx, flags, o.BundlePath)
+	cfg, _, err := NewConfigResolver().Resolve(ctx, o.IOStreams, flags, o.BundlePath)
 	if err != nil {
 		return err
 	}
@@ -130,8 +129,12 @@ func (o *RemoveOptions) Validate() error {
 		return err
 	}
 
+	// Bind a logger so the parse + safety-check diagnostics below honor --log-level
+	// and Streams.ErrOut, consistent with the rest of the CLI.
+	ctx := context.Background()
+	s := logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
 	bundlePath := bundle.ResolveBundlePath(o.BundlePath)
-	parsedBundle, err := bundle.NewHCLParser(o.Config.Options.Architecture).ParseBundleFile(context.Background(), bundlePath)
+	parsedBundle, err := bundle.NewHCLParser(o.Config.Options.Architecture, s).ParseBundleFile(ctx, bundlePath)
 	if err != nil {
 		return fmt.Errorf("failed to parse bundle: %w", err)
 	}
@@ -142,7 +145,7 @@ func (o *RemoveOptions) Validate() error {
 		return err
 	}
 	if !o.Force {
-		if err := bundle.ValidateRemovalSafety(parsedBundle, o.Packages); err != nil {
+		if err := bundle.ValidateRemovalSafety(ctx, s, parsedBundle, o.Packages); err != nil {
 			return err
 		}
 	}
@@ -155,9 +158,10 @@ func (o *RemoveOptions) Validate() error {
 // o.parsedBundle.
 func (o *RemoveOptions) Run(ctx context.Context) error {
 	bundlePath := bundle.ResolveBundlePath(o.BundlePath)
-	slog.Debug("removing bundle", "path", bundlePath, "prompt", o.Config.Global.Prompt)
+	s := logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
+	s.Debug("removing bundle", "path", bundlePath, "prompt", o.Config.Global.Prompt)
 
-	slog.Info("bundle to remove", "name", o.parsedBundle.Metadata.Name, "packages", len(o.parsedBundle.Packages))
+	s.Info("bundle to remove", "name", o.parsedBundle.Metadata.Name, "packages", len(o.parsedBundle.Packages))
 
 	if o.Config.Global.Prompt {
 		confirmed, err := o.promptConfirmation()
@@ -165,7 +169,7 @@ func (o *RemoveOptions) Run(ctx context.Context) error {
 			return err
 		}
 		if !confirmed {
-			slog.Info("removal cancelled")
+			s.Info("removal cancelled")
 			return nil
 		}
 	}
@@ -175,7 +179,7 @@ func (o *RemoveOptions) Run(ctx context.Context) error {
 		BundlePath: bundlePath,
 		Bundle:     o.parsedBundle,
 		Packages:   o.Packages,
-		Out:        o.ErrOut,
+		Streams:    o.IOStreams,
 	}
 
 	result, err := bundle.Remove(ctx, removeOpts)

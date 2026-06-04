@@ -6,13 +6,13 @@ package bundle
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/logger"
 	"github.com/defenseunicorns/uds-cli/pkg/printer"
 	"github.com/spf13/cobra"
 )
@@ -68,7 +68,7 @@ func (o *PushOptions) Complete(cmd *cobra.Command, args []string) error {
 		ctx = context.Background()
 	}
 	flags := SnapshotFlags(cmd)
-	cfg, _, err := NewConfigResolver().Resolve(ctx, flags, "")
+	cfg, _, err := NewConfigResolver().Resolve(ctx, o.IOStreams, flags, "")
 	if err != nil {
 		return err
 	}
@@ -100,9 +100,11 @@ func (o *PushOptions) Validate() error {
 
 // Run executes the push command.
 func (o *PushOptions) Run(ctx context.Context) error {
-	slog.Debug("pushing bundle", "tarball", o.Tarball, "ref", o.OCIReference)
+	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
+	o.Debug("pushing bundle", "tarball", o.Tarball, "ref", o.OCIReference)
 	result, err := bundle.Push(ctx, o.Tarball, o.OCIReference, bundle.PushOptions{
-		Config: o.Config,
+		Config:  o.Config,
+		Streams: o.IOStreams,
 	})
 	if err != nil {
 		return err

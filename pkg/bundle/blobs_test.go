@@ -5,6 +5,7 @@ package bundle
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	godigest "github.com/opencontainers/go-digest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -182,7 +184,7 @@ func TestGcUnreferencedBlobs(t *testing.T) {
 
 	manifests := []ociManifest{{Digest: manifestDigest.String(), Size: int64(len(manifestBytes))}}
 
-	err = gcUnreferencedBlobs(blobDir, manifests)
+	err = gcUnreferencedBlobs(context.Background(), iostreams.IOStreams{}, blobDir, manifests)
 	require.NoError(t, err)
 
 	// Referenced blobs should exist

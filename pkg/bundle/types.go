@@ -12,6 +12,8 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	oras "oras.land/oras-go/v2"
+
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
 // ErrPackageNotDeployed is returned by Remover.RemovePackage when the requested
@@ -126,6 +128,9 @@ type DeployPackageOptions struct {
 
 	// Prompt enables interactive prompts (non-interactive by default per ADR 0005)
 	Prompt bool
+
+	// Streams carries In/Out/ErrOut for the operation.
+	Streams iostreams.IOStreams
 }
 
 // DeploySource abstracts the differences between bundle deployment pipeline
@@ -172,8 +177,8 @@ type DeployOptions struct {
 	// Prompt enables interactive prompts (non-interactive by default per ADR 0005)
 	Prompt bool
 
-	// Out is the writer for output messages
-	Out io.Writer
+	// Streams carries In/Out/ErrOut for the operation.
+	Streams iostreams.IOStreams
 }
 
 // UDSBundle represents a parsed HCL bundle definition.
@@ -260,8 +265,8 @@ type Creator interface {
 type PackageLayoutLoader interface {
 	// LoadPackageLayout stages the package's contents into dstDir and returns a
 	// PackageLayout ready for packager.Deploy. dstDir must already exist and
-	// is owned by the caller.
-	LoadPackageLayout(ctx context.Context, pkg *Package, dstDir string) (*layout.PackageLayout, error)
+	// is owned by the caller. streams carries the bound logger for diagnostics.
+	LoadPackageLayout(ctx context.Context, streams iostreams.IOStreams, pkg *Package, dstDir string) (*layout.PackageLayout, error)
 }
 
 // PackageSource abstracts how a Zarf package is fetched, supporting both
@@ -289,7 +294,9 @@ type CreatePackageOptions struct {
 
 	BlobDir   string
 	BundleDir string
-	Out       io.Writer
+
+	// Streams carries In/Out/ErrOut for the operation.
+	Streams iostreams.IOStreams
 }
 
 // CreateOptions holds configuration for the top-level bundle create operation.
@@ -299,13 +306,17 @@ type CreateOptions struct {
 
 	BundleFile string
 
-	Out io.Writer
+	// Streams carries In/Out/ErrOut for the operation.
+	Streams iostreams.IOStreams
 }
 
 // PullOptions holds configuration for pulling a bundle from an OCI registry.
 type PullOptions struct {
 	// Config is the merged config; always non-nil in production.
 	Config *UDSBundleConfig
+
+	// Streams carries In/Out/ErrOut for the operation.
+	Streams iostreams.IOStreams
 
 	// remoteRepo overrides the remote registry source. When nil (production),
 	// newRemoteRepository is used. Set in unit tests to inject an in-memory store.
@@ -420,8 +431,8 @@ type RemoveOptions struct {
 	// When empty, all packages in the bundle are removed.
 	Packages []string
 
-	// Out is the writer for output messages.
-	Out io.Writer
+	// Streams carries In/Out/ErrOut for the operation.
+	Streams iostreams.IOStreams
 }
 
 // RemoveResult represents the output of a bundle remove operation.
@@ -455,6 +466,9 @@ type ReconfigureOptions struct {
 	// Options provides shared CLI configuration for the operation.
 	Options ConfigOptions
 
+	// Streams carries In/Out/ErrOut for the operation.
+	Streams iostreams.IOStreams
+
 	// remoteRepo overrides the remote registry target. When nil (production),
 	// newRemoteRepository is used. Set in tests to inject a fake ORAS store.
 	remoteRepo oras.Target
@@ -470,6 +484,9 @@ type ReconfigureResult struct {
 type PushOptions struct {
 	// Config is the merged config; always non-nil in production.
 	Config *UDSBundleConfig
+
+	// Streams carries In/Out/ErrOut for the operation.
+	Streams iostreams.IOStreams
 
 	// remoteRepo overrides the remote registry destination. When nil (production),
 	// newRemoteRepository is used. Set in unit tests to inject an in-memory store.

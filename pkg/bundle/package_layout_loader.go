@@ -8,11 +8,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
@@ -30,8 +30,8 @@ type ExtractedArtifactPackageLayoutLoader struct {
 var _ PackageLayoutLoader = (*ExtractedArtifactPackageLayoutLoader)(nil)
 
 // LoadPackageLayout stages the package's OCI layers into dstDir, which must already exist.
-func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *Package, dstDir string) (*layout.PackageLayout, error) {
-	slog.Debug("loading package from extracted bundle artifact", "name", pkg.Name, "dir", dstDir)
+func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Context, streams iostreams.IOStreams, pkg *Package, dstDir string) (*layout.PackageLayout, error) {
+	streams.Debug("loading package from extracted bundle artifact", "name", pkg.Name, "dir", dstDir)
 	key := pkg.Name
 	if IsOCIReference(pkg.Source) {
 		key = TrimScheme(pkg.Source)
@@ -98,9 +98,9 @@ type SourcePackageLayoutLoader struct {
 
 var _ PackageLayoutLoader = (*SourcePackageLayoutLoader)(nil)
 
-func (l *SourcePackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *Package, dstDir string) (*layout.PackageLayout, error) {
-	slog.Info("pulling package", "source", pkg.Source)
-	source := NewPackageSource(pkg.Source, l.configOpts, l.bundleDir)
+func (l *SourcePackageLayoutLoader) LoadPackageLayout(ctx context.Context, streams iostreams.IOStreams, pkg *Package, dstDir string) (*layout.PackageLayout, error) {
+	streams.Info("pulling package", "source", pkg.Source)
+	source := NewPackageSource(pkg.Source, l.configOpts, l.bundleDir, streams)
 	filter := BuildComponentFilter(pkg.OptionalComponents)
 	pkgLayout, err := source.PullFiltered(ctx, filter, dstDir)
 	if err != nil {

@@ -6,12 +6,12 @@ package bundle
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/logger"
 	"github.com/defenseunicorns/uds-cli/pkg/printer"
 	"github.com/spf13/cobra"
 )
@@ -141,20 +141,23 @@ func applyConcurrencyOverride(flags CLIFlags, cfg *bundle.UDSBundleConfig) {
 
 // Run executes the deploy command.
 func (o *DeployOptions) Run(ctx context.Context) error {
-	deploySrc, err := bundle.PrepareDeploySource(ctx, o.BundlePath, "")
+	// Bind from the flag so logs here honor --log-level; re-bound after config resolves.
+	o.IOStreams = logger.Bind(o.IOStreams, o.flags.LogLevel)
+
+	deploySrc, err := bundle.PrepareDeploySource(ctx, o.IOStreams, o.BundlePath, "")
 	if err != nil {
 		return err
 	}
 	defer func() {
 		if err := deploySrc.Close(); err != nil {
-			slog.Warn("failed to close deploy source", "error", err)
+			o.Warn("failed to close deploy source", "error", err)
 		}
 	}()
 
 	// Resolve config against the bundle-source or extracted bundle archive workspace.
 	// This must happen after PrepareDeploySource because for tar.zst artifacts
 	// defaults.uds.hcl is only available in the extracted workspace.
-	cfg, _, err := NewConfigResolver().Resolve(ctx, o.flags, deploySrc.BundlePath)
+	cfg, _, err := NewConfigResolver().Resolve(ctx, o.IOStreams, o.flags, deploySrc.BundlePath)
 	if err != nil {
 		return err
 	}
@@ -162,9 +165,10 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 
 	applyConcurrencyOverride(o.flags, o.Config)
 
-	slog.Debug("deploying bundle", "path", deploySrc.BundlePath, "prompt", o.Config.Global.Prompt)
+	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
+	o.Debug("deploying bundle", "path", deploySrc.BundlePath, "prompt", o.Config.Global.Prompt)
 
-	parsedBundle, err := bundle.NewHCLParser(o.Config.Options.Architecture).ParseBundleFile(ctx, deploySrc.BundlePath)
+	parsedBundle, err := bundle.NewHCLParser(o.Config.Options.Architecture, o.IOStreams).ParseBundleFile(ctx, deploySrc.BundlePath)
 	if err != nil {
 		return fmt.Errorf("failed to parse bundle: %w", err)
 	}
@@ -172,7 +176,7 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 		return fmt.Errorf("invalid bundle: %w", err)
 	}
 
-	slog.Info("bundle to deploy", "name", parsedBundle.Metadata.Name, "packages", len(parsedBundle.Packages))
+	o.Info("bundle to deploy", "name", parsedBundle.Metadata.Name, "packages", len(parsedBundle.Packages))
 
 	if o.Config.Global.Prompt {
 		confirmed, err := o.promptConfirmation()
@@ -180,7 +184,7 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 			return err
 		}
 		if !confirmed {
-			slog.Info("deployment cancelled")
+			o.Info("deployment cancelled")
 			return nil
 		}
 	}
@@ -191,7 +195,7 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 		Bundle:     parsedBundle,
 		Source:     deploySrc,
 		Prompt:     o.Config.Global.Prompt,
-		Out:        o.ErrOut,
+		Streams:    o.IOStreams,
 	})
 	if err != nil {
 		return fmt.Errorf("deployment failed: %w", err)

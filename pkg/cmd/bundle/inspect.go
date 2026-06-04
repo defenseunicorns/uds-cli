@@ -6,11 +6,11 @@ package bundle
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/logger"
 	"github.com/defenseunicorns/uds-cli/pkg/printer"
 	"github.com/spf13/cobra"
 )
@@ -65,7 +65,7 @@ func (o *InspectOptions) Complete(cmd *cobra.Command, args []string) error {
 		ctx = context.Background()
 	}
 	flags := SnapshotFlags(cmd)
-	cfg, _, err := NewConfigResolver().Resolve(ctx, flags, o.BundlePath)
+	cfg, _, err := NewConfigResolver().Resolve(ctx, o.IOStreams, flags, o.BundlePath)
 	if err != nil {
 		return err
 	}
@@ -89,12 +89,13 @@ func (o *InspectOptions) Validate() error {
 func (o *InspectOptions) Run(ctx context.Context) error {
 	// Resolve the bundle path
 	bundlePath := bundle.ResolveBundlePath(o.BundlePath)
-	slog.Debug("inspecting bundle", "path", bundlePath)
+	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
+	o.Debug("inspecting bundle", "path", bundlePath)
 
 	// This method diverges from the 0004-logging-and-output-strategy.md recommendation and does not have a clear
 	// business layer method. Perhaps we'll introduce it in the future once there are more logic there than just
 	// bundle parsing.
-	b, err := bundle.NewHCLParser(o.Config.Options.Architecture).ParseBundleFile(ctx, bundlePath)
+	b, err := bundle.NewHCLParser(o.Config.Options.Architecture, o.IOStreams).ParseBundleFile(ctx, bundlePath)
 	if err != nil {
 		return err
 	}
@@ -103,7 +104,7 @@ func (o *InspectOptions) Run(ctx context.Context) error {
 		return fmt.Errorf("invalid bundle: %w", err)
 	}
 
-	result, err := b.ToInspectResult()
+	result, err := b.ToInspectResult(ctx, o.IOStreams)
 	if err != nil {
 		return fmt.Errorf("inspecting bundle: %w", err)
 	}

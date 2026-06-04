@@ -4,9 +4,11 @@
 package bundle
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -35,7 +37,7 @@ func TestUDSBundle_ToInspectResult(t *testing.T) {
 		},
 	}
 
-	result, err := b.ToInspectResult()
+	result, err := b.ToInspectResult(context.Background(), iostreams.IOStreams{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "test-bundle", result.Name)
@@ -72,7 +74,7 @@ func TestUDSBundle_ToInspectResult_DAGOrder(t *testing.T) {
 		},
 	}
 
-	result, err := b.ToInspectResult()
+	result, err := b.ToInspectResult(context.Background(), iostreams.IOStreams{})
 	require.NoError(t, err)
 
 	require.Len(t, result.Packages, 4)
@@ -97,7 +99,7 @@ func TestUDSBundle_ToInspectResult_DAGOrder_Deterministic(t *testing.T) {
 		},
 	}
 
-	result, err := b.ToInspectResult()
+	result, err := b.ToInspectResult(context.Background(), iostreams.IOStreams{})
 	require.NoError(t, err)
 
 	require.Len(t, result.Packages, 4)
@@ -115,7 +117,7 @@ func TestUDSBundle_ToInspectResult_Empty(t *testing.T) {
 		Metadata: Metadata{Name: "empty"},
 	}
 
-	result, err := b.ToInspectResult()
+	result, err := b.ToInspectResult(context.Background(), iostreams.IOStreams{})
 	require.NoError(t, err)
 	assert.Equal(t, "empty", result.Name)
 	assert.Empty(t, result.Packages)
@@ -164,4 +166,3 @@ func TestInspectResult_YAMLRoundTrip(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal(data, &decoded))
 	assert.Equal(t, original.Name, decoded.Name)
 }
-

@@ -4,11 +4,13 @@
 package bundle
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -235,7 +237,7 @@ func TestVerifyOCILayoutDigests(t *testing.T) {
 		ociDir := t.TempDir()
 		buildVerifiableOCILayout(t, ociDir)
 
-		err := verifyOCILayoutDigests(ociDir)
+		err := verifyOCILayoutDigests(context.Background(), iostreams.IOStreams{}, ociDir)
 		assert.NoError(t, err)
 	})
 
@@ -313,7 +315,7 @@ func TestVerifyOCILayoutDigests(t *testing.T) {
 
 			tt.mutate(t, ociDir, layout)
 
-			err := verifyOCILayoutDigests(ociDir)
+			err := verifyOCILayoutDigests(context.Background(), iostreams.IOStreams{}, ociDir)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.wantErr)
 		})
@@ -323,7 +325,7 @@ func TestVerifyOCILayoutDigests(t *testing.T) {
 		t.Parallel()
 		ociDir := t.TempDir()
 
-		err := verifyOCILayoutDigests(ociDir)
+		err := verifyOCILayoutDigests(context.Background(), iostreams.IOStreams{}, ociDir)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "index.json")
 	})
@@ -367,7 +369,7 @@ func TestVerifyOCILayoutDigests(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, os.WriteFile(filepath.Join(ociDir, "index.json"), idxBytes, tmpFilePerm))
 
-		err = verifyOCILayoutDigests(ociDir)
+		err = verifyOCILayoutDigests(context.Background(), iostreams.IOStreams{}, ociDir)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "size mismatch")
 	})
@@ -413,7 +415,7 @@ func TestVerifyOCILayoutDigests(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, os.WriteFile(filepath.Join(ociDir, "index.json"), idxBytes, tmpFilePerm))
 
-		err = verifyOCILayoutDigests(ociDir)
+		err = verifyOCILayoutDigests(context.Background(), iostreams.IOStreams{}, ociDir)
 		assert.NoError(t, err)
 	})
 
@@ -450,7 +452,7 @@ func TestVerifyOCILayoutDigests(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, os.WriteFile(filepath.Join(ociDir, "index.json"), idxBytes, tmpFilePerm))
 
-		err = verifyOCILayoutDigests(ociDir)
+		err = verifyOCILayoutDigests(context.Background(), iostreams.IOStreams{}, ociDir)
 		assert.NoError(t, err)
 	})
 
@@ -508,7 +510,7 @@ func TestVerifyOCILayoutDigests(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, os.WriteFile(filepath.Join(ociDir, "index.json"), topIdxBytes, tmpFilePerm))
 
-		err = verifyOCILayoutDigests(ociDir)
+		err = verifyOCILayoutDigests(context.Background(), iostreams.IOStreams{}, ociDir)
 		assert.NoError(t, err)
 	})
 
@@ -566,7 +568,7 @@ func TestVerifyOCILayoutDigests(t *testing.T) {
 		// Corrupt the layer blob inside the nested index.
 		corruptBlob(t, filepath.Join(blobDir, layerHex))
 
-		err = verifyOCILayoutDigests(ociDir)
+		err = verifyOCILayoutDigests(context.Background(), iostreams.IOStreams{}, ociDir)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "nested index")
 		assert.Contains(t, err.Error(), "digest mismatch")
@@ -612,7 +614,7 @@ func TestVerifyOCILayoutDigests(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, os.WriteFile(filepath.Join(ociDir, "index.json"), idxBytes, tmpFilePerm))
 
-		err = verifyOCILayoutDigests(ociDir)
+		err = verifyOCILayoutDigests(context.Background(), iostreams.IOStreams{}, ociDir)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "size mismatch")
 	})

@@ -4,16 +4,17 @@
 package bundle
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	godigest "github.com/opencontainers/go-digest"
 )
 
@@ -130,8 +131,8 @@ func writeAndDigestBlob(blobDir string, data []byte) (godigest.Digest, error) {
 // any of the provided manifests (their manifest blob, config blob, and layer blobs).
 // Call this after all optional-component filtering is complete so that excluded
 // component layers are not shipped in the final bundle.
-func gcUnreferencedBlobs(blobDir string, manifests []ociManifest) error {
-	slog.Debug("garbage collecting unreferenced blobs", "manifests", len(manifests))
+func gcUnreferencedBlobs(_ context.Context, streams iostreams.IOStreams, blobDir string, manifests []ociManifest) error {
+	streams.Debug("garbage collecting unreferenced blobs", "manifests", len(manifests))
 	keep := make(map[string]bool)
 	for _, m := range manifests {
 		md, err := parseDigest(m.Digest)
@@ -174,7 +175,7 @@ func gcUnreferencedBlobs(blobDir string, manifests []ociManifest) error {
 		}
 		if !keep[e.Name()] {
 			if err := os.Remove(filepath.Join(blobDir, e.Name())); err != nil {
-				slog.Warn("failed to remove unreferenced blob", "blob", e.Name(), "error", err)
+				streams.Warn("failed to remove unreferenced blob", "blob", e.Name(), "error", err)
 			}
 		}
 	}

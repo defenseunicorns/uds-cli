@@ -6,17 +6,18 @@ package bundle
 import (
 	"bytes"
 	"context"
-	"errors"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/logger"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -40,21 +41,24 @@ func Reconfigure(ctx context.Context, opts ReconfigureOptions) (*ReconfigureResu
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
+	s := logger.Bind(opts.Streams, opts.Options.LogLevel)
 	if _, err := ParseDefaults(ctx, opts.DefaultsFile); err != nil {
 		return nil, fmt.Errorf("invalid defaults file: %w", err)
 	}
 
 	var r Reconfigurer
 	if IsOCIReference(opts.Source) {
-		r = &ociReconfigurer{}
+		r = &ociReconfigurer{streams: s}
 	} else {
-		r = &localReconfigurer{}
+		r = &localReconfigurer{streams: s}
 	}
 
 	return r.Reconfigure(ctx, opts)
 }
 
-type localReconfigurer struct{}
+type localReconfigurer struct {
+	streams iostreams.IOStreams
+}
 
 func (r *localReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptions) (*ReconfigureResult, error) {
 	// Compute output filename and check it doesn't exist.
@@ -77,11 +81,11 @@ func (r *localReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOpt
 	}
 	defer func() {
 		if rmErr := os.RemoveAll(tmp); rmErr != nil {
-			slog.Warn("failed to remove temp dir", "path", tmp, "error", rmErr)
+			r.streams.Warn("failed to remove temp dir", "path", tmp, "error", rmErr)
 		}
 	}()
 
-	if err := extractTarZst(ctx, opts.Source, tmp); err != nil {
+	if err := extractTarZst(ctx, r.streams, opts.Source, tmp); err != nil {
 		return nil, fmt.Errorf("extracting bundle: %w", err)
 	}
 
@@ -175,22 +179,24 @@ func (r *localReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOpt
 	}
 
 	// Remove unreferenced blobs.
-	if err := gcUnreferencedBlobs(blobDir, idx.Manifests); err != nil {
+	if err := gcUnreferencedBlobs(ctx, r.streams, blobDir, idx.Manifests); err != nil {
 		return nil, fmt.Errorf("cleaning unreferenced blobs: %w", err)
 	}
 
 	// Repackage as tar.zst.
-	if err := writeTarZst(ctx, outPath, tmp); err != nil {
+	if err := writeTarZst(ctx, r.streams, outPath, tmp); err != nil {
 		return nil, fmt.Errorf("writing output archive: %w", err)
 	}
 
-	slog.Info("bundle reconfigured", "output", outPath)
+	r.streams.Info("bundle reconfigured", "output", outPath)
 	return &ReconfigureResult{OutputPath: outPath}, nil
 }
 
 var _ Reconfigurer = &ociReconfigurer{}
 
-type ociReconfigurer struct{}
+type ociReconfigurer struct {
+	streams iostreams.IOStreams
+}
 
 func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptions) (*ReconfigureResult, error) {
 	if opts.OutputDir != "" {
@@ -377,7 +383,7 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 		return nil, fmt.Errorf("tagging index as %s: %w", targetTag, err)
 	}
 
-	slog.Info("bundle reconfigured", "ref", targetRef)
+	r.streams.Info("bundle reconfigured", "ref", targetRef)
 	return &ReconfigureResult{OCIReference: targetRef}, nil
 }
 

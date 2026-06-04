@@ -48,7 +48,7 @@ func createBundleFromTestData(t *testing.T, testDataRelPath, arch string) string
 	result, err := bundlepkg.Create(t.Context(), bundlepkg.CreateOptions{
 		Config:     &bundlepkg.UDSBundleConfig{Global: global, Options: &opts},
 		BundleFile: filepath.Join(dir, "bundle.uds.hcl"),
-		Out:        streams.Out,
+		Streams:    streams,
 	})
 	require.NoError(t, err)
 
@@ -155,7 +155,7 @@ func TestCreate_DefaultsConfig_Applied(t *testing.T) {
 	// Find the create subcommand to get its flags
 	createCmd, _, _ := cmd.Find([]string{"create"})
 	createCmd.Flags().String("config", "", "config path")
-	resolved, _, err := resolver.Resolve(context.Background(), bundlecmd.SnapshotFlags(createCmd), dir)
+	resolved, _, err := resolver.Resolve(context.Background(), iostreams.IOStreams{}, bundlecmd.SnapshotFlags(createCmd), dir)
 	require.NoError(t, err)
 
 	// Variables from defaults.uds.hcl

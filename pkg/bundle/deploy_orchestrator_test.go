@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -197,13 +198,13 @@ func runDeployOrchestrator(t *testing.T, b *UDSBundle, deploy deployPackageFunc,
 // callable. Used by tests that need to drive Run with a custom context.
 func newOrchestratorForTest(t *testing.T, b *UDSBundle, deploy deployPackageFunc, concurrency int) *deployOrchestrator {
 	t.Helper()
-	dag, err := BuildDependencyGraph(b)
+	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, b)
 	require.NoError(t, err)
 	levels, err := dag.TopologicalLevels()
 	require.NoError(t, err)
 	return newDeployOrchestrator(deploy, dag, levels, concurrency, DeployPackageOptions{
 		Config: newDeployTestConfig(concurrency),
-	})
+	}, iostreams.IOStreams{})
 }
 
 // newDeployTestConfig returns a minimal valid UDSBundleConfig for unit tests.

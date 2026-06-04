@@ -7,9 +7,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 
 	"github.com/defenseunicorns/pkg/oci"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -19,9 +19,10 @@ import (
 
 // remoteSource pulls Zarf packages from OCI registries using zoci.NewRemote.
 type remoteSource struct {
-	ref  string
-	arch string
-	opts ConfigOptions
+	ref     string
+	arch    string
+	opts    ConfigOptions
+	streams iostreams.IOStreams
 }
 
 // Compile-time check: remoteSource must implement PackageSource.
@@ -86,9 +87,9 @@ func (s *remoteSource) resolveFilteredLayers(ctx context.Context, filter filters
 		}
 
 		isPartial = len(filteredComponents) < totalComponents
-		slog.Debug("resolved filtered layers", "ref", s.ref, "totalComponents", totalComponents, "filteredComponents", len(filteredComponents), "partial", isPartial)
+		s.streams.Debug("resolved filtered layers", "ref", s.ref, "totalComponents", totalComponents, "filteredComponents", len(filteredComponents), "partial", isPartial)
 	} else {
-		slog.Debug("non-Zarf package, using all layers", "ref", s.ref)
+		s.streams.Debug("non-Zarf package, using all layers", "ref", s.ref)
 		layers = root.Layers
 	}
 

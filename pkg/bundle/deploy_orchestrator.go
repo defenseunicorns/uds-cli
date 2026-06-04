@@ -6,8 +6,8 @@ package bundle
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -37,17 +37,19 @@ type deployOrchestrator struct {
 	levels      [][]*Package
 	concurrency int
 	pkgOpts     DeployPackageOptions
+	streams     iostreams.IOStreams
 }
 
 // newDeployOrchestrator wires the orchestrator with everything it needs to
 // drive a single bundle deploy.
-func newDeployOrchestrator(deploy deployPackageFunc, dag *DAG, levels [][]*Package, concurrency int, pkgOpts DeployPackageOptions) *deployOrchestrator {
+func newDeployOrchestrator(deploy deployPackageFunc, dag *DAG, levels [][]*Package, concurrency int, pkgOpts DeployPackageOptions, streams iostreams.IOStreams) *deployOrchestrator {
 	return &deployOrchestrator{
 		deploy:      deploy,
 		dag:         dag,
 		levels:      levels,
 		concurrency: concurrency,
 		pkgOpts:     pkgOpts,
+		streams:     streams,
 	}
 }
 
@@ -66,7 +68,7 @@ func (o *deployOrchestrator) Run(ctx context.Context) error {
 			return err
 		}
 
-		slog.Info("starting deployment level", "level", levelIdx+1, "total_levels", len(o.levels), "packages", len(level))
+		o.streams.Info("starting deployment level", "level", levelIdx+1, "total_levels", len(o.levels), "packages", len(level))
 
 		// gctx is errgroup's derived context — cancelled when ANY goroutine
 		// returns an error or the parent ctx is cancelled. We only consult
@@ -84,7 +86,7 @@ func (o *deployOrchestrator) Run(ctx context.Context) error {
 
 		for i, pkg := range level {
 			if gctx.Err() != nil {
-				slog.Warn("skipping remaining packages in level after another package failure",
+				o.streams.Warn("skipping remaining packages in level after another package failure",
 					"level", levelIdx+1,
 					"skipped", len(level)-i)
 				break
@@ -100,7 +102,7 @@ func (o *deployOrchestrator) Run(ctx context.Context) error {
 					return err
 				}
 
-				slog.Info("deploying package", "name", pkg.Name, "source", pkg.Source)
+				o.streams.Info("deploying package", "name", pkg.Name, "source", pkg.Source)
 
 				if err := o.deploy(ctx, pkg, o.pkgOpts); err != nil {
 					wrapped := fmt.Errorf("failed to deploy package %q: %w", pkg.Name, err)
@@ -118,7 +120,7 @@ func (o *deployOrchestrator) Run(ctx context.Context) error {
 					return wrapped
 				}
 
-				slog.Info("package deployed", "name", pkg.Name)
+				o.streams.Info("package deployed", "name", pkg.Name)
 				return nil
 			})
 		}
@@ -128,7 +130,7 @@ func (o *deployOrchestrator) Run(ctx context.Context) error {
 			return err
 		}
 
-		slog.Debug("deployment level complete", "level", levelIdx+1)
+		o.streams.Debug("deployment level complete", "level", levelIdx+1)
 	}
 
 	return nil

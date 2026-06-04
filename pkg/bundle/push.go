@@ -9,10 +9,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 
+	"github.com/defenseunicorns/uds-cli/pkg/logger"
 	"github.com/google/go-containerregistry/pkg/name"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	oras "oras.land/oras-go/v2"
@@ -100,12 +100,13 @@ func (p *defaultPusher) PushBundle(ctx context.Context, bundleDir, ociReference 
 	}
 	dstTag := ref.Identifier()
 
-	slog.Debug("copying bundle to registry", "ref", ociReference, "tag", dstTag)
+	log := logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
+	log.Debug("copying bundle to registry", "ref", ociReference, "tag", dstTag)
 	if _, err := oras.Copy(ctx, store, "bundle", dst, dstTag, oras.DefaultCopyOptions); err != nil {
 		return nil, fmt.Errorf("pushing bundle to %s: %w", ociReference, err)
 	}
 
-	slog.Info("bundle pushed", "ref", ociReference)
+	log.Info("bundle pushed", "ref", ociReference)
 	return &PushResult{
 		OCIReference: ociReference,
 	}, nil
@@ -123,7 +124,8 @@ func Push(ctx context.Context, bundleTarball, ociReference string, opts PushOpti
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	slog.Info("pushing bundle", "tarball", bundleTarball, "ref", ociReference)
+	s := logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
+	s.Info("pushing bundle", "tarball", bundleTarball, "ref", ociReference)
 
 	tmp, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-push-*")
 	if err != nil {
@@ -131,12 +133,12 @@ func Push(ctx context.Context, bundleTarball, ociReference string, opts PushOpti
 	}
 	defer func() {
 		if rerr := os.RemoveAll(tmp); rerr != nil {
-			slog.Warn("failed to remove temporary directory", "path", tmp, "error", rerr)
+			s.Warn("failed to remove temporary directory", "path", tmp, "error", rerr)
 		}
 	}()
 
-	slog.Debug("extracting bundle", "source", bundleTarball, "output", tmp)
-	if err := extractTarZst(ctx, bundleTarball, tmp); err != nil {
+	s.Debug("extracting bundle", "source", bundleTarball, "output", tmp)
+	if err := extractTarZst(ctx, s, bundleTarball, tmp); err != nil {
 		return nil, fmt.Errorf("extracting bundle: %w", err)
 	}
 

@@ -5,14 +5,17 @@ package bundle
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strings"
+
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
 // ToInspectResult converts a UDSBundle to a serializable InspectResult.
 // Packages are listed in DAG (deployment) order.
-func (b *UDSBundle) ToInspectResult() (*InspectResult, error) {
-	dag, err := BuildDependencyGraph(b)
+func (b *UDSBundle) ToInspectResult(ctx context.Context, streams iostreams.IOStreams) (*InspectResult, error) {
+	dag, err := BuildDependencyGraph(ctx, streams, b)
 	if err != nil {
 		return nil, fmt.Errorf("building dependency graph: %w", err)
 	}
@@ -54,7 +57,7 @@ func toPackageSummary(pkg *Package) PackageSummary {
 // BufferString returns a human-readable summary of the bundle as a buffer.
 // Packages are displayed in deployment order (topological sort) when the
 // dependency graph can be built. Falls back to declaration order on error.
-func (b *UDSBundle) BufferString() *bytes.Buffer {
+func (b *UDSBundle) BufferString(ctx context.Context, streams iostreams.IOStreams) *bytes.Buffer {
 	var out bytes.Buffer
 
 	fmt.Fprint(&out, "BUNDLE METADATA\n")
@@ -70,7 +73,7 @@ func (b *UDSBundle) BufferString() *bytes.Buffer {
 
 	// Try to display packages in deployment order using the DAG.
 	// Fall back to declaration order if the graph can't be built.
-	dag, dagErr := BuildDependencyGraph(b)
+	dag, dagErr := BuildDependencyGraph(ctx, streams, b)
 	if dagErr == nil {
 		writePackagesInDeployOrder(&out, dag)
 	} else {

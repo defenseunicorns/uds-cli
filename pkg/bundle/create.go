@@ -8,11 +8,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/logger"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	oras "oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
@@ -52,9 +53,9 @@ func (c *localCreator) CreatePackage(ctx context.Context, pkg *Package, opts Cre
 	if err := opts.Validate(); err != nil {
 		return err
 	}
-	slog.Info("ingesting package", "name", pkg.Name, "source", pkg.Source)
+	opts.Streams.Info("ingesting package", "name", pkg.Name, "source", pkg.Source)
 
-	source := NewPackageSource(pkg.Source, *opts.Config.Options, opts.BundleDir)
+	source := NewPackageSource(pkg.Source, *opts.Config.Options, opts.BundleDir, opts.Streams)
 
 	filter := BuildComponentFilter(pkg.OptionalComponents)
 
@@ -89,18 +90,20 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 		return nil, err
 	}
 
-	slog.Debug("parsing bundle file", "path", opts.BundleFile)
-	parser := NewHCLParser(opts.Config.Options.Architecture)
+	s := logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
+
+	s.Debug("parsing bundle file", "path", opts.BundleFile)
+	parser := NewHCLParser(opts.Config.Options.Architecture, s)
 	b, err := parser.ParseBundleFile(ctx, opts.BundleFile)
 	if err != nil {
 		return nil, err
 	}
-	slog.Debug("bundle parsed", "name", b.Metadata.Name, "packages", len(b.Packages))
+	s.Debug("bundle parsed", "name", b.Metadata.Name, "packages", len(b.Packages))
 
 	if err := b.Validate(); err != nil {
 		return nil, err
 	}
-	slog.Debug("bundle validated")
+	s.Debug("bundle validated")
 
 	creator := newLocalCreator(opts.Config.Options.Architecture)
 
@@ -112,7 +115,7 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	defer func() {
 		err = os.RemoveAll(root)
 		if err != nil {
-			slog.Warn("failed to remove temporary directory", "path", root, "error", err)
+			s.Warn("failed to remove temporary directory", "path", root, "error", err)
 		}
 	}()
 
@@ -129,7 +132,7 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 		Config:    opts.Config,
 		BlobDir:   blobDir,
 		BundleDir: srcDir,
-		Out:       opts.Out,
+		Streams:   s,
 	}
 	for i := range b.Packages {
 		if err := creator.CreatePackage(ctx, &b.Packages[i], pkgOpts); err != nil {
@@ -137,15 +140,15 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 		}
 	}
 
-	slog.Debug("creating bundle definition manifest")
-	cfgManifest, err := createBundleDefinitionManifest(ctx, ociDir, opts.BundleFile, srcDir, b.Packages)
+	s.Debug("creating bundle definition manifest")
+	cfgManifest, err := createBundleDefinitionManifest(ctx, s, ociDir, opts.BundleFile, srcDir, b.Packages)
 	if err != nil {
 		return nil, err
 	}
 	allManifests := append([]ociManifest{cfgManifest}, creator.manifests...)
 
-	slog.Debug("cleaning unreferenced blobs")
-	if err := gcUnreferencedBlobs(blobDir, allManifests); err != nil {
+	s.Debug("cleaning unreferenced blobs")
+	if err := gcUnreferencedBlobs(ctx, s, blobDir, allManifests); err != nil {
 		return nil, fmt.Errorf("cleaning up unreferenced blobs: %w", err)
 	}
 
@@ -159,11 +162,11 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	}
 
 	outPath := filepath.Join(srcDir, creator.BundleName(b))
-	slog.Debug("writing bundle archive", "output", outPath)
-	if err := writeTarZst(ctx, outPath, root); err != nil {
+	s.Debug("writing bundle archive", "output", outPath)
+	if err := writeTarZst(ctx, s, outPath, root); err != nil {
 		return nil, err
 	}
-	slog.Info("bundle archive written", "output", outPath)
+	s.Info("bundle archive written", "output", outPath)
 	return &CreateResult{BundleName: b.Metadata.Name, OutputPath: outPath}, nil
 }
 
@@ -204,7 +207,7 @@ func sanitizeFileComponent(s string) string {
 // createBundleDefinitionManifest builds an OCI 1.1 artifact manifest that stores the bundle HCL file and all package values files as
 // content-addressed layers. The manifest does not contain an "org.opencontainers.image.ref.name" annotation since it is from local
 // files on disk and not from a remote registry. It is identified by artifactType so consumers can better identify it in the index.
-func createBundleDefinitionManifest(ctx context.Context, ociDir, bundleFile, bundleDir string, pkgs []Package) (ociManifest, error) {
+func createBundleDefinitionManifest(ctx context.Context, streams iostreams.IOStreams, ociDir, bundleFile, bundleDir string, pkgs []Package) (ociManifest, error) {
 	store, err := oraci.New(ociDir)
 	if err != nil {
 		return ociManifest{}, fmt.Errorf("opening OCI store: %w", err)
@@ -245,7 +248,7 @@ func createBundleDefinitionManifest(ctx context.Context, ociDir, bundleFile, bun
 			return ociManifest{}, fmt.Errorf("pushing defaults HCL: %w", err)
 		}
 		layers = append(layers, defaultsDesc)
-		slog.Debug("included defaults.uds.hcl in bundle definition")
+		streams.Debug("included defaults.uds.hcl in bundle definition")
 	}
 
 	// Values files as subsequent layers, preserving logical path in the annotation.
@@ -295,4 +298,3 @@ func createBundleDefinitionManifest(ctx context.Context, ociDir, bundleFile, bun
 		Size:         desc.Size,
 	}, nil
 }
-

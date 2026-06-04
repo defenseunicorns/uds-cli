@@ -18,6 +18,12 @@ import (
 func newZarfLoggerContext(ctx context.Context, out io.Writer, logLevel string) context.Context {
 	level, _ := logger.ParseLevel(logLevel)
 
+	// Zarf defaults a nil Destination to os.Stderr; discard instead so an unset
+	// Streams.ErrOut produces no output rather than leaking to process stderr.
+	if out == nil {
+		out = io.Discard
+	}
+
 	cfg := logger.Config{
 		Level:       level,
 		Format:      logger.FormatConsole,

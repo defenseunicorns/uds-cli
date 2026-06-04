@@ -7,13 +7,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -111,17 +111,17 @@ func (e *ExtractedBundle) ValuesFilesByPackage() (map[string][]string, error) {
 // dstDir must already exist; the caller owns its lifecycle (creation and
 // cleanup). On failure, extracted files may remain in dstDir. The caller is
 // responsible for cleanup in all cases.
-func ExtractArtifact(ctx context.Context, tarPath, dstDir string) (*ExtractedBundle, error) {
-	slog.Debug("extracting bundle artifact", "tar", tarPath, "dst", dstDir)
+func ExtractArtifact(ctx context.Context, streams iostreams.IOStreams, tarPath, dstDir string) (*ExtractedBundle, error) {
+	streams.Debug("extracting bundle artifact", "tar", tarPath, "dst", dstDir)
 
-	if err := extractTarZst(ctx, tarPath, dstDir); err != nil {
+	if err := extractTarZst(ctx, streams, tarPath, dstDir); err != nil {
 		return nil, fmt.Errorf("extracting bundle artifact: %w", err)
 	}
 
 	ociDir := filepath.Join(dstDir, "oci")
 	blobDir := filepath.Join(ociDir, "blobs", "sha256")
 
-	if err := verifyOCILayoutDigests(ociDir); err != nil {
+	if err := verifyOCILayoutDigests(ctx, streams, ociDir); err != nil {
 		return nil, fmt.Errorf("artifact digest verification failed: %w", err)
 	}
 
@@ -152,7 +152,7 @@ func ExtractArtifact(ctx context.Context, tarPath, dstDir string) (*ExtractedBun
 		return nil, fmt.Errorf("parsing bundle definition manifest: %w", err)
 	}
 
-	bundleDefPath, err := materializeBundleSrcFiles(bundleDef, blobDir, dstDir)
+	bundleDefPath, err := materializeBundleSrcFiles(ctx, streams, bundleDef, blobDir, dstDir)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +162,7 @@ func ExtractArtifact(ctx context.Context, tarPath, dstDir string) (*ExtractedBun
 		return nil, err
 	}
 
-	slog.Debug("bundle artifact extracted", "dir", dstDir, "packages", len(packageDigests))
+	streams.Debug("bundle artifact extracted", "dir", dstDir, "packages", len(packageDigests))
 	return &ExtractedBundle{
 		Dir:            dstDir,
 		OCIDir:         ociDir,
@@ -174,7 +174,7 @@ func ExtractArtifact(ctx context.Context, tarPath, dstDir string) (*ExtractedBun
 // materializeBundleSrcFiles writes HCL and values file layers from the bundle
 // definition manifest to disk at their annotated title paths under dstDir.
 // Returns the absolute path to the materialized bundle.uds.hcl file.
-func materializeBundleSrcFiles(bundleDef ociImageManifest, blobDir, dstDir string) (string, error) {
+func materializeBundleSrcFiles(_ context.Context, streams iostreams.IOStreams, bundleDef ociImageManifest, blobDir, dstDir string) (string, error) {
 	cleanDstDir, err := filepath.Abs(filepath.Clean(dstDir))
 	if err != nil {
 		return "", fmt.Errorf("resolving destination directory: %w", err)
@@ -186,7 +186,7 @@ func materializeBundleSrcFiles(bundleDef ociImageManifest, blobDir, dstDir strin
 			continue
 		}
 		if layer.MediaType != MediaTypeBundleHCL && layer.MediaType != MediaTypeBundleValuesYAML {
-			slog.Debug("skipping layer with unknown media type", "title", title, "mediaType", layer.MediaType)
+			streams.Debug("skipping layer with unknown media type", "title", title, "mediaType", layer.MediaType)
 			continue
 		}
 

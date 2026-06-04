@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	oraci "oras.land/oras-go/v2/content/oci"
@@ -23,7 +24,7 @@ func TestPush_NoOCILayout(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "some-file.txt"), []byte("not a bundle"), tmpFilePerm))
 
 	tarball := filepath.Join(t.TempDir(), "v0-bundle.tar.zst")
-	require.NoError(t, writeTarZst(context.Background(), tarball, srcDir))
+	require.NoError(t, writeTarZst(context.Background(), iostreams.IOStreams{}, tarball, srcDir))
 
 	cfg := newTestConfig()
 	cfg.Options.TmpDir = t.TempDir()
@@ -59,7 +60,7 @@ func TestPush_NonUDSBundle(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(ociDir, "index.json"), idxBytes, tmpFilePerm))
 
 	tarball := filepath.Join(t.TempDir(), "not-a-bundle.tar.zst")
-	require.NoError(t, writeTarZst(context.Background(), tarball, srcDir))
+	require.NoError(t, writeTarZst(context.Background(), iostreams.IOStreams{}, tarball, srcDir))
 
 	cfg := newTestConfig()
 	cfg.Options.TmpDir = t.TempDir()
@@ -93,7 +94,7 @@ package "pkg1" {
 	tarball, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
-		Out:        os.Stderr,
+		Streams:    iostreams.IOStreams{ErrOut: os.Stderr},
 	})
 	require.NoError(t, err)
 
@@ -149,7 +150,7 @@ package "pkg1" {
 	tarball, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
-		Out:        os.Stderr,
+		Streams:    iostreams.IOStreams{ErrOut: os.Stderr},
 	})
 	require.NoError(t, err)
 
@@ -184,7 +185,7 @@ package "pkg1" {
 	tarball, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
-		Out:        os.Stderr,
+		Streams:    iostreams.IOStreams{ErrOut: os.Stderr},
 	})
 	require.NoError(t, err)
 

@@ -4,10 +4,11 @@
 package bundle
 
 import (
+	"context"
 	"fmt"
-	"log/slog"
 	"sort"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/hashicorp/hcl/v2"
 )
 
@@ -33,7 +34,7 @@ type DAG struct {
 // Each package is represented as a traversal "package.<name>", and dependencies
 // are taken from the already-parsed PackageRef values in the Package struct.
 // The graph is validated for missing references and cycles before being returned.
-func BuildDependencyGraph(bundle *UDSBundle) (*DAG, error) {
+func BuildDependencyGraph(ctx context.Context, streams iostreams.IOStreams, bundle *UDSBundle) (*DAG, error) {
 	packages := make(map[string]*PackageTraversal, len(bundle.Packages))
 
 	for i := range bundle.Packages {
@@ -75,7 +76,7 @@ func BuildDependencyGraph(bundle *UDSBundle) (*DAG, error) {
 		return nil, err
 	}
 
-	slog.Debug("dependency graph constructed", "packages", len(packages), "edges", len(edges))
+	streams.Debug("dependency graph constructed", "packages", len(packages), "edges", len(edges))
 	return dag, nil
 }
 

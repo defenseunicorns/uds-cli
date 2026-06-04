@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/mholt/archives"
 	"github.com/stretchr/testify/require"
 )
@@ -67,7 +68,7 @@ package "pkg1" {
 	_, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
-		Out:        io.Discard,
+		Streams:    iostreams.IOStreams{ErrOut: io.Discard},
 	})
 	require.NoError(t, err)
 
@@ -165,7 +166,7 @@ package "pkg2" {
 	_, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
-		Out:        io.Discard,
+		Streams:    iostreams.IOStreams{ErrOut: io.Discard},
 	})
 	require.NoError(t, err)
 
@@ -305,7 +306,7 @@ package "pkg1" {
 	_, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfigWithArch("amd64"),
 		BundleFile: bundleFile,
-		Out:        io.Discard,
+		Streams:    iostreams.IOStreams{ErrOut: io.Discard},
 	})
 	require.NoError(t, err)
 
@@ -372,7 +373,7 @@ package "pkg1" {
 	_, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
-		Out:        io.Discard,
+		Streams:    iostreams.IOStreams{ErrOut: io.Discard},
 	})
 	require.NoError(t, err)
 
@@ -420,7 +421,7 @@ variables = {
 	_, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
-		Out:        io.Discard,
+		Streams:    iostreams.IOStreams{ErrOut: io.Discard},
 	})
 	require.NoError(t, err)
 
@@ -488,7 +489,7 @@ package "pkg1" {
 	_, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
-		Out:        io.Discard,
+		Streams:    iostreams.IOStreams{ErrOut: io.Discard},
 	})
 	require.NoError(t, err)
 

@@ -6,7 +6,8 @@ package bundle
 import (
 	"context"
 	"fmt"
-	"log/slog"
+
+	"github.com/defenseunicorns/uds-cli/pkg/logger"
 )
 
 // Remove removes a UDS bundle's packages from a Kubernetes cluster.
@@ -22,7 +23,9 @@ func Remove(ctx context.Context, opts RemoveOptions) (*RemoveResult, error) {
 		return nil, err
 	}
 
-	parser := NewHCLParser(opts.Config.Options.Architecture)
+	s := logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
+
+	parser := NewHCLParser(opts.Config.Options.Architecture, s)
 
 	// Use pre-parsed bundle if provided, otherwise parse from BundlePath
 	b := opts.Bundle
@@ -32,22 +35,22 @@ func Remove(ctx context.Context, opts RemoveOptions) (*RemoveResult, error) {
 		}
 	}
 	if b == nil {
-		slog.Debug("parsing bundle", "path", opts.BundlePath)
+		s.Debug("parsing bundle", "path", opts.BundlePath)
 		var err error
 		b, err = parser.ParseBundleFile(ctx, opts.BundlePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse bundle: %w", err)
 		}
-		slog.Debug("bundle parsed", "name", b.Metadata.Name, "packages", len(b.Packages))
+		s.Debug("bundle parsed", "name", b.Metadata.Name, "packages", len(b.Packages))
 
 		// Validate only when freshly parsed (caller is responsible for pre-parsed bundles)
 		if err := b.Validate(); err != nil {
 			return nil, fmt.Errorf("bundle validation failed: %w", err)
 		}
-		slog.Debug("bundle validated")
+		s.Debug("bundle validated")
 	}
 
-	remover := NewZarfRemover(opts.Out)
+	remover := NewZarfRemover(s)
 	return remover.RemoveBundle(ctx, b, opts.Packages, RemovePackageOptions{
 		Config: opts.Config,
 	})

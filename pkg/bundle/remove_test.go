@@ -9,6 +9,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -69,7 +70,7 @@ func TestRemovePackages_ReverseLevelOrder(t *testing.T) {
 	// 3 sequential levels: core -> nginx -> podinfo
 	levels := makeLevels([]string{"core"}, []string{"nginx"}, []string{"podinfo"})
 
-	removed, skipped, err := withMock(mock).removePackages(t.Context(), nil, levels, defaultPkgOpts())
+	removed, skipped, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, nil, levels, defaultPkgOpts())
 	require.NoError(t, err)
 	assert.Equal(t, 3, removed)
 	assert.Equal(t, 0, skipped)
@@ -82,7 +83,7 @@ func TestRemovePackages_DiamondReverseOrder(t *testing.T) {
 	// Diamond: level0=[a], level1=[b,c], level2=[d]
 	levels := makeLevels([]string{"a"}, []string{"b", "c"}, []string{"d"})
 
-	removed, _, err := withMock(mock).removePackages(t.Context(), nil, levels, defaultPkgOpts())
+	removed, _, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, nil, levels, defaultPkgOpts())
 	require.NoError(t, err)
 	assert.Equal(t, 4, removed)
 	// d removed first (top of DAG), then b/c (siblings, any order), then a (root)
@@ -97,7 +98,7 @@ func TestRemovePackages_SkipsUndeployed(t *testing.T) {
 	mock := &mockRemover{NotDeployed: []string{"nginx"}}
 	levels := makeLevels([]string{"core"}, []string{"nginx"}, []string{"podinfo"})
 
-	removed, skipped, err := withMock(mock).removePackages(t.Context(), nil, levels, defaultPkgOpts())
+	removed, skipped, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, nil, levels, defaultPkgOpts())
 	require.NoError(t, err)
 	assert.Equal(t, 2, removed)
 	assert.Equal(t, 1, skipped)
@@ -111,7 +112,7 @@ func TestRemovePackages_StopsOnError(t *testing.T) {
 	}
 	levels := makeLevels([]string{"core"}, []string{"nginx"}, []string{"podinfo"})
 
-	removed, skipped, err := withMock(mock).removePackages(t.Context(), nil, levels, defaultPkgOpts())
+	removed, skipped, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, nil, levels, defaultPkgOpts())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to remove package")
 	assert.Contains(t, err.Error(), "nginx")
@@ -124,7 +125,7 @@ func TestRemovePackages_NoneDeployed(t *testing.T) {
 	mock := &mockRemover{NotDeployed: []string{"core", "nginx"}}
 	levels := makeLevels([]string{"core"}, []string{"nginx"})
 
-	removed, skipped, err := withMock(mock).removePackages(t.Context(), nil, levels, defaultPkgOpts())
+	removed, skipped, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, nil, levels, defaultPkgOpts())
 	require.NoError(t, err)
 	assert.Equal(t, 0, removed)
 	assert.Equal(t, 2, skipped)
@@ -138,7 +139,7 @@ func TestRemovePackages_PropagatesNonSentinelError(t *testing.T) {
 	}
 	levels := makeLevels([]string{"core"})
 
-	_, _, err := withMock(mock).removePackages(t.Context(), nil, levels, defaultPkgOpts())
+	_, _, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, nil, levels, defaultPkgOpts())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to remove package")
 	assert.Contains(t, err.Error(), "connection refused")
@@ -147,7 +148,7 @@ func TestRemovePackages_PropagatesNonSentinelError(t *testing.T) {
 func TestRemovePackages_EmptyLevels(t *testing.T) {
 	mock := &mockRemover{}
 
-	removed, skipped, err := withMock(mock).removePackages(t.Context(), nil, nil, defaultPkgOpts())
+	removed, skipped, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, nil, nil, defaultPkgOpts())
 	require.NoError(t, err)
 	assert.Equal(t, 0, removed)
 	assert.Equal(t, 0, skipped)

@@ -6,6 +6,7 @@ package bundle
 import (
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,7 +37,7 @@ func TestNewPackageSource_Remote(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			src := NewPackageSource(tt.source, opts, "/bundle/dir")
+			src := NewPackageSource(tt.source, opts, "/bundle/dir", iostreams.IOStreams{})
 			remote, ok := src.(*remoteSource)
 			require.True(t, ok, "expected *remoteSource")
 			assert.Equal(t, tt.wantRef, remote.ref)
@@ -57,7 +58,7 @@ func TestNewPackageSource_Local(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := ConfigOptions{Architecture: "arm64", TmpDir: "/custom/tmp"}
-			src := NewPackageSource(tt.source, opts, "/bundle/dir")
+			src := NewPackageSource(tt.source, opts, "/bundle/dir", iostreams.IOStreams{})
 			local, ok := src.(*localSource)
 			require.True(t, ok, "expected *localSource")
 			assert.Equal(t, tt.source, local.path)

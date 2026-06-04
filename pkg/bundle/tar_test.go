@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/mholt/archives"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -86,7 +87,7 @@ func TestExtractTarZst_HappyPath(t *testing.T) {
 	})
 
 	dst := t.TempDir()
-	require.NoError(t, extractTarZst(context.Background(), src, dst))
+	require.NoError(t, extractTarZst(context.Background(), iostreams.IOStreams{}, src, dst))
 
 	top, err := os.ReadFile(filepath.Join(dst, "top.txt"))
 	require.NoError(t, err)
@@ -109,10 +110,10 @@ func TestExtractTarZst_RoundTrip(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "nested", "b.txt"), []byte("B"), 0o644))
 
 	tarball := filepath.Join(t.TempDir(), "round.tar.zst")
-	require.NoError(t, writeTarZst(context.Background(), tarball, srcDir))
+	require.NoError(t, writeTarZst(context.Background(), iostreams.IOStreams{}, tarball, srcDir))
 
 	dst := t.TempDir()
-	require.NoError(t, extractTarZst(context.Background(), tarball, dst))
+	require.NoError(t, extractTarZst(context.Background(), iostreams.IOStreams{}, tarball, dst))
 
 	a, err := os.ReadFile(filepath.Join(dst, "a.txt"))
 	require.NoError(t, err)
@@ -230,7 +231,7 @@ func TestExtractTarZst_RejectsMaliciousEntries(t *testing.T) {
 			src := filepath.Join(t.TempDir(), "bad.tar.zst")
 			writeMaliciousTarZst(t, src, tc.entries)
 
-			err := extractTarZst(context.Background(), src, dst)
+			err := extractTarZst(context.Background(), iostreams.IOStreams{}, src, dst)
 
 			require.Error(t, err, "expected error for %s", tc.name)
 			if tc.errSubstr != "" {
@@ -288,7 +289,7 @@ func TestExtractTarZst_ContainsMaliciousEntries(t *testing.T) {
 			src := filepath.Join(t.TempDir(), "bad.tar.zst")
 			writeMaliciousTarZst(t, src, tc.entries)
 
-			_ = extractTarZst(context.Background(), src, dst)
+			_ = extractTarZst(context.Background(), iostreams.IOStreams{}, src, dst)
 
 			assertNoEscape(t, parent, dst)
 		})

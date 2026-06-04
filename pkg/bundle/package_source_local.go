@@ -10,13 +10,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	specv1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -28,6 +28,7 @@ type localSource struct {
 	arch      string
 	bundleDir string
 	tmpDir    string
+	streams   iostreams.IOStreams
 }
 
 // Compile-time check: localSource must implement PackageSource.
@@ -82,7 +83,7 @@ func (s *localSource) IngestFiltered(ctx context.Context, filter filters.Compone
 		return nil, fmt.Errorf("local package source path is empty")
 	}
 	path := s.resolvedPath()
-	slog.Debug("ingesting local source", "path", path, "arch", s.arch)
+	s.streams.Debug("ingesting local source", "path", path, "arch", s.arch)
 
 	st, err := os.Stat(path)
 	if err != nil {
@@ -99,12 +100,12 @@ func (s *localSource) IngestFiltered(ctx context.Context, filter filters.Compone
 		}
 		cleanup = func() {
 			if err := os.RemoveAll(tmp); err != nil {
-				slog.Warn("failed to remove temporary directory", "path", tmp, "error", err)
+				s.streams.Warn("failed to remove temporary directory", "path", tmp, "error", err)
 			}
 		}
 
 		if strings.HasSuffix(path, ".tar.zst") {
-			if err := extractTarZst(ctx, path, tmp); err != nil {
+			if err := extractTarZst(ctx, s.streams, path, tmp); err != nil {
 				cleanup()
 				return nil, err
 			}
@@ -118,12 +119,12 @@ func (s *localSource) IngestFiltered(ctx context.Context, filter filters.Compone
 
 	// Zarf package: convert to OCI layer format, then apply filter
 	if isZarfPackage(layoutRoot) {
-		manifests, err := ingestZarfPackage(ctx, blobDir, layoutRoot, s.arch)
+		manifests, err := ingestZarfPackage(ctx, s.streams, blobDir, layoutRoot, s.arch)
 		if err != nil {
 			return nil, err
 		}
 		for i, m := range manifests {
-			filtered, err := filterIngestedManifest(blobDir, m, filter)
+			filtered, err := filterIngestedManifest(ctx, s.streams, blobDir, m, filter)
 			if err != nil {
 				return nil, fmt.Errorf("filtering local zarf package: %w", err)
 			}
@@ -168,7 +169,7 @@ func (s *localSource) IngestFiltered(ctx context.Context, filter filters.Compone
 
 	// Apply component filtering to any Zarf manifests in the OCI layout
 	for i, m := range matched {
-		filtered, err := filterIngestedManifest(blobDir, m, filter)
+		filtered, err := filterIngestedManifest(ctx, s.streams, blobDir, m, filter)
 		if err != nil {
 			return nil, fmt.Errorf("filtering local OCI layout: %w", err)
 		}
@@ -181,8 +182,8 @@ func (s *localSource) IngestFiltered(ctx context.Context, filter filters.Compone
 // ingestZarfPackage converts a traditional Zarf package directory to OCI layer format
 // and ingests it into the bundle blob store. Each file in the Zarf package becomes
 // an OCI layer with org.opencontainers.image.title annotation and file permissions.
-func ingestZarfPackage(ctx context.Context, blobDir, pkgRoot, arch string) ([]ociManifest, error) {
-	slog.Debug("ingesting zarf package", "root", pkgRoot, "arch", arch)
+func ingestZarfPackage(ctx context.Context, streams iostreams.IOStreams, blobDir, pkgRoot, arch string) ([]ociManifest, error) {
+	streams.Debug("ingesting zarf package", "root", pkgRoot, "arch", arch)
 	// Parse zarf.yaml for metadata if it exists
 	zarfMeta := readZarfMetadata(filepath.Join(pkgRoot, "zarf.yaml"))
 

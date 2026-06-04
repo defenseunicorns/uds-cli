@@ -4,12 +4,14 @@
 package bundle
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -61,6 +63,36 @@ func TestValidateConfig_Structure(t *testing.T) {
 
 func TestValidateConfig_Valid(t *testing.T) {
 	require.NoError(t, ValidateConfig(validBaseConfig()))
+}
+
+func TestValidateLogLevel(t *testing.T) {
+	tests := []struct {
+		name    string
+		level   string
+		wantErr string
+	}{
+		{name: "empty allowed (defaults)", level: ""},
+		{name: "debug accepted", level: "debug"},
+		{name: "info accepted", level: "info"},
+		{name: "warn accepted", level: "warn"},
+		{name: "error accepted", level: "error"},
+		{name: "invalid rejected", level: "loud", wantErr: "unknown log level"},
+		{name: "typo rejected", level: "verbose", wantErr: "unknown log level"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validBaseConfig()
+			cfg.Global.LogLevel = tt.level
+			err := ValidateConfig(cfg)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
 }
 
 func TestValidateConcurrency(t *testing.T) {
@@ -450,8 +482,8 @@ func TestValidateRemovalSafety(t *testing.T) {
 			},
 		},
 		{
-			name:   "removing middle blocks via upper level",
-			remove: []string{"nginx"},
+			name:         "removing middle blocks via upper level",
+			remove:       []string{"nginx"},
 			wantContains: []string{`"nginx" is required by: podinfo`},
 		},
 		{
@@ -470,7 +502,7 @@ func TestValidateRemovalSafety(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateRemovalSafety(b, tt.remove)
+			err := ValidateRemovalSafety(context.Background(), iostreams.IOStreams{}, b, tt.remove)
 			if len(tt.wantContains) == 0 && tt.wantErr == "" {
 				require.NoError(t, err)
 				return

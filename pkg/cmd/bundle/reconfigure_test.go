@@ -38,7 +38,6 @@ func TestReconfigureCommand_DefaultSuffix(t *testing.T) {
 	assert.Equal(t, "-reconfigured", o.Suffix)
 }
 
-
 func TestReconfigureCommand_ValidateRejectsEmptySuffix(t *testing.T) {
 	t.Parallel()
 	defaults := filepath.Join(t.TempDir(), "defaults.uds.hcl")

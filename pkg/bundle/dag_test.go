@@ -4,8 +4,10 @@
 package bundle
 
 import (
+	"context"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,7 +48,7 @@ func pkg(name string, deps ...string) Package {
 }
 
 func TestBuildDependencyGraph_SinglePackage(t *testing.T) {
-	dag, err := BuildDependencyGraph(bundleWith(pkg("a")))
+	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, bundleWith(pkg("a")))
 	require.NoError(t, err)
 
 	sorted, err := dag.TopologicalSort()
@@ -57,7 +59,7 @@ func TestBuildDependencyGraph_SinglePackage(t *testing.T) {
 
 func TestBuildDependencyGraph_LinearChain(t *testing.T) {
 	// A -> B -> C (C depends on B, B depends on A)
-	dag, err := BuildDependencyGraph(bundleWith(
+	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, bundleWith(
 		pkg("a"),
 		pkg("b", "a"),
 		pkg("c", "b"),
@@ -77,7 +79,7 @@ func TestBuildDependencyGraph_LinearChain(t *testing.T) {
 }
 
 func TestBuildDependencyGraph_LinearChain_Levels(t *testing.T) {
-	dag, err := BuildDependencyGraph(bundleWith(
+	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, bundleWith(
 		pkg("a"),
 		pkg("b", "a"),
 		pkg("c", "b"),
@@ -100,7 +102,7 @@ func TestBuildDependencyGraph_LinearChain_Levels(t *testing.T) {
 
 func TestBuildDependencyGraph_DiamondPattern(t *testing.T) {
 	// A -> B, A -> C, B -> D, C -> D
-	dag, err := BuildDependencyGraph(bundleWith(
+	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, bundleWith(
 		pkg("a"),
 		pkg("b", "a"),
 		pkg("c", "a"),
@@ -129,7 +131,7 @@ func TestBuildDependencyGraph_DiamondPattern(t *testing.T) {
 
 func TestBuildDependencyGraph_WideParallel(t *testing.T) {
 	// A, B, C all independent
-	dag, err := BuildDependencyGraph(bundleWith(
+	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, bundleWith(
 		pkg("a"),
 		pkg("b"),
 		pkg("c"),
@@ -149,7 +151,7 @@ func TestBuildDependencyGraph_WideParallel(t *testing.T) {
 
 func TestBuildDependencyGraph_MixedParallelAndSequential(t *testing.T) {
 	// A has no deps; B depends on A; C has no deps; D depends on B and C
-	dag, err := BuildDependencyGraph(bundleWith(
+	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, bundleWith(
 		pkg("a"),
 		pkg("b", "a"),
 		pkg("c"),
@@ -177,7 +179,7 @@ func TestBuildDependencyGraph_MixedParallelAndSequential(t *testing.T) {
 
 func TestBuildDependencyGraph_CycleDetection(t *testing.T) {
 	// A -> B -> A (cycle)
-	_, err := BuildDependencyGraph(bundleWith(
+	_, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, bundleWith(
 		pkg("a", "b"),
 		pkg("b", "a"),
 	))
@@ -187,7 +189,7 @@ func TestBuildDependencyGraph_CycleDetection(t *testing.T) {
 
 func TestBuildDependencyGraph_ThreeNodeCycle(t *testing.T) {
 	// A -> B -> C -> A
-	_, err := BuildDependencyGraph(bundleWith(
+	_, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, bundleWith(
 		pkg("a", "c"),
 		pkg("b", "a"),
 		pkg("c", "b"),
@@ -197,7 +199,7 @@ func TestBuildDependencyGraph_ThreeNodeCycle(t *testing.T) {
 }
 
 func TestBuildDependencyGraph_MissingDependency(t *testing.T) {
-	_, err := BuildDependencyGraph(bundleWith(
+	_, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, bundleWith(
 		pkg("a", "nonexistent"),
 	))
 	require.Error(t, err)
@@ -211,7 +213,7 @@ func TestBuildDependencyGraph_EmptyDependsOn(t *testing.T) {
 		Source:    "oci://example.com/a:v1",
 		DependsOn: []PackageRef{},
 	})
-	dag, err := BuildDependencyGraph(b)
+	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, b)
 	require.NoError(t, err)
 
 	sorted, err := dag.TopologicalSort()
@@ -225,7 +227,7 @@ func TestBuildDependencyGraph_NilDependsOn(t *testing.T) {
 		Name:   "a",
 		Source: "oci://example.com/a:v1",
 	})
-	dag, err := BuildDependencyGraph(b)
+	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, b)
 	require.NoError(t, err)
 
 	sorted, err := dag.TopologicalSort()
@@ -235,7 +237,7 @@ func TestBuildDependencyGraph_NilDependsOn(t *testing.T) {
 
 func TestBuildDependencyGraph_InitBundle(t *testing.T) {
 	// Mirrors tests/test_data/bundles/deploy/init/bundle.uds.hcl
-	dag, err := BuildDependencyGraph(bundleWith(
+	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, bundleWith(
 		pkg("uds_k3d_dev"),
 		pkg("init", "uds_k3d_dev"),
 	))
@@ -254,7 +256,7 @@ func TestBuildDependencyGraph_InitBundle(t *testing.T) {
 
 func TestBuildDependencyGraph_SpecCompliantBundle(t *testing.T) {
 	// Mirrors tests/test_data/bundles/spec-compliant/bundle.uds.hcl
-	dag, err := BuildDependencyGraph(bundleWith(
+	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, bundleWith(
 		pkg("core_base"),
 		pkg("core_logging", "core_base"),
 		pkg("core_monitoring", "core_base", "core_logging"),
@@ -276,7 +278,7 @@ func TestBuildDependencyGraph_SpecCompliantBundle(t *testing.T) {
 }
 
 func TestDAG_Level(t *testing.T) {
-	dag, err := BuildDependencyGraph(bundleWith(
+	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, bundleWith(
 		pkg("a"),
 		pkg("b", "a"),
 		pkg("c", "b"),
@@ -290,7 +292,7 @@ func TestDAG_Level(t *testing.T) {
 }
 
 func TestDAG_Traversal(t *testing.T) {
-	dag, err := BuildDependencyGraph(bundleWith(pkg("my_pkg")))
+	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, bundleWith(pkg("my_pkg")))
 	require.NoError(t, err)
 
 	trav, ok := dag.Traversal("my_pkg")
@@ -302,7 +304,7 @@ func TestDAG_Traversal(t *testing.T) {
 }
 
 func TestDAG_TraversalToName(t *testing.T) {
-	dag, err := BuildDependencyGraph(bundleWith(pkg("test_pkg")))
+	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, bundleWith(pkg("test_pkg")))
 	require.NoError(t, err)
 
 	trav, ok := dag.Traversal("test_pkg")

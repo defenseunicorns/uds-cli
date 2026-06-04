@@ -8,12 +8,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/logger"
 	"github.com/google/go-containerregistry/pkg/name"
 	oras "oras.land/oras-go/v2"
 	oraci "oras.land/oras-go/v2/content/oci"
@@ -44,6 +45,7 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 		return nil, errEmpty("targetDir")
 	}
 
+	log := logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
 	tmp, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-pull-*")
 	if err != nil {
 		return nil, fmt.Errorf("creating temp dir: %w", err)
@@ -51,7 +53,7 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 	defer func() {
 		err = os.RemoveAll(tmp)
 		if err != nil {
-			slog.Warn("failed to remove temporary directory", "path", tmp, "error", err)
+			log.Warn("failed to remove temporary directory", "path", tmp, "error", err)
 		}
 	}()
 
@@ -88,7 +90,7 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 	copyOpts := oras.DefaultCopyOptions
 	copyOpts.Concurrency = opts.Config.Options.Concurrency
 
-	slog.Debug("copying bundle from registry", "ref", ociReference, "tag", tag)
+	log.Debug("copying bundle from registry", "ref", ociReference, "tag", tag)
 	rootDesc, err := oras.Copy(ctx, src, tag, store, tag, copyOpts)
 	if err != nil {
 		return nil, fmt.Errorf("pulling bundle from %s: %w", ociReference, err)
@@ -133,18 +135,18 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 		return nil, fmt.Errorf("removing duplicate index blob: %w", err)
 	}
 
-	outName, err := bundleNameFromDefinitionLayer(ctx, ociDir, idx, opts.Config.Options.Architecture)
+	outName, err := bundleNameFromDefinitionLayer(ctx, log, ociDir, idx, opts.Config.Options.Architecture)
 	if err != nil {
 		return nil, fmt.Errorf("reading bundle definition from %s: %w", ociReference, err)
 	}
 
 	outPath := filepath.Join(targetDir, outName)
-	slog.Debug("writing bundle archive", "output", outPath)
-	if err := writeTarZst(ctx, outPath, tmp); err != nil {
+	log.Debug("writing bundle archive", "output", outPath)
+	if err := writeTarZst(ctx, log, outPath, tmp); err != nil {
 		return nil, err
 	}
 
-	slog.Info("bundle pulled", "output", outPath)
+	log.Info("bundle pulled", "output", outPath)
 	return &PullResult{
 		OCIReference: ociReference,
 		OutputPath:   outPath,
@@ -162,14 +164,15 @@ func Pull(ctx context.Context, ociReference, targetDir string, opts PullOptions)
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	slog.Info("pulling bundle", "ref", ociReference)
+	s := logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
+	s.Info("pulling bundle", "ref", ociReference)
 	return NewDefaultPuller().PullBundle(ctx, ociReference, targetDir, opts)
 }
 
 // bundleNameFromDefinitionLayer reads the bundle HCL from the bundle definition manifest
 // in the OCI index and derives the output filename using bundleOutputName.
 // It assumes isBundleIndex has already been called to confirm the index is valid.
-func bundleNameFromDefinitionLayer(ctx context.Context, ociDir string, idx ociIndex, arch string) (string, error) {
+func bundleNameFromDefinitionLayer(ctx context.Context, streams iostreams.IOStreams, ociDir string, idx ociIndex, arch string) (string, error) {
 	var cfgEntry *ociManifest
 	for i := range idx.Manifests {
 		if idx.Manifests[i].ArtifactType == MediaTypeBundleDefinition {
@@ -209,7 +212,7 @@ func bundleNameFromDefinitionLayer(ctx context.Context, ociDir string, idx ociIn
 		return "", fmt.Errorf("reading HCL blob: %w", err)
 	}
 
-	b, err := NewHCLParser(arch).ParseBundleBytes(ctx, hclBytes)
+	b, err := NewHCLParser(arch, streams).ParseBundleBytes(ctx, hclBytes)
 	if err != nil {
 		return "", fmt.Errorf("parsing bundle HCL: %w", err)
 	}

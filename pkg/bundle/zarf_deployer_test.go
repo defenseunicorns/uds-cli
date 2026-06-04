@@ -7,11 +7,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
@@ -285,7 +285,7 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 		dir := t.TempDir()
 		valuesPath := writeTempYAML(t, "host: {{ .vars.domain }}")
 
-		d := NewZarfDeployer(io.Discard, nil)
+		d := NewZarfDeployer(iostreams.IOStreams{}, nil)
 		pkg := &Package{Name: "p", ValuesFiles: []string{valuesPath}}
 		opts := DeployPackageOptions{
 			Config: &UDSBundleConfig{
@@ -294,7 +294,7 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 			},
 		}
 
-		_, setVars, err := d.prepareValuesAndVariables(context.Background(), pkg, opts)
+		_, setVars, err := d.prepareValuesAndVariables(context.Background(), iostreams.IOStreams{}, pkg, opts)
 		require.NoError(t, err)
 		assert.Equal(t, "uds.dev", setVars["DOMAIN"])
 	})
@@ -306,7 +306,7 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 			"ports:\n{{- range .vars.ports }}\n  - {{ .name }}\n{{- end }}",
 		)
 
-		d := NewZarfDeployer(io.Discard, nil)
+		d := NewZarfDeployer(iostreams.IOStreams{}, nil)
 		pkg := &Package{Name: "p", ValuesFiles: []string{valuesPath}}
 		opts := DeployPackageOptions{
 			Config: &UDSBundleConfig{
@@ -318,14 +318,14 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 			},
 		}
 
-		_, setVars, err := d.prepareValuesAndVariables(context.Background(), pkg, opts)
+		_, setVars, err := d.prepareValuesAndVariables(context.Background(), iostreams.IOStreams{}, pkg, opts)
 		require.NoError(t, err)
 		// Complex types are skipped from Flatten and must flow through values_files
 		assert.NotContains(t, setVars, "PORTS")
 	})
 
 	t.Run("no values files, only variables", func(t *testing.T) {
-		d := NewZarfDeployer(io.Discard, nil)
+		d := NewZarfDeployer(iostreams.IOStreams{}, nil)
 		pkg := &Package{Name: "p"}
 		opts := DeployPackageOptions{
 			Config: &UDSBundleConfig{
@@ -334,14 +334,14 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 			},
 		}
 
-		zv, setVars, err := d.prepareValuesAndVariables(context.Background(), pkg, opts)
+		zv, setVars, err := d.prepareValuesAndVariables(context.Background(), iostreams.IOStreams{}, pkg, opts)
 		require.NoError(t, err)
 		assert.Nil(t, zv)
 		assert.Equal(t, "y", setVars["X"])
 	})
 
 	t.Run("non-scalar variables silently skipped in Flatten", func(t *testing.T) {
-		d := NewZarfDeployer(io.Discard, nil)
+		d := NewZarfDeployer(iostreams.IOStreams{}, nil)
 		pkg := &Package{Name: "p"}
 		opts := DeployPackageOptions{
 			Config: &UDSBundleConfig{
@@ -352,7 +352,7 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 			},
 		}
 
-		_, setVars, err := d.prepareValuesAndVariables(context.Background(), pkg, opts)
+		_, setVars, err := d.prepareValuesAndVariables(context.Background(), iostreams.IOStreams{}, pkg, opts)
 		require.NoError(t, err)
 		// Non-scalar "k" is omitted from setVars
 		assert.NotContains(t, setVars, "K")
@@ -362,7 +362,7 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 		dir := t.TempDir()
 		valuesPath := writeTempYAML(t, "x: {{ .vars.missing }}")
 
-		d := NewZarfDeployer(io.Discard, nil)
+		d := NewZarfDeployer(iostreams.IOStreams{}, nil)
 		pkg := &Package{Name: "broken", ValuesFiles: []string{valuesPath}}
 		opts := DeployPackageOptions{
 			Config: &UDSBundleConfig{
@@ -371,7 +371,7 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 			},
 		}
 
-		_, _, err := d.prepareValuesAndVariables(context.Background(), pkg, opts)
+		_, _, err := d.prepareValuesAndVariables(context.Background(), iostreams.IOStreams{}, pkg, opts)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `"broken"`)
 		assert.Contains(t, err.Error(), "failed to template")
@@ -396,7 +396,7 @@ func TestZarfDeployer_DeployPackage_InvalidSource(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			out := &bytes.Buffer{}
-			deployer := NewZarfDeployer(out, nil)
+			deployer := NewZarfDeployer(iostreams.IOStreams{ErrOut: out}, nil)
 
 			pkg := &Package{
 				Name:   "test-pkg",
@@ -414,15 +414,15 @@ func TestZarfDeployer_DeployPackage_InvalidSource(t *testing.T) {
 }
 
 func TestNewZarfDeployer(t *testing.T) {
-	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
 
-	deployer := NewZarfDeployer(out, nil)
+	deployer := NewZarfDeployer(iostreams.IOStreams{ErrOut: errOut}, nil)
 
 	assert.NotNil(t, deployer)
-	assert.NotNil(t, deployer.Out)
-	// Out is wrapped in a syncWriter for concurrent safety; verify writes still reach the buffer.
-	_, _ = fmt.Fprint(deployer.Out, "hello")
-	assert.Equal(t, "hello", out.String())
+	assert.NotNil(t, deployer.streams.ErrOut)
+	// streams.ErrOut is wrapped in a syncWriter for concurrent safety; verify writes still reach the buffer.
+	_, _ = fmt.Fprint(deployer.streams.ErrOut, "hello")
+	assert.Equal(t, "hello", errOut.String())
 }
 
 func TestBuildComponentFilter(t *testing.T) {

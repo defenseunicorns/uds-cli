@@ -5,11 +5,11 @@ package bundle
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/logger"
 	"github.com/defenseunicorns/uds-cli/pkg/printer"
 	"github.com/spf13/cobra"
 )
@@ -63,7 +63,7 @@ func (o *CreateOptions) Complete(cmd *cobra.Command, args []string) error {
 		ctx = context.Background()
 	}
 	flags := SnapshotFlags(cmd)
-	cfg, _, err := NewConfigResolver().Resolve(ctx, flags, o.BundlePath)
+	cfg, _, err := NewConfigResolver().Resolve(ctx, o.IOStreams, flags, o.BundlePath)
 	if err != nil {
 		return err
 	}
@@ -88,12 +88,13 @@ func (o *CreateOptions) Validate() error {
 func (o *CreateOptions) Run(ctx context.Context) error {
 	// Resolve the bundle path
 	bundlePath := bundle.ResolveBundlePath(o.BundlePath)
-	slog.Debug("creating bundle", "path", bundlePath)
+	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
+	o.Debug("creating bundle", "path", bundlePath)
 
 	result, err := bundle.Create(ctx, bundle.CreateOptions{
 		Config:     o.Config,
 		BundleFile: bundlePath,
-		Out:        o.Out,
+		Streams:    o.IOStreams,
 	})
 	if err != nil {
 		return err

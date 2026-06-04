@@ -7,18 +7,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/mholt/archives"
 	zarfarchive "github.com/zarf-dev/zarf/src/pkg/archive"
 )
 
-func writeTarZst(ctx context.Context, dst, srcDir string) (retErr error) {
-	slog.Debug("writing tar.zst archive", "dst", dst)
+func writeTarZst(ctx context.Context, streams iostreams.IOStreams, dst, srcDir string) (retErr error) {
+	streams.Debug("writing tar.zst archive", "dst", dst)
 	if st, err := os.Stat(dst); err == nil {
 		if st.IsDir() {
 			return fmt.Errorf("output path %q is a directory", dst)
@@ -74,7 +74,7 @@ func writeTarZst(ctx context.Context, dst, srcDir string) (retErr error) {
 	return ca.Archive(ctx, f, regular)
 }
 
-func extractTarZst(ctx context.Context, src, dst string) error {
-	slog.Debug("extracting tar.zst archive", "src", src, "dst", dst)
+func extractTarZst(ctx context.Context, streams iostreams.IOStreams, src, dst string) error {
+	streams.Debug("extracting tar.zst archive", "src", src, "dst", dst)
 	return zarfarchive.Decompress(ctx, src, dst, zarfarchive.DecompressOpts{OverwriteExisting: true})
 }

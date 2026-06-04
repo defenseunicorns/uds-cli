@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +20,7 @@ func TestPrepareDeploySource_Directory(t *testing.T) {
 		bundleFile := filepath.Join(dir, BundleFileName)
 		require.NoError(t, os.WriteFile(bundleFile, []byte(""), 0o600))
 
-		src, err := PrepareDeploySource(context.Background(), dir, "")
+		src, err := PrepareDeploySource(context.Background(), iostreams.IOStreams{}, dir, "")
 		require.NoError(t, err)
 		defer func() { require.NoError(t, src.Close()) }()
 
@@ -33,7 +34,7 @@ func TestPrepareDeploySource_Directory(t *testing.T) {
 		bundleFile := filepath.Join(dir, BundleFileName)
 		require.NoError(t, os.WriteFile(bundleFile, []byte(""), 0o600))
 
-		src, err := PrepareDeploySource(context.Background(), bundleFile, "")
+		src, err := PrepareDeploySource(context.Background(), iostreams.IOStreams{}, bundleFile, "")
 		require.NoError(t, err)
 		defer func() { require.NoError(t, src.Close()) }()
 
@@ -46,7 +47,7 @@ func TestPrepareDeploySource_Directory(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(dir, BundleFileName), []byte(""), 0o600))
 
-		src, err := PrepareDeploySource(context.Background(), dir, "")
+		src, err := PrepareDeploySource(context.Background(), iostreams.IOStreams{}, dir, "")
 		require.NoError(t, err)
 
 		// Directory sources do not own resources; Close must be a no-op.
@@ -67,7 +68,7 @@ package "mypkg" {
 	}, []string{"oci://example.com/pkg:v1"})
 	tmpRoot := t.TempDir()
 
-	src, err := PrepareDeploySource(context.Background(), tarPath, tmpRoot)
+	src, err := PrepareDeploySource(context.Background(), iostreams.IOStreams{}, tarPath, tmpRoot)
 	require.NoError(t, err)
 	require.NotNil(t, src)
 

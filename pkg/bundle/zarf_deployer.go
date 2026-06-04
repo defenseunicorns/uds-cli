@@ -8,13 +8,14 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"text/template"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/logger"
 	"github.com/zarf-dev/zarf/src/pkg/feature"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
@@ -69,9 +70,11 @@ func (sw *syncWriter) Write(p []byte) (int, error) {
 // ZarfDeployer implements Deployer using the Zarf Go library.
 // Reference: .ai/example-repos/uds-cli/src/pkg/bundle/deploy.go lines 38-165
 type ZarfDeployer struct {
-	// Out is the writer for output messages. Wrapped in a syncWriter by
-	// NewZarfDeployer so concurrent DeployPackage calls produce clean output.
-	Out io.Writer
+	// streams carries the diagnostic sink (streams.ErrOut) handed to the Zarf
+	// logger and the leveled logger used for UDS-side diagnostics. streams.ErrOut
+	// is wrapped in a syncWriter by NewZarfDeployer so concurrent DeployPackage
+	// calls produce clean output.
+	streams iostreams.IOStreams
 
 	// Loader, when non-nil, is used instead of NewPackageSource to obtain each
 	// package's layout. Used when deploying from a pre-extracted workspace (ADR-0009).
@@ -83,7 +86,13 @@ type ZarfDeployer struct {
 // SourcePackageLayoutLoader. For local artifact deploys, provide a
 // PackageLayoutLoader implementation that loads packages from the extracted
 // artifact's OCI layout instead of pulling from the declared source.
-func NewZarfDeployer(out io.Writer, loader PackageLayoutLoader) *ZarfDeployer {
+func NewZarfDeployer(streams iostreams.IOStreams, loader PackageLayoutLoader) *ZarfDeployer {
+	// Guard before wrapping in syncWriter: a nil ErrOut would otherwise become a
+	// non-nil *syncWriter over a nil writer and panic on first write.
+	if streams.ErrOut == nil {
+		streams.ErrOut = io.Discard
+	}
+	streams.ErrOut = &syncWriter{w: streams.ErrOut}
 	// Enable the Zarf "values" feature flag so packager.Deploy accepts
 	// DeployOptions.Values (Helm values from values_files).
 	enableValuesOnce.Do(func() {
@@ -93,10 +102,11 @@ func NewZarfDeployer(out io.Writer, loader PackageLayoutLoader) *ZarfDeployer {
 			Stage:   feature.Alpha,
 		}})
 	})
-	return &ZarfDeployer{
-		Out:    &syncWriter{w: out},
+	d := &ZarfDeployer{
 		Loader: loader,
 	}
+	d.streams = streams
+	return d
 }
 
 // DeployBundle deploys the bundle's packages in topological order, parallelising
@@ -111,7 +121,9 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts Depl
 	if err := b.Validate(); err != nil {
 		return nil, fmt.Errorf("bundle validation failed: %w", err)
 	}
-	dag, err := BuildDependencyGraph(b)
+	s := logger.Bind(d.streams, opts.Config.Global.LogLevel)
+
+	dag, err := BuildDependencyGraph(ctx, s, b)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build dependency graph: %w", err)
 	}
@@ -120,7 +132,7 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts Depl
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute deployment levels: %w", err)
 	}
-	slog.Debug("dependency graph built", "levels", len(levels))
+	s.Debug("dependency graph built", "levels", len(levels))
 
 	concurrency := opts.Config.Options.Concurrency
 
@@ -128,11 +140,12 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts Depl
 		Config:    opts.Config,
 		BundleDir: filepath.Dir(opts.BundlePath),
 		Prompt:    opts.Prompt,
+		Streams:   s,
 	}
 
-	slog.Info("deploying bundle", "packages", len(b.Packages), "levels", len(levels), "concurrency", concurrency)
+	s.Info("deploying bundle", "packages", len(b.Packages), "levels", len(levels), "concurrency", concurrency)
 
-	orch := newDeployOrchestrator(d.DeployPackage, dag, levels, concurrency, pkgOpts)
+	orch := newDeployOrchestrator(d.DeployPackage, dag, levels, concurrency, pkgOpts, s)
 	if err := orch.Run(ctx); err != nil {
 		return nil, err
 	}
@@ -151,9 +164,10 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 	if pkg == nil {
 		return errNil("package")
 	}
-	slog.Info("deploying zarf package", "name", pkg.Name, "source", pkg.Source)
+	log := logger.Bind(d.streams, opts.Config.Global.LogLevel)
+	log.Info("deploying zarf package", "name", pkg.Name, "source", pkg.Source)
 
-	ctx = newZarfLoggerContext(ctx, d.Out, opts.Config.Global.LogLevel)
+	ctx = newZarfLoggerContext(ctx, log.ErrOut, opts.Config.Global.LogLevel)
 
 	pkgTmp, err := os.MkdirTemp(opts.Config.Options.TmpDir, "zarf-pkg-*")
 	if err != nil {
@@ -161,11 +175,11 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 	}
 	defer func() {
 		if err := os.RemoveAll(pkgTmp); err != nil {
-			slog.Warn("failed to remove temporary directory", "path", pkgTmp, "error", err)
+			log.Warn("failed to remove temporary directory", "path", pkgTmp, "error", err)
 		}
 	}()
 
-	zarfValues, setVars, err := d.prepareValuesAndVariables(ctx, pkg, opts)
+	zarfValues, setVars, err := d.prepareValuesAndVariables(ctx, log, pkg, opts)
 	if err != nil {
 		return err
 	}
@@ -175,13 +189,13 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 		loader = &SourcePackageLayoutLoader{configOpts: *opts.Config.Options, bundleDir: opts.BundleDir}
 	}
 
-	pkgLayout, err := loader.LoadPackageLayout(ctx, pkg, pkgTmp)
+	pkgLayout, err := loader.LoadPackageLayout(ctx, log, pkg, pkgTmp)
 	if err != nil {
 		return err
 	}
 	defer func() {
 		if err := pkgLayout.Cleanup(); err != nil {
-			slog.Warn("failed to clean up package layout", "name", pkg.Name, "error", err)
+			log.Warn("failed to clean up package layout", "name", pkg.Name, "error", err)
 		}
 	}()
 
@@ -193,14 +207,14 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 		NamespaceOverride: pkg.Namespace, // empty string is fine - Zarf ignores it
 	}
 
-	slog.Info("deploying zarf package to cluster", "name", pkg.Name)
+	log.Info("deploying zarf package to cluster", "name", pkg.Name)
 
 	_, err = packager.Deploy(ctx, pkgLayout, deployOpts)
 	if err != nil {
 		return fmt.Errorf("failed to deploy package %q: %w", pkg.Name, err)
 	}
 
-	slog.Info("package deployed", "name", pkg.Name)
+	log.Info("package deployed", "name", pkg.Name)
 	return nil
 }
 
@@ -208,7 +222,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 // and flattens config variables for Zarf ###ZARF_PKG_VAR_*### substitution.
 // Temporary files created during templating are cleaned up before this method returns,
 // since value.ParseFiles reads them into memory before returning.
-func (d *ZarfDeployer) prepareValuesAndVariables(ctx context.Context, pkg *Package, opts DeployPackageOptions) (zarfValues value.Values, setVars map[string]string, err error) {
+func (d *ZarfDeployer) prepareValuesAndVariables(ctx context.Context, streams iostreams.IOStreams, pkg *Package, opts DeployPackageOptions) (zarfValues value.Values, setVars map[string]string, err error) {
 	var configVars Variables
 	if opts.Config != nil {
 		configVars = opts.Config.Variables
@@ -224,7 +238,7 @@ func (d *ZarfDeployer) prepareValuesAndVariables(ctx context.Context, pkg *Packa
 		filesToParse, err = templateValuesFiles(ctx, resolved, configVars, opts.Config.Options.TmpDir)
 		// Temp files are fully consumed by ParseFiles below or any subsequent error; clean up on return.
 		if configVars != nil {
-			defer cleanupTempFiles(filesToParse)
+			defer cleanupTempFiles(ctx, streams, filesToParse)
 		}
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to template values files for package %q: %w", pkg.Name, err)
@@ -246,7 +260,7 @@ func (d *ZarfDeployer) prepareValuesAndVariables(ctx context.Context, pkg *Packa
 	}
 
 	if loadedFileCount > 0 {
-		slog.Debug("loaded values files", "package", pkg.Name, "count", loadedFileCount)
+		streams.Debug("loaded values files", "package", pkg.Name, "count", loadedFileCount)
 	}
 	return zarfValues, setVars, nil
 }
@@ -326,10 +340,10 @@ func templateValuesFiles(_ context.Context, files []string, vars Variables, tmpD
 
 // cleanupTempFiles removes temporary files created by templateValuesFiles.
 // Removal errors are logged but not returned, consistent with existing cleanup patterns.
-func cleanupTempFiles(files []string) {
+func cleanupTempFiles(_ context.Context, streams iostreams.IOStreams, files []string) {
 	for _, f := range files {
 		if err := os.Remove(f); err != nil && !os.IsNotExist(err) {
-			slog.Warn("failed to remove temp file", "path", f, "error", err)
+			streams.Warn("failed to remove temp file", "path", f, "error", err)
 		}
 	}
 }

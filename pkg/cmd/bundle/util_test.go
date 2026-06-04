@@ -126,7 +126,6 @@ func TestIsOCIReference(t *testing.T) {
 	}
 }
 
-
 func TestValidateDir(t *testing.T) {
 	t.Run("valid directory", func(t *testing.T) {
 		require.NoError(t, ValidateDir(t.TempDir()))
@@ -310,4 +309,3 @@ func TestValidateBundlePath_WithRealBundle(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
-

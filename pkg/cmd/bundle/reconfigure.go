@@ -30,7 +30,7 @@ type ReconfigureOptions struct {
 // NewReconfigureOptions returns a ReconfigureOptions with default values.
 func NewReconfigureOptions(streams iostreams.IOStreams) *ReconfigureOptions {
 	return &ReconfigureOptions{
-		Suffix:   "-reconfigured",
+		Suffix:    "-reconfigured",
 		IOStreams: streams,
 	}
 }
@@ -89,7 +89,7 @@ func (o *ReconfigureOptions) Complete(cmd *cobra.Command, args []string) error {
 		ctx = context.Background()
 	}
 	flags := SnapshotFlags(cmd)
-	cfg, _, err := NewConfigResolver().Resolve(ctx, flags, "")
+	cfg, _, err := NewConfigResolver().Resolve(ctx, o.IOStreams, flags, "")
 	if err != nil {
 		return err
 	}
@@ -136,6 +136,7 @@ func (o *ReconfigureOptions) Run(ctx context.Context) error {
 		Suffix:       o.Suffix,
 		OutputDir:    o.OutputDir,
 		Options:      o.Options,
+		Streams:      o.IOStreams,
 	})
 	if err != nil {
 		return err

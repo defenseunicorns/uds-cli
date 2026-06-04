@@ -4,8 +4,10 @@
 package bundle
 
 import (
+	"context"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -76,7 +78,7 @@ func TestDeployOrder_InitBundle(t *testing.T) {
 		},
 	}
 
-	dag, err := BuildDependencyGraph(bundle)
+	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, bundle)
 	require.NoError(t, err)
 
 	sorted, err := dag.TopologicalSort()
@@ -106,7 +108,7 @@ func TestDeployOrder_SinglePackage(t *testing.T) {
 		},
 	}
 
-	dag, err := BuildDependencyGraph(bundle)
+	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, bundle)
 	require.NoError(t, err)
 
 	sorted, err := dag.TopologicalSort()
@@ -129,7 +131,7 @@ func TestDeployOrder_LinearChain(t *testing.T) {
 		},
 	}
 
-	dag, err := BuildDependencyGraph(bundle)
+	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, bundle)
 	require.NoError(t, err)
 
 	sorted, err := dag.TopologicalSort()
@@ -156,7 +158,7 @@ func TestDeployOrder_DiamondPattern(t *testing.T) {
 		},
 	}
 
-	dag, err := BuildDependencyGraph(bundle)
+	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, bundle)
 	require.NoError(t, err)
 
 	levels, err := dag.TopologicalLevels()

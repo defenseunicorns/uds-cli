@@ -4,11 +4,15 @@
 package bundle
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
+
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/logger"
 )
 
 // Validate checks that the bundle satisfies all required constraints.
@@ -95,6 +99,21 @@ func validateConfigStructure(cfg *UDSBundleConfig) error {
 	}
 	if cfg.Options == nil {
 		return fmt.Errorf("config.Options is required (ConfigOptions must not be nil)")
+	}
+	if err := validateLogLevel(cfg.Global.LogLevel); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateLogLevel rejects a non-empty log level that does not parse. An empty
+// level is valid and means "use the default" (info).
+func validateLogLevel(level string) error {
+	if level == "" {
+		return nil
+	}
+	if _, err := logger.ParseLevel(level); err != nil {
+		return err
 	}
 	return nil
 }
@@ -224,6 +243,9 @@ func (o ReconfigureOptions) Validate() error {
 	if !validSuffix.MatchString(o.Suffix) {
 		return fmt.Errorf("invalid suffix %q: must start with '-' and contain only alphanumeric characters, dots, underscores, and hyphens", o.Suffix)
 	}
+	if err := validateLogLevel(o.Options.LogLevel); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -261,11 +283,11 @@ func containsPackage(packages []Package, name string) bool {
 // leave any remaining bundle package with a missing dependency. Empty
 // packageNames (full bundle removal) or no offending dependents both yield nil.
 // The error message instructs the user to use --force to override.
-func ValidateRemovalSafety(b *UDSBundle, packageNames []string) error {
+func ValidateRemovalSafety(ctx context.Context, streams iostreams.IOStreams, b *UDSBundle, packageNames []string) error {
 	if len(packageNames) == 0 {
 		return nil
 	}
-	dag, err := BuildDependencyGraph(b)
+	dag, err := BuildDependencyGraph(ctx, streams, b)
 	if err != nil {
 		return fmt.Errorf("failed to build dependency graph: %w", err)
 	}

@@ -4,13 +4,14 @@
 package bundle
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -105,8 +106,8 @@ func isOCILayoutDir(dir string) bool {
 // This is checksum verification, not cryptographic signature verification, which
 // detects corruption/modification but does not authenticate the artifact's
 // origin.
-func verifyOCILayoutDigests(ociDir string) error {
-	slog.Debug("verifying OCI layout digests", "dir", ociDir)
+func verifyOCILayoutDigests(_ context.Context, streams iostreams.IOStreams, ociDir string) error {
+	streams.Debug("verifying OCI layout digests", "dir", ociDir)
 
 	idxBytes, err := os.ReadFile(filepath.Join(ociDir, "index.json"))
 	if err != nil {
@@ -126,7 +127,7 @@ func verifyOCILayoutDigests(ociDir string) error {
 		}
 	}
 
-	slog.Debug("OCI layout digest verification passed", "manifests", len(idx.Manifests))
+	streams.Debug("OCI layout digest verification passed", "manifests", len(idx.Manifests))
 	return nil
 }
 

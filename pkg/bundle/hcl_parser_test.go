@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -20,7 +21,7 @@ import (
 func TestParseBundleFile_SpecCompliant(t *testing.T) {
 	path := filepath.Join("..", "..", "tests", "test_data", "bundles", "spec-compliant", "bundle.uds.hcl")
 
-	b, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
+	b, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(context.Background(), path)
 	require.NoError(t, err)
 
 	// Metadata assertions
@@ -66,7 +67,7 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 `
 	path := writeTempHCL(t, hcl)
 
-	b, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
+	b, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(context.Background(), path)
 	require.NoError(t, err)
 	assert.Equal(t, "minimal", b.Metadata.Name)
 	require.Len(t, b.Packages, 1)
@@ -81,7 +82,7 @@ package "app" { source = "oci://example.com/app:v2" }
 `
 	path := writeTempHCL(t, hcl)
 
-	b, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
+	b, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(context.Background(), path)
 	require.NoError(t, err)
 	assert.Equal(t, "oci://example.com/app:v2", b.Packages[0].Source)
 }
@@ -101,7 +102,7 @@ package "app" { source = "oci://${local.registry}/${local.pkgs.app}:${local.ver}
 `
 	path := writeTempHCL(t, hcl)
 
-	b, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
+	b, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(context.Background(), path)
 	require.NoError(t, err)
 	assert.Equal(t, "oci://ghcr.io/myorg/my-app:1.0.0", b.Packages[0].Source)
 }
@@ -114,7 +115,7 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 `
 	path := writeTempHCL(t, hcl)
 
-	b, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
+	b, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(context.Background(), path)
 	require.NoError(t, err)
 	assert.Empty(t, b.Metadata.Description)
 	assert.Empty(t, b.Metadata.Version)
@@ -138,7 +139,7 @@ package "core" {
 `
 	path := writeTempHCL(t, hcl)
 
-	b, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
+	b, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(context.Background(), path)
 	require.NoError(t, err)
 	require.Len(t, b.Packages, 1)
 	assert.Equal(t, []string{"istio-passthrough-gateway", "istio-egress-gateway"}, b.Packages[0].OptionalComponents)
@@ -155,13 +156,13 @@ package "core" {
 `
 	path := writeTempHCL(t, hcl)
 
-	b, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
+	b, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(context.Background(), path)
 	require.NoError(t, err)
 	assert.Empty(t, b.Packages[0].OptionalComponents)
 }
 
 func TestParseBundleFile_FileNotFound(t *testing.T) {
-	_, err := NewHCLParser("").ParseBundleFile(context.Background(), "/nonexistent/bundle.uds.hcl")
+	_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(context.Background(), "/nonexistent/bundle.uds.hcl")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot read bundle file")
 }
@@ -169,7 +170,7 @@ func TestParseBundleFile_FileNotFound(t *testing.T) {
 func TestParseBundleFile_InvalidHCL(t *testing.T) {
 	path := writeTempHCL(t, "this is not valid HCL {{{}}")
 
-	_, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
+	_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(context.Background(), path)
 	require.Error(t, err)
 }
 
@@ -182,7 +183,7 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 	path := writeTempHCL(t, hcl)
 
 	// HCL enforces bundle_api_version as required at decode time
-	_, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
+	_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(context.Background(), path)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bundle_api_version")
 }
@@ -195,7 +196,7 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 `
 	path := writeTempHCL(t, hcl)
 
-	_, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
+	_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(context.Background(), path)
 	require.Error(t, err)
 	// HCL enforces "name" as required at parse time since it has no optional tag
 	assert.Contains(t, err.Error(), "name")
@@ -209,7 +210,7 @@ package "pkg1" { }
 `
 	path := writeTempHCL(t, hcl)
 
-	_, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
+	_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(context.Background(), path)
 	require.Error(t, err)
 }
 
@@ -226,7 +227,7 @@ package "pkg2" {
 `
 	path := writeTempHCL(t, hcl)
 
-	_, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
+	_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(context.Background(), path)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "package reference")
 }
@@ -244,7 +245,7 @@ package "pkg2" {
 `
 	path := writeTempHCL(t, hcl)
 
-	_, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
+	_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(context.Background(), path)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must start with 'package'")
 }
@@ -262,7 +263,7 @@ package "pkg2" {
 `
 	path := writeTempHCL(t, hcl)
 
-	_, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
+	_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(context.Background(), path)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "expected package.<name>")
 }
@@ -280,7 +281,7 @@ package "pkg2" {
 	path := writeTempHCL(t, hcl)
 
 	// Parses successfully — validation is the caller's responsibility
-	b, err := NewHCLParser("").ParseBundleFile(context.Background(), path)
+	b, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(context.Background(), path)
 	require.NoError(t, err)
 
 	err = b.Validate()
@@ -297,14 +298,14 @@ metadata {
 }
 package "pkg1" { source = "oci://example.com/pkg:v1" }
 `)
-	b, err := NewHCLParser("").ParseBundleBytes(context.Background(), src)
+	b, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleBytes(context.Background(), src)
 	require.NoError(t, err)
 	assert.Equal(t, "my-bundle", b.Metadata.Name)
 	assert.Equal(t, "1.0.0", b.Metadata.Version)
 }
 
 func TestParseBundleBytes_InvalidHCL(t *testing.T) {
-	_, err := NewHCLParser("").ParseBundleBytes(context.Background(), []byte("this is not valid HCL {{{"))
+	_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleBytes(context.Background(), []byte("this is not valid HCL {{{"))
 	require.ErrorContains(t, err, "failed to parse HCL")
 }
 
@@ -319,13 +320,13 @@ package "pkg" { source = "./pkg-${sys.arch}-1.0.0.tar.zst" }
 `)
 
 	t.Run("explicit arch wins", func(t *testing.T) {
-		b, err := NewHCLParser("amd64").ParseBundleBytes(context.Background(), src)
+		b, err := NewHCLParser("amd64", iostreams.IOStreams{}).ParseBundleBytes(context.Background(), src)
 		require.NoError(t, err)
 		assert.Equal(t, "./pkg-amd64-1.0.0.tar.zst", b.Packages[0].Source)
 	})
 
 	t.Run("empty arch falls back to runtime.GOARCH", func(t *testing.T) {
-		b, err := NewHCLParser("").ParseBundleBytes(context.Background(), src)
+		b, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleBytes(context.Background(), src)
 		require.NoError(t, err)
 		assert.Equal(t, "./pkg-"+runtime.GOARCH+"-1.0.0.tar.zst", b.Packages[0].Source)
 	})
@@ -1108,7 +1109,7 @@ variables = {
 				path = writeTempHCL(t, tt.hcl)
 			}
 
-			cfg, err := NewHCLParser("").ParseBundleConfig(context.Background(), path)
+			cfg, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleConfig(context.Background(), path)
 
 			// Error cases: either wantErr substring pinned, or any error is fine
 			if !tt.wantOK {

@@ -24,6 +24,13 @@ func TestNew(t *testing.T) {
 	assert.Contains(t, buf.String(), "visible warning")
 }
 
+func TestNew_NilWriterDoesNotPanic(t *testing.T) {
+	l := New(nil, slog.LevelInfo)
+	require.NotNil(t, l)
+	// Writing through a nil-backed logger must be a safe no-op, not a panic.
+	l.Info("goes nowhere")
+}
+
 func TestParseLevel(t *testing.T) {
 	tests := []struct {
 		input     string

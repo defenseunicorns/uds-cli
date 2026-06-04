@@ -7,12 +7,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/defenseunicorns/pkg/oci"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	godigest "github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
@@ -72,7 +72,6 @@ func filterOCIManifestsByArch(manifests []ociManifest, arch string) []ociManifes
 	}
 	return filtered
 }
-
 
 // isZarfPackage checks if the directory is a Zarf package by looking for zarf.yaml
 func isZarfPackage(dir string) bool {
@@ -173,7 +172,7 @@ func descriptorFromOCI(d ociDescriptor) (ocispec.Descriptor, error) {
 // local Zarf package directory.
 //
 // Non-Zarf manifests (no zarf.yaml layer) are returned unchanged.
-func filterIngestedManifest(blobDir string, m ociManifest, filter filters.ComponentFilterStrategy) (ociManifest, error) {
+func filterIngestedManifest(ctx context.Context, streams iostreams.IOStreams, blobDir string, m ociManifest, filter filters.ComponentFilterStrategy) (ociManifest, error) {
 	md, err := parseDigest(m.Digest)
 	if err != nil {
 		return ociManifest{}, err
@@ -227,7 +226,7 @@ func filterIngestedManifest(blobDir string, m ociManifest, filter filters.Compon
 
 	// Build the set of image blob digests to exclude.
 	// Images are only excluded if they are referenced exclusively by filtered-out components.
-	excludeImageBlobs, err := imageBlobsToExclude(blobDir, im.Layers, pkg, keepSet)
+	excludeImageBlobs, err := imageBlobsToExclude(ctx, streams, blobDir, im.Layers, pkg, keepSet)
 	if err != nil {
 		return ociManifest{}, fmt.Errorf("resolving image blobs to exclude: %w", err)
 	}
@@ -241,13 +240,13 @@ func filterIngestedManifest(blobDir string, m ociManifest, filter filters.Compon
 		// Exclude component tarballs for filtered-out components
 		compName, isComp := zarfComponentNameFromTitle(title)
 		if isComp && !keepSet[compName] {
-			slog.Debug("excluding component from local package", "component", compName)
+			streams.Debug("excluding component from local package", "component", compName)
 			continue
 		}
 
 		// Exclude image blobs only used by filtered-out components
 		if excludeImageBlobs[l.Digest] {
-			slog.Debug("excluding image blob from local package", "title", title)
+			streams.Debug("excluding image blob from local package", "title", title)
 			continue
 		}
 
@@ -289,7 +288,7 @@ func filterIngestedManifest(blobDir string, m ociManifest, filter filters.Compon
 //  5. Removing any digest that is also referenced by a kept image (shared layers)
 //
 // Returns a set of layer digest strings that are safe to exclude.
-func imageBlobsToExclude(blobDir string, layers []ociDescriptor, pkg v1alpha1.ZarfPackage, keepComponents map[string]bool) (map[string]bool, error) {
+func imageBlobsToExclude(_ context.Context, streams iostreams.IOStreams, blobDir string, layers []ociDescriptor, pkg v1alpha1.ZarfPackage, keepComponents map[string]bool) (map[string]bool, error) {
 	// Collect images from kept components and all components
 	keptImages := make(map[string]bool)
 	allImages := make(map[string]bool)
@@ -329,7 +328,7 @@ func imageBlobsToExclude(blobDir string, layers []ociDescriptor, pkg v1alpha1.Za
 		}
 	}
 	if indexData == nil {
-		slog.Debug("images/index.json layer not found in manifest; skipping image blob filtering")
+		streams.Debug("images/index.json layer not found in manifest; skipping image blob filtering")
 		return nil, nil
 	}
 
@@ -349,7 +348,7 @@ func imageBlobsToExclude(blobDir string, layers []ociDescriptor, pkg v1alpha1.Za
 
 		// If the image isn't in either set, keep its blobs by skipping
 		if !isExcluded && !isKept {
-			slog.Debug("image in OCI index not referenced by any component; keeping blobs",
+			streams.Debug("image in OCI index not referenced by any component; keeping blobs",
 				"imageRef", imageRef, "digest", desc.Digest)
 			continue
 		}

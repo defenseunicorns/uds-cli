@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -60,7 +61,7 @@ func TestExtractedArtifactPackageLayoutLoader_LoadPackage(t *testing.T) {
 				OCIDir:         t.TempDir(),
 				PackageDigests: tt.digests,
 			}
-			_, err := loader.LoadPackageLayout(context.Background(), tt.pkg, t.TempDir())
+			_, err := loader.LoadPackageLayout(context.Background(), iostreams.IOStreams{}, tt.pkg, t.TempDir())
 			require.Error(t, err)
 			if tt.wantNotFound {
 				assert.Contains(t, err.Error(), "not found in bundle artifact index")
@@ -78,7 +79,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 `
 	tarPath := buildBundleArtifact(t, hcl, nil, []string{"oci://example.com/pkg:v1"})
 
-	extracted, err := ExtractArtifact(context.Background(), tarPath, t.TempDir())
+	extracted, err := ExtractArtifact(context.Background(), iostreams.IOStreams{}, tarPath, t.TempDir())
 	require.NoError(t, err)
 
 	loader := &ExtractedArtifactPackageLayoutLoader{
@@ -91,7 +92,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 
 	// LoadPackage fails at layout.LoadFromDir since fixture has fake content,
 	// not a valid Zarf package. Confirm layer files were staged before that failure.
-	_, err = loader.LoadPackageLayout(context.Background(), pkg, dstDir)
+	_, err = loader.LoadPackageLayout(context.Background(), iostreams.IOStreams{}, pkg, dstDir)
 	require.Error(t, err)
 
 	assert.FileExists(t, filepath.Join(dstDir, "zarf.yaml"), "zarf.yaml layer should be staged before LoadFromDir is called")
@@ -105,7 +106,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 	const escapingTitle = "../../../escaped-zarf.yaml"
 	tarPath := buildBundleArtifactWithTitles(t, hcl, nil, []string{"oci://example.com/pkg:v1"}, BundleFileName, escapingTitle)
 
-	extracted, err := ExtractArtifact(context.Background(), tarPath, t.TempDir())
+	extracted, err := ExtractArtifact(context.Background(), iostreams.IOStreams{}, tarPath, t.TempDir())
 	require.NoError(t, err)
 
 	loader := &ExtractedArtifactPackageLayoutLoader{
@@ -115,7 +116,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 	dstDir := t.TempDir()
 	escapedPath := filepath.Clean(filepath.Join(dstDir, filepath.FromSlash(escapingTitle)))
 
-	_, err = loader.LoadPackageLayout(context.Background(), &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}, dstDir)
+	_, err = loader.LoadPackageLayout(context.Background(), iostreams.IOStreams{}, &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}, dstDir)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "escapes destination directory")
 	assert.NoFileExists(t, escapedPath)
@@ -128,7 +129,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 `
 	tarPath := buildBundleArtifactWithTitles(t, hcl, nil, []string{"oci://example.com/pkg:v1"}, BundleFileName, "")
 
-	extracted, err := ExtractArtifact(context.Background(), tarPath, t.TempDir())
+	extracted, err := ExtractArtifact(context.Background(), iostreams.IOStreams{}, tarPath, t.TempDir())
 	require.NoError(t, err)
 
 	loader := &ExtractedArtifactPackageLayoutLoader{
@@ -137,7 +138,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 	}
 	dstDir := t.TempDir()
 
-	_, err = loader.LoadPackageLayout(context.Background(), &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}, dstDir)
+	_, err = loader.LoadPackageLayout(context.Background(), iostreams.IOStreams{}, &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}, dstDir)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `manifest for package "mypkg" missing title annotation on layer`)
 
@@ -186,7 +187,7 @@ package "mypkg" { source = "mypkg" }
 `
 	tarPath := buildBundleArtifact(t, hcl, map[string][]string{"mypkg": files}, []string{"mypkg"})
 
-	extracted, err := ExtractArtifact(context.Background(), tarPath, t.TempDir())
+	extracted, err := ExtractArtifact(context.Background(), iostreams.IOStreams{}, tarPath, t.TempDir())
 	require.NoError(t, err)
 
 	result, err := extracted.ValuesFilesByPackage()

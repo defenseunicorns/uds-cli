@@ -3,15 +3,19 @@
 
 package bundle
 
+import "github.com/defenseunicorns/uds-cli/pkg/iostreams"
+
 // NewPackageSource returns a PackageSource for the given source string.
 // OCI references (detected by IsOCIReference) use zoci.NewRemote;
 // everything else is treated as a local path resolved against bundleDir.
-func NewPackageSource(source string, opts ConfigOptions, bundleDir string) PackageSource {
+// streams carries the leveled logger used for ingest/pull diagnostics.
+func NewPackageSource(source string, opts ConfigOptions, bundleDir string, streams iostreams.IOStreams) PackageSource {
 	if IsOCIReference(source) {
 		return &remoteSource{
-			ref:  TrimScheme(source),
-			arch: opts.Architecture,
-			opts: opts,
+			ref:     TrimScheme(source),
+			arch:    opts.Architecture,
+			opts:    opts,
+			streams: streams,
 		}
 	}
 	return &localSource{
@@ -19,5 +23,6 @@ func NewPackageSource(source string, opts ConfigOptions, bundleDir string) Packa
 		arch:      opts.Architecture,
 		bundleDir: bundleDir,
 		tmpDir:    opts.TmpDir,
+		streams:   streams,
 	}
 }

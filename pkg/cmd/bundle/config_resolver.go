@@ -6,13 +6,13 @@ package bundle
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	cmdconfig "github.com/defenseunicorns/uds-cli/pkg/cmd/config"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 )
 
@@ -151,12 +151,12 @@ func (r *ConfigResolver) OverlayCLI(flags CLIFlags, base bundle.ConfigOptions) b
 //  3. If --config flag is set, parse config.uds.hcl and merge its options and variables
 //  4. Overlay any explicitly-set CLI flags
 //  5. Build GlobalOptions from merged log_level and the --prompt flag
-func (r *ConfigResolver) Resolve(ctx context.Context, flags CLIFlags, bundlePath string) (*bundle.UDSBundleConfig, string, error) {
+func (r *ConfigResolver) Resolve(ctx context.Context, streams iostreams.IOStreams, flags CLIFlags, bundlePath string) (*bundle.UDSBundleConfig, string, error) {
 	base := r.Defaults()
 	var variables bundle.Variables
 
 	// Merge variables from defaults.uds.hcl, if exists
-	defaults, err := r.loadBundleDefaults(ctx, bundlePath)
+	defaults, err := r.loadBundleDefaults(ctx, streams, bundlePath)
 	if err != nil {
 		return nil, "", err
 	}
@@ -167,7 +167,7 @@ func (r *ConfigResolver) Resolve(ctx context.Context, flags CLIFlags, bundlePath
 	// Merge config.uds.hcl if --config flag is set
 	configPath := flags.ConfigPath
 	if configPath != "" {
-		cfg, err := bundle.NewHCLParser("").ParseBundleConfig(ctx, configPath)
+		cfg, err := bundle.NewHCLParser("", streams).ParseBundleConfig(ctx, configPath)
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to parse config: %w", err)
 		}
@@ -181,7 +181,7 @@ func (r *ConfigResolver) Resolve(ctx context.Context, flags CLIFlags, bundlePath
 
 	// Resolve global options (log level, prompt) via the shared config package.
 	// This is command-group agnostic — future groups reuse the same function.
-	global, err := cmdconfig.ResolveGlobalOptions(flags.Prompt, flags.LogLevel, merged.LogLevel)
+	global, err := cmdconfig.ResolveGlobalOptions(flags.Prompt, merged.LogLevel)
 	if err != nil {
 		return nil, "", err
 	}
@@ -197,7 +197,7 @@ func (r *ConfigResolver) Resolve(ctx context.Context, flags CLIFlags, bundlePath
 
 // loadBundleDefaults looks for defaults.uds.hcl in the bundle directory and parses it if present.
 // Returns nil (not an error) when the file does not exist or bundlePath is not accessible.
-func (r *ConfigResolver) loadBundleDefaults(ctx context.Context, bundlePath string) (*bundle.UDSBundleConfig, error) {
+func (r *ConfigResolver) loadBundleDefaults(ctx context.Context, streams iostreams.IOStreams, bundlePath string) (*bundle.UDSBundleConfig, error) {
 	if bundlePath == "" {
 		return nil, nil
 	}
@@ -206,7 +206,7 @@ func (r *ConfigResolver) loadBundleDefaults(ctx context.Context, bundlePath stri
 	info, err := os.Stat(bundlePath)
 	if err != nil {
 		// Log and skip defaults if bundlePath not found/accessible. ValidateBundlePath will report this error
-		slog.Debug("bundle path not accessible, skipping defaults", "path", bundlePath, "error", err)
+		streams.Debug("bundle path not accessible, skipping defaults", "path", bundlePath, "error", err)
 		return nil, nil
 	}
 	if !info.IsDir() {
@@ -220,7 +220,7 @@ func (r *ConfigResolver) loadBundleDefaults(ctx context.Context, bundlePath stri
 		return nil, fmt.Errorf("failed to access defaults file: %w", err)
 	}
 
-	slog.Debug("loading bundle defaults", "path", defaultsPath)
+	streams.Debug("loading bundle defaults", "path", defaultsPath)
 	vars, err := bundle.ParseDefaults(ctx, defaultsPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse %s: %w", bundle.BundleDefaultsFileName, err)

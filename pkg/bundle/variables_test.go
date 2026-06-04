@@ -477,4 +477,3 @@ func TestMergeVariables_DoesNotMutateBaseNestedMap(t *testing.T) {
 	a := base["a"].(Variables)
 	assert.Equal(t, true, a["b"])
 }
-

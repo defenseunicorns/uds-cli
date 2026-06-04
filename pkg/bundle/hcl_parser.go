@@ -7,12 +7,12 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"log/slog"
 	"maps"
 	"os"
 	"runtime"
 	"slices"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -36,13 +36,15 @@ func sysVars(arch string) cty.Value {
 // The arch field is exposed as ${sys.arch} during bundle HCL evaluation; an
 // empty value falls back to runtime.GOARCH (see sysVars).
 type HCLParser struct {
-	arch string
+	arch    string
+	streams iostreams.IOStreams
 }
 
 // NewHCLParser creates a new HCLParser. arch is the effective target
 // architecture exposed as ${sys.arch}; pass an empty string to use runtime.GOARCH.
-func NewHCLParser(arch string) *HCLParser {
-	return &HCLParser{arch: arch}
+// streams carries the leveled logger used for parse diagnostics.
+func NewHCLParser(arch string, streams iostreams.IOStreams) *HCLParser {
+	return &HCLParser{arch: arch, streams: streams}
 }
 
 // Compile-time check to ensure HCLParser implements Parser.
@@ -241,43 +243,45 @@ func ParseDefaults(_ context.Context, path string) (Variables, error) {
 }
 
 // ParseBundleFile reads and parses an HCL bundle file with locals support.
-// The context parameter is currently unused as none of the HCL parsing methods supports cancellation.
-func (p *HCLParser) ParseBundleFile(_ context.Context, filePath string) (*UDSBundle, error) {
+// ctx is accepted for cancellation/propagation; HCL parsing does not use it, and
+// diagnostics are written via p.streams.
+func (p *HCLParser) ParseBundleFile(ctx context.Context, filePath string) (*UDSBundle, error) {
 	if filePath == "" {
 		return nil, errEmpty("filePath")
 	}
-	slog.Debug("reading bundle file", "path", filePath)
+	p.streams.Debug("reading bundle file", "path", filePath)
 	src, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read bundle file: %w", err)
 	}
-	return p.parseBundleContent(src, filePath)
+	return p.parseBundleContent(ctx, src, filePath)
 }
 
 // ParseBundleBytes parses HCL bundle content from an in-memory byte slice.
-// The context parameter is currently unused as none of the HCL parsing methods supports cancellation.
-func (p *HCLParser) ParseBundleBytes(_ context.Context, src []byte) (*UDSBundle, error) {
+// ctx is accepted for cancellation/propagation; HCL parsing does not use it, and
+// diagnostics are written via p.streams.
+func (p *HCLParser) ParseBundleBytes(ctx context.Context, src []byte) (*UDSBundle, error) {
 	if len(src) == 0 {
 		return nil, errEmpty("src")
 	}
-	return p.parseBundleContent(src, "bundle.uds.hcl")
+	return p.parseBundleContent(ctx, src, "bundle.uds.hcl")
 }
 
 // parseBundleContent parses HCL content using a two-pass approach: first extracting
 // and evaluating locals, then decoding the full bundle with an EvalContext containing
 // those locals. filename is used only for error message attribution.
-func (p *HCLParser) parseBundleContent(src []byte, filename string) (*UDSBundle, error) {
+func (p *HCLParser) parseBundleContent(ctx context.Context, src []byte, filename string) (*UDSBundle, error) {
 	hclFile, hclDiagnostics := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
 	if hclDiagnostics.HasErrors() {
 		return nil, fmt.Errorf("failed to parse HCL: %s", hclDiagnostics.Error())
 	}
-	slog.Debug("HCL syntax parsed successfully")
+	p.streams.Debug("HCL syntax parsed successfully")
 
 	locals, err := p.extractLocals(hclFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract locals: %w", err)
 	}
-	slog.Debug("locals extracted", "count", len(locals))
+	p.streams.Debug("locals extracted", "count", len(locals))
 
 	return p.decodeBundleWithLocals(hclFile, locals)
 }

@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/content"
@@ -27,7 +28,7 @@ func TestBundleNameFromIndex_HappyPath(t *testing.T) {
 	var idx ociIndex
 	require.NoError(t, json.Unmarshal(idxBytes, &idx))
 
-	name, err := bundleNameFromDefinitionLayer(context.Background(), ociDir, idx, "amd64")
+	name, err := bundleNameFromDefinitionLayer(context.Background(), iostreams.IOStreams{}, ociDir, idx, "amd64")
 	require.NoError(t, err)
 	assert.Equal(t, "uds-bundle-my-bundle-amd64-0.2.0.tar.zst", name)
 }
@@ -42,7 +43,7 @@ func TestBundleNameFromIndex_ArchFallback(t *testing.T) {
 	require.NoError(t, json.Unmarshal(idxBytes, &idx))
 
 	// Empty arch should fall back to runtime.GOARCH.
-	name, err := bundleNameFromDefinitionLayer(context.Background(), ociDir, idx, "")
+	name, err := bundleNameFromDefinitionLayer(context.Background(), iostreams.IOStreams{}, ociDir, idx, "")
 	require.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("uds-bundle-my-bundle-%s-0.1.0.tar.zst", runtime.GOARCH), name)
 }
@@ -65,7 +66,7 @@ func TestBundleNameFromIndex_NoBundleDefinitionManifest(t *testing.T) {
 		}},
 	}
 
-	_, err := bundleNameFromDefinitionLayer(context.Background(), ociDir, idx, "amd64")
+	_, err := bundleNameFromDefinitionLayer(context.Background(), iostreams.IOStreams{}, ociDir, idx, "amd64")
 	require.ErrorContains(t, err, "bundle definition manifest not found")
 }
 
@@ -94,7 +95,7 @@ func TestBundleNameFromIndex_NoHCLLayer(t *testing.T) {
 		}},
 	}
 
-	_, err = bundleNameFromDefinitionLayer(context.Background(), ociDir, idx, "amd64")
+	_, err = bundleNameFromDefinitionLayer(context.Background(), iostreams.IOStreams{}, ociDir, idx, "amd64")
 	require.ErrorContains(t, err, "bundle HCL layer not found")
 }
 
@@ -129,9 +130,9 @@ func TestPull_NonUDSBundle(t *testing.T) {
 	require.NoError(t, srcStore.Tag(t.Context(), manifestDesc, "v1.0.0"))
 
 	tests := []struct {
-		name         string
-		outputDir    string
-		expectedErr  string
+		name        string
+		outputDir   string
+		expectedErr string
 	}{
 		{"with output dir", t.TempDir(), "does not appear to be a UDS bundle"},
 		{"without output dir", "", "targetDir must not be empty"},
@@ -191,7 +192,7 @@ package "pkg1" {
 	tarball, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
-		Out:        os.Stderr,
+		Streams:    iostreams.IOStreams{ErrOut: os.Stderr},
 	})
 	require.NoError(t, err)
 

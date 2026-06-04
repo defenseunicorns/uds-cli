@@ -7,12 +7,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"log/slog"
 	"runtime"
 	"sync"
 	"time"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/logger"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
@@ -35,7 +35,9 @@ type packageRemover interface {
 // on first use and reused across calls; this avoids repeated cluster
 // round-trips when a bundle removes many packages.
 type ZarfRemover struct {
-	Out     io.Writer
+	// streams carries the diagnostic sink (streams.ErrOut) handed to the Zarf
+	// logger (see RemovePackage) and the leveled logger for UDS diagnostics.
+	streams iostreams.IOStreams
 	cluster *cluster.Cluster
 
 	deployedMu     sync.Mutex
@@ -56,9 +58,11 @@ func deployedKey(zarfName, namespaceOverride string) string {
 	return zarfName + "/" + namespaceOverride
 }
 
-// NewZarfRemover creates a new ZarfRemover.
-func NewZarfRemover(out io.Writer) *ZarfRemover {
-	r := &ZarfRemover{Out: out}
+// NewZarfRemover creates a new ZarfRemover. streams carries the diagnostic sink
+// (streams.ErrOut, typically the command's Streams.ErrOut) used for the Zarf
+// logger during removal, and the leveled logger for UDS-side diagnostics.
+func NewZarfRemover(streams iostreams.IOStreams) *ZarfRemover {
+	r := &ZarfRemover{streams: streams}
 	r.pkgRemover = r
 	return r
 }
@@ -119,7 +123,9 @@ func (r *ZarfRemover) RemoveBundle(ctx context.Context, b *UDSBundle, packages [
 	if err := b.Validate(); err != nil {
 		return nil, fmt.Errorf("bundle validation failed: %w", err)
 	}
-	dag, err := BuildDependencyGraph(b)
+	s := logger.Bind(r.streams, opts.Config.Global.LogLevel)
+
+	dag, err := BuildDependencyGraph(ctx, s, b)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build dependency graph: %w", err)
 	}
@@ -128,14 +134,14 @@ func (r *ZarfRemover) RemoveBundle(ctx context.Context, b *UDSBundle, packages [
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute deployment levels: %w", err)
 	}
-	slog.Debug("dependency graph built", "levels", len(levels))
+	s.Debug("dependency graph built", "levels", len(levels))
 
 	levels, err = filterLevels(levels, packages)
 	if err != nil {
 		return nil, err
 	}
 
-	removed, skipped, err := r.removePackages(ctx, dag, levels, opts)
+	removed, skipped, err := r.removePackages(ctx, s, dag, levels, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +157,7 @@ func (r *ZarfRemover) RemoveBundle(ctx context.Context, b *UDSBundle, packages [
 // each package to the per-package primitive (r.pkgRemover.RemovePackage).
 // Removal is sequential to keep teardown predictable. Packages that signal
 // ErrPackageNotDeployed are counted as skipped rather than failed.
-func (r *ZarfRemover) removePackages(ctx context.Context, dag *DAG, levels [][]*Package, opts RemovePackageOptions) (removed, skipped int, err error) {
+func (r *ZarfRemover) removePackages(ctx context.Context, log iostreams.IOStreams, dag *DAG, levels [][]*Package, opts RemovePackageOptions) (removed, skipped int, err error) {
 	totalPkgs := 0
 	for _, level := range levels {
 		totalPkgs += len(level)
@@ -160,15 +166,15 @@ func (r *ZarfRemover) removePackages(ctx context.Context, dag *DAG, levels [][]*
 	pkgNum := 0
 	for i := len(levels) - 1; i >= 0; i-- {
 		level := levels[i]
-		slog.Info("starting removal level", "level", i+1, "total_levels", len(levels), "packages", len(level))
+		log.Info("starting removal level", "level", i+1, "total_levels", len(levels), "packages", len(level))
 
 		for _, pkg := range level {
 			pkgNum++
-			slog.Info("removing package", "name", pkg.Name, "package", pkgNum, "total", totalPkgs)
+			log.Info("removing package", "name", pkg.Name, "package", pkgNum, "total", totalPkgs)
 
 			if err := r.pkgRemover.RemovePackage(ctx, pkg, opts); err != nil {
 				if errors.Is(err, ErrPackageNotDeployed) {
-					slog.Warn("skipping removal, package not deployed", "name", pkg.Name)
+					log.Warn("skipping removal, package not deployed", "name", pkg.Name)
 					skipped++
 					continue
 				}
@@ -181,11 +187,11 @@ func (r *ZarfRemover) removePackages(ctx context.Context, dag *DAG, levels [][]*
 				}
 				return removed, skipped, fmt.Errorf("failed to remove package %q: %w", pkg.Name, err)
 			}
-			slog.Info("package removed", "name", pkg.Name)
+			log.Info("package removed", "name", pkg.Name)
 			removed++
 		}
 
-		slog.Debug("removal level complete", "level", i+1)
+		log.Debug("removal level complete", "level", i+1)
 	}
 
 	return removed, skipped, nil
@@ -205,9 +211,10 @@ func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *Package, opts Remo
 	if pkg == nil {
 		return errNil("package")
 	}
-	slog.Info("removing zarf package", "name", pkg.Name, "source", pkg.Source)
+	s := logger.Bind(r.streams, opts.Config.Global.LogLevel)
+	s.Info("removing zarf package", "name", pkg.Name, "source", pkg.Source)
 
-	ctx = newZarfLoggerContext(ctx, r.Out, opts.Config.Global.LogLevel)
+	ctx = newZarfLoggerContext(ctx, s.ErrOut, opts.Config.Global.LogLevel)
 
 	c, err := r.getCluster(ctx)
 	if err != nil {
@@ -247,4 +254,3 @@ func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *Package, opts Remo
 
 	return nil
 }
-

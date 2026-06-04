@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -550,7 +551,7 @@ func TestResolve_DefaultsOnly(t *testing.T) {
 	registerTestFlags(cmd)
 	cmd.Flags().String("config", "", "config path")
 
-	resolved, configPath, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
+	resolved, configPath, err := r.Resolve(context.Background(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -585,7 +586,7 @@ variables = {
 	cmd.Flags().String("config", "", "config path")
 	require.NoError(t, cmd.Flags().Set("config", configPath))
 
-	resolved, resolvedConfigPath, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
+	resolved, resolvedConfigPath, err := r.Resolve(context.Background(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -614,7 +615,7 @@ options {
 	require.NoError(t, cmd.Flags().Set("config", configPath))
 	require.NoError(t, cmd.Flags().Set("architecture", "s390x"))
 
-	resolved, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
+	resolved, _, err := r.Resolve(context.Background(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
 	assert.Equal(t, "s390x", resolved.Options.Architecture, "CLI should override HCL")
@@ -628,7 +629,7 @@ func TestResolve_InvalidConfigPath(t *testing.T) {
 	cmd.Flags().String("config", "", "config path")
 	require.NoError(t, cmd.Flags().Set("config", "/nonexistent/config.uds.hcl"))
 
-	_, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
+	_, _, err := r.Resolve(context.Background(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse config")
 }
@@ -641,7 +642,7 @@ func TestResolve_NoConfigFlag(t *testing.T) {
 	registerTestFlags(cmd)
 	// Deliberately not registering --config flag
 
-	resolved, configPath, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
+	resolved, configPath, err := r.Resolve(context.Background(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -658,7 +659,7 @@ func TestResolve_LogLevelCLIOverride(t *testing.T) {
 	cmd.Flags().String("config", "", "config path")
 	require.NoError(t, cmd.Flags().Set("log-level", "debug"))
 
-	resolved, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
+	resolved, _, err := r.Resolve(context.Background(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -681,7 +682,7 @@ options {
 	cmd.Flags().String("config", "", "config path")
 	require.NoError(t, cmd.Flags().Set("config", configPath))
 
-	resolved, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
+	resolved, _, err := r.Resolve(context.Background(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -705,7 +706,7 @@ options {
 	require.NoError(t, cmd.Flags().Set("config", configPath))
 	require.NoError(t, cmd.Flags().Set("log-level", "error"))
 
-	resolved, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
+	resolved, _, err := r.Resolve(context.Background(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -720,7 +721,7 @@ func TestResolve_PromptFromFlag(t *testing.T) {
 	cmd.Flags().String("config", "", "config path")
 	require.NoError(t, cmd.Flags().Set("prompt", "true"))
 
-	resolved, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
+	resolved, _, err := r.Resolve(context.Background(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
 	require.NotNil(t, resolved.Global)
@@ -742,7 +743,7 @@ options {
 	cmd.Flags().String("config", "", "config path")
 	require.NoError(t, cmd.Flags().Set("config", configPath))
 
-	_, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "")
+	_, _, err := r.Resolve(context.Background(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid log level")
 }
@@ -765,7 +766,7 @@ variables = {
 	registerTestFlags(cmd)
 	cmd.Flags().String("config", "", "config path")
 
-	resolved, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), bundleDir)
+	resolved, _, err := r.Resolve(context.Background(), iostreams.IOStreams{}, SnapshotFlags(cmd), bundleDir)
 	require.NoError(t, err)
 
 	assert.Equal(t, "default.dev", resolved.Variables["domain"])
@@ -782,7 +783,7 @@ func TestResolve_NoDefaultsFile_Skipped(t *testing.T) {
 	registerTestFlags(cmd)
 	cmd.Flags().String("config", "", "config path")
 
-	resolved, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), bundleDir)
+	resolved, _, err := r.Resolve(context.Background(), iostreams.IOStreams{}, SnapshotFlags(cmd), bundleDir)
 	require.NoError(t, err)
 
 	assert.Equal(t, runtime.GOARCH, resolved.Options.Architecture, "should use Go defaults when no defaults file")
@@ -796,7 +797,7 @@ func TestResolve_InvalidBundleDir_Skipped(t *testing.T) {
 	registerTestFlags(cmd)
 	cmd.Flags().String("config", "", "config path")
 
-	resolved, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), "/nonexistent/path")
+	resolved, _, err := r.Resolve(context.Background(), iostreams.IOStreams{}, SnapshotFlags(cmd), "/nonexistent/path")
 	require.NoError(t, err, "invalid bundleDir should be skipped; ValidateBundlePath catches this later")
 	assert.Equal(t, runtime.GOARCH, resolved.Options.Architecture)
 }
@@ -814,7 +815,7 @@ options {
 	registerTestFlags(cmd)
 	cmd.Flags().String("config", "", "config path")
 
-	_, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), bundleDir)
+	_, _, err := r.Resolve(context.Background(), iostreams.IOStreams{}, SnapshotFlags(cmd), bundleDir)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), bundle.BundleDefaultsFileName)
 	assert.Contains(t, err.Error(), "block")
@@ -831,7 +832,7 @@ this is not valid HCL {{{
 	registerTestFlags(cmd)
 	cmd.Flags().String("config", "", "config path")
 
-	_, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), bundleDir)
+	_, _, err := r.Resolve(context.Background(), iostreams.IOStreams{}, SnapshotFlags(cmd), bundleDir)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), bundle.BundleDefaultsFileName)
 }
@@ -852,7 +853,7 @@ variables = {
 	registerTestFlags(cmd)
 	cmd.Flags().String("config", "", "config path")
 
-	resolved, _, err := r.Resolve(context.Background(), SnapshotFlags(cmd), bundleFilePath)
+	resolved, _, err := r.Resolve(context.Background(), iostreams.IOStreams{}, SnapshotFlags(cmd), bundleFilePath)
 	require.NoError(t, err)
 
 	assert.Equal(t, "a-default-value", resolved.Variables["a"], "should find defaults.uds.hcl in parent dir of file path")

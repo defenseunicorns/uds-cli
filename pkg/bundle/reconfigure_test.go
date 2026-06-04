@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -373,7 +374,7 @@ func createTestBundle(t *testing.T, bundleHCL string, defaultsHCL string) string
 	result, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: filepath.Join(dir, "bundle.uds.hcl"),
-		Out:        io.Discard,
+		Streams:    iostreams.IOStreams{ErrOut: io.Discard},
 	})
 	require.NoError(t, err)
 	return result.OutputPath
@@ -505,7 +506,7 @@ func TestLocalReconfigure_NonBundleTarball(t *testing.T) {
 	srcDir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "not-a-bundle.txt"), []byte("nope"), tmpFilePerm))
 	tarball := filepath.Join(t.TempDir(), "fake.tar.zst")
-	require.NoError(t, writeTarZst(context.Background(), tarball, srcDir))
+	require.NoError(t, writeTarZst(context.Background(), iostreams.IOStreams{}, tarball, srcDir))
 
 	defaultsPath := writeDefaultsFile(t, `variables = { a = "b" }`)
 

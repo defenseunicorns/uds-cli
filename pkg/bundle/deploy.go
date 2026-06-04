@@ -12,7 +12,8 @@ package bundle
 import (
 	"context"
 	"fmt"
-	"log/slog"
+
+	"github.com/defenseunicorns/uds-cli/pkg/logger"
 )
 
 // Deploy deploys a UDS bundle to a Kubernetes cluster.
@@ -31,6 +32,8 @@ func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
 		return nil, err
 	}
 
+	s := logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
+
 	b := opts.Bundle
 	if b != nil {
 		if err := b.Validate(); err != nil {
@@ -38,19 +41,19 @@ func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
 		}
 	}
 	if b == nil {
-		slog.Debug("parsing bundle", "path", opts.BundlePath)
-		parser := NewHCLParser(opts.Config.Options.Architecture)
+		s.Debug("parsing bundle", "path", opts.BundlePath)
+		parser := NewHCLParser(opts.Config.Options.Architecture, s)
 		var err error
 		b, err = parser.ParseBundleFile(ctx, opts.BundlePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse bundle: %w", err)
 		}
-		slog.Debug("bundle parsed", "name", b.Metadata.Name, "packages", len(b.Packages))
+		s.Debug("bundle parsed", "name", b.Metadata.Name, "packages", len(b.Packages))
 
 		if err := b.Validate(); err != nil {
 			return nil, fmt.Errorf("bundle validation failed: %w", err)
 		}
-		slog.Debug("bundle validated")
+		s.Debug("bundle validated")
 	}
 
 	if opts.Source != nil && opts.Source.ValuesFilesOverride != nil {
@@ -62,7 +65,7 @@ func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
 		loader = opts.Source.Loader
 	}
 
-	deployer := NewZarfDeployer(opts.Out, loader)
+	deployer := NewZarfDeployer(s, loader)
 	return deployer.DeployBundle(ctx, b, opts)
 }
 
