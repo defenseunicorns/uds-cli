@@ -20,6 +20,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/feature"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/value"
 )
 
@@ -27,6 +28,26 @@ import (
 var zarfGlobalsOnce sync.Once
 
 var _ Deployer = (*ZarfDeployer)(nil)
+var _ Deployer = (*orchestratedDeployer)(nil)
+
+// orchestratedDeployer dispatches per-package deploys to either a caller-supplied
+// override or the underlying ZarfDeployer. Created by ZarfDeployer.DeployBundle
+// so the orchestrator always calls through a consistent Deployer.
+type orchestratedDeployer struct {
+	base            *ZarfDeployer
+	packageDeployFn func(ctx context.Context, pkg *Package, opts DeployPackageOptions) error
+}
+
+func (o *orchestratedDeployer) DeployPackage(ctx context.Context, pkg *Package, opts DeployPackageOptions) error {
+	if o.packageDeployFn != nil {
+		return o.packageDeployFn(ctx, pkg, opts)
+	}
+	return o.base.DeployPackage(ctx, pkg, opts)
+}
+
+func (o *orchestratedDeployer) DeployBundle(context.Context, *UDSBundle, DeployOptions) (*DeployResult, error) {
+	return nil, fmt.Errorf("orchestratedDeployer is a per-package adapter and does not support DeployBundle")
+}
 
 // Output synchronization
 //
@@ -121,6 +142,12 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts Depl
 	if err := b.Validate(); err != nil {
 		return nil, fmt.Errorf("bundle validation failed: %w", err)
 	}
+
+	bhooks := opts.BundleDeployHooks.withDefaults()
+	if err := bhooks.PreDeploy(ctx, b, &opts); err != nil {
+		return nil, fmt.Errorf("pre-deploy bundle hook failed: %w", err)
+	}
+
 	s := logger.Bind(d.streams, opts.Config.Global.LogLevel)
 
 	dag, err := BuildDependencyGraph(ctx, s, b)
@@ -137,23 +164,33 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts Depl
 	concurrency := opts.Config.Options.Concurrency
 
 	pkgOpts := DeployPackageOptions{
-		Config:    opts.Config,
-		BundleDir: filepath.Dir(opts.BundlePath),
-		Prompt:    opts.Prompt,
-		Streams:   s,
+		Config:             opts.Config,
+		BundleDir:          filepath.Dir(opts.BundlePath),
+		Prompt:             opts.Prompt,
+		PackageDeployHooks: opts.PackageDeployHooks,
+		Streams:            s,
 	}
 
 	s.Info("deploying bundle", "packages", len(b.Packages), "levels", len(levels), "concurrency", concurrency)
 
-	orch := newDeployOrchestrator(d.DeployPackage, dag, levels, concurrency, pkgOpts, s)
+	deployer := &orchestratedDeployer{base: d, packageDeployFn: opts.PackageDeployFn}
+
+	orch := newDeployOrchestrator(deployer, dag, levels, concurrency, pkgOpts, s)
 	if err := orch.Run(ctx); err != nil {
 		return nil, err
 	}
 
-	return &DeployResult{
+	result := &DeployResult{
 		BundleName: b.Metadata.Name,
 		Packages:   len(b.Packages),
-	}, nil
+	}
+	if err := bhooks.PostDeploy(ctx, b); err != nil {
+		// Packages are already deployed at this point; return the populated result
+		// alongside the error so callers can distinguish "nothing deployed" from
+		// "deployed, but the post-deploy hook failed".
+		return result, fmt.Errorf("post-deploy bundle hook failed: %w", err)
+	}
+	return result, nil
 }
 
 // DeployPackage deploys a single Zarf package using the Zarf Go library.
@@ -209,9 +246,24 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 
 	log.Info("deploying zarf package to cluster", "name", pkg.Name)
 
-	_, err = packager.Deploy(ctx, pkgLayout, deployOpts)
-	if err != nil {
+	hooks := opts.PackageDeployHooks.withDefaults()
+	if err := hooks.PreDeploy(ctx, pkg, pkgLayout, &deployOpts, &opts); err != nil {
+		return fmt.Errorf("pre-deploy hook failed for package %q: %w", pkg.Name, err)
+	}
+
+	deploy := opts.ClusterDeployFn
+	if deploy == nil {
+		deploy = func(ctx context.Context, l *layout.PackageLayout, o packager.DeployOptions) error {
+			_, err := packager.Deploy(ctx, l, o)
+			return err
+		}
+	}
+	if err := deploy(ctx, pkgLayout, deployOpts); err != nil {
 		return fmt.Errorf("failed to deploy package %q: %w", pkg.Name, err)
+	}
+
+	if err := hooks.PostDeploy(ctx, pkg); err != nil {
+		return fmt.Errorf("post-deploy hook failed for package %q: %w", pkg.Name, err)
 	}
 
 	log.Info("package deployed", "name", pkg.Name)

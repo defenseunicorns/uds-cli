@@ -9,6 +9,7 @@ import (
 	"io"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	oras "oras.land/oras-go/v2"
@@ -118,6 +119,51 @@ type Deployer interface {
 	DeployBundle(ctx context.Context, b *UDSBundle, opts DeployOptions) (*DeployResult, error)
 }
 
+// PackageDeployHooks provides Deployment process extensibility on a per-package basis.
+// In the future, new hooks might also be provided.
+type PackageDeployHooks struct {
+	// PreDeploy enables customizing the options just before deploying the Package.
+	// Called after the package layout is loaded and before packager.Deploy. Mutations to
+	// pkgLayout.Pkg and opts take effect immediately — packager.Deploy receives the mutated values.
+	// Note: the hook pair (PreDeploy+PostDeploy) is captured before PreDeploy is invoked, so
+	// mutations to packageOpts.PackageDeployHooks from within PreDeploy have no effect. To install
+	// per-package hooks dynamically, use BundleDeployHooks.PreDeploy instead (it runs before
+	// pkgOpts is built).
+	// A non-nil error aborts the deploy; packager.Deploy is never called and PostDeploy is skipped.
+	// May run concurrently with PreDeploy for other packages within the same DAG level.
+	PreDeploy func(ctx context.Context, pkg *Package, pkgLayout *layout.PackageLayout, opts *packager.DeployOptions, packageOpts *DeployPackageOptions) error
+
+	// PostDeploy enables tracking what Packages have been deployed.
+	// Called after a successful packager.Deploy. Not called when PreDeploy or the deploy itself errors.
+	// May run concurrently with PostDeploy for other packages within the same DAG level — implementations must be concurrency-safe.
+	PostDeploy func(ctx context.Context, pkg *Package) error
+}
+
+// BundleDeployHooks provides Deployment process extensibility at the whole-bundle scope.
+// Symmetric to PackageDeployHooks, but fired exactly once per bundle deploy (not per package)
+// and never concurrently. Full ordering: Bundle.PreDeploy → (Package.PreDeploy → deploy →
+// Package.PostDeploy)* → Bundle.PostDeploy.
+type BundleDeployHooks struct {
+	// PreDeploy runs once before any package is deployed, after bundle validation.
+	// It may mutate the bundle and DeployOptions (e.g. install PackageDeployHooks, adjust Prompt).
+	// Mutations to opts.Prompt and opts.PackageDeployHooks are honoured: pkgOpts is built after
+	// PreDeploy returns.
+	// Callers must not mutate opts.Config or opts.Config.Options — those fields are validated
+	// before PreDeploy but read afterward (e.g. Config.Options.Concurrency), so a mutation
+	// takes effect while bypassing validation.
+	// Note: opts.Source is consumed by Deploy() before the deployer is constructed and is NOT
+	// re-read after PreDeploy — mutations to opts.Source have no effect.
+	// Note: mutations to opts.BundleDeployHooks are NOT honoured — BundleDeployHooks is captured
+	// before PreDeploy is invoked, so replacing PostDeploy here has no effect.
+	// A non-nil error aborts before any package is deployed.
+	PreDeploy func(ctx context.Context, b *UDSBundle, opts *DeployOptions) error
+
+	// PostDeploy runs once after all packages have deployed successfully.
+	// A non-nil error causes DeployBundle to return that error with the populated result
+	// (packages are already deployed at this point).
+	PostDeploy func(ctx context.Context, b *UDSBundle) error
+}
+
 // DeployPackageOptions contains options for deploying a single package.
 type DeployPackageOptions struct {
 	// Config is the merged config (options + variables); always non-nil.
@@ -128,6 +174,15 @@ type DeployPackageOptions struct {
 
 	// Prompt enables interactive prompts (non-interactive by default per ADR 0005)
 	Prompt bool
+
+	// PackageDeployHooks provides optional pre- and post-deploy callbacks for this package.
+	// Nil func fields are replaced with no-ops by withDefaults(); every deploy traverses both call sites.
+	PackageDeployHooks PackageDeployHooks
+
+	// ClusterDeployFn performs the cluster-side deploy of the loaded package layout.
+	// Nil defaults to packager.Deploy. Override it to deploy without a real cluster — this is
+	// the seam that makes the full deploy pipeline (loader, hooks, layout mutation) testable.
+	ClusterDeployFn func(ctx context.Context, pkgLayout *layout.PackageLayout, opts packager.DeployOptions) error
 
 	// Streams carries In/Out/ErrOut for the operation.
 	Streams iostreams.IOStreams
@@ -163,7 +218,7 @@ type DeployOptions struct {
 	// Config is the merged config (options + variables); always non-nil.
 	Config *UDSBundleConfig
 
-	// BundlePath is the path to the bundle directory containing bundle.uds.hcl
+	// BundlePath is the path to the bundle definition file (bundle.uds.hcl).
 	BundlePath string
 
 	// Bundle is the pre-parsed bundle. When set, Deploy() skips parsing BundlePath.
@@ -176,6 +231,20 @@ type DeployOptions struct {
 
 	// Prompt enables interactive prompts (non-interactive by default per ADR 0005)
 	Prompt bool
+
+	// BundleDeployHooks fires once at bundle scope in DeployBundle, before and after all packages.
+	// Nil func fields are replaced with no-ops; every deploy traverses both call sites.
+	BundleDeployHooks BundleDeployHooks
+
+	// PackageDeployHooks are threaded into each package's DeployPackageOptions.
+	// Nil func fields are replaced with no-ops; every deploy traverses both call sites.
+	PackageDeployHooks PackageDeployHooks
+
+	// PackageDeployFn deploys a single package. Nil defaults to the deployer's DeployPackage.
+	// Its signature mirrors Deployer.DeployPackage: overriding it replaces the whole per-package
+	// deploy, so an override that still wants the loader + hooks should delegate to DeployPackage
+	// (e.g. set opts.ClusterDeployFn, then call the deployer's DeployPackage).
+	PackageDeployFn func(ctx context.Context, pkg *Package, opts DeployPackageOptions) error
 
 	// Streams carries In/Out/ErrOut for the operation.
 	Streams iostreams.IOStreams

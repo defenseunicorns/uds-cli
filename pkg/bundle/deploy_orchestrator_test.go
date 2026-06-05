@@ -43,11 +43,26 @@ type deployCall struct {
 	Ctx context.Context
 }
 
+// deployFunc is the per-package deploy callable shape the orchestrator tests inject.
+type deployFunc = func(ctx context.Context, pkg *Package, opts DeployPackageOptions) error
+
+// fakeDeployer adapts a deployFunc into a Deployer so the orchestrator (which now
+// calls Deployer.DeployPackage) can be driven by a mock in unit tests.
+type fakeDeployer struct{ deploy deployFunc }
+
+func (f fakeDeployer) DeployPackage(ctx context.Context, pkg *Package, opts DeployPackageOptions) error {
+	return f.deploy(ctx, pkg, opts)
+}
+
+func (fakeDeployer) DeployBundle(context.Context, *UDSBundle, DeployOptions) (*DeployResult, error) {
+	panic("fakeDeployer.DeployBundle is not used by orchestrator tests")
+}
+
 // recordingDeploy returns a synchronous deploy callable plus a snapshot getter.
 // returns may map package names to errors that should be returned for that
 // package; unset names return nil. The callable does no work — it just records
 // and returns. Safe to invoke from multiple goroutines.
-func recordingDeploy(returns map[string]error) (deployPackageFunc, func() []deployCall) {
+func recordingDeploy(returns map[string]error) (deployFunc, func() []deployCall) {
 	var (
 		mu    sync.Mutex
 		calls []deployCall
@@ -189,20 +204,20 @@ func (g *gatedDeploy) EnteredNames() []string {
 // runDeployOrchestrator builds a deployOrchestrator wired to a deploy callable
 // and runs it under t.Context(). Mirrors what ZarfDeployer.DeployBundle does
 // in production minus the trivial DeployResult wrapping.
-func runDeployOrchestrator(t *testing.T, b *UDSBundle, deploy deployPackageFunc, concurrency int) error {
+func runDeployOrchestrator(t *testing.T, b *UDSBundle, deploy deployFunc, concurrency int) error {
 	t.Helper()
 	return newOrchestratorForTest(t, b, deploy, concurrency).Run(t.Context())
 }
 
 // newOrchestratorForTest builds a deployOrchestrator from a bundle and deploy
 // callable. Used by tests that need to drive Run with a custom context.
-func newOrchestratorForTest(t *testing.T, b *UDSBundle, deploy deployPackageFunc, concurrency int) *deployOrchestrator {
+func newOrchestratorForTest(t *testing.T, b *UDSBundle, deploy deployFunc, concurrency int) *deployOrchestrator {
 	t.Helper()
 	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, b)
 	require.NoError(t, err)
 	levels, err := dag.TopologicalLevels()
 	require.NoError(t, err)
-	return newDeployOrchestrator(deploy, dag, levels, concurrency, DeployPackageOptions{
+	return newDeployOrchestrator(fakeDeployer{deploy: deploy}, dag, levels, concurrency, DeployPackageOptions{
 		Config: newDeployTestConfig(concurrency),
 	}, iostreams.IOStreams{})
 }
@@ -218,7 +233,7 @@ func newDeployTestConfig(concurrency int) *UDSBundleConfig {
 // startOrchestrator runs the orchestrator on a goroutine and returns a channel
 // that receives Run's error. Used by gated tests that need to observe progress
 // while Run is still executing.
-func startOrchestrator(t *testing.T, b *UDSBundle, deploy deployPackageFunc, concurrency int) <-chan error {
+func startOrchestrator(t *testing.T, b *UDSBundle, deploy deployFunc, concurrency int) <-chan error {
 	t.Helper()
 	done := make(chan error, 1)
 	orch := newOrchestratorForTest(t, b, deploy, concurrency)

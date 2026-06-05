@@ -23,10 +23,6 @@ import (
 //
 // When opts.Bundle is set, bundle file parsing is skipped; the provided
 // Bundle is still re-validated before deployment.
-//
-// IMPORTANT: The caller (pkg/cmd/bundle/deploy.go) is responsible for validating
-// the bundle path via util.ValidateBundlePath() and resolving it via
-// util.ResolveBundlePath() before calling this function.
 func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err

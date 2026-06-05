@@ -11,28 +11,15 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// deployPackageFunc is the per-package deploy callable consumed by
-// deployOrchestrator. It exists as a function type — rather than the public
-// Deployer interface or a private parallel one — purely as a test seam:
-// production passes ZarfDeployer.DeployPackage as a method value; unit tests
-// pass a mock function with the same signature.
-//
-// This lets the scheduling logic (errgroup wiring, concurrency limits,
-// graceful stop on sibling failure, level barriers) be exercised in isolation
-// without spinning up a real Zarf/Helm/Kubernetes stack and without forcing
-// ZarfDeployer to carry a mockable struct field.
-type deployPackageFunc func(ctx context.Context, pkg *Package, opts DeployPackageOptions) error
-
 // deployOrchestrator schedules per-package deploys across a bundle's
 // topological levels — parallelising within a level (bounded by concurrency),
 // serialising across levels, and stopping gracefully on failure (already
 // in-flight packages run to completion; queued packages are dropped).
 //
-// The orchestrator owns only the scheduling and error-aggregation concerns.
-// Building the DAG, computing levels, and wrapping the result into a
-// DeployResult are the caller's responsibility (see ZarfDeployer.DeployBundle).
+// Its sole responsibility is orchestration. It deploys each package through the
+// Deployer interface and knows nothing about how a package is actually deployed.
 type deployOrchestrator struct {
-	deploy      deployPackageFunc
+	deployer    Deployer
 	dag         *DAG
 	levels      [][]*Package
 	concurrency int
@@ -41,10 +28,11 @@ type deployOrchestrator struct {
 }
 
 // newDeployOrchestrator wires the orchestrator with everything it needs to
-// drive a single bundle deploy.
-func newDeployOrchestrator(deploy deployPackageFunc, dag *DAG, levels [][]*Package, concurrency int, pkgOpts DeployPackageOptions, streams iostreams.IOStreams) *deployOrchestrator {
+// drive a single bundle deploy. Each package is deployed via deployer.DeployPackage;
+// every deploy detail is carried in pkgOpts (e.g. pkgOpts.ClusterDeployFn).
+func newDeployOrchestrator(deployer Deployer, dag *DAG, levels [][]*Package, concurrency int, pkgOpts DeployPackageOptions, streams iostreams.IOStreams) *deployOrchestrator {
 	return &deployOrchestrator{
-		deploy:      deploy,
+		deployer:    deployer,
 		dag:         dag,
 		levels:      levels,
 		concurrency: concurrency,
@@ -104,7 +92,7 @@ func (o *deployOrchestrator) Run(ctx context.Context) error {
 
 				o.streams.Info("deploying package", "name", pkg.Name, "source", pkg.Source)
 
-				if err := o.deploy(ctx, pkg, o.pkgOpts); err != nil {
+				if err := o.deployer.DeployPackage(ctx, pkg, o.pkgOpts); err != nil {
 					wrapped := fmt.Errorf("failed to deploy package %q: %w", pkg.Name, err)
 					if o.dag != nil {
 						if trav, ok := o.dag.Traversal(pkg.Name); ok {
