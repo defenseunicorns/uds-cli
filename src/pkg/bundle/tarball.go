@@ -24,12 +24,14 @@ import (
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"oras.land/oras-go/v2"
 	ocistore "oras.land/oras-go/v2/content/oci"
+	"oras.land/oras-go/v2/registry/remote"
 )
 
 type tarballBundleProvider struct {
-	ctx context.Context
-	src string
-	dst string
+	ctx         context.Context
+	src         string
+	dst         string
+	forceUpload bool
 
 	// these fields are populated by loadBundleManifest as part of the provider constructor
 	bundleRootDesc ocispec.Descriptor
@@ -273,6 +275,16 @@ func (tp *tarballBundleProvider) getZarfLayers(store *ocistore.Store, pkgManifes
 	return layersToPull, estimatedPkgSize, nil
 }
 
+type forceUploadRepo struct {
+	*remote.Repository
+}
+
+var _ oras.Target = (*forceUploadRepo)(nil)
+
+func (*forceUploadRepo) Exists(_ context.Context, _ ocispec.Descriptor) (bool, error) {
+	return false, nil
+}
+
 // PublishBundle publishes a local bundle to a remote OCI registry
 func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *oci.OrasRemote) error {
 	var layersToPush []ocispec.Descriptor
@@ -331,8 +343,16 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 		return nil
 	}
 
+	remoteRepo := remote.Repo()
+	var dstRepo oras.Target = remoteRepo
+
+	if tp.forceUpload {
+		message.Warnf("Force upload enabled; registry content existence checks will be ignored")
+		dstRepo = &forceUploadRepo{Repository: remoteRepo}
+	}
+
 	for {
-		_, err = oras.Copy(tp.ctx, store, srcRef, remote.Repo(), dstRef, copyOpts)
+		_, err = oras.Copy(tp.ctx, store, srcRef, dstRepo, dstRef, copyOpts)
 		if err != nil && retries < maxRetries {
 			retries++
 			message.Debugf("Encountered err during publish: %s\nRetrying %d/%d", err, retries, maxRetries)

@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
@@ -21,6 +22,8 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/zarf-dev/zarf/src/pkg/logger"
 )
+
+const publishForceUploadEnvVar = "UDS_PUBLISH_FORCE_UPLOAD"
 
 var createCmd = &cobra.Command{
 	Use:     "create [DIRECTORY]",
@@ -166,9 +169,12 @@ var publishCmd = &cobra.Command{
 		}
 		return nil
 	},
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		bundleCfg.PublishOpts.Source = args[0]
 		bundleCfg.PublishOpts.Destination = args[1]
+		if err := applyPublishForceUploadEnv(cmd); err != nil {
+			return err
+		}
 		configureZarf()
 		bndlClient, err := bundle.New(&bundleCfg)
 		if err != nil {
@@ -182,6 +188,25 @@ var publishCmd = &cobra.Command{
 		}
 		return nil
 	},
+}
+
+func applyPublishForceUploadEnv(cmd *cobra.Command) error {
+	flag := cmd.Flags().Lookup("force-upload")
+	if flag != nil && flag.Changed {
+		return nil
+	}
+
+	value := os.Getenv(publishForceUploadEnvVar)
+	if value == "" {
+		return nil
+	}
+
+	forceUpload, err := strconv.ParseBool(value)
+	if err != nil {
+		return fmt.Errorf("invalid value for %s: %w", publishForceUploadEnvVar, err)
+	}
+	bundleCfg.PublishOpts.ForceUpload = forceUpload
+	return nil
 }
 
 var pullCmd = &cobra.Command{
@@ -295,6 +320,7 @@ func init() {
 	// publish cmd flags
 	rootCmd.AddCommand(publishCmd)
 	publishCmd.Flags().StringVarP(&bundleCfg.PublishOpts.Version, "version", "v", "", lang.CmdPublishVersionFlag)
+	publishCmd.Flags().BoolVar(&bundleCfg.PublishOpts.ForceUpload, "force-upload", false, lang.CmdPublishFlagForceUpload)
 
 	// pull cmd flags
 	rootCmd.AddCommand(pullCmd)

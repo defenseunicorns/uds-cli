@@ -13,6 +13,7 @@ uds publish [BUNDLE_TARBALL] [OCI_REF] [flags]
 ### Options
 
 ```
+      --force-upload     Force upload bundle content to the target registry even when the registry reports it already exists. Can also be enabled with UDS_PUBLISH_FORCE_UPLOAD=true
   -h, --help             help for publish
   -v, --version string   [Deprecated] Specify the version of the bundle to be published. This flag will be removed in a future version. Users should use the --version flag during creation to override the version defined in uds-bundle.yaml
 ```

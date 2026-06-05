@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
 
@@ -50,6 +51,80 @@ optionx:
 			} else {
 				require.Nil(t, err, "Expected no error")
 			}
+		})
+	}
+}
+
+func TestPublishForceUploadFlag(t *testing.T) {
+	flag := publishCmd.Flags().Lookup("force-upload")
+	require.NotNil(t, flag)
+	require.Equal(t, "false", flag.DefValue)
+}
+
+func TestApplyPublishForceUploadEnv(t *testing.T) {
+	originalPublishOpts := bundleCfg.PublishOpts
+	t.Cleanup(func() {
+		bundleCfg.PublishOpts = originalPublishOpts
+	})
+
+	tests := []struct {
+		name          string
+		envValue      string
+		initialValue  bool
+		flagValue     string
+		expectedValue bool
+		wantErr       bool
+	}{
+		{
+			name:          "enables force upload from env",
+			envValue:      "true",
+			expectedValue: true,
+		},
+		{
+			name:          "disables force upload from env",
+			envValue:      "false",
+			initialValue:  true,
+			expectedValue: false,
+		},
+		{
+			name:          "explicit flag overrides env",
+			envValue:      "true",
+			flagValue:     "false",
+			expectedValue: false,
+		},
+		{
+			name:          "explicit enabled flag overrides env",
+			envValue:      "false",
+			flagValue:     "true",
+			expectedValue: true,
+		},
+		{
+			name:     "invalid env value errors",
+			envValue: "sometimes",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := &cobra.Command{}
+			cmd.Flags().BoolVar(&bundleCfg.PublishOpts.ForceUpload, "force-upload", false, "")
+			bundleCfg.PublishOpts.ForceUpload = tt.initialValue
+			t.Setenv(publishForceUploadEnvVar, tt.envValue)
+
+			if tt.flagValue != "" {
+				require.NoError(t, cmd.Flags().Set("force-upload", tt.flagValue))
+			}
+
+			err := applyPublishForceUploadEnv(cmd)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), publishForceUploadEnvVar)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedValue, bundleCfg.PublishOpts.ForceUpload)
 		})
 	}
 }
