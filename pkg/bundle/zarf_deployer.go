@@ -16,18 +16,15 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/defenseunicorns/uds-cli/pkg/logger"
+	"github.com/zarf-dev/zarf/src/config"
 	"github.com/zarf-dev/zarf/src/pkg/feature"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/value"
 )
 
-// enableValuesOnce ensures the Zarf "values" feature flag is enabled exactly once.
-// The flag is disabled by default in Zarf; UDS requires it to pass Helm values
-// via packager.DeployOptions.Values (reference: vendor/.../feature/feature.go).
-// Errors from feature.Set are intentionally ignored: they indicate user features
-// were already set by the embedding application, which takes precedence.
-var enableValuesOnce sync.Once
+// zarfGlobalsOnce guards the one-time, process-wide Zarf configuration applied in NewZarfDeployer.
+var zarfGlobalsOnce sync.Once
 
 var _ Deployer = (*ZarfDeployer)(nil)
 
@@ -93,9 +90,12 @@ func NewZarfDeployer(streams iostreams.IOStreams, loader PackageLayoutLoader) *Z
 		streams.ErrOut = io.Discard
 	}
 	streams.ErrOut = &syncWriter{w: streams.ErrOut}
-	// Enable the Zarf "values" feature flag so packager.Deploy accepts
-	// DeployOptions.Values (Helm values from values_files).
-	enableValuesOnce.Do(func() {
+	zarfGlobalsOnce.Do(func() {
+		// Route Zarf action subprocess output through the context logger instead of
+		// the process's raw os.Stdout/os.Stderr.
+		config.CommonOptions.PreferLogger = true
+		// Enable the Zarf "values" feature flag so packager.Deploy accepts
+		// DeployOptions.Values (Helm values from values_files).
 		_ = feature.Set([]feature.Feature{{
 			Name:    feature.Values,
 			Enabled: true,
