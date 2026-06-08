@@ -14,10 +14,10 @@ components:
   - name: podinfo
     required: true
     images:
-      - ghcr.io/stefanprodan/podinfo:6.11.2
+      - ghcr.io/stefanprodan/podinfo:6.13.0
     charts:
       - name: podinfo
-        version: 6.11.2
+        version: 6.13.0
         namespace: podinfo
         url: oci://ghcr.io/stefanprodan/charts/podinfo
         values:
