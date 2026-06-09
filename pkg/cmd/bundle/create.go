@@ -100,5 +100,5 @@ func (o *CreateOptions) Run(ctx context.Context) error {
 		return err
 	}
 
-	return o.Printer.PrintObj(result, o.Out)
+	return o.Printer.PrintObj(result, o.Out())
 }

@@ -396,7 +396,7 @@ func TestZarfDeployer_DeployPackage_InvalidSource(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			out := &bytes.Buffer{}
-			deployer := NewZarfDeployer(iostreams.IOStreams{ErrOut: out}, nil)
+			deployer := NewZarfDeployer(iostreams.New(nil, nil, out), nil)
 
 			pkg := &Package{
 				Name:   "test-pkg",
@@ -416,12 +416,12 @@ func TestZarfDeployer_DeployPackage_InvalidSource(t *testing.T) {
 func TestNewZarfDeployer(t *testing.T) {
 	errOut := &bytes.Buffer{}
 
-	deployer := NewZarfDeployer(iostreams.IOStreams{ErrOut: errOut}, nil)
+	deployer := NewZarfDeployer(iostreams.New(nil, nil, errOut), nil)
 
 	assert.NotNil(t, deployer)
-	assert.NotNil(t, deployer.streams.ErrOut)
-	// streams.ErrOut is wrapped in a syncWriter for concurrent safety; verify writes still reach the buffer.
-	_, _ = fmt.Fprint(deployer.streams.ErrOut, "hello")
+	assert.NotNil(t, deployer.streams.ErrOut())
+	// ErrOut() returns the synchronized writer; verify writes reach the underlying buffer.
+	_, _ = fmt.Fprint(deployer.streams.ErrOut(), "hello")
 	assert.Equal(t, "hello", errOut.String())
 }
 

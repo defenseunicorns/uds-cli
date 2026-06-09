@@ -33,7 +33,7 @@ func New(w io.Writer, level slog.Leveler) *slog.Logger {
 // Library entrypoints call this once to attach the per-operation logger.
 func Bind(s iostreams.IOStreams, level string) iostreams.IOStreams {
 	lvl, _ := ParseLevel(level)
-	return s.WithLogger(New(s.ErrOut, lvl))
+	return s.WithLogger(New(s.ErrOut(), lvl))
 }
 
 // ParseLevel converts a string to a slog.Level.

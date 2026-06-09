@@ -187,15 +187,15 @@ func (o *RemoveOptions) Run(ctx context.Context) error {
 		return fmt.Errorf("removal failed: %w", err)
 	}
 
-	return o.Printer.PrintObj(result, o.Out)
+	return o.Printer.PrintObj(result, o.Out())
 }
 
 // promptConfirmation asks the user to confirm removal.
 func (o *RemoveOptions) promptConfirmation() (bool, error) {
-	_, _ = fmt.Fprint(o.ErrOut, "\nRemove this bundle? [y/N]: ")
+	_, _ = fmt.Fprint(o.ErrOut(), "\nRemove this bundle? [y/N]: ")
 
 	var response string
-	_, err := fmt.Fscanln(o.In, &response)
+	_, err := fmt.Fscanln(o.In(), &response)
 	if err != nil {
 		return false, nil
 	}

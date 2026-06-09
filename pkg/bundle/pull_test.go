@@ -192,7 +192,7 @@ package "pkg1" {
 	tarball, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
-		Streams:    iostreams.IOStreams{ErrOut: os.Stderr},
+		Streams:    iostreams.New(nil, nil, os.Stderr),
 	})
 	require.NoError(t, err)
 

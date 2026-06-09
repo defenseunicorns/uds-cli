@@ -13,7 +13,7 @@ import (
 
 func TestBind_RoutesToErrOutAtLevel(t *testing.T) {
 	var buf bytes.Buffer
-	s := iostreams.IOStreams{ErrOut: &buf}
+	s := iostreams.New(nil, nil, &buf)
 	s = Bind(s, "warn")
 
 	s.Info("suppressed-at-warn")
@@ -27,7 +27,7 @@ func TestBind_RoutesToErrOutAtLevel(t *testing.T) {
 func TestBind_InvalidLevelFallsBackToInfo(t *testing.T) {
 	// Level is validated upstream; Bind itself is lenient and defaults to info.
 	var buf bytes.Buffer
-	s := Bind(iostreams.IOStreams{ErrOut: &buf}, "not-a-level")
+	s := Bind(iostreams.New(nil, nil, &buf), "not-a-level")
 
 	s.Debug("debug-suppressed")
 	s.Info("info-visible")

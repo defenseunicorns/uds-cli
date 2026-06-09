@@ -4,10 +4,12 @@
 package bundle
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -698,4 +700,57 @@ func TestDeployOrchestrator_ContextDeadlineExceeded(t *testing.T) {
 
 	err := <-done
 	require.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestDeployOrchestrator_ConcurrentOutputIsClean(t *testing.T) {
+	t.Parallel()
+
+	// Verify parallel deploys within a level write to the shared IOStreams without
+	// corrupting each other. The race detector catches unsynchronized concurrent
+	// access to the underlying bytes.Buffer; distinct per-package tokens detect
+	// byte-level interleaving even when -race is not active.
+	const pkgCount = 10
+	const writesPerPkg = 50
+	const tokenLen = 5 // "[p00]" through "[p09]"
+
+	var buf bytes.Buffer
+	streams := iostreams.New(nil, nil, &buf)
+
+	pkgs := make([]Package, pkgCount)
+	for i := range pkgs {
+		pkgs[i] = Package{Name: fmt.Sprintf("p%02d", i), Source: "oci://example.com/p:v1"}
+	}
+	b := &UDSBundle{
+		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: Metadata{Name: "output-test"},
+		Packages: pkgs,
+	}
+
+	deploy := func(_ context.Context, pkg *Package, opts DeployPackageOptions) error {
+		token := fmt.Sprintf("[%s]", pkg.Name)
+		for i := 0; i < writesPerPkg; i++ {
+			_, _ = fmt.Fprint(opts.Streams.ErrOut(), token)
+		}
+		return nil
+	}
+
+	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, b)
+	require.NoError(t, err)
+	levels, err := dag.TopologicalLevels()
+	require.NoError(t, err)
+
+	pkgOpts := DeployPackageOptions{
+		Config:  newDeployTestConfig(pkgCount),
+		Streams: streams,
+	}
+	orch := newDeployOrchestrator(fakeDeployer{deploy: deploy}, dag, levels, pkgCount, pkgOpts, streams)
+	require.NoError(t, orch.Run(t.Context()))
+
+	got := buf.String()
+	assert.Len(t, got, pkgCount*writesPerPkg*tokenLen, "byte count must be exact")
+	for _, pkg := range pkgs {
+		token := fmt.Sprintf("[%s]", pkg.Name)
+		assert.Equal(t, writesPerPkg, strings.Count(got, token),
+			"token %s must appear exactly %d times without splitting", token, writesPerPkg)
+	}
 }

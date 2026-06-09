@@ -139,7 +139,7 @@ func TestLibraryDeploy_Showcase(t *testing.T) {
 	//    io.MultiWriter so the logs are both captured (to inspect / ship elsewhere) and
 	//    forwarded to stdout.
 	var capturedLogs bytes.Buffer
-	streams := iostreams.IOStreams{ErrOut: io.MultiWriter(os.Stdout, &capturedLogs)}
+	streams := iostreams.New(nil, nil, io.MultiWriter(os.Stdout, &capturedLogs))
 
 	// 2. Build the deployer with the log sink and a simple in-memory fake loader that returns
 	//    an image-bearing package layout (no registry, no symlinks). imageLayoutLib and

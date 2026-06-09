@@ -201,15 +201,15 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 		return fmt.Errorf("deployment failed: %w", err)
 	}
 
-	return o.Printer.PrintObj(result, o.Out)
+	return o.Printer.PrintObj(result, o.Out())
 }
 
 // promptConfirmation asks the user to confirm deployment.
 func (o *DeployOptions) promptConfirmation() (bool, error) {
-	_, _ = fmt.Fprint(o.ErrOut, "\nDeploy this bundle? [y/N]: ")
+	_, _ = fmt.Fprint(o.ErrOut(), "\nDeploy this bundle? [y/N]: ")
 
 	var response string
-	_, err := fmt.Fscanln(o.In, &response)
+	_, err := fmt.Fscanln(o.In(), &response)
 	if err != nil {
 		// Treat empty/EOF as "no"
 		return false, nil

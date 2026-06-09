@@ -142,5 +142,5 @@ func (o *ReconfigureOptions) Run(ctx context.Context) error {
 		return err
 	}
 
-	return o.Printer.PrintObj(result, o.Out)
+	return o.Printer.PrintObj(result, o.Out())
 }

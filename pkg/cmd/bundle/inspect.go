@@ -109,5 +109,5 @@ func (o *InspectOptions) Run(ctx context.Context) error {
 		return fmt.Errorf("inspecting bundle: %w", err)
 	}
 
-	return o.Printer.PrintObj(result, o.Out)
+	return o.Printer.PrintObj(result, o.Out())
 }

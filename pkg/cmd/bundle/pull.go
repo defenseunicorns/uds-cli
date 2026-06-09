@@ -103,5 +103,5 @@ func (o *PullOptions) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return o.Printer.PrintObj(result, o.Out)
+	return o.Printer.PrintObj(result, o.Out())
 }

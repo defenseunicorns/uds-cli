@@ -374,7 +374,7 @@ func createTestBundle(t *testing.T, bundleHCL string, defaultsHCL string) string
 	result, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: filepath.Join(dir, "bundle.uds.hcl"),
-		Streams:    iostreams.IOStreams{ErrOut: io.Discard},
+		Streams:    iostreams.New(nil, nil, io.Discard),
 	})
 	require.NoError(t, err)
 	return result.OutputPath

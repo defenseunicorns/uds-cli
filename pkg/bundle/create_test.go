@@ -68,7 +68,7 @@ package "pkg1" {
 	_, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
-		Streams:    iostreams.IOStreams{ErrOut: io.Discard},
+		Streams:    iostreams.New(nil, nil, io.Discard),
 	})
 	require.NoError(t, err)
 
@@ -166,7 +166,7 @@ package "pkg2" {
 	_, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
-		Streams:    iostreams.IOStreams{ErrOut: io.Discard},
+		Streams:    iostreams.New(nil, nil, io.Discard),
 	})
 	require.NoError(t, err)
 
@@ -306,7 +306,7 @@ package "pkg1" {
 	_, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfigWithArch("amd64"),
 		BundleFile: bundleFile,
-		Streams:    iostreams.IOStreams{ErrOut: io.Discard},
+		Streams:    iostreams.New(nil, nil, io.Discard),
 	})
 	require.NoError(t, err)
 
@@ -373,7 +373,7 @@ package "pkg1" {
 	_, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
-		Streams:    iostreams.IOStreams{ErrOut: io.Discard},
+		Streams:    iostreams.New(nil, nil, io.Discard),
 	})
 	require.NoError(t, err)
 
@@ -421,7 +421,7 @@ variables = {
 	_, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
-		Streams:    iostreams.IOStreams{ErrOut: io.Discard},
+		Streams:    iostreams.New(nil, nil, io.Discard),
 	})
 	require.NoError(t, err)
 
@@ -489,7 +489,7 @@ package "pkg1" {
 	_, err := Create(context.Background(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
-		Streams:    iostreams.IOStreams{ErrOut: io.Discard},
+		Streams:    iostreams.New(nil, nil, io.Discard),
 	})
 	require.NoError(t, err)
 

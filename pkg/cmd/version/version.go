@@ -68,6 +68,6 @@ func (o *Options) Run() error {
 	if _, err := fmt.Fprintf(&out, "Build date: %s\n", version.BuildDate); err != nil {
 		return err
 	}
-	_, err := o.Out.Write(out.Bytes())
+	_, err := o.Out().Write(out.Bytes())
 	return err
 }

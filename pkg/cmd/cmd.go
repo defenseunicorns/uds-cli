@@ -39,9 +39,9 @@ func NewRootCommand(streams iostreams.IOStreams) *cobra.Command {
 		TraverseChildren: true,
 	}
 
-	rootCmd.SetIn(streams.In)
-	rootCmd.SetOut(streams.Out)
-	rootCmd.SetErr(streams.ErrOut)
+	rootCmd.SetIn(streams.In())
+	rootCmd.SetOut(streams.Out())
+	rootCmd.SetErr(streams.ErrOut())
 
 	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "l", "info", "log level (debug, info, warn, error)")
 	rootCmd.PersistentFlags().Bool("prompt", false, "enable interactive confirmation prompts")

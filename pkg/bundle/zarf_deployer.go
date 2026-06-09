@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,49 +48,11 @@ func (o *orchestratedDeployer) DeployBundle(context.Context, *UDSBundle, DeployO
 	return nil, fmt.Errorf("orchestratedDeployer is a per-package adapter and does not support DeployBundle")
 }
 
-// Output synchronization
-//
-// Parallel deploys within a level have N goroutines all writing human-readable
-// output destined for a single terminal, so synchronization is required
-// somewhere in the pipeline to keep writes from corrupting one another. The
-// choice of granularity is a UX trade-off:
-//
-//   - byte-level (this implementation, via syncWriter): every Write call is
-//     serialized. Cheapest and simplest; preserves real-time output but
-//     individual lines from different packages can still interleave on screen.
-//   - line-level: lines stay atomic but lines from different packages still
-//     intermix.
-//   - package-level: each package writes to its own buffer, flushed under a
-//     mutex when the package completes. Coherent per-package log blocks at
-//     the cost of no live progress within a package.
-//
-// We picked byte-level (syncWriter) because Zarf's logger emits frequent
-// progress updates that users expect to see live during a deploy; deferring
-// per-package output until completion would feel like the deploy stalled.
-// Mid-line interleaving is rare in practice (Zarf's writer emits one line
-// per Write) and acceptable given the live-feedback gain.
-
-// syncWriter wraps an io.Writer with a mutex so concurrent goroutines
-// (parallel package deploys within a level) do not corrupt each other's
-// writes. See the "Output synchronization" doc above for the rationale.
-type syncWriter struct {
-	mu sync.Mutex
-	w  io.Writer
-}
-
-func (sw *syncWriter) Write(p []byte) (int, error) {
-	sw.mu.Lock()
-	defer sw.mu.Unlock()
-	return sw.w.Write(p)
-}
-
 // ZarfDeployer implements Deployer using the Zarf Go library.
 // Reference: .ai/example-repos/uds-cli/src/pkg/bundle/deploy.go lines 38-165
 type ZarfDeployer struct {
 	// streams carries the diagnostic sink (streams.ErrOut) handed to the Zarf
-	// logger and the leveled logger used for UDS-side diagnostics. streams.ErrOut
-	// is wrapped in a syncWriter by NewZarfDeployer so concurrent DeployPackage
-	// calls produce clean output.
+	// logger and the leveled logger used for UDS-side diagnostics.
 	streams iostreams.IOStreams
 
 	// Loader, when non-nil, is used instead of NewPackageSource to obtain each
@@ -105,12 +66,6 @@ type ZarfDeployer struct {
 // PackageLayoutLoader implementation that loads packages from the extracted
 // artifact's OCI layout instead of pulling from the declared source.
 func NewZarfDeployer(streams iostreams.IOStreams, loader PackageLayoutLoader) *ZarfDeployer {
-	// Guard before wrapping in syncWriter: a nil ErrOut would otherwise become a
-	// non-nil *syncWriter over a nil writer and panic on first write.
-	if streams.ErrOut == nil {
-		streams.ErrOut = io.Discard
-	}
-	streams.ErrOut = &syncWriter{w: streams.ErrOut}
 	zarfGlobalsOnce.Do(func() {
 		// Route Zarf action subprocess output through the context logger instead of
 		// the process's raw os.Stdout/os.Stderr.
@@ -204,7 +159,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 	log := logger.Bind(d.streams, opts.Config.Global.LogLevel)
 	log.Info("deploying zarf package", "name", pkg.Name, "source", pkg.Source)
 
-	ctx = newZarfLoggerContext(ctx, log.ErrOut, opts.Config.Global.LogLevel)
+	ctx = newZarfLoggerContext(ctx, log.ErrOut(), opts.Config.Global.LogLevel)
 
 	pkgTmp, err := os.MkdirTemp(opts.Config.Options.TmpDir, "zarf-pkg-*")
 	if err != nil {
