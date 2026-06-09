@@ -15,14 +15,14 @@ import (
 
 // testResult is a sample result struct for testing printers.
 type testResult struct {
-	Name    string       `json:"name"    yaml:"name"    text:"Name"`
-	Version string       `json:"version" yaml:"version" text:"Version,omitempty"`
-	Hidden  string       `json:"hidden"  yaml:"hidden"  text:"-"`
-	Items   []testItem   `json:"items"   yaml:"items"   text:"ITEMS"`
-	Tags    []string     `json:"tags"    yaml:"tags"    text:"Tags,omitempty"`
-	Count   int          `json:"count"   yaml:"count"   text:"Count"`
-	Empty   string       `json:"empty"   yaml:"empty"   text:"Empty,omitempty"`
-	Nested  testNested   `json:"nested"  yaml:"nested"  text:"Nested"`
+	Name    string     `json:"name"    yaml:"name"    text:"Name"`
+	Version string     `json:"version" yaml:"version" text:"Version,omitempty"`
+	Hidden  string     `json:"hidden"  yaml:"hidden"  text:"-"`
+	Items   []testItem `json:"items"   yaml:"items"   text:"ITEMS"`
+	Tags    []string   `json:"tags"    yaml:"tags"    text:"Tags,omitempty"`
+	Count   int        `json:"count"   yaml:"count"   text:"Count"`
+	Empty   string     `json:"empty"   yaml:"empty"   text:"Empty,omitempty"`
+	Nested  testNested `json:"nested"  yaml:"nested"  text:"Nested"`
 }
 
 type testItem struct {
@@ -200,7 +200,7 @@ func TestTextPrinter_UnsupportedTypes(t *testing.T) {
 	type withUnsupported struct {
 		Name    string         `text:"Name"`
 		Data    map[string]any `text:"Data"`
-		Channel chan int        `text:"Channel"`
+		Channel chan int       `text:"Channel"`
 	}
 
 	var buf bytes.Buffer
