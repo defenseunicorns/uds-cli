@@ -29,7 +29,7 @@ repos:
     rev: v2.12.0
     hooks:
       - id: golangci-lint
-        args: [--timeout=6m]
+        args: [--timeout=10m]
   - repo: local
     hooks:
       - id: check-docs-and-schema
