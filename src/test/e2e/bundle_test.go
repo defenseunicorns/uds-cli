@@ -360,7 +360,7 @@ func TestSimplePackagesWithSBOMs(t *testing.T) {
 	})
 }
 
-func TestPublishForceUploadRepairsFalsePositiveBlobExistence(t *testing.T) {
+func TestPublishWithForceUpload(t *testing.T) {
 	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false)
 	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/real-simple", false)
 
