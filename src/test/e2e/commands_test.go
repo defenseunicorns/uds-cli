@@ -486,3 +486,9 @@ func (w *statusCapturingResponseWriter) Write(data []byte) (int, error) {
 	}
 	return w.ResponseWriter.Write(data)
 }
+
+func (w *statusCapturingResponseWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
