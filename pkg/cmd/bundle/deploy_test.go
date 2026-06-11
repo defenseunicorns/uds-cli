@@ -4,7 +4,10 @@
 package bundle
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -167,73 +170,6 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 	}
 }
 
-func TestApplyConcurrencyOverride(t *testing.T) {
-	defaults := NewConfigResolver().Defaults()
-
-	tests := []struct {
-		name            string
-		flags           []string
-		prompt          bool
-		concurrency     int
-		wantConcurrency int
-	}{
-		{name: "prompt without concurrency forces 1", flags: []string{"--prompt"}, prompt: true, concurrency: 10, wantConcurrency: 1},
-		{name: "prompt with explicit concurrency=1 keeps 1", flags: []string{"--prompt", "--concurrency", "1"}, prompt: true, concurrency: 1, wantConcurrency: 1},
-		{name: "no prompt keeps default 10", flags: nil, prompt: false, concurrency: 10, wantConcurrency: 10},
-		{name: "explicit concurrency without prompt preserved", flags: []string{"--concurrency", "5"}, prompt: false, concurrency: 5, wantConcurrency: 5},
-		{name: "prompt off concurrency > 1 allowed", flags: []string{"--concurrency", "5"}, prompt: false, concurrency: 5, wantConcurrency: 5},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			streams, _, _, _ := iostreams.NewTestIOStreams()
-			bundleCmd := NewBundleCommand(streams)
-			bundleCmd.PersistentFlags().Bool("prompt", false, "enable interactive confirmation prompts")
-
-			deployCmd, _, err := bundleCmd.Find([]string{"deploy"})
-			require.NoError(t, err)
-			require.NoError(t, deployCmd.ParseFlags(tt.flags))
-
-			opts := defaults
-			opts.Concurrency = tt.concurrency
-			cfg := &bundle.UDSBundleConfig{
-				Global:  &bundle.GlobalOptions{Prompt: tt.prompt},
-				Options: &opts,
-			}
-
-			applyConcurrencyOverride(SnapshotFlags(deployCmd), cfg)
-			assert.Equal(t, tt.wantConcurrency, cfg.Options.Concurrency)
-		})
-	}
-}
-
-// TestDeployOptions_Validate_PromptIncompatibleWithParallel documents that the deploy
-// pipeline rejects --prompt + --concurrency > 1 at the Validate() step.
-// validatePromptConcurrencyFlags is the unit under test; Validate() wires it in.
-func TestDeployOptions_Validate_PromptIncompatibleWithParallel(t *testing.T) {
-	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundle.BundleFileName)
-
-	streams, _, _, _ := iostreams.NewTestIOStreams()
-	textPrinter, _ := printer.NewPrinter(printer.FormatText)
-
-	bundleCmd := NewBundleCommand(streams)
-	bundleCmd.PersistentFlags().Bool("prompt", false, "enable interactive confirmation prompts")
-	deployCmd, _, err := bundleCmd.Find([]string{"deploy"})
-	require.NoError(t, err)
-	require.NoError(t, deployCmd.ParseFlags([]string{"--prompt", "--concurrency", "2"}))
-
-	o := &DeployOptions{
-		BundlePath: existingFile,
-		Printer:    textPrinter,
-		flags:      SnapshotFlags(deployCmd),
-		IOStreams:  streams,
-	}
-
-	err = o.Validate()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "--prompt is incompatible with concurrency > 1")
-}
-
 func TestDeployOptions_Run_PromptDecline(t *testing.T) {
 	// Test the --prompt flag behavior: user declines deployment.
 	// Non-interactive (default) Run tests that proceed to actual deployment
@@ -255,10 +191,12 @@ func TestDeployOptions_Run_PromptDecline(t *testing.T) {
 			},
 		},
 		{
-			name:          "prompt flag - empty input treated as no",
-			bundlePath:    existingFile,
-			input:         "",
-			wantErrOutput: []string{},
+			name:       "prompt flag - empty input treated as no",
+			bundlePath: existingFile,
+			input:      "\n",
+			wantErrOutput: []string{
+				"Deploy this bundle?",
+			},
 		},
 	}
 
@@ -301,7 +239,7 @@ func TestDeployOptions_NoninteractivePrompt(t *testing.T) {
 	assert.False(t, global.Prompt, "Prompt should default to false (non-interactive)")
 }
 
-func TestDeployOptions_PromptConfirmation(t *testing.T) {
+func TestPromptConfirmation(t *testing.T) {
 	tests := []struct {
 		name      string
 		input     string
@@ -324,8 +262,7 @@ func TestDeployOptions_PromptConfirmation(t *testing.T) {
 			streams, in, _, _ := iostreams.NewTestIOStreams()
 			in.WriteString(tt.input)
 
-			o := &DeployOptions{IOStreams: streams}
-			confirmed, err := o.promptConfirmation()
+			confirmed, err := PromptConfirmation(streams, "Test this?")
 
 			if tt.wantError {
 				require.Error(t, err)
@@ -336,6 +273,33 @@ func TestDeployOptions_PromptConfirmation(t *testing.T) {
 		})
 	}
 }
+
+func TestPromptConfirmation_BrokenReader(t *testing.T) {
+	brokenErr := fmt.Errorf("read error: disk failure")
+	streams := iostreams.New(
+		&brokenReader{err: brokenErr},
+		&bytes.Buffer{},
+		&bytes.Buffer{},
+	)
+
+	confirmed, err := PromptConfirmation(streams, "Test this?")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "reading confirmation")
+	assert.False(t, confirmed)
+}
+
+// brokenReader always returns an error from Read.
+type brokenReader struct {
+	err error
+}
+
+func (r *brokenReader) Read(_ []byte) (int, error) {
+	return 0, r.err
+}
+
+// ensure brokenReader implements io.Reader.
+var _ io.Reader = (*brokenReader)(nil)
 
 func TestDeployOptions_Flags(t *testing.T) {
 	streams, _, _, _ := iostreams.NewTestIOStreams()

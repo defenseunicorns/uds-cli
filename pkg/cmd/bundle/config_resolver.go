@@ -34,7 +34,6 @@ type CLIFlags struct {
 	Concurrency          int
 	ConcurrencyChanged   bool
 	Prompt               bool
-	PromptChanged        bool
 }
 
 // SnapshotFlags reads every CLI flag the resolver needs from cmd, plus its Changed() bit.
@@ -55,7 +54,6 @@ func SnapshotFlags(cmd *cobra.Command) CLIFlags {
 	f.Concurrency, _ = cmd.Flags().GetInt("concurrency")
 	f.ConcurrencyChanged = cmd.Flags().Changed("concurrency")
 	f.Prompt, _ = cmd.Flags().GetBool("prompt")
-	f.PromptChanged = cmd.Flags().Changed("prompt")
 	return f
 }
 

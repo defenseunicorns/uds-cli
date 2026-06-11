@@ -121,7 +121,6 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts Depl
 	pkgOpts := DeployPackageOptions{
 		Config:             opts.Config,
 		BundleDir:          filepath.Dir(opts.BundlePath),
-		Prompt:             opts.Prompt,
 		PackageDeployHooks: opts.PackageDeployHooks,
 		Streams:            s,
 	}
@@ -191,11 +190,10 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 		}
 	}()
 
-	// IsInteractive matches Prompt - only show interactive prompts when user opted in via --prompt
 	deployOpts := packager.DeployOptions{
 		Values:            zarfValues, // Helm chart values from values_files
 		SetVariables:      setVars,    // Zarf ###ZARF_PKG_VAR_*### passthrough
-		IsInteractive:     opts.Prompt,
+		IsInteractive:     false,
 		NamespaceOverride: pkg.Namespace, // empty string is fine - Zarf ignores it
 	}
 

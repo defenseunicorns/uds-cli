@@ -4,6 +4,7 @@
 package bundle
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/printer"
 	"github.com/spf13/cobra"
 )
 
@@ -104,4 +106,66 @@ func TestCreateOptions_Complete_NoArgs(t *testing.T) {
 	err := o.Complete(cmd, []string{})
 	require.NoError(t, err)
 	assert.Equal(t, ".", o.BundlePath)
+}
+
+func TestCreateOptions_Run_PromptDecline(t *testing.T) {
+	tempDir := t.TempDir()
+	validDir := filepath.Join(tempDir, "valid")
+	require.NoError(t, os.Mkdir(validDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(validDir, bundle.BundleFileName), []byte(`
+uds { bundle_api_version = "uds.dev/v1alpha1" }
+metadata { name = "test" }
+package "pkg1" { source = "oci://example.com/pkg:v1" }
+`), 0o644))
+
+	tests := []struct {
+		name          string
+		input         string
+		wantErrOutput []string
+	}{
+		{
+			name:  "prompt flag - user confirms no",
+			input: "n\n",
+			wantErrOutput: []string{
+				"Create this bundle?",
+			},
+		},
+		{
+			name:  "prompt flag - empty input treated as no",
+			input: "\n",
+			wantErrOutput: []string{
+				"Create this bundle?",
+			},
+		},
+	}
+
+	defaults := NewConfigResolver().Defaults()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			streams, in, out, errOut := iostreams.NewTestIOStreams()
+			in.WriteString(tt.input)
+
+			textPrinter, _ := printer.NewPrinter(printer.FormatText)
+
+			o := &CreateOptions{
+				BundlePath: validDir,
+				Config:     &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{Prompt: true}, Options: &defaults},
+				Printer:    textPrinter,
+				IOStreams:  streams,
+			}
+
+			err := o.Run(context.Background())
+			require.NoError(t, err)
+			assert.Empty(t, out.String(), "stdout should be empty when create is cancelled")
+			for _, expected := range tt.wantErrOutput {
+				assert.Contains(t, errOut.String(), expected)
+			}
+		})
+	}
+}
+
+func TestCreateOptions_NoninteractivePrompt(t *testing.T) {
+	global := &bundle.GlobalOptions{}
+	assert.False(t, global.Prompt, "Prompt should default to false (non-interactive)")
 }

@@ -56,7 +56,7 @@ type Variables map[string]any
 // GlobalOptions holds process-wide CLI options that apply to all commands.
 // Prompt is populated exclusively from the CLI flag, not from config.uds.hcl.
 // LogLevel can be controlled by both config file and CLI flag.
-// Prompt is controlled by the --prompt flag on the deploy command (see ADR-0005).
+// Prompt is controlled by the --prompt flag (see ADR-0005).
 type GlobalOptions struct {
 	LogLevel string
 	Prompt   bool
@@ -145,8 +145,8 @@ type PackageDeployHooks struct {
 // Package.PostDeploy)* → Bundle.PostDeploy.
 type BundleDeployHooks struct {
 	// PreDeploy runs once before any package is deployed, after bundle validation.
-	// It may mutate the bundle and DeployOptions (e.g. install PackageDeployHooks, adjust Prompt).
-	// Mutations to opts.Prompt and opts.PackageDeployHooks are honoured: pkgOpts is built after
+	// It may mutate the bundle and DeployOptions (e.g. install PackageDeployHooks).
+	// Mutations to opts.PackageDeployHooks are honoured: pkgOpts is built after
 	// PreDeploy returns.
 	// Callers must not mutate opts.Config or opts.Config.Options — those fields are validated
 	// before PreDeploy but read afterward (e.g. Config.Options.Concurrency), so a mutation
@@ -171,9 +171,6 @@ type DeployPackageOptions struct {
 
 	// BundleDir is the directory containing the bundle (for resolving relative paths)
 	BundleDir string
-
-	// Prompt enables interactive prompts (non-interactive by default per ADR 0005)
-	Prompt bool
 
 	// PackageDeployHooks provides optional pre- and post-deploy callbacks for this package.
 	// Nil func fields are replaced with no-ops by withDefaults(); every deploy traverses both call sites.
@@ -228,9 +225,6 @@ type DeployOptions struct {
 	// Source is the prepared deploy source from PrepareDeploySource. When non-nil,
 	// Deploy() uses Source.Loader for the deployer and applies Source.ValuesFilesOverride.
 	Source *DeploySource
-
-	// Prompt enables interactive prompts (non-interactive by default per ADR 0005)
-	Prompt bool
 
 	// BundleDeployHooks fires once at bundle scope in DeployBundle, before and after all packages.
 	// Nil func fields are replaced with no-ops; every deploy traverses both call sites.

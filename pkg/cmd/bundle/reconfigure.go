@@ -21,6 +21,7 @@ type ReconfigureOptions struct {
 	DefaultsFile string
 	Suffix       string
 	OutputDir    string
+	Config       *bundle.UDSBundleConfig
 	Options      bundle.ConfigOptions
 	Printer      printer.ResourcePrinter
 
@@ -93,6 +94,7 @@ func (o *ReconfigureOptions) Complete(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	o.Config = cfg
 	if cfg.Options != nil {
 		o.Options = *cfg.Options
 	}
@@ -130,6 +132,17 @@ func (o *ReconfigureOptions) Validate() error {
 
 // Run executes the reconfigure command.
 func (o *ReconfigureOptions) Run(ctx context.Context) error {
+	if o.Config != nil && o.Config.Global != nil && o.Config.Global.Prompt {
+		confirmed, err := PromptConfirmation(o.IOStreams, "Reconfigure this bundle?")
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			o.Info("reconfigure cancelled")
+			return nil
+		}
+	}
+
 	result, err := bundle.Reconfigure(ctx, bundle.ReconfigureOptions{
 		Source:       o.Source,
 		DefaultsFile: o.DefaultsFile,

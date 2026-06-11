@@ -193,37 +193,6 @@ func TestRemoveOptions_Run_PromptDecline(t *testing.T) {
 	}
 }
 
-func TestRemoveOptions_PromptConfirmation(t *testing.T) {
-	tests := []struct {
-		name    string
-		input   string
-		wantYes bool
-	}{
-		{name: "y confirms", input: "y\n", wantYes: true},
-		{name: "Y confirms", input: "Y\n", wantYes: true},
-		{name: "yes confirms", input: "yes\n", wantYes: true},
-		{name: "YES confirms", input: "YES\n", wantYes: true},
-		{name: "n declines", input: "n\n", wantYes: false},
-		{name: "N declines", input: "N\n", wantYes: false},
-		{name: "no declines", input: "no\n", wantYes: false},
-		{name: "empty declines", input: "\n", wantYes: false},
-		{name: "random text declines", input: "maybe\n", wantYes: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			streams, in, _, _ := iostreams.NewTestIOStreams()
-			in.WriteString(tt.input)
-
-			o := &RemoveOptions{IOStreams: streams}
-			confirmed, err := o.promptConfirmation()
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantYes, confirmed)
-		})
-	}
-}
-
 func TestRemoveOptions_PackagesFlag(t *testing.T) {
 	streams, _, _, _ := iostreams.NewTestIOStreams()
 

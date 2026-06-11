@@ -102,6 +102,16 @@ func (o *PushOptions) Validate() error {
 func (o *PushOptions) Run(ctx context.Context) error {
 	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
 	o.Debug("pushing bundle", "tarball", o.Tarball, "ref", o.OCIReference)
+	if o.Config.Global.Prompt {
+		confirmed, err := PromptConfirmation(o.IOStreams, "Push this bundle?")
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			o.Info("push cancelled")
+			return nil
+		}
+	}
 	result, err := bundle.Push(ctx, o.Tarball, o.OCIReference, bundle.PushOptions{
 		Config:  o.Config,
 		Streams: o.IOStreams,

@@ -874,7 +874,6 @@ func TestSnapshotFlags_NoFlagsChanged(t *testing.T) {
 	assert.False(t, f.SkipTLSVerifyChanged)
 	assert.False(t, f.TmpDirChanged)
 	assert.False(t, f.ConcurrencyChanged)
-	assert.False(t, f.PromptChanged)
 	assert.Empty(t, f.ConfigPath)
 }
 
@@ -906,7 +905,6 @@ func TestSnapshotFlags_AllFlagsChanged(t *testing.T) {
 	assert.Equal(t, "/custom", f.TmpDir)
 	assert.True(t, f.ConcurrencyChanged)
 	assert.Equal(t, 5, f.Concurrency)
-	assert.True(t, f.PromptChanged)
 	assert.True(t, f.Prompt)
 	assert.Equal(t, "/some/config.uds.hcl", f.ConfigPath)
 }

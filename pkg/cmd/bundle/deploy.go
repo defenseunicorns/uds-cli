@@ -6,7 +6,6 @@ package bundle
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
@@ -56,10 +55,6 @@ The CLI is non-interactive by default (suitable for CI/CD pipelines) and
 deploys packages within a level in parallel (see --concurrency, default 10).
 Use --prompt to enable interactive confirmation before deployment.
 
-Interactive mode is incompatible with parallel deploys: when --prompt is set
-without an explicit --concurrency, concurrency is forced to 1. Passing
---prompt together with --concurrency > 1 is rejected.
-
 Examples:
   # Deploy bundle in current directory (parallel, non-interactive)
   uds bundle deploy
@@ -70,7 +65,7 @@ Examples:
   # Deploy bundle from artifact
   uds bundle deploy uds-bundle-example-amd64-0.1.0.tar.zst
 
-  # Deploy with interactive confirmation prompt (concurrency auto-forced to 1)
+  # Deploy with interactive confirmation prompt
   uds bundle deploy --prompt
 
   # Deploy serially without prompt
@@ -111,32 +106,7 @@ func (o *DeployOptions) Complete(cmd *cobra.Command, args []string) error {
 
 // Validate validates the options without modifying state.
 func (o *DeployOptions) Validate() error {
-	if err := ValidateBundlePath(o.BundlePath, AllowArtifactBundlePath()); err != nil {
-		return err
-	}
-	return validatePromptConcurrencyFlags(o.flags)
-}
-
-// validatePromptConcurrencyFlags rejects the combination of --prompt with an
-// explicit --concurrency > 1 before config resolution. The force-to-1 case
-// (--prompt without explicit --concurrency) is handled in applyConcurrencyOverride
-// after Resolve() produces the final config.
-func validatePromptConcurrencyFlags(flags CLIFlags) error {
-	if flags.PromptChanged && flags.ConcurrencyChanged && flags.Concurrency > 1 {
-		return fmt.Errorf("--prompt is incompatible with concurrency > 1; interactive prompts cannot run in parallel")
-	}
-	return nil
-}
-
-// applyConcurrencyOverride enforces the --prompt/--concurrency interaction
-// after config resolution. When --prompt is set without an explicit
-// --concurrency, concurrency is forced to 1. The explicit incompatible-value
-// case is already caught by validatePromptConcurrencyFlags in Validate().
-func applyConcurrencyOverride(flags CLIFlags, cfg *bundle.UDSBundleConfig) {
-	// --prompt without explicit --concurrency: force to 1 (auto-serial mode).
-	if flags.PromptChanged && !flags.ConcurrencyChanged {
-		cfg.Options.Concurrency = 1
-	}
+	return ValidateBundlePath(o.BundlePath, AllowArtifactBundlePath())
 }
 
 // Run executes the deploy command.
@@ -163,8 +133,6 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 	}
 	o.Config = cfg
 
-	applyConcurrencyOverride(o.flags, o.Config)
-
 	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
 	o.Debug("deploying bundle", "path", deploySrc.BundlePath, "prompt", o.Config.Global.Prompt)
 
@@ -179,7 +147,7 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 	o.Info("bundle to deploy", "name", parsedBundle.Metadata.Name, "packages", len(parsedBundle.Packages))
 
 	if o.Config.Global.Prompt {
-		confirmed, err := o.promptConfirmation()
+		confirmed, err := PromptConfirmation(o.IOStreams, "Deploy this bundle?")
 		if err != nil {
 			return err
 		}
@@ -194,7 +162,6 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 		BundlePath: deploySrc.BundlePath,
 		Bundle:     parsedBundle,
 		Source:     deploySrc,
-		Prompt:     o.Config.Global.Prompt,
 		Streams:    o.IOStreams,
 	})
 	if err != nil {
@@ -202,18 +169,4 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 	}
 
 	return o.Printer.PrintObj(result, o.Out())
-}
-
-// promptConfirmation asks the user to confirm deployment.
-func (o *DeployOptions) promptConfirmation() (bool, error) {
-	_, _ = fmt.Fprint(o.ErrOut(), "\nDeploy this bundle? [y/N]: ")
-
-	var response string
-	_, err := fmt.Fscanln(o.In(), &response)
-	if err != nil {
-		// Treat empty/EOF as "no"
-		return false, nil
-	}
-
-	return strings.ToLower(response) == "y" || strings.ToLower(response) == "yes", nil
 }

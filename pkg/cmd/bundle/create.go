@@ -90,6 +90,16 @@ func (o *CreateOptions) Run(ctx context.Context) error {
 	bundlePath := bundle.ResolveBundlePath(o.BundlePath)
 	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
 	o.Debug("creating bundle", "path", bundlePath)
+	if o.Config.Global.Prompt {
+		confirmed, err := PromptConfirmation(o.IOStreams, "Create this bundle?")
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			o.Info("create cancelled")
+			return nil
+		}
+	}
 
 	result, err := bundle.Create(ctx, bundle.CreateOptions{
 		Config:     o.Config,

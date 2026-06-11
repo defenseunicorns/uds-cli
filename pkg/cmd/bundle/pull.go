@@ -96,6 +96,16 @@ func (o *PullOptions) Validate() error {
 func (o *PullOptions) Run(ctx context.Context) error {
 	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
 	o.Debug("pulling bundle", "ref", o.OCIReference, "output", o.OutputDir)
+	if o.Config.Global.Prompt {
+		confirmed, err := PromptConfirmation(o.IOStreams, "Pull this bundle?")
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			o.Info("pull cancelled")
+			return nil
+		}
+	}
 	result, err := bundle.Pull(ctx, o.OCIReference, o.OutputDir, bundle.PullOptions{
 		Config:  o.Config,
 		Streams: o.IOStreams,

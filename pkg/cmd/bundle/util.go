@@ -5,11 +5,15 @@
 package bundle
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/defenseunicorns/uds-cli/pkg/printer"
 	"github.com/spf13/cobra"
 )
@@ -109,6 +113,23 @@ func ResolvePrinter(cmd *cobra.Command) (printer.ResourcePrinter, error) {
 		return nil, err
 	}
 	return printer.NewPrinter(format)
+}
+
+// PromptConfirmation writes message + " [y/N]: " to streams.ErrOut, reads one
+// line from streams.In, and returns true for "y" or "yes" (case-insensitive).
+// EOF and bare Enter ("unexpected newline") are treated as a "no" (false, nil).
+// Any other read error is returned so callers can distinguish a real I/O failure.
+func PromptConfirmation(streams iostreams.IOStreams, message string) (bool, error) {
+	_, _ = fmt.Fprint(streams.ErrOut(), "\n"+message+" [y/N]: ")
+	var response string
+	_, err := fmt.Fscanln(streams.In(), &response)
+	if err != nil {
+		if errors.Is(err, io.EOF) || err.Error() == "unexpected newline" {
+			return false, nil
+		}
+		return false, fmt.Errorf("reading confirmation: %w", err)
+	}
+	return strings.EqualFold(response, "y") || strings.EqualFold(response, "yes"), nil
 }
 
 // ValidateDir checks that the given path exists and is a directory.

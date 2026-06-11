@@ -6,7 +6,6 @@ package bundle
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/util"
@@ -164,7 +163,7 @@ func (o *RemoveOptions) Run(ctx context.Context) error {
 	s.Info("bundle to remove", "name", o.parsedBundle.Metadata.Name, "packages", len(o.parsedBundle.Packages))
 
 	if o.Config.Global.Prompt {
-		confirmed, err := o.promptConfirmation()
+		confirmed, err := PromptConfirmation(o.IOStreams, "Remove this bundle?")
 		if err != nil {
 			return err
 		}
@@ -188,17 +187,4 @@ func (o *RemoveOptions) Run(ctx context.Context) error {
 	}
 
 	return o.Printer.PrintObj(result, o.Out())
-}
-
-// promptConfirmation asks the user to confirm removal.
-func (o *RemoveOptions) promptConfirmation() (bool, error) {
-	_, _ = fmt.Fprint(o.ErrOut(), "\nRemove this bundle? [y/N]: ")
-
-	var response string
-	_, err := fmt.Fscanln(o.In(), &response)
-	if err != nil {
-		return false, nil
-	}
-
-	return strings.ToLower(response) == "y" || strings.ToLower(response) == "yes", nil
 }

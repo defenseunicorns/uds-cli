@@ -4,11 +4,14 @@
 package bundle
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/printer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -79,4 +82,59 @@ func TestReconfigureCommand_ValidateRejectsMissingDefaultsFile(t *testing.T) {
 	err := o.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestReconfigureOptions_Run_PromptDecline(t *testing.T) {
+	t.Parallel()
+	tempDir := t.TempDir()
+	defaults := filepath.Join(tempDir, "defaults.uds.hcl")
+	require.NoError(t, os.WriteFile(defaults, []byte(`variables = { a = "b" }`), 0o644))
+
+	tests := []struct {
+		name          string
+		input         string
+		wantErrOutput []string
+	}{
+		{
+			name:  "prompt flag - user confirms no",
+			input: "n\n",
+			wantErrOutput: []string{
+				"Reconfigure this bundle?",
+			},
+		},
+		{
+			name:  "prompt flag - empty input treated as no",
+			input: "\n",
+			wantErrOutput: []string{
+				"Reconfigure this bundle?",
+			},
+		},
+	}
+
+	defaults_cfg := NewConfigResolver().Defaults()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			streams, in, out, errOut := iostreams.NewTestIOStreams()
+			in.WriteString(tt.input)
+
+			textPrinter, _ := printer.NewPrinter(printer.FormatText)
+
+			o := &ReconfigureOptions{
+				Source:       "/some/bundle.tar.zst",
+				DefaultsFile: defaults,
+				Suffix:       "-test",
+				Config:       &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{Prompt: true}, Options: &defaults_cfg},
+				Printer:      textPrinter,
+				IOStreams:    streams,
+			}
+
+			err := o.Run(context.Background())
+			require.NoError(t, err)
+			assert.Empty(t, out.String(), "stdout should be empty when reconfigure is cancelled")
+			for _, expected := range tt.wantErrOutput {
+				assert.Contains(t, errOut.String(), expected)
+			}
+		})
+	}
 }
