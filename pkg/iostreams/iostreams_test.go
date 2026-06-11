@@ -178,4 +178,3 @@ func TestErrOut_SharedLockWithLogger(t *testing.T) {
 	assert.Equal(t, n, strings.Count(got, "msg=L"), "slog lines must appear")
 	assert.Equal(t, n, strings.Count(got, "X"), "raw writes must appear")
 }
-

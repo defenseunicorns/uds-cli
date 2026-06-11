@@ -531,8 +531,8 @@ func pushTestBundle(t *testing.T, store oras.Target, bundleHCL string, defaultsH
 	cfg := newTestConfig()
 	cfg.Options.TmpDir = t.TempDir()
 	_, err := Push(context.Background(), tarball, ref, PushOptions{
-		Config:     cfg,
-		remoteRepo: store,
+		Config:    cfg,
+		PushHooks: pushTo(store),
 	})
 	require.NoError(t, err)
 }

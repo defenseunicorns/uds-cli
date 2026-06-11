@@ -15,8 +15,6 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/defenseunicorns/uds-cli/pkg/logger"
-	"github.com/google/go-containerregistry/pkg/name"
-	oras "oras.land/oras-go/v2"
 	oraci "oras.land/oras-go/v2/content/oci"
 )
 
@@ -70,28 +68,8 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 	// We write index.json ourselves below; prevent ORAS from clobbering it.
 	store.AutoSaveIndex = false
 
-	var src oras.ReadOnlyTarget
-	if opts.remoteRepo != nil {
-		src = opts.remoteRepo
-	} else {
-		repo, err := newRemoteRepository(TrimScheme(ociReference), *opts.Config.Options)
-		if err != nil {
-			return nil, fmt.Errorf("creating remote repository: %w", err)
-		}
-		src = repo
-	}
-
-	ref, err := name.ParseReference(TrimScheme(ociReference))
-	if err != nil {
-		return nil, fmt.Errorf("parsing OCI reference: %w", err)
-	}
-	tag := ref.Identifier()
-
-	copyOpts := oras.DefaultCopyOptions
-	copyOpts.Concurrency = opts.Config.Options.Concurrency
-
-	log.Debug("copying bundle from registry", "ref", ociReference, "tag", tag)
-	rootDesc, err := oras.Copy(ctx, src, tag, store, tag, copyOpts)
+	log.Debug("copying bundle from registry", "ref", ociReference)
+	rootDesc, err := pullToStore(ctx, ociReference, store, &opts)
 	if err != nil {
 		return nil, fmt.Errorf("pulling bundle from %s: %w", ociReference, err)
 	}
@@ -153,10 +131,36 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 	}, nil
 }
 
-// PullPackage is not yet implemented.
-// TODO: implement single-package pull.
-func (p *defaultPuller) PullPackage(_ context.Context, _, _ string, _ PullOptions) (*PullResult, error) {
-	return nil, fmt.Errorf("PullPackage: %w", ErrNotImplemented)
+// PullPackage pulls a single Zarf package from an OCI registry into an OCI layout
+// directory at <targetDir>/oci. The layout is left on disk for cross-mount use.
+func (p *defaultPuller) PullPackage(ctx context.Context, ociReference, targetDir string, opts PullOptions) (*PullResult, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+	if ociReference == "" {
+		return nil, errEmpty("ociReference")
+	}
+	if targetDir == "" {
+		return nil, errEmpty("targetDir")
+	}
+
+	log := logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
+
+	ociDir := filepath.Join(targetDir, "oci")
+	if err := os.MkdirAll(ociDir, tempDirPerm); err != nil {
+		return nil, fmt.Errorf("creating OCI dir: %w", err)
+	}
+	store, err := oraci.New(ociDir)
+	if err != nil {
+		return nil, fmt.Errorf("creating OCI store: %w", err)
+	}
+
+	if _, err := pullToStore(ctx, ociReference, store, &opts); err != nil {
+		return nil, fmt.Errorf("pulling package from %s: %w", ociReference, err)
+	}
+
+	log.Info("package pulled", "output", ociDir)
+	return &PullResult{OCIReference: ociReference, OutputPath: ociDir}, nil
 }
 
 // Pull is a compatibility adapter over NewDefaultPuller().PullBundle.

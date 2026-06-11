@@ -13,9 +13,7 @@ import (
 	"path/filepath"
 
 	"github.com/defenseunicorns/uds-cli/pkg/logger"
-	"github.com/google/go-containerregistry/pkg/name"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	oras "oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
 	oraci "oras.land/oras-go/v2/content/oci"
 )
@@ -76,46 +74,52 @@ func (p *defaultPusher) PushBundle(ctx context.Context, bundleDir, ociReference 
 	}
 	store.AutoSaveIndex = false
 
-	// Build the index descriptor and tag it so oras.Copy can resolve it.
+	// Build the index descriptor; pushToRemote will tag it before copying.
 	idxDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageIndex, idxBytes)
-	if err := store.Tag(ctx, idxDesc, "bundle"); err != nil {
-		return nil, fmt.Errorf("tagging index: %w", err)
-	}
-
-	var dst oras.Target
-	if opts.remoteRepo != nil {
-		dst = opts.remoteRepo
-	} else {
-		repo, err := newRemoteRepository(TrimScheme(ociReference), *opts.Config.Options)
-		if err != nil {
-			return nil, fmt.Errorf("creating remote repository: %w", err)
-		}
-		dst = repo
-	}
-
-	// Parse the tag/digest from the reference using go-containerregistry; default to "latest".
-	ref, err := name.ParseReference(TrimScheme(ociReference))
-	if err != nil {
-		return nil, fmt.Errorf("parsing OCI reference: %w", err)
-	}
-	dstTag := ref.Identifier()
 
 	log := logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
-	log.Debug("copying bundle to registry", "ref", ociReference, "tag", dstTag)
-	if _, err := oras.Copy(ctx, store, "bundle", dst, dstTag, oras.DefaultCopyOptions); err != nil {
-		return nil, fmt.Errorf("pushing bundle to %s: %w", ociReference, err)
+	log.Debug("copying bundle to registry", "ref", ociReference)
+	result, err := pushToRemote(ctx, store, idxDesc, ociReference, &opts)
+	if err != nil {
+		return nil, err
 	}
-
 	log.Info("bundle pushed", "ref", ociReference)
-	return &PushResult{
-		OCIReference: ociReference,
-	}, nil
+	return result, nil
 }
 
-// PushPackage is not yet implemented.
-// TODO: implement single-package push.
-func (p *defaultPusher) PushPackage(_ context.Context, _, _ string, _ PushOptions) (*PushResult, error) {
-	return nil, fmt.Errorf("PushPackage: %w", ErrNotImplemented)
+// PushPackage pushes a single Zarf package OCI layout from packageDir to a remote OCI registry.
+// packageDir must contain an oci/ subdirectory with a valid OCI layout (index.json + blobs/).
+func (p *defaultPusher) PushPackage(ctx context.Context, packageDir, ociReference string, opts PushOptions) (*PushResult, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+	if packageDir == "" {
+		return nil, errEmpty("packageDir")
+	}
+	if ociReference == "" {
+		return nil, errEmpty("ociReference")
+	}
+
+	ociDir := filepath.Join(packageDir, "oci")
+	store, err := oraci.New(ociDir)
+	if err != nil {
+		return nil, fmt.Errorf("opening OCI store: %w", err)
+	}
+	store.AutoSaveIndex = false
+
+	root, err := packageRootDescriptor(ociDir)
+	if err != nil {
+		return nil, fmt.Errorf("reading OCI root descriptor: %w", err)
+	}
+
+	log := logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
+	log.Debug("pushing package", "ref", ociReference)
+	result, err := pushToRemote(ctx, store, root, ociReference, &opts)
+	if err != nil {
+		return nil, err
+	}
+	log.Info("package pushed", "ref", ociReference)
+	return result, nil
 }
 
 // Push is a compatibility adapter that extracts the tarball and delegates to NewDefaultPusher().PushBundle.

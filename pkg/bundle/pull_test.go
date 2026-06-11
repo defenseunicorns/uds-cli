@@ -15,9 +15,18 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	oras "oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
 	oraci "oras.land/oras-go/v2/content/oci"
 )
+
+// pullFrom returns PullHooks that inject src as the pull source via the
+// ToOrasTarget seam, the same path production uses to resolve a registry.
+func pullFrom(src oras.Target) PullHooks {
+	return PullHooks{
+		ToOrasTarget: func(context.Context, string, *PullOptions) (oras.Target, error) { return src, nil },
+	}
+}
 
 func TestBundleNameFromIndex_HappyPath(t *testing.T) {
 	t.Parallel()
@@ -144,8 +153,8 @@ func TestPull_NonUDSBundle(t *testing.T) {
 			cfg := newTestConfig()
 			cfg.Options.TmpDir = t.TempDir()
 			result, err := Pull(t.Context(), "example.com/test/not-a-bundle:v1.0.0", tt.outputDir, PullOptions{
-				Config:     cfg,
-				remoteRepo: srcStore,
+				Config:    cfg,
+				PullHooks: pullFrom(srcStore),
 			})
 			require.ErrorContains(t, err, tt.expectedErr)
 			assert.Nil(t, result)
@@ -163,8 +172,8 @@ func TestPull_TagNotFound(t *testing.T) {
 	cfg.Options.TmpDir = t.TempDir()
 	ref := "example.com/test/bundle:v1.0.0"
 	result, err := Pull(t.Context(), ref, t.TempDir(), PullOptions{
-		Config:     cfg,
-		remoteRepo: srcStore,
+		Config:    cfg,
+		PullHooks: pullFrom(srcStore),
 	})
 
 	require.ErrorContains(t, err, ref)
@@ -202,8 +211,8 @@ package "pkg1" {
 	pushCfg := newTestConfig()
 	pushCfg.Options.TmpDir = t.TempDir()
 	_, pushErr := Push(context.Background(), tarball.OutputPath, "example.com/test/pull-test:1.0.0", PushOptions{
-		Config:     pushCfg,
-		remoteRepo: store,
+		Config:    pushCfg,
+		PushHooks: pushTo(store),
 	})
 	require.NoError(t, pushErr)
 
@@ -212,8 +221,8 @@ package "pkg1" {
 	pullCfg := newTestConfig()
 	pullCfg.Options.TmpDir = t.TempDir()
 	result, err := Pull(t.Context(), "example.com/test/pull-test:1.0.0", outDir, PullOptions{
-		Config:     pullCfg,
-		remoteRepo: store,
+		Config:    pullCfg,
+		PullHooks: pullFrom(store),
 	})
 	require.NoError(t, err)
 
@@ -222,4 +231,90 @@ package "pkg1" {
 	assert.Equal(t, "example.com/test/pull-test:1.0.0", result.OCIReference)
 	_, statErr := os.Stat(result.OutputPath)
 	require.NoError(t, statErr, "pulled tarball should exist on disk")
+}
+
+func TestPullPackage_RoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// Build a minimal OCI layout in a source store and tag it.
+	srcDir := t.TempDir()
+	writeMinimalOCILayout(t, srcDir)
+
+	srcStore, err := oraci.New(srcDir)
+	require.NoError(t, err)
+
+	// Read the root descriptor from index.json and tag it so oras.Copy can resolve it.
+	root, err := packageRootDescriptor(srcDir)
+	require.NoError(t, err)
+	require.NoError(t, srcStore.Tag(t.Context(), root, "1.0.0"))
+
+	targetDir := t.TempDir()
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
+	result, err := NewDefaultPuller().PullPackage(t.Context(), "example.com/test/pkg:1.0.0", targetDir, PullOptions{
+		Config:    cfg,
+		PullHooks: pullFrom(srcStore),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "example.com/test/pkg:1.0.0", result.OCIReference)
+	assert.Equal(t, filepath.Join(targetDir, "oci"), result.OutputPath)
+
+	_, statErr := os.Stat(filepath.Join(result.OutputPath, "index.json"))
+	require.NoError(t, statErr, "index.json should exist in pulled OCI dir")
+}
+
+func TestPullPackage_EmptyOCIReference(t *testing.T) {
+	t.Parallel()
+
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
+	result, err := NewDefaultPuller().PullPackage(t.Context(), "", t.TempDir(), PullOptions{
+		Config: cfg,
+	})
+	require.ErrorContains(t, err, "ociReference must not be empty")
+	assert.Nil(t, result)
+}
+
+func TestPullPackage_EmptyTargetDir(t *testing.T) {
+	t.Parallel()
+
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
+	result, err := NewDefaultPuller().PullPackage(t.Context(), "example.com/test/pkg:1.0.0", "", PullOptions{
+		Config: cfg,
+	})
+	require.ErrorContains(t, err, "targetDir must not be empty")
+	assert.Nil(t, result)
+}
+
+func TestPullHooks_ModifyOrasSettings(t *testing.T) {
+	t.Parallel()
+
+	srcDir := t.TempDir()
+	writeMinimalOCILayout(t, srcDir)
+
+	srcStore, err := oraci.New(srcDir)
+	require.NoError(t, err)
+
+	root, err := packageRootDescriptor(srcDir)
+	require.NoError(t, err)
+	require.NoError(t, srcStore.Tag(t.Context(), root, "1.0.0"))
+
+	hookCalled := false
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
+	result, err := NewDefaultPuller().PullPackage(t.Context(), "example.com/test/pkg:1.0.0", t.TempDir(), PullOptions{
+		Config: cfg,
+		PullHooks: PullHooks{
+			ToOrasTarget: func(context.Context, string, *PullOptions) (oras.Target, error) { return srcStore, nil },
+			ModifyOrasSettings: func(_ context.Context, co *oras.CopyOptions) error {
+				hookCalled = true
+				co.Concurrency = 3
+				return nil
+			},
+		},
+	})
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.True(t, hookCalled, "ModifyOrasSettings hook should have been called")
 }

@@ -387,9 +387,9 @@ type PullOptions struct {
 	// Streams carries In/Out/ErrOut for the operation.
 	Streams iostreams.IOStreams
 
-	// remoteRepo overrides the remote registry source. When nil (production),
-	// newRemoteRepository is used. Set in unit tests to inject an in-memory store.
-	remoteRepo oras.ReadOnlyTarget
+	// PullHooks provides extensibility seams for the pull path, including the
+	// ToOrasTarget seam used to inject an in-memory source in tests.
+	PullHooks PullHooks
 }
 
 // InspectResult represents the output of a bundle inspect operation.
@@ -479,6 +479,27 @@ type Pusher interface {
 	PushPackage(ctx context.Context, packageDir, ociReference string, opts PushOptions) (*PushResult, error)
 }
 
+// PushHooks provides Push process extensibility (CLI-185 / Tech Design Doc).
+type PushHooks struct {
+	// ToOrasTarget resolves a plain OCI reference into the ORAS target the bytes are
+	// copied to. Nil defaults to newRemoteRepository (a live registry repository).
+	// The return type is the oras.Target interface rather than a concrete
+	// *registry.Repository so consumers can substitute any target — a live registry,
+	// an in-memory store, a filesystem layout, or a cross-mounting shim. A real
+	// registry repository satisfies oras.Target, so the default path is unaffected.
+	// This is also the seam unit tests use to inject an in-memory store.
+	ToOrasTarget func(ctx context.Context, ociReference string, opts *PushOptions) (oras.Target, error)
+	// ModifyOrasSettings tweaks copy options just before oras.Copy. Nil = no-op.
+	ModifyOrasSettings func(ctx context.Context, copyOptions *oras.CopyOptions) error
+}
+
+// PullHooks mirrors PushHooks for the pull path. ToOrasTarget returns a plain
+// OCI reference resolved to an ORAS target; oras.Copy only reads from it.
+type PullHooks struct {
+	ToOrasTarget       func(ctx context.Context, ociReference string, opts *PullOptions) (oras.Target, error)
+	ModifyOrasSettings func(ctx context.Context, copyOptions *oras.CopyOptions) error
+}
+
 // RemovePackageOptions contains options for removing a single package.
 type RemovePackageOptions struct {
 	// Config is the merged config (options + variables); always non-nil.
@@ -557,7 +578,7 @@ type PushOptions struct {
 	// Streams carries In/Out/ErrOut for the operation.
 	Streams iostreams.IOStreams
 
-	// remoteRepo overrides the remote registry destination. When nil (production),
-	// newRemoteRepository is used. Set in unit tests to inject an in-memory store.
-	remoteRepo oras.Target
+	// PushHooks provides extensibility seams for the push path, including the
+	// ToOrasTarget seam used to inject an in-memory destination in tests.
+	PushHooks PushHooks
 }

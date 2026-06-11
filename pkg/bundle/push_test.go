@@ -13,8 +13,17 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	oras "oras.land/oras-go/v2"
 	oraci "oras.land/oras-go/v2/content/oci"
 )
+
+// pushTo returns PushHooks that inject target as the push destination via the
+// ToOrasTarget seam, the same path production uses to resolve a registry.
+func pushTo(target oras.Target) PushHooks {
+	return PushHooks{
+		ToOrasTarget: func(context.Context, string, *PushOptions) (oras.Target, error) { return target, nil },
+	}
+}
 
 func TestPush_NoOCILayout(t *testing.T) {
 	t.Parallel()
@@ -104,8 +113,8 @@ package "pkg1" {
 	cfg := newTestConfig()
 	cfg.Options.TmpDir = t.TempDir()
 	result, err := Push(context.Background(), tarball.OutputPath, "example.com/test/push-test:1.0.0", PushOptions{
-		Config:     cfg,
-		remoteRepo: dst,
+		Config:    cfg,
+		PushHooks: pushTo(dst),
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "example.com/test/push-test:1.0.0", result.OCIReference)
@@ -200,4 +209,117 @@ package "pkg1" {
 	// (e.g. "connection refused", "can't assign requested address").
 	require.Error(t, err)
 	assert.Nil(t, result)
+}
+
+func TestPushPackage_RoundTrip(t *testing.T) {
+	t.Parallel()
+
+	pkgDir := t.TempDir()
+	writeMinimalOCILayout(t, filepath.Join(pkgDir, "oci"))
+
+	dst, err := oraci.New(t.TempDir())
+	require.NoError(t, err)
+
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
+	result, err := NewDefaultPusher().PushPackage(context.Background(), pkgDir, "example.com/test/pkg:1.0.0", PushOptions{
+		Config:    cfg,
+		PushHooks: pushTo(dst),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "example.com/test/pkg:1.0.0", result.OCIReference)
+
+	_, err = dst.Resolve(t.Context(), "1.0.0")
+	require.NoError(t, err, "manifest should be present in store after push")
+}
+
+func TestPushPackage_EmptyPackageDir(t *testing.T) {
+	t.Parallel()
+
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
+	result, err := NewDefaultPusher().PushPackage(context.Background(), "", "example.com/test/pkg:1.0.0", PushOptions{
+		Config: cfg,
+	})
+	require.ErrorContains(t, err, "packageDir must not be empty")
+	assert.Nil(t, result)
+}
+
+func TestPushPackage_EmptyOCIReference(t *testing.T) {
+	t.Parallel()
+
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
+	result, err := NewDefaultPusher().PushPackage(context.Background(), t.TempDir(), "", PushOptions{
+		Config: cfg,
+	})
+	require.ErrorContains(t, err, "ociReference must not be empty")
+	assert.Nil(t, result)
+}
+
+func TestPushHooks_ModifyOrasSettings(t *testing.T) {
+	t.Parallel()
+
+	pkgDir := t.TempDir()
+	writeMinimalOCILayout(t, filepath.Join(pkgDir, "oci"))
+
+	dst, err := oraci.New(t.TempDir())
+	require.NoError(t, err)
+
+	hookCalled := false
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
+	result, err := NewDefaultPusher().PushPackage(context.Background(), pkgDir, "example.com/test/pkg:1.0.0", PushOptions{
+		Config: cfg,
+		PushHooks: PushHooks{
+			ToOrasTarget: func(context.Context, string, *PushOptions) (oras.Target, error) { return dst, nil },
+			ModifyOrasSettings: func(_ context.Context, co *oras.CopyOptions) error {
+				hookCalled = true
+				co.Concurrency = 3
+				return nil
+			},
+		},
+	})
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.True(t, hookCalled, "ModifyOrasSettings hook should have been called")
+}
+
+func TestPushPackage_DoesNotModifySourceIndex(t *testing.T) {
+	t.Parallel()
+
+	pkgDir := t.TempDir()
+	ociDir := filepath.Join(pkgDir, "oci")
+	writeMinimalOCILayout(t, ociDir)
+
+	// Read the original index.json.
+	originalIndexPath := filepath.Join(ociDir, "index.json")
+	originalIndexBytes, err := os.ReadFile(originalIndexPath)
+	require.NoError(t, err)
+
+	// Parse original to verify it has exactly one manifest (no tags).
+	var originalIdx ociIndex
+	require.NoError(t, json.Unmarshal(originalIndexBytes, &originalIdx))
+	require.Len(t, originalIdx.Manifests, 1, "original index should have exactly one manifest")
+
+	dst, err := oraci.New(t.TempDir())
+	require.NoError(t, err)
+
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
+	_, err = NewDefaultPusher().PushPackage(context.Background(), pkgDir, "example.com/test/pkg:1.0.0", PushOptions{
+		Config:    cfg,
+		PushHooks: pushTo(dst),
+	})
+	require.NoError(t, err)
+
+	// Read the index.json after push and verify it's unchanged.
+	afterIndexBytes, err := os.ReadFile(originalIndexPath)
+	require.NoError(t, err)
+	assert.Equal(t, originalIndexBytes, afterIndexBytes, "source index.json should not be modified by PushPackage")
+
+	// Verify the manifest is still in the store and unchanged.
+	var afterIdx ociIndex
+	require.NoError(t, json.Unmarshal(afterIndexBytes, &afterIdx))
+	require.Len(t, afterIdx.Manifests, 1, "index should still have exactly one manifest after push")
 }
