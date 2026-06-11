@@ -379,7 +379,7 @@ func (p *falsePositiveBlobProxy) hasUploadedBlob(repo, digest string) bool {
 	return ok
 }
 
-func parseBlobRequest(path string) (repo string, digest string, ok bool) {
+func parseBlobRequest(path string) (repo string, blobDigest string, ok bool) {
 	if !strings.HasPrefix(path, "/v2/") {
 		return "", "", false
 	}
@@ -390,7 +390,12 @@ func parseBlobRequest(path string) (repo string, digest string, ok bool) {
 		return "", "", false
 	}
 
-	return parts[0], parts[1], true
+	parsedDigest, err := digest.Parse(parts[1])
+	if err != nil {
+		return "", "", false
+	}
+
+	return parts[0], parsedDigest.String(), true
 }
 
 func parseManifestRequest(path string) (repo string, reference string, ok bool) {
