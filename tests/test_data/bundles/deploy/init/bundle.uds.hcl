@@ -17,7 +17,7 @@ metadata {
 }
 
 package "uds_k3d_dev" {
-  source = "oci://ghcr.io/defenseunicorns/packages/uds-k3d:0.20.0"
+  source = "oci://ghcr.io/defenseunicorns/packages/uds-k3d:0.20.1"
 }
 
 package "init" {
