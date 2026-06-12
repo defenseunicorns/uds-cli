@@ -13,4 +13,5 @@ runs:
       shell: bash
       run: |
         brew tap defenseunicorns/tap
+        brew trust defenseunicorns/tap
         brew install uds
