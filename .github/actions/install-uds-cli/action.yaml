@@ -13,4 +13,8 @@ runs:
       shell: bash
       run: |
         brew tap defenseunicorns/tap
-        brew install uds
+        # GHA runners don't support user namespaces, so `brew trust` (which uses bubblewrap) fails.
+        # Write the trust file directly instead, and disable the Linux sandbox for install.
+        mkdir -p "${HOMEBREW_USER_CONFIG_HOME:-$HOME/.config/homebrew}"
+        echo '{"trustedtaps":["defenseunicorns/tap"]}' > "${HOMEBREW_USER_CONFIG_HOME:-$HOME/.config/homebrew}/trust.json"
+        HOMEBREW_NO_SANDBOX_LINUX=1 brew install uds
