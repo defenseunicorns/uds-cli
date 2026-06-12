@@ -13,4 +13,4 @@ runs:
       shell: bash
       run: |
         brew tap defenseunicorns/tap
-        HOMEBREW_REQUIRE_TAP_TRUST=0 brew install uds
+        HOMEBREW_NO_REQUIRE_TAP_TRUST=1 brew install uds
