@@ -40,7 +40,7 @@ const (
 	V_BNDL_PULL_KEY    = "bundle.pull.key"
 
 	// Bundle publish config keys
-	V_PUBLISH_FORCE_UPLOAD      = "options.publish_force_upload"
+	V_BNDL_PUBLISH_FORCE_UPLOAD      = "options.publish_force_upload"
 )
 
 var (
