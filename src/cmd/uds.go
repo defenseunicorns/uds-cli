@@ -295,7 +295,7 @@ func init() {
 	// publish cmd flags
 	rootCmd.AddCommand(publishCmd)
 	publishCmd.Flags().StringVarP(&bundleCfg.PublishOpts.Version, "version", "v", "", lang.CmdPublishVersionFlag)
-	publishCmd.Flags().BoolVar(&bundleCfg.PublishOpts.ForceUpload, "force-upload", v.GetBool(V_PUBLISH_FORCE_UPLOAD), lang.CmdPublishFlagForceUpload)
+	publishCmd.Flags().BoolVar(&bundleCfg.PublishOpts.ForceUpload, "force-upload", v.GetBool(V_BNDL_PUBLISH_FORCE_UPLOAD), lang.CmdPublishFlagForceUpload)
 
 	// pull cmd flags
 	rootCmd.AddCommand(pullCmd)

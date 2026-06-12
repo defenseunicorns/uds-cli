@@ -93,7 +93,7 @@ func init() {
 	v.SetDefault(V_NO_PROGRESS, false)
 	v.SetDefault(V_INSECURE, false)
 	v.SetDefault(V_NO_COLOR, false)
-	v.SetDefault(V_PUBLISH_FORCE_UPLOAD, false)
+	v.SetDefault(V_BNDL_PUBLISH_FORCE_UPLOAD, false)
 	v.SetDefault(V_TMP_DIR, "")
 	v.SetDefault(V_BNDL_OCI_CONCURRENCY, 3)
 
