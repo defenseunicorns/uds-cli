@@ -15,4 +15,4 @@ runs:
         brew tap defenseunicorns/tap
         mkdir -p "${HOMEBREW_USER_CONFIG_HOME:-$HOME/.config/homebrew}"
         echo '{"trustedtaps":["defenseunicorns/tap"]}' > "${HOMEBREW_USER_CONFIG_HOME:-$HOME/.config/homebrew}/trust.json"
-        brew install uds
+        HOMEBREW_NO_SANDBOX_LINUX=1 brew install uds
