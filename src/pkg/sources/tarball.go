@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -159,6 +160,8 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, _ bool, _ bool) (
 	if bundleSigSHA != "" {
 		filePaths = append(filePaths, filepath.Join(config.BlobsDir, bundleSigSHA))
 	}
+	captured := 0
+	totalWanted := len(filePaths)
 	if err := config.BundleArchiveFormat.Extract(ctx, sourceArchive, func(_ context.Context, fileInArchive archives.FileInfo) error {
 		if !slices.Contains(filePaths, fileInArchive.NameInArchive) {
 			return nil
@@ -189,11 +192,20 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, _ bool, _ bool) (
 		if err != nil {
 			return err
 		}
+		captured++
+		if captured >= totalWanted {
+			// All targeted files have been written; stop decompressing the rest
+			// of the bundle. Without this we'd drain to EOF every call, and on
+			// a multi-GB bundle that's where most of the inspect time goes.
+			return fs.SkipAll
+		}
 		return nil
 	}); err != nil {
-		err = sourceArchive.Close()
-		if err != nil {
-			return v1alpha1.ZarfPackage{}, nil, err
+		// Pre-existing bug guard: don't let Close() overwrite the real error.
+		// If Close also fails, log it but surface the Extract error since that's
+		// what actually broke the operation.
+		if closeErr := sourceArchive.Close(); closeErr != nil {
+			message.Debugf("close after extract error: %v", closeErr)
 		}
 		return v1alpha1.ZarfPackage{}, nil, err
 	}

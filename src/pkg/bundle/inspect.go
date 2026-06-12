@@ -73,6 +73,24 @@ func (b *Bundle) Inspect() error {
 				return err
 			}
 		}
+
+		// Pre-warm per-package metadata in a single pass through the bundle.
+		// On large bundles this is the dominant cost of `uds inspect`.
+		// We only do this for tarball sources — remote (OCI) providers already
+		// fetch metadata blobs independently.
+		needsPkgMeta := b.cfg.InspectOpts.ListVariables || b.cfg.InspectOpts.ListImages || !config.CommonOptions.SkipSignatureValidation
+		if needsPkgMeta {
+			if tp, ok := provider.(*tarballBundleProvider); ok {
+				cache, perr := tp.prefetchPackageMetadata(context.TODO(), b.bundle.Packages, b.tmp)
+				if perr != nil {
+					// Fall back to the per-package slow path on any error so
+					// inspect still works on bundles the prefetcher can't handle.
+					message.Warnf("package metadata prefetch failed, falling back to per-package extraction: %v", perr)
+				} else {
+					b.pkgMetaCache = cache
+				}
+			}
+		}
 	}
 
 	// handle --list-variables flag
@@ -184,6 +202,32 @@ func (b *Bundle) listVariables() error {
 }
 
 func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
+	// Fast path: metadata was pre-fetched for the whole bundle in a single
+	// pass. Verify and load it the same keyless-capable way as the non-cached
+	// path below, just against the directory the prefetcher already wrote so we
+	// don't re-extract from the (multi-GB) bundle tarball per package.
+	if cached, ok := b.pkgMetaCache[pkg.Name]; ok {
+		keyTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
+		if err != nil {
+			return v1alpha1.ZarfPackage{}, err
+		}
+		defer os.RemoveAll(keyTmp)
+
+		verifyOpts, err := utils.BuildVerifyBlobOptions(pkg, keyTmp)
+		if err != nil {
+			return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
+		}
+
+		pkgLayout, err := utils.LoadPackageFromDir(context.TODO(), cached.dirPath, layout.PackageLayoutOptions{
+			IsPartial:            true,
+			VerificationStrategy: utils.GetPackageVerificationStrategy(config.CommonOptions.SkipSignatureValidation),
+			VerifyBlobOptions:    verifyOpts,
+		})
+		if err != nil {
+			return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
+		}
+		return pkgLayout.Pkg, nil
+	}
 
 	// if we are inspecting a built bundle, get the metadata from the bundle
 	if !b.cfg.InspectOpts.IsYAMLFile {

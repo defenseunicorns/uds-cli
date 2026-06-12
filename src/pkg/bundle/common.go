@@ -35,6 +35,10 @@ type Bundle struct {
 	bundle types.UDSBundle
 	// tmp is the temporary directory used by the Bundle cleaned up with ClearPaths()
 	tmp string
+	// pkgMetaCache holds pre-fetched per-package metadata (zarf.yaml + sig +
+	// checksums) when a single-pass tarball prefetch has run. When non-nil,
+	// getMetadata reads from it instead of re-streaming the bundle per package.
+	pkgMetaCache map[string]*pkgPrefetchResult
 }
 
 // New creates a new Bundle
