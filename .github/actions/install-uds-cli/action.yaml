@@ -11,7 +11,8 @@ runs:
 
     - name: Install UDS CLI
       shell: bash
+      env:
+        HOMEBREW_REQUIRE_TAP_TRUST: "0"
       run: |
         brew tap defenseunicorns/tap
-        brew trust defenseunicorns/tap
         brew install uds
