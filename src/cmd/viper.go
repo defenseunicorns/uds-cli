@@ -24,7 +24,6 @@ const (
 	V_TMP_DIR                   = "options.tmp_dir"
 	V_INSECURE                  = "options.insecure"
 	V_NO_COLOR                  = "options.no_color"
-	V_PUBLISH_FORCE_UPLOAD      = "options.publish_force_upload"
 	V_BNDL_OCI_CONCURRENCY      = "options.oci_concurrency"
 	V_SKIP_SIGNATURE_VALIDATION = "options.skip_signature_validation"
 
@@ -39,6 +38,9 @@ const (
 	// Bundle pull config keys
 	V_BNDL_PULL_OUTPUT = "bundle.pull.output"
 	V_BNDL_PULL_KEY    = "bundle.pull.key"
+
+	// Bundle publish config keys
+	V_PUBLISH_FORCE_UPLOAD      = "options.publish_force_upload"
 )
 
 var (
