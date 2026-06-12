@@ -53,3 +53,9 @@ optionx:
 		})
 	}
 }
+
+func TestPublishForceUploadFlag(t *testing.T) {
+	flag := publishCmd.Flags().Lookup("force-upload")
+	require.NotNil(t, flag)
+	require.Equal(t, "false", flag.DefValue)
+}

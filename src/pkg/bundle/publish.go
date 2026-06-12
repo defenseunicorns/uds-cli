@@ -24,7 +24,9 @@ func (b *Bundle) Publish() error {
 
 	// load bundle metadata into memory
 	// todo: having the tmp dir be the provider.dst is weird
-	provider, err := NewBundleProvider(b.cfg.PublishOpts.Source, b.tmp)
+	provider, err := NewBundleProviderWithOptions(b.cfg.PublishOpts.Source, b.tmp, BundleProviderOptions{
+		ForceUpload: b.cfg.PublishOpts.ForceUpload,
+	})
 	if err != nil {
 		return err
 	}

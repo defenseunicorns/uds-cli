@@ -47,8 +47,18 @@ type Provider interface {
 	getBundleManifest() (*oci.Manifest, error)
 }
 
+// BundleProviderOptions are optional settings for constructing a bundle provider.
+type BundleProviderOptions struct {
+	ForceUpload bool
+}
+
 // NewBundleProvider returns a new bundler Provider based on the source type
 func NewBundleProvider(source, destination string) (Provider, error) {
+	return NewBundleProviderWithOptions(source, destination, BundleProviderOptions{})
+}
+
+// NewBundleProviderWithOptions returns a new bundler Provider based on the source type and provided options.
+func NewBundleProviderWithOptions(source, destination string, opts BundleProviderOptions) (Provider, error) {
 	ctx := context.TODO()
 	if helpers.IsOCIURL(source) {
 		op := ociProvider{src: source, dst: destination}
@@ -75,7 +85,7 @@ func NewBundleProvider(source, destination string) (Provider, error) {
 	if !utils.IsValidTarballPath(source) {
 		return nil, fmt.Errorf("invalid tarball path: %s", source)
 	}
-	tp := tarballBundleProvider{ctx: ctx, src: source, dst: destination}
+	tp := tarballBundleProvider{ctx: ctx, src: source, dst: destination, forceUpload: opts.ForceUpload}
 	err := tp.loadBundleManifest()
 	if err != nil {
 		return nil, err

@@ -67,8 +67,9 @@ const (
 	CmdBundleRemoveFlagPackages = "Specify which zarf packages you would like to remove from the bundle. By default all zarf packages in the bundle are removed."
 
 	// bundle publish
-	CmdPublishShort       = "Publish a bundle from the local file system to a remote registry"
-	CmdPublishVersionFlag = "[Deprecated] Specify the version of the bundle to be published. This flag will be removed in a future version. Users should use the --version flag during creation to override the version defined in uds-bundle.yaml"
+	CmdPublishShort           = "Publish a bundle from the local file system to a remote registry"
+	CmdPublishVersionFlag     = "[Deprecated] Specify the version of the bundle to be published. This flag will be removed in a future version. Users should use the --version flag during creation to override the version defined in uds-bundle.yaml"
+	CmdPublishFlagForceUpload = "Force upload bundle content to the target registry even when the registry reports it already exists. Can also be enabled with UDS_PUBLISH_FORCE_UPLOAD=true"
 
 	// bundle pull
 	CmdBundlePullShort      = "Pull a bundle from a remote registry and save to the local file system"

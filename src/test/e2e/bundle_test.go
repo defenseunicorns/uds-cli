@@ -7,6 +7,7 @@ package test
 import (
 	"fmt"
 	"math"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -356,6 +357,56 @@ func TestSimplePackagesWithSBOMs(t *testing.T) {
 		require.Contains(t, stderr, "No SBOMs found in bundle")
 		_, stderr = runCmd(t, fmt.Sprintf("inspect %s --insecure --sbom --extract", remoteBundlePath))
 		require.Contains(t, stderr, "Cannot extract, no SBOMs found in bundle")
+	})
+}
+
+func TestPublishWithForceUpload(t *testing.T) {
+	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/output-var", false)
+	e2e.CreateZarfPkg(t, "src/test/packages/no-cluster/real-simple", false)
+
+	bundleDir := "src/test/bundles/11-real-simple/multiple-simple"
+	bundleName := "multiple-simple"
+	bundleTarballName := fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch)
+	bundlePath := filepath.Join(bundleDir, bundleTarballName)
+	runCmd(t, fmt.Sprintf("create %s --confirm -a %s", bundleDir, e2e.Arch))
+
+	layerDigest := getBundleLayerDigest(t, bundlePath)
+
+	e2e.SetupDockerRegistry(t, 888)
+	defer e2e.TeardownRegistry(t, 888)
+
+	seedRepository := fmt.Sprintf("force-upload-seed/%s", bundleName)
+	brokenRepository := fmt.Sprintf("force-upload-broken/%s", bundleName)
+	fixedRepository := fmt.Sprintf("force-upload-fixed/%s", bundleName)
+
+	proxy := startFalsePositiveBlobProxy(t, "http://localhost:888", []string{brokenRepository, fixedRepository})
+
+	runCmd(t, fmt.Sprintf("publish %s localhost:888/force-upload-seed --insecure", bundlePath))
+	require.Equal(t, http.StatusOK, queryBlobStatus(t, "http://localhost:888", seedRepository, layerDigest))
+
+	t.Run("publish without force upload leaves missing blob behind", func(t *testing.T) {
+		e2e.CleanFiles(filepath.Join("build", bundleTarballName))
+
+		_, _, err := runCmdWithErr(fmt.Sprintf("publish %s %s/force-upload-broken --insecure", bundlePath, proxy.registryHost))
+		require.NoError(t, err)
+
+		require.Equal(t, http.StatusNotFound, queryBlobStatus(t, proxy.serverURL, brokenRepository, layerDigest))
+
+		_, stderr, err := runCmdWithErr(fmt.Sprintf("pull oci://%s/%s:0.0.1 -o build --insecure --oci-concurrency=10", proxy.registryHost, brokenRepository))
+		require.Error(t, err)
+		require.Contains(t, stderr, "failed to pull bundle")
+	})
+
+	t.Run("publish with force upload uploads the missing blob", func(t *testing.T) {
+		e2e.CleanFiles(filepath.Join("build", bundleTarballName))
+
+		_, _, err := runCmdWithErr(fmt.Sprintf("publish %s %s/force-upload-fixed --insecure --force-upload", bundlePath, proxy.registryHost))
+		require.NoError(t, err)
+
+		require.Equal(t, http.StatusOK, queryBlobStatus(t, proxy.serverURL, fixedRepository, layerDigest))
+
+		_, _, err = runCmdWithErr(fmt.Sprintf("pull oci://%s/%s:0.0.1 -o build --insecure --oci-concurrency=10", proxy.registryHost, fixedRepository))
+		require.NoError(t, err)
 	})
 }
 

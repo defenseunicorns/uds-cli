@@ -58,6 +58,7 @@ type BundlePublishOptions struct {
 	Source      string
 	Destination string
 	Version     string
+	ForceUpload bool
 }
 
 // BundlePullOptions is the options for the bundler.Pull() function
