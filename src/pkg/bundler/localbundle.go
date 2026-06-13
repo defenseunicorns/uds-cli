@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
@@ -24,6 +26,7 @@ import (
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"golang.org/x/sync/errgroup"
 	"oras.land/oras-go/v2/content"
@@ -91,6 +94,13 @@ func (lo *LocalBundle) create(ctx context.Context, signature []byte) error {
 
 	artifactPathMap := make(types.PathMap)
 
+	// perPkgPriority accumulates the archive names of small per-package
+	// metadata blobs (zarf.yaml/sig/checksums plus the package image manifest).
+	// These get prepended to the bundle tarball so `uds inspect` can find every
+	// package's definition in the first few MB of the stream instead of
+	// scanning past every image layer to reach them.
+	var perPkgPriority []string
+
 	// grab all Zarf pkgs from OCI and put blobs in OCI store
 	for i, pkg := range bundle.Packages {
 		fetcherConfig.PkgIter = i
@@ -103,11 +113,32 @@ func (lo *LocalBundle) create(ctx context.Context, signature []byte) error {
 			return err
 		}
 
-		// add to artifactPathMap for local bundle tarball
+		// add to artifactPathMap for local bundle tarball, collecting this
+		// package's small metadata blobs separately so they can be ordered
+		// AFTER the package image manifest below.
+		var pkgMetaBlobs []string
 		for _, layer := range pkgDescs {
 			digest := layer.Digest.Encoded()
-			artifactPathMap[filepath.Join(lo.tmpDstDir, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
+			archiveName := filepath.Join(config.BlobsDir, digest)
+			artifactPathMap[filepath.Join(lo.tmpDstDir, archiveName)] = archiveName
+
+			switch layer.Annotations[ocispec.AnnotationTitle] {
+			case layout.ZarfYAML, layout.Signature, config.ChecksumsTxt:
+				pkgMetaBlobs = append(pkgMetaBlobs, archiveName)
+			}
 		}
+		// The fetcher appends each package's image manifest to the bundle
+		// root manifest as its last step. Order the manifest BEFORE its
+		// metadata blobs: the inspect prefetcher seeds itself with manifest
+		// digests and learns the zarf.yaml/sig/checksums digests by parsing
+		// each manifest inline. In a single forward pass it can only capture
+		// those blobs if the manifest has already streamed by — otherwise it
+		// skips them (not yet known to be needed) and is forced to drain to EOF.
+		if n := len(rootManifest.Layers); n > 0 {
+			pkgManifest := rootManifest.Layers[n-1]
+			perPkgPriority = append(perPkgPriority, filepath.Join(config.BlobsDir, pkgManifest.Digest.Encoded()))
+		}
+		perPkgPriority = append(perPkgPriority, pkgMetaBlobs...)
 	}
 
 	message.HeaderInfof("🚧 Building Bundle")
@@ -147,6 +178,20 @@ func (lo *LocalBundle) create(ctx context.Context, signature []byte) error {
 	// grab oci-layout
 	artifactPathMap[filepath.Join(lo.tmpDstDir, "oci-layout")] = "oci-layout"
 
+	// priority blobs are written to the front of the tarball so consumers
+	// reading uds-bundle.yaml (and friends) can stop streaming early instead
+	// of decompressing past every package layer to find them.
+	priorityArchiveNames := []string{
+		"oci-layout",
+		"index.json",
+		filepath.Join(config.BlobsDir, rootManifestDesc.Digest.Encoded()),
+		filepath.Join(config.BlobsDir, manifestConfigDigest),
+		filepath.Join(config.BlobsDir, bundleYAMLDesc.Digest.Encoded()),
+	}
+	// followed by every package's small metadata + image manifest so
+	// `uds inspect` can resolve all package definitions in the same prefix.
+	priorityArchiveNames = append(priorityArchiveNames, perPkgPriority...)
+
 	// push the bundle's signature todo: need to understand functionality and add tests
 	if len(signature) > 0 {
 		signatureDesc, err := pushBundleSignature(store, signature)
@@ -159,6 +204,7 @@ func (lo *LocalBundle) create(ctx context.Context, signature []byte) error {
 			return err
 		}
 		message.Debug("Pushed", config.BundleYAMLSignature+":", jsonValue)
+		priorityArchiveNames = append(priorityArchiveNames, filepath.Join(config.BlobsDir, signatureDesc.Digest.Encoded()))
 	}
 
 	// tag the local bundle artifact
@@ -177,7 +223,7 @@ func (lo *LocalBundle) create(ctx context.Context, signature []byte) error {
 		lo.outputDir = lo.sourceDir
 	}
 	// tarball the bundle
-	err = writeTarball(bundle, artifactPathMap, lo.outputDir)
+	err = writeTarball(bundle, artifactPathMap, priorityArchiveNames, lo.outputDir)
 	if err != nil {
 		return err
 	}
@@ -228,8 +274,12 @@ func pushManifestConfig(store *ocistore.Store, metadata types.UDSMetadata, build
 	return manifestConfigDesc, err
 }
 
-// writeTarball builds and writes a bundle tarball to disk based on a file map
-func writeTarball(bundle *types.UDSBundle, artifactPathMap types.PathMap, outputDir string) error {
+// writeTarball builds and writes a bundle tarball to disk based on a file map.
+// priorityArchiveNames lists entries (by archive name) that must be written to
+// the tarball before any others; the order within that slice is preserved so
+// readers can `fs.SkipAll` after the first few KB instead of decompressing the
+// whole stream to find metadata blobs.
+func writeTarball(bundle *types.UDSBundle, artifactPathMap types.PathMap, priorityArchiveNames []string, outputDir string) error {
 	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, bundle.Metadata.Name, bundle.Metadata.Architecture, bundle.Metadata.Version)
 
 	if !helpers.IsDir(outputDir) {
@@ -252,6 +302,26 @@ func writeTarball(bundle *types.UDSBundle, artifactPathMap types.PathMap, output
 	if err != nil {
 		return err
 	}
+
+	// Sort: priority entries first (in given order), then everything else
+	// alphabetical for determinism.
+	priorityRank := make(map[string]int, len(priorityArchiveNames))
+	for i, name := range priorityArchiveNames {
+		priorityRank[name] = i
+	}
+	slices.SortFunc(files, func(a, b archives.FileInfo) int {
+		ar, aOK := priorityRank[a.NameInArchive]
+		br, bOK := priorityRank[b.NameInArchive]
+		switch {
+		case aOK && bOK:
+			return ar - br
+		case aOK:
+			return -1
+		case bOK:
+			return 1
+		}
+		return strings.Compare(a.NameInArchive, b.NameInArchive)
+	})
 
 	archiveErrorChan := make(chan error, len(files))
 	jobs := make(chan archives.ArchiveAsyncJob, len(files))
