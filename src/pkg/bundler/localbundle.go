@@ -108,6 +108,7 @@ func (lo *LocalBundle) create(ctx context.Context, signature []byte) error {
 		if err != nil {
 			return err
 		}
+		layersBefore := len(rootManifest.Layers)
 		pkgDescs, err := pkgFetcher.Fetch()
 		if err != nil {
 			return err
@@ -127,18 +128,23 @@ func (lo *LocalBundle) create(ctx context.Context, signature []byte) error {
 				pkgMetaBlobs = append(pkgMetaBlobs, archiveName)
 			}
 		}
-		// The fetcher appends each package's image manifest to the bundle
-		// root manifest as its last step. Order the manifest BEFORE its
-		// metadata blobs: the inspect prefetcher seeds itself with manifest
-		// digests and learns the zarf.yaml/sig/checksums digests by parsing
-		// each manifest inline. In a single forward pass it can only capture
-		// those blobs if the manifest has already streamed by — otherwise it
-		// skips them (not yet known to be needed) and is forced to drain to EOF.
-		if n := len(rootManifest.Layers); n > 0 {
-			pkgManifest := rootManifest.Layers[n-1]
+		// The fetcher appends exactly one layer to rootManifest as the final
+		// step of Fetch(): this package's image manifest. Validate that contract
+		// rather than blindly trusting Layers[n-1]. The prefetcher learns a
+		// package's metadata digests by parsing this manifest, so the manifest
+		// must be ordered BEFORE its metadata blobs — in a single forward pass
+		// the prefetcher can only capture those blobs if the manifest streamed
+		// by first. If the fetcher ever appends a different number of layers we
+		// can no longer reliably identify the manifest, so we skip the priority
+		// hint for this package entirely (inspect falls back to its slower
+		// per-package path) rather than front-load metadata without its manifest.
+		if added := len(rootManifest.Layers) - layersBefore; added == 1 {
+			pkgManifest := rootManifest.Layers[len(rootManifest.Layers)-1]
 			perPkgPriority = append(perPkgPriority, filepath.Join(config.BlobsDir, pkgManifest.Digest.Encoded()))
+			perPkgPriority = append(perPkgPriority, pkgMetaBlobs...)
+		} else {
+			message.Debugf("fetcher appended %d manifest layers for package %q (expected 1); skipping inspect priority hint", added, pkg.Name)
 		}
-		perPkgPriority = append(perPkgPriority, pkgMetaBlobs...)
 	}
 
 	message.HeaderInfof("🚧 Building Bundle")
