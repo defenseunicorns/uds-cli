@@ -150,6 +150,31 @@ func TestPrefetchPackageMetadata(t *testing.T) {
 		require.NoFileExists(t, filepath.Join(unsigned.dirPath, layout.Signature))
 	})
 
+	t.Run("stages the keyless bundle signature layer", func(t *testing.T) {
+		// Keyless-signed packages carry a zarf.bundle.sig (layout.Bundle) layer.
+		// The prefetcher must stage it alongside zarf.yaml so the downstream
+		// LoadPackageFromDir verification can find it — otherwise keyless
+		// packages fail in the fast path while the slow path would succeed.
+		pkgs := []fixturePkg{{name: "keyless-pkg", blobs: []fixtureBlob{
+			{title: layout.ZarfYAML, content: zarfYAML("keyless", "1.0.0")},
+			{title: layout.Bundle, content: []byte("fake-keyless-bundle-sig")},
+			{title: config.ChecksumsTxt, content: []byte("checksums")},
+		}}}
+		tarPath, hexes := writeFixtureBundle(t, pkgs, true)
+
+		tp := &tarballBundleProvider{src: tarPath}
+		results, err := tp.prefetchPackageMetadata(ctx, []types.Package{
+			{Name: "keyless-pkg", Ref: "ghcr.io/x/keyless@sha256:" + hexes[0]},
+		}, t.TempDir())
+		require.NoError(t, err)
+
+		res := results["keyless-pkg"]
+		require.NotNil(t, res)
+		require.FileExists(t, filepath.Join(res.dirPath, layout.ZarfYAML))
+		require.FileExists(t, filepath.Join(res.dirPath, layout.Bundle))
+		require.FileExists(t, filepath.Join(res.dirPath, layout.Checksums))
+	})
+
 	t.Run("fails when metadata precedes its manifest in the stream", func(t *testing.T) {
 		// This is the single-pass contract that writeTarball satisfies by
 		// ordering each package's manifest before its metadata blobs. If the

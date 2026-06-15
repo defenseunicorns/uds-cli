@@ -123,7 +123,7 @@ func (lo *LocalBundle) create(ctx context.Context, signature []byte) error {
 			artifactPathMap[filepath.Join(lo.tmpDstDir, archiveName)] = archiveName
 
 			switch layer.Annotations[ocispec.AnnotationTitle] {
-			case layout.ZarfYAML, layout.Signature, config.ChecksumsTxt:
+			case layout.ZarfYAML, layout.Signature, layout.Bundle, config.ChecksumsTxt:
 				pkgMetaBlobs = append(pkgMetaBlobs, archiveName)
 			}
 		}
@@ -304,7 +304,10 @@ func writeTarball(bundle *types.UDSBundle, artifactPathMap types.PathMap, priori
 	}
 
 	// Sort: priority entries first (in given order), then everything else
-	// alphabetical for determinism.
+	// alphabetical for determinism. This slice order becomes the tar entry
+	// order only because mholt/archives v0.1.5 ArchiveAsync consumes the jobs
+	// channel serially in send order; if a future version parallelizes that,
+	// this ordering (and the inspect fast-path's prefix read) no longer holds.
 	priorityRank := make(map[string]int, len(priorityArchiveNames))
 	for i, name := range priorityArchiveNames {
 		priorityRank[name] = i
