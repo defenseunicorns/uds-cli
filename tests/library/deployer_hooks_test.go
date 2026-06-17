@@ -33,7 +33,7 @@ type staticLoaderImpl struct {
 	err error
 }
 
-func (l *staticLoaderImpl) LoadPackageLayout(_ context.Context, _ iostreams.IOStreams, _ *bundle.Package, _ string) (*layout.PackageLayout, error) {
+func (l *staticLoaderImpl) LoadPackageLayout(_ context.Context, _ *bundle.Package, _ string, _ bundle.LoadOptions) (*layout.PackageLayout, error) {
 	return l.pkg, l.err
 }
 

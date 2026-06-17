@@ -324,12 +324,37 @@ type Creator interface {
 	BundleName(b *UDSBundle) string
 }
 
+// LoadOptions carries cross-cutting options for Loader and PackageLayoutLoader operations.
+// It replaces the positional streams parameter previously on LoadPackageLayout and the
+// IsPartial field previously on DirectoryPackageLayoutLoader.
+type LoadOptions struct {
+	// Streams carries In/Out/ErrOut and the bound logger for diagnostics.
+	Streams iostreams.IOStreams
+
+	// IsPartial controls whether the staged package is treated as partially extracted.
+	// When true, checksums.txt may reference layers not present on disk.
+	// Applies only to LoadPackageLayout; ignored by LoadBundle and LoadPackage.
+	// ExtractedArtifactPackageLayoutLoader always forces IsPartial: true for
+	// OCI-blob-staged packages regardless of this field.
+	IsPartial bool
+}
+
+// Loader loads a previously saved Package or Bundle.
+// It is distinct from the lower-level PackageLayoutLoader, which returns a deploy-ready layout.
+type Loader interface {
+	// LoadBundle loads a bundle saved in a directory (e.g. via the Puller interface).
+	LoadBundle(ctx context.Context, bundleDir string, opts LoadOptions) (*UDSBundle, error)
+	// LoadPackage loads a package saved in a directory (e.g. via the Puller interface).
+	LoadPackage(ctx context.Context, packageDir string, opts LoadOptions) (*Package, error)
+}
+
 // PackageLayoutLoader abstracts how a per-package layout is obtained for deploy.
 type PackageLayoutLoader interface {
 	// LoadPackageLayout stages the package's contents into dstDir and returns a
 	// PackageLayout ready for packager.Deploy. dstDir must already exist and
-	// is owned by the caller. streams carries the bound logger for diagnostics.
-	LoadPackageLayout(ctx context.Context, streams iostreams.IOStreams, pkg *Package, dstDir string) (*layout.PackageLayout, error)
+	// is owned by the caller. opts.Streams carries the bound logger for diagnostics;
+	// opts.IsPartial controls partial-package semantics.
+	LoadPackageLayout(ctx context.Context, pkg *Package, dstDir string, opts LoadOptions) (*layout.PackageLayout, error)
 }
 
 // PackageSource abstracts how a Zarf package is fetched, supporting both

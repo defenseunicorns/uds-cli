@@ -180,7 +180,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 		loader = &SourcePackageLayoutLoader{configOpts: *opts.Config.Options, bundleDir: opts.BundleDir}
 	}
 
-	pkgLayout, err := loader.LoadPackageLayout(ctx, log, pkg, pkgTmp)
+	pkgLayout, err := loader.LoadPackageLayout(ctx, pkg, pkgTmp, LoadOptions{Streams: log})
 	if err != nil {
 		return err
 	}

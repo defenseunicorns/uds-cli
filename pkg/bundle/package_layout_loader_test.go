@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestExtractedArtifactPackageLayoutLoader_LoadPackage(t *testing.T) {
+func TestExtractedArtifactPackageLayoutLoader_LoadPackageLayout(t *testing.T) {
 	tests := []struct {
 		name         string
 		pkg          *Package
@@ -42,10 +42,12 @@ func TestExtractedArtifactPackageLayoutLoader_LoadPackage(t *testing.T) {
 			wantNotFound: true,
 		},
 		{
-			name:         "missing local source",
+			// Local source not in PackageDigests falls back to directory staging;
+			// "./absent" does not exist so staging fails (not an index-not-found error).
+			name:         "missing local source falls back to directory staging",
 			pkg:          &Package{Name: "absent", Source: "./absent"},
 			digests:      map[string]string{"localpkg": "sha256:bbb"},
-			wantNotFound: true,
+			wantNotFound: false,
 		},
 		{
 			name:         "empty digests map",
@@ -61,7 +63,7 @@ func TestExtractedArtifactPackageLayoutLoader_LoadPackage(t *testing.T) {
 				OCIDir:         t.TempDir(),
 				PackageDigests: tt.digests,
 			}
-			_, err := loader.LoadPackageLayout(context.Background(), iostreams.IOStreams{}, tt.pkg, t.TempDir())
+			_, err := loader.LoadPackageLayout(context.Background(), tt.pkg, t.TempDir(), LoadOptions{})
 			require.Error(t, err)
 			if tt.wantNotFound {
 				assert.Contains(t, err.Error(), "not found in bundle artifact index")
@@ -92,7 +94,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 
 	// LoadPackage fails at layout.LoadFromDir since fixture has fake content,
 	// not a valid Zarf package. Confirm layer files were staged before that failure.
-	_, err = loader.LoadPackageLayout(context.Background(), iostreams.IOStreams{}, pkg, dstDir)
+	_, err = loader.LoadPackageLayout(context.Background(), pkg, dstDir, LoadOptions{})
 	require.Error(t, err)
 
 	assert.FileExists(t, filepath.Join(dstDir, "zarf.yaml"), "zarf.yaml layer should be staged before LoadFromDir is called")
@@ -116,7 +118,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 	dstDir := t.TempDir()
 	escapedPath := filepath.Clean(filepath.Join(dstDir, filepath.FromSlash(escapingTitle)))
 
-	_, err = loader.LoadPackageLayout(context.Background(), iostreams.IOStreams{}, &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}, dstDir)
+	_, err = loader.LoadPackageLayout(context.Background(), &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}, dstDir, LoadOptions{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "escapes destination directory")
 	assert.NoFileExists(t, escapedPath)
@@ -138,7 +140,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 	}
 	dstDir := t.TempDir()
 
-	_, err = loader.LoadPackageLayout(context.Background(), iostreams.IOStreams{}, &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}, dstDir)
+	_, err = loader.LoadPackageLayout(context.Background(), &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}, dstDir, LoadOptions{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `manifest for package "mypkg" missing title annotation on layer`)
 
@@ -174,6 +176,41 @@ func TestCtxReader_ObservesCancellationBetweenReads(t *testing.T) {
 	n, err = reader.Read(buf)
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Equal(t, 0, n)
+}
+
+func TestExtractedArtifactPackageLayoutLoader_DirectoryFallback(t *testing.T) {
+	t.Run("stages files from pkg.Source when not in PackageDigests", func(t *testing.T) {
+		pkgDir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte("kind: ZarfPackageConfig\nmetadata:\n  name: test\n"), 0o600))
+		require.NoError(t, os.MkdirAll(filepath.Join(pkgDir, "components"), 0o700))
+		require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "components", "test.tar"), []byte("dummy"), 0o600))
+
+		dstDir := t.TempDir()
+		loader := &ExtractedArtifactPackageLayoutLoader{PackageDigests: map[string]string{}}
+		pkg := &Package{Name: "mypkg", Source: pkgDir}
+
+		// Fails at layout.LoadFromDir since fixture has incomplete content,
+		// but staging side effects should be visible.
+		_, err := loader.LoadPackageLayout(context.Background(), pkg, dstDir, LoadOptions{})
+		require.Error(t, err)
+
+		assert.FileExists(t, filepath.Join(dstDir, "zarf.yaml"), "zarf.yaml should be staged")
+		assert.DirExists(t, filepath.Join(dstDir, "components"), "components dir should be staged")
+		assert.FileExists(t, filepath.Join(dstDir, "components", "test.tar"), "test.tar should be staged")
+
+		// Source directory is preserved.
+		assert.DirExists(t, pkgDir, "source dir should be preserved after staging")
+		assert.FileExists(t, filepath.Join(pkgDir, "zarf.yaml"), "original zarf.yaml should be preserved")
+		assert.FileExists(t, filepath.Join(pkgDir, "components", "test.tar"), "original test.tar should be preserved")
+	})
+
+	t.Run("OCI source not in PackageDigests returns error (not dir fallback)", func(t *testing.T) {
+		loader := &ExtractedArtifactPackageLayoutLoader{PackageDigests: map[string]string{}}
+		pkg := &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}
+		_, err := loader.LoadPackageLayout(context.Background(), pkg, t.TempDir(), LoadOptions{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not found in bundle artifact index")
+	})
 }
 
 func TestValuesFilesByPackage_AfterArtifactExtract(t *testing.T) {

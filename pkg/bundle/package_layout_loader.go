@@ -8,16 +8,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"gopkg.in/yaml.v3"
 )
 
 // ExtractedArtifactPackageLayoutLoader reads package OCI blobs from an extracted bundle artifact workspace.
+// It implements both Loader and PackageLayoutLoader: LoadBundle and LoadPackage read from the
+// caller-supplied directory path; LoadPackageLayout stages OCI blobs from the artifact workspace,
+// with a fallback to directory staging for local-source packages not in the OCI index.
 type ExtractedArtifactPackageLayoutLoader struct {
 	// OCIDir is <workspace>/oci — the extracted OCI image layout root.
 	OCIDir string
@@ -27,17 +31,64 @@ type ExtractedArtifactPackageLayoutLoader struct {
 	PackageDigests map[string]string
 }
 
+var _ Loader = (*ExtractedArtifactPackageLayoutLoader)(nil)
 var _ PackageLayoutLoader = (*ExtractedArtifactPackageLayoutLoader)(nil)
 
+// LoadBundle parses the bundle.uds.hcl file inside bundleDir and returns a UDSBundle.
+func (l *ExtractedArtifactPackageLayoutLoader) LoadBundle(ctx context.Context, bundleDir string, opts LoadOptions) (*UDSBundle, error) {
+	if bundleDir == "" {
+		return nil, errEmpty("bundleDir")
+	}
+	parser := NewHCLParser("", opts.Streams)
+	return parser.ParseBundleFile(ctx, filepath.Join(bundleDir, BundleFileName))
+}
+
+// LoadPackage reads zarf.yaml from a flat extracted Zarf package directory and returns
+// a Package with the package name and the given directory as Source.
+func (l *ExtractedArtifactPackageLayoutLoader) LoadPackage(_ context.Context, packageDir string, _ LoadOptions) (*Package, error) {
+	if packageDir == "" {
+		return nil, errEmpty("packageDir")
+	}
+	b, err := os.ReadFile(filepath.Join(packageDir, "zarf.yaml"))
+	if err != nil {
+		return nil, fmt.Errorf("reading zarf.yaml from %q: %w", packageDir, err)
+	}
+	var meta zarfMetadata
+	if err := yaml.Unmarshal(b, &meta); err != nil {
+		return nil, fmt.Errorf("parsing zarf.yaml from %q: %w", packageDir, err)
+	}
+	if meta.Metadata.Name == "" {
+		return nil, fmt.Errorf("zarf.yaml in %q has empty metadata.name", packageDir)
+	}
+	return &Package{Name: meta.Metadata.Name, Source: packageDir}, nil
+}
+
 // LoadPackageLayout stages the package's OCI layers into dstDir, which must already exist.
-func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Context, streams iostreams.IOStreams, pkg *Package, dstDir string) (*layout.PackageLayout, error) {
-	streams.Debug("loading package from extracted bundle artifact", "name", pkg.Name, "dir", dstDir)
+// For local-source packages not found in the OCI blob index, it falls back to staging
+// from pkg.Source as a flat directory (absorbed from the former DirectoryPackageLayoutLoader).
+func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *Package, dstDir string, opts LoadOptions) (*layout.PackageLayout, error) {
+	s := opts.Streams
+	s.Debug("loading package layout", "name", pkg.Name, "dir", dstDir)
 	key := pkg.Name
 	if IsOCIReference(pkg.Source) {
 		key = TrimScheme(pkg.Source)
 	}
 	digest, ok := l.PackageDigests[key]
 	if !ok {
+		// Fallback: if pkg.Source is a local directory, stage it directly.
+		// This covers packages loaded via LoadPackage whose Source is an on-disk path.
+		if !IsOCIReference(pkg.Source) && pkg.Source != "" {
+			s.Info("loading package from pre-staged directory", "name", pkg.Name, "dir", pkg.Source)
+			if err := stagePackageDir(ctx, pkg.Source, dstDir); err != nil {
+				return nil, fmt.Errorf("staging package %q: %w", pkg.Name, err)
+			}
+			filter := BuildComponentFilter(pkg.OptionalComponents)
+			pkgLayout, err := layout.LoadFromDir(ctx, dstDir, layout.PackageLayoutOptions{Filter: filter, IsPartial: opts.IsPartial})
+			if err != nil {
+				return nil, fmt.Errorf("loading package layout for %q from %q: %w", pkg.Name, dstDir, err)
+			}
+			return pkgLayout, nil
+		}
 		keys := make([]string, 0, len(l.PackageDigests))
 		for k := range l.PackageDigests {
 			keys = append(keys, k)
@@ -80,8 +131,8 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 	}
 
 	filter := BuildComponentFilter(pkg.OptionalComponents)
-	// IsPartial: true because the bundle stores only the layers ingested at create time;
-	// checksums.txt may reference blobs that were filtered out during bundle create.
+	// OCI-blob-staged packages always use IsPartial: true — the bundle stores only the
+	// layers ingested at create time; checksums.txt may reference filtered-out blobs.
 	pkgLayout, err := layout.LoadFromDir(ctx, dstDir, layout.PackageLayoutOptions{Filter: filter, IsPartial: true})
 	if err != nil {
 		return nil, fmt.Errorf("loading package layout for %q: %w", pkg.Name, err)
@@ -98,15 +149,36 @@ type SourcePackageLayoutLoader struct {
 
 var _ PackageLayoutLoader = (*SourcePackageLayoutLoader)(nil)
 
-func (l *SourcePackageLayoutLoader) LoadPackageLayout(ctx context.Context, streams iostreams.IOStreams, pkg *Package, dstDir string) (*layout.PackageLayout, error) {
-	streams.Info("pulling package", "source", pkg.Source)
-	source := NewPackageSource(pkg.Source, l.configOpts, l.bundleDir, streams)
+func (l *SourcePackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *Package, dstDir string, opts LoadOptions) (*layout.PackageLayout, error) {
+	s := opts.Streams
+	s.Info("pulling package", "source", pkg.Source)
+	source := NewPackageSource(pkg.Source, l.configOpts, l.bundleDir, opts.Streams)
 	filter := BuildComponentFilter(pkg.OptionalComponents)
 	pkgLayout, err := source.PullFiltered(ctx, filter, dstDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load package %q from %s: %w", pkg.Name, pkg.Source, err)
 	}
 	return pkgLayout, nil
+}
+
+// stagePackageDir walks src directory and stages all files and directories into dst.
+// Preserves the directory structure, using linkOrCopy for files. Cleanup only
+// affects dst and not the caller's original src directory.
+func stagePackageDir(ctx context.Context, src, dst string) error {
+	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		dstPath := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(dstPath, tempDirPerm)
+		}
+		return linkOrCopy(ctx, path, dstPath)
+	})
 }
 
 // linkOrCopy creates a hard link from src to dst; on cross-device link errors it falls back to a full copy.
