@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,8 +31,7 @@ func TestRootCommand_LogLevelFlag(t *testing.T) {
 
 			err := root.Execute()
 			if tt.wantErr {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), "unknown log level")
+				require.ErrorContains(t, err, "unknown log level")
 			} else {
 				require.NoError(t, err)
 			}

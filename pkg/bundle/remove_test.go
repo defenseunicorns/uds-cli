@@ -156,8 +156,7 @@ func TestRemovePackages_EmptyLevels(t *testing.T) {
 
 func TestRemove_NilConfig(t *testing.T) {
 	_, err := Remove(t.Context(), RemoveOptions{})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "config is required")
+	require.ErrorContains(t, err, "config is required")
 }
 
 // TestDeployedKey locks in that the deployed-package cache key combines the

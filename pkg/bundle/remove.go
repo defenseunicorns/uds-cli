@@ -53,5 +53,6 @@ func Remove(ctx context.Context, opts RemoveOptions) (*RemoveResult, error) {
 	remover := NewZarfRemover(s)
 	return remover.RemoveBundle(ctx, b, opts.Packages, RemovePackageOptions{
 		Config: opts.Config,
+		Force:  opts.Force,
 	})
 }

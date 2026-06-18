@@ -98,11 +98,6 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts Depl
 		return nil, fmt.Errorf("bundle validation failed: %w", err)
 	}
 
-	bhooks := opts.BundleDeployHooks.withDefaults()
-	if err := bhooks.PreDeploy(ctx, b, &opts); err != nil {
-		return nil, fmt.Errorf("pre-deploy bundle hook failed: %w", err)
-	}
-
 	s := logger.Bind(d.streams, opts.Config.Global.LogLevel)
 
 	dag, err := BuildDependencyGraph(ctx, s, b)
@@ -116,6 +111,43 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts Depl
 	}
 	s.Debug("dependency graph built", "levels", len(levels))
 
+	// Validate the package selection before firing the pre-deploy bundle hook, so a
+	// hook with side effects (notifications, lock acquisition, audit logs) does not
+	// run for a request that is about to be rejected for an unknown package or an
+	// unselected dependency.
+	//
+	// Running validation before the hook is contract-safe: the selection is checked
+	// against opts.Packages, b.Packages, and the dag already built above, all fixed
+	// before PreDeploy. Per ADR-0013 a bundle PreDeploy hook may only mutate
+	// opts.PackageDeployHooks and opts.PackageDeployFn (neither feeds package
+	// selection), so no contract-conforming hook can change the validation outcome
+	// by running first.
+	if err := ValidatePackageNames(opts.Packages, b.Packages); err != nil {
+		return nil, err
+	}
+	if !opts.Force {
+		// Derive missing dependencies from the dag already built above instead of
+		// rebuilding it via ValidateDeploySafety.
+		if missing := missingDependencies(dag, opts.Packages); len(missing) > 0 {
+			return nil, formatDependencyError("cannot deploy package(s) with unselected dependencies", "requires", missing)
+		}
+	}
+	if levels, err = filterLevels(levels, opts.Packages); err != nil {
+		return nil, err
+	}
+
+	// Count the packages actually scheduled for deploy (the filtered set), which
+	// may be a subset of b.Packages when --packages is used.
+	deployCount := 0
+	for _, level := range levels {
+		deployCount += len(level)
+	}
+
+	bhooks := opts.BundleDeployHooks.withDefaults()
+	if err := bhooks.PreDeploy(ctx, b, &opts); err != nil {
+		return nil, fmt.Errorf("pre-deploy bundle hook failed: %w", err)
+	}
+
 	concurrency := opts.Config.Options.Concurrency
 
 	pkgOpts := DeployPackageOptions{
@@ -125,7 +157,7 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts Depl
 		Streams:            s,
 	}
 
-	s.Info("deploying bundle", "packages", len(b.Packages), "levels", len(levels), "concurrency", concurrency)
+	s.Info("deploying bundle", "packages", deployCount, "levels", len(levels), "concurrency", concurrency)
 
 	deployer := &orchestratedDeployer{base: d, packageDeployFn: opts.PackageDeployFn}
 
@@ -136,7 +168,7 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts Depl
 
 	result := &DeployResult{
 		BundleName: b.Metadata.Name,
-		Packages:   len(b.Packages),
+		Packages:   deployCount,
 	}
 	if err := bhooks.PostDeploy(ctx, b); err != nil {
 		// Packages are already deployed at this point; return the populated result

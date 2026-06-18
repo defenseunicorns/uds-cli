@@ -86,7 +86,7 @@ Examples:
 	}
 
 	cmd.Flags().StringSliceVarP(&o.Packages, "packages", "p", nil, "specific packages to remove (comma-separated)")
-	cmd.Flags().BoolVar(&o.Force, "force", false, "remove packages even if other bundle packages depend on them")
+	cmd.Flags().BoolVarP(&o.Force, "force", "f", false, "remove packages even if other bundle packages depend on them")
 
 	return cmd
 }
@@ -119,9 +119,11 @@ func (o *RemoveOptions) Complete(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// Validate validates the options. It parses the bundle so that bundle-content
-// checks (parsedBundle.Validate, ValidatePackageNames, and the dependency
-// safety check) can run before Run(). The parsed bundle is cached on
+// Validate validates the options. It parses the bundle and runs the package
+// selection checks (ValidatePackageNames and, unless --force, dependency
+// safety) before Run() so invalid input fails fast even when the operator
+// declines the prompt. The library layer (RemoveBundle) re-validates as the
+// authoritative gate for direct callers. The parsed bundle is cached on
 // o.parsedBundle for Run() to consume.
 func (o *RemoveOptions) Validate() error {
 	if err := ValidateBundlePath(o.BundlePath); err != nil {
@@ -145,7 +147,7 @@ func (o *RemoveOptions) Validate() error {
 	}
 	if !o.Force {
 		if err := bundle.ValidateRemovalSafety(ctx, s, parsedBundle, o.Packages); err != nil {
-			return err
+			return fmt.Errorf("%w\nre-run with --force to override", err)
 		}
 	}
 
@@ -178,6 +180,7 @@ func (o *RemoveOptions) Run(ctx context.Context) error {
 		BundlePath: bundlePath,
 		Bundle:     o.parsedBundle,
 		Packages:   o.Packages,
+		Force:      o.Force,
 		Streams:    o.IOStreams,
 	}
 

@@ -137,16 +137,14 @@ func TestValidateDir(t *testing.T) {
 
 	t.Run("nonexistent path", func(t *testing.T) {
 		err := ValidateDir("/nonexistent/path/tmp")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "directory does not exist")
+		require.ErrorContains(t, err, "directory does not exist")
 	})
 
 	t.Run("path is a file", func(t *testing.T) {
 		f := filepath.Join(t.TempDir(), "afile")
 		require.NoError(t, os.WriteFile(f, []byte("x"), 0o644))
 		err := ValidateDir(f)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "path is not a directory")
+		require.ErrorContains(t, err, "path is not a directory")
 	})
 }
 
@@ -250,8 +248,7 @@ func TestValidateBundlePath(t *testing.T) {
 			err := ValidateBundlePath(tt.ref)
 
 			if tt.wantErr != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
+				require.ErrorContains(t, err, tt.wantErr)
 			} else {
 				require.NoError(t, err)
 			}
@@ -285,8 +282,7 @@ func TestValidateBundlePath_AllowArtifact(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := ValidateBundlePath(tt.ref, AllowArtifactBundlePath())
 			if tt.wantErr != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
+				require.ErrorContains(t, err, tt.wantErr)
 			} else {
 				require.NoError(t, err)
 			}

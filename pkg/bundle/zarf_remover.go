@@ -136,8 +136,17 @@ func (r *ZarfRemover) RemoveBundle(ctx context.Context, b *UDSBundle, packages [
 	}
 	s.Debug("dependency graph built", "levels", len(levels))
 
-	levels, err = filterLevels(levels, packages)
-	if err != nil {
+	if err := ValidatePackageNames(packages, b.Packages); err != nil {
+		return nil, err
+	}
+	if !opts.Force {
+		// Derive blockers from the dag already built above instead of rebuilding
+		// it via ValidateRemovalSafety.
+		if blockers := dependentBlockers(dag, packages); len(blockers) > 0 {
+			return nil, formatDependencyError("cannot remove package(s) with bundle dependents", "is required by", blockers)
+		}
+	}
+	if levels, err = filterLevels(levels, packages); err != nil {
 		return nil, err
 	}
 

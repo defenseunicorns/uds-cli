@@ -252,8 +252,7 @@ func TestTemplateValuesFiles(t *testing.T) {
 			outPaths, err := templateValuesFiles(context.Background(), inputPaths, tt.vars, t.TempDir())
 
 			if tt.wantErr != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
+				require.ErrorContains(t, err, tt.wantErr)
 				return
 			}
 			if !tt.wantSameRef && tt.wantOutputs == nil {
@@ -407,8 +406,7 @@ func TestZarfDeployer_DeployPackage_InvalidSource(t *testing.T) {
 				Config:    newTestConfig(),
 				BundleDir: t.TempDir(),
 			})
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "failed to load package")
+			require.ErrorContains(t, err, "failed to load package")
 		})
 	}
 }

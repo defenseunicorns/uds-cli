@@ -31,8 +31,7 @@ func TestReconfigureCommand_MissingDefaultsFlag(t *testing.T) {
 	cmd := NewBundleCommand(streams)
 	cmd.SetArgs([]string{"reconfigure", "/some/bundle.tar.zst"})
 	err := cmd.Execute()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "defaults")
+	require.ErrorContains(t, err, "defaults")
 }
 
 func TestReconfigureCommand_DefaultSuffix(t *testing.T) {
@@ -52,8 +51,7 @@ func TestReconfigureCommand_ValidateRejectsEmptySuffix(t *testing.T) {
 		Suffix:       "",
 	}
 	err := o.Validate()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "suffix")
+	require.ErrorContains(t, err, "suffix")
 }
 
 func TestReconfigureCommand_ValidateRejectsOutputDirForOCI(t *testing.T) {
@@ -68,8 +66,7 @@ func TestReconfigureCommand_ValidateRejectsOutputDirForOCI(t *testing.T) {
 		OutputDir:    "/some/dir",
 	}
 	err := o.Validate()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "output-dir")
+	require.ErrorContains(t, err, "output-dir")
 }
 
 func TestReconfigureCommand_ValidateRejectsMissingDefaultsFile(t *testing.T) {
@@ -80,8 +77,7 @@ func TestReconfigureCommand_ValidateRejectsMissingDefaultsFile(t *testing.T) {
 		Suffix:       "-test",
 	}
 	err := o.Validate()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
+	require.ErrorContains(t, err, "not found")
 }
 
 func TestReconfigureOptions_Run_PromptDecline(t *testing.T) {

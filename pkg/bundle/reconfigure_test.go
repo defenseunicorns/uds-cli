@@ -223,8 +223,7 @@ metadata {
 			t.Parallel()
 			result, err := spliceHCLName([]byte(tt.hcl), tt.suffix)
 			if tt.wantErr != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
+				require.ErrorContains(t, err, tt.wantErr)
 				return
 			}
 			require.NoError(t, err)
@@ -471,8 +470,7 @@ package "pkg1" {
 		OutputDir:    outDir,
 		Options:      ConfigOptions{TmpDir: t.TempDir()},
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "already exists")
+	require.ErrorContains(t, err, "already exists")
 }
 
 func TestLocalReconfigure_InsertsDefaultsWhenOriginalHadNone(t *testing.T) {
@@ -511,8 +509,7 @@ func TestLocalReconfigure_NonBundleTarball(t *testing.T) {
 	defaultsPath := writeDefaultsFile(t, `variables = { a = "b" }`)
 
 	_, err := runLocalReconfigure(t, tarball, defaultsPath, "-reconfigured")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "reading index.json")
+	require.ErrorContains(t, err, "reading index.json")
 }
 
 func TestLocalReconfigure_RejectsNonTarZstSource(t *testing.T) {
@@ -520,8 +517,7 @@ func TestLocalReconfigure_RejectsNonTarZstSource(t *testing.T) {
 	defaultsPath := writeDefaultsFile(t, `variables = { a = "b" }`)
 
 	_, err := runLocalReconfigure(t, "/path/to/bundle.zip", defaultsPath, "-reconfigured")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "source must be a .tar.zst file")
+	require.ErrorContains(t, err, "source must be a .tar.zst file")
 }
 
 // pushTestBundle creates a bundle and pushes it to the given ORAS store.
@@ -608,8 +604,7 @@ package "pkg1" {
 		Options:      ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true},
 		remoteRepo:   store,
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "already exists")
+	require.ErrorContains(t, err, "already exists")
 }
 
 func TestOCIReconfigure_SourceTagNotFound(t *testing.T) {
@@ -628,8 +623,7 @@ func TestOCIReconfigure_SourceTagNotFound(t *testing.T) {
 		Options:      ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true},
 		remoteRepo:   store,
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "resolving")
+	require.ErrorContains(t, err, "resolving")
 }
 
 func TestOCIReconfigure_DigestReferenceRejected(t *testing.T) {
@@ -648,8 +642,7 @@ func TestOCIReconfigure_DigestReferenceRejected(t *testing.T) {
 		Options:      ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true},
 		remoteRepo:   store,
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "tag reference")
+	require.ErrorContains(t, err, "tag reference")
 }
 
 func TestReconfigure_DispatchesLocal(t *testing.T) {
@@ -690,8 +683,7 @@ func TestReconfigure_InvalidDefaults(t *testing.T) {
 		DefaultsFile: badDefaultsPath,
 		Suffix:       "-reconfigured",
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not_variables")
+	require.ErrorContains(t, err, "not_variables")
 }
 
 func TestReconfigure_SuffixValidation(t *testing.T) {
@@ -729,8 +721,7 @@ func TestReconfigure_SuffixValidation(t *testing.T) {
 					assert.NotContains(t, err.Error(), "invalid suffix")
 				}
 			} else {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), "invalid suffix")
+				require.ErrorContains(t, err, "invalid suffix")
 			}
 		})
 	}

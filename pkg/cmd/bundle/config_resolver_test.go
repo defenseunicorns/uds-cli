@@ -630,8 +630,7 @@ func TestResolve_InvalidConfigPath(t *testing.T) {
 	require.NoError(t, cmd.Flags().Set("config", "/nonexistent/config.uds.hcl"))
 
 	_, _, err := r.Resolve(context.Background(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to parse config")
+	require.ErrorContains(t, err, "failed to parse config")
 }
 
 func TestResolve_NoConfigFlag(t *testing.T) {
@@ -744,8 +743,7 @@ options {
 	require.NoError(t, cmd.Flags().Set("config", configPath))
 
 	_, _, err := r.Resolve(context.Background(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid log level")
+	require.ErrorContains(t, err, "invalid log level")
 }
 
 // --- defaults.uds.hcl tests ---
@@ -833,8 +831,7 @@ this is not valid HCL {{{
 	cmd.Flags().String("config", "", "config path")
 
 	_, _, err := r.Resolve(context.Background(), iostreams.IOStreams{}, SnapshotFlags(cmd), bundleDir)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), bundle.BundleDefaultsFileName)
+	require.ErrorContains(t, err, bundle.BundleDefaultsFileName)
 }
 
 func TestResolve_DefaultsFile_BundleDirIsFilePath(t *testing.T) {

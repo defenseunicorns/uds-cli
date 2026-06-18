@@ -214,8 +214,7 @@ func TestSafeLayerDestinationPath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := safeLayerDestinationPath(cleanDstDir, dstDir, tt.title)
 			if tt.wantErrFrag != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErrFrag)
+				require.ErrorContains(t, err, tt.wantErrFrag)
 				return
 			}
 			require.NoError(t, err)
@@ -401,8 +400,7 @@ func TestBuildPackageDigests(t *testing.T) {
 			idx := ociIndex{Manifests: tt.manifests}
 			got, err := buildPackageDigests(idx, tt.defIdx)
 			if tt.wantErrFrag != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErrFrag)
+				require.ErrorContains(t, err, tt.wantErrFrag)
 				return
 			}
 			require.NoError(t, err)

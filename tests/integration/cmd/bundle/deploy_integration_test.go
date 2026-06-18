@@ -145,6 +145,50 @@ func (s *DeploySuite) TestDeployCommand_WithPromptFlag() {
 		"help output should document --prompt flag")
 }
 
+// TestDeployCommand_PackagesFlagInHelp verifies that --packages is documented
+// in the deploy help output.
+func (s *DeploySuite) TestDeployCommand_PackagesFlagInHelp() {
+	cmd := exec.Command(s.uds, "bundle", "deploy", "--help")
+	output, err := cmd.CombinedOutput()
+	require.NoError(s.T(), err, "help should succeed")
+
+	assert.Contains(s.T(), string(output), "--packages",
+		"help output should document --packages flag")
+	assert.Contains(s.T(), string(output), "--force",
+		"help output should document --force flag")
+}
+
+// TestDeployCommand_InvalidPackagesFlag verifies that specifying a non-existent
+// package name via --packages fails with a clear error, without requiring a cluster.
+func (s *DeploySuite) TestDeployCommand_InvalidPackagesFlag() {
+	bundlePath := testDataPath(s.T(), "bundles/deploy/init")
+
+	cmd := exec.Command(s.uds, "bundle", "deploy", bundlePath, "--packages", "nonexistent")
+	output, err := cmd.CombinedOutput()
+
+	assert.Error(s.T(), err, "deploy with invalid packages should fail")
+	assert.Contains(s.T(), string(output), "unknown packages",
+		"error should mention the unknown package")
+}
+
+// TestDeployCommand_InvalidPackagesFlagWithPromptDeclined verifies that an
+// invalid --packages selection fails even under --prompt: the package check
+// runs before (and independently of) the confirmation prompt, so the prompt
+// never participates in the rejection.
+func (s *DeploySuite) TestDeployCommand_InvalidPackagesFlagWithPromptDeclined() {
+	bundlePath := testDataPath(s.T(), "bundles/deploy/init")
+
+	cmd := exec.Command(s.uds, "bundle", "deploy", bundlePath, "--packages", "nonexistent", "--prompt")
+	// "n" would decline the prompt, but validation rejects --packages first, so this
+	// is never read — present to prove the failure is independent of prompt input.
+	cmd.Stdin = strings.NewReader("n\n")
+	output, err := cmd.CombinedOutput()
+
+	assert.Error(s.T(), err, "invalid packages should fail before the prompt is reached")
+	assert.Contains(s.T(), string(output), "unknown packages",
+		"error should mention the unknown package")
+}
+
 // TestDeployCommand_DisplaysPreview verifies that deploy command shows bundle preview
 // before prompting for confirmation when --prompt is used.
 func (s *DeploySuite) TestDeployCommand_DisplaysPreview() {

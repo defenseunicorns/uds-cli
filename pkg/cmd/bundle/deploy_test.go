@@ -163,8 +163,7 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 				// Validate should not modify BundlePath
 				assert.Equal(t, tt.bundlePath, o.BundlePath, "Validate() should not modify BundlePath")
 			} else {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
+				require.ErrorContains(t, err, tt.wantErr)
 			}
 		})
 	}
@@ -309,4 +308,23 @@ func TestDeployOptions_Flags(t *testing.T) {
 	configFlag := bundleCmd.PersistentFlags().Lookup("config")
 	require.NotNil(t, configFlag, "config flag should be defined on parent bundle command")
 	assert.Empty(t, configFlag.DefValue)
+}
+
+// TestDeployOptions_PackagesForceFlags verifies that --packages/-p and --force/-f
+// are wired on the deploy command and bound to DeployOptions.
+func TestDeployOptions_PackagesForceFlags(t *testing.T) {
+	streams, _, _, _ := iostreams.NewTestIOStreams()
+
+	bundleCmd := NewBundleCommand(streams)
+	deployCmd, _, _ := bundleCmd.Find([]string{"deploy"})
+	require.NotNil(t, deployCmd)
+
+	packagesFlag := deployCmd.Flags().Lookup("packages")
+	require.NotNil(t, packagesFlag, "packages flag should be defined on deploy command")
+	assert.Equal(t, "p", packagesFlag.Shorthand)
+
+	forceFlag := deployCmd.Flags().Lookup("force")
+	require.NotNil(t, forceFlag, "force flag should be defined on deploy command")
+	assert.Equal(t, "f", forceFlag.Shorthand)
+	assert.Equal(t, "false", forceFlag.DefValue, "force should default to false")
 }

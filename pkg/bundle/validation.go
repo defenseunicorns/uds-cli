@@ -250,14 +250,18 @@ func (o ReconfigureOptions) Validate() error {
 }
 
 // ValidatePackageNames checks that all names exist in the bundle's package list.
+// The error message names the unknown packages and lists all available packages.
 func ValidatePackageNames(names []string, packages []Package) error {
 	if len(names) == 0 {
 		return nil
 	}
 	known := make(map[string]bool, len(packages))
+	knownNames := make([]string, 0, len(packages))
 	for _, p := range packages {
 		known[p.Name] = true
+		knownNames = append(knownNames, p.Name)
 	}
+	sort.Strings(knownNames)
 	var unknown []string
 	for _, n := range names {
 		if !known[n] {
@@ -265,7 +269,7 @@ func ValidatePackageNames(names []string, packages []Package) error {
 		}
 	}
 	if len(unknown) > 0 {
-		return fmt.Errorf("unknown packages: %v", unknown)
+		return fmt.Errorf("unknown packages %v not defined in bundle (available packages: %v)", unknown, knownNames)
 	}
 	return nil
 }
@@ -282,7 +286,8 @@ func containsPackage(packages []Package, name string) bool {
 // ValidateRemovalSafety returns an error if removing the named packages would
 // leave any remaining bundle package with a missing dependency. Empty
 // packageNames (full bundle removal) or no offending dependents both yield nil.
-// The error message instructs the user to use --force to override.
+// On violation it returns a *DependencyViolationError listing, per removed
+// package, the remaining packages that still depend on it.
 func ValidateRemovalSafety(ctx context.Context, streams iostreams.IOStreams, b *UDSBundle, packageNames []string) error {
 	if len(packageNames) == 0 {
 		return nil
@@ -295,7 +300,26 @@ func ValidateRemovalSafety(ctx context.Context, streams iostreams.IOStreams, b *
 	if len(blockers) == 0 {
 		return nil
 	}
-	return formatBlockersError(blockers)
+	return formatDependencyError("cannot remove package(s) with bundle dependents", "is required by", blockers)
+}
+
+// ValidateDeploySafety returns an error if any selected package depends on a
+// package that is NOT selected. Empty packageNames (full deploy) yields nil.
+// On violation it returns a *DependencyViolationError listing, per selected
+// package, the dependencies that are missing from the selection.
+func ValidateDeploySafety(ctx context.Context, streams iostreams.IOStreams, b *UDSBundle, packageNames []string) error {
+	if len(packageNames) == 0 {
+		return nil
+	}
+	dag, err := BuildDependencyGraph(ctx, streams, b)
+	if err != nil {
+		return fmt.Errorf("failed to build dependency graph: %w", err)
+	}
+	missing := missingDependencies(dag, packageNames)
+	if len(missing) == 0 {
+		return nil
+	}
+	return formatDependencyError("cannot deploy package(s) with unselected dependencies", "requires", missing)
 }
 
 // dependentBlockers returns, for each package being removed, the names of
@@ -328,20 +352,69 @@ func dependentBlockers(dag *DAG, removeNames []string) map[string][]string {
 	return blockers
 }
 
-// formatBlockersError produces the user-facing error returned by
-// ValidateRemovalSafety when at least one dependent would be left stranded.
-func formatBlockersError(blockers map[string][]string) error {
-	names := make([]string, 0, len(blockers))
-	for k := range blockers {
+// missingDependencies returns, for each selected package, the names of its
+// direct dependencies that are NOT in the selected set.
+func missingDependencies(dag *DAG, selected []string) map[string][]string {
+	selSet := make(map[string]bool, len(selected))
+	for _, n := range selected {
+		selSet[n] = true
+	}
+
+	missing := make(map[string][]string)
+	for name, deps := range dag.edges {
+		if !selSet[name] {
+			continue
+		}
+		for _, trav := range deps {
+			depName := dag.traversalToName(trav)
+			if !selSet[depName] {
+				missing[name] = append(missing[name], depName)
+			}
+		}
+	}
+
+	for k := range missing {
+		sort.Strings(missing[k])
+	}
+	return missing
+}
+
+// DependencyViolationError reports a dependency-relationship violation in a
+// deploy or remove selection. Violations maps each offending package to the
+// related packages that make the selection unsafe (its missing dependencies for
+// deploy, or the dependents it would strand for remove). It is returned by
+// ValidateDeploySafety, ValidateRemovalSafety, and the inline checks in
+// DeployBundle/RemoveBundle, so library consumers can inspect the structured
+// data via errors.As instead of parsing the message.
+type DependencyViolationError struct {
+	// Header is the summary line, e.g. "cannot deploy package(s) with unselected dependencies".
+	Header string
+	// Relation describes each entry's relationship, e.g. "requires" or "is required by".
+	Relation string
+	// Violations maps a package name to its related package names (sorted).
+	Violations map[string][]string
+}
+
+func (e *DependencyViolationError) Error() string {
+	names := make([]string, 0, len(e.Violations))
+	for k := range e.Violations {
 		names = append(names, k)
 	}
 	sort.Strings(names)
 
 	var b strings.Builder
-	b.WriteString("cannot remove package(s) with bundle dependents:\n")
+	b.WriteString(e.Header)
+	b.WriteString(":\n")
 	for _, n := range names {
-		fmt.Fprintf(&b, "  - %q is required by: %s\n", n, strings.Join(blockers[n], ", "))
+		fmt.Fprintf(&b, "  - %q %s: %s\n", n, e.Relation, strings.Join(e.Violations[n], ", "))
 	}
-	b.WriteString("re-run with --force to override")
-	return errors.New(b.String())
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// formatDependencyError builds a *DependencyViolationError for the given header,
+// relation (e.g. "is required by" or "requires"), and violation map. It is
+// returned as error for call-site convenience; consumers can recover the
+// concrete type via errors.As.
+func formatDependencyError(header, relation string, m map[string][]string) error {
+	return &DependencyViolationError{Header: header, Relation: relation, Violations: m}
 }

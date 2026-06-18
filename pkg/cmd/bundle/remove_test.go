@@ -137,8 +137,7 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 			if tt.wantErr == "" {
 				require.NoError(t, err)
 			} else {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
+				require.ErrorContains(t, err, tt.wantErr)
 			}
 		})
 	}
@@ -223,10 +222,11 @@ func TestRemoveOptions_Complete_WithPackagesFlag(t *testing.T) {
 }
 
 // TestRemoveOptions_Validate_DependencyCheck verifies that Validate() runs the
-// bundle.ValidateRemovalSafety check against the parsed bundle, gated by
-// --force. The fixture bundle has two packages: `init` depends on
-// `uds_k3d_dev`. Removing the dependency without removing the dependent (and
-// without --force) must error; --force or removing only the leaf must succeed.
+// package-selection checks (ValidatePackageNames and bundle.ValidateRemovalSafety)
+// against the parsed bundle before Run()/prompt, gated by --force. The fixture
+// bundle has two packages: `init` depends on `uds_k3d_dev`. Removing the
+// dependency without removing the dependent (and without --force) must error;
+// --force or removing only the leaf must succeed.
 func TestRemoveOptions_Validate_DependencyCheck(t *testing.T) {
 	bundlePath := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundle.BundleFileName)
 	defaults := NewConfigResolver().Defaults()
@@ -283,13 +283,12 @@ func TestRemoveOptions_Validate_DependencyCheck(t *testing.T) {
 				assert.NotNil(t, o.parsedBundle, "Validate() should cache the parsed bundle for Run()")
 				return
 			}
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.wantErr)
+			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
 }
 
-// TestRemoveOptions_ForceFlag verifies the --force flag is wired on the cobra
+// TestRemoveOptions_ForceFlag verifies the --force/-f flag is wired on the cobra
 // command and bound to RemoveOptions.Force.
 func TestRemoveOptions_ForceFlag(t *testing.T) {
 	streams, _, _, _ := iostreams.NewTestIOStreams()
@@ -301,4 +300,5 @@ func TestRemoveOptions_ForceFlag(t *testing.T) {
 	forceFlag := removeCmd.Flags().Lookup("force")
 	require.NotNil(t, forceFlag, "force flag should be defined on remove command")
 	assert.Equal(t, "false", forceFlag.DefValue, "force should default to false")
+	assert.Equal(t, "f", forceFlag.Shorthand, "force should have -f as shorthand")
 }

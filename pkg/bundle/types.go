@@ -153,6 +153,9 @@ type BundleDeployHooks struct {
 	// takes effect while bypassing validation.
 	// Note: opts.Source is consumed by Deploy() before the deployer is constructed and is NOT
 	// re-read after PreDeploy — mutations to opts.Source have no effect.
+	// Note: opts.Packages and the bundle's package set (b.Packages) are consumed for
+	// package-selection validation and DAG construction before PreDeploy runs, so mutating
+	// the package selection here has no effect on what is validated or deployed.
 	// Note: mutations to opts.BundleDeployHooks are NOT honoured — BundleDeployHooks is captured
 	// before PreDeploy is invoked, so replacing PostDeploy here has no effect.
 	// A non-nil error aborts before any package is deployed.
@@ -225,6 +228,15 @@ type DeployOptions struct {
 	// Source is the prepared deploy source from PrepareDeploySource. When non-nil,
 	// Deploy() uses Source.Loader for the deployer and applies Source.ValuesFilesOverride.
 	Source *DeploySource
+
+	// Packages is an optional list of specific package names to deploy.
+	// When empty, all packages in the bundle are deployed.
+	Packages []string
+
+	// Force bypasses the deploy safety check that blocks deploying a package whose
+	// dependencies are not in the selected Packages set. Use with caution: deploying
+	// out of dependency order may leave the cluster in an inconsistent state.
+	Force bool
 
 	// BundleDeployHooks fires once at bundle scope in DeployBundle, before and after all packages.
 	// Nil func fields are replaced with no-ops; every deploy traverses both call sites.
@@ -523,6 +535,9 @@ type PullHooks struct {
 type RemovePackageOptions struct {
 	// Config is the merged config (options + variables); always non-nil.
 	Config *UDSBundleConfig
+
+	// Force bypasses the removal safety check. Threaded from RemoveOptions.Force.
+	Force bool
 }
 
 // RemoveOptions contains options for removing an entire bundle.
@@ -539,6 +554,10 @@ type RemoveOptions struct {
 	// Packages is an optional list of specific package names to remove.
 	// When empty, all packages in the bundle are removed.
 	Packages []string
+
+	// Force bypasses the removal safety check that blocks removing a package that
+	// other bundle packages depend on. Threaded to RemovePackageOptions.Force.
+	Force bool
 
 	// Streams carries In/Out/ErrOut for the operation.
 	Streams iostreams.IOStreams

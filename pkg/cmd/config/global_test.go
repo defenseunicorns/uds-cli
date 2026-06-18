@@ -34,8 +34,7 @@ func TestResolveGlobalOptions_LogLevelCarriedThrough(t *testing.T) {
 
 func TestResolveGlobalOptions_InvalidLogLevel(t *testing.T) {
 	_, err := ResolveGlobalOptions(false, "invalid-level")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid log level")
+	require.ErrorContains(t, err, "invalid log level")
 }
 
 func TestResolveGlobalOptions_NoPrompt(t *testing.T) {

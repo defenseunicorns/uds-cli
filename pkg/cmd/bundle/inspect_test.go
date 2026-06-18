@@ -187,8 +187,7 @@ func TestInspectOptions_Validate(t *testing.T) {
 				// Validate should not modify BundlePath
 				assert.Equal(t, tt.bundlePath, o.BundlePath, "Validate() should not modify BundlePath")
 			} else {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
+				require.ErrorContains(t, err, tt.wantErr)
 			}
 		})
 	}

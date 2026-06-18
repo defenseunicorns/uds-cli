@@ -60,8 +60,7 @@ func TestPullOptions_Validate(t *testing.T) {
 			}
 			err := o.Validate()
 			if tt.wantErr != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
+				require.ErrorContains(t, err, tt.wantErr)
 			} else {
 				require.NoError(t, err)
 			}
@@ -117,8 +116,7 @@ func TestPushOptions_Validate(t *testing.T) {
 			}
 			err := o.Validate()
 			if tt.wantErr != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
+				require.ErrorContains(t, err, tt.wantErr)
 			} else {
 				require.NoError(t, err)
 			}

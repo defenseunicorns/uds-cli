@@ -50,15 +50,13 @@ func TestCreateOptions_Validate(t *testing.T) {
 	t.Run("file with wrong name", func(t *testing.T) {
 		o := &CreateOptions{BundlePath: wrongNameFile, Config: &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults}}
 		err := o.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "expected file named 'bundle.uds.hcl'")
+		require.ErrorContains(t, err, "expected file named 'bundle.uds.hcl'")
 	})
 
 	t.Run("directory missing bundle file", func(t *testing.T) {
 		o := &CreateOptions{BundlePath: emptyDir, Config: &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults}}
 		err := o.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "directory does not contain bundle.uds.hcl")
+		require.ErrorContains(t, err, "directory does not contain bundle.uds.hcl")
 	})
 
 	t.Run("valid directory containing bundle file", func(t *testing.T) {
@@ -76,15 +74,13 @@ func TestCreateOptions_Validate(t *testing.T) {
 	t.Run("OCI reference", func(t *testing.T) {
 		o := &CreateOptions{BundlePath: "oci://ghcr.io/test/bundle:v1", Config: &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults}}
 		err := o.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "OCI bundle references not yet supported")
+		require.ErrorContains(t, err, "OCI bundle references not yet supported")
 	})
 
 	t.Run("tar.zst archive", func(t *testing.T) {
 		o := &CreateOptions{BundlePath: "bundle.tar.zst", Config: &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults}}
 		err := o.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "tar.zst bundles are not supported")
+		require.ErrorContains(t, err, "tar.zst bundles are not supported")
 	})
 }
 

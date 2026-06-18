@@ -177,50 +177,48 @@ func TestValidatePackageNames(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
-		names   []string
-		wantErr string
+		name            string
+		names           []string
+		wantErrContains []string
 	}{
 		{
-			name:    "nil names passes",
-			names:   nil,
-			wantErr: "",
+			name:  "nil names passes",
+			names: nil,
 		},
 		{
-			name:    "empty names passes",
-			names:   []string{},
-			wantErr: "",
+			name:  "empty names passes",
+			names: []string{},
 		},
 		{
-			name:    "valid single name",
-			names:   []string{"nginx"},
-			wantErr: "",
+			name:  "valid single name",
+			names: []string{"nginx"},
 		},
 		{
-			name:    "valid multiple names",
-			names:   []string{"core", "podinfo"},
-			wantErr: "",
+			name:  "valid multiple names",
+			names: []string{"core", "podinfo"},
 		},
 		{
-			name:    "unknown package name",
-			names:   []string{"bogus"},
-			wantErr: "unknown packages",
+			name:            "unknown package name includes available packages",
+			names:           []string{"bogus"},
+			wantErrContains: []string{"unknown packages", "available packages"},
 		},
 		{
-			name:    "mix of valid and invalid",
-			names:   []string{"core", "invalid"},
-			wantErr: "unknown packages",
+			name:            "mix of valid and invalid",
+			names:           []string{"core", "invalid"},
+			wantErrContains: []string{"unknown packages", "available packages"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := ValidatePackageNames(tt.names, packages)
-			if tt.wantErr == "" {
+			if len(tt.wantErrContains) == 0 {
 				require.NoError(t, err)
-			} else {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
+				return
+			}
+			require.Error(t, err)
+			for _, s := range tt.wantErrContains {
+				assert.Contains(t, err.Error(), s)
 			}
 		})
 	}
@@ -478,7 +476,6 @@ func TestValidateRemovalSafety(t *testing.T) {
 			wantContains: []string{
 				"cannot remove package(s) with bundle dependents",
 				`"core" is required by: nginx, podinfo`,
-				"--force",
 			},
 		},
 		{
@@ -515,21 +512,115 @@ func TestValidateRemovalSafety(t *testing.T) {
 	}
 }
 
-// TestFormatBlockersError verifies sort stability and message shape. The
-// formatter underpins ValidateRemovalSafety's user-facing output.
-func TestFormatBlockersError(t *testing.T) {
+// TestValidateDeploySafety covers the deploy dependency-safety check.
+// The fixture mirrors a typical UDS Core layering:
+//
+//	core         (no deps)
+//	nginx        depends on core
+//	podinfo      depends on nginx, core
+//	standalone   (no deps, unrelated)
+func TestValidateDeploySafety(t *testing.T) {
+	b := bundleWith(
+		pkg("core"),
+		pkg("nginx", "core"),
+		pkg("podinfo", "nginx", "core"),
+		pkg("standalone"),
+	)
+
+	tests := []struct {
+		name            string
+		deploy          []string
+		wantErrContains []string
+	}{
+		{
+			name:   "empty filter is safe (full bundle deploy)",
+			deploy: nil,
+		},
+		{
+			name:   "root package is safe (no deps)",
+			deploy: []string{"core"},
+		},
+		{
+			name:   "isolated package is safe",
+			deploy: []string{"standalone"},
+		},
+		{
+			name:   "deploying dep and dependent is safe",
+			deploy: []string{"core", "nginx"},
+		},
+		{
+			name:   "deploying full chain is safe",
+			deploy: []string{"core", "nginx", "podinfo", "standalone"},
+		},
+		{
+			name:   "deploying leaf whose all deps are selected is safe",
+			deploy: []string{"core", "nginx", "podinfo"},
+		},
+		{
+			name:   "deploying dependent without its dep is blocked",
+			deploy: []string{"nginx"},
+			wantErrContains: []string{
+				"cannot deploy package(s) with unselected dependencies",
+				`"nginx" requires: core`,
+			},
+		},
+		{
+			name:   "deploying podinfo without its deps is blocked",
+			deploy: []string{"podinfo"},
+			wantErrContains: []string{
+				"cannot deploy package(s) with unselected dependencies",
+				`"podinfo" requires: core, nginx`,
+			},
+		},
+		{
+			name:   "deploying podinfo with nginx but without core is blocked",
+			deploy: []string{"nginx", "podinfo"},
+			wantErrContains: []string{
+				`"nginx" requires: core`,
+				`"podinfo" requires: core`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateDeploySafety(context.Background(), iostreams.IOStreams{}, b, tt.deploy)
+			if len(tt.wantErrContains) == 0 {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			for _, s := range tt.wantErrContains {
+				assert.Contains(t, err.Error(), s)
+			}
+		})
+	}
+}
+
+// TestFormatDependencyError verifies sort stability and message shape. The
+// formatter underpins ValidateRemovalSafety's and ValidateDeploySafety's
+// user-facing output.
+func TestFormatDependencyError(t *testing.T) {
 	blockers := map[string][]string{
 		"core":  {"nginx", "podinfo"},
 		"nginx": {"podinfo"},
 	}
-	err := formatBlockersError(blockers)
+	err := formatDependencyError("cannot remove package(s) with bundle dependents", "is required by", blockers)
 	require.Error(t, err)
 
 	msg := err.Error()
 	assert.Contains(t, msg, "cannot remove package(s) with bundle dependents:")
 	assert.Contains(t, msg, `"core" is required by: nginx, podinfo`)
 	assert.Contains(t, msg, `"nginx" is required by: podinfo`)
-	assert.Contains(t, msg, "re-run with --force to override")
+	assert.NotContains(t, msg, "--force")
 	// "core" line should appear before "nginx" line (sorted).
 	assert.Less(t, strings.Index(msg, `"core"`), strings.Index(msg, `"nginx"`))
+
+	// The error is a typed *DependencyViolationError, so library consumers can
+	// inspect the structured violations via errors.As instead of parsing the message.
+	var dve *DependencyViolationError
+	require.ErrorAs(t, err, &dve)
+	assert.Equal(t, "cannot remove package(s) with bundle dependents", dve.Header)
+	assert.Equal(t, "is required by", dve.Relation)
+	assert.Equal(t, blockers, dve.Violations)
 }

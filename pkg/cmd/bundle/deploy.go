@@ -18,6 +18,8 @@ import (
 // DeployOptions holds options for the deploy command.
 type DeployOptions struct {
 	BundlePath string // Path to bundle file, directory, or .tar.zst artifact (user input, resolved in Run)
+	Packages   []string
+	Force      bool
 	Config     *bundle.UDSBundleConfig
 	Printer    printer.ResourcePrinter
 
@@ -55,6 +57,10 @@ The CLI is non-interactive by default (suitable for CI/CD pipelines) and
 deploys packages within a level in parallel (see --concurrency, default 10).
 Use --prompt to enable interactive confirmation before deployment.
 
+Use --packages to deploy only a subset of packages. By default, deploying a
+package whose dependencies are not selected is rejected; pass --force to
+override this check and deploy out of dependency order.
+
 Examples:
   # Deploy bundle in current directory (parallel, non-interactive)
   uds bundle deploy
@@ -69,7 +75,13 @@ Examples:
   uds bundle deploy --prompt
 
   # Deploy serially without prompt
-  uds bundle deploy --concurrency 1`,
+  uds bundle deploy --concurrency 1
+
+  # Deploy only a subset of packages
+  uds bundle deploy --packages nginx,podinfo
+
+  # Deploy a package out of dependency order (bypass safety check)
+  uds bundle deploy --packages podinfo --force`,
 		Args: cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			util.CheckErr(o.Complete(cmd, args))
@@ -78,6 +90,9 @@ Examples:
 			util.CheckErr(o.Run(ctx))
 		},
 	}
+
+	cmd.Flags().StringSliceVarP(&o.Packages, "packages", "p", nil, "specific packages to deploy (comma-separated)")
+	cmd.Flags().BoolVarP(&o.Force, "force", "f", false, "deploy packages even if their dependencies are not selected")
 
 	return cmd
 }
@@ -146,6 +161,19 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 
 	o.Info("bundle to deploy", "name", parsedBundle.Metadata.Name, "packages", len(parsedBundle.Packages))
 
+	// Validate the package selection before prompting so invalid input fails fast:
+	// the check runs before (and independently of) the confirmation prompt, so a
+	// declined prompt cannot mask bad input. The library re-validates as the
+	// authoritative gate for non-prompt and direct callers.
+	if err := bundle.ValidatePackageNames(o.Packages, parsedBundle.Packages); err != nil {
+		return err
+	}
+	if !o.Force {
+		if err := bundle.ValidateDeploySafety(ctx, o.IOStreams, parsedBundle, o.Packages); err != nil {
+			return fmt.Errorf("%w\nre-run with --force to override", err)
+		}
+	}
+
 	if o.Config.Global.Prompt {
 		confirmed, err := PromptConfirmation(o.IOStreams, "Deploy this bundle?")
 		if err != nil {
@@ -162,6 +190,8 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 		BundlePath: deploySrc.BundlePath,
 		Bundle:     parsedBundle,
 		Source:     deploySrc,
+		Packages:   o.Packages,
+		Force:      o.Force,
 		Streams:    o.IOStreams,
 	})
 	if err != nil {
