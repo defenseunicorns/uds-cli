@@ -8,7 +8,7 @@ replace github.com/anchore/grype => github.com/anchore/grype v0.104.1 // renovat
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
-	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/charmbracelet/lipgloss/v2 v2.0.4
 	github.com/defenseunicorns/maru-runner v0.6.0
 	github.com/defenseunicorns/pkg/exec v0.0.2
 	github.com/defenseunicorns/pkg/helpers/v2 v2.0.4
