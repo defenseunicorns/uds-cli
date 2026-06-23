@@ -45,7 +45,7 @@ func NewK8sClient(t *testing.T) *K8sClient {
 	}
 
 	// Verify cluster is reachable
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	_, err = clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{Limit: 1})
@@ -59,7 +59,7 @@ func NewK8sClient(t *testing.T) *K8sClient {
 // AssertNamespaceExists verifies that a namespace exists.
 func (c *K8sClient) AssertNamespaceExists(namespace string) {
 	c.t.Helper()
-	ctx := context.Background()
+	ctx := c.t.Context()
 
 	ns, err := c.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
 	require.NoError(c.t, err, "namespace %q should exist", namespace)
@@ -70,7 +70,7 @@ func (c *K8sClient) AssertNamespaceExists(namespace string) {
 // AssertNamespaceNotExists verifies that a namespace does not exist.
 func (c *K8sClient) AssertNamespaceNotExists(namespace string) {
 	c.t.Helper()
-	ctx := context.Background()
+	ctx := c.t.Context()
 
 	_, err := c.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
 	require.True(c.t, errors.IsNotFound(err), "namespace %q should not exist", namespace)
@@ -80,7 +80,7 @@ func (c *K8sClient) AssertNamespaceNotExists(namespace string) {
 // AssertSecretExists verifies that a secret exists in the given namespace.
 func (c *K8sClient) AssertSecretExists(namespace, name string) {
 	c.t.Helper()
-	ctx := context.Background()
+	ctx := c.t.Context()
 
 	secret, err := c.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{})
 	require.NoError(c.t, err, "secret %q in namespace %q should exist", name, namespace)
@@ -91,7 +91,7 @@ func (c *K8sClient) AssertSecretExists(namespace, name string) {
 // AssertSecretNotExists verifies that a secret does not exist in the given namespace.
 func (c *K8sClient) AssertSecretNotExists(namespace, name string) {
 	c.t.Helper()
-	ctx := context.Background()
+	ctx := c.t.Context()
 
 	_, err := c.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{})
 	require.True(c.t, errors.IsNotFound(err), "secret %q in namespace %q should not exist", name, namespace)
@@ -101,7 +101,7 @@ func (c *K8sClient) AssertSecretNotExists(namespace, name string) {
 // AssertDeploymentExists verifies that a deployment exists in the given namespace.
 func (c *K8sClient) AssertDeploymentExists(namespace, name string) {
 	c.t.Helper()
-	ctx := context.Background()
+	ctx := c.t.Context()
 
 	deployment, err := c.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 	require.NoError(c.t, err, "deployment %q in namespace %q should exist", name, namespace)
@@ -112,7 +112,7 @@ func (c *K8sClient) AssertDeploymentExists(namespace, name string) {
 // AssertDeploymentNotExists verifies that a deployment does not exist in the given namespace.
 func (c *K8sClient) AssertDeploymentNotExists(namespace, name string) {
 	c.t.Helper()
-	ctx := context.Background()
+	ctx := c.t.Context()
 
 	_, err := c.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 	require.True(c.t, errors.IsNotFound(err), "deployment %q in namespace %q should not exist", name, namespace)
@@ -122,7 +122,7 @@ func (c *K8sClient) AssertDeploymentNotExists(namespace, name string) {
 // GetNamespace returns a namespace by name, or nil if it doesn't exist.
 func (c *K8sClient) GetNamespace(name string) *corev1.Namespace {
 	c.t.Helper()
-	ctx := context.Background()
+	ctx := c.t.Context()
 
 	ns, err := c.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
@@ -135,7 +135,7 @@ func (c *K8sClient) GetNamespace(name string) *corev1.Namespace {
 // GetSecret returns a secret by namespace and name, or nil if it doesn't exist.
 func (c *K8sClient) GetSecret(namespace, name string) *corev1.Secret {
 	c.t.Helper()
-	ctx := context.Background()
+	ctx := c.t.Context()
 
 	secret, err := c.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
@@ -148,7 +148,7 @@ func (c *K8sClient) GetSecret(namespace, name string) *corev1.Secret {
 // WaitForNamespace waits for a namespace to exist, with a timeout.
 func (c *K8sClient) WaitForNamespace(namespace string, timeout time.Duration) {
 	c.t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(c.t.Context(), timeout)
 	defer cancel()
 
 	ticker := time.NewTicker(500 * time.Millisecond)
@@ -174,7 +174,7 @@ func (c *K8sClient) WaitForNamespace(namespace string, timeout time.Duration) {
 // AssertDeploymentPodAnnotation verifies that a deployment's pod template has the given annotation key/value.
 func (c *K8sClient) AssertDeploymentPodAnnotation(namespace, name, key, value string) {
 	c.t.Helper()
-	ctx := context.Background()
+	ctx := c.t.Context()
 
 	deployment, err := c.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 	require.NoError(c.t, err, "deployment %q in namespace %q should exist", name, namespace)
@@ -187,7 +187,7 @@ func (c *K8sClient) AssertDeploymentPodAnnotation(namespace, name, key, value st
 // AssertDeploymentPodToleration verifies that a deployment's pod template has a matching toleration.
 func (c *K8sClient) AssertDeploymentPodToleration(namespace, name, key string, operator corev1.TolerationOperator, effect corev1.TaintEffect) {
 	c.t.Helper()
-	ctx := context.Background()
+	ctx := c.t.Context()
 
 	deployment, err := c.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 	require.NoError(c.t, err, "deployment %q in namespace %q should exist", name, namespace)
@@ -203,7 +203,7 @@ func (c *K8sClient) AssertDeploymentPodToleration(namespace, name, key string, o
 // AssertDeploymentReplicas verifies that a deployment's desired replica count matches expected.
 func (c *K8sClient) AssertDeploymentReplicas(namespace, name string, expected int32) {
 	c.t.Helper()
-	ctx := context.Background()
+	ctx := c.t.Context()
 
 	deployment, err := c.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 	require.NoError(c.t, err, "deployment %q in namespace %q should exist", name, namespace)
@@ -217,7 +217,7 @@ func (c *K8sClient) AssertDeploymentReplicas(namespace, name string, expected in
 // A non-NotFound API error (network, RBAC, etc.) is surfaced rather than treated as "not exists".
 func (c *K8sClient) AssertServiceNotExists(namespace, name string) {
 	c.t.Helper()
-	ctx := context.Background()
+	ctx := c.t.Context()
 
 	_, err := c.CoreV1().Services(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil && !errors.IsNotFound(err) {
@@ -230,7 +230,7 @@ func (c *K8sClient) AssertServiceNotExists(namespace, name string) {
 // WaitForDeploymentReady waits for a deployment to have all replicas ready.
 func (c *K8sClient) WaitForDeploymentReady(namespace, name string, timeout time.Duration) {
 	c.t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(c.t.Context(), timeout)
 	defer cancel()
 
 	ticker := time.NewTicker(1 * time.Second)

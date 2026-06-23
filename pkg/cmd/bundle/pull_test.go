@@ -4,7 +4,6 @@
 package bundle
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,7 +51,7 @@ func TestPullOptions_Run_PromptDecline(t *testing.T) {
 				IOStreams:    streams,
 			}
 
-			err := o.Run(context.Background())
+			err := o.Run(t.Context())
 			require.NoError(t, err)
 			assert.Empty(t, out.String(), "stdout should be empty when pull is cancelled")
 			for _, expected := range tt.wantErrOutput {

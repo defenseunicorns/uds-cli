@@ -33,11 +33,11 @@ func TestPush_NoOCILayout(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "some-file.txt"), []byte("not a bundle"), tmpFilePerm))
 
 	tarball := filepath.Join(t.TempDir(), "v0-bundle.tar.zst")
-	require.NoError(t, writeTarZst(context.Background(), iostreams.IOStreams{}, tarball, srcDir))
+	require.NoError(t, writeTarZst(t.Context(), iostreams.IOStreams{}, tarball, srcDir))
 
 	cfg := newTestConfig()
 	cfg.Options.TmpDir = t.TempDir()
-	result, err := Push(context.Background(), tarball, "example.com/test/v0-bundle:v1.0.0", PushOptions{
+	result, err := Push(t.Context(), tarball, "example.com/test/v0-bundle:v1.0.0", PushOptions{
 		Config: cfg,
 	})
 
@@ -69,11 +69,11 @@ func TestPush_NonUDSBundle(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(ociDir, "index.json"), idxBytes, tmpFilePerm))
 
 	tarball := filepath.Join(t.TempDir(), "not-a-bundle.tar.zst")
-	require.NoError(t, writeTarZst(context.Background(), iostreams.IOStreams{}, tarball, srcDir))
+	require.NoError(t, writeTarZst(t.Context(), iostreams.IOStreams{}, tarball, srcDir))
 
 	cfg := newTestConfig()
 	cfg.Options.TmpDir = t.TempDir()
-	result, err := Push(context.Background(), tarball, "example.com/test/not-a-bundle:v1.0.0", PushOptions{
+	result, err := Push(t.Context(), tarball, "example.com/test/not-a-bundle:v1.0.0", PushOptions{
 		Config: cfg,
 	})
 
@@ -100,7 +100,7 @@ package "pkg1" {
 }
 `), tmpFilePerm))
 
-	tarball, err := Create(context.Background(), CreateOptions{
+	tarball, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
 		Streams:    iostreams.New(nil, nil, os.Stderr),
@@ -112,7 +112,7 @@ package "pkg1" {
 
 	cfg := newTestConfig()
 	cfg.Options.TmpDir = t.TempDir()
-	result, err := Push(context.Background(), tarball.OutputPath, "example.com/test/push-test:1.0.0", PushOptions{
+	result, err := Push(t.Context(), tarball.OutputPath, "example.com/test/push-test:1.0.0", PushOptions{
 		Config:    cfg,
 		PushHooks: pushTo(dst),
 	})
@@ -129,7 +129,7 @@ func TestPush_TarballNotFound(t *testing.T) {
 
 	cfg := newTestConfig()
 	cfg.Options.TmpDir = t.TempDir()
-	result, err := Push(context.Background(), "/nonexistent/bundle.tar.zst", "example.com/test/bundle:v1.0.0", PushOptions{
+	result, err := Push(t.Context(), "/nonexistent/bundle.tar.zst", "example.com/test/bundle:v1.0.0", PushOptions{
 		Config: cfg,
 	})
 
@@ -156,7 +156,7 @@ package "pkg1" {
   source = "localpkg"
 }
 `), tmpFilePerm))
-	tarball, err := Create(context.Background(), CreateOptions{
+	tarball, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
 		Streams:    iostreams.New(nil, nil, os.Stderr),
@@ -165,7 +165,7 @@ package "pkg1" {
 
 	cfg := newTestConfig()
 	cfg.Options.TmpDir = t.TempDir()
-	result, err := Push(context.Background(), tarball.OutputPath, ":::invalid:::", PushOptions{
+	result, err := Push(t.Context(), tarball.OutputPath, ":::invalid:::", PushOptions{
 		Config: cfg,
 	})
 
@@ -191,7 +191,7 @@ package "pkg1" {
   source = "localpkg"
 }
 `), tmpFilePerm))
-	tarball, err := Create(context.Background(), CreateOptions{
+	tarball, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
 		Streams:    iostreams.New(nil, nil, os.Stderr),
@@ -201,7 +201,7 @@ package "pkg1" {
 	cfg := newTestConfig()
 	cfg.Options.TmpDir = t.TempDir()
 	cfg.Options.PlainHTTP = true
-	result, err := Push(context.Background(), tarball.OutputPath, "localhost:0/test/bundle:v1.0.0", PushOptions{
+	result, err := Push(t.Context(), tarball.OutputPath, "localhost:0/test/bundle:v1.0.0", PushOptions{
 		Config: cfg,
 	})
 
@@ -222,7 +222,7 @@ func TestPushPackage_RoundTrip(t *testing.T) {
 
 	cfg := newTestConfig()
 	cfg.Options.TmpDir = t.TempDir()
-	result, err := NewDefaultPusher().PushPackage(context.Background(), pkgDir, "example.com/test/pkg:1.0.0", PushOptions{
+	result, err := NewDefaultPusher().PushPackage(t.Context(), pkgDir, "example.com/test/pkg:1.0.0", PushOptions{
 		Config:    cfg,
 		PushHooks: pushTo(dst),
 	})
@@ -238,7 +238,7 @@ func TestPushPackage_EmptyPackageDir(t *testing.T) {
 
 	cfg := newTestConfig()
 	cfg.Options.TmpDir = t.TempDir()
-	result, err := NewDefaultPusher().PushPackage(context.Background(), "", "example.com/test/pkg:1.0.0", PushOptions{
+	result, err := NewDefaultPusher().PushPackage(t.Context(), "", "example.com/test/pkg:1.0.0", PushOptions{
 		Config: cfg,
 	})
 	require.ErrorContains(t, err, "packageDir must not be empty")
@@ -250,7 +250,7 @@ func TestPushPackage_EmptyOCIReference(t *testing.T) {
 
 	cfg := newTestConfig()
 	cfg.Options.TmpDir = t.TempDir()
-	result, err := NewDefaultPusher().PushPackage(context.Background(), t.TempDir(), "", PushOptions{
+	result, err := NewDefaultPusher().PushPackage(t.Context(), t.TempDir(), "", PushOptions{
 		Config: cfg,
 	})
 	require.ErrorContains(t, err, "ociReference must not be empty")
@@ -269,7 +269,7 @@ func TestPushHooks_ModifyOrasSettings(t *testing.T) {
 	hookCalled := false
 	cfg := newTestConfig()
 	cfg.Options.TmpDir = t.TempDir()
-	result, err := NewDefaultPusher().PushPackage(context.Background(), pkgDir, "example.com/test/pkg:1.0.0", PushOptions{
+	result, err := NewDefaultPusher().PushPackage(t.Context(), pkgDir, "example.com/test/pkg:1.0.0", PushOptions{
 		Config: cfg,
 		PushHooks: PushHooks{
 			ToOrasTarget: func(context.Context, string, *PushOptions) (oras.Target, error) { return dst, nil },
@@ -307,7 +307,7 @@ func TestPushPackage_DoesNotModifySourceIndex(t *testing.T) {
 
 	cfg := newTestConfig()
 	cfg.Options.TmpDir = t.TempDir()
-	_, err = NewDefaultPusher().PushPackage(context.Background(), pkgDir, "example.com/test/pkg:1.0.0", PushOptions{
+	_, err = NewDefaultPusher().PushPackage(t.Context(), pkgDir, "example.com/test/pkg:1.0.0", PushOptions{
 		Config:    cfg,
 		PushHooks: pushTo(dst),
 	})

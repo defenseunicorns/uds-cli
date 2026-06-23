@@ -4,7 +4,6 @@
 package bundle
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"os"
@@ -370,7 +369,7 @@ func createTestBundle(t *testing.T, bundleHCL string, defaultsHCL string) string
 		require.NoError(t, os.WriteFile(filepath.Join(dir, BundleDefaultsFileName), []byte(defaultsHCL), tmpFilePerm))
 	}
 
-	result, err := Create(context.Background(), CreateOptions{
+	result, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: filepath.Join(dir, "bundle.uds.hcl"),
 		Streams:    iostreams.New(nil, nil, io.Discard),
@@ -391,7 +390,7 @@ func writeDefaultsFile(t *testing.T, content string) string {
 func runLocalReconfigure(t *testing.T, source string, defaultsPath string, suffix string) (*ReconfigureResult, error) {
 	t.Helper()
 	r := &localReconfigurer{}
-	return r.Reconfigure(context.Background(), ReconfigureOptions{
+	return r.Reconfigure(t.Context(), ReconfigureOptions{
 		Source:       source,
 		DefaultsFile: defaultsPath,
 		Suffix:       suffix,
@@ -463,7 +462,7 @@ package "pkg1" {
 	require.NoError(t, os.WriteFile(filepath.Join(outDir, expectedName), []byte("exists"), tmpFilePerm))
 
 	r := &localReconfigurer{}
-	_, err := r.Reconfigure(context.Background(), ReconfigureOptions{
+	_, err := r.Reconfigure(t.Context(), ReconfigureOptions{
 		Source:       tarball,
 		DefaultsFile: defaultsPath,
 		Suffix:       "-reconfigured",
@@ -504,7 +503,7 @@ func TestLocalReconfigure_NonBundleTarball(t *testing.T) {
 	srcDir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "not-a-bundle.txt"), []byte("nope"), tmpFilePerm))
 	tarball := filepath.Join(t.TempDir(), "fake.tar.zst")
-	require.NoError(t, writeTarZst(context.Background(), iostreams.IOStreams{}, tarball, srcDir))
+	require.NoError(t, writeTarZst(t.Context(), iostreams.IOStreams{}, tarball, srcDir))
 
 	defaultsPath := writeDefaultsFile(t, `variables = { a = "b" }`)
 
@@ -526,7 +525,7 @@ func pushTestBundle(t *testing.T, store oras.Target, bundleHCL string, defaultsH
 	tarball := createTestBundle(t, bundleHCL, defaultsHCL)
 	cfg := newTestConfig()
 	cfg.Options.TmpDir = t.TempDir()
-	_, err := Push(context.Background(), tarball, ref, PushOptions{
+	_, err := Push(t.Context(), tarball, ref, PushOptions{
 		Config:    cfg,
 		PushHooks: pushTo(store),
 	})
@@ -554,7 +553,7 @@ package "pkg1" {
 	defaultsPath := writeDefaultsFile(t, `variables = { new = "replaced" }`)
 
 	r := &ociReconfigurer{}
-	result, err := r.Reconfigure(context.Background(), ReconfigureOptions{
+	result, err := r.Reconfigure(t.Context(), ReconfigureOptions{
 		Source:       "oci://example.com/test/oci-reconfig:v1.0.0",
 		DefaultsFile: defaultsPath,
 		Suffix:       "-prod",
@@ -597,7 +596,7 @@ package "pkg1" {
 	defaultsPath := writeDefaultsFile(t, `variables = { a = "b" }`)
 
 	r := &ociReconfigurer{}
-	_, err = r.Reconfigure(context.Background(), ReconfigureOptions{
+	_, err = r.Reconfigure(t.Context(), ReconfigureOptions{
 		Source:       "oci://example.com/test/oci-exists:v1.0.0",
 		DefaultsFile: defaultsPath,
 		Suffix:       "-reconfigured",
@@ -616,7 +615,7 @@ func TestOCIReconfigure_SourceTagNotFound(t *testing.T) {
 	defaultsPath := writeDefaultsFile(t, `variables = { a = "b" }`)
 
 	r := &ociReconfigurer{}
-	_, err = r.Reconfigure(context.Background(), ReconfigureOptions{
+	_, err = r.Reconfigure(t.Context(), ReconfigureOptions{
 		Source:       "oci://example.com/test/missing:v1.0.0",
 		DefaultsFile: defaultsPath,
 		Suffix:       "-reconfigured",
@@ -635,7 +634,7 @@ func TestOCIReconfigure_DigestReferenceRejected(t *testing.T) {
 	defaultsPath := writeDefaultsFile(t, `variables = { a = "b" }`)
 
 	r := &ociReconfigurer{}
-	_, err = r.Reconfigure(context.Background(), ReconfigureOptions{
+	_, err = r.Reconfigure(t.Context(), ReconfigureOptions{
 		Source:       "oci://example.com/test/bundle@sha256:abc123def456abc123def456abc123def456abc123def456abc123def456abc1",
 		DefaultsFile: defaultsPath,
 		Suffix:       "-reconfigured",
@@ -661,7 +660,7 @@ package "pkg1" {
 
 	defaultsPath := writeDefaultsFile(t, `variables = { a = "b" }`)
 
-	result, err := Reconfigure(context.Background(), ReconfigureOptions{
+	result, err := Reconfigure(t.Context(), ReconfigureOptions{
 		Source:       tarball,
 		DefaultsFile: defaultsPath,
 		Suffix:       "-reconfigured",
@@ -678,7 +677,7 @@ func TestReconfigure_InvalidDefaults(t *testing.T) {
 	badDefaultsPath := filepath.Join(t.TempDir(), "defaults.uds.hcl")
 	require.NoError(t, os.WriteFile(badDefaultsPath, []byte(`not_variables = "bad"`), tmpFilePerm))
 
-	_, err := Reconfigure(context.Background(), ReconfigureOptions{
+	_, err := Reconfigure(t.Context(), ReconfigureOptions{
 		Source:       "/some/bundle.tar.zst",
 		DefaultsFile: badDefaultsPath,
 		Suffix:       "-reconfigured",
@@ -710,7 +709,7 @@ func TestReconfigure_SuffixValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := Reconfigure(context.Background(), ReconfigureOptions{
+			_, err := Reconfigure(t.Context(), ReconfigureOptions{
 				Source:       "/some/bundle.tar.zst",
 				DefaultsFile: defaultsPath,
 				Suffix:       tt.suffix,

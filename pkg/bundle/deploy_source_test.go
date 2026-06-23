@@ -4,7 +4,6 @@
 package bundle
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,7 +19,7 @@ func TestPrepareDeploySource_Directory(t *testing.T) {
 		bundleFile := filepath.Join(dir, BundleFileName)
 		require.NoError(t, os.WriteFile(bundleFile, []byte(""), 0o600))
 
-		src, err := PrepareDeploySource(context.Background(), iostreams.IOStreams{}, dir, "")
+		src, err := PrepareDeploySource(t.Context(), iostreams.IOStreams{}, dir, "")
 		require.NoError(t, err)
 		defer func() { require.NoError(t, src.Close()) }()
 
@@ -34,7 +33,7 @@ func TestPrepareDeploySource_Directory(t *testing.T) {
 		bundleFile := filepath.Join(dir, BundleFileName)
 		require.NoError(t, os.WriteFile(bundleFile, []byte(""), 0o600))
 
-		src, err := PrepareDeploySource(context.Background(), iostreams.IOStreams{}, bundleFile, "")
+		src, err := PrepareDeploySource(t.Context(), iostreams.IOStreams{}, bundleFile, "")
 		require.NoError(t, err)
 		defer func() { require.NoError(t, src.Close()) }()
 
@@ -47,7 +46,7 @@ func TestPrepareDeploySource_Directory(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(dir, BundleFileName), []byte(""), 0o600))
 
-		src, err := PrepareDeploySource(context.Background(), iostreams.IOStreams{}, dir, "")
+		src, err := PrepareDeploySource(t.Context(), iostreams.IOStreams{}, dir, "")
 		require.NoError(t, err)
 
 		// Directory sources do not own resources; Close must be a no-op.
@@ -68,7 +67,7 @@ package "mypkg" {
 	}, []string{"oci://example.com/pkg:v1"})
 	tmpRoot := t.TempDir()
 
-	src, err := PrepareDeploySource(context.Background(), iostreams.IOStreams{}, tarPath, tmpRoot)
+	src, err := PrepareDeploySource(t.Context(), iostreams.IOStreams{}, tarPath, tmpRoot)
 	require.NoError(t, err)
 	require.NotNil(t, src)
 

@@ -215,7 +215,7 @@ func runDeployOrchestrator(t *testing.T, b *UDSBundle, deploy deployFunc, concur
 // callable. Used by tests that need to drive Run with a custom context.
 func newOrchestratorForTest(t *testing.T, b *UDSBundle, deploy deployFunc, concurrency int) *deployOrchestrator {
 	t.Helper()
-	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, b)
+	dag, err := BuildDependencyGraph(t.Context(), iostreams.IOStreams{}, b)
 	require.NoError(t, err)
 	levels, err := dag.TopologicalLevels()
 	require.NoError(t, err)
@@ -734,7 +734,7 @@ func TestDeployOrchestrator_ConcurrentOutputIsClean(t *testing.T) {
 		return nil
 	}
 
-	dag, err := BuildDependencyGraph(context.Background(), iostreams.IOStreams{}, b)
+	dag, err := BuildDependencyGraph(t.Context(), iostreams.IOStreams{}, b)
 	require.NoError(t, err)
 	levels, err := dag.TopologicalLevels()
 	require.NoError(t, err)

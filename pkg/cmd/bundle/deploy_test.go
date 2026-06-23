@@ -5,7 +5,6 @@ package bundle
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -219,7 +218,7 @@ func TestDeployOptions_Run_PromptDecline(t *testing.T) {
 				IOStreams:  streams,
 			}
 
-			err = o.Run(context.Background())
+			err = o.Run(t.Context())
 			require.NoError(t, err)
 			// Stdout should be empty when deployment is cancelled (no result printed)
 			assert.Empty(t, out.String(), "stdout should be empty when deployment is cancelled")

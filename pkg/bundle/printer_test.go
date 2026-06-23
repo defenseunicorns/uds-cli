@@ -4,7 +4,6 @@
 package bundle
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -37,7 +36,7 @@ func TestUDSBundle_ToInspectResult(t *testing.T) {
 		},
 	}
 
-	result, err := b.ToInspectResult(context.Background(), iostreams.IOStreams{})
+	result, err := b.ToInspectResult(t.Context(), iostreams.IOStreams{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "test-bundle", result.Name)
@@ -74,7 +73,7 @@ func TestUDSBundle_ToInspectResult_DAGOrder(t *testing.T) {
 		},
 	}
 
-	result, err := b.ToInspectResult(context.Background(), iostreams.IOStreams{})
+	result, err := b.ToInspectResult(t.Context(), iostreams.IOStreams{})
 	require.NoError(t, err)
 
 	require.Len(t, result.Packages, 4)
@@ -99,7 +98,7 @@ func TestUDSBundle_ToInspectResult_DAGOrder_Deterministic(t *testing.T) {
 		},
 	}
 
-	result, err := b.ToInspectResult(context.Background(), iostreams.IOStreams{})
+	result, err := b.ToInspectResult(t.Context(), iostreams.IOStreams{})
 	require.NoError(t, err)
 
 	require.Len(t, result.Packages, 4)
@@ -117,7 +116,7 @@ func TestUDSBundle_ToInspectResult_Empty(t *testing.T) {
 		Metadata: Metadata{Name: "empty"},
 	}
 
-	result, err := b.ToInspectResult(context.Background(), iostreams.IOStreams{})
+	result, err := b.ToInspectResult(t.Context(), iostreams.IOStreams{})
 	require.NoError(t, err)
 	assert.Equal(t, "empty", result.Name)
 	assert.Empty(t, result.Packages)

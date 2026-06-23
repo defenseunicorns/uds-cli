@@ -4,7 +4,6 @@
 package bundle
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -289,7 +288,7 @@ func TestFilterIngestedManifest_NonZarfPassthrough(t *testing.T) {
 	manifestDigest := writeBlobJSON(t, blobDir, im)
 
 	m := ociManifest{Digest: manifestDigest, Size: 100}
-	result, err := filterIngestedManifest(context.Background(), iostreams.IOStreams{}, blobDir, m, filters.Empty())
+	result, err := filterIngestedManifest(t.Context(), iostreams.IOStreams{}, blobDir, m, filters.Empty())
 	require.NoError(t, err)
 	assert.Equal(t, m, result, "non-Zarf manifest should be returned unchanged")
 }
@@ -308,7 +307,7 @@ func TestFilterIngestedManifest_KeepsAllWhenNoFiltering(t *testing.T) {
 	// ForDeploy with empty string and non-interactive keeps required + default:true
 	// Since "logging" has no Required/Default set, it will be excluded by ForDeploy
 	// Use Empty() filter to keep all
-	result, err := filterIngestedManifest(context.Background(), iostreams.IOStreams{}, blobDir, m, filters.Empty())
+	result, err := filterIngestedManifest(t.Context(), iostreams.IOStreams{}, blobDir, m, filters.Empty())
 	require.NoError(t, err)
 	assert.Equal(t, m, result, "should be unchanged when filter keeps all components")
 }
@@ -327,7 +326,7 @@ func TestFilterIngestedManifest_ExcludesOptionalComponents(t *testing.T) {
 
 	// ForDeploy with "optional-a" keeps required + optional-a, excludes optional-b
 	filter := filters.ForDeploy("optional-a", false)
-	result, err := filterIngestedManifest(context.Background(), iostreams.IOStreams{}, blobDir, m, filter)
+	result, err := filterIngestedManifest(t.Context(), iostreams.IOStreams{}, blobDir, m, filter)
 	require.NoError(t, err)
 
 	// Result should have different digest since layers were filtered
@@ -404,7 +403,7 @@ func TestFilterIngestedManifest_ExcludesImageBlobs(t *testing.T) {
 
 	// Filter: keep only "core" (required), exclude "optional-a"
 	filter := filters.ForDeploy("", false)
-	result, err := filterIngestedManifest(context.Background(), iostreams.IOStreams{}, blobDir, m, filter)
+	result, err := filterIngestedManifest(t.Context(), iostreams.IOStreams{}, blobDir, m, filter)
 	require.NoError(t, err)
 	assert.NotEqual(t, m.Digest, result.Digest)
 
@@ -481,7 +480,7 @@ func TestFilterIngestedManifest_SharedImageBlobsPreserved(t *testing.T) {
 
 	// Exclude "optional" — but the image is shared with "core"
 	filter := filters.ForDeploy("", false)
-	result, err := filterIngestedManifest(context.Background(), iostreams.IOStreams{}, blobDir, m, filter)
+	result, err := filterIngestedManifest(t.Context(), iostreams.IOStreams{}, blobDir, m, filter)
 	require.NoError(t, err)
 
 	// Read back filtered manifest
@@ -576,7 +575,7 @@ func TestImageBlobsToExclude_NoImagesExcluded(t *testing.T) {
 	}
 	keepAll := map[string]bool{"a": true, "b": true}
 
-	result, err := imageBlobsToExclude(context.Background(), iostreams.IOStreams{}, "unused", nil, pkg, keepAll)
+	result, err := imageBlobsToExclude(t.Context(), iostreams.IOStreams{}, "unused", nil, pkg, keepAll)
 	require.NoError(t, err)
 	assert.Nil(t, result)
 }
@@ -591,7 +590,7 @@ func TestImageBlobsToExclude_ComponentsWithNoImages(t *testing.T) {
 	}
 	keep := map[string]bool{"core": true}
 
-	result, err := imageBlobsToExclude(context.Background(), iostreams.IOStreams{}, "unused", nil, pkg, keep)
+	result, err := imageBlobsToExclude(t.Context(), iostreams.IOStreams{}, "unused", nil, pkg, keep)
 	require.NoError(t, err)
 	assert.Nil(t, result)
 }
@@ -609,7 +608,7 @@ func TestImageBlobsToExclude_NoImagesIndex(t *testing.T) {
 		{Digest: "sha256:abc123", Annotations: map[string]string{zarfLayerTitleAnnotation: "zarf.yaml"}},
 	}
 
-	result, err := imageBlobsToExclude(context.Background(), iostreams.IOStreams{}, t.TempDir(), layers, pkg, keep)
+	result, err := imageBlobsToExclude(t.Context(), iostreams.IOStreams{}, t.TempDir(), layers, pkg, keep)
 	require.NoError(t, err)
 	assert.Nil(t, result)
 }
@@ -656,7 +655,7 @@ func TestImageBlobsToExclude_ExcludesCorrectBlobs(t *testing.T) {
 	}
 	keep := map[string]bool{"core": true}
 
-	result, err := imageBlobsToExclude(context.Background(), iostreams.IOStreams{}, blobDir, layers, pkg, keep)
+	result, err := imageBlobsToExclude(t.Context(), iostreams.IOStreams{}, blobDir, layers, pkg, keep)
 	require.NoError(t, err)
 
 	// Excluded image blobs should be in the result
@@ -710,7 +709,7 @@ func TestImageBlobsToExclude_SharedLayersPreserved(t *testing.T) {
 	}
 	keep := map[string]bool{"core": true}
 
-	result, err := imageBlobsToExclude(context.Background(), iostreams.IOStreams{}, blobDir, layers, pkg, keep)
+	result, err := imageBlobsToExclude(t.Context(), iostreams.IOStreams{}, blobDir, layers, pkg, keep)
 	require.NoError(t, err)
 
 	// Shared layer should NOT be excluded
@@ -752,7 +751,7 @@ func TestImageBlobsToExclude_AllImagesExcluded(t *testing.T) {
 	}
 	keep := map[string]bool{"core": true}
 
-	result, err := imageBlobsToExclude(context.Background(), iostreams.IOStreams{}, blobDir, layers, pkg, keep)
+	result, err := imageBlobsToExclude(t.Context(), iostreams.IOStreams{}, blobDir, layers, pkg, keep)
 	require.NoError(t, err)
 
 	// Image blobs should be excluded

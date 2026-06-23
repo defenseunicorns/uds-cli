@@ -4,7 +4,6 @@
 package bundle
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -34,7 +33,7 @@ func TestLocalSource_IngestFiltered_ZarfPackage(t *testing.T) {
 	blobDir := t.TempDir()
 
 	src := &localSource{path: pkgDir, arch: "amd64", bundleDir: ""}
-	manifests, err := src.IngestFiltered(context.Background(), filters.Empty(), blobDir)
+	manifests, err := src.IngestFiltered(t.Context(), filters.Empty(), blobDir)
 	require.NoError(t, err)
 	assert.Len(t, manifests, 1)
 	assert.Equal(t, "application/vnd.oci.image.manifest.v1+json", manifests[0].MediaType)
@@ -47,7 +46,7 @@ func TestLocalSource_IngestFiltered_OCILayout(t *testing.T) {
 	blobDir := t.TempDir()
 
 	src := &localSource{path: layoutDir, arch: "amd64", bundleDir: ""}
-	manifests, err := src.IngestFiltered(context.Background(), filters.Empty(), blobDir)
+	manifests, err := src.IngestFiltered(t.Context(), filters.Empty(), blobDir)
 	require.NoError(t, err)
 	assert.NotEmpty(t, manifests)
 }
@@ -61,7 +60,7 @@ func TestLocalSource_IngestFiltered_RelativePath(t *testing.T) {
 	blobDir := t.TempDir()
 
 	src := &localSource{path: "my-pkg", arch: "amd64", bundleDir: bundleDir}
-	manifests, err := src.IngestFiltered(context.Background(), filters.Empty(), blobDir)
+	manifests, err := src.IngestFiltered(t.Context(), filters.Empty(), blobDir)
 	require.NoError(t, err)
 	assert.Len(t, manifests, 1)
 }
@@ -125,7 +124,7 @@ func TestIsZarfPackage(t *testing.T) {
 }
 
 func TestIngestZarfPackage(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("successfully ingests simple Zarf package", func(t *testing.T) {
 		// Create a minimal Zarf package

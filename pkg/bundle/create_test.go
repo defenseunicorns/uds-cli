@@ -65,7 +65,7 @@ package "pkg1" {
 }
 `), tmpFilePerm))
 
-	_, err := Create(context.Background(), CreateOptions{
+	_, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
 		Streams:    iostreams.New(nil, nil, io.Discard),
@@ -163,7 +163,7 @@ package "pkg2" {
 }
 `), tmpFilePerm))
 
-	_, err := Create(context.Background(), CreateOptions{
+	_, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
 		Streams:    iostreams.New(nil, nil, io.Discard),
@@ -303,7 +303,7 @@ package "pkg1" {
 `), tmpFilePerm))
 
 	// Build for amd64 explicitly.
-	_, err := Create(context.Background(), CreateOptions{
+	_, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfigWithArch("amd64"),
 		BundleFile: bundleFile,
 		Streams:    iostreams.New(nil, nil, io.Discard),
@@ -370,7 +370,7 @@ package "pkg1" {
 }
 `), tmpFilePerm))
 
-	_, err := Create(context.Background(), CreateOptions{
+	_, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
 		Streams:    iostreams.New(nil, nil, io.Discard),
@@ -418,7 +418,7 @@ variables = {
 `)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, BundleDefaultsFileName), defaultsContent, tmpFilePerm))
 
-	_, err := Create(context.Background(), CreateOptions{
+	_, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
 		Streams:    iostreams.New(nil, nil, io.Discard),
@@ -486,7 +486,7 @@ package "pkg1" {
 }
 `), tmpFilePerm))
 
-	_, err := Create(context.Background(), CreateOptions{
+	_, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
 		Streams:    iostreams.New(nil, nil, io.Discard),
@@ -513,7 +513,7 @@ func readTarZstEntries(t *testing.T, path string) map[string][]byte {
 		Compression: archives.Zstd{},
 	}
 	entries := map[string][]byte{}
-	err = ca.Extract(context.Background(), f, func(_ context.Context, info archives.FileInfo) error {
+	err = ca.Extract(t.Context(), f, func(_ context.Context, info archives.FileInfo) error {
 		if info.IsDir() {
 			return nil
 		}

@@ -4,7 +4,6 @@
 package bundle
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,7 +21,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 		dir := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(dir, BundleFileName), []byte(validHCL), 0o600))
 		loader := &ExtractedArtifactPackageLayoutLoader{}
-		b, err := loader.LoadBundle(context.Background(), dir, LoadOptions{})
+		b, err := loader.LoadBundle(t.Context(), dir, LoadOptions{})
 		require.NoError(t, err)
 		assert.Equal(t, "test-bundle", b.Metadata.Name)
 		require.Len(t, b.Packages, 1)
@@ -32,14 +31,14 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 
 	t.Run("empty bundleDir", func(t *testing.T) {
 		loader := &ExtractedArtifactPackageLayoutLoader{}
-		_, err := loader.LoadBundle(context.Background(), "", LoadOptions{})
+		_, err := loader.LoadBundle(t.Context(), "", LoadOptions{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "bundleDir must not be empty")
 	})
 
 	t.Run("missing bundle file", func(t *testing.T) {
 		loader := &ExtractedArtifactPackageLayoutLoader{}
-		_, err := loader.LoadBundle(context.Background(), t.TempDir(), LoadOptions{})
+		_, err := loader.LoadBundle(t.Context(), t.TempDir(), LoadOptions{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), BundleFileName)
 	})
@@ -51,20 +50,20 @@ func TestExtractedArtifactPackageLayoutLoader_LoadPackage(t *testing.T) {
 	t.Run("happy path", func(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte("metadata:\n  name: my-zarf-pkg\n"), 0o600))
-		pkg, err := loader.LoadPackage(context.Background(), dir, LoadOptions{})
+		pkg, err := loader.LoadPackage(t.Context(), dir, LoadOptions{})
 		require.NoError(t, err)
 		assert.Equal(t, "my-zarf-pkg", pkg.Name)
 		assert.Equal(t, dir, pkg.Source)
 	})
 
 	t.Run("empty packageDir", func(t *testing.T) {
-		_, err := loader.LoadPackage(context.Background(), "", LoadOptions{})
+		_, err := loader.LoadPackage(t.Context(), "", LoadOptions{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "packageDir must not be empty")
 	})
 
 	t.Run("missing zarf.yaml", func(t *testing.T) {
-		_, err := loader.LoadPackage(context.Background(), t.TempDir(), LoadOptions{})
+		_, err := loader.LoadPackage(t.Context(), t.TempDir(), LoadOptions{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "reading zarf.yaml")
 	})
@@ -72,7 +71,7 @@ func TestExtractedArtifactPackageLayoutLoader_LoadPackage(t *testing.T) {
 	t.Run("empty name in zarf.yaml", func(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte("metadata:\n  name: \"\"\n"), 0o600))
-		_, err := loader.LoadPackage(context.Background(), dir, LoadOptions{})
+		_, err := loader.LoadPackage(t.Context(), dir, LoadOptions{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "empty metadata.name")
 	})

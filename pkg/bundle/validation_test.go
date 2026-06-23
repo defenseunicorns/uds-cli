@@ -4,7 +4,6 @@
 package bundle
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -499,7 +498,7 @@ func TestValidateRemovalSafety(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateRemovalSafety(context.Background(), iostreams.IOStreams{}, b, tt.remove)
+			err := ValidateRemovalSafety(t.Context(), iostreams.IOStreams{}, b, tt.remove)
 			if len(tt.wantContains) == 0 && tt.wantErr == "" {
 				require.NoError(t, err)
 				return
@@ -584,7 +583,7 @@ func TestValidateDeploySafety(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateDeploySafety(context.Background(), iostreams.IOStreams{}, b, tt.deploy)
+			err := ValidateDeploySafety(t.Context(), iostreams.IOStreams{}, b, tt.deploy)
 			if len(tt.wantErrContains) == 0 {
 				require.NoError(t, err)
 				return

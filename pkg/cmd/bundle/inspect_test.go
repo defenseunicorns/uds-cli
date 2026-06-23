@@ -4,7 +4,6 @@
 package bundle
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -230,7 +229,7 @@ func TestInspectOptions_Run(t *testing.T) {
 				IOStreams:  streams,
 			}
 
-			err := o.Run(context.Background())
+			err := o.Run(t.Context())
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -259,7 +258,7 @@ func TestInspectOptions_Run_JSONOutput(t *testing.T) {
 		IOStreams:  streams,
 	}
 
-	require.NoError(t, o.Run(context.Background()))
+	require.NoError(t, o.Run(t.Context()))
 
 	// Verify stdout contains valid JSON with expected fields
 	var result map[string]any
@@ -285,7 +284,7 @@ func TestInspectOptions_Run_YAMLOutput(t *testing.T) {
 		IOStreams:  streams,
 	}
 
-	require.NoError(t, o.Run(context.Background()))
+	require.NoError(t, o.Run(t.Context()))
 
 	// Verify stdout contains valid YAML with expected fields
 	var result map[string]any

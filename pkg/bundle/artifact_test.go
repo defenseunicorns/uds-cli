@@ -4,7 +4,6 @@
 package bundle
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -168,7 +167,7 @@ func buildBundleArtifactInner(t *testing.T, bundleHCL, defaultsHCL string, value
 
 	// Write the tar.zst
 	outPath := filepath.Join(t.TempDir(), "bundle.tar.zst")
-	require.NoError(t, writeTarZst(context.Background(), iostreams.IOStreams{}, outPath, root))
+	require.NoError(t, writeTarZst(t.Context(), iostreams.IOStreams{}, outPath, root))
 	return outPath
 }
 
@@ -289,7 +288,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 				tarPath := buildBundleArtifact(t, baseHCL, nil, []string{"pkg"})
 
 				unpackDir := t.TempDir()
-				require.NoError(t, extractTarZst(context.Background(), iostreams.IOStreams{}, tarPath, unpackDir))
+				require.NoError(t, extractTarZst(t.Context(), iostreams.IOStreams{}, tarPath, unpackDir))
 
 				blobDir := filepath.Join(unpackDir, "oci", "blobs", "sha256")
 				entries, err := os.ReadDir(blobDir)
@@ -303,7 +302,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 				require.NoError(t, os.WriteFile(target, data, tmpFilePerm))
 
 				corruptPath := filepath.Join(t.TempDir(), "corrupt.tar.zst")
-				require.NoError(t, writeTarZst(context.Background(), iostreams.IOStreams{}, corruptPath, unpackDir))
+				require.NoError(t, writeTarZst(t.Context(), iostreams.IOStreams{}, corruptPath, unpackDir))
 				return corruptPath
 			},
 			wantErrFrag: "digest",
@@ -314,7 +313,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 		t.Run(tt.name, func(t *testing.T) {
 			tarPath := tt.setup(t)
 			dstDir := t.TempDir()
-			extracted, err := ExtractArtifact(context.Background(), iostreams.IOStreams{}, tarPath, dstDir)
+			extracted, err := ExtractArtifact(t.Context(), iostreams.IOStreams{}, tarPath, dstDir)
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.wantErrFrag != "" {
@@ -449,7 +448,7 @@ package "mypkg" { source = "mypkg" }
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tarPath := buildBundleArtifact(t, baseHCL, tt.valuesFiles, []string{"mypkg"})
-			extracted, err := ExtractArtifact(context.Background(), iostreams.IOStreams{}, tarPath, t.TempDir())
+			extracted, err := ExtractArtifact(t.Context(), iostreams.IOStreams{}, tarPath, t.TempDir())
 			require.NoError(t, err)
 
 			result, err := extracted.ValuesFilesByPackage()

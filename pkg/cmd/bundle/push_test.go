@@ -4,7 +4,6 @@
 package bundle
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -56,7 +55,7 @@ func TestPushOptions_Run_PromptDecline(t *testing.T) {
 				IOStreams:    streams,
 			}
 
-			err := o.Run(context.Background())
+			err := o.Run(t.Context())
 			require.NoError(t, err)
 			assert.Empty(t, out.String(), "stdout should be empty when push is cancelled")
 			for _, expected := range tt.wantErrOutput {

@@ -4,7 +4,6 @@
 package bundle
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -151,7 +150,7 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 				IOStreams:  streams,
 			}
 
-			err := o.Run(context.Background())
+			err := o.Run(t.Context())
 			require.NoError(t, err)
 			assert.Empty(t, out.String(), "stdout should be empty when create is cancelled")
 			for _, expected := range tt.wantErrOutput {

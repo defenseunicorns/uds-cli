@@ -5,7 +5,6 @@ package bundle
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -249,7 +248,7 @@ func TestTemplateValuesFiles(t *testing.T) {
 				inputPaths = append(inputPaths, writeTempYAML(t, content))
 			}
 
-			outPaths, err := templateValuesFiles(context.Background(), inputPaths, tt.vars, t.TempDir())
+			outPaths, err := templateValuesFiles(t.Context(), inputPaths, tt.vars, t.TempDir())
 
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
@@ -293,7 +292,7 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 			},
 		}
 
-		_, setVars, err := d.prepareValuesAndVariables(context.Background(), iostreams.IOStreams{}, pkg, opts)
+		_, setVars, err := d.prepareValuesAndVariables(t.Context(), iostreams.IOStreams{}, pkg, opts)
 		require.NoError(t, err)
 		assert.Equal(t, "uds.dev", setVars["DOMAIN"])
 	})
@@ -317,7 +316,7 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 			},
 		}
 
-		_, setVars, err := d.prepareValuesAndVariables(context.Background(), iostreams.IOStreams{}, pkg, opts)
+		_, setVars, err := d.prepareValuesAndVariables(t.Context(), iostreams.IOStreams{}, pkg, opts)
 		require.NoError(t, err)
 		// Complex types are skipped from Flatten and must flow through values_files
 		assert.NotContains(t, setVars, "PORTS")
@@ -333,7 +332,7 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 			},
 		}
 
-		zv, setVars, err := d.prepareValuesAndVariables(context.Background(), iostreams.IOStreams{}, pkg, opts)
+		zv, setVars, err := d.prepareValuesAndVariables(t.Context(), iostreams.IOStreams{}, pkg, opts)
 		require.NoError(t, err)
 		assert.Nil(t, zv)
 		assert.Equal(t, "y", setVars["X"])
@@ -351,7 +350,7 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 			},
 		}
 
-		_, setVars, err := d.prepareValuesAndVariables(context.Background(), iostreams.IOStreams{}, pkg, opts)
+		_, setVars, err := d.prepareValuesAndVariables(t.Context(), iostreams.IOStreams{}, pkg, opts)
 		require.NoError(t, err)
 		// Non-scalar "k" is omitted from setVars
 		assert.NotContains(t, setVars, "K")
@@ -370,7 +369,7 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 			},
 		}
 
-		_, _, err := d.prepareValuesAndVariables(context.Background(), iostreams.IOStreams{}, pkg, opts)
+		_, _, err := d.prepareValuesAndVariables(t.Context(), iostreams.IOStreams{}, pkg, opts)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `"broken"`)
 		assert.Contains(t, err.Error(), "failed to template")
@@ -402,7 +401,7 @@ func TestZarfDeployer_DeployPackage_InvalidSource(t *testing.T) {
 				Source: tt.source,
 			}
 
-			err := deployer.DeployPackage(context.Background(), pkg, DeployPackageOptions{
+			err := deployer.DeployPackage(t.Context(), pkg, DeployPackageOptions{
 				Config:    newTestConfig(),
 				BundleDir: t.TempDir(),
 			})

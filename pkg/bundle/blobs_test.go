@@ -5,7 +5,6 @@ package bundle
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -184,7 +183,7 @@ func TestGcUnreferencedBlobs(t *testing.T) {
 
 	manifests := []ociManifest{{Digest: manifestDigest.String(), Size: int64(len(manifestBytes))}}
 
-	err = gcUnreferencedBlobs(context.Background(), iostreams.IOStreams{}, blobDir, manifests)
+	err = gcUnreferencedBlobs(t.Context(), iostreams.IOStreams{}, blobDir, manifests)
 	require.NoError(t, err)
 
 	// Referenced blobs should exist
