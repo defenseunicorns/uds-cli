@@ -103,7 +103,9 @@ func ConfigureLogs(cmd *cobra.Command) error {
 	return nil
 }
 
-// ExtractJSON extracts and unmarshals a tarballed JSON file into a type
+// ExtractJSON extracts and unmarshals a tarballed JSON file into a type.
+// Returns fs.SkipAll once the target file is found so the archive stream
+// stops decompressing the remaining entries.
 func ExtractJSON(j any, expectedFilepath string) archives.FileHandler {
 	return func(_ context.Context, file archives.FileInfo) error {
 		if file.NameInArchive != expectedFilepath {
@@ -120,11 +122,16 @@ func ExtractJSON(j any, expectedFilepath string) archives.FileHandler {
 		if err != nil {
 			return err
 		}
-		return json.Unmarshal(fileBytes, &j)
+		if err := json.Unmarshal(fileBytes, &j); err != nil {
+			return err
+		}
+		return fs.SkipAll
 	}
 }
 
-// ExtractBytes returns an archives.FileHandler that extracts a byte contents of a file from an archive
+// ExtractBytes returns an archives.FileHandler that extracts a byte contents of a file from an archive.
+// Returns fs.SkipAll once the target file is found so the archive stream
+// stops decompressing the remaining entries.
 func ExtractBytes(b *[]byte, expectedFilepath string) archives.FileHandler {
 	return func(_ context.Context, file archives.FileInfo) error {
 		if file.NameInArchive != expectedFilepath {
@@ -143,7 +150,7 @@ func ExtractBytes(b *[]byte, expectedFilepath string) archives.FileHandler {
 		}
 
 		*b = fileBytes
-		return nil
+		return fs.SkipAll
 	}
 }
 
@@ -158,7 +165,9 @@ func ExtractAllFiles(outDirPath string) archives.FileHandler {
 }
 
 // extractFiles returns an archives.FileHandler that extracts file(s) from an archive.
-// If the provided extractedPath is empty, all files will be extracted
+// If the provided extractedPath is empty, all files will be extracted.
+// When extracting a single targeted file, fs.SkipAll is returned after the file
+// is written so the archive stream stops decompressing the remaining entries.
 func extractFiles(expectedFilepath string, outDirPath string) archives.FileHandler {
 	return func(_ context.Context, file archives.FileInfo) error {
 		// If an expectedFilepath was provided and it doesn't match the name of this file; do nothing
@@ -194,8 +203,13 @@ func extractFiles(expectedFilepath string, outDirPath string) archives.FileHandl
 		defer stream.Close()
 
 		// Stream directly from the archive to the file without loading everything into memory
-		_, err = io.Copy(outFile, stream)
-		return err
+		if _, err := io.Copy(outFile, stream); err != nil {
+			return err
+		}
+		if expectedFilepath != "" {
+			return fs.SkipAll
+		}
+		return nil
 	}
 }
 
