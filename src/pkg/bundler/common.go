@@ -15,7 +15,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"oras.land/oras-go/v2/registry"
 )
 
@@ -55,7 +55,7 @@ func pushManifestConfigFromMetadata(r *oci.OrasRemote, metadata *types.UDSMetada
 		OCIVersion:   "1.0.1",
 		Annotations:  annotations,
 	}
-	manifestConfigDesc, err := boci.ToOCIRemote(manifestConfig, zoci.ZarfLayerMediaTypeBlob, r)
+	manifestConfigDesc, err := boci.ToOCIRemote(manifestConfig, layout.ZarfLayerMediaTypeBlob, r)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}

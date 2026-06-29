@@ -100,7 +100,7 @@ func (f *remoteFetcher) copyRemotePkgLayers(layersToCopy []ocispec.Descriptor) (
 
 		// grab pkg root manifest for archiving and save it to bundle root manifest
 		descsToBundle = append(descsToBundle, rootPkgDesc)
-		rootPkgDesc.MediaType = zoci.ZarfLayerMediaTypeBlob // force media type to Zarf blob
+		rootPkgDesc.MediaType = layout.ZarfLayerMediaTypeBlob // force media type to Zarf blob
 		f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, rootPkgDesc)
 
 		// cache only the image layers that were just pulled
@@ -116,10 +116,10 @@ func (f *remoteFetcher) copyRemotePkgLayers(layersToCopy []ocispec.Descriptor) (
 		}
 
 		// save pkg manifest to bundle root manifest
-		pkgManifestDesc.MediaType = zoci.ZarfLayerMediaTypeBlob // force media type to Zarf blob
+		pkgManifestDesc.MediaType = layout.ZarfLayerMediaTypeBlob // force media type to Zarf blob
 		f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, pkgManifestDesc)
 
-		manifestConfigDesc, err := boci.ToOCIStore(f.pkgRootManifest.Config, zoci.ZarfConfigMediaType, f.cfg.Store)
+		manifestConfigDesc, err := boci.ToOCIStore(f.pkgRootManifest.Config, layout.ZarfConfigMediaType, f.cfg.Store)
 		if err != nil {
 			return nil, err
 		}

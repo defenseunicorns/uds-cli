@@ -19,7 +19,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
 // RemoteBundleOpts are the options for creating a remote bundle
@@ -105,7 +105,7 @@ func (r *RemoteBundle) create(ctx context.Context, signature []byte) error {
 	if err != nil {
 		return err
 	}
-	bundleYamlDesc, err := bundleRemote.PushLayer(ctx, bundleYamlBytes, zoci.ZarfLayerMediaTypeBlob)
+	bundleYamlDesc, err := bundleRemote.PushLayer(ctx, bundleYamlBytes, layout.ZarfLayerMediaTypeBlob)
 	if err != nil {
 		return err
 	}
@@ -122,7 +122,7 @@ func (r *RemoteBundle) create(ctx context.Context, signature []byte) error {
 
 	// push the bundle's signature
 	if len(signature) > 0 {
-		bundleYamlSigDesc, err := bundleRemote.PushLayer(ctx, signature, zoci.ZarfLayerMediaTypeBlob)
+		bundleYamlSigDesc, err := bundleRemote.PushLayer(ctx, signature, layout.ZarfLayerMediaTypeBlob)
 		if err != nil {
 			return err
 		}

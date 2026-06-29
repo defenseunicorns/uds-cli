@@ -24,8 +24,8 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
-	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"oras.land/oras-go/v2/content/file"
 	ocistore "oras.land/oras-go/v2/content/oci"
@@ -196,7 +196,7 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 		}
 
 		// set media type to blob for all layers in the pkg
-		mediaType := zoci.ZarfLayerMediaTypeBlob
+		mediaType := layout.ZarfLayerMediaTypeBlob
 
 		// if using a custom tmp dir that is not an absolute path, get working dir and prepend to path to make it absolute
 		if !filepath.IsAbs(path) {
@@ -259,7 +259,7 @@ func generatePkgManifestConfig(store *ocistore.Store, metadata *v1alpha1.ZarfMet
 		Annotations:  annotations,
 	}
 
-	manifestConfigDesc, err := boci.ToOCIStore(manifestConfig, zoci.ZarfConfigMediaType, store)
+	manifestConfigDesc, err := boci.ToOCIStore(manifestConfig, layout.ZarfConfigMediaType, store)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
@@ -273,11 +273,11 @@ func generatePkgManifest(store *ocistore.Store, descs []ocispec.Descriptor, conf
 			SchemaVersion: 2, // historical value. does not pertain to OCI or docker version
 		},
 		Config:    configDesc,
-		MediaType: zoci.ZarfLayerMediaTypeBlob,
+		MediaType: layout.ZarfLayerMediaTypeBlob,
 		Layers:    descs,
 	}
 
-	manifestDesc, err := boci.ToOCIStore(manifest, zoci.ZarfLayerMediaTypeBlob, store)
+	manifestDesc, err := boci.ToOCIStore(manifest, layout.ZarfLayerMediaTypeBlob, store)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}

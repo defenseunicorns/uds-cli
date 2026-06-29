@@ -27,7 +27,6 @@ import (
 	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
-	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"golang.org/x/sync/errgroup"
 	"oras.land/oras-go/v2/content"
 	ocistore "oras.land/oras-go/v2/content/oci"
@@ -244,7 +243,7 @@ func pushBundleYAMLToStore(store *ocistore.Store, bundle *types.UDSBundle) (ocis
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
-	bundleYamlDesc := content.NewDescriptorFromBytes(zoci.ZarfLayerMediaTypeBlob, bundleYAMLBytes)
+	bundleYamlDesc := content.NewDescriptorFromBytes(layout.ZarfLayerMediaTypeBlob, bundleYAMLBytes)
 	bundleYamlDesc.Annotations = map[string]string{
 		ocispec.AnnotationTitle: config.BundleYAML,
 	}
@@ -272,7 +271,7 @@ func pushManifestConfig(store *ocistore.Store, metadata types.UDSMetadata, build
 		OCIVersion:   "1.0.1",
 		Annotations:  annotations,
 	}
-	manifestConfigDesc, err := boci.ToOCIStore(manifestConfig, zoci.ZarfLayerMediaTypeBlob, store)
+	manifestConfigDesc, err := boci.ToOCIStore(manifestConfig, layout.ZarfLayerMediaTypeBlob, store)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
@@ -379,7 +378,7 @@ jobLoop:
 
 func pushBundleSignature(store *ocistore.Store, signature []byte) (ocispec.Descriptor, error) {
 	ctx := context.TODO()
-	signatureDesc := content.NewDescriptorFromBytes(zoci.ZarfLayerMediaTypeBlob, signature)
+	signatureDesc := content.NewDescriptorFromBytes(layout.ZarfLayerMediaTypeBlob, signature)
 	err := store.Push(ctx, signatureDesc, bytes.NewReader(signature))
 	if err != nil {
 		return ocispec.Descriptor{}, err

@@ -24,7 +24,6 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/signing"
-	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"oras.land/oras-go/v2/content/file"
 )
 
@@ -199,7 +198,7 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 		return nil, fmt.Errorf("package %s does not exist in this bundle", r.PkgManifestSHA)
 	}
 	// hack Zarf media type so that FetchManifest works
-	pkgManifestDesc.MediaType = zoci.ZarfLayerMediaTypeBlob
+	pkgManifestDesc.MediaType = layout.ZarfLayerMediaTypeBlob
 	pkgManifest, err := r.Remote.FetchManifest(ctx, pkgManifestDesc)
 	if err != nil || pkgManifest == nil {
 		return nil, err
