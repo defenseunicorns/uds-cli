@@ -16,6 +16,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
 
@@ -48,7 +49,7 @@ func (p *RemotePusher) Push() (ocispec.Descriptor, error) {
 	}
 
 	// ensure media type is a Zarf blob and append to bundle root manifest
-	zarfManifestDesc.MediaType = zoci.ZarfLayerMediaTypeBlob
+	zarfManifestDesc.MediaType = layout.ZarfLayerMediaTypeBlob
 	url := fmt.Sprintf("%s:%s", p.pkg.Repository, p.pkg.Ref)
 
 	jsonValue, err := utils.JSONValue(zarfManifestDesc)
@@ -72,7 +73,7 @@ func (p *RemotePusher) Push() (ocispec.Descriptor, error) {
 // PushManifest pushes the Zarf pkg's manifest to a remote bundle
 func (p *RemotePusher) PushManifest() (ocispec.Descriptor, error) {
 	var zarfManifestDesc ocispec.Descriptor
-	desc, err := boci.ToOCIRemote(p.cfg.PkgRootManifest, zoci.ZarfLayerMediaTypeBlob, p.cfg.RemoteDst.OrasRemote)
+	desc, err := boci.ToOCIRemote(p.cfg.PkgRootManifest, layout.ZarfLayerMediaTypeBlob, p.cfg.RemoteDst.OrasRemote)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}

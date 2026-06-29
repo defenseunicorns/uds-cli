@@ -24,6 +24,7 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/transform"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"oras.land/oras-go/v2"
@@ -108,7 +109,7 @@ func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) oras.Cop
 					return []ocispec.Descriptor{node}, nil
 				}
 			}
-		} else if desc.MediaType == zoci.ZarfLayerMediaTypeBlob && !hasTitleAnnotation {
+		} else if desc.MediaType == layout.ZarfLayerMediaTypeBlob && !hasTitleAnnotation {
 			// This if block is for used for finding successors from bundle root manifests during bundle pull/publish ops;
 			// note that ptrs to the Zarf pkg image manifests won't have title annotations, and will follow this code path
 			// adopted from the content.Successors() fn in oras
