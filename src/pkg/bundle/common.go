@@ -262,6 +262,7 @@ func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string
 	verifyBlobOptions := signing.DefaultVerifyBlobOptions()
 	verifyBlobOptions.Signature = signaturePath
 	verifyBlobOptions.Key = publicKeyPath
+	verifyBlobOptions.CommonVerifyOptions.NewBundleFormat = false
 	return signing.CosignVerifyBlobWithOptions(context.TODO(), bundleYAMLPath, verifyBlobOptions)
 }
 
