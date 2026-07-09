@@ -157,9 +157,7 @@ func (b *Bundle) listImages() error {
 		}
 
 		// grab images from each filtered component
-		for _, component := range filteredComponents {
-			pkgImgMap[pkg.Name] = append(pkgImgMap[pkg.Name], component.Images...)
-		}
+		pkgImgMap[pkg.Name] = append(pkgImgMap[pkg.Name], gatherComponentImages(filteredComponents)...)
 	}
 
 	pkgImgsOut, err := goyaml.Marshal(pkgImgMap)
@@ -168,6 +166,16 @@ func (b *Bundle) listImages() error {
 	}
 	fmt.Println(string(pkgImgsOut))
 	return nil
+}
+
+// gatherComponentImages returns all images across the given components, including
+// images bundled via imageArchives (component.GetImages accounts for both).
+func gatherComponentImages(components []v1alpha1.ZarfComponent) []string {
+	var images []string
+	for _, component := range components {
+		images = append(images, component.GetImages()...)
+	}
+	return images
 }
 
 // listVariables prints the variables and overrides for each package in the bundle

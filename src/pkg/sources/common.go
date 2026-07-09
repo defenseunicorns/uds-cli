@@ -39,9 +39,10 @@ type PackageSource interface {
 // setAsYOLO sets the YOLO flag on a package and strips out all images and repos
 func setAsYOLO(pkg *v1alpha1.ZarfPackage) {
 	pkg.Metadata.YOLO = true
-	// strip out all images and repos
+	// strip out all images (including image archives) and repos
 	for idx := range pkg.Components {
 		pkg.Components[idx].Images = []string{}
+		pkg.Components[idx].ImageArchives = []v1alpha1.ImageArchive{}
 		pkg.Components[idx].Repos = []string{}
 	}
 }
