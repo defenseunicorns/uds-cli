@@ -301,7 +301,7 @@ func FilterImageIndex(components []v1alpha1.ZarfComponent, imgIndex ocispec.Inde
 	manifestIncludeMap := map[string]ocispec.Descriptor{}
 	for _, manifest := range imgIndex.Manifests {
 		for _, component := range components {
-			for _, imgName := range component.Images {
+			for _, imgName := range component.GetImages() {
 				refInfo, err := transform.ParseImageRef(imgName)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse image ref %q: %w", imgName, err)
