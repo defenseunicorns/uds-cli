@@ -158,7 +158,7 @@ func (b *Bundle) listImages() error {
 
 		// grab images from each filtered component
 		for _, component := range filteredComponents {
-			pkgImgMap[pkg.Name] = append(pkgImgMap[pkg.Name], component.Images...)
+			pkgImgMap[pkg.Name] = append(pkgImgMap[pkg.Name], component.GetImages()...)
 		}
 	}
 
