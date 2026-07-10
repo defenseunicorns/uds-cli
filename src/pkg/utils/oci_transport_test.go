@@ -12,10 +12,9 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/stretchr/testify/require"
-	"oras.land/oras-go/v2/registry"
 )
 
-func TestNegotiatePlainHTTP(t *testing.T) {
+func TestNegotiatePlainHTTPForOCIRef(t *testing.T) {
 	originalInsecure := config.CommonOptions.Insecure
 	t.Cleanup(func() {
 		config.CommonOptions.Insecure = originalInsecure
@@ -23,10 +22,7 @@ func TestNegotiatePlainHTTP(t *testing.T) {
 
 	t.Run("insecure false does not negotiate", func(t *testing.T) {
 		config.CommonOptions.Insecure = false
-		ref, err := registry.ParseReference("example.com/repo:tag")
-		require.NoError(t, err)
-
-		got, err := NegotiatePlainHTTP(context.Background(), ref)
+		got, err := NegotiatePlainHTTPForOCIRef(context.Background(), "oci://example.com/repo:tag")
 		require.NoError(t, err)
 		require.False(t, got)
 	})
@@ -39,9 +35,7 @@ func TestNegotiatePlainHTTP(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		ref, err := registry.ParseReference(strings.TrimPrefix(srv.URL, "https://") + "/repo:tag")
-		require.NoError(t, err)
-		got, err := NegotiatePlainHTTP(context.Background(), ref)
+		got, err := NegotiatePlainHTTPForOCIRef(context.Background(), "oci://"+strings.TrimPrefix(srv.URL, "https://")+"/repo:tag")
 		require.NoError(t, err)
 		require.False(t, got)
 	})
@@ -54,9 +48,7 @@ func TestNegotiatePlainHTTP(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		ref, err := registry.ParseReference(strings.TrimPrefix(srv.URL, "http://") + "/repo:tag")
-		require.NoError(t, err)
-		got, err := NegotiatePlainHTTP(context.Background(), ref)
+		got, err := NegotiatePlainHTTPForOCIRef(context.Background(), "oci://"+strings.TrimPrefix(srv.URL, "http://")+"/repo:tag")
 		require.NoError(t, err)
 		require.True(t, got)
 	})

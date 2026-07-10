@@ -10,7 +10,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/sources"
@@ -24,7 +23,6 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
-	"oras.land/oras-go/v2/registry"
 )
 
 // Inspect pulls/unpacks a bundle's metadata and shows it
@@ -303,12 +301,8 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 
 	ctx := context.TODO()
 	plainHTTP := false
-	if pkg.Repository != "" && config.CommonOptions.Insecure {
-		ref, err := registry.ParseReference(strings.TrimPrefix(source, helpers.OCIURLPrefix))
-		if err != nil {
-			return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
-		}
-		plainHTTP, err = utils.NegotiatePlainHTTP(ctx, ref)
+	if pkg.Repository != "" {
+		plainHTTP, err = utils.NegotiatePlainHTTPForOCIRef(ctx, source)
 		if err != nil {
 			return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
