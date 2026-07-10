@@ -25,12 +25,12 @@ require (
 	github.com/zarf-dev/zarf v0.81.0
 	golang.org/x/exp v0.0.0-20260603202125-055de637280b
 	golang.org/x/mod v0.37.0
-	golang.org/x/sync v0.21.0
+	golang.org/x/sync v0.22.0
 	helm.sh/helm/v4 v4.2.0
 	k8s.io/api v0.36.1
 	k8s.io/apimachinery v0.36.1
 	k8s.io/client-go v0.36.1
-	oras.land/oras-go/v2 v2.6.1
+	oras.land/oras-go/v2 v2.6.2
 )
 
 require (
