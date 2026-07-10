@@ -22,7 +22,7 @@ import (
 )
 
 func NewZarfOCIRemote(ctx context.Context, url string, platform ocispec.Platform, mods ...oci.Modifier) (*zoci.Remote, error) {
-	plainHTTP, err := utils.NegotiatePlainHTTPForOCIRef(ctx, url)
+	plainHTTP, err := utils.NegotiatePlainHTTPForOCIRef(ctx, url, config.CommonOptions.Insecure)
 	if err != nil {
 		return nil, err
 	}

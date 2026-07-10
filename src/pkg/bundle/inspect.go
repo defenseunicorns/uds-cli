@@ -302,7 +302,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 	ctx := context.TODO()
 	plainHTTP := false
 	if pkg.Repository != "" {
-		plainHTTP, err = utils.NegotiatePlainHTTPForOCIRef(ctx, source)
+		plainHTTP, err = utils.NegotiatePlainHTTPForOCIRef(ctx, source, config.CommonOptions.Insecure)
 		if err != nil {
 			return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
