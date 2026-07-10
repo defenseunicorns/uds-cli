@@ -8,7 +8,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
+	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/cache"
@@ -24,6 +26,7 @@ import (
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
+	"oras.land/oras-go/v2/registry"
 )
 
 // remoteFetcher fetches remote Zarf pkgs for local bundles
@@ -148,9 +151,16 @@ func (f *remoteFetcher) verifyPackageSignature() error {
 	if err != nil {
 		return err
 	}
-	plainHTTP, err := utils.NegotiatePlainHTTP(ctx, source)
-	if err != nil {
-		return err
+	plainHTTP := false
+	if config.CommonOptions.Insecure {
+		ref, err := registry.ParseReference(strings.TrimPrefix(source, helpers.OCIURLPrefix))
+		if err != nil {
+			return err
+		}
+		plainHTTP, err = utils.NegotiatePlainHTTP(ctx, ref)
+		if err != nil {
+			return err
+		}
 	}
 	remoteOpts := zarfTypes.RemoteOptions{
 		PlainHTTP:             plainHTTP,

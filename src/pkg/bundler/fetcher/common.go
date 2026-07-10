@@ -19,12 +19,20 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	"oras.land/oras-go/v2/registry"
 )
 
 func NewZarfOCIRemote(ctx context.Context, url string, platform ocispec.Platform, mods ...oci.Modifier) (*zoci.Remote, error) {
-	plainHTTP, err := utils.NegotiatePlainHTTP(ctx, url)
-	if err != nil {
-		return nil, err
+	plainHTTP := false
+	if config.CommonOptions.Insecure {
+		ref, err := registry.ParseReference(strings.TrimPrefix(url, helpers.OCIURLPrefix))
+		if err != nil {
+			return nil, err
+		}
+		plainHTTP, err = utils.NegotiatePlainHTTP(ctx, ref)
+		if err != nil {
+			return nil, err
+		}
 	}
 	modifiers := append([]oci.Modifier{
 		oci.WithUserAgent("uds-cli/" + config.CLIVersion),

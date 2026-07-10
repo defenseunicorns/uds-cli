@@ -5,24 +5,18 @@ package utils
 
 import (
 	"context"
-	"strings"
 
-	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/zarf-dev/zarf/src/pkg/ocischeme"
 	"oras.land/oras-go/v2/registry"
 )
 
-// NegotiatePlainHTTP returns the concrete transport scheme for an OCI registry.
-// UDS's --insecure option permits plain HTTP, but Zarf v0.81 negotiates the
-// actual scheme per registry host instead of forcing plain HTTP globally.
-func NegotiatePlainHTTP(ctx context.Context, ref string) (bool, error) {
+// NegotiatePlainHTTP returns whether an OCI registry reference should use plain HTTP.
+// UDS's --insecure option permits plain HTTP, but transport still needs to be
+// negotiated per registry host instead of forced globally.
+func NegotiatePlainHTTP(ctx context.Context, ref registry.Reference) (bool, error) {
 	if !config.CommonOptions.Insecure {
 		return false, nil
 	}
-	parsed, err := registry.ParseReference(strings.TrimPrefix(ref, helpers.OCIURLPrefix))
-	if err != nil {
-		return false, err
-	}
-	return ocischeme.From(ctx).UsePlainHTTP(ctx, parsed.Registry, ocischeme.ProbeOptions{InsecureSkipTLSVerify: true})
+	return ocischeme.From(ctx).UsePlainHTTP(ctx, ref.Registry, ocischeme.ProbeOptions{InsecureSkipTLSVerify: true})
 }
