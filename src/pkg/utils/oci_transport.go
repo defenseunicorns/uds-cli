@@ -5,6 +5,7 @@ package utils
 
 import (
 	"context"
+	"net/url"
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
@@ -24,5 +25,29 @@ func NegotiatePlainHTTPForOCIRef(ctx context.Context, ref string) (bool, error) 
 	if err != nil {
 		return false, err
 	}
-	return ocischeme.From(ctx).UsePlainHTTP(ctx, parsed.Registry, ocischeme.ProbeOptions{InsecureSkipTLSVerify: true})
+	return NegotiatePlainHTTPForRegistry(ctx, parsed.Registry)
+}
+
+// NegotiatePlainHTTPForRegistry returns whether a registry host should use plain HTTP.
+func NegotiatePlainHTTPForRegistry(ctx context.Context, registryAddress string) (bool, error) {
+	if !config.CommonOptions.Insecure {
+		return false, nil
+	}
+	host, err := registryHost(registryAddress)
+	if err != nil {
+		return false, err
+	}
+	return ocischeme.From(ctx).UsePlainHTTP(ctx, host, ocischeme.ProbeOptions{InsecureSkipTLSVerify: true})
+}
+
+func registryHost(registryAddress string) (string, error) {
+	address := strings.TrimPrefix(registryAddress, helpers.OCIURLPrefix)
+	if strings.Contains(address, "://") {
+		parsed, err := url.Parse(address)
+		if err != nil {
+			return "", err
+		}
+		return parsed.Host, nil
+	}
+	return strings.SplitN(address, "/", 2)[0], nil
 }

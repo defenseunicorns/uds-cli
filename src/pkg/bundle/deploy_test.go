@@ -5,9 +5,13 @@
 package bundle
 
 import (
+	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
@@ -805,6 +809,18 @@ func Test_shouldUsePlainHTTPForDeployRegistry(t *testing.T) {
 		config.CommonOptions.Insecure = originalInsecure
 	})
 
+	httpsSrv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v2/", r.URL.Path)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer httpsSrv.Close()
+
+	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v2/", r.URL.Path)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpSrv.Close()
+
 	tests := []struct {
 		name         string
 		insecure     bool
@@ -812,10 +828,19 @@ func Test_shouldUsePlainHTTPForDeployRegistry(t *testing.T) {
 		expected     bool
 	}{
 		{
-			name:     "insecure forces plain http",
+			name:     "insecure external https registry remains https",
 			insecure: true,
 			registryInfo: state.RegistryInfo{
-				Address:      "https://registry.example.com",
+				Address:      strings.TrimPrefix(httpsSrv.URL, "https://"),
+				RegistryMode: state.RegistryModeExternal,
+			},
+			expected: false,
+		},
+		{
+			name:     "insecure external http registry negotiates plain http",
+			insecure: true,
+			registryInfo: state.RegistryInfo{
+				Address:      strings.TrimPrefix(httpSrv.URL, "http://"),
 				RegistryMode: state.RegistryModeExternal,
 			},
 			expected: true,
@@ -849,7 +874,9 @@ func Test_shouldUsePlainHTTPForDeployRegistry(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config.CommonOptions.Insecure = tt.insecure
-			require.Equal(t, tt.expected, shouldUsePlainHTTPForDeployRegistry(tt.registryInfo))
+			got, err := shouldUsePlainHTTPForDeployRegistry(context.Background(), tt.registryInfo)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, got)
 		})
 	}
 }

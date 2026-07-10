@@ -136,7 +136,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
-		deployOpts, err := b.newDeployOptions(pkg, pkgVars, valuesOverrides, pkgLayout.Pkg.Kind, registryInfo)
+		deployOpts, err := b.newDeployOptions(ctx, pkg, pkgVars, valuesOverrides, pkgLayout.Pkg.Kind, registryInfo)
 		if err != nil {
 			return err
 		}
@@ -187,9 +187,13 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 	return nil
 }
 
-func (b *Bundle) newDeployOptions(pkg types.Package, pkgVars zarfVarData, valuesOverrides packager.ValuesOverrides, pkgKind v1alpha1.ZarfPackageKind, registryInfo state.RegistryInfo) (packager.DeployOptions, error) {
+func (b *Bundle) newDeployOptions(ctx context.Context, pkg types.Package, pkgVars zarfVarData, valuesOverrides packager.ValuesOverrides, pkgKind v1alpha1.ZarfPackageKind, registryInfo state.RegistryInfo) (packager.DeployOptions, error) {
+	plainHTTP, err := shouldUsePlainHTTPForDeployRegistry(ctx, registryInfo)
+	if err != nil {
+		return packager.DeployOptions{}, err
+	}
 	remoteOpts := zarfTypes.RemoteOptions{
-		PlainHTTP:             shouldUsePlainHTTPForDeployRegistry(registryInfo),
+		PlainHTTP:             plainHTTP,
 		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
 	}
 
@@ -233,11 +237,17 @@ func deployRegistryInfo(ctx context.Context, pkgVars zarfVarData, zarfPkg v1alph
 	return s.RegistryInfo, nil
 }
 
-func shouldUsePlainHTTPForDeployRegistry(registryInfo state.RegistryInfo) bool {
+func shouldUsePlainHTTPForDeployRegistry(ctx context.Context, registryInfo state.RegistryInfo) (bool, error) {
 	if registryInfo.ShouldUseMTLS() {
-		return false
+		return false, nil
 	}
-	return config.CommonOptions.Insecure || registryInfo.IsInternal()
+	if registryInfo.IsInternal() {
+		return true, nil
+	}
+	if registryInfo.Address == "" {
+		return false, nil
+	}
+	return utils.NegotiatePlainHTTPForRegistry(ctx, registryInfo.Address)
 }
 
 // newGitServerInfo creates a new GitServerInfo for a package if using custom Zarf init options
