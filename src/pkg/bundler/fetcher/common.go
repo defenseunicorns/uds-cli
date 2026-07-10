@@ -17,17 +17,34 @@ import (
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/ocischeme"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	"oras.land/oras-go/v2/registry"
 )
 
 func NewZarfOCIRemote(ctx context.Context, url string, platform ocispec.Platform, mods ...oci.Modifier) (*zoci.Remote, error) {
+	plainHTTP, err := negotiatePlainHTTP(ctx, url)
+	if err != nil {
+		return nil, err
+	}
 	modifiers := append([]oci.Modifier{
 		oci.WithUserAgent("uds-cli/" + config.CLIVersion),
 		oci.WithInsecureSkipVerify(config.CommonOptions.Insecure),
-		oci.WithPlainHTTP(config.CommonOptions.Insecure),
+		oci.WithPlainHTTP(plainHTTP),
 	}, mods...)
 	return zoci.NewRemote(ctx, url, platform, modifiers...)
+}
+
+func negotiatePlainHTTP(ctx context.Context, url string) (bool, error) {
+	if !config.CommonOptions.Insecure {
+		return false, nil
+	}
+	ref, err := registry.ParseReference(strings.TrimPrefix(url, helpers.OCIURLPrefix))
+	if err != nil {
+		return false, err
+	}
+	return ocischeme.From(ctx).UsePlainHTTP(ctx, ref.Registry, ocischeme.ProbeOptions{InsecureSkipTLSVerify: true})
 }
 
 // getImgLayerDigests grabs the digests of the layers from the images in the image index

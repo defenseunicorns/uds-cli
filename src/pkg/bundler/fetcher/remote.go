@@ -143,8 +143,17 @@ func (f *remoteFetcher) verifyPackageSignature() error {
 		return err
 	}
 
+	// arch & sourceDir are not used for remote package source
+	source, err := utils.GetPkgSource(f.pkg, "", "")
+	if err != nil {
+		return err
+	}
+	plainHTTP, err := negotiatePlainHTTP(ctx, source)
+	if err != nil {
+		return err
+	}
 	remoteOpts := zarfTypes.RemoteOptions{
-		PlainHTTP:             config.CommonOptions.Insecure,
+		PlainHTTP:             plainHTTP,
 		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
 	}
 
@@ -155,12 +164,6 @@ func (f *remoteFetcher) verifyPackageSignature() error {
 		RemoteOptions:        remoteOpts,
 		VerificationStrategy: layout.VerifyAlways,
 		OCIConcurrency:       config.CommonOptions.OCIConcurrency,
-	}
-
-	// arch & sourceDir are not used for remote package source
-	source, err := utils.GetPkgSource(f.pkg, "", "")
-	if err != nil {
-		return err
 	}
 
 	_, err = utils.LoadPackage(ctx, source, loadOpts)
