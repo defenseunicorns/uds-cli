@@ -299,8 +299,13 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 	}
 
+	ctx := context.TODO()
+	plainHTTP, err := utils.NegotiatePlainHTTP(ctx, source)
+	if err != nil {
+		return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
+	}
 	remoteOpts := zarfTypes.RemoteOptions{
-		PlainHTTP:             config.CommonOptions.Insecure,
+		PlainHTTP:             plainHTTP,
 		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
 	}
 
@@ -314,7 +319,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		OCIConcurrency:       config.CommonOptions.OCIConcurrency,
 	}
 
-	pkgLayout, err := utils.LoadPackage(context.TODO(), source, loadOpts)
+	pkgLayout, err := utils.LoadPackage(ctx, source, loadOpts)
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 	}

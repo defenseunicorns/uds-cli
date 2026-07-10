@@ -148,7 +148,7 @@ func (f *remoteFetcher) verifyPackageSignature() error {
 	if err != nil {
 		return err
 	}
-	plainHTTP, err := negotiatePlainHTTP(ctx, source)
+	plainHTTP, err := utils.NegotiatePlainHTTP(ctx, source)
 	if err != nil {
 		return err
 	}
