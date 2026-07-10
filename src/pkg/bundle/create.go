@@ -84,6 +84,7 @@ func (b *Bundle) Create(ctx context.Context) error {
 		signBlobOptions.OutputSignature = filepath.Join(b.tmp, config.BundleYAMLSignature)
 		signBlobOptions.PassFunc = getSigCreatePassword
 		signBlobOptions.Key = b.cfg.CreateOpts.SigningKeyPath
+		signBlobOptions.NewBundleFormat = false
 		_, err := signing.CosignSignBlobWithOptions(ctx, bundlePath, signBlobOptions)
 		if err != nil {
 			return err
