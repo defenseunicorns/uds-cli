@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
+	"github.com/zarf-dev/zarf/src/pkg/state"
 )
 
 func TestResolvePackageTimeout(t *testing.T) {
@@ -128,6 +129,7 @@ func TestNewDeployOptionsUsesPackageNamespace(t *testing.T) {
 		zarfVarData{"THING": "value"},
 		packager.ValuesOverrides{},
 		v1alpha1.ZarfPackageConfig,
+		state.RegistryInfo{},
 	)
 
 	require.NoError(t, err)

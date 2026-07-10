@@ -23,6 +23,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/state"
@@ -130,7 +131,12 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
-		deployOpts, err := b.newDeployOptions(pkg, pkgVars, valuesOverrides, pkgLayout.Pkg.Kind)
+		registryInfo, err := deployRegistryInfo(ctx, pkgVars, pkgLayout.Pkg)
+		if err != nil {
+			return err
+		}
+
+		deployOpts, err := b.newDeployOptions(pkg, pkgVars, valuesOverrides, pkgLayout.Pkg.Kind, registryInfo)
 		if err != nil {
 			return err
 		}
@@ -181,9 +187,9 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 	return nil
 }
 
-func (b *Bundle) newDeployOptions(pkg types.Package, pkgVars zarfVarData, valuesOverrides packager.ValuesOverrides, pkgKind v1alpha1.ZarfPackageKind) (packager.DeployOptions, error) {
+func (b *Bundle) newDeployOptions(pkg types.Package, pkgVars zarfVarData, valuesOverrides packager.ValuesOverrides, pkgKind v1alpha1.ZarfPackageKind, registryInfo state.RegistryInfo) (packager.DeployOptions, error) {
 	remoteOpts := zarfTypes.RemoteOptions{
-		PlainHTTP:             config.CommonOptions.Insecure,
+		PlainHTTP:             shouldUsePlainHTTPForDeployRegistry(registryInfo),
 		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
 	}
 
@@ -203,11 +209,35 @@ func (b *Bundle) newDeployOptions(pkg types.Package, pkgVars zarfVarData, values
 		AdoptExistingResources: false,
 		OCIConcurrency:         config.CommonOptions.OCIConcurrency,
 		GitServer:              newGitServerInfo(pkgVars, pkgKind),
-		RegistryInfo:           newRegistryInfo(pkgVars, pkgKind),
+		RegistryInfo:           registryInfo,
 		ArtifactServer:         newArtifactServerInfo(pkgVars, pkgKind),
 		StorageClass:           newStorageClass(pkgVars, pkgKind),
 		IsInteractive:          !config.CommonOptions.Confirm,
 	}, nil
+}
+
+func deployRegistryInfo(ctx context.Context, pkgVars zarfVarData, zarfPkg v1alpha1.ZarfPackage) (state.RegistryInfo, error) {
+	registryInfo := newRegistryInfo(pkgVars, zarfPkg.Kind)
+	if zarfPkg.IsInitConfig() || !zarfPkg.HasImages() {
+		return registryInfo, nil
+	}
+
+	c, err := cluster.New(ctx)
+	if err != nil {
+		return state.RegistryInfo{}, err
+	}
+	s, err := c.LoadState(ctx)
+	if err != nil {
+		return state.RegistryInfo{}, err
+	}
+	return s.RegistryInfo, nil
+}
+
+func shouldUsePlainHTTPForDeployRegistry(registryInfo state.RegistryInfo) bool {
+	if registryInfo.ShouldUseMTLS() {
+		return false
+	}
+	return config.CommonOptions.Insecure || registryInfo.IsInternal()
 }
 
 // newGitServerInfo creates a new GitServerInfo for a package if using custom Zarf init options

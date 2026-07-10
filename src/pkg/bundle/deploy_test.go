@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
@@ -794,6 +795,61 @@ func Test_newRegistryInfo(t *testing.T) {
 			t.Parallel()
 			actual := newRegistryInfo(pkgVars, tt.pkgKind)
 			require.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func Test_shouldUsePlainHTTPForDeployRegistry(t *testing.T) {
+	originalInsecure := config.CommonOptions.Insecure
+	t.Cleanup(func() {
+		config.CommonOptions.Insecure = originalInsecure
+	})
+
+	tests := []struct {
+		name         string
+		insecure     bool
+		registryInfo state.RegistryInfo
+		expected     bool
+	}{
+		{
+			name:     "insecure forces plain http",
+			insecure: true,
+			registryInfo: state.RegistryInfo{
+				Address:      "https://registry.example.com",
+				RegistryMode: state.RegistryModeExternal,
+			},
+			expected: true,
+		},
+		{
+			name: "internal registry uses plain http",
+			registryInfo: state.RegistryInfo{
+				RegistryMode: state.RegistryModeNodePort,
+			},
+			expected: true,
+		},
+		{
+			name:     "internal mtls registry does not force plain http even when insecure",
+			insecure: true,
+			registryInfo: state.RegistryInfo{
+				RegistryMode: state.RegistryModeNodePort,
+				MTLSStrategy: state.MTLSStrategyZarfManaged,
+			},
+			expected: false,
+		},
+		{
+			name: "external registry does not force plain http",
+			registryInfo: state.RegistryInfo{
+				Address:      "https://registry.example.com",
+				RegistryMode: state.RegistryModeExternal,
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config.CommonOptions.Insecure = tt.insecure
+			require.Equal(t, tt.expected, shouldUsePlainHTTPForDeployRegistry(tt.registryInfo))
 		})
 	}
 }
