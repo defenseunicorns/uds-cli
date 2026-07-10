@@ -14,7 +14,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
@@ -804,11 +803,6 @@ func Test_newRegistryInfo(t *testing.T) {
 }
 
 func Test_shouldUsePlainHTTPForDeployRegistry(t *testing.T) {
-	originalInsecure := config.CommonOptions.Insecure
-	t.Cleanup(func() {
-		config.CommonOptions.Insecure = originalInsecure
-	})
-
 	httpsSrv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v2/", r.URL.Path)
 		w.WriteHeader(http.StatusUnauthorized)
@@ -873,8 +867,7 @@ func Test_shouldUsePlainHTTPForDeployRegistry(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config.CommonOptions.Insecure = tt.insecure
-			got, err := shouldUsePlainHTTPForDeployRegistry(context.Background(), tt.registryInfo)
+			got, err := shouldUsePlainHTTPForDeployRegistry(context.Background(), tt.registryInfo, tt.insecure)
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, got)
 		})

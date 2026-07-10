@@ -79,6 +79,7 @@ func (b *Bundle) Deploy(ctx context.Context) error {
 func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bundle) error {
 	// map of Zarf pkgs and their vars
 	bundleExportedVars := make(map[string]map[string]string)
+	var stateRegistryInfo *state.RegistryInfo
 
 	for i, pkg := range packagesToDeploy {
 		// for dev mode update package ref for remote bundles, refs for local bundles updated on create
@@ -131,9 +132,20 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
-		registryInfo, err := deployRegistryInfo(ctx, pkgVars, pkgLayout.Pkg)
-		if err != nil {
-			return err
+		registryInfo := newRegistryInfo(pkgVars, pkgLayout.Pkg.Kind)
+		if !pkgLayout.Pkg.IsInitConfig() && pkgLayout.Pkg.HasImages() {
+			if stateRegistryInfo == nil {
+				c, err := cluster.New(ctx)
+				if err != nil {
+					return err
+				}
+				s, err := c.LoadState(ctx)
+				if err != nil {
+					return err
+				}
+				stateRegistryInfo = &s.RegistryInfo
+			}
+			registryInfo = *stateRegistryInfo
 		}
 
 		deployOpts, err := b.newDeployOptions(ctx, pkg, pkgVars, valuesOverrides, pkgLayout.Pkg.Kind, registryInfo)
@@ -188,7 +200,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 }
 
 func (b *Bundle) newDeployOptions(ctx context.Context, pkg types.Package, pkgVars zarfVarData, valuesOverrides packager.ValuesOverrides, pkgKind v1alpha1.ZarfPackageKind, registryInfo state.RegistryInfo) (packager.DeployOptions, error) {
-	plainHTTP, err := shouldUsePlainHTTPForDeployRegistry(ctx, registryInfo)
+	plainHTTP, err := shouldUsePlainHTTPForDeployRegistry(ctx, registryInfo, config.CommonOptions.Insecure)
 	if err != nil {
 		return packager.DeployOptions{}, err
 	}
@@ -220,24 +232,7 @@ func (b *Bundle) newDeployOptions(ctx context.Context, pkg types.Package, pkgVar
 	}, nil
 }
 
-func deployRegistryInfo(ctx context.Context, pkgVars zarfVarData, zarfPkg v1alpha1.ZarfPackage) (state.RegistryInfo, error) {
-	registryInfo := newRegistryInfo(pkgVars, zarfPkg.Kind)
-	if zarfPkg.IsInitConfig() || !zarfPkg.HasImages() {
-		return registryInfo, nil
-	}
-
-	c, err := cluster.New(ctx)
-	if err != nil {
-		return state.RegistryInfo{}, err
-	}
-	s, err := c.LoadState(ctx)
-	if err != nil {
-		return state.RegistryInfo{}, err
-	}
-	return s.RegistryInfo, nil
-}
-
-func shouldUsePlainHTTPForDeployRegistry(ctx context.Context, registryInfo state.RegistryInfo) (bool, error) {
+func shouldUsePlainHTTPForDeployRegistry(ctx context.Context, registryInfo state.RegistryInfo, insecure bool) (bool, error) {
 	if registryInfo.ShouldUseMTLS() {
 		return false, nil
 	}
@@ -247,7 +242,7 @@ func shouldUsePlainHTTPForDeployRegistry(ctx context.Context, registryInfo state
 	if registryInfo.Address == "" {
 		return false, nil
 	}
-	return utils.NegotiatePlainHTTPForRegistry(ctx, registryInfo.Address)
+	return utils.NegotiatePlainHTTPForRegistry(ctx, registryInfo.Address, insecure)
 }
 
 // newGitServerInfo creates a new GitServerInfo for a package if using custom Zarf init options

@@ -18,19 +18,16 @@ import (
 // UDS's --insecure option permits plain HTTP, but transport still needs to be
 // negotiated per registry host instead of forced globally.
 func NegotiatePlainHTTPForOCIRef(ctx context.Context, ref string) (bool, error) {
-	if !config.CommonOptions.Insecure {
-		return false, nil
-	}
 	parsed, err := registry.ParseReference(strings.TrimPrefix(ref, helpers.OCIURLPrefix))
 	if err != nil {
 		return false, err
 	}
-	return NegotiatePlainHTTPForRegistry(ctx, parsed.Registry)
+	return NegotiatePlainHTTPForRegistry(ctx, parsed.Registry, config.CommonOptions.Insecure)
 }
 
 // NegotiatePlainHTTPForRegistry returns whether a registry host should use plain HTTP.
-func NegotiatePlainHTTPForRegistry(ctx context.Context, registryAddress string) (bool, error) {
-	if !config.CommonOptions.Insecure {
+func NegotiatePlainHTTPForRegistry(ctx context.Context, registryAddress string, insecure bool) (bool, error) {
+	if !insecure {
 		return false, nil
 	}
 	host, err := registryHost(registryAddress)
