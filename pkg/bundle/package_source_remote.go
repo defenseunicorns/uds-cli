@@ -239,6 +239,5 @@ func (s *remoteSource) IngestFiltered(ctx context.Context, filter filters.Compon
 		MediaType: mediaType,
 		Digest:    manifestDigest.String(),
 		Size:      int64(len(newManifestBytes)),
-		Platform:  toSpecPlatform(rootDesc.Platform),
 	}}, nil
 }

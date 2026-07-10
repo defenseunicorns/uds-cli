@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -150,9 +149,6 @@ func TestIngestZarfPackage(t *testing.T) {
 		assert.Equal(t, "application/vnd.oci.image.manifest.v1+json", m.MediaType)
 		assert.NotEmpty(t, m.Digest)
 		assert.Positive(t, m.Size)
-		require.NotNil(t, m.Platform)
-		assert.Equal(t, "amd64", m.Platform.Architecture)
-		assert.Equal(t, oci.MultiOS, m.Platform.OS)
 
 		// Verify manifest blob was written
 		manifestHex := digestToHex(t, m.Digest)

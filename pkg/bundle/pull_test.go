@@ -318,3 +318,72 @@ func TestPullHooks_ModifyOrasSettings(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.True(t, hookCalled, "ModifyOrasSettings hook should have been called")
 }
+
+func TestPull_SelectsRequestedArchitectureFromRootIndex(t *testing.T) {
+	t.Parallel()
+
+	store, err := oraci.New(t.TempDir())
+	require.NoError(t, err)
+	ref := "example.com/test/arch-select:1.0.0"
+	pushArchTestBundle(t, store, ref, createArchTestBundle(t, "arch-select", "1.0.0", "amd64"))
+	pushArchTestBundle(t, store, ref, createArchTestBundle(t, "arch-select", "1.0.0", "arm64"))
+
+	for _, arch := range []string{"amd64", "arm64"} {
+		outDir := t.TempDir()
+		cfg := newTestConfigWithArch(arch)
+		cfg.Options.TmpDir = t.TempDir()
+		result, err := Pull(t.Context(), ref, outDir, PullOptions{
+			Config:    cfg,
+			PullHooks: pullFrom(store),
+		})
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(outDir, fmt.Sprintf("uds-bundle-arch-select-%s-1.0.0.tar.zst", arch)), result.OutputPath)
+
+		entries := readTarZstEntries(t, result.OutputPath)
+		var idx ociIndex
+		require.NoError(t, json.Unmarshal(entries["oci/index.json"], &idx))
+		assert.Equal(t, arch, idx.Annotations[AnnotationBundleArchitecture])
+	}
+}
+
+func TestPull_ErrorsWhenArchitectureMissing(t *testing.T) {
+	t.Parallel()
+
+	store, err := oraci.New(t.TempDir())
+	require.NoError(t, err)
+	ref := "example.com/test/one-arch:1.0.0"
+	pushArchTestBundle(t, store, ref, createArchTestBundle(t, "one-arch", "1.0.0", "amd64"))
+
+	cfg := newTestConfigWithArch("arm64")
+	cfg.Options.TmpDir = t.TempDir()
+	_, err = Pull(t.Context(), ref, t.TempDir(), PullOptions{
+		Config:    cfg,
+		PullHooks: pullFrom(store),
+	})
+	require.ErrorContains(t, err, `no bundle for architecture "arm64"`)
+	require.ErrorContains(t, err, "amd64")
+}
+
+func TestPull_RoundTripsChildIndexBytes(t *testing.T) {
+	t.Parallel()
+
+	store, err := oraci.New(t.TempDir())
+	require.NoError(t, err)
+	ref := "example.com/test/round-trip:1.0.0"
+	tarball := createArchTestBundle(t, "round-trip", "1.0.0", runtime.GOARCH)
+	pushArchTestBundle(t, store, ref, tarball)
+
+	outDir := t.TempDir()
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
+	result, err := Pull(t.Context(), ref, outDir, PullOptions{
+		Config:    cfg,
+		PullHooks: pullFrom(store),
+	})
+	require.NoError(t, err)
+
+	created := readTarZstEntries(t, tarball)
+	pulled := readTarZstEntries(t, result.OutputPath)
+	assert.Equal(t, created["oci/index.json"], pulled["oci/index.json"],
+		"pulled bundle index must round-trip byte-identically")
+}

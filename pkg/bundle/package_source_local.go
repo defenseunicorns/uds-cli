@@ -308,16 +308,10 @@ func ingestZarfPackage(ctx context.Context, streams iostreams.IOStreams, blobDir
 		return nil, fmt.Errorf("writing manifest blob: %w", err)
 	}
 
-	// Return the manifest descriptor
-	platform := &specv1.Platform{
-		Architecture: arch,
-		OS:           oci.MultiOS,
-	}
-
+	// Return the manifest descriptor (ref ADR-0015).
 	return []ociManifest{{
 		MediaType: specv1.MediaTypeImageManifest,
 		Digest:    manifestDigest.String(),
 		Size:      int64(len(manifestData)),
-		Platform:  platform,
 	}}, nil
 }

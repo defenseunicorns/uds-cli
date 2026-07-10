@@ -297,14 +297,11 @@ metadata {
 	require.NoError(t, err)
 	cfgHex := writeTestBlob(t, blobDir, cfgBytes)
 
-	idx := ociIndex{
-		SchemaVersion: 2,
-		Manifests: []ociManifest{{
-			ArtifactType: MediaTypeBundleDefinition,
-			Digest:       "sha256:" + cfgHex,
-			Size:         int64(len(cfgBytes)),
-		}},
-	}
+	idx := newBundleIndex([]ociManifest{{
+		ArtifactType: MediaTypeBundleDefinition,
+		Digest:       "sha256:" + cfgHex,
+		Size:         int64(len(cfgBytes)),
+	}}, "amd64")
 	idxBytes, err := json.Marshal(idx)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(ociDir, "index.json"), idxBytes, tmpFilePerm))

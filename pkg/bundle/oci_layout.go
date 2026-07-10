@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -36,10 +37,16 @@ func findLayerByTitle(manifest ociImageManifest, title string) (ociDescriptor, e
 	return ociDescriptor{}, fmt.Errorf("%s layer not found in manifest", title)
 }
 
-// isBundleIndex reports whether idx is a UDS bundle index.
+// isBundleIndex reports whether idx is a canonical single-arch UDS bundle
+// (child) index, identified solely by its top-level artifactType (ADR-0015).
 func isBundleIndex(idx ociIndex) bool {
-	_, _, err := findBundleDefinitionEntry(idx)
-	return err == nil
+	return idx.ArtifactType == MediaTypeBundle
+}
+
+// sortManifestsByDigest sorts index entries by digest in place, the
+// deterministic ordering invariant for bundle child indexes (ADR-0015).
+func sortManifestsByDigest(manifests []ociManifest) {
+	sort.Slice(manifests, func(i, j int) bool { return manifests[i].Digest < manifests[j].Digest })
 }
 
 // writeOCILayout writes the oci-layout marker file.

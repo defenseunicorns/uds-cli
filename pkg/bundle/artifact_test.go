@@ -159,11 +159,8 @@ func buildBundleArtifactInner(t *testing.T, bundleHCL, defaultsHCL string, value
 		})
 	}
 
-	idx := ociIndex{
-		SchemaVersion: 2,
-		Manifests:     indexManifests,
-	}
-	require.NoError(t, writeOCIIndex(filepath.Join(ociDir, "index.json"), &idx))
+	idx := newBundleIndex(indexManifests, "amd64")
+	require.NoError(t, writeOCIIndex(filepath.Join(ociDir, "index.json"), idx))
 
 	// Write the tar.zst
 	outPath := filepath.Join(t.TempDir(), "bundle.tar.zst")

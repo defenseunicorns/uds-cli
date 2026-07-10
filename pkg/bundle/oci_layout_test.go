@@ -108,6 +108,52 @@ func TestIsOCILayoutDir(t *testing.T) {
 	})
 }
 
+func TestIsBundleIndex(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		idx  ociIndex
+		want bool
+	}{
+		{
+			name: "index declaring the bundle artifactType is a bundle",
+			idx:  ociIndex{SchemaVersion: 2, ArtifactType: MediaTypeBundle},
+			want: true,
+		},
+		{
+			name: "index without an artifactType is not a bundle",
+			idx: ociIndex{SchemaVersion: 2, Manifests: []ociManifest{
+				{Digest: "sha256:aaa", ArtifactType: MediaTypeBundleDefinition},
+			}},
+			want: false,
+		},
+		{
+			name: "index with a different artifactType is not a bundle",
+			idx:  ociIndex{SchemaVersion: 2, ArtifactType: "application/vnd.example.other.v1"},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, isBundleIndex(tt.idx))
+		})
+	}
+}
+
+func TestSortManifestsByDigest(t *testing.T) {
+	t.Parallel()
+	manifests := []ociManifest{
+		{Digest: "sha256:ccc"},
+		{Digest: "sha256:aaa"},
+		{Digest: "sha256:bbb"},
+	}
+	sortManifestsByDigest(manifests)
+	assert.Equal(t, "sha256:aaa", manifests[0].Digest)
+	assert.Equal(t, "sha256:bbb", manifests[1].Digest)
+	assert.Equal(t, "sha256:ccc", manifests[2].Digest)
+}
+
 func TestFindBundleDefinitionEntry_Found(t *testing.T) {
 	t.Parallel()
 	idx := ociIndex{

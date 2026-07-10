@@ -143,15 +143,6 @@ func isZarfOCIPackage(root *oci.Manifest) bool {
 	return !oci.IsEmptyDescriptor(desc)
 }
 
-// toSpecPlatform copies an ocispec.Platform pointer. Returns nil if input is nil.
-func toSpecPlatform(p *ocispec.Platform) *ocispec.Platform {
-	if p == nil {
-		return nil
-	}
-	copied := *p
-	return &copied
-}
-
 // descriptorFromOCI converts our internal ociDescriptor to an ocispec.Descriptor
 // for use with Zarf's remote fetch methods.
 func descriptorFromOCI(d ociDescriptor) (ocispec.Descriptor, error) {

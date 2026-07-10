@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -152,11 +153,7 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 		return nil, fmt.Errorf("cleaning up unreferenced blobs: %w", err)
 	}
 
-	idx := &ociIndex{
-		SchemaVersion: 2,
-		MediaType:     "application/vnd.oci.image.index.v1+json",
-		Manifests:     allManifests,
-	}
+	idx := newBundleIndex(allManifests, creator.arch)
 	if err := writeOCIIndex(filepath.Join(ociDir, "index.json"), idx); err != nil {
 		return nil, err
 	}
@@ -168,6 +165,28 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	}
 	s.Info("bundle archive written", "output", outPath)
 	return &CreateResult{BundleName: b.Metadata.Name, OutputPath: outPath}, nil
+}
+
+// newBundleIndex builds the canonical single-arch bundle (child) index per
+// ADR-0015: self-identified by artifactType, arch recorded as an annotation,
+// and manifests sorted by digest so the index digest is deterministic
+// regardless of HCL package declaration order.
+func newBundleIndex(manifests []ociManifest, arch string) *ociIndex {
+	if arch == "" {
+		arch = runtime.GOARCH
+	}
+	sorted := make([]ociManifest, len(manifests))
+	copy(sorted, manifests)
+	sortManifestsByDigest(sorted)
+	return &ociIndex{
+		SchemaVersion: 2,
+		MediaType:     ocispec.MediaTypeImageIndex,
+		ArtifactType:  MediaTypeBundle,
+		Manifests:     sorted,
+		Annotations: map[string]string{
+			AnnotationBundleArchitecture: arch,
+		},
+	}
 }
 
 func bundleOutputName(b *UDSBundle, arch string) string {

@@ -4,18 +4,20 @@
 package bundle
 
 import (
+	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/logger"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2/content"
 	oraci "oras.land/oras-go/v2/content/oci"
+	"oras.land/oras-go/v2/errdef"
 )
 
 type defaultPusher struct{}
@@ -39,7 +41,6 @@ func (p *defaultPusher) PushBundle(ctx context.Context, bundleDir, ociReference 
 	}
 
 	ociDir := filepath.Join(bundleDir, "oci")
-	blobDir := filepath.Join(ociDir, "blobs", "sha256")
 
 	// Read the OCI image index from index.json.
 	idxBytes, err := os.ReadFile(filepath.Join(ociDir, "index.json"))
@@ -55,17 +56,11 @@ func (p *defaultPusher) PushBundle(ctx context.Context, bundleDir, ociReference 
 		return nil, fmt.Errorf("parsing bundle index: %w", err)
 	}
 	if !isBundleIndex(idx) {
-		return nil, fmt.Errorf("%s does not appear to be a UDS bundle: no bundle definition manifest found in index", bundleDir)
+		return nil, fmt.Errorf("%s does not appear to be a UDS bundle: index does not declare artifactType %s", bundleDir, MediaTypeBundle)
 	}
-
-	// Write the index bytes as a blob so the ORAS OCI store can fetch and serve it.
-	// The oraci.Store serves content from blobs/<algo>/<hex>; adding the index there
-	// allows store.Tag + oras.Copy to copy it (and recursively all referenced content)
-	// to the remote registry.
-	h := sha256.Sum256(idxBytes)
-	idxHex := hex.EncodeToString(h[:])
-	if err := os.WriteFile(filepath.Join(blobDir, idxHex), idxBytes, tmpFilePerm); err != nil {
-		return nil, fmt.Errorf("staging index blob: %w", err)
+	arch := idx.Annotations[AnnotationBundleArchitecture]
+	if arch == "" {
+		return nil, fmt.Errorf("%s does not record its architecture: index is missing the %s annotation", bundleDir, AnnotationBundleArchitecture)
 	}
 
 	store, err := oraci.New(ociDir)
@@ -74,16 +69,26 @@ func (p *defaultPusher) PushBundle(ctx context.Context, bundleDir, ociReference 
 	}
 	store.AutoSaveIndex = false
 
-	// Build the index descriptor; pushToRemote will tag it before copying.
-	idxDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageIndex, idxBytes)
+	// The child (canonical single-arch bundle) descriptor: platform-tagged so it
+	// can slot into the root index, artifact-typed so it is identifiable from
+	// the root without a fetch (ADR-0015).
+	childDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageIndex, idxBytes)
+	childDesc.ArtifactType = MediaTypeBundle
+	childDesc.Platform = &ocispec.Platform{Architecture: arch, OS: oci.MultiOS}
+
+	// Stage the index bytes as a blob so the store can serve it: oras.CopyGraph
+	// pushes the child (and, recursively, everything it references) from here.
+	if err := store.Push(ctx, childDesc, bytes.NewReader(idxBytes)); err != nil && !errors.Is(err, errdef.ErrAlreadyExists) {
+		return nil, fmt.Errorf("staging index blob: %w", err)
+	}
 
 	log := logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
-	log.Debug("copying bundle to registry", "ref", ociReference)
-	result, err := pushToRemote(ctx, store, idxDesc, ociReference, &opts)
+	log.Debug("copying bundle to registry", "ref", ociReference, "arch", arch)
+	result, err := pushBundleToRemote(ctx, store, childDesc, ociReference, &opts)
 	if err != nil {
 		return nil, err
 	}
-	log.Info("bundle pushed", "ref", ociReference)
+	log.Info("bundle pushed", "ref", ociReference, "arch", arch)
 	return result, nil
 }
 

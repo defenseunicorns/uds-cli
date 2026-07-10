@@ -15,6 +15,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/mholt/archives"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -531,4 +532,55 @@ func readTarZstEntries(t *testing.T, path string) map[string][]byte {
 	})
 	require.NoError(t, err)
 	return entries
+}
+
+func TestCreate_BundleIndexIsDeterministicAndSelfIdentifying(t *testing.T) {
+	t.Parallel()
+
+	// One source directory, two create runs: identical inputs must produce a
+	// byte-identical bundle index (the fixture package content is random per
+	// fixture, so the source is built once).
+	dir := t.TempDir()
+	writeMinimalOCILayout(t, filepath.Join(dir, "localpkg"))
+	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
+	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+metadata {
+  name    = "determinism"
+  version = "0.1.0"
+}
+package "pkg1" {
+  source = "localpkg"
+}
+`), tmpFilePerm))
+
+	createOnce := func() []byte {
+		result, err := Create(t.Context(), CreateOptions{
+			Config:     newTestConfigWithArch("amd64"),
+			BundleFile: bundleFile,
+			Streams:    iostreams.New(nil, nil, io.Discard),
+		})
+		require.NoError(t, err)
+		entries := readTarZstEntries(t, result.OutputPath)
+		idxBytes, ok := entries["oci/index.json"]
+		require.True(t, ok)
+		require.NoError(t, os.Remove(result.OutputPath))
+		return idxBytes
+	}
+
+	first := createOnce()
+	second := createOnce()
+	assert.Equal(t, first, second, "identical inputs must produce byte-identical bundle indexes")
+
+	var idx ociIndex
+	require.NoError(t, json.Unmarshal(first, &idx))
+	assert.Equal(t, MediaTypeBundle, idx.ArtifactType, "bundle index must self-identify via artifactType")
+	assert.Equal(t, "amd64", idx.Annotations[AnnotationBundleArchitecture], "bundle index must record its architecture")
+	for i, m := range idx.Manifests {
+		assert.Nil(t, m.Platform, "bundle index entries must not carry a platform")
+		if i > 0 {
+			assert.LessOrEqual(t, idx.Manifests[i-1].Digest, m.Digest, "bundle index entries must be sorted by digest")
+		}
+	}
 }

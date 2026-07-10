@@ -9,13 +9,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 
+	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/defenseunicorns/uds-cli/pkg/logger"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -101,6 +101,9 @@ func (r *localReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOpt
 	if err := json.Unmarshal(idxBytes, &idx); err != nil {
 		return nil, fmt.Errorf("parsing index: %w", err)
 	}
+	if !isBundleIndex(idx) {
+		return nil, fmt.Errorf("%s does not appear to be a UDS bundle: index does not declare artifactType %s", opts.Source, MediaTypeBundle)
+	}
 
 	defEntry, defPos, err := findBundleDefinitionEntry(idx)
 	if err != nil {
@@ -167,13 +170,15 @@ func (r *localReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOpt
 		return nil, fmt.Errorf("writing manifest blob: %w", err)
 	}
 
-	// Update index.json.
+	// Update index.json, re-sorting by digest to preserve the deterministic
+	// ordering invariant of bundle indexes (ADR-0015).
 	idx.Manifests[defPos] = ociManifest{
 		MediaType:    ocispec.MediaTypeImageManifest,
 		ArtifactType: MediaTypeBundleDefinition,
 		Digest:       newManifestDigest.String(),
 		Size:         int64(len(newManifestBytes)),
 	}
+	sortManifestsByDigest(idx.Manifests)
 	if err := writeOCIIndex(filepath.Join(ociDir, "index.json"), &idx); err != nil {
 		return nil, fmt.Errorf("writing index.json: %w", err)
 	}
@@ -209,10 +214,10 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 	if err != nil {
 		return nil, fmt.Errorf("parsing OCI reference: %w", err)
 	}
-	sourceTag := ref.Identifier()
-	if strings.HasPrefix(sourceTag, "sha256:") {
+	if _, isDigest := ref.(name.Digest); isDigest {
 		return nil, fmt.Errorf("OCI source must use a tag reference (e.g. :v1.0.0), not a digest")
 	}
+	sourceTag := ref.Identifier()
 	targetTag := sourceTag + opts.Suffix
 	targetRef := "oci://" + ref.Context().String() + ":" + targetTag
 
@@ -228,8 +233,9 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 		repo = remote
 	}
 
-	// Resolve source to get the image index.
-	indexDesc, err := repo.Resolve(ctx, sourceTag)
+	// Resolve source to the canonical single-arch bundle (child) index,
+	// platform-selecting from the root index when the tag points at one.
+	_, indexBytes, err := resolveBundleChild(ctx, repo, sourceTag, opts.Options.Architecture)
 	if err != nil {
 		return nil, fmt.Errorf("resolving %s: %w", opts.Source, err)
 	}
@@ -239,17 +245,6 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 		return nil, fmt.Errorf("target tag %q already exists in registry", targetTag)
 	} else if !errors.Is(resolveErr, errdef.ErrNotFound) {
 		return nil, fmt.Errorf("checking target tag %q: %w", targetTag, resolveErr)
-	}
-
-	// Fetch index bytes.
-	indexRC, err := repo.Fetch(ctx, indexDesc)
-	if err != nil {
-		return nil, fmt.Errorf("fetching index: %w", err)
-	}
-	indexBytes, err := io.ReadAll(indexRC)
-	_ = indexRC.Close()
-	if err != nil {
-		return nil, fmt.Errorf("reading index: %w", err)
 	}
 
 	var idx ociIndex
@@ -263,24 +258,18 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 		return nil, fmt.Errorf("%s is not a UDS bundle: %w", opts.Source, err)
 	}
 
-	// Fetch bundle definition manifest.
+	// Fetch bundle definition manifest (digest-verified by content.FetchAll).
 	defDigest, err := godigest.Parse(defEntry.Digest)
 	if err != nil {
 		return nil, fmt.Errorf("parsing manifest digest: %w", err)
 	}
-	defFetchDesc := ocispec.Descriptor{
+	defBytes, err := content.FetchAll(ctx, repo, ocispec.Descriptor{
 		MediaType: ocispec.MediaTypeImageManifest,
 		Digest:    defDigest,
 		Size:      defEntry.Size,
-	}
-	defRC, err := repo.Fetch(ctx, defFetchDesc)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("fetching bundle definition manifest: %w", err)
-	}
-	defBytes, err := io.ReadAll(defRC)
-	_ = defRC.Close()
-	if err != nil {
-		return nil, fmt.Errorf("reading bundle definition manifest: %w", err)
 	}
 
 	var manifest ociImageManifest
@@ -314,19 +303,13 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 	if err != nil {
 		return nil, fmt.Errorf("parsing HCL digest: %w", err)
 	}
-	hclFetchDesc := ocispec.Descriptor{
+	hclBytes, err := content.FetchAll(ctx, repo, ocispec.Descriptor{
 		MediaType: MediaTypeBundleHCL,
 		Digest:    hclDigest,
 		Size:      hclLayer.Size,
-	}
-	hclRC, err := repo.Fetch(ctx, hclFetchDesc)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("fetching HCL blob: %w", err)
-	}
-	hclBytes, err := io.ReadAll(hclRC)
-	_ = hclRC.Close()
-	if err != nil {
-		return nil, fmt.Errorf("reading HCL blob: %w", err)
 	}
 
 	splicedHCL, err := spliceHCLName(hclBytes, opts.Suffix)
@@ -356,13 +339,15 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 		return nil, fmt.Errorf("pushing manifest: %w", err)
 	}
 
-	// Rebuild index and push with target tag.
+	// Rebuild the child index (re-sorted for determinism; artifactType and the
+	// architecture annotation carry over) and push it by digest.
 	idx.Manifests[defPos] = ociManifest{
 		MediaType:    ocispec.MediaTypeImageManifest,
 		ArtifactType: MediaTypeBundleDefinition,
 		Digest:       newManifestOCIDesc.Digest.String(),
 		Size:         newManifestOCIDesc.Size,
 	}
+	sortManifestsByDigest(idx.Manifests)
 	newIndexBytes, err := json.Marshal(idx)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling index: %w", err)
@@ -373,14 +358,30 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 	if err := repo.Push(ctx, newIndexDesc, bytes.NewReader(newIndexBytes)); err != nil && !errors.Is(err, errdef.ErrAlreadyExists) {
 		return nil, fmt.Errorf("pushing index: %w", err)
 	}
+
+	// Publish the target tag as a root index wrapping the new child (ADR-0015).
+	arch := idx.Annotations[AnnotationBundleArchitecture]
+	if arch == "" {
+		return nil, fmt.Errorf("%s does not record its architecture: index is missing the %s annotation", opts.Source, AnnotationBundleArchitecture)
+	}
+	newIndexDesc.ArtifactType = MediaTypeBundle
+	newIndexDesc.Platform = &ocispec.Platform{Architecture: arch, OS: oci.MultiOS}
+
+	rootBytes, rootDesc, err := mergeRootIndex(ctx, repo, targetTag, newIndexDesc)
+	if err != nil {
+		return nil, err
+	}
+	if err := repo.Push(ctx, rootDesc, bytes.NewReader(rootBytes)); err != nil && !errors.Is(err, errdef.ErrAlreadyExists) {
+		return nil, fmt.Errorf("pushing root index: %w", err)
+	}
 	tagger, ok := repo.(interface {
 		Tag(ctx context.Context, desc ocispec.Descriptor, reference string) error
 	})
 	if !ok {
 		return nil, fmt.Errorf("registry target does not support tagging")
 	}
-	if err := tagger.Tag(ctx, newIndexDesc, targetTag); err != nil {
-		return nil, fmt.Errorf("tagging index as %s: %w", targetTag, err)
+	if err := tagger.Tag(ctx, rootDesc, targetTag); err != nil {
+		return nil, fmt.Errorf("tagging root index as %s: %w", targetTag, err)
 	}
 
 	r.streams.Info("bundle reconfigured", "ref", targetRef)
