@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
+	"github.com/zarf-dev/zarf/src/pkg/state"
 )
 
 func TestResolvePackageTimeout(t *testing.T) {
@@ -124,10 +125,12 @@ func TestNewDeployOptionsUsesPackageNamespace(t *testing.T) {
 	bndl := Bundle{cfg: &types.BundleConfig{DeployOpts: types.BundleDeployOptions{Retries: 2, ForceConflicts: true}}}
 
 	deployOpts, err := bndl.newDeployOptions(
+		t.Context(),
 		types.Package{Name: "podinfo", Namespace: "podinfo-system"},
 		zarfVarData{"THING": "value"},
 		packager.ValuesOverrides{},
 		v1alpha1.ZarfPackageConfig,
+		state.RegistryInfo{},
 	)
 
 	require.NoError(t, err)

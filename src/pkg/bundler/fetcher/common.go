@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package fetcher contains functionality to fetch local and remote Zarf pkgs for local bundling
@@ -22,10 +22,14 @@ import (
 )
 
 func NewZarfOCIRemote(ctx context.Context, url string, platform ocispec.Platform, mods ...oci.Modifier) (*zoci.Remote, error) {
+	plainHTTP, err := utils.NegotiatePlainHTTPForOCIRef(ctx, url, config.CommonOptions.Insecure)
+	if err != nil {
+		return nil, err
+	}
 	modifiers := append([]oci.Modifier{
 		oci.WithUserAgent("uds-cli/" + config.CLIVersion),
 		oci.WithInsecureSkipVerify(config.CommonOptions.Insecure),
-		oci.WithPlainHTTP(config.CommonOptions.Insecure),
+		oci.WithPlainHTTP(plainHTTP),
 	}, mods...)
 	return zoci.NewRemote(ctx, url, platform, modifiers...)
 }

@@ -5,9 +5,13 @@
 package bundle
 
 import (
+	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
@@ -794,6 +798,78 @@ func Test_newRegistryInfo(t *testing.T) {
 			t.Parallel()
 			actual := newRegistryInfo(pkgVars, tt.pkgKind)
 			require.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func Test_shouldUsePlainHTTPForDeployRegistry(t *testing.T) {
+	httpsSrv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v2/", r.URL.Path)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer httpsSrv.Close()
+
+	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v2/", r.URL.Path)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpSrv.Close()
+
+	tests := []struct {
+		name         string
+		insecure     bool
+		registryInfo state.RegistryInfo
+		expected     bool
+	}{
+		{
+			name:     "insecure external https registry remains https",
+			insecure: true,
+			registryInfo: state.RegistryInfo{
+				Address:      strings.TrimPrefix(httpsSrv.URL, "https://"),
+				RegistryMode: state.RegistryModeExternal,
+			},
+			expected: false,
+		},
+		{
+			name:     "insecure external http registry negotiates plain http",
+			insecure: true,
+			registryInfo: state.RegistryInfo{
+				Address:      strings.TrimPrefix(httpSrv.URL, "http://"),
+				RegistryMode: state.RegistryModeExternal,
+			},
+			expected: true,
+		},
+		{
+			name: "internal registry uses plain http",
+			registryInfo: state.RegistryInfo{
+				RegistryMode: state.RegistryModeNodePort,
+			},
+			expected: true,
+		},
+		{
+			name:     "internal mtls registry does not force plain http even when insecure",
+			insecure: true,
+			registryInfo: state.RegistryInfo{
+				RegistryMode: state.RegistryModeNodePort,
+				MTLSStrategy: state.MTLSStrategyZarfManaged,
+			},
+			expected: false,
+		},
+		{
+			name: "external registry does not force plain http",
+			registryInfo: state.RegistryInfo{
+				Address:      "https://registry.example.com",
+				RegistryMode: state.RegistryModeExternal,
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := shouldUsePlainHTTPForDeployRegistry(context.Background(), tt.registryInfo, tt.insecure)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, got)
 		})
 	}
 }
