@@ -5,7 +5,6 @@
 package bundle
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -126,7 +125,7 @@ func TestNewDeployOptionsUsesPackageNamespace(t *testing.T) {
 	bndl := Bundle{cfg: &types.BundleConfig{DeployOpts: types.BundleDeployOptions{Retries: 2, ForceConflicts: true}}}
 
 	deployOpts, err := bndl.newDeployOptions(
-		context.Background(),
+		t.Context(),
 		types.Package{Name: "podinfo", Namespace: "podinfo-system"},
 		zarfVarData{"THING": "value"},
 		packager.ValuesOverrides{},
