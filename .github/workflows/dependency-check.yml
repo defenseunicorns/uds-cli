@@ -17,60 +17,62 @@ jobs:
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: high
-          # TODO: Remove after upgrading go.opentelemetry.io/otel/sdk to >= 1.43.0
-          allow-ghsas: GHSA-hfvc-g4fc-pqhx
+          # TODO: Remove after upgrading github.com/containerd/containerd to >= 1.7.33
+          # uds is unaffected because we do not make use of the CRI, this is an indirect dependency
+          # of zarf->helm->k9s->containerd/containerd
+          allow-ghsas: GHSA-xhf5-7wjv-pqxp
   grype-scan:
-      runs-on: ubuntu-latest
-      steps:
-        - name: Checkout
-          uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-        - uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7
-          id: scan
-          with:
-            path: "."
-            fail-build: true
-            severity-cutoff: critical
-            output-format: json
-            output-file: "grype-scan.json"
+      - uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7
+        id: scan
+        with:
+          path: "."
+          fail-build: true
+          severity-cutoff: critical
+          output-format: json
+          output-file: "grype-scan.json"
 
-        - name: Output Grype Scan Report
-          if: always()
-          # file name 'grype-scan.json' is defined in .grype.yaml
-          run: jq . grype-scan.json
+      - name: Output Grype Scan Report
+        if: always()
+        # file name 'grype-scan.json' is defined in .grype.yaml
+        run: jq . grype-scan.json
 
-        - name: Upload Grype Scan Report
-          uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-          if: always()
-          with:
-            name: grype-scan-report
-            path: grype-scan.json
-            retention-days: 10
-            overwrite: "true"
+      - name: Upload Grype Scan Report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: grype-scan-report
+          path: grype-scan.json
+          retention-days: 10
+          overwrite: "true"
   govulncheck:
-      runs-on: ubuntu-latest
-      steps:
-        - name: Checkout
-          uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-          with:
-            persist-credentials: false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
-        - name: Get Go version
-          run: sed -En 's/^go (.*)$/GO_VERSION=\1/p' go.mod >> $GITHUB_ENV
+      - name: Get Go version
+        run: sed -En 's/^go (.*)$/GO_VERSION=\1/p' go.mod >> $GITHUB_ENV
 
-        - id: govulncheck
-          uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
-          with:
-            go-version-input: "${{ env.GO_VERSION }}"
-            # Default output format is 'text'. Specifying the output format 'json' or 'sarif' will return success
-            #even if there are some vulnerabilities detected.
-            output-format: json
-            output-file: govulncheck.json
+      - id: govulncheck
+        uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
+        with:
+          go-version-input: "${{ env.GO_VERSION }}"
+          # Default output format is 'text'. Specifying the output format 'json' or 'sarif' will return success
+          #even if there are some vulnerabilities detected.
+          output-format: json
+          output-file: govulncheck.json
 
-        - name: Upload Govulncheck Report
-          uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-          with:
-            name: govulncheck-report
-            path: govulncheck.json
-            retention-days: 10
-            overwrite: "true"
+      - name: Upload Govulncheck Report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: govulncheck-report
+          path: govulncheck.json
+          retention-days: 10
+          overwrite: "true"
