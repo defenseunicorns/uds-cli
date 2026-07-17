@@ -11,7 +11,7 @@ ignore:
   # containerd/containerd/v2 v2.3.2 is beyond the affected range
   # (>= 2.1.0, < 2.1.9, >= 2.2.0, < 2.2.5, >= 2.3.0, < 2.3.2)
   # this is an indirect dependency of zarf->helm->k9s->containerd/containerd
-  - vulnerability: GHSA-33vj-92qq-66hc
+  - vulnerability: GO-2026-5064
 
   # This vulnerability does not affect UDS as we do not make use of the CRI and
   # it appears to be a false positive hit for containerd/containerd v1.7.2, as the
@@ -19,4 +19,4 @@ ignore:
   # containerd/containerd/v2 v2.3.2 is beyond the affected range
   # (>= 2.1.0, < 2.1.9, >= 2.2.0, < 2.2.5, >= 2.3.0, < 2.3.2)
   # this is an indirect dependency of zarf->helm->k9s->containerd/containerd
-  - vulnerability: GHSA-cvxm-645q-p574
+  - vulnerability: GO-2026-5338
