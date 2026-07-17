@@ -295,12 +295,10 @@ github.com/anchore/go-struct-converter v0.2.0-rc2 h1:q+859fW2/jbHJHB2etbNfRlFwYp
 github.com/anchore/go-struct-converter v0.2.0-rc2/go.mod h1:cDBA5vhcR62nXWo8QH9/Kk2807o65ISaHPNPX66L+Uw=
 github.com/anchore/go-sync v0.1.1 h1:91SZ+YqUIIHmf2jPAYZPuHqM/ZqnK1pVJDWtET6+AJE=
 github.com/anchore/go-sync v0.1.1/go.mod h1:3haGsk2BnaoVhsfqae8Kd0FKIAILE1Hw69P4Xo5iVBw=
-github.com/anchore/go-testutils v0.0.0-20200925183923-d5f45b0d3c04 h1:VzprUTpc0vW0nnNKJfJieyH/TZ9UYAnTZs5/gHTdAe8=
-github.com/anchore/go-testutils v0.0.0-20200925183923-d5f45b0d3c04/go.mod h1:6dK64g27Qi1qGQZ67gFmBFvEHScy0/C8qhQhNe5B5pQ=
 github.com/anchore/go-version v1.2.2-0.20210903204242-51efa5b487c4 h1:rmZG77uXgE+o2gozGEBoUMpX27lsku+xrMwlmBZJtbg=
 github.com/anchore/go-version v1.2.2-0.20210903204242-51efa5b487c4/go.mod h1:Bkc+JYWjMCF8OyZ340IMSIi2Ebf3uwByOk6ho4wne1E=
-github.com/anchore/grype v0.104.1 h1:tIP1pivUGpWFr1LHqkIiypSb8e40897vE4nPZk+9lBg=
-github.com/anchore/grype v0.104.1/go.mod h1:1DQI9U/OL+xwmHzULVDoRRI84kstmP26IcBH1E3gSE4=
+github.com/anchore/grype v0.110.0 h1:oDzOxzs4CPtQA1CAb3dVAvcDxjM0MzuKNZBSK8qGqyE=
+github.com/anchore/grype v0.110.0/go.mod h1:nrrdislnLYNbkDB0CSciZ2ZIPlj443tUtqhvTqL1Bnc=
 github.com/anchore/packageurl-go v0.2.0 h1:CkrM4RMUwrEGAiE1OVlxaZNzWj0TuHRey7o4T/EAErk=
 github.com/anchore/packageurl-go v0.2.0/go.mod h1:2JCgOQMIsqZ7TmliXG4PnUthPJAKE3mWQbsW2XHjAOE=
 github.com/anchore/stereoscope v0.2.2 h1:SGTLGoF6GHmKEn9Bb6LYpzzgz9nhvMZgN/c4fTSQjYY=
@@ -1214,8 +1212,6 @@ github.com/lithammer/fuzzysearch v1.1.8 h1:/HIuJnjHuXS8bKaiTMeeDlW2/AyIWk2brx1V8
 github.com/lithammer/fuzzysearch v1.1.8/go.mod h1:IdqeyBClc3FFqSzYq/MXESsS4S0FsZ5ajtkr5xPLts4=
 github.com/lmittmann/tint v1.1.3 h1:Hv4EaHWXQr+GTFnOU4VKf8UvAtZgn0VuKT+G0wFlO3I=
 github.com/lmittmann/tint v1.1.3/go.mod h1:HIS3gSy7qNwGCj+5oRjAutErFBl4BzdQP6cJZ0NfMwE=
-github.com/logrusorgru/aurora v2.0.3+incompatible h1:tOpm7WcpBTn4fjmVfgpQq0EfczGlG91VSDkswnjF5A8=
-github.com/logrusorgru/aurora v2.0.3+incompatible/go.mod h1:7rIyQOR62GCctdiQpZ/zOJlFyk6y+94wXzv6RNZgaR4=
 github.com/lucasb-eyer/go-colorful v1.3.0 h1:2/yBRLdWBZKrf7gB40FoiKfAWYQ0lqNcbuQwVHXptag=
 github.com/lucasb-eyer/go-colorful v1.3.0/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/lyft/protoc-gen-star v0.5.3/go.mod h1:V0xaHgaf5oCCqmcxYcWiDfTiKsZsRc87/1qhoTACD8w=
