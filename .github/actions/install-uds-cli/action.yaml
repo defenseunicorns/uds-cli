@@ -7,7 +7,7 @@ runs:
   using: composite
   steps:
     - name: Set up Homebrew
-      uses: Homebrew/actions/setup-homebrew@24728b77430f9659b8d89068e4afe7f5fd0f973c # main
+      uses: Homebrew/actions/setup-homebrew@df4b09108a1de9d6f995fe68f302b3f68bd6d2ef # main
 
     - name: Install UDS CLI
       shell: bash
