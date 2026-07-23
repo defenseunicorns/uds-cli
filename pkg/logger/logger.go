@@ -27,13 +27,22 @@ func New(w io.Writer, level slog.Leveler) *slog.Logger {
 	return slog.New(console.NewHandler(w, &console.HandlerOptions{Level: level}))
 }
 
-// Bind returns a copy of s whose leveled logging methods write to s.ErrOut at the
-// given level. level is the string form ("debug"/"info"/...) already validated
-// upstream by the config resolver; an unparseable value falls back to info.
-// Library entrypoints call this once to attach the per-operation logger.
+// Bind ensures s has a logger writing to s.ErrOut at level, returning the updated
+// copy. It is order-independent and safe to call repeatedly: a logger we created is
+// re-leveled in place (last Bind wins), while a caller-supplied one (WithLogger) is
+// honored and its level left untouched. level is validated upstream; unparseable
+// values fall back to info.
 func Bind(s iostreams.IOStreams, level string) iostreams.IOStreams {
 	lvl, _ := ParseLevel(level)
-	return s.WithLogger(New(s.ErrOut(), lvl))
+	if s.Logger() != nil {
+		if lv := s.LogLevel(); lv != nil {
+			lv.Set(lvl)
+		}
+		return s
+	}
+	lv := new(slog.LevelVar)
+	lv.Set(lvl)
+	return s.WithLogger(New(s.ErrOut(), lv), lv)
 }
 
 // ParseLevel converts a string to a slog.Level.

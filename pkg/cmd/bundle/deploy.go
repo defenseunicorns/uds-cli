@@ -126,7 +126,9 @@ func (o *DeployOptions) Validate() error {
 
 // Run executes the deploy command.
 func (o *DeployOptions) Run(ctx context.Context) error {
-	// Bind from the flag so logs here honor --log-level; re-bound after config resolves.
+	// Bind at the flag level so setup logs honor --log-level, then re-level from the
+	// resolved config below. The resolved level already ranks an explicit --log-level
+	// over HCL (see OverlayCLI); Bind just re-levels the same logger in place.
 	o.IOStreams = logger.Bind(o.IOStreams, o.flags.LogLevel)
 
 	deploySrc, err := bundle.PrepareDeploySource(ctx, o.IOStreams, o.BundlePath, "")
@@ -139,15 +141,12 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 		}
 	}()
 
-	// Resolve config against the bundle-source or extracted bundle archive workspace.
-	// This must happen after PrepareDeploySource because for tar.zst artifacts
-	// defaults.uds.hcl is only available in the extracted workspace.
-	cfg, _, err := NewConfigResolver().Resolve(ctx, o.IOStreams, o.flags, deploySrc.BundlePath)
+	// Resolve against the extracted workspace, where a tar.zst artifact's defaults.uds.hcl
+	// only appears after extraction.
+	o.Config, _, err = NewConfigResolver().Resolve(ctx, o.IOStreams, o.flags, deploySrc.BundlePath)
 	if err != nil {
 		return err
 	}
-	o.Config = cfg
-
 	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
 	o.Debug("deploying bundle", "path", deploySrc.BundlePath, "prompt", o.Config.Global.Prompt)
 

@@ -223,7 +223,7 @@ func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *Package, opts Remo
 	s := logger.Bind(r.streams, opts.Config.Global.LogLevel)
 	s.Info("removing zarf package", "name", pkg.Name, "source", pkg.Source)
 
-	ctx = newZarfLoggerContext(ctx, s.ErrOut(), opts.Config.Global.LogLevel)
+	ctx = newZarfLoggerContext(ctx, s)
 
 	c, err := r.getCluster(ctx)
 	if err != nil {

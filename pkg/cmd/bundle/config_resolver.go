@@ -139,7 +139,7 @@ func (r *ConfigResolver) OverlayCLI(flags CLIFlags, base bundle.ConfigOptions) b
 	return base
 }
 
-// Resolve resolves ConfigOptions through the four-layer precedence chain.
+// Resolve resolves a full UDSBundleConfig through the four-layer precedence chain.
 // bundlePath is the user-provided bundle path (directory or file); when non-empty,
 // Resolve looks for defaults.uds.hcl in that directory. Pass "" to skip defaults.
 // Returns the merged UDSBundleConfig and the config file path (empty if no --config flag).
@@ -150,47 +150,56 @@ func (r *ConfigResolver) OverlayCLI(flags CLIFlags, base bundle.ConfigOptions) b
 //  4. Overlay any explicitly-set CLI flags
 //  5. Build GlobalOptions from merged log_level and the --prompt flag
 func (r *ConfigResolver) Resolve(ctx context.Context, streams iostreams.IOStreams, flags CLIFlags, bundlePath string) (*bundle.UDSBundleConfig, string, error) {
-	base := r.Defaults()
-	var variables bundle.Variables
+	userCfg, err := r.parseUserConfig(ctx, streams, flags)
+	if err != nil {
+		return nil, "", err
+	}
 
-	// Merge variables from defaults.uds.hcl, if exists
+	options := r.resolveOptions(userCfg, flags)
+	global, err := cmdconfig.ResolveGlobalOptions(flags.Prompt, options.LogLevel)
+	if err != nil {
+		return nil, "", err
+	}
+
+	// Merge variables: defaults.uds.hcl (base) then config.uds.hcl (overrides).
 	defaults, err := r.loadBundleDefaults(ctx, streams, bundlePath)
 	if err != nil {
 		return nil, "", err
 	}
+	var variables bundle.Variables
 	if defaults != nil {
 		variables = defaults.Variables
 	}
-
-	// Merge config.uds.hcl if --config flag is set
-	configPath := flags.ConfigPath
-	if configPath != "" {
-		cfg, err := bundle.NewHCLParser("", streams).ParseBundleConfig(ctx, configPath)
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to parse config: %w", err)
-		}
-		if cfg.Options != nil {
-			base = r.MergeHCL(base, cfg.Options)
-		}
-		variables = bundle.MergeVariables(variables, cfg.Variables)
+	if userCfg != nil {
+		variables = bundle.MergeVariables(variables, userCfg.Variables)
 	}
 
-	merged := r.OverlayCLI(flags, base)
-
-	// Resolve global options (log level, prompt) via the shared config package.
-	// This is command-group agnostic — future groups reuse the same function.
-	global, err := cmdconfig.ResolveGlobalOptions(flags.Prompt, merged.LogLevel)
-	if err != nil {
-		return nil, "", err
-	}
-
-	cfg := &bundle.UDSBundleConfig{
+	return &bundle.UDSBundleConfig{
 		Global:    global,
-		Options:   &merged,
+		Options:   &options,
 		Variables: variables,
-	}
+	}, flags.ConfigPath, nil
+}
 
-	return cfg, configPath, nil
+// parseUserConfig parses the config.uds.hcl referenced by --config, returning nil when unset.
+func (r *ConfigResolver) parseUserConfig(ctx context.Context, streams iostreams.IOStreams, flags CLIFlags) (*bundle.UDSBundleConfig, error) {
+	if flags.ConfigPath == "" {
+		return nil, nil
+	}
+	cfg, err := bundle.NewHCLParser("", streams).ParseBundleConfig(ctx, flags.ConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse config: %w", err)
+	}
+	return cfg, nil
+}
+
+// resolveOptions layers config.uds.hcl options and CLI flags onto Defaults().
+func (r *ConfigResolver) resolveOptions(userCfg *bundle.UDSBundleConfig, flags CLIFlags) bundle.ConfigOptions {
+	base := r.Defaults()
+	if userCfg != nil && userCfg.Options != nil {
+		base = r.MergeHCL(base, userCfg.Options)
+	}
+	return r.OverlayCLI(flags, base)
 }
 
 // loadBundleDefaults looks for defaults.uds.hcl in the bundle directory and parses it if present.

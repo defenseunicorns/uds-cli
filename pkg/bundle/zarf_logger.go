@@ -5,34 +5,18 @@ package bundle
 
 import (
 	"context"
-	"io"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/zarf-dev/zarf/src/pkg/logger"
 )
 
-// newZarfLoggerContext returns ctx with a Zarf logger attached, configured to
-// write to out at logLevel. Used by both ZarfDeployer and ZarfRemover so the
-// log format stays consistent across deploy/remove and color handling lives
-// in a single place. logLevel is already validated by the config resolver;
-// ParseLevel will not fail here.
-func newZarfLoggerContext(ctx context.Context, out io.Writer, logLevel string) context.Context {
-	level, _ := logger.ParseLevel(logLevel)
-
-	// Zarf defaults a nil Destination to os.Stderr; discard instead so an unset
-	// Streams.ErrOut produces no output rather than leaking to process stderr.
-	if out == nil {
-		out = io.Discard
-	}
-
-	cfg := logger.Config{
-		Level:       level,
-		Format:      logger.FormatConsole,
-		Destination: logger.Destination(out),
-		Color:       true,
-	}
-	l, err := logger.New(cfg)
-	if err != nil {
-		l = logger.Default()
+// newZarfLoggerContext attaches streams' logger to ctx so Zarf's packager output
+// joins UDS CLI's own diagnostics. Callers logger.Bind first, so a logger is
+// normally present; with none, ctx is returned unchanged (Zarf's From discards).
+func newZarfLoggerContext(ctx context.Context, streams iostreams.IOStreams) context.Context {
+	l := streams.Logger()
+	if l == nil {
+		return ctx
 	}
 	return logger.WithContext(ctx, l)
 }

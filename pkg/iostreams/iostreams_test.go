@@ -49,7 +49,7 @@ func TestNewTestIOStreams(t *testing.T) {
 func TestIOStreams_WithLogger_RoutesToErrOut(t *testing.T) {
 	var buf bytes.Buffer
 	l := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	s := New(nil, nil, &buf).WithLogger(l)
+	s := New(nil, nil, &buf).WithLogger(l, nil)
 
 	s.Info("hello-info")
 	s.Warn("hello-warn")
@@ -75,8 +75,8 @@ func TestIOStreams_NilLoggerIsNoOp(t *testing.T) {
 
 func TestIOStreams_SeparateStreamsAreIsolated(t *testing.T) {
 	var bufA, bufB bytes.Buffer
-	a := New(nil, nil, &bufA).WithLogger(slog.New(slog.NewTextHandler(&bufA, nil)))
-	b := New(nil, nil, &bufB).WithLogger(slog.New(slog.NewTextHandler(&bufB, nil)))
+	a := New(nil, nil, &bufA).WithLogger(slog.New(slog.NewTextHandler(&bufA, nil)), nil)
+	b := New(nil, nil, &bufB).WithLogger(slog.New(slog.NewTextHandler(&bufB, nil)), nil)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -156,7 +156,7 @@ func TestErrOut_SharedLockWithLogger(t *testing.T) {
 	// serialized by a single mutex. The race detector catches any violation.
 	var buf bytes.Buffer
 	s := New(nil, nil, &buf)
-	bound := s.WithLogger(slog.New(slog.NewTextHandler(s.ErrOut(), nil)))
+	bound := s.WithLogger(slog.New(slog.NewTextHandler(s.ErrOut(), nil)), nil)
 
 	const n = 500
 	var wg sync.WaitGroup
@@ -177,4 +177,21 @@ func TestErrOut_SharedLockWithLogger(t *testing.T) {
 	got := buf.String()
 	assert.Equal(t, n, strings.Count(got, "msg=L"), "slog lines must appear")
 	assert.Equal(t, n, strings.Count(got, "X"), "raw writes must appear")
+}
+
+func TestWithLogger_SharesLevelVarAcrossCopies(t *testing.T) {
+	// Re-leveling relies on the LevelVar being shared by pointer: setting it on one
+	// copy must re-level the logger held by another. A nil level owns no LevelVar.
+	lv := new(slog.LevelVar)
+	lv.Set(slog.LevelInfo)
+	s := IOStreams{}.WithLogger(slog.New(slog.NewTextHandler(nil, nil)), lv)
+
+	cp := s // value copy handed off elsewhere
+	require.Same(t, lv, cp.LogLevel(), "copies must share the same LevelVar pointer")
+
+	cp.LogLevel().Set(slog.LevelDebug)
+	assert.Equal(t, slog.LevelDebug, s.LogLevel().Level(), "re-leveling a copy re-levels the original")
+
+	require.Nil(t, s.WithLogger(slog.New(slog.NewTextHandler(nil, nil)), nil).LogLevel(),
+		"a nil level owns no LevelVar")
 }

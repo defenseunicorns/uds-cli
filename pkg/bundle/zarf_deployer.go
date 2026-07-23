@@ -190,7 +190,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 	log := logger.Bind(d.streams, opts.Config.Global.LogLevel)
 	log.Info("deploying zarf package", "name", pkg.Name, "source", pkg.Source)
 
-	ctx = newZarfLoggerContext(ctx, log.ErrOut(), opts.Config.Global.LogLevel)
+	ctx = newZarfLoggerContext(ctx, log)
 
 	pkgTmp, err := os.MkdirTemp(opts.Config.Options.TmpDir, "zarf-pkg-*")
 	if err != nil {

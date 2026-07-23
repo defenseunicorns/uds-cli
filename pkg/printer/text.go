@@ -29,7 +29,7 @@ func (p *TextPrinter) PrintObj(obj any, w io.Writer) error {
 
 func printValue(w io.Writer, v reflect.Value, indent int) error {
 	// Dereference pointer
-	for v.Kind() == reflect.Ptr {
+	for v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return nil
 		}
@@ -72,14 +72,14 @@ func printValue(w io.Writer, v reflect.Value, indent int) error {
 		}
 
 		// Dereference pointer fields so the switch handles the underlying type.
-		for fv.Kind() == reflect.Ptr {
+		for fv.Kind() == reflect.Pointer {
 			if fv.IsNil() {
 				break
 			}
 			fv = fv.Elem()
 		}
-		if fv.Kind() == reflect.Ptr {
-			// Still Ptr means it was nil — skip (omitempty already handled above)
+		if fv.Kind() == reflect.Pointer {
+			// Still a Pointer means it was nil — skip (omitempty already handled above)
 			continue
 		}
 
@@ -90,7 +90,7 @@ func printValue(w io.Writer, v reflect.Value, indent int) error {
 			}
 			elemType := fv.Type().Elem()
 			// Dereference pointer element type (e.g. []*T → T)
-			if elemType.Kind() == reflect.Ptr {
+			if elemType.Kind() == reflect.Pointer {
 				elemType = elemType.Elem()
 			}
 			if elemType.Kind() == reflect.Struct {
@@ -112,7 +112,7 @@ func printValue(w io.Writer, v reflect.Value, indent int) error {
 				for j := 0; j < fv.Len(); j++ {
 					elem := fv.Index(j)
 					// Dereference pointer elements (e.g. []*string → string)
-					for elem.Kind() == reflect.Ptr {
+					for elem.Kind() == reflect.Pointer {
 						if elem.IsNil() {
 							break
 						}
@@ -163,7 +163,7 @@ func isSupportedKind(k reflect.Kind) bool {
 // Pointers are dereferenced to check the underlying type.
 func isSupportedFieldKind(fv reflect.Value) bool {
 	k := fv.Kind()
-	if k == reflect.Ptr {
+	if k == reflect.Pointer {
 		k = fv.Type().Elem().Kind()
 	}
 	return isSupportedKind(k)

@@ -60,6 +60,10 @@ type IOStreams struct {
 	errOut io.Writer // *lockedWriter via any public constructor, or nil in the zero value
 	// log is an optional structured logger; nil means leveled methods are no-ops.
 	log *slog.Logger
+	// logLevel controls a logger we created (see logger.Bind); nil for a
+	// caller-supplied one. The pointer is shared across value copies, so setting
+	// it re-levels the live logger everywhere.
+	logLevel *slog.LevelVar
 }
 
 // New builds an IOStreams over caller-supplied streams, synchronizing Out/ErrOut.
@@ -117,11 +121,25 @@ func (s IOStreams) ErrOut() io.Writer {
 	return s.errOut
 }
 
+// Logger returns the logger attached via WithLogger, or nil when none is set.
+// Library entrypoints use this to honor a caller-supplied logger instead of
+// binding their own (see logger.Bind).
+func (s IOStreams) Logger() *slog.Logger {
+	return s.log
+}
+
+// LogLevel returns the level control for a logger created by logger.Bind, or nil
+// for a caller-supplied logger (whose level is not ours to change) or none.
+func (s IOStreams) LogLevel() *slog.LevelVar {
+	return s.logLevel
+}
+
 // WithLogger returns a copy of s whose Debug/Info/Warn/Error methods delegate to l.
-// The caller is responsible for configuring l to write to the appropriate destination
-// (typically ErrOut) via its handler.
-func (s IOStreams) WithLogger(l *slog.Logger) IOStreams {
+// level is the LevelVar controlling l, which lets logger.Bind re-level it in place;
+// pass nil for a caller-supplied logger whose level is not ours to change.
+func (s IOStreams) WithLogger(l *slog.Logger, level *slog.LevelVar) IOStreams {
 	s.log = l
+	s.logLevel = level
 	return s
 }
 
