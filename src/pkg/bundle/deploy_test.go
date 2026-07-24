@@ -858,7 +858,7 @@ func Test_shouldUsePlainHTTPForDeployRegistry(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:         "package without image registry defaults to https",
+			name:         "unconfigured registry skips transport negotiation",
 			insecure:     true,
 			registryInfo: state.RegistryInfo{},
 			expected:     false,
