@@ -233,13 +233,10 @@ func (b *Bundle) newDeployOptions(ctx context.Context, pkg types.Package, pkgVar
 }
 
 func shouldUsePlainHTTPForDeployRegistry(ctx context.Context, registryInfo state.RegistryInfo, insecure bool) (bool, error) {
-	if registryInfo.ShouldUseMTLS() {
-		return false, nil
+	if plainHTTP, known := registryInfo.KnownPlainHTTP(); known {
+		return plainHTTP, nil
 	}
-	if registryInfo.IsInternal() {
-		return true, nil
-	}
-	if registryInfo.Address == "" {
+	if !registryInfo.IsConfigured() {
 		return false, nil
 	}
 	return utils.NegotiatePlainHTTPForRegistry(ctx, registryInfo.Address, insecure)

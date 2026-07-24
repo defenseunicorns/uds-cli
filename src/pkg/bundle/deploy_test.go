@@ -842,6 +842,7 @@ func Test_shouldUsePlainHTTPForDeployRegistry(t *testing.T) {
 		{
 			name: "internal registry uses plain http",
 			registryInfo: state.RegistryInfo{
+				Address:      "127.0.0.1:1",
 				RegistryMode: state.RegistryModeNodePort,
 			},
 			expected: true,
@@ -850,10 +851,17 @@ func Test_shouldUsePlainHTTPForDeployRegistry(t *testing.T) {
 			name:     "internal mtls registry does not force plain http even when insecure",
 			insecure: true,
 			registryInfo: state.RegistryInfo{
+				Address:      "127.0.0.1:1",
 				RegistryMode: state.RegistryModeNodePort,
 				MTLSStrategy: state.MTLSStrategyZarfManaged,
 			},
 			expected: false,
+		},
+		{
+			name:         "package without image registry defaults to https",
+			insecure:     true,
+			registryInfo: state.RegistryInfo{},
+			expected:     false,
 		},
 		{
 			name: "external registry does not force plain http",
