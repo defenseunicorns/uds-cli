@@ -140,6 +140,19 @@ func TestPushCommand_Integration(t *testing.T) {
 	assert.Contains(t, out.String(), "OCI Reference:")
 }
 
+func TestPushCommand_Integration_PlainHTTPAllowsTLS(t *testing.T) {
+	bundlePath := createBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
+	registryHost := startLocalTLSRegistry(t)
+	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
+
+	streams, _, out, _ := iostreams.NewTestIOStreams()
+	root := bundle.NewBundleCommand(streams)
+	root.SetArgs([]string{"push", bundlePath, ref, "--plain-http", "--skip-tls-verify"})
+
+	require.NoError(t, root.Execute())
+	assert.Contains(t, out.String(), "OCI Reference:")
+}
+
 // TestPushPull_RoundTrip verifies that a bundle produced by Create can be pushed
 // to a local OCI registry and pulled back, and that the pulled tarball contains
 // exactly the same set of blob digests as the original.

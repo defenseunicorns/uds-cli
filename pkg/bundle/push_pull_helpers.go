@@ -30,7 +30,7 @@ func resolvePushTarget(ctx context.Context, ref string, opts *PushOptions) (oras
 	if opts.PushHooks.ToOrasTarget != nil {
 		return opts.PushHooks.ToOrasTarget(ctx, ref, opts)
 	}
-	return newRemoteRepository(ref, *opts.Config.Options)
+	return newRemoteRepository(ctx, ref, *opts.Config.Options)
 }
 
 // resolvePullTarget picks the ORAS source: the ToOrasTarget hook if set,
@@ -40,7 +40,7 @@ func resolvePullTarget(ctx context.Context, ref string, opts *PullOptions) (oras
 	if opts.PullHooks.ToOrasTarget != nil {
 		return opts.PullHooks.ToOrasTarget(ctx, ref, opts)
 	}
-	return newRemoteRepository(ref, *opts.Config.Options)
+	return newRemoteRepository(ctx, ref, *opts.Config.Options)
 }
 
 // pushCopyOptions builds copy options: concurrency from config, then consumer hook.

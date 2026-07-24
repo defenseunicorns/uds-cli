@@ -171,6 +171,14 @@ func startLocalRegistry(t *testing.T) string {
 	return strings.TrimPrefix(s.URL, "http://")
 }
 
+// startLocalTLSRegistry starts an in-memory OCI registry with a self-signed TLS certificate.
+func startLocalTLSRegistry(t *testing.T) string {
+	t.Helper()
+	s := httptest.NewTLSServer(registry.New())
+	t.Cleanup(s.Close)
+	return strings.TrimPrefix(s.URL, "https://")
+}
+
 // extractLayerFromBundle extracts a layer's blob content by title from the bundle definition manifest.
 func extractLayerFromBundle(t *testing.T, small map[string][]byte, title string) []byte {
 	t.Helper()

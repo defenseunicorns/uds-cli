@@ -4,24 +4,26 @@
 package bundle
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
 
+	"github.com/zarf-dev/zarf/src/pkg/ocischeme"
+	"oras.land/oras-go/v2/registry"
 	orasregistry "oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
 	"oras.land/oras-go/v2/registry/remote/credentials"
 	"oras.land/oras-go/v2/registry/remote/retry"
 )
 
-// newRemoteRepository creates an ORAS remote repository configured with TLS
-// settings and credentials loaded from the Docker credential store.
-func newRemoteRepository(ref string, opts ConfigOptions) (*orasregistry.Repository, error) {
+// newRemoteRepository creates an ORAS remote repository configured with registry
+// transport settings and credentials loaded from the Docker credential store.
+func newRemoteRepository(ctx context.Context, ref string, opts ConfigOptions) (*orasregistry.Repository, error) {
 	repo, err := orasregistry.NewRepository(ref)
 	if err != nil {
 		return nil, err
 	}
-	repo.PlainHTTP = opts.PlainHTTP
 
 	t, ok := http.DefaultTransport.(*http.Transport)
 	if !ok {
@@ -29,6 +31,11 @@ func newRemoteRepository(ref string, opts ConfigOptions) (*orasregistry.Reposito
 	}
 	transport := t.Clone()
 	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: opts.SkipTLSVerify} //nolint:gosec // user-controlled via --skip-tls-verify
+	plainHTTP, err := resolvePlainHTTP(ctx, ref, opts, transport)
+	if err != nil {
+		return nil, err
+	}
+	repo.PlainHTTP = plainHTTP
 
 	credStore, err := credentials.NewStoreFromDocker(credentials.StoreOptions{})
 	if err != nil {
@@ -42,4 +49,27 @@ func newRemoteRepository(ref string, opts ConfigOptions) (*orasregistry.Reposito
 	}
 
 	return repo, nil
+}
+
+// resolvePlainHTTP determines whether an OCI reference should use plain HTTP.
+// Plain HTTP is only considered when the user explicitly enables it; HTTPS remains
+// the default and is preferred whenever the registry supports it.
+func resolvePlainHTTP(ctx context.Context, ref string, opts ConfigOptions, transport http.RoundTripper) (bool, error) {
+	if !opts.PlainHTTP {
+		return false, nil
+	}
+
+	parsed, err := registry.ParseReference(ref)
+	if err != nil {
+		return false, fmt.Errorf("parsing OCI reference %q: %w", ref, err)
+	}
+
+	plainHTTP, err := ocischeme.From(ctx).UsePlainHTTP(ctx, parsed.Registry, ocischeme.ProbeOptions{
+		InsecureSkipTLSVerify: opts.SkipTLSVerify,
+		Transport:             transport,
+	})
+	if err != nil {
+		return false, fmt.Errorf("determining registry transport for %q: %w", ref, err)
+	}
+	return plainHTTP, nil
 }

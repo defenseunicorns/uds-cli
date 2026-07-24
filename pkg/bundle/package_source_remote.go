@@ -34,8 +34,12 @@ func (s *remoteSource) newZociRemote(ctx context.Context) (*zoci.Remote, error) 
 		Architecture: s.arch,
 		OS:           oci.MultiOS,
 	}
+	plainHTTP, err := resolvePlainHTTP(ctx, s.ref, s.opts, nil)
+	if err != nil {
+		return nil, err
+	}
 	mods := []oci.Modifier{
-		oci.WithPlainHTTP(s.opts.PlainHTTP),
+		oci.WithPlainHTTP(plainHTTP),
 		oci.WithInsecureSkipVerify(s.opts.SkipTLSVerify),
 	}
 	return zoci.NewRemote(ctx, s.ref, platform, mods...)

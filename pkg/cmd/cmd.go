@@ -15,6 +15,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/defenseunicorns/uds-cli/pkg/logger"
 	"github.com/spf13/cobra"
+	"github.com/zarf-dev/zarf/src/pkg/ocischeme"
 )
 
 // NewRootCommand creates the root command for uds.
@@ -31,6 +32,7 @@ func NewRootCommand(streams iostreams.IOStreams) *cobra.Command {
 				return err
 			}
 			slog.SetDefault(logger.New(os.Stderr, level))
+			cmd.SetContext(ocischeme.WithNegotiator(cmd.Context(), ocischeme.New(ocischeme.Options{})))
 			return nil
 		},
 		// TraverseChildren ensures cobra finds the deepest matching subcommand before parsing flags.

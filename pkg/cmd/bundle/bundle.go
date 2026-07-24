@@ -22,7 +22,7 @@ func NewBundleCommand(streams iostreams.IOStreams) *cobra.Command {
 	// can be read directly without needing Changed() checks.
 	defaults := NewConfigResolver().Defaults()
 	bundleCmd.PersistentFlags().StringP("architecture", "a", defaults.Architecture, "target architecture")
-	bundleCmd.PersistentFlags().Bool("plain-http", defaults.PlainHTTP, "use plain HTTP for registry communication")
+	bundleCmd.PersistentFlags().Bool("plain-http", defaults.PlainHTTP, "allow plain HTTP when a registry does not support HTTPS")
 	bundleCmd.PersistentFlags().Bool("skip-tls-verify", defaults.SkipTLSVerify, "skip TLS certificate verification")
 	bundleCmd.PersistentFlags().String("tmp-dir", defaults.TmpDir, "directory for temporary files")
 	bundleCmd.PersistentFlags().Int("concurrency", defaults.Concurrency, "degree of parallelism for concurrent operations")

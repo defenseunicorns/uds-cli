@@ -226,7 +226,7 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 	if opts.remoteRepo != nil {
 		repo = opts.remoteRepo
 	} else {
-		remote, err := newRemoteRepository(trimmed, opts.Options)
+		remote, err := newRemoteRepository(ctx, trimmed, opts.Options)
 		if err != nil {
 			return nil, fmt.Errorf("connecting to registry: %w", err)
 		}
