@@ -530,7 +530,7 @@ func TestFormPkgViews(t *testing.T) {
 
 	zarfVarTests := []TestCase{
 		{
-			name: "show zarf var",
+			name: "mask zarf var when package metadata is unavailable",
 			Bundle: newTestBundle(
 				ConfigVariables{
 					pkgName: {
@@ -543,7 +543,7 @@ func TestFormPkgViews(t *testing.T) {
 				"",
 			),
 			expectedKey: "VAR1",
-			expectedVal: "zarf-var-set-by-config",
+			expectedVal: hiddenVar,
 		},
 		{
 			name:        "hide zarf var with env var",
@@ -687,6 +687,49 @@ func TestFormPkgViews(t *testing.T) {
 			require.Equal(t, 0, len(v.(anyArr)))
 		})
 	}
+}
+
+func TestZarfSensitiveVariablesAreMasked(t *testing.T) {
+	zarfVariables := []v1alpha1.InteractiveVariable{
+		{Variable: v1alpha1.Variable{Name: "SENSITIVE_VAR", Sensitive: true}},
+		{Variable: v1alpha1.Variable{Name: "PUBLIC_VAR"}},
+	}
+
+	for _, source := range []valuesources.Source{valuesources.Config, valuesources.CLI} {
+		t.Run(string(source), func(t *testing.T) {
+			variableData := map[string]overrideData{
+				"SENSITIVE_VAR": {value: "sensitive-value", source: source},
+				"PUBLIC_VAR":    {value: "public-value", source: source},
+			}
+
+			variables := addZarfVars(variableData, nil, sensitiveZarfVariableNames(zarfVariables))
+
+			require.ElementsMatch(t, []interface{}{
+				map[string]interface{}{"SENSITIVE_VAR": hiddenVar},
+				map[string]interface{}{"PUBLIC_VAR": "public-value"},
+			}, variables)
+		})
+	}
+}
+
+func TestFormPkgViewsMasksZarfVariablesWhenMetadataIsUnavailable(t *testing.T) {
+	const (
+		pkgName      = "test-package"
+		variableName = "VAR1"
+	)
+	bundle := newTestBundle(
+		ConfigVariables{pkgName: {variableName: "sensitive-value"}},
+		nil,
+		nil,
+		"uds-config.yaml",
+		"",
+	)
+	bundle.bundle = types.UDSBundle{Packages: []types.Package{{Name: pkgName}}}
+
+	pkgViews := formPkgViews(&bundle)
+
+	overrides := pkgViews[0].overrides["overrides"].([]interface{})
+	require.Equal(t, map[string]interface{}{variableName: hiddenVar}, overrides[0])
 }
 
 func TestFilterOverrides(t *testing.T) {

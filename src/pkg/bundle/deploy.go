@@ -492,7 +492,17 @@ func formPkgViews(b *Bundle) []PkgView {
 			}
 		}
 
-		variables = addZarfVars(variableData, variables)
+		// Load the package metadata to get the list of sensitive variables for masking their values in the view
+		zarfPkg, err := b.getMetadata(pkg)
+		sensitiveVars := sensitiveZarfVariableNames(zarfPkg.Variables)
+		if err != nil {
+			message.WarnErr(err, fmt.Sprintf("unable to load metadata for package %q; masking all Zarf variable values", pkg.Name))
+			for name := range variableData {
+				sensitiveVars[name] = true
+			}
+		}
+
+		variables = addZarfVars(variableData, variables, sensitiveVars)
 		pkgViews = append(pkgViews, PkgView{meta: formPkgMeta(pkg), overrides: map[string]interface{}{"overrides": variables}})
 	}
 	return pkgViews
@@ -514,7 +524,17 @@ func formPkgMeta(pkg types.Package) map[string]string {
 	return pkgMeta
 }
 
-func addZarfVars(pkgVars map[string]overrideData, variables []interface{}) []interface{} {
+func sensitiveZarfVariableNames(variables []v1alpha1.InteractiveVariable) map[string]bool {
+	sensitiveVars := make(map[string]bool)
+	for _, variable := range variables {
+		if variable.Sensitive {
+			sensitiveVars[strings.ToUpper(variable.Name)] = true
+		}
+	}
+	return sensitiveVars
+}
+
+func addZarfVars(pkgVars map[string]overrideData, variables []interface{}, sensitiveVars map[string]bool) []interface{} {
 	// Built-in sensitive variables that should be sanitized
 	sensitiveBuiltInVars := map[string]bool{
 		config.RegistryPushUsername: true,
@@ -534,7 +554,7 @@ func addZarfVars(pkgVars map[string]overrideData, variables []interface{}) []int
 		// "CONFIG" refers to "UDS_CONFIG" which is not a Zarf variable or override so we skip it
 		if key != "CONFIG" {
 			// Mask potentially secret ENV vars or built-in sensitive variables
-			if fv.source == valuesources.Env || sensitiveBuiltInVars[key] {
+			if fv.source == valuesources.Env || sensitiveBuiltInVars[key] || sensitiveVars[key] {
 				fv.value = hiddenVar
 			}
 			variables = append(variables, map[string]interface{}{key: fv.value})
