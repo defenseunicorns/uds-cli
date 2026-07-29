@@ -1,0 +1,14 @@
+# Copyright 2024 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+kind: ZarfPackageConfig
+metadata:
+  name: multi-platform-image
+  version: 0.0.1
+  description: Test package containing an image pinned to a multi-platform OCI index
+
+components:
+  - name: multi-platform-image
+    required: true
+    images:
+      - cgr.dev/chainguard/static@sha256:399c8cb4858f05aaa33f43f02a2e75f28d40f016c0f86e5ba6075769e3303791

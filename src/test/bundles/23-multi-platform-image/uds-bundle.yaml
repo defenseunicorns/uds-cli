@@ -1,0 +1,13 @@
+# Copyright 2024 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+kind: UDSBundle
+metadata:
+  name: multi-platform-image
+  description: Bundle containing a package with a multi-platform OCI image index
+  version: 0.0.1
+
+packages:
+  - name: multi-platform-image
+    repository: localhost:888/multi-platform-image
+    ref: 0.0.1
