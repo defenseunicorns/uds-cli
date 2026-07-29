@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/tests/testutil"
 )
 
 // RemoveSuite is a testify suite for remove integration tests.
@@ -32,12 +33,12 @@ type RemoveSuite struct {
 
 // SetupSuite resolves the UDS CLI binary path once for the whole suite.
 func (s *RemoveSuite) SetupSuite() {
-	s.uds = udsCLIPath(s.T())
+	s.uds = testutil.UDSCLIPath(s.T(), "run via 'maru run test:integration'")
 }
 
 // TearDownTest runs automatically after every test in the suite.
 func (s *RemoveSuite) TearDownTest() {
-	deleteK3dCluster(s.T(), "uds")
+	testutil.DeleteK3dCluster(s.T(), "uds")
 }
 
 // TestRemoveSuite is the entry point that runs the suite.
@@ -61,7 +62,7 @@ func (s *RemoveSuite) TestRemoveCommand_WithPromptFlag() {
 // TestRemoveCommand_DisplaysPreview verifies that remove command shows bundle preview
 // before prompting for confirmation when --prompt is used.
 func (s *RemoveSuite) TestRemoveCommand_DisplaysPreview() {
-	bundlePath := testDataPath(s.T(), "bundles/deploy/init")
+	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
 	cmd := exec.Command(s.uds, "bundle", "remove", bundlePath, "--prompt")
 	cmd.Stdin = strings.NewReader("n\n")
@@ -79,7 +80,7 @@ func (s *RemoveSuite) TestRemoveCommand_DisplaysPreview() {
 // TestRemoveCommand_CancellationDoesNotRemove verifies that declining the confirmation
 // prompt prevents the removal from starting when --prompt is used.
 func (s *RemoveSuite) TestRemoveCommand_CancellationDoesNotRemove() {
-	bundlePath := testDataPath(s.T(), "bundles/deploy/init")
+	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
 	cmd := exec.Command(s.uds, "bundle", "remove", bundlePath, "--prompt")
 	cmd.Stdin = strings.NewReader("n\n")
@@ -95,7 +96,7 @@ func (s *RemoveSuite) TestRemoveCommand_CancellationDoesNotRemove() {
 // TestRemoveCommand_InvalidPackagesFlag verifies that specifying a non-existent
 // package name via --packages fails with a clear error.
 func (s *RemoveSuite) TestRemoveCommand_InvalidPackagesFlag() {
-	bundlePath := testDataPath(s.T(), "bundles/deploy/init")
+	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
 	cmd := exec.Command(s.uds, "bundle", "remove", bundlePath, "--packages", "nonexistent")
 	output, err := cmd.CombinedOutput()
@@ -112,12 +113,12 @@ func (s *RemoveSuite) TestRemoveCommand_InvalidPackagesFlag() {
 // metadata.name (`uds-k3d`, `init`), so this also exercises the
 // label-vs-Zarf-name divergence in RemovePackage.
 func (s *RemoveSuite) TestDeployAndRemoveBundle() {
-	checkDockerRunning(s.T())
+	testutil.CheckDockerRunning(s.T(), "Docker is not running; deploy tests require Docker for k3d")
 
-	bundlePath := testDataPath(s.T(), "bundles/deploy/init")
+	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
 	// Delete any existing cluster
-	deleteK3dCluster(s.T(), "uds")
+	testutil.DeleteK3dCluster(s.T(), "uds")
 
 	// 1. Deploy the init bundle
 	s.T().Log("Deploying init bundle...")
@@ -130,7 +131,7 @@ func (s *RemoveSuite) TestDeployAndRemoveBundle() {
 	require.NoError(s.T(), err, "bundle deploy should succeed")
 
 	// 2. Verify deployment
-	k8s := NewK8sClient(s.T())
+	k8s := testutil.NewK8sClientOrSkip(s.T())
 	k8s.AssertNamespaceExists("zarf")
 	// The init Zarf package writes its state secret to zarf/zarf-package-init
 	// on a successful deploy. If this is missing, the deploy never landed and

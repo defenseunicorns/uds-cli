@@ -17,10 +17,11 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/cmd"
 	"github.com/defenseunicorns/uds-cli/pkg/cmd/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/tests/testutil"
 )
 
 func TestInspectCommand_Integration(t *testing.T) {
-	bundlePath := testDataPath(t, "bundles/spec-compliant/bundle.uds.hcl")
+	bundlePath := testutil.TestDataPath("bundles/spec-compliant/bundle.uds.hcl")
 
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 
@@ -62,7 +63,7 @@ func TestInspectCommand_Integration(t *testing.T) {
 // because CheckErr calls os.Exit(1) which would terminate the test process.
 
 func TestDeployCommand_Integration(t *testing.T) {
-	bundlePath := testDataPath(t, "bundles/deploy/init")
+	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
 	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	// Simulate user declining the deployment via --prompt
@@ -81,7 +82,7 @@ func TestDeployCommand_Integration(t *testing.T) {
 }
 
 func TestDeployCommand_WithBundleFile_Integration(t *testing.T) {
-	bundlePath := testDataPath(t, "bundles/deploy/init/bundle.uds.hcl")
+	bundlePath := testutil.TestDataPath("bundles/deploy/init/bundle.uds.hcl")
 
 	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	// Simulate user declining the deployment via --prompt
@@ -101,7 +102,7 @@ func TestDeployCommand_WithBundleFile_Integration(t *testing.T) {
 
 func TestPullCommand_Integration(t *testing.T) {
 	// Push a bundle programmatically so we can test the pull cobra wiring.
-	bundlePath := createBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
+	bundlePath := testutil.CreateBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
 	registryHost := startLocalRegistry(t)
 	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
 
@@ -126,7 +127,7 @@ func TestPullCommand_Integration(t *testing.T) {
 }
 
 func TestPushCommand_Integration(t *testing.T) {
-	bundlePath := createBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
+	bundlePath := testutil.CreateBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
 	registryHost := startLocalRegistry(t)
 	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
 
@@ -141,7 +142,7 @@ func TestPushCommand_Integration(t *testing.T) {
 }
 
 func TestPushCommand_Integration_PlainHTTPAllowsTLS(t *testing.T) {
-	bundlePath := createBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
+	bundlePath := testutil.CreateBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
 	registryHost := startLocalTLSRegistry(t)
 	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
 
@@ -162,7 +163,7 @@ func TestPushPull_RoundTrip(t *testing.T) {
 	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
 
 	// create the bundle from test data.
-	originalPath := createBundleFromTestData(t, "bundles/create/init", arch)
+	originalPath := testutil.CreateBundleFromTestData(t, "bundles/create/init", arch)
 	assertValidBundleStructure(t, originalPath)
 
 	// push the bundle to the local registry.
@@ -189,7 +190,7 @@ func TestPushPull_RoundTrip(t *testing.T) {
 }
 
 func TestRemoveCommand_Integration(t *testing.T) {
-	bundlePath := testDataPath(t, "bundles/deploy/init")
+	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
 	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	// Simulate user declining the removal via --prompt
@@ -206,7 +207,7 @@ func TestRemoveCommand_Integration(t *testing.T) {
 }
 
 func TestRemoveCommand_WithBundleFile_Integration(t *testing.T) {
-	bundlePath := testDataPath(t, "bundles/deploy/init/bundle.uds.hcl")
+	bundlePath := testutil.TestDataPath("bundles/deploy/init/bundle.uds.hcl")
 
 	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	in.WriteString("n\n")
@@ -222,7 +223,7 @@ func TestRemoveCommand_WithBundleFile_Integration(t *testing.T) {
 }
 
 func TestRemoveCommand_PackagesFlag_Integration(t *testing.T) {
-	bundlePath := testDataPath(t, "bundles/deploy/init")
+	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
 	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	in.WriteString("n\n")
@@ -257,7 +258,7 @@ func TestRemoveCommand_HelpOutput_Integration(t *testing.T) {
 }
 
 func TestRemoveCommand_CustomDirWithPackages_Integration(t *testing.T) {
-	bundlePath := testDataPath(t, "bundles/deploy/init")
+	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
 	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	in.WriteString("n\n")

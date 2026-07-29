@@ -19,10 +19,11 @@ import (
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	bundlecmd "github.com/defenseunicorns/uds-cli/pkg/cmd/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/tests/testutil"
 )
 
 func TestReconfigure_LocalTarball(t *testing.T) {
-	outPath := createBundleFromTestData(t, "bundles/create/init-with-defaults", runtime.GOARCH)
+	outPath := testutil.CreateBundleFromTestData(t, "bundles/create/init-with-defaults", runtime.GOARCH)
 	allPaths, small := assertValidBundleStructure(t, outPath)
 
 	// Original has defaults.
@@ -88,7 +89,7 @@ func TestReconfigure_LocalTarball(t *testing.T) {
 }
 
 func TestReconfigure_CustomSuffix(t *testing.T) {
-	outPath := createBundleFromTestData(t, "bundles/create/init-with-defaults", runtime.GOARCH)
+	outPath := testutil.CreateBundleFromTestData(t, "bundles/create/init-with-defaults", runtime.GOARCH)
 
 	newDefaultsPath := filepath.Join(t.TempDir(), "defaults.uds.hcl")
 	require.NoError(t, os.WriteFile(newDefaultsPath, []byte(`variables = { env = "staging" }`), 0o600))
@@ -117,7 +118,7 @@ func TestReconfigure_CustomSuffix(t *testing.T) {
 
 func TestReconfigure_InsertsDefaultsWhenOriginalHadNone(t *testing.T) {
 	// init bundle has no defaults.uds.hcl.
-	outPath := createBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
+	outPath := testutil.CreateBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
 
 	newDefaultsPath := filepath.Join(t.TempDir(), "defaults.uds.hcl")
 	require.NoError(t, os.WriteFile(newDefaultsPath, []byte(`variables = { inserted = true }`), 0o600))
@@ -152,7 +153,7 @@ func TestReconfigure_OCI(t *testing.T) {
 	hostPort := startLocalRegistry(t)
 
 	// Create a bundle and push it to the local registry.
-	outPath := createBundleFromTestData(t, "bundles/create/init-with-defaults", runtime.GOARCH)
+	outPath := testutil.CreateBundleFromTestData(t, "bundles/create/init-with-defaults", runtime.GOARCH)
 
 	pushRef := hostPort + "/test/reconfigure-oci:v1.0.0"
 	streams, _, _, _ := iostreams.NewTestIOStreams()

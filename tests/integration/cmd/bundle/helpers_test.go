@@ -11,8 +11,6 @@ import (
 	"io"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -150,19 +148,6 @@ func bundleDefinitionContainsLayerTitle(t *testing.T, allPaths map[string]bool, 
 	return false
 }
 
-// testDataPath returns the absolute path to a file under tests/test_data/.
-func testDataPath(t *testing.T, relPath string) string {
-	t.Helper()
-	_, thisFile, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("cannot determine test file location")
-	}
-	// thisFile is tests/integration/cmd/bundle/helpers_test.go
-	// project root is 4 directories up
-	root := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..")
-	return filepath.Join(root, "tests", "test_data", relPath)
-}
-
 // startLocalRegistry starts an in-memory OCI registry and returns its host (host:port).
 func startLocalRegistry(t *testing.T) string {
 	t.Helper()
@@ -260,18 +245,4 @@ func assertHasReconfiguredAnnotation(t *testing.T, small map[string][]byte) {
 		return
 	}
 	t.Fatal("bundle definition manifest not found")
-}
-
-// udsCLIPath returns the path to the built UDS CLI binary.
-// Skips the test if UDS_CLI_PATH is not set.
-func udsCLIPath(t *testing.T) string {
-	t.Helper()
-	path := os.Getenv("UDS_CLI_PATH")
-	if path == "" {
-		t.Skip("UDS_CLI_PATH not set — run via 'maru run test:integration'")
-	}
-	if _, err := os.Stat(path); err != nil {
-		t.Fatalf("UDS_CLI_PATH binary not found at %s: %v", path, err)
-	}
-	return path
 }

@@ -28,30 +28,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/defenseunicorns/uds-cli/tests/testutil"
 )
-
-// checkDockerRunning verifies Docker is running.
-func checkDockerRunning(t *testing.T) {
-	t.Helper()
-	cmd := exec.Command("docker", "info")
-	if err := cmd.Run(); err != nil {
-		t.Skip("Docker is not running — deploy tests require Docker for k3d")
-	}
-}
-
-// deleteK3dCluster deletes the k3d cluster by name.
-func deleteK3dCluster(t *testing.T, clusterName string) {
-	t.Helper()
-	t.Logf("Cleaning up k3d cluster: %s", clusterName)
-
-	cmd := exec.Command("k3d", "cluster", "delete", clusterName)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		t.Logf("Warning: failed to delete k3d cluster %s: %v", clusterName, err)
-	}
-}
 
 // DeploySuite is a testify suite for deploy integration tests.
 // TearDownTest runs automatically after every test method, ensuring the
@@ -64,12 +43,12 @@ type DeploySuite struct {
 
 // SetupSuite resolves the UDS CLI binary path and builds shared test prerequisites once for the whole suite.
 func (s *DeploySuite) SetupSuite() {
-	s.uds = udsCLIPath(s.T())
+	s.uds = testutil.UDSCLIPath(s.T(), "run via 'maru run test:integration'")
 
 	// Pre-build the podinfo Zarf package for the variables bundle test. This will be cleaned up in the TearDownSuite.
 	arch := runtime.GOARCH
-	varsBundleDir := testDataPath(s.T(), "bundles/deploy/variables")
-	buildZarfPackage(s.T(), s.uds, testDataPath(s.T(), "packages/podinfo"), varsBundleDir, arch)
+	varsBundleDir := testutil.TestDataPath("bundles/deploy/variables")
+	buildZarfPackage(s.T(), s.uds, testutil.TestDataPath("packages/podinfo"), varsBundleDir, arch)
 	s.podinfoZarfPkg = filepath.Join(varsBundleDir, "zarf-package-podinfo-"+arch+"-0.1.0.tar.zst")
 }
 
@@ -82,8 +61,8 @@ func (s *DeploySuite) TearDownSuite() {
 
 // TearDownTest runs automatically after every test in the suite.
 func (s *DeploySuite) TearDownTest() {
-	deleteK3dCluster(s.T(), "uds")
-	deleteK3dCluster(s.T(), "uds-vars-test")
+	testutil.DeleteK3dCluster(s.T(), "uds")
+	testutil.DeleteK3dCluster(s.T(), "uds-vars-test")
 }
 
 // TestDeploySuite is the entry point that runs the suite.
@@ -100,12 +79,12 @@ func TestDeploySuite(t *testing.T) {
 // Note: This test uses the Zarf Go library (vendored) for package deployment.
 // No Zarf CLI installation is required.
 func (s *DeploySuite) TestDeployInitBundle() {
-	checkDockerRunning(s.T())
+	testutil.CheckDockerRunning(s.T(), "Docker is not running; deploy tests require Docker for k3d")
 
-	bundlePath := testDataPath(s.T(), "bundles/deploy/init")
+	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
 	// Delete any existing cluster with the same name before deploying
-	deleteK3dCluster(s.T(), "uds")
+	testutil.DeleteK3dCluster(s.T(), "uds")
 
 	// 1. Deploy the init bundle using the built binary (non-interactive by default)
 	s.T().Log("Deploying init bundle...")
@@ -120,7 +99,7 @@ func (s *DeploySuite) TestDeployInitBundle() {
 	// 2. Verify the cluster is reachable and Zarf components are deployed
 	// Using client-go instead of kubectl
 	s.T().Log("Verifying cluster state using client-go...")
-	k8s := NewK8sClient(s.T())
+	k8s := testutil.NewK8sClientOrSkip(s.T())
 
 	// 2a. Verify zarf namespace exists
 	k8s.AssertNamespaceExists("zarf")
@@ -161,7 +140,7 @@ func (s *DeploySuite) TestDeployCommand_PackagesFlagInHelp() {
 // TestDeployCommand_InvalidPackagesFlag verifies that specifying a non-existent
 // package name via --packages fails with a clear error, without requiring a cluster.
 func (s *DeploySuite) TestDeployCommand_InvalidPackagesFlag() {
-	bundlePath := testDataPath(s.T(), "bundles/deploy/init")
+	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
 	cmd := exec.Command(s.uds, "bundle", "deploy", bundlePath, "--packages", "nonexistent")
 	output, err := cmd.CombinedOutput()
@@ -176,7 +155,7 @@ func (s *DeploySuite) TestDeployCommand_InvalidPackagesFlag() {
 // runs before (and independently of) the confirmation prompt, so the prompt
 // never participates in the rejection.
 func (s *DeploySuite) TestDeployCommand_InvalidPackagesFlagWithPromptDeclined() {
-	bundlePath := testDataPath(s.T(), "bundles/deploy/init")
+	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
 	cmd := exec.Command(s.uds, "bundle", "deploy", bundlePath, "--packages", "nonexistent", "--prompt")
 	// "n" would decline the prompt, but validation rejects --packages first, so this
@@ -192,7 +171,7 @@ func (s *DeploySuite) TestDeployCommand_InvalidPackagesFlagWithPromptDeclined() 
 // TestDeployCommand_DisplaysPreview verifies that deploy command shows bundle preview
 // before prompting for confirmation when --prompt is used.
 func (s *DeploySuite) TestDeployCommand_DisplaysPreview() {
-	bundlePath := testDataPath(s.T(), "bundles/deploy/init")
+	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
 	// Use --prompt to enable interactive mode, pipe "n\n" to decline the deployment
 	cmd := exec.Command(s.uds, "bundle", "deploy", bundlePath, "--prompt")
@@ -215,7 +194,7 @@ func (s *DeploySuite) TestDeployCommand_DisplaysPreview() {
 // TestDeployCommand_CancellationDoesNotDeploy verifies that declining the confirmation
 // prompt prevents the deployment from starting when --prompt is used.
 func (s *DeploySuite) TestDeployCommand_CancellationDoesNotDeploy() {
-	bundlePath := testDataPath(s.T(), "bundles/deploy/init")
+	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
 	// Use --prompt to enable interactive mode, pipe "n\n" to decline the deployment
 	cmd := exec.Command(s.uds, "bundle", "deploy", bundlePath, "--prompt")
@@ -236,7 +215,7 @@ func (s *DeploySuite) TestDeployCommand_CancellationDoesNotDeploy() {
 // mode proceeds without showing a confirmation prompt. The deploy will fail because
 // there is no cluster, but the output should show deployment starting without a prompt.
 func (s *DeploySuite) TestDeployCommand_NonInteractiveDefault() {
-	bundlePath := testDataPath(s.T(), "bundles/deploy/init")
+	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
 	// No --prompt flag, no stdin - non-interactive by default
 	cmd := exec.Command(s.uds, "bundle", "deploy", bundlePath)
@@ -263,7 +242,7 @@ func (s *DeploySuite) TestDeployCommand_ConfigFlagInHelp() {
 // TestDeployCommand_InvalidConfigPath verifies that a non-existent --config path
 // fails at the validation phase without requiring a cluster.
 func (s *DeploySuite) TestDeployCommand_InvalidConfigPath() {
-	bundlePath := testDataPath(s.T(), "bundles/deploy/init")
+	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
 	cmd := exec.Command(s.uds, "bundle", "deploy", bundlePath, "--config", "/nonexistent/config.uds.hcl")
 	output, err := cmd.CombinedOutput()
@@ -283,7 +262,7 @@ func (s *DeploySuite) TestDeployCommand_InvalidConfigSyntax() {
 		s.T().Fatalf("failed to write invalid config: %v", err)
 	}
 
-	bundlePath := testDataPath(s.T(), "bundles/deploy/init")
+	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
 	cmd := exec.Command(s.uds, "bundle", "deploy", bundlePath, "--config", invalidConfig)
 	output, err := cmd.CombinedOutput()
@@ -297,8 +276,8 @@ func (s *DeploySuite) TestDeployCommand_InvalidConfigSyntax() {
 // config.uds.hcl flow through values_files templating without errors. Deploy proceeds
 // past templating; later cluster/registry-access failure is tolerated.
 func (s *DeploySuite) TestDeployCommand_ListVariableTemplating() {
-	bundlePath := testDataPath(s.T(), "bundles/deploy/variables")
-	configPath := testDataPath(s.T(), "bundles/deploy/variables/config.uds.hcl")
+	bundlePath := testutil.TestDataPath("bundles/deploy/variables")
+	configPath := testutil.TestDataPath("bundles/deploy/variables/config.uds.hcl")
 
 	cmd := exec.Command(s.uds, "bundle", "deploy", bundlePath, "--config", configPath)
 	output, _ := cmd.CombinedOutput()
@@ -325,10 +304,10 @@ func (s *DeploySuite) TestDeployCommand_ListVariableTemplating() {
 // referencing an undefined variable fails with missingkey=error before any registry
 // or cluster access is attempted.
 func (s *DeploySuite) TestDeployCommand_MissingTemplateVariable() {
-	bundlePath := testDataPath(s.T(), "bundles/deploy/variables")
+	bundlePath := testutil.TestDataPath("bundles/deploy/variables")
 	// config-missing-var.uds.hcl has other_var but not cluster_name,
 	// so k3d.yaml (which uses {{ .vars.cluster_name }}) should fail at template time.
-	configPath := testDataPath(s.T(), "bundles/deploy/variables/config-missing-var.uds.hcl")
+	configPath := testutil.TestDataPath("bundles/deploy/variables/config-missing-var.uds.hcl")
 
 	cmd := exec.Command(s.uds, "bundle", "deploy", bundlePath, "--config", configPath)
 	output, err := cmd.CombinedOutput()
@@ -343,7 +322,7 @@ func (s *DeploySuite) TestDeployCommand_MissingTemplateVariable() {
 // config (1 replica, service disabled, custom annotations/tolerations), and
 // validates the resulting cluster state.
 func (s *DeploySuite) TestDeployVariablesBundleWithPodinfo() {
-	checkDockerRunning(s.T())
+	testutil.CheckDockerRunning(s.T(), "Docker is not running; deploy tests require Docker for k3d")
 
 	arch := runtime.GOARCH
 
@@ -352,11 +331,11 @@ func (s *DeploySuite) TestDeployVariablesBundleWithPodinfo() {
 	valuesDir := filepath.Join(bundleTmpDir, "values")
 	require.NoError(s.T(), os.MkdirAll(valuesDir, 0o755))
 
-	srcValuesDir := testDataPath(s.T(), "bundles/deploy/variables/values")
+	srcValuesDir := testutil.TestDataPath("bundles/deploy/variables/values")
 	require.NoError(s.T(), os.CopyFS(valuesDir, os.DirFS(srcValuesDir)))
 
 	// Build the podinfo Zarf package for the current arch directly into the bundle dir.
-	buildZarfPackage(s.T(), s.uds, testDataPath(s.T(), "packages/podinfo"), bundleTmpDir, arch)
+	buildZarfPackage(s.T(), s.uds, testutil.TestDataPath("packages/podinfo"), bundleTmpDir, arch)
 
 	// Bundle: uds-k3d creates the cluster, init provides zarf-state, podinfo deploys the app.
 	// sys.arch resolves to runtime.GOARCH automatically — no substitution required.
@@ -390,7 +369,7 @@ package "podinfo" {
 `
 	require.NoError(s.T(), os.WriteFile(filepath.Join(bundleTmpDir, "bundle.uds.hcl"), []byte(bundleHCL), 0o644))
 
-	configPath := testDataPath(s.T(), "bundles/deploy/variables/full-config.uds.hcl")
+	configPath := testutil.TestDataPath("bundles/deploy/variables/full-config.uds.hcl")
 
 	s.T().Log("Deploying variables bundle with podinfo...")
 	cmd := exec.Command(s.uds, "bundle", "deploy", bundleTmpDir, "--config", configPath)
@@ -399,7 +378,7 @@ package "podinfo" {
 	cmd.Env = os.Environ()
 	require.NoError(s.T(), cmd.Run(), "bundle deploy should succeed")
 
-	k8s := NewK8sClient(s.T())
+	k8s := testutil.NewK8sClientOrSkip(s.T())
 
 	k8s.WaitForDeploymentReady("podinfo", "podinfo", 5*time.Minute)
 
@@ -424,17 +403,17 @@ package "podinfo" {
 // that configuration is applied using embedded defaults and the specified config
 // file according to precedence order.
 func (s *DeploySuite) TestDeployFromArtifact() {
-	checkDockerRunning(s.T())
+	testutil.CheckDockerRunning(s.T(), "Docker is not running; deploy tests require Docker for k3d")
 
 	// Build bundle artifact from variables test data (Zarf package already built in SetupSuite).
-	artifactPath := createBundleFromTestData(s.T(), "bundles/deploy/variables", runtime.GOARCH)
+	artifactPath := testutil.CreateBundleFromTestData(s.T(), "bundles/deploy/variables", runtime.GOARCH)
 
 	// Move the artifact into a clean temp dir to verify deploy works without bundle source files.
 	deployDir := s.T().TempDir()
 	deployArtifact := filepath.Join(deployDir, filepath.Base(artifactPath))
 	require.NoError(s.T(), os.Rename(artifactPath, deployArtifact))
 
-	configPath := testDataPath(s.T(), "bundles/deploy/variables/config.uds.hcl")
+	configPath := testutil.TestDataPath("bundles/deploy/variables/config.uds.hcl")
 
 	cmd := exec.Command(s.uds, "bundle", "deploy", deployArtifact, "--config", configPath)
 	cmd.Stdout = os.Stdout
@@ -442,7 +421,7 @@ func (s *DeploySuite) TestDeployFromArtifact() {
 	cmd.Env = os.Environ()
 	require.NoError(s.T(), cmd.Run(), "bundle deploy from artifact should succeed")
 
-	k8s := NewK8sClient(s.T())
+	k8s := testutil.NewK8sClientOrSkip(s.T())
 
 	k8s.WaitForDeploymentReady("podinfo", "podinfo", 5*time.Minute)
 
