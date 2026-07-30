@@ -204,22 +204,18 @@ func TestCreateCopyOptsImageIndexes(t *testing.T) {
 		},
 	}
 	indexDesc := pushTestJSON(t, ctx, store, ocispec.MediaTypeImageIndex, index)
-	layersToPull := []ocispec.Descriptor{indexDesc, targetManifest, otherManifest}
-	findSuccessors := CreateCopyOpts(layersToPull, 1).FindSuccessors
 
 	t.Run("bundle root selects target architecture", func(t *testing.T) {
+		findSuccessors := CreateCopyOpts([]ocispec.Descriptor{targetManifest}, 1).FindSuccessors
 		successors, err := findSuccessors(ctx, store, indexDesc)
 		require.NoError(t, err)
 		require.Equal(t, []ocispec.Descriptor{targetManifest}, successors)
 	})
 
-	t.Run("embedded image index preserves all manifests", func(t *testing.T) {
-		embeddedIndexDesc := indexDesc
-		embeddedIndexDesc.Annotations = map[string]string{
-			ocispec.AnnotationTitle: "images/blobs/" + indexDesc.Digest.Encoded(),
-		}
-
-		successors, err := findSuccessors(ctx, store, embeddedIndexDesc)
+	t.Run("unannotated embedded image index preserves all manifests", func(t *testing.T) {
+		layersToPull := []ocispec.Descriptor{indexDesc, targetManifest, otherManifest}
+		findSuccessors := CreateCopyOpts(layersToPull, 1).FindSuccessors
+		successors, err := findSuccessors(ctx, store, indexDesc)
 		require.NoError(t, err)
 		require.ElementsMatch(t, []ocispec.Descriptor{targetManifest, otherManifest}, successors)
 	})

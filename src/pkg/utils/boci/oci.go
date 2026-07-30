@@ -80,20 +80,21 @@ func ToOCIRemote(t any, mediaType string, remote *oci.OrasRemote) (*ocispec.Desc
 func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) oras.CopyOptions {
 	var copyOpts oras.CopyOptions
 	copyOpts.Concurrency = concurrency
-	var shas []string
+	requestedDigests := map[string]struct{}{}
 	for _, layer := range layersToPull {
-		if len(layer.Digest.String()) > 0 {
-			shas = append(shas, layer.Digest.Encoded())
+		if layer.Digest != "" {
+			requestedDigests[layer.Digest.String()] = struct{}{}
 		}
 	}
 	copyOpts.FindSuccessors = func(ctx context.Context, fetcher content.Fetcher, desc ocispec.Descriptor) ([]ocispec.Descriptor, error) {
 		var nodes []ocispec.Descriptor
 		_, hasTitleAnnotation := desc.Annotations[ocispec.AnnotationTitle]
+		_, isRequested := requestedDigests[desc.Digest.String()]
 
-		if desc.MediaType == ocispec.MediaTypeImageIndex && !hasTitleAnnotation {
+		if desc.MediaType == ocispec.MediaTypeImageIndex && !isRequested {
 			// This block is triggered when ORAS initially hits the OCI repo and gets the image index (index.json)
-			// and it grabs the bundle root manifest corresponding to the proper arch
-			// todo: refactor to solve the arch problem using the shas var above instead of checking here
+			// and it grabs the bundle root manifest corresponding to the proper arch. Embedded image indexes
+			// are included in requestedDigests and must retain all requested platform manifests.
 
 			// get contents of the index.json from its desc
 			successors, err := content.Successors(ctx, fetcher, desc)
@@ -103,7 +104,6 @@ func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) oras.Cop
 
 			// grab the proper bundle root manifest, based on arch
 			for _, node := range successors {
-				// todo: remove this check once we have a better way to handle arch
 				if node.Platform.Architecture == config.GetArch() {
 					return []ocispec.Descriptor{node}, nil
 				}
@@ -135,7 +135,8 @@ func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) oras.Cop
 		}
 		var ret []ocispec.Descriptor
 		for _, node := range nodes {
-			if node.Size != 0 && slices.Contains(shas, node.Digest.Encoded()) {
+			_, isRequested := requestedDigests[node.Digest.String()]
+			if node.Size != 0 && isRequested {
 				ret = append(ret, node)
 			}
 		}

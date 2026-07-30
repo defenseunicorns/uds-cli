@@ -251,15 +251,83 @@ func TestRemoteBundleWithMultiPlatformImageIndex(t *testing.T) {
 		}
 	}
 	require.Equal(t, ocispec.MediaTypeImageIndex, imageDesc.MediaType)
+	imageGraph := imageDescriptorGraph(t, filepath.Join(decompressedPkg, "images", "blobs", "sha256"), imageDesc)
+	var imageArchitectures []string
+	for _, desc := range imageIndexManifests(t, filepath.Join(decompressedPkg, "images", "blobs", "sha256"), imageDesc) {
+		if desc.Platform != nil {
+			imageArchitectures = append(imageArchitectures, desc.Platform.Architecture)
+		}
+	}
+	require.Contains(t, imageArchitectures, "amd64")
+	require.Contains(t, imageArchitectures, "arm64")
 
 	runCmd(t, fmt.Sprintf("zarf package publish %s oci://localhost:888 --plain-http --oci-concurrency=10 -l debug", pkg))
 
 	bundleDir := "src/test/bundles/23-multi-platform-image"
 	bundleRef := "oci://localhost:888/multi-platform-image:0.0.1"
+	bundleTarballName := fmt.Sprintf("uds-bundle-multi-platform-image-%s-0.0.1.tar.zst", e2e.Arch)
+	pulledBundlePath := filepath.Join("build", bundleTarballName)
+	defer e2e.CleanFiles(pulledBundlePath)
 	runCmd(t, fmt.Sprintf("create %s -o oci://localhost:888 --confirm --insecure -a %s", bundleDir, e2e.Arch))
 
 	runCmd(t, fmt.Sprintf("deploy %s --insecure --confirm", bundleRef))
 	runCmd(t, fmt.Sprintf("remove %s --insecure --confirm", bundleRef))
+
+	pull(t, bundleRef, bundleTarballName)
+	pulledBundle := t.TempDir()
+	runCmd(t, fmt.Sprintf("zarf tools archiver decompress %s %s", pulledBundlePath, pulledBundle))
+	pulledBlobsDir := filepath.Join(pulledBundle, "blobs", "sha256")
+	for _, desc := range imageGraph {
+		blobPath := filepath.Join(pulledBlobsDir, desc.Digest.Encoded())
+		require.FileExists(t, blobPath, "missing %s blob for %s", desc.MediaType, desc.Digest)
+		shasMatch(t, blobPath, desc.Digest.Encoded())
+	}
+
+	runCmd(t, fmt.Sprintf("deploy %s --confirm", pulledBundlePath))
+	runCmd(t, fmt.Sprintf("remove %s --confirm", pulledBundlePath))
+}
+
+func imageDescriptorGraph(t *testing.T, blobsDir string, root ocispec.Descriptor) []ocispec.Descriptor {
+	t.Helper()
+
+	var descriptors []ocispec.Descriptor
+	seen := map[string]struct{}{}
+	var walk func(ocispec.Descriptor)
+	walk = func(desc ocispec.Descriptor) {
+		if _, ok := seen[desc.Digest.String()]; ok {
+			return
+		}
+		seen[desc.Digest.String()] = struct{}{}
+		descriptors = append(descriptors, desc)
+
+		switch desc.MediaType {
+		case ocispec.MediaTypeImageIndex:
+			for _, manifest := range imageIndexManifests(t, blobsDir, desc) {
+				walk(manifest)
+			}
+		case ocispec.MediaTypeImageManifest:
+			manifestBytes, err := os.ReadFile(filepath.Join(blobsDir, desc.Digest.Encoded()))
+			require.NoError(t, err)
+			var manifest ocispec.Manifest
+			require.NoError(t, json.Unmarshal(manifestBytes, &manifest))
+			walk(manifest.Config)
+			for _, layer := range manifest.Layers {
+				walk(layer)
+			}
+		}
+	}
+	walk(root)
+	return descriptors
+}
+
+func imageIndexManifests(t *testing.T, blobsDir string, desc ocispec.Descriptor) []ocispec.Descriptor {
+	t.Helper()
+
+	indexBytes, err := os.ReadFile(filepath.Join(blobsDir, desc.Digest.Encoded()))
+	require.NoError(t, err)
+	var index ocispec.Index
+	require.NoError(t, json.Unmarshal(indexBytes, &index))
+	return index.Manifests
 }
 
 func TestBundleWithGitRepo(t *testing.T) {
