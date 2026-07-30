@@ -80,3 +80,58 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN}}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.brew-tap-token.outputs.token }}
+
+  packages:
+    name: Publish Linux packages (${{ matrix.arch }})
+    needs: push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup golang
+        uses: ./.github/actions/golang
+
+      - name: Install nFPM
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0
+
+      - name: Download Linux binary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "${GITHUB_REF_NAME}" \
+            --pattern "uds-cli_${GITHUB_REF_NAME}_Linux_${{ matrix.arch }}" \
+            --dir build
+
+      - name: Build Linux packages
+        env:
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          binary="build/uds-cli_${GITHUB_REF_NAME}_Linux_${GOARCH}"
+          version="${GITHUB_REF_NAME#v}"
+
+          BINARY="${binary}" VERSION="${version}" nfpm package \
+            --config nfpm.yaml \
+            --packager deb \
+            --target "build/uds-cli-${GITHUB_REF_NAME}-${GOARCH}.deb"
+          BINARY="${binary}" VERSION="${version}" nfpm package \
+            --config nfpm.yaml \
+            --packager rpm \
+            --target "build/uds-cli-${GITHUB_REF_NAME}-${GOARCH}.rpm"
+
+      - name: Publish Linux packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" \
+            "build/uds-cli-${GITHUB_REF_NAME}-${GOARCH}.deb" \
+            "build/uds-cli-${GITHUB_REF_NAME}-${GOARCH}.rpm" \
+            --clobber

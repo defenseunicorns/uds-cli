@@ -1,0 +1,20 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+name: uds-cli
+arch: "${GOARCH}"
+platform: linux
+version: "${VERSION}"
+section: default
+maintainer: Defense Unicorns <support@defenseunicorns.com>
+description: |
+  CLI for creating, publishing, and deploying UDS bundles.
+vendor: Defense Unicorns
+homepage: https://github.com/defenseunicorns/uds-cli
+license: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+contents:
+  - src: "${BINARY}"
+    dst: /usr/bin/uds
+    expand: true
+    file_info:
+      mode: 0755
