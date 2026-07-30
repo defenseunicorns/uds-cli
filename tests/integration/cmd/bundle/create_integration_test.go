@@ -104,12 +104,21 @@ func TestCreate_DefaultsConfig_Applied(t *testing.T) {
 
 	// Variables from defaults.uds.hcl
 	require.NotNil(t, resolved.Variables)
-	assert.Equal(t, "a-default-value", resolved.Variables["a"])
+	assert.Equal(t, "from-file", resolved.Variables["a"])
 	assert.Equal(t, float64(0), resolved.Variables["b"])
 	c, ok := resolved.Variables["c"].(bundlepkg.Variables)
 	require.True(t, ok)
 	assert.Equal(t, true, c["d"])
 	assert.Equal(t, false, c["e"])
+
+	artifactPath := filepath.Join(dir, "uds-bundle-defaults-test-"+runtime.GOARCH+"-0.1.0.tar.zst")
+	_, small := assertValidBundleStructure(t, artifactPath)
+	storedDefaults := extractLayerFromBundle(t, small, bundlepkg.BundleDefaultsFileName)
+	assert.NotContains(t, string(storedDefaults), "file(")
+	assert.Contains(t, string(storedDefaults), "from-file")
+	storedBundle := extractLayerFromBundle(t, small, bundlepkg.BundleFileName)
+	assert.NotContains(t, string(storedBundle), "file(")
+	assert.Contains(t, string(storedBundle), "description from file")
 }
 
 // TestCreate_DefaultsConfig_IncludedAsOCILayer verifies that when defaults.uds.hcl exists alongside

@@ -11,7 +11,7 @@ uds {
 
 metadata {
   name        = "defaults-test"
-  description = "Bundle for testing defaults.uds.hcl"
+  description = file("description.txt")
   version     = "0.1.0"
 }
 

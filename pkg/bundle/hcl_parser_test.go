@@ -4,6 +4,7 @@
 package bundle
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -1125,4 +1126,239 @@ variables = {
 			}
 		})
 	}
+}
+
+func TestParseBundleConfig_FileFunction(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.uds.hcl")
+	relativePath := filepath.Join(dir, "config-value.txt")
+	require.NoError(t, os.WriteFile(relativePath, []byte("from file"), tmpFilePerm))
+
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+options {
+  tmp_dir = file("config-value.txt")
+}
+
+variables = {
+  direct = file("config-value.txt")
+  nested = {
+    rendered = "value: ${file("config-value.txt")}"
+  }
+}
+`), tmpFilePerm))
+
+	cfg, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleConfig(t.Context(), configPath)
+	require.NoError(t, err)
+	require.NotNil(t, cfg.Options)
+	assert.Equal(t, "from file", cfg.Options.TmpDir)
+	assert.Equal(t, "from file", cfg.Variables["direct"])
+	nested, ok := cfg.Variables["nested"].(Variables)
+	require.True(t, ok)
+	assert.Equal(t, "value: from file", nested["rendered"])
+}
+
+func TestParseBundleConfig_FileFunctionErrors(t *testing.T) {
+	dir := t.TempDir()
+	invalidUTF8Path := filepath.Join(dir, "invalid.txt")
+	require.NoError(t, os.WriteFile(invalidUTF8Path, []byte{0xff}, tmpFilePerm))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "a-directory"), tempDirPerm))
+
+	tests := []struct {
+		name    string
+		expr    string
+		wantErr string
+	}{
+		{
+			name:    "non-string argument",
+			expr:    "file([])",
+			wantErr: "Invalid function argument",
+		},
+		{
+			name:    "missing file",
+			expr:    `file("missing.txt")`,
+			wantErr: "stat file",
+		},
+		{
+			name:    "directory",
+			expr:    `file("a-directory")`,
+			wantErr: "not a regular file",
+		},
+		{
+			name:    "invalid UTF-8",
+			expr:    `file("invalid.txt")`,
+			wantErr: "not valid UTF-8",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configPath := filepath.Join(dir, "config.uds.hcl")
+			require.NoError(t, os.WriteFile(configPath, []byte("variables = { value = "+tt.expr+" }"), tmpFilePerm))
+
+			_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleConfig(t.Context(), configPath)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
+func TestParseBundleAndDefaultsSupportFileFunction(t *testing.T) {
+	tests := []struct {
+		name    string
+		file    string
+		content string
+		parse   func(context.Context, string) error
+	}{
+		{
+			name: "bundle direct expression",
+			file: BundleFileName,
+			content: `uds { bundle_api_version = "uds.dev/v1alpha1" }
+metadata { name = file("name.txt") }
+package "example" { source = "oci://example.com/package:v1" }`,
+			parse: func(ctx context.Context, path string) error {
+				_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(ctx, path)
+				return err
+			},
+		},
+		{
+			name: "bundle local expression",
+			file: BundleFileName,
+			content: `locals { name = file("name.txt") }
+uds { bundle_api_version = "uds.dev/v1alpha1" }
+metadata { name = local.name }
+package "example" { source = "oci://example.com/package:v1" }`,
+			parse: func(ctx context.Context, path string) error {
+				_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(ctx, path)
+				return err
+			},
+		},
+		{
+			name:    "defaults nested template expression",
+			file:    BundleDefaultsFileName,
+			content: `variables = { nested = { value = "${file("value.txt")}" } }`,
+			parse: func(ctx context.Context, path string) error {
+				_, err := ParseDefaults(ctx, path)
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), tt.file)
+			requiredFile := "name.txt"
+			if tt.file == BundleDefaultsFileName {
+				requiredFile = "value.txt"
+			}
+			require.NoError(t, os.WriteFile(filepath.Join(filepath.Dir(path), requiredFile), []byte("example"), tmpFilePerm))
+			require.NoError(t, os.WriteFile(path, []byte(tt.content), tmpFilePerm))
+
+			err := tt.parse(t.Context(), path)
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestMaterializeBundleFileFunctions(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "name.txt"), []byte("from\nfile\""), tmpFilePerm))
+	path := filepath.Join(dir, BundleFileName)
+	require.NoError(t, os.WriteFile(path, []byte(`
+uds { bundle_api_version = "uds.dev/v1alpha1" }
+metadata { name = file("name.txt") }
+package "example" { source = "oci://example.com/package:v1" }
+`), tmpFilePerm))
+
+	p := NewHCLParser("", iostreams.IOStreams{})
+	_, materialized, err := p.parseAndMaterializeBundleFile(t.Context(), path)
+	require.NoError(t, err)
+	assert.NotContains(t, string(materialized), "file(")
+	_, err = p.ParseBundleBytes(t.Context(), materialized)
+	require.NoError(t, err)
+}
+
+func TestMaterializeBundleFileFunctionsPreservesSourceAfterReplacement(t *testing.T) {
+	dir := t.TempDir()
+	description := strings.Repeat("materialized description ", 4)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "description.txt"), []byte(description), tmpFilePerm))
+	path := filepath.Join(dir, BundleFileName)
+	require.NoError(t, os.WriteFile(path, []byte(`
+uds { bundle_api_version = "uds.dev/v1alpha1" }
+metadata {
+  name = "example"
+  description = file("description.txt")
+  version = "1.2.3"
+}
+package "example" { source = "oci://example.com/package:v1" }
+`), tmpFilePerm))
+
+	p := NewHCLParser("", iostreams.IOStreams{})
+	_, materialized, err := p.parseAndMaterializeBundleFile(t.Context(), path)
+	require.NoError(t, err)
+	parsed, err := p.ParseBundleBytes(t.Context(), materialized)
+	require.NoError(t, err)
+	assert.Equal(t, description, parsed.Metadata.Description)
+	assert.Equal(t, "1.2.3", parsed.Metadata.Version)
+	require.Len(t, parsed.Packages, 1)
+	assert.Equal(t, "oci://example.com/package:v1", parsed.Packages[0].Source)
+}
+
+func TestMaterializeBundleFileFunctionsUsesSourceOrderLocalValues(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("from a"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.txt"), []byte("from b"), tmpFilePerm))
+	path := filepath.Join(dir, BundleFileName)
+	require.NoError(t, os.WriteFile(path, []byte(`
+uds { bundle_api_version = "uds.dev/v1alpha1" }
+locals {
+  path = "a.txt"
+  name = file(local.path)
+}
+locals {
+  path = "b.txt"
+}
+metadata { name = local.name }
+package "example" { source = "oci://example.com/package:v1" }
+`), tmpFilePerm))
+
+	p := NewHCLParser("", iostreams.IOStreams{})
+	bundle, materialized, err := p.parseAndMaterializeBundleFile(t.Context(), path)
+	require.NoError(t, err)
+	assert.Equal(t, "from a", bundle.Metadata.Name)
+	assert.NotContains(t, string(materialized), "file(")
+	parsed, err := p.ParseBundleBytes(t.Context(), materialized)
+	require.NoError(t, err)
+	assert.Equal(t, bundle.Metadata.Name, parsed.Metadata.Name)
+}
+
+func TestMaterializeDefaultsFilePreservesExpressionScopeAndLaziness(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, BundleDefaultsFileName)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("from file"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(path, []byte(`
+variables = {
+  values = [for name in ["a"] : file("${name}.txt")]
+  value  = false ? file("missing.txt") : "ok"
+}
+`), tmpFilePerm))
+
+	materialized, err := materializeDefaultsFile(path)
+	require.NoError(t, err)
+	assert.NotContains(t, string(materialized), "file(")
+
+	materializedPath := filepath.Join(dir, "materialized.uds.hcl")
+	require.NoError(t, os.WriteFile(materializedPath, materialized, tmpFilePerm))
+	variables, err := ParseDefaults(t.Context(), materializedPath)
+	require.NoError(t, err)
+	assert.Equal(t, []any{"from file"}, variables["values"])
+	assert.Equal(t, "ok", variables["value"])
+}
+
+func TestParseBundleBytesRejectsFileFunction(t *testing.T) {
+	_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleBytes(t.Context(), []byte(`
+uds { bundle_api_version = "uds.dev/v1alpha1" }
+metadata { name = file("name.txt") }
+package "example" { source = "oci://example.com/package:v1" }
+`))
+	require.ErrorContains(t, err, "requires a file-backed bundle source")
 }

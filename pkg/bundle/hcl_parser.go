@@ -9,14 +9,19 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path/filepath"
 	"runtime"
 	"slices"
+	"sort"
+	"unicode/utf8"
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
 // sysVars returns the cty.Value for the built-in "sys" namespace injected into
@@ -47,6 +52,76 @@ func NewHCLParser(arch string, streams iostreams.IOStreams) *HCLParser {
 	return &HCLParser{arch: arch, streams: streams}
 }
 
+// configEvalContext returns the functions available to a file-backed HCL document.
+func configEvalContext(filePath string) *hcl.EvalContext {
+	return &hcl.EvalContext{
+		Functions: map[string]function.Function{
+			"file": newFileFunction(filepath.Dir(filePath)),
+		},
+	}
+}
+
+// newFileFunction returns the file() implementation for a file-backed HCL document.
+func newFileFunction(baseDir string) function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{
+			{
+				Name: "path",
+				Type: cty.String,
+			},
+		},
+		Type: function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+			return readFileValue(baseDir, args[0].AsString())
+		},
+	})
+}
+
+func readFileValue(baseDir, path string) (cty.Value, error) {
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(baseDir, path)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return cty.NilVal, fmt.Errorf("stat file %q: %w", path, err)
+	}
+	if !info.Mode().IsRegular() {
+		return cty.NilVal, fmt.Errorf("file %q is not a regular file", path)
+	}
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return cty.NilVal, fmt.Errorf("read file %q: %w", path, err)
+	}
+	if !utf8.Valid(contents) {
+		return cty.NilVal, fmt.Errorf("file %q is not valid UTF-8", path)
+	}
+	return cty.StringVal(string(contents)), nil
+}
+
+// rejectFileFunctionWithoutSourcePath rejects file() for in-memory HCL. Unlike
+// ParseBundleFile, ParseBundleBytes has no stable directory for relative paths.
+func rejectFileFunctionWithoutSourcePath(hclFile *hcl.File, fileKind string) error {
+	body, ok := hclFile.Body.(*hclsyntax.Body)
+	if !ok {
+		return fmt.Errorf("unexpected HCL body type")
+	}
+
+	var callRange *hcl.Range
+	_ = hclsyntax.VisitAll(body, func(node hclsyntax.Node) hcl.Diagnostics {
+		call, ok := node.(*hclsyntax.FunctionCallExpr)
+		if ok && call.Name == "file" && callRange == nil {
+			rangeCopy := call.Range()
+			callRange = &rangeCopy
+		}
+		return nil
+	})
+	if callRange == nil {
+		return nil
+	}
+
+	return fmt.Errorf("file() requires a file-backed bundle source; %s cannot use file() at %s", fileKind, callRange)
+}
+
 // Compile-time check to ensure HCLParser implements Parser.
 var _ Parser = &HCLParser{}
 
@@ -68,17 +143,18 @@ func (p *HCLParser) ParseBundleConfig(_ context.Context, filePath string) (*UDSB
 	if hclDiagnostics.HasErrors() {
 		return nil, fmt.Errorf("failed to parse config HCL: %s", hclDiagnostics.Error())
 	}
+	evalContext := configEvalContext(filePath)
 
 	// Decode structured fields (options block) via gohcl; free-form content lands in Remain
 	cfg := &UDSBundleConfig{}
-	diags := gohcl.DecodeBody(hclFile.Body, nil, cfg)
+	diags := gohcl.DecodeBody(hclFile.Body, evalContext, cfg)
 	if diags.HasErrors() {
 		return nil, fmt.Errorf("failed to decode config: %s", diags.Error())
 	}
 
 	// Extract the free-form variables attribute from Remain
 	if cfg.Remain != nil {
-		vars, err := extractVariablesFromRemain(cfg.Remain)
+		vars, err := extractVariablesFromRemain(cfg.Remain, evalContext)
 		if err != nil {
 			return nil, err
 		}
@@ -91,7 +167,7 @@ func (p *HCLParser) ParseBundleConfig(_ context.Context, filePath string) (*UDSB
 // extractVariablesFromRemain extracts the optional "variables" attribute from the
 // remaining HCL body. Variables are free-form (arbitrary nesting of scalars and objects),
 // so they can't be decoded via struct tags and must be manually converted from cty.Value.
-func extractVariablesFromRemain(body hcl.Body) (Variables, error) {
+func extractVariablesFromRemain(body hcl.Body, evalContext *hcl.EvalContext) (Variables, error) {
 	schema := &hcl.BodySchema{
 		Attributes: []hcl.AttributeSchema{
 			{Name: "variables", Required: false},
@@ -108,7 +184,7 @@ func extractVariablesFromRemain(body hcl.Body) (Variables, error) {
 		return nil, nil
 	}
 
-	val, diags := attr.Expr.Value(nil)
+	val, diags := attr.Expr.Value(evalContext)
 	if diags.HasErrors() {
 		return nil, fmt.Errorf("failed to evaluate variables: %s", diags.Error())
 	}
@@ -135,7 +211,7 @@ func extractVariablesFromRemain(body hcl.Body) (Variables, error) {
 // cty.Map is intentionally not supported. HCL literal `{a=1,b=2}` always
 // produces a cty.Object, never a cty.Map; reaching the Map branch would
 // require functions like tomap() or typed inputs, neither of which our
-// parser enables (variables are evaluated with a nil EvalContext). A Map
+// parser enables. A Map
 // surfacing here is therefore a contract violation, and we let the loud-fail
 // default branch report it as an unsupported variable type.
 func ctyValueToGo(val cty.Value) (any, error) {
@@ -200,7 +276,10 @@ func ParseDefaults(_ context.Context, path string) (Variables, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot read defaults file: %w", err)
 	}
+	return parseDefaultsContent(src, path)
+}
 
+func parseDefaultsContent(src []byte, path string) (Variables, error) {
 	hclFile, diags := hclsyntax.ParseConfig(src, path, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
 		return nil, fmt.Errorf("failed to parse defaults HCL: %s", diags.Error())
@@ -224,7 +303,7 @@ func ParseDefaults(_ context.Context, path string) (Variables, error) {
 		return nil, nil
 	}
 
-	val, diags := attr.Expr.Value(nil)
+	val, diags := attr.Expr.Value(configEvalContext(path))
 	if diags.HasErrors() {
 		return nil, fmt.Errorf("failed to evaluate variables: %s", diags.Error())
 	}
@@ -254,7 +333,7 @@ func (p *HCLParser) ParseBundleFile(ctx context.Context, filePath string) (*UDSB
 	if err != nil {
 		return nil, fmt.Errorf("cannot read bundle file: %w", err)
 	}
-	return p.parseBundleContent(ctx, src, filePath)
+	return p.parseBundleContent(ctx, src, filePath, filepath.Dir(filePath), true)
 }
 
 // ParseBundleBytes parses HCL bundle content from an in-memory byte slice.
@@ -264,33 +343,162 @@ func (p *HCLParser) ParseBundleBytes(ctx context.Context, src []byte) (*UDSBundl
 	if len(src) == 0 {
 		return nil, errEmpty("src")
 	}
-	return p.parseBundleContent(ctx, src, "bundle.uds.hcl")
+	return p.parseBundleContent(ctx, src, "bundle.uds.hcl", "", false)
+}
+
+// parseAndMaterializeBundleFile reads a source bundle once, using those bytes
+// both for runtime evaluation and the self-contained artifact representation.
+func (p *HCLParser) parseAndMaterializeBundleFile(ctx context.Context, path string) (*UDSBundle, []byte, error) {
+	src, err := os.ReadFile(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot read bundle file: %w", err)
+	}
+	bundle, err := p.parseBundleContent(ctx, src, path, filepath.Dir(path), true)
+	if err != nil {
+		return nil, nil, err
+	}
+	materialized, err := p.materializeBundleFileCalls(src, path, filepath.Dir(path))
+	if err != nil {
+		return nil, nil, err
+	}
+	return bundle, materialized, nil
+}
+
+func materializeDefaultsFile(path string) ([]byte, error) {
+	src, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read defaults file: %w", err)
+	}
+	if _, err := parseDefaultsContent(src, path); err != nil {
+		return nil, err
+	}
+	return materializeFileCallExpressions(src, path, configEvalContext(path), nil)
+}
+
+func (p *HCLParser) materializeBundleFileCalls(src []byte, filename, baseDir string) ([]byte, error) {
+	funcs := map[string]function.Function{"file": newFileFunction(baseDir)}
+	hclFile, diags := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return nil, fmt.Errorf("failed to parse HCL: %s", diags.Error())
+	}
+	locals, localEvalContexts, err := p.extractLocals(hclFile, funcs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract locals: %w", err)
+	}
+	localVal := cty.EmptyObjectVal
+	if len(locals) > 0 {
+		localVal = cty.ObjectVal(locals)
+	}
+	return materializeFileCallExpressions(src, filename, &hcl.EvalContext{Variables: map[string]cty.Value{"local": localVal, "sys": sysVars(p.arch)}, Functions: funcs}, localEvalContexts)
+}
+
+func materializeFileCallExpressions(src []byte, filename string, evalCtx *hcl.EvalContext, localEvalContexts map[int]*hcl.EvalContext) ([]byte, error) {
+	hclFile, diags := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return nil, fmt.Errorf("failed to parse HCL: %s", diags.Error())
+	}
+	body, ok := hclFile.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil, fmt.Errorf("unexpected HCL body type")
+	}
+	expressions := fileCallContainingExpressions(body)
+	type replacement struct {
+		start, end int
+		value      []byte
+	}
+	replacements := make([]replacement, 0, len(expressions))
+	for _, expr := range expressions {
+		r := expr.Range()
+		exprEvalCtx := evalCtx
+		if localEvalCtx, ok := localEvalContexts[r.Start.Byte]; ok {
+			exprEvalCtx = localEvalCtx
+		}
+		value, diags := expr.Value(exprEvalCtx)
+		if diags.HasErrors() {
+			return nil, fmt.Errorf("failed to evaluate HCL expression containing file(): %s", diags.Error())
+		}
+		replacements = append(replacements, replacement{r.Start.Byte, r.End.Byte, hclwrite.TokensForValue(value).Bytes()})
+	}
+	sort.Slice(replacements, func(i, j int) bool { return replacements[i].start > replacements[j].start })
+	out := append([]byte(nil), src...)
+	for _, replacement := range replacements {
+		replaced := make([]byte, 0, len(out)-replacement.end+replacement.start+len(replacement.value))
+		replaced = append(replaced, out[:replacement.start]...)
+		replaced = append(replaced, replacement.value...)
+		out = append(replaced, out[replacement.end:]...)
+	}
+	return out, nil
+}
+
+// fileCallContainingExpressions returns attribute expressions that contain a file()
+// call. Materializing the entire expression preserves HCL's iterator scopes and
+// lazy conditional evaluation when the expression is evaluated.
+func fileCallContainingExpressions(body *hclsyntax.Body) []hcl.Expression {
+	var expressions []hcl.Expression
+	var collect func(*hclsyntax.Body)
+	collect = func(body *hclsyntax.Body) {
+		for _, attr := range body.Attributes {
+			if expressionContainsFileCall(attr.Expr) {
+				expressions = append(expressions, attr.Expr)
+			}
+		}
+		for _, block := range body.Blocks {
+			collect(block.Body)
+		}
+	}
+	collect(body)
+	return expressions
+}
+
+func expressionContainsFileCall(expr hcl.Expression) bool {
+	node, ok := expr.(hclsyntax.Node)
+	if !ok {
+		return false
+	}
+	hasFileCall := false
+	_ = hclsyntax.VisitAll(node, func(node hclsyntax.Node) hcl.Diagnostics {
+		call, ok := node.(*hclsyntax.FunctionCallExpr)
+		if ok && call.Name == "file" {
+			hasFileCall = true
+		}
+		return nil
+	})
+	return hasFileCall
 }
 
 // parseBundleContent parses HCL content using a two-pass approach: first extracting
 // and evaluating locals, then decoding the full bundle with an EvalContext containing
 // those locals. filename is used only for error message attribution.
-func (p *HCLParser) parseBundleContent(ctx context.Context, src []byte, filename string) (*UDSBundle, error) {
+func (p *HCLParser) parseBundleContent(ctx context.Context, src []byte, filename, baseDir string, allowFile bool) (*UDSBundle, error) {
 	hclFile, hclDiagnostics := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
 	if hclDiagnostics.HasErrors() {
 		return nil, fmt.Errorf("failed to parse HCL: %s", hclDiagnostics.Error())
 	}
+	if !allowFile {
+		if err := rejectFileFunctionWithoutSourcePath(hclFile, "bundle.uds.hcl"); err != nil {
+			return nil, err
+		}
+	}
 	p.streams.Debug("HCL syntax parsed successfully")
 
-	locals, err := p.extractLocals(hclFile)
+	funcs := map[string]function.Function(nil)
+	if allowFile {
+		funcs = map[string]function.Function{"file": newFileFunction(baseDir)}
+	}
+	locals, _, err := p.extractLocals(hclFile, funcs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract locals: %w", err)
+		return nil, err
 	}
 	p.streams.Debug("locals extracted", "count", len(locals))
 
-	return p.decodeBundleWithLocals(hclFile, locals)
+	return p.decodeBundleWithLocals(hclFile, locals, funcs)
 }
 
 // extractLocals extracts and evaluates locals from the given HCL file.
 // Nested objects (e.g., pkgs = { base = "core-base" }) are handled natively
 // by go-cty, producing cty.ObjectVal values that support traversal like
 // ${local.pkgs.base}.
-func (p *HCLParser) extractLocals(hclFile *hcl.File) (map[string]cty.Value, error) {
+func (p *HCLParser) extractLocals(hclFile *hcl.File, funcs map[string]function.Function) (map[string]cty.Value, map[int]*hcl.EvalContext, error) {
 	schema := &hcl.BodySchema{
 		Blocks: []hcl.BlockHeaderSchema{
 			{Type: "locals"},
@@ -299,10 +507,11 @@ func (p *HCLParser) extractLocals(hclFile *hcl.File) (map[string]cty.Value, erro
 
 	content, _, diags := hclFile.Body.PartialContent(schema)
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("failed to read locals block: %s", diags.Error())
+		return nil, nil, fmt.Errorf("failed to read locals block: %s", diags.Error())
 	}
 
 	localsMap := make(map[string]cty.Value)
+	localEvalContexts := make(map[int]*hcl.EvalContext)
 
 	for _, block := range content.Blocks {
 		if block.Type != "locals" {
@@ -311,7 +520,7 @@ func (p *HCLParser) extractLocals(hclFile *hcl.File) (map[string]cty.Value, erro
 
 		attrs, diags := block.Body.JustAttributes()
 		if diags.HasErrors() {
-			return nil, fmt.Errorf("failed to read locals attributes: %s", diags.Error())
+			return nil, nil, fmt.Errorf("failed to read locals attributes: %s", diags.Error())
 		}
 
 		// Since the JustAttributes returns a map and the iteration order of maps is not
@@ -335,23 +544,25 @@ func (p *HCLParser) extractLocals(hclFile *hcl.File) (map[string]cty.Value, erro
 					"local": localVal,
 					"sys":   sysVars(p.arch),
 				},
+				Functions: funcs,
 			}
+			localEvalContexts[attr.Expr.Range().Start.Byte] = ctx
 			val, diags := attr.Expr.Value(ctx)
 			if diags.HasErrors() {
-				return nil, fmt.Errorf("failed to evaluate local %q: %s", name, diags.Error())
+				return nil, nil, fmt.Errorf("failed to evaluate local %q: %s", name, diags.Error())
 			}
 			localsMap[name] = val
 		}
 	}
 
-	return localsMap, nil
+	return localsMap, localEvalContexts, nil
 }
 
 // decodeBundleWithLocals decodes the given HCL file into a UDSBundle struct
 // using an EvalContext populated with the extracted locals.
 // It uses gohcl for standard fields and post-processes the Package.Remain
 // field to extract depends_on expressions into []PackageRef.
-func (p *HCLParser) decodeBundleWithLocals(hclFile *hcl.File, locals map[string]cty.Value) (*UDSBundle, error) {
+func (p *HCLParser) decodeBundleWithLocals(hclFile *hcl.File, locals map[string]cty.Value, funcs map[string]function.Function) (*UDSBundle, error) {
 	localVal := cty.EmptyObjectVal
 	if len(locals) > 0 {
 		localVal = cty.ObjectVal(locals)
@@ -362,6 +573,7 @@ func (p *HCLParser) decodeBundleWithLocals(hclFile *hcl.File, locals map[string]
 			"local": localVal,
 			"sys":   sysVars(p.arch),
 		},
+		Functions: funcs,
 	}
 
 	// Decode the entire bundle using gohcl - depends_on is captured in Package.Remain

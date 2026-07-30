@@ -95,7 +95,7 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 
 	s.Debug("parsing bundle file", "path", opts.BundleFile)
 	parser := NewHCLParser(opts.Config.Options.Architecture, s)
-	b, err := parser.ParseBundleFile(ctx, opts.BundleFile)
+	b, bundleHCL, err := parser.parseAndMaterializeBundleFile(ctx, opts.BundleFile)
 	if err != nil {
 		return nil, err
 	}
@@ -109,6 +109,16 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	creator := newLocalCreator(opts.Config.Options.Architecture)
 
 	srcDir := filepath.Dir(opts.BundleFile)
+	var defaultsHCL []byte
+	defaultsPath := filepath.Join(srcDir, BundleDefaultsFileName)
+	if _, err := os.Stat(defaultsPath); err == nil {
+		defaultsHCL, err = materializeDefaultsFile(defaultsPath)
+		if err != nil {
+			return nil, fmt.Errorf("materializing defaults HCL: %w", err)
+		}
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("accessing defaults HCL: %w", err)
+	}
 	root, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-create-*")
 	if err != nil {
 		return nil, err
@@ -142,7 +152,7 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	}
 
 	s.Debug("creating bundle definition manifest")
-	cfgManifest, err := createBundleDefinitionManifest(ctx, s, ociDir, opts.BundleFile, srcDir, b.Packages)
+	cfgManifest, err := createBundleDefinitionManifest(ctx, s, ociDir, bundleHCL, defaultsHCL, srcDir, b.Packages)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +236,7 @@ func sanitizeFileComponent(s string) string {
 // createBundleDefinitionManifest builds an OCI 1.1 artifact manifest that stores the bundle HCL file and all package values files as
 // content-addressed layers. The manifest does not contain an "org.opencontainers.image.ref.name" annotation since it is from local
 // files on disk and not from a remote registry. It is identified by artifactType so consumers can better identify it in the index.
-func createBundleDefinitionManifest(ctx context.Context, streams iostreams.IOStreams, ociDir, bundleFile, bundleDir string, pkgs []Package) (ociManifest, error) {
+func createBundleDefinitionManifest(ctx context.Context, streams iostreams.IOStreams, ociDir string, hclData, defaultsData []byte, bundleDir string, pkgs []Package) (ociManifest, error) {
 	store, err := oraci.New(ociDir)
 	if err != nil {
 		return ociManifest{}, fmt.Errorf("opening OCI store: %w", err)
@@ -245,10 +255,6 @@ func createBundleDefinitionManifest(ctx context.Context, streams iostreams.IOStr
 	}
 
 	// HCL file as the first layer.
-	hclData, err := os.ReadFile(bundleFile)
-	if err != nil {
-		return ociManifest{}, fmt.Errorf("reading bundle file: %w", err)
-	}
 	hclDesc, err := pushBlob(MediaTypeBundleHCL, hclData, map[string]string{
 		ocispec.AnnotationTitle: "bundle.uds.hcl",
 	})
@@ -258,8 +264,7 @@ func createBundleDefinitionManifest(ctx context.Context, streams iostreams.IOStr
 
 	// defaults.uds.hcl as an optional layer if present alongside bundle.uds.hcl.
 	layers := []ocispec.Descriptor{hclDesc}
-	defaultsPath := filepath.Join(bundleDir, BundleDefaultsFileName)
-	if defaultsData, err := os.ReadFile(defaultsPath); err == nil {
+	if defaultsData != nil {
 		defaultsDesc, err := pushBlob(MediaTypeBundleHCL, defaultsData, map[string]string{
 			ocispec.AnnotationTitle: BundleDefaultsFileName,
 		})

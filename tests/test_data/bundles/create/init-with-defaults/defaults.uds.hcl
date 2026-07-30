@@ -5,7 +5,7 @@
 # The integration test verifies that variables from defaults.uds.hcl are applied during create.
 
 variables = {
-  a = "a-default-value"
+  a = file("default-a.txt")
   b = 0
   c = {
     d = true

@@ -41,10 +41,12 @@ func Reconfigure(ctx context.Context, opts ReconfigureOptions) (*ReconfigureResu
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	s := logger.Bind(opts.Streams, opts.Options.LogLevel)
-	if _, err := ParseDefaults(ctx, opts.DefaultsFile); err != nil {
-		return nil, fmt.Errorf("invalid defaults file: %w", err)
+	defaultsData, err := materializeDefaultsFile(opts.DefaultsFile)
+	if err != nil {
+		return nil, fmt.Errorf("reading defaults file: %w", err)
 	}
+	opts.materializedDefaults = defaultsData
+	s := logger.Bind(opts.Streams, opts.Options.LogLevel)
 
 	var r Reconfigurer
 	if IsOCIReference(opts.Source) {
@@ -122,7 +124,7 @@ func (r *localReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOpt
 	}
 
 	// Write new defaults blob.
-	defaultsData, err := os.ReadFile(opts.DefaultsFile)
+	defaultsData, err := reconfigureDefaultsData(opts)
 	if err != nil {
 		return nil, fmt.Errorf("reading defaults file: %w", err)
 	}
@@ -278,7 +280,7 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 	}
 
 	// Push new defaults blob.
-	defaultsData, err := os.ReadFile(opts.DefaultsFile)
+	defaultsData, err := reconfigureDefaultsData(opts)
 	if err != nil {
 		return nil, fmt.Errorf("reading defaults file: %w", err)
 	}
@@ -386,6 +388,13 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 
 	r.streams.Info("bundle reconfigured", "ref", targetRef)
 	return &ReconfigureResult{OCIReference: targetRef}, nil
+}
+
+func reconfigureDefaultsData(opts ReconfigureOptions) ([]byte, error) {
+	if opts.materializedDefaults != nil {
+		return opts.materializedDefaults, nil
+	}
+	return materializeDefaultsFile(opts.DefaultsFile)
 }
 
 // AnnotationReconfiguredFrom is the OCI manifest annotation that records

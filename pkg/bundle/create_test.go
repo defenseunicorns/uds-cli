@@ -408,11 +408,7 @@ package "pkg1" {
 }
 `), tmpFilePerm))
 
-	defaultsContent := []byte(`options {
-  architecture = "amd64"
-}
-
-variables = {
+	defaultsContent := []byte(`variables = {
   a = "a-default-value"
   b = "b-default-value"
 }

@@ -600,6 +600,10 @@ type ReconfigureOptions struct {
 	// remoteRepo overrides the remote registry target. When nil (production),
 	// newRemoteRepository is used. Set in tests to inject a fake ORAS store.
 	remoteRepo oras.Target
+
+	// materializedDefaults is populated by Reconfigure after validating the
+	// defaults file, so the selected reconfigurer writes the same snapshot.
+	materializedDefaults []byte
 }
 
 // ReconfigureResult represents the output of a bundle reconfigure operation.

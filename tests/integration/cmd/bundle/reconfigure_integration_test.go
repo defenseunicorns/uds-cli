@@ -248,7 +248,7 @@ func TestReconfigure_OCI(t *testing.T) {
 	require.NoError(t, os.WriteFile(origDefaultsTmp, origDefaults, 0o600))
 	origVars, err := bundlepkg.ParseDefaults(t.Context(), origDefaultsTmp)
 	require.NoError(t, err)
-	assert.Equal(t, "a-default-value", origVars["a"], "original bundle should still have old defaults")
+	assert.Equal(t, "from-file", origVars["a"], "original bundle should still have old defaults")
 
 	// Verify package manifests are identical between original and reconfigured.
 	// Only the bundle definition entry should differ.
