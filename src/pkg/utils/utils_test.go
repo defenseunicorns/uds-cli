@@ -9,8 +9,64 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/signing"
 )
+
+func TestRequireSignatureWhenVerificationConfigured(t *testing.T) {
+	publicKeyOpts := signing.DefaultVerifyBlobOptions()
+	publicKeyOpts.Key = "test-public-key"
+	keylessOpts := signing.DefaultVerifyBlobOptions()
+	keylessOpts.CertVerify.CertIdentity = "https://example.com/release"
+	keylessOpts.CertVerify.CertOidcIssuer = "https://token.actions.githubusercontent.com"
+
+	tests := []struct {
+		name                 string
+		isSigned             bool
+		verificationStrategy layout.VerificationStrategy
+		verifyOpts           *signing.VerifyBlobOptions
+		wantErr              string
+	}{
+		{
+			name:                 "unsigned package without verification configuration is allowed",
+			verificationStrategy: layout.VerifyAlways,
+		},
+		{
+			name:                 "unsigned package with public key verification is rejected",
+			verificationStrategy: layout.VerifyAlways,
+			verifyOpts:           &publicKeyOpts,
+			wantErr:              "package is unsigned, but signature verification was configured",
+		},
+		{
+			name:                 "unsigned package with keyless verification is rejected",
+			verificationStrategy: layout.VerifyAlways,
+			verifyOpts:           &keylessOpts,
+			wantErr:              "package is unsigned, but signature verification was configured",
+		},
+		{
+			name:                 "signed package with verification configuration is allowed",
+			isSigned:             true,
+			verificationStrategy: layout.VerifyAlways,
+			verifyOpts:           &keylessOpts,
+		},
+		{
+			name:                 "skip signature validation allows unsigned package",
+			verificationStrategy: layout.VerifyNever,
+			verifyOpts:           &keylessOpts,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := requireSignatureWhenVerificationConfigured(tt.isSigned, tt.verificationStrategy, tt.verifyOpts)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
 
 func Test_IsRegistryURL(t *testing.T) {
 	tests := []struct {

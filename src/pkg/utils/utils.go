@@ -362,7 +362,8 @@ func GetPackageVerificationStrategy(skipSignatureValidation bool) layout.Verific
 	return layout.VerifyAlways
 }
 
-// LoadPackage fetches, verifies (only if signed), and loads a Zarf package from the specified source.
+// LoadPackage fetches and loads a Zarf package from the specified source. Signed packages are
+// verified unless verification is skipped; supplying verification material also requires a signature.
 func LoadPackage(ctx context.Context, source string, opts packager.LoadOptions) (_ *layout.PackageLayout, err error) {
 	verificationStrategy := opts.VerificationStrategy
 
@@ -371,6 +372,10 @@ func LoadPackage(ctx context.Context, source string, opts packager.LoadOptions) 
 	pkgLayout, err := packager.LoadPackage(ctx, source, opts)
 	if err != nil {
 		return pkgLayout, err
+	}
+
+	if err := requireSignatureWhenVerificationConfigured(pkgLayout.IsSigned(), verificationStrategy, opts.VerifyBlobOptions); err != nil {
+		return nil, err
 	}
 
 	// Verify if package is signed and verificationStrategy not set to never (skip)
@@ -385,7 +390,8 @@ func LoadPackage(ctx context.Context, source string, opts packager.LoadOptions) 
 	return pkgLayout, nil
 }
 
-// LoadFromDir loads and verifies a package (only if signed), from the given directory path.
+// LoadFromDir loads a package from the given directory path. Signed packages are verified unless
+// verification is skipped; supplying verification material also requires a signature.
 func LoadPackageFromDir(ctx context.Context, dirPath string, opts layout.PackageLayoutOptions) (*layout.PackageLayout, error) {
 	verificationStrategy := opts.VerificationStrategy
 
@@ -394,6 +400,10 @@ func LoadPackageFromDir(ctx context.Context, dirPath string, opts layout.Package
 	pkgLayout, err := layout.LoadFromDir(ctx, dirPath, opts)
 	if err != nil {
 		return pkgLayout, err
+	}
+
+	if err := requireSignatureWhenVerificationConfigured(pkgLayout.IsSigned(), verificationStrategy, opts.VerifyBlobOptions); err != nil {
+		return nil, err
 	}
 
 	// Verify if package is signed and verificationStrategy not set to never (skip)
@@ -406,6 +416,15 @@ func LoadPackageFromDir(ctx context.Context, dirPath string, opts layout.Package
 	}
 
 	return pkgLayout, nil
+}
+
+// requireSignatureWhenVerificationConfigured prevents verification configuration from silently
+// accepting an unsigned package. An explicit skip-signature-validation request bypasses this check.
+func requireSignatureWhenVerificationConfigured(isSigned bool, verificationStrategy layout.VerificationStrategy, verifyOpts *signing.VerifyBlobOptions) error {
+	if verificationStrategy != layout.VerifyNever && !isSigned && verifyOpts != nil {
+		return errors.New("package is unsigned, but signature verification was configured")
+	}
+	return nil
 }
 
 // VerifyBlobOptionsFromKey constructs VerifyBlobOptions from a public key path.

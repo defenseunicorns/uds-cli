@@ -24,7 +24,7 @@ UDS CLI validates package signatures when it creates, inspects, or deploys packa
 
 ## Before you begin
 
-Keyless package signature verification is configured per package in `uds-bundle.yaml` with `keylessVerification`.
+Keyless package signature verification is configured per package in `uds-bundle.yaml` with `keylessVerification`. Configuring it requires that package to be signed; UDS CLI rejects an unsigned package rather than silently skipping verification.
 
 > [!NOTE]
 > Each package can use one verification method. For keyless-signed packages, configure `keylessVerification` and leave `publicKey` unset.
