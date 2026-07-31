@@ -689,6 +689,23 @@ func TestFormPkgViews(t *testing.T) {
 	}
 }
 
+func TestExtractValuesMasksSensitiveZarfVariableCollisions(t *testing.T) {
+	helmChartVars := map[string]interface{}{
+		"sensitive": "chart-sensitive-value",
+		"public":    "chart-public-value",
+	}
+	chartVariables := []types.BundleChartVariable{
+		{Name: "sensitive_chart_var", Path: "sensitive"},
+		{Name: "PUBLIC_CHART_VAR", Path: "public"},
+	}
+	sensitiveVars := map[string]bool{"SENSITIVE_CHART_VAR": true}
+
+	viewVars := extractValues(helmChartVars, chartVariables, sensitiveVars)
+
+	require.Equal(t, hiddenVar, viewVars["sensitive_chart_var"])
+	require.Equal(t, "chart-public-value", viewVars["PUBLIC_CHART_VAR"])
+}
+
 func TestZarfSensitiveVariablesAreMasked(t *testing.T) {
 	zarfVariables := []v1alpha1.InteractiveVariable{
 		{Variable: v1alpha1.Variable{Name: "SENSITIVE_VAR", Sensitive: true}},

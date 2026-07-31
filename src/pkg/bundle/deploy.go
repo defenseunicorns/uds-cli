@@ -473,6 +473,10 @@ func formPkgViews(b *Bundle) []PkgView {
 		_, variableData := b.loadVariables(pkg, nil)
 		valuesOverrides, _, _ := b.loadChartOverrides(pkg, variableData)
 
+		// Load the package metadata to get the list of sensitive variables for masking their values in the view
+		zarfPkg, err := b.getMetadata(pkg)
+		sensitiveVars := sensitiveZarfVariableNames(zarfPkg.Variables)
+
 		for compName, component := range pkg.Overrides {
 			for chartName, chart := range component {
 				// filter out bundle overrides so we're left with Zarf Variables
@@ -484,7 +488,7 @@ func formPkgViews(b *Bundle) []PkgView {
 				}
 
 				// takes values from helmChartVars {path: value} and form new map of {name: value}
-				viewVars := extractValues(helmChartVars, chart.Variables)
+				viewVars := extractValues(helmChartVars, chart.Variables, sensitiveVars)
 
 				if len(viewVars) > 0 {
 					variables = append(variables, map[string]map[string]interface{}{chartName: {"variables": viewVars}})
@@ -492,9 +496,6 @@ func formPkgViews(b *Bundle) []PkgView {
 			}
 		}
 
-		// Load the package metadata to get the list of sensitive variables for masking their values in the view
-		zarfPkg, err := b.getMetadata(pkg)
-		sensitiveVars := sensitiveZarfVariableNames(zarfPkg.Variables)
 		if err != nil {
 			message.WarnErr(err, fmt.Sprintf("unable to load metadata for package %q; masking all Zarf variable values", pkg.Name))
 			for name := range variableData {
@@ -564,15 +565,14 @@ func addZarfVars(pkgVars map[string]overrideData, variables []interface{}, sensi
 }
 
 // extractValues returns a map of {name: value} from helmChartVars
-func extractValues(helmChartVars map[string]interface{}, variables []types.BundleChartVariable) map[string]interface{} {
+func extractValues(helmChartVars map[string]interface{}, variables []types.BundleChartVariable, sensitiveVars map[string]bool) map[string]interface{} {
 	viewVars := make(map[string]interface{})
 	for _, v := range variables {
 		// Mask potentially sensitive variables
-		if v.Type == chartvariable.File || v.Source == valuesources.Env || v.Sensitive {
+		if v.Type == chartvariable.File || v.Source == valuesources.Env || v.Sensitive || sensitiveVars[strings.ToUpper(v.Name)] {
 			viewVars[v.Name] = hiddenVar
 			continue
 		}
-
 		// handle complex paths: var.helm.path = { var: { helm: { path: val } } }
 		if strings.Contains(v.Path, ".") {
 			paths := strings.Split(v.Path, ".")
