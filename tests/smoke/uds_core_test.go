@@ -3,7 +3,7 @@
 
 //go:build uds_core_smoke
 
-package bundle_test
+package smoke_test
 
 import (
 	"runtime"

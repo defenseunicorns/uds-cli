@@ -86,6 +86,45 @@ func (c *K8sClient) AssertNamespaceNotExists(namespace string) {
 	require.True(c.t, errors.IsNotFound(err), "namespace %q should not exist", namespace)
 }
 
+// CreateNamespace creates a namespace with the provided labels.
+func (c *K8sClient) CreateNamespace(name string, labels map[string]string) {
+	c.t.Helper()
+	_, err := c.CoreV1().Namespaces().Create(c.t.Context(), &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   name,
+			Labels: labels,
+		},
+	}, metav1.CreateOptions{})
+	require.NoError(c.t, err, "create namespace %q", name)
+}
+
+// DeleteNamespaceAndWait deletes a namespace and waits until it no longer exists.
+func (c *K8sClient) DeleteNamespaceAndWait(name string, timeout time.Duration) {
+	c.t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	err := c.CoreV1().Namespaces().Delete(ctx, name, metav1.DeleteOptions{})
+	if err != nil && !errors.IsNotFound(err) {
+		require.NoError(c.t, err, "delete namespace %q", name)
+	}
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		_, err := c.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			c.t.Errorf("timeout waiting for namespace %q to be deleted", name)
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
 func (c *K8sClient) AssertSecretExists(namespace, name string) {
 	c.t.Helper()
 	secret, err := c.CoreV1().Secrets(namespace).Get(c.t.Context(), name, metav1.GetOptions{})
