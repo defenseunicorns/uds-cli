@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"slices"
 	"strings"
 
@@ -81,20 +80,21 @@ func ToOCIRemote(t any, mediaType string, remote *oci.OrasRemote) (*ocispec.Desc
 func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) oras.CopyOptions {
 	var copyOpts oras.CopyOptions
 	copyOpts.Concurrency = concurrency
-	var shas []string
+	requestedDigests := map[string]struct{}{}
 	for _, layer := range layersToPull {
-		if len(layer.Digest.String()) > 0 {
-			shas = append(shas, layer.Digest.Encoded())
+		if layer.Digest != "" {
+			requestedDigests[layer.Digest.String()] = struct{}{}
 		}
 	}
 	copyOpts.FindSuccessors = func(ctx context.Context, fetcher content.Fetcher, desc ocispec.Descriptor) ([]ocispec.Descriptor, error) {
 		var nodes []ocispec.Descriptor
 		_, hasTitleAnnotation := desc.Annotations[ocispec.AnnotationTitle]
+		_, isRequested := requestedDigests[desc.Digest.String()]
 
-		if desc.MediaType == ocispec.MediaTypeImageIndex {
+		if desc.MediaType == ocispec.MediaTypeImageIndex && !isRequested {
 			// This block is triggered when ORAS initially hits the OCI repo and gets the image index (index.json)
-			// and it grabs the bundle root manifest corresponding to the proper arch
-			// todo: refactor to solve the arch problem using the shas var above instead of checking here
+			// and it grabs the bundle root manifest corresponding to the proper arch. Embedded image indexes
+			// are included in requestedDigests and must retain all requested platform manifests.
 
 			// get contents of the index.json from its desc
 			successors, err := content.Successors(ctx, fetcher, desc)
@@ -104,7 +104,6 @@ func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) oras.Cop
 
 			// grab the proper bundle root manifest, based on arch
 			for _, node := range successors {
-				// todo: remove this check once we have a better way to handle arch
 				if node.Platform.Architecture == config.GetArch() {
 					return []ocispec.Descriptor{node}, nil
 				}
@@ -136,7 +135,8 @@ func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) oras.Cop
 		}
 		var ret []ocispec.Descriptor
 		for _, node := range nodes {
-			if node.Size != 0 && slices.Contains(shas, node.Digest.Encoded()) {
+			_, isRequested := requestedDigests[node.Digest.String()]
+			if node.Size != 0 && isRequested {
 				ret = append(ret, node)
 			}
 		}
@@ -385,20 +385,22 @@ func FindBundledPkgLayers(ctx context.Context, pkg types.Package, rootManifest *
 		return nil, 0, err
 	}
 
-	// grab all layers from the included image manifests
+	// Grab the full descriptor graph for included images. Entries in images/index.json can be
+	// either image manifests or nested multi-platform image indexes.
+	seenImageDescriptors := map[string]struct{}{}
 	for _, desc := range manifestsToInclude {
-		imgManifest, err := getImgManifest(ctx, remote, desc)
+		imageDescriptors, err := collectImageDescriptors(ctx, remote.Repo().Blobs(), desc, seenImageDescriptors)
 		if err != nil {
 			return nil, 0, err
 		}
-
-		// grab all layers in image manifest, the img config and the img manifest itself
-		layersToPull = append(layersToPull, imgManifest.Layers...)
-		layersToPull = append(layersToPull, desc, imgManifest.Config)
+		layersToPull = append(layersToPull, imageDescriptors...)
 	}
 
 	// loop through layersToPull and add up bytes and set title annotations
 	for i, layer := range layersToPull {
+		if layer.Digest == "" {
+			return nil, 0, fmt.Errorf("descriptor with media type %q has an empty digest", layer.MediaType)
+		}
 		title, hasTitle := layerTitleAnnotations[layer.Digest.Encoded()]
 		if layer.Annotations == nil && hasTitle {
 			layersToPull[i].Annotations = map[string]string{ocispec.AnnotationTitle: title}
@@ -439,24 +441,36 @@ func CopyLayers(layersToPull []ocispec.Descriptor, estimatedBytes int64, tmpDstD
 	return rootDesc, nil
 }
 
-func getImgManifest(ctx context.Context, remote *oci.OrasRemote, desc ocispec.Descriptor) (ocispec.Manifest, error) {
-	imgManifestReader, err := remote.Repo().Blobs().Fetch(ctx, desc)
+// collectImageDescriptors recursively collects an image manifest or index and all of its
+// successors. The seen map is shared across roots to avoid copying duplicate image blobs.
+func collectImageDescriptors(ctx context.Context, fetcher content.Fetcher, desc ocispec.Descriptor, seen map[string]struct{}) ([]ocispec.Descriptor, error) {
+	if desc.Digest == "" {
+		return nil, fmt.Errorf("image descriptor with media type %q has an empty digest", desc.MediaType)
+	}
+	if err := desc.Digest.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid image descriptor digest %q: %w", desc.Digest, err)
+	}
+
+	digest := desc.Digest.String()
+	if _, ok := seen[digest]; ok {
+		return nil, nil
+	}
+	seen[digest] = struct{}{}
+
+	successors, err := content.Successors(ctx, fetcher, desc)
 	if err != nil {
-		return ocispec.Manifest{}, err
+		return nil, fmt.Errorf("unable to get successors for image descriptor %s: %w", desc.Digest, err)
 	}
-	imgManifestBytes, err := io.ReadAll(imgManifestReader)
-	if err != nil {
-		return ocispec.Manifest{}, err
+
+	descriptors := []ocispec.Descriptor{desc}
+	for _, successor := range successors {
+		nestedDescriptors, err := collectImageDescriptors(ctx, fetcher, successor, seen)
+		if err != nil {
+			return nil, err
+		}
+		descriptors = append(descriptors, nestedDescriptors...)
 	}
-	var imgManifest ocispec.Manifest
-	if err := json.Unmarshal(imgManifestBytes, &imgManifest); err != nil {
-		return ocispec.Manifest{}, err
-	}
-	err = imgManifestReader.Close()
-	if err != nil {
-		return ocispec.Manifest{}, err
-	}
-	return imgManifest, nil
+	return descriptors, nil
 }
 
 func handleImgIndex(ctx context.Context, remote *oci.OrasRemote, desc ocispec.Descriptor) (ocispec.Index, error) {
