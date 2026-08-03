@@ -34,6 +34,24 @@ builds:
       - arm64
     binary: uds
 
+# Build native Linux packages from the release binaries
+nfpms:
+  - id: linux-packages
+    package_name: uds-cli
+    file_name_template: "{{ .PackageName }}-v{{ .Version }}-{{ .Arch }}"
+    vendor: Defense Unicorns
+    homepage: https://github.com/defenseunicorns/uds-cli
+    maintainer: Defense Unicorns <support@defenseunicorns.com>
+    description: CLI for creating, publishing, and deploying UDS bundles.
+    license: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    section: utils
+    release: 1
+    mtime: "{{ .CommitDate }}"
+
 # Save the built artifacts as binaries (instead of wrapping them in a tarball)
 archives:
   - formats: binary
