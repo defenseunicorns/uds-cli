@@ -19,6 +19,7 @@ import (
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
@@ -270,4 +271,72 @@ func TestPrefetchPackageMetadata(t *testing.T) {
 		}, t.TempDir())
 		require.ErrorContains(t, err, "not found in bundle")
 	})
+}
+
+func TestDeployPrefetchReusesMetadataDuringPreview(t *testing.T) {
+	ctx := context.Background()
+	// Build valid package metadata containing both sensitive and non-sensitive variables.
+	pkgLayout, err := layout.AssembleSkeleton(ctx, v1alpha1.ZarfPackage{
+		Kind: v1alpha1.ZarfPackageConfig,
+		Metadata: v1alpha1.ZarfMetadata{
+			Name:    "internal-package",
+			Version: "1.2.3",
+		},
+		Variables: []v1alpha1.InteractiveVariable{
+			{
+				Variable: v1alpha1.Variable{
+					Name:      "PASSWORD",
+					Sensitive: true,
+				},
+			},
+			{
+				Variable: v1alpha1.Variable{Name: "PUBLIC_VALUE"},
+			},
+		},
+	}, t.TempDir(), nil, layout.AssembleSkeletonOptions{})
+	require.NoError(t, err)
+
+	pkgYAML, err := os.ReadFile(filepath.Join(pkgLayout.DirPath(), layout.ZarfYAML))
+	require.NoError(t, err)
+	checksums, err := os.ReadFile(filepath.Join(pkgLayout.DirPath(), layout.Checksums))
+	require.NoError(t, err)
+
+	tarPath, hexes := writeFixtureBundle(t, []fixturePkg{{
+		name: "bundle-package",
+		blobs: []fixtureBlob{
+			{title: layout.ZarfYAML, content: pkgYAML},
+			{title: config.ChecksumsTxt, content: checksums},
+		},
+	}}, true)
+	pkg := types.Package{
+		Name: "bundle-package",
+		Ref:  "ghcr.io/example/package@sha256:" + hexes[0],
+	}
+	b := Bundle{
+		cfg: &types.BundleConfig{DeployOpts: types.BundleDeployOptions{
+			Variables: map[string]map[string]interface{}{
+				pkg.Name: {"PASSWORD": "do-not-display", "PUBLIC_VALUE": "display-me"},
+			},
+		}},
+		bundle: types.UDSBundle{Packages: []types.Package{pkg}},
+		tmp:    t.TempDir(),
+	}
+	provider := &tarballBundleProvider{src: tarPath}
+
+	b.prefetchPackageMetadata(provider)
+	// Remove the source after prefetch so the preview can only succeed with cached metadata.
+	require.NoError(t, os.Remove(tarPath))
+
+	previousSkipValidation := config.CommonOptions.SkipSignatureValidation
+	config.CommonOptions.SkipSignatureValidation = true
+	t.Cleanup(func() {
+		config.CommonOptions.SkipSignatureValidation = previousSkipValidation
+	})
+
+	// A visible non-sensitive value distinguishes cache reuse from fail-closed masking.
+	views := formPkgViews(&b)
+	require.Len(t, views, 1)
+	overrides := views[0].overrides["overrides"]
+	require.Contains(t, overrides, map[string]interface{}{"PASSWORD": hiddenVar})
+	require.Contains(t, overrides, map[string]interface{}{"PUBLIC_VALUE": "display-me"})
 }

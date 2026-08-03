@@ -80,16 +80,7 @@ func (b *Bundle) Inspect() error {
 		// fetch metadata blobs independently.
 		needsPkgMeta := b.cfg.InspectOpts.ListVariables || b.cfg.InspectOpts.ListImages || !config.CommonOptions.SkipSignatureValidation
 		if needsPkgMeta {
-			if tp, ok := provider.(*tarballBundleProvider); ok {
-				cache, perr := tp.prefetchPackageMetadata(context.TODO(), b.bundle.Packages, b.tmp)
-				if perr != nil {
-					// Fall back to the per-package slow path on any error so
-					// inspect still works on bundles the prefetcher can't handle.
-					message.Warnf("package metadata prefetch failed, falling back to per-package extraction: %v", perr)
-				} else {
-					b.pkgMetaCache = cache
-				}
-			}
+			b.prefetchPackageMetadata(provider)
 		}
 	}
 
@@ -132,6 +123,18 @@ func (b *Bundle) Inspect() error {
 	}
 
 	return nil
+}
+func (b *Bundle) prefetchPackageMetadata(provider Provider) {
+	if tp, ok := provider.(*tarballBundleProvider); ok {
+		cache, perr := tp.prefetchPackageMetadata(context.TODO(), b.bundle.Packages, b.tmp)
+		if perr != nil {
+			// Fall back to the per-package slow path on any error so
+			// the operation still works on bundles the prefetcher can't handle.
+			message.Warnf("package metadata prefetch failed, falling back to per-package extraction: %v", perr)
+		} else {
+			b.pkgMetaCache = cache
+		}
+	}
 }
 
 func (b *Bundle) listImages() error {

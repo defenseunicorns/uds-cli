@@ -406,6 +406,8 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 		return "", "", "", err
 	}
 
+	b.prefetchPackageMetadata(provider)
+
 	bundleName := b.bundle.Metadata.Name
 	return bundleName, string(bundleYAML), source, err
 }
