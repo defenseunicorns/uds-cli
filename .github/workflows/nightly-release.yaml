@@ -31,19 +31,33 @@ jobs:
       - name: Setup golang
         uses: ./.github/actions/golang
 
-      - name: Install UDS CLI
-        uses: ./.github/actions/install-uds-cli
-
-      - name: Build binary artifacts
+      - name: Setup release ENV vars
         run: |
-          uds run build-all
+          K8S_MODULES_VER=$(go list -f '{{.Version}}' -m k8s.io/client-go | sed 's/v//; s/\./ /g')
+          echo K8S_MODULES_MAJOR_VER=$(expr $(echo "$K8S_MODULES_VER" | cut -d " " -f 1) + 1) >> $GITHUB_ENV
+          echo K8S_MODULES_MINOR_VER=$(echo "$K8S_MODULES_VER" | cut -d " " -f 2) >> $GITHUB_ENV
+          echo K8S_MODULES_PATCH_VER=$(echo "$K8S_MODULES_VER" | cut -d " " -f 3) >> $GITHUB_ENV
 
-      - name: Rename artifacts for readability
+          echo K9S_VERSION=$(go list -f '{{.Version}}' -m github.com/derailed/k9s) >> $GITHUB_ENV
+          echo CRANE_VERSION=$(go list -f '{{.Version}}' -m github.com/google/go-containerregistry) >> $GITHUB_ENV
+          echo SYFT_VERSION=$(go list -f '{{.Version}}' -m github.com/anchore/syft) >> $GITHUB_ENV
+          echo ARCHIVES_VERSION=$(go list -f '{{.Version}}' -m github.com/mholt/archives) >> $GITHUB_ENV
+          echo HELM_VERSION=$(go list -f '{{.Version}}' -m helm.sh/helm/v4) >> $GITHUB_ENV
+
+      - name: Build release artifacts
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean --snapshot --skip=homebrew,sbom --config .goreleaser.yaml
+
+      - name: Stage release artifacts
         run: |
-          mv build/uds build/uds-nightly-linux-amd64
-          mv build/uds-arm build/uds-nightly-linux-arm64
-          mv build/uds-mac-apple build/uds-nightly-darwin-arm64
-          mv build/uds-mac-intel build/uds-nightly-darwin-amd64
+          mkdir build
+          jq -r '.[] | select((.type == "Binary" and .extra.Format == "binary") or .type == "Linux Package" or .type == "Checksum") | [.path, .name] | @tsv' dist/artifacts.json |
+            while IFS=$'\t' read -r artifact_path artifact_name; do
+              cp "$artifact_path" "build/$artifact_name"
+            done
 
       - name: Update nightly-unstable tag
         env:

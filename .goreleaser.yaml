@@ -19,7 +19,7 @@ builds:
       - darwin
     ldflags:
       - -s -w
-      - -X 'github.com/defenseunicorns/uds-cli/src/config.CLIVersion={{.Tag}}'
+      - -X 'github.com/defenseunicorns/uds-cli/src/config.CLIVersion=v{{.Version}}'
       - -X 'github.com/zarf-dev/zarf/src/config.ActionsCommandZarfPrefix=zarf'
       - -X 'k8s.io/component-base/version.gitVersion=v{{.Env.K8S_MODULES_MAJOR_VER}}.{{.Env.K8S_MODULES_MINOR_VER}}.{{.Env.K8S_MODULES_PATCH_VER}}'
       - -X 'k8s.io/component-base/version.gitCommit={{.FullCommit}}'
@@ -55,7 +55,7 @@ nfpms:
 # Save the built artifacts as binaries (instead of wrapping them in a tarball)
 archives:
   - formats: binary
-    name_template: "{{ .ProjectName }}_{{ .Tag }}_{{- title .Os }}_{{ .Arch }}"
+    name_template: "{{ .ProjectName }}_v{{ .Version }}_{{- title .Os }}_{{ .Arch }}"
 
 # generate a sha256 checksum of all release artifacts
 checksum:
