@@ -54,9 +54,9 @@ jobs:
       - name: Stage release artifacts
         run: |
           mkdir build
-          jq -r '.[] | select((.type == "Binary" and .extra.Format == "binary") or .type == "Linux Package" or .type == "Checksum") | [.path, .name] | @tsv' dist/artifacts.json |
-            while IFS=$'\t' read -r artifact_path artifact_name; do
-              cp "$artifact_path" "build/$artifact_name"
+          jq -r '.[] | select((.type == "Binary" and .extra.Format == "binary") or .type == "Linux Package" or .type == "Checksum") | .path' dist/artifacts.json |
+            while IFS= read -r artifact_path; do
+              cp "$artifact_path" build/
             done
 
       - name: Update nightly-unstable tag
