@@ -261,9 +261,9 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 			return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
 
-		_, sha, ok := strings.Cut(pkg.Ref, "@sha256:")
-		if !ok || sha == "" {
-			return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q reference is missing a manifest digest", pkg.Name)
+		sha, err := packageManifestDigest(pkg)
+		if err != nil {
+			return v1alpha1.ZarfPackage{}, err
 		}
 		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, verifyOpts, config.CommonOptions.SkipSignatureValidation, sha, nil)
 		if err != nil {

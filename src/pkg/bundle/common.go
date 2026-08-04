@@ -19,6 +19,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
@@ -365,6 +366,20 @@ func bundlePackageLifecycleID(pkg types.Package) string {
 	}
 
 	return fmt.Sprintf("%s/%s", pkg.Name, pkg.Namespace)
+}
+
+func packageManifestDigest(pkg types.Package) (string, error) {
+	_, encoded, ok := strings.Cut(pkg.Ref, "@sha256:")
+	if !ok || encoded == "" {
+		return "", fmt.Errorf("package %q reference is missing a manifest digest", pkg.Name)
+	}
+
+	manifestDigest := digest.NewDigestFromEncoded(digest.SHA256, encoded)
+	if err := manifestDigest.Validate(); err != nil {
+		return "", fmt.Errorf("package %q has invalid manifest digest: %w", pkg.Name, err)
+	}
+
+	return encoded, nil
 }
 
 func deployedPackageLifecycleID(pkg state.DeployedPackage) string {

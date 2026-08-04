@@ -334,7 +334,8 @@ func TestDeployPrefetchReusesMetadataDuringPreview(t *testing.T) {
 	})
 
 	// A visible non-sensitive value distinguishes cache reuse from fail-closed masking.
-	views := formPkgViews(&b)
+	views, err := formPkgViews(&b)
+	require.NoError(t, err)
 	require.Len(t, views, 1)
 	overrides := views[0].overrides["overrides"]
 	require.Contains(t, overrides, map[string]interface{}{"PASSWORD": hiddenVar})

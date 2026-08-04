@@ -89,6 +89,10 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			}
 			b.bundle.Packages[i] = pkg
 		}
+		sha, err := packageManifestDigest(pkg)
+		if err != nil {
+			return err
+		}
 		pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
 			return err
@@ -114,8 +118,6 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		if err != nil {
 			return err
 		}
-
-		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 
 		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, verifyOpts, config.CommonOptions.SkipSignatureValidation, sha, nsOverrides)
 		if err != nil {
@@ -412,9 +414,12 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 	return bundleName, string(bundleYAML), source, err
 }
 
-// ConfirmBundleDeploy prompts the user to confirm bundle creation
-func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
-	pkgviews := formPkgViews(b)
+// ConfirmBundleDeploy prompts the user to confirm bundle deployment
+func (b *Bundle) ConfirmBundleDeploy() (bool, error) {
+	pkgViews, err := formPkgViews(b)
+	if err != nil {
+		return false, err
+	}
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
 
@@ -434,7 +439,7 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 	message.Title("Packages:", "definition of packages this bundle deploys, including variable overrides")
 
-	for _, pkg := range pkgviews {
+	for _, pkg := range pkgViews {
 		if err := zarfUtils.ColorPrintYAML(pkg.meta, nil, false); err != nil {
 			message.WarnErr(err, "unable to print package metadata yaml")
 		}
@@ -447,17 +452,21 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 	// Display prompt if not auto-confirmed
 	if config.CommonOptions.Confirm {
-		return config.CommonOptions.Confirm
+		return config.CommonOptions.Confirm, nil
 	}
 
 	prompt := &survey.Confirm{
 		Message: "Deploy this bundle?",
 	}
 
-	if err := survey.AskOne(prompt, &confirm); err != nil || !confirm {
-		return false
+	var confirm bool
+	if err := survey.AskOne(prompt, &confirm); err != nil {
+		return false, err
 	}
-	return true
+	if !confirm {
+		return false, nil
+	}
+	return true, nil
 }
 
 type PkgView struct {
@@ -466,7 +475,11 @@ type PkgView struct {
 }
 
 // formPkgViews creates a unique pre deploy view of each package's set overrides and Zarf variables
-func formPkgViews(b *Bundle) []PkgView {
+func formPkgViews(b *Bundle) ([]PkgView, error) {
+	return formPkgViewsWithMetadata(b, b.getMetadata)
+}
+
+func formPkgViewsWithMetadata(b *Bundle, getMetadata func(types.Package) (v1alpha1.ZarfPackage, error)) ([]PkgView, error) {
 	var pkgViews []PkgView
 	for _, pkg := range b.bundle.Packages {
 		variables := make([]interface{}, 0)
@@ -476,7 +489,10 @@ func formPkgViews(b *Bundle) []PkgView {
 		valuesOverrides, _, _ := b.loadChartOverrides(pkg, variableData)
 
 		// Load the package metadata to get the list of sensitive variables for masking their values in the view
-		zarfPkg, err := b.getMetadata(pkg)
+		zarfPkg, err := getMetadata(pkg)
+		if err != nil {
+			return nil, fmt.Errorf("unable to load metadata for package %q: %w", pkg.Name, err)
+		}
 		sensitiveVars := sensitiveZarfVariableNames(zarfPkg.Variables)
 
 		for compName, component := range pkg.Overrides {
@@ -498,17 +514,10 @@ func formPkgViews(b *Bundle) []PkgView {
 			}
 		}
 
-		if err != nil {
-			message.WarnErr(err, fmt.Sprintf("unable to load metadata for package %q; masking all Zarf variable values", pkg.Name))
-			for name := range variableData {
-				sensitiveVars[name] = true
-			}
-		}
-
 		variables = addZarfVars(variableData, variables, sensitiveVars)
 		pkgViews = append(pkgViews, PkgView{meta: formPkgMeta(pkg), overrides: map[string]interface{}{"overrides": variables}})
 	}
-	return pkgViews
+	return pkgViews, nil
 }
 
 func formPkgMeta(pkg types.Package) map[string]string {

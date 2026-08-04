@@ -6,6 +6,7 @@ package bundle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -48,6 +49,16 @@ func newTestPkg(pkgName string, componentName string, chartName string, overVar 
 		Overrides: map[string]map[string]types.BundleChartOverrides{componentName: {chartName: {Variables: []types.BundleChartVariable{
 			overVar,
 		}}}}}
+}
+
+func formTestPkgViews(t *testing.T, bundle *Bundle) []PkgView {
+	t.Helper()
+
+	pkgViews, err := formPkgViewsWithMetadata(bundle, func(types.Package) (v1alpha1.ZarfPackage, error) {
+		return v1alpha1.ZarfPackage{}, nil
+	})
+	require.NoError(t, err)
+	return pkgViews
 }
 
 func TestLoadVariablesPrecedence(t *testing.T) {
@@ -516,7 +527,7 @@ func TestFormPkgViews(t *testing.T) {
 				tc.Bundle.bundle = types.UDSBundle{Packages: []types.Package{newTestPkg(pkgName, componentName, chartName, tc.bundleVars)}}
 			}
 
-			pkgViews := formPkgViews(&tc.Bundle)
+			pkgViews := formTestPkgViews(t, &tc.Bundle)
 			v, ok := pkgViews[0].overrides["overrides"].(anyArr)[0].(viewOverVars)[tc.expectedChart]["variables"]
 
 			// check if the second chart is being used -- Go maps don't have strict ordering so value could be in 0 index or 1 index
@@ -529,22 +540,6 @@ func TestFormPkgViews(t *testing.T) {
 	}
 
 	zarfVarTests := []TestCase{
-		{
-			name: "mask zarf var when package metadata is unavailable",
-			Bundle: newTestBundle(
-				ConfigVariables{
-					pkgName: {
-						"VAR1": "zarf-var-set-by-config",
-					},
-				},
-				nil,
-				nil,
-				"uds-config.yaml",
-				"",
-			),
-			expectedKey: "VAR1",
-			expectedVal: hiddenVar,
-		},
 		{
 			name:        "hide zarf var with env var",
 			loadEnv:     true,
@@ -660,7 +655,7 @@ func TestFormPkgViews(t *testing.T) {
 			}
 
 			zarfVarTest.Bundle.bundle = types.UDSBundle{Packages: []types.Package{{Name: pkgName}}}
-			pkgViews := formPkgViews(&zarfVarTest.Bundle)
+			pkgViews := formTestPkgViews(t, &zarfVarTest.Bundle)
 			actualView := pkgViews[0].overrides["overrides"].(anyArr)[0]
 			require.Contains(t, actualView.(map[string]interface{})[zarfVarTest.expectedKey], zarfVarTest.expectedVal)
 		})
@@ -682,7 +677,7 @@ func TestFormPkgViews(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.Bundle.bundle = types.UDSBundle{Packages: []types.Package{newTestPkg(pkgName, componentName, chartName, tc.bundleVars)}}
 
-			pkgViews := formPkgViews(&tc.Bundle)
+			pkgViews := formTestPkgViews(t, &tc.Bundle)
 			v := pkgViews[0].overrides["overrides"]
 			require.Equal(t, 0, len(v.(anyArr)))
 		})
@@ -729,7 +724,7 @@ func TestZarfSensitiveVariablesAreMasked(t *testing.T) {
 	}
 }
 
-func TestFormPkgViewsMasksZarfVariablesWhenMetadataIsUnavailable(t *testing.T) {
+func TestFormPkgViewsReturnsErrorWhenMetadataIsUnavailable(t *testing.T) {
 	const (
 		pkgName      = "test-package"
 		variableName = "VAR1"
@@ -743,10 +738,22 @@ func TestFormPkgViewsMasksZarfVariablesWhenMetadataIsUnavailable(t *testing.T) {
 	)
 	bundle.bundle = types.UDSBundle{Packages: []types.Package{{Name: pkgName}}}
 
-	pkgViews := formPkgViews(&bundle)
+	metadataErr := errors.New("metadata unavailable")
+	pkgViews, err := formPkgViewsWithMetadata(&bundle, func(types.Package) (v1alpha1.ZarfPackage, error) {
+		return v1alpha1.ZarfPackage{}, metadataErr
+	})
 
-	overrides := pkgViews[0].overrides["overrides"].([]interface{})
-	require.Equal(t, map[string]interface{}{variableName: hiddenVar}, overrides[0])
+	require.Nil(t, pkgViews)
+	require.ErrorContains(t, err, `unable to load metadata for package "test-package"`)
+	require.ErrorIs(t, err, metadataErr)
+}
+
+func TestDeployPackagesRejectsMissingManifestDigest(t *testing.T) {
+	var err error
+	require.NotPanics(t, func() {
+		err = deployPackages(context.Background(), []types.Package{{Name: "test-package", Ref: "0.0.1"}}, &Bundle{})
+	})
+	require.ErrorContains(t, err, `package "test-package" reference is missing a manifest digest`)
 }
 
 func TestFilterOverrides(t *testing.T) {
