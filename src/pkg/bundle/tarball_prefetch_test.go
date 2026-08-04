@@ -26,6 +26,7 @@ import (
 type fixtureBlob struct {
 	title   string // org.opencontainers.image.title annotation (zarf.yaml/sig/checksums)
 	content []byte
+	omit    bool // include the descriptor in the manifest but omit the blob from the archive
 }
 
 type fixturePkg struct {
@@ -65,13 +66,18 @@ func writeFixtureBundle(t *testing.T, pkgs []fixturePkg, manifestFirst bool) (st
 		var layers []ocispec.Descriptor
 		var metaNames []string
 		for _, b := range p.blobs {
-			d := writeBlob(b.content)
+			d := digest.FromBytes(b.content)
+			if !b.omit {
+				d = writeBlob(b.content)
+			}
 			layers = append(layers, ocispec.Descriptor{
 				Digest:      d,
 				Size:        int64(len(b.content)),
 				Annotations: map[string]string{ocispec.AnnotationTitle: b.title},
 			})
-			metaNames = append(metaNames, config.BlobsDir+"/"+d.Encoded())
+			if !b.omit {
+				metaNames = append(metaNames, config.BlobsDir+"/"+d.Encoded())
+			}
 		}
 
 		manifestBytes, err := json.Marshal(oci.Manifest{Manifest: ocispec.Manifest{Layers: layers}})
@@ -176,11 +182,9 @@ func TestPrefetchPackageMetadata(t *testing.T) {
 		require.FileExists(t, filepath.Join(res.dirPath, layout.Checksums))
 	})
 
-	t.Run("fails when metadata precedes its manifest in the stream", func(t *testing.T) {
-		// This is the single-pass contract that writeTarball satisfies by
-		// ordering each package's manifest before its metadata blobs. If the
-		// metadata streams first, the prefetcher skips it (not yet known to be
-		// needed) and never recovers it in one forward pass.
+	t.Run("recovers when metadata precedes its manifest in the stream", func(t *testing.T) {
+		// Pulled bundles do not guarantee archive entry order. The first pass
+		// learns which metadata blobs were skipped, and the second captures them.
 		pkgs := []fixturePkg{{name: "p", blobs: []fixtureBlob{
 			{title: layout.ZarfYAML, content: zarfYAML("p", "1.0.0")},
 			{title: config.ChecksumsTxt, content: []byte("c")},
@@ -188,10 +192,26 @@ func TestPrefetchPackageMetadata(t *testing.T) {
 		tarPath, hexes := writeFixtureBundle(t, pkgs, false)
 
 		tp := &tarballBundleProvider{src: tarPath}
+		results, err := tp.prefetchPackageMetadata(ctx, []types.Package{
+			{Name: "p", Ref: "ghcr.io/x/p@sha256:" + hexes[0]},
+		}, t.TempDir())
+		require.NoError(t, err)
+		require.FileExists(t, filepath.Join(results["p"].dirPath, layout.ZarfYAML))
+		require.FileExists(t, filepath.Join(results["p"].dirPath, layout.Checksums))
+	})
+
+	t.Run("errors when referenced metadata is absent from the bundle", func(t *testing.T) {
+		pkgs := []fixturePkg{{name: "p", blobs: []fixtureBlob{
+			{title: layout.ZarfYAML, content: zarfYAML("p", "1.0.0")},
+			{title: config.ChecksumsTxt, content: []byte("missing"), omit: true},
+		}}}
+		tarPath, hexes := writeFixtureBundle(t, pkgs, true)
+
+		tp := &tarballBundleProvider{src: tarPath}
 		_, err := tp.prefetchPackageMetadata(ctx, []types.Package{
 			{Name: "p", Ref: "ghcr.io/x/p@sha256:" + hexes[0]},
 		}, t.TempDir())
-		require.Error(t, err)
+		require.ErrorContains(t, err, "required package metadata blobs not found in bundle")
 	})
 
 	t.Run("rejects duplicate package names", func(t *testing.T) {
