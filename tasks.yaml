@@ -19,7 +19,9 @@ tasks:
     description: build a local UDS CLI binary
     actions:
       - cmd: mkdir -p build
-      - cmd: go build -o build/uds main.go
+      - task: get-versions
+      - task: build-args
+      - cmd: go build -ldflags="${BUILD_ARGS}" -o build/uds main.go
 
   - name: lint
     description: run repository lint checks
