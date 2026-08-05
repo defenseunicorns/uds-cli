@@ -1,87 +1,61 @@
 {
-  "enabled": true,
-  "forkProcessing": "enabled",
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "github>defenseunicorns/uds-common//config/renovate.json5"
   ],
   "branchConcurrentLimit": 0,
   "prConcurrentLimit": 0,
   "prHourlyLimit": 0,
-  "ignorePaths": [],
-  "dependencyDashboard": true,
-  "dependencyDashboardTitle": "Renovate Dashboard 🤖",
-  "rebaseWhen": "conflicted",
-  "commitBodyTable": true,
-  "suppressNotifications": [
-    "prIgnoreNotification"
-  ],
-  "postUpdateOptions": [
-    "gomodTidy"
-  ],
+  "separateMajorMinor": false,
+  "postUpdateOptions": ["gomodTidy"],
   "packageRules": [
     {
-      "matchFileNames": [".github/**"],
-      "groupName": "github-actions",
-      "commitMessageTopic": "github actions"
-    },
-    {
-      "matchFileNames": ["src/test/**", "tasks/**"],
-      "groupName": "test-dependencies",
-      "commitMessageTopic": "test dependencies"
-    },
-    {
       "matchFileNames": ["go.mod", "go.sum"],
-      "groupName": "go-dependencies",
-      "commitMessageTopic": "go dependencies"
+      "groupName": "application-deps",
+      "commitMessageTopic": "application dependencies"
+    },
+    {
+      "matchFileNames": [
+        ".github/**",
+        "README.md",
+        "docs/**",
+        "tasks/**",
+        "src/test/**",
+        "renovate.json"
+      ],
+      "groupName": "support-deps",
+      "commitMessageTopic": "support dependencies"
     },
     {
       "matchPackageNames": [
         "zarf-dev/zarf",
-        "github.com/zarf-dev/zarf"
+        "github.com/zarf-dev/zarf",
+        "ghcr.io/zarf-dev/**"
       ],
       "groupName": "zarf",
       "commitMessageTopic": "zarf"
-    },
-    {
-      "matchPackageNames": [
-        "github.com/pterm/pterm"
-      ],
-      "allowedVersions": "!/v0.12.80/"
     }
   ],
   "customManagers": [
     {
       "customType": "regex",
-      "managerFilePatterns": [
-        "/uds-bundle.yaml/",
-        "/action.yaml/"
-      ],
-      "matchStrings": [
-        "# renovate: datasource=(?<datasource>.*) depName=(?<depName>.*)\\n\\s*(version|ref): (?<currentValue>.*)"
-      ],
-      "versioningTemplate": "semver"
-    },
-    {
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/zarf.yaml/"
-      ],
-      "matchStrings": [
-        "# renovate: datasource=(?<datasource>.*) depName=(?<depName>.*)\\n\\s*(-\\s.*:)(?<currentValue>.*)"
-      ],
-      "datasourceTemplate": "github-tags"
-    },
-    {
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/generate-schema\\.sh/"
-      ],
+      "description": "Matches the Zarf schema URL in hack/generate-schema.sh: https://github.com/defenseunicorns/uds-cli/blob/main/hack/generate-schema.sh",
+      "managerFilePatterns": ["/generate-schema\\.sh/"],
       "matchStrings": [
         "https://raw\\.githubusercontent\\.com/zarf-dev/zarf/v(?<currentValue>\\d+\\.\\d+\\.\\d+)/zarf\\.schema\\.json"
       ],
       "depNameTemplate": "zarf-dev/zarf",
       "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "Extends the uds-common bundle OCI package matcher to real package examples in this repository's Markdown and MDX documentation: https://github.com/defenseunicorns/uds-common/blob/f96b0f22cd24e4e7e682184cfa502715fa65708d/config/renovate.json5#L365-L379",
+      "managerFilePatterns": ["/(^|/)(README\\.md|docs/.*\\.mdx)$/"],
+      "matchStrings": [
+        "(?m)^\\s*repository:\\s*(?<depName>ghcr\\.io/(?:zarf-dev|defenseunicorns)/[^\\s'\\\"]+)\\s*\\n\\s*ref:\\s*(?<currentValue>[^\\s#'\\\"]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "regex:^v?(?<major>\\d+)(\\.(?<minor>\\d+))?(\\.(?<patch>\\d+))?(-uds\\.(?<build>\\d))?(-(?<compatibility>\\w+)?)?(.*?)?$"
     }
   ]
 }
