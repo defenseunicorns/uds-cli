@@ -8,7 +8,7 @@ description: UDS CLI command reference for <code>uds dev deploy</code>.
 
 ### Synopsis
 
-[beta] Creates and deploys a UDS bundle from a given directory or OCI repository in dev mode, setting package options like YOLO mode for faster iteration.
+[beta] Creates and deploys a UDS bundle from a given directory or OCI repository in dev mode, using connected deploy behavior for faster iteration.
 
 ```
 uds dev deploy [BUNDLE_DIR|OCI_REF] [flags]
