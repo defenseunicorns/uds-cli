@@ -10,5 +10,6 @@ shared:
 variables:
   output-var:
     country: Scotland
+    sensitive_var: e2e-sensitive-zarf-value
   receive-var:
     precedence: Wales

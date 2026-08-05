@@ -6,6 +6,7 @@ package bundle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
@@ -48,6 +50,16 @@ func newTestPkg(pkgName string, componentName string, chartName string, overVar 
 		Overrides: map[string]map[string]types.BundleChartOverrides{componentName: {chartName: {Variables: []types.BundleChartVariable{
 			overVar,
 		}}}}}
+}
+
+func formTestPkgViews(t *testing.T, bundle *Bundle) []PkgView {
+	t.Helper()
+
+	pkgViews, err := formPkgViewsWithMetadata(bundle, func(types.Package) (v1alpha1.ZarfPackage, error) {
+		return v1alpha1.ZarfPackage{}, nil
+	})
+	require.NoError(t, err)
+	return pkgViews
 }
 
 func TestLoadVariablesPrecedence(t *testing.T) {
@@ -516,7 +528,7 @@ func TestFormPkgViews(t *testing.T) {
 				tc.Bundle.bundle = types.UDSBundle{Packages: []types.Package{newTestPkg(pkgName, componentName, chartName, tc.bundleVars)}}
 			}
 
-			pkgViews := formPkgViews(&tc.Bundle)
+			pkgViews := formTestPkgViews(t, &tc.Bundle)
 			v, ok := pkgViews[0].overrides["overrides"].(anyArr)[0].(viewOverVars)[tc.expectedChart]["variables"]
 
 			// check if the second chart is being used -- Go maps don't have strict ordering so value could be in 0 index or 1 index
@@ -529,22 +541,6 @@ func TestFormPkgViews(t *testing.T) {
 	}
 
 	zarfVarTests := []TestCase{
-		{
-			name: "show zarf var",
-			Bundle: newTestBundle(
-				ConfigVariables{
-					pkgName: {
-						"VAR1": "zarf-var-set-by-config",
-					},
-				},
-				nil,
-				nil,
-				"uds-config.yaml",
-				"",
-			),
-			expectedKey: "VAR1",
-			expectedVal: "zarf-var-set-by-config",
-		},
 		{
 			name:        "hide zarf var with env var",
 			loadEnv:     true,
@@ -660,7 +656,7 @@ func TestFormPkgViews(t *testing.T) {
 			}
 
 			zarfVarTest.Bundle.bundle = types.UDSBundle{Packages: []types.Package{{Name: pkgName}}}
-			pkgViews := formPkgViews(&zarfVarTest.Bundle)
+			pkgViews := formTestPkgViews(t, &zarfVarTest.Bundle)
 			actualView := pkgViews[0].overrides["overrides"].(anyArr)[0]
 			require.Contains(t, actualView.(map[string]interface{})[zarfVarTest.expectedKey], zarfVarTest.expectedVal)
 		})
@@ -682,11 +678,114 @@ func TestFormPkgViews(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.Bundle.bundle = types.UDSBundle{Packages: []types.Package{newTestPkg(pkgName, componentName, chartName, tc.bundleVars)}}
 
-			pkgViews := formPkgViews(&tc.Bundle)
+			pkgViews := formTestPkgViews(t, &tc.Bundle)
 			v := pkgViews[0].overrides["overrides"]
 			require.Equal(t, 0, len(v.(anyArr)))
 		})
 	}
+}
+
+func TestExtractValuesMasksSensitiveZarfVariableCollisions(t *testing.T) {
+	helmChartVars := map[string]interface{}{
+		"sensitive": "chart-sensitive-value",
+		"public":    "chart-public-value",
+	}
+	chartVariables := []types.BundleChartVariable{
+		{Name: "sensitive_chart_var", Path: "sensitive"},
+		{Name: "PUBLIC_CHART_VAR", Path: "public"},
+	}
+	sensitiveVars := map[string]bool{"SENSITIVE_CHART_VAR": true}
+
+	viewVars := extractValues(helmChartVars, chartVariables, sensitiveVars)
+
+	require.Equal(t, hiddenVar, viewVars["sensitive_chart_var"])
+	require.Equal(t, "chart-public-value", viewVars["PUBLIC_CHART_VAR"])
+}
+
+func TestAddZarfVars(t *testing.T) {
+	tests := []struct {
+		name          string
+		variableData  map[string]overrideData
+		zarfVariables []v1alpha1.InteractiveVariable
+		expected      []interface{}
+	}{
+		{
+			name:         "masks a sensitive variable from config",
+			variableData: map[string]overrideData{"SENSITIVE_VAR": {value: "sensitive-value", source: valuesources.Config}},
+			zarfVariables: []v1alpha1.InteractiveVariable{
+				{Variable: v1alpha1.Variable{Name: "sensitive_var", Sensitive: true}},
+			},
+			expected: []interface{}{map[string]interface{}{"SENSITIVE_VAR": hiddenVar}},
+		},
+		{
+			name:         "masks a sensitive variable from the CLI",
+			variableData: map[string]overrideData{"SENSITIVE_VAR": {value: "sensitive-value", source: valuesources.CLI}},
+			zarfVariables: []v1alpha1.InteractiveVariable{
+				{Variable: v1alpha1.Variable{Name: "SENSITIVE_VAR", Sensitive: true}},
+			},
+			expected: []interface{}{map[string]interface{}{"SENSITIVE_VAR": hiddenVar}},
+		},
+		{
+			name:         "shows a public variable",
+			variableData: map[string]overrideData{"PUBLIC_VAR": {value: "public-value", source: valuesources.Config}},
+			expected:     []interface{}{map[string]interface{}{"PUBLIC_VAR": "public-value"}},
+		},
+		{
+			name:         "masks an environment variable",
+			variableData: map[string]overrideData{"ENV_VAR": {value: "environment-value", source: valuesources.Env}},
+			expected:     []interface{}{map[string]interface{}{"ENV_VAR": hiddenVar}},
+		},
+		{
+			name:         "masks a built-in sensitive variable",
+			variableData: map[string]overrideData{config.RegistryPushPassword: {value: "registry-password", source: valuesources.Config}},
+			expected:     []interface{}{map[string]interface{}{config.RegistryPushPassword: hiddenVar}},
+		},
+		{
+			name:         "skips the UDS config path",
+			variableData: map[string]overrideData{"CONFIG": {value: "uds-config.yaml", source: valuesources.Env}},
+			expected:     []interface{}{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			variables := addZarfVars(tt.variableData, nil, sensitiveZarfVariableNames(tt.zarfVariables))
+
+			require.ElementsMatch(t, tt.expected, variables)
+		})
+	}
+}
+
+func TestFormPkgViewsReturnsErrorWhenMetadataIsUnavailable(t *testing.T) {
+	const (
+		pkgName      = "test-package"
+		variableName = "VAR1"
+	)
+	bundle := newTestBundle(
+		ConfigVariables{pkgName: {variableName: "sensitive-value"}},
+		nil,
+		nil,
+		"uds-config.yaml",
+		"",
+	)
+	bundle.bundle = types.UDSBundle{Packages: []types.Package{{Name: pkgName}}}
+
+	metadataErr := errors.New("metadata unavailable")
+	pkgViews, err := formPkgViewsWithMetadata(&bundle, func(types.Package) (v1alpha1.ZarfPackage, error) {
+		return v1alpha1.ZarfPackage{}, metadataErr
+	})
+
+	require.Nil(t, pkgViews)
+	require.ErrorContains(t, err, `unable to load metadata for package "test-package"`)
+	require.ErrorIs(t, err, metadataErr)
+}
+
+func TestDeployPackagesRejectsMissingManifestDigest(t *testing.T) {
+	var err error
+	require.NotPanics(t, func() {
+		err = deployPackages(context.Background(), []types.Package{{Name: "test-package", Ref: "0.0.1"}}, &Bundle{})
+	})
+	require.ErrorContains(t, err, `package "test-package" reference is missing a manifest digest`)
 }
 
 func TestFilterOverrides(t *testing.T) {

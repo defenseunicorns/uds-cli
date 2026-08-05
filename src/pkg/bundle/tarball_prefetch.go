@@ -160,13 +160,28 @@ func (tp *tarballBundleProvider) prefetchPackageMetadata(ctx context.Context, pa
 		return nil
 	}
 
-	srcFile, err := os.Open(tp.src)
-	if err != nil {
+	runPass := func() error {
+		srcFile, err := os.Open(tp.src)
+		if err != nil {
+			return err
+		}
+		defer srcFile.Close()
+		return config.BundleArchiveFormat.Extract(ctx, srcFile, handler)
+	}
+
+	if err := runPass(); err != nil {
 		return nil, err
 	}
-	defer srcFile.Close()
-	if err := config.BundleArchiveFormat.Extract(ctx, srcFile, handler); err != nil {
-		return nil, err
+	// Pulled or older bundles may place metadata before its package manifest.
+	// Once the first pass has parsed every manifest, retry only the metadata
+	// blobs that appeared too early in the stream.
+	if len(needed) > 0 && len(parsedManifests) == len(entries) {
+		if err := runPass(); err != nil {
+			return nil, err
+		}
+	}
+	if len(needed) > 0 && len(parsedManifests) == len(entries) {
+		return nil, fmt.Errorf("%d required package metadata blobs not found in bundle", len(needed))
 	}
 
 	// Resolve each package: write its metadata files to per-package subdirs.
