@@ -25,8 +25,8 @@ func TestBundleVariables(t *testing.T) {
 		bundleTarballPath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-variables-%s-0.0.1.tar.zst", e2e.Arch))
 		_, stderr := runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
 		require.Contains(t, stderr, "failed strict unmarshalling")
-		_, stderr = runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundleTarballPath))
-		bundleVariablesTestChecks(t, stderr, bundleTarballPath)
+		stdout, stderr := runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm --no-color", bundleTarballPath))
+		bundleVariablesTestChecks(t, stdout, stderr, bundleTarballPath)
 	})
 
 	t.Run("bad var name in import", func(t *testing.T) {
@@ -46,8 +46,10 @@ func TestBundleVariables(t *testing.T) {
 	})
 }
 
-func bundleVariablesTestChecks(t *testing.T, stderr string, bundleTarballPath string) {
+func bundleVariablesTestChecks(t *testing.T, stdout, stderr, bundleTarballPath string) {
 	require.NotContains(t, stderr, "CLIVersion is set to 'unset' which can cause issues with package creation and deployment")
+	require.Contains(t, stdout, `SENSITIVE_VAR: "****"`)
+	require.NotContains(t, stdout, "e2e-sensitive-zarf-value")
 	require.Contains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
 	require.Contains(t, stderr, "This fun-fact demonstrates precedence: The Red Dragon is the national symbol of Wales")
 	require.Contains(t, stderr, "shared var in output-var pkg: burning.boats")

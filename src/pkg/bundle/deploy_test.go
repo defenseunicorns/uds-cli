@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/defenseunicorns/uds-cli/src/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/src/types/valuesources"
@@ -701,25 +702,56 @@ func TestExtractValuesMasksSensitiveZarfVariableCollisions(t *testing.T) {
 	require.Equal(t, "chart-public-value", viewVars["PUBLIC_CHART_VAR"])
 }
 
-func TestZarfSensitiveVariablesAreMasked(t *testing.T) {
-	zarfVariables := []v1alpha1.InteractiveVariable{
-		{Variable: v1alpha1.Variable{Name: "SENSITIVE_VAR", Sensitive: true}},
-		{Variable: v1alpha1.Variable{Name: "PUBLIC_VAR"}},
+func TestAddZarfVars(t *testing.T) {
+	tests := []struct {
+		name          string
+		variableData  map[string]overrideData
+		zarfVariables []v1alpha1.InteractiveVariable
+		expected      []interface{}
+	}{
+		{
+			name:         "masks a sensitive variable from config",
+			variableData: map[string]overrideData{"SENSITIVE_VAR": {value: "sensitive-value", source: valuesources.Config}},
+			zarfVariables: []v1alpha1.InteractiveVariable{
+				{Variable: v1alpha1.Variable{Name: "sensitive_var", Sensitive: true}},
+			},
+			expected: []interface{}{map[string]interface{}{"SENSITIVE_VAR": hiddenVar}},
+		},
+		{
+			name:         "masks a sensitive variable from the CLI",
+			variableData: map[string]overrideData{"SENSITIVE_VAR": {value: "sensitive-value", source: valuesources.CLI}},
+			zarfVariables: []v1alpha1.InteractiveVariable{
+				{Variable: v1alpha1.Variable{Name: "SENSITIVE_VAR", Sensitive: true}},
+			},
+			expected: []interface{}{map[string]interface{}{"SENSITIVE_VAR": hiddenVar}},
+		},
+		{
+			name:         "shows a public variable",
+			variableData: map[string]overrideData{"PUBLIC_VAR": {value: "public-value", source: valuesources.Config}},
+			expected:     []interface{}{map[string]interface{}{"PUBLIC_VAR": "public-value"}},
+		},
+		{
+			name:         "masks an environment variable",
+			variableData: map[string]overrideData{"ENV_VAR": {value: "environment-value", source: valuesources.Env}},
+			expected:     []interface{}{map[string]interface{}{"ENV_VAR": hiddenVar}},
+		},
+		{
+			name:         "masks a built-in sensitive variable",
+			variableData: map[string]overrideData{config.RegistryPushPassword: {value: "registry-password", source: valuesources.Config}},
+			expected:     []interface{}{map[string]interface{}{config.RegistryPushPassword: hiddenVar}},
+		},
+		{
+			name:         "skips the UDS config path",
+			variableData: map[string]overrideData{"CONFIG": {value: "uds-config.yaml", source: valuesources.Env}},
+			expected:     []interface{}{},
+		},
 	}
 
-	for _, source := range []valuesources.Source{valuesources.Config, valuesources.CLI} {
-		t.Run(string(source), func(t *testing.T) {
-			variableData := map[string]overrideData{
-				"SENSITIVE_VAR": {value: "sensitive-value", source: source},
-				"PUBLIC_VAR":    {value: "public-value", source: source},
-			}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			variables := addZarfVars(tt.variableData, nil, sensitiveZarfVariableNames(tt.zarfVariables))
 
-			variables := addZarfVars(variableData, nil, sensitiveZarfVariableNames(zarfVariables))
-
-			require.ElementsMatch(t, []interface{}{
-				map[string]interface{}{"SENSITIVE_VAR": hiddenVar},
-				map[string]interface{}{"PUBLIC_VAR": "public-value"},
-			}, variables)
+			require.ElementsMatch(t, tt.expected, variables)
 		})
 	}
 }

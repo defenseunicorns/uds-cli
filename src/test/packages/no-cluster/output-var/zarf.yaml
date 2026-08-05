@@ -17,6 +17,8 @@ variables:
     default: uds.dev
   - name: SPECIFIC_PKG_VAR
     default: not-set
+  - name: SENSITIVE_VAR
+    sensitive: true
 
 components:
   - name: echo
