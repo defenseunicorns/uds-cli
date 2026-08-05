@@ -24,23 +24,20 @@ By the end of this guide you'll have UDS CLI installed and available on your `PA
 
 <Steps>
 
-1. **Add the Defense Unicorns tap**
+1. **Install UDS CLI via Homebrew**
 
    ```bash
-   brew tap defenseunicorns/tap
+   brew trust --formula defenseunicorns/tap/uds && brew tap defenseunicorns/tap && brew install uds
    ```
 
-2. **Install UDS CLI**
-
-   ```bash
-   brew install uds
-   ```
-
-3. **Verify the installation**
+2. **Verify the installation**
 
    ```bash
    uds version
    ```
+
+   > [!TIP]
+   > All releases are available on the [UDS CLI GitHub releases page](https://github.com/defenseunicorns/uds-cli/releases).
 
 </Steps>
 
