@@ -50,12 +50,12 @@
     {
       "customType": "regex",
       "description": "Extends the uds-common bundle OCI package matcher to real package examples in this repository's Markdown and MDX documentation: https://github.com/defenseunicorns/uds-common/blob/f96b0f22cd24e4e7e682184cfa502715fa65708d/config/renovate.json5#L365-L379",
-      "managerFilePatterns": ["/(^|/)(README\\.md|docs/.*\\.mdx)$/"],
+      "managerFilePatterns": ["/(^|/)(README\\.md|docs/.*\\.mdx?)$/"],
       "matchStrings": [
         "(?m)^\\s*repository:\\s*(?<depName>ghcr\\.io/(?:zarf-dev|defenseunicorns)/[^\\s'\\\"]+)\\s*\\n\\s*ref:\\s*(?<currentValue>[^\\s#'\\\"]+)"
       ],
       "datasourceTemplate": "docker",
-      "versioningTemplate": "regex:^v?(?<major>\\d+)(\\.(?<minor>\\d+))?(\\.(?<patch>\\d+))?(-uds\\.(?<build>\\d))?(-(?<compatibility>\\w+)?)?(.*?)?$"
+      "versioningTemplate": "regex:^v?(?<major>\\d+)(\\.(?<minor>\\d+))?(\\.(?<patch>\\d+))?(-uds\\.(?<build>\\d+))?(-(?<compatibility>\\w+)?)?(.*?)?$"
     }
   ]
 }
