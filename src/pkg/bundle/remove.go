@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/src/config"
@@ -19,7 +20,6 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
-	"golang.org/x/exp/slices"
 )
 
 // Remove removes packages deployed from a bundle

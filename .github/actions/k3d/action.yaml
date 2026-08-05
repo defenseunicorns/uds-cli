@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 name: setup-k3d
-description: "Install k3d and create a cluster"
+description: "Create a k3d cluster using the mise-managed k3d binary"
 
 inputs:
   create-cluster:
@@ -13,10 +13,6 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: install k3d
-      run: "curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash"
-      shell: bash
-
     - name: create cluster
       if: ${{ inputs.create-cluster == 'true' }}
       run: k3d cluster delete && k3d cluster create

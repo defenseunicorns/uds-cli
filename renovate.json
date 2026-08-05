@@ -32,8 +32,20 @@
     },
     {
       "matchFileNames": ["go.mod", "go.sum"],
-      "groupName": "go-dependencies",
-      "commitMessageTopic": "go dependencies"
+      "groupName": "application-deps",
+      "commitMessageTopic": "application dependencies"
+    },
+    {
+      "matchManagers": ["mise"],
+      "excludeDepNames": ["go"],
+      "groupName": "support-deps",
+      "commitMessageTopic": "support dependencies"
+    },
+    {
+      "matchManagers": ["mise"],
+      "matchDepNames": ["go"],
+      "groupName": "application-deps",
+      "commitMessageTopic": "application dependencies"
     },
     {
       "matchPackageNames": [

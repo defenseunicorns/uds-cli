@@ -123,7 +123,7 @@ func (lo *LocalBundle) create(ctx context.Context, signature []byte) error {
 			artifactPathMap[filepath.Join(lo.tmpDstDir, archiveName)] = archiveName
 
 			switch layer.Annotations[ocispec.AnnotationTitle] {
-			case layout.ZarfYAML, layout.Signature, layout.Bundle, config.ChecksumsTxt:
+			case layout.ZarfYAML, config.LegacySignature, layout.Bundle, config.ChecksumsTxt:
 				pkgMetaBlobs = append(pkgMetaBlobs, archiveName)
 			}
 		}

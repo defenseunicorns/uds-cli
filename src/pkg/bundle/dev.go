@@ -67,7 +67,9 @@ func (b *Bundle) CreateZarfPkgs() error {
 				} else {
 					os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom"}
 				}
-				zarfCLI.Execute(context.TODO())
+				if err := zarfCLI.Execute(context.TODO()); err != nil {
+					return err
+				}
 			}
 		}
 	}

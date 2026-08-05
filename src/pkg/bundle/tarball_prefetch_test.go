@@ -124,7 +124,7 @@ func TestPrefetchPackageMetadata(t *testing.T) {
 		pkgs := []fixturePkg{
 			{name: "signed-pkg", blobs: []fixtureBlob{
 				{title: layout.ZarfYAML, content: zarfYAML("internal-signed", "1.2.3")},
-				{title: layout.Signature, content: []byte("fake-signature")},
+				{title: config.LegacySignature, content: []byte("fake-signature")},
 				{title: config.ChecksumsTxt, content: []byte("fake-checksums")},
 			}},
 			{name: "unsigned-pkg", blobs: []fixtureBlob{
@@ -147,14 +147,14 @@ func TestPrefetchPackageMetadata(t *testing.T) {
 		signed := results["signed-pkg"]
 		require.NotNil(t, signed)
 		require.FileExists(t, filepath.Join(signed.dirPath, layout.ZarfYAML))
-		require.FileExists(t, filepath.Join(signed.dirPath, layout.Signature))
+		require.FileExists(t, filepath.Join(signed.dirPath, config.LegacySignature))
 		require.FileExists(t, filepath.Join(signed.dirPath, layout.Checksums))
 
 		unsigned := results["unsigned-pkg"]
 		require.NotNil(t, unsigned)
 		require.FileExists(t, filepath.Join(unsigned.dirPath, layout.ZarfYAML))
 		require.FileExists(t, filepath.Join(unsigned.dirPath, layout.Checksums))
-		require.NoFileExists(t, filepath.Join(unsigned.dirPath, layout.Signature))
+		require.NoFileExists(t, filepath.Join(unsigned.dirPath, config.LegacySignature))
 	})
 
 	t.Run("stages the keyless bundle signature layer", func(t *testing.T) {

@@ -131,7 +131,7 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, _ bool, _ bool) (
 	// grab SHA of signature (if present)
 	var signatureSHA string
 	for _, layer := range imageManifest.Layers {
-		if layer.Annotations[ocispec.AnnotationTitle] == layout.Signature {
+		if layer.Annotations[ocispec.AnnotationTitle] == config.LegacySignature {
 			signatureSHA = layer.Digest.Encoded()
 			break
 		}
@@ -172,7 +172,7 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, _ bool, _ bool) (
 		case strings.Contains(fileInArchive.Name(), zarfYamlSHA):
 			fileDst = filepath.Join(t.TmpDir, layout.ZarfYAML)
 		case signatureSHA != "" && strings.Contains(fileInArchive.Name(), signatureSHA):
-			fileDst = filepath.Join(t.TmpDir, layout.Signature)
+			fileDst = filepath.Join(t.TmpDir, config.LegacySignature)
 		case bundleSigSHA != "" && strings.Contains(fileInArchive.Name(), bundleSigSHA):
 			fileDst = filepath.Join(t.TmpDir, layout.Bundle)
 		default:

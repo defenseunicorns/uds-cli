@@ -37,8 +37,8 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache
           sudo docker image prune --all --force
 
-      - name: Setup golang
-        uses: ./.github/actions/golang
+      - name: Setup development tools
+        uses: ./.github/actions/mise
 
       - name: Install tools
         uses: ./.github/actions/install-tools
