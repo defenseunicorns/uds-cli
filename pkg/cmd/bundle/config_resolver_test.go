@@ -597,6 +597,62 @@ variables = {
 	assert.Equal(t, "test-cluster", resolved.Variables["cluster_name"])
 }
 
+func TestResolveBaseAndApplyBundleDefaults(t *testing.T) {
+	r := NewConfigResolver()
+	bundleDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundle.BundleDefaultsFileName), []byte(`
+variables = {
+  from_defaults = "default"
+  overridden    = "default"
+}
+`), 0o600))
+	configPath := filepath.Join(t.TempDir(), "config.uds.hcl")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+options {
+  architecture = "arm64"
+}
+variables = {
+  overridden  = "config"
+  from_config = "config"
+}
+`), 0o600))
+
+	flags := CLIFlags{
+		ConfigPath:         configPath,
+		PlainHTTP:          true,
+		PlainHTTPChanged:   true,
+		Concurrency:        3,
+		ConcurrencyChanged: true,
+		TmpDir:             bundleDir,
+		TmpDirChanged:      true,
+		Prompt:             true,
+	}
+	base, gotConfigPath, err := r.resolveBase(t.Context(), iostreams.IOStreams{}, flags)
+	require.NoError(t, err)
+	assert.Equal(t, configPath, gotConfigPath)
+	assert.Equal(t, "arm64", base.Options.Architecture)
+	assert.True(t, base.Options.PlainHTTP)
+	assert.Equal(t, 3, base.Options.Concurrency)
+	assert.Equal(t, bundleDir, base.Options.TmpDir)
+	assert.True(t, base.Global.Prompt)
+	assert.Equal(t, bundle.Variables{"overridden": "config", "from_config": "config"}, base.Variables)
+
+	resolved, err := r.applyBundleDefaults(t.Context(), iostreams.IOStreams{}, base, bundleDir)
+	require.NoError(t, err)
+	assert.Equal(t, "default", resolved.Variables["from_defaults"])
+	assert.Equal(t, "config", resolved.Variables["overridden"])
+	assert.Equal(t, "config", resolved.Variables["from_config"])
+	assert.Equal(t, base.Options, resolved.Options)
+	assert.Equal(t, base.Global, resolved.Global)
+	assert.NotSame(t, base.Options, resolved.Options)
+	assert.NotSame(t, base.Global, resolved.Global)
+	resolved.Options.Concurrency = 99
+	resolved.Global.LogLevel = "debug"
+	assert.Equal(t, 3, base.Options.Concurrency)
+	assert.Equal(t, "info", base.Global.LogLevel)
+	assert.Equal(t, bundle.Variables{"overridden": "config", "from_config": "config"}, base.Variables, "base config must not be mutated")
+}
+
 func TestResolve_CLIOverridesHCL(t *testing.T) {
 	r := NewConfigResolver()
 	configDir := t.TempDir()

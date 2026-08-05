@@ -157,6 +157,20 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 	assert.FileExists(t, filepath.Join(dstDir, "zarf.yaml"), "zarf.yaml layer should be staged before LoadFromDir is called")
 }
 
+func TestStagePackageLayer_CopiesWritableImagesIndex(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "index.json")
+	require.NoError(t, os.WriteFile(src, []byte("original"), 0o400))
+	dst := filepath.Join(t.TempDir(), "images", "index.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(dst), 0o700))
+
+	require.NoError(t, stagePackageLayer(t.Context(), src, dst, "images/index.json"))
+	require.NoError(t, os.WriteFile(dst, []byte("updated"), 0o600))
+
+	sourceData, err := os.ReadFile(src)
+	require.NoError(t, err)
+	assert.Equal(t, "original", string(sourceData))
+}
+
 func TestExtractedArtifactPackageLayoutLoader_RejectsEscapingLayerTitle(t *testing.T) {
 	hcl := `uds { bundle_api_version = "uds.dev/v1alpha1" }
 metadata { name = "stage-test" }

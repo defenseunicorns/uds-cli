@@ -101,6 +101,74 @@ func ValidateBundlePath(ref string, opts ...ValidateBundlePathOption) error {
 	return nil
 }
 
+// ValidateDevDeployPath validates bundle definition input and redirects artifact
+// users to the production deploy command.
+func ValidateDevDeployPath(ref string) error {
+	info, err := os.Stat(ref)
+	if err == nil {
+		if info.IsDir() {
+			bundlePath := filepath.Join(ref, bundle.BundleFileName)
+			if _, err := os.Stat(bundlePath); err != nil {
+				return fmt.Errorf("directory does not contain %s: %s", bundle.BundleFileName, ref)
+			}
+			return nil
+		}
+		if filepath.Base(ref) == bundle.BundleFileName {
+			return nil
+		}
+		if bundle.IsTarZst(ref) {
+			return fmt.Errorf("created bundle artifacts must be deployed with 'uds bundle deploy <bundle-artifact>'")
+		}
+		return fmt.Errorf("expected file named '%s', got: %s", bundle.BundleFileName, filepath.Base(ref))
+	}
+	if !os.IsNotExist(err) {
+		return fmt.Errorf("cannot access bundle definition %s: %w", ref, err)
+	}
+	if bundle.IsTarZst(ref) || bundle.IsOCIReference(ref) {
+		return fmt.Errorf("created bundle artifacts must be deployed with 'uds bundle deploy <bundle-artifact>'")
+	}
+	return ValidateBundlePath(ref)
+}
+
+// ValidateArtifactReference validates a local or OCI bundle artifact reference.
+func ValidateArtifactReference(ref string) error {
+	if ref == "" {
+		return fmt.Errorf("bundle artifact is required")
+	}
+	if strings.HasPrefix(ref, "oci://") {
+		return nil
+	}
+	info, err := os.Stat(ref)
+	if err == nil {
+		if info.IsDir() {
+			return fmt.Errorf("bundle definitions must be deployed with 'uds bundle dev deploy <bundle-definition>'")
+		}
+		if filepath.Base(ref) == bundle.BundleFileName {
+			return fmt.Errorf("bundle definitions must be deployed with 'uds bundle dev deploy <bundle-definition>'")
+		}
+		if bundle.IsTarZst(ref) {
+			if !info.Mode().IsRegular() {
+				return fmt.Errorf("local bundle artifact must be a regular file: %s", ref)
+			}
+			return nil
+		}
+		return fmt.Errorf("expected a local .tar.zst bundle artifact or OCI reference, got: %s", ref)
+	}
+	if !os.IsNotExist(err) {
+		return fmt.Errorf("cannot access bundle artifact %s: %w", ref, err)
+	}
+	if bundle.IsTarZst(ref) {
+		return fmt.Errorf("bundle artifact not found: %s", ref)
+	}
+	if filepath.Base(ref) == bundle.BundleFileName {
+		return fmt.Errorf("bundle definitions must be deployed with 'uds bundle dev deploy <bundle-definition>'")
+	}
+	if bundle.IsOCIReference(ref) {
+		return nil
+	}
+	return fmt.Errorf("expected a local .tar.zst bundle artifact or OCI reference, got: %s", ref)
+}
+
 // ResolvePrinter resolves the --output flag into a ResourcePrinter.
 // This centralizes the printer resolution logic shared by all bundle commands.
 func ResolvePrinter(cmd *cobra.Command) (printer.ResourcePrinter, error) {

@@ -150,6 +150,20 @@ func (r *ConfigResolver) OverlayCLI(flags CLIFlags, base bundle.ConfigOptions) b
 //  4. Overlay any explicitly-set CLI flags
 //  5. Build GlobalOptions from merged log_level and the --prompt flag
 func (r *ConfigResolver) Resolve(ctx context.Context, streams iostreams.IOStreams, flags CLIFlags, bundlePath string) (*bundle.UDSBundleConfig, string, error) {
+	base, configPath, err := r.resolveBase(ctx, streams, flags)
+	if err != nil {
+		return nil, "", err
+	}
+	resolved, err := r.applyBundleDefaults(ctx, streams, base, bundlePath)
+	if err != nil {
+		return nil, "", err
+	}
+	return resolved, configPath, nil
+}
+
+// resolveBase resolves configuration that is available before a bundle source
+// has been prepared. Bundle defaults are applied later by applyBundleDefaults.
+func (r *ConfigResolver) resolveBase(ctx context.Context, streams iostreams.IOStreams, flags CLIFlags) (*bundle.UDSBundleConfig, string, error) {
 	userCfg, err := r.parseUserConfig(ctx, streams, flags)
 	if err != nil {
 		return nil, "", err
@@ -161,17 +175,9 @@ func (r *ConfigResolver) Resolve(ctx context.Context, streams iostreams.IOStream
 		return nil, "", err
 	}
 
-	// Merge variables: defaults.uds.hcl (base) then config.uds.hcl (overrides).
-	defaults, err := r.loadBundleDefaults(ctx, streams, bundlePath)
-	if err != nil {
-		return nil, "", err
-	}
 	var variables bundle.Variables
-	if defaults != nil {
-		variables = defaults.Variables
-	}
 	if userCfg != nil {
-		variables = bundle.MergeVariables(variables, userCfg.Variables)
+		variables = bundle.MergeVariables(nil, userCfg.Variables)
 	}
 
 	return &bundle.UDSBundleConfig{
@@ -179,6 +185,25 @@ func (r *ConfigResolver) Resolve(ctx context.Context, streams iostreams.IOStream
 		Options:   &options,
 		Variables: variables,
 	}, flags.ConfigPath, nil
+}
+
+// applyBundleDefaults merges adjacent or materialized bundle defaults beneath
+// explicit config variables without mutating the base configuration.
+func (r *ConfigResolver) applyBundleDefaults(ctx context.Context, streams iostreams.IOStreams, base *bundle.UDSBundleConfig, bundlePath string) (*bundle.UDSBundleConfig, error) {
+	defaults, err := r.loadBundleDefaults(ctx, streams, bundlePath)
+	if err != nil {
+		return nil, err
+	}
+
+	global := *base.Global
+	options := *base.Options
+	resolved := &bundle.UDSBundleConfig{Global: &global, Options: &options}
+	if defaults != nil {
+		resolved.Variables = bundle.MergeVariables(defaults.Variables, base.Variables)
+	} else {
+		resolved.Variables = bundle.MergeVariables(nil, base.Variables)
+	}
+	return resolved, nil
 }
 
 // parseUserConfig parses the config.uds.hcl referenced by --config, returning nil when unset.

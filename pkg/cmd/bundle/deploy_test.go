@@ -5,292 +5,355 @@ package bundle
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
 
+	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/defenseunicorns/uds-cli/pkg/bundle"
-	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
-	"github.com/defenseunicorns/uds-cli/pkg/printer"
 )
 
 func TestDeployOptions_Complete(t *testing.T) {
+	streams, _, _, _ := iostreams.NewTestIOStreams()
+	bundleCmd := NewBundleCommand(streams)
+	cmd, _, err := bundleCmd.Find([]string{"deploy"})
+	require.NoError(t, err)
+
 	tests := []struct {
-		name           string
-		args           []string
-		wantBundlePath string
+		name string
+		args []string
+		want string
+	}{
+		{name: "local artifact", args: []string{"bundle.tar.zst"}, want: "bundle.tar.zst"},
+		{name: "OCI artifact", args: []string{"oci://example.com/bundle:1.0.0"}, want: "oci://example.com/bundle:1.0.0"},
+		{name: "no argument remains empty", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			o := NewDeployOptions(streams)
+			require.NoError(t, o.Complete(cmd, tt.args))
+			assert.Equal(t, tt.want, o.BundlePath)
+			assert.NotNil(t, o.Printer)
+		})
+	}
+}
+
+func TestDeployOptions_Validate(t *testing.T) {
+	tempDir := t.TempDir()
+	artifact := filepath.Join(tempDir, "bundle.tar.zst")
+	require.NoError(t, os.WriteFile(artifact, []byte("test"), 0o600))
+	sourceDir := filepath.Join(tempDir, "source")
+	require.NoError(t, os.Mkdir(sourceDir, 0o700))
+	sourceFile := filepath.Join(sourceDir, bundlepkg.BundleFileName)
+	require.NoError(t, os.WriteFile(sourceFile, []byte("test"), 0o600))
+	otherFile := filepath.Join(tempDir, "bundle.txt")
+	require.NoError(t, os.WriteFile(otherFile, []byte("test"), 0o600))
+	specialFile := filepath.Join(tempDir, "device.tar.zst")
+	if err := os.Symlink(os.DevNull, specialFile); err != nil {
+		t.Logf("special-file validation case unavailable: %v", err)
+		specialFile = ""
+	}
+
+	tests := []struct {
+		name    string
+		ref     string
+		wantErr string
+	}{
+		{name: "local artifact", ref: artifact},
+		{name: "OCI reference", ref: "oci://ghcr.io/example/bundle:1.0.0"},
+		{name: "OCI reference with artifact-like tag", ref: "oci://ghcr.io/example/bundle:release.tar.zst"},
+		{name: "bare OCI reference", ref: "ghcr.io/example/bundle:1.0.0"},
+		{name: "empty", wantErr: "bundle artifact is required"},
+		{name: "missing artifact", ref: filepath.Join(tempDir, "missing.tar.zst"), wantErr: "bundle artifact not found"},
+		{name: "source directory", ref: sourceDir, wantErr: "uds bundle dev deploy"},
+		{name: "source file", ref: sourceFile, wantErr: "uds bundle dev deploy"},
+		{name: "other file", ref: otherFile, wantErr: "local .tar.zst bundle artifact or OCI reference"},
+		{name: "special file", ref: specialFile, wantErr: "regular file"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.ref == "" && tt.name == "special file" {
+				t.Skip("special-file validation case unavailable")
+			}
+			o := &DeployOptions{BundlePath: tt.ref}
+			err := o.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestDeployOptions_Run_OCIPullUsesArtifactPathAndCleansWorkspace(t *testing.T) {
+	streams, _, out, _ := iostreams.NewTestIOStreams()
+	tmpDir := t.TempDir()
+	puller := &recordingPuller{
+		pullBundle: func(_ context.Context, ref, targetDir string, opts bundlepkg.PullOptions) (*bundlepkg.PullResult, error) {
+			assert.Equal(t, "oci://example.com/test:1.0.0", ref)
+			assert.Equal(t, tmpDir, opts.Config.Options.TmpDir)
+			assert.Same(t, streams.Out(), opts.Streams.Out())
+			artifact := filepath.Join(targetDir, "pulled.tar.zst")
+			require.NoError(t, os.WriteFile(artifact, []byte("not an archive"), 0o600))
+			return &bundlepkg.PullResult{OCIReference: ref, OutputPath: artifact}, nil
+		},
+	}
+
+	o := NewDeployOptions(streams)
+	o.BundlePath = "oci://example.com/test:1.0.0"
+	o.puller = puller
+	o.flags = CLIFlags{TmpDir: tmpDir, TmpDirChanged: true}
+
+	err := o.Run(t.Context())
+	require.ErrorContains(t, err, "extracting bundle artifact")
+	assert.Equal(t, 1, puller.bundleCalls)
+	assert.Empty(t, out.String(), "pull and failed deploy must not print structured output")
+	entries, readErr := os.ReadDir(tmpDir)
+	require.NoError(t, readErr)
+	assert.Empty(t, entries, "OCI deploy workspace should be removed after failure")
+}
+
+func TestDeployOptions_Run_LocalArtifactDoesNotPull(t *testing.T) {
+	streams, _, _, _ := iostreams.NewTestIOStreams()
+	artifact := filepath.Join(t.TempDir(), "bundle.tar.zst")
+	require.NoError(t, os.WriteFile(artifact, []byte("not an archive"), 0o600))
+	puller := &recordingPuller{}
+
+	o := NewDeployOptions(streams)
+	o.BundlePath = artifact
+	o.puller = puller
+	err := o.Run(t.Context())
+	require.ErrorContains(t, err, "extracting bundle artifact")
+	assert.Zero(t, puller.bundleCalls)
+}
+
+func TestDeployOptions_Run_OCIWorkspaceAndOutputLifecycle(t *testing.T) {
+	tests := []struct {
+		name       string
+		result     *bundlepkg.DeployResult
+		wantOutput string
 	}{
 		{
-			name:           "with file path",
-			args:           []string{"path/to/bundle.uds.hcl"},
-			wantBundlePath: "path/to/bundle.uds.hcl",
+			name:       "successful deploy prints only deploy result",
+			result:     &bundlepkg.DeployResult{BundleName: "test-bundle", Packages: 2},
+			wantOutput: "Bundle Name:  test-bundle",
 		},
-		{
-			name:           "without args defaults to current directory",
-			args:           []string{},
-			wantBundlePath: ".",
-		},
-		{
-			name:           "with directory path",
-			args:           []string{"path/to/dir"},
-			wantBundlePath: "path/to/dir",
-		},
+		{name: "cancelled deploy prints no result"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			streams, _, out, _ := iostreams.NewTestIOStreams()
+			tmpDir := t.TempDir()
+			puller := &recordingPuller{
+				pullBundle: func(_ context.Context, ref, targetDir string, _ bundlepkg.PullOptions) (*bundlepkg.PullResult, error) {
+					artifact := filepath.Join(targetDir, "pulled.tar.zst")
+					require.NoError(t, os.WriteFile(artifact, []byte("artifact"), 0o600))
+					return &bundlepkg.PullResult{OCIReference: ref, OutputPath: artifact}, nil
+				},
+			}
+			runnerCalls := 0
+			runner := func(_ context.Context, _ iostreams.IOStreams, _ *bundlepkg.UDSBundleConfig, bundlePath string, _ []string, _ bool) (*bundlepkg.DeployResult, error) {
+				runnerCalls++
+				assert.FileExists(t, bundlePath)
+				return tt.result, nil
+			}
+
+			o := NewDeployOptions(streams)
+			o.BundlePath = "oci://example.com/test:1.0.0"
+			o.puller = puller
+			o.runDeploy = runner
+			bundleCmd := NewBundleCommand(streams)
+			deployCmd, _, err := bundleCmd.Find([]string{"deploy"})
+			require.NoError(t, err)
+			require.NoError(t, o.Complete(deployCmd, []string{o.BundlePath}))
+			o.flags = CLIFlags{TmpDir: tmpDir, TmpDirChanged: true}
+
+			require.NoError(t, o.Run(t.Context()))
+			assert.Equal(t, 1, runnerCalls)
+			assert.Equal(t, 1, puller.bundleCalls)
+			entries, err := os.ReadDir(tmpDir)
+			require.NoError(t, err)
+			assert.Empty(t, entries)
+			if tt.wantOutput == "" {
+				assert.Empty(t, out.String())
+			} else {
+				assert.Contains(t, out.String(), tt.wantOutput)
+				assert.NotContains(t, out.String(), "OCI Reference")
+			}
+		})
+	}
+}
+
+func TestDeployOptions_Run_RejectsMalformedPullResults(t *testing.T) {
+	tests := []struct {
+		name   string
+		result *bundlepkg.PullResult
+		want   string
+	}{
+		{name: "nil result", want: "puller returned no result"},
+		{name: "empty output path", result: &bundlepkg.PullResult{}, want: "empty output path"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			streams, _, _, _ := iostreams.NewTestIOStreams()
 			o := NewDeployOptions(streams)
-
-			bundleCmd := NewBundleCommand(streams)
-			cmd, _, _ := bundleCmd.Find([]string{"deploy"})
-			err := o.Complete(cmd, tt.args)
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantBundlePath, o.BundlePath)
+			o.BundlePath = "oci://example.com/test:1.0.0"
+			o.puller = &recordingPuller{
+				pullBundle: func(context.Context, string, string, bundlepkg.PullOptions) (*bundlepkg.PullResult, error) {
+					return tt.result, nil
+				},
+			}
+			err := o.Run(t.Context())
+			require.ErrorContains(t, err, tt.want)
 		})
 	}
 }
 
-func TestDeployOptions_Validate(t *testing.T) {
-	// Use the existing deploy/init bundle for valid file test case
-	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundle.BundleFileName)
-	existingDir := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init")
-
-	// Create temporary test files and directories
-	tempDir := t.TempDir()
-
-	// Create an empty directory (no bundle.uds.hcl)
-	emptyDir := filepath.Join(tempDir, "empty")
-	require.NoError(t, os.Mkdir(emptyDir, 0o755))
-
-	// Create a valid directory with bundle.uds.hcl
-	validDir := filepath.Join(tempDir, "valid")
-	require.NoError(t, os.Mkdir(validDir, 0o755))
-	validBundleFile := filepath.Join(validDir, bundle.BundleFileName)
-	require.NoError(t, os.WriteFile(validBundleFile, []byte(`
-uds { bundle_api_version = "uds.dev/v1alpha1" }
-metadata { name = "test" }
-package "pkg1" {
-  source = "oci://example.com/pkg:v1"
-  signature_verification { verify = false }
-}
-`), 0o644))
-
-	// Create a tar.zst file
-	tarZstFile := filepath.Join(tempDir, "bundle.tar.zst")
-	require.NoError(t, os.WriteFile(tarZstFile, []byte("test"), 0o644))
-
-	// Create an HCL file with wrong name
-	wrongNameFile := filepath.Join(tempDir, "wrongname.hcl")
-	require.NoError(t, os.WriteFile(wrongNameFile, []byte("test"), 0o644))
+func TestDeployOptions_Run_RejectsUnsafePulledArtifacts(t *testing.T) {
+	externalArtifact := filepath.Join(t.TempDir(), "external.tar.zst")
+	require.NoError(t, os.WriteFile(externalArtifact, []byte("artifact"), 0o600))
 
 	tests := []struct {
 		name       string
-		bundlePath string
-		wantErr    string
+		outputPath func(string) string
+		want       string
 	}{
 		{
-			name:       "valid HCL file that exists",
-			bundlePath: existingFile,
-			wantErr:    "",
+			name: "path outside workspace",
+			outputPath: func(string) string {
+				return externalArtifact
+			},
+			want: "outside its workspace",
 		},
 		{
-			name:       "valid directory with bundle.uds.hcl",
-			bundlePath: existingDir,
-			wantErr:    "",
+			name: "symlink outside workspace",
+			outputPath: func(targetDir string) string {
+				path := filepath.Join(targetDir, "pulled.tar.zst")
+				require.NoError(t, os.Symlink(externalArtifact, path))
+				return path
+			},
+			want: "outside its workspace",
 		},
 		{
-			name:       "valid directory created in test",
-			bundlePath: validDir,
-			wantErr:    "",
+			name: "source directory",
+			outputPath: func(targetDir string) string {
+				return targetDir
+			},
+			want: "outside its workspace",
 		},
 		{
-			name:       "empty path",
-			bundlePath: "",
-			wantErr:    "bundle file path is required",
-		},
-		{
-			name:       "OCI reference with scheme",
-			bundlePath: "oci://ghcr.io/test/bundle:v1",
-			wantErr:    "OCI bundle references not yet supported",
-		},
-		{
-			name:       "OCI reference without scheme",
-			bundlePath: "ghcr.io/test/bundle:v1",
-			wantErr:    "OCI bundle references not yet supported",
-		},
-		{
-			name:       "tar.zst archive that exists",
-			bundlePath: tarZstFile,
-			wantErr:    "",
-		},
-		{
-			name:       "tar.zst archive path that doesn't exist",
-			bundlePath: "bundle.tar.zst",
-			wantErr:    "bundle artifact not found",
-		},
-		{
-			name:       "HCL file that does not exist",
-			bundlePath: "/nonexistent/bundle.uds.hcl",
-			wantErr:    "bundle path not found",
-		},
-		{
-			name:       "HCL file with wrong name",
-			bundlePath: wrongNameFile,
-			wantErr:    "expected file named 'bundle.uds.hcl'",
-		},
-		{
-			name:       "directory without bundle.uds.hcl",
-			bundlePath: emptyDir,
-			wantErr:    "directory does not contain bundle.uds.hcl",
+			name: "non artifact file",
+			outputPath: func(targetDir string) string {
+				path := filepath.Join(targetDir, "bundle.uds.hcl")
+				require.NoError(t, os.WriteFile(path, []byte("source"), 0o600))
+				return path
+			},
+			want: "non-artifact output path",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			streams, _, _, _ := iostreams.NewTestIOStreams()
-			o := &DeployOptions{
-				BundlePath: tt.bundlePath,
-				IOStreams:  streams,
+			runnerCalled := false
+			o := NewDeployOptions(streams)
+			o.BundlePath = "oci://example.com/test:1.0.0"
+			o.puller = &recordingPuller{
+				pullBundle: func(_ context.Context, ref, targetDir string, _ bundlepkg.PullOptions) (*bundlepkg.PullResult, error) {
+					return &bundlepkg.PullResult{OCIReference: ref, OutputPath: tt.outputPath(targetDir)}, nil
+				},
+			}
+			o.runDeploy = func(context.Context, iostreams.IOStreams, *bundlepkg.UDSBundleConfig, string, []string, bool) (*bundlepkg.DeployResult, error) {
+				runnerCalled = true
+				return nil, nil
 			}
 
-			err := o.Validate()
-			if tt.wantErr == "" {
-				require.NoError(t, err)
-				// Validate should not modify BundlePath
-				assert.Equal(t, tt.bundlePath, o.BundlePath, "Validate() should not modify BundlePath")
-			} else {
-				require.ErrorContains(t, err, tt.wantErr)
-			}
+			err := o.Run(t.Context())
+			require.ErrorContains(t, err, tt.want)
+			assert.False(t, runnerCalled)
 		})
 	}
 }
 
-func TestDeployOptions_Run_PromptDecline(t *testing.T) {
-	// Test the --prompt flag behavior: user declines deployment.
-	// Non-interactive (default) Run tests that proceed to actual deployment
-	// are covered by integration tests since they require OCI registries.
-	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundle.BundleFileName)
+func TestDeployCommands_Flags(t *testing.T) {
+	streams, _, _, _ := iostreams.NewTestIOStreams()
+	bundleCmd := NewBundleCommand(streams)
 
-	tests := []struct {
-		name          string
-		bundlePath    string
-		input         string   // Simulated user input for confirmation prompt
-		wantErrOutput []string // Strings that should appear in stderr output
-	}{
-		{
-			name:       "prompt flag - user confirms no",
-			bundlePath: existingFile,
-			input:      "n\n",
-			wantErrOutput: []string{
-				"Deploy this bundle?",
-			},
-		},
-		{
-			name:       "prompt flag - empty input treated as no",
-			bundlePath: existingFile,
-			input:      "\n",
-			wantErrOutput: []string{
-				"Deploy this bundle?",
-			},
-		},
+	for _, path := range [][]string{{"deploy"}, {"dev", "deploy"}} {
+		cmd, _, err := bundleCmd.Find(path)
+		require.NoError(t, err)
+		require.NotNil(t, cmd.Flags().Lookup("packages"))
+		assert.Equal(t, "p", cmd.Flags().Lookup("packages").Shorthand)
+		require.NotNil(t, cmd.Flags().Lookup("force"))
+		assert.Equal(t, "f", cmd.Flags().Lookup("force").Shorthand)
+		for _, inherited := range []string{"architecture", "plain-http", "skip-tls-verify", "tmp-dir", "concurrency", "config", "output"} {
+			require.NotNil(t, cmd.InheritedFlags().Lookup(inherited), "%s should inherit --%s", cmd.CommandPath(), inherited)
+		}
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			streams, in, out, errOut := iostreams.NewTestIOStreams()
-			in.WriteString(tt.input)
-			textPrinter, _ := printer.NewPrinter(printer.FormatText)
-
-			// Wire a cobra cmd with --prompt set so Run's Resolve picks it up.
-			bundleCmd := NewBundleCommand(streams)
-			bundleCmd.PersistentFlags().Bool("prompt", false, "enable interactive confirmation prompts")
-			deployCmd, _, err := bundleCmd.Find([]string{"deploy"})
-			require.NoError(t, err)
-			require.NoError(t, deployCmd.ParseFlags([]string{"--prompt"}))
-
-			o := &DeployOptions{
-				BundlePath: tt.bundlePath,
-				Printer:    textPrinter,
-				flags:      SnapshotFlags(deployCmd),
-				IOStreams:  streams,
-			}
-
-			err = o.Run(t.Context())
-			require.NoError(t, err)
-			// Stdout should be empty when deployment is cancelled (no result printed)
-			assert.Empty(t, out.String(), "stdout should be empty when deployment is cancelled")
-			for _, expected := range tt.wantErrOutput {
-				assert.Contains(t, errOut.String(), expected)
-			}
-		})
-	}
-}
-
-func TestDeployOptions_NoninteractivePrompt(t *testing.T) {
-	// Prompt defaults to false via GlobalOptions (non-interactive).
-	// With the new design, prompt is read from Config.Global.Prompt
-	// which defaults to false when the --prompt flag is not set.
-	global := &bundle.GlobalOptions{}
-	assert.False(t, global.Prompt, "Prompt should default to false (non-interactive)")
 }
 
 func TestPromptConfirmation(t *testing.T) {
 	tests := []struct {
-		name      string
-		input     string
-		wantYes   bool
-		wantError bool
+		name    string
+		input   string
+		wantYes bool
 	}{
 		{name: "y confirms", input: "y\n", wantYes: true},
 		{name: "Y confirms", input: "Y\n", wantYes: true},
 		{name: "yes confirms", input: "yes\n", wantYes: true},
 		{name: "YES confirms", input: "YES\n", wantYes: true},
-		{name: "n declines", input: "n\n", wantYes: false},
-		{name: "N declines", input: "N\n", wantYes: false},
-		{name: "no declines", input: "no\n", wantYes: false},
-		{name: "empty declines", input: "\n", wantYes: false},
-		{name: "random text declines", input: "maybe\n", wantYes: false},
+		{name: "n declines", input: "n\n"},
+		{name: "empty declines", input: "\n"},
+		{name: "random text declines", input: "maybe\n"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			streams, in, _, _ := iostreams.NewTestIOStreams()
 			in.WriteString(tt.input)
-
 			confirmed, err := PromptConfirmation(streams, "Test this?")
-
-			if tt.wantError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tt.wantYes, confirmed)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantYes, confirmed)
 		})
 	}
 }
 
 func TestPromptConfirmation_BrokenReader(t *testing.T) {
 	brokenErr := fmt.Errorf("read error: disk failure")
-	streams := iostreams.New(
-		&brokenReader{err: brokenErr},
-		&bytes.Buffer{},
-		&bytes.Buffer{},
-	)
+	streams := iostreams.New(&brokenReader{err: brokenErr}, &bytes.Buffer{}, &bytes.Buffer{})
 
 	confirmed, err := PromptConfirmation(streams, "Test this?")
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "reading confirmation")
+	require.ErrorContains(t, err, "reading confirmation")
 	assert.False(t, confirmed)
 }
 
-// brokenReader always returns an error from Read.
+type recordingPuller struct {
+	bundleCalls int
+	pullBundle  func(context.Context, string, string, bundlepkg.PullOptions) (*bundlepkg.PullResult, error)
+}
+
+func (p *recordingPuller) PullBundle(ctx context.Context, ref, targetDir string, opts bundlepkg.PullOptions) (*bundlepkg.PullResult, error) {
+	p.bundleCalls++
+	if p.pullBundle == nil {
+		return nil, fmt.Errorf("unexpected PullBundle call")
+	}
+	return p.pullBundle(ctx, ref, targetDir, opts)
+}
+
+func (p *recordingPuller) PullPackage(context.Context, string, string, bundlepkg.PullOptions) (*bundlepkg.PullResult, error) {
+	return nil, fmt.Errorf("unexpected PullPackage call")
+}
+
 type brokenReader struct {
 	err error
 }
@@ -299,34 +362,5 @@ func (r *brokenReader) Read(_ []byte) (int, error) {
 	return 0, r.err
 }
 
-// ensure brokenReader implements io.Reader.
+var _ bundlepkg.Puller = (*recordingPuller)(nil)
 var _ io.Reader = (*brokenReader)(nil)
-
-func TestDeployOptions_Flags(t *testing.T) {
-	streams, _, _, _ := iostreams.NewTestIOStreams()
-
-	// Verify --config flag is inherited from parent bundle command
-	bundleCmd := NewBundleCommand(streams)
-	configFlag := bundleCmd.PersistentFlags().Lookup("config")
-	require.NotNil(t, configFlag, "config flag should be defined on parent bundle command")
-	assert.Empty(t, configFlag.DefValue)
-}
-
-// TestDeployOptions_PackagesForceFlags verifies that --packages/-p and --force/-f
-// are wired on the deploy command and bound to DeployOptions.
-func TestDeployOptions_PackagesForceFlags(t *testing.T) {
-	streams, _, _, _ := iostreams.NewTestIOStreams()
-
-	bundleCmd := NewBundleCommand(streams)
-	deployCmd, _, _ := bundleCmd.Find([]string{"deploy"})
-	require.NotNil(t, deployCmd)
-
-	packagesFlag := deployCmd.Flags().Lookup("packages")
-	require.NotNil(t, packagesFlag, "packages flag should be defined on deploy command")
-	assert.Equal(t, "p", packagesFlag.Shorthand)
-
-	forceFlag := deployCmd.Flags().Lookup("force")
-	require.NotNil(t, forceFlag, "force flag should be defined on deploy command")
-	assert.Equal(t, "f", forceFlag.Shorthand)
-	assert.Equal(t, "false", forceFlag.DefValue, "force should default to false")
-}

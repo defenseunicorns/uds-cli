@@ -71,7 +71,7 @@ func TestDeployCommand_Integration(t *testing.T) {
 
 	// Use root command because --prompt is a root-level persistent flag
 	root := cmd.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "deploy", bundlePath, "--prompt"})
+	root.SetArgs([]string{"bundle", "dev", "deploy", bundlePath, "--prompt"})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -90,7 +90,7 @@ func TestDeployCommand_WithBundleFile_Integration(t *testing.T) {
 
 	// Use root command because --prompt is a root-level persistent flag
 	root := cmd.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "deploy", bundlePath, "--prompt"})
+	root.SetArgs([]string{"bundle", "dev", "deploy", bundlePath, "--prompt"})
 
 	err := root.Execute()
 	require.NoError(t, err)

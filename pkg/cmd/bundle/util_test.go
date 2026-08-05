@@ -305,3 +305,45 @@ func TestValidateBundlePath_WithRealBundle(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestValidateDevDeployPath_RedirectsArtifacts(t *testing.T) {
+	for _, ref := range []string{"bundle.tar.zst", "oci://ghcr.io/example/bundle:1.0.0", "ghcr.io/example/bundle:1.0.0"} {
+		err := ValidateDevDeployPath(ref)
+		require.ErrorContains(t, err, "uds bundle deploy")
+	}
+}
+
+func TestValidateArtifactReference_RedirectsSource(t *testing.T) {
+	dir := t.TempDir()
+	bundleFile := filepath.Join(dir, bundle.BundleFileName)
+	require.NoError(t, os.WriteFile(bundleFile, []byte("test"), 0o600))
+
+	for _, ref := range []string{dir, bundleFile} {
+		err := ValidateArtifactReference(ref)
+		require.ErrorContains(t, err, "uds bundle dev deploy")
+	}
+}
+
+func TestDeployValidators_PreferExistingRelativeSourcePaths(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	for _, dir := range []string{filepath.Join("example.com", "bundle"), "source.tar.zst"} {
+		require.NoError(t, os.MkdirAll(dir, 0o700))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, bundle.BundleFileName), []byte("test"), 0o600))
+
+		require.NoError(t, ValidateDevDeployPath(dir))
+		err := ValidateArtifactReference(dir)
+		require.ErrorContains(t, err, "uds bundle dev deploy")
+	}
+}
+
+func TestDeployValidators_DoNotTreatInaccessibleLocalPathAsOCI(t *testing.T) {
+	t.Chdir(t.TempDir())
+	require.NoError(t, os.Mkdir("example.com", 0o700))
+	require.NoError(t, os.Symlink("bundle", filepath.Join("example.com", "bundle")))
+
+	for _, validate := range []func(string) error{ValidateDevDeployPath, ValidateArtifactReference} {
+		err := validate(filepath.Join("example.com", "bundle"))
+		require.ErrorContains(t, err, "cannot access")
+	}
+}

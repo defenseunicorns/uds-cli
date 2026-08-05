@@ -42,6 +42,16 @@ func TestPrepareDeploySource_Directory(t *testing.T) {
 		assert.Nil(t, src.ValuesFilesOverride)
 	})
 
+	t.Run("tar.zst suffix always uses artifact preparation", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "source.tar.zst")
+		require.NoError(t, os.Mkdir(dir, 0o700))
+		bundleFile := filepath.Join(dir, BundleFileName)
+		require.NoError(t, os.WriteFile(bundleFile, []byte(""), 0o600))
+
+		_, err := PrepareDeploySource(t.Context(), iostreams.IOStreams{}, dir, "")
+		require.ErrorContains(t, err, "extracting bundle artifact")
+	})
+
 	t.Run("cleanup is safe to call", func(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(dir, BundleFileName), []byte(""), 0o600))

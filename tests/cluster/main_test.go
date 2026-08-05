@@ -140,7 +140,7 @@ func setupSuite(ctx context.Context) (_ *suiteEnvironment, retErr error) {
 		if !initialized {
 			fmt.Fprintln(os.Stderr, "Zarf init is missing or incomplete; installing it...")
 			initBundle := testutil.TestDataPath("bundles/create/init-no-k3s")
-			if err := testutil.RunCommand(ctx, os.Environ(), udsPath, "bundle", "deploy", initBundle); err != nil {
+			if err := testutil.RunCommand(ctx, os.Environ(), udsPath, "bundle", "dev", "deploy", initBundle); err != nil {
 				return nil, fmt.Errorf("deploy Zarf init bundle: %w", err)
 			}
 		} else {
@@ -162,7 +162,7 @@ func setupSuite(ctx context.Context) (_ *suiteEnvironment, retErr error) {
 
 		bootstrapBundle := testutil.TestDataPath("bundles/deploy/init")
 		fmt.Fprintf(os.Stderr, "Creating shared cluster %q and installing Zarf init...\n", sharedClusterName)
-		if err := testutil.RunCommand(ctx, os.Environ(), udsPath, "bundle", "deploy", bootstrapBundle, "--config", configPath); err != nil {
+		if err := testutil.RunCommand(ctx, os.Environ(), udsPath, "bundle", "dev", "deploy", bootstrapBundle, "--config", configPath); err != nil {
 			return nil, fmt.Errorf("deploy cluster bootstrap bundle: %w", err)
 		}
 		if err := testutil.WriteK3dKubeconfig(ctx, sharedClusterName, env.kubeconfigPath); err != nil {

@@ -26,7 +26,7 @@ func TestDeployAndRemoveBundle(t *testing.T) {
 	markBundleRemoved := testutil.RegisterBundleCleanup(t, testEnv.udsPath, bundleDir, namespaceCleanupTimeout)
 
 	testutil.RequireUDSCommand(t, testEnv.udsPath,
-		"bundle", "deploy", bundleDir,
+		"bundle", "dev", "deploy", bundleDir,
 		"--config", testutil.TestDataPath("bundles/deploy/variables/full-config.uds.hcl"),
 	)
 	firstK8s.WaitForDeploymentReady(firstNamespace, "podinfo", podinfoReadyTimeout)

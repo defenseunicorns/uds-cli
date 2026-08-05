@@ -126,7 +126,7 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 		if err := os.MkdirAll(filepath.Dir(dst), tempDirPerm); err != nil {
 			return nil, fmt.Errorf("creating dir for layer %q: %w", title, err)
 		}
-		if err := linkOrCopy(ctx, src, dst); err != nil {
+		if err := stagePackageLayer(ctx, src, dst, title); err != nil {
 			return nil, fmt.Errorf("staging layer %q for package %q: %w", title, pkg.Name, err)
 		}
 	}
@@ -172,6 +172,15 @@ func (l *SourcePackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *
 	}
 	advisoryVerifyPackage(ctx, pkgLayout, pkg, l.configOpts.TmpDir, s)
 	return pkgLayout, nil
+}
+
+func stagePackageLayer(ctx context.Context, src, dst, title string) error {
+	// Zarf adds image-name annotations to this index during deploy. Copy it so
+	// read-only OCI blobs remain immutable and the staged index is writable.
+	if filepath.ToSlash(title) == "images/index.json" {
+		return copyFileContents(ctx, src, dst)
+	}
+	return linkOrCopy(ctx, src, dst)
 }
 
 // stagePackageDir walks src directory and stages all files and directories into dst.
