@@ -83,10 +83,6 @@ func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.Componen
 
 	addNamespaceOverrides(&pkgLayout.Pkg, t.nsOverrides)
 
-	if config.Dev {
-		setAsYOLO(&pkgLayout.Pkg)
-	}
-
 	packageSpinner.Successf("Loaded bundled Zarf package: %s", t.Pkg.Name)
 	// ensure we're using the correct package name as specified by the bundle
 	pkgLayout.Pkg.Metadata.Name = t.Pkg.Name

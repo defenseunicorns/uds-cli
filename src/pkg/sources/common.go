@@ -36,17 +36,6 @@ type PackageSource interface {
 	LoadPackageMetadata(ctx context.Context, wantSBOM bool, skipValidation bool) (pkg v1alpha1.ZarfPackage, warnings []string, err error)
 }
 
-// setAsYOLO sets the YOLO flag on a package and strips out all images and repos
-func setAsYOLO(pkg *v1alpha1.ZarfPackage) {
-	pkg.Metadata.YOLO = true
-	// strip out all images (including image archives) and repos
-	for idx := range pkg.Components {
-		pkg.Components[idx].Images = []string{}
-		pkg.Components[idx].ImageArchives = []v1alpha1.ImageArchive{}
-		pkg.Components[idx].Repos = []string{}
-	}
-}
-
 // handleFilter filters components and checks if a package is a partial package by checking its number of components
 func handleFilter(pkg v1alpha1.ZarfPackage, filter filters.ComponentFilterStrategy) ([]v1alpha1.ZarfComponent, bool, error) {
 	numComponents := len(pkg.Components)

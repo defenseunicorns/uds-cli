@@ -138,3 +138,25 @@ func TestNewDeployOptionsUsesPackageNamespace(t *testing.T) {
 	require.True(t, deployOpts.ForceConflicts)
 	require.Equal(t, 2, deployOpts.Retries)
 }
+
+func TestNewDeployOptionsUsesConnectedInDev(t *testing.T) {
+	previousDev := config.Dev
+	config.Dev = true
+	t.Cleanup(func() {
+		config.Dev = previousDev
+	})
+
+	bndl := Bundle{cfg: &types.BundleConfig{DeployOpts: types.BundleDeployOptions{}}}
+
+	deployOpts, err := bndl.newDeployOptions(
+		t.Context(),
+		types.Package{Name: "podinfo"},
+		zarfVarData{},
+		packager.ValuesOverrides{},
+		v1alpha1.ZarfPackageConfig,
+		state.RegistryInfo{},
+	)
+
+	require.NoError(t, err)
+	require.True(t, deployOpts.Connected)
+}

@@ -133,8 +133,9 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
+		isConnectedDeploy := config.Dev
 		registryInfo := newRegistryInfo(pkgVars, pkgLayout.Pkg.Kind)
-		if !pkgLayout.Pkg.IsInitConfig() && pkgLayout.Pkg.HasImages() {
+		if !isConnectedDeploy && !pkgLayout.Pkg.IsInitConfig() && pkgLayout.Pkg.HasImages() {
 			if stateRegistryInfo == nil {
 				c, err := cluster.New(ctx)
 				if err != nil {
@@ -224,6 +225,7 @@ func (b *Bundle) newDeployOptions(ctx context.Context, pkg types.Package, pkgVar
 		NamespaceOverride:      pkg.Namespace,
 		RemoteOptions:          remoteOpts,
 		AdoptExistingResources: false,
+		Connected:              config.Dev,
 		OCIConcurrency:         config.CommonOptions.OCIConcurrency,
 		GitServer:              newGitServerInfo(pkgVars, pkgKind),
 		RegistryInfo:           registryInfo,
