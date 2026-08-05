@@ -70,6 +70,49 @@ func Test_validateBundleVars(t *testing.T) {
 	}
 }
 
+func TestPackageManifestDigest(t *testing.T) {
+	tests := []struct {
+		name           string
+		ref            string
+		expectedDigest string
+		expectedError  string
+	}{
+		{
+			name:           "returns manifest digest",
+			ref:            "ghcr.io/example/package:0.0.1@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+			expectedDigest: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		},
+		{
+			name:          "rejects ref without digest",
+			ref:           "ghcr.io/example/package:0.0.1",
+			expectedError: "reference is missing a manifest digest",
+		},
+		{
+			name:          "rejects empty digest",
+			ref:           "ghcr.io/example/package:0.0.1@sha256:",
+			expectedError: "reference is missing a manifest digest",
+		},
+		{
+			name:          "rejects malformed digest",
+			ref:           "ghcr.io/example/package:0.0.1@sha256:abc123",
+			expectedError: "invalid manifest digest",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			digest, err := packageManifestDigest(types.Package{Name: "test-package", Ref: tt.ref})
+
+			if tt.expectedError != "" {
+				require.ErrorContains(t, err, tt.expectedError)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedDigest, digest)
+		})
+	}
+}
+
 func Test_validateOverrides(t *testing.T) {
 	tests := []struct {
 		name          string

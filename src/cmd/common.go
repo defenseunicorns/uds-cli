@@ -59,7 +59,11 @@ func deploy(ctx context.Context, bndlClient *bundle.Bundle) error {
 	}
 
 	// confirm deployment
-	if ok := bndlClient.ConfirmBundleDeploy(); !ok {
+	ok, err := bndlClient.ConfirmBundleDeploy()
+	if err != nil {
+		return fmt.Errorf("failed to confirm bundle deployment: %w", err)
+	}
+	if !ok {
 		return errors.New("bundle deployment cancelled")
 	}
 

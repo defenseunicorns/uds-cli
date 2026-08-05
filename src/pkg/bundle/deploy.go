@@ -89,6 +89,10 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			}
 			b.bundle.Packages[i] = pkg
 		}
+		sha, err := packageManifestDigest(pkg)
+		if err != nil {
+			return err
+		}
 		pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
 			return err
@@ -114,8 +118,6 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		if err != nil {
 			return err
 		}
-
-		sha := strings.Split(pkg.Ref, "@sha256:")[1] // using appended SHA from create!
 
 		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, verifyOpts, config.CommonOptions.SkipSignatureValidation, sha, nsOverrides)
 		if err != nil {
@@ -406,13 +408,18 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 		return "", "", "", err
 	}
 
+	b.prefetchPackageMetadata(provider)
+
 	bundleName := b.bundle.Metadata.Name
 	return bundleName, string(bundleYAML), source, err
 }
 
-// ConfirmBundleDeploy prompts the user to confirm bundle creation
-func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
-	pkgviews := formPkgViews(b)
+// ConfirmBundleDeploy prompts the user to confirm bundle deployment
+func (b *Bundle) ConfirmBundleDeploy() (bool, error) {
+	pkgViews, err := formPkgViews(b)
+	if err != nil {
+		return false, err
+	}
 
 	message.HeaderInfof("🎁 BUNDLE DEFINITION")
 
@@ -432,7 +439,7 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 	message.Title("Packages:", "definition of packages this bundle deploys, including variable overrides")
 
-	for _, pkg := range pkgviews {
+	for _, pkg := range pkgViews {
 		if err := zarfUtils.ColorPrintYAML(pkg.meta, nil, false); err != nil {
 			message.WarnErr(err, "unable to print package metadata yaml")
 		}
@@ -445,17 +452,21 @@ func (b *Bundle) ConfirmBundleDeploy() (confirm bool) {
 
 	// Display prompt if not auto-confirmed
 	if config.CommonOptions.Confirm {
-		return config.CommonOptions.Confirm
+		return config.CommonOptions.Confirm, nil
 	}
 
 	prompt := &survey.Confirm{
 		Message: "Deploy this bundle?",
 	}
 
-	if err := survey.AskOne(prompt, &confirm); err != nil || !confirm {
-		return false
+	var confirm bool
+	if err := survey.AskOne(prompt, &confirm); err != nil {
+		return false, err
 	}
-	return true
+	if !confirm {
+		return false, nil
+	}
+	return true, nil
 }
 
 type PkgView struct {
@@ -464,7 +475,11 @@ type PkgView struct {
 }
 
 // formPkgViews creates a unique pre deploy view of each package's set overrides and Zarf variables
-func formPkgViews(b *Bundle) []PkgView {
+func formPkgViews(b *Bundle) ([]PkgView, error) {
+	return formPkgViewsWithMetadata(b, b.getMetadata)
+}
+
+func formPkgViewsWithMetadata(b *Bundle, getMetadata func(types.Package) (v1alpha1.ZarfPackage, error)) ([]PkgView, error) {
 	var pkgViews []PkgView
 	for _, pkg := range b.bundle.Packages {
 		variables := make([]interface{}, 0)
@@ -472,6 +487,13 @@ func formPkgViews(b *Bundle) []PkgView {
 		// process variables and overrides to get values
 		_, variableData := b.loadVariables(pkg, nil)
 		valuesOverrides, _, _ := b.loadChartOverrides(pkg, variableData)
+
+		// Load the package metadata to get the list of sensitive variables for masking their values in the view
+		zarfPkg, err := getMetadata(pkg)
+		if err != nil {
+			return nil, fmt.Errorf("unable to load metadata for package %q: %w", pkg.Name, err)
+		}
+		sensitiveVars := sensitiveZarfVariableNames(zarfPkg.Variables)
 
 		for compName, component := range pkg.Overrides {
 			for chartName, chart := range component {
@@ -484,7 +506,7 @@ func formPkgViews(b *Bundle) []PkgView {
 				}
 
 				// takes values from helmChartVars {path: value} and form new map of {name: value}
-				viewVars := extractValues(helmChartVars, chart.Variables)
+				viewVars := extractValues(helmChartVars, chart.Variables, sensitiveVars)
 
 				if len(viewVars) > 0 {
 					variables = append(variables, map[string]map[string]interface{}{chartName: {"variables": viewVars}})
@@ -492,10 +514,10 @@ func formPkgViews(b *Bundle) []PkgView {
 			}
 		}
 
-		variables = addZarfVars(variableData, variables)
+		variables = addZarfVars(variableData, variables, sensitiveVars)
 		pkgViews = append(pkgViews, PkgView{meta: formPkgMeta(pkg), overrides: map[string]interface{}{"overrides": variables}})
 	}
-	return pkgViews
+	return pkgViews, nil
 }
 
 func formPkgMeta(pkg types.Package) map[string]string {
@@ -514,7 +536,17 @@ func formPkgMeta(pkg types.Package) map[string]string {
 	return pkgMeta
 }
 
-func addZarfVars(pkgVars map[string]overrideData, variables []interface{}) []interface{} {
+func sensitiveZarfVariableNames(variables []v1alpha1.InteractiveVariable) map[string]bool {
+	sensitiveVars := make(map[string]bool)
+	for _, variable := range variables {
+		if variable.Sensitive {
+			sensitiveVars[strings.ToUpper(variable.Name)] = true
+		}
+	}
+	return sensitiveVars
+}
+
+func addZarfVars(pkgVars map[string]overrideData, variables []interface{}, sensitiveVars map[string]bool) []interface{} {
 	// Built-in sensitive variables that should be sanitized
 	sensitiveBuiltInVars := map[string]bool{
 		config.RegistryPushUsername: true,
@@ -534,7 +566,7 @@ func addZarfVars(pkgVars map[string]overrideData, variables []interface{}) []int
 		// "CONFIG" refers to "UDS_CONFIG" which is not a Zarf variable or override so we skip it
 		if key != "CONFIG" {
 			// Mask potentially secret ENV vars or built-in sensitive variables
-			if fv.source == valuesources.Env || sensitiveBuiltInVars[key] {
+			if fv.source == valuesources.Env || sensitiveBuiltInVars[key] || sensitiveVars[key] {
 				fv.value = hiddenVar
 			}
 			variables = append(variables, map[string]interface{}{key: fv.value})
@@ -544,15 +576,14 @@ func addZarfVars(pkgVars map[string]overrideData, variables []interface{}) []int
 }
 
 // extractValues returns a map of {name: value} from helmChartVars
-func extractValues(helmChartVars map[string]interface{}, variables []types.BundleChartVariable) map[string]interface{} {
+func extractValues(helmChartVars map[string]interface{}, variables []types.BundleChartVariable, sensitiveVars map[string]bool) map[string]interface{} {
 	viewVars := make(map[string]interface{})
 	for _, v := range variables {
 		// Mask potentially sensitive variables
-		if v.Type == chartvariable.File || v.Source == valuesources.Env || v.Sensitive {
+		if v.Type == chartvariable.File || v.Source == valuesources.Env || v.Sensitive || sensitiveVars[strings.ToUpper(v.Name)] {
 			viewVars[v.Name] = hiddenVar
 			continue
 		}
-
 		// handle complex paths: var.helm.path = { var: { helm: { path: val } } }
 		if strings.Contains(v.Path, ".") {
 			paths := strings.Split(v.Path, ".")
