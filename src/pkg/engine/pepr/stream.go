@@ -440,7 +440,11 @@ func (p *StreamReader) renderMutation(event LogEntry) string {
 			for _, op := range ops {
 				key := style.CoolGray.Render(op.Path)
 				val := style.Cyan.Render(string(op.Value))
-				fmt.Fprintf(&formattedPatch, format, p.indent, key, val)
+				if name == "remove" {
+					fmt.Fprintf(&formattedPatch, format, p.indent, key)
+				} else {
+					fmt.Fprintf(&formattedPatch, format, p.indent, key, val)
+				}
 			}
 		}
 
