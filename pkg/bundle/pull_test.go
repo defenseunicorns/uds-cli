@@ -195,6 +195,7 @@ metadata {
 }
 package "pkg1" {
   source = "localpkg"
+  signature_verification { verify = false }
 }
 `), tmpFilePerm))
 

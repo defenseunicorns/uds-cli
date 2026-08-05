@@ -12,8 +12,10 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
 func TestExtractedArtifactPackageLayoutLoader_LoadPackageLayout(t *testing.T) {
@@ -70,6 +72,61 @@ func TestExtractedArtifactPackageLayoutLoader_LoadPackageLayout(t *testing.T) {
 			} else {
 				assert.NotContains(t, err.Error(), "not found in bundle artifact index")
 			}
+		})
+	}
+}
+
+func TestArtifactPackageLayoutOptionsNeverVerifies(t *testing.T) {
+	filter := BuildComponentFilter([]string{"optional"})
+	opts := artifactPackageLayoutOptions(filter, true)
+
+	assert.Same(t, filter, opts.Filter)
+	assert.True(t, opts.IsPartial)
+	assert.Equal(t, layout.VerifyNever, opts.VerificationStrategy)
+}
+
+func TestSourcePackageLayoutLoaderAdvisoryVerification(t *testing.T) {
+	falseValue := false
+	tests := []struct {
+		name         string
+		verification *PackageSignatureVerification
+		wantWarning  string
+	}{
+		{
+			name:         "verification failure warns and continues",
+			verification: &PackageSignatureVerification{PublicKey: "test public key"},
+			wantWarning:  "would fail bundle create",
+		},
+		{
+			name:        "missing create policy warns and continues",
+			wantWarning: "would fail bundle create",
+		},
+		{
+			name:         "explicit bypass warns and continues",
+			verification: &PackageSignatureVerification{Verify: &falseValue},
+			wantWarning:  "unverified package",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pkgDir := t.TempDir()
+			writeValidUnsignedZarfPackage(t, pkgDir)
+			streams, _, out, errOut := iostreams.NewTestIOStreams()
+			streams = logger.Bind(streams, "info")
+			loader := &SourcePackageLayoutLoader{
+				configOpts: ConfigOptions{Architecture: "amd64", TmpDir: t.TempDir()},
+			}
+
+			pkgLayout, err := loader.LoadPackageLayout(t.Context(), &Package{
+				Name:                  "test",
+				Source:                pkgDir,
+				SignatureVerification: tt.verification,
+			}, t.TempDir(), LoadOptions{Streams: streams})
+			require.NoError(t, err)
+			require.NotNil(t, pkgLayout)
+			assert.Contains(t, out.String()+errOut.String(), tt.wantWarning)
+			require.NoError(t, pkgLayout.Cleanup())
 		})
 	}
 }

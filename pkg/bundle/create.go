@@ -16,6 +16,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/defenseunicorns/uds-cli/pkg/logger"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	oras "oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
 	oraci "oras.land/oras-go/v2/content/oci"
@@ -54,15 +55,57 @@ func (c *localCreator) CreatePackage(ctx context.Context, pkg *Package, opts Cre
 	if err := opts.Validate(); err != nil {
 		return err
 	}
+	if pkg == nil {
+		return fmt.Errorf("package is required")
+	}
+	if err := validatePackageSignatureVerification(pkg.Name, pkg.SignatureVerification); err != nil {
+		return err
+	}
 	opts.Streams.Info("ingesting package", "name", pkg.Name, "source", pkg.Source)
 
 	source := NewPackageSource(pkg.Source, *opts.Config.Options, opts.BundleDir, opts.Streams)
 
 	filter := BuildComponentFilter(pkg.OptionalComponents)
-
-	manifests, err := source.IngestFiltered(ctx, filter, opts.BlobDir)
+	verificationWorkspace, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-package-verify-*")
 	if err != nil {
-		return fmt.Errorf("package %q: %w", pkg.Name, err)
+		return fmt.Errorf("creating package verification workspace: %w", err)
+	}
+	defer func() {
+		if err := os.RemoveAll(verificationWorkspace); err != nil {
+			opts.Streams.Warn("failed to remove package verification workspace", "path", verificationWorkspace, "error", err)
+		}
+	}()
+
+	loadOptions, err := packageSignatureVerificationOptions(pkg, filepath.Join(verificationWorkspace, "material"), opts.Config.Options.TmpDir)
+	if err != nil {
+		return fmt.Errorf("package %q: configuring signature verification: %w", pkg.Name, err)
+	}
+	loadOptions.Filter = filter
+	if loadOptions.VerificationStrategy == layout.VerifyNever {
+		opts.Streams.Warn("package signature verification is disabled; resulting bundle will contain an unverified package", "name", pkg.Name)
+	} else if pkg.SignatureVerification.Keyless != nil {
+		keyless := pkg.SignatureVerification.Keyless
+		if keyless.InsecureIgnoreTlog || keyless.InsecureIgnoreSCT {
+			opts.Streams.Warn("keyless package signature verification has reduced protections", "name", pkg.Name, "ignoreTlog", keyless.InsecureIgnoreTlog, "ignoreSCT", keyless.InsecureIgnoreSCT)
+		}
+	}
+
+	var manifests []ociManifest
+	if loadOptions.VerificationStrategy != layout.VerifyNever {
+		stagingDir, err := os.MkdirTemp(verificationWorkspace, "package-*")
+		if err != nil {
+			return fmt.Errorf("creating package verification workspace: %w", err)
+		}
+
+		manifests, err = source.VerifyAndIngestFiltered(ctx, stagingDir, loadOptions, opts.BlobDir)
+		if err != nil {
+			return fmt.Errorf("package %q: verifying and ingesting package: %w", pkg.Name, err)
+		}
+	} else {
+		manifests, err = source.IngestFiltered(ctx, filter, opts.BlobDir)
+		if err != nil {
+			return fmt.Errorf("package %q: %w", pkg.Name, err)
+		}
 	}
 
 	// Set the OCI reference annotation for each manifest
@@ -101,7 +144,7 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	}
 	s.Debug("bundle parsed", "name", b.Metadata.Name, "packages", len(b.Packages))
 
-	if err := b.Validate(); err != nil {
+	if err := validateBundleForCreate(b); err != nil {
 		return nil, err
 	}
 	s.Debug("bundle validated")

@@ -36,6 +36,7 @@ locals {
 # Base package - no dependencies, deployed first
 package "core_base" {
   source = "oci://${local.repo}/${local.pkgs.base}:${local.version}"
+  signature_verification { verify = false }
   optional_components = [
     "istio-passthrough-gateway",
     "istio-egress-gateway",
@@ -45,6 +46,7 @@ package "core_base" {
 # Logging package - depends on base being deployed first
 package "core_logging" {
   source     = "oci://${local.repo}/${local.pkgs.logging}:${local.version}"
+  signature_verification { verify = false }
   depends_on = [package.core_base]
   values_files = [
     "values/loki.yaml",
@@ -55,6 +57,7 @@ package "core_logging" {
 # Monitoring package - depends on both base and logging
 package "core_monitoring" {
   source     = "oci://${local.repo}/${local.pkgs.monitoring}:${local.version}"
+  signature_verification { verify = false }
   depends_on = [package.core_base, package.core_logging]
   namespace  = "monitoring"
   values_files = [

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
 // digestToHex extracts the hex portion from a digest string for test assertions.
@@ -62,6 +63,30 @@ func TestLocalSource_IngestFiltered_RelativePath(t *testing.T) {
 	manifests, err := src.IngestFiltered(t.Context(), filters.Empty(), blobDir)
 	require.NoError(t, err)
 	assert.Len(t, manifests, 1)
+}
+
+func TestLocalSourcePullFilteredArchiveUsesCallerWorkspace(t *testing.T) {
+	pkgDir := t.TempDir()
+	const emptySHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+	zarfYAML := "kind: ZarfPackageConfig\nmetadata:\n  name: test\n  version: 1.0.0\n  aggregateChecksum: " + emptySHA256 + "\ncomponents: []\n"
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte(zarfYAML), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "checksums.txt"), nil, 0o600))
+
+	archivePath := filepath.Join(t.TempDir(), "zarf-package-test-amd64-1.0.0.tar.zst")
+	require.NoError(t, writeTarZst(t.Context(), iostreams.IOStreams{}, archivePath, pkgDir))
+
+	workspace := filepath.Join(t.TempDir(), "workspace")
+	require.NoError(t, os.MkdirAll(workspace, tempDirPerm))
+	src := &localSource{path: archivePath, arch: "amd64", streams: iostreams.IOStreams{}}
+	pkgLayout, err := src.PullFiltered(t.Context(), workspace, layout.PackageLayoutOptions{
+		Filter:               filters.Empty(),
+		VerificationStrategy: layout.VerifyNever,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, workspace, pkgLayout.DirPath())
+
+	require.NoError(t, pkgLayout.Cleanup())
+	assert.NoDirExists(t, workspace)
 }
 
 func TestLocalSource_ResolvedPath(t *testing.T) {

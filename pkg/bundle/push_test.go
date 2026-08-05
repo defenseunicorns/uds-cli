@@ -47,6 +47,7 @@ metadata {
 }
 package "pkg1" {
   source = "localpkg"
+  signature_verification { verify = false }
 }
 `, name, version), tmpFilePerm))
 
@@ -167,6 +168,7 @@ metadata {
 }
 package "pkg1" {
   source = "localpkg"
+  signature_verification { verify = false }
 }
 `), tmpFilePerm))
 
@@ -224,6 +226,7 @@ metadata {
 }
 package "pkg1" {
   source = "localpkg"
+  signature_verification { verify = false }
 }
 `), tmpFilePerm))
 	tarball, err := Create(t.Context(), CreateOptions{
@@ -259,6 +262,7 @@ metadata {
 }
 package "pkg1" {
   source = "localpkg"
+  signature_verification { verify = false }
 }
 `), tmpFilePerm))
 	tarball, err := Create(t.Context(), CreateOptions{

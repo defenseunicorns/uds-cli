@@ -12,16 +12,24 @@ metadata {
 
 package "uds_k3d_dev" {
   source       = "oci://ghcr.io/defenseunicorns/packages/uds-k3d:0.20.2"
+  signature_verification { verify = false }
   values_files = ["values/k3d.yaml"]
 }
 
 package "init" {
   source     = "oci://ghcr.io/zarf-dev/packages/init:v0.82.0"
+  signature_verification {
+    keyless {
+      certificate_identity_regexp = "https://github\\.com/zarf-dev/zarf/\\.github/workflows/release\\.yml@refs/tags/v\\d+\\.\\d+\\.\\d+"
+      certificate_oidc_issuer      = "https://token.actions.githubusercontent.com"
+    }
+  }
   depends_on = [package.uds_k3d_dev]
 }
 
 package "podinfo" {
   source       = "./zarf-package-podinfo-${sys.arch}-0.1.0.tar.zst"
+  signature_verification { verify = false }
   values_files = ["values/podinfo.yaml"]
   depends_on   = [package.init]
 }

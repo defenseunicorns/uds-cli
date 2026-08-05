@@ -14,10 +14,19 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/pkg/logger"
 	"github.com/mholt/archives"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func writeValidUnsignedZarfPackage(t *testing.T, dir string) {
+	t.Helper()
+	const emptySHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+	zarfYAML := "kind: ZarfPackageConfig\nmetadata:\n  name: test\n  version: 1.0.0\n  aggregateChecksum: " + emptySHA256 + "\ncomponents: []\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte(zarfYAML), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "checksums.txt"), nil, tmpFilePerm))
+}
 
 // newTestConfig returns a *UDSBundleConfig with defaults suitable for tests.
 func newTestConfig() *UDSBundleConfig {
@@ -37,6 +46,63 @@ func newTestConfigWithArch(arch string) *UDSBundleConfig {
 		Concurrency:  10,
 	}
 	return &UDSBundleConfig{Global: &GlobalOptions{}, Options: &opts}
+}
+
+func TestLocalCreatorCreatePackageVerificationBoundary(t *testing.T) {
+	t.Run("verification failure never ingests the real package", func(t *testing.T) {
+		pkgDir := t.TempDir()
+		writeValidUnsignedZarfPackage(t, pkgDir)
+		blobDir := t.TempDir()
+		creator := newLocalCreator("amd64")
+		err := creator.CreatePackage(t.Context(), &Package{
+			Name:                  "signed",
+			Source:                pkgDir,
+			SignatureVerification: &PackageSignatureVerification{PublicKey: "test public key"},
+		}, CreatePackageOptions{
+			Config:    newTestConfig(),
+			BlobDir:   blobDir,
+			BundleDir: t.TempDir(),
+			Streams:   iostreams.IOStreams{},
+		})
+		require.ErrorContains(t, err, "package is not signed")
+		assert.Empty(t, creator.manifests)
+		entries, readErr := os.ReadDir(blobDir)
+		require.NoError(t, readErr)
+		assert.Empty(t, entries)
+	})
+
+	t.Run("explicit bypass ingests a real package and warns", func(t *testing.T) {
+		verify := false
+		pkgDir := t.TempDir()
+		writeValidUnsignedZarfPackage(t, pkgDir)
+		streams, _, out, errOut := iostreams.NewTestIOStreams()
+		streams = logger.Bind(streams, "info")
+		creator := newLocalCreator("amd64")
+
+		err := creator.CreatePackage(t.Context(), &Package{
+			Name:                  "unsigned",
+			Source:                pkgDir,
+			SignatureVerification: &PackageSignatureVerification{Verify: &verify},
+		}, CreatePackageOptions{
+			Config:    newTestConfig(),
+			BlobDir:   t.TempDir(),
+			BundleDir: t.TempDir(),
+			Streams:   streams,
+		})
+		require.NoError(t, err)
+		require.Len(t, creator.manifests, 1)
+		assert.Contains(t, out.String()+errOut.String(), "unverified package")
+	})
+
+	t.Run("nil package is rejected", func(t *testing.T) {
+		creator := newLocalCreator("amd64")
+		err := creator.CreatePackage(t.Context(), nil, CreatePackageOptions{
+			Config:    newTestConfig(),
+			BlobDir:   t.TempDir(),
+			BundleDir: t.TempDir(),
+		})
+		require.ErrorContains(t, err, "package is required")
+	})
 }
 
 func TestCreate_BuildsTarZstWithExpectedLayout(t *testing.T) {
@@ -62,6 +128,7 @@ metadata {
 
 package "pkg1" {
   source = "localpkg"
+  signature_verification { verify = false }
   values_files = ["values/a.yaml"]
 }
 `), tmpFilePerm))
@@ -155,11 +222,13 @@ metadata {
 
 package "pkg1" {
   source = "pkg1"
+  signature_verification { verify = false }
   values_files = ["values/shared.yaml"]
 }
 
 package "pkg2" {
   source = "pkg2"
+  signature_verification { verify = false }
   values_files = ["values/shared.yaml"]
 }
 `), tmpFilePerm))
@@ -300,6 +369,7 @@ metadata {
 
 package "pkg1" {
   source = "multipkg"
+  signature_verification { verify = false }
 }
 `), tmpFilePerm))
 
@@ -368,6 +438,7 @@ metadata {
 
 package "pkg1" {
   source = "zarfpkg"
+  signature_verification { verify = false }
 }
 `), tmpFilePerm))
 
@@ -405,6 +476,7 @@ metadata {
 
 package "pkg1" {
   source = "localpkg"
+  signature_verification { verify = false }
 }
 `), tmpFilePerm))
 
@@ -480,6 +552,7 @@ metadata {
 
 package "pkg1" {
   source = "localpkg"
+  signature_verification { verify = false }
 }
 `), tmpFilePerm))
 
@@ -548,6 +621,7 @@ metadata {
 }
 package "pkg1" {
   source = "localpkg"
+  signature_verification { verify = false }
 }
 `), tmpFilePerm))
 

@@ -56,11 +56,48 @@ func PrepareBundleDir(t *testing.T, testDataRelPath string) string {
 	return dir
 }
 
+// CreateBundleFromTestData creates a bundle from a copied test fixture and
+// returns the resulting archive path.
 func CreateBundleFromTestData(t *testing.T, testDataRelPath, arch string) string {
 	t.Helper()
 
+	_, result, _, err := createBundleFromTestData(t, testDataRelPath, arch)
+	require.NoError(t, err)
+
+	_, err = os.Stat(result.OutputPath)
+	require.NoError(t, err, "expected bundle output file to exist")
+	return result.OutputPath
+}
+
+// CreateBundleFromTestDataWithDiagnostics creates a bundle from a copied test
+// fixture and returns its archive path and captured diagnostic output.
+func CreateBundleFromTestDataWithDiagnostics(t *testing.T, testDataRelPath, arch string) (string, string) {
+	t.Helper()
+
+	_, result, diagnostics, err := createBundleFromTestData(t, testDataRelPath, arch)
+	require.NoError(t, err)
+
+	_, err = os.Stat(result.OutputPath)
+	require.NoError(t, err, "expected bundle output file to exist")
+	return result.OutputPath, diagnostics
+}
+
+// CreateBundleFromTestDataExpectError creates a bundle from a copied test
+// fixture, asserts that creation fails, and returns the copied fixture
+// directory so callers can assert that no archive was written.
+func CreateBundleFromTestDataExpectError(t *testing.T, testDataRelPath, arch string) string {
+	t.Helper()
+
+	dir, _, _, err := createBundleFromTestData(t, testDataRelPath, arch)
+	require.Error(t, err)
+	return dir
+}
+
+func createBundleFromTestData(t *testing.T, testDataRelPath, arch string) (string, *bundlepkg.CreateResult, string, error) {
+	t.Helper()
+
 	dir := PrepareBundleDir(t, testDataRelPath)
-	streams, _, _, _ := iostreams.NewTestIOStreams()
+	streams, _, _, errOut := iostreams.NewTestIOStreams()
 
 	resolver := bundlecmd.NewConfigResolver()
 	opts := resolver.Defaults()
@@ -71,11 +108,7 @@ func CreateBundleFromTestData(t *testing.T, testDataRelPath, arch string) string
 		BundleFile: filepath.Join(dir, "bundle.uds.hcl"),
 		Streams:    streams,
 	})
-	require.NoError(t, err)
-
-	_, err = os.Stat(result.OutputPath)
-	require.NoError(t, err, "expected bundle output file to exist")
-	return result.OutputPath
+	return dir, result, errOut.String(), err
 }
 
 func CreateBundleFromTestDataCLI(t *testing.T, testDataRelPath, arch string) string {

@@ -289,13 +289,36 @@ type Metadata struct {
 // expressions are references that must be manually extracted using hcl.AbsTraversalForExpr().
 // This is why we use Remain to capture unparsed content and post-process it.
 type Package struct {
-	Name               string       `hcl:"name,label"`
-	Source             string       `hcl:"source"`
-	Namespace          string       `hcl:"namespace,optional"`
-	DependsOn          []PackageRef // Populated from Remain after HCL decoding
-	ValuesFiles        []string     `hcl:"values_files,optional"`
-	OptionalComponents []string     `hcl:"optional_components,optional"`
-	Remain             hcl.Body     `hcl:",remain"` // Captures depends_on for post-processing
+	Name                  string                        `hcl:"name,label"`
+	Source                string                        `hcl:"source"`
+	Namespace             string                        `hcl:"namespace,optional"`
+	DependsOn             []PackageRef                  // Populated from Remain after HCL decoding
+	ValuesFiles           []string                      `hcl:"values_files,optional"`
+	OptionalComponents    []string                      `hcl:"optional_components,optional"`
+	SignatureVerification *PackageSignatureVerification `hcl:"signature_verification,block"`
+	Remain                hcl.Body                      `hcl:",remain"` // Captures depends_on for post-processing
+}
+
+// PackageSignatureVerification declares how a package signature is verified
+// when the package enters a bundle. A package must either set Verify to false
+// or configure exactly one of PublicKey and Keyless.
+type PackageSignatureVerification struct {
+	Verify    *bool                         `hcl:"verify,optional"`
+	PublicKey string                        `hcl:"public_key,optional"`
+	Keyless   *KeylessSignatureVerification `hcl:"keyless,block"`
+}
+
+// KeylessSignatureVerification constrains the keyless signer trusted for a
+// package signature.
+type KeylessSignatureVerification struct {
+	CertificateIdentity         string `hcl:"certificate_identity,optional"`
+	CertificateIdentityRegexp   string `hcl:"certificate_identity_regexp,optional"`
+	CertificateOIDCIssuer       string `hcl:"certificate_oidc_issuer,optional"`
+	CertificateOIDCIssuerRegexp string `hcl:"certificate_oidc_issuer_regexp,optional"`
+	TrustedRoot                 string `hcl:"trusted_root,optional"`
+	InsecureIgnoreTlog          bool   `hcl:"insecure_ignore_tlog,optional"`
+	InsecureIgnoreSCT           bool   `hcl:"insecure_ignore_sct,optional"`
+	UseSignedTimestamps         bool   `hcl:"use_signed_timestamps,optional"`
 }
 
 // PackageRef represents a reference to another package in the bundle.
@@ -374,17 +397,21 @@ type PackageLayoutLoader interface {
 // filtering before downloading to avoid pulling unnecessary layers; local
 // implementations may apply filtering after reading package contents.
 type PackageSource interface {
-	// PullFiltered pulls a Zarf package to tmpDir, applying the filter as part
-	// of retrieval. For remote sources the filter is applied before downloading
+	// PullFiltered pulls a Zarf package to tmpDir, applying loadOptions.Filter as
+	// part of retrieval. For remote sources the filter is applied before downloading
 	// layers when possible. Returns a PackageLayout ready for packager.Deploy().
 	// Used by the Deploy command.
-	PullFiltered(ctx context.Context, filter filters.ComponentFilterStrategy, tmpDir string) (*layout.PackageLayout, error)
+	PullFiltered(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions) (*layout.PackageLayout, error)
 
 	// IngestFiltered ingests a Zarf package into an OCI blob directory at blobDir,
 	// applying the filter during ingestion. For remote sources the filter is
 	// applied before downloading layers when possible. Returns manifest
 	// descriptors for the bundle's OCI index. Used by the Create command.
 	IngestFiltered(ctx context.Context, filter filters.ComponentFilterStrategy, blobDir string) ([]ociManifest, error)
+
+	// VerifyAndIngestFiltered retrieves a package into tmpDir, verifies it with
+	// loadOptions, and ingests those exact retrieved bytes into blobDir.
+	VerifyAndIngestFiltered(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions, blobDir string) ([]ociManifest, error)
 }
 
 // CreatePackageOptions holds per-package configuration during bundle creation.

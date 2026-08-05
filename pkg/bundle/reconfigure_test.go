@@ -364,6 +364,7 @@ func createTestBundle(t *testing.T, bundleHCL string, defaultsHCL string) string
 	dir := t.TempDir()
 
 	writeMinimalOCILayout(t, filepath.Join(dir, "localpkg"))
+	bundleHCL = strings.ReplaceAll(bundleHCL, "source = \"localpkg\"", "source = \"localpkg\"\n  signature_verification { verify = false }")
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "bundle.uds.hcl"), []byte(bundleHCL), tmpFilePerm))
 	if defaultsHCL != "" {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, BundleDefaultsFileName), []byte(defaultsHCL), tmpFilePerm))

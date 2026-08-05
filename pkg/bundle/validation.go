@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -50,7 +51,6 @@ func (b *UDSBundle) Validate() error {
 		if pkg.Source == "" {
 			errs = append(errs, fmt.Errorf("package %q: source is required", pkg.Name))
 		}
-
 		for _, dep := range pkg.DependsOn {
 			if dep.Name == pkg.Name {
 				errs = append(errs, fmt.Errorf("package %q: cannot depend on itself", pkg.Name))
@@ -73,6 +73,75 @@ func (b *UDSBundle) Validate() error {
 	}
 
 	return errors.Join(errs...)
+}
+
+// validateBundleForCreate applies the signature-policy validation that is only
+// relevant when packages are entering a newly created bundle.
+func validateBundleForCreate(b *UDSBundle) error {
+	var errs []error
+	if err := b.Validate(); err != nil {
+		errs = append(errs, err)
+	}
+	for i := range b.Packages {
+		pkg := &b.Packages[i]
+		if err := validatePackageSignatureVerification(pkg.Name, pkg.SignatureVerification); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func validatePackageSignatureVerification(packageName string, verification *PackageSignatureVerification) error {
+	if verification == nil {
+		return fmt.Errorf("package %q: signature_verification block is required", packageName)
+	}
+
+	verify := true
+	if verification.Verify != nil {
+		verify = *verification.Verify
+	}
+	if verification.PublicKey != "" && strings.TrimSpace(verification.PublicKey) == "" {
+		return fmt.Errorf("package %q: signature_verification.public_key must not be blank", packageName)
+	}
+	hasPublicKey := strings.TrimSpace(verification.PublicKey) != ""
+	hasKeyless := verification.Keyless != nil
+
+	if !verify {
+		if hasPublicKey || hasKeyless {
+			return fmt.Errorf("package %q: signature_verification.verify = false cannot be combined with public_key or keyless", packageName)
+		}
+		return nil
+	}
+
+	if hasPublicKey == hasKeyless {
+		return fmt.Errorf("package %q: signature_verification must configure exactly one of public_key or keyless when verification is enabled", packageName)
+	}
+	if hasPublicKey {
+		return nil
+	}
+
+	keyless := verification.Keyless
+	hasIdentity := strings.TrimSpace(keyless.CertificateIdentity) != ""
+	hasIdentityRegexp := strings.TrimSpace(keyless.CertificateIdentityRegexp) != ""
+	if hasIdentity == hasIdentityRegexp {
+		return fmt.Errorf("package %q: keyless verification requires exactly one of certificate_identity or certificate_identity_regexp", packageName)
+	}
+	if hasIdentityRegexp {
+		if _, err := regexp.Compile(keyless.CertificateIdentityRegexp); err != nil {
+			return fmt.Errorf("package %q: invalid certificate_identity_regexp: %w", packageName, err)
+		}
+	}
+	hasIssuer := strings.TrimSpace(keyless.CertificateOIDCIssuer) != ""
+	hasIssuerRegexp := strings.TrimSpace(keyless.CertificateOIDCIssuerRegexp) != ""
+	if hasIssuer == hasIssuerRegexp {
+		return fmt.Errorf("package %q: keyless verification requires exactly one of certificate_oidc_issuer or certificate_oidc_issuer_regexp", packageName)
+	}
+	if hasIssuerRegexp {
+		if _, err := regexp.Compile(keyless.CertificateOIDCIssuerRegexp); err != nil {
+			return fmt.Errorf("package %q: invalid certificate_oidc_issuer_regexp: %w", packageName, err)
+		}
+	}
+	return nil
 }
 
 // ValidateConfig is the single entry point for validating a fully-resolved

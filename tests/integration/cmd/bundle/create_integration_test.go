@@ -23,6 +23,14 @@ import (
 
 const k3sLayerTitle = "components/k3s.tar"
 
+func assertNoBundleArchive(t *testing.T, dir string) {
+	t.Helper()
+
+	archives, err := filepath.Glob(filepath.Join(dir, "*.tar.zst"))
+	require.NoError(t, err)
+	assert.Empty(t, archives, "failed bundle creation must not write an archive")
+}
+
 // assertValidBundleStructure checks that the bundle archive contains the
 // expected OCI layout structure and that bundle.uds.hcl is a layer in the
 // bundle definition manifest. Returns the entries for callers that need further checks.
@@ -49,6 +57,34 @@ func assertValidBundleStructure(t *testing.T, tarPath string) (allPaths map[stri
 func TestCreate_InitBundle(t *testing.T) {
 	outPath := testutil.CreateBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
 	assertValidBundleStructure(t, outPath)
+}
+
+func TestCreate_SignatureVerification(t *testing.T) {
+	t.Run("public key verification succeeds", func(t *testing.T) {
+		outPath := testutil.CreateBundleFromTestData(t, filepath.Join("bundles", "signature-verification", "dos-games-public-key"), runtime.GOARCH)
+		assertValidBundleStructure(t, outPath)
+	})
+
+	t.Run("mismatched public key fails before writing an archive", func(t *testing.T) {
+		dir := testutil.CreateBundleFromTestDataExpectError(t, filepath.Join("bundles", "signature-verification", "dos-games-public-key-invalid"), runtime.GOARCH)
+		assertNoBundleArchive(t, dir)
+	})
+
+	t.Run("keyless verification succeeds", func(t *testing.T) {
+		outPath := testutil.CreateBundleFromTestData(t, filepath.Join("bundles", "signature-verification", "init-keyless"), runtime.GOARCH)
+		assertValidBundleStructure(t, outPath)
+	})
+
+	t.Run("mismatched keyless identity fails before writing an archive", func(t *testing.T) {
+		dir := testutil.CreateBundleFromTestDataExpectError(t, filepath.Join("bundles", "signature-verification", "init-keyless-invalid"), runtime.GOARCH)
+		assertNoBundleArchive(t, dir)
+	})
+
+	t.Run("verification disabled succeeds with an unverified-package warning", func(t *testing.T) {
+		outPath, diagnostics := testutil.CreateBundleFromTestDataWithDiagnostics(t, filepath.Join("bundles", "signature-verification", "init-verification-disabled"), runtime.GOARCH)
+		assert.Contains(t, diagnostics, "unverified package")
+		assertValidBundleStructure(t, outPath)
+	})
 }
 
 // TestCreate_InitBundle_OptionalComponentIncluded verifies that when k3s is listed

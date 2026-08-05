@@ -45,7 +45,7 @@ func (s *localSource) resolvedPath() string {
 
 // PullFiltered loads a Zarf package from a local directory or archive,
 // applying the filter. This enables Deploy from local sources.
-func (s *localSource) PullFiltered(ctx context.Context, filter filters.ComponentFilterStrategy, tmpDir string) (*layout.PackageLayout, error) {
+func (s *localSource) PullFiltered(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions) (*layout.PackageLayout, error) {
 	if strings.TrimSpace(s.path) == "" {
 		return nil, fmt.Errorf("local package source path is empty")
 	}
@@ -57,7 +57,10 @@ func (s *localSource) PullFiltered(ctx context.Context, filter filters.Component
 
 	if !st.IsDir() {
 		if strings.HasSuffix(path, ".tar.zst") {
-			return layout.LoadFromTar(ctx, path, layout.PackageLayoutOptions{Filter: filter})
+			if err := extractTarZst(ctx, s.streams, path, tmpDir); err != nil {
+				return nil, fmt.Errorf("extracting local package %q: %w", s.path, err)
+			}
+			return layout.LoadFromDir(ctx, tmpDir, loadOptions)
 		}
 		return nil, fmt.Errorf("unsupported local package source %q", s.path)
 	}
@@ -69,10 +72,33 @@ func (s *localSource) PullFiltered(ctx context.Context, filter filters.Component
 		if err := helpers.CreatePathAndCopy(path, copyDir); err != nil {
 			return nil, fmt.Errorf("copying local package to temp dir: %w", err)
 		}
-		return layout.LoadFromDir(ctx, copyDir, layout.PackageLayoutOptions{Filter: filter})
+		return layout.LoadFromDir(ctx, copyDir, loadOptions)
 	}
 
 	return nil, fmt.Errorf("unsupported local package source %q: not a Zarf package directory or .tar.zst archive", path)
+}
+
+// VerifyAndIngestFiltered verifies a private staged copy of a local package and
+// ingests that exact copy so the verified content cannot diverge from the
+// content entering the bundle.
+func (s *localSource) VerifyAndIngestFiltered(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions, blobDir string) ([]ociManifest, error) {
+	pkgLayout, err := s.PullFiltered(ctx, tmpDir, loadOptions)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := pkgLayout.Cleanup(); err != nil {
+			s.streams.Warn("failed to remove verified package layout", "path", pkgLayout.DirPath(), "error", err)
+		}
+	}()
+
+	stagedSource := &localSource{
+		path:    pkgLayout.DirPath(),
+		arch:    s.arch,
+		tmpDir:  s.tmpDir,
+		streams: s.streams,
+	}
+	return stagedSource.IngestFiltered(ctx, loadOptions.Filter, blobDir)
 }
 
 // IngestFiltered ingests a local Zarf package into the bundle's blob directory.

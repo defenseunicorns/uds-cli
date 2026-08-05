@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"gopkg.in/yaml.v3"
 )
@@ -83,7 +84,7 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 				return nil, fmt.Errorf("staging package %q: %w", pkg.Name, err)
 			}
 			filter := BuildComponentFilter(pkg.OptionalComponents)
-			pkgLayout, err := layout.LoadFromDir(ctx, dstDir, layout.PackageLayoutOptions{Filter: filter, IsPartial: opts.IsPartial})
+			pkgLayout, err := layout.LoadFromDir(ctx, dstDir, artifactPackageLayoutOptions(filter, opts.IsPartial))
 			if err != nil {
 				return nil, fmt.Errorf("loading package layout for %q from %q: %w", pkg.Name, dstDir, err)
 			}
@@ -133,11 +134,19 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 	filter := BuildComponentFilter(pkg.OptionalComponents)
 	// OCI-blob-staged packages always use IsPartial: true — the bundle stores only the
 	// layers ingested at create time; checksums.txt may reference filtered-out blobs.
-	pkgLayout, err := layout.LoadFromDir(ctx, dstDir, layout.PackageLayoutOptions{Filter: filter, IsPartial: true})
+	pkgLayout, err := layout.LoadFromDir(ctx, dstDir, artifactPackageLayoutOptions(filter, true))
 	if err != nil {
 		return nil, fmt.Errorf("loading package layout for %q: %w", pkg.Name, err)
 	}
 	return pkgLayout, nil
+}
+
+func artifactPackageLayoutOptions(filter filters.ComponentFilterStrategy, isPartial bool) layout.PackageLayoutOptions {
+	return layout.PackageLayoutOptions{
+		Filter:               filter,
+		IsPartial:            isPartial,
+		VerificationStrategy: layout.VerifyNever, // Non-create options do not verify underlying Zarf packages
+	}
 }
 
 // SourcePackageLayoutLoader implements PackageLayoutLoader using the standard OCI/local pull
@@ -154,10 +163,14 @@ func (l *SourcePackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *
 	s.Info("pulling package", "source", pkg.Source)
 	source := NewPackageSource(pkg.Source, l.configOpts, l.bundleDir, opts.Streams)
 	filter := BuildComponentFilter(pkg.OptionalComponents)
-	pkgLayout, err := source.PullFiltered(ctx, filter, dstDir)
+	pkgLayout, err := source.PullFiltered(ctx, dstDir, layout.PackageLayoutOptions{
+		Filter:               filter,
+		VerificationStrategy: layout.VerifyNever,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to load package %q from %s: %w", pkg.Name, pkg.Source, err)
 	}
+	advisoryVerifyPackage(ctx, pkgLayout, pkg, l.configOpts.TmpDir, s)
 	return pkgLayout, nil
 }
 

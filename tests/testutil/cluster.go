@@ -234,6 +234,7 @@ package %q {
   source       = "./%s"
   namespace    = %q
   values_files = ["values/podinfo.yaml"]
+  signature_verification { verify = false }
 }
 `, packageLabel, packageName, namespace)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "bundle.uds.hcl"), []byte(bundleHCL), 0o600))
@@ -262,12 +263,14 @@ package "pod_info_primary" {
   source       = "./%s"
   namespace    = %q
   values_files = ["values/podinfo.yaml"]
+  signature_verification { verify = false }
 }
 
 package "pod_info_secondary" {
   source       = "./%s"
   namespace    = %q
   values_files = ["values/podinfo.yaml"]
+  signature_verification { verify = false }
   depends_on   = [package.pod_info_primary]
 }
 `, packageName, firstNamespace, packageName, secondNamespace)

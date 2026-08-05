@@ -110,7 +110,10 @@ func TestCreateOptions_Run_PromptDecline(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(validDir, bundle.BundleFileName), []byte(`
 uds { bundle_api_version = "uds.dev/v1alpha1" }
 metadata { name = "test" }
-package "pkg1" { source = "oci://example.com/pkg:v1" }
+package "pkg1" {
+  source = "oci://example.com/pkg:v1"
+  signature_verification { verify = false }
+}
 `), 0o644))
 
 	tests := []struct {

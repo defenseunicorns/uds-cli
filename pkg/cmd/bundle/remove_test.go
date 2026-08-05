@@ -68,7 +68,10 @@ func TestRemoveOptions_Validate(t *testing.T) {
 	require.NoError(t, os.WriteFile(validBundleFile, []byte(`
 uds { bundle_api_version = "uds.dev/v1alpha1" }
 metadata { name = "test" }
-package "pkg1" { source = "oci://example.com/pkg:v1" }
+package "pkg1" {
+  source = "oci://example.com/pkg:v1"
+  signature_verification { verify = false }
+}
 `), 0o644))
 
 	tarZstFile := filepath.Join(tempDir, "bundle.tar.zst")

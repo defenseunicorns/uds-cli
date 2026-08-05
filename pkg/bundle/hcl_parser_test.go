@@ -125,6 +125,38 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 	assert.Empty(t, b.Packages[0].OptionalComponents)
 }
 
+func TestParseBundleFile_SignatureVerification(t *testing.T) {
+	dir := t.TempDir()
+	keyPath := filepath.Join(dir, "public.key")
+	require.NoError(t, os.WriteFile(keyPath, []byte("test public key"), tmpFilePerm))
+	path := filepath.Join(dir, BundleFileName)
+	require.NoError(t, os.WriteFile(path, []byte(`
+uds { bundle_api_version = "uds.dev/v1alpha1" }
+metadata { name = "signature-verification" }
+package "keyed" {
+  source = "oci://example.com/keyed:v1"
+  signature_verification { public_key = file("public.key") }
+}
+package "keyless" {
+  source = "oci://example.com/keyless:v1"
+  signature_verification {
+    keyless {
+      certificate_identity_regexp = "https://example.com/.*"
+      certificate_oidc_issuer = "https://issuer.example.com"
+    }
+  }
+}
+`), tmpFilePerm))
+
+	b, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(t.Context(), path)
+	require.NoError(t, err)
+	require.NoError(t, b.Validate())
+	require.NotNil(t, b.Packages[0].SignatureVerification)
+	assert.Equal(t, "test public key", b.Packages[0].SignatureVerification.PublicKey)
+	require.NotNil(t, b.Packages[1].SignatureVerification.Keyless)
+	assert.Equal(t, "https://example.com/.*", b.Packages[1].SignatureVerification.Keyless.CertificateIdentityRegexp)
+}
+
 func TestParseBundleFile_OptionalComponents(t *testing.T) {
 	hcl := `
 uds { bundle_api_version = "uds.dev/v1alpha1" }
@@ -343,7 +375,7 @@ func TestValidate(t *testing.T) {
 			bundle: UDSBundle{
 				UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
 				Metadata: Metadata{Name: "test"},
-				Packages: []Package{{Name: "pkg1", Source: "oci://example.com/pkg:v1"}},
+				Packages: []Package{{Name: "pkg1", Source: "oci://example.com/pkg:v1", SignatureVerification: &PackageSignatureVerification{PublicKey: "key"}}},
 			},
 			wantErr: "",
 		},

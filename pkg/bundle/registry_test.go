@@ -93,7 +93,7 @@ func TestRemoteSourceNewZociRemote_RegistrySchemeNegotiation(t *testing.T) {
 		opts: ConfigOptions{PlainHTTP: true, SkipTLSVerify: true},
 	}
 
-	remote, err := source.newZociRemote(t.Context())
+	remote, err := source.newZociRemote(t.Context(), source.ref)
 	require.NoError(t, err)
 	assert.False(t, remote.Repo().PlainHTTP)
 	_, err = remote.Repo().Resolve(t.Context(), "missing")
