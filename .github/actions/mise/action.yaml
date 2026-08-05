@@ -7,7 +7,7 @@ description: Install the repository-pinned development tools
 runs:
   using: composite
   steps:
-    - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959e # v4.2.0
+    - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
       with:
         # renovate: datasource=github-releases depName=jdx/mise versioning=semver
         version: 2026.7.0

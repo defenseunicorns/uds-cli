@@ -25,9 +25,10 @@
       "matchDepNames": ["go"],
       "groupName": "application-deps",
       "commitMessageTopic": "application dependencies"
+    },
+    {
       "matchFileNames": [
         ".github/**",
-        ".pre-commit-config.yaml",
         "README.md",
         "docs/**",
         "tasks/**",
