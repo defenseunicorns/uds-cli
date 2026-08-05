@@ -17,6 +17,7 @@
     {
       "matchFileNames": [
         ".github/**",
+        ".pre-commit-config.yaml",
         "README.md",
         "docs/**",
         "tasks/**",
