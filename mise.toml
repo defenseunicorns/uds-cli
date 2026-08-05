@@ -5,6 +5,7 @@
 go = "1.26.5"
 hk = "1.49.0"
 golangci-lint = "2.12.2"
+"github:gitleaks/gitleaks" = "8.30.1"
 k3d = "5.9.0"
 node = "24.13.0"
 # renovate: datasource=github-tags depName=google/addlicense versioning=semver

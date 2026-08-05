@@ -50,7 +50,7 @@ jobs:
         uses: ./.github/actions/mise
 
       - name: Build UDS CLI
-        run: uds run build
+        run: uds run build-cli-linux-amd
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3

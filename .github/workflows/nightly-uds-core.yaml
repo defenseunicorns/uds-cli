@@ -34,7 +34,7 @@ jobs:
         uses: ./.github/actions/mise
 
       - name: Build UDS-CLI binary
-        run: uds run build
+        run: uds run build-cli-linux-amd
 
       - name: Make UDS-CLI executable
         run: |

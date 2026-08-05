@@ -35,7 +35,7 @@ jobs:
 
       - name: Build CLI
         run: |
-          uds run build
+          uds run build-cli-linux-amd
 
       # Upload the contents of the build directory for later stages to use
       - name: Upload build artifacts
