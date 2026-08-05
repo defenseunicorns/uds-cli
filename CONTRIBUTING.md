@@ -65,7 +65,7 @@ hk install
 
 Use the repository's UDS Runner tasks to build and validate UDS CLI. After mise is activated, the pinned bootstrap UDS CLI is available on your `PATH`.
 
-To build a binary for your host, run `uds run build`. This creates `build/uds`, which E2E tests use. Run `uds run --list-all` to see the additional cross-platform and release tasks.
+To build a local binary, run `uds run build`. This creates `build/uds`. Use `uds run --list-all` for platform-specific and release builds; CI uses `uds run build-cli-linux-amd`.
 
 ### Hooks and linting
 
