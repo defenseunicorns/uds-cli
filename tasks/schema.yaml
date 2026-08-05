@@ -11,4 +11,9 @@ tasks:
     description: tests if the schema has been modified
     actions:
       - task: update
-      - cmd: ./hack/test-generate-schema.sh
+      - cmd: |
+          if [ -n "$(git status --porcelain -- uds.schema.json zarf.schema.json tasks.schema.json)" ]; then
+            echo "Schema changes found; run 'uds run schema:update' and include the generated files."
+            git status --short -- uds.schema.json zarf.schema.json tasks.schema.json
+            exit 1
+          fi
