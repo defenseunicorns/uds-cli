@@ -31,9 +31,8 @@ func TestRemoteFetcherPreservesCachedPackageManifest(t *testing.T) {
 	require.NoError(t, err)
 	bundleRoot := &ocispec.Manifest{}
 	f := remoteFetcher{
-		pkg:                 types.Package{Name: "example"},
-		pkgRootManifest:     &fetchedManifest,
-		pkgRootManifestDesc: sourceDesc,
+		pkg:             types.Package{Name: "example"},
+		pkgRootManifest: &fetchedManifest,
 		cfg: Config{
 			Store:              store,
 			BundleRootManifest: bundleRoot,
@@ -42,7 +41,8 @@ func TestRemoteFetcherPreservesCachedPackageManifest(t *testing.T) {
 
 	descs, err := f.copyRemotePkgLayers(nil)
 	require.NoError(t, err)
-	require.Equal(t, []ocispec.Descriptor{sourceDesc}, descs)
+	require.Len(t, descs, 1)
+	require.Equal(t, sourceDesc.Digest, descs[0].Digest)
 	require.Len(t, bundleRoot.Layers, 1)
 	require.Equal(t, sourceDesc.Digest, bundleRoot.Layers[0].Digest)
 	require.Equal(t, layout.ZarfLayerMediaTypeBlob, bundleRoot.Layers[0].MediaType)

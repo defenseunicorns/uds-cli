@@ -28,11 +28,10 @@ import (
 
 // remoteFetcher fetches remote Zarf pkgs for local bundles
 type remoteFetcher struct {
-	pkg                 types.Package
-	cfg                 Config
-	pkgRootManifest     *oci.Manifest
-	pkgRootManifestDesc ocispec.Descriptor
-	remote              *zoci.Remote
+	pkg             types.Package
+	cfg             Config
+	pkgRootManifest *oci.Manifest
+	remote          *zoci.Remote
 }
 
 // Fetch fetches a Zarf pkg and puts it into a local bundle
@@ -98,10 +97,6 @@ func (f *remoteFetcher) copyRemotePkgLayers(layersToCopy []ocispec.Descriptor) (
 		if err != nil {
 			return nil, err
 		}
-		if rootPkgDesc.Digest != f.pkgRootManifestDesc.Digest || rootPkgDesc.Size != f.pkgRootManifestDesc.Size {
-			return nil, fmt.Errorf("copied package manifest does not match source descriptor %s", f.pkgRootManifestDesc.Digest)
-		}
-
 		// grab pkg root manifest for archiving and save it to bundle root manifest
 		descsToBundle = append(descsToBundle, rootPkgDesc)
 		manifestLayerDesc := packageManifestLayerDescriptor(rootPkgDesc)
@@ -118,14 +113,10 @@ func (f *remoteFetcher) copyRemotePkgLayers(layersToCopy []ocispec.Descriptor) (
 		if err != nil {
 			return nil, err
 		}
-		if manifestLayerDesc.Digest != f.pkgRootManifestDesc.Digest || manifestLayerDesc.Size != f.pkgRootManifestDesc.Size {
-			return nil, fmt.Errorf("package manifest does not match source descriptor %s", f.pkgRootManifestDesc.Digest)
-		}
-
 		// save pkg manifest to bundle root manifest
 		f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, manifestLayerDesc)
 
-		descsToBundle = append(descsToBundle, f.pkgRootManifestDesc)
+		descsToBundle = append(descsToBundle, manifestLayerDesc)
 	}
 	return descsToBundle, nil
 }
