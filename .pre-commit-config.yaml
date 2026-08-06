@@ -35,7 +35,7 @@ repos:
       - id: check-docs-and-schema
         name: Check for outdated schema
         entry: ./hack/test-generate-schema.sh
-        files: "src/types/types.go"
+        files: "pkg/legacy/types/bundle.go"
         types: [go]
         language: script
         description: "Checks for schema changes"

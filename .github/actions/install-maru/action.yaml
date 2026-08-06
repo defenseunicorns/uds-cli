@@ -1,0 +1,17 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+name: install-maru
+description: installs the standalone Maru task runner
+
+runs:
+  using: composite
+  steps:
+    - name: Install Maru
+      shell: bash
+      run: |
+        # renovate: datasource=github-releases depName=defenseunicorns/maru-runner
+        MARU_VERSION="v0.6.0"
+        sudo curl -sL "https://github.com/defenseunicorns/maru-runner/releases/download/${MARU_VERSION}/maru-runner_${MARU_VERSION}_Linux_amd64" -o /usr/local/bin/maru
+        sudo chmod +x /usr/local/bin/maru
+        maru version

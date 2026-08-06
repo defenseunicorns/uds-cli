@@ -33,11 +33,11 @@ jobs:
       - name: Setup golang
         uses: ./.github/actions/golang
 
-      - name: Install UDS CLI
-        uses: ./.github/actions/install-uds-cli
+      - name: Install Maru
+        uses: ./.github/actions/install-maru
 
       - name: Test schemas
-        run: uds run schema:test
+        run: maru run schema:test
 
       - name: Save logs
         if: always()
@@ -57,8 +57,8 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Install UDS CLI
-        uses: ./.github/actions/install-uds-cli
+      - name: Install Maru
+        uses: ./.github/actions/install-maru
 
       - name: Check UDS Docs links
-        run: uds run uds-docs-validate
+        run: maru run uds-docs-validate

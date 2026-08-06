@@ -58,7 +58,7 @@ linters:
     rules:
       - linters:
           - gosec
-        path: test/.*
+        path: (internal/legacy/testutil|tests)/.*
     paths:
       - docs/reference/CLI/commands
       - third_party$

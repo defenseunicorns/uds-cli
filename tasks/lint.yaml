@@ -13,6 +13,12 @@ tasks:
     description: Run all linting commands
     actions:
       - task: license
+      - task: architecture
+
+  - name: architecture
+    description: Enforce command tree package boundaries
+    actions:
+      - cmd: bash hack/check-architecture.sh
 
   - name: license
     description: Lint for the SPDX license identifier being in source files
