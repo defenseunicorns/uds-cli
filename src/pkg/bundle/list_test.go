@@ -385,13 +385,13 @@ func TestMapPackagesToBundles(t *testing.T) {
 func TestPrintBundleList(t *testing.T) {
 	t.Run("handles empty bundle list", func(t *testing.T) {
 		// This test just ensures the function doesn't panic with empty input
-		bundles := []BundleDeployment{}
+		bundles := []Deployment{}
 		// Should output a warning message, but not panic
 		PrintBundleList(bundles)
 	})
 
 	t.Run("handles bundle list with data", func(t *testing.T) {
-		bundles := []BundleDeployment{
+		bundles := []Deployment{
 			{
 				Name:     "test-bundle",
 				Version:  "1.0.0",

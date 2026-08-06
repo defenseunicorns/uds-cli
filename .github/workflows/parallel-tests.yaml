@@ -21,11 +21,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup golang
-        uses: ./.github/actions/golang
-
-      - name: Install UDS CLI
-        uses: ./.github/actions/install-uds-cli
+      - name: Setup development tools
+        uses: ./.github/actions/mise
 
       # Conditional step to fetch zarf@main and update bundles that hardcode the ref
       - name: Fetch Zarf Package
@@ -178,10 +175,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
-        with:
-          node-version: 24
 
       - name: setup-using-previous-job
         uses: ./.github/actions/setup-from-previous

@@ -35,14 +35,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup golang
-        uses: ./.github/actions/golang
-
-      - name: Install UDS CLI
-        uses: ./.github/actions/install-uds-cli
+      - name: Setup development tools
+        uses: ./.github/actions/mise
 
       - name: Run unit tests
-        run: uds run test:unit
+        run: uds run test
 
       - name: Save logs
         if: always()

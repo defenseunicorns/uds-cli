@@ -6,8 +6,9 @@ Below are some notes on our core software design philosophies that should help g
 ## Table of Contents
 1. [Code Quality and Standards](#code-quality-and-standards)
 1. [How to Contribute](#how-to-contribute)
+    - [Set up the development environment](#set-up-the-development-environment)
     - [Building the app](#building-the-app)
-    - [Pre-Commit Hooks and Linting](#pre-commit-hooks-and-linting)
+    - [Hooks and linting](#hooks-and-linting)
     - [Testing](#testing)
 
 ## Code Quality and Standards
@@ -47,13 +48,29 @@ Please ensure there is a GitHub issue for your proposed change, this helps the U
 1. **Push your branch** to your fork
 1. **Open a PR** against the `main` branch of this repo
 
+### Set up the development environment
+
+Install [mise](https://mise.jdx.dev/getting-started.html) and activate it in your shell by following mise's [shell activation instructions](https://mise.jdx.dev/dev-tools/#activate). The repository pins Go, UDS CLI, hk, golangci-lint, k3d, and Node.js in [mise.toml](mise.toml), so no separate tool installation is needed.
+
+From the repository root, run:
+
+```console
+mise trust mise.toml
+mise install
+hk install
+```
+
+`hk install` enables the repository's pre-commit checks. Run `hk check --all` at any time to run the same checks without committing, or `hk fix --all` to apply supported fixes.
+
 ### Building the app
-We use UDS CLI's `run` feature (ie. vendored [Maru](https://github.com/defenseunicorns/maru-runner)) to build UDS CLI; this means that you'll need to have the `uds` binary [installed](./README.md#install) on your system in order to build the app.
 
-To build the app, check out the [tasks](tasks.yaml) with `uds run --list-all`, find the appropriate build target for your system, and run it from the root of the repo (ex. `uds run build-cli-mac-apple`). This will create a binary in the `build` directory that you can use to test your changes (note that this binary is automatically used when running [E2E Tests](#running-tests).
+Use the repository's UDS Runner tasks to build and validate UDS CLI. After mise is activated, the pinned bootstrap UDS CLI is available on your `PATH`.
 
-### Pre-Commit Hooks and Linting
-In this repo you can optionally use [pre-commit](https://pre-commit.com/) hooks for automated validation and linting, but if not CI will run these checks for you
+To build a local binary, run `uds run build`. This creates `build/uds`. Use `uds run --list-all` for platform-specific and release builds; CI uses `uds run build-cli-linux-amd`.
+
+### Hooks and linting
+
+Commits run hk automatically. To run the complete repository check suite manually, use `uds run lint` (or `hk check --all`). CI runs this same hk configuration.
 
 ### Testing
 
@@ -69,7 +86,7 @@ E2E tests reside in the `src/test/e2e` directory. They use bundles located in th
 We prefer to use Testify's [require](https://github.com/stretchr/testify/tree/master/require) package for assertions in tests. This package provides a rich set of assertion functions that make tests more readable and easier to debug. See other tests in this repo for examples.
 
 #### Running Tests
-- **Unit Tests**: To run unit tests, run `uds run test:unit` from the root of the repo. This will run all unit tests in the `src` directory.
+- **Unit Tests**: Run `uds run test` from the repository root. This runs all unit tests in `src`.
 
 
-- **E2E Tests**: To run E2E tests, you'll need build UDS CLI locally, and re-build any time you make a change to the source code; this is because the binary in the `build` directory is used to drive the tests. To run the entire suite of E2E tests locally, run `uds run test:e2e-no-ghcr-write` (note that this intentionally skips the tests that involve writing to GHCR).
+- **E2E Tests**: Build UDS CLI with `uds run build` before running E2E tasks; rebuild after source changes because the tests use `build/uds`. Run the focused E2E tasks listed by `uds run --list-all` (for example, `uds run test:bundle`). The `test:e2e-ghcr` task writes to GHCR and is intended for CI only.

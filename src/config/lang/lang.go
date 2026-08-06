@@ -85,7 +85,7 @@ const (
 
 	// bundle picker during deployment
 	CmdPackageChoose    = "Choose or type the bundle file"
-	CmdPackageChooseErr = "Bundle path selection canceled: %s"
+	CmdPackageChooseErr = "bundle path selection canceled: %s"
 
 	// uds-cli version
 	CmdVersionShort = "Shows the version of the running UDS-CLI binary"

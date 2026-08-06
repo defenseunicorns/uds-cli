@@ -5,8 +5,6 @@
 package message
 
 import (
-	"fmt"
-
 	"github.com/zarf-dev/zarf/src/pkg/state"
 )
 
@@ -16,7 +14,7 @@ func PrintConnectStringTable(connectStrings state.ConnectStrings) {
 		connectData := [][]string{}
 		// Loop over each connectStrings and convert to a string matrix
 		for name, connect := range connectStrings {
-			name = fmt.Sprintf("zarf connect %s", name)
+			name = "zarf connect " + name
 			connectData = append(connectData, []string{name, connect.Description})
 		}
 

@@ -883,7 +883,7 @@ func Test_newRegistryInfo(t *testing.T) {
 				PullUsername: "pull-user",
 				PullPassword: "pull-secret!",
 				Secret:       "registry-secret",
-				NodePort:     1234,
+				Port:         1234,
 			},
 		},
 		{

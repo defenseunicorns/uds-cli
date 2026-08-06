@@ -1,0 +1,70 @@
+amends "package://github.com/jdx/hk/releases/download/v1.49.0/hk@1.49.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.49.0/hk@1.49.0#/Builtins.pkl"
+
+local checks = new Mapping<String, Step> {
+    ["check-added-large-files"] {
+        check = "hk util check-added-large-files --maxkb=1024 {{files}}"
+        glob = List("**/*")
+        exclude = List("build/**")
+    }
+    ["check-merge-conflict"] {
+        check = "hk util check-merge-conflict {{files}}"
+        glob = List("**/*")
+        exclude = List("build/**")
+    }
+    ["detect-private-key"] {
+        check = "hk util detect-private-key {{files}}"
+        glob = List("**/*")
+        exclude = List("build/**")
+    }
+    ["detect-secrets"] {
+        check = "gitleaks detect --source . --no-git --redact --no-banner --exit-code 1"
+        glob = List("**/*")
+        exclude = List("build/**")
+    }
+    ["end-of-file-fixer"] = (Builtins.newlines) {
+        exclude = List("docs/reference/commands/**", "build/**")
+    }
+    ["fix-byte-order-marker"] = (Builtins.byte_order_marker) {
+        exclude = List("build/**")
+    }
+    ["trailing-whitespace"] = (Builtins.trailing_whitespace) {
+        exclude = List("build/**", "design-docs/template.md", "docs/adr/0004-tui.md")
+    }
+    ["golangci-lint"] {
+        check = "golangci-lint run ./..."
+        fix = "golangci-lint run --fix ./..."
+        glob = List("**/*.go", "go.mod", "go.sum")
+    }
+    ["schema"] {
+        check = "uds run schema:test"
+        glob = List("main.go", "src/**/*.go", "hack/generate-schema.sh", "tasks/schema.yaml")
+    }
+    ["license-check"] {
+        check = "uds run lint:license"
+        fix = "uds run lint:fix-license"
+        glob = List("**/*")
+        exclude = List("build/**")
+    }
+}
+
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        steps {
+            ...checks
+        }
+    }
+    ["check"] {
+        steps {
+            ...checks
+        }
+    }
+    ["fix"] {
+        fix = true
+        steps {
+            ...checks
+        }
+    }
+}

@@ -13,6 +13,10 @@ import (
 )
 
 const (
+	// LegacySignature is the filename used by pre-bundle-format Zarf packages.
+	// It is retained only so UDS CLI can consume packages created before v0.81.0.
+	LegacySignature = "zarf.yaml.sig"
+
 	// ZarfYAML is the string for zarf.yaml
 	ZarfYAML = "zarf.yaml"
 

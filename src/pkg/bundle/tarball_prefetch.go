@@ -140,7 +140,7 @@ func (tp *tarballBundleProvider) prefetchPackageMetadata(ctx context.Context, pa
 			parsedManifests[digest] = &manifest
 			for _, layer := range manifest.Layers {
 				switch layer.Annotations[ocispec.AnnotationTitle] {
-				case layout.ZarfYAML, layout.Signature, layout.Bundle, config.ChecksumsTxt:
+				case layout.ZarfYAML, config.LegacySignature, layout.Bundle, config.ChecksumsTxt:
 					ld := layer.Digest.Encoded()
 					if _, already := captured[ld]; !already {
 						needed[ld] = true
@@ -209,8 +209,8 @@ func (tp *tarballBundleProvider) prefetchPackageMetadata(ctx context.Context, pa
 			case layout.ZarfYAML:
 				dst = filepath.Join(pkgDir, layout.ZarfYAML)
 				zarfYAMLPath = dst
-			case layout.Signature:
-				dst = filepath.Join(pkgDir, layout.Signature)
+			case config.LegacySignature:
+				dst = filepath.Join(pkgDir, config.LegacySignature)
 			case layout.Bundle:
 				// keyless per-package signature; the slow path in
 				// sources/tarball.go stages this too, and LoadPackageFromDir

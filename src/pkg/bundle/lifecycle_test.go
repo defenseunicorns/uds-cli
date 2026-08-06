@@ -5,12 +5,12 @@
 package bundle
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/pkg/state"
-	"golang.org/x/exp/slices"
 )
 
 func TestBundlePackageLifecycleID(t *testing.T) {

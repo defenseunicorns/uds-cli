@@ -47,18 +47,25 @@ type Provider interface {
 	getBundleManifest() (*oci.Manifest, error)
 }
 
-// BundleProviderOptions are optional settings for constructing a bundle provider.
-type BundleProviderOptions struct {
+// ProviderOptions are optional settings for constructing a bundle provider.
+type ProviderOptions struct {
 	ForceUpload bool
 }
 
+// BundleProviderOptions is retained for backward compatibility.
+//
+// Deprecated: use ProviderOptions.
+//
+//nolint:revive // Retained as a backward-compatible exported alias.
+type BundleProviderOptions = ProviderOptions
+
 // NewBundleProvider returns a new bundler Provider based on the source type
 func NewBundleProvider(source, destination string) (Provider, error) {
-	return NewBundleProviderWithOptions(source, destination, BundleProviderOptions{})
+	return NewBundleProviderWithOptions(source, destination, ProviderOptions{})
 }
 
 // NewBundleProviderWithOptions returns a new bundler Provider based on the source type and provided options.
-func NewBundleProviderWithOptions(source, destination string, opts BundleProviderOptions) (Provider, error) {
+func NewBundleProviderWithOptions(source, destination string, opts ProviderOptions) (Provider, error) {
 	ctx := context.TODO()
 	if helpers.IsOCIURL(source) {
 		op := ociProvider{src: source, dst: destination}

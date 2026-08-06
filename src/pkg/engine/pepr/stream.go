@@ -280,13 +280,13 @@ func (p *StreamReader) LogStream(writer io.Writer, logStream io.ReadCloser, time
 
 			// If timestamps are enabled, write the timestamp before the header
 			if timestamp {
-				_, err := writer.Write([]byte(fmt.Sprintf("\n\n%s  %v%v", msgTimestamp, style.Bold.Render(header), body)))
+				_, err := fmt.Fprintf(writer, "\n\n%s  %v%v", msgTimestamp, style.Bold.Render(header), body)
 				if err != nil {
 					return err
 				}
 			} else {
 				// Otherwise, write the header and body
-				_, err := writer.Write([]byte(fmt.Sprintf("\n\n%v%v", style.Bold.Render(header), body)))
+				_, err := fmt.Fprintf(writer, "\n\n%v%v", style.Bold.Render(header), body)
 				if err != nil {
 					return err
 				}
@@ -440,7 +440,11 @@ func (p *StreamReader) renderMutation(event LogEntry) string {
 			for _, op := range ops {
 				key := style.CoolGray.Render(op.Path)
 				val := style.Cyan.Render(string(op.Value))
-				formattedPatch.WriteString(fmt.Sprintf(format, p.indent, key, val))
+				if name == "remove" {
+					fmt.Fprintf(&formattedPatch, format, p.indent, key)
+				} else {
+					fmt.Fprintf(&formattedPatch, format, p.indent, key, val)
+				}
 			}
 		}
 

@@ -441,21 +441,21 @@ func VerifyBlobOptionsFromKey(keyPath string) *signing.VerifyBlobOptions {
 // ValidateVerifyBlobConfig validates the package signing configuration.
 func ValidateVerifyBlobConfig(pkg types.Package) error {
 	if pkg.HasPublicKey() && pkg.HasKeylessConfig() {
-		return fmt.Errorf("cannot use publicKey together with keyless verification options; specify one or the other")
+		return errors.New("cannot use publicKey together with keyless verification options; specify one or the other")
 	}
 	if pkg.HasKeylessConfig() {
 		kv := pkg.KeylessVerification
 		if kv.CertificateIdentity != "" && kv.CertificateIdentityRegexp != "" {
-			return fmt.Errorf("certificateIdentity and certificateIdentityRegexp are mutually exclusive; specify one or the other")
+			return errors.New("certificateIdentity and certificateIdentityRegexp are mutually exclusive; specify one or the other")
 		}
 		if kv.CertificateOIDCIssuer != "" && kv.CertificateOIDCIssuerRegexp != "" {
-			return fmt.Errorf("certificateOIDCIssuer and certificateOIDCIssuerRegexp are mutually exclusive; specify one or the other")
+			return errors.New("certificateOIDCIssuer and certificateOIDCIssuerRegexp are mutually exclusive; specify one or the other")
 		}
 		if !pkg.HasCertificateIdentityConfig() {
-			return fmt.Errorf("keyless verification requires certificateIdentity or certificateIdentityRegexp")
+			return errors.New("keyless verification requires certificateIdentity or certificateIdentityRegexp")
 		}
 		if !pkg.HasCertificateOIDCIssuerConfig() {
-			return fmt.Errorf("keyless verification requires certificateOIDCIssuer or certificateOIDCIssuerRegexp")
+			return errors.New("keyless verification requires certificateOIDCIssuer or certificateOIDCIssuerRegexp")
 		}
 	}
 	return nil
