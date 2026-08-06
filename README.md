@@ -8,7 +8,7 @@
 ## Install
 Recommended installation method is with Brew:
 ```
-brew install defenseunicorns/tap/uds
+brew trust --formula defenseunicorns/tap/uds && brew tap defenseunicorns/tap && brew install uds
 ```
 UDS CLI binaries are also included with each [Github Release](https://github.com/defenseunicorns/uds-cli/releases)
 
@@ -27,10 +27,11 @@ metadata:
 
 packages:
   - name: init
-    repository: ghcr.io/defenseunicorns/packages/init
-    ref: v0.36.1
-    optionalComponents:
-      - git-server
+    repository: ghcr.io/zarf-dev/packages/init
+    ref: v0.82.0
+    keylessVerification:
+      certificateIdentityRegexp: https://github\.com/zarf-dev/zarf/\.github/workflows/release\.yml@refs/tags/v\d+\.\d+\.\d+
+      certificateOIDCIssuer: https://token.actions.githubusercontent.com
   - name: podinfo
     repository: ghcr.io/defenseunicorns/uds-cli/podinfo
     ref: 0.0.2
