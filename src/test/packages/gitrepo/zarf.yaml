@@ -28,4 +28,4 @@ components:
                 namespace: nginx
                 condition: available
     images:
-      - docker.io/library/nginx:1.14.2
+      - docker.io/library/nginx:1.31.3

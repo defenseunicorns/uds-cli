@@ -28,12 +28,12 @@ metadata:
 packages:
   - name: init
     repository: ghcr.io/defenseunicorns/packages/init
-    ref: v0.33.0
+    ref: v0.36.1
     optionalComponents:
       - git-server
   - name: podinfo
     repository: ghcr.io/defenseunicorns/uds-cli/podinfo
-    ref: 0.0.1
+    ref: 0.0.2
 ```
 Running `uds create` in the same directory as the above `uds-bundle.yaml` will create a bundle tarball containing both the Zarf init package and podinfo. The bundle can be deployed with `uds deploy`.
 

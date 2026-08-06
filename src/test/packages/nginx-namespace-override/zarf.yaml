@@ -15,4 +15,4 @@ components:
         files:
           - https://k8s.io/examples/application/deployment.yaml@c57f73449b26eae02ca2a549c388807d49ef6d3f2dc040a9bbb1290128d97157
     images:
-      - nginx:1.14.2
+      - nginx:1.31.3
