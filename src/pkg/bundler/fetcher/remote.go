@@ -92,15 +92,13 @@ func (f *remoteFetcher) copyRemotePkgLayers(layersToCopy []ocispec.Descriptor) (
 		descsToBundle = append(descsToBundle, layer)
 	}
 	// pull layers that didn't already exist on disk
+	var manifestLayerDesc ocispec.Descriptor
 	if len(layersToPull) > 0 {
 		rootPkgDesc, err := boci.CopyLayers(layersToPull, estimatedBytes, f.cfg.TmpDstDir, f.remote.Repo(), f.cfg.Store, f.pkg.Name)
 		if err != nil {
 			return nil, err
 		}
-		// grab pkg root manifest for archiving and save it to bundle root manifest
-		descsToBundle = append(descsToBundle, rootPkgDesc)
-		manifestLayerDesc := packageManifestLayerDescriptor(rootPkgDesc)
-		f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, manifestLayerDesc)
+		manifestLayerDesc = packageManifestLayerDescriptor(rootPkgDesc)
 
 		// cache only the image layers that were just pulled
 		err = cache.AddPulledImgLayers(layersToPull, f.cfg.TmpDstDir)
@@ -108,16 +106,15 @@ func (f *remoteFetcher) copyRemotePkgLayers(layersToCopy []ocispec.Descriptor) (
 			return nil, err
 		}
 	} else {
-		// no layers to pull but need to grab pkg root manifest and config manually bc we didn't use oras.Copy()
-		manifestLayerDesc, err := boci.ToOCIStore(f.pkgRootManifest, layout.ZarfLayerMediaTypeBlob, f.cfg.Store)
+		// no layers to pull but need to store the package manifest because we didn't use oras.Copy()
+		var err error
+		manifestLayerDesc, err = boci.ToOCIStore(f.pkgRootManifest, layout.ZarfLayerMediaTypeBlob, f.cfg.Store)
 		if err != nil {
 			return nil, err
 		}
-		// save pkg manifest to bundle root manifest
-		f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, manifestLayerDesc)
-
-		descsToBundle = append(descsToBundle, manifestLayerDesc)
 	}
+	f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, manifestLayerDesc)
+	descsToBundle = append(descsToBundle, manifestLayerDesc)
 	return descsToBundle, nil
 }
 

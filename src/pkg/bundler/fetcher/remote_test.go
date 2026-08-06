@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/pkg/oci"
-	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -25,13 +24,11 @@ func TestRemoteFetcherPreservesCachedPackageManifest(t *testing.T) {
 	var fetchedManifest oci.Manifest
 	require.NoError(t, json.Unmarshal(manifestBytes, &fetchedManifest))
 	sourceDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, manifestBytes)
-	sourceDesc.Annotations = map[string]string{ocispec.AnnotationTitle: "package"}
 
 	store, err := ocistore.NewWithContext(ctx, t.TempDir())
 	require.NoError(t, err)
 	bundleRoot := &ocispec.Manifest{}
 	f := remoteFetcher{
-		pkg:             types.Package{Name: "example"},
 		pkgRootManifest: &fetchedManifest,
 		cfg: Config{
 			Store:              store,

@@ -51,14 +51,13 @@ func TestLocalFetcherPreservesZarfManifest(t *testing.T) {
 		pkg: bundlePackage,
 		cfg: Config{
 			Store:                   store,
-			TmpDstDir:               t.TempDir(),
 			BundleRootManifest:      bundleRoot,
 			Bundle:                  bundle,
 			SkipSignatureValidation: true,
 		},
 	}
 
-	_, _, err = f.toBundle()
+	_, err = f.toBundle()
 	require.NoError(t, err)
 	require.Equal(t, "0.0.1@"+expectedRoot.Digest.String(), bundle.Packages[0].Ref)
 	require.Len(t, bundleRoot.Layers, 1)

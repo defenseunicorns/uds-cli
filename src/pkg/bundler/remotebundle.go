@@ -72,7 +72,6 @@ func (r *RemoteBundle) create(ctx context.Context, signature []byte) error {
 
 	rootManifest := ocispec.Manifest{}
 	pusherConfig := pusher.Config{
-		Bundle:    bundle,
 		RemoteDst: *bundleRemote,
 		NumPkgs:   len(bundle.Packages),
 	}
@@ -85,16 +84,11 @@ func (r *RemoteBundle) create(ctx context.Context, signature []byte) error {
 			return err
 		}
 		pusherConfig.RemoteSrc = *src
-		pkgRootManifestDesc, err := src.ResolveRoot(ctx)
-		if err != nil {
-			return err
-		}
-		pkgRootManifest, err := src.FetchManifest(ctx, pkgRootManifestDesc)
+		pkgRootManifest, err := src.FetchRoot(ctx)
 		if err != nil {
 			return err
 		}
 		pusherConfig.PkgRootManifest = pkgRootManifest
-		pusherConfig.PkgRootManifestDesc = pkgRootManifestDesc
 		pusherConfig.PkgIter = i
 
 		remotePusher := pusher.NewPkgPusher(pkg, pusherConfig)

@@ -262,9 +262,6 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 		desc := helpers.Find(manifest.Layers, func(layer ocispec.Descriptor) bool {
 			return layer.Digest.Encoded() == filepath.Base(file.NameInArchive)
 		})
-		if err := desc.Digest.Validate(); err != nil {
-			return fmt.Errorf("invalid package layer digest: %w", err)
-		}
 
 		path := desc.Annotations[ocispec.AnnotationTitle]
 		cleanPath := filepath.Clean(path)

@@ -6,7 +6,6 @@ package sources
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/opencontainers/go-digest"
@@ -32,9 +31,6 @@ func addNamespaceOverrides(pkg *v1alpha1.ZarfPackage, nsOverrides NamespaceOverr
 }
 
 func loadPackageFromDir(ctx context.Context, dirPath string, opts layout.PackageLayoutOptions, manifestDigest digest.Digest) (*layout.PackageLayout, error) {
-	if err := manifestDigest.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid package manifest digest: %w", err)
-	}
 	pkgLayout, err := utils.LoadPackageFromDir(ctx, dirPath, opts)
 	if err != nil {
 		return nil, err

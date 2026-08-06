@@ -254,7 +254,7 @@ func (tp *tarballBundleProvider) getZarfLayers(store *ocistore.Store, pkgManifes
 	}
 	defer layerFile.Close()
 
-	var zarfImageManifest *oci.Manifest
+	var zarfImageManifest oci.Manifest
 	decoder := json.NewDecoder(layerFile)
 	if err := decoder.Decode(&zarfImageManifest); err != nil {
 		return nil, 0, err
