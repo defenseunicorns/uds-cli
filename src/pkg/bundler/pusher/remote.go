@@ -16,6 +16,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
 
@@ -27,14 +28,13 @@ type RemotePusher struct {
 
 // Config contains the configuration for the remote pusher
 type Config struct {
-	PkgRootManifest      *oci.Manifest
-	PkgRootManifestDesc  ocispec.Descriptor
-	PkgRootManifestBytes []byte
-	RemoteSrc            zoci.Remote
-	RemoteDst            zoci.Remote
-	PkgIter              int
-	NumPkgs              int
-	Bundle               *types.UDSBundle
+	PkgRootManifest     *oci.Manifest
+	PkgRootManifestDesc ocispec.Descriptor
+	RemoteSrc           zoci.Remote
+	RemoteDst           zoci.Remote
+	PkgIter             int
+	NumPkgs             int
+	Bundle              *types.UDSBundle
 }
 
 // NewPkgPusher creates a pusher object to push Zarf pkgs to a remote bundle
@@ -71,7 +71,14 @@ func (p *RemotePusher) Push() (ocispec.Descriptor, error) {
 
 // PushManifest pushes the Zarf pkg's manifest to a remote bundle
 func (p *RemotePusher) PushManifest() (ocispec.Descriptor, error) {
-	return boci.PushPackageManifest(context.TODO(), p.cfg.RemoteDst.Repo(), p.cfg.PkgRootManifestDesc, p.cfg.PkgRootManifestBytes)
+	desc, err := boci.ToOCIRemote(p.cfg.PkgRootManifest, layout.ZarfLayerMediaTypeBlob, p.cfg.RemoteDst.OrasRemote)
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
+	if desc.Digest != p.cfg.PkgRootManifestDesc.Digest || desc.Size != p.cfg.PkgRootManifestDesc.Size {
+		return ocispec.Descriptor{}, fmt.Errorf("package manifest does not match source descriptor %s", p.cfg.PkgRootManifestDesc.Digest)
+	}
+	return *desc, nil
 }
 
 // LayersToRemoteBundle pushes the Zarf pkg's layers to a remote bundle

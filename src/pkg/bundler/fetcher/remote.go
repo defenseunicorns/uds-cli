@@ -28,12 +28,11 @@ import (
 
 // remoteFetcher fetches remote Zarf pkgs for local bundles
 type remoteFetcher struct {
-	pkg                  types.Package
-	cfg                  Config
-	pkgRootManifest      *oci.Manifest
-	pkgRootManifestDesc  ocispec.Descriptor
-	pkgRootManifestBytes []byte
-	remote               *zoci.Remote
+	pkg                 types.Package
+	cfg                 Config
+	pkgRootManifest     *oci.Manifest
+	pkgRootManifestDesc ocispec.Descriptor
+	remote              *zoci.Remote
 }
 
 // Fetch fetches a Zarf pkg and puts it into a local bundle
@@ -105,7 +104,7 @@ func (f *remoteFetcher) copyRemotePkgLayers(layersToCopy []ocispec.Descriptor) (
 
 		// grab pkg root manifest for archiving and save it to bundle root manifest
 		descsToBundle = append(descsToBundle, rootPkgDesc)
-		manifestLayerDesc := boci.PackageManifestLayerDescriptor(rootPkgDesc)
+		manifestLayerDesc := packageManifestLayerDescriptor(rootPkgDesc)
 		f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, manifestLayerDesc)
 
 		// cache only the image layers that were just pulled
@@ -115,9 +114,12 @@ func (f *remoteFetcher) copyRemotePkgLayers(layersToCopy []ocispec.Descriptor) (
 		}
 	} else {
 		// no layers to pull but need to grab pkg root manifest and config manually bc we didn't use oras.Copy()
-		manifestLayerDesc, err := boci.PushPackageManifest(ctx, f.cfg.Store, f.pkgRootManifestDesc, f.pkgRootManifestBytes)
+		manifestLayerDesc, err := boci.ToOCIStore(f.pkgRootManifest, layout.ZarfLayerMediaTypeBlob, f.cfg.Store)
 		if err != nil {
 			return nil, err
+		}
+		if manifestLayerDesc.Digest != f.pkgRootManifestDesc.Digest || manifestLayerDesc.Size != f.pkgRootManifestDesc.Size {
+			return nil, fmt.Errorf("package manifest does not match source descriptor %s", f.pkgRootManifestDesc.Digest)
 		}
 
 		// save pkg manifest to bundle root manifest

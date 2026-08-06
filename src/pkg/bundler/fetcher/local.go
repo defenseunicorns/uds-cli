@@ -224,7 +224,7 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, string, error) {
 
 	f.cfg.Bundle.Packages[f.cfg.PkgIter].Ref += "@" + rootManifestDesc.Digest.String()
 
-	manifestLayerDesc := boci.PackageManifestLayerDescriptor(rootManifestDesc)
+	manifestLayerDesc := packageManifestLayerDescriptor(rootManifestDesc)
 	f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, manifestLayerDesc)
 	return descs, pkgTmp, nil
 }

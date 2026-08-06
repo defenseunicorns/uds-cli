@@ -6,8 +6,6 @@ package fetcher
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,21 +34,12 @@ func NewZarfOCIRemote(ctx context.Context, url string, platform ocispec.Platform
 	return zoci.NewRemote(ctx, url, platform, modifiers...)
 }
 
-// FetchPackageManifest resolves and fetches the original package manifest bytes and their parsed representation.
-func FetchPackageManifest(ctx context.Context, remote *zoci.Remote) (ocispec.Descriptor, []byte, *oci.Manifest, error) {
-	desc, err := remote.ResolveRoot(ctx)
-	if err != nil {
-		return ocispec.Descriptor{}, nil, nil, err
+func packageManifestLayerDescriptor(sourceDesc ocispec.Descriptor) ocispec.Descriptor {
+	return ocispec.Descriptor{
+		MediaType: layout.ZarfLayerMediaTypeBlob,
+		Digest:    sourceDesc.Digest,
+		Size:      sourceDesc.Size,
 	}
-	manifestBytes, err := remote.FetchLayer(ctx, desc)
-	if err != nil {
-		return ocispec.Descriptor{}, nil, nil, err
-	}
-	var manifest oci.Manifest
-	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
-		return ocispec.Descriptor{}, nil, nil, fmt.Errorf("parsing package manifest %s: %w", desc.Digest, err)
-	}
-	return desc, manifestBytes, &manifest, nil
 }
 
 // getImgLayerDigests grabs the digests of the layers from the images in the image index

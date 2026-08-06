@@ -19,20 +19,21 @@ import (
 
 func TestRemoteFetcherPreservesCachedPackageManifest(t *testing.T) {
 	ctx := context.Background()
-	manifestBytes := []byte("{\n  \"schemaVersion\": 2,\n  \"mediaType\": \"application/vnd.oci.image.manifest.v1+json\",\n  \"x-extension\": true\n}\n")
+	manifest := oci.Manifest{Manifest: ocispec.Manifest{MediaType: ocispec.MediaTypeImageManifest}}
+	manifestBytes, err := json.Marshal(&manifest)
+	require.NoError(t, err)
+	var fetchedManifest oci.Manifest
+	require.NoError(t, json.Unmarshal(manifestBytes, &fetchedManifest))
 	sourceDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, manifestBytes)
 	sourceDesc.Annotations = map[string]string{ocispec.AnnotationTitle: "package"}
-	var manifest oci.Manifest
-	require.NoError(t, json.Unmarshal(manifestBytes, &manifest))
 
 	store, err := ocistore.NewWithContext(ctx, t.TempDir())
 	require.NoError(t, err)
 	bundleRoot := &ocispec.Manifest{}
 	f := remoteFetcher{
-		pkg:                  types.Package{Name: "example"},
-		pkgRootManifest:      &manifest,
-		pkgRootManifestDesc:  sourceDesc,
-		pkgRootManifestBytes: manifestBytes,
+		pkg:                 types.Package{Name: "example"},
+		pkgRootManifest:     &fetchedManifest,
+		pkgRootManifestDesc: sourceDesc,
 		cfg: Config{
 			Store:              store,
 			BundleRootManifest: bundleRoot,
