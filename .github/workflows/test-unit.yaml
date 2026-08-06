@@ -38,11 +38,14 @@ jobs:
       - name: Setup golang
         uses: ./.github/actions/golang
 
-      - name: Install UDS CLI
-        uses: ./.github/actions/install-uds-cli
+      - name: Install Maru
+        uses: ./.github/actions/install-maru
 
       - name: Run unit tests
-        run: uds run test:unit
+        run: |
+          maru run test:router
+          maru run test:legacy-unit
+          maru run test:legacy-consumer
 
       - name: Save logs
         if: always()

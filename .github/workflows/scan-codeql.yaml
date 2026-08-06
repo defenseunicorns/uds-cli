@@ -49,11 +49,11 @@ jobs:
       - name: Setup golang
         uses: ./.github/actions/golang
 
-      - name: Install UDS CLI
-        uses: ./.github/actions/install-uds-cli
+      - name: Install Maru
+        uses: ./.github/actions/install-maru
 
       - name: Build UDS CLI
-        run: uds run build-cli-linux-amd
+        run: maru run build-cli-linux-amd
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3

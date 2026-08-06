@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 paths-ignore:
-  - src/config/lang/lang.go
-  - src/config/config.go
+  - pkg/legacy/config/lang/lang.go
+  - pkg/legacy/config/config.go
   - docs-website/**
   - build/**
 

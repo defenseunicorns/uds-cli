@@ -33,11 +33,11 @@ jobs:
       - name: Setup golang
         uses: ./.github/actions/golang
 
-      - name: Install UDS CLI
-        uses: ./.github/actions/install-uds-cli
+      - name: Install Maru
+        uses: ./.github/actions/install-maru
 
       - name: Build UDS-CLI binary
-        run: uds run build-cli-linux-amd
+        run: maru run build-cli-linux-amd
 
       - name: Make UDS-CLI executable
         run: |
@@ -49,5 +49,5 @@ jobs:
           create-cluster: "${{ matrix.type == 'with-cluster' && 'true' || 'false'}}"
 
       - name: Run UDS Core smoke test
-        run: build/uds run test:ci-uds-core-smoke-test
+        run: maru run test:legacy-ci-uds-core-smoke-test
         shell: bash

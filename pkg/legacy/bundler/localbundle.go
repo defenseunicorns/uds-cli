@@ -1,0 +1,416 @@
+// Copyright 2024 Defense Unicorns
+// SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+// Package bundler defines behavior for bundling packages
+package bundler
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+
+	"github.com/defenseunicorns/pkg/helpers/v2"
+	"github.com/defenseunicorns/pkg/oci"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/bundler/fetcher"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/config"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/message"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils/boci"
+	goyaml "github.com/goccy/go-yaml"
+	"github.com/mholt/archives"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"golang.org/x/sync/errgroup"
+	"oras.land/oras-go/v2/content"
+	ocistore "oras.land/oras-go/v2/content/oci"
+)
+
+// LocalBundleOpts are the options for creating a local bundle
+type LocalBundleOpts struct {
+	Bundle    *types.UDSBundle
+	TmpDstDir string
+	SourceDir string
+	OutputDir string
+}
+
+// LocalBundle enables create ops with local bundles
+type LocalBundle struct {
+	bundle    *types.UDSBundle
+	tmpDstDir string
+	sourceDir string
+	outputDir string
+}
+
+// NewLocalBundle creates a new local bundle
+func NewLocalBundle(opts *LocalBundleOpts) *LocalBundle {
+	return &LocalBundle{
+		bundle:    opts.Bundle,
+		tmpDstDir: opts.TmpDstDir,
+		sourceDir: opts.SourceDir,
+		outputDir: opts.OutputDir,
+	}
+}
+
+// create creates the bundle and outputs to a local tarball
+func (lo *LocalBundle) create(ctx context.Context, signature []byte) error {
+	bundle := lo.bundle
+	if bundle.Metadata.Architecture == "" {
+		return errors.New("architecture is required for bundling")
+	}
+	store, err := ocistore.NewWithContext(context.TODO(), lo.tmpDstDir)
+
+	if err := utils.CanWriteToDir(lo.outputDir); err != nil {
+		return fmt.Errorf("failed to create bundle: unable to write to output directory %q: %s", lo.outputDir, err.Error())
+	}
+
+	message.HeaderInfof("🐕 Fetching Packages")
+
+	// create root manifest for bundle, will populate with ref to uds-bundle.yaml and zarf image manifests
+	rootManifest := ocispec.Manifest{
+		MediaType: ocispec.MediaTypeImageManifest,
+	}
+
+	fetcherConfig := fetcher.Config{
+		Bundle:                  bundle,
+		Store:                   store,
+		TmpDstDir:               lo.tmpDstDir,
+		NumPkgs:                 len(lo.bundle.Packages),
+		BundleRootManifest:      &rootManifest,
+		SkipSignatureValidation: config.CommonOptions.SkipSignatureValidation,
+	}
+
+	message.Debug("Bundling", bundle.Metadata.Name, "to", lo.tmpDstDir)
+	if err != nil {
+		return err
+	}
+
+	artifactPathMap := make(types.PathMap)
+
+	// perPkgPriority accumulates the archive names of small per-package
+	// metadata blobs (zarf.yaml/sig/checksums plus the package image manifest).
+	// These get prepended to the bundle tarball so `uds inspect` can find every
+	// package's definition in the first few MB of the stream instead of
+	// scanning past every image layer to reach them.
+	var perPkgPriority []string
+
+	// grab all Zarf pkgs from OCI and put blobs in OCI store
+	for i, pkg := range bundle.Packages {
+		fetcherConfig.PkgIter = i
+		pkgFetcher, err := fetcher.NewPkgFetcher(pkg, fetcherConfig)
+		if err != nil {
+			return err
+		}
+		layersBefore := len(rootManifest.Layers)
+		pkgDescs, err := pkgFetcher.Fetch()
+		if err != nil {
+			return err
+		}
+
+		// add to artifactPathMap for local bundle tarball, collecting this
+		// package's small metadata blobs separately so they can be ordered
+		// AFTER the package image manifest below.
+		var pkgMetaBlobs []string
+		for _, layer := range pkgDescs {
+			digest := layer.Digest.Encoded()
+			archiveName := filepath.Join(config.BlobsDir, digest)
+			artifactPathMap[filepath.Join(lo.tmpDstDir, archiveName)] = archiveName
+
+			switch layer.Annotations[ocispec.AnnotationTitle] {
+			case layout.ZarfYAML, layout.Signature, layout.Bundle, config.ChecksumsTxt:
+				pkgMetaBlobs = append(pkgMetaBlobs, archiveName)
+			}
+		}
+		// The fetcher appends exactly one layer to rootManifest as the final
+		// step of Fetch(): this package's image manifest. Validate that contract
+		// rather than blindly trusting Layers[n-1]. The prefetcher learns a
+		// package's metadata digests by parsing this manifest, so the manifest
+		// must be ordered BEFORE its metadata blobs — in a single forward pass
+		// the prefetcher can only capture those blobs if the manifest streamed
+		// by first. If the fetcher ever appends a different number of layers we
+		// can no longer reliably identify the manifest, so we skip the priority
+		// hint for this package entirely (inspect falls back to its slower
+		// per-package path) rather than front-load metadata without its manifest.
+		if added := len(rootManifest.Layers) - layersBefore; added == 1 {
+			pkgManifest := rootManifest.Layers[len(rootManifest.Layers)-1]
+			perPkgPriority = append(perPkgPriority, filepath.Join(config.BlobsDir, pkgManifest.Digest.Encoded()))
+			perPkgPriority = append(perPkgPriority, pkgMetaBlobs...)
+		} else {
+			message.Debugf("fetcher appended %d manifest layers for package %q (expected 1); skipping inspect priority hint", added, pkg.Name)
+		}
+	}
+
+	message.HeaderInfof("🚧 Building Bundle")
+
+	// push uds-bundle.yaml to OCI store
+	bundleYAMLDesc, err := pushBundleYAMLToStore(store, bundle)
+	if err != nil {
+		return err
+	}
+
+	// append uds-bundle.yaml layer to rootManifest and grab path for archiving
+	rootManifest.Layers = append(rootManifest.Layers, bundleYAMLDesc)
+	digest := bundleYAMLDesc.Digest.Encoded()
+	artifactPathMap[filepath.Join(lo.tmpDstDir, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
+
+	// create and push bundle manifest config
+	manifestConfigDesc, err := pushManifestConfig(store, bundle.Metadata, bundle.Build)
+	if err != nil {
+		return err
+	}
+	manifestConfigDigest := manifestConfigDesc.Digest.Encoded()
+	artifactPathMap[filepath.Join(lo.tmpDstDir, config.BlobsDir, manifestConfigDigest)] = filepath.Join(config.BlobsDir, manifestConfigDigest)
+
+	rootManifest.Config = manifestConfigDesc
+	rootManifest.SchemaVersion = 2
+	rootManifest.Annotations = manifestAnnotationsFromMetadata(&bundle.Metadata) // maps to registry UI
+	rootManifestDesc, err := boci.ToOCIStore(rootManifest, ocispec.MediaTypeImageManifest, store)
+	if err != nil {
+		return err
+	}
+	digest = rootManifestDesc.Digest.Encoded()
+	artifactPathMap[filepath.Join(lo.tmpDstDir, config.BlobsDir, digest)] = filepath.Join(config.BlobsDir, digest)
+
+	// grab index.json
+	artifactPathMap[filepath.Join(lo.tmpDstDir, "index.json")] = "index.json"
+
+	// grab oci-layout
+	artifactPathMap[filepath.Join(lo.tmpDstDir, "oci-layout")] = "oci-layout"
+
+	// priority blobs are written to the front of the tarball so consumers
+	// reading uds-bundle.yaml (and friends) can stop streaming early instead
+	// of decompressing past every package layer to find them.
+	priorityArchiveNames := []string{
+		"oci-layout",
+		"index.json",
+		filepath.Join(config.BlobsDir, rootManifestDesc.Digest.Encoded()),
+		filepath.Join(config.BlobsDir, manifestConfigDigest),
+		filepath.Join(config.BlobsDir, bundleYAMLDesc.Digest.Encoded()),
+	}
+	// followed by every package's small metadata + image manifest so
+	// `uds inspect` can resolve all package definitions in the same prefix.
+	priorityArchiveNames = append(priorityArchiveNames, perPkgPriority...)
+
+	// push the bundle's signature todo: need to understand functionality and add tests
+	if len(signature) > 0 {
+		signatureDesc, err := pushBundleSignature(store, signature)
+		if err != nil {
+			return err
+		}
+		rootManifest.Layers = append(rootManifest.Layers, signatureDesc)
+		jsonValue, err := utils.JSONValue(signatureDesc)
+		if err != nil {
+			return err
+		}
+		message.Debug("Pushed", config.BundleYAMLSignature+":", jsonValue)
+		priorityArchiveNames = append(priorityArchiveNames, filepath.Join(config.BlobsDir, signatureDesc.Digest.Encoded()))
+	}
+
+	// tag the local bundle artifact
+	// todo: no need to tag the local artifact
+	err = store.Tag(ctx, rootManifestDesc, bundle.Metadata.Version)
+	if err != nil {
+		return err
+	}
+	// ensure the bundle root manifest is the only manifest in the index.json
+	err = cleanIndexJSON(lo.tmpDstDir, rootManifestDesc)
+	if err != nil {
+		return err
+	}
+
+	if lo.outputDir == "" {
+		lo.outputDir = lo.sourceDir
+	}
+	// tarball the bundle
+	err = writeTarball(bundle, artifactPathMap, priorityArchiveNames, lo.outputDir)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// pushBundleYAMLToStore pushes the uds-bundle.yaml to a provided OCI store
+func pushBundleYAMLToStore(store *ocistore.Store, bundle *types.UDSBundle) (ocispec.Descriptor, error) {
+	ctx := context.TODO()
+	bundleYAMLBytes, err := goyaml.Marshal(bundle)
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
+	bundleYamlDesc := content.NewDescriptorFromBytes(layout.ZarfLayerMediaTypeBlob, bundleYAMLBytes)
+	bundleYamlDesc.Annotations = map[string]string{
+		ocispec.AnnotationTitle: config.BundleYAML,
+	}
+	err = store.Push(ctx, bundleYamlDesc, bytes.NewReader(bundleYAMLBytes))
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
+
+	jsonValue, err := utils.JSONValue(bundleYamlDesc)
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
+	message.Debug("Pushed", config.BundleYAML+":", jsonValue)
+	return bundleYamlDesc, err
+}
+
+// pushManifestConfig creates a manifest config based on the uds-bundle.yaml
+func pushManifestConfig(store *ocistore.Store, metadata types.UDSMetadata, build types.UDSBuildData) (ocispec.Descriptor, error) {
+	annotations := map[string]string{
+		ocispec.AnnotationTitle:       metadata.Name,
+		ocispec.AnnotationDescription: metadata.Description,
+	}
+	manifestConfig := oci.ConfigPartial{
+		Architecture: build.Architecture,
+		OCIVersion:   "1.0.1",
+		Annotations:  annotations,
+	}
+	manifestConfigDesc, err := boci.ToOCIStore(manifestConfig, layout.ZarfLayerMediaTypeBlob, store)
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
+
+	return manifestConfigDesc, err
+}
+
+// writeTarball builds and writes a bundle tarball to disk based on a file map.
+// priorityArchiveNames lists entries (by archive name) that must be written to
+// the tarball before any others; the order within that slice is preserved so
+// readers can `fs.SkipAll` after the first few KB instead of decompressing the
+// whole stream to find metadata blobs.
+func writeTarball(bundle *types.UDSBundle, artifactPathMap types.PathMap, priorityArchiveNames []string, outputDir string) error {
+	filename := fmt.Sprintf("%s%s-%s-%s.tar.zst", config.BundlePrefix, bundle.Metadata.Name, bundle.Metadata.Architecture, bundle.Metadata.Version)
+
+	if !helpers.IsDir(outputDir) {
+		err := os.MkdirAll(outputDir, 0o755)
+		if err != nil {
+			return err
+		}
+	}
+
+	dst := filepath.Join(outputDir, filename)
+
+	_ = os.RemoveAll(dst)
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	files, err := archives.FilesFromDisk(context.TODO(), nil, artifactPathMap)
+	if err != nil {
+		return err
+	}
+
+	// Sort: priority entries first (in given order), then everything else
+	// alphabetical for determinism. This slice order becomes the tar entry
+	// order only because mholt/archives v0.1.5 ArchiveAsync consumes the jobs
+	// channel serially in send order; if a future version parallelizes that,
+	// this ordering (and the inspect fast-path's prefix read) no longer holds.
+	priorityRank := make(map[string]int, len(priorityArchiveNames))
+	for i, name := range priorityArchiveNames {
+		priorityRank[name] = i
+	}
+	slices.SortFunc(files, func(a, b archives.FileInfo) int {
+		ar, aOK := priorityRank[a.NameInArchive]
+		br, bOK := priorityRank[b.NameInArchive]
+		switch {
+		case aOK && bOK:
+			return ar - br
+		case aOK:
+			return -1
+		case bOK:
+			return 1
+		}
+		return strings.Compare(a.NameInArchive, b.NameInArchive)
+	})
+
+	archiveErrorChan := make(chan error, len(files))
+	jobs := make(chan archives.ArchiveAsyncJob, len(files))
+
+	for _, file := range files {
+		archiveJob := archives.ArchiveAsyncJob{
+			File:   file,
+			Result: archiveErrorChan,
+		}
+		jobs <- archiveJob
+	}
+
+	close(jobs)
+
+	archiveErrGroup, ctx := errgroup.WithContext(context.TODO())
+
+	archiveBar := message.NewProgressBar(int64(len(jobs)), "Creating bundle archive")
+
+	defer archiveBar.Close()
+
+	archiveErrGroup.Go(func() error {
+		return config.BundleArchiveFormat.ArchiveAsync(ctx, out, jobs)
+	})
+
+jobLoop:
+	for len(jobs) != 0 {
+		select {
+		case err := <-archiveErrorChan:
+			if err != nil {
+				return err
+			} else {
+				archiveBar.Add(1)
+			}
+		case <-ctx.Done():
+			break jobLoop
+		}
+	}
+
+	if err := archiveErrGroup.Wait(); err != nil {
+		return err
+	}
+
+	archiveBar.Successf("Created bundle archive at: %s", dst)
+	return nil
+}
+
+func pushBundleSignature(store *ocistore.Store, signature []byte) (ocispec.Descriptor, error) {
+	ctx := context.TODO()
+	signatureDesc := content.NewDescriptorFromBytes(layout.ZarfLayerMediaTypeBlob, signature)
+	err := store.Push(ctx, signatureDesc, bytes.NewReader(signature))
+	if err != nil {
+		return ocispec.Descriptor{}, err
+	}
+	signatureDesc.Annotations = map[string]string{
+		ocispec.AnnotationTitle: config.BundleYAMLSignature,
+	}
+	return signatureDesc, err
+}
+
+// rebuild index.json because copying remote Zarf pkgs adds unnecessary entries
+// this is due to root manifest in Zarf packages having an image manifest media type
+func cleanIndexJSON(tmpDir string, bundleRootDesc ocispec.Descriptor) error {
+	indexBytes, err := os.ReadFile(filepath.Join(tmpDir, "index.json"))
+	if err != nil {
+		return err
+	}
+	var index ocispec.Index
+	if err := json.Unmarshal(indexBytes, &index); err != nil {
+		return err
+	}
+
+	for _, manifestDesc := range index.Manifests {
+		if manifestDesc.Digest.Encoded() == bundleRootDesc.Digest.Encoded() {
+			index.Manifests = []ocispec.Descriptor{manifestDesc}
+			break
+		}
+	}
+
+	err = utils.ToLocalFile(index, filepath.Join(tmpDir, "index.json"))
+	if err != nil {
+		return err
+	}
+	return nil
+}

@@ -24,8 +24,8 @@ jobs:
       - name: Setup golang
         uses: ./.github/actions/golang
 
-      - name: Install UDS CLI
-        uses: ./.github/actions/install-uds-cli
+      - name: Install Maru
+        uses: ./.github/actions/install-maru
 
       # Conditional step to fetch zarf@main and update bundles that hardcode the ref
       - name: Fetch Zarf Package
@@ -33,12 +33,12 @@ jobs:
         run: |
           go get github.com/zarf-dev/zarf@main
           ZARF_VERSION=$(go list -m -json github.com/zarf-dev/zarf | jq -r .Version)
-          yq eval "(.packages[] | select(.name == \"init\")).ref = \"$ZARF_VERSION\"" -i src/test/bundles/04-init/uds-bundle.yaml
-          yq eval "(.packages[] | select(.name == \"init\")).ref = \"$ZARF_VERSION\"" -i src/test/bundles/14-optional-components/uds-bundle.yaml
+          yq eval "(.packages[] | select(.name == \"init\")).ref = \"$ZARF_VERSION\"" -i testdata/legacy/bundles/04-init/uds-bundle.yaml
+          yq eval "(.packages[] | select(.name == \"init\")).ref = \"$ZARF_VERSION\"" -i testdata/legacy/bundles/14-optional-components/uds-bundle.yaml
 
       - name: Build CLI
         run: |
-          uds run build-cli-linux-amd
+          maru run build-cli-linux-amd
 
       # Upload the contents of the build directory for later stages to use
       - name: Upload build artifacts
@@ -65,7 +65,7 @@ jobs:
 
       - name: Run e2e bundle tests
         run: |
-          build/uds run test:${{ matrix.test }}
+          maru run test:legacy-${{ matrix.test }}
 
       - name: Save logs
         if: always()
@@ -87,7 +87,7 @@ jobs:
 
       - name: Run e2e dev
         run: |
-          build/uds run test:dev
+          maru run test:legacy-dev
 
       - name: Save logs
         if: always()
@@ -109,7 +109,7 @@ jobs:
 
       - name: Run e2e variable tests
         run: |
-          build/uds run test:variable
+          maru run test:legacy-variable
 
       - name: Save logs
         if: always()
@@ -131,7 +131,7 @@ jobs:
 
       - name: Run e2e optional bundle tests
         run: |
-          build/uds run test:optional-bundle
+          maru run test:legacy-optional-bundle
 
       - name: Save logs
         if: always()
@@ -161,8 +161,8 @@ jobs:
 
       - name: Run e2e vendor tests
         run: |
-          build/uds run test:vendor
-          build/uds run test:completion
+          maru run test:legacy-vendor
+          maru run test:legacy-completion
 
       - name: Save logs
         if: always()
@@ -194,7 +194,7 @@ jobs:
 
       - name: Run e2e optional bundle tests
         run: |
-          build/uds run test:engine-e2e
+          maru run test:legacy-engine-e2e
 
       - name: Save logs
         if: always()

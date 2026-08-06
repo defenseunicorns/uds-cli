@@ -36,7 +36,7 @@ jobs:
 
       - name: Run GHCR tests
         run: |
-          build/uds run test:e2e-ghcr
+          maru run test:legacy-e2e-ghcr
         env:
           GITHUB_TOKEN: secrets.GITHUB_TOKEN
 
@@ -69,6 +69,9 @@ jobs:
       - name: Setup golang
         uses: ./.github/actions/golang
 
+      - name: Install Maru
+        uses: ./.github/actions/install-maru
+
       - name: Make UDS-CLI executable
         run: |
           chmod +x build/uds
@@ -86,7 +89,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run UDS Core smoke test
-        run: build/uds run test:ci-uds-core-smoke-test
+        run: maru run test:legacy-ci-uds-core-smoke-test
         shell: bash
 
       - name: Save logs
