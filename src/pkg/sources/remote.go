@@ -157,12 +157,12 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) 
 	// grab signature(s) if present (key-based: zarf.yaml.sig, keyless: zarf.bundle.sig)
 	for _, layer := range pkgManifest.Layers {
 		switch layer.Annotations[ocispec.AnnotationTitle] {
-		case layout.Signature:
+		case config.LegacySignature:
 			signatureBytes, err := r.Remote.FetchLayer(ctx, layer)
 			if err != nil {
 				return v1alpha1.ZarfPackage{}, nil, err
 			}
-			if err = os.WriteFile(filepath.Join(r.TmpDir, layout.Signature), signatureBytes, 0600); err != nil {
+			if err = os.WriteFile(filepath.Join(r.TmpDir, config.LegacySignature), signatureBytes, 0600); err != nil {
 				return v1alpha1.ZarfPackage{}, nil, err
 			}
 		case layout.Bundle:

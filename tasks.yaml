@@ -6,9 +6,38 @@ includes:
   - schema: tasks/schema.yaml
   - docs: tasks/docs.yaml
   - dev: tasks/dev.yaml
-  - lint: ./tasks/lint.yaml
+  - lint: tasks/lint.yaml
 
 tasks:
+  - name: default
+    description: run repository lint checks and unit tests
+    actions:
+      - task: lint
+      - task: test
+
+  - name: build
+    description: build a local UDS CLI binary
+    actions:
+      - cmd: mkdir -p build
+      - task: get-versions
+      - task: build-args
+      - cmd: go build -ldflags="${BUILD_ARGS}" -o build/uds main.go
+
+  - name: lint
+    description: run repository lint checks
+    actions:
+      - cmd: hk check --all
+
+  - name: fix
+    description: fix lint findings where supported
+    actions:
+      - cmd: hk fix --all
+
+  - name: test
+    description: run unit tests
+    actions:
+      - cmd: uds run test:unit
+
   # build tasks
   - name: get-versions
     description: gets versions of UDS CLI + vendored tools

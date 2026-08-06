@@ -149,7 +149,7 @@ func CreateCopyOpts(layersToPull []ocispec.Descriptor, concurrency int) oras.Cop
 func createIndex(bundle *types.UDSBundle, rootManifestDesc ocispec.Descriptor) *ocispec.Index {
 	var index ocispec.Index
 	index.MediaType = ocispec.MediaTypeImageIndex
-	index.Versioned.SchemaVersion = 2
+	index.SchemaVersion = 2
 	index.Manifests = []ocispec.Descriptor{
 		{
 			MediaType: ocispec.MediaTypeImageManifest,

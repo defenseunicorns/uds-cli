@@ -34,11 +34,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup golang
-        uses: ./.github/actions/golang
-
-      - name: Install UDS CLI
-        uses: ./.github/actions/install-uds-cli
+      - name: Setup development tools
+        uses: ./.github/actions/mise
 
       - name: Test docs
         run: uds run docs:test
@@ -56,13 +53,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version: "24"
-
-      - name: Install UDS CLI
-        uses: ./.github/actions/install-uds-cli
+      - name: Setup development tools
+        uses: ./.github/actions/mise
 
       - name: Check UDS Docs links
         run: uds run uds-docs-validate

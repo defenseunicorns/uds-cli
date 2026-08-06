@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -29,7 +30,6 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/state"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
-	"golang.org/x/exp/slices"
 )
 
 // hiddenVar is the value used to mask potentially sensitive variables
@@ -309,7 +309,7 @@ func newRegistryInfo(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKind) 
 				message.Warnf("failed to parse nodeport %s: %v", v, err)
 				return state.RegistryInfo{}
 			}
-			registryInfo.NodePort = np
+			registryInfo.Port = np
 		}
 	}
 	return registryInfo

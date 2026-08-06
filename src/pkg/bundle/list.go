@@ -20,16 +20,23 @@ const (
 	AnnotationBundleVersion = "dev.uds.bundle.version"
 )
 
-// BundleDeployment represents a deployed bundle with its packages
-type BundleDeployment struct {
+// Deployment represents a deployed bundle with its packages.
+type Deployment struct {
 	Name     string
 	Version  string
 	Packages []string
 }
 
+// BundleDeployment is retained for backward compatibility.
+//
+// Deprecated: use Deployment.
+//
+//nolint:revive // Retained as a backward-compatible exported alias.
+type BundleDeployment = Deployment
+
 // ListDeployedBundles retrieves all deployed Zarf packages and maps them to bundles
 // This is an entrypoint to extension if required (beyond zarf package annotation mapping)
-func ListDeployedBundles(ctx context.Context) ([]BundleDeployment, error) {
+func ListDeployedBundles(ctx context.Context) ([]Deployment, error) {
 	c, err := cluster.New(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to cluster: %w", err)
@@ -45,9 +52,9 @@ func ListDeployedBundles(ctx context.Context) ([]BundleDeployment, error) {
 }
 
 // mapPackagesToBundles maps deployed packages to bundles based on annotations
-func mapPackagesToBundles(deployedPackages []state.DeployedPackage) []BundleDeployment {
+func mapPackagesToBundles(deployedPackages []state.DeployedPackage) []Deployment {
 	// Map packages to bundles based on annotations
-	bundleMap := make(map[string]*BundleDeployment)
+	bundleMap := make(map[string]*Deployment)
 
 	for _, pkg := range deployedPackages {
 		// Check if package has bundle annotations
@@ -70,7 +77,7 @@ func mapPackagesToBundles(deployedPackages []state.DeployedPackage) []BundleDepl
 		if bundle, exists := bundleMap[bundleKey]; exists {
 			bundle.Packages = append(bundle.Packages, pkgIdentifier)
 		} else {
-			bundleMap[bundleKey] = &BundleDeployment{
+			bundleMap[bundleKey] = &Deployment{
 				Name:     bundleName,
 				Version:  bundleVersion,
 				Packages: []string{pkgIdentifier},
@@ -79,7 +86,7 @@ func mapPackagesToBundles(deployedPackages []state.DeployedPackage) []BundleDepl
 	}
 
 	// Convert map to sorted slice
-	bundles := make([]BundleDeployment, 0, len(bundleMap))
+	bundles := make([]Deployment, 0, len(bundleMap))
 	for _, bundle := range bundleMap {
 		// Sort packages within each bundle
 		sort.Strings(bundle.Packages)
@@ -98,7 +105,7 @@ func mapPackagesToBundles(deployedPackages []state.DeployedPackage) []BundleDepl
 }
 
 // PrintBundleList prints the deployed bundles in a formatted table to stdout
-func PrintBundleList(bundles []BundleDeployment) {
+func PrintBundleList(bundles []Deployment) {
 	if len(bundles) == 0 {
 		fmt.Fprintln(message.OutputWriter, "No deployed bundles found in the cluster")
 		return

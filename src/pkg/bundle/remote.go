@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
@@ -24,7 +25,6 @@ import (
 	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
-	"golang.org/x/exp/slices"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	ocistore "oras.land/oras-go/v2/content/oci"
@@ -115,7 +115,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool, bundleName string) ([]
 			continue
 		}
 		// grab sboms.tar and extract
-		sbomBytes, err := op.OrasRemote.FetchLayer(ctx, sbomDesc)
+		sbomBytes, err := op.FetchLayer(ctx, sbomDesc)
 		if err != nil {
 			return warns, err
 		}

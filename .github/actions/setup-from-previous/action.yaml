@@ -19,8 +19,8 @@ runs:
         name: build-artifacts
         path: build/
 
-    - name: Setup golang
-      uses: ./.github/actions/golang
+    - name: Setup development tools
+      uses: ./.github/actions/mise
 
     - name: Make UDS-CLI executable
       shell: bash
