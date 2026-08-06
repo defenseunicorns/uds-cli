@@ -3,13 +3,13 @@ module github.com/defenseunicorns/uds-cli
 go 1.26.5
 
 require (
+	charm.land/lipgloss/v2 v2.0.5
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
-	github.com/charmbracelet/lipgloss/v2 v2.0.5
 	github.com/defenseunicorns/maru-runner v0.6.0
 	github.com/defenseunicorns/pkg/exec v0.0.2
 	github.com/defenseunicorns/pkg/helpers/v2 v2.0.4
-	github.com/defenseunicorns/pkg/oci v1.3.1
+	github.com/defenseunicorns/pkg/oci v1.3.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/goccy/go-yaml v1.19.2
 	github.com/mholt/archives v0.1.5
@@ -20,7 +20,6 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 	github.com/zarf-dev/zarf v0.82.0
-	golang.org/x/exp v0.0.0-20260727155853-b88d891fe743
 	golang.org/x/mod v0.38.0
 	golang.org/x/sync v0.22.0
 	helm.sh/helm/v4 v4.2.3
@@ -178,9 +177,13 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/harmonica v0.2.0 // indirect
-	github.com/charmbracelet/x/ansi v0.11.6 // indirect
+	github.com/charmbracelet/lipgloss v1.1.0 // indirect
+	github.com/charmbracelet/ultraviolet v0.0.0-20251205161215-1948445e3318 // indirect
+	github.com/charmbracelet/x/ansi v0.11.7 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
+	github.com/charmbracelet/x/termios v0.1.1 // indirect
+	github.com/charmbracelet/x/windows v0.2.2 // indirect
 	github.com/chrismellard/docker-credential-acr-env v0.0.0-20230304212654-82a0ddb27589 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
@@ -382,13 +385,13 @@ require (
 	github.com/lithammer/dedent v1.1.0 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/lmittmann/tint v1.1.3 // indirect
-	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
+	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/masahiro331/go-mvn-version v0.0.0-20250131095131-f4974fa13b8a // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-localereader v0.0.2-0.20220822084749-2491eb6c1c75 // indirect
-	github.com/mattn/go-runewidth v0.0.21 // indirect
+	github.com/mattn/go-runewidth v0.0.23 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/miekg/pkcs11 v1.1.2 // indirect
 	github.com/mikefarah/yq/v4 v4.52.5 // indirect
@@ -567,6 +570,7 @@ require (
 	go.yaml.in/yaml/v4 v4.0.0-rc.3 // indirect
 	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
 	golang.org/x/crypto v0.54.0 // indirect
+	golang.org/x/exp v0.0.0-20260727155853-b88d891fe743 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
@@ -599,7 +603,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20260319004828-5883c5ee87b9 // indirect
 	k8s.io/kubectl v0.36.1 // indirect
 	k8s.io/metrics v0.36.1 // indirect
-	k8s.io/streaming v0.36.2 // indirect
+	k8s.io/streaming v0.36.3 // indirect
 	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5 // indirect
 	modernc.org/libc v1.72.3 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
@@ -613,6 +617,6 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.21.1 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/release-utils v0.12.4 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.3.3 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
