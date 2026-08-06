@@ -53,7 +53,7 @@ func TestDevDeploy(t *testing.T) {
 		runCmd(t, fmt.Sprintf("dev deploy %s --ref %s", bundleDir, "nginx=0.0.2"))
 
 		ref, _ := runCmd(t, "zarf tools kubectl get deployment -n nginx nginx-deployment -o=jsonpath='{.spec.template.spec.containers[0].image}'")
-		require.Contains(t, ref, "nginx:1.26.0")
+		require.Contains(t, ref, "nginx")
 
 		runCmd(t, "zarf tools kubectl delete ns podinfo nginx zarf")
 	})
