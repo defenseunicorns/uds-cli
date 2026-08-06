@@ -6,6 +6,7 @@ package sources
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -21,6 +22,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	"github.com/mholt/archives"
+	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
@@ -33,7 +35,7 @@ type NamespaceOverrideMap = map[string]map[string]string
 
 // TarballBundle is a package source for local tarball bundles that implements Zarf's packager.PackageSource
 type TarballBundle struct {
-	PkgManifestSHA          string
+	PkgManifestDigest       digest.Digest
 	TmpDir                  string
 	BundleLocation          string
 	Pkg                     types.Package
@@ -76,7 +78,7 @@ func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.Componen
 		Filter:               filter,
 	}
 
-	pkgLayout, err := utils.LoadPackageFromDir(ctx, t.TmpDir, layoutOpts)
+	pkgLayout, err := loadPackageFromDir(ctx, t.TmpDir, layoutOpts, t.PkgManifestDigest)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -98,8 +100,8 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, _ bool, _ bool) (
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
-	var imageManifest oci.Manifest
-	if err := config.BundleArchiveFormat.Extract(ctx, sourceArchive, utils.ExtractJSON(&imageManifest, filepath.Join(config.BlobsDir, t.PkgManifestSHA))); err != nil {
+	imageManifest, err := t.extractPackageManifest(ctx, sourceArchive)
+	if err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
@@ -232,8 +234,8 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 		return nil, err
 	}
 
-	var manifest oci.Manifest
-	if err := config.BundleArchiveFormat.Extract(context.TODO(), sourceArchive, utils.ExtractJSON(&manifest, filepath.Join(config.BlobsDir, t.PkgManifestSHA))); err != nil {
+	manifest, err := t.extractPackageManifest(context.TODO(), sourceArchive)
+	if err != nil {
 		if err := sourceArchive.Close(); err != nil {
 			return nil, err
 		}
@@ -260,6 +262,9 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 		desc := helpers.Find(manifest.Layers, func(layer ocispec.Descriptor) bool {
 			return layer.Digest.Encoded() == filepath.Base(file.NameInArchive)
 		})
+		if err := desc.Digest.Validate(); err != nil {
+			return fmt.Errorf("invalid package layer digest: %w", err)
+		}
 
 		path := desc.Annotations[ocispec.AnnotationTitle]
 		cleanPath := filepath.Clean(path)
@@ -279,12 +284,16 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 		}
 		defer target.Close()
 
-		written, err := io.Copy(target, stream)
+		digester := desc.Digest.Algorithm().Digester()
+		written, err := io.Copy(io.MultiWriter(target, digester.Hash()), stream)
 		if err != nil {
 			return err
 		}
 		if written != size {
 			return fmt.Errorf("expected to write %d bytes to %s, wrote %d", size, path, written)
+		}
+		if actual := digester.Digest(); actual != desc.Digest {
+			return fmt.Errorf("package layer %q digest mismatch: expected %s, got %s", path, desc.Digest, actual)
 		}
 
 		files = append(files, strings.ReplaceAll(layerDst, t.TmpDir+"/", ""))
@@ -298,4 +307,33 @@ func (t *TarballBundle) extractPkgFromBundle() ([]string, error) {
 	defer sourceArchive.Close()
 	err = config.BundleArchiveFormat.Extract(context.TODO(), sourceArchive, extractLayer)
 	return files, err
+}
+
+func (t *TarballBundle) extractPackageManifest(ctx context.Context, sourceArchive io.Reader) (oci.Manifest, error) {
+	if err := t.PkgManifestDigest.Validate(); err != nil {
+		return oci.Manifest{}, fmt.Errorf("invalid package manifest digest: %w", err)
+	}
+
+	var manifestBytes []byte
+	manifestPath := filepath.Join(config.BlobsDir, t.PkgManifestDigest.Encoded())
+	if err := config.BundleArchiveFormat.Extract(ctx, sourceArchive, utils.ExtractBytes(&manifestBytes, manifestPath)); err != nil {
+		return oci.Manifest{}, err
+	}
+	if len(manifestBytes) == 0 {
+		return oci.Manifest{}, fmt.Errorf("package manifest %s not found", t.PkgManifestDigest)
+	}
+	if actual := digest.FromBytes(manifestBytes); actual != t.PkgManifestDigest {
+		return oci.Manifest{}, fmt.Errorf("package manifest digest mismatch: expected %s, got %s", t.PkgManifestDigest, actual)
+	}
+
+	var manifest oci.Manifest
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		return oci.Manifest{}, err
+	}
+	for _, layer := range manifest.Layers {
+		if err := layer.Digest.Validate(); err != nil {
+			return oci.Manifest{}, fmt.Errorf("invalid package layer digest: %w", err)
+		}
+	}
+	return manifest, nil
 }

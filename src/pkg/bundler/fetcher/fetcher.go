@@ -48,16 +48,18 @@ func NewPkgFetcher(pkg types.Package, fetcherConfig Config) (Fetcher, error) {
 		if err != nil {
 			return nil, err
 		}
-		pkgRootManifest, err := remote.FetchRoot(ctx)
+		pkgRootManifestDesc, pkgRootManifestBytes, pkgRootManifest, err := FetchPackageManifest(ctx, remote)
 		if err != nil {
 			return nil, err
 		}
 
 		fetcher = &remoteFetcher{
-			pkg:             pkg,
-			cfg:             fetcherConfig,
-			pkgRootManifest: pkgRootManifest,
-			remote:          remote,
+			pkg:                  pkg,
+			cfg:                  fetcherConfig,
+			pkgRootManifest:      pkgRootManifest,
+			pkgRootManifestDesc:  pkgRootManifestDesc,
+			pkgRootManifestBytes: pkgRootManifestBytes,
+			remote:               remote,
 		}
 	} else {
 		fetcher = &localFetcher{

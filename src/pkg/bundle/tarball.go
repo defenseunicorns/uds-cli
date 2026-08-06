@@ -245,30 +245,40 @@ func (tp *tarballBundleProvider) LoadBundleMetadata() (types.PathMap, error) {
 // getZarfLayers returns the layers of the Zarf package that are in the bundle
 func (tp *tarballBundleProvider) getZarfLayers(store *ocistore.Store, pkgManifestDesc ocispec.Descriptor) ([]ocispec.Descriptor, int64, error) {
 	var layersToPull []ocispec.Descriptor
-	estimatedPkgSize := int64(0)
+	var estimatedPkgSize int64
 
 	// Open the layer file for streaming
 	layerFile, err := os.Open(filepath.Join(tp.dst, config.BlobsDir, pkgManifestDesc.Digest.Encoded()))
 	if err != nil {
-		return nil, int64(0), err
+		return nil, 0, err
 	}
 	defer layerFile.Close()
 
 	var zarfImageManifest *oci.Manifest
 	decoder := json.NewDecoder(layerFile)
 	if err := decoder.Decode(&zarfImageManifest); err != nil {
-		return nil, int64(0), err
+		return nil, 0, err
 	}
 
 	// only grab image layers that we want
-	for _, layer := range zarfImageManifest.Manifest.Layers { //nolint:staticcheck
+	for _, layer := range zarfImageManifest.Layers {
 		ok, err := store.Exists(tp.ctx, layer)
 		if err != nil {
-			return nil, int64(0), err
+			return nil, 0, err
 		}
 		if ok {
 			estimatedPkgSize += layer.Size
 			layersToPull = append(layersToPull, layer)
+		}
+	}
+	if configDesc := zarfImageManifest.Config; configDesc.Digest != "" {
+		ok, err := store.Exists(tp.ctx, configDesc)
+		if err != nil {
+			return nil, 0, err
+		}
+		if ok {
+			estimatedPkgSize += configDesc.Size
+			layersToPull = append(layersToPull, configDesc)
 		}
 	}
 

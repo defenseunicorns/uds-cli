@@ -347,6 +347,15 @@ func FindBundledPkgLayers(ctx context.Context, pkg types.Package, rootManifest *
 	}
 
 	layersToPull = append(layersToPull, manifestDesc)
+	if manifest.Config.Digest != "" {
+		exists, err := remote.Repo().Exists(ctx, manifest.Config)
+		if err != nil {
+			return nil, 0, err
+		}
+		if exists {
+			layersToPull = append(layersToPull, manifest.Config)
+		}
+	}
 
 	filteredComponents, err := getFilteredComponents(ctx, remote, manifest, pkg.OptionalComponents)
 	if err != nil {

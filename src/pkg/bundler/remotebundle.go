@@ -85,11 +85,13 @@ func (r *RemoteBundle) create(ctx context.Context, signature []byte) error {
 			return err
 		}
 		pusherConfig.RemoteSrc = *src
-		pkgRootManifest, err := src.FetchRoot(ctx)
+		pkgRootManifestDesc, pkgRootManifestBytes, pkgRootManifest, err := fetcher.FetchPackageManifest(ctx, src)
 		if err != nil {
 			return err
 		}
 		pusherConfig.PkgRootManifest = pkgRootManifest
+		pusherConfig.PkgRootManifestDesc = pkgRootManifestDesc
+		pusherConfig.PkgRootManifestBytes = pkgRootManifestBytes
 		pusherConfig.PkgIter = i
 
 		remotePusher := pusher.NewPkgPusher(pkg, pusherConfig)

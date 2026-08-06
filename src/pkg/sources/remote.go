@@ -19,6 +19,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	goyaml "github.com/goccy/go-yaml"
+	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
@@ -30,7 +31,7 @@ import (
 // RemoteBundle is a package source for remote bundles that implements Zarf's packager.PackageSource
 type RemoteBundle struct {
 	Pkg                     types.Package
-	PkgManifestSHA          string
+	PkgManifestDigest       digest.Digest
 	TmpDir                  string
 	VerifyBlobOptions       *signing.VerifyBlobOptions
 	Remote                  *oci.OrasRemote
@@ -90,7 +91,7 @@ func (r *RemoteBundle) LoadPackage(ctx context.Context, filter filters.Component
 		Filter:               filter,
 	}
 
-	pkgLayout, err := utils.LoadPackageFromDir(ctx, r.TmpDir, layoutOpts)
+	pkgLayout, err := loadPackageFromDir(ctx, r.TmpDir, layoutOpts, r.PkgManifestDigest)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -108,9 +109,9 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) 
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
-	pkgManifestDesc := root.Locate(r.PkgManifestSHA)
+	pkgManifestDesc := root.Locate(r.PkgManifestDigest.Encoded())
 	if oci.IsEmptyDescriptor(pkgManifestDesc) {
-		return v1alpha1.ZarfPackage{}, nil, fmt.Errorf("zarf package %s with manifest sha %s not found", r.Pkg.Name, r.PkgManifestSHA)
+		return v1alpha1.ZarfPackage{}, nil, fmt.Errorf("zarf package %s with manifest digest %s not found", r.Pkg.Name, r.PkgManifestDigest)
 	}
 
 	// look at Zarf pkg manifest, grab zarf.yaml desc and download it
@@ -189,9 +190,9 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 		return nil, err
 	}
 
-	pkgManifestDesc := rootManifest.Locate(r.PkgManifestSHA)
+	pkgManifestDesc := rootManifest.Locate(r.PkgManifestDigest.Encoded())
 	if oci.IsEmptyDescriptor(pkgManifestDesc) {
-		return nil, fmt.Errorf("package %s does not exist in this bundle", r.PkgManifestSHA)
+		return nil, fmt.Errorf("package %s does not exist in this bundle", r.PkgManifestDigest)
 	}
 	// hack Zarf media type so that FetchManifest works
 	pkgManifestDesc.MediaType = layout.ZarfLayerMediaTypeBlob

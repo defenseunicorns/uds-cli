@@ -6,7 +6,10 @@ package sources
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
+	"github.com/opencontainers/go-digest"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -26,6 +29,18 @@ func addNamespaceOverrides(pkg *v1alpha1.ZarfPackage, nsOverrides NamespaceOverr
 			}
 		}
 	}
+}
+
+func loadPackageFromDir(ctx context.Context, dirPath string, opts layout.PackageLayoutOptions, manifestDigest digest.Digest) (*layout.PackageLayout, error) {
+	if err := manifestDigest.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid package manifest digest: %w", err)
+	}
+	pkgLayout, err := utils.LoadPackageFromDir(ctx, dirPath, opts)
+	if err != nil {
+		return nil, err
+	}
+	pkgLayout.SetRegistryDigest(manifestDigest.String())
+	return pkgLayout, nil
 }
 
 type PackageSource interface {

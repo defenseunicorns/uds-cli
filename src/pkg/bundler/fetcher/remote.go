@@ -28,10 +28,12 @@ import (
 
 // remoteFetcher fetches remote Zarf pkgs for local bundles
 type remoteFetcher struct {
-	pkg             types.Package
-	cfg             Config
-	pkgRootManifest *oci.Manifest
-	remote          *zoci.Remote
+	pkg                  types.Package
+	cfg                  Config
+	pkgRootManifest      *oci.Manifest
+	pkgRootManifestDesc  ocispec.Descriptor
+	pkgRootManifestBytes []byte
+	remote               *zoci.Remote
 }
 
 // Fetch fetches a Zarf pkg and puts it into a local bundle
@@ -97,11 +99,14 @@ func (f *remoteFetcher) copyRemotePkgLayers(layersToCopy []ocispec.Descriptor) (
 		if err != nil {
 			return nil, err
 		}
+		if rootPkgDesc.Digest != f.pkgRootManifestDesc.Digest || rootPkgDesc.Size != f.pkgRootManifestDesc.Size {
+			return nil, fmt.Errorf("copied package manifest does not match source descriptor %s", f.pkgRootManifestDesc.Digest)
+		}
 
 		// grab pkg root manifest for archiving and save it to bundle root manifest
 		descsToBundle = append(descsToBundle, rootPkgDesc)
-		rootPkgDesc.MediaType = layout.ZarfLayerMediaTypeBlob // force media type to Zarf blob
-		f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, rootPkgDesc)
+		manifestLayerDesc := boci.PackageManifestLayerDescriptor(rootPkgDesc)
+		f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, manifestLayerDesc)
 
 		// cache only the image layers that were just pulled
 		err = cache.AddPulledImgLayers(layersToPull, f.cfg.TmpDstDir)
@@ -110,20 +115,15 @@ func (f *remoteFetcher) copyRemotePkgLayers(layersToCopy []ocispec.Descriptor) (
 		}
 	} else {
 		// no layers to pull but need to grab pkg root manifest and config manually bc we didn't use oras.Copy()
-		pkgManifestDesc, err := boci.ToOCIStore(f.pkgRootManifest, ocispec.MediaTypeImageManifest, f.cfg.Store)
+		manifestLayerDesc, err := boci.PushPackageManifest(ctx, f.cfg.Store, f.pkgRootManifestDesc, f.pkgRootManifestBytes)
 		if err != nil {
 			return nil, err
 		}
 
 		// save pkg manifest to bundle root manifest
-		pkgManifestDesc.MediaType = layout.ZarfLayerMediaTypeBlob // force media type to Zarf blob
-		f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, pkgManifestDesc)
+		f.cfg.BundleRootManifest.Layers = append(f.cfg.BundleRootManifest.Layers, manifestLayerDesc)
 
-		manifestConfigDesc, err := boci.ToOCIStore(f.pkgRootManifest.Config, layout.ZarfConfigMediaType, f.cfg.Store)
-		if err != nil {
-			return nil, err
-		}
-		descsToBundle = append(descsToBundle, pkgManifestDesc, manifestConfigDesc)
+		descsToBundle = append(descsToBundle, f.pkgRootManifestDesc)
 	}
 	return descsToBundle, nil
 }

@@ -368,7 +368,7 @@ func bundlePackageLifecycleID(pkg types.Package) string {
 	return fmt.Sprintf("%s/%s", pkg.Name, pkg.Namespace)
 }
 
-func packageManifestDigest(pkg types.Package) (string, error) {
+func packageManifestDigest(pkg types.Package) (digest.Digest, error) {
 	_, encoded, ok := strings.Cut(pkg.Ref, "@sha256:")
 	if !ok || encoded == "" {
 		return "", fmt.Errorf("package %q reference is missing a manifest digest", pkg.Name)
@@ -379,7 +379,7 @@ func packageManifestDigest(pkg types.Package) (string, error) {
 		return "", fmt.Errorf("package %q has invalid manifest digest: %w", pkg.Name, err)
 	}
 
-	return encoded, nil
+	return manifestDigest, nil
 }
 
 func deployedPackageLifecycleID(pkg state.DeployedPackage) string {
