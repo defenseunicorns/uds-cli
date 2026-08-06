@@ -55,6 +55,7 @@ Install [mise](https://mise.jdx.dev/getting-started.html) and activate it in you
 From the repository root, run:
 
 ```console
+mise trust mise.toml
 mise install
 hk install
 ```
