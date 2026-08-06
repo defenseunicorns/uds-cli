@@ -16,7 +16,7 @@ import (
 
 func TestLoadPackageFromDirPreservesManifestDigest(t *testing.T) {
 	ctx := context.Background()
-	packagePath, err := filepath.Abs(filepath.Join("..", "..", "test", "packages", "no-cluster", "real-simple", "zarf-package-real-simple-amd64-0.0.1.tar.zst"))
+	packagePath, err := filepath.Abs(filepath.Join("..", "testdata", "zarf-package-real-simple-amd64-0.0.1.tar.zst"))
 	require.NoError(t, err)
 
 	extractedLayout, err := layout.LoadFromTar(ctx, packagePath, layout.PackageLayoutOptions{
