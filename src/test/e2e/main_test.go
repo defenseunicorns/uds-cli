@@ -62,7 +62,7 @@ func doAllTheThings(m *testing.M) (int, error) {
 
 	// Set up constants in the global variable that all the tests are able to access
 	e2e.Arch = config.GetArch()
-	e2e.UDSBinPath = path.Join("build", test.GetCLIName())
+	e2e.UDSBinPath = path.Join("build", "uds")
 	e2e.ApplianceMode = os.Getenv(applianceModeEnvVar) == "true"
 	e2e.ApplianceModeKeep = os.Getenv(applianceModeKeepEnvVar) == "true"
 	e2e.RunClusterTests = os.Getenv(skipK8sEnvVar) != "true"
