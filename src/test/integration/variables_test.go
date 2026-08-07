@@ -86,6 +86,42 @@ func TestBundleVariableExportNameCollision(t *testing.T) {
 	require.NotContains(t, output, "This fun-fact was imported: Unicorns are the national animal of Scotland")
 }
 
+func TestInspectListsBundleVariables(t *testing.T) {
+	t.Parallel()
+
+	bundleDir := testutil.PrepareBundleForNamespace(t, "bundles/02-variables", "no-cluster")
+	for _, relative := range []string{"../../packages/no-cluster/output-var", "../../packages/no-cluster/receive-var"} {
+		packageDir := filepath.Clean(filepath.Join(bundleDir, relative))
+		testutil.CreatePackageForTest(t, packageDir, packageDir)
+	}
+
+	opts := isolatedOptions(t, map[string]string{"UDS_ANIMAL": "Unicorns"})
+	opts.Dir = t.TempDir()
+	bundlePath := createCommandVariableBundle(t, opts, bundleDir)
+
+	noColor := runVariableCLI(t, opts, "inspect", bundlePath, "--list-variables", "--no-color")
+	require.NoError(t, noColor.Err, noColor.Stderr)
+	require.NotContains(t, noColor.Stdout, "\x1b")
+	require.Contains(t, noColor.Stdout, "output-var:")
+	require.Contains(t, noColor.Stdout, "ANIMAL")
+
+	withColor := runVariableCLI(t, opts, "inspect", bundlePath, "--list-variables")
+	require.NoError(t, withColor.Err, withColor.Stderr)
+	require.Contains(t, withColor.Stdout, "\x1b")
+
+	registry := testutil.NewRegistry(t)
+	published := runVariableCLI(t, opts, "publish", bundlePath, registry.Host, "--insecure")
+	require.NoError(t, published.Err, published.Stderr)
+	remoteRef := "oci://" + registry.Host + "/variables:0.0.1"
+	remote := runVariableCLI(t, opts, "inspect", remoteRef, "--list-variables", "--insecure", "--no-color")
+	require.NoError(t, remote.Err, remote.Stderr)
+	require.Contains(t, remote.Stdout, "output-var:")
+
+	fromYAML := runVariableCLI(t, opts, "inspect", filepath.Join(bundleDir, "uds-bundle.yaml"), "--list-variables", "--no-color")
+	require.NoError(t, fromYAML.Err, fromYAML.Stderr)
+	require.Contains(t, fromYAML.Stdout, "output-var:")
+}
+
 func createCommandVariableBundle(t *testing.T, opts testutil.CommandOptions, bundleDir string) string {
 	t.Helper()
 	result := runVariableCLI(t, opts, "create", bundleDir, "--confirm", "--insecure", "--output", opts.Dir)

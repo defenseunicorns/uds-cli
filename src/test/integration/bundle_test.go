@@ -30,6 +30,31 @@ func TestCreateAndInspectLocalBundle(t *testing.T) {
 	require.NoError(t, inspect.Err, inspect.Stderr)
 	require.NotContains(t, inspect.Stdout, "\x1b")
 	require.Contains(t, inspect.Stdout+inspect.Stderr, "No SBOMs found in bundle")
+
+	extract := runBundleCLI(t, workspace, "inspect", bundlePath, "--sbom", "--extract", "--no-color")
+	require.NoError(t, extract.Err, extract.Stderr)
+	require.Contains(t, extract.Stdout+extract.Stderr, "Cannot extract, no SBOMs found in bundle")
+}
+
+func TestCreateHonorsNameAndVersionFlags(t *testing.T) {
+	t.Parallel()
+
+	workspace := t.TempDir()
+	bundleDir := localBundleFixture(t, workspace, runtime.GOARCH)
+	name := uniqueRepository(t) + "-name"
+	version := "1.2.3"
+	outputDir := filepath.Join(workspace, "bundles")
+
+	result := runBundleCLI(t, workspace,
+		"create", bundleDir,
+		"--confirm", "--insecure", "--no-progress",
+		"--architecture", runtime.GOARCH,
+		"--name", name,
+		"--version", version,
+		"--output", outputDir,
+	)
+	require.NoError(t, result.Err, result.Stderr)
+	require.FileExists(t, filepath.Join(outputDir, "uds-bundle-"+name+"-"+runtime.GOARCH+"-"+version+".tar.zst"))
 }
 
 func TestCreateRejectsInvalidPackageTimeout(t *testing.T) {
@@ -42,6 +67,42 @@ func TestCreateRejectsInvalidPackageTimeout(t *testing.T) {
 	)
 	require.Error(t, result.Err)
 	require.Contains(t, result.Stdout+result.Stderr, `invalid timeout for package "real-simple": "definitely-not-a-duration"`)
+}
+
+func TestCreateRejectsInvalidConfig(t *testing.T) {
+	t.Parallel()
+
+	workspace := t.TempDir()
+	bundleDir := localBundleFixture(t, workspace, runtime.GOARCH)
+	configPath := filepath.Join(workspace, "uds-config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte("options:\n  log_levelx: debug\n"), 0o600))
+
+	options := isolatedOptions(t, map[string]string{"UDS_CONFIG": configPath})
+	options.Dir = workspace
+	result := testutil.RunCLI(t, options,
+		"--tmpdir", filepath.Join(workspace, "tmp"),
+		"create", bundleDir, "--confirm", "--insecure", "--architecture", runtime.GOARCH,
+	)
+	require.Error(t, result.Err)
+	require.Contains(t, result.Stdout+result.Stderr, "invalid config option: log_levelx")
+}
+
+func TestCreateRejectsInvalidBundle(t *testing.T) {
+	t.Parallel()
+
+	workspace := t.TempDir()
+	bundleDir := filepath.Join(workspace, "bundle")
+	require.NoError(t, os.MkdirAll(bundleDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, config.BundleYAML), []byte(`kind: UDSBundle
+metadata:
+  name: invalid
+  version: 0.0.1
+unexpected: value
+`), 0o600))
+
+	result := runBundleCLI(t, workspace, "create", bundleDir, "--confirm", "--insecure")
+	require.Error(t, result.Err)
+	require.Contains(t, result.Stdout+result.Stderr, "unknown field")
 }
 
 func createBundle(t *testing.T, workspace, bundleDir, repository, architecture string) string {

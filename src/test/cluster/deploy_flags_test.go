@@ -7,6 +7,8 @@ package cluster
 
 import (
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +22,11 @@ import (
 
 const deployFlagsTimeout = 5 * time.Minute
 
+var clusterPackageArchives = struct {
+	sync.Mutex
+	paths map[string]string
+}{paths: map[string]string{}} //nolint:gochecknoglobals // Shared immutable package archives are scoped to the test suite.
+
 func TestDeployPackagesFlag(t *testing.T) {
 	t.Parallel()
 
@@ -27,7 +34,6 @@ func TestDeployPackagesFlag(t *testing.T) {
 	opts := isolatedClusterOptions(t)
 	bundleDir := prepareLocalAndRemoteBundle(t, opts, namespace)
 	bundlePath := createClusterBundle(t, opts, bundleDir, "../../packages/podinfo")
-	defer removeBundle(t, opts, bundlePath, nil)
 
 	t.Run("local package", func(t *testing.T) {
 		result := runClusterCLI(t, opts, "deploy", bundlePath, "--confirm", "--packages", "podinfo")
@@ -77,7 +83,6 @@ func TestDeployResumeFlag(t *testing.T) {
 	opts := isolatedClusterOptions(t)
 	bundleDir := prepareLocalAndRemoteBundle(t, opts, namespace)
 	bundlePath := createClusterBundle(t, opts, bundleDir, "../../packages/podinfo")
-	defer removeBundle(t, opts, bundlePath, nil)
 
 	first := runClusterCLI(t, opts, "deploy", bundlePath, "--confirm", "--packages", "podinfo")
 	require.NoError(t, first.Err, first.Stderr)
@@ -96,6 +101,11 @@ func TestDeployResumeFlag(t *testing.T) {
 	resumed = runClusterCLI(t, opts, "deploy", bundlePath, "--confirm", "--resume")
 	require.NoError(t, resumed.Err, resumed.Stderr)
 	k8s.WaitForDeploymentReady(namespace, "podinfo", deployFlagsTimeout)
+
+	removed := runClusterCLI(t, opts, "remove", bundlePath, "--confirm", "--insecure")
+	require.NoError(t, removed.Err, removed.Stderr)
+	k8s.AssertDeploymentDoesNotExist(namespace, "podinfo")
+	k8s.AssertDeploymentDoesNotExist(namespace, "nginx-deployment")
 }
 
 func TestResumeFlagWithPackageNamespaceOverrideDuplicates(t *testing.T) {
@@ -166,6 +176,27 @@ func setBundlePackageArchive(t *testing.T, bundleDir, packageDir, archive string
 
 func createClusterPackage(t *testing.T, opts testutil.CommandOptions, source, outputDir string) string {
 	t.Helper()
+	if key := cachedClusterPackageKey(source); key != "" {
+		return cachedClusterPackage(t, opts, key, source)
+	}
+	return createClusterPackageArchive(t, opts, source, outputDir)
+}
+
+func cachedClusterPackage(t *testing.T, opts testutil.CommandOptions, key, source string) string {
+	t.Helper()
+	clusterPackageArchives.Lock()
+	defer clusterPackageArchives.Unlock()
+
+	if archive := clusterPackageArchives.paths[key]; archive != "" {
+		return archive
+	}
+	archive := createClusterPackageArchive(t, opts, source, filepath.Join(suite.WorkspacePath, "package-archives", key))
+	clusterPackageArchives.paths[key] = archive
+	return archive
+}
+
+func createClusterPackageArchive(t *testing.T, opts testutil.CommandOptions, source, outputDir string) string {
+	t.Helper()
 	result := runClusterCLI(t, opts, "zarf", "package", "create", source,
 		"--confirm", "--skip-sbom", "--output", outputDir,
 		"--tmpdir", filepath.Join(outputDir, "tmp"), "--cache", filepath.Join(outputDir, "cache"))
@@ -174,6 +205,21 @@ func createClusterPackage(t *testing.T, opts testutil.CommandOptions, source, ou
 	require.NoError(t, err)
 	require.Len(t, archives, 1, "expected one package archive in %q", outputDir)
 	return archives[0]
+}
+
+func cachedClusterPackageKey(source string) string {
+	path := filepath.ToSlash(filepath.Clean(source))
+	for suffix, key := range map[string]string{
+		"/packages/nginx/refs":               "nginx-refs",
+		"/packages/nginx":                    "nginx",
+		"/packages/nginx-namespace-override": "nginx-namespace-override",
+		"/packages/podinfo":                  "podinfo",
+	} {
+		if strings.HasSuffix(path, suffix) {
+			return key
+		}
+	}
+	return ""
 }
 
 func setBundlePackageNamespaces(t *testing.T, bundleDir string, namespaces []string) {

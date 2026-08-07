@@ -41,7 +41,7 @@ func TestDevDeployPackageSelection(t *testing.T) {
 
 	namespace, k8s := testutil.AllocateNamespace(t, suite)
 	opts := isolatedClusterOptions(t)
-	bundleDir := prepareLocalBundle(t, namespace, "packages/nginx")
+	bundleDir := prepareLocalBundle(t, opts, namespace, "packages/nginx")
 	defer removeBundle(t, opts, localBundleArchive(bundleDir), []string{"podinfo"})
 
 	result := runClusterCLI(t, opts, "dev", "deploy", bundleDir, "--packages", "podinfo", "--insecure")
@@ -55,7 +55,7 @@ func TestDevDeployReferenceOverride(t *testing.T) {
 
 	namespace, k8s := testutil.AllocateNamespace(t, suite)
 	opts := isolatedClusterOptions(t)
-	bundleDir := prepareLocalBundle(t, namespace, "packages/nginx/refs")
+	bundleDir := prepareLocalBundle(t, opts, namespace, "packages/nginx/refs")
 	defer removeBundle(t, opts, localBundleArchive(bundleDir), nil)
 
 	result := runClusterCLI(t, opts, "dev", "deploy", bundleDir, "--ref", "nginx=0.0.2", "--insecure")
@@ -120,7 +120,8 @@ func TestDevDeployRemoteBundleFromLocalRegistry(t *testing.T) {
 	registry := testutil.NewRegistry(t)
 	bundleDir := prepareLocalAndRemoteBundle(t, opts, namespace)
 	localPackageDir := filepath.Clean(filepath.Join(bundleDir, "../../packages/podinfo"))
-	testutil.CreatePackageForTest(t, localPackageDir, localPackageDir)
+	localPackageArchive := createClusterPackage(t, opts, localPackageDir, localPackageDir)
+	setBundlePackageArchive(t, bundleDir, localPackageDir, localPackageArchive)
 	outputDir := t.TempDir()
 	created := runClusterCLI(t, opts, "create", bundleDir, "--confirm", "--insecure", "--output", outputDir)
 	require.NoError(t, created.Err, created.Stderr)
@@ -181,7 +182,7 @@ func prepareLocalAndRemoteBundle(t *testing.T, opts testutil.CommandOptions, nam
 	t.Helper()
 	registry := testutil.NewRegistry(t)
 	repository := registry.Host + "/dev-deploy/nginx"
-	packageArchive := testutil.CreatePackageForTest(t, testutil.CopyFixture(t, "packages/nginx/refs"), t.TempDir())
+	packageArchive := createClusterPackage(t, opts, testutil.CopyFixture(t, "packages/nginx/refs"), t.TempDir())
 	publishPackage(t, opts, packageArchive, registry.Host+"/dev-deploy")
 	bundleDir := testutil.PrepareBundleForNamespace(t, "bundles/03-local-and-remote", namespace)
 	setPackageRepository(t, bundleDir, "nginx", repository)
@@ -191,14 +192,14 @@ func prepareLocalAndRemoteBundle(t *testing.T, opts testutil.CommandOptions, nam
 // prepareLocalBundle replaces every package source with a test-private archive.
 // This keeps tests that exercise local dev-deploy behavior independent of the
 // registry used by the remote-bundle test.
-func prepareLocalBundle(t *testing.T, namespace, nginxFixture string) string {
+func prepareLocalBundle(t *testing.T, opts testutil.CommandOptions, namespace, nginxFixture string) string {
 	t.Helper()
 
 	bundleDir := testutil.PrepareBundleForNamespace(t, "bundles/03-local-and-remote", namespace)
 	podinfoDir := filepath.Clean(filepath.Join(bundleDir, "../../packages/podinfo"))
 	nginxDir := testutil.CopyFixture(t, nginxFixture)
-	setPackagePath(t, bundleDir, "podinfo", testutil.CreatePackageForTest(t, podinfoDir, t.TempDir()))
-	setPackagePath(t, bundleDir, "nginx", testutil.CreatePackageForTest(t, nginxDir, t.TempDir()))
+	setPackagePath(t, bundleDir, "podinfo", createClusterPackage(t, opts, podinfoDir, t.TempDir()))
+	setPackagePath(t, bundleDir, "nginx", createClusterPackage(t, opts, nginxDir, t.TempDir()))
 	return bundleDir
 }
 

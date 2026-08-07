@@ -44,6 +44,7 @@ func TestBundleWithHelmOverrides(t *testing.T) {
 	deployment := k8s.Deployment(namespace, "unicorn-podinfo")
 	require.Equal(t, int32(2), *deployment.Spec.Replicas)
 	require.Equal(t, "customValue", deployment.Spec.Template.Annotations["customAnnotation"])
+	require.Contains(t, deployment.Spec.Template.Spec.Containers[0].Args, "--level=debug")
 	require.Equal(t, "green, yellow", containerEnv(deployment.Spec.Template.Spec.Containers[0].Env, "PODINFO_UI_COLOR"))
 	require.Equal(t, "Hello Unicorn", containerEnv(deployment.Spec.Template.Spec.Containers[0].Env, "PODINFO_UI_MESSAGE"))
 	require.Equal(t, int64(4000), *deployment.Spec.Template.Spec.Containers[0].SecurityContext.RunAsGroup)
@@ -78,6 +79,12 @@ func TestBundleWithHelmOverridesValuesFile(t *testing.T) {
 	require.Equal(t, int32(2), *deployment.Spec.Replicas)
 	require.Equal(t, "customValue2", deployment.Spec.Template.Annotations["customAnnotation"])
 	require.Len(t, deployment.Spec.Template.Spec.Tolerations, 2)
+	require.Contains(t, deployment.Spec.Template.Spec.Tolerations, corev1.Toleration{
+		Key: "uds", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule,
+	})
+	require.Contains(t, deployment.Spec.Template.Spec.Tolerations, corev1.Toleration{
+		Key: "unicorn", Operator: corev1.TolerationOpEqual, Value: "defense", Effect: corev1.TaintEffectNoSchedule,
+	})
 }
 
 func TestBundleWithPackageNamespaceOverride(t *testing.T) {

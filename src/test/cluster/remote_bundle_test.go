@@ -34,6 +34,16 @@ func TestRemoteBundleDeploysAndRemoves(t *testing.T) {
 	k8s.WaitForDeploymentReady(namespace, "podinfo", deployFlagsTimeout)
 	k8s.WaitForDeploymentReady(namespace, "nginx-deployment", deployFlagsTimeout)
 
+	listed := runClusterCLI(t, opts, "list")
+	require.NoError(t, listed.Err, listed.Stderr)
+	require.Contains(t, listed.Stdout, "BUNDLE NAME")
+	require.Contains(t, listed.Stdout, "VERSION")
+	require.Contains(t, listed.Stdout, "PACKAGES")
+	require.Contains(t, listed.Stdout, "test-local-and-remote")
+	require.Contains(t, listed.Stdout, "0.0.1")
+	require.Contains(t, listed.Stdout, "└─")
+	require.Contains(t, listed.Stdout, "podinfo:0.0.1")
+
 	pullDir := filepath.Join(t.TempDir(), "pulled")
 	pulled := runClusterCLI(t, opts, "pull", remoteRef, "--insecure", "--output", pullDir)
 	require.NoError(t, pulled.Err, pulled.Stderr)
