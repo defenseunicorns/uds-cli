@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -341,6 +343,54 @@ func TestSelectBundledPackageContentIncludesManifestAndPreservesDistinctPaths(t 
 	)
 }
 
+func TestSelectBundledPackageContentOmitsMissingManifestConfig(t *testing.T) {
+	ctx := context.Background()
+	store := memory.New()
+	pkgBytes, err := goyaml.Marshal(v1alpha1.ZarfPackage{
+		Metadata: v1alpha1.ZarfMetadata{Name: "legacy-package"},
+	})
+	require.NoError(t, err)
+	zarfYAMLDesc := pushTestPackageFile(t, ctx, store, layout.ZarfYAML, layout.ZarfLayerMediaTypeBlob, pkgBytes)
+	missingConfigDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageConfig, []byte("missing config"))
+	pkgManifest := oci.Manifest{Manifest: ocispec.Manifest{
+		Versioned: specs.Versioned{SchemaVersion: 2},
+		Config:    missingConfigDesc,
+		Layers:    []ocispec.Descriptor{zarfYAMLDesc},
+	}}
+	pkgManifestDesc := pushTestJSON(t, ctx, store, layout.ZarfLayerMediaTypeBlob, pkgManifest)
+	bundleManifest := &oci.Manifest{Manifest: ocispec.Manifest{Layers: []ocispec.Descriptor{pkgManifestDesc}}}
+
+	contentDescs, err := SelectBundledPackageContent(ctx, bundleManifest, store, pkgManifestDesc.Digest, nil)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []ocispec.Descriptor{zarfYAMLDesc, pkgManifestDesc}, contentDescs)
+}
+
+func TestSelectBundledPackageContentPropagatesManifestConfigProbeErrors(t *testing.T) {
+	ctx := context.Background()
+	store := memory.New()
+	pkgBytes, err := goyaml.Marshal(v1alpha1.ZarfPackage{
+		Metadata: v1alpha1.ZarfMetadata{Name: "unavailable-package"},
+	})
+	require.NoError(t, err)
+	zarfYAMLDesc := pushTestPackageFile(t, ctx, store, layout.ZarfYAML, layout.ZarfLayerMediaTypeBlob, pkgBytes)
+	configDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageConfig, []byte("unavailable config"))
+	pkgManifest := oci.Manifest{Manifest: ocispec.Manifest{
+		Versioned: specs.Versioned{SchemaVersion: 2},
+		Config:    configDesc,
+		Layers:    []ocispec.Descriptor{zarfYAMLDesc},
+	}}
+	pkgManifestDesc := pushTestJSON(t, ctx, store, layout.ZarfLayerMediaTypeBlob, pkgManifest)
+	bundleManifest := &oci.Manifest{Manifest: ocispec.Manifest{Layers: []ocispec.Descriptor{pkgManifestDesc}}}
+	fetcher := descriptorErrorFetcher{
+		Fetcher: store,
+		digest:  configDesc.Digest,
+		err:     errors.New("registry unavailable"),
+	}
+
+	_, err = SelectBundledPackageContent(ctx, bundleManifest, fetcher, pkgManifestDesc.Digest, nil)
+	require.ErrorContains(t, err, "registry unavailable")
+}
+
 func TestSelectBundledPackageContentRejectsMissingManifest(t *testing.T) {
 	_, err := SelectBundledPackageContent(
 		context.Background(),
@@ -456,4 +506,17 @@ func descriptorDigests(descriptors []ocispec.Descriptor) []digest.Digest {
 		digests = append(digests, desc.Digest)
 	}
 	return digests
+}
+
+type descriptorErrorFetcher struct {
+	content.Fetcher
+	digest digest.Digest
+	err    error
+}
+
+func (f descriptorErrorFetcher) Fetch(ctx context.Context, desc ocispec.Descriptor) (io.ReadCloser, error) {
+	if desc.Digest == f.digest {
+		return nil, f.err
+	}
+	return f.Fetcher.Fetch(ctx, desc)
 }

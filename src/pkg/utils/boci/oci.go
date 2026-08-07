@@ -304,6 +304,23 @@ func SelectBundledPackageContent(ctx context.Context, bundleManifest *oci.Manife
 	if err != nil {
 		return nil, fmt.Errorf("fetching package manifest %s: %w", manifestDigest, err)
 	}
+
+	// Bundles published with UDS CLI versions earlier than v0.35.1 may contain a package manifest
+	// without its referenced config blob because the tarball publisher copied manifest.Layers but
+	// not manifest.Config. The config is not required for deployment, so include it only when the
+	// bundle contains it. Publishing was corrected in
+	// https://github.com/defenseunicorns/uds-cli/pull/1449.
+	if !oci.IsEmptyDescriptor(manifest.Config) {
+		reader, err := fetcher.Fetch(ctx, manifest.Config)
+		if errors.Is(err, errdef.ErrNotFound) {
+			manifest.Config = ocispec.Descriptor{}
+		} else if err != nil {
+			return nil, fmt.Errorf("checking package manifest config %s: %w", manifest.Config.Digest, err)
+		} else if err := reader.Close(); err != nil {
+			return nil, fmt.Errorf("closing package manifest config %s: %w", manifest.Config.Digest, err)
+		}
+	}
+
 	selected, err := SelectPackageContent(ctx, &manifest, fetcher, optionalComponents)
 	if err != nil {
 		return nil, err
