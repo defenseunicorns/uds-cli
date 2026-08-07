@@ -89,7 +89,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			}
 			b.bundle.Packages[i] = pkg
 		}
-		sha, err := packageManifestDigest(pkg)
+		manifestDigest, err := packageManifestDigest(pkg)
 		if err != nil {
 			return err
 		}
@@ -119,7 +119,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
-		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, verifyOpts, config.CommonOptions.SkipSignatureValidation, sha, nsOverrides)
+		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, verifyOpts, config.CommonOptions.SkipSignatureValidation, manifestDigest, nsOverrides)
 		if err != nil {
 			return err
 		}

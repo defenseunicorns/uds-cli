@@ -101,14 +101,14 @@ func TestPackageManifestDigest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			digest, err := packageManifestDigest(types.Package{Name: "test-package", Ref: tt.ref})
+			manifestDigest, err := packageManifestDigest(types.Package{Name: "test-package", Ref: tt.ref})
 
 			if tt.expectedError != "" {
 				require.ErrorContains(t, err, tt.expectedError)
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.expectedDigest, digest)
+			require.Equal(t, "sha256:"+tt.expectedDigest, manifestDigest.String())
 		})
 	}
 }
