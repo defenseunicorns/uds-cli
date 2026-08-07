@@ -16,6 +16,7 @@
 *.tgz
 *.vbox
 *.zst
+!src/pkg/testdata/zarf-package-real-simple-amd64-0.0.1.tar.zst
 *.zim
 build
 data/

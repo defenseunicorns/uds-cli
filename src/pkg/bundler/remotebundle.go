@@ -72,7 +72,6 @@ func (r *RemoteBundle) create(ctx context.Context, signature []byte) error {
 
 	rootManifest := ocispec.Manifest{}
 	pusherConfig := pusher.Config{
-		Bundle:    bundle,
 		RemoteDst: *bundleRemote,
 		NumPkgs:   len(bundle.Packages),
 	}

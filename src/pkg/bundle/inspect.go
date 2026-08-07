@@ -261,11 +261,11 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 			return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
 
-		sha, err := packageManifestDigest(pkg)
+		manifestDigest, err := packageManifestDigest(pkg)
 		if err != nil {
 			return v1alpha1.ZarfPackage{}, err
 		}
-		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, verifyOpts, config.CommonOptions.SkipSignatureValidation, sha, nil)
+		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, verifyOpts, config.CommonOptions.SkipSignatureValidation, manifestDigest, nil)
 		if err != nil {
 			return v1alpha1.ZarfPackage{}, err
 		}

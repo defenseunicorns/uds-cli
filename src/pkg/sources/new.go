@@ -13,12 +13,13 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/fetcher"
 	"github.com/defenseunicorns/uds-cli/src/types"
+	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/signing"
 )
 
 // NewFromLocation creates a new package source based on pkgLocation
-func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, packageSource string, verifyOpts *signing.VerifyBlobOptions, skipSignatureValidation bool, sha string, nsOverrides NamespaceOverrideMap) (PackageSource, error) {
+func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, packageSource string, verifyOpts *signing.VerifyBlobOptions, skipSignatureValidation bool, manifestDigest digest.Digest, nsOverrides NamespaceOverrideMap) (PackageSource, error) {
 	var source PackageSource
 	var pkgLocation string
 	if bundleCfg.DeployOpts.Source != "" {
@@ -34,7 +35,7 @@ func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, packageSou
 	if strings.Contains(pkgLocation, "tar.zst") {
 		source = &TarballBundle{
 			Pkg:                     pkg,
-			PkgManifestSHA:          sha,
+			PkgManifestDigest:       manifestDigest,
 			TmpDir:                  packageSource,
 			BundleLocation:          pkgLocation,
 			nsOverrides:             nsOverrides,
@@ -52,7 +53,7 @@ func NewFromLocation(bundleCfg types.BundleConfig, pkg types.Package, packageSou
 		}
 		source = &RemoteBundle{
 			Pkg:                     pkg,
-			PkgManifestSHA:          sha,
+			PkgManifestDigest:       manifestDigest,
 			TmpDir:                  packageSource,
 			Remote:                  remote.OrasRemote,
 			nsOverrides:             nsOverrides,

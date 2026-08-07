@@ -34,6 +34,14 @@ func NewZarfOCIRemote(ctx context.Context, url string, platform ocispec.Platform
 	return zoci.NewRemote(ctx, url, platform, modifiers...)
 }
 
+func packageManifestLayerDescriptor(sourceDesc ocispec.Descriptor) ocispec.Descriptor {
+	return ocispec.Descriptor{
+		MediaType: layout.ZarfLayerMediaTypeBlob,
+		Digest:    sourceDesc.Digest,
+		Size:      sourceDesc.Size,
+	}
+}
+
 // getImgLayerDigests grabs the digests of the layers from the images in the image index
 func getImgLayerDigests(pkgDir string, manifestsToInclude []ocispec.Descriptor) ([]string, error) {
 	var includeLayers []string
