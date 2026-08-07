@@ -1,4 +1,4 @@
-# Copyright 2024 Defense Unicorns
+# Copyright 2026 Defense Unicorns
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 apiVersion: apps/v1
@@ -9,14 +9,14 @@ spec:
   selector:
     matchLabels:
       app: nginx
-  replicas: 2 # tells deployment to run 2 pods matching the template
+  replicas: 2
   template:
     metadata:
       labels:
         app: nginx
     spec:
       containers:
-      - name: nginx
-        image: nginx:1.31.3
-        ports:
-        - containerPort: 80
+        - name: nginx
+          image: nginx:1.31.3
+          ports:
+            - containerPort: 80

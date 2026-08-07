@@ -13,7 +13,7 @@ components:
       - name: simple-nginx-deployment
         namespace: nginx
         files:
-          - https://k8s.io/examples/application/deployment.yaml@c57f73449b26eae02ca2a549c388807d49ef6d3f2dc040a9bbb1290128d97157
+          - refs/deployment.yaml
     actions:
       onDeploy:
         after:
@@ -24,4 +24,4 @@ components:
                 namespace: nginx
                 condition: available
     images:
-      - nginx:1.14.2 # use shorthand for nginx!
+      - nginx:1.31.3 # use shorthand for nginx!

@@ -13,12 +13,12 @@ components:
       flavor: patchVersion2
     charts:
       - name: podinfo
-        version: 6.6.2
+        version: 6.14.1
         namespace: podinfo-flavor
         url: https://github.com/stefanprodan/podinfo.git
         gitPath: charts/podinfo
     images:
-      - ghcr.io/stefanprodan/podinfo:6.6.2
+      - ghcr.io/stefanprodan/podinfo:6.14.1
     actions:
       onDeploy:
         after:
@@ -35,12 +35,12 @@ components:
       flavor: patchVersion3
     charts:
       - name: podinfo
-        version: 6.6.3
+        version: 6.14.1
         namespace: podinfo-flavor
         url: https://github.com/stefanprodan/podinfo.git
         gitPath: charts/podinfo
     images:
-      - ghcr.io/stefanprodan/podinfo:6.6.3
+      - ghcr.io/stefanprodan/podinfo:6.14.1
     actions:
       onDeploy:
         after:
