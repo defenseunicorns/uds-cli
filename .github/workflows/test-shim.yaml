@@ -11,18 +11,29 @@ on:
   workflow_call:
 
 jobs:
-  build:
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - name: Skipped
         run: echo "skipped"
 
-  test-bundle:
+  unit-tests:
+    name: Unit Tests
     runs-on: ubuntu-latest
-    needs: build
+    steps:
+      - name: Skipped
+        run: echo "skipped"
+
+  integration-tests:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        test: [bundle, deploy-flags, index]
+        include:
+          - name: Command Integration Tests
+          - name: Cluster Integration Tests
     steps:
       - name: Skipped
         run: echo "skipped"

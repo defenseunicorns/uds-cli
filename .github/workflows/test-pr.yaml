@@ -1,0 +1,33 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+name: PR Checks
+
+on:
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "**.mdx"
+      - "**.jpg"
+      - "**.png"
+      - "**.gif"
+      - "**.svg"
+      - docs/**
+      - .vscode/**
+      - .gitignore
+      - renovate.json
+      - CODEOWNERS
+      - LICENSE
+      - hack/generate-docs.sh
+      - hack/test-docs.sh
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    uses: ./.github/workflows/test.yaml

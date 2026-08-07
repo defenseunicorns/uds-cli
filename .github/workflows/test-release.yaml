@@ -1,0 +1,27 @@
+# Copyright 2024-2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-DefenseUnicorns-Commercial
+
+name: Release Tests
+
+on:
+  workflow_call:
+    inputs:
+      fetch_zarf:
+        description: Build the test binary with zarf@main
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yaml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      fetch_zarf: ${{ inputs.fetch_zarf }}
+      include_ghcr_write: true
+      include_uds_core_smoke: true
