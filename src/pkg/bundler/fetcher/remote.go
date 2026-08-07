@@ -48,9 +48,9 @@ func (f *remoteFetcher) Fetch() ([]ocispec.Descriptor, error) {
 
 	// find layers in remote
 	fetchSpinner.Updatef("Fetching %s package layer metadata (package %d of %d)", f.pkg.Name, f.cfg.PkgIter+1, f.cfg.NumPkgs)
-	layersToCopy, err := boci.FindPkgLayers(*f.remote, f.pkgRootManifest, f.pkg.OptionalComponents)
+	layersToCopy, err := boci.SelectPackageContent(context.TODO(), f.pkgRootManifest, f.remote, f.pkg.OptionalComponents)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("selecting layers for package %q: %w", f.pkg.Name, err)
 	}
 	fetchSpinner.Stop()
 

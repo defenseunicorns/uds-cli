@@ -25,6 +25,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/signing"
+	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/content/file"
 )
 
@@ -127,7 +128,7 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) 
 			break
 		}
 	}
-	pkgBytes, err := r.Remote.FetchLayer(ctx, zarfYAMLDesc)
+	pkgBytes, err := content.FetchAll(ctx, r.Remote, zarfYAMLDesc)
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
@@ -143,7 +144,7 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) 
 	// grab checksums.txt so we can validate pkg integrity
 	for _, layer := range pkgManifest.Layers {
 		if layer.Annotations[ocispec.AnnotationTitle] == config.ChecksumsTxt {
-			checksumBytes, err := r.Remote.FetchLayer(ctx, layer)
+			checksumBytes, err := content.FetchAll(ctx, r.Remote, layer)
 			if err != nil {
 				return v1alpha1.ZarfPackage{}, nil, err
 			}
@@ -159,7 +160,7 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) 
 	for _, layer := range pkgManifest.Layers {
 		switch layer.Annotations[ocispec.AnnotationTitle] {
 		case config.LegacySignature:
-			signatureBytes, err := r.Remote.FetchLayer(ctx, layer)
+			signatureBytes, err := content.FetchAll(ctx, r.Remote, layer)
 			if err != nil {
 				return v1alpha1.ZarfPackage{}, nil, err
 			}
@@ -167,7 +168,7 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) 
 				return v1alpha1.ZarfPackage{}, nil, err
 			}
 		case layout.Bundle:
-			bundleSigBytes, err := r.Remote.FetchLayer(ctx, layer)
+			bundleSigBytes, err := content.FetchAll(ctx, r.Remote, layer)
 			if err != nil {
 				return v1alpha1.ZarfPackage{}, nil, err
 			}
@@ -190,53 +191,25 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 		return nil, err
 	}
 
-	pkgManifestDesc := rootManifest.Locate(r.PkgManifestDigest.Encoded())
-	if oci.IsEmptyDescriptor(pkgManifestDesc) {
-		return nil, fmt.Errorf("package %s does not exist in this bundle", r.PkgManifestDigest)
-	}
-	// hack Zarf media type so that FetchManifest works
-	pkgManifestDesc.MediaType = layout.ZarfLayerMediaTypeBlob
-	pkgManifest, err := r.Remote.FetchManifest(ctx, pkgManifestDesc)
-	if err != nil || pkgManifest == nil {
-		return nil, err
+	pkgLayers, err := boci.SelectBundledPackageContent(ctx, rootManifest, r.Remote, r.PkgManifestDigest, r.Pkg.OptionalComponents)
+	if err != nil {
+		return nil, fmt.Errorf("selecting layers for package %q: %w", r.Pkg.Name, err)
 	}
 
 	estimatedBytes := int64(0)
-	layersToPull := []ocispec.Descriptor{pkgManifestDesc}
-	layersInBundle := []ocispec.Descriptor{pkgManifestDesc}
-
-	// get pkg layers that we want to pull
-	pkgLayers, _, err := boci.FindBundledPkgLayers(ctx, r.Pkg, rootManifest, r.Remote)
-	if err != nil {
-		return nil, err
-	}
-
-	// todo: we seem to need to specifically pull the layers from the pkgManifest here, but not in the
-	// other location that FindBundledPkgLayers is called. Why is that?
-	// I believe it's bc here we are going to iterate through those layers and fill out a layout with
-	// the annotations from each desc (only pkgManifest layers contain the necessary annotations)
-
-	// correlate descs in pkg root manifest with the pkg layers to pull
-	for _, manifestLayer := range pkgManifest.Layers {
-		for _, pkgLayer := range pkgLayers {
-			if pkgLayer.Digest.Encoded() == manifestLayer.Digest.Encoded() {
-				layersInBundle = append(layersInBundle, manifestLayer)
-				digest := manifestLayer.Digest.Encoded()
-
-				// if it's an image layer and is in the cache, use it
-				if strings.Contains(manifestLayer.Annotations[ocispec.AnnotationTitle], config.BlobsDir) && cache.Exists(digest) {
-					dst := filepath.Join(r.TmpDir, "images", config.BlobsDir)
-					err = cache.Use(digest, dst)
-					if err != nil {
-						return nil, err
-					}
-				} else {
-					// not in cache, so pull
-					layersToPull = append(layersToPull, manifestLayer)
-					estimatedBytes += manifestLayer.Size
-				}
-				break // if layer is found, break out of inner loop
+	layersToPull := make([]ocispec.Descriptor, 0, len(pkgLayers))
+	for _, layer := range pkgLayers {
+		digest := layer.Digest.Encoded()
+		// Selected descriptors come from the package manifest and retain the path annotations
+		// needed by the file store to reconstruct the Zarf package layout.
+		if strings.Contains(layer.Annotations[ocispec.AnnotationTitle], config.BlobsDir) && cache.Exists(digest) {
+			dst := filepath.Join(r.TmpDir, "images", config.BlobsDir)
+			if err := cache.Use(digest, dst); err != nil {
+				return nil, err
 			}
+		} else {
+			layersToPull = append(layersToPull, layer)
+			estimatedBytes += layer.Size
 		}
 	}
 
@@ -250,6 +223,9 @@ func (r *RemoteBundle) downloadPkgFromRemoteBundle() ([]ocispec.Descriptor, erro
 	if err != nil {
 		return nil, err
 	}
+	if err := boci.MaterializePackagePaths(ctx, r.Remote, r.TmpDir, pkgLayers); err != nil {
+		return nil, err
+	}
 
-	return layersInBundle, nil
+	return pkgLayers, nil
 }

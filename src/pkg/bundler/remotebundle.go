@@ -6,10 +6,8 @@ package bundler
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
-	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/src/config"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/fetcher"
 	"github.com/defenseunicorns/uds-cli/src/pkg/bundler/pusher"
@@ -47,25 +45,22 @@ func NewRemoteBundle(opts *RemoteBundleOpts) *RemoteBundle {
 
 // create creates the bundle in a remote OCI registry publishes w/ optional signature to the remote repository.
 func (r *RemoteBundle) create(ctx context.Context, signature []byte) error {
+	bundle := r.bundle
 	// set the bundle remote's reference from metadata
 	r.output = boci.EnsureOCIPrefix(r.output)
-	ref, err := referenceFromMetadata(r.output, &r.bundle.Metadata)
+	ref, err := referenceFromMetadata(r.output, &bundle.Metadata)
 	if err != nil {
 		return err
 	}
-	platform := ocispec.Platform{
-		Architecture: config.GetArch(),
-		OS:           oci.MultiOS,
+	platform, err := platformForBundle(bundle)
+	if err != nil {
+		return err
 	}
 
 	// create the bundle remote
 	bundleRemote, err := fetcher.NewZarfOCIRemote(ctx, ref, platform)
 	if err != nil {
 		return err
-	}
-	bundle := r.bundle
-	if bundle.Metadata.Architecture == "" {
-		return errors.New("architecture is required for bundling")
 	}
 	dstRef := bundleRemote.Repo().Reference
 	message.Debug("Bundling", bundle.Metadata.Name, "to", dstRef)
@@ -137,7 +132,8 @@ func (r *RemoteBundle) create(ctx context.Context, signature []byte) error {
 	}
 
 	// push the bundle manifest config
-	configDesc, err := pushManifestConfigFromMetadata(bundleRemote.OrasRemote, &bundle.Metadata, &bundle.Build)
+	configAnnotations := manifestConfigAnnotationsFromMetadata(&bundle.Metadata)
+	configDesc, err := bundleRemote.CreateAndPushManifestConfig(ctx, configAnnotations, layout.ZarfLayerMediaTypeBlob)
 	if err != nil {
 		return err
 	}
@@ -155,7 +151,7 @@ func (r *RemoteBundle) create(ctx context.Context, signature []byte) error {
 	}
 
 	// push bundle root manifest
-	rootManifest.Config = configDesc
+	rootManifest.Config = *configDesc
 	rootManifest.SchemaVersion = 2
 	rootManifest.Annotations = manifestAnnotationsFromMetadata(&bundle.Metadata) // maps to registry UI
 	rootManifestDesc, err := boci.ToOCIRemote(rootManifest, ocispec.MediaTypeImageManifest, bundleRemote.OrasRemote)

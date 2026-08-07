@@ -12,8 +12,8 @@ tasks:
     actions:
       - task: update
       - cmd: |
-          if [ -n "$(git status --porcelain -- uds.schema.json zarf.schema.json tasks.schema.json)" ]; then
+          if ! git diff --quiet -- uds.schema.json zarf.schema.json tasks.schema.json; then
             echo "Schema changes found; run 'uds run schema:update' and include the generated files."
-            git status --short -- uds.schema.json zarf.schema.json tasks.schema.json
+            git diff --stat -- uds.schema.json zarf.schema.json tasks.schema.json
             exit 1
           fi
