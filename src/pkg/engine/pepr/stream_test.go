@@ -184,7 +184,7 @@ func TestLogFlush(t *testing.T) {
 	reader.LogFlush(&buf)
 
 	expected := " (repeated 3 times)"
-	require.Equal(t, expected, buf.String())
+	require.Equal(t, expected, stripANSI(buf.String()))
 }
 
 func TestSkipResource(t *testing.T) {
@@ -425,14 +425,18 @@ func TestLogEntryUnmarshal(t *testing.T) {
 	}
 }
 
+// stripANSI removes terminal color formatting so log-content tests do not depend on whether the test runner enables color.
+func stripANSI(str string) string {
+	re := regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	return re.ReplaceAllString(str, "")
+}
+
 // normalizeWhitespace removes leading/trailing whitespace and replaces multiple whitespace characters with a single space
 func normalizeWhitespace(str string) string {
-	// Remove ANSI escape sequences
-	re := regexp.MustCompile(`\x1b\[[0-9;]*m`)
-	str = re.ReplaceAllString(str, "")
+	str = stripANSI(str)
 
 	// Replace multiple whitespace characters with a single space
-	re = regexp.MustCompile(`\s+`)
+	re := regexp.MustCompile(`\s+`)
 	str = re.ReplaceAllString(str, " ")
 
 	// Trim leading and trailing whitespace

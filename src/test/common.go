@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -31,22 +30,6 @@ type UDSE2ETest struct {
 	ApplianceModeKeep bool
 	RunClusterTests   bool
 	CommandLog        []string
-}
-
-// GetCLIName looks at the OS and CPU architecture to determine which Zarf binary needs to be run.
-func GetCLIName() string {
-	var binaryName string
-	switch runtime.GOOS {
-	case "linux":
-		binaryName = "uds"
-	case "darwin":
-		if runtime.GOARCH == "arm64" {
-			binaryName = "uds-mac-apple"
-		} else {
-			binaryName = "uds-mac-intel"
-		}
-	}
-	return binaryName
 }
 
 var logRegex = regexp.MustCompile(`Saving log file to (?P<logFile>.*?\.log)`)
