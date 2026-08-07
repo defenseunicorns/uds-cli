@@ -64,7 +64,7 @@ jobs:
 
   integration-tests:
     name: ${{ matrix.name }}
-    runs-on: ubuntu-latest
+    runs-on: uds-ubuntu-big-boy-8-core
     timeout-minutes: ${{ matrix.timeout }}
     strategy:
       fail-fast: false
@@ -146,7 +146,7 @@ jobs:
   uds-core-smoke:
     name: UDS Core Smoke Tests
     if: inputs.include_uds_core_smoke
-    runs-on: ubuntu-latest
+    runs-on: uds-ubuntu-big-boy-8-core
     timeout-minutes: 65
     steps:
       - name: Checkout
