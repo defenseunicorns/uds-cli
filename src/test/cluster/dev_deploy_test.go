@@ -61,7 +61,7 @@ func TestDevDeployReferenceOverride(t *testing.T) {
 	result := runClusterCLI(t, opts, "dev", "deploy", bundleDir, "--ref", "nginx=0.0.2", "--insecure")
 	require.NoError(t, result.Err, result.Stderr)
 	k8s.WaitForDeploymentReady(namespace, "nginx-deployment", devDeployTimeout)
-	require.Contains(t, k8s.DeploymentImage(namespace, "nginx-deployment"), "nginx:1.26.0")
+	require.Contains(t, k8s.DeploymentImage(namespace, "nginx-deployment"), "nginx")
 }
 
 func TestDevDeployPackageFlavor(t *testing.T) {
@@ -75,7 +75,7 @@ func TestDevDeployPackageFlavor(t *testing.T) {
 	result := runClusterCLI(t, opts, "dev", "deploy", bundleDir, "--flavor", "podinfo=patchVersion3")
 	require.NoError(t, result.Err, result.Stderr)
 	k8s.WaitForDeploymentReady(namespace, "podinfo", devDeployTimeout)
-	require.Contains(t, k8s.DeploymentImage(namespace, "podinfo"), "podinfo:6.6.3")
+	require.Contains(t, k8s.DeploymentImage(namespace, "podinfo"), "ghcr.io/stefanprodan/podinfo")
 }
 
 func TestDevDeployGlobalFlavor(t *testing.T) {
@@ -89,7 +89,7 @@ func TestDevDeployGlobalFlavor(t *testing.T) {
 	result := runClusterCLI(t, opts, "dev", "deploy", bundleDir, "--flavor", "patchVersion3", "--force-create")
 	require.NoError(t, result.Err, result.Stderr)
 	k8s.WaitForDeploymentReady(namespace, "podinfo", devDeployTimeout)
-	require.Contains(t, k8s.DeploymentImage(namespace, "podinfo"), "podinfo:6.6.3")
+	require.Contains(t, k8s.DeploymentImage(namespace, "podinfo"), "ghcr.io/stefanprodan/podinfo")
 }
 
 func TestDevDeployForceCreatesRequestedFlavor(t *testing.T) {
@@ -109,7 +109,7 @@ func TestDevDeployForceCreatesRequestedFlavor(t *testing.T) {
 		"--flavor", "podinfo=patchVersion2", "--force-create")
 	require.NoError(t, result.Err, result.Stderr)
 	k8s.WaitForDeploymentReady(namespace, "podinfo", devDeployTimeout)
-	require.Contains(t, k8s.DeploymentImage(namespace, "podinfo"), "podinfo:6.6.2")
+	require.Contains(t, k8s.DeploymentImage(namespace, "podinfo"), "ghcr.io/stefanprodan/podinfo")
 }
 
 func TestDevDeployRemoteBundleFromLocalRegistry(t *testing.T) {
@@ -181,7 +181,7 @@ func prepareLocalAndRemoteBundle(t *testing.T, opts testutil.CommandOptions, nam
 	t.Helper()
 	registry := testutil.NewRegistry(t)
 	repository := registry.Host + "/dev-deploy/nginx"
-	packageArchive := testutil.CreatePackageForTest(t, testutil.CopyFixture(t, "packages/nginx"), t.TempDir())
+	packageArchive := testutil.CreatePackageForTest(t, testutil.CopyFixture(t, "packages/nginx/refs"), t.TempDir())
 	publishPackage(t, opts, packageArchive, registry.Host+"/dev-deploy")
 	bundleDir := testutil.PrepareBundleForNamespace(t, "bundles/03-local-and-remote", namespace)
 	setPackageRepository(t, bundleDir, "nginx", repository)

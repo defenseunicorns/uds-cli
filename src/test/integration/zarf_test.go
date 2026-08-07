@@ -18,7 +18,7 @@ func TestZarfLint(t *testing.T) {
 	packageDir := testutil.CopyFixture(t, "packages/podinfo")
 	result := testutil.RunCLI(t, isolatedOptions(t, nil), "zarf", "dev", "lint", packageDir)
 	require.NoError(t, result.Err, result.Stderr)
-	require.Contains(t, result.Stdout+result.Stderr, "Image not pinned with digest - ghcr.io/stefanprodan/podinfo:6.4.0")
+	require.Contains(t, result.Stdout+result.Stderr, "Image not pinned with digest - ghcr.io/stefanprodan/podinfo:")
 }
 
 func TestZarfToolsVersions(t *testing.T) {

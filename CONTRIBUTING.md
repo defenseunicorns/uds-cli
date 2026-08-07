@@ -14,7 +14,7 @@ Below are some notes on our core software design philosophies that should help g
 ## Code Quality and Standards
 Fundamentally, software engineering is a communication problem; we write code for each other, not a computer. When working on this project (or any project!) keep your fellow humans in mind and write clearly and concisely. Below are some general guidelines for code quality and standards that make UDS CLI :sparkles:
 
-- **Write tests that give confidence**: Unless there is a technical blocker, every new feature and bug fix should be tested in the project's automated test suite. Although many of our tests are E2E, unit and integration-style tests are also welcomed. Note that unit tests can live in a `*_test.go` file alongside the source code, and E2E tests live in `src/test/e2e`
+- **Write tests that give confidence**: Unless there is a technical blocker, every new feature and bug fix should be tested in the project's automated test suite. Unit tests can live in a `*_test.go` file alongside the source code. CLI integration coverage lives in `src/test/integration`, `src/test/cluster`, `src/test/smoke`, and `src/test/ghcr`.
 
 
 - **Prefer readability over being clever**: We have a strong preference for code readability in UDS CLI. Specifically, this means things like: naming variables appropriately, keeping functions to a reasonable size and avoiding complicated solutions when simple ones exist.
@@ -74,13 +74,13 @@ Commits run hk automatically. To run the complete repository check suite manuall
 
 ### Testing
 
-We strive to test all changes made to UDS CLI. If you're adding a new feature or fixing a bug, please add tests to cover the new functionality. Unit tests and E2E tests are both welcome, but we leave it up to the contributor to decide which is most appropriate for the change. Below are some guidelines for testing:
+We strive to test all changes made to UDS CLI. If you're adding a new feature or fixing a bug, please add tests to cover the new functionality. Unit and CLI integration tests are both welcome. Below are some guidelines for testing:
 
 #### Unit Tests
 Unit tests reside alongside the source code in a `*_test.go` file. These tests should be used to test individual functions or methods in isolation. Unit tests should be fast and focused on a single piece of functionality.
 
-#### E2E Tests
-E2E tests reside in the `src/test/e2e` directory. They use bundles located in the `src/test/e2e/bundles` which contain Zarf packages from the `src/test/e2e/packages` directory. Feel free to add new bundles and packages where appropriate. It's encouraged to write comments/metadata in any new bundles or packages to explain what they are testing.
+#### CLI Integration Tests
+Cluster-free CLI tests reside in `src/test/integration`. Tests that deploy to the shared UDS dev-stack belong in `src/test/cluster`; disposable UDS Core validation belongs in `src/test/smoke`; authenticated registry-write coverage belongs in `src/test/ghcr`. Shared bundle and package fixtures reside in `src/test/bundles` and `src/test/packages`.
 
 #### Assertions
 We prefer to use Testify's [require](https://github.com/stretchr/testify/tree/master/require) package for assertions in tests. This package provides a rich set of assertion functions that make tests more readable and easier to debug. See other tests in this repo for examples.

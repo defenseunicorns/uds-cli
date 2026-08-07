@@ -1,7 +1,8 @@
-# Copyright 2024 Defense Unicorns
+# Copyright 2026 Defense Unicorns
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
-name: PR Tests
+name: PR Checks
+
 on:
   pull_request:
     paths-ignore:
@@ -23,11 +24,10 @@ on:
 permissions:
   contents: read
 
-# Abort prior jobs in the same workflow / PR
 concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  test:
+  checks:
     uses: ./.github/workflows/test.yaml

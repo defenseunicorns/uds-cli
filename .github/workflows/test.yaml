@@ -23,6 +23,22 @@ on:
         default: false
 
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup development tools
+        uses: ./.github/actions/mise
+
+      - name: Lint the repository
+        run: uds run lint
+
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
