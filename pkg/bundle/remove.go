@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/defenseunicorns/uds-cli/pkg/logger"
+	"github.com/defenseunicorns/uds-cli/internal/logger"
 )
 
 // Remove removes a UDS bundle's packages from a Kubernetes cluster.
@@ -48,6 +48,11 @@ func Remove(ctx context.Context, opts RemoveOptions) (*RemoveResult, error) {
 			return nil, fmt.Errorf("bundle validation failed: %w", err)
 		}
 		s.Debug("bundle validated")
+	}
+	if !opts.Force {
+		if err := ValidateRemovalSafety(ctx, s, b, opts.Packages); err != nil {
+			return nil, err
+		}
 	}
 
 	remover := NewZarfRemover(s)

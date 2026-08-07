@@ -13,11 +13,11 @@ import (
 	"strings"
 	"testing"
 
+	bundlecmd "github.com/defenseunicorns/uds-cli/internal/cli/bundle"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
-	bundlecmd "github.com/defenseunicorns/uds-cli/pkg/cmd/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/defenseunicorns/uds-cli/tests/testutil"
 )

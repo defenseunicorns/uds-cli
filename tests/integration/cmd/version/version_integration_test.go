@@ -8,10 +8,10 @@ package version_test
 import (
 	"testing"
 
+	cmdversion "github.com/defenseunicorns/uds-cli/internal/cli/version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	cmdversion "github.com/defenseunicorns/uds-cli/pkg/cmd/version"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 

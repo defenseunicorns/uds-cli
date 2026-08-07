@@ -4,7 +4,6 @@
 package bundle
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"os"
@@ -13,97 +12,11 @@ import (
 	"strings"
 	"testing"
 
+	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
-	"github.com/defenseunicorns/uds-cli/pkg/logger"
-	"github.com/mholt/archives"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func writeValidUnsignedZarfPackage(t *testing.T, dir string) {
-	t.Helper()
-	const emptySHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-	zarfYAML := "kind: ZarfPackageConfig\nmetadata:\n  name: test\n  version: 1.0.0\n  aggregateChecksum: " + emptySHA256 + "\ncomponents: []\n"
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte(zarfYAML), tmpFilePerm))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "checksums.txt"), nil, tmpFilePerm))
-}
-
-// newTestConfig returns a *UDSBundleConfig with defaults suitable for tests.
-func newTestConfig() *UDSBundleConfig {
-	opts := ConfigOptions{
-		Architecture: runtime.GOARCH,
-		TmpDir:       os.TempDir(),
-		Concurrency:  10,
-	}
-	return &UDSBundleConfig{Global: &GlobalOptions{}, Options: &opts}
-}
-
-// newTestConfigWithArch returns a *UDSBundleConfig with the given architecture.
-func newTestConfigWithArch(arch string) *UDSBundleConfig {
-	opts := ConfigOptions{
-		Architecture: arch,
-		TmpDir:       os.TempDir(),
-		Concurrency:  10,
-	}
-	return &UDSBundleConfig{Global: &GlobalOptions{}, Options: &opts}
-}
-
-func TestLocalCreatorCreatePackageVerificationBoundary(t *testing.T) {
-	t.Run("verification failure never ingests the real package", func(t *testing.T) {
-		pkgDir := t.TempDir()
-		writeValidUnsignedZarfPackage(t, pkgDir)
-		blobDir := t.TempDir()
-		creator := newLocalCreator("amd64")
-		err := creator.CreatePackage(t.Context(), &Package{
-			Name:                  "signed",
-			Source:                pkgDir,
-			SignatureVerification: &PackageSignatureVerification{PublicKey: "test public key"},
-		}, CreatePackageOptions{
-			Config:    newTestConfig(),
-			BlobDir:   blobDir,
-			BundleDir: t.TempDir(),
-			Streams:   iostreams.IOStreams{},
-		})
-		require.ErrorContains(t, err, "package is not signed")
-		assert.Empty(t, creator.manifests)
-		entries, readErr := os.ReadDir(blobDir)
-		require.NoError(t, readErr)
-		assert.Empty(t, entries)
-	})
-
-	t.Run("explicit bypass ingests a real package and warns", func(t *testing.T) {
-		verify := false
-		pkgDir := t.TempDir()
-		writeValidUnsignedZarfPackage(t, pkgDir)
-		streams, _, out, errOut := iostreams.NewTestIOStreams()
-		streams = logger.Bind(streams, "info")
-		creator := newLocalCreator("amd64")
-
-		err := creator.CreatePackage(t.Context(), &Package{
-			Name:                  "unsigned",
-			Source:                pkgDir,
-			SignatureVerification: &PackageSignatureVerification{Verify: &verify},
-		}, CreatePackageOptions{
-			Config:    newTestConfig(),
-			BlobDir:   t.TempDir(),
-			BundleDir: t.TempDir(),
-			Streams:   streams,
-		})
-		require.NoError(t, err)
-		require.Len(t, creator.manifests, 1)
-		assert.Contains(t, out.String()+errOut.String(), "unverified package")
-	})
-
-	t.Run("nil package is rejected", func(t *testing.T) {
-		creator := newLocalCreator("amd64")
-		err := creator.CreatePackage(t.Context(), nil, CreatePackageOptions{
-			Config:    newTestConfig(),
-			BlobDir:   t.TempDir(),
-			BundleDir: t.TempDir(),
-		})
-		require.ErrorContains(t, err, "package is required")
-	})
-}
 
 func TestCreate_BuildsTarZstWithExpectedLayout(t *testing.T) {
 	dir := t.TempDir()
@@ -286,65 +199,6 @@ package "pkg2" {
 	// Only one blob should exist in the OCI store for that digest.
 	blobPath := "oci/blobs/sha256/" + strings.TrimPrefix(layersByTitle["values/pkg1/0.yaml"], "sha256:")
 	require.Contains(t, entries, blobPath)
-}
-
-func TestSanitizeFileComponent(t *testing.T) {
-	tests := []struct {
-		input string
-		want  string
-	}{
-		{"", ""},
-		{"simple", "simple"},
-		{"hello-world", "hello-world"},
-		{"v1.2.3", "v1.2.3"},
-		{"my/bundle", "my-bundle"},
-		{"with spaces", "with-spaces"},
-		{"UPPER", "UPPER"},
-		{"--leading-dashes--", "leading-dashes"},
-		{"a/b/c", "a-b-c"},
-		{"!@#$%", ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			require.Equal(t, tt.want, sanitizeFileComponent(tt.input))
-		})
-	}
-}
-
-func TestBundleOutputName(t *testing.T) {
-	tests := []struct {
-		name    string
-		bundle  UDSBundle
-		wantSuf string
-	}{
-		{
-			name:    "full name arch version",
-			bundle:  UDSBundle{Metadata: Metadata{Name: "my-bundle", Version: "1.0.0"}},
-			wantSuf: "uds-bundle-my-bundle-" + runtime.GOARCH + "-1.0.0.tar.zst",
-		},
-		{
-			name:    "no version",
-			bundle:  UDSBundle{Metadata: Metadata{Name: "my-bundle"}},
-			wantSuf: "uds-bundle-my-bundle-" + runtime.GOARCH + ".tar.zst",
-		},
-		{
-			name:    "name with special chars",
-			bundle:  UDSBundle{Metadata: Metadata{Name: "my/bundle", Version: "1.0.0"}},
-			wantSuf: "uds-bundle-my-bundle-" + runtime.GOARCH + "-1.0.0.tar.zst",
-		},
-		{
-			name:    "empty name defaults to bundle",
-			bundle:  UDSBundle{Metadata: Metadata{Name: "", Version: "1.0.0"}},
-			wantSuf: "uds-bundle-bundle-" + runtime.GOARCH + "-1.0.0.tar.zst",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.wantSuf, bundleOutputName(&tt.bundle, runtime.GOARCH))
-		})
-	}
 }
 
 // TestCreate_MultiArchLocalLayout verifies that when a local package directory
@@ -571,38 +425,6 @@ package "pkg1" {
 		"defaults.uds.hcl should not be in the bundle when the file does not exist")
 }
 
-func readTarZstEntries(t *testing.T, path string) map[string][]byte {
-	t.Helper()
-
-	f, err := os.Open(path)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = f.Close() })
-
-	ca := archives.CompressedArchive{
-		Extraction:  archives.Tar{},
-		Compression: archives.Zstd{},
-	}
-	entries := map[string][]byte{}
-	err = ca.Extract(t.Context(), f, func(_ context.Context, info archives.FileInfo) error {
-		if info.IsDir() {
-			return nil
-		}
-		rc, err := info.Open()
-		if err != nil {
-			return err
-		}
-		defer func() { _ = rc.Close() }()
-		b, err := io.ReadAll(rc)
-		if err != nil {
-			return err
-		}
-		entries[info.NameInArchive] = b
-		return nil
-	})
-	require.NoError(t, err)
-	return entries
-}
-
 func TestCreate_BundleIndexIsDeterministicAndSelfIdentifying(t *testing.T) {
 	t.Parallel()
 
@@ -643,7 +465,7 @@ package "pkg1" {
 	second := createOnce()
 	assert.Equal(t, first, second, "identical inputs must produce byte-identical bundle indexes")
 
-	var idx ociIndex
+	var idx udsoci.OciIndex
 	require.NoError(t, json.Unmarshal(first, &idx))
 	assert.Equal(t, MediaTypeBundle, idx.ArtifactType, "bundle index must self-identify via artifactType")
 	assert.Equal(t, "amd64", idx.Annotations[AnnotationBundleArchitecture], "bundle index must record its architecture")

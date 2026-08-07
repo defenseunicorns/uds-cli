@@ -8,13 +8,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/defenseunicorns/uds-cli/pkg/cmd"
+	"github.com/defenseunicorns/uds-cli/internal/cli"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
 func main() {
 	streams := iostreams.NewIOStreams()
-	rootCmd := cmd.NewRootCommand(streams)
+	rootCmd := cli.NewRootCommand(streams)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)

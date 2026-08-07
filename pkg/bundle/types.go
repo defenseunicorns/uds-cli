@@ -5,78 +5,62 @@ package bundle
 
 import (
 	"context"
-	"errors"
 	"io"
 
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
-	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	oras "oras.land/oras-go/v2"
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
-// ErrPackageNotDeployed is returned by Remover.RemovePackage when the requested
-// package is not present on the target. The orchestrator treats this as a skip
-// rather than a failure.
-var ErrPackageNotDeployed = errors.New("package not deployed")
+// UDSBundle aliases the canonical bundle model for the established bundle.Type API.
+type UDSBundle = spec.UDSBundle
 
-// ErrNotImplemented is returned by interface stub methods that have no
-// production implementation yet.
-var ErrNotImplemented = errors.New("not yet implemented")
+// UDSBlock aliases the canonical bundle constraints model for the established bundle.Type API.
+type UDSBlock = spec.UDSBlock
 
-// BundleFileName is the name of the bundle definition file.
-const BundleFileName = "bundle.uds.hcl"
+// Metadata aliases the canonical bundle metadata model for the established bundle.Type API.
+type Metadata = spec.Metadata
 
-// MaxConcurrency is the upper bound for parallel package deploys within a level.
-// Each concurrent deploy pulls an OCI package to disk, creates a temp directory,
-// and runs a Helm install against the cluster. Values above this limit risk
-// exhausting disk, overwhelming the Kubernetes API server, or hitting OCI
-// registry rate limits.
-const MaxConcurrency = 25
+// Package aliases the canonical package model for the established bundle.Type API.
+type Package = spec.Package
 
-// BundleDefaultsFileName is the name of the optional bundle-level defaults file.
-// When present alongside bundle.uds.hcl, it is auto-discovered and applied as the
-// lowest-priority variable layer. Only the variables attribute is supported.
-const BundleDefaultsFileName = "defaults.uds.hcl"
+// PackageRef aliases the canonical package reference model for the established bundle.Type API.
+type PackageRef = spec.PackageRef
 
-// Variables is a named type for the user-defined variable map parsed from the
-// variables block in defaults.uds.hcl and config.uds.hcl. Leaf values are scalars
-// (string, float64, bool); intermediate nodes are nested Variables maps decoded
-// from HCL object/map expressions. List, set, and tuple values are []any.
-// nil means no --config was provided.
-//
-// Using a named type (rather than bare map[string]any) follows the same
-// pattern as Zarf's value.Values and allows behaviour to be attached as
-// methods — in particular Flatten(), which keeps that logic intrinsic to
-// the type rather than as a scattered private helper.
+// SourceRange aliases the canonical bundle source span model for the established bundle.Type API.
+type SourceRange = spec.SourceRange
+
+// SourcePosition aliases the canonical bundle source position model for the established bundle.Type API.
+type SourcePosition = spec.SourcePosition
+
+// PackageSignatureVerification aliases the canonical package signature policy model.
+type PackageSignatureVerification = spec.PackageSignatureVerification
+
+// KeylessSignatureVerification aliases the canonical keyless signature policy model.
+type KeylessSignatureVerification = spec.KeylessSignatureVerification
+
+// Variables contains user-defined bundle configuration variables.
 type Variables map[string]any
 
-// GlobalOptions holds process-wide CLI options that apply to all commands.
-// Prompt is populated exclusively from the CLI flag, not from config.uds.hcl.
-// LogLevel can be controlled by both config file and CLI flag.
-// Prompt is controlled by the --prompt flag (see ADR-0005).
+// GlobalOptions holds process-wide CLI options.
 type GlobalOptions struct {
 	LogLevel string
 	Prompt   bool
 }
 
-// UDSBundleConfig represents the parsed content of a config.uds.hcl file.
-// Global holds process-wide options populated by the CLI layer (not from HCL).
-// The Options block is decoded via gohcl using HCL struct tags.
-// Variables are free-form and captured via hcl:",remain" for manual extraction,
-// since they have no fixed schema.
+// UDSBundleConfig is the resolved public bundle configuration.
 type UDSBundleConfig struct {
 	Global    *GlobalOptions
 	Options   *ConfigOptions `hcl:"options,block"`
-	Variables Variables      // populated after decode from Remain
-	Remain    hcl.Body       `hcl:",remain"` // captures variables and any other unstructured top-level attributes
+	Variables Variables
+	Remain    hcl.Body `hcl:",remain"`
 }
 
-// ConfigOptions holds bundle-component CLI options from the options block.
-// Fields are defined by the Opinionated CLI Settings ADR (ADR-0006).
-// All fields are optional; unset fields default to their zero values.
+// ConfigOptions holds bundle operation settings.
 type ConfigOptions struct {
 	LogLevel      string `hcl:"log_level,optional"`
 	Architecture  string `hcl:"architecture,optional"`
@@ -87,36 +71,60 @@ type ConfigOptions struct {
 	Concurrency   int    `hcl:"concurrency,optional"`
 }
 
-// Parser defines the interface for parsing bundle files.
+// Parser parses bundle definitions and configuration files.
 type Parser interface {
-	// ParseBundleFile reads and parses a bundle.uds.hcl file with locals support.
-	ParseBundleFile(ctx context.Context, filePath string) (*UDSBundle, error)
-	// ParseBundleBytes parses HCL bundle content from an in-memory byte slice.
-	ParseBundleBytes(ctx context.Context, src []byte) (*UDSBundle, error)
-	// ParseBundleConfig reads and parses a config.uds.hcl file.
+	ParseBundleFile(ctx context.Context, filePath string) (*spec.UDSBundle, error)
+	ParseBundleBytes(ctx context.Context, src []byte) (*spec.UDSBundle, error)
 	ParseBundleConfig(ctx context.Context, filePath string) (*UDSBundleConfig, error)
 }
 
-// Deployer is the interface for deploying packages to a target. It exposes
-// both a low-level per-package primitive and a high-level bundle-level entry
-// point so callers can choose the abstraction that fits their use case.
-// DeployBundle iterates the bundle and delegates each package to DeployPackage
-// internally.
-//
-// Implementations are responsible for dependency ordering, concurrency control,
-// and any target-specific orchestration concerns.
-//
-// Implementations can include: ZarfDeployer (local), TofuDeployer, RemoteAgentDeployer.
-type Deployer interface {
-	// DeployPackage deploys a single package.
-	// Called in topological order, dependencies are already deployed.
-	DeployPackage(ctx context.Context, pkg *Package, opts DeployPackageOptions) error
+// DeployPackageOptions contains options for deploying one package.
+type DeployPackageOptions struct {
+	Config             *UDSBundleConfig
+	BundleDir          string
+	PackageDeployHooks PackageDeployHooks
+	ClusterDeployFn    func(ctx context.Context, pkgLayout *layout.PackageLayout, opts packager.DeployOptions) error
+	Streams            iostreams.IOStreams
+}
 
-	// DeployBundle deploys the bundle's packages to the target, calling
-	// DeployPackage for each package internally. The implementation handles
-	// dependency ordering (topological order), parallelism within levels, and
-	// concurrency limits.
-	DeployBundle(ctx context.Context, b *UDSBundle, opts DeployOptions) (*DeployResult, error)
+// LoadOptions carries options for package layout loading.
+type LoadOptions struct {
+	Streams   iostreams.IOStreams
+	IsPartial bool
+}
+
+// PackageLayoutLoader loads a deployable package layout.
+type PackageLayoutLoader interface {
+	LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts LoadOptions) (*layout.PackageLayout, error)
+}
+
+// Puller pulls bundle and package artifacts from OCI storage.
+type Puller interface {
+	PullBundle(ctx context.Context, ociReference, targetDir string, opts PullOptions) (*PullResult, error)
+	PullPackage(ctx context.Context, ociReference, targetDir string, opts PullOptions) (*PullResult, error)
+}
+
+// Pusher pushes bundle and package artifacts to OCI storage.
+type Pusher interface {
+	PushBundle(ctx context.Context, bundleDir, ociReference string, opts PushOptions) (*PushResult, error)
+	PushPackage(ctx context.Context, packageDir, ociReference string, opts PushOptions) (*PushResult, error)
+}
+
+// Reconfigurer produces a derivative bundle with updated defaults.
+type Reconfigurer interface {
+	Reconfigure(ctx context.Context, opts ReconfigureOptions) (*ReconfigureResult, error)
+}
+
+// Deployer deploys individual packages or complete bundles.
+type Deployer interface {
+	DeployPackage(ctx context.Context, pkg *spec.Package, opts DeployPackageOptions) error
+	DeployBundle(ctx context.Context, b *spec.UDSBundle, opts DeployOptions) (*DeployResult, error)
+}
+
+// Remover removes individual packages or complete bundles.
+type Remover interface {
+	RemovePackage(ctx context.Context, pkg *spec.Package, opts RemovePackageOptions) error
+	RemoveBundle(ctx context.Context, b *spec.UDSBundle, packages []string, opts RemovePackageOptions) (*RemoveResult, error)
 }
 
 // PackageDeployHooks provides Deployment process extensibility on a per-package basis.
@@ -131,12 +139,12 @@ type PackageDeployHooks struct {
 	// pkgOpts is built).
 	// A non-nil error aborts the deploy; packager.Deploy is never called and PostDeploy is skipped.
 	// May run concurrently with PreDeploy for other packages within the same DAG level.
-	PreDeploy func(ctx context.Context, pkg *Package, pkgLayout *layout.PackageLayout, opts *packager.DeployOptions, packageOpts *DeployPackageOptions) error
+	PreDeploy func(ctx context.Context, pkg *spec.Package, pkgLayout *layout.PackageLayout, opts *packager.DeployOptions, packageOpts *DeployPackageOptions) error
 
 	// PostDeploy enables tracking what Packages have been deployed.
 	// Called after a successful packager.Deploy. Not called when PreDeploy or the deploy itself errors.
 	// May run concurrently with PostDeploy for other packages within the same DAG level — implementations must be concurrency-safe.
-	PostDeploy func(ctx context.Context, pkg *Package) error
+	PostDeploy func(ctx context.Context, pkg *spec.Package) error
 }
 
 // BundleDeployHooks provides Deployment process extensibility at the whole-bundle scope.
@@ -159,33 +167,12 @@ type BundleDeployHooks struct {
 	// Note: mutations to opts.BundleDeployHooks are NOT honoured — BundleDeployHooks is captured
 	// before PreDeploy is invoked, so replacing PostDeploy here has no effect.
 	// A non-nil error aborts before any package is deployed.
-	PreDeploy func(ctx context.Context, b *UDSBundle, opts *DeployOptions) error
+	PreDeploy func(ctx context.Context, b *spec.UDSBundle, opts *DeployOptions) error
 
 	// PostDeploy runs once after all packages have deployed successfully.
 	// A non-nil error causes DeployBundle to return that error with the populated result
 	// (packages are already deployed at this point).
-	PostDeploy func(ctx context.Context, b *UDSBundle) error
-}
-
-// DeployPackageOptions contains options for deploying a single package.
-type DeployPackageOptions struct {
-	// Config is the merged config (options + variables); always non-nil.
-	Config *UDSBundleConfig
-
-	// BundleDir is the directory containing the bundle (for resolving relative paths)
-	BundleDir string
-
-	// PackageDeployHooks provides optional pre- and post-deploy callbacks for this package.
-	// Nil func fields are replaced with no-ops by withDefaults(); every deploy traverses both call sites.
-	PackageDeployHooks PackageDeployHooks
-
-	// ClusterDeployFn performs the cluster-side deploy of the loaded package layout.
-	// Nil defaults to packager.Deploy. Override it to deploy without a real cluster — this is
-	// the seam that makes the full deploy pipeline (loader, hooks, layout mutation) testable.
-	ClusterDeployFn func(ctx context.Context, pkgLayout *layout.PackageLayout, opts packager.DeployOptions) error
-
-	// Streams carries In/Out/ErrOut for the operation.
-	Streams iostreams.IOStreams
+	PostDeploy func(ctx context.Context, b *spec.UDSBundle) error
 }
 
 // DeploySource abstracts the differences between bundle deployment pipeline
@@ -223,7 +210,7 @@ type DeployOptions struct {
 
 	// Bundle is the pre-parsed bundle. When set, Deploy() skips parsing BundlePath.
 	// This avoids double-parsing when the caller has already parsed the bundle.
-	Bundle *UDSBundle
+	Bundle *spec.UDSBundle
 
 	// Source is the prepared deploy source from PrepareDeploySource. When non-nil,
 	// Deploy() uses Source.Loader for the deployer and applies Source.ValuesFilesOverride.
@@ -250,177 +237,7 @@ type DeployOptions struct {
 	// Its signature mirrors Deployer.DeployPackage: overriding it replaces the whole per-package
 	// deploy, so an override that still wants the loader + hooks should delegate to DeployPackage
 	// (e.g. set opts.ClusterDeployFn, then call the deployer's DeployPackage).
-	PackageDeployFn func(ctx context.Context, pkg *Package, opts DeployPackageOptions) error
-
-	// Streams carries In/Out/ErrOut for the operation.
-	Streams iostreams.IOStreams
-}
-
-// UDSBundle represents a parsed HCL bundle definition.
-// The locals block is not represented here; it is resolved during parsing
-// and substituted via EvalContext before this struct is populated.
-type UDSBundle struct {
-	UDS      UDSBlock  `hcl:"uds,block"`
-	Metadata Metadata  `hcl:"metadata,block"`
-	Packages []Package `hcl:"package,block"`
-	Remain   hcl.Body  `hcl:",remain"`
-}
-
-// UDSBlock contains tooling and schema constraints.
-type UDSBlock struct {
-	BundleAPIVersion string `hcl:"bundle_api_version"`
-}
-
-// Metadata holds bundle-level identity and descriptive fields.
-type Metadata struct {
-	Name        string `hcl:"name"`
-	Description string `hcl:"description,optional"`
-	Version     string `hcl:"version,optional"`
-}
-
-// Package represents a Zarf package entry in the bundle.
-// Most fields are decoded via HCL annotations. The DependsOn field requires
-// special handling because it uses expression syntax (depends_on = [package.core_base])
-// which is captured in Remain and post-processed into []PackageRef.
-//
-// NOTE: There is no built-in gohcl annotation that can automatically parse HCL traversal
-// expressions (like package.core_base) into Go types. The gohcl library only supports
-// decoding literal values (strings, numbers, booleans, lists of literals). Traversal
-// expressions are references that must be manually extracted using hcl.AbsTraversalForExpr().
-// This is why we use Remain to capture unparsed content and post-process it.
-type Package struct {
-	Name                  string                        `hcl:"name,label"`
-	Source                string                        `hcl:"source"`
-	Namespace             string                        `hcl:"namespace,optional"`
-	DependsOn             []PackageRef                  // Populated from Remain after HCL decoding
-	ValuesFiles           []string                      `hcl:"values_files,optional"`
-	OptionalComponents    []string                      `hcl:"optional_components,optional"`
-	SignatureVerification *PackageSignatureVerification `hcl:"signature_verification,block"`
-	Remain                hcl.Body                      `hcl:",remain"` // Captures depends_on for post-processing
-}
-
-// PackageSignatureVerification declares how a package signature is verified
-// when the package enters a bundle. A package must either set Verify to false
-// or configure exactly one of PublicKey and Keyless.
-type PackageSignatureVerification struct {
-	Verify    *bool                         `hcl:"verify,optional"`
-	PublicKey string                        `hcl:"public_key,optional"`
-	Keyless   *KeylessSignatureVerification `hcl:"keyless,block"`
-}
-
-// KeylessSignatureVerification constrains the keyless signer trusted for a
-// package signature.
-type KeylessSignatureVerification struct {
-	CertificateIdentity         string `hcl:"certificate_identity,optional"`
-	CertificateIdentityRegexp   string `hcl:"certificate_identity_regexp,optional"`
-	CertificateOIDCIssuer       string `hcl:"certificate_oidc_issuer,optional"`
-	CertificateOIDCIssuerRegexp string `hcl:"certificate_oidc_issuer_regexp,optional"`
-	TrustedRoot                 string `hcl:"trusted_root,optional"`
-	InsecureIgnoreTlog          bool   `hcl:"insecure_ignore_tlog,optional"`
-	InsecureIgnoreSCT           bool   `hcl:"insecure_ignore_sct,optional"`
-	UseSignedTimestamps         bool   `hcl:"use_signed_timestamps,optional"`
-}
-
-// PackageRef represents a reference to another package in the bundle.
-// It stores the parsed hcl.Traversal for type safety and source location tracking.
-// The HCL syntax is: package.<name> (e.g., package.core_base)
-//
-// Design Decision: We use PackageRef (name + traversal) instead of []*Package pointers.
-// Using []*Package would require resolving forward references during parsing, which is
-// problematic because HCL files don't require packages to be declared in dependency order.
-// For example:
-//
-//	package "app" {
-//	  depends_on = [package.database]  // "database" not yet parsed!
-//	}
-//	package "database" { ... }
-//
-// With []*Package, we'd need two-pass parsing: first create all Package objects, then
-// resolve references. This adds complexity and creates circular reference issues
-// (serialization problems, fmt.Printf stack overflow, GC complexity).
-//
-// PackageRef keeps parsing simple (single pass) and defers reference resolution to
-// the DAG building phase where all packages are available. This follows the same
-// pattern used by OpenTofu/Terraform for dependency handling.
-type PackageRef struct {
-	// Name is the referenced package name (extracted from the traversal)
-	Name string
-	// Traversal is the full HCL traversal (package.<name>) with source location
-	Traversal hcl.Traversal
-}
-
-// Creator is implemented by types that can create UDS bundle artifacts.
-// It handles per-package ingestion and output naming, allowing library
-// consumers to substitute or mock the creation logic independently.
-type Creator interface {
-	// CreatePackage ingests a single package into the OCI layout at opts.BlobDir.
-	CreatePackage(ctx context.Context, pkg *Package, opts CreatePackageOptions) error
-	// BundleName returns the output filename for the bundle artifact.
-	BundleName(b *UDSBundle) string
-}
-
-// LoadOptions carries cross-cutting options for Loader and PackageLayoutLoader operations.
-// It replaces the positional streams parameter previously on LoadPackageLayout and the
-// IsPartial field previously on DirectoryPackageLayoutLoader.
-type LoadOptions struct {
-	// Streams carries In/Out/ErrOut and the bound logger for diagnostics.
-	Streams iostreams.IOStreams
-
-	// IsPartial controls whether the staged package is treated as partially extracted.
-	// When true, checksums.txt may reference layers not present on disk.
-	// Applies only to LoadPackageLayout; ignored by LoadBundle and LoadPackage.
-	// ExtractedArtifactPackageLayoutLoader always forces IsPartial: true for
-	// OCI-blob-staged packages regardless of this field.
-	IsPartial bool
-}
-
-// Loader loads a previously saved Package or Bundle.
-// It is distinct from the lower-level PackageLayoutLoader, which returns a deploy-ready layout.
-type Loader interface {
-	// LoadBundle loads a bundle saved in a directory (e.g. via the Puller interface).
-	LoadBundle(ctx context.Context, bundleDir string, opts LoadOptions) (*UDSBundle, error)
-	// LoadPackage loads a package saved in a directory (e.g. via the Puller interface).
-	LoadPackage(ctx context.Context, packageDir string, opts LoadOptions) (*Package, error)
-}
-
-// PackageLayoutLoader abstracts how a per-package layout is obtained for deploy.
-type PackageLayoutLoader interface {
-	// LoadPackageLayout stages the package's contents into dstDir and returns a
-	// PackageLayout ready for packager.Deploy. dstDir must already exist and
-	// is owned by the caller. opts.Streams carries the bound logger for diagnostics;
-	// opts.IsPartial controls partial-package semantics.
-	LoadPackageLayout(ctx context.Context, pkg *Package, dstDir string, opts LoadOptions) (*layout.PackageLayout, error)
-}
-
-// PackageSource abstracts how a Zarf package is fetched, supporting both
-// OCI registries and local paths. Remote implementations apply component
-// filtering before downloading to avoid pulling unnecessary layers; local
-// implementations may apply filtering after reading package contents.
-type PackageSource interface {
-	// PullFiltered pulls a Zarf package to tmpDir, applying loadOptions.Filter as
-	// part of retrieval. For remote sources the filter is applied before downloading
-	// layers when possible. Returns a PackageLayout ready for packager.Deploy().
-	// Used by the Deploy command.
-	PullFiltered(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions) (*layout.PackageLayout, error)
-
-	// IngestFiltered ingests a Zarf package into an OCI blob directory at blobDir,
-	// applying the filter during ingestion. For remote sources the filter is
-	// applied before downloading layers when possible. Returns manifest
-	// descriptors for the bundle's OCI index. Used by the Create command.
-	IngestFiltered(ctx context.Context, filter filters.ComponentFilterStrategy, blobDir string) ([]ociManifest, error)
-
-	// VerifyAndIngestFiltered retrieves a package into tmpDir, verifies it with
-	// loadOptions, and ingests those exact retrieved bytes into blobDir.
-	VerifyAndIngestFiltered(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions, blobDir string) ([]ociManifest, error)
-}
-
-// CreatePackageOptions holds per-package configuration during bundle creation.
-type CreatePackageOptions struct {
-	// Config is the merged config; always non-nil.
-	Config *UDSBundleConfig
-
-	BlobDir   string
-	BundleDir string
+	PackageDeployFn func(ctx context.Context, pkg *spec.Package, opts DeployPackageOptions) error
 
 	// Streams carries In/Out/ErrOut for the operation.
 	Streams iostreams.IOStreams
@@ -491,52 +308,6 @@ type PushResult struct {
 	OCIReference string `json:"ociReference" yaml:"ociReference" text:"OCI Reference"`
 }
 
-// Remover is the interface for removing packages from a target. It exposes
-// both a low-level per-package primitive and a high-level bundle-level entry
-// point so callers can choose the abstraction that fits their use case.
-// RemoveBundle iterates the bundle and delegates each package to RemovePackage
-// internally.
-//
-// Implementations are responsible for any cluster-state checks (e.g. whether
-// the package is currently deployed). When the package is not present on the
-// target, RemovePackage must return ErrPackageNotDeployed so the caller can
-// count it as skipped rather than failed.
-//
-// Implementations can include: ZarfRemover (delegates to Zarf packager.Remove).
-type Remover interface {
-	// RemovePackage removes a single package from the target. It must return
-	// ErrPackageNotDeployed if the package is not currently deployed.
-	RemovePackage(ctx context.Context, pkg *Package, opts RemovePackageOptions) error
-
-	// RemoveBundle removes the bundle's packages from the target, calling
-	// RemovePackage for each package internally. The implementation handles
-	// dependency ordering (reverse topological order), deployment-status
-	// checks, and skip behavior. When packages is non-empty, only those
-	// package names are removed.
-	RemoveBundle(ctx context.Context, b *UDSBundle, packages []string, opts RemovePackageOptions) (*RemoveResult, error)
-}
-
-// Puller is the interface for pulling bundle artifacts from an OCI registry.
-// OCIReference and targetDir are method-level parameters; config and extensibility
-// belong in PullOptions. This matches the Technical Design Doc surface.
-type Puller interface {
-	// PullBundle pulls a bundle from the given OCI reference and writes it to targetDir.
-	PullBundle(ctx context.Context, ociReference, targetDir string, opts PullOptions) (*PullResult, error)
-	// PullPackage pulls a single Zarf package from the given OCI reference to targetDir.
-	PullPackage(ctx context.Context, ociReference, targetDir string, opts PullOptions) (*PullResult, error)
-}
-
-// Pusher is the interface for pushing bundle artifacts to an OCI registry.
-// bundleDir/packageDir and OCIReference are method-level parameters; config and
-// extensibility belong in PushOptions.
-type Pusher interface {
-	// PushBundle pushes the OCI layout in bundleDir to the given OCI reference.
-	// bundleDir must contain an oci/ subdirectory with a valid OCI layout (index.json + blobs/).
-	PushBundle(ctx context.Context, bundleDir, ociReference string, opts PushOptions) (*PushResult, error)
-	// PushPackage pushes a single Zarf package from packageDir to the given OCI reference.
-	PushPackage(ctx context.Context, packageDir, ociReference string, opts PushOptions) (*PushResult, error)
-}
-
 // PushHooks provides Push process extensibility (CLI-185 / Tech Design Doc).
 type PushHooks struct {
 	// ToOrasTarget resolves a plain OCI reference into the ORAS target the bytes are
@@ -558,15 +329,6 @@ type PullHooks struct {
 	ModifyOrasSettings func(ctx context.Context, copyOptions *oras.CopyOptions) error
 }
 
-// RemovePackageOptions contains options for removing a single package.
-type RemovePackageOptions struct {
-	// Config is the merged config (options + variables); always non-nil.
-	Config *UDSBundleConfig
-
-	// Force bypasses the removal safety check. Threaded from RemoveOptions.Force.
-	Force bool
-}
-
 // RemoveOptions contains options for removing an entire bundle.
 type RemoveOptions struct {
 	// Config is the merged config; always non-nil.
@@ -576,7 +338,7 @@ type RemoveOptions struct {
 	BundlePath string
 
 	// Bundle is the pre-parsed bundle. When set, Remove() skips parsing BundlePath.
-	Bundle *UDSBundle
+	Bundle *spec.UDSBundle
 
 	// Packages is an optional list of specific package names to remove.
 	// When empty, all packages in the bundle are removed.
@@ -590,17 +352,17 @@ type RemoveOptions struct {
 	Streams iostreams.IOStreams
 }
 
+// RemovePackageOptions contains options for removing one package.
+type RemovePackageOptions struct {
+	Config *UDSBundleConfig
+	Force  bool
+}
+
 // RemoveResult represents the output of a bundle remove operation.
 type RemoveResult struct {
 	BundleName string `json:"bundleName" yaml:"bundleName" text:"Bundle Name"`
 	Removed    int    `json:"removed"    yaml:"removed"    text:"Removed"`
 	Skipped    int    `json:"skipped"    yaml:"skipped"    text:"Skipped"`
-}
-
-// Reconfigurer replaces the defaults layer in a bundle artifact,
-// producing a new derivative artifact.
-type Reconfigurer interface {
-	Reconfigure(ctx context.Context, opts ReconfigureOptions) (*ReconfigureResult, error)
 }
 
 // ReconfigureOptions holds configuration for the bundle reconfigure operation.

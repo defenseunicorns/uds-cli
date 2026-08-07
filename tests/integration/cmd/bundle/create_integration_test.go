@@ -12,11 +12,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/internal/cli/bundle"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
-	bundlecmd "github.com/defenseunicorns/uds-cli/pkg/cmd/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/defenseunicorns/uds-cli/tests/testutil"
 )
@@ -120,7 +120,7 @@ func TestCreate_DefaultsConfig_Applied(t *testing.T) {
 	// Exercise cobra wiring: create the bundle via the bundle command
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 
-	root := bundlecmd.NewBundleCommand(streams)
+	root := bundle.NewBundleCommand(streams)
 	root.SetArgs([]string{"create", dir})
 
 	err := root.Execute()
@@ -130,12 +130,12 @@ func TestCreate_DefaultsConfig_Applied(t *testing.T) {
 	assert.Contains(t, output, "Bundle Name:")
 
 	// Verify defaults variables are resolved through ConfigResolver
-	resolver := bundlecmd.NewConfigResolver()
-	cmd := bundlecmd.NewBundleCommand(streams)
+	resolver := bundle.NewConfigResolver()
+	cmd := bundle.NewBundleCommand(streams)
 	// Find the create subcommand to get its flags
 	createCmd, _, _ := cmd.Find([]string{"create"})
 	createCmd.Flags().String("config", "", "config path")
-	resolved, _, err := resolver.Resolve(t.Context(), iostreams.IOStreams{}, bundlecmd.SnapshotFlags(createCmd), dir)
+	resolved, _, err := resolver.Resolve(t.Context(), iostreams.IOStreams{}, bundle.SnapshotFlags(createCmd), dir)
 	require.NoError(t, err)
 
 	// Variables from defaults.uds.hcl

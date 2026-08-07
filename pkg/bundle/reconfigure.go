@@ -11,13 +11,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
-	"github.com/defenseunicorns/pkg/oci"
+	ocipkg "github.com/defenseunicorns/pkg/oci"
+	"github.com/defenseunicorns/uds-cli/internal/artifact"
+	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	"github.com/defenseunicorns/uds-cli/internal/logger"
+	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
-	"github.com/defenseunicorns/uds-cli/pkg/logger"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -28,34 +30,23 @@ import (
 	"oras.land/oras-go/v2/errdef"
 )
 
-// validSuffix enforces that the suffix is safe for use in OCI tags, filenames,
-// and HCL string content. Must start with '-' and contain only safe characters.
-var validSuffix = regexp.MustCompile(`^-[a-zA-Z0-9._-]+$`)
-
-// Compile-time interface checks.
-var _ Reconfigurer = &localReconfigurer{}
-
 // Reconfigure validates the defaults file and dispatches to the appropriate
 // implementation based on whether the source is a local tarball or OCI reference.
 func Reconfigure(ctx context.Context, opts ReconfigureOptions) (*ReconfigureResult, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	defaultsData, err := materializeDefaultsFile(opts.DefaultsFile)
+	defaultsData, err := bundlehcl.MaterializeDefaultsFile(opts.DefaultsFile)
 	if err != nil {
 		return nil, fmt.Errorf("reading defaults file: %w", err)
 	}
 	opts.materializedDefaults = defaultsData
 	s := logger.Bind(opts.Streams, opts.Options.LogLevel)
 
-	var r Reconfigurer
 	if IsOCIReference(opts.Source) {
-		r = &ociReconfigurer{streams: s}
-	} else {
-		r = &localReconfigurer{streams: s}
+		return (&ociReconfigurer{streams: s}).Reconfigure(ctx, opts)
 	}
-
-	return r.Reconfigure(ctx, opts)
+	return (&localReconfigurer{streams: s}).Reconfigure(ctx, opts)
 }
 
 type localReconfigurer struct {
@@ -63,6 +54,9 @@ type localReconfigurer struct {
 }
 
 func (r *localReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptions) (*ReconfigureResult, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
 	// Compute output filename and check it doesn't exist.
 	baseName := filepath.Base(opts.Source)
 	if !strings.HasSuffix(baseName, ".tar.zst") {
@@ -87,7 +81,7 @@ func (r *localReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOpt
 		}
 	}()
 
-	if err := extractTarZst(ctx, r.streams, opts.Source, tmp); err != nil {
+	if err := artifact.ExtractTarZst(ctx, r.streams, opts.Source, tmp); err != nil {
 		return nil, fmt.Errorf("extracting bundle: %w", err)
 	}
 
@@ -99,15 +93,15 @@ func (r *localReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOpt
 	if err != nil {
 		return nil, fmt.Errorf("reading index.json: %w", err)
 	}
-	var idx ociIndex
+	var idx udsoci.OciIndex
 	if err := json.Unmarshal(idxBytes, &idx); err != nil {
 		return nil, fmt.Errorf("parsing index: %w", err)
 	}
-	if !isBundleIndex(idx) {
+	if !udsoci.IsBundleIndex(idx) {
 		return nil, fmt.Errorf("%s does not appear to be a UDS bundle: index does not declare artifactType %s", opts.Source, MediaTypeBundle)
 	}
 
-	defEntry, defPos, err := findBundleDefinitionEntry(idx)
+	defEntry, defPos, err := udsoci.FindBundleDefinitionEntry(idx)
 	if err != nil {
 		return nil, fmt.Errorf("%s does not appear to be a UDS bundle: %w", opts.Source, err)
 	}
@@ -118,7 +112,7 @@ func (r *localReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOpt
 	if err != nil {
 		return nil, fmt.Errorf("reading bundle definition manifest: %w", err)
 	}
-	var manifest ociImageManifest
+	var manifest udsoci.OciImageManifest
 	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
 		return nil, fmt.Errorf("parsing bundle definition manifest: %w", err)
 	}
@@ -128,18 +122,18 @@ func (r *localReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOpt
 	if err != nil {
 		return nil, fmt.Errorf("reading defaults file: %w", err)
 	}
-	newDefaultsDigest, err := writeAndDigestBlob(blobDir, defaultsData)
+	newDefaultsDigest, err := udsoci.WriteAndDigestBlob(blobDir, defaultsData)
 	if err != nil {
 		return nil, fmt.Errorf("writing defaults blob: %w", err)
 	}
-	newDefaultsDesc := ociDescriptor{
+	newDefaultsDesc := udsoci.OciDescriptor{
 		MediaType:   MediaTypeBundleHCL,
 		Digest:      newDefaultsDigest.String(),
 		Size:        int64(len(defaultsData)),
 		Annotations: map[string]string{ocispec.AnnotationTitle: BundleDefaultsFileName},
 	}
 
-	hclLayer, err := findLayerByTitle(manifest, BundleFileName)
+	hclLayer, err := udsoci.FindLayerByTitle(manifest, BundleFileName)
 	if err != nil {
 		return nil, err
 	}
@@ -151,11 +145,11 @@ func (r *localReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOpt
 	if err != nil {
 		return nil, fmt.Errorf("updating bundle name: %w", err)
 	}
-	newHCLDigest, err := writeAndDigestBlob(blobDir, splicedHCL)
+	newHCLDigest, err := udsoci.WriteAndDigestBlob(blobDir, splicedHCL)
 	if err != nil {
 		return nil, fmt.Errorf("writing updated HCL blob: %w", err)
 	}
-	newHCLDesc := ociDescriptor{
+	newHCLDesc := udsoci.OciDescriptor{
 		MediaType:   MediaTypeBundleHCL,
 		Digest:      newHCLDigest.String(),
 		Size:        int64(len(splicedHCL)),
@@ -167,31 +161,31 @@ func (r *localReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOpt
 	if err != nil {
 		return nil, fmt.Errorf("rebuilding manifest: %w", err)
 	}
-	newManifestDigest, err := writeAndDigestBlob(blobDir, newManifestBytes)
+	newManifestDigest, err := udsoci.WriteAndDigestBlob(blobDir, newManifestBytes)
 	if err != nil {
 		return nil, fmt.Errorf("writing manifest blob: %w", err)
 	}
 
 	// Update index.json, re-sorting by digest to preserve the deterministic
 	// ordering invariant of bundle indexes (ADR-0015).
-	idx.Manifests[defPos] = ociManifest{
+	idx.Manifests[defPos] = udsoci.OciManifest{
 		MediaType:    ocispec.MediaTypeImageManifest,
 		ArtifactType: MediaTypeBundleDefinition,
 		Digest:       newManifestDigest.String(),
 		Size:         int64(len(newManifestBytes)),
 	}
-	sortManifestsByDigest(idx.Manifests)
-	if err := writeOCIIndex(filepath.Join(ociDir, "index.json"), &idx); err != nil {
+	udsoci.SortManifestsByDigest(idx.Manifests)
+	if err := udsoci.WriteOCIIndex(filepath.Join(ociDir, "index.json"), &idx); err != nil {
 		return nil, fmt.Errorf("writing index.json: %w", err)
 	}
 
 	// Remove unreferenced blobs.
-	if err := gcUnreferencedBlobs(ctx, r.streams, blobDir, idx.Manifests); err != nil {
+	if err := udsoci.GCUnreferencedBlobs(ctx, r.streams, blobDir, idx.Manifests); err != nil {
 		return nil, fmt.Errorf("cleaning unreferenced blobs: %w", err)
 	}
 
 	// Repackage as tar.zst.
-	if err := writeTarZst(ctx, r.streams, outPath, tmp); err != nil {
+	if err := artifact.WriteTarZst(ctx, r.streams, outPath, tmp); err != nil {
 		return nil, fmt.Errorf("writing output archive: %w", err)
 	}
 
@@ -199,13 +193,14 @@ func (r *localReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOpt
 	return &ReconfigureResult{OutputPath: outPath}, nil
 }
 
-var _ Reconfigurer = &ociReconfigurer{}
-
 type ociReconfigurer struct {
 	streams iostreams.IOStreams
 }
 
 func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptions) (*ReconfigureResult, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
 	if opts.OutputDir != "" {
 		return nil, fmt.Errorf("--output-dir is not supported for OCI sources")
 	}
@@ -228,7 +223,7 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 	if opts.remoteRepo != nil {
 		repo = opts.remoteRepo
 	} else {
-		remote, err := newRemoteRepository(ctx, trimmed, opts.Options)
+		remote, err := udsoci.NewRemoteRepository(ctx, trimmed, toInternalConfigOptions(opts.Options))
 		if err != nil {
 			return nil, fmt.Errorf("connecting to registry: %w", err)
 		}
@@ -237,7 +232,7 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 
 	// Resolve source to the canonical single-arch bundle (child) index,
 	// platform-selecting from the root index when the tag points at one.
-	_, indexBytes, err := resolveBundleChild(ctx, repo, sourceTag, opts.Options.Architecture)
+	_, indexBytes, err := udsoci.ResolveBundleChild(ctx, repo, sourceTag, opts.Options.Architecture)
 	if err != nil {
 		return nil, fmt.Errorf("resolving %s: %w", opts.Source, err)
 	}
@@ -249,13 +244,13 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 		return nil, fmt.Errorf("checking target tag %q: %w", targetTag, resolveErr)
 	}
 
-	var idx ociIndex
+	var idx udsoci.OciIndex
 	if err := json.Unmarshal(indexBytes, &idx); err != nil {
 		return nil, fmt.Errorf("parsing index: %w", err)
 	}
 
 	// Find bundle definition manifest.
-	defEntry, defPos, err := findBundleDefinitionEntry(idx)
+	defEntry, defPos, err := udsoci.FindBundleDefinitionEntry(idx)
 	if err != nil {
 		return nil, fmt.Errorf("%s is not a UDS bundle: %w", opts.Source, err)
 	}
@@ -274,7 +269,7 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 		return nil, fmt.Errorf("fetching bundle definition manifest: %w", err)
 	}
 
-	var manifest ociImageManifest
+	var manifest udsoci.OciImageManifest
 	if err := json.Unmarshal(defBytes, &manifest); err != nil {
 		return nil, fmt.Errorf("parsing manifest: %w", err)
 	}
@@ -289,7 +284,7 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 	if err := repo.Push(ctx, newDefaultsOCIDesc, bytes.NewReader(defaultsData)); err != nil && !errors.Is(err, errdef.ErrAlreadyExists) {
 		return nil, fmt.Errorf("pushing defaults blob: %w", err)
 	}
-	newDefaultsDesc := ociDescriptor{
+	newDefaultsDesc := udsoci.OciDescriptor{
 		MediaType:   MediaTypeBundleHCL,
 		Digest:      newDefaultsOCIDesc.Digest.String(),
 		Size:        newDefaultsOCIDesc.Size,
@@ -297,7 +292,7 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 	}
 
 	// Fetch, splice, push HCL.
-	hclLayer, err := findLayerByTitle(manifest, BundleFileName)
+	hclLayer, err := udsoci.FindLayerByTitle(manifest, BundleFileName)
 	if err != nil {
 		return nil, err
 	}
@@ -324,7 +319,7 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 	if err := repo.Push(ctx, newHCLOCIDesc, bytes.NewReader(splicedHCL)); err != nil && !errors.Is(err, errdef.ErrAlreadyExists) {
 		return nil, fmt.Errorf("pushing HCL blob: %w", err)
 	}
-	newHCLDesc := ociDescriptor{
+	newHCLDesc := udsoci.OciDescriptor{
 		MediaType:   MediaTypeBundleHCL,
 		Digest:      newHCLOCIDesc.Digest.String(),
 		Size:        newHCLOCIDesc.Size,
@@ -343,13 +338,13 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 
 	// Rebuild the child index (re-sorted for determinism; artifactType and the
 	// architecture annotation carry over) and push it by digest.
-	idx.Manifests[defPos] = ociManifest{
+	idx.Manifests[defPos] = udsoci.OciManifest{
 		MediaType:    ocispec.MediaTypeImageManifest,
 		ArtifactType: MediaTypeBundleDefinition,
 		Digest:       newManifestOCIDesc.Digest.String(),
 		Size:         newManifestOCIDesc.Size,
 	}
-	sortManifestsByDigest(idx.Manifests)
+	udsoci.SortManifestsByDigest(idx.Manifests)
 	newIndexBytes, err := json.Marshal(idx)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling index: %w", err)
@@ -367,9 +362,9 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 		return nil, fmt.Errorf("%s does not record its architecture: index is missing the %s annotation", opts.Source, AnnotationBundleArchitecture)
 	}
 	newIndexDesc.ArtifactType = MediaTypeBundle
-	newIndexDesc.Platform = &ocispec.Platform{Architecture: arch, OS: oci.MultiOS}
+	newIndexDesc.Platform = &ocispec.Platform{Architecture: arch, OS: ocipkg.MultiOS}
 
-	rootBytes, rootDesc, err := mergeRootIndex(ctx, repo, targetTag, newIndexDesc)
+	rootBytes, rootDesc, err := udsoci.MergeRootIndex(ctx, repo, targetTag, newIndexDesc)
 	if err != nil {
 		return nil, err
 	}
@@ -394,7 +389,7 @@ func reconfigureDefaultsData(opts ReconfigureOptions) ([]byte, error) {
 	if opts.materializedDefaults != nil {
 		return opts.materializedDefaults, nil
 	}
-	return materializeDefaultsFile(opts.DefaultsFile)
+	return bundlehcl.MaterializeDefaultsFile(opts.DefaultsFile)
 }
 
 // AnnotationReconfiguredFrom is the OCI manifest annotation that records
@@ -462,8 +457,8 @@ func spliceHCLName(hclBytes []byte, suffix string) ([]byte, error) {
 
 // rebuildDefinitionManifest replaces the HCL and defaults layers in the bundle
 // definition manifest, adds provenance annotation, and returns serialized JSON.
-func rebuildDefinitionManifest(original ociImageManifest, newDefaultsDesc ociDescriptor, newHCLDesc ociDescriptor, originalManifestDigest string) ([]byte, error) {
-	var layers []ociDescriptor
+func rebuildDefinitionManifest(original udsoci.OciImageManifest, newDefaultsDesc udsoci.OciDescriptor, newHCLDesc udsoci.OciDescriptor, originalManifestDigest string) ([]byte, error) {
+	var layers []udsoci.OciDescriptor
 	defaultsReplaced := false
 	hclReplaced := false
 
@@ -499,7 +494,7 @@ func rebuildDefinitionManifest(original ociImageManifest, newDefaultsDesc ociDes
 	annotations[ocispec.AnnotationCreated] = "1970-01-01T00:00:00Z"
 	annotations[AnnotationReconfiguredFrom] = originalManifestDigest
 
-	manifest := ociImageManifest{
+	manifest := udsoci.OciImageManifest{
 		SchemaVersion: original.SchemaVersion,
 		MediaType:     original.MediaType,
 		ArtifactType:  original.ArtifactType,
