@@ -6,7 +6,6 @@ package fetcher
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -132,93 +131,28 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, error) {
 		return nil, err
 	}
 
-	pkgTmp := pkgLayout.DirPath()
-
-	// get paths from pkgs to put in the bundle
-	var pathsToBundle []string
-
-	files, err := pkgLayout.Files()
-	if err != nil {
-		return nil, err
-	}
-	for fullpath := range files {
-		pathsToBundle = append(pathsToBundle, fullpath)
-	}
-
-	if len(f.pkg.OptionalComponents) > 0 {
-		// check if the images/index.json file exists in the pkgLayout using pkgLayout.GetImagesDirectory()
-		imageDir := pkgLayout.GetImageDirPath()
-		// check if the index.json file exists in the imageDir
-		var imgIndex ocispec.Index
-		if _, err := os.Stat(filepath.Join(imageDir, "index.json")); err == nil {
-			indexBytes, err := os.ReadFile(filepath.Join(imageDir, "index.json"))
-			if err != nil {
-				return nil, err
-			}
-			err = json.Unmarshal(indexBytes, &imgIndex)
-			if err != nil {
-				return nil, err
-			}
-		}
-		// go into the pkg's image index and filter out optional components, grabbing img manifests of imgs to include
-		imgManifestsToInclude, err := boci.FilterImageIndex(pkgLayout.Pkg.Components, imgIndex)
-		if err != nil {
-			return nil, err
-		}
-
-		// go through image index and get all images' config + layers
-		includeLayers, err := getImgLayerDigests(pkgLayout.DirPath(), imgManifestsToInclude)
-		if err != nil {
-			return nil, err
-		}
-
-		// filter paths to only include layers that are in includeLayers
-		filteredPaths := filterPkgPaths(pkgLayout, includeLayers, pkgLayout.Pkg.Components)
-		pathsToBundle = filteredPaths
-	}
-
 	rootManifestDesc, err := pkgLayout.Resolve(ctx, pkgLayout.Digest())
 	if err != nil {
 		return nil, err
 	}
-	// TODO: Use pkgLayout.Manifest() once it is available in a released Zarf SDK.
-	// https://github.com/zarf-dev/zarf/blob/main/src/pkg/packager/layout/oci.go#L275-L284
-	manifestBytes, err := content.FetchAll(ctx, pkgLayout, rootManifestDesc)
+	rootManifest, err := pkgLayout.Manifest()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading package manifest for %q: %w", f.pkg.Name, err)
 	}
-	var rootManifest ocispec.Manifest
-	if err := json.Unmarshal(manifestBytes, &rootManifest); err != nil {
-		return nil, err
+	descs, err := boci.SelectPackageContent(ctx, rootManifest, pkgLayout, f.pkg.OptionalComponents)
+	if err != nil {
+		return nil, fmt.Errorf("selecting layers for package %q: %w", f.pkg.Name, err)
 	}
-
-	layersByPath := make(map[string]ocispec.Descriptor, len(rootManifest.Layers))
-	for _, desc := range rootManifest.Layers {
-		layersByPath[desc.Annotations[ocispec.AnnotationTitle]] = desc
-	}
-
-	var descs []ocispec.Descriptor
-	for _, path := range pathsToBundle {
-		name, err := filepath.Rel(pkgTmp, path)
-		if err != nil {
-			return nil, err
-		}
-		desc, ok := layersByPath[filepath.ToSlash(name)]
-		if !ok {
-			return nil, fmt.Errorf("package layer %q is missing from the Zarf manifest", name)
-		}
-		if err := copyPackageBlob(ctx, pkgLayout, f.cfg.Store, desc); err != nil {
-			return nil, err
-		}
-		descs = append(descs, desc)
-	}
-
-	for _, desc := range []ocispec.Descriptor{rootManifestDesc, rootManifest.Config} {
+	for _, desc := range descs {
 		if err := copyPackageBlob(ctx, pkgLayout, f.cfg.Store, desc); err != nil {
 			return nil, err
 		}
 	}
-	descs = append(descs, rootManifestDesc, rootManifest.Config)
+
+	if err := copyPackageBlob(ctx, pkgLayout, f.cfg.Store, rootManifestDesc); err != nil {
+		return nil, err
+	}
+	descs = append(descs, rootManifestDesc)
 
 	f.cfg.Bundle.Packages[f.cfg.PkgIter].Ref += "@" + rootManifestDesc.Digest.String()
 

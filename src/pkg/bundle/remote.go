@@ -27,6 +27,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"oras.land/oras-go/v2/content"
 	ocistore "oras.land/oras-go/v2/content/oci"
 )
 
@@ -115,7 +116,7 @@ func (op *ociProvider) CreateBundleSBOM(extractSBOM bool, bundleName string) ([]
 			continue
 		}
 		// grab sboms.tar and extract
-		sbomBytes, err := op.FetchLayer(ctx, sbomDesc)
+		sbomBytes, err := content.FetchAll(ctx, op.OrasRemote, sbomDesc)
 		if err != nil {
 			return warns, err
 		}
@@ -178,10 +179,13 @@ func (op *ociProvider) LoadBundle(opts types.BundlePullOptions, _ int) (*types.U
 	bundleLayers = append(bundleLayers, layersToPull...)
 
 	for _, pkg := range bundle.Packages {
-		// go through the pkg's layers and figure out which ones to pull based on the req'd + selected components
-		pkgLayers, _, err := boci.FindBundledPkgLayers(ctx, pkg, rootManifest, op.OrasRemote)
+		pkgManifestDigest, err := packageManifestDigest(pkg)
 		if err != nil {
 			return nil, nil, err
+		}
+		pkgLayers, err := boci.SelectBundledPackageContent(ctx, rootManifest, op.OrasRemote, pkgManifestDigest, pkg.OptionalComponents)
+		if err != nil {
+			return nil, nil, fmt.Errorf("selecting layers for package %q: %w", pkg.Name, err)
 		}
 
 		// check if the layer already exists in the cache or the store

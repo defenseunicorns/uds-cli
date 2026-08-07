@@ -10,7 +10,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
@@ -19,12 +21,11 @@ import (
 	"github.com/defenseunicorns/uds-cli/src/pkg/message"
 	"github.com/defenseunicorns/uds-cli/src/pkg/utils"
 	"github.com/defenseunicorns/uds-cli/src/types"
-	goyaml "github.com/goccy/go-yaml"
+	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
-	"github.com/zarf-dev/zarf/src/pkg/transform"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
@@ -254,170 +255,118 @@ func EnsureOCIPrefix(source string) string {
 	return source
 }
 
-// FindPkgLayers finds the necessary Zarf pkg layers from a remote OCI registry
-func FindPkgLayers(remote zoci.Remote, pkgRootManifest *oci.Manifest, optionalComponents []string) ([]ocispec.Descriptor, error) {
-	ctx := context.TODO()
-	zarfPkg, err := remote.FetchZarfYAML(ctx)
+// SelectPackageContent returns the Zarf package content needed for the required and selected optional components.
+// Path-bearing descriptors are preserved even when multiple paths reference the same content digest.
+func SelectPackageContent(ctx context.Context, manifest *oci.Manifest, fetcher content.Fetcher, optionalComponents []string, include ...zoci.LayerType) ([]ocispec.Descriptor, error) {
+	pkg, err := zoci.FetchZarfYAML(ctx, manifest, fetcher)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetching zarf package metadata: %w", err)
 	}
 
-	// ensure we're only pulling required components and optional components and images
-	var components []v1alpha1.ZarfComponent
-	for _, c := range zarfPkg.Components {
-		if c.Required != nil || slices.Contains(optionalComponents, c.Name) {
-			components = append(components, c)
-		}
+	components, err := filters.ForDeploy(strings.Join(optionalComponents, ","), false).Apply(pkg)
+	if err != nil {
+		return nil, fmt.Errorf("selecting zarf package components: %w", err)
 	}
-
-	// Get all the layers for relevant components, exclude images if it's a skeleton package
-	layerTypes := zoci.GetAllLayerTypes()
-	if zarfPkg.Build.Architecture == v1alpha1.SkeletonArch || strings.HasSuffix(remote.Repo().Reference.Reference, v1alpha1.SkeletonArch) {
-		layerTypes = helpers.RemoveMatches(layerTypes, func(lt zoci.LayerType) bool {
-			return lt == zoci.ImageLayers
+	if len(include) == 0 {
+		include = zoci.GetAllLayerTypes()
+	}
+	if pkg.Build.Architecture == v1alpha1.SkeletonArch {
+		include = helpers.RemoveMatches(include, func(layerType zoci.LayerType) bool {
+			return layerType == zoci.ImageLayers
 		})
 	}
-	layersFromComponents, err := remote.AssembleLayers(ctx, components, layerTypes...)
+
+	layers, err := zoci.AssembleLayers(ctx, manifest, fetcher, components, include...)
+	if err != nil {
+		return nil, fmt.Errorf("assembling zarf package layers: %w", err)
+	}
+	layers = append(layers, manifest.Config)
+	selected := make([]ocispec.Descriptor, 0, len(layers))
+	for _, desc := range layers {
+		if oci.IsEmptyDescriptor(desc) {
+			continue
+		}
+		if err := desc.Digest.Validate(); err != nil {
+			return nil, fmt.Errorf("selected descriptor has invalid digest %q: %w", desc.Digest, err)
+		}
+		selected = append(selected, desc)
+	}
+	return selected, nil
+}
+
+// SelectBundledPackageContent returns selected package content plus its manifest descriptor from a bundle manifest.
+func SelectBundledPackageContent(ctx context.Context, bundleManifest *oci.Manifest, fetcher content.Fetcher, manifestDigest digest.Digest, optionalComponents []string) ([]ocispec.Descriptor, error) {
+	manifestDesc := bundleManifest.Locate(manifestDigest.Encoded())
+	if oci.IsEmptyDescriptor(manifestDesc) {
+		return nil, fmt.Errorf("package manifest digest %s does not exist in bundle", manifestDigest)
+	}
+	manifest, err := oci.FetchUnmarshal[oci.Manifest](ctx, fetcher, json.Unmarshal, manifestDesc)
+	if err != nil {
+		return nil, fmt.Errorf("fetching package manifest %s: %w", manifestDigest, err)
+	}
+
+	// Bundles published with UDS CLI versions earlier than v0.35.1 may contain a package manifest
+	// without its referenced config blob because the tarball publisher copied manifest.Layers but
+	// not manifest.Config. The config is not required for deployment, so include it only when the
+	// bundle contains it. Publishing was corrected in
+	// https://github.com/defenseunicorns/uds-cli/pull/1449.
+	if !oci.IsEmptyDescriptor(manifest.Config) {
+		reader, err := fetcher.Fetch(ctx, manifest.Config)
+		if errors.Is(err, errdef.ErrNotFound) {
+			manifest.Config = ocispec.Descriptor{}
+		} else if err != nil {
+			return nil, fmt.Errorf("checking package manifest config %s: %w", manifest.Config.Digest, err)
+		} else if err := reader.Close(); err != nil {
+			return nil, fmt.Errorf("closing package manifest config %s: %w", manifest.Config.Digest, err)
+		}
+	}
+
+	selected, err := SelectPackageContent(ctx, &manifest, fetcher, optionalComponents)
 	if err != nil {
 		return nil, err
 	}
-
-	// get the layers that are always pulled
-	var metadataLayers []ocispec.Descriptor
-	for _, path := range zoci.PackageAlwaysPull {
-		layer := pkgRootManifest.Locate(path)
-		if !oci.IsEmptyDescriptor(layer) {
-			metadataLayers = append(metadataLayers, layer)
-		}
-	}
-	layersToCopy := append(layersFromComponents, metadataLayers...)
-	layersToCopy = append(layersToCopy, pkgRootManifest.Config)
-	return layersToCopy, err
+	return append(selected, manifestDesc), nil
 }
 
-// FilterImageIndex filters out optional components from the images index
-func FilterImageIndex(components []v1alpha1.ZarfComponent, imgIndex ocispec.Index) ([]ocispec.Descriptor, error) {
-	// include only images that are in the components using a map to dedup manifests
-	manifestIncludeMap := map[string]ocispec.Descriptor{}
-	for _, manifest := range imgIndex.Manifests {
-		for _, component := range components {
-			for _, imgName := range component.GetImages() {
-				refInfo, err := transform.ParseImageRef(imgName)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse image ref %q: %w", imgName, err)
-				}
-
-				// include backwards compatibility shim for older Zarf versions that would leave docker.io off of image annotations
-				dockerShimPath := refInfo.Host + "/" + refInfo.Path + refInfo.TagOrDigest
-				annotationBaseImageName := manifest.Annotations[ocispec.AnnotationBaseImageName]
-				if annotationBaseImageName == imgName ||
-					(refInfo.Host == "docker.io" && annotationBaseImageName == dockerShimPath) ||
-					annotationBaseImageName == refInfo.Reference {
-					manifestIncludeMap[manifest.Digest.Hex()] = manifest
-				}
-			}
+// MaterializePackagePaths writes any selected titled descriptor that a content-deduplicating copy skipped.
+func MaterializePackagePaths(ctx context.Context, fetcher content.Fetcher, destination string, descriptors []ocispec.Descriptor) error {
+	for _, desc := range descriptors {
+		title := desc.Annotations[ocispec.AnnotationTitle]
+		if title == "" {
+			continue
 		}
-	}
-	// convert map to list and rewrite the index manifests
-	var manifestsToInclude []ocispec.Descriptor
-	for _, manifest := range manifestIncludeMap {
-		manifestsToInclude = append(manifestsToInclude, manifest)
-	}
+		cleanPath := filepath.Clean(filepath.FromSlash(title))
+		if filepath.IsAbs(cleanPath) || cleanPath == ".." || strings.HasPrefix(cleanPath, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("invalid package path %q", title)
+		}
+		target := filepath.Join(destination, cleanPath)
+		if _, err := os.Stat(target); err == nil {
+			continue
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
 
-	return manifestsToInclude, nil
-}
-
-// FindBundledPkgLayers finds the necessary Zarf pkg layers from a remote bundle
-func FindBundledPkgLayers(ctx context.Context, pkg types.Package, rootManifest *oci.Manifest, remote *oci.OrasRemote) ([]ocispec.Descriptor, int64, error) {
-	var layersToPull []ocispec.Descriptor
-	estPkgBytes := int64(0)
-
-	// grab sha of zarf image manifest and pull it down
-	sha := strings.Split(pkg.Ref, "@sha256:")[1] // this is where we use the SHA appended to the Zarf pkg inside the bundle
-	manifestDesc := rootManifest.Locate(sha)
-	manifestBytes, err := remote.FetchLayer(ctx, manifestDesc)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	// unmarshal the zarf image manifest and add it to the layers to pull
-	var manifest oci.Manifest
-	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
-		return nil, 0, err
-	}
-
-	layersToPull = append(layersToPull, manifestDesc)
-	if manifest.Config.Digest != "" {
-		exists, err := remote.Repo().Exists(ctx, manifest.Config)
+		reader, err := fetcher.Fetch(ctx, desc)
 		if err != nil {
-			return nil, 0, err
+			return fmt.Errorf("fetching package path %q: %w", title, err)
 		}
-		if exists {
-			layersToPull = append(layersToPull, manifest.Config)
+		if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+			reader.Close()
+			return err
 		}
-	}
-
-	filteredComponents, err := getFilteredComponents(ctx, remote, manifest, pkg.OptionalComponents)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	// go through manifest layers and add to layersToPull as appropriate
-	var imgIndex ocispec.Index
-
-	// map layer digests to their annotations, ensure annotations are included bc sometimes image layers don't have them
-	// and we use them to determine if a layer should be cached or not
-	layerTitleAnnotations := map[string]string{}
-
-	for _, desc := range manifest.Layers {
-		descAnnotationTitle := desc.Annotations[ocispec.AnnotationTitle]
-		layerTitleAnnotations[desc.Digest.Encoded()] = descAnnotationTitle
-		if descAnnotationTitle == "images/index.json" {
-			imgIndex, err = handleImgIndex(ctx, remote, desc)
-			if err != nil {
-				return nil, 0, err
-			}
-			layersToPull = append(layersToPull, desc)
-		} else if strings.HasPrefix(descAnnotationTitle, "components/") {
-			if shouldInclude := utils.IncludeComponent(descAnnotationTitle, filteredComponents); shouldInclude {
-				layersToPull = append(layersToPull, desc)
-			}
-		} else if !strings.Contains(descAnnotationTitle, config.BlobsDir) {
-			// not a blob or component, add to layersToPull
-			layersToPull = append(layersToPull, desc)
-		}
-	}
-
-	// get only image manifests that are part of req'd + selected components
-	manifestsToInclude, err := FilterImageIndex(filteredComponents, imgIndex)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	// Grab the full descriptor graph for included images. Entries in images/index.json can be
-	// either image manifests or nested multi-platform image indexes.
-	seenImageDescriptors := map[string]struct{}{}
-	for _, desc := range manifestsToInclude {
-		imageDescriptors, err := collectImageDescriptors(ctx, remote.Repo().Blobs(), desc, seenImageDescriptors)
+		file, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 		if err != nil {
-			return nil, 0, err
+			reader.Close()
+			return err
 		}
-		layersToPull = append(layersToPull, imageDescriptors...)
+		_, copyErr := io.Copy(file, reader)
+		closeErr := errors.Join(file.Close(), reader.Close())
+		if err := errors.Join(copyErr, closeErr); err != nil {
+			_ = os.Remove(target)
+			return fmt.Errorf("writing package path %q: %w", title, err)
+		}
 	}
-
-	// loop through layersToPull and add up bytes and set title annotations
-	for i, layer := range layersToPull {
-		if layer.Digest == "" {
-			return nil, 0, fmt.Errorf("descriptor with media type %q has an empty digest", layer.MediaType)
-		}
-		title, hasTitle := layerTitleAnnotations[layer.Digest.Encoded()]
-		if layer.Annotations == nil && hasTitle {
-			layersToPull[i].Annotations = map[string]string{ocispec.AnnotationTitle: title}
-		}
-		estPkgBytes += layer.Size
-	}
-
-	return layersToPull, estPkgBytes, nil
+	return nil
 }
 
 // CopyLayers uses ORAS to copy layers from a remote repo to a local OCI store
@@ -448,76 +397,4 @@ func CopyLayers(layersToPull []ocispec.Descriptor, estimatedBytes int64, tmpDstD
 		return ocispec.Descriptor{}, err
 	}
 	return rootDesc, nil
-}
-
-// collectImageDescriptors recursively collects an image manifest or index and all of its
-// successors. The seen map is shared across roots to avoid copying duplicate image blobs.
-func collectImageDescriptors(ctx context.Context, fetcher content.Fetcher, desc ocispec.Descriptor, seen map[string]struct{}) ([]ocispec.Descriptor, error) {
-	if desc.Digest == "" {
-		return nil, fmt.Errorf("image descriptor with media type %q has an empty digest", desc.MediaType)
-	}
-	if err := desc.Digest.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid image descriptor digest %q: %w", desc.Digest, err)
-	}
-
-	digest := desc.Digest.String()
-	if _, ok := seen[digest]; ok {
-		return nil, nil
-	}
-	seen[digest] = struct{}{}
-
-	successors, err := content.Successors(ctx, fetcher, desc)
-	if err != nil {
-		return nil, fmt.Errorf("unable to get successors for image descriptor %s: %w", desc.Digest, err)
-	}
-
-	descriptors := []ocispec.Descriptor{desc}
-	for _, successor := range successors {
-		nestedDescriptors, err := collectImageDescriptors(ctx, fetcher, successor, seen)
-		if err != nil {
-			return nil, err
-		}
-		descriptors = append(descriptors, nestedDescriptors...)
-	}
-	return descriptors, nil
-}
-
-func handleImgIndex(ctx context.Context, remote *oci.OrasRemote, desc ocispec.Descriptor) (ocispec.Index, error) {
-	indexBytes, err := remote.FetchLayer(ctx, desc)
-	if err != nil {
-		return ocispec.Index{}, err
-	}
-
-	var index ocispec.Index
-	if err := json.Unmarshal(indexBytes, &index); err != nil {
-		return ocispec.Index{}, err
-	}
-	return index, nil
-}
-
-func getFilteredComponents(ctx context.Context, remote *oci.OrasRemote, manifest oci.Manifest, optionalComponents []string) ([]v1alpha1.ZarfComponent, error) {
-	// get Zarf pkg from manifest
-	var zarfPkg v1alpha1.ZarfPackage
-	for _, desc := range manifest.Layers {
-		if desc.Annotations[ocispec.AnnotationTitle] == config.ZarfYAML {
-			zarfYAMLBytes, err := remote.FetchLayer(ctx, desc)
-			if err != nil {
-				return nil, err
-			}
-			if err := goyaml.Unmarshal(zarfYAMLBytes, &zarfPkg); err != nil {
-				return nil, err
-			}
-			break
-		}
-	}
-
-	// create filter for optional components and filter the pkg
-	createFilter := filters.Combine(
-		filters.ForDeploy(strings.Join(optionalComponents, ","), false),
-	)
-	filteredComponents, err := createFilter.Apply(zarfPkg)
-	if err != nil {
-		return nil, err
-	}
-	return filteredComponents, nil
 }

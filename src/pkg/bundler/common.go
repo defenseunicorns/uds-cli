@@ -6,20 +6,29 @@ package bundler
 
 import (
 	"errors"
-	"fmt"
-	"strings"
 
-	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/pkg/oci"
-	"github.com/defenseunicorns/uds-cli/src/pkg/message"
-	"github.com/defenseunicorns/uds-cli/src/pkg/utils/boci"
 	"github.com/defenseunicorns/uds-cli/src/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
-	"oras.land/oras-go/v2/registry"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
 
-// copied from: https://github.com/zarf-dev/zarf/blob/main/src/pkg/oci/push.go
+func platformForBundle(bundle *types.UDSBundle) (ocispec.Platform, error) {
+	if bundle.Metadata.Architecture == "" {
+		return ocispec.Platform{}, errors.New("architecture is required for bundling")
+	}
+	return ocispec.Platform{Architecture: bundle.Build.Architecture, OS: oci.MultiOS}, nil
+}
+
+func manifestConfigAnnotationsFromMetadata(metadata *types.UDSMetadata) map[string]string {
+	return map[string]string{
+		ocispec.AnnotationTitle:       metadata.Name,
+		ocispec.AnnotationDescription: metadata.Description,
+	}
+}
+
+// manifestAnnotationsFromMetadata maps UDS metadata to standard OCI annotations.
 func manifestAnnotationsFromMetadata(metadata *types.UDSMetadata) map[string]string {
 	annotations := map[string]string{
 		ocispec.AnnotationDescription: metadata.Description,
@@ -44,42 +53,17 @@ func manifestAnnotationsFromMetadata(metadata *types.UDSMetadata) map[string]str
 	return annotations
 }
 
-// copied from: https://github.com/zarf-dev/zarf/blob/main/src/pkg/oci/push.go
-func pushManifestConfigFromMetadata(r *oci.OrasRemote, metadata *types.UDSMetadata, build *types.UDSBuildData) (ocispec.Descriptor, error) {
-	annotations := map[string]string{
-		ocispec.AnnotationTitle:       metadata.Name,
-		ocispec.AnnotationDescription: metadata.Description,
-	}
-	manifestConfig := oci.ConfigPartial{
-		Architecture: build.Architecture,
-		OCIVersion:   "1.0.1",
-		Annotations:  annotations,
-	}
-	manifestConfigDesc, err := boci.ToOCIRemote(manifestConfig, layout.ZarfLayerMediaTypeBlob, r)
-	if err != nil {
-		return ocispec.Descriptor{}, err
-	}
-	return *manifestConfigDesc, nil
-}
-
-// copied from: https://github.com/zarf-dev/zarf/blob/main/src/pkg/oci/utils.go
+// referenceFromMetadata builds the canonical OCI publishing reference for a UDS bundle.
 func referenceFromMetadata(registryLocation string, metadata *types.UDSMetadata) (string, error) {
-	ver := metadata.Version
-	if len(ver) == 0 {
-		return "", errors.New("version is required for publishing")
+	pkg := v1alpha1.ZarfPackage{
+		Metadata: v1alpha1.ZarfMetadata{
+			Name:    metadata.Name,
+			Version: metadata.Version,
+		},
 	}
-
-	if !strings.HasSuffix(registryLocation, "/") {
-		registryLocation = registryLocation + "/"
-	}
-	registryLocation = strings.TrimPrefix(registryLocation, helpers.OCIURLPrefix)
-	raw := fmt.Sprintf("%s%s:%s", registryLocation, metadata.Name, ver)
-
-	message.Debug("Raw OCI reference from metadata:", raw)
-	ref, err := registry.ParseReference(raw)
+	ref, err := zoci.ReferenceFromMetadata(registryLocation, pkg)
 	if err != nil {
 		return "", err
 	}
-
 	return ref.String(), nil
 }

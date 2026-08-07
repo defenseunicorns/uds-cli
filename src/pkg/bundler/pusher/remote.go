@@ -18,6 +18,7 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	"oras.land/oras-go/v2/content"
 )
 
 // RemotePusher contains methods for pulling remote Zarf packages into a bundle
@@ -69,7 +70,7 @@ func (p *RemotePusher) Push() (ocispec.Descriptor, error) {
 func (p *RemotePusher) layersToRemoteBundle(spinner *message.Spinner) error {
 	spinner.Updatef("Fetching %s package layer metadata (package %d of %d)", p.pkg.Name, p.cfg.PkgIter+1, p.cfg.NumPkgs)
 	// get only the layers that are required by the components
-	layersToCopy, err := boci.FindPkgLayers(p.cfg.RemoteSrc, p.cfg.PkgRootManifest, p.pkg.OptionalComponents)
+	layersToCopy, err := p.selectLayers(context.TODO(), &p.cfg.RemoteSrc)
 	if err != nil {
 		return err
 	}
@@ -80,6 +81,14 @@ func (p *RemotePusher) layersToRemoteBundle(spinner *message.Spinner) error {
 		return err
 	}
 	return nil
+}
+
+func (p *RemotePusher) selectLayers(ctx context.Context, fetcher content.Fetcher) ([]ocispec.Descriptor, error) {
+	layers, err := boci.SelectPackageContent(ctx, p.cfg.PkgRootManifest, fetcher, p.pkg.OptionalComponents)
+	if err != nil {
+		return nil, fmt.Errorf("selecting layers for package %q: %w", p.pkg.Name, err)
+	}
+	return layers, nil
 }
 
 // remoteToRemote copies a remote Zarf pkg to a remote OCI registry
