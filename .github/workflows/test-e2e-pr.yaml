@@ -1,7 +1,7 @@
 # Copyright 2024 Defense Unicorns
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
-name: E2E PR Tests
+name: PR Tests
 on:
   pull_request:
     paths-ignore:
@@ -25,9 +25,9 @@ permissions:
 
 # Abort prior jobs in the same workflow / PR
 concurrency:
-  group: e2e-k3d-${{ github.ref }}
+  group: test-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   test:
-    uses: ./.github/workflows/parallel-tests.yaml
+    uses: ./.github/workflows/test.yaml

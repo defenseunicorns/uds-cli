@@ -86,7 +86,7 @@ E2E tests reside in the `src/test/e2e` directory. They use bundles located in th
 We prefer to use Testify's [require](https://github.com/stretchr/testify/tree/master/require) package for assertions in tests. This package provides a rich set of assertion functions that make tests more readable and easier to debug. See other tests in this repo for examples.
 
 #### Running Tests
-- **Unit Tests**: Run `uds run test` from the repository root. This runs all unit tests in `src`.
+- **Unit Tests**: Run `uds run test:unit` from the repository root. This runs all unit tests in `src`.
 
 
-- **E2E Tests**: Build UDS CLI with `uds run build` before running E2E tasks; rebuild after source changes because the tests use `build/uds`. Run the focused E2E tasks listed by `uds run --list-all` (for example, `uds run test:bundle`). The `test:e2e-ghcr` task writes to GHCR and is intended for CI only.
+- **Integration Tests**: Build UDS CLI with `uds run build` before running integration tasks; rebuild after source changes because the tests use `build/uds`. Run `uds run test:integration` for cluster-free coverage, `uds run test:integration-cluster` against the existing `uds` dev-stack cluster, or `uds run test:uds-core-smoke` for disposable UDS Core smoke coverage. The cluster integration task never creates or deletes the dev-stack cluster. The `test:ghcr-write` task writes to GHCR and is intended for privileged nightly or release CI only.

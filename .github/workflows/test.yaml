@@ -1,0 +1,177 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+name: Canonical Tests
+
+on:
+  workflow_call:
+    inputs:
+      fetch_zarf:
+        description: Build the test binary with zarf@main
+        required: false
+        type: boolean
+        default: false
+      include_ghcr_write:
+        description: Run authenticated GHCR write tests after the standard matrix
+        required: false
+        type: boolean
+        default: false
+      include_uds_core_smoke:
+        description: Run UDS Core smoke tests after the standard matrix
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup development tools
+        uses: ./.github/actions/mise
+
+      - name: Run unit tests
+        shell: bash
+        run: |
+          set -o pipefail
+          uds run test:unit 2>&1 | tee "${RUNNER_TEMP}/uds-command-unit.log"
+
+      - name: Save diagnostics
+        if: always()
+        uses: ./.github/actions/save-logs
+        with:
+          suffix: unit
+
+  integration-tests:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Command Integration Tests
+            task: test:integration
+            timeout: 30
+            artifact: command-integration
+          - name: Cluster Integration Tests
+            task: test:integration-cluster
+            timeout: 55
+            artifact: cluster-integration
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup development tools
+        uses: ./.github/actions/mise
+
+      - name: Fetch zarf@main
+        if: inputs.fetch_zarf
+        run: go get github.com/zarf-dev/zarf@main
+
+      - name: Build UDS CLI
+        run: uds run build-cli-linux-amd
+
+      - name: Run ${{ matrix.name }}
+        shell: bash
+        run: |
+          set -o pipefail
+          build/uds run ${{ matrix.task }} 2>&1 | tee "${RUNNER_TEMP}/uds-command-${{ matrix.artifact }}.log"
+
+      - name: Save diagnostics
+        if: always()
+        uses: ./.github/actions/save-logs
+        with:
+          suffix: ${{ matrix.artifact }}
+
+  ghcr-write:
+    name: GHCR Write Tests
+    if: inputs.include_ghcr_write
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup development tools
+        uses: ./.github/actions/mise
+
+      - name: Fetch zarf@main
+        if: inputs.fetch_zarf
+        run: go get github.com/zarf-dev/zarf@main
+
+      - name: Build UDS CLI
+        run: uds run build-cli-linux-amd
+
+      - name: Login to GHCR
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run GHCR write tests
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -o pipefail
+          uds run test:ghcr-write 2>&1 | tee "${RUNNER_TEMP}/uds-command-ghcr-write.log"
+
+      - name: Save diagnostics
+        if: always()
+        uses: ./.github/actions/save-logs
+        with:
+          suffix: ghcr-write
+
+  uds-core-smoke:
+    name: UDS Core Smoke Tests
+    if: inputs.include_uds_core_smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup development tools
+        uses: ./.github/actions/mise
+
+      - name: Fetch zarf@main
+        if: inputs.fetch_zarf
+        run: go get github.com/zarf-dev/zarf@main
+
+      - name: Build UDS CLI
+        run: uds run build-cli-linux-amd
+
+      - name: Login to GHCR
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run UDS Core smoke tests
+        shell: bash
+        run: |
+          set -o pipefail
+          uds run test:uds-core-smoke 2>&1 | tee "${RUNNER_TEMP}/uds-command-uds-core-smoke.log"
+
+      - name: Save diagnostics
+        if: always()
+        uses: ./.github/actions/save-logs
+        with:
+          suffix: uds-core-smoke
