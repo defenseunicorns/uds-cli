@@ -33,34 +33,6 @@ func extractTarZst(ctx context.Context, streams iostreams.IOStreams, src, dst st
 	return zarfarchive.Decompress(ctx, src, dst, zarfarchive.DecompressOpts{OverwriteExisting: true})
 }
 
-// findOCILayoutRoot locates an OCI layout in the supported package directories.
-func findOCILayoutRoot(root string) (string, error) {
-	for _, dir := range []string{root, filepath.Join(root, "oci"), filepath.Join(root, "images")} {
-		if isOCILayoutDir(dir) {
-			return dir, nil
-		}
-	}
-	return "", fmt.Errorf("no OCI image layout found in %q", root)
-}
-
-// isOCILayoutDir reports whether a directory has the required OCI layout structure.
-func isOCILayoutDir(dir string) bool {
-	if dir == "" {
-		return false
-	}
-	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
-		return false
-	}
-	if _, err := os.Stat(filepath.Join(dir, "oci-layout")); err != nil {
-		return false
-	}
-	if _, err := os.Stat(filepath.Join(dir, "index.json")); err != nil {
-		return false
-	}
-	st, err := os.Stat(filepath.Join(dir, "blobs", "sha256"))
-	return err == nil && st.IsDir()
-}
-
 // resolvedPath returns the absolute path to the local source, resolving
 // relative paths against bundleDir.
 func (s *localSource) resolvedPath() string {
@@ -186,50 +158,7 @@ func (s *localSource) IngestFiltered(ctx context.Context, filter filters.Compone
 		return manifests, nil
 	}
 
-	// Standard OCI layout: copy blobs
-	root, err := findOCILayoutRoot(layoutRoot)
-	if err != nil {
-		return nil, err
-	}
-
-	idxBytes, err := os.ReadFile(filepath.Join(root, "index.json"))
-	if err != nil {
-		return nil, err
-	}
-	var srcIndex ociIndex
-	if err := json.Unmarshal(idxBytes, &srcIndex); err != nil {
-		return nil, err
-	}
-	if len(srcIndex.Manifests) == 0 {
-		return nil, fmt.Errorf("no manifests found in index.json")
-	}
-
-	srcBlobDir := filepath.Join(root, "blobs", "sha256")
-	matched := filterOCIManifestsByArch(srcIndex.Manifests, s.arch)
-	if len(matched) == 0 {
-		return nil, fmt.Errorf("no manifests found matching architecture %q in %q", s.arch, s.path)
-	}
-
-	if err := udsoci.CopyRequiredBlobsFromLayout(blobDir, srcBlobDir, matched); err != nil {
-		return nil, err
-	}
-
-	for i := range matched {
-		if matched[i].MediaType == "" {
-			matched[i].MediaType = specv1.MediaTypeImageManifest
-		}
-	}
-
-	// Apply component filtering to any Zarf manifests in the OCI layout
-	for i, m := range matched {
-		filtered, err := filterIngestedManifest(ctx, s.streams, blobDir, m, filter)
-		if err != nil {
-			return nil, fmt.Errorf("filtering local OCI layout: %w", err)
-		}
-		matched[i] = filtered
-	}
-
-	return matched, nil
+	return nil, fmt.Errorf("unsupported local package source %q: does not contain a Zarf package (missing zarf.yaml); OCI layouts are not supported", s.path)
 }
 
 // ingestZarfPackage converts a traditional Zarf package directory to OCI layer format

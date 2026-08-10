@@ -82,16 +82,39 @@ func TestLocalSource_IngestFiltered_ZarfPackage(t *testing.T) {
 	assert.Equal(t, "application/vnd.oci.image.manifest.v1+json", manifests[0].MediaType)
 }
 
-func TestLocalSource_IngestFiltered_OCILayout(t *testing.T) {
-	layoutDir := t.TempDir()
-	writeMinimalOCILayout(t, layoutDir)
+func TestLocalSource_IngestFiltered_RejectsOCILayout(t *testing.T) {
+	tests := []struct {
+		name   string
+		source func(t *testing.T) string
+	}{
+		{
+			name: "directory",
+			source: func(t *testing.T) string {
+				layoutDir := t.TempDir()
+				writeMinimalOCILayout(t, layoutDir)
+				return layoutDir
+			},
+		},
+		{
+			name: "tar zst archive",
+			source: func(t *testing.T) string {
+				layoutDir := t.TempDir()
+				writeMinimalOCILayout(t, layoutDir)
+				archivePath := filepath.Join(t.TempDir(), "layout.tar.zst")
+				require.NoError(t, writeTestTarZst(t, archivePath, layoutDir))
+				return archivePath
+			},
+		},
+	}
 
-	blobDir := t.TempDir()
-
-	src := &localSource{path: layoutDir, arch: "amd64", bundleDir: ""}
-	manifests, err := src.IngestFiltered(t.Context(), filters.Empty(), blobDir)
-	require.NoError(t, err)
-	assert.NotEmpty(t, manifests)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			src := &localSource{path: tt.source(t), arch: "amd64", streams: iostreams.IOStreams{}}
+			_, err := src.IngestFiltered(t.Context(), filters.Empty(), t.TempDir())
+			require.ErrorContains(t, err, "does not contain a Zarf package")
+			require.ErrorContains(t, err, "OCI layouts are not supported")
+		})
+	}
 }
 
 func TestLocalSource_IngestFiltered_RelativePath(t *testing.T) {

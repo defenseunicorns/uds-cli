@@ -18,12 +18,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func writeMinimalZarfPackage(t *testing.T, dir string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(dir, tempDirPerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte("metadata:\n  name: test\n  version: 0.0.1\ncomponents: []\n"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "checksums.txt"), nil, tmpFilePerm))
+}
+
 func TestCreate_BuildsTarZstWithExpectedLayout(t *testing.T) {
 	dir := t.TempDir()
 
 	localLayout := filepath.Join(dir, "localpkg")
-	digests := writeMinimalOCILayout(t, localLayout)
-	manifestHex, configHex, layerHex := digests.ManifestHex, digests.ConfigHex, digests.LayerHex
+	writeMinimalZarfPackage(t, localLayout)
 
 	valuesDir := filepath.Join(dir, "values")
 	require.NoError(t, os.MkdirAll(valuesDir, tempDirPerm))
@@ -58,9 +64,6 @@ package "pkg1" {
 
 	require.Contains(t, entries, "oci/oci-layout")
 	require.Contains(t, entries, "oci/index.json")
-	require.Contains(t, entries, "oci/blobs/sha256/"+manifestHex)
-	require.Contains(t, entries, "oci/blobs/sha256/"+configHex)
-	require.Contains(t, entries, "oci/blobs/sha256/"+layerHex)
 	require.True(t, bundleDefinitionContainsLayerTitle(t, entries, "bundle.uds.hcl"))
 	require.True(t, bundleDefinitionContainsLayerTitle(t, entries, "values/pkg1/0.yaml"))
 
@@ -76,6 +79,7 @@ package "pkg1" {
 
 	var cfgDigest string
 	for _, m := range idx.Manifests {
+		require.Contains(t, entries, "oci/blobs/sha256/"+strings.TrimPrefix(m.Digest, "sha256:"))
 		if m.ArtifactType == MediaTypeBundleDefinition {
 			cfgDigest = m.Digest
 		}
@@ -116,8 +120,8 @@ package "pkg1" {
 func TestCreate_SharedValuesFileDeduplicatedInOCIStore(t *testing.T) {
 	dir := t.TempDir()
 
-	writeMinimalOCILayout(t, filepath.Join(dir, "pkg1"))
-	writeMinimalOCILayout(t, filepath.Join(dir, "pkg2"))
+	writeMinimalZarfPackage(t, filepath.Join(dir, "pkg1"))
+	writeMinimalZarfPackage(t, filepath.Join(dir, "pkg2"))
 
 	valuesDir := filepath.Join(dir, "values")
 	require.NoError(t, os.MkdirAll(valuesDir, tempDirPerm))
@@ -201,122 +205,10 @@ package "pkg2" {
 	require.Contains(t, entries, blobPath)
 }
 
-// TestCreate_MultiArchLocalLayout verifies that when a local package directory
-// contains a multi-platform OCI index, only the manifest for the requested
-// architecture is ingested into the bundle.
-func TestCreate_MultiArchLocalLayout(t *testing.T) {
-	dir := t.TempDir()
-
-	// Create a local two-arch OCI layout (amd64 + arm64).
-	localLayout := filepath.Join(dir, "multipkg")
-	writeMultiArchOCILayout(t, localLayout, []string{"amd64", "arm64"})
-
-	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
-	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
-  bundle_api_version = "uds.dev/v1alpha1"
-}
-
-metadata {
-  name    = "multiarch-test"
-  version = "0.0.1"
-}
-
-package "pkg1" {
-  source = "multipkg"
-  signature_verification { verify = false }
-}
-`), tmpFilePerm))
-
-	// Build for amd64 explicitly.
-	_, err := Create(t.Context(), CreateOptions{
-		Config:     newTestConfigWithArch("amd64"),
-		BundleFile: bundleFile,
-		Streams:    iostreams.New(nil, nil, io.Discard),
-	})
-	require.NoError(t, err)
-
-	outPath := filepath.Join(dir, "uds-bundle-multiarch-test-amd64-0.0.1.tar.zst")
-	entries := readTarZstEntries(t, outPath)
-
-	// Parse the bundle's OCI index and collect manifest digests.
-	idxRaw, ok := entries["oci/index.json"]
-	require.True(t, ok, "oci/index.json not found in bundle")
-
-	type indexEntry struct {
-		Digest       string `json:"digest"`
-		ArtifactType string `json:"artifactType,omitempty"`
-		Platform     *struct {
-			Architecture string `json:"architecture"`
-		} `json:"platform,omitempty"`
-	}
-	type indexFile struct {
-		Manifests []indexEntry `json:"manifests"`
-	}
-	var idx indexFile
-	require.NoError(t, json.Unmarshal(idxRaw, &idx))
-
-	// Filter out the bundle definition manifest; only package manifests remain.
-	var pkgManifests []indexEntry
-	for _, m := range idx.Manifests {
-		if m.ArtifactType != MediaTypeBundleDefinition {
-			pkgManifests = append(pkgManifests, m)
-		}
-	}
-
-	// Exactly one package manifest should be present and it should be amd64.
-	require.Len(t, pkgManifests, 1, "expected exactly one platform manifest in bundle index")
-	require.NotNil(t, pkgManifests[0].Platform)
-	require.Equal(t, "amd64", pkgManifests[0].Platform.Architecture)
-}
-
-// TestCreate_OptionalComponentBlobsRemoved verifies that when a Zarf package is
-// ingested without listing any optional_components, the optional component layer
-// blobs are absent from the output bundle (not just missing from the manifest).
-func TestCreate_OptionalComponentBlobsRemoved(t *testing.T) {
-	dir := t.TempDir()
-
-	// Create a Zarf-like local layout: "core" (required) + "logging" (optional).
-	layoutDir := filepath.Join(dir, "zarfpkg")
-	digests := WriteZarfLikeOCILayout(t, layoutDir, []string{"core"}, []string{"logging"})
-	compDigests := digests.ComponentHexes
-
-	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
-	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
-  bundle_api_version = "uds.dev/v1alpha1"
-}
-
-metadata {
-  name    = "gc-test"
-  version = "0.0.1"
-}
-
-package "pkg1" {
-  source = "zarfpkg"
-  signature_verification { verify = false }
-}
-`), tmpFilePerm))
-
-	_, err := Create(t.Context(), CreateOptions{
-		Config:     newTestConfig(),
-		BundleFile: bundleFile,
-		Streams:    iostreams.New(nil, nil, io.Discard),
-	})
-	require.NoError(t, err)
-
-	outPath := filepath.Join(dir, "uds-bundle-gc-test-"+runtime.GOARCH+"-0.0.1.tar.zst")
-	entries := readTarZstEntries(t, outPath)
-
-	coreBlob := "oci/blobs/sha256/" + compDigests["core"]
-	require.Contains(t, entries, coreBlob, "required component blob should be present")
-
-	loggingBlob := "oci/blobs/sha256/" + compDigests["logging"]
-	require.NotContains(t, entries, loggingBlob, "optional component blob should be absent when not requested")
-}
-
 func TestCreate_DefaultsHCLIncludedWhenPresent(t *testing.T) {
 	dir := t.TempDir()
 
-	writeMinimalOCILayout(t, filepath.Join(dir, "localpkg"))
+	writeMinimalZarfPackage(t, filepath.Join(dir, "localpkg"))
 
 	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
 	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
@@ -392,7 +284,7 @@ package "pkg1" {
 func TestCreate_NoDefaultsHCL_NotIncluded(t *testing.T) {
 	dir := t.TempDir()
 
-	writeMinimalOCILayout(t, filepath.Join(dir, "localpkg"))
+	writeMinimalZarfPackage(t, filepath.Join(dir, "localpkg"))
 
 	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
 	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
@@ -432,7 +324,7 @@ func TestCreate_BundleIndexIsDeterministicAndSelfIdentifying(t *testing.T) {
 	// byte-identical bundle index (the fixture package content is random per
 	// fixture, so the source is built once).
 	dir := t.TempDir()
-	writeMinimalOCILayout(t, filepath.Join(dir, "localpkg"))
+	writeMinimalZarfPackage(t, filepath.Join(dir, "localpkg"))
 	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
 	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
   bundle_api_version = "uds.dev/v1alpha1"

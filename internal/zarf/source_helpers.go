@@ -32,22 +32,6 @@ func zarfComponentNameFromTitle(title string) (string, bool) {
 	return strings.TrimSuffix(name, ".tar"), true
 }
 
-// filterOCIManifestsByArch returns only the manifests that match the given
-// target architecture. Manifests with no platform info are always included.
-// Returns manifests unchanged when arch is empty.
-func filterOCIManifestsByArch(manifests []ociManifest, arch string) []ociManifest {
-	if arch == "" {
-		return manifests
-	}
-	var filtered []ociManifest
-	for _, m := range manifests {
-		if m.Platform == nil || m.Platform.Architecture == "" || m.Platform.Architecture == arch {
-			filtered = append(filtered, m)
-		}
-	}
-	return filtered
-}
-
 // isZarfOCIPackage returns true if the root manifest contains a zarf.yaml layer,
 // indicating it's a Zarf package that supports component-level filtering.
 func isZarfOCIPackage(root *oci.Manifest) bool {

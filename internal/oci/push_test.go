@@ -106,7 +106,7 @@ func TestPush_HappyPath(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
-	writeMinimalOCILayout(t, filepath.Join(dir, "localpkg"))
+	writeMinimalZarfPackage(t, filepath.Join(dir, "localpkg"))
 	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
 	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
   bundle_api_version = "uds.dev/v1alpha1"
@@ -164,7 +164,7 @@ func TestPush_InvalidOCIReference(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create a minimal bundle tarball.
-	writeMinimalOCILayout(t, filepath.Join(dir, "localpkg"))
+	writeMinimalZarfPackage(t, filepath.Join(dir, "localpkg"))
 	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
 	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
   bundle_api_version = "uds.dev/v1alpha1"
@@ -200,7 +200,7 @@ func TestPush_RegistryUnreachable(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
-	writeMinimalOCILayout(t, filepath.Join(dir, "localpkg"))
+	writeMinimalZarfPackage(t, filepath.Join(dir, "localpkg"))
 	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
 	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
   bundle_api_version = "uds.dev/v1alpha1"

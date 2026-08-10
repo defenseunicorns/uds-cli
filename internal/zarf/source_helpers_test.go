@@ -98,42 +98,6 @@ func TestZarfComponentNameFromTitle(t *testing.T) {
 	}
 }
 
-func TestFilterOCIManifestsByArch(t *testing.T) {
-	amd64 := &ocispec.Platform{OS: "linux", Architecture: "amd64"}
-	arm64 := &ocispec.Platform{OS: "linux", Architecture: "arm64"}
-
-	manifests := []ociManifest{
-		{Platform: amd64},
-		{Platform: arm64},
-		{Platform: nil},
-		{Platform: &ocispec.Platform{Architecture: ""}},
-	}
-
-	t.Run("empty arch returns all", func(t *testing.T) {
-		got := filterOCIManifestsByArch(manifests, "")
-		require.Equal(t, manifests, got)
-	})
-
-	t.Run("amd64 keeps amd64 and nil-platform", func(t *testing.T) {
-		got := filterOCIManifestsByArch(manifests, "amd64")
-		require.Len(t, got, 3)
-		assert.Equal(t, amd64, got[0].Platform)
-		assert.Nil(t, got[1].Platform)
-	})
-
-	t.Run("arm64 keeps arm64 and nil-platform", func(t *testing.T) {
-		got := filterOCIManifestsByArch(manifests, "arm64")
-		require.Len(t, got, 3)
-		assert.Equal(t, arm64, got[0].Platform)
-	})
-
-	t.Run("no matches returns nil slice", func(t *testing.T) {
-		onlyAMD := []ociManifest{{Platform: amd64}}
-		got := filterOCIManifestsByArch(onlyAMD, "arm64")
-		require.Empty(t, got)
-	})
-}
-
 // writeBlobJSON is a test helper that marshals v to JSON, writes it as a
 // content-addressed blob to blobDir, and returns its "sha256:<hex>" digest string.
 func writeBlobJSON(t *testing.T, blobDir string, v interface{}) string {

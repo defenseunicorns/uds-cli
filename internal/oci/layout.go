@@ -69,47 +69,6 @@ func packageRootDescriptor(ociDir string) (ocispec.Descriptor, error) {
 	}, nil
 }
 
-// findOCILayoutRoot locates the OCI image layout directory within root.
-// Search order:
-//  1. root itself (minimal test layouts, single-image packages)
-//  2. root/oci (UDS bundles created by this CLI)
-//  3. root/images (extracted Zarf package tar archives)
-func findOCILayoutRoot(root string) (string, error) {
-	if isOCILayoutDir(root) {
-		return root, nil
-	}
-	ociDir := filepath.Join(root, "oci")
-	if isOCILayoutDir(ociDir) {
-		return ociDir, nil
-	}
-	images := filepath.Join(root, "images")
-	if isOCILayoutDir(images) {
-		return images, nil
-	}
-	return "", fmt.Errorf("no OCI image layout found in %q", root)
-}
-
-// isOCILayoutDir reports whether dir contains the markers of a valid OCI image
-// layout: oci-layout file, index.json, and blobs/sha256/ directory.
-func isOCILayoutDir(dir string) bool {
-	if dir == "" {
-		return false
-	}
-	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
-		return false
-	}
-	if _, err := os.Stat(filepath.Join(dir, "oci-layout")); err != nil {
-		return false
-	}
-	if _, err := os.Stat(filepath.Join(dir, "index.json")); err != nil {
-		return false
-	}
-	if st, err := os.Stat(filepath.Join(dir, "blobs", "sha256")); err != nil || !st.IsDir() {
-		return false
-	}
-	return true
-}
-
 // verifyOCILayoutDigests walks the full digest chain of an extracted OCI image
 // layout and verifies that every blob matches its declared digest and size.
 // This is checksum verification, not cryptographic signature verification, which

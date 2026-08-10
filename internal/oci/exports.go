@@ -39,11 +39,6 @@ func CopyBlobFileIfMissingAndVerify(dstBlobDir, srcPath string, d digest.Digest)
 	return copyBlobFileIfMissingAndVerify(dstBlobDir, srcPath, d)
 }
 
-// CopyRequiredBlobsFromLayout copies manifests and referenced content between layouts.
-func CopyRequiredBlobsFromLayout(dstBlobDir, srcBlobDir string, manifests []OciManifest) error {
-	return copyRequiredBlobsFromLayout(dstBlobDir, srcBlobDir, manifests)
-}
-
 // WriteOCILayout writes an OCI layout marker file.
 func WriteOCILayout(path string) error {
 	return writeOCILayout(path)

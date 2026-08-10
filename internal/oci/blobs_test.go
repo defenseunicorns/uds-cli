@@ -197,45 +197,6 @@ func TestGcUnreferencedBlobs(t *testing.T) {
 	assert.True(t, os.IsNotExist(statErr), "orphan blob should have been removed")
 }
 
-func TestCopyRequiredBlobsFromLayout(t *testing.T) {
-	srcDir := t.TempDir()
-	dstDir := t.TempDir()
-
-	// Build a source layout with manifest + config + layer
-	configData := []byte(`{"architecture":"arm64"}`)
-	configDigest := digestOf(configData)
-	require.NoError(t, os.WriteFile(filepath.Join(srcDir, configDigest.Encoded()), configData, 0o644))
-
-	layerData := []byte("layer bytes")
-	layerDigest := digestOf(layerData)
-	require.NoError(t, os.WriteFile(filepath.Join(srcDir, layerDigest.Encoded()), layerData, 0o644))
-
-	im := ociImageManifest{
-		SchemaVersion: 2,
-		Config:        ociDescriptor{Digest: configDigest.String(), Size: int64(len(configData))},
-		Layers:        []ociDescriptor{{Digest: layerDigest.String(), Size: int64(len(layerData))}},
-	}
-	manifestBytes, err := json.Marshal(im)
-	require.NoError(t, err)
-	manifestDigest := digestOf(manifestBytes)
-	require.NoError(t, os.WriteFile(filepath.Join(srcDir, manifestDigest.Encoded()), manifestBytes, 0o644))
-
-	manifests := []ociManifest{{Digest: manifestDigest.String(), Size: int64(len(manifestBytes))}}
-
-	err = copyRequiredBlobsFromLayout(dstDir, srcDir, manifests)
-	require.NoError(t, err)
-
-	// All blobs should now exist in dst
-	for _, d := range []godigest.Digest{manifestDigest, configDigest, layerDigest} {
-		got, err := os.ReadFile(filepath.Join(dstDir, d.Encoded()))
-		require.NoError(t, err)
-
-		src, err := os.ReadFile(filepath.Join(srcDir, d.Encoded()))
-		require.NoError(t, err)
-		assert.Equal(t, src, got, "blob %s should match", d)
-	}
-}
-
 func TestParseDigest(t *testing.T) {
 	t.Run("valid digest", func(t *testing.T) {
 		d, err := parseDigest("sha256:" + strings.Repeat("ab", 32))

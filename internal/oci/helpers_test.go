@@ -90,6 +90,13 @@ func writeMinimalOCILayout(t *testing.T, ociDir string) {
 	}))
 }
 
+func writeMinimalZarfPackage(t *testing.T, dir string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(dir, tempDirPerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte("metadata:\n  name: test\n  version: 0.0.1\ncomponents: []\n"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "checksums.txt"), nil, tmpFilePerm))
+}
+
 // writeBundleOCILayout creates a test bundle OCI layout and returns its path.
 func writeBundleOCILayout(t *testing.T, name, version string) string {
 	t.Helper()
