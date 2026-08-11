@@ -194,9 +194,22 @@ func (c *localCreator) CreatePackage(ctx context.Context, pkg *spec.Package, opt
 	for i := range manifests {
 		ensureAnnotation(&manifests[i], "org.opencontainers.image.ref.name", refName)
 	}
+	annotatePackageVerification(manifests, loadOptions.VerificationStrategy != layout.VerifyNever)
 
 	c.manifests = append(c.manifests, manifests...)
 	return nil
+}
+
+func annotatePackageVerification(manifests []oci.OciManifest, verified bool) {
+	if !verified {
+		return
+	}
+	for i := range manifests {
+		if manifests[i].Annotations == nil {
+			manifests[i].Annotations = map[string]string{}
+		}
+		manifests[i].Annotations[oci.AnnotationPackageVerification] = oci.AnnotationPackageVerificationVerified
+	}
 }
 
 // BundleName returns the output filename for the bundle artifact.

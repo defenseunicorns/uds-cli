@@ -394,7 +394,7 @@ func reconfigureDefaultsData(opts ReconfigureOptions) ([]byte, error) {
 
 // AnnotationReconfiguredFrom is the OCI manifest annotation that records
 // the digest of the original bundle definition manifest.
-const AnnotationReconfiguredFrom = "org.defenseunicorns.uds.reconfigured-from"
+const AnnotationReconfiguredFrom = udsoci.AnnotationReconfiguredFrom
 
 // spliceHCLName uses the HCL AST to locate the metadata.name attribute and appends
 // the suffix to its value via in-byte replacement. This preserves all original

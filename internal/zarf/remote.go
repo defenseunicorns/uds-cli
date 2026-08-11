@@ -229,7 +229,7 @@ func (s *remoteSource) ingestResolved(ctx context.Context, resolved *resolvedLay
 	}
 
 	// Write config blob
-	configDesc, err := descriptorFromOCI(im.Config)
+	configDesc, err := udsoci.DescriptorFromOCI(im.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +274,7 @@ func (s *remoteSource) ingestResolved(ctx context.Context, resolved *resolvedLay
 				return udsoci.CopyBlobFileIfMissingAndVerify(blobDir, src, ld)
 			}
 
-			desc, err := descriptorFromOCI(l)
+			desc, err := udsoci.DescriptorFromOCI(l)
 			if err != nil {
 				return err
 			}

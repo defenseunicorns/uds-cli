@@ -7,14 +7,69 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"oras.land/oras-go/v2"
 )
 
-// ToInspectResult converts a UDSBundle to a serializable InspectResult.
+type inspectTargetResolver func(context.Context, string, *InspectOptions) (oras.Target, error)
+
+// Inspect reads a built local or OCI bundle.
+// It reads metadata only and does not verify package content or signatures.
+func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+	return inspect(ctx, opts, nil)
+}
+
+func inspect(ctx context.Context, opts InspectOptions, targetResolver inspectTargetResolver) (*InspectResult, error) {
+	opts.Streams = logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
+
+	var resolver artifact.InspectTargetResolver
+	if targetResolver != nil {
+		resolver = func(ctx context.Context, source string, _ *artifact.InspectOptions) (oras.Target, error) {
+			return targetResolver(ctx, source, &opts)
+		}
+	}
+
+	internalResult, err := artifact.Inspect(ctx, artifact.InspectOptions{
+		Source:  opts.Source,
+		Config:  toInternalConfig(opts.Config),
+		Streams: opts.Streams,
+	}, resolver)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := toInspectResult(ctx, internalResult.Bundle, opts.Streams)
+	if err != nil {
+		return nil, fmt.Errorf("inspecting bundle: %w", err)
+	}
+	result.ArtifactDigest = internalResult.ArtifactDigest
+	result.ReconfiguredFrom = internalResult.ReconfiguredFrom
+	result.BundleSignature = &BundleSignatureSummary{Status: BundleSignatureStatusNotChecked}
+
+	for i := range result.Packages {
+		summary, ok := internalResult.PackageSignatures[result.Packages[i].Name]
+		if !ok {
+			return nil, fmt.Errorf("package %q was not found in inspected bundle", result.Packages[i].Name)
+		}
+		result.Packages[i].Signature = &PackageSignatureSummary{
+			Signed:       packageSigningStatusString(summary.Signed),
+			Verification: packageVerificationStatusString(summary.Verification),
+		}
+	}
+
+	return result, nil
+}
+
+// toInspectResult converts a parsed bundle into its public inspection result.
 // Packages are listed in DAG (deployment) order.
-func ToInspectResult(ctx context.Context, b *spec.UDSBundle, streams iostreams.IOStreams) (*InspectResult, error) {
+func toInspectResult(ctx context.Context, b *spec.UDSBundle, streams iostreams.IOStreams) (*InspectResult, error) {
 	dag, err := bundlehcl.BuildDependencyGraph(ctx, streams, b)
 	if err != nil {
 		return nil, fmt.Errorf("building dependency graph: %w", err)
@@ -52,5 +107,27 @@ func toPackageSummary(pkg *spec.Package) PackageSummary {
 		Namespace:   pkg.Namespace,
 		DependsOn:   depNames,
 		ValuesFiles: pkg.ValuesFiles,
+	}
+}
+
+func packageSigningStatusString(status artifact.PackageSigningStatus) string {
+	switch status {
+	case artifact.PackageSigningStatusSigned:
+		return PackageSigningStatusSigned
+	case artifact.PackageSigningStatusUnsigned:
+		return PackageSigningStatusUnsigned
+	default:
+		return PackageSigningStatusUnknown
+	}
+}
+
+func packageVerificationStatusString(status artifact.PackageVerificationStatus) string {
+	switch status {
+	case artifact.PackageVerificationStatusVerified:
+		return PackageVerificationStatusVerified
+	case artifact.PackageVerificationStatusSkipped:
+		return PackageVerificationStatusSkipped
+	default:
+		return PackageVerificationStatusUnknown
 	}
 }

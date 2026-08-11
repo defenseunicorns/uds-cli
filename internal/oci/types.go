@@ -127,6 +127,15 @@ const (
 // self-describing and lets push populate the root index's platform entry.
 const AnnotationBundleArchitecture = "uds.dev/architecture"
 
+const (
+	// AnnotationPackageVerification records a successful package verification during bundle creation.
+	AnnotationPackageVerification = "uds.dev/package-verification"
+	// AnnotationPackageVerificationVerified is the persisted value for a successful verification.
+	AnnotationPackageVerificationVerified = "verified"
+	// AnnotationReconfiguredFrom records the source bundle definition digest used during reconfigure.
+	AnnotationReconfiguredFrom = "org.defenseunicorns.uds.reconfigured-from"
+)
+
 // OciIndex is the top-level OCI image index written to index.json.
 // For a UDS bundle child index, ArtifactType is MediaTypeBundle and
 // Annotations carries AnnotationBundleArchitecture; a multi-arch root index

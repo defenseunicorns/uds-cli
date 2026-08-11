@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	"github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
@@ -61,6 +62,19 @@ func TestLocalCreatorCreatePackageVerificationBoundary(t *testing.T) {
 		err := newLocalCreator("amd64").CreatePackage(t.Context(), nil, newOptions(t, t.TempDir(), iostreams.IOStreams{}))
 		require.ErrorContains(t, err, "package is required")
 	})
+}
+
+func TestAnnotatePackageVerification(t *testing.T) {
+	manifests := []oci.OciManifest{{}, {Annotations: map[string]string{"existing": "value"}}}
+	annotatePackageVerification(manifests, true)
+
+	for _, manifest := range manifests {
+		assert.Equal(t, oci.AnnotationPackageVerificationVerified, manifest.Annotations[oci.AnnotationPackageVerification])
+	}
+
+	manifests = []oci.OciManifest{{}}
+	annotatePackageVerification(manifests, false)
+	assert.Empty(t, manifests[0].Annotations)
 }
 
 func writeValidUnsignedPackage(t *testing.T, dir string) {

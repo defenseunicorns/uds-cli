@@ -267,23 +267,73 @@ type PullOptions struct {
 	PullHooks PullHooks
 }
 
+// InspectOptions configures inspection of a built bundle.
+type InspectOptions struct {
+	// Source is a local .tar.zst artifact or an OCI bundle reference.
+	Source string
+
+	// Config contains resolved CLI and registry settings.
+	Config *UDSBundleConfig
+
+	// Streams carries operation input and output streams.
+	Streams iostreams.IOStreams
+}
+
 // InspectResult represents the output of a bundle inspect operation.
 type InspectResult struct {
-	Name        string           `json:"name"        yaml:"name"        text:"Name"`
-	Description string           `json:"description" yaml:"description" text:"Description,omitempty"`
-	Version     string           `json:"version"     yaml:"version"     text:"Version,omitempty"`
-	Packages    []PackageSummary `json:"packages"    yaml:"packages"    text:"PACKAGES"`
+	Name             string                  `json:"name"                    yaml:"name"                    text:"Name"`
+	Description      string                  `json:"description"             yaml:"description"             text:"Description,omitempty"`
+	Version          string                  `json:"version"                 yaml:"version"                 text:"Version,omitempty"`
+	ArtifactDigest   string                  `json:"artifactDigest,omitempty" yaml:"artifactDigest,omitempty" text:"Artifact Digest,omitempty"`
+	ReconfiguredFrom string                  `json:"reconfiguredFrom,omitempty" yaml:"reconfiguredFrom,omitempty" text:"Reconfigured From,omitempty"`
+	BundleSignature  *BundleSignatureSummary `json:"bundleSignature,omitempty" yaml:"bundleSignature,omitempty" text:"Bundle Signature,omitempty"`
+	Packages         []PackageSummary        `json:"packages"                yaml:"packages"                text:"Packages"`
 }
+
+// BundleSignatureSummary reports bundle signature status.
+// Package metadata is not proof of bundle integrity.
+type BundleSignatureSummary struct {
+	Status string `json:"status" yaml:"status" text:"Status"`
+}
+
+const (
+	// BundleSignatureStatusNotChecked means verification was not performed.
+	BundleSignatureStatusNotChecked = "not_checked"
+)
 
 // PackageSummary is a serializable summary of a package within a bundle.
 // Packages are listed in DAG (deployment) order.
 type PackageSummary struct {
-	Name        string   `json:"name"                          yaml:"name"                          text:"Name"`
-	Source      string   `json:"source"                        yaml:"source"                        text:"Source"`
-	Namespace   string   `json:"namespace,omitempty"           yaml:"namespace,omitempty"           text:"Namespace,omitempty"`
-	DependsOn   []string `json:"dependsOn,omitempty"           yaml:"dependsOn,omitempty"           text:"DependsOn,omitempty"`
-	ValuesFiles []string `json:"valuesFiles,omitempty"         yaml:"valuesFiles,omitempty"         text:"Value Files,omitempty"`
+	Name        string                   `json:"name"                          yaml:"name"                          text:"Name"`
+	Source      string                   `json:"source"                        yaml:"source"                        text:"Source"`
+	Namespace   string                   `json:"namespace,omitempty"           yaml:"namespace,omitempty"           text:"Namespace,omitempty"`
+	DependsOn   []string                 `json:"dependsOn,omitempty"           yaml:"dependsOn,omitempty"           text:"DependsOn,omitempty"`
+	ValuesFiles []string                 `json:"valuesFiles,omitempty"         yaml:"valuesFiles,omitempty"         text:"Value Files,omitempty"`
+	Signature   *PackageSignatureSummary `json:"signature,omitempty"           yaml:"signature,omitempty"           text:"Signature,omitempty"`
 }
+
+// PackageSignatureSummary reports package metadata and the verification result
+// recorded during bundle creation. Inspect does not perform cryptographic verification.
+type PackageSignatureSummary struct {
+	Signed       string `json:"signed"       yaml:"signed"       text:"Signed"`
+	Verification string `json:"verification" yaml:"verification" text:"Verification Posture"`
+}
+
+const (
+	// PackageSigningStatusSigned means package metadata marks it signed.
+	PackageSigningStatusSigned = "signed"
+	// PackageSigningStatusUnsigned means package metadata marks it unsigned.
+	PackageSigningStatusUnsigned = "unsigned"
+	// PackageSigningStatusUnknown means signing metadata was unavailable.
+	PackageSigningStatusUnknown = "unknown"
+
+	// PackageVerificationStatusVerified means a persisted result records successful verification.
+	PackageVerificationStatusVerified = "verified"
+	// PackageVerificationStatusSkipped means verification was disabled.
+	PackageVerificationStatusSkipped = "skipped"
+	// PackageVerificationStatusUnknown means no posture was recorded.
+	PackageVerificationStatusUnknown = "unknown"
+)
 
 // CreateResult represents the output of a bundle create operation.
 type CreateResult struct {

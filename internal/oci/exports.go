@@ -19,6 +19,11 @@ func ParseDigest(value string) (digest.Digest, error) {
 	return parseDigest(value)
 }
 
+// ReferenceIdentifier returns the tag or digest portion of an OCI reference.
+func ReferenceIdentifier(ref string) (string, error) {
+	return refIdentifier(ref)
+}
+
 // SHA256Digest constructs a SHA-256 digest from its encoded value.
 func SHA256Digest(encoded string) digest.Digest {
 	return sha256Digest(encoded)

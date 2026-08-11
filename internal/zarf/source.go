@@ -13,7 +13,6 @@ import (
 	"github.com/defenseunicorns/pkg/oci"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
-	godigest "github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
@@ -120,20 +119,6 @@ func buildFilteredLayerList(ctx context.Context, remote *zoci.Remote, root *oci.
 	}
 
 	return oci.RemoveDuplicateDescriptors(all), nil
-}
-
-// descriptorFromOCI converts our internal ociDescriptor to an ocispec.Descriptor
-// for use with Zarf's remote fetch methods.
-func descriptorFromOCI(d ociDescriptor) (ocispec.Descriptor, error) {
-	digest, err := godigest.Parse(d.Digest)
-	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("invalid descriptor digest %q: %w", d.Digest, err)
-	}
-	return ocispec.Descriptor{
-		MediaType: d.MediaType,
-		Digest:    digest,
-		Size:      d.Size,
-	}, nil
 }
 
 // BuildComponentFilter creates a component filter strategy from optional component names.

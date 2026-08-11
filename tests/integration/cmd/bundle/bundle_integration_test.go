@@ -6,6 +6,7 @@
 package bundle_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"runtime"
 	"testing"
@@ -18,45 +19,94 @@ import (
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/defenseunicorns/uds-cli/tests/testutil"
+	"gopkg.in/yaml.v3"
 )
 
 func TestInspectCommand_Integration(t *testing.T) {
-	bundlePath := testutil.TestDataPath("bundles/spec-compliant/bundle.uds.hcl")
+	bundlePath := createInspectArtifact(t)
 
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 
-	root := bundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"inspect", bundlePath})
+	root := cli.NewRootCommand(streams)
+	root.SetArgs([]string{"bundle", "inspect", bundlePath})
 
 	err := root.Execute()
 	require.NoError(t, err)
 
 	output := out.String()
 
-	// Verify result fields (now via ResourcePrinter text output)
+	// Check fields through the built-artifact path.
 	assert.Contains(t, output, "Name:")
-	assert.Contains(t, output, "uds-core-example")
+	assert.Contains(t, output, "inspect-integration")
 	assert.Contains(t, output, "Version:")
-	assert.Contains(t, output, "0.1.0")
+	assert.Contains(t, output, "1.0.0")
 
-	// Verify PACKAGES section
-	assert.Contains(t, output, "PACKAGES (3)")
+	// Verify Packages section
+	assert.Contains(t, output, "Packages (1)")
+	assert.Contains(t, output, "pkg")
+	assert.Contains(t, output, "not_checked")
+}
 
-	// Verify locals were fully resolved
-	assert.NotContains(t, output, "${local.")
+func TestInspectCommand_StructuredOutput_Integration(t *testing.T) {
+	for _, format := range []string{"json", "yaml"} {
+		t.Run(format, func(t *testing.T) {
+			artifact := createInspectArtifact(t)
+			streams, _, out, _ := iostreams.NewTestIOStreams()
+			root := cli.NewRootCommand(streams)
+			root.SetArgs([]string{"bundle", "inspect", artifact, "--output", format})
+			require.NoError(t, root.Execute())
 
-	// Verify resolved source URLs contain the expected OCI prefix (version is managed by Renovate)
-	assert.Contains(t, output, "oci://ghcr.io/defenseunicorns/packages/uds/core-base:")
-	assert.NotContains(t, output, "${local.version}")
+			var result bundlepkg.InspectResult
+			if format == "json" {
+				require.NoError(t, json.Unmarshal(out.Bytes(), &result))
+			} else {
+				require.NoError(t, yaml.Unmarshal(out.Bytes(), &result))
+			}
 
-	// Verify depends_on and valuesFiles
-	assert.Contains(t, output, "DependsOn:")
-	assert.Contains(t, output, "core_base")
-	assert.Contains(t, output, "Value Files:")
-	assert.Contains(t, output, "values/loki.yaml, values/vector.yaml")
-	assert.Contains(t, output, "values/monitoring.yaml")
-	assert.Contains(t, output, "Namespace:")
-	assert.Contains(t, output, "monitoring")
+			assert.Equal(t, "inspect-integration", result.Name)
+			assert.Equal(t, "1.0.0", result.Version)
+			assert.NotEmpty(t, result.ArtifactDigest)
+			require.NotNil(t, result.BundleSignature)
+			assert.Equal(t, bundlepkg.BundleSignatureStatusNotChecked, result.BundleSignature.Status)
+			require.Len(t, result.Packages, 1)
+			assert.Equal(t, "pkg", result.Packages[0].Name)
+			require.NotNil(t, result.Packages[0].Signature)
+			assert.Equal(t, bundlepkg.PackageSigningStatusSigned, result.Packages[0].Signature.Signed)
+			assert.Equal(t, bundlepkg.PackageVerificationStatusSkipped, result.Packages[0].Signature.Verification)
+		})
+	}
+}
+
+func TestInspectOCICommand_Integration(t *testing.T) {
+	artifact := createInspectArtifact(t)
+	registryHost := startLocalRegistry(t)
+	ref := fmt.Sprintf("%s/test/inspect:v1.0.0", registryHost)
+	config := &bundlepkg.UDSBundleConfig{
+		Global: &bundlepkg.GlobalOptions{LogLevel: "info"},
+		Options: &bundlepkg.ConfigOptions{
+			Architecture: runtime.GOARCH,
+			Concurrency:  10,
+			PlainHTTP:    true,
+			TmpDir:       t.TempDir(),
+		},
+	}
+	_, err := bundlepkg.Push(t.Context(), artifact, ref, bundlepkg.PushOptions{Config: config})
+	require.NoError(t, err)
+
+	streams, _, out, _ := iostreams.NewTestIOStreams()
+	root := cli.NewRootCommand(streams)
+	root.SetArgs([]string{"bundle", "inspect", ref, "--plain-http", "--output", "json"})
+	require.NoError(t, root.Execute())
+
+	var result bundlepkg.InspectResult
+	require.NoError(t, json.Unmarshal(out.Bytes(), &result))
+	assert.Equal(t, "inspect-integration", result.Name)
+	assert.Equal(t, "1.0.0", result.Version)
+	assert.NotEmpty(t, result.ArtifactDigest)
+	require.Len(t, result.Packages, 1)
+	assert.Equal(t, "pkg", result.Packages[0].Name)
+	require.NotNil(t, result.Packages[0].Signature)
+	assert.Equal(t, bundlepkg.PackageSigningStatusSigned, result.Packages[0].Signature.Signed)
 }
 
 // Note: Error cases (OCI reference, file not found) are tested in unit tests

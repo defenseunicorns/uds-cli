@@ -7,9 +7,11 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
@@ -95,6 +97,25 @@ func (o CreateOptions) Validate() error {
 // Validate checks that PullOptions is valid.
 func (o PullOptions) Validate() error {
 	return ValidateConfig(o.Config)
+}
+
+// Validate checks the inspect source and configuration.
+func (o InspectOptions) Validate() error {
+	if err := ValidateConfig(o.Config); err != nil {
+		return err
+	}
+	if strings.TrimSpace(o.Source) == "" {
+		return fmt.Errorf("source must not be empty")
+	}
+
+	if IsOCIReference(o.Source) {
+		_, err := udsoci.ReferenceIdentifier(o.Source)
+		return err
+	}
+	if !IsTarZst(o.Source) {
+		return fmt.Errorf("source must be a .tar.zst bundle artifact or OCI reference")
+	}
+	return nil
 }
 
 // Validate checks that PushOptions is valid.

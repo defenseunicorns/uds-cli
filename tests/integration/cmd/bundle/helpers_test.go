@@ -11,6 +11,8 @@ import (
 	"io"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -19,7 +21,44 @@ import (
 	"github.com/stretchr/testify/require"
 
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
+
+func createInspectArtifact(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	pkgDir := filepath.Join(root, "pkg")
+	require.NoError(t, os.MkdirAll(pkgDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte("build:\n  signed: true\nmetadata:\n  name: test\n  version: 1.0.0\n"), 0o644))
+
+	bundleFile := filepath.Join(root, bundlepkg.BundleFileName)
+	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+metadata {
+  name    = "inspect-integration"
+  version = "1.0.0"
+}
+package "pkg" {
+  source = "pkg"
+  signature_verification { verify = false }
+}
+`), 0o644))
+
+	defaults := bundlepkg.ConfigOptions{
+		Architecture: runtime.GOARCH,
+		Concurrency:  10,
+		LogLevel:     "info",
+		TmpDir:       t.TempDir(),
+	}
+	result, err := bundlepkg.Create(t.Context(), bundlepkg.CreateOptions{
+		Config:     &bundlepkg.UDSBundleConfig{Global: &bundlepkg.GlobalOptions{LogLevel: "info"}, Options: &defaults},
+		BundleFile: bundleFile,
+		Streams:    iostreams.IOStreams{},
+	})
+	require.NoError(t, err)
+	return result.OutputPath
+}
 
 // readBundleEntries reads a bundle tar.zst and returns:
 //   - allPaths: set of every file path in the archive
@@ -209,7 +248,16 @@ func extractLayerFromBundle(t *testing.T, small map[string][]byte, title string)
 }
 
 // assertHasReconfiguredAnnotation verifies the bundle definition manifest has the provenance annotation.
-func assertHasReconfiguredAnnotation(t *testing.T, small map[string][]byte) {
+func assertHasReconfiguredAnnotation(t *testing.T, small map[string][]byte) string {
+	t.Helper()
+	value := reconfiguredAnnotation(t, small)
+	if !strings.HasPrefix(value, "sha256:") {
+		t.Fatal("reconfigured-from annotation should be a sha256 digest")
+	}
+	return value
+}
+
+func reconfiguredAnnotation(t *testing.T, small map[string][]byte) string {
 	t.Helper()
 
 	idxBytes, ok := small["oci/index.json"]
@@ -236,13 +284,12 @@ func assertHasReconfiguredAnnotation(t *testing.T, small map[string][]byte) {
 		}
 		require.NoError(t, json.Unmarshal(manifestBytes, &manifest))
 
-		if _, has := manifest.Annotations[bundlepkg.AnnotationReconfiguredFrom]; !has {
+		value, has := manifest.Annotations[bundlepkg.AnnotationReconfiguredFrom]
+		if !has {
 			t.Fatal("bundle definition manifest missing reconfigured-from annotation")
 		}
-		if !strings.HasPrefix(manifest.Annotations[bundlepkg.AnnotationReconfiguredFrom], "sha256:") {
-			t.Fatal("reconfigured-from annotation should be a sha256 digest")
-		}
-		return
+		return value
 	}
 	t.Fatal("bundle definition manifest not found")
+	return ""
 }

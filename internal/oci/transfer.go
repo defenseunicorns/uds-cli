@@ -52,13 +52,20 @@ func IsOCIReference(s string) bool {
 		return false
 	}
 
-	// If it has known file extensions, it's a file path
-	if strings.HasSuffix(s, ".hcl") || strings.Contains(s, ".tar") || strings.HasSuffix(s, ".yaml") || strings.HasSuffix(s, ".yml") {
+	// Reject strings with spaces
+	if strings.Contains(s, " ") {
 		return false
 	}
 
-	// Reject strings with spaces
-	if strings.Contains(s, " ") {
+	if strings.HasPrefix(s, "localhost/") || strings.HasPrefix(s, "localhost:") {
+		return strings.Contains(s, "/")
+	}
+	if strings.Contains(s, ".") && strings.Contains(s, "/") && (strings.Contains(s, ":") || strings.Contains(s, "@")) {
+		return true
+	}
+
+	// If it has known file extensions, it's a file path
+	if strings.HasSuffix(s, ".hcl") || strings.Contains(s, ".tar") || strings.HasSuffix(s, ".yaml") || strings.HasSuffix(s, ".yml") {
 		return false
 	}
 

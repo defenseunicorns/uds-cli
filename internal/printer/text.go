@@ -31,7 +31,7 @@ func BufferString(ctx context.Context, streams iostreams.IOStreams, b *spec.UDSB
 		fmt.Fprintf(&out, "  Version:     %s\n", b.Metadata.Version)
 	}
 
-	fmt.Fprintf(&out, "\nPACKAGES (%d)\n", len(b.Packages))
+	fmt.Fprintf(&out, "\nPackages (%d)\n", len(b.Packages))
 
 	// Try to display packages in deployment order using the DAG.
 	// Fall back to declaration order if the graph can't be built.

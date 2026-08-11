@@ -91,24 +91,11 @@ type ociManifest = udsoci.OciManifest
 // ociIndex aliases the internal OCI index model used by package sources.
 type ociIndex = udsoci.OciIndex
 
-// ociDescriptor describes content referenced by a Zarf OCI image manifest.
-type ociDescriptor struct {
-	MediaType   string            `json:"mediaType,omitempty"`
-	Digest      string            `json:"digest"`
-	Size        int64             `json:"size"`
-	URLs        []string          `json:"urls,omitempty"`
-	Annotations map[string]string `json:"annotations,omitempty"`
-}
+// ociDescriptor aliases the shared internal OCI descriptor model.
+type ociDescriptor = udsoci.OciDescriptor
 
-// ociImageManifest captures the subset of an OCI image manifest used by Zarf packages.
-type ociImageManifest struct {
-	SchemaVersion int               `json:"schemaVersion"`
-	MediaType     string            `json:"mediaType,omitempty"`
-	ArtifactType  string            `json:"artifactType,omitempty"`
-	Config        ociDescriptor     `json:"config"`
-	Layers        []ociDescriptor   `json:"layers"`
-	Annotations   map[string]string `json:"annotations,omitempty"`
-}
+// ociImageManifest aliases the shared internal OCI image manifest model.
+type ociImageManifest = udsoci.OciImageManifest
 
 // PackageDeployHooks provides deployment process extensibility per package.
 type PackageDeployHooks struct {

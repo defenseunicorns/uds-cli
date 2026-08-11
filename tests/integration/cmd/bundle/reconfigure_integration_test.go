@@ -85,7 +85,19 @@ func TestReconfigure_LocalTarball(t *testing.T) {
 	assert.Equal(t, "defaults-test-prod", bundle.Metadata.Name)
 
 	// Verify provenance annotation on the manifest.
-	assertHasReconfiguredAnnotation(t, reconfigSmall)
+	reconfiguredFrom := assertHasReconfiguredAnnotation(t, reconfigSmall)
+
+	// Verify inspect exposes the stored provenance annotation.
+	inspectStreams, _, inspectOut, _ := iostreams.NewTestIOStreams()
+	inspectRoot := bundlecmd.NewBundleCommand(inspectStreams)
+	inspectRoot.SetArgs([]string{"inspect", reconfiguredPath, "--output", "json"})
+	require.NoError(t, inspectRoot.Execute())
+	var inspectResult bundlepkg.InspectResult
+	require.NoError(t, json.Unmarshal(inspectOut.Bytes(), &inspectResult))
+	assert.Equal(t, reconfiguredFrom, inspectResult.ReconfiguredFrom)
+	require.Len(t, inspectResult.Packages, 1)
+	require.NotNil(t, inspectResult.Packages[0].Signature)
+	assert.Equal(t, bundlepkg.PackageSigningStatusSigned, inspectResult.Packages[0].Signature.Signed)
 }
 
 func TestReconfigure_CustomSuffix(t *testing.T) {

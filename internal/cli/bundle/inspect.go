@@ -6,6 +6,7 @@ package bundle
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
@@ -15,9 +16,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const bundleSignatureNotCheckedWarning = "bundle signature verification was not performed; package verification policy and signing metadata do not establish bundle integrity"
+
 // InspectOptions holds the options for the inspect command.
 type InspectOptions struct {
-	BundlePath string // Path to bundle file or directory (user input, resolved in Run)
+	BundlePath string // Path to a .tar.zst artifact or OCI reference
 	Config     *bundle.UDSBundleConfig
 	Printer    printer.ResourcePrinter
 
@@ -36,10 +39,10 @@ func NewInspectCommand(streams iostreams.IOStreams) *cobra.Command {
 	o := NewInspectOptions(streams)
 
 	cmd := &cobra.Command{
-		Use:   "inspect [bundle-path]",
+		Use:   "inspect <bundle-reference>",
 		Short: "Inspect a UDS bundle",
-		Long:  "Inspect a UDS bundle definition from a local HCL file or directory, displaying metadata and package details.",
-		Args:  cobra.MaximumNArgs(1),
+		Long:  "Inspect a built UDS bundle from a local .tar.zst artifact or OCI reference, displaying metadata and package details.",
+		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			util.CheckErr(o.Complete(cmd, args))
 			util.CheckErr(o.Validate())
@@ -56,8 +59,7 @@ func (o *InspectOptions) Complete(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		o.BundlePath = args[0]
 	} else {
-		// Default to looking for bundle.uds.hcl in current directory
-		o.BundlePath = "."
+		o.BundlePath = ""
 	}
 
 	ctx := cmd.Context()
@@ -65,7 +67,8 @@ func (o *InspectOptions) Complete(cmd *cobra.Command, args []string) error {
 		ctx = context.Background()
 	}
 	flags := SnapshotFlags(cmd)
-	cfg, _, err := NewConfigResolver().Resolve(ctx, o.IOStreams, flags, o.BundlePath)
+	// Use the embedded definition; skip sibling defaults.
+	cfg, _, err := NewConfigResolver().Resolve(ctx, o.IOStreams, flags, "")
 	if err != nil {
 		return err
 	}
@@ -82,31 +85,46 @@ func (o *InspectOptions) Complete(cmd *cobra.Command, args []string) error {
 
 // Validate validates the options without modifying state.
 func (o *InspectOptions) Validate() error {
-	return ValidateBundlePath(o.BundlePath)
+	if err := (bundle.InspectOptions{
+		Source: o.BundlePath,
+		Config: o.Config,
+	}).Validate(); err != nil {
+		return err
+	}
+	if bundle.IsOCIReference(o.BundlePath) {
+		return nil
+	}
+	info, err := os.Stat(o.BundlePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("bundle artifact not found: %s", o.BundlePath)
+		}
+		return fmt.Errorf("cannot access bundle artifact %s: %w", o.BundlePath, err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("bundle artifact path is a directory: %s", o.BundlePath)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("bundle artifact path is not a regular file: %s", o.BundlePath)
+	}
+	return nil
 }
 
 // Run executes the inspect command.
 func (o *InspectOptions) Run(ctx context.Context) error {
-	// Resolve the bundle path
-	bundlePath := bundle.ResolveBundlePath(o.BundlePath)
 	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
-	o.Debug("inspecting bundle", "path", bundlePath)
+	o.Debug("inspecting bundle", "source", o.BundlePath)
 
-	// This method diverges from the 0004-logging-and-output-strategy.md recommendation and does not have a clear
-	// business layer method. Perhaps we'll introduce it in the future once there are more logic there than just
-	// bundle parsing.
-	b, err := bundle.NewHCLParser(o.Config.Options.Architecture, o.IOStreams).ParseBundleFile(ctx, bundlePath)
-	if err != nil {
-		return err
-	}
-
-	if err := b.Validate(); err != nil {
-		return fmt.Errorf("invalid bundle: %w", err)
-	}
-
-	result, err := bundle.ToInspectResult(ctx, b, o.IOStreams)
+	result, err := bundle.Inspect(ctx, bundle.InspectOptions{
+		Source:  o.BundlePath,
+		Config:  o.Config,
+		Streams: o.IOStreams,
+	})
 	if err != nil {
 		return fmt.Errorf("inspecting bundle: %w", err)
+	}
+	if result.BundleSignature != nil && result.BundleSignature.Status == bundle.BundleSignatureStatusNotChecked {
+		o.Warn(bundleSignatureNotCheckedWarning)
 	}
 
 	return o.Printer.PrintObj(result, o.Out())
