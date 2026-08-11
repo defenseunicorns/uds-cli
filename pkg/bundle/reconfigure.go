@@ -100,6 +100,7 @@ func (r *localReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOpt
 	if !udsoci.IsBundleIndex(idx) {
 		return nil, fmt.Errorf("%s does not appear to be a UDS bundle: index does not declare artifactType %s", opts.Source, MediaTypeBundle)
 	}
+	sourceArtifactDigest := godigest.FromBytes(idxBytes).String()
 
 	defEntry, defPos, err := udsoci.FindBundleDefinitionEntry(idx)
 	if err != nil {
@@ -157,7 +158,7 @@ func (r *localReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOpt
 	}
 
 	// Rebuild the bundle definition manifest.
-	newManifestBytes, err := rebuildDefinitionManifest(manifest, newDefaultsDesc, newHCLDesc, defEntry.Digest)
+	newManifestBytes, err := rebuildDefinitionManifest(manifest, newDefaultsDesc, newHCLDesc, sourceArtifactDigest)
 	if err != nil {
 		return nil, fmt.Errorf("rebuilding manifest: %w", err)
 	}
@@ -232,7 +233,7 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 
 	// Resolve source to the canonical single-arch bundle (child) index,
 	// platform-selecting from the root index when the tag points at one.
-	_, indexBytes, err := udsoci.ResolveBundleChild(ctx, repo, sourceTag, opts.Options.Architecture)
+	sourceChild, indexBytes, err := udsoci.ResolveBundleChild(ctx, repo, sourceTag, opts.Options.Architecture)
 	if err != nil {
 		return nil, fmt.Errorf("resolving %s: %w", opts.Source, err)
 	}
@@ -327,7 +328,7 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 	}
 
 	// Rebuild and push manifest.
-	newManifestBytes, err := rebuildDefinitionManifest(manifest, newDefaultsDesc, newHCLDesc, defEntry.Digest)
+	newManifestBytes, err := rebuildDefinitionManifest(manifest, newDefaultsDesc, newHCLDesc, sourceChild.Digest.String())
 	if err != nil {
 		return nil, fmt.Errorf("rebuilding manifest: %w", err)
 	}
@@ -393,7 +394,7 @@ func reconfigureDefaultsData(opts ReconfigureOptions) ([]byte, error) {
 }
 
 // AnnotationReconfiguredFrom is the OCI manifest annotation that records
-// the digest of the original bundle definition manifest.
+// the digest of the original bundle's canonical child index.
 const AnnotationReconfiguredFrom = udsoci.AnnotationReconfiguredFrom
 
 // spliceHCLName uses the HCL AST to locate the metadata.name attribute and appends
@@ -457,7 +458,7 @@ func spliceHCLName(hclBytes []byte, suffix string) ([]byte, error) {
 
 // rebuildDefinitionManifest replaces the HCL and defaults layers in the bundle
 // definition manifest, adds provenance annotation, and returns serialized JSON.
-func rebuildDefinitionManifest(original udsoci.OciImageManifest, newDefaultsDesc udsoci.OciDescriptor, newHCLDesc udsoci.OciDescriptor, originalManifestDigest string) ([]byte, error) {
+func rebuildDefinitionManifest(original udsoci.OciImageManifest, newDefaultsDesc udsoci.OciDescriptor, newHCLDesc udsoci.OciDescriptor, sourceArtifactDigest string) ([]byte, error) {
 	var layers []udsoci.OciDescriptor
 	defaultsReplaced := false
 	hclReplaced := false
@@ -492,7 +493,7 @@ func rebuildDefinitionManifest(original udsoci.OciImageManifest, newDefaultsDesc
 	}
 	// Pin to epoch for reproducible manifest digests, matching the create path.
 	annotations[ocispec.AnnotationCreated] = "1970-01-01T00:00:00Z"
-	annotations[AnnotationReconfiguredFrom] = originalManifestDigest
+	annotations[AnnotationReconfiguredFrom] = sourceArtifactDigest
 
 	manifest := udsoci.OciImageManifest{
 		SchemaVersion: original.SchemaVersion,

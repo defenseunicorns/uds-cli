@@ -14,10 +14,12 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	oras "oras.land/oras-go/v2"
+	"oras.land/oras-go/v2/content"
 	oraci "oras.land/oras-go/v2/content/oci"
 )
 
@@ -314,14 +316,14 @@ func TestRebuildDefinitionManifest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result, err := rebuildDefinitionManifest(tt.original, newDefaults, newHCL, "sha256:origmanifest")
+			result, err := rebuildDefinitionManifest(tt.original, newDefaults, newHCL, "sha256:sourceartifact")
 			require.NoError(t, err)
 
 			var rebuilt udsoci.OciImageManifest
 			require.NoError(t, json.Unmarshal(result, &rebuilt))
 
 			// Common assertions across all cases.
-			assert.Equal(t, "sha256:origmanifest", rebuilt.Annotations[AnnotationReconfiguredFrom])
+			assert.Equal(t, "sha256:sourceartifact", rebuilt.Annotations[AnnotationReconfiguredFrom])
 			assert.Equal(t, "1970-01-01T00:00:00Z", rebuilt.Annotations[ocispec.AnnotationCreated])
 
 			tt.check(t, rebuilt)
@@ -417,6 +419,8 @@ package "pkg1" {
 `, `variables = { old = "value" }`)
 
 	defaultsPath := writeDefaultsFile(t, `variables = { new = "replaced" }`)
+	originalEntries := readTarZstEntries(t, tarball)
+	sourceArtifactDigest := digest.FromBytes(originalEntries["oci/index.json"]).String()
 
 	result, err := runLocalReconfigure(t, tarball, defaultsPath, "-custom")
 	require.NoError(t, err)
@@ -439,7 +443,7 @@ package "pkg1" {
 	manifestBytes := entries["oci/blobs/sha256/"+strings.TrimPrefix(defEntry.Digest, "sha256:")]
 	var manifest udsoci.OciImageManifest
 	require.NoError(t, json.Unmarshal(manifestBytes, &manifest))
-	assert.Contains(t, manifest.Annotations, AnnotationReconfiguredFrom)
+	assert.Equal(t, sourceArtifactDigest, manifest.Annotations[AnnotationReconfiguredFrom])
 }
 
 func TestLocalReconfigure_OutputAlreadyExists(t *testing.T) {
@@ -554,6 +558,8 @@ package "pkg1" {
 `, `variables = { old = "value" }`, "example.com/test/oci-reconfig:v1.0.0")
 
 	defaultsPath := writeDefaultsFile(t, `variables = { new = "replaced" }`)
+	sourceChild, _, err := udsoci.ResolveBundleChild(t.Context(), store, "v1.0.0", "")
+	require.NoError(t, err)
 
 	r := &ociReconfigurer{}
 	result, err := r.Reconfigure(t.Context(), ReconfigureOptions{
@@ -573,6 +579,24 @@ package "pkg1" {
 	// Original tag still exists.
 	_, err = store.Resolve(t.Context(), "v1.0.0")
 	require.NoError(t, err, "original tag should still exist")
+
+	_, reconfiguredIndexBytes, err := udsoci.ResolveBundleChild(t.Context(), store, "v1.0.0-prod", "")
+	require.NoError(t, err)
+	var reconfiguredIndex udsoci.OciIndex
+	require.NoError(t, json.Unmarshal(reconfiguredIndexBytes, &reconfiguredIndex))
+	reconfiguredDefinition, _, err := udsoci.FindBundleDefinitionEntry(reconfiguredIndex)
+	require.NoError(t, err)
+	reconfiguredDefinitionDigest, err := digest.Parse(reconfiguredDefinition.Digest)
+	require.NoError(t, err)
+	reconfiguredDefinitionBytes, err := content.FetchAll(t.Context(), store, ocispec.Descriptor{
+		MediaType: ocispec.MediaTypeImageManifest,
+		Digest:    reconfiguredDefinitionDigest,
+		Size:      reconfiguredDefinition.Size,
+	})
+	require.NoError(t, err)
+	var reconfiguredDefinitionManifest udsoci.OciImageManifest
+	require.NoError(t, json.Unmarshal(reconfiguredDefinitionBytes, &reconfiguredDefinitionManifest))
+	assert.Equal(t, sourceChild.Digest.String(), reconfiguredDefinitionManifest.Annotations[AnnotationReconfiguredFrom])
 }
 
 func TestOCIReconfigure_TargetTagAlreadyExists(t *testing.T) {

@@ -132,7 +132,7 @@ const (
 	AnnotationPackageVerification = "uds.dev/package-verification"
 	// AnnotationPackageVerificationVerified is the persisted value for a successful verification.
 	AnnotationPackageVerificationVerified = "verified"
-	// AnnotationReconfiguredFrom records the source bundle definition digest used during reconfigure.
+	// AnnotationReconfiguredFrom records the source bundle's canonical child-index digest during reconfigure.
 	AnnotationReconfiguredFrom = "org.defenseunicorns.uds.reconfigured-from"
 )
 
