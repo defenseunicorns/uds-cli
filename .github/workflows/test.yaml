@@ -112,8 +112,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup from build
-        uses: ./.github/actions/setup-from-previous
+      - name: Setup e2e job
+        uses: ./.github/actions/setup-uds-e2e
 
       - name: Run e2e ${{ matrix.task }} tests
         shell: bash
@@ -142,8 +142,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup from build
-        uses: ./.github/actions/setup-from-previous
+      - name: Setup e2e job
+        uses: ./.github/actions/setup-uds-e2e
 
       - name: Run e2e ${{ matrix.task }} tests
         shell: bash
@@ -168,8 +168,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup from build
-        uses: ./.github/actions/setup-from-previous
+      - name: Setup e2e job
+        uses: ./.github/actions/setup-uds-e2e
 
       - name: Install Trivy
         shell: bash
@@ -206,8 +206,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup from build
-        uses: ./.github/actions/setup-from-previous
+      - name: Setup e2e job
+        uses: ./.github/actions/setup-uds-e2e
         with:
           create-cluster: "false"
 
@@ -241,8 +241,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup from build
-        uses: ./.github/actions/setup-from-previous
+      - name: Setup e2e job
+        uses: ./.github/actions/setup-uds-e2e
 
       - name: Login to GHCR
         uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
@@ -266,15 +266,11 @@ jobs:
           suffix: ghcr-write
 
   uds-core-smoke:
-    name: UDS Core Smoke Tests (${{ matrix.type }})
+    name: UDS Core Smoke Test
     if: inputs.include_uds_core_smoke
     runs-on: uds-ubuntu-big-boy-8-core
     needs: build
     timeout-minutes: 65
-    strategy:
-      fail-fast: false
-      matrix:
-        type: [with-cluster, without-cluster]
     permissions:
       contents: read
       packages: read
@@ -284,10 +280,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup from build
-        uses: ./.github/actions/setup-from-previous
+      - name: Setup e2e job
+        uses: ./.github/actions/setup-uds-e2e
         with:
-          create-cluster: "${{ matrix.type == 'with-cluster' && 'true' || 'false' }}"
+          create-cluster: "false"
 
       - name: Login to GHCR
         uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
@@ -296,14 +292,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run UDS Core smoke tests
+      - name: Run UDS Core smoke test
         shell: bash
         run: |
           set -o pipefail
-          build/uds run test:ci-uds-core-smoke-test 2>&1 | tee "${RUNNER_TEMP}/uds-command-uds-core-smoke-${{ matrix.type }}.log"
+          build/uds run test:ci-uds-core-smoke-test 2>&1 | tee "${RUNNER_TEMP}/uds-command-uds-core-smoke.log"
 
       - name: Save diagnostics
         if: always()
         uses: ./.github/actions/save-logs
         with:
-          suffix: uds-core-smoke-${{ matrix.type }}
+          suffix: uds-core-smoke

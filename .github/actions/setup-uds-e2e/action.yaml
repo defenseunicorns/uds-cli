@@ -1,12 +1,12 @@
-# Copyright 2024-2026 Defense Unicorns
+# Copyright 2026 Defense Unicorns
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
-name: setup-from-previous
-description: Download the previously built UDS CLI and prepare the test environment
+name: setup-uds-e2e
+description: Download the built UDS CLI and prepare an e2e test job
 
 inputs:
   create-cluster:
-    description: Whether to create a K3d cluster
+    description: Whether to create a k3d cluster
     required: false
     default: "true"
 
@@ -26,7 +26,9 @@ runs:
       shell: bash
       run: chmod +x build/uds
 
-    - name: Setup K3d
-      uses: ./.github/actions/k3d
-      with:
-        create-cluster: ${{ inputs.create-cluster }}
+    - name: Create k3d cluster
+      if: ${{ inputs.create-cluster == 'true' }}
+      shell: bash
+      run: |
+        k3d cluster delete || true
+        k3d cluster create
