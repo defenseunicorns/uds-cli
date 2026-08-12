@@ -5,6 +5,7 @@ name: PR Checks
 
 on:
   pull_request:
+    types: [milestoned, opened, reopened, synchronize]
     paths-ignore:
       - "**.md"
       - "**.mdx"

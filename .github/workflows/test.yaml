@@ -62,6 +62,20 @@ jobs:
         with:
           suffix: unit
 
+  docs-link-check:
+    name: Docs Link Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup development tools
+        uses: ./.github/actions/mise
+
+      - name: Check UDS Docs links
+        run: uds run uds-docs-validate
+
   build:
     name: Build UDS CLI
     runs-on: ubuntu-latest
@@ -77,12 +91,7 @@ jobs:
 
       - name: Fetch zarf@main
         if: inputs.fetch_zarf
-        shell: bash
-        run: |
-          go get github.com/zarf-dev/zarf@main
-          ZARF_VERSION=$(go list -m -json github.com/zarf-dev/zarf | jq -r .Version)
-          yq eval "(.packages[] | select(.name == \"init\")).ref = \"$ZARF_VERSION\"" -i src/test/bundles/04-init/uds-bundle.yaml
-          yq eval "(.packages[] | select(.name == \"init\")).ref = \"$ZARF_VERSION\"" -i src/test/bundles/14-optional-components/uds-bundle.yaml
+        run: go get github.com/zarf-dev/zarf@main
 
       - name: Build CLI
         run: uds run build-cli-linux-amd

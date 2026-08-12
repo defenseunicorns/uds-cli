@@ -27,7 +27,7 @@ runs:
       run: chmod +x build/uds
 
     - name: Create k3d cluster
-      if: ${{ inputs.create-cluster == 'true' }}
+      if: ${{ inputs['create-cluster'] == 'true' }}
       shell: bash
       run: |
         k3d cluster delete || true

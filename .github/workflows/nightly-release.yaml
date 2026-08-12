@@ -16,6 +16,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+    secrets: inherit
     with:
       fetch_zarf: true
 

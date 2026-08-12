@@ -17,6 +17,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+    secrets: inherit
 
   push:
     runs-on: uds-ubuntu-big-boy-16-core

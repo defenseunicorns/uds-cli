@@ -31,12 +31,6 @@ runs:
           -print > "$DIAGNOSTICS_DIR/test-workspaces.txt" 2>/dev/null || true
 
         mkdir -p "$DIAGNOSTICS_DIR/kubernetes"
-        if [ -n "${KUBECONFIG:-}" ] && [ -f "$KUBECONFIG" ]; then
-          cp "$KUBECONFIG" "$DIAGNOSTICS_DIR/kubernetes/kubeconfig"
-        elif [ -f "${HOME}/.kube/config" ]; then
-          cp "${HOME}/.kube/config" "$DIAGNOSTICS_DIR/kubernetes/kubeconfig"
-        fi
-
         if command -v kubectl >/dev/null 2>&1 && kubectl cluster-info >/dev/null 2>&1; then
           kubectl get nodes -o wide > "$DIAGNOSTICS_DIR/kubernetes/nodes.txt" 2>&1 || true
           kubectl get pods -A -o wide > "$DIAGNOSTICS_DIR/kubernetes/pods.txt" 2>&1 || true
