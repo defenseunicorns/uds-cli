@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,21 +23,21 @@ import (
 //	base (no deps)
 //	middle depends on base
 //	leaf   depends on middle
-func threePkgChainBundle() *bundle.UDSBundle {
-	return &bundle.UDSBundle{
-		UDS:      bundle.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: bundle.Metadata{Name: "subset-test-bundle"},
-		Packages: []bundle.Package{
+func threePkgChainBundle() *spec.UDSBundle {
+	return &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "subset-test-bundle"},
+		Packages: []spec.Package{
 			{Name: "base", Source: "oci://example.com/base:v1"},
-			{Name: "middle", Source: "oci://example.com/middle:v1", DependsOn: []bundle.PackageRef{{Name: "base"}}},
-			{Name: "leaf", Source: "oci://example.com/leaf:v1", DependsOn: []bundle.PackageRef{{Name: "middle"}}},
+			{Name: "middle", Source: "oci://example.com/middle:v1", DependsOn: []spec.PackageRef{{Name: "base"}}},
+			{Name: "leaf", Source: "oci://example.com/leaf:v1", DependsOn: []spec.PackageRef{{Name: "middle"}}},
 		},
 	}
 }
 
 // recorderFn returns a PackageDeployFn that records deployed package names in order.
-func recorderFn(mu *sync.Mutex, deployed *[]string) func(context.Context, *bundle.Package, bundle.DeployPackageOptions) error {
-	return func(_ context.Context, pkg *bundle.Package, _ bundle.DeployPackageOptions) error {
+func recorderFn(mu *sync.Mutex, deployed *[]string) func(context.Context, *spec.Package, bundle.DeployPackageOptions) error {
+	return func(_ context.Context, pkg *spec.Package, _ bundle.DeployPackageOptions) error {
 		mu.Lock()
 		defer mu.Unlock()
 		*deployed = append(*deployed, pkg.Name)
@@ -170,7 +171,7 @@ func TestDeploySubset_PreDeployHookGatedByValidation(t *testing.T) {
 				Force:           tt.force,
 				PackageDeployFn: recorderFn(&mu, &deployed),
 				BundleDeployHooks: bundle.BundleDeployHooks{
-					PreDeploy: func(context.Context, *bundle.UDSBundle, *bundle.DeployOptions) error {
+					PreDeploy: func(context.Context, *spec.UDSBundle, *bundle.DeployOptions) error {
 						hookInvoked = true
 						return nil
 					},

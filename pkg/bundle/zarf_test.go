@@ -6,18 +6,19 @@ package bundle
 import (
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestZarfRemoverRemoveBundleValidatesRemovalSafety(t *testing.T) {
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "example"},
-		Packages: []Package{
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "example"},
+		Packages: []spec.Package{
 			{Name: "core", Source: "oci://example/core:1"},
-			{Name: "app", Source: "oci://example/app:1", DependsOn: []PackageRef{{Name: "core"}}},
+			{Name: "app", Source: "oci://example/app:1", DependsOn: []spec.PackageRef{{Name: "core"}}},
 		},
 	}
 
@@ -33,10 +34,10 @@ func TestZarfRemoverRemoveBundleValidatesRemovalSafety(t *testing.T) {
 }
 
 func TestPublicAdaptersValidateOptionsBeforeOperationLogic(t *testing.T) {
-	b := &UDSBundle{
-		Packages: []Package{
+	b := &spec.UDSBundle{
+		Packages: []spec.Package{
 			{Name: "core", Source: "oci://example/core:1"},
-			{Name: "app", Source: "oci://example/app:1", DependsOn: []PackageRef{{Name: "core"}}},
+			{Name: "app", Source: "oci://example/app:1", DependsOn: []spec.PackageRef{{Name: "core"}}},
 		},
 	}
 
@@ -61,7 +62,7 @@ func TestPublicAdaptersValidateOptionsBeforeOperationLogic(t *testing.T) {
 			return err
 		}},
 		{name: "deploy package", run: func() error {
-			return NewZarfDeployer(iostreams.IOStreams{}, nil).DeployPackage(t.Context(), &Package{}, DeployPackageOptions{})
+			return NewZarfDeployer(iostreams.IOStreams{}, nil).DeployPackage(t.Context(), &spec.Package{}, DeployPackageOptions{})
 		}},
 		{name: "deploy bundle", run: func() error {
 			_, err := NewZarfDeployer(iostreams.IOStreams{}, nil).DeployBundle(
@@ -70,7 +71,7 @@ func TestPublicAdaptersValidateOptionsBeforeOperationLogic(t *testing.T) {
 			return err
 		}},
 		{name: "remove package", run: func() error {
-			return NewZarfRemover(iostreams.IOStreams{}).RemovePackage(t.Context(), &Package{}, RemovePackageOptions{})
+			return NewZarfRemover(iostreams.IOStreams{}).RemovePackage(t.Context(), &spec.Package{}, RemovePackageOptions{})
 		}},
 		{name: "remove bundle", run: func() error {
 			_, err := NewZarfRemover(iostreams.IOStreams{}).RemoveBundle(

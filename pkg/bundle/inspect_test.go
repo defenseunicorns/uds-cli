@@ -16,6 +16,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -472,18 +473,18 @@ func digestToHex(t *testing.T, value string) string {
 }
 
 // pkgRef creates a package dependency reference for inspect tests.
-func pkgRef(name string) PackageRef {
-	return PackageRef{Name: name}
+func pkgRef(name string) spec.PackageRef {
+	return spec.PackageRef{Name: name}
 }
 
 func TestToInspectResult(t *testing.T) {
-	b := &UDSBundle{
-		Metadata: Metadata{
+	b := &spec.UDSBundle{
+		Metadata: spec.Metadata{
 			Name:        "test-bundle",
 			Description: "A test bundle",
 			Version:     "2.0.0",
 		},
-		Packages: []Package{
+		Packages: []spec.Package{
 			{
 				Name:      "db",
 				Source:    "oci://ghcr.io/org/db:1.0",
@@ -493,7 +494,7 @@ func TestToInspectResult(t *testing.T) {
 			{
 				Name:        "api",
 				Source:      "oci://ghcr.io/org/api:2.0",
-				DependsOn:   []PackageRef{pkgRef("db")},
+				DependsOn:   []spec.PackageRef{pkgRef("db")},
 				ValuesFiles: []string{"values/api.yaml"},
 			},
 		},
@@ -526,12 +527,12 @@ func TestToInspectResult(t *testing.T) {
 func TestToInspectResult_DAGOrder(t *testing.T) {
 	// Declaration order: D, C, B, A — completely reversed from deployment order.
 	// Dependency chain: A (no deps) → B depends on A → C depends on B → D depends on C
-	b := &UDSBundle{
-		Metadata: Metadata{Name: "dag-test"},
-		Packages: []Package{
-			{Name: "D", Source: "oci://example.com/D:v1", DependsOn: []PackageRef{pkgRef("C")}},
-			{Name: "C", Source: "oci://example.com/C:v1", DependsOn: []PackageRef{pkgRef("B")}},
-			{Name: "B", Source: "oci://example.com/B:v1", DependsOn: []PackageRef{pkgRef("A")}},
+	b := &spec.UDSBundle{
+		Metadata: spec.Metadata{Name: "dag-test"},
+		Packages: []spec.Package{
+			{Name: "D", Source: "oci://example.com/D:v1", DependsOn: []spec.PackageRef{pkgRef("C")}},
+			{Name: "C", Source: "oci://example.com/C:v1", DependsOn: []spec.PackageRef{pkgRef("B")}},
+			{Name: "B", Source: "oci://example.com/B:v1", DependsOn: []spec.PackageRef{pkgRef("A")}},
 			{Name: "A", Source: "oci://example.com/A:v1"},
 		},
 	}
@@ -551,13 +552,13 @@ func TestToInspectResult_DAGOrder(t *testing.T) {
 func TestToInspectResult_DAGOrder_Deterministic(t *testing.T) {
 	// Diamond: A (no deps), B and C both depend on A, D depends on B and C.
 	// Declaration order deliberately puts C before B to test alphabetical sorting.
-	b := &UDSBundle{
-		Metadata: Metadata{Name: "diamond"},
-		Packages: []Package{
-			{Name: "D", Source: "oci://example.com/D:v1", DependsOn: []PackageRef{pkgRef("B"), pkgRef("C")}},
-			{Name: "C", Source: "oci://example.com/C:v1", DependsOn: []PackageRef{pkgRef("A")}},
+	b := &spec.UDSBundle{
+		Metadata: spec.Metadata{Name: "diamond"},
+		Packages: []spec.Package{
+			{Name: "D", Source: "oci://example.com/D:v1", DependsOn: []spec.PackageRef{pkgRef("B"), pkgRef("C")}},
+			{Name: "C", Source: "oci://example.com/C:v1", DependsOn: []spec.PackageRef{pkgRef("A")}},
 			{Name: "A", Source: "oci://example.com/A:v1"},
-			{Name: "B", Source: "oci://example.com/B:v1", DependsOn: []PackageRef{pkgRef("A")}},
+			{Name: "B", Source: "oci://example.com/B:v1", DependsOn: []spec.PackageRef{pkgRef("A")}},
 		},
 	}
 
@@ -572,7 +573,7 @@ func TestToInspectResult_DAGOrder_Deterministic(t *testing.T) {
 }
 
 func TestToInspectResult_Empty(t *testing.T) {
-	b := &UDSBundle{Metadata: Metadata{Name: "empty"}}
+	b := &spec.UDSBundle{Metadata: spec.Metadata{Name: "empty"}}
 
 	result, err := toInspectResult(t.Context(), b, iostreams.IOStreams{})
 	require.NoError(t, err)

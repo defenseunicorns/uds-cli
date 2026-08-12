@@ -11,6 +11,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 )
@@ -27,7 +28,7 @@ type RemoveOptions struct {
 	// is consumed by Run(). Centralizing parsing in Validate() lets the
 	// dependency-safety check (ValidateRemovalSafety) run there without
 	// re-parsing in Run().
-	parsedBundle *bundle.UDSBundle
+	parsedBundle *spec.UDSBundle
 
 	iostreams.IOStreams
 }

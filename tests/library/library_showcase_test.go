@@ -50,6 +50,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
@@ -66,7 +67,7 @@ import (
 // like the Remote Agent has already cross-mounted them into the Zarf registry, so
 // packager.Deploy must not try to push them. This is the canonical PreDeploy mutation.
 func skipImagesAlreadyInZarfRegistry(
-	_ context.Context, _ *bundle.Package, pkgLayout *layout.PackageLayout,
+	_ context.Context, _ *spec.Package, pkgLayout *layout.PackageLayout,
 	_ *packager.DeployOptions, _ *bundle.DeployPackageOptions,
 ) error {
 	for i := range pkgLayout.Pkg.Components {
@@ -85,13 +86,13 @@ type consumerState struct {
 }
 
 // onBundleDeployStart (bundle PreDeploy) runs once before anything: the consumer stamps the deploy.
-func (s *consumerState) onBundleDeployStart(_ context.Context, b *bundle.UDSBundle, _ *bundle.DeployOptions) error {
+func (s *consumerState) onBundleDeployStart(_ context.Context, b *spec.UDSBundle, _ *bundle.DeployOptions) error {
 	s.startedBundle = b.Metadata.Name
 	return nil
 }
 
 // onPackageDeployed (package PostDeploy) runs once per package, possibly concurrently — so it locks.
-func (s *consumerState) onPackageDeployed(_ context.Context, pkg *bundle.Package) error {
+func (s *consumerState) onPackageDeployed(_ context.Context, pkg *spec.Package) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.deployedPackages = append(s.deployedPackages, pkg.Name)
@@ -99,13 +100,13 @@ func (s *consumerState) onPackageDeployed(_ context.Context, pkg *bundle.Package
 }
 
 // onBundleComplete (bundle PostDeploy) runs once after every package — single-threaded, no lock needed.
-func (s *consumerState) onBundleComplete(_ context.Context, _ *bundle.UDSBundle) error {
+func (s *consumerState) onBundleComplete(_ context.Context, _ *spec.UDSBundle) error {
 	s.bundleComplete = true
 	return nil
 }
 
 // bundlePackageNames returns the names of all packages in b, in order.
-func bundlePackageNames(b *bundle.UDSBundle) []string {
+func bundlePackageNames(b *spec.UDSBundle) []string {
 	names := make([]string, len(b.Packages))
 	for i, pkg := range b.Packages {
 		names[i] = pkg.Name

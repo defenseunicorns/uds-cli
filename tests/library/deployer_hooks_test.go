@@ -14,6 +14,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
@@ -33,7 +34,7 @@ type staticLoaderImpl struct {
 	err error
 }
 
-func (l *staticLoaderImpl) LoadPackageLayout(_ context.Context, _ *bundle.Package, _ string, _ bundle.LoadOptions) (*layout.PackageLayout, error) {
+func (l *staticLoaderImpl) LoadPackageLayout(_ context.Context, _ *spec.Package, _ string, _ bundle.LoadOptions) (*layout.PackageLayout, error) {
 	return l.pkg, l.err
 }
 
@@ -53,23 +54,23 @@ func imageLayoutLib() *layout.PackageLayout {
 	}
 }
 
-func singlePkgBundle() *bundle.UDSBundle {
-	return &bundle.UDSBundle{
-		UDS:      bundle.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: bundle.Metadata{Name: "test-bundle"},
-		Packages: []bundle.Package{
+func singlePkgBundle() *spec.UDSBundle {
+	return &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "test-bundle"},
+		Packages: []spec.Package{
 			{Name: "alpha", Source: "oci://example.com/alpha:v1"},
 		},
 	}
 }
 
-func twoPkgLinearBundle() *bundle.UDSBundle {
-	return &bundle.UDSBundle{
-		UDS:      bundle.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: bundle.Metadata{Name: "test-bundle"},
-		Packages: []bundle.Package{
+func twoPkgLinearBundle() *spec.UDSBundle {
+	return &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "test-bundle"},
+		Packages: []spec.Package{
 			{Name: "alpha", Source: "oci://example.com/alpha:v1"},
-			{Name: "beta", Source: "oci://example.com/beta:v1", DependsOn: []bundle.PackageRef{{Name: "alpha"}}},
+			{Name: "beta", Source: "oci://example.com/beta:v1", DependsOn: []spec.PackageRef{{Name: "alpha"}}},
 		},
 	}
 }
@@ -91,8 +92,8 @@ func noopClusterDeploy(context.Context, *layout.PackageLayout, packager.DeployOp
 // deployWithClusterStub returns a DeployOptions.PackageDeployFn that runs the deployer's
 // real DeployPackage (loader + hooks) with cluster injected as the cluster-side deploy, so
 // bundle-level tests exercise the full per-package pipeline without touching a cluster.
-func deployWithClusterStub(d *bundle.ZarfDeployer, cluster func(context.Context, *layout.PackageLayout, packager.DeployOptions) error) func(context.Context, *bundle.Package, bundle.DeployPackageOptions) error {
-	return func(ctx context.Context, pkg *bundle.Package, opts bundle.DeployPackageOptions) error {
+func deployWithClusterStub(d *bundle.ZarfDeployer, cluster func(context.Context, *layout.PackageLayout, packager.DeployOptions) error) func(context.Context, *spec.Package, bundle.DeployPackageOptions) error {
+	return func(ctx context.Context, pkg *spec.Package, opts bundle.DeployPackageOptions) error {
 		opts.ClusterDeployFn = cluster
 		return d.DeployPackage(ctx, pkg, opts)
 	}
@@ -108,7 +109,7 @@ func TestPackageHooks_DefaultNoOp(t *testing.T) {
 	d := bundle.NewZarfDeployer(iostreams.IOStreams{}, mkStaticLoader(imageLayoutLib(), nil))
 	var deployCalled int
 
-	err := d.DeployPackage(t.Context(), &bundle.Package{Name: "alpha", Source: "oci://x"}, bundle.DeployPackageOptions{
+	err := d.DeployPackage(t.Context(), &spec.Package{Name: "alpha", Source: "oci://x"}, bundle.DeployPackageOptions{
 		Config:    newTestConfig(),
 		BundleDir: t.TempDir(),
 		ClusterDeployFn: func(context.Context, *layout.PackageLayout, packager.DeployOptions) error {
@@ -124,7 +125,7 @@ func TestPackageHooks_PreDeployImageSkip(t *testing.T) {
 	d := bundle.NewZarfDeployer(iostreams.IOStreams{}, mkStaticLoader(imageLayoutLib(), nil))
 
 	var capturedLayout *layout.PackageLayout
-	err := d.DeployPackage(t.Context(), &bundle.Package{Name: "alpha", Source: "oci://x"}, bundle.DeployPackageOptions{
+	err := d.DeployPackage(t.Context(), &spec.Package{Name: "alpha", Source: "oci://x"}, bundle.DeployPackageOptions{
 		Config:    newTestConfig(),
 		BundleDir: t.TempDir(),
 		ClusterDeployFn: func(_ context.Context, l *layout.PackageLayout, _ packager.DeployOptions) error {
@@ -132,7 +133,7 @@ func TestPackageHooks_PreDeployImageSkip(t *testing.T) {
 			return nil
 		},
 		PackageDeployHooks: bundle.PackageDeployHooks{
-			PreDeploy: func(_ context.Context, _ *bundle.Package, pkgLayout *layout.PackageLayout, _ *packager.DeployOptions, _ *bundle.DeployPackageOptions) error {
+			PreDeploy: func(_ context.Context, _ *spec.Package, pkgLayout *layout.PackageLayout, _ *packager.DeployOptions, _ *bundle.DeployPackageOptions) error {
 				for i := range pkgLayout.Pkg.Components {
 					pkgLayout.Pkg.Components[i].Images = []string{}
 					pkgLayout.Pkg.Components[i].ImageArchives = []v1alpha1.ImageArchive{}
@@ -153,12 +154,12 @@ func TestPackageHooks_PostDeployTracking(t *testing.T) {
 	d := bundle.NewZarfDeployer(iostreams.IOStreams{}, mkStaticLoader(imageLayoutLib(), nil))
 
 	var tracked []string
-	err := d.DeployPackage(t.Context(), &bundle.Package{Name: "alpha", Source: "oci://x"}, bundle.DeployPackageOptions{
+	err := d.DeployPackage(t.Context(), &spec.Package{Name: "alpha", Source: "oci://x"}, bundle.DeployPackageOptions{
 		Config:          newTestConfig(),
 		BundleDir:       t.TempDir(),
 		ClusterDeployFn: noopClusterDeploy,
 		PackageDeployHooks: bundle.PackageDeployHooks{
-			PostDeploy: func(_ context.Context, pkg *bundle.Package) error {
+			PostDeploy: func(_ context.Context, pkg *spec.Package) error {
 				tracked = append(tracked, pkg.Name)
 				return nil
 			},
@@ -173,7 +174,7 @@ func TestPackageHooks_PreDeployErrorAbortsBeforeDeploy(t *testing.T) {
 
 	var deployCalled bool
 	hookErr := errors.New("pre-deploy hook failed")
-	err := d.DeployPackage(t.Context(), &bundle.Package{Name: "alpha", Source: "oci://x"}, bundle.DeployPackageOptions{
+	err := d.DeployPackage(t.Context(), &spec.Package{Name: "alpha", Source: "oci://x"}, bundle.DeployPackageOptions{
 		Config:    newTestConfig(),
 		BundleDir: t.TempDir(),
 		ClusterDeployFn: func(context.Context, *layout.PackageLayout, packager.DeployOptions) error {
@@ -181,7 +182,7 @@ func TestPackageHooks_PreDeployErrorAbortsBeforeDeploy(t *testing.T) {
 			return nil
 		},
 		PackageDeployHooks: bundle.PackageDeployHooks{
-			PreDeploy: func(context.Context, *bundle.Package, *layout.PackageLayout, *packager.DeployOptions, *bundle.DeployPackageOptions) error {
+			PreDeploy: func(context.Context, *spec.Package, *layout.PackageLayout, *packager.DeployOptions, *bundle.DeployPackageOptions) error {
 				return hookErr
 			},
 		},
@@ -197,12 +198,12 @@ func TestPackageHooks_PostDeployErrorSurfaces(t *testing.T) {
 	d := bundle.NewZarfDeployer(iostreams.IOStreams{}, mkStaticLoader(imageLayoutLib(), nil))
 
 	postErr := errors.New("post-deploy error")
-	err := d.DeployPackage(t.Context(), &bundle.Package{Name: "alpha", Source: "oci://x"}, bundle.DeployPackageOptions{
+	err := d.DeployPackage(t.Context(), &spec.Package{Name: "alpha", Source: "oci://x"}, bundle.DeployPackageOptions{
 		Config:          newTestConfig(),
 		BundleDir:       t.TempDir(),
 		ClusterDeployFn: noopClusterDeploy,
 		PackageDeployHooks: bundle.PackageDeployHooks{
-			PostDeploy: func(context.Context, *bundle.Package) error { return postErr },
+			PostDeploy: func(context.Context, *spec.Package) error { return postErr },
 		},
 	})
 
@@ -221,7 +222,7 @@ func TestPackageHooks_Ordering(t *testing.T) {
 		order = append(order, step)
 	}
 
-	err := d.DeployPackage(t.Context(), &bundle.Package{Name: "alpha", Source: "oci://x"}, bundle.DeployPackageOptions{
+	err := d.DeployPackage(t.Context(), &spec.Package{Name: "alpha", Source: "oci://x"}, bundle.DeployPackageOptions{
 		Config:    newTestConfig(),
 		BundleDir: t.TempDir(),
 		ClusterDeployFn: func(context.Context, *layout.PackageLayout, packager.DeployOptions) error {
@@ -229,11 +230,11 @@ func TestPackageHooks_Ordering(t *testing.T) {
 			return nil
 		},
 		PackageDeployHooks: bundle.PackageDeployHooks{
-			PreDeploy: func(context.Context, *bundle.Package, *layout.PackageLayout, *packager.DeployOptions, *bundle.DeployPackageOptions) error {
+			PreDeploy: func(context.Context, *spec.Package, *layout.PackageLayout, *packager.DeployOptions, *bundle.DeployPackageOptions) error {
 				record("PreDeploy")
 				return nil
 			},
-			PostDeploy: func(context.Context, *bundle.Package) error {
+			PostDeploy: func(context.Context, *spec.Package) error {
 				record("PostDeploy")
 				return nil
 			},
@@ -248,14 +249,14 @@ func TestPackageHooks_DeployFailureSkipsPostDeploy(t *testing.T) {
 
 	deployErr := errors.New("cluster unavailable")
 	var postCalled bool
-	err := d.DeployPackage(t.Context(), &bundle.Package{Name: "alpha", Source: "oci://x"}, bundle.DeployPackageOptions{
+	err := d.DeployPackage(t.Context(), &spec.Package{Name: "alpha", Source: "oci://x"}, bundle.DeployPackageOptions{
 		Config:    newTestConfig(),
 		BundleDir: t.TempDir(),
 		ClusterDeployFn: func(context.Context, *layout.PackageLayout, packager.DeployOptions) error {
 			return deployErr
 		},
 		PackageDeployHooks: bundle.PackageDeployHooks{
-			PostDeploy: func(context.Context, *bundle.Package) error {
+			PostDeploy: func(context.Context, *spec.Package) error {
 				postCalled = true
 				return nil
 			},
@@ -287,18 +288,18 @@ func TestBundleHooks_FireOnceInOrder(t *testing.T) {
 			return nil
 		}),
 		BundleDeployHooks: bundle.BundleDeployHooks{
-			PreDeploy: func(_ context.Context, _ *bundle.UDSBundle, _ *bundle.DeployOptions) error {
+			PreDeploy: func(_ context.Context, _ *spec.UDSBundle, _ *bundle.DeployOptions) error {
 				record("Bundle.PreDeploy")
 				return nil
 			},
-			PostDeploy: func(_ context.Context, _ *bundle.UDSBundle) error { record("Bundle.PostDeploy"); return nil },
+			PostDeploy: func(_ context.Context, _ *spec.UDSBundle) error { record("Bundle.PostDeploy"); return nil },
 		},
 		PackageDeployHooks: bundle.PackageDeployHooks{
-			PreDeploy: func(_ context.Context, pkg *bundle.Package, _ *layout.PackageLayout, _ *packager.DeployOptions, _ *bundle.DeployPackageOptions) error {
+			PreDeploy: func(_ context.Context, pkg *spec.Package, _ *layout.PackageLayout, _ *packager.DeployOptions, _ *bundle.DeployPackageOptions) error {
 				record(fmt.Sprintf("Pkg.PreDeploy(%s)", pkg.Name))
 				return nil
 			},
-			PostDeploy: func(_ context.Context, pkg *bundle.Package) error {
+			PostDeploy: func(_ context.Context, pkg *spec.Package) error {
 				record(fmt.Sprintf("Pkg.PostDeploy(%s)", pkg.Name))
 				return nil
 			},
@@ -325,9 +326,9 @@ func TestBundleHooks_PreDeployMutatesOpts(t *testing.T) {
 		Config:          newTestConfig(),
 		PackageDeployFn: deployWithClusterStub(d, noopClusterDeploy),
 		BundleDeployHooks: bundle.BundleDeployHooks{
-			PreDeploy: func(_ context.Context, _ *bundle.UDSBundle, opts *bundle.DeployOptions) error {
+			PreDeploy: func(_ context.Context, _ *spec.UDSBundle, opts *bundle.DeployOptions) error {
 				opts.PackageDeployHooks = bundle.PackageDeployHooks{
-					PostDeploy: func(_ context.Context, pkg *bundle.Package) error {
+					PostDeploy: func(_ context.Context, pkg *spec.Package) error {
 						mu.Lock()
 						defer mu.Unlock()
 						pkgPostCalled = append(pkgPostCalled, pkg.Name)
@@ -354,7 +355,7 @@ func TestBundleHooks_PreDeployErrorAbortsBeforeAnyPackage(t *testing.T) {
 			return nil
 		}),
 		BundleDeployHooks: bundle.BundleDeployHooks{
-			PreDeploy: func(context.Context, *bundle.UDSBundle, *bundle.DeployOptions) error { return preErr },
+			PreDeploy: func(context.Context, *spec.UDSBundle, *bundle.DeployOptions) error { return preErr },
 		},
 	})
 
@@ -373,7 +374,7 @@ func TestBundleHooks_PostDeployErrorAfterSuccessReturnsResult(t *testing.T) {
 		Config:          newTestConfig(),
 		PackageDeployFn: deployWithClusterStub(d, noopClusterDeploy),
 		BundleDeployHooks: bundle.BundleDeployHooks{
-			PostDeploy: func(context.Context, *bundle.UDSBundle) error { return postErr },
+			PostDeploy: func(context.Context, *spec.UDSBundle) error { return postErr },
 		},
 	})
 

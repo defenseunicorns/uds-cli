@@ -16,33 +16,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
-// UDSBundle aliases the canonical bundle model for the established bundle.Type API.
-type UDSBundle = spec.UDSBundle
-
-// UDSBlock aliases the canonical bundle constraints model for the established bundle.Type API.
-type UDSBlock = spec.UDSBlock
-
-// Metadata aliases the canonical bundle metadata model for the established bundle.Type API.
-type Metadata = spec.Metadata
-
-// Package aliases the canonical package model for the established bundle.Type API.
-type Package = spec.Package
-
-// PackageRef aliases the canonical package reference model for the established bundle.Type API.
-type PackageRef = spec.PackageRef
-
-// SourceRange aliases the canonical bundle source span model for the established bundle.Type API.
-type SourceRange = spec.SourceRange
-
-// SourcePosition aliases the canonical bundle source position model for the established bundle.Type API.
-type SourcePosition = spec.SourcePosition
-
-// PackageSignatureVerification aliases the canonical package signature policy model.
-type PackageSignatureVerification = spec.PackageSignatureVerification
-
-// KeylessSignatureVerification aliases the canonical keyless signature policy model.
-type KeylessSignatureVerification = spec.KeylessSignatureVerification
-
 // Variables contains user-defined bundle configuration variables.
 type Variables map[string]any
 
