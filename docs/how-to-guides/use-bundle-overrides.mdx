@@ -64,6 +64,8 @@ overrides:
 
    The `path` uses dot notation to locate the value in the chart's `values.yaml`.
 
+   Use `values` for static configuration. Template expressions in `values` remain supported for compatibility and bundle imports, but use `variables` for new configuration that is supplied at deploy time.
+
 2. **Add a values file**
 
    For bulk overrides, provide a YAML file via `valuesFiles`:
@@ -125,6 +127,29 @@ overrides:
 
    > [!CAUTION]
    > If a variable accepts a file value but is missing `type: file`, the file will not be processed.
+
+   Use `sensitive: true` for credentials and other sensitive runtime values. For values that must preserve exact literal contents, including backslashes, use `type: file`.
+
+   To migrate a deploy time value out of `values`, keep only static configuration in `values` and add a variable for the runtime field:
+
+   ```yaml title="uds-bundle.yaml"
+   packages:
+     - name: example-package
+       overrides:
+         example-component:
+           example-chart:
+             values:
+               - path: application.settings
+                 value:
+                   notifications:
+                     enabled: true
+                   externalService:
+                     endpoint: "https://example.invalid"
+             variables:
+               - name: EXTERNAL_SERVICE_CREDENTIAL
+                 path: application.settings.externalService.credential
+                 sensitive: true
+   ```
 
 4. **Override a variable at deploy time**
 

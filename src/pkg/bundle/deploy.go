@@ -488,7 +488,10 @@ func formPkgViewsWithMetadata(b *Bundle, getMetadata func(types.Package) (v1alph
 
 		// process variables and overrides to get values
 		_, variableData := b.loadVariables(pkg, nil)
-		valuesOverrides, _, _ := b.loadChartOverrides(pkg, variableData)
+		valuesOverrides, _, err := b.loadChartOverrides(pkg, variableData)
+		if err != nil {
+			return nil, err
+		}
 
 		// Load the package metadata to get the list of sensitive variables for masking their values in the view
 		zarfPkg, err := getMetadata(pkg)
