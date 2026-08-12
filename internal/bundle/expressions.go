@@ -216,6 +216,108 @@ func expressionContainsFileCall(expr hcl.Expression) bool {
 	return hasFileCall
 }
 
+// localDependencies returns the local.<name> references used by an expression
+func localDependencies(expr hcl.Expression) []string {
+	var deps []string
+	seen := map[string]struct{}{}
+
+	for _, traversal := range expr.Variables() {
+		if len(traversal) < 2 {
+			continue
+		}
+
+		root, ok := traversal[0].(hcl.TraverseRoot)
+		if !ok || root.Name != "local" {
+			continue
+		}
+
+		var dep string
+
+		switch step := traversal[1].(type) {
+		case hcl.TraverseAttr:
+			dep = step.Name
+		case hcl.TraverseIndex:
+			if step.Key.Type() != cty.String {
+				continue
+			}
+			dep = step.Key.AsString()
+		default:
+			continue
+		}
+
+		if _, exists := seen[dep]; exists {
+			continue
+		}
+
+		seen[dep] = struct{}{}
+		deps = append(deps, dep)
+	}
+
+	return deps
+}
+
+// topoSortLocals orders local names so each local is evaluated after the locals it references
+func topoSortLocals(sourceOrder []string, exprs map[string]hcl.Expression, deps map[string][]string) ([]string, error) {
+	const (
+		unvisited = iota
+		visiting
+		visited
+	)
+
+	state := make(map[string]int)
+	stack := []string{}
+	stackIndex := map[string]int{}
+	order := make([]string, 0, len(exprs))
+
+	var visit func(string) error
+	visit = func(name string) error {
+		switch state[name] {
+		case visiting:
+			start := stackIndex[name]
+			cycle := append([]string(nil), stack[start:]...)
+			cycle = append(cycle, name)
+			return &CyclicLocalDependencyError{
+				Cycle: cycle,
+			}
+		case visited:
+			return nil
+		}
+
+		state[name] = visiting
+		stackIndex[name] = len(stack)
+		stack = append(stack, name)
+
+		for _, dep := range deps[name] {
+			if _, ok := exprs[dep]; !ok {
+				return &UndefinedLocalDependencyError{
+					Name:     dep,
+					Position: exprs[name].Range(),
+				}
+			}
+
+			if err := visit(dep); err != nil {
+				return err
+			}
+		}
+
+		stack = stack[:len(stack)-1]
+		delete(stackIndex, name)
+
+		state[name] = visited
+		order = append(order, name)
+
+		return nil
+	}
+
+	for _, name := range sourceOrder {
+		if err := visit(name); err != nil {
+			return nil, err
+		}
+	}
+
+	return order, nil
+}
+
 // extractLocals extracts and evaluates locals from the given HCL file.
 // Nested objects (e.g., pkgs = { base = "core-base" }) are handled natively
 // by go-cty, producing cty.ObjectVal values that support traversal like
@@ -229,11 +331,13 @@ func (p *HCLParser) extractLocals(hclFile *hcl.File, funcs map[string]function.F
 
 	content, _, diags := hclFile.Body.PartialContent(schema)
 	if diags.HasErrors() {
-		return nil, nil, fmt.Errorf("failed to read locals block: %s", diags.Error())
+		return nil, nil, &LocalsBlockError{Diags: diags}
 	}
 
-	localsMap := make(map[string]cty.Value)
-	localEvalContexts := make(map[int]*hcl.EvalContext)
+	exprs := make(map[string]hcl.Expression)
+	positions := make(map[string]int)
+	deps := make(map[string][]string)
+	sourceOrder := make([]string, 0)
 
 	for _, block := range content.Blocks {
 		if block.Type != "locals" {
@@ -242,42 +346,70 @@ func (p *HCLParser) extractLocals(hclFile *hcl.File, funcs map[string]function.F
 
 		attrs, diags := block.Body.JustAttributes()
 		if diags.HasErrors() {
-			return nil, nil, fmt.Errorf("failed to read locals attributes: %s", diags.Error())
+			return nil, nil, &LocalsAttributeError{Diags: diags}
 		}
 
-		// Since the JustAttributes returns a map and the iteration order of maps is not
-		// guaranteed, we need to sort the attributes based on their source position.
-		// This way we'll be reading locals in the same order as they are defined in the HCL file.
+		// JustAttributes returns a map, so sort by source position before building sourceOrder
 		names := slices.Collect(maps.Keys(attrs))
 		slices.SortFunc(names, func(a, b string) int {
 			posA := attrs[a].Expr.Range().Start
 			posB := attrs[b].Expr.Range().Start
-			return cmp.Or(cmp.Compare(posA.Line, posB.Line), cmp.Compare(posA.Column, posB.Column), cmp.Compare(a, b))
+
+			return cmp.Or(
+				cmp.Compare(posA.Byte, posB.Byte),
+				cmp.Compare(a, b),
+			)
 		})
 
 		for _, name := range names {
 			attr := attrs[name]
-			localVal := cty.EmptyObjectVal
-			if len(localsMap) > 0 {
-				localVal = cty.ObjectVal(maps.Clone(localsMap))
+
+			// catch already defined variables
+			if existing, exists := exprs[name]; exists {
+				return nil, nil, &DuplicateLocalError{name, existing.Range(), attr.Expr.Range()}
 			}
-			ctx := &hcl.EvalContext{
-				Variables: map[string]cty.Value{
-					"local": localVal,
-					"sys":   sysVars(p.arch),
-				},
-				Functions: funcs,
-			}
-			localEvalContexts[attr.Expr.Range().Start.Byte] = ctx
-			val, diags := attr.Expr.Value(ctx)
-			if diags.HasErrors() {
-				return nil, nil, fmt.Errorf("failed to evaluate local %q: %s", name, diags.Error())
-			}
-			localsMap[name] = val
+
+			exprs[name] = attr.Expr
+			positions[name] = attr.Expr.Range().Start.Byte
+			deps[name] = localDependencies(attr.Expr)
+			sourceOrder = append(sourceOrder, name)
 		}
 	}
 
-	return localsMap, localEvalContexts, nil
+	order, err := topoSortLocals(sourceOrder, exprs, deps)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	locals := make(map[string]cty.Value)
+	contexts := make(map[int]*hcl.EvalContext)
+
+	// build the local namespace
+	for _, name := range order {
+		localVal := cty.EmptyObjectVal
+		if len(locals) > 0 {
+			localVal = cty.ObjectVal(maps.Clone(locals))
+		}
+
+		ctx := &hcl.EvalContext{
+			Variables: map[string]cty.Value{
+				"local": localVal,
+				"sys":   sysVars(p.arch),
+			},
+			Functions: funcs,
+		}
+
+		contexts[positions[name]] = ctx
+
+		val, diags := exprs[name].Value(ctx)
+		if diags.HasErrors() {
+			return nil, nil, &LocalEvaluationError{Name: name, Diags: diags}
+		}
+
+		locals[name] = val
+	}
+
+	return locals, contexts, nil
 }
 
 // decodePackageDependsOn extracts depends_on from a package's Remain body as HCL traversals.

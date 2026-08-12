@@ -1337,32 +1337,36 @@ package "example" { source = "oci://example.com/package:v1" }
 	assert.Equal(t, "oci://example.com/package:v1", parsed.Packages[0].Source)
 }
 
-func TestMaterializeBundleFileFunctionsUsesSourceOrderLocalValues(t *testing.T) {
+func TestMaterializeBundleFileFunctionsUsesDependencyOrderLocalValues(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("from a"), tmpFilePerm))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.txt"), []byte("from b"), tmpFilePerm))
 	path := filepath.Join(dir, BundleFileName)
 	require.NoError(t, os.WriteFile(path, []byte(`
 uds { bundle_api_version = "uds.dev/v1alpha1" }
 locals {
-  path = "a.txt"
-  name = file(local.path)
+  description = file(local.path)
 }
 locals {
-  path = "b.txt"
+  name = file(local.path)
+  path = "a.txt"
 }
-metadata { name = local.name }
+metadata { 
+	name = local.name
+	description = local.description
+}
 package "example" { source = "oci://example.com/package:v1" }
 `), tmpFilePerm))
 
 	p := NewHCLParser("", iostreams.IOStreams{})
-	bundle, materialized, err := p.ParseAndMaterializeBundleFile(t.Context(), path)
+	b, materialized, err := p.ParseAndMaterializeBundleFile(t.Context(), path)
 	require.NoError(t, err)
-	assert.Equal(t, "from a", bundle.Metadata.Name)
+	assert.Equal(t, "from a", b.Metadata.Name)
+	assert.Equal(t, "from a", b.Metadata.Description)
 	assert.NotContains(t, string(materialized), "file(")
 	parsed, err := p.ParseBundleBytes(t.Context(), materialized)
 	require.NoError(t, err)
-	assert.Equal(t, bundle.Metadata.Name, parsed.Metadata.Name)
+	assert.Equal(t, b.Metadata.Name, parsed.Metadata.Name)
+	assert.Equal(t, b.Metadata.Description, parsed.Metadata.Description)
 }
 
 func TestMaterializeDefaultsFilePreservesExpressionScopeAndLaziness(t *testing.T) {
