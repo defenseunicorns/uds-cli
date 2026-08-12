@@ -22,9 +22,6 @@ on:
         type: boolean
         default: false
 
-permissions:
-  contents: read
-
 jobs:
   lint:
     name: Lint
@@ -232,9 +229,6 @@ jobs:
     runs-on: uds-ubuntu-big-boy-8-core
     needs: build
     timeout-minutes: 45
-    permissions:
-      contents: read
-      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -271,9 +265,6 @@ jobs:
     runs-on: uds-ubuntu-big-boy-8-core
     needs: build
     timeout-minutes: 65
-    permissions:
-      contents: read
-      packages: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
