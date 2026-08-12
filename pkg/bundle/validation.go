@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
@@ -22,12 +22,12 @@ var validSuffix = regexp.MustCompile(`^-[a-zA-Z0-9._-]+$`)
 
 // ValidateConfig validates a resolved public bundle configuration.
 func ValidateConfig(cfg *UDSBundleConfig) error {
-	return bundlehcl.ValidateConfig(toInternalConfig(cfg))
+	return bundleinternal.ValidateConfig(toInternalConfig(cfg))
 }
 
 // ValidatePackageNames checks that every requested package exists in packages.
 func ValidatePackageNames(names []string, packages []spec.Package) error {
-	return bundlehcl.ValidatePackageNames(names, packages)
+	return bundleinternal.ValidatePackageNames(names, packages)
 }
 
 func validateLogLevel(level string) error {
@@ -144,7 +144,7 @@ func (o ReconfigureOptions) Validate() error {
 // ValidateRemovalSafety returns an error if removing the named packages would
 // leave any remaining bundle package with a missing dependency.
 func ValidateRemovalSafety(ctx context.Context, streams iostreams.IOStreams, b *spec.UDSBundle, packageNames []string) error {
-	violations, err := bundlehcl.RemovalViolations(ctx, streams, b, packageNames)
+	violations, err := bundleinternal.RemovalViolations(ctx, streams, b, packageNames)
 	if err != nil {
 		return err
 	}
@@ -157,7 +157,7 @@ func ValidateRemovalSafety(ctx context.Context, streams iostreams.IOStreams, b *
 // ValidateDeploySafety returns an error if any selected package depends on a
 // package that is not selected.
 func ValidateDeploySafety(ctx context.Context, streams iostreams.IOStreams, b *spec.UDSBundle, packageNames []string) error {
-	violations, err := bundlehcl.DeployViolations(ctx, streams, b, packageNames)
+	violations, err := bundleinternal.DeployViolations(ctx, streams, b, packageNames)
 	if err != nil {
 		return err
 	}

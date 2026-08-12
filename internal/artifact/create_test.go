@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
@@ -16,26 +17,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLocalCreatorCreatePackageVerificationBoundary(t *testing.T) {
-	newOptions := func(t *testing.T, blobDir string, streams iostreams.IOStreams) CreatePackageOptions {
+func TestIngestSourceVerificationBoundary(t *testing.T) {
+	newConfig := func(t *testing.T) *bundleinternal.UDSBundleConfig {
 		t.Helper()
 		config := validValidationConfig()
 		config.Options.Architecture = "amd64"
 		config.Options.TmpDir = t.TempDir()
-		return CreatePackageOptions{Config: config, BlobDir: blobDir, BundleDir: t.TempDir(), Streams: streams}
+		return config
 	}
 
 	t.Run("verification failure never ingests the real package", func(t *testing.T) {
 		pkgDir := t.TempDir()
 		writeValidUnsignedPackage(t, pkgDir)
 		blobDir := t.TempDir()
-		creator := newLocalCreator("amd64")
-		err := creator.CreatePackage(t.Context(), &spec.Package{
+		manifests, err := ingestSource(t.Context(), &spec.Package{
 			Name: "signed", Source: pkgDir,
 			SignatureVerification: &spec.PackageSignatureVerification{PublicKey: "test public key"},
-		}, newOptions(t, blobDir, iostreams.IOStreams{}))
+		}, newConfig(t), blobDir, t.TempDir(), iostreams.IOStreams{})
 		require.ErrorContains(t, err, "package is not signed")
-		assert.Empty(t, creator.manifests)
+		assert.Empty(t, manifests)
 		entries, readErr := os.ReadDir(blobDir)
 		require.NoError(t, readErr)
 		assert.Empty(t, entries)
@@ -47,21 +47,36 @@ func TestLocalCreatorCreatePackageVerificationBoundary(t *testing.T) {
 		writeValidUnsignedPackage(t, pkgDir)
 		streams, _, out, errOut := iostreams.NewTestIOStreams()
 		streams = logger.Bind(streams, "info")
-		creator := newLocalCreator("amd64")
 
-		err := creator.CreatePackage(t.Context(), &spec.Package{
+		manifests, err := ingestSource(t.Context(), &spec.Package{
 			Name: "unsigned", Source: pkgDir,
 			SignatureVerification: &spec.PackageSignatureVerification{Verify: &verify},
-		}, newOptions(t, t.TempDir(), streams))
+		}, newConfig(t), t.TempDir(), t.TempDir(), streams)
 		require.NoError(t, err)
-		require.Len(t, creator.manifests, 1)
+		require.Len(t, manifests, 1)
 		assert.Contains(t, out.String()+errOut.String(), "unverified package")
 	})
+}
 
-	t.Run("nil package is rejected", func(t *testing.T) {
-		err := newLocalCreator("amd64").CreatePackage(t.Context(), nil, newOptions(t, t.TempDir(), iostreams.IOStreams{}))
-		require.ErrorContains(t, err, "package is required")
-	})
+func TestIngestSourceRejectsNilInputs(t *testing.T) {
+	config := validValidationConfig()
+	tests := []struct {
+		name   string
+		pkg    *spec.Package
+		config *bundleinternal.UDSBundleConfig
+		want   string
+	}{
+		{name: "package", config: config, want: "package must not be nil"},
+		{name: "configuration", pkg: &spec.Package{}, want: "config must not be nil"},
+		{name: "configuration options", pkg: &spec.Package{}, config: &bundleinternal.UDSBundleConfig{}, want: "config.Options must not be nil"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ingestSource(t.Context(), tt.pkg, tt.config, t.TempDir(), t.TempDir(), iostreams.IOStreams{})
+			require.ErrorContains(t, err, tt.want)
+		})
+	}
 }
 
 func TestAnnotatePackageVerification(t *testing.T) {

@@ -14,7 +14,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/mholt/archives"
@@ -147,7 +147,7 @@ func bundleNameFromDefinitionLayer(ctx context.Context, streams iostreams.IOStre
 		return "", fmt.Errorf("reading HCL blob: %w", err)
 	}
 
-	b, err := bundlehcl.NewHCLParser(arch, streams).ParseBundleBytes(ctx, hclBytes)
+	b, err := bundleinternal.NewHCLParser(arch, streams).ParseBundleBytes(ctx, hclBytes)
 	if err != nil {
 		return "", fmt.Errorf("parsing bundle HCL: %w", err)
 	}

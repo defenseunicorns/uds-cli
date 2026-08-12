@@ -10,13 +10,13 @@ import (
 	"path/filepath"
 
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 )
 
 // Create creates a UDS bundle tar.zst from the given bundle definition file.
-// It parses, validates, ingests all packages via a localCreator, and writes
-// the resulting archive next to the bundle file.
+// It parses and validates the bundle, ingests all packages, and writes the
+// resulting archive next to the bundle file.
 func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
@@ -41,7 +41,7 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	var defaultsHCL []byte
 	defaultsPath := filepath.Join(srcDir, BundleDefaultsFileName)
 	if _, err := os.Stat(defaultsPath); err == nil {
-		defaultsHCL, err = bundlehcl.MaterializeDefaultsFile(defaultsPath)
+		defaultsHCL, err = bundleinternal.MaterializeDefaultsFile(defaultsPath)
 		if err != nil {
 			return nil, fmt.Errorf("materializing defaults HCL: %w", err)
 		}

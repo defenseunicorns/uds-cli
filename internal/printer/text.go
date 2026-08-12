@@ -11,7 +11,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
@@ -35,7 +35,7 @@ func BufferString(ctx context.Context, streams iostreams.IOStreams, b *spec.UDSB
 
 	// Try to display packages in deployment order using the DAG.
 	// Fall back to declaration order if the graph can't be built.
-	dag, dagErr := bundlehcl.BuildDependencyGraph(ctx, streams, b)
+	dag, dagErr := bundleinternal.BuildDependencyGraph(ctx, streams, b)
 	if dagErr == nil {
 		writePackagesInDeployOrder(&out, dag)
 	} else {
@@ -46,7 +46,7 @@ func BufferString(ctx context.Context, streams iostreams.IOStreams, b *spec.UDSB
 }
 
 // writePackagesInDeployOrder writes packages grouped by deployment level.
-func writePackagesInDeployOrder(out *bytes.Buffer, dag *bundlehcl.DAG) {
+func writePackagesInDeployOrder(out *bytes.Buffer, dag *bundleinternal.DAG) {
 	levels, err := dag.TopologicalLevels()
 	if err != nil {
 		return

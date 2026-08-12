@@ -6,7 +6,7 @@ package zarf
 import (
 	"fmt"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 )
 
 // Validate checks that DeployPackageOptions is valid.
@@ -22,26 +22,26 @@ func (o DeployPackageOptions) Validate() error {
 
 // ValidateConfig validates configuration used by the private Zarf integration.
 func ValidateConfig(cfg *UDSBundleConfig) error {
-	return bundlehcl.ValidateConfig(toBundleHCLConfig(cfg))
+	return bundleinternal.ValidateConfig(toBundleHCLConfig(cfg))
 }
 
 // toBundleHCLConfig converts Zarf configuration to the shared HCL representation.
-func toBundleHCLConfig(cfg *UDSBundleConfig) *bundlehcl.UDSBundleConfig {
+func toBundleHCLConfig(cfg *UDSBundleConfig) *bundleinternal.UDSBundleConfig {
 	if cfg == nil {
 		return nil
 	}
 
-	var global *bundlehcl.GlobalOptions
+	var global *bundleinternal.GlobalOptions
 	if cfg.Global != nil {
-		global = &bundlehcl.GlobalOptions{
+		global = &bundleinternal.GlobalOptions{
 			LogLevel: cfg.Global.LogLevel,
 			Prompt:   cfg.Global.Prompt,
 		}
 	}
 
-	var options *bundlehcl.ConfigOptions
+	var options *bundleinternal.ConfigOptions
 	if cfg.Options != nil {
-		options = &bundlehcl.ConfigOptions{
+		options = &bundleinternal.ConfigOptions{
 			LogLevel:      cfg.Options.LogLevel,
 			Architecture:  cfg.Options.Architecture,
 			PlainHTTP:     cfg.Options.PlainHTTP,
@@ -52,10 +52,10 @@ func toBundleHCLConfig(cfg *UDSBundleConfig) *bundlehcl.UDSBundleConfig {
 		}
 	}
 
-	return &bundlehcl.UDSBundleConfig{
+	return &bundleinternal.UDSBundleConfig{
 		Global:    global,
 		Options:   options,
-		Variables: bundlehcl.Variables(cfg.Variables),
+		Variables: bundleinternal.Variables(cfg.Variables),
 		Remain:    cfg.Remain,
 	}
 }

@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/opencontainers/go-digest"
@@ -140,7 +139,7 @@ func TestExtractedArtifactPackageLayoutLoader_StagesFiles(t *testing.T) {
 	pkg := &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}
 	dstDir := t.TempDir()
 
-	// LoadPackage fails at layout.LoadFromDir since fixture has fake content,
+	// LoadPackageLayout fails at layout.LoadFromDir since fixture has fake content,
 	// not a valid Zarf package. Confirm layer files were staged before that failure.
 	_, err := loader.LoadPackageLayout(t.Context(), pkg, dstDir, LoadOptions{})
 	require.Error(t, err)
@@ -251,38 +250,6 @@ func TestExtractedArtifactPackageLayoutLoader_DirectoryFallback(t *testing.T) {
 	})
 }
 
-func TestExtractedArtifactPackageLayoutLoader_LoadBundle(t *testing.T) {
-	validHCL := `uds { bundle_api_version = "uds.dev/v1alpha1" }
-metadata { name = "test-bundle" }
-package "mypkg" { source = "oci://example.com/pkg:v1" }
-`
-	t.Run("happy path", func(t *testing.T) {
-		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, bundlehcl.BundleFileName), []byte(validHCL), 0o600))
-		loader := &ExtractedArtifactPackageLayoutLoader{}
-		b, err := loader.LoadBundle(t.Context(), dir, LoadOptions{})
-		require.NoError(t, err)
-		assert.Equal(t, "test-bundle", b.Metadata.Name)
-		require.Len(t, b.Packages, 1)
-		assert.Equal(t, "mypkg", b.Packages[0].Name)
-		assert.Equal(t, "oci://example.com/pkg:v1", b.Packages[0].Source)
-	})
-
-	t.Run("empty bundleDir", func(t *testing.T) {
-		loader := &ExtractedArtifactPackageLayoutLoader{}
-		_, err := loader.LoadBundle(t.Context(), "", LoadOptions{})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "bundleDir must not be empty")
-	})
-
-	t.Run("missing bundle file", func(t *testing.T) {
-		loader := &ExtractedArtifactPackageLayoutLoader{}
-		_, err := loader.LoadBundle(t.Context(), t.TempDir(), LoadOptions{})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), bundlehcl.BundleFileName)
-	})
-}
-
 // newArtifactPackageLayoutLoader creates an extracted-artifact loader fixture.
 func newArtifactPackageLayoutLoader(t *testing.T, layerTitle string) *ExtractedArtifactPackageLayoutLoader {
 	t.Helper()
@@ -308,37 +275,4 @@ func newArtifactPackageLayoutLoader(t *testing.T, layerTitle string) *ExtractedA
 		OCIDir:         ociDir,
 		PackageDigests: map[string]string{"example.com/pkg:v1": manifestDigest.String()},
 	}
-}
-
-func TestExtractedArtifactPackageLayoutLoader_LoadPackage(t *testing.T) {
-	loader := &ExtractedArtifactPackageLayoutLoader{}
-
-	t.Run("happy path", func(t *testing.T) {
-		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte("metadata:\n  name: my-zarf-pkg\n"), 0o600))
-		pkg, err := loader.LoadPackage(t.Context(), dir, LoadOptions{})
-		require.NoError(t, err)
-		assert.Equal(t, "my-zarf-pkg", pkg.Name)
-		assert.Equal(t, dir, pkg.Source)
-	})
-
-	t.Run("empty packageDir", func(t *testing.T) {
-		_, err := loader.LoadPackage(t.Context(), "", LoadOptions{})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "packageDir must not be empty")
-	})
-
-	t.Run("missing zarf.yaml", func(t *testing.T) {
-		_, err := loader.LoadPackage(t.Context(), t.TempDir(), LoadOptions{})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "reading zarf.yaml")
-	})
-
-	t.Run("empty name in zarf.yaml", func(t *testing.T) {
-		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte("metadata:\n  name: \"\"\n"), 0o600))
-		_, err := loader.LoadPackage(t.Context(), dir, LoadOptions{})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "empty metadata.name")
-	})
 }

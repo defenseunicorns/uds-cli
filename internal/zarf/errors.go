@@ -21,8 +21,3 @@ var ErrPackageNotDeployed = errors.New("package not deployed")
 func errNil(name string) error {
 	return fmt.Errorf("%s must not be nil", name)
 }
-
-// errEmpty returns an error for an empty parameter.
-func errEmpty(name string) error {
-	return fmt.Errorf("%s must not be empty", name)
-}

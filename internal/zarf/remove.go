@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
@@ -99,7 +99,7 @@ func (r *ZarfRemover) RemoveBundle(ctx context.Context, b *UDSBundle, packages [
 	}
 	s := logger.Bind(r.streams, opts.Config.Global.LogLevel)
 
-	dag, err := bundlehcl.BuildDependencyGraph(ctx, s, b)
+	dag, err := bundleinternal.BuildDependencyGraph(ctx, s, b)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build dependency graph: %w", err)
 	}
@@ -110,10 +110,10 @@ func (r *ZarfRemover) RemoveBundle(ctx context.Context, b *UDSBundle, packages [
 	}
 	s.Debug("dependency graph built", "levels", len(levels))
 
-	if err := bundlehcl.ValidatePackageNames(packages, b.Packages); err != nil {
+	if err := bundleinternal.ValidatePackageNames(packages, b.Packages); err != nil {
 		return nil, err
 	}
-	if levels, err = bundlehcl.FilterLevels(levels, packages); err != nil {
+	if levels, err = bundleinternal.FilterLevels(levels, packages); err != nil {
 		return nil, err
 	}
 

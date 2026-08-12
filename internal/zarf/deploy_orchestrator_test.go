@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -220,7 +220,7 @@ func runDeployOrchestrator(t *testing.T, b *UDSBundle, deploy deployFunc, concur
 // callable. Used by tests that need to drive Run with a custom context.
 func newOrchestratorForTest(t *testing.T, b *UDSBundle, deploy deployFunc, concurrency int) *deployOrchestrator {
 	t.Helper()
-	dag, err := bundlehcl.BuildDependencyGraph(t.Context(), iostreams.IOStreams{}, b)
+	dag, err := bundleinternal.BuildDependencyGraph(t.Context(), iostreams.IOStreams{}, b)
 	require.NoError(t, err)
 	levels, err := dag.TopologicalLevels()
 	require.NoError(t, err)
@@ -780,7 +780,7 @@ func TestDeployOrchestrator_ConcurrentOutputIsClean(t *testing.T) {
 		return nil
 	}
 
-	dag, err := bundlehcl.BuildDependencyGraph(t.Context(), iostreams.IOStreams{}, b)
+	dag, err := bundleinternal.BuildDependencyGraph(t.Context(), iostreams.IOStreams{}, b)
 	require.NoError(t, err)
 	levels, err := dag.TopologicalLevels()
 	require.NoError(t, err)

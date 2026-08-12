@@ -16,7 +16,7 @@ import (
 
 	ocipkg "github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -36,7 +36,7 @@ func Reconfigure(ctx context.Context, opts ReconfigureOptions) (*ReconfigureResu
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	defaultsData, err := bundlehcl.MaterializeDefaultsFile(opts.DefaultsFile)
+	defaultsData, err := bundleinternal.MaterializeDefaultsFile(opts.DefaultsFile)
 	if err != nil {
 		return nil, fmt.Errorf("reading defaults file: %w", err)
 	}
@@ -390,7 +390,7 @@ func reconfigureDefaultsData(opts ReconfigureOptions) ([]byte, error) {
 	if opts.materializedDefaults != nil {
 		return opts.materializedDefaults, nil
 	}
-	return bundlehcl.MaterializeDefaultsFile(opts.DefaultsFile)
+	return bundleinternal.MaterializeDefaultsFile(opts.DefaultsFile)
 }
 
 // AnnotationReconfiguredFrom is the OCI manifest annotation that records

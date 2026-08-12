@@ -4,10 +4,9 @@
 package artifact
 
 import (
-	"context"
 	"io/fs"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
@@ -43,31 +42,9 @@ type ExtractedBundle struct {
 	PackageDigests map[string]string
 }
 
-// Creator is implemented by types that can create UDS bundle artifacts.
-// It handles per-package ingestion and output naming, allowing library
-// consumers to substitute or mock the creation logic independently.
-type Creator interface {
-	// CreatePackage ingests a single package into the OCI layout at opts.BlobDir.
-	CreatePackage(ctx context.Context, pkg *spec.Package, opts CreatePackageOptions) error
-	// BundleName returns the output filename for the bundle artifact.
-	BundleName(b *spec.UDSBundle) string
-}
-
-// CreatePackageOptions holds per-package configuration during bundle creation.
-type CreatePackageOptions struct {
-	// Config is the merged config; always non-nil.
-	Config *bundlehcl.UDSBundleConfig
-
-	BlobDir   string
-	BundleDir string
-
-	// Streams carries In/Out/ErrOut for the operation.
-	Streams iostreams.IOStreams
-}
-
 // CreateOptions contains the private inputs needed to assemble a bundle artifact.
 type CreateOptions struct {
-	Config      *bundlehcl.UDSBundleConfig
+	Config      *bundleinternal.UDSBundleConfig
 	Bundle      *spec.UDSBundle
 	BundleHCL   []byte
 	DefaultsHCL []byte

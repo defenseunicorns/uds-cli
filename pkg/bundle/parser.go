@@ -6,44 +6,44 @@ package bundle
 import (
 	"context"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
 const (
 	// BundleFileName is the standard bundle definition filename.
-	BundleFileName = bundlehcl.BundleFileName
+	BundleFileName = bundleinternal.BundleFileName
 	// BundleDefaultsFileName is the standard bundle defaults filename.
-	BundleDefaultsFileName = bundlehcl.BundleDefaultsFileName
+	BundleDefaultsFileName = bundleinternal.BundleDefaultsFileName
 	// MaxConcurrency is the maximum supported package deployment concurrency.
-	MaxConcurrency = bundlehcl.MaxConcurrency
+	MaxConcurrency = bundleinternal.MaxConcurrency
 )
 
 // ResolveBundlePath resolves a bundle directory or definition path.
 func ResolveBundlePath(ref string) string {
-	return bundlehcl.ResolveBundlePath(ref)
+	return bundleinternal.ResolveBundlePath(ref)
 }
 
 // ParseDefaults parses variables from a bundle defaults file.
 func ParseDefaults(ctx context.Context, path string) (Variables, error) {
-	variables, err := bundlehcl.ParseDefaults(ctx, path)
+	variables, err := bundleinternal.ParseDefaults(ctx, path)
 	return fromInternalVariables(variables), err
 }
 
 // MergeVariables recursively merges variable maps without mutating either input.
 func MergeVariables(base, overrides Variables) Variables {
-	return fromInternalVariables(bundlehcl.MergeVariables(toInternalVariables(base), toInternalVariables(overrides)))
+	return fromInternalVariables(bundleinternal.MergeVariables(toInternalVariables(base), toInternalVariables(overrides)))
 }
 
 // HCLParser exposes bundle and configuration parsing through the public facade.
 type HCLParser struct {
-	parser *bundlehcl.HCLParser
+	parser *bundleinternal.HCLParser
 }
 
 // NewHCLParser creates an HCL parser for the target architecture.
 func NewHCLParser(arch string, streams iostreams.IOStreams) *HCLParser {
-	return &HCLParser{parser: bundlehcl.NewHCLParser(arch, streams)}
+	return &HCLParser{parser: bundleinternal.NewHCLParser(arch, streams)}
 }
 
 // ParseBundleFile parses a bundle definition file into the public semantic model.
@@ -71,18 +71,18 @@ func (p *HCLParser) parseAndMaterializeBundleFile(ctx context.Context, path stri
 }
 
 // toInternalConfig converts public configuration to the internal HCL representation.
-func toInternalConfig(cfg *UDSBundleConfig) *bundlehcl.UDSBundleConfig {
+func toInternalConfig(cfg *UDSBundleConfig) *bundleinternal.UDSBundleConfig {
 	if cfg == nil {
 		return nil
 	}
 
-	var global *bundlehcl.GlobalOptions
+	var global *bundleinternal.GlobalOptions
 	if cfg.Global != nil {
-		global = &bundlehcl.GlobalOptions{LogLevel: cfg.Global.LogLevel, Prompt: cfg.Global.Prompt}
+		global = &bundleinternal.GlobalOptions{LogLevel: cfg.Global.LogLevel, Prompt: cfg.Global.Prompt}
 	}
-	var options *bundlehcl.ConfigOptions
+	var options *bundleinternal.ConfigOptions
 	if cfg.Options != nil {
-		options = &bundlehcl.ConfigOptions{
+		options = &bundleinternal.ConfigOptions{
 			LogLevel:      cfg.Options.LogLevel,
 			Architecture:  cfg.Options.Architecture,
 			PlainHTTP:     cfg.Options.PlainHTTP,
@@ -92,7 +92,7 @@ func toInternalConfig(cfg *UDSBundleConfig) *bundlehcl.UDSBundleConfig {
 			Concurrency:   cfg.Options.Concurrency,
 		}
 	}
-	return &bundlehcl.UDSBundleConfig{
+	return &bundleinternal.UDSBundleConfig{
 		Global:    global,
 		Options:   options,
 		Variables: toInternalVariables(cfg.Variables),
@@ -101,8 +101,8 @@ func toInternalConfig(cfg *UDSBundleConfig) *bundlehcl.UDSBundleConfig {
 }
 
 // toInternalConfigOptions converts public configuration options to internal options.
-func toInternalConfigOptions(opts ConfigOptions) bundlehcl.ConfigOptions {
-	return bundlehcl.ConfigOptions{
+func toInternalConfigOptions(opts ConfigOptions) bundleinternal.ConfigOptions {
+	return bundleinternal.ConfigOptions{
 		LogLevel: opts.LogLevel, Architecture: opts.Architecture,
 		PlainHTTP: opts.PlainHTTP, SkipTLSVerify: opts.SkipTLSVerify,
 		UDSCache: opts.UDSCache, TmpDir: opts.TmpDir, Concurrency: opts.Concurrency,
@@ -110,7 +110,7 @@ func toInternalConfigOptions(opts ConfigOptions) bundlehcl.ConfigOptions {
 }
 
 // fromInternalConfig converts internal HCL configuration to the public representation.
-func fromInternalConfig(cfg *bundlehcl.UDSBundleConfig) *UDSBundleConfig {
+func fromInternalConfig(cfg *bundleinternal.UDSBundleConfig) *UDSBundleConfig {
 	if cfg == nil {
 		return nil
 	}
@@ -140,11 +140,11 @@ func fromInternalConfig(cfg *bundlehcl.UDSBundleConfig) *UDSBundleConfig {
 }
 
 // toInternalVariables recursively converts public variables to internal variables.
-func toInternalVariables(variables Variables) bundlehcl.Variables {
+func toInternalVariables(variables Variables) bundleinternal.Variables {
 	if variables == nil {
 		return nil
 	}
-	converted := make(bundlehcl.Variables, len(variables))
+	converted := make(bundleinternal.Variables, len(variables))
 	for key, value := range variables {
 		converted[key] = toInternalVariableValue(value)
 	}
@@ -170,7 +170,7 @@ func toInternalVariableValue(value any) any {
 }
 
 // fromInternalVariables recursively converts internal variables to public variables.
-func fromInternalVariables(variables bundlehcl.Variables) Variables {
+func fromInternalVariables(variables bundleinternal.Variables) Variables {
 	if variables == nil {
 		return nil
 	}
@@ -184,10 +184,10 @@ func fromInternalVariables(variables bundlehcl.Variables) Variables {
 // fromInternalVariableValue converts nested internal variable values to public values.
 func fromInternalVariableValue(value any) any {
 	switch value := value.(type) {
-	case bundlehcl.Variables:
+	case bundleinternal.Variables:
 		return fromInternalVariables(value)
 	case map[string]any:
-		return fromInternalVariables(bundlehcl.Variables(value))
+		return fromInternalVariables(bundleinternal.Variables(value))
 	case []any:
 		converted := make([]any, len(value))
 		for i, item := range value {

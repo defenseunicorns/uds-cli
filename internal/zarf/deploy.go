@@ -12,7 +12,7 @@ import (
 	"sync"
 	"text/template"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/zarf-dev/zarf/src/config"
@@ -30,7 +30,7 @@ var _ Deployer = (*orchestratedDeployer)(nil)
 
 // Flatten converts nested deployment variables to dotted string keys.
 func (v Variables) Flatten() (map[string]string, error) {
-	return bundlehcl.Variables(v).Flatten()
+	return bundleinternal.Variables(v).Flatten()
 }
 
 // DeployPackage invokes the configured package deployment function or base deployer.
@@ -86,7 +86,7 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts Depl
 
 	s := logger.Bind(d.streams, opts.Config.Global.LogLevel)
 
-	dag, err := bundlehcl.BuildDependencyGraph(ctx, s, b)
+	dag, err := bundleinternal.BuildDependencyGraph(ctx, s, b)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build dependency graph: %w", err)
 	}
@@ -107,10 +107,10 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts Depl
 	// opts.PackageDeployHooks and opts.PackageDeployFn (neither feeds package
 	// selection), so no contract-conforming hook can change the validation outcome
 	// by running first.
-	if err := bundlehcl.ValidatePackageNames(opts.Packages, b.Packages); err != nil {
+	if err := bundleinternal.ValidatePackageNames(opts.Packages, b.Packages); err != nil {
 		return nil, err
 	}
-	if levels, err = bundlehcl.FilterLevels(levels, opts.Packages); err != nil {
+	if levels, err = bundleinternal.FilterLevels(levels, opts.Packages); err != nil {
 		return nil, err
 	}
 

@@ -7,7 +7,7 @@ import (
 	"context"
 	"io/fs"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	specv1 "github.com/opencontainers/image-spec/specs-go/v1"
 	oras "oras.land/oras-go/v2"
@@ -41,16 +41,16 @@ type Pusher interface {
 }
 
 // Config aliases the private bundle configuration used by OCI operations.
-type Config = bundlehcl.UDSBundleConfig
+type Config = bundleinternal.UDSBundleConfig
 
 // UDSBundleConfig aliases the private bundle configuration for migrated callers.
-type UDSBundleConfig = bundlehcl.UDSBundleConfig
+type UDSBundleConfig = bundleinternal.UDSBundleConfig
 
 // ConfigOptions aliases the private OCI-relevant configuration options.
-type ConfigOptions = bundlehcl.ConfigOptions
+type ConfigOptions = bundleinternal.ConfigOptions
 
 // GlobalOptions aliases the private global configuration options.
-type GlobalOptions = bundlehcl.GlobalOptions
+type GlobalOptions = bundleinternal.GlobalOptions
 
 // PullOptions configures an OCI pull operation.
 type PullOptions struct {
@@ -61,7 +61,7 @@ type PullOptions struct {
 
 // Validate validates pull options.
 func (o PullOptions) Validate() error {
-	return bundlehcl.ValidateConfig(o.Config)
+	return bundleinternal.ValidateConfig(o.Config)
 }
 
 // PushOptions configures an OCI push operation.
@@ -73,7 +73,7 @@ type PushOptions struct {
 
 // Validate validates push options.
 func (o PushOptions) Validate() error {
-	return bundlehcl.ValidateConfig(o.Config)
+	return bundleinternal.ValidateConfig(o.Config)
 }
 
 // PullResult describes a completed OCI pull.

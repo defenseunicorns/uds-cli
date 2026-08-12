@@ -13,45 +13,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
-	"gopkg.in/yaml.v3"
 )
 
-var _ Loader = (*ExtractedArtifactPackageLayoutLoader)(nil)
 var _ PackageLayoutLoader = (*ExtractedArtifactPackageLayoutLoader)(nil)
-
-// LoadBundle parses the bundle.uds.hcl file inside bundleDir and returns a UDSBundle.
-func (l *ExtractedArtifactPackageLayoutLoader) LoadBundle(ctx context.Context, bundleDir string, opts LoadOptions) (*UDSBundle, error) {
-	if bundleDir == "" {
-		return nil, errEmpty("bundleDir")
-	}
-	parser := bundlehcl.NewHCLParser("", opts.Streams)
-	return parser.ParseBundleFile(ctx, filepath.Join(bundleDir, bundlehcl.BundleFileName))
-}
-
-// LoadPackage reads zarf.yaml from a flat extracted Zarf package directory and returns
-// a Package with the package name and the given directory as Source.
-func (l *ExtractedArtifactPackageLayoutLoader) LoadPackage(_ context.Context, packageDir string, _ LoadOptions) (*Package, error) {
-	if packageDir == "" {
-		return nil, errEmpty("packageDir")
-	}
-	b, err := os.ReadFile(filepath.Join(packageDir, "zarf.yaml"))
-	if err != nil {
-		return nil, fmt.Errorf("reading zarf.yaml from %q: %w", packageDir, err)
-	}
-	var meta zarfMetadata
-	if err := yaml.Unmarshal(b, &meta); err != nil {
-		return nil, fmt.Errorf("parsing zarf.yaml from %q: %w", packageDir, err)
-	}
-	if meta.Metadata.Name == "" {
-		return nil, fmt.Errorf("zarf.yaml in %q has empty metadata.name", packageDir)
-	}
-	return &Package{Name: meta.Metadata.Name, Source: packageDir}, nil
-}
 
 // LoadPackageLayout stages the package's OCI layers into dstDir, which must already exist.
 // For local-source packages not found in the OCI blob index, it falls back to staging
@@ -66,7 +34,7 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 	digest, ok := l.PackageDigests[key]
 	if !ok {
 		// Fallback: if pkg.Source is a local directory, stage it directly.
-		// This covers packages loaded via LoadPackage whose Source is an on-disk path.
+		// This covers packages whose Source is an on-disk path.
 		if !udsoci.IsOCIReference(pkg.Source) && pkg.Source != "" {
 			s.Info("loading package from pre-staged directory", "name", pkg.Name, "dir", pkg.Source)
 			if err := stagePackageDir(ctx, pkg.Source, dstDir); err != nil {

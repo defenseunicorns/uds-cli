@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
 	"github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 )
@@ -28,18 +27,4 @@ func ValidateBundleForCreate(b *spec.UDSBundle) error {
 		}
 	}
 	return errors.Join(errs...)
-}
-
-// Validate checks that CreatePackageOptions is valid.
-func (o CreatePackageOptions) Validate() error {
-	if err := bundlehcl.ValidateConfig(o.Config); err != nil {
-		return err
-	}
-	if o.BlobDir == "" {
-		return fmt.Errorf("BlobDir is required")
-	}
-	if o.BundleDir == "" {
-		return fmt.Errorf("BundleDir is required")
-	}
-	return nil
 }

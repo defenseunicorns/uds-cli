@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -40,7 +40,7 @@ const maxInspectMetadataSize = 16 << 20
 // InspectOptions contains the internal inputs for built bundle inspection.
 type InspectOptions struct {
 	Source  string
-	Config  *bundlehcl.UDSBundleConfig
+	Config  *bundleinternal.UDSBundleConfig
 	Streams iostreams.IOStreams
 }
 
@@ -212,7 +212,7 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 	if definition.MediaType != "" && !udsoci.IsImageManifestMediaType(definition.MediaType) {
 		return nil, fmt.Errorf("bundle definition manifest has unsupported media type %q", definition.MediaType)
 	}
-	hclLayer, err := udsoci.FindLayerByTitle(definition, bundlehcl.BundleFileName)
+	hclLayer, err := udsoci.FindLayerByTitle(definition, bundleinternal.BundleFileName)
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +228,7 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 		return nil, fmt.Errorf("fetching bundle definition HCL: %w", err)
 	}
 
-	b, err := bundlehcl.NewHCLParser(parseArch, streams).ParseBundleBytes(ctx, hclBytes)
+	b, err := bundleinternal.NewHCLParser(parseArch, streams).ParseBundleBytes(ctx, hclBytes)
 	if err != nil {
 		return nil, err
 	}

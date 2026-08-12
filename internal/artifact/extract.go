@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -183,7 +183,7 @@ func materializeBundleSrcFiles(_ context.Context, streams iostreams.IOStreams, b
 		if err := os.WriteFile(dst, data, tmpFilePerm); err != nil {
 			return "", fmt.Errorf("writing %s: %w", title, err)
 		}
-		if layer.MediaType == oci.MediaTypeBundleHCL && title == bundlehcl.BundleFileName {
+		if layer.MediaType == oci.MediaTypeBundleHCL && title == bundleinternal.BundleFileName {
 			bundleDefPath = dst
 		}
 	}

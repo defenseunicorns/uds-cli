@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -70,7 +70,7 @@ func inspect(ctx context.Context, opts InspectOptions, targetResolver inspectTar
 // toInspectResult converts a parsed bundle into its public inspection result.
 // Packages are listed in DAG (deployment) order.
 func toInspectResult(ctx context.Context, b *spec.UDSBundle, streams iostreams.IOStreams) (*InspectResult, error) {
-	dag, err := bundlehcl.BuildDependencyGraph(ctx, streams, b)
+	dag, err := bundleinternal.BuildDependencyGraph(ctx, streams, b)
 	if err != nil {
 		return nil, fmt.Errorf("building dependency graph: %w", err)
 	}

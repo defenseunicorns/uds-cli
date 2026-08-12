@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
@@ -25,19 +25,9 @@ import (
 	"oras.land/oras-go/v2/errdef"
 )
 
-// Compile-time check: localCreator must implement Creator.
-var _ Creator = &localCreator{}
-
-// localCreator is the default Creator that ingests packages from local paths
-// and OCI registries into an OCI image layout.
-type localCreator struct {
-	manifests []oci.OciManifest
-	arch      string
-}
-
 // Create assembles an OCI layout and writes it as a UDS bundle archive.
 func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
-	if err := bundlehcl.ValidateConfig(opts.Config); err != nil {
+	if err := bundleinternal.ValidateConfig(opts.Config); err != nil {
 		return nil, err
 	}
 	if opts.Bundle == nil {
@@ -50,7 +40,6 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 		return nil, fmt.Errorf("BundleDir is required")
 	}
 
-	creator := newLocalCreator(opts.Config.Options.Architecture)
 	root, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-create-*")
 	if err != nil {
 		return nil, err
@@ -70,16 +59,13 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 		return nil, err
 	}
 
-	pkgOpts := CreatePackageOptions{
-		Config:    opts.Config,
-		BlobDir:   blobDir,
-		BundleDir: opts.BundleDir,
-		Streams:   opts.Streams,
-	}
+	var packageManifests []oci.OciManifest
 	for i := range opts.Bundle.Packages {
-		if err := creator.CreatePackage(ctx, &opts.Bundle.Packages[i], pkgOpts); err != nil {
+		manifests, err := ingestSource(ctx, &opts.Bundle.Packages[i], opts.Config, blobDir, opts.BundleDir, opts.Streams)
+		if err != nil {
 			return nil, err
 		}
+		packageManifests = append(packageManifests, manifests...)
 	}
 
 	opts.Streams.Debug("creating bundle definition manifest")
@@ -87,15 +73,15 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	manifests := append([]oci.OciManifest{definition}, creator.manifests...)
+	manifests := append([]oci.OciManifest{definition}, packageManifests...)
 	if err := oci.GCUnreferencedBlobs(ctx, opts.Streams, blobDir, manifests); err != nil {
 		return nil, fmt.Errorf("cleaning up unreferenced blobs: %w", err)
 	}
-	if err := oci.WriteOCIIndex(filepath.Join(ociDir, "index.json"), oci.NewBundleIndex(manifests, creator.arch)); err != nil {
+	if err := oci.WriteOCIIndex(filepath.Join(ociDir, "index.json"), oci.NewBundleIndex(manifests, opts.Config.Options.Architecture)); err != nil {
 		return nil, err
 	}
 
-	outPath := filepath.Join(opts.BundleDir, creator.BundleName(opts.Bundle))
+	outPath := filepath.Join(opts.BundleDir, bundleOutputName(opts.Bundle, opts.Config.Options.Architecture))
 	if err := WriteTarZst(ctx, opts.Streams, outPath, root); err != nil {
 		return nil, err
 	}
@@ -114,58 +100,55 @@ func ensureAnnotation(m *oci.OciManifest, key, value string) {
 	}
 }
 
-// newLocalCreator returns a new localCreator instance for the given target arch.
-func newLocalCreator(arch string) *localCreator {
-	return &localCreator{arch: arch}
-}
-
-// CreatePackage ingests pkg into the OCI blob store at opts.BlobDir and
-// accumulates the resulting ociManifest descriptors for index construction.
-func (c *localCreator) CreatePackage(ctx context.Context, pkg *spec.Package, opts CreatePackageOptions) error {
-	if err := opts.Validate(); err != nil {
-		return err
-	}
+// ingestSource ingests one package source into the OCI blob store.
+func ingestSource(ctx context.Context, pkg *spec.Package, config *bundleinternal.UDSBundleConfig, blobDir, bundleDir string, streams iostreams.IOStreams) ([]oci.OciManifest, error) {
 	if pkg == nil {
-		return fmt.Errorf("package is required")
+		return nil, fmt.Errorf("package must not be nil")
+	}
+	if config == nil {
+		return nil, fmt.Errorf("config must not be nil")
+	}
+	if config.Options == nil {
+		return nil, fmt.Errorf("config.Options must not be nil")
 	}
 	if err := zarf.ValidatePackageSignatureVerification(pkg.Name, pkg.SignatureVerification); err != nil {
-		return err
+		return nil, err
 	}
-	opts.Streams.Info("ingesting package", "name", pkg.Name, "source", pkg.Source)
+	streams.Info("ingesting package", "name", pkg.Name, "source", pkg.Source)
 
-	config := zarf.ConfigOptions{
-		LogLevel:      opts.Config.Options.LogLevel,
-		Architecture:  opts.Config.Options.Architecture,
-		PlainHTTP:     opts.Config.Options.PlainHTTP,
-		SkipTLSVerify: opts.Config.Options.SkipTLSVerify,
-		UDSCache:      opts.Config.Options.UDSCache,
-		TmpDir:        opts.Config.Options.TmpDir,
-		Concurrency:   opts.Config.Options.Concurrency,
+	zarfConfig := zarf.ConfigOptions{
+		LogLevel:      config.Options.LogLevel,
+		Architecture:  config.Options.Architecture,
+		PlainHTTP:     config.Options.PlainHTTP,
+		SkipTLSVerify: config.Options.SkipTLSVerify,
+		UDSCache:      config.Options.UDSCache,
+		TmpDir:        config.Options.TmpDir,
+		Concurrency:   config.Options.Concurrency,
 	}
-	source := zarf.NewPackageSource(pkg.Source, config, opts.BundleDir, opts.Streams)
+	source := zarf.NewPackageSource(pkg.Source, zarfConfig, bundleDir, streams)
 
 	filter := zarf.BuildComponentFilter(pkg.OptionalComponents)
-	verificationWorkspace, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-package-verify-*")
+	verificationWorkspace, err := os.MkdirTemp(config.Options.TmpDir, "uds-package-verify-*")
 	if err != nil {
-		return fmt.Errorf("creating package verification workspace: %w", err)
+		return nil, fmt.Errorf("creating package verification workspace: %w", err)
 	}
 	defer func() {
 		if err := os.RemoveAll(verificationWorkspace); err != nil {
-			opts.Streams.Warn("failed to remove package verification workspace", "path", verificationWorkspace, "error", err)
+			streams.Warn("failed to remove package verification workspace", "path", verificationWorkspace, "error", err)
 		}
 	}()
 
-	loadOptions, err := zarf.PackageSignatureVerificationOptions(pkg, filepath.Join(verificationWorkspace, "material"), opts.Config.Options.TmpDir)
+	loadOptions, err := zarf.PackageSignatureVerificationOptions(pkg, filepath.Join(verificationWorkspace, "material"), config.Options.TmpDir)
 	if err != nil {
-		return fmt.Errorf("package %q: configuring signature verification: %w", pkg.Name, err)
+		return nil, fmt.Errorf("package %q: configuring signature verification: %w", pkg.Name, err)
 	}
 	loadOptions.Filter = filter
 	if loadOptions.VerificationStrategy == layout.VerifyNever {
-		opts.Streams.Warn("package signature verification is disabled; resulting bundle will contain an unverified package", "name", pkg.Name)
+		streams.Warn("package signature verification is disabled; resulting bundle will contain an unverified package", "name", pkg.Name)
 	} else if pkg.SignatureVerification.Keyless != nil {
 		keyless := pkg.SignatureVerification.Keyless
 		if keyless.InsecureIgnoreTlog || keyless.InsecureIgnoreSCT {
-			opts.Streams.Warn("keyless package signature verification has reduced protections", "name", pkg.Name, "ignoreTlog", keyless.InsecureIgnoreTlog, "ignoreSCT", keyless.InsecureIgnoreSCT)
+			streams.Warn("keyless package signature verification has reduced protections", "name", pkg.Name, "ignoreTlog", keyless.InsecureIgnoreTlog, "ignoreSCT", keyless.InsecureIgnoreSCT)
 		}
 	}
 
@@ -173,16 +156,16 @@ func (c *localCreator) CreatePackage(ctx context.Context, pkg *spec.Package, opt
 	if loadOptions.VerificationStrategy != layout.VerifyNever {
 		stagingDir, err := os.MkdirTemp(verificationWorkspace, "package-*")
 		if err != nil {
-			return fmt.Errorf("creating package verification workspace: %w", err)
+			return nil, fmt.Errorf("creating package verification workspace: %w", err)
 		}
-		manifests, err = source.VerifyAndIngestFiltered(ctx, stagingDir, loadOptions, opts.BlobDir)
+		manifests, err = source.VerifyAndIngestFiltered(ctx, stagingDir, loadOptions, blobDir)
 		if err != nil {
-			return fmt.Errorf("package %q: verifying and ingesting package: %w", pkg.Name, err)
+			return nil, fmt.Errorf("package %q: verifying and ingesting package: %w", pkg.Name, err)
 		}
 	} else {
-		manifests, err = source.IngestFiltered(ctx, filter, opts.BlobDir)
+		manifests, err = source.IngestFiltered(ctx, filter, blobDir)
 		if err != nil {
-			return fmt.Errorf("package %q: %w", pkg.Name, err)
+			return nil, fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
 	}
 
@@ -196,8 +179,7 @@ func (c *localCreator) CreatePackage(ctx context.Context, pkg *spec.Package, opt
 	}
 	annotatePackageVerification(manifests, loadOptions.VerificationStrategy != layout.VerifyNever)
 
-	c.manifests = append(c.manifests, manifests...)
-	return nil
+	return manifests, nil
 }
 
 func annotatePackageVerification(manifests []oci.OciManifest, verified bool) {
@@ -210,11 +192,6 @@ func annotatePackageVerification(manifests []oci.OciManifest, verified bool) {
 		}
 		manifests[i].Annotations[oci.AnnotationPackageVerification] = oci.AnnotationPackageVerificationVerified
 	}
-}
-
-// BundleName returns the output filename for the bundle artifact.
-func (c *localCreator) BundleName(b *spec.UDSBundle) string {
-	return bundleOutputName(b, c.arch)
 }
 
 // bundleOutputName builds the artifact filename from bundle metadata and architecture.
@@ -286,7 +263,7 @@ func createBundleDefinitionManifest(ctx context.Context, streams iostreams.IOStr
 	layers := []ocispec.Descriptor{hclDesc}
 	if defaultsData != nil {
 		defaultsDesc, err := pushBlob(oci.MediaTypeBundleHCL, defaultsData, map[string]string{
-			ocispec.AnnotationTitle: bundlehcl.BundleDefaultsFileName,
+			ocispec.AnnotationTitle: bundleinternal.BundleDefaultsFileName,
 		})
 		if err != nil {
 			return oci.OciManifest{}, fmt.Errorf("pushing defaults HCL: %w", err)

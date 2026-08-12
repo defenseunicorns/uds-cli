@@ -163,11 +163,25 @@ package "pkg2" {
 	// Locate the bundle definition manifest.
 	var idx struct {
 		Manifests []struct {
-			Digest       string `json:"digest"`
-			ArtifactType string `json:"artifactType"`
+			Digest       string            `json:"digest"`
+			ArtifactType string            `json:"artifactType"`
+			Annotations  map[string]string `json:"annotations"`
 		} `json:"manifests"`
 	}
 	require.NoError(t, json.Unmarshal(entries["oci/index.json"], &idx))
+	require.Len(t, idx.Manifests, 3) // config manifest + two package manifests
+
+	var packageRefs []string
+	var definitionCount int
+	for _, m := range idx.Manifests {
+		if m.ArtifactType == MediaTypeBundleDefinition {
+			definitionCount++
+			continue
+		}
+		packageRefs = append(packageRefs, m.Annotations["org.opencontainers.image.ref.name"])
+	}
+	require.Equal(t, 1, definitionCount)
+	assert.ElementsMatch(t, []string{"pkg1", "pkg2"}, packageRefs)
 
 	var defManifestBytes []byte
 	for _, m := range idx.Manifests {

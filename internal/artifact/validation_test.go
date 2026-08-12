@@ -6,40 +6,16 @@ package artifact
 import (
 	"testing"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/stretchr/testify/require"
 )
 
 // validValidationConfig returns a baseline valid configuration for validation tests.
-func validValidationConfig() *bundlehcl.UDSBundleConfig {
-	return &bundlehcl.UDSBundleConfig{
-		Global:  &bundlehcl.GlobalOptions{},
-		Options: &bundlehcl.ConfigOptions{Concurrency: 10},
-	}
-}
-
-func TestCreatePackageOptionsValidate(t *testing.T) {
-	tests := []struct {
-		name    string
-		opts    CreatePackageOptions
-		wantErr string
-	}{
-		{name: "nil config", wantErr: "config is required"},
-		{name: "empty blob directory", opts: CreatePackageOptions{Config: validValidationConfig(), BundleDir: "/bundle"}, wantErr: "BlobDir is required"},
-		{name: "empty bundle directory", opts: CreatePackageOptions{Config: validValidationConfig(), BlobDir: "/blobs"}, wantErr: "BundleDir is required"},
-		{name: "valid", opts: CreatePackageOptions{Config: validValidationConfig(), BlobDir: "/blobs", BundleDir: "/bundle"}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.opts.Validate()
-			if tt.wantErr == "" {
-				require.NoError(t, err)
-				return
-			}
-			require.ErrorContains(t, err, tt.wantErr)
-		})
+func validValidationConfig() *bundleinternal.UDSBundleConfig {
+	return &bundleinternal.UDSBundleConfig{
+		Global:  &bundleinternal.GlobalOptions{},
+		Options: &bundleinternal.ConfigOptions{Concurrency: 10},
 	}
 }
 

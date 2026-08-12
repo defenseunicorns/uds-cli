@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	"github.com/defenseunicorns/pkg/oci"
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -209,7 +209,7 @@ type RemovePackageOptions struct {
 	Force bool
 }
 
-// LoadOptions carries cross-cutting options for Loader and PackageLayoutLoader operations.
+// LoadOptions carries options for bundle and package layout loading.
 // It replaces the positional streams parameter previously on LoadPackageLayout and the
 // IsPartial field previously on DirectoryPackageLayoutLoader.
 type LoadOptions struct {
@@ -218,19 +218,10 @@ type LoadOptions struct {
 
 	// IsPartial controls whether the staged package is treated as partially extracted.
 	// When true, checksums.txt may reference layers not present on disk.
-	// Applies only to LoadPackageLayout; ignored by LoadBundle and LoadPackage.
+	// Applies only to LoadPackageLayout.
 	// ExtractedArtifactPackageLayoutLoader always forces IsPartial: true for
 	// OCI-blob-staged packages regardless of this field.
 	IsPartial bool
-}
-
-// Loader loads a previously saved Package or Bundle.
-// It is distinct from the lower-level PackageLayoutLoader, which returns a deploy-ready layout.
-type Loader interface {
-	// LoadBundle loads a bundle saved in a directory (e.g. via the Puller interface).
-	LoadBundle(ctx context.Context, bundleDir string, opts LoadOptions) (*UDSBundle, error)
-	// LoadPackage loads a package saved in a directory (e.g. via the Puller interface).
-	LoadPackage(ctx context.Context, packageDir string, opts LoadOptions) (*Package, error)
 }
 
 // PackageLayoutLoader abstracts how a per-package layout is obtained for deploy.
@@ -300,9 +291,8 @@ type zarfMetadata struct {
 }
 
 // ExtractedArtifactPackageLayoutLoader reads package OCI blobs from an extracted bundle artifact workspace.
-// It implements both Loader and PackageLayoutLoader: LoadBundle and LoadPackage read from the
-// caller-supplied directory path; LoadPackageLayout stages OCI blobs from the artifact workspace,
-// with a fallback to directory staging for local-source packages not in the OCI index.
+// LoadPackageLayout stages OCI blobs from the artifact workspace, with a fallback to directory staging
+// for local-source packages not in the OCI index.
 type ExtractedArtifactPackageLayoutLoader struct {
 	// OCIDir is <workspace>/oci — the extracted OCI image layout root.
 	OCIDir string
@@ -354,7 +344,7 @@ type ZarfDeployer struct {
 // Deployer interface and knows nothing about how a package is actually deployed.
 type deployOrchestrator struct {
 	deployer    Deployer
-	dag         *bundlehcl.DAG
+	dag         *bundleinternal.DAG
 	levels      [][]*Package
 	concurrency int
 	pkgOpts     DeployPackageOptions

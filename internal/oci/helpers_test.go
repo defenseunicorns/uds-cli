@@ -16,7 +16,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -137,7 +137,7 @@ func writeBundleLayout(t *testing.T, ociDir string, hclData []byte, arch string)
 			Digest:    "sha256:" + hclHex,
 			Size:      int64(len(hclData)),
 			Annotations: map[string]string{
-				ocispec.AnnotationTitle: bundlehcl.BundleFileName,
+				ocispec.AnnotationTitle: bundleinternal.BundleFileName,
 			},
 		}},
 	}
@@ -181,7 +181,7 @@ func bundleNameFromDefinitionLayer(ctx context.Context, streams iostreams.IOStre
 	if err != nil {
 		return "", err
 	}
-	bundle, err := bundlehcl.NewHCLParser(arch, streams).ParseBundleBytes(ctx, hclData)
+	bundle, err := bundleinternal.NewHCLParser(arch, streams).ParseBundleBytes(ctx, hclData)
 	if err != nil {
 		return "", err
 	}
@@ -246,7 +246,7 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	bundle, err := bundlehcl.NewHCLParser(opts.Config.Options.Architecture, opts.Streams).ParseBundleBytes(ctx, hclData)
+	bundle, err := bundleinternal.NewHCLParser(opts.Config.Options.Architecture, opts.Streams).ParseBundleBytes(ctx, hclData)
 	if err != nil {
 		return nil, err
 	}

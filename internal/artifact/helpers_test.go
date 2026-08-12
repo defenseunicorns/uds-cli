@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	BundleFileName         = bundlehcl.BundleFileName
-	BundleDefaultsFileName = bundlehcl.BundleDefaultsFileName
+	BundleFileName         = bundleinternal.BundleFileName
+	BundleDefaultsFileName = bundleinternal.BundleDefaultsFileName
 )
 
 // ociIndex aliases the OCI index model for artifact tests.

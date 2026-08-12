@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/defenseunicorns/uds-cli/internal/bundlehcl"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"golang.org/x/sync/errgroup"
 )
@@ -15,7 +15,7 @@ import (
 // newDeployOrchestrator wires the orchestrator with everything it needs to
 // drive a single bundle deploy. Each package is deployed via deployer.DeployPackage;
 // every deploy detail is carried in pkgOpts (e.g. pkgOpts.ClusterDeployFn).
-func newDeployOrchestrator(deployer Deployer, dag *bundlehcl.DAG, levels [][]*Package, concurrency int, pkgOpts DeployPackageOptions, streams iostreams.IOStreams) *deployOrchestrator {
+func newDeployOrchestrator(deployer Deployer, dag *bundleinternal.DAG, levels [][]*Package, concurrency int, pkgOpts DeployPackageOptions, streams iostreams.IOStreams) *deployOrchestrator {
 	return &deployOrchestrator{
 		deployer:    deployer,
 		dag:         dag,
