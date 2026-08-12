@@ -1,5 +1,5 @@
 # Copyright 2024-2026 Defense Unicorns
-# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-DefenseUnicorns-Commercial
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 name: Release Tests
 
@@ -21,6 +21,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+    secrets: inherit
     with:
       fetch_zarf: ${{ inputs.fetch_zarf }}
       include_ghcr_write: true

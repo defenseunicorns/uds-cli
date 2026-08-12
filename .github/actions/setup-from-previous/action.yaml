@@ -2,23 +2,31 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 name: setup-from-previous
-description: Download the previously built UDS CLI and install the pinned Go toolchain
+description: Download the previously built UDS CLI and prepare the test environment
+
+inputs:
+  create-cluster:
+    description: Whether to create a K3d cluster
+    required: false
+    default: "true"
 
 runs:
   using: composite
   steps:
-    - name: Setup Go
-      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-      with:
-        go-version-file: go.mod
-        cache: true
-
     - name: Download UDS CLI binary
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: uds-binary
         path: build/
 
+    - name: Setup development tools
+      uses: ./.github/actions/mise
+
     - name: Make UDS CLI executable
       shell: bash
       run: chmod +x build/uds
+
+    - name: Setup K3d
+      uses: ./.github/actions/k3d
+      with:
+        create-cluster: ${{ inputs.create-cluster }}

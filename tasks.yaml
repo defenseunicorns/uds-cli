@@ -13,7 +13,7 @@ tasks:
     description: run repository lint checks and unit tests
     actions:
       - task: lint
-      - task: test:unit
+      - task: test
 
   - name: build
     description: build a local UDS CLI binary
@@ -32,6 +32,11 @@ tasks:
     description: fix lint findings where supported
     actions:
       - cmd: hk fix --all
+
+  - name: test
+    description: run unit tests
+    actions:
+      - cmd: uds run test:unit
 
   # build tasks
   - name: get-versions
