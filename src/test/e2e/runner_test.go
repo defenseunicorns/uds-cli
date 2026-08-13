@@ -15,9 +15,13 @@ import (
 func TestTaskRunner(t *testing.T) {
 	t.Log("E2E: Task Runner")
 
-	gitRev, err := e2e.GetGitRevision()
-	require.NoError(t, err)
-	require.NoError(t, os.Setenv("GIT_REVISION", gitRev))
+	gitRev := os.Getenv("GIT_REVISION")
+	if gitRev == "" {
+		var err error
+		gitRev, err = e2e.GetGitRevision()
+		require.NoError(t, err)
+	}
+	setGitRev := fmt.Sprintf("GIT_REVISION=%s", gitRev)
 
 	t.Run("run action", func(t *testing.T) {
 		t.Parallel()
@@ -80,7 +84,7 @@ func TestTaskRunner(t *testing.T) {
 	t.Run("includes task loop", func(t *testing.T) {
 		t.Parallel()
 
-		stdOut, stdErr, err := e2e.UDS("run", "include-loop", "--file", "src/test/tasks/tasks.yaml")
+		stdOut, stdErr, err := e2e.UDS("run", "include-loop", "--set", setGitRev, "--file", "src/test/tasks/tasks.yaml")
 		require.Error(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "task loop")
 	})
