@@ -74,7 +74,7 @@ package "mypkg" {
 `
 	tarPath := buildBundleArtifact(t, bundleHCL, map[string][]string{
 		"mypkg": {"key: value1", "key: value2"},
-	}, []string{"oci://example.com/pkg:v1"})
+	}, []string{"example.com/pkg:v1"})
 	tmpRoot := t.TempDir()
 
 	src, err := PrepareDeploySource(t.Context(), iostreams.IOStreams{}, tarPath, tmpRoot)

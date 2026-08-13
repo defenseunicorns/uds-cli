@@ -13,9 +13,24 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func newTestCreateStore(t *testing.T) (*oci.Store, string) {
+	t.Helper()
+	root := t.TempDir()
+	store, err := oci.CreateStore(root)
+	require.NoError(t, err)
+	return store, root
+}
+
+func mustTestCreateStore(t *testing.T) *oci.Store {
+	t.Helper()
+	store, _ := newTestCreateStore(t)
+	return store
+}
 
 func TestIngestSourceVerificationBoundary(t *testing.T) {
 	newConfig := func(t *testing.T) *bundleinternal.UDSBundleConfig {
@@ -29,14 +44,14 @@ func TestIngestSourceVerificationBoundary(t *testing.T) {
 	t.Run("verification failure never ingests the real package", func(t *testing.T) {
 		pkgDir := t.TempDir()
 		writeValidUnsignedPackage(t, pkgDir)
-		blobDir := t.TempDir()
+		store, storeRoot := newTestCreateStore(t)
 		manifests, err := ingestSource(t.Context(), &spec.Package{
 			Name: "signed", Source: pkgDir,
 			SignatureVerification: &spec.PackageSignatureVerification{PublicKey: "test public key"},
-		}, newConfig(t), blobDir, t.TempDir(), iostreams.IOStreams{})
+		}, newConfig(t), store, t.TempDir(), iostreams.IOStreams{})
 		require.ErrorContains(t, err, "package is not signed")
 		assert.Empty(t, manifests)
-		entries, readErr := os.ReadDir(blobDir)
+		entries, readErr := os.ReadDir(filepath.Join(storeRoot, "blobs", "sha256"))
 		require.NoError(t, readErr)
 		assert.Empty(t, entries)
 	})
@@ -51,7 +66,7 @@ func TestIngestSourceVerificationBoundary(t *testing.T) {
 		manifests, err := ingestSource(t.Context(), &spec.Package{
 			Name: "unsigned", Source: pkgDir,
 			SignatureVerification: &spec.PackageSignatureVerification{Verify: &verify},
-		}, newConfig(t), t.TempDir(), t.TempDir(), streams)
+		}, newConfig(t), mustTestCreateStore(t), t.TempDir(), streams)
 		require.NoError(t, err)
 		require.Len(t, manifests, 1)
 		assert.Contains(t, out.String()+errOut.String(), "unverified package")
@@ -73,21 +88,21 @@ func TestIngestSourceRejectsNilInputs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := ingestSource(t.Context(), tt.pkg, tt.config, t.TempDir(), t.TempDir(), iostreams.IOStreams{})
+			_, err := ingestSource(t.Context(), tt.pkg, tt.config, mustTestCreateStore(t), t.TempDir(), iostreams.IOStreams{})
 			require.ErrorContains(t, err, tt.want)
 		})
 	}
 }
 
 func TestAnnotatePackageVerification(t *testing.T) {
-	manifests := []oci.OciManifest{{}, {Annotations: map[string]string{"existing": "value"}}}
+	manifests := []ocispec.Descriptor{{}, {Annotations: map[string]string{"existing": "value"}}}
 	annotatePackageVerification(manifests, true)
 
 	for _, manifest := range manifests {
 		assert.Equal(t, oci.AnnotationPackageVerificationVerified, manifest.Annotations[oci.AnnotationPackageVerification])
 	}
 
-	manifests = []oci.OciManifest{{}}
+	manifests = []ocispec.Descriptor{{}}
 	annotatePackageVerification(manifests, false)
 	assert.Empty(t, manifests[0].Annotations)
 }

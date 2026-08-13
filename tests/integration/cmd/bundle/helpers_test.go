@@ -29,7 +29,8 @@ func createInspectArtifact(t *testing.T) string {
 	root := t.TempDir()
 	pkgDir := filepath.Join(root, "pkg")
 	require.NoError(t, os.MkdirAll(pkgDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte("build:\n  signed: true\nmetadata:\n  name: test\n  version: 1.0.0\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte("build:\n  signed: true\nmetadata:\n  name: test\n  version: 1.0.0\n  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "checksums.txt"), nil, 0o644))
 
 	bundleFile := filepath.Join(root, bundlepkg.BundleFileName)
 	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {

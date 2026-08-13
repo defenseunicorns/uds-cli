@@ -12,6 +12,9 @@ import (
 	"testing"
 
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
+	godigest "github.com/opencontainers/go-digest"
+	"github.com/opencontainers/image-spec/specs-go"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 )
@@ -54,7 +57,8 @@ func WriteZarfLikeOCILayout(t *testing.T, layoutDir string, required, optional [
 	t.Helper()
 
 	blobDir := filepath.Join(layoutDir, "blobs", "sha256")
-	require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
+	_, err := udsoci.CreateStore(layoutDir)
+	require.NoError(t, err)
 
 	reqTrue := true
 	reqFalse := false
@@ -73,9 +77,9 @@ func WriteZarfLikeOCILayout(t *testing.T, layoutDir string, required, optional [
 	configBytes := []byte("{}")
 	configHash := writeTestBlob(t, blobDir, configBytes)
 
-	layers := []udsoci.OciDescriptor{{
+	layers := []ocispec.Descriptor{{
 		MediaType:   "application/vnd.zarf.layer.v1.blob",
-		Digest:      "sha256:" + zarfHash,
+		Digest:      godigest.NewDigestFromEncoded(godigest.SHA256, zarfHash),
 		Size:        int64(len(zarfBytes)),
 		Annotations: map[string]string{"org.opencontainers.image.title": "zarf.yaml"},
 	}}
@@ -85,20 +89,20 @@ func WriteZarfLikeOCILayout(t *testing.T, layoutDir string, required, optional [
 		data := []byte(name + " component data")
 		h := writeTestBlob(t, blobDir, data)
 		compDigests[name] = h
-		layers = append(layers, udsoci.OciDescriptor{
+		layers = append(layers, ocispec.Descriptor{
 			MediaType:   "application/vnd.zarf.layer.v1.blob",
-			Digest:      "sha256:" + h,
+			Digest:      godigest.NewDigestFromEncoded(godigest.SHA256, h),
 			Size:        int64(len(data)),
 			Annotations: map[string]string{"org.opencontainers.image.title": "components/" + name + ".tar"},
 		})
 	}
 
-	im := udsoci.OciImageManifest{
-		SchemaVersion: 2,
-		MediaType:     "application/vnd.oci.image.manifest.v1+json",
-		Config: udsoci.OciDescriptor{
+	im := ocispec.Manifest{
+		Versioned: specs.Versioned{SchemaVersion: 2},
+		MediaType: "application/vnd.oci.image.manifest.v1+json",
+		Config: ocispec.Descriptor{
 			MediaType: "application/vnd.zarf.config.v1+json",
-			Digest:    "sha256:" + configHash,
+			Digest:    godigest.NewDigestFromEncoded(godigest.SHA256, configHash),
 			Size:      int64(len(configBytes)),
 		},
 		Layers: layers,
@@ -107,17 +111,16 @@ func WriteZarfLikeOCILayout(t *testing.T, layoutDir string, required, optional [
 	require.NoError(t, err)
 	manifestHash := writeTestBlob(t, blobDir, manifestBytes)
 
-	idx := udsoci.OciIndex{
-		SchemaVersion: 2,
-		MediaType:     "application/vnd.oci.image.index.v1+json",
-		Manifests: []udsoci.OciManifest{{
+	idx := ocispec.Index{
+		Versioned: specs.Versioned{SchemaVersion: 2},
+		MediaType: "application/vnd.oci.image.index.v1+json",
+		Manifests: []ocispec.Descriptor{{
 			MediaType: "application/vnd.oci.image.manifest.v1+json",
-			Digest:    "sha256:" + manifestHash,
+			Digest:    godigest.NewDigestFromEncoded(godigest.SHA256, manifestHash),
 			Size:      int64(len(manifestBytes)),
 		}},
 	}
-	require.NoError(t, udsoci.WriteOCIIndex(filepath.Join(layoutDir, "index.json"), &idx))
-	require.NoError(t, udsoci.WriteOCILayout(filepath.Join(layoutDir, "oci-layout")))
+	require.NoError(t, udsoci.WriteIndex(filepath.Join(layoutDir, "index.json"), &idx))
 
 	return ZarfLayoutDigests{ComponentHexes: compDigests}
 }

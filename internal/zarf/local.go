@@ -5,36 +5,21 @@ package zarf
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
-	"github.com/defenseunicorns/pkg/oci"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
-	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
-	specv1 "github.com/opencontainers/image-spec/specs-go/v1"
-	zarfarchive "github.com/zarf-dev/zarf/src/pkg/archive"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/pkg/archive"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
-// Compile-time check: localSource must implement PackageSource.
 var _ PackageSource = &localSource{}
 
-// extractTarZst extracts a compressed Zarf package into a destination directory.
-func extractTarZst(ctx context.Context, streams iostreams.IOStreams, src, dst string) error {
-	streams.Debug("extracting tar.zst archive", "src", src, "dst", dst)
-	return zarfarchive.Decompress(ctx, src, dst, zarfarchive.DecompressOpts{OverwriteExisting: true})
-}
-
-// resolvedPath returns the absolute path to the local source, resolving
-// relative paths against bundleDir.
 func (s *localSource) resolvedPath() string {
 	if filepath.IsAbs(s.path) {
 		return s.path
@@ -42,45 +27,48 @@ func (s *localSource) resolvedPath() string {
 	return filepath.Join(s.bundleDir, s.path)
 }
 
-// PullFiltered loads a Zarf package from a local directory or archive,
-// applying the filter. This enables Deploy from local sources.
+// PullFiltered loads a Zarf directory or archive through Zarf's canonical
+// PackageLayout APIs. Arbitrary OCI layout directories are intentionally unsupported.
 func (s *localSource) PullFiltered(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions) (*layout.PackageLayout, error) {
 	if strings.TrimSpace(s.path) == "" {
 		return nil, fmt.Errorf("local package source path is empty")
 	}
 	path := s.resolvedPath()
-	st, err := os.Stat(path)
+	info, err := os.Stat(path)
 	if err != nil {
 		return nil, fmt.Errorf("stat %q: %w", path, err)
 	}
-
-	if !st.IsDir() {
-		if strings.HasSuffix(path, ".tar.zst") {
-			if err := extractTarZst(ctx, s.streams, path, tmpDir); err != nil {
-				return nil, fmt.Errorf("extracting local package %q: %w", s.path, err)
-			}
-			return layout.LoadFromDir(ctx, tmpDir, loadOptions)
+	if !info.IsDir() {
+		if !strings.HasSuffix(path, ".tar.zst") {
+			return nil, fmt.Errorf("unsupported local package source %q", s.path)
 		}
-		return nil, fmt.Errorf("unsupported local package source %q", s.path)
+		pkgLayout, err := loadPackageArchive(ctx, path, tmpDir, loadOptions)
+		if err != nil {
+			return nil, fmt.Errorf("loading local package archive %q: %w", s.path, err)
+		}
+		return pkgLayout, nil
+	}
+	if !isZarfPackage(path) {
+		return nil, fmt.Errorf("unsupported local package source %q: not a Zarf package directory or .tar.zst archive", path)
+	}
+	if err := rejectSymlinks(path); err != nil {
+		return nil, err
 	}
 
-	if isZarfPackage(path) {
-		// Copy the directory to tmpDir so that pkgLayout.Cleanup() (which calls
-		// os.RemoveAll) does not destroy the user's source directory.
-		copyDir := filepath.Join(tmpDir, "zarf-pkg")
-		if err := helpers.CreatePathAndCopy(path, copyDir); err != nil {
-			return nil, fmt.Errorf("copying local package to temp dir: %w", err)
-		}
-		return layout.LoadFromDir(ctx, copyDir, loadOptions)
+	stageDir := filepath.Join(tmpDir, "zarf-pkg")
+	if err := helpers.CreatePathAndCopy(path, stageDir); err != nil {
+		return nil, fmt.Errorf("copying local package to temp dir: %w", err)
 	}
-
-	return nil, fmt.Errorf("unsupported local package source %q: not a Zarf package directory or .tar.zst archive", path)
+	pkgLayout, err := layout.LoadFromDir(ctx, stageDir, loadOptions)
+	if err != nil {
+		return nil, fmt.Errorf("loading local package directory %q: %w", s.path, err)
+	}
+	return pkgLayout, nil
 }
 
-// VerifyAndIngestFiltered verifies a private staged copy of a local package and
-// ingests that exact copy so the verified content cannot diverge from the
-// content entering the bundle.
-func (s *localSource) VerifyAndIngestFiltered(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions, blobDir string) ([]ociManifest, error) {
+// VerifyAndIngestFiltered verifies a private staged copy and ingests those
+// exact bytes through the PackageLayout ORAS target.
+func (s *localSource) VerifyAndIngestFiltered(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions, store *udsoci.Store) ([]ocispec.Descriptor, error) {
 	pkgLayout, err := s.PullFiltered(ctx, tmpDir, loadOptions)
 	if err != nil {
 		return nil, err
@@ -90,210 +78,93 @@ func (s *localSource) VerifyAndIngestFiltered(ctx context.Context, tmpDir string
 			s.streams.Warn("failed to remove verified package layout", "path", pkgLayout.DirPath(), "error", err)
 		}
 	}()
-
-	stagedSource := &localSource{
-		path:    pkgLayout.DirPath(),
-		arch:    s.arch,
-		tmpDir:  s.tmpDir,
-		streams: s.streams,
-	}
-	return stagedSource.IngestFiltered(ctx, loadOptions.Filter, blobDir)
+	return s.ingestPackageLayout(ctx, pkgLayout, loadOptions.Filter, store)
 }
 
-// IngestFiltered ingests a local Zarf package into the bundle's blob directory.
-// Handles Zarf package directories, OCI layout directories, and .tar.zst archives.
-// Applies component filtering after ingestion for Zarf packages.
-func (s *localSource) IngestFiltered(ctx context.Context, filter filters.ComponentFilterStrategy, blobDir string) ([]ociManifest, error) {
+// IngestFiltered loads a local package with Zarf and copies its canonical OCI
+// representation into the bundle store.
+func (s *localSource) IngestFiltered(ctx context.Context, filter filters.ComponentFilterStrategy, store *udsoci.Store) ([]ocispec.Descriptor, error) {
 	if strings.TrimSpace(s.path) == "" {
 		return nil, fmt.Errorf("local package source path is empty")
 	}
 	path := s.resolvedPath()
-	s.streams.Debug("ingesting local source", "path", path, "arch", s.arch)
-
-	st, err := os.Stat(path)
+	info, err := os.Stat(path)
 	if err != nil {
 		return nil, fmt.Errorf("stat %q: %w", path, err)
 	}
+	loadOptions := layout.PackageLayoutOptions{Filter: filter, VerificationStrategy: layout.VerifyNever}
 
-	// If it's a file, extract it first
-	layoutRoot := path
-	cleanup := func() {}
-	if !st.IsDir() {
-		tmp, err := os.MkdirTemp(s.tmpDir, "uds-local-oci-*")
-		if err != nil {
+	var pkgLayout *layout.PackageLayout
+	switch {
+	case info.IsDir() && isZarfPackage(path):
+		if err := rejectSymlinks(path); err != nil {
 			return nil, err
 		}
-		cleanup = func() {
-			if err := os.RemoveAll(tmp); err != nil {
-				s.streams.Warn("failed to remove temporary directory", "path", tmp, "error", err)
-			}
-		}
-
-		if strings.HasSuffix(path, ".tar.zst") {
-			if err := extractTarZst(ctx, s.streams, path, tmp); err != nil {
-				cleanup()
-				return nil, err
-			}
-			layoutRoot = tmp
-		} else {
-			cleanup()
-			return nil, fmt.Errorf("unsupported local package source %q", s.path)
-		}
+		pkgLayout, err = layout.LoadFromDir(ctx, path, loadOptions)
+	case !info.IsDir() && strings.HasSuffix(path, ".tar.zst"):
+		pkgLayout, err = loadPackageArchive(ctx, path, s.tmpDir, loadOptions)
+	default:
+		return nil, fmt.Errorf("unsupported local package source %q: not a Zarf package directory or .tar.zst archive", path)
 	}
-	defer cleanup()
-
-	// Zarf package: convert to OCI layer format, then apply filter
-	if isZarfPackage(layoutRoot) {
-		manifests, err := ingestZarfPackage(ctx, s.streams, blobDir, layoutRoot, s.arch)
-		if err != nil {
-			return nil, err
-		}
-		for i, m := range manifests {
-			filtered, err := filterIngestedManifest(ctx, s.streams, blobDir, m, filter)
-			if err != nil {
-				return nil, fmt.Errorf("filtering local zarf package: %w", err)
-			}
-			manifests[i] = filtered
-		}
-		return manifests, nil
+	if err != nil {
+		return nil, fmt.Errorf("loading local package %q: %w", s.path, err)
 	}
-
-	return nil, fmt.Errorf("unsupported local package source %q: does not contain a Zarf package (missing zarf.yaml); OCI layouts are not supported", s.path)
+	if !info.IsDir() {
+		defer func() {
+			if err := pkgLayout.Cleanup(); err != nil {
+				s.streams.Warn("failed to remove package layout", "path", pkgLayout.DirPath(), "error", err)
+			}
+		}()
+	}
+	return s.ingestPackageLayout(ctx, pkgLayout, filter, store)
 }
 
-// ingestZarfPackage converts a traditional Zarf package directory to OCI layer format
-// and ingests it into the bundle blob store. Each file in the Zarf package becomes
-// an OCI layer with org.opencontainers.image.title annotation and file permissions.
-func ingestZarfPackage(ctx context.Context, streams iostreams.IOStreams, blobDir, pkgRoot, arch string) ([]ociManifest, error) {
-	streams.Debug("ingesting zarf package", "root", pkgRoot, "arch", arch)
-	// Parse zarf.yaml for metadata if it exists
-	zarfMeta := readZarfMetadata(filepath.Join(pkgRoot, "zarf.yaml"))
-
-	// Walk the package directory and create layers for each file
-	var layers []ociDescriptor
-
-	err := filepath.WalkDir(pkgRoot, func(path string, entry os.DirEntry, err error) error {
-		if err != nil {
-			return err
+func rejectSymlinks(root string) error {
+	return filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
 		}
-		// Check for context cancellation
-		if ctx.Err() != nil {
-			return ctx.Err()
+		if entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("local package %q contains unsupported symlink %q", root, path)
 		}
-		if entry.IsDir() {
-			return nil
-		}
-
-		// Skip symlinks and irregular files
-		if entry.Type()&os.ModeSymlink != 0 || !entry.Type().IsRegular() {
-			return nil
-		}
-
-		info, err := entry.Info()
-		if err != nil {
-			return fmt.Errorf("stat %s: %w", path, err)
-		}
-
-		// Get relative path from package root
-		relPath, err := filepath.Rel(pkgRoot, path)
-		if err != nil {
-			return err
-		}
-
-		// Use streaming for large files to avoid OOM
-		f, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = f.Close() }()
-
-		h := sha256.New()
-		size, err := io.Copy(h, f)
-		if err != nil {
-			return err
-		}
-		hexStr := hex.EncodeToString(h.Sum(nil))
-		d := udsoci.SHA256Digest(hexStr)
-
-		// Write blob to bundle using streaming
-		if err := udsoci.CopyBlobFileIfMissingAndVerify(blobDir, path, d); err != nil {
-			return err
-		}
-
-		// Use forward slashes in annotations (OCI standard)
-		title := filepath.ToSlash(relPath)
-
-		// Store file permissions and size
-		annotations := map[string]string{
-			"org.opencontainers.image.title":      title,
-			"org.defenseunicorns.zarf.file.mode":  fmt.Sprintf("%o", info.Mode().Perm()),
-			"org.defenseunicorns.zarf.file.mtime": info.ModTime().UTC().Format("2006-01-02T15:04:05Z"),
-		}
-
-		layers = append(layers, ociDescriptor{
-			MediaType:   mediaTypeZarfLayer,
-			Digest:      d.String(),
-			Size:        size,
-			Annotations: annotations,
-		})
-
 		return nil
 	})
+}
+
+func loadPackageArchive(ctx context.Context, path, tmpDir string, loadOptions layout.PackageLayoutOptions) (*layout.PackageLayout, error) {
+	stageDir, err := os.MkdirTemp(tmpDir, "zarf-pkg-*")
 	if err != nil {
-		return nil, fmt.Errorf("walking package directory: %w", err)
+		return nil, fmt.Errorf("creating package archive workspace: %w", err)
 	}
-
-	if len(layers) == 0 {
-		return nil, fmt.Errorf("no files found in Zarf package")
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.RemoveAll(stageDir)
+		}
+	}()
+	if err := archive.Decompress(ctx, path, stageDir, archive.DecompressOpts{}); err != nil {
+		return nil, fmt.Errorf("extracting local package archive %q: %w", path, err)
 	}
-
-	// Create config blob with package metadata
-	configData, err := json.Marshal(map[string]interface{}{
-		"architecture": arch,
-		"os":           oci.MultiOS,
-		"config": map[string]interface{}{
-			"Labels": map[string]string{
-				"org.defenseunicorns.zarf.name":        zarfMeta.Metadata.Name,
-				"org.defenseunicorns.zarf.version":     zarfMeta.Metadata.Version,
-				"org.defenseunicorns.zarf.description": zarfMeta.Metadata.Description,
-			},
-		},
-	})
+	pkgLayout, err := layout.LoadFromDir(ctx, stageDir, loadOptions)
 	if err != nil {
-		return nil, fmt.Errorf("marshaling config: %w", err)
+		return nil, fmt.Errorf("loading local package archive %q: %w", path, err)
 	}
-	configDigest, err := udsoci.WriteAndDigestBlob(blobDir, configData)
+	cleanup = false
+	return pkgLayout, nil
+}
+
+func (s *localSource) ingestPackageLayout(ctx context.Context, pkgLayout *layout.PackageLayout, filter filters.ComponentFilterStrategy, store *udsoci.Store) ([]ocispec.Descriptor, error) {
+	root, err := pkgLayout.Manifest()
 	if err != nil {
-		return nil, fmt.Errorf("writing config blob: %w", err)
+		return nil, fmt.Errorf("reading canonical package manifest: %w", err)
 	}
-
-	// Create the image manifest
-	imageManifest := ociImageManifest{
-		SchemaVersion: 2,
-		MediaType:     specv1.MediaTypeImageManifest,
-		Config: ociDescriptor{
-			MediaType: specv1.MediaTypeImageConfig,
-			Digest:    configDigest.String(),
-			Size:      int64(len(configData)),
-		},
-		Layers: layers,
-	}
-
-	// Marshal and write manifest blob
-	manifestData, err := json.Marshal(imageManifest)
+	layers, _, err := selectZarfLayers(ctx, root, pkgLayout, filter)
 	if err != nil {
-		return nil, fmt.Errorf("marshaling manifest: %w", err)
+		return nil, fmt.Errorf("selecting layers for %q: %w", s.path, err)
 	}
-
-	manifestDigest, err := udsoci.WriteAndDigestBlob(blobDir, manifestData)
+	desc, err := copySelectedPackage(ctx, pkgLayout, layers, store)
 	if err != nil {
-		return nil, fmt.Errorf("writing manifest blob: %w", err)
+		return nil, fmt.Errorf("ingesting package %q: %w", s.path, err)
 	}
-
-	// Return the manifest descriptor (ref ADR-0015).
-	return []ociManifest{{
-		MediaType: specv1.MediaTypeImageManifest,
-		Digest:    manifestDigest.String(),
-		Size:      int64(len(manifestData)),
-	}}, nil
+	return []ocispec.Descriptor{desc}, nil
 }

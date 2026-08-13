@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +21,7 @@ import (
 func writeMinimalZarfPackage(t *testing.T, dir string) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(dir, tempDirPerm))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte("metadata:\n  name: test\n  version: 0.0.1\ncomponents: []\n"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte("kind: ZarfPackageConfig\nmetadata:\n  name: test\n  version: 0.0.1\n  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\ncomponents: []\n"), tmpFilePerm))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "checksums.txt"), nil, tmpFilePerm))
 }
 
@@ -178,7 +178,7 @@ package "pkg2" {
 			definitionCount++
 			continue
 		}
-		packageRefs = append(packageRefs, m.Annotations["org.opencontainers.image.ref.name"])
+		packageRefs = append(packageRefs, m.Annotations[ocispec.AnnotationRefName])
 	}
 	require.Equal(t, 1, definitionCount)
 	assert.ElementsMatch(t, []string{"pkg1", "pkg2"}, packageRefs)
@@ -371,7 +371,7 @@ package "pkg1" {
 	second := createOnce()
 	assert.Equal(t, first, second, "identical inputs must produce byte-identical bundle indexes")
 
-	var idx udsoci.OciIndex
+	var idx ocispec.Index
 	require.NoError(t, json.Unmarshal(first, &idx))
 	assert.Equal(t, MediaTypeBundle, idx.ArtifactType, "bundle index must self-identify via artifactType")
 	assert.Equal(t, "amd64", idx.Annotations[AnnotationBundleArchitecture], "bundle index must record its architecture")

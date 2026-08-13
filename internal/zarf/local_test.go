@@ -4,155 +4,121 @@
 package zarf
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
+	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/mholt/archives"
-	specv1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
-// digestToHex extracts the hex portion from a digest string for test assertions.
-func digestToHex(t *testing.T, digest string) string {
+const emptySHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+func writeMinimalZarfPackage(t *testing.T, dir, name string) {
 	t.Helper()
-	parts := strings.SplitN(digest, ":", 2)
-	require.Len(t, parts, 2, "invalid digest format: %s", digest)
-	return parts[1]
+	zarfYAML := "kind: ZarfPackageConfig\nmetadata:\n  name: " + name + "\n  version: 1.0.0\n  aggregateChecksum: " + emptySHA256 + "\ncomponents: []\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, layout.ZarfYAML), []byte(zarfYAML), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, layout.Checksums), nil, tmpFilePerm))
 }
 
-// writeMinimalOCILayout creates the smallest OCI layout accepted by source tests.
-func writeMinimalOCILayout(t *testing.T, layoutDir string) {
+func newTestStore(t *testing.T) *udsoci.Store {
 	t.Helper()
-	blobDir := filepath.Join(layoutDir, "blobs", "sha256")
-	require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
-
-	configData := []byte(`{}`)
-	configDigest := writeBlobBytes(t, blobDir, configData)
-	layerData := []byte("layer")
-	layerDigest := writeBlobBytes(t, blobDir, layerData)
-	manifest := ociImageManifest{
-		SchemaVersion: 2,
-		MediaType:     specv1.MediaTypeImageManifest,
-		Config: ociDescriptor{
-			MediaType: specv1.MediaTypeImageConfig,
-			Digest:    configDigest,
-			Size:      int64(len(configData)),
-		},
-		Layers: []ociDescriptor{{
-			MediaType: specv1.MediaTypeImageLayer,
-			Digest:    layerDigest,
-			Size:      int64(len(layerData)),
-		}},
-	}
-	manifestData, err := json.Marshal(manifest)
+	store, err := udsoci.CreateStore(t.TempDir())
 	require.NoError(t, err)
-	manifestDigest := writeBlobBytes(t, blobDir, manifestData)
-	indexData, err := json.Marshal(ociIndex{
-		SchemaVersion: 2,
-		Manifests: []ociManifest{{
-			MediaType: specv1.MediaTypeImageManifest,
-			Digest:    manifestDigest,
-			Size:      int64(len(manifestData)),
-			Platform:  &specv1.Platform{Architecture: "amd64", OS: "linux"},
-		}},
-	})
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(layoutDir, "index.json"), indexData, tmpFilePerm))
-	require.NoError(t, os.WriteFile(filepath.Join(layoutDir, "oci-layout"), []byte(`{"imageLayoutVersion":"1.0.0"}`), tmpFilePerm))
+	return store
 }
 
-func TestLocalSource_IngestFiltered_ZarfPackage(t *testing.T) {
+func TestLocalSourceIngestFilteredUsesCanonicalPackageLayout(t *testing.T) {
 	pkgDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte("metadata:\n  name: test\n  version: 1.0.0\ncomponents: []\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "checksums.txt"), []byte(""), 0o644))
+	writeMinimalZarfPackage(t, pkgDir, "test")
+	store := newTestStore(t)
 
-	blobDir := t.TempDir()
-
-	src := &localSource{path: pkgDir, arch: "amd64", bundleDir: ""}
-	manifests, err := src.IngestFiltered(t.Context(), filters.Empty(), blobDir)
+	source := &localSource{path: pkgDir, arch: "amd64", streams: iostreams.IOStreams{}}
+	descriptors, err := source.IngestFiltered(t.Context(), filters.Empty(), store)
 	require.NoError(t, err)
-	assert.Len(t, manifests, 1)
-	assert.Equal(t, "application/vnd.oci.image.manifest.v1+json", manifests[0].MediaType)
+	require.Len(t, descriptors, 1)
+
+	data, err := udsoci.FetchBytes(t.Context(), store, descriptors[0])
+	require.NoError(t, err)
+	assert.Contains(t, string(data), layout.ZarfYAML)
+	assert.Equal(t, "application/vnd.oci.image.manifest.v1+json", descriptors[0].MediaType)
 }
 
-func TestLocalSource_IngestFiltered_RejectsOCILayout(t *testing.T) {
-	tests := []struct {
-		name   string
-		source func(t *testing.T) string
-	}{
-		{
-			name: "directory",
-			source: func(t *testing.T) string {
-				layoutDir := t.TempDir()
-				writeMinimalOCILayout(t, layoutDir)
-				return layoutDir
-			},
-		},
-		{
-			name: "tar zst archive",
-			source: func(t *testing.T) string {
-				layoutDir := t.TempDir()
-				writeMinimalOCILayout(t, layoutDir)
-				archivePath := filepath.Join(t.TempDir(), "layout.tar.zst")
-				require.NoError(t, writeTestTarZst(t, archivePath, layoutDir))
-				return archivePath
-			},
-		},
-	}
+func TestLocalSourceRejectsOCILayoutDirectory(t *testing.T) {
+	layoutDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(layoutDir, "oci-layout"), []byte(`{"imageLayoutVersion":"1.0.0"}`), tmpFilePerm))
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			src := &localSource{path: tt.source(t), arch: "amd64", streams: iostreams.IOStreams{}}
-			_, err := src.IngestFiltered(t.Context(), filters.Empty(), t.TempDir())
-			require.ErrorContains(t, err, "does not contain a Zarf package")
-			require.ErrorContains(t, err, "OCI layouts are not supported")
-		})
-	}
+	source := &localSource{path: layoutDir, arch: "amd64", streams: iostreams.IOStreams{}}
+	_, err := source.IngestFiltered(t.Context(), filters.Empty(), newTestStore(t))
+	require.ErrorContains(t, err, "not a Zarf package directory")
 }
 
-func TestLocalSource_IngestFiltered_RelativePath(t *testing.T) {
+func TestLocalSourceRejectsSymlinkInPackageDirectory(t *testing.T) {
+	pkgDir := t.TempDir()
+	writeMinimalZarfPackage(t, pkgDir, "symlink")
+	target := filepath.Join(t.TempDir(), "target")
+	require.NoError(t, os.WriteFile(target, []byte("target"), tmpFilePerm))
+	symlinkPath := filepath.Join(pkgDir, "linked-file")
+	if err := os.Symlink(target, symlinkPath); err != nil {
+		t.Skipf("symlinks are not available: %v", err)
+	}
+
+	source := &localSource{path: pkgDir, arch: "amd64", streams: iostreams.IOStreams{}}
+	_, err := source.IngestFiltered(t.Context(), filters.Empty(), newTestStore(t))
+	require.ErrorContains(t, err, "unsupported symlink")
+}
+
+func TestLocalSourceIngestFilteredRelativePath(t *testing.T) {
 	bundleDir := t.TempDir()
 	pkgDir := filepath.Join(bundleDir, "my-pkg")
-	require.NoError(t, os.MkdirAll(pkgDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte("metadata:\n  name: rel-test\n  version: 0.1.0\ncomponents: []\n"), 0o644))
+	require.NoError(t, os.MkdirAll(pkgDir, tempDirPerm))
+	writeMinimalZarfPackage(t, pkgDir, "relative")
 
-	blobDir := t.TempDir()
-
-	src := &localSource{path: "my-pkg", arch: "amd64", bundleDir: bundleDir}
-	manifests, err := src.IngestFiltered(t.Context(), filters.Empty(), blobDir)
+	source := &localSource{path: "my-pkg", arch: "amd64", bundleDir: bundleDir}
+	descriptors, err := source.IngestFiltered(t.Context(), filters.Empty(), newTestStore(t))
 	require.NoError(t, err)
-	assert.Len(t, manifests, 1)
+	assert.Len(t, descriptors, 1)
 }
 
-func TestLocalSourcePullFilteredArchiveUsesCallerWorkspace(t *testing.T) {
-	pkgDir := t.TempDir()
-	const emptySHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-	zarfYAML := "kind: ZarfPackageConfig\nmetadata:\n  name: test\n  version: 1.0.0\n  aggregateChecksum: " + emptySHA256 + "\ncomponents: []\n"
-	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte(zarfYAML), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "checksums.txt"), nil, 0o600))
+func TestLocalSourcePullFilteredArchiveCleansWorkspaceOnError(t *testing.T) {
+	archivePath := filepath.Join(t.TempDir(), "zarf-package-bad-amd64-1.0.0.tar.zst")
+	require.NoError(t, os.WriteFile(archivePath, []byte("not a zstd archive"), tmpFilePerm))
+	workspace := filepath.Join(t.TempDir(), "workspace")
+	require.NoError(t, os.MkdirAll(workspace, tempDirPerm))
 
-	archivePath := filepath.Join(t.TempDir(), "zarf-package-test-amd64-1.0.0.tar.zst")
+	source := &localSource{path: archivePath, arch: "amd64", streams: iostreams.IOStreams{}}
+	_, err := source.PullFiltered(t.Context(), workspace, layout.PackageLayoutOptions{
+		Filter:               filters.Empty(),
+		VerificationStrategy: layout.VerifyNever,
+	})
+
+	require.Error(t, err)
+	entries, readErr := os.ReadDir(workspace)
+	require.NoError(t, readErr)
+	assert.Empty(t, entries)
+}
+
+func TestLocalSourcePullFilteredArchiveUsesZarfLoader(t *testing.T) {
+	pkgDir := t.TempDir()
+	writeMinimalZarfPackage(t, pkgDir, "archive")
+	archivePath := filepath.Join(t.TempDir(), "zarf-package-archive-amd64-1.0.0.tar.zst")
 	require.NoError(t, writeTestTarZst(t, archivePath, pkgDir))
 
 	workspace := filepath.Join(t.TempDir(), "workspace")
 	require.NoError(t, os.MkdirAll(workspace, tempDirPerm))
-	src := &localSource{path: archivePath, arch: "amd64", streams: iostreams.IOStreams{}}
-	pkgLayout, err := src.PullFiltered(t.Context(), workspace, layout.PackageLayoutOptions{
+	source := &localSource{path: archivePath, arch: "amd64", streams: iostreams.IOStreams{}}
+	pkgLayout, err := source.PullFiltered(t.Context(), workspace, layout.PackageLayoutOptions{
 		Filter:               filters.Empty(),
 		VerificationStrategy: layout.VerifyNever,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, workspace, pkgLayout.DirPath())
-
+	assert.Contains(t, pkgLayout.DirPath(), workspace)
 	require.NoError(t, pkgLayout.Cleanup())
-	assert.NoDirExists(t, workspace)
 }
 
 func writeTestTarZst(t *testing.T, archivePath, srcDir string) error {
@@ -173,245 +139,27 @@ func writeTestTarZst(t *testing.T, archivePath, srcDir string) error {
 	return f.Close()
 }
 
-func TestLocalSource_ResolvedPath(t *testing.T) {
+func TestLocalSourceResolvedPath(t *testing.T) {
 	tests := []struct {
 		name      string
 		path      string
 		bundleDir string
 		want      string
 	}{
-		{
-			name:      "absolute path unchanged",
-			path:      "/abs/path/pkg",
-			bundleDir: "/bundle",
-			want:      "/abs/path/pkg",
-		},
-		{
-			name:      "relative path joined with bundleDir",
-			path:      "my-pkg",
-			bundleDir: "/bundle/dir",
-			want:      "/bundle/dir/my-pkg",
-		},
+		{name: "absolute", path: "/abs/path/pkg", bundleDir: "/bundle", want: "/abs/path/pkg"},
+		{name: "relative", path: "my-pkg", bundleDir: "/bundle/dir", want: "/bundle/dir/my-pkg"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			src := &localSource{path: tt.path, bundleDir: tt.bundleDir}
-			assert.Equal(t, tt.want, src.resolvedPath())
+			source := &localSource{path: tt.path, bundleDir: tt.bundleDir}
+			assert.Equal(t, tt.want, source.resolvedPath())
 		})
 	}
 }
 
 func TestIsZarfPackage(t *testing.T) {
-	t.Run("returns true when zarf.yaml exists", func(t *testing.T) {
-		root := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(root, "zarf.yaml"), []byte("metadata:\n  name: test"), tmpFilePerm))
-
-		got := isZarfPackage(root)
-		assert.True(t, got)
-	})
-
-	t.Run("returns false when zarf.yaml does not exist", func(t *testing.T) {
-		root := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(root, "other.yaml"), []byte("test"), tmpFilePerm))
-
-		got := isZarfPackage(root)
-		assert.False(t, got)
-	})
-
-	t.Run("returns false for empty directory", func(t *testing.T) {
-		root := t.TempDir()
-
-		got := isZarfPackage(root)
-		assert.False(t, got)
-	})
-
-	t.Run("returns false for non-existent directory", func(t *testing.T) {
-		got := isZarfPackage("/nonexistent/path/that/does/not/exist")
-		assert.False(t, got)
-	})
-}
-
-func TestIngestZarfPackage(t *testing.T) {
-	ctx := t.Context()
-
-	t.Run("successfully ingests simple Zarf package", func(t *testing.T) {
-		// Create a minimal Zarf package
-		pkgRoot := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(pkgRoot, "zarf.yaml"), []byte("metadata:\n  name: test\n  version: 1.0.0"), tmpFilePerm))
-		require.NoError(t, os.WriteFile(filepath.Join(pkgRoot, "checksums.txt"), []byte("abc123"), tmpFilePerm))
-
-		// Create components directory
-		componentsDir := filepath.Join(pkgRoot, "components")
-		require.NoError(t, os.MkdirAll(componentsDir, tempDirPerm))
-		require.NoError(t, os.WriteFile(filepath.Join(componentsDir, "test.tar"), []byte("test component data"), tmpFilePerm))
-
-		// Create blob directory
-		blobDir := t.TempDir()
-		require.NoError(t, os.MkdirAll(filepath.Join(blobDir), tempDirPerm))
-
-		manifests, err := ingestZarfPackage(ctx, iostreams.IOStreams{}, blobDir, pkgRoot, "amd64")
-		require.NoError(t, err)
-		require.Len(t, manifests, 1)
-
-		// Verify manifest structure
-		m := manifests[0]
-		assert.Equal(t, "application/vnd.oci.image.manifest.v1+json", m.MediaType)
-		assert.NotEmpty(t, m.Digest)
-		assert.Positive(t, m.Size)
-
-		// Verify manifest blob was written
-		manifestHex := digestToHex(t, m.Digest)
-		manifestPath := filepath.Join(blobDir, manifestHex)
-		assert.FileExists(t, manifestPath)
-
-		// Read and verify manifest contains expected layers
-		manifestData, err := os.ReadFile(manifestPath)
-		require.NoError(t, err)
-
-		var imageManifest ociImageManifest
-		require.NoError(t, json.Unmarshal(manifestData, &imageManifest))
-
-		// Should have 3 layers: zarf.yaml, checksums.txt, components/test.tar
-		assert.Len(t, imageManifest.Layers, 3)
-
-		// Verify layer annotations
-		layerTitles := make([]string, len(imageManifest.Layers))
-		for i, layer := range imageManifest.Layers {
-			layerTitles[i] = layer.Annotations["org.opencontainers.image.title"]
-		}
-		assert.Contains(t, layerTitles, "zarf.yaml")
-		assert.Contains(t, layerTitles, "checksums.txt")
-		assert.Contains(t, layerTitles, "components/test.tar")
-
-		// Verify config blob exists
-		configHex := digestToHex(t, imageManifest.Config.Digest)
-		configPath := filepath.Join(blobDir, configHex)
-		assert.FileExists(t, configPath)
-
-		// Verify all layer blobs exist
-		for _, layer := range imageManifest.Layers {
-			layerHex := digestToHex(t, layer.Digest)
-			layerPath := filepath.Join(blobDir, layerHex)
-			assert.FileExists(t, layerPath)
-		}
-	})
-
-	t.Run("uses forward slashes in layer titles", func(t *testing.T) {
-		pkgRoot := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(pkgRoot, "zarf.yaml"), []byte("test"), tmpFilePerm))
-
-		// Create nested directory structure
-		nestedDir := filepath.Join(pkgRoot, "a", "b", "c")
-		require.NoError(t, os.MkdirAll(nestedDir, tempDirPerm))
-		require.NoError(t, os.WriteFile(filepath.Join(nestedDir, "file.txt"), []byte("nested"), tmpFilePerm))
-
-		blobDir := t.TempDir()
-		require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
-
-		manifests, err := ingestZarfPackage(ctx, iostreams.IOStreams{}, blobDir, pkgRoot, "amd64")
-		require.NoError(t, err)
-
-		// Read manifest and check layer titles
-		manifestHex := digestToHex(t, manifests[0].Digest)
-		manifestData, err := os.ReadFile(filepath.Join(blobDir, manifestHex))
-		require.NoError(t, err)
-
-		var imageManifest ociImageManifest
-		require.NoError(t, json.Unmarshal(manifestData, &imageManifest))
-
-		// Find the nested file layer
-		var foundNestedTitle string
-		for _, layer := range imageManifest.Layers {
-			if title := layer.Annotations["org.opencontainers.image.title"]; title != "zarf.yaml" {
-				foundNestedTitle = title
-				break
-			}
-		}
-		// Should use forward slashes regardless of OS
-		assert.Equal(t, "a/b/c/file.txt", foundNestedTitle)
-	})
-
-	t.Run("returns error for empty package", func(t *testing.T) {
-		pkgRoot := t.TempDir()
-		// No files in package
-
-		blobDir := t.TempDir()
-		require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
-
-		_, err := ingestZarfPackage(ctx, iostreams.IOStreams{}, blobDir, pkgRoot, "arm64")
-		require.Error(t, err)
-		assert.ErrorContains(t, err, "no files found")
-	})
-
-	t.Run("skips symlinks", func(t *testing.T) {
-		pkgRoot := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(pkgRoot, "zarf.yaml"), []byte("test"), tmpFilePerm))
-		require.NoError(t, os.WriteFile(filepath.Join(pkgRoot, "target.txt"), []byte("target"), tmpFilePerm))
-
-		// Create a symlink
-		linkPath := filepath.Join(pkgRoot, "link.txt")
-		require.NoError(t, os.Symlink("target.txt", linkPath))
-
-		blobDir := t.TempDir()
-		require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
-
-		manifests, err := ingestZarfPackage(ctx, iostreams.IOStreams{}, blobDir, pkgRoot, "amd64")
-		require.NoError(t, err)
-
-		// Read manifest
-		manifestHex := digestToHex(t, manifests[0].Digest)
-		manifestData, err := os.ReadFile(filepath.Join(blobDir, manifestHex))
-		require.NoError(t, err)
-
-		var imageManifest ociImageManifest
-		require.NoError(t, json.Unmarshal(manifestData, &imageManifest))
-
-		// Should only have 2 layers: zarf.yaml and target.txt (symlink skipped)
-		assert.Len(t, imageManifest.Layers, 2)
-
-		layerTitles := make([]string, len(imageManifest.Layers))
-		for i, layer := range imageManifest.Layers {
-			layerTitles[i] = layer.Annotations["org.opencontainers.image.title"]
-		}
-		assert.Contains(t, layerTitles, "zarf.yaml")
-		assert.Contains(t, layerTitles, "target.txt")
-		assert.NotContains(t, layerTitles, "link.txt")
-	})
-
-	t.Run("preserves file permissions", func(t *testing.T) {
-		pkgRoot := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(pkgRoot, "zarf.yaml"), []byte("test"), tmpFilePerm))
-
-		// Create executable file
-		execPath := filepath.Join(pkgRoot, "script.sh")
-		require.NoError(t, os.WriteFile(execPath, []byte("#!/bin/bash\necho test"), 0o755))
-
-		blobDir := t.TempDir()
-		require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
-
-		manifests, err := ingestZarfPackage(ctx, iostreams.IOStreams{}, blobDir, pkgRoot, "amd64")
-		require.NoError(t, err)
-
-		// Read manifest
-		manifestHex := digestToHex(t, manifests[0].Digest)
-		manifestData, err := os.ReadFile(filepath.Join(blobDir, manifestHex))
-		require.NoError(t, err)
-
-		var imageManifest ociImageManifest
-		require.NoError(t, json.Unmarshal(manifestData, &imageManifest))
-
-		// Find the script layer
-		var scriptLayer *ociDescriptor
-		for i, layer := range imageManifest.Layers {
-			if layer.Annotations["org.opencontainers.image.title"] == "script.sh" {
-				scriptLayer = &imageManifest.Layers[i]
-				break
-			}
-		}
-		require.NotNil(t, scriptLayer, "script.sh layer not found")
-
-		// Verify permissions are preserved
-		mode := scriptLayer.Annotations["org.defenseunicorns.zarf.file.mode"]
-		assert.Equal(t, "755", mode)
-	})
+	root := t.TempDir()
+	assert.False(t, isZarfPackage(root))
+	require.NoError(t, os.WriteFile(filepath.Join(root, layout.ZarfYAML), []byte("metadata:\n  name: test"), tmpFilePerm))
+	assert.True(t, isZarfPackage(root))
 }

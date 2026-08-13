@@ -18,8 +18,6 @@ import (
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"gopkg.in/yaml.v3"
-	"oras.land/oras-go/v2"
-	"oras.land/oras-go/v2/content"
 )
 
 type inspectBlobFetcher func(context.Context, ocispec.Descriptor) ([]byte, error)
@@ -30,12 +28,10 @@ type packageSigningMetadata struct {
 	} `yaml:"build"`
 }
 
-type inspectOCIIndex = udsoci.OciIndex
-type inspectOCIManifest = udsoci.OciManifest
-type inspectOCIDescriptor = udsoci.OciDescriptor
-type inspectOCIImageManifest = udsoci.OciImageManifest
-
-const maxInspectMetadataSize = 16 << 20
+type inspectOCIIndex = ocispec.Index
+type inspectOCIManifest = ocispec.Descriptor
+type inspectOCIDescriptor = ocispec.Descriptor
+type inspectOCIImageManifest = ocispec.Manifest
 
 // InspectOptions contains the internal inputs for built bundle inspection.
 type InspectOptions struct {
@@ -45,7 +41,7 @@ type InspectOptions struct {
 }
 
 // InspectTargetResolver provides an internal test seam for OCI sources.
-type InspectTargetResolver func(context.Context, string, *InspectOptions) (oras.Target, error)
+type InspectTargetResolver func(context.Context, string, *InspectOptions) (udsoci.Target, error)
 
 // InspectResult contains the parsed bundle and metadata extracted during inspection.
 type InspectResult struct {
@@ -99,20 +95,19 @@ func inspectLocalArtifact(ctx context.Context, opts InspectOptions) (*InspectRes
 		return nil, fmt.Errorf("extracting bundle artifact: %w", err)
 	}
 
-	ociDir, err := udsoci.FindOCILayoutRoot(workspace)
-	if err != nil {
-		return nil, fmt.Errorf("locating bundle OCI layout: %w", err)
-	}
-
+	ociDir := filepath.Join(workspace, "oci")
 	indexPath := filepath.Join(ociDir, "index.json")
 	indexBytes, err := os.ReadFile(indexPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading bundle index: %w", err)
 	}
 
-	blobDir := filepath.Join(ociDir, "blobs", "sha256")
-	fetch := func(_ context.Context, desc ocispec.Descriptor) ([]byte, error) {
-		return udsoci.ReadLocalBlob(blobDir, desc, maxInspectMetadataSize)
+	store, err := udsoci.OpenReadOnlyStore(ociDir)
+	if err != nil {
+		return nil, fmt.Errorf("opening bundle OCI layout: %w", err)
+	}
+	fetch := func(ctx context.Context, desc ocispec.Descriptor) ([]byte, error) {
+		return udsoci.FetchBytes(ctx, store, desc)
 	}
 	return inspectBundleIndex(ctx, opts.Streams, indexBytes, digest.FromBytes(indexBytes).String(), fetch)
 }
@@ -132,19 +127,12 @@ func inspectOCIReference(ctx context.Context, opts InspectOptions, targetResolve
 	}
 
 	fetch := func(ctx context.Context, desc ocispec.Descriptor) ([]byte, error) {
-		if err := udsoci.ValidateBlobSize(desc, maxInspectMetadataSize); err != nil {
-			return nil, err
-		}
-		data, err := content.FetchAll(ctx, target, desc)
-		if err != nil {
-			return nil, fmt.Errorf("fetching metadata %s: %w", desc.Digest, err)
-		}
-		return data, nil
+		return udsoci.FetchBytes(ctx, target, desc)
 	}
 	return inspectBundleIndex(ctx, opts.Streams, indexBytes, childDesc.Digest.String(), fetch)
 }
 
-func resolveInspectTarget(ctx context.Context, opts InspectOptions, targetResolver InspectTargetResolver) (oras.Target, error) {
+func resolveInspectTarget(ctx context.Context, opts InspectOptions, targetResolver InspectTargetResolver) (udsoci.Target, error) {
 	if targetResolver != nil {
 		target, err := targetResolver(ctx, udsoci.TrimScheme(opts.Source), &opts)
 		if err != nil {
@@ -177,7 +165,7 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 		return nil, fmt.Errorf("bundle index does not record its architecture: missing the %s annotation", udsoci.AnnotationBundleArchitecture)
 	}
 
-	definitionEntry, definitionIndex, err := udsoci.FindBundleDefinitionEntry(idx)
+	definitionEntry, definitionIndex, err := udsoci.FindBundleDefinition(idx)
 	if err != nil {
 		return nil, err
 	}
@@ -189,15 +177,7 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 	if !udsoci.IsImageManifestMediaType(definitionEntry.MediaType) {
 		return nil, fmt.Errorf("bundle definition entry has unsupported media type %q", definitionEntry.MediaType)
 	}
-	definitionDesc, err := udsoci.DescriptorFromOCI(inspectOCIDescriptor{
-		MediaType: definitionEntry.MediaType,
-		Digest:    definitionEntry.Digest,
-		Size:      definitionEntry.Size,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("parsing bundle definition descriptor: %w", err)
-	}
-	definitionBytes, err := fetch(ctx, definitionDesc)
+	definitionBytes, err := fetch(ctx, definitionEntry)
 	if err != nil {
 		return nil, fmt.Errorf("fetching bundle definition manifest: %w", err)
 	}
@@ -212,16 +192,12 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 	if definition.MediaType != "" && !udsoci.IsImageManifestMediaType(definition.MediaType) {
 		return nil, fmt.Errorf("bundle definition manifest has unsupported media type %q", definition.MediaType)
 	}
-	hclLayer, err := udsoci.FindLayerByTitle(definition, bundleinternal.BundleFileName)
+	hclDesc, err := findLayerByTitle(definition, bundleinternal.BundleFileName)
 	if err != nil {
 		return nil, err
 	}
-	hclDesc, err := udsoci.DescriptorFromOCI(hclLayer)
-	if err != nil {
-		return nil, fmt.Errorf("parsing bundle definition HCL descriptor: %w", err)
-	}
-	if hclLayer.MediaType != udsoci.MediaTypeBundleHCL {
-		return nil, fmt.Errorf("bundle definition HCL layer has unsupported media type %q", hclLayer.MediaType)
+	if hclDesc.MediaType != udsoci.MediaTypeBundleHCL {
+		return nil, fmt.Errorf("bundle definition HCL layer has unsupported media type %q", hclDesc.MediaType)
 	}
 	hclBytes, err := fetch(ctx, hclDesc)
 	if err != nil {
@@ -261,15 +237,7 @@ func inspectPackageSignature(ctx context.Context, idx inspectOCIIndex, pkg spec.
 		Signed:       PackageSigningStatusUnknown,
 		Verification: packageVerificationStatus(pkg.SignatureVerification, entry),
 	}
-	manifestDesc, err := udsoci.DescriptorFromOCI(inspectOCIDescriptor{
-		MediaType: entry.MediaType,
-		Digest:    entry.Digest,
-		Size:      entry.Size,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("parsing package manifest descriptor: %w", err)
-	}
-	manifestBytes, err := fetch(ctx, manifestDesc)
+	manifestBytes, err := fetch(ctx, *entry)
 	if err != nil {
 		return nil, fmt.Errorf("fetching package manifest: %w", err)
 	}
@@ -286,11 +254,7 @@ func inspectPackageSignature(ctx context.Context, idx inspectOCIIndex, pkg spec.
 
 	zarfLayer, ok := findLayerByTitleOptional(manifest, "zarf.yaml")
 	if ok {
-		desc, err := udsoci.DescriptorFromOCI(zarfLayer)
-		if err != nil {
-			return nil, fmt.Errorf("parsing zarf.yaml descriptor: %w", err)
-		}
-		zarfBytes, err := fetch(ctx, desc)
+		zarfBytes, err := fetch(ctx, zarfLayer)
 		if err != nil {
 			return nil, fmt.Errorf("fetching zarf.yaml: %w", err)
 		}
@@ -310,9 +274,9 @@ func inspectPackageSignature(ctx context.Context, idx inspectOCIIndex, pkg spec.
 }
 
 func findPackageManifest(idx inspectOCIIndex, pkg spec.Package) (*inspectOCIManifest, error) {
-	key := pkg.Name
+	refName := pkg.Name
 	if udsoci.IsOCIReference(pkg.Source) {
-		key = udsoci.TrimScheme(pkg.Source)
+		refName = udsoci.TrimScheme(pkg.Source)
 	}
 	var match *inspectOCIManifest
 	for i := range idx.Manifests {
@@ -320,7 +284,7 @@ func findPackageManifest(idx inspectOCIIndex, pkg spec.Package) (*inspectOCIMani
 		if entry.ArtifactType == udsoci.MediaTypeBundleDefinition {
 			continue
 		}
-		if entry.Annotations["org.opencontainers.image.ref.name"] == key {
+		if entry.Annotations[ocispec.AnnotationRefName] == refName {
 			if !udsoci.IsImageManifestMediaType(entry.MediaType) {
 				return nil, fmt.Errorf("package %q entry has unsupported media type %q", pkg.Name, entry.MediaType)
 			}
@@ -334,6 +298,15 @@ func findPackageManifest(idx inspectOCIIndex, pkg spec.Package) (*inspectOCIMani
 		return match, nil
 	}
 	return nil, fmt.Errorf("package %q with source %q was not found in bundle index", pkg.Name, pkg.Source)
+}
+
+func findLayerByTitle(manifest inspectOCIImageManifest, title string) (inspectOCIDescriptor, error) {
+	for _, layer := range manifest.Layers {
+		if layer.Annotations[ocispec.AnnotationTitle] == title {
+			return layer, nil
+		}
+	}
+	return inspectOCIDescriptor{}, fmt.Errorf("%s layer not found in manifest", title)
 }
 
 func findLayerByTitleOptional(manifest inspectOCIImageManifest, title string) (inspectOCIDescriptor, bool) {

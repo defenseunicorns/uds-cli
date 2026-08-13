@@ -3,9 +3,19 @@
 
 package oci
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+
+	"oras.land/oras-go/v2/errdef"
+)
 
 // ErrEmpty returns an error for an empty parameter.
 func ErrEmpty(name string) error {
 	return fmt.Errorf("%s must not be empty", name)
+}
+
+// IsNotFound reports whether err is an ORAS not-found error.
+func IsNotFound(err error) bool {
+	return errors.Is(err, errdef.ErrNotFound)
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // Deploy deploys a UDS bundle to a Kubernetes cluster.
@@ -109,12 +110,21 @@ func prepareExtractedArtifactSource(ctx context.Context, streams iostreams.IOStr
 	return &DeploySource{
 		BundlePath: extracted.BundleDefPath,
 		Loader: &ExtractedArtifactPackageLayoutLoader{
-			OCIDir:         extracted.OCIDir,
-			PackageDigests: extracted.PackageDigests,
+			OCIDir:           extracted.OCIDir,
+			PackageDigests:   descriptorDigests(extracted.PackageManifests),
+			packageManifests: extracted.PackageManifests,
 		},
 		ValuesFilesOverride: valuesOverride,
 		closer:              tempDirCloser{path: workspaceDir},
 	}, nil
+}
+
+func descriptorDigests(manifests map[string]ocispec.Descriptor) map[string]string {
+	digests := make(map[string]string, len(manifests))
+	for ref, descriptor := range manifests {
+		digests[ref] = descriptor.Digest.String()
+	}
+	return digests
 }
 
 // prepareDirectorySource prepares a deploy source backed by a local bundle directory.

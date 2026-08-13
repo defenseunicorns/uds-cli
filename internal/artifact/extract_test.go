@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	godigest "github.com/opencontainers/go-digest"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +30,7 @@ package "pkg" { source = "pkg" }
 		check       func(t *testing.T, extracted *ExtractedBundle, dstDir string)
 	}{
 		{
-			name: "valid — materializes files and package digests",
+			name: "valid — materializes files and package manifests",
 			setup: func(t *testing.T) string {
 				hcl := `uds { bundle_api_version = "uds.dev/v1alpha1" }
 metadata { name = "test-bundle" version = "0.1.0" }
@@ -36,7 +38,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 `
 				return buildBundleArtifact(t, hcl, map[string][]string{
 					"mypkg": {"key: value1", "key: value2"},
-				}, []string{"oci://example.com/pkg:v1"})
+				}, []string{"mypkg"})
 			},
 			check: func(t *testing.T, extracted *ExtractedBundle, dstDir string) {
 				assert.Equal(t, dstDir, extracted.Dir)
@@ -47,8 +49,8 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 				require.NoError(t, err, "values/mypkg/0.yaml should be materialized")
 				_, err = os.Stat(filepath.Join(dstDir, "values", "mypkg", "1.yaml"))
 				require.NoError(t, err, "values/mypkg/1.yaml should be materialized")
-				assert.Len(t, extracted.PackageDigests, 1)
-				assert.Contains(t, extracted.PackageDigests, "example.com/pkg:v1")
+				assert.Len(t, extracted.PackageManifests, 1)
+				assert.Contains(t, extracted.PackageManifests, "mypkg")
 			},
 		},
 		{
@@ -122,75 +124,100 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 	}
 }
 
-func TestBuildPackageDigests(t *testing.T) {
+func TestBuildPackageManifests(t *testing.T) {
 	t.Parallel()
+	packageManifest := func(digest godigest.Digest, annotations map[string]string) ocispec.Descriptor {
+		return ocispec.Descriptor{MediaType: ocispec.MediaTypeImageManifest, Digest: digest, Annotations: annotations}
+	}
 	tests := []struct {
 		name        string
-		manifests   []ociManifest
+		manifests   []ocispec.Descriptor
 		defIdx      int
-		wantDigests map[string]string
+		wantDigests map[string]ocispec.Descriptor
 		wantErrFrag string
 	}{
 		{
 			name:        "no non-def manifests returns empty map",
-			manifests:   []ociManifest{{Digest: "sha256:def"}},
+			manifests:   []ocispec.Descriptor{{Digest: godigest.Digest("sha256:def")}},
 			defIdx:      0,
-			wantDigests: map[string]string{},
+			wantDigests: map[string]ocispec.Descriptor{},
 		},
 		{
 			name: "single manifest",
-			manifests: []ociManifest{
-				{Digest: "sha256:def"},
-				{Digest: "sha256:aaa", Annotations: map[string]string{"org.opencontainers.image.ref.name": "example.com/pkg:v1"}},
+			manifests: []ocispec.Descriptor{
+				{Digest: godigest.Digest("sha256:def")},
+				packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "pkg"}),
 			},
 			defIdx:      0,
-			wantDigests: map[string]string{"example.com/pkg:v1": "sha256:aaa"},
+			wantDigests: map[string]ocispec.Descriptor{"pkg": packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "pkg"})},
 		},
 		{
-			name: "duplicate ref.name same digest is idempotent",
-			manifests: []ociManifest{
-				{Digest: "sha256:def"},
-				{Digest: "sha256:aaa", Annotations: map[string]string{"org.opencontainers.image.ref.name": "example.com/pkg:v1"}},
-				{Digest: "sha256:aaa", Annotations: map[string]string{"org.opencontainers.image.ref.name": "example.com/pkg:v1"}},
+			name: "duplicate ref name same digest is idempotent",
+			manifests: []ocispec.Descriptor{
+				{Digest: godigest.Digest("sha256:def")},
+				packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "pkg"}),
+				packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "pkg"}),
 			},
 			defIdx:      0,
-			wantDigests: map[string]string{"example.com/pkg:v1": "sha256:aaa"},
+			wantDigests: map[string]ocispec.Descriptor{"pkg": packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "pkg"})},
 		},
 		{
-			name: "duplicate ref.name different digest returns error",
-			manifests: []ociManifest{
-				{Digest: "sha256:def"},
-				{Digest: "sha256:aaa", Annotations: map[string]string{"org.opencontainers.image.ref.name": "example.com/pkg:v1"}},
-				{Digest: "sha256:bbb", Annotations: map[string]string{"org.opencontainers.image.ref.name": "example.com/pkg:v1"}},
+			name: "duplicate ref name different digest returns error",
+			manifests: []ocispec.Descriptor{
+				{Digest: godigest.Digest("sha256:def")},
+				packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "pkg"}),
+				packageManifest(godigest.Digest("sha256:bbb"), map[string]string{ocispec.AnnotationRefName: "pkg"}),
 			},
 			defIdx:      0,
-			wantErrFrag: "example.com/pkg:v1",
+			wantErrFrag: "pkg",
 		},
 		{
-			name: "missing ref.name annotation returns error",
-			manifests: []ociManifest{
-				{Digest: "sha256:def"},
-				{Digest: "sha256:aaa"},
+			name: "different ref names are indexed separately",
+			manifests: []ocispec.Descriptor{
+				{Digest: godigest.Digest("sha256:def")},
+				packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "example.com/pkg-a:v1"}),
+				packageManifest(godigest.Digest("sha256:bbb"), map[string]string{ocispec.AnnotationRefName: "example.com/pkg-b:v1"}),
+			},
+			defIdx: 0,
+			wantDigests: map[string]ocispec.Descriptor{
+				"example.com/pkg-a:v1": packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "example.com/pkg-a:v1"}),
+				"example.com/pkg-b:v1": packageManifest(godigest.Digest("sha256:bbb"), map[string]string{ocispec.AnnotationRefName: "example.com/pkg-b:v1"}),
+			},
+		},
+		{
+			name: "unsupported media type returns error",
+			manifests: []ocispec.Descriptor{
+				{Digest: godigest.Digest("sha256:def")},
+				{Digest: godigest.Digest("sha256:aaa"), Annotations: map[string]string{ocispec.AnnotationRefName: "pkg"}},
+			},
+			defIdx:      0,
+			wantErrFrag: "unsupported media type",
+		},
+		{
+			name: "missing ref name annotation returns error",
+			manifests: []ocispec.Descriptor{
+				{Digest: godigest.Digest("sha256:def")},
+				packageManifest(godigest.Digest("sha256:aaa"), nil),
 			},
 			defIdx:      0,
 			wantErrFrag: "no org.opencontainers.image.ref.name",
 		},
 		{
 			name: "defIdx manifest is skipped",
-			manifests: []ociManifest{
-				{Digest: "sha256:aaa", Annotations: map[string]string{"org.opencontainers.image.ref.name": "example.com/pkg:v1"}},
-				{Digest: "sha256:def"},
+			manifests: []ocispec.Descriptor{
+				packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "pkg"}),
+				{Digest: godigest.Digest("sha256:def")},
 			},
 			defIdx:      1,
-			wantDigests: map[string]string{"example.com/pkg:v1": "sha256:aaa"},
+			wantDigests: map[string]ocispec.Descriptor{"pkg": packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "pkg"})},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			idx := ociIndex{Manifests: tt.manifests}
-			got, err := buildPackageDigests(idx, tt.defIdx)
+			idx := ocispec.Index{Manifests: tt.manifests}
+			got, err := buildPackageManifests(idx, tt.defIdx)
 			if tt.wantErrFrag != "" {
 				require.ErrorContains(t, err, tt.wantErrFrag)
 				return

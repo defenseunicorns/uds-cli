@@ -13,34 +13,32 @@ import (
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	godigest "github.com/opencontainers/go-digest"
+	"github.com/opencontainers/image-spec/specs-go"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	oras "oras.land/oras-go/v2"
-	"oras.land/oras-go/v2/content"
 	oraci "oras.land/oras-go/v2/content/oci"
 )
 
 // fetchRootIndex resolves the tag on dst and returns the fetched index.
-func fetchRootIndex(t *testing.T, dst oras.Target, tag string) ociIndex {
+func fetchRootIndex(t *testing.T, dst oras.Target, tag string) ocispec.Index {
 	t.Helper()
 	desc, err := dst.Resolve(t.Context(), tag)
 	require.NoError(t, err)
-	data, err := content.FetchAll(t.Context(), dst, desc)
+	data, err := FetchBytes(t.Context(), dst, desc)
 	require.NoError(t, err)
-	var idx ociIndex
+	var idx ocispec.Index
 	require.NoError(t, json.Unmarshal(data, &idx))
 	return idx
 }
 
 // fetchChildIndex fetches a child bundle index by its root-entry descriptor.
-func fetchChildIndex(t *testing.T, dst oras.Target, entry ociManifest) ociIndex {
+func fetchChildIndex(t *testing.T, dst oras.Target, entry ocispec.Descriptor) ocispec.Index {
 	t.Helper()
-	d, err := parseDigest(entry.Digest)
+	data, err := FetchBytes(t.Context(), dst, entry)
 	require.NoError(t, err)
-	data, err := content.FetchAll(t.Context(), dst, ocispec.Descriptor{MediaType: entry.MediaType, Digest: d, Size: entry.Size})
-	require.NoError(t, err)
-	var idx ociIndex
+	var idx ocispec.Index
 	require.NoError(t, json.Unmarshal(data, &idx))
 	return idx
 }
@@ -78,10 +76,10 @@ func TestPush_NonUDSBundle(t *testing.T) {
 	// Write a plain image manifest with no ArtifactType.
 	manifestBytes := []byte(`{"schemaVersion":2,"config":{"digest":"sha256:abc","size":2},"layers":[]}`)
 	manifestHex := writeTestBlob(t, blobDir, manifestBytes)
-	idxBytes, err := json.Marshal(ociIndex{
-		SchemaVersion: 2,
-		Manifests: []ociManifest{{
-			Digest: "sha256:" + manifestHex,
+	idxBytes, err := json.Marshal(ocispec.Index{
+		Versioned: specs.Versioned{SchemaVersion: 2},
+		Manifests: []ocispec.Descriptor{{
+			Digest: godigest.NewDigestFromEncoded(godigest.SHA256, manifestHex),
 			Size:   int64(len(manifestBytes)),
 		}},
 	})
@@ -321,7 +319,7 @@ func TestPushPackage_DoesNotModifySourceIndex(t *testing.T) {
 	require.NoError(t, err)
 
 	// Parse original to verify it has exactly one manifest (no tags).
-	var originalIdx ociIndex
+	var originalIdx ocispec.Index
 	require.NoError(t, json.Unmarshal(originalIndexBytes, &originalIdx))
 	require.Len(t, originalIdx.Manifests, 1, "original index should have exactly one manifest")
 
@@ -342,7 +340,7 @@ func TestPushPackage_DoesNotModifySourceIndex(t *testing.T) {
 	assert.Equal(t, originalIndexBytes, afterIndexBytes, "source index.json should not be modified by PushPackage")
 
 	// Verify the manifest is still in the store and unchanged.
-	var afterIdx ociIndex
+	var afterIdx ocispec.Index
 	require.NoError(t, json.Unmarshal(afterIndexBytes, &afterIdx))
 	require.Len(t, afterIdx.Manifests, 1, "index should still have exactly one manifest after push")
 }
@@ -372,7 +370,7 @@ func TestPush_PublishesRootIndexRoutingToChild(t *testing.T) {
 
 	// The child index bytes in the registry match the tarball's index.json.
 	entries := readTarZstEntries(t, tarball)
-	assert.Equal(t, godigest.FromBytes(entries["oci/index.json"]).String(), entry.Digest,
+	assert.Equal(t, godigest.FromBytes(entries["oci/index.json"]), entry.Digest,
 		"registry child index must be byte-identical to the tarball index.json")
 }
 

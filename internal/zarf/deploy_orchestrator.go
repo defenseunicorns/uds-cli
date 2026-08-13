@@ -55,7 +55,7 @@ func (o *deployOrchestrator) Run(ctx context.Context) error {
 		g, gctx := errgroup.WithContext(ctx)
 		g.SetLimit(o.concurrency)
 
-		levelErrs := newErrs()
+		levelErrs := newErrorAccumulator()
 
 		for i, pkg := range level {
 			if gctx.Err() != nil {

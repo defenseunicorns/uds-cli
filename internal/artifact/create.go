@@ -4,10 +4,9 @@
 package artifact
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,10 +18,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
-	oras "oras.land/oras-go/v2"
-	"oras.land/oras-go/v2/content"
-	oraci "oras.land/oras-go/v2/content/oci"
-	"oras.land/oras-go/v2/errdef"
 )
 
 // Create assembles an OCI layout and writes it as a UDS bundle archive.
@@ -51,17 +46,14 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	}()
 
 	ociDir := filepath.Join(root, "oci")
-	blobDir := filepath.Join(ociDir, "blobs", "sha256")
-	if err := os.MkdirAll(blobDir, tempDirPerm); err != nil {
-		return nil, err
-	}
-	if err := oci.WriteOCILayout(filepath.Join(ociDir, "oci-layout")); err != nil {
-		return nil, err
+	store, err := oci.CreateStore(ociDir)
+	if err != nil {
+		return nil, fmt.Errorf("opening OCI store: %w", err)
 	}
 
-	var packageManifests []oci.OciManifest
+	var packageManifests []ocispec.Descriptor
 	for i := range opts.Bundle.Packages {
-		manifests, err := ingestSource(ctx, &opts.Bundle.Packages[i], opts.Config, blobDir, opts.BundleDir, opts.Streams)
+		manifests, err := ingestSource(ctx, &opts.Bundle.Packages[i], opts.Config, store, opts.BundleDir, opts.Streams)
 		if err != nil {
 			return nil, err
 		}
@@ -73,11 +65,12 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	manifests := append([]oci.OciManifest{definition}, packageManifests...)
-	if err := oci.GCUnreferencedBlobs(ctx, opts.Streams, blobDir, manifests); err != nil {
+	manifests := append([]ocispec.Descriptor{definition}, packageManifests...)
+	idx := oci.NewBundleIndex(manifests, opts.Config.Options.Architecture)
+	if err := store.PruneUnreferencedBlobs(ctx, opts.Streams, idx.Manifests); err != nil {
 		return nil, fmt.Errorf("cleaning up unreferenced blobs: %w", err)
 	}
-	if err := oci.WriteOCIIndex(filepath.Join(ociDir, "index.json"), oci.NewBundleIndex(manifests, opts.Config.Options.Architecture)); err != nil {
+	if err := oci.WriteIndex(filepath.Join(ociDir, "index.json"), idx); err != nil {
 		return nil, err
 	}
 
@@ -89,19 +82,8 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	return &CreateResult{OutputPath: outPath}, nil
 }
 
-// ensureAnnotation adds an annotation to the manifest, initializing the map if needed.
-// If the annotation key already exists, it won't be overwritten.
-func ensureAnnotation(m *oci.OciManifest, key, value string) {
-	if m.Annotations == nil {
-		m.Annotations = map[string]string{}
-	}
-	if _, exists := m.Annotations[key]; !exists {
-		m.Annotations[key] = value
-	}
-}
-
 // ingestSource ingests one package source into the OCI blob store.
-func ingestSource(ctx context.Context, pkg *spec.Package, config *bundleinternal.UDSBundleConfig, blobDir, bundleDir string, streams iostreams.IOStreams) ([]oci.OciManifest, error) {
+func ingestSource(ctx context.Context, pkg *spec.Package, config *bundleinternal.UDSBundleConfig, store *oci.Store, bundleDir string, streams iostreams.IOStreams) ([]ocispec.Descriptor, error) {
 	if pkg == nil {
 		return nil, fmt.Errorf("package must not be nil")
 	}
@@ -152,37 +134,44 @@ func ingestSource(ctx context.Context, pkg *spec.Package, config *bundleinternal
 		}
 	}
 
-	var manifests []oci.OciManifest
+	var descriptors []ocispec.Descriptor
 	if loadOptions.VerificationStrategy != layout.VerifyNever {
 		stagingDir, err := os.MkdirTemp(verificationWorkspace, "package-*")
 		if err != nil {
 			return nil, fmt.Errorf("creating package verification workspace: %w", err)
 		}
-		manifests, err = source.VerifyAndIngestFiltered(ctx, stagingDir, loadOptions, blobDir)
+		descriptors, err = source.VerifyAndIngestFiltered(ctx, stagingDir, loadOptions, store)
 		if err != nil {
 			return nil, fmt.Errorf("package %q: verifying and ingesting package: %w", pkg.Name, err)
 		}
 	} else {
-		manifests, err = source.IngestFiltered(ctx, filter, blobDir)
+		descriptors, err = source.IngestFiltered(ctx, filter, store)
 		if err != nil {
 			return nil, fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
 	}
 
-	// Set the OCI reference annotation for each manifest
-	refName := pkg.Name
-	if oci.IsOCIReference(pkg.Source) {
-		refName = oci.TrimScheme(pkg.Source)
-	}
-	for i := range manifests {
-		ensureAnnotation(&manifests[i], "org.opencontainers.image.ref.name", refName)
+	manifests := make([]ocispec.Descriptor, len(descriptors))
+	for i, desc := range descriptors {
+		annotations := maps.Clone(desc.Annotations)
+		if annotations == nil {
+			annotations = map[string]string{}
+		}
+		refName := pkg.Name
+		if oci.IsOCIReference(pkg.Source) {
+			refName = oci.TrimScheme(pkg.Source)
+		}
+		annotations[ocispec.AnnotationRefName] = refName
+		delete(annotations, oci.AnnotationPackageVerification)
+		desc.Annotations = annotations
+		manifests[i] = desc
 	}
 	annotatePackageVerification(manifests, loadOptions.VerificationStrategy != layout.VerifyNever)
 
 	return manifests, nil
 }
 
-func annotatePackageVerification(manifests []oci.OciManifest, verified bool) {
+func annotatePackageVerification(manifests []ocispec.Descriptor, verified bool) {
 	if !verified {
 		return
 	}
@@ -231,24 +220,18 @@ func sanitizeFileComponent(s string) string {
 }
 
 // createBundleDefinitionManifest builds an OCI 1.1 artifact manifest that stores the bundle HCL file and all package values files as
-// content-addressed layers. The manifest does not contain an "org.opencontainers.image.ref.name" annotation since it is from local
-// files on disk and not from a remote registry. It is identified by artifactType so consumers can better identify it in the index.
-func createBundleDefinitionManifest(ctx context.Context, streams iostreams.IOStreams, ociDir string, hclData, defaultsData []byte, bundleDir string, pkgs []spec.Package) (oci.OciManifest, error) {
-	store, err := oraci.New(ociDir)
+// content-addressed layers. It is identified by artifactType so consumers can better identify it in the index.
+func createBundleDefinitionManifest(ctx context.Context, streams iostreams.IOStreams, ociDir string, hclData, defaultsData []byte, bundleDir string, pkgs []spec.Package) (ocispec.Descriptor, error) {
+	store, err := oci.CreateStore(ociDir)
 	if err != nil {
-		return oci.OciManifest{}, fmt.Errorf("opening OCI store: %w", err)
+		return ocispec.Descriptor{}, fmt.Errorf("opening OCI store: %w", err)
 	}
 	// We write index.json ourselves at the end of Create(); prevent ORAS from
 	// overwriting it on every Push/Tag call.
 	store.AutoSaveIndex = false
 
 	pushBlob := func(mediaType string, data []byte, annotations map[string]string) (ocispec.Descriptor, error) {
-		desc := content.NewDescriptorFromBytes(mediaType, data)
-		desc.Annotations = annotations
-		if err := store.Push(ctx, desc, bytes.NewReader(data)); err != nil && !errors.Is(err, errdef.ErrAlreadyExists) {
-			return ocispec.Descriptor{}, err
-		}
-		return desc, nil
+		return oci.PushBytes(ctx, store, mediaType, data, annotations)
 	}
 
 	// HCL file as the first layer.
@@ -256,7 +239,7 @@ func createBundleDefinitionManifest(ctx context.Context, streams iostreams.IOStr
 		ocispec.AnnotationTitle: "bundle.uds.hcl",
 	})
 	if err != nil {
-		return oci.OciManifest{}, fmt.Errorf("pushing bundle HCL: %w", err)
+		return ocispec.Descriptor{}, fmt.Errorf("pushing bundle HCL: %w", err)
 	}
 
 	// defaults.uds.hcl as an optional layer if present alongside bundle.uds.hcl.
@@ -266,7 +249,7 @@ func createBundleDefinitionManifest(ctx context.Context, streams iostreams.IOStr
 			ocispec.AnnotationTitle: bundleinternal.BundleDefaultsFileName,
 		})
 		if err != nil {
-			return oci.OciManifest{}, fmt.Errorf("pushing defaults HCL: %w", err)
+			return ocispec.Descriptor{}, fmt.Errorf("pushing defaults HCL: %w", err)
 		}
 		layers = append(layers, defaultsDesc)
 		streams.Debug("included defaults.uds.hcl in bundle definition")
@@ -281,41 +264,33 @@ func createBundleDefinitionManifest(ctx context.Context, streams iostreams.IOStr
 			}
 			st, err := os.Stat(src)
 			if err != nil {
-				return oci.OciManifest{}, fmt.Errorf("package %q: cannot stat value file %q: %w", pkg.Name, vf, err)
+				return ocispec.Descriptor{}, fmt.Errorf("package %q: cannot stat value file %q: %w", pkg.Name, vf, err)
 			}
 			if st.IsDir() {
-				return oci.OciManifest{}, fmt.Errorf("package %q: value file %q is a directory", pkg.Name, vf)
+				return ocispec.Descriptor{}, fmt.Errorf("package %q: value file %q is a directory", pkg.Name, vf)
 			}
 			data, err := os.ReadFile(src)
 			if err != nil {
-				return oci.OciManifest{}, fmt.Errorf("package %q: reading value file %q: %w", pkg.Name, vf, err)
+				return ocispec.Descriptor{}, fmt.Errorf("package %q: reading value file %q: %w", pkg.Name, vf, err)
 			}
 			valDesc, err := pushBlob(oci.MediaTypeBundleValuesYAML, data, map[string]string{
 				ocispec.AnnotationTitle: fmt.Sprintf("values/%s/%d.yaml", pkg.Name, i),
 			})
 			if err != nil {
-				return oci.OciManifest{}, fmt.Errorf("package %q: pushing value file: %w", pkg.Name, err)
+				return ocispec.Descriptor{}, fmt.Errorf("package %q: pushing value file: %w", pkg.Name, err)
 			}
 			layers = append(layers, valDesc)
 		}
 	}
 
 	// PackManifest pushes the empty-JSON config blob, builds the OCI 1.1 artifact manifest with our artifactType,
-	// and pushes the manifest blob.  We pin the created timestamp so the manifest digest is reproducible.
-	desc, err := oras.PackManifest(ctx, store, oras.PackManifestVersion1_1, oci.MediaTypeBundleDefinition, oras.PackManifestOptions{
-		Layers: layers,
-		ManifestAnnotations: map[string]string{
-			ocispec.AnnotationCreated: "1970-01-01T00:00:00Z",
-		},
-	})
+	// and pushes the manifest blob with a reproducible created timestamp.
+	desc, err := oci.PackBundleDefinitionManifest(ctx, store, layers)
 	if err != nil {
-		return oci.OciManifest{}, fmt.Errorf("packing bundle definition manifest: %w", err)
+		return ocispec.Descriptor{}, fmt.Errorf("packing bundle definition manifest: %w", err)
 	}
 
-	return oci.OciManifest{
-		MediaType:    ocispec.MediaTypeImageManifest,
-		ArtifactType: oci.MediaTypeBundleDefinition,
-		Digest:       desc.Digest.String(),
-		Size:         desc.Size,
-	}, nil
+	desc.MediaType = ocispec.MediaTypeImageManifest
+	desc.ArtifactType = oci.MediaTypeBundleDefinition
+	return desc, nil
 }

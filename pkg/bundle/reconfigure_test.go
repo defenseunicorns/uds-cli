@@ -14,12 +14,12 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
-	"github.com/opencontainers/go-digest"
+	godigest "github.com/opencontainers/go-digest"
+	"github.com/opencontainers/image-spec/specs-go"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	oras "oras.land/oras-go/v2"
-	"oras.land/oras-go/v2/content"
 	oraci "oras.land/oras-go/v2/content/oci"
 )
 
@@ -238,77 +238,77 @@ metadata {
 }
 
 func TestRebuildDefinitionManifest(t *testing.T) {
-	newHCL := udsoci.OciDescriptor{
+	newHCL := ocispec.Descriptor{
 		MediaType:   MediaTypeBundleHCL,
-		Digest:      "sha256:newhcl",
+		Digest:      godigest.FromString("newhcl"),
 		Size:        15,
 		Annotations: map[string]string{ocispec.AnnotationTitle: "bundle.uds.hcl"},
 	}
-	newDefaults := udsoci.OciDescriptor{
+	newDefaults := ocispec.Descriptor{
 		MediaType:   MediaTypeBundleHCL,
-		Digest:      "sha256:newdefaults",
+		Digest:      godigest.FromString("newdefaults"),
 		Size:        25,
 		Annotations: map[string]string{ocispec.AnnotationTitle: BundleDefaultsFileName},
 	}
 
 	tests := []struct {
 		name     string
-		original udsoci.OciImageManifest
-		check    func(t *testing.T, rebuilt udsoci.OciImageManifest)
+		original ocispec.Manifest
+		check    func(t *testing.T, rebuilt ocispec.Manifest)
 	}{
 		{
 			name: "replaces existing defaults and HCL layers",
-			original: udsoci.OciImageManifest{
-				SchemaVersion: 2,
-				MediaType:     "application/vnd.oci.image.manifest.v1+json",
-				ArtifactType:  MediaTypeBundleDefinition,
-				Config:        udsoci.OciDescriptor{Digest: "sha256:cfg", Size: 2},
-				Layers: []udsoci.OciDescriptor{
-					{MediaType: MediaTypeBundleHCL, Digest: "sha256:oldhcl", Size: 10, Annotations: map[string]string{ocispec.AnnotationTitle: "bundle.uds.hcl"}},
-					{MediaType: MediaTypeBundleHCL, Digest: "sha256:olddefaults", Size: 20, Annotations: map[string]string{ocispec.AnnotationTitle: BundleDefaultsFileName}},
+			original: ocispec.Manifest{
+				Versioned:    specs.Versioned{SchemaVersion: 2},
+				MediaType:    "application/vnd.oci.image.manifest.v1+json",
+				ArtifactType: MediaTypeBundleDefinition,
+				Config:       ocispec.Descriptor{Digest: godigest.FromString("cfg"), Size: 2},
+				Layers: []ocispec.Descriptor{
+					{MediaType: MediaTypeBundleHCL, Digest: godigest.FromString("oldhcl"), Size: 10, Annotations: map[string]string{ocispec.AnnotationTitle: "bundle.uds.hcl"}},
+					{MediaType: MediaTypeBundleHCL, Digest: godigest.FromString("olddefaults"), Size: 20, Annotations: map[string]string{ocispec.AnnotationTitle: BundleDefaultsFileName}},
 				},
 				Annotations: map[string]string{ocispec.AnnotationCreated: "1970-01-01T00:00:00Z"},
 			},
-			check: func(t *testing.T, rebuilt udsoci.OciImageManifest) {
+			check: func(t *testing.T, rebuilt ocispec.Manifest) {
 				require.Len(t, rebuilt.Layers, 2)
-				assert.Equal(t, "sha256:newhcl", rebuilt.Layers[0].Digest)
-				assert.Equal(t, "sha256:newdefaults", rebuilt.Layers[1].Digest)
+				assert.Equal(t, newHCL.Digest, rebuilt.Layers[0].Digest)
+				assert.Equal(t, newDefaults.Digest, rebuilt.Layers[1].Digest)
 			},
 		},
 		{
 			name: "inserts defaults when original had none",
-			original: udsoci.OciImageManifest{
-				SchemaVersion: 2,
-				ArtifactType:  MediaTypeBundleDefinition,
-				Config:        udsoci.OciDescriptor{Digest: "sha256:cfg", Size: 2},
-				Layers: []udsoci.OciDescriptor{
-					{MediaType: MediaTypeBundleHCL, Digest: "sha256:oldhcl", Size: 10, Annotations: map[string]string{ocispec.AnnotationTitle: "bundle.uds.hcl"}},
-					{MediaType: MediaTypeBundleValuesYAML, Digest: "sha256:vals", Size: 30, Annotations: map[string]string{ocispec.AnnotationTitle: "values/pkg/0.yaml"}},
+			original: ocispec.Manifest{
+				Versioned:    specs.Versioned{SchemaVersion: 2},
+				ArtifactType: MediaTypeBundleDefinition,
+				Config:       ocispec.Descriptor{Digest: godigest.FromString("cfg"), Size: 2},
+				Layers: []ocispec.Descriptor{
+					{MediaType: MediaTypeBundleHCL, Digest: godigest.FromString("oldhcl"), Size: 10, Annotations: map[string]string{ocispec.AnnotationTitle: "bundle.uds.hcl"}},
+					{MediaType: MediaTypeBundleValuesYAML, Digest: godigest.FromString("vals"), Size: 30, Annotations: map[string]string{ocispec.AnnotationTitle: "values/pkg/0.yaml"}},
 				},
 			},
-			check: func(t *testing.T, rebuilt udsoci.OciImageManifest) {
+			check: func(t *testing.T, rebuilt ocispec.Manifest) {
 				require.Len(t, rebuilt.Layers, 3)
-				assert.Equal(t, "sha256:newhcl", rebuilt.Layers[0].Digest)
-				assert.Equal(t, "sha256:newdefaults", rebuilt.Layers[1].Digest)
-				assert.Equal(t, "sha256:vals", rebuilt.Layers[2].Digest)
+				assert.Equal(t, newHCL.Digest, rebuilt.Layers[0].Digest)
+				assert.Equal(t, newDefaults.Digest, rebuilt.Layers[1].Digest)
+				assert.Equal(t, godigest.FromString("vals"), rebuilt.Layers[2].Digest)
 			},
 		},
 		{
 			name: "preserves values file layers",
-			original: udsoci.OciImageManifest{
-				SchemaVersion: 2,
-				Config:        udsoci.OciDescriptor{Digest: "sha256:cfg", Size: 2},
-				Layers: []udsoci.OciDescriptor{
-					{MediaType: MediaTypeBundleHCL, Digest: "sha256:oldhcl", Size: 10, Annotations: map[string]string{ocispec.AnnotationTitle: "bundle.uds.hcl"}},
-					{MediaType: MediaTypeBundleHCL, Digest: "sha256:olddefaults", Size: 20, Annotations: map[string]string{ocispec.AnnotationTitle: BundleDefaultsFileName}},
-					{MediaType: MediaTypeBundleValuesYAML, Digest: "sha256:v1", Size: 30, Annotations: map[string]string{ocispec.AnnotationTitle: "values/pkg1/0.yaml"}},
-					{MediaType: MediaTypeBundleValuesYAML, Digest: "sha256:v2", Size: 40, Annotations: map[string]string{ocispec.AnnotationTitle: "values/pkg2/0.yaml"}},
+			original: ocispec.Manifest{
+				Versioned: specs.Versioned{SchemaVersion: 2},
+				Config:    ocispec.Descriptor{Digest: godigest.FromString("cfg"), Size: 2},
+				Layers: []ocispec.Descriptor{
+					{MediaType: MediaTypeBundleHCL, Digest: godigest.FromString("oldhcl"), Size: 10, Annotations: map[string]string{ocispec.AnnotationTitle: "bundle.uds.hcl"}},
+					{MediaType: MediaTypeBundleHCL, Digest: godigest.FromString("olddefaults"), Size: 20, Annotations: map[string]string{ocispec.AnnotationTitle: BundleDefaultsFileName}},
+					{MediaType: MediaTypeBundleValuesYAML, Digest: godigest.FromString("v1"), Size: 30, Annotations: map[string]string{ocispec.AnnotationTitle: "values/pkg1/0.yaml"}},
+					{MediaType: MediaTypeBundleValuesYAML, Digest: godigest.FromString("v2"), Size: 40, Annotations: map[string]string{ocispec.AnnotationTitle: "values/pkg2/0.yaml"}},
 				},
 			},
-			check: func(t *testing.T, rebuilt udsoci.OciImageManifest) {
+			check: func(t *testing.T, rebuilt ocispec.Manifest) {
 				require.Len(t, rebuilt.Layers, 4)
-				assert.Equal(t, "sha256:v1", rebuilt.Layers[2].Digest)
-				assert.Equal(t, "sha256:v2", rebuilt.Layers[3].Digest)
+				assert.Equal(t, godigest.FromString("v1"), rebuilt.Layers[2].Digest)
+				assert.Equal(t, godigest.FromString("v2"), rebuilt.Layers[3].Digest)
 			},
 		},
 	}
@@ -319,7 +319,7 @@ func TestRebuildDefinitionManifest(t *testing.T) {
 			result, err := rebuildDefinitionManifest(tt.original, newDefaults, newHCL, "sha256:sourceartifact")
 			require.NoError(t, err)
 
-			var rebuilt udsoci.OciImageManifest
+			var rebuilt ocispec.Manifest
 			require.NoError(t, json.Unmarshal(result, &rebuilt))
 
 			// Common assertions across all cases.
@@ -337,16 +337,16 @@ func TestRebuildDefinitionManifest(t *testing.T) {
 func extractHCLFromBundle(t *testing.T, entries map[string][]byte) []byte {
 	t.Helper()
 	idx := parseIndexJSON(t, entries)
-	defEntry, _, err := udsoci.FindBundleDefinitionEntry(idx)
+	defEntry, _, err := udsoci.FindBundleDefinition(idx)
 	require.NoError(t, err)
 
-	manifestBytes := entries["oci/blobs/sha256/"+strings.TrimPrefix(defEntry.Digest, "sha256:")]
-	var manifest udsoci.OciImageManifest
+	manifestBytes := entries["oci/blobs/sha256/"+defEntry.Digest.Hex()]
+	var manifest ocispec.Manifest
 	require.NoError(t, json.Unmarshal(manifestBytes, &manifest))
 
 	for _, l := range manifest.Layers {
 		if l.Annotations[ocispec.AnnotationTitle] == "bundle.uds.hcl" {
-			return entries["oci/blobs/sha256/"+strings.TrimPrefix(l.Digest, "sha256:")]
+			return entries["oci/blobs/sha256/"+l.Digest.Hex()]
 		}
 	}
 	t.Fatal("bundle.uds.hcl layer not found")
@@ -354,9 +354,9 @@ func extractHCLFromBundle(t *testing.T, entries map[string][]byte) []byte {
 }
 
 // parseIndexJSON parses the oci/index.json from bundle tarball entries.
-func parseIndexJSON(t *testing.T, entries map[string][]byte) udsoci.OciIndex {
+func parseIndexJSON(t *testing.T, entries map[string][]byte) ocispec.Index {
 	t.Helper()
-	var idx udsoci.OciIndex
+	var idx ocispec.Index
 	require.NoError(t, json.Unmarshal(entries["oci/index.json"], &idx))
 	return idx
 }
@@ -420,7 +420,7 @@ package "pkg1" {
 
 	defaultsPath := writeDefaultsFile(t, `variables = { new = "replaced" }`)
 	originalEntries := readTarZstEntries(t, tarball)
-	sourceArtifactDigest := digest.FromBytes(originalEntries["oci/index.json"]).String()
+	sourceArtifactDigest := godigest.FromBytes(originalEntries["oci/index.json"]).String()
 
 	result, err := runLocalReconfigure(t, tarball, defaultsPath, "-custom")
 	require.NoError(t, err)
@@ -438,12 +438,41 @@ package "pkg1" {
 
 	// Verify provenance annotation.
 	idx := parseIndexJSON(t, entries)
-	defEntry, _, err := udsoci.FindBundleDefinitionEntry(idx)
+	defEntry, _, err := udsoci.FindBundleDefinition(idx)
 	require.NoError(t, err)
-	manifestBytes := entries["oci/blobs/sha256/"+strings.TrimPrefix(defEntry.Digest, "sha256:")]
-	var manifest udsoci.OciImageManifest
+	manifestBytes := entries["oci/blobs/sha256/"+defEntry.Digest.Hex()]
+	var manifest ocispec.Manifest
 	require.NoError(t, json.Unmarshal(manifestBytes, &manifest))
 	assert.Equal(t, sourceArtifactDigest, manifest.Annotations[AnnotationReconfiguredFrom])
+}
+
+func TestLocalReconfigure_RejectsOversizedPackageManifestBeforeOpeningStore(t *testing.T) {
+	tarball := createTestBundle(t, `uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+metadata {
+  name    = "oversized-package-manifest"
+  version = "1.0.0"
+}
+package "pkg1" {
+  source = "localpkg"
+}
+`, "")
+	entries := readTarZstEntries(t, tarball)
+	idx := parseIndexJSON(t, entries)
+	for i := range idx.Manifests {
+		if idx.Manifests[i].ArtifactType != MediaTypeBundleDefinition {
+			idx.Manifests[i].Size = udsoci.MaxFetchBytesSize + 1
+			break
+		}
+	}
+	idxBytes, err := json.Marshal(idx)
+	require.NoError(t, err)
+	entries["oci/index.json"] = idxBytes
+	tampered := writeInspectTarZstEntries(t, entries)
+
+	_, err = runLocalReconfigure(t, tampered, writeDefaultsFile(t, `variables = { next = "value" }`), "-custom")
+	require.ErrorContains(t, err, "metadata limit")
 }
 
 func TestLocalReconfigure_OutputAlreadyExists(t *testing.T) {
@@ -582,19 +611,13 @@ package "pkg1" {
 
 	_, reconfiguredIndexBytes, err := udsoci.ResolveBundleChild(t.Context(), store, "v1.0.0-prod", "")
 	require.NoError(t, err)
-	var reconfiguredIndex udsoci.OciIndex
+	var reconfiguredIndex ocispec.Index
 	require.NoError(t, json.Unmarshal(reconfiguredIndexBytes, &reconfiguredIndex))
-	reconfiguredDefinition, _, err := udsoci.FindBundleDefinitionEntry(reconfiguredIndex)
+	reconfiguredDefinition, _, err := udsoci.FindBundleDefinition(reconfiguredIndex)
 	require.NoError(t, err)
-	reconfiguredDefinitionDigest, err := digest.Parse(reconfiguredDefinition.Digest)
+	reconfiguredDefinitionBytes, err := udsoci.FetchBytes(t.Context(), store, reconfiguredDefinition)
 	require.NoError(t, err)
-	reconfiguredDefinitionBytes, err := content.FetchAll(t.Context(), store, ocispec.Descriptor{
-		MediaType: ocispec.MediaTypeImageManifest,
-		Digest:    reconfiguredDefinitionDigest,
-		Size:      reconfiguredDefinition.Size,
-	})
-	require.NoError(t, err)
-	var reconfiguredDefinitionManifest udsoci.OciImageManifest
+	var reconfiguredDefinitionManifest ocispec.Manifest
 	require.NoError(t, json.Unmarshal(reconfiguredDefinitionBytes, &reconfiguredDefinitionManifest))
 	assert.Equal(t, sourceChild.Digest.String(), reconfiguredDefinitionManifest.Annotations[AnnotationReconfiguredFrom])
 }

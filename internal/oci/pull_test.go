@@ -13,6 +13,9 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	godigest "github.com/opencontainers/go-digest"
+	"github.com/opencontainers/image-spec/specs-go"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	oras "oras.land/oras-go/v2"
@@ -34,7 +37,7 @@ func TestBundleNameFromIndex_HappyPath(t *testing.T) {
 
 	idxBytes, err := os.ReadFile(filepath.Join(ociDir, "index.json"))
 	require.NoError(t, err)
-	var idx ociIndex
+	var idx ocispec.Index
 	require.NoError(t, json.Unmarshal(idxBytes, &idx))
 
 	name, err := bundleNameFromDefinitionLayer(t.Context(), iostreams.IOStreams{}, ociDir, idx, "amd64")
@@ -48,7 +51,7 @@ func TestBundleNameFromIndex_ArchFallback(t *testing.T) {
 
 	idxBytes, err := os.ReadFile(filepath.Join(ociDir, "index.json"))
 	require.NoError(t, err)
-	var idx ociIndex
+	var idx ocispec.Index
 	require.NoError(t, json.Unmarshal(idxBytes, &idx))
 
 	// Empty arch should fall back to runtime.GOARCH.
@@ -67,10 +70,10 @@ func TestBundleNameFromIndex_NoBundleDefinitionManifest(t *testing.T) {
 	manifestBytes := []byte(`{"schemaVersion":2,"config":{"digest":"sha256:abc","size":2},"layers":[]}`)
 	manifestHex := writeTestBlob(t, blobDir, manifestBytes)
 
-	idx := ociIndex{
-		SchemaVersion: 2,
-		Manifests: []ociManifest{{
-			Digest: "sha256:" + manifestHex,
+	idx := ocispec.Index{
+		Versioned: specs.Versioned{SchemaVersion: 2},
+		Manifests: []ocispec.Descriptor{{
+			Digest: godigest.NewDigestFromEncoded(godigest.SHA256, manifestHex),
 			Size:   int64(len(manifestBytes)),
 		}},
 	}
@@ -86,20 +89,19 @@ func TestBundleNameFromIndex_NoHCLLayer(t *testing.T) {
 	require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
 
 	// Config manifest with no HCL layer.
-	cfgManifest := ociImageManifest{
-		SchemaVersion: 2,
-		Config:        ociDescriptor{Digest: "sha256:abc", Size: 2},
-		Layers:        []ociDescriptor{},
+	cfgManifest := ocispec.Manifest{
+		Versioned: specs.Versioned{SchemaVersion: 2},
+		Config:    ocispec.Descriptor{Digest: godigest.FromString("config"), Size: 2},
 	}
 	cfgBytes, err := json.Marshal(cfgManifest)
 	require.NoError(t, err)
 	cfgHex := writeTestBlob(t, blobDir, cfgBytes)
 
-	idx := ociIndex{
-		SchemaVersion: 2,
-		Manifests: []ociManifest{{
+	idx := ocispec.Index{
+		Versioned: specs.Versioned{SchemaVersion: 2},
+		Manifests: []ocispec.Descriptor{{
 			ArtifactType: MediaTypeBundleDefinition,
-			Digest:       "sha256:" + cfgHex,
+			Digest:       godigest.NewDigestFromEncoded(godigest.SHA256, cfgHex),
 			Size:         int64(len(cfgBytes)),
 		}},
 	}
@@ -120,14 +122,13 @@ func TestPull_NonUDSBundle(t *testing.T) {
 	configBytes := []byte("{}")
 	configHex := writeTestBlob(t, blobDir, configBytes)
 
-	manifest := ociImageManifest{
-		SchemaVersion: 2,
-		Config: ociDescriptor{
+	manifest := ocispec.Manifest{
+		Versioned: specs.Versioned{SchemaVersion: 2},
+		Config: ocispec.Descriptor{
 			MediaType: "application/vnd.oci.empty.v1+json",
-			Digest:    "sha256:" + configHex,
+			Digest:    godigest.NewDigestFromEncoded(godigest.SHA256, configHex),
 			Size:      int64(len(configBytes)),
 		},
-		Layers: []ociDescriptor{},
 	}
 	manifestBytes, err := json.Marshal(manifest)
 	require.NoError(t, err)
@@ -341,7 +342,7 @@ func TestPull_SelectsRequestedArchitectureFromRootIndex(t *testing.T) {
 		assert.Equal(t, filepath.Join(outDir, fmt.Sprintf("uds-bundle-arch-select-%s-1.0.0.tar.zst", arch)), result.OutputPath)
 
 		entries := readTarZstEntries(t, result.OutputPath)
-		var idx ociIndex
+		var idx ocispec.Index
 		require.NoError(t, json.Unmarshal(entries["oci/index.json"], &idx))
 		assert.Equal(t, arch, idx.Annotations[AnnotationBundleArchitecture])
 	}

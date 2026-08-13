@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
+	godigest "github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -31,7 +32,22 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 	if udsoci.IsOCIReference(pkg.Source) {
 		key = udsoci.TrimScheme(pkg.Source)
 	}
-	digest, ok := l.PackageDigests[key]
+	descriptor, ok := l.PackageManifests[key]
+	if !ok {
+		if digestValue, found := l.PackageDigests[key]; found {
+			digest, err := godigest.Parse(digestValue)
+			if err != nil {
+				return nil, fmt.Errorf("invalid manifest digest for package %q: %w", pkg.Name, err)
+			}
+			blobPath := filepath.Join(l.OCIDir, ocispec.ImageBlobsDir, digest.Algorithm().String(), digest.Encoded())
+			info, err := os.Stat(blobPath)
+			if err != nil {
+				return nil, fmt.Errorf("stat manifest for package %q: %w", pkg.Name, err)
+			}
+			descriptor = ocispec.Descriptor{MediaType: ocispec.MediaTypeImageManifest, Digest: digest, Size: info.Size()}
+			ok = true
+		}
+	}
 	if !ok {
 		// Fallback: if pkg.Source is a local directory, stage it directly.
 		// This covers packages whose Source is an on-disk path.
@@ -47,7 +63,10 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 			}
 			return pkgLayout, nil
 		}
-		keys := make([]string, 0, len(l.PackageDigests))
+		keys := make([]string, 0, len(l.PackageManifests)+len(l.PackageDigests))
+		for k := range l.PackageManifests {
+			keys = append(keys, k)
+		}
 		for k := range l.PackageDigests {
 			keys = append(keys, k)
 		}
@@ -55,12 +74,15 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 	}
 
 	blobDir := filepath.Join(l.OCIDir, "blobs", "sha256")
-	hex := strings.TrimPrefix(digest, "sha256:")
-	manifestData, err := os.ReadFile(filepath.Join(blobDir, hex))
+	store, err := udsoci.OpenReadOnlyStore(l.OCIDir)
+	if err != nil {
+		return nil, fmt.Errorf("opening OCI layout for package %q: %w", pkg.Name, err)
+	}
+	manifestData, err := udsoci.FetchBytes(ctx, store, descriptor)
 	if err != nil {
 		return nil, fmt.Errorf("reading manifest for package %q: %w", pkg.Name, err)
 	}
-	var manifest ociImageManifest
+	var manifest ocispec.Manifest
 	if err := json.Unmarshal(manifestData, &manifest); err != nil {
 		return nil, fmt.Errorf("parsing manifest for package %q: %w", pkg.Name, err)
 	}
@@ -74,8 +96,7 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 		if title == "" {
 			return nil, fmt.Errorf("manifest for package %q missing title annotation on layer with digest %q", pkg.Name, layer.Digest)
 		}
-		layerHex := strings.TrimPrefix(layer.Digest, "sha256:")
-		src := filepath.Join(blobDir, layerHex)
+		src := filepath.Join(blobDir, layer.Digest.Hex())
 		dst, err := safeLayerDestinationPath(cleanDstDir, dstDir, title)
 		if err != nil {
 			return nil, err

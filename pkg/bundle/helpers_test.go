@@ -14,14 +14,17 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/mholt/archives"
+	godigest "github.com/opencontainers/go-digest"
+	"github.com/opencontainers/image-spec/specs-go"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	oras "oras.land/oras-go/v2"
 )
 
@@ -53,16 +56,16 @@ func pushTo(target oras.Target) PushHooks {
 // bundleDefinitionContainsLayerTitle reports whether a bundle definition includes a layer title.
 func bundleDefinitionContainsLayerTitle(t *testing.T, entries map[string][]byte, title string) bool {
 	t.Helper()
-	var idx udsoci.OciIndex
+	var idx ocispec.Index
 	require.NoError(t, json.Unmarshal(entries["oci/index.json"], &idx))
-	entry, _, err := udsoci.FindBundleDefinitionEntry(idx)
+	entry, _, err := udsoci.FindBundleDefinition(idx)
 	require.NoError(t, err)
-	manifestBytes := entries["oci/blobs/sha256/"+strings.TrimPrefix(entry.Digest, "sha256:")]
-	var manifest udsoci.OciImageManifest
+	manifestBytes := entries["oci/blobs/sha256/"+entry.Digest.Hex()]
+	var manifest ocispec.Manifest
 	require.NoError(t, json.Unmarshal(manifestBytes, &manifest))
 	for _, layer := range manifest.Layers {
 		if layer.Annotations["org.opencontainers.image.title"] == title {
-			_, ok := entries["oci/blobs/sha256/"+strings.TrimPrefix(layer.Digest, "sha256:")]
+			_, ok := entries["oci/blobs/sha256/"+layer.Digest.Hex()]
 			return ok
 		}
 	}
@@ -99,16 +102,16 @@ func buildBundleArtifact(t *testing.T, bundleHCL string, valuesFiles map[string]
 	root := t.TempDir()
 	ociDir := filepath.Join(root, "oci")
 	blobDir := filepath.Join(ociDir, "blobs", "sha256")
-	require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
-	require.NoError(t, udsoci.WriteOCILayout(filepath.Join(ociDir, "oci-layout")))
-	writeBlob := func(data []byte) string {
+	_, err := udsoci.CreateStore(ociDir)
+	require.NoError(t, err)
+	writeBlob := func(data []byte) godigest.Digest {
 		sum := sha256.Sum256(data)
 		h := hex.EncodeToString(sum[:])
 		require.NoError(t, os.WriteFile(filepath.Join(blobDir, h), data, tmpFilePerm))
-		return "sha256:" + h
+		return godigest.NewDigestFromEncoded(godigest.SHA256, h)
 	}
 
-	layers := []udsoci.OciDescriptor{{
+	layers := []ocispec.Descriptor{{
 		MediaType:   MediaTypeBundleHCL,
 		Digest:      writeBlob([]byte(bundleHCL)),
 		Size:        int64(len(bundleHCL)),
@@ -116,7 +119,7 @@ func buildBundleArtifact(t *testing.T, bundleHCL string, valuesFiles map[string]
 	}}
 	for packageName, files := range valuesFiles {
 		for i, content := range files {
-			layers = append(layers, udsoci.OciDescriptor{
+			layers = append(layers, ocispec.Descriptor{
 				MediaType:   MediaTypeBundleValuesYAML,
 				Digest:      writeBlob([]byte(content)),
 				Size:        int64(len(content)),
@@ -126,14 +129,14 @@ func buildBundleArtifact(t *testing.T, bundleHCL string, valuesFiles map[string]
 	}
 	emptyConfig := []byte("{}")
 	emptyConfigDigest := writeBlob(emptyConfig)
-	definition := udsoci.OciImageManifest{
-		SchemaVersion: 2,
-		Config:        udsoci.OciDescriptor{MediaType: "application/vnd.oci.empty.v1+json", Digest: emptyConfigDigest, Size: int64(len(emptyConfig))},
-		Layers:        layers,
+	definition := ocispec.Manifest{
+		Versioned: specs.Versioned{SchemaVersion: 2},
+		Config:    ocispec.Descriptor{MediaType: "application/vnd.oci.empty.v1+json", Digest: emptyConfigDigest, Size: int64(len(emptyConfig))},
+		Layers:    layers,
 	}
 	definitionBytes, err := json.Marshal(definition)
 	require.NoError(t, err)
-	manifests := []udsoci.OciManifest{{
+	manifests := []ocispec.Descriptor{{
 		MediaType:    "application/vnd.oci.image.manifest.v1+json",
 		ArtifactType: MediaTypeBundleDefinition,
 		Digest:       writeBlob(definitionBytes),
@@ -141,11 +144,11 @@ func buildBundleArtifact(t *testing.T, bundleHCL string, valuesFiles map[string]
 	}}
 	for _, source := range pkgSources {
 		packageData := []byte("fake package: " + source)
-		packageManifest := udsoci.OciImageManifest{
-			SchemaVersion: 2,
-			Config:        udsoci.OciDescriptor{MediaType: "application/vnd.oci.empty.v1+json", Digest: emptyConfigDigest, Size: int64(len(emptyConfig))},
-			Layers: []udsoci.OciDescriptor{{
-				MediaType:   udsoci.MediaTypeZarfLayer,
+		packageManifest := ocispec.Manifest{
+			Versioned: specs.Versioned{SchemaVersion: 2},
+			Config:    ocispec.Descriptor{MediaType: "application/vnd.oci.empty.v1+json", Digest: emptyConfigDigest, Size: int64(len(emptyConfig))},
+			Layers: []ocispec.Descriptor{{
+				MediaType:   layout.ZarfLayerMediaTypeBlob,
 				Digest:      writeBlob(packageData),
 				Size:        int64(len(packageData)),
 				Annotations: map[string]string{"org.opencontainers.image.title": "zarf.yaml"},
@@ -153,18 +156,14 @@ func buildBundleArtifact(t *testing.T, bundleHCL string, valuesFiles map[string]
 		}
 		packageManifestBytes, err := json.Marshal(packageManifest)
 		require.NoError(t, err)
-		refName := source
-		if IsOCIReference(source) {
-			refName = TrimScheme(source)
-		}
-		manifests = append(manifests, udsoci.OciManifest{
+		manifests = append(manifests, ocispec.Descriptor{
 			MediaType:   "application/vnd.oci.image.manifest.v1+json",
 			Digest:      writeBlob(packageManifestBytes),
 			Size:        int64(len(packageManifestBytes)),
-			Annotations: map[string]string{"org.opencontainers.image.ref.name": refName},
+			Annotations: map[string]string{ocispec.AnnotationRefName: source},
 		})
 	}
-	require.NoError(t, udsoci.WriteOCIIndex(filepath.Join(ociDir, "index.json"), udsoci.NewBundleIndex(manifests, "amd64")))
+	require.NoError(t, udsoci.WriteIndex(filepath.Join(ociDir, "index.json"), udsoci.NewBundleIndex(manifests, "amd64")))
 	outPath := filepath.Join(t.TempDir(), "bundle.tar.zst")
 	require.NoError(t, artifact.WriteTarZst(t.Context(), iostreams.IOStreams{}, outPath, root))
 	return outPath

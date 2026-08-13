@@ -11,7 +11,25 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	specv1 "github.com/opencontainers/image-spec/specs-go/v1"
 	oras "oras.land/oras-go/v2"
+	"oras.land/oras-go/v2/content"
+	orasoci "oras.land/oras-go/v2/content/oci"
 )
+
+// Store is a bundle OCI layout backed by ORAS content storage.
+//
+// ORAS owns content-addressed writes, digest verification, and atomic storage.
+// Store adds only filesystem operations ORAS intentionally does not expose:
+// locating blobs for package staging and enumerating blobs for garbage collection.
+type Store struct {
+	*orasoci.Store
+	root string
+}
+
+// Target is an OCI content target used by ORAS-backed registry and test stores.
+type Target = oras.Target
+
+// Fetcher fetches descriptor-addressed OCI content.
+type Fetcher = content.Fetcher
 
 const (
 	// Permissions for directories and files created by OCI operations.
@@ -95,14 +113,15 @@ type PullHooks struct {
 		ctx context.Context,
 		streams iostreams.IOStreams,
 		ociDir, targetDir string,
-		idx OciIndex,
+		idx specv1.Index,
 		arch string,
 	) (string, error)
 }
 
 // PushHooks provides extension points for OCI pushes.
 type PushHooks struct {
-	ToOrasTarget       func(ctx context.Context, ociReference string, opts *PushOptions) (oras.Target, error)
+	ToOrasTarget func(ctx context.Context, ociReference string, opts *PushOptions) (oras.Target, error)
+	// ModifyOrasSettings is not called when a bundle push is already fully published and no copy is required.
 	ModifyOrasSettings func(ctx context.Context, copyOptions *oras.CopyOptions) error
 }
 
@@ -135,61 +154,3 @@ const (
 	// AnnotationReconfiguredFrom records the source bundle's canonical child-index digest during reconfigure.
 	AnnotationReconfiguredFrom = "org.defenseunicorns.uds.reconfigured-from"
 )
-
-// OciIndex is the top-level OCI image index written to index.json.
-// For a UDS bundle child index, ArtifactType is MediaTypeBundle and
-// Annotations carries AnnotationBundleArchitecture; a multi-arch root index
-// has neither (it is a plain platform router, see ADR-0015).
-type OciIndex struct {
-	SchemaVersion int               `json:"schemaVersion"`
-	MediaType     string            `json:"mediaType"`
-	ArtifactType  string            `json:"artifactType,omitempty"`
-	Manifests     []OciManifest     `json:"manifests"`
-	Annotations   map[string]string `json:"annotations,omitempty"`
-}
-
-// OciManifest is a descriptor entry inside an OCI image index.
-type OciManifest struct {
-	MediaType    string            `json:"mediaType"`
-	ArtifactType string            `json:"artifactType,omitempty"`
-	Digest       string            `json:"digest"`
-	Size         int64             `json:"size"`
-	Platform     *specv1.Platform  `json:"platform,omitempty"`
-	Annotations  map[string]string `json:"annotations,omitempty"`
-}
-
-// ociLayout is the content of the oci-layout marker file.
-type ociLayout struct {
-	ImageLayoutVersion string `json:"imageLayoutVersion"`
-}
-
-// OciDescriptor is a generic OCI content descriptor used inside image manifests.
-type OciDescriptor struct {
-	MediaType   string            `json:"mediaType,omitempty"`
-	Digest      string            `json:"digest"`
-	Size        int64             `json:"size"`
-	URLs        []string          `json:"urls,omitempty"`
-	Annotations map[string]string `json:"annotations,omitempty"`
-}
-
-// OciImageManifest is the image manifest JSON blob referenced by an ociManifest entry.
-type OciImageManifest struct {
-	SchemaVersion int               `json:"schemaVersion"`
-	MediaType     string            `json:"mediaType,omitempty"`
-	ArtifactType  string            `json:"artifactType,omitempty"`
-	Config        OciDescriptor     `json:"config"`
-	Layers        []OciDescriptor   `json:"layers"`
-	Annotations   map[string]string `json:"annotations,omitempty"`
-}
-
-// ociIndex preserves the package-private name for the exported OCI index model.
-type ociIndex = OciIndex
-
-// ociManifest preserves the package-private name for the exported OCI manifest model.
-type ociManifest = OciManifest
-
-// ociImageManifest preserves the package-private name for the exported OCI image manifest model.
-type ociImageManifest = OciImageManifest
-
-// ociDescriptor preserves the package-private name for the exported OCI descriptor model.
-type ociDescriptor = OciDescriptor

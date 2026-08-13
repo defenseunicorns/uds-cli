@@ -9,6 +9,7 @@ import (
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 const (
@@ -35,11 +36,8 @@ type ExtractedBundle struct {
 	// BundleDefPath is the absolute path to the materialized bundle definition file (bundle.uds.hcl).
 	BundleDefPath string
 
-	// PackageDigests maps each package's source identifier to its manifest digest
-	// ("sha256:..."). Keyed by the org.opencontainers.image.ref.name annotation
-	// written during bundle create. For OCI sources this is the trimmed ref
-	// (no oci:// prefix); for local paths it is the package name.
-	PackageDigests map[string]string
+	// PackageManifests maps each package ref.name to its OCI manifest.
+	PackageManifests map[string]ocispec.Descriptor
 }
 
 // CreateOptions contains the private inputs needed to assemble a bundle artifact.

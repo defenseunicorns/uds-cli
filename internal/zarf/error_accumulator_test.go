@@ -15,7 +15,7 @@ import (
 func TestErrs_EmptyIsNil(t *testing.T) {
 	t.Parallel()
 
-	e := newErrs()
+	e := newErrorAccumulator()
 	assert.Equal(t, 0, e.Len())
 	assert.NoError(t, e.Err(), "fresh accumulator should report no error")
 }
@@ -25,7 +25,7 @@ func TestErrs_AddNilIsNoop(t *testing.T) {
 
 	// Add(nil) must not grow the accumulator. This contract lets callers
 	// forward a function's error result directly without a nil-guard.
-	e := newErrs()
+	e := newErrorAccumulator()
 	e.Add(nil)
 	e.Add(nil)
 	assert.Equal(t, 0, e.Len())
@@ -36,7 +36,7 @@ func TestErrs_SingleErrorRoundtrips(t *testing.T) {
 	t.Parallel()
 
 	want := errors.New("boom")
-	e := newErrs()
+	e := newErrorAccumulator()
 	e.Add(want)
 
 	assert.Equal(t, 1, e.Len())
@@ -51,7 +51,7 @@ func TestErrs_MultipleErrorsAreJoined(t *testing.T) {
 	// see every per-package failure, not just the first.
 	a := errors.New("a")
 	b := errors.New("b")
-	e := newErrs()
+	e := newErrorAccumulator()
 	e.Add(a)
 	e.Add(b)
 
@@ -66,7 +66,7 @@ func TestErrs_NilMixedWithRealErrors(t *testing.T) {
 	t.Parallel()
 
 	want := errors.New("real")
-	e := newErrs()
+	e := newErrorAccumulator()
 	e.Add(nil)
 	e.Add(want)
 	e.Add(nil)
@@ -82,7 +82,7 @@ func TestErrs_ConcurrentAddsAreRaceFree(t *testing.T) {
 	// distinct error; final count must equal the goroutine count, with no
 	// races and no lost updates.
 	const goroutines = 100
-	e := newErrs()
+	e := newErrorAccumulator()
 
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
@@ -102,7 +102,7 @@ func TestErrs_ErrIsSafeDuringConcurrentAdds(t *testing.T) {
 
 	// Err must be readable while Add is in flight; the contract is "safe
 	// for concurrent use", not "safe only after all Adds returned".
-	e := newErrs()
+	e := newErrorAccumulator()
 	const adders = 50
 
 	var wg sync.WaitGroup

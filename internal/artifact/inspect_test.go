@@ -6,7 +6,7 @@ package artifact
 import (
 	"testing"
 
-	"github.com/defenseunicorns/uds-cli/internal/oci"
+	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
@@ -16,29 +16,29 @@ import (
 func TestFindPackageManifestRejectsInvalidEntries(t *testing.T) {
 	tests := []struct {
 		name        string
-		manifests   []ociManifest
+		manifests   []ocispec.Descriptor
 		wantErrFrag string
 	}{
 		{
 			name: "nested index",
-			manifests: []ociManifest{{
+			manifests: []ocispec.Descriptor{{
 				MediaType: ocispec.MediaTypeImageIndex,
 				Annotations: map[string]string{
-					"org.opencontainers.image.ref.name": "pkg",
+					ocispec.AnnotationRefName: "pkg",
 				},
 			}},
 			wantErrFrag: "unsupported media type",
 		},
 		{
 			name: "duplicate manifests",
-			manifests: []ociManifest{
+			manifests: []ocispec.Descriptor{
 				{
 					MediaType:   ocispec.MediaTypeImageManifest,
-					Annotations: map[string]string{"org.opencontainers.image.ref.name": "pkg"},
+					Annotations: map[string]string{ocispec.AnnotationRefName: "pkg"},
 				},
 				{
 					MediaType:   ocispec.MediaTypeImageManifest,
-					Annotations: map[string]string{"org.opencontainers.image.ref.name": "pkg"},
+					Annotations: map[string]string{ocispec.AnnotationRefName: "pkg"},
 				},
 			},
 			wantErrFrag: "multiple matching",
@@ -47,27 +47,26 @@ func TestFindPackageManifestRejectsInvalidEntries(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := findPackageManifest(ociIndex{Manifests: tt.manifests}, spec.Package{Name: "pkg", Source: "pkg"})
+			_, err := findPackageManifest(ocispec.Index{Manifests: tt.manifests}, spec.Package{Name: "pkg", Source: "pkg"})
 			require.ErrorContains(t, err, tt.wantErrFrag)
 		})
 	}
 }
 
-func TestFindPackageManifestMatchesOCIReference(t *testing.T) {
-	manifest := ociManifest{
+func TestFindPackageManifestMatchesRefName(t *testing.T) {
+	manifest := ocispec.Descriptor{
 		MediaType: ocispec.MediaTypeImageManifest,
-		Digest:    "sha256:package",
 		Annotations: map[string]string{
-			"org.opencontainers.image.ref.name": "example.com/pkg:v1",
+			ocispec.AnnotationRefName: "example.com/pkg:v1",
 		},
 	}
 
 	entry, err := findPackageManifest(
-		ociIndex{Manifests: []ociManifest{manifest}},
+		ocispec.Index{Manifests: []ocispec.Descriptor{manifest}},
 		spec.Package{Name: "pkg", Source: "oci://example.com/pkg:v1"},
 	)
 	require.NoError(t, err)
-	assert.Equal(t, manifest.Digest, entry.Digest)
+	assert.Equal(t, manifest.MediaType, entry.MediaType)
 }
 
 func TestPackageVerificationStatus(t *testing.T) {
@@ -76,7 +75,7 @@ func TestPackageVerificationStatus(t *testing.T) {
 	tests := []struct {
 		name         string
 		verification *spec.PackageSignatureVerification
-		manifest     *ociManifest
+		manifest     *ocispec.Descriptor
 		want         PackageVerificationStatus
 	}{
 		{name: "missing", want: PackageVerificationStatusUnknown},
@@ -92,8 +91,8 @@ func TestPackageVerificationStatus(t *testing.T) {
 		},
 		{
 			name: "persisted verified",
-			manifest: &ociManifest{Annotations: map[string]string{
-				oci.AnnotationPackageVerification: oci.AnnotationPackageVerificationVerified,
+			manifest: &ocispec.Descriptor{Annotations: map[string]string{
+				udsoci.AnnotationPackageVerification: udsoci.AnnotationPackageVerificationVerified,
 			}},
 			want: PackageVerificationStatusVerified,
 		},

@@ -15,7 +15,6 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
-	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/opencontainers/go-digest"
@@ -26,11 +25,6 @@ import (
 	"oras.land/oras-go/v2"
 	oraci "oras.land/oras-go/v2/content/oci"
 )
-
-type ociIndex = udsoci.OciIndex
-type ociManifest = udsoci.OciManifest
-type ociDescriptor = udsoci.OciDescriptor
-type ociImageManifest = udsoci.OciImageManifest
 
 type trackingInspectTarget struct {
 	oras.Target
@@ -139,7 +133,7 @@ func TestInspect_RequiresArtifactArchitecture(t *testing.T) {
 	tarball := createArchTestBundle(t, "inspect-missing-arch", "1.0.0", runtime.GOARCH)
 	entries := readTarZstEntries(t, tarball)
 
-	var idx ociIndex
+	var idx ocispec.Index
 	require.NoError(t, json.Unmarshal(entries["oci/index.json"], &idx))
 	idx.Annotations = nil
 	indexBytes, err := json.Marshal(idx)
@@ -159,9 +153,9 @@ func TestInspect_LocalArtifactChecksOnlyPresentedMetadata(t *testing.T) {
 	tarball := createArchTestBundle(t, "inspect-local-metadata", "1.0.0", runtime.GOARCH)
 	entries := readTarZstEntries(t, tarball)
 
-	var idx ociIndex
+	var idx ocispec.Index
 	require.NoError(t, json.Unmarshal(entries["oci/index.json"], &idx))
-	var packageEntry ociManifest
+	var packageEntry ocispec.Descriptor
 	for _, entry := range idx.Manifests {
 		if entry.ArtifactType != MediaTypeBundleDefinition {
 			packageEntry = entry
@@ -169,11 +163,18 @@ func TestInspect_LocalArtifactChecksOnlyPresentedMetadata(t *testing.T) {
 		}
 	}
 	packageManifestBytes := entries[filepath.Join("oci", "blobs", "sha256", digestToHex(t, packageEntry.Digest))]
-	var packageManifest ociImageManifest
+	var packageManifest ocispec.Manifest
 	require.NoError(t, json.Unmarshal(packageManifestBytes, &packageManifest))
 	require.NotEmpty(t, packageManifest.Layers)
 
-	layer := packageManifest.Layers[0]
+	var layer ocispec.Descriptor
+	for _, candidate := range packageManifest.Layers {
+		if candidate.Annotations[ocispec.AnnotationTitle] != "zarf.yaml" {
+			layer = candidate
+			break
+		}
+	}
+	require.NotEmpty(t, layer.Digest)
 	entries[filepath.Join("oci", "blobs", "sha256", digestToHex(t, layer.Digest))] = []byte("tampered package content")
 	tampered := writeInspectTarZstEntries(t, entries)
 
@@ -190,9 +191,9 @@ func TestInspect_LocalArtifactRejectsCorruptMetadata(t *testing.T) {
 	tarball := createPackageSignatureArtifact(t, true)
 	entries := readTarZstEntries(t, tarball)
 
-	var idx ociIndex
+	var idx ocispec.Index
 	require.NoError(t, json.Unmarshal(entries["oci/index.json"], &idx))
-	var packageEntry ociManifest
+	var packageEntry ocispec.Descriptor
 	for _, entry := range idx.Manifests {
 		if entry.ArtifactType != MediaTypeBundleDefinition {
 			packageEntry = entry
@@ -200,10 +201,10 @@ func TestInspect_LocalArtifactRejectsCorruptMetadata(t *testing.T) {
 		}
 	}
 	packageManifestBytes := entries[filepath.Join("oci", "blobs", "sha256", digestToHex(t, packageEntry.Digest))]
-	var packageManifest ociImageManifest
+	var packageManifest ocispec.Manifest
 	require.NoError(t, json.Unmarshal(packageManifestBytes, &packageManifest))
 
-	var metadataLayer ociDescriptor
+	var metadataLayer ocispec.Descriptor
 	for _, layer := range packageManifest.Layers {
 		if layer.Annotations[ocispec.AnnotationTitle] == "zarf.yaml" {
 			metadataLayer = layer
@@ -219,7 +220,7 @@ func TestInspect_LocalArtifactRejectsCorruptMetadata(t *testing.T) {
 		Config:  newTestConfig(),
 		Streams: iostreams.IOStreams{},
 	})
-	require.ErrorContains(t, err, "size mismatch")
+	require.ErrorContains(t, err, "expected content size")
 }
 
 func TestInspect_LocalReconfiguredArtifactReportsProvenance(t *testing.T) {
@@ -254,17 +255,6 @@ func TestInspect_RejectsNilTarget(t *testing.T) {
 		return nil, nil
 	})
 	require.ErrorContains(t, err, "inspect target is nil")
-}
-
-func TestReadLocalBlobRejectsOversizedMetadata(t *testing.T) {
-	data := []byte("metadata")
-	d := digest.FromBytes(data)
-	blobDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(blobDir, d.Encoded()), data, tmpFilePerm))
-
-	const maxMetadataSize = 16 << 20
-	_, err := udsoci.ReadLocalBlob(blobDir, ocispec.Descriptor{Digest: d, Size: maxMetadataSize + 1}, maxMetadataSize)
-	require.ErrorContains(t, err, "exceeds maximum allowed size")
 }
 
 func TestInspect_RemoteReferenceMatchesLocalArtifact(t *testing.T) {
@@ -310,9 +300,9 @@ func TestInspect_RemoteReferenceFetchesMetadataOnly(t *testing.T) {
 	require.NoError(t, err)
 
 	entries := readTarZstEntries(t, tarball)
-	var idx ociIndex
+	var idx ocispec.Index
 	require.NoError(t, json.Unmarshal(entries["oci/index.json"], &idx))
-	var packageManifestEntry ociManifest
+	var packageManifestEntry ocispec.Descriptor
 	for _, entry := range idx.Manifests {
 		if entry.ArtifactType != MediaTypeBundleDefinition {
 			packageManifestEntry = entry
@@ -320,11 +310,14 @@ func TestInspect_RemoteReferenceFetchesMetadataOnly(t *testing.T) {
 		}
 	}
 	manifestBytes := entries[filepath.Join("oci", "blobs", "sha256", digestToHex(t, packageManifestEntry.Digest))]
-	var manifest ociImageManifest
+	var manifest ocispec.Manifest
 	require.NoError(t, json.Unmarshal(manifestBytes, &manifest))
 
 	for _, fetched := range tracking.fetched {
 		for _, layer := range manifest.Layers {
+			if layer.Annotations[ocispec.AnnotationTitle] == "zarf.yaml" {
+				continue
+			}
 			assert.NotEqual(t, layer.Digest, fetched.Digest, "inspect must not fetch package content layers")
 		}
 	}
@@ -361,12 +354,12 @@ func createPackageSignatureArtifact(t *testing.T, signed bool) string {
 	t.Helper()
 	root := t.TempDir()
 	pkgDir := filepath.Join(root, "pkg")
-	require.NoError(t, os.MkdirAll(pkgDir, tempDirPerm))
+	writeMinimalZarfPackage(t, pkgDir)
 	signedValue := "false"
 	if signed {
 		signedValue = "true"
 	}
-	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte("build:\n  signed: "+signedValue+"\n"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte("kind: ZarfPackageConfig\nmetadata:\n  name: test\n  version: 0.0.1\n  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\nbuild:\n  signed: "+signedValue+"\ncomponents: []\n"), tmpFilePerm))
 
 	bundleFile := filepath.Join(root, BundleFileName)
 	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
@@ -465,9 +458,9 @@ func pushArchTestBundle(t *testing.T, dst oras.Target, ref, tarball string) {
 	require.NoError(t, err)
 }
 
-func digestToHex(t *testing.T, value string) string {
+func digestToHex(t *testing.T, value digest.Digest) string {
 	t.Helper()
-	parts := strings.SplitN(value, ":", 2)
+	parts := strings.SplitN(value.String(), ":", 2)
 	require.Len(t, parts, 2, "invalid digest format: %s", value)
 	return parts[1]
 }

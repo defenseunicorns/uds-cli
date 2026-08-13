@@ -10,14 +10,16 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
 // ExtractedArtifactPackageLayoutLoader loads packages from an extracted bundle artifact.
 type ExtractedArtifactPackageLayoutLoader struct {
-	OCIDir         string
-	PackageDigests map[string]string
+	OCIDir           string
+	PackageDigests   map[string]string
+	packageManifests map[string]ocispec.Descriptor
 }
 
 // LoadPackageLayout stages an extracted package as a deployable layout.
@@ -25,7 +27,7 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	loader := &zarf.ExtractedArtifactPackageLayoutLoader{OCIDir: l.OCIDir, PackageDigests: l.PackageDigests}
+	loader := &zarf.ExtractedArtifactPackageLayoutLoader{OCIDir: l.OCIDir, PackageDigests: l.PackageDigests, PackageManifests: l.packageManifests}
 	return loader.LoadPackageLayout(ctx, pkg, dstDir, zarf.LoadOptions{Streams: opts.Streams, IsPartial: opts.IsPartial})
 }
 

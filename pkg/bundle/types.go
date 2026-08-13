@@ -342,6 +342,7 @@ type PushHooks struct {
 	// This is also the seam unit tests use to inject an in-memory store.
 	ToOrasTarget func(ctx context.Context, ociReference string, opts *PushOptions) (oras.Target, error)
 	// ModifyOrasSettings tweaks copy options just before oras.Copy. Nil = no-op.
+	// It is not called when a bundle push is already fully published and no copy is required.
 	ModifyOrasSettings func(ctx context.Context, copyOptions *oras.CopyOptions) error
 }
 

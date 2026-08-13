@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -28,7 +29,7 @@ func TestExtractedArtifactPackageLayoutLoader_LoadPackageLayout(t *testing.T) {
 		wantNotFound bool
 	}{
 		{
-			name:         "OCI source key uses TrimScheme",
+			name:         "OCI source key uses ref.name",
 			pkg:          &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"},
 			digests:      map[string]string{"example.com/pkg:v1": "sha256:aaa"},
 			wantNotFound: false, // found; fails later on blob read
@@ -40,7 +41,7 @@ func TestExtractedArtifactPackageLayoutLoader_LoadPackageLayout(t *testing.T) {
 			wantNotFound: false, // found; fails later on blob read
 		},
 		{
-			name:         "missing OCI source",
+			name:         "missing OCI ref name",
 			pkg:          &Package{Name: "other", Source: "oci://example.com/other:v1"},
 			digests:      map[string]string{"example.com/pkg:v1": "sha256:aaa"},
 			wantNotFound: true,
@@ -256,7 +257,8 @@ func newArtifactPackageLayoutLoader(t *testing.T, layerTitle string) *ExtractedA
 
 	ociDir := t.TempDir()
 	blobDir := filepath.Join(ociDir, "blobs", "sha256")
-	require.NoError(t, os.MkdirAll(blobDir, 0o700))
+	_, err := udsoci.CreateStore(ociDir)
+	require.NoError(t, err)
 
 	layerData := []byte("metadata:\n  name: mypkg\n")
 	layerDigest := digest.FromBytes(layerData)
@@ -272,7 +274,11 @@ func newArtifactPackageLayoutLoader(t *testing.T, layerTitle string) *ExtractedA
 	require.NoError(t, os.WriteFile(filepath.Join(blobDir, manifestDigest.Encoded()), manifestData, 0o600))
 
 	return &ExtractedArtifactPackageLayoutLoader{
-		OCIDir:         ociDir,
-		PackageDigests: map[string]string{"example.com/pkg:v1": manifestDigest.String()},
+		OCIDir: ociDir,
+		PackageManifests: map[string]ocispec.Descriptor{"example.com/pkg:v1": {
+			MediaType: ocispec.MediaTypeImageManifest,
+			Digest:    manifestDigest,
+			Size:      int64(len(manifestData)),
+		}},
 	}
 }

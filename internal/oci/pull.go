@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/defenseunicorns/uds-cli/internal/logger"
-	oras "oras.land/oras-go/v2"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	oraci "oras.land/oras-go/v2/content/oci"
 )
 
@@ -26,8 +26,8 @@ func NewDefaultPuller() Puller { return &defaultPuller{} }
 // PullBundle pulls a UDS bundle from an OCI registry and writes it as a tar.zst
 // archive to targetDir. It returns the path of the written archive.
 //
-// PullBundle uses oras.Copy to fetch the bundle index and all referenced blobs from
-// the remote registry into a local OCI layout, then reconstructs index.json
+// PullBundle uses ORAS graph copy to fetch the selected bundle index and all
+// referenced blobs from the remote registry into a local OCI layout, then reconstructs index.json
 // from the fetched root descriptor so the layout is identical to what Create
 // produces. The resulting tarball can be pushed without modification.
 func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir string, opts PullOptions) (*PullResult, error) {
@@ -70,7 +70,7 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 	if err != nil {
 		return nil, fmt.Errorf("resolving pull source %s: %w", ociReference, err)
 	}
-	reference, err := refIdentifier(ociReference)
+	reference, err := ReferenceIdentifier(ociReference)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 	// Resolve to the canonical single-arch bundle (child) index: a tag resolves
 	// to the root index and is platform-selected for the requested architecture;
 	// a digest-pinned reference addresses a child directly (ADR-0015).
-	childDesc, idxBytes, err := resolveBundleChild(ctx, src, reference, opts.Config.Options.Architecture)
+	childDesc, idxBytes, err := ResolveBundleChild(ctx, src, reference, opts.Config.Options.Architecture)
 	if err != nil {
 		return nil, fmt.Errorf("resolving bundle from %s: %w", ociReference, err)
 	}
@@ -89,7 +89,7 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 		return nil, fmt.Errorf("configuring pull: %w", err)
 	}
 	log.Debug("copying bundle from registry", "ref", ociReference, "digest", childDesc.Digest.String())
-	if err := oras.CopyGraph(ctx, src, store, childDesc, copyOpts.CopyGraphOptions); err != nil {
+	if err := copyGraph(ctx, src, store, childDesc, copyOpts.CopyGraphOptions); err != nil {
 		return nil, fmt.Errorf("pulling bundle from %s: %w", ociReference, err)
 	}
 
@@ -99,13 +99,13 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 		return nil, fmt.Errorf("writing index.json: %w", err)
 	}
 
-	var idx ociIndex
+	var idx ocispec.Index
 	if err := json.Unmarshal(idxBytes, &idx); err != nil {
 		return nil, fmt.Errorf("parsing bundle index: %w", err)
 	}
 
-	// oras.CopyGraph stores the child index as a blob in addition to us writing
-	// it as index.json. Remove it so the layout matches what Create produces
+	// Graph copy stores the child index as a blob in addition to us writing it as
+	// index.json. Remove it so the layout matches what Create produces
 	// (index only in index.json, never as a blob).
 	idxBlobPath := filepath.Join(ociDir, "blobs", "sha256", childDesc.Digest.Hex())
 	if err := os.Remove(idxBlobPath); err != nil && !os.IsNotExist(err) {

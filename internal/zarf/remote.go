@@ -5,129 +5,71 @@ package zarf
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
-	"path/filepath"
+	"os"
 
 	"github.com/defenseunicorns/pkg/oci"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/pkg/ocischeme"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
-	"golang.org/x/sync/errgroup"
-	"oras.land/oras-go/v2/registry"
 )
 
-// Compile-time check: remoteSource must implement PackageSource.
 var _ PackageSource = &remoteSource{}
 
-// resolvePlainHTTP determines whether a registry reference should use plain HTTP.
-func resolvePlainHTTP(ctx context.Context, ref string, opts ConfigOptions, transport http.RoundTripper) (bool, error) {
-	if !opts.PlainHTTP {
-		return false, nil
-	}
-
-	parsed, err := registry.ParseReference(ref)
-	if err != nil {
-		return false, fmt.Errorf("parsing OCI reference %q: %w", ref, err)
-	}
-	plainHTTP, err := ocischeme.From(ctx).UsePlainHTTP(ctx, parsed.Registry, ocischeme.ProbeOptions{
-		InsecureSkipTLSVerify: opts.SkipTLSVerify,
-		Transport:             transport,
-	})
-	if err != nil {
-		return false, fmt.Errorf("determining registry transport for %q: %w", ref, err)
-	}
-	return plainHTTP, nil
+func (s *remoteSource) newZociRemote(ctx context.Context) (*zoci.Remote, error) {
+	return s.newZociRemoteForRef(ctx, s.ref)
 }
 
-// newZociRemote creates a zoci.Remote for ref using the configured platform and registry options.
-func (s *remoteSource) newZociRemote(ctx context.Context, ref string) (*zoci.Remote, error) {
-	platform := ocispec.Platform{
-		Architecture: s.arch,
-		OS:           oci.MultiOS,
-	}
-	plainHTTP, err := resolvePlainHTTP(ctx, ref, s.opts, nil)
+func (s *remoteSource) newZociRemoteForRef(ctx context.Context, ref string) (*zoci.Remote, error) {
+	platform := ocispec.Platform{Architecture: s.arch, OS: oci.MultiOS}
+	plainHTTP, err := udsoci.ResolvePlainHTTP(ctx, ref, udsoci.ConfigOptions{PlainHTTP: s.opts.PlainHTTP, SkipTLSVerify: s.opts.SkipTLSVerify}, nil)
 	if err != nil {
 		return nil, err
 	}
-	mods := []oci.Modifier{
+	return zoci.NewRemote(ctx, ref, platform,
 		oci.WithPlainHTTP(plainHTTP),
 		oci.WithInsecureSkipVerify(s.opts.SkipTLSVerify),
-	}
-	return zoci.NewRemote(ctx, ref, platform, mods...)
+	)
 }
 
-// resolveFilteredLayers connects to the remote registry, fetches the root
-// manifest, and determines which layers are needed based on the filter.
-// For Zarf packages it builds a minimal filtered layer list; for non-Zarf
-// packages it returns all layers.
 func (s *remoteSource) resolveFilteredLayers(ctx context.Context, filter filters.ComponentFilterStrategy) (*resolvedLayers, error) {
-	remote, err := s.newZociRemote(ctx, s.ref)
+	remote, err := s.newZociRemote(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("creating OCI remote for %q: %w", s.ref, err)
 	}
-
-	rootDescriptor, err := remote.ResolveRoot(ctx)
+	rootDesc, err := remote.ResolveRoot(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("resolving root manifest for %q: %w", s.ref, err)
 	}
-	parsedRef, err := registry.ParseReference(s.ref)
+	pinnedRef := pinnedRemoteReference(remote, rootDesc)
+	remote, err = s.newZociRemoteForRef(ctx, pinnedRef)
 	if err != nil {
-		return nil, fmt.Errorf("parsing OCI reference %q: %w", s.ref, err)
+		return nil, fmt.Errorf("creating pinned OCI remote for %q: %w", pinnedRef, err)
 	}
-	parsedRef.Reference = rootDescriptor.Digest.String()
-	pinnedRef := parsedRef.String()
-	remote, err = s.newZociRemote(ctx, pinnedRef)
+	root, err := remote.FetchManifest(ctx, rootDesc)
 	if err != nil {
-		return nil, fmt.Errorf("creating digest-pinned OCI remote for %q: %w", s.ref, err)
-	}
-
-	root, err := remote.FetchRoot(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("fetching root manifest %s for %q: %w", rootDescriptor.Digest, s.ref, err)
+		return nil, fmt.Errorf("fetching root manifest for %q: %w", pinnedRef, err)
 	}
 
-	var layers []ocispec.Descriptor
+	layers := root.Layers
 	isPartial := false
-
-	if isZarfOCIPackage(root) {
-		pkg, err := remote.FetchZarfYAML(ctx)
+	if !oci.IsEmptyDescriptor(root.Locate(layout.ZarfYAML)) {
+		layers, isPartial, err = selectZarfLayers(ctx, root, remote, filter)
 		if err != nil {
-			return nil, fmt.Errorf("fetching zarf.yaml from %q: %w", s.ref, err)
+			return nil, fmt.Errorf("resolving layers for %q: %w", s.ref, err)
 		}
-
-		totalComponents := len(pkg.Components)
-		filteredComponents, err := filter.Apply(pkg)
-		if err != nil {
-			return nil, fmt.Errorf("applying component filter for %q: %w", s.ref, err)
-		}
-		pkg.Components = filteredComponents
-
-		layers, err = buildFilteredLayerList(ctx, remote, root, pkg)
-		if err != nil {
-			return nil, fmt.Errorf("building filtered layer list for %q: %w", s.ref, err)
-		}
-
-		isPartial = len(filteredComponents) < totalComponents
-		s.streams.Debug("resolved filtered layers", "ref", s.ref, "totalComponents", totalComponents, "filteredComponents", len(filteredComponents), "partial", isPartial)
-	} else {
-		s.streams.Debug("non-Zarf package, using all layers", "ref", s.ref)
-		layers = root.Layers
 	}
-
-	return &resolvedLayers{
-		remote:    remote,
-		root:      root,
-		layers:    layers,
-		isPartial: isPartial,
-	}, nil
+	s.streams.Debug("resolved package layers", "ref", s.ref, "layers", len(layers), "partial", isPartial)
+	return &resolvedLayers{remote: remote, root: root, layers: layers, isPartial: isPartial}, nil
 }
 
-// concurrency returns the configured concurrency or the zoci default.
+func pinnedRemoteReference(remote *zoci.Remote, desc ocispec.Descriptor) string {
+	ref := remote.Repo().Reference
+	return fmt.Sprintf("%s/%s@%s", ref.Registry, ref.Repository, desc.Digest)
+}
+
 func (s *remoteSource) concurrency() int {
 	if s.opts.Concurrency > 0 {
 		return s.opts.Concurrency
@@ -135,180 +77,70 @@ func (s *remoteSource) concurrency() int {
 	return zoci.DefaultConcurrency
 }
 
-// PullFiltered pulls a Zarf package from an OCI registry, applying the component
-// filter BEFORE downloading to avoid pulling unnecessary layers.
+// PullFiltered pulls only the Zarf layers selected for the requested components.
 func (s *remoteSource) PullFiltered(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions) (*layout.PackageLayout, error) {
-	resolved, err := s.resolveFilteredLayers(ctx, loadOptions.Filter)
-	if err != nil {
-		return nil, err
-	}
-
-	if _, err := resolved.remote.PullPackage(ctx, tmpDir, s.concurrency(), resolved.layers...); err != nil {
-		return nil, fmt.Errorf("pulling package %q: %w", s.ref, err)
-	}
-
-	loadOptions.IsPartial = resolved.isPartial
-	pkgLayout, err := layout.LoadFromDir(ctx, tmpDir, loadOptions)
-	if err != nil {
-		return nil, fmt.Errorf("loading package layout for %q: %w", s.ref, err)
-	}
-
-	return pkgLayout, nil
+	pkgLayout, _, err := s.pullFilteredWithSelection(ctx, tmpDir, loadOptions)
+	return pkgLayout, err
 }
 
-// VerifyAndIngestFiltered resolves a remote package once, verifies the pulled
-// layers, and ingests those exact layers into the bundle blob store.
-func (s *remoteSource) VerifyAndIngestFiltered(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions, blobDir string) ([]ociManifest, error) {
+func (s *remoteSource) pullFilteredWithSelection(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions) (*layout.PackageLayout, []ocispec.Descriptor, error) {
 	resolved, err := s.resolveFilteredLayers(ctx, loadOptions.Filter)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-
 	if _, err := resolved.remote.PullPackage(ctx, tmpDir, s.concurrency(), resolved.layers...); err != nil {
-		return nil, fmt.Errorf("pulling package %q: %w", s.ref, err)
+		return nil, nil, fmt.Errorf("pulling package %q: %w", s.ref, err)
 	}
-
 	loadOptions.IsPartial = resolved.isPartial
 	pkgLayout, err := layout.LoadFromDir(ctx, tmpDir, loadOptions)
 	if err != nil {
-		return nil, fmt.Errorf("loading package layout for %q: %w", s.ref, err)
+		return nil, nil, fmt.Errorf("loading package layout for %q: %w", s.ref, err)
+	}
+	return pkgLayout, resolved.layers, nil
+}
+
+// VerifyAndIngestFiltered verifies one downloaded layout and copies those exact
+// bytes into the bundle's ORAS content store.
+func (s *remoteSource) VerifyAndIngestFiltered(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions, store *udsoci.Store) ([]ocispec.Descriptor, error) {
+	pkgLayout, selectedLayers, err := s.pullFilteredWithSelection(ctx, tmpDir, loadOptions)
+	if err != nil {
+		return nil, err
 	}
 	defer func() {
 		if err := pkgLayout.Cleanup(); err != nil {
 			s.streams.Warn("failed to remove verified package layout", "path", pkgLayout.DirPath(), "error", err)
 		}
 	}()
-
-	return s.ingestResolved(ctx, resolved, tmpDir, blobDir)
+	desc, err := copySelectedPackage(ctx, pkgLayout, selectedLayers, store)
+	if err != nil {
+		return nil, fmt.Errorf("ingesting verified package %q: %w", s.ref, err)
+	}
+	return []ocispec.Descriptor{desc}, nil
 }
 
-// IngestFiltered ingests a Zarf package from an OCI registry into the bundle's
-// blob directory, applying the component filter BEFORE downloading.
-// Returns manifest descriptors for the bundle's OCI index.
-func (s *remoteSource) IngestFiltered(ctx context.Context, filter filters.ComponentFilterStrategy, blobDir string) ([]ociManifest, error) {
-	resolved, err := s.resolveFilteredLayers(ctx, filter)
+// IngestFiltered downloads the selected package once and copies its canonical
+// Zarf v0.83 OCI representation into the bundle store.
+func (s *remoteSource) IngestFiltered(ctx context.Context, filter filters.ComponentFilterStrategy, store *udsoci.Store) ([]ocispec.Descriptor, error) {
+	tmpDir, err := os.MkdirTemp(s.opts.TmpDir, "uds-package-ingest-*")
 	if err != nil {
+		return nil, fmt.Errorf("creating package ingest workspace: %w", err)
+	}
+	pkgLayout, selectedLayers, err := s.pullFilteredWithSelection(ctx, tmpDir, layout.PackageLayoutOptions{
+		Filter:               filter,
+		VerificationStrategy: layout.VerifyNever,
+	})
+	if err != nil {
+		_ = os.RemoveAll(tmpDir)
 		return nil, err
 	}
-	return s.ingestResolved(ctx, resolved, "", blobDir)
-}
-
-// ingestResolved ingests a package from one resolved root. When stagedDir is
-// non-empty, package layers are copied from the already-verified staged files
-// instead of being fetched again.
-func (s *remoteSource) ingestResolved(ctx context.Context, resolved *resolvedLayers, stagedDir, blobDir string) ([]ociManifest, error) {
-	// Build set of needed digests from the filtered layer list
-	neededDigests := make(map[string]bool, len(resolved.layers))
-	for _, l := range resolved.layers {
-		neededDigests[l.Digest.String()] = true
-	}
-
-	rawManifest, err := json.Marshal(resolved.root)
-	if err != nil {
-		return nil, fmt.Errorf("marshalling resolved manifest for %q: %w", s.ref, err)
-	}
-
-	var im ociImageManifest
-	if err := json.Unmarshal(rawManifest, &im); err != nil {
-		return nil, fmt.Errorf("parsing manifest for %q: %w", s.ref, err)
-	}
-
-	// Filter manifest layers to only those we need
-	if resolved.isPartial {
-		filtered := make([]ociDescriptor, 0, len(im.Layers))
-		for _, l := range im.Layers {
-			ld, err := udsoci.ParseDigest(l.Digest)
-			if err != nil {
-				return nil, fmt.Errorf("invalid layer digest in manifest for %q: %w", s.ref, err)
-			}
-			if neededDigests[ld.String()] {
-				filtered = append(filtered, l)
-			}
+	defer func() {
+		if err := pkgLayout.Cleanup(); err != nil {
+			s.streams.Warn("failed to remove package layout", "path", pkgLayout.DirPath(), "error", err)
 		}
-		im.Layers = filtered
-	}
-
-	// Write config blob
-	configDesc, err := udsoci.DescriptorFromOCI(im.Config)
+	}()
+	desc, err := copySelectedPackage(ctx, pkgLayout, selectedLayers, store)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ingesting package %q: %w", s.ref, err)
 	}
-	configData, err := resolved.remote.FetchLayer(ctx, configDesc)
-	if err != nil {
-		return nil, fmt.Errorf("fetching config for %q: %w", s.ref, err)
-	}
-	configDigest, err := udsoci.ParseDigest(im.Config.Digest)
-	if err != nil {
-		return nil, err
-	}
-	if err := udsoci.WriteBlobBytesIfMissingAndVerify(blobDir, configDigest, configData); err != nil {
-		return nil, fmt.Errorf("writing config blob: %w", err)
-	}
-
-	// Fetch and write layer blobs concurrently
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(s.concurrency())
-	cleanStagedDir := ""
-	if stagedDir != "" {
-		cleanStagedDir, err = filepath.Abs(filepath.Clean(stagedDir))
-		if err != nil {
-			return nil, fmt.Errorf("resolving staged package directory: %w", err)
-		}
-	}
-	for _, l := range im.Layers {
-		g.Go(func() error {
-			ld, err := udsoci.ParseDigest(l.Digest)
-			if err != nil {
-				return err
-			}
-
-			if stagedDir != "" {
-				title := l.Annotations[zarfLayerTitleAnnotation]
-				if title == "" {
-					return fmt.Errorf("resolved package layer %s has no title annotation", l.Digest)
-				}
-				src, err := safeLayerDestinationPath(cleanStagedDir, stagedDir, title)
-				if err != nil {
-					return err
-				}
-				return udsoci.CopyBlobFileIfMissingAndVerify(blobDir, src, ld)
-			}
-
-			desc, err := udsoci.DescriptorFromOCI(l)
-			if err != nil {
-				return err
-			}
-			rc, err := resolved.remote.Repo().Fetch(gctx, desc)
-			if err != nil {
-				return fmt.Errorf("fetching layer %s: %w", l.Digest, err)
-			}
-			defer func() { _ = rc.Close() }()
-
-			return udsoci.WriteBlobReaderIfMissingAndVerify(blobDir, ld, rc)
-		})
-	}
-	if err := g.Wait(); err != nil {
-		return nil, err
-	}
-
-	// Marshal the (possibly filtered) manifest, write as blob
-	newManifestBytes, err := json.Marshal(im)
-	if err != nil {
-		return nil, fmt.Errorf("marshalling manifest: %w", err)
-	}
-	manifestDigest, err := udsoci.WriteAndDigestBlob(blobDir, newManifestBytes)
-	if err != nil {
-		return nil, fmt.Errorf("writing manifest blob: %w", err)
-	}
-
-	mediaType := im.MediaType
-	if mediaType == "" {
-		mediaType = ocispec.MediaTypeImageManifest
-	}
-
-	return []ociManifest{{
-		MediaType: mediaType,
-		Digest:    manifestDigest.String(),
-		Size:      int64(len(newManifestBytes)),
-	}}, nil
+	return []ocispec.Descriptor{desc}, nil
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/mholt/archives"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	zarfarchive "github.com/zarf-dev/zarf/src/pkg/archive"
 )
 
@@ -91,7 +92,7 @@ func IsTarZst(s string) bool {
 }
 
 // CreateBundleArchive writes a pulled OCI bundle layout to targetDir.
-func CreateBundleArchive(ctx context.Context, streams iostreams.IOStreams, ociDir, targetDir string, idx oci.OciIndex, arch string) (string, error) {
+func CreateBundleArchive(ctx context.Context, streams iostreams.IOStreams, ociDir, targetDir string, idx ocispec.Index, arch string) (string, error) {
 	name, err := bundleNameFromDefinitionLayer(ctx, streams, ociDir, idx, arch)
 	if err != nil {
 		return "", err
@@ -107,8 +108,8 @@ func CreateBundleArchive(ctx context.Context, streams iostreams.IOStreams, ociDi
 // bundleNameFromDefinitionLayer reads the bundle HCL from the bundle definition manifest
 // in the OCI index and derives the output filename using bundleOutputName.
 // It assumes isBundleIndex has already been called to confirm the index is valid.
-func bundleNameFromDefinitionLayer(ctx context.Context, streams iostreams.IOStreams, ociDir string, idx oci.OciIndex, arch string) (string, error) {
-	var cfgEntry *oci.OciManifest
+func bundleNameFromDefinitionLayer(ctx context.Context, streams iostreams.IOStreams, ociDir string, idx ocispec.Index, arch string) (string, error) {
+	var cfgEntry *ocispec.Descriptor
 	for i := range idx.Manifests {
 		if idx.Manifests[i].ArtifactType == oci.MediaTypeBundleDefinition {
 			cfgEntry = &idx.Manifests[i]
@@ -119,30 +120,32 @@ func bundleNameFromDefinitionLayer(ctx context.Context, streams iostreams.IOStre
 		return "", fmt.Errorf("bundle definition manifest not found in index")
 	}
 
-	cfgHex := strings.TrimPrefix(cfgEntry.Digest, "sha256:")
-	cfgBytes, err := os.ReadFile(filepath.Join(ociDir, "blobs", "sha256", cfgHex))
+	store, err := oci.OpenReadOnlyStore(ociDir)
+	if err != nil {
+		return "", fmt.Errorf("opening OCI layout: %w", err)
+	}
+	cfgBytes, err := oci.FetchBytes(ctx, store, *cfgEntry)
 	if err != nil {
 		return "", fmt.Errorf("reading config manifest blob: %w", err)
 	}
 
-	var manifest oci.OciImageManifest
+	var manifest ocispec.Manifest
 	if err := json.Unmarshal(cfgBytes, &manifest); err != nil {
 		return "", fmt.Errorf("parsing config manifest: %w", err)
 	}
 
-	var hclDigest string
+	var hclDesc ocispec.Descriptor
 	for _, l := range manifest.Layers {
 		if l.MediaType == oci.MediaTypeBundleHCL {
-			hclDigest = l.Digest
+			hclDesc = l
 			break
 		}
 	}
-	if hclDigest == "" {
+	if hclDesc.Digest == "" {
 		return "", fmt.Errorf("bundle HCL layer not found in config manifest")
 	}
 
-	hclHex := strings.TrimPrefix(hclDigest, "sha256:")
-	hclBytes, err := os.ReadFile(filepath.Join(ociDir, "blobs", "sha256", hclHex))
+	hclBytes, err := oci.FetchBytes(ctx, store, hclDesc)
 	if err != nil {
 		return "", fmt.Errorf("reading HCL blob: %w", err)
 	}

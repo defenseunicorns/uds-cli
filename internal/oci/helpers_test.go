@@ -13,12 +13,13 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/mholt/archives"
+	godigest "github.com/opencontainers/go-digest"
+	"github.com/opencontainers/image-spec/specs-go"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/require"
 	zarfarchive "github.com/zarf-dev/zarf/src/pkg/archive"
@@ -62,29 +63,29 @@ func writeMinimalOCILayout(t *testing.T, ociDir string) {
 	t.Helper()
 	blobDir := filepath.Join(ociDir, "blobs", "sha256")
 	require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
-	require.NoError(t, writeOCILayout(filepath.Join(ociDir, "oci-layout")))
+	require.NoError(t, os.WriteFile(filepath.Join(ociDir, "oci-layout"), []byte("{\"imageLayoutVersion\":\"1.0.0\"}\n"), tmpFilePerm))
 
 	config := []byte("{}")
 	configHex := writeTestBlob(t, blobDir, config)
-	manifest := OciImageManifest{
-		SchemaVersion: 2,
-		MediaType:     ocispec.MediaTypeImageManifest,
-		Config: ociDescriptor{
+	manifest := ocispec.Manifest{
+		Versioned: specs.Versioned{SchemaVersion: 2},
+		MediaType: ocispec.MediaTypeImageManifest,
+		Config: ocispec.Descriptor{
 			MediaType: "application/vnd.oci.empty.v1+json",
-			Digest:    "sha256:" + configHex,
+			Digest:    godigest.NewDigestFromEncoded(godigest.SHA256, configHex),
 			Size:      int64(len(config)),
 		},
-		Layers: []ociDescriptor{},
+		Layers: []ocispec.Descriptor{},
 	}
 	manifestBytes, err := json.Marshal(manifest)
 	require.NoError(t, err)
 	manifestHex := writeTestBlob(t, blobDir, manifestBytes)
-	require.NoError(t, writeOCIIndex(filepath.Join(ociDir, "index.json"), &OciIndex{
-		SchemaVersion: 2,
-		MediaType:     ocispec.MediaTypeImageIndex,
-		Manifests: []OciManifest{{
+	require.NoError(t, WriteIndex(filepath.Join(ociDir, "index.json"), &ocispec.Index{
+		Versioned: specs.Versioned{SchemaVersion: 2},
+		MediaType: ocispec.MediaTypeImageIndex,
+		Manifests: []ocispec.Descriptor{{
 			MediaType: ocispec.MediaTypeImageManifest,
-			Digest:    "sha256:" + manifestHex,
+			Digest:    godigest.NewDigestFromEncoded(godigest.SHA256, manifestHex),
 			Size:      int64(len(manifestBytes)),
 		}},
 	}))
@@ -118,23 +119,23 @@ func writeBundleLayout(t *testing.T, ociDir string, hclData []byte, arch string)
 	t.Helper()
 	blobDir := filepath.Join(ociDir, "blobs", "sha256")
 	require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
-	require.NoError(t, writeOCILayout(filepath.Join(ociDir, "oci-layout")))
+	require.NoError(t, os.WriteFile(filepath.Join(ociDir, "oci-layout"), []byte("{\"imageLayoutVersion\":\"1.0.0\"}\n"), tmpFilePerm))
 
 	config := []byte("{}")
 	configHex := writeTestBlob(t, blobDir, config)
 	hclHex := writeTestBlob(t, blobDir, hclData)
-	manifest := OciImageManifest{
-		SchemaVersion: 2,
-		MediaType:     ocispec.MediaTypeImageManifest,
-		ArtifactType:  MediaTypeBundleDefinition,
-		Config: ociDescriptor{
+	manifest := ocispec.Manifest{
+		Versioned:    specs.Versioned{SchemaVersion: 2},
+		MediaType:    ocispec.MediaTypeImageManifest,
+		ArtifactType: MediaTypeBundleDefinition,
+		Config: ocispec.Descriptor{
 			MediaType: "application/vnd.oci.empty.v1+json",
-			Digest:    "sha256:" + configHex,
+			Digest:    godigest.NewDigestFromEncoded(godigest.SHA256, configHex),
 			Size:      int64(len(config)),
 		},
-		Layers: []ociDescriptor{{
+		Layers: []ocispec.Descriptor{{
 			MediaType: MediaTypeBundleHCL,
-			Digest:    "sha256:" + hclHex,
+			Digest:    godigest.NewDigestFromEncoded(godigest.SHA256, hclHex),
 			Size:      int64(len(hclData)),
 			Annotations: map[string]string{
 				ocispec.AnnotationTitle: bundleinternal.BundleFileName,
@@ -144,40 +145,47 @@ func writeBundleLayout(t *testing.T, ociDir string, hclData []byte, arch string)
 	manifestBytes, err := json.Marshal(manifest)
 	require.NoError(t, err)
 	manifestHex := writeTestBlob(t, blobDir, manifestBytes)
-	idx := newBundleIndex([]OciManifest{{
+	idx := NewBundleIndex([]ocispec.Descriptor{{
 		MediaType:    ocispec.MediaTypeImageManifest,
 		ArtifactType: MediaTypeBundleDefinition,
-		Digest:       "sha256:" + manifestHex,
+		Digest:       godigest.NewDigestFromEncoded(godigest.SHA256, manifestHex),
 		Size:         int64(len(manifestBytes)),
 	}}, arch)
-	require.NoError(t, writeOCIIndex(filepath.Join(ociDir, "index.json"), idx))
+	require.NoError(t, WriteIndex(filepath.Join(ociDir, "index.json"), idx))
 }
 
 // bundleNameFromDefinitionLayer derives an artifact name from bundle HCL in a layout.
-func bundleNameFromDefinitionLayer(ctx context.Context, streams iostreams.IOStreams, ociDir string, idx OciIndex, arch string) (string, error) {
-	entry, _, err := findBundleDefinitionEntry(idx)
+func bundleNameFromDefinitionLayer(ctx context.Context, streams iostreams.IOStreams, ociDir string, idx any, arch string) (string, error) {
+	var digestHex string
+	switch typed := idx.(type) {
+	case ocispec.Index:
+		entry, _, err := FindBundleDefinition(typed)
+		if err != nil {
+			return "", err
+		}
+		digestHex = entry.Digest.Hex()
+	default:
+		return "", fmt.Errorf("unsupported index type %T", idx)
+	}
+	manifestBytes, err := os.ReadFile(filepath.Join(ociDir, "blobs", "sha256", digestHex))
 	if err != nil {
 		return "", err
 	}
-	manifestBytes, err := os.ReadFile(filepath.Join(ociDir, "blobs", "sha256", strings.TrimPrefix(entry.Digest, "sha256:")))
-	if err != nil {
-		return "", err
-	}
-	var manifest OciImageManifest
+	var manifest ocispec.Manifest
 	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
 		return "", err
 	}
 	var hclDigest string
 	for _, layer := range manifest.Layers {
 		if layer.MediaType == MediaTypeBundleHCL {
-			hclDigest = layer.Digest
+			hclDigest = layer.Digest.Hex()
 			break
 		}
 	}
 	if hclDigest == "" {
 		return "", fmt.Errorf("bundle HCL layer not found in config manifest")
 	}
-	hclData, err := os.ReadFile(filepath.Join(ociDir, "blobs", "sha256", strings.TrimPrefix(hclDigest, "sha256:")))
+	hclData, err := os.ReadFile(filepath.Join(ociDir, "blobs", "sha256", hclDigest))
 	if err != nil {
 		return "", err
 	}
@@ -207,7 +215,7 @@ func writeTarZst(ctx context.Context, _ iostreams.IOStreams, dst, srcDir string)
 }
 
 // createBundleArchive packages a test OCI layout as a bundle artifact.
-func createBundleArchive(ctx context.Context, streams iostreams.IOStreams, ociDir, targetDir string, idx OciIndex, arch string) (string, error) {
+func createBundleArchive(ctx context.Context, streams iostreams.IOStreams, ociDir, targetDir string, idx ocispec.Index, arch string) (string, error) {
 	name, err := bundleNameFromDefinitionLayer(ctx, streams, ociDir, idx, arch)
 	if err != nil {
 		return "", err
@@ -269,9 +277,9 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	if err := os.WriteFile(filepath.Join(blobDir, hex.EncodeToString(hclDigest[:])), hclData, tmpFilePerm); err != nil {
 		return nil, err
 	}
-	manifest := OciImageManifest{SchemaVersion: 2, MediaType: ocispec.MediaTypeImageManifest, ArtifactType: MediaTypeBundleDefinition,
-		Config: ociDescriptor{MediaType: "application/vnd.oci.empty.v1+json", Digest: "sha256:" + hex.EncodeToString(configDigest[:]), Size: int64(len(config))},
-		Layers: []ociDescriptor{{MediaType: MediaTypeBundleHCL, Digest: "sha256:" + hex.EncodeToString(hclDigest[:]), Size: int64(len(hclData))}}}
+	manifest := ocispec.Manifest{Versioned: specs.Versioned{SchemaVersion: 2}, MediaType: ocispec.MediaTypeImageManifest, ArtifactType: MediaTypeBundleDefinition,
+		Config: ocispec.Descriptor{MediaType: "application/vnd.oci.empty.v1+json", Digest: godigest.FromBytes(config), Size: int64(len(config))},
+		Layers: []ocispec.Descriptor{{MediaType: MediaTypeBundleHCL, Digest: godigest.FromBytes(hclData), Size: int64(len(hclData))}}}
 	manifestBytes, err := json.Marshal(manifest)
 	if err != nil {
 		return nil, err
@@ -280,11 +288,11 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	if err := os.WriteFile(filepath.Join(blobDir, hex.EncodeToString(manifestDigest[:])), manifestBytes, tmpFilePerm); err != nil {
 		return nil, err
 	}
-	if err := writeOCILayout(filepath.Join(root, "oci", "oci-layout")); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "oci", "oci-layout"), []byte("{\"imageLayoutVersion\":\"1.0.0\"}\n"), tmpFilePerm); err != nil {
 		return nil, err
 	}
-	idx := newBundleIndex([]OciManifest{{MediaType: ocispec.MediaTypeImageManifest, ArtifactType: MediaTypeBundleDefinition, Digest: "sha256:" + hex.EncodeToString(manifestDigest[:]), Size: int64(len(manifestBytes))}}, opts.Config.Options.Architecture)
-	if err := writeOCIIndex(filepath.Join(root, "oci", "index.json"), idx); err != nil {
+	idx := NewBundleIndex([]ocispec.Descriptor{{MediaType: ocispec.MediaTypeImageManifest, ArtifactType: MediaTypeBundleDefinition, Digest: godigest.NewDigestFromEncoded(godigest.SHA256, hex.EncodeToString(manifestDigest[:])), Size: int64(len(manifestBytes))}}, opts.Config.Options.Architecture)
+	if err := WriteIndex(filepath.Join(root, "oci", "index.json"), idx); err != nil {
 		return nil, err
 	}
 	out := filepath.Join(filepath.Dir(opts.BundleFile), fmt.Sprintf("uds-bundle-%s-%s-%s.tar.zst", bundle.Metadata.Name, opts.Config.Options.Architecture, bundle.Metadata.Version))

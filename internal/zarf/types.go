@@ -26,8 +26,6 @@ import (
 const (
 	tempDirPerm fs.FileMode = 0o700
 	tmpFilePerm fs.FileMode = 0o600
-
-	mediaTypeZarfLayer = "application/vnd.defenseunicorns.zarf.layer.v1"
 )
 
 // UDSBundle is the shared semantic bundle model.
@@ -84,18 +82,6 @@ type ConfigOptions struct {
 	TmpDir        string `hcl:"tmp_dir,optional"`
 	Concurrency   int    `hcl:"concurrency,optional"`
 }
-
-// ociManifest aliases the internal OCI manifest model used by package sources.
-type ociManifest = udsoci.OciManifest
-
-// ociIndex aliases the internal OCI index model used by package sources.
-type ociIndex = udsoci.OciIndex
-
-// ociDescriptor aliases the shared internal OCI descriptor model.
-type ociDescriptor = udsoci.OciDescriptor
-
-// ociImageManifest aliases the shared internal OCI image manifest model.
-type ociImageManifest = udsoci.OciImageManifest
 
 // PackageDeployHooks provides deployment process extensibility per package.
 type PackageDeployHooks struct {
@@ -244,15 +230,15 @@ type PackageSource interface {
 	// Used by the Deploy command.
 	PullFiltered(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions) (*layout.PackageLayout, error)
 
-	// IngestFiltered ingests a Zarf package into an OCI blob directory at blobDir,
+	// IngestFiltered ingests a Zarf package into an OCI content store,
 	// applying the filter during ingestion. For remote sources the filter is
 	// applied before downloading layers when possible. Returns manifest
 	// descriptors for the bundle's OCI index. Used by the Create command.
-	IngestFiltered(ctx context.Context, filter filters.ComponentFilterStrategy, blobDir string) ([]ociManifest, error)
+	IngestFiltered(ctx context.Context, filter filters.ComponentFilterStrategy, store *udsoci.Store) ([]ocispec.Descriptor, error)
 
 	// VerifyAndIngestFiltered retrieves a package into tmpDir, verifies it with
-	// loadOptions, and ingests those exact retrieved bytes into blobDir.
-	VerifyAndIngestFiltered(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions, blobDir string) ([]ociManifest, error)
+	// loadOptions, and ingests those exact retrieved bytes into store.
+	VerifyAndIngestFiltered(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions, store *udsoci.Store) ([]ocispec.Descriptor, error)
 }
 
 // localSource handles Zarf packages from local directories and archives.
@@ -281,13 +267,9 @@ type resolvedLayers struct {
 	isPartial bool
 }
 
-// zarfMetadata holds the minimal metadata we extract from zarf.yaml for OCI config labels.
-type zarfMetadata struct {
-	Metadata struct {
-		Name        string `yaml:"name"`
-		Version     string `yaml:"version"`
-		Description string `yaml:"description"`
-	} `yaml:"metadata"`
+type layerIdentity struct {
+	digest string
+	title  string
 }
 
 // ExtractedArtifactPackageLayoutLoader reads package OCI blobs from an extracted bundle artifact workspace.
@@ -296,9 +278,10 @@ type zarfMetadata struct {
 type ExtractedArtifactPackageLayoutLoader struct {
 	// OCIDir is <workspace>/oci — the extracted OCI image layout root.
 	OCIDir string
-	// PackageDigests maps source identifier → manifest digest ("sha256:...").
-	// Keys match what the create pipeline writes as org.opencontainers.image.ref.name:
-	// TrimScheme(source) for OCI sources, pkg.Name for local sources.
+	// PackageManifests maps package ref.name values to complete manifest descriptors.
+	PackageManifests map[string]ocispec.Descriptor
+	// PackageDigests is retained for callers that only have legacy digest maps.
+	// Keys are package ref.name values.
 	PackageDigests map[string]string
 }
 
@@ -351,23 +334,10 @@ type deployOrchestrator struct {
 	streams     iostreams.IOStreams
 }
 
-// errs is a thread-safe error accumulator. Nothing in the standard library
-// or in golang.org/x/sync covers this need:
-//
-//   - errors.Join (Go 1.20+) builds a joined error from a slice but is just
-//     a constructor; concurrent appends to the underlying slice still need
-//     a lock.
-//   - golang.org/x/sync/errgroup waits on N goroutines but its Wait surfaces
-//     only the FIRST non-nil error returned. Sibling failures that happen
-//     later are silently dropped, which is exactly the behaviour the deploy
-//     orchestrator needs to avoid (every per-package failure must surface).
-//
-// errs sits on top of errors.Join with a mutex around the slice, giving
-// callers a small primitive: Add from any goroutine, Err once at the end.
-//
-// All methods are safe for concurrent use. Nil errors passed to Add are
-// silently dropped so callers do not have to nil-check at every site.
-type errs struct {
+// errorAccumulator is a thread-safe collector for errors returned by concurrent
+// package operations. It preserves every non-nil error so callers can report all
+// failed packages instead of only the first goroutine failure.
+type errorAccumulator struct {
 	mu   sync.Mutex
 	list []error
 }

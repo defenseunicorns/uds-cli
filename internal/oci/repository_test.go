@@ -16,56 +16,6 @@ import (
 	"oras.land/oras-go/v2/errdef"
 )
 
-func TestIsOCIReference(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-		want  bool
-	}{
-		{
-			name:  "explicit scheme",
-			input: "oci://registry.example/bundle:v1",
-			want:  true,
-		},
-		{
-			name:  "explicit scheme with tar suffix",
-			input: "oci://registry.example/bundle:v1.tar.zst",
-			want:  true,
-		},
-		{
-			name:  "localhost with port",
-			input: "localhost:5000/bundle:v1",
-			want:  true,
-		},
-		{
-			name:  "localhost without port",
-			input: "localhost/bundle:v1",
-			want:  true,
-		},
-		{
-			name:  "scheme-less registry with tar suffix",
-			input: "registry.example/bundle:v1.tar.zst",
-			want:  true,
-		},
-		{
-			name:  "local archive",
-			input: "./bundle.tar.zst",
-			want:  false,
-		},
-		{
-			name:  "HCL file",
-			input: "bundle.uds.hcl",
-			want:  false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, IsOCIReference(tt.input))
-		})
-	}
-}
-
 func TestNewRemoteRepository_RegistrySchemeNegotiation(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -103,7 +53,7 @@ func TestNewRemoteRepository_RegistrySchemeNegotiation(t *testing.T) {
 
 			ref := strings.TrimPrefix(server.URL, "http://")
 			ref = strings.TrimPrefix(ref, "https://") + "/test/bundle:v1"
-			repo, err := newRemoteRepository(t.Context(), ref, ConfigOptions{
+			repo, err := NewRemoteRepository(t.Context(), ref, ConfigOptions{
 				PlainHTTP:     tt.plainHTTP,
 				SkipTLSVerify: tt.skipTLSVerify,
 			})
@@ -125,7 +75,7 @@ func TestNewRemoteRepository_RejectsUntrustedTLSWithoutSkipVerify(t *testing.T) 
 	t.Cleanup(server.Close)
 
 	ref := strings.TrimPrefix(server.URL, "https://") + "/test/bundle:v1"
-	_, err := newRemoteRepository(t.Context(), ref, ConfigOptions{PlainHTTP: true})
+	_, err := NewRemoteRepository(t.Context(), ref, ConfigOptions{PlainHTTP: true})
 
 	require.Error(t, err)
 	var unknownAuthorityError x509.UnknownAuthorityError

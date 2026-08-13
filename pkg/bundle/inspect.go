@@ -10,12 +10,12 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
-	"oras.land/oras-go/v2"
 )
 
-type inspectTargetResolver func(context.Context, string, *InspectOptions) (oras.Target, error)
+type inspectTargetResolver func(context.Context, string, *InspectOptions) (udsoci.Target, error)
 
 // Inspect reads a built local or OCI bundle.
 // It reads metadata only and does not verify package content or signatures.
@@ -31,7 +31,7 @@ func inspect(ctx context.Context, opts InspectOptions, targetResolver inspectTar
 
 	var resolver artifact.InspectTargetResolver
 	if targetResolver != nil {
-		resolver = func(ctx context.Context, source string, _ *artifact.InspectOptions) (oras.Target, error) {
+		resolver = func(ctx context.Context, source string, _ *artifact.InspectOptions) (udsoci.Target, error) {
 			return targetResolver(ctx, source, &opts)
 		}
 	}
