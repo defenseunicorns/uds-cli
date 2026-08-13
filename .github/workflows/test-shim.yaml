@@ -25,15 +25,72 @@ jobs:
       - name: Skipped
         run: echo "skipped"
 
-  integration-tests:
-    name: ${{ matrix.name }}
+  docs-link-check:
+    name: Docs Link Check
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Command Integration Tests
-          - name: Cluster Integration Tests
+    steps:
+      - name: Skipped
+        run: echo "skipped"
+
+  build:
+    name: Build UDS CLI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skipped
+        run: echo "skipped"
+
+  e2e-bundle:
+    name: E2E bundle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skipped
+        run: echo "skipped"
+
+  e2e-deploy-flags:
+    name: E2E deploy-flags
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skipped
+        run: echo "skipped"
+
+  e2e-index:
+    name: E2E index
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skipped
+        run: echo "skipped"
+
+  e2e-dev:
+    name: E2E dev
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skipped
+        run: echo "skipped"
+
+  e2e-variable:
+    name: E2E variable
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skipped
+        run: echo "skipped"
+
+  e2e-optional-bundle:
+    name: E2E optional-bundle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skipped
+        run: echo "skipped"
+
+  e2e-vendor-tests:
+    name: E2E vendor and completion
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skipped
+        run: echo "skipped"
+
+  e2e-engine-tests:
+    name: E2E engine
+    runs-on: ubuntu-latest
     steps:
       - name: Skipped
         run: echo "skipped"

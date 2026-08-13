@@ -186,20 +186,29 @@ jobs:
           sudo apt-get update
           sudo apt-get install trivy -y
 
-      - name: Run e2e vendor and completion tests
+      - name: Run e2e vendor tests
         shell: bash
         run: |
           set -o pipefail
-          {
-            build/uds run test:vendor
-            build/uds run test:completion
-          } 2>&1 | tee "${RUNNER_TEMP}/uds-command-vendor.log"
+          build/uds run test:vendor 2>&1 | tee "${RUNNER_TEMP}/uds-command-vendor.log"
 
-      - name: Save diagnostics
+      - name: Save vendor diagnostics
         if: always()
         uses: ./.github/actions/save-logs
         with:
           suffix: vendor
+
+      - name: Run e2e completion tests
+        shell: bash
+        run: |
+          set -o pipefail
+          build/uds run test:completion 2>&1 | tee "${RUNNER_TEMP}/uds-command-completion.log"
+
+      - name: Save completion diagnostics
+        if: always()
+        uses: ./.github/actions/save-logs
+        with:
+          suffix: completion
 
   e2e-engine-tests:
     name: E2E engine
@@ -236,7 +245,15 @@ jobs:
     name: GHCR Write Tests
     if: inputs.include_ghcr_write
     runs-on: uds-ubuntu-big-boy-8-core
-    needs: build
+    needs:
+      - lint
+      - unit-tests
+      - docs-link-check
+      - build
+      - e2e-bundle-tests
+      - e2e-single-tests
+      - e2e-vendor-tests
+      - e2e-engine-tests
     timeout-minutes: 45
     steps:
       - name: Checkout
@@ -272,7 +289,15 @@ jobs:
     name: UDS Core Smoke Test
     if: inputs.include_uds_core_smoke
     runs-on: uds-ubuntu-big-boy-8-core
-    needs: build
+    needs:
+      - lint
+      - unit-tests
+      - docs-link-check
+      - build
+      - e2e-bundle-tests
+      - e2e-single-tests
+      - e2e-vendor-tests
+      - e2e-engine-tests
     timeout-minutes: 65
     steps:
       - name: Checkout
