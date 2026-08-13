@@ -6,7 +6,6 @@ package bundle
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -49,19 +48,8 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 	// Set variables in order or precedence (least specific to most specific)
 	// imported vars
 	for _, imp := range pkg.Imports {
-		exportedVars, found := bundleExportedVars[imp.Package]
-		if !found {
-			continue
-		}
-		value, found := exportedVars[imp.Name]
-		if !found {
-			value, found = exportedVars[strings.ToUpper(imp.Name)]
-		}
-		if !found {
-			continue
-		}
-		pkgVars[strings.ToUpper(imp.Name)] = value
-		overVarsData[strings.ToUpper(imp.Name)] = overrideData{value, valuesources.Bundle}
+		pkgVars[strings.ToUpper(imp.Name)] = bundleExportedVars[imp.Package][imp.Name]
+		overVarsData[strings.ToUpper(imp.Name)] = overrideData{bundleExportedVars[imp.Package][imp.Name], valuesources.Bundle}
 	}
 
 	// shared vars
@@ -120,10 +108,10 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, overrideData bOverridesDa
 			overrideOpts := overrideMap[componentName][chartName]
 
 			if err := b.processOverrideValues(overrideOpts, chart.Values, overrideData); err != nil {
-				return nil, nil, fmt.Errorf("unable to process values for package %q component %q chart %q: %w", pkg.Name, componentName, chartName, err)
+				return nil, nil, err
 			}
 			if err := b.processOverrideVariables(overrideOpts, chart.Variables, overrideData); err != nil {
-				return nil, nil, fmt.Errorf("unable to process variables for package %q component %q chart %q: %w", pkg.Name, componentName, chartName, err)
+				return nil, nil, err
 			}
 			b.processOverrideNamespaces(nsOverrides, chart.Namespace, componentName, chartName)
 		}
@@ -131,7 +119,7 @@ func (b *Bundle) loadChartOverrides(pkg types.Package, overrideData bOverridesDa
 
 	processed, err := convertOverridesMap(overrideMap)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to load chart overrides for package %q: %w", pkg.Name, err)
+		return nil, nil, err
 	}
 
 	return processed, nsOverrides, nil
@@ -152,8 +140,7 @@ func convertOverridesMap(overrideMap map[string]map[string]*values.Options) (pac
 			// Merge the chart values with Helm
 			data, err := chart.MergeValues(getter.Providers{})
 			if err != nil {
-				// Do not wrap the Helm error because it may include resolved sensitive values.
-				return nil, fmt.Errorf("unable to process Helm values overrides for component %q chart %q", componentName, chartName)
+				return nil, err
 			}
 
 			componentMap[chartName] = data
@@ -181,7 +168,7 @@ func (b *Bundle) processOverrideValues(overrideOpts *values.Options, values []ty
 	for _, v := range values {
 		// Add the override to the map, or return an error if the path is invalid
 		if err := b.addOverride(overrideOpts, v, v.Value, pkgVars); err != nil {
-			return fmt.Errorf("path %q: %w", v.Path, err)
+			return err
 		}
 	}
 	return nil
@@ -210,7 +197,7 @@ func (b *Bundle) processOverrideVariables(overrideOpts *values.Options, variable
 
 		// Add the override to the map, or return an error if the path is invalid
 		if err := b.addOverride(overrideOpts, *v, overrideVal, nil); err != nil {
-			return fmt.Errorf("path %q: %w", v.Path, err)
+			return err
 		}
 	}
 
@@ -244,13 +231,6 @@ func (b *Bundle) addOverride(overrideOpts *values.Options, override interface{},
 	switch v := value.(type) {
 	case []interface{}:
 		// handle list of objects by parsing them as json and appending to Options.JSONValues
-		if handleTemplatedVals {
-			value, err := substituteTemplatedValues(v, pkgVars)
-			if err != nil {
-				return err
-			}
-			v = value.([]interface{})
-		}
 		jsonStrs := make([]string, len(v))
 		// concat json strings representing items in the list
 		for i, val := range v {
@@ -262,22 +242,21 @@ func (b *Bundle) addOverride(overrideOpts *values.Options, override interface{},
 		}
 		// use JSONValues because we can easily marshal the YAML to JSON and Helm understands it
 		jsonVals := fmt.Sprintf("%s=[%s]", valuePath, strings.Join(jsonStrs, ","))
+		if handleTemplatedVals {
+			jsonVals = setTemplatedVariables(jsonVals, pkgVars)
+		}
 		overrideOpts.JSONValues = append(overrideOpts.JSONValues, jsonVals)
 	case map[string]interface{}:
 		// handle objects by parsing them as json and appending to Options.JSONValues
-		if handleTemplatedVals {
-			value, err := substituteTemplatedValues(v, pkgVars)
-			if err != nil {
-				return err
-			}
-			v = value.(map[string]interface{})
-		}
 		json, err := json.Marshal(v)
 		if err != nil {
 			return err
 		}
 		// use JSONValues because we can easily marshal the YAML to JSON and Helm understands it
 		val := fmt.Sprintf("%s=%s", valuePath, json)
+		if handleTemplatedVals {
+			val = setTemplatedVariables(val, pkgVars)
+		}
 		overrideOpts.JSONValues = append(overrideOpts.JSONValues, val)
 	default:
 		if handleTemplatedVals {
@@ -290,40 +269,6 @@ func (b *Bundle) addOverride(overrideOpts *values.Options, override interface{},
 		overrideOpts.Values = append(overrideOpts.Values, helmVal)
 	}
 	return nil
-}
-
-// substituteTemplatedValues resolves templates without mutating the input.
-func substituteTemplatedValues(value interface{}, pkgVars bOverridesData) (interface{}, error) {
-	switch v := value.(type) {
-	case string:
-		return setTemplatedVariables(v, pkgVars), nil
-	case []interface{}:
-		values := make([]interface{}, len(v))
-		for i, value := range v {
-			resolved, err := substituteTemplatedValues(value, pkgVars)
-			if err != nil {
-				return nil, err
-			}
-			values[i] = resolved
-		}
-		return values, nil
-	case map[string]interface{}:
-		values := make(map[string]interface{}, len(v))
-		for key, value := range v {
-			key = setTemplatedVariables(key, pkgVars)
-			if _, found := values[key]; found {
-				return nil, errors.New("templated map keys resolve to the same value")
-			}
-			resolved, err := substituteTemplatedValues(value, pkgVars)
-			if err != nil {
-				return nil, err
-			}
-			values[key] = resolved
-		}
-		return values, nil
-	default:
-		return value, nil
-	}
 }
 
 // setTemplatedVariables sets the value for the templated variables
