@@ -2,11 +2,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 includes:
-  - remote: https://raw.githubusercontent.com/defenseunicorns/uds-cli/${GIT_REVISION}/src/test/tasks/even-more-tasks-to-import.yaml
+  - even-more: https://raw.githubusercontent.com/defenseunicorns/uds-cli/${GIT_REVISION}/src/test/tasks/even-more-tasks-to-import.yaml
 
 tasks:
   - name: echo-var
     actions:
-      - task: remote:set-var
+      - task: even-more:set-var
       - cmd: |
           echo "${PRETTY_OK_COMPANY} is a pretty ok company"

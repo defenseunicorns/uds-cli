@@ -32,3 +32,4 @@ runs:
       run: |
         k3d cluster delete || true
         k3d cluster create
+        kubectl wait --for=condition=Ready nodes --all --timeout=120s
