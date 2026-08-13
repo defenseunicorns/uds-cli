@@ -12,7 +12,7 @@ metadata {
 }
 
 package "init" {
-  source = "oci://ghcr.io/zarf-dev/packages/init:v0.82.0"
+  source = "oci://ghcr.io/zarf-dev/packages/init:v0.83.0"
 
   signature_verification {
     verify = false
