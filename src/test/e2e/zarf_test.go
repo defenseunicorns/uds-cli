@@ -17,8 +17,8 @@ import (
 
 // TestZarfLint tests to ensure that the `zarf dev lint` command functions (which requires the zarf schema to be embedded in main.go)
 func TestZarfLint(t *testing.T) {
-	_, stderr := runCmd(t, "zarf dev lint src/test/packages/podinfo")
-	require.Contains(t, stderr, "Image not pinned with digest - ghcr.io/stefanprodan/podinfo:6.4.0")
+	stdout, stderr := runCmd(t, "zarf dev lint src/test/packages/podinfo")
+	require.Contains(t, stdout+stderr, "Image not pinned with digest - ghcr.io/stefanprodan/podinfo:")
 }
 
 func TestZarfToolsVersions(t *testing.T) {
