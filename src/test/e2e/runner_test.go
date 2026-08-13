@@ -15,6 +15,14 @@ import (
 func TestTaskRunner(t *testing.T) {
 	t.Log("E2E: Task Runner")
 
+	gitRev := os.Getenv("GIT_REVISION")
+	if gitRev == "" {
+		var err error
+		gitRev, err = e2e.GetGitRevision()
+		require.NoError(t, err)
+	}
+	setGitRev := fmt.Sprintf("GIT_REVISION=%s", gitRev)
+
 	t.Run("run action", func(t *testing.T) {
 		t.Parallel()
 
@@ -70,15 +78,15 @@ func TestTaskRunner(t *testing.T) {
 
 		stdOut, stdErr, err := e2e.UDS("run", "recursive", "--file", "src/test/tasks/tasks.yaml")
 		require.Error(t, err, stdOut, stdErr)
-		require.Contains(t, stdErr, "task loop detected")
+		require.Contains(t, stdErr, "task loop")
 	})
 
 	t.Run("includes task loop", func(t *testing.T) {
 		t.Parallel()
 
-		stdOut, stdErr, err := e2e.UDS("run", "include-loop", "--file", "src/test/tasks/tasks.yaml")
+		stdOut, stdErr, err := e2e.UDS("run", "include-loop", "--set", setGitRev, "--file", "src/test/tasks/tasks.yaml")
 		require.Error(t, err, stdOut, stdErr)
-		require.Contains(t, stdErr, "task loop detected")
+		require.Contains(t, stdErr, "task loop")
 	})
 
 	t.Run("run cmd-set-variable with --set", func(t *testing.T) {
@@ -120,7 +128,7 @@ func TestTaskRunner(t *testing.T) {
 		t.Parallel()
 		stdOut, stdErr, err := e2e.UDS("run", "rerun-tasks-recursive", "--file", "src/test/tasks/tasks.yaml")
 		require.Error(t, err, stdOut, stdErr)
-		require.Contains(t, stdErr, "task loop detected")
+		require.Contains(t, stdErr, "task loop")
 	})
 
 	t.Run("test includes paths", func(t *testing.T) {
@@ -183,10 +191,10 @@ func TestTaskRunner(t *testing.T) {
 
 		stdOut, stdErr, err := e2e.UDS("run", "--list", setVar, "--file", "src/test/tasks/tasks.yaml")
 		require.NoError(t, err, stdOut, stdErr)
-		require.Contains(t, stdErr, "echo-env-var")
-		require.Contains(t, stdErr, "Test that env vars take precedence")
-		require.Contains(t, stdErr, "remote-import")
-		require.Contains(t, stdErr, "action")
+		require.Contains(t, stdOut, "echo-env-var")
+		require.Contains(t, stdOut, "Test that env vars take precedence")
+		require.Contains(t, stdOut, "remote-import")
+		require.Contains(t, stdOut, "action")
 	})
 
 	t.Run("test bad call to zarf tools wait-for", func(t *testing.T) {

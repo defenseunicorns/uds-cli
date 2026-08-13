@@ -1,0 +1,35 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+name: setup-uds-e2e
+description: Download the built UDS CLI and prepare an e2e test job
+
+inputs:
+  create-cluster:
+    description: Whether to create a k3d cluster
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Download UDS CLI binary
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: uds-binary
+        path: build/
+
+    - name: Setup development tools
+      uses: ./.github/actions/mise
+
+    - name: Make UDS CLI executable
+      shell: bash
+      run: chmod +x build/uds
+
+    - name: Create k3d cluster
+      if: ${{ inputs['create-cluster'] == 'true' }}
+      shell: bash
+      run: |
+        k3d cluster delete || true
+        k3d cluster create
+        kubectl wait --for=condition=Ready nodes --all --timeout=120s

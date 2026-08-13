@@ -60,5 +60,5 @@ jobs:
         run: uds run uds-docs-validate
 
   # Shim required checks so docs-only PRs can merge without running full E2E CI
-  test:
+  checks:
     uses: ./.github/workflows/test-shim.yaml
