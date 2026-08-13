@@ -19,11 +19,17 @@ builds:
       - darwin
     ldflags:
       - -s -w
-      - -X 'github.com/defenseunicorns/uds-cli/src/config.CLIVersion=v{{.Version}}'
+      - -X 'github.com/defenseunicorns/uds-cli/pkg/legacy/config.CLIVersion=v{{.Version}}'
+      - -X 'github.com/defenseunicorns/uds-cli/internal/version.Version=v{{.Version}}'
+      - -X 'github.com/defenseunicorns/uds-cli/internal/version.GitCommit={{.FullCommit}}'
+      - -X 'github.com/defenseunicorns/uds-cli/internal/version.BuildDate={{.Date}}'
       - -X 'github.com/zarf-dev/zarf/src/config.ActionsCommandZarfPrefix=zarf'
+      - -X 'github.com/zarf-dev/zarf/src/config.CLIVersion={{.Env.ZARF_VERSION}}'
       - -X 'k8s.io/component-base/version.gitVersion=v{{.Env.K8S_MODULES_MAJOR_VER}}.{{.Env.K8S_MODULES_MINOR_VER}}.{{.Env.K8S_MODULES_PATCH_VER}}'
       - -X 'k8s.io/component-base/version.gitCommit={{.FullCommit}}'
       - -X 'k8s.io/component-base/version.buildDate={{.Date}}'
+      - -X 'helm.sh/helm/v3/pkg/chartutil.k8sVersionMajor={{.Env.K8S_MODULES_MAJOR_VER}}'
+      - -X 'helm.sh/helm/v3/pkg/chartutil.k8sVersionMinor={{.Env.K8S_MODULES_MINOR_VER}}'
       - -X 'github.com/derailed/k9s/cmd.version={{.Env.K9S_VERSION}}'
       - -X 'github.com/google/go-containerregistry/cmd/crane/cmd.Version={{.Env.CRANE_VERSION}}'
       - -X 'github.com/zarf-dev/zarf/src/cmd.syftVersion={{.Env.SYFT_VERSION}}'
@@ -33,6 +39,7 @@ builds:
       - amd64
       - arm64
     binary: uds
+    main: ./cmd/uds
 
 # Build native Linux packages from the release binaries
 nfpms:

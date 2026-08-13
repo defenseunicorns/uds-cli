@@ -14,7 +14,7 @@ Below are some notes on our core software design philosophies that should help g
 ## Code Quality and Standards
 Fundamentally, software engineering is a communication problem; we write code for each other, not a computer. When working on this project (or any project!) keep your fellow humans in mind and write clearly and concisely. Below are some general guidelines for code quality and standards that make UDS CLI :sparkles:
 
-- **Write tests that give confidence**: Unless there is a technical blocker, every new feature and bug fix should be tested in the project's automated test suite. Although many of our tests are E2E, unit and integration-style tests are also welcomed. Note that unit tests can live in a `*_test.go` file alongside the source code, and E2E tests live in `src/test/e2e`
+- **Write tests that give confidence**: Unless there is a technical blocker, every new feature and bug fix should be tested in the project's automated test suite. Although many of our tests are E2E, unit and integration-style tests are also welcomed. Note that unit tests can live in a `*_test.go` file alongside the source code, and Legacy E2E tests live in `tests/legacy/e2e`
 
 
 - **Prefer readability over being clever**: We have a strong preference for code readability in UDS CLI. Specifically, this means things like: naming variables appropriately, keeping functions to a reasonable size and avoiding complicated solutions when simple ones exist.
@@ -80,13 +80,13 @@ We strive to test all changes made to UDS CLI. If you're adding a new feature or
 Unit tests reside alongside the source code in a `*_test.go` file. These tests should be used to test individual functions or methods in isolation. Unit tests should be fast and focused on a single piece of functionality.
 
 #### E2E Tests
-E2E tests reside in the `src/test/e2e` directory. They use bundles located in the `src/test/e2e/bundles` which contain Zarf packages from the `src/test/e2e/packages` directory. Feel free to add new bundles and packages where appropriate. It's encouraged to write comments/metadata in any new bundles or packages to explain what they are testing.
+Legacy E2E tests reside in the `tests/legacy/e2e` directory. They use bundles and packages under `testdata/legacy`. Feel free to add new fixtures where appropriate. It's encouraged to write comments or metadata in new fixtures to explain what they are testing.
 
 #### Assertions
 We prefer to use Testify's [require](https://github.com/stretchr/testify/tree/master/require) package for assertions in tests. This package provides a rich set of assertion functions that make tests more readable and easier to debug. See other tests in this repo for examples.
 
 #### Running Tests
-- **Unit Tests**: Run `uds run test` from the repository root. This runs all unit tests in `src`.
+- **Unit Tests**: Run `uds run test` from the repository root. This runs the preparation test suite.
 
 
 - **E2E Tests**: Build UDS CLI with `uds run build` before running E2E tasks; rebuild after source changes because the tests use `build/uds`. Run the focused E2E tasks listed by `uds run --list-all` (for example, `uds run test:bundle`). The `test:e2e-ghcr` task writes to GHCR and is intended for CI only.

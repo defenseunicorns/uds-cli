@@ -32,7 +32,8 @@
         "README.md",
         "docs/**",
         "tasks/**",
-        "src/test/**",
+        "tests/**",
+        "testdata/**",
         "renovate.json"
       ],
       "groupName": "support-deps",

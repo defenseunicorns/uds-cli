@@ -3,14 +3,24 @@
 
 version: "2"
 run:
-  concurrency: 6
-  tests: false
+  concurrency: 8
+  tests: true
 linters:
+  default: none
   enable:
+    - errcheck
+    - errorlint
+    - goheader
     - gosec
+    - govet
+    - ineffassign
     - nilerr
+    - nolintlint
     - perfsprint
     - revive
+    - staticcheck
+    - testifylint
+    - unused
     - whitespace
   settings:
     govet:
@@ -21,31 +31,6 @@ linters:
       enable-all: true
     nolintlint:
       require-specific: true
-    revive:
-      rules:
-        - name: blank-imports
-        - name: context-as-argument
-        - name: context-keys-type
-        - name: dot-imports
-        - name: error-return
-        - name: error-strings
-        - name: error-naming
-        - name: exported
-        - name: if-return
-        - name: increment-decrement
-        - name: var-declaration
-        - name: package-comments
-        - name: range
-        - name: receiver-naming
-        - name: time-naming
-        - name: unexported-return
-        - name: indent-error-flow
-        - name: errorf
-        - name: empty-block
-        - name: superfluous-else
-        - name: unused-parameter
-        - name: unreachable-code
-        - name: redefines-builtin-id
     unused:
       local-variables-are-used: false
   exclusions:
@@ -56,18 +41,46 @@ linters:
       - legacy
       - std-error-handling
     rules:
-      - linters:
+      # Legacy exclusions are confined to the moved implementation and tests.
+      - path: ^(pkg/legacy|tests/legacy/e2e)/
+        linters:
+          - errcheck
+          - errorlint
           - gosec
-        path: test/.*
+          - nolintlint
+          - perfsprint
+          - revive
+      - path: ^(pkg/legacy|tests/legacy/e2e)/.*_test\.go$
+        linters:
+          - whitespace
+      - path: ^(pkg/legacy|tests/legacy/e2e)/
+        linters:
+          - testifylint
+      # Preserve the exported Legacy Viper key names during coexistence.
+      - path: ^internal/legacy/cli/viper\.go$
+        linters:
+          - revive
+      - path: ^internal/legacy/testutil/testutil\.go$
+        linters:
+          - gosec
+      # The pinned Next source is green with its canonical lint set. Keep the
+      # additional Legacy linters enabled everywhere outside its import roots.
+      - path: ^(internal/(artifact|bundle|cli|logger|oci|printer|testutil|zarf)|pkg/(bundle|iostreams)|tests/(cluster|integration|library|smoke|testutil))/
+        linters:
+          - gosec
+          - perfsprint
+          - revive
+      - path: ^internal/oci/transfer\.go$
+        linters:
+          - nolintlint
     paths:
-      - docs/reference/CLI/commands
+      - docs/reference/commands
       - third_party$
       - builtin$
       - examples$
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  new-from-rev: ""
 formatters:
   enable:
     - gofmt
@@ -75,7 +88,7 @@ formatters:
   exclusions:
     generated: lax
     paths:
-      - docs/reference/CLI/commands
+      - docs/reference/commands
       - third_party$
       - builtin$
       - examples$

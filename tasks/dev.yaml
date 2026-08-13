@@ -5,7 +5,7 @@ tasks:
   - name: lint
     description: runs the linter (requires golangci-lint)
     actions:
-      - cmd: golangci-lint run ./src/...
+      - cmd: golangci-lint run ./...
 
   - name: clean
     description: removes the build dir

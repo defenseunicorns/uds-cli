@@ -12,7 +12,7 @@ set -e
 #alias uds=<path>/build/uds-mac-apple
 
 # create the nginx and podinfo Zarf packages
-cd ./../src/test/packages/nginx
+cd ./testdata/legacy/packages/nginx
 uds zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a amd64
 uds zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a arm64
 cd ./refs
@@ -27,7 +27,7 @@ uds zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a am
 uds zarf package create -o oci://ghcr.io/defenseunicorns/uds-cli --confirm -a arm64
 
 # create ghcr-test bundle
-cd ../../bundles/06-ghcr
+cd ../../../bundles/06-ghcr
 uds create . -o ghcr.io/defenseunicorns/packages/uds-cli/test/create-remote --confirm -a amd64
 uds create . -o ghcr.io/defenseunicorns/packages/uds-cli/test/create-remote --confirm -a arm64
 

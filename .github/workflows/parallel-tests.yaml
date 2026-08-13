@@ -30,8 +30,8 @@ jobs:
         run: |
           go get github.com/zarf-dev/zarf@main
           ZARF_VERSION=$(go list -m -json github.com/zarf-dev/zarf | jq -r .Version)
-          yq eval "(.packages[] | select(.name == \"init\")).ref = \"$ZARF_VERSION\"" -i src/test/bundles/04-init/uds-bundle.yaml
-          yq eval "(.packages[] | select(.name == \"init\")).ref = \"$ZARF_VERSION\"" -i src/test/bundles/14-optional-components/uds-bundle.yaml
+          yq eval "(.packages[] | select(.name == \"init\")).ref = \"$ZARF_VERSION\"" -i testdata/legacy/bundles/04-init/uds-bundle.yaml
+          yq eval "(.packages[] | select(.name == \"init\")).ref = \"$ZARF_VERSION\"" -i testdata/legacy/bundles/14-optional-components/uds-bundle.yaml
 
       - name: Build CLI
         run: |

@@ -1,0 +1,18 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+includes:
+  - foo: ./more-tasks/foo.yaml
+  - remote: https://raw.githubusercontent.com/defenseunicorns/uds-cli/${GIT_REVISION}/testdata/legacy/tasks/remote-import-tasks.yaml
+
+tasks:
+  - name: remote-import
+    actions:
+      - task: remote:echo-var
+  - name: more-foobar
+    actions:
+      - task: foo:foobar
+      - task: remote:echo-var
+  - name: extra-foobar
+    actions:
+      - task: more-foobar

@@ -33,5 +33,10 @@ jobs:
       - name: Setup development tools
         uses: ./.github/actions/mise
 
+      - name: Verify module files
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
       - name: Run repository checks
         run: hk check --all
