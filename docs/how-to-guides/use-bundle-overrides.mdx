@@ -41,7 +41,7 @@ overrides:
 
 1. **Add static value overrides**
 
-   Use the `values` key to set Helm values that are fixed at bundle-creation time and **cannot be changed** at deploy time:
+   Use the `values` key for static Helm values set at bundle creation:
 
    ```yaml title="uds-bundle.yaml"
    packages:
@@ -63,6 +63,8 @@ overrides:
    ```
 
    The `path` uses dot notation to locate the value in the chart's `values.yaml`.
+
+   Use `variables` instead for configuration supplied or changed at deploy time.
 
 2. **Add a values file**
 
@@ -125,6 +127,31 @@ overrides:
 
    > [!CAUTION]
    > If a variable accepts a file value but is missing `type: file`, the file will not be processed.
+
+   Use `sensitive: true` for credentials and other sensitive runtime values. For values that must preserve exact literal contents, including backslashes, use `type: file`.
+
+   To migrate a deploy time value out of `values`, keep only static configuration in `values` and add a variable for the runtime field:
+
+   ```yaml title="uds-bundle.yaml"
+   packages:
+     - name: example-package
+       overrides:
+         example-component:
+           example-chart:
+             values:
+               - path: application.settings
+                 value:
+                   notifications:
+                     enabled: true
+                   externalService:
+                     endpoint: "https://example.invalid"
+             variables:
+               - name: EXTERNAL_SERVICE_CREDENTIAL
+                 path: application.settings.externalService.credential
+                 sensitive: true
+   ```
+
+   This example uses a raw variable. If the credential must preserve backslashes, supply a file path and add `type: file` to the variable.
 
 4. **Override a variable at deploy time**
 
