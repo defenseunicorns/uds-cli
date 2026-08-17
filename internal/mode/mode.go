@@ -159,12 +159,38 @@ func addZarfFeatures(args []string, features FeatureSet) []string {
 	if len(zarfFeatures) == 0 {
 		return args
 	}
-	for i, arg := range args {
-		if arg == "zarf" {
-			return slices.Insert(args, i+1, "--features="+zarfFeatures.String())
-		}
+	if index := zarfCommandIndex(args); index >= 0 {
+		return slices.Insert(args, index+1, "--features="+zarfFeatures.String())
 	}
 	return args
+}
+
+func zarfCommandIndex(args []string) int {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			return -1
+		}
+		if arg == "zarf" || arg == "z" {
+			return i
+		}
+		if !strings.HasPrefix(arg, "-") {
+			return -1
+		}
+		if !strings.Contains(arg, "=") && zarfRootFlagTakesValue(strings.TrimLeft(arg, "-")) {
+			i++
+		}
+	}
+	return -1
+}
+
+func zarfRootFlagTakesValue(name string) bool {
+	switch name {
+	case "log-level", "l", "architecture", "a", "uds-cache", "tmpdir", "oci-concurrency":
+		return true
+	default:
+		return false
+	}
 }
 
 func stripBootstrapArgs(args []string) []string {

@@ -23,6 +23,8 @@ func TestResolve(t *testing.T) {
 		{"flag precedence", []string{"create", "--features", "NextMode=false"}, "NextMode=true", Legacy, "NextMode=false", []string{"create"}},
 		{"equals form", []string{"--features=NextMode=true", "create"}, "", Next, "NextMode=true", []string{"create"}},
 		{"Zarf feature", []string{"zarf", "--features=values=false", "version"}, "", Legacy, "NextMode=false,values=false", []string{"zarf", "--features=values=false", "version"}},
+		{"Zarf alias feature", []string{"z", "--features=values=false", "version"}, "", Legacy, "NextMode=false,values=false", []string{"z", "--features=values=false", "version"}},
+		{"Zarf feature skips task arguments", []string{"run", "zarf"}, "values=false", Legacy, "NextMode=false,values=false", []string{"run", "zarf"}},
 		{"double dash", []string{"create", "--", "--features=NextMode=true"}, "", Legacy, "NextMode=false", []string{"create", "--", "--features=NextMode=true"}},
 	}
 	for _, tt := range tests {
@@ -30,7 +32,7 @@ func TestResolve(t *testing.T) {
 			lookup := func(string) (string, bool) { return tt.env, tt.env != "" }
 			got, features, args, err := Resolve(tt.args, lookup)
 			if err != nil || got != tt.mode || features.String() != tt.want || !slices.Equal(args, tt.wantArgs) {
-				t.Fatalf("Resolve() = %q, %q, %q, %v", got, features.String(), args, err)
+				t.Fatalf("Resolve() = %q, %q, %v, %v", got, features.String(), args, err)
 			}
 		})
 	}
@@ -91,7 +93,7 @@ func TestStripBootstrapArgs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := stripBootstrapArgs(tt.args)
 			if strings.Join(got, " ") != strings.Join(tt.want, " ") {
-				t.Fatalf("stripBootstrapArgs() = %q, want %q", got, tt.want)
+				t.Fatalf("stripBootstrapArgs() = %v, want %v", got, tt.want)
 			}
 		})
 	}

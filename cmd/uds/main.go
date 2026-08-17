@@ -11,6 +11,8 @@ import (
 
 	legacycli "github.com/defenseunicorns/uds-cli/internal/legacy/cli"
 	"github.com/defenseunicorns/uds-cli/internal/mode"
+	"github.com/defenseunicorns/uds-cli/internal/version"
+	legacyconfig "github.com/defenseunicorns/uds-cli/pkg/legacy/config"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
@@ -34,6 +36,9 @@ func run(args []string) error {
 	}
 	if err := os.Setenv(mode.FeaturesEnv, features.String()); err != nil {
 		return err
+	}
+	if version.Version != "unset" {
+		legacyconfig.CLIVersion = version.Version
 	}
 	root, err := newRootCommand(selected)
 	if err != nil {
