@@ -176,14 +176,17 @@ func (r *ConfigResolver) resolveBase(ctx context.Context, streams iostreams.IOSt
 	}
 
 	var variables bundle.Variables
+	var signatureVerification *bundle.VerificationPolicy
 	if userCfg != nil {
 		variables = bundle.MergeVariables(nil, userCfg.Variables)
+		signatureVerification = userCfg.SignatureVerification
 	}
 
 	return &bundle.UDSBundleConfig{
-		Global:    global,
-		Options:   &options,
-		Variables: variables,
+		Global:                global,
+		Options:               &options,
+		SignatureVerification: signatureVerification,
+		Variables:             variables,
 	}, flags.ConfigPath, nil
 }
 
@@ -197,7 +200,7 @@ func (r *ConfigResolver) applyBundleDefaults(ctx context.Context, streams iostre
 
 	global := *base.Global
 	options := *base.Options
-	resolved := &bundle.UDSBundleConfig{Global: &global, Options: &options}
+	resolved := &bundle.UDSBundleConfig{Global: &global, Options: &options, SignatureVerification: base.SignatureVerification}
 	if defaults != nil {
 		resolved.Variables = bundle.MergeVariables(defaults.Variables, base.Variables)
 	} else {

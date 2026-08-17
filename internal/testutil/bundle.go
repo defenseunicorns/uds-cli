@@ -108,6 +108,7 @@ func createBundleFromTestData(t *testing.T, testDataRelPath, arch string) (strin
 	result, err := bundle.Create(t.Context(), bundle.CreateOptions{
 		Config:     &bundle.UDSBundleConfig{Global: global, Options: &opts},
 		BundleFile: filepath.Join(dir, "bundle.uds.hcl"),
+		Signing:    bundle.SigningOptions{Mode: bundle.SigningModeUnsigned},
 		Streams:    streams,
 	})
 	return dir, result, errOut.String(), err
@@ -124,7 +125,7 @@ func CreateBundleFromTestDataCLIWithBinary(t *testing.T, udsPath, testDataRelPat
 	t.Helper()
 
 	dir := PrepareBundleDir(t, testDataRelPath)
-	args := []string{"bundle", "create", "--architecture", arch, dir}
+	args := []string{"bundle", "create", "--unsigned", "--architecture", arch, dir}
 	cmd := exec.Command(udsPath, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -146,7 +147,7 @@ func CreateBundleFromTestDataCobra(t *testing.T, testDataRelPath, arch string) s
 	dir := PrepareBundleDir(t, testDataRelPath)
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 	root := clibundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"create", "--architecture", arch, dir})
+	root.SetArgs([]string{"create", "--unsigned", "--architecture", arch, dir})
 	require.NoError(t, root.Execute())
 	assert.Contains(t, out.String(), "Bundle Name:")
 
@@ -207,10 +208,10 @@ func DeleteK3dCluster(t *testing.T, clusterName string) {
 	t.Fatalf("failed to delete k3d cluster %q: %v\n%s", clusterName, err, out)
 }
 
-// RunBundleDeploy deploys an artifact with the selected CLI binary.
+// RunBundleDeploy deploys an unsigned artifact with the selected CLI binary.
 func RunBundleDeploy(t *testing.T, udsPath, artifactPath string) {
 	t.Helper()
-	args := []string{"bundle", "deploy", artifactPath}
+	args := []string{"bundle", "deploy", "--skip-signature-verification", artifactPath}
 	cmd := exec.Command(udsPath, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

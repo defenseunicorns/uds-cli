@@ -121,7 +121,7 @@ func TestCreate_DefaultsConfig_Applied(t *testing.T) {
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 
 	root := bundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"create", dir})
+	root.SetArgs([]string{"create", "--unsigned", dir})
 
 	err := root.Execute()
 	require.NoError(t, err)

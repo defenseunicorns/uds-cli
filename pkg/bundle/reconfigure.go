@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -18,10 +19,12 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	godigest "github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	oras "oras.land/oras-go/v2"
 )
 
 // Reconfigure validates the defaults file and dispatches to the appropriate
@@ -30,21 +33,132 @@ func Reconfigure(ctx context.Context, opts ReconfigureOptions) (*ReconfigureResu
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
+	state := &reconfigureState{}
+	if !opts.SkipSignatureVerification {
+		if IsOCIReference(opts.Source) {
+			if err := resolveReconfigureOCIInput(ctx, opts, state); err != nil {
+				return nil, err
+			}
+		} else {
+			cleanup, err := stageReconfigureLocalInput(opts, state)
+			if err != nil {
+				return nil, err
+			}
+			defer cleanup()
+		}
+		if err := Verify(ctx, VerifyOptions{Source: state.inputSource, Policy: opts.Verification, Config: opts.Config, TmpDir: opts.Options.TmpDir, Streams: opts.Streams}); err != nil {
+			return nil, fmt.Errorf("verifying input bundle: %w", err)
+		}
+	} else {
+		WarnSkippedSignatureVerification(opts.Streams)
+	}
 	defaultsData, err := bundleinternal.MaterializeDefaultsFile(opts.DefaultsFile)
 	if err != nil {
 		return nil, fmt.Errorf("reading defaults file: %w", err)
 	}
-	opts.materializedDefaults = defaultsData
+	state.materializedDefaults = defaultsData
 	s := logger.Bind(opts.Streams, opts.Options.LogLevel)
 
+	var result *ReconfigureResult
 	if IsOCIReference(opts.Source) {
-		return (&ociReconfigurer{streams: s}).Reconfigure(ctx, opts)
+		result, err = (&ociReconfigurer{streams: s, state: state}).Reconfigure(ctx, opts)
+		if err != nil {
+			return nil, err
+		}
+		if opts.Signing.Mode == SigningModeUnsigned {
+			s.Warn("reconfigured bundle is unsigned; its integrity and origin are not established")
+		}
+		return result, nil
+	} else {
+		result, err = (&localReconfigurer{streams: s, state: state}).Reconfigure(ctx, opts)
 	}
-	return (&localReconfigurer{streams: s}).Reconfigure(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	if opts.Signing.Mode == SigningModeUnsigned {
+		s.Warn("reconfigured bundle is unsigned; its integrity and origin are not established")
+		return result, nil
+	}
+	if err := Sign(ctx, SignOptions{Source: result.OutputPath, Signing: opts.Signing, Config: opts.Config, TmpDir: opts.Options.TmpDir, Streams: s}); err != nil {
+		if result.OutputPath != "" {
+			_ = os.Remove(result.OutputPath)
+		}
+		return nil, fmt.Errorf("signing reconfigured bundle: %w", err)
+	}
+	return result, nil
+}
+
+type reconfigureState struct {
+	materializedDefaults []byte
+	inputSource          string
+	remoteRepo           oras.Target
+	sourceChild          ocispec.Descriptor
+	sourceIndex          []byte
+}
+
+func stageReconfigureLocalInput(opts ReconfigureOptions, state *reconfigureState) (func(), error) {
+	workspace, err := os.MkdirTemp(opts.Options.TmpDir, "uds-bundle-reconfigure-input-*")
+	if err != nil {
+		return nil, fmt.Errorf("creating input workspace: %w", err)
+	}
+	cleanup := func() { _ = os.RemoveAll(workspace) }
+
+	source, err := os.Open(opts.Source)
+	if err != nil {
+		cleanup()
+		return nil, fmt.Errorf("opening input bundle: %w", err)
+	}
+	defer func() { _ = source.Close() }()
+
+	stagedPath := filepath.Join(workspace, "bundle.tar.zst")
+	destination, err := os.OpenFile(stagedPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		cleanup()
+		return nil, fmt.Errorf("creating staged input bundle: %w", err)
+	}
+	_, copyErr := io.Copy(destination, source)
+	closeErr := destination.Close()
+	if copyErr != nil {
+		cleanup()
+		return nil, fmt.Errorf("staging input bundle: %w", copyErr)
+	}
+	if closeErr != nil {
+		cleanup()
+		return nil, fmt.Errorf("closing staged input bundle: %w", closeErr)
+	}
+	state.inputSource = stagedPath
+	return cleanup, nil
+}
+
+func resolveReconfigureOCIInput(ctx context.Context, opts ReconfigureOptions, state *reconfigureState) error {
+	trimmed := TrimScheme(opts.Source)
+	ref, err := name.ParseReference(trimmed)
+	if err != nil {
+		return fmt.Errorf("parsing OCI reference: %w", err)
+	}
+	if _, isDigest := ref.(name.Digest); isDigest {
+		return fmt.Errorf("OCI source must use a tag reference (e.g. :v1.0.0), not a digest")
+	}
+	if state.remoteRepo == nil {
+		repo, err := udsoci.NewRemoteRepository(ctx, trimmed, toInternalConfigOptions(opts.Options))
+		if err != nil {
+			return fmt.Errorf("connecting to registry: %w", err)
+		}
+		state.remoteRepo = repo
+	}
+	child, index, err := udsoci.ResolveBundleChild(ctx, state.remoteRepo, ref.Identifier(), opts.Options.Architecture)
+	if err != nil {
+		return fmt.Errorf("resolving %s: %w", opts.Source, err)
+	}
+	state.sourceChild = child
+	state.sourceIndex = index
+	state.inputSource = "oci://" + ref.Context().String() + "@" + child.Digest.String()
+	return nil
 }
 
 type localReconfigurer struct {
 	streams iostreams.IOStreams
+	state   *reconfigureState
 }
 
 func (r *localReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptions) (*ReconfigureResult, error) {
@@ -75,8 +189,11 @@ func (r *localReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOpt
 		}
 	}()
 
-	if err := artifact.ExtractTarZst(ctx, r.streams, opts.Source, tmp); err != nil {
+	if err := artifact.ExtractTarZst(ctx, r.streams, reconfigureInputSource(opts, r.state), tmp); err != nil {
 		return nil, fmt.Errorf("extracting bundle: %w", err)
+	}
+	if err := os.Remove(filepath.Join(tmp, BundleSignatureFileName)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("removing inherited bundle signature evidence: %w", err)
 	}
 
 	ociDir := filepath.Join(tmp, "oci")
@@ -116,7 +233,7 @@ func (r *localReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOpt
 		return nil, fmt.Errorf("parsing bundle definition manifest: %w", err)
 	}
 
-	defaultsData, err := reconfigureDefaultsData(opts)
+	defaultsData, err := reconfigureDefaultsData(opts, r.state)
 	if err != nil {
 		return nil, fmt.Errorf("reading defaults file: %w", err)
 	}
@@ -192,6 +309,14 @@ func validateLocalReconfigureIndex(idx ocispec.Index) error {
 
 type ociReconfigurer struct {
 	streams iostreams.IOStreams
+	state   *reconfigureState
+}
+
+func reconfigureInputSource(opts ReconfigureOptions, state *reconfigureState) string {
+	if state != nil && state.inputSource != "" {
+		return state.inputSource
+	}
+	return opts.Source
 }
 
 func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptions) (*ReconfigureResult, error) {
@@ -210,7 +335,11 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 	}
 
 	// Get registry target.
-	repo := opts.remoteRepo
+	state := reconfigureState{}
+	if r.state != nil {
+		state = *r.state
+	}
+	repo := state.remoteRepo
 	if repo == nil {
 		remote, err := udsoci.NewRemoteRepository(ctx, trimmed, toInternalConfigOptions(opts.Options))
 		if err != nil {
@@ -219,11 +348,15 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 		repo = remote
 	}
 
-	// Resolve source to the canonical single-arch bundle (child) index,
-	// platform-selecting from the root index when the tag points at one.
-	sourceChild, indexBytes, err := udsoci.ResolveBundleChild(ctx, repo, sourceTag, opts.Options.Architecture)
-	if err != nil {
-		return nil, fmt.Errorf("resolving %s: %w", opts.Source, err)
+	// Reuse the child index resolved before verification. Direct calls in tests
+	// retain the resolver fallback.
+	sourceChild := state.sourceChild
+	indexBytes := state.sourceIndex
+	if sourceChild.Digest == "" {
+		sourceChild, indexBytes, err = udsoci.ResolveBundleChild(ctx, repo, sourceTag, opts.Options.Architecture)
+		if err != nil {
+			return nil, fmt.Errorf("resolving %s: %w", opts.Source, err)
+		}
 	}
 
 	// Check target tag doesn't exist.
@@ -254,7 +387,7 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 	}
 
 	// Push new defaults blob.
-	defaultsData, err := reconfigureDefaultsData(opts)
+	defaultsData, err := reconfigureDefaultsData(opts, r.state)
 	if err != nil {
 		return nil, fmt.Errorf("reading defaults file: %w", err)
 	}
@@ -307,6 +440,28 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 	if err := udsoci.PushDescriptorBytes(ctx, repo, newIndexDesc, newIndexBytes); err != nil {
 		return nil, fmt.Errorf("pushing index: %w", err)
 	}
+	if opts.Signing.Mode != SigningModeUnsigned {
+		workspace, err := os.MkdirTemp(opts.Options.TmpDir, "uds-bundle-oci-reconfigure-sign-*")
+		if err != nil {
+			return nil, fmt.Errorf("creating signing workspace: %w", err)
+		}
+		defer func() { _ = os.RemoveAll(workspace) }()
+		indexPath := filepath.Join(workspace, "index.json")
+		evidencePath := filepath.Join(workspace, BundleSignatureFileName)
+		if err := os.WriteFile(indexPath, newIndexBytes, 0o600); err != nil {
+			return nil, fmt.Errorf("writing bundle index for signing: %w", err)
+		}
+		if err := signBundleIndex(ctx, indexPath, evidencePath, opts.Signing); err != nil {
+			return nil, fmt.Errorf("signing reconfigured bundle: %w", err)
+		}
+		evidence, err := os.ReadFile(evidencePath)
+		if err != nil {
+			return nil, fmt.Errorf("reading bundle signature evidence: %w", err)
+		}
+		if err := udsoci.PublishBundleSignature(ctx, repo, newIndexDesc, evidence, opts.Signing.Overwrite); err != nil {
+			return nil, fmt.Errorf("publishing reconfigured bundle signature: %w", err)
+		}
+	}
 
 	// Publish the target tag as a root index wrapping the new child (ADR-0015).
 	arch := idx.Annotations[AnnotationBundleArchitecture]
@@ -322,9 +477,9 @@ func (r *ociReconfigurer) Reconfigure(ctx context.Context, opts ReconfigureOptio
 	return &ReconfigureResult{OCIReference: targetRef}, nil
 }
 
-func reconfigureDefaultsData(opts ReconfigureOptions) ([]byte, error) {
-	if opts.materializedDefaults != nil {
-		return opts.materializedDefaults, nil
+func reconfigureDefaultsData(opts ReconfigureOptions, state *reconfigureState) ([]byte, error) {
+	if state != nil && state.materializedDefaults != nil {
+		return state.materializedDefaults, nil
 	}
 	return bundleinternal.MaterializeDefaultsFile(opts.DefaultsFile)
 }

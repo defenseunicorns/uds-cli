@@ -389,3 +389,26 @@ func TestPull_RoundTripsChildIndexBytes(t *testing.T) {
 	assert.Equal(t, created["oci/index.json"], pulled["oci/index.json"],
 		"pulled bundle index must round-trip byte-identically")
 }
+
+func TestPull_RejectsDuplicateSignatureEvidence(t *testing.T) {
+	t.Parallel()
+
+	store, err := oraci.New(t.TempDir())
+	require.NoError(t, err)
+	ref := "example.com/test/duplicate-signature:1.0.0"
+	pushArchTestBundle(t, store, ref, createArchTestBundle(t, "duplicate-signature", "1.0.0", runtime.GOARCH))
+
+	child, _, err := ResolveBundleChild(t.Context(), store, "1.0.0", runtime.GOARCH)
+	require.NoError(t, err)
+	pushSignatureEvidence(t, store, child, []byte("first"))
+	pushSignatureEvidence(t, store, child, []byte("second"))
+
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
+	_, err = Pull(t.Context(), ref, t.TempDir(), PullOptions{
+		Config:    cfg,
+		PullHooks: pullFrom(store),
+	})
+	require.ErrorContains(t, err, "fetching bundle signature evidence")
+	require.ErrorContains(t, err, "expected exactly one bundle signature artifact, found 2")
+}

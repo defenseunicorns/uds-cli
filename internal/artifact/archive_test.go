@@ -153,6 +153,21 @@ func TestExtractTarZst_HappyPath(t *testing.T) {
 	assert.Equal(t, "inner", string(inner))
 }
 
+func TestCountTarZstEntries(t *testing.T) {
+	t.Parallel()
+
+	src := filepath.Join(t.TempDir(), "bundle.tar.zst")
+	writeMaliciousTarZst(t, src, []tarEntry{
+		{name: "uds.bundle.sig", typeflag: tar.TypeReg, body: []byte("first")},
+		{name: "./uds.bundle.sig", typeflag: tar.TypeReg, body: []byte("second")},
+		{name: "oci/index.json", typeflag: tar.TypeReg, body: []byte("{}")},
+	})
+
+	count, err := CountTarZstEntries(t.Context(), src, "uds.bundle.sig")
+	require.NoError(t, err)
+	assert.Equal(t, 2, count)
+}
+
 // TestExtractTarZst_RoundTrip confirms that archives produced by writeTarZst
 // (the only legitimate create path) continue to extract cleanly under the
 // hardened extractor.

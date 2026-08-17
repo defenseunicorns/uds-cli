@@ -5,6 +5,7 @@ package bundle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -58,6 +59,14 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	})
 	if err != nil {
 		return nil, err
+	}
+	if opts.Signing.Mode == SigningModeUnsigned {
+		s.Warn("bundle is unsigned; its integrity and origin are not established")
+	} else if err := Sign(ctx, SignOptions{Source: result.OutputPath, Signing: opts.Signing, Config: opts.Config, TmpDir: opts.Config.Options.TmpDir, Streams: s}); err != nil {
+		if removeErr := os.Remove(result.OutputPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			return nil, fmt.Errorf("signing created bundle and removing unsigned output: %w", errors.Join(err, removeErr))
+		}
+		return nil, fmt.Errorf("signing created bundle: %w", err)
 	}
 	return &CreateResult{BundleName: b.Metadata.Name, OutputPath: result.OutputPath}, nil
 }

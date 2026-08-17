@@ -75,17 +75,27 @@ func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
 }
 
 // PrepareDeploySource initializes a DeploySource from either a bundle source
-// directory or a .tar.zst bundle artifact path. tmpDir is the directory under
-// which any temporary files or directories should be created. If empty, the
-// system default temp directory will be used.
-func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path, tmpDir string) (*DeploySource, error) {
-	if path == "" {
-		return nil, fmt.Errorf("path must not be empty")
+// directory or a .tar.zst bundle artifact. Archive artifacts are authenticated
+// before extraction unless the caller explicitly selects the insecure bypass.
+func PrepareDeploySource(ctx context.Context, opts PrepareDeploySourceOptions) (*DeploySource, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
 	}
-	if artifact.IsTarZst(path) {
-		return prepareExtractedArtifactSource(ctx, streams, path, tmpDir)
+	if artifact.IsTarZst(opts.Path) {
+		if opts.SkipSignatureVerification {
+			WarnSkippedSignatureVerification(opts.Streams)
+		} else if err := Verify(ctx, VerifyOptions{
+			Source:  opts.Path,
+			Policy:  opts.Verification,
+			Config:  opts.Config,
+			TmpDir:  opts.TmpDir,
+			Streams: opts.Streams,
+		}); err != nil {
+			return nil, fmt.Errorf("verifying bundle artifact: %w", err)
+		}
+		return prepareExtractedArtifactSource(ctx, opts.Streams, opts.Path, opts.TmpDir)
 	}
-	return prepareDirectorySource(path), nil
+	return prepareDirectorySource(opts.Path), nil
 }
 
 // prepareExtractedArtifactSource extracts an artifact into an owned temporary workspace.

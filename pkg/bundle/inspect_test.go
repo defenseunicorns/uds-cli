@@ -80,7 +80,7 @@ func TestInspectOptions_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := (InspectOptions{Source: tt.source, Config: config}).Validate()
+			err := (InspectOptions{Source: tt.source, Config: config, SkipSignatureVerification: true}).Validate()
 			if tt.want == "" {
 				require.NoError(t, err)
 				return
@@ -93,16 +93,17 @@ func TestInspectOptions_Validate(t *testing.T) {
 func TestInspect_LocalArtifact(t *testing.T) {
 	tarball := createArchTestBundle(t, "inspect-local", "1.0.0", runtime.GOARCH)
 	result, err := Inspect(t.Context(), InspectOptions{
-		Source:  tarball,
-		Config:  newTestConfig(),
-		Streams: iostreams.IOStreams{},
+		Source:                    tarball,
+		Config:                    newTestConfig(),
+		SkipSignatureVerification: true,
+		Streams:                   iostreams.IOStreams{},
 	})
 	require.NoError(t, err)
 
 	assert.Equal(t, "inspect-local", result.Name)
 	assert.Equal(t, "1.0.0", result.Version)
 	require.NotNil(t, result.BundleSignature)
-	assert.Equal(t, BundleSignatureStatusNotChecked, result.BundleSignature.Status)
+	assert.Equal(t, BundleSignatureStatusSkipped, result.BundleSignature.Status)
 	require.Len(t, result.Packages, 1)
 	assert.Equal(t, "pkg1", result.Packages[0].Name)
 	assert.Equal(t, PackageSigningStatusUnknown, result.Packages[0].Signature.Signed)
@@ -110,6 +111,46 @@ func TestInspect_LocalArtifact(t *testing.T) {
 
 	entries := readTarZstEntries(t, tarball)
 	assert.Equal(t, digest.FromBytes(entries["oci/index.json"]).String(), result.ArtifactDigest)
+}
+
+func TestInspect_RequiresBundleSignatureByDefault(t *testing.T) {
+	tarball := createArchTestBundle(t, "inspect-unsigned", "1.0.0", runtime.GOARCH)
+
+	_, err := Inspect(t.Context(), InspectOptions{
+		Source:       tarball,
+		Config:       newTestConfig(),
+		Verification: VerificationPolicy{PublicKey: "test public key"},
+		Streams:      iostreams.IOStreams{},
+	})
+	require.ErrorContains(t, err, "bundle signature evidence")
+}
+
+func TestInspect_AllowsUnverifiedMetadata(t *testing.T) {
+	tarball := createArchTestBundle(t, "inspect-unverified", "1.0.0", runtime.GOARCH)
+	streams, _, _, errOut := iostreams.NewTestIOStreams()
+
+	result, err := Inspect(t.Context(), InspectOptions{
+		Source:  tarball,
+		Config:  newTestConfig(),
+		Streams: streams,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.BundleSignature)
+	assert.Equal(t, BundleSignatureStatusUnverified, result.BundleSignature.Status)
+	assert.Contains(t, errOut.String(), "bundle signature was not verified during inspection")
+}
+
+func TestInspect_RejectsDuplicateSignatureEvidence(t *testing.T) {
+	tarball := filepath.Join(t.TempDir(), "duplicate-signature.tar.zst")
+	writeDuplicateSignatureArchive(t, tarball)
+
+	_, err := Inspect(t.Context(), InspectOptions{
+		Source:                    tarball,
+		Config:                    newTestConfig(),
+		SkipSignatureVerification: true,
+		Streams:                   iostreams.IOStreams{},
+	})
+	require.ErrorContains(t, err, "expected exactly one bundle signature evidence entry, found 2")
 }
 
 func TestInspect_UsesArtifactArchitecture(t *testing.T) {
@@ -120,9 +161,10 @@ func TestInspect_UsesArtifactArchitecture(t *testing.T) {
 	}
 
 	result, err := Inspect(t.Context(), InspectOptions{
-		Source:  tarball,
-		Config:  newTestConfigWithArch(inspectArch),
-		Streams: iostreams.IOStreams{},
+		Source:                    tarball,
+		Config:                    newTestConfigWithArch(inspectArch),
+		SkipSignatureVerification: true,
+		Streams:                   iostreams.IOStreams{},
 	})
 	require.NoError(t, err)
 	require.Len(t, result.Packages, 1)
@@ -142,9 +184,10 @@ func TestInspect_RequiresArtifactArchitecture(t *testing.T) {
 	tampered := writeInspectTarZstEntries(t, entries)
 
 	_, err = Inspect(t.Context(), InspectOptions{
-		Source:  tampered,
-		Config:  newTestConfig(),
-		Streams: iostreams.IOStreams{},
+		Source:                    tampered,
+		Config:                    newTestConfig(),
+		SkipSignatureVerification: true,
+		Streams:                   iostreams.IOStreams{},
 	})
 	require.ErrorContains(t, err, "does not record its architecture")
 }
@@ -179,9 +222,10 @@ func TestInspect_LocalArtifactChecksOnlyPresentedMetadata(t *testing.T) {
 	tampered := writeInspectTarZstEntries(t, entries)
 
 	result, err := Inspect(t.Context(), InspectOptions{
-		Source:  tampered,
-		Config:  newTestConfig(),
-		Streams: iostreams.IOStreams{},
+		Source:                    tampered,
+		Config:                    newTestConfig(),
+		SkipSignatureVerification: true,
+		Streams:                   iostreams.IOStreams{},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "inspect-local-metadata", result.Name)
@@ -216,9 +260,10 @@ func TestInspect_LocalArtifactRejectsCorruptMetadata(t *testing.T) {
 	tampered := writeInspectTarZstEntries(t, entries)
 
 	_, err := Inspect(t.Context(), InspectOptions{
-		Source:  tampered,
-		Config:  newTestConfig(),
-		Streams: iostreams.IOStreams{},
+		Source:                    tampered,
+		Config:                    newTestConfig(),
+		SkipSignatureVerification: true,
+		Streams:                   iostreams.IOStreams{},
 	})
 	require.ErrorContains(t, err, "expected content size")
 }
@@ -239,9 +284,10 @@ package "pkg1" {
 	require.NoError(t, err)
 
 	result, err := Inspect(t.Context(), InspectOptions{
-		Source:  reconfigured.OutputPath,
-		Config:  newTestConfig(),
-		Streams: iostreams.IOStreams{},
+		Source:                    reconfigured.OutputPath,
+		Config:                    newTestConfig(),
+		SkipSignatureVerification: true,
+		Streams:                   iostreams.IOStreams{},
 	})
 	require.NoError(t, err)
 	assert.NotEmpty(t, result.ReconfiguredFrom)
@@ -249,8 +295,9 @@ package "pkg1" {
 
 func TestInspect_RejectsNilTarget(t *testing.T) {
 	_, err := inspect(t.Context(), InspectOptions{
-		Source: "example.com/test/bundle:v1",
-		Config: newTestConfig(),
+		Source:                    "example.com/test/bundle:v1",
+		Config:                    newTestConfig(),
+		SkipSignatureVerification: true,
 	}, func(context.Context, string, *InspectOptions) (oras.Target, error) {
 		return nil, nil
 	})
@@ -260,9 +307,10 @@ func TestInspect_RejectsNilTarget(t *testing.T) {
 func TestInspect_RemoteReferenceMatchesLocalArtifact(t *testing.T) {
 	tarball := createArchTestBundle(t, "inspect-remote", "1.0.0", runtime.GOARCH)
 	localResult, err := Inspect(t.Context(), InspectOptions{
-		Source:  tarball,
-		Config:  newTestConfig(),
-		Streams: iostreams.IOStreams{},
+		Source:                    tarball,
+		Config:                    newTestConfig(),
+		SkipSignatureVerification: true,
+		Streams:                   iostreams.IOStreams{},
 	})
 	require.NoError(t, err)
 
@@ -272,9 +320,10 @@ func TestInspect_RemoteReferenceMatchesLocalArtifact(t *testing.T) {
 	pushArchTestBundle(t, store, ref, tarball)
 
 	result, err := inspect(t.Context(), InspectOptions{
-		Source:  ref,
-		Config:  newTestConfig(),
-		Streams: iostreams.IOStreams{},
+		Source:                    ref,
+		Config:                    newTestConfig(),
+		SkipSignatureVerification: true,
+		Streams:                   iostreams.IOStreams{},
 	}, func(context.Context, string, *InspectOptions) (oras.Target, error) {
 		return store, nil
 	})
@@ -291,9 +340,10 @@ func TestInspect_RemoteReferenceFetchesMetadataOnly(t *testing.T) {
 
 	tracking := &trackingInspectTarget{Target: store}
 	_, err = inspect(t.Context(), InspectOptions{
-		Source:  ref,
-		Config:  newTestConfig(),
-		Streams: iostreams.IOStreams{},
+		Source:                    ref,
+		Config:                    newTestConfig(),
+		SkipSignatureVerification: true,
+		Streams:                   iostreams.IOStreams{},
 	}, func(context.Context, string, *InspectOptions) (oras.Target, error) {
 		return tracking, nil
 	})
@@ -344,6 +394,7 @@ package "pkg1" {
 	created, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfigWithArch(runtime.GOARCH),
 		BundleFile: bundleFile,
+		Signing:    SigningOptions{Mode: SigningModeUnsigned},
 		Streams:    iostreams.IOStreams{},
 	})
 	require.NoError(t, err)
@@ -377,6 +428,7 @@ package "pkg" {
 	created, err := Create(t.Context(), CreateOptions{
 		Config:     config,
 		BundleFile: bundleFile,
+		Signing:    SigningOptions{Mode: SigningModeUnsigned},
 		Streams:    iostreams.IOStreams{},
 	})
 	require.NoError(t, err)
@@ -385,9 +437,10 @@ package "pkg" {
 
 func TestInspect_PackageSignatureSummary(t *testing.T) {
 	result, err := Inspect(t.Context(), InspectOptions{
-		Source:  createPackageSignatureArtifact(t, true),
-		Config:  newTestConfig(),
-		Streams: iostreams.IOStreams{},
+		Source:                    createPackageSignatureArtifact(t, true),
+		Config:                    newTestConfig(),
+		SkipSignatureVerification: true,
+		Streams:                   iostreams.IOStreams{},
 	})
 	require.NoError(t, err)
 	require.Len(t, result.Packages, 1)
@@ -397,9 +450,10 @@ func TestInspect_PackageSignatureSummary(t *testing.T) {
 
 func TestInspect_PackageSignatureSummaryUnsigned(t *testing.T) {
 	result, err := Inspect(t.Context(), InspectOptions{
-		Source:  createPackageSignatureArtifact(t, false),
-		Config:  newTestConfig(),
-		Streams: iostreams.IOStreams{},
+		Source:                    createPackageSignatureArtifact(t, false),
+		Config:                    newTestConfig(),
+		SkipSignatureVerification: true,
+		Streams:                   iostreams.IOStreams{},
 	})
 	require.NoError(t, err)
 	require.Len(t, result.Packages, 1)
@@ -428,6 +482,7 @@ package "pkg1" {
 	created, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfigWithArch(arch),
 		BundleFile: bundleFile,
+		Signing:    SigningOptions{Mode: SigningModeUnsigned},
 		Streams:    iostreams.IOStreams{},
 	})
 	require.NoError(t, err)

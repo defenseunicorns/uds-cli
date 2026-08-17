@@ -58,10 +58,16 @@ func TestValidateOperationOptions(t *testing.T) {
 		{name: "create requires config", validate: func() error { return (CreateOptions{}).Validate() }, wantErr: "config is required"},
 		{name: "create requires bundle file", validate: func() error { return (CreateOptions{Config: validValidationConfig()}).Validate() }, wantErr: "BundleFile is required"},
 		{name: "create accepts bundle file", validate: func() error {
-			return (CreateOptions{Config: validValidationConfig(), BundleFile: "bundle.uds.hcl"}).Validate()
+			return (CreateOptions{Config: validValidationConfig(), BundleFile: "bundle.uds.hcl", Signing: SigningOptions{Mode: SigningModeUnsigned}}).Validate()
 		}},
 		{name: "pull requires config", validate: func() error { return (PullOptions{}).Validate() }, wantErr: "config is required"},
 		{name: "pull accepts config", validate: func() error { return (PullOptions{Config: validValidationConfig()}).Validate() }},
+		{name: "archive deploy source requires verification policy", validate: func() error {
+			return (PrepareDeploySourceOptions{Path: "bundle.tar.zst", Config: validValidationConfig()}).Validate()
+		}, wantErr: "exactly one"},
+		{name: "archive deploy source accepts explicit bypass", validate: func() error {
+			return (PrepareDeploySourceOptions{Path: "bundle.tar.zst", Config: validValidationConfig(), SkipSignatureVerification: true}).Validate()
+		}},
 		{name: "push requires config", validate: func() error { return (PushOptions{}).Validate() }, wantErr: "config is required"},
 		{name: "push accepts config", validate: func() error { return (PushOptions{Config: validValidationConfig()}).Validate() }},
 		{name: "reconfigure requires source", validate: func() error { return (ReconfigureOptions{DefaultsFile: "defaults.uds.hcl", Suffix: "-v2"}).Validate() }, wantErr: "source is required"},
@@ -70,13 +76,75 @@ func TestValidateOperationOptions(t *testing.T) {
 			return (ReconfigureOptions{Source: "bundle.tar.zst", DefaultsFile: "defaults.uds.hcl", Suffix: "v2"}).Validate()
 		}, wantErr: "invalid suffix"},
 		{name: "reconfigure accepts valid options", validate: func() error {
-			return (ReconfigureOptions{Source: "bundle.tar.zst", DefaultsFile: "defaults.uds.hcl", Suffix: "-v2"}).Validate()
+			return (ReconfigureOptions{Source: "bundle.tar.zst", DefaultsFile: "defaults.uds.hcl", Suffix: "-v2", Signing: SigningOptions{Mode: SigningModeUnsigned}, SkipSignatureVerification: true}).Validate()
 		}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestSigningValidation(t *testing.T) {
+	tests := []struct {
+		name     string
+		validate func() error
+		wantErr  string
+	}{
+		{name: "key requires key", validate: func() error { return (SigningOptions{Mode: SigningModeKey}).Validate() }, wantErr: "signing key is required"},
+		{name: "keyless accepted", validate: func() error { return (SigningOptions{Mode: SigningModeKeyless}).Validate() }},
+		{name: "keyless rejects signing key", validate: func() error {
+			return (SigningOptions{Mode: SigningModeKeyless, Key: "key"}).Validate()
+		}, wantErr: "signing key cannot be combined with keyless signing"},
+		{name: "unsigned accepted", validate: func() error { return (SigningOptions{Mode: SigningModeUnsigned}).Validate() }},
+		{name: "policy requires one method", validate: func() error { return (VerificationPolicy{}).Validate() }, wantErr: "exactly one"},
+		{name: "policy rejects both methods", validate: func() error {
+			return (VerificationPolicy{PublicKey: "key", Keyless: &KeylessVerification{}}).Validate()
+		}, wantErr: "exactly one"},
+		{name: "keyless requires identity", validate: func() error {
+			return (VerificationPolicy{Keyless: &KeylessVerification{CertificateOIDCIssuer: "issuer"}}).Validate()
+		}, wantErr: "certificate identity"},
+		{name: "keyless requires issuer", validate: func() error {
+			return (VerificationPolicy{Keyless: &KeylessVerification{CertificateIdentity: "identity"}}).Validate()
+		}, wantErr: "certificate OIDC issuer"},
+		{name: "keyless accepted", validate: func() error {
+			return (VerificationPolicy{Keyless: &KeylessVerification{CertificateIdentity: "identity", CertificateOIDCIssuer: "issuer"}}).Validate()
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestPullOptions_ValidateBundleVerification(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    PullOptions
+		wantErr string
+	}{
+		{name: "policy required", wantErr: "exactly one"},
+		{name: "key policy accepted", opts: PullOptions{Verification: VerificationPolicy{PublicKey: "key"}}},
+		{name: "explicit bypass accepted", opts: PullOptions{SkipSignatureVerification: true}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.opts.validateBundleVerification()
 			if tt.wantErr == "" {
 				require.NoError(t, err)
 				return

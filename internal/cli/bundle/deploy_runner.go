@@ -19,13 +19,13 @@ type deployRunnerFunc func(
 	bundlePath string,
 	packages []string,
 	force bool,
+	verification bundlepkg.VerificationPolicy,
+	skipSignatureVerification bool,
 ) (*bundlepkg.DeployResult, error)
 
 type prepareDeploySourceFunc func(
 	ctx context.Context,
-	streams iostreams.IOStreams,
-	path string,
-	tmpDir string,
+	opts bundlepkg.PrepareDeploySourceOptions,
 ) (*bundlepkg.DeploySource, error)
 
 type closeDeploySourceFunc func(source *bundlepkg.DeploySource) error
@@ -45,8 +45,10 @@ func runDeploy(
 	bundlePath string,
 	packages []string,
 	force bool,
+	verification bundlepkg.VerificationPolicy,
+	skipSignatureVerification bool,
 ) (*bundlepkg.DeployResult, error) {
-	return runDeployWith(ctx, streams, baseConfig, bundlePath, packages, force, deployRunnerDependencies{
+	return runDeployWith(ctx, streams, baseConfig, bundlePath, packages, force, verification, skipSignatureVerification, deployRunnerDependencies{
 		prepare: bundlepkg.PrepareDeploySource,
 		close: func(source *bundlepkg.DeploySource) error {
 			return source.Close()
@@ -62,9 +64,18 @@ func runDeployWith(
 	bundlePath string,
 	packages []string,
 	force bool,
+	verification bundlepkg.VerificationPolicy,
+	skipSignatureVerification bool,
 	deps deployRunnerDependencies,
 ) (*bundlepkg.DeployResult, error) {
-	deploySrc, err := deps.prepare(ctx, streams, bundlePath, baseConfig.Options.TmpDir)
+	deploySrc, err := deps.prepare(ctx, bundlepkg.PrepareDeploySourceOptions{
+		Path:                      bundlePath,
+		Config:                    baseConfig,
+		Verification:              verification,
+		SkipSignatureVerification: skipSignatureVerification,
+		TmpDir:                    baseConfig.Options.TmpDir,
+		Streams:                   streams,
+	})
 	if err != nil {
 		return nil, err
 	}

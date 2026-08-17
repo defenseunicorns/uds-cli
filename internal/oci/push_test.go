@@ -6,6 +6,8 @@ package oci
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,6 +20,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	oras "oras.land/oras-go/v2"
+	"oras.land/oras-go/v2/content"
+	"oras.land/oras-go/v2/content/memory"
 	oraci "oras.land/oras-go/v2/content/oci"
 )
 
@@ -414,6 +418,34 @@ func TestPush_ReplacesSameArchitectureEntry(t *testing.T) {
 	assert.Equal(t, "amd64", after.Manifests[0].Platform.Architecture)
 }
 
+func TestPush_SignatureFailureLeavesExistingRootUnchanged(t *testing.T) {
+	t.Parallel()
+
+	target := &failingSignaturePushTarget{Store: memory.New()}
+	ref := "example.com/test/signature-failure:1.0.0"
+	otherArch := "arm64"
+	if newTestConfig().Options.Architecture == otherArch {
+		otherArch = "amd64"
+	}
+	pushArchTestBundle(t, target, ref, createArchTestBundle(t, "signature-failure-old", "1.0.0", otherArch))
+	before, err := target.Resolve(t.Context(), "1.0.0")
+	require.NoError(t, err)
+
+	ociDir := writeBundleOCILayout(t, "signature-failure-new", "1.0.0")
+	require.NoError(t, os.WriteFile(filepath.Join(filepath.Dir(ociDir), BundleSignatureFileName), []byte("signature evidence"), tmpFilePerm))
+	cfg := newTestConfig()
+	cfg.Options.TmpDir = t.TempDir()
+	_, err = NewDefaultPusher().PushBundle(t.Context(), filepath.Dir(ociDir), ref, PushOptions{
+		Config:    cfg,
+		PushHooks: pushTo(target),
+	})
+	require.ErrorContains(t, err, "publishing bundle signature")
+
+	after, err := target.Resolve(t.Context(), "1.0.0")
+	require.NoError(t, err)
+	assert.Equal(t, before.Digest, after.Digest, "signature failure must not move the mutable root tag")
+}
+
 func TestPush_DigestReferenceRejected(t *testing.T) {
 	t.Parallel()
 
@@ -429,3 +461,18 @@ func TestPush_DigestReferenceRejected(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "must be pushed to a tag reference")
 }
+
+type failingSignaturePushTarget struct {
+	*memory.Store
+}
+
+func (t *failingSignaturePushTarget) Push(ctx context.Context, expected ocispec.Descriptor, r io.Reader) error {
+	if expected.MediaType == MediaTypeBundleSignature {
+		return errors.New("signature push failed")
+	}
+	return t.Store.Push(ctx, expected, r)
+}
+
+var _ oras.Target = (*failingSignaturePushTarget)(nil)
+
+var _ content.Pusher = (*failingSignaturePushTarget)(nil)

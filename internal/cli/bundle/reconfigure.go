@@ -24,6 +24,8 @@ type ReconfigureOptions struct {
 	Config       *bundle.UDSBundleConfig
 	Options      bundle.ConfigOptions
 	Printer      printer.ResourcePrinter
+	Signing      bundle.SigningOptions
+	Verification VerifyOptions
 
 	iostreams.IOStreams
 }
@@ -57,6 +59,9 @@ func NewReconfigureCommand(streams iostreams.IOStreams) *cobra.Command {
 	_ = cmd.MarkFlagRequired("defaults")
 	cmd.Flags().String("suffix", "-reconfigured", "suffix for output artifact name")
 	cmd.Flags().StringVarP(&o.OutputDir, "output-dir", "", "", "output directory for reconfigured local tarball (default: current directory)")
+	addSigningFlags(cmd, &o.Signing)
+	cmd.Flags().Bool("unsigned", false, "create an unsigned reconfigured bundle")
+	addVerificationFlags(cmd, &o.Verification, true)
 
 	return cmd
 }
@@ -95,6 +100,10 @@ func (o *ReconfigureOptions) Complete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	o.Config = cfg
+	o.Verification.Config = cfg
+	if err := completeCreateSigningOptions(cmd, &o.Signing); err != nil {
+		return err
+	}
 	if cfg.Options != nil {
 		o.Options = *cfg.Options
 	}
@@ -126,6 +135,14 @@ func (o *ReconfigureOptions) Validate() error {
 	if o.OutputDir != "" && bundle.IsOCIReference(o.Source) {
 		return fmt.Errorf("--output-dir is not supported for OCI sources")
 	}
+	if err := o.Signing.Validate(); err != nil {
+		return err
+	}
+	if !o.Verification.SkipSignatureVerification {
+		if _, err := o.Verification.policy(); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -143,13 +160,25 @@ func (o *ReconfigureOptions) Run(ctx context.Context) error {
 		}
 	}
 
+	policy := bundle.VerificationPolicy{}
+	if !o.Verification.SkipSignatureVerification {
+		var err error
+		policy, err = o.Verification.policy()
+		if err != nil {
+			return err
+		}
+	}
 	result, err := bundle.Reconfigure(ctx, bundle.ReconfigureOptions{
-		Source:       o.Source,
-		DefaultsFile: o.DefaultsFile,
-		Suffix:       o.Suffix,
-		OutputDir:    o.OutputDir,
-		Options:      o.Options,
-		Streams:      o.IOStreams,
+		Source:                    o.Source,
+		DefaultsFile:              o.DefaultsFile,
+		Suffix:                    o.Suffix,
+		OutputDir:                 o.OutputDir,
+		Options:                   o.Options,
+		Config:                    o.Config,
+		Signing:                   o.Signing,
+		Verification:              policy,
+		SkipSignatureVerification: o.Verification.SkipSignatureVerification,
+		Streams:                   o.IOStreams,
 	})
 	if err != nil {
 		return err

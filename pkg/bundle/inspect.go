@@ -17,8 +17,9 @@ import (
 
 type inspectTargetResolver func(context.Context, string, *InspectOptions) (udsoci.Target, error)
 
-// Inspect reads a built local or OCI bundle.
-// It reads metadata only and does not verify package content or signatures.
+// Inspect reads metadata from a built local or OCI bundle. When a verification
+// policy is provided, it verifies the bundle before parsing its metadata.
+// Without a policy, it reports that the metadata is unverified.
 func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
@@ -36,11 +37,19 @@ func inspect(ctx context.Context, opts InspectOptions, targetResolver inspectTar
 		}
 	}
 
-	internalResult, err := artifact.Inspect(ctx, artifact.InspectOptions{
-		Source:  opts.Source,
-		Config:  toInternalConfig(opts.Config),
-		Streams: opts.Streams,
-	}, resolver)
+	inspectOpts := artifact.InspectOptions{
+		Source:                 opts.Source,
+		Config:                 toInternalConfig(opts.Config),
+		Streams:                opts.Streams,
+		CheckSignatureEvidence: opts.SkipSignatureVerification,
+	}
+	verificationConfigured := opts.Verification.configured()
+	if !opts.SkipSignatureVerification && verificationConfigured {
+		inspectOpts.VerifyBundle = func(ctx context.Context, index, evidence []byte) error {
+			return verifySignature(ctx, index, evidence, opts.Verification, opts.Config.Options.TmpDir)
+		}
+	}
+	internalResult, err := artifact.Inspect(ctx, inspectOpts, resolver)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +60,14 @@ func inspect(ctx context.Context, opts InspectOptions, targetResolver inspectTar
 	}
 	result.ArtifactDigest = internalResult.ArtifactDigest
 	result.ReconfiguredFrom = internalResult.ReconfiguredFrom
-	result.BundleSignature = &BundleSignatureSummary{Status: BundleSignatureStatusNotChecked}
+	if opts.SkipSignatureVerification {
+		result.BundleSignature = &BundleSignatureSummary{Status: BundleSignatureStatusSkipped}
+	} else if verificationConfigured {
+		result.BundleSignature = &BundleSignatureSummary{Status: BundleSignatureStatusVerified}
+	} else {
+		result.BundleSignature = &BundleSignatureSummary{Status: BundleSignatureStatusUnverified}
+		opts.Streams.Warn("bundle signature was not verified during inspection")
+	}
 
 	for i := range result.Packages {
 		summary, ok := internalResult.PackageSignatures[result.Packages[i].Name]

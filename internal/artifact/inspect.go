@@ -6,6 +6,7 @@ package artifact
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -35,9 +36,13 @@ type inspectOCIImageManifest = ocispec.Manifest
 
 // InspectOptions contains the internal inputs for built bundle inspection.
 type InspectOptions struct {
-	Source  string
-	Config  *bundleinternal.UDSBundleConfig
-	Streams iostreams.IOStreams
+	Source       string
+	Config       *bundleinternal.UDSBundleConfig
+	Streams      iostreams.IOStreams
+	VerifyBundle func(ctx context.Context, index, evidence []byte) error
+	// CheckSignatureEvidence preserves explicit skip-mode evidence checks
+	// without probing for evidence during unauthenticated inspection.
+	CheckSignatureEvidence bool
 }
 
 // InspectTargetResolver provides an internal test seam for OCI sources.
@@ -45,10 +50,13 @@ type InspectTargetResolver func(context.Context, string, *InspectOptions) (udsoc
 
 // InspectResult contains the parsed bundle and metadata extracted during inspection.
 type InspectResult struct {
-	Bundle            *spec.UDSBundle
-	ArtifactDigest    string
-	ReconfiguredFrom  string
-	PackageSignatures map[string]PackageSignatureSummary
+	Bundle                 *spec.UDSBundle
+	ArtifactDigest         string
+	ReconfiguredFrom       string
+	PackageSignatures      map[string]PackageSignatureSummary
+	IndexBytes             []byte
+	SignatureEvidence      []byte
+	SignatureEvidenceError error
 }
 
 // PackageSignatureSummary contains package signing and verification metadata.
@@ -85,6 +93,15 @@ func Inspect(ctx context.Context, opts InspectOptions, targetResolver InspectTar
 }
 
 func inspectLocalArtifact(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
+	if opts.CheckSignatureEvidence || opts.VerifyBundle != nil {
+		signatureEntries, err := CountTarZstEntries(ctx, opts.Source, udsoci.BundleSignatureFileName)
+		if err != nil {
+			return nil, fmt.Errorf("checking bundle signature evidence: %w", err)
+		}
+		if signatureEntries > 1 {
+			return nil, fmt.Errorf("expected exactly one bundle signature evidence entry, found %d", signatureEntries)
+		}
+	}
 	workspace, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-inspect-*")
 	if err != nil {
 		return nil, fmt.Errorf("creating inspection workspace: %w", err)
@@ -101,6 +118,19 @@ func inspectLocalArtifact(ctx context.Context, opts InspectOptions) (*InspectRes
 	if err != nil {
 		return nil, fmt.Errorf("reading bundle index: %w", err)
 	}
+	var evidence []byte
+	var evidenceErr error
+	if opts.CheckSignatureEvidence || opts.VerifyBundle != nil {
+		evidence, evidenceErr = readLocalSignatureEvidence(workspace)
+	}
+	if opts.VerifyBundle != nil {
+		if evidenceErr != nil {
+			return nil, evidenceErr
+		}
+		if err := opts.VerifyBundle(ctx, indexBytes, evidence); err != nil {
+			return nil, err
+		}
+	}
 
 	store, err := udsoci.OpenReadOnlyStore(ociDir)
 	if err != nil {
@@ -109,7 +139,14 @@ func inspectLocalArtifact(ctx context.Context, opts InspectOptions) (*InspectRes
 	fetch := func(ctx context.Context, desc ocispec.Descriptor) ([]byte, error) {
 		return udsoci.FetchBytes(ctx, store, desc)
 	}
-	return inspectBundleIndex(ctx, opts.Streams, indexBytes, digest.FromBytes(indexBytes).String(), fetch)
+	result, err := inspectBundleIndex(ctx, opts.Streams, indexBytes, digest.FromBytes(indexBytes).String(), fetch)
+	if err != nil {
+		return nil, err
+	}
+	result.IndexBytes = indexBytes
+	result.SignatureEvidence = evidence
+	result.SignatureEvidenceError = evidenceErr
+	return result, nil
 }
 
 func inspectOCIReference(ctx context.Context, opts InspectOptions, targetResolver InspectTargetResolver) (*InspectResult, error) {
@@ -125,11 +162,45 @@ func inspectOCIReference(ctx context.Context, opts InspectOptions, targetResolve
 	if err != nil {
 		return nil, fmt.Errorf("resolving bundle from %s: %w", opts.Source, err)
 	}
+	var evidence []byte
+	var evidenceErr error
+	if opts.CheckSignatureEvidence || opts.VerifyBundle != nil {
+		evidence, evidenceErr = udsoci.FetchBundleSignature(ctx, target, childDesc)
+		if errors.Is(evidenceErr, udsoci.ErrBundleSignatureDuplicate) {
+			return nil, fmt.Errorf("reading bundle signature evidence: %w", evidenceErr)
+		}
+	}
+	if opts.VerifyBundle != nil {
+		if evidenceErr != nil {
+			return nil, fmt.Errorf("reading bundle signature evidence: %w", evidenceErr)
+		}
+		if err := opts.VerifyBundle(ctx, indexBytes, evidence); err != nil {
+			return nil, err
+		}
+	}
 
 	fetch := func(ctx context.Context, desc ocispec.Descriptor) ([]byte, error) {
 		return udsoci.FetchBytes(ctx, target, desc)
 	}
-	return inspectBundleIndex(ctx, opts.Streams, indexBytes, childDesc.Digest.String(), fetch)
+	result, err := inspectBundleIndex(ctx, opts.Streams, indexBytes, childDesc.Digest.String(), fetch)
+	if err != nil {
+		return nil, err
+	}
+	result.IndexBytes = indexBytes
+	result.SignatureEvidence = evidence
+	result.SignatureEvidenceError = evidenceErr
+	return result, nil
+}
+
+func readLocalSignatureEvidence(workspace string) ([]byte, error) {
+	evidence, err := os.ReadFile(filepath.Join(workspace, udsoci.BundleSignatureFileName))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("bundle signature evidence %q is missing", udsoci.BundleSignatureFileName)
+		}
+		return nil, fmt.Errorf("reading bundle signature evidence: %w", err)
+	}
+	return evidence, nil
 }
 
 func resolveInspectTarget(ctx context.Context, opts InspectOptions, targetResolver InspectTargetResolver) (udsoci.Target, error) {

@@ -27,10 +27,11 @@ type GlobalOptions struct {
 
 // UDSBundleConfig is the resolved public bundle configuration.
 type UDSBundleConfig struct {
-	Global    *GlobalOptions
-	Options   *ConfigOptions `hcl:"options,block"`
-	Variables Variables
-	Remain    hcl.Body `hcl:",remain"`
+	Global                *GlobalOptions
+	Options               *ConfigOptions `hcl:"options,block"`
+	SignatureVerification *VerificationPolicy
+	Variables             Variables
+	Remain                hcl.Body `hcl:",remain"`
 }
 
 // ConfigOptions holds bundle operation settings.
@@ -42,6 +43,66 @@ type ConfigOptions struct {
 	UDSCache      string `hcl:"uds_cache,optional"`
 	TmpDir        string `hcl:"tmp_dir,optional"`
 	Concurrency   int    `hcl:"concurrency,optional"`
+}
+
+// SigningMode identifies the credentials used to sign a bundle.
+type SigningMode string
+
+const (
+	// SigningModeKey signs with a Cosign-compatible private key or KMS reference.
+	SigningModeKey SigningMode = "key"
+	// SigningModeKeyless signs with an OIDC identity.
+	SigningModeKeyless SigningMode = "keyless"
+	// SigningModeUnsigned intentionally produces an unsigned bundle.
+	SigningModeUnsigned SigningMode = "unsigned"
+)
+
+// SigningOptions configures a bundle signature operation.
+type SigningOptions struct {
+	Mode           SigningMode
+	Key            string
+	KeyPassword    string
+	IdentityToken  string
+	FulcioURL      string
+	FulcioAuthFlow string
+	OIDCIssuer     string
+	OIDCClientID   string
+	RekorURL       string
+	TSAServerURL   string
+	Overwrite      bool
+}
+
+// KeylessVerification constrains the certificate identity trusted for a keyless signature.
+type KeylessVerification struct {
+	CertificateIdentity         string
+	CertificateIdentityRegexp   string
+	CertificateOIDCIssuer       string
+	CertificateOIDCIssuerRegexp string
+	TrustedRoot                 string
+}
+
+// VerificationPolicy is consumer-controlled trust material for a bundle signature.
+type VerificationPolicy struct {
+	PublicKey string
+	Keyless   *KeylessVerification
+}
+
+// SignOptions configures signing an existing bundle artifact.
+type SignOptions struct {
+	Source  string
+	Signing SigningOptions
+	Config  *UDSBundleConfig
+	TmpDir  string
+	Streams iostreams.IOStreams
+}
+
+// VerifyOptions configures verification of a bundle artifact.
+type VerifyOptions struct {
+	Source  string
+	Policy  VerificationPolicy
+	Config  *UDSBundleConfig
+	TmpDir  string
+	Streams iostreams.IOStreams
 }
 
 // Parser parses bundle definitions and configuration files.
@@ -223,6 +284,9 @@ type CreateOptions struct {
 
 	BundleFile string
 
+	// Signing controls the bundle artifact signature written after creation.
+	Signing SigningOptions
+
 	// Streams carries In/Out/ErrOut for the operation.
 	Streams iostreams.IOStreams
 }
@@ -232,12 +296,43 @@ type PullOptions struct {
 	// Config is the merged config; always non-nil in production.
 	Config *UDSBundleConfig
 
+	// Verification is the trust policy used to authenticate a pulled bundle
+	// before its OCI graph is downloaded. It is required unless verification is
+	// explicitly skipped.
+	Verification VerificationPolicy
+
+	// SkipSignatureVerification explicitly permits pulling an unverified bundle.
+	SkipSignatureVerification bool
+
 	// Streams carries In/Out/ErrOut for the operation.
 	Streams iostreams.IOStreams
 
 	// PullHooks provides extensibility seams for the pull path, including the
 	// ToOrasTarget seam used to inject an in-memory source in tests.
 	PullHooks PullHooks
+}
+
+// PrepareDeploySourceOptions configures preparation of a bundle source for deployment.
+// Archive artifacts are authenticated before their contents are extracted or parsed;
+// source directories are used directly.
+type PrepareDeploySourceOptions struct {
+	// Path is a bundle source directory, bundle.uds.hcl file, or .tar.zst artifact.
+	Path string
+
+	// Config contains resolved settings needed to verify an archive artifact.
+	Config *UDSBundleConfig
+
+	// Verification is the trust policy used to authenticate an archive artifact.
+	Verification VerificationPolicy
+
+	// SkipSignatureVerification explicitly permits deploying an unverified archive.
+	SkipSignatureVerification bool
+
+	// TmpDir is the directory under which temporary workspaces are created.
+	TmpDir string
+
+	// Streams carries operation input and output streams.
+	Streams iostreams.IOStreams
 }
 
 // InspectOptions configures inspection of a built bundle.
@@ -247,6 +342,12 @@ type InspectOptions struct {
 
 	// Config contains resolved CLI and registry settings.
 	Config *UDSBundleConfig
+
+	// Verification is consumer-controlled trust material for the bundle signature.
+	Verification VerificationPolicy
+
+	// SkipSignatureVerification explicitly permits inspecting an unverified artifact.
+	SkipSignatureVerification bool
 
 	// Streams carries operation input and output streams.
 	Streams iostreams.IOStreams
@@ -270,8 +371,12 @@ type BundleSignatureSummary struct {
 }
 
 const (
-	// BundleSignatureStatusNotChecked means verification was not performed.
-	BundleSignatureStatusNotChecked = "not_checked"
+	// BundleSignatureStatusVerified means the bundle signature matched the configured policy.
+	BundleSignatureStatusVerified = "verified"
+	// BundleSignatureStatusUnverified means inspection did not authenticate the bundle.
+	BundleSignatureStatusUnverified = "unverified"
+	// BundleSignatureStatusSkipped means the caller explicitly bypassed verification.
+	BundleSignatureStatusSkipped = "skipped"
 )
 
 // PackageSummary is a serializable summary of a package within a bundle.
@@ -407,16 +512,21 @@ type ReconfigureOptions struct {
 	// Options provides shared CLI configuration for the operation.
 	Options ConfigOptions
 
+	// Config provides the resolved registry configuration for OCI verification
+	// and signing.
+	Config *UDSBundleConfig
+
+	// Signing controls the signature of the reconfigured output artifact.
+	Signing SigningOptions
+
+	// Verification is consumer-owned trust material for the input artifact.
+	Verification VerificationPolicy
+
+	// SkipSignatureVerification explicitly permits reconfiguring an unverified input.
+	SkipSignatureVerification bool
+
 	// Streams carries In/Out/ErrOut for the operation.
 	Streams iostreams.IOStreams
-
-	// remoteRepo overrides the remote registry target. When nil (production),
-	// newRemoteRepository is used. Set in tests to inject a fake ORAS store.
-	remoteRepo oras.Target
-
-	// materializedDefaults is populated by Reconfigure after validating the
-	// defaults file, so the selected reconfigurer writes the same snapshot.
-	materializedDefaults []byte
 }
 
 // ReconfigureResult represents the output of a bundle reconfigure operation.

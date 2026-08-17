@@ -68,6 +68,11 @@ func (p *defaultPusher) PushBundle(ctx context.Context, bundleDir, ociReference 
 	// can slot into the root index, artifact-typed so it is identifiable from
 	// the root without a fetch (ADR-0015).
 	childDesc := BundleChildDescriptor(content.NewDescriptorFromBytes(ocispec.MediaTypeImageIndex, idxBytes), arch)
+	signature, readErr := os.ReadFile(filepath.Join(bundleDir, BundleSignatureFileName))
+	hasSignature := readErr == nil
+	if readErr != nil && !os.IsNotExist(readErr) {
+		return nil, fmt.Errorf("reading bundle signature evidence: %w", readErr)
+	}
 
 	// Stage the index bytes as a blob so graph copy can push the child index and
 	// everything it references from this local store.
@@ -77,7 +82,7 @@ func (p *defaultPusher) PushBundle(ctx context.Context, bundleDir, ociReference 
 
 	log := logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
 	log.Debug("copying bundle to registry", "ref", ociReference, "arch", arch)
-	result, err := pushBundleToRemote(ctx, store.Store, childDesc, ociReference, &opts)
+	result, err := pushBundleToRemote(ctx, store.Store, childDesc, ociReference, &opts, signature, hasSignature)
 	if err != nil {
 		return nil, err
 	}

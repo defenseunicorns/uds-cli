@@ -5,6 +5,7 @@ package oci
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -157,6 +158,19 @@ func (s *Store) PruneUnreferencedBlobs(ctx context.Context, streams iostreams.IO
 func (s *Store) VerifyGraph(ctx context.Context, roots []ocispec.Descriptor) error {
 	_, err := reachableDigests(ctx, s, roots, true)
 	return err
+}
+
+// VerifyLocalLayoutGraph verifies every descriptor reachable from the OCI index in root.
+func VerifyLocalLayoutGraph(ctx context.Context, root string, index []byte) error {
+	var parsed ocispec.Index
+	if err := json.Unmarshal(index, &parsed); err != nil {
+		return fmt.Errorf("parsing OCI index: %w", err)
+	}
+	store, err := OpenStore(root)
+	if err != nil {
+		return fmt.Errorf("opening OCI layout: %w", err)
+	}
+	return store.VerifyGraph(ctx, parsed.Manifests)
 }
 
 func reachableDigests(ctx context.Context, store content.Fetcher, roots []ocispec.Descriptor, verifyLeafContent bool) (map[godigest.Digest]bool, error) {

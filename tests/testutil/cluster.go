@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sigstore/cosign/v3/pkg/cosign"
 	"github.com/stretchr/testify/require"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
@@ -286,10 +287,24 @@ func RequireUDSCommand(t *testing.T, udsPath string, args ...string) []byte {
 	return output
 }
 
-// CreateBundleArtifact creates and locates a bundle artifact in bundleDir.
+// GenerateCosignKeyPair writes a passwordless Cosign key pair for a test.
+func GenerateCosignKeyPair(t *testing.T) (string, string) {
+	t.Helper()
+
+	keys, err := cosign.GenerateKeyPair(nil)
+	require.NoError(t, err)
+
+	privateKey := filepath.Join(t.TempDir(), "cosign.key")
+	publicKey := filepath.Join(t.TempDir(), "cosign.pub")
+	require.NoError(t, os.WriteFile(privateKey, keys.PrivateBytes, 0o600))
+	require.NoError(t, os.WriteFile(publicKey, keys.PublicBytes, 0o600))
+	return privateKey, publicKey
+}
+
+// CreateBundleArtifact creates and locates an unsigned bundle artifact in bundleDir.
 func CreateBundleArtifact(t *testing.T, udsPath, bundleDir string) string {
 	t.Helper()
-	RequireUDSCommand(t, udsPath, "bundle", "create", "--architecture", runtime.GOARCH, bundleDir)
+	RequireUDSCommand(t, udsPath, "bundle", "create", "--unsigned", "--architecture", runtime.GOARCH, bundleDir)
 	matches, err := filepath.Glob(filepath.Join(bundleDir, "uds-bundle-*.tar.zst"))
 	require.NoError(t, err)
 	require.Len(t, matches, 1, "expected exactly one bundle artifact in %s", bundleDir)

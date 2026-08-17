@@ -21,6 +21,9 @@ type PullOptions struct {
 	OutputDir    string
 	Config       *bundle.UDSBundleConfig
 	Printer      printer.ResourcePrinter
+	Verification VerifyOptions
+
+	pullBundle func(ctx context.Context, ociReference, targetDir string, opts bundle.PullOptions) (*bundle.PullResult, error)
 
 	iostreams.IOStreams
 }
@@ -50,6 +53,7 @@ func NewPullCommand(streams iostreams.IOStreams) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&o.OutputDir, "output-dir", "d", ".", "directory to write the pulled bundle tarball")
+	addVerificationFlags(cmd, &o.Verification, true)
 
 	return cmd
 }
@@ -70,6 +74,7 @@ func (o *PullOptions) Complete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	o.Config = cfg
+	o.Verification.Config = cfg
 
 	p, err := ResolvePrinter(cmd)
 	if err != nil {
@@ -89,6 +94,11 @@ func (o *PullOptions) Validate() error {
 	if err := ValidateDir(o.OutputDir); err != nil {
 		return fmt.Errorf("--output-dir: %w", err)
 	}
+	if !o.Verification.SkipSignatureVerification {
+		if _, err := o.Verification.policy(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -96,6 +106,14 @@ func (o *PullOptions) Validate() error {
 func (o *PullOptions) Run(ctx context.Context) error {
 	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
 	o.Debug("pulling bundle", "ref", o.OCIReference, "output", o.OutputDir)
+	policy := bundle.VerificationPolicy{}
+	if !o.Verification.SkipSignatureVerification {
+		var err error
+		policy, err = o.Verification.policy()
+		if err != nil {
+			return err
+		}
+	}
 	if o.Config.Global.Prompt {
 		confirmed, err := PromptConfirmation(o.IOStreams, "Pull this bundle?")
 		if err != nil {
@@ -106,9 +124,15 @@ func (o *PullOptions) Run(ctx context.Context) error {
 			return nil
 		}
 	}
-	result, err := bundle.Pull(ctx, o.OCIReference, o.OutputDir, bundle.PullOptions{
-		Config:  o.Config,
-		Streams: o.IOStreams,
+	pullBundle := o.pullBundle
+	if pullBundle == nil {
+		pullBundle = bundle.Pull
+	}
+	result, err := pullBundle(ctx, o.OCIReference, o.OutputDir, bundle.PullOptions{
+		Config:                    o.Config,
+		Verification:              policy,
+		SkipSignatureVerification: o.Verification.SkipSignatureVerification,
+		Streams:                   o.IOStreams,
 	})
 	if err != nil {
 		return err

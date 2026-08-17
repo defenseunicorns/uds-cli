@@ -57,6 +57,7 @@ func TestPullOptions_Validate(t *testing.T) {
 				OCIReference: tt.ociReference,
 				OutputDir:    tt.outputDir,
 				Config:       &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults},
+				Verification: VerifyOptions{SkipSignatureVerification: true},
 			}
 			err := o.Validate()
 			if tt.wantErr != "" {

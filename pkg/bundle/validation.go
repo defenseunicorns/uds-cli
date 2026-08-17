@@ -91,12 +91,37 @@ func (o CreateOptions) Validate() error {
 	if o.BundleFile == "" {
 		return fmt.Errorf("BundleFile is required")
 	}
-	return nil
+	return o.Signing.Validate()
 }
 
 // Validate checks that PullOptions is valid.
 func (o PullOptions) Validate() error {
 	return ValidateConfig(o.Config)
+}
+
+func (o PullOptions) validateBundleVerification() error {
+	if o.SkipSignatureVerification {
+		return nil
+	}
+	return o.Verification.Validate()
+}
+
+// Validate validates options for preparing a deploy source. Only archive
+// artifacts require signature verification; source directories are local input.
+func (o PrepareDeploySourceOptions) Validate() error {
+	if strings.TrimSpace(o.Path) == "" {
+		return fmt.Errorf("path must not be empty")
+	}
+	if !IsTarZst(o.Path) {
+		return nil
+	}
+	if err := ValidateConfig(o.Config); err != nil {
+		return err
+	}
+	if o.SkipSignatureVerification {
+		return nil
+	}
+	return o.Verification.Validate()
 }
 
 // Validate checks the inspect source and configuration.
@@ -109,13 +134,19 @@ func (o InspectOptions) Validate() error {
 	}
 
 	if IsOCIReference(o.Source) {
-		_, err := udsoci.ReferenceIdentifier(o.Source)
-		return err
-	}
-	if !IsTarZst(o.Source) {
+		if _, err := udsoci.ReferenceIdentifier(o.Source); err != nil {
+			return err
+		}
+	} else if !IsTarZst(o.Source) {
 		return fmt.Errorf("source must be a .tar.zst bundle artifact or OCI reference")
 	}
-	return nil
+	if o.SkipSignatureVerification {
+		return nil
+	}
+	if !o.Verification.configured() {
+		return nil
+	}
+	return o.Verification.Validate()
 }
 
 // Validate checks that PushOptions is valid.
@@ -137,6 +168,12 @@ func (o ReconfigureOptions) Validate() error {
 	}
 	if err := validateLogLevel(o.Options.LogLevel); err != nil {
 		return err
+	}
+	if err := o.Signing.Validate(); err != nil {
+		return err
+	}
+	if !o.SkipSignatureVerification {
+		return o.Verification.Validate()
 	}
 	return nil
 }

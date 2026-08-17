@@ -55,10 +55,26 @@ type GlobalOptions struct {
 // Variables are free-form and captured via hcl:",remain" for manual extraction,
 // since they have no fixed schema.
 type UDSBundleConfig struct {
-	Global    *GlobalOptions
-	Options   *ConfigOptions `hcl:"options,block"`
-	Variables Variables      // populated after decode from Remain
-	Remain    hcl.Body       `hcl:",remain"` // captures variables and any other unstructured top-level attributes
+	Global                *GlobalOptions
+	Options               *ConfigOptions         `hcl:"options,block"`
+	SignatureVerification *SignatureVerification `hcl:"signature_verification,block"`
+	Variables             Variables              // populated after decode from Remain
+	Remain                hcl.Body               `hcl:",remain"` // captures variables and any other unstructured top-level attributes
+}
+
+// SignatureVerification holds consumer-owned bundle signature trust material.
+type SignatureVerification struct {
+	PublicKey string               `hcl:"public_key,optional"`
+	Keyless   *KeylessVerification `hcl:"keyless,block"`
+}
+
+// KeylessVerification holds keyless trust constraints from config.uds.hcl.
+type KeylessVerification struct {
+	CertificateIdentity         string `hcl:"certificate_identity,optional"`
+	CertificateIdentityRegexp   string `hcl:"certificate_identity_regexp,optional"`
+	CertificateOIDCIssuer       string `hcl:"certificate_oidc_issuer,optional"`
+	CertificateOIDCIssuerRegexp string `hcl:"certificate_oidc_issuer_regexp,optional"`
+	TrustedRoot                 string `hcl:"trusted_root,optional"`
 }
 
 // ConfigOptions holds bundle-component CLI options from the options block.

@@ -23,10 +23,10 @@ func TestRunDeployWith_PropagatesConfigAndClosesSource(t *testing.T) {
 	closeCalls := 0
 	deployCalls := 0
 
-	result, err := runDeployWith(t.Context(), streams, baseConfig, bundlePath, []string{"init"}, true, deployRunnerDependencies{
-		prepare: func(_ context.Context, _ iostreams.IOStreams, gotPath, tmpDir string) (*bundlepkg.DeploySource, error) {
-			assert.Equal(t, bundlePath, gotPath)
-			assert.Equal(t, baseConfig.Options.TmpDir, tmpDir)
+	result, err := runDeployWith(t.Context(), streams, baseConfig, bundlePath, []string{"init"}, true, bundlepkg.VerificationPolicy{}, false, deployRunnerDependencies{
+		prepare: func(_ context.Context, opts bundlepkg.PrepareDeploySourceOptions) (*bundlepkg.DeploySource, error) {
+			assert.Equal(t, bundlePath, opts.Path)
+			assert.Equal(t, baseConfig.Options.TmpDir, opts.TmpDir)
 			return prepared, nil
 		},
 		close: func(source *bundlepkg.DeploySource) error {
@@ -71,8 +71,8 @@ func TestRunDeployWith_ForceOnlyBypassesDependencySafety(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			closeCalls := 0
 			deployCalls := 0
-			_, err := runDeployWith(t.Context(), streams, testDeployBaseConfig(3), bundlePath, tt.packages, tt.force, deployRunnerDependencies{
-				prepare: func(context.Context, iostreams.IOStreams, string, string) (*bundlepkg.DeploySource, error) {
+			_, err := runDeployWith(t.Context(), streams, testDeployBaseConfig(3), bundlePath, tt.packages, tt.force, bundlepkg.VerificationPolicy{}, false, deployRunnerDependencies{
+				prepare: func(context.Context, bundlepkg.PrepareDeploySourceOptions) (*bundlepkg.DeploySource, error) {
 					return &bundlepkg.DeploySource{BundlePath: bundlePath}, nil
 				},
 				close: func(*bundlepkg.DeploySource) error {
@@ -100,8 +100,8 @@ func TestRunDeployWith_ClosesSourceOnDeployError(t *testing.T) {
 	bundlePath := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundlepkg.BundleFileName)
 	closeCalls := 0
 
-	_, err := runDeployWith(t.Context(), streams, testDeployBaseConfig(2), bundlePath, nil, false, deployRunnerDependencies{
-		prepare: func(context.Context, iostreams.IOStreams, string, string) (*bundlepkg.DeploySource, error) {
+	_, err := runDeployWith(t.Context(), streams, testDeployBaseConfig(2), bundlePath, nil, false, bundlepkg.VerificationPolicy{}, false, deployRunnerDependencies{
+		prepare: func(context.Context, bundlepkg.PrepareDeploySourceOptions) (*bundlepkg.DeploySource, error) {
 			return &bundlepkg.DeploySource{BundlePath: bundlePath}, nil
 		},
 		close: func(*bundlepkg.DeploySource) error {

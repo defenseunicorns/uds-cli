@@ -6,6 +6,7 @@ package bundle
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,11 +21,12 @@ import (
 
 // DeployOptions holds options for artifact deployment.
 type DeployOptions struct {
-	BundlePath string
-	Packages   []string
-	Force      bool
-	Config     *bundle.UDSBundleConfig
-	Printer    printer.ResourcePrinter
+	BundlePath   string
+	Packages     []string
+	Force        bool
+	Config       *bundle.UDSBundleConfig
+	Printer      printer.ResourcePrinter
+	Verification VerifyOptions
 
 	flags     CLIFlags
 	puller    bundle.Puller
@@ -73,6 +75,7 @@ inputs and must use uds bundle dev deploy instead.`,
 	}
 
 	addDeployFlags(cmd, &o.Packages, &o.Force)
+	addVerificationFlags(cmd, &o.Verification, true)
 
 	return cmd
 }
@@ -88,6 +91,16 @@ func (o *DeployOptions) Complete(cmd *cobra.Command, args []string) error {
 		o.BundlePath = args[0]
 	}
 	o.flags = SnapshotFlags(cmd)
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	config, _, err := NewConfigResolver().resolveBase(ctx, o.IOStreams, o.flags)
+	if err != nil {
+		return err
+	}
+	o.Config = config
+	o.Verification.Config = config
 
 	p, err := ResolvePrinter(cmd)
 	if err != nil {
@@ -99,30 +112,49 @@ func (o *DeployOptions) Complete(cmd *cobra.Command, args []string) error {
 
 // Validate validates artifact deploy options without modifying state.
 func (o *DeployOptions) Validate() error {
-	return ValidateArtifactReference(o.BundlePath)
+	if err := ValidateArtifactReference(o.BundlePath); err != nil {
+		return err
+	}
+	if !o.Verification.SkipSignatureVerification {
+		if _, err := o.Verification.policy(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Run executes local or OCI artifact deployment.
 func (o *DeployOptions) Run(ctx context.Context) error {
-	o.IOStreams = logger.Bind(o.IOStreams, o.flags.LogLevel)
+	if o.Config == nil {
+		config, _, err := NewConfigResolver().resolveBase(ctx, o.IOStreams, o.flags)
+		if err != nil {
+			return err
+		}
+		o.Config = config
+	}
+	if o.Verification.Config == nil {
+		o.Verification.Config = o.Config
+	}
+	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
 
-	baseConfig, _, err := NewConfigResolver().resolveBase(ctx, o.IOStreams, o.flags)
+	policy := bundle.VerificationPolicy{}
+	var err error
+	if !o.Verification.SkipSignatureVerification {
+		policy, err = o.Verification.policy()
+		if err != nil {
+			return err
+		}
+	}
+	artifactPath, cleanup, err := o.stageArtifact(ctx, policy)
 	if err != nil {
 		return err
 	}
-	o.Config = baseConfig
-	o.IOStreams = logger.Bind(o.IOStreams, baseConfig.Global.LogLevel)
-
-	var result *bundle.DeployResult
+	defer cleanup()
 	runner := o.runDeploy
 	if runner == nil {
 		runner = runDeploy
 	}
-	if bundle.IsOCIReference(o.BundlePath) {
-		result, err = o.runOCIArtifact(ctx, runner)
-	} else {
-		result, err = runner(ctx, o.IOStreams, baseConfig, o.BundlePath, o.Packages, o.Force)
-	}
+	result, err := runner(ctx, o.IOStreams, o.Config, artifactPath, o.Packages, o.Force, policy, o.Verification.SkipSignatureVerification)
 	if err != nil {
 		return err
 	}
@@ -132,40 +164,98 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 	return o.Printer.PrintObj(result, o.Out())
 }
 
-func (o *DeployOptions) runOCIArtifact(ctx context.Context, runner deployRunnerFunc) (*bundle.DeployResult, error) {
-	outputDir, err := os.MkdirTemp(o.Config.Options.TmpDir, "uds-bundle-oci-deploy-*")
-	if err != nil {
-		return nil, fmt.Errorf("creating workspace for OCI bundle deploy: %w", err)
+// stageArtifact places the artifact in a private workspace before verification
+// and deployment so both operations consume the same immutable copy.
+func (o *DeployOptions) stageArtifact(ctx context.Context, policy bundle.VerificationPolicy) (string, func(), error) {
+	if bundle.IsOCIReference(o.BundlePath) {
+		return o.pullOCIArtifact(ctx, policy)
 	}
-	defer func() {
-		if cleanupErr := os.RemoveAll(outputDir); cleanupErr != nil {
-			o.Warn("failed to remove OCI deploy workspace", "path", outputDir, "error", cleanupErr)
-		}
-	}()
+	if o.Verification.SkipSignatureVerification {
+		return o.BundlePath, func() {}, nil
+	}
+	return o.stageLocalArtifact()
+}
+
+func (o *DeployOptions) stageLocalArtifact() (string, func(), error) {
+	workspace, cleanup, err := o.newArtifactWorkspace("uds-bundle-local-deploy-*")
+	if err != nil {
+		return "", nil, err
+	}
+
+	source, err := os.Open(o.BundlePath)
+	if err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("opening local bundle artifact: %w", err)
+	}
+	defer func() { _ = source.Close() }()
+
+	artifactPath := filepath.Join(workspace, "bundle.tar.zst")
+	destination, err := os.OpenFile(artifactPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("creating staged bundle artifact: %w", err)
+	}
+	_, copyErr := io.Copy(destination, source)
+	closeErr := destination.Close()
+	if copyErr != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("staging local bundle artifact: %w", copyErr)
+	}
+	if closeErr != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("closing staged bundle artifact: %w", closeErr)
+	}
+	return artifactPath, cleanup, nil
+}
+
+func (o *DeployOptions) pullOCIArtifact(ctx context.Context, policy bundle.VerificationPolicy) (string, func(), error) {
+	outputDir, cleanup, err := o.newArtifactWorkspace("uds-bundle-oci-deploy-*")
+	if err != nil {
+		return "", nil, err
+	}
 
 	puller := o.puller
 	if puller == nil {
 		puller = bundle.NewDefaultPuller()
 	}
 	result, err := puller.PullBundle(ctx, o.BundlePath, outputDir, bundle.PullOptions{
-		Config:  o.Config,
-		Streams: o.IOStreams,
+		Config:                    o.Config,
+		Verification:              policy,
+		SkipSignatureVerification: o.Verification.SkipSignatureVerification,
+		Streams:                   o.IOStreams,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("pulling bundle for deploy: %w", err)
+		cleanup()
+		return "", nil, fmt.Errorf("pulling bundle for deploy: %w", err)
 	}
 	if result == nil {
-		return nil, fmt.Errorf("pulling bundle for deploy: puller returned no result")
+		cleanup()
+		return "", nil, fmt.Errorf("pulling bundle for deploy: puller returned no result")
 	}
 	if result.OutputPath == "" {
-		return nil, fmt.Errorf("pulling bundle for deploy: puller returned an empty output path")
+		cleanup()
+		return "", nil, fmt.Errorf("pulling bundle for deploy: puller returned an empty output path")
 	}
 	artifactPath, err := validatePulledArtifact(outputDir, result.OutputPath)
 	if err != nil {
-		return nil, fmt.Errorf("pulling bundle for deploy: %w", err)
+		cleanup()
+		return "", nil, fmt.Errorf("pulling bundle for deploy: %w", err)
 	}
 
-	return runner(ctx, o.IOStreams, o.Config, artifactPath, o.Packages, o.Force)
+	return artifactPath, cleanup, nil
+}
+
+func (o *DeployOptions) newArtifactWorkspace(pattern string) (string, func(), error) {
+	workspace, err := os.MkdirTemp(o.Config.Options.TmpDir, pattern)
+	if err != nil {
+		return "", nil, fmt.Errorf("creating workspace for bundle deploy: %w", err)
+	}
+	cleanup := func() {
+		if cleanupErr := os.RemoveAll(workspace); cleanupErr != nil {
+			o.Warn("failed to remove deploy workspace", "path", workspace, "error", cleanupErr)
+		}
+	}
+	return workspace, cleanup, nil
 }
 
 func validatePulledArtifact(workspace, outputPath string) (string, error) {

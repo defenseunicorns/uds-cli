@@ -143,7 +143,7 @@ func TestDevDeployOptions_Run_ResolvesTarZstDirectoryAsSource(t *testing.T) {
 		BundlePath: sourceDir,
 		Printer:    textPrinter,
 		IOStreams:  streams,
-		runDeploy: func(_ context.Context, _ iostreams.IOStreams, _ *bundlepkg.UDSBundleConfig, path string, _ []string, _ bool) (*bundlepkg.DeployResult, error) {
+		runDeploy: func(_ context.Context, _ iostreams.IOStreams, _ *bundlepkg.UDSBundleConfig, path string, _ []string, _ bool, _ bundlepkg.VerificationPolicy, _ bool) (*bundlepkg.DeployResult, error) {
 			gotPath = path
 			return nil, nil
 		},

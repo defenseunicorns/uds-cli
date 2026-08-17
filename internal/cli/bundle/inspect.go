@@ -16,13 +16,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const bundleSignatureNotCheckedWarning = "bundle signature verification was not performed; package verification policy and signing metadata do not establish bundle integrity"
-
 // InspectOptions holds the options for the inspect command.
 type InspectOptions struct {
-	BundlePath string // Path to a .tar.zst artifact or OCI reference
-	Config     *bundle.UDSBundleConfig
-	Printer    printer.ResourcePrinter
+	BundlePath   string // Path to a .tar.zst artifact or OCI reference
+	Config       *bundle.UDSBundleConfig
+	Printer      printer.ResourcePrinter
+	Verification VerifyOptions
 
 	iostreams.IOStreams
 }
@@ -50,6 +49,7 @@ func NewInspectCommand(streams iostreams.IOStreams) *cobra.Command {
 			util.CheckErr(o.Run(ctx))
 		},
 	}
+	addVerificationFlags(cmd, &o.Verification, true)
 
 	return cmd
 }
@@ -73,6 +73,7 @@ func (o *InspectOptions) Complete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	o.Config = cfg
+	o.Verification.Config = cfg
 
 	p, err := ResolvePrinter(cmd)
 	if err != nil {
@@ -86,10 +87,16 @@ func (o *InspectOptions) Complete(cmd *cobra.Command, args []string) error {
 // Validate validates the options without modifying state.
 func (o *InspectOptions) Validate() error {
 	if err := (bundle.InspectOptions{
-		Source: o.BundlePath,
-		Config: o.Config,
+		Source:                    o.BundlePath,
+		Config:                    o.Config,
+		SkipSignatureVerification: true,
 	}).Validate(); err != nil {
 		return err
+	}
+	if !o.Verification.SkipSignatureVerification {
+		if _, err := o.inspectionPolicy(); err != nil {
+			return err
+		}
 	}
 	if bundle.IsOCIReference(o.BundlePath) {
 		return nil
@@ -115,17 +122,40 @@ func (o *InspectOptions) Run(ctx context.Context) error {
 	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
 	o.Debug("inspecting bundle", "source", o.BundlePath)
 
+	policy := bundle.VerificationPolicy{}
+	if !o.Verification.SkipSignatureVerification {
+		var err error
+		policy, err = o.inspectionPolicy()
+		if err != nil {
+			return err
+		}
+	}
 	result, err := bundle.Inspect(ctx, bundle.InspectOptions{
-		Source:  o.BundlePath,
-		Config:  o.Config,
-		Streams: o.IOStreams,
+		Source:                    o.BundlePath,
+		Config:                    o.Config,
+		Verification:              policy,
+		SkipSignatureVerification: o.Verification.SkipSignatureVerification,
+		Streams:                   o.IOStreams,
 	})
 	if err != nil {
 		return fmt.Errorf("inspecting bundle: %w", err)
 	}
-	if result.BundleSignature != nil && result.BundleSignature.Status == bundle.BundleSignatureStatusNotChecked {
-		o.Warn(bundleSignatureNotCheckedWarning)
+	if o.Verification.SkipSignatureVerification {
+		bundle.WarnSkippedSignatureVerification(o.IOStreams)
 	}
 
 	return o.Printer.PrintObj(result, o.Out())
+}
+
+func (o *InspectOptions) inspectionPolicy() (bundle.VerificationPolicy, error) {
+	verification := o.Verification
+	if verification.Config == nil {
+		verification.Config = o.Config
+	}
+	hasFlags := verification.PublicKey != "" || verification.Identity != "" || verification.IdentityRE != "" ||
+		verification.Issuer != "" || verification.IssuerRE != "" || verification.TrustedRoot != ""
+	if !hasFlags && (verification.Config == nil || verification.Config.SignatureVerification == nil) {
+		return bundle.VerificationPolicy{}, nil
+	}
+	return verification.policy()
 }

@@ -50,7 +50,13 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ref, targetDir string, o
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	result, err := p.puller.PullBundle(ctx, ref, targetDir, toOCIPullOptions(opts))
+	if err := opts.validateBundleVerification(); err != nil {
+		return nil, err
+	}
+	if opts.SkipSignatureVerification {
+		WarnSkippedSignatureVerification(opts.Streams)
+	}
+	result, err := p.puller.PullBundle(ctx, ref, targetDir, toOCIPullOptions(opts, true))
 	if result == nil {
 		return nil, err
 	}
@@ -62,7 +68,7 @@ func (p *defaultPuller) PullPackage(ctx context.Context, ref, targetDir string, 
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	result, err := p.puller.PullPackage(ctx, ref, targetDir, toOCIPullOptions(opts))
+	result, err := p.puller.PullPackage(ctx, ref, targetDir, toOCIPullOptions(opts, false))
 	if result == nil {
 		return nil, err
 	}
@@ -100,10 +106,19 @@ func (p *defaultPusher) PushPackage(ctx context.Context, packageDir, ref string,
 }
 
 // toOCIPullOptions converts public pull options and hooks to internal equivalents.
-func toOCIPullOptions(opts PullOptions) udsoci.PullOptions {
-	internal := udsoci.PullOptions{Config: toInternalConfig(opts.Config), Streams: opts.Streams}
+func toOCIPullOptions(opts PullOptions, verifyBundle bool) udsoci.PullOptions {
+	internal := udsoci.PullOptions{
+		Config:                    toInternalConfig(opts.Config),
+		Streams:                   opts.Streams,
+		SkipSignatureVerification: opts.SkipSignatureVerification,
+	}
 	internal.PullHooks.CreateBundleArchive = artifact.CreateBundleArchive
 	internal.PullHooks.ModifyOrasSettings = opts.PullHooks.ModifyOrasSettings
+	if verifyBundle && !opts.SkipSignatureVerification {
+		internal.PullHooks.VerifyBundle = func(ctx context.Context, index, evidence []byte) error {
+			return verifySignature(ctx, index, evidence, opts.Verification, opts.Config.Options.TmpDir)
+		}
+	}
 	if opts.PullHooks.ToOrasTarget != nil {
 		internal.PullHooks.ToOrasTarget = func(ctx context.Context, ref string, _ *udsoci.PullOptions) (oras.Target, error) {
 			return opts.PullHooks.ToOrasTarget(ctx, ref, &opts)

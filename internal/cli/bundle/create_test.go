@@ -59,14 +59,14 @@ func TestCreateOptions_Validate(t *testing.T) {
 	})
 
 	t.Run("valid directory containing bundle file", func(t *testing.T) {
-		o := &CreateOptions{BundlePath: validDir, Config: &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults}}
+		o := &CreateOptions{BundlePath: validDir, Config: &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults}, Signing: bundle.SigningOptions{Mode: bundle.SigningModeUnsigned}}
 		require.NoError(t, o.Validate())
 		// Validate should not modify BundlePath
 		assert.Equal(t, validDir, o.BundlePath, "Validate() should not modify BundlePath")
 	})
 
 	t.Run("valid bundle file directly", func(t *testing.T) {
-		o := &CreateOptions{BundlePath: validBundleFile, Config: &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults}}
+		o := &CreateOptions{BundlePath: validBundleFile, Config: &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults}, Signing: bundle.SigningOptions{Mode: bundle.SigningModeUnsigned}}
 		require.NoError(t, o.Validate())
 	})
 
@@ -101,6 +101,18 @@ func TestCreateOptions_Complete_NoArgs(t *testing.T) {
 	err := o.Complete(cmd, []string{})
 	require.NoError(t, err)
 	assert.Equal(t, ".", o.BundlePath)
+}
+
+func TestCompleteCreateSigningOptions_RequiresExplicitMode(t *testing.T) {
+	t.Parallel()
+
+	cmd := &cobra.Command{}
+	options := &bundle.SigningOptions{}
+	addSigningFlags(cmd, options)
+	cmd.Flags().Bool("unsigned", false, "create an unsigned bundle")
+
+	err := completeCreateSigningOptions(cmd, options)
+	require.ErrorContains(t, err, "one of --signing-key, --keyless, or --unsigned is required")
 }
 
 func TestCreateOptions_Run_PromptDecline(t *testing.T) {

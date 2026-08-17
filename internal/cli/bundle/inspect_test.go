@@ -54,7 +54,10 @@ package "pkg" {
 	result, err := bundlepkg.Create(t.Context(), bundlepkg.CreateOptions{
 		Config:     config,
 		BundleFile: bundleFile,
-		Streams:    iostreams.IOStreams{},
+		Signing: bundlepkg.SigningOptions{
+			Mode: bundlepkg.SigningModeUnsigned,
+		},
+		Streams: iostreams.IOStreams{},
 	})
 	require.NoError(t, err)
 	return result.OutputPath
@@ -167,6 +170,9 @@ func TestInspectOptions_Validate(t *testing.T) {
 			o := &InspectOptions{
 				BundlePath: tt.bundlePath,
 				Config:     testInspectConfig(),
+				Verification: VerifyOptions{
+					SkipSignatureVerification: true,
+				},
 			}
 			err := o.Validate()
 			if tt.wantErr == "" {
@@ -201,20 +207,67 @@ func TestInspectOptions_Run(t *testing.T) {
 		BundlePath: artifact,
 		Config:     testInspectConfig(),
 		Printer:    textPrinter,
-		IOStreams:  streams,
+		Verification: VerifyOptions{
+			SkipSignatureVerification: true,
+		},
+		IOStreams: streams,
 	}
 
 	require.NoError(t, o.Run(t.Context()))
 	assert.Contains(t, out.String(), "inspect-test")
 	assert.Contains(t, out.String(), "pkg")
-	assert.Contains(t, out.String(), "not_checked")
-	assert.NotContains(t, out.String(), "package verification policy and signing metadata do not establish bundle integrity")
-	assert.Contains(t, errOut.String(), "bundle signature verification was not performed")
+	assert.Contains(t, out.String(), "skipped")
+	assert.Contains(t, errOut.String(), "signature verification was skipped")
+}
+
+func TestInspectOptions_Run_Unverified(t *testing.T) {
+	artifact := createTestArtifact(t)
+	streams, _, out, errOut := iostreams.NewTestIOStreams()
+	textPrinter, err := printer.NewPrinter(printer.FormatText)
+	require.NoError(t, err)
+
+	o := &InspectOptions{
+		BundlePath: artifact,
+		Config:     testInspectConfig(),
+		Printer:    textPrinter,
+		IOStreams:  streams,
+	}
+
+	require.NoError(t, o.Run(t.Context()))
+	assert.Contains(t, out.String(), "inspect-test")
+	assert.Contains(t, out.String(), "unverified")
+	assert.Contains(t, errOut.String(), "bundle signature was not verified during inspection")
 }
 
 func TestInspectOptions_Run_JSONOutput(t *testing.T) {
 	artifact := createTestArtifact(t)
 	streams, _, out, _ := iostreams.NewTestIOStreams()
+	jsonPrinter, err := printer.NewPrinter(printer.FormatJSON)
+	require.NoError(t, err)
+
+	o := &InspectOptions{
+		BundlePath: artifact,
+		Config:     testInspectConfig(),
+		Printer:    jsonPrinter,
+		Verification: VerifyOptions{
+			SkipSignatureVerification: true,
+		},
+		IOStreams: streams,
+	}
+	require.NoError(t, o.Run(t.Context()))
+
+	var result bundlepkg.InspectResult
+	require.NoError(t, json.Unmarshal(out.Bytes(), &result))
+	assert.Equal(t, "inspect-test", result.Name)
+	assert.NotEmpty(t, result.ArtifactDigest)
+	require.NotNil(t, result.BundleSignature)
+	assert.Equal(t, "skipped", result.BundleSignature.Status)
+	assert.Len(t, result.Packages, 1)
+}
+
+func TestInspectOptions_Run_UnverifiedJSONOutput(t *testing.T) {
+	artifact := createTestArtifact(t)
+	streams, _, out, errOut := iostreams.NewTestIOStreams()
 	jsonPrinter, err := printer.NewPrinter(printer.FormatJSON)
 	require.NoError(t, err)
 
@@ -228,12 +281,9 @@ func TestInspectOptions_Run_JSONOutput(t *testing.T) {
 
 	var result bundlepkg.InspectResult
 	require.NoError(t, json.Unmarshal(out.Bytes(), &result))
-	assert.Equal(t, "inspect-test", result.Name)
-	assert.NotEmpty(t, result.ArtifactDigest)
 	require.NotNil(t, result.BundleSignature)
-	assert.Equal(t, "not_checked", result.BundleSignature.Status)
-	assert.NotContains(t, out.String(), "warning")
-	assert.Len(t, result.Packages, 1)
+	assert.Equal(t, bundlepkg.BundleSignatureStatusUnverified, result.BundleSignature.Status)
+	assert.Contains(t, errOut.String(), "bundle signature was not verified during inspection")
 }
 
 func TestInspectOptions_Run_YAMLOutput(t *testing.T) {
@@ -246,7 +296,10 @@ func TestInspectOptions_Run_YAMLOutput(t *testing.T) {
 		BundlePath: artifact,
 		Config:     testInspectConfig(),
 		Printer:    yamlPrinter,
-		IOStreams:  streams,
+		Verification: VerifyOptions{
+			SkipSignatureVerification: true,
+		},
+		IOStreams: streams,
 	}
 	require.NoError(t, o.Run(t.Context()))
 
@@ -255,7 +308,6 @@ func TestInspectOptions_Run_YAMLOutput(t *testing.T) {
 	assert.Equal(t, "inspect-test", result.Name)
 	assert.NotEmpty(t, result.ArtifactDigest)
 	require.NotNil(t, result.BundleSignature)
-	assert.Equal(t, "not_checked", result.BundleSignature.Status)
-	assert.NotContains(t, out.String(), "warning")
+	assert.Equal(t, "skipped", result.BundleSignature.Status)
 	assert.Len(t, result.Packages, 1)
 }

@@ -6,6 +6,7 @@ package oci
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -82,6 +83,16 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 	if err != nil {
 		return nil, fmt.Errorf("resolving bundle from %s: %w", ociReference, err)
 	}
+	var signature []byte
+	if opts.PullHooks.VerifyBundle != nil {
+		signature, err = FetchBundleSignature(ctx, src, childDesc)
+		if err != nil {
+			return nil, fmt.Errorf("fetching bundle signature evidence: %w", err)
+		}
+		if err := opts.PullHooks.VerifyBundle(ctx, idxBytes, signature); err != nil {
+			return nil, fmt.Errorf("verifying bundle signature: %w", err)
+		}
+	}
 
 	// Copy only the selected architecture's graph — never sibling architectures.
 	copyOpts, err := pullCopyOptions(ctx, &opts)
@@ -91,6 +102,20 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 	log.Debug("copying bundle from registry", "ref", ociReference, "digest", childDesc.Digest.String())
 	if err := copyGraph(ctx, src, store, childDesc, copyOpts.CopyGraphOptions); err != nil {
 		return nil, fmt.Errorf("pulling bundle from %s: %w", ociReference, err)
+	}
+	if signature == nil {
+		signature, err = FetchBundleSignature(ctx, src, childDesc)
+	}
+	if err == nil {
+		if err := os.WriteFile(filepath.Join(tmp, BundleSignatureFileName), signature, tmpFilePerm); err != nil {
+			return nil, fmt.Errorf("writing bundle signature evidence: %w", err)
+		}
+	} else if errors.Is(err, ErrBundleSignatureNotFound) {
+		log.Debug("bundle signature evidence unavailable", "error", err)
+	} else if opts.SkipSignatureVerification {
+		log.Warn("unable to preserve bundle signature evidence; continuing because signature verification was skipped; later verification may fail", "error", err)
+	} else {
+		return nil, fmt.Errorf("fetching bundle signature evidence: %w", err)
 	}
 
 	// Write the child index bytes verbatim as index.json to restore the layout

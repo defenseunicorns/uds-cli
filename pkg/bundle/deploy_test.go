@@ -19,7 +19,7 @@ func TestPrepareDeploySource_Directory(t *testing.T) {
 		bundleFile := filepath.Join(dir, BundleFileName)
 		require.NoError(t, os.WriteFile(bundleFile, []byte(""), 0o600))
 
-		src, err := PrepareDeploySource(t.Context(), iostreams.IOStreams{}, dir, "")
+		src, err := PrepareDeploySource(t.Context(), PrepareDeploySourceOptions{Path: dir})
 		require.NoError(t, err)
 		defer func() { require.NoError(t, src.Close()) }()
 
@@ -33,7 +33,7 @@ func TestPrepareDeploySource_Directory(t *testing.T) {
 		bundleFile := filepath.Join(dir, BundleFileName)
 		require.NoError(t, os.WriteFile(bundleFile, []byte(""), 0o600))
 
-		src, err := PrepareDeploySource(t.Context(), iostreams.IOStreams{}, bundleFile, "")
+		src, err := PrepareDeploySource(t.Context(), PrepareDeploySourceOptions{Path: bundleFile})
 		require.NoError(t, err)
 		defer func() { require.NoError(t, src.Close()) }()
 
@@ -48,15 +48,15 @@ func TestPrepareDeploySource_Directory(t *testing.T) {
 		bundleFile := filepath.Join(dir, BundleFileName)
 		require.NoError(t, os.WriteFile(bundleFile, []byte(""), 0o600))
 
-		_, err := PrepareDeploySource(t.Context(), iostreams.IOStreams{}, dir, "")
-		require.ErrorContains(t, err, "extracting bundle artifact")
+		_, err := PrepareDeploySource(t.Context(), PrepareDeploySourceOptions{Path: dir})
+		require.ErrorContains(t, err, "config is required")
 	})
 
 	t.Run("cleanup is safe to call", func(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(dir, BundleFileName), []byte(""), 0o600))
 
-		src, err := PrepareDeploySource(t.Context(), iostreams.IOStreams{}, dir, "")
+		src, err := PrepareDeploySource(t.Context(), PrepareDeploySourceOptions{Path: dir})
 		require.NoError(t, err)
 
 		// Directory sources do not own resources; Close must be a no-op.
@@ -77,7 +77,13 @@ package "mypkg" {
 	}, []string{"example.com/pkg:v1"})
 	tmpRoot := t.TempDir()
 
-	src, err := PrepareDeploySource(t.Context(), iostreams.IOStreams{}, tarPath, tmpRoot)
+	src, err := PrepareDeploySource(t.Context(), PrepareDeploySourceOptions{
+		Path:                      tarPath,
+		Config:                    validValidationConfig(),
+		SkipSignatureVerification: true,
+		TmpDir:                    tmpRoot,
+		Streams:                   iostreams.IOStreams{},
+	})
 	require.NoError(t, err)
 	require.NotNil(t, src)
 

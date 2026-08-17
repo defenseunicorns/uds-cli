@@ -72,9 +72,10 @@ type GlobalOptions = bundleinternal.GlobalOptions
 
 // PullOptions configures an OCI pull operation.
 type PullOptions struct {
-	Config    *Config
-	Streams   iostreams.IOStreams
-	PullHooks PullHooks
+	Config                    *Config
+	Streams                   iostreams.IOStreams
+	SkipSignatureVerification bool
+	PullHooks                 PullHooks
 }
 
 // Validate validates pull options.
@@ -109,6 +110,7 @@ type PushResult struct {
 type PullHooks struct {
 	ToOrasTarget        func(ctx context.Context, ociReference string, opts *PullOptions) (oras.Target, error)
 	ModifyOrasSettings  func(ctx context.Context, copyOptions *oras.CopyOptions) error
+	VerifyBundle        func(ctx context.Context, index, evidence []byte) error
 	CreateBundleArchive func(
 		ctx context.Context,
 		streams iostreams.IOStreams,

@@ -615,6 +615,9 @@ variables = {
   overridden  = "config"
   from_config = "config"
 }
+signature_verification {
+  public_key = "trusted-public-key"
+}
 `), 0o600))
 
 	flags := CLIFlags{
@@ -636,6 +639,8 @@ variables = {
 	assert.Equal(t, bundleDir, base.Options.TmpDir)
 	assert.True(t, base.Global.Prompt)
 	assert.Equal(t, bundle.Variables{"overridden": "config", "from_config": "config"}, base.Variables)
+	require.NotNil(t, base.SignatureVerification)
+	assert.Equal(t, "trusted-public-key", base.SignatureVerification.PublicKey)
 
 	resolved, err := r.applyBundleDefaults(t.Context(), iostreams.IOStreams{}, base, bundleDir)
 	require.NoError(t, err)

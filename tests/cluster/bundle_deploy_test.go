@@ -50,7 +50,28 @@ func TestDeployFromArtifact(t *testing.T) {
 	require.NoError(t, os.Rename(artifactPath, deployArtifact))
 
 	testutil.RequireUDSCommand(t, testEnv.udsPath,
-		"bundle", "deploy", deployArtifact,
+		"bundle", "deploy", "--skip-signature-verification", deployArtifact,
+		"--config", testutil.TestDataPath("bundles/deploy/variables/config.uds.hcl"),
+	)
+
+	assertPodinfoConfiguration(t, k8s, namespace)
+}
+
+func TestDeploySignedArtifact(t *testing.T) {
+	t.Parallel()
+
+	namespace, k8s := testutil.AllocateTestNamespace(t, sharedClusterName, namespaceCleanupTimeout)
+	bundleDir := testutil.PreparePodinfoBundle(t, testEnv.podinfoPackagePath, "podinfo-signed", namespace)
+	testutil.RegisterBundleCleanup(t, testEnv.udsPath, bundleDir, namespaceCleanupTimeout)
+	artifactPath := testutil.CreateBundleArtifact(t, testEnv.udsPath, bundleDir)
+	privateKey, publicKey := testutil.GenerateCosignKeyPair(t)
+
+	testutil.RequireUDSCommand(t, testEnv.udsPath,
+		"bundle", "sign", artifactPath, "--signing-key", privateKey,
+	)
+	testutil.RequireUDSCommand(t, testEnv.udsPath,
+		"bundle", "deploy", artifactPath,
+		"--public-key", publicKey,
 		"--config", testutil.TestDataPath("bundles/deploy/variables/config.uds.hcl"),
 	)
 
@@ -73,7 +94,7 @@ func TestDeployFromOCI(t *testing.T) {
 
 	testutil.RequireUDSCommand(t, testEnv.udsPath, "bundle", "push", artifactPath, ref, "--plain-http")
 	testutil.RequireUDSCommand(t, testEnv.udsPath,
-		"bundle", "deploy", "oci://"+ref,
+		"bundle", "deploy", "--skip-signature-verification", "oci://"+ref,
 		"--plain-http", "--config", configPath,
 	)
 

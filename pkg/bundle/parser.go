@@ -93,10 +93,11 @@ func toInternalConfig(cfg *UDSBundleConfig) *bundleinternal.UDSBundleConfig {
 		}
 	}
 	return &bundleinternal.UDSBundleConfig{
-		Global:    global,
-		Options:   options,
-		Variables: toInternalVariables(cfg.Variables),
-		Remain:    cfg.Remain,
+		Global:                global,
+		Options:               options,
+		SignatureVerification: toInternalVerificationPolicy(cfg.SignatureVerification),
+		Variables:             toInternalVariables(cfg.Variables),
+		Remain:                cfg.Remain,
 	}
 }
 
@@ -132,11 +133,42 @@ func fromInternalConfig(cfg *bundleinternal.UDSBundleConfig) *UDSBundleConfig {
 		}
 	}
 	return &UDSBundleConfig{
-		Global:    global,
-		Options:   options,
-		Variables: fromInternalVariables(cfg.Variables),
-		Remain:    cfg.Remain,
+		Global:                global,
+		Options:               options,
+		SignatureVerification: fromInternalVerificationPolicy(cfg.SignatureVerification),
+		Variables:             fromInternalVariables(cfg.Variables),
+		Remain:                cfg.Remain,
 	}
+}
+
+func toInternalVerificationPolicy(policy *VerificationPolicy) *bundleinternal.SignatureVerification {
+	if policy == nil {
+		return nil
+	}
+	result := &bundleinternal.SignatureVerification{PublicKey: policy.PublicKey}
+	if policy.Keyless != nil {
+		result.Keyless = &bundleinternal.KeylessVerification{
+			CertificateIdentity: policy.Keyless.CertificateIdentity, CertificateIdentityRegexp: policy.Keyless.CertificateIdentityRegexp,
+			CertificateOIDCIssuer: policy.Keyless.CertificateOIDCIssuer, CertificateOIDCIssuerRegexp: policy.Keyless.CertificateOIDCIssuerRegexp,
+			TrustedRoot: policy.Keyless.TrustedRoot,
+		}
+	}
+	return result
+}
+
+func fromInternalVerificationPolicy(policy *bundleinternal.SignatureVerification) *VerificationPolicy {
+	if policy == nil {
+		return nil
+	}
+	result := &VerificationPolicy{PublicKey: policy.PublicKey}
+	if policy.Keyless != nil {
+		result.Keyless = &KeylessVerification{
+			CertificateIdentity: policy.Keyless.CertificateIdentity, CertificateIdentityRegexp: policy.Keyless.CertificateIdentityRegexp,
+			CertificateOIDCIssuer: policy.Keyless.CertificateOIDCIssuer, CertificateOIDCIssuerRegexp: policy.Keyless.CertificateOIDCIssuerRegexp,
+			TrustedRoot: policy.Keyless.TrustedRoot,
+		}
+	}
+	return result
 }
 
 // toInternalVariables recursively converts public variables to internal variables.

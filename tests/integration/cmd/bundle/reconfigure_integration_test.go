@@ -45,6 +45,8 @@ func TestReconfigure_LocalTarball(t *testing.T) {
 		"--defaults", newDefaultsPath,
 		"--suffix", "-prod",
 		"--output-dir", outDir,
+		"--unsigned",
+		"--skip-signature-verification",
 	})
 	require.NoError(t, root.Execute())
 
@@ -90,7 +92,7 @@ func TestReconfigure_LocalTarball(t *testing.T) {
 	// Verify inspect exposes the stored provenance annotation.
 	inspectStreams, _, inspectOut, _ := iostreams.NewTestIOStreams()
 	inspectRoot := bundlecmd.NewBundleCommand(inspectStreams)
-	inspectRoot.SetArgs([]string{"inspect", reconfiguredPath, "--output", "json"})
+	inspectRoot.SetArgs([]string{"inspect", reconfiguredPath, "--skip-signature-verification", "--output", "json"})
 	require.NoError(t, inspectRoot.Execute())
 	var inspectResult bundlepkg.InspectResult
 	require.NoError(t, json.Unmarshal(inspectOut.Bytes(), &inspectResult))
@@ -98,6 +100,49 @@ func TestReconfigure_LocalTarball(t *testing.T) {
 	require.Len(t, inspectResult.Packages, 1)
 	require.NotNil(t, inspectResult.Packages[0].Signature)
 	assert.Equal(t, bundlepkg.PackageSigningStatusSigned, inspectResult.Packages[0].Signature.Signed)
+}
+
+func TestReconfigure_SignedLocalTarball(t *testing.T) {
+	inputPath := createInspectArtifact(t)
+	privateKey, publicKey := testutil.GenerateCosignKeyPair(t)
+
+	signStreams, _, _, _ := iostreams.NewTestIOStreams()
+	sign := bundlecmd.NewBundleCommand(signStreams)
+	sign.SetArgs([]string{"sign", inputPath, "--signing-key", privateKey})
+	require.NoError(t, sign.Execute())
+
+	defaultsPath := filepath.Join(t.TempDir(), "defaults.uds.hcl")
+	require.NoError(t, os.WriteFile(defaultsPath, []byte(`variables = { environment = "production" }
+`), 0o600))
+
+	outDir := t.TempDir()
+	reconfigureStreams, _, _, _ := iostreams.NewTestIOStreams()
+	reconfigure := bundlecmd.NewBundleCommand(reconfigureStreams)
+	reconfigure.SetArgs([]string{
+		"reconfigure", inputPath,
+		"--defaults", defaultsPath,
+		"--suffix", "-signed",
+		"--output-dir", outDir,
+		"--public-key", publicKey,
+		"--signing-key", privateKey,
+	})
+	require.NoError(t, reconfigure.Execute())
+
+	entries, err := os.ReadDir(outDir)
+	require.NoError(t, err)
+	var outputPath string
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".tar.zst") {
+			outputPath = filepath.Join(outDir, entry.Name())
+			break
+		}
+	}
+	require.NotEmpty(t, outputPath, "signed reconfigure should write a bundle artifact")
+
+	verifyStreams, _, _, _ := iostreams.NewTestIOStreams()
+	verify := bundlecmd.NewBundleCommand(verifyStreams)
+	verify.SetArgs([]string{"verify", outputPath, "--public-key", publicKey})
+	require.NoError(t, verify.Execute())
 }
 
 func TestReconfigure_CustomSuffix(t *testing.T) {
@@ -114,6 +159,8 @@ func TestReconfigure_CustomSuffix(t *testing.T) {
 		"--defaults", newDefaultsPath,
 		"--suffix", "-il5",
 		"--output-dir", outDir,
+		"--unsigned",
+		"--skip-signature-verification",
 	})
 	require.NoError(t, root.Execute())
 
@@ -143,6 +190,8 @@ func TestReconfigure_InsertsDefaultsWhenOriginalHadNone(t *testing.T) {
 		"--defaults", newDefaultsPath,
 		"--suffix", "-reconfigured",
 		"--output-dir", outDir,
+		"--unsigned",
+		"--skip-signature-verification",
 	})
 	require.NoError(t, root.Execute())
 
@@ -187,6 +236,8 @@ func TestReconfigure_OCI(t *testing.T) {
 		"--defaults", newDefaultsPath,
 		"--suffix", "-oci-test",
 		"--plain-http",
+		"--unsigned",
+		"--skip-signature-verification",
 	})
 	require.NoError(t, root2.Execute())
 
@@ -199,7 +250,7 @@ func TestReconfigure_OCI(t *testing.T) {
 	pullDir := t.TempDir()
 	streams3, _, _, _ := iostreams.NewTestIOStreams()
 	root3 := bundlecmd.NewBundleCommand(streams3)
-	root3.SetArgs([]string{"pull", pullRef, "--output-dir", pullDir, "--plain-http"})
+	root3.SetArgs([]string{"pull", pullRef, "--output-dir", pullDir, "--plain-http", "--skip-signature-verification"})
 	require.NoError(t, root3.Execute())
 
 	// Find the pulled tarball.
@@ -240,7 +291,7 @@ func TestReconfigure_OCI(t *testing.T) {
 	origPullDir := t.TempDir()
 	streams4, _, _, _ := iostreams.NewTestIOStreams()
 	root4 := bundlecmd.NewBundleCommand(streams4)
-	root4.SetArgs([]string{"pull", pushRef, "--output-dir", origPullDir, "--plain-http"})
+	root4.SetArgs([]string{"pull", pushRef, "--output-dir", origPullDir, "--plain-http", "--skip-signature-verification"})
 	require.NoError(t, root4.Execute(), "original tag should still be pullable after reconfigure")
 
 	origEntries, err := os.ReadDir(origPullDir)

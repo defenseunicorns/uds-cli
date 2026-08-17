@@ -55,6 +55,7 @@ package "pkg1" {
 	_, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
+		Signing:    SigningOptions{Mode: SigningModeUnsigned},
 		Streams:    iostreams.New(nil, nil, io.Discard),
 	})
 	require.NoError(t, err)
@@ -117,6 +118,38 @@ package "pkg1" {
 	}
 }
 
+func TestCreate_RemovesOutputWhenSigningFails(t *testing.T) {
+	dir := t.TempDir()
+	writeMinimalZarfPackage(t, filepath.Join(dir, "localpkg"))
+
+	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
+	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+
+metadata {
+  name    = "failed-sign"
+  version = "1.0.0"
+}
+
+package "pkg" {
+  source = "localpkg"
+  signature_verification { verify = false }
+}
+`), tmpFilePerm))
+
+	_, err := Create(t.Context(), CreateOptions{
+		Config:     newTestConfig(),
+		BundleFile: bundleFile,
+		Signing:    SigningOptions{Mode: SigningModeKey, Key: filepath.Join(dir, "missing.key")},
+		Streams:    iostreams.New(nil, nil, io.Discard),
+	})
+	require.ErrorContains(t, err, "signing created bundle")
+
+	_, statErr := os.Stat(filepath.Join(dir, "uds-bundle-failed-sign-"+runtime.GOARCH+"-1.0.0.tar.zst"))
+	require.ErrorIs(t, statErr, os.ErrNotExist)
+}
+
 func TestCreate_SharedValuesFileDeduplicatedInOCIStore(t *testing.T) {
 	dir := t.TempDir()
 
@@ -153,6 +186,7 @@ package "pkg2" {
 	_, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
+		Signing:    SigningOptions{Mode: SigningModeUnsigned},
 		Streams:    iostreams.New(nil, nil, io.Discard),
 	})
 	require.NoError(t, err)
@@ -250,6 +284,7 @@ package "pkg1" {
 	_, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
+		Signing:    SigningOptions{Mode: SigningModeUnsigned},
 		Streams:    iostreams.New(nil, nil, io.Discard),
 	})
 	require.NoError(t, err)
@@ -319,6 +354,7 @@ package "pkg1" {
 	_, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
+		Signing:    SigningOptions{Mode: SigningModeUnsigned},
 		Streams:    iostreams.New(nil, nil, io.Discard),
 	})
 	require.NoError(t, err)
@@ -357,6 +393,7 @@ package "pkg1" {
 		result, err := Create(t.Context(), CreateOptions{
 			Config:     newTestConfigWithArch("amd64"),
 			BundleFile: bundleFile,
+			Signing:    SigningOptions{Mode: SigningModeUnsigned},
 			Streams:    iostreams.New(nil, nil, io.Discard),
 		})
 		require.NoError(t, err)

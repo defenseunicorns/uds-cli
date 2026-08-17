@@ -5,6 +5,7 @@ package bundle
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
@@ -19,6 +20,7 @@ type CreateOptions struct {
 	BundlePath string // Path to bundle file or directory (user input, resolved in Run)
 	Config     *bundle.UDSBundleConfig
 	Printer    printer.ResourcePrinter
+	Signing    bundle.SigningOptions
 
 	iostreams.IOStreams
 }
@@ -46,6 +48,8 @@ func NewCreateCommand(streams iostreams.IOStreams) *cobra.Command {
 			util.CheckErr(o.Run(ctx))
 		},
 	}
+	addSigningFlags(cmd, &o.Signing)
+	cmd.Flags().Bool("unsigned", false, "create an unsigned bundle")
 
 	return cmd
 }
@@ -68,6 +72,9 @@ func (o *CreateOptions) Complete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	o.Config = cfg
+	if err := completeCreateSigningOptions(cmd, &o.Signing); err != nil {
+		return err
+	}
 
 	p, err := ResolvePrinter(cmd)
 	if err != nil {
@@ -81,7 +88,10 @@ func (o *CreateOptions) Complete(cmd *cobra.Command, args []string) error {
 // Validate validates the options without modifying state.
 // Config validation is performed by the library entry point.
 func (o *CreateOptions) Validate() error {
-	return ValidateBundlePath(o.BundlePath)
+	if err := ValidateBundlePath(o.BundlePath); err != nil {
+		return err
+	}
+	return o.Signing.Validate()
 }
 
 // Run executes the create command.
@@ -104,6 +114,7 @@ func (o *CreateOptions) Run(ctx context.Context) error {
 	result, err := bundle.Create(ctx, bundle.CreateOptions{
 		Config:     o.Config,
 		BundleFile: bundlePath,
+		Signing:    o.Signing,
 		Streams:    o.IOStreams,
 	})
 	if err != nil {
@@ -111,4 +122,29 @@ func (o *CreateOptions) Run(ctx context.Context) error {
 	}
 
 	return o.Printer.PrintObj(result, o.Out())
+}
+
+func completeCreateSigningOptions(cmd *cobra.Command, options *bundle.SigningOptions) error {
+	if cmd.Flags().Lookup("unsigned") == nil {
+		return nil
+	}
+	unsigned, err := cmd.Flags().GetBool("unsigned")
+	if err != nil {
+		return err
+	}
+	keyless, err := cmd.Flags().GetBool("keyless")
+	if err != nil {
+		return err
+	}
+	if unsigned && (options.Key != "" || keyless) {
+		return fmt.Errorf("--unsigned cannot be combined with --signing-key or --keyless")
+	}
+	if unsigned {
+		options.Mode = bundle.SigningModeUnsigned
+		return nil
+	}
+	if options.Key == "" && !keyless {
+		return fmt.Errorf("one of --signing-key, --keyless, or --unsigned is required")
+	}
+	return completeSigningOptions(cmd, options)
 }

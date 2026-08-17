@@ -28,7 +28,7 @@ func TestInspectCommand_Integration(t *testing.T) {
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 
 	root := cli.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "inspect", bundlePath})
+	root.SetArgs([]string{"bundle", "inspect", bundlePath, "--skip-signature-verification"})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -44,7 +44,7 @@ func TestInspectCommand_Integration(t *testing.T) {
 	// Verify Packages section
 	assert.Contains(t, output, "Packages (1)")
 	assert.Contains(t, output, "pkg")
-	assert.Contains(t, output, "not_checked")
+	assert.Contains(t, output, "skipped")
 }
 
 func TestInspectCommand_StructuredOutput_Integration(t *testing.T) {
@@ -53,7 +53,7 @@ func TestInspectCommand_StructuredOutput_Integration(t *testing.T) {
 			artifact := createInspectArtifact(t)
 			streams, _, out, _ := iostreams.NewTestIOStreams()
 			root := cli.NewRootCommand(streams)
-			root.SetArgs([]string{"bundle", "inspect", artifact, "--output", format})
+			root.SetArgs([]string{"bundle", "inspect", artifact, "--skip-signature-verification", "--output", format})
 			require.NoError(t, root.Execute())
 
 			var result bundlepkg.InspectResult
@@ -67,7 +67,7 @@ func TestInspectCommand_StructuredOutput_Integration(t *testing.T) {
 			assert.Equal(t, "1.0.0", result.Version)
 			assert.NotEmpty(t, result.ArtifactDigest)
 			require.NotNil(t, result.BundleSignature)
-			assert.Equal(t, bundlepkg.BundleSignatureStatusNotChecked, result.BundleSignature.Status)
+			assert.Equal(t, bundlepkg.BundleSignatureStatusSkipped, result.BundleSignature.Status)
 			require.Len(t, result.Packages, 1)
 			assert.Equal(t, "pkg", result.Packages[0].Name)
 			require.NotNil(t, result.Packages[0].Signature)
@@ -95,7 +95,7 @@ func TestInspectOCICommand_Integration(t *testing.T) {
 
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 	root := cli.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "inspect", ref, "--plain-http", "--output", "json"})
+	root.SetArgs([]string{"bundle", "inspect", ref, "--plain-http", "--skip-signature-verification", "--output", "json"})
 	require.NoError(t, root.Execute())
 
 	var result bundlepkg.InspectResult
@@ -167,7 +167,7 @@ func TestPullCommand_Integration(t *testing.T) {
 	outDir := t.TempDir()
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 	root := bundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"pull", ref, "--output-dir", outDir, "--plain-http"})
+	root.SetArgs([]string{"pull", ref, "--output-dir", outDir, "--plain-http", "--skip-signature-verification"})
 
 	err = root.Execute()
 	require.NoError(t, err)
@@ -232,6 +232,7 @@ func TestPushPull_RoundTrip(t *testing.T) {
 			Global:  &bundlepkg.GlobalOptions{},
 			Options: &bundlepkg.ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true, Architecture: arch, Concurrency: 10},
 		},
+		SkipSignatureVerification: true,
 	})
 	require.NoError(t, err, "Pull should succeed against local registry")
 

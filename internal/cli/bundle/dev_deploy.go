@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const bundleDefinitionDiagnostic = "WARNING: deploying directly from a bundle definition; bundle provenance and bundle-signature verification are unavailable"
+const bundleDefinitionDiagnostic = "deploying directly from a bundle definition; bundle provenance and bundle-signature verification are unavailable"
 
 // DevDeployOptions holds options for bundle definition deployment.
 type DevDeployOptions struct {
@@ -112,7 +112,7 @@ func (o *DevDeployOptions) Run(ctx context.Context) error {
 	if runner == nil {
 		runner = runDeploy
 	}
-	result, err := runner(ctx, o.IOStreams, baseConfig, bundlepkg.ResolveBundlePath(o.BundlePath), o.Packages, o.Force)
+	result, err := runner(ctx, o.IOStreams, baseConfig, bundlepkg.ResolveBundlePath(o.BundlePath), o.Packages, o.Force, bundlepkg.VerificationPolicy{}, false)
 	if err != nil {
 		return err
 	}

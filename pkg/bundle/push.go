@@ -20,6 +20,13 @@ func Push(ctx context.Context, bundleTarball, ociReference string, opts PushOpti
 	}
 	s := logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
 	s.Info("pushing bundle", "tarball", bundleTarball, "ref", ociReference)
+	signatureEntries, err := artifact.CountTarZstEntries(ctx, bundleTarball, BundleSignatureFileName)
+	if err != nil {
+		return nil, fmt.Errorf("checking bundle signature evidence: %w", err)
+	}
+	if signatureEntries > 1 {
+		return nil, fmt.Errorf("expected exactly one bundle signature evidence entry, found %d", signatureEntries)
+	}
 
 	tmp, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-push-*")
 	if err != nil {

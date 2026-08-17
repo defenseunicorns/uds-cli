@@ -72,6 +72,26 @@ func TestReconfiguredFileOutputName(t *testing.T) {
 	}
 }
 
+func TestStageReconfigureLocalInputUsesIndependentCopy(t *testing.T) {
+	t.Parallel()
+	source := filepath.Join(t.TempDir(), "bundle.tar.zst")
+	require.NoError(t, os.WriteFile(source, []byte("verified input"), tmpFilePerm))
+
+	opts := ReconfigureOptions{
+		Source:  source,
+		Options: ConfigOptions{TmpDir: t.TempDir()},
+	}
+	state := &reconfigureState{}
+	cleanup, err := stageReconfigureLocalInput(opts, state)
+	require.NoError(t, err)
+	t.Cleanup(cleanup)
+
+	require.NoError(t, os.WriteFile(source, []byte("replacement input"), tmpFilePerm))
+	staged, err := os.ReadFile(state.inputSource)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("verified input"), staged)
+}
+
 func TestSpliceHCLName(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -377,6 +397,7 @@ func createTestBundle(t *testing.T, bundleHCL string, defaultsHCL string) string
 	result, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: filepath.Join(dir, "bundle.uds.hcl"),
+		Signing:    SigningOptions{Mode: SigningModeUnsigned},
 		Streams:    iostreams.New(nil, nil, io.Discard),
 	})
 	require.NoError(t, err)
@@ -396,11 +417,13 @@ func runLocalReconfigure(t *testing.T, source string, defaultsPath string, suffi
 	t.Helper()
 	r := &localReconfigurer{}
 	return r.Reconfigure(t.Context(), ReconfigureOptions{
-		Source:       source,
-		DefaultsFile: defaultsPath,
-		Suffix:       suffix,
-		OutputDir:    t.TempDir(),
-		Options:      ConfigOptions{TmpDir: t.TempDir()},
+		Source:                    source,
+		DefaultsFile:              defaultsPath,
+		Suffix:                    suffix,
+		OutputDir:                 t.TempDir(),
+		Options:                   ConfigOptions{TmpDir: t.TempDir()},
+		Signing:                   SigningOptions{Mode: SigningModeUnsigned},
+		SkipSignatureVerification: true,
 	})
 }
 
@@ -499,13 +522,71 @@ package "pkg1" {
 
 	r := &localReconfigurer{}
 	_, err := r.Reconfigure(t.Context(), ReconfigureOptions{
-		Source:       tarball,
-		DefaultsFile: defaultsPath,
-		Suffix:       "-reconfigured",
-		OutputDir:    outDir,
-		Options:      ConfigOptions{TmpDir: t.TempDir()},
+		Source:                    tarball,
+		DefaultsFile:              defaultsPath,
+		Suffix:                    "-reconfigured",
+		OutputDir:                 outDir,
+		Options:                   ConfigOptions{TmpDir: t.TempDir()},
+		Signing:                   SigningOptions{Mode: SigningModeUnsigned},
+		SkipSignatureVerification: true,
 	})
 	require.ErrorContains(t, err, "already exists")
+}
+
+func TestReconfigure_SigningFailureRemovesLocalOutput(t *testing.T) {
+	tarball := createTestBundle(t, `uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+metadata {
+  name    = "sign-failure"
+  version = "1.0.0"
+}
+package "pkg1" {
+  source = "localpkg"
+}
+`, "")
+	defaultsPath := writeDefaultsFile(t, `variables = { changed = true }`)
+	outputDir := t.TempDir()
+
+	_, err := Reconfigure(t.Context(), ReconfigureOptions{
+		Source:                    tarball,
+		DefaultsFile:              defaultsPath,
+		Suffix:                    "-reconfigured",
+		OutputDir:                 outputDir,
+		Options:                   ConfigOptions{TmpDir: t.TempDir()},
+		Signing:                   SigningOptions{Mode: SigningModeKey, Key: filepath.Join(t.TempDir(), "missing.key")},
+		SkipSignatureVerification: true,
+	})
+	require.ErrorContains(t, err, "signing reconfigured bundle")
+
+	output := filepath.Join(outputDir, reconfiguredFileOutputName(filepath.Base(tarball), "-reconfigured"))
+	_, statErr := os.Stat(output)
+	require.ErrorIs(t, statErr, os.ErrNotExist)
+}
+
+func TestLocalReconfigure_RemovesInheritedSignatureEvidence(t *testing.T) {
+	tarball := createTestBundle(t, `uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+metadata {
+  name    = "stale-signature"
+  version = "1.0.0"
+}
+package "pkg1" {
+  source = "localpkg"
+}
+`, "")
+	workspace := t.TempDir()
+	require.NoError(t, artifact.ExtractTarZst(t.Context(), iostreams.IOStreams{}, tarball, workspace))
+	require.NoError(t, os.WriteFile(filepath.Join(workspace, BundleSignatureFileName), []byte("stale evidence"), tmpFilePerm))
+	require.NoError(t, artifact.WriteTarZst(t.Context(), iostreams.IOStreams{}, tarball, workspace))
+
+	defaultsPath := writeDefaultsFile(t, `variables = { changed = true }`)
+	result, err := runLocalReconfigure(t, tarball, defaultsPath, "-reconfigured")
+	require.NoError(t, err)
+	entries := readTarZstEntries(t, result.OutputPath)
+	_, exists := entries[BundleSignatureFileName]
+	require.False(t, exists)
 }
 
 func TestLocalReconfigure_InsertsDefaultsWhenOriginalHadNone(t *testing.T) {
@@ -590,13 +671,14 @@ package "pkg1" {
 	sourceChild, _, err := udsoci.ResolveBundleChild(t.Context(), store, "v1.0.0", "")
 	require.NoError(t, err)
 
-	r := &ociReconfigurer{}
+	r := &ociReconfigurer{state: &reconfigureState{remoteRepo: store}}
 	result, err := r.Reconfigure(t.Context(), ReconfigureOptions{
-		Source:       "oci://example.com/test/oci-reconfig:v1.0.0",
-		DefaultsFile: defaultsPath,
-		Suffix:       "-prod",
-		Options:      ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true},
-		remoteRepo:   store,
+		Source:                    "oci://example.com/test/oci-reconfig:v1.0.0",
+		DefaultsFile:              defaultsPath,
+		Suffix:                    "-prod",
+		Options:                   ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true},
+		Signing:                   SigningOptions{Mode: SigningModeUnsigned},
+		SkipSignatureVerification: true,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "oci://example.com/test/oci-reconfig:v1.0.0-prod", result.OCIReference)
@@ -622,6 +704,89 @@ package "pkg1" {
 	assert.Equal(t, sourceChild.Digest.String(), reconfiguredDefinitionManifest.Annotations[AnnotationReconfiguredFrom])
 }
 
+func TestOCIReconfigure_UsesResolvedSourceAfterTagChanges(t *testing.T) {
+	t.Parallel()
+
+	store, err := oraci.New(t.TempDir())
+	require.NoError(t, err)
+	firstHCL := `uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+metadata {
+  name    = "first"
+  version = "1.0.0"
+}
+package "pkg1" {
+  source = "localpkg"
+}
+`
+	secondHCL := strings.Replace(firstHCL, `name    = "first"`, `name    = "second"`, 1)
+	pushTestBundle(t, store, firstHCL, "", "example.com/test/oci-snapshot:v1.0.0")
+
+	defaultsPath := writeDefaultsFile(t, `variables = { changed = true }`)
+	opts := ReconfigureOptions{
+		Source:                    "oci://example.com/test/oci-snapshot:v1.0.0",
+		DefaultsFile:              defaultsPath,
+		Suffix:                    "-reconfigured",
+		Options:                   ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true},
+		Signing:                   SigningOptions{Mode: SigningModeUnsigned},
+		SkipSignatureVerification: true,
+	}
+	state := &reconfigureState{remoteRepo: store}
+	require.NoError(t, resolveReconfigureOCIInput(t.Context(), opts, state))
+	verifiedChild := state.sourceChild
+
+	pushTestBundle(t, store, secondHCL, "", "example.com/test/oci-snapshot:v2.0.0")
+	replacement, err := store.Resolve(t.Context(), "v2.0.0")
+	require.NoError(t, err)
+	require.NoError(t, store.Tag(t.Context(), replacement, "v1.0.0"))
+
+	_, err = (&ociReconfigurer{state: state}).Reconfigure(t.Context(), opts)
+	require.NoError(t, err)
+
+	_, indexBytes, err := udsoci.ResolveBundleChild(t.Context(), store, "v1.0.0-reconfigured", "")
+	require.NoError(t, err)
+	var index ocispec.Index
+	require.NoError(t, json.Unmarshal(indexBytes, &index))
+	definition, _, err := udsoci.FindBundleDefinition(index)
+	require.NoError(t, err)
+	definitionBytes, err := udsoci.FetchBytes(t.Context(), store, definition)
+	require.NoError(t, err)
+	var manifest ocispec.Manifest
+	require.NoError(t, json.Unmarshal(definitionBytes, &manifest))
+	assert.Equal(t, verifiedChild.Digest.String(), manifest.Annotations[AnnotationReconfiguredFrom])
+}
+
+func TestOCIReconfigure_SigningFailureDoesNotPublishTargetTag(t *testing.T) {
+	store, err := oraci.New(t.TempDir())
+	require.NoError(t, err)
+	pushTestBundle(t, store, `uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+metadata {
+  name    = "oci-sign-failure"
+  version = "1.0.0"
+}
+package "pkg1" {
+  source = "localpkg"
+}
+`, "", "example.com/test/oci-sign-failure:v1.0.0")
+
+	defaultsPath := writeDefaultsFile(t, `variables = { changed = true }`)
+	_, err = (&ociReconfigurer{state: &reconfigureState{remoteRepo: store}}).Reconfigure(t.Context(), ReconfigureOptions{
+		Source:                    "oci://example.com/test/oci-sign-failure:v1.0.0",
+		DefaultsFile:              defaultsPath,
+		Suffix:                    "-reconfigured",
+		Options:                   ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true},
+		Config:                    newTestConfig(),
+		Signing:                   SigningOptions{Mode: SigningModeKey, Key: filepath.Join(t.TempDir(), "missing.key")},
+		SkipSignatureVerification: true,
+	})
+	require.ErrorContains(t, err, "signing reconfigured bundle")
+	_, resolveErr := store.Resolve(t.Context(), "v1.0.0-reconfigured")
+	require.Error(t, resolveErr)
+}
+
 func TestOCIReconfigure_TargetTagAlreadyExists(t *testing.T) {
 	t.Parallel()
 
@@ -645,13 +810,14 @@ package "pkg1" {
 
 	defaultsPath := writeDefaultsFile(t, `variables = { a = "b" }`)
 
-	r := &ociReconfigurer{}
+	r := &ociReconfigurer{state: &reconfigureState{remoteRepo: store}}
 	_, err = r.Reconfigure(t.Context(), ReconfigureOptions{
-		Source:       "oci://example.com/test/oci-exists:v1.0.0",
-		DefaultsFile: defaultsPath,
-		Suffix:       "-reconfigured",
-		Options:      ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true},
-		remoteRepo:   store,
+		Source:                    "oci://example.com/test/oci-exists:v1.0.0",
+		DefaultsFile:              defaultsPath,
+		Suffix:                    "-reconfigured",
+		Options:                   ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true},
+		Signing:                   SigningOptions{Mode: SigningModeUnsigned},
+		SkipSignatureVerification: true,
 	})
 	require.ErrorContains(t, err, "already exists")
 }
@@ -664,13 +830,14 @@ func TestOCIReconfigure_SourceTagNotFound(t *testing.T) {
 
 	defaultsPath := writeDefaultsFile(t, `variables = { a = "b" }`)
 
-	r := &ociReconfigurer{}
+	r := &ociReconfigurer{state: &reconfigureState{remoteRepo: store}}
 	_, err = r.Reconfigure(t.Context(), ReconfigureOptions{
-		Source:       "oci://example.com/test/missing:v1.0.0",
-		DefaultsFile: defaultsPath,
-		Suffix:       "-reconfigured",
-		Options:      ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true},
-		remoteRepo:   store,
+		Source:                    "oci://example.com/test/missing:v1.0.0",
+		DefaultsFile:              defaultsPath,
+		Suffix:                    "-reconfigured",
+		Options:                   ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true},
+		Signing:                   SigningOptions{Mode: SigningModeUnsigned},
+		SkipSignatureVerification: true,
 	})
 	require.ErrorContains(t, err, "resolving")
 }
@@ -683,13 +850,14 @@ func TestOCIReconfigure_DigestReferenceRejected(t *testing.T) {
 
 	defaultsPath := writeDefaultsFile(t, `variables = { a = "b" }`)
 
-	r := &ociReconfigurer{}
+	r := &ociReconfigurer{state: &reconfigureState{remoteRepo: store}}
 	_, err = r.Reconfigure(t.Context(), ReconfigureOptions{
-		Source:       "oci://example.com/test/bundle@sha256:abc123def456abc123def456abc123def456abc123def456abc123def456abc1",
-		DefaultsFile: defaultsPath,
-		Suffix:       "-reconfigured",
-		Options:      ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true},
-		remoteRepo:   store,
+		Source:                    "oci://example.com/test/bundle@sha256:abc123def456abc123def456abc123def456abc123def456abc123def456abc1",
+		DefaultsFile:              defaultsPath,
+		Suffix:                    "-reconfigured",
+		Options:                   ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true},
+		Signing:                   SigningOptions{Mode: SigningModeUnsigned},
+		SkipSignatureVerification: true,
 	})
 	require.ErrorContains(t, err, "tag reference")
 }
@@ -711,11 +879,13 @@ package "pkg1" {
 	defaultsPath := writeDefaultsFile(t, `variables = { a = "b" }`)
 
 	result, err := Reconfigure(t.Context(), ReconfigureOptions{
-		Source:       tarball,
-		DefaultsFile: defaultsPath,
-		Suffix:       "-reconfigured",
-		OutputDir:    t.TempDir(),
-		Options:      ConfigOptions{TmpDir: t.TempDir()},
+		Source:                    tarball,
+		DefaultsFile:              defaultsPath,
+		Suffix:                    "-reconfigured",
+		OutputDir:                 t.TempDir(),
+		Options:                   ConfigOptions{TmpDir: t.TempDir()},
+		Signing:                   SigningOptions{Mode: SigningModeUnsigned},
+		SkipSignatureVerification: true,
 	})
 	require.NoError(t, err)
 	assert.NotEmpty(t, result.OutputPath)
@@ -728,9 +898,11 @@ func TestReconfigure_InvalidDefaults(t *testing.T) {
 	require.NoError(t, os.WriteFile(badDefaultsPath, []byte(`not_variables = "bad"`), tmpFilePerm))
 
 	_, err := Reconfigure(t.Context(), ReconfigureOptions{
-		Source:       "/some/bundle.tar.zst",
-		DefaultsFile: badDefaultsPath,
-		Suffix:       "-reconfigured",
+		Source:                    "/some/bundle.tar.zst",
+		DefaultsFile:              badDefaultsPath,
+		Suffix:                    "-reconfigured",
+		Signing:                   SigningOptions{Mode: SigningModeUnsigned},
+		SkipSignatureVerification: true,
 	})
 	require.ErrorContains(t, err, "not_variables")
 }

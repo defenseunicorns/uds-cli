@@ -16,6 +16,9 @@ var ErrPackageNotDeployed = errors.New("package not deployed")
 // ErrNotImplemented indicates that an optional operation has no implementation.
 var ErrNotImplemented = errors.New("not yet implemented")
 
+// ErrBundleNotSigned indicates that a bundle has no signature evidence.
+var ErrBundleNotSigned = errors.New("bundle is not signed")
+
 // DependencyViolationError reports a dependency-relationship violation in a
 // deploy or remove selection. Violations maps each offending package to the
 // related packages that make the selection unsafe (its missing dependencies for

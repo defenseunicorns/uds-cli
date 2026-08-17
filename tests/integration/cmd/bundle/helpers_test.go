@@ -55,6 +55,7 @@ package "pkg" {
 	result, err := bundlepkg.Create(t.Context(), bundlepkg.CreateOptions{
 		Config:     &bundlepkg.UDSBundleConfig{Global: &bundlepkg.GlobalOptions{LogLevel: "info"}, Options: &defaults},
 		BundleFile: bundleFile,
+		Signing:    bundlepkg.SigningOptions{Mode: bundlepkg.SigningModeUnsigned},
 		Streams:    iostreams.IOStreams{},
 	})
 	require.NoError(t, err)

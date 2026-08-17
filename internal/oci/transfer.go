@@ -61,7 +61,7 @@ func pullCopyOptions(ctx context.Context, opts *PullOptions) (oras.CopyOptions, 
 // repository, then publishes the root index at the tag: this architecture's
 // entry is inserted or replaced and other-arch bundle entries already present
 // are preserved (ADR-0015). child must carry Platform and ArtifactType.
-func pushBundleToRemote(ctx context.Context, store *oraci.Store, child ocispec.Descriptor, ref string, opts *PushOptions) (*PushResult, error) {
+func pushBundleToRemote(ctx context.Context, store *oraci.Store, child ocispec.Descriptor, ref string, opts *PushOptions, signature []byte, hasSignature bool) (*PushResult, error) {
 	dst, err := resolvePushTarget(ctx, ref, opts)
 	if err != nil {
 		return nil, fmt.Errorf("resolving push target %s: %w", ref, err)
@@ -85,6 +85,11 @@ func pushBundleToRemote(ctx context.Context, store *oraci.Store, child ocispec.D
 			return nil, fmt.Errorf("checking bundle content at %s: %w", ref, err)
 		}
 		if exists {
+			if hasSignature {
+				if err := PublishBundleSignature(ctx, dst, child, signature, false); err != nil {
+					return nil, fmt.Errorf("publishing bundle signature: %w", err)
+				}
+			}
 			return &PushResult{OCIReference: ref}, nil
 		}
 	}
@@ -98,6 +103,11 @@ func pushBundleToRemote(ctx context.Context, store *oraci.Store, child ocispec.D
 	// is the only tagged object.
 	if err := copyGraph(ctx, store, dst, child, copyOpts.CopyGraphOptions); err != nil {
 		return nil, fmt.Errorf("pushing bundle content to %s: %w", ref, err)
+	}
+	if hasSignature {
+		if err := PublishBundleSignature(ctx, dst, child, signature, false); err != nil {
+			return nil, fmt.Errorf("publishing bundle signature: %w", err)
+		}
 	}
 	if err := PushReferenceBytes(ctx, dst, rootDesc, rootBytes, tag); err != nil {
 		return nil, fmt.Errorf("pushing root index to %s: %w", ref, err)

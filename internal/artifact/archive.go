@@ -4,11 +4,13 @@
 package artifact
 
 import (
+	"archive/tar"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -22,17 +24,18 @@ import (
 	zarfarchive "github.com/zarf-dev/zarf/src/pkg/archive"
 )
 
+const archiveFilePerm os.FileMode = 0o644
+
 // WriteTarZst writes the regular files beneath srcDir to a tar.zst archive.
 func WriteTarZst(ctx context.Context, streams iostreams.IOStreams, dst, srcDir string) (retErr error) {
 	streams.Debug("writing tar.zst archive", "dst", dst)
+	archivePerm := archiveFilePerm
 	if st, err := os.Stat(dst); err == nil {
 		if st.IsDir() {
 			return fmt.Errorf("output path %q is a directory", dst)
 		}
-		if err := os.Remove(dst); err != nil {
-			return err
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
+		archivePerm = st.Mode().Perm()
+	} else if !os.IsNotExist(err) {
 		return err
 	}
 
@@ -60,16 +63,20 @@ func WriteTarZst(ctx context.Context, streams iostreams.IOStreams, dst, srcDir s
 		return strings.Compare(a.NameInArchive, b.NameInArchive)
 	})
 
-	f, err := os.Create(dst)
+	f, err := os.CreateTemp(filepath.Dir(dst), filepath.Base(dst)+".tmp-*")
 	if err != nil {
 		return err
 	}
+	tmpPath := f.Name()
+	closed := false
 	defer func() {
-		if fErr := f.Close(); fErr != nil && retErr == nil {
-			retErr = fErr
+		if !closed {
+			if fErr := f.Close(); fErr != nil && retErr == nil {
+				retErr = fErr
+			}
 		}
 		if retErr != nil {
-			_ = os.Remove(dst)
+			_ = os.Remove(tmpPath)
 		}
 	}()
 
@@ -77,7 +84,65 @@ func WriteTarZst(ctx context.Context, streams iostreams.IOStreams, dst, srcDir s
 		Archival:    archives.Tar{},
 		Compression: archives.Zstd{},
 	}
-	return ca.Archive(ctx, f, regular)
+	if err := ca.Archive(ctx, f, regular); err != nil {
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	closed = true
+	if err := os.Chmod(tmpPath, archivePerm); err != nil {
+		return fmt.Errorf("setting archive permissions: %w", err)
+	}
+	if runtime.GOOS == "windows" {
+		if err := os.Remove(dst); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("removing existing archive: %w", err)
+		}
+	}
+	if err := os.Rename(tmpPath, dst); err != nil {
+		return err
+	}
+	return nil
+}
+
+// CountTarZstEntries returns the number of archive entries that extract to name.
+func CountTarZstEntries(ctx context.Context, src, name string) (count int, retErr error) {
+	f, err := os.Open(src)
+	if err != nil {
+		return 0, fmt.Errorf("opening archive: %w", err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("closing archive: %w", err)
+		}
+	}()
+
+	zr, err := (archives.Zstd{}).OpenReader(f)
+	if err != nil {
+		return 0, fmt.Errorf("opening zstd archive: %w", err)
+	}
+	defer func() {
+		if err := zr.Close(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("closing zstd archive: %w", err)
+		}
+	}()
+
+	tr := tar.NewReader(zr)
+	for {
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			return count, nil
+		}
+		if err != nil {
+			return 0, fmt.Errorf("reading tar archive: %w", err)
+		}
+		if path.Clean(hdr.Name) == name {
+			count++
+		}
+	}
 }
 
 // ExtractTarZst extracts a tar.zst archive into dst.

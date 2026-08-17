@@ -79,6 +79,21 @@ func TestReconfigureCommand_ValidateRejectsMissingDefaultsFile(t *testing.T) {
 	require.ErrorContains(t, err, "not found")
 }
 
+func TestReconfigureCommand_ValidateRequiresVerificationPolicy(t *testing.T) {
+	t.Parallel()
+	defaults := filepath.Join(t.TempDir(), "defaults.uds.hcl")
+	require.NoError(t, os.WriteFile(defaults, []byte(`variables = { a = "b" }`), 0o600))
+
+	o := &ReconfigureOptions{
+		Source:       "/some/bundle.tar.zst",
+		DefaultsFile: defaults,
+		Suffix:       "-test",
+		Signing:      bundle.SigningOptions{Mode: bundle.SigningModeKey, Key: "cosign.key"},
+	}
+	err := o.Validate()
+	require.ErrorContains(t, err, "signature verification must configure exactly one of public key or keyless")
+}
+
 func TestReconfigureOptions_Run_PromptDecline(t *testing.T) {
 	t.Parallel()
 	tempDir := t.TempDir()
