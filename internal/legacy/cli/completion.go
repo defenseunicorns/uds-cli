@@ -7,6 +7,7 @@ package cmd
 import (
 	"os"
 
+	_ "github.com/defenseunicorns/uds-cli/internal/mode"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/config/lang"
 	"github.com/spf13/cobra"
 )
