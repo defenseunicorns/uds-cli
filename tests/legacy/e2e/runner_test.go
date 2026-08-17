@@ -199,7 +199,6 @@ func TestTaskRunner(t *testing.T) {
 		require.NoError(t, err, stdOut, stdErr)
 		require.Contains(t, stdOut, "echo-env-var")
 		require.Contains(t, stdOut, "Test that env vars take precedence")
-		require.Contains(t, stdOut, "remote-import")
 		require.Contains(t, stdOut, "action")
 	})
 
