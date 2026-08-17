@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package test provides e2e tests for UDS.
@@ -15,6 +15,14 @@ import (
 func TestTaskRunner(t *testing.T) {
 	t.Log("E2E: Task Runner")
 
+	gitRev := os.Getenv("GIT_REVISION")
+	if gitRev == "" {
+		var err error
+		gitRev, err = e2e.GetGitRevision()
+		require.NoError(t, err)
+	}
+	setGitRev := fmt.Sprintf("GIT_REVISION=%s", gitRev)
+
 	t.Run("run action", func(t *testing.T) {
 		t.Parallel()
 
@@ -23,11 +31,11 @@ func TestTaskRunner(t *testing.T) {
 		require.Contains(t, stdErr, "specific test string")
 	})
 
-	t.Run("propagate normalized feature gates", func(t *testing.T) {
+	t.Run("propagate normalized features", func(t *testing.T) {
 		stdout, stderr, err := e2e.UDS(
-			"--feature-gates=NextMode=false",
+			"--features=NextMode=false",
 			"run",
-			"feature-gates",
+			"features",
 			"--file",
 			"testdata/legacy/tasks/tasks.yaml",
 		)
@@ -88,7 +96,7 @@ func TestTaskRunner(t *testing.T) {
 	t.Run("includes task loop", func(t *testing.T) {
 		t.Parallel()
 
-		stdOut, stdErr, err := e2e.UDS("run", "include-loop", "--file", "testdata/legacy/tasks/tasks.yaml")
+		stdOut, stdErr, err := e2e.UDS("run", "include-loop", "--set", setGitRev, "--file", "testdata/legacy/tasks/tasks.yaml")
 		require.Error(t, err, stdOut, stdErr)
 		require.Contains(t, stdErr, "task loop")
 	})
@@ -191,6 +199,7 @@ func TestTaskRunner(t *testing.T) {
 		require.NoError(t, err, stdOut, stdErr)
 		require.Contains(t, stdOut, "echo-env-var")
 		require.Contains(t, stdOut, "Test that env vars take precedence")
+		require.Contains(t, stdOut, "remote-import")
 		require.Contains(t, stdOut, "action")
 	})
 

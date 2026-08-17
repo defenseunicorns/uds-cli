@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package main is the entrypoint for the uds binary.
@@ -28,18 +28,18 @@ func main() {
 }
 
 func run(args []string) error {
-	selected, gates, args, err := mode.Resolve(args, os.LookupEnv)
+	selected, features, args, err := mode.Resolve(args, os.LookupEnv)
 	if err != nil {
 		return err
 	}
-	if err := os.Setenv(mode.FeatureGatesEnv, gates.String()); err != nil {
+	if err := os.Setenv(mode.FeaturesEnv, features.String()); err != nil {
 		return err
 	}
 	root, err := newRootCommand(selected)
 	if err != nil {
 		return err
 	}
-	root.PersistentFlags().String("feature-gates", "", "Feature gates, comma separated name=true or name=false pairs. UDS_FEATURE_GATES is also supported.")
+	root.PersistentFlags().String("features", "", "Features, comma separated name=true or name=false pairs. UDS_FEATURES is also supported.")
 	root.SetArgs(args)
 	return root.Execute()
 }

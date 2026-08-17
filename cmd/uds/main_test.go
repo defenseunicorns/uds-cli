@@ -12,16 +12,16 @@ import (
 )
 
 func TestRunUsesLegacyByDefault(t *testing.T) {
-	unsetEnv(t, mode.FeatureGatesEnv)
+	unsetEnv(t, mode.FeaturesEnv)
 	if err := run([]string{"version"}); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestRunResolvesNextBeforeLegacyConfiguration(t *testing.T) {
-	unsetEnv(t, mode.FeatureGatesEnv)
+	unsetEnv(t, mode.FeaturesEnv)
 	t.Setenv("UDS_CONFIG", t.TempDir())
-	err := run([]string{"--feature-gates=NextMode=true", "version"})
+	err := run([]string{"--features=NextMode=true", "version"})
 	if err == nil || !strings.Contains(err.Error(), "NextMode is not available") {
 		t.Fatalf("run() error = %v", err)
 	}
@@ -35,13 +35,13 @@ func unsetEnv(t *testing.T, name string) {
 	}
 }
 
-func TestRunPropagatesNormalizedGates(t *testing.T) {
-	t.Setenv(mode.FeatureGatesEnv, "NextMode=true")
-	if err := run([]string{"version", "--feature-gates", "NextMode=false"}); err != nil {
+func TestRunPropagatesNormalizedFeatures(t *testing.T) {
+	t.Setenv(mode.FeaturesEnv, "NextMode=true")
+	if err := run([]string{"version", "--features", "NextMode=false"}); err != nil {
 		t.Fatal(err)
 	}
-	if got := os.Getenv(mode.FeatureGatesEnv); got != "NextMode=false" {
-		t.Fatalf("%s = %q, want %q", mode.FeatureGatesEnv, got, "NextMode=false")
+	if got := os.Getenv(mode.FeaturesEnv); got != "NextMode=false" {
+		t.Fatalf("%s = %q, want %q", mode.FeaturesEnv, got, "NextMode=false")
 	}
 }
 

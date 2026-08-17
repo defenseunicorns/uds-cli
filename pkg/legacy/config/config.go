@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package config contains configuration strings for UDS-CLI
@@ -83,7 +83,7 @@ const (
 )
 
 var reservedProductEnv = map[string]struct{}{
-	"UDS_FEATURE_GATES": {},
+	"UDS_FEATURES": {},
 }
 
 // IsReservedProductEnv reports whether an environment variable controls the

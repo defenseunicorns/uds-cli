@@ -20,16 +20,17 @@ func TestResolve(t *testing.T) {
 	}{
 		{"default", []string{"create"}, "", Legacy, "NextMode=false", []string{"create"}},
 		{"environment", []string{"create"}, "NextMode=true", Next, "NextMode=true", []string{"create"}},
-		{"flag precedence", []string{"create", "--feature-gates", "NextMode=false"}, "NextMode=true", Legacy, "NextMode=false", []string{"create"}},
-		{"equals form", []string{"--feature-gates=NextMode=true", "create"}, "", Next, "NextMode=true", []string{"create"}},
-		{"double dash", []string{"create", "--", "--feature-gates=NextMode=true"}, "", Legacy, "NextMode=false", []string{"create", "--", "--feature-gates=NextMode=true"}},
+		{"flag precedence", []string{"create", "--features", "NextMode=false"}, "NextMode=true", Legacy, "NextMode=false", []string{"create"}},
+		{"equals form", []string{"--features=NextMode=true", "create"}, "", Next, "NextMode=true", []string{"create"}},
+		{"Zarf feature", []string{"zarf", "--features=values=false", "version"}, "", Legacy, "NextMode=false,values=false", []string{"zarf", "--features=values=false", "version"}},
+		{"double dash", []string{"create", "--", "--features=NextMode=true"}, "", Legacy, "NextMode=false", []string{"create", "--", "--features=NextMode=true"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			lookup := func(string) (string, bool) { return tt.env, tt.env != "" }
-			got, gates, args, err := Resolve(tt.args, lookup)
-			if err != nil || got != tt.mode || gates.String() != tt.want || !slices.Equal(args, tt.wantArgs) {
-				t.Fatalf("Resolve() = %q, %q, %q, %v", got, gates.String(), args, err)
+			got, features, args, err := Resolve(tt.args, lookup)
+			if err != nil || got != tt.mode || features.String() != tt.want || !slices.Equal(args, tt.wantArgs) {
+				t.Fatalf("Resolve() = %q, %q, %q, %v", got, features.String(), args, err)
 			}
 		})
 	}
@@ -38,7 +39,7 @@ func TestResolve(t *testing.T) {
 func TestResolveRejectsInvalidFlagValues(t *testing.T) {
 	for _, value := range []string{"", "Other=true", "NextMode=yes", "NextMode=true,NextMode=false", "NextMode", "=true"} {
 		t.Run(value, func(t *testing.T) {
-			_, _, _, err := Resolve([]string{"--feature-gates=" + value}, func(string) (string, bool) { return "", false })
+			_, _, _, err := Resolve([]string{"--features=" + value}, func(string) (string, bool) { return "", false })
 			if err == nil {
 				t.Fatal("Resolve() returned nil error")
 			}
@@ -58,16 +59,16 @@ func TestResolveRejectsInvalidEnvironment(t *testing.T) {
 }
 
 func TestResolveRejectsMissingFlagValue(t *testing.T) {
-	_, _, _, err := Resolve([]string{"version", "--feature-gates"}, func(string) (string, bool) { return "", false })
+	_, _, _, err := Resolve([]string{"version", "--features"}, func(string) (string, bool) { return "", false })
 	if err == nil {
 		t.Fatal("Resolve() returned nil error")
 	}
 }
 
-func TestResolveRejectsRepeatedFeatureGateOptions(t *testing.T) {
+func TestResolveRejectsRepeatedFeatureOptions(t *testing.T) {
 	for _, args := range [][]string{
-		{"--feature-gates=NextMode=false", "--feature-gates", "NextMode=false"},
-		{"--feature-gates=NextMode=false", "--feature-gates", "NextMode=true"},
+		{"--features=NextMode=false", "--features", "NextMode=false"},
+		{"--features=NextMode=false", "--features", "NextMode=true"},
 	} {
 		_, _, _, err := Resolve(args, func(string) (string, bool) { return "", false })
 		if err == nil {
@@ -82,9 +83,9 @@ func TestStripBootstrapArgs(t *testing.T) {
 		args []string
 		want []string
 	}{
-		{"equals form", []string{"--feature-gates=NextMode=false", "zarf", "version"}, []string{"zarf", "version"}},
-		{"value form", []string{"zarf", "--feature-gates", "NextMode=false", "version"}, []string{"zarf", "version"}},
-		{"double dash", []string{"run", "--", "--feature-gates=NextMode=false"}, []string{"run", "--", "--feature-gates=NextMode=false"}},
+		{"equals form", []string{"--features=NextMode=false", "zarf", "version"}, []string{"zarf", "version"}},
+		{"value form", []string{"zarf", "--features", "NextMode=false", "version"}, []string{"zarf", "version"}},
+		{"double dash", []string{"run", "--", "--features=NextMode=false"}, []string{"run", "--", "--features=NextMode=false"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

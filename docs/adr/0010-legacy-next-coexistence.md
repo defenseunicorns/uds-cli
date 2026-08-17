@@ -65,14 +65,14 @@ Keep the current workflows, task runner, GoReleaser configuration, and release d
 
 Pin GoReleaser 2.15.3 to preserve the existing Homebrew formula contract. GoReleaser 2.16 and later reject that contract; migrating the tap from formulas to casks requires separate release coordination before the pin can advance.
 
-Legacy generators run through `go run ./cmd/uds --feature-gates=NextMode=false`. Generated schemas and command documentation retain their current destinations. Next has no additional nonvendor generators. Imported Next documentation and ADRs are deferred.
+Legacy generators run through `go run ./cmd/uds --features=NextMode=false`. Generated schemas and command documentation retain their current destinations. Next has no additional nonvendor generators. Imported Next documentation and ADRs are deferred.
 
-The integration must address Next command handlers that call `os.Exit` and Zarf code that inspects `os.Args` during package initialization. The bootstrap removes feature gate arguments before dependent command packages initialize, then resolves the saved arguments before Cobra construction. The integration must prove all Zarf tools and callbacks with both feature gate forms before the source import can merge.
+The integration must address Next command handlers that call `os.Exit` and Zarf code that inspects `os.Args` during package initialization. The bootstrap removes feature arguments before dependent command packages initialize, then resolves the saved arguments before Cobra construction. The integration must prove all Zarf tools and callbacks with both feature forms before the source import can merge.
 
 ## Consequences
 
 Existing CLI invocations continue to select the complete Legacy tree. Library callers mechanically replace `github.com/defenseunicorns/uds-cli/src/...` with `github.com/defenseunicorns/uds-cli/pkg/legacy/...`; package names and exported symbols remain unchanged.
 
-The tracked API fingerprint covers the complete exported Legacy library, including mutable globals. The Zarf scan fixture reproduces its confirmed imports and symbol usage. Confirming any additional downstream consumer surfaces and adding their pinned fixtures is explicitly assigned to the future integration work before release.
+Confirming downstream consumer surfaces remains assigned to the future integration work before release.
 
 The future Next integration can perform an allowlisted import without an intermediate broken commit. It remains blocked until the preparation build, tests, generation, lint, task graph, and release snapshot are green.

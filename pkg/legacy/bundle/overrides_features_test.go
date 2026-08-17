@@ -9,11 +9,11 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
 )
 
-func TestFeatureGatesIsNotABundleOverride(t *testing.T) {
-	t.Setenv("UDS_FEATURE_GATES", "NextMode=false")
+func TestFeaturesIsNotABundleOverride(t *testing.T) {
+	t.Setenv("UDS_FEATURES", "NextMode=false")
 	bundle := &Bundle{cfg: &types.BundleConfig{}}
 	variables, _ := bundle.loadVariables(types.Package{Name: "package"}, nil)
-	if _, found := variables["FEATURE_GATES"]; found {
-		t.Fatal("UDS_FEATURE_GATES must not be imported as a Legacy bundle override")
+	if _, found := variables["FEATURES"]; found {
+		t.Fatal("UDS_FEATURES must not be imported as a Legacy bundle override")
 	}
 }

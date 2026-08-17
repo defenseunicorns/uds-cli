@@ -23,7 +23,6 @@ require (
 	github.com/zarf-dev/zarf v0.83.0
 	golang.org/x/mod v0.38.0
 	golang.org/x/sync v0.22.0
-	golang.org/x/tools v0.48.0
 	helm.sh/helm/v4 v4.2.3
 	k8s.io/api v0.36.3
 	k8s.io/apimachinery v0.36.3
@@ -577,6 +576,7 @@ require (
 	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
+	golang.org/x/tools v0.48.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
 	google.golang.org/api v0.284.0 // indirect

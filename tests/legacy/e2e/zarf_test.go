@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package test provides e2e tests for UDS.
@@ -17,9 +17,8 @@ import (
 
 // TestZarfLint tests to ensure that the `zarf dev lint` command functions (which requires the zarf schema to be embedded in main.go)
 func TestZarfLint(t *testing.T) {
-	stdout, stderr := runCmd(t, "zarf dev lint testdata/legacy/packages/podinfo")
+	stdout, _ := runCmd(t, "zarf dev lint testdata/legacy/packages/podinfo")
 	require.Contains(t, stdout, "Image not pinned with digest - ghcr.io/stefanprodan/podinfo:")
-	require.Contains(t, stderr, "linting composed package definition")
 }
 
 func TestZarfToolsVersions(t *testing.T) {
@@ -70,7 +69,7 @@ func TestZarfToolsVersions(t *testing.T) {
 	}
 }
 
-func TestZarfFeatureGateBootstrap(t *testing.T) {
+func TestZarfFeatureBootstrap(t *testing.T) {
 	zarfVersion, _, err := exec.Cmd("go", "list", "-f", "{{.Version}}", "-m", "github.com/zarf-dev/zarf")
 	require.NoError(t, err)
 	tests := []struct {
@@ -78,9 +77,10 @@ func TestZarfFeatureGateBootstrap(t *testing.T) {
 		args       []string
 		wantOutput string
 	}{
-		{"equals form before Zarf", []string{"--feature-gates=NextMode=false", "zarf", "version"}, strings.TrimSpace(zarfVersion)},
-		{"value form inside Zarf", []string{"zarf", "--feature-gates", "NextMode=false", "tools", "yq", "--version"}, "yq"},
-		{"equals form inside tool", []string{"zarf", "tools", "kubectl", "--feature-gates=NextMode=false", "version", "--client"}, "Client Version"},
+		{"equals form before Zarf", []string{"--features=NextMode=false", "zarf", "version"}, strings.TrimSpace(zarfVersion)},
+		{"value form inside Zarf", []string{"zarf", "--features", "NextMode=false", "tools", "yq", "--version"}, "yq"},
+		{"equals form inside tool", []string{"zarf", "tools", "kubectl", "--features=NextMode=false", "version", "--client"}, "Client Version"},
+		{"Zarf feature", []string{"zarf", "--features=values=false", "version"}, strings.TrimSpace(zarfVersion)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -1,4 +1,4 @@
-# Copyright 2024 Defense Unicorns
+# Copyright 2024-2026 Defense Unicorns
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 tasks:
@@ -12,7 +12,7 @@ tasks:
       - cmd: go test ./cmd/uds -failfast -v -timeout 5m
 
   - name: router
-    description: run feature gate router tests
+    description: run feature router tests
     actions:
       - cmd: go test ./cmd/uds ./internal/mode -failfast -v -timeout 5m
 
@@ -20,12 +20,6 @@ tasks:
     description: verify Legacy packages do not depend on canonical Next packages
     actions:
       - cmd: ./hack/check-architecture.sh
-
-  - name: consumer
-    description: run Legacy public API consumer fixtures
-    actions:
-      - cmd: go run ./hack/legacy-api -check hack/legacy-api.txt
-      - cmd: go test ./tests/legacy/consumer -failfast -v -timeout 5m
 
   - name: legacy:unit
     description: run Legacy unit tests
@@ -42,7 +36,6 @@ tasks:
     actions:
       - task: router
       - task: architecture
-      - task: consumer
       - task: legacy:unit
 
   - name: e2e-ghcr

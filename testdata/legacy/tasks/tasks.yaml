@@ -30,9 +30,9 @@ tasks:
   - name: action
     actions:
       - cmd: echo "specific test string"
-  - name: feature-gates
+  - name: features
     actions:
-      - cmd: echo "${UDS_FEATURE_GATES}"
+      - cmd: echo "${UDS_FEATURES}"
   - name: cmd-set-variable
     actions:
       - cmd: echo unique-value
