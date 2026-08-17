@@ -148,6 +148,8 @@ func knownFeature(name string) bool {
 }
 
 func addZarfFeatures(args []string, features FeatureSet) []string {
+	// Mode resolution consumes the shared --features flag before Cobra runs. Restore every
+	// feature other than NextMode after the zarf command so Zarf still receives its features.
 	zarfFeatures := FeatureSet{}
 	for name, enabled := range features {
 		if name != "NextMode" {
