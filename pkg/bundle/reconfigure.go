@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -579,9 +580,7 @@ func rebuildDefinitionManifest(original ocispec.Manifest, newDefaultsDesc, newHC
 
 	// Copy existing annotations and add/overwrite reconfigure-specific ones.
 	annotations := make(map[string]string)
-	for k, v := range original.Annotations {
-		annotations[k] = v
-	}
+	maps.Copy(annotations, original.Annotations)
 	// Pin to epoch for reproducible manifest digests, matching the create path.
 	annotations[ocispec.AnnotationCreated] = "1970-01-01T00:00:00Z"
 	annotations[AnnotationReconfiguredFrom] = sourceArtifactDigest

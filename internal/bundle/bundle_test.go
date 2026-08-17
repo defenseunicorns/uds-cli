@@ -630,7 +630,7 @@ func TestCtyValueToGo(t *testing.T) {
 
 	t.Run("unsupported type at deep path is loud-fail with full path", func(t *testing.T) {
 		// Capsule type is a stand-in for any non-handled cty type.
-		caps := cty.Capsule("custom", reflect.TypeOf(struct{}{}))
+		caps := cty.Capsule("custom", reflect.TypeFor[struct{}]())
 		capsVal := cty.CapsuleVal(caps, &struct{}{})
 		_, err := ctyValueToGo(cty.ObjectVal(map[string]cty.Value{
 			"ports": cty.TupleVal([]cty.Value{

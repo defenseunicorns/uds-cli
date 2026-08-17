@@ -466,7 +466,7 @@ func createArchTestBundle(t *testing.T, name, version, arch string) string {
 	dir := t.TempDir()
 	writeMinimalZarfPackage(t, filepath.Join(dir, "localpkg-"+arch))
 	bundleFile := filepath.Join(dir, BundleFileName)
-	require.NoError(t, os.WriteFile(bundleFile, []byte(fmt.Sprintf(`uds {
+	require.NoError(t, os.WriteFile(bundleFile, fmt.Appendf(nil, `uds {
   bundle_api_version = "uds.dev/v1alpha1"
 }
 metadata {
@@ -477,7 +477,7 @@ package "pkg1" {
   source = "localpkg-%s"
   signature_verification { verify = false }
 }
-`, name, version, arch)), tmpFilePerm))
+`, name, version, arch), tmpFilePerm))
 
 	created, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfigWithArch(arch),

@@ -157,7 +157,7 @@ func (g *gatedDeploy) deploy(ctx context.Context, pkg *Package, _ DeployPackageO
 func (g *gatedDeploy) waitForEntries(t *testing.T, n int) []string {
 	t.Helper()
 	got := make([]string, 0, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		select {
 		case name := <-g.entries:
 			got = append(got, name)
@@ -774,7 +774,7 @@ func TestDeployOrchestrator_ConcurrentOutputIsClean(t *testing.T) {
 
 	deploy := func(_ context.Context, pkg *Package, opts DeployPackageOptions) error {
 		token := fmt.Sprintf("[%s]", pkg.Name)
-		for i := 0; i < writesPerPkg; i++ {
+		for range writesPerPkg {
 			_, _ = fmt.Fprint(opts.Streams.ErrOut(), token)
 		}
 		return nil

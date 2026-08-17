@@ -82,13 +82,13 @@ func TestIOStreams_SeparateStreamsAreIsolated(t *testing.T) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 200; i++ {
+		for range 200 {
 			a.Info("alpha")
 		}
 	}()
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 200; i++ {
+		for range 200 {
 			b.Info("bravo")
 		}
 	}()
@@ -127,11 +127,11 @@ func TestIOStreams_ConcurrentWrites(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
-	for i := 0; i < goroutines; i++ {
+	for i := range goroutines {
 		go func(id int) {
 			defer wg.Done()
 			token := fmt.Sprintf("G%02d-", id)
-			for j := 0; j < writesEach; j++ {
+			for range writesEach {
 				_, _ = fmt.Fprint(s.ErrOut(), token)
 			}
 		}(i)
@@ -143,7 +143,7 @@ func TestIOStreams_ConcurrentWrites(t *testing.T) {
 	// Each goroutine's distinct token must appear exactly writesEach times.
 	// A split write would produce a partial token string not matching any token,
 	// causing the count to fall short.
-	for i := 0; i < goroutines; i++ {
+	for i := range goroutines {
 		token := fmt.Sprintf("G%02d-", i)
 		assert.Equal(t, writesEach, strings.Count(got, token),
 			"token %s must appear exactly %d times", token, writesEach)
@@ -163,13 +163,13 @@ func TestErrOut_SharedLockWithLogger(t *testing.T) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		for i := 0; i < n; i++ {
+		for range n {
 			bound.Info("L")
 		}
 	}()
 	go func() {
 		defer wg.Done()
-		for i := 0; i < n; i++ {
+		for range n {
 			_, _ = fmt.Fprint(s.ErrOut(), "X")
 		}
 	}()
