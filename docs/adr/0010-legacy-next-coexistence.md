@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-UDS CLI Legacy and UDS CLI Next must coexist in one Go module and one `uds` binary. Legacy remains the default command tree, while canonical paths are reserved for Next.
+UDS CLI Legacy and UDS CLI Next must coexist in one Go module and one `uds` binary. Legacy is the existing CLI and library surface, while Next introduces the canonical package layout. The repository therefore reserves canonical `internal` and `pkg` paths for Next and namespaces Legacy implementation and library packages under `internal/legacy` and `pkg/legacy`.
 
 ## Decision
 
@@ -27,3 +27,9 @@ Use the following durable source to destination mapping:
 | `uds-cli-next/internal/**` | `internal/**` |
 | `uds-cli-next/pkg/**` | `pkg/**` |
 | `uds-cli-next/tests/**` | `tests/**` |
+
+The `NextMode` feature switch selects the Next command tree when available. Legacy remains the default, and the current release keeps Next unavailable.
+
+## Consequences
+
+Existing Legacy commands and library imports remain available under their Legacy namespaces, while future Next code can use the canonical paths without conflicting with them.
