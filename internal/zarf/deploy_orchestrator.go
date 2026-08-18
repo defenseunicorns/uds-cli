@@ -6,16 +6,19 @@ package zarf
 import (
 	"context"
 	"fmt"
+	"os"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"golang.org/x/sync/errgroup"
 )
 
 // newDeployOrchestrator wires the orchestrator with everything it needs to
 // drive a single bundle deploy. Each package is deployed via deployer.DeployPackage;
 // every deploy detail is carried in pkgOpts (e.g. pkgOpts.ClusterDeployFn).
-func newDeployOrchestrator(deployer Deployer, dag *bundleinternal.DAG, levels [][]*Package, concurrency int, pkgOpts DeployPackageOptions, streams iostreams.IOStreams) *deployOrchestrator {
+func newDeployOrchestrator(deployer packageDeployer, dag *bundleinternal.DAG, levels [][]*Package, concurrency int, pkgOpts DeployPackageOptions, streams iostreams.IOStreams) *deployOrchestrator {
 	return &deployOrchestrator{
 		deployer:    deployer,
 		dag:         dag,
@@ -23,7 +26,24 @@ func newDeployOrchestrator(deployer Deployer, dag *bundleinternal.DAG, levels []
 		concurrency: concurrency,
 		pkgOpts:     pkgOpts,
 		streams:     streams,
+		deployed:    make(map[string]struct{}),
 	}
+}
+
+// DeployedPackages returns successfully deployed package names in DAG order.
+func (o *deployOrchestrator) DeployedPackages() []string {
+	o.deployedMu.Lock()
+	defer o.deployedMu.Unlock()
+
+	result := make([]string, 0, len(o.deployed))
+	for _, level := range o.levels {
+		for _, pkg := range level {
+			if _, ok := o.deployed[pkg.Name]; ok {
+				result = append(result, pkg.Name)
+			}
+		}
+	}
+	return result
 }
 
 // Run executes the deploy across all levels and returns every per-package
@@ -87,12 +107,18 @@ func (o *deployOrchestrator) Run(ctx context.Context) error {
 				}
 
 				o.streams.Info("package deployed", "name", pkg.Name)
+				o.deployedMu.Lock()
+				o.deployed[pkg.Name] = struct{}{}
+				o.deployedMu.Unlock()
 				return nil
 			})
 		}
 
 		_ = g.Wait()
 		if err := levelErrs.Err(); err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 
@@ -104,16 +130,33 @@ func (o *deployOrchestrator) Run(ctx context.Context) error {
 
 func (o *deployOrchestrator) packageDeployFailurePrefix(pkg *Package) string {
 	prefix := fmt.Sprintf("failed to deploy package %q", pkg.Name)
-	if o.dag == nil {
-		return prefix
-	}
-	traversal, ok := o.dag.Traversal(pkg.Name)
+	sourceRange, ok := packageSourceRange(o.pkgOpts.bundlePath, pkg.Name)
 	if !ok {
 		return prefix
 	}
-	sourceRange := traversal.SourceRange()
-	if sourceRange.Filename == "" || sourceRange.Start.Line == 0 {
-		return prefix
-	}
 	return fmt.Sprintf("%s at %s", prefix, sourceRange.String())
+}
+
+func packageSourceRange(bundlePath, packageName string) (hcl.Range, bool) {
+	if bundlePath == "" {
+		return hcl.Range{}, false
+	}
+	src, err := os.ReadFile(bundlePath)
+	if err != nil {
+		return hcl.Range{}, false
+	}
+	file, diags := hclsyntax.ParseConfig(src, bundlePath, hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return hcl.Range{}, false
+	}
+	content, _, diags := file.Body.PartialContent(&hcl.BodySchema{Blocks: []hcl.BlockHeaderSchema{{Type: "package", LabelNames: []string{"name"}}}})
+	if diags.HasErrors() {
+		return hcl.Range{}, false
+	}
+	for _, block := range content.Blocks {
+		if len(block.Labels) == 1 && block.Labels[0] == packageName {
+			return block.DefRange, true
+		}
+	}
+	return hcl.Range{}, false
 }

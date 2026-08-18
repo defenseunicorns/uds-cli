@@ -4,12 +4,10 @@
 package spec
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 )
 
 func TestUDSBundleValidate(t *testing.T) {
@@ -51,30 +49,4 @@ func TestUDSBundleValidate(t *testing.T) {
 			assert.ErrorContains(t, err, tt.wantErr)
 		})
 	}
-}
-
-func TestPackageSourceRangeOmittedFromSerialization(t *testing.T) {
-	t.Parallel()
-
-	pkg := Package{
-		Name:   "app",
-		Source: "oci://example.com/app:v1",
-		SourceRange: SourceRange{
-			Filename: "bundle.uds.hcl",
-			Start:    SourcePosition{Line: 7, Column: 1, Byte: 42},
-			End:      SourcePosition{Line: 7, Column: 17, Byte: 58},
-		},
-	}
-
-	jsonData, err := json.Marshal(pkg)
-	require.NoError(t, err)
-	assert.NotContains(t, string(jsonData), "SourceRange")
-	assert.NotContains(t, string(jsonData), "sourceRange")
-	assert.NotContains(t, string(jsonData), "bundle.uds.hcl")
-
-	yamlData, err := yaml.Marshal(pkg)
-	require.NoError(t, err)
-	assert.NotContains(t, string(yamlData), "SourceRange")
-	assert.NotContains(t, string(yamlData), "sourceRange")
-	assert.NotContains(t, string(yamlData), "bundle.uds.hcl")
 }

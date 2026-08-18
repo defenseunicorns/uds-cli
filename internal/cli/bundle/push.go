@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
@@ -21,6 +22,7 @@ import (
 type PushOptions struct {
 	Tarball      string
 	OCIReference string
+	Prompt       bool
 	Config       *bundle.UDSBundleConfig
 	Printer      printer.ResourcePrinter
 
@@ -68,6 +70,7 @@ func (o *PushOptions) Complete(cmd *cobra.Command, args []string) error {
 		ctx = context.Background()
 	}
 	flags := SnapshotFlags(cmd)
+	o.Prompt = flags.Prompt
 	cfg, _, err := NewConfigResolver().Resolve(ctx, o.IOStreams, flags, "")
 	if err != nil {
 		return err
@@ -100,9 +103,9 @@ func (o *PushOptions) Validate() error {
 
 // Run executes the push command.
 func (o *PushOptions) Run(ctx context.Context) error {
-	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
+	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Options.LogLevel)
 	o.Debug("pushing bundle", "tarball", o.Tarball, "ref", o.OCIReference)
-	if o.Config.Global.Prompt {
+	if o.Prompt {
 		confirmed, err := PromptConfirmation(o.IOStreams, "Push this bundle?")
 		if err != nil {
 			return err
@@ -112,10 +115,31 @@ func (o *PushOptions) Run(ctx context.Context) error {
 			return nil
 		}
 	}
-	result, err := bundle.Push(ctx, o.Tarball, o.OCIReference, bundle.PushOptions{
+	pushOpts := bundle.PushOptions{
 		Config:  o.Config,
 		Streams: o.IOStreams,
-	})
+	}
+	if err := pushOpts.Validate(); err != nil {
+		return err
+	}
+	o.Info("pushing bundle", "tarball", o.Tarball, "ref", o.OCIReference)
+
+	tmp, err := os.MkdirTemp(o.Config.Options.TmpDir, "uds-bundle-push-*")
+	if err != nil {
+		return fmt.Errorf("creating temp dir: %w", err)
+	}
+	defer func() {
+		if err := os.RemoveAll(tmp); err != nil {
+			o.Warn("failed to remove temporary directory", "path", tmp, "error", err)
+		}
+	}()
+
+	o.Debug("extracting bundle", "source", o.Tarball, "output", tmp)
+	if err := artifact.ExtractTarZst(ctx, o.IOStreams, o.Tarball, tmp); err != nil {
+		return fmt.Errorf("extracting bundle: %w", err)
+	}
+
+	result, err := bundle.PushBundle(ctx, tmp, o.OCIReference, pushOpts)
 	if err != nil {
 		return err
 	}

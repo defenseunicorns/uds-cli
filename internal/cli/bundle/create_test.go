@@ -23,7 +23,7 @@ func TestCreateOptions_Validate(t *testing.T) {
 	// Create a valid directory with bundle.uds.hcl
 	validDir := filepath.Join(tempDir, "valid")
 	require.NoError(t, os.Mkdir(validDir, 0o755))
-	validBundleFile := filepath.Join(validDir, bundle.BundleFileName)
+	validBundleFile := filepath.Join(validDir, bundleFileName)
 	require.NoError(t, os.WriteFile(validBundleFile, []byte("test content"), 0o644))
 
 	// Create an empty directory (no bundle.uds.hcl)
@@ -37,47 +37,47 @@ func TestCreateOptions_Validate(t *testing.T) {
 	defaults := NewConfigResolver().Defaults()
 
 	t.Run("empty string", func(t *testing.T) {
-		o := &CreateOptions{BundlePath: "", Config: &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults}}
+		o := &CreateOptions{BundlePath: "", Config: &bundle.UDSBundleConfig{Options: &defaults}}
 		require.Error(t, o.Validate())
 	})
 
 	t.Run("path not found", func(t *testing.T) {
-		o := &CreateOptions{BundlePath: filepath.Join(tempDir, "does", "not", "exist"), Config: &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults}}
+		o := &CreateOptions{BundlePath: filepath.Join(tempDir, "does", "not", "exist"), Config: &bundle.UDSBundleConfig{Options: &defaults}}
 		require.Error(t, o.Validate())
 	})
 
 	t.Run("file with wrong name", func(t *testing.T) {
-		o := &CreateOptions{BundlePath: wrongNameFile, Config: &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults}}
+		o := &CreateOptions{BundlePath: wrongNameFile, Config: &bundle.UDSBundleConfig{Options: &defaults}}
 		err := o.Validate()
 		require.ErrorContains(t, err, "expected file named 'bundle.uds.hcl'")
 	})
 
 	t.Run("directory missing bundle file", func(t *testing.T) {
-		o := &CreateOptions{BundlePath: emptyDir, Config: &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults}}
+		o := &CreateOptions{BundlePath: emptyDir, Config: &bundle.UDSBundleConfig{Options: &defaults}}
 		err := o.Validate()
 		require.ErrorContains(t, err, "directory does not contain bundle.uds.hcl")
 	})
 
 	t.Run("valid directory containing bundle file", func(t *testing.T) {
-		o := &CreateOptions{BundlePath: validDir, Config: &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults}, Signing: bundle.SigningOptions{Mode: bundle.SigningModeUnsigned}}
+		o := &CreateOptions{BundlePath: validDir, Config: &bundle.UDSBundleConfig{Options: &defaults}, Signing: bundle.SigningOptions{Mode: bundle.SigningModeUnsigned}}
 		require.NoError(t, o.Validate())
 		// Validate should not modify BundlePath
 		assert.Equal(t, validDir, o.BundlePath, "Validate() should not modify BundlePath")
 	})
 
 	t.Run("valid bundle file directly", func(t *testing.T) {
-		o := &CreateOptions{BundlePath: validBundleFile, Config: &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults}, Signing: bundle.SigningOptions{Mode: bundle.SigningModeUnsigned}}
+		o := &CreateOptions{BundlePath: validBundleFile, Config: &bundle.UDSBundleConfig{Options: &defaults}, Signing: bundle.SigningOptions{Mode: bundle.SigningModeUnsigned}}
 		require.NoError(t, o.Validate())
 	})
 
 	t.Run("OCI reference", func(t *testing.T) {
-		o := &CreateOptions{BundlePath: "oci://ghcr.io/test/bundle:v1", Config: &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults}}
+		o := &CreateOptions{BundlePath: "oci://ghcr.io/test/bundle:v1", Config: &bundle.UDSBundleConfig{Options: &defaults}}
 		err := o.Validate()
 		require.ErrorContains(t, err, "OCI bundle references not yet supported")
 	})
 
 	t.Run("tar.zst archive", func(t *testing.T) {
-		o := &CreateOptions{BundlePath: "bundle.tar.zst", Config: &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults}}
+		o := &CreateOptions{BundlePath: "bundle.tar.zst", Config: &bundle.UDSBundleConfig{Options: &defaults}}
 		err := o.Validate()
 		require.ErrorContains(t, err, "tar.zst bundles are not supported")
 	})
@@ -103,23 +103,24 @@ func TestCreateOptions_Complete_NoArgs(t *testing.T) {
 	assert.Equal(t, ".", o.BundlePath)
 }
 
-func TestCompleteCreateSigningOptions_RequiresExplicitMode(t *testing.T) {
+func TestCompleteCreateSigningOptions_Unsigned(t *testing.T) {
 	t.Parallel()
 
 	cmd := &cobra.Command{}
 	options := &bundle.SigningOptions{}
 	addSigningFlags(cmd, options)
 	cmd.Flags().Bool("unsigned", false, "create an unsigned bundle")
+	require.NoError(t, cmd.Flags().Set("unsigned", "true"))
 
-	err := completeCreateSigningOptions(cmd, options)
-	require.ErrorContains(t, err, "one of --signing-key, --keyless, or --unsigned is required")
+	require.NoError(t, completeCreateSigningOptions(cmd, options))
+	assert.Equal(t, bundle.SigningModeUnsigned, options.Mode)
 }
 
 func TestCreateOptions_Run_PromptDecline(t *testing.T) {
 	tempDir := t.TempDir()
 	validDir := filepath.Join(tempDir, "valid")
 	require.NoError(t, os.Mkdir(validDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(validDir, bundle.BundleFileName), []byte(`
+	require.NoError(t, os.WriteFile(filepath.Join(validDir, bundleFileName), []byte(`
 uds { bundle_api_version = "uds.dev/v1alpha1" }
 metadata { name = "test" }
 package "pkg1" {
@@ -160,7 +161,8 @@ package "pkg1" {
 
 			o := &CreateOptions{
 				BundlePath: validDir,
-				Config:     &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{Prompt: true}, Options: &defaults},
+				Prompt:     true,
+				Config:     &bundle.UDSBundleConfig{Options: &defaults},
 				Printer:    textPrinter,
 				IOStreams:  streams,
 			}
@@ -173,9 +175,4 @@ package "pkg1" {
 			}
 		})
 	}
-}
-
-func TestCreateOptions_NoninteractivePrompt(t *testing.T) {
-	global := &bundle.GlobalOptions{}
-	assert.False(t, global.Prompt, "Prompt should default to false (non-interactive)")
 }

@@ -42,7 +42,7 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 		return nil, ErrEmpty("targetDir")
 	}
 
-	log := logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
+	log := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
 	tmp, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-pull-*")
 	if err != nil {
 		return nil, fmt.Errorf("creating temp dir: %w", err)
@@ -171,7 +171,7 @@ func (p *defaultPuller) PullPackage(ctx context.Context, ociReference, targetDir
 		return nil, ErrEmpty("targetDir")
 	}
 
-	log := logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
+	log := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
 
 	ociDir := filepath.Join(targetDir, "oci")
 	if err := os.MkdirAll(ociDir, tempDirPerm); err != nil {

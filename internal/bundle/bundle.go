@@ -124,21 +124,6 @@ func (p *HCLParser) decodeBundleWithLocals(hclFile *hcl.File, locals map[string]
 		return nil, fmt.Errorf("failed to decode bundle: %s", diags.Error())
 	}
 
-	packageBlocks, _, diags := hclFile.Body.PartialContent(&hcl.BodySchema{
-		Blocks: []hcl.BlockHeaderSchema{
-			{Type: "package", LabelNames: []string{"name"}},
-		},
-	})
-	if diags.HasErrors() {
-		return nil, fmt.Errorf("failed to decode package metadata: %s", diags.Error())
-	}
-	for i, block := range packageBlocks.Blocks {
-		if i >= len(decoded.Packages) {
-			break
-		}
-		decoded.Packages[i].SourceRange = block.DefRange
-	}
-
 	// Post-process each package to extract depends_on from Remain
 	for i := range decoded.Packages {
 		pkg := &decoded.Packages[i]

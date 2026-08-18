@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	"github.com/defenseunicorns/uds-cli/internal/cli"
 	"github.com/defenseunicorns/uds-cli/internal/cli/bundle"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +29,7 @@ func TestInspectCommand_Integration(t *testing.T) {
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 
 	root := cli.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "inspect", bundlePath, "--skip-signature-verification"})
+	root.SetArgs([]string{"bundle", "inspect", bundlePath})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -44,7 +45,7 @@ func TestInspectCommand_Integration(t *testing.T) {
 	// Verify Packages section
 	assert.Contains(t, output, "Packages (1)")
 	assert.Contains(t, output, "pkg")
-	assert.Contains(t, output, "skipped")
+	assert.Contains(t, output, "not_checked")
 }
 
 func TestInspectCommand_StructuredOutput_Integration(t *testing.T) {
@@ -53,10 +54,10 @@ func TestInspectCommand_StructuredOutput_Integration(t *testing.T) {
 			artifact := createInspectArtifact(t)
 			streams, _, out, _ := iostreams.NewTestIOStreams()
 			root := cli.NewRootCommand(streams)
-			root.SetArgs([]string{"bundle", "inspect", artifact, "--skip-signature-verification", "--output", format})
+			root.SetArgs([]string{"bundle", "inspect", artifact, "--output", format})
 			require.NoError(t, root.Execute())
 
-			var result bundlepkg.InspectResult
+			var result inspectResult
 			if format == "json" {
 				require.NoError(t, json.Unmarshal(out.Bytes(), &result))
 			} else {
@@ -67,22 +68,24 @@ func TestInspectCommand_StructuredOutput_Integration(t *testing.T) {
 			assert.Equal(t, "1.0.0", result.Version)
 			assert.NotEmpty(t, result.ArtifactDigest)
 			require.NotNil(t, result.BundleSignature)
-			assert.Equal(t, bundlepkg.BundleSignatureStatusSkipped, result.BundleSignature.Status)
+			assert.Equal(t, "not_checked", result.BundleSignature.Status)
 			require.Len(t, result.Packages, 1)
 			assert.Equal(t, "pkg", result.Packages[0].Name)
+			assert.Empty(t, result.Packages[0].DependsOn)
 			require.NotNil(t, result.Packages[0].Signature)
-			assert.Equal(t, bundlepkg.PackageSigningStatusSigned, result.Packages[0].Signature.Signed)
-			assert.Equal(t, bundlepkg.PackageVerificationStatusSkipped, result.Packages[0].Signature.Verification)
+			assert.Equal(t, "signed", result.Packages[0].Signature.Signed)
+			assert.Equal(t, "skipped", result.Packages[0].Signature.Verification)
 		})
 	}
 }
 
 func TestInspectOCICommand_Integration(t *testing.T) {
-	artifact := createInspectArtifact(t)
+	artifactTarball := createInspectArtifact(t)
+	artifactDir := t.TempDir()
+	require.NoError(t, artifact.ExtractTarZst(t.Context(), iostreams.IOStreams{}, artifactTarball, artifactDir))
 	registryHost := startLocalRegistry(t)
 	ref := fmt.Sprintf("%s/test/inspect:v1.0.0", registryHost)
 	config := &bundlepkg.UDSBundleConfig{
-		Global: &bundlepkg.GlobalOptions{LogLevel: "info"},
 		Options: &bundlepkg.ConfigOptions{
 			Architecture: runtime.GOARCH,
 			Concurrency:  10,
@@ -90,15 +93,15 @@ func TestInspectOCICommand_Integration(t *testing.T) {
 			TmpDir:       t.TempDir(),
 		},
 	}
-	_, err := bundlepkg.Push(t.Context(), artifact, ref, bundlepkg.PushOptions{Config: config})
+	_, err := bundlepkg.PushBundle(t.Context(), artifactDir, ref, bundlepkg.PushOptions{Config: config})
 	require.NoError(t, err)
 
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 	root := cli.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "inspect", ref, "--plain-http", "--skip-signature-verification", "--output", "json"})
+	root.SetArgs([]string{"bundle", "inspect", ref, "--plain-http", "--output", "json"})
 	require.NoError(t, root.Execute())
 
-	var result bundlepkg.InspectResult
+	var result inspectResult
 	require.NoError(t, json.Unmarshal(out.Bytes(), &result))
 	assert.Equal(t, "inspect-integration", result.Name)
 	assert.Equal(t, "1.0.0", result.Version)
@@ -106,7 +109,7 @@ func TestInspectOCICommand_Integration(t *testing.T) {
 	require.Len(t, result.Packages, 1)
 	assert.Equal(t, "pkg", result.Packages[0].Name)
 	require.NotNil(t, result.Packages[0].Signature)
-	assert.Equal(t, bundlepkg.PackageSigningStatusSigned, result.Packages[0].Signature.Signed)
+	assert.Equal(t, "signed", result.Packages[0].Signature.Signed)
 }
 
 // Note: Error cases (OCI reference, file not found) are tested in unit tests
@@ -156,20 +159,16 @@ func TestPullCommand_Integration(t *testing.T) {
 	registryHost := startLocalRegistry(t)
 	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
 
-	_, err := bundlepkg.Push(t.Context(), bundlePath, ref, bundlepkg.PushOptions{
-		Config: &bundlepkg.UDSBundleConfig{
-			Global:  &bundlepkg.GlobalOptions{},
-			Options: &bundlepkg.ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true, Concurrency: 10},
-		},
+	pushBundleArtifact(t, bundlePath, ref, &bundlepkg.UDSBundleConfig{
+		Options: &bundlepkg.ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true, Concurrency: 10},
 	})
-	require.NoError(t, err)
 
 	outDir := t.TempDir()
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 	root := bundle.NewBundleCommand(streams)
 	root.SetArgs([]string{"pull", ref, "--output-dir", outDir, "--plain-http", "--skip-signature-verification"})
 
-	err = root.Execute()
+	err := root.Execute()
 	require.NoError(t, err)
 
 	assert.Contains(t, out.String(), "OCI Reference:")
@@ -217,27 +216,29 @@ func TestPushPull_RoundTrip(t *testing.T) {
 	assertValidBundleStructure(t, originalPath)
 
 	// push the bundle to the local registry.
-	_, err := bundlepkg.Push(t.Context(), originalPath, ref, bundlepkg.PushOptions{
-		Config: &bundlepkg.UDSBundleConfig{
-			Global:  &bundlepkg.GlobalOptions{},
-			Options: &bundlepkg.ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true, Concurrency: 10},
-		},
+	pushBundleArtifact(t, originalPath, ref, &bundlepkg.UDSBundleConfig{
+		Options: &bundlepkg.ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true, Concurrency: 10},
 	})
-	require.NoError(t, err, "Push should succeed against local registry")
 
 	// pull the bundle from the local registry.
 	outDir := t.TempDir()
-	pullResult, err := bundlepkg.Pull(t.Context(), ref, outDir, bundlepkg.PullOptions{
+	pullResult, err := bundlepkg.PullBundle(t.Context(), ref, outDir, bundlepkg.PullOptions{
 		Config: &bundlepkg.UDSBundleConfig{
-			Global:  &bundlepkg.GlobalOptions{},
 			Options: &bundlepkg.ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true, Architecture: arch, Concurrency: 10},
 		},
-		SkipSignatureVerification: true,
 	})
 	require.NoError(t, err, "Pull should succeed against local registry")
 
 	assertValidBundleStructure(t, pullResult.OutputPath)
 	assertBundleTarballsEqual(t, originalPath, pullResult.OutputPath)
+}
+
+func pushBundleArtifact(t *testing.T, tarball, ref string, cfg *bundlepkg.UDSBundleConfig) {
+	t.Helper()
+	bundleDir := t.TempDir()
+	require.NoError(t, artifact.ExtractTarZst(t.Context(), iostreams.IOStreams{}, tarball, bundleDir))
+	_, err := bundlepkg.PushBundle(t.Context(), bundleDir, ref, bundlepkg.PushOptions{Config: cfg})
+	require.NoError(t, err)
 }
 
 func TestRemoveCommand_Integration(t *testing.T) {

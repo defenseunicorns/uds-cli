@@ -17,32 +17,31 @@ import (
 
 func TestRunDeployWith_PropagatesConfigAndClosesSource(t *testing.T) {
 	streams, _, _, _ := iostreams.NewTestIOStreams()
-	bundlePath := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundlepkg.BundleFileName)
+	bundlePath := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundleFileName)
 	baseConfig := testDeployBaseConfig(7)
-	prepared := &bundlepkg.DeploySource{BundlePath: bundlePath}
 	closeCalls := 0
+	prepared := &preparedDeploySource{source: &bundlepkg.DeploySource{BundlePath: bundlePath}, close: func() error {
+		closeCalls++
+		return nil
+	}}
 	deployCalls := 0
 
-	result, err := runDeployWith(t.Context(), streams, baseConfig, bundlePath, []string{"init"}, true, bundlepkg.VerificationPolicy{}, false, deployRunnerDependencies{
-		prepare: func(_ context.Context, opts bundlepkg.PrepareDeploySourceOptions) (*bundlepkg.DeploySource, error) {
-			assert.Equal(t, bundlePath, opts.Path)
-			assert.Equal(t, baseConfig.Options.TmpDir, opts.TmpDir)
+	result, err := runDeployWith(t.Context(), streams, baseConfig, bundlePath, []string{"init"}, true, false, deployRunnerDependencies{
+		prepare: func(_ context.Context, _ iostreams.IOStreams, gotPath, tmpDir, architecture string) (*preparedDeploySource, error) {
+			assert.Equal(t, bundlePath, gotPath)
+			assert.Equal(t, baseConfig.Options.TmpDir, tmpDir)
+			assert.Equal(t, baseConfig.Options.Architecture, architecture)
 			return prepared, nil
 		},
-		close: func(source *bundlepkg.DeploySource) error {
-			closeCalls++
-			assert.Same(t, prepared, source)
-			return nil
-		},
-		deploy: func(_ context.Context, opts bundlepkg.DeployOptions) (*bundlepkg.DeployResult, error) {
+		deploy: func(_ context.Context, source *bundlepkg.DeploySource, opts bundlepkg.DeployOptions) (*bundlepkg.DeployResult, error) {
 			deployCalls++
-			assert.Same(t, prepared, opts.Source)
-			assert.Equal(t, bundlePath, opts.BundlePath)
+			assert.Same(t, prepared.source, source)
+			assert.Equal(t, bundlePath, source.BundlePath)
 			assert.Equal(t, []string{"init"}, opts.Packages)
 			assert.True(t, opts.Force)
 			assert.Equal(t, 7, opts.Config.Options.Concurrency)
 			assert.Equal(t, "config", opts.Config.Variables["from_config"])
-			return &bundlepkg.DeployResult{BundleName: "k3d-core-init", Packages: 1}, nil
+			return &bundlepkg.DeployResult{BundleName: "k3d-core-init", Packages: []bundlepkg.DeployPackageResult{{Name: "init"}}}, nil
 		},
 	})
 
@@ -55,7 +54,7 @@ func TestRunDeployWith_PropagatesConfigAndClosesSource(t *testing.T) {
 
 func TestRunDeployWith_ForceOnlyBypassesDependencySafety(t *testing.T) {
 	streams, _, _, _ := iostreams.NewTestIOStreams()
-	bundlePath := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundlepkg.BundleFileName)
+	bundlePath := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundleFileName)
 
 	for _, tt := range []struct {
 		name            string
@@ -71,15 +70,11 @@ func TestRunDeployWith_ForceOnlyBypassesDependencySafety(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			closeCalls := 0
 			deployCalls := 0
-			_, err := runDeployWith(t.Context(), streams, testDeployBaseConfig(3), bundlePath, tt.packages, tt.force, bundlepkg.VerificationPolicy{}, false, deployRunnerDependencies{
-				prepare: func(context.Context, bundlepkg.PrepareDeploySourceOptions) (*bundlepkg.DeploySource, error) {
-					return &bundlepkg.DeploySource{BundlePath: bundlePath}, nil
+			_, err := runDeployWith(t.Context(), streams, testDeployBaseConfig(3), bundlePath, tt.packages, tt.force, false, deployRunnerDependencies{
+				prepare: func(context.Context, iostreams.IOStreams, string, string, string) (*preparedDeploySource, error) {
+					return &preparedDeploySource{source: &bundlepkg.DeploySource{BundlePath: bundlePath}, close: func() error { closeCalls++; return nil }}, nil
 				},
-				close: func(*bundlepkg.DeploySource) error {
-					closeCalls++
-					return nil
-				},
-				deploy: func(context.Context, bundlepkg.DeployOptions) (*bundlepkg.DeployResult, error) {
+				deploy: func(context.Context, *bundlepkg.DeploySource, bundlepkg.DeployOptions) (*bundlepkg.DeployResult, error) {
 					deployCalls++
 					return &bundlepkg.DeployResult{}, nil
 				},
@@ -97,18 +92,14 @@ func TestRunDeployWith_ForceOnlyBypassesDependencySafety(t *testing.T) {
 
 func TestRunDeployWith_ClosesSourceOnDeployError(t *testing.T) {
 	streams, _, _, _ := iostreams.NewTestIOStreams()
-	bundlePath := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundlepkg.BundleFileName)
+	bundlePath := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundleFileName)
 	closeCalls := 0
 
-	_, err := runDeployWith(t.Context(), streams, testDeployBaseConfig(2), bundlePath, nil, false, bundlepkg.VerificationPolicy{}, false, deployRunnerDependencies{
-		prepare: func(context.Context, bundlepkg.PrepareDeploySourceOptions) (*bundlepkg.DeploySource, error) {
-			return &bundlepkg.DeploySource{BundlePath: bundlePath}, nil
+	_, err := runDeployWith(t.Context(), streams, testDeployBaseConfig(2), bundlePath, nil, false, false, deployRunnerDependencies{
+		prepare: func(context.Context, iostreams.IOStreams, string, string, string) (*preparedDeploySource, error) {
+			return &preparedDeploySource{source: &bundlepkg.DeploySource{BundlePath: bundlePath}, close: func() error { closeCalls++; return nil }}, nil
 		},
-		close: func(*bundlepkg.DeploySource) error {
-			closeCalls++
-			return nil
-		},
-		deploy: func(context.Context, bundlepkg.DeployOptions) (*bundlepkg.DeployResult, error) {
+		deploy: func(context.Context, *bundlepkg.DeploySource, bundlepkg.DeployOptions) (*bundlepkg.DeployResult, error) {
 			return nil, fmt.Errorf("cluster unavailable")
 		},
 	})
@@ -119,8 +110,8 @@ func TestRunDeployWith_ClosesSourceOnDeployError(t *testing.T) {
 
 func testDeployBaseConfig(concurrency int) *bundlepkg.UDSBundleConfig {
 	return &bundlepkg.UDSBundleConfig{
-		Global: &bundlepkg.GlobalOptions{LogLevel: "info"},
 		Options: &bundlepkg.ConfigOptions{
+			LogLevel:     "info",
 			Architecture: "amd64",
 			Concurrency:  concurrency,
 			TmpDir:       "/tmp",

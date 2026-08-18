@@ -12,7 +12,6 @@ import (
 // validValidationConfig returns baseline valid Zarf configuration for tests.
 func validValidationConfig() *UDSBundleConfig {
 	return &UDSBundleConfig{
-		Global:  &GlobalOptions{},
 		Options: &ConfigOptions{Concurrency: 10},
 	}
 }

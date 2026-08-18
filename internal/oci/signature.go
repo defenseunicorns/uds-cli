@@ -30,7 +30,7 @@ func PublishBundleSignature(ctx context.Context, target oras.Target, subject oci
 	if !ok {
 		return fmt.Errorf("registry target does not support signature discovery")
 	}
-	refs, err := registry.Referrers(ctx, store, subject, MediaTypeBundleSignature)
+	refs, err := signatureReferences(ctx, target, store, subject)
 	if err != nil {
 		return fmt.Errorf("discovering existing bundle signature: %w", err)
 	}
@@ -64,6 +64,9 @@ func PublishBundleSignature(ctx context.Context, target oras.Target, subject oci
 	})
 	if err != nil {
 		return fmt.Errorf("publishing signature artifact: %w", err)
+	}
+	if err := target.Tag(ctx, replacement, legacySignatureTag(subject)); err != nil {
+		return fmt.Errorf("tagging signature artifact: %w", err)
 	}
 	for _, ref := range refs {
 		if err := deleter.Delete(ctx, ref); err != nil && !errors.Is(err, errdef.ErrNotFound) {
@@ -101,7 +104,7 @@ func FetchBundleSignature(ctx context.Context, source oras.Target, subject ocisp
 	if !ok {
 		return nil, fmt.Errorf("registry target does not support signature discovery")
 	}
-	refs, err := registry.Referrers(ctx, store, subject, MediaTypeBundleSignature)
+	refs, err := signatureReferences(ctx, source, store, subject)
 	if err != nil {
 		return nil, fmt.Errorf("discovering bundle signature: %w", err)
 	}
@@ -112,4 +115,23 @@ func FetchBundleSignature(ctx context.Context, source oras.Target, subject ocisp
 		return nil, fmt.Errorf("%w: expected exactly one bundle signature artifact, found %d", ErrBundleSignatureDuplicate, len(refs))
 	}
 	return signatureData(ctx, source, refs[0])
+}
+
+func signatureReferences(ctx context.Context, target oras.Target, store content.ReadOnlyGraphStorage, subject ocispec.Descriptor) ([]ocispec.Descriptor, error) {
+	refs, err := registry.Referrers(ctx, store, subject, MediaTypeBundleSignature)
+	if err == nil && len(refs) != 0 {
+		return refs, nil
+	}
+	legacy, legacyErr := target.Resolve(ctx, legacySignatureTag(subject))
+	if legacyErr == nil {
+		return []ocispec.Descriptor{legacy}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return refs, nil
+}
+
+func legacySignatureTag(subject ocispec.Descriptor) string {
+	return "sha256-" + subject.Digest.Encoded()
 }

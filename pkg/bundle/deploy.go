@@ -2,154 +2,453 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package bundle implements UDS bundle deployment functionality.
-//
-// Below is an illustration of the data flow
-//
-//	bundle.uds.hcl ──▶ HCLParser ──▶ UDSBundle ──▶ Validate ──▶ DAG ──▶ Levels ──▶ Deploy(opts)
-//	                                                              UDSBundleConfig (pre-resolved) ──┘
 package bundle
 
 import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	internalzarf "github.com/defenseunicorns/uds-cli/internal/zarf"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
-	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
+// DeployPackageOptions contains package deployment context passed to hooks.
+type DeployPackageOptions struct {
+	// Config supplies variables, temporary-directory settings, and logging
+	// configuration. Deploy populates it from DeployOptions.Config.
+	Config             *UDSBundleConfig
+	BundleDir          string
+	PackageDeployHooks PackageDeployHooks
+	Streams            iostreams.IOStreams
+}
+
+// ZarfPackageLayoutLoadOptions carries options for loading a Zarf package layout.
+type ZarfPackageLayoutLoadOptions struct {
+	Streams   iostreams.IOStreams
+	IsPartial bool
+}
+
+// ZarfPackageLayoutLoader prepares a Zarf package layout for a bundle package.
+// Implementations may pull from pkg.Source, load from an extracted bundle
+// artifact, or return an already-staged layout.
+type ZarfPackageLayoutLoader interface {
+	LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts ZarfPackageLayoutLoadOptions) (*ZarfPackageLayout, error)
+}
+
+// PackageDeployHooks provides deployment process extensibility on a per-package basis.
+type PackageDeployHooks struct {
+	// PreDeploy enables customizing the options just before deploying the Package.
+	// Called after the package layout is loaded and before the cluster deploy. Mutations to
+	// pkgLayout.Pkg and packageOpts take effect immediately. A non-nil error aborts the
+	// deploy; the cluster deploy is never called and PostDeploy is skipped.
+	// May run concurrently with PreDeploy for other packages within the same DAG level.
+	PreDeploy func(ctx context.Context, pkg *spec.Package, pkgLayout *ZarfPackageLayout, packageOpts *DeployPackageOptions) error
+
+	// PostDeploy enables tracking what Packages have been deployed.
+	// Called after a successful packager.Deploy. Not called when PreDeploy or the deploy itself errors.
+	// May run concurrently with PostDeploy for other packages within the same DAG level — implementations must be concurrency-safe.
+	PostDeploy func(ctx context.Context, pkg *spec.Package) error
+}
+
+// BundleDeployHooks provides deployment process extensibility at the whole-bundle scope.
+type BundleDeployHooks struct {
+	PreDeploy  func(ctx context.Context, b *spec.UDSBundle, opts *DeployOptions) error
+	PostDeploy func(ctx context.Context, b *spec.UDSBundle) error
+}
+
+// DeploySource abstracts the bundle definition, optional parsed bundle, and
+// source-specific package loading behavior. It owns temporary resources created
+// while preparing an artifact source.
+type DeploySource struct {
+	// BundlePath is the absolute path to the bundle definition file (bundle.uds.hcl).
+	BundlePath string
+	// DefaultsPath is an optional defaults.uds.hcl path associated with the source.
+	DefaultsPath string
+	// Bundle is an optional parsed bundle. Prepared artifact sources populate it
+	// with deploy-ready values file paths; nil means Deploy parses BundlePath.
+	Bundle *spec.UDSBundle
+	// Loader overrides how package layouts are obtained; nil means use the default source loader.
+	Loader ZarfPackageLayoutLoader
+
+	close func() error
+}
+
+// Close releases any temporary resources allocated during source preparation.
+func (s *DeploySource) Close() error {
+	if s == nil || s.close == nil {
+		return nil
+	}
+	return s.close()
+}
+
+// DeployOptions contains options for deploying an entire bundle.
+type DeployOptions struct {
+	Config             *UDSBundleConfig
+	Packages           []string
+	Force              bool
+	BundleDeployHooks  BundleDeployHooks
+	PackageDeployHooks PackageDeployHooks
+	Streams            iostreams.IOStreams
+}
+
+// DeployResult represents the output of a bundle deploy operation.
+type DeployResult struct {
+	BundleName string                `json:"bundleName" yaml:"bundleName" text:"Bundle Name"`
+	Packages   []DeployPackageResult `json:"packages" yaml:"packages" text:"Packages"`
+}
+
+// DeployPackageResult represents a package successfully deployed as part of a bundle.
+type DeployPackageResult struct {
+	Name string `json:"name" yaml:"name" text:"Name"`
+}
+
 // Deploy deploys a UDS bundle to a Kubernetes cluster.
-// It validates the bundle and delegates the bundle-level deployment (DAG
-// traversal, ordering, parallelism, concurrency limits) to the Deployer
-// implementation.
-//
-// When opts.Bundle is set, bundle file parsing is skipped; the provided
-// Bundle is still re-validated before deployment.
-func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
+// It delegates bundle-level deployment (DAG traversal, ordering, parallelism,
+// and concurrency limits) to the deployment adapter.
+func Deploy(ctx context.Context, source *DeploySource, opts DeployOptions) (*DeployResult, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-
-	s := logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
-
-	b := opts.Bundle
-	if b != nil {
-		if err := b.Validate(); err != nil {
-			return nil, fmt.Errorf("bundle validation failed: %w", err)
-		}
+	if source == nil {
+		return nil, fmt.Errorf("source is required")
 	}
+	if source.BundlePath == "" && source.Bundle == nil {
+		return nil, fmt.Errorf("source must provide BundlePath or Bundle")
+	}
+	if source.DefaultsPath != "" {
+		config, err := applyEmbeddedDefaults(ctx, opts.Config, source.DefaultsPath, source.Loader != nil)
+		if err != nil {
+			return nil, err
+		}
+		opts.Config = config
+	}
+
+	s := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
+
+	b := source.Bundle
 	if b == nil {
-		s.Debug("parsing bundle", "path", opts.BundlePath)
-		parser := NewHCLParser(opts.Config.Options.Architecture, s)
+		s.Debug("parsing bundle", "path", source.BundlePath)
 		var err error
-		b, err = parser.ParseBundleFile(ctx, opts.BundlePath)
+		if source.Loader != nil {
+			var bundleBytes []byte
+			bundleBytes, err = os.ReadFile(source.BundlePath)
+			if err == nil {
+				b, err = bundleinternal.NewHCLParser(opts.Config.Options.Architecture, s).ParseBundleBytes(ctx, bundleBytes)
+			}
+		} else {
+			b, err = parseBundleFile(ctx, opts.Config.Options.Architecture, s, source.BundlePath)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse bundle: %w", err)
 		}
 		s.Debug("bundle parsed", "name", b.Metadata.Name, "packages", len(b.Packages))
-
-		if err := b.Validate(); err != nil {
-			return nil, fmt.Errorf("bundle validation failed: %w", err)
-		}
-		s.Debug("bundle validated")
+	}
+	if err := b.Validate(); err != nil {
+		return nil, fmt.Errorf("bundle validation failed: %w", err)
 	}
 	if !opts.Force {
-		if err := ValidateDeploySafety(ctx, s, b, opts.Packages); err != nil {
+		if err := validateDeploySafety(ctx, s, b, opts.Packages); err != nil {
 			return nil, err
 		}
 	}
 
-	if opts.Source != nil && opts.Source.ValuesFilesOverride != nil {
-		artifact.ApplyValuesFilesOverride(b.Packages, opts.Source.ValuesFilesOverride)
-	}
-
-	var loader PackageLayoutLoader
-	if opts.Source != nil {
-		loader = opts.Source.Loader
-	}
-
-	deployer := NewZarfDeployer(s, loader)
-	return deployer.DeployBundle(ctx, b, opts)
+	deployer := newZarfDeployer(s, source.Loader)
+	return deployer.deployBundle(ctx, b, opts, source)
 }
 
-// PrepareDeploySource initializes a DeploySource from either a bundle source
-// directory or a .tar.zst bundle artifact. Archive artifacts are authenticated
-// before extraction unless the caller explicitly selects the insecure bypass.
-func PrepareDeploySource(ctx context.Context, opts PrepareDeploySourceOptions) (*DeploySource, error) {
-	if err := opts.Validate(); err != nil {
+type zarfDeployer struct {
+	deployer *internalzarf.ZarfDeployer
+	streams  iostreams.IOStreams
+}
+
+func newZarfDeployer(streams iostreams.IOStreams, loader ZarfPackageLayoutLoader) *zarfDeployer {
+	var internalLoader internalzarf.PackageLayoutLoader
+	if loader != nil {
+		internalLoader = packageLayoutLoaderAdapter{loader: loader}
+	}
+	return &zarfDeployer{deployer: internalzarf.NewZarfDeployer(streams, internalLoader), streams: streams}
+}
+
+func (d *zarfDeployer) deployBundle(ctx context.Context, b *spec.UDSBundle, opts DeployOptions, source *DeploySource) (*DeployResult, error) {
+	if err := validateDirectDeployOptions(opts, b); err != nil {
 		return nil, err
 	}
-	if artifact.IsTarZst(opts.Path) {
-		if opts.SkipSignatureVerification {
-			WarnSkippedSignatureVerification(opts.Streams)
-		} else if err := Verify(ctx, VerifyOptions{
-			Source:  opts.Path,
-			Policy:  opts.Verification,
-			Config:  opts.Config,
-			TmpDir:  opts.TmpDir,
-			Streams: opts.Streams,
-		}); err != nil {
-			return nil, fmt.Errorf("verifying bundle artifact: %w", err)
+	if source == nil && !opts.Force {
+		if err := validateDeploySafety(ctx, d.streams, b, opts.Packages); err != nil {
+			return nil, err
 		}
-		return prepareExtractedArtifactSource(ctx, opts.Streams, opts.Path, opts.TmpDir)
 	}
-	return prepareDirectorySource(opts.Path), nil
+	result, err := d.deployer.DeployBundle(ctx, b, toZarfDeployOptions(opts, source))
+	if result == nil {
+		return nil, err
+	}
+	packages := make([]DeployPackageResult, len(result.Packages))
+	for i, name := range result.Packages {
+		packages[i] = DeployPackageResult{Name: name}
+	}
+	return &DeployResult{BundleName: result.BundleName, Packages: packages}, err
 }
 
-// prepareExtractedArtifactSource extracts an artifact into an owned temporary workspace.
-func prepareExtractedArtifactSource(ctx context.Context, streams iostreams.IOStreams, path, tmpDir string) (*DeploySource, error) {
+func validateDirectDeployOptions(opts DeployOptions, b *spec.UDSBundle) error {
+	if err := validateConfig(opts.Config); err != nil {
+		return err
+	}
+	if b == nil {
+		return fmt.Errorf("bundle is required")
+	}
+	return nil
+}
+
+func toZarfConfig(cfg *UDSBundleConfig) *internalzarf.UDSBundleConfig {
+	if cfg == nil {
+		return nil
+	}
+	var options *internalzarf.ConfigOptions
+	if cfg.Options != nil {
+		options = &internalzarf.ConfigOptions{
+			LogLevel: cfg.Options.LogLevel, Architecture: cfg.Options.Architecture,
+			PlainHTTP: cfg.Options.PlainHTTP, SkipTLSVerify: cfg.Options.SkipTLSVerify,
+			TmpDir: cfg.Options.TmpDir, Concurrency: cfg.Options.Concurrency,
+		}
+	}
+	return &internalzarf.UDSBundleConfig{Options: options, Variables: internalzarf.Variables(cfg.Variables)}
+}
+
+func fromZarfConfig(cfg *internalzarf.UDSBundleConfig) *UDSBundleConfig {
+	if cfg == nil {
+		return nil
+	}
+	var options *ConfigOptions
+	if cfg.Options != nil {
+		options = &ConfigOptions{
+			LogLevel: cfg.Options.LogLevel, Architecture: cfg.Options.Architecture,
+			PlainHTTP: cfg.Options.PlainHTTP, SkipTLSVerify: cfg.Options.SkipTLSVerify,
+			TmpDir: cfg.Options.TmpDir, Concurrency: cfg.Options.Concurrency,
+		}
+	}
+	return &UDSBundleConfig{Options: options, Variables: Variables(cfg.Variables)}
+}
+
+func toZarfDeployPackageOptions(opts DeployPackageOptions) internalzarf.DeployPackageOptions {
+	return internalzarf.DeployPackageOptions{
+		Config:             toZarfConfig(opts.Config),
+		BundleDir:          opts.BundleDir,
+		PackageDeployHooks: toZarfPackageHooks(opts.PackageDeployHooks),
+		Streams:            opts.Streams,
+	}
+}
+
+func fromZarfDeployPackageOptions(opts internalzarf.DeployPackageOptions) DeployPackageOptions {
+	return DeployPackageOptions{
+		Config:    fromZarfConfig(opts.Config),
+		BundleDir: opts.BundleDir,
+		Streams:   opts.Streams,
+	}
+}
+
+func toZarfPackageHooks(hooks PackageDeployHooks) internalzarf.PackageDeployHooks {
+	var result internalzarf.PackageDeployHooks
+	if hooks.PreDeploy != nil {
+		result.PreDeploy = func(ctx context.Context, pkg *spec.Package, pkgLayout *layout.PackageLayout, _ *packager.DeployOptions, internalOpts *internalzarf.DeployPackageOptions) error {
+			publicOpts := fromZarfDeployPackageOptions(*internalOpts)
+			publicOpts.PackageDeployHooks = hooks
+			publicLayout := fromZarfPackageLayout(pkgLayout)
+			publicLayout.IsPartial = internalOpts.IsPartial
+			err := hooks.PreDeploy(ctx, pkg, publicLayout, &publicOpts)
+			if applyErr := applyPublicPackageLayout(pkgLayout, publicLayout); applyErr != nil {
+				return applyErr
+			}
+			if err != nil {
+				return err
+			}
+			if internalOpts.Config != nil {
+				if configErr := validateConfig(publicOpts.Config); configErr != nil {
+					return configErr
+				}
+			}
+			internalOpts.Config = toZarfConfig(publicOpts.Config)
+			internalOpts.BundleDir = publicOpts.BundleDir
+			internalOpts.PackageDeployHooks = toZarfPackageHooks(publicOpts.PackageDeployHooks)
+			internalOpts.IsPartial = publicLayout.IsPartial
+			internalOpts.Streams = publicOpts.Streams
+			return nil
+		}
+	}
+	result.PostDeploy = hooks.PostDeploy
+	return result
+}
+
+func toZarfDeployOptions(opts DeployOptions, source *DeploySource) internalzarf.DeployOptions {
+	bundlePath := ""
+	bundleDir := ""
+	if source != nil {
+		bundlePath = source.BundlePath
+		bundleDir = filepath.Dir(source.BundlePath)
+	}
+	internal := internalzarf.DeployOptions{
+		Config:             toZarfConfig(opts.Config),
+		BundlePath:         bundlePath,
+		BundleDir:          bundleDir,
+		Packages:           opts.Packages,
+		PackageDeployHooks: toZarfPackageHooks(opts.PackageDeployHooks),
+	}
+	if opts.BundleDeployHooks.PreDeploy != nil {
+		internal.BundleDeployHooks.PreDeploy = func(ctx context.Context, b *spec.UDSBundle, internalOpts *internalzarf.DeployOptions) error {
+			publicOpts := opts
+			publicOpts.Config = fromZarfConfig(internalOpts.Config)
+			publicOpts.Packages = internalOpts.Packages
+			if err := opts.BundleDeployHooks.PreDeploy(ctx, b, &publicOpts); err != nil {
+				return err
+			}
+			internalOpts.Config = toZarfConfig(publicOpts.Config)
+			internalOpts.PackageDeployHooks = toZarfPackageHooks(publicOpts.PackageDeployHooks)
+			return nil
+		}
+	}
+	internal.BundleDeployHooks.PostDeploy = opts.BundleDeployHooks.PostDeploy
+	return internal
+}
+
+func applyEmbeddedDefaults(ctx context.Context, config *UDSBundleConfig, defaultsPath string, artifactSource bool) (*UDSBundleConfig, error) {
+	var (
+		defaults bundleinternal.Variables
+		err      error
+	)
+	if config == nil {
+		return nil, fmt.Errorf("config must not be nil")
+	}
+	if !artifactSource {
+		defaults, err = bundleinternal.ParseDefaults(ctx, defaultsPath)
+		if err != nil {
+			return nil, fmt.Errorf("loading embedded defaults: %w", err)
+		}
+	} else {
+		defaultsData, err := os.ReadFile(defaultsPath)
+		if err != nil {
+			return nil, fmt.Errorf("loading embedded defaults: %w", err)
+		}
+		defaults, err = bundleinternal.ParseDefaultsBytes(ctx, defaultsData)
+		if err != nil {
+			return nil, fmt.Errorf("loading embedded defaults: %w", err)
+		}
+	}
+	merged := *config
+	merged.Variables = fromInternalVariables(bundleinternal.MergeVariables(bundleinternal.Variables(defaults), toInternalVariables(config.Variables)))
+	return &merged, nil
+}
+
+func fromInternalVariables(variables bundleinternal.Variables) Variables {
+	if variables == nil {
+		return nil
+	}
+	result := make(Variables, len(variables))
+	for key, value := range variables {
+		result[key] = fromInternalVariableValue(value)
+	}
+	return result
+}
+
+func fromInternalVariableValue(value any) any {
+	switch value := value.(type) {
+	case bundleinternal.Variables:
+		return fromInternalVariables(value)
+	case map[string]any:
+		return fromInternalVariables(bundleinternal.Variables(value))
+	case []any:
+		result := make([]any, len(value))
+		for i, item := range value {
+			result[i] = fromInternalVariableValue(item)
+		}
+		return result
+	default:
+		return value
+	}
+}
+
+// PrepareDeploySource prepares a bundle directory or verified tar.zst artifact.
+func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path, tmpDir, architecture string) (*DeploySource, error) {
+	if path == "" {
+		return nil, fmt.Errorf("path must not be empty")
+	}
+	if !artifact.IsTarZst(path) {
+		bundlePath := bundleinternal.ResolveBundlePath(path)
+		defaultsPath, err := bundleinternal.AdjacentDefaultsPath(filepath.Dir(bundlePath))
+		if err != nil {
+			return nil, fmt.Errorf("discovering adjacent defaults: %w", err)
+		}
+		return &DeploySource{BundlePath: bundlePath, DefaultsPath: defaultsPath}, nil
+	}
+
 	workspaceDir, err := os.MkdirTemp(tmpDir, "uds-bundle-deploy-*")
 	if err != nil {
 		return nil, fmt.Errorf("creating workspace for bundle artifact: %w", err)
 	}
-
+	cleanup := func() error { return os.RemoveAll(workspaceDir) }
 	extracted, err := artifact.ExtractArtifact(ctx, streams, path, workspaceDir)
 	if err != nil {
-		_ = os.RemoveAll(workspaceDir)
+		_ = cleanup()
 		return nil, fmt.Errorf("extracting bundle artifact: %w", err)
 	}
-
 	valuesOverride, err := extracted.ValuesFilesByPackage()
 	if err != nil {
-		_ = os.RemoveAll(workspaceDir)
+		_ = cleanup()
 		return nil, fmt.Errorf("collecting values files from artifact: %w", err)
 	}
 
-	return &DeploySource{
+	bundleBytes, err := os.ReadFile(extracted.BundleDefPath)
+	if err != nil {
+		_ = cleanup()
+		return nil, fmt.Errorf("reading extracted bundle definition: %w", err)
+	}
+	preparedBundle, err := bundleinternal.NewHCLParser(architecture, streams).ParseBundleBytes(ctx, bundleBytes)
+	if err != nil {
+		_ = cleanup()
+		return nil, fmt.Errorf("parsing extracted bundle definition: %w", err)
+	}
+	if err := applyArtifactValuesFiles(preparedBundle, valuesOverride, extracted.Dir); err != nil {
+		_ = cleanup()
+		return nil, err
+	}
+
+	source := &DeploySource{
 		BundlePath: extracted.BundleDefPath,
-		Loader: &ExtractedArtifactPackageLayoutLoader{
-			OCIDir:           extracted.OCIDir,
-			PackageDigests:   descriptorDigests(extracted.PackageManifests),
-			packageManifests: extracted.PackageManifests,
-		},
-		ValuesFilesOverride: valuesOverride,
-		closer:              tempDirCloser{path: workspaceDir},
-	}, nil
-}
-
-func descriptorDigests(manifests map[string]ocispec.Descriptor) map[string]string {
-	digests := make(map[string]string, len(manifests))
-	for ref, descriptor := range manifests {
-		digests[ref] = descriptor.Digest.String()
+		Bundle:     preparedBundle,
+		Loader: &extractedArtifactPackageLayoutLoader{loader: &internalzarf.ExtractedArtifactPackageLayoutLoader{
+			OCIDir: extracted.OCIDir, PackageManifests: extracted.PackageManifests,
+		}},
+		close: cleanup,
 	}
-	return digests
-}
-
-// prepareDirectorySource prepares a deploy source backed by a local bundle directory.
-func prepareDirectorySource(path string) *DeploySource {
-	return &DeploySource{
-		BundlePath: ResolveBundlePath(path),
+	source.DefaultsPath, err = bundleinternal.AdjacentDefaultsPath(filepath.Dir(extracted.BundleDefPath))
+	if err != nil {
+		_ = cleanup()
+		return nil, fmt.Errorf("discovering adjacent defaults: %w", err)
 	}
+	return source, nil
 }
 
-// tempDirCloser removes an owned temporary workspace when closed.
-type tempDirCloser struct {
-	path string
-}
-
-// Close removes the temporary directory.
-func (c tempDirCloser) Close() error {
-	return os.RemoveAll(c.path)
+func applyArtifactValuesFiles(b *spec.UDSBundle, valuesByPackage map[string][]string, bundleDir string) error {
+	for i := range b.Packages {
+		paths := valuesByPackage[b.Packages[i].Name]
+		b.Packages[i].ValuesFiles = nil
+		if paths == nil {
+			continue
+		}
+		b.Packages[i].ValuesFiles = make([]string, len(paths))
+		for j, path := range paths {
+			var err error
+			b.Packages[i].ValuesFiles[j], err = filepath.Rel(bundleDir, path)
+			if err != nil {
+				return fmt.Errorf("relating extracted values file path: %w", err)
+			}
+		}
+	}
+	return nil
 }

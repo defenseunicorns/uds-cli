@@ -172,11 +172,32 @@ func ParseDefaults(_ context.Context, path string) (Variables, error) {
 	return parseDefaultsContent(src, path)
 }
 
+// ParseDefaultsBytes parses defaults HCL without enabling file-backed expressions.
+func ParseDefaultsBytes(_ context.Context, src []byte) (Variables, error) {
+	if len(src) == 0 {
+		return nil, errEmpty("src")
+	}
+	return parseDefaultsContentWithoutFile(src, BundleDefaultsFileName)
+}
+
 // parseDefaultsContent decodes variables from defaults HCL content.
 func parseDefaultsContent(src []byte, path string) (Variables, error) {
+	return parseDefaultsContentWithFile(src, path, true)
+}
+
+func parseDefaultsContentWithoutFile(src []byte, path string) (Variables, error) {
+	return parseDefaultsContentWithFile(src, path, false)
+}
+
+func parseDefaultsContentWithFile(src []byte, path string, allowFile bool) (Variables, error) {
 	hclFile, diags := hclsyntax.ParseConfig(src, path, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
 		return nil, fmt.Errorf("failed to parse defaults HCL: %s", diags.Error())
+	}
+	if !allowFile {
+		if err := rejectFileFunctionWithoutSourcePath(hclFile, "defaults.uds.hcl"); err != nil {
+			return nil, err
+		}
 	}
 
 	// JustAttributes rejects any blocks (e.g. options {}).
@@ -197,7 +218,11 @@ func parseDefaultsContent(src []byte, path string) (Variables, error) {
 		return nil, nil
 	}
 
-	val, diags := attr.Expr.Value(configEvalContext(path))
+	var evalContext *hcl.EvalContext
+	if allowFile {
+		evalContext = configEvalContext(path)
+	}
+	val, diags := attr.Expr.Value(evalContext)
 	if diags.HasErrors() {
 		return nil, fmt.Errorf("failed to evaluate variables: %s", diags.Error())
 	}
@@ -308,7 +333,7 @@ func deepMerge(dst, src Variables) {
 //
 //	Input:  Variables{"domain": "uds.dev", "ports": []any{1.0, 2.0}, "nested": Variables{"key": "val"}}
 //	Output: map[string]string{"DOMAIN": "uds.dev"}  (ports and nested skipped)
-func (v Variables) Flatten() (map[string]string, error) {
+func (v Variables) Flatten() map[string]string {
 	out := make(map[string]string, len(v))
 	for k, val := range v {
 		upper := strings.ToUpper(k)
@@ -324,5 +349,5 @@ func (v Variables) Flatten() (map[string]string, error) {
 			// They belong in values_files where templates can process them natively.
 		}
 	}
-	return out, nil
+	return out
 }

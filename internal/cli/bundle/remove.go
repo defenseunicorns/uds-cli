@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
@@ -21,6 +22,7 @@ type RemoveOptions struct {
 	BundlePath string // Path to bundle file or directory (user input, resolved in Run)
 	Packages   []string
 	Force      bool
+	Prompt     bool
 	Config     *bundle.UDSBundleConfig
 	Printer    printer.ResourcePrinter
 
@@ -105,6 +107,7 @@ func (o *RemoveOptions) Complete(cmd *cobra.Command, args []string) error {
 		ctx = context.Background()
 	}
 	flags := SnapshotFlags(cmd)
+	o.Prompt = flags.Prompt
 	cfg, _, err := NewConfigResolver().Resolve(ctx, o.IOStreams, flags, o.BundlePath)
 	if err != nil {
 		return err
@@ -134,21 +137,25 @@ func (o *RemoveOptions) Validate() error {
 	// Bind a logger so the parse + safety-check diagnostics below honor --log-level
 	// and Streams.ErrOut, consistent with the rest of the CLI.
 	ctx := context.Background()
-	s := logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
-	bundlePath := bundle.ResolveBundlePath(o.BundlePath)
-	parsedBundle, err := bundle.NewHCLParser(o.Config.Options.Architecture, s).ParseBundleFile(ctx, bundlePath)
+	s := logger.Bind(o.IOStreams, o.Config.Options.LogLevel)
+	bundlePath := resolveBundlePath(o.BundlePath)
+	parsedBundle, err := bundleinternal.NewHCLParser(o.Config.Options.Architecture, s).ParseBundleFile(ctx, bundlePath)
 	if err != nil {
 		return fmt.Errorf("failed to parse bundle: %w", err)
 	}
 	if err := parsedBundle.Validate(); err != nil {
 		return fmt.Errorf("invalid bundle: %w", err)
 	}
-	if err := bundle.ValidatePackageNames(o.Packages, parsedBundle.Packages); err != nil {
+	if err := bundleinternal.ValidatePackageNames(o.Packages, parsedBundle.Packages); err != nil {
 		return err
 	}
 	if !o.Force {
-		if err := bundle.ValidateRemovalSafety(ctx, s, parsedBundle, o.Packages); err != nil {
-			return fmt.Errorf("%w\nre-run with --force to override", err)
+		violations, err := bundleinternal.RemovalViolations(ctx, s, parsedBundle, o.Packages)
+		if err != nil {
+			return err
+		}
+		if len(violations) > 0 {
+			return fmt.Errorf("%w\nre-run with --force to override", formatDependencyError("cannot remove package(s) with bundle dependents", "is required by", violations))
 		}
 	}
 
@@ -159,13 +166,13 @@ func (o *RemoveOptions) Validate() error {
 // Run executes the remove command. Validate() must have populated
 // o.parsedBundle.
 func (o *RemoveOptions) Run(ctx context.Context) error {
-	bundlePath := bundle.ResolveBundlePath(o.BundlePath)
-	s := logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
-	s.Debug("removing bundle", "path", bundlePath, "prompt", o.Config.Global.Prompt)
+	bundlePath := resolveBundlePath(o.BundlePath)
+	s := logger.Bind(o.IOStreams, o.Config.Options.LogLevel)
+	s.Debug("removing bundle", "path", bundlePath, "prompt", o.Prompt)
 
 	s.Info("bundle to remove", "name", o.parsedBundle.Metadata.Name, "packages", len(o.parsedBundle.Packages))
 
-	if o.Config.Global.Prompt {
+	if o.Prompt {
 		confirmed, err := PromptConfirmation(o.IOStreams, "Remove this bundle?")
 		if err != nil {
 			return err
@@ -177,15 +184,16 @@ func (o *RemoveOptions) Run(ctx context.Context) error {
 	}
 
 	removeOpts := bundle.RemoveOptions{
-		Config:     o.Config,
-		BundlePath: bundlePath,
-		Bundle:     o.parsedBundle,
-		Packages:   o.Packages,
-		Force:      o.Force,
-		Streams:    o.IOStreams,
+		Config:   o.Config,
+		Packages: o.Packages,
+		Force:    o.Force,
+		Streams:  o.IOStreams,
 	}
 
-	result, err := bundle.Remove(ctx, removeOpts)
+	result, err := bundle.Remove(ctx, &bundle.DeploySource{
+		BundlePath: bundlePath,
+		Bundle:     o.parsedBundle,
+	}, removeOpts)
 	if err != nil {
 		return fmt.Errorf("removal failed: %w", err)
 	}

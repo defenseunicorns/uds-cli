@@ -20,9 +20,35 @@ import (
 	"github.com/mholt/archives"
 	"github.com/stretchr/testify/require"
 
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
+	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
+
+type inspectResult struct {
+	Name             string                  `json:"name" yaml:"name"`
+	Version          string                  `json:"version" yaml:"version"`
+	ArtifactDigest   string                  `json:"artifactDigest" yaml:"artifactDigest"`
+	ReconfiguredFrom string                  `json:"reconfiguredFrom" yaml:"reconfiguredFrom"`
+	BundleSignature  *bundleSignatureSummary `json:"bundleSignature" yaml:"bundleSignature"`
+	Packages         []inspectPackage        `json:"packages" yaml:"packages"`
+}
+
+type bundleSignatureSummary struct {
+	Status string `json:"status" yaml:"status"`
+}
+
+type inspectPackage struct {
+	Name      string                   `json:"name" yaml:"name"`
+	DependsOn []string                 `json:"dependsOn" yaml:"dependsOn"`
+	Signature *packageSignatureSummary `json:"signature" yaml:"signature"`
+}
+
+type packageSignatureSummary struct {
+	Signed       string `json:"signed" yaml:"signed"`
+	Verification string `json:"verification" yaml:"verification"`
+}
 
 func createInspectArtifact(t *testing.T) string {
 	t.Helper()
@@ -32,7 +58,7 @@ func createInspectArtifact(t *testing.T) string {
 	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte("build:\n  signed: true\nmetadata:\n  name: test\n  version: 1.0.0\n  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "checksums.txt"), nil, 0o644))
 
-	bundleFile := filepath.Join(root, bundlepkg.BundleFileName)
+	bundleFile := filepath.Join(root, bundleinternal.BundleFileName)
 	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
   bundle_api_version = "uds.dev/v1alpha1"
 }
@@ -52,11 +78,10 @@ package "pkg" {
 		LogLevel:     "info",
 		TmpDir:       t.TempDir(),
 	}
-	result, err := bundlepkg.Create(t.Context(), bundlepkg.CreateOptions{
-		Config:     &bundlepkg.UDSBundleConfig{Global: &bundlepkg.GlobalOptions{LogLevel: "info"}, Options: &defaults},
-		BundleFile: bundleFile,
-		Signing:    bundlepkg.SigningOptions{Mode: bundlepkg.SigningModeUnsigned},
-		Streams:    iostreams.IOStreams{},
+	result, err := bundlepkg.Create(t.Context(), bundleFile, bundlepkg.CreateOptions{
+		Config:  &bundlepkg.UDSBundleConfig{Options: &defaults},
+		Signing: bundlepkg.SigningOptions{Mode: bundlepkg.SigningModeUnsigned},
+		Streams: iostreams.IOStreams{},
 	})
 	require.NoError(t, err)
 	return result.OutputPath
@@ -164,7 +189,7 @@ func bundleDefinitionContainsLayerTitle(t *testing.T, allPaths map[string]bool, 
 	require.NoError(t, json.Unmarshal(idxBytes, &idx))
 
 	for _, m := range idx.Manifests {
-		if m.ArtifactType != bundlepkg.MediaTypeBundleDefinition {
+		if m.ArtifactType != udsoci.MediaTypeBundleDefinition {
 			continue
 		}
 		hex := strings.TrimPrefix(m.Digest, "sha256:")
@@ -221,7 +246,7 @@ func extractLayerFromBundle(t *testing.T, small map[string][]byte, title string)
 	require.NoError(t, json.Unmarshal(idxBytes, &idx))
 
 	for _, m := range idx.Manifests {
-		if m.ArtifactType != bundlepkg.MediaTypeBundleDefinition {
+		if m.ArtifactType != udsoci.MediaTypeBundleDefinition {
 			continue
 		}
 		hex := strings.TrimPrefix(m.Digest, "sha256:")
@@ -274,7 +299,7 @@ func reconfiguredAnnotation(t *testing.T, small map[string][]byte) string {
 	require.NoError(t, json.Unmarshal(idxBytes, &idx))
 
 	for _, m := range idx.Manifests {
-		if m.ArtifactType != bundlepkg.MediaTypeBundleDefinition {
+		if m.ArtifactType != udsoci.MediaTypeBundleDefinition {
 			continue
 		}
 		hex := strings.TrimPrefix(m.Digest, "sha256:")
@@ -286,7 +311,7 @@ func reconfiguredAnnotation(t *testing.T, small map[string][]byte) string {
 		}
 		require.NoError(t, json.Unmarshal(manifestBytes, &manifest))
 
-		value, has := manifest.Annotations[bundlepkg.AnnotationReconfiguredFrom]
+		value, has := manifest.Annotations[udsoci.AnnotationReconfiguredFrom]
 		if !has {
 			t.Fatal("bundle definition manifest missing reconfigured-from annotation")
 		}

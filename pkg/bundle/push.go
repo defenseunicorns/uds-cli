@@ -10,16 +10,17 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	oras "oras.land/oras-go/v2"
 )
 
-// Push is a compatibility adapter that extracts the tarball and delegates to NewDefaultPusher().PushBundle.
-// It preserves the current CLI tarball UX at the adapter layer.
-func Push(ctx context.Context, bundleTarball, ociReference string, opts PushOptions) (*PushResult, error) {
+// Push pushes a local bundle tarball to an OCI registry.
+func Push(ctx context.Context, bundleTarball, ref string, opts PushOptions) (*PushResult, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	s := logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
-	s.Info("pushing bundle", "tarball", bundleTarball, "ref", ociReference)
+	s := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
 	signatureEntries, err := artifact.CountTarZstEntries(ctx, bundleTarball, BundleSignatureFileName)
 	if err != nil {
 		return nil, fmt.Errorf("checking bundle signature evidence: %w", err)
@@ -27,21 +28,57 @@ func Push(ctx context.Context, bundleTarball, ociReference string, opts PushOpti
 	if signatureEntries > 1 {
 		return nil, fmt.Errorf("expected exactly one bundle signature evidence entry, found %d", signatureEntries)
 	}
-
 	tmp, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-push-*")
 	if err != nil {
 		return nil, fmt.Errorf("creating temp dir: %w", err)
 	}
-	defer func() {
-		if rerr := os.RemoveAll(tmp); rerr != nil {
-			s.Warn("failed to remove temporary directory", "path", tmp, "error", rerr)
-		}
-	}()
-
-	s.Debug("extracting bundle", "source", bundleTarball, "output", tmp)
+	defer func() { _ = os.RemoveAll(tmp) }()
 	if err := artifact.ExtractTarZst(ctx, s, bundleTarball, tmp); err != nil {
 		return nil, fmt.Errorf("extracting bundle: %w", err)
 	}
+	return PushBundle(ctx, tmp, ref, opts)
+}
 
-	return NewDefaultPusher().PushBundle(ctx, tmp, ociReference, opts)
+// PushOptions holds configuration for pushing a bundle to an OCI registry.
+type PushOptions struct {
+	Config  *UDSBundleConfig
+	Streams iostreams.IOStreams
+}
+
+// PushResult represents the output of a bundle push operation.
+type PushResult struct {
+	OCIReference string `json:"ociReference" yaml:"ociReference" text:"OCI Reference"`
+}
+
+type pushHooks struct {
+	toOrasTarget       func(ctx context.Context, ociReference string, opts *PushOptions) (oras.Target, error)
+	modifyOrasSettings func(ctx context.Context, copyOptions *oras.CopyOptions) error
+}
+
+// PushBundle pushes a bundle directory to OCI storage.
+func PushBundle(ctx context.Context, bundleDir, ref string, opts PushOptions) (*PushResult, error) {
+	return pushBundle(ctx, bundleDir, ref, opts, pushHooks{})
+}
+
+func pushBundle(ctx context.Context, bundleDir, ref string, opts PushOptions, hooks pushHooks) (*PushResult, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+	result, err := udsoci.NewDefaultPusher().PushBundle(ctx, bundleDir, ref, toOCIPushOptions(opts, hooks))
+	if result == nil {
+		return nil, err
+	}
+	return &PushResult{OCIReference: result.OCIReference}, err
+}
+
+// toOCIPushOptions converts public push options and hooks to internal equivalents.
+func toOCIPushOptions(opts PushOptions, hooks pushHooks) udsoci.PushOptions {
+	internal := udsoci.PushOptions{Config: toInternalConfig(opts.Config), Streams: opts.Streams}
+	internal.PushHooks.ModifyOrasSettings = hooks.modifyOrasSettings
+	if hooks.toOrasTarget != nil {
+		internal.PushHooks.ToOrasTarget = func(ctx context.Context, ref string, _ *udsoci.PushOptions) (oras.Target, error) {
+			return hooks.toOrasTarget(ctx, ref, &opts)
+		}
+	}
+	return internal
 }

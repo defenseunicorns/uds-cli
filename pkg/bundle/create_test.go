@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
@@ -52,11 +53,10 @@ package "pkg1" {
 }
 `), tmpFilePerm))
 
-	_, err := Create(t.Context(), CreateOptions{
-		Config:     newTestConfig(),
-		BundleFile: bundleFile,
-		Signing:    SigningOptions{Mode: SigningModeUnsigned},
-		Streams:    iostreams.New(nil, nil, io.Discard),
+	_, err := Create(t.Context(), bundleFile, CreateOptions{
+		Config:  newTestConfig(),
+		Signing: SigningOptions{Mode: SigningModeUnsigned},
+		Streams: iostreams.New(nil, nil, io.Discard),
 	})
 	require.NoError(t, err)
 
@@ -81,7 +81,7 @@ package "pkg1" {
 	var cfgDigest string
 	for _, m := range idx.Manifests {
 		require.Contains(t, entries, "oci/blobs/sha256/"+strings.TrimPrefix(m.Digest, "sha256:"))
-		if m.ArtifactType == MediaTypeBundleDefinition {
+		if m.ArtifactType == udsoci.MediaTypeBundleDefinition {
 			cfgDigest = m.Digest
 		}
 	}
@@ -99,7 +99,7 @@ package "pkg1" {
 		} `json:"layers"`
 	}
 	require.NoError(t, json.Unmarshal(cfgBlob, &cfgManifest))
-	require.Equal(t, MediaTypeBundleDefinition, cfgManifest.ArtifactType)
+	require.Equal(t, udsoci.MediaTypeBundleDefinition, cfgManifest.ArtifactType)
 	require.Len(t, cfgManifest.Layers, 2) // HCL + 1 values file
 
 	titles := make([]string, len(cfgManifest.Layers))
@@ -116,38 +116,6 @@ package "pkg1" {
 			require.Equal(t, "a: 1\n", string(blob))
 		}
 	}
-}
-
-func TestCreate_RemovesOutputWhenSigningFails(t *testing.T) {
-	dir := t.TempDir()
-	writeMinimalZarfPackage(t, filepath.Join(dir, "localpkg"))
-
-	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
-	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
-  bundle_api_version = "uds.dev/v1alpha1"
-}
-
-metadata {
-  name    = "failed-sign"
-  version = "1.0.0"
-}
-
-package "pkg" {
-  source = "localpkg"
-  signature_verification { verify = false }
-}
-`), tmpFilePerm))
-
-	_, err := Create(t.Context(), CreateOptions{
-		Config:     newTestConfig(),
-		BundleFile: bundleFile,
-		Signing:    SigningOptions{Mode: SigningModeKey, Key: filepath.Join(dir, "missing.key")},
-		Streams:    iostreams.New(nil, nil, io.Discard),
-	})
-	require.ErrorContains(t, err, "signing created bundle")
-
-	_, statErr := os.Stat(filepath.Join(dir, "uds-bundle-failed-sign-"+runtime.GOARCH+"-1.0.0.tar.zst"))
-	require.ErrorIs(t, statErr, os.ErrNotExist)
 }
 
 func TestCreate_SharedValuesFileDeduplicatedInOCIStore(t *testing.T) {
@@ -183,11 +151,10 @@ package "pkg2" {
 }
 `), tmpFilePerm))
 
-	_, err := Create(t.Context(), CreateOptions{
-		Config:     newTestConfig(),
-		BundleFile: bundleFile,
-		Signing:    SigningOptions{Mode: SigningModeUnsigned},
-		Streams:    iostreams.New(nil, nil, io.Discard),
+	_, err := Create(t.Context(), bundleFile, CreateOptions{
+		Config:  newTestConfig(),
+		Signing: SigningOptions{Mode: SigningModeUnsigned},
+		Streams: iostreams.New(nil, nil, io.Discard),
 	})
 	require.NoError(t, err)
 
@@ -208,7 +175,7 @@ package "pkg2" {
 	var packageRefs []string
 	var definitionCount int
 	for _, m := range idx.Manifests {
-		if m.ArtifactType == MediaTypeBundleDefinition {
+		if m.ArtifactType == udsoci.MediaTypeBundleDefinition {
 			definitionCount++
 			continue
 		}
@@ -219,7 +186,7 @@ package "pkg2" {
 
 	var defManifestBytes []byte
 	for _, m := range idx.Manifests {
-		if m.ArtifactType == MediaTypeBundleDefinition {
+		if m.ArtifactType == udsoci.MediaTypeBundleDefinition {
 			hex := strings.TrimPrefix(m.Digest, "sha256:")
 			defManifestBytes = entries["oci/blobs/sha256/"+hex]
 			break
@@ -279,13 +246,12 @@ package "pkg1" {
   b = "b-default-value"
 }
 `)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, BundleDefaultsFileName), defaultsContent, tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, bundleDefaultsFileName), defaultsContent, tmpFilePerm))
 
-	_, err := Create(t.Context(), CreateOptions{
-		Config:     newTestConfig(),
-		BundleFile: bundleFile,
-		Signing:    SigningOptions{Mode: SigningModeUnsigned},
-		Streams:    iostreams.New(nil, nil, io.Discard),
+	_, err := Create(t.Context(), bundleFile, CreateOptions{
+		Config:  newTestConfig(),
+		Signing: SigningOptions{Mode: SigningModeUnsigned},
+		Streams: iostreams.New(nil, nil, io.Discard),
 	})
 	require.NoError(t, err)
 
@@ -293,7 +259,7 @@ package "pkg1" {
 	entries := readTarZstEntries(t, outPath)
 
 	require.True(t, bundleDefinitionContainsLayerTitle(t, entries, "bundle.uds.hcl"))
-	require.True(t, bundleDefinitionContainsLayerTitle(t, entries, BundleDefaultsFileName))
+	require.True(t, bundleDefinitionContainsLayerTitle(t, entries, bundleDefaultsFileName))
 
 	// Verify defaults.uds.hcl content is preserved in the blob.
 	var idx struct {
@@ -306,7 +272,7 @@ package "pkg1" {
 
 	var defManifestBytes []byte
 	for _, m := range idx.Manifests {
-		if m.ArtifactType == MediaTypeBundleDefinition {
+		if m.ArtifactType == udsoci.MediaTypeBundleDefinition {
 			hex := strings.TrimPrefix(m.Digest, "sha256:")
 			defManifestBytes = entries["oci/blobs/sha256/"+hex]
 			break
@@ -323,7 +289,7 @@ package "pkg1" {
 	require.NoError(t, json.Unmarshal(defManifestBytes, &defManifest))
 
 	for _, l := range defManifest.Layers {
-		if l.Annotations["org.opencontainers.image.title"] == BundleDefaultsFileName {
+		if l.Annotations["org.opencontainers.image.title"] == bundleDefaultsFileName {
 			blob := entries["oci/blobs/sha256/"+strings.TrimPrefix(l.Digest, "sha256:")]
 			require.Equal(t, string(defaultsContent), string(blob))
 		}
@@ -351,11 +317,10 @@ package "pkg1" {
 }
 `), tmpFilePerm))
 
-	_, err := Create(t.Context(), CreateOptions{
-		Config:     newTestConfig(),
-		BundleFile: bundleFile,
-		Signing:    SigningOptions{Mode: SigningModeUnsigned},
-		Streams:    iostreams.New(nil, nil, io.Discard),
+	_, err := Create(t.Context(), bundleFile, CreateOptions{
+		Config:  newTestConfig(),
+		Signing: SigningOptions{Mode: SigningModeUnsigned},
+		Streams: iostreams.New(nil, nil, io.Discard),
 	})
 	require.NoError(t, err)
 
@@ -363,7 +328,7 @@ package "pkg1" {
 	entries := readTarZstEntries(t, outPath)
 
 	require.True(t, bundleDefinitionContainsLayerTitle(t, entries, "bundle.uds.hcl"))
-	require.False(t, bundleDefinitionContainsLayerTitle(t, entries, BundleDefaultsFileName),
+	require.False(t, bundleDefinitionContainsLayerTitle(t, entries, bundleDefaultsFileName),
 		"defaults.uds.hcl should not be in the bundle when the file does not exist")
 }
 
@@ -390,11 +355,10 @@ package "pkg1" {
 `), tmpFilePerm))
 
 	createOnce := func() []byte {
-		result, err := Create(t.Context(), CreateOptions{
-			Config:     newTestConfigWithArch("amd64"),
-			BundleFile: bundleFile,
-			Signing:    SigningOptions{Mode: SigningModeUnsigned},
-			Streams:    iostreams.New(nil, nil, io.Discard),
+		result, err := Create(t.Context(), bundleFile, CreateOptions{
+			Config:  newTestConfigWithArch("amd64"),
+			Signing: SigningOptions{Mode: SigningModeUnsigned},
+			Streams: iostreams.New(nil, nil, io.Discard),
 		})
 		require.NoError(t, err)
 		entries := readTarZstEntries(t, result.OutputPath)
@@ -410,8 +374,8 @@ package "pkg1" {
 
 	var idx ocispec.Index
 	require.NoError(t, json.Unmarshal(first, &idx))
-	assert.Equal(t, MediaTypeBundle, idx.ArtifactType, "bundle index must self-identify via artifactType")
-	assert.Equal(t, "amd64", idx.Annotations[AnnotationBundleArchitecture], "bundle index must record its architecture")
+	assert.Equal(t, udsoci.MediaTypeBundle, idx.ArtifactType, "bundle index must self-identify via artifactType")
+	assert.Equal(t, "amd64", idx.Annotations[udsoci.AnnotationBundleArchitecture], "bundle index must record its architecture")
 	for i, m := range idx.Manifests {
 		assert.Nil(t, m.Platform, "bundle index entries must not carry a platform")
 		if i > 0 {

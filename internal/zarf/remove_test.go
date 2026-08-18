@@ -63,7 +63,7 @@ func withMock(m *mockRemover) *ZarfRemover {
 // defaultPkgOpts returns valid baseline package removal options.
 func defaultPkgOpts() RemovePackageOptions {
 	return RemovePackageOptions{
-		Config: &UDSBundleConfig{Global: &GlobalOptions{}, Options: &ConfigOptions{}},
+		Config: &UDSBundleConfig{Options: &ConfigOptions{}},
 	}
 }
 
@@ -84,10 +84,9 @@ func TestRemovePackages_ReverseLevelOrder(t *testing.T) {
 	// 3 sequential levels: core -> nginx -> podinfo
 	levels := makeLevels([]string{"core"}, []string{"nginx"}, []string{"podinfo"})
 
-	removed, skipped, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, levels, defaultPkgOpts())
+	results, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, levels, defaultPkgOpts())
 	require.NoError(t, err)
-	assert.Equal(t, 3, removed)
-	assert.Equal(t, 0, skipped)
+	assert.Len(t, results, 3)
 	// Reverse topological order: dependents (last level) removed first
 	assert.Equal(t, []string{"podinfo", "nginx", "core"}, mock.removedNames())
 }
@@ -97,9 +96,9 @@ func TestRemovePackages_DiamondReverseOrder(t *testing.T) {
 	// Diamond: level0=[a], level1=[b,c], level2=[d]
 	levels := makeLevels([]string{"a"}, []string{"b", "c"}, []string{"d"})
 
-	removed, _, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, levels, defaultPkgOpts())
+	results, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, levels, defaultPkgOpts())
 	require.NoError(t, err)
-	assert.Equal(t, 4, removed)
+	assert.Len(t, results, 4)
 	// d removed first (top of DAG), then b/c (siblings, any order), then a (root)
 	names := mock.removedNames()
 	require.Len(t, names, 4)
@@ -112,10 +111,10 @@ func TestRemovePackages_SkipsUndeployed(t *testing.T) {
 	mock := &mockRemover{NotDeployed: []string{"nginx"}}
 	levels := makeLevels([]string{"core"}, []string{"nginx"}, []string{"podinfo"})
 
-	removed, skipped, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, levels, defaultPkgOpts())
+	results, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, levels, defaultPkgOpts())
 	require.NoError(t, err)
-	assert.Equal(t, 2, removed)
-	assert.Equal(t, 1, skipped)
+	assert.Len(t, results, 3)
+	assert.Equal(t, RemovePackageStatusSkipped, results[1].Status)
 	assert.Equal(t, []string{"podinfo", "core"}, mock.removedNames())
 }
 
@@ -126,23 +125,23 @@ func TestRemovePackages_StopsOnError(t *testing.T) {
 	}
 	levels := makeLevels([]string{"core"}, []string{"nginx"}, []string{"podinfo"})
 
-	removed, skipped, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, levels, defaultPkgOpts())
+	results, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, levels, defaultPkgOpts())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to remove package")
 	assert.Contains(t, err.Error(), "nginx")
 	// podinfo removed first (last level), then nginx failed
-	assert.Equal(t, 1, removed)
-	assert.Equal(t, 0, skipped)
+	assert.Len(t, results, 1)
 }
 
 func TestRemovePackages_NoneDeployed(t *testing.T) {
 	mock := &mockRemover{NotDeployed: []string{"core", "nginx"}}
 	levels := makeLevels([]string{"core"}, []string{"nginx"})
 
-	removed, skipped, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, levels, defaultPkgOpts())
+	results, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, levels, defaultPkgOpts())
 	require.NoError(t, err)
-	assert.Equal(t, 0, removed)
-	assert.Equal(t, 2, skipped)
+	assert.Len(t, results, 2)
+	assert.Equal(t, RemovePackageStatusSkipped, results[0].Status)
+	assert.Equal(t, RemovePackageStatusSkipped, results[1].Status)
 	assert.Empty(t, mock.removedNames())
 }
 
@@ -153,7 +152,7 @@ func TestRemovePackages_PropagatesNonSentinelError(t *testing.T) {
 	}
 	levels := makeLevels([]string{"core"})
 
-	_, _, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, levels, defaultPkgOpts())
+	_, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, levels, defaultPkgOpts())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to remove package")
 	assert.Contains(t, err.Error(), "connection refused")
@@ -162,10 +161,9 @@ func TestRemovePackages_PropagatesNonSentinelError(t *testing.T) {
 func TestRemovePackages_EmptyLevels(t *testing.T) {
 	mock := &mockRemover{}
 
-	removed, skipped, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, nil, defaultPkgOpts())
+	results, err := withMock(mock).removePackages(t.Context(), iostreams.IOStreams{}, nil, defaultPkgOpts())
 	require.NoError(t, err)
-	assert.Equal(t, 0, removed)
-	assert.Equal(t, 0, skipped)
+	assert.Empty(t, results)
 }
 
 func TestZarfRemover_RemoveBundle_NilConfig(t *testing.T) {

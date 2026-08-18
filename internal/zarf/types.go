@@ -43,45 +43,24 @@ type Package = spec.Package
 // PackageRef is the shared package reference model.
 type PackageRef = spec.PackageRef
 
-// SourceRange is the shared bundle source span model.
-type SourceRange = spec.SourceRange
-
-// SourcePosition is the shared bundle source position model.
-type SourcePosition = spec.SourcePosition
-
 // PackageSignatureVerification is the shared package signature policy model.
 type PackageSignatureVerification = spec.PackageSignatureVerification
 
 // KeylessSignatureVerification is the shared keyless signature policy model.
 type KeylessSignatureVerification = spec.KeylessSignatureVerification
 
-// Variables contains private deployment configuration variables.
-type Variables map[string]any
-
-// GlobalOptions contains private process-wide deployment settings.
-type GlobalOptions struct {
-	LogLevel string
-	Prompt   bool
-}
+// Variables is the shared deployment configuration variable map.
+type Variables = bundleinternal.Variables
 
 // UDSBundleConfig is the private resolved deployment configuration.
 type UDSBundleConfig struct {
-	Global    *GlobalOptions
 	Options   *ConfigOptions `hcl:"options,block"`
 	Variables Variables
 	Remain    hcl.Body `hcl:",remain"`
 }
 
 // ConfigOptions contains private Zarf deployment settings.
-type ConfigOptions struct {
-	LogLevel      string `hcl:"log_level,optional"`
-	Architecture  string `hcl:"architecture,optional"`
-	PlainHTTP     bool   `hcl:"plain_http,optional"`
-	SkipTLSVerify bool   `hcl:"skip_tls_verify,optional"`
-	UDSCache      string `hcl:"uds_cache,optional"`
-	TmpDir        string `hcl:"tmp_dir,optional"`
-	Concurrency   int    `hcl:"concurrency,optional"`
-}
+type ConfigOptions = bundleinternal.ConfigOptions
 
 // PackageDeployHooks provides deployment process extensibility per package.
 type PackageDeployHooks struct {
@@ -99,6 +78,7 @@ type BundleDeployHooks struct {
 type DeployOptions struct {
 	Config             *UDSBundleConfig
 	BundlePath         string
+	BundleDir          string
 	Packages           []string
 	BundleDeployHooks  BundleDeployHooks
 	PackageDeployHooks PackageDeployHooks
@@ -108,15 +88,26 @@ type DeployOptions struct {
 // DeployResult represents the result of deploying a bundle.
 type DeployResult struct {
 	BundleName string
-	Packages   int
+	Packages   []string
 }
 
 // RemoveResult represents the result of removing a bundle.
 type RemoveResult struct {
 	BundleName string
-	Removed    int
-	Skipped    int
+	Packages   []RemovePackageResult
 }
+
+type RemovePackageResult struct {
+	Name   string
+	Status RemovePackageStatus
+}
+
+type RemovePackageStatus string
+
+const (
+	RemovePackageStatusRemoved RemovePackageStatus = "removed"
+	RemovePackageStatusSkipped RemovePackageStatus = "skipped"
+)
 
 // Deployer is the interface for deploying packages to a target. It exposes
 // both a low-level per-package primitive and a high-level bundle-level entry
@@ -126,8 +117,6 @@ type RemoveResult struct {
 //
 // Implementations are responsible for dependency ordering, concurrency control,
 // and any target-specific orchestration concerns.
-//
-// Implementations can include: ZarfDeployer (local), TofuDeployer, RemoteAgentDeployer.
 type Deployer interface {
 	// DeployPackage deploys a single package.
 	// Called in topological order, dependencies are already deployed.
@@ -152,13 +141,18 @@ type DeployPackageOptions struct {
 	// Nil func fields are replaced with no-ops by withDefaults(); every deploy traverses both call sites.
 	PackageDeployHooks PackageDeployHooks
 
+	// IsPartial indicates that the loaded layout may omit files referenced by its checksums.
+	IsPartial bool
+
 	// ClusterDeployFn performs the cluster-side deploy of the loaded package layout.
 	// Nil defaults to packager.Deploy. Override it to deploy without a real cluster — this is
 	// the seam that makes the full deploy pipeline (loader, hooks, layout mutation) testable.
-	ClusterDeployFn func(ctx context.Context, pkgLayout *layout.PackageLayout, opts packager.DeployOptions) error
+	ClusterDeployFn func(ctx context.Context, pkgLayout *layout.PackageLayout, opts *packager.DeployOptions, isPartial bool) error
 
 	// Streams carries In/Out/ErrOut for the operation.
 	Streams iostreams.IOStreams
+
+	bundlePath string
 }
 
 // Remover is the interface for removing packages from a target. It exposes
@@ -216,7 +210,7 @@ type PackageLayoutLoader interface {
 	// PackageLayout ready for packager.Deploy. dstDir must already exist and
 	// is owned by the caller. opts.Streams carries the bound logger for diagnostics;
 	// opts.IsPartial controls partial-package semantics.
-	LoadPackageLayout(ctx context.Context, pkg *Package, dstDir string, opts LoadOptions) (*layout.PackageLayout, error)
+	LoadPackageLayout(ctx context.Context, pkg *Package, dstDir string, opts LoadOptions) (*layout.PackageLayout, bool, error)
 }
 
 // PackageSource abstracts how a Zarf package is fetched, supporting both
@@ -299,15 +293,13 @@ type ctxReader struct {
 }
 
 // orchestratedDeployer dispatches per-package deploys to either a caller-supplied
-// override or the underlying ZarfDeployer. Created by ZarfDeployer.DeployBundle
-// so the orchestrator always calls through a consistent Deployer.
+// override or the underlying ZarfDeployer.
 type orchestratedDeployer struct {
 	base            *ZarfDeployer
 	packageDeployFn func(ctx context.Context, pkg *Package, opts DeployPackageOptions) error
 }
 
 // ZarfDeployer implements Deployer using the Zarf Go library.
-// Reference: .ai/example-repos/uds-cli/src/pkg/bundle/deploy.go lines 38-165
 type ZarfDeployer struct {
 	// streams carries the diagnostic sink (streams.ErrOut) handed to the Zarf
 	// logger and the leveled logger used for UDS-side diagnostics.
@@ -326,12 +318,18 @@ type ZarfDeployer struct {
 // Its sole responsibility is orchestration. It deploys each package through the
 // Deployer interface and knows nothing about how a package is actually deployed.
 type deployOrchestrator struct {
-	deployer    Deployer
+	deployer    packageDeployer
 	dag         *bundleinternal.DAG
 	levels      [][]*Package
 	concurrency int
 	pkgOpts     DeployPackageOptions
 	streams     iostreams.IOStreams
+	deployedMu  sync.Mutex
+	deployed    map[string]struct{}
+}
+
+type packageDeployer interface {
+	DeployPackage(ctx context.Context, pkg *Package, opts DeployPackageOptions) error
 }
 
 // errorAccumulator is a thread-safe collector for errors returned by concurrent

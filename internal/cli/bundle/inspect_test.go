@@ -22,7 +22,6 @@ import (
 func testInspectConfig() *bundlepkg.UDSBundleConfig {
 	defaults := NewConfigResolver().Defaults()
 	return &bundlepkg.UDSBundleConfig{
-		Global:  &bundlepkg.GlobalOptions{LogLevel: "info"},
 		Options: &defaults,
 	}
 }
@@ -35,7 +34,7 @@ func createTestArtifact(t *testing.T) string {
 	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte("kind: ZarfPackageConfig\nmetadata:\n  name: test\n  version: 1.0.0\n  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\ncomponents: []\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "checksums.txt"), nil, 0o644))
 
-	bundleFile := filepath.Join(root, bundlepkg.BundleFileName)
+	bundleFile := filepath.Join(root, bundleFileName)
 	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
   bundle_api_version = "uds.dev/v1alpha1"
 }
@@ -51,12 +50,9 @@ package "pkg" {
 
 	config := testInspectConfig()
 	config.Options.TmpDir = t.TempDir()
-	result, err := bundlepkg.Create(t.Context(), bundlepkg.CreateOptions{
-		Config:     config,
-		BundleFile: bundleFile,
-		Signing: bundlepkg.SigningOptions{
-			Mode: bundlepkg.SigningModeUnsigned,
-		},
+	result, err := bundlepkg.Create(t.Context(), bundleFile, bundlepkg.CreateOptions{
+		Config:  config,
+		Signing: bundlepkg.SigningOptions{Mode: bundlepkg.SigningModeUnsigned},
 		Streams: iostreams.IOStreams{},
 	})
 	require.NoError(t, err)
@@ -170,9 +166,6 @@ func TestInspectOptions_Validate(t *testing.T) {
 			o := &InspectOptions{
 				BundlePath: tt.bundlePath,
 				Config:     testInspectConfig(),
-				Verification: VerifyOptions{
-					SkipSignatureVerification: true,
-				},
 			}
 			err := o.Validate()
 			if tt.wantErr == "" {
@@ -207,36 +200,15 @@ func TestInspectOptions_Run(t *testing.T) {
 		BundlePath: artifact,
 		Config:     testInspectConfig(),
 		Printer:    textPrinter,
-		Verification: VerifyOptions{
-			SkipSignatureVerification: true,
-		},
-		IOStreams: streams,
-	}
-
-	require.NoError(t, o.Run(t.Context()))
-	assert.Contains(t, out.String(), "inspect-test")
-	assert.Contains(t, out.String(), "pkg")
-	assert.Contains(t, out.String(), "skipped")
-	assert.Contains(t, errOut.String(), "signature verification was skipped")
-}
-
-func TestInspectOptions_Run_Unverified(t *testing.T) {
-	artifact := createTestArtifact(t)
-	streams, _, out, errOut := iostreams.NewTestIOStreams()
-	textPrinter, err := printer.NewPrinter(printer.FormatText)
-	require.NoError(t, err)
-
-	o := &InspectOptions{
-		BundlePath: artifact,
-		Config:     testInspectConfig(),
-		Printer:    textPrinter,
 		IOStreams:  streams,
 	}
 
 	require.NoError(t, o.Run(t.Context()))
 	assert.Contains(t, out.String(), "inspect-test")
-	assert.Contains(t, out.String(), "unverified")
-	assert.Contains(t, errOut.String(), "bundle signature was not verified during inspection")
+	assert.Contains(t, out.String(), "pkg")
+	assert.Contains(t, out.String(), "not_checked")
+	assert.NotContains(t, out.String(), "package verification policy and signing metadata do not establish bundle integrity")
+	assert.Contains(t, errOut.String(), "bundle signature verification was not performed")
 }
 
 func TestInspectOptions_Run_JSONOutput(t *testing.T) {
@@ -249,41 +221,18 @@ func TestInspectOptions_Run_JSONOutput(t *testing.T) {
 		BundlePath: artifact,
 		Config:     testInspectConfig(),
 		Printer:    jsonPrinter,
-		Verification: VerifyOptions{
-			SkipSignatureVerification: true,
-		},
-		IOStreams: streams,
-	}
-	require.NoError(t, o.Run(t.Context()))
-
-	var result bundlepkg.InspectResult
-	require.NoError(t, json.Unmarshal(out.Bytes(), &result))
-	assert.Equal(t, "inspect-test", result.Name)
-	assert.NotEmpty(t, result.ArtifactDigest)
-	require.NotNil(t, result.BundleSignature)
-	assert.Equal(t, "skipped", result.BundleSignature.Status)
-	assert.Len(t, result.Packages, 1)
-}
-
-func TestInspectOptions_Run_UnverifiedJSONOutput(t *testing.T) {
-	artifact := createTestArtifact(t)
-	streams, _, out, errOut := iostreams.NewTestIOStreams()
-	jsonPrinter, err := printer.NewPrinter(printer.FormatJSON)
-	require.NoError(t, err)
-
-	o := &InspectOptions{
-		BundlePath: artifact,
-		Config:     testInspectConfig(),
-		Printer:    jsonPrinter,
 		IOStreams:  streams,
 	}
 	require.NoError(t, o.Run(t.Context()))
 
-	var result bundlepkg.InspectResult
+	var result inspectResult
 	require.NoError(t, json.Unmarshal(out.Bytes(), &result))
+	assert.Equal(t, "inspect-test", result.Name)
+	assert.NotEmpty(t, result.ArtifactDigest)
 	require.NotNil(t, result.BundleSignature)
-	assert.Equal(t, bundlepkg.BundleSignatureStatusUnverified, result.BundleSignature.Status)
-	assert.Contains(t, errOut.String(), "bundle signature was not verified during inspection")
+	assert.Equal(t, "not_checked", result.BundleSignature.Status)
+	assert.NotContains(t, out.String(), "warning")
+	assert.Len(t, result.Packages, 1)
 }
 
 func TestInspectOptions_Run_YAMLOutput(t *testing.T) {
@@ -296,18 +245,22 @@ func TestInspectOptions_Run_YAMLOutput(t *testing.T) {
 		BundlePath: artifact,
 		Config:     testInspectConfig(),
 		Printer:    yamlPrinter,
-		Verification: VerifyOptions{
-			SkipSignatureVerification: true,
-		},
-		IOStreams: streams,
+		IOStreams:  streams,
 	}
 	require.NoError(t, o.Run(t.Context()))
 
-	var result bundlepkg.InspectResult
+	var result inspectResult
 	require.NoError(t, yaml.Unmarshal(out.Bytes(), &result))
 	assert.Equal(t, "inspect-test", result.Name)
 	assert.NotEmpty(t, result.ArtifactDigest)
 	require.NotNil(t, result.BundleSignature)
-	assert.Equal(t, "skipped", result.BundleSignature.Status)
+	assert.Equal(t, "not_checked", result.BundleSignature.Status)
+	assert.NotContains(t, out.String(), "warning")
 	assert.Len(t, result.Packages, 1)
+}
+
+func TestInspectResult_OmitsEmptyDescriptionAndVersion(t *testing.T) {
+	data, err := json.Marshal(inspectResult{Name: "bundle"})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"name":"bundle","packages":null}`, string(data))
 }

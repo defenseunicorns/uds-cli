@@ -31,31 +31,9 @@ func toBundleHCLConfig(cfg *UDSBundleConfig) *bundleinternal.UDSBundleConfig {
 		return nil
 	}
 
-	var global *bundleinternal.GlobalOptions
-	if cfg.Global != nil {
-		global = &bundleinternal.GlobalOptions{
-			LogLevel: cfg.Global.LogLevel,
-			Prompt:   cfg.Global.Prompt,
-		}
-	}
-
-	var options *bundleinternal.ConfigOptions
-	if cfg.Options != nil {
-		options = &bundleinternal.ConfigOptions{
-			LogLevel:      cfg.Options.LogLevel,
-			Architecture:  cfg.Options.Architecture,
-			PlainHTTP:     cfg.Options.PlainHTTP,
-			SkipTLSVerify: cfg.Options.SkipTLSVerify,
-			UDSCache:      cfg.Options.UDSCache,
-			TmpDir:        cfg.Options.TmpDir,
-			Concurrency:   cfg.Options.Concurrency,
-		}
-	}
-
 	return &bundleinternal.UDSBundleConfig{
-		Global:    global,
-		Options:   options,
-		Variables: bundleinternal.Variables(cfg.Variables),
+		Options:   cfg.Options,
+		Variables: cfg.Variables,
 		Remain:    cfg.Remain,
 	}
 }

@@ -80,7 +80,7 @@ func (p *defaultPusher) PushBundle(ctx context.Context, bundleDir, ociReference 
 		return nil, fmt.Errorf("staging index blob: %w", err)
 	}
 
-	log := logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
+	log := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
 	log.Debug("copying bundle to registry", "ref", ociReference, "arch", arch)
 	result, err := pushBundleToRemote(ctx, store.Store, childDesc, ociReference, &opts, signature, hasSignature)
 	if err != nil {
@@ -114,7 +114,7 @@ func (p *defaultPusher) PushPackage(ctx context.Context, packageDir, ociReferenc
 		return nil, fmt.Errorf("reading OCI root descriptor: %w", err)
 	}
 
-	log := logger.Bind(opts.Streams, opts.Config.Global.LogLevel)
+	log := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
 	log.Debug("pushing package", "ref", ociReference)
 	result, err := pushToRemote(ctx, store.Store, root, ociReference, &opts)
 	if err != nil {

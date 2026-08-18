@@ -10,15 +10,16 @@ import (
 	"path/filepath"
 	"runtime"
 
-	cmdconfig "github.com/defenseunicorns/uds-cli/internal/cli/config"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
+	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 )
 
 // CLIFlags holds a snapshot of CLI flag values together with their Changed() bits.
-// It exists so ConfigResolver.Resolve() does not depend on *cobra.Command, which
-// lets command Run() methods stay cobra-free (per ADR-0011 and CLI-191).
+// It exists so config resolution does not depend on *cobra.Command, keeping
+// command execution independent of Cobra.
 type CLIFlags struct {
 	ConfigPath           string // --config (always read; empty when unset)
 	LogLevel             string
@@ -37,7 +38,6 @@ type CLIFlags struct {
 }
 
 // SnapshotFlags reads every CLI flag the resolver needs from cmd, plus its Changed() bit.
-// This is the only place that touches cobra.Command for config resolution in the post-CLI-191 pipeline.
 func SnapshotFlags(cmd *cobra.Command) CLIFlags {
 	var f CLIFlags
 	f.ConfigPath, _ = cmd.Flags().GetString("config")
@@ -101,9 +101,6 @@ func (r *ConfigResolver) MergeHCL(base bundle.ConfigOptions, hcl *bundle.ConfigO
 	if hcl.SkipTLSVerify {
 		base.SkipTLSVerify = hcl.SkipTLSVerify
 	}
-	if hcl.UDSCache != "" {
-		base.UDSCache = hcl.UDSCache
-	}
 	if hcl.TmpDir != "" {
 		base.TmpDir = hcl.TmpDir
 	}
@@ -139,16 +136,10 @@ func (r *ConfigResolver) OverlayCLI(flags CLIFlags, base bundle.ConfigOptions) b
 	return base
 }
 
-// Resolve resolves a full UDSBundleConfig through the four-layer precedence chain.
+// Resolve applies defaults, config, and explicit CLI flags in precedence order.
 // bundlePath is the user-provided bundle path (directory or file); when non-empty,
 // Resolve looks for defaults.uds.hcl in that directory. Pass "" to skip defaults.
 // Returns the merged UDSBundleConfig and the config file path (empty if no --config flag).
-//
-//  1. Start from Defaults()
-//  2. If defaults.uds.hcl exists in bundlePath, merge its variables (options are not supported)
-//  3. If --config flag is set, parse config.uds.hcl and merge its options and variables
-//  4. Overlay any explicitly-set CLI flags
-//  5. Build GlobalOptions from merged log_level and the --prompt flag
 func (r *ConfigResolver) Resolve(ctx context.Context, streams iostreams.IOStreams, flags CLIFlags, bundlePath string) (*bundle.UDSBundleConfig, string, error) {
 	base, configPath, err := r.resolveBase(ctx, streams, flags)
 	if err != nil {
@@ -170,22 +161,18 @@ func (r *ConfigResolver) resolveBase(ctx context.Context, streams iostreams.IOSt
 	}
 
 	options := r.resolveOptions(userCfg, flags)
-	global, err := cmdconfig.ResolveGlobalOptions(flags.Prompt, options.LogLevel)
-	if err != nil {
-		return nil, "", err
+	if _, err := logger.ParseLevel(options.LogLevel); err != nil {
+		return nil, "", fmt.Errorf("invalid log level %q: %w", options.LogLevel, err)
 	}
 
 	var variables bundle.Variables
-	var signatureVerification *bundle.VerificationPolicy
 	if userCfg != nil {
-		variables = bundle.MergeVariables(nil, userCfg.Variables)
-		signatureVerification = userCfg.SignatureVerification
+		variables = mergeVariables(nil, userCfg.Variables)
 	}
 
 	return &bundle.UDSBundleConfig{
-		Global:                global,
 		Options:               &options,
-		SignatureVerification: signatureVerification,
+		SignatureVerification: userSignatureVerification(userCfg),
 		Variables:             variables,
 	}, flags.ConfigPath, nil
 }
@@ -198,15 +185,21 @@ func (r *ConfigResolver) applyBundleDefaults(ctx context.Context, streams iostre
 		return nil, err
 	}
 
-	global := *base.Global
 	options := *base.Options
-	resolved := &bundle.UDSBundleConfig{Global: &global, Options: &options, SignatureVerification: base.SignatureVerification}
+	resolved := &bundle.UDSBundleConfig{Options: &options, SignatureVerification: base.SignatureVerification}
 	if defaults != nil {
-		resolved.Variables = bundle.MergeVariables(defaults.Variables, base.Variables)
+		resolved.Variables = mergeVariables(defaults.Variables, base.Variables)
 	} else {
-		resolved.Variables = bundle.MergeVariables(nil, base.Variables)
+		resolved.Variables = mergeVariables(nil, base.Variables)
 	}
 	return resolved, nil
+}
+
+func userSignatureVerification(cfg *bundle.UDSBundleConfig) *bundle.VerificationPolicy {
+	if cfg == nil {
+		return nil
+	}
+	return cfg.SignatureVerification
 }
 
 // parseUserConfig parses the config.uds.hcl referenced by --config, returning nil when unset.
@@ -214,11 +207,30 @@ func (r *ConfigResolver) parseUserConfig(ctx context.Context, streams iostreams.
 	if flags.ConfigPath == "" {
 		return nil, nil
 	}
-	cfg, err := bundle.NewHCLParser("", streams).ParseBundleConfig(ctx, flags.ConfigPath)
+	cfg, err := bundleinternal.NewHCLParser("", streams).ParseBundleConfig(ctx, flags.ConfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
-	return cfg, nil
+	return &bundle.UDSBundleConfig{
+		Options:               fromInternalOptions(cfg.Options),
+		SignatureVerification: fromInternalVerificationPolicy(cfg.SignatureVerification),
+		Variables:             fromInternalVariables(cfg.Variables),
+	}, nil
+}
+
+func fromInternalVerificationPolicy(policy *bundleinternal.SignatureVerification) *bundle.VerificationPolicy {
+	if policy == nil {
+		return nil
+	}
+	result := &bundle.VerificationPolicy{PublicKey: policy.PublicKey}
+	if policy.Keyless != nil {
+		result.Keyless = &bundle.KeylessVerification{
+			CertificateIdentity: policy.Keyless.CertificateIdentity, CertificateIdentityRegexp: policy.Keyless.CertificateIdentityRegexp,
+			CertificateOIDCIssuer: policy.Keyless.CertificateOIDCIssuer, CertificateOIDCIssuerRegexp: policy.Keyless.CertificateOIDCIssuerRegexp,
+			TrustedRoot: policy.Keyless.TrustedRoot,
+		}
+	}
+	return result
 }
 
 // resolveOptions layers config.uds.hcl options and CLI flags onto Defaults().
@@ -248,18 +260,90 @@ func (r *ConfigResolver) loadBundleDefaults(ctx context.Context, streams iostrea
 		dir = filepath.Dir(bundlePath)
 	}
 
-	defaultsPath := filepath.Join(dir, bundle.BundleDefaultsFileName)
-	if _, err := os.Stat(defaultsPath); os.IsNotExist(err) {
-		return nil, nil
-	} else if err != nil {
+	defaultsPath, err := bundleinternal.AdjacentDefaultsPath(dir)
+	if err != nil {
 		return nil, fmt.Errorf("failed to access defaults file: %w", err)
+	}
+	if defaultsPath == "" {
+		return nil, nil
 	}
 
 	streams.Debug("loading bundle defaults", "path", defaultsPath)
-	vars, err := bundle.ParseDefaults(ctx, defaultsPath)
+	vars, err := bundleinternal.ParseDefaults(ctx, defaultsPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse %s: %w", bundle.BundleDefaultsFileName, err)
+		return nil, fmt.Errorf("failed to parse %s: %w", bundleinternal.BundleDefaultsFileName, err)
 	}
 
-	return &bundle.UDSBundleConfig{Variables: vars}, nil
+	return &bundle.UDSBundleConfig{Variables: fromInternalVariables(vars)}, nil
+}
+
+func mergeVariables(base, overrides bundle.Variables) bundle.Variables {
+	return fromInternalVariables(bundleinternal.MergeVariables(toInternalVariables(base), toInternalVariables(overrides)))
+}
+
+func toInternalVariables(variables bundle.Variables) bundleinternal.Variables {
+	if variables == nil {
+		return nil
+	}
+	converted := make(bundleinternal.Variables, len(variables))
+	for key, value := range variables {
+		converted[key] = toInternalVariableValue(value)
+	}
+	return converted
+}
+
+func toInternalVariableValue(value any) any {
+	switch value := value.(type) {
+	case bundle.Variables:
+		return toInternalVariables(value)
+	case map[string]any:
+		return toInternalVariables(bundle.Variables(value))
+	case []any:
+		converted := make([]any, len(value))
+		for i, item := range value {
+			converted[i] = toInternalVariableValue(item)
+		}
+		return converted
+	default:
+		return value
+	}
+}
+
+func fromInternalVariables(variables bundleinternal.Variables) bundle.Variables {
+	if variables == nil {
+		return nil
+	}
+	converted := make(bundle.Variables, len(variables))
+	for key, value := range variables {
+		converted[key] = fromInternalVariableValue(value)
+	}
+	return converted
+}
+
+func fromInternalOptions(options *bundleinternal.ConfigOptions) *bundle.ConfigOptions {
+	if options == nil {
+		return nil
+	}
+	return &bundle.ConfigOptions{
+		LogLevel: options.LogLevel, Architecture: options.Architecture,
+		PlainHTTP: options.PlainHTTP, SkipTLSVerify: options.SkipTLSVerify,
+		TmpDir: options.TmpDir, Concurrency: options.Concurrency,
+	}
+}
+
+func fromInternalVariableValue(value any) any {
+	switch value := value.(type) {
+	case bundleinternal.Variables:
+		return fromInternalVariables(value)
+	case map[string]any:
+		return fromInternalVariables(bundleinternal.Variables(value))
+	case []any:
+		converted := make([]any, len(value))
+		for i, item := range value {
+			converted[i] = fromInternalVariableValue(item)
+		}
+		return converted
+	default:
+		return value
+	}
 }

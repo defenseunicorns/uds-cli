@@ -40,22 +40,8 @@ const (
 // the type rather than as a scattered private helper.
 type Variables map[string]any
 
-// GlobalOptions holds process-wide CLI options that apply to all commands.
-// Prompt is populated exclusively from the CLI flag, not from config.uds.hcl.
-// LogLevel can be controlled by both config file and CLI flag.
-// Prompt is controlled by the --prompt flag (see ADR-0005).
-type GlobalOptions struct {
-	LogLevel string
-	Prompt   bool
-}
-
-// UDSBundleConfig represents the parsed content of a config.uds.hcl file.
-// Global holds process-wide options populated by the CLI layer (not from HCL).
-// The Options block is decoded via gohcl using HCL struct tags.
-// Variables are free-form and captured via hcl:",remain" for manual extraction,
-// since they have no fixed schema.
+// UDSBundleConfig represents the parsed content of config.uds.hcl.
 type UDSBundleConfig struct {
-	Global                *GlobalOptions
 	Options               *ConfigOptions         `hcl:"options,block"`
 	SignatureVerification *SignatureVerification `hcl:"signature_verification,block"`
 	Variables             Variables              // populated after decode from Remain
@@ -85,7 +71,6 @@ type ConfigOptions struct {
 	Architecture  string `hcl:"architecture,optional"`
 	PlainHTTP     bool   `hcl:"plain_http,optional"`
 	SkipTLSVerify bool   `hcl:"skip_tls_verify,optional"`
-	UDSCache      string `hcl:"uds_cache,optional"`
 	TmpDir        string `hcl:"tmp_dir,optional"`
 	Concurrency   int    `hcl:"concurrency,optional"`
 }
@@ -122,8 +107,7 @@ type decodedMetadata struct {
 
 // decodedPackage captures a package block and its unresolved dependency expressions.
 type decodedPackage struct {
-	Name                  string `hcl:"name,label"`
-	SourceRange           hcl.Range
+	Name                  string                               `hcl:"name,label"`
 	Source                string                               `hcl:"source"`
 	Namespace             string                               `hcl:"namespace,optional"`
 	DependsOn             []decodedPackageRef                  // Populated from Remain after HCL decoding.
@@ -166,7 +150,6 @@ func (b *decodedBundle) toSpec() *spec.UDSBundle {
 		}
 		packages[i] = spec.Package{
 			Name:                  pkg.Name,
-			SourceRange:           fromHCLRange(pkg.SourceRange),
 			Source:                pkg.Source,
 			Namespace:             pkg.Namespace,
 			DependsOn:             dependsOn,

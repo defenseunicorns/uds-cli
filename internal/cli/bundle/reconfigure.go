@@ -21,11 +21,11 @@ type ReconfigureOptions struct {
 	DefaultsFile string
 	Suffix       string
 	OutputDir    string
+	Prompt       bool
 	Config       *bundle.UDSBundleConfig
-	Options      bundle.ConfigOptions
-	Printer      printer.ResourcePrinter
 	Signing      bundle.SigningOptions
 	Verification VerifyOptions
+	Printer      printer.ResourcePrinter
 
 	iostreams.IOStreams
 }
@@ -82,7 +82,7 @@ func (o *ReconfigureOptions) Complete(cmd *cobra.Command, args []string) error {
 	}
 
 	// Default OutputDir to CWD for local sources.
-	if o.OutputDir == "" && !bundle.IsOCIReference(o.Source) {
+	if o.OutputDir == "" && !isOCIReference(o.Source) {
 		o.OutputDir, err = os.Getwd()
 		if err != nil {
 			return fmt.Errorf("getting current directory: %w", err)
@@ -95,6 +95,7 @@ func (o *ReconfigureOptions) Complete(cmd *cobra.Command, args []string) error {
 		ctx = context.Background()
 	}
 	flags := SnapshotFlags(cmd)
+	o.Prompt = flags.Prompt
 	cfg, _, err := NewConfigResolver().Resolve(ctx, o.IOStreams, flags, "")
 	if err != nil {
 		return err
@@ -103,9 +104,6 @@ func (o *ReconfigureOptions) Complete(cmd *cobra.Command, args []string) error {
 	o.Verification.Config = cfg
 	if err := completeCreateSigningOptions(cmd, &o.Signing); err != nil {
 		return err
-	}
-	if cfg.Options != nil {
-		o.Options = *cfg.Options
 	}
 
 	p, err := ResolvePrinter(cmd)
@@ -132,7 +130,7 @@ func (o *ReconfigureOptions) Validate() error {
 		return fmt.Errorf("--suffix must not be empty")
 	}
 
-	if o.OutputDir != "" && bundle.IsOCIReference(o.Source) {
+	if o.OutputDir != "" && isOCIReference(o.Source) {
 		return fmt.Errorf("--output-dir is not supported for OCI sources")
 	}
 	if err := o.Signing.Validate(); err != nil {
@@ -149,7 +147,7 @@ func (o *ReconfigureOptions) Validate() error {
 
 // Run executes the reconfigure command.
 func (o *ReconfigureOptions) Run(ctx context.Context) error {
-	if o.Config != nil && o.Config.Global != nil && o.Config.Global.Prompt {
+	if o.Prompt {
 		confirmed, err := PromptConfirmation(o.IOStreams, "Reconfigure this bundle?")
 		if err != nil {
 			return err
@@ -168,12 +166,9 @@ func (o *ReconfigureOptions) Run(ctx context.Context) error {
 			return err
 		}
 	}
-	result, err := bundle.Reconfigure(ctx, bundle.ReconfigureOptions{
-		Source:                    o.Source,
-		DefaultsFile:              o.DefaultsFile,
+	result, err := bundle.Reconfigure(ctx, o.Source, o.DefaultsFile, bundle.ReconfigureOptions{
 		Suffix:                    o.Suffix,
 		OutputDir:                 o.OutputDir,
-		Options:                   o.Options,
 		Config:                    o.Config,
 		Signing:                   o.Signing,
 		Verification:              policy,

@@ -29,14 +29,8 @@ func validateConfigStructure(cfg *UDSBundleConfig) error {
 	if cfg == nil {
 		return fmt.Errorf("config is required (UDSBundleConfig must not be nil)")
 	}
-	if cfg.Global == nil {
-		return fmt.Errorf("config.Global is required (GlobalOptions must not be nil)")
-	}
 	if cfg.Options == nil {
 		return fmt.Errorf("config.Options is required (ConfigOptions must not be nil)")
-	}
-	if err := validateLogLevel(cfg.Global.LogLevel); err != nil {
-		return err
 	}
 	return nil
 }
@@ -55,6 +49,9 @@ func validateLogLevel(level string) error {
 
 // validateOptions validates ConfigOptions field invariants.
 func validateOptions(opts *ConfigOptions) error {
+	if err := validateLogLevel(opts.LogLevel); err != nil {
+		return err
+	}
 	if err := validateConcurrency(opts.Concurrency); err != nil {
 		return err
 	}

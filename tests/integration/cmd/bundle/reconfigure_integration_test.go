@@ -13,11 +13,12 @@ import (
 	"strings"
 	"testing"
 
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	bundlecmd "github.com/defenseunicorns/uds-cli/internal/cli/bundle"
+	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/defenseunicorns/uds-cli/tests/testutil"
 )
@@ -73,7 +74,7 @@ func TestReconfigure_LocalTarball(t *testing.T) {
 	defaultsContent := extractLayerFromBundle(t, reconfigSmall, "defaults.uds.hcl")
 	defaultsTmpPath := filepath.Join(t.TempDir(), "extracted-defaults.uds.hcl")
 	require.NoError(t, os.WriteFile(defaultsTmpPath, defaultsContent, 0o600))
-	vars, err := bundlepkg.ParseDefaults(t.Context(), defaultsTmpPath)
+	vars, err := bundleinternal.ParseDefaults(t.Context(), defaultsTmpPath)
 	require.NoError(t, err)
 	assert.Equal(t, "production.example.com", vars["domain"])
 	assert.InDelta(t, float64(3), vars["replicas"], 0.001)
@@ -82,7 +83,7 @@ func TestReconfigure_LocalTarball(t *testing.T) {
 
 	// Verify the bundle name was updated to include the suffix.
 	hclContent := extractLayerFromBundle(t, reconfigSmall, "bundle.uds.hcl")
-	bundle, err := bundlepkg.NewHCLParser("", iostreams.IOStreams{}).ParseBundleBytes(t.Context(), hclContent)
+	bundle, err := bundleinternal.NewHCLParser("", iostreams.IOStreams{}).ParseBundleBytes(t.Context(), hclContent)
 	require.NoError(t, err)
 	assert.Equal(t, "defaults-test-prod", bundle.Metadata.Name)
 
@@ -94,12 +95,12 @@ func TestReconfigure_LocalTarball(t *testing.T) {
 	inspectRoot := bundlecmd.NewBundleCommand(inspectStreams)
 	inspectRoot.SetArgs([]string{"inspect", reconfiguredPath, "--skip-signature-verification", "--output", "json"})
 	require.NoError(t, inspectRoot.Execute())
-	var inspectResult bundlepkg.InspectResult
-	require.NoError(t, json.Unmarshal(inspectOut.Bytes(), &inspectResult))
-	assert.Equal(t, reconfiguredFrom, inspectResult.ReconfiguredFrom)
-	require.Len(t, inspectResult.Packages, 1)
-	require.NotNil(t, inspectResult.Packages[0].Signature)
-	assert.Equal(t, bundlepkg.PackageSigningStatusSigned, inspectResult.Packages[0].Signature.Signed)
+	var result inspectResult
+	require.NoError(t, json.Unmarshal(inspectOut.Bytes(), &result))
+	assert.Equal(t, reconfiguredFrom, result.ReconfiguredFrom)
+	require.Len(t, result.Packages, 1)
+	require.NotNil(t, result.Packages[0].Signature)
+	assert.Equal(t, "signed", result.Packages[0].Signature.Signed)
 }
 
 func TestReconfigure_SignedLocalTarball(t *testing.T) {
@@ -272,7 +273,7 @@ func TestReconfigure_OCI(t *testing.T) {
 	defaultsContent := extractLayerFromBundle(t, reconfigSmall, "defaults.uds.hcl")
 	defaultsTmpPath := filepath.Join(t.TempDir(), "extracted-defaults.uds.hcl")
 	require.NoError(t, os.WriteFile(defaultsTmpPath, defaultsContent, 0o600))
-	vars, err := bundlepkg.ParseDefaults(t.Context(), defaultsTmpPath)
+	vars, err := bundleinternal.ParseDefaults(t.Context(), defaultsTmpPath)
 	require.NoError(t, err)
 	assert.Equal(t, "oci-test.example.com", vars["domain"])
 	_, hasOldKey := vars["a"]
@@ -280,7 +281,7 @@ func TestReconfigure_OCI(t *testing.T) {
 
 	// Verify the bundle name was updated.
 	hclContent := extractLayerFromBundle(t, reconfigSmall, "bundle.uds.hcl")
-	bundle, err := bundlepkg.NewHCLParser("", iostreams.IOStreams{}).ParseBundleBytes(t.Context(), hclContent)
+	bundle, err := bundleinternal.NewHCLParser("", iostreams.IOStreams{}).ParseBundleBytes(t.Context(), hclContent)
 	require.NoError(t, err)
 	assert.Equal(t, "defaults-test-oci-test", bundle.Metadata.Name)
 
@@ -309,7 +310,7 @@ func TestReconfigure_OCI(t *testing.T) {
 	origDefaults := extractLayerFromBundle(t, origSmall, "defaults.uds.hcl")
 	origDefaultsTmp := filepath.Join(t.TempDir(), "orig-defaults.uds.hcl")
 	require.NoError(t, os.WriteFile(origDefaultsTmp, origDefaults, 0o600))
-	origVars, err := bundlepkg.ParseDefaults(t.Context(), origDefaultsTmp)
+	origVars, err := bundleinternal.ParseDefaults(t.Context(), origDefaultsTmp)
 	require.NoError(t, err)
 	assert.Equal(t, "from-file", origVars["a"], "original bundle should still have old defaults")
 
@@ -328,13 +329,13 @@ func TestReconfigure_OCI(t *testing.T) {
 
 	origPkgDigests := map[string]bool{}
 	for _, m := range origIdx.Manifests {
-		if m.ArtifactType != bundlepkg.MediaTypeBundleDefinition {
+		if m.ArtifactType != udsoci.MediaTypeBundleDefinition {
 			origPkgDigests[m.Digest] = true
 		}
 	}
 	reconfPkgDigests := map[string]bool{}
 	for _, m := range reconfIdx.Manifests {
-		if m.ArtifactType != bundlepkg.MediaTypeBundleDefinition {
+		if m.ArtifactType != udsoci.MediaTypeBundleDefinition {
 			reconfPkgDigests[m.Digest] = true
 		}
 	}

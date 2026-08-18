@@ -41,8 +41,6 @@ func TestDeployOptions_Complete(t *testing.T) {
 			require.NoError(t, o.Complete(cmd, tt.args))
 			assert.Equal(t, tt.want, o.BundlePath)
 			assert.NotNil(t, o.Printer)
-			assert.NotNil(t, o.Config)
-			assert.Same(t, o.Config, o.Verification.Config)
 		})
 	}
 }
@@ -53,7 +51,7 @@ func TestDeployOptions_Validate(t *testing.T) {
 	require.NoError(t, os.WriteFile(artifact, []byte("test"), 0o600))
 	sourceDir := filepath.Join(tempDir, "source")
 	require.NoError(t, os.Mkdir(sourceDir, 0o700))
-	sourceFile := filepath.Join(sourceDir, bundle.BundleFileName)
+	sourceFile := filepath.Join(sourceDir, bundleFileName)
 	require.NoError(t, os.WriteFile(sourceFile, []byte("test"), 0o600))
 	otherFile := filepath.Join(tempDir, "bundle.txt")
 	require.NoError(t, os.WriteFile(otherFile, []byte("test"), 0o600))
@@ -85,7 +83,10 @@ func TestDeployOptions_Validate(t *testing.T) {
 			if tt.ref == "" && tt.name == "special file" {
 				t.Skip("special-file validation case unavailable")
 			}
-			o := &DeployOptions{BundlePath: tt.ref, Verification: VerifyOptions{SkipSignatureVerification: true}}
+			o := &DeployOptions{
+				BundlePath:   tt.ref,
+				Verification: VerifyOptions{SkipSignatureVerification: true},
+			}
 			err := o.Validate()
 			if tt.wantErr == "" {
 				require.NoError(t, err)
@@ -94,20 +95,6 @@ func TestDeployOptions_Validate(t *testing.T) {
 			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
-}
-
-func TestDeployOptions_Validate_RejectsMissingPolicy(t *testing.T) {
-	defaults := NewConfigResolver().Defaults()
-	config := &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults}
-	o := &DeployOptions{
-		BundlePath: "oci://example.com/bundle:v1",
-		Config:     config,
-		Verification: VerifyOptions{
-			Config: config,
-		},
-	}
-
-	require.ErrorContains(t, o.Validate(), "exactly one")
 }
 
 func TestDeployOptions_Run_OCIPullUsesArtifactPathAndCleansWorkspace(t *testing.T) {
@@ -127,7 +114,7 @@ func TestDeployOptions_Run_OCIPullUsesArtifactPathAndCleansWorkspace(t *testing.
 	o := NewDeployOptions(streams)
 	o.BundlePath = "oci://example.com/test:1.0.0"
 	o.Verification.SkipSignatureVerification = true
-	o.puller = puller
+	o.pullBundle = puller.PullBundle
 	o.flags = CLIFlags{TmpDir: tmpDir, TmpDirChanged: true}
 
 	err := o.Run(t.Context())
@@ -148,35 +135,10 @@ func TestDeployOptions_Run_LocalArtifactDoesNotPull(t *testing.T) {
 	o := NewDeployOptions(streams)
 	o.BundlePath = artifact
 	o.Verification.SkipSignatureVerification = true
-	o.puller = puller
+	o.pullBundle = puller.PullBundle
 	err := o.Run(t.Context())
 	require.ErrorContains(t, err, "extracting bundle artifact")
 	assert.Zero(t, puller.bundleCalls)
-}
-
-func TestDeployOptions_Run_SkippedVerificationUsesLocalArtifact(t *testing.T) {
-	streams, _, _, _ := iostreams.NewTestIOStreams()
-	tmpDir := t.TempDir()
-	artifact := filepath.Join(t.TempDir(), "bundle.tar.zst")
-	require.NoError(t, os.WriteFile(artifact, []byte("artifact"), 0o600))
-
-	o := NewDeployOptions(streams)
-	o.BundlePath = artifact
-	o.Verification.SkipSignatureVerification = true
-	o.flags = CLIFlags{TmpDir: tmpDir, TmpDirChanged: true}
-	o.runDeploy = func(_ context.Context, _ iostreams.IOStreams, _ *bundle.UDSBundleConfig, path string, _ []string, _ bool, _ bundle.VerificationPolicy, _ bool) (*bundle.DeployResult, error) {
-		assert.Equal(t, artifact, path)
-		assert.FileExists(t, path)
-		data, err := os.ReadFile(path)
-		require.NoError(t, err)
-		assert.Equal(t, []byte("artifact"), data)
-		return nil, nil
-	}
-
-	require.NoError(t, o.Run(t.Context()))
-	entries, err := os.ReadDir(tmpDir)
-	require.NoError(t, err)
-	assert.Empty(t, entries)
 }
 
 func TestDeployOptions_Run_OCIWorkspaceAndOutputLifecycle(t *testing.T) {
@@ -187,7 +149,7 @@ func TestDeployOptions_Run_OCIWorkspaceAndOutputLifecycle(t *testing.T) {
 	}{
 		{
 			name:       "successful deploy prints only deploy result",
-			result:     &bundle.DeployResult{BundleName: "test-bundle", Packages: 2},
+			result:     &bundle.DeployResult{BundleName: "test-bundle", Packages: []bundle.DeployPackageResult{{Name: "one"}, {Name: "two"}}},
 			wantOutput: "Bundle Name:  test-bundle",
 		},
 		{name: "cancelled deploy prints no result"},
@@ -205,7 +167,7 @@ func TestDeployOptions_Run_OCIWorkspaceAndOutputLifecycle(t *testing.T) {
 				},
 			}
 			runnerCalls := 0
-			runner := func(_ context.Context, _ iostreams.IOStreams, _ *bundle.UDSBundleConfig, bundlePath string, _ []string, _ bool, _ bundle.VerificationPolicy, _ bool) (*bundle.DeployResult, error) {
+			runner := func(_ context.Context, _ iostreams.IOStreams, _ *bundle.UDSBundleConfig, bundlePath string, _ []string, _, _ bool) (*bundle.DeployResult, error) {
 				runnerCalls++
 				assert.FileExists(t, bundlePath)
 				return tt.result, nil
@@ -214,8 +176,7 @@ func TestDeployOptions_Run_OCIWorkspaceAndOutputLifecycle(t *testing.T) {
 			o := NewDeployOptions(streams)
 			o.BundlePath = "oci://example.com/test:1.0.0"
 			o.Verification.SkipSignatureVerification = true
-			o.Verification.SkipSignatureVerification = true
-			o.puller = puller
+			o.pullBundle = puller.PullBundle
 			o.runDeploy = runner
 			bundleCmd := NewBundleCommand(streams)
 			deployCmd, _, err := bundleCmd.Find([]string{"deploy"})
@@ -255,11 +216,11 @@ func TestDeployOptions_Run_RejectsMalformedPullResults(t *testing.T) {
 			o := NewDeployOptions(streams)
 			o.BundlePath = "oci://example.com/test:1.0.0"
 			o.Verification.SkipSignatureVerification = true
-			o.puller = &recordingPuller{
+			o.pullBundle = (&recordingPuller{
 				pullBundle: func(context.Context, string, string, bundle.PullOptions) (*bundle.PullResult, error) {
 					return tt.result, nil
 				},
-			}
+			}).PullBundle
 			err := o.Run(t.Context())
 			require.ErrorContains(t, err, tt.want)
 		})
@@ -316,12 +277,12 @@ func TestDeployOptions_Run_RejectsUnsafePulledArtifacts(t *testing.T) {
 			o := NewDeployOptions(streams)
 			o.BundlePath = "oci://example.com/test:1.0.0"
 			o.Verification.SkipSignatureVerification = true
-			o.puller = &recordingPuller{
+			o.pullBundle = (&recordingPuller{
 				pullBundle: func(_ context.Context, ref, targetDir string, _ bundle.PullOptions) (*bundle.PullResult, error) {
 					return &bundle.PullResult{OCIReference: ref, OutputPath: tt.outputPath(targetDir)}, nil
 				},
-			}
-			o.runDeploy = func(context.Context, iostreams.IOStreams, *bundle.UDSBundleConfig, string, []string, bool, bundle.VerificationPolicy, bool) (*bundle.DeployResult, error) {
+			}).PullBundle
+			o.runDeploy = func(context.Context, iostreams.IOStreams, *bundle.UDSBundleConfig, string, []string, bool, bool) (*bundle.DeployResult, error) {
 				runnerCalled = true
 				return nil, nil
 			}
@@ -344,6 +305,10 @@ func TestDeployCommands_Flags(t *testing.T) {
 		assert.Equal(t, "p", cmd.Flags().Lookup("packages").Shorthand)
 		require.NotNil(t, cmd.Flags().Lookup("force"))
 		assert.Equal(t, "f", cmd.Flags().Lookup("force").Shorthand)
+		if len(path) == 1 {
+			require.NotNil(t, cmd.Flags().Lookup("public-key"))
+			require.NotNil(t, cmd.Flags().Lookup("skip-signature-verification"))
+		}
 		for _, inherited := range []string{"architecture", "plain-http", "skip-tls-verify", "tmp-dir", "concurrency", "config", "output"} {
 			require.NotNil(t, cmd.InheritedFlags().Lookup(inherited), "%s should inherit --%s", cmd.CommandPath(), inherited)
 		}
@@ -398,10 +363,6 @@ func (p *recordingPuller) PullBundle(ctx context.Context, ref, targetDir string,
 	return p.pullBundle(ctx, ref, targetDir, opts)
 }
 
-func (p *recordingPuller) PullPackage(context.Context, string, string, bundle.PullOptions) (*bundle.PullResult, error) {
-	return nil, fmt.Errorf("unexpected PullPackage call")
-}
-
 type brokenReader struct {
 	err error
 }
@@ -411,5 +372,4 @@ func (r *brokenReader) Read(_ []byte) (int, error) {
 	return 0, r.err
 }
 
-var _ bundle.Puller = (*recordingPuller)(nil)
 var _ io.Reader = (*brokenReader)(nil)

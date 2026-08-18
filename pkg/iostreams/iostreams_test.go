@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"fmt"
 	"log/slog"
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -15,14 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestNewIOStreams(t *testing.T) {
-	streams := NewIOStreams()
-
-	assert.Equal(t, os.Stdin, streams.In())
-	assert.NotNil(t, streams.Out())
-	assert.NotNil(t, streams.ErrOut())
-}
 
 func TestNewTestIOStreams(t *testing.T) {
 	streams, in, out, errOut := NewTestIOStreams()
@@ -64,7 +55,7 @@ func TestIOStreams_WithLogger_RoutesToErrOut(t *testing.T) {
 }
 
 func TestIOStreams_NilLoggerIsNoOp(t *testing.T) {
-	s := NewIOStreams() // no logger configured
+	s := New(nil, nil, nil)
 	require.NotPanics(t, func() {
 		s.Debug("d")
 		s.Info("i")
@@ -82,13 +73,13 @@ func TestIOStreams_SeparateStreamsAreIsolated(t *testing.T) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		for range 200 {
+		for i := 0; i < 200; i++ {
 			a.Info("alpha")
 		}
 	}()
 	go func() {
 		defer wg.Done()
-		for range 200 {
+		for i := 0; i < 200; i++ {
 			b.Info("bravo")
 		}
 	}()
@@ -127,11 +118,11 @@ func TestIOStreams_ConcurrentWrites(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
-	for i := range goroutines {
+	for i := 0; i < goroutines; i++ {
 		go func(id int) {
 			defer wg.Done()
 			token := fmt.Sprintf("G%02d-", id)
-			for range writesEach {
+			for j := 0; j < writesEach; j++ {
 				_, _ = fmt.Fprint(s.ErrOut(), token)
 			}
 		}(i)
@@ -143,7 +134,7 @@ func TestIOStreams_ConcurrentWrites(t *testing.T) {
 	// Each goroutine's distinct token must appear exactly writesEach times.
 	// A split write would produce a partial token string not matching any token,
 	// causing the count to fall short.
-	for i := range goroutines {
+	for i := 0; i < goroutines; i++ {
 		token := fmt.Sprintf("G%02d-", i)
 		assert.Equal(t, writesEach, strings.Count(got, token),
 			"token %s must appear exactly %d times", token, writesEach)
@@ -163,13 +154,13 @@ func TestErrOut_SharedLockWithLogger(t *testing.T) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		for range n {
+		for i := 0; i < n; i++ {
 			bound.Info("L")
 		}
 	}()
 	go func() {
 		defer wg.Done()
-		for range n {
+		for i := 0; i < n; i++ {
 			_, _ = fmt.Fprint(s.ErrOut(), "X")
 		}
 	}()

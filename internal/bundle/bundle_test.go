@@ -630,7 +630,7 @@ func TestCtyValueToGo(t *testing.T) {
 
 	t.Run("unsupported type at deep path is loud-fail with full path", func(t *testing.T) {
 		// Capsule type is a stand-in for any non-handled cty type.
-		caps := cty.Capsule("custom", reflect.TypeFor[struct{}]())
+		caps := cty.Capsule("custom", reflect.TypeOf(struct{}{}))
 		capsVal := cty.CapsuleVal(caps, &struct{}{})
 		_, err := ctyValueToGo(cty.ObjectVal(map[string]cty.Value{
 			"ports": cty.TupleVal([]cty.Value{
@@ -826,12 +826,11 @@ func TestParseBundleConfig(t *testing.T) {
 			fixture: specCompliantPath,
 			wantOK:  true,
 			check: func(t *testing.T, cfg *UDSBundleConfig) {
-				// Options (seven fields from ADR-0006)
+				// Active options.
 				assert.Equal(t, "info", cfg.Options.LogLevel)
 				assert.Equal(t, "amd64", cfg.Options.Architecture)
 				assert.False(t, cfg.Options.PlainHTTP)
 				assert.False(t, cfg.Options.SkipTLSVerify)
-				assert.Equal(t, "/tmp/uds-cache", cfg.Options.UDSCache)
 				assert.Equal(t, "/tmp/uds-tmp", cfg.Options.TmpDir)
 				assert.Equal(t, 10, cfg.Options.Concurrency)
 				// Top-level scalar variable
@@ -1397,6 +1396,13 @@ func TestParseBundleBytesRejectsFileFunction(t *testing.T) {
 uds { bundle_api_version = "uds.dev/v1alpha1" }
 metadata { name = file("name.txt") }
 package "example" { source = "oci://example.com/package:v1" }
+`))
+	require.ErrorContains(t, err, "requires a file-backed bundle source")
+}
+
+func TestParseDefaultsBytesRejectsFileFunction(t *testing.T) {
+	_, err := ParseDefaultsBytes(t.Context(), []byte(`
+variables = { value = file("/etc/hostname") }
 `))
 	require.ErrorContains(t, err, "requires a file-backed bundle source")
 }

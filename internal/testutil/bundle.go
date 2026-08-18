@@ -104,12 +104,11 @@ func createBundleFromTestData(t *testing.T, testDataRelPath, arch string) (strin
 	resolver := clibundle.NewConfigResolver()
 	opts := resolver.Defaults()
 	opts.Architecture = arch
-	global := &bundle.GlobalOptions{LogLevel: opts.LogLevel}
-	result, err := bundle.Create(t.Context(), bundle.CreateOptions{
-		Config:     &bundle.UDSBundleConfig{Global: global, Options: &opts},
-		BundleFile: filepath.Join(dir, "bundle.uds.hcl"),
-		Signing:    bundle.SigningOptions{Mode: bundle.SigningModeUnsigned},
-		Streams:    streams,
+	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
+	result, err := bundle.Create(t.Context(), bundleFile, bundle.CreateOptions{
+		Config:  &bundle.UDSBundleConfig{Options: &opts},
+		Signing: bundle.SigningOptions{Mode: bundle.SigningModeUnsigned},
+		Streams: streams,
 	})
 	return dir, result, errOut.String(), err
 }
@@ -208,7 +207,7 @@ func DeleteK3dCluster(t *testing.T, clusterName string) {
 	t.Fatalf("failed to delete k3d cluster %q: %v\n%s", clusterName, err, out)
 }
 
-// RunBundleDeploy deploys an unsigned artifact with the selected CLI binary.
+// RunBundleDeploy deploys an artifact with the selected CLI binary.
 func RunBundleDeploy(t *testing.T, udsPath, artifactPath string) {
 	t.Helper()
 	args := []string{"bundle", "deploy", "--skip-signature-verification", artifactPath}

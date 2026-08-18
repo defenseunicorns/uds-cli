@@ -31,7 +31,7 @@ func Sign(ctx context.Context, opts SignOptions) error {
 	if err := opts.Validate(); err != nil {
 		return err
 	}
-	if IsOCIReference(opts.Source) {
+	if oci.IsOCIReference(opts.Source) {
 		if opts.Config == nil || opts.Config.Options == nil {
 			return fmt.Errorf("config is required for OCI bundle signing")
 		}
@@ -70,7 +70,7 @@ func Sign(ctx context.Context, opts SignOptions) error {
 }
 
 func signOCI(ctx context.Context, opts SignOptions) error {
-	repo, err := oci.NewRemoteRepository(ctx, TrimScheme(opts.Source), toInternalConfigOptions(*opts.Config.Options))
+	repo, err := oci.NewRemoteRepository(ctx, oci.TrimScheme(opts.Source), toInternalConfigOptions(*opts.Config.Options))
 	if err != nil {
 		return fmt.Errorf("connecting to registry: %w", err)
 	}

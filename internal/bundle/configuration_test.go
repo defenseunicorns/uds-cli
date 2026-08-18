@@ -12,10 +12,9 @@ import (
 
 func TestVariables_Flatten(t *testing.T) {
 	tests := []struct {
-		name    string
-		vars    Variables
-		want    map[string]string
-		wantErr bool
+		name string
+		vars Variables
+		want map[string]string
 	}{
 		{
 			name: "nil returns empty map without panic",
@@ -130,13 +129,7 @@ func TestVariables_Flatten(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.vars.Flatten()
-			if tt.wantErr {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), "flatten ")
-				return
-			}
-			require.NoError(t, err)
+			got := tt.vars.Flatten()
 			assert.Equal(t, tt.want, got)
 		})
 	}

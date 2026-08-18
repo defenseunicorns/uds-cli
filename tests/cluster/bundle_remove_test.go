@@ -8,6 +8,7 @@ package cluster_test
 import (
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/defenseunicorns/uds-cli/tests/testutil"
@@ -39,9 +40,10 @@ func TestDeployAndRemoveBundle(t *testing.T) {
 	result := testutil.RemoveBundle(t, testEnv.udsPath, bundleDir)
 	markBundleRemoved()
 	assert.Equal(t, "k3d-core-init", result.BundleName)
-	assert.Equal(t, 2, result.Removed,
-		"both aliased podinfo packages should be removed rather than silently skipped")
-	assert.Equal(t, 0, result.Skipped)
+	assert.ElementsMatch(t, []bundle.RemovePackageResult{
+		{Name: "pod_info_primary", Status: bundle.RemovePackageStatusRemoved},
+		{Name: "pod_info_secondary", Status: bundle.RemovePackageStatusRemoved},
+	}, result.Packages)
 	firstK8s.AssertDeploymentNotExists(firstNamespace, "podinfo")
 	secondK8s.AssertDeploymentNotExists(secondNamespace, "podinfo")
 	firstK8s.AssertSecretNotExists("zarf", firstStateSecret)

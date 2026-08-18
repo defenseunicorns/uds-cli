@@ -21,7 +21,7 @@ func Verify(ctx context.Context, opts VerifyOptions) error {
 	if err := opts.Validate(); err != nil {
 		return err
 	}
-	if IsOCIReference(opts.Source) {
+	if oci.IsOCIReference(opts.Source) {
 		if opts.Config == nil {
 			return fmt.Errorf("config is required for OCI bundle verification")
 		}
@@ -30,10 +30,11 @@ func Verify(ctx context.Context, opts VerifyOptions) error {
 			return fmt.Errorf("creating OCI verification workspace: %w", err)
 		}
 		defer func() { _ = os.RemoveAll(workspace) }()
-		pulled, err := Pull(ctx, opts.Source, workspace, PullOptions{
-			Config:       opts.Config,
-			Verification: opts.Policy,
-			Streams:      opts.Streams,
+		pulled, err := PullBundle(ctx, opts.Source, workspace, PullOptions{
+			Config:                    opts.Config,
+			Verification:              opts.Policy,
+			SkipSignatureVerification: false,
+			Streams:                   opts.Streams,
 		})
 		if err != nil {
 			return fmt.Errorf("pulling bundle for verification: %w", err)

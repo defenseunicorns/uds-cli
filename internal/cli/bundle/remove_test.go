@@ -54,7 +54,7 @@ func TestRemoveOptions_Complete(t *testing.T) {
 }
 
 func TestRemoveOptions_Validate(t *testing.T) {
-	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundle.BundleFileName)
+	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundleFileName)
 	existingDir := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init")
 
 	tempDir := t.TempDir()
@@ -64,7 +64,7 @@ func TestRemoveOptions_Validate(t *testing.T) {
 
 	validDir := filepath.Join(tempDir, "valid")
 	require.NoError(t, os.Mkdir(validDir, 0o755))
-	validBundleFile := filepath.Join(validDir, bundle.BundleFileName)
+	validBundleFile := filepath.Join(validDir, bundleFileName)
 	require.NoError(t, os.WriteFile(validBundleFile, []byte(`
 uds { bundle_api_version = "uds.dev/v1alpha1" }
 metadata { name = "test" }
@@ -131,7 +131,7 @@ package "pkg1" {
 			streams, _, _, _ := iostreams.NewTestIOStreams()
 			o := &RemoveOptions{
 				BundlePath: tt.bundlePath,
-				Config:     &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults},
+				Config:     &bundle.UDSBundleConfig{Options: &defaults},
 				IOStreams:  streams,
 			}
 
@@ -146,7 +146,7 @@ package "pkg1" {
 }
 
 func TestRemoveOptions_Run_PromptDecline(t *testing.T) {
-	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundle.BundleFileName)
+	existingFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundleFileName)
 	defaults := NewConfigResolver().Defaults()
 
 	tests := []struct {
@@ -177,7 +177,8 @@ func TestRemoveOptions_Run_PromptDecline(t *testing.T) {
 
 			o := &RemoveOptions{
 				BundlePath: existingFile,
-				Config:     &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{Prompt: true}, Options: &defaults},
+				Prompt:     true,
+				Config:     &bundle.UDSBundleConfig{Options: &defaults},
 				Printer:    textPrinter,
 				IOStreams:  streams,
 			}
@@ -223,14 +224,8 @@ func TestRemoveOptions_Complete_WithPackagesFlag(t *testing.T) {
 	assert.Equal(t, ".", o.BundlePath)
 }
 
-// TestRemoveOptions_Validate_DependencyCheck verifies that Validate() runs the
-// package-selection checks (ValidatePackageNames and bundle.ValidateRemovalSafety)
-// against the parsed bundle before Run()/prompt, gated by --force. The fixture
-// bundle has two packages: `init` depends on `uds_k3d_dev`. Removing the
-// dependency without removing the dependent (and without --force) must error;
-// --force or removing only the leaf must succeed.
 func TestRemoveOptions_Validate_DependencyCheck(t *testing.T) {
-	bundlePath := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundle.BundleFileName)
+	bundlePath := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundleFileName)
 	defaults := NewConfigResolver().Defaults()
 
 	tests := []struct {
@@ -275,7 +270,7 @@ func TestRemoveOptions_Validate_DependencyCheck(t *testing.T) {
 				BundlePath: bundlePath,
 				Packages:   tt.packages,
 				Force:      tt.force,
-				Config:     &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults},
+				Config:     &bundle.UDSBundleConfig{Options: &defaults},
 				IOStreams:  streams,
 			}
 

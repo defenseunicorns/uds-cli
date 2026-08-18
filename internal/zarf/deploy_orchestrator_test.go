@@ -8,6 +8,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -157,7 +159,7 @@ func (g *gatedDeploy) deploy(ctx context.Context, pkg *Package, _ DeployPackageO
 func (g *gatedDeploy) waitForEntries(t *testing.T, n int) []string {
 	t.Helper()
 	got := make([]string, 0, n)
-	for i := range n {
+	for i := 0; i < n; i++ {
 		select {
 		case name := <-g.entries:
 			got = append(got, name)
@@ -232,8 +234,7 @@ func newOrchestratorForTest(t *testing.T, b *UDSBundle, deploy deployFunc, concu
 // newDeployTestConfig returns a minimal valid UDSBundleConfig for unit tests.
 func newDeployTestConfig(concurrency int) *UDSBundleConfig {
 	return &UDSBundleConfig{
-		Global:  &GlobalOptions{LogLevel: "info"},
-		Options: &ConfigOptions{Concurrency: concurrency, TmpDir: "/tmp"},
+		Options: &ConfigOptions{LogLevel: "info", Concurrency: concurrency, TmpDir: os.TempDir()},
 	}
 }
 
@@ -333,6 +334,30 @@ func TestDeployOrchestrator_PreCancelledContext(t *testing.T) {
 		"no packages should be invoked when context is pre-cancelled")
 }
 
+func TestDeployOrchestrator_CancellationWhileAdmittingFinalLevel(t *testing.T) {
+	t.Parallel()
+
+	b := &UDSBundle{
+		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: Metadata{Name: "admission-cancelled"},
+		Packages: []Package{
+			{Name: "first", Source: "oci://example/first:v1"},
+			{Name: "second", Source: "oci://example/second:v1"},
+		},
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	var once sync.Once
+	deploy := func(context.Context, *Package, DeployPackageOptions) error {
+		once.Do(cancel)
+		return nil
+	}
+
+	err := newOrchestratorForTest(t, b, deploy, 1).Run(ctx)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 func TestDeployOrchestrator_ErrorWrapping(t *testing.T) {
 	t.Parallel()
 
@@ -360,29 +385,11 @@ func TestDeployOrchestrator_ErrorWrapping(t *testing.T) {
 func TestDeployOrchestrator_ErrorWrappingIncludesSourceRange(t *testing.T) {
 	t.Parallel()
 
-	rootErr := errors.New("zarf exploded")
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "wrap-test"},
-		Packages: []Package{{
-			Name:   "broken",
-			Source: "oci://example/broken:v1",
-			SourceRange: SourceRange{
-				Filename: "bundle.uds.hcl",
-				Start:    SourcePosition{Line: 7, Column: 1, Byte: 42},
-				End:      SourcePosition{Line: 7, Column: 17, Byte: 58},
-			},
-		}},
-	}
-	deploy, _ := recordingDeploy(map[string]error{"broken": rootErr})
-
-	err := runDeployOrchestrator(t, b, deploy, 1)
-	require.ErrorIs(t, err, rootErr)
-	assert.Contains(t, err.Error(), `failed to deploy package "broken" at bundle.uds.hcl:7,1-17`)
-}
-
-func TestDeployOrchestrator_ErrorWrappingOmitsInvalidSourceRange(t *testing.T) {
-	t.Parallel()
+	bundleDir := t.TempDir()
+	bundlePath := filepath.Join(bundleDir, bundleinternal.BundleFileName)
+	require.NoError(t, os.WriteFile(bundlePath, []byte(`package "broken" {
+  source = "oci://example/broken:v1"
+}`), 0o600))
 
 	rootErr := errors.New("zarf exploded")
 	b := &UDSBundle{
@@ -391,10 +398,39 @@ func TestDeployOrchestrator_ErrorWrappingOmitsInvalidSourceRange(t *testing.T) {
 		Packages: []Package{{Name: "broken", Source: "oci://example/broken:v1"}},
 	}
 	deploy, _ := recordingDeploy(map[string]error{"broken": rootErr})
+	orch := newOrchestratorForTest(t, b, deploy, 1)
+	orch.pkgOpts.BundleDir = bundleDir
+	orch.pkgOpts.bundlePath = bundlePath
 
-	err := runDeployOrchestrator(t, b, deploy, 1)
+	err := orch.Run(t.Context())
 	require.ErrorIs(t, err, rootErr)
-	assert.NotContains(t, err.Error(), ":0,0-0")
+	assert.Contains(t, err.Error(), fmt.Sprintf(`failed to deploy package "broken" at %s:1,1-17`, bundlePath))
+}
+
+func TestDeployBundle_PreparsedBundleWithoutPathDoesNotUseWorkingDirectorySource(t *testing.T) {
+	workingDir := t.TempDir()
+	bundlePath := filepath.Join(workingDir, bundleinternal.BundleFileName)
+	require.NoError(t, os.WriteFile(bundlePath, []byte(`package "broken" {
+  source = "oci://unrelated/broken:v1"
+}`), 0o600))
+	t.Chdir(workingDir)
+
+	rootErr := errors.New("zarf exploded")
+	b := &UDSBundle{
+		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: Metadata{Name: "wrap-test"},
+		Packages: []Package{{Name: "broken", Source: "oci://example/broken:v1"}},
+	}
+	deployer := NewZarfDeployer(iostreams.IOStreams{}, nil)
+	_, err := deployer.DeployBundle(t.Context(), b, DeployOptions{
+		Config: newDeployTestConfig(1),
+		PackageDeployFn: func(context.Context, *Package, DeployPackageOptions) error {
+			return rootErr
+		},
+	})
+
+	require.ErrorIs(t, err, rootErr)
+	assert.NotContains(t, err.Error(), bundlePath)
 }
 
 func TestDeployOrchestrator_EmptyBundle(t *testing.T) {
@@ -774,7 +810,7 @@ func TestDeployOrchestrator_ConcurrentOutputIsClean(t *testing.T) {
 
 	deploy := func(_ context.Context, pkg *Package, opts DeployPackageOptions) error {
 		token := fmt.Sprintf("[%s]", pkg.Name)
-		for range writesPerPkg {
+		for i := 0; i < writesPerPkg; i++ {
 			_, _ = fmt.Fprint(opts.Streams.ErrOut(), token)
 		}
 		return nil

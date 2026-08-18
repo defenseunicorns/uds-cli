@@ -26,7 +26,6 @@ func TestDefaults(t *testing.T) {
 	require.False(t, opts.SkipTLSVerify)
 	require.Equal(t, 10, opts.Concurrency)
 	require.Equal(t, os.TempDir(), opts.TmpDir)
-	require.Empty(t, opts.UDSCache)
 }
 
 func TestMergeHCL_NilPointer(t *testing.T) {
@@ -132,7 +131,6 @@ func TestMergeHCL(t *testing.T) {
 				Architecture:  "arm64",
 				PlainHTTP:     true,
 				SkipTLSVerify: true,
-				UDSCache:      "/cache",
 				TmpDir:        "/custom-tmp",
 				Concurrency:   20,
 			},
@@ -141,7 +139,6 @@ func TestMergeHCL(t *testing.T) {
 				Architecture:  "arm64",
 				PlainHTTP:     true,
 				SkipTLSVerify: true,
-				UDSCache:      "/cache",
 				TmpDir:        "/custom-tmp",
 				Concurrency:   20,
 			},
@@ -519,13 +516,13 @@ func TestMultiLayerPrecedence(t *testing.T) {
 			base := r.Defaults()
 
 			// Layer 2: defaults.uds.hcl variables (options not supported)
-			vars := bundle.MergeVariables(nil, tt.defaultFileVars)
+			vars := mergeVariables(nil, tt.defaultFileVars)
 
 			// Layer 3: config.uds.hcl options and variables
 			if tt.configFileOpts != nil {
 				base = r.MergeHCL(base, tt.configFileOpts)
 			}
-			vars = bundle.MergeVariables(vars, tt.configFileVars)
+			vars = mergeVariables(vars, tt.configFileVars)
 
 			// Layer 4: CLI flags (options only; variables are not settable via CLI)
 			cmd := &cobra.Command{}
@@ -553,9 +550,6 @@ func TestResolve_DefaultsOnly(t *testing.T) {
 	resolved, configPath, err := r.Resolve(t.Context(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
-	require.NotNil(t, resolved.Global)
-	assert.Equal(t, "info", resolved.Global.LogLevel)
-	assert.False(t, resolved.Global.Prompt)
 	assert.Equal(t, "info", resolved.Options.LogLevel)
 	assert.Equal(t, runtime.GOARCH, resolved.Options.Architecture)
 	assert.Equal(t, os.TempDir(), resolved.Options.TmpDir)
@@ -588,8 +582,7 @@ variables = {
 	resolved, resolvedConfigPath, err := r.Resolve(t.Context(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
-	require.NotNil(t, resolved.Global)
-	assert.Equal(t, "info", resolved.Global.LogLevel)
+	assert.Equal(t, "info", resolved.Options.LogLevel)
 	assert.Equal(t, "arm64", resolved.Options.Architecture)
 	assert.Equal(t, 5, resolved.Options.Concurrency)
 	assert.Equal(t, os.TempDir(), resolved.Options.TmpDir, "unset HCL fields should preserve defaults")
@@ -600,7 +593,7 @@ variables = {
 func TestResolveBaseAndApplyBundleDefaults(t *testing.T) {
 	r := NewConfigResolver()
 	bundleDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundle.BundleDefaultsFileName), []byte(`
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundleDefaultsFileName), []byte(`
 variables = {
   from_defaults = "default"
   overridden    = "default"
@@ -637,7 +630,6 @@ signature_verification {
 	assert.True(t, base.Options.PlainHTTP)
 	assert.Equal(t, 3, base.Options.Concurrency)
 	assert.Equal(t, bundleDir, base.Options.TmpDir)
-	assert.True(t, base.Global.Prompt)
 	assert.Equal(t, bundle.Variables{"overridden": "config", "from_config": "config"}, base.Variables)
 	require.NotNil(t, base.SignatureVerification)
 	assert.Equal(t, "trusted-public-key", base.SignatureVerification.PublicKey)
@@ -648,13 +640,11 @@ signature_verification {
 	assert.Equal(t, "config", resolved.Variables["overridden"])
 	assert.Equal(t, "config", resolved.Variables["from_config"])
 	assert.Equal(t, base.Options, resolved.Options)
-	assert.Equal(t, base.Global, resolved.Global)
 	assert.NotSame(t, base.Options, resolved.Options)
-	assert.NotSame(t, base.Global, resolved.Global)
 	resolved.Options.Concurrency = 99
-	resolved.Global.LogLevel = "debug"
+	resolved.Options.LogLevel = "debug"
 	assert.Equal(t, 3, base.Options.Concurrency)
-	assert.Equal(t, "info", base.Global.LogLevel)
+	assert.Equal(t, "info", base.Options.LogLevel)
 	assert.Equal(t, bundle.Variables{"overridden": "config", "from_config": "config"}, base.Variables, "base config must not be mutated")
 }
 
@@ -704,8 +694,7 @@ func TestResolve_NoConfigFlag(t *testing.T) {
 	resolved, configPath, err := r.Resolve(t.Context(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
-	require.NotNil(t, resolved.Global)
-	assert.Equal(t, "info", resolved.Global.LogLevel)
+	assert.Equal(t, "info", resolved.Options.LogLevel)
 	assert.Equal(t, runtime.GOARCH, resolved.Options.Architecture)
 	assert.Empty(t, configPath)
 	assert.Nil(t, resolved.Variables)
@@ -721,9 +710,7 @@ func TestResolve_LogLevelCLIOverride(t *testing.T) {
 	resolved, _, err := r.Resolve(t.Context(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
-	require.NotNil(t, resolved.Global)
-	assert.Equal(t, "debug", resolved.Global.LogLevel, "CLI --log-level should override default")
-	assert.Equal(t, "debug", resolved.Options.LogLevel, "Options.LogLevel should match Global.LogLevel")
+	assert.Equal(t, "debug", resolved.Options.LogLevel, "CLI --log-level should override default")
 }
 
 func TestResolve_HCLLogLevelOverride(t *testing.T) {
@@ -744,9 +731,7 @@ options {
 	resolved, _, err := r.Resolve(t.Context(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
-	require.NotNil(t, resolved.Global)
-	assert.Equal(t, "warn", resolved.Global.LogLevel, "HCL log_level should override default")
-	assert.Equal(t, "warn", resolved.Options.LogLevel)
+	assert.Equal(t, "warn", resolved.Options.LogLevel, "HCL log_level should override default")
 }
 
 func TestResolve_CLILogLevelOverridesHCL(t *testing.T) {
@@ -768,23 +753,7 @@ options {
 	resolved, _, err := r.Resolve(t.Context(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
 	require.NoError(t, err)
 
-	require.NotNil(t, resolved.Global)
-	assert.Equal(t, "error", resolved.Global.LogLevel, "CLI --log-level should override HCL log_level")
-	assert.Equal(t, "error", resolved.Options.LogLevel)
-}
-
-func TestResolve_PromptFromFlag(t *testing.T) {
-	r := NewConfigResolver()
-	cmd := &cobra.Command{}
-	registerTestFlags(cmd)
-	cmd.Flags().String("config", "", "config path")
-	require.NoError(t, cmd.Flags().Set("prompt", "true"))
-
-	resolved, _, err := r.Resolve(t.Context(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
-	require.NoError(t, err)
-
-	require.NotNil(t, resolved.Global)
-	assert.True(t, resolved.Global.Prompt, "--prompt flag should be reflected in GlobalOptions")
+	assert.Equal(t, "error", resolved.Options.LogLevel, "CLI --log-level should override HCL log_level")
 }
 
 func TestResolve_InvalidHCLLogLevel(t *testing.T) {
@@ -811,7 +780,7 @@ options {
 func TestResolve_DefaultsFile_VariablesApplied(t *testing.T) {
 	r := NewConfigResolver()
 	bundleDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundle.BundleDefaultsFileName), []byte(`
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundleDefaultsFileName), []byte(`
 variables = {
   domain = "default.dev"
   feature = {
@@ -863,7 +832,7 @@ func TestResolve_InvalidBundleDir_Skipped(t *testing.T) {
 func TestResolve_DefaultsFile_OptionsBlockNotAllowed(t *testing.T) {
 	r := NewConfigResolver()
 	bundleDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundle.BundleDefaultsFileName), []byte(`
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundleDefaultsFileName), []byte(`
 options {
   architecture = "amd64"
 }
@@ -875,14 +844,14 @@ options {
 
 	_, _, err := r.Resolve(t.Context(), iostreams.IOStreams{}, SnapshotFlags(cmd), bundleDir)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), bundle.BundleDefaultsFileName)
+	assert.Contains(t, err.Error(), bundleDefaultsFileName)
 	assert.Contains(t, err.Error(), "block")
 }
 
 func TestResolve_DefaultsFile_InvalidHCL(t *testing.T) {
 	r := NewConfigResolver()
 	bundleDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundle.BundleDefaultsFileName), []byte(`
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundleDefaultsFileName), []byte(`
 this is not valid HCL {{{
 `), 0o644))
 
@@ -891,19 +860,19 @@ this is not valid HCL {{{
 	cmd.Flags().String("config", "", "config path")
 
 	_, _, err := r.Resolve(t.Context(), iostreams.IOStreams{}, SnapshotFlags(cmd), bundleDir)
-	require.ErrorContains(t, err, bundle.BundleDefaultsFileName)
+	require.ErrorContains(t, err, bundleDefaultsFileName)
 }
 
 func TestResolve_DefaultsFile_BundleDirIsFilePath(t *testing.T) {
 	r := NewConfigResolver()
 	bundleDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundle.BundleDefaultsFileName), []byte(`
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundleDefaultsFileName), []byte(`
 variables = {
   a = "a-default-value"
 }
 `), 0o644))
 	// Simulate passing a file path (e.g. /path/to/bundle.uds.hcl) instead of directory
-	bundleFilePath := filepath.Join(bundleDir, bundle.BundleFileName)
+	bundleFilePath := filepath.Join(bundleDir, bundleFileName)
 	require.NoError(t, os.WriteFile(bundleFilePath, []byte(""), 0o644))
 
 	cmd := &cobra.Command{}

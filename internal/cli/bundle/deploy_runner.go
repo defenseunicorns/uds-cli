@@ -6,9 +6,12 @@ package bundle
 import (
 	"context"
 	"fmt"
+	"os"
 
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
@@ -19,22 +22,21 @@ type deployRunnerFunc func(
 	bundlePath string,
 	packages []string,
 	force bool,
-	verification bundlepkg.VerificationPolicy,
-	skipSignatureVerification bool,
+	prompt bool,
 ) (*bundlepkg.DeployResult, error)
 
 type prepareDeploySourceFunc func(
 	ctx context.Context,
-	opts bundlepkg.PrepareDeploySourceOptions,
-) (*bundlepkg.DeploySource, error)
+	streams iostreams.IOStreams,
+	path string,
+	tmpDir string,
+	architecture string,
+) (*preparedDeploySource, error)
 
-type closeDeploySourceFunc func(source *bundlepkg.DeploySource) error
-
-type deployBundleFunc func(ctx context.Context, opts bundlepkg.DeployOptions) (*bundlepkg.DeployResult, error)
+type deployBundleFunc func(ctx context.Context, source *bundlepkg.DeploySource, opts bundlepkg.DeployOptions) (*bundlepkg.DeployResult, error)
 
 type deployRunnerDependencies struct {
 	prepare prepareDeploySourceFunc
-	close   closeDeploySourceFunc
 	deploy  deployBundleFunc
 }
 
@@ -45,15 +47,11 @@ func runDeploy(
 	bundlePath string,
 	packages []string,
 	force bool,
-	verification bundlepkg.VerificationPolicy,
-	skipSignatureVerification bool,
+	prompt bool,
 ) (*bundlepkg.DeployResult, error) {
-	return runDeployWith(ctx, streams, baseConfig, bundlePath, packages, force, verification, skipSignatureVerification, deployRunnerDependencies{
-		prepare: bundlepkg.PrepareDeploySource,
-		close: func(source *bundlepkg.DeploySource) error {
-			return source.Close()
-		},
-		deploy: bundlepkg.Deploy,
+	return runDeployWith(ctx, streams, baseConfig, bundlePath, packages, force, prompt, deployRunnerDependencies{
+		prepare: prepareDeploySource,
+		deploy:  bundlepkg.Deploy,
 	})
 }
 
@@ -64,54 +62,49 @@ func runDeployWith(
 	bundlePath string,
 	packages []string,
 	force bool,
-	verification bundlepkg.VerificationPolicy,
-	skipSignatureVerification bool,
+	prompt bool,
 	deps deployRunnerDependencies,
 ) (*bundlepkg.DeployResult, error) {
-	deploySrc, err := deps.prepare(ctx, bundlepkg.PrepareDeploySourceOptions{
-		Path:                      bundlePath,
-		Config:                    baseConfig,
-		Verification:              verification,
-		SkipSignatureVerification: skipSignatureVerification,
-		TmpDir:                    baseConfig.Options.TmpDir,
-		Streams:                   streams,
-	})
+	prepared, err := deps.prepare(ctx, streams, bundlePath, baseConfig.Options.TmpDir, baseConfig.Options.Architecture)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
-		if err := deps.close(deploySrc); err != nil {
+		if err := prepared.close(); err != nil {
 			streams.Warn("failed to close deploy source", "error", err)
 		}
 	}()
+	deploySrc := prepared.source
 
-	config, err := NewConfigResolver().applyBundleDefaults(ctx, streams, baseConfig, deploySrc.BundlePath)
-	if err != nil {
-		return nil, err
-	}
-	streams = logger.Bind(streams, config.Global.LogLevel)
-	streams.Debug("deploying bundle", "path", deploySrc.BundlePath, "prompt", config.Global.Prompt)
+	config := baseConfig
+	streams = logger.Bind(streams, config.Options.LogLevel)
+	streams.Debug("deploying bundle", "path", deploySrc.BundlePath, "prompt", prompt)
 
-	parsedBundle, err := bundlepkg.NewHCLParser(config.Options.Architecture, streams).ParseBundleFile(ctx, deploySrc.BundlePath)
+	parsedBundle, err := parseDeployBundle(ctx, streams, config.Options.Architecture, deploySrc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse bundle: %w", err)
 	}
 	if err := parsedBundle.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid bundle: %w", err)
 	}
+	deploySrc.Bundle = parsedBundle
 
 	streams.Info("bundle to deploy", "name", parsedBundle.Metadata.Name, "packages", len(parsedBundle.Packages))
 
-	if err := bundlepkg.ValidatePackageNames(packages, parsedBundle.Packages); err != nil {
+	if err := bundleinternal.ValidatePackageNames(packages, parsedBundle.Packages); err != nil {
 		return nil, err
 	}
 	if !force {
-		if err := bundlepkg.ValidateDeploySafety(ctx, streams, parsedBundle, packages); err != nil {
-			return nil, fmt.Errorf("%w\nre-run with --force to override", err)
+		violations, err := bundleinternal.DeployViolations(ctx, streams, parsedBundle, packages)
+		if err != nil {
+			return nil, err
+		}
+		if len(violations) > 0 {
+			return nil, fmt.Errorf("%w\nre-run with --force to override", formatDependencyError("cannot deploy package(s) with unselected dependencies", "requires", violations))
 		}
 	}
 
-	if config.Global.Prompt {
+	if prompt {
 		confirmed, err := PromptConfirmation(streams, "Deploy this bundle?")
 		if err != nil {
 			return nil, err
@@ -122,18 +115,30 @@ func runDeployWith(
 		}
 	}
 
-	result, err := deps.deploy(ctx, bundlepkg.DeployOptions{
-		Config:     config,
-		BundlePath: deploySrc.BundlePath,
-		Bundle:     parsedBundle,
-		Source:     deploySrc,
-		Packages:   packages,
-		Force:      force,
-		Streams:    streams,
+	result, err := deps.deploy(ctx, deploySrc, bundlepkg.DeployOptions{
+		Config:   config,
+		Packages: packages,
+		Force:    force,
+		Streams:  streams,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("deployment failed: %w", err)
 	}
 
 	return result, nil
+}
+
+func parseDeployBundle(ctx context.Context, streams iostreams.IOStreams, arch string, source *bundlepkg.DeploySource) (*spec.UDSBundle, error) {
+	if source.Bundle != nil {
+		return source.Bundle, nil
+	}
+	parser := bundleinternal.NewHCLParser(arch, streams)
+	if source.Loader == nil {
+		return parser.ParseBundleFile(ctx, source.BundlePath)
+	}
+	src, err := os.ReadFile(source.BundlePath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read bundle artifact definition: %w", err)
+	}
+	return parser.ParseBundleBytes(ctx, src)
 }

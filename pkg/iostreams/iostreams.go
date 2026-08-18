@@ -8,26 +8,9 @@ import (
 	"bytes"
 	"io"
 	"log/slog"
-	"os"
 	"sync"
 )
 
-// Output synchronization
-//
-// Parallel deploys have N goroutines writing to a single terminal, so
-// synchronization is required. We use byte-level locking (lockedWriter): every
-// Write call is serialized, giving live progress at the cost of possible
-// mid-line interleaving. Zarf emits one line per Write, so interleaving is
-// rare in practice.
-//
-// Sync lives here so every consumer — leveled logger methods and the raw
-// Out/ErrOut accessors — goes through the same lock automatically. Always
-// construct IOStreams via New, NewIOStreams, or NewTestIOStreams; the zero value
-// is nil-safe (Out/ErrOut return io.Discard, In returns nil) but unprotected.
-
-// lockedWriter wraps an io.Writer with a mutex so concurrent goroutines
-// (parallel package deploys within a level) do not corrupt each other's
-// writes. See the "Output synchronization" doc above for the rationale.
 type lockedWriter struct {
 	mu sync.Mutex
 	w  io.Writer
@@ -51,9 +34,7 @@ func synchronize(w io.Writer) io.Writer {
 	return &lockedWriter{w: w}
 }
 
-// IOStreams provides the standard names for iostreams.
-// Use New, NewIOStreams, or NewTestIOStreams to construct instances and access
-// streams via the In(), Out(), and ErrOut() accessors.
+// IOStreams provides standard input and output streams.
 type IOStreams struct {
 	in     io.Reader
 	out    io.Writer // *lockedWriter via any public constructor, or nil in the zero value
@@ -76,15 +57,6 @@ func New(in io.Reader, out, errOut io.Writer) IOStreams {
 		in:     in,
 		out:    synchronize(out),
 		errOut: synchronize(errOut),
-	}
-}
-
-// NewIOStreams returns an IOStreams pointing to os.Stdin, os.Stdout, and os.Stderr.
-func NewIOStreams() IOStreams {
-	return IOStreams{
-		in:     os.Stdin,
-		out:    synchronize(os.Stdout),
-		errOut: synchronize(os.Stderr),
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/cli/bundle"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -149,10 +150,10 @@ func TestCreate_DefaultsConfig_Applied(t *testing.T) {
 
 	artifactPath := filepath.Join(dir, "uds-bundle-defaults-test-"+runtime.GOARCH+"-0.1.0.tar.zst")
 	_, small := assertValidBundleStructure(t, artifactPath)
-	storedDefaults := extractLayerFromBundle(t, small, bundlepkg.BundleDefaultsFileName)
+	storedDefaults := extractLayerFromBundle(t, small, bundleinternal.BundleDefaultsFileName)
 	assert.NotContains(t, string(storedDefaults), "file(")
 	assert.Contains(t, string(storedDefaults), "from-file")
-	storedBundle := extractLayerFromBundle(t, small, bundlepkg.BundleFileName)
+	storedBundle := extractLayerFromBundle(t, small, bundleinternal.BundleFileName)
 	assert.NotContains(t, string(storedBundle), "file(")
 	assert.Contains(t, string(storedBundle), "description from file")
 }

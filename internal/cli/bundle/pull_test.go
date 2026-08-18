@@ -4,7 +4,6 @@
 package bundle
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,9 +47,10 @@ func TestPullOptions_Run_PromptDecline(t *testing.T) {
 			o := &PullOptions{
 				OCIReference: "oci://example.com/bundle:v1",
 				OutputDir:    tempDir,
-				Config:       &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{Prompt: true}, Options: &defaults},
-				IOStreams:    streams,
+				Prompt:       true,
+				Config:       &bundle.UDSBundleConfig{Options: &defaults},
 				Verification: VerifyOptions{SkipSignatureVerification: true},
+				IOStreams:    streams,
 			}
 
 			err := o.Run(t.Context())
@@ -61,41 +61,4 @@ func TestPullOptions_Run_PromptDecline(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestPullOptions_NoninteractivePrompt(t *testing.T) {
-	global := &bundle.GlobalOptions{}
-	assert.False(t, global.Prompt, "Prompt should default to false (non-interactive)")
-}
-
-func TestPullOptions_Validate_RejectsMissingPolicyBeforePull(t *testing.T) {
-	defaults := NewConfigResolver().Defaults()
-	o := &PullOptions{
-		OCIReference: "oci://example.com/bundle:v1",
-		OutputDir:    t.TempDir(),
-		Config:       &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults},
-	}
-	o.Verification.Config = o.Config
-
-	require.ErrorContains(t, o.Validate(), "exactly one")
-}
-
-func TestPullOptions_Run_RejectsMissingPolicyBeforePull(t *testing.T) {
-	defaults := NewConfigResolver().Defaults()
-	streams, _, _, _ := iostreams.NewTestIOStreams()
-	pullCalls := 0
-	o := &PullOptions{
-		OCIReference: "oci://example.com/bundle:v1",
-		OutputDir:    t.TempDir(),
-		Config:       &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults},
-		IOStreams:    streams,
-		pullBundle: func(context.Context, string, string, bundle.PullOptions) (*bundle.PullResult, error) {
-			pullCalls++
-			return nil, nil
-		},
-	}
-	o.Verification.Config = o.Config
-
-	require.ErrorContains(t, o.Run(t.Context()), "exactly one")
-	assert.Zero(t, pullCalls)
 }

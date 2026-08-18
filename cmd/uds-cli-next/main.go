@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	streams := iostreams.NewIOStreams()
+	streams := iostreams.New(os.Stdin, os.Stdout, os.Stderr)
 	rootCmd := cli.NewRootCommand(streams)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

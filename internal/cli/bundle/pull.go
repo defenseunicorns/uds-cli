@@ -19,11 +19,10 @@ import (
 type PullOptions struct {
 	OCIReference string
 	OutputDir    string
+	Prompt       bool
 	Config       *bundle.UDSBundleConfig
-	Printer      printer.ResourcePrinter
 	Verification VerifyOptions
-
-	pullBundle func(ctx context.Context, ociReference, targetDir string, opts bundle.PullOptions) (*bundle.PullResult, error)
+	Printer      printer.ResourcePrinter
 
 	iostreams.IOStreams
 }
@@ -69,6 +68,7 @@ func (o *PullOptions) Complete(cmd *cobra.Command, args []string) error {
 		ctx = context.Background()
 	}
 	flags := SnapshotFlags(cmd)
+	o.Prompt = flags.Prompt
 	cfg, _, err := NewConfigResolver().Resolve(ctx, o.IOStreams, flags, "")
 	if err != nil {
 		return err
@@ -104,7 +104,7 @@ func (o *PullOptions) Validate() error {
 
 // Run executes the pull command.
 func (o *PullOptions) Run(ctx context.Context) error {
-	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
+	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Options.LogLevel)
 	o.Debug("pulling bundle", "ref", o.OCIReference, "output", o.OutputDir)
 	policy := bundle.VerificationPolicy{}
 	if !o.Verification.SkipSignatureVerification {
@@ -114,7 +114,7 @@ func (o *PullOptions) Run(ctx context.Context) error {
 			return err
 		}
 	}
-	if o.Config.Global.Prompt {
+	if o.Prompt {
 		confirmed, err := PromptConfirmation(o.IOStreams, "Pull this bundle?")
 		if err != nil {
 			return err
@@ -124,11 +124,8 @@ func (o *PullOptions) Run(ctx context.Context) error {
 			return nil
 		}
 	}
-	pullBundle := o.pullBundle
-	if pullBundle == nil {
-		pullBundle = bundle.Pull
-	}
-	result, err := pullBundle(ctx, o.OCIReference, o.OutputDir, bundle.PullOptions{
+	o.Info("pulling bundle", "ref", o.OCIReference)
+	result, err := bundle.Pull(ctx, o.OCIReference, o.OutputDir, bundle.PullOptions{
 		Config:                    o.Config,
 		Verification:              policy,
 		SkipSignatureVerification: o.Verification.SkipSignatureVerification,

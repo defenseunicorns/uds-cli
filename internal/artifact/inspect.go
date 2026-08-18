@@ -6,7 +6,6 @@ package artifact
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,34 +28,20 @@ type packageSigningMetadata struct {
 	} `yaml:"build"`
 }
 
-type inspectOCIIndex = ocispec.Index
-type inspectOCIManifest = ocispec.Descriptor
-type inspectOCIDescriptor = ocispec.Descriptor
-type inspectOCIImageManifest = ocispec.Manifest
-
 // InspectOptions contains the internal inputs for built bundle inspection.
 type InspectOptions struct {
-	Source       string
-	Config       *bundleinternal.UDSBundleConfig
-	Streams      iostreams.IOStreams
-	VerifyBundle func(ctx context.Context, index, evidence []byte) error
-	// CheckSignatureEvidence preserves explicit skip-mode evidence checks
-	// without probing for evidence during unauthenticated inspection.
-	CheckSignatureEvidence bool
+	Source  string
+	Config  *bundleinternal.UDSBundleConfig
+	Streams iostreams.IOStreams
 }
-
-// InspectTargetResolver provides an internal test seam for OCI sources.
-type InspectTargetResolver func(context.Context, string, *InspectOptions) (udsoci.Target, error)
 
 // InspectResult contains the parsed bundle and metadata extracted during inspection.
 type InspectResult struct {
-	Bundle                 *spec.UDSBundle
-	ArtifactDigest         string
-	ReconfiguredFrom       string
-	PackageSignatures      map[string]PackageSignatureSummary
-	IndexBytes             []byte
-	SignatureEvidence      []byte
-	SignatureEvidenceError error
+	Bundle            *spec.UDSBundle
+	Packages          []*spec.Package
+	ArtifactDigest    string
+	ReconfiguredFrom  string
+	PackageSignatures map[string]PackageSignatureSummary
 }
 
 // PackageSignatureSummary contains package signing and verification metadata.
@@ -85,23 +70,14 @@ const (
 
 // Inspect reads a built local or OCI bundle.
 // It reads metadata only and does not verify package content or signatures.
-func Inspect(ctx context.Context, opts InspectOptions, targetResolver InspectTargetResolver) (*InspectResult, error) {
+func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 	if udsoci.IsOCIReference(opts.Source) {
-		return inspectOCIReference(ctx, opts, targetResolver)
+		return inspectOCIReference(ctx, opts)
 	}
 	return inspectLocalArtifact(ctx, opts)
 }
 
 func inspectLocalArtifact(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
-	if opts.CheckSignatureEvidence || opts.VerifyBundle != nil {
-		signatureEntries, err := CountTarZstEntries(ctx, opts.Source, udsoci.BundleSignatureFileName)
-		if err != nil {
-			return nil, fmt.Errorf("checking bundle signature evidence: %w", err)
-		}
-		if signatureEntries > 1 {
-			return nil, fmt.Errorf("expected exactly one bundle signature evidence entry, found %d", signatureEntries)
-		}
-	}
 	workspace, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-inspect-*")
 	if err != nil {
 		return nil, fmt.Errorf("creating inspection workspace: %w", err)
@@ -118,19 +94,6 @@ func inspectLocalArtifact(ctx context.Context, opts InspectOptions) (*InspectRes
 	if err != nil {
 		return nil, fmt.Errorf("reading bundle index: %w", err)
 	}
-	var evidence []byte
-	var evidenceErr error
-	if opts.CheckSignatureEvidence || opts.VerifyBundle != nil {
-		evidence, evidenceErr = readLocalSignatureEvidence(workspace)
-	}
-	if opts.VerifyBundle != nil {
-		if evidenceErr != nil {
-			return nil, evidenceErr
-		}
-		if err := opts.VerifyBundle(ctx, indexBytes, evidence); err != nil {
-			return nil, err
-		}
-	}
 
 	store, err := udsoci.OpenReadOnlyStore(ociDir)
 	if err != nil {
@@ -139,18 +102,11 @@ func inspectLocalArtifact(ctx context.Context, opts InspectOptions) (*InspectRes
 	fetch := func(ctx context.Context, desc ocispec.Descriptor) ([]byte, error) {
 		return udsoci.FetchBytes(ctx, store, desc)
 	}
-	result, err := inspectBundleIndex(ctx, opts.Streams, indexBytes, digest.FromBytes(indexBytes).String(), fetch)
-	if err != nil {
-		return nil, err
-	}
-	result.IndexBytes = indexBytes
-	result.SignatureEvidence = evidence
-	result.SignatureEvidenceError = evidenceErr
-	return result, nil
+	return inspectBundleIndex(ctx, opts.Streams, indexBytes, digest.FromBytes(indexBytes).String(), fetch)
 }
 
-func inspectOCIReference(ctx context.Context, opts InspectOptions, targetResolver InspectTargetResolver) (*InspectResult, error) {
-	target, err := resolveInspectTarget(ctx, opts, targetResolver)
+func inspectOCIReference(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
+	target, err := udsoci.NewRemoteRepository(ctx, udsoci.TrimScheme(opts.Source), *opts.Config.Options)
 	if err != nil {
 		return nil, fmt.Errorf("resolving inspect source %s: %w", opts.Source, err)
 	}
@@ -162,63 +118,15 @@ func inspectOCIReference(ctx context.Context, opts InspectOptions, targetResolve
 	if err != nil {
 		return nil, fmt.Errorf("resolving bundle from %s: %w", opts.Source, err)
 	}
-	var evidence []byte
-	var evidenceErr error
-	if opts.CheckSignatureEvidence || opts.VerifyBundle != nil {
-		evidence, evidenceErr = udsoci.FetchBundleSignature(ctx, target, childDesc)
-		if errors.Is(evidenceErr, udsoci.ErrBundleSignatureDuplicate) {
-			return nil, fmt.Errorf("reading bundle signature evidence: %w", evidenceErr)
-		}
-	}
-	if opts.VerifyBundle != nil {
-		if evidenceErr != nil {
-			return nil, fmt.Errorf("reading bundle signature evidence: %w", evidenceErr)
-		}
-		if err := opts.VerifyBundle(ctx, indexBytes, evidence); err != nil {
-			return nil, err
-		}
-	}
 
 	fetch := func(ctx context.Context, desc ocispec.Descriptor) ([]byte, error) {
 		return udsoci.FetchBytes(ctx, target, desc)
 	}
-	result, err := inspectBundleIndex(ctx, opts.Streams, indexBytes, childDesc.Digest.String(), fetch)
-	if err != nil {
-		return nil, err
-	}
-	result.IndexBytes = indexBytes
-	result.SignatureEvidence = evidence
-	result.SignatureEvidenceError = evidenceErr
-	return result, nil
-}
-
-func readLocalSignatureEvidence(workspace string) ([]byte, error) {
-	evidence, err := os.ReadFile(filepath.Join(workspace, udsoci.BundleSignatureFileName))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("bundle signature evidence %q is missing", udsoci.BundleSignatureFileName)
-		}
-		return nil, fmt.Errorf("reading bundle signature evidence: %w", err)
-	}
-	return evidence, nil
-}
-
-func resolveInspectTarget(ctx context.Context, opts InspectOptions, targetResolver InspectTargetResolver) (udsoci.Target, error) {
-	if targetResolver != nil {
-		target, err := targetResolver(ctx, udsoci.TrimScheme(opts.Source), &opts)
-		if err != nil {
-			return nil, err
-		}
-		if target == nil {
-			return nil, fmt.Errorf("inspect target is nil")
-		}
-		return target, nil
-	}
-	return udsoci.NewRemoteRepository(ctx, udsoci.TrimScheme(opts.Source), *opts.Config.Options)
+	return inspectBundleIndex(ctx, opts.Streams, indexBytes, childDesc.Digest.String(), fetch)
 }
 
 func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexBytes []byte, artifactDigest string, fetch inspectBlobFetcher) (*InspectResult, error) {
-	var idx inspectOCIIndex
+	var idx ocispec.Index
 	if err := json.Unmarshal(indexBytes, &idx); err != nil {
 		return nil, fmt.Errorf("parsing bundle index: %w", err)
 	}
@@ -253,7 +161,7 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 		return nil, fmt.Errorf("fetching bundle definition manifest: %w", err)
 	}
 
-	var definition inspectOCIImageManifest
+	var definition ocispec.Manifest
 	if err := json.Unmarshal(definitionBytes, &definition); err != nil {
 		return nil, fmt.Errorf("parsing bundle definition manifest: %w", err)
 	}
@@ -282,8 +190,17 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 	if err := b.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid bundle: %w", err)
 	}
+	dag, err := bundleinternal.BuildDependencyGraph(ctx, streams, b)
+	if err != nil {
+		return nil, fmt.Errorf("building package dependency graph: %w", err)
+	}
+	packages, err := dag.TopologicalSort()
+	if err != nil {
+		return nil, fmt.Errorf("ordering packages: %w", err)
+	}
 	result := &InspectResult{
 		Bundle:            b,
+		Packages:          packages,
 		ArtifactDigest:    artifactDigest,
 		ReconfiguredFrom:  definition.Annotations[udsoci.AnnotationReconfiguredFrom],
 		PackageSignatures: make(map[string]PackageSignatureSummary, len(b.Packages)),
@@ -299,7 +216,7 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 	return result, nil
 }
 
-func inspectPackageSignature(ctx context.Context, idx inspectOCIIndex, pkg spec.Package, fetch inspectBlobFetcher) (*PackageSignatureSummary, error) {
+func inspectPackageSignature(ctx context.Context, idx ocispec.Index, pkg spec.Package, fetch inspectBlobFetcher) (*PackageSignatureSummary, error) {
 	entry, err := findPackageManifest(idx, pkg)
 	if err != nil {
 		return nil, err
@@ -312,7 +229,7 @@ func inspectPackageSignature(ctx context.Context, idx inspectOCIIndex, pkg spec.
 	if err != nil {
 		return nil, fmt.Errorf("fetching package manifest: %w", err)
 	}
-	var manifest inspectOCIImageManifest
+	var manifest ocispec.Manifest
 	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
 		return nil, fmt.Errorf("parsing package manifest: %w", err)
 	}
@@ -344,12 +261,12 @@ func inspectPackageSignature(ctx context.Context, idx inspectOCIIndex, pkg spec.
 	return summary, nil
 }
 
-func findPackageManifest(idx inspectOCIIndex, pkg spec.Package) (*inspectOCIManifest, error) {
+func findPackageManifest(idx ocispec.Index, pkg spec.Package) (*ocispec.Descriptor, error) {
 	refName := pkg.Name
 	if udsoci.IsOCIReference(pkg.Source) {
 		refName = udsoci.TrimScheme(pkg.Source)
 	}
-	var match *inspectOCIManifest
+	var match *ocispec.Descriptor
 	for i := range idx.Manifests {
 		entry := &idx.Manifests[i]
 		if entry.ArtifactType == udsoci.MediaTypeBundleDefinition {
@@ -371,25 +288,25 @@ func findPackageManifest(idx inspectOCIIndex, pkg spec.Package) (*inspectOCIMani
 	return nil, fmt.Errorf("package %q with source %q was not found in bundle index", pkg.Name, pkg.Source)
 }
 
-func findLayerByTitle(manifest inspectOCIImageManifest, title string) (inspectOCIDescriptor, error) {
+func findLayerByTitle(manifest ocispec.Manifest, title string) (ocispec.Descriptor, error) {
 	for _, layer := range manifest.Layers {
 		if layer.Annotations[ocispec.AnnotationTitle] == title {
 			return layer, nil
 		}
 	}
-	return inspectOCIDescriptor{}, fmt.Errorf("%s layer not found in manifest", title)
+	return ocispec.Descriptor{}, fmt.Errorf("%s layer not found in manifest", title)
 }
 
-func findLayerByTitleOptional(manifest inspectOCIImageManifest, title string) (inspectOCIDescriptor, bool) {
+func findLayerByTitleOptional(manifest ocispec.Manifest, title string) (ocispec.Descriptor, bool) {
 	for _, layer := range manifest.Layers {
 		if layer.Annotations[ocispec.AnnotationTitle] == title {
 			return layer, true
 		}
 	}
-	return inspectOCIDescriptor{}, false
+	return ocispec.Descriptor{}, false
 }
 
-func packageVerificationStatus(verification *spec.PackageSignatureVerification, manifest *inspectOCIManifest) PackageVerificationStatus {
+func packageVerificationStatus(verification *spec.PackageSignatureVerification, manifest *ocispec.Descriptor) PackageVerificationStatus {
 	if manifest != nil && manifest.Annotations[udsoci.AnnotationPackageVerification] == udsoci.AnnotationPackageVerificationVerified {
 		return PackageVerificationStatusVerified
 	}

@@ -3,30 +3,6 @@
 
 package spec
 
-import "fmt"
-
-// SourcePosition identifies a byte offset and display position in a bundle source file.
-type SourcePosition struct {
-	Line   int
-	Column int
-	Byte   int
-}
-
-// SourceRange identifies a span in a bundle source file.
-type SourceRange struct {
-	Filename string
-	Start    SourcePosition
-	End      SourcePosition
-}
-
-// String formats r in the same user-facing form as HCL source ranges.
-func (r SourceRange) String() string {
-	if r.Start.Line == r.End.Line {
-		return fmt.Sprintf("%s:%d,%d-%d", r.Filename, r.Start.Line, r.Start.Column, r.End.Column)
-	}
-	return fmt.Sprintf("%s:%d,%d-%d,%d", r.Filename, r.Start.Line, r.Start.Column, r.End.Line, r.End.Column)
-}
-
 // UDSBundle represents a parsed UDS bundle definition.
 type UDSBundle struct {
 	UDS      UDSBlock
@@ -48,9 +24,7 @@ type Metadata struct {
 
 // Package represents a Zarf package entry in a bundle.
 type Package struct {
-	Name string
-	// SourceRange identifies the package declaration in the source bundle file.
-	SourceRange           SourceRange `json:"-" yaml:"-"`
+	Name                  string
 	Source                string
 	Namespace             string
 	DependsOn             []PackageRef

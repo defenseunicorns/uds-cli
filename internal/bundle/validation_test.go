@@ -17,8 +17,7 @@ import (
 // point for table-driven validation tests.
 func validBaseConfig() *UDSBundleConfig {
 	return &UDSBundleConfig{
-		Global:  &GlobalOptions{LogLevel: "info"},
-		Options: &ConfigOptions{Concurrency: 10},
+		Options: &ConfigOptions{LogLevel: "info", Concurrency: 10},
 	}
 }
 
@@ -34,17 +33,8 @@ func TestValidateConfig_Structure(t *testing.T) {
 			wantErr: "config is required",
 		},
 		{
-			name: "nil Global",
-			cfg: &UDSBundleConfig{
-				Options: &ConfigOptions{Concurrency: 10},
-			},
-			wantErr: "config.Global is required",
-		},
-		{
-			name: "nil Options",
-			cfg: &UDSBundleConfig{
-				Global: &GlobalOptions{},
-			},
+			name:    "nil Options",
+			cfg:     &UDSBundleConfig{},
 			wantErr: "config.Options is required",
 		},
 	}
@@ -80,7 +70,7 @@ func TestValidateLogLevel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := validBaseConfig()
-			cfg.Global.LogLevel = tt.level
+			cfg.Options.LogLevel = tt.level
 			err := ValidateConfig(cfg)
 			if tt.wantErr == "" {
 				require.NoError(t, err)

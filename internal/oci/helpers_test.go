@@ -46,7 +46,7 @@ func newTestConfig() *Config {
 // newTestConfigWithArch returns test configuration for a specific architecture.
 func newTestConfigWithArch(arch string) *Config {
 	opts := &ConfigOptions{Architecture: arch, TmpDir: os.TempDir(), Concurrency: 10}
-	return &Config{Global: &GlobalOptions{}, Options: opts}
+	return &Config{Options: opts}
 }
 
 // writeTestBlob writes content-addressed test data and returns its encoded digest.

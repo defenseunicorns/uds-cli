@@ -5,6 +5,7 @@ package zarf
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -536,4 +537,49 @@ func TestBuildComponentFilter(t *testing.T) {
 			assert.Equal(t, tt.wantNames, componentNames(selected))
 		})
 	}
+}
+
+func TestDeployBundleRejectsNilConfigAfterPreDeployHook(t *testing.T) {
+	d := NewZarfDeployer(iostreams.IOStreams{}, nil)
+	b := &UDSBundle{
+		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: Metadata{Name: "test"},
+		Packages: []Package{{Name: "alpha", Source: "oci://example/alpha:v1"}},
+	}
+
+	_, err := d.DeployBundle(t.Context(), b, DeployOptions{
+		Config: newDeployTestConfig(1),
+		BundleDeployHooks: BundleDeployHooks{
+			PreDeploy: func(_ context.Context, _ *UDSBundle, opts *DeployOptions) error {
+				opts.Config = nil
+				return nil
+			},
+		},
+	})
+
+	require.ErrorContains(t, err, "bundle pre-deploy hook left config invalid")
+}
+
+func TestDeployBundleRebindsLoggerAfterPreDeployHook(t *testing.T) {
+	streams, _, _, errOut := iostreams.NewTestIOStreams()
+	d := NewZarfDeployer(streams, nil)
+	b := &UDSBundle{
+		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: Metadata{Name: "test"},
+		Packages: []Package{{Name: "alpha", Source: "oci://example/alpha:v1"}},
+	}
+
+	_, err := d.DeployBundle(t.Context(), b, DeployOptions{
+		Config: newDeployTestConfig(1),
+		BundleDeployHooks: BundleDeployHooks{
+			PreDeploy: func(_ context.Context, _ *UDSBundle, opts *DeployOptions) error {
+				opts.Config.Options.LogLevel = "error"
+				return nil
+			},
+		},
+		PackageDeployFn: func(context.Context, *Package, DeployPackageOptions) error { return nil },
+	})
+
+	require.NoError(t, err)
+	assert.NotContains(t, errOut.String(), "deploying bundle")
 }

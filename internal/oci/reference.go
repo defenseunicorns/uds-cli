@@ -13,8 +13,8 @@ import (
 // TrimScheme removes the scheme from a reference name
 // (e.g., "oci://ghcr.io/org/repo:tag" -> "ghcr.io/org/repo:tag")
 func TrimScheme(refName string) string {
-	if _, after, ok := strings.Cut(refName, "://"); ok {
-		return after
+	if idx := strings.Index(refName, "://"); idx >= 0 {
+		return refName[idx+3:]
 	}
 	return refName
 }

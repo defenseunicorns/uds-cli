@@ -67,9 +67,6 @@ type UDSBundleConfig = bundleinternal.UDSBundleConfig
 // ConfigOptions aliases the private OCI-relevant configuration options.
 type ConfigOptions = bundleinternal.ConfigOptions
 
-// GlobalOptions aliases the private global configuration options.
-type GlobalOptions = bundleinternal.GlobalOptions
-
 // PullOptions configures an OCI pull operation.
 type PullOptions struct {
 	Config                    *Config

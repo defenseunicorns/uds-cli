@@ -46,7 +46,7 @@ func TestDevDeployOptions_Validate(t *testing.T) {
 	tempDir := t.TempDir()
 	sourceDir := filepath.Join(tempDir, "source")
 	require.NoError(t, os.Mkdir(sourceDir, 0o700))
-	sourceFile := filepath.Join(sourceDir, bundlepkg.BundleFileName)
+	sourceFile := filepath.Join(sourceDir, bundleFileName)
 	require.NoError(t, os.WriteFile(sourceFile, []byte("test"), 0o600))
 	artifact := filepath.Join(tempDir, "bundle.tar.zst")
 	require.NoError(t, os.WriteFile(artifact, []byte("test"), 0o600))
@@ -76,7 +76,7 @@ func TestDevDeployOptions_Validate(t *testing.T) {
 }
 
 func TestDevDeployOptions_Run_DiagnosticIsUnfilteredAndPromptDeclines(t *testing.T) {
-	sourceFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundlepkg.BundleFileName)
+	sourceFile := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundleFileName)
 
 	tests := []struct {
 		name       string
@@ -133,7 +133,7 @@ func TestDevDeployOptions_Run_ResolvesTarZstDirectoryAsSource(t *testing.T) {
 	streams, _, _, _ := iostreams.NewTestIOStreams()
 	sourceDir := filepath.Join(t.TempDir(), "source.tar.zst")
 	require.NoError(t, os.Mkdir(sourceDir, 0o700))
-	bundlePath := filepath.Join(sourceDir, bundlepkg.BundleFileName)
+	bundlePath := filepath.Join(sourceDir, bundleFileName)
 	require.NoError(t, os.WriteFile(bundlePath, []byte("test"), 0o600))
 	textPrinter, err := printer.NewPrinter(printer.FormatText)
 	require.NoError(t, err)
@@ -143,7 +143,7 @@ func TestDevDeployOptions_Run_ResolvesTarZstDirectoryAsSource(t *testing.T) {
 		BundlePath: sourceDir,
 		Printer:    textPrinter,
 		IOStreams:  streams,
-		runDeploy: func(_ context.Context, _ iostreams.IOStreams, _ *bundlepkg.UDSBundleConfig, path string, _ []string, _ bool, _ bundlepkg.VerificationPolicy, _ bool) (*bundlepkg.DeployResult, error) {
+		runDeploy: func(_ context.Context, _ iostreams.IOStreams, _ *bundlepkg.UDSBundleConfig, path string, _ []string, _, _ bool) (*bundlepkg.DeployResult, error) {
 			gotPath = path
 			return nil, nil
 		},

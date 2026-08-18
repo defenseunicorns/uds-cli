@@ -16,6 +16,70 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
+func TestCommandOptions_CompletePropagatesPrompt(t *testing.T) {
+	defaultsFile := filepath.Join(t.TempDir(), bundleDefaultsFileName)
+	require.NoError(t, os.WriteFile(defaultsFile, []byte(`variables = {}`), 0o600))
+	streams := iostreams.IOStreams{}
+
+	tests := []struct {
+		name     string
+		setup    func(*cobra.Command)
+		complete func(*cobra.Command) (bool, error)
+	}{
+		{
+			name: "create",
+			complete: func(cmd *cobra.Command) (bool, error) {
+				o := NewCreateOptions(streams)
+				err := o.Complete(cmd, []string{"."})
+				return o.Prompt, err
+			},
+		},
+		{
+			name: "pull",
+			complete: func(cmd *cobra.Command) (bool, error) {
+				o := NewPullOptions(streams)
+				err := o.Complete(cmd, []string{"oci://example.com/bundle:v1"})
+				return o.Prompt, err
+			},
+		},
+		{
+			name: "push",
+			complete: func(cmd *cobra.Command) (bool, error) {
+				o := NewPushOptions(streams)
+				err := o.Complete(cmd, []string{"bundle.tar.zst", "oci://example.com/bundle:v1"})
+				return o.Prompt, err
+			},
+		},
+		{
+			name: "reconfigure",
+			setup: func(cmd *cobra.Command) {
+				cmd.Flags().String("defaults", defaultsFile, "")
+				cmd.Flags().String("suffix", "-reconfigured", "")
+			},
+			complete: func(cmd *cobra.Command) (bool, error) {
+				o := NewReconfigureOptions(streams)
+				err := o.Complete(cmd, []string{"bundle.tar.zst"})
+				return o.Prompt, err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := &cobra.Command{}
+			if tt.setup != nil {
+				tt.setup(cmd)
+			}
+			cmd.Flags().Bool("prompt", false, "")
+			require.NoError(t, cmd.Flags().Set("prompt", "true"))
+
+			prompt, err := tt.complete(cmd)
+			require.NoError(t, err)
+			assert.True(t, prompt)
+		})
+	}
+}
+
 func TestPullOptions_Validate(t *testing.T) {
 	t.Parallel()
 	tmpDir := t.TempDir()
@@ -56,7 +120,7 @@ func TestPullOptions_Validate(t *testing.T) {
 			o := &PullOptions{
 				OCIReference: tt.ociReference,
 				OutputDir:    tt.outputDir,
-				Config:       &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults},
+				Config:       &bundle.UDSBundleConfig{Options: &defaults},
 				Verification: VerifyOptions{SkipSignatureVerification: true},
 			}
 			err := o.Validate()
@@ -113,7 +177,7 @@ func TestPushOptions_Validate(t *testing.T) {
 			o := &PushOptions{
 				Tarball:      tt.tarball,
 				OCIReference: tt.ociReference,
-				Config:       &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{}, Options: &defaults},
+				Config:       &bundle.UDSBundleConfig{Options: &defaults},
 			}
 			err := o.Validate()
 			if tt.wantErr != "" {

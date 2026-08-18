@@ -134,7 +134,8 @@ func TestReconfigureOptions_Run_PromptDecline(t *testing.T) {
 				Source:       "/some/bundle.tar.zst",
 				DefaultsFile: defaults,
 				Suffix:       "-test",
-				Config:       &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{Prompt: true}, Options: &defaults_cfg},
+				Prompt:       true,
+				Config:       &bundle.UDSBundleConfig{Options: &defaults_cfg},
 				Printer:      textPrinter,
 				IOStreams:    streams,
 			}

@@ -7,14 +7,20 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
+	"github.com/defenseunicorns/uds-cli/internal/artifact"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 )
+
+const bundleSignatureNotCheckedWarning = "bundle signature verification was not performed; package verification policy and signing metadata do not establish bundle integrity"
 
 // InspectOptions holds the options for the inspect command.
 type InspectOptions struct {
@@ -74,6 +80,7 @@ func (o *InspectOptions) Complete(cmd *cobra.Command, args []string) error {
 	}
 	o.Config = cfg
 	o.Verification.Config = cfg
+	o.Verification.Source = o.BundlePath
 
 	p, err := ResolvePrinter(cmd)
 	if err != nil {
@@ -86,20 +93,25 @@ func (o *InspectOptions) Complete(cmd *cobra.Command, args []string) error {
 
 // Validate validates the options without modifying state.
 func (o *InspectOptions) Validate() error {
-	if err := (bundle.InspectOptions{
-		Source:                    o.BundlePath,
-		Config:                    o.Config,
-		SkipSignatureVerification: true,
-	}).Validate(); err != nil {
+	if err := bundleinternal.ValidateConfig(toInternalConfig(o.Config)); err != nil {
 		return err
 	}
-	if !o.Verification.SkipSignatureVerification {
-		if _, err := o.inspectionPolicy(); err != nil {
+	if strings.TrimSpace(o.BundlePath) == "" {
+		return fmt.Errorf("source must not be empty")
+	}
+	if !isOCIReference(o.BundlePath) && !isTarZst(o.BundlePath) {
+		return fmt.Errorf("source must be a .tar.zst bundle artifact or OCI reference")
+	}
+	if isOCIReference(o.BundlePath) {
+		if _, err := udsoci.ReferenceIdentifier(o.BundlePath); err != nil {
 			return err
 		}
-	}
-	if bundle.IsOCIReference(o.BundlePath) {
 		return nil
+	}
+	if o.verificationRequested() {
+		if _, err := o.Verification.policy(); err != nil {
+			return err
+		}
 	}
 	info, err := os.Stat(o.BundlePath)
 	if err != nil {
@@ -119,43 +131,119 @@ func (o *InspectOptions) Validate() error {
 
 // Run executes the inspect command.
 func (o *InspectOptions) Run(ctx context.Context) error {
-	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
+	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Options.LogLevel)
 	o.Debug("inspecting bundle", "source", o.BundlePath)
-
-	policy := bundle.VerificationPolicy{}
-	if !o.Verification.SkipSignatureVerification {
-		var err error
-		policy, err = o.inspectionPolicy()
+	verified := false
+	if o.verificationRequested() {
+		policy, err := o.Verification.policy()
 		if err != nil {
 			return err
 		}
+		if err := bundle.Verify(ctx, bundle.VerifyOptions{Source: o.BundlePath, Policy: policy, Config: o.Config, TmpDir: o.Config.Options.TmpDir, Streams: o.IOStreams}); err != nil {
+			return fmt.Errorf("verifying bundle: %w", err)
+		}
+		verified = true
 	}
-	result, err := bundle.Inspect(ctx, bundle.InspectOptions{
-		Source:                    o.BundlePath,
-		Config:                    o.Config,
-		Verification:              policy,
-		SkipSignatureVerification: o.Verification.SkipSignatureVerification,
-		Streams:                   o.IOStreams,
+
+	internalResult, err := artifact.Inspect(ctx, artifact.InspectOptions{
+		Source:  o.BundlePath,
+		Config:  toInternalConfig(o.Config),
+		Streams: o.IOStreams,
 	})
 	if err != nil {
 		return fmt.Errorf("inspecting bundle: %w", err)
 	}
-	if o.Verification.SkipSignatureVerification {
-		bundle.WarnSkippedSignatureVerification(o.IOStreams)
+	result := &inspectResult{
+		Name: internalResult.Bundle.Metadata.Name, Description: internalResult.Bundle.Metadata.Description,
+		Version: internalResult.Bundle.Metadata.Version, ArtifactDigest: internalResult.ArtifactDigest,
+		ReconfiguredFrom: internalResult.ReconfiguredFrom,
+		BundleSignature:  &bundleSignatureSummary{Status: "not_checked"}, Packages: make([]packageSummary, len(internalResult.Packages)),
 	}
+	if verified {
+		result.BundleSignature.Status = bundle.BundleSignatureStatusVerified
+	}
+	for i, pkg := range internalResult.Packages {
+		summary := internalResult.PackageSignatures[pkg.Name]
+		dependsOn := make([]string, len(pkg.DependsOn))
+		for j, dependency := range pkg.DependsOn {
+			dependsOn[j] = dependency.Name
+		}
+		result.Packages[i] = packageSummary{
+			Name: pkg.Name, Source: pkg.Source, Namespace: pkg.Namespace, DependsOn: dependsOn, ValuesFiles: pkg.ValuesFiles,
+			Signature: &packageSignatureSummary{Signed: signingStatus(summary.Signed), Verification: verificationStatus(summary.Verification)},
+		}
+	}
+	o.Warn(bundleSignatureNotCheckedWarning)
 
 	return o.Printer.PrintObj(result, o.Out())
 }
 
-func (o *InspectOptions) inspectionPolicy() (bundle.VerificationPolicy, error) {
-	verification := o.Verification
-	if verification.Config == nil {
-		verification.Config = o.Config
+func (o *InspectOptions) verificationRequested() bool {
+	if o.Verification.SkipSignatureVerification {
+		return false
 	}
-	hasFlags := verification.PublicKey != "" || verification.Identity != "" || verification.IdentityRE != "" ||
-		verification.Issuer != "" || verification.IssuerRE != "" || verification.TrustedRoot != ""
-	if !hasFlags && (verification.Config == nil || verification.Config.SignatureVerification == nil) {
-		return bundle.VerificationPolicy{}, nil
+	return o.Verification.PublicKey != "" || o.Verification.Identity != "" || o.Verification.IdentityRE != "" ||
+		o.Verification.Issuer != "" || o.Verification.IssuerRE != "" || o.Verification.TrustedRoot != "" ||
+		(o.Config != nil && o.Config.SignatureVerification != nil)
+}
+
+func signingStatus(status artifact.PackageSigningStatus) string {
+	switch status {
+	case artifact.PackageSigningStatusSigned:
+		return "signed"
+	case artifact.PackageSigningStatusUnsigned:
+		return "unsigned"
+	default:
+		return "unknown"
 	}
-	return verification.policy()
+}
+
+func verificationStatus(status artifact.PackageVerificationStatus) string {
+	switch status {
+	case artifact.PackageVerificationStatusVerified:
+		return "verified"
+	case artifact.PackageVerificationStatusSkipped:
+		return "skipped"
+	default:
+		return "unknown"
+	}
+}
+
+type inspectResult struct {
+	Name             string                  `json:"name" yaml:"name" text:"Name"`
+	Description      string                  `json:"description,omitempty" yaml:"description,omitempty" text:"Description,omitempty"`
+	Version          string                  `json:"version,omitempty" yaml:"version,omitempty" text:"Version,omitempty"`
+	ArtifactDigest   string                  `json:"artifactDigest,omitempty" yaml:"artifactDigest,omitempty" text:"Artifact Digest,omitempty"`
+	ReconfiguredFrom string                  `json:"reconfiguredFrom,omitempty" yaml:"reconfiguredFrom,omitempty" text:"Reconfigured From,omitempty"`
+	BundleSignature  *bundleSignatureSummary `json:"bundleSignature,omitempty" yaml:"bundleSignature,omitempty" text:"Bundle Signature,omitempty"`
+	Packages         []packageSummary        `json:"packages" yaml:"packages" text:"Packages"`
+}
+
+type packageSummary struct {
+	Name        string                   `json:"name" yaml:"name" text:"Name"`
+	Source      string                   `json:"source" yaml:"source" text:"Source"`
+	Namespace   string                   `json:"namespace,omitempty" yaml:"namespace,omitempty" text:"Namespace,omitempty"`
+	DependsOn   []string                 `json:"dependsOn,omitempty" yaml:"dependsOn,omitempty" text:"DependsOn,omitempty"`
+	ValuesFiles []string                 `json:"valuesFiles,omitempty" yaml:"valuesFiles,omitempty" text:"Value Files,omitempty"`
+	Signature   *packageSignatureSummary `json:"signature,omitempty" yaml:"signature,omitempty" text:"Signature,omitempty"`
+}
+
+type bundleSignatureSummary struct {
+	Status string `json:"status" yaml:"status" text:"Status"`
+}
+
+type packageSignatureSummary struct {
+	Signed       string `json:"signed" yaml:"signed" text:"Signed"`
+	Verification string `json:"verification" yaml:"verification" text:"Verification Posture"`
+}
+
+func toInternalConfig(cfg *bundle.UDSBundleConfig) *bundleinternal.UDSBundleConfig {
+	if cfg == nil {
+		return nil
+	}
+	var options *bundleinternal.ConfigOptions
+	if cfg.Options != nil {
+		options = &bundleinternal.ConfigOptions{LogLevel: cfg.Options.LogLevel, Architecture: cfg.Options.Architecture, PlainHTTP: cfg.Options.PlainHTTP, SkipTLSVerify: cfg.Options.SkipTLSVerify, TmpDir: cfg.Options.TmpDir, Concurrency: cfg.Options.Concurrency}
+	}
+	return &bundleinternal.UDSBundleConfig{Options: options, Variables: bundleinternal.Variables(cfg.Variables)}
 }

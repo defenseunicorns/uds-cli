@@ -23,10 +23,9 @@ func BuildDependencyGraph(ctx context.Context, streams iostreams.IOStreams, bund
 	for i := range bundle.Packages {
 		pkg := &bundle.Packages[i]
 
-		sourceRange := toHCLRange(pkg.SourceRange)
 		traversal := hcl.Traversal{
-			hcl.TraverseRoot{Name: "package", SrcRange: sourceRange},
-			hcl.TraverseAttr{Name: pkg.Name, SrcRange: sourceRange},
+			hcl.TraverseRoot{Name: "package"},
+			hcl.TraverseAttr{Name: pkg.Name},
 		}
 
 		packages[pkg.Name] = &PackageTraversal{

@@ -51,7 +51,8 @@ func TestPushOptions_Run_PromptDecline(t *testing.T) {
 			o := &PushOptions{
 				Tarball:      tarball,
 				OCIReference: "oci://example.com/bundle:v1",
-				Config:       &bundle.UDSBundleConfig{Global: &bundle.GlobalOptions{Prompt: true}, Options: &defaults},
+				Prompt:       true,
+				Config:       &bundle.UDSBundleConfig{Options: &defaults},
 				IOStreams:    streams,
 			}
 
@@ -63,9 +64,4 @@ func TestPushOptions_Run_PromptDecline(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestPushOptions_NoninteractivePrompt(t *testing.T) {
-	global := &bundle.GlobalOptions{}
-	assert.False(t, global.Prompt, "Prompt should default to false (non-interactive)")
 }

@@ -97,7 +97,7 @@ func (r *ZarfRemover) RemoveBundle(ctx context.Context, b *UDSBundle, packages [
 	if err := b.Validate(); err != nil {
 		return nil, fmt.Errorf("bundle validation failed: %w", err)
 	}
-	s := logger.Bind(r.streams, opts.Config.Global.LogLevel)
+	s := logger.Bind(r.streams, opts.Config.Options.LogLevel)
 
 	dag, err := bundleinternal.BuildDependencyGraph(ctx, s, b)
 	if err != nil {
@@ -117,15 +117,14 @@ func (r *ZarfRemover) RemoveBundle(ctx context.Context, b *UDSBundle, packages [
 		return nil, err
 	}
 
-	removed, skipped, err := r.removePackages(ctx, s, levels, opts)
+	results, err := r.removePackages(ctx, s, levels, opts)
 	if err != nil {
 		return nil, err
 	}
 
 	return &RemoveResult{
 		BundleName: b.Metadata.Name,
-		Removed:    removed,
-		Skipped:    skipped,
+		Packages:   results,
 	}, nil
 }
 
@@ -133,11 +132,12 @@ func (r *ZarfRemover) RemoveBundle(ctx context.Context, b *UDSBundle, packages [
 // each package to the per-package primitive (r.pkgRemover.RemovePackage).
 // Removal is sequential to keep teardown predictable. Packages that signal
 // ErrPackageNotDeployed are counted as skipped rather than failed.
-func (r *ZarfRemover) removePackages(ctx context.Context, log iostreams.IOStreams, levels [][]*Package, opts RemovePackageOptions) (removed, skipped int, err error) {
+func (r *ZarfRemover) removePackages(ctx context.Context, log iostreams.IOStreams, levels [][]*Package, opts RemovePackageOptions) ([]RemovePackageResult, error) {
 	totalPkgs := 0
 	for _, level := range levels {
 		totalPkgs += len(level)
 	}
+	results := make([]RemovePackageResult, 0, totalPkgs)
 
 	pkgNum := 0
 	for i := len(levels) - 1; i >= 0; i-- {
@@ -151,19 +151,19 @@ func (r *ZarfRemover) removePackages(ctx context.Context, log iostreams.IOStream
 			if err := r.pkgRemover.RemovePackage(ctx, pkg, opts); err != nil {
 				if errors.Is(err, ErrPackageNotDeployed) {
 					log.Warn("skipping removal, package not deployed", "name", pkg.Name)
-					skipped++
+					results = append(results, RemovePackageResult{Name: pkg.Name, Status: RemovePackageStatusSkipped})
 					continue
 				}
-				return removed, skipped, fmt.Errorf("failed to remove package %q: %w", pkg.Name, err)
+				return results, fmt.Errorf("failed to remove package %q: %w", pkg.Name, err)
 			}
 			log.Info("package removed", "name", pkg.Name)
-			removed++
+			results = append(results, RemovePackageResult{Name: pkg.Name, Status: RemovePackageStatusRemoved})
 		}
 
 		log.Debug("removal level complete", "level", i+1)
 	}
 
-	return removed, skipped, nil
+	return results, nil
 }
 
 // RemovePackage removes a single Zarf package from the cluster.
@@ -180,7 +180,7 @@ func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *Package, opts Remo
 	if pkg == nil {
 		return errNil("package")
 	}
-	s := logger.Bind(r.streams, opts.Config.Global.LogLevel)
+	s := logger.Bind(r.streams, opts.Config.Options.LogLevel)
 	s.Info("removing zarf package", "name", pkg.Name, "source", pkg.Source)
 
 	ctx = newZarfLoggerContext(ctx, s)

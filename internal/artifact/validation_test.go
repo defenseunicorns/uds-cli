@@ -14,7 +14,6 @@ import (
 // validValidationConfig returns a baseline valid configuration for validation tests.
 func validValidationConfig() *bundleinternal.UDSBundleConfig {
 	return &bundleinternal.UDSBundleConfig{
-		Global:  &bundleinternal.GlobalOptions{},
 		Options: &bundleinternal.ConfigOptions{Concurrency: 10},
 	}
 }

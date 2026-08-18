@@ -26,12 +26,6 @@ import (
 var zarfGlobalsOnce sync.Once
 
 var _ Deployer = (*ZarfDeployer)(nil)
-var _ Deployer = (*orchestratedDeployer)(nil)
-
-// Flatten converts nested deployment variables to dotted string keys.
-func (v Variables) Flatten() (map[string]string, error) {
-	return bundleinternal.Variables(v).Flatten()
-}
 
 // DeployPackage invokes the configured package deployment function or base deployer.
 func (o *orchestratedDeployer) DeployPackage(ctx context.Context, pkg *Package, opts DeployPackageOptions) error {
@@ -39,11 +33,6 @@ func (o *orchestratedDeployer) DeployPackage(ctx context.Context, pkg *Package, 
 		return o.packageDeployFn(ctx, pkg, opts)
 	}
 	return o.base.DeployPackage(ctx, pkg, opts)
-}
-
-// DeployBundle rejects bundle deployment because this adapter operates per package.
-func (o *orchestratedDeployer) DeployBundle(context.Context, *UDSBundle, DeployOptions) (*DeployResult, error) {
-	return nil, fmt.Errorf("orchestratedDeployer is a per-package adapter and does not support DeployBundle")
 }
 
 // NewZarfDeployer creates a ZarfDeployer.
@@ -84,7 +73,7 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts Depl
 		return nil, fmt.Errorf("bundle validation failed: %w", err)
 	}
 
-	s := logger.Bind(d.streams, opts.Config.Global.LogLevel)
+	s := logger.Bind(d.streams, opts.Config.Options.LogLevel)
 
 	dag, err := bundleinternal.BuildDependencyGraph(ctx, s, b)
 	if err != nil {
@@ -125,14 +114,22 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts Depl
 	if err := bhooks.PreDeploy(ctx, b, &opts); err != nil {
 		return nil, fmt.Errorf("pre-deploy bundle hook failed: %w", err)
 	}
+	if opts.Config == nil || opts.Config.Options == nil {
+		return nil, fmt.Errorf("bundle pre-deploy hook left config invalid")
+	}
+	s = logger.Bind(d.streams, opts.Config.Options.LogLevel)
 
 	concurrency := opts.Config.Options.Concurrency
-
+	bundleDir := filepath.Dir(opts.BundlePath)
+	if opts.BundleDir != "" {
+		bundleDir = opts.BundleDir
+	}
 	pkgOpts := DeployPackageOptions{
 		Config:             opts.Config,
-		BundleDir:          filepath.Dir(opts.BundlePath),
+		BundleDir:          bundleDir,
 		PackageDeployHooks: opts.PackageDeployHooks,
 		Streams:            s,
+		bundlePath:         opts.BundlePath,
 	}
 
 	s.Info("deploying bundle", "packages", deployCount, "levels", len(levels), "concurrency", concurrency)
@@ -143,10 +140,11 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts Depl
 	if err := orch.Run(ctx); err != nil {
 		return nil, err
 	}
+	deployed := orch.DeployedPackages()
 
 	result := &DeployResult{
 		BundleName: b.Metadata.Name,
-		Packages:   deployCount,
+		Packages:   deployed,
 	}
 	if err := bhooks.PostDeploy(ctx, b); err != nil {
 		// Packages are already deployed at this point; return the populated result
@@ -165,7 +163,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 	if pkg == nil {
 		return errNil("package")
 	}
-	log := logger.Bind(d.streams, opts.Config.Global.LogLevel)
+	log := logger.Bind(d.streams, opts.Config.Options.LogLevel)
 	log.Info("deploying zarf package", "name", pkg.Name, "source", pkg.Source)
 
 	ctx = newZarfLoggerContext(ctx, log)
@@ -190,10 +188,14 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 		loader = &SourcePackageLayoutLoader{configOpts: *opts.Config.Options, bundleDir: opts.BundleDir}
 	}
 
-	pkgLayout, err := loader.LoadPackageLayout(ctx, pkg, pkgTmp, LoadOptions{Streams: log})
+	pkgLayout, isPartial, err := loader.LoadPackageLayout(ctx, pkg, pkgTmp, LoadOptions{Streams: log, IsPartial: opts.IsPartial})
 	if err != nil {
 		return err
 	}
+	if pkgLayout == nil {
+		return fmt.Errorf("package layout loader returned a nil layout for package %q", pkg.Name)
+	}
+	opts.IsPartial = isPartial
 	defer func() {
 		if err := pkgLayout.Cleanup(); err != nil {
 			log.Warn("failed to clean up package layout", "name", pkg.Name, "error", err)
@@ -216,12 +218,12 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 
 	deploy := opts.ClusterDeployFn
 	if deploy == nil {
-		deploy = func(ctx context.Context, l *layout.PackageLayout, o packager.DeployOptions) error {
-			_, err := packager.Deploy(ctx, l, o)
+		deploy = func(ctx context.Context, l *layout.PackageLayout, o *packager.DeployOptions, _ bool) error {
+			_, err := packager.Deploy(ctx, l, *o)
 			return err
 		}
 	}
-	if err := deploy(ctx, pkgLayout, deployOpts); err != nil {
+	if err := deploy(ctx, pkgLayout, &deployOpts, opts.IsPartial); err != nil {
 		return fmt.Errorf("failed to deploy package %q: %w", pkg.Name, err)
 	}
 
@@ -269,10 +271,7 @@ func (d *ZarfDeployer) prepareValuesAndVariables(ctx context.Context, streams io
 
 	// Flatten top-level scalar variables for Zarf ###ZARF_PKG_VAR_*### substitution.
 	// Non-scalars are skipped here and flow through values_files instead.
-	setVars, err = configVars.Flatten()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to flatten variables for package %q: %w", pkg.Name, err)
-	}
+	setVars = configVars.Flatten()
 
 	if loadedFileCount > 0 {
 		streams.Debug("loaded values files", "package", pkg.Name, "count", loadedFileCount)

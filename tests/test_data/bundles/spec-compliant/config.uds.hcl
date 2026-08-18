@@ -14,7 +14,6 @@ options {
   architecture    = "amd64"
   plain_http      = false
   skip_tls_verify = false
-  uds_cache       = "/tmp/uds-cache"
   tmp_dir         = "/tmp/uds-tmp"
   concurrency     = 10
 }

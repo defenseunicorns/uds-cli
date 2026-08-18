@@ -18,6 +18,7 @@ import (
 // CreateOptions holds options for the create command.
 type CreateOptions struct {
 	BundlePath string // Path to bundle file or directory (user input, resolved in Run)
+	Prompt     bool
 	Config     *bundle.UDSBundleConfig
 	Printer    printer.ResourcePrinter
 	Signing    bundle.SigningOptions
@@ -67,6 +68,7 @@ func (o *CreateOptions) Complete(cmd *cobra.Command, args []string) error {
 		ctx = context.Background()
 	}
 	flags := SnapshotFlags(cmd)
+	o.Prompt = flags.Prompt
 	cfg, _, err := NewConfigResolver().Resolve(ctx, o.IOStreams, flags, o.BundlePath)
 	if err != nil {
 		return err
@@ -97,10 +99,10 @@ func (o *CreateOptions) Validate() error {
 // Run executes the create command.
 func (o *CreateOptions) Run(ctx context.Context) error {
 	// Resolve the bundle path
-	bundlePath := bundle.ResolveBundlePath(o.BundlePath)
-	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Global.LogLevel)
+	bundlePath := resolveBundlePath(o.BundlePath)
+	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Options.LogLevel)
 	o.Debug("creating bundle", "path", bundlePath)
-	if o.Config.Global.Prompt {
+	if o.Prompt {
 		confirmed, err := PromptConfirmation(o.IOStreams, "Create this bundle?")
 		if err != nil {
 			return err
@@ -111,11 +113,10 @@ func (o *CreateOptions) Run(ctx context.Context) error {
 		}
 	}
 
-	result, err := bundle.Create(ctx, bundle.CreateOptions{
-		Config:     o.Config,
-		BundleFile: bundlePath,
-		Signing:    o.Signing,
-		Streams:    o.IOStreams,
+	result, err := bundle.Create(ctx, bundlePath, bundle.CreateOptions{
+		Config:  o.Config,
+		Signing: o.Signing,
+		Streams: o.IOStreams,
 	})
 	if err != nil {
 		return err

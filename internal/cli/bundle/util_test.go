@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -120,7 +119,7 @@ func TestIsOCIReference(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := bundle.IsOCIReference(tt.input)
+			got := isOCIReference(tt.input)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -155,7 +154,7 @@ func TestValidateBundlePath(t *testing.T) {
 	// Create a valid directory with bundle.uds.hcl
 	validDir := filepath.Join(tempDir, "valid")
 	require.NoError(t, os.Mkdir(validDir, 0o755))
-	validBundleFile := filepath.Join(validDir, bundle.BundleFileName)
+	validBundleFile := filepath.Join(validDir, bundleFileName)
 	require.NoError(t, os.WriteFile(validBundleFile, []byte("test content"), 0o644))
 
 	// Create an empty directory (no bundle.uds.hcl)
@@ -264,7 +263,7 @@ func TestValidateBundlePath_AllowArtifact(t *testing.T) {
 
 	validDir := filepath.Join(tempDir, "valid")
 	require.NoError(t, os.Mkdir(validDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(validDir, bundle.BundleFileName), []byte(""), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(validDir, bundleFileName), []byte(""), 0o644))
 
 	tests := []struct {
 		name    string
@@ -293,7 +292,7 @@ func TestValidateBundlePath_AllowArtifact(t *testing.T) {
 func TestValidateBundlePath_WithRealBundle(t *testing.T) {
 	// Test with the actual spec-compliant bundle from test data
 	bundleDir := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "spec-compliant")
-	bundleFile := filepath.Join(bundleDir, bundle.BundleFileName)
+	bundleFile := filepath.Join(bundleDir, bundleFileName)
 
 	t.Run("validate directory", func(t *testing.T) {
 		err := ValidateBundlePath(bundleDir)
@@ -315,7 +314,7 @@ func TestValidateDevDeployPath_RedirectsArtifacts(t *testing.T) {
 
 func TestValidateArtifactReference_RedirectsSource(t *testing.T) {
 	dir := t.TempDir()
-	bundleFile := filepath.Join(dir, bundle.BundleFileName)
+	bundleFile := filepath.Join(dir, bundleFileName)
 	require.NoError(t, os.WriteFile(bundleFile, []byte("test"), 0o600))
 
 	for _, ref := range []string{dir, bundleFile} {
@@ -329,7 +328,7 @@ func TestDeployValidators_PreferExistingRelativeSourcePaths(t *testing.T) {
 
 	for _, dir := range []string{filepath.Join("example.com", "bundle"), "source.tar.zst"} {
 		require.NoError(t, os.MkdirAll(dir, 0o700))
-		require.NoError(t, os.WriteFile(filepath.Join(dir, bundle.BundleFileName), []byte("test"), 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, bundleFileName), []byte("test"), 0o600))
 
 		require.NoError(t, ValidateDevDeployPath(dir))
 		err := ValidateArtifactReference(dir)
