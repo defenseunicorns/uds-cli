@@ -133,6 +133,7 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, error) {
 	}
 
 	pkgTmp := pkgLayout.DirPath()
+	zarfPkg := pkgLayout.AsV1alpha1()
 
 	// get paths from pkgs to put in the bundle
 	var pathsToBundle []string
@@ -161,7 +162,7 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, error) {
 			}
 		}
 		// go into the pkg's image index and filter out optional components, grabbing img manifests of imgs to include
-		imgManifestsToInclude, err := boci.FilterImageIndex(pkgLayout.Pkg.Components, imgIndex)
+		imgManifestsToInclude, err := boci.FilterImageIndex(zarfPkg.Components, imgIndex)
 		if err != nil {
 			return nil, err
 		}
@@ -173,7 +174,7 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, error) {
 		}
 
 		// filter paths to only include layers that are in includeLayers
-		filteredPaths := filterPkgPaths(pkgLayout, includeLayers, pkgLayout.Pkg.Components)
+		filteredPaths := filterPkgPaths(pkgLayout, includeLayers, zarfPkg.Components)
 		pathsToBundle = filteredPaths
 	}
 

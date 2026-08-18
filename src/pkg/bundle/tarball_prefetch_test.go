@@ -19,9 +19,11 @@ import (
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/assemble"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/packager/load"
 )
 
 type fixtureBlob struct {
@@ -297,24 +299,26 @@ func TestPrefetchPackageMetadata(t *testing.T) {
 func TestDeployPrefetchReusesMetadataDuringPreview(t *testing.T) {
 	ctx := context.Background()
 	// Build valid package metadata containing both sensitive and non-sensitive variables.
-	pkgLayout, err := assemble.AssembleSkeleton(ctx, v1alpha1.ZarfPackage{
-		Kind: v1alpha1.ZarfPackageConfig,
-		Metadata: v1alpha1.ZarfMetadata{
-			Name:    "internal-package",
-			Version: "1.2.3",
-		},
-		Variables: []v1alpha1.InteractiveVariable{
-			{
-				Variable: v1alpha1.Variable{
-					Name:      "PASSWORD",
-					Sensitive: true,
+	pkgLayout, err := assemble.AssembleSkeleton(ctx, load.ResolvedPackage{
+		PackageDefinition: api.NewPackageDefinitionFromV1alpha1(v1alpha1.ZarfPackage{
+			Kind: v1alpha1.ZarfPackageConfig,
+			Metadata: v1alpha1.ZarfMetadata{
+				Name:    "internal-package",
+				Version: "1.2.3",
+			},
+			Variables: []v1alpha1.InteractiveVariable{
+				{
+					Variable: v1alpha1.Variable{
+						Name:      "PASSWORD",
+						Sensitive: true,
+					},
+				},
+				{
+					Variable: v1alpha1.Variable{Name: "PUBLIC_VALUE"},
 				},
 			},
-			{
-				Variable: v1alpha1.Variable{Name: "PUBLIC_VALUE"},
-			},
-		},
-	}, t.TempDir(), nil, assemble.AssembleSkeletonOptions{})
+		}),
+	}, t.TempDir(), assemble.AssembleSkeletonOptions{})
 	require.NoError(t, err)
 
 	pkgYAML, err := os.ReadFile(filepath.Join(pkgLayout.DirPath(), layout.ZarfYAML))

@@ -511,13 +511,29 @@ func getFilteredComponents(ctx context.Context, remote *oci.OrasRemote, manifest
 		}
 	}
 
-	// create filter for optional components and filter the pkg
-	createFilter := filters.Combine(
-		filters.ForDeploy(strings.Join(optionalComponents, ","), false),
-	)
-	filteredComponents, err := createFilter.Apply(zarfPkg)
+	componentViews := make([]filters.ComponentView, 0, len(zarfPkg.Components))
+	for _, component := range zarfPkg.Components {
+		componentViews = append(componentViews, filters.ComponentView{
+			Name:        component.Name,
+			Description: component.Description,
+			Optional:    !component.IsRequired(),
+			Default:     component.Default,
+			Group:       component.DeprecatedGroup,
+			OnlyLocalOS: component.Only.LocalOS,
+			Definition:  component,
+		})
+	}
+
+	componentIndices, err := filters.ForDeploy(strings.Join(optionalComponents, ","), false).Apply(filters.PackageView{
+		Components: componentViews,
+	})
 	if err != nil {
 		return nil, err
+	}
+
+	filteredComponents := make([]v1alpha1.ZarfComponent, 0, len(componentIndices))
+	for _, index := range componentIndices {
+		filteredComponents = append(filteredComponents, zarfPkg.Components[index])
 	}
 	return filteredComponents, nil
 }
