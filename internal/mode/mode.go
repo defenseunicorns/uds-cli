@@ -16,7 +16,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/feature"
 )
 
-const FeaturesEnv = "UDS_FEATURES"
+const FeaturesEnv = "CLI_FEATURES"
 
 type Mode string
 

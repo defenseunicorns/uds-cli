@@ -50,11 +50,14 @@ jobs:
       - name: Setup development tools
         uses: ./.github/actions/mise
 
-      - name: Run tests
+      - name: Run unit tests
         shell: bash
         run: |
           set -o pipefail
-          uds run test:all 2>&1 | tee "${RUNNER_TEMP}/uds-command-unit.log"
+          uds run test:unit 2>&1 | tee "${RUNNER_TEMP}/uds-command-unit.log"
+
+      - name: Check architecture
+        run: uds run test:architecture
 
       - name: Save diagnostics
         if: always()

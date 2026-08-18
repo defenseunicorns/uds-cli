@@ -82,17 +82,6 @@ const (
 	StorageClass         = "INIT_STORAGE_CLASS"
 )
 
-var reservedProductEnv = map[string]struct{}{
-	"UDS_FEATURES": {},
-}
-
-// IsReservedProductEnv reports whether an environment variable controls the
-// UDS product and must not become a Legacy bundle override.
-func IsReservedProductEnv(name string) bool {
-	_, reserved := reservedProductEnv[name]
-	return reserved
-}
-
 var (
 	// CommonOptions tracks user-defined values that apply across commands.
 	CommonOptions types.BundleCommonOptions

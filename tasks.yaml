@@ -36,7 +36,7 @@ tasks:
   - name: test
     description: run preparation tests
     actions:
-      - cmd: uds run test:all
+      - cmd: uds run test:preparation
 
   # build tasks
   - name: get-versions

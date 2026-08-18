@@ -10,11 +10,7 @@ tasks:
       - cmd: go test ./... -failfast -v -timeout 5m
         dir: internal/legacy
       - cmd: go test ./cmd/uds -failfast -v -timeout 5m
-
-  - name: router
-    description: run feature router tests
-    actions:
-      - cmd: go test ./cmd/uds ./internal/mode -failfast -v -timeout 5m
+      - cmd: go test ./internal/mode -failfast -v -timeout 5m
 
   - name: architecture
     description: verify Legacy packages do not depend on canonical Next packages
@@ -31,12 +27,11 @@ tasks:
     actions:
       - cmd: go test ./tests/legacy/e2e -failfast -v -timeout 60m
 
-  - name: all
+  - name: preparation
     description: run local preparation checks
     actions:
-      - task: router
-      - task: architecture
       - task: legacy:unit
+      - task: architecture
 
   - name: e2e-ghcr
     description: run e2e tests that write to GHCR

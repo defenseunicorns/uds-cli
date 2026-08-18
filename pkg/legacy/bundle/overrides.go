@@ -66,9 +66,6 @@ func (b *Bundle) loadVariables(pkg types.Package, bundleExportedVars map[string]
 	for _, envVar := range os.Environ() {
 		if strings.HasPrefix(envVar, config.EnvVarPrefix) {
 			parts := strings.SplitN(envVar, "=", 2)
-			if config.IsReservedProductEnv(parts[0]) {
-				continue
-			}
 			pkgVars[strings.ToUpper(strings.TrimPrefix(parts[0], config.EnvVarPrefix))] = parts[1]
 			overVarsData[strings.ToUpper(strings.TrimPrefix(parts[0], config.EnvVarPrefix))] = overrideData{parts[1], valuesources.Env}
 		}

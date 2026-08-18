@@ -44,7 +44,7 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	root.PersistentFlags().String("features", "", "Features, comma separated name=true or name=false pairs. UDS_FEATURES is also supported.")
+	root.PersistentFlags().String("features", "", "Features, comma separated name=true or name=false pairs. CLI_FEATURES is also supported.")
 	root.SetArgs(args)
 	return root.Execute()
 }
