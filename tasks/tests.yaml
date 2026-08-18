@@ -5,12 +5,7 @@ tasks:
   - name: unit
     description: run all the unit tests
     actions:
-      - cmd: go test ./... -failfast -v -timeout 5m
-        dir: pkg/legacy
-      - cmd: go test ./... -failfast -v -timeout 5m
-        dir: internal/legacy
-      - cmd: go test ./cmd/uds -failfast -v -timeout 5m
-      - cmd: go test ./internal/mode -failfast -v -timeout 5m
+      - cmd: go test ./cmd/uds ./internal/legacy/... ./internal/mode ./pkg/legacy/... -failfast -v -timeout 5m
 
   - name: architecture
     description: verify Legacy packages do not depend on canonical Next packages
