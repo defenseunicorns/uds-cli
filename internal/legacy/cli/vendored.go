@@ -11,6 +11,7 @@ import (
 	runnerConfig "github.com/defenseunicorns/maru-runner/src/config"
 	"github.com/defenseunicorns/pkg/exec"
 	"github.com/defenseunicorns/uds-cli/internal/legacy/zarfexec"
+	"github.com/defenseunicorns/uds-cli/internal/mode"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/config"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/config/lang"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/message"
@@ -66,6 +67,7 @@ func configureRunnerEnvironment() {
 	// Maru uses the MARU_ prefix, so add the UDS controls it inherits.
 	runnerConfig.AddExtraEnv("UDS_NO_PROGRESS", "true")
 	runnerConfig.AddExtraEnv("UDS_ARCH", config.GetArch(os.Getenv("UDS_ARCHITECTURE")))
+	runnerConfig.AddExtraEnv(mode.FeaturesEnv, os.Getenv(mode.FeaturesEnv))
 }
 
 func newZarfCommand() *cobra.Command {

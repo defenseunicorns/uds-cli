@@ -32,7 +32,7 @@ tasks:
       - cmd: echo "specific test string"
   - name: features
     actions:
-      - cmd: echo "${UDS_FEATURES}"
+      - cmd: echo "${CLI_FEATURES}"
   - name: cmd-set-variable
     actions:
       - cmd: echo unique-value
