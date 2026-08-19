@@ -16,7 +16,7 @@
 *.tgz
 *.vbox
 *.zst
-!src/pkg/testdata/zarf-package-real-simple-amd64-0.0.1.tar.zst
+!pkg/legacy/testdata/zarf-package-real-simple-amd64-0.0.1.tar.zst
 *.zim
 build
 data/
@@ -36,8 +36,8 @@ tmp/
 out.txt
 *.gif
 *.mp4
-src/cmd/bin
-src/cmd/certs
+internal/legacy/cli/bin
+internal/legacy/cli/certs
 *.pem
 grype-scan.json
 uds-docs/

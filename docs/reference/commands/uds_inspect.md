@@ -25,6 +25,7 @@ uds inspect [BUNDLE_TARBALL|OCI_REF|BUNDLE_YAML_FILE] [flags]
 
 ```
   -a, --architecture string         Architecture for UDS bundles and Zarf packages
+      --features string             Features, comma separated name, name=true, or name=false pairs. CLI_FEATURES is also supported.
       --insecure                    Allow access to insecure registries and disable other recommended security enforcements such as package checksum and signature validation. This flag should only be used if you have a specific reason and accept the reduced security posture.
   -l, --log-level string            Log level when running UDS-CLI. Valid options are: warn, info, debug, trace (default "info")
       --no-color                    Disable color output

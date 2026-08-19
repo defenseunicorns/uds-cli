@@ -1,0 +1,626 @@
+// Copyright 2024 Defense Unicorns
+// SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+// Package bundle contains functions for interacting with, managing and deploying UDS packages
+package bundle
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"maps"
+	"os"
+	"slices"
+	"strconv"
+	"strings"
+
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/config"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/message"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/sources"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/types/chartvariable"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/types/valuesources"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
+	goyaml "github.com/goccy/go-yaml"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/cluster"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/state"
+	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
+)
+
+// hiddenVar is the value used to mask potentially sensitive variables
+const hiddenVar = "****"
+
+type NamespaceOverrideMap = map[string]map[string]string
+
+// Deploy deploys a bundle
+func (b *Bundle) Deploy(ctx context.Context) error {
+	packagesToDeploy := b.bundle.Packages
+
+	// Check if --packages flag is set and zarf packages have been specified
+	if len(b.cfg.DeployOpts.Packages) != 0 {
+		userSpecifiedPackages := strings.Split(strings.ReplaceAll(b.cfg.DeployOpts.Packages[0], " ", ""), ",")
+		var selectedPackages []types.Package
+		for _, pkg := range b.bundle.Packages {
+			if slices.Contains(userSpecifiedPackages, pkg.Name) {
+				selectedPackages = append(selectedPackages, pkg)
+			}
+		}
+
+		packagesToDeploy = selectedPackages
+
+		// Check if invalid packages were specified
+		if len(userSpecifiedPackages) != len(packagesToDeploy) {
+			return errors.New("invalid zarf packages specified by --packages")
+		}
+	}
+
+	// if resume, filter for packages not yet deployed successfully
+	if b.cfg.DeployOpts.Resume {
+		deployedPackageIDs := GetSuccessfullyDeployedPackageIDs()
+		var notDeployedSuccessfully []types.Package
+
+		for _, pkg := range packagesToDeploy {
+			if !slices.Contains(deployedPackageIDs, bundlePackageLifecycleID(pkg)) {
+				notDeployedSuccessfully = append(notDeployedSuccessfully, pkg)
+			}
+		}
+		packagesToDeploy = notDeployedSuccessfully
+	}
+
+	return deployPackages(ctx, packagesToDeploy, b)
+}
+
+func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bundle) error {
+	// map of Zarf pkgs and their vars
+	bundleExportedVars := make(map[string]map[string]string)
+	var stateRegistryInfo *state.RegistryInfo
+
+	for i, pkg := range packagesToDeploy {
+		// for dev mode update package ref for remote bundles, refs for local bundles updated on create
+		if config.Dev && !strings.Contains(b.cfg.DeployOpts.Source, "tar.zst") {
+			pkg, err := b.setPackageRef(pkg)
+			if err != nil {
+				return err
+			}
+			b.bundle.Packages[i] = pkg
+		}
+		manifestDigest, err := packageManifestDigest(pkg)
+		if err != nil {
+			return err
+		}
+		pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
+		if err != nil {
+			return err
+		}
+		defer os.RemoveAll(pkgTmp)
+
+		// BuildVerifyBlobOptions may write a key file to the given dir; use a separate
+		// temp dir so pkgTmp contains only package files and passes LoadFromDir integrity checks.
+		keyTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
+		if err != nil {
+			return err
+		}
+		defer os.RemoveAll(keyTmp)
+
+		verifyOpts, err := utils.BuildVerifyBlobOptions(pkg, keyTmp)
+		if err != nil {
+			return fmt.Errorf("package %q: %w", pkg.Name, err)
+		}
+
+		pkgVars, variableData := b.loadVariables(pkg, bundleExportedVars)
+
+		valuesOverrides, nsOverrides, err := b.loadChartOverrides(pkg, variableData)
+		if err != nil {
+			return err
+		}
+
+		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, verifyOpts, config.CommonOptions.SkipSignatureValidation, manifestDigest, nsOverrides)
+		if err != nil {
+			return err
+		}
+
+		filter := filters.Combine(
+			filters.ForDeploy(strings.Join(pkg.OptionalComponents, ","), false),
+		)
+
+		pkgLayout, _, err := source.LoadPackage(ctx, filter)
+		if err != nil {
+			return err
+		}
+
+		isConnectedDeploy := config.Dev
+		registryInfo := newRegistryInfo(pkgVars, pkgLayout.Pkg.Kind)
+		if !isConnectedDeploy && !pkgLayout.Pkg.IsInitConfig() && pkgLayout.Pkg.HasImages() {
+			if stateRegistryInfo == nil {
+				c, err := cluster.New(ctx)
+				if err != nil {
+					return err
+				}
+				s, err := c.LoadState(ctx)
+				if err != nil {
+					return err
+				}
+				stateRegistryInfo = &s.RegistryInfo
+			}
+			registryInfo = *stateRegistryInfo
+		}
+
+		deployOpts, err := b.newDeployOptions(ctx, pkg, pkgVars, valuesOverrides, pkgLayout.Pkg.Kind, registryInfo)
+		if err != nil {
+			return err
+		}
+
+		// Merge package annotations with bundle annotations; bundle annotations take precedence
+		bundleAnnotations := make(map[string]string)
+		maps.Copy(bundleAnnotations, pkgLayout.Pkg.Metadata.Annotations)
+		bundleAnnotations[AnnotationBundleName] = b.bundle.Metadata.Name
+		bundleAnnotations[AnnotationBundleVersion] = b.bundle.Metadata.Version
+
+		// Set the merged annotations back on the package
+		pkgLayout.Pkg.Metadata.Annotations = bundleAnnotations
+
+		result, err := packager.Deploy(ctx, pkgLayout, deployOpts)
+		if err != nil {
+			return err
+		}
+
+		err = pkgLayout.Cleanup()
+		if err != nil {
+			return err
+		}
+		// save exported vars
+		pkgExportedVars := make(map[string]string)
+		variableConfig := result.VariableConfig
+		for _, exp := range pkg.Exports {
+			// ensure if variable exists in package
+			setVariable, ok := variableConfig.GetSetVariable(exp.Name)
+			if !ok {
+				return fmt.Errorf("cannot export variable %s because it does not exist in package %s", exp.Name, pkg.Name)
+			}
+			pkgExportedVars[strings.ToUpper(exp.Name)] = setVariable.Value
+		}
+		bundleExportedVars[pkg.Name] = pkgExportedVars
+
+		if !pkgLayout.Pkg.IsInitConfig() {
+			connectStrings := state.ConnectStrings{}
+			for _, comp := range result.DeployedComponents {
+				for _, chart := range comp.InstalledCharts {
+					for k, v := range chart.ConnectStrings {
+						connectStrings[k] = v
+					}
+				}
+			}
+			message.PrintConnectStringTable(connectStrings)
+		}
+	}
+	return nil
+}
+
+func (b *Bundle) newDeployOptions(ctx context.Context, pkg types.Package, pkgVars zarfVarData, valuesOverrides packager.ValuesOverrides, pkgKind v1alpha1.ZarfPackageKind, registryInfo state.RegistryInfo) (packager.DeployOptions, error) {
+	plainHTTP, err := shouldUsePlainHTTPForDeployRegistry(ctx, registryInfo, config.CommonOptions.Insecure)
+	if err != nil {
+		return packager.DeployOptions{}, err
+	}
+	remoteOpts := zarfTypes.RemoteOptions{
+		PlainHTTP:             plainHTTP,
+		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
+	}
+
+	timeout, err := resolvePackageTimeout(pkg)
+	if err != nil {
+		return packager.DeployOptions{}, err
+	}
+
+	return packager.DeployOptions{
+		ForceConflicts:         b.cfg.DeployOpts.ForceConflicts,
+		Timeout:                timeout,
+		SetVariables:           pkgVars,
+		ValuesOverridesMap:     valuesOverrides,
+		Retries:                b.cfg.DeployOpts.Retries,
+		NamespaceOverride:      pkg.Namespace,
+		RemoteOptions:          remoteOpts,
+		AdoptExistingResources: false,
+		Connected:              config.Dev,
+		OCIConcurrency:         config.CommonOptions.OCIConcurrency,
+		GitServer:              newGitServerInfo(pkgVars, pkgKind),
+		RegistryInfo:           registryInfo,
+		ArtifactServer:         newArtifactServerInfo(pkgVars, pkgKind),
+		StorageClass:           newStorageClass(pkgVars, pkgKind),
+		IsInteractive:          !config.CommonOptions.Confirm,
+	}, nil
+}
+
+func shouldUsePlainHTTPForDeployRegistry(ctx context.Context, registryInfo state.RegistryInfo, insecure bool) (bool, error) {
+	if plainHTTP, known := registryInfo.KnownPlainHTTP(); known {
+		return plainHTTP, nil
+	}
+	if !registryInfo.IsConfigured() {
+		return false, nil
+	}
+	return utils.NegotiatePlainHTTPForRegistry(ctx, registryInfo.Address, insecure)
+}
+
+// newGitServerInfo creates a new GitServerInfo for a package if using custom Zarf init options
+func newGitServerInfo(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKind) state.GitServerInfo {
+	if zarfPkgKind != v1alpha1.ZarfInitConfig {
+		return state.GitServerInfo{}
+	}
+
+	// default git server info
+	gitServerInfo := state.GitServerInfo{
+		PushUsername: state.ZarfGitPushUser,
+	}
+
+	// populate git server info from pkgVars
+	for k, v := range pkgVars {
+		switch k {
+		case config.GitURL:
+			gitServerInfo.Address = v
+		case config.GitPushUsername:
+			gitServerInfo.PushUsername = v
+		case config.GitPushPassword:
+			gitServerInfo.PushPassword = v
+		case config.GitPullUsername:
+			gitServerInfo.PullUsername = v
+		case config.GitPullPassword:
+			gitServerInfo.PullPassword = v
+		}
+	}
+	return gitServerInfo
+}
+
+// newRegistryInfo creates a new RegistryInfo for a package if using custom Zarf init options
+func newRegistryInfo(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKind) state.RegistryInfo {
+	if zarfPkgKind != v1alpha1.ZarfInitConfig {
+		return state.RegistryInfo{}
+	}
+
+	// default registry info
+	registryInfo := state.RegistryInfo{
+		PushUsername: state.ZarfRegistryPushUser,
+	}
+
+	// populate registry info from pkgVars
+	for k, v := range pkgVars {
+		switch k {
+		// registry info
+		case config.RegistryURL:
+			registryInfo.Address = v
+		case config.RegistryMode:
+			registryInfo.RegistryMode = state.RegistryMode(v)
+		case config.RegistryPushUsername:
+			registryInfo.PushUsername = v
+		case config.RegistryPushPassword:
+			registryInfo.PushPassword = v
+		case config.RegistryPullUsername:
+			registryInfo.PullUsername = v
+		case config.RegistryPullPassword:
+			registryInfo.PullPassword = v
+		case config.RegistrySecretName:
+			registryInfo.Secret = v
+		case config.RegistryNodeport:
+			np, err := strconv.Atoi(v)
+			if err != nil {
+				message.Warnf("failed to parse nodeport %s: %v", v, err)
+				return state.RegistryInfo{}
+			}
+			registryInfo.Port = np
+		}
+	}
+	return registryInfo
+}
+
+// newArtifactServerInfo creates a new ArtifactServerInfo for a package if using custom Zarf init options
+func newArtifactServerInfo(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKind) state.ArtifactServerInfo {
+	if zarfPkgKind != v1alpha1.ZarfInitConfig {
+		return state.ArtifactServerInfo{}
+	}
+
+	// default artifact server info
+	artifactServerInfo := state.ArtifactServerInfo{}
+
+	// populate artifact server info from pkgVars
+	for k, v := range pkgVars {
+		switch k {
+		case config.ArtifactURL:
+			artifactServerInfo.Address = v
+		case config.ArtifactPushUsername:
+			artifactServerInfo.PushUsername = v
+		case config.ArtifactPushToken:
+			artifactServerInfo.PushToken = v
+		}
+	}
+	return artifactServerInfo
+}
+
+// newStorageClass creates a new storage class for a package if using custom Zarf init options
+func newStorageClass(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKind) string {
+	if zarfPkgKind != v1alpha1.ZarfInitConfig {
+		return ""
+	}
+
+	// default storage class
+	storageClass := ""
+
+	// populate storage class from pkgVars
+	for k, v := range pkgVars {
+		switch k {
+		// storage class
+		case config.StorageClass:
+			storageClass = v
+		}
+	}
+	return storageClass
+}
+
+// PreDeployValidation validates the bundle before deployment
+func (b *Bundle) PreDeployValidation() (string, string, string, error) {
+	// Check that provided oci source path is valid, and update it if it's missing the full path
+	source, err := CheckOCISourcePath(b.cfg.DeployOpts.Source)
+	if err != nil {
+		return "", "", "", err
+	}
+	b.cfg.DeployOpts.Source = source
+
+	// create a new provider
+	provider, err := NewBundleProvider(b.cfg.DeployOpts.Source, b.tmp)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// pull the bundle's metadata + sig
+	filepaths, err := provider.LoadBundleMetadata()
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// validate the sig (if present)
+	if err := ValidateBundleSignature(filepaths[config.BundleYAML], filepaths[config.BundleYAMLSignature], b.cfg.DeployOpts.PublicKeyPath); err != nil {
+		return "", "", "", err
+	}
+
+	// read in file at config.BundleYAML
+	message.Debugf("Reading YAML at %s", filepaths[config.BundleYAML])
+	bundleYAML, err := os.ReadFile(filepaths[config.BundleYAML])
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// todo: we also read the SHAs from the uds-bundle.yaml here, should we refactor so that we use the bundle's root manifest?
+	if err := goyaml.Unmarshal(bundleYAML, &b.bundle); err != nil {
+		return "", "", "", err
+	}
+
+	if err := validatePackageTimeouts(b.bundle.Packages); err != nil {
+		return "", "", "", err
+	}
+
+	if err := validatePackageNamespaces(b.bundle.Packages); err != nil {
+		return "", "", "", err
+	}
+
+	// validate bundle's arch against cluster
+	err = ValidateArch(config.GetArch(b.bundle.Build.Architecture))
+	if err != nil {
+		return "", "", "", err
+	}
+
+	b.prefetchPackageMetadata(provider)
+
+	bundleName := b.bundle.Metadata.Name
+	return bundleName, string(bundleYAML), source, err
+}
+
+// ConfirmBundleDeploy prompts the user to confirm bundle deployment
+func (b *Bundle) ConfirmBundleDeploy() (bool, error) {
+	pkgViews, err := formPkgViews(b)
+	if err != nil {
+		return false, err
+	}
+
+	message.HeaderInfof("🎁 BUNDLE DEFINITION")
+
+	message.Title("Metadata:", "information about this bundle")
+	if err := zarfUtils.ColorPrintYAML(b.bundle.Metadata, nil, false); err != nil {
+		message.WarnErr(err, "unable to print bundle metadata yaml")
+	}
+
+	message.HorizontalRule()
+
+	message.Title("Build:", "info about the machine, UDS version, and the user that created this bundle")
+	if err := zarfUtils.ColorPrintYAML(b.bundle.Build, nil, false); err != nil {
+		message.WarnErr(err, "unable to print bundle build yaml")
+	}
+
+	message.HorizontalRule()
+
+	message.Title("Packages:", "definition of packages this bundle deploys, including variable overrides")
+
+	for _, pkg := range pkgViews {
+		if err := zarfUtils.ColorPrintYAML(pkg.meta, nil, false); err != nil {
+			message.WarnErr(err, "unable to print package metadata yaml")
+		}
+		if err := zarfUtils.ColorPrintYAML(pkg.overrides, nil, false); err != nil {
+			message.WarnErr(err, "unable to print package overrides yaml")
+		}
+	}
+
+	message.HorizontalRule()
+
+	// Display prompt if not auto-confirmed
+	if config.CommonOptions.Confirm {
+		return config.CommonOptions.Confirm, nil
+	}
+
+	prompt := &survey.Confirm{
+		Message: "Deploy this bundle?",
+	}
+
+	var confirm bool
+	if err := survey.AskOne(prompt, &confirm); err != nil {
+		return false, err
+	}
+	if !confirm {
+		return false, nil
+	}
+	return true, nil
+}
+
+type PkgView struct {
+	meta      map[string]string
+	overrides map[string]interface{}
+}
+
+// formPkgViews creates a unique pre deploy view of each package's set overrides and Zarf variables
+func formPkgViews(b *Bundle) ([]PkgView, error) {
+	return formPkgViewsWithMetadata(b, b.getMetadata)
+}
+
+func formPkgViewsWithMetadata(b *Bundle, getMetadata func(types.Package) (v1alpha1.ZarfPackage, error)) ([]PkgView, error) {
+	var pkgViews []PkgView
+	for _, pkg := range b.bundle.Packages {
+		variables := make([]interface{}, 0)
+
+		// process variables and overrides to get values
+		_, variableData := b.loadVariables(pkg, nil)
+		valuesOverrides, _, _ := b.loadChartOverrides(pkg, variableData)
+
+		// Load the package metadata to get the list of sensitive variables for masking their values in the view
+		zarfPkg, err := getMetadata(pkg)
+		if err != nil {
+			return nil, fmt.Errorf("unable to load metadata for package %q: %w", pkg.Name, err)
+		}
+		sensitiveVars := sensitiveZarfVariableNames(zarfPkg.Variables)
+
+		for compName, component := range pkg.Overrides {
+			for chartName, chart := range component {
+				// filter out bundle overrides so we're left with Zarf Variables
+				removeOverrides(variableData, chart.Variables)
+
+				helmChartVars := valuesOverrides[compName][chartName]
+				if helmChartVars == nil {
+					continue
+				}
+
+				// takes values from helmChartVars {path: value} and form new map of {name: value}
+				viewVars := extractValues(helmChartVars, chart.Variables, sensitiveVars)
+
+				if len(viewVars) > 0 {
+					variables = append(variables, map[string]map[string]interface{}{chartName: {"variables": viewVars}})
+				}
+			}
+		}
+
+		variables = addZarfVars(variableData, variables, sensitiveVars)
+		pkgViews = append(pkgViews, PkgView{meta: formPkgMeta(pkg), overrides: map[string]interface{}{"overrides": variables}})
+	}
+	return pkgViews, nil
+}
+
+func formPkgMeta(pkg types.Package) map[string]string {
+	pkgMeta := map[string]string{"name": pkg.Name, "ref": pkg.Ref}
+	if pkg.Namespace != "" {
+		pkgMeta["namespace"] = pkg.Namespace
+	}
+	if pkg.Timeout != "" {
+		pkgMeta["timeout"] = pkg.Timeout
+	}
+	if pkg.Repository != "" {
+		pkgMeta["repo"] = pkg.Repository
+	} else {
+		pkgMeta["path"] = pkg.Path
+	}
+	return pkgMeta
+}
+
+func sensitiveZarfVariableNames(variables []v1alpha1.InteractiveVariable) map[string]bool {
+	sensitiveVars := make(map[string]bool)
+	for _, variable := range variables {
+		if variable.Sensitive {
+			sensitiveVars[strings.ToUpper(variable.Name)] = true
+		}
+	}
+	return sensitiveVars
+}
+
+func addZarfVars(pkgVars map[string]overrideData, variables []interface{}, sensitiveVars map[string]bool) []interface{} {
+	// Built-in sensitive variables that should be sanitized
+	sensitiveBuiltInVars := map[string]bool{
+		config.RegistryPushUsername: true,
+		config.RegistryPushPassword: true,
+		config.RegistryPullUsername: true,
+		config.RegistryPullPassword: true,
+		config.RegistrySecretName:   true,
+		config.GitPushUsername:      true,
+		config.GitPushPassword:      true,
+		config.GitPullUsername:      true,
+		config.GitPullPassword:      true,
+		config.ArtifactPushUsername: true,
+		config.ArtifactPushToken:    true,
+	}
+
+	for key, fv := range pkgVars {
+		// "CONFIG" refers to "UDS_CONFIG" which is not a Zarf variable or override so we skip it
+		if key != "CONFIG" {
+			// Mask potentially secret ENV vars or built-in sensitive variables
+			if fv.source == valuesources.Env || sensitiveBuiltInVars[key] || sensitiveVars[key] {
+				fv.value = hiddenVar
+			}
+			variables = append(variables, map[string]interface{}{key: fv.value})
+		}
+	}
+	return variables
+}
+
+// extractValues returns a map of {name: value} from helmChartVars
+func extractValues(helmChartVars map[string]interface{}, variables []types.BundleChartVariable, sensitiveVars map[string]bool) map[string]interface{} {
+	viewVars := make(map[string]interface{})
+	for _, v := range variables {
+		// Mask potentially sensitive variables
+		if v.Type == chartvariable.File || v.Source == valuesources.Env || v.Sensitive || sensitiveVars[strings.ToUpper(v.Name)] {
+			viewVars[v.Name] = hiddenVar
+			continue
+		}
+		// handle complex paths: var.helm.path = { var: { helm: { path: val } } }
+		if strings.Contains(v.Path, ".") {
+			paths := strings.Split(v.Path, ".")
+
+			// set initial entry so iterations through paths can hold next key value pair until final value is found,
+			// removing the entry if map[path] returns nil
+			viewVars[v.Name] = helmChartVars
+			for _, path := range paths {
+				val, exists := viewVars[v.Name].(map[string]interface{})[path]
+				if !exists {
+					// delete previously set entry of v.Name and exit loop
+					delete(viewVars, v.Name)
+					break
+				}
+
+				viewVars[v.Name] = val
+			}
+		} else {
+			if helmChartVars[v.Path] == nil {
+				continue
+			}
+
+			viewVars[v.Name] = helmChartVars[v.Path]
+		}
+	}
+	return viewVars
+}
+
+// removeOverrides mutates pkgVars by removing bundle overrride variables, leaving only Zarf variables
+func removeOverrides(pkgVars map[string]overrideData, chartVars []types.BundleChartVariable) {
+	for _, cv := range chartVars {
+		// remove the bundle override variable if exists in pkgVars
+		_, exists := pkgVars[strings.ToUpper(cv.Name)]
+		if exists {
+			delete(pkgVars, strings.ToUpper(cv.Name))
+		}
+	}
+}

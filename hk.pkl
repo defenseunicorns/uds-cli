@@ -38,7 +38,7 @@ local checks = new Mapping<String, Step> {
     }
     ["schema"] {
         check = "uds run schema:test"
-        glob = List("main.go", "src/**/*.go", "hack/generate-schema.sh", "tasks/schema.yaml")
+        glob = List("cmd/**/*.go", "internal/**/*.go", "pkg/**/*.go", "hack/generate-schema.sh", "tasks/schema.yaml")
     }
     ["license-check"] {
         check = "uds run lint:license"

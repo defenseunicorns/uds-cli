@@ -56,6 +56,9 @@ jobs:
           set -o pipefail
           uds run test:unit 2>&1 | tee "${RUNNER_TEMP}/uds-command-unit.log"
 
+      - name: Check architecture
+        run: uds run test:architecture
+
       - name: Save diagnostics
         if: always()
         uses: ./.github/actions/save-logs
@@ -91,7 +94,11 @@ jobs:
 
       - name: Fetch zarf@main
         if: inputs.fetch_zarf
-        run: go get github.com/zarf-dev/zarf@main
+        run: |
+          go get github.com/zarf-dev/zarf@main
+          ZARF_VERSION=$(go list -m -json github.com/zarf-dev/zarf | jq -r .Version)
+          yq eval "(.packages[] | select(.name == \"init\")).ref = \"$ZARF_VERSION\"" -i testdata/legacy/bundles/04-init/uds-bundle.yaml
+          yq eval "(.packages[] | select(.name == \"init\")).ref = \"$ZARF_VERSION\"" -i testdata/legacy/bundles/14-optional-components/uds-bundle.yaml
 
       - name: Build CLI
         run: uds run build-cli-linux-amd

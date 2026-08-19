@@ -1,66 +1,84 @@
-# Copyright 2024 Defense Unicorns
+# Copyright 2024-2026 Defense Unicorns
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 tasks:
   - name: unit
     description: run all the unit tests
     actions:
-      - cmd: go test ./... -failfast -v -timeout 5m
-        dir: src/pkg
-      - cmd: go test ./... -failfast -v -timeout 5m
-        dir: src/cmd
+      - cmd: go test ./cmd/uds ./internal/legacy/... ./internal/mode ./pkg/legacy/... -failfast -v -timeout 5m
+
+  - name: architecture
+    description: verify Legacy packages do not depend on canonical Next packages
+    actions:
+      - cmd: ./hack/check-architecture.sh
+
+  - name: legacy:unit
+    description: run Legacy unit tests
+    actions:
+      - task: unit
+
+  - name: legacy:e2e
+    description: run all Legacy end to end tests
+    actions:
+      - cmd: go test ./tests/legacy/e2e -failfast -v -timeout 60m
+
+  - name: preparation
+    description: run local preparation checks
+    actions:
+      - task: legacy:unit
+      - task: architecture
 
   - name: e2e-ghcr
     description: run e2e tests that write to GHCR
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m -run ".*GHCR.*"
+      - cmd: cd tests/legacy/e2e && go test -failfast -v -timeout 30m -run ".*GHCR.*"
 
   - name: bundle
     description: only run tests in bundle_test.go
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m bundle_test.go commands_test.go main_test.go
+      - cmd: cd tests/legacy/e2e && go test -failfast -v -timeout 30m bundle_test.go commands_test.go main_test.go
 
   - name: deploy-flags
     description: only run tests in bundle_deploy_flags_test.go
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m bundle_deploy_flags_test.go commands_test.go main_test.go
+      - cmd: cd tests/legacy/e2e && go test -failfast -v -timeout 30m bundle_deploy_flags_test.go commands_test.go main_test.go
 
   - name: index
     description: only run tests in bundle_index_test.go
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m bundle_index_test.go common.go commands_test.go main_test.go
+      - cmd: cd tests/legacy/e2e && go test -failfast -v -timeout 30m bundle_index_test.go common.go commands_test.go main_test.go
 
   - name: completion
     description: only run tests in completion_test.go
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m completion_test.go commands_test.go main_test.go
+      - cmd: cd tests/legacy/e2e && go test -failfast -v -timeout 30m completion_test.go commands_test.go main_test.go
 
   - name: dev
     description: only run tests in dev_test.go and state_test.go (grouped bc neither require zarf init)
     actions:
       # commenting out state tests for now as its behind a feature flag and not ready for CI
-      #- cmd: cd src/test/e2e && go test -failfast -v -timeout 30m dev_test.go state_test.go commands_test.go main_test.go
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m dev_test.go commands_test.go main_test.go
+      #- cmd: cd tests/legacy/e2e && go test -failfast -v -timeout 30m dev_test.go state_test.go commands_test.go main_test.go
+      - cmd: cd tests/legacy/e2e && go test -failfast -v -timeout 30m dev_test.go commands_test.go main_test.go
 
   - name: variable
     description: only run tests in variable_test.go
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m variable_test.go commands_test.go main_test.go
+      - cmd: cd tests/legacy/e2e && go test -failfast -v -timeout 30m variable_test.go commands_test.go main_test.go
 
   - name: optional-bundle
     description: only run tests in optional_bundle_test.go
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m optional_bundle_test.go commands_test.go main_test.go
+      - cmd: cd tests/legacy/e2e && go test -failfast -v -timeout 30m optional_bundle_test.go commands_test.go main_test.go
 
   - name: vendor
     description: only run tests for vendored apps (zarf, maru)
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m zarf_test.go runner_test.go commands_test.go main_test.go
+      - cmd: cd tests/legacy/e2e && go test -failfast -v -timeout 30m zarf_test.go runner_test.go commands_test.go main_test.go
 
   - name: engine-e2e
     description: only run engine e2e tests
     actions:
-      - cmd: cd src/test/e2e && go test -failfast -v -timeout 30m monitor_test.go commands_test.go main_test.go
+      - cmd: cd tests/legacy/e2e && go test -failfast -v -timeout 30m monitor_test.go commands_test.go main_test.go
         description: run the engine e2e tests (assumes running on cluster with uds-core installed i.e. k3d-core-slim-dev)
 
   - name: push-test-artifacts
@@ -71,7 +89,7 @@ tasks:
   - name: clean-test-artifacts
     description: removes bundles and zarf packages that have been created from previous test runs
     actions:
-      - cmd: find src/test -type f -name '*.tar.zst' -delete
+      - cmd: find testdata/legacy -type f -name '*.tar.zst' -delete
 
   - name: ci-uds-core-smoke-test
     description: deploy UDS Core (slim dev) and run validations

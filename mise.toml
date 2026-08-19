@@ -5,6 +5,7 @@
 go = "1.26.5"
 hk = "1.54.0"
 golangci-lint = "2.12.2"
+"github:goreleaser/goreleaser" = "2.17.1"
 "github:gitleaks/gitleaks" = "8.30.1"
 k3d = "5.9.0"
 node = "24.19.0"
