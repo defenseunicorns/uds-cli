@@ -21,7 +21,7 @@ func Push(ctx context.Context, bundleTarball, ref string, opts PushOptions) (*Pu
 		return nil, err
 	}
 	s := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
-	signatureEntries, err := artifact.CountTarZstEntries(ctx, bundleTarball, BundleSignatureFileName)
+	signatureEntries, err := artifact.CountTarZstEntries(ctx, bundleTarball, bundleSignatureFileName)
 	if err != nil {
 		return nil, fmt.Errorf("checking bundle signature evidence: %w", err)
 	}
@@ -38,7 +38,7 @@ func Push(ctx context.Context, bundleTarball, ref string, opts PushOptions) (*Pu
 	if err := artifact.ExtractTarZst(ctx, s, bundleTarball, tmp); err != nil {
 		return nil, fmt.Errorf("extracting bundle: %w", err)
 	}
-	return PushBundle(ctx, tmp, ref, opts)
+	return pushBundle(ctx, tmp, ref, opts, pushHooks{})
 }
 
 // PushOptions holds configuration for pushing a bundle to an OCI registry.
@@ -55,11 +55,6 @@ type PushResult struct {
 type pushHooks struct {
 	toOrasTarget       func(ctx context.Context, ociReference string, opts *PushOptions) (oras.Target, error)
 	modifyOrasSettings func(ctx context.Context, copyOptions *oras.CopyOptions) error
-}
-
-// PushBundle pushes a bundle directory to OCI storage.
-func PushBundle(ctx context.Context, bundleDir, ref string, opts PushOptions) (*PushResult, error) {
-	return pushBundle(ctx, bundleDir, ref, opts, pushHooks{})
 }
 
 func pushBundle(ctx context.Context, bundleDir, ref string, opts PushOptions, hooks pushHooks) (*PushResult, error) {

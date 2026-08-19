@@ -33,17 +33,12 @@ func Pull(ctx context.Context, ref, targetDir string, opts PullOptions) (*PullRe
 			return nil, err
 		}
 	}
-	return PullBundle(ctx, ref, targetDir, opts)
+	return pullBundle(ctx, ref, targetDir, opts, pullHooks{})
 }
 
 type pullHooks struct {
 	toOrasTarget       func(ctx context.Context, ociReference string, opts *PullOptions) (oras.Target, error)
 	modifyOrasSettings func(ctx context.Context, copyOptions *oras.CopyOptions) error
-}
-
-// PullBundle pulls a bundle artifact from OCI storage into targetDir.
-func PullBundle(ctx context.Context, ref, targetDir string, opts PullOptions) (*PullResult, error) {
-	return pullBundle(ctx, ref, targetDir, opts, pullHooks{})
 }
 
 func pullBundle(ctx context.Context, ref, targetDir string, opts PullOptions, hooks pullHooks) (*PullResult, error) {

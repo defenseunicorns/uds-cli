@@ -211,6 +211,27 @@ func TestInspectOptions_Run(t *testing.T) {
 	assert.Contains(t, errOut.String(), "bundle signature verification was not performed")
 }
 
+func TestInspectOptions_Run_SkipSignatureVerificationWarns(t *testing.T) {
+	artifact := createTestArtifact(t)
+	streams, _, out, errOut := iostreams.NewTestIOStreams()
+	textPrinter, err := printer.NewPrinter(printer.FormatText)
+	require.NoError(t, err)
+
+	o := &InspectOptions{
+		BundlePath: artifact,
+		Config:     testInspectConfig(),
+		Printer:    textPrinter,
+		Verification: VerifyOptions{
+			SkipSignatureVerification: true,
+		},
+		IOStreams: streams,
+	}
+
+	require.NoError(t, o.Run(t.Context()))
+	assert.Contains(t, out.String(), "skipped")
+	assert.Contains(t, errOut.String(), "signature verification was skipped")
+}
+
 func TestInspectOptions_Run_JSONOutput(t *testing.T) {
 	artifact := createTestArtifact(t)
 	streams, _, out, _ := iostreams.NewTestIOStreams()

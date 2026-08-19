@@ -100,7 +100,7 @@ func Reconfigure(ctx context.Context, source, defaultsFile string, opts Reconfig
 			return nil, fmt.Errorf("verifying input bundle: %w", err)
 		}
 	} else {
-		WarnSkippedSignatureVerification(opts.Streams)
+		warnSkippedSignatureVerification(opts.Streams)
 	}
 
 	if udsoci.IsOCIReference(source) {
@@ -226,7 +226,7 @@ func reconfigureLocalArtifact(ctx context.Context, streams iostreams.IOStreams, 
 	if err := artifact.ExtractTarZst(ctx, streams, source, tmp); err != nil {
 		return nil, fmt.Errorf("extracting bundle: %w", err)
 	}
-	if err := os.Remove(filepath.Join(tmp, BundleSignatureFileName)); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := os.Remove(filepath.Join(tmp, bundleSignatureFileName)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("removing inherited bundle signature evidence: %w", err)
 	}
 
@@ -478,7 +478,7 @@ func (r *ociReconfigurer) reconfigureOCIArtifact(ctx context.Context, source str
 		}
 		defer func() { _ = os.RemoveAll(workspace) }()
 		indexPath := filepath.Join(workspace, "index.json")
-		evidencePath := filepath.Join(workspace, BundleSignatureFileName)
+		evidencePath := filepath.Join(workspace, bundleSignatureFileName)
 		if err := os.WriteFile(indexPath, newIndexBytes, 0o600); err != nil {
 			return nil, fmt.Errorf("writing bundle index for signing: %w", err)
 		}

@@ -38,7 +38,7 @@ type DeployOptions struct {
 func NewDeployOptions(streams iostreams.IOStreams) *DeployOptions {
 	return &DeployOptions{
 		IOStreams:  streams,
-		pullBundle: bundle.PullBundle,
+		pullBundle: bundle.Pull,
 		runDeploy:  runDeploy,
 	}
 }
@@ -189,7 +189,7 @@ func (o *DeployOptions) runOCIArtifact(ctx context.Context, runner deployRunnerF
 
 	pullBundle := o.pullBundle
 	if pullBundle == nil {
-		pullBundle = bundle.PullBundle
+		pullBundle = bundle.Pull
 	}
 	result, err := pullBundle(ctx, o.BundlePath, outputDir, bundle.PullOptions{
 		Config:                    o.Config,

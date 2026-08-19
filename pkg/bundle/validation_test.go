@@ -56,6 +56,25 @@ func TestValidateOperationOptions(t *testing.T) {
 		{name: "reconfigure accepts valid options", validate: func() error {
 			return (ReconfigureOptions{Config: validValidationConfig(), Suffix: "-v2", Signing: SigningOptions{Mode: SigningModeUnsigned}}).Validate()
 		}},
+		{name: "inspect rejects unsupported source", validate: func() error {
+			return (InspectOptions{Source: "bundle.uds.hcl", Config: validValidationConfig()}).Validate()
+		}, wantErr: "source must be a .tar.zst bundle artifact or OCI reference"},
+		{name: "inspect rejects malformed OCI reference", validate: func() error {
+			return (InspectOptions{Source: "oci://", Config: validValidationConfig()}).Validate()
+		}, wantErr: "parsing OCI reference"},
+		{name: "inspect accepts bundle artifact source", validate: func() error {
+			return (InspectOptions{Source: "bundle.tar.zst", Config: validValidationConfig()}).Validate()
+		}},
+		{name: "inspect accepts OCI source", validate: func() error {
+			return (InspectOptions{Source: "ghcr.io/example/bundle:v1", Config: validValidationConfig()}).Validate()
+		}},
+		{name: "inspect validates configured verification policy", validate: func() error {
+			config := validValidationConfig()
+			config.SignatureVerification = &VerificationPolicy{
+				Keyless: &KeylessVerification{CertificateIdentity: "workflow"},
+			}
+			return (InspectOptions{Source: "bundle.tar.zst", Config: config}).Validate()
+		}, wantErr: "certificate OIDC issuer"},
 	}
 
 	for _, tt := range tests {

@@ -390,11 +390,11 @@ func TestPublicAdaptersValidateOptionsBeforeOperationLogic(t *testing.T) {
 		run  func() error
 	}{
 		{name: "pull bundle", run: func() error {
-			_, err := PullBundle(t.Context(), "invalid", "", PullOptions{})
+			_, err := Pull(t.Context(), "invalid", "", PullOptions{SkipSignatureVerification: true})
 			return err
 		}},
 		{name: "push bundle", run: func() error {
-			_, err := PushBundle(t.Context(), "", "invalid", PushOptions{})
+			_, err := Push(t.Context(), "", "invalid", PushOptions{})
 			return err
 		}},
 		{name: "deploy package", run: func() error {

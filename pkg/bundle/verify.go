@@ -30,7 +30,7 @@ func Verify(ctx context.Context, opts VerifyOptions) error {
 			return fmt.Errorf("creating OCI verification workspace: %w", err)
 		}
 		defer func() { _ = os.RemoveAll(workspace) }()
-		pulled, err := PullBundle(ctx, opts.Source, workspace, PullOptions{
+		pulled, err := Pull(ctx, opts.Source, workspace, PullOptions{
 			Config:                    opts.Config,
 			Verification:              opts.Policy,
 			SkipSignatureVerification: false,
@@ -48,7 +48,7 @@ func Verify(ctx context.Context, opts VerifyOptions) error {
 		return fmt.Errorf("creating verification workspace: %w", err)
 	}
 	defer func() { _ = os.RemoveAll(workspace) }()
-	signatureEntries, err := artifact.CountTarZstEntries(ctx, opts.Source, BundleSignatureFileName)
+	signatureEntries, err := artifact.CountTarZstEntries(ctx, opts.Source, bundleSignatureFileName)
 	if err != nil {
 		return fmt.Errorf("checking bundle signature evidence: %w", err)
 	}
@@ -66,7 +66,7 @@ func Verify(ctx context.Context, opts VerifyOptions) error {
 	if err := validateBundleIndex(index); err != nil {
 		return err
 	}
-	evidencePath := filepath.Join(workspace, BundleSignatureFileName)
+	evidencePath := filepath.Join(workspace, bundleSignatureFileName)
 	evidenceInfo, err := os.Stat(evidencePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -104,7 +104,7 @@ func verifySignature(ctx context.Context, index, evidence []byte, policy Verific
 	if err := os.WriteFile(indexPath, index, 0o600); err != nil {
 		return fmt.Errorf("writing bundle index for signature verification: %w", err)
 	}
-	evidencePath := filepath.Join(workspace, BundleSignatureFileName)
+	evidencePath := filepath.Join(workspace, bundleSignatureFileName)
 	if err := os.WriteFile(evidencePath, evidence, 0o600); err != nil {
 		return fmt.Errorf("writing bundle signature evidence: %w", err)
 	}

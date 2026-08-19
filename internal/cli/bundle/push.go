@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
@@ -124,22 +123,7 @@ func (o *PushOptions) Run(ctx context.Context) error {
 	}
 	o.Info("pushing bundle", "tarball", o.Tarball, "ref", o.OCIReference)
 
-	tmp, err := os.MkdirTemp(o.Config.Options.TmpDir, "uds-bundle-push-*")
-	if err != nil {
-		return fmt.Errorf("creating temp dir: %w", err)
-	}
-	defer func() {
-		if err := os.RemoveAll(tmp); err != nil {
-			o.Warn("failed to remove temporary directory", "path", tmp, "error", err)
-		}
-	}()
-
-	o.Debug("extracting bundle", "source", o.Tarball, "output", tmp)
-	if err := artifact.ExtractTarZst(ctx, o.IOStreams, o.Tarball, tmp); err != nil {
-		return fmt.Errorf("extracting bundle: %w", err)
-	}
-
-	result, err := bundle.PushBundle(ctx, tmp, o.OCIReference, pushOpts)
+	result, err := bundle.Push(ctx, o.Tarball, o.OCIReference, pushOpts)
 	if err != nil {
 		return err
 	}

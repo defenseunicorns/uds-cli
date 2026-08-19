@@ -11,7 +11,6 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	"github.com/defenseunicorns/uds-cli/internal/cli"
 	"github.com/defenseunicorns/uds-cli/internal/cli/bundle"
 	"github.com/stretchr/testify/assert"
@@ -81,8 +80,6 @@ func TestInspectCommand_StructuredOutput_Integration(t *testing.T) {
 
 func TestInspectOCICommand_Integration(t *testing.T) {
 	artifactTarball := createInspectArtifact(t)
-	artifactDir := t.TempDir()
-	require.NoError(t, artifact.ExtractTarZst(t.Context(), iostreams.IOStreams{}, artifactTarball, artifactDir))
 	registryHost := startLocalRegistry(t)
 	ref := fmt.Sprintf("%s/test/inspect:v1.0.0", registryHost)
 	config := &bundlepkg.UDSBundleConfig{
@@ -93,7 +90,7 @@ func TestInspectOCICommand_Integration(t *testing.T) {
 			TmpDir:       t.TempDir(),
 		},
 	}
-	_, err := bundlepkg.PushBundle(t.Context(), artifactDir, ref, bundlepkg.PushOptions{Config: config})
+	_, err := bundlepkg.Push(t.Context(), artifactTarball, ref, bundlepkg.PushOptions{Config: config})
 	require.NoError(t, err)
 
 	streams, _, out, _ := iostreams.NewTestIOStreams()
@@ -222,10 +219,11 @@ func TestPushPull_RoundTrip(t *testing.T) {
 
 	// pull the bundle from the local registry.
 	outDir := t.TempDir()
-	pullResult, err := bundlepkg.PullBundle(t.Context(), ref, outDir, bundlepkg.PullOptions{
+	pullResult, err := bundlepkg.Pull(t.Context(), ref, outDir, bundlepkg.PullOptions{
 		Config: &bundlepkg.UDSBundleConfig{
 			Options: &bundlepkg.ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true, Architecture: arch, Concurrency: 10},
 		},
+		SkipSignatureVerification: true,
 	})
 	require.NoError(t, err, "Pull should succeed against local registry")
 
@@ -235,9 +233,7 @@ func TestPushPull_RoundTrip(t *testing.T) {
 
 func pushBundleArtifact(t *testing.T, tarball, ref string, cfg *bundlepkg.UDSBundleConfig) {
 	t.Helper()
-	bundleDir := t.TempDir()
-	require.NoError(t, artifact.ExtractTarZst(t.Context(), iostreams.IOStreams{}, tarball, bundleDir))
-	_, err := bundlepkg.PushBundle(t.Context(), bundleDir, ref, bundlepkg.PushOptions{Config: cfg})
+	_, err := bundlepkg.Push(t.Context(), tarball, ref, bundlepkg.PushOptions{Config: cfg})
 	require.NoError(t, err)
 }
 

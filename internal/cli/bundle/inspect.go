@@ -9,8 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/internal/artifact"
-	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
@@ -19,8 +17,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 )
-
-const bundleSignatureNotCheckedWarning = "bundle signature verification was not performed; package verification policy and signing metadata do not establish bundle integrity"
 
 // InspectOptions holds the options for the inspect command.
 type InspectOptions struct {
@@ -93,7 +89,20 @@ func (o *InspectOptions) Complete(cmd *cobra.Command, args []string) error {
 
 // Validate validates the options without modifying state.
 func (o *InspectOptions) Validate() error {
-	if err := bundleinternal.ValidateConfig(toInternalConfig(o.Config)); err != nil {
+	policy := bundle.VerificationPolicy{}
+	if o.verificationRequested() {
+		var err error
+		policy, err = o.Verification.policy()
+		if err != nil {
+			return err
+		}
+	}
+	if err := (bundle.InspectOptions{
+		Source:                    o.BundlePath,
+		Config:                    o.Config,
+		Verification:              policy,
+		SkipSignatureVerification: o.Verification.SkipSignatureVerification,
+	}).Validate(); err != nil {
 		return err
 	}
 	if strings.TrimSpace(o.BundlePath) == "" {
@@ -131,50 +140,26 @@ func (o *InspectOptions) Validate() error {
 
 // Run executes the inspect command.
 func (o *InspectOptions) Run(ctx context.Context) error {
+	policy := bundle.VerificationPolicy{}
 	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Options.LogLevel)
 	o.Info("inspecting bundle", "source", o.BundlePath)
-	verified := false
 	if o.verificationRequested() {
-		policy, err := o.Verification.policy()
+		var err error
+		policy, err = o.Verification.policy()
 		if err != nil {
 			return err
 		}
-		if err := bundle.Verify(ctx, bundle.VerifyOptions{Source: o.BundlePath, Policy: policy, Config: o.Config, TmpDir: o.Config.Options.TmpDir, Streams: o.IOStreams}); err != nil {
-			return fmt.Errorf("verifying bundle: %w", err)
-		}
-		verified = true
 	}
-
-	internalResult, err := artifact.Inspect(ctx, artifact.InspectOptions{
-		Source:  o.BundlePath,
-		Config:  toInternalConfig(o.Config),
-		Streams: o.IOStreams,
+	result, err := bundle.Inspect(ctx, bundle.InspectOptions{
+		Source:                    o.BundlePath,
+		Config:                    o.Config,
+		Verification:              policy,
+		SkipSignatureVerification: o.Verification.SkipSignatureVerification,
+		Streams:                   o.IOStreams,
 	})
 	if err != nil {
 		return fmt.Errorf("inspecting bundle: %w", err)
 	}
-	result := &inspectResult{
-		Name: internalResult.Bundle.Metadata.Name, Description: internalResult.Bundle.Metadata.Description,
-		Version: internalResult.Bundle.Metadata.Version, ArtifactDigest: internalResult.ArtifactDigest,
-		ReconfiguredFrom: internalResult.ReconfiguredFrom,
-		BundleSignature:  &bundleSignatureSummary{Status: "not_checked"}, Packages: make([]packageSummary, len(internalResult.Packages)),
-	}
-	if verified {
-		result.BundleSignature.Status = bundle.BundleSignatureStatusVerified
-	}
-	for i, pkg := range internalResult.Packages {
-		summary := internalResult.PackageSignatures[pkg.Name]
-		dependsOn := make([]string, len(pkg.DependsOn))
-		for j, dependency := range pkg.DependsOn {
-			dependsOn[j] = dependency.Name
-		}
-		result.Packages[i] = packageSummary{
-			Name: pkg.Name, Source: pkg.Source, Namespace: pkg.Namespace, DependsOn: dependsOn, ValuesFiles: pkg.ValuesFiles,
-			Signature: &packageSignatureSummary{Signed: signingStatus(summary.Signed), Verification: verificationStatus(summary.Verification)},
-		}
-	}
-	o.Warn(bundleSignatureNotCheckedWarning)
-
 	return o.Printer.PrintObj(result, o.Out())
 }
 
@@ -187,63 +172,4 @@ func (o *InspectOptions) verificationRequested() bool {
 		(o.Config != nil && o.Config.SignatureVerification != nil)
 }
 
-func signingStatus(status artifact.PackageSigningStatus) string {
-	switch status {
-	case artifact.PackageSigningStatusSigned:
-		return "signed"
-	case artifact.PackageSigningStatusUnsigned:
-		return "unsigned"
-	default:
-		return "unknown"
-	}
-}
-
-func verificationStatus(status artifact.PackageVerificationStatus) string {
-	switch status {
-	case artifact.PackageVerificationStatusVerified:
-		return "verified"
-	case artifact.PackageVerificationStatusSkipped:
-		return "skipped"
-	default:
-		return "unknown"
-	}
-}
-
-type inspectResult struct {
-	Name             string                  `json:"name" yaml:"name" text:"Name"`
-	Description      string                  `json:"description,omitempty" yaml:"description,omitempty" text:"Description,omitempty"`
-	Version          string                  `json:"version,omitempty" yaml:"version,omitempty" text:"Version,omitempty"`
-	ArtifactDigest   string                  `json:"artifactDigest,omitempty" yaml:"artifactDigest,omitempty" text:"Artifact Digest,omitempty"`
-	ReconfiguredFrom string                  `json:"reconfiguredFrom,omitempty" yaml:"reconfiguredFrom,omitempty" text:"Reconfigured From,omitempty"`
-	BundleSignature  *bundleSignatureSummary `json:"bundleSignature,omitempty" yaml:"bundleSignature,omitempty" text:"Bundle Signature,omitempty"`
-	Packages         []packageSummary        `json:"packages" yaml:"packages" text:"Packages"`
-}
-
-type packageSummary struct {
-	Name        string                   `json:"name" yaml:"name" text:"Name"`
-	Source      string                   `json:"source" yaml:"source" text:"Source"`
-	Namespace   string                   `json:"namespace,omitempty" yaml:"namespace,omitempty" text:"Namespace,omitempty"`
-	DependsOn   []string                 `json:"dependsOn,omitempty" yaml:"dependsOn,omitempty" text:"DependsOn,omitempty"`
-	ValuesFiles []string                 `json:"valuesFiles,omitempty" yaml:"valuesFiles,omitempty" text:"Value Files,omitempty"`
-	Signature   *packageSignatureSummary `json:"signature,omitempty" yaml:"signature,omitempty" text:"Signature,omitempty"`
-}
-
-type bundleSignatureSummary struct {
-	Status string `json:"status" yaml:"status" text:"Status"`
-}
-
-type packageSignatureSummary struct {
-	Signed       string `json:"signed" yaml:"signed" text:"Signed"`
-	Verification string `json:"verification" yaml:"verification" text:"Verification Posture"`
-}
-
-func toInternalConfig(cfg *bundle.UDSBundleConfig) *bundleinternal.UDSBundleConfig {
-	if cfg == nil {
-		return nil
-	}
-	var options *bundleinternal.ConfigOptions
-	if cfg.Options != nil {
-		options = &bundleinternal.ConfigOptions{LogLevel: cfg.Options.LogLevel, Architecture: cfg.Options.Architecture, PlainHTTP: cfg.Options.PlainHTTP, SkipTLSVerify: cfg.Options.SkipTLSVerify, TmpDir: cfg.Options.TmpDir, Concurrency: cfg.Options.Concurrency}
-	}
-	return &bundleinternal.UDSBundleConfig{Options: options, Variables: bundleinternal.Variables(cfg.Variables)}
-}
+type inspectResult = bundle.InspectResult

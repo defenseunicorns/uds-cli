@@ -18,11 +18,10 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/signing"
 )
 
-// BundleSignatureFileName is the archive-root filename for bundle signature evidence.
-const BundleSignatureFileName = oci.BundleSignatureFileName
+const bundleSignatureFileName = oci.BundleSignatureFileName
 
-// WarnSkippedSignatureVerification reports the insecure bundle verification bypass.
-func WarnSkippedSignatureVerification(streams iostreams.IOStreams) {
+// warnSkippedSignatureVerification reports the insecure bundle verification bypass.
+func warnSkippedSignatureVerification(streams iostreams.IOStreams) {
 	streams.Warn("signature verification was skipped; bundle integrity and origin are not established")
 }
 
@@ -59,7 +58,7 @@ func Sign(ctx context.Context, opts SignOptions) error {
 		return fmt.Errorf("verifying bundle content before signing: %w", err)
 	}
 
-	evidencePath := filepath.Join(workspace, BundleSignatureFileName)
+	evidencePath := filepath.Join(workspace, bundleSignatureFileName)
 	if err := signBundleIndex(ctx, indexPath, evidencePath, opts.Signing); err != nil {
 		return err
 	}
@@ -95,7 +94,7 @@ func signOCI(ctx context.Context, opts SignOptions) error {
 	if err := os.WriteFile(indexPath, index, 0o600); err != nil {
 		return fmt.Errorf("writing bundle index for signing: %w", err)
 	}
-	evidencePath := filepath.Join(workspace, BundleSignatureFileName)
+	evidencePath := filepath.Join(workspace, bundleSignatureFileName)
 	if err := signBundleIndex(ctx, indexPath, evidencePath, opts.Signing); err != nil {
 		return err
 	}

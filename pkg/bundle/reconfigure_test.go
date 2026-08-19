@@ -584,12 +584,12 @@ package "pkg1" {
 
 	workspace := t.TempDir()
 	require.NoError(t, artifact.ExtractTarZst(t.Context(), iostreams.IOStreams{}, tarball, workspace))
-	require.NoError(t, os.WriteFile(filepath.Join(workspace, BundleSignatureFileName), []byte("stale evidence"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(workspace, bundleSignatureFileName), []byte("stale evidence"), tmpFilePerm))
 	require.NoError(t, artifact.WriteTarZst(t.Context(), iostreams.IOStreams{}, tarball, workspace))
 
 	result, err := runLocalReconfigure(t, tarball, writeDefaultsFile(t, `variables = { changed = true }`), "-reconfigured")
 	require.NoError(t, err)
-	_, exists := readTarZstEntries(t, result.OutputPath)[BundleSignatureFileName]
+	_, exists := readTarZstEntries(t, result.OutputPath)[bundleSignatureFileName]
 	assert.False(t, exists)
 }
 

@@ -102,13 +102,25 @@ func TestPush_RejectsDuplicateSignatureEvidence(t *testing.T) {
 	require.ErrorContains(t, err, "expected exactly one bundle signature evidence entry, found 2")
 }
 
+func TestInspectSkip_RejectsDuplicateSignatureEvidence(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "duplicate-signature.tar.zst")
+	writeDuplicateSignatureArchive(t, source)
+
+	_, err := Inspect(t.Context(), InspectOptions{
+		Source:                    source,
+		Config:                    newTestConfig(),
+		SkipSignatureVerification: true,
+	})
+	require.ErrorContains(t, err, "expected exactly one bundle signature evidence entry, found 2")
+}
+
 func writeDuplicateSignatureArchive(t *testing.T, dst string) {
 	t.Helper()
 
 	var tarData bytes.Buffer
 	tw := tar.NewWriter(&tarData)
 	for _, contents := range [][]byte{[]byte("first"), []byte("second")} {
-		require.NoError(t, tw.WriteHeader(&tar.Header{Name: BundleSignatureFileName, Mode: 0o600, Size: int64(len(contents)), Typeflag: tar.TypeReg}))
+		require.NoError(t, tw.WriteHeader(&tar.Header{Name: bundleSignatureFileName, Mode: 0o600, Size: int64(len(contents)), Typeflag: tar.TypeReg}))
 		_, err := tw.Write(contents)
 		require.NoError(t, err)
 	}
