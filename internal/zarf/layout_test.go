@@ -86,6 +86,24 @@ func TestArtifactPackageLayoutOptionsNeverVerifies(t *testing.T) {
 	assert.Equal(t, layout.VerifyNever, opts.VerificationStrategy)
 }
 
+func TestExtractedArtifactPackageLayoutLoaderPackageStagingRoot(t *testing.T) {
+	tests := []struct {
+		name   string
+		ociDir string
+		want   string
+	}{
+		{name: "empty OCI directory", want: ""},
+		{name: "OCI directory", ociDir: "/workspace/oci", want: "/workspace"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loader := &ExtractedArtifactPackageLayoutLoader{OCIDir: tt.ociDir}
+			assert.Equal(t, tt.want, loader.PackageStagingRoot(t.Context()))
+		})
+	}
+}
+
 func TestSourcePackageLayoutLoaderAdvisoryVerification(t *testing.T) {
 	falseValue := false
 	tests := []struct {
@@ -146,18 +164,80 @@ func TestExtractedArtifactPackageLayoutLoader_StagesFiles(t *testing.T) {
 	assert.FileExists(t, filepath.Join(dstDir, "zarf.yaml"), "zarf.yaml layer should be staged before LoadFromDir is called")
 }
 
-func TestStagePackageLayer_CopiesWritableImagesIndex(t *testing.T) {
-	src := filepath.Join(t.TempDir(), "index.json")
-	require.NoError(t, os.WriteFile(src, []byte("original"), 0o400))
-	dst := filepath.Join(t.TempDir(), "images", "index.json")
-	require.NoError(t, os.MkdirAll(filepath.Dir(dst), 0o700))
+func TestExtractedArtifactPackageLayoutLoader_StagesFilesWithRelativeOCIDir(t *testing.T) {
+	loader := newArtifactPackageLayoutLoader(t, "zarf.yaml")
+	workspaceDir := filepath.Dir(loader.OCIDir)
+	t.Chdir(workspaceDir)
+	loader.OCIDir = filepath.Base(loader.OCIDir)
 
-	require.NoError(t, stagePackageLayer(t.Context(), src, dst, "images/index.json"))
-	require.NoError(t, os.WriteFile(dst, []byte("updated"), 0o600))
+	dstDir := t.TempDir()
+	_, _, err := loader.LoadPackageLayout(t.Context(), &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}, dstDir, LoadOptions{})
+	require.Error(t, err, "fixture is not a complete Zarf package")
+	assert.FileExists(t, filepath.Join(dstDir, "zarf.yaml"))
+}
+
+func TestStageArtifactPackageLayer_CopiesFile(t *testing.T) {
+	workspaceDir := t.TempDir()
+	src := filepath.Join(workspaceDir, "index.json")
+	require.NoError(t, os.WriteFile(src, []byte("original"), 0o400))
+	root, err := os.OpenRoot(workspaceDir)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, root.Close()) })
+	require.NoError(t, root.MkdirAll("images", 0o700))
+
+	require.NoError(t, stageArtifactPackageLayer(t.Context(), root, "index.json", root, "images/index.json", "images/index.json", true))
+	require.NoError(t, os.WriteFile(filepath.Join(workspaceDir, "images", "index.json"), []byte("updated"), 0o600))
 
 	sourceData, err := os.ReadFile(src)
 	require.NoError(t, err)
 	assert.Equal(t, "original", string(sourceData))
+}
+
+func TestStageArtifactPackageLayer_HardLinksRegularBlob(t *testing.T) {
+	workspaceDir := t.TempDir()
+	src := filepath.Join(workspaceDir, "blob")
+	require.NoError(t, os.WriteFile(src, []byte("contents"), 0o400))
+	root, err := os.OpenRoot(workspaceDir)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, root.Close()) })
+
+	require.NoError(t, stageArtifactPackageLayer(t.Context(), root, "blob", root, "staged", "zarf.yaml", true))
+	srcInfo, err := os.Stat(src)
+	require.NoError(t, err)
+	dstInfo, err := root.Stat("staged")
+	require.NoError(t, err)
+	assert.True(t, os.SameFile(srcInfo, dstInfo), "regular blob should be hard-linked into staging")
+}
+
+func TestStageArtifactPackageLayer_CopiesSymlinkedBlob(t *testing.T) {
+	workspaceDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(workspaceDir, "blob"), []byte("contents"), 0o600))
+	require.NoError(t, os.Symlink("blob", filepath.Join(workspaceDir, "blob-link")))
+	root, err := os.OpenRoot(workspaceDir)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, root.Close()) })
+
+	require.NoError(t, stageArtifactPackageLayer(t.Context(), root, "blob-link", root, "staged", "zarf.yaml", true))
+	info, err := root.Lstat("staged")
+	require.NoError(t, err)
+	assert.Zero(t, info.Mode()&os.ModeSymlink)
+	data, err := root.ReadFile("staged")
+	require.NoError(t, err)
+	assert.Equal(t, "contents", string(data))
+}
+
+func TestCopyFileContentsBetweenRoots_PreservesExistingTmpPath(t *testing.T) {
+	workspaceDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(workspaceDir, "source"), []byte("new"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(workspaceDir, "target.tmp"), []byte("existing"), 0o600))
+	root, err := os.OpenRoot(workspaceDir)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, root.Close()) })
+
+	require.NoError(t, copyFileContentsBetweenRoots(t.Context(), root, "source", root, "target"))
+	tmpData, err := root.ReadFile("target.tmp")
+	require.NoError(t, err)
+	assert.Equal(t, "existing", string(tmpData))
 }
 
 func TestExtractedArtifactPackageLayoutLoader_RejectsEscapingLayerTitle(t *testing.T) {
@@ -170,6 +250,17 @@ func TestExtractedArtifactPackageLayoutLoader_RejectsEscapingLayerTitle(t *testi
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "escapes destination directory")
 	assert.NoFileExists(t, escapedPath)
+}
+
+func TestExtractedArtifactPackageLayoutLoader_RejectsDestinationSymlinkEscape(t *testing.T) {
+	loader := newArtifactPackageLayoutLoader(t, "escape/zarf.yaml")
+	dstDir := t.TempDir()
+	escapedDir := t.TempDir()
+	require.NoError(t, os.Symlink(escapedDir, filepath.Join(dstDir, "escape")))
+
+	_, _, err := loader.LoadPackageLayout(t.Context(), &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}, dstDir, LoadOptions{})
+	require.Error(t, err)
+	assert.NoFileExists(t, filepath.Join(escapedDir, "zarf.yaml"))
 }
 
 func TestExtractedArtifactPackageLayoutLoader_RejectsMissingLayerTitle(t *testing.T) {
@@ -186,16 +277,19 @@ func TestExtractedArtifactPackageLayoutLoader_RejectsMissingLayerTitle(t *testin
 }
 
 func TestCopyFileContents_ObservesCanceledContext(t *testing.T) {
-	src := filepath.Join(t.TempDir(), "src")
-	dst := filepath.Join(t.TempDir(), "dst")
+	workspaceDir := t.TempDir()
+	src := filepath.Join(workspaceDir, "src")
+	root, err := os.OpenRoot(workspaceDir)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, root.Close()) })
 	require.NoError(t, os.WriteFile(src, []byte("contents"), 0o600))
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	err := copyFileContents(ctx, src, dst)
+	err = copyFileContentsBetweenRoots(ctx, root, "src", root, "dst")
 	require.ErrorIs(t, err, context.Canceled)
-	assert.NoFileExists(t, dst)
+	assert.NoFileExists(t, filepath.Join(workspaceDir, "dst"))
 }
 
 func TestCtxReader_ObservesCancellationBetweenReads(t *testing.T) {

@@ -5,6 +5,7 @@ package zarf
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,6 +21,15 @@ import (
 )
 
 var _ PackageLayoutLoader = (*ExtractedArtifactPackageLayoutLoader)(nil)
+
+// PackageStagingRoot returns the artifact workspace so package layers can be
+// staged alongside their OCI blobs using rooted hard links.
+func (l *ExtractedArtifactPackageLayoutLoader) PackageStagingRoot(_ context.Context) string {
+	if l.OCIDir == "" {
+		return ""
+	}
+	return filepath.Dir(filepath.Clean(l.OCIDir))
+}
 
 // LoadPackageLayout stages indexed OCI layers into dstDir.
 func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *Package, dstDir string, opts LoadOptions) (*layout.PackageLayout, bool, error) {
@@ -56,8 +66,12 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 		return nil, false, fmt.Errorf("package %q (source %q) not found in bundle artifact index; available: %v", pkg.Name, pkg.Source, keys)
 	}
 
-	blobDir := filepath.Join(l.OCIDir, "blobs", "sha256")
-	store, err := udsoci.OpenReadOnlyStore(l.OCIDir)
+	cleanOCIDir, err := filepath.Abs(filepath.Clean(l.OCIDir))
+	if err != nil {
+		return nil, false, fmt.Errorf("resolving artifact OCI directory: %w", err)
+	}
+	blobDir := filepath.Join(cleanOCIDir, "blobs", "sha256")
+	store, err := udsoci.OpenReadOnlyStore(cleanOCIDir)
 	if err != nil {
 		return nil, false, fmt.Errorf("opening OCI layout for package %q: %w", pkg.Name, err)
 	}
@@ -74,20 +88,49 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 	if err != nil {
 		return nil, false, fmt.Errorf("resolving destination directory: %w", err)
 	}
+	dstRoot, err := os.OpenRoot(cleanDstDir)
+	if err != nil {
+		return nil, false, fmt.Errorf("opening package destination directory: %w", err)
+	}
+	defer func() { _ = dstRoot.Close() }()
+	workspaceDir := filepath.Dir(cleanOCIDir)
+	workspaceRoot, err := os.OpenRoot(workspaceDir)
+	if err != nil {
+		return nil, false, fmt.Errorf("opening artifact workspace directory: %w", err)
+	}
+	defer func() { _ = workspaceRoot.Close() }()
 	for _, layer := range manifest.Layers {
 		title := layer.Annotations[ocispec.AnnotationTitle]
 		if title == "" {
 			return nil, false, fmt.Errorf("manifest for package %q missing title annotation on layer with digest %q", pkg.Name, layer.Digest)
 		}
 		src := filepath.Join(blobDir, layer.Digest.Hex())
-		dst, err := safeLayerDestinationPath(cleanDstDir, dstDir, title)
+		relSrc, err := filepath.Rel(workspaceDir, src)
+		if err != nil {
+			return nil, false, fmt.Errorf("resolving layer %q relative to artifact workspace: %w", title, err)
+		}
+		dst, err := safeLayerDestinationPath(cleanDstDir, cleanDstDir, title)
 		if err != nil {
 			return nil, false, err
 		}
-		if err := os.MkdirAll(filepath.Dir(dst), tempDirPerm); err != nil {
+		relDst, err := filepath.Rel(cleanDstDir, dst)
+		if err != nil {
+			return nil, false, fmt.Errorf("resolving layer %q relative to package destination: %w", title, err)
+		}
+		if err := dstRoot.MkdirAll(filepath.Dir(relDst), tempDirPerm); err != nil {
 			return nil, false, fmt.Errorf("creating dir for layer %q: %w", title, err)
 		}
-		if err := stagePackageLayer(ctx, src, dst, title); err != nil {
+		workspaceDst, err := filepath.Rel(workspaceDir, dst)
+		stageRoot := dstRoot
+		stageDst := relDst
+		// Hard links require both paths beneath one os.Root. External library
+		// destinations remain supported through the rooted-copy fallback.
+		canLink := err == nil && workspaceDst != ".." && !strings.HasPrefix(workspaceDst, ".."+string(os.PathSeparator))
+		if canLink {
+			stageRoot = workspaceRoot
+			stageDst = workspaceDst
+		}
+		if err := stageArtifactPackageLayer(ctx, workspaceRoot, relSrc, stageRoot, stageDst, title, canLink); err != nil {
 			return nil, false, fmt.Errorf("staging layer %q for package %q: %w", title, pkg.Name, err)
 		}
 	}
@@ -100,6 +143,35 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 		return nil, false, fmt.Errorf("loading package layout for %q: %w", pkg.Name, err)
 	}
 	return pkgLayout, true, nil
+}
+
+// stageArtifactPackageLayer links regular immutable blobs inside one workspace
+// and otherwise copies through rooted source and destination access.
+func stageArtifactPackageLayer(ctx context.Context, workspaceRoot *os.Root, src string, dstRoot *os.Root, dst, title string, canLink bool) error {
+	if canLink && filepath.ToSlash(title) != "images/index.json" && !rootPathContainsSymlink(workspaceRoot, src) {
+		if err := workspaceRoot.Link(src, dst); err == nil {
+			return nil
+		}
+	}
+	return copyFileContentsBetweenRoots(ctx, workspaceRoot, src, dstRoot, dst)
+}
+
+// rootPathContainsSymlink reports whether name includes a symbolic-link
+// component beneath root. Symlinked blobs are copied so their targets are not
+// relocated into the package staging directory.
+func rootPathContainsSymlink(root *os.Root, name string) bool {
+	path := "."
+	for _, component := range strings.Split(filepath.Clean(name), string(os.PathSeparator)) {
+		if component == "." {
+			continue
+		}
+		path = filepath.Join(path, component)
+		info, err := root.Lstat(path)
+		if err != nil || info.Mode()&os.ModeSymlink != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func artifactPackageLayoutOptions(filter filters.ComponentFilterStrategy, isPartial bool) layout.PackageLayoutOptions {
@@ -130,43 +202,20 @@ func (l *SourcePackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *
 	return pkgLayout, opts.IsPartial, nil
 }
 
-func stagePackageLayer(ctx context.Context, src, dst, title string) error {
-	// Zarf adds image-name annotations to this index during deploy. Copy it so
-	// read-only OCI blobs remain immutable and the staged index is writable.
-	if filepath.ToSlash(title) == "images/index.json" {
-		return copyFileContents(ctx, src, dst)
-	}
-	return linkOrCopy(ctx, src, dst)
-}
-
-// linkOrCopy creates a hard link from src to dst; on cross-device link errors it falls back to a full copy.
-// linkOrCopy links or copies a file from src to dst. When a hard link succeeds,
-// the destination shares an inode with the source and must be treated as read-only
-// since mutations would affect both. The OCI blobs written by this function are
-// immutable and digest-addressed, and callers read and decompress them into
-// separate temporary directories before use, so read-only access is safe.
-func linkOrCopy(ctx context.Context, src, dst string) error {
-	if err := os.Link(src, dst); err == nil {
-		return nil
-	}
-	return copyFileContents(ctx, src, dst)
-}
-
-// copyFileContents copies a file atomically while observing context cancellation.
-func copyFileContents(ctx context.Context, src, dst string) error {
+// copyFileContentsBetweenRoots copies src atomically between rooted
+// filesystems while observing context cancellation.
+func copyFileContentsBetweenRoots(ctx context.Context, srcRoot *os.Root, src string, dstRoot *os.Root, dst string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 
-	in, err := os.Open(src)
+	in, err := srcRoot.Open(src)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = in.Close() }()
 
-	// Write to a temp file first; rename to dst only on success to prevent partial files.
-	tmp := dst + ".tmp"
-	out, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, tmpFilePerm)
+	out, tmp, err := createRootTempFile(dstRoot, dst)
 	if err != nil {
 		return err
 	}
@@ -175,17 +224,33 @@ func copyFileContents(ctx context.Context, src, dst string) error {
 	closeErr := out.Close()
 
 	if copyErr != nil || ctx.Err() != nil {
-		_ = os.Remove(tmp)
+		_ = dstRoot.Remove(tmp)
 		if copyErr != nil {
 			return copyErr
 		}
 		return ctx.Err()
 	}
 	if closeErr != nil {
-		_ = os.Remove(tmp)
+		_ = dstRoot.Remove(tmp)
 		return closeErr
 	}
-	return os.Rename(tmp, dst)
+	return dstRoot.Rename(tmp, dst)
+}
+
+func createRootTempFile(root *os.Root, dst string) (*os.File, string, error) {
+	var suffix [8]byte
+	for range 10 {
+		if _, err := rand.Read(suffix[:]); err != nil {
+			return nil, "", err
+		}
+		tmp := filepath.Join(filepath.Dir(dst), fmt.Sprintf(".uds-copy-%x", suffix))
+		file, err := root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, tmpFilePerm)
+		if os.IsExist(err) {
+			continue
+		}
+		return file, tmp, err
+	}
+	return nil, "", fmt.Errorf("creating unique temporary file for %q", dst)
 }
 
 // safeLayerDestinationPath resolves a layer title without allowing directory escape.

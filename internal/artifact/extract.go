@@ -158,6 +158,14 @@ func materializeBundleSrcFiles(_ context.Context, streams iostreams.IOStreams, b
 	if err != nil {
 		return "", fmt.Errorf("resolving destination directory: %w", err)
 	}
+	dstRoot, err := os.OpenRoot(cleanDstDir)
+	if err != nil {
+		return "", fmt.Errorf("opening destination directory: %w", err)
+	}
+	defer func() { _ = dstRoot.Close() }()
+
+	// Write relative to the workspace root so layer titles cannot redirect
+	// materialized bundle files outside the extracted artifact.
 	var bundleDefPath string
 	for _, layer := range bundleDef.Layers {
 		title := layer.Annotations[ocispec.AnnotationTitle]
@@ -174,14 +182,18 @@ func materializeBundleSrcFiles(_ context.Context, streams iostreams.IOStreams, b
 			return "", fmt.Errorf("reading layer blob %s (%s): %w", title, layer.Digest, err)
 		}
 
-		dst, err := safeLayerDestinationPath(cleanDstDir, dstDir, title)
+		dst, err := safeLayerDestinationPath(cleanDstDir, cleanDstDir, title)
 		if err != nil {
 			return "", err
 		}
-		if err := os.MkdirAll(filepath.Dir(dst), tempDirPerm); err != nil {
+		relDst, err := filepath.Rel(cleanDstDir, dst)
+		if err != nil {
+			return "", fmt.Errorf("resolving layer title %q relative to destination: %w", title, err)
+		}
+		if err := dstRoot.MkdirAll(filepath.Dir(relDst), tempDirPerm); err != nil {
 			return "", fmt.Errorf("creating directory for %s: %w", title, err)
 		}
-		if err := os.WriteFile(dst, data, tmpFilePerm); err != nil {
+		if err := dstRoot.WriteFile(relDst, data, tmpFilePerm); err != nil {
 			return "", fmt.Errorf("writing %s: %w", title, err)
 		}
 		if layer.MediaType == oci.MediaTypeBundleHCL && title == bundleinternal.BundleFileName {

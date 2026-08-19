@@ -72,6 +72,15 @@ func (l *extractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 	return result, nil
 }
 
+// PackageStagingRoot returns the parent of OCIDir so package staging can share
+// the artifact workspace and hard-link immutable OCI blobs.
+func (l *extractedArtifactPackageLayoutLoader) PackageStagingRoot(_ context.Context) string {
+	if l.loader.OCIDir == "" {
+		return ""
+	}
+	return filepath.Dir(filepath.Clean(l.loader.OCIDir))
+}
+
 // packageLayoutLoaderAdapter converts internal loader options for a public loader.
 type packageLayoutLoaderAdapter struct {
 	loader ZarfPackageLayoutLoader
@@ -105,6 +114,15 @@ func (a packageLayoutLoaderAdapter) LoadPackageLayout(ctx context.Context, pkg *
 		return nil, false, err
 	}
 	return internalLayout, publicLayout.IsPartial, nil
+}
+
+// PackageStagingRoot forwards an optional staging preference. An empty result
+// leaves staging in the configured temporary directory.
+func (a packageLayoutLoaderAdapter) PackageStagingRoot(ctx context.Context) string {
+	if provider, ok := a.loader.(PackageStagingRootProvider); ok {
+		return provider.PackageStagingRoot(ctx)
+	}
+	return ""
 }
 
 func fromZarfPackageLayout(pkgLayout *layout.PackageLayout) *ZarfPackageLayout {

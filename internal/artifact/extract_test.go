@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	godigest "github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -122,6 +123,27 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 			}
 		})
 	}
+}
+
+func TestMaterializeBundleSrcFiles_RejectsDestinationSymlinkEscape(t *testing.T) {
+	blobDir := t.TempDir()
+	data := []byte("bundle contents")
+	layerDigest := godigest.FromBytes(data)
+	require.NoError(t, os.WriteFile(filepath.Join(blobDir, layerDigest.Encoded()), data, tmpFilePerm))
+
+	dstDir := t.TempDir()
+	escapedDir := t.TempDir()
+	require.NoError(t, os.Symlink(escapedDir, filepath.Join(dstDir, "escape")))
+
+	_, err := materializeBundleSrcFiles(t.Context(), iostreams.IOStreams{}, ocispec.Manifest{
+		Layers: []ocispec.Descriptor{{
+			MediaType:   oci.MediaTypeBundleHCL,
+			Digest:      layerDigest,
+			Annotations: map[string]string{ocispec.AnnotationTitle: "escape/bundle.uds.hcl"},
+		}},
+	}, blobDir, dstDir)
+	require.Error(t, err)
+	assert.NoFileExists(t, filepath.Join(escapedDir, "bundle.uds.hcl"))
 }
 
 func TestBuildPackageManifests(t *testing.T) {

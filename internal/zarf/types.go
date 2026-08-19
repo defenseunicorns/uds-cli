@@ -213,6 +213,10 @@ type PackageLayoutLoader interface {
 	LoadPackageLayout(ctx context.Context, pkg *Package, dstDir string, opts LoadOptions) (*layout.PackageLayout, bool, error)
 }
 
+type packageStagingRootProvider interface {
+	PackageStagingRoot(ctx context.Context) string
+}
+
 // PackageSource abstracts how a Zarf package is fetched, supporting both
 // OCI registries and local paths. Remote implementations apply component
 // filtering before downloading to avoid pulling unnecessary layers; local

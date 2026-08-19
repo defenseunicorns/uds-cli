@@ -419,3 +419,21 @@ func TestPublicAdaptersValidateOptionsBeforeOperationLogic(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractedArtifactPackageLayoutLoaderPackageStagingRoot(t *testing.T) {
+	tests := []struct {
+		name   string
+		ociDir string
+		want   string
+	}{
+		{name: "empty OCI directory", want: ""},
+		{name: "OCI directory", ociDir: "/workspace/oci", want: "/workspace"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loader := &extractedArtifactPackageLayoutLoader{loader: &internalzarf.ExtractedArtifactPackageLayoutLoader{OCIDir: tt.ociDir}}
+			assert.Equal(t, tt.want, loader.PackageStagingRoot(t.Context()))
+		})
+	}
+}

@@ -6,16 +6,106 @@ package zarf
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
+
+type stagingRetryLoader struct {
+	stagingRoot             string
+	errs                    []error
+	stagedDirs              []string
+	firstRemovedBeforeRetry bool
+}
+
+func (l *stagingRetryLoader) PackageStagingRoot(context.Context) string {
+	return l.stagingRoot
+}
+
+func (l *stagingRetryLoader) LoadPackageLayout(_ context.Context, _ *Package, dstDir string, _ LoadOptions) (*layout.PackageLayout, bool, error) {
+	l.stagedDirs = append(l.stagedDirs, dstDir)
+	if len(l.stagedDirs) == 2 {
+		_, err := os.Stat(l.stagedDirs[0])
+		l.firstRemovedBeforeRetry = os.IsNotExist(err)
+	}
+	return nil, false, l.errs[len(l.stagedDirs)-1]
+}
+
+func TestIsRetryableStagingError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "no space", err: syscall.ENOSPC, want: true},
+		{name: "quota exceeded", err: fmt.Errorf("copying layer: %w", syscall.EDQUOT), want: true},
+		{name: "permission denied", err: fs.ErrPermission, want: false},
+		{name: "read-only filesystem", err: syscall.EROFS, want: false},
+		{name: "cross-device link", err: syscall.EXDEV, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isRetryableStagingError(tt.err))
+		})
+	}
+}
+
+func TestZarfDeployer_DeployPackage_StagingRetry(t *testing.T) {
+	tests := []struct {
+		name       string
+		loadErrors []error
+		wantCalls  int
+	}{
+		{
+			name:       "retries storage exhaustion in configured temp directory",
+			loadErrors: []error{syscall.ENOSPC, errors.New("fallback staging failed")},
+			wantCalls:  2,
+		},
+		{
+			name:       "does not retry non-storage error",
+			loadErrors: []error{fs.ErrPermission},
+			wantCalls:  1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			colocatedDir := t.TempDir()
+			fallbackDir := t.TempDir()
+			loader := &stagingRetryLoader{stagingRoot: colocatedDir, errs: tt.loadErrors}
+			deployer := NewZarfDeployer(iostreams.IOStreams{}, loader)
+			config := newDeployTestConfig(1)
+			config.Options.TmpDir = fallbackDir
+
+			err := deployer.DeployPackage(t.Context(), &Package{Name: "test"}, DeployPackageOptions{
+				Config:    config,
+				BundleDir: t.TempDir(),
+			})
+			require.Error(t, err)
+			require.Len(t, loader.stagedDirs, tt.wantCalls)
+			assert.DirExists(t, colocatedDir)
+			for _, stagedDir := range loader.stagedDirs {
+				assert.NoDirExists(t, stagedDir)
+			}
+			if tt.wantCalls == 2 {
+				assert.True(t, loader.firstRemovedBeforeRetry)
+				assert.Equal(t, fallbackDir, filepath.Dir(loader.stagedDirs[1]))
+			}
+		})
+	}
+}
 
 // writeTempYAML writes YAML content to a temporary test file.
 func writeTempYAML(t *testing.T, content string) string {

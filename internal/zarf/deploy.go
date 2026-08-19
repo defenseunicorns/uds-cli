@@ -6,10 +6,12 @@ package zarf
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"text/template"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
@@ -168,7 +170,26 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 
 	ctx = newZarfLoggerContext(ctx, log)
 
-	pkgTmp, err := os.MkdirTemp(opts.Config.Options.TmpDir, "zarf-pkg-*")
+	loader := d.Loader
+	if loader == nil {
+		loader = &SourcePackageLayoutLoader{configOpts: *opts.Config.Options, bundleDir: opts.BundleDir}
+	}
+	tmpDir := opts.Config.Options.TmpDir
+	stagingRoot := ""
+	if provider, ok := loader.(packageStagingRootProvider); ok {
+		// Artifact loaders colocate staging with OCI blobs so immutable layers
+		// can be hard-linked instead of copied.
+		if root := provider.PackageStagingRoot(ctx); root != "" {
+			tmpDir = root
+			stagingRoot = root
+		}
+	}
+	pkgTmp, err := os.MkdirTemp(tmpDir, "zarf-pkg-*")
+	colocatedStaging := err == nil && stagingRoot != ""
+	if err != nil && stagingRoot != "" {
+		log.Debug("unable to create colocated package staging directory; using configured temporary directory", "dir", stagingRoot, "error", err)
+		pkgTmp, err = os.MkdirTemp(opts.Config.Options.TmpDir, "zarf-pkg-*")
+	}
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
@@ -183,12 +204,20 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 		return err
 	}
 
-	loader := d.Loader
-	if loader == nil {
-		loader = &SourcePackageLayoutLoader{configOpts: *opts.Config.Options, bundleDir: opts.BundleDir}
-	}
-
 	pkgLayout, isPartial, err := loader.LoadPackageLayout(ctx, pkg, pkgTmp, LoadOptions{Streams: log, IsPartial: opts.IsPartial})
+	if err != nil && colocatedStaging && isRetryableStagingError(err) {
+		// A cache can be writable but too small or unsuitable for staging.
+		// Retry once in the user-configured temporary directory before failing.
+		if removeErr := os.RemoveAll(pkgTmp); removeErr != nil {
+			return fmt.Errorf("removing failed colocated package staging directory: %w", removeErr)
+		}
+		pkgTmp, err = os.MkdirTemp(opts.Config.Options.TmpDir, "zarf-pkg-*")
+		if err != nil {
+			return fmt.Errorf("creating fallback temp directory: %w", err)
+		}
+		log.Debug("retrying package staging in configured temporary directory", "dir", opts.Config.Options.TmpDir)
+		pkgLayout, isPartial, err = loader.LoadPackageLayout(ctx, pkg, pkgTmp, LoadOptions{Streams: log, IsPartial: opts.IsPartial})
+	}
 	if err != nil {
 		return err
 	}
@@ -233,6 +262,10 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 
 	log.Info("package deployed", "name", pkg.Name)
 	return nil
+}
+
+func isRetryableStagingError(err error) bool {
+	return errors.Is(err, syscall.ENOSPC) || errors.Is(err, syscall.EDQUOT)
 }
 
 // prepareValuesAndVariables resolves, templates, and parses values_files for a package,

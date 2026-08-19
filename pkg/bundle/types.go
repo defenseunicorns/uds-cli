@@ -3,8 +3,18 @@
 
 package bundle
 
+import "context"
+
 // Variables contains user-defined bundle configuration variables.
 type Variables map[string]any
+
+// PackageStagingRootProvider optionally identifies a directory where package
+// staging can be colocated with loader-owned immutable content. An empty return
+// value means no preferred staging location, so deployment uses the configured
+// temporary directory instead.
+type PackageStagingRootProvider interface {
+	PackageStagingRoot(ctx context.Context) string
+}
 
 // GlobalOptions holds process-wide settings retained for compatibility with
 // bundle configuration consumers. Command behavior is resolved into ConfigOptions.
