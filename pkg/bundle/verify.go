@@ -13,8 +13,33 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	"github.com/defenseunicorns/uds-cli/internal/oci"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/zarf-dev/zarf/src/pkg/signing"
 )
+
+// KeylessVerification constrains the certificate identity trusted for a keyless signature.
+type KeylessVerification struct {
+	CertificateIdentity         string
+	CertificateIdentityRegexp   string
+	CertificateOIDCIssuer       string
+	CertificateOIDCIssuerRegexp string
+	TrustedRoot                 string
+}
+
+// VerificationPolicy is consumer-controlled trust material for a bundle signature.
+type VerificationPolicy struct {
+	PublicKey string
+	Keyless   *KeylessVerification
+}
+
+// VerifyOptions configures verification of a bundle artifact.
+type VerifyOptions struct {
+	Source  string
+	Policy  VerificationPolicy
+	Config  *UDSBundleConfig
+	TmpDir  string
+	Streams iostreams.IOStreams
+}
 
 // Verify verifies local bundle signature evidence and the complete OCI graph.
 func Verify(ctx context.Context, opts VerifyOptions) error {

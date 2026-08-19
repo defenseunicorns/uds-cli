@@ -16,6 +16,7 @@ import (
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/zarf-dev/zarf/src/config"
 	"github.com/zarf-dev/zarf/src/pkg/feature"
@@ -24,13 +25,90 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/value"
 )
 
+// PackageDeployHooks provides deployment extension points per package.
+type PackageDeployHooks struct {
+	// PreDeploy runs after layout loading and before cluster deployment. A
+	// returned error skips deployment and PostDeploy.
+	PreDeploy func(context.Context, *spec.Package, *layout.PackageLayout, *packager.DeployOptions, *DeployPackageOptions) error
+	// PostDeploy runs after a successful package deployment.
+	PostDeploy func(context.Context, *spec.Package) error
+}
+
+// BundleDeployHooks provides deployment extension points for a bundle.
+type BundleDeployHooks struct {
+	// PreDeploy runs before package deployment begins.
+	PreDeploy func(context.Context, *spec.UDSBundle, *DeployOptions) error
+	// PostDeploy runs after every selected package deploys successfully.
+	PostDeploy func(context.Context, *spec.UDSBundle) error
+}
+
+// DeployOptions contains private options for deploying a bundle.
+type DeployOptions struct {
+	// Config is the resolved deployment configuration.
+	Config *UDSBundleConfig
+	// BundlePath identifies the bundle definition.
+	BundlePath string
+	// BundleDir resolves package-relative paths.
+	BundleDir string
+	// Packages restricts deployment when non-empty.
+	Packages           []string
+	BundleDeployHooks  BundleDeployHooks
+	PackageDeployHooks PackageDeployHooks
+	// PackageDeployFn replaces the complete per-package deployment path when non-nil.
+	PackageDeployFn func(context.Context, *spec.Package, DeployPackageOptions) error
+}
+
+// DeployResult represents the result of deploying a bundle.
+type DeployResult struct {
+	BundleName string
+	Packages   []string
+}
+
+// Deployer deploys individual packages or complete bundles.
+type Deployer interface {
+	// DeployPackage deploys one package after its dependencies are available.
+	DeployPackage(context.Context, *spec.Package, DeployPackageOptions) error
+	// DeployBundle deploys packages in dependency order with bounded parallelism.
+	DeployBundle(context.Context, *spec.UDSBundle, DeployOptions) (*DeployResult, error)
+}
+
+// DeployPackageOptions contains options for deploying a single package.
+type DeployPackageOptions struct {
+	// Config is the merged configuration and is always non-nil.
+	Config *UDSBundleConfig
+	// BundleDir resolves package-relative paths.
+	BundleDir string
+	// PackageDeployHooks supplies optional package callbacks.
+	PackageDeployHooks PackageDeployHooks
+	// IsPartial reports whether the loaded layout omits checksum-referenced layers.
+	IsPartial bool
+	// ClusterDeployFn performs the cluster-side deployment; nil uses Zarf.
+	ClusterDeployFn func(context.Context, *layout.PackageLayout, *packager.DeployOptions, bool) error
+	// Streams carries operation diagnostics.
+	Streams    iostreams.IOStreams
+	bundlePath string
+}
+
+// ZarfDeployer implements Deployer using the Zarf Go library.
+type ZarfDeployer struct {
+	streams iostreams.IOStreams
+	// Loader overrides source loading for each package when non-nil.
+	Loader PackageLayoutLoader
+}
+
+// packageStagingRootProvider optionally identifies a directory where package
+// staging can be colocated with loader-owned immutable content.
+type packageStagingRootProvider interface {
+	PackageStagingRoot(context.Context) string
+}
+
 // zarfGlobalsOnce guards the one-time, process-wide Zarf configuration applied in NewZarfDeployer.
 var zarfGlobalsOnce sync.Once
 
 var _ Deployer = (*ZarfDeployer)(nil)
 
 // DeployPackage invokes the configured package deployment function or base deployer.
-func (o *orchestratedDeployer) DeployPackage(ctx context.Context, pkg *Package, opts DeployPackageOptions) error {
+func (o *orchestratedDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opts DeployPackageOptions) error {
 	if o.packageDeployFn != nil {
 		return o.packageDeployFn(ctx, pkg, opts)
 	}
@@ -64,7 +142,7 @@ func NewZarfDeployer(streams iostreams.IOStreams, loader PackageLayoutLoader) *Z
 
 // DeployBundle deploys the bundle's packages in topological order, parallelising
 // within levels and serialising across them.
-func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts DeployOptions) (*DeployResult, error) {
+func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *spec.UDSBundle, opts DeployOptions) (*DeployResult, error) {
 	if err := ValidateConfig(opts.Config); err != nil {
 		return nil, err
 	}
@@ -158,7 +236,7 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *UDSBundle, opts Depl
 }
 
 // DeployPackage deploys a single Zarf package using the Zarf Go library.
-func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts DeployPackageOptions) error {
+func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opts DeployPackageOptions) error {
 	if err := opts.Validate(); err != nil {
 		return err
 	}
@@ -272,8 +350,8 @@ func isRetryableStagingError(err error) bool {
 // and flattens config variables for Zarf ###ZARF_PKG_VAR_*### substitution.
 // Temporary files created during templating are cleaned up before this method returns,
 // since value.ParseFiles reads them into memory before returning.
-func (d *ZarfDeployer) prepareValuesAndVariables(ctx context.Context, streams iostreams.IOStreams, pkg *Package, opts DeployPackageOptions) (zarfValues value.Values, setVars map[string]string, err error) {
-	var configVars Variables
+func (d *ZarfDeployer) prepareValuesAndVariables(ctx context.Context, streams iostreams.IOStreams, pkg *spec.Package, opts DeployPackageOptions) (zarfValues value.Values, setVars map[string]string, err error) {
+	var configVars bundleinternal.Variables
 	if opts.Config != nil {
 		configVars = opts.Config.Variables
 	}
@@ -342,12 +420,12 @@ func resolveValuesFiles(files []string, bundleDir string) []string {
 //
 // Missing keys produce a clear error (template.Option("missingkey=error")).
 // If vars is nil, the original file paths are returned unchanged (no temp copies created).
-func templateValuesFiles(_ context.Context, files []string, vars Variables, tmpDir string) ([]string, error) {
+func templateValuesFiles(_ context.Context, files []string, vars bundleinternal.Variables, tmpDir string) ([]string, error) {
 	if vars == nil {
 		return files, nil
 	}
 
-	// Variables is map[string]any underneath, and Go templates traverse named map
+	// bundleinternal.Variables is map[string]any underneath, and Go templates traverse named map
 	// types via reflection at any depth, so no conversion of nested levels is needed.
 	data := map[string]any{"vars": vars}
 	result := make([]string, 0, len(files))

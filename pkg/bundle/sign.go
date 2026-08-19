@@ -20,6 +20,42 @@ import (
 
 const bundleSignatureFileName = oci.BundleSignatureFileName
 
+// SigningMode identifies the credentials used to sign a bundle.
+type SigningMode string
+
+const (
+	// SigningModeKey signs with a configured private key.
+	SigningModeKey SigningMode = "key"
+	// SigningModeKeyless signs with a keyless Sigstore identity.
+	SigningModeKeyless SigningMode = "keyless"
+	// SigningModeUnsigned leaves the bundle unsigned.
+	SigningModeUnsigned SigningMode = "unsigned"
+)
+
+// SigningOptions configures a bundle signature operation.
+type SigningOptions struct {
+	Mode           SigningMode
+	Key            string
+	KeyPassword    string
+	IdentityToken  string
+	FulcioURL      string
+	FulcioAuthFlow string
+	OIDCIssuer     string
+	OIDCClientID   string
+	RekorURL       string
+	TSAServerURL   string
+	Overwrite      bool
+}
+
+// SignOptions configures signing an existing bundle artifact.
+type SignOptions struct {
+	Source  string
+	Signing SigningOptions
+	Config  *UDSBundleConfig
+	TmpDir  string
+	Streams iostreams.IOStreams
+}
+
 // warnSkippedSignatureVerification reports the insecure bundle verification bypass.
 func warnSkippedSignatureVerification(streams iostreams.IOStreams) {
 	streams.Warn("signature verification was skipped; bundle integrity and origin are not established")

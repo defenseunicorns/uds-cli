@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/zarf-dev/zarf/src/pkg/ocischeme"
 	"oras.land/oras-go/v2/registry"
 	orasregistry "oras.land/oras-go/v2/registry/remote"
@@ -19,7 +20,7 @@ import (
 
 // NewRemoteRepository creates an ORAS remote repository configured with registry
 // transport settings and credentials loaded from the Docker credential store.
-func NewRemoteRepository(ctx context.Context, ref string, opts ConfigOptions) (*orasregistry.Repository, error) {
+func NewRemoteRepository(ctx context.Context, ref string, opts bundleinternal.ConfigOptions) (*orasregistry.Repository, error) {
 	repo, err := orasregistry.NewRepository(ref)
 	if err != nil {
 		return nil, err
@@ -54,7 +55,7 @@ func NewRemoteRepository(ctx context.Context, ref string, opts ConfigOptions) (*
 // ResolvePlainHTTP determines whether an OCI reference should use plain HTTP.
 // Plain HTTP is only considered when the user explicitly enables it; HTTPS remains
 // the default and is preferred whenever the registry supports it.
-func ResolvePlainHTTP(ctx context.Context, ref string, opts ConfigOptions, transport http.RoundTripper) (bool, error) {
+func ResolvePlainHTTP(ctx context.Context, ref string, opts bundleinternal.ConfigOptions, transport http.RoundTripper) (bool, error) {
 	if !opts.PlainHTTP {
 		return false, nil
 	}

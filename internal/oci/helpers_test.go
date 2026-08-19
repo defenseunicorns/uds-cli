@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/mholt/archives"
 	godigest "github.com/opencontainers/go-digest"
@@ -28,7 +29,7 @@ import (
 
 // CreateOptions contains inputs for the test bundle creator.
 type CreateOptions struct {
-	Config     *Config
+	Config     *bundleinternal.UDSBundleConfig
 	BundleFile string
 	Streams    iostreams.IOStreams
 }
@@ -39,14 +40,14 @@ type CreateResult struct {
 }
 
 // newTestConfig returns test configuration for the runtime architecture.
-func newTestConfig() *Config {
+func newTestConfig() *bundleinternal.UDSBundleConfig {
 	return newTestConfigWithArch(runtime.GOARCH)
 }
 
 // newTestConfigWithArch returns test configuration for a specific architecture.
-func newTestConfigWithArch(arch string) *Config {
-	opts := &ConfigOptions{Architecture: arch, TmpDir: os.TempDir(), Concurrency: 10}
-	return &Config{Options: opts}
+func newTestConfigWithArch(arch string) *bundleinternal.UDSBundleConfig {
+	opts := &bundleinternal.ConfigOptions{Architecture: arch, TmpDir: os.TempDir(), Concurrency: 10}
+	return &bundleinternal.UDSBundleConfig{Options: opts}
 }
 
 // writeTestBlob writes content-addressed test data and returns its encoded digest.
@@ -54,7 +55,7 @@ func writeTestBlob(t *testing.T, blobDir string, data []byte) string {
 	t.Helper()
 	sum := sha256.Sum256(data)
 	hexDigest := hex.EncodeToString(sum[:])
-	require.NoError(t, os.WriteFile(filepath.Join(blobDir, hexDigest), data, tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(blobDir, hexDigest), data, filesystem.PrivateFileMode))
 	return hexDigest
 }
 
@@ -62,8 +63,8 @@ func writeTestBlob(t *testing.T, blobDir string, data []byte) string {
 func writeMinimalOCILayout(t *testing.T, ociDir string) {
 	t.Helper()
 	blobDir := filepath.Join(ociDir, "blobs", "sha256")
-	require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
-	require.NoError(t, os.WriteFile(filepath.Join(ociDir, "oci-layout"), []byte("{\"imageLayoutVersion\":\"1.0.0\"}\n"), tmpFilePerm))
+	require.NoError(t, os.MkdirAll(blobDir, filesystem.PrivateDirectoryMode))
+	require.NoError(t, os.WriteFile(filepath.Join(ociDir, "oci-layout"), []byte("{\"imageLayoutVersion\":\"1.0.0\"}\n"), filesystem.PrivateFileMode))
 
 	config := []byte("{}")
 	configHex := writeTestBlob(t, blobDir, config)
@@ -93,9 +94,9 @@ func writeMinimalOCILayout(t *testing.T, ociDir string) {
 
 func writeMinimalZarfPackage(t *testing.T, dir string) {
 	t.Helper()
-	require.NoError(t, os.MkdirAll(dir, tempDirPerm))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte("metadata:\n  name: test\n  version: 0.0.1\ncomponents: []\n"), tmpFilePerm))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "checksums.txt"), nil, tmpFilePerm))
+	require.NoError(t, os.MkdirAll(dir, filesystem.PrivateDirectoryMode))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte("metadata:\n  name: test\n  version: 0.0.1\ncomponents: []\n"), filesystem.PrivateFileMode))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "checksums.txt"), nil, filesystem.PrivateFileMode))
 }
 
 // writeBundleOCILayout creates a test bundle OCI layout and returns its path.
@@ -118,8 +119,8 @@ metadata {
 func writeBundleLayout(t *testing.T, ociDir string, hclData []byte, arch string) {
 	t.Helper()
 	blobDir := filepath.Join(ociDir, "blobs", "sha256")
-	require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
-	require.NoError(t, os.WriteFile(filepath.Join(ociDir, "oci-layout"), []byte("{\"imageLayoutVersion\":\"1.0.0\"}\n"), tmpFilePerm))
+	require.NoError(t, os.MkdirAll(blobDir, filesystem.PrivateDirectoryMode))
+	require.NoError(t, os.WriteFile(filepath.Join(ociDir, "oci-layout"), []byte("{\"imageLayoutVersion\":\"1.0.0\"}\n"), filesystem.PrivateFileMode))
 
 	config := []byte("{}")
 	configHex := writeTestBlob(t, blobDir, config)
@@ -264,17 +265,17 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	}
 	defer func() { _ = os.RemoveAll(root) }()
 	blobDir := filepath.Join(root, "oci", "blobs", "sha256")
-	if err := os.MkdirAll(blobDir, tempDirPerm); err != nil {
+	if err := os.MkdirAll(blobDir, filesystem.PrivateDirectoryMode); err != nil {
 		return nil, err
 	}
 	// The fixture builder uses testing assertions, so construct the same layout inline.
 	config := []byte("{}")
 	configDigest := sha256.Sum256(config)
 	hclDigest := sha256.Sum256(hclData)
-	if err := os.WriteFile(filepath.Join(blobDir, hex.EncodeToString(configDigest[:])), config, tmpFilePerm); err != nil {
+	if err := os.WriteFile(filepath.Join(blobDir, hex.EncodeToString(configDigest[:])), config, filesystem.PrivateFileMode); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(filepath.Join(blobDir, hex.EncodeToString(hclDigest[:])), hclData, tmpFilePerm); err != nil {
+	if err := os.WriteFile(filepath.Join(blobDir, hex.EncodeToString(hclDigest[:])), hclData, filesystem.PrivateFileMode); err != nil {
 		return nil, err
 	}
 	manifest := ocispec.Manifest{Versioned: specs.Versioned{SchemaVersion: 2}, MediaType: ocispec.MediaTypeImageManifest, ArtifactType: MediaTypeBundleDefinition,
@@ -285,10 +286,10 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 		return nil, err
 	}
 	manifestDigest := sha256.Sum256(manifestBytes)
-	if err := os.WriteFile(filepath.Join(blobDir, hex.EncodeToString(manifestDigest[:])), manifestBytes, tmpFilePerm); err != nil {
+	if err := os.WriteFile(filepath.Join(blobDir, hex.EncodeToString(manifestDigest[:])), manifestBytes, filesystem.PrivateFileMode); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(filepath.Join(root, "oci", "oci-layout"), []byte("{\"imageLayoutVersion\":\"1.0.0\"}\n"), tmpFilePerm); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "oci", "oci-layout"), []byte("{\"imageLayoutVersion\":\"1.0.0\"}\n"), filesystem.PrivateFileMode); err != nil {
 		return nil, err
 	}
 	idx := NewBundleIndex([]ocispec.Descriptor{{MediaType: ocispec.MediaTypeImageManifest, ArtifactType: MediaTypeBundleDefinition, Digest: godigest.NewDigestFromEncoded(godigest.SHA256, hex.EncodeToString(manifestDigest[:])), Size: int64(len(manifestBytes))}}, opts.Config.Options.Architecture)

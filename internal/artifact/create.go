@@ -20,6 +20,19 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
+// CreateOptions contains private inputs needed to assemble a bundle artifact.
+type CreateOptions struct {
+	Config      *bundleinternal.UDSBundleConfig
+	Bundle      *spec.UDSBundle
+	BundleHCL   []byte
+	DefaultsHCL []byte
+	BundleDir   string
+	Streams     iostreams.IOStreams
+}
+
+// CreateResult contains the path written by Create.
+type CreateResult struct{ OutputPath string }
+
 // Create assembles an OCI layout and writes it as a UDS bundle archive.
 func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	if err := bundleinternal.ValidateConfig(opts.Config); err != nil {
@@ -99,7 +112,7 @@ func ingestSource(ctx context.Context, pkg *spec.Package, config *bundleinternal
 	}
 	streams.Info("ingesting package", "name", pkg.Name, "source", pkg.Source)
 
-	zarfConfig := zarf.ConfigOptions{
+	zarfConfig := bundleinternal.ConfigOptions{
 		LogLevel:      config.Options.LogLevel,
 		Architecture:  config.Options.Architecture,
 		PlainHTTP:     config.Options.PlainHTTP,

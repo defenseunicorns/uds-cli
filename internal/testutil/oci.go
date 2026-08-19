@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	godigest "github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/specs-go"
@@ -19,17 +20,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const (
-	tempDirPerm = 0o700
-	tmpFilePerm = 0o600
-)
-
 // writeTestBlob writes b to blobDir/<sha256hex> and returns the hex digest.
 func writeTestBlob(t *testing.T, blobDir string, b []byte) string {
 	t.Helper()
 	sum := sha256.Sum256(b)
 	h := hex.EncodeToString(sum[:])
-	require.NoError(t, os.WriteFile(filepath.Join(blobDir, h), b, tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(blobDir, h), b, filesystem.PrivateFileMode))
 	return h
 }
 

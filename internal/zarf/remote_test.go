@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	packageoci "github.com/defenseunicorns/pkg/oci"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/google/go-containerregistry/pkg/registry"
 	godigest "github.com/opencontainers/go-digest"
@@ -53,7 +54,7 @@ func TestRemoteSourceVerifyAndIngestFilteredRegistryPackage(t *testing.T) {
 	source := &remoteSource{
 		ref:  ref,
 		arch: "amd64",
-		opts: ConfigOptions{PlainHTTP: true, TmpDir: t.TempDir(), Concurrency: 1},
+		opts: bundleinternal.ConfigOptions{PlainHTTP: true, TmpDir: t.TempDir(), Concurrency: 1},
 	}
 
 	descs, err := source.VerifyAndIngestFiltered(t.Context(), t.TempDir(), layout.PackageLayoutOptions{
@@ -81,7 +82,7 @@ func TestRemoteSourceNewZociRemote_RegistrySchemeNegotiation(t *testing.T) {
 	source := &remoteSource{
 		ref:  ref,
 		arch: "amd64",
-		opts: ConfigOptions{PlainHTTP: true, SkipTLSVerify: true},
+		opts: bundleinternal.ConfigOptions{PlainHTTP: true, SkipTLSVerify: true},
 	}
 
 	remote, err := source.newZociRemote(t.Context())

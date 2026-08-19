@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	godigest "github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -85,7 +86,7 @@ func layerTitles(layers []ocispec.Descriptor) []string {
 func writeFilteredPackageFiles(t *testing.T, dir string) {
 	t.Helper()
 	componentsDir := filepath.Join(dir, layout.ComponentsDir)
-	require.NoError(t, os.MkdirAll(componentsDir, tempDirPerm))
+	require.NoError(t, os.MkdirAll(componentsDir, filesystem.PrivateDirectoryMode))
 	zarfYAML := []byte(`kind: ZarfPackageConfig
 metadata:
   name: filtered
@@ -97,16 +98,16 @@ components:
 `)
 	includedPath := filepath.Join(componentsDir, "included.tar")
 	excludedPath := filepath.Join(componentsDir, "excluded.tar")
-	require.NoError(t, os.WriteFile(filepath.Join(dir, layout.ZarfYAML), zarfYAML, tmpFilePerm))
-	require.NoError(t, os.WriteFile(includedPath, []byte("included"), tmpFilePerm))
-	require.NoError(t, os.WriteFile(excludedPath, []byte("excluded"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, layout.ZarfYAML), zarfYAML, filesystem.PrivateFileMode))
+	require.NoError(t, os.WriteFile(includedPath, []byte("included"), filesystem.PrivateFileMode))
+	require.NoError(t, os.WriteFile(excludedPath, []byte("excluded"), filesystem.PrivateFileMode))
 	checksums := fmt.Sprintf("%s %s\n%s %s\n",
 		godigest.FromBytes([]byte("included")).Encoded(), filepath.ToSlash(filepath.Join(layout.ComponentsDir, "included.tar")),
 		godigest.FromBytes([]byte("excluded")).Encoded(), filepath.ToSlash(filepath.Join(layout.ComponentsDir, "excluded.tar")),
 	)
 	checksumsPath := filepath.Join(dir, layout.Checksums)
-	require.NoError(t, os.WriteFile(checksumsPath, []byte(checksums), tmpFilePerm))
+	require.NoError(t, os.WriteFile(checksumsPath, []byte(checksums), filesystem.PrivateFileMode))
 	aggregate := godigest.FromBytes([]byte(checksums)).Encoded()
 	zarfYAML = bytes.Replace(zarfYAML, []byte("metadata:\n  name: filtered"), []byte("metadata:\n  name: filtered\n  aggregateChecksum: "+aggregate), 1)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, layout.ZarfYAML), zarfYAML, tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, layout.ZarfYAML), zarfYAML, filesystem.PrivateFileMode))
 }

@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/mholt/archives"
 	"github.com/stretchr/testify/assert"
@@ -296,7 +297,7 @@ func TestExtractTarZst_RejectsMaliciousEntries(t *testing.T) {
 
 			parent := t.TempDir()
 			dst := filepath.Join(parent, "extract")
-			require.NoError(t, os.MkdirAll(dst, tempDirPerm))
+			require.NoError(t, os.MkdirAll(dst, filesystem.PrivateDirectoryMode))
 
 			src := filepath.Join(t.TempDir(), "bad.tar.zst")
 			writeMaliciousTarZst(t, src, tc.entries)
@@ -354,7 +355,7 @@ func TestExtractTarZst_ContainsMaliciousEntries(t *testing.T) {
 
 			parent := t.TempDir()
 			dst := filepath.Join(parent, "extract")
-			require.NoError(t, os.MkdirAll(dst, tempDirPerm))
+			require.NoError(t, os.MkdirAll(dst, filesystem.PrivateDirectoryMode))
 
 			src := filepath.Join(t.TempDir(), "bad.tar.zst")
 			writeMaliciousTarZst(t, src, tc.entries)

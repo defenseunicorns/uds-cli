@@ -13,6 +13,21 @@ import (
 	"github.com/hashicorp/hcl/v2"
 )
 
+// PackageTraversal wraps a package with its HCL traversal. Bundle dependency
+// expressions are represented as traversals so dependency resolution retains
+// type and source-location context.
+type PackageTraversal struct {
+	Package   *spec.Package
+	Traversal hcl.Traversal
+}
+
+// DAG represents a directed acyclic graph of package dependencies. Edges point
+// from a package to the packages it depends on.
+type DAG struct {
+	packages map[string]*PackageTraversal
+	edges    map[string][]hcl.Traversal
+}
+
 // BuildDependencyGraph constructs a DAG from bundle packages using hcl.Traversal.
 // Each package is represented as a traversal "package.<name>", and dependencies
 // are taken from the already-parsed PackageRef values in the Package struct.

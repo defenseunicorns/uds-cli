@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
@@ -125,6 +126,6 @@ func writeValidUnsignedPackage(t *testing.T, dir string) {
 	t.Helper()
 	const emptySHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 	zarfYAML := "kind: ZarfPackageConfig\nmetadata:\n  name: test\n  version: 1.0.0\n  aggregateChecksum: " + emptySHA256 + "\ncomponents: []\n"
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte(zarfYAML), tmpFilePerm))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "checksums.txt"), nil, tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte(zarfYAML), filesystem.PrivateFileMode))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "checksums.txt"), nil, filesystem.PrivateFileMode))
 }

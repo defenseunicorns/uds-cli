@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"testing"
 
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +35,7 @@ func (l *stagingRetryLoader) PackageStagingRoot(context.Context) string {
 	return l.stagingRoot
 }
 
-func (l *stagingRetryLoader) LoadPackageLayout(_ context.Context, _ *Package, dstDir string, _ LoadOptions) (*layout.PackageLayout, bool, error) {
+func (l *stagingRetryLoader) LoadPackageLayout(_ context.Context, _ *spec.Package, dstDir string, _ LoadOptions) (*layout.PackageLayout, bool, error) {
 	l.stagedDirs = append(l.stagedDirs, dstDir)
 	if len(l.stagedDirs) == 2 {
 		_, err := os.Stat(l.stagedDirs[0])
@@ -89,7 +91,7 @@ func TestZarfDeployer_DeployPackage_StagingRetry(t *testing.T) {
 			config := newDeployTestConfig(1)
 			config.Options.TmpDir = fallbackDir
 
-			err := deployer.DeployPackage(t.Context(), &Package{Name: "test"}, DeployPackageOptions{
+			err := deployer.DeployPackage(t.Context(), &spec.Package{Name: "test"}, DeployPackageOptions{
 				Config:    config,
 				BundleDir: t.TempDir(),
 			})
@@ -192,7 +194,7 @@ func TestTemplateValuesFiles(t *testing.T) {
 	tests := []struct {
 		name         string
 		fileContents []string // one entry per file
-		vars         Variables
+		vars         bundleinternal.Variables
 		wantErr      string
 		wantOutputs  []string // expected rendered content per file
 		wantSameRef  bool     // true when nil vars → paths must equal input paths
@@ -207,73 +209,73 @@ func TestTemplateValuesFiles(t *testing.T) {
 		{
 			name:         "top-level string variable",
 			fileContents: []string{"host: {{ .vars.domain }}"},
-			vars:         Variables{"domain": "uds.dev"},
+			vars:         bundleinternal.Variables{"domain": "uds.dev"},
 			wantOutputs:  []string{"host: uds.dev"},
 		},
 		{
 			name:         "nested variable access",
 			fileContents: []string{"enabled: {{ .vars.logging.enabled }}"},
-			vars:         Variables{"logging": Variables{"enabled": true}},
+			vars:         bundleinternal.Variables{"logging": bundleinternal.Variables{"enabled": true}},
 			wantOutputs:  []string{"enabled: true"},
 		},
 		{
 			name:         "numeric variable rendered as string",
 			fileContents: []string{"replicas: {{ .vars.replicas }}"},
-			vars:         Variables{"replicas": float64(3)},
+			vars:         bundleinternal.Variables{"replicas": float64(3)},
 			wantOutputs:  []string{"replicas: 3"},
 		},
 		{
 			name:         "bool variable rendered as string",
 			fileContents: []string{"enabled: {{ .vars.flag }}"},
-			vars:         Variables{"flag": true},
+			vars:         bundleinternal.Variables{"flag": true},
 			wantOutputs:  []string{"enabled: true"},
 		},
 		{
 			name:         "no markers with non-nil vars",
 			fileContents: []string{"static: value\nother: key"},
-			vars:         Variables{"k": "v"},
+			vars:         bundleinternal.Variables{"k": "v"},
 			wantOutputs:  []string{"static: value\nother: key"},
 		},
 		{
 			name:         "empty file",
 			fileContents: []string{""},
-			vars:         Variables{"k": "v"},
+			vars:         bundleinternal.Variables{"k": "v"},
 			wantOutputs:  []string{""},
 		},
 		{
 			name:         "multiple files all rendered",
 			fileContents: []string{"a: {{ .vars.x }}", "b: {{ .vars.x }}"},
-			vars:         Variables{"x": "hello"},
+			vars:         bundleinternal.Variables{"x": "hello"},
 			wantOutputs:  []string{"a: hello", "b: hello"},
 		},
 		{
 			name:         "second file has missing variable",
 			fileContents: []string{"a: {{ .vars.x }}", "b: {{ .vars.missing }}"},
-			vars:         Variables{"x": "ok"},
+			vars:         bundleinternal.Variables{"x": "ok"},
 			wantErr:      "map has no entry for key",
 		},
 		{
 			name:         "missing variable key",
 			fileContents: []string{"host: {{ .vars.undefined }}"},
-			vars:         Variables{},
+			vars:         bundleinternal.Variables{},
 			wantErr:      "map has no entry for key",
 		},
 		{
 			name:         "missing nested key",
 			fileContents: []string{"x: {{ .vars.a.missing }}"},
-			vars:         Variables{"a": Variables{"present": "yes"}},
+			vars:         bundleinternal.Variables{"a": bundleinternal.Variables{"present": "yes"}},
 			wantErr:      "map has no entry for key",
 		},
 		{
 			name:         "invalid template syntax",
 			fileContents: []string{"x: {{ .vars. }}"},
-			vars:         Variables{"k": "v"},
+			vars:         bundleinternal.Variables{"k": "v"},
 			wantErr:      "", // any parse error
 		},
 		{
 			name:         "empty vars map with marker",
 			fileContents: []string{"x: {{ .vars.k }}"},
-			vars:         Variables{},
+			vars:         bundleinternal.Variables{},
 			wantErr:      "map has no entry for key",
 		},
 		{
@@ -281,9 +283,9 @@ func TestTemplateValuesFiles(t *testing.T) {
 			fileContents: []string{
 				"service:\n  ports:\n{{- range .vars.ports }}\n    - name: {{ .name }}\n      port: {{ .port }}\n{{- end }}",
 			},
-			vars: Variables{"ports": []any{
-				Variables{"name": "a", "port": float64(80)},
-				Variables{"name": "b", "port": float64(90)},
+			vars: bundleinternal.Variables{"ports": []any{
+				bundleinternal.Variables{"name": "a", "port": float64(80)},
+				bundleinternal.Variables{"name": "b", "port": float64(90)},
 			}},
 			wantOutputs: []string{
 				"service:\n  ports:\n    - name: a\n      port: 80\n    - name: b\n      port: 90",
@@ -294,8 +296,8 @@ func TestTemplateValuesFiles(t *testing.T) {
 			fileContents: []string{
 				"keycloak:\n  extraVolumes:\n{{- range .vars.vols }}\n    - name: {{ .name }}\n      secret:\n        secretName: {{ .secret.secretName }}\n{{- end }}",
 			},
-			vars: Variables{"vols": []any{
-				Variables{"name": "tls-certs", "secret": Variables{"secretName": "kc-tls"}},
+			vars: bundleinternal.Variables{"vols": []any{
+				bundleinternal.Variables{"name": "tls-certs", "secret": bundleinternal.Variables{"secretName": "kc-tls"}},
 			}},
 			wantOutputs: []string{
 				"keycloak:\n  extraVolumes:\n    - name: tls-certs\n      secret:\n        secretName: kc-tls",
@@ -304,31 +306,31 @@ func TestTemplateValuesFiles(t *testing.T) {
 		{
 			name:         "if guard around optional list",
 			fileContents: []string{"obj:\n{{- if .vars.tags }}\n  tags:\n{{- range .vars.tags }}\n    - {{ . }}\n{{- end }}\n{{- end }}"},
-			vars:         Variables{"tags": []any{"prod", "logs"}},
+			vars:         bundleinternal.Variables{"tags": []any{"prod", "logs"}},
 			wantOutputs:  []string{"obj:\n  tags:\n    - prod\n    - logs"},
 		},
 		{
 			name:         "with scope over nested map",
 			fileContents: []string{"{{- with .vars.db }}host: {{ .host }}\nport: {{ .port }}{{- end }}"},
-			vars:         Variables{"db": Variables{"host": "localhost", "port": float64(5432)}},
+			vars:         bundleinternal.Variables{"db": bundleinternal.Variables{"host": "localhost", "port": float64(5432)}},
 			wantOutputs:  []string{"host: localhost\nport: 5432"},
 		},
 		{
 			name:         "env helper is undefined",
 			fileContents: []string{"x: {{ env \"PATH\" }}"},
-			vars:         Variables{"k": "v"},
+			vars:         bundleinternal.Variables{"k": "v"},
 			wantErr:      "function \"env\" not defined",
 		},
 		{
 			name:         "default helper is undefined",
 			fileContents: []string{"x: {{ default \"fallback\" .vars.present }}"},
-			vars:         Variables{"present": "yes"},
+			vars:         bundleinternal.Variables{"present": "yes"},
 			wantErr:      "function \"default\" not defined",
 		},
 		{
 			name:         "toYaml helper is undefined",
 			fileContents: []string{"x: {{ toYaml .vars.x }}"},
-			vars:         Variables{"x": "y"},
+			vars:         bundleinternal.Variables{"x": "y"},
 			wantErr:      "function \"toYaml\" not defined",
 		},
 	}
@@ -376,11 +378,11 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 		valuesPath := writeTempYAML(t, "host: {{ .vars.domain }}")
 
 		d := NewZarfDeployer(iostreams.IOStreams{}, nil)
-		pkg := &Package{Name: "p", ValuesFiles: []string{valuesPath}}
+		pkg := &spec.Package{Name: "p", ValuesFiles: []string{valuesPath}}
 		opts := DeployPackageOptions{
 			Config: &UDSBundleConfig{
-				Options:   &ConfigOptions{TmpDir: dir},
-				Variables: Variables{"domain": "uds.dev"},
+				Options:   &bundleinternal.ConfigOptions{TmpDir: dir},
+				Variables: bundleinternal.Variables{"domain": "uds.dev"},
 			},
 		}
 
@@ -397,13 +399,13 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 		)
 
 		d := NewZarfDeployer(iostreams.IOStreams{}, nil)
-		pkg := &Package{Name: "p", ValuesFiles: []string{valuesPath}}
+		pkg := &spec.Package{Name: "p", ValuesFiles: []string{valuesPath}}
 		opts := DeployPackageOptions{
 			Config: &UDSBundleConfig{
-				Options: &ConfigOptions{TmpDir: dir},
-				Variables: Variables{"ports": []any{
-					Variables{"name": "a"},
-					Variables{"name": "b"},
+				Options: &bundleinternal.ConfigOptions{TmpDir: dir},
+				Variables: bundleinternal.Variables{"ports": []any{
+					bundleinternal.Variables{"name": "a"},
+					bundleinternal.Variables{"name": "b"},
 				}},
 			},
 		}
@@ -416,11 +418,11 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 
 	t.Run("no values files, only variables", func(t *testing.T) {
 		d := NewZarfDeployer(iostreams.IOStreams{}, nil)
-		pkg := &Package{Name: "p"}
+		pkg := &spec.Package{Name: "p"}
 		opts := DeployPackageOptions{
 			Config: &UDSBundleConfig{
-				Options:   &ConfigOptions{},
-				Variables: Variables{"x": "y"},
+				Options:   &bundleinternal.ConfigOptions{},
+				Variables: bundleinternal.Variables{"x": "y"},
 			},
 		}
 
@@ -432,13 +434,13 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 
 	t.Run("non-scalar variables silently skipped in Flatten", func(t *testing.T) {
 		d := NewZarfDeployer(iostreams.IOStreams{}, nil)
-		pkg := &Package{Name: "p"}
+		pkg := &spec.Package{Name: "p"}
 		opts := DeployPackageOptions{
 			Config: &UDSBundleConfig{
-				Options: &ConfigOptions{},
+				Options: &bundleinternal.ConfigOptions{},
 				// chan is a non-scalar, synthetic type; never produced by HCL parser
 				// Flatten silently skips non-scalars instead of erroring
-				Variables: Variables{"k": []any{make(chan int)}},
+				Variables: bundleinternal.Variables{"k": []any{make(chan int)}},
 			},
 		}
 
@@ -453,11 +455,11 @@ func TestPrepareValuesAndVariables(t *testing.T) {
 		valuesPath := writeTempYAML(t, "x: {{ .vars.missing }}")
 
 		d := NewZarfDeployer(iostreams.IOStreams{}, nil)
-		pkg := &Package{Name: "broken", ValuesFiles: []string{valuesPath}}
+		pkg := &spec.Package{Name: "broken", ValuesFiles: []string{valuesPath}}
 		opts := DeployPackageOptions{
 			Config: &UDSBundleConfig{
-				Options:   &ConfigOptions{TmpDir: dir},
-				Variables: Variables{"present": "yes"},
+				Options:   &bundleinternal.ConfigOptions{TmpDir: dir},
+				Variables: bundleinternal.Variables{"present": "yes"},
 			},
 		}
 
@@ -488,7 +490,7 @@ func TestZarfDeployer_DeployPackage_InvalidSource(t *testing.T) {
 			out := &bytes.Buffer{}
 			deployer := NewZarfDeployer(iostreams.New(nil, nil, out), nil)
 
-			pkg := &Package{
+			pkg := &spec.Package{
 				Name:   "test-pkg",
 				Source: tt.source,
 			}
@@ -631,16 +633,16 @@ func TestBuildComponentFilter(t *testing.T) {
 
 func TestDeployBundleRejectsNilConfigAfterPreDeployHook(t *testing.T) {
 	d := NewZarfDeployer(iostreams.IOStreams{}, nil)
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "test"},
-		Packages: []Package{{Name: "alpha", Source: "oci://example/alpha:v1"}},
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "test"},
+		Packages: []spec.Package{{Name: "alpha", Source: "oci://example/alpha:v1"}},
 	}
 
 	_, err := d.DeployBundle(t.Context(), b, DeployOptions{
 		Config: newDeployTestConfig(1),
 		BundleDeployHooks: BundleDeployHooks{
-			PreDeploy: func(_ context.Context, _ *UDSBundle, opts *DeployOptions) error {
+			PreDeploy: func(_ context.Context, _ *spec.UDSBundle, opts *DeployOptions) error {
 				opts.Config = nil
 				return nil
 			},
@@ -653,21 +655,21 @@ func TestDeployBundleRejectsNilConfigAfterPreDeployHook(t *testing.T) {
 func TestDeployBundleRebindsLoggerAfterPreDeployHook(t *testing.T) {
 	streams, _, _, errOut := iostreams.NewTestIOStreams()
 	d := NewZarfDeployer(streams, nil)
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "test"},
-		Packages: []Package{{Name: "alpha", Source: "oci://example/alpha:v1"}},
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "test"},
+		Packages: []spec.Package{{Name: "alpha", Source: "oci://example/alpha:v1"}},
 	}
 
 	_, err := d.DeployBundle(t.Context(), b, DeployOptions{
 		Config: newDeployTestConfig(1),
 		BundleDeployHooks: BundleDeployHooks{
-			PreDeploy: func(_ context.Context, _ *UDSBundle, opts *DeployOptions) error {
+			PreDeploy: func(_ context.Context, _ *spec.UDSBundle, opts *DeployOptions) error {
 				opts.Config.Options.LogLevel = "error"
 				return nil
 			},
 		},
-		PackageDeployFn: func(context.Context, *Package, DeployPackageOptions) error { return nil },
+		PackageDeployFn: func(context.Context, *spec.Package, DeployPackageOptions) error { return nil },
 	})
 
 	require.NoError(t, err)

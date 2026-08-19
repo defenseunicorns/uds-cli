@@ -3,7 +3,15 @@
 
 package zarf
 
-import "errors"
+import (
+	"errors"
+	"sync"
+)
+
+type errorAccumulator struct {
+	mu   sync.Mutex
+	list []error
+}
 
 // newErrorAccumulator returns a ready-to-use, empty accumulator.
 func newErrorAccumulator() *errorAccumulator {

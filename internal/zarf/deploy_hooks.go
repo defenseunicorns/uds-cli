@@ -6,6 +6,7 @@ package zarf
 import (
 	"context"
 
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
@@ -15,12 +16,12 @@ import (
 // traverse both call sites regardless of whether custom hooks are installed.
 func (h PackageDeployHooks) withDefaults() PackageDeployHooks {
 	if h.PreDeploy == nil {
-		h.PreDeploy = func(context.Context, *Package, *layout.PackageLayout, *packager.DeployOptions, *DeployPackageOptions) error {
+		h.PreDeploy = func(context.Context, *spec.Package, *layout.PackageLayout, *packager.DeployOptions, *DeployPackageOptions) error {
 			return nil
 		}
 	}
 	if h.PostDeploy == nil {
-		h.PostDeploy = func(context.Context, *Package) error {
+		h.PostDeploy = func(context.Context, *spec.Package) error {
 			return nil
 		}
 	}
@@ -30,12 +31,12 @@ func (h PackageDeployHooks) withDefaults() PackageDeployHooks {
 // withDefaults returns a BundleDeployHooks with nil funcs replaced by no-ops.
 func (h BundleDeployHooks) withDefaults() BundleDeployHooks {
 	if h.PreDeploy == nil {
-		h.PreDeploy = func(context.Context, *UDSBundle, *DeployOptions) error {
+		h.PreDeploy = func(context.Context, *spec.UDSBundle, *DeployOptions) error {
 			return nil
 		}
 	}
 	if h.PostDeploy == nil {
-		h.PostDeploy = func(context.Context, *UDSBundle) error {
+		h.PostDeploy = func(context.Context, *spec.UDSBundle) error {
 			return nil
 		}
 	}

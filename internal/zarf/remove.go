@@ -8,15 +8,66 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"sync"
 	"time"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 )
+
+// RemoveResult represents the result of removing a bundle.
+type RemoveResult struct {
+	BundleName string
+	Packages   []RemovePackageResult
+}
+
+// RemovePackageResult reports the outcome for one package.
+type RemovePackageResult struct {
+	Name   string
+	Status RemovePackageStatus
+}
+
+// RemovePackageStatus identifies a package removal outcome.
+type RemovePackageStatus string
+
+const (
+	RemovePackageStatusRemoved RemovePackageStatus = "removed"
+	RemovePackageStatusSkipped RemovePackageStatus = "skipped"
+)
+
+// Remover removes individual packages or complete bundles.
+type Remover interface {
+	// RemovePackage removes one package from a target.
+	RemovePackage(context.Context, *spec.Package, RemovePackageOptions) error
+	// RemoveBundle removes selected packages in reverse dependency order.
+	RemoveBundle(context.Context, *spec.UDSBundle, []string, RemovePackageOptions) (*RemoveResult, error)
+}
+
+// RemovePackageOptions contains options for removing one package.
+type RemovePackageOptions struct {
+	// Config is the resolved removal configuration.
+	Config *UDSBundleConfig
+	// Force bypasses dependency-safety validation.
+	Force bool
+}
+type packageRemover interface {
+	RemovePackage(context.Context, *spec.Package, RemovePackageOptions) error
+}
+
+// ZarfRemover implements Remover using the Zarf Go library.
+type ZarfRemover struct {
+	streams        iostreams.IOStreams
+	cluster        *cluster.Cluster
+	deployedMu     sync.Mutex
+	deployed       map[string]struct{}
+	deployedLoaded bool
+	pkgRemover     packageRemover
+}
 
 // helmTimeout is the timeout for Helm operations during package removal.
 const helmTimeout = 15 * time.Minute
@@ -87,7 +138,7 @@ func (r *ZarfRemover) deployedPackages(ctx context.Context) (map[string]struct{}
 // RemovePackage for each package in REVERSE topological order. When packages
 // is non-empty, only those package names are removed. Packages that are not
 // currently deployed are skipped via the ErrPackageNotDeployed sentinel.
-func (r *ZarfRemover) RemoveBundle(ctx context.Context, b *UDSBundle, packages []string, opts RemovePackageOptions) (*RemoveResult, error) {
+func (r *ZarfRemover) RemoveBundle(ctx context.Context, b *spec.UDSBundle, packages []string, opts RemovePackageOptions) (*RemoveResult, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -132,7 +183,7 @@ func (r *ZarfRemover) RemoveBundle(ctx context.Context, b *UDSBundle, packages [
 // each package to the per-package primitive (r.pkgRemover.RemovePackage).
 // Removal is sequential to keep teardown predictable. Packages that signal
 // ErrPackageNotDeployed are counted as skipped rather than failed.
-func (r *ZarfRemover) removePackages(ctx context.Context, log iostreams.IOStreams, levels [][]*Package, opts RemovePackageOptions) ([]RemovePackageResult, error) {
+func (r *ZarfRemover) removePackages(ctx context.Context, log iostreams.IOStreams, levels [][]*spec.Package, opts RemovePackageOptions) ([]RemovePackageResult, error) {
 	totalPkgs := 0
 	for _, level := range levels {
 		totalPkgs += len(level)
@@ -173,7 +224,7 @@ func (r *ZarfRemover) removePackages(ctx context.Context, log iostreams.IOStream
 // constrained to be a valid HCL traversal name), which need not equal the
 // Zarf package's metadata.name. To find the deployed package on the cluster
 // we load metadata from pkg.Source and look up by (zarfMetadataName, namespace).
-func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *Package, opts RemovePackageOptions) error {
+func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *spec.Package, opts RemovePackageOptions) error {
 	if err := opts.Validate(); err != nil {
 		return err
 	}

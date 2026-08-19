@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/mholt/archives"
@@ -22,8 +23,8 @@ const emptySHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b785
 func writeMinimalZarfPackage(t *testing.T, dir, name string) {
 	t.Helper()
 	zarfYAML := "kind: ZarfPackageConfig\nmetadata:\n  name: " + name + "\n  version: 1.0.0\n  aggregateChecksum: " + emptySHA256 + "\ncomponents: []\n"
-	require.NoError(t, os.WriteFile(filepath.Join(dir, layout.ZarfYAML), []byte(zarfYAML), tmpFilePerm))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, layout.Checksums), nil, tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, layout.ZarfYAML), []byte(zarfYAML), filesystem.PrivateFileMode))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, layout.Checksums), nil, filesystem.PrivateFileMode))
 }
 
 func newTestStore(t *testing.T) *udsoci.Store {
@@ -51,7 +52,7 @@ func TestLocalSourceIngestFilteredUsesCanonicalPackageLayout(t *testing.T) {
 
 func TestLocalSourceRejectsOCILayoutDirectory(t *testing.T) {
 	layoutDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(layoutDir, "oci-layout"), []byte(`{"imageLayoutVersion":"1.0.0"}`), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(layoutDir, "oci-layout"), []byte(`{"imageLayoutVersion":"1.0.0"}`), filesystem.PrivateFileMode))
 
 	source := &localSource{path: layoutDir, arch: "amd64", streams: iostreams.IOStreams{}}
 	_, err := source.IngestFiltered(t.Context(), filters.Empty(), newTestStore(t))
@@ -62,7 +63,7 @@ func TestLocalSourceRejectsSymlinkInPackageDirectory(t *testing.T) {
 	pkgDir := t.TempDir()
 	writeMinimalZarfPackage(t, pkgDir, "symlink")
 	target := filepath.Join(t.TempDir(), "target")
-	require.NoError(t, os.WriteFile(target, []byte("target"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(target, []byte("target"), filesystem.PrivateFileMode))
 	symlinkPath := filepath.Join(pkgDir, "linked-file")
 	if err := os.Symlink(target, symlinkPath); err != nil {
 		t.Skipf("symlinks are not available: %v", err)
@@ -76,7 +77,7 @@ func TestLocalSourceRejectsSymlinkInPackageDirectory(t *testing.T) {
 func TestLocalSourceIngestFilteredRelativePath(t *testing.T) {
 	bundleDir := t.TempDir()
 	pkgDir := filepath.Join(bundleDir, "my-pkg")
-	require.NoError(t, os.MkdirAll(pkgDir, tempDirPerm))
+	require.NoError(t, os.MkdirAll(pkgDir, filesystem.PrivateDirectoryMode))
 	writeMinimalZarfPackage(t, pkgDir, "relative")
 
 	source := &localSource{path: "my-pkg", arch: "amd64", bundleDir: bundleDir}
@@ -87,9 +88,9 @@ func TestLocalSourceIngestFilteredRelativePath(t *testing.T) {
 
 func TestLocalSourcePullFilteredArchiveCleansWorkspaceOnError(t *testing.T) {
 	archivePath := filepath.Join(t.TempDir(), "zarf-package-bad-amd64-1.0.0.tar.zst")
-	require.NoError(t, os.WriteFile(archivePath, []byte("not a zstd archive"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(archivePath, []byte("not a zstd archive"), filesystem.PrivateFileMode))
 	workspace := filepath.Join(t.TempDir(), "workspace")
-	require.NoError(t, os.MkdirAll(workspace, tempDirPerm))
+	require.NoError(t, os.MkdirAll(workspace, filesystem.PrivateDirectoryMode))
 
 	source := &localSource{path: archivePath, arch: "amd64", streams: iostreams.IOStreams{}}
 	_, err := source.PullFiltered(t.Context(), workspace, layout.PackageLayoutOptions{
@@ -110,7 +111,7 @@ func TestLocalSourcePullFilteredArchiveUsesZarfLoader(t *testing.T) {
 	require.NoError(t, writeTestTarZst(t, archivePath, pkgDir))
 
 	workspace := filepath.Join(t.TempDir(), "workspace")
-	require.NoError(t, os.MkdirAll(workspace, tempDirPerm))
+	require.NoError(t, os.MkdirAll(workspace, filesystem.PrivateDirectoryMode))
 	source := &localSource{path: archivePath, arch: "amd64", streams: iostreams.IOStreams{}}
 	pkgLayout, err := source.PullFiltered(t.Context(), workspace, layout.PackageLayoutOptions{
 		Filter:               filters.Empty(),
@@ -160,6 +161,6 @@ func TestLocalSourceResolvedPath(t *testing.T) {
 func TestIsZarfPackage(t *testing.T) {
 	root := t.TempDir()
 	assert.False(t, isZarfPackage(root))
-	require.NoError(t, os.WriteFile(filepath.Join(root, layout.ZarfYAML), []byte("metadata:\n  name: test"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(root, layout.ZarfYAML), []byte("metadata:\n  name: test"), filesystem.PrivateFileMode))
 	assert.True(t, isZarfPackage(root))
 }

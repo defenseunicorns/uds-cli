@@ -9,6 +9,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	godigest "github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/specs-go"
@@ -62,8 +63,8 @@ func TestStoreVerifyGraph(t *testing.T) {
 				t.Helper()
 				path, err := store.BlobPath(layer.Digest)
 				require.NoError(t, err)
-				require.NoError(t, os.Chmod(path, tmpFilePerm))
-				require.NoError(t, os.WriteFile(path, bytes.Repeat([]byte("z"), int(layer.Size)), tmpFilePerm))
+				require.NoError(t, os.Chmod(path, filesystem.PrivateFileMode))
+				require.NoError(t, os.WriteFile(path, bytes.Repeat([]byte("z"), int(layer.Size)), filesystem.PrivateFileMode))
 				return root
 			},
 			wantError: "mismatched digest",

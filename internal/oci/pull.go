@@ -11,10 +11,47 @@ import (
 	"os"
 	"path/filepath"
 
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	oras "oras.land/oras-go/v2"
 	oraci "oras.land/oras-go/v2/content/oci"
 )
+
+// Puller pulls bundle artifacts from an OCI registry.
+type Puller interface {
+	// PullBundle pulls a bundle from the given OCI reference and writes it to targetDir.
+	PullBundle(ctx context.Context, ociReference, targetDir string, opts PullOptions) (*PullResult, error)
+	// PullPackage pulls a single Zarf package from the given OCI reference to targetDir.
+	PullPackage(ctx context.Context, ociReference, targetDir string, opts PullOptions) (*PullResult, error)
+}
+
+// PullOptions configures an OCI pull operation.
+type PullOptions struct {
+	Config                    *bundleinternal.UDSBundleConfig
+	Streams                   iostreams.IOStreams
+	SkipSignatureVerification bool
+	PullHooks                 PullHooks
+}
+
+// Validate validates pull options.
+func (o PullOptions) Validate() error { return bundleinternal.ValidateConfig(o.Config) }
+
+// PullResult describes a completed OCI pull.
+type PullResult struct {
+	OCIReference string `json:"ociReference" yaml:"ociReference" text:"OCI Reference"`
+	OutputPath   string `json:"outputPath" yaml:"outputPath" text:"Output Path"`
+}
+
+// PullHooks provides extension points for OCI pulls.
+type PullHooks struct {
+	ToOrasTarget        func(ctx context.Context, ociReference string, opts *PullOptions) (oras.Target, error)
+	ModifyOrasSettings  func(ctx context.Context, copyOptions *oras.CopyOptions) error
+	VerifyBundle        func(ctx context.Context, index, evidence []byte) error
+	CreateBundleArchive func(ctx context.Context, streams iostreams.IOStreams, ociDir, targetDir string, idx ocispec.Index, arch string) (string, error)
+}
 
 // defaultPuller provides the standard OCI pull implementation.
 type defaultPuller struct{}
@@ -55,7 +92,7 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 	}()
 
 	ociDir := filepath.Join(tmp, "oci")
-	if err := os.MkdirAll(ociDir, tempDirPerm); err != nil {
+	if err := os.MkdirAll(ociDir, filesystem.PrivateDirectoryMode); err != nil {
 		return nil, fmt.Errorf("creating OCI dir: %w", err)
 	}
 
@@ -108,7 +145,7 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 		signature, err = FetchBundleSignature(ctx, src, childDesc)
 	}
 	if err == nil {
-		if err := os.WriteFile(filepath.Join(tmp, BundleSignatureFileName), signature, tmpFilePerm); err != nil {
+		if err := os.WriteFile(filepath.Join(tmp, BundleSignatureFileName), signature, filesystem.PrivateFileMode); err != nil {
 			return nil, fmt.Errorf("writing bundle signature evidence: %w", err)
 		}
 	} else if errors.Is(err, ErrBundleSignatureNotFound) {
@@ -121,7 +158,7 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 
 	// Write the child index bytes verbatim as index.json to restore the layout
 	// format produced by Create (round-trips byte-identically).
-	if err := os.WriteFile(filepath.Join(ociDir, "index.json"), idxBytes, tmpFilePerm); err != nil {
+	if err := os.WriteFile(filepath.Join(ociDir, "index.json"), idxBytes, filesystem.PrivateFileMode); err != nil {
 		return nil, fmt.Errorf("writing index.json: %w", err)
 	}
 
@@ -176,7 +213,7 @@ func (p *defaultPuller) PullPackage(ctx context.Context, ociReference, targetDir
 	log := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
 
 	ociDir := filepath.Join(targetDir, "oci")
-	if err := os.MkdirAll(ociDir, tempDirPerm); err != nil {
+	if err := os.MkdirAll(ociDir, filesystem.PrivateDirectoryMode); err != nil {
 		return nil, fmt.Errorf("creating OCI dir: %w", err)
 	}
 	store, err := oraci.New(ociDir)

@@ -18,6 +18,96 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 )
 
+// BundleFileName is the name of the bundle definition file.
+const BundleFileName = "bundle.uds.hcl"
+
+type decodedBundle struct {
+	UDS      decodedUDSBlock  `hcl:"uds,block"`
+	Metadata decodedMetadata  `hcl:"metadata,block"`
+	Packages []decodedPackage `hcl:"package,block"`
+	Remain   hcl.Body         `hcl:",remain"`
+}
+type decodedUDSBlock struct {
+	BundleAPIVersion string `hcl:"bundle_api_version"`
+}
+type decodedMetadata struct {
+	Name        string `hcl:"name"`
+	Description string `hcl:"description,optional"`
+	Version     string `hcl:"version,optional"`
+}
+type decodedPackage struct {
+	Name                  string `hcl:"name,label"`
+	Source                string `hcl:"source"`
+	Namespace             string `hcl:"namespace,optional"`
+	DependsOn             []decodedPackageRef
+	ValuesFiles           []string                             `hcl:"values_files,optional"`
+	OptionalComponents    []string                             `hcl:"optional_components,optional"`
+	SignatureVerification *decodedPackageSignatureVerification `hcl:"signature_verification,block"`
+	Remain                hcl.Body                             `hcl:",remain"`
+}
+type decodedPackageSignatureVerification struct {
+	Verify    *bool                                `hcl:"verify,optional"`
+	PublicKey string                               `hcl:"public_key,optional"`
+	Keyless   *decodedKeylessSignatureVerification `hcl:"keyless,block"`
+}
+type decodedKeylessSignatureVerification struct {
+	CertificateIdentity         string `hcl:"certificate_identity,optional"`
+	CertificateIdentityRegexp   string `hcl:"certificate_identity_regexp,optional"`
+	CertificateOIDCIssuer       string `hcl:"certificate_oidc_issuer,optional"`
+	CertificateOIDCIssuerRegexp string `hcl:"certificate_oidc_issuer_regexp,optional"`
+	TrustedRoot                 string `hcl:"trusted_root,optional"`
+	InsecureIgnoreTlog          bool   `hcl:"insecure_ignore_tlog,optional"`
+	InsecureIgnoreSCT           bool   `hcl:"insecure_ignore_sct,optional"`
+	UseSignedTimestamps         bool   `hcl:"use_signed_timestamps,optional"`
+}
+type decodedPackageRef struct {
+	Name      string
+	Traversal hcl.Traversal
+}
+
+// HCLParser implements Parser for HCL bundle definitions. Its architecture is
+// exposed to bundle expressions as ${sys.arch}; an empty architecture uses the
+// runtime default. Diagnostics are written to streams.
+type HCLParser struct {
+	arch    string
+	streams iostreams.IOStreams
+}
+
+// Parser defines the interface for parsing bundle definitions and
+// configuration files.
+type Parser interface {
+	// ParseBundleFile reads and parses a bundle.uds.hcl file with locals support.
+	ParseBundleFile(ctx context.Context, filePath string) (*spec.UDSBundle, error)
+	// ParseBundleBytes parses in-memory bundle HCL without permitting file().
+	ParseBundleBytes(ctx context.Context, src []byte) (*spec.UDSBundle, error)
+	// ParseBundleConfig reads and parses a config.uds.hcl file.
+	ParseBundleConfig(ctx context.Context, filePath string) (*UDSBundleConfig, error)
+}
+
+func (b *decodedBundle) toSpec() *spec.UDSBundle {
+	packages := make([]spec.Package, len(b.Packages))
+	for i, pkg := range b.Packages {
+		dependsOn := make([]spec.PackageRef, len(pkg.DependsOn))
+		for j, ref := range pkg.DependsOn {
+			dependsOn[j] = spec.PackageRef{Name: ref.Name}
+		}
+		packages[i] = spec.Package{Name: pkg.Name, Source: pkg.Source, Namespace: pkg.Namespace, DependsOn: dependsOn, ValuesFiles: append([]string(nil), pkg.ValuesFiles...), OptionalComponents: append([]string(nil), pkg.OptionalComponents...), SignatureVerification: toSpecSignatureVerification(pkg.SignatureVerification)}
+	}
+	return &spec.UDSBundle{UDS: spec.UDSBlock{BundleAPIVersion: b.UDS.BundleAPIVersion}, Metadata: spec.Metadata{Name: b.Metadata.Name, Description: b.Metadata.Description, Version: b.Metadata.Version}, Packages: packages}
+}
+
+func toSpecSignatureVerification(verification *decodedPackageSignatureVerification) *spec.PackageSignatureVerification {
+	if verification == nil {
+		return nil
+	}
+	result := &spec.PackageSignatureVerification{Verify: verification.Verify, PublicKey: verification.PublicKey}
+	if verification.Keyless != nil {
+		k := verification.Keyless
+		result.Keyless = &spec.KeylessSignatureVerification{CertificateIdentity: k.CertificateIdentity, CertificateIdentityRegexp: k.CertificateIdentityRegexp, CertificateOIDCIssuer: k.CertificateOIDCIssuer, CertificateOIDCIssuerRegexp: k.CertificateOIDCIssuerRegexp, TrustedRoot: k.TrustedRoot, InsecureIgnoreTlog: k.InsecureIgnoreTlog, InsecureIgnoreSCT: k.InsecureIgnoreSCT, UseSignedTimestamps: k.UseSignedTimestamps}
+	}
+	return result
+}
+
 // NewHCLParser creates a new HCLParser. arch is the effective target
 // architecture exposed as ${sys.arch}; pass an empty string to use runtime.GOARCH.
 // streams carries the leveled logger used for parse diagnostics.

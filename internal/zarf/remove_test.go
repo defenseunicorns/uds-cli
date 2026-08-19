@@ -9,6 +9,8 @@ import (
 	"slices"
 	"testing"
 
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +23,7 @@ import (
 // orchestrator's skip path.
 type mockRemover struct {
 	// RemovedPackages tracks the packages that were removed in order.
-	RemovedPackages []*Package
+	RemovedPackages []*spec.Package
 
 	// NotDeployed lists package names that should return ErrPackageNotDeployed.
 	NotDeployed []string
@@ -34,7 +36,7 @@ type mockRemover struct {
 }
 
 // RemovePackage records a package removal or returns the configured test error.
-func (m *mockRemover) RemovePackage(_ context.Context, pkg *Package, _ RemovePackageOptions) error {
+func (m *mockRemover) RemovePackage(_ context.Context, pkg *spec.Package, _ RemovePackageOptions) error {
 	if slices.Contains(m.NotDeployed, pkg.Name) {
 		return ErrPackageNotDeployed
 	}
@@ -63,17 +65,17 @@ func withMock(m *mockRemover) *ZarfRemover {
 // defaultPkgOpts returns valid baseline package removal options.
 func defaultPkgOpts() RemovePackageOptions {
 	return RemovePackageOptions{
-		Config: &UDSBundleConfig{Options: &ConfigOptions{}},
+		Config: &UDSBundleConfig{Options: &bundleinternal.ConfigOptions{}},
 	}
 }
 
 // makeLevels constructs dependency levels from package names.
-func makeLevels(names ...[]string) [][]*Package {
-	levels := make([][]*Package, len(names))
+func makeLevels(names ...[]string) [][]*spec.Package {
+	levels := make([][]*spec.Package, len(names))
 	for i, levelNames := range names {
-		levels[i] = make([]*Package, len(levelNames))
+		levels[i] = make([]*spec.Package, len(levelNames))
 		for j, name := range levelNames {
-			levels[i][j] = &Package{Name: name}
+			levels[i][j] = &spec.Package{Name: name}
 		}
 	}
 	return levels
@@ -167,7 +169,7 @@ func TestRemovePackages_EmptyLevels(t *testing.T) {
 }
 
 func TestZarfRemover_RemoveBundle_NilConfig(t *testing.T) {
-	_, err := NewZarfRemover(iostreams.IOStreams{}).RemoveBundle(t.Context(), &UDSBundle{}, nil, RemovePackageOptions{})
+	_, err := NewZarfRemover(iostreams.IOStreams{}).RemoveBundle(t.Context(), &spec.UDSBundle{}, nil, RemovePackageOptions{})
 	require.ErrorContains(t, err, "config is required")
 }
 
@@ -175,10 +177,10 @@ func TestZarfRemover_RemoveBundleFailureOmitsInvalidSourceRange(t *testing.T) {
 	failErr := fmt.Errorf("helm timeout")
 	mock := &mockRemover{FailOnPackage: "core", FailError: failErr}
 	r := &ZarfRemover{streams: iostreams.IOStreams{}, pkgRemover: mock}
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "example"},
-		Packages: []Package{{Name: "core", Source: "oci://example/core:1"}},
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "example"},
+		Packages: []spec.Package{{Name: "core", Source: "oci://example/core:1"}},
 	}
 	opts := defaultPkgOpts()
 	opts.Config.Options.Concurrency = 1

@@ -18,6 +18,52 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+const (
+	// BundleDefaultsFileName is the name of the optional bundle-level defaults file.
+	BundleDefaultsFileName = "defaults.uds.hcl"
+	// MaxConcurrency is the upper bound for parallel package deploys within a level.
+	MaxConcurrency = 25
+)
+
+// Variables contains user-defined configuration values. Nested objects are
+// represented as Variables and list-like values as []any.
+type Variables map[string]any
+
+// UDSBundleConfig represents the parsed content of config.uds.hcl. Variables
+// are decoded from the remaining free-form HCL body after structured blocks.
+type UDSBundleConfig struct {
+	Options               *ConfigOptions         `hcl:"options,block"`
+	SignatureVerification *SignatureVerification `hcl:"signature_verification,block"`
+	Variables             Variables              // populated after decode from Remain
+	Remain                hcl.Body               `hcl:",remain"` // captures variables and any other unstructured top-level attributes
+}
+
+// SignatureVerification holds consumer-owned bundle signature trust material.
+type SignatureVerification struct {
+	PublicKey string               `hcl:"public_key,optional"`
+	Keyless   *KeylessVerification `hcl:"keyless,block"`
+}
+
+// KeylessVerification holds keyless trust constraints from config.uds.hcl.
+type KeylessVerification struct {
+	CertificateIdentity         string `hcl:"certificate_identity,optional"`
+	CertificateIdentityRegexp   string `hcl:"certificate_identity_regexp,optional"`
+	CertificateOIDCIssuer       string `hcl:"certificate_oidc_issuer,optional"`
+	CertificateOIDCIssuerRegexp string `hcl:"certificate_oidc_issuer_regexp,optional"`
+	TrustedRoot                 string `hcl:"trusted_root,optional"`
+}
+
+// ConfigOptions holds bundle-component CLI options from the options block.
+// All fields are optional; unset values use the operation defaults.
+type ConfigOptions struct {
+	LogLevel      string `hcl:"log_level,optional"`
+	Architecture  string `hcl:"architecture,optional"`
+	PlainHTTP     bool   `hcl:"plain_http,optional"`
+	SkipTLSVerify bool   `hcl:"skip_tls_verify,optional"`
+	TmpDir        string `hcl:"tmp_dir,optional"`
+	Concurrency   int    `hcl:"concurrency,optional"`
+}
+
 // ParseBundleConfig reads and parses a config.uds.hcl file.
 // It uses gohcl.DecodeBody to decode the options block via HCL struct tags on
 // UDSBundleConfig, and hcl:",remain" to capture the free-form variables attribute

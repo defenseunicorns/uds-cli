@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/pkg/oci"
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	godigest "github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/specs-go"
@@ -52,7 +53,7 @@ func TestPush_NoOCILayout(t *testing.T) {
 
 	// Build a tar.zst with no oci/ directory at all, simulating a v0 bundle.
 	srcDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "some-file.txt"), []byte("not a bundle"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "some-file.txt"), []byte("not a bundle"), filesystem.PrivateFileMode))
 
 	tarball := filepath.Join(t.TempDir(), "v0-bundle.tar.zst")
 	require.NoError(t, writeTarZst(t.Context(), iostreams.IOStreams{}, tarball, srcDir))
@@ -75,7 +76,7 @@ func TestPush_NonUDSBundle(t *testing.T) {
 	srcDir := t.TempDir()
 	ociDir := filepath.Join(srcDir, "oci")
 	blobDir := filepath.Join(ociDir, "blobs", "sha256")
-	require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
+	require.NoError(t, os.MkdirAll(blobDir, filesystem.PrivateDirectoryMode))
 
 	// Write a plain image manifest with no ArtifactType.
 	manifestBytes := []byte(`{"schemaVersion":2,"config":{"digest":"sha256:abc","size":2},"layers":[]}`)
@@ -88,7 +89,7 @@ func TestPush_NonUDSBundle(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(ociDir, "index.json"), idxBytes, tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(ociDir, "index.json"), idxBytes, filesystem.PrivateFileMode))
 
 	tarball := filepath.Join(t.TempDir(), "not-a-bundle.tar.zst")
 	require.NoError(t, writeTarZst(t.Context(), iostreams.IOStreams{}, tarball, srcDir))
@@ -121,7 +122,7 @@ package "pkg1" {
   source = "localpkg"
   signature_verification { verify = false }
 }
-`), tmpFilePerm))
+`), filesystem.PrivateFileMode))
 
 	tarball, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfig(),
@@ -179,7 +180,7 @@ package "pkg1" {
   source = "localpkg"
   signature_verification { verify = false }
 }
-`), tmpFilePerm))
+`), filesystem.PrivateFileMode))
 	tarball, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
@@ -215,7 +216,7 @@ package "pkg1" {
   source = "localpkg"
   signature_verification { verify = false }
 }
-`), tmpFilePerm))
+`), filesystem.PrivateFileMode))
 	tarball, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfig(),
 		BundleFile: bundleFile,
@@ -432,7 +433,7 @@ func TestPush_SignatureFailureLeavesExistingRootUnchanged(t *testing.T) {
 	require.NoError(t, err)
 
 	ociDir := writeBundleOCILayout(t, "signature-failure-new", "1.0.0")
-	require.NoError(t, os.WriteFile(filepath.Join(filepath.Dir(ociDir), BundleSignatureFileName), []byte("signature evidence"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(filepath.Dir(ociDir), BundleSignatureFileName), []byte("signature evidence"), filesystem.PrivateFileMode))
 	cfg := newTestConfig()
 	cfg.Options.TmpDir = t.TempDir()
 	_, err = NewDefaultPusher().PushBundle(t.Context(), filepath.Dir(ociDir), ref, PushOptions{

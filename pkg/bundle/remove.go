@@ -17,8 +17,11 @@ import (
 type RemoveOptions struct {
 	Config   *UDSBundleConfig
 	Packages []string
-	Force    bool
-	Streams  iostreams.IOStreams
+	// Force bypasses the removal-safety check for a selected package subset. It
+	// can remove packages still required by remaining bundle packages, leaving
+	// deployed dependents broken.
+	Force   bool
+	Streams iostreams.IOStreams
 }
 
 type removePackageOptions struct {

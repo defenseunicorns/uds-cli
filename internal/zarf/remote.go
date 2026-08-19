@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/defenseunicorns/pkg/oci"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
@@ -24,7 +25,7 @@ func (s *remoteSource) newZociRemote(ctx context.Context) (*zoci.Remote, error) 
 
 func (s *remoteSource) newZociRemoteForRef(ctx context.Context, ref string) (*zoci.Remote, error) {
 	platform := ocispec.Platform{Architecture: s.arch, OS: oci.MultiOS}
-	plainHTTP, err := udsoci.ResolvePlainHTTP(ctx, ref, udsoci.ConfigOptions{PlainHTTP: s.opts.PlainHTTP, SkipTLSVerify: s.opts.SkipTLSVerify}, nil)
+	plainHTTP, err := udsoci.ResolvePlainHTTP(ctx, ref, bundleinternal.ConfigOptions{PlainHTTP: s.opts.PlainHTTP, SkipTLSVerify: s.opts.SkipTLSVerify}, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -11,8 +11,10 @@ import (
 	"strings"
 	"testing"
 
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -24,13 +26,13 @@ import (
 func TestExtractedArtifactPackageLayoutLoader_LoadPackageLayout(t *testing.T) {
 	tests := []struct {
 		name         string
-		pkg          *Package
+		pkg          *spec.Package
 		manifests    map[string]ocispec.Descriptor
 		wantNotFound bool
 	}{
 		{
 			name: "OCI source key uses package name",
-			pkg:  &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"},
+			pkg:  &spec.Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"},
 			manifests: map[string]ocispec.Descriptor{
 				"mypkg": {MediaType: ocispec.MediaTypeImageManifest, Digest: digest.Digest("sha256:aaa")},
 			},
@@ -38,7 +40,7 @@ func TestExtractedArtifactPackageLayoutLoader_LoadPackageLayout(t *testing.T) {
 		},
 		{
 			name: "local source key uses package name",
-			pkg:  &Package{Name: "localpkg", Source: "./local-path"},
+			pkg:  &spec.Package{Name: "localpkg", Source: "./local-path"},
 			manifests: map[string]ocispec.Descriptor{
 				"localpkg": {MediaType: ocispec.MediaTypeImageManifest, Digest: digest.Digest("sha256:bbb")},
 			},
@@ -46,7 +48,7 @@ func TestExtractedArtifactPackageLayoutLoader_LoadPackageLayout(t *testing.T) {
 		},
 		{
 			name: "OCI source key is not used",
-			pkg:  &Package{Name: "other", Source: "oci://example.com/pkg:v1"},
+			pkg:  &spec.Package{Name: "other", Source: "oci://example.com/pkg:v1"},
 			manifests: map[string]ocispec.Descriptor{
 				"example.com/pkg:v1": {MediaType: ocispec.MediaTypeImageManifest, Digest: digest.Digest("sha256:aaa")},
 			},
@@ -54,7 +56,7 @@ func TestExtractedArtifactPackageLayoutLoader_LoadPackageLayout(t *testing.T) {
 		},
 		{
 			name: "missing local source is rejected",
-			pkg:  &Package{Name: "absent", Source: "./absent"},
+			pkg:  &spec.Package{Name: "absent", Source: "./absent"},
 			manifests: map[string]ocispec.Descriptor{
 				"localpkg": {MediaType: ocispec.MediaTypeImageManifest, Digest: digest.Digest("sha256:bbb")},
 			},
@@ -62,7 +64,7 @@ func TestExtractedArtifactPackageLayoutLoader_LoadPackageLayout(t *testing.T) {
 		},
 		{
 			name:         "empty manifests map",
-			pkg:          &Package{Name: "anypkg", Source: "oci://example.com/any:v1"},
+			pkg:          &spec.Package{Name: "anypkg", Source: "oci://example.com/any:v1"},
 			manifests:    map[string]ocispec.Descriptor{},
 			wantNotFound: true,
 		},
@@ -116,12 +118,12 @@ func TestSourcePackageLayoutLoaderAdvisoryVerification(t *testing.T) {
 	falseValue := false
 	tests := []struct {
 		name         string
-		verification *PackageSignatureVerification
+		verification *spec.PackageSignatureVerification
 		wantWarning  string
 	}{
 		{
 			name:         "verification failure warns and continues",
-			verification: &PackageSignatureVerification{PublicKey: "test public key"},
+			verification: &spec.PackageSignatureVerification{PublicKey: "test public key"},
 			wantWarning:  "would fail bundle create",
 		},
 		{
@@ -130,7 +132,7 @@ func TestSourcePackageLayoutLoaderAdvisoryVerification(t *testing.T) {
 		},
 		{
 			name:         "explicit bypass warns and continues",
-			verification: &PackageSignatureVerification{Verify: &falseValue},
+			verification: &spec.PackageSignatureVerification{Verify: &falseValue},
 			wantWarning:  "unverified package",
 		},
 	}
@@ -142,10 +144,10 @@ func TestSourcePackageLayoutLoaderAdvisoryVerification(t *testing.T) {
 			streams, _, out, errOut := iostreams.NewTestIOStreams()
 			streams = logger.Bind(streams, "info")
 			loader := &SourcePackageLayoutLoader{
-				configOpts: ConfigOptions{Architecture: "amd64", TmpDir: t.TempDir()},
+				configOpts: bundleinternal.ConfigOptions{Architecture: "amd64", TmpDir: t.TempDir()},
 			}
 
-			pkgLayout, _, err := loader.LoadPackageLayout(t.Context(), &Package{
+			pkgLayout, _, err := loader.LoadPackageLayout(t.Context(), &spec.Package{
 				Name:                  "test",
 				Source:                pkgDir,
 				SignatureVerification: tt.verification,
@@ -161,7 +163,7 @@ func TestSourcePackageLayoutLoaderAdvisoryVerification(t *testing.T) {
 func TestExtractedArtifactPackageLayoutLoader_StagesFiles(t *testing.T) {
 	loader := newArtifactPackageLayoutLoader(t, "zarf.yaml")
 
-	pkg := &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}
+	pkg := &spec.Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}
 	dstDir := t.TempDir()
 
 	// LoadPackageLayout fails at layout.LoadFromDir since fixture has fake content,
@@ -179,7 +181,7 @@ func TestExtractedArtifactPackageLayoutLoader_StagesFilesWithRelativeOCIDir(t *t
 	loader.OCIDir = filepath.Base(loader.OCIDir)
 
 	dstDir := t.TempDir()
-	_, _, err := loader.LoadPackageLayout(t.Context(), &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}, dstDir, LoadOptions{})
+	_, _, err := loader.LoadPackageLayout(t.Context(), &spec.Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}, dstDir, LoadOptions{})
 	require.Error(t, err, "fixture is not a complete Zarf package")
 	assert.FileExists(t, filepath.Join(dstDir, "zarf.yaml"))
 }
@@ -254,7 +256,7 @@ func TestExtractedArtifactPackageLayoutLoader_RejectsEscapingLayerTitle(t *testi
 	dstDir := t.TempDir()
 	escapedPath := filepath.Clean(filepath.Join(dstDir, filepath.FromSlash(escapingTitle)))
 
-	_, _, err := loader.LoadPackageLayout(t.Context(), &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}, dstDir, LoadOptions{})
+	_, _, err := loader.LoadPackageLayout(t.Context(), &spec.Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}, dstDir, LoadOptions{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "escapes destination directory")
 	assert.NoFileExists(t, escapedPath)
@@ -266,7 +268,7 @@ func TestExtractedArtifactPackageLayoutLoader_RejectsDestinationSymlinkEscape(t 
 	escapedDir := t.TempDir()
 	require.NoError(t, os.Symlink(escapedDir, filepath.Join(dstDir, "escape")))
 
-	_, _, err := loader.LoadPackageLayout(t.Context(), &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}, dstDir, LoadOptions{})
+	_, _, err := loader.LoadPackageLayout(t.Context(), &spec.Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}, dstDir, LoadOptions{})
 	require.Error(t, err)
 	assert.NoFileExists(t, filepath.Join(escapedDir, "zarf.yaml"))
 }
@@ -275,7 +277,7 @@ func TestExtractedArtifactPackageLayoutLoader_RejectsMissingLayerTitle(t *testin
 	loader := newArtifactPackageLayoutLoader(t, "")
 	dstDir := t.TempDir()
 
-	_, _, err := loader.LoadPackageLayout(t.Context(), &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}, dstDir, LoadOptions{})
+	_, _, err := loader.LoadPackageLayout(t.Context(), &spec.Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}, dstDir, LoadOptions{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `manifest for package "mypkg" missing title annotation on layer`)
 
@@ -325,7 +327,7 @@ func TestExtractedArtifactPackageLayoutLoader_RejectsUnindexedLocalSource(t *tes
 
 		dstDir := t.TempDir()
 		loader := &ExtractedArtifactPackageLayoutLoader{PackageManifests: map[string]ocispec.Descriptor{}}
-		pkg := &Package{Name: "mypkg", Source: pkgDir}
+		pkg := &spec.Package{Name: "mypkg", Source: pkgDir}
 
 		_, _, err := loader.LoadPackageLayout(t.Context(), pkg, dstDir, LoadOptions{})
 		require.Error(t, err)
@@ -342,7 +344,7 @@ func TestExtractedArtifactPackageLayoutLoader_RejectsUnindexedLocalSource(t *tes
 
 	t.Run("OCI source not in PackageManifests returns error", func(t *testing.T) {
 		loader := &ExtractedArtifactPackageLayoutLoader{PackageManifests: map[string]ocispec.Descriptor{}}
-		pkg := &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}
+		pkg := &spec.Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}
 		_, _, err := loader.LoadPackageLayout(t.Context(), pkg, t.TempDir(), LoadOptions{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found in bundle artifact index")

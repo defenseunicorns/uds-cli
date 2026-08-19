@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	"github.com/opencontainers/image-spec/specs-go"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2/registry"
@@ -58,7 +59,7 @@ func WriteIndex(path string, idx *ocispec.Index) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(b, '\n'), tmpFilePerm)
+	return os.WriteFile(path, append(b, '\n'), filesystem.PrivateFileMode)
 }
 
 // packageRootDescriptor returns the sole root descriptor from a Zarf package layout.

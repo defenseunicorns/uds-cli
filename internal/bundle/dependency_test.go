@@ -14,23 +14,23 @@ import (
 )
 
 // helper to build a UDSBundle from a slice of packages.
-func bundleWith(pkgs ...Package) *bundle.UDSBundle {
+func bundleWith(pkgs ...bundle.Package) *bundle.UDSBundle {
 	return &bundle.UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "test"},
+		UDS:      bundle.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: bundle.Metadata{Name: "test"},
 		Packages: pkgs,
 	}
 }
 
-// pkgRef creates a PackageRef from a dependency name.
+// pkgRef creates a bundle.PackageRef from a dependency name.
 // This simulates what the HCL parser produces from depends_on = [package.name].
-func pkgRef(name string) PackageRef {
-	return PackageRef{Name: name}
+func pkgRef(name string) bundle.PackageRef {
+	return bundle.PackageRef{Name: name}
 }
 
 // pkgRefs creates a slice of PackageRefs from dependency names.
-func pkgRefs(names ...string) []PackageRef {
-	refs := make([]PackageRef, len(names))
+func pkgRefs(names ...string) []bundle.PackageRef {
+	refs := make([]bundle.PackageRef, len(names))
 	for i, name := range names {
 		refs[i] = pkgRef(name)
 	}
@@ -38,8 +38,8 @@ func pkgRefs(names ...string) []PackageRef {
 }
 
 // pkg constructs a package with named dependencies for graph tests.
-func pkg(name string, deps ...string) Package {
-	return Package{Name: name, Source: "oci://example.com/" + name + ":v1", DependsOn: pkgRefs(deps...)}
+func pkg(name string, deps ...string) bundle.Package {
+	return bundle.Package{Name: name, Source: "oci://example.com/" + name + ":v1", DependsOn: pkgRefs(deps...)}
 }
 
 func TestBuildDependencyGraph_SinglePackage(t *testing.T) {
@@ -203,10 +203,10 @@ func TestBuildDependencyGraph_MissingDependency(t *testing.T) {
 }
 
 func TestBuildDependencyGraph_EmptyDependsOn(t *testing.T) {
-	b := bundleWith(Package{
+	b := bundleWith(bundle.Package{
 		Name:      "a",
 		Source:    "oci://example.com/a:v1",
-		DependsOn: []PackageRef{},
+		DependsOn: []bundle.PackageRef{},
 	})
 	dag, err := BuildDependencyGraph(t.Context(), iostreams.IOStreams{}, b)
 	require.NoError(t, err)
@@ -218,7 +218,7 @@ func TestBuildDependencyGraph_EmptyDependsOn(t *testing.T) {
 }
 
 func TestBuildDependencyGraph_NilDependsOn(t *testing.T) {
-	b := bundleWith(Package{
+	b := bundleWith(bundle.Package{
 		Name:   "a",
 		Source: "oci://example.com/a:v1",
 	})
@@ -317,7 +317,7 @@ func TestDAG_TraversalToName_Empty(t *testing.T) {
 }
 
 // packageIndex returns the position of a package by name in the sorted slice.
-func packageIndex(pkgs []*Package, name string) int {
+func packageIndex(pkgs []*bundle.Package, name string) int {
 	for i, p := range pkgs {
 		if p.Name == name {
 			return i
@@ -327,7 +327,7 @@ func packageIndex(pkgs []*Package, name string) int {
 }
 
 // packageNames extracts names from a slice of packages.
-func packageNames(pkgs []*Package) []string {
+func packageNames(pkgs []*bundle.Package) []string {
 	names := make([]string, len(pkgs))
 	for i, p := range pkgs {
 		names[i] = p.Name
@@ -335,13 +335,13 @@ func packageNames(pkgs []*Package) []string {
 	return names
 }
 
-// makeLevels builds a [][]*Package from a list of name groups for tests.
-func makeLevels(groups ...[]string) [][]*Package {
-	var levels [][]*Package
+// makeLevels builds a [][]*bundle.Package from a list of name groups for tests.
+func makeLevels(groups ...[]string) [][]*bundle.Package {
+	var levels [][]*bundle.Package
 	for _, group := range groups {
-		var level []*Package
+		var level []*bundle.Package
 		for _, name := range group {
-			level = append(level, &Package{Name: name})
+			level = append(level, &bundle.Package{Name: name})
 		}
 		levels = append(levels, level)
 	}
@@ -427,9 +427,9 @@ func TestFilterLevels_DropsEmptyLevels(t *testing.T) {
 
 func TestDeployOrder_InitBundle(t *testing.T) {
 	bundle := &bundle.UDSBundle{
-		Packages: []Package{
+		Packages: []bundle.Package{
 			{Name: "uds_k3d_dev", Source: "oci://ghcr.io/example/k3d:v1"},
-			{Name: "init", Source: "oci://ghcr.io/example/init:v1", DependsOn: []PackageRef{{Name: "uds_k3d_dev"}}},
+			{Name: "init", Source: "oci://ghcr.io/example/init:v1", DependsOn: []bundle.PackageRef{{Name: "uds_k3d_dev"}}},
 		},
 	}
 
@@ -458,7 +458,7 @@ func TestDeployOrder_InitBundle(t *testing.T) {
 
 func TestDeployOrder_SinglePackage(t *testing.T) {
 	bundle := &bundle.UDSBundle{
-		Packages: []Package{
+		Packages: []bundle.Package{
 			{Name: "standalone", Source: "oci://ghcr.io/example/pkg:v1"},
 		},
 	}
@@ -479,9 +479,9 @@ func TestDeployOrder_SinglePackage(t *testing.T) {
 
 func TestDeployOrder_LinearChain(t *testing.T) {
 	bundle := &bundle.UDSBundle{
-		Packages: []Package{
-			{Name: "pkg_c", Source: "oci://example/c:v1", DependsOn: []PackageRef{{Name: "pkg_b"}}},
-			{Name: "pkg_b", Source: "oci://example/b:v1", DependsOn: []PackageRef{{Name: "pkg_a"}}},
+		Packages: []bundle.Package{
+			{Name: "pkg_c", Source: "oci://example/c:v1", DependsOn: []bundle.PackageRef{{Name: "pkg_b"}}},
+			{Name: "pkg_b", Source: "oci://example/b:v1", DependsOn: []bundle.PackageRef{{Name: "pkg_a"}}},
 			{Name: "pkg_a", Source: "oci://example/a:v1"},
 		},
 	}
@@ -505,11 +505,11 @@ func TestDeployOrder_LinearChain(t *testing.T) {
 
 func TestDeployOrder_DiamondPattern(t *testing.T) {
 	bundle := &bundle.UDSBundle{
-		Packages: []Package{
+		Packages: []bundle.Package{
 			{Name: "base", Source: "oci://example/base:v1"},
-			{Name: "left", Source: "oci://example/left:v1", DependsOn: []PackageRef{{Name: "base"}}},
-			{Name: "right", Source: "oci://example/right:v1", DependsOn: []PackageRef{{Name: "base"}}},
-			{Name: "top", Source: "oci://example/top:v1", DependsOn: []PackageRef{{Name: "left"}, {Name: "right"}}},
+			{Name: "left", Source: "oci://example/left:v1", DependsOn: []bundle.PackageRef{{Name: "base"}}},
+			{Name: "right", Source: "oci://example/right:v1", DependsOn: []bundle.PackageRef{{Name: "base"}}},
+			{Name: "top", Source: "oci://example/top:v1", DependsOn: []bundle.PackageRef{{Name: "left"}, {Name: "right"}}},
 		},
 	}
 

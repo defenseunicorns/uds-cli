@@ -12,6 +12,18 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Format represents an output format.
+type Format string
+
+const (
+	FormatText Format = "text"
+	FormatJSON Format = "json"
+	FormatYAML Format = "yaml"
+)
+
+// ResourcePrinter formats a result object.
+type ResourcePrinter interface{ PrintObj(any, io.Writer) error }
+
 // NewPrinter returns a ResourcePrinter for the given format.
 func NewPrinter(format Format) (ResourcePrinter, error) {
 	switch format {

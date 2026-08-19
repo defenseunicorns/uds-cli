@@ -11,18 +11,54 @@ import (
 	"strings"
 
 	"github.com/defenseunicorns/pkg/oci"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	"oras.land/oras-go/v2/content"
 )
+
+// PackageSource abstracts local and OCI package retrieval.
+type PackageSource interface {
+	// PullFiltered retrieves a deployable layout using the supplied filter.
+	PullFiltered(context.Context, string, layout.PackageLayoutOptions) (*layout.PackageLayout, error)
+	// IngestFiltered copies filtered package content into an OCI store.
+	IngestFiltered(context.Context, filters.ComponentFilterStrategy, *udsoci.Store) ([]ocispec.Descriptor, error)
+	// VerifyAndIngestFiltered verifies the retrieved package before ingestion.
+	VerifyAndIngestFiltered(context.Context, string, layout.PackageLayoutOptions, *udsoci.Store) ([]ocispec.Descriptor, error)
+}
+type localSource struct {
+	path      string
+	arch      string
+	bundleDir string
+	tmpDir    string
+	streams   iostreams.IOStreams
+}
+type remoteSource struct {
+	ref     string
+	arch    string
+	opts    bundleinternal.ConfigOptions
+	streams iostreams.IOStreams
+}
+type resolvedLayers struct {
+	remote    *zoci.Remote
+	root      *oci.Manifest
+	layers    []ocispec.Descriptor
+	isPartial bool
+}
+type layerIdentity struct {
+	digest string
+	title  string
+}
 
 // NewPackageSource returns a PackageSource for the given source string.
 // OCI references (detected by IsOCIReference) use zoci.NewRemote;
 // everything else is treated as a local path resolved against bundleDir.
 // streams carries the leveled logger used for ingest/pull diagnostics.
-func NewPackageSource(source string, opts ConfigOptions, bundleDir string, streams iostreams.IOStreams) PackageSource {
+func NewPackageSource(source string, opts bundleinternal.ConfigOptions, bundleDir string, streams iostreams.IOStreams) PackageSource {
 	if udsoci.IsOCIReference(source) {
 		return &remoteSource{
 			ref:     udsoci.TrimScheme(source),
@@ -48,7 +84,7 @@ func isZarfPackage(dir string) bool {
 
 // selectZarfLayers asks Zarf to select the complete package graph for the
 // requested components before any package content is copied.
-func selectZarfLayers(ctx context.Context, root *oci.Manifest, fetcher udsoci.Fetcher, filter filters.ComponentFilterStrategy) ([]ocispec.Descriptor, bool, error) {
+func selectZarfLayers(ctx context.Context, root *oci.Manifest, fetcher content.Fetcher, filter filters.ComponentFilterStrategy) ([]ocispec.Descriptor, bool, error) {
 	pkg, err := zoci.FetchZarfYAML(ctx, root, fetcher)
 	if err != nil {
 		return nil, false, fmt.Errorf("fetching zarf.yaml: %w", err)

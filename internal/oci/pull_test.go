@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	godigest "github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/specs-go"
@@ -64,7 +65,7 @@ func TestBundleNameFromIndex_NoBundleDefinitionManifest(t *testing.T) {
 	t.Parallel()
 	ociDir := t.TempDir()
 	blobDir := filepath.Join(ociDir, "blobs", "sha256")
-	require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
+	require.NoError(t, os.MkdirAll(blobDir, filesystem.PrivateDirectoryMode))
 
 	// Index with a manifest that has no ArtifactType set.
 	manifestBytes := []byte(`{"schemaVersion":2,"config":{"digest":"sha256:abc","size":2},"layers":[]}`)
@@ -86,7 +87,7 @@ func TestBundleNameFromIndex_NoHCLLayer(t *testing.T) {
 	t.Parallel()
 	ociDir := t.TempDir()
 	blobDir := filepath.Join(ociDir, "blobs", "sha256")
-	require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
+	require.NoError(t, os.MkdirAll(blobDir, filesystem.PrivateDirectoryMode))
 
 	// Config manifest with no HCL layer.
 	cfgManifest := ocispec.Manifest{
@@ -117,7 +118,7 @@ func TestPull_NonUDSBundle(t *testing.T) {
 	// Config and manifest must use real sha256 digests so oras.Copy can copy them.
 	ociDir := t.TempDir()
 	blobDir := filepath.Join(ociDir, "blobs", "sha256")
-	require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
+	require.NoError(t, os.MkdirAll(blobDir, filesystem.PrivateDirectoryMode))
 
 	configBytes := []byte("{}")
 	configHex := writeTestBlob(t, blobDir, configBytes)
@@ -198,7 +199,7 @@ package "pkg1" {
   source = "localpkg"
   signature_verification { verify = false }
 }
-`), tmpFilePerm))
+`), filesystem.PrivateFileMode))
 
 	tarball, err := Create(t.Context(), CreateOptions{
 		Config:     newTestConfig(),

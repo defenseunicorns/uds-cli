@@ -17,6 +17,7 @@ import (
 	"time"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,24 +45,24 @@ import (
 
 // deployCall records a single invocation of a recordingDeploy callable.
 type deployCall struct {
-	Pkg *Package
+	Pkg *spec.Package
 	Ctx context.Context
 }
 
 // deployFunc is the per-package deploy callable shape the orchestrator tests inject.
-type deployFunc = func(ctx context.Context, pkg *Package, opts DeployPackageOptions) error
+type deployFunc = func(ctx context.Context, pkg *spec.Package, opts DeployPackageOptions) error
 
 // fakeDeployer adapts a deployFunc into a Deployer so the orchestrator (which now
 // calls Deployer.DeployPackage) can be driven by a mock in unit tests.
 type fakeDeployer struct{ deploy deployFunc }
 
 // DeployPackage delegates to the injected test deployment function.
-func (f fakeDeployer) DeployPackage(ctx context.Context, pkg *Package, opts DeployPackageOptions) error {
+func (f fakeDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opts DeployPackageOptions) error {
 	return f.deploy(ctx, pkg, opts)
 }
 
 // DeployBundle panics because orchestrator tests only deploy individual packages.
-func (fakeDeployer) DeployBundle(context.Context, *UDSBundle, DeployOptions) (*DeployResult, error) {
+func (fakeDeployer) DeployBundle(context.Context, *spec.UDSBundle, DeployOptions) (*DeployResult, error) {
 	panic("fakeDeployer.DeployBundle is not used by orchestrator tests")
 }
 
@@ -74,7 +75,7 @@ func recordingDeploy(returns map[string]error) (deployFunc, func() []deployCall)
 		mu    sync.Mutex
 		calls []deployCall
 	)
-	fn := func(ctx context.Context, pkg *Package, _ DeployPackageOptions) error {
+	fn := func(ctx context.Context, pkg *spec.Package, _ DeployPackageOptions) error {
 		mu.Lock()
 		calls = append(calls, deployCall{Pkg: pkg, Ctx: ctx})
 		mu.Unlock()
@@ -129,7 +130,7 @@ func newGatedDeploy(names ...string) *gatedDeploy {
 }
 
 // deploy records entry and blocks until the test releases the package.
-func (g *gatedDeploy) deploy(ctx context.Context, pkg *Package, _ DeployPackageOptions) error {
+func (g *gatedDeploy) deploy(ctx context.Context, pkg *spec.Package, _ DeployPackageOptions) error {
 	g.mu.Lock()
 	g.inFlight++
 	if g.inFlight > g.maxInFlight {
@@ -213,14 +214,14 @@ func (g *gatedDeploy) EnteredNames() []string {
 // runDeployOrchestrator builds a deployOrchestrator wired to a deploy callable
 // and runs it under t.Context(). Mirrors what ZarfDeployer.DeployBundle does
 // in production minus the trivial DeployResult wrapping.
-func runDeployOrchestrator(t *testing.T, b *UDSBundle, deploy deployFunc, concurrency int) error {
+func runDeployOrchestrator(t *testing.T, b *spec.UDSBundle, deploy deployFunc, concurrency int) error {
 	t.Helper()
 	return newOrchestratorForTest(t, b, deploy, concurrency).Run(t.Context())
 }
 
 // newOrchestratorForTest builds a deployOrchestrator from a bundle and deploy
 // callable. Used by tests that need to drive Run with a custom context.
-func newOrchestratorForTest(t *testing.T, b *UDSBundle, deploy deployFunc, concurrency int) *deployOrchestrator {
+func newOrchestratorForTest(t *testing.T, b *spec.UDSBundle, deploy deployFunc, concurrency int) *deployOrchestrator {
 	t.Helper()
 	dag, err := bundleinternal.BuildDependencyGraph(t.Context(), iostreams.IOStreams{}, b)
 	require.NoError(t, err)
@@ -234,14 +235,14 @@ func newOrchestratorForTest(t *testing.T, b *UDSBundle, deploy deployFunc, concu
 // newDeployTestConfig returns a minimal valid UDSBundleConfig for unit tests.
 func newDeployTestConfig(concurrency int) *UDSBundleConfig {
 	return &UDSBundleConfig{
-		Options: &ConfigOptions{LogLevel: "info", Concurrency: concurrency, TmpDir: os.TempDir()},
+		Options: &bundleinternal.ConfigOptions{LogLevel: "info", Concurrency: concurrency, TmpDir: os.TempDir()},
 	}
 }
 
 // startOrchestrator runs the orchestrator on a goroutine and returns a channel
 // that receives Run's error. Used by gated tests that need to observe progress
 // while Run is still executing.
-func startOrchestrator(t *testing.T, b *UDSBundle, deploy deployFunc, concurrency int) <-chan error {
+func startOrchestrator(t *testing.T, b *spec.UDSBundle, deploy deployFunc, concurrency int) <-chan error {
 	t.Helper()
 	done := make(chan error, 1)
 	orch := newOrchestratorForTest(t, b, deploy, concurrency)
@@ -256,13 +257,13 @@ func startOrchestrator(t *testing.T, b *UDSBundle, deploy deployFunc, concurrenc
 func TestDeployOrchestrator_RespectsDAGOrder(t *testing.T) {
 	t.Parallel()
 
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "order-test"},
-		Packages: []Package{
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "order-test"},
+		Packages: []spec.Package{
 			{Name: "a", Source: "oci://example/a:v1"},
-			{Name: "b", Source: "oci://example/b:v1", DependsOn: []PackageRef{{Name: "a"}}},
-			{Name: "c", Source: "oci://example/c:v1", DependsOn: []PackageRef{{Name: "b"}}},
+			{Name: "b", Source: "oci://example/b:v1", DependsOn: []spec.PackageRef{{Name: "a"}}},
+			{Name: "c", Source: "oci://example/c:v1", DependsOn: []spec.PackageRef{{Name: "b"}}},
 		},
 	}
 
@@ -275,12 +276,12 @@ func TestDeployOrchestrator_RespectsDAGOrder(t *testing.T) {
 func TestDeployOrchestrator_ErrorInLevelPreventsNextLevel(t *testing.T) {
 	t.Parallel()
 
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "level-stop-test"},
-		Packages: []Package{
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "level-stop-test"},
+		Packages: []spec.Package{
 			{Name: "base", Source: "oci://example/base:v1"},
-			{Name: "top", Source: "oci://example/top:v1", DependsOn: []PackageRef{{Name: "base"}}},
+			{Name: "top", Source: "oci://example/top:v1", DependsOn: []spec.PackageRef{{Name: "base"}}},
 		},
 	}
 
@@ -298,10 +299,10 @@ func TestDeployOrchestrator_ErrorInLevelPreventsNextLevel(t *testing.T) {
 func TestDeployOrchestrator_SinglePackage(t *testing.T) {
 	t.Parallel()
 
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "single"},
-		Packages: []Package{{Name: "only", Source: "oci://example/only:v1"}},
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "single"},
+		Packages: []spec.Package{{Name: "only", Source: "oci://example/only:v1"}},
 	}
 
 	deploy, snapshot := recordingDeploy(nil)
@@ -314,10 +315,10 @@ func TestDeployOrchestrator_PreCancelledContext(t *testing.T) {
 
 	// Cancel the ctx before Run is called. The orchestrator must return
 	// ctx.Err() at the level boundary without invoking the deploy callable.
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "pre-cancelled"},
-		Packages: []Package{
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "pre-cancelled"},
+		Packages: []spec.Package{
 			{Name: "a", Source: "oci://example/a:v1"},
 			{Name: "b", Source: "oci://example/b:v1"},
 		},
@@ -337,10 +338,10 @@ func TestDeployOrchestrator_PreCancelledContext(t *testing.T) {
 func TestDeployOrchestrator_CancellationWhileAdmittingFinalLevel(t *testing.T) {
 	t.Parallel()
 
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "admission-cancelled"},
-		Packages: []Package{
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "admission-cancelled"},
+		Packages: []spec.Package{
 			{Name: "first", Source: "oci://example/first:v1"},
 			{Name: "second", Source: "oci://example/second:v1"},
 		},
@@ -349,7 +350,7 @@ func TestDeployOrchestrator_CancellationWhileAdmittingFinalLevel(t *testing.T) {
 	defer cancel()
 
 	var once sync.Once
-	deploy := func(context.Context, *Package, DeployPackageOptions) error {
+	deploy := func(context.Context, *spec.Package, DeployPackageOptions) error {
 		once.Do(cancel)
 		return nil
 	}
@@ -365,10 +366,10 @@ func TestDeployOrchestrator_ErrorWrapping(t *testing.T) {
 	//   1) wraps the underlying error (errors.Is succeeds against the original)
 	//   2) names the failing package in its message
 	//   3) preserves the underlying error message
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "wrap-test"},
-		Packages: []Package{{Name: "broken", Source: "oci://example/broken:v1"}},
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "wrap-test"},
+		Packages: []spec.Package{{Name: "broken", Source: "oci://example/broken:v1"}},
 	}
 
 	rootErr := errors.New("zarf exploded")
@@ -392,10 +393,10 @@ func TestDeployOrchestrator_ErrorWrappingIncludesSourceRange(t *testing.T) {
 }`), 0o600))
 
 	rootErr := errors.New("zarf exploded")
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "wrap-test"},
-		Packages: []Package{{Name: "broken", Source: "oci://example/broken:v1"}},
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "wrap-test"},
+		Packages: []spec.Package{{Name: "broken", Source: "oci://example/broken:v1"}},
 	}
 	deploy, _ := recordingDeploy(map[string]error{"broken": rootErr})
 	orch := newOrchestratorForTest(t, b, deploy, 1)
@@ -416,15 +417,15 @@ func TestDeployBundle_PreparsedBundleWithoutPathDoesNotUseWorkingDirectorySource
 	t.Chdir(workingDir)
 
 	rootErr := errors.New("zarf exploded")
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "wrap-test"},
-		Packages: []Package{{Name: "broken", Source: "oci://example/broken:v1"}},
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "wrap-test"},
+		Packages: []spec.Package{{Name: "broken", Source: "oci://example/broken:v1"}},
 	}
 	deployer := NewZarfDeployer(iostreams.IOStreams{}, nil)
 	_, err := deployer.DeployBundle(t.Context(), b, DeployOptions{
 		Config: newDeployTestConfig(1),
-		PackageDeployFn: func(context.Context, *Package, DeployPackageOptions) error {
+		PackageDeployFn: func(context.Context, *spec.Package, DeployPackageOptions) error {
 			return rootErr
 		},
 	})
@@ -438,9 +439,9 @@ func TestDeployOrchestrator_EmptyBundle(t *testing.T) {
 
 	// Bundle with zero packages produces zero levels. Run should return nil
 	// without invoking the deploy callable.
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "empty"},
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "empty"},
 		Packages: nil,
 	}
 
@@ -456,10 +457,10 @@ func TestDeployOrchestrator_PassesParentContext(t *testing.T) {
 	// Run must propagate the parent ctx into the deploy callable so user
 	// cancellation (Ctrl+C) reaches in-flight deploys. Verify by capturing
 	// the ctx the orchestrator hands to deploy and comparing identities.
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "ctx-prop"},
-		Packages: []Package{{Name: "only", Source: "oci://example/only:v1"}},
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "ctx-prop"},
+		Packages: []spec.Package{{Name: "only", Source: "oci://example/only:v1"}},
 	}
 
 	parent, cancel := context.WithCancel(t.Context())
@@ -484,14 +485,14 @@ func TestDeployOrchestrator_ParallelWithinLevel(t *testing.T) {
 	// Diamond: base -> (left, right) -> top. Verify left and right run
 	// concurrently in level 1 by observing both enter before either is
 	// released.
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "parallel-test"},
-		Packages: []Package{
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "parallel-test"},
+		Packages: []spec.Package{
 			{Name: "base", Source: "oci://example/base:v1"},
-			{Name: "left", Source: "oci://example/left:v1", DependsOn: []PackageRef{{Name: "base"}}},
-			{Name: "right", Source: "oci://example/right:v1", DependsOn: []PackageRef{{Name: "base"}}},
-			{Name: "top", Source: "oci://example/top:v1", DependsOn: []PackageRef{{Name: "left"}, {Name: "right"}}},
+			{Name: "left", Source: "oci://example/left:v1", DependsOn: []spec.PackageRef{{Name: "base"}}},
+			{Name: "right", Source: "oci://example/right:v1", DependsOn: []spec.PackageRef{{Name: "base"}}},
+			{Name: "top", Source: "oci://example/top:v1", DependsOn: []spec.PackageRef{{Name: "left"}, {Name: "right"}}},
 		},
 	}
 
@@ -521,10 +522,10 @@ func TestDeployOrchestrator_ConcurrencyLimitRespected(t *testing.T) {
 
 	// Five independent packages, concurrency=2. At most 2 may be in-flight
 	// at any time.
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "concurrency-test"},
-		Packages: []Package{
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "concurrency-test"},
+		Packages: []spec.Package{
 			{Name: "a", Source: "oci://example/a:v1"},
 			{Name: "b", Source: "oci://example/b:v1"},
 			{Name: "c", Source: "oci://example/c:v1"},
@@ -559,10 +560,10 @@ func TestDeployOrchestrator_ConcurrencyOneSerializesLevel(t *testing.T) {
 
 	// Three independent packages, concurrency=1. Exactly one must be in-flight
 	// at any moment.
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "serial-test"},
-		Packages: []Package{
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "serial-test"},
+		Packages: []spec.Package{
 			{Name: "a", Source: "oci://example/a:v1"},
 			{Name: "b", Source: "oci://example/b:v1"},
 			{Name: "c", Source: "oci://example/c:v1"},
@@ -588,16 +589,16 @@ func TestDeployOrchestrator_WideParallel(t *testing.T) {
 
 	// Eight independent packages, concurrency=4. Verify exactly 4 enter
 	// before any release, then drain.
-	pkgs := make([]Package, 8)
+	pkgs := make([]spec.Package, 8)
 	names := make([]string, 8)
 	for i := range pkgs {
 		name := fmt.Sprintf("pkg%d", i)
-		pkgs[i] = Package{Name: name, Source: fmt.Sprintf("oci://example/%s:v1", name)}
+		pkgs[i] = spec.Package{Name: name, Source: fmt.Sprintf("oci://example/%s:v1", name)}
 		names[i] = name
 	}
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "wide-parallel"},
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "wide-parallel"},
 		Packages: pkgs,
 	}
 
@@ -618,13 +619,13 @@ func TestDeployOrchestrator_WideParallel(t *testing.T) {
 func TestDeployOrchestrator_FailureLetsInFlightFinish(t *testing.T) {
 	t.Parallel()
 
-	// Three independent packages, concurrency=10 starts them all. Package b
+	// Three independent packages, concurrency=10 starts them all. spec.Package b
 	// fails; a and c are mid-deploy and must complete normally — a sibling's
 	// failure does not abort an already-running deploy.
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "error-test"},
-		Packages: []Package{
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "error-test"},
+		Packages: []spec.Package{
 			{Name: "a", Source: "oci://example/a:v1"},
 			{Name: "b", Source: "oci://example/b:v1"},
 			{Name: "c", Source: "oci://example/c:v1"},
@@ -658,10 +659,10 @@ func TestDeployOrchestrator_AggregatesMultipleFailuresInLevel(t *testing.T) {
 	// concurrently; the orchestrator must surface BOTH errors via errors.Join,
 	// not just the first one to reach Wait. errgroup's Wait alone returns only
 	// the first non-nil error — that would silently drop sibling failures.
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "multi-fail-test"},
-		Packages: []Package{
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "multi-fail-test"},
+		Packages: []spec.Package{
 			{Name: "a", Source: "oci://example/a:v1"},
 			{Name: "b", Source: "oci://example/b:v1"},
 			{Name: "c", Source: "oci://example/c:v1"},
@@ -694,16 +695,16 @@ func TestDeployOrchestrator_FailureStopsScheduling(t *testing.T) {
 	// must NOT enter DeployPackage (the orchestrator stops scheduling once
 	// gctx cancels and queued goroutines short-circuit on the gctx.Err()
 	// re-check after slot acquisition).
-	pkgs := make([]Package, 6)
+	pkgs := make([]spec.Package, 6)
 	names := make([]string, 6)
 	for i := range pkgs {
 		name := fmt.Sprintf("pkg%d", i)
-		pkgs[i] = Package{Name: name, Source: fmt.Sprintf("oci://example/%s:v1", name)}
+		pkgs[i] = spec.Package{Name: name, Source: fmt.Sprintf("oci://example/%s:v1", name)}
 		names[i] = name
 	}
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "stop-scheduling"},
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "stop-scheduling"},
 		Packages: pkgs,
 	}
 
@@ -738,10 +739,10 @@ func TestDeployOrchestrator_ContextCancellation(t *testing.T) {
 
 	// Cancel the parent ctx mid-deploy. The gated deploy selects on ctx.Done,
 	// so cancellation should propagate and surface as context.Canceled.
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "cancel-test"},
-		Packages: []Package{{Name: "slow", Source: "oci://example/slow:v1"}},
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "cancel-test"},
+		Packages: []spec.Package{{Name: "slow", Source: "oci://example/slow:v1"}},
 	}
 
 	g := newGatedDeploy("slow")
@@ -763,10 +764,10 @@ func TestDeployOrchestrator_ContextDeadlineExceeded(t *testing.T) {
 	t.Parallel()
 
 	// Deadline-based cancellation should surface as context.DeadlineExceeded.
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "deadline-test"},
-		Packages: []Package{{Name: "slow", Source: "oci://example/slow:v1"}},
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "deadline-test"},
+		Packages: []spec.Package{{Name: "slow", Source: "oci://example/slow:v1"}},
 	}
 
 	g := newGatedDeploy("slow")
@@ -798,17 +799,17 @@ func TestDeployOrchestrator_ConcurrentOutputIsClean(t *testing.T) {
 	var buf bytes.Buffer
 	streams := iostreams.New(nil, nil, &buf)
 
-	pkgs := make([]Package, pkgCount)
+	pkgs := make([]spec.Package, pkgCount)
 	for i := range pkgs {
-		pkgs[i] = Package{Name: fmt.Sprintf("p%02d", i), Source: "oci://example.com/p:v1"}
+		pkgs[i] = spec.Package{Name: fmt.Sprintf("p%02d", i), Source: "oci://example.com/p:v1"}
 	}
-	b := &UDSBundle{
-		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-		Metadata: Metadata{Name: "output-test"},
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "output-test"},
 		Packages: pkgs,
 	}
 
-	deploy := func(_ context.Context, pkg *Package, opts DeployPackageOptions) error {
+	deploy := func(_ context.Context, pkg *spec.Package, opts DeployPackageOptions) error {
 		token := fmt.Sprintf("[%s]", pkg.Name)
 		for i := 0; i < writesPerPkg; i++ {
 			_, _ = fmt.Fprint(opts.Streams.ErrOut(), token)

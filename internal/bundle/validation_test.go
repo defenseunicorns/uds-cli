@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -157,7 +158,7 @@ func TestValidateConfig_StopsOnFirstError(t *testing.T) {
 }
 
 func TestValidatePackageNames(t *testing.T) {
-	packages := []Package{
+	packages := []spec.Package{
 		{Name: "core"},
 		{Name: "nginx"},
 		{Name: "podinfo"},

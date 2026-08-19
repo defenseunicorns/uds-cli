@@ -10,10 +10,44 @@ import (
 	"os"
 	"path/filepath"
 
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	oras "oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
 )
+
+// Pusher pushes bundle artifacts to an OCI registry.
+type Pusher interface {
+	// PushBundle pushes the OCI layout in bundleDir to the given OCI reference.
+	// bundleDir must contain an oci/ subdirectory with a valid OCI layout (index.json + blobs/).
+	PushBundle(ctx context.Context, bundleDir, ociReference string, opts PushOptions) (*PushResult, error)
+	// PushPackage pushes a single Zarf package from packageDir to the given OCI reference.
+	PushPackage(ctx context.Context, packageDir, ociReference string, opts PushOptions) (*PushResult, error)
+}
+
+// PushOptions configures an OCI push operation.
+type PushOptions struct {
+	Config    *bundleinternal.UDSBundleConfig
+	Streams   iostreams.IOStreams
+	PushHooks PushHooks
+}
+
+// Validate validates push options.
+func (o PushOptions) Validate() error { return bundleinternal.ValidateConfig(o.Config) }
+
+// PushResult describes a completed OCI push.
+type PushResult struct {
+	OCIReference string `json:"ociReference" yaml:"ociReference" text:"OCI Reference"`
+}
+
+// PushHooks provides extension points for OCI pushes.
+type PushHooks struct {
+	ToOrasTarget func(ctx context.Context, ociReference string, opts *PushOptions) (oras.Target, error)
+	// ModifyOrasSettings is not called when a bundle push is already fully published and no copy is required.
+	ModifyOrasSettings func(ctx context.Context, copyOptions *oras.CopyOptions) error
+}
 
 // defaultPusher provides the standard OCI push implementation.
 type defaultPusher struct{}

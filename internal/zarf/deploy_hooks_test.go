@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
@@ -24,11 +25,11 @@ func TestPackageDeployHooks_WithDefaults_NilFuncs(t *testing.T) {
 func TestPackageDeployHooks_WithDefaults_NonNilFuncsUnchanged(t *testing.T) {
 	var preCalled, postCalled bool
 	h := PackageDeployHooks{
-		PreDeploy: func(_ context.Context, _ *Package, _ *layout.PackageLayout, _ *packager.DeployOptions, _ *DeployPackageOptions) error {
+		PreDeploy: func(_ context.Context, _ *spec.Package, _ *layout.PackageLayout, _ *packager.DeployOptions, _ *DeployPackageOptions) error {
 			preCalled = true
 			return nil
 		},
-		PostDeploy: func(_ context.Context, _ *Package) error {
+		PostDeploy: func(_ context.Context, _ *spec.Package) error {
 			postCalled = true
 			return nil
 		},
@@ -46,10 +47,10 @@ func TestPackageDeployHooks_DefaultsAreNoOps(t *testing.T) {
 	h := PackageDeployHooks{}
 	got := h.withDefaults()
 
-	err := got.PreDeploy(t.Context(), &Package{}, &layout.PackageLayout{}, &packager.DeployOptions{}, &DeployPackageOptions{})
+	err := got.PreDeploy(t.Context(), &spec.Package{}, &layout.PackageLayout{}, &packager.DeployOptions{}, &DeployPackageOptions{})
 	require.NoError(t, err)
 
-	err = got.PostDeploy(t.Context(), &Package{})
+	err = got.PostDeploy(t.Context(), &spec.Package{})
 	require.NoError(t, err)
 }
 
@@ -63,8 +64,8 @@ func TestBundleDeployHooks_WithDefaults_NilFuncs(t *testing.T) {
 func TestBundleDeployHooks_WithDefaults_NonNilFuncsUnchanged(t *testing.T) {
 	var preCalled, postCalled bool
 	h := BundleDeployHooks{
-		PreDeploy:  func(_ context.Context, _ *UDSBundle, _ *DeployOptions) error { preCalled = true; return nil },
-		PostDeploy: func(_ context.Context, _ *UDSBundle) error { postCalled = true; return nil },
+		PreDeploy:  func(_ context.Context, _ *spec.UDSBundle, _ *DeployOptions) error { preCalled = true; return nil },
+		PostDeploy: func(_ context.Context, _ *spec.UDSBundle) error { postCalled = true; return nil },
 	}
 	got := h.withDefaults()
 
@@ -79,10 +80,10 @@ func TestBundleDeployHooks_DefaultsAreNoOps(t *testing.T) {
 	h := BundleDeployHooks{}
 	got := h.withDefaults()
 
-	err := got.PreDeploy(t.Context(), &UDSBundle{}, &DeployOptions{})
+	err := got.PreDeploy(t.Context(), &spec.UDSBundle{}, &DeployOptions{})
 	require.NoError(t, err)
 
-	err = got.PostDeploy(t.Context(), &UDSBundle{})
+	err = got.PostDeploy(t.Context(), &spec.UDSBundle{})
 	require.NoError(t, err)
 }
 

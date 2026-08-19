@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	bundle "github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
@@ -129,7 +130,7 @@ package "pkg1" { source = "oci://example.com/pkg:v1" }
 func TestParseBundleFile_SignatureVerification(t *testing.T) {
 	dir := t.TempDir()
 	keyPath := filepath.Join(dir, "public.key")
-	require.NoError(t, os.WriteFile(keyPath, []byte("test public key"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(keyPath, []byte("test public key"), filesystem.PrivateFileMode))
 	path := filepath.Join(dir, BundleFileName)
 	require.NoError(t, os.WriteFile(path, []byte(`
 uds { bundle_api_version = "uds.dev/v1alpha1" }
@@ -147,7 +148,7 @@ package "keyless" {
     }
   }
 }
-`), tmpFilePerm))
+`), filesystem.PrivateFileMode))
 
 	b, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(t.Context(), path)
 	require.NoError(t, err)
@@ -374,43 +375,43 @@ func TestValidate(t *testing.T) {
 		{
 			name: "valid bundle",
 			bundle: bundle.UDSBundle{
-				UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-				Metadata: Metadata{Name: "test"},
-				Packages: []Package{{Name: "pkg1", Source: "oci://example.com/pkg:v1", SignatureVerification: &PackageSignatureVerification{PublicKey: "key"}}},
+				UDS:      bundle.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+				Metadata: bundle.Metadata{Name: "test"},
+				Packages: []bundle.Package{{Name: "pkg1", Source: "oci://example.com/pkg:v1", SignatureVerification: &bundle.PackageSignatureVerification{PublicKey: "key"}}},
 			},
 			wantErr: "",
 		},
 		{
 			name: "missing api version",
 			bundle: bundle.UDSBundle{
-				Metadata: Metadata{Name: "test"},
-				Packages: []Package{{Name: "pkg1", Source: "oci://example.com/pkg:v1"}},
+				Metadata: bundle.Metadata{Name: "test"},
+				Packages: []bundle.Package{{Name: "pkg1", Source: "oci://example.com/pkg:v1"}},
 			},
 			wantErr: "bundle_api_version",
 		},
 		{
 			name: "unsupported api version",
 			bundle: bundle.UDSBundle{
-				UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v2beta1"},
-				Metadata: Metadata{Name: "test"},
-				Packages: []Package{{Name: "pkg1", Source: "oci://example.com/pkg:v1"}},
+				UDS:      bundle.UDSBlock{BundleAPIVersion: "uds.dev/v2beta1"},
+				Metadata: bundle.Metadata{Name: "test"},
+				Packages: []bundle.Package{{Name: "pkg1", Source: "oci://example.com/pkg:v1"}},
 			},
 			wantErr: "not supported",
 		},
 		{
 			name: "missing name",
 			bundle: bundle.UDSBundle{
-				UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-				Packages: []Package{{Name: "pkg1", Source: "oci://example.com/pkg:v1"}},
+				UDS:      bundle.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+				Packages: []bundle.Package{{Name: "pkg1", Source: "oci://example.com/pkg:v1"}},
 			},
 			wantErr: "metadata.name",
 		},
 		{
 			name: "duplicate package names",
 			bundle: bundle.UDSBundle{
-				UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-				Metadata: Metadata{Name: "test"},
-				Packages: []Package{
+				UDS:      bundle.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+				Metadata: bundle.Metadata{Name: "test"},
+				Packages: []bundle.Package{
 					{Name: "pkg1", Source: "oci://a:v1"},
 					{Name: "pkg1", Source: "oci://b:v1"},
 				},
@@ -420,19 +421,19 @@ func TestValidate(t *testing.T) {
 		{
 			name: "missing package source",
 			bundle: bundle.UDSBundle{
-				UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-				Metadata: Metadata{Name: "test"},
-				Packages: []Package{{Name: "pkg1"}},
+				UDS:      bundle.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+				Metadata: bundle.Metadata{Name: "test"},
+				Packages: []bundle.Package{{Name: "pkg1"}},
 			},
 			wantErr: "source is required",
 		},
 		{
 			name: "unknown depends_on",
 			bundle: bundle.UDSBundle{
-				UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-				Metadata: Metadata{Name: "test"},
-				Packages: []Package{
-					{Name: "pkg1", Source: "oci://a:v1", DependsOn: []PackageRef{{Name: "missing"}}},
+				UDS:      bundle.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+				Metadata: bundle.Metadata{Name: "test"},
+				Packages: []bundle.Package{
+					{Name: "pkg1", Source: "oci://a:v1", DependsOn: []bundle.PackageRef{{Name: "missing"}}},
 				},
 			},
 			wantErr: "unknown package",
@@ -440,19 +441,19 @@ func TestValidate(t *testing.T) {
 		{
 			name: "no packages",
 			bundle: bundle.UDSBundle{
-				UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-				Metadata: Metadata{Name: "test"},
-				Packages: []Package{},
+				UDS:      bundle.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+				Metadata: bundle.Metadata{Name: "test"},
+				Packages: []bundle.Package{},
 			},
 			wantErr: "at least one package is required",
 		},
 		{
 			name: "self-referencing dependency",
 			bundle: bundle.UDSBundle{
-				UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-				Metadata: Metadata{Name: "test"},
-				Packages: []Package{
-					{Name: "pkg1", Source: "oci://a:v1", DependsOn: []PackageRef{{Name: "pkg1"}}},
+				UDS:      bundle.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+				Metadata: bundle.Metadata{Name: "test"},
+				Packages: []bundle.Package{
+					{Name: "pkg1", Source: "oci://a:v1", DependsOn: []bundle.PackageRef{{Name: "pkg1"}}},
 				},
 			},
 			wantErr: "cannot depend on itself",
@@ -460,9 +461,9 @@ func TestValidate(t *testing.T) {
 		{
 			name: "duplicate optional component",
 			bundle: bundle.UDSBundle{
-				UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-				Metadata: Metadata{Name: "test"},
-				Packages: []Package{
+				UDS:      bundle.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+				Metadata: bundle.Metadata{Name: "test"},
+				Packages: []bundle.Package{
 					{Name: "pkg1", Source: "oci://a:v1", OptionalComponents: []string{"comp1", "comp1"}},
 				},
 			},
@@ -471,9 +472,9 @@ func TestValidate(t *testing.T) {
 		{
 			name: "empty string in optional components",
 			bundle: bundle.UDSBundle{
-				UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-				Metadata: Metadata{Name: "test"},
-				Packages: []Package{
+				UDS:      bundle.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+				Metadata: bundle.Metadata{Name: "test"},
+				Packages: []bundle.Package{
 					{Name: "pkg1", Source: "oci://a:v1", OptionalComponents: []string{"comp1", ""}},
 				},
 			},
@@ -679,7 +680,7 @@ func writeTempHCL(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bundle.uds.hcl")
-	if err := os.WriteFile(path, []byte(content), tmpFilePerm); err != nil {
+	if err := os.WriteFile(path, []byte(content), filesystem.PrivateFileMode); err != nil {
 		t.Fatalf("failed to write temp HCL file: %v", err)
 	}
 	return path
@@ -788,7 +789,7 @@ func TestParseDefaults(t *testing.T) {
 				path = tt.fixture
 			} else {
 				path = filepath.Join(t.TempDir(), "defaults.uds.hcl")
-				require.NoError(t, os.WriteFile(path, []byte(tt.hcl), tmpFilePerm))
+				require.NoError(t, os.WriteFile(path, []byte(tt.hcl), filesystem.PrivateFileMode))
 			}
 
 			vars, err := ParseDefaults(t.Context(), path)
@@ -1165,7 +1166,7 @@ func TestParseBundleConfig_FileFunction(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.uds.hcl")
 	relativePath := filepath.Join(dir, "config-value.txt")
-	require.NoError(t, os.WriteFile(relativePath, []byte("from file"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(relativePath, []byte("from file"), filesystem.PrivateFileMode))
 
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 options {
@@ -1178,7 +1179,7 @@ variables = {
     rendered = "value: ${file("config-value.txt")}"
   }
 }
-`), tmpFilePerm))
+`), filesystem.PrivateFileMode))
 
 	cfg, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleConfig(t.Context(), configPath)
 	require.NoError(t, err)
@@ -1193,8 +1194,8 @@ variables = {
 func TestParseBundleConfig_FileFunctionErrors(t *testing.T) {
 	dir := t.TempDir()
 	invalidUTF8Path := filepath.Join(dir, "invalid.txt")
-	require.NoError(t, os.WriteFile(invalidUTF8Path, []byte{0xff}, tmpFilePerm))
-	require.NoError(t, os.Mkdir(filepath.Join(dir, "a-directory"), tempDirPerm))
+	require.NoError(t, os.WriteFile(invalidUTF8Path, []byte{0xff}, filesystem.PrivateFileMode))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "a-directory"), filesystem.PrivateDirectoryMode))
 
 	tests := []struct {
 		name    string
@@ -1226,7 +1227,7 @@ func TestParseBundleConfig_FileFunctionErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			configPath := filepath.Join(dir, "config.uds.hcl")
-			require.NoError(t, os.WriteFile(configPath, []byte("variables = { value = "+tt.expr+" }"), tmpFilePerm))
+			require.NoError(t, os.WriteFile(configPath, []byte("variables = { value = "+tt.expr+" }"), filesystem.PrivateFileMode))
 
 			_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleConfig(t.Context(), configPath)
 			require.Error(t, err)
@@ -1283,8 +1284,8 @@ package "example" { source = "oci://example.com/package:v1" }`,
 			if tt.file == BundleDefaultsFileName {
 				requiredFile = "value.txt"
 			}
-			require.NoError(t, os.WriteFile(filepath.Join(filepath.Dir(path), requiredFile), []byte("example"), tmpFilePerm))
-			require.NoError(t, os.WriteFile(path, []byte(tt.content), tmpFilePerm))
+			require.NoError(t, os.WriteFile(filepath.Join(filepath.Dir(path), requiredFile), []byte("example"), filesystem.PrivateFileMode))
+			require.NoError(t, os.WriteFile(path, []byte(tt.content), filesystem.PrivateFileMode))
 
 			err := tt.parse(t.Context(), path)
 			require.NoError(t, err)
@@ -1294,13 +1295,13 @@ package "example" { source = "oci://example.com/package:v1" }`,
 
 func TestMaterializeBundleFileFunctions(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "name.txt"), []byte("from\nfile\""), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "name.txt"), []byte("from\nfile\""), filesystem.PrivateFileMode))
 	path := filepath.Join(dir, BundleFileName)
 	require.NoError(t, os.WriteFile(path, []byte(`
 uds { bundle_api_version = "uds.dev/v1alpha1" }
 metadata { name = file("name.txt") }
 package "example" { source = "oci://example.com/package:v1" }
-`), tmpFilePerm))
+`), filesystem.PrivateFileMode))
 
 	p := NewHCLParser("", iostreams.IOStreams{})
 	_, materialized, err := p.ParseAndMaterializeBundleFile(t.Context(), path)
@@ -1313,7 +1314,7 @@ package "example" { source = "oci://example.com/package:v1" }
 func TestMaterializeBundleFileFunctionsPreservesSourceAfterReplacement(t *testing.T) {
 	dir := t.TempDir()
 	description := strings.Repeat("materialized description ", 4)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "description.txt"), []byte(description), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "description.txt"), []byte(description), filesystem.PrivateFileMode))
 	path := filepath.Join(dir, BundleFileName)
 	require.NoError(t, os.WriteFile(path, []byte(`
 uds { bundle_api_version = "uds.dev/v1alpha1" }
@@ -1323,7 +1324,7 @@ metadata {
   version = "1.2.3"
 }
 package "example" { source = "oci://example.com/package:v1" }
-`), tmpFilePerm))
+`), filesystem.PrivateFileMode))
 
 	p := NewHCLParser("", iostreams.IOStreams{})
 	_, materialized, err := p.ParseAndMaterializeBundleFile(t.Context(), path)
@@ -1338,7 +1339,7 @@ package "example" { source = "oci://example.com/package:v1" }
 
 func TestMaterializeBundleFileFunctionsUsesDependencyOrderLocalValues(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("from a"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("from a"), filesystem.PrivateFileMode))
 	path := filepath.Join(dir, BundleFileName)
 	require.NoError(t, os.WriteFile(path, []byte(`
 uds { bundle_api_version = "uds.dev/v1alpha1" }
@@ -1354,7 +1355,7 @@ metadata {
 	description = local.description
 }
 package "example" { source = "oci://example.com/package:v1" }
-`), tmpFilePerm))
+`), filesystem.PrivateFileMode))
 
 	p := NewHCLParser("", iostreams.IOStreams{})
 	b, materialized, err := p.ParseAndMaterializeBundleFile(t.Context(), path)
@@ -1371,20 +1372,20 @@ package "example" { source = "oci://example.com/package:v1" }
 func TestMaterializeDefaultsFilePreservesExpressionScopeAndLaziness(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, BundleDefaultsFileName)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("from file"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("from file"), filesystem.PrivateFileMode))
 	require.NoError(t, os.WriteFile(path, []byte(`
 variables = {
   values = [for name in ["a"] : file("${name}.txt")]
   value  = false ? file("missing.txt") : "ok"
 }
-`), tmpFilePerm))
+`), filesystem.PrivateFileMode))
 
 	materialized, err := materializeDefaultsFile(path)
 	require.NoError(t, err)
 	assert.NotContains(t, string(materialized), "file(")
 
 	materializedPath := filepath.Join(dir, "materialized.uds.hcl")
-	require.NoError(t, os.WriteFile(materializedPath, materialized, tmpFilePerm))
+	require.NoError(t, os.WriteFile(materializedPath, materialized, filesystem.PrivateFileMode))
 	variables, err := ParseDefaults(t.Context(), materializedPath)
 	require.NoError(t, err)
 	assert.Equal(t, []any{"from file"}, variables["values"])

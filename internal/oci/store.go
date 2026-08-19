@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	godigest "github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -19,6 +20,12 @@ import (
 	orasoci "oras.land/oras-go/v2/content/oci"
 	"oras.land/oras-go/v2/errdef"
 )
+
+// Store is a bundle OCI layout backed by ORAS content storage.
+type Store struct {
+	*orasoci.Store
+	root string
+}
 
 // CreateStore opens a mutable OCI layout at root, creating it when necessary.
 //
@@ -39,7 +46,7 @@ func CreateStore(root string) (*Store, error) {
 	}
 	store.AutoSaveIndex = false
 	store.AutoGC = false
-	if err := os.MkdirAll(filepath.Join(root, ocispec.ImageBlobsDir, godigest.SHA256.String()), tempDirPerm); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ocispec.ImageBlobsDir, godigest.SHA256.String()), filesystem.PrivateDirectoryMode); err != nil {
 		return nil, fmt.Errorf("creating OCI blob directory: %w", err)
 	}
 	return &Store{Store: store, root: root}, nil

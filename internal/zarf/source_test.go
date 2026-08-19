@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	packageoci "github.com/defenseunicorns/pkg/oci"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -63,7 +64,7 @@ components:
 }
 
 func TestNewPackageSource_Remote(t *testing.T) {
-	opts := ConfigOptions{
+	opts := bundleinternal.ConfigOptions{
 		Architecture:  "amd64",
 		PlainHTTP:     true,
 		SkipTLSVerify: true,
@@ -108,7 +109,7 @@ func TestNewPackageSource_Local(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			opts := ConfigOptions{Architecture: "arm64", TmpDir: "/custom/tmp"}
+			opts := bundleinternal.ConfigOptions{Architecture: "arm64", TmpDir: "/custom/tmp"}
 			src := NewPackageSource(tt.source, opts, "/bundle/dir", iostreams.IOStreams{})
 			local, ok := src.(*localSource)
 			require.True(t, ok, "expected *localSource")

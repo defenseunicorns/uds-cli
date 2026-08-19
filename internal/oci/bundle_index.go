@@ -13,6 +13,34 @@ import (
 	oras "oras.land/oras-go/v2"
 )
 
+const (
+	// Media types for UDS bundle OCI artifacts.
+	MediaTypeBundleDefinition = "application/vnd.defenseunicorns.uds.bundle.definition.v1"
+	MediaTypeBundleHCL        = "application/vnd.defenseunicorns.uds.bundle.hcl.v1"
+	MediaTypeBundleValuesYAML = "application/vnd.defenseunicorns.uds.bundle.values.v1+yaml"
+
+	// MediaTypeBundle is the artifactType of the canonical single-arch bundle
+	// index (the child index a published tag's root index points at, and the
+	// index.json inside a bundle .tar.zst). See ADR-0015.
+	MediaTypeBundle = "application/vnd.defenseunicorns.uds.bundle.v1"
+
+	// MediaTypeZarfLayer is the media type for Zarf package file layers.
+	MediaTypeZarfLayer = "application/vnd.defenseunicorns.zarf.layer.v1"
+	// AnnotationBundleArchitecture records the architecture of a child bundle index.
+	AnnotationBundleArchitecture = "uds.dev/architecture"
+	// AnnotationPackageName records the bundle package name that identifies a package descriptor.
+	AnnotationPackageName = "uds.dev/package.name"
+	// AnnotationPackageSource records the bundle package source for provenance.
+	AnnotationPackageSource = "uds.dev/package.source"
+
+	// AnnotationPackageVerification records a successful package verification during bundle creation.
+	AnnotationPackageVerification = "uds.dev/package-verification"
+	// AnnotationPackageVerificationVerified is the persisted value for a successful verification.
+	AnnotationPackageVerificationVerified = "verified"
+	// AnnotationReconfiguredFrom records the source bundle's child-index digest during reconfigure.
+	AnnotationReconfiguredFrom = "org.defenseunicorns.uds.reconfigured-from"
+)
+
 // ResolveBundleChild resolves reference to the canonical single-arch bundle
 // index and returns its descriptor and raw bytes.
 func ResolveBundleChild(ctx context.Context, src oras.Target, reference, arch string) (ocispec.Descriptor, []byte, error) {

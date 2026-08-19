@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	"github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -51,13 +52,13 @@ func buildBundleArtifactInner(t *testing.T, bundleHCL, defaultsHCL string, value
 	root := t.TempDir()
 	ociDir := filepath.Join(root, "oci")
 	blobDir := filepath.Join(ociDir, "blobs", "sha256")
-	require.NoError(t, os.MkdirAll(blobDir, tempDirPerm))
-	require.NoError(t, os.WriteFile(filepath.Join(ociDir, "oci-layout"), []byte("{\"imageLayoutVersion\":\"1.0.0\"}\n"), tmpFilePerm))
+	require.NoError(t, os.MkdirAll(blobDir, filesystem.PrivateDirectoryMode))
+	require.NoError(t, os.WriteFile(filepath.Join(ociDir, "oci-layout"), []byte("{\"imageLayoutVersion\":\"1.0.0\"}\n"), filesystem.PrivateFileMode))
 
 	writeBlob := func(data []byte) godigest.Digest {
 		sum := sha256.Sum256(data)
 		hexDigest := hex.EncodeToString(sum[:])
-		require.NoError(t, os.WriteFile(filepath.Join(blobDir, hexDigest), data, tmpFilePerm))
+		require.NoError(t, os.WriteFile(filepath.Join(blobDir, hexDigest), data, filesystem.PrivateFileMode))
 		return godigest.NewDigestFromEncoded(godigest.SHA256, hexDigest)
 	}
 	emptyConfig := []byte("{}")
@@ -114,7 +115,7 @@ func buildBundleArtifactInner(t *testing.T, bundleHCL, defaultsHCL string, value
 	}
 	indexData, err := json.MarshalIndent(index, "", "  ")
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(ociDir, "index.json"), append(indexData, '\n'), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(ociDir, "index.json"), append(indexData, '\n'), filesystem.PrivateFileMode))
 	outPath := filepath.Join(t.TempDir(), "bundle.tar.zst")
 	require.NoError(t, WriteTarZst(t.Context(), iostreams.IOStreams{}, outPath, root))
 	return outPath

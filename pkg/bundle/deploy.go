@@ -45,22 +45,34 @@ type ZarfPackageLayoutLoader interface {
 
 // PackageDeployHooks provides deployment process extensibility on a per-package basis.
 type PackageDeployHooks struct {
-	// PreDeploy enables customizing the options just before deploying the Package.
-	// Called after the package layout is loaded and before the cluster deploy. Mutations to
-	// pkgLayout.Pkg and packageOpts take effect immediately. A non-nil error aborts the
-	// deploy; the cluster deploy is never called and PostDeploy is skipped.
-	// May run concurrently with PreDeploy for other packages within the same DAG level.
+	// PreDeploy enables customization just before a package deploys. It runs after
+	// layout loading and before the cluster deploy. Mutations to pkgLayout.Pkg and
+	// packageOpts take effect immediately. A non-nil error aborts the deploy; the
+	// cluster deploy is not called and PostDeploy is skipped.
+	//
+	// PreDeploy and PostDeploy are captured before PreDeploy runs, so changing
+	// packageOpts.PackageDeployHooks here has no effect. Use
+	// BundleDeployHooks.PreDeploy to install per-package hooks dynamically.
+	//
+	// PreDeploy may run concurrently with PreDeploy for other packages in the
+	// same DAG level; implementations must be concurrency-safe.
 	PreDeploy func(ctx context.Context, pkg *spec.Package, pkgLayout *ZarfPackageLayout, packageOpts *DeployPackageOptions) error
 
-	// PostDeploy enables tracking what Packages have been deployed.
-	// Called after a successful packager.Deploy. Not called when PreDeploy or the deploy itself errors.
-	// May run concurrently with PostDeploy for other packages within the same DAG level — implementations must be concurrency-safe.
+	// PostDeploy enables tracking successfully deployed packages. It runs after a
+	// successful cluster deploy and is not called when PreDeploy or deployment
+	// returns an error. It may run concurrently with PostDeploy for other
+	// packages in the same DAG level; implementations must be concurrency-safe.
 	PostDeploy func(ctx context.Context, pkg *spec.Package) error
 }
 
-// BundleDeployHooks provides deployment process extensibility at the whole-bundle scope.
+// BundleDeployHooks provides deployment process extensibility at the bundle scope.
 type BundleDeployHooks struct {
-	PreDeploy  func(ctx context.Context, b *spec.UDSBundle, opts *DeployOptions) error
+	// PreDeploy runs once before package deployment. Only mutations to
+	// PackageDeployHooks are honored: package selection, source preparation, and
+	// bundle hooks have already been consumed. A returned error prevents package
+	// deployment and skips PostDeploy.
+	PreDeploy func(ctx context.Context, b *spec.UDSBundle, opts *DeployOptions) error
+	// PostDeploy runs once after every selected package deploys successfully.
 	PostDeploy func(ctx context.Context, b *spec.UDSBundle) error
 }
 
@@ -91,8 +103,10 @@ func (s *DeploySource) Close() error {
 
 // DeployOptions contains options for deploying an entire bundle.
 type DeployOptions struct {
-	Config             *UDSBundleConfig
-	Packages           []string
+	Config   *UDSBundleConfig
+	Packages []string
+	// Force bypasses ValidateDeploySafety, allowing selected packages to deploy
+	// even when required dependencies are absent.
 	Force              bool
 	BundleDeployHooks  BundleDeployHooks
 	PackageDeployHooks PackageDeployHooks
@@ -216,15 +230,15 @@ func toZarfConfig(cfg *UDSBundleConfig) *internalzarf.UDSBundleConfig {
 	if cfg == nil {
 		return nil
 	}
-	var options *internalzarf.ConfigOptions
+	var options *bundleinternal.ConfigOptions
 	if cfg.Options != nil {
-		options = &internalzarf.ConfigOptions{
+		options = &bundleinternal.ConfigOptions{
 			LogLevel: cfg.Options.LogLevel, Architecture: cfg.Options.Architecture,
 			PlainHTTP: cfg.Options.PlainHTTP, SkipTLSVerify: cfg.Options.SkipTLSVerify,
 			TmpDir: cfg.Options.TmpDir, Concurrency: cfg.Options.Concurrency,
 		}
 	}
-	return &internalzarf.UDSBundleConfig{Options: options, Variables: internalzarf.Variables(cfg.Variables)}
+	return &internalzarf.UDSBundleConfig{Options: options, Variables: bundleinternal.Variables(cfg.Variables)}
 }
 
 func fromZarfConfig(cfg *internalzarf.UDSBundleConfig) *UDSBundleConfig {

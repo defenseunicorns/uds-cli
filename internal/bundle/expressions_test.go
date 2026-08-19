@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +27,7 @@ func parseExpressionTestHCL(t *testing.T, src string) *hcl.File {
 
 func TestExtractLocalsMultipleLocalsBlocks(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("from a"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("from a"), filesystem.PrivateFileMode))
 
 	hclFile := parseExpressionTestHCL(t, `
 locals {
@@ -49,7 +50,7 @@ locals {
 
 func TestExtractLocalsSupportsMultiLevelDependencyChain(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("from a"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("from a"), filesystem.PrivateFileMode))
 
 	hclFile := parseExpressionTestHCL(t, `
 locals {
@@ -74,7 +75,7 @@ locals {
 
 func TestExtractLocalsIndexStyleReference(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("from a"), tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("from a"), filesystem.PrivateFileMode))
 
 	hclFile := parseExpressionTestHCL(t, `
 locals {

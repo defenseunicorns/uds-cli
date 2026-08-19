@@ -114,7 +114,7 @@ func copyReference(ctx context.Context, src oras.ReadOnlyTarget, srcRef string, 
 // repositories need PushReference so the bytes go to the manifest endpoint;
 // generic Push writes to the blob store there. Local/test targets that do not
 // expose PushReference fall back to Push plus Tag.
-func PushReferenceBytes(ctx context.Context, target Target, desc ocispec.Descriptor, data []byte, reference string) error {
+func PushReferenceBytes(ctx context.Context, target oras.Target, desc ocispec.Descriptor, data []byte, reference string) error {
 	if pusher, ok := target.(interface {
 		PushReference(context.Context, ocispec.Descriptor, io.Reader, string) error
 	}); ok {
@@ -134,7 +134,7 @@ func Tag(ctx context.Context, target interface {
 }
 
 // EnsureTagAvailable returns an error when target already has tag or cannot check it.
-func EnsureTagAvailable(ctx context.Context, target Target, tag string) error {
+func EnsureTagAvailable(ctx context.Context, target oras.Target, tag string) error {
 	if _, err := target.Resolve(ctx, tag); err == nil {
 		return fmt.Errorf("target tag %q already exists in registry", tag)
 	} else if !IsNotFound(err) {
@@ -151,7 +151,7 @@ func BundleChildDescriptor(desc ocispec.Descriptor, arch string) ocispec.Descrip
 }
 
 // PublishBundleRootIndex wraps child in the multi-architecture root index at tag.
-func PublishBundleRootIndex(ctx context.Context, target Target, tag string, child ocispec.Descriptor) error {
+func PublishBundleRootIndex(ctx context.Context, target oras.Target, tag string, child ocispec.Descriptor) error {
 	rootBytes, rootDesc, currentRoot, err := mergeRootIndex(ctx, target, tag, child)
 	if err != nil {
 		return err

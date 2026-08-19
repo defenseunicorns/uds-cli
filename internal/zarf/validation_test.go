@@ -6,13 +6,14 @@ package zarf
 import (
 	"testing"
 
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/stretchr/testify/require"
 )
 
 // validValidationConfig returns baseline valid Zarf configuration for tests.
 func validValidationConfig() *UDSBundleConfig {
 	return &UDSBundleConfig{
-		Options: &ConfigOptions{Concurrency: 10},
+		Options: &bundleinternal.ConfigOptions{Concurrency: 10},
 	}
 }
 

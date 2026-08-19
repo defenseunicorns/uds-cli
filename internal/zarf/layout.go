@@ -13,11 +13,45 @@ import (
 	"path/filepath"
 	"strings"
 
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
+
+// LoadOptions carries options for package layout loading.
+type LoadOptions struct {
+	// Streams carries diagnostics for the loader.
+	Streams iostreams.IOStreams
+	// IsPartial reports whether the loaded package may omit checksum-referenced layers.
+	IsPartial bool
+}
+
+// PackageLayoutLoader loads a package into a deployable Zarf layout.
+type PackageLayoutLoader interface {
+	LoadPackageLayout(context.Context, *spec.Package, string, LoadOptions) (*layout.PackageLayout, bool, error)
+}
+
+// ExtractedArtifactPackageLayoutLoader reads package OCI blobs from an extracted bundle artifact.
+type ExtractedArtifactPackageLayoutLoader struct {
+	OCIDir           string
+	PackageManifests map[string]ocispec.Descriptor
+}
+
+// SourcePackageLayoutLoader loads packages from their declared local or OCI sources.
+type SourcePackageLayoutLoader struct {
+	configOpts bundleinternal.ConfigOptions
+	bundleDir  string
+}
+
+type ctxReader struct {
+	ctx context.Context
+	r   io.Reader
+}
 
 var _ PackageLayoutLoader = (*ExtractedArtifactPackageLayoutLoader)(nil)
 
@@ -31,7 +65,7 @@ func (l *ExtractedArtifactPackageLayoutLoader) PackageStagingRoot(_ context.Cont
 }
 
 // LoadPackageLayout stages indexed OCI layers into dstDir.
-func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *Package, dstDir string, opts LoadOptions) (*layout.PackageLayout, bool, error) {
+func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts LoadOptions) (*layout.PackageLayout, bool, error) {
 	s := opts.Streams
 	s.Debug("loading package layout", "name", pkg.Name, "dir", dstDir)
 	key := pkg.Name
@@ -95,7 +129,7 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 		if err != nil {
 			return nil, false, fmt.Errorf("resolving layer %q relative to package destination: %w", title, err)
 		}
-		if err := dstRoot.MkdirAll(filepath.Dir(relDst), tempDirPerm); err != nil {
+		if err := dstRoot.MkdirAll(filepath.Dir(relDst), filesystem.PrivateDirectoryMode); err != nil {
 			return nil, false, fmt.Errorf("creating dir for layer %q: %w", title, err)
 		}
 		workspaceDst, err := filepath.Rel(workspaceDir, dst)
@@ -163,7 +197,7 @@ func artifactPackageLayoutOptions(filter filters.ComponentFilterStrategy, isPart
 var _ PackageLayoutLoader = (*SourcePackageLayoutLoader)(nil)
 
 // LoadPackageLayout pulls a package source into a deployable layout.
-func (l *SourcePackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *Package, dstDir string, opts LoadOptions) (*layout.PackageLayout, bool, error) {
+func (l *SourcePackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts LoadOptions) (*layout.PackageLayout, bool, error) {
 	s := opts.Streams
 	s.Info("pulling package", "source", pkg.Source)
 	source := NewPackageSource(pkg.Source, l.configOpts, l.bundleDir, opts.Streams)
@@ -222,7 +256,7 @@ func createRootTempFile(root *os.Root, dst string) (*os.File, string, error) {
 			return nil, "", err
 		}
 		tmp := filepath.Join(filepath.Dir(dst), fmt.Sprintf(".uds-copy-%x", suffix))
-		file, err := root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, tmpFilePerm)
+		file, err := root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, filesystem.PrivateFileMode)
 		if os.IsExist(err) {
 			continue
 		}

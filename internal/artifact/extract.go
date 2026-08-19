@@ -14,10 +14,28 @@ import (
 	"strings"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	"github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
+
+// ExtractedBundle holds the results of extracting a bundle artifact.
+type ExtractedBundle struct {
+	// Dir is the root extraction directory containing bundle.uds.hcl and,
+	// when present, defaults.uds.hcl and values files. The caller owns this
+	// directory and is responsible for its cleanup.
+	Dir string
+
+	// OCIDir is the extracted OCI image layout directory (Dir + "/oci").
+	OCIDir string
+
+	// BundleDefPath is the absolute path to the materialized bundle definition.
+	BundleDefPath string
+
+	// PackageManifests maps each package ref.name to its OCI manifest descriptor.
+	PackageManifests map[string]ocispec.Descriptor
+}
 
 // ExtractArtifact extracts a .tar.zst bundle artifact into dstDir, verifies
 // OCI layout digests, and materializes bundle.uds.hcl, defaults.uds.hcl, and
@@ -190,10 +208,10 @@ func materializeBundleSrcFiles(_ context.Context, streams iostreams.IOStreams, b
 		if err != nil {
 			return "", fmt.Errorf("resolving layer title %q relative to destination: %w", title, err)
 		}
-		if err := dstRoot.MkdirAll(filepath.Dir(relDst), tempDirPerm); err != nil {
+		if err := dstRoot.MkdirAll(filepath.Dir(relDst), filesystem.PrivateDirectoryMode); err != nil {
 			return "", fmt.Errorf("creating directory for %s: %w", title, err)
 		}
-		if err := dstRoot.WriteFile(relDst, data, tmpFilePerm); err != nil {
+		if err := dstRoot.WriteFile(relDst, data, filesystem.PrivateFileMode); err != nil {
 			return "", fmt.Errorf("writing %s: %w", title, err)
 		}
 		if layer.MediaType == oci.MediaTypeBundleHCL && title == bundleinternal.BundleFileName {

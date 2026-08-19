@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -118,11 +119,11 @@ func PackageSignatureVerificationOptions(pkg *spec.Package, verificationDir, tmp
 
 func writeVerificationMaterial(dir, packageName, filename, contents string) (string, error) {
 	packageDir := filepath.Join(dir, sanitizeFileComponent(packageName))
-	if err := os.MkdirAll(packageDir, tempDirPerm); err != nil {
+	if err := os.MkdirAll(packageDir, filesystem.PrivateDirectoryMode); err != nil {
 		return "", fmt.Errorf("creating verification material directory: %w", err)
 	}
 	path := filepath.Join(packageDir, filename)
-	if err := os.WriteFile(path, []byte(contents), tmpFilePerm); err != nil {
+	if err := os.WriteFile(path, []byte(contents), filesystem.PrivateFileMode); err != nil {
 		return "", fmt.Errorf("writing verification material: %w", err)
 	}
 	return path, nil

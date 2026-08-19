@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/google/go-containerregistry/pkg/registry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,7 +54,7 @@ func TestNewRemoteRepository_RegistrySchemeNegotiation(t *testing.T) {
 
 			ref := strings.TrimPrefix(server.URL, "http://")
 			ref = strings.TrimPrefix(ref, "https://") + "/test/bundle:v1"
-			repo, err := NewRemoteRepository(t.Context(), ref, ConfigOptions{
+			repo, err := NewRemoteRepository(t.Context(), ref, bundleinternal.ConfigOptions{
 				PlainHTTP:     tt.plainHTTP,
 				SkipTLSVerify: tt.skipTLSVerify,
 			})
@@ -75,7 +76,7 @@ func TestNewRemoteRepository_RejectsUntrustedTLSWithoutSkipVerify(t *testing.T) 
 	t.Cleanup(server.Close)
 
 	ref := strings.TrimPrefix(server.URL, "https://") + "/test/bundle:v1"
-	_, err := NewRemoteRepository(t.Context(), ref, ConfigOptions{PlainHTTP: true})
+	_, err := NewRemoteRepository(t.Context(), ref, bundleinternal.ConfigOptions{PlainHTTP: true})
 
 	require.Error(t, err)
 	var unknownAuthorityError x509.UnknownAuthorityError

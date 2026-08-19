@@ -7,18 +7,39 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"golang.org/x/sync/errgroup"
 )
 
+type orchestratedDeployer struct {
+	base            *ZarfDeployer
+	packageDeployFn func(context.Context, *spec.Package, DeployPackageOptions) error
+}
+type deployOrchestrator struct {
+	deployer    packageDeployer
+	dag         *bundleinternal.DAG
+	levels      [][]*spec.Package
+	concurrency int
+	pkgOpts     DeployPackageOptions
+	streams     iostreams.IOStreams
+	deployedMu  sync.Mutex
+	deployed    map[string]struct{}
+}
+
+type packageDeployer interface {
+	DeployPackage(context.Context, *spec.Package, DeployPackageOptions) error
+}
+
 // newDeployOrchestrator wires the orchestrator with everything it needs to
 // drive a single bundle deploy. Each package is deployed via deployer.DeployPackage;
 // every deploy detail is carried in pkgOpts (e.g. pkgOpts.ClusterDeployFn).
-func newDeployOrchestrator(deployer packageDeployer, dag *bundleinternal.DAG, levels [][]*Package, concurrency int, pkgOpts DeployPackageOptions, streams iostreams.IOStreams) *deployOrchestrator {
+func newDeployOrchestrator(deployer packageDeployer, dag *bundleinternal.DAG, levels [][]*spec.Package, concurrency int, pkgOpts DeployPackageOptions, streams iostreams.IOStreams) *deployOrchestrator {
 	return &deployOrchestrator{
 		deployer:    deployer,
 		dag:         dag,
@@ -128,7 +149,7 @@ func (o *deployOrchestrator) Run(ctx context.Context) error {
 	return nil
 }
 
-func (o *deployOrchestrator) packageDeployFailurePrefix(pkg *Package) string {
+func (o *deployOrchestrator) packageDeployFailurePrefix(pkg *spec.Package) string {
 	prefix := fmt.Sprintf("failed to deploy package %q", pkg.Name)
 	sourceRange, ok := packageSourceRange(o.pkgOpts.bundlePath, pkg.Name)
 	if !ok {

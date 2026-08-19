@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	"github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -96,7 +97,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 				data, err := os.ReadFile(target)
 				require.NoError(t, err)
 				data[len(data)-1] ^= 0xFF
-				require.NoError(t, os.WriteFile(target, data, tmpFilePerm))
+				require.NoError(t, os.WriteFile(target, data, filesystem.PrivateFileMode))
 
 				corruptPath := filepath.Join(t.TempDir(), "corrupt.tar.zst")
 				require.NoError(t, WriteTarZst(t.Context(), iostreams.IOStreams{}, corruptPath, unpackDir))
@@ -130,7 +131,7 @@ func TestMaterializeBundleSrcFiles_RejectsDestinationSymlinkEscape(t *testing.T)
 	blobDir := t.TempDir()
 	data := []byte("bundle contents")
 	layerDigest := godigest.FromBytes(data)
-	require.NoError(t, os.WriteFile(filepath.Join(blobDir, layerDigest.Encoded()), data, tmpFilePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(blobDir, layerDigest.Encoded()), data, filesystem.PrivateFileMode))
 
 	dstDir := t.TempDir()
 	escapedDir := t.TempDir()

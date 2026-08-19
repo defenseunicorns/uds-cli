@@ -62,6 +62,13 @@ type extractedArtifactPackageLayoutLoader struct {
 	loader *zarf.ExtractedArtifactPackageLayoutLoader
 }
 
+// PackageStagingRootProvider optionally identifies a directory where package
+// staging can be colocated with loader-owned immutable content. An empty return
+// value uses the configured temporary directory.
+type PackageStagingRootProvider interface {
+	PackageStagingRoot(context.Context) string
+}
+
 func (l *extractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts ZarfPackageLayoutLoadOptions) (*ZarfPackageLayout, error) {
 	pkgLayout, isPartial, err := l.loader.LoadPackageLayout(ctx, pkg, dstDir, zarf.LoadOptions{Streams: opts.Streams, IsPartial: opts.IsPartial})
 	if err != nil {
