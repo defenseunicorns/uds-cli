@@ -20,8 +20,10 @@ func TestResolve(t *testing.T) {
 	}{
 		{"default", []string{"create"}, "", Legacy, "NextMode=false", []string{"create"}},
 		{"environment", []string{"create"}, "NextMode=true", Next, "NextMode=true", []string{"create"}},
+		{"implicit environment true", []string{"create"}, "NextMode", Next, "NextMode=true", []string{"create"}},
 		{"flag precedence", []string{"create", "--features", "NextMode=false"}, "NextMode=true", Legacy, "NextMode=false", []string{"create"}},
 		{"equals form", []string{"--features=NextMode=true", "create"}, "", Next, "NextMode=true", []string{"create"}},
+		{"implicit true", []string{"--features=NextMode", "create"}, "", Next, "NextMode=true", []string{"create"}},
 		{"Zarf feature", []string{"zarf", "--features=values=false", "version"}, "", Legacy, "NextMode=false,values=false", []string{"zarf", "--features=values=false", "version"}},
 		{"Zarf alias feature", []string{"z", "--features=values=false", "version"}, "", Legacy, "NextMode=false,values=false", []string{"z", "--features=values=false", "version"}},
 		{"Zarf feature skips task arguments", []string{"run", "zarf"}, "values=false", Legacy, "NextMode=false,values=false", []string{"run", "zarf"}},
@@ -39,7 +41,7 @@ func TestResolve(t *testing.T) {
 }
 
 func TestResolveRejectsInvalidFlagValues(t *testing.T) {
-	for _, value := range []string{"", "Other=true", "NextMode=yes", "NextMode=true,NextMode=false", "NextMode", "=true"} {
+	for _, value := range []string{"", "Other=true", "NextMode=yes", "NextMode=true,NextMode=false", "NextMode=", "=true"} {
 		t.Run(value, func(t *testing.T) {
 			_, _, _, err := Resolve([]string{"--features=" + value}, func(string) (string, bool) { return "", false })
 			if err == nil {

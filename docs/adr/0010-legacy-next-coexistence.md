@@ -12,7 +12,11 @@ UDS CLI Legacy and UDS CLI Next must coexist in one Go module and one `uds` bina
 
 ## Decision
 
-Use the following durable source to destination mapping:
+- Legacy code resides under `internal/legacy` and `pkg/legacy` for isolation and future removal.
+- Next code uses the canonical `internal` and `pkg` paths, so new development does not depend on Legacy paths.
+- `NextMode` selects the command tree.
+
+The following mapping documents this PR's implementation:
 
 | Source | Destination |
 | --- | --- |
@@ -27,8 +31,6 @@ Use the following durable source to destination mapping:
 | `uds-cli-next/internal/**` | `internal/**` |
 | `uds-cli-next/pkg/**` | `pkg/**` |
 | `uds-cli-next/tests/**` | `tests/**` |
-
-The `NextMode` feature switch selects the Next command tree when available. Legacy remains the default, and the current release keeps Next unavailable.
 
 ## Consequences
 

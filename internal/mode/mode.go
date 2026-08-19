@@ -116,16 +116,20 @@ func parse(value string) (FeatureSet, error) {
 	}
 	features := FeatureSet{}
 	for _, pair := range strings.Split(value, ",") {
-		name, raw, ok := strings.Cut(pair, "=")
-		if !ok || name == "" || raw == "" {
-			return nil, fmt.Errorf("expected name=true or name=false, got %q", pair)
+		name, raw, explicit := strings.Cut(pair, "=")
+		if name == "" || (explicit && raw == "") {
+			return nil, fmt.Errorf("expected name, name=true, or name=false, got %q", pair)
 		}
 		if !knownFeature(name) {
 			return nil, fmt.Errorf("unknown feature %q", name)
 		}
-		enabled, err := strconv.ParseBool(raw)
-		if err != nil || (raw != "true" && raw != "false") {
-			return nil, fmt.Errorf("%s must be true or false", name)
+		enabled := true
+		if explicit {
+			parsed, err := strconv.ParseBool(raw)
+			if err != nil || (raw != "true" && raw != "false") {
+				return nil, fmt.Errorf("%s must be true or false", name)
+			}
+			enabled = parsed
 		}
 		if _, exists := features[name]; exists {
 			return nil, fmt.Errorf("duplicate feature %q", name)
