@@ -33,6 +33,8 @@ func Push(ctx context.Context, bundleTarball, ref string, opts PushOptions) (*Pu
 		return nil, fmt.Errorf("creating temp dir: %w", err)
 	}
 	defer func() { _ = os.RemoveAll(tmp) }()
+	s.Info("extracting bundle archive", "source", bundleTarball)
+	s.Debug("extracting bundle archive", "source", bundleTarball, "output", tmp)
 	if err := artifact.ExtractTarZst(ctx, s, bundleTarball, tmp); err != nil {
 		return nil, fmt.Errorf("extracting bundle: %w", err)
 	}

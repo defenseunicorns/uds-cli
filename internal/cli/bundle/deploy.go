@@ -135,6 +135,7 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 		o.Verification.Config = baseConfig
 	}
 	o.IOStreams = logger.Bind(o.IOStreams, baseConfig.Options.LogLevel)
+	o.Info("preparing bundle for deployment", "source", o.BundlePath)
 	policy := bundle.VerificationPolicy{}
 	if !o.Verification.SkipSignatureVerification {
 		policy, err = o.Verification.policy()
@@ -175,6 +176,7 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 }
 
 func (o *DeployOptions) runOCIArtifact(ctx context.Context, runner deployRunnerFunc, policy bundle.VerificationPolicy) (*bundle.DeployResult, error) {
+	o.Info("pulling bundle for deployment", "ref", o.BundlePath)
 	outputDir, err := os.MkdirTemp(o.Config.Options.TmpDir, "uds-bundle-oci-deploy-*")
 	if err != nil {
 		return nil, fmt.Errorf("creating workspace for OCI bundle deploy: %w", err)

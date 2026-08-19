@@ -161,7 +161,12 @@ func Deploy(ctx context.Context, source *DeploySource, opts DeployOptions) (*Dep
 	}
 
 	deployer := newZarfDeployer(s, source.Loader)
-	return deployer.deployBundle(ctx, b, opts, source)
+	result, err := deployer.deployBundle(ctx, b, opts, source)
+	if err != nil {
+		return result, err
+	}
+	s.Info("bundle deployed", "name", result.BundleName, "packages", len(result.Packages))
+	return result, nil
 }
 
 type zarfDeployer struct {

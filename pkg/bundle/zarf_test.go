@@ -94,6 +94,17 @@ func TestRemoveUsesParsedBundleWithoutPath(t *testing.T) {
 	require.ErrorContains(t, err, "metadata.name")
 }
 
+func TestCountRemovalResults(t *testing.T) {
+	removed, skipped := countRemovalResults([]RemovePackageResult{
+		{Name: "removed", Status: RemovePackageStatusRemoved},
+		{Name: "skipped", Status: RemovePackageStatusSkipped},
+		{Name: "also-removed", Status: RemovePackageStatusRemoved},
+	})
+
+	assert.Equal(t, 2, removed)
+	assert.Equal(t, 1, skipped)
+}
+
 func TestPublicPackageHookConvertsLayoutMutations(t *testing.T) {
 	hooks := toZarfPackageHooks(PackageDeployHooks{PreDeploy: func(_ context.Context, _ *spec.Package, pkgLayout *ZarfPackageLayout, _ *DeployPackageOptions) error {
 		pkgLayout.Pkg.Components[0].Images = nil

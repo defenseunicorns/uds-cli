@@ -99,6 +99,7 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 	if err != nil {
 		return nil, fmt.Errorf("configuring pull: %w", err)
 	}
+	log.Info("pulling bundle content", "ref", ociReference)
 	log.Debug("copying bundle from registry", "ref", ociReference, "digest", childDesc.Digest.String())
 	if err := copyGraph(ctx, src, store, childDesc, copyOpts.CopyGraphOptions); err != nil {
 		return nil, fmt.Errorf("pulling bundle from %s: %w", ociReference, err)
@@ -146,6 +147,7 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 	if opts.PullHooks.CreateBundleArchive == nil {
 		return nil, fmt.Errorf("creating bundle archive: archive hook is required")
 	}
+	log.Info("writing bundle archive", "output_dir", targetDir)
 	outPath, err := opts.PullHooks.CreateBundleArchive(ctx, log, ociDir, targetDir, idx, outArch)
 	if err != nil {
 		return nil, fmt.Errorf("creating bundle archive from %s: %w", ociReference, err)

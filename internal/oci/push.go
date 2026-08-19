@@ -81,6 +81,7 @@ func (p *defaultPusher) PushBundle(ctx context.Context, bundleDir, ociReference 
 	}
 
 	log := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
+	log.Info("pushing bundle content", "ref", ociReference, "arch", arch)
 	log.Debug("copying bundle to registry", "ref", ociReference, "arch", arch)
 	result, err := pushBundleToRemote(ctx, store.Store, childDesc, ociReference, &opts, signature, hasSignature)
 	if err != nil {

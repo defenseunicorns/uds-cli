@@ -64,11 +64,12 @@ func Reconfigure(ctx context.Context, source, defaultsFile string, opts Reconfig
 	if defaultsFile == "" {
 		return nil, fmt.Errorf("defaults file is required")
 	}
+	s := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
+	s.Info("reading bundle defaults", "source", defaultsFile)
 	defaultsData, err := bundleinternal.MaterializeDefaultsFile(defaultsFile)
 	if err != nil {
 		return nil, fmt.Errorf("reading defaults file: %w", err)
 	}
-	s := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
 	state := &reconfigureState{}
 	if !opts.SkipSignatureVerification {
 		policy := opts.Verification

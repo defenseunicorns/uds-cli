@@ -132,7 +132,7 @@ func (o *InspectOptions) Validate() error {
 // Run executes the inspect command.
 func (o *InspectOptions) Run(ctx context.Context) error {
 	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Options.LogLevel)
-	o.Debug("inspecting bundle", "source", o.BundlePath)
+	o.Info("inspecting bundle", "source", o.BundlePath)
 	verified := false
 	if o.verificationRequested() {
 		policy, err := o.Verification.policy()

@@ -181,7 +181,7 @@ func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *Package, opts Remo
 		return errNil("package")
 	}
 	s := logger.Bind(r.streams, opts.Config.Options.LogLevel)
-	s.Info("removing zarf package", "name", pkg.Name, "source", pkg.Source)
+	s.Debug("preparing package removal", "name", pkg.Name, "source", pkg.Source)
 
 	ctx = newZarfLoggerContext(ctx, s)
 

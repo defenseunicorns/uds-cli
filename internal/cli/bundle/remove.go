@@ -168,7 +168,6 @@ func (o *RemoveOptions) Validate() error {
 func (o *RemoveOptions) Run(ctx context.Context) error {
 	bundlePath := resolveBundlePath(o.BundlePath)
 	s := logger.Bind(o.IOStreams, o.Config.Options.LogLevel)
-	s.Debug("removing bundle", "path", bundlePath, "prompt", o.Prompt)
 
 	s.Info("bundle to remove", "name", o.parsedBundle.Metadata.Name, "packages", len(o.parsedBundle.Packages))
 
@@ -182,6 +181,8 @@ func (o *RemoveOptions) Run(ctx context.Context) error {
 			return nil
 		}
 	}
+	s.Info("removing bundle", "source", bundlePath)
+	s.Debug("removing bundle", "path", bundlePath, "prompt", o.Prompt)
 
 	removeOpts := bundle.RemoveOptions{
 		Config:   o.Config,

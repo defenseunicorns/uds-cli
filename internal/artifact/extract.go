@@ -28,7 +28,8 @@ import (
 // cleanup). On failure, extracted files may remain in dstDir. The caller is
 // responsible for cleanup in all cases.
 func ExtractArtifact(ctx context.Context, streams iostreams.IOStreams, tarPath, dstDir string) (*ExtractedBundle, error) {
-	streams.Debug("extracting bundle artifact", "tar", tarPath, "dst", dstDir)
+	streams.Info("extracting bundle artifact")
+	streams.Debug("extracting bundle artifact", "source", tarPath, "output", dstDir)
 
 	if err := ExtractTarZst(ctx, streams, tarPath, dstDir); err != nil {
 		return nil, fmt.Errorf("extracting bundle artifact: %w", err)
@@ -60,6 +61,7 @@ func ExtractArtifact(ctx context.Context, streams iostreams.IOStreams, tarPath, 
 	if err != nil {
 		return nil, fmt.Errorf("opening OCI layout: %w", err)
 	}
+	streams.Info("verifying bundle artifact")
 	if err := store.VerifyGraph(ctx, idx.Manifests); err != nil {
 		return nil, fmt.Errorf("artifact digest verification failed: %w", err)
 	}
@@ -78,7 +80,7 @@ func ExtractArtifact(ctx context.Context, streams iostreams.IOStreams, tarPath, 
 		return nil, err
 	}
 
-	streams.Debug("bundle artifact extracted", "dir", dstDir, "packages", len(packageManifests))
+	streams.Debug("bundle artifact extracted", "output", dstDir, "packages", len(packageManifests))
 	return &ExtractedBundle{
 		Dir:              dstDir,
 		OCIDir:           ociDir,

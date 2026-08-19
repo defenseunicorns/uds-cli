@@ -164,7 +164,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *Package, opts Dep
 		return errNil("package")
 	}
 	log := logger.Bind(d.streams, opts.Config.Options.LogLevel)
-	log.Info("deploying zarf package", "name", pkg.Name, "source", pkg.Source)
+	log.Debug("preparing package deployment", "name", pkg.Name, "source", pkg.Source)
 
 	ctx = newZarfLoggerContext(ctx, log)
 

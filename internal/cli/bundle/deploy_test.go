@@ -98,7 +98,7 @@ func TestDeployOptions_Validate(t *testing.T) {
 }
 
 func TestDeployOptions_Run_OCIPullUsesArtifactPathAndCleansWorkspace(t *testing.T) {
-	streams, _, out, _ := iostreams.NewTestIOStreams()
+	streams, _, out, errOut := iostreams.NewTestIOStreams()
 	tmpDir := t.TempDir()
 	puller := &recordingPuller{
 		pullBundle: func(_ context.Context, ref, targetDir string, opts bundle.PullOptions) (*bundle.PullResult, error) {
@@ -121,6 +121,8 @@ func TestDeployOptions_Run_OCIPullUsesArtifactPathAndCleansWorkspace(t *testing.
 	require.ErrorContains(t, err, "extracting bundle artifact")
 	assert.Equal(t, 1, puller.bundleCalls)
 	assert.Empty(t, out.String(), "pull and failed deploy must not print structured output")
+	assert.Contains(t, errOut.String(), "preparing bundle for deployment")
+	assert.Contains(t, errOut.String(), o.BundlePath)
 	entries, readErr := os.ReadDir(tmpDir)
 	require.NoError(t, readErr)
 	assert.Empty(t, entries, "OCI deploy workspace should be removed after failure")

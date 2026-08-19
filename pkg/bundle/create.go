@@ -42,6 +42,7 @@ func Create(ctx context.Context, bundleFile string, opts CreateOptions) (*Create
 
 	s := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
 
+	s.Info("reading bundle definition", "source", bundleFile)
 	s.Debug("parsing bundle file", "path", bundleFile)
 	b, bundleHCL, err := parseAndMaterializeBundleFile(ctx, opts.Config.Options.Architecture, s, bundleFile)
 	if err != nil {
@@ -53,6 +54,7 @@ func Create(ctx context.Context, bundleFile string, opts CreateOptions) (*Create
 		return nil, err
 	}
 	s.Debug("bundle validated")
+	s.Info("building bundle artifact", "name", b.Metadata.Name, "packages", len(b.Packages))
 
 	srcDir := filepath.Dir(bundleFile)
 	var defaultsHCL []byte

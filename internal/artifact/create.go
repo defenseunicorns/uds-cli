@@ -60,7 +60,7 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 		packageManifests = append(packageManifests, manifests...)
 	}
 
-	opts.Streams.Debug("creating bundle definition manifest")
+	opts.Streams.Info("writing bundle definition", "packages", len(opts.Bundle.Packages))
 	definition, err := createBundleDefinitionManifest(ctx, opts.Streams, ociDir, opts.BundleHCL, opts.DefaultsHCL, opts.BundleDir, opts.Bundle.Packages)
 	if err != nil {
 		return nil, err
@@ -75,6 +75,7 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	}
 
 	outPath := filepath.Join(opts.BundleDir, bundleOutputName(opts.Bundle, opts.Config.Options.Architecture))
+	opts.Streams.Info("writing bundle archive", "output", outPath)
 	if err := WriteTarZst(ctx, opts.Streams, outPath, root); err != nil {
 		return nil, err
 	}

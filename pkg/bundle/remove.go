@@ -84,11 +84,29 @@ func Remove(ctx context.Context, source *DeploySource, opts RemoveOptions) (*Rem
 	}
 
 	remover := newZarfRemover(s)
-	return remover.removeBundle(ctx, b, opts.Packages, removePackageOptions{
+	result, err := remover.removeBundle(ctx, b, opts.Packages, removePackageOptions{
 		Config:        opts.Config,
 		Force:         opts.Force,
 		SafetyChecked: !opts.Force,
 	})
+	if err != nil {
+		return result, err
+	}
+	removed, skipped := countRemovalResults(result.Packages)
+	s.Info("bundle removal complete", "name", result.BundleName, "removed", removed, "skipped", skipped)
+	return result, nil
+}
+
+func countRemovalResults(packages []RemovePackageResult) (removed, skipped int) {
+	for _, pkg := range packages {
+		switch pkg.Status {
+		case RemovePackageStatusRemoved:
+			removed++
+		case RemovePackageStatusSkipped:
+			skipped++
+		}
+	}
+	return removed, skipped
 }
 
 type zarfRemover struct {

@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/defenseunicorns/uds-cli/internal/cli/util"
+	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -147,6 +148,7 @@ func (o *ReconfigureOptions) Validate() error {
 
 // Run executes the reconfigure command.
 func (o *ReconfigureOptions) Run(ctx context.Context) error {
+	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Options.LogLevel)
 	if o.Prompt {
 		confirmed, err := PromptConfirmation(o.IOStreams, "Reconfigure this bundle?")
 		if err != nil {
@@ -157,6 +159,7 @@ func (o *ReconfigureOptions) Run(ctx context.Context) error {
 			return nil
 		}
 	}
+	o.Info("reconfiguring bundle", "source", o.Source)
 
 	policy := bundle.VerificationPolicy{}
 	if !o.Verification.SkipSignatureVerification {

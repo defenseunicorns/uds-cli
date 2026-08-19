@@ -78,7 +78,7 @@ func runDeployWith(
 
 	config := baseConfig
 	streams = logger.Bind(streams, config.Options.LogLevel)
-	streams.Debug("deploying bundle", "path", deploySrc.BundlePath, "prompt", prompt)
+	streams.Debug("prepared bundle deployment source", "path", deploySrc.BundlePath, "prompt", prompt)
 
 	parsedBundle, err := parseDeployBundle(ctx, streams, config.Options.Architecture, deploySrc)
 	if err != nil {

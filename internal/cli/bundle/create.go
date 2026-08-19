@@ -101,7 +101,6 @@ func (o *CreateOptions) Run(ctx context.Context) error {
 	// Resolve the bundle path
 	bundlePath := resolveBundlePath(o.BundlePath)
 	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Options.LogLevel)
-	o.Debug("creating bundle", "path", bundlePath)
 	if o.Prompt {
 		confirmed, err := PromptConfirmation(o.IOStreams, "Create this bundle?")
 		if err != nil {
@@ -112,6 +111,7 @@ func (o *CreateOptions) Run(ctx context.Context) error {
 			return nil
 		}
 	}
+	o.Info("creating bundle", "source", bundlePath)
 
 	result, err := bundle.Create(ctx, bundlePath, bundle.CreateOptions{
 		Config:  o.Config,
