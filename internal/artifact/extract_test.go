@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/internal/oci"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	godigest "github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -39,7 +40,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 `
 				return buildBundleArtifact(t, hcl, map[string][]string{
 					"mypkg": {"key: value1", "key: value2"},
-				}, []string{"mypkg"})
+				}, []spec.Package{{Name: "mypkg", Source: "oci://example.com/pkg:v1"}})
 			},
 			check: func(t *testing.T, extracted *ExtractedBundle, dstDir string) {
 				assert.Equal(t, dstDir, extracted.Dir)
@@ -58,7 +59,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 			// Regression: last-written MediaTypeBundleHCL layer must not win BundleDefPath.
 			name: "BundleDefPath is bundle.uds.hcl when defaults.uds.hcl present after it",
 			setup: func(t *testing.T) string {
-				return buildBundleArtifactWithDefaults(t, baseHCL, `options {}`, nil, []string{"pkg"})
+				return buildBundleArtifactWithDefaults(t, baseHCL, `options {}`, nil, []spec.Package{{Name: "pkg", Source: "pkg"}})
 			},
 			check: func(t *testing.T, extracted *ExtractedBundle, dstDir string) {
 				assert.Equal(t, filepath.Join(dstDir, BundleFileName), extracted.BundleDefPath)
@@ -67,7 +68,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 		{
 			name: "bundle definition layer title cannot escape destination",
 			setup: func(t *testing.T) string {
-				return buildBundleArtifactWithTitles(t, baseHCL, nil, []string{"pkg"}, "../../../bundle.uds.hcl", "zarf.yaml")
+				return buildBundleArtifactWithTitles(t, baseHCL, nil, []spec.Package{{Name: "pkg", Source: "pkg"}}, "../../../bundle.uds.hcl", "zarf.yaml")
 			},
 			wantErr:     true,
 			wantErrFrag: "escapes destination directory",
@@ -81,7 +82,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 			name:    "corrupted blob returns digest error",
 			wantErr: true,
 			setup: func(t *testing.T) string {
-				tarPath := buildBundleArtifact(t, baseHCL, nil, []string{"pkg"})
+				tarPath := buildBundleArtifact(t, baseHCL, nil, []spec.Package{{Name: "pkg", Source: "pkg"}})
 
 				unpackDir := t.TempDir()
 				require.NoError(t, ExtractTarZst(t.Context(), iostreams.IOStreams{}, tarPath, unpackDir))
@@ -168,70 +169,60 @@ func TestBuildPackageManifests(t *testing.T) {
 			name: "single manifest",
 			manifests: []ocispec.Descriptor{
 				{Digest: godigest.Digest("sha256:def")},
-				packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "pkg"}),
+				packageManifest(godigest.Digest("sha256:aaa"), map[string]string{oci.AnnotationPackageName: "pkg", ocispec.AnnotationRefName: "pkg"}),
 			},
 			defIdx:      0,
-			wantDigests: map[string]ocispec.Descriptor{"pkg": packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "pkg"})},
+			wantDigests: map[string]ocispec.Descriptor{"pkg": packageManifest(godigest.Digest("sha256:aaa"), map[string]string{oci.AnnotationPackageName: "pkg", ocispec.AnnotationRefName: "pkg"})},
 		},
 		{
-			name: "duplicate ref name same digest is idempotent",
+			name: "duplicate package name returns error",
 			manifests: []ocispec.Descriptor{
 				{Digest: godigest.Digest("sha256:def")},
-				packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "pkg"}),
-				packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "pkg"}),
+				packageManifest(godigest.Digest("sha256:aaa"), map[string]string{oci.AnnotationPackageName: "pkg", ocispec.AnnotationRefName: "pkg"}),
+				packageManifest(godigest.Digest("sha256:aaa"), map[string]string{oci.AnnotationPackageName: "pkg", ocispec.AnnotationRefName: "pkg"}),
 			},
 			defIdx:      0,
-			wantDigests: map[string]ocispec.Descriptor{"pkg": packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "pkg"})},
+			wantErrFrag: "duplicate uds.dev/package.name",
 		},
 		{
-			name: "duplicate ref name different digest returns error",
+			name: "same source different package names are indexed separately",
 			manifests: []ocispec.Descriptor{
 				{Digest: godigest.Digest("sha256:def")},
-				packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "pkg"}),
-				packageManifest(godigest.Digest("sha256:bbb"), map[string]string{ocispec.AnnotationRefName: "pkg"}),
-			},
-			defIdx:      0,
-			wantErrFrag: "pkg",
-		},
-		{
-			name: "different ref names are indexed separately",
-			manifests: []ocispec.Descriptor{
-				{Digest: godigest.Digest("sha256:def")},
-				packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "example.com/pkg-a:v1"}),
-				packageManifest(godigest.Digest("sha256:bbb"), map[string]string{ocispec.AnnotationRefName: "example.com/pkg-b:v1"}),
+				packageManifest(godigest.Digest("sha256:aaa"), map[string]string{oci.AnnotationPackageName: "pkg-a", oci.AnnotationPackageSource: "oci://example.com/pkg:v1", ocispec.AnnotationRefName: "pkg-a"}),
+				packageManifest(godigest.Digest("sha256:bbb"), map[string]string{oci.AnnotationPackageName: "pkg-b", oci.AnnotationPackageSource: "oci://example.com/pkg:v1", ocispec.AnnotationRefName: "pkg-b"}),
 			},
 			defIdx: 0,
 			wantDigests: map[string]ocispec.Descriptor{
-				"example.com/pkg-a:v1": packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "example.com/pkg-a:v1"}),
-				"example.com/pkg-b:v1": packageManifest(godigest.Digest("sha256:bbb"), map[string]string{ocispec.AnnotationRefName: "example.com/pkg-b:v1"}),
+				"pkg-a": packageManifest(godigest.Digest("sha256:aaa"), map[string]string{oci.AnnotationPackageName: "pkg-a", oci.AnnotationPackageSource: "oci://example.com/pkg:v1", ocispec.AnnotationRefName: "pkg-a"}),
+				"pkg-b": packageManifest(godigest.Digest("sha256:bbb"), map[string]string{oci.AnnotationPackageName: "pkg-b", oci.AnnotationPackageSource: "oci://example.com/pkg:v1", ocispec.AnnotationRefName: "pkg-b"}),
 			},
 		},
 		{
 			name: "unsupported media type returns error",
 			manifests: []ocispec.Descriptor{
 				{Digest: godigest.Digest("sha256:def")},
-				{Digest: godigest.Digest("sha256:aaa"), Annotations: map[string]string{ocispec.AnnotationRefName: "pkg"}},
+				{Digest: godigest.Digest("sha256:aaa"), Annotations: map[string]string{oci.AnnotationPackageName: "pkg", ocispec.AnnotationRefName: "pkg"}},
 			},
 			defIdx:      0,
 			wantErrFrag: "unsupported media type",
 		},
 		{
-			name: "missing ref name annotation returns error",
+			name: "missing package name annotation returns error",
 			manifests: []ocispec.Descriptor{
 				{Digest: godigest.Digest("sha256:def")},
-				packageManifest(godigest.Digest("sha256:aaa"), nil),
+				packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "pkg"}),
 			},
 			defIdx:      0,
-			wantErrFrag: "no org.opencontainers.image.ref.name",
+			wantErrFrag: "no uds.dev/package.name",
 		},
 		{
 			name: "defIdx manifest is skipped",
 			manifests: []ocispec.Descriptor{
-				packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "pkg"}),
+				packageManifest(godigest.Digest("sha256:aaa"), map[string]string{oci.AnnotationPackageName: "pkg", ocispec.AnnotationRefName: "pkg"}),
 				{Digest: godigest.Digest("sha256:def")},
 			},
 			defIdx:      1,
-			wantDigests: map[string]ocispec.Descriptor{"pkg": packageManifest(godigest.Digest("sha256:aaa"), map[string]string{ocispec.AnnotationRefName: "pkg"})},
+			wantDigests: map[string]ocispec.Descriptor{"pkg": packageManifest(godigest.Digest("sha256:aaa"), map[string]string{oci.AnnotationPackageName: "pkg", ocispec.AnnotationRefName: "pkg"})},
 		},
 	}
 
@@ -289,7 +280,7 @@ package "mypkg" { source = "mypkg" }
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tarPath := buildBundleArtifact(t, baseHCL, tt.valuesFiles, []string{"mypkg"})
+			tarPath := buildBundleArtifact(t, baseHCL, tt.valuesFiles, []spec.Package{{Name: "mypkg", Source: "mypkg"}})
 			extracted, err := ExtractArtifact(t.Context(), iostreams.IOStreams{}, tarPath, t.TempDir())
 			require.NoError(t, err)
 

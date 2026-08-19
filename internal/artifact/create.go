@@ -153,22 +153,24 @@ func ingestSource(ctx context.Context, pkg *spec.Package, config *bundleinternal
 
 	manifests := make([]ocispec.Descriptor, len(descriptors))
 	for i, desc := range descriptors {
-		annotations := maps.Clone(desc.Annotations)
-		if annotations == nil {
-			annotations = map[string]string{}
-		}
-		refName := pkg.Name
-		if oci.IsOCIReference(pkg.Source) {
-			refName = oci.TrimScheme(pkg.Source)
-		}
-		annotations[ocispec.AnnotationRefName] = refName
-		delete(annotations, oci.AnnotationPackageVerification)
-		desc.Annotations = annotations
-		manifests[i] = desc
+		manifests[i] = annotatePackageDescriptor(desc, pkg)
 	}
 	annotatePackageVerification(manifests, loadOptions.VerificationStrategy != layout.VerifyNever)
 
 	return manifests, nil
+}
+
+func annotatePackageDescriptor(desc ocispec.Descriptor, pkg *spec.Package) ocispec.Descriptor {
+	annotations := maps.Clone(desc.Annotations)
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	annotations[oci.AnnotationPackageName] = pkg.Name
+	annotations[oci.AnnotationPackageSource] = pkg.Source
+	annotations[ocispec.AnnotationRefName] = pkg.Name
+	delete(annotations, oci.AnnotationPackageVerification)
+	desc.Annotations = annotations
+	return desc
 }
 
 func annotatePackageVerification(manifests []ocispec.Descriptor, verified bool) {

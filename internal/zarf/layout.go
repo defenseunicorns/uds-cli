@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
-	godigest "github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -36,31 +35,10 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 	s := opts.Streams
 	s.Debug("loading package layout", "name", pkg.Name, "dir", dstDir)
 	key := pkg.Name
-	if udsoci.IsOCIReference(pkg.Source) {
-		key = udsoci.TrimScheme(pkg.Source)
-	}
 	descriptor, ok := l.PackageManifests[key]
 	if !ok {
-		if digestValue, found := l.PackageDigests[key]; found {
-			digest, err := godigest.Parse(digestValue)
-			if err != nil {
-				return nil, false, fmt.Errorf("invalid manifest digest for package %q: %w", pkg.Name, err)
-			}
-			blobPath := filepath.Join(l.OCIDir, ocispec.ImageBlobsDir, digest.Algorithm().String(), digest.Encoded())
-			info, err := os.Stat(blobPath)
-			if err != nil {
-				return nil, false, fmt.Errorf("stat manifest for package %q: %w", pkg.Name, err)
-			}
-			descriptor = ocispec.Descriptor{MediaType: ocispec.MediaTypeImageManifest, Digest: digest, Size: info.Size()}
-			ok = true
-		}
-	}
-	if !ok {
-		keys := make([]string, 0, len(l.PackageManifests)+len(l.PackageDigests))
+		keys := make([]string, 0, len(l.PackageManifests))
 		for k := range l.PackageManifests {
-			keys = append(keys, k)
-		}
-		for k := range l.PackageDigests {
 			keys = append(keys, k)
 		}
 		return nil, false, fmt.Errorf("package %q (source %q) not found in bundle artifact index; available: %v", pkg.Name, pkg.Source, keys)

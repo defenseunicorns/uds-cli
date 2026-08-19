@@ -262,17 +262,17 @@ func inspectPackageSignature(ctx context.Context, idx ocispec.Index, pkg spec.Pa
 }
 
 func findPackageManifest(idx ocispec.Index, pkg spec.Package) (*ocispec.Descriptor, error) {
-	refName := pkg.Name
-	if udsoci.IsOCIReference(pkg.Source) {
-		refName = udsoci.TrimScheme(pkg.Source)
-	}
 	var match *ocispec.Descriptor
 	for i := range idx.Manifests {
 		entry := &idx.Manifests[i]
 		if entry.ArtifactType == udsoci.MediaTypeBundleDefinition {
 			continue
 		}
-		if entry.Annotations[ocispec.AnnotationRefName] == refName {
+		packageName := entry.Annotations[udsoci.AnnotationPackageName]
+		if packageName == "" {
+			return nil, fmt.Errorf("package manifest at index %d has no %s annotation; recreate the bundle with package-name identity", i, udsoci.AnnotationPackageName)
+		}
+		if packageName == pkg.Name {
 			if !udsoci.IsImageManifestMediaType(entry.MediaType) {
 				return nil, fmt.Errorf("package %q entry has unsupported media type %q", pkg.Name, entry.MediaType)
 			}

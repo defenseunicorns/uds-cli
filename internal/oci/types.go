@@ -146,6 +146,10 @@ const (
 const AnnotationBundleArchitecture = "uds.dev/architecture"
 
 const (
+	// AnnotationPackageName records the bundle package name that identifies a package descriptor.
+	AnnotationPackageName = "uds.dev/package.name"
+	// AnnotationPackageSource records the bundle package source for provenance.
+	AnnotationPackageSource = "uds.dev/package.source"
 	// AnnotationPackageVerification records a successful package verification during bundle creation.
 	AnnotationPackageVerification = "uds.dev/package-verification"
 	// AnnotationPackageVerificationVerified is the persisted value for a successful verification.

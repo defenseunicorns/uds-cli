@@ -14,6 +14,7 @@ import (
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/oci"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	godigest "github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/specs-go"
@@ -27,25 +28,25 @@ const (
 )
 
 // buildBundleArtifact creates a test bundle artifact without defaults.
-func buildBundleArtifact(t *testing.T, bundleHCL string, valuesFiles map[string][]string, pkgSources []string) string {
+func buildBundleArtifact(t *testing.T, bundleHCL string, valuesFiles map[string][]string, pkgs []spec.Package) string {
 	t.Helper()
-	return buildBundleArtifactInner(t, bundleHCL, "", valuesFiles, pkgSources, BundleFileName, "zarf.yaml")
+	return buildBundleArtifactInner(t, bundleHCL, "", valuesFiles, pkgs, BundleFileName, "zarf.yaml")
 }
 
 // buildBundleArtifactWithDefaults creates a test artifact containing defaults HCL.
-func buildBundleArtifactWithDefaults(t *testing.T, bundleHCL, defaultsHCL string, valuesFiles map[string][]string, pkgSources []string) string {
+func buildBundleArtifactWithDefaults(t *testing.T, bundleHCL, defaultsHCL string, valuesFiles map[string][]string, pkgs []spec.Package) string {
 	t.Helper()
-	return buildBundleArtifactInner(t, bundleHCL, defaultsHCL, valuesFiles, pkgSources, BundleFileName, "zarf.yaml")
+	return buildBundleArtifactInner(t, bundleHCL, defaultsHCL, valuesFiles, pkgs, BundleFileName, "zarf.yaml")
 }
 
 // buildBundleArtifactWithTitles creates a test artifact with custom layer titles.
-func buildBundleArtifactWithTitles(t *testing.T, bundleHCL string, valuesFiles map[string][]string, pkgSources []string, bundleTitle, packageLayerTitle string) string {
+func buildBundleArtifactWithTitles(t *testing.T, bundleHCL string, valuesFiles map[string][]string, pkgs []spec.Package, bundleTitle, packageLayerTitle string) string {
 	t.Helper()
-	return buildBundleArtifactInner(t, bundleHCL, "", valuesFiles, pkgSources, bundleTitle, packageLayerTitle)
+	return buildBundleArtifactInner(t, bundleHCL, "", valuesFiles, pkgs, bundleTitle, packageLayerTitle)
 }
 
 // buildBundleArtifactInner assembles the OCI layout shared by artifact test builders.
-func buildBundleArtifactInner(t *testing.T, bundleHCL, defaultsHCL string, valuesFiles map[string][]string, pkgSources []string, bundleTitle, packageLayerTitle string) string {
+func buildBundleArtifactInner(t *testing.T, bundleHCL, defaultsHCL string, valuesFiles map[string][]string, pkgs []spec.Package, bundleTitle, packageLayerTitle string) string {
 	t.Helper()
 	root := t.TempDir()
 	ociDir := filepath.Join(root, "oci")
@@ -86,8 +87,8 @@ func buildBundleArtifactInner(t *testing.T, bundleHCL, defaultsHCL string, value
 		MediaType: ocispec.MediaTypeImageManifest, ArtifactType: oci.MediaTypeBundleDefinition,
 		Digest: writeBlob(definitionData), Size: int64(len(definitionData)),
 	}}
-	for _, source := range pkgSources {
-		packageData := []byte("fake package: " + source)
+	for _, pkg := range pkgs {
+		packageData := []byte("fake package: " + pkg.Source)
 		packageManifest := ocispec.Manifest{
 			Versioned: specs.Versioned{SchemaVersion: 2},
 			Config:    ocispec.Descriptor{Digest: emptyDigest, Size: int64(len(emptyConfig))},
@@ -98,13 +99,13 @@ func buildBundleArtifactInner(t *testing.T, bundleHCL, defaultsHCL string, value
 		}
 		packageManifestData, err := json.Marshal(packageManifest)
 		require.NoError(t, err)
-		refName := source
-		if oci.IsOCIReference(source) {
-			refName = oci.TrimScheme(source)
-		}
 		manifests = append(manifests, ocispec.Descriptor{
 			MediaType: ocispec.MediaTypeImageManifest, Digest: writeBlob(packageManifestData), Size: int64(len(packageManifestData)),
-			Annotations: map[string]string{ocispec.AnnotationRefName: refName},
+			Annotations: map[string]string{
+				oci.AnnotationPackageName:   pkg.Name,
+				oci.AnnotationPackageSource: pkg.Source,
+				ocispec.AnnotationRefName:   pkg.Name,
+			},
 		})
 	}
 	index := ocispec.Index{

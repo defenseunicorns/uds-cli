@@ -173,6 +173,8 @@ package "pkg2" {
 	require.Len(t, idx.Manifests, 3) // config manifest + two package manifests
 
 	var packageRefs []string
+	var packageNames []string
+	var packageSources []string
 	var definitionCount int
 	for _, m := range idx.Manifests {
 		if m.ArtifactType == udsoci.MediaTypeBundleDefinition {
@@ -180,9 +182,13 @@ package "pkg2" {
 			continue
 		}
 		packageRefs = append(packageRefs, m.Annotations[ocispec.AnnotationRefName])
+		packageNames = append(packageNames, m.Annotations[udsoci.AnnotationPackageName])
+		packageSources = append(packageSources, m.Annotations[udsoci.AnnotationPackageSource])
 	}
 	require.Equal(t, 1, definitionCount)
 	assert.ElementsMatch(t, []string{"pkg1", "pkg2"}, packageRefs)
+	assert.ElementsMatch(t, []string{"pkg1", "pkg2"}, packageNames)
+	assert.ElementsMatch(t, []string{"pkg1", "pkg2"}, packageSources)
 
 	var defManifestBytes []byte
 	for _, m := range idx.Manifests {

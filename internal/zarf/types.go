@@ -271,16 +271,12 @@ type layerIdentity struct {
 }
 
 // ExtractedArtifactPackageLayoutLoader reads package OCI blobs from an extracted bundle artifact workspace.
-// LoadPackageLayout stages OCI blobs from the artifact workspace, with a fallback to directory staging
-// for local-source packages not in the OCI index.
+// LoadPackageLayout stages OCI blobs from the artifact workspace by bundle package name.
 type ExtractedArtifactPackageLayoutLoader struct {
 	// OCIDir is <workspace>/oci — the extracted OCI image layout root.
 	OCIDir string
-	// PackageManifests maps package ref.name values to complete manifest descriptors.
+	// PackageManifests maps bundle package names to complete manifest descriptors.
 	PackageManifests map[string]ocispec.Descriptor
-	// PackageDigests is retained for callers that only have legacy digest maps.
-	// Keys are package ref.name values.
-	PackageDigests map[string]string
 }
 
 // SourcePackageLayoutLoader implements PackageLayoutLoader using the standard OCI/local pull

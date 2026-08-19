@@ -256,6 +256,9 @@ func reconfigureLocalArtifact(ctx context.Context, streams iostreams.IOStreams, 
 	if err != nil {
 		return nil, fmt.Errorf("%s does not appear to be a UDS bundle: %w", source, err)
 	}
+	if err := validateReconfigurePackageIdentities(idx, defPos); err != nil {
+		return nil, err
+	}
 
 	// Read and parse the bundle definition manifest before opening the eager writable store.
 	manifestBytes, err := udsoci.FetchBytes(ctx, readStore, defEntry)
@@ -336,6 +339,18 @@ func validateLocalReconfigureIndex(idx ocispec.Index) error {
 	return nil
 }
 
+func validateReconfigurePackageIdentities(idx ocispec.Index, defIdx int) error {
+	for i, desc := range idx.Manifests {
+		if i == defIdx {
+			continue
+		}
+		if desc.Annotations[udsoci.AnnotationPackageName] == "" {
+			return fmt.Errorf("package manifest at index %d has no %s annotation; recreate the bundle with package-name identity", i, udsoci.AnnotationPackageName)
+		}
+	}
+	return nil
+}
+
 type ociReconfigurer struct {
 	streams     iostreams.IOStreams
 	remoteRepo  oras.Target
@@ -390,6 +405,9 @@ func (r *ociReconfigurer) reconfigureOCIArtifact(ctx context.Context, source str
 	defEntry, defPos, err := udsoci.FindBundleDefinition(idx)
 	if err != nil {
 		return nil, fmt.Errorf("%s is not a UDS bundle: %w", source, err)
+	}
+	if err := validateReconfigurePackageIdentities(idx, defPos); err != nil {
+		return nil, err
 	}
 
 	// Fetch bundle definition manifest.

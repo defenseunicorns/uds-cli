@@ -206,7 +206,7 @@ func materializeBundleSrcFiles(_ context.Context, streams iostreams.IOStreams, b
 	return bundleDefPath, nil
 }
 
-// buildPackageManifests returns a map of package ref.name to manifest descriptor for
+// buildPackageManifests returns a map of bundle package name to manifest descriptor for
 // all non-bundle-def entries in the index.
 func buildPackageManifests(idx ocispec.Index, defIdx int) (map[string]ocispec.Descriptor, error) {
 	manifests := make(map[string]ocispec.Descriptor)
@@ -217,15 +217,15 @@ func buildPackageManifests(idx ocispec.Index, defIdx int) (map[string]ocispec.De
 		if !oci.IsImageManifestMediaType(m.MediaType) {
 			return nil, fmt.Errorf("package manifest at index %d has unsupported media type %q", i, m.MediaType)
 		}
-		refName := m.Annotations[ocispec.AnnotationRefName]
-		if refName == "" {
-			return nil, fmt.Errorf("package manifest at index %d has no %s annotation", i, ocispec.AnnotationRefName)
+		packageName := m.Annotations[oci.AnnotationPackageName]
+		if packageName == "" {
+			return nil, fmt.Errorf("package manifest at index %d has no %s annotation; recreate the bundle with package-name identity", i, oci.AnnotationPackageName)
 		}
 		desc := m
-		if existing, ok := manifests[refName]; ok && existing.Digest != desc.Digest {
-			return nil, fmt.Errorf("duplicate %s %q with conflicting digests (%s vs %s)", ocispec.AnnotationRefName, refName, existing.Digest, desc.Digest)
+		if existing, ok := manifests[packageName]; ok {
+			return nil, fmt.Errorf("duplicate %s %q with digests %s and %s", oci.AnnotationPackageName, packageName, existing.Digest, desc.Digest)
 		}
-		manifests[refName] = desc
+		manifests[packageName] = desc
 	}
 	return manifests, nil
 }

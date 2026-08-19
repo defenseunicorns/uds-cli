@@ -69,6 +69,9 @@ func TestIngestSourceVerificationBoundary(t *testing.T) {
 		}, newConfig(t), mustTestCreateStore(t), t.TempDir(), streams)
 		require.NoError(t, err)
 		require.Len(t, manifests, 1)
+		assert.Equal(t, "unsigned", manifests[0].Annotations[oci.AnnotationPackageName])
+		assert.Equal(t, pkgDir, manifests[0].Annotations[oci.AnnotationPackageSource])
+		assert.Equal(t, "unsigned", manifests[0].Annotations[ocispec.AnnotationRefName])
 		assert.Contains(t, out.String()+errOut.String(), "unverified package")
 	})
 }
@@ -92,6 +95,17 @@ func TestIngestSourceRejectsNilInputs(t *testing.T) {
 			require.ErrorContains(t, err, tt.want)
 		})
 	}
+}
+
+func TestAnnotatePackageDescriptorUsesBundlePackageNameForOCISources(t *testing.T) {
+	desc := annotatePackageDescriptor(ocispec.Descriptor{Annotations: map[string]string{
+		oci.AnnotationPackageVerification: oci.AnnotationPackageVerificationVerified,
+	}}, &spec.Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"})
+
+	assert.Equal(t, "mypkg", desc.Annotations[oci.AnnotationPackageName])
+	assert.Equal(t, "oci://example.com/pkg:v1", desc.Annotations[oci.AnnotationPackageSource])
+	assert.Equal(t, "mypkg", desc.Annotations[ocispec.AnnotationRefName])
+	assert.NotContains(t, desc.Annotations, oci.AnnotationPackageVerification)
 }
 
 func TestAnnotatePackageVerification(t *testing.T) {

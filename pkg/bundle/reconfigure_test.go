@@ -362,6 +362,20 @@ func parseIndexJSON(t *testing.T, entries map[string][]byte) ocispec.Index {
 	return idx
 }
 
+func removePackageIdentityAnnotations(t *testing.T, idx ocispec.Index) []byte {
+	t.Helper()
+	for i := range idx.Manifests {
+		if idx.Manifests[i].ArtifactType == udsoci.MediaTypeBundleDefinition {
+			continue
+		}
+		delete(idx.Manifests[i].Annotations, udsoci.AnnotationPackageName)
+		break
+	}
+	idxBytes, err := json.Marshal(idx)
+	require.NoError(t, err)
+	return idxBytes
+}
+
 // createTestBundle creates a bundle from HCL content with an optional defaults file.
 // Returns the path to the output tarball.
 func createTestBundle(t *testing.T, bundleHCL string, defaultsHCL string) string {
@@ -447,6 +461,26 @@ package "pkg1" {
 	var manifest ocispec.Manifest
 	require.NoError(t, json.Unmarshal(manifestBytes, &manifest))
 	assert.Equal(t, sourceArtifactDigest, manifest.Annotations[udsoci.AnnotationReconfiguredFrom])
+}
+
+func TestLocalReconfigure_RejectsLegacyPackageIdentity(t *testing.T) {
+	tarball := createTestBundle(t, `uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+metadata {
+  name    = "legacy-package-identity"
+  version = "1.0.0"
+}
+package "pkg1" {
+  source = "localpkg"
+}
+`, "")
+	entries := readTarZstEntries(t, tarball)
+	entries["oci/index.json"] = removePackageIdentityAnnotations(t, parseIndexJSON(t, entries))
+	legacy := writeTarZstEntries(t, entries)
+
+	_, err := runLocalReconfigure(t, legacy, writeDefaultsFile(t, `variables = { next = "value" }`), "-custom")
+	require.ErrorContains(t, err, "recreate the bundle with package-name identity")
 }
 
 func TestLocalReconfigure_RejectsOversizedPackageManifestBeforeOpeningStore(t *testing.T) {
@@ -646,6 +680,37 @@ package "pkg1" {
 	var reconfiguredDefinitionManifest ocispec.Manifest
 	require.NoError(t, json.Unmarshal(reconfiguredDefinitionBytes, &reconfiguredDefinitionManifest))
 	assert.Equal(t, sourceChild.Digest.String(), reconfiguredDefinitionManifest.Annotations[udsoci.AnnotationReconfiguredFrom])
+}
+
+func TestOCIReconfigure_RejectsLegacyPackageIdentity(t *testing.T) {
+	store, err := oraci.New(t.TempDir())
+	require.NoError(t, err)
+
+	pushTestBundle(t, store, `uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+metadata {
+  name    = "oci-legacy-package-identity"
+  version = "1.0.0"
+}
+package "pkg1" {
+  source = "localpkg"
+}
+`, "", "example.com/test/oci-legacy-package-identity:v1.0.0")
+
+	defaultsData, err := bundleinternal.MaterializeDefaultsFile(writeDefaultsFile(t, `variables = { next = "value" }`))
+	require.NoError(t, err)
+	sourceChild, indexBytes, err := udsoci.ResolveBundleChild(t.Context(), store, "v1.0.0", "")
+	require.NoError(t, err)
+	var idx ocispec.Index
+	require.NoError(t, json.Unmarshal(indexBytes, &idx))
+
+	r := &ociReconfigurer{remoteRepo: store, sourceChild: sourceChild, sourceIndex: removePackageIdentityAnnotations(t, idx)}
+	_, err = r.reconfigureOCIArtifact(t.Context(), "oci://example.com/test/oci-legacy-package-identity:v1.0.0", defaultsData, ReconfigureOptions{
+		Suffix: "-prod",
+		Config: &UDSBundleConfig{Options: &ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true, Concurrency: 10}},
+	})
+	require.ErrorContains(t, err, "recreate the bundle with package-name identity")
 }
 
 func TestOCIReconfigure_TargetTagAlreadyExists(t *testing.T) {

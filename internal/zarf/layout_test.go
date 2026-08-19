@@ -25,37 +25,45 @@ func TestExtractedArtifactPackageLayoutLoader_LoadPackageLayout(t *testing.T) {
 	tests := []struct {
 		name         string
 		pkg          *Package
-		digests      map[string]string
+		manifests    map[string]ocispec.Descriptor
 		wantNotFound bool
 	}{
 		{
-			name:         "OCI source key uses ref.name",
-			pkg:          &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"},
-			digests:      map[string]string{"example.com/pkg:v1": "sha256:aaa"},
-			wantNotFound: false, // found; fails later on blob read
+			name: "OCI source key uses package name",
+			pkg:  &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"},
+			manifests: map[string]ocispec.Descriptor{
+				"mypkg": {MediaType: ocispec.MediaTypeImageManifest, Digest: digest.Digest("sha256:aaa")},
+			},
+			wantNotFound: false, // found; fails later opening the empty OCI layout
 		},
 		{
-			name:         "local source key uses pkg.Name",
-			pkg:          &Package{Name: "localpkg", Source: "./local-path"},
-			digests:      map[string]string{"localpkg": "sha256:bbb"},
-			wantNotFound: false, // found; fails later on blob read
+			name: "local source key uses package name",
+			pkg:  &Package{Name: "localpkg", Source: "./local-path"},
+			manifests: map[string]ocispec.Descriptor{
+				"localpkg": {MediaType: ocispec.MediaTypeImageManifest, Digest: digest.Digest("sha256:bbb")},
+			},
+			wantNotFound: false, // found; fails later opening the empty OCI layout
 		},
 		{
-			name:         "missing OCI ref name",
-			pkg:          &Package{Name: "other", Source: "oci://example.com/other:v1"},
-			digests:      map[string]string{"example.com/pkg:v1": "sha256:aaa"},
+			name: "OCI source key is not used",
+			pkg:  &Package{Name: "other", Source: "oci://example.com/pkg:v1"},
+			manifests: map[string]ocispec.Descriptor{
+				"example.com/pkg:v1": {MediaType: ocispec.MediaTypeImageManifest, Digest: digest.Digest("sha256:aaa")},
+			},
 			wantNotFound: true,
 		},
 		{
-			name:         "missing local source is rejected",
-			pkg:          &Package{Name: "absent", Source: "./absent"},
-			digests:      map[string]string{"localpkg": "sha256:bbb"},
+			name: "missing local source is rejected",
+			pkg:  &Package{Name: "absent", Source: "./absent"},
+			manifests: map[string]ocispec.Descriptor{
+				"localpkg": {MediaType: ocispec.MediaTypeImageManifest, Digest: digest.Digest("sha256:bbb")},
+			},
 			wantNotFound: true,
 		},
 		{
-			name:         "empty digests map",
+			name:         "empty manifests map",
 			pkg:          &Package{Name: "anypkg", Source: "oci://example.com/any:v1"},
-			digests:      map[string]string{},
+			manifests:    map[string]ocispec.Descriptor{},
 			wantNotFound: true,
 		},
 	}
@@ -63,8 +71,8 @@ func TestExtractedArtifactPackageLayoutLoader_LoadPackageLayout(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			loader := &ExtractedArtifactPackageLayoutLoader{
-				OCIDir:         t.TempDir(),
-				PackageDigests: tt.digests,
+				OCIDir:           t.TempDir(),
+				PackageManifests: tt.manifests,
 			}
 			_, _, err := loader.LoadPackageLayout(t.Context(), tt.pkg, t.TempDir(), LoadOptions{})
 			require.Error(t, err)
@@ -316,7 +324,7 @@ func TestExtractedArtifactPackageLayoutLoader_RejectsUnindexedLocalSource(t *tes
 		require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "components", "test.tar"), []byte("dummy"), 0o600))
 
 		dstDir := t.TempDir()
-		loader := &ExtractedArtifactPackageLayoutLoader{PackageDigests: map[string]string{}}
+		loader := &ExtractedArtifactPackageLayoutLoader{PackageManifests: map[string]ocispec.Descriptor{}}
 		pkg := &Package{Name: "mypkg", Source: pkgDir}
 
 		_, _, err := loader.LoadPackageLayout(t.Context(), pkg, dstDir, LoadOptions{})
@@ -332,8 +340,8 @@ func TestExtractedArtifactPackageLayoutLoader_RejectsUnindexedLocalSource(t *tes
 		assert.FileExists(t, filepath.Join(pkgDir, "components", "test.tar"), "original test.tar should be preserved")
 	})
 
-	t.Run("OCI source not in PackageDigests returns error (not dir fallback)", func(t *testing.T) {
-		loader := &ExtractedArtifactPackageLayoutLoader{PackageDigests: map[string]string{}}
+	t.Run("OCI source not in PackageManifests returns error", func(t *testing.T) {
+		loader := &ExtractedArtifactPackageLayoutLoader{PackageManifests: map[string]ocispec.Descriptor{}}
 		pkg := &Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}
 		_, _, err := loader.LoadPackageLayout(t.Context(), pkg, t.TempDir(), LoadOptions{})
 		require.Error(t, err)
@@ -365,7 +373,7 @@ func newArtifactPackageLayoutLoader(t *testing.T, layerTitle string) *ExtractedA
 
 	return &ExtractedArtifactPackageLayoutLoader{
 		OCIDir: ociDir,
-		PackageManifests: map[string]ocispec.Descriptor{"example.com/pkg:v1": {
+		PackageManifests: map[string]ocispec.Descriptor{"mypkg": {
 			MediaType: ocispec.MediaTypeImageManifest,
 			Digest:    manifestDigest,
 			Size:      int64(len(manifestData)),

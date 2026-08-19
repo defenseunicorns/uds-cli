@@ -36,7 +36,7 @@ type ExtractedBundle struct {
 	// BundleDefPath is the absolute path to the materialized bundle definition file (bundle.uds.hcl).
 	BundleDefPath string
 
-	// PackageManifests maps each package ref.name to its OCI manifest.
+	// PackageManifests maps each bundle package name to its OCI manifest.
 	PackageManifests map[string]ocispec.Descriptor
 }
 

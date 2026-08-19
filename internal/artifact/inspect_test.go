@@ -24,21 +24,30 @@ func TestFindPackageManifestRejectsInvalidEntries(t *testing.T) {
 			manifests: []ocispec.Descriptor{{
 				MediaType: ocispec.MediaTypeImageIndex,
 				Annotations: map[string]string{
-					ocispec.AnnotationRefName: "pkg",
+					udsoci.AnnotationPackageName: "pkg",
+					ocispec.AnnotationRefName:    "pkg",
 				},
 			}},
 			wantErrFrag: "unsupported media type",
+		},
+		{
+			name: "legacy ref name only",
+			manifests: []ocispec.Descriptor{{
+				MediaType:   ocispec.MediaTypeImageManifest,
+				Annotations: map[string]string{ocispec.AnnotationRefName: "pkg"},
+			}},
+			wantErrFrag: "no uds.dev/package.name",
 		},
 		{
 			name: "duplicate manifests",
 			manifests: []ocispec.Descriptor{
 				{
 					MediaType:   ocispec.MediaTypeImageManifest,
-					Annotations: map[string]string{ocispec.AnnotationRefName: "pkg"},
+					Annotations: map[string]string{udsoci.AnnotationPackageName: "pkg", ocispec.AnnotationRefName: "pkg"},
 				},
 				{
 					MediaType:   ocispec.MediaTypeImageManifest,
-					Annotations: map[string]string{ocispec.AnnotationRefName: "pkg"},
+					Annotations: map[string]string{udsoci.AnnotationPackageName: "pkg", ocispec.AnnotationRefName: "pkg"},
 				},
 			},
 			wantErrFrag: "multiple matching",
@@ -53,11 +62,13 @@ func TestFindPackageManifestRejectsInvalidEntries(t *testing.T) {
 	}
 }
 
-func TestFindPackageManifestMatchesRefName(t *testing.T) {
+func TestFindPackageManifestMatchesPackageName(t *testing.T) {
 	manifest := ocispec.Descriptor{
 		MediaType: ocispec.MediaTypeImageManifest,
 		Annotations: map[string]string{
-			ocispec.AnnotationRefName: "example.com/pkg:v1",
+			udsoci.AnnotationPackageName:   "pkg",
+			udsoci.AnnotationPackageSource: "oci://example.com/pkg:v1",
+			ocispec.AnnotationRefName:      "pkg",
 		},
 	}
 
