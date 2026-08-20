@@ -10,7 +10,7 @@ Accepted
 
 The structure of a bundle OCI artifact is as follows:
 
-![Bundle OCI Artifact Structure](../docs/.images/uds-bundle.png)
+![Bundle OCI Artifact Structure](../../.images/uds-bundle.png)
 
 
 Note that both the bundle root manifest and the Zarf package root manifest are both OCI image manifests. The Zarf image manifest is taken directly from Zarf OCI packages, and the bundle root manifest is a new OCI image manifest that contains the Zarf image manifests as layers. This structure effectively creates a "double pointer" from the `index.json` to the layers in the bundle image manifest, and then to the Zarf image manifest.
