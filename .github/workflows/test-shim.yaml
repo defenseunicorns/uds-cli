@@ -53,6 +53,13 @@ jobs:
       - name: Skipped
         run: echo "skipped"
 
+  next-cluster-tests:
+    name: Next / Cluster
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skipped
+        run: echo "skipped"
+
   e2e-bundle:
     name: Legacy / E2E Bundle
     runs-on: ubuntu-latest

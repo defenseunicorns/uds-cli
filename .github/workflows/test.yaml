@@ -164,6 +164,35 @@ jobs:
         with:
           suffix: next-integration-library
 
+  next-cluster-tests:
+    name: Next / Cluster
+    runs-on: uds-ubuntu-big-boy-4-core
+    needs: build
+    timeout-minutes: 55
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup e2e job
+        uses: ./.github/actions/setup-uds-e2e
+        with:
+          # Next cluster integration tests create and clean up their own k3d cluster.
+          create-cluster: "false"
+
+      - name: Run Next cluster tests
+        shell: bash
+        run: |
+          set -o pipefail
+          build/uds run test:next-cluster 2>&1 | tee "${RUNNER_TEMP}/uds-command-next-cluster.log"
+
+      - name: Save diagnostics
+        if: always()
+        uses: ./.github/actions/save-logs
+        with:
+          suffix: next-cluster
+
   e2e-bundle-tests:
     name: Legacy / E2E ${{ matrix.name }}
     runs-on: ubuntu-latest
@@ -325,6 +354,7 @@ jobs:
       - build
       - next-integration-tests
       - next-integration-library-tests
+      - next-cluster-tests
       - e2e-bundle-tests
       - e2e-single-tests
       - e2e-vendor-tests
@@ -371,6 +401,7 @@ jobs:
       - build
       - next-integration-tests
       - next-integration-library-tests
+      - next-cluster-tests
       - e2e-bundle-tests
       - e2e-single-tests
       - e2e-vendor-tests

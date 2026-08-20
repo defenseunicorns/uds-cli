@@ -30,6 +30,15 @@ tasks:
     actions:
       - cmd: go test -v -timeout 5m -tags=library ./tests/library/...
 
+  - name: next-cluster
+    description: run Next cluster integration tests
+    actions:
+      - cmd: |
+          CLI_FEATURES=NextMode=true \
+          UDS_TEST_CLUSTER_CLEANUP=true \
+          UDS_CLI_PATH="$(pwd)/build/uds" \
+          go test -v -count=1 -timeout 50m -parallel=4 -tags=cluster_integration ./tests/cluster
+
   - name: preparation
     description: run local preparation checks
     actions:
