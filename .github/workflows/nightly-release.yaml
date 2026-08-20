@@ -15,6 +15,7 @@ jobs:
     uses: ./.github/workflows/test-release.yaml
     permissions:
       contents: read
+      id-token: write
       packages: write
     secrets: inherit
     with:
