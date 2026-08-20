@@ -178,6 +178,9 @@ func zarfCommandIndex(args []string) int {
 		if arg == "zarf" || arg == "z" {
 			return i
 		}
+		if arg == "tools" && i+1 < len(args) && args[i+1] == "zarf" {
+			return i + 1
+		}
 		if !strings.HasPrefix(arg, "-") {
 			return -1
 		}

@@ -24,6 +24,13 @@ func TestRunUsesNextWhenFeatureEnabled(t *testing.T) {
 	}
 }
 
+func TestRunRetainsNonBundleCommandsInNextMode(t *testing.T) {
+	unsetEnv(t, mode.FeaturesEnv)
+	if err := run([]string{"--features=NextMode=true", "run", "--help"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func unsetEnv(t *testing.T, name string) {
 	t.Helper()
 	t.Setenv(name, "restore")
