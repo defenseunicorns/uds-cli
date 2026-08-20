@@ -39,57 +39,64 @@ jobs:
       - name: Skipped
         run: echo "skipped"
 
+  next-integration-tests:
+    name: Next / Integration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skipped
+        run: echo "skipped"
+
   e2e-bundle:
-    name: E2E bundle
+    name: Legacy / E2E Bundle
     runs-on: ubuntu-latest
     steps:
       - name: Skipped
         run: echo "skipped"
 
   e2e-deploy-flags:
-    name: E2E deploy-flags
+    name: Legacy / E2E Deploy Flags
     runs-on: ubuntu-latest
     steps:
       - name: Skipped
         run: echo "skipped"
 
   e2e-index:
-    name: E2E index
+    name: Legacy / E2E Bundle Index
     runs-on: ubuntu-latest
     steps:
       - name: Skipped
         run: echo "skipped"
 
   e2e-dev:
-    name: E2E dev
+    name: Legacy / E2E Dev
     runs-on: ubuntu-latest
     steps:
       - name: Skipped
         run: echo "skipped"
 
   e2e-variable:
-    name: E2E variable
+    name: Legacy / E2E Variables
     runs-on: ubuntu-latest
     steps:
       - name: Skipped
         run: echo "skipped"
 
   e2e-optional-bundle:
-    name: E2E optional-bundle
+    name: Legacy / E2E Optional Bundles
     runs-on: ubuntu-latest
     steps:
       - name: Skipped
         run: echo "skipped"
 
   e2e-vendor-tests:
-    name: E2E vendor and completion
+    name: Legacy / E2E Vendor and Completion
     runs-on: ubuntu-latest
     steps:
       - name: Skipped
         run: echo "skipped"
 
   e2e-engine-tests:
-    name: E2E engine
+    name: Legacy / E2E Engine
     runs-on: ubuntu-latest
     steps:
       - name: Skipped

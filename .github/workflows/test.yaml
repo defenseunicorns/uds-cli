@@ -111,7 +111,7 @@ jobs:
           retention-days: 1
 
   next-integration-tests:
-    name: Next Integration Tests
+    name: Next / Integration
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 30
@@ -139,14 +139,20 @@ jobs:
           suffix: next-integration
 
   e2e-bundle-tests:
-    name: E2E ${{ matrix.task }}
+    name: Legacy / E2E ${{ matrix.name }}
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        task: [bundle, deploy-flags, index]
+        include:
+          - task: bundle
+            name: Bundle
+          - task: deploy-flags
+            name: Deploy Flags
+          - task: index
+            name: Bundle Index
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -169,14 +175,20 @@ jobs:
           suffix: ${{ matrix.task }}
 
   e2e-single-tests:
-    name: E2E ${{ matrix.task }}
+    name: Legacy / E2E ${{ matrix.name }}
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        task: [dev, variable, optional-bundle]
+        include:
+          - task: dev
+            name: Dev
+          - task: variable
+            name: Variables
+          - task: optional-bundle
+            name: Optional Bundles
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -199,7 +211,7 @@ jobs:
           suffix: ${{ matrix.task }}
 
   e2e-vendor-tests:
-    name: E2E vendor and completion
+    name: Legacy / E2E Vendor and Completion
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 45
@@ -246,7 +258,7 @@ jobs:
           suffix: completion
 
   e2e-engine-tests:
-    name: E2E engine
+    name: Legacy / E2E Engine
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 45
@@ -277,7 +289,7 @@ jobs:
           suffix: engine
 
   ghcr-write:
-    name: GHCR Write Tests
+    name: Legacy / E2E GHCR Write
     if: inputs.include_ghcr_write
     runs-on: ubuntu-latest
     needs:
@@ -322,7 +334,7 @@ jobs:
           suffix: ghcr-write
 
   uds-core-smoke:
-    name: UDS Core Smoke Test
+    name: Legacy / Smoke UDS Core
     if: inputs.include_uds_core_smoke
     runs-on: ubuntu-latest
     needs:
