@@ -39,6 +39,14 @@ tasks:
           UDS_CLI_PATH="$(pwd)/build/uds" \
           go test -v -count=1 -timeout 50m -parallel=4 -tags=cluster_integration ./tests/cluster
 
+  - name: next-smoke-uds-core
+    description: run Next UDS Core smoke tests
+    actions:
+      - cmd: |
+          CLI_FEATURES=NextMode=true \
+          UDS_CLI_PATH="$(pwd)/build/uds" \
+          go test -v -count=1 -timeout 60m -tags=uds_core_smoke ./tests/smoke/...
+
   - name: preparation
     description: run local preparation checks
     actions:
