@@ -84,7 +84,7 @@ func TestResolveRejectsRepeatedFeatureOptions(t *testing.T) {
 	}
 }
 
-func TestStripBootstrapArgs(t *testing.T) {
+func TestPrepareBootstrapArgs(t *testing.T) {
 	tests := []struct {
 		name string
 		args []string
@@ -92,14 +92,18 @@ func TestStripBootstrapArgs(t *testing.T) {
 	}{
 		{"equals form", []string{"--features=NextMode=false", "zarf", "version"}, []string{"zarf", "version"}},
 		{"value form", []string{"zarf", "--features", "NextMode=false", "version"}, []string{"zarf", "version"}},
-		{"root flags preserved", []string{"--log-level", "debug", "tools", "zarf", "version"}, []string{"--log-level", "debug", "tools", "zarf", "version"}},
+		{"tools zarf root flags preserved", []string{"--log-level", "debug", "tools", "zarf", "version"}, []string{"--log-level", "debug", "tools", "zarf", "version"}},
+		{"root zarf non-tools command preserved", []string{"--log-level", "debug", "zarf", "version"}, []string{"--log-level", "debug", "zarf", "version"}},
+		{"root zarf tools strips leading value flag", []string{"--log-level", "debug", "zarf", "tools", "kubectl", "get", "--help"}, []string{"tools", "kubectl", "get", "--help"}},
+		{"root zarf tools strips leading bool flag", []string{"--prompt", "zarf", "tools", "kubectl", "get", "--help"}, []string{"tools", "kubectl", "get", "--help"}},
+		{"root zarf tools alias strips leading flag", []string{"--log-level", "debug", "zarf", "t", "k", "get", "--help"}, []string{"t", "k", "get", "--help"}},
 		{"double dash", []string{"run", "--", "--features=NextMode=false"}, []string{"run", "--", "--features=NextMode=false"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := stripBootstrapArgs(tt.args)
+			got := prepareBootstrapArgs(tt.args)
 			if strings.Join(got, " ") != strings.Join(tt.want, " ") {
-				t.Fatalf("stripBootstrapArgs() = %v, want %v", got, tt.want)
+				t.Fatalf("prepareBootstrapArgs() = %v, want %v", got, tt.want)
 			}
 		})
 	}

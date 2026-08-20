@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	zarfconfig "github.com/zarf-dev/zarf/src/config"
 	"github.com/zarf-dev/zarf/src/pkg/feature"
 )
 
@@ -32,7 +33,7 @@ type FeatureSet map[string]bool
 var processArgs = append([]string(nil), os.Args[1:]...)
 
 func init() {
-	os.Args = append(append([]string(nil), os.Args[:1]...), stripBootstrapArgs(processArgs)...)
+	os.Args = append(append([]string(nil), os.Args[:1]...), prepareBootstrapArgs(processArgs)...)
 }
 
 // ProcessArgs returns the original process arguments captured before dependent
@@ -219,6 +220,10 @@ func zarfRootFlagTakesValue(name string) bool {
 	}
 }
 
+func prepareBootstrapArgs(args []string) []string {
+	return normalizeRootZarfToolsArgs(stripBootstrapArgs(args))
+}
+
 func stripBootstrapArgs(args []string) []string {
 	remaining := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
@@ -239,4 +244,37 @@ func stripBootstrapArgs(args []string) []string {
 		}
 	}
 	return remaining
+}
+
+func normalizeRootZarfToolsArgs(args []string) []string {
+	index := rootZarfToolsCommandIndex(args)
+	if index < 0 {
+		return args
+	}
+	if zarfconfig.ActionsCommandZarfPrefix != "" {
+		return append([]string{"zarf"}, args[index+1:]...)
+	}
+	return append([]string(nil), args[index+1:]...)
+}
+
+func rootZarfToolsCommandIndex(args []string) int {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			return -1
+		}
+		if arg == "zarf" {
+			if i+1 < len(args) && (args[i+1] == "tools" || args[i+1] == "t") {
+				return i
+			}
+			return -1
+		}
+		if !strings.HasPrefix(arg, "-") {
+			return -1
+		}
+		if !strings.Contains(arg, "=") && zarfRootFlagTakesValue(strings.TrimLeft(arg, "-")) {
+			i++
+		}
+	}
+	return -1
 }
