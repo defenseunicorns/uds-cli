@@ -5,13 +5,14 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
+	"github.com/defenseunicorns/uds-cli/internal/cli"
 	legacycli "github.com/defenseunicorns/uds-cli/internal/legacy/cli"
 	"github.com/defenseunicorns/uds-cli/internal/mode"
 	"github.com/defenseunicorns/uds-cli/internal/version"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	legacyconfig "github.com/defenseunicorns/uds-cli/pkg/legacy/config"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
@@ -54,7 +55,8 @@ func newRootCommand(selected mode.Mode) (*cobra.Command, error) {
 	case mode.Legacy:
 		return legacycli.NewRootCommand(), nil
 	case mode.Next:
-		return nil, errors.New("NextMode is not available in this UDS CLI release")
+		streams := iostreams.New(os.Stdin, os.Stdout, os.Stderr)
+		return cli.NewRootCommand(streams), nil
 	default:
 		return nil, fmt.Errorf("unsupported CLI mode %q", selected)
 	}

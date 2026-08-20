@@ -5,7 +5,6 @@ package main
 
 import (
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/internal/mode"
@@ -18,12 +17,10 @@ func TestRunUsesLegacyByDefault(t *testing.T) {
 	}
 }
 
-func TestRunResolvesNextBeforeLegacyConfiguration(t *testing.T) {
+func TestRunUsesNextWhenFeatureEnabled(t *testing.T) {
 	unsetEnv(t, mode.FeaturesEnv)
-	t.Setenv("UDS_CONFIG", t.TempDir())
-	err := run([]string{"--features=NextMode=true", "version"})
-	if err == nil || !strings.Contains(err.Error(), "NextMode is not available") {
-		t.Fatalf("run() error = %v", err)
+	if err := run([]string{"--features=NextMode=true", "version"}); err != nil {
+		t.Fatal(err)
 	}
 }
 
