@@ -97,7 +97,7 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 				data, err := os.ReadFile(target)
 				require.NoError(t, err)
 				data[len(data)-1] ^= 0xFF
-				require.NoError(t, os.WriteFile(target, data, filesystem.PrivateFileMode))
+				require.NoError(t, os.WriteFile(target, data, filesystem.PrivateFileMode)) //nolint:gosec // test corrupts a generated fixture path
 
 				corruptPath := filepath.Join(t.TempDir(), "corrupt.tar.zst")
 				require.NoError(t, WriteTarZst(t.Context(), iostreams.IOStreams{}, corruptPath, unpackDir))

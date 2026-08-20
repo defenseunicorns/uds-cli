@@ -38,7 +38,7 @@ func UDSCLIPath(t *testing.T, runHint string) string {
 		}
 		t.Skipf("UDS_CLI_PATH not set; %s", runHint)
 	}
-	if _, err := os.Stat(path); err != nil {
+	if _, err := os.Stat(path); err != nil { //nolint:gosec // UDS_CLI_PATH is an explicit test binary path
 		t.Fatalf("UDS_CLI_PATH binary not found at %s: %v", path, err)
 	}
 	return path
@@ -172,11 +172,11 @@ func CopyDir(src, dst string) error {
 		if info.IsDir() {
 			return os.MkdirAll(target, 0o755)
 		}
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // test helper reads files discovered under fixture directory walk
 		if err != nil {
 			return err
 		}
-		return os.WriteFile(target, data, info.Mode())
+		return os.WriteFile(target, data, info.Mode()) //nolint:gosec // test helper copies fixture files into a temp directory
 	})
 }
 

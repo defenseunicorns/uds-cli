@@ -31,8 +31,8 @@ func createTestArtifact(t *testing.T) string {
 	root := t.TempDir()
 	pkgDir := filepath.Join(root, "pkg")
 	require.NoError(t, os.MkdirAll(pkgDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte("kind: ZarfPackageConfig\nmetadata:\n  name: test\n  version: 1.0.0\n  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\ncomponents: []\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "checksums.txt"), nil, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte("kind: ZarfPackageConfig\nmetadata:\n  name: test\n  version: 1.0.0\n  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\ncomponents: []\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "checksums.txt"), nil, 0o600))
 
 	bundleFile := filepath.Join(root, bundleFileName)
 	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
@@ -46,7 +46,7 @@ package "pkg" {
   source = "pkg"
   signature_verification { verify = false }
 }
-`), 0o644))
+`), 0o600))
 
 	config := testInspectConfig()
 	config.Options.TmpDir = t.TempDir()
@@ -100,7 +100,7 @@ func TestInspectOptions_Complete(t *testing.T) {
 func TestInspectOptions_Validate(t *testing.T) {
 	tempDir := t.TempDir()
 	validArtifact := filepath.Join(tempDir, "bundle.tar.zst")
-	require.NoError(t, os.WriteFile(validArtifact, []byte("test"), 0o644))
+	require.NoError(t, os.WriteFile(validArtifact, []byte("test"), 0o600))
 	artifactDir := filepath.Join(tempDir, "artifact.tar.zst")
 	require.NoError(t, os.Mkdir(artifactDir, 0o755))
 
@@ -180,8 +180,8 @@ func TestInspectOptions_Validate(t *testing.T) {
 func TestInspectOptions_CompleteDoesNotReadSiblingDefaults(t *testing.T) {
 	root := t.TempDir()
 	artifact := filepath.Join(root, "bundle.tar.zst")
-	require.NoError(t, os.WriteFile(artifact, []byte("artifact"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "defaults.uds.hcl"), []byte("not valid HCL {{{"), 0o644))
+	require.NoError(t, os.WriteFile(artifact, []byte("artifact"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "defaults.uds.hcl"), []byte("not valid HCL {{{"), 0o600))
 
 	streams, _, _, _ := iostreams.NewTestIOStreams()
 	o := NewInspectOptions(streams)

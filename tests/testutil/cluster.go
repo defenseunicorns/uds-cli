@@ -36,7 +36,7 @@ func ResolveUDSCLIPath() (string, error) {
 	if path == "" {
 		return "", errors.New("UDS_CLI_PATH is not set; run 'maru run build-local' first")
 	}
-	if _, err := os.Stat(path); err != nil {
+	if _, err := os.Stat(path); err != nil { //nolint:gosec // UDS_CLI_PATH is an explicit test binary path
 		return "", fmt.Errorf("locate UDS CLI at %q: %w", path, err)
 	}
 	return path, nil

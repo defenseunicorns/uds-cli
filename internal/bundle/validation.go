@@ -75,7 +75,7 @@ func validateTmpDir(path string) error {
 	if path == "" {
 		return nil
 	}
-	st, err := os.Stat(path)
+	st, err := os.Stat(path) //nolint:gosec // user-provided tmp_dir is validated before use
 	if err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("tmp_dir: directory does not exist: %s: %w: %w", path, ErrInvalidTemporaryDirectory, err)

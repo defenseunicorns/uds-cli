@@ -18,7 +18,7 @@ import (
 func TestPushOptions_Run_PromptDecline(t *testing.T) {
 	tempDir := t.TempDir()
 	tarball := filepath.Join(tempDir, "bundle.tar.zst")
-	require.NoError(t, os.WriteFile(tarball, []byte("fake"), 0o644))
+	require.NoError(t, os.WriteFile(tarball, []byte("fake"), 0o600))
 
 	tests := []struct {
 		name          string

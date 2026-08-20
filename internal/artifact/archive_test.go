@@ -100,7 +100,7 @@ func writeMaliciousTarZst(t *testing.T, dst string, entries []tarEntry) {
 			if e.typeflag == tar.TypeDir {
 				mode = 0o755
 			} else {
-				mode = 0o644
+				mode = 0o600
 			}
 		}
 		hdr := &tar.Header{
@@ -177,8 +177,8 @@ func TestExtractTarZst_RoundTrip(t *testing.T) {
 
 	srcDir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(srcDir, "nested"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "a.txt"), []byte("A"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "nested", "b.txt"), []byte("B"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "a.txt"), []byte("A"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "nested", "b.txt"), []byte("B"), 0o600))
 
 	tarball := filepath.Join(t.TempDir(), "round.tar.zst")
 	require.NoError(t, WriteTarZst(t.Context(), iostreams.IOStreams{}, tarball, srcDir))

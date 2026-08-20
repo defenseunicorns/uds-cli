@@ -67,7 +67,6 @@ linters:
       # additional Legacy linters enabled everywhere outside its import roots.
       - path: ^(internal/(artifact|bundle|cli|logger|oci|printer|testutil|zarf)|pkg/(bundle|iostreams)|tests/(cluster|integration|library|smoke|testutil))/
         linters:
-          - gosec
           - perfsprint
           - revive
       - path: ^internal/oci/transfer\.go$

@@ -572,7 +572,7 @@ options {
 variables = {
   cluster_name = "test-cluster"
 }
-`), 0o644))
+`), 0o600))
 
 	cmd := &cobra.Command{}
 	registerTestFlags(cmd)
@@ -657,7 +657,7 @@ options {
   architecture = "arm64"
   concurrency  = 5
 }
-`), 0o644))
+`), 0o600))
 
 	cmd := &cobra.Command{}
 	registerTestFlags(cmd)
@@ -721,7 +721,7 @@ func TestResolve_HCLLogLevelOverride(t *testing.T) {
 options {
   log_level = "warn"
 }
-`), 0o644))
+`), 0o600))
 
 	cmd := &cobra.Command{}
 	registerTestFlags(cmd)
@@ -742,7 +742,7 @@ func TestResolve_CLILogLevelOverridesHCL(t *testing.T) {
 options {
   log_level = "warn"
 }
-`), 0o644))
+`), 0o600))
 
 	cmd := &cobra.Command{}
 	registerTestFlags(cmd)
@@ -764,7 +764,7 @@ func TestResolve_InvalidHCLLogLevel(t *testing.T) {
 options {
   log_level = "invalid-level"
 }
-`), 0o644))
+`), 0o600))
 
 	cmd := &cobra.Command{}
 	registerTestFlags(cmd)
@@ -787,7 +787,7 @@ variables = {
     auth = true
   }
 }
-`), 0o644))
+`), 0o600))
 
 	cmd := &cobra.Command{}
 	registerTestFlags(cmd)
@@ -836,7 +836,7 @@ func TestResolve_DefaultsFile_OptionsBlockNotAllowed(t *testing.T) {
 options {
   architecture = "amd64"
 }
-`), 0o644))
+`), 0o600))
 
 	cmd := &cobra.Command{}
 	registerTestFlags(cmd)
@@ -853,7 +853,7 @@ func TestResolve_DefaultsFile_InvalidHCL(t *testing.T) {
 	bundleDir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundleDefaultsFileName), []byte(`
 this is not valid HCL {{{
-`), 0o644))
+`), 0o600))
 
 	cmd := &cobra.Command{}
 	registerTestFlags(cmd)
@@ -870,10 +870,10 @@ func TestResolve_DefaultsFile_BundleDirIsFilePath(t *testing.T) {
 variables = {
   a = "a-default-value"
 }
-`), 0o644))
+`), 0o600))
 	// Simulate passing a file path (e.g. /path/to/bundle.uds.hcl) instead of directory
 	bundleFilePath := filepath.Join(bundleDir, bundleFileName)
-	require.NoError(t, os.WriteFile(bundleFilePath, []byte(""), 0o644))
+	require.NoError(t, os.WriteFile(bundleFilePath, []byte(""), 0o600))
 
 	cmd := &cobra.Command{}
 	registerTestFlags(cmd)

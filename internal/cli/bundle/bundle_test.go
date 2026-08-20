@@ -137,7 +137,7 @@ func TestPushOptions_Validate(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	validTarball := filepath.Join(tmpDir, "bundle.tar.zst")
-	require.NoError(t, os.WriteFile(validTarball, []byte("fake"), 0o644))
+	require.NoError(t, os.WriteFile(validTarball, []byte("fake"), 0o600))
 
 	tests := []struct {
 		name         string

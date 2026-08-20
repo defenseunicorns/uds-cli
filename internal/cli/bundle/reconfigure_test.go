@@ -98,7 +98,7 @@ func TestReconfigureOptions_Run_PromptDecline(t *testing.T) {
 	t.Parallel()
 	tempDir := t.TempDir()
 	defaults := filepath.Join(tempDir, "defaults.uds.hcl")
-	require.NoError(t, os.WriteFile(defaults, []byte(`variables = { a = "b" }`), 0o644))
+	require.NoError(t, os.WriteFile(defaults, []byte(`variables = { a = "b" }`), 0o600))
 
 	tests := []struct {
 		name          string

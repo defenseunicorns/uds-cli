@@ -139,7 +139,7 @@ func TestValidateTmpDir(t *testing.T) {
 
 	t.Run("file rejected", func(t *testing.T) {
 		f := filepath.Join(t.TempDir(), "afile")
-		require.NoError(t, os.WriteFile(f, []byte("x"), 0o644))
+		require.NoError(t, os.WriteFile(f, []byte("x"), 0o600))
 		cfg := validBaseConfig()
 		cfg.Options.TmpDir = f
 		err := ValidateConfig(cfg)

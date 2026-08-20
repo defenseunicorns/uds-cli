@@ -1369,7 +1369,7 @@ locals {
   name = file(local.path)
   path = "a.txt"
 }
-metadata { 
+metadata {
 	name = local.name
 	description = local.description
 }

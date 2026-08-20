@@ -18,7 +18,7 @@ func TestResolveBundlePath(t *testing.T) {
 	validDir := filepath.Join(tempDir, "valid")
 	require.NoError(t, os.Mkdir(validDir, 0o755))
 	validBundleFile := filepath.Join(validDir, BundleFileName)
-	require.NoError(t, os.WriteFile(validBundleFile, []byte("test content"), 0o644))
+	require.NoError(t, os.WriteFile(validBundleFile, []byte("test content"), 0o600))
 
 	tests := []struct {
 		name     string

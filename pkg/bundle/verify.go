@@ -133,11 +133,11 @@ func verifySignature(ctx context.Context, index, evidence []byte, policy Verific
 	defer func() { _ = os.RemoveAll(workspace) }()
 
 	indexPath := filepath.Join(workspace, "index.json")
-	if err := os.WriteFile(indexPath, index, 0o600); err != nil {
+	if err := os.WriteFile(indexPath, index, 0o600); err != nil { //nolint:gosec // path is inside a freshly created verification workspace
 		return fmt.Errorf("writing bundle index for signature verification: %w", err)
 	}
 	evidencePath := filepath.Join(workspace, bundleSignatureFileName)
-	if err := os.WriteFile(evidencePath, evidence, 0o600); err != nil {
+	if err := os.WriteFile(evidencePath, evidence, 0o600); err != nil { //nolint:gosec // path is inside a freshly created verification workspace
 		return fmt.Errorf("writing bundle signature evidence: %w", err)
 	}
 

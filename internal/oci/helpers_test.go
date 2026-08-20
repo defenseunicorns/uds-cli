@@ -206,7 +206,7 @@ func writeTarZst(ctx context.Context, _ iostreams.IOStreams, dst, srcDir string)
 	if err != nil {
 		return err
 	}
-	f, err := os.Create(dst)
+	f, err := os.Create(dst) //nolint:gosec // test helper writes to caller-provided temp fixture path
 	if err != nil {
 		return err
 	}
@@ -275,7 +275,7 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	if err := os.WriteFile(filepath.Join(blobDir, hex.EncodeToString(configDigest[:])), config, filesystem.PrivateFileMode); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(filepath.Join(blobDir, hex.EncodeToString(hclDigest[:])), hclData, filesystem.PrivateFileMode); err != nil {
+	if err := os.WriteFile(filepath.Join(blobDir, hex.EncodeToString(hclDigest[:])), hclData, filesystem.PrivateFileMode); err != nil { //nolint:gosec // digest-derived test fixture path
 		return nil, err
 	}
 	manifest := ocispec.Manifest{Versioned: specs.Versioned{SchemaVersion: 2}, MediaType: ocispec.MediaTypeImageManifest, ArtifactType: MediaTypeBundleDefinition,
@@ -349,7 +349,7 @@ func readTarZstEntries(t *testing.T, tarball string) map[string][]byte {
 		if err != nil {
 			return err
 		}
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // test helper reads files discovered under fixture directory walk
 		if err == nil {
 			entries[filepath.ToSlash(rel)] = data
 		}

@@ -24,7 +24,7 @@ func TestCreateOptions_Validate(t *testing.T) {
 	validDir := filepath.Join(tempDir, "valid")
 	require.NoError(t, os.Mkdir(validDir, 0o755))
 	validBundleFile := filepath.Join(validDir, bundleFileName)
-	require.NoError(t, os.WriteFile(validBundleFile, []byte("test content"), 0o644))
+	require.NoError(t, os.WriteFile(validBundleFile, []byte("test content"), 0o600))
 
 	// Create an empty directory (no bundle.uds.hcl)
 	emptyDir := filepath.Join(tempDir, "empty")
@@ -32,7 +32,7 @@ func TestCreateOptions_Validate(t *testing.T) {
 
 	// Create an HCL file with wrong name
 	wrongNameFile := filepath.Join(tempDir, "wrongname.hcl")
-	require.NoError(t, os.WriteFile(wrongNameFile, []byte("test"), 0o644))
+	require.NoError(t, os.WriteFile(wrongNameFile, []byte("test"), 0o600))
 
 	defaults := NewConfigResolver().Defaults()
 
@@ -127,7 +127,7 @@ package "pkg1" {
   source = "oci://example.com/pkg:v1"
   signature_verification { verify = false }
 }
-`), 0o644))
+`), 0o600))
 
 	tests := []struct {
 		name          string

@@ -72,10 +72,10 @@ package "pkg1" {
   source = "oci://example.com/pkg:v1"
   signature_verification { verify = false }
 }
-`), 0o644))
+`), 0o600))
 
 	tarZstFile := filepath.Join(tempDir, "bundle.tar.zst")
-	require.NoError(t, os.WriteFile(tarZstFile, []byte("test"), 0o644))
+	require.NoError(t, os.WriteFile(tarZstFile, []byte("test"), 0o600))
 
 	defaults := NewConfigResolver().Defaults()
 
