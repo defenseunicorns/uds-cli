@@ -27,6 +27,8 @@ func TestResolve(t *testing.T) {
 		{"Zarf feature", []string{"zarf", "--features=values=false", "version"}, "", Legacy, "NextMode=false,values=false", []string{"zarf", "--features=values=false", "version"}},
 		{"Zarf alias feature", []string{"z", "--features=values=false", "version"}, "", Legacy, "NextMode=false,values=false", []string{"z", "--features=values=false", "version"}},
 		{"Next tools zarf feature", []string{"tools", "zarf", "version"}, "NextMode=true,values=false", Next, "NextMode=true,values=false", []string{"tools", "zarf", "--features=values=false", "version"}},
+		{"Next tools zarf feature after root flag", []string{"tools", "--log-level", "debug", "zarf", "version"}, "NextMode=true,values=false", Next, "NextMode=true,values=false", []string{"tools", "--log-level", "debug", "zarf", "--features=values=false", "version"}},
+		{"Next tools zarf alias feature after root flag", []string{"tools", "-l", "debug", "z", "version"}, "NextMode=true,values=false", Next, "NextMode=true,values=false", []string{"tools", "-l", "debug", "z", "--features=values=false", "version"}},
 		{"Zarf feature skips task arguments", []string{"run", "zarf"}, "values=false", Legacy, "NextMode=false,values=false", []string{"run", "zarf"}},
 		{"double dash", []string{"create", "--", "--features=NextMode=true"}, "", Legacy, "NextMode=false", []string{"create", "--", "--features=NextMode=true"}},
 	}

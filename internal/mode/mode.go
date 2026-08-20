@@ -178,8 +178,27 @@ func zarfCommandIndex(args []string) int {
 		if arg == "zarf" || arg == "z" {
 			return i
 		}
-		if arg == "tools" && i+1 < len(args) && args[i+1] == "zarf" {
-			return i + 1
+		if arg == "tools" {
+			return nestedZarfCommandIndex(args, i+1)
+		}
+		if !strings.HasPrefix(arg, "-") {
+			return -1
+		}
+		if !strings.Contains(arg, "=") && zarfRootFlagTakesValue(strings.TrimLeft(arg, "-")) {
+			i++
+		}
+	}
+	return -1
+}
+
+func nestedZarfCommandIndex(args []string, start int) int {
+	for i := start; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			return -1
+		}
+		if arg == "zarf" || arg == "z" {
+			return i
 		}
 		if !strings.HasPrefix(arg, "-") {
 			return -1
