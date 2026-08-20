@@ -137,7 +137,7 @@ func TestInspectOptions_Validate(t *testing.T) {
 		{
 			name:       "empty path",
 			bundlePath: "",
-			wantErr:    "source must not be empty",
+			wantErr:    "source is required",
 		},
 		{
 			name:       "source HCL file",

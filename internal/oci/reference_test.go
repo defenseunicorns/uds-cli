@@ -7,7 +7,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestReferenceIdentifierRejectsInvalidORASRepository(t *testing.T) {
+	t.Parallel()
+
+	_, err := ReferenceIdentifier("example.com//repo:tag")
+	require.ErrorIs(t, err, ErrParseReference)
+}
 
 func TestIsOCIReference(t *testing.T) {
 	tests := []struct {

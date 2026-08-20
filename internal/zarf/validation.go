@@ -4,8 +4,6 @@
 package zarf
 
 import (
-	"fmt"
-
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 )
 
@@ -15,7 +13,7 @@ func (o DeployPackageOptions) Validate() error {
 		return err
 	}
 	if o.BundleDir == "" {
-		return fmt.Errorf("BundleDir is required")
+		return ErrBundleDirRequired
 	}
 	return nil
 }

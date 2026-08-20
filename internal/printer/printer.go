@@ -34,7 +34,7 @@ func NewPrinter(format Format) (ResourcePrinter, error) {
 	case FormatYAML:
 		return &YAMLPrinter{}, nil
 	default:
-		return nil, fmt.Errorf("unsupported output format: %q (valid: text, json, yaml)", format)
+		return nil, fmt.Errorf("unsupported output format: %q (valid: text, json, yaml): %w", format, ErrUnsupportedFormat)
 	}
 }
 
@@ -48,7 +48,7 @@ func ParseFormat(s string) (Format, error) {
 	case "yaml":
 		return FormatYAML, nil
 	default:
-		return "", fmt.Errorf("unknown output format %q, valid values are: text, json, yaml", s)
+		return "", fmt.Errorf("unknown output format %q, valid values are: text, json, yaml: %w", s, ErrUnsupportedFormat)
 	}
 }
 

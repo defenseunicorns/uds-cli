@@ -87,15 +87,15 @@ func isZarfPackage(dir string) bool {
 func selectZarfLayers(ctx context.Context, root *oci.Manifest, fetcher content.Fetcher, filter filters.ComponentFilterStrategy) ([]ocispec.Descriptor, bool, error) {
 	pkg, err := zoci.FetchZarfYAML(ctx, root, fetcher)
 	if err != nil {
-		return nil, false, fmt.Errorf("fetching zarf.yaml: %w", err)
+		return nil, false, fmt.Errorf("fetching zarf.yaml: %w: %w", ErrFetchPackageMetadata, err)
 	}
 	components, err := filter.Apply(pkg)
 	if err != nil {
-		return nil, false, fmt.Errorf("applying component filter: %w", err)
+		return nil, false, fmt.Errorf("%w for package %q: %w", ErrApplyComponentFilter, pkg.Metadata.Name, err)
 	}
 	layers, err := zoci.AssembleLayers(ctx, root, fetcher, components)
 	if err != nil {
-		return nil, false, fmt.Errorf("assembling package layers: %w", err)
+		return nil, false, fmt.Errorf("%w for package %q: %w", ErrAssemblePackageLayers, pkg.Metadata.Name, err)
 	}
 	return layers, len(components) < len(pkg.Components), nil
 }

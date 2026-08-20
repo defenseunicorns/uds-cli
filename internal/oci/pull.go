@@ -73,16 +73,16 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 		return nil, err
 	}
 	if ociReference == "" {
-		return nil, ErrEmpty("ociReference")
+		return nil, EmptyParameterError{Name: "ociReference"}
 	}
 	if targetDir == "" {
-		return nil, ErrEmpty("targetDir")
+		return nil, EmptyParameterError{Name: "targetDir"}
 	}
 
 	log := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
 	tmp, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-pull-*")
 	if err != nil {
-		return nil, fmt.Errorf("creating temp dir: %w", err)
+		return nil, fmt.Errorf("creating temp dir: %w: %w", ErrCreateTemporaryDirectory, err)
 	}
 	defer func() {
 		err = os.RemoveAll(tmp)
@@ -93,20 +93,20 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 
 	ociDir := filepath.Join(tmp, "oci")
 	if err := os.MkdirAll(ociDir, filesystem.PrivateDirectoryMode); err != nil {
-		return nil, fmt.Errorf("creating OCI dir: %w", err)
+		return nil, fmt.Errorf("creating OCI dir: %w: %w", ErrCreateOCIDirectory, err)
 	}
 
 	// oraci.New writes oci-layout and initialises blobs/sha256/.
 	store, err := oraci.New(ociDir)
 	if err != nil {
-		return nil, fmt.Errorf("creating OCI store: %w", err)
+		return nil, fmt.Errorf("creating OCI store: %w: %w", ErrCreateStore, err)
 	}
 	// We write index.json ourselves below; prevent ORAS from clobbering it.
 	store.AutoSaveIndex = false
 
 	src, err := resolvePullTarget(ctx, ociReference, &opts)
 	if err != nil {
-		return nil, fmt.Errorf("resolving pull source %s: %w", ociReference, err)
+		return nil, fmt.Errorf("resolving pull source %s: %w: %w", ociReference, ErrResolveReference, err)
 	}
 	reference, err := ReferenceIdentifier(ociReference)
 	if err != nil {
@@ -118,7 +118,7 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 	// a digest-pinned reference addresses a child directly (ADR-0015).
 	childDesc, idxBytes, err := ResolveBundleChild(ctx, src, reference, opts.Config.Options.Architecture)
 	if err != nil {
-		return nil, fmt.Errorf("resolving bundle from %s: %w", ociReference, err)
+		return nil, fmt.Errorf("resolving bundle from %s: %w: %w", ociReference, ErrResolveReference, err)
 	}
 	var signature []byte
 	if opts.PullHooks.VerifyBundle != nil {
@@ -134,12 +134,12 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 	// Copy only the selected architecture's graph — never sibling architectures.
 	copyOpts, err := pullCopyOptions(ctx, &opts)
 	if err != nil {
-		return nil, fmt.Errorf("configuring pull: %w", err)
+		return nil, fmt.Errorf("configuring pull: %w: %w", ErrConfigureTransfer, err)
 	}
 	log.Info("pulling bundle content", "ref", ociReference)
 	log.Debug("copying bundle from registry", "ref", ociReference, "digest", childDesc.Digest.String())
 	if err := copyGraph(ctx, src, store, childDesc, copyOpts.CopyGraphOptions); err != nil {
-		return nil, fmt.Errorf("pulling bundle from %s: %w", ociReference, err)
+		return nil, fmt.Errorf("pulling bundle from %s: %w: %w", ociReference, ErrPullContent, err)
 	}
 	if signature == nil {
 		signature, err = FetchBundleSignature(ctx, src, childDesc)
@@ -158,13 +158,14 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 
 	// Write the child index bytes verbatim as index.json to restore the layout
 	// format produced by Create (round-trips byte-identically).
-	if err := os.WriteFile(filepath.Join(ociDir, "index.json"), idxBytes, filesystem.PrivateFileMode); err != nil {
-		return nil, fmt.Errorf("writing index.json: %w", err)
+	indexPath := filepath.Join(ociDir, "index.json")
+	if err := os.WriteFile(indexPath, idxBytes, filesystem.PrivateFileMode); err != nil {
+		return nil, fmt.Errorf("%w %q: %w", ErrWriteIndex, indexPath, err)
 	}
 
 	var idx ocispec.Index
 	if err := json.Unmarshal(idxBytes, &idx); err != nil {
-		return nil, fmt.Errorf("parsing bundle index: %w", err)
+		return nil, fmt.Errorf("parsing bundle index: %w: %w", ErrParseIndex, err)
 	}
 
 	// Graph copy stores the child index as a blob in addition to us writing it as
@@ -172,22 +173,22 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 	// (index only in index.json, never as a blob).
 	idxBlobPath := filepath.Join(ociDir, "blobs", "sha256", childDesc.Digest.Hex())
 	if err := os.Remove(idxBlobPath); err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("removing duplicate index blob: %w", err)
+		return nil, fmt.Errorf("%w %q: %w", ErrRemoveDuplicateIndexBlob, idxBlobPath, err)
 	}
 
 	// Name the archive after the child's own recorded architecture — for a
 	// digest-pinned pull it may differ from the requested/host architecture.
 	outArch := idx.Annotations[AnnotationBundleArchitecture]
 	if outArch == "" {
-		return nil, fmt.Errorf("encountered corrupted bundle definition %s: missing architecture annotation", ociReference)
+		return nil, fmt.Errorf("encountered corrupted bundle definition %s: missing architecture annotation: %w", ociReference, ErrMissingArchitecture)
 	}
 	if opts.PullHooks.CreateBundleArchive == nil {
-		return nil, fmt.Errorf("creating bundle archive: archive hook is required")
+		return nil, ErrBundleArchiveHookRequired
 	}
 	log.Info("writing bundle archive", "output_dir", targetDir)
 	outPath, err := opts.PullHooks.CreateBundleArchive(ctx, log, ociDir, targetDir, idx, outArch)
 	if err != nil {
-		return nil, fmt.Errorf("creating bundle archive from %s: %w", ociReference, err)
+		return nil, fmt.Errorf("creating bundle archive from %s: %w: %w", ociReference, ErrCreateBundleArchive, err)
 	}
 
 	log.Info("bundle pulled", "output", outPath)
@@ -204,25 +205,25 @@ func (p *defaultPuller) PullPackage(ctx context.Context, ociReference, targetDir
 		return nil, err
 	}
 	if ociReference == "" {
-		return nil, ErrEmpty("ociReference")
+		return nil, EmptyParameterError{Name: "ociReference"}
 	}
 	if targetDir == "" {
-		return nil, ErrEmpty("targetDir")
+		return nil, EmptyParameterError{Name: "targetDir"}
 	}
 
 	log := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
 
 	ociDir := filepath.Join(targetDir, "oci")
 	if err := os.MkdirAll(ociDir, filesystem.PrivateDirectoryMode); err != nil {
-		return nil, fmt.Errorf("creating OCI dir: %w", err)
+		return nil, fmt.Errorf("creating OCI dir: %w: %w", ErrCreateOCIDirectory, err)
 	}
 	store, err := oraci.New(ociDir)
 	if err != nil {
-		return nil, fmt.Errorf("creating OCI store: %w", err)
+		return nil, fmt.Errorf("creating OCI store: %w: %w", ErrCreateStore, err)
 	}
 
 	if _, err := pullToStore(ctx, ociReference, store, &opts); err != nil {
-		return nil, fmt.Errorf("pulling package from %s: %w", ociReference, err)
+		return nil, fmt.Errorf("pulling package from %s: %w: %w", ociReference, ErrPullContent, err)
 	}
 
 	log.Info("package pulled", "output", ociDir)

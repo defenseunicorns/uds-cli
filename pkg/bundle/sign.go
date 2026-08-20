@@ -67,39 +67,46 @@ func Sign(ctx context.Context, opts SignOptions) error {
 		return err
 	}
 	if oci.IsOCIReference(opts.Source) {
-		if opts.Config == nil || opts.Config.Options == nil {
-			return fmt.Errorf("config is required for OCI bundle signing")
+		if err := validateOCIReference(opts.Source); err != nil {
+			return fmt.Errorf("%w %q: %w", ErrSignBundle, opts.Source, err)
 		}
-		return signOCI(ctx, opts)
+		if opts.Config == nil || opts.Config.Options == nil {
+			return fmt.Errorf("%w %q: config is required for OCI bundle signing", ErrSignBundle, opts.Source)
+		}
+		if err := signOCI(ctx, opts); err != nil {
+			return fmt.Errorf("%w %q: %w", ErrSignBundle, opts.Source, err)
+		}
+		return nil
 	}
 
 	workspace, err := os.MkdirTemp(opts.TmpDir, "uds-bundle-sign-*")
 	if err != nil {
-		return fmt.Errorf("creating signing workspace: %w", err)
+		return fmt.Errorf("%w %q: creating signing workspace under %q: %w", ErrSignBundle, opts.Source, opts.TmpDir, err)
 	}
 	defer func() { _ = os.RemoveAll(workspace) }()
 	if err := artifact.ExtractTarZst(ctx, opts.Streams, opts.Source, workspace); err != nil {
-		return fmt.Errorf("extracting bundle: %w", err)
+		return fmt.Errorf("%w %q: extracting into %q: %w", ErrSignBundle, opts.Source, workspace, err)
 	}
 
 	indexPath := filepath.Join(workspace, "oci", "index.json")
 	index, err := os.ReadFile(indexPath)
 	if err != nil {
-		return fmt.Errorf("reading bundle index: %w", err)
+		return fmt.Errorf("%w %q: reading bundle index %q: %w", ErrSignBundle, opts.Source, indexPath, err)
 	}
 	if err := validateLocalBundleIndex(index); err != nil {
-		return err
+		return fmt.Errorf("%w %q: %w", ErrSignBundle, opts.Source, err)
 	}
-	if err := oci.VerifyLocalLayoutGraph(ctx, filepath.Join(workspace, "oci"), index); err != nil {
-		return fmt.Errorf("verifying bundle content before signing: %w", err)
+	layoutPath := filepath.Join(workspace, "oci")
+	if err := oci.VerifyLocalLayoutGraph(ctx, layoutPath, index); err != nil {
+		return fmt.Errorf("%w %q: verifying bundle content before signing in OCI layout %q: %w", ErrSignBundle, opts.Source, layoutPath, err)
 	}
 
 	evidencePath := filepath.Join(workspace, bundleSignatureFileName)
 	if err := signBundleIndex(ctx, indexPath, evidencePath, opts.Signing); err != nil {
-		return err
+		return fmt.Errorf("%w %q using %s mode: %w", ErrSignBundle, opts.Source, opts.Signing.Mode, err)
 	}
 	if err := artifact.WriteTarZst(ctx, opts.Streams, opts.Source, workspace); err != nil {
-		return fmt.Errorf("writing signed bundle: %w", err)
+		return fmt.Errorf("%w %q: writing signed bundle from %q: %w", ErrSignBundle, opts.Source, workspace, err)
 	}
 	return nil
 }
@@ -107,7 +114,7 @@ func Sign(ctx context.Context, opts SignOptions) error {
 func signOCI(ctx context.Context, opts SignOptions) error {
 	repo, err := oci.NewRemoteRepository(ctx, oci.TrimScheme(opts.Source), toInternalConfigOptions(*opts.Config.Options))
 	if err != nil {
-		return fmt.Errorf("connecting to registry: %w", err)
+		return fmt.Errorf("connecting to registry for %q: %w", opts.Source, err)
 	}
 	reference, err := oci.ReferenceIdentifier(opts.Source)
 	if err != nil {
@@ -115,20 +122,20 @@ func signOCI(ctx context.Context, opts SignOptions) error {
 	}
 	child, index, err := oci.ResolveBundleChild(ctx, repo, reference, opts.Config.Options.Architecture)
 	if err != nil {
-		return fmt.Errorf("resolving bundle from %s: %w", opts.Source, err)
+		return fmt.Errorf("resolving bundle %q for architecture %q: %w", opts.Source, opts.Config.Options.Architecture, err)
 	}
 	if err := validateBundleIndex(index); err != nil {
-		return err
+		return fmt.Errorf("validating resolved child %s for %q: %w", child.Digest, opts.Source, err)
 	}
 
 	workspace, err := os.MkdirTemp(opts.TmpDir, "uds-bundle-oci-sign-*")
 	if err != nil {
-		return fmt.Errorf("creating OCI signing workspace: %w", err)
+		return fmt.Errorf("creating OCI signing workspace for %q under %q: %w", opts.Source, opts.TmpDir, err)
 	}
 	defer func() { _ = os.RemoveAll(workspace) }()
 	indexPath := filepath.Join(workspace, "index.json")
 	if err := os.WriteFile(indexPath, index, 0o600); err != nil {
-		return fmt.Errorf("writing bundle index for signing: %w", err)
+		return fmt.Errorf("writing child %s index to %q for signing: %w", child.Digest, indexPath, err)
 	}
 	evidencePath := filepath.Join(workspace, bundleSignatureFileName)
 	if err := signBundleIndex(ctx, indexPath, evidencePath, opts.Signing); err != nil {
@@ -136,10 +143,10 @@ func signOCI(ctx context.Context, opts SignOptions) error {
 	}
 	evidence, err := os.ReadFile(evidencePath)
 	if err != nil {
-		return fmt.Errorf("reading bundle signature evidence: %w", err)
+		return fmt.Errorf("reading signature evidence %q for child %s: %w", evidencePath, child.Digest, err)
 	}
 	if err := oci.PublishBundleSignature(ctx, repo, child, evidence, opts.Signing.Overwrite); err != nil {
-		return fmt.Errorf("publishing bundle signature: %w", err)
+		return fmt.Errorf("publishing signature for %q child %s (overwrite=%t): %w", opts.Source, child.Digest, opts.Signing.Overwrite, err)
 	}
 	return nil
 }
@@ -148,7 +155,7 @@ func signBundleIndex(ctx context.Context, indexPath, evidencePath string, option
 	signOpts := signingOptions(options)
 	signOpts.BundlePath = evidencePath
 	if _, err := signing.CosignSignBlobWithOptions(ctx, indexPath, signOpts); err != nil {
-		return fmt.Errorf("signing bundle index: %w", err)
+		return fmt.Errorf("signing bundle index %q with %s mode, evidence %q: %w", indexPath, options.Mode, evidencePath, err)
 	}
 	return nil
 }
@@ -176,30 +183,30 @@ func signingOptions(options SigningOptions) signing.SignBlobOptions {
 // Validate validates signing options.
 func (o SigningOptions) Validate() error {
 	if o.Mode == SigningModeKeyless && strings.TrimSpace(o.Key) != "" {
-		return fmt.Errorf("signing key cannot be combined with keyless signing")
+		return fmt.Errorf("signing key cannot be combined with keyless signing: %w", ErrInvalidSigningOptions)
 	}
 	if o.Mode == SigningModeKey {
 		if strings.TrimSpace(o.Key) == "" {
-			return fmt.Errorf("signing key is required for key signing")
+			return fmt.Errorf("signing key is required for key signing: %w", ErrInvalidSigningOptions)
 		}
 		return nil
 	}
 	if o.Mode == SigningModeKeyless || o.Mode == SigningModeUnsigned {
 		return nil
 	}
-	return fmt.Errorf("signing mode must be key, keyless, or unsigned")
+	return fmt.Errorf("signing mode %q must be key, keyless, or unsigned: %w", o.Mode, ErrInvalidSigningOptions)
 }
 
 // Validate validates SignOptions.
 func (o SignOptions) Validate() error {
 	if o.Source == "" {
-		return fmt.Errorf("source is required")
+		return fmt.Errorf("source is required: %w", ErrSourceRequired)
 	}
 	if err := o.Signing.Validate(); err != nil {
 		return err
 	}
 	if o.Signing.Mode == SigningModeUnsigned {
-		return fmt.Errorf("bundle sign does not accept unsigned mode")
+		return fmt.Errorf("bundle sign does not accept unsigned mode: %w", ErrInvalidSigningOptions)
 	}
 	return nil
 }

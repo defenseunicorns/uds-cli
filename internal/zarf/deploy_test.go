@@ -125,6 +125,14 @@ func writeTempYAML(t *testing.T, content string) string {
 	return f.Name()
 }
 
+func TestDeployBundleRejectsNilBundle(t *testing.T) {
+	_, err := NewZarfDeployer(iostreams.IOStreams{}, nil).DeployBundle(t.Context(), nil, DeployOptions{Config: validValidationConfig()})
+	require.Error(t, err)
+	var parameterErr NilParameterError
+	require.ErrorAs(t, err, &parameterErr)
+	assert.Equal(t, "bundle", parameterErr.Name)
+}
+
 func TestResolveValuesFiles(t *testing.T) {
 	tests := []struct {
 		name      string

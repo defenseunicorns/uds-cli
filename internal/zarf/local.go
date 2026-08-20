@@ -31,25 +31,25 @@ func (s *localSource) resolvedPath() string {
 // PackageLayout APIs. Arbitrary OCI layout directories are intentionally unsupported.
 func (s *localSource) PullFiltered(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions) (*layout.PackageLayout, error) {
 	if strings.TrimSpace(s.path) == "" {
-		return nil, fmt.Errorf("local package source path is empty")
+		return nil, ErrLocalSourcePathRequired
 	}
 	path := s.resolvedPath()
 	info, err := os.Stat(path)
 	if err != nil {
-		return nil, fmt.Errorf("stat %q: %w", path, err)
+		return nil, fmt.Errorf("stat %q: %w: %w", path, ErrStatLocalPackage, err)
 	}
 	if !info.IsDir() {
 		if !strings.HasSuffix(path, ".tar.zst") {
-			return nil, fmt.Errorf("unsupported local package source %q", s.path)
+			return nil, fmt.Errorf("unsupported local package source %q: %w", s.path, ErrInvalidLocalPackageSource)
 		}
 		pkgLayout, err := loadPackageArchive(ctx, path, tmpDir, loadOptions)
 		if err != nil {
-			return nil, fmt.Errorf("loading local package archive %q: %w", s.path, err)
+			return nil, fmt.Errorf("loading local package archive %q: %w: %w", s.path, ErrLoadPackage, err)
 		}
 		return pkgLayout, nil
 	}
 	if !isZarfPackage(path) {
-		return nil, fmt.Errorf("unsupported local package source %q: not a Zarf package directory or .tar.zst archive", path)
+		return nil, fmt.Errorf("unsupported local package source %q: not a Zarf package directory or .tar.zst archive: %w", path, ErrInvalidLocalPackageSource)
 	}
 	if err := rejectSymlinks(path); err != nil {
 		return nil, err
@@ -57,11 +57,11 @@ func (s *localSource) PullFiltered(ctx context.Context, tmpDir string, loadOptio
 
 	stageDir := filepath.Join(tmpDir, "zarf-pkg")
 	if err := helpers.CreatePathAndCopy(path, stageDir); err != nil {
-		return nil, fmt.Errorf("copying local package to temp dir: %w", err)
+		return nil, fmt.Errorf("copying local package to temp dir: %w: %w", ErrCopyLocalPackage, err)
 	}
 	pkgLayout, err := layout.LoadFromDir(ctx, stageDir, loadOptions)
 	if err != nil {
-		return nil, fmt.Errorf("loading local package directory %q: %w", s.path, err)
+		return nil, fmt.Errorf("loading local package directory %q: %w: %w", s.path, ErrLoadPackage, err)
 	}
 	return pkgLayout, nil
 }
@@ -85,12 +85,12 @@ func (s *localSource) VerifyAndIngestFiltered(ctx context.Context, tmpDir string
 // representation into the bundle store.
 func (s *localSource) IngestFiltered(ctx context.Context, filter filters.ComponentFilterStrategy, store *udsoci.Store) ([]ocispec.Descriptor, error) {
 	if strings.TrimSpace(s.path) == "" {
-		return nil, fmt.Errorf("local package source path is empty")
+		return nil, ErrLocalSourcePathRequired
 	}
 	path := s.resolvedPath()
 	info, err := os.Stat(path)
 	if err != nil {
-		return nil, fmt.Errorf("stat %q: %w", path, err)
+		return nil, fmt.Errorf("stat %q: %w: %w", path, ErrStatLocalPackage, err)
 	}
 	loadOptions := layout.PackageLayoutOptions{Filter: filter, VerificationStrategy: layout.VerifyNever}
 
@@ -104,10 +104,10 @@ func (s *localSource) IngestFiltered(ctx context.Context, filter filters.Compone
 	case !info.IsDir() && strings.HasSuffix(path, ".tar.zst"):
 		pkgLayout, err = loadPackageArchive(ctx, path, s.tmpDir, loadOptions)
 	default:
-		return nil, fmt.Errorf("unsupported local package source %q: not a Zarf package directory or .tar.zst archive", path)
+		return nil, fmt.Errorf("unsupported local package source %q: not a Zarf package directory or .tar.zst archive: %w", path, ErrInvalidLocalPackageSource)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("loading local package %q: %w", s.path, err)
+		return nil, fmt.Errorf("loading local package %q: %w: %w", s.path, ErrLoadPackage, err)
 	}
 	if !info.IsDir() {
 		defer func() {
@@ -125,7 +125,7 @@ func rejectSymlinks(root string) error {
 			return walkErr
 		}
 		if entry.Type()&os.ModeSymlink != 0 {
-			return fmt.Errorf("local package %q contains unsupported symlink %q", root, path)
+			return fmt.Errorf("local package %q contains unsupported symlink %q: %w", root, path, ErrUnsupportedPackageSymlink)
 		}
 		return nil
 	})
@@ -134,7 +134,7 @@ func rejectSymlinks(root string) error {
 func loadPackageArchive(ctx context.Context, path, tmpDir string, loadOptions layout.PackageLayoutOptions) (*layout.PackageLayout, error) {
 	stageDir, err := os.MkdirTemp(tmpDir, "zarf-pkg-*")
 	if err != nil {
-		return nil, fmt.Errorf("creating package archive workspace: %w", err)
+		return nil, fmt.Errorf("creating package archive workspace: %w: %w", ErrCreatePackageWorkspace, err)
 	}
 	cleanup := true
 	defer func() {
@@ -143,11 +143,11 @@ func loadPackageArchive(ctx context.Context, path, tmpDir string, loadOptions la
 		}
 	}()
 	if err := archive.Decompress(ctx, path, stageDir, archive.DecompressOpts{}); err != nil {
-		return nil, fmt.Errorf("extracting local package archive %q: %w", path, err)
+		return nil, fmt.Errorf("extracting local package archive %q: %w: %w", path, ErrExtractLocalPackage, err)
 	}
 	pkgLayout, err := layout.LoadFromDir(ctx, stageDir, loadOptions)
 	if err != nil {
-		return nil, fmt.Errorf("loading local package archive %q: %w", path, err)
+		return nil, fmt.Errorf("loading local package archive %q: %w: %w", path, ErrLoadPackage, err)
 	}
 	cleanup = false
 	return pkgLayout, nil
@@ -156,15 +156,15 @@ func loadPackageArchive(ctx context.Context, path, tmpDir string, loadOptions la
 func (s *localSource) ingestPackageLayout(ctx context.Context, pkgLayout *layout.PackageLayout, filter filters.ComponentFilterStrategy, store *udsoci.Store) ([]ocispec.Descriptor, error) {
 	root, err := pkgLayout.Manifest()
 	if err != nil {
-		return nil, fmt.Errorf("reading canonical package manifest: %w", err)
+		return nil, fmt.Errorf("%w from %q: %w", ErrReadCanonicalManifest, s.path, err)
 	}
 	layers, _, err := selectZarfLayers(ctx, root, pkgLayout, filter)
 	if err != nil {
-		return nil, fmt.Errorf("selecting layers for %q: %w", s.path, err)
+		return nil, fmt.Errorf("selecting layers for %q: %w: %w", s.path, ErrResolvePackageLayers, err)
 	}
 	desc, err := copySelectedPackage(ctx, pkgLayout, layers, store)
 	if err != nil {
-		return nil, fmt.Errorf("ingesting package %q: %w", s.path, err)
+		return nil, fmt.Errorf("ingesting package %q: %w: %w", s.path, ErrIngestPackage, err)
 	}
 	return []ocispec.Descriptor{desc}, nil
 }

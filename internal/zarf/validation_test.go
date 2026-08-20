@@ -24,7 +24,7 @@ func TestDeployPackageOptionsValidate(t *testing.T) {
 		wantErr string
 	}{
 		{name: "nil config", wantErr: "config is required"},
-		{name: "empty bundle directory", opts: DeployPackageOptions{Config: validValidationConfig()}, wantErr: "BundleDir is required"},
+		{name: "empty bundle directory", opts: DeployPackageOptions{Config: validValidationConfig()}, wantErr: "bundle directory is required"},
 		{name: "valid", opts: DeployPackageOptions{Config: validValidationConfig(), BundleDir: "/bundle"}},
 	}
 

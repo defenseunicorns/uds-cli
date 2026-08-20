@@ -39,13 +39,13 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 		return nil, err
 	}
 	if opts.Bundle == nil {
-		return nil, fmt.Errorf("bundle must not be nil")
+		return nil, ErrBundleNil
 	}
 	if err := ValidateBundleForCreate(opts.Bundle); err != nil {
 		return nil, err
 	}
 	if opts.BundleDir == "" {
-		return nil, fmt.Errorf("BundleDir is required")
+		return nil, ErrBundleDirRequired
 	}
 
 	root, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-create-*")
@@ -61,7 +61,7 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	ociDir := filepath.Join(root, "oci")
 	store, err := oci.CreateStore(ociDir)
 	if err != nil {
-		return nil, fmt.Errorf("opening OCI store: %w", err)
+		return nil, err
 	}
 
 	var packageManifests []ocispec.Descriptor
@@ -81,7 +81,7 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 	manifests := append([]ocispec.Descriptor{definition}, packageManifests...)
 	idx := oci.NewBundleIndex(manifests, opts.Config.Options.Architecture)
 	if err := store.PruneUnreferencedBlobs(ctx, opts.Streams, idx.Manifests); err != nil {
-		return nil, fmt.Errorf("cleaning up unreferenced blobs: %w", err)
+		return nil, fmt.Errorf("%w from %q: %w", ErrPruningUnreferencedBlobs, ociDir, err)
 	}
 	if err := oci.WriteIndex(filepath.Join(ociDir, "index.json"), idx); err != nil {
 		return nil, err
@@ -99,13 +99,13 @@ func Create(ctx context.Context, opts CreateOptions) (*CreateResult, error) {
 // ingestSource ingests one package source into the OCI blob store.
 func ingestSource(ctx context.Context, pkg *spec.Package, config *bundleinternal.UDSBundleConfig, store *oci.Store, bundleDir string, streams iostreams.IOStreams) ([]ocispec.Descriptor, error) {
 	if pkg == nil {
-		return nil, fmt.Errorf("package must not be nil")
+		return nil, ErrPackageNil
 	}
 	if config == nil {
-		return nil, fmt.Errorf("config must not be nil")
+		return nil, ErrConfigNil
 	}
 	if config.Options == nil {
-		return nil, fmt.Errorf("config.Options must not be nil")
+		return nil, ErrConfigOptionsNil
 	}
 	if err := zarf.ValidatePackageSignatureVerification(pkg.Name, pkg.SignatureVerification); err != nil {
 		return nil, err
@@ -125,7 +125,7 @@ func ingestSource(ctx context.Context, pkg *spec.Package, config *bundleinternal
 	filter := zarf.BuildComponentFilter(pkg.OptionalComponents)
 	verificationWorkspace, err := os.MkdirTemp(config.Options.TmpDir, "uds-package-verify-*")
 	if err != nil {
-		return nil, fmt.Errorf("creating package verification workspace: %w", err)
+		return nil, fmt.Errorf("%w for package %q under %q: %w", ErrCreatingVerificationWorkspace, pkg.Name, config.Options.TmpDir, err)
 	}
 	defer func() {
 		if err := os.RemoveAll(verificationWorkspace); err != nil {
@@ -135,7 +135,7 @@ func ingestSource(ctx context.Context, pkg *spec.Package, config *bundleinternal
 
 	loadOptions, err := zarf.PackageSignatureVerificationOptions(pkg, filepath.Join(verificationWorkspace, "material"), config.Options.TmpDir)
 	if err != nil {
-		return nil, fmt.Errorf("package %q: configuring signature verification: %w", pkg.Name, err)
+		return nil, ConfiguringPackageSignatureVerificationError{Package: pkg.Name, Err: err}
 	}
 	loadOptions.Filter = filter
 	if loadOptions.VerificationStrategy == layout.VerifyNever {
@@ -151,16 +151,16 @@ func ingestSource(ctx context.Context, pkg *spec.Package, config *bundleinternal
 	if loadOptions.VerificationStrategy != layout.VerifyNever {
 		stagingDir, err := os.MkdirTemp(verificationWorkspace, "package-*")
 		if err != nil {
-			return nil, fmt.Errorf("creating package verification workspace: %w", err)
+			return nil, fmt.Errorf("%w for package %q under %q: %w", ErrCreatingVerificationWorkspace, pkg.Name, verificationWorkspace, err)
 		}
 		descriptors, err = source.VerifyAndIngestFiltered(ctx, stagingDir, loadOptions, store)
 		if err != nil {
-			return nil, fmt.Errorf("package %q: verifying and ingesting package: %w", pkg.Name, err)
+			return nil, VerifyingAndIngestingPackageError{Package: pkg.Name, Err: err}
 		}
 	} else {
 		descriptors, err = source.IngestFiltered(ctx, filter, store)
 		if err != nil {
-			return nil, fmt.Errorf("package %q: %w", pkg.Name, err)
+			return nil, IngestingPackageError{Package: pkg.Name, Err: err}
 		}
 	}
 
@@ -239,7 +239,7 @@ func sanitizeFileComponent(s string) string {
 func createBundleDefinitionManifest(ctx context.Context, streams iostreams.IOStreams, ociDir string, hclData, defaultsData []byte, bundleDir string, pkgs []spec.Package) (ocispec.Descriptor, error) {
 	store, err := oci.CreateStore(ociDir)
 	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("opening OCI store: %w", err)
+		return ocispec.Descriptor{}, err
 	}
 	// We write index.json ourselves at the end of Create(); prevent ORAS from
 	// overwriting it on every Push/Tag call.
@@ -254,7 +254,7 @@ func createBundleDefinitionManifest(ctx context.Context, streams iostreams.IOStr
 		ocispec.AnnotationTitle: "bundle.uds.hcl",
 	})
 	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("pushing bundle HCL: %w", err)
+		return ocispec.Descriptor{}, fmt.Errorf("%w %q: %w", ErrPushingBundleHCL, bundleinternal.BundleFileName, err)
 	}
 
 	// defaults.uds.hcl as an optional layer if present alongside bundle.uds.hcl.
@@ -264,7 +264,7 @@ func createBundleDefinitionManifest(ctx context.Context, streams iostreams.IOStr
 			ocispec.AnnotationTitle: bundleinternal.BundleDefaultsFileName,
 		})
 		if err != nil {
-			return ocispec.Descriptor{}, fmt.Errorf("pushing defaults HCL: %w", err)
+			return ocispec.Descriptor{}, fmt.Errorf("%w %q: %w", ErrPushingDefaultsHCL, bundleinternal.BundleDefaultsFileName, err)
 		}
 		layers = append(layers, defaultsDesc)
 		streams.Debug("included defaults.uds.hcl in bundle definition")
@@ -279,20 +279,20 @@ func createBundleDefinitionManifest(ctx context.Context, streams iostreams.IOStr
 			}
 			st, err := os.Stat(src)
 			if err != nil {
-				return ocispec.Descriptor{}, fmt.Errorf("package %q: cannot stat value file %q: %w", pkg.Name, vf, err)
+				return ocispec.Descriptor{}, ValueFileStatError{Package: pkg.Name, Path: vf, Err: err}
 			}
 			if st.IsDir() {
-				return ocispec.Descriptor{}, fmt.Errorf("package %q: value file %q is a directory", pkg.Name, vf)
+				return ocispec.Descriptor{}, ValueFileIsDirectoryError{Package: pkg.Name, Path: vf}
 			}
 			data, err := os.ReadFile(src)
 			if err != nil {
-				return ocispec.Descriptor{}, fmt.Errorf("package %q: reading value file %q: %w", pkg.Name, vf, err)
+				return ocispec.Descriptor{}, ReadingValueFileError{Package: pkg.Name, Path: vf, Err: err}
 			}
 			valDesc, err := pushBlob(oci.MediaTypeBundleValuesYAML, data, map[string]string{
 				ocispec.AnnotationTitle: fmt.Sprintf("values/%s/%d.yaml", pkg.Name, i),
 			})
 			if err != nil {
-				return ocispec.Descriptor{}, fmt.Errorf("package %q: pushing value file: %w", pkg.Name, err)
+				return ocispec.Descriptor{}, PushingValueFileError{Package: pkg.Name, Err: err}
 			}
 			layers = append(layers, valDesc)
 		}
@@ -302,7 +302,7 @@ func createBundleDefinitionManifest(ctx context.Context, streams iostreams.IOStr
 	// and pushes the manifest blob with a reproducible created timestamp.
 	desc, err := oci.PackBundleDefinitionManifest(ctx, store, layers)
 	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("packing bundle definition manifest: %w", err)
+		return ocispec.Descriptor{}, fmt.Errorf("%w with %d layers: %w", ErrPackingBundleDefinitionManifest, len(layers), err)
 	}
 
 	desc.MediaType = ocispec.MediaTypeImageManifest

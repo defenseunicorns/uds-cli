@@ -33,6 +33,18 @@ func TestStorePruneUnreferencedBlobsPreservesReachableAndRemovesOrphans(t *testi
 	assertBlobMissing(t, store, orphan)
 }
 
+func TestStoreBlobPathRejectsInvalidDigest(t *testing.T) {
+	store := &Store{root: t.TempDir()}
+	invalid := godigest.Digest("invalid")
+
+	_, err := store.BlobPath(invalid)
+	require.Error(t, err)
+	var digestErr InvalidDigestError
+	require.ErrorAs(t, err, &digestErr)
+	assert.Equal(t, invalid.String(), digestErr.Digest)
+	require.Error(t, digestErr.Err)
+}
+
 func TestStoreVerifyGraph(t *testing.T) {
 	tests := []struct {
 		name      string

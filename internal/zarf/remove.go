@@ -99,7 +99,7 @@ func (r *ZarfRemover) getCluster(ctx context.Context) (*cluster.Cluster, error) 
 	}
 	c, err := cluster.New(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to cluster: %w", err)
+		return nil, fmt.Errorf("%w for package removal: %w", ErrConnectCluster, err)
 	}
 	r.cluster = c
 	return c, nil
@@ -122,7 +122,7 @@ func (r *ZarfRemover) deployedPackages(ctx context.Context) (map[string]struct{}
 
 	pkgs, err := c.GetDeployedZarfPackages(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get deployed packages: %w", err)
+		return nil, fmt.Errorf("%w from cluster: %w", ErrReadDeployedPackages, err)
 	}
 
 	set := make(map[string]struct{}, len(pkgs))
@@ -143,21 +143,21 @@ func (r *ZarfRemover) RemoveBundle(ctx context.Context, b *spec.UDSBundle, packa
 		return nil, err
 	}
 	if b == nil {
-		return nil, errNil("bundle")
+		return nil, NilParameterError{Name: "bundle"}
 	}
 	if err := b.Validate(); err != nil {
-		return nil, fmt.Errorf("bundle validation failed: %w", err)
+		return nil, fmt.Errorf("%w for bundle %q: %w", ErrBundleValidation, b.Metadata.Name, err)
 	}
 	s := logger.Bind(r.streams, opts.Config.Options.LogLevel)
 
 	dag, err := bundleinternal.BuildDependencyGraph(ctx, s, b)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build dependency graph: %w", err)
+		return nil, fmt.Errorf("%w for bundle %q: %w", ErrBuildDependencyGraph, b.Metadata.Name, err)
 	}
 
 	levels, err := dag.TopologicalLevels()
 	if err != nil {
-		return nil, fmt.Errorf("failed to compute deployment levels: %w", err)
+		return nil, fmt.Errorf("%w for bundle %q: %w", ErrComputeDeploymentLevels, b.Metadata.Name, err)
 	}
 	s.Debug("dependency graph built", "levels", len(levels))
 
@@ -205,7 +205,7 @@ func (r *ZarfRemover) removePackages(ctx context.Context, log iostreams.IOStream
 					results = append(results, RemovePackageResult{Name: pkg.Name, Status: RemovePackageStatusSkipped})
 					continue
 				}
-				return results, fmt.Errorf("failed to remove package %q: %w", pkg.Name, err)
+				return results, fmt.Errorf("failed to remove package %q: %w: %w", pkg.Name, ErrRemovePackage, err)
 			}
 			log.Info("package removed", "name", pkg.Name)
 			results = append(results, RemovePackageResult{Name: pkg.Name, Status: RemovePackageStatusRemoved})
@@ -229,7 +229,7 @@ func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *spec.Package, opts
 		return err
 	}
 	if pkg == nil {
-		return errNil("package")
+		return NilParameterError{Name: "package"}
 	}
 	s := logger.Bind(r.streams, opts.Config.Options.LogLevel)
 	s.Debug("preparing package removal", "name", pkg.Name, "source", pkg.Source)
@@ -251,7 +251,7 @@ func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *spec.Package, opts
 	// sources, only the metadata layer is pulled (a few KB), not the full package.
 	zarfPkg, err := packager.GetPackageFromSourceOrCluster(ctx, c, pkg.Source, pkg.Namespace, loadOpts)
 	if err != nil {
-		return fmt.Errorf("unable to load package %q from %s: %w", pkg.Name, pkg.Source, err)
+		return fmt.Errorf("package %q from %s: %w: %w", pkg.Name, pkg.Source, ErrLoadPackage, err)
 	}
 
 	deployed, err := r.deployedPackages(ctx)
@@ -269,7 +269,7 @@ func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *spec.Package, opts
 	}
 
 	if err := packager.Remove(ctx, zarfPkg, removeOpts); err != nil {
-		return fmt.Errorf("failed to remove package %q: %w", pkg.Name, err)
+		return fmt.Errorf("package %q: %w: %w", pkg.Name, ErrRemovePackage, err)
 	}
 
 	return nil

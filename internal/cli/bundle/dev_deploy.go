@@ -105,7 +105,7 @@ func (o *DevDeployOptions) Run(ctx context.Context) error {
 	o.IOStreams = logger.Bind(o.IOStreams, baseConfig.Options.LogLevel)
 
 	if _, err := fmt.Fprintln(o.ErrOut(), bundleDefinitionDiagnostic); err != nil {
-		return fmt.Errorf("writing bundle definition warning: %w", err)
+		return fmt.Errorf("%w for bundle definition diagnostic: %w", ErrWriteDefinitionNotice, err)
 	}
 
 	runner := o.runDeploy

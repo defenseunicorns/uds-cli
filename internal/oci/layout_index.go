@@ -29,7 +29,7 @@ func FindBundleDefinition(idx ocispec.Index) (ocispec.Descriptor, int, error) {
 			return manifest, i, nil
 		}
 	}
-	return ocispec.Descriptor{}, -1, fmt.Errorf("bundle definition manifest not found in index")
+	return ocispec.Descriptor{}, -1, ErrBundleDefinitionNotFound
 }
 
 // SortDescriptors sorts descriptors deterministically by digest and metadata.
@@ -64,16 +64,17 @@ func WriteIndex(path string, idx *ocispec.Index) error {
 
 // packageRootDescriptor returns the sole root descriptor from a Zarf package layout.
 func packageRootDescriptor(ociDir string) (ocispec.Descriptor, error) {
-	data, err := os.ReadFile(filepath.Join(ociDir, ocispec.ImageIndexFile))
+	indexPath := filepath.Join(ociDir, ocispec.ImageIndexFile)
+	data, err := os.ReadFile(indexPath)
 	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("reading index.json: %w", err)
+		return ocispec.Descriptor{}, fmt.Errorf("%w %q: %w", ErrReadIndex, indexPath, err)
 	}
 	var idx ocispec.Index
 	if err := json.Unmarshal(data, &idx); err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("parsing index.json: %w", err)
+		return ocispec.Descriptor{}, fmt.Errorf("%w %q: %w", ErrParseIndex, indexPath, err)
 	}
 	if len(idx.Manifests) != 1 {
-		return ocispec.Descriptor{}, fmt.Errorf("index.json contains %d manifests; expected exactly 1 for a Zarf package layout", len(idx.Manifests))
+		return ocispec.Descriptor{}, ManifestCountError{Count: len(idx.Manifests), Want: 1}
 	}
 	return idx.Manifests[0], nil
 }
@@ -82,10 +83,10 @@ func packageRootDescriptor(ociDir string) (ocispec.Descriptor, error) {
 func TaggedDerivativeReference(source, suffix string) (string, string, string, error) {
 	ref, err := registry.ParseReference(TrimScheme(source))
 	if err != nil {
-		return "", "", "", fmt.Errorf("parsing OCI reference: %w", err)
+		return "", "", "", fmt.Errorf("%w %q: %w", ErrParseReference, source, err)
 	}
 	if ref.Reference == "" || strings.Contains(ref.Reference, ":") {
-		return "", "", "", fmt.Errorf("OCI source must use a tag reference (e.g. :v1.0.0), not a digest")
+		return "", "", "", ErrTagReferenceRequired
 	}
 	sourceTag := ref.Reference
 	targetTag := sourceTag + suffix

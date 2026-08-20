@@ -147,22 +147,22 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *spec.UDSBundle, opts
 		return nil, err
 	}
 	if b == nil {
-		return nil, errNil("bundle")
+		return nil, NilParameterError{Name: "bundle"}
 	}
 	if err := b.Validate(); err != nil {
-		return nil, fmt.Errorf("bundle validation failed: %w", err)
+		return nil, fmt.Errorf("%w for bundle %q: %w", ErrBundleValidation, b.Metadata.Name, err)
 	}
 
 	s := logger.Bind(d.streams, opts.Config.Options.LogLevel)
 
 	dag, err := bundleinternal.BuildDependencyGraph(ctx, s, b)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build dependency graph: %w", err)
+		return nil, fmt.Errorf("%w for bundle %q: %w", ErrBuildDependencyGraph, b.Metadata.Name, err)
 	}
 
 	levels, err := dag.TopologicalLevels()
 	if err != nil {
-		return nil, fmt.Errorf("failed to compute deployment levels: %w", err)
+		return nil, fmt.Errorf("%w for bundle %q: %w", ErrComputeDeploymentLevels, b.Metadata.Name, err)
 	}
 	s.Debug("dependency graph built", "levels", len(levels))
 
@@ -192,10 +192,10 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *spec.UDSBundle, opts
 
 	bhooks := opts.BundleDeployHooks.withDefaults()
 	if err := bhooks.PreDeploy(ctx, b, &opts); err != nil {
-		return nil, fmt.Errorf("pre-deploy bundle hook failed: %w", err)
+		return nil, fmt.Errorf("pre-deploy: %w: %w", ErrBundleHook, err)
 	}
 	if opts.Config == nil || opts.Config.Options == nil {
-		return nil, fmt.Errorf("bundle pre-deploy hook left config invalid")
+		return nil, fmt.Errorf("bundle pre-deploy hook left config invalid: %w", ErrBundleHook)
 	}
 	s = logger.Bind(d.streams, opts.Config.Options.LogLevel)
 
@@ -230,7 +230,7 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *spec.UDSBundle, opts
 		// Packages are already deployed at this point; return the populated result
 		// alongside the error so callers can distinguish "nothing deployed" from
 		// "deployed, but the post-deploy hook failed".
-		return result, fmt.Errorf("post-deploy bundle hook failed: %w", err)
+		return result, fmt.Errorf("post-deploy: %w: %w", ErrBundleHook, err)
 	}
 	return result, nil
 }
@@ -241,7 +241,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 		return err
 	}
 	if pkg == nil {
-		return errNil("package")
+		return NilParameterError{Name: "package"}
 	}
 	log := logger.Bind(d.streams, opts.Config.Options.LogLevel)
 	log.Debug("preparing package deployment", "name", pkg.Name, "source", pkg.Source)
@@ -269,7 +269,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 		pkgTmp, err = os.MkdirTemp(opts.Config.Options.TmpDir, "zarf-pkg-*")
 	}
 	if err != nil {
-		return fmt.Errorf("failed to create temp directory: %w", err)
+		return fmt.Errorf("%w for package %q under %q: %w", ErrCreateTemporaryDirectory, pkg.Name, opts.Config.Options.TmpDir, err)
 	}
 	defer func() {
 		if err := os.RemoveAll(pkgTmp); err != nil {
@@ -300,7 +300,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 		return err
 	}
 	if pkgLayout == nil {
-		return fmt.Errorf("package layout loader returned a nil layout for package %q", pkg.Name)
+		return fmt.Errorf("package layout loader returned a nil layout for package %q: %w", pkg.Name, ErrLoadPackage)
 	}
 	opts.IsPartial = isPartial
 	defer func() {
@@ -320,7 +320,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 
 	hooks := opts.PackageDeployHooks.withDefaults()
 	if err := hooks.PreDeploy(ctx, pkg, pkgLayout, &deployOpts, &opts); err != nil {
-		return fmt.Errorf("pre-deploy hook failed for package %q: %w", pkg.Name, err)
+		return fmt.Errorf("pre-deploy package %q: %w: %w", pkg.Name, ErrPackageHook, err)
 	}
 
 	deploy := opts.ClusterDeployFn
@@ -331,11 +331,11 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 		}
 	}
 	if err := deploy(ctx, pkgLayout, &deployOpts, opts.IsPartial); err != nil {
-		return fmt.Errorf("failed to deploy package %q: %w", pkg.Name, err)
+		return fmt.Errorf("package %q: %w: %w", pkg.Name, ErrDeployPackage, err)
 	}
 
 	if err := hooks.PostDeploy(ctx, pkg); err != nil {
-		return fmt.Errorf("post-deploy hook failed for package %q: %w", pkg.Name, err)
+		return fmt.Errorf("post-deploy package %q: %w: %w", pkg.Name, ErrPackageHook, err)
 	}
 
 	log.Info("package deployed", "name", pkg.Name)
@@ -369,13 +369,13 @@ func (d *ZarfDeployer) prepareValuesAndVariables(ctx context.Context, streams io
 			defer cleanupTempFiles(ctx, streams, filesToParse)
 		}
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to template values files for package %q: %w", pkg.Name, err)
+			return nil, nil, fmt.Errorf("failed to template values files for package %q: %w: %w", pkg.Name, ErrTemplateValues, err)
 		}
 
 		// 3. Parse YAML files with Zarf's value package
 		zarfValues, err = value.ParseFiles(ctx, filesToParse, value.ParseFilesOptions{})
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to parse values files for package %q: %w", pkg.Name, err)
+			return nil, nil, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrParseValues, err)
 		}
 		loadedFileCount = len(filesToParse)
 	}
@@ -433,31 +433,31 @@ func templateValuesFiles(_ context.Context, files []string, vars bundleinternal.
 	for _, f := range files {
 		src, err := os.ReadFile(f)
 		if err != nil {
-			return result, fmt.Errorf("failed to read values file %q: %w", f, err)
+			return result, fmt.Errorf("%w %q: %w", ErrReadValuesFile, f, err)
 		}
 
 		tmpl, err := template.New(filepath.Base(f)).Option("missingkey=error").Parse(string(src))
 		if err != nil {
-			return result, fmt.Errorf("failed to parse template in values file %q: %w", f, err)
+			return result, fmt.Errorf("%w %q: %w", ErrParseValuesTemplate, f, err)
 		}
 
 		var buf bytes.Buffer
 		if err := tmpl.Execute(&buf, data); err != nil {
-			return result, fmt.Errorf("failed to render values file %q: %w", f, err)
+			return result, fmt.Errorf("%w %q: %w", ErrRenderValues, f, err)
 		}
 
 		tmp, err := os.CreateTemp(tmpDir, "uds-values-*.yaml")
 		if err != nil {
-			return result, fmt.Errorf("failed to create temp file for values: %w", err)
+			return result, fmt.Errorf("%w for %q under %q: %w", ErrCreateTemporaryValuesFile, f, tmpDir, err)
 		}
 		// Append immediately so the caller's cleanup catches the file even if Write/Close fails.
 		result = append(result, tmp.Name())
 		if _, err := tmp.Write(buf.Bytes()); err != nil {
 			_ = tmp.Close()
-			return result, fmt.Errorf("failed to write temp values file: %w", err)
+			return result, fmt.Errorf("%w %q for %q: %w", ErrWriteTemporaryValuesFile, tmp.Name(), f, err)
 		}
 		if err := tmp.Close(); err != nil {
-			return result, fmt.Errorf("failed to close temp values file: %w", err)
+			return result, fmt.Errorf("%w %q for %q: %w", ErrCloseTemporaryValuesFile, tmp.Name(), f, err)
 		}
 	}
 	return result, nil

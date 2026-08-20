@@ -10,6 +10,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestUDSBundleValidate_ErrorContracts(t *testing.T) {
+	t.Parallel()
+
+	err := (&UDSBundle{}).Validate()
+	require.ErrorIs(t, err, ErrBundleAPIVersionRequired)
+	require.ErrorIs(t, err, ErrMetadataNameRequired)
+	require.ErrorIs(t, err, ErrPackagesRequired)
+
+	bundle := &UDSBundle{
+		UDS:      UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: Metadata{Name: "example"},
+		Packages: []Package{{Name: "app", Source: "oci://example.com/app:v1", DependsOn: []PackageRef{{Name: "missing"}}}},
+	}
+	err = bundle.Validate()
+	var unknownDependency *UnknownDependencyError
+	require.ErrorAs(t, err, &unknownDependency)
+	assert.Equal(t, "app", unknownDependency.Package)
+	assert.Equal(t, "missing", unknownDependency.Dependency)
+}
+
 func TestUDSBundleValidate(t *testing.T) {
 	t.Parallel()
 

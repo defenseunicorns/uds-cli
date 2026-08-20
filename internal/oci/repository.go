@@ -40,7 +40,7 @@ func NewRemoteRepository(ctx context.Context, ref string, opts bundleinternal.Co
 
 	credStore, err := credentials.NewStoreFromDocker(credentials.StoreOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("loading docker credentials: %w", err)
+		return nil, fmt.Errorf("configuring registry authentication for %q: %w: %w", ref, ErrLoadCredentials, err)
 	}
 
 	repo.Client = &auth.Client{
@@ -62,7 +62,7 @@ func ResolvePlainHTTP(ctx context.Context, ref string, opts bundleinternal.Confi
 
 	parsed, err := registry.ParseReference(ref)
 	if err != nil {
-		return false, fmt.Errorf("parsing OCI reference %q: %w", ref, err)
+		return false, fmt.Errorf("%w %q: %w", ErrParseReference, ref, err)
 	}
 
 	plainHTTP, err := ocischeme.From(ctx).UsePlainHTTP(ctx, parsed.Registry, ocischeme.ProbeOptions{
@@ -70,7 +70,7 @@ func ResolvePlainHTTP(ctx context.Context, ref string, opts bundleinternal.Confi
 		Transport:             transport,
 	})
 	if err != nil {
-		return false, fmt.Errorf("determining registry transport for %q: %w", ref, err)
+		return false, fmt.Errorf("%w for %q: %w", ErrDetermineRegistryTransport, ref, err)
 	}
 	return plainHTTP, nil
 }

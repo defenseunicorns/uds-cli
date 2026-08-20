@@ -209,7 +209,7 @@ func (r *ConfigResolver) parseUserConfig(ctx context.Context, streams iostreams.
 	}
 	cfg, err := bundleinternal.NewHCLParser("", streams).ParseBundleConfig(ctx, flags.ConfigPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse config: %w", err)
+		return nil, fmt.Errorf("failed to parse config: %w: %w", ErrParseConfig, err)
 	}
 	return &bundle.UDSBundleConfig{
 		Options:               fromInternalOptions(cfg.Options),
@@ -262,7 +262,7 @@ func (r *ConfigResolver) loadBundleDefaults(ctx context.Context, streams iostrea
 
 	defaultsPath, err := bundleinternal.AdjacentDefaultsPath(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to access defaults file: %w", err)
+		return nil, fmt.Errorf("%w in %q: %w", ErrAccessDefaults, dir, err)
 	}
 	if defaultsPath == "" {
 		return nil, nil
@@ -271,7 +271,7 @@ func (r *ConfigResolver) loadBundleDefaults(ctx context.Context, streams iostrea
 	streams.Debug("loading bundle defaults", "path", defaultsPath)
 	vars, err := bundleinternal.ParseDefaults(ctx, defaultsPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse %s: %w", bundleinternal.BundleDefaultsFileName, err)
+		return nil, err
 	}
 
 	return &bundle.UDSBundleConfig{Variables: fromInternalVariables(vars)}, nil

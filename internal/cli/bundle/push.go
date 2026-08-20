@@ -89,13 +89,16 @@ func (o *PushOptions) Complete(cmd *cobra.Command, args []string) error {
 // Config validation is performed by the library entry point.
 func (o *PushOptions) Validate() error {
 	if o.Tarball == "" || !strings.HasSuffix(o.Tarball, ".tar.zst") {
-		return fmt.Errorf("source must be a .tar.zst bundle file")
+		return fmt.Errorf("source must be a .tar.zst bundle file: %w", ErrInvalidArgument)
 	}
-	if _, err := os.Stat(o.Tarball); os.IsNotExist(err) {
-		return fmt.Errorf("bundle file not found: %s", o.Tarball)
+	if _, err := os.Stat(o.Tarball); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("bundle file not found: %s: %w: %w", o.Tarball, ErrPathNotFound, err)
+		}
+		return fmt.Errorf("cannot access bundle file %s: %w: %w", o.Tarball, ErrInvalidPath, err)
 	}
 	if o.OCIReference == "" {
-		return fmt.Errorf("OCI reference is required")
+		return fmt.Errorf("OCI reference is required: %w", ErrInvalidArgument)
 	}
 	return nil
 }

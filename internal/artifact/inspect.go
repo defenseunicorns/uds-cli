@@ -80,24 +80,24 @@ func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 func inspectLocalArtifact(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 	workspace, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-inspect-*")
 	if err != nil {
-		return nil, fmt.Errorf("creating inspection workspace: %w", err)
+		return nil, fmt.Errorf("%w under %q: %w", ErrCreatingInspectionWorkspace, opts.Config.Options.TmpDir, err)
 	}
 	defer func() { _ = os.RemoveAll(workspace) }()
 
 	if err := ExtractTarZst(ctx, opts.Streams, opts.Source, workspace); err != nil {
-		return nil, fmt.Errorf("extracting bundle artifact: %w", err)
+		return nil, fmt.Errorf("%w %q to %q: %w", ErrExtractingBundleArtifact, opts.Source, workspace, err)
 	}
 
 	ociDir := filepath.Join(workspace, "oci")
 	indexPath := filepath.Join(ociDir, "index.json")
 	indexBytes, err := os.ReadFile(indexPath)
 	if err != nil {
-		return nil, fmt.Errorf("reading bundle index: %w", err)
+		return nil, fmt.Errorf("%w %q: %w", ErrReadingBundleIndex, indexPath, err)
 	}
 
 	store, err := udsoci.OpenReadOnlyStore(ociDir)
 	if err != nil {
-		return nil, fmt.Errorf("opening bundle OCI layout: %w", err)
+		return nil, err
 	}
 	fetch := func(ctx context.Context, desc ocispec.Descriptor) ([]byte, error) {
 		return udsoci.FetchBytes(ctx, store, desc)
@@ -108,7 +108,7 @@ func inspectLocalArtifact(ctx context.Context, opts InspectOptions) (*InspectRes
 func inspectOCIReference(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 	target, err := udsoci.NewRemoteRepository(ctx, udsoci.TrimScheme(opts.Source), *opts.Config.Options)
 	if err != nil {
-		return nil, fmt.Errorf("resolving inspect source %s: %w", opts.Source, err)
+		return nil, ResolvingInspectSourceError{Source: opts.Source, Err: err}
 	}
 	reference, err := udsoci.ReferenceIdentifier(opts.Source)
 	if err != nil {
@@ -116,7 +116,7 @@ func inspectOCIReference(ctx context.Context, opts InspectOptions) (*InspectResu
 	}
 	childDesc, indexBytes, err := udsoci.ResolveBundleChild(ctx, target, reference, opts.Config.Options.Architecture)
 	if err != nil {
-		return nil, fmt.Errorf("resolving bundle from %s: %w", opts.Source, err)
+		return nil, ResolvingBundleSourceError{Source: opts.Source, Err: err}
 	}
 
 	fetch := func(ctx context.Context, desc ocispec.Descriptor) ([]byte, error) {
@@ -128,20 +128,20 @@ func inspectOCIReference(ctx context.Context, opts InspectOptions) (*InspectResu
 func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexBytes []byte, artifactDigest string, fetch inspectBlobFetcher) (*InspectResult, error) {
 	var idx ocispec.Index
 	if err := json.Unmarshal(indexBytes, &idx); err != nil {
-		return nil, fmt.Errorf("parsing bundle index: %w", err)
+		return nil, fmt.Errorf("%w %s: %w", ErrParsingBundleIndex, artifactDigest, err)
 	}
 	if !udsoci.IsBundleIndex(idx) {
-		return nil, fmt.Errorf("artifact does not appear to be a UDS bundle: index does not declare artifactType %s", udsoci.MediaTypeBundle)
+		return nil, InvalidBundleIndexError{Source: "artifact", ArtifactType: udsoci.MediaTypeBundle}
 	}
 	if idx.SchemaVersion != 2 {
-		return nil, fmt.Errorf("bundle index has unsupported schema version %d", idx.SchemaVersion)
+		return nil, UnsupportedSchemaVersionError{Artifact: "bundle index", Version: idx.SchemaVersion}
 	}
 	if idx.MediaType != "" && idx.MediaType != ocispec.MediaTypeImageIndex {
-		return nil, fmt.Errorf("bundle index has unsupported media type %q", idx.MediaType)
+		return nil, UnsupportedMediaTypeError{Artifact: "bundle index", MediaType: idx.MediaType}
 	}
 	parseArch := strings.TrimSpace(idx.Annotations[udsoci.AnnotationBundleArchitecture])
 	if parseArch == "" {
-		return nil, fmt.Errorf("bundle index does not record its architecture: missing the %s annotation", udsoci.AnnotationBundleArchitecture)
+		return nil, MissingBundleArchitectureError{Annotation: udsoci.AnnotationBundleArchitecture}
 	}
 
 	definitionEntry, definitionIndex, err := udsoci.FindBundleDefinition(idx)
@@ -150,37 +150,37 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 	}
 	for i, entry := range idx.Manifests {
 		if i != definitionIndex && entry.ArtifactType == udsoci.MediaTypeBundleDefinition {
-			return nil, fmt.Errorf("bundle index contains multiple bundle definition manifests")
+			return nil, ErrMultipleBundleDefinitionManifests
 		}
 	}
 	if !udsoci.IsImageManifestMediaType(definitionEntry.MediaType) {
-		return nil, fmt.Errorf("bundle definition entry has unsupported media type %q", definitionEntry.MediaType)
+		return nil, UnsupportedMediaTypeError{Artifact: "bundle definition entry", MediaType: definitionEntry.MediaType}
 	}
 	definitionBytes, err := fetch(ctx, definitionEntry)
 	if err != nil {
-		return nil, fmt.Errorf("fetching bundle definition manifest: %w", err)
+		return nil, fmt.Errorf("%w %s: %w", ErrFetchingBundleDefinitionManifest, definitionEntry.Digest, err)
 	}
 
 	var definition ocispec.Manifest
 	if err := json.Unmarshal(definitionBytes, &definition); err != nil {
-		return nil, fmt.Errorf("parsing bundle definition manifest: %w", err)
+		return nil, fmt.Errorf("%w %s: %w", ErrParsingBundleDefinitionManifest, definitionEntry.Digest, err)
 	}
 	if definition.SchemaVersion != 2 {
-		return nil, fmt.Errorf("bundle definition manifest has unsupported schema version %d", definition.SchemaVersion)
+		return nil, UnsupportedSchemaVersionError{Artifact: "bundle definition manifest", Version: definition.SchemaVersion}
 	}
 	if definition.MediaType != "" && !udsoci.IsImageManifestMediaType(definition.MediaType) {
-		return nil, fmt.Errorf("bundle definition manifest has unsupported media type %q", definition.MediaType)
+		return nil, UnsupportedMediaTypeError{Artifact: "bundle definition manifest", MediaType: definition.MediaType}
 	}
 	hclDesc, err := findLayerByTitle(definition, bundleinternal.BundleFileName)
 	if err != nil {
 		return nil, err
 	}
 	if hclDesc.MediaType != udsoci.MediaTypeBundleHCL {
-		return nil, fmt.Errorf("bundle definition HCL layer has unsupported media type %q", hclDesc.MediaType)
+		return nil, UnsupportedMediaTypeError{Artifact: "bundle definition HCL layer", MediaType: hclDesc.MediaType}
 	}
 	hclBytes, err := fetch(ctx, hclDesc)
 	if err != nil {
-		return nil, fmt.Errorf("fetching bundle definition HCL: %w", err)
+		return nil, fmt.Errorf("%w %s: %w", ErrFetchingBundleDefinitionHCL, hclDesc.Digest, err)
 	}
 
 	b, err := bundleinternal.NewHCLParser(parseArch, streams).ParseBundleBytes(ctx, hclBytes)
@@ -188,7 +188,7 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 		return nil, err
 	}
 	if err := b.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid bundle: %w", err)
+		return nil, fmt.Errorf("%w %s: %w", ErrInvalidBundle, artifactDigest, err)
 	}
 	dag, err := bundleinternal.BuildDependencyGraph(ctx, streams, b)
 	if err != nil {
@@ -208,7 +208,7 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 	for _, pkg := range b.Packages {
 		summary, err := inspectPackageSignature(ctx, idx, pkg, fetch)
 		if err != nil {
-			return nil, fmt.Errorf("inspecting package %q signature: %w", pkg.Name, err)
+			return nil, InspectingPackageSignatureError{Package: pkg.Name, Err: err}
 		}
 		result.PackageSignatures[pkg.Name] = *summary
 	}
@@ -227,28 +227,28 @@ func inspectPackageSignature(ctx context.Context, idx ocispec.Index, pkg spec.Pa
 	}
 	manifestBytes, err := fetch(ctx, *entry)
 	if err != nil {
-		return nil, fmt.Errorf("fetching package manifest: %w", err)
+		return nil, fmt.Errorf("%w %s for package %q: %w", ErrFetchingPackageManifest, entry.Digest, pkg.Name, err)
 	}
 	var manifest ocispec.Manifest
 	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
-		return nil, fmt.Errorf("parsing package manifest: %w", err)
+		return nil, fmt.Errorf("%w %s for package %q: %w", ErrParsingPackageManifest, entry.Digest, pkg.Name, err)
 	}
 	if manifest.SchemaVersion != 2 {
-		return nil, fmt.Errorf("package manifest has unsupported schema version %d", manifest.SchemaVersion)
+		return nil, UnsupportedSchemaVersionError{Artifact: "package manifest", Version: manifest.SchemaVersion}
 	}
 	if manifest.MediaType != "" && !udsoci.IsImageManifestMediaType(manifest.MediaType) {
-		return nil, fmt.Errorf("package manifest has unsupported media type %q", manifest.MediaType)
+		return nil, UnsupportedMediaTypeError{Artifact: "package manifest", MediaType: manifest.MediaType}
 	}
 
 	zarfLayer, ok := findLayerByTitleOptional(manifest, "zarf.yaml")
 	if ok {
 		zarfBytes, err := fetch(ctx, zarfLayer)
 		if err != nil {
-			return nil, fmt.Errorf("fetching zarf.yaml: %w", err)
+			return nil, fmt.Errorf("%w %s for package %q: %w", ErrFetchingZarfYAML, zarfLayer.Digest, pkg.Name, err)
 		}
 		var metadata packageSigningMetadata
 		if err := yaml.Unmarshal(zarfBytes, &metadata); err != nil {
-			return nil, fmt.Errorf("parsing zarf.yaml: %w", err)
+			return nil, fmt.Errorf("%w %s for package %q: %w", ErrParsingZarfYAML, zarfLayer.Digest, pkg.Name, err)
 		}
 		if metadata.Build.Signed != nil {
 			if *metadata.Build.Signed {
@@ -270,14 +270,15 @@ func findPackageManifest(idx ocispec.Index, pkg spec.Package) (*ocispec.Descript
 		}
 		packageName := entry.Annotations[udsoci.AnnotationPackageName]
 		if packageName == "" {
-			return nil, fmt.Errorf("package manifest at index %d has no %s annotation; recreate the bundle with package-name identity", i, udsoci.AnnotationPackageName)
+			err := MissingPackageManifestAnnotationError{Index: i, Annotation: udsoci.AnnotationPackageName}
+			return nil, fmt.Errorf("%w; recreate the bundle with package-name identity", err)
 		}
 		if packageName == pkg.Name {
 			if !udsoci.IsImageManifestMediaType(entry.MediaType) {
-				return nil, fmt.Errorf("package %q entry has unsupported media type %q", pkg.Name, entry.MediaType)
+				return nil, UnsupportedPackageEntryMediaTypeError{Package: pkg.Name, MediaType: entry.MediaType}
 			}
 			if match != nil {
-				return nil, fmt.Errorf("package %q has multiple matching manifest entries", pkg.Name)
+				return nil, MultiplePackageManifestEntriesError{Package: pkg.Name}
 			}
 			match = entry
 		}
@@ -285,7 +286,7 @@ func findPackageManifest(idx ocispec.Index, pkg spec.Package) (*ocispec.Descript
 	if match != nil {
 		return match, nil
 	}
-	return nil, fmt.Errorf("package %q with source %q was not found in bundle index", pkg.Name, pkg.Source)
+	return nil, PackageManifestNotFoundError{Package: pkg.Name, Source: pkg.Source}
 }
 
 func findLayerByTitle(manifest ocispec.Manifest, title string) (ocispec.Descriptor, error) {
@@ -294,7 +295,7 @@ func findLayerByTitle(manifest ocispec.Manifest, title string) (ocispec.Descript
 			return layer, nil
 		}
 	}
-	return ocispec.Descriptor{}, fmt.Errorf("%s layer not found in manifest", title)
+	return ocispec.Descriptor{}, LayerNotFoundError{Title: title}
 }
 
 func findLayerByTitleOptional(manifest ocispec.Manifest, title string) (ocispec.Descriptor, bool) {

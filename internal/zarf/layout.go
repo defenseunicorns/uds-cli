@@ -75,7 +75,7 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 		for k := range l.PackageManifests {
 			keys = append(keys, k)
 		}
-		return nil, false, fmt.Errorf("package %q (source %q) not found in bundle artifact index; available: %v", pkg.Name, pkg.Source, keys)
+		return nil, false, fmt.Errorf("package %q (source %q) not found in bundle artifact index; available: %v: %w", pkg.Name, pkg.Source, keys, ErrPackageNotFoundInArtifact)
 	}
 
 	cleanOCIDir, err := filepath.Abs(filepath.Clean(l.OCIDir))
@@ -85,20 +85,20 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 	blobDir := filepath.Join(cleanOCIDir, "blobs", "sha256")
 	store, err := udsoci.OpenReadOnlyStore(cleanOCIDir)
 	if err != nil {
-		return nil, false, fmt.Errorf("opening OCI layout for package %q: %w", pkg.Name, err)
+		return nil, false, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrOpenOCILayout, err)
 	}
 	manifestData, err := udsoci.FetchBytes(ctx, store, descriptor)
 	if err != nil {
-		return nil, false, fmt.Errorf("reading manifest for package %q: %w", pkg.Name, err)
+		return nil, false, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrReadPackageManifest, err)
 	}
 	var manifest ocispec.Manifest
 	if err := json.Unmarshal(manifestData, &manifest); err != nil {
-		return nil, false, fmt.Errorf("parsing manifest for package %q: %w", pkg.Name, err)
+		return nil, false, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrReadPackageManifest, err)
 	}
 
 	cleanDstDir, err := filepath.Abs(filepath.Clean(dstDir))
 	if err != nil {
-		return nil, false, fmt.Errorf("resolving destination directory: %w", err)
+		return nil, false, fmt.Errorf("%w %q for package %q: %w", ErrResolveDestinationDirectory, dstDir, pkg.Name, err)
 	}
 	dstRoot, err := os.OpenRoot(cleanDstDir)
 	if err != nil {
@@ -114,7 +114,7 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 	for _, layer := range manifest.Layers {
 		title := layer.Annotations[ocispec.AnnotationTitle]
 		if title == "" {
-			return nil, false, fmt.Errorf("manifest for package %q missing title annotation on layer with digest %q", pkg.Name, layer.Digest)
+			return nil, false, fmt.Errorf("manifest for package %q missing title annotation on layer with digest %q: %w", pkg.Name, layer.Digest, ErrMissingLayerTitle)
 		}
 		src := filepath.Join(blobDir, layer.Digest.Hex())
 		relSrc, err := filepath.Rel(workspaceDir, src)
@@ -130,7 +130,7 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 			return nil, false, fmt.Errorf("resolving layer %q relative to package destination: %w", title, err)
 		}
 		if err := dstRoot.MkdirAll(filepath.Dir(relDst), filesystem.PrivateDirectoryMode); err != nil {
-			return nil, false, fmt.Errorf("creating dir for layer %q: %w", title, err)
+			return nil, false, fmt.Errorf("layer %q: %w: %w", title, ErrCreateLayerDirectory, err)
 		}
 		workspaceDst, err := filepath.Rel(workspaceDir, dst)
 		stageRoot := dstRoot
@@ -143,7 +143,7 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 			stageDst = workspaceDst
 		}
 		if err := stageArtifactPackageLayer(ctx, workspaceRoot, relSrc, stageRoot, stageDst, title, canLink); err != nil {
-			return nil, false, fmt.Errorf("staging layer %q for package %q: %w", title, pkg.Name, err)
+			return nil, false, fmt.Errorf("layer %q for package %q: %w: %w", title, pkg.Name, ErrStagePackageLayer, err)
 		}
 	}
 
@@ -152,7 +152,7 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 	// layers ingested at create time; checksums.txt may reference filtered-out blobs.
 	pkgLayout, err := layout.LoadFromDir(ctx, dstDir, artifactPackageLayoutOptions(filter, true))
 	if err != nil {
-		return nil, false, fmt.Errorf("loading package layout for %q: %w", pkg.Name, err)
+		return nil, false, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrLoadPackage, err)
 	}
 	return pkgLayout, true, nil
 }
@@ -208,7 +208,7 @@ func (l *SourcePackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *
 		VerificationStrategy: layout.VerifyNever,
 	})
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to load package %q from %s: %w", pkg.Name, pkg.Source, err)
+		return nil, false, fmt.Errorf("failed to load package %q from %s: %w: %w", pkg.Name, pkg.Source, ErrLoadPackage, err)
 	}
 	advisoryVerifyPackage(ctx, pkgLayout, pkg, l.configOpts.TmpDir, s)
 	return pkgLayout, opts.IsPartial, nil
@@ -271,14 +271,14 @@ func safeLayerDestinationPath(cleanDstDir, dstDir, title string) (string, error)
 
 	cleanDst, err := filepath.Abs(filepath.Clean(dst))
 	if err != nil {
-		return "", fmt.Errorf("resolving layer title %q: %w", title, err)
+		return "", fmt.Errorf("%w %q: %w", ErrResolveLayerTitle, title, err)
 	}
 	rel, err := filepath.Rel(cleanDstDir, cleanDst)
 	if err != nil {
-		return "", fmt.Errorf("checking layer title %q: %w", title, err)
+		return "", fmt.Errorf("%w %q: %w", ErrCheckLayerTitle, title, err)
 	}
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		return "", fmt.Errorf("layer title %q escapes destination directory", title)
+		return "", LayerPathEscapeError{Title: title}
 	}
 
 	return dst, nil

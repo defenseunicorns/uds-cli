@@ -229,6 +229,7 @@ func TestParseFormat(t *testing.T) {
 			f, err := ParseFormat(tt.input)
 			if tt.wantErr {
 				require.Error(t, err)
+				assert.ErrorIs(t, err, ErrUnsupportedFormat)
 			} else {
 				require.NoError(t, err)
 				assert.Equal(t, tt.wantFormat, f)
@@ -283,6 +284,7 @@ func TestNewPrinter(t *testing.T) {
 			p, err := NewPrinter(tt.format)
 			if tt.wantErr {
 				require.Error(t, err)
+				require.ErrorIs(t, err, ErrUnsupportedFormat)
 				assert.Nil(t, p)
 			} else {
 				require.NoError(t, err)

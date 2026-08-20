@@ -5,7 +5,6 @@ package spec
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 )
 
@@ -15,52 +14,52 @@ func (b *UDSBundle) Validate() error {
 
 	const supportedAPIVersion = "uds.dev/v1alpha1"
 	if b.UDS.BundleAPIVersion == "" {
-		errs = append(errs, fmt.Errorf("uds.bundle_api_version is required"))
+		errs = append(errs, ErrBundleAPIVersionRequired)
 	} else if b.UDS.BundleAPIVersion != supportedAPIVersion {
-		errs = append(errs, fmt.Errorf("uds.bundle_api_version %q is not supported; expected %q", b.UDS.BundleAPIVersion, supportedAPIVersion))
+		errs = append(errs, &UnsupportedBundleAPIVersionError{Actual: b.UDS.BundleAPIVersion, Expected: supportedAPIVersion})
 	}
 
 	if b.Metadata.Name == "" {
-		errs = append(errs, fmt.Errorf("metadata.name is required"))
+		errs = append(errs, ErrMetadataNameRequired)
 	}
 
 	if len(b.Packages) == 0 {
-		errs = append(errs, fmt.Errorf("at least one package is required"))
+		errs = append(errs, ErrPackagesRequired)
 	}
 
 	packageNames := make(map[string]bool, len(b.Packages))
 	for i, pkg := range b.Packages {
 		if pkg.Name == "" {
-			errs = append(errs, fmt.Errorf("package[%d]: name (block label) is required", i))
+			errs = append(errs, &PackageNameRequiredError{Index: i})
 		}
 		if strings.ContainsAny(pkg.Name, "/\\") || pkg.Name == "." || pkg.Name == ".." {
-			errs = append(errs, fmt.Errorf("package[%d]: name %q must not contain path separators or be a dot path", i, pkg.Name))
+			errs = append(errs, &InvalidPackageNameError{Index: i, Name: pkg.Name})
 		}
 		if packageNames[pkg.Name] {
-			errs = append(errs, fmt.Errorf("package[%d]: duplicate package name %q", i, pkg.Name))
+			errs = append(errs, &DuplicatePackageNameError{Index: i, Name: pkg.Name})
 		}
 		packageNames[pkg.Name] = true
 
 		if pkg.Source == "" {
-			errs = append(errs, fmt.Errorf("package %q: source is required", pkg.Name))
+			errs = append(errs, &PackageSourceRequiredError{Package: pkg.Name})
 		}
 
 		for _, dep := range pkg.DependsOn {
 			if dep.Name == pkg.Name {
-				errs = append(errs, fmt.Errorf("package %q: cannot depend on itself", pkg.Name))
+				errs = append(errs, &SelfDependencyError{Package: pkg.Name})
 			}
 			if !containsPackage(b.Packages, dep.Name) {
-				errs = append(errs, fmt.Errorf("package %q: depends_on references unknown package %q", pkg.Name, dep.Name))
+				errs = append(errs, &UnknownDependencyError{Package: pkg.Name, Dependency: dep.Name})
 			}
 		}
 
 		componentNames := make(map[string]bool, len(pkg.OptionalComponents))
 		for _, comp := range pkg.OptionalComponents {
 			if comp == "" {
-				errs = append(errs, fmt.Errorf("package %q: optional_components contains empty string", pkg.Name))
+				errs = append(errs, &EmptyOptionalComponentError{Package: pkg.Name})
 			}
 			if componentNames[comp] {
-				errs = append(errs, fmt.Errorf("package %q: duplicate optional component %q", pkg.Name, comp))
+				errs = append(errs, &DuplicateOptionalComponentError{Package: pkg.Name, Component: comp})
 			}
 			componentNames[comp] = true
 		}

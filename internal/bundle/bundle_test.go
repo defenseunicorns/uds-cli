@@ -15,10 +15,29 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	bundle "github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 )
+
+func TestParseBundleFilePreservesHCLDiagnostics(t *testing.T) {
+	parser := NewHCLParser("", iostreams.IOStreams{})
+	_, err := parser.parseBundleContent(t.Context(), []byte("not valid HCL {"), "bundle.uds.hcl", "", false)
+
+	require.ErrorIs(t, err, ErrParseHCL)
+	var diags hcl.Diagnostics
+	require.ErrorAs(t, err, &diags)
+	assert.NotEmpty(t, diags)
+}
+
+func TestParseBundleFileRejectsEmptyPath(t *testing.T) {
+	_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleFile(t.Context(), "")
+	require.Error(t, err)
+	var parameterErr EmptyParameterError
+	require.ErrorAs(t, err, &parameterErr)
+	assert.Equal(t, "filePath", parameterErr.Name)
+}
 
 func TestParseBundleFile_SpecCompliant(t *testing.T) {
 	path := filepath.Join("..", "..", "tests", "test_data", "bundles", "spec-compliant", "bundle.uds.hcl")

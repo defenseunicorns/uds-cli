@@ -179,7 +179,7 @@ func (o *DeployOptions) runOCIArtifact(ctx context.Context, runner deployRunnerF
 	o.Info("pulling bundle for deployment", "ref", o.BundlePath)
 	outputDir, err := os.MkdirTemp(o.Config.Options.TmpDir, "uds-bundle-oci-deploy-*")
 	if err != nil {
-		return nil, fmt.Errorf("creating workspace for OCI bundle deploy: %w", err)
+		return nil, fmt.Errorf("%w under %q: %w", ErrCreateWorkspace, o.Config.Options.TmpDir, err)
 	}
 	defer func() {
 		if cleanupErr := os.RemoveAll(outputDir); cleanupErr != nil {
@@ -198,17 +198,17 @@ func (o *DeployOptions) runOCIArtifact(ctx context.Context, runner deployRunnerF
 		Streams:                   o.IOStreams,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("pulling bundle for deploy: %w", err)
+		return nil, err
 	}
 	if result == nil {
-		return nil, fmt.Errorf("pulling bundle for deploy: puller returned no result")
+		return nil, fmt.Errorf("puller returned no result: %w", ErrPullBundle)
 	}
 	if result.OutputPath == "" {
-		return nil, fmt.Errorf("pulling bundle for deploy: puller returned an empty output path")
+		return nil, fmt.Errorf("puller returned an empty output path: %w", ErrPullBundle)
 	}
 	artifactPath, err := validatePulledArtifact(outputDir, result.OutputPath)
 	if err != nil {
-		return nil, fmt.Errorf("pulling bundle for deploy: %w", err)
+		return nil, fmt.Errorf("%w %q into %q: %w", ErrPullBundle, o.BundlePath, outputDir, err)
 	}
 
 	return runner(ctx, o.IOStreams, o.Config, artifactPath, o.Packages, o.Force, o.flags.Prompt)
@@ -217,25 +217,25 @@ func (o *DeployOptions) runOCIArtifact(ctx context.Context, runner deployRunnerF
 func validatePulledArtifact(workspace, outputPath string) (string, error) {
 	resolvedWorkspace, err := filepath.EvalSymlinks(workspace)
 	if err != nil {
-		return "", fmt.Errorf("resolving pull workspace: %w", err)
+		return "", fmt.Errorf("resolving pull workspace: %w: %w", ErrResolvePath, err)
 	}
 	resolvedArtifact, err := filepath.EvalSymlinks(outputPath)
 	if err != nil {
-		return "", fmt.Errorf("resolving pulled artifact: %w", err)
+		return "", fmt.Errorf("resolving pulled artifact: %w: %w", ErrResolvePath, err)
 	}
 	rel, err := filepath.Rel(resolvedWorkspace, resolvedArtifact)
 	if err != nil {
-		return "", fmt.Errorf("checking pulled artifact location: %w", err)
+		return "", fmt.Errorf("checking pulled artifact location: %w: %w", ErrUnsafePullOutput, err)
 	}
 	if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("puller returned an artifact outside its workspace: %s", outputPath)
+		return "", fmt.Errorf("puller returned an artifact outside its workspace: %s: %w", outputPath, ErrUnsafePullOutput)
 	}
 	info, err := os.Stat(resolvedArtifact)
 	if err != nil {
-		return "", fmt.Errorf("checking pulled artifact: %w", err)
+		return "", fmt.Errorf("checking pulled artifact: %w: %w", ErrInvalidPath, err)
 	}
 	if !info.Mode().IsRegular() || !isTarZst(resolvedArtifact) {
-		return "", fmt.Errorf("puller returned a non-artifact output path: %s", outputPath)
+		return "", fmt.Errorf("puller returned a non-artifact output path: %s: %w", outputPath, ErrUnsafePullOutput)
 	}
 	return resolvedArtifact, nil
 }

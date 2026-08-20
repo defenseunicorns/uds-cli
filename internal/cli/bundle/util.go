@@ -66,50 +66,60 @@ func ValidateBundlePath(ref string, opts ...ValidateBundlePathOption) error {
 	}
 
 	if ref == "" {
-		return fmt.Errorf("bundle file path is required")
+		return fmt.Errorf("bundle file path is required: %w", ErrInvalidArgument)
 	}
 
 	// Check for tar.zst archive (before filesystem checks)
 	if isTarZst(ref) {
 		if !cfg.allowArtifactBundlePath {
-			return fmt.Errorf("tar.zst bundles are not supported for this command")
+			return fmt.Errorf("tar.zst bundles are not supported for this command: %w", ErrUnsupportedSource)
 		}
 		info, err := os.Stat(ref)
 		if err != nil {
 			if os.IsNotExist(err) {
-				return fmt.Errorf("bundle artifact not found: %s", ref)
+				return fmt.Errorf("bundle artifact not found: %s: %w: %w", ref, ErrPathNotFound, err)
 			}
-			return fmt.Errorf("cannot access bundle artifact %s: %w", ref, err)
+			return fmt.Errorf("cannot access bundle artifact %s: %w: %w", ref, ErrInvalidPath, err)
 		}
 		if info.IsDir() {
-			return fmt.Errorf("bundle artifact path is a directory: %s", ref)
+			return fmt.Errorf("bundle artifact path is a directory: %s: %w", ref, ErrInvalidPath)
 		}
 		return nil
 	}
 
 	// Check for OCI reference (before filesystem checks)
 	if isOCIReference(ref) {
-		return fmt.Errorf("OCI bundle references not yet supported, use a local .hcl file path or directory")
+		return fmt.Errorf("OCI bundle references not yet supported, use a local .hcl file path or directory: %w", ErrUnsupportedSource)
 	}
 
 	// Check if the path exists
 	info, err := os.Stat(ref)
 	if err != nil {
-		return fmt.Errorf("bundle path not found: %s", ref)
+		if os.IsNotExist(err) {
+			return fmt.Errorf("bundle path not found: %s: %w: %w", ref, ErrPathNotFound, err)
+		}
+		return fmt.Errorf("cannot access bundle path %s: %w: %w", ref, ErrInvalidPath, err)
 	}
 
 	if info.IsDir() {
 		// If it's a directory, check if bundle.uds.hcl exists in it
 		bundlePath := filepath.Join(ref, bundleFileName)
-		if _, err := os.Stat(bundlePath); err != nil {
-			return fmt.Errorf("directory does not contain %s: %s", bundleFileName, ref)
+		bundleInfo, err := os.Stat(bundlePath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("directory does not contain %s: %s: %w: %w", bundleFileName, ref, ErrInvalidPath, err)
+			}
+			return fmt.Errorf("cannot access %s in directory %s: %w: %w", bundleFileName, ref, ErrInvalidPath, err)
+		}
+		if bundleInfo.IsDir() {
+			return fmt.Errorf("expected %s to be a file: %s: %w", bundleFileName, ref, ErrInvalidPath)
 		}
 		return nil
 	}
 
 	// It's a file - validate it's named bundle.uds.hcl
 	if filepath.Base(ref) != bundleFileName {
-		return fmt.Errorf("expected file named '%s', got: %s", bundleFileName, filepath.Base(ref))
+		return fmt.Errorf("expected file named '%s', got: %s: %w", bundleFileName, filepath.Base(ref), ErrInvalidPath)
 	}
 
 	return nil
@@ -123,7 +133,7 @@ func ValidateDevDeployPath(ref string) error {
 		if info.IsDir() {
 			bundlePath := filepath.Join(ref, bundleFileName)
 			if _, err := os.Stat(bundlePath); err != nil {
-				return fmt.Errorf("directory does not contain %s: %s", bundleFileName, ref)
+				return fmt.Errorf("directory does not contain %s: %s: %w: %w", bundleFileName, ref, ErrInvalidPath, err)
 			}
 			return nil
 		}
@@ -131,15 +141,15 @@ func ValidateDevDeployPath(ref string) error {
 			return nil
 		}
 		if isTarZst(ref) {
-			return fmt.Errorf("created bundle artifacts must be deployed with 'uds bundle deploy <bundle-artifact>'")
+			return fmt.Errorf("created bundle artifacts must be deployed with 'uds bundle deploy <bundle-artifact>': %w", ErrUnsupportedSource)
 		}
-		return fmt.Errorf("expected file named '%s', got: %s", bundleFileName, filepath.Base(ref))
+		return fmt.Errorf("expected file named '%s', got: %s: %w", bundleFileName, filepath.Base(ref), ErrInvalidPath)
 	}
 	if !os.IsNotExist(err) {
-		return fmt.Errorf("cannot access bundle definition %s: %w", ref, err)
+		return fmt.Errorf("cannot access bundle definition %s: %w: %w", ref, ErrInvalidPath, err)
 	}
 	if isTarZst(ref) || isOCIReference(ref) {
-		return fmt.Errorf("created bundle artifacts must be deployed with 'uds bundle deploy <bundle-artifact>'")
+		return fmt.Errorf("created bundle artifacts must be deployed with 'uds bundle deploy <bundle-artifact>': %w", ErrUnsupportedSource)
 	}
 	return ValidateBundlePath(ref)
 }
@@ -147,7 +157,7 @@ func ValidateDevDeployPath(ref string) error {
 // ValidateArtifactReference validates a local or OCI bundle artifact reference.
 func ValidateArtifactReference(ref string) error {
 	if ref == "" {
-		return fmt.Errorf("bundle artifact is required")
+		return fmt.Errorf("bundle artifact is required: %w", ErrInvalidArgument)
 	}
 	if strings.HasPrefix(ref, "oci://") {
 		return nil
@@ -155,32 +165,32 @@ func ValidateArtifactReference(ref string) error {
 	info, err := os.Stat(ref)
 	if err == nil {
 		if info.IsDir() {
-			return fmt.Errorf("bundle definitions must be deployed with 'uds bundle dev deploy <bundle-definition>'")
+			return fmt.Errorf("bundle definitions must be deployed with 'uds bundle dev deploy <bundle-definition>': %w", ErrUnsupportedSource)
 		}
 		if filepath.Base(ref) == bundleFileName {
-			return fmt.Errorf("bundle definitions must be deployed with 'uds bundle dev deploy <bundle-definition>'")
+			return fmt.Errorf("bundle definitions must be deployed with 'uds bundle dev deploy <bundle-definition>': %w", ErrUnsupportedSource)
 		}
 		if isTarZst(ref) {
 			if !info.Mode().IsRegular() {
-				return fmt.Errorf("local bundle artifact must be a regular file: %s", ref)
+				return fmt.Errorf("local bundle artifact must be a regular file: %s: %w", ref, ErrInvalidPath)
 			}
 			return nil
 		}
-		return fmt.Errorf("expected a local .tar.zst bundle artifact or OCI reference, got: %s", ref)
+		return fmt.Errorf("expected a local .tar.zst bundle artifact or OCI reference, got: %s: %w", ref, ErrUnsupportedSource)
 	}
 	if !os.IsNotExist(err) {
-		return fmt.Errorf("cannot access bundle artifact %s: %w", ref, err)
+		return fmt.Errorf("cannot access bundle artifact %s: %w: %w", ref, ErrInvalidPath, err)
 	}
 	if isTarZst(ref) {
-		return fmt.Errorf("bundle artifact not found: %s", ref)
+		return fmt.Errorf("bundle artifact not found: %s: %w: %w", ref, ErrPathNotFound, err)
 	}
 	if filepath.Base(ref) == bundleFileName {
-		return fmt.Errorf("bundle definitions must be deployed with 'uds bundle dev deploy <bundle-definition>'")
+		return fmt.Errorf("bundle definitions must be deployed with 'uds bundle dev deploy <bundle-definition>': %w", ErrUnsupportedSource)
 	}
 	if isOCIReference(ref) {
 		return nil
 	}
-	return fmt.Errorf("expected a local .tar.zst bundle artifact or OCI reference, got: %s", ref)
+	return fmt.Errorf("expected a local .tar.zst bundle artifact or OCI reference, got: %s: %w", ref, ErrUnsupportedSource)
 }
 
 // ResolvePrinter resolves the --output flag into a ResourcePrinter.
@@ -209,7 +219,7 @@ func PromptConfirmation(streams iostreams.IOStreams, message string) (bool, erro
 		if errors.Is(err, io.EOF) || err.Error() == "unexpected newline" {
 			return false, nil
 		}
-		return false, fmt.Errorf("reading confirmation: %w", err)
+		return false, fmt.Errorf("%w for prompt %q: %w", ErrReadConfirmation, message, err)
 	}
 	return strings.EqualFold(response, "y") || strings.EqualFold(response, "yes"), nil
 }
@@ -222,12 +232,12 @@ func ValidateDir(path string) error {
 	st, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("directory does not exist: %s", path)
+			return fmt.Errorf("directory does not exist: %s: %w: %w", path, ErrPathNotFound, err)
 		}
-		return fmt.Errorf("failed to stat directory %s: %w", path, err)
+		return fmt.Errorf("failed to stat directory %s: %w: %w", path, ErrInvalidPath, err)
 	}
 	if !st.IsDir() {
-		return fmt.Errorf("path is not a directory: %s", path)
+		return fmt.Errorf("path is not a directory: %s: %w", path, ErrInvalidPath)
 	}
 	return nil
 }

@@ -132,15 +132,15 @@ func Deploy(ctx context.Context, source *DeploySource, opts DeployOptions) (*Dep
 		return nil, err
 	}
 	if source == nil {
-		return nil, fmt.Errorf("source is required")
+		return nil, fmt.Errorf("source is required: %w", ErrSourceRequired)
 	}
 	if source.BundlePath == "" && source.Bundle == nil {
-		return nil, fmt.Errorf("source must provide BundlePath or Bundle")
+		return nil, fmt.Errorf("source must provide BundlePath or Bundle: %w", ErrBundleInputRequired)
 	}
 	if source.DefaultsPath != "" {
 		config, err := applyEmbeddedDefaults(ctx, opts.Config, source.DefaultsPath, source.Loader != nil)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: applying embedded defaults: %w", ErrDeployBundle, err)
 		}
 		opts.Config = config
 	}
@@ -161,23 +161,26 @@ func Deploy(ctx context.Context, source *DeploySource, opts DeployOptions) (*Dep
 			b, err = parseBundleFile(ctx, opts.Config.Options.Architecture, s, source.BundlePath)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse bundle: %w", err)
+			return nil, fmt.Errorf("%w: failed to parse bundle: %w", ErrDeployBundle, err)
 		}
 		s.Debug("bundle parsed", "name", b.Metadata.Name, "packages", len(b.Packages))
 	}
 	if err := b.Validate(); err != nil {
-		return nil, fmt.Errorf("bundle validation failed: %w", err)
+		return nil, fmt.Errorf("%w: bundle validation failed: %w", ErrDeployBundle, err)
 	}
 	if !opts.Force {
 		if err := validateDeploySafety(ctx, s, b, opts.Packages); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: unable to deploy safely: %w", ErrDeployBundle, err)
 		}
 	}
 
 	deployer := newZarfDeployer(s, source.Loader)
 	result, err := deployer.deployBundle(ctx, b, opts, source)
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("%w %q: %w", ErrDeployBundle, b.Metadata.Name, err)
+	}
+	if result == nil {
+		return nil, fmt.Errorf("%w: deployer returned no result", ErrDeployBundle)
 	}
 	s.Info("bundle deployed", "name", result.BundleName, "packages", len(result.Packages))
 	return result, nil
@@ -395,46 +398,46 @@ func fromInternalVariableValue(value any) any {
 // PrepareDeploySource prepares a bundle directory or verified tar.zst artifact.
 func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path, tmpDir, architecture string) (*DeploySource, error) {
 	if path == "" {
-		return nil, fmt.Errorf("path must not be empty")
+		return nil, fmt.Errorf("path must not be empty: %w", ErrSourceRequired)
 	}
 	if !artifact.IsTarZst(path) {
 		bundlePath := bundleinternal.ResolveBundlePath(path)
 		defaultsPath, err := bundleinternal.AdjacentDefaultsPath(filepath.Dir(bundlePath))
 		if err != nil {
-			return nil, fmt.Errorf("discovering adjacent defaults: %w", err)
+			return nil, fmt.Errorf("%w: discovering adjacent defaults: %w", ErrPrepareDeploySource, err)
 		}
 		return &DeploySource{BundlePath: bundlePath, DefaultsPath: defaultsPath}, nil
 	}
 
 	workspaceDir, err := os.MkdirTemp(tmpDir, "uds-bundle-deploy-*")
 	if err != nil {
-		return nil, fmt.Errorf("creating workspace for bundle artifact: %w", err)
+		return nil, fmt.Errorf("%w: creating workspace for bundle artifact: %w", ErrPrepareDeploySource, err)
 	}
 	cleanup := func() error { return os.RemoveAll(workspaceDir) }
 	extracted, err := artifact.ExtractArtifact(ctx, streams, path, workspaceDir)
 	if err != nil {
 		_ = cleanup()
-		return nil, fmt.Errorf("extracting bundle artifact: %w", err)
+		return nil, fmt.Errorf("%w: extracting bundle artifact: %w", ErrPrepareDeploySource, err)
 	}
 	valuesOverride, err := extracted.ValuesFilesByPackage()
 	if err != nil {
 		_ = cleanup()
-		return nil, fmt.Errorf("collecting values files from artifact: %w", err)
+		return nil, fmt.Errorf("%w: collecting values files from artifact: %w", ErrPrepareDeploySource, err)
 	}
 
 	bundleBytes, err := os.ReadFile(extracted.BundleDefPath)
 	if err != nil {
 		_ = cleanup()
-		return nil, fmt.Errorf("reading extracted bundle definition: %w", err)
+		return nil, fmt.Errorf("%w: reading extracted bundle definition: %w", ErrPrepareDeploySource, err)
 	}
 	preparedBundle, err := bundleinternal.NewHCLParser(architecture, streams).ParseBundleBytes(ctx, bundleBytes)
 	if err != nil {
 		_ = cleanup()
-		return nil, fmt.Errorf("parsing extracted bundle definition: %w", err)
+		return nil, fmt.Errorf("%w: parsing extracted bundle definition: %w", ErrPrepareDeploySource, err)
 	}
 	if err := applyArtifactValuesFiles(preparedBundle, valuesOverride, extracted.Dir); err != nil {
 		_ = cleanup()
-		return nil, err
+		return nil, fmt.Errorf("%w from %q: %w", ErrPrepareDeploySource, path, err)
 	}
 
 	source := &DeploySource{
@@ -448,7 +451,7 @@ func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path,
 	source.DefaultsPath, err = bundleinternal.AdjacentDefaultsPath(filepath.Dir(extracted.BundleDefPath))
 	if err != nil {
 		_ = cleanup()
-		return nil, fmt.Errorf("discovering adjacent defaults: %w", err)
+		return nil, fmt.Errorf("%w: discovering adjacent defaults: %w", ErrPrepareDeploySource, err)
 	}
 	return source, nil
 }

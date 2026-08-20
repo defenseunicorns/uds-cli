@@ -56,7 +56,7 @@ func BuildDependencyGraph(ctx context.Context, streams iostreams.IOStreams, bund
 			// Use the traversal from the parsed PackageRef
 			depPkg, exists := packages[ref.Name]
 			if !exists {
-				return nil, fmt.Errorf("package %q depends on unknown package %q", pt.Package.Name, ref.Name)
+				return nil, fmt.Errorf("package %q depends on unknown package %q: %w", pt.Package.Name, ref.Name, ErrUnknownPackageDependency)
 			}
 			depTraversals = append(depTraversals, depPkg.Traversal)
 		}
@@ -133,7 +133,7 @@ func (d *DAG) TopologicalLevels() ([][]*spec.Package, error) {
 		}
 
 		if len(currentLevel) == 0 {
-			return nil, fmt.Errorf("cycle detected in package dependencies")
+			return nil, ErrDependencyCycle
 		}
 
 		// Sort packages within a level by name for deterministic output.
@@ -182,7 +182,7 @@ func FilterLevels(levels [][]*spec.Package, filterNames []string) ([][]*spec.Pac
 	}
 	for name := range requested {
 		if !bundleNames[name] {
-			return nil, fmt.Errorf("package %q is not in the bundle", name)
+			return nil, fmt.Errorf("package %q is not in the bundle: %w", name, ErrPackageNotInBundle)
 		}
 	}
 
@@ -257,7 +257,7 @@ func (d *DAG) detectCycles() error {
 					return err
 				}
 			} else if recStack[depName] {
-				return fmt.Errorf("dependency cycle detected: %s -> %s", name, depName)
+				return fmt.Errorf("dependency cycle detected: %s -> %s: %w", name, depName, ErrDependencyCycle)
 			}
 		}
 
@@ -296,7 +296,7 @@ func ValidatePackageNames(names []string, packages []spec.Package) error {
 		}
 	}
 	if len(unknown) > 0 {
-		return fmt.Errorf("unknown packages %v not defined in bundle (available packages: %v)", unknown, knownNames)
+		return fmt.Errorf("unknown packages %v not defined in bundle (available packages: %v): %w", unknown, knownNames, ErrUnknownPackages)
 	}
 	return nil
 }
@@ -309,7 +309,7 @@ func RemovalViolations(ctx context.Context, streams iostreams.IOStreams, b *spec
 	}
 	dag, err := BuildDependencyGraph(ctx, streams, b)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build dependency graph: %w", err)
+		return nil, fmt.Errorf("%w for bundle %q: %w", ErrBuildDependencyGraph, b.Metadata.Name, err)
 	}
 	return dependentBlockers(dag, packageNames), nil
 }
@@ -322,7 +322,7 @@ func DeployViolations(ctx context.Context, streams iostreams.IOStreams, b *spec.
 	}
 	dag, err := BuildDependencyGraph(ctx, streams, b)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build dependency graph: %w", err)
+		return nil, fmt.Errorf("%w for bundle %q: %w", ErrBuildDependencyGraph, b.Metadata.Name, err)
 	}
 	return missingDependencies(dag, packageNames), nil
 }

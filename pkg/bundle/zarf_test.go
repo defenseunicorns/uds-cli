@@ -372,7 +372,7 @@ func TestZarfRemoverRemoveBundleValidatesRemovalSafety(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, result)
 
-	var dependencyErr *dependencyViolationError
+	var dependencyErr *DependencyViolationError
 	require.ErrorAs(t, err, &dependencyErr)
 	assert.Equal(t, map[string][]string{"core": {"app"}}, dependencyErr.Violations)
 }

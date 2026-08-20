@@ -82,10 +82,10 @@ func runDeployWith(
 
 	parsedBundle, err := parseDeployBundle(ctx, streams, config.Options.Architecture, deploySrc)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse bundle: %w", err)
+		return nil, fmt.Errorf("%w %q: %w", ErrParseBundle, deploySrc.BundlePath, err)
 	}
 	if err := parsedBundle.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid bundle: %w", err)
+		return nil, fmt.Errorf("%w %q: %w", ErrInvalidBundle, parsedBundle.Metadata.Name, err)
 	}
 	deploySrc.Bundle = parsedBundle
 
@@ -100,7 +100,7 @@ func runDeployWith(
 			return nil, err
 		}
 		if len(violations) > 0 {
-			return nil, fmt.Errorf("%w\nre-run with --force to override", formatDependencyError("cannot deploy package(s) with unselected dependencies", "requires", violations))
+			return nil, fmt.Errorf("%w\nre-run with --force to override: %w", formatDependencyError("cannot deploy package(s) with unselected dependencies", "requires", violations), ErrForceRequired)
 		}
 	}
 
@@ -122,7 +122,7 @@ func runDeployWith(
 		Streams:  streams,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("deployment failed: %w", err)
+		return result, err
 	}
 
 	return result, nil

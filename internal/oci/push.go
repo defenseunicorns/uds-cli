@@ -64,38 +64,39 @@ func (p *defaultPusher) PushBundle(ctx context.Context, bundleDir, ociReference 
 		return nil, err
 	}
 	if bundleDir == "" {
-		return nil, ErrEmpty("bundleDir")
+		return nil, EmptyParameterError{Name: "bundleDir"}
 	}
 	if ociReference == "" {
-		return nil, ErrEmpty("ociReference")
+		return nil, EmptyParameterError{Name: "ociReference"}
 	}
 
 	ociDir := filepath.Join(bundleDir, "oci")
+	indexPath := filepath.Join(ociDir, "index.json")
 
 	// Read the OCI image index from index.json.
-	idxBytes, err := os.ReadFile(filepath.Join(ociDir, "index.json"))
+	idxBytes, err := os.ReadFile(indexPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("%s does not appear to be a UDS bundle: no OCI layout found", bundleDir)
+			return nil, fmt.Errorf("%s does not appear to be a UDS bundle: no OCI layout found: %w: %w", bundleDir, ErrInvalidBundle, err)
 		}
-		return nil, fmt.Errorf("reading index.json: %w", err)
+		return nil, fmt.Errorf("%w %q: %w", ErrReadIndex, indexPath, err)
 	}
 
 	var idx ocispec.Index
 	if err := json.Unmarshal(idxBytes, &idx); err != nil {
-		return nil, fmt.Errorf("parsing bundle index: %w", err)
+		return nil, fmt.Errorf("parsing bundle index: %w: %w", ErrParseIndex, err)
 	}
 	if !IsBundleIndex(idx) {
-		return nil, fmt.Errorf("%s does not appear to be a UDS bundle: index does not declare artifactType %s", bundleDir, MediaTypeBundle)
+		return nil, fmt.Errorf("%s does not appear to be a UDS bundle: index does not declare artifactType %s: %w", bundleDir, MediaTypeBundle, ErrInvalidBundle)
 	}
 	arch := idx.Annotations[AnnotationBundleArchitecture]
 	if arch == "" {
-		return nil, fmt.Errorf("%s does not record its architecture: index is missing the %s annotation", bundleDir, AnnotationBundleArchitecture)
+		return nil, fmt.Errorf("%s does not record its architecture: index is missing the %s annotation: %w", bundleDir, AnnotationBundleArchitecture, ErrMissingArchitecture)
 	}
 
 	store, err := OpenStore(ociDir)
 	if err != nil {
-		return nil, fmt.Errorf("opening OCI store: %w", err)
+		return nil, err
 	}
 
 	// The child (canonical single-arch bundle) descriptor: platform-tagged so it
@@ -111,7 +112,7 @@ func (p *defaultPusher) PushBundle(ctx context.Context, bundleDir, ociReference 
 	// Stage the index bytes as a blob so graph copy can push the child index and
 	// everything it references from this local store.
 	if err := PushDescriptorBytes(ctx, store, childDesc, idxBytes); err != nil {
-		return nil, fmt.Errorf("staging index blob: %w", err)
+		return nil, fmt.Errorf("staging index blob: %w: %w", ErrPushContent, err)
 	}
 
 	log := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
@@ -132,21 +133,21 @@ func (p *defaultPusher) PushPackage(ctx context.Context, packageDir, ociReferenc
 		return nil, err
 	}
 	if packageDir == "" {
-		return nil, ErrEmpty("packageDir")
+		return nil, EmptyParameterError{Name: "packageDir"}
 	}
 	if ociReference == "" {
-		return nil, ErrEmpty("ociReference")
+		return nil, EmptyParameterError{Name: "ociReference"}
 	}
 
 	ociDir := filepath.Join(packageDir, "oci")
 	store, err := OpenStore(ociDir)
 	if err != nil {
-		return nil, fmt.Errorf("opening OCI store: %w", err)
+		return nil, err
 	}
 
 	root, err := packageRootDescriptor(ociDir)
 	if err != nil {
-		return nil, fmt.Errorf("reading OCI root descriptor: %w", err)
+		return nil, fmt.Errorf("%w from %q: %w", ErrReadRootDescriptor, ociDir, err)
 	}
 
 	log := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)

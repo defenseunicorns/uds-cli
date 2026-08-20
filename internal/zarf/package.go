@@ -25,13 +25,14 @@ func copySelectedPackage(ctx context.Context, pkgLayout *layout.PackageLayout, s
 }
 
 func packageManifest(ctx context.Context, pkgLayout *layout.PackageLayout) (ocispec.Descriptor, ocispec.Manifest, error) {
-	root, err := pkgLayout.Resolve(ctx, pkgLayout.Pkg.Metadata.Name)
+	packageName := pkgLayout.Pkg.Metadata.Name
+	root, err := pkgLayout.Resolve(ctx, packageName)
 	if err != nil {
-		return ocispec.Descriptor{}, ocispec.Manifest{}, fmt.Errorf("resolving package manifest: %w", err)
+		return ocispec.Descriptor{}, ocispec.Manifest{}, fmt.Errorf("%w for package %q: %w", ErrResolvePackageManifest, packageName, err)
 	}
 	manifest, err := pkgLayout.Manifest()
 	if err != nil {
-		return ocispec.Descriptor{}, ocispec.Manifest{}, fmt.Errorf("reading package manifest: %w", err)
+		return ocispec.Descriptor{}, ocispec.Manifest{}, fmt.Errorf("%w for package %q: %w", ErrReadPackageManifest, packageName, err)
 	}
 	return root, manifest.Manifest, nil
 }
@@ -39,7 +40,7 @@ func packageManifest(ctx context.Context, pkgLayout *layout.PackageLayout) (ocis
 func copyPackageManifest(ctx context.Context, pkgLayout *layout.PackageLayout, dst *udsoci.Store, root ocispec.Descriptor, manifest ocispec.Manifest) (ocispec.Descriptor, error) {
 	manifestBytes, err := json.Marshal(manifest)
 	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("marshaling package manifest: %w", err)
+		return ocispec.Descriptor{}, fmt.Errorf("%w %s: %w", ErrMarshalPackageManifest, root.Digest, err)
 	}
 	root = udsoci.NewDescriptorFromBytes(root.MediaType, manifestBytes)
 	root.ArtifactType = manifest.ArtifactType
@@ -51,11 +52,11 @@ func copyPackageManifest(ctx context.Context, pkgLayout *layout.PackageLayout, d
 			continue
 		}
 		if err := udsoci.CopyGraph(ctx, pkgLayout, dst, desc); err != nil {
-			return ocispec.Descriptor{}, fmt.Errorf("copying package content %s: %w", desc.Digest, err)
+			return ocispec.Descriptor{}, fmt.Errorf("copying package content %s: %w: %w", desc.Digest, ErrCopyPackageContent, err)
 		}
 	}
 	if err := udsoci.PushDescriptorBytes(ctx, dst, root, manifestBytes); err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("writing package manifest %s: %w", root.Digest, err)
+		return ocispec.Descriptor{}, fmt.Errorf("writing package manifest %s: %w: %w", root.Digest, ErrWritePackageManifest, err)
 	}
 	return root, nil
 }

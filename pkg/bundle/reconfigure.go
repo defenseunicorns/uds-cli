@@ -59,16 +59,21 @@ func Reconfigure(ctx context.Context, source, defaultsFile string, opts Reconfig
 		return nil, err
 	}
 	if source == "" {
-		return nil, fmt.Errorf("source is required")
+		return nil, fmt.Errorf("source is required: %w", ErrSourceRequired)
 	}
 	if defaultsFile == "" {
-		return nil, fmt.Errorf("defaults file is required")
+		return nil, fmt.Errorf("defaults file is required: %w", ErrDefaultsFileRequired)
+	}
+	if udsoci.IsOCIReference(source) {
+		if err := validateOCIReference(source); err != nil {
+			return nil, fmt.Errorf("%w %q with defaults %q: %w", ErrReconfigureBundle, source, defaultsFile, err)
+		}
 	}
 	s := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
 	s.Info("reading bundle defaults", "source", defaultsFile)
 	defaultsData, err := bundleinternal.MaterializeDefaultsFile(defaultsFile)
 	if err != nil {
-		return nil, fmt.Errorf("reading defaults file: %w", err)
+		return nil, fmt.Errorf("%w: reading defaults file: %w", ErrReconfigureBundle, err)
 	}
 	state := &reconfigureState{}
 	if !opts.SkipSignatureVerification {
@@ -81,12 +86,12 @@ func Reconfigure(ctx context.Context, source, defaultsFile string, opts Reconfig
 		}
 		if udsoci.IsOCIReference(source) {
 			if err := resolveReconfigureOCIInput(ctx, source, opts, state); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("%w %q with defaults %q: %w", ErrReconfigureBundle, source, defaultsFile, err)
 			}
 		} else {
 			cleanup, err := stageReconfigureLocalInput(opts.Config.Options.TmpDir, source, state)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("%w %q with defaults %q: %w", ErrReconfigureBundle, source, defaultsFile, err)
 			}
 			defer cleanup()
 		}
@@ -97,7 +102,7 @@ func Reconfigure(ctx context.Context, source, defaultsFile string, opts Reconfig
 			TmpDir:  opts.Config.Options.TmpDir,
 			Streams: opts.Streams,
 		}); err != nil {
-			return nil, fmt.Errorf("verifying input bundle: %w", err)
+			return nil, fmt.Errorf("%w: verifying input bundle: %w", ErrReconfigureBundle, err)
 		}
 	} else {
 		warnSkippedSignatureVerification(opts.Streams)
@@ -107,7 +112,7 @@ func Reconfigure(ctx context.Context, source, defaultsFile string, opts Reconfig
 		reconfigurer := &ociReconfigurer{streams: s, remoteRepo: state.remoteRepo, sourceChild: state.sourceChild, sourceIndex: state.sourceIndex}
 		result, err := reconfigurer.reconfigureOCIArtifact(ctx, source, defaultsData, opts)
 		if err != nil {
-			return nil, err
+			return result, fmt.Errorf("%w %q with defaults %q: %w", ErrReconfigureBundle, source, defaultsFile, err)
 		}
 		if opts.Signing.Mode == "" || opts.Signing.Mode == SigningModeUnsigned {
 			s.Warn("reconfigured bundle is unsigned; its integrity and origin are not established")
@@ -120,7 +125,7 @@ func Reconfigure(ctx context.Context, source, defaultsFile string, opts Reconfig
 	}
 	result, err := reconfigureLocalArtifact(ctx, s, inputSource, defaultsData, opts)
 	if err != nil {
-		return nil, err
+		return result, fmt.Errorf("%w %q with defaults %q: %w", ErrReconfigureBundle, source, defaultsFile, err)
 	}
 	if opts.Signing.Mode == "" || opts.Signing.Mode == SigningModeUnsigned {
 		s.Warn("reconfigured bundle is unsigned; its integrity and origin are not established")
@@ -128,7 +133,7 @@ func Reconfigure(ctx context.Context, source, defaultsFile string, opts Reconfig
 	}
 	if err := Sign(ctx, SignOptions{Source: result.OutputPath, Signing: opts.Signing, Config: opts.Config, TmpDir: opts.Config.Options.TmpDir, Streams: s}); err != nil {
 		_ = os.Remove(result.OutputPath)
-		return nil, fmt.Errorf("signing reconfigured bundle: %w", err)
+		return nil, fmt.Errorf("%w: signing reconfigured bundle: %w", ErrReconfigureBundle, err)
 	}
 	return result, nil
 }

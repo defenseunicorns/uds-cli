@@ -23,7 +23,7 @@ import (
 func mergeRootIndex(ctx context.Context, dst oras.Target, tag string, child ocispec.Descriptor) ([]byte, ocispec.Descriptor, ocispec.Descriptor, error) {
 	existing, currentRoot, err := existingRootEntries(ctx, dst, tag, child.Platform.Architecture)
 	if err != nil {
-		return nil, ocispec.Descriptor{}, ocispec.Descriptor{}, fmt.Errorf("reading existing root index at %s: %w", tag, err)
+		return nil, ocispec.Descriptor{}, ocispec.Descriptor{}, fmt.Errorf("%w at %s: %w", ErrReadExistingRootIndex, tag, err)
 	}
 	entries := append(existing, child)
 	sort.Slice(entries, func(i, j int) bool {
@@ -37,7 +37,7 @@ func mergeRootIndex(ctx context.Context, dst oras.Target, tag string, child ocis
 	}
 	rootBytes, err := json.Marshal(&root)
 	if err != nil {
-		return nil, ocispec.Descriptor{}, ocispec.Descriptor{}, fmt.Errorf("marshaling root index: %w", err)
+		return nil, ocispec.Descriptor{}, ocispec.Descriptor{}, fmt.Errorf("%w for tag %q and child %s: %w", ErrMarshalRootIndex, tag, child.Digest, err)
 	}
 	return rootBytes, NewDescriptorFromBytes(ocispec.MediaTypeImageIndex, rootBytes), currentRoot, nil
 }
@@ -48,7 +48,7 @@ func existingRootEntries(ctx context.Context, dst oras.Target, tag, arch string)
 		if errors.Is(err, errdef.ErrNotFound) {
 			return nil, ocispec.Descriptor{}, nil
 		}
-		return nil, ocispec.Descriptor{}, fmt.Errorf("resolving %s: %w", tag, err)
+		return nil, ocispec.Descriptor{}, fmt.Errorf("%w %s: %w", ErrResolveReference, tag, err)
 	}
 	data, err := fetchIndexBytes(ctx, dst, desc)
 	if err != nil {
@@ -57,7 +57,7 @@ func existingRootEntries(ctx context.Context, dst oras.Target, tag, arch string)
 
 	var idx ocispec.Index
 	if err := json.Unmarshal(data, &idx); err != nil {
-		return nil, ocispec.Descriptor{}, fmt.Errorf("parsing existing content at %s: %w", tag, err)
+		return nil, ocispec.Descriptor{}, fmt.Errorf("%w at %s: %w", ErrParseExistingRegistryContent, tag, err)
 	}
 	if idx.ArtifactType != "" {
 		return nil, desc, nil

@@ -50,7 +50,7 @@ func ResolveBundleChild(ctx context.Context, src oras.Target, reference, arch st
 
 	desc, err := src.Resolve(ctx, reference)
 	if err != nil {
-		return ocispec.Descriptor{}, nil, fmt.Errorf("resolving %s: %w", reference, err)
+		return ocispec.Descriptor{}, nil, fmt.Errorf("resolving %s: %w: %w", reference, ErrResolveReference, err)
 	}
 	data, err := fetchIndexBytes(ctx, src, desc)
 	if err != nil {
@@ -59,7 +59,7 @@ func ResolveBundleChild(ctx context.Context, src oras.Target, reference, arch st
 
 	var idx ocispec.Index
 	if err := json.Unmarshal(data, &idx); err != nil {
-		return ocispec.Descriptor{}, nil, fmt.Errorf("%s does not appear to be a UDS bundle: content is not an OCI index", reference)
+		return ocispec.Descriptor{}, nil, fmt.Errorf("%s does not appear to be a UDS bundle: content is not an OCI index: %w", reference, ErrInvalidBundle)
 	}
 	if idx.ArtifactType == MediaTypeBundle {
 		return desc, data, nil
@@ -80,15 +80,15 @@ func ResolveBundleChild(ctx context.Context, src oras.Target, reference, arch st
 		}
 		var child ocispec.Index
 		if err := json.Unmarshal(childData, &child); err != nil || child.ArtifactType != MediaTypeBundle {
-			return ocispec.Descriptor{}, nil, fmt.Errorf("root index entry for %s does not reference a UDS bundle", arch)
+			return ocispec.Descriptor{}, nil, fmt.Errorf("root index entry for %s does not reference a UDS bundle: %w", arch, ErrInvalidBundle)
 		}
 		return m, childData, nil
 	}
 
 	if len(available) > 0 {
-		return ocispec.Descriptor{}, nil, fmt.Errorf("no bundle for architecture %q at %s; available: %v", arch, reference, available)
+		return ocispec.Descriptor{}, nil, fmt.Errorf("no bundle for architecture %q at %s; available: %v: %w", arch, reference, available, ErrArchitectureUnavailable)
 	}
-	return ocispec.Descriptor{}, nil, fmt.Errorf("%s does not appear to be a UDS bundle: index does not declare artifactType %s", reference, MediaTypeBundle)
+	return ocispec.Descriptor{}, nil, fmt.Errorf("%s does not appear to be a UDS bundle: index does not declare artifactType %s: %w", reference, MediaTypeBundle, ErrInvalidBundle)
 }
 
 func fetchIndexBytes(ctx context.Context, src oras.Target, desc ocispec.Descriptor) ([]byte, error) {

@@ -5,6 +5,7 @@ package bundle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -47,12 +48,15 @@ func Verify(ctx context.Context, opts VerifyOptions) error {
 		return err
 	}
 	if oci.IsOCIReference(opts.Source) {
+		if err := validateOCIReference(opts.Source); err != nil {
+			return fmt.Errorf("%w %q: %w", ErrVerifyBundle, opts.Source, err)
+		}
 		if opts.Config == nil {
-			return fmt.Errorf("config is required for OCI bundle verification")
+			return fmt.Errorf("%w: config is required for OCI bundle verification", ErrVerifyBundle)
 		}
 		workspace, err := os.MkdirTemp(opts.TmpDir, "uds-bundle-oci-verify-*")
 		if err != nil {
-			return fmt.Errorf("creating OCI verification workspace: %w", err)
+			return fmt.Errorf("%w: creating OCI verification workspace: %w", ErrVerifyBundle, err)
 		}
 		defer func() { _ = os.RemoveAll(workspace) }()
 		pulled, err := Pull(ctx, opts.Source, workspace, PullOptions{
@@ -62,7 +66,10 @@ func Verify(ctx context.Context, opts VerifyOptions) error {
 			Streams:                   opts.Streams,
 		})
 		if err != nil {
-			return fmt.Errorf("pulling bundle for verification: %w", err)
+			if errors.Is(err, oci.ErrBundleSignatureNotFound) && !errors.Is(err, ErrBundleNotSigned) {
+				return fmt.Errorf("%w: pulling bundle for verification: %w: %w", ErrVerifyBundle, ErrBundleNotSigned, err)
+			}
+			return fmt.Errorf("%w: pulling bundle for verification: %w", ErrVerifyBundle, err)
 		}
 		opts.Source = pulled.OutputPath
 		return Verify(ctx, opts)
@@ -70,50 +77,50 @@ func Verify(ctx context.Context, opts VerifyOptions) error {
 
 	workspace, err := os.MkdirTemp(opts.TmpDir, "uds-bundle-verify-*")
 	if err != nil {
-		return fmt.Errorf("creating verification workspace: %w", err)
+		return fmt.Errorf("%w: creating verification workspace: %w", ErrVerifyBundle, err)
 	}
 	defer func() { _ = os.RemoveAll(workspace) }()
 	signatureEntries, err := artifact.CountTarZstEntries(ctx, opts.Source, bundleSignatureFileName)
 	if err != nil {
-		return fmt.Errorf("checking bundle signature evidence: %w", err)
+		return fmt.Errorf("%w: checking bundle signature evidence: %w", ErrVerifyBundle, err)
 	}
 	if signatureEntries > 1 {
-		return fmt.Errorf("expected exactly one bundle signature evidence entry, found %d", signatureEntries)
+		return fmt.Errorf("%w: expected exactly one bundle signature evidence entry, found %d", ErrVerifyBundle, signatureEntries)
 	}
 	if err := artifact.ExtractTarZst(ctx, opts.Streams, opts.Source, workspace); err != nil {
-		return fmt.Errorf("extracting bundle: %w", err)
+		return fmt.Errorf("%w: extracting bundle: %w", ErrVerifyBundle, err)
 	}
 	indexPath := filepath.Join(workspace, "oci", "index.json")
 	index, err := os.ReadFile(indexPath)
 	if err != nil {
-		return fmt.Errorf("reading bundle index: %w", err)
+		return fmt.Errorf("%w: reading bundle index: %w", ErrVerifyBundle, err)
 	}
 	if err := validateBundleIndex(index); err != nil {
-		return err
+		return fmt.Errorf("%w %q: %w", ErrVerifyBundle, opts.Source, err)
 	}
 	evidencePath := filepath.Join(workspace, bundleSignatureFileName)
 	evidenceInfo, err := os.Stat(evidencePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return ErrBundleNotSigned
+			return fmt.Errorf("%w: %w: %w", ErrVerifyBundle, ErrBundleNotSigned, err)
 		}
-		return fmt.Errorf("accessing bundle signature evidence: %w", err)
+		return fmt.Errorf("%w: accessing bundle signature evidence: %w", ErrVerifyBundle, err)
 	}
 	if evidenceInfo.Size() > oci.MaxFetchBytesSize {
-		return fmt.Errorf("bundle signature evidence is %d bytes, larger than the %d byte buffered read limit", evidenceInfo.Size(), oci.MaxFetchBytesSize)
+		return fmt.Errorf("%w: bundle signature evidence is %d bytes, larger than the %d byte buffered read limit", ErrVerifyBundle, evidenceInfo.Size(), oci.MaxFetchBytesSize)
 	}
 	evidence, err := os.ReadFile(evidencePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return ErrBundleNotSigned
+			return fmt.Errorf("%w: %w: %w", ErrVerifyBundle, ErrBundleNotSigned, err)
 		}
-		return fmt.Errorf("accessing bundle signature evidence: %w", err)
+		return fmt.Errorf("%w: accessing bundle signature evidence: %w", ErrVerifyBundle, err)
 	}
 	if err := verifySignature(ctx, index, evidence, opts.Policy, opts.TmpDir); err != nil {
-		return err
+		return fmt.Errorf("%w %q: %w", ErrVerifyBundle, opts.Source, err)
 	}
 	if err := oci.VerifyLocalLayoutGraph(ctx, filepath.Join(workspace, "oci"), index); err != nil {
-		return fmt.Errorf("verifying bundle content: %w", err)
+		return fmt.Errorf("%w: verifying bundle content: %w", ErrVerifyBundle, err)
 	}
 	return nil
 }
@@ -150,26 +157,26 @@ func (p VerificationPolicy) Validate() error {
 	hasKey := strings.TrimSpace(p.PublicKey) != ""
 	hasKeyless := p.Keyless != nil
 	if hasKey == hasKeyless {
-		return fmt.Errorf("signature verification must configure exactly one of public key or keyless")
+		return fmt.Errorf("signature verification must configure exactly one of public key or keyless: %w", ErrInvalidVerificationPolicy)
 	}
 	if !hasKeyless {
 		return nil
 	}
 	keyless := p.Keyless
 	if err := exactlyOne(keyless.CertificateIdentity, keyless.CertificateIdentityRegexp, "certificate identity"); err != nil {
-		return err
+		return fmt.Errorf("%w for keyless verification: %w", ErrInvalidVerificationPolicy, err)
 	}
 	if strings.TrimSpace(keyless.CertificateIdentityRegexp) != "" {
 		if _, err := regexp.Compile(keyless.CertificateIdentityRegexp); err != nil {
-			return fmt.Errorf("invalid certificate identity regexp: %w", err)
+			return fmt.Errorf("%w: invalid certificate identity regexp: %w", ErrInvalidVerificationPolicy, err)
 		}
 	}
 	if err := exactlyOne(keyless.CertificateOIDCIssuer, keyless.CertificateOIDCIssuerRegexp, "certificate OIDC issuer"); err != nil {
-		return err
+		return fmt.Errorf("%w for keyless verification: %w", ErrInvalidVerificationPolicy, err)
 	}
 	if strings.TrimSpace(keyless.CertificateOIDCIssuerRegexp) != "" {
 		if _, err := regexp.Compile(keyless.CertificateOIDCIssuerRegexp); err != nil {
-			return fmt.Errorf("invalid certificate OIDC issuer regexp: %w", err)
+			return fmt.Errorf("%w: invalid certificate OIDC issuer regexp: %w", ErrInvalidVerificationPolicy, err)
 		}
 	}
 	return nil
@@ -182,7 +189,7 @@ func (p VerificationPolicy) configured() bool {
 // Validate validates VerifyOptions.
 func (o VerifyOptions) Validate() error {
 	if o.Source == "" {
-		return fmt.Errorf("source is required")
+		return fmt.Errorf("source is required: %w", ErrSourceRequired)
 	}
 	return o.Policy.Validate()
 }

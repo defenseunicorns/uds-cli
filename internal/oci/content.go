@@ -45,11 +45,11 @@ func IsImageManifestMediaType(mediaType string) bool {
 // layout with OpenReadOnlyStore instead of OpenStore.
 func FetchBytes(ctx context.Context, fetcher content.Fetcher, desc ocispec.Descriptor) ([]byte, error) {
 	if desc.Size > MaxFetchBytesSize {
-		return nil, fmt.Errorf("descriptor %s is %d bytes, larger than the %d byte buffered fetch limit", desc.Digest, desc.Size, MaxFetchBytesSize)
+		return nil, DescriptorTooLargeError{Digest: desc.Digest, Size: desc.Size, Limit: MaxFetchBytesSize}
 	}
 	data, err := content.FetchAll(ctx, fetcher, desc)
 	if err != nil {
-		return nil, fmt.Errorf("fetching %s: %w", desc.Digest, err)
+		return nil, fmt.Errorf("fetching %s: %w: %w", desc.Digest, ErrFetchContent, err)
 	}
 	return data, nil
 }
@@ -97,7 +97,7 @@ func CopyGraph(ctx context.Context, src content.ReadOnlyStorage, dst content.Sto
 
 func copyGraph(ctx context.Context, src content.ReadOnlyStorage, dst content.Storage, root ocispec.Descriptor, opts oras.CopyGraphOptions) error {
 	if err := oras.CopyGraph(ctx, src, dst, root, opts); err != nil {
-		return fmt.Errorf("copying graph %s: %w", root.Digest, err)
+		return fmt.Errorf("%w %s: %w", ErrCopyGraph, root.Digest, err)
 	}
 	return nil
 }
@@ -136,9 +136,9 @@ func Tag(ctx context.Context, target interface {
 // EnsureTagAvailable returns an error when target already has tag or cannot check it.
 func EnsureTagAvailable(ctx context.Context, target oras.Target, tag string) error {
 	if _, err := target.Resolve(ctx, tag); err == nil {
-		return fmt.Errorf("target tag %q already exists in registry", tag)
+		return TargetTagExistsError{Tag: tag}
 	} else if !IsNotFound(err) {
-		return fmt.Errorf("checking target tag %q: %w", tag, err)
+		return fmt.Errorf("%w %q: %w", ErrCheckTargetTag, tag, err)
 	}
 	return nil
 }
@@ -160,7 +160,7 @@ func PublishBundleRootIndex(ctx context.Context, target oras.Target, tag string,
 		return nil
 	}
 	if err := PushReferenceBytes(ctx, target, rootDesc, rootBytes, tag); err != nil {
-		return fmt.Errorf("pushing root index as %s: %w", tag, err)
+		return fmt.Errorf("%w as %s: %w", ErrPushRootIndex, tag, err)
 	}
 	return nil
 }

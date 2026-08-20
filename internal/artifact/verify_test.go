@@ -54,6 +54,9 @@ func TestSafeLayerDestinationPath(t *testing.T) {
 			got, err := safeLayerDestinationPath(cleanDstDir, dstDir, tt.title)
 			if tt.wantErrFrag != "" {
 				require.ErrorContains(t, err, tt.wantErrFrag)
+				var pathErr LayerTitleEscapesDestinationError
+				require.ErrorAs(t, err, &pathErr)
+				assert.Equal(t, tt.title, pathErr.Title)
 				return
 			}
 			require.NoError(t, err)

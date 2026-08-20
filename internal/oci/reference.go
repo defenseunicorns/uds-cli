@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
+	"oras.land/oras-go/v2/registry"
 )
 
 // TrimScheme removes the scheme from a reference name
@@ -48,9 +49,13 @@ func IsOCIReference(s string) bool {
 
 // ReferenceIdentifier returns the tag/digest portion of an OCI reference.
 func ReferenceIdentifier(ref string) (string, error) {
-	r, err := name.ParseReference(TrimScheme(ref))
+	trimmed := TrimScheme(ref)
+	if _, err := registry.ParseReference(trimmed); err != nil {
+		return "", fmt.Errorf("%w %q: %w", ErrParseReference, ref, err)
+	}
+	r, err := name.ParseReference(trimmed)
 	if err != nil {
-		return "", fmt.Errorf("parsing OCI reference: %w", err)
+		return "", fmt.Errorf("%w %q: %w", ErrParseReference, ref, err)
 	}
 	return r.Identifier(), nil
 }

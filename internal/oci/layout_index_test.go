@@ -39,4 +39,8 @@ func TestPackageRootDescriptorRejectsMultipleRoots(t *testing.T) {
 
 	_, err := packageRootDescriptor(root)
 	require.ErrorContains(t, err, "expected exactly 1")
+	var countErr ManifestCountError
+	require.ErrorAs(t, err, &countErr)
+	assert.Equal(t, 2, countErr.Count)
+	assert.Equal(t, 1, countErr.Want)
 }

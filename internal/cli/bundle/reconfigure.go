@@ -86,7 +86,7 @@ func (o *ReconfigureOptions) Complete(cmd *cobra.Command, args []string) error {
 	if o.OutputDir == "" && !isOCIReference(o.Source) {
 		o.OutputDir, err = os.Getwd()
 		if err != nil {
-			return fmt.Errorf("getting current directory: %w", err)
+			return fmt.Errorf("getting current directory: %w: %w", ErrResolvePath, err)
 		}
 	}
 
@@ -119,20 +119,23 @@ func (o *ReconfigureOptions) Complete(cmd *cobra.Command, args []string) error {
 // Validate checks that options are valid.
 func (o *ReconfigureOptions) Validate() error {
 	if o.Source == "" {
-		return fmt.Errorf("source is required")
+		return fmt.Errorf("source is required: %w", ErrInvalidArgument)
 	}
 	if o.DefaultsFile == "" {
-		return fmt.Errorf("--defaults is required")
+		return fmt.Errorf("--defaults is required: %w", ErrInvalidArgument)
 	}
 	if _, err := os.Stat(o.DefaultsFile); err != nil {
-		return fmt.Errorf("defaults file not found: %s", o.DefaultsFile)
+		if os.IsNotExist(err) {
+			return fmt.Errorf("defaults file not found: %s: %w: %w", o.DefaultsFile, ErrPathNotFound, err)
+		}
+		return fmt.Errorf("cannot access defaults file %s: %w: %w", o.DefaultsFile, ErrInvalidPath, err)
 	}
 	if o.Suffix == "" {
-		return fmt.Errorf("--suffix must not be empty")
+		return fmt.Errorf("--suffix must not be empty: %w", ErrInvalidArgument)
 	}
 
 	if o.OutputDir != "" && isOCIReference(o.Source) {
-		return fmt.Errorf("--output-dir is not supported for OCI sources")
+		return fmt.Errorf("--output-dir is not supported for OCI sources: %w", ErrUnsupportedSource)
 	}
 	if err := o.Signing.Validate(); err != nil {
 		return err

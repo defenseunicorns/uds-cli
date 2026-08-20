@@ -125,6 +125,7 @@ func TestParseLevel(t *testing.T) {
 			level, err := ParseLevel(tt.input)
 			if tt.wantErr {
 				require.Error(t, err)
+				assert.ErrorIs(t, err, ErrInvalidLevel)
 				return
 			}
 			require.NoError(t, err)

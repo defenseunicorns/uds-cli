@@ -57,10 +57,10 @@ func Remove(ctx context.Context, source *DeploySource, opts RemoveOptions) (*Rem
 		return nil, err
 	}
 	if source == nil {
-		return nil, fmt.Errorf("source is required")
+		return nil, fmt.Errorf("source is required: %w", ErrSourceRequired)
 	}
 	if source.BundlePath == "" && source.Bundle == nil {
-		return nil, fmt.Errorf("source must provide BundlePath or Bundle")
+		return nil, fmt.Errorf("source must provide BundlePath or Bundle: %w", ErrBundleInputRequired)
 	}
 
 	s := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
@@ -71,18 +71,18 @@ func Remove(ctx context.Context, source *DeploySource, opts RemoveOptions) (*Rem
 		var err error
 		b, err = parseBundleFile(ctx, opts.Config.Options.Architecture, s, source.BundlePath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse bundle: %w", err)
+			return nil, fmt.Errorf("%w: failed to parse bundle: %w", ErrRemoveBundle, err)
 		}
 	}
 	s.Debug("bundle parsed", "name", b.Metadata.Name, "packages", len(b.Packages))
 
 	if err := b.Validate(); err != nil {
-		return nil, fmt.Errorf("bundle validation failed: %w", err)
+		return nil, fmt.Errorf("%w: bundle validation failed: %w", ErrRemoveBundle, err)
 	}
 	s.Debug("bundle validated")
 	if !opts.Force {
 		if err := validateRemovalSafety(ctx, s, b, opts.Packages); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: unable to remove safely: %w", ErrRemoveBundle, err)
 		}
 	}
 
@@ -93,7 +93,10 @@ func Remove(ctx context.Context, source *DeploySource, opts RemoveOptions) (*Rem
 		SafetyChecked: !opts.Force,
 	})
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("%w %q: %w", ErrRemoveBundle, b.Metadata.Name, err)
+	}
+	if result == nil {
+		return nil, fmt.Errorf("%w: remover returned no result", ErrRemoveBundle)
 	}
 	removed, skipped := countRemovalResults(result.Packages)
 	s.Info("bundle removal complete", "name", result.BundleName, "removed", removed, "skipped", skipped)

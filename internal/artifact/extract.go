@@ -50,26 +50,27 @@ func ExtractArtifact(ctx context.Context, streams iostreams.IOStreams, tarPath, 
 	streams.Debug("extracting bundle artifact", "source", tarPath, "output", dstDir)
 
 	if err := ExtractTarZst(ctx, streams, tarPath, dstDir); err != nil {
-		return nil, fmt.Errorf("extracting bundle artifact: %w", err)
+		return nil, fmt.Errorf("%w %q to %q: %w", ErrExtractingBundleArtifact, tarPath, dstDir, err)
 	}
 
 	ociDir := filepath.Join(dstDir, "oci")
 	blobDir := filepath.Join(ociDir, "blobs", "sha256")
+	indexPath := filepath.Join(ociDir, "index.json")
 
-	idxBytes, err := os.ReadFile(filepath.Join(ociDir, "index.json"))
+	idxBytes, err := os.ReadFile(indexPath)
 	if err != nil {
-		return nil, fmt.Errorf("reading index.json: %w", err)
+		return nil, fmt.Errorf("%w %q: %w", ErrReadingBundleIndex, indexPath, err)
 	}
 	var idx ocispec.Index
 	if err := json.Unmarshal(idxBytes, &idx); err != nil {
-		return nil, fmt.Errorf("parsing index.json: %w", err)
+		return nil, fmt.Errorf("%w %q: %w", ErrParsingBundleIndex, indexPath, err)
 	}
 	if !oci.IsBundleIndex(idx) {
-		return nil, fmt.Errorf("%s does not appear to be a UDS bundle: index does not declare artifactType %s", tarPath, oci.MediaTypeBundle)
+		return nil, InvalidBundleIndexError{Source: tarPath, ArtifactType: oci.MediaTypeBundle}
 	}
 	defEntry, defIdx, err := oci.FindBundleDefinition(idx)
 	if err != nil {
-		return nil, fmt.Errorf("locating bundle definition: %w", err)
+		return nil, fmt.Errorf("%w in %q: %w", ErrLocatingBundleDefinition, indexPath, err)
 	}
 	packageManifests, err := buildPackageManifests(idx, defIdx)
 	if err != nil {
@@ -77,20 +78,20 @@ func ExtractArtifact(ctx context.Context, streams iostreams.IOStreams, tarPath, 
 	}
 	store, err := oci.OpenStore(ociDir)
 	if err != nil {
-		return nil, fmt.Errorf("opening OCI layout: %w", err)
+		return nil, err
 	}
 	streams.Info("verifying bundle artifact")
 	if err := store.VerifyGraph(ctx, idx.Manifests); err != nil {
-		return nil, fmt.Errorf("artifact digest verification failed: %w", err)
+		return nil, fmt.Errorf("%w for %q: %w", ErrVerifyingArtifactDigest, tarPath, err)
 	}
 
 	defBytes, err := oci.FetchBytes(ctx, store, defEntry)
 	if err != nil {
-		return nil, fmt.Errorf("reading bundle definition manifest: %w", err)
+		return nil, fmt.Errorf("%w %s: %w", ErrReadingBundleDefinitionManifest, defEntry.Digest, err)
 	}
 	var bundleDef ocispec.Manifest
 	if err := json.Unmarshal(defBytes, &bundleDef); err != nil {
-		return nil, fmt.Errorf("parsing bundle definition manifest: %w", err)
+		return nil, fmt.Errorf("%w %s: %w", ErrParsingBundleDefinitionManifest, defEntry.Digest, err)
 	}
 
 	bundleDefPath, err := materializeBundleSrcFiles(ctx, streams, bundleDef, blobDir, dstDir)
@@ -120,7 +121,7 @@ func (e *ExtractedBundle) ValuesFilesByPackage() (map[string][]string, error) {
 		return result, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("reading values directory: %w", err)
+		return nil, fmt.Errorf("%w %q: %w", ErrReadingValuesDirectory, valuesRoot, err)
 	}
 
 	for _, pkgEntry := range pkgDirs {
@@ -132,7 +133,7 @@ func (e *ExtractedBundle) ValuesFilesByPackage() (map[string][]string, error) {
 
 		fileEntries, err := os.ReadDir(pkgDir)
 		if err != nil {
-			return nil, fmt.Errorf("reading values for package %s: %w", pkgName, err)
+			return nil, ReadingPackageValuesError{Package: pkgName, Err: err}
 		}
 
 		type indexedPath struct {
@@ -174,7 +175,7 @@ func (e *ExtractedBundle) ValuesFilesByPackage() (map[string][]string, error) {
 func materializeBundleSrcFiles(_ context.Context, streams iostreams.IOStreams, bundleDef ocispec.Manifest, blobDir, dstDir string) (string, error) {
 	cleanDstDir, err := filepath.Abs(filepath.Clean(dstDir))
 	if err != nil {
-		return "", fmt.Errorf("resolving destination directory: %w", err)
+		return "", fmt.Errorf("%w %q: %w", ErrResolvingDestinationDirectory, dstDir, err)
 	}
 	dstRoot, err := os.OpenRoot(cleanDstDir)
 	if err != nil {
@@ -197,7 +198,7 @@ func materializeBundleSrcFiles(_ context.Context, streams iostreams.IOStreams, b
 
 		data, err := os.ReadFile(filepath.Join(blobDir, layer.Digest.Hex()))
 		if err != nil {
-			return "", fmt.Errorf("reading layer blob %s (%s): %w", title, layer.Digest, err)
+			return "", ReadingLayerBlobError{Title: title, Digest: layer.Digest, Err: err}
 		}
 
 		dst, err := safeLayerDestinationPath(cleanDstDir, cleanDstDir, title)
@@ -209,17 +210,17 @@ func materializeBundleSrcFiles(_ context.Context, streams iostreams.IOStreams, b
 			return "", fmt.Errorf("resolving layer title %q relative to destination: %w", title, err)
 		}
 		if err := dstRoot.MkdirAll(filepath.Dir(relDst), filesystem.PrivateDirectoryMode); err != nil {
-			return "", fmt.Errorf("creating directory for %s: %w", title, err)
+			return "", CreatingLayerDirectoryError{Title: title, Err: err}
 		}
 		if err := dstRoot.WriteFile(relDst, data, filesystem.PrivateFileMode); err != nil {
-			return "", fmt.Errorf("writing %s: %w", title, err)
+			return "", WritingLayerError{Title: title, Err: err}
 		}
 		if layer.MediaType == oci.MediaTypeBundleHCL && title == bundleinternal.BundleFileName {
 			bundleDefPath = dst
 		}
 	}
 	if bundleDefPath == "" {
-		return "", fmt.Errorf("bundle artifact contains no bundle definition layer")
+		return "", ErrBundleDefinitionLayerNotFound
 	}
 	return bundleDefPath, nil
 }
@@ -233,15 +234,21 @@ func buildPackageManifests(idx ocispec.Index, defIdx int) (map[string]ocispec.De
 			continue
 		}
 		if !oci.IsImageManifestMediaType(m.MediaType) {
-			return nil, fmt.Errorf("package manifest at index %d has unsupported media type %q", i, m.MediaType)
+			return nil, UnsupportedPackageManifestMediaTypeError{Index: i, MediaType: m.MediaType}
 		}
 		packageName := m.Annotations[oci.AnnotationPackageName]
 		if packageName == "" {
-			return nil, fmt.Errorf("package manifest at index %d has no %s annotation; recreate the bundle with package-name identity", i, oci.AnnotationPackageName)
+			err := MissingPackageManifestAnnotationError{Index: i, Annotation: oci.AnnotationPackageName}
+			return nil, fmt.Errorf("%w; recreate the bundle with package-name identity", err)
 		}
 		desc := m
 		if existing, ok := manifests[packageName]; ok {
-			return nil, fmt.Errorf("duplicate %s %q with digests %s and %s", oci.AnnotationPackageName, packageName, existing.Digest, desc.Digest)
+			return nil, ConflictingPackageManifestDigestError{
+				Annotation:     oci.AnnotationPackageName,
+				Reference:      packageName,
+				ExistingDigest: existing.Digest,
+				Digest:         desc.Digest,
+			}
 		}
 		manifests[packageName] = desc
 	}

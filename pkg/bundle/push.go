@@ -20,25 +20,38 @@ func Push(ctx context.Context, bundleTarball, ref string, opts PushOptions) (*Pu
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
+	if bundleTarball == "" {
+		return nil, fmt.Errorf("source is required: %w", ErrSourceRequired)
+	}
+	if err := validateOCIReference(ref); err != nil {
+		return nil, fmt.Errorf("%w to %q: %w", ErrPushBundle, ref, err)
+	}
 	s := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
 	signatureEntries, err := artifact.CountTarZstEntries(ctx, bundleTarball, bundleSignatureFileName)
 	if err != nil {
-		return nil, fmt.Errorf("checking bundle signature evidence: %w", err)
+		return nil, fmt.Errorf("%w: checking bundle signature evidence: %w", ErrPushBundle, err)
 	}
 	if signatureEntries > 1 {
-		return nil, fmt.Errorf("expected exactly one bundle signature evidence entry, found %d", signatureEntries)
+		return nil, fmt.Errorf("%w: expected exactly one bundle signature evidence entry, found %d", ErrPushBundle, signatureEntries)
 	}
 	tmp, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-push-*")
 	if err != nil {
-		return nil, fmt.Errorf("creating temp dir: %w", err)
+		return nil, fmt.Errorf("%w: creating temp dir: %w", ErrPushBundle, err)
 	}
 	defer func() { _ = os.RemoveAll(tmp) }()
 	s.Info("extracting bundle archive", "source", bundleTarball)
 	s.Debug("extracting bundle archive", "source", bundleTarball, "output", tmp)
 	if err := artifact.ExtractTarZst(ctx, s, bundleTarball, tmp); err != nil {
-		return nil, fmt.Errorf("extracting bundle: %w", err)
+		return nil, fmt.Errorf("%w: extracting bundle: %w", ErrPushBundle, err)
 	}
-	return pushBundle(ctx, tmp, ref, opts, pushHooks{})
+	result, err := pushBundle(ctx, tmp, ref, opts, pushHooks{})
+	if err != nil {
+		return result, fmt.Errorf("%w to %q: %w", ErrPushBundle, ref, err)
+	}
+	if result == nil {
+		return nil, fmt.Errorf("%w: pusher returned no result", ErrPushBundle)
+	}
+	return result, nil
 }
 
 // PushOptions holds configuration for pushing a bundle to an OCI registry.

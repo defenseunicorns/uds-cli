@@ -5,7 +5,6 @@ package artifact
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
@@ -14,7 +13,7 @@ import (
 // ValidateBundleForCreate applies the create-only package signature policy.
 func ValidateBundleForCreate(b *spec.UDSBundle) error {
 	if b == nil {
-		return fmt.Errorf("bundle must not be nil")
+		return ErrBundleNil
 	}
 	var errs []error
 	if err := b.Validate(); err != nil {

@@ -57,6 +57,6 @@ func ParseLevel(s string) (slog.Level, error) {
 	case "error":
 		return slog.LevelError, nil
 	default:
-		return slog.LevelInfo, fmt.Errorf("unknown log level %q, valid values are: debug, info, warn, error", s)
+		return slog.LevelInfo, fmt.Errorf("unknown log level %q, valid values are: debug, info, warn, error: %w", s, ErrInvalidLevel)
 	}
 }

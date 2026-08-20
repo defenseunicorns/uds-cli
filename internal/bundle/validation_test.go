@@ -131,7 +131,8 @@ func TestValidateTmpDir(t *testing.T) {
 		cfg := validBaseConfig()
 		cfg.Options.TmpDir = "/nonexistent/path/tmp"
 		err := ValidateConfig(cfg)
-		require.Error(t, err)
+		require.ErrorIs(t, err, ErrInvalidTemporaryDirectory)
+		require.ErrorIs(t, err, os.ErrNotExist)
 		assert.Contains(t, err.Error(), "tmp_dir")
 		assert.Contains(t, err.Error(), "directory does not exist")
 	})

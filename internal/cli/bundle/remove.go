@@ -141,10 +141,10 @@ func (o *RemoveOptions) Validate() error {
 	bundlePath := resolveBundlePath(o.BundlePath)
 	parsedBundle, err := bundleinternal.NewHCLParser(o.Config.Options.Architecture, s).ParseBundleFile(ctx, bundlePath)
 	if err != nil {
-		return fmt.Errorf("failed to parse bundle: %w", err)
+		return fmt.Errorf("%w %q: %w", ErrParseBundle, bundlePath, err)
 	}
 	if err := parsedBundle.Validate(); err != nil {
-		return fmt.Errorf("invalid bundle: %w", err)
+		return fmt.Errorf("%w %q: %w", ErrInvalidBundle, parsedBundle.Metadata.Name, err)
 	}
 	if err := bundleinternal.ValidatePackageNames(o.Packages, parsedBundle.Packages); err != nil {
 		return err
@@ -155,7 +155,7 @@ func (o *RemoveOptions) Validate() error {
 			return err
 		}
 		if len(violations) > 0 {
-			return fmt.Errorf("%w\nre-run with --force to override", formatDependencyError("cannot remove package(s) with bundle dependents", "is required by", violations))
+			return fmt.Errorf("%w\nre-run with --force to override: %w", formatDependencyError("cannot remove package(s) with bundle dependents", "is required by", violations), ErrForceRequired)
 		}
 	}
 
@@ -196,7 +196,7 @@ func (o *RemoveOptions) Run(ctx context.Context) error {
 		Bundle:     o.parsedBundle,
 	}, removeOpts)
 	if err != nil {
-		return fmt.Errorf("removal failed: %w", err)
+		return err
 	}
 
 	return o.Printer.PrintObj(result, o.Out())

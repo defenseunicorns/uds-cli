@@ -37,7 +37,7 @@ func Create(ctx context.Context, bundleFile string, opts CreateOptions) (*Create
 		return nil, err
 	}
 	if bundleFile == "" {
-		return nil, fmt.Errorf("bundle file is required")
+		return nil, fmt.Errorf("bundle file is required: %w", ErrBundleFileRequired)
 	}
 
 	s := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
@@ -46,12 +46,12 @@ func Create(ctx context.Context, bundleFile string, opts CreateOptions) (*Create
 	s.Debug("parsing bundle file", "path", bundleFile)
 	b, bundleHCL, err := parseAndMaterializeBundleFile(ctx, opts.Config.Options.Architecture, s, bundleFile)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w from %q: %w", ErrCreateBundle, bundleFile, err)
 	}
 	s.Debug("bundle parsed", "name", b.Metadata.Name, "packages", len(b.Packages))
 
 	if err := artifact.ValidateBundleForCreate(b); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w from %q: %w", ErrCreateBundle, bundleFile, err)
 	}
 	s.Debug("bundle validated")
 	s.Info("building bundle artifact", "name", b.Metadata.Name, "packages", len(b.Packages))
@@ -62,10 +62,10 @@ func Create(ctx context.Context, bundleFile string, opts CreateOptions) (*Create
 	if _, err := os.Stat(defaultsPath); err == nil {
 		defaultsHCL, err = bundleinternal.MaterializeDefaultsFile(defaultsPath)
 		if err != nil {
-			return nil, fmt.Errorf("materializing defaults HCL: %w", err)
+			return nil, fmt.Errorf("%w: materializing defaults HCL: %w", ErrCreateBundle, err)
 		}
 	} else if !os.IsNotExist(err) {
-		return nil, fmt.Errorf("accessing defaults HCL: %w", err)
+		return nil, fmt.Errorf("%w: accessing defaults HCL: %w", ErrCreateBundle, err)
 	}
 	result, err := artifact.Create(ctx, artifact.CreateOptions{
 		Config:      toInternalConfig(opts.Config),
@@ -76,15 +76,15 @@ func Create(ctx context.Context, bundleFile string, opts CreateOptions) (*Create
 		Streams:     s,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w from %q: %w", ErrCreateBundle, bundleFile, err)
 	}
 	if opts.Signing.Mode == "" || opts.Signing.Mode == SigningModeUnsigned {
 		s.Warn("bundle is unsigned; its integrity and origin are not established")
 	} else if err := Sign(ctx, SignOptions{Source: result.OutputPath, Signing: opts.Signing, Config: opts.Config, TmpDir: opts.Config.Options.TmpDir, Streams: s}); err != nil {
 		if removeErr := os.Remove(result.OutputPath); removeErr != nil && !os.IsNotExist(removeErr) {
-			return nil, fmt.Errorf("signing created bundle and removing unsigned output: %w", errors.Join(err, removeErr))
+			return nil, fmt.Errorf("%w: signing created bundle and removing unsigned output: %w", ErrCreateBundle, errors.Join(err, removeErr))
 		}
-		return nil, fmt.Errorf("signing created bundle: %w", err)
+		return nil, fmt.Errorf("%w: signing created bundle: %w", ErrCreateBundle, err)
 	}
 	return &CreateResult{BundleName: b.Metadata.Name, OutputPath: result.OutputPath}, nil
 }

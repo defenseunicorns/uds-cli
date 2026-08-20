@@ -66,17 +66,17 @@ func readFileValue(baseDir, path string) (cty.Value, error) {
 	}
 	info, err := os.Stat(path)
 	if err != nil {
-		return cty.NilVal, fmt.Errorf("stat file %q: %w", path, err)
+		return cty.NilVal, fmt.Errorf("stat file %q: %w: %w", path, ErrReadFile, err)
 	}
 	if !info.Mode().IsRegular() {
-		return cty.NilVal, fmt.Errorf("file %q is not a regular file", path)
+		return cty.NilVal, fmt.Errorf("file %q is not a regular file: %w", path, ErrInvalidFile)
 	}
 	contents, err := os.ReadFile(path)
 	if err != nil {
-		return cty.NilVal, fmt.Errorf("read file %q: %w", path, err)
+		return cty.NilVal, fmt.Errorf("read file %q: %w: %w", path, ErrReadFile, err)
 	}
 	if !utf8.Valid(contents) {
-		return cty.NilVal, fmt.Errorf("file %q is not valid UTF-8", path)
+		return cty.NilVal, fmt.Errorf("file %q is not valid UTF-8: %w", path, ErrInvalidFile)
 	}
 	return cty.StringVal(string(contents)), nil
 }
@@ -86,7 +86,7 @@ func readFileValue(baseDir, path string) (cty.Value, error) {
 func rejectFileFunctionWithoutSourcePath(hclFile *hcl.File, fileKind string) error {
 	body, ok := hclFile.Body.(*hclsyntax.Body)
 	if !ok {
-		return fmt.Errorf("unexpected HCL body type")
+		return ErrUnexpectedHCLBody
 	}
 
 	var callRange *hcl.Range
@@ -102,14 +102,14 @@ func rejectFileFunctionWithoutSourcePath(hclFile *hcl.File, fileKind string) err
 		return nil
 	}
 
-	return fmt.Errorf("file() requires a file-backed bundle source; %s cannot use file() at %s", fileKind, callRange)
+	return fmt.Errorf("file() requires a file-backed bundle source; %s cannot use file() at %s: %w", fileKind, callRange, ErrFileFunctionUnavailable)
 }
 
 // materializeDefaultsFile resolves file function calls in a defaults file.
 func materializeDefaultsFile(path string) ([]byte, error) {
 	src, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read defaults file: %w", err)
+		return nil, fmt.Errorf("%w %q: %w", ErrReadDefaultsFile, path, err)
 	}
 	if _, err := parseDefaultsContent(src, path); err != nil {
 		return nil, err
@@ -127,11 +127,11 @@ func (p *HCLParser) materializeBundleFileCalls(src []byte, filename, baseDir str
 	funcs := map[string]function.Function{"file": newFileFunction(baseDir)}
 	hclFile, diags := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("failed to parse HCL: %s", diags.Error())
+		return nil, fmt.Errorf("%w %q: %w", ErrParseHCL, filename, diags)
 	}
 	locals, localEvalContexts, err := p.extractLocals(hclFile, funcs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract locals: %w", err)
+		return nil, fmt.Errorf("%w from %q: %w", ErrExtractLocals, filename, err)
 	}
 	localVal := cty.EmptyObjectVal
 	if len(locals) > 0 {
@@ -144,11 +144,11 @@ func (p *HCLParser) materializeBundleFileCalls(src []byte, filename, baseDir str
 func materializeFileCallExpressions(src []byte, filename string, evalCtx *hcl.EvalContext, localEvalContexts map[int]*hcl.EvalContext) ([]byte, error) {
 	hclFile, diags := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("failed to parse HCL: %s", diags.Error())
+		return nil, fmt.Errorf("%w %q: %w", ErrParseHCL, filename, diags)
 	}
 	body, ok := hclFile.Body.(*hclsyntax.Body)
 	if !ok {
-		return nil, fmt.Errorf("unexpected HCL body type")
+		return nil, ErrUnexpectedHCLBody
 	}
 	expressions := fileCallContainingExpressions(body)
 	type replacement struct {
@@ -164,7 +164,7 @@ func materializeFileCallExpressions(src []byte, filename string, evalCtx *hcl.Ev
 		}
 		value, diags := expr.Value(exprEvalCtx)
 		if diags.HasErrors() {
-			return nil, fmt.Errorf("failed to evaluate HCL expression containing file(): %s", diags.Error())
+			return nil, fmt.Errorf("evaluating HCL expression containing file(): %w: %w", ErrEvaluateHCLExpression, diags)
 		}
 		replacements = append(replacements, replacement{r.Start.Byte, r.End.Byte, hclwrite.TokensForValue(value).Bytes()})
 	}
@@ -424,7 +424,7 @@ func decodePackageDependsOn(body hcl.Body) ([]decodedPackageRef, error) {
 
 	content, _, diags := body.PartialContent(attrSchema)
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("failed to read depends_on: %s", diags.Error())
+		return nil, fmt.Errorf("%w from depends_on attribute: %w", ErrReadPackageDependencies, diags)
 	}
 
 	attr, exists := content.Attributes["depends_on"]
@@ -435,7 +435,7 @@ func decodePackageDependsOn(body hcl.Body) ([]decodedPackageRef, error) {
 	// Get the list of expressions
 	exprs, diags := hcl.ExprList(attr.Expr)
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("depends_on must be a list of package references: %s", diags.Error())
+		return nil, fmt.Errorf("depends_on must be a list of package references: %w: %w", ErrInvalidPackageDependencies, diags)
 	}
 
 	var refs []decodedPackageRef
@@ -443,22 +443,22 @@ func decodePackageDependsOn(body hcl.Body) ([]decodedPackageRef, error) {
 		// Each element must be a static traversal (e.g., package.core_base)
 		traversal, diags := hcl.AbsTraversalForExpr(expr)
 		if diags.HasErrors() {
-			return nil, fmt.Errorf("depends_on element must be a package reference (e.g., package.core_base): %s", diags.Error())
+			return nil, fmt.Errorf("depends_on element must be a package reference (e.g., package.core_base): %w: %w", ErrInvalidPackageReference, diags)
 		}
 
 		// Validate the traversal structure: must be "package.<name>"
 		if len(traversal) != 2 {
-			return nil, fmt.Errorf("invalid package reference at %s: expected package.<name>", expr.Range())
+			return nil, fmt.Errorf("invalid package reference at %s: expected package.<name>: %w", expr.Range(), ErrInvalidPackageReference)
 		}
 
 		root, ok := traversal[0].(hcl.TraverseRoot)
 		if !ok || root.Name != "package" {
-			return nil, fmt.Errorf("invalid package reference at %s: must start with 'package'", expr.Range())
+			return nil, fmt.Errorf("invalid package reference at %s: must start with 'package': %w", expr.Range(), ErrInvalidPackageReference)
 		}
 
 		attrStep, ok := traversal[1].(hcl.TraverseAttr)
 		if !ok {
-			return nil, fmt.Errorf("invalid package reference at %s: expected package.<name>", expr.Range())
+			return nil, fmt.Errorf("invalid package reference at %s: expected package.<name>: %w", expr.Range(), ErrInvalidPackageReference)
 		}
 
 		refs = append(refs, decodedPackageRef{

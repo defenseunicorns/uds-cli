@@ -71,16 +71,16 @@ type ConfigOptions struct {
 // The context parameter is currently unused as none of the HCL parsing methods supports cancellation.
 func (p *HCLParser) ParseBundleConfig(_ context.Context, filePath string) (*UDSBundleConfig, error) {
 	if filePath == "" {
-		return nil, errEmpty("filePath")
+		return nil, EmptyParameterError{Name: "filePath"}
 	}
 	src, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read config file: %w", err)
+		return nil, fmt.Errorf("%w %q: %w", ErrReadConfigFile, filePath, err)
 	}
 
 	hclFile, hclDiagnostics := hclsyntax.ParseConfig(src, filePath, hcl.Pos{Line: 1, Column: 1})
 	if hclDiagnostics.HasErrors() {
-		return nil, fmt.Errorf("failed to parse config HCL: %s", hclDiagnostics.Error())
+		return nil, fmt.Errorf("%w %q: %w", ErrParseConfig, filePath, hclDiagnostics)
 	}
 	evalContext := configEvalContext(filePath)
 
@@ -88,12 +88,12 @@ func (p *HCLParser) ParseBundleConfig(_ context.Context, filePath string) (*UDSB
 	cfg := &UDSBundleConfig{}
 	diags := gohcl.DecodeBody(hclFile.Body, evalContext, cfg)
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("failed to decode config: %s", diags.Error())
+		return nil, fmt.Errorf("%w from %q: %w", ErrDecodeConfig, filePath, diags)
 	}
 
 	// Extract the free-form variables attribute from Remain
 	if cfg.Remain != nil {
-		vars, err := extractVariablesFromRemain(cfg.Remain, evalContext)
+		vars, err := extractVariablesFromRemain(cfg.Remain, evalContext, filePath)
 		if err != nil {
 			return nil, err
 		}
@@ -106,7 +106,7 @@ func (p *HCLParser) ParseBundleConfig(_ context.Context, filePath string) (*UDSB
 // extractVariablesFromRemain extracts the optional "variables" attribute from the
 // remaining HCL body. Variables are free-form (arbitrary nesting of scalars and objects),
 // so they can't be decoded via struct tags and must be manually converted from cty.Value.
-func extractVariablesFromRemain(body hcl.Body, evalContext *hcl.EvalContext) (Variables, error) {
+func extractVariablesFromRemain(body hcl.Body, evalContext *hcl.EvalContext, source string) (Variables, error) {
 	schema := &hcl.BodySchema{
 		Attributes: []hcl.AttributeSchema{
 			{Name: "variables", Required: false},
@@ -115,7 +115,7 @@ func extractVariablesFromRemain(body hcl.Body, evalContext *hcl.EvalContext) (Va
 
 	content, _, diags := body.PartialContent(schema)
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("failed to read variables: %s", diags.Error())
+		return nil, fmt.Errorf("%w from %q: %w", ErrReadVariables, source, diags)
 	}
 
 	attr, ok := content.Attributes["variables"]
@@ -125,17 +125,17 @@ func extractVariablesFromRemain(body hcl.Body, evalContext *hcl.EvalContext) (Va
 
 	val, diags := attr.Expr.Value(evalContext)
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("failed to evaluate variables: %s", diags.Error())
+		return nil, fmt.Errorf("%w from %q: %w", ErrEvaluateVariables, source, diags)
 	}
 
 	goVal, err := ctyValueToGo(val)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert variables: %w", err)
+		return nil, fmt.Errorf("%w from %q: %w", ErrConvertVariables, source, err)
 	}
 
 	m, ok := goVal.(Variables)
 	if !ok {
-		return nil, fmt.Errorf("variables must be an object, got %T", goVal)
+		return nil, fmt.Errorf("variables must be an object, got %T: %w", goVal, ErrInvalidVariables)
 	}
 
 	return m, nil
@@ -155,10 +155,10 @@ func extractVariablesFromRemain(body hcl.Body, evalContext *hcl.EvalContext) (Va
 // default branch report it as an unsupported variable type.
 func ctyValueToGo(val cty.Value) (any, error) {
 	if val.IsNull() {
-		return nil, fmt.Errorf("null values are not supported in config")
+		return nil, fmt.Errorf("null values are not supported in config: %w", ErrInvalidVariables)
 	}
 	if !val.IsKnown() {
-		return nil, fmt.Errorf("unknown values are not supported in config")
+		return nil, fmt.Errorf("unknown values are not supported in config: %w", ErrInvalidVariables)
 	}
 
 	ty := val.Type()
@@ -199,7 +199,7 @@ func ctyValueToGo(val cty.Value) (any, error) {
 		return out, nil
 	default:
 		// Loud-fail backstop — silent drops must not occur.
-		return nil, fmt.Errorf("unsupported variable type: %s", ty.FriendlyName())
+		return nil, fmt.Errorf("unsupported variable type: %s: %w", ty.FriendlyName(), ErrUnsupportedVariableType)
 	}
 }
 
@@ -209,11 +209,11 @@ func ctyValueToGo(val cty.Value) (any, error) {
 // The context parameter is currently unused as none of the HCL parsing methods supports cancellation.
 func ParseDefaults(_ context.Context, path string) (Variables, error) {
 	if path == "" {
-		return nil, errEmpty("path")
+		return nil, EmptyParameterError{Name: "path"}
 	}
 	src, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read defaults file: %w", err)
+		return nil, fmt.Errorf("%w %q: %w", ErrReadDefaultsFile, path, err)
 	}
 	return parseDefaultsContent(src, path)
 }
@@ -221,7 +221,7 @@ func ParseDefaults(_ context.Context, path string) (Variables, error) {
 // ParseDefaultsBytes parses defaults HCL without enabling file-backed expressions.
 func ParseDefaultsBytes(_ context.Context, src []byte) (Variables, error) {
 	if len(src) == 0 {
-		return nil, errEmpty("src")
+		return nil, EmptyParameterError{Name: "src"}
 	}
 	return parseDefaultsContentWithoutFile(src, BundleDefaultsFileName)
 }
@@ -238,7 +238,7 @@ func parseDefaultsContentWithoutFile(src []byte, path string) (Variables, error)
 func parseDefaultsContentWithFile(src []byte, path string, allowFile bool) (Variables, error) {
 	hclFile, diags := hclsyntax.ParseConfig(src, path, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("failed to parse defaults HCL: %s", diags.Error())
+		return nil, fmt.Errorf("%w %q: %w", ErrParseDefaults, path, diags)
 	}
 	if !allowFile {
 		if err := rejectFileFunctionWithoutSourcePath(hclFile, "defaults.uds.hcl"); err != nil {
@@ -249,13 +249,13 @@ func parseDefaultsContentWithFile(src []byte, path string, allowFile bool) (Vari
 	// JustAttributes rejects any blocks (e.g. options {}).
 	attrs, diags := hclFile.Body.JustAttributes()
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("defaults file must not contain blocks: %s", diags.Error())
+		return nil, fmt.Errorf("%w %q: %w", ErrInvalidDefaults, path, diags)
 	}
 
 	// Only "variables" is allowed at the top level.
 	for name := range attrs {
 		if name != "variables" {
-			return nil, fmt.Errorf("defaults file contains unexpected attribute %q; only \"variables\" is allowed", name)
+			return nil, fmt.Errorf("defaults file contains unexpected attribute %q; only \"variables\" is allowed: %w", name, ErrInvalidDefaults)
 		}
 	}
 
@@ -270,17 +270,17 @@ func parseDefaultsContentWithFile(src []byte, path string, allowFile bool) (Vari
 	}
 	val, diags := attr.Expr.Value(evalContext)
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("failed to evaluate variables: %s", diags.Error())
+		return nil, fmt.Errorf("%w in %q: %w", ErrEvaluateVariables, path, diags)
 	}
 
 	goVal, err := ctyValueToGo(val)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert variables: %w", err)
+		return nil, fmt.Errorf("%w from %q: %w", ErrConvertVariables, path, err)
 	}
 
 	m, ok := goVal.(Variables)
 	if !ok {
-		return nil, fmt.Errorf("variables must be an object, got %T", goVal)
+		return nil, fmt.Errorf("variables must be an object, got %T: %w", goVal, ErrInvalidVariables)
 	}
 
 	return m, nil

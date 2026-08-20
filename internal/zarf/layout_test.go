@@ -259,6 +259,9 @@ func TestExtractedArtifactPackageLayoutLoader_RejectsEscapingLayerTitle(t *testi
 	_, _, err := loader.LoadPackageLayout(t.Context(), &spec.Package{Name: "mypkg", Source: "oci://example.com/pkg:v1"}, dstDir, LoadOptions{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "escapes destination directory")
+	var pathErr LayerPathEscapeError
+	require.ErrorAs(t, err, &pathErr)
+	assert.Equal(t, escapingTitle, pathErr.Title)
 	assert.NoFileExists(t, escapedPath)
 }
 

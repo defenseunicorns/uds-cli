@@ -5,7 +5,6 @@ package bundle
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -100,11 +99,11 @@ func TestRunDeployWith_ClosesSourceOnDeployError(t *testing.T) {
 			return &preparedDeploySource{source: &bundlepkg.DeploySource{BundlePath: bundlePath}, close: func() error { closeCalls++; return nil }}, nil
 		},
 		deploy: func(context.Context, *bundlepkg.DeploySource, bundlepkg.DeployOptions) (*bundlepkg.DeployResult, error) {
-			return nil, fmt.Errorf("cluster unavailable")
+			return nil, bundlepkg.ErrDeployBundle
 		},
 	})
 
-	require.ErrorContains(t, err, "deployment failed: cluster unavailable")
+	require.ErrorIs(t, err, bundlepkg.ErrDeployBundle)
 	assert.Equal(t, 1, closeCalls)
 }
 

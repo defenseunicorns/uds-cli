@@ -27,10 +27,10 @@ func ValidateConfig(cfg *UDSBundleConfig) error {
 // validateConfigStructure asserts that cfg and its required sub-structs are non-nil.
 func validateConfigStructure(cfg *UDSBundleConfig) error {
 	if cfg == nil {
-		return fmt.Errorf("config is required (UDSBundleConfig must not be nil)")
+		return fmt.Errorf("config is required (UDSBundleConfig must not be nil): %w", ErrConfigRequired)
 	}
 	if cfg.Options == nil {
-		return fmt.Errorf("config.Options is required (ConfigOptions must not be nil)")
+		return fmt.Errorf("config.Options is required (ConfigOptions must not be nil): %w", ErrConfigOptionsRequired)
 	}
 	return nil
 }
@@ -61,10 +61,10 @@ func validateOptions(opts *ConfigOptions) error {
 // validateConcurrency enforces the [1, MaxConcurrency] range.
 func validateConcurrency(concurrency int) error {
 	if concurrency < 1 {
-		return fmt.Errorf("concurrency must be >= 1, got %d", concurrency)
+		return fmt.Errorf("concurrency must be >= 1, got %d: %w", concurrency, ErrInvalidConcurrency)
 	}
 	if concurrency > MaxConcurrency {
-		return fmt.Errorf("concurrency must be <= %d, got %d", MaxConcurrency, concurrency)
+		return fmt.Errorf("concurrency must be <= %d, got %d: %w", MaxConcurrency, concurrency, ErrInvalidConcurrency)
 	}
 	return nil
 }
@@ -78,12 +78,12 @@ func validateTmpDir(path string) error {
 	st, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("tmp_dir: directory does not exist: %s", path)
+			return fmt.Errorf("tmp_dir: directory does not exist: %s: %w: %w", path, ErrInvalidTemporaryDirectory, err)
 		}
-		return fmt.Errorf("tmp_dir: failed to stat directory %s: %w", path, err)
+		return fmt.Errorf("tmp_dir: failed to stat directory %s: %w: %w", path, ErrInvalidTemporaryDirectory, err)
 	}
 	if !st.IsDir() {
-		return fmt.Errorf("tmp_dir: path is not a directory: %s", path)
+		return fmt.Errorf("tmp_dir: path is not a directory: %s: %w", path, ErrInvalidTemporaryDirectory)
 	}
 	return nil
 }

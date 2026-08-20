@@ -18,14 +18,14 @@ func safeLayerDestinationPath(cleanDstDir, dstDir, title string) (string, error)
 
 	cleanDst, err := filepath.Abs(filepath.Clean(dst))
 	if err != nil {
-		return "", fmt.Errorf("resolving layer title %q: %w", title, err)
+		return "", fmt.Errorf("%w %q: %w", ErrResolvingLayerTitle, title, err)
 	}
 	rel, err := filepath.Rel(cleanDstDir, cleanDst)
 	if err != nil {
-		return "", fmt.Errorf("checking layer title %q: %w", title, err)
+		return "", fmt.Errorf("%w %q: %w", ErrCheckingLayerTitle, title, err)
 	}
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		return "", fmt.Errorf("layer title %q escapes destination directory", title)
+		return "", LayerTitleEscapesDestinationError{Title: title}
 	}
 
 	return dst, nil

@@ -38,16 +38,17 @@ type Store struct {
 // bodies are read.
 func CreateStore(root string) (*Store, error) {
 	if root == "" {
-		return nil, fmt.Errorf("OCI store root is required")
+		return nil, ErrStoreRootRequired
 	}
 	store, err := orasoci.New(root)
 	if err != nil {
-		return nil, fmt.Errorf("opening OCI layout %q: %w", root, err)
+		return nil, fmt.Errorf("%w %q: %w", ErrOpenLayout, root, err)
 	}
 	store.AutoSaveIndex = false
 	store.AutoGC = false
-	if err := os.MkdirAll(filepath.Join(root, ocispec.ImageBlobsDir, godigest.SHA256.String()), filesystem.PrivateDirectoryMode); err != nil {
-		return nil, fmt.Errorf("creating OCI blob directory: %w", err)
+	blobDir := filepath.Join(root, ocispec.ImageBlobsDir, godigest.SHA256.String())
+	if err := os.MkdirAll(blobDir, filesystem.PrivateDirectoryMode); err != nil {
+		return nil, fmt.Errorf("%w %q: %w", ErrCreateBlobDirectory, blobDir, err)
 	}
 	return &Store{Store: store, root: root}, nil
 }
@@ -64,10 +65,10 @@ func CreateStore(root string) (*Store, error) {
 // use OpenStore or CreateStore for those full-store operations.
 func OpenReadOnlyStore(root string) (content.Fetcher, error) {
 	if root == "" {
-		return nil, fmt.Errorf("OCI store root is required")
+		return nil, ErrStoreRootRequired
 	}
 	if _, err := os.Stat(filepath.Join(root, ocispec.ImageLayoutFile)); err != nil {
-		return nil, fmt.Errorf("opening OCI layout %q: %w", root, err)
+		return nil, fmt.Errorf("%w %q: %w", ErrOpenLayout, root, err)
 	}
 	return orasoci.NewStorageFromFS(os.DirFS(root)), nil
 }
@@ -84,14 +85,14 @@ func OpenReadOnlyStore(root string) (content.Fetcher, error) {
 // bounded reads; use OpenReadOnlyStore with FetchBytes for that case.
 func OpenStore(root string) (*Store, error) {
 	if root == "" {
-		return nil, fmt.Errorf("OCI store root is required")
+		return nil, ErrStoreRootRequired
 	}
 	if _, err := os.Stat(filepath.Join(root, ocispec.ImageLayoutFile)); err != nil {
-		return nil, fmt.Errorf("opening OCI layout %q: %w", root, err)
+		return nil, fmt.Errorf("%w %q: %w", ErrOpenLayout, root, err)
 	}
 	store, err := orasoci.New(root)
 	if err != nil {
-		return nil, fmt.Errorf("opening OCI layout %q: %w", root, err)
+		return nil, fmt.Errorf("%w %q: %w", ErrOpenLayout, root, err)
 	}
 	store.AutoSaveIndex = false
 	store.AutoGC = false
@@ -101,7 +102,7 @@ func OpenStore(root string) (*Store, error) {
 // BlobPath returns the filesystem path for a content digest.
 func (s *Store) BlobPath(d godigest.Digest) (string, error) {
 	if err := d.Validate(); err != nil {
-		return "", fmt.Errorf("invalid digest %q: %w", d, err)
+		return "", InvalidDigestError{Digest: d.String(), Err: err}
 	}
 	return filepath.Join(s.root, ocispec.ImageBlobsDir, d.Algorithm().String(), d.Encoded()), nil
 }
@@ -129,7 +130,7 @@ func (s *Store) PruneUnreferencedBlobs(ctx context.Context, streams iostreams.IO
 
 	blobDir := filepath.Join(s.root, ocispec.ImageBlobsDir)
 	if _, err := os.Stat(blobDir); err != nil {
-		return fmt.Errorf("listing OCI blobs: %w", err)
+		return fmt.Errorf("%w in %q: %w", ErrListBlobs, blobDir, err)
 	}
 	return filepath.WalkDir(blobDir, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
@@ -145,13 +146,13 @@ func (s *Store) PruneUnreferencedBlobs(ctx context.Context, streams iostreams.IO
 		algorithm := godigest.Algorithm(filepath.Base(filepath.Dir(path)))
 		digest := godigest.NewDigestFromEncoded(algorithm, encoded)
 		if err := digest.Validate(); err != nil {
-			return fmt.Errorf("parsing OCI blob digest %s/%s: %w", algorithm, encoded, err)
+			return fmt.Errorf("%w %s/%s: %w", ErrParseBlobDigest, algorithm, encoded, err)
 		}
 		if keep[digest] {
 			return nil
 		}
 		if err := s.Delete(ctx, ocispec.Descriptor{Digest: digest}); err != nil {
-			return fmt.Errorf("removing unreferenced blob %s: %w", digest, err)
+			return fmt.Errorf("%w %s: %w", ErrRemoveUnreferencedBlob, digest, err)
 		}
 		return nil
 	})
@@ -188,7 +189,7 @@ func reachableDigests(ctx context.Context, store content.Fetcher, roots []ocispe
 		desc := queue[0]
 		queue = queue[1:]
 		if size, ok := seenSizes[desc.Digest]; ok && size != desc.Size {
-			return nil, fmt.Errorf("descriptor %s has conflicting sizes %d and %d", desc.Digest, size, desc.Size)
+			return nil, ConflictingDescriptorSizeError{Digest: desc.Digest, RecordedSize: size, ActualSize: desc.Size}
 		}
 		seenSizes[desc.Digest] = desc.Size
 		if seen[desc.Digest] {
@@ -197,7 +198,7 @@ func reachableDigests(ctx context.Context, store content.Fetcher, roots []ocispe
 		seen[desc.Digest] = true
 		successors, err := content.Successors(ctx, store, desc)
 		if err != nil {
-			return nil, fmt.Errorf("reading successors of %s: %w", desc.Digest, err)
+			return nil, fmt.Errorf("%w of %s: %w", ErrReadSuccessors, desc.Digest, err)
 		}
 		// Successors fetches and verifies manifest-like nodes so it can parse
 		// their children. Descriptors with no successors may be content leaves,
@@ -206,7 +207,7 @@ func reachableDigests(ctx context.Context, store content.Fetcher, roots []ocispe
 		// buffering them with content.FetchAll.
 		if verifyLeafContent && len(successors) == 0 {
 			if err := verifyContent(ctx, store, desc); err != nil {
-				return nil, fmt.Errorf("verifying %s: %w", desc.Digest, err)
+				return nil, fmt.Errorf("verifying %s: %w: %w", desc.Digest, ErrVerifyDescriptor, err)
 			}
 		}
 		queue = append(queue, successors...)

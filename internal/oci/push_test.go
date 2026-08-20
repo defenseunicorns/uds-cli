@@ -64,6 +64,8 @@ func TestPush_NoOCILayout(t *testing.T) {
 		Config: cfg,
 	})
 
+	require.ErrorIs(t, err, ErrInvalidBundle)
+	require.ErrorIs(t, err, os.ErrNotExist)
 	require.ErrorContains(t, err, "does not appear to be a UDS bundle")
 	require.ErrorContains(t, err, "no OCI layout found")
 	assert.Nil(t, result)
@@ -268,6 +270,9 @@ func TestPushPackage_EmptyPackageDir(t *testing.T) {
 		Config: cfg,
 	})
 	require.ErrorContains(t, err, "packageDir must not be empty")
+	var parameterErr EmptyParameterError
+	require.ErrorAs(t, err, &parameterErr)
+	assert.Equal(t, "packageDir", parameterErr.Name)
 	assert.Nil(t, result)
 }
 

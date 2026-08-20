@@ -70,7 +70,12 @@ func TestFetchBytesRejectsOversizedDescriptor(t *testing.T) {
 	_, err := FetchBytes(t.Context(), store, desc)
 
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "larger than the")
+	require.ErrorContains(t, err, "larger than the")
+	var sizeErr DescriptorTooLargeError
+	require.ErrorAs(t, err, &sizeErr)
+	assert.Equal(t, desc.Digest, sizeErr.Digest)
+	assert.Equal(t, desc.Size, sizeErr.Size)
+	assert.Equal(t, int64(MaxFetchBytesSize), sizeErr.Limit)
 }
 
 func TestEnsureTagAvailableRejectsExistingTag(t *testing.T) {
@@ -80,7 +85,11 @@ func TestEnsureTagAvailableRejectsExistingTag(t *testing.T) {
 	require.NoError(t, store.Tag(t.Context(), desc, "v1"))
 
 	assert.NoError(t, EnsureTagAvailable(t.Context(), store, "missing"))
-	assert.ErrorContains(t, EnsureTagAvailable(t.Context(), store, "v1"), "target tag \"v1\" already exists")
+	err = EnsureTagAvailable(t.Context(), store, "v1")
+	require.ErrorContains(t, err, "target tag \"v1\" already exists")
+	var tagErr TargetTagExistsError
+	require.ErrorAs(t, err, &tagErr)
+	assert.Equal(t, "v1", tagErr.Tag)
 }
 
 func TestBundleChildDescriptorSetsBundlePlatform(t *testing.T) {

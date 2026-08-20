@@ -106,10 +106,10 @@ func (o *InspectOptions) Validate() error {
 		return err
 	}
 	if strings.TrimSpace(o.BundlePath) == "" {
-		return fmt.Errorf("source must not be empty")
+		return fmt.Errorf("source must not be empty: %w", ErrInvalidArgument)
 	}
 	if !isOCIReference(o.BundlePath) && !isTarZst(o.BundlePath) {
-		return fmt.Errorf("source must be a .tar.zst bundle artifact or OCI reference")
+		return fmt.Errorf("source must be a .tar.zst bundle artifact or OCI reference: %w", ErrUnsupportedSource)
 	}
 	if isOCIReference(o.BundlePath) {
 		if _, err := udsoci.ReferenceIdentifier(o.BundlePath); err != nil {
@@ -125,15 +125,15 @@ func (o *InspectOptions) Validate() error {
 	info, err := os.Stat(o.BundlePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("bundle artifact not found: %s", o.BundlePath)
+			return fmt.Errorf("bundle artifact not found: %s: %w: %w", o.BundlePath, ErrPathNotFound, err)
 		}
-		return fmt.Errorf("cannot access bundle artifact %s: %w", o.BundlePath, err)
+		return fmt.Errorf("cannot access bundle artifact %s: %w: %w", o.BundlePath, ErrInvalidPath, err)
 	}
 	if info.IsDir() {
-		return fmt.Errorf("bundle artifact path is a directory: %s", o.BundlePath)
+		return fmt.Errorf("bundle artifact path is a directory: %s: %w", o.BundlePath, ErrInvalidPath)
 	}
 	if !info.Mode().IsRegular() {
-		return fmt.Errorf("bundle artifact path is not a regular file: %s", o.BundlePath)
+		return fmt.Errorf("bundle artifact path is not a regular file: %s: %w", o.BundlePath, ErrInvalidPath)
 	}
 	return nil
 }
@@ -158,7 +158,7 @@ func (o *InspectOptions) Run(ctx context.Context) error {
 		Streams:                   o.IOStreams,
 	})
 	if err != nil {
-		return fmt.Errorf("inspecting bundle: %w", err)
+		return err
 	}
 	return o.Printer.PrintObj(result, o.Out())
 }

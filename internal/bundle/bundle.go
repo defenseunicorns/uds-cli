@@ -123,12 +123,12 @@ var _ Parser = &HCLParser{}
 // diagnostics are written via p.streams.
 func (p *HCLParser) ParseBundleFile(ctx context.Context, filePath string) (*spec.UDSBundle, error) {
 	if filePath == "" {
-		return nil, errEmpty("filePath")
+		return nil, EmptyParameterError{Name: "filePath"}
 	}
 	p.streams.Debug("reading bundle file", "path", filePath)
 	src, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read bundle file: %w", err)
+		return nil, fmt.Errorf("%w %q: %w", ErrReadBundleFile, filePath, err)
 	}
 	return p.parseBundleContent(ctx, src, filePath, filepath.Dir(filePath), true)
 }
@@ -138,7 +138,7 @@ func (p *HCLParser) ParseBundleFile(ctx context.Context, filePath string) (*spec
 // diagnostics are written via p.streams.
 func (p *HCLParser) ParseBundleBytes(ctx context.Context, src []byte) (*spec.UDSBundle, error) {
 	if len(src) == 0 {
-		return nil, errEmpty("src")
+		return nil, EmptyParameterError{Name: "src"}
 	}
 	return p.parseBundleContent(ctx, src, "bundle.uds.hcl", "", false)
 }
@@ -148,7 +148,7 @@ func (p *HCLParser) ParseBundleBytes(ctx context.Context, src []byte) (*spec.UDS
 func (p *HCLParser) ParseAndMaterializeBundleFile(ctx context.Context, path string) (*spec.UDSBundle, []byte, error) {
 	src, err := os.ReadFile(path)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot read bundle file: %w", err)
+		return nil, nil, fmt.Errorf("%w %q: %w", ErrReadBundleFile, path, err)
 	}
 	bundle, err := p.parseBundleContent(ctx, src, path, filepath.Dir(path), true)
 	if err != nil {
@@ -167,7 +167,7 @@ func (p *HCLParser) ParseAndMaterializeBundleFile(ctx context.Context, path stri
 func (p *HCLParser) parseBundleContent(ctx context.Context, src []byte, filename, baseDir string, allowFile bool) (*spec.UDSBundle, error) {
 	hclFile, hclDiagnostics := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
 	if hclDiagnostics.HasErrors() {
-		return nil, fmt.Errorf("failed to parse HCL: %s", hclDiagnostics.Error())
+		return nil, fmt.Errorf("%w %q: %w", ErrParseHCL, filename, hclDiagnostics)
 	}
 	if !allowFile {
 		if err := rejectFileFunctionWithoutSourcePath(hclFile, "bundle.uds.hcl"); err != nil {
@@ -186,14 +186,14 @@ func (p *HCLParser) parseBundleContent(ctx context.Context, src []byte, filename
 	}
 	p.streams.Debug("locals extracted", "count", len(locals))
 
-	return p.decodeBundleWithLocals(hclFile, locals, funcs)
+	return p.decodeBundleWithLocals(hclFile, locals, funcs, filename)
 }
 
 // decodeBundleWithLocals decodes the given HCL file into a UDSBundle struct
 // using an EvalContext populated with the extracted locals.
 // It uses gohcl for standard fields and post-processes the Package.Remain
 // field to extract depends_on expressions into []PackageRef.
-func (p *HCLParser) decodeBundleWithLocals(hclFile *hcl.File, locals map[string]cty.Value, funcs map[string]function.Function) (*spec.UDSBundle, error) {
+func (p *HCLParser) decodeBundleWithLocals(hclFile *hcl.File, locals map[string]cty.Value, funcs map[string]function.Function, filename string) (*spec.UDSBundle, error) {
 	localVal := cty.EmptyObjectVal
 	if len(locals) > 0 {
 		localVal = cty.ObjectVal(locals)
@@ -211,7 +211,7 @@ func (p *HCLParser) decodeBundleWithLocals(hclFile *hcl.File, locals map[string]
 	var decoded decodedBundle
 	diags := gohcl.DecodeBody(hclFile.Body, ctx, &decoded)
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("failed to decode bundle: %s", diags.Error())
+		return nil, fmt.Errorf("%w from %q: %w", ErrDecodeBundle, filename, diags)
 	}
 
 	// Post-process each package to extract depends_on from Remain
@@ -223,7 +223,7 @@ func (p *HCLParser) decodeBundleWithLocals(hclFile *hcl.File, locals map[string]
 
 		refs, err := decodePackageDependsOn(pkg.Remain)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode depends_on for package %q: %w", pkg.Name, err)
+			return nil, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrDecodePackageDependencies, err)
 		}
 		pkg.DependsOn = refs
 	}

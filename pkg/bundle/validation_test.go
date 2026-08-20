@@ -89,6 +89,16 @@ func TestValidateOperationOptions(t *testing.T) {
 	}
 }
 
+func TestValidationErrorContracts(t *testing.T) {
+	t.Parallel()
+
+	require.ErrorIs(t, (DeployOptions{}).Validate(), ErrInvalidConfig)
+	require.ErrorIs(t, (DeployPackageOptions{Config: validValidationConfig()}).Validate(), ErrBundleDirRequired)
+	require.ErrorIs(t, (ReconfigureOptions{Config: validValidationConfig()}).Validate(), ErrInvalidSuffix)
+	require.ErrorIs(t, (SigningOptions{Mode: SigningModeKey}).Validate(), ErrInvalidSigningOptions)
+	require.ErrorIs(t, (VerificationPolicy{}).Validate(), ErrInvalidVerificationPolicy)
+}
+
 func TestFormatDependencyError(t *testing.T) {
 	violations := map[string][]string{
 		"core":  {"nginx", "podinfo"},
@@ -104,7 +114,7 @@ func TestFormatDependencyError(t *testing.T) {
 	assert.NotContains(t, msg, "--force")
 	assert.Less(t, strings.Index(msg, `"core"`), strings.Index(msg, `"nginx"`))
 
-	var violationError *dependencyViolationError
+	var violationError *DependencyViolationError
 	require.ErrorAs(t, err, &violationError)
 	assert.Equal(t, "cannot remove package(s) with bundle dependents", violationError.header)
 	assert.Equal(t, "is required by", violationError.relation)

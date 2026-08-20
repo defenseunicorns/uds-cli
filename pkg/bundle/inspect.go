@@ -104,14 +104,14 @@ func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 	status := BundleSignatureStatusNotChecked
 	if opts.SkipSignatureVerification {
 		if err := checkSkippedSignatureEvidence(ctx, opts); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w %q: %w", ErrInspectBundle, opts.Source, err)
 		}
 		status = BundleSignatureStatusSkipped
 		warnSkippedSignatureVerification(streams)
 	} else if policy.configured() {
 		verifiedSource, cleanup, err := stageInspectSource(ctx, opts, policy, streams)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w %q: %w", ErrInspectBundle, opts.Source, err)
 		}
 		defer cleanup()
 		opts.Source = verifiedSource
@@ -126,7 +126,7 @@ func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 		Streams: streams,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w %q: %w", ErrInspectBundle, opts.Source, err)
 	}
 
 	result := &InspectResult{
@@ -141,7 +141,7 @@ func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 	for i, pkg := range internalResult.Packages {
 		summary, ok := internalResult.PackageSignatures[pkg.Name]
 		if !ok {
-			return nil, fmt.Errorf("package %q was not found in inspected bundle", pkg.Name)
+			return nil, fmt.Errorf("%w %q: package %q was not found in inspected bundle", ErrInspectBundle, opts.Source, pkg.Name)
 		}
 		dependsOn := make([]string, len(pkg.DependsOn))
 		for j, dependency := range pkg.DependsOn {
@@ -166,7 +166,7 @@ func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 // Validate validates inspection options without performing I/O.
 func (o InspectOptions) Validate() error {
 	if strings.TrimSpace(o.Source) == "" {
-		return fmt.Errorf("source must not be empty")
+		return fmt.Errorf("source is required: %w", ErrSourceRequired)
 	}
 	if err := validateConfig(o.Config); err != nil {
 		return err
@@ -175,8 +175,8 @@ func (o InspectOptions) Validate() error {
 		return fmt.Errorf("source must be a .tar.zst bundle artifact or OCI reference")
 	}
 	if udsoci.IsOCIReference(o.Source) {
-		if _, err := udsoci.ReferenceIdentifier(o.Source); err != nil {
-			return err
+		if err := validateOCIReference(o.Source); err != nil {
+			return fmt.Errorf("%w %q: %w", ErrInspectBundle, o.Source, err)
 		}
 	}
 	if !o.SkipSignatureVerification {

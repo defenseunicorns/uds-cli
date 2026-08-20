@@ -21,7 +21,7 @@ import (
 // ValidatePackageSignatureVerification validates the create-time signature policy for a package.
 func ValidatePackageSignatureVerification(packageName string, verification *spec.PackageSignatureVerification) error {
 	if verification == nil {
-		return fmt.Errorf("package %q: signature_verification block is required", packageName)
+		return fmt.Errorf("package %q: signature_verification block is required: %w", packageName, ErrInvalidSignatureVerification)
 	}
 
 	verify := true
@@ -29,19 +29,19 @@ func ValidatePackageSignatureVerification(packageName string, verification *spec
 		verify = *verification.Verify
 	}
 	if verification.PublicKey != "" && strings.TrimSpace(verification.PublicKey) == "" {
-		return fmt.Errorf("package %q: signature_verification.public_key must not be blank", packageName)
+		return fmt.Errorf("package %q: signature_verification.public_key must not be blank: %w", packageName, ErrInvalidSignatureVerification)
 	}
 	hasPublicKey := strings.TrimSpace(verification.PublicKey) != ""
 	hasKeyless := verification.Keyless != nil
 
 	if !verify {
 		if hasPublicKey || hasKeyless {
-			return fmt.Errorf("package %q: signature_verification.verify = false cannot be combined with public_key or keyless", packageName)
+			return fmt.Errorf("package %q: signature_verification.verify = false cannot be combined with public_key or keyless: %w", packageName, ErrInvalidSignatureVerification)
 		}
 		return nil
 	}
 	if hasPublicKey == hasKeyless {
-		return fmt.Errorf("package %q: signature_verification must configure exactly one of public_key or keyless when verification is enabled", packageName)
+		return fmt.Errorf("package %q: signature_verification must configure exactly one of public_key or keyless when verification is enabled: %w", packageName, ErrInvalidSignatureVerification)
 	}
 	if hasPublicKey {
 		return nil
@@ -51,21 +51,21 @@ func ValidatePackageSignatureVerification(packageName string, verification *spec
 	hasIdentity := strings.TrimSpace(keyless.CertificateIdentity) != ""
 	hasIdentityRegexp := strings.TrimSpace(keyless.CertificateIdentityRegexp) != ""
 	if hasIdentity == hasIdentityRegexp {
-		return fmt.Errorf("package %q: keyless verification requires exactly one of certificate_identity or certificate_identity_regexp", packageName)
+		return fmt.Errorf("package %q: keyless verification requires exactly one of certificate_identity or certificate_identity_regexp: %w", packageName, ErrInvalidSignatureVerification)
 	}
 	if hasIdentityRegexp {
 		if _, err := regexp.Compile(keyless.CertificateIdentityRegexp); err != nil {
-			return fmt.Errorf("package %q: invalid certificate_identity_regexp: %w", packageName, err)
+			return fmt.Errorf("package %q: invalid certificate_identity_regexp: %w: %w", packageName, ErrInvalidSignatureVerification, err)
 		}
 	}
 	hasIssuer := strings.TrimSpace(keyless.CertificateOIDCIssuer) != ""
 	hasIssuerRegexp := strings.TrimSpace(keyless.CertificateOIDCIssuerRegexp) != ""
 	if hasIssuer == hasIssuerRegexp {
-		return fmt.Errorf("package %q: keyless verification requires exactly one of certificate_oidc_issuer or certificate_oidc_issuer_regexp", packageName)
+		return fmt.Errorf("package %q: keyless verification requires exactly one of certificate_oidc_issuer or certificate_oidc_issuer_regexp: %w", packageName, ErrInvalidSignatureVerification)
 	}
 	if hasIssuerRegexp {
 		if _, err := regexp.Compile(keyless.CertificateOIDCIssuerRegexp); err != nil {
-			return fmt.Errorf("package %q: invalid certificate_oidc_issuer_regexp: %w", packageName, err)
+			return fmt.Errorf("package %q: invalid certificate_oidc_issuer_regexp: %w: %w", packageName, ErrInvalidSignatureVerification, err)
 		}
 	}
 	return nil
@@ -74,10 +74,10 @@ func ValidatePackageSignatureVerification(packageName string, verification *spec
 // PackageSignatureVerificationOptions translates a package signature policy into Zarf layout options.
 func PackageSignatureVerificationOptions(pkg *spec.Package, verificationDir, tmpDir string) (layout.PackageLayoutOptions, error) {
 	if pkg == nil {
-		return layout.PackageLayoutOptions{}, fmt.Errorf("package is required")
+		return layout.PackageLayoutOptions{}, ErrPackageRequired
 	}
 	if pkg.SignatureVerification == nil {
-		return layout.PackageLayoutOptions{}, fmt.Errorf("package %q: signature_verification block is required", pkg.Name)
+		return layout.PackageLayoutOptions{}, fmt.Errorf("package %q: signature_verification block is required: %w", pkg.Name, ErrInvalidSignatureVerification)
 	}
 	verification := pkg.SignatureVerification
 	verify := true
@@ -120,11 +120,11 @@ func PackageSignatureVerificationOptions(pkg *spec.Package, verificationDir, tmp
 func writeVerificationMaterial(dir, packageName, filename, contents string) (string, error) {
 	packageDir := filepath.Join(dir, sanitizeFileComponent(packageName))
 	if err := os.MkdirAll(packageDir, filesystem.PrivateDirectoryMode); err != nil {
-		return "", fmt.Errorf("creating verification material directory: %w", err)
+		return "", fmt.Errorf("%w directory %q for package %q: %w", ErrCreateVerificationMaterial, packageDir, packageName, err)
 	}
 	path := filepath.Join(packageDir, filename)
 	if err := os.WriteFile(path, []byte(contents), filesystem.PrivateFileMode); err != nil {
-		return "", fmt.Errorf("writing verification material: %w", err)
+		return "", fmt.Errorf("%w %q for package %q: %w", ErrWriteVerificationMaterial, path, packageName, err)
 	}
 	return path, nil
 }

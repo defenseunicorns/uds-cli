@@ -32,7 +32,7 @@ func WriteTarZst(ctx context.Context, streams iostreams.IOStreams, dst, srcDir s
 	archivePerm := archiveFilePerm
 	if st, err := os.Stat(dst); err == nil {
 		if st.IsDir() {
-			return fmt.Errorf("output path %q is a directory", dst)
+			return OutputPathIsDirError{Path: dst}
 		}
 		archivePerm = st.Mode().Perm()
 	} else if !os.IsNotExist(err) {
@@ -55,7 +55,7 @@ func WriteTarZst(ctx context.Context, streams iostreams.IOStreams, dst, srcDir s
 			continue
 		}
 		if !f.Mode().IsRegular() {
-			return fmt.Errorf("unsupported file type %q in bundle staging dir", f.NameInArchive)
+			return UnsupportedFileTypeError{Path: f.NameInArchive}
 		}
 		regular = append(regular, f)
 	}
@@ -182,21 +182,21 @@ func bundleNameFromDefinitionLayer(ctx context.Context, streams iostreams.IOStre
 		}
 	}
 	if cfgEntry == nil {
-		return "", fmt.Errorf("bundle definition manifest not found in index")
+		return "", ErrManifestNotFound
 	}
 
 	store, err := oci.OpenReadOnlyStore(ociDir)
 	if err != nil {
-		return "", fmt.Errorf("opening OCI layout: %w", err)
+		return "", err
 	}
 	cfgBytes, err := oci.FetchBytes(ctx, store, *cfgEntry)
 	if err != nil {
-		return "", fmt.Errorf("reading config manifest blob: %w", err)
+		return "", fmt.Errorf("%w %s: %w", ErrReadingConfigManifest, cfgEntry.Digest, err)
 	}
 
 	var manifest ocispec.Manifest
 	if err := json.Unmarshal(cfgBytes, &manifest); err != nil {
-		return "", fmt.Errorf("parsing config manifest: %w", err)
+		return "", fmt.Errorf("%w %s: %w", ErrParsingConfigManifest, cfgEntry.Digest, err)
 	}
 
 	var hclDesc ocispec.Descriptor
@@ -207,17 +207,17 @@ func bundleNameFromDefinitionLayer(ctx context.Context, streams iostreams.IOStre
 		}
 	}
 	if hclDesc.Digest == "" {
-		return "", fmt.Errorf("bundle HCL layer not found in config manifest")
+		return "", ErrHCLLayerNotFound
 	}
 
 	hclBytes, err := oci.FetchBytes(ctx, store, hclDesc)
 	if err != nil {
-		return "", fmt.Errorf("reading HCL blob: %w", err)
+		return "", fmt.Errorf("%w %s: %w", ErrReadingHCLBlob, hclDesc.Digest, err)
 	}
 
 	b, err := bundleinternal.NewHCLParser(arch, streams).ParseBundleBytes(ctx, hclBytes)
 	if err != nil {
-		return "", fmt.Errorf("parsing bundle HCL: %w", err)
+		return "", fmt.Errorf("%w %s: %w", ErrParsingHCLBlob, hclDesc.Digest, err)
 	}
 
 	if arch == "" {

@@ -58,6 +58,21 @@ func TestFindPackageManifestRejectsInvalidEntries(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := findPackageManifest(ocispec.Index{Manifests: tt.manifests}, spec.Package{Name: "pkg", Source: "pkg"})
 			require.ErrorContains(t, err, tt.wantErrFrag)
+			switch tt.name {
+			case "nested index":
+				var mediaTypeErr UnsupportedPackageEntryMediaTypeError
+				require.ErrorAs(t, err, &mediaTypeErr)
+				assert.Equal(t, "pkg", mediaTypeErr.Package)
+				assert.Equal(t, ocispec.MediaTypeImageIndex, mediaTypeErr.MediaType)
+			case "legacy ref name only":
+				var annotationErr MissingPackageManifestAnnotationError
+				require.ErrorAs(t, err, &annotationErr)
+				assert.Equal(t, udsoci.AnnotationPackageName, annotationErr.Annotation)
+			case "duplicate manifests":
+				var multipleErr MultiplePackageManifestEntriesError
+				require.ErrorAs(t, err, &multipleErr)
+				assert.Equal(t, "pkg", multipleErr.Package)
+			}
 		})
 	}
 }

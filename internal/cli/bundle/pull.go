@@ -89,7 +89,7 @@ func (o *PullOptions) Complete(cmd *cobra.Command, args []string) error {
 // Config validation is performed by the library entry point.
 func (o *PullOptions) Validate() error {
 	if o.OCIReference == "" {
-		return fmt.Errorf("OCI reference is required")
+		return fmt.Errorf("OCI reference is required: %w", ErrInvalidArgument)
 	}
 	if err := ValidateDir(o.OutputDir); err != nil {
 		return fmt.Errorf("--output-dir: %w", err)

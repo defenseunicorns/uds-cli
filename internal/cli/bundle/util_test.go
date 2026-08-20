@@ -4,6 +4,7 @@
 package bundle
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -136,6 +137,8 @@ func TestValidateDir(t *testing.T) {
 
 	t.Run("nonexistent path", func(t *testing.T) {
 		err := ValidateDir("/nonexistent/path/tmp")
+		require.ErrorIs(t, err, ErrPathNotFound)
+		require.ErrorIs(t, err, os.ErrNotExist)
 		require.ErrorContains(t, err, "directory does not exist")
 	})
 
@@ -253,6 +256,17 @@ func TestValidateBundlePath(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateBundlePathClassifiesAccessFailure(t *testing.T) {
+	parentFile := filepath.Join(t.TempDir(), "not-a-directory")
+	require.NoError(t, os.WriteFile(parentFile, nil, 0o600))
+
+	err := ValidateBundlePath(filepath.Join(parentFile, bundleFileName))
+	require.ErrorIs(t, err, ErrInvalidPath)
+	require.NotErrorIs(t, err, ErrPathNotFound)
+	var pathErr *fs.PathError
+	require.ErrorAs(t, err, &pathErr)
 }
 
 func TestValidateBundlePath_AllowArtifact(t *testing.T) {

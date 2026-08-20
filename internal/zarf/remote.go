@@ -38,20 +38,20 @@ func (s *remoteSource) newZociRemoteForRef(ctx context.Context, ref string) (*zo
 func (s *remoteSource) resolveFilteredLayers(ctx context.Context, filter filters.ComponentFilterStrategy) (*resolvedLayers, error) {
 	remote, err := s.newZociRemote(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("creating OCI remote for %q: %w", s.ref, err)
+		return nil, fmt.Errorf("creating OCI remote for %q: %w: %w", s.ref, ErrCreateOCIRemote, err)
 	}
 	rootDesc, err := remote.ResolveRoot(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("resolving root manifest for %q: %w", s.ref, err)
+		return nil, fmt.Errorf("resolving root manifest for %q: %w: %w", s.ref, ErrResolveRootManifest, err)
 	}
 	pinnedRef := pinnedRemoteReference(remote, rootDesc)
 	remote, err = s.newZociRemoteForRef(ctx, pinnedRef)
 	if err != nil {
-		return nil, fmt.Errorf("creating pinned OCI remote for %q: %w", pinnedRef, err)
+		return nil, fmt.Errorf("creating pinned OCI remote for %q: %w: %w", pinnedRef, ErrCreateOCIRemote, err)
 	}
 	root, err := remote.FetchManifest(ctx, rootDesc)
 	if err != nil {
-		return nil, fmt.Errorf("fetching root manifest for %q: %w", pinnedRef, err)
+		return nil, fmt.Errorf("fetching root manifest for %q: %w: %w", pinnedRef, ErrFetchRootManifest, err)
 	}
 
 	layers := root.Layers
@@ -59,7 +59,7 @@ func (s *remoteSource) resolveFilteredLayers(ctx context.Context, filter filters
 	if !oci.IsEmptyDescriptor(root.Locate(layout.ZarfYAML)) {
 		layers, isPartial, err = selectZarfLayers(ctx, root, remote, filter)
 		if err != nil {
-			return nil, fmt.Errorf("resolving layers for %q: %w", s.ref, err)
+			return nil, fmt.Errorf("resolving layers for %q: %w: %w", s.ref, ErrResolvePackageLayers, err)
 		}
 	}
 	s.streams.Debug("resolved package layers", "ref", s.ref, "layers", len(layers), "partial", isPartial)
@@ -90,12 +90,12 @@ func (s *remoteSource) pullFilteredWithSelection(ctx context.Context, tmpDir str
 		return nil, nil, err
 	}
 	if _, err := resolved.remote.PullPackage(ctx, tmpDir, s.concurrency(), resolved.layers...); err != nil {
-		return nil, nil, fmt.Errorf("pulling package %q: %w", s.ref, err)
+		return nil, nil, fmt.Errorf("pulling package %q: %w: %w", s.ref, ErrPullPackage, err)
 	}
 	loadOptions.IsPartial = resolved.isPartial
 	pkgLayout, err := layout.LoadFromDir(ctx, tmpDir, loadOptions)
 	if err != nil {
-		return nil, nil, fmt.Errorf("loading package layout for %q: %w", s.ref, err)
+		return nil, nil, fmt.Errorf("loading package layout for %q: %w: %w", s.ref, ErrLoadPackage, err)
 	}
 	return pkgLayout, resolved.layers, nil
 }
@@ -114,7 +114,7 @@ func (s *remoteSource) VerifyAndIngestFiltered(ctx context.Context, tmpDir strin
 	}()
 	desc, err := copySelectedPackage(ctx, pkgLayout, selectedLayers, store)
 	if err != nil {
-		return nil, fmt.Errorf("ingesting verified package %q: %w", s.ref, err)
+		return nil, fmt.Errorf("ingesting verified package %q: %w: %w", s.ref, ErrIngestPackage, err)
 	}
 	return []ocispec.Descriptor{desc}, nil
 }
@@ -124,7 +124,7 @@ func (s *remoteSource) VerifyAndIngestFiltered(ctx context.Context, tmpDir strin
 func (s *remoteSource) IngestFiltered(ctx context.Context, filter filters.ComponentFilterStrategy, store *udsoci.Store) ([]ocispec.Descriptor, error) {
 	tmpDir, err := os.MkdirTemp(s.opts.TmpDir, "uds-package-ingest-*")
 	if err != nil {
-		return nil, fmt.Errorf("creating package ingest workspace: %w", err)
+		return nil, fmt.Errorf("creating package ingest workspace: %w: %w", ErrCreatePackageWorkspace, err)
 	}
 	pkgLayout, selectedLayers, err := s.pullFilteredWithSelection(ctx, tmpDir, layout.PackageLayoutOptions{
 		Filter:               filter,
@@ -141,7 +141,7 @@ func (s *remoteSource) IngestFiltered(ctx context.Context, filter filters.Compon
 	}()
 	desc, err := copySelectedPackage(ctx, pkgLayout, selectedLayers, store)
 	if err != nil {
-		return nil, fmt.Errorf("ingesting package %q: %w", s.ref, err)
+		return nil, fmt.Errorf("ingesting package %q: %w: %w", s.ref, ErrIngestPackage, err)
 	}
 	return []ocispec.Descriptor{desc}, nil
 }
