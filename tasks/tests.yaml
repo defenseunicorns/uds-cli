@@ -20,7 +20,7 @@ tasks:
   - name: preparation
     description: run local preparation checks
     actions:
-      - task: legacy:unit
+      - task: unit
       - task: architecture
 
   - name: e2e-ghcr
