@@ -1,0 +1,7 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+# Rendered by UDS before being passed to Zarf as Zarf values.
+# cluster_name from config.uds.hcl is used here as a Zarf value (via values_files templating)
+# and is separately available as the CLUSTER_NAME Zarf variable (via SetVariables).
+clusterName: {{ .vars.cluster_name }}

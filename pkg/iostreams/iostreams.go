@@ -1,0 +1,148 @@
+// Copyright 2026 Defense Unicorns
+// SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+// Package iostreams provides standard I/O stream abstractions for CLI commands.
+package iostreams
+
+import (
+	"bytes"
+	"io"
+	"log/slog"
+	"sync"
+)
+
+type lockedWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (lw *lockedWriter) Write(p []byte) (int, error) {
+	lw.mu.Lock()
+	defer lw.mu.Unlock()
+	return lw.w.Write(p)
+}
+
+// synchronize wraps w in a lockedWriter. It is idempotent: if w is already a
+// *lockedWriter it is returned unchanged. nil is passed through unchanged.
+func synchronize(w io.Writer) io.Writer {
+	if w == nil {
+		return nil
+	}
+	if _, ok := w.(*lockedWriter); ok {
+		return w
+	}
+	return &lockedWriter{w: w}
+}
+
+// IOStreams provides standard input and output streams.
+type IOStreams struct {
+	in     io.Reader
+	out    io.Writer // *lockedWriter via any public constructor, or nil in the zero value
+	errOut io.Writer // *lockedWriter via any public constructor, or nil in the zero value
+	// log is an optional structured logger; nil means leveled methods are no-ops.
+	log *slog.Logger
+	// logLevel controls a logger we created (see logger.Bind); nil for a
+	// caller-supplied one. The pointer is shared across value copies, so setting
+	// it re-levels the live logger everywhere.
+	logLevel *slog.LevelVar
+}
+
+// New builds an IOStreams over caller-supplied streams, synchronizing Out/ErrOut.
+// nil out/errOut are stored as nil; Out() and ErrOut() return io.Discard for nil fields
+// so direct writes are always safe. If the same writer is passed for both out
+// and errOut, the two locks are independent; callers combining sinks must
+// pre-synchronize the underlying writer.
+func New(in io.Reader, out, errOut io.Writer) IOStreams {
+	return IOStreams{
+		in:     in,
+		out:    synchronize(out),
+		errOut: synchronize(errOut),
+	}
+}
+
+// NewTestIOStreams returns a valid IOStreams for testing with bytes.Buffer.
+// It returns the IOStreams and separate buffers for In, Out, and ErrOut for inspection.
+func NewTestIOStreams() (IOStreams, *bytes.Buffer, *bytes.Buffer, *bytes.Buffer) {
+	in := &bytes.Buffer{}
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+
+	return IOStreams{
+		in:     in,
+		out:    synchronize(out),
+		errOut: synchronize(errOut),
+	}, in, out, errOut
+}
+
+// In returns the stdin reader.
+func (s IOStreams) In() io.Reader { return s.in }
+
+// Out returns the stdout writer. Returns io.Discard if no writer was configured.
+func (s IOStreams) Out() io.Writer {
+	if s.out == nil {
+		return io.Discard
+	}
+	return s.out
+}
+
+// ErrOut returns the stderr writer. Returns io.Discard if no writer was configured.
+func (s IOStreams) ErrOut() io.Writer {
+	if s.errOut == nil {
+		return io.Discard
+	}
+	return s.errOut
+}
+
+// Logger returns the logger attached via WithLogger, or nil when none is set.
+// Library entrypoints use this to honor a caller-supplied logger instead of
+// binding their own (see logger.Bind).
+func (s IOStreams) Logger() *slog.Logger {
+	return s.log
+}
+
+// LogLevel returns the level control for a logger created by logger.Bind, or nil
+// for a caller-supplied logger (whose level is not ours to change) or none.
+func (s IOStreams) LogLevel() *slog.LevelVar {
+	return s.logLevel
+}
+
+// WithLogger returns a copy of s whose Debug/Info/Warn/Error methods delegate to l.
+// level is the LevelVar controlling l, which lets logger.Bind re-level it in place;
+// pass nil for a caller-supplied logger whose level is not ours to change.
+func (s IOStreams) WithLogger(l *slog.Logger, level *slog.LevelVar) IOStreams {
+	s.log = l
+	s.logLevel = level
+	return s
+}
+
+// Debug writes a debug-level diagnostic via the configured logger.
+// It is a no-op when no logger has been set (see WithLogger).
+func (s IOStreams) Debug(msg string, args ...any) {
+	if s.log != nil {
+		s.log.Debug(msg, args...)
+	}
+}
+
+// Info writes an info-level diagnostic via the configured logger.
+// It is a no-op when no logger has been set (see WithLogger).
+func (s IOStreams) Info(msg string, args ...any) {
+	if s.log != nil {
+		s.log.Info(msg, args...)
+	}
+}
+
+// Warn writes a warning-level diagnostic via the configured logger.
+// It is a no-op when no logger has been set (see WithLogger).
+func (s IOStreams) Warn(msg string, args ...any) {
+	if s.log != nil {
+		s.log.Warn(msg, args...)
+	}
+}
+
+// Error writes an error-level diagnostic via the configured logger.
+// It is a no-op when no logger has been set (see WithLogger).
+func (s IOStreams) Error(msg string, args ...any) {
+	if s.log != nil {
+		s.log.Error(msg, args...)
+	}
+}
