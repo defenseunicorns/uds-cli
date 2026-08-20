@@ -36,6 +36,11 @@ local checks = new Mapping<String, Step> {
         fix = "golangci-lint run --fix ./..."
         glob = List("**/*.go", "go.mod", "go.sum")
     }
+    ["go-mod-tidy"] {
+        check = "go mod tidy -diff"
+        fix = "go mod tidy"
+        glob = List("**/*.go", "go.mod", "go.sum")
+    }
     ["schema"] {
         check = "uds run schema:test"
         glob = List("cmd/**/*.go", "internal/**/*.go", "pkg/**/*.go", "hack/generate-schema.sh", "tasks/schema.yaml")
