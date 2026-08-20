@@ -46,6 +46,13 @@ jobs:
       - name: Skipped
         run: echo "skipped"
 
+  next-integration-library-tests:
+    name: Next / Integration Library
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skipped
+        run: echo "skipped"
+
   e2e-bundle:
     name: Legacy / E2E Bundle
     runs-on: ubuntu-latest

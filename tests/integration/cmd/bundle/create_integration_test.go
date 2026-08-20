@@ -142,7 +142,7 @@ func TestCreate_DefaultsConfig_Applied(t *testing.T) {
 	// Variables from defaults.uds.hcl
 	require.NotNil(t, resolved.Variables)
 	a, ok := resolved.Variables["a"].(string)
-	require.True(t, ok)
+	require.Truef(t, ok, "expected variable a to be a string, got %T", resolved.Variables["a"])
 	assert.Equal(t, "from-file", strings.TrimSpace(a))
 	assert.Equal(t, float64(0), resolved.Variables["b"])
 	c, ok := resolved.Variables["c"].(bundlepkg.Variables)

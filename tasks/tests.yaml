@@ -22,8 +22,13 @@ tasks:
     actions:
       - cmd: |
           CLI_FEATURES=NextMode=true \
-          UDS_CLI_PATH=$(pwd)/build/uds \
+          UDS_CLI_PATH="$(pwd)/build/uds" \
           go test -v -count=1 -timeout 25m -tags=integration ./tests/integration/...
+
+  - name: next-integration-library
+    description: run Next library integration tests
+    actions:
+      - cmd: go test -v -timeout 5m -tags=library ./tests/library/...
 
   - name: preparation
     description: run local preparation checks

@@ -96,13 +96,18 @@ func TestSignedOCIPull_Integration(t *testing.T) {
 }
 
 func TestKeylessSignVerify_Integration(t *testing.T) {
-	if os.Getenv("ACTIONS_ID_TOKEN_REQUEST_URL") == "" || os.Getenv("ACTIONS_ID_TOKEN_REQUEST_TOKEN") == "" {
+	githubActions := os.Getenv("GITHUB_ACTIONS") == "true"
+	idTokenRequestURL := os.Getenv("ACTIONS_ID_TOKEN_REQUEST_URL")
+	idTokenRequestToken := os.Getenv("ACTIONS_ID_TOKEN_REQUEST_TOKEN")
+	workflowRef := os.Getenv("GITHUB_WORKFLOW_REF")
+
+	if !githubActions {
 		t.Skip("keyless signing requires GitHub Actions OIDC credentials")
 	}
-	workflowRef := os.Getenv("GITHUB_WORKFLOW_REF")
-	if workflowRef == "" {
-		t.Skip("keyless verification requires GITHUB_WORKFLOW_REF")
-	}
+
+	require.NotEmpty(t, idTokenRequestURL, "keyless signing requires id-token: write permissions in GitHub Actions")
+	require.NotEmpty(t, idTokenRequestToken, "keyless signing requires id-token: write permissions in GitHub Actions")
+	require.NotEmpty(t, workflowRef, "keyless verification requires GITHUB_WORKFLOW_REF in GitHub Actions")
 
 	artifactPath := createInspectArtifact(t)
 	serverURL := os.Getenv("GITHUB_SERVER_URL")
