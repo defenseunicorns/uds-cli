@@ -277,7 +277,7 @@ When `uds bundle create` and `uds bundle reconfigure` build an artifact, they re
 | `uds bundle remove [bundle-definition]` | Remove a bundle from Kubernetes. Defaults to the current directory. |
 | `uds bundle sign <bundle-artifact>` | Sign a created bundle artifact. |
 | `uds bundle verify <bundle-artifact>` | Verify a created bundle artifact signature. |
-| `uds bundle reconfigure <bundle-artifact>` | Reconfigure bundle defaults and produce a new artifact. |
+| `uds bundle reconfigure <source> --defaults <defaults-file>` | Reconfigure bundle defaults from a local artifact or OCI reference and produce a derivative artifact. |
 
 ### Global Bundle Flags
 
@@ -332,14 +332,14 @@ CLI_FEATURES=NextMode=true uds bundle dev deploy ./my-bundle --packages podinfo 
 Use `uds bundle deploy` to deploy a created artifact.
 
 ```bash
-# Deploy a local artifact
-CLI_FEATURES=NextMode=true uds bundle deploy uds-bundle-my-app-amd64-1.0.0.tar.zst
+# Deploy a local unsigned artifact
+CLI_FEATURES=NextMode=true uds bundle deploy uds-bundle-my-app-amd64-1.0.0.tar.zst --skip-signature-verification
 
-# Pull and deploy a tagged OCI artifact
-CLI_FEATURES=NextMode=true uds bundle deploy oci://registry.example.com/my-org/my-app:1.0.0
+# Pull and deploy a tagged unsigned OCI artifact
+CLI_FEATURES=NextMode=true uds bundle deploy oci://registry.example.com/my-org/my-app:1.0.0 --skip-signature-verification
 
-# Deploy a digest-pinned OCI artifact
-CLI_FEATURES=NextMode=true uds bundle deploy oci://registry.example.com/my-org/my-app@sha256:<digest>
+# Deploy a digest-pinned unsigned OCI artifact
+CLI_FEATURES=NextMode=true uds bundle deploy oci://registry.example.com/my-org/my-app@sha256:<digest> --skip-signature-verification
 ```
 
 Deploy-specific flags:
@@ -430,17 +430,19 @@ Reconfigure is efficient because it updates bundle defaults without rebuilding p
 Reconfigure requires a source bundle artifact or OCI reference and a new `defaults.uds.hcl` file:
 
 ```bash
-# Create an unsigned derivative artifact from a local bundle.
+# Create an unsigned derivative artifact from a local unsigned bundle.
 # Efficient: package content is reused; only the defaults-bearing bundle layers change.
 CLI_FEATURES=NextMode=true uds bundle reconfigure ./uds-bundle-my-app-amd64-1.0.0.tar.zst \
   --defaults ./defaults.prod.uds.hcl \
+  --skip-signature-verification \
   --unsigned
 
-# Reconfigure from an OCI bundle reference.
+# Reconfigure from an unsigned OCI bundle reference.
 # Efficient: use an existing published artifact as the source for a new environment-specific derivative.
+# OCI reconfigure publishes a derivative tag based on --suffix, so --output-dir is not used.
 CLI_FEATURES=NextMode=true uds bundle reconfigure oci://registry.example.com/my-org/my-app:1.0.0 \
   --defaults ./defaults.prod.uds.hcl \
-  --output-dir ./dist \
+  --skip-signature-verification \
   --suffix -prod \
   --unsigned
 ```
@@ -473,7 +475,7 @@ CLI_FEATURES=NextMode=true uds bundle verify ./uds-bundle-my-app-amd64-1.0.0.tar
 
 # Verify with keyless certificate constraints
 CLI_FEATURES=NextMode=true uds bundle verify ./uds-bundle-my-app-amd64-1.0.0.tar.zst \
-  --certificate-identity-regexp 'https://github\\.com/my-org/.*/.github/workflows/release\\.yml@refs/heads/main' \
+  --certificate-identity-regexp 'https://github\.com/my-org/.*/.github/workflows/release\.yml@refs/heads/main' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com'
 ```
 
@@ -487,11 +489,12 @@ Use `uds bundle push` to publish a local bundle artifact to an OCI registry, and
 # Publish to a registry
 CLI_FEATURES=NextMode=true uds bundle push ./uds-bundle-my-app-amd64-1.0.0.tar.zst oci://registry.example.com/my-org/my-app:1.0.0
 
-# Pull to the current directory
-CLI_FEATURES=NextMode=true uds bundle pull oci://registry.example.com/my-org/my-app:1.0.0
+# Pull an unsigned artifact to the current directory
+CLI_FEATURES=NextMode=true uds bundle pull oci://registry.example.com/my-org/my-app:1.0.0 --skip-signature-verification
 
-# Pull to a specific directory
-CLI_FEATURES=NextMode=true uds bundle pull oci://registry.example.com/my-org/my-app:1.0.0 -d ./downloads
+# Pull an unsigned artifact to a specific existing directory
+mkdir -p ./downloads
+CLI_FEATURES=NextMode=true uds bundle pull oci://registry.example.com/my-org/my-app:1.0.0 -d ./downloads --skip-signature-verification
 ```
 
 By default, pull verifies the bundle signature. Use `--skip-signature-verification` only when intentionally pulling an unsigned or untrusted artifact.
@@ -527,7 +530,7 @@ Packages (2)
 
 ## Structured Output
 
-All bundle commands support structured output through `--output` or `-o`:
+Bundle commands that emit result objects support structured output through `--output` or `-o`, including `create`, `inspect`, `pull`, and `reconfigure`:
 
 | Format | Flag | Description |
 |---|---|---|
@@ -543,7 +546,7 @@ CLI_FEATURES=NextMode=true uds bundle inspect ./my-bundle.tar.zst -o json | jq '
 CLI_FEATURES=NextMode=true uds bundle inspect ./my-bundle.tar.zst -o json 2>/dev/null
 
 # YAML output for tooling
-CLI_FEATURES=NextMode=true uds bundle create -o yaml
+CLI_FEATURES=NextMode=true uds bundle create --unsigned -o yaml
 ```
 
 Logs always go to stderr. Structured output always goes to stdout. Use `2>/dev/null` to suppress logs when piping stdout.
