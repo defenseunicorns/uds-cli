@@ -198,7 +198,7 @@ func nestedZarfCommandIndex(args []string, start int) int {
 		if arg == "--" {
 			return -1
 		}
-		if arg == "zarf" || arg == "z" {
+		if arg == "zarf" {
 			return i
 		}
 		if !strings.HasPrefix(arg, "-") {
