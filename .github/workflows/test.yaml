@@ -110,6 +110,34 @@ jobs:
           path: build/uds
           retention-days: 1
 
+  next-integration-tests:
+    name: Next Integration Tests
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup e2e job
+        uses: ./.github/actions/setup-uds-e2e
+        with:
+          create-cluster: "false"
+
+      - name: Run Next integration tests
+        shell: bash
+        run: |
+          set -o pipefail
+          build/uds run test:next-integration 2>&1 | tee "${RUNNER_TEMP}/uds-command-next-integration.log"
+
+      - name: Save diagnostics
+        if: always()
+        uses: ./.github/actions/save-logs
+        with:
+          suffix: next-integration
+
   e2e-bundle-tests:
     name: E2E ${{ matrix.task }}
     runs-on: ubuntu-latest
@@ -257,6 +285,7 @@ jobs:
       - unit-tests
       - docs-link-check
       - build
+      - next-integration-tests
       - e2e-bundle-tests
       - e2e-single-tests
       - e2e-vendor-tests
@@ -301,6 +330,7 @@ jobs:
       - unit-tests
       - docs-link-check
       - build
+      - next-integration-tests
       - e2e-bundle-tests
       - e2e-single-tests
       - e2e-vendor-tests

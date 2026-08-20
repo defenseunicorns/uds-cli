@@ -17,6 +17,14 @@ tasks:
     actions:
       - cmd: go test ./tests/legacy/e2e -failfast -v -timeout 60m
 
+  - name: next-integration
+    description: run cluster-free Next command integration tests
+    actions:
+      - cmd: |
+          CLI_FEATURES=NextMode=true \
+          UDS_CLI_PATH=$(pwd)/build/uds \
+          go test -v -count=1 -timeout 25m -tags=integration ./tests/integration/...
+
   - name: preparation
     description: run local preparation checks
     actions:
