@@ -32,3 +32,6 @@ concurrency:
 jobs:
   checks:
     uses: ./.github/workflows/test.yaml
+    permissions:
+      contents: read
+      id-token: write

@@ -110,15 +110,104 @@ jobs:
           path: build/uds
           retention-days: 1
 
+  next-integration-tests:
+    name: Next / Integration
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      id-token: write
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup e2e job
+        uses: ./.github/actions/setup-uds-e2e
+        with:
+          create-cluster: "false"
+
+      - name: Run Next integration tests
+        shell: bash
+        run: |
+          set -o pipefail
+          build/uds run test:next-integration 2>&1 | tee "${RUNNER_TEMP}/uds-command-next-integration.log"
+
+      - name: Save diagnostics
+        if: always()
+        uses: ./.github/actions/save-logs
+        with:
+          suffix: next-integration
+
+  next-integration-library-tests:
+    name: Next / Integration Library
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup development tools
+        uses: ./.github/actions/mise
+
+      - name: Run Next library integration tests
+        shell: bash
+        run: |
+          set -o pipefail
+          uds run test:next-integration-library 2>&1 | tee "${RUNNER_TEMP}/uds-command-next-integration-library.log"
+
+      - name: Save diagnostics
+        if: always()
+        uses: ./.github/actions/save-logs
+        with:
+          suffix: next-integration-library
+
+  next-cluster-tests:
+    name: Next / Cluster
+    runs-on: uds-ubuntu-big-boy-4-core
+    needs: build
+    timeout-minutes: 55
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup e2e job
+        uses: ./.github/actions/setup-uds-e2e
+        with:
+          # Next cluster integration tests create and clean up their own k3d cluster.
+          create-cluster: "false"
+
+      - name: Run Next cluster tests
+        shell: bash
+        run: |
+          set -o pipefail
+          build/uds run test:next-cluster 2>&1 | tee "${RUNNER_TEMP}/uds-command-next-cluster.log"
+
+      - name: Save diagnostics
+        if: always()
+        uses: ./.github/actions/save-logs
+        with:
+          suffix: next-cluster
+
   e2e-bundle-tests:
-    name: E2E ${{ matrix.task }}
+    name: Legacy / E2E ${{ matrix.name }}
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        task: [bundle, deploy-flags, index]
+        include:
+          - task: bundle
+            name: Bundle
+          - task: deploy-flags
+            name: Deploy Flags
+          - task: index
+            name: Bundle Index
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -141,14 +230,20 @@ jobs:
           suffix: ${{ matrix.task }}
 
   e2e-single-tests:
-    name: E2E ${{ matrix.task }}
+    name: Legacy / E2E ${{ matrix.name }}
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        task: [dev, variable, optional-bundle]
+        include:
+          - task: dev
+            name: Dev
+          - task: variable
+            name: Variables
+          - task: optional-bundle
+            name: Optional Bundles
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -171,7 +266,7 @@ jobs:
           suffix: ${{ matrix.task }}
 
   e2e-vendor-tests:
-    name: E2E vendor and completion
+    name: Legacy / E2E Vendor and Completion
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 45
@@ -218,7 +313,7 @@ jobs:
           suffix: completion
 
   e2e-engine-tests:
-    name: E2E engine
+    name: Legacy / E2E Engine
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 45
@@ -249,7 +344,7 @@ jobs:
           suffix: engine
 
   ghcr-write:
-    name: GHCR Write Tests
+    name: Legacy / E2E GHCR Write
     if: inputs.include_ghcr_write
     runs-on: ubuntu-latest
     needs:
@@ -257,6 +352,9 @@ jobs:
       - unit-tests
       - docs-link-check
       - build
+      - next-integration-tests
+      - next-integration-library-tests
+      - next-cluster-tests
       - e2e-bundle-tests
       - e2e-single-tests
       - e2e-vendor-tests
@@ -293,18 +391,10 @@ jobs:
           suffix: ghcr-write
 
   uds-core-smoke:
-    name: UDS Core Smoke Test
+    name: Legacy / Smoke UDS Core
     if: inputs.include_uds_core_smoke
     runs-on: ubuntu-latest
-    needs:
-      - lint
-      - unit-tests
-      - docs-link-check
-      - build
-      - e2e-bundle-tests
-      - e2e-single-tests
-      - e2e-vendor-tests
-      - e2e-engine-tests
+    needs: build
     timeout-minutes: 65
     steps:
       - name: Checkout
@@ -335,3 +425,39 @@ jobs:
         uses: ./.github/actions/save-logs
         with:
           suffix: uds-core-smoke
+
+  next-uds-core-smoke:
+    name: Next / Smoke UDS Core
+    if: inputs.include_uds_core_smoke
+    runs-on: uds-ubuntu-big-boy-4-core
+    needs: build
+    timeout-minutes: 65
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup e2e job
+        uses: ./.github/actions/setup-uds-e2e
+        with:
+          create-cluster: "false"
+
+      - name: Login to GHCR
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Next UDS Core smoke test
+        shell: bash
+        run: |
+          set -o pipefail
+          build/uds run test:next-smoke-uds-core 2>&1 | tee "${RUNNER_TEMP}/uds-command-next-uds-core-smoke.log"
+
+      - name: Save diagnostics
+        if: always()
+        uses: ./.github/actions/save-logs
+        with:
+          suffix: next-uds-core-smoke

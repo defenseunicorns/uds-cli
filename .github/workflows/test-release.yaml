@@ -20,6 +20,7 @@ jobs:
     uses: ./.github/workflows/test.yaml
     permissions:
       contents: read
+      id-token: write
       packages: write
     secrets: inherit
     with:
