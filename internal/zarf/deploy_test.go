@@ -20,7 +20,9 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
@@ -628,13 +630,13 @@ func TestBuildComponentFilter(t *testing.T) {
 				Components: tt.zarfComponents,
 			}
 
-			selected, err := filter.Apply(pkg)
+			selectedDefinition, err := filters.Apply(api.NewPackageDefinitionFromV1alpha1(pkg), filter)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantNames, componentNames(selected))
+			assert.Equal(t, tt.wantNames, componentNames(selectedDefinition.AsV1alpha1().Components))
 		})
 	}
 }

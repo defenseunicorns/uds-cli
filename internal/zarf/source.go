@@ -15,6 +15,7 @@ import (
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
@@ -89,10 +90,11 @@ func selectZarfLayers(ctx context.Context, root *oci.Manifest, fetcher content.F
 	if err != nil {
 		return nil, false, fmt.Errorf("fetching zarf.yaml: %w: %w", ErrFetchPackageMetadata, err)
 	}
-	components, err := filter.Apply(pkg)
+	filteredPackage, err := filters.Apply(api.NewPackageDefinitionFromV1alpha1(pkg), filter)
 	if err != nil {
 		return nil, false, fmt.Errorf("%w for package %q: %w", ErrApplyComponentFilter, pkg.Metadata.Name, err)
 	}
+	components := filteredPackage.AsV1alpha1().Components
 	layers, err := zoci.AssembleLayers(ctx, root, fetcher, components)
 	if err != nil {
 		return nil, false, fmt.Errorf("%w for package %q: %w", ErrAssemblePackageLayers, pkg.Metadata.Name, err)
