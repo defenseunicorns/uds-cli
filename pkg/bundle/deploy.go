@@ -90,7 +90,8 @@ type DeploySource struct {
 	// Loader overrides how package layouts are obtained; nil means use the default source loader.
 	Loader ZarfPackageLayoutLoader
 
-	close func() error
+	packageZarfNames map[string]string
+	close            func() error
 }
 
 // Close releases any temporary resources allocated during source preparation.
@@ -441,8 +442,9 @@ func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path,
 	}
 
 	source := &DeploySource{
-		BundlePath: extracted.BundleDefPath,
-		Bundle:     preparedBundle,
+		BundlePath:       extracted.BundleDefPath,
+		Bundle:           preparedBundle,
+		packageZarfNames: extracted.PackageZarfNames,
 		Loader: &extractedArtifactPackageLayoutLoader{loader: &internalzarf.ExtractedArtifactPackageLayoutLoader{
 			OCIDir: extracted.OCIDir, PackageManifests: extracted.PackageManifests,
 		}},

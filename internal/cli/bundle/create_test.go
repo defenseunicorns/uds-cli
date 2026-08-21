@@ -73,7 +73,7 @@ func TestCreateOptions_Validate(t *testing.T) {
 	t.Run("OCI reference", func(t *testing.T) {
 		o := &CreateOptions{BundlePath: "oci://ghcr.io/test/bundle:v1", Config: &bundle.UDSBundleConfig{Options: &defaults}}
 		err := o.Validate()
-		require.ErrorContains(t, err, "OCI bundle references not yet supported")
+		require.ErrorIs(t, err, ErrOCINotSupported)
 	})
 
 	t.Run("tar.zst archive", func(t *testing.T) {

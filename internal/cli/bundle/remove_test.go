@@ -105,14 +105,19 @@ package "pkg1" {
 			wantErr:    "bundle file path is required",
 		},
 		{
-			name:       "OCI reference with scheme",
+			name:       "OCI reference that does not exist",
 			bundlePath: "oci://ghcr.io/test/bundle:v1",
-			wantErr:    "OCI bundle references not yet supported",
+			wantErr:    "parsing bundle \"oci://ghcr.io/test/bundle:v1\"",
 		},
 		{
-			name:       "tar.zst archive",
+			name:       "empty OCI reference",
+			bundlePath: "oci://",
+			wantErr:    "invalid reference: missing registry or repository",
+		},
+		{
+			name:       "invalid tar.zst archive",
 			bundlePath: tarZstFile,
-			wantErr:    "tar.zst bundles are not supported",
+			wantErr:    "reading tar archive: invalid input: magic number mismatch",
 		},
 		{
 			name:       "HCL file that does not exist",
@@ -130,9 +135,10 @@ package "pkg1" {
 		t.Run(tt.name, func(t *testing.T) {
 			streams, _, _, _ := iostreams.NewTestIOStreams()
 			o := &RemoveOptions{
-				BundlePath: tt.bundlePath,
-				Config:     &bundle.UDSBundleConfig{Options: &defaults},
-				IOStreams:  streams,
+				BundlePath:   tt.bundlePath,
+				Config:       &bundle.UDSBundleConfig{Options: &defaults},
+				IOStreams:    streams,
+				Verification: VerifyOptions{SkipSignatureVerification: true},
 			}
 
 			err := o.Validate()
@@ -267,11 +273,12 @@ func TestRemoveOptions_Validate_DependencyCheck(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			streams, _, _, _ := iostreams.NewTestIOStreams()
 			o := &RemoveOptions{
-				BundlePath: bundlePath,
-				Packages:   tt.packages,
-				Force:      tt.force,
-				Config:     &bundle.UDSBundleConfig{Options: &defaults},
-				IOStreams:  streams,
+				BundlePath:   bundlePath,
+				Packages:     tt.packages,
+				Force:        tt.force,
+				Config:       &bundle.UDSBundleConfig{Options: &defaults},
+				IOStreams:    streams,
+				Verification: VerifyOptions{SkipSignatureVerification: true},
 			}
 
 			err := o.Validate()

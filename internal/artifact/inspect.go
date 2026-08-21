@@ -17,16 +17,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"gopkg.in/yaml.v3"
 )
-
-type inspectBlobFetcher func(context.Context, ocispec.Descriptor) ([]byte, error)
-
-type packageSigningMetadata struct {
-	Build struct {
-		Signed *bool `yaml:"signed"`
-	} `yaml:"build"`
-}
 
 // InspectOptions contains the internal inputs for built bundle inspection.
 type InspectOptions struct {
@@ -125,7 +116,7 @@ func inspectOCIReference(ctx context.Context, opts InspectOptions) (*InspectResu
 	return inspectBundleIndex(ctx, opts.Streams, indexBytes, childDesc.Digest.String(), fetch)
 }
 
-func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexBytes []byte, artifactDigest string, fetch inspectBlobFetcher) (*InspectResult, error) {
+func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexBytes []byte, artifactDigest string, fetch blobFetcher) (*InspectResult, error) {
 	var idx ocispec.Index
 	if err := json.Unmarshal(indexBytes, &idx); err != nil {
 		return nil, fmt.Errorf("%w %s: %w", ErrParsingBundleIndex, artifactDigest, err)
@@ -216,7 +207,7 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 	return result, nil
 }
 
-func inspectPackageSignature(ctx context.Context, idx ocispec.Index, pkg spec.Package, fetch inspectBlobFetcher) (*PackageSignatureSummary, error) {
+func inspectPackageSignature(ctx context.Context, idx ocispec.Index, pkg spec.Package, fetch blobFetcher) (*PackageSignatureSummary, error) {
 	entry, err := findPackageManifest(idx, pkg)
 	if err != nil {
 		return nil, err
@@ -225,39 +216,19 @@ func inspectPackageSignature(ctx context.Context, idx ocispec.Index, pkg spec.Pa
 		Signed:       PackageSigningStatusUnknown,
 		Verification: packageVerificationStatus(pkg.SignatureVerification, entry),
 	}
-	manifestBytes, err := fetch(ctx, *entry)
+	metadata, err := readPackageMetadata(ctx, pkg.Name, *entry, fetch)
 	if err != nil {
-		return nil, fmt.Errorf("%w %s for package %q: %w", ErrFetchingPackageManifest, entry.Digest, pkg.Name, err)
-	}
-	var manifest ocispec.Manifest
-	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
-		return nil, fmt.Errorf("%w %s for package %q: %w", ErrParsingPackageManifest, entry.Digest, pkg.Name, err)
-	}
-	if manifest.SchemaVersion != 2 {
-		return nil, UnsupportedSchemaVersionError{Artifact: "package manifest", Version: manifest.SchemaVersion}
-	}
-	if manifest.MediaType != "" && !udsoci.IsImageManifestMediaType(manifest.MediaType) {
-		return nil, UnsupportedMediaTypeError{Artifact: "package manifest", MediaType: manifest.MediaType}
+		return nil, err
 	}
 
-	zarfLayer, ok := findLayerByTitleOptional(manifest, "zarf.yaml")
-	if ok {
-		zarfBytes, err := fetch(ctx, zarfLayer)
-		if err != nil {
-			return nil, fmt.Errorf("%w %s for package %q: %w", ErrFetchingZarfYAML, zarfLayer.Digest, pkg.Name, err)
-		}
-		var metadata packageSigningMetadata
-		if err := yaml.Unmarshal(zarfBytes, &metadata); err != nil {
-			return nil, fmt.Errorf("%w %s for package %q: %w", ErrParsingZarfYAML, zarfLayer.Digest, pkg.Name, err)
-		}
-		if metadata.Build.Signed != nil {
-			if *metadata.Build.Signed {
-				summary.Signed = PackageSigningStatusSigned
-			} else {
-				summary.Signed = PackageSigningStatusUnsigned
-			}
+	if metadata.Build.Signed != nil {
+		if *metadata.Build.Signed {
+			summary.Signed = PackageSigningStatusSigned
+		} else {
+			summary.Signed = PackageSigningStatusUnsigned
 		}
 	}
+
 	return summary, nil
 }
 
