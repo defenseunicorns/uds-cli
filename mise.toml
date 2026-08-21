@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 [tools]
-go = "1.26.5"
+go = "1.26.6"
 hk = "1.54.0"
 golangci-lint = "2.12.2"
 "github:goreleaser/goreleaser" = "2.17.1"
