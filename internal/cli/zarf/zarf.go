@@ -3,9 +3,8 @@
 
 // Package zarf wraps the vendored Zarf CLI with two entry points:
 //
-//   - NewZarfCommand — user-facing "uds tools zarf" (strips 2 os.Args elements)
+//   - NewZarfCommand — user-facing "uds tools zarf"
 //   - NewInternalZarfCommand — hidden root-level "uds zarf" for internal callbacks
-//     (strips 1 os.Args element)
 //
 // # Callback mechanism
 //
@@ -64,7 +63,7 @@ import (
 )
 
 // NewZarfCommand creates the user-facing zarf subcommand under "uds tools".
-// This command passes all arguments directly to the vendored Zarf CLI.
+// This command passes Cobra-resolved arguments directly to the vendored Zarf CLI.
 //
 // Limitation: Zarf's vendored tool commands (kubectl, helm, etc.) require the
 // internal root-level "uds zarf" entry point because IsVendorCmd checks os.Args
@@ -98,10 +97,8 @@ This path is suitable for all other Zarf commands:
 
   uds tools zarf version
   uds tools zarf package list`,
-		Run: func(_ *cobra.Command, _ []string) {
-			// Remove "uds" and "tools" from args, keeping "zarf" and everything after.
-			// os.Args: ["/path/to/uds", "tools", "zarf", ...] → ["zarf", ...]
-			os.Args = os.Args[2:]
+		Run: func(_ *cobra.Command, args []string) {
+			os.Args = append([]string{"zarf"}, args...)
 			util.CheckErr(zarfCLI.Execute(context.Background()))
 		},
 		// Disable flag parsing so all flags are passed to Zarf
@@ -122,10 +119,8 @@ func NewInternalZarfCommand() *cobra.Command {
 		Use:    "zarf",
 		Short:  "Vendored Zarf CLI (internal)",
 		Hidden: true,
-		Run: func(_ *cobra.Command, _ []string) {
-			// Remove "uds" from args, keeping "zarf" and everything after.
-			// os.Args: ["/path/to/uds", "zarf", ...] → ["zarf", ...]
-			os.Args = os.Args[1:]
+		Run: func(_ *cobra.Command, args []string) {
+			os.Args = append([]string{"zarf"}, args...)
 			util.CheckErr(zarfCLI.Execute(context.Background()))
 		},
 		DisableFlagParsing: true,

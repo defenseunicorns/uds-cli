@@ -3,19 +3,14 @@
 
 tasks:
   - name: unit
-    description: run all the unit tests
+    description: run all package unit tests
     actions:
-      - cmd: go test ./cmd/uds ./internal/legacy/... ./internal/mode ./pkg/legacy/... -failfast -v -timeout 5m
+      - cmd: go test ./cmd/... ./internal/... ./pkg/... -failfast -v -timeout 5m
 
   - name: architecture
     description: verify Legacy packages do not depend on canonical Next packages
     actions:
       - cmd: ./hack/check-architecture.sh
-
-  - name: legacy:unit
-    description: run Legacy unit tests
-    actions:
-      - task: unit
 
   - name: legacy:e2e
     description: run all Legacy end to end tests
@@ -25,7 +20,7 @@ tasks:
   - name: preparation
     description: run local preparation checks
     actions:
-      - task: legacy:unit
+      - task: unit
       - task: architecture
 
   - name: e2e-ghcr
