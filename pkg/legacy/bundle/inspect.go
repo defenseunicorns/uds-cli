@@ -17,6 +17,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/pterm/pterm"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
@@ -154,13 +155,13 @@ func (b *Bundle) listImages() error {
 			filters.ForDeploy(strings.Join(pkg.OptionalComponents, ","), false),
 		)
 
-		filteredComponents, err := inspectFilter.Apply(zarfPkg)
+		filteredPackage, err := filters.Apply(api.NewPackageDefinitionFromV1alpha1(zarfPkg), inspectFilter)
 		if err != nil {
 			return err
 		}
 
 		// grab images from each filtered component
-		pkgImgMap[pkg.Name] = append(pkgImgMap[pkg.Name], gatherComponentImages(filteredComponents)...)
+		pkgImgMap[pkg.Name] = append(pkgImgMap[pkg.Name], gatherComponentImages(filteredPackage.AsV1alpha1().Components)...)
 	}
 
 	pkgImgsOut, err := goyaml.Marshal(pkgImgMap)
@@ -237,7 +238,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		if err != nil {
 			return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
-		return pkgLayout.Pkg, nil
+		return pkgLayout.AsV1alpha1(), nil
 	}
 
 	// if we are inspecting a built bundle, get the metadata from the bundle
@@ -283,7 +284,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 			return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
 
-		return pkgLayout.Pkg, nil
+		return pkgLayout.AsV1alpha1(), nil
 	}
 
 	// otherwise we are inspecting a yaml file, get the metadata from the packages directly
@@ -333,10 +334,11 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 	}
 
+	zarfPkg := pkgLayout.AsV1alpha1()
 	err = pkgLayout.Cleanup()
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, err
 	}
 
-	return pkgLayout.Pkg, nil
+	return zarfPkg, nil
 }

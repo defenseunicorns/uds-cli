@@ -10,6 +10,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
@@ -136,14 +137,15 @@ func fromZarfPackageLayout(pkgLayout *layout.PackageLayout) *ZarfPackageLayout {
 	if pkgLayout == nil {
 		return nil
 	}
+	zarfPkg := pkgLayout.AsV1alpha1()
 	result := &ZarfPackageLayout{
 		Directory: pkgLayout.DirPath(),
-		Pkg:       ZarfPackage{Components: make([]ZarfPackageComponent, len(pkgLayout.Pkg.Components))},
+		Pkg:       ZarfPackage{Components: make([]ZarfPackageComponent, len(zarfPkg.Components))},
 	}
 	if !pkgLayout.IsPushable() && pkgLayout.Digest() != "" {
 		result.registryDigest = pkgLayout.Digest()
 	}
-	for i, component := range pkgLayout.Pkg.Components {
+	for i, component := range zarfPkg.Components {
 		result.Pkg.Components[i] = ZarfPackageComponent{
 			Name:          component.Name,
 			Images:        append([]string(nil), component.Images...),
@@ -195,8 +197,9 @@ func applyPublicPackageLayout(dst *layout.PackageLayout, src *ZarfPackageLayout)
 	if dst == nil || src == nil {
 		return nil
 	}
-	original := make(map[string]v1alpha1.ZarfComponent, len(dst.Pkg.Components))
-	for _, component := range dst.Pkg.Components {
+	zarfPkg := dst.AsV1alpha1()
+	original := make(map[string]v1alpha1.ZarfComponent, len(zarfPkg.Components))
+	for _, component := range zarfPkg.Components {
 		original[component.Name] = component
 	}
 	names := make(map[string]struct{}, len(src.Pkg.Components))
@@ -215,15 +218,15 @@ func applyPublicPackageLayout(dst *layout.PackageLayout, src *ZarfPackageLayout)
 		if component.privateID != "" {
 			var ok bool
 			private, ok = original[identity]
-			if !ok && len(dst.Pkg.Components) > 0 {
+			if !ok && len(zarfPkg.Components) > 0 {
 				return fmt.Errorf("component %q cannot be reconciled with its original deployment data", component.Name)
 			}
 		} else if matched, ok := original[identity]; ok {
 			private = matched
-		} else if len(dst.Pkg.Components) > 0 {
+		} else if len(zarfPkg.Components) > 0 {
 			return fmt.Errorf("component %q cannot be reconciled after public layout mutation", component.Name)
 		}
-		if _, ok := used[identity]; ok && len(dst.Pkg.Components) > 0 {
+		if _, ok := used[identity]; ok && len(zarfPkg.Components) > 0 {
 			return fmt.Errorf("component identity %q was used more than once", identity)
 		}
 		used[identity] = struct{}{}
@@ -238,7 +241,8 @@ func applyPublicPackageLayout(dst *layout.PackageLayout, src *ZarfPackageLayout)
 		}
 		components[i] = private
 	}
-	dst.Pkg.Components = components
+	zarfPkg.Components = components
+	dst.PackageDefinition = api.NewPackageDefinitionFromV1alpha1(zarfPkg)
 	if src.registryDigest != "" {
 		dst.SetRegistryDigest(src.registryDigest)
 	}
