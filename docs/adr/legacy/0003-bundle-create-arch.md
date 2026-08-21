@@ -15,7 +15,7 @@ To the greatest extent possible, the team has ensured that local bundles and rem
 
 
 ### Proposed Architecture
-![Bundle Create Architecture](./../docs/.images/bundle-create-flow.png)
+![Bundle Create Architecture](../../.images/bundle-create-flow.png)
 
 Calling `bundle.Create` will result in the creation of a `Bundler` object, which will be responsible for creating the Bundle. The `Bundler` then creates a `RemoteBundle` or `LocalBundle` object, depending on the options passed to the `Bundler`:
 
