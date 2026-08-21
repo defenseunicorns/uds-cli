@@ -15,6 +15,7 @@ import (
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	internalzarf "github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -23,6 +24,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func newPackageLayout(pkg v1alpha1.ZarfPackage) *layout.PackageLayout {
+	return &layout.PackageLayout{PackageDefinition: api.NewPackageDefinitionFromV1alpha1(pkg)}
+}
 
 func TestDeployWithSourceEnforcesDependencySafety(t *testing.T) {
 	b := &spec.UDSBundle{
@@ -112,16 +117,16 @@ func TestPublicPackageHookConvertsLayoutMutations(t *testing.T) {
 		pkgLayout.SetDeployedDigest("sha256:registry")
 		return nil
 	}})
-	zarfLayout := &layout.PackageLayout{Pkg: v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
+	zarfLayout := newPackageLayout(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
 		Name:          "main",
 		Images:        []string{"example/image:v1"},
 		ImageArchives: []v1alpha1.ImageArchive{{Path: "images.tar", Images: []string{"example/image:v1"}}},
-	}}}}
+	}}})
 	internalOpts := toZarfDeployPackageOptions(DeployPackageOptions{Config: validValidationConfig(), BundleDir: t.TempDir()})
 
 	require.NoError(t, hooks.PreDeploy(t.Context(), &spec.Package{}, zarfLayout, &packager.DeployOptions{}, &internalOpts))
-	assert.Empty(t, zarfLayout.Pkg.Components[0].Images)
-	assert.Empty(t, zarfLayout.Pkg.Components[0].ImageArchives)
+	assert.Empty(t, zarfLayout.AsV1alpha1().Components[0].Images)
+	assert.Empty(t, zarfLayout.AsV1alpha1().Components[0].ImageArchives)
 	assert.Equal(t, "sha256:registry", zarfLayout.Digest())
 }
 
@@ -167,21 +172,21 @@ func TestPublicPackageHookPreservesPartialLayout(t *testing.T) {
 
 func TestApplyPublicPackageLayoutPreservesPrivateComponentFields(t *testing.T) {
 	manifests := []v1alpha1.ZarfManifest{{Name: "manifest.yaml"}}
-	dst := &layout.PackageLayout{Pkg: v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
+	dst := newPackageLayout(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
 		Name:      "main",
 		Manifests: manifests,
 		Charts:    []v1alpha1.ZarfChart{{Name: "chart"}},
-	}}}}
+	}}})
 	src := fromZarfPackageLayout(dst)
 
 	require.NoError(t, applyPublicPackageLayout(dst, src))
 
-	assert.Equal(t, manifests, dst.Pkg.Components[0].Manifests)
-	assert.Equal(t, "chart", dst.Pkg.Components[0].Charts[0].Name)
+	assert.Equal(t, manifests, dst.AsV1alpha1().Components[0].Manifests)
+	assert.Equal(t, "chart", dst.AsV1alpha1().Components[0].Charts[0].Name)
 }
 
 func TestApplyPublicPackageLayoutPreservesFieldsWhenComponentsAreFiltered(t *testing.T) {
-	dst := &layout.PackageLayout{Pkg: v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{
+	dst := newPackageLayout(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{
 		{
 			Name:      "optional",
 			Manifests: []v1alpha1.ZarfManifest{{Name: "optional.yaml"}},
@@ -190,45 +195,45 @@ func TestApplyPublicPackageLayoutPreservesFieldsWhenComponentsAreFiltered(t *tes
 			Name:  "required",
 			Files: []v1alpha1.ZarfFile{{Target: "/opt/required"}},
 		},
-	}}}
+	}})
 	filtered := fromZarfPackageLayout(dst)
 	filtered.Pkg.Components = filtered.Pkg.Components[1:]
 
 	require.NoError(t, applyPublicPackageLayout(dst, filtered))
 
-	require.Len(t, dst.Pkg.Components, 1)
-	assert.Equal(t, "required", dst.Pkg.Components[0].Name)
-	assert.Equal(t, "/opt/required", dst.Pkg.Components[0].Files[0].Target)
+	require.Len(t, dst.AsV1alpha1().Components, 1)
+	assert.Equal(t, "required", dst.AsV1alpha1().Components[0].Name)
+	assert.Equal(t, "/opt/required", dst.AsV1alpha1().Components[0].Files[0].Target)
 }
 
 func TestApplyPublicPackageLayoutPreservesFieldsWhenComponentRenamed(t *testing.T) {
-	dst := &layout.PackageLayout{Pkg: v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
+	dst := newPackageLayout(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
 		Name:      "original",
 		Manifests: []v1alpha1.ZarfManifest{{Name: "manifest.yaml"}},
-	}}}}
+	}}})
 	src := fromZarfPackageLayout(dst)
 	src.Pkg.Components[0].Name = "renamed"
 
 	require.NoError(t, applyPublicPackageLayout(dst, src))
 
-	assert.Equal(t, "renamed", dst.Pkg.Components[0].Name)
-	assert.Equal(t, "manifest.yaml", dst.Pkg.Components[0].Manifests[0].Name)
+	assert.Equal(t, "renamed", dst.AsV1alpha1().Components[0].Name)
+	assert.Equal(t, "manifest.yaml", dst.AsV1alpha1().Components[0].Manifests[0].Name)
 }
 
 func TestApplyPublicPackageLayoutMatchesExternallyConstructedComponentByName(t *testing.T) {
-	dst := &layout.PackageLayout{Pkg: v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
+	dst := newPackageLayout(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
 		Name:  "main",
 		Files: []v1alpha1.ZarfFile{{Target: "/opt/main"}},
-	}}}}
+	}}})
 	src := &ZarfPackageLayout{Pkg: ZarfPackage{Components: []ZarfPackageComponent{{Name: "main"}}}}
 
 	require.NoError(t, applyPublicPackageLayout(dst, src))
 
-	assert.Equal(t, "/opt/main", dst.Pkg.Components[0].Files[0].Target)
+	assert.Equal(t, "/opt/main", dst.AsV1alpha1().Components[0].Files[0].Target)
 }
 
 func TestApplyPublicPackageLayoutRejectsUnidentifiedComponentMutation(t *testing.T) {
-	dst := &layout.PackageLayout{Pkg: v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{Name: "original"}}}}
+	dst := newPackageLayout(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{Name: "original"}}})
 	src := &ZarfPackageLayout{Pkg: ZarfPackage{Components: []ZarfPackageComponent{{Name: "new"}}}}
 
 	err := applyPublicPackageLayout(dst, src)
@@ -237,10 +242,10 @@ func TestApplyPublicPackageLayoutRejectsUnidentifiedComponentMutation(t *testing
 }
 
 func TestApplyPublicPackageLayoutRejectsDuplicateComponentNames(t *testing.T) {
-	dst := &layout.PackageLayout{Pkg: v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{
+	dst := newPackageLayout(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{
 		{Name: "first"},
 		{Name: "second"},
-	}}}
+	}})
 	src := fromZarfPackageLayout(dst)
 	src.Pkg.Components[0].Name = "duplicate"
 	src.Pkg.Components[1].Name = "duplicate"
@@ -314,16 +319,16 @@ func TestPublicPreDeployPreservesRename(t *testing.T) {
 			return nil
 		},
 	})
-	internalLayout := &layout.PackageLayout{Pkg: v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{
+	internalLayout := newPackageLayout(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{
 		{Name: "original", Manifests: []v1alpha1.ZarfManifest{{Name: "manifest.yaml"}}},
-	}}}
+	}})
 
 	err := internalOpts.PackageDeployHooks.PreDeploy(
 		t.Context(), &spec.Package{}, internalLayout, &packager.DeployOptions{}, &internalOpts,
 	)
 	require.NoError(t, err)
-	assert.Equal(t, "renamed", internalLayout.Pkg.Components[0].Name)
-	assert.Equal(t, "manifest.yaml", internalLayout.Pkg.Components[0].Manifests[0].Name)
+	assert.Equal(t, "renamed", internalLayout.AsV1alpha1().Components[0].Name)
+	assert.Equal(t, "manifest.yaml", internalLayout.AsV1alpha1().Components[0].Manifests[0].Name)
 }
 
 func TestPackageLayoutLoaderAdapterPreservesPartialLayout(t *testing.T) {
