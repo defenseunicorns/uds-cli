@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-UDS CLI Legacy and UDS CLI Next must coexist in one Go module and one `uds` binary. Legacy is the existing CLI and library surface, while Next introduces the canonical package layout. Legacy ADRs are retained under `docs/adr/legacy`, and imported Next ADRs are retained under `docs/adr/next` for historical context. The repository therefore reserves canonical `internal` and `pkg` paths for Next and namespaces Legacy implementation and library packages under `internal/legacy` and `pkg/legacy`.
+UDS CLI Legacy and UDS CLI Next must coexist in one Go module and one `uds` binary. Legacy is the existing CLI and library surface, while Next introduces the canonical package layout. Next ADRs live under `docs/adr`, and Legacy ADRs are retained under `docs/adr/legacy`. The repository therefore reserves canonical `internal` and `pkg` paths for Next and namespaces Legacy implementation and library packages under `internal/legacy` and `pkg/legacy`.
 
 ## Decision
 
@@ -38,5 +38,3 @@ The following mapping documents this PR's implementation:
 ## Consequences
 
 Existing Legacy commands and library imports remain available under their Legacy namespaces, while future Next code can use the canonical paths without conflicting with them. New product work should target Next packages unless maintainers explicitly scope the change to Legacy compatibility.
-
-See [ADR-0012 - Next Mode Transition](0012-next-mode-transition.md) for the default-mode and removal timeline decision.

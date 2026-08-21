@@ -24,7 +24,7 @@ Fundamentally, software engineering is a communication problem; we write code fo
 - **User experience is paramount**: UDS CLI doesn't have a pretty UI (yet), but the core user-centered design principles that apply when building a frontend also apply to this CLI tool. First and foremost, features in UDS CLI should enhance workflows and make life easier for end users; if a feature doesn't accomplish this, it will be dropped.
 
 
-- **Design Decision**: We use [Architectural Decision Records](https://adr.github.io/) to document the design decisions that we make. Current transition ADRs live in `docs/adr`, Legacy ADRs live in `docs/adr/legacy`, and imported Next ADRs live in `docs/adr/next`. We highly recommend reading through the existing ADRs to understand the context and decisions that have been made in the past, and to inform current development.
+- **Design Decision**: We use [Architectural Decision Records](https://adr.github.io/) to document the design decisions that we make. Next ADRs live in `docs/adr`, and Legacy ADRs live in `docs/adr/legacy`. We highly recommend reading through the existing ADRs to understand the context and decisions that have been made in the past, and to inform current development.
 
 ### Continuous Delivery
 Continuous Delivery is core to our development philosophy. Check out [https://minimumcd.org](https://minimumcd.org/) for a good baseline agreement on what that means.

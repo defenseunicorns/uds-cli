@@ -71,8 +71,10 @@ Or create an unsigned bundle artifact and deploy it:
 
 ```bash
 CLI_FEATURES=NextMode=true uds bundle create --unsigned .
-CLI_FEATURES=NextMode=true uds bundle deploy ./uds-bundle-next-quickstart-$(go env GOARCH)-0.1.0.tar.zst --skip-signature-verification
+CLI_FEATURES=NextMode=true uds bundle deploy ./uds-bundle-next-quickstart-<ARCH>-0.1.0.tar.zst --skip-signature-verification
 ```
+
+Replace `ARCH` with the bundle architecture, such as `amd64` or `arm64`.
 
 The `--unsigned` flag is required here because this quickstart does not configure bundle signing. Deploying the unsigned artifact requires `--skip-signature-verification`.
 
