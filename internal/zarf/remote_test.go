@@ -21,6 +21,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"oras.land/oras-go/v2/errdef"
 )
 
@@ -44,7 +45,7 @@ func TestRemoteSourceVerifyAndIngestFilteredRegistryPackage(t *testing.T) {
 	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
 
 	ref := strings.TrimPrefix(server.URL, "http://") + "/test/filtered:1.0.0"
-	remote, err := zoci.NewRemote(t.Context(), ref, ocispec.Platform{Architecture: "amd64", OS: packageoci.MultiOS}, packageoci.WithPlainHTTP(true))
+	remote, err := zoci.NewRemoteWithOptions(t.Context(), ref, ocispec.Platform{Architecture: "amd64", OS: packageoci.MultiOS}, zoci.RemoteClientOptions{RemoteOptions: zarfTypes.RemoteOptions{PlainHTTP: true}})
 	require.NoError(t, err)
 	_, err = remote.PushPackage(t.Context(), pkgLayout, zoci.PublishOptions{Retries: 1, OCIConcurrency: 1})
 	require.NoError(t, err)

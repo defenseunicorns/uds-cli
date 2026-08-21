@@ -19,19 +19,18 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
-func NewZarfOCIRemote(ctx context.Context, url string, platform ocispec.Platform, mods ...oci.Modifier) (*zoci.Remote, error) {
+func NewZarfOCIRemote(ctx context.Context, url string, platform ocispec.Platform, _ ...oci.Modifier) (*zoci.Remote, error) {
 	plainHTTP, err := utils.NegotiatePlainHTTPForOCIRef(ctx, url, config.CommonOptions.Insecure)
 	if err != nil {
 		return nil, err
 	}
-	modifiers := append([]oci.Modifier{
-		oci.WithUserAgent("uds-cli/" + config.CLIVersion),
-		oci.WithInsecureSkipVerify(config.CommonOptions.Insecure),
-		oci.WithPlainHTTP(plainHTTP),
-	}, mods...)
-	return zoci.NewRemote(ctx, url, platform, modifiers...)
+	return zoci.NewRemoteWithOptions(ctx, url, platform, zoci.RemoteClientOptions{RemoteOptions: zarfTypes.RemoteOptions{
+		PlainHTTP:             plainHTTP,
+		InsecureSkipTLSVerify: config.CommonOptions.Insecure,
+	}})
 }
 
 func packageManifestLayerDescriptor(sourceDesc ocispec.Descriptor) ocispec.Descriptor {
