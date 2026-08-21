@@ -202,12 +202,12 @@ func TestValidateBundlePath(t *testing.T) {
 		{
 			name:    "OCI reference with scheme",
 			ref:     "oci://ghcr.io/test/bundle:v1",
-			wantErr: "OCI bundle references not yet supported",
+			wantErr: ErrOCINotSupported.Error(),
 		},
 		{
 			name:    "OCI reference without scheme",
 			ref:     "ghcr.io/test/bundle:v1",
-			wantErr: "OCI bundle references not yet supported",
+			wantErr: ErrOCINotSupported.Error(),
 		},
 		// Error cases - tar.zst (are not supported by ValidateBundlePath)
 		{
@@ -287,7 +287,7 @@ func TestValidateBundlePath_AllowArtifact(t *testing.T) {
 		{name: "tar.zst that exists", ref: tarZstFile, wantErr: ""},
 		{name: "tar.zst that does not exist", ref: "nonexistent.tar.zst", wantErr: "bundle artifact not found"},
 		{name: "valid directory", ref: validDir, wantErr: ""},
-		{name: "OCI reference rejected", ref: "oci://ghcr.io/test/bundle:v1", wantErr: "OCI bundle references not yet supported"},
+		{name: "OCI reference rejected", ref: "oci://ghcr.io/test/bundle:v1", wantErr: ErrOCINotSupported.Error()},
 		{name: "empty string", ref: "", wantErr: "bundle file path is required"},
 	}
 

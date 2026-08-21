@@ -19,12 +19,13 @@ import (
 
 // RemoveOptions holds options for the remove command.
 type RemoveOptions struct {
-	BundlePath string // Path to bundle file or directory (user input, resolved in Run)
-	Packages   []string
-	Force      bool
-	Prompt     bool
-	Config     *bundle.UDSBundleConfig
-	Printer    printer.ResourcePrinter
+	BundlePath   string // Path to bundle file or directory (user input, resolved in Run)
+	Packages     []string
+	Force        bool
+	Prompt       bool
+	Config       *bundle.UDSBundleConfig
+	Verification VerifyOptions
+	Printer      printer.ResourcePrinter
 
 	// parsedBundle is populated by Validate() after a successful parse and
 	// is consumed by Run(). Centralizing parsing in Validate() lets the
@@ -90,6 +91,7 @@ Examples:
 
 	cmd.Flags().StringSliceVarP(&o.Packages, "packages", "p", nil, "specific packages to remove (comma-separated)")
 	cmd.Flags().BoolVarP(&o.Force, "force", "f", false, "remove packages even if other bundle packages depend on them")
+	addVerificationFlags(cmd, &o.Verification, true)
 
 	return cmd
 }
@@ -113,6 +115,7 @@ func (o *RemoveOptions) Complete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	o.Config = cfg
+	o.Verification.Config = cfg
 
 	p, err := ResolvePrinter(cmd)
 	if err != nil {
@@ -130,23 +133,48 @@ func (o *RemoveOptions) Complete(cmd *cobra.Command, args []string) error {
 // authoritative gate for direct callers. The parsed bundle is cached on
 // o.parsedBundle for Run() to consume.
 func (o *RemoveOptions) Validate() error {
-	if err := ValidateBundlePath(o.BundlePath); err != nil {
-		return err
-	}
-
 	// Bind a logger so the parse + safety-check diagnostics below honor --log-level
 	// and Streams.ErrOut, consistent with the rest of the CLI.
 	ctx := context.Background()
 	s := logger.Bind(o.IOStreams, o.Config.Options.LogLevel)
-	bundlePath := resolveBundlePath(o.BundlePath)
-	parsedBundle, err := bundleinternal.NewHCLParser(o.Config.Options.Architecture, s).ParseBundleFile(ctx, bundlePath)
+
+	err := ValidateBundlePath(o.BundlePath, AllowArtifactBundlePath(), AllowOCIReferenceBundlePath())
 	if err != nil {
-		return fmt.Errorf("%w %q: %w", ErrParseBundle, bundlePath, err)
+		return err
 	}
-	if err := parsedBundle.Validate(); err != nil {
+
+	var parsedBundle *spec.UDSBundle
+	if isOCIReference(o.BundlePath) || isTarZst(o.BundlePath) {
+		policy := bundle.VerificationPolicy{}
+		if !o.Verification.SkipSignatureVerification {
+			policy, err = o.Verification.policy()
+			if err != nil {
+				return err
+			}
+		}
+		result, err := bundle.Inspect(ctx, bundle.InspectOptions{
+			Source:                    o.BundlePath,
+			Config:                    o.Config,
+			Verification:              policy,
+			SkipSignatureVerification: o.Verification.SkipSignatureVerification,
+			Streams:                   s,
+		})
+		if err != nil {
+			return fmt.Errorf("%w %q: %w", ErrParseBundle, o.BundlePath, err)
+		}
+		parsedBundle = result.Bundle
+	} else {
+		bundlePath := resolveBundlePath(o.BundlePath)
+		parsedBundle, err = bundleinternal.NewHCLParser(o.Config.Options.Architecture, s).ParseBundleFile(ctx, bundlePath)
+		if err != nil {
+			return fmt.Errorf("%w %q: %w", ErrParseBundle, bundlePath, err)
+		}
+	}
+
+	if err = parsedBundle.Validate(); err != nil {
 		return fmt.Errorf("%w %q: %w", ErrInvalidBundle, parsedBundle.Metadata.Name, err)
 	}
-	if err := bundleinternal.ValidatePackageNames(o.Packages, parsedBundle.Packages); err != nil {
+	if err = bundleinternal.ValidatePackageNames(o.Packages, parsedBundle.Packages); err != nil {
 		return err
 	}
 	if !o.Force {
@@ -184,11 +212,21 @@ func (o *RemoveOptions) Run(ctx context.Context) error {
 	s.Info("removing bundle", "source", bundlePath)
 	s.Debug("removing bundle", "path", bundlePath, "prompt", o.Prompt)
 
+	policy := bundle.VerificationPolicy{}
+	if !o.Verification.SkipSignatureVerification && (isOCIReference(o.BundlePath) || isTarZst(o.BundlePath)) {
+		var err error
+		policy, err = o.Verification.policy()
+		if err != nil {
+			return err
+		}
+	}
 	removeOpts := bundle.RemoveOptions{
-		Config:   o.Config,
-		Packages: o.Packages,
-		Force:    o.Force,
-		Streams:  o.IOStreams,
+		Config:                    o.Config,
+		Packages:                  o.Packages,
+		Verification:              policy,
+		SkipSignatureVerification: o.Verification.SkipSignatureVerification,
+		Force:                     o.Force,
+		Streams:                   o.IOStreams,
 	}
 
 	result, err := bundle.Remove(ctx, &bundle.DeploySource{

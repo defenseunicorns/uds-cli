@@ -79,6 +79,7 @@ var (
 	_ error = (*MultiplePackageManifestEntriesError)(nil)
 	_ error = (*PackageManifestNotFoundError)(nil)
 	_ error = (*LayerNotFoundError)(nil)
+	_ error = (*MissingZarfPackageNameError)(nil)
 )
 
 type LayerTitleEscapesDestinationError struct{ Title string }
@@ -327,4 +328,10 @@ type LayerNotFoundError struct{ Title string }
 
 func (e LayerNotFoundError) Error() string {
 	return fmt.Sprintf("%s layer not found in manifest", e.Title)
+}
+
+type MissingZarfPackageNameError struct{ Package string }
+
+func (e MissingZarfPackageNameError) Error() string {
+	return fmt.Sprintf("package %q has no metadata.name in its embedded zarf.yaml", e.Package)
 }

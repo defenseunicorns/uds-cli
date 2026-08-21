@@ -22,7 +22,8 @@ import (
 
 // validateBundlePathConfig holds options for ValidateBundlePath.
 type validateBundlePathConfig struct {
-	allowArtifactBundlePath bool
+	allowArtifactBundlePath     bool
+	allowOCIReferenceBundlePath bool
 }
 
 func isOCIReference(s string) bool {
@@ -44,6 +45,12 @@ type ValidateBundlePathOption func(*validateBundlePathConfig)
 // Pass this to commands that support artifact deployment (e.g. deploy).
 func AllowArtifactBundlePath() ValidateBundlePathOption {
 	return func(c *validateBundlePathConfig) { c.allowArtifactBundlePath = true }
+}
+
+// AllowOCIReferenceBundlePath enables oci:// artifact paths in ValidateBundlePath.
+// Pass this to commands that support artifact deployment (e.g. deploy).
+func AllowOCIReferenceBundlePath() ValidateBundlePathOption {
+	return func(c *validateBundlePathConfig) { c.allowOCIReferenceBundlePath = true }
 }
 
 // ValidateBundlePath checks if a user-provided bundle reference is valid.
@@ -89,7 +96,13 @@ func ValidateBundlePath(ref string, opts ...ValidateBundlePathOption) error {
 
 	// Check for OCI reference (before filesystem checks)
 	if isOCIReference(ref) {
-		return fmt.Errorf("OCI bundle references not yet supported, use a local .hcl file path or directory: %w", ErrUnsupportedSource)
+		if !cfg.allowOCIReferenceBundlePath {
+			return fmt.Errorf("%w: %w", ErrOCINotSupported, ErrUnsupportedSource)
+		}
+		if err := ValidateArtifactReference(ref); err != nil {
+			return fmt.Errorf("invalid OCI bundle reference %q: %w", ref, err)
+		}
+		return nil
 	}
 
 	// Check if the path exists
