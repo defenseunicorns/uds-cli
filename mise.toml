@@ -3,7 +3,7 @@
 
 [tools]
 go = "1.26.5"
-hk = "1.54.0"
+hk = "1.56.0"
 golangci-lint = "2.12.2"
 "github:goreleaser/goreleaser" = "2.17.1"
 "github:gitleaks/gitleaks" = "8.30.1"
@@ -12,7 +12,7 @@ node = "24.19.0"
 # renovate: datasource=github-tags depName=google/addlicense versioning=semver
 "aqua:google/addlicense" = "1.2.0"
 # renovate: datasource=github-tags depName=defenseunicorns/uds-cli versioning=semver
-"aqua:defenseunicorns/uds-cli" = "0.35.0"
+"aqua:defenseunicorns/uds-cli" = "0.35.1"
 
 [env]
 MISE_USE_VERSIONS_HOST_TRACK = "0"
