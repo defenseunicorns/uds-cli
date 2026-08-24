@@ -147,10 +147,10 @@ func TestAdjacentDefaultsPathPropagatesStatErrors(t *testing.T) {
 	assert.Empty(t, defaultsPath)
 }
 
-func TestPublicPackageHookPreservesPartialLayout(t *testing.T) {
+func TestPublicPackageHookPreservesPartialMetadata(t *testing.T) {
 	var partial bool
-	hooks := toZarfPackageHooks(PackageDeployHooks{PreDeploy: func(_ context.Context, _ *spec.Package, pkgLayout *ZarfPackageLayout, _ *DeployPackageOptions) error {
-		partial = pkgLayout.IsPartial
+	hooks := toZarfPackageHooks(PackageDeployHooks{PreDeploy: func(_ context.Context, _ *spec.Package, _ *ZarfPackageLayout, opts *DeployPackageOptions) error {
+		partial = opts.IsPartial
 		return nil
 	}})
 	dir := t.TempDir()
@@ -290,7 +290,7 @@ func TestPublicPreDeployReceivesStagedDirectory(t *testing.T) {
 	internalOpts := toZarfDeployPackageOptions(DeployPackageOptions{Config: validValidationConfig(), BundleDir: dir})
 	internalOpts.PackageDeployHooks = toZarfPackageHooks(PackageDeployHooks{
 		PreDeploy: func(_ context.Context, _ *spec.Package, pkgLayout *ZarfPackageLayout, _ *DeployPackageOptions) error {
-			assert.Equal(t, dir, pkgLayout.Directory)
+			assert.Equal(t, dir, pkgLayout.dirPath)
 			return nil
 		},
 	})
@@ -334,26 +334,33 @@ func TestPackageLayoutLoaderAdapterPreservesPartialLayout(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte("metadata:\n  name: test\n  version: 0.0.1\n  aggregateChecksum: "+hex.EncodeToString(checksum[:])+"\ncomponents: []\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "checksums.txt"), checksums, 0o600))
 
-	loader := packageLayoutLoaderAdapter{loader: staticPackageLayoutLoader{layout: &ZarfPackageLayout{Directory: dir, IsPartial: true}}}
-	_, _, err := loader.LoadPackageLayout(t.Context(), &spec.Package{Name: "test"}, dir, internalzarf.LoadOptions{})
+	loader := packageLayoutLoaderAdapter{loader: staticPackageLayoutLoader{
+		layout:    &ZarfPackageLayout{dirPath: dir},
+		isPartial: true,
+	}}
+	result, err := loader.LoadPackageLayout(t.Context(), &spec.Package{Name: "test"}, dir, internalzarf.LoadOptions{})
 	require.NoError(t, err)
+	assert.True(t, result.IsPartial)
 }
 
 func TestPackageLayoutLoaderAdapterRejectsCallerOwnedDirectory(t *testing.T) {
 	stagingDir := t.TempDir()
 	ownedDir := t.TempDir()
-	loader := packageLayoutLoaderAdapter{loader: staticPackageLayoutLoader{layout: &ZarfPackageLayout{Directory: ownedDir}}}
+	loader := packageLayoutLoaderAdapter{loader: staticPackageLayoutLoader{layout: &ZarfPackageLayout{dirPath: ownedDir}}}
 
-	_, _, err := loader.LoadPackageLayout(t.Context(), &spec.Package{Name: "test"}, stagingDir, internalzarf.LoadOptions{})
+	_, err := loader.LoadPackageLayout(t.Context(), &spec.Package{Name: "test"}, stagingDir, internalzarf.LoadOptions{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must be the supplied staging directory")
 	assert.DirExists(t, ownedDir)
 }
 
-type staticPackageLayoutLoader struct{ layout *ZarfPackageLayout }
+type staticPackageLayoutLoader struct {
+	layout    *ZarfPackageLayout
+	isPartial bool
+}
 
-func (l staticPackageLayoutLoader) LoadPackageLayout(context.Context, *spec.Package, string, ZarfPackageLayoutLoadOptions) (*ZarfPackageLayout, error) {
-	return l.layout, nil
+func (l staticPackageLayoutLoader) LoadPackageLayout(context.Context, *spec.Package, string, ZarfPackageLayoutLoadOptions) (*ZarfPackageLayoutLoadResult, error) {
+	return &ZarfPackageLayoutLoadResult{Layout: *l.layout, IsPartial: l.isPartial}, nil
 }
 
 func TestZarfRemoverRemoveBundleValidatesRemovalSafety(t *testing.T) {

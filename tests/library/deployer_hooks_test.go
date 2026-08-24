@@ -29,8 +29,11 @@ type staticLoaderImpl struct {
 	err error
 }
 
-func (l *staticLoaderImpl) LoadPackageLayout(_ context.Context, _ *spec.Package, _ string, _ bundle.ZarfPackageLayoutLoadOptions) (*bundle.ZarfPackageLayout, error) {
-	return l.pkg, l.err
+func (l *staticLoaderImpl) LoadPackageLayout(_ context.Context, _ *spec.Package, _ string, _ bundle.ZarfPackageLayoutLoadOptions) (*bundle.ZarfPackageLayoutLoadResult, error) {
+	if l.err != nil {
+		return nil, l.err
+	}
+	return &bundle.ZarfPackageLayoutLoadResult{Layout: *l.pkg}, nil
 }
 
 func imageLayoutLib() *bundle.ZarfPackageLayout {
