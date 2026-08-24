@@ -326,6 +326,43 @@ func TestPublicPreDeployPreservesRename(t *testing.T) {
 	assert.Equal(t, "manifest.yaml", internalLayout.Pkg.Components[0].Manifests[0].Name)
 }
 
+func TestPackageLayoutLoaderAdapterPreservesStagedPrivateDeploymentData(t *testing.T) {
+	dir := t.TempDir()
+	const zarfYAML = `kind: ZarfPackageConfig
+metadata:
+  name: test
+  version: 0.0.1
+  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+components:
+  - name: main
+    required: true
+    charts:
+      - name: chart
+        version: 1.0.0
+        url: https://example.com/charts
+    manifests:
+      - name: manifests
+        files:
+          - manifest.yaml
+    files:
+      - source: file.txt
+        target: /tmp/file.txt
+`
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte(zarfYAML), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "checksums.txt"), nil, 0o600))
+
+	loader := packageLayoutLoaderAdapter{loader: staticPackageLayoutLoader{
+		layout: &ZarfPackageLayout{Pkg: ZarfPackage{Components: []ZarfPackageComponent{{Name: "main"}}}},
+	}}
+	result, err := loader.LoadPackageLayout(t.Context(), &spec.Package{Name: "test"}, dir, internalzarf.LoadOptions{IsPartial: true})
+	require.NoError(t, err)
+	require.Len(t, result.Layout.Pkg.Components, 1)
+	component := result.Layout.Pkg.Components[0]
+	assert.Equal(t, "chart", component.Charts[0].Name)
+	assert.Equal(t, "manifests", component.Manifests[0].Name)
+	assert.Equal(t, "/tmp/file.txt", component.Files[0].Target)
+}
+
 func TestPackageLayoutLoaderAdapterPreservesPartialLayout(t *testing.T) {
 	dir := t.TempDir()
 	missingFileDigest := sha256.Sum256([]byte("optional component"))
@@ -343,23 +380,48 @@ func TestPackageLayoutLoaderAdapterPreservesPartialLayout(t *testing.T) {
 	assert.True(t, result.IsPartial)
 }
 
-func TestPackageLayoutLoaderAdapterRejectsCallerOwnedDirectory(t *testing.T) {
+func TestPackageLayoutLoaderAdapterRequiresStagedPackage(t *testing.T) {
+	loader := packageLayoutLoaderAdapter{loader: staticPackageLayoutLoader{
+		layout:      &ZarfPackageLayout{},
+		skipStaging: true,
+	}}
+
+	_, err := loader.LoadPackageLayout(t.Context(), &spec.Package{Name: "test"}, t.TempDir(), internalzarf.LoadOptions{})
+	require.ErrorContains(t, err, "loading package layout staged")
+}
+
+func TestPackageLayoutLoaderAdapterUsesSuppliedStagingDirectory(t *testing.T) {
 	stagingDir := t.TempDir()
 	ownedDir := t.TempDir()
 	loader := packageLayoutLoaderAdapter{loader: staticPackageLayoutLoader{layout: &ZarfPackageLayout{dirPath: ownedDir}}}
 
-	_, err := loader.LoadPackageLayout(t.Context(), &spec.Package{Name: "test"}, stagingDir, internalzarf.LoadOptions{})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "must be the supplied staging directory")
+	result, err := loader.LoadPackageLayout(t.Context(), &spec.Package{Name: "test"}, stagingDir, internalzarf.LoadOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, stagingDir, result.Layout.DirPath())
 	assert.DirExists(t, ownedDir)
 }
 
 type staticPackageLayoutLoader struct {
-	layout    *ZarfPackageLayout
-	isPartial bool
+	layout      *ZarfPackageLayout
+	isPartial   bool
+	skipStaging bool
 }
 
-func (l staticPackageLayoutLoader) LoadPackageLayout(context.Context, *spec.Package, string, ZarfPackageLayoutLoadOptions) (*ZarfPackageLayoutLoadResult, error) {
+func (l staticPackageLayoutLoader) LoadPackageLayout(_ context.Context, _ *spec.Package, dstDir string, _ ZarfPackageLayoutLoadOptions) (*ZarfPackageLayoutLoadResult, error) {
+	zarfYAML := filepath.Join(dstDir, "zarf.yaml")
+	_, err := os.Stat(zarfYAML)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	if errors.Is(err, os.ErrNotExist) && !l.skipStaging {
+		const contents = "kind: ZarfPackageConfig\nmetadata:\n  name: test\n  version: 0.0.1\n  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\ncomponents: []\n"
+		if err := os.WriteFile(zarfYAML, []byte(contents), 0o600); err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(filepath.Join(dstDir, "checksums.txt"), nil, 0o600); err != nil {
+			return nil, err
+		}
+	}
 	return &ZarfPackageLayoutLoadResult{Layout: *l.layout, IsPartial: l.isPartial}, nil
 }
 

@@ -112,22 +112,16 @@ func (a packageLayoutLoaderAdapter) LoadPackageLayout(ctx context.Context, pkg *
 
 	publicLayout := &publicResult.Layout
 	isPartial := publicResult.IsPartial || opts.IsPartial
-	if publicLayout.dirPath != "" {
-		cleanDst, err := filepath.Abs(filepath.Clean(dstDir))
-		if err != nil {
-			return nil, err
-		}
-		cleanLayout, err := filepath.Abs(filepath.Clean(publicLayout.dirPath))
-		if err != nil {
-			return nil, err
-		}
-		if cleanLayout != cleanDst {
-			return nil, fmt.Errorf("package layout directory %q must be the supplied staging directory %q", publicLayout.dirPath, dstDir)
-		}
+	stagedDir, err := filepath.Abs(filepath.Clean(dstDir))
+	if err != nil {
+		return nil, fmt.Errorf("resolving package staging directory %q: %w", dstDir, err)
 	}
+	// The adapter owns the staging directory. Public loaders populate dstDir but
+	// cannot and should not set layout-private path state.
+	publicLayout.dirPath = stagedDir
 	internalLayout, err := toZarfPackageLayout(ctx, publicLayout, isPartial)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("loading package layout staged in %q: %w", stagedDir, err)
 	}
 	return &zarf.PackageLayoutLoadResult{
 		Layout:    *internalLayout,

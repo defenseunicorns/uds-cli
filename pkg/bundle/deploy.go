@@ -39,8 +39,10 @@ type ZarfPackageLayoutLoadOptions struct {
 }
 
 // ZarfPackageLayoutLoader prepares a Zarf package layout for a bundle package.
-// Implementations may pull from pkg.Source, load from an extracted bundle
-// artifact, or return an already-staged layout.
+// Implementations must stage a complete Zarf package in dstDir. They may pull
+// from pkg.Source, copy from an extracted bundle artifact, or populate dstDir
+// from another source. The adapter loads the staged package to preserve Zarf's
+// private deployment state before applying supported public layout mutations.
 type ZarfPackageLayoutLoader interface {
 	LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts ZarfPackageLayoutLoadOptions) (*ZarfPackageLayoutLoadResult, error)
 }
