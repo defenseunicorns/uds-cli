@@ -37,18 +37,67 @@ func TestRemoveOCIArtifactSource(t *testing.T) {
 }
 func assertArtifactReferenceReachesRemove(t *testing.T, ref string, config *bundle.UDSBundleConfig) {
 	t.Helper()
+	inspected, err := bundle.Inspect(t.Context(), bundle.InspectOptions{
+		Source:                    ref,
+		Config:                    config,
+		SkipSignatureVerification: true,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, inspected.ArtifactDigest)
+
 	// An invalid package selection stops before cluster access. Reaching that
-	// validation proves Remove resolved and parsed the artifact reference first.
+	// validation proves Remove reloaded the same artifact that was inspected.
 	result, err := bundle.Remove(t.Context(), &bundle.DeploySource{BundlePath: ref}, bundle.RemoveOptions{
 		Config:                    config,
 		Packages:                  []string{"not-in-bundle"},
 		SkipSignatureVerification: true,
+		ArtifactDigest:            inspected.ArtifactDigest,
 		Force:                     true,
 	})
 	require.ErrorContains(t, err, "unknown packages")
 	assert.Nil(t, result)
 	assert.NotContains(t, err.Error(), "failed to parse bundle")
 }
+
+func TestRemoveLocalArtifactSource_RejectsChangedArtifact(t *testing.T) {
+	artifact := createRemoveArtifact(t)
+	result, err := bundle.Remove(t.Context(), &bundle.DeploySource{BundlePath: artifact}, bundle.RemoveOptions{
+		Config:                    removeArtifactConfig(t),
+		Packages:                  []string{"not-in-bundle"},
+		SkipSignatureVerification: true,
+		ArtifactDigest:            "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Force:                     true,
+	})
+	require.ErrorContains(t, err, "artifact changed after confirmation")
+	assert.Nil(t, result)
+}
+
+func TestRemoveHCLSourceWithoutArtifactDigest(t *testing.T) {
+	root := t.TempDir()
+	bundlePath := filepath.Join(root, bundleinternal.BundleFileName)
+	require.NoError(t, os.WriteFile(bundlePath, []byte(`uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+metadata {
+  name    = "remove-hcl"
+  version = "1.0.0"
+}
+package "pkg" {
+  source = "pkg"
+  signature_verification { verify = false }
+}
+`), 0o600))
+
+	result, err := bundle.Remove(t.Context(), &bundle.DeploySource{BundlePath: bundlePath}, bundle.RemoveOptions{
+		Config:   removeArtifactConfig(t),
+		Packages: []string{"not-in-bundle"},
+		Force:    true,
+	})
+	require.ErrorContains(t, err, "unknown packages")
+	assert.Nil(t, result)
+	assert.NotContains(t, err.Error(), "artifact identity")
+}
+
 func TestRemoveLocalArtifactSource_UnavailableReference(t *testing.T) {
 	source, err := bundle.PrepareDeploySource(t.Context(), iostreams.IOStreams{}, filepath.Join(t.TempDir(), "missing.tar.zst"), t.TempDir(), runtime.GOARCH)
 	require.ErrorContains(t, err, "extracting bundle artifact")

@@ -31,7 +31,8 @@ type RemoveOptions struct {
 	// is consumed by Run(). Centralizing parsing in Validate() lets the
 	// dependency-safety check (ValidateRemovalSafety) run there without
 	// re-parsing in Run().
-	parsedBundle *spec.UDSBundle
+	parsedBundle   *spec.UDSBundle
+	artifactDigest string
 
 	iostreams.IOStreams
 }
@@ -144,6 +145,7 @@ func (o *RemoveOptions) Validate() error {
 	}
 
 	var parsedBundle *spec.UDSBundle
+	var digest string
 	if isOCIReference(o.BundlePath) || isTarZst(o.BundlePath) {
 		policy := bundle.VerificationPolicy{}
 		if !o.Verification.SkipSignatureVerification {
@@ -163,6 +165,7 @@ func (o *RemoveOptions) Validate() error {
 			return fmt.Errorf("%w %q: %w", ErrParseBundle, o.BundlePath, err)
 		}
 		parsedBundle = result.Bundle
+		digest = result.ArtifactDigest
 	} else {
 		bundlePath := resolveBundlePath(o.BundlePath)
 		parsedBundle, err = bundleinternal.NewHCLParser(o.Config.Options.Architecture, s).ParseBundleFile(ctx, bundlePath)
@@ -188,6 +191,7 @@ func (o *RemoveOptions) Validate() error {
 	}
 
 	o.parsedBundle = parsedBundle
+	o.artifactDigest = digest
 	return nil
 }
 
@@ -225,6 +229,7 @@ func (o *RemoveOptions) Run(ctx context.Context) error {
 		Packages:                  o.Packages,
 		Verification:              policy,
 		SkipSignatureVerification: o.Verification.SkipSignatureVerification,
+		ArtifactDigest:            o.artifactDigest,
 		Force:                     o.Force,
 		Streams:                   o.IOStreams,
 	}

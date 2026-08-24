@@ -17,6 +17,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	"github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -38,6 +39,9 @@ type ExtractedBundle struct {
 
 	// PackageZarfNames maps each bundle package name to metadata.name from its embedded zarf.yaml.
 	PackageZarfNames map[string]string
+
+	// ArtifactDigest contains the digest of the artifact that was extracted.
+	ArtifactDigest string
 }
 
 // ExtractArtifact extracts a .tar.zst bundle artifact into dstDir, verifies
@@ -64,6 +68,7 @@ func ExtractArtifact(ctx context.Context, streams iostreams.IOStreams, tarPath, 
 	if err != nil {
 		return nil, fmt.Errorf("%w %q: %w", ErrReadingBundleIndex, indexPath, err)
 	}
+	artifactDigest := digest.FromBytes(idxBytes).String()
 	var idx ocispec.Index
 	if err := json.Unmarshal(idxBytes, &idx); err != nil {
 		return nil, fmt.Errorf("%w %q: %w", ErrParsingBundleIndex, indexPath, err)
@@ -116,6 +121,7 @@ func ExtractArtifact(ctx context.Context, streams iostreams.IOStreams, tarPath, 
 		BundleDefPath:    bundleDefPath,
 		PackageManifests: packageManifests,
 		PackageZarfNames: packageZarfNames,
+		ArtifactDigest:   artifactDigest,
 	}, nil
 }
 
