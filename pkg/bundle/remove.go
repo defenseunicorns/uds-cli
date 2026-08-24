@@ -23,7 +23,9 @@ type RemoveOptions struct {
 	Packages                  []string
 	Verification              VerificationPolicy
 	SkipSignatureVerification bool
-	ArtifactDigest            string
+	// ExpectedArtifactDigest, when set, requires the artifact used for removal
+	// to match the artifact previously inspected by the caller.
+	ExpectedArtifactDigest string
 	// Force bypasses the removal-safety check for a selected package subset. It
 	// can remove packages still required by remaining bundle packages, leaving
 	// deployed dependents broken.
@@ -74,19 +76,6 @@ func Remove(ctx context.Context, source *DeploySource, opts RemoveOptions) (*Rem
 	s := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
 
 	switch {
-	case artifact.IsTarZst(source.BundlePath):
-		var err error
-		source, err = PrepareDeploySource(
-			ctx,
-			s,
-			source.BundlePath,
-			opts.Config.Options.TmpDir,
-			opts.Config.Options.Architecture,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("%w %q: preparing artifact: %w", ErrRemoveBundle, source.BundlePath, err)
-		}
-		defer func() { _ = source.Close() }()
 	case udsoci.IsOCIReference(source.BundlePath):
 		workspace, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-remove-*")
 		if err != nil {
@@ -106,7 +95,8 @@ func Remove(ctx context.Context, source *DeploySource, opts RemoveOptions) (*Rem
 		if err != nil {
 			return nil, fmt.Errorf("%w %q: %w", ErrRemoveBundle, source.BundlePath, err)
 		}
-		source, err = PrepareDeploySource(
+
+		prepared, err := PrepareDeploySource(
 			ctx,
 			s,
 			pulled.OutputPath,
@@ -116,20 +106,61 @@ func Remove(ctx context.Context, source *DeploySource, opts RemoveOptions) (*Rem
 		if err != nil {
 			return nil, fmt.Errorf("%w %q: preparing pulled artifact: %w", ErrRemoveBundle, source.BundlePath, err)
 		}
+		defer func() { _ = prepared.Close() }()
+		source = prepared
+	case artifact.IsTarZst(source.BundlePath):
+		var err error
+
+		if !opts.SkipSignatureVerification {
+			policy := opts.Verification
+			if !policy.configured() && opts.Config.SignatureVerification != nil {
+				policy = *opts.Config.SignatureVerification
+			}
+
+			verifiedPath, cleanup, err := stageInspectSource(ctx, InspectOptions{
+				Source:       source.BundlePath,
+				Config:       opts.Config,
+				Verification: policy,
+				Streams:      s,
+			}, policy, s)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"%w %q: verifying artifact: %w",
+					ErrRemoveBundle,
+					source.BundlePath,
+					err,
+				)
+			}
+			defer cleanup()
+			source.BundlePath = verifiedPath
+		}
+
+		prepared, err := PrepareDeploySource(
+			ctx,
+			s,
+			source.BundlePath,
+			opts.Config.Options.TmpDir,
+			opts.Config.Options.Architecture,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("%w %q: preparing artifact: %w", ErrRemoveBundle, &prepared, err)
+		}
+		defer func() { _ = prepared.Close() }()
+		source = prepared
 	}
 
-	if opts.ArtifactDigest != "" {
+	if opts.ExpectedArtifactDigest != "" {
 		if source.ArtifactDigest == "" {
 			return nil, fmt.Errorf(
 				"%w: unable to confirm artifact identity",
 				ErrRemoveBundle,
 			)
 		}
-		if source.ArtifactDigest != opts.ArtifactDigest {
+		if source.ArtifactDigest != opts.ExpectedArtifactDigest {
 			return nil, fmt.Errorf(
 				"%w: artifact changed after confirmation: expected %s, got %s",
 				ErrRemoveBundle,
-				opts.ArtifactDigest,
+				opts.ExpectedArtifactDigest,
 				source.ArtifactDigest,
 			)
 		}

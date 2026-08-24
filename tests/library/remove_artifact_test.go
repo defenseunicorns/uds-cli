@@ -51,7 +51,7 @@ func assertArtifactReferenceReachesRemove(t *testing.T, ref string, config *bund
 		Config:                    config,
 		Packages:                  []string{"not-in-bundle"},
 		SkipSignatureVerification: true,
-		ArtifactDigest:            inspected.ArtifactDigest,
+		ExpectedArtifactDigest:    inspected.ArtifactDigest,
 		Force:                     true,
 	})
 	require.ErrorContains(t, err, "unknown packages")
@@ -65,7 +65,7 @@ func TestRemoveLocalArtifactSource_RejectsChangedArtifact(t *testing.T) {
 		Config:                    removeArtifactConfig(t),
 		Packages:                  []string{"not-in-bundle"},
 		SkipSignatureVerification: true,
-		ArtifactDigest:            "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		ExpectedArtifactDigest:    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		Force:                     true,
 	})
 	require.ErrorContains(t, err, "artifact changed after confirmation")
