@@ -143,7 +143,7 @@ func Remove(ctx context.Context, source *DeploySource, opts RemoveOptions) (*Rem
 			opts.Config.Options.Architecture,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("%w %q: preparing artifact: %w", ErrRemoveBundle, &prepared, err)
+			return nil, fmt.Errorf("%w %q: preparing artifact: %w", ErrRemoveBundle, source.BundlePath, err)
 		}
 		defer func() { _ = prepared.Close() }()
 		source = prepared
