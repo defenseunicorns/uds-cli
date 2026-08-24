@@ -10,7 +10,10 @@ import { CardGrid, LinkCard } from '@astrojs/starlight/components';
   <img src="/assets/UDS_CLI_Logo_Dark.svg" alt="UDS CLI" class="hero-logo hero-logo-light" data-zoom-off />
 </div>
 
-UDS CLI is the primary interface for working with UDS bundles. It handles the full bundle lifecycle: building from a `uds-bundle.yaml`, publishing to OCI registries, deploying to clusters, and removing bundles when no longer needed. It also provides UDS Runner for task automation and access to the vendored Zarf CLI.
+UDS CLI is the command-line DevX for working with the UDS ecosystem. It is the primary way to run UDS workflows from a terminal, including bundle authoring, artifact creation, deployment, publishing, cluster operations, and task automation.
+
+> [!NOTE]
+> UDS CLI currently supports Legacy and Next modes. Legacy remains the default while Next matures as an alpha preview. Next mode introduces the Better Bundles HCL flow and next-generation artifact deployment model. See [UDS CLI Next Mode](/cli/reference/next-mode/) for why it exists and current capabilities. More Next mode docs will be added as the mode matures.
 
 ## Key Commands
 
@@ -39,6 +42,11 @@ Full command reference is available via `uds --help` and `uds <command> --help`.
     title="How-to Guides"
     description="Common operational patterns."
     href="/how-to-guides/overview/"
+  />
+  <LinkCard
+    title="UDS CLI Next Mode"
+    description="Why Next mode exists, what it currently supports, and how Next bundles work."
+    href="/cli/reference/next-mode/"
   />
 </CardGrid>
 
