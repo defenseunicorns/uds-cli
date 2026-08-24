@@ -17,6 +17,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 
@@ -27,6 +28,25 @@ import (
 
 func newPackageLayout(pkg v1alpha1.ZarfPackage) *layout.PackageLayout {
 	return &layout.PackageLayout{PackageDefinition: api.NewPackageDefinitionFromV1alpha1(pkg)}
+}
+
+func newV1beta1PackageLayout() *layout.PackageLayout {
+	return &layout.PackageLayout{PackageDefinition: api.NewPackageDefinitionFromV1beta1(v1beta1.Package{
+		APIVersion: v1beta1.APIVersion,
+		Kind:       v1beta1.ZarfPackageConfig,
+		Metadata:   v1beta1.PackageMetadata{Name: "beta-package"},
+		Components: []v1beta1.Component{{
+			Name: "main",
+			ComponentSpec: v1beta1.ComponentSpec{
+				Images: []v1beta1.Image{{Name: "example/image:v1", Source: "daemon"}},
+				Import: v1beta1.ComponentImport{
+					Local:  []v1beta1.ComponentImportLocal{{Path: "one.yaml"}, {Path: "two.yaml"}},
+					Remote: []v1beta1.ComponentImportRemote{{URL: "oci://example.com/component"}},
+				},
+				Service: v1beta1.ServiceRegistry,
+			},
+		}},
+	})}
 }
 
 func TestDeployWithSourceEnforcesDependencySafety(t *testing.T) {
@@ -128,6 +148,35 @@ func TestPublicPackageHookConvertsLayoutMutations(t *testing.T) {
 	assert.Empty(t, zarfLayout.AsV1alpha1().Components[0].Images)
 	assert.Empty(t, zarfLayout.AsV1alpha1().Components[0].ImageArchives)
 	assert.Equal(t, "sha256:registry", zarfLayout.Digest())
+}
+
+func TestPublicPackageHookPreservesV1beta1Fields(t *testing.T) {
+	hooks := toZarfPackageHooks(PackageDeployHooks{PreDeploy: func(_ context.Context, _ *spec.Package, pkgLayout *ZarfPackageLayout, _ *DeployPackageOptions) error {
+		pkgLayout.Pkg.Components[0].Images = append([]string(nil), pkgLayout.Pkg.Components[0].Images...)
+		return nil
+	}})
+	zarfLayout := newV1beta1PackageLayout()
+	internalOpts := toZarfDeployPackageOptions(DeployPackageOptions{Config: validValidationConfig(), BundleDir: t.TempDir()})
+
+	require.NoError(t, hooks.PreDeploy(t.Context(), &spec.Package{}, zarfLayout, &packager.DeployOptions{}, &internalOpts))
+
+	component := zarfLayout.AsV1beta1().Components[0]
+	assert.Equal(t, "daemon", component.Images[0].Source)
+	assert.Len(t, component.Import.Local, 2)
+	assert.Len(t, component.Import.Remote, 1)
+	assert.Equal(t, v1beta1.ServiceRegistry, component.Service)
+}
+
+func TestPublicPackageLayoutLoaderPreservesV1beta1Fields(t *testing.T) {
+	publicLayout := fromZarfPackageLayout(newV1beta1PackageLayout())
+	converted, err := toZarfPackageLayoutForDeploy(publicLayout)
+	require.NoError(t, err)
+
+	component := converted.AsV1beta1().Components[0]
+	assert.Equal(t, "daemon", component.Images[0].Source)
+	assert.Len(t, component.Import.Local, 2)
+	assert.Len(t, component.Import.Remote, 1)
+	assert.Equal(t, v1beta1.ServiceRegistry, component.Service)
 }
 
 func TestPrepareDeploySourceFindsAdjacentDefaults(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
@@ -21,9 +22,10 @@ import (
 type ZarfPackageLayout struct {
 	Directory string
 	// IsPartial indicates that the layout may omit files referenced by its checksums.
-	IsPartial      bool
-	Pkg            ZarfPackage
-	registryDigest string
+	IsPartial         bool
+	Pkg               ZarfPackage
+	registryDigest    string
+	packageDefinition api.PackageDefinition
 }
 
 // SetDeployedDigest records the registry-resolved manifest digest that Zarf
@@ -139,8 +141,9 @@ func fromZarfPackageLayout(pkgLayout *layout.PackageLayout) *ZarfPackageLayout {
 	}
 	zarfPkg := pkgLayout.AsV1alpha1()
 	result := &ZarfPackageLayout{
-		Directory: pkgLayout.DirPath(),
-		Pkg:       ZarfPackage{Components: make([]ZarfPackageComponent, len(zarfPkg.Components))},
+		Directory:         pkgLayout.DirPath(),
+		Pkg:               ZarfPackage{Components: make([]ZarfPackageComponent, len(zarfPkg.Components))},
+		packageDefinition: pkgLayout.PackageDefinition,
 	}
 	if !pkgLayout.IsPushable() && pkgLayout.Digest() != "" {
 		result.registryDigest = pkgLayout.Digest()
@@ -187,6 +190,9 @@ func toZarfPackageLayoutForDeploy(pkgLayout *ZarfPackageLayout) (*layout.Package
 		return nil, nil
 	}
 	result := &layout.PackageLayout{}
+	if pkgLayout.packageDefinition.OriginalAPIVersion() != "" {
+		result.PackageDefinition = pkgLayout.packageDefinition
+	}
 	if err := applyPublicPackageLayout(result, pkgLayout); err != nil {
 		return nil, err
 	}
@@ -205,6 +211,7 @@ func applyPublicPackageLayout(dst *layout.PackageLayout, src *ZarfPackageLayout)
 	names := make(map[string]struct{}, len(src.Pkg.Components))
 	used := make(map[string]struct{}, len(src.Pkg.Components))
 	components := make([]v1alpha1.ZarfComponent, len(src.Pkg.Components))
+	identities := make([]string, len(src.Pkg.Components))
 	for i, component := range src.Pkg.Components {
 		if _, ok := names[component.Name]; ok {
 			return fmt.Errorf("component name %q appears more than once", component.Name)
@@ -230,6 +237,7 @@ func applyPublicPackageLayout(dst *layout.PackageLayout, src *ZarfPackageLayout)
 			return fmt.Errorf("component identity %q was used more than once", identity)
 		}
 		used[identity] = struct{}{}
+		identities[i] = identity
 		private.Name = component.Name
 		private.Images = append([]string(nil), component.Images...)
 		private.ImageArchives = make([]v1alpha1.ImageArchive, len(component.ImageArchives))
@@ -242,9 +250,46 @@ func applyPublicPackageLayout(dst *layout.PackageLayout, src *ZarfPackageLayout)
 		components[i] = private
 	}
 	zarfPkg.Components = components
-	dst.PackageDefinition = api.NewPackageDefinitionFromV1alpha1(zarfPkg)
+	if dst.PackageDefinition.OriginalAPIVersion() == v1beta1.APIVersion {
+		betaPkg := dst.AsV1beta1()
+		original := make(map[string]v1beta1.Component, len(betaPkg.Components))
+		for _, component := range betaPkg.Components {
+			original[component.Name] = component
+		}
+		betaComponents := make([]v1beta1.Component, len(components))
+		for i, component := range components {
+			private := original[identities[i]]
+			private.Name = component.Name
+			private.Images = preserveV1beta1Images(private.Images, component.Images)
+			private.ImageArchives = make([]v1beta1.ImageArchive, len(component.ImageArchives))
+			for j, archive := range component.ImageArchives {
+				private.ImageArchives[j] = v1beta1.ImageArchive{
+					Path:   archive.Path,
+					Images: append([]string(nil), archive.Images...),
+				}
+			}
+			betaComponents[i] = private
+		}
+		betaPkg.Components = betaComponents
+		dst.PackageDefinition = api.NewPackageDefinitionFromV1beta1(betaPkg)
+	} else {
+		dst.PackageDefinition = api.NewPackageDefinitionFromV1alpha1(zarfPkg)
+	}
 	if src.registryDigest != "" {
 		dst.SetRegistryDigest(src.registryDigest)
 	}
 	return nil
+}
+
+func preserveV1beta1Images(original []v1beta1.Image, names []string) []v1beta1.Image {
+	byName := make(map[string]v1beta1.Image, len(original))
+	for _, image := range original {
+		byName[image.Name] = image
+	}
+	images := make([]v1beta1.Image, len(names))
+	for i, name := range names {
+		images[i] = byName[name]
+		images[i].Name = name
+	}
+	return images
 }
