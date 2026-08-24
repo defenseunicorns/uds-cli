@@ -196,6 +196,23 @@ func TestRemovalPackageSource(t *testing.T) {
 	assert.Equal(t, "zarf-name", removalPackageSource(pkg, map[string]string{"bundle-name": "zarf-name"}))
 }
 
+func TestRemovePackage_ArtifactAlreadyAbsent(t *testing.T) {
+	r := &ZarfRemover{
+		deployed:       map[string]struct{}{deployedKey("zarf-name", "other-namespace"): {}},
+		deployedLoaded: true,
+	}
+	opts := defaultPkgOpts()
+	opts.Config.Options.Concurrency = 1
+	opts.DeployedPackageNames = map[string]string{"bundle-name": "zarf-name"}
+
+	err := r.RemovePackage(t.Context(), &spec.Package{
+		Name:      "bundle-name",
+		Namespace: "target-namespace",
+	}, opts)
+
+	require.ErrorIs(t, err, ErrPackageNotDeployed)
+}
+
 // TestDeployedKey locks in that the deployed-package cache key combines the
 // Zarf metadata.name with the namespace override. Zarf state secrets are named
 // zarf-package-<name> or zarf-package-<name>-override-<ns>, so the same Zarf

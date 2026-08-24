@@ -245,6 +245,21 @@ func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *spec.Package, opts
 
 	ctx = newZarfLoggerContext(ctx, s)
 
+	deployed, err := r.deployedPackages(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Artifact-backed removal already knows the embedded Zarf metadata.name.
+	// Check it before loading cluster state so an absent package is reported as
+	// skipped instead of failing the load of its nonexistent state secret.
+	deployedName := opts.DeployedPackageNames[pkg.Name]
+	if deployedName != "" {
+		if _, ok := deployed[deployedKey(deployedName, pkg.Namespace)]; !ok {
+			return ErrPackageNotDeployed
+		}
+	}
+
 	c, err := r.getCluster(ctx)
 	if err != nil {
 		return err
@@ -264,10 +279,7 @@ func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *spec.Package, opts
 		return fmt.Errorf("package %q from %s: %w: %w", pkg.Name, packageSource, ErrLoadPackage, err)
 	}
 
-	deployed, err := r.deployedPackages(ctx)
-	if err != nil {
-		return err
-	}
+	// Source-backed removal only learns metadata.name after loading the source.
 	if _, ok := deployed[deployedKey(zarfPkg.Metadata.Name, pkg.Namespace)]; !ok {
 		return ErrPackageNotDeployed
 	}
