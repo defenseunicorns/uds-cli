@@ -4,7 +4,6 @@
 package utils
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,7 +29,7 @@ components:
     optional: true
 `), 0o600))
 
-	pkg, err := ReadPackageYAML(context.Background(), path)
+	pkg, err := ReadPackageYAML(path)
 
 	require.NoError(t, err)
 	require.Len(t, pkg.Components, 2)

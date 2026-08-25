@@ -54,7 +54,7 @@ func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.Componen
 		return nil, nil, err
 	}
 
-	pkg, err := utils.ReadPackageYAML(ctx, filepath.Join(t.TmpDir, layout.ZarfYAML))
+	pkg, err := utils.ReadPackageYAML(filepath.Join(t.TmpDir, layout.ZarfYAML))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -209,7 +209,7 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, _ bool, _ bool) (
 	}
 
 	// deserialize zarf.yaml to grab checksum for validating pkg integrity
-	pkg, err := utils.ReadPackageYAML(ctx, filepath.Join(t.TmpDir, layout.ZarfYAML))
+	pkg, err := utils.ReadPackageYAML(filepath.Join(t.TmpDir, layout.ZarfYAML))
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}

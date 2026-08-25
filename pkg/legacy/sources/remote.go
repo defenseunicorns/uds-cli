@@ -66,8 +66,8 @@ func (r *RemoteBundle) LoadPackage(ctx context.Context, filter filters.Component
 		return nil, nil, err
 	}
 
-	pkg, err := utils.ReadPackageYAML(ctx, filepath.Join(r.TmpDir, layout.ZarfYAML))
-	if err != nil {
+	var pkg v1alpha1.ZarfPackage
+	if err = utils.ReadYAMLStrict(filepath.Join(r.TmpDir, layout.ZarfYAML), &pkg); err != nil {
 		return nil, nil, err
 	}
 
@@ -134,7 +134,7 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) 
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
-	pkg, err := utils.ReadPackageYAML(ctx, filepath.Join(r.TmpDir, layout.ZarfYAML))
+	pkg, err := utils.ReadPackageYAML(filepath.Join(r.TmpDir, layout.ZarfYAML))
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
