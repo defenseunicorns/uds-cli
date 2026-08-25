@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"path/filepath"
 	"runtime"
 	"sync"
 	"testing"
@@ -30,18 +29,8 @@ type staticLoaderImpl struct {
 	err error
 }
 
-func (l *staticLoaderImpl) LoadPackageLayout(_ context.Context, _ *spec.Package, dstDir string, _ bundle.ZarfPackageLayoutLoadOptions) (*bundle.ZarfPackageLayoutLoadResult, error) {
-	if l.err != nil {
-		return nil, l.err
-	}
-	const zarfYAML = "kind: ZarfPackageConfig\nmetadata:\n  name: test\n  version: 0.0.1\n  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\ncomponents: []\n"
-	if err := os.WriteFile(filepath.Join(dstDir, "zarf.yaml"), []byte(zarfYAML), 0o600); err != nil {
-		return nil, err
-	}
-	if err := os.WriteFile(filepath.Join(dstDir, "checksums.txt"), nil, 0o600); err != nil {
-		return nil, err
-	}
-	return &bundle.ZarfPackageLayoutLoadResult{Layout: *l.pkg}, nil
+func (l *staticLoaderImpl) LoadPackageLayout(_ context.Context, _ *spec.Package, _ string, _ bundle.ZarfPackageLayoutLoadOptions) (*bundle.ZarfPackageLayout, error) {
+	return l.pkg, l.err
 }
 
 func imageLayoutLib() *bundle.ZarfPackageLayout {

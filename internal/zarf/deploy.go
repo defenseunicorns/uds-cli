@@ -282,7 +282,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 		return err
 	}
 
-	loadResult, err := loader.LoadPackageLayout(ctx, pkg, pkgTmp, LoadOptions{Streams: log, IsPartial: opts.IsPartial})
+	pkgLayout, isPartial, err := loader.LoadPackageLayout(ctx, pkg, pkgTmp, LoadOptions{Streams: log, IsPartial: opts.IsPartial})
 	if err != nil && colocatedStaging && isRetryableStagingError(err) {
 		// A cache can be writable but too small or unsuitable for staging.
 		// Retry once in the user-configured temporary directory before failing.
@@ -294,16 +294,15 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 			return fmt.Errorf("creating fallback temp directory: %w", err)
 		}
 		log.Debug("retrying package staging in configured temporary directory", "dir", opts.Config.Options.TmpDir)
-		loadResult, err = loader.LoadPackageLayout(ctx, pkg, pkgTmp, LoadOptions{Streams: log, IsPartial: opts.IsPartial})
+		pkgLayout, isPartial, err = loader.LoadPackageLayout(ctx, pkg, pkgTmp, LoadOptions{Streams: log, IsPartial: opts.IsPartial})
 	}
 	if err != nil {
 		return err
 	}
-	if loadResult == nil {
-		return fmt.Errorf("package layout loader returned a nil result for package %q: %w", pkg.Name, ErrLoadPackage)
+	if pkgLayout == nil {
+		return fmt.Errorf("package layout loader returned a nil layout for package %q: %w", pkg.Name, ErrLoadPackage)
 	}
-	pkgLayout := &loadResult.Layout
-	opts.IsPartial = loadResult.IsPartial
+	opts.IsPartial = isPartial
 	defer func() {
 		if err := pkgLayout.Cleanup(); err != nil {
 			log.Warn("failed to clean up package layout", "name", pkg.Name, "error", err)

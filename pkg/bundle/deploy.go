@@ -27,9 +27,7 @@ type DeployPackageOptions struct {
 	Config             *UDSBundleConfig
 	BundleDir          string
 	PackageDeployHooks PackageDeployHooks
-	// IsPartial reports whether the loaded layout omits checksum-referenced layers.
-	IsPartial bool
-	Streams   iostreams.IOStreams
+	Streams            iostreams.IOStreams
 }
 
 // ZarfPackageLayoutLoadOptions carries options for loading a Zarf package layout.
@@ -39,18 +37,10 @@ type ZarfPackageLayoutLoadOptions struct {
 }
 
 // ZarfPackageLayoutLoader prepares a Zarf package layout for a bundle package.
-// Implementations must stage a complete Zarf package in dstDir. They may pull
-// from pkg.Source, copy from an extracted bundle artifact, or populate dstDir
-// from another source. The adapter loads the staged package to preserve Zarf's
-// private deployment state before applying supported public layout mutations.
+// Implementations may pull from pkg.Source, load from an extracted bundle
+// artifact, or return an already-staged layout.
 type ZarfPackageLayoutLoader interface {
-	LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts ZarfPackageLayoutLoadOptions) (*ZarfPackageLayoutLoadResult, error)
-}
-
-// ZarfPackageLayoutLoadResult contains a loaded layout and metadata discovered while loading it.
-type ZarfPackageLayoutLoadResult struct {
-	Layout    ZarfPackageLayout
-	IsPartial bool
+	LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts ZarfPackageLayoutLoadOptions) (*ZarfPackageLayout, error)
 }
 
 // PackageDeployHooks provides deployment process extensibility on a per-package basis.
@@ -277,7 +267,6 @@ func toZarfDeployPackageOptions(opts DeployPackageOptions) internalzarf.DeployPa
 		Config:             toZarfConfig(opts.Config),
 		BundleDir:          opts.BundleDir,
 		PackageDeployHooks: toZarfPackageHooks(opts.PackageDeployHooks),
-		IsPartial:          opts.IsPartial,
 		Streams:            opts.Streams,
 	}
 }
@@ -286,7 +275,6 @@ func fromZarfDeployPackageOptions(opts internalzarf.DeployPackageOptions) Deploy
 	return DeployPackageOptions{
 		Config:    fromZarfConfig(opts.Config),
 		BundleDir: opts.BundleDir,
-		IsPartial: opts.IsPartial,
 		Streams:   opts.Streams,
 	}
 }
@@ -298,6 +286,7 @@ func toZarfPackageHooks(hooks PackageDeployHooks) internalzarf.PackageDeployHook
 			publicOpts := fromZarfDeployPackageOptions(*internalOpts)
 			publicOpts.PackageDeployHooks = hooks
 			publicLayout := fromZarfPackageLayout(pkgLayout)
+			publicLayout.IsPartial = internalOpts.IsPartial
 			err := hooks.PreDeploy(ctx, pkg, publicLayout, &publicOpts)
 			if applyErr := applyPublicPackageLayout(pkgLayout, publicLayout); applyErr != nil {
 				return applyErr
@@ -313,7 +302,7 @@ func toZarfPackageHooks(hooks PackageDeployHooks) internalzarf.PackageDeployHook
 			internalOpts.Config = toZarfConfig(publicOpts.Config)
 			internalOpts.BundleDir = publicOpts.BundleDir
 			internalOpts.PackageDeployHooks = toZarfPackageHooks(publicOpts.PackageDeployHooks)
-			internalOpts.IsPartial = publicOpts.IsPartial
+			internalOpts.IsPartial = publicLayout.IsPartial
 			internalOpts.Streams = publicOpts.Streams
 			return nil
 		}
