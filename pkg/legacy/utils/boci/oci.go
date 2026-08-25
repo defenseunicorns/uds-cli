@@ -19,7 +19,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/message"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
-	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
@@ -496,19 +495,9 @@ func handleImgIndex(ctx context.Context, remote *oci.OrasRemote, desc ocispec.De
 }
 
 func getFilteredComponents(ctx context.Context, remote *oci.OrasRemote, manifest oci.Manifest, optionalComponents []string) ([]v1alpha1.ZarfComponent, error) {
-	// get Zarf pkg from manifest
-	var zarfPkg v1alpha1.ZarfPackage
-	for _, desc := range manifest.Layers {
-		if desc.Annotations[ocispec.AnnotationTitle] == config.ZarfYAML {
-			zarfYAMLBytes, err := remote.FetchLayer(ctx, desc)
-			if err != nil {
-				return nil, err
-			}
-			if err := goyaml.Unmarshal(zarfYAMLBytes, &zarfPkg); err != nil {
-				return nil, err
-			}
-			break
-		}
+	zarfPkg, err := zoci.FetchZarfYAML(ctx, &manifest, remote)
+	if err != nil {
+		return nil, err
 	}
 
 	componentViews := make([]filters.ComponentView, 0, len(zarfPkg.Components))
