@@ -46,7 +46,7 @@ func TestReadPackageZarfNamesRequiresMetadataName(t *testing.T) {
 		_, err := readPackageZarfNames(t.Context(), manifests, blobFetcher(blobs, nil))
 		var target MissingZarfPackageNameError
 		require.ErrorAs(t, err, &target)
-		assert.Equal(t, "bundle-label", target.Package)
+		require.Equal(t, "bundle-label", target.Package)
 	})
 }
 
@@ -55,8 +55,8 @@ func TestFetchZarfPackageClassifiesMalformedYAML(t *testing.T) {
 
 	_, _, err := fetchZarfPackage(t.Context(), "bundle-label", manifests["bundle-label"], blobFetcher(blobs, nil))
 	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrParsingZarfYAML)
-	assert.NotErrorIs(t, err, ErrFetchingZarfYAML)
+	require.ErrorIs(t, err, ErrParsingZarfYAML)
+	require.NotErrorIs(t, err, ErrFetchingZarfYAML)
 }
 
 func TestFetchZarfPackageClassifiesFetchFailure(t *testing.T) {
@@ -71,9 +71,9 @@ func TestFetchZarfPackageClassifiesFetchFailure(t *testing.T) {
 
 	_, _, err := fetchZarfPackage(t.Context(), "bundle-label", manifests["bundle-label"], fetcher)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrFetchingZarfYAML)
-	assert.ErrorIs(t, err, fetchErr)
-	assert.NotErrorIs(t, err, ErrParsingZarfYAML)
+	require.ErrorIs(t, err, ErrFetchingZarfYAML)
+	require.ErrorIs(t, err, fetchErr)
+	require.NotErrorIs(t, err, ErrParsingZarfYAML)
 }
 
 func TestFetchZarfPackageRejectsOversizedYAMLBeforeReading(t *testing.T) {
@@ -89,8 +89,8 @@ func TestFetchZarfPackageRejectsOversizedYAMLBeforeReading(t *testing.T) {
 	_, _, err := fetchZarfPackage(t.Context(), "bundle-label", manifests["bundle-label"], fetcher)
 	var target udsoci.DescriptorTooLargeError
 	require.ErrorAs(t, err, &target)
-	assert.ErrorIs(t, err, ErrFetchingZarfYAML)
-	assert.Equal(t, 0, zarfReads)
+	require.ErrorIs(t, err, ErrFetchingZarfYAML)
+	require.Equal(t, 0, zarfReads)
 }
 
 func TestFetchZarfPackageUsesZarfMultiDocParsingAndMigrations(t *testing.T) {
@@ -112,10 +112,10 @@ components:
 	pkg, found, err := fetchZarfPackage(t.Context(), "bundle-label", manifests["bundle-label"], blobFetcher(blobs, nil))
 	require.NoError(t, err)
 	require.True(t, found)
-	assert.Equal(t, "migrated-package", pkg.Metadata.Name)
+	require.Equal(t, "migrated-package", pkg.Metadata.Name)
 	require.Len(t, pkg.Components, 1)
 	require.Len(t, pkg.Components[0].Actions.OnDeploy.Before, 1)
-	assert.Equal(t, "echo migrated", pkg.Components[0].Actions.OnDeploy.Before[0].Cmd)
+	require.Equal(t, "echo migrated", pkg.Components[0].Actions.OnDeploy.Before[0].Cmd)
 }
 
 func TestInspectPackageSignatureUsesZarfMetadata(t *testing.T) {
@@ -127,7 +127,7 @@ func TestInspectPackageSignatureUsesZarfMetadata(t *testing.T) {
 
 		summary, err := inspectPackageSignature(t.Context(), idx, spec.Package{Name: "bundle-label"}, blobFetcher(blobs, nil))
 		require.NoError(t, err)
-		assert.Equal(t, PackageSigningStatusSigned, summary.Signed)
+		require.Equal(t, PackageSigningStatusSigned, summary.Signed)
 	})
 
 	t.Run("missing zarf yaml", func(t *testing.T) {
@@ -138,7 +138,7 @@ func TestInspectPackageSignatureUsesZarfMetadata(t *testing.T) {
 
 		summary, err := inspectPackageSignature(t.Context(), idx, spec.Package{Name: "bundle-label"}, blobFetcher(blobs, nil))
 		require.NoError(t, err)
-		assert.Equal(t, PackageSigningStatusUnknown, summary.Signed)
+		require.Equal(t, PackageSigningStatusUnknown, summary.Signed)
 	})
 }
 
