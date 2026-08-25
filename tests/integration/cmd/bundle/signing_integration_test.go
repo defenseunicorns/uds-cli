@@ -67,7 +67,7 @@ func TestSignVerifyCommand_Integration(t *testing.T) {
 
 func TestSignedOCIPull_Integration(t *testing.T) {
 	arch := runtime.GOARCH
-	registryHost := startLocalRegistry(t)
+	registryHost := testutil.StartLocalRegistry(t)
 	ref := fmt.Sprintf("%s/test/signed-bundle:v0.1.0", registryHost)
 	artifactPath := createInspectArtifact(t)
 	privateKey, publicKey := testutil.GenerateCosignKeyPair(t)
