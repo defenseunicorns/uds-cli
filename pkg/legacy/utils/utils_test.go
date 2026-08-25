@@ -5,13 +5,37 @@ package utils
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/signing"
 )
+
+func TestReadPackageYAMLConvertsV1beta1OptionalComponents(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "zarf.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`
+apiVersion: zarf.dev/v1beta1
+kind: ZarfPackageConfig
+metadata:
+  name: test
+  version: 0.0.1
+components:
+  - name: required
+  - name: optional
+    optional: true
+`), 0o600))
+
+	pkg, err := ReadPackageYAML(path)
+
+	require.NoError(t, err)
+	require.Len(t, pkg.Components, 2)
+	assert.True(t, pkg.Components[0].IsRequired())
+	assert.False(t, pkg.Components[1].IsRequired())
+}
 
 func TestRequireSignatureWhenVerificationConfigured(t *testing.T) {
 	publicKeyOpts := signing.DefaultVerifyBlobOptions()

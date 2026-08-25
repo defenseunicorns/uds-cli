@@ -19,6 +19,8 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/api"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 )
 
 func mkStaticLoader(pkg *bundle.ZarfPackageLayout, err error) bundle.ZarfPackageLayoutLoader {
@@ -46,17 +48,11 @@ func (l *staticLoaderImpl) LoadPackageLayout(_ context.Context, _ *spec.Package,
 
 func imageLayoutLib() *bundle.ZarfPackageLayout {
 	return &bundle.ZarfPackageLayout{
-		Pkg: bundle.ZarfPackage{
-			Components: []bundle.ZarfPackageComponent{
-				{
-					Name:   "main",
-					Images: []string{"ghcr.io/example/image:v1"},
-					ImageArchives: []bundle.ZarfPackageImageArchive{
-						{Path: "archive.tar", Images: []string{"ghcr.io/example/image:v1"}},
-					},
-				},
-			},
-		},
+		PackageDefinition: api.NewPackageDefinitionFromV1alpha1(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
+			Name:          "main",
+			Images:        []string{"ghcr.io/example/image:v1"},
+			ImageArchives: []v1alpha1.ImageArchive{{Path: "archive.tar", Images: []string{"ghcr.io/example/image:v1"}}},
+		}}}),
 	}
 }
 
@@ -101,10 +97,7 @@ func TestPackageHooks_PreDeployImageSkip(t *testing.T) {
 		PackageDeployHooks: bundle.PackageDeployHooks{
 			PreDeploy: func(_ context.Context, _ *spec.Package, pkgLayout *bundle.ZarfPackageLayout, _ *bundle.DeployPackageOptions) error {
 				captured = pkgLayout
-				for i := range pkgLayout.Pkg.Components {
-					pkgLayout.Pkg.Components[i].Images = nil
-					pkgLayout.Pkg.Components[i].ImageArchives = nil
-				}
+				pkgLayout.PackageDefinition.RemoveImages()
 				return hookErr
 			},
 		},
@@ -112,8 +105,8 @@ func TestPackageHooks_PreDeployImageSkip(t *testing.T) {
 
 	require.ErrorIs(t, err, hookErr)
 	require.NotNil(t, captured)
-	assert.Empty(t, captured.Pkg.Components[0].Images)
-	assert.Empty(t, captured.Pkg.Components[0].ImageArchives)
+	assert.Empty(t, captured.PackageDefinition.AsV1alpha1().Components[0].Images)
+	assert.Empty(t, captured.PackageDefinition.AsV1alpha1().Components[0].ImageArchives)
 }
 
 func TestPackageHooks_PreDeployErrorAbortsBeforeClusterDeploy(t *testing.T) {

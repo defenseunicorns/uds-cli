@@ -258,7 +258,7 @@ func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *spec.Package, opts
 	if err != nil {
 		return err
 	}
-	if _, ok := deployed[deployedKey(zarfPkg.Metadata.Name, pkg.Namespace)]; !ok {
+	if _, ok := deployed[deployedKey(zarfPkg.AsV1alpha1().Metadata.Name, pkg.Namespace)]; !ok {
 		return ErrPackageNotDeployed
 	}
 

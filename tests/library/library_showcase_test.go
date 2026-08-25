@@ -42,8 +42,7 @@ func TestLibraryDeploy_Showcase(t *testing.T) {
 		PackageDeployHooks: bundle.PackageDeployHooks{
 			PreDeploy: func(_ context.Context, _ *spec.Package, pkgLayout *bundle.ZarfPackageLayout, _ *bundle.DeployPackageOptions) error {
 				captured = pkgLayout
-				pkgLayout.Pkg.Components[0].Images = nil
-				pkgLayout.Pkg.Components[0].ImageArchives = nil
+				pkgLayout.PackageDefinition.RemoveImages()
 				return hookErr
 			},
 		},
@@ -53,7 +52,7 @@ func TestLibraryDeploy_Showcase(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Equal(t, "test-bundle", startedBundle)
 	require.NotNil(t, captured)
-	assert.Empty(t, captured.Pkg.Components[0].Images)
-	assert.Empty(t, captured.Pkg.Components[0].ImageArchives)
+	assert.Empty(t, captured.PackageDefinition.AsV1alpha1().Components[0].Images)
+	assert.Empty(t, captured.PackageDefinition.AsV1alpha1().Components[0].ImageArchives)
 	assert.Contains(t, logs.String(), "deploying bundle")
 }
