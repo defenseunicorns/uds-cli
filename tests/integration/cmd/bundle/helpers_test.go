@@ -214,6 +214,14 @@ func bundleDefinitionContainsLayerTitle(t *testing.T, allPaths map[string]bool, 
 	return false
 }
 
+// startLocalRegistry starts an in-memory OCI registry and returns its host (host:port).
+func startLocalRegistry(t *testing.T) string {
+	t.Helper()
+	s := httptest.NewServer(registry.New())
+	t.Cleanup(s.Close)
+	return strings.TrimPrefix(s.URL, "http://")
+}
+
 // startLocalTLSRegistry starts an in-memory OCI registry with a self-signed TLS certificate.
 func startLocalTLSRegistry(t *testing.T) string {
 	t.Helper()

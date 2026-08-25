@@ -337,9 +337,9 @@ func RegisterBundleCleanup(t *testing.T, udsPath, bundlePath string, cleanupTime
 }
 
 // RemoveBundle removes a bundle with the CLI and returns its structured result.
-func RemoveBundle(t *testing.T, udsPath, bundlePath string, args ...string) bundle.RemoveResult {
+func RemoveBundle(t *testing.T, udsPath, bundlePath string) bundle.RemoveResult {
 	t.Helper()
-	cmd, err := bundleRemoveCommand(t.Context(), udsPath, bundlePath, args...)
+	cmd, err := bundleRemoveCommand(t.Context(), udsPath, bundlePath)
 	require.NoError(t, err)
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
@@ -415,25 +415,20 @@ func runUDSCommand(ctx context.Context, t *testing.T, udsPath string, args ...st
 	return output, err
 }
 
-func bundleRemoveCommand(ctx context.Context, udsPath, bundlePath string, extraArgs ...string) (*exec.Cmd, error) {
-	target := bundlePath
-	workingDir := ""
-
-	if !strings.HasPrefix(bundlePath, "oci://") {
-		info, err := os.Stat(bundlePath)
-		if err != nil {
-			return nil, fmt.Errorf("inspect bundle path %q: %w", bundlePath, err)
-		}
-
-		if info.IsDir() {
-			target = "."
-			workingDir = bundlePath
-		}
+func bundleRemoveCommand(ctx context.Context, udsPath, bundlePath string) (*exec.Cmd, error) {
+	info, err := os.Stat(bundlePath)
+	if err != nil {
+		return nil, fmt.Errorf("inspect bundle path %q: %w", bundlePath, err)
 	}
 
-	args := []string{"bundle", "remove", target, "-o", "json"}
-	args = append(args, extraArgs...)
-	cmd := exec.CommandContext(ctx, udsPath, args...)
+	target := bundlePath
+	workingDir := ""
+	if info.IsDir() {
+		target = "."
+		workingDir = bundlePath
+	}
+
+	cmd := exec.CommandContext(ctx, udsPath, "bundle", "remove", target, "-o", "json")
 	cmd.Dir = workingDir
 	cmd.Env = os.Environ()
 	return cmd, nil

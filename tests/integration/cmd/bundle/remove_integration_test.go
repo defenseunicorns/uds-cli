@@ -9,15 +9,10 @@
 package bundle_test
 
 import (
-	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
-	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -86,74 +81,6 @@ func (s *RemoveSuite) TestRemoveCommand_CancellationDoesNotRemove() {
 
 	assert.Contains(s.T(), outputStr, "removal cancelled")
 	assert.NotContains(s.T(), outputStr, "removing package")
-}
-
-func (s *RemoveSuite) TestRemoveCommand_LocalArtifact() {
-	artifact := createInspectArtifact(s.T())
-	cmd := exec.Command(s.uds, "bundle", "remove", artifact, "--skip-signature-verification", "--prompt")
-	cmd.Stdin = strings.NewReader("n\n")
-	output, err := cmd.CombinedOutput()
-	require.NoError(s.T(), err, "uds bundle remove output:\n%s", output)
-	assert.Contains(s.T(), string(output), "inspect-integration")
-	assert.Contains(s.T(), string(output), "Remove this bundle?")
-	assert.Contains(s.T(), string(output), "removal cancelled")
-}
-func (s *RemoveSuite) TestRemoveCommand_OCIArtifact() {
-	artifact := createInspectArtifact(s.T())
-	registryHost := testutil.StartLocalRegistry(s.T())
-	ref := fmt.Sprintf("%s/test/remove:v1.0.0", registryHost)
-	config := &bundlepkg.UDSBundleConfig{
-		Options: &bundlepkg.ConfigOptions{
-			Architecture: runtime.GOARCH,
-			Concurrency:  10,
-			PlainHTTP:    true,
-			TmpDir:       s.T().TempDir(),
-		},
-	}
-	_, err := bundlepkg.Push(s.T().Context(), artifact, ref, bundlepkg.PushOptions{Config: config})
-	require.NoError(s.T(), err)
-	cmd := exec.Command(s.uds, "bundle", "remove", ref, "--plain-http", "--skip-signature-verification", "--prompt")
-	cmd.Stdin = strings.NewReader("n\n")
-	output, err := cmd.CombinedOutput()
-	require.NoError(s.T(), err, "uds bundle remove output:\n%s", output)
-	assert.Contains(s.T(), string(output), "inspect-integration")
-	assert.Contains(s.T(), string(output), "Remove this bundle?")
-	assert.Contains(s.T(), string(output), "removal cancelled")
-}
-func (s *RemoveSuite) TestRemoveCommand_InvalidArtifactReference() {
-	path := filepath.Join(s.T().TempDir(), "not-a-bundle.txt")
-	require.NoError(s.T(), os.WriteFile(path, []byte("not a bundle"), 0o600))
-	cmd := exec.Command(s.uds, "bundle", "remove", path)
-	output, err := cmd.CombinedOutput()
-	require.Error(s.T(), err)
-	assert.Contains(
-		s.T(),
-		string(output),
-		"expected file named 'bundle.uds.hcl', got: not-a-bundle.txt",
-	)
-}
-func (s *RemoveSuite) TestRemoveCommand_UnavailableArtifactReferences() {
-	tests := []struct {
-		name string
-		args []string
-	}{
-		{
-			name: "local tarball",
-			args: []string{"bundle", "remove", filepath.Join(s.T().TempDir(), "missing.tar.zst", "--skip-signature-verification")},
-		},
-		{
-			name: "OCI artifact",
-			args: []string{"bundle", "remove", fmt.Sprintf("%s/test/missing:v1", testutil.StartLocalRegistry(s.T())), "--plain-http", "--skip-signature-verification"},
-		},
-	}
-	for _, tt := range tests {
-		s.Run(tt.name, func() {
-			cmd := exec.Command(s.uds, tt.args...)
-			output, err := cmd.CombinedOutput()
-			require.Error(s.T(), err)
-			assert.Contains(s.T(), strings.ToLower(string(output)), "not found")
-		})
-	}
 }
 
 // TestRemoveCommand_InvalidPackagesFlag verifies that specifying a non-existent

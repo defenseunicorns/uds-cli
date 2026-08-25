@@ -22,5 +22,4 @@ var (
 	ErrUnsafePullOutput      = errors.New("unsafe pull output path")
 	ErrReadConfirmation      = errors.New("reading confirmation")
 	ErrWriteDefinitionNotice = errors.New("writing bundle definition notice")
-	ErrOCINotSupported       = errors.New("OCI bundle references not supported for this command")
 )
