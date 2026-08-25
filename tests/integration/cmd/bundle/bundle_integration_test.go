@@ -80,7 +80,7 @@ func TestInspectCommand_StructuredOutput_Integration(t *testing.T) {
 
 func TestInspectOCICommand_Integration(t *testing.T) {
 	artifactTarball := createInspectArtifact(t)
-	registryHost := testutil.StartLocalRegistry(t)
+	registryHost := startLocalRegistry(t)
 	ref := fmt.Sprintf("%s/test/inspect:v1.0.0", registryHost)
 	config := &bundlepkg.UDSBundleConfig{
 		Options: &bundlepkg.ConfigOptions{
@@ -153,7 +153,7 @@ func TestDeployCommand_WithBundleFile_Integration(t *testing.T) {
 func TestPullCommand_Integration(t *testing.T) {
 	// Push a bundle programmatically so we can test the pull cobra wiring.
 	bundlePath := testutil.CreateBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
-	registryHost := testutil.StartLocalRegistry(t)
+	registryHost := startLocalRegistry(t)
 	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
 
 	pushBundleArtifact(t, bundlePath, ref, &bundlepkg.UDSBundleConfig{
@@ -174,7 +174,7 @@ func TestPullCommand_Integration(t *testing.T) {
 
 func TestPushCommand_Integration(t *testing.T) {
 	bundlePath := testutil.CreateBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
-	registryHost := testutil.StartLocalRegistry(t)
+	registryHost := startLocalRegistry(t)
 	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
 
 	streams, _, out, _ := iostreams.NewTestIOStreams()
@@ -205,7 +205,7 @@ func TestPushCommand_Integration_PlainHTTPAllowsTLS(t *testing.T) {
 // exactly the same set of blob digests as the original.
 func TestPushPull_RoundTrip(t *testing.T) {
 	arch := runtime.GOARCH
-	registryHost := testutil.StartLocalRegistry(t)
+	registryHost := startLocalRegistry(t)
 	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
 
 	// create the bundle from test data.
@@ -245,7 +245,7 @@ func TestRemoveCommand_Integration(t *testing.T) {
 	in.WriteString("n\n")
 
 	root := cli.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "remove", bundlePath, "--skip-signature-verification", "--prompt"})
+	root.SetArgs([]string{"bundle", "remove", bundlePath, "--prompt"})
 
 	err := root.Execute()
 	require.NoError(t, err)

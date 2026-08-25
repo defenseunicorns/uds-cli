@@ -54,7 +54,6 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 				require.NoError(t, err, "values/mypkg/1.yaml should be materialized")
 				assert.Len(t, extracted.PackageManifests, 1)
 				assert.Contains(t, extracted.PackageManifests, "mypkg")
-				assert.Equal(t, "mypkg", extracted.PackageZarfNames["mypkg"])
 			},
 		},
 		{

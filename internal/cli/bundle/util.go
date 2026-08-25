@@ -22,8 +22,7 @@ import (
 
 // validateBundlePathConfig holds options for ValidateBundlePath.
 type validateBundlePathConfig struct {
-	allowArtifactBundlePath     bool
-	allowOCIReferenceBundlePath bool
+	allowArtifactBundlePath bool
 }
 
 func isOCIReference(s string) bool {
@@ -45,12 +44,6 @@ type ValidateBundlePathOption func(*validateBundlePathConfig)
 // Pass this to commands that support artifact deployment (e.g. deploy).
 func AllowArtifactBundlePath() ValidateBundlePathOption {
 	return func(c *validateBundlePathConfig) { c.allowArtifactBundlePath = true }
-}
-
-// AllowOCIReferenceBundlePath enables oci:// artifact paths in ValidateBundlePath.
-// Pass this to commands that support artifact deployment (e.g. deploy).
-func AllowOCIReferenceBundlePath() ValidateBundlePathOption {
-	return func(c *validateBundlePathConfig) { c.allowOCIReferenceBundlePath = true }
 }
 
 // ValidateBundlePath checks if a user-provided bundle reference is valid.
@@ -76,17 +69,6 @@ func ValidateBundlePath(ref string, opts ...ValidateBundlePathOption) error {
 		return fmt.Errorf("bundle file path is required: %w", ErrInvalidArgument)
 	}
 
-	// Check for OCI reference (before filesystem checks)
-	if isOCIReference(ref) {
-		if !cfg.allowOCIReferenceBundlePath {
-			return fmt.Errorf("%w: %w", ErrOCINotSupported, ErrUnsupportedSource)
-		}
-		if err := ValidateArtifactReference(ref); err != nil {
-			return fmt.Errorf("invalid OCI bundle reference %q: %w", ref, err)
-		}
-		return nil
-	}
-
 	// Check for tar.zst archive (before filesystem checks)
 	if isTarZst(ref) {
 		if !cfg.allowArtifactBundlePath {
@@ -103,6 +85,11 @@ func ValidateBundlePath(ref string, opts ...ValidateBundlePathOption) error {
 			return fmt.Errorf("bundle artifact path is a directory: %s: %w", ref, ErrInvalidPath)
 		}
 		return nil
+	}
+
+	// Check for OCI reference (before filesystem checks)
+	if isOCIReference(ref) {
+		return fmt.Errorf("OCI bundle references not yet supported, use a local .hcl file path or directory: %w", ErrUnsupportedSource)
 	}
 
 	// Check if the path exists
@@ -194,14 +181,14 @@ func ValidateArtifactReference(ref string) error {
 	if !os.IsNotExist(err) {
 		return fmt.Errorf("cannot access bundle artifact %s: %w: %w", ref, ErrInvalidPath, err)
 	}
-	if isOCIReference(ref) {
-		return nil
-	}
 	if isTarZst(ref) {
 		return fmt.Errorf("bundle artifact not found: %s: %w: %w", ref, ErrPathNotFound, err)
 	}
 	if filepath.Base(ref) == bundleFileName {
 		return fmt.Errorf("bundle definitions must be deployed with 'uds bundle dev deploy <bundle-definition>': %w", ErrUnsupportedSource)
+	}
+	if isOCIReference(ref) {
+		return nil
 	}
 	return fmt.Errorf("expected a local .tar.zst bundle artifact or OCI reference, got: %s: %w", ref, ErrUnsupportedSource)
 }

@@ -52,8 +52,6 @@ type Remover interface {
 type RemovePackageOptions struct {
 	// Config is the resolved removal configuration.
 	Config *UDSBundleConfig
-	// DeployedPackageNames maps bundle package labels to Zarf metadata names.
-	DeployedPackageNames map[string]string
 	// Force bypasses dependency-safety validation.
 	Force bool
 }
@@ -83,13 +81,6 @@ var _ Remover = (*ZarfRemover)(nil)
 // Keying only by name would collapse those.
 func deployedKey(zarfName, namespaceOverride string) string {
 	return zarfName + "/" + namespaceOverride
-}
-
-func removalPackageSource(pkg *spec.Package, deployedPackageNames map[string]string) string {
-	if deployedName := deployedPackageNames[pkg.Name]; deployedName != "" {
-		return deployedName
-	}
-	return pkg.Source
 }
 
 // NewZarfRemover creates a new ZarfRemover. streams carries the diagnostic sink
@@ -229,9 +220,10 @@ func (r *ZarfRemover) removePackages(ctx context.Context, log iostreams.IOStream
 // RemovePackage removes a single Zarf package from the cluster.
 // Returns ErrPackageNotDeployed if the package is not present on the cluster.
 //
-// The bundle's pkg.Name is the HCL block label and may differ from the Zarf
-// metadata.name. Artifact-backed removal supplies the embedded Zarf name;
-// source removal discovers it from pkg.Source.
+// The bundle's pkg.Name is the HCL block label (a bundle-internal identifier
+// constrained to be a valid HCL traversal name), which need not equal the
+// Zarf package's metadata.name. To find the deployed package on the cluster
+// we load metadata from pkg.Source and look up by (zarfMetadataName, namespace).
 func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *spec.Package, opts RemovePackageOptions) error {
 	if err := opts.Validate(); err != nil {
 		return err
@@ -239,26 +231,10 @@ func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *spec.Package, opts
 	if pkg == nil {
 		return NilParameterError{Name: "package"}
 	}
-	packageSource := removalPackageSource(pkg, opts.DeployedPackageNames)
 	s := logger.Bind(r.streams, opts.Config.Options.LogLevel)
-	s.Debug("preparing package removal", "name", pkg.Name, "source", packageSource)
+	s.Debug("preparing package removal", "name", pkg.Name, "source", pkg.Source)
 
 	ctx = newZarfLoggerContext(ctx, s)
-
-	deployed, err := r.deployedPackages(ctx)
-	if err != nil {
-		return err
-	}
-
-	// Artifact-backed removal already knows the embedded Zarf metadata.name.
-	// Check it before loading cluster state so an absent package is reported as
-	// skipped instead of failing the load of its nonexistent state secret.
-	deployedName := opts.DeployedPackageNames[pkg.Name]
-	if deployedName != "" {
-		if _, ok := deployed[deployedKey(deployedName, pkg.Namespace)]; !ok {
-			return ErrPackageNotDeployed
-		}
-	}
 
 	c, err := r.getCluster(ctx)
 	if err != nil {
@@ -271,15 +247,17 @@ func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *spec.Package, opts
 		OCIConcurrency: opts.Config.Options.Concurrency,
 	}
 
-	// Artifact-backed removal supplies the deployed Zarf name so this loads
-	// package state from the cluster. Source removal discovers the name from the
-	// author-provided package source; OCI sources fetch only the metadata layer.
-	zarfPkg, err := packager.GetPackageFromSourceOrCluster(ctx, c, packageSource, pkg.Namespace, loadOpts)
+	// Load metadata from pkg.Source to discover the Zarf metadata.name. For OCI
+	// sources, only the metadata layer is pulled (a few KB), not the full package.
+	zarfPkg, err := packager.GetPackageFromSourceOrCluster(ctx, c, pkg.Source, pkg.Namespace, loadOpts)
 	if err != nil {
-		return fmt.Errorf("package %q from %s: %w: %w", pkg.Name, packageSource, ErrLoadPackage, err)
+		return fmt.Errorf("package %q from %s: %w: %w", pkg.Name, pkg.Source, ErrLoadPackage, err)
 	}
 
-	// Source-backed removal only learns metadata.name after loading the source.
+	deployed, err := r.deployedPackages(ctx)
+	if err != nil {
+		return err
+	}
 	if _, ok := deployed[deployedKey(zarfPkg.Metadata.Name, pkg.Namespace)]; !ok {
 		return ErrPackageNotDeployed
 	}

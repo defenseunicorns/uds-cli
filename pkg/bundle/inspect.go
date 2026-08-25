@@ -15,7 +15,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
-	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
@@ -39,7 +38,6 @@ type InspectResult struct {
 	ReconfiguredFrom string                  `json:"reconfiguredFrom,omitempty" yaml:"reconfiguredFrom,omitempty" text:"Reconfigured From,omitempty"`
 	BundleSignature  *BundleSignatureSummary `json:"bundleSignature,omitempty" yaml:"bundleSignature,omitempty" text:"Bundle Signature,omitempty"`
 	Packages         []PackageSummary        `json:"packages" yaml:"packages" text:"Packages"`
-	Bundle           *spec.UDSBundle         `json:"-" yaml:"-" text:"-"`
 }
 
 // BundleSignatureSummary reports bundle signature status.
@@ -139,7 +137,6 @@ func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 		ReconfiguredFrom: internalResult.ReconfiguredFrom,
 		BundleSignature:  &BundleSignatureSummary{Status: status},
 		Packages:         make([]PackageSummary, len(internalResult.Packages)),
-		Bundle:           internalResult.Bundle,
 	}
 	for i, pkg := range internalResult.Packages {
 		summary, ok := internalResult.PackageSignatures[pkg.Name]
