@@ -218,21 +218,21 @@ func (b *Bundle) newDeployOptions(ctx context.Context, pkg types.Package, pkgVar
 	}
 
 	return packager.DeployOptions{
-		ForceConflicts:         b.cfg.DeployOpts.ForceConflicts,
-		Timeout:                timeout,
-		SetVariables:           pkgVars,
-		ValuesOverridesMap:     valuesOverrides,
-		Retries:                b.cfg.DeployOpts.Retries,
-		NamespaceOverride:      pkg.Namespace,
-		RemoteOptions:          remoteOpts,
-		AdoptExistingResources: false,
-		Connected:              config.Dev,
-		OCIConcurrency:         config.CommonOptions.OCIConcurrency,
-		GitServer:              newGitServerInfo(pkgVars, pkgKind),
-		RegistryInfo:           registryInfo,
-		ArtifactServer:         newArtifactServerInfo(pkgVars, pkgKind),
-		StorageClass:           newStorageClass(pkgVars, pkgKind),
-		IsInteractive:          !config.CommonOptions.Confirm,
+		ForceConflicts:     b.cfg.DeployOpts.ForceConflicts,
+		Timeout:            timeout,
+		SetVariables:       pkgVars,
+		ValuesOverridesMap: valuesOverrides,
+		Retries:            b.cfg.DeployOpts.Retries,
+		NamespaceOverride:  pkg.Namespace,
+		RemoteOptions:      remoteOpts,
+		TakeOwnership:      false,
+		Connected:          config.Dev,
+		OCIConcurrency:     config.CommonOptions.OCIConcurrency,
+		GitServer:          newGitServerInfo(pkgVars, pkgKind),
+		RegistryInfo:       registryInfo,
+		ArtifactServer:     newArtifactServerInfo(pkgVars, pkgKind),
+		StorageClass:       newStorageClass(pkgVars, pkgKind),
+		IsInteractive:      !config.CommonOptions.Confirm,
 	}, nil
 }
 
