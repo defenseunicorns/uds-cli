@@ -106,10 +106,7 @@ func ExtractArtifact(ctx context.Context, streams iostreams.IOStreams, tarPath, 
 	if err != nil {
 		return nil, err
 	}
-	fetch := func(ctx context.Context, desc ocispec.Descriptor) ([]byte, error) {
-		return oci.FetchBytes(ctx, store, desc)
-	}
-	packageZarfNames, err := readPackageZarfNames(ctx, packageManifests, fetch)
+	packageZarfNames, err := readPackageZarfNames(ctx, packageManifests, store)
 	if err != nil {
 		return nil, err
 	}

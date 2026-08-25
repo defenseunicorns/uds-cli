@@ -48,6 +48,7 @@ var (
 	ErrParsingPackageManifest            = errors.New("parsing package manifest")
 	ErrFetchingZarfYAML                  = errors.New("fetching zarf.yaml")
 	ErrParsingZarfYAML                   = errors.New("parsing zarf.yaml")
+	ErrFetchingZarfLayer                 = errors.New("fetching Zarf package metadata layer")
 )
 
 var (

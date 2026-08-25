@@ -6,25 +6,31 @@ package artifact
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"sort"
 
+	"github.com/defenseunicorns/pkg/oci"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"gopkg.in/yaml.v3"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	zarflayout "github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	"oras.land/oras-go/v2/content"
 )
 
-type blobFetcher func(context.Context, ocispec.Descriptor) ([]byte, error)
-type packageMetadata struct {
-	Metadata struct {
-		Name string `yaml:"name"`
-	} `yaml:"metadata"`
-	Build struct {
-		Signed *bool `yaml:"signed"`
-	} `yaml:"build"`
+type zarfLayerReader struct{ io.ReadCloser }
+
+func (r zarfLayerReader) Read(p []byte) (int, error) {
+	n, err := r.ReadCloser.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return n, fmt.Errorf("%w: %w", ErrFetchingZarfLayer, err)
+	}
+	return n, err
 }
 
-func readPackageZarfNames(ctx context.Context, manifests map[string]ocispec.Descriptor, fetch blobFetcher) (map[string]string, error) {
+func readPackageZarfNames(ctx context.Context, manifests map[string]ocispec.Descriptor, fetcher content.Fetcher) (map[string]string, error) {
 	packageNames := make([]string, 0, len(manifests))
 	for packageName := range manifests {
 		packageNames = append(packageNames, packageName)
@@ -32,43 +38,72 @@ func readPackageZarfNames(ctx context.Context, manifests map[string]ocispec.Desc
 	sort.Strings(packageNames)
 	zarfNames := make(map[string]string, len(manifests))
 	for _, packageName := range packageNames {
-		metadata, err := readPackageMetadata(ctx, packageName, manifests[packageName], fetch)
+		pkg, found, err := fetchZarfPackage(ctx, packageName, manifests[packageName], fetcher)
 		if err != nil {
 			return nil, err
 		}
-		if metadata.Metadata.Name == "" {
+		if !found || pkg.Metadata.Name == "" {
 			return nil, MissingZarfPackageNameError{Package: packageName}
 		}
-		zarfNames[packageName] = metadata.Metadata.Name
+		zarfNames[packageName] = pkg.Metadata.Name
 	}
 	return zarfNames, nil
 }
-func readPackageMetadata(ctx context.Context, packageName string, entry ocispec.Descriptor, fetch blobFetcher) (*packageMetadata, error) {
-	manifestBytes, err := fetch(ctx, entry)
+
+func fetchZarfPackage(ctx context.Context, packageName string, entry ocispec.Descriptor, fetcher content.Fetcher) (v1alpha1.ZarfPackage, bool, error) {
+	manifestBytes, err := udsoci.FetchBytes(ctx, fetcher, entry)
 	if err != nil {
-		return nil, fmt.Errorf("%w %s for package %q: %w", ErrFetchingPackageManifest, entry.Digest, packageName, err)
+		return v1alpha1.ZarfPackage{}, false, fmt.Errorf("%w %s for package %q: %w", ErrFetchingPackageManifest, entry.Digest, packageName, err)
 	}
-	var manifest ocispec.Manifest
-	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
-		return nil, fmt.Errorf("%w %s for package %q: %w", ErrParsingPackageManifest, entry.Digest, packageName, err)
+	var root oci.Manifest
+	if err := json.Unmarshal(manifestBytes, &root); err != nil {
+		return v1alpha1.ZarfPackage{}, false, fmt.Errorf("%w %s for package %q: %w", ErrParsingPackageManifest, entry.Digest, packageName, err)
 	}
-	if manifest.SchemaVersion != 2 {
-		return nil, UnsupportedSchemaVersionError{Artifact: "package manifest", Version: manifest.SchemaVersion}
+	if root.SchemaVersion != 2 {
+		return v1alpha1.ZarfPackage{}, false, UnsupportedSchemaVersionError{Artifact: "package manifest", Version: root.SchemaVersion}
 	}
-	if manifest.MediaType != "" && !udsoci.IsImageManifestMediaType(manifest.MediaType) {
-		return nil, UnsupportedMediaTypeError{Artifact: "package manifest", MediaType: manifest.MediaType}
+	if root.MediaType != "" && !udsoci.IsImageManifestMediaType(root.MediaType) {
+		return v1alpha1.ZarfPackage{}, false, UnsupportedMediaTypeError{Artifact: "package manifest", MediaType: root.MediaType}
 	}
-	metadata := &packageMetadata{}
-	zarfLayer, ok := findLayerByTitleOptional(manifest, "zarf.yaml")
-	if !ok {
-		return metadata, nil
+
+	zarfLayer := root.Locate(zarflayout.ZarfYAML)
+	if oci.IsEmptyDescriptor(zarfLayer) {
+		return v1alpha1.ZarfPackage{}, false, nil
 	}
-	zarfBytes, err := fetch(ctx, zarfLayer)
+
+	// FetchZarfYAML uses content.FetchAll internally. Reject oversized metadata
+	// before opening it, then let ORAS stream, bound, and verify the descriptor.
+	boundedFetcher := content.FetcherFunc(func(ctx context.Context, desc ocispec.Descriptor) (io.ReadCloser, error) {
+		if err := desc.Digest.Validate(); err != nil {
+			return nil, fmt.Errorf("%w: invalid digest %s: %w", ErrFetchingZarfLayer, desc.Digest, err)
+		}
+		if desc.Size < 0 {
+			return nil, fmt.Errorf("%w: %w", ErrFetchingZarfLayer, content.ErrInvalidDescriptorSize)
+		}
+		if desc.Size > udsoci.MaxFetchBytesSize {
+			err := udsoci.DescriptorTooLargeError{Digest: desc.Digest, Size: desc.Size, Limit: udsoci.MaxFetchBytesSize}
+			return nil, fmt.Errorf("%w: %w", ErrFetchingZarfLayer, err)
+		}
+		r, err := fetcher.Fetch(ctx, desc)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrFetchingZarfLayer, err)
+		}
+		return zarfLayerReader{ReadCloser: r}, nil
+	})
+	pkg, err := zoci.FetchZarfYAML(ctx, &root, boundedFetcher)
 	if err != nil {
-		return nil, fmt.Errorf("%w %s for package %q: %w", ErrFetchingZarfYAML, zarfLayer.Digest, packageName, err)
+		if isZarfLayerReadError(err) {
+			return v1alpha1.ZarfPackage{}, true, fmt.Errorf("%w %s for package %q: %w", ErrFetchingZarfYAML, zarfLayer.Digest, packageName, err)
+		}
+		return v1alpha1.ZarfPackage{}, true, fmt.Errorf("%w %s for package %q: %w", ErrParsingZarfYAML, zarfLayer.Digest, packageName, err)
 	}
-	if err := yaml.Unmarshal(zarfBytes, metadata); err != nil {
-		return nil, fmt.Errorf("%w %s for package %q: %w", ErrParsingZarfYAML, zarfLayer.Digest, packageName, err)
-	}
-	return metadata, nil
+	return pkg, true, nil
+}
+
+func isZarfLayerReadError(err error) bool {
+	return errors.Is(err, ErrFetchingZarfLayer) ||
+		errors.Is(err, content.ErrInvalidDescriptorSize) ||
+		errors.Is(err, content.ErrMismatchedDigest) ||
+		errors.Is(err, content.ErrTrailingData) ||
+		errors.Is(err, io.ErrUnexpectedEOF)
 }

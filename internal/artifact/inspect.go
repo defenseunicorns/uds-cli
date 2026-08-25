@@ -17,6 +17,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"oras.land/oras-go/v2/content"
 )
 
 // InspectOptions contains the internal inputs for built bundle inspection.
@@ -90,10 +91,7 @@ func inspectLocalArtifact(ctx context.Context, opts InspectOptions) (*InspectRes
 	if err != nil {
 		return nil, err
 	}
-	fetch := func(ctx context.Context, desc ocispec.Descriptor) ([]byte, error) {
-		return udsoci.FetchBytes(ctx, store, desc)
-	}
-	return inspectBundleIndex(ctx, opts.Streams, indexBytes, digest.FromBytes(indexBytes).String(), fetch)
+	return inspectBundleIndex(ctx, opts.Streams, indexBytes, digest.FromBytes(indexBytes).String(), store)
 }
 
 func inspectOCIReference(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
@@ -110,13 +108,10 @@ func inspectOCIReference(ctx context.Context, opts InspectOptions) (*InspectResu
 		return nil, ResolvingBundleSourceError{Source: opts.Source, Err: err}
 	}
 
-	fetch := func(ctx context.Context, desc ocispec.Descriptor) ([]byte, error) {
-		return udsoci.FetchBytes(ctx, target, desc)
-	}
-	return inspectBundleIndex(ctx, opts.Streams, indexBytes, childDesc.Digest.String(), fetch)
+	return inspectBundleIndex(ctx, opts.Streams, indexBytes, childDesc.Digest.String(), target)
 }
 
-func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexBytes []byte, artifactDigest string, fetch blobFetcher) (*InspectResult, error) {
+func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexBytes []byte, artifactDigest string, fetcher content.Fetcher) (*InspectResult, error) {
 	var idx ocispec.Index
 	if err := json.Unmarshal(indexBytes, &idx); err != nil {
 		return nil, fmt.Errorf("%w %s: %w", ErrParsingBundleIndex, artifactDigest, err)
@@ -147,7 +142,7 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 	if !udsoci.IsImageManifestMediaType(definitionEntry.MediaType) {
 		return nil, UnsupportedMediaTypeError{Artifact: "bundle definition entry", MediaType: definitionEntry.MediaType}
 	}
-	definitionBytes, err := fetch(ctx, definitionEntry)
+	definitionBytes, err := udsoci.FetchBytes(ctx, fetcher, definitionEntry)
 	if err != nil {
 		return nil, fmt.Errorf("%w %s: %w", ErrFetchingBundleDefinitionManifest, definitionEntry.Digest, err)
 	}
@@ -169,7 +164,7 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 	if hclDesc.MediaType != udsoci.MediaTypeBundleHCL {
 		return nil, UnsupportedMediaTypeError{Artifact: "bundle definition HCL layer", MediaType: hclDesc.MediaType}
 	}
-	hclBytes, err := fetch(ctx, hclDesc)
+	hclBytes, err := udsoci.FetchBytes(ctx, fetcher, hclDesc)
 	if err != nil {
 		return nil, fmt.Errorf("%w %s: %w", ErrFetchingBundleDefinitionHCL, hclDesc.Digest, err)
 	}
@@ -197,7 +192,7 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 		PackageSignatures: make(map[string]PackageSignatureSummary, len(b.Packages)),
 	}
 	for _, pkg := range b.Packages {
-		summary, err := inspectPackageSignature(ctx, idx, pkg, fetch)
+		summary, err := inspectPackageSignature(ctx, idx, pkg, fetcher)
 		if err != nil {
 			return nil, InspectingPackageSignatureError{Package: pkg.Name, Err: err}
 		}
@@ -207,7 +202,7 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 	return result, nil
 }
 
-func inspectPackageSignature(ctx context.Context, idx ocispec.Index, pkg spec.Package, fetch blobFetcher) (*PackageSignatureSummary, error) {
+func inspectPackageSignature(ctx context.Context, idx ocispec.Index, pkg spec.Package, fetcher content.Fetcher) (*PackageSignatureSummary, error) {
 	entry, err := findPackageManifest(idx, pkg)
 	if err != nil {
 		return nil, err
@@ -216,13 +211,16 @@ func inspectPackageSignature(ctx context.Context, idx ocispec.Index, pkg spec.Pa
 		Signed:       PackageSigningStatusUnknown,
 		Verification: packageVerificationStatus(pkg.SignatureVerification, entry),
 	}
-	metadata, err := readPackageMetadata(ctx, pkg.Name, *entry, fetch)
+	zarfPkg, found, err := fetchZarfPackage(ctx, pkg.Name, *entry, fetcher)
 	if err != nil {
 		return nil, err
 	}
+	if !found {
+		return summary, nil
+	}
 
-	if metadata.Build.Signed != nil {
-		if *metadata.Build.Signed {
+	if zarfPkg.Build.Signed != nil {
+		if *zarfPkg.Build.Signed {
 			summary.Signed = PackageSigningStatusSigned
 		} else {
 			summary.Signed = PackageSigningStatusUnsigned
@@ -267,15 +265,6 @@ func findLayerByTitle(manifest ocispec.Manifest, title string) (ocispec.Descript
 		}
 	}
 	return ocispec.Descriptor{}, LayerNotFoundError{Title: title}
-}
-
-func findLayerByTitleOptional(manifest ocispec.Manifest, title string) (ocispec.Descriptor, bool) {
-	for _, layer := range manifest.Layers {
-		if layer.Annotations[ocispec.AnnotationTitle] == title {
-			return layer, true
-		}
-	}
-	return ocispec.Descriptor{}, false
 }
 
 func packageVerificationStatus(verification *spec.PackageSignatureVerification, manifest *ocispec.Descriptor) PackageVerificationStatus {
