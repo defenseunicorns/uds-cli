@@ -303,6 +303,19 @@ func TestValidateBundlePath_AllowArtifact(t *testing.T) {
 	}
 }
 
+func TestValidateBundlePathPrefersOCIReferenceOverTarZstSuffix(t *testing.T) {
+	tests := []string{
+		"oci://ghcr.io/test/bundle:v1.tar.zst",
+		"ghcr.io/test/bundle:v1.tar.zst",
+	}
+	for _, ref := range tests {
+		t.Run(ref, func(t *testing.T) {
+			err := ValidateBundlePath(ref, AllowArtifactBundlePath(), AllowOCIReferenceBundlePath())
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestValidateBundlePath_WithRealBundle(t *testing.T) {
 	// Test with the actual spec-compliant bundle from test data
 	bundleDir := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "spec-compliant")

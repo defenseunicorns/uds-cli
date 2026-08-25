@@ -35,6 +35,19 @@ func TestRemoveOCIArtifactSource(t *testing.T) {
 	require.NotNil(t, pushed)
 	assertArtifactReferenceReachesRemove(t, ref, config)
 }
+
+func TestRemoveOCIArtifactSourceWithTarZstSuffix(t *testing.T) {
+	artifact := createRemoveArtifact(t)
+	registryHost := testutil.StartLocalRegistry(t)
+	config := removeArtifactConfig(t)
+	config.Options.PlainHTTP = true
+	ref := fmt.Sprintf("%s/test/remove:v1.tar.zst", registryHost)
+	pushed, err := bundle.Push(t.Context(), artifact, ref, bundle.PushOptions{Config: config})
+	require.NoError(t, err)
+	require.NotNil(t, pushed)
+
+	assertArtifactReferenceReachesRemove(t, ref, config)
+}
 func assertArtifactReferenceReachesRemove(t *testing.T, ref string, config *bundle.UDSBundleConfig) {
 	t.Helper()
 	inspected, err := bundle.Inspect(t.Context(), bundle.InspectOptions{
