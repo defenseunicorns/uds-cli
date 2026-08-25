@@ -20,11 +20,9 @@ import (
 // github.com/zarf-dev/zarf/src/pkg/packager/layout.PackageLayout exposed during
 // bundle deploy. Fields not exposed here are preserved by the adapter.
 type ZarfPackageLayout struct {
-	Directory string
-	// IsPartial indicates that the layout may omit files referenced by its checksums.
-	IsPartial         bool
+	dirPath           string
 	Pkg               ZarfPackage
-	registryDigest    string
+	digest            string
 	packageDefinition api.PackageDefinition
 }
 
@@ -32,8 +30,16 @@ type ZarfPackageLayout struct {
 // should store as the deployed package identity.
 func (p *ZarfPackageLayout) SetDeployedDigest(digest string) {
 	if p != nil {
-		p.registryDigest = digest
+		p.digest = digest
 	}
+}
+
+func (p *ZarfPackageLayout) DirPath() string {
+	return p.dirPath
+}
+
+func (p *ZarfPackageLayout) Digest() string {
+	return p.digest
 }
 
 // ZarfPackage is the supported public subset of
@@ -72,14 +78,15 @@ type PackageStagingRootProvider interface {
 	PackageStagingRoot(context.Context) string
 }
 
-func (l *extractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts ZarfPackageLayoutLoadOptions) (*ZarfPackageLayout, error) {
-	pkgLayout, isPartial, err := l.loader.LoadPackageLayout(ctx, pkg, dstDir, zarf.LoadOptions{Streams: opts.Streams, IsPartial: opts.IsPartial})
+func (l *extractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts ZarfPackageLayoutLoadOptions) (*ZarfPackageLayoutLoadResult, error) {
+	result, err := l.loader.LoadPackageLayout(ctx, pkg, dstDir, zarf.LoadOptions{Streams: opts.Streams, IsPartial: opts.IsPartial})
 	if err != nil {
 		return nil, err
 	}
-	result := fromZarfPackageLayout(pkgLayout)
-	result.IsPartial = isPartial
-	return result, nil
+	return &ZarfPackageLayoutLoadResult{
+		Layout:    *fromZarfPackageLayout(&result.Layout),
+		IsPartial: result.IsPartial,
+	}, nil
 }
 
 // PackageStagingRoot returns the parent of OCIDir so package staging can share
@@ -97,33 +104,32 @@ type packageLayoutLoaderAdapter struct {
 }
 
 // LoadPackageLayout delegates package loading through the public loader contract.
-func (a packageLayoutLoaderAdapter) LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts zarf.LoadOptions) (*layout.PackageLayout, bool, error) {
-	publicLayout, err := a.loader.LoadPackageLayout(ctx, pkg, dstDir, ZarfPackageLayoutLoadOptions{Streams: opts.Streams, IsPartial: opts.IsPartial})
+func (a packageLayoutLoaderAdapter) LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts zarf.LoadOptions) (*zarf.PackageLayoutLoadResult, error) {
+	publicResult, err := a.loader.LoadPackageLayout(ctx, pkg, dstDir, ZarfPackageLayoutLoadOptions{Streams: opts.Streams, IsPartial: opts.IsPartial})
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
-	if publicLayout == nil {
-		return nil, false, fmt.Errorf("package layout loader returned a nil layout")
+	if publicResult == nil {
+		return nil, fmt.Errorf("package layout loader returned a nil result")
 	}
-	publicLayout.IsPartial = publicLayout.IsPartial || opts.IsPartial
-	if publicLayout.Directory != "" {
-		cleanDst, err := filepath.Abs(filepath.Clean(dstDir))
-		if err != nil {
-			return nil, false, err
-		}
-		cleanLayout, err := filepath.Abs(filepath.Clean(publicLayout.Directory))
-		if err != nil {
-			return nil, false, err
-		}
-		if cleanLayout != cleanDst {
-			return nil, false, fmt.Errorf("package layout directory %q must be the supplied staging directory %q", publicLayout.Directory, dstDir)
-		}
-	}
-	internalLayout, err := toZarfPackageLayout(ctx, publicLayout, publicLayout.IsPartial)
+
+	publicLayout := &publicResult.Layout
+	isPartial := publicResult.IsPartial || opts.IsPartial
+	stagedDir, err := filepath.Abs(filepath.Clean(dstDir))
 	if err != nil {
-		return nil, false, err
+		return nil, fmt.Errorf("resolving package staging directory %q: %w", dstDir, err)
 	}
-	return internalLayout, publicLayout.IsPartial, nil
+	// The adapter owns the staging directory. Public loaders populate dstDir but
+	// cannot and should not set layout-private path state.
+	publicLayout.dirPath = stagedDir
+	internalLayout, err := toZarfPackageLayout(ctx, publicLayout, isPartial)
+	if err != nil {
+		return nil, fmt.Errorf("loading package layout staged in %q: %w", stagedDir, err)
+	}
+	return &zarf.PackageLayoutLoadResult{
+		Layout:    *internalLayout,
+		IsPartial: isPartial,
+	}, nil
 }
 
 // PackageStagingRoot forwards an optional staging preference. An empty result
@@ -141,12 +147,12 @@ func fromZarfPackageLayout(pkgLayout *layout.PackageLayout) *ZarfPackageLayout {
 	}
 	zarfPkg := pkgLayout.AsV1alpha1()
 	result := &ZarfPackageLayout{
-		Directory:         pkgLayout.DirPath(),
+		dirPath:           pkgLayout.DirPath(),
 		Pkg:               ZarfPackage{Components: make([]ZarfPackageComponent, len(zarfPkg.Components))},
 		packageDefinition: pkgLayout.PackageDefinition,
 	}
 	if !pkgLayout.IsPushable() && pkgLayout.Digest() != "" {
-		result.registryDigest = pkgLayout.Digest()
+		result.digest = pkgLayout.Digest()
 	}
 	for i, component := range zarfPkg.Components {
 		result.Pkg.Components[i] = ZarfPackageComponent{
@@ -169,8 +175,8 @@ func toZarfPackageLayout(ctx context.Context, pkgLayout *ZarfPackageLayout, isPa
 	if pkgLayout == nil {
 		return nil, nil
 	}
-	if pkgLayout.Directory != "" {
-		result, err := layout.LoadFromDir(ctx, pkgLayout.Directory, layout.PackageLayoutOptions{
+	if pkgLayout.dirPath != "" {
+		result, err := layout.LoadFromDir(ctx, pkgLayout.dirPath, layout.PackageLayoutOptions{
 			IsPartial:            isPartial,
 			VerificationStrategy: layout.VerifyNever,
 		})
@@ -275,8 +281,8 @@ func applyPublicPackageLayout(dst *layout.PackageLayout, src *ZarfPackageLayout)
 	} else {
 		dst.PackageDefinition = api.NewPackageDefinitionFromV1alpha1(zarfPkg)
 	}
-	if src.registryDigest != "" {
-		dst.SetRegistryDigest(src.registryDigest)
+	if src.digest != "" {
+		dst.SetRegistryDigest(src.digest)
 	}
 	return nil
 }
