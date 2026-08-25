@@ -42,6 +42,12 @@ func ReadPackageYAML(path string) (v1alpha1.ZarfPackage, error) {
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, err
 	}
+	return ReadPackageYAMLBytes(data)
+}
+
+// ReadPackageYAMLBytes decodes either supported Zarf package schema and returns
+// the legacy v1alpha1 compatibility view through Zarf's public converter.
+func ReadPackageYAMLBytes(data []byte) (v1alpha1.ZarfPackage, error) {
 	var header struct {
 		APIVersion string `yaml:"apiVersion"`
 	}

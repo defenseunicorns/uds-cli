@@ -139,7 +139,9 @@ func toZarfPackageLayout(ctx context.Context, pkgLayout *ZarfPackageLayout, isPa
 		if err != nil {
 			return nil, err
 		}
-		result.PackageDefinition = pkgLayout.PackageDefinition
+		if err := applyPublicPackageLayout(result, pkgLayout); err != nil {
+			return nil, err
+		}
 		return result, nil
 	}
 	return toZarfPackageLayoutForDeploy(pkgLayout)

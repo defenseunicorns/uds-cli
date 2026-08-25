@@ -368,12 +368,13 @@ func TestPackageLayoutLoaderAdapterPreservesPartialLayout(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "checksums.txt"), checksums, 0o600))
 
 	loader := packageLayoutLoaderAdapter{loader: staticPackageLayoutLoader{
-		layout:    &ZarfPackageLayout{dirPath: dir},
+		layout:    &ZarfPackageLayout{dirPath: dir, digest: "sha256:registry"},
 		isPartial: true,
 	}}
 	result, err := loader.LoadPackageLayout(t.Context(), &spec.Package{Name: "test"}, dir, internalzarf.LoadOptions{})
 	require.NoError(t, err)
 	assert.True(t, result.IsPartial)
+	assert.Equal(t, "sha256:registry", result.Layout.Digest())
 }
 
 func TestPackageLayoutLoaderAdapterRequiresStagedPackage(t *testing.T) {
