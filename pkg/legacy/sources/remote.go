@@ -18,7 +18,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils/boci"
-	goyaml "github.com/goccy/go-yaml"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
@@ -135,8 +134,8 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) 
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
 
-	var pkg v1alpha1.ZarfPackage
-	if err = goyaml.Unmarshal(pkgBytes, &pkg); err != nil {
+	pkg, err := utils.ReadPackageYAML(filepath.Join(r.TmpDir, layout.ZarfYAML))
+	if err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}
 

@@ -85,9 +85,8 @@ func (f *localFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
 		zarfTarball.Close()
 		return v1alpha1.ZarfPackage{}, err
 	}
-	zarfYAML := v1alpha1.ZarfPackage{}
 	zarfYAMLPath := filepath.Join(tmpDir, config.ZarfYAML)
-	err = utils.ReadYAMLStrict(zarfYAMLPath, &zarfYAML)
+	zarfYAML, err := utils.ReadPackageYAML(zarfYAMLPath)
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, err
 	}
