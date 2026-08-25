@@ -50,13 +50,13 @@ func ReadPackageYAML(path string) (v1alpha1.ZarfPackage, error) {
 	}
 	if header.APIVersion == v1beta1.APIVersion {
 		var pkg v1beta1.Package
-		if err := goyaml.UnmarshalWithOptions(data, &pkg, goyaml.Strict()); err != nil {
+		if err := goyaml.Unmarshal(data, &pkg); err != nil {
 			return v1alpha1.ZarfPackage{}, err
 		}
 		return convert.PackageV1beta1ToV1alpha1(pkg), nil
 	}
 	var pkg v1alpha1.ZarfPackage
-	if err := goyaml.UnmarshalWithOptions(data, &pkg, goyaml.Strict()); err != nil {
+	if err := goyaml.Unmarshal(data, &pkg); err != nil {
 		return v1alpha1.ZarfPackage{}, err
 	}
 	return pkg, nil
