@@ -82,11 +82,11 @@ func (o *DevDisassembleOptions) Validate() error {
 
 // Run disassembles the source artifact and prints its result.
 func (o *DevDisassembleOptions) Run(ctx context.Context) error {
-	config := o.Config.Options
 	result, err := o.run(ctx, disassemble.Options{
-		Source: o.Source, OutputDir: o.OutputDir, Architecture: config.Architecture,
-		PlainHTTP: config.PlainHTTP, SkipTLSVerify: config.SkipTLSVerify,
-		TmpDir: config.TmpDir, Concurrency: config.Concurrency, Streams: o.IOStreams,
+		Source:    o.Source,
+		OutputDir: o.OutputDir,
+		Config:    *o.Config.Options,
+		Streams:   o.IOStreams,
 	})
 	if err != nil {
 		return err

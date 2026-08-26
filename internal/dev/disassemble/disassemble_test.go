@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -35,8 +36,8 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 
 	outputDir := filepath.Join(t.TempDir(), "disassembled%source")
 	result, err := Disassemble(t.Context(), Options{
-		Source: pkgLayout.DirPath(), OutputDir: outputDir, Architecture: "amd64",
-		TmpDir: t.TempDir(), Concurrency: 1, Streams: testStreams(),
+		Source: pkgLayout.DirPath(), OutputDir: outputDir,
+		Config: bundlepkg.ConfigOptions{Architecture: "amd64", TmpDir: t.TempDir(), Concurrency: 1}, Streams: testStreams(),
 	})
 	require.NoError(t, err)
 	assert.Equal(t, outputDir, result.OutputDir)
@@ -105,7 +106,8 @@ components:
 
 	outputDir := filepath.Join(t.TempDir(), "beta-output")
 	_, err = Disassemble(t.Context(), Options{
-		Source: pkgLayout.DirPath(), OutputDir: outputDir, Architecture: "amd64", TmpDir: t.TempDir(), Streams: testStreams(),
+		Source: pkgLayout.DirPath(), OutputDir: outputDir,
+		Config: bundlepkg.ConfigOptions{Architecture: "amd64", TmpDir: t.TempDir()}, Streams: testStreams(),
 	})
 	require.NoError(t, err)
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
@@ -158,7 +160,7 @@ func TestDisassembleFailureDoesNotPublishPartialOutput(t *testing.T) {
 	outputDir := filepath.Join(parent, "output")
 	_, err := Disassemble(t.Context(), Options{
 		Source: filepath.Join(parent, "missing.tar.zst"), OutputDir: outputDir,
-		TmpDir: t.TempDir(), Streams: testStreams(),
+		Config: bundlepkg.ConfigOptions{TmpDir: t.TempDir()}, Streams: testStreams(),
 	})
 	require.Error(t, err)
 	assert.NoDirExists(t, outputDir)

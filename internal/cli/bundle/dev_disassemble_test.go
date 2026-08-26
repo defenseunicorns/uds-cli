@@ -32,11 +32,7 @@ func TestDevDisassembleOptionsRunPassesConfigAndPrintsResult(t *testing.T) {
 		},
 	}
 	require.NoError(t, o.Run(t.Context()))
-	assert.Equal(t, "arm64", got.Architecture)
-	assert.True(t, got.PlainHTTP)
-	assert.True(t, got.SkipTLSVerify)
-	assert.Equal(t, "/tmp/work", got.TmpDir)
-	assert.Equal(t, 3, got.Concurrency)
+	assert.Equal(t, *o.Config.Options, got.Config)
 	assert.Contains(t, out.String(), "oci://example.test/package:1.0.0")
 }
 

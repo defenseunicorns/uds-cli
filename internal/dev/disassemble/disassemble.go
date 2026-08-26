@@ -40,23 +40,17 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 		return nil, err
 	}
 
-	tmpRoot, err := os.MkdirTemp(opts.TmpDir, "uds-dev-disassemble-*")
+	tmpRoot, err := os.MkdirTemp(opts.Config.TmpDir, "uds-dev-disassemble-*")
 	if err != nil {
 		return nil, fmt.Errorf("creating temporary directory: %w", err)
 	}
 	defer warnRemoveAll(opts.Streams, "temporary directory", tmpRoot)()
 
-	arch := opts.Architecture
-	if arch == "" {
-		arch = runtime.GOARCH
+	sourceConfig := bundleinternal.ConfigOptions(opts.Config)
+	if sourceConfig.Architecture == "" {
+		sourceConfig.Architecture = runtime.GOARCH
 	}
-	source := internalzarf.NewPackageSource(opts.Source, bundleinternal.ConfigOptions{
-		Architecture:  arch,
-		PlainHTTP:     opts.PlainHTTP,
-		SkipTLSVerify: opts.SkipTLSVerify,
-		TmpDir:        opts.TmpDir,
-		Concurrency:   opts.Concurrency,
-	}, "", opts.Streams)
+	source := internalzarf.NewPackageSource(opts.Source, sourceConfig, "", opts.Streams)
 	pkgLayout, err := source.PullFiltered(ctx, tmpRoot, layout.PackageLayoutOptions{Filter: filters.Empty()})
 	if err != nil {
 		return nil, fmt.Errorf("loading source package: %w", err)

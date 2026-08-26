@@ -3,18 +3,17 @@
 
 package disassemble
 
-import "github.com/defenseunicorns/uds-cli/pkg/iostreams"
+import (
+	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+)
 
 // Options holds inputs for disassembling an artifact into local source.
 type Options struct {
-	Source        string
-	OutputDir     string
-	Architecture  string
-	PlainHTTP     bool
-	SkipTLSVerify bool
-	TmpDir        string
-	Concurrency   int
-	Streams       iostreams.IOStreams
+	Source    string
+	OutputDir string
+	Config    bundlepkg.ConfigOptions
+	Streams   iostreams.IOStreams
 }
 
 // Result describes source emitted by a successful disassembly.

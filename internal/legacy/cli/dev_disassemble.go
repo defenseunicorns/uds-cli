@@ -6,6 +6,7 @@ package cmd
 import (
 	"github.com/defenseunicorns/uds-cli/internal/dev/disassemble"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
+	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/config"
 	"github.com/spf13/cobra"
@@ -29,9 +30,15 @@ func newDevDisassembleCommand() *cobra.Command {
 			}
 			streams := iostreams.New(cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr())
 			result, err := disassemble.Disassemble(cmd.Context(), disassemble.Options{
-				Source: args[0], OutputDir: args[1], Architecture: config.CLIArch,
-				PlainHTTP: config.CommonOptions.Insecure, SkipTLSVerify: config.CommonOptions.Insecure,
-				TmpDir: config.CommonOptions.TempDirectory, Concurrency: config.CommonOptions.OCIConcurrency,
+				Source:    args[0],
+				OutputDir: args[1],
+				Config: bundlepkg.ConfigOptions{
+					Architecture:  config.CLIArch,
+					PlainHTTP:     config.CommonOptions.Insecure,
+					SkipTLSVerify: config.CommonOptions.Insecure,
+					TmpDir:        config.CommonOptions.TempDirectory,
+					Concurrency:   config.CommonOptions.OCIConcurrency,
+				},
 				Streams: streams,
 			})
 			if err != nil {
