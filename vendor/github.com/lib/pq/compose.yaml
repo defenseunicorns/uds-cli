@@ -41,7 +41,7 @@ services:
       'POSTGRES_PASSWORD': 'unused'
   pg17:
     profiles:    ['pg17']
-    image:       'postgres:17'
+    image:       'postgres:18'
     ports:       ['127.0.0.1:5432:5432']
     entrypoint:  '/init/entry.sh'
     volumes:     ['./testdata/postgres:/init', './testdata/ssl:/ssl']
@@ -53,7 +53,7 @@ services:
       'POSTGRES_PASSWORD': 'unused'
   pg16:
     profiles:    ['pg16']
-    image:       'postgres:16'
+    image:       'postgres:18'
     ports:       ['127.0.0.1:5432:5432']
     entrypoint:  '/init/entry.sh'
     volumes:     ['./testdata/postgres:/init', './testdata/ssl:/ssl']
@@ -65,7 +65,7 @@ services:
       'POSTGRES_PASSWORD': 'unused'
   pg15:
     profiles:    ['pg15']
-    image:       'postgres:15'
+    image:       'postgres:18'
     ports:       ['127.0.0.1:5432:5432']
     entrypoint:  '/init/entry.sh'
     volumes:     ['./testdata/postgres:/init', './testdata/ssl:/ssl']
@@ -77,7 +77,7 @@ services:
       'POSTGRES_PASSWORD': 'unused'
   pg14:
     profiles:    ['pg14']
-    image:       'postgres:14'
+    image:       'postgres:18'
     ports:       ['127.0.0.1:5432:5432']
     entrypoint:  '/init/entry.sh'
     volumes:     ['./testdata/postgres:/init', './testdata/ssl:/ssl']
