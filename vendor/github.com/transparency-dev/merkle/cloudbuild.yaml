@@ -18,9 +18,9 @@ steps:
   args: ["golangci-lint", "run", "--timeout", "10m"]
 
 - id: 'unit tests'
-  name: 'golang:1.19'
+  name: 'golang:1.27'
   args: ['go', 'test', './...']
 
 - id: 'build'
-  name: 'golang:1.19'
+  name: 'golang:1.27'
   args: ['go', 'build', './...']

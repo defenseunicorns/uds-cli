@@ -144,7 +144,7 @@ verify-generated-code:
     - .go:base
   stage: lint
   needs: []
-  image: golang:1.25-bookworm
+  image: golang:1.27-bookworm
   script:
     - make generate
     - |
@@ -216,7 +216,7 @@ tests:integration:
   rules:
     - if: $ENABLE_EE_ACCEPTANCE_TESTS == "true"
   needs: []
-  image: golang:1.25-bookworm
+  image: golang:1.27-bookworm
   timeout: 2 hours
   services:
     - docker:29.2.1-dind
