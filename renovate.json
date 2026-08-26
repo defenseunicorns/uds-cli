@@ -7,7 +7,8 @@
   "prConcurrentLimit": 0,
   "prHourlyLimit": 0,
   "separateMajorMinor": false,
-  "postUpdateOptions": ["gomodTidy"],
+  "ignorePaths": ["**/vendor/**"],
+  "postUpdateOptions": ["gomodTidy", "gomodVendor"],
   "packageRules": [
     {
       "matchFileNames": ["go.mod", "go.sum"],
