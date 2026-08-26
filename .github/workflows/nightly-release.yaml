@@ -18,8 +18,6 @@ jobs:
       id-token: write
       packages: write
     secrets: inherit
-    with:
-      fetch_zarf: true
 
   push:
     runs-on: ubuntu-latest

@@ -1,0 +1,137 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2021-Present The Zarf Authors
+
+// Package hooks contains the mutation hooks for the Zarf agent.
+package hooks
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/defenseunicorns/pkg/helpers/v2"
+	"github.com/fluxcd/pkg/apis/meta"
+	flux "github.com/fluxcd/source-controller/api/v1"
+	"github.com/zarf-dev/zarf/src/config"
+	"github.com/zarf-dev/zarf/src/config/lang"
+	"github.com/zarf-dev/zarf/src/internal/agent/operations"
+	"github.com/zarf-dev/zarf/src/pkg/cluster"
+	"github.com/zarf-dev/zarf/src/pkg/logger"
+	"github.com/zarf-dev/zarf/src/pkg/state"
+	"github.com/zarf-dev/zarf/src/pkg/transform"
+	v1 "k8s.io/api/admission/v1"
+)
+
+// NewHelmRepositoryMutationHook creates a new instance of the helm repo mutation hook.
+func NewHelmRepositoryMutationHook(c *cluster.Cluster, mode state.MutationPolicy) operations.Hook {
+	admit := withMutationGuard(c, mode, func(ctx context.Context, r *v1.AdmissionRequest, src *flux.HelmRepository) (*operations.Result, error) {
+		return mutateHelmRepo(ctx, r, c, src)
+	})
+	return operations.Hook{Create: admit, Update: admit}
+}
+
+// mutateHelmRepo mutates the repository url to point to the repository URL defined in the ZarfState.
+func mutateHelmRepo(ctx context.Context, r *v1.AdmissionRequest, c *cluster.Cluster, src *flux.HelmRepository) (*operations.Result, error) {
+	l := logger.From(ctx)
+
+	// If we see a type of helm repo other than OCI we should flag a warning and return
+	if strings.ToLower(src.Spec.Type) != "oci" {
+		l.Warn("skipping HelmRepository mutation because the type is not OCI", "type", src.Spec.Type)
+		return &operations.Result{Allowed: true}, nil
+	}
+
+	zarfState, err := c.LoadState(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the registry service info if this is a NodePort service to use the internal kube-dns
+	registryAddress, clusterIP, err := c.GetServiceInfoFromRegistryAddress(ctx, zarfState.RegistryInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	l.Info("using the Zarf registry URL to mutate the Flux HelmRepository",
+		"name", src.Name,
+		"operation", r.Operation,
+		"registry", registryAddress)
+
+	patchedURL := src.Spec.URL
+
+	// Skip mutation if the URL already points to the Zarf registry to prevent double-transformation
+	// on resource recreation (e.g. Helm rollback, GitOps reconciliation).
+	zarfStateAddress := helpers.OCIURLPrefix + registryAddress
+	isPatched, err := helpers.DoHostnamesMatch(zarfStateAddress, src.Spec.URL)
+	if err != nil {
+		return nil, fmt.Errorf(lang.AgentErrHostnameMatch, err)
+	}
+	var isPatchedClusterIP bool
+	if clusterIP != "" {
+		zarfStateClusterIPAddress := helpers.OCIURLPrefix + clusterIP
+		isPatchedClusterIP, err = helpers.DoHostnamesMatch(zarfStateClusterIPAddress, src.Spec.URL)
+		if err != nil {
+			return nil, fmt.Errorf(lang.AgentErrHostnameMatch, err)
+		}
+	}
+
+	if isPatched {
+		l.Debug("skipping mutation, Flux HelmRepository URL already points to Zarf registry",
+			"url", src.Spec.URL,
+			"operation", r.Operation)
+	} else {
+		var patchedSrc string
+		if isPatchedClusterIP {
+			patchedSrc, err = transform.ImageTransformHostWithoutChecksum(registryAddress, src.Spec.URL)
+			if err != nil {
+				return nil, fmt.Errorf("unable to transform existing patched HelmRepo ClusterIP to %s: %w", registryAddress, err)
+			}
+		} else {
+			patchedSrc, err = transform.ImageTransformHost(registryAddress, src.Spec.URL)
+			if err != nil {
+				return nil, fmt.Errorf("unable to transform the HelmRepo URL to %s: %w", registryAddress, err)
+			}
+		}
+
+		patchedRefInfo, err := transform.ParseImageRef(patchedSrc)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse the HelmRepo URL: %w", err)
+		}
+		patchedURL = helpers.OCIURLPrefix + patchedRefInfo.Name
+		l.Debug("mutating the Flux HelmRepository URL to the Zarf URL", "original", src.Spec.URL, "mutated", patchedURL)
+	}
+
+	var patches []operations.PatchOperation
+
+	useMTLS := zarfState.RegistryInfo.ShouldUseMTLS()
+	if useMTLS {
+		_, err = c.GetRegistryClientMTLSCert(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find registry client mTLS secret: %w", err)
+		}
+	}
+
+	patches = populateHelmRepoPatchOperations(patchedURL, zarfState.RegistryInfo.IsInternal(), useMTLS)
+	patches = append(patches, getLabelPatch(src.Labels))
+
+	return &operations.Result{
+		Allowed:  true,
+		PatchOps: patches,
+	}, nil
+}
+
+func populateHelmRepoPatchOperations(repoURL string, isInternal bool, useMTLS bool) []operations.PatchOperation {
+	var patches []operations.PatchOperation
+	patches = append(patches, operations.ReplacePatchOperation("/spec/url", repoURL))
+
+	if isInternal && !useMTLS {
+		patches = append(patches, operations.ReplacePatchOperation("/spec/insecure", true))
+	}
+
+	if useMTLS {
+		patches = append(patches, operations.AddPatchOperation("/spec/certSecretRef", meta.LocalObjectReference{Name: state.RegistryClientTLSSecret}))
+	}
+
+	patches = append(patches, operations.AddPatchOperation("/spec/secretRef", meta.LocalObjectReference{Name: config.ZarfImagePullSecretName}))
+
+	return patches
+}

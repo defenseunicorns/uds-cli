@@ -1,0 +1,108 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2021-Present The Zarf Authors
+
+// Package agent holds the mutating webhook server.
+package agent
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"golang.org/x/sync/errgroup"
+
+	"github.com/zarf-dev/zarf/src/internal/agent/hooks"
+	agentHttp "github.com/zarf-dev/zarf/src/internal/agent/http"
+	"github.com/zarf-dev/zarf/src/internal/agent/http/admission"
+	"github.com/zarf-dev/zarf/src/internal/agent/operations"
+	"github.com/zarf-dev/zarf/src/pkg/cluster"
+	"github.com/zarf-dev/zarf/src/pkg/logger"
+)
+
+// Heavily influenced by https://github.com/douglasmakey/admissioncontroller and
+// https://github.com/slackhq/simple-kubernetes-webhook
+
+// We can hard-code these because we control the entire thing anyway.
+const (
+	httpPort = "8443"
+	tlsCert  = "/etc/certs/tls.crt"
+	tlsKey   = "/etc/certs/tls.key"
+)
+
+// StartWebhook launches the Zarf agent mutating webhook in the cluster.
+func StartWebhook(ctx context.Context, cluster *cluster.Cluster) error {
+	// Routers
+	mode := operations.PolicyFromEnv()
+	admissionHandler := admission.NewHandler()
+	podsMutation := hooks.NewPodMutationHook(cluster, mode)
+	fluxGitRepositoryMutation := hooks.NewGitRepositoryMutationHook(cluster, mode)
+	argocdApplicationMutation := hooks.NewApplicationMutationHook(cluster, mode)
+	argocdApplicationSetMutation := hooks.NewApplicationSetMutationHook(cluster, mode)
+	argocdAppProjectMutation := hooks.NewAppProjectMutationHook(cluster, mode)
+	argocdRepositoryMutation := hooks.NewRepositorySecretMutationHook(cluster, mode)
+	fluxHelmRepositoryMutation := hooks.NewHelmRepositoryMutationHook(cluster, mode)
+	fluxOCIRepositoryMutation := hooks.NewOCIRepositoryMutationHook(cluster, mode)
+
+	// Routers
+	mux := http.NewServeMux()
+	mux.Handle("/mutate/pod", admissionHandler.Serve(ctx, podsMutation))
+	mux.Handle("/mutate/flux-gitrepository", admissionHandler.Serve(ctx, fluxGitRepositoryMutation))
+	mux.Handle("/mutate/flux-helmrepository", admissionHandler.Serve(ctx, fluxHelmRepositoryMutation))
+	mux.Handle("/mutate/flux-ocirepository", admissionHandler.Serve(ctx, fluxOCIRepositoryMutation))
+	mux.Handle("/mutate/argocd-application", admissionHandler.Serve(ctx, argocdApplicationMutation))
+	mux.Handle("/mutate/argocd-applicationset", admissionHandler.Serve(ctx, argocdApplicationSetMutation))
+	mux.Handle("/mutate/argocd-appproject", admissionHandler.Serve(ctx, argocdAppProjectMutation))
+	mux.Handle("/mutate/argocd-repository", admissionHandler.Serve(ctx, argocdRepositoryMutation))
+
+	return startServer(ctx, httpPort, mux)
+}
+
+// StartHTTPProxy launches the zarf agent proxy in the cluster.
+func StartHTTPProxy(ctx context.Context, cluster *cluster.Cluster) error {
+	logger.From(ctx).Warn("the Zarf internal proxy will is deprecated and will be removed in a future release")
+	mux := http.NewServeMux()
+	mux.Handle("/", agentHttp.ProxyHandler(ctx, cluster))
+	return startServer(ctx, httpPort, mux)
+}
+
+func startServer(ctx context.Context, port string, mux *http.ServeMux) error {
+	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/healthz", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		//nolint: errcheck // ignore
+		w.Write([]byte("ok"))
+	}))
+	srv := &http.Server{
+		Addr:              fmt.Sprintf(":%s", port),
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second, // Set ReadHeaderTimeout to avoid Slowloris attacks
+	}
+
+	g, gCtx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		err := srv.ListenAndServeTLS(tlsCert, tlsKey)
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+		return nil
+	})
+	g.Go(func() error {
+		<-gCtx.Done()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		err := srv.Shutdown(ctx)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	logger.From(ctx).Info("server running", "port", port)
+	err := g.Wait()
+	if err != nil {
+		return err
+	}
+	return nil
+}

@@ -6,11 +6,6 @@ name: Canonical Tests
 on:
   workflow_call:
     inputs:
-      fetch_zarf:
-        description: Build the test binary with zarf@main
-        required: false
-        type: boolean
-        default: false
       include_ghcr_write:
         description: Run authenticated GHCR write tests after the standard matrix
         required: false
@@ -91,14 +86,6 @@ jobs:
 
       - name: Setup development tools
         uses: ./.github/actions/mise
-
-      - name: Fetch zarf@main
-        if: inputs.fetch_zarf
-        run: |
-          go get github.com/zarf-dev/zarf@main
-          ZARF_VERSION=$(go list -m -json github.com/zarf-dev/zarf | jq -r .Version)
-          yq eval "(.packages[] | select(.name == \"init\")).ref = \"$ZARF_VERSION\"" -i testdata/legacy/bundles/04-init/uds-bundle.yaml
-          yq eval "(.packages[] | select(.name == \"init\")).ref = \"$ZARF_VERSION\"" -i testdata/legacy/bundles/14-optional-components/uds-bundle.yaml
 
       - name: Build CLI
         run: uds run build-cli-linux-amd
