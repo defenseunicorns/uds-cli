@@ -9,7 +9,7 @@ metadata {
   name        = "k3d-core-demo"
   description = "A UDS bundle for deploying the standard UDS Core package on a development cluster"
   // renovate: datasource=github-tags depName=defenseunicorns/uds-core extractVersion=^v?(?<version>.*)$ versioning=semver
-  version     = "1.9.0"
+  version     = "1.11.1"
 }
 
 locals {
