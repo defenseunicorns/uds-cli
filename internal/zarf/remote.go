@@ -15,6 +15,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 var _ PackageSource = &remoteSource{}
@@ -29,10 +30,10 @@ func (s *remoteSource) newZociRemoteForRef(ctx context.Context, ref string) (*zo
 	if err != nil {
 		return nil, err
 	}
-	return zoci.NewRemote(ctx, ref, platform,
-		oci.WithPlainHTTP(plainHTTP),
-		oci.WithInsecureSkipVerify(s.opts.SkipTLSVerify),
-	)
+	return zoci.NewRemoteWithOptions(ctx, ref, platform, zoci.RemoteClientOptions{RemoteOptions: zarfTypes.RemoteOptions{
+		PlainHTTP:             plainHTTP,
+		InsecureSkipTLSVerify: s.opts.SkipTLSVerify,
+	}})
 }
 
 func (s *remoteSource) resolveFilteredLayers(ctx context.Context, filter filters.ComponentFilterStrategy) (*resolvedLayers, error) {

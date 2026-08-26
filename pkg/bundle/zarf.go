@@ -10,17 +10,17 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
-// ZarfPackageLayout is the supported public subset of
-// github.com/zarf-dev/zarf/src/pkg/packager/layout.PackageLayout exposed during
-// bundle deploy. Fields not exposed here are preserved by the adapter.
+// ZarfPackageLayout exposes the native Zarf package definition during bundle
+// deploy. Keeping the schema-aware definition intact lets hooks mutate fields
+// specific to the package API version in use.
 type ZarfPackageLayout struct {
-	dirPath string
-	Pkg     ZarfPackage
-	digest  string
+	dirPath           string
+	PackageDefinition api.PackageDefinition
+	digest            string
 }
 
 // SetDeployedDigest records the registry-resolved manifest digest that Zarf
@@ -37,31 +37,6 @@ func (p *ZarfPackageLayout) DirPath() string {
 
 func (p *ZarfPackageLayout) Digest() string {
 	return p.digest
-}
-
-// ZarfPackage is the supported public subset of
-// github.com/zarf-dev/zarf/src/api/v1alpha1.ZarfPackage exposed through
-// ZarfPackageLayout.
-type ZarfPackage struct {
-	Components []ZarfPackageComponent
-}
-
-// ZarfPackageComponent is the supported public subset of
-// github.com/zarf-dev/zarf/src/api/v1alpha1.ZarfComponent exposed to bundle
-// deploy hooks.
-type ZarfPackageComponent struct {
-	Name          string
-	Images        []string
-	ImageArchives []ZarfPackageImageArchive
-	privateID     string
-}
-
-// ZarfPackageImageArchive is the supported public subset of
-// github.com/zarf-dev/zarf/src/api/v1alpha1.ImageArchive exposed through
-// ZarfPackageComponent.
-type ZarfPackageImageArchive struct {
-	Path   string
-	Images []string
 }
 
 type extractedArtifactPackageLayoutLoader struct {
@@ -143,25 +118,11 @@ func fromZarfPackageLayout(pkgLayout *layout.PackageLayout) *ZarfPackageLayout {
 		return nil
 	}
 	result := &ZarfPackageLayout{
-		dirPath: pkgLayout.DirPath(),
-		Pkg:     ZarfPackage{Components: make([]ZarfPackageComponent, len(pkgLayout.Pkg.Components))},
+		dirPath:           pkgLayout.DirPath(),
+		PackageDefinition: pkgLayout.PackageDefinition,
 	}
 	if !pkgLayout.IsPushable() && pkgLayout.Digest() != "" {
 		result.digest = pkgLayout.Digest()
-	}
-	for i, component := range pkgLayout.Pkg.Components {
-		result.Pkg.Components[i] = ZarfPackageComponent{
-			Name:          component.Name,
-			Images:        append([]string(nil), component.Images...),
-			ImageArchives: make([]ZarfPackageImageArchive, len(component.ImageArchives)),
-			privateID:     component.Name,
-		}
-		for j, archive := range component.ImageArchives {
-			result.Pkg.Components[i].ImageArchives[j] = ZarfPackageImageArchive{
-				Path:   archive.Path,
-				Images: append([]string(nil), archive.Images...),
-			}
-		}
 	}
 	return result
 }
@@ -191,9 +152,7 @@ func toZarfPackageLayoutForDeploy(pkgLayout *ZarfPackageLayout) (*layout.Package
 		return nil, nil
 	}
 	result := &layout.PackageLayout{}
-	if err := applyPublicPackageLayout(result, pkgLayout); err != nil {
-		return nil, err
-	}
+	result.PackageDefinition = pkgLayout.PackageDefinition
 	return result, nil
 }
 
@@ -201,50 +160,7 @@ func applyPublicPackageLayout(dst *layout.PackageLayout, src *ZarfPackageLayout)
 	if dst == nil || src == nil {
 		return nil
 	}
-	original := make(map[string]v1alpha1.ZarfComponent, len(dst.Pkg.Components))
-	for _, component := range dst.Pkg.Components {
-		original[component.Name] = component
-	}
-	names := make(map[string]struct{}, len(src.Pkg.Components))
-	used := make(map[string]struct{}, len(src.Pkg.Components))
-	components := make([]v1alpha1.ZarfComponent, len(src.Pkg.Components))
-	for i, component := range src.Pkg.Components {
-		if _, ok := names[component.Name]; ok {
-			return fmt.Errorf("component name %q appears more than once", component.Name)
-		}
-		names[component.Name] = struct{}{}
-		private := v1alpha1.ZarfComponent{}
-		identity := component.privateID
-		if identity == "" {
-			identity = component.Name
-		}
-		if component.privateID != "" {
-			var ok bool
-			private, ok = original[identity]
-			if !ok && len(dst.Pkg.Components) > 0 {
-				return fmt.Errorf("component %q cannot be reconciled with its original deployment data", component.Name)
-			}
-		} else if matched, ok := original[identity]; ok {
-			private = matched
-		} else if len(dst.Pkg.Components) > 0 {
-			return fmt.Errorf("component %q cannot be reconciled after public layout mutation", component.Name)
-		}
-		if _, ok := used[identity]; ok && len(dst.Pkg.Components) > 0 {
-			return fmt.Errorf("component identity %q was used more than once", identity)
-		}
-		used[identity] = struct{}{}
-		private.Name = component.Name
-		private.Images = append([]string(nil), component.Images...)
-		private.ImageArchives = make([]v1alpha1.ImageArchive, len(component.ImageArchives))
-		for j, archive := range component.ImageArchives {
-			private.ImageArchives[j] = v1alpha1.ImageArchive{
-				Path:   archive.Path,
-				Images: append([]string(nil), archive.Images...),
-			}
-		}
-		components[i] = private
-	}
-	dst.Pkg.Components = components
+	dst.PackageDefinition = src.PackageDefinition
 	if src.digest != "" {
 		dst.SetRegistryDigest(src.digest)
 	}

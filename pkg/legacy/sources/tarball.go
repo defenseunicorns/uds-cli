@@ -54,8 +54,8 @@ func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.Componen
 		return nil, nil, err
 	}
 
-	var pkg v1alpha1.ZarfPackage
-	if err = utils.ReadYAMLStrict(filepath.Join(t.TmpDir, layout.ZarfYAML), &pkg); err != nil {
+	pkg, err := utils.ReadPackageYAML(filepath.Join(t.TmpDir, layout.ZarfYAML))
+	if err != nil {
 		return nil, nil, err
 	}
 
@@ -83,11 +83,11 @@ func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.Componen
 		return nil, nil, err
 	}
 
-	addNamespaceOverrides(&pkgLayout.Pkg, t.nsOverrides)
+	addNamespaceOverrides(&pkgLayout.PackageDefinition, t.nsOverrides)
 
 	packageSpinner.Successf("Loaded bundled Zarf package: %s", t.Pkg.Name)
 	// ensure we're using the correct package name as specified by the bundle
-	pkgLayout.Pkg.Metadata.Name = t.Pkg.Name
+	pkgLayout.PackageDefinition.SetName(t.Pkg.Name)
 	return pkgLayout, nil, err
 }
 
@@ -209,8 +209,7 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, _ bool, _ bool) (
 	}
 
 	// deserialize zarf.yaml to grab checksum for validating pkg integrity
-	var pkg v1alpha1.ZarfPackage
-	err = utils.ReadYAMLStrict(filepath.Join(t.TmpDir, layout.ZarfYAML), &pkg)
+	pkg, err := utils.ReadPackageYAML(filepath.Join(t.TmpDir, layout.ZarfYAML))
 	if err != nil {
 		return v1alpha1.ZarfPackage{}, nil, err
 	}

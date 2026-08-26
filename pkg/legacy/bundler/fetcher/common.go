@@ -31,7 +31,7 @@ func NewZarfOCIRemote(ctx context.Context, url string, platform ocispec.Platform
 		oci.WithInsecureSkipVerify(config.CommonOptions.Insecure),
 		oci.WithPlainHTTP(plainHTTP),
 	}, mods...)
-	return zoci.NewRemote(ctx, url, platform, modifiers...)
+	return zoci.NewRemote(ctx, url, platform, modifiers...) //nolint:staticcheck // preserve the UDS user-agent override
 }
 
 func packageManifestLayerDescriptor(sourceDesc ocispec.Descriptor) ocispec.Descriptor {

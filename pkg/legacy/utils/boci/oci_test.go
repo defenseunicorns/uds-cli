@@ -10,14 +10,38 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/config"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	"github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/specs-go"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/content/memory"
 )
+
+func TestFilterComponentsConvertsV1beta1RequiredAndOptional(t *testing.T) {
+	pkg, err := utils.ReadPackageYAMLBytes([]byte(`
+apiVersion: zarf.dev/v1beta1
+kind: ZarfPackageConfig
+components:
+  - name: required
+  - name: optional
+    optional: true
+`))
+	require.NoError(t, err)
+
+	filtered, err := filterComponents(pkg, nil)
+	require.NoError(t, err)
+	require.Len(t, filtered, 1)
+	assert.Equal(t, "required", filtered[0].Name)
+
+	filtered, err = filterComponents(pkg, []string{"optional"})
+	require.NoError(t, err)
+	require.Len(t, filtered, 2)
+	assert.ElementsMatch(t, []string{"required", "optional"}, []string{filtered[0].Name, filtered[1].Name})
+}
 
 // manifestFor builds an image manifest descriptor annotated with the given base image name.
 func manifestFor(imgName string) ocispec.Descriptor {

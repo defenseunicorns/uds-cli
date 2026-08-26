@@ -279,8 +279,11 @@ func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *spec.Package, opts
 		return fmt.Errorf("package %q from %s: %w: %w", pkg.Name, packageSource, ErrLoadPackage, err)
 	}
 
-	// Source-backed removal only learns metadata.name after loading the source.
-	if _, ok := deployed[deployedKey(zarfPkg.Metadata.Name, pkg.Namespace)]; !ok {
+	deployed, err := r.deployedPackages(ctx)
+	if err != nil {
+		return err
+	}
+	if _, ok := deployed[deployedKey(zarfPkg.AsV1alpha1().Metadata.Name, pkg.Namespace)]; !ok {
 		return ErrPackageNotDeployed
 	}
 

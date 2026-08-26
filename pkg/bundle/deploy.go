@@ -56,7 +56,7 @@ type ZarfPackageLayoutLoadResult struct {
 // PackageDeployHooks provides deployment process extensibility on a per-package basis.
 type PackageDeployHooks struct {
 	// PreDeploy enables customization just before a package deploys. It runs after
-	// layout loading and before the cluster deploy. Mutations to pkgLayout.Pkg and
+	// layout loading and before the cluster deploy. Mutations to pkgLayout.PackageDefinition and
 	// packageOpts take effect immediately. A non-nil error aborts the deploy; the
 	// cluster deploy is not called and PostDeploy is skipped.
 	//

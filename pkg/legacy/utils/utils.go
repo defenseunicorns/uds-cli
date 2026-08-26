@@ -27,11 +27,46 @@ import (
 	"github.com/mholt/archives"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
+	"github.com/zarf-dev/zarf/src/api/convert"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/signing"
 )
+
+// ReadPackageYAML decodes either supported Zarf package schema and returns
+// the legacy v1alpha1 compatibility view through Zarf's public converter.
+func ReadPackageYAML(path string) (v1alpha1.ZarfPackage, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return v1alpha1.ZarfPackage{}, err
+	}
+	return ReadPackageYAMLBytes(data)
+}
+
+// ReadPackageYAMLBytes decodes either supported Zarf package schema and returns
+// the legacy v1alpha1 compatibility view through Zarf's public converter.
+func ReadPackageYAMLBytes(data []byte) (v1alpha1.ZarfPackage, error) {
+	var header struct {
+		APIVersion string `yaml:"apiVersion"`
+	}
+	if err := goyaml.Unmarshal(data, &header); err != nil {
+		return v1alpha1.ZarfPackage{}, err
+	}
+	if header.APIVersion == v1beta1.APIVersion {
+		var pkg v1beta1.Package
+		if err := goyaml.Unmarshal(data, &pkg); err != nil {
+			return v1alpha1.ZarfPackage{}, err
+		}
+		return convert.PackageV1beta1ToV1alpha1(pkg), nil
+	}
+	var pkg v1alpha1.ZarfPackage
+	if err := goyaml.Unmarshal(data, &pkg); err != nil {
+		return v1alpha1.ZarfPackage{}, err
+	}
+	return pkg, nil
+}
 
 // IsValidTarballPath returns true if the path is a valid tarball path to a bundle tarball
 func IsValidTarballPath(path string) bool {
