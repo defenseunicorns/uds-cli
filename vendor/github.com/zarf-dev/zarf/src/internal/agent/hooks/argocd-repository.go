@@ -1,0 +1,128 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2021-Present The Zarf Authors
+
+// Package hooks contains the mutation hooks for the Zarf agent.
+package hooks
+
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+
+	"github.com/defenseunicorns/pkg/helpers/v2"
+	"github.com/zarf-dev/zarf/src/internal/agent/operations"
+	"github.com/zarf-dev/zarf/src/pkg/cluster"
+	"github.com/zarf-dev/zarf/src/pkg/logger"
+	"github.com/zarf-dev/zarf/src/pkg/pki"
+	"github.com/zarf-dev/zarf/src/pkg/state"
+	v1 "k8s.io/api/admission/v1"
+	corev1 "k8s.io/api/core/v1"
+)
+
+// RepoCreds holds the definition for repository credentials.
+// This has been partially copied from upstream.
+//
+// https://github.com/argoproj/argo-cd/blob/v2.11.0/pkg/apis/application/v1alpha1/repository_types.go
+//
+// There were errors encountered when trying to import argocd as a Go package.
+//
+// For more information: https://argo-cd.readthedocs.io/en/stable/user-guide/import/
+type RepoCreds struct {
+	// URL is the URL that this credential matches to.
+	URL string `json:"url"`
+}
+
+// NewRepositorySecretMutationHook creates a new instance of the ArgoCD repository secret mutation hook.
+func NewRepositorySecretMutationHook(c *cluster.Cluster, mode state.MutationPolicy) operations.Hook {
+	admit := withMutationGuard(c, mode, func(ctx context.Context, r *v1.AdmissionRequest, secret *corev1.Secret) (*operations.Result, error) {
+		return mutateRepositorySecret(ctx, r, c, secret)
+	})
+	return operations.Hook{Create: admit, Update: admit}
+}
+
+// mutateRepositorySecret mutates the git URL in the ArgoCD repository secret to point to the repository URL defined in the ZarfState.
+func mutateRepositorySecret(ctx context.Context, r *v1.AdmissionRequest, c *cluster.Cluster, secret *corev1.Secret) (*operations.Result, error) {
+	l := logger.From(ctx)
+
+	s, err := c.LoadState(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	url, exists := secret.Data["url"]
+	if !exists {
+		return nil, fmt.Errorf("url field not found in argocd repository secret data")
+	}
+
+	var repoCreds RepoCreds
+	repoCreds.URL = string(url)
+
+	isOCIURL := helpers.IsOCIURL(repoCreds.URL)
+	requiresGit, requiresRegistry := classifyURLSchemes([]string{repoCreds.URL})
+
+	if !anyZarfServiceUsable(requiresGit, requiresRegistry, s) {
+		l.Debug("no Zarf services configured for source URL schemes, skipping ArgoCD repository secret mutation")
+		return &operations.Result{Allowed: true}, nil
+	}
+
+	l.Info("mutating the ArgoCD repository secret",
+		"name", secret.Name,
+		"operation", r.Operation)
+
+	// Get the registry service info if this is a NodePort service to use the internal kube-dns
+	registryAddress, clusterIP, err := c.GetServiceInfoFromRegistryAddress(ctx, s.RegistryInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	patchedURL, err := getPatchedRepoURL(ctx, repoCreds.URL, registryAddress, clusterIP, s.GitServer)
+	if err != nil {
+		return nil, err
+	}
+
+	useMTLS := s.RegistryInfo.ShouldUseMTLS()
+	var certs pki.GeneratedPKI
+	if useMTLS && isOCIURL {
+		certs, err = c.GetRegistryClientMTLSCert(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find registry client mTLS secret: %w", err)
+		}
+	}
+
+	patches := populateArgoRepositoryPatchOperations(patchedURL, s.GitServer, s.RegistryInfo, isOCIURL, useMTLS, certs)
+	patches = append(patches, getLabelPatch(secret.Labels))
+
+	return &operations.Result{
+		Allowed:  true,
+		PatchOps: patches,
+	}, nil
+}
+
+// Patch updates of the Argo Repository Secret.
+func populateArgoRepositoryPatchOperations(repoURL string, gitServer state.GitServerInfo, registryInfo state.RegistryInfo, isOCIURL bool, useMTLS bool, cert pki.GeneratedPKI) []operations.PatchOperation {
+	var patches []operations.PatchOperation
+	username, password := getCreds(isOCIURL, gitServer, registryInfo)
+
+	patches = append(patches, operations.ReplacePatchOperation("/data/url", base64.StdEncoding.EncodeToString([]byte(repoURL))))
+	patches = append(patches, operations.ReplacePatchOperation("/data/username", base64.StdEncoding.EncodeToString([]byte(username))))
+	patches = append(patches, operations.ReplacePatchOperation("/data/password", base64.StdEncoding.EncodeToString([]byte(password))))
+
+	if isOCIURL && registryInfo.IsInternal() && !useMTLS {
+		patches = append(patches, operations.ReplacePatchOperation("/data/insecureOCIForceHttp", base64.StdEncoding.EncodeToString([]byte("true"))))
+	}
+
+	if useMTLS && isOCIURL {
+		patches = append(patches, operations.ReplacePatchOperation("/data/tlsClientCertData", cert.Cert))
+		patches = append(patches, operations.ReplacePatchOperation("/data/tlsClientCertKey", cert.Key))
+	}
+
+	return patches
+}
+
+// Helper for getting either git server of registry creds
+func getCreds(isOCIURL bool, gitServer state.GitServerInfo, registry state.RegistryInfo) (string, string) {
+	if isOCIURL {
+		return registry.PullUsername, registry.PullPassword
+	}
+	return gitServer.PullUsername, gitServer.PullPassword
+}
