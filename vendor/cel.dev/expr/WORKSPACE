@@ -11,10 +11,10 @@ http_archive(
 
 http_archive(
     name = "bazel_gazelle",
-    sha256 = "ecba0f04f96b4960a5b250c8e8eeec42281035970aa8852dda73098274d14a1d",
+    sha256 = "fec7a24acb027359eb7d2b31d116b17c81d2fab35842f6bfb2dd5945e1071346",
     urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/bazel-gazelle/releases/download/v0.29.0/bazel-gazelle-v0.29.0.tar.gz",
-        "https://github.com/bazelbuild/bazel-gazelle/releases/download/v0.29.0/bazel-gazelle-v0.29.0.tar.gz",
+        "https://mirror.bazel.build/github.com/bazelbuild/bazel-gazelle/releases/download/v0.53.0/bazel-gazelle-v0.53.0.tar.gz",
+        "https://github.com/bazelbuild/bazel-gazelle/releases/download/v0.53.0/bazel-gazelle-v0.53.0.tar.gz",
     ],
 )
 
