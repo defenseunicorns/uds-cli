@@ -56,6 +56,8 @@ func NewRemoveCommand(streams iostreams.IOStreams) *cobra.Command {
 The bundle-path can be:
   - A directory containing bundle.uds.hcl
   - A path to a bundle.uds.hcl file
+  - A tar.zst artifact containing bundle.uds.hcl
+  - An oci artifact containing bundle.uds.hcl file
   - If omitted, uses the bundle.uds.hcl file in current directory
 
 Packages are removed in reverse order (last deployed first) to respect
@@ -68,11 +70,14 @@ The CLI is non-interactive by default (suitable for CI/CD pipelines).
 Use --prompt to enable interactive confirmation before removal.
 
 Examples:
-  # Remove all packages in current directory bundle
+  # Remove all packages located in current directory bundle
   uds bundle remove
 
-  # Remove bundle from specific directory
+  # Remove packages with a bundle in a specific directory
   uds bundle remove ./my-bundle
+
+  # Remove packages with a bundle in an oci repository
+  uds bundle remove oci://my-bundle
 
   # Remove only specific packages
   uds bundle remove --packages nginx,podinfo
@@ -81,7 +86,10 @@ Examples:
   uds bundle remove --packages core --force
 
   # Remove with interactive confirmation prompt
-  uds bundle remove --prompt`,
+  uds bundle remove --prompt
+
+  # Remove without verifying bundle signature
+  uds bundle remove --skip-signature-verification`,
 		Args: cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			util.CheckErr(o.Complete(cmd, args))
