@@ -296,7 +296,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-07-01' = if (deployResourc
   }
 }
 
-resource nic 'Microsoft.Network/networkInterfaces@2024-07-01' = if (deployResources) {
+resource nic 'Microsoft.Network/networkInterfaces@2024-10-01' = if (deployResources) {
   name: '${baseName}NIC'
   location: location
   properties: {
