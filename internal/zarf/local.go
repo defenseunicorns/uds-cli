@@ -39,7 +39,7 @@ func (s *localSource) PullFiltered(ctx context.Context, tmpDir string, loadOptio
 		return nil, fmt.Errorf("stat %q: %w: %w", path, ErrStatLocalPackage, err)
 	}
 	if !info.IsDir() {
-		if !strings.HasSuffix(path, ".tar.zst") {
+		if !isPackageArchive(path) {
 			return nil, fmt.Errorf("unsupported local package source %q: %w", s.path, ErrInvalidLocalPackageSource)
 		}
 		pkgLayout, err := loadPackageArchive(ctx, path, tmpDir, loadOptions)
@@ -49,7 +49,7 @@ func (s *localSource) PullFiltered(ctx context.Context, tmpDir string, loadOptio
 		return pkgLayout, nil
 	}
 	if !isZarfPackage(path) {
-		return nil, fmt.Errorf("unsupported local package source %q: not a Zarf package directory or .tar.zst archive: %w", path, ErrInvalidLocalPackageSource)
+		return nil, fmt.Errorf("unsupported local package source %q: not a Zarf package directory or package archive: %w", path, ErrInvalidLocalPackageSource)
 	}
 	if err := rejectSymlinks(path); err != nil {
 		return nil, err
@@ -101,10 +101,10 @@ func (s *localSource) IngestFiltered(ctx context.Context, filter filters.Compone
 			return nil, err
 		}
 		pkgLayout, err = layout.LoadFromDir(ctx, path, loadOptions)
-	case !info.IsDir() && strings.HasSuffix(path, ".tar.zst"):
+	case !info.IsDir() && isPackageArchive(path):
 		pkgLayout, err = loadPackageArchive(ctx, path, s.tmpDir, loadOptions)
 	default:
-		return nil, fmt.Errorf("unsupported local package source %q: not a Zarf package directory or .tar.zst archive: %w", path, ErrInvalidLocalPackageSource)
+		return nil, fmt.Errorf("unsupported local package source %q: not a Zarf package directory or package archive: %w", path, ErrInvalidLocalPackageSource)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("loading local package %q: %w: %w", s.path, ErrLoadPackage, err)
@@ -117,6 +117,10 @@ func (s *localSource) IngestFiltered(ctx context.Context, filter filters.Compone
 		}()
 	}
 	return s.ingestPackageLayout(ctx, pkgLayout, filter, store)
+}
+
+func isPackageArchive(path string) bool {
+	return strings.HasSuffix(path, ".tar.zst") || strings.HasSuffix(path, ".tar")
 }
 
 func rejectSymlinks(root string) error {

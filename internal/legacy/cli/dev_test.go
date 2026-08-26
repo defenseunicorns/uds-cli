@@ -8,8 +8,17 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestNewDevCommandContainsDisassemble(t *testing.T) {
+	cmd := newDevCommand()
+	found, _, err := cmd.Find([]string{"disassemble"})
+	require.NoError(t, err)
+	assert.Equal(t, "disassemble", found.Name())
+	assert.Equal(t, "disassemble <source> <output-dir>", found.Use)
+}
 
 func TestValidateDevDeployFlags(t *testing.T) {
 	testCases := []struct {
