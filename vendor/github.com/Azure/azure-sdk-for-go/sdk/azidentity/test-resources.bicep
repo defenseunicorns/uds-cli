@@ -193,7 +193,7 @@ resource azfunc 'Microsoft.Web/sites@2021-03-01' = if (deployResources) {
   }
 }
 
-resource aks 'Microsoft.ContainerService/managedClusters@2023-06-01' = if (deployResources) {
+resource aks 'Microsoft.ContainerService/managedClusters@2023-11-01' = if (deployResources) {
   name: baseName
   location: location
   identity: {
