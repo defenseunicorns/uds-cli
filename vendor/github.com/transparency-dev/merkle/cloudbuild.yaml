@@ -14,7 +14,7 @@ logsBucket: 'gs://trillian-cloudbuild-logs'
 
 steps:
 - id: 'lint'
-  name: "golangci/golangci-lint:v1.51"
+  name: "golangci/golangci-lint:v2.13"
   args: ["golangci-lint", "run", "--timeout", "10m"]
 
 - id: 'unit tests'
