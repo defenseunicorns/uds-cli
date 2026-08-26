@@ -24,7 +24,7 @@ var blobReader = subscriptionResourceId(
   '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1'
 )
 
-resource sa 'Microsoft.Storage/storageAccounts@2021-08-01' = if (deployResources) {
+resource sa 'Microsoft.Storage/storageAccounts@2021-09-01' = if (deployResources) {
   kind: 'StorageV2'
   location: location
   name: 'sa${uniqueString(baseName)}'
@@ -36,7 +36,7 @@ resource sa 'Microsoft.Storage/storageAccounts@2021-08-01' = if (deployResources
   }
 }
 
-resource saUserAssigned 'Microsoft.Storage/storageAccounts@2021-08-01' = if (deployResources) {
+resource saUserAssigned 'Microsoft.Storage/storageAccounts@2021-09-01' = if (deployResources) {
   kind: 'StorageV2'
   location: location
   name: 'sa2${uniqueString(baseName)}'
