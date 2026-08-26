@@ -317,7 +317,7 @@ resource nic 'Microsoft.Network/networkInterfaces@2024-07-01' = if (deployResour
   }
 }
 
-resource vm 'Microsoft.Compute/virtualMachines@2024-07-01' = if (deployResources) {
+resource vm 'Microsoft.Compute/virtualMachines@2024-11-01' = if (deployResources) {
   name: '${baseName}vm'
   location: location
   identity: {
