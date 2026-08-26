@@ -238,7 +238,7 @@ resource aks 'Microsoft.ContainerService/managedClusters@2023-06-01' = if (deplo
   }
 }
 
-resource publicIP 'Microsoft.Network/publicIPAddresses@2023-05-01' = if (deployResources) {
+resource publicIP 'Microsoft.Network/publicIPAddresses@2023-09-01' = if (deployResources) {
   name: '${baseName}PublicIP'
   location: location
   sku: {
