@@ -8,7 +8,7 @@ These rules are self-contained. Do not fetch external sources at runtime.
 
 - Format Go code with `gofmt` and `goimports`. Never hand-format.
 - Tabs for indentation. There is no hard line length cap, but reduce nesting before wrapping.
-- Prefer guard clauses: handle the error or empty case first, then keep the happy path at the top level.
+- Favor early returns and guard clauses to avoid deep nesting; keep the happy path at the top level.
 - Group related declarations with `var (...)` or `const (...)` blocks.
 - Keep one concept per file. Split large files when they accumulate unrelated types or responsibilities.
 - Prefer readable, direct code over clever abstractions.
@@ -81,12 +81,12 @@ Examples:
 - Inside functions, prefer `:=` for new variables.
 - Use `var x T` for zero-value initialization or when the type matters.
 - Watch shadowing. Use `if err := f(); err != nil` to scope an error intentionally.
-- Use typed `iota` enums. Include an explicit `Unknown` or `Invalid` zero value when possible.
+- Use explicit constants when stable numeric values matter. Use `iota` only for closed internal enums where insertion or reordering cannot break persisted or external values.
 - Use `const` for compile-time values and `var` for runtime defaults.
 
 ## 5. Control Flow
 
-- Return early on error. Do not wrap the happy path in `else` after a return.
+- Return early on errors and completed branches. Do not wrap the happy path in `else` after a return.
 - Prefer `switch` over chained `if/else` when branching on one value.
 - `for` is the only loop keyword. Use `for { ... }` for infinite loops and `for range` for collections.
 - Avoid labels and `goto` outside generated code.
@@ -219,8 +219,10 @@ See [the testing skill](../../testing/references/TESTING.md) for the project-spe
 
 ## 19. Linting
 
-- `uds run lint` runs the repository lint checks.
-- `hk check --all` runs the configured local hook checks.
+- Start with `hk fix --all` when you want the repository hooks to apply supported automatic fixes.
+- Format Go files before linting. Use `gofmt` for formatting and `goimports` for import grouping when hooks do not handle it.
+- Run `uds run lint` after formatting to check the repository lint rules.
+- Run `hk check --all` to run the configured local hook checks without applying fixes.
 - Suppress lint findings narrowly with `//nolint:linter // reason`. Always include a reason.
 - Do not disable a linter globally to silence a single case.
 

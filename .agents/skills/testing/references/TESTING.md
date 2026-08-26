@@ -43,14 +43,8 @@ uds run test:architecture
 - Fixtures: `testdata/legacy`.
 - Scope: Legacy CLI behavior and compatibility.
 - Build `build/uds` before running tests that drive the binary.
-- Prefer focused Legacy E2E tasks from `uds run --list-all` instead of the full suite when possible.
-- Run all Legacy E2E with:
-
-```bash
-uds run test:legacy:e2e
-```
-
-Some Legacy tasks write to GHCR or require specific cluster state. Ask before running those.
+- Prefer focused Legacy E2E tasks from `uds run --list-all` and run only the task needed for the behavior under test.
+- Ask for explicit approval before running any GHCR-writing task.
 
 ### Next command integration tests
 

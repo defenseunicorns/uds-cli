@@ -25,7 +25,8 @@ Legacy:
 
 Next:
 
-- Entrypoint: `cmd/uds-cli-next`
+- Standalone Next entrypoint: `cmd/uds-cli-next`
+- Primary built CLI entrypoint: `cmd/uds`, with Next enabled by feature flag
 - Private implementation: canonical `internal/...` packages outside `internal/legacy`
 - Public packages: `pkg/bundle/...`, `pkg/iostreams`
 - Tests: `tests/integration`, `tests/library`, `tests/cluster`, `tests/smoke`
@@ -36,7 +37,7 @@ Rules:
 - New feature work targets Next unless a maintainer explicitly scopes it to Legacy.
 - Preserve Legacy behavior unless the work intentionally changes Legacy.
 - Do not make Legacy packages depend on canonical Next packages.
-- Validate Next CLI behavior with `CLI_FEATURES=NextMode=true` or `--features=NextMode=true`.
+- Validate Next behavior through the primary `cmd/uds` binary with `CLI_FEATURES=NextMode=true` or `--features=NextMode=true`.
 - Keep cobra wiring out of business logic. Next cobra wiring belongs in `internal/cli`.
 - For Zarf package and OCI implementation choices, follow the Go skill's Zarf and OCI operation ownership guidance.
 
