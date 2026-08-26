@@ -249,7 +249,7 @@ resource publicIP 'Microsoft.Network/publicIPAddresses@2023-05-01' = if (deployR
   }
 }
 
-resource nsg 'Microsoft.Network/networkSecurityGroups@2024-07-01' = if (deployResources) {
+resource nsg 'Microsoft.Network/networkSecurityGroups@2024-10-01' = if (deployResources) {
   name: '${baseName}NSG'
   location: location
   properties: {
