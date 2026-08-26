@@ -272,7 +272,7 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2024-07-01' = if (deployRe
   }
 }
 
-resource vnet 'Microsoft.Network/virtualNetworks@2024-07-01' = if (deployResources) {
+resource vnet 'Microsoft.Network/virtualNetworks@2024-10-01' = if (deployResources) {
   name: '${baseName}vnet'
   location: location
   properties: {
