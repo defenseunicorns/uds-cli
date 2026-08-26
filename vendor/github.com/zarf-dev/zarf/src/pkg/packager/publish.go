@@ -1,0 +1,314 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2021-Present The Zarf Authors
+
+package packager
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/config"
+	"github.com/zarf-dev/zarf/src/pkg/logger"
+	"github.com/zarf-dev/zarf/src/pkg/signing"
+	"github.com/zarf-dev/zarf/src/pkg/utils"
+	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	"github.com/zarf-dev/zarf/src/types"
+
+	"github.com/defenseunicorns/pkg/helpers/v2"
+	"github.com/defenseunicorns/pkg/oci"
+	"github.com/zarf-dev/zarf/src/pkg/packager/assemble"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/packager/load"
+
+	"oras.land/oras-go/v2/registry"
+)
+
+const defaultPublishRetries = 1
+
+// PublishFromOCIOptions declares the parameters to publish a package.
+type PublishFromOCIOptions struct {
+	// OCIConcurrency configures the amount of layers to push in parallel
+	OCIConcurrency int
+	// Architecture is the architecture we are publishing to
+	Architecture string
+	// Retries is the number of times to retry a failed push
+	Retries int
+	types.RemoteOptions
+}
+
+// PublishFromOCI takes a source and destination registry reference and a PublishFromOCIOpts and copies the package from the source to the destination.
+// src and dst are references to the full package ref, e.g. my-registry.com/my-namespace/my-package:0.0.1
+// therefore any tag manipulation happens from the calling logic
+func PublishFromOCI(ctx context.Context, src registry.Reference, dst registry.Reference, opts PublishFromOCIOptions) (err error) {
+	l := logger.From(ctx)
+	start := time.Now()
+
+	// disallow infinite or negative
+	if opts.Retries <= 0 {
+		if opts.Retries < 0 {
+			return fmt.Errorf("retries cannot be negative")
+		}
+		l.Debug("retries set to default", "retries", defaultPublishRetries)
+		opts.Retries = defaultPublishRetries
+	}
+
+	if err := src.Validate(); err != nil {
+		return fmt.Errorf("failed to validate source registry: %w", err)
+	}
+
+	if err := dst.Validate(); err != nil {
+		return fmt.Errorf("failed to validate destination registry: %w", err)
+	}
+
+	srcParts := strings.Split(src.Repository, "/")
+	srcPackageName := srcParts[len(srcParts)-1]
+
+	dstParts := strings.Split(dst.Repository, "/")
+	dstPackageName := dstParts[len(dstParts)-1]
+
+	if srcPackageName != dstPackageName {
+		return fmt.Errorf("source and destination repositories must have the same name")
+	}
+
+	arch := config.GetArch(opts.Architecture)
+	p := oci.PlatformForArch(arch)
+
+	// Set up remote repo clients.
+	remoteOptions := zoci.RemoteClientOptions{
+		RemoteOptions: opts.RemoteOptions,
+	}
+	srcRemote, err := zoci.NewRemoteWithOptions(ctx, src.String(), p, remoteOptions)
+	if err != nil {
+		return fmt.Errorf("could not instantiate source remote: %w", err)
+	}
+	dstRemote, err := zoci.NewRemoteWithOptions(ctx, dst.String(), p, remoteOptions)
+	if err != nil {
+		return fmt.Errorf("could not instantiate destination remote: %w", err)
+	}
+
+	publishOptions := zoci.PublishOptions{
+		OCIConcurrency: opts.OCIConcurrency,
+		Retries:        opts.Retries,
+	}
+
+	if src.Reference != dst.Reference {
+		publishOptions.Tag = dst.Reference
+	}
+
+	// Execute copy
+	err = zoci.CopyPackage(ctx, srcRemote, dstRemote, publishOptions)
+	if err != nil {
+		return fmt.Errorf("could not copy package: %w", err)
+	}
+
+	l.Debug("publisher2.PublishOCI done", "duration", time.Since(start))
+	return nil
+}
+
+// PublishPackageOptions declares the parameters to publish a package.
+type PublishPackageOptions struct {
+	// OCIConcurrency configures the amount of layers to push in parallel
+	OCIConcurrency int
+	// SignBlobOptions holds all signing configuration. Use signing.DefaultSignBlobOptions() as a base.
+	SignBlobOptions signing.SignBlobOptions
+	// Retries specifies the number of retries to use
+	Retries int
+	types.RemoteOptions
+	// Tag is an optional tag for the OCI reference separate from the package metadata.version
+	Tag string
+
+	// Deprecated: populate SignBlobOptions.Key directly.
+	SigningKeyPath string
+	// Deprecated: populate SignBlobOptions.Password directly.
+	SigningKeyPassword string
+}
+
+// PublishPackage takes a package layout and pushes the package to the given registry.
+// dst is the path to the registry namespace, e.g. my-registry.com/my-namespace. The full package ref is created using the package name and returned
+func PublishPackage(ctx context.Context, pkgLayout *layout.PackageLayout, dst registry.Reference, opts PublishPackageOptions) (registry.Reference, error) {
+	l := logger.From(ctx)
+
+	// disallow infinite or negative
+	if opts.Retries <= 0 {
+		if opts.Retries < 0 {
+			return registry.Reference{}, fmt.Errorf("retries cannot be negative")
+		}
+		l.Debug("retries set to default", "retries", defaultPublishRetries)
+		opts.Retries = defaultPublishRetries
+	}
+
+	// Validate inputs
+	l.Debug("validating PublishOpts")
+	if err := dst.ValidateRegistry(); err != nil {
+		return registry.Reference{}, fmt.Errorf("invalid registry: %w", err)
+	}
+	if pkgLayout == nil {
+		return registry.Reference{}, fmt.Errorf("package layout must be specified")
+	}
+
+	if opts.SigningKeyPath != "" && opts.SignBlobOptions.Key == "" {
+		opts.SignBlobOptions.Key = opts.SigningKeyPath
+	}
+	if opts.SigningKeyPassword != "" && opts.SignBlobOptions.Password == "" {
+		opts.SignBlobOptions.Password = opts.SigningKeyPassword
+	}
+
+	if err := pkgLayout.SignPackage(ctx, opts.SignBlobOptions); err != nil {
+		return registry.Reference{}, fmt.Errorf("unable to sign package: %w", err)
+	}
+
+	referenceOptions := zoci.ReferenceFromMetadataOptions{
+		Tag: opts.Tag,
+	}
+	// Build Reference for remote from registry location and pkg
+	pkgRef, err := zoci.ReferenceFromMetadataWithOptions(dst.String(), pkgLayout.AsV1alpha1(), referenceOptions)
+	if err != nil {
+		return registry.Reference{}, err
+	}
+
+	if err := pushToRemote(ctx, pkgLayout, pkgRef, opts.OCIConcurrency, opts.Retries, opts.RemoteOptions); err != nil {
+		return registry.Reference{}, err
+	}
+
+	return pkgRef, nil
+}
+
+// PublishSkeletonOptions declares the parameters to publish a skeleton package.
+type PublishSkeletonOptions struct {
+	// OCIConcurrency configures the amount of layers to push in parallel
+	OCIConcurrency int
+	// SigningKeyPath points to a signing key on the local disk.
+	SigningKeyPath string
+	// SigningKeyPassword holds a password to use the key at SigningKeyPath.
+	SigningKeyPassword string
+	// CachePath is used to cache layers from skeleton package pulls
+	CachePath string
+	// Flavor specifies the flavor to use
+	Flavor string
+	// Retries specifies the number of retries to use
+	Retries int
+	// SkipVersionCheck skips version requirement validation
+	SkipVersionCheck bool
+	// WithBuildMachineInfo controls whether to include build machine information (hostname and username) in the package metadata
+	WithBuildMachineInfo bool
+	types.RemoteOptions
+	// Tag is an optional tag for the OCI reference separate from the package metadata.version
+	Tag string
+}
+
+// PublishSkeleton takes a Path to the package definition and uploads a skeleton package to the given a registry.
+// dst is the path to the registry namespace, e.g. my-registry.com/my-namespace. The full package ref is created using the package name and returned
+func PublishSkeleton(ctx context.Context, path string, ref registry.Reference, opts PublishSkeletonOptions) (registry.Reference, error) {
+	l := logger.From(ctx)
+
+	// disallow infinite or negative
+	if opts.Retries <= 0 {
+		if opts.Retries < 0 {
+			return registry.Reference{}, fmt.Errorf("retries cannot be negative")
+		}
+		l.Debug("retries set to default", "retries", defaultPublishRetries)
+		opts.Retries = defaultPublishRetries
+	}
+
+	cachePath, err := utils.ResolveCachePath(opts.CachePath)
+	if err != nil {
+		return registry.Reference{}, err
+	}
+	opts.CachePath = cachePath
+
+	// Validate inputs
+	l.Debug("validating PublishOpts")
+	if err := ref.ValidateRegistry(); err != nil {
+		return registry.Reference{}, fmt.Errorf("invalid registry: %w", err)
+	}
+	if path == "" {
+		return registry.Reference{}, fmt.Errorf("path must be specified")
+	}
+
+	// Load package layout
+	l.Info("loading skeleton package", "path", path)
+	defined, err := load.PackageDefinition(ctx, path, load.DefinitionOptions{
+		CachePath:        opts.CachePath,
+		Flavor:           opts.Flavor,
+		SkipVersionCheck: opts.SkipVersionCheck,
+		RemoteOptions:    opts.RemoteOptions,
+	})
+	if err != nil {
+		return registry.Reference{}, err
+	}
+	pkg := defined.PackageDefinition.AsV1alpha1()
+	for _, comp := range pkg.Components {
+		if comp.ImageArchives != nil {
+			return registry.Reference{}, fmt.Errorf("cannot publish skeleton package with image archives")
+		}
+	}
+	// Create skeleton buildpath
+	createOpts := assemble.AssembleSkeletonOptions{
+		SigningKeyPath:       opts.SigningKeyPath,
+		SigningKeyPassword:   opts.SigningKeyPassword,
+		Flavor:               opts.Flavor,
+		WithBuildMachineInfo: opts.WithBuildMachineInfo,
+	}
+	pkgLayout, err := assemble.AssembleSkeleton(ctx, defined, path, createOpts)
+	if err != nil {
+		return registry.Reference{}, fmt.Errorf("unable to create skeleton: %w", err)
+	}
+	referenceOptions := zoci.ReferenceFromMetadataOptions{
+		Tag: opts.Tag,
+	}
+	// Build Reference for remote from registry location and pkg
+	pkgRef, err := zoci.ReferenceFromMetadataWithOptions(ref.String(), pkgLayout.AsV1alpha1(), referenceOptions)
+	if err != nil {
+		return registry.Reference{}, err
+	}
+	err = pushToRemote(ctx, pkgLayout, pkgRef, opts.OCIConcurrency, opts.Retries, opts.RemoteOptions)
+	if err != nil {
+		return registry.Reference{}, err
+	}
+	l.Info("skeleton packages contain metadata and local resources to allow for remote component imports")
+	ex := []v1alpha1.ZarfComponent{}
+	for _, c := range pkgLayout.AsV1alpha1().Components {
+		ex = append(ex, v1alpha1.ZarfComponent{
+			Name: fmt.Sprintf("import-%s", c.Name),
+			Import: v1alpha1.ZarfComponentImport{
+				Name: c.Name,
+				URL:  helpers.OCIURLPrefix + pkgRef.String(),
+			},
+		})
+	}
+	err = utils.ColorPrintYAML(ex, nil, false)
+	if err != nil {
+		return registry.Reference{}, err
+	}
+	l.Info("find more info on skeleton packages at https://docs.zarf.dev/faq/#what-is-a-skeleton-zarf-package")
+	return pkgRef, nil
+}
+
+// pushToRemote pushes a package to the given reference
+func pushToRemote(ctx context.Context, layout *layout.PackageLayout, ref registry.Reference, concurrency int, retries int, remoteOpts types.RemoteOptions) error {
+	arch := layout.AsV1alpha1().Metadata.Architecture
+	// Set platform
+	platform := oci.PlatformForArch(arch)
+
+	remote, err := zoci.NewRemoteWithOptions(ctx, ref.String(), platform, zoci.RemoteClientOptions{
+		RemoteOptions: remoteOpts,
+	})
+	if err != nil {
+		return fmt.Errorf("could not instantiate remote: %w", err)
+	}
+
+	publishOptions := zoci.PublishOptions{
+		OCIConcurrency: concurrency,
+		Retries:        retries,
+	}
+
+	_, err = remote.PushPackage(ctx, layout, publishOptions)
+	if err != nil {
+		return fmt.Errorf("could not push package: %w", err)
+	}
+
+	return nil
+}

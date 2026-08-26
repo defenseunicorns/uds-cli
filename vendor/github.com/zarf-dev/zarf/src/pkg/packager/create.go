@@ -1,0 +1,159 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2021-Present The Zarf Authors
+
+package packager
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"path/filepath"
+
+	"github.com/defenseunicorns/pkg/helpers/v2"
+	"github.com/defenseunicorns/pkg/oci"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/images"
+	"github.com/zarf-dev/zarf/src/pkg/logger"
+	"github.com/zarf-dev/zarf/src/pkg/packager/assemble"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/packager/load"
+	"github.com/zarf-dev/zarf/src/pkg/utils"
+	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	"github.com/zarf-dev/zarf/src/types"
+)
+
+// CreateOptions are the optional parameters to create
+type CreateOptions struct {
+	Flavor                  string
+	RegistryOverrides       []images.RegistryOverride
+	SigningKeyPath          string
+	SigningKeyPassword      string
+	SetVariables            map[string]string
+	MaxPackageSizeMB        int
+	SBOMOut                 string
+	SkipSBOM                bool
+	DifferentialPackagePath string
+	OCIConcurrency          int
+	CachePath               string
+	WithBuildMachineInfo    bool
+	// applicable when output is an OCI registry
+	types.RemoteOptions
+	// IsInteractive decides if Zarf can interactively prompt users through the CLI
+	IsInteractive bool
+	// SkipVersionCheck skips version requirement validation
+	SkipVersionCheck bool
+}
+
+// Create takes a path to a directory containing a ZarfPackageConfig and returns the path to the created package
+func Create(ctx context.Context, packagePath string, output string, opts CreateOptions) (_ string, err error) {
+	if opts.SkipSBOM && opts.SBOMOut != "" {
+		return "", fmt.Errorf("cannot skip SBOM creation and specify an SBOM output directory")
+	}
+
+	opts.CachePath, err = utils.ResolveCachePath(opts.CachePath)
+	if err != nil {
+		return "", err
+	}
+
+	loadOpts := load.DefinitionOptions{
+		Flavor:           opts.Flavor,
+		SetVariables:     opts.SetVariables,
+		CachePath:        opts.CachePath,
+		IsInteractive:    opts.IsInteractive,
+		SkipVersionCheck: opts.SkipVersionCheck,
+		RemoteOptions:    opts.RemoteOptions,
+	}
+	defined, err := load.PackageDefinition(ctx, packagePath, loadOpts)
+	if err != nil {
+		return "", err
+	}
+	pkg := defined.PackageDefinition.AsV1alpha1()
+
+	pkgPath, err := layout.ResolvePackagePath(packagePath)
+	if err != nil {
+		return "", fmt.Errorf("unable to access package path %q: %w", packagePath, err)
+	}
+
+	var differentialPkg v1alpha1.ZarfPackage
+	if opts.DifferentialPackagePath != "" {
+		pkgLayout, err := LoadPackage(ctx, opts.DifferentialPackagePath, LoadOptions{
+			Architecture:   pkg.Metadata.Architecture,
+			RemoteOptions:  opts.RemoteOptions,
+			LayerTypes:     []zoci.LayerType{zoci.MetadataLayers},
+			OCIConcurrency: opts.OCIConcurrency,
+			CachePath:      opts.CachePath,
+		})
+		if err != nil {
+			return "", fmt.Errorf("failed to load differential package: %w", err)
+		}
+		if err := pkgLayout.Cleanup(); err != nil {
+			return "", err
+		}
+		differentialPkg = pkgLayout.AsV1alpha1()
+	}
+
+	assembleOpt := assemble.AssembleOptions{
+		SkipSBOM:             opts.SkipSBOM,
+		OCIConcurrency:       opts.OCIConcurrency,
+		DifferentialPackage:  differentialPkg,
+		Flavor:               opts.Flavor,
+		RegistryOverrides:    opts.RegistryOverrides,
+		SigningKeyPath:       opts.SigningKeyPath,
+		SigningKeyPassword:   opts.SigningKeyPassword,
+		CachePath:            opts.CachePath,
+		WithBuildMachineInfo: opts.WithBuildMachineInfo,
+		RemoteOptions:        opts.RemoteOptions,
+	}
+	pkgLayout, err := assemble.AssemblePackage(ctx, defined, pkgPath.BaseDir, assembleOpt)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		err = errors.Join(err, pkgLayout.Cleanup())
+	}()
+
+	var packageLocation string
+	if helpers.IsOCIURL(output) {
+		pkg := pkgLayout.AsV1alpha1()
+		ref, err := zoci.ReferenceFromMetadata(output, pkg)
+		if err != nil {
+			return "", err
+		}
+		remote, err := zoci.NewRemoteWithOptions(ctx, ref.String(), oci.PlatformForArch(pkg.Build.Architecture), zoci.RemoteClientOptions{
+			RemoteOptions: opts.RemoteOptions,
+		})
+		if err != nil {
+			return "", err
+		}
+		// Setting a default here for retries as the flag is less intuitive during create
+		publishOptions := zoci.PublishOptions{
+			Retries:        1,
+			OCIConcurrency: opts.OCIConcurrency,
+		}
+		_, err = remote.PushPackage(ctx, pkgLayout, publishOptions)
+		if err != nil {
+			return "", err
+		}
+		packageLocation = ref.String()
+	} else {
+		packageLocation, err = pkgLayout.Archive(ctx, output, opts.MaxPackageSizeMB)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	if opts.SBOMOut != "" {
+		// Sanitize path to avoid writing outside user directory in the case of malicious edited package definition
+		err := pkgLayout.GetSBOM(ctx, filepath.Join(opts.SBOMOut, filepath.Base(pkgLayout.AsV1alpha1().Metadata.Name)))
+		// Don't fail package create if the package doesn't have an sbom
+		var noSBOMErr *layout.NoSBOMAvailableError
+		if errors.As(err, &noSBOMErr) {
+			logger.From(ctx).Error(fmt.Sprintf("SBOM not available in package: %s", err.Error()))
+			return packageLocation, nil
+		}
+		if err != nil {
+			return "", err
+		}
+	}
+	return packageLocation, nil
+}

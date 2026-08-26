@@ -1,0 +1,311 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2021-Present The Zarf Authors
+
+// Package cmd contains the CLI commands for Zarf.
+package cmd
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/spf13/cobra"
+	"github.com/zarf-dev/zarf/src/pkg/logger"
+	"github.com/zarf-dev/zarf/src/pkg/state"
+	"github.com/zarf-dev/zarf/src/pkg/zoci"
+
+	"github.com/spf13/viper"
+	"github.com/zarf-dev/zarf/src/config"
+)
+
+// Constants for use when loading configurations from viper config files
+const (
+
+	// Root config keys
+
+	VArchitecture          = "architecture"
+	VCache                 = "cache"
+	VZarfCache             = "zarf_cache"
+	VTmpDir                = "tmp_dir"
+	VPlainHTTP             = "plain_http"
+	VInsecureSkipTLSVerify = "insecure_skip_tls_verify"
+
+	// Root config, Logging
+
+	VLogLevel  = "log_level"
+	VLogFormat = "log_format"
+	VNoColor   = "no_color"
+
+	// Root config, Features
+
+	VFeatures = "features"
+
+	// Init config keys
+
+	VInitComponents   = "init.components"
+	VInitStorageClass = "init.storage_class"
+
+	// Init Git config keys
+
+	VInitGitURL      = "init.git.url"
+	VInitGitPushUser = "init.git.push_username"
+	VInitGitPushPass = "init.git.push_password"
+	VInitGitPullUser = "init.git.pull_username"
+	VInitGitPullPass = "init.git.pull_password"
+
+	// Init Registry config keys
+
+	VInitRegistryURL      = "init.registry.url"
+	VInitRegistryNodeport = "init.registry.nodeport"
+	VInitRegistryPort     = "init.registry.port"
+	VInitInjectorPort     = "init.registry.injector_port"
+	VInitInjectorImage    = "init.registry.injector_image"
+	VInitRegistrySecret   = "init.registry.secret"
+	VInitRegistryPushUser = "init.registry.push_username"
+	VInitRegistryPushPass = "init.registry.push_password"
+	VInitRegistryPullUser = "init.registry.pull_username"
+	VInitRegistryPullPass = "init.registry.pull_password"
+
+	// Init Package config keys
+
+	VInitArtifactURL       = "init.artifact.url"
+	VInitArtifactPushUser  = "init.artifact.push_username"
+	VInitArtifactPushToken = "init.artifact.push_token"
+
+	VInitAgentTLSCA          = "init.agent.tls_ca"
+	VInitAgentTLSCert        = "init.agent.tls_cert"
+	VInitAgentTLSKey         = "init.agent.tls_key"
+	VInitAgentMutationPolicy = "init.agent.mutation_policy"
+
+	// Package config keys
+
+	VPkgOCIConcurrency = "package.oci_concurrency"
+
+	// Package verification config keys (top-level; shared across verify, deploy, pull, and other load commands)
+
+	VPkgVerify                      = "package.verify"
+	VPkgPublicKey                   = "package.public_key"
+	VPkgCertificateIdentity         = "package.certificate_identity"
+	VPkgCertificateIdentityRegexp   = "package.certificate_identity_regexp"
+	VPkgCertificateOIDCIssuer       = "package.certificate_oidc_issuer"
+	VPkgCertificateOIDCIssuerRegexp = "package.certificate_oidc_issuer_regexp"
+	VPkgTrustedRoot                 = "package.trusted_root"
+	VPkgInsecureIgnoreTlog          = "package.insecure_ignore_tlog"
+	VPkgUseSignedTimestamps         = "package.use_signed_timestamps"
+
+	// Package create config keys
+
+	VPkgCreateSet                  = "package.create.set"
+	VPkgCreateOutput               = "package.create.output"
+	VPkgCreateSbom                 = "package.create.sbom"
+	VPkgCreateSbomOutput           = "package.create.sbom_output"
+	VPkgCreateSkipSbom             = "package.create.skip_sbom"
+	VPkgCreateMaxPackageSize       = "package.create.max_package_size"
+	VPkgCreateSigningKey           = "package.create.signing_key"
+	VPkgCreateSigningKeyPassword   = "package.create.signing_key_password"
+	VPkgCreateDifferential         = "package.create.differential"
+	VPkgCreateRegistryOverride     = "package.create.registry_override"
+	VPkgCreateFlavor               = "package.create.flavor"
+	VPkgCreateWithBuildMachineInfo = "package.create.with_build_machine_info"
+
+	// Package deploy config keys
+
+	VPkgDeploySet        = "package.deploy.set"
+	VPkgDeployComponents = "package.deploy.components"
+	VPkgDeployShasum     = "package.deploy.shasum"
+	VPkgDeployTimeout    = "package.deploy.timeout"
+	VPkgDeployNamespace  = "package.deploy.namespace"
+	VPkgRetries          = "package.deploy.retries"
+	VPkgDeployValues     = "package.deploy.values"
+	VPkgDeploySetValues  = "package.deploy.set_values"
+
+	// Package publish config keys
+
+	VPkgPublishSigningKey           = "package.publish.signing_key"
+	VPkgPublishSigningKeyPassword   = "package.publish.signing_key_password"
+	VPkgPublishRetries              = "package.publish.retries"
+	VPkgPublishWithBuildMachineInfo = "package.publish.with_build_machine_info"
+
+	// Package sign config keys
+
+	VPkgSignSigningKey         = "package.sign.signing_key"
+	VPkgSignSigningKeyPassword = "package.sign.signing_key_password"
+	VPkgSignOutput             = "package.sign.output"
+	VPkgSignOverwrite          = "package.sign.overwrite"
+	VPkgSignKeyless            = "package.sign.keyless"
+	VPkgSignIdentityToken      = "package.sign.identity_token"
+	VPkgSignFulcioURL          = "package.sign.fulcio_url"
+	VPkgSignFulcioAuthFlow     = "package.sign.fulcio_auth_flow"
+	VPkgSignOIDCIssuer         = "package.sign.oidc_issuer"
+	VPkgSignOIDCClientID       = "package.sign.oidc_client_id"
+	VPkgSignRekorURL           = "package.sign.rekor_url"
+	VPkgSignTlogUpload         = "package.sign.tlog_upload"
+	VPkgSignTSAServerURL       = "package.sign.tsa_server_url"
+
+	// Package pull config keys
+
+	VPkgPullOutputDir = "package.pull.output_directory"
+
+	// Package remove config keys
+
+	VPkgRemoveSetValues = "package.remove.set_values"
+
+	// Package deploy config keys
+
+	VPkgDeployConnected = "package.deploy.connected"
+
+	// Dev deploy config keys
+
+	VDevDeployNoYolo    = "dev.deploy.no_yolo"
+	VDevDeployConnected = "dev.deploy.connected"
+
+	// Dev template config keys
+
+	VDevTemplateSet            = "dev.template.set"
+	VDevTemplateSetFile        = "dev.template.set_file"
+	VDevTemplateSkipValidation = "dev.template.skip_validation"
+)
+
+var (
+	// Viper instance used by commands
+	v *viper.Viper
+
+	// Viper configuration error
+	vConfigError error
+)
+
+// initializes the viper singleton for the CLI
+func initViper() *viper.Viper {
+	v = viper.New()
+
+	// Skip viper file setup for vendor-only commands
+	if checkVendorOnlyFromArgs() {
+		return v
+	}
+
+	// E.g. ZARF_LOG_LEVEL=debug
+	v.SetEnvPrefix("zarf")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	// Set default values for viper
+	setDefaults(v)
+
+	// skip config file setup for version command
+	if isVersionCmd() {
+		return v
+	}
+
+	// Specify an alternate config file
+	cfgFile := os.Getenv("ZARF_CONFIG")
+
+	// Don't forget to read config either from cfgFile or from home directory!
+	if cfgFile != "" {
+		// Use config file from the flag.
+		v.SetConfigFile(cfgFile)
+	} else {
+		// Search config paths in the current directory and $HOME/.zarf.
+		v.AddConfigPath(".")
+		v.AddConfigPath("$HOME/.zarf")
+		v.SetConfigName("zarf-config")
+	}
+
+	vConfigError = v.ReadInConfig()
+
+	return v
+}
+
+// getViper returns the viper singleton
+func getViper() *viper.Viper {
+	if v == nil {
+		v = initViper()
+	}
+
+	return v
+}
+
+// optionIsExplicitlySet determines if an option is explicitly provided in a flag or viper key
+func optionIsExplicitlySet(cmd *cobra.Command, v *viper.Viper, flagName, key string) bool {
+	return cmd.Flags().Changed(flagName) || v.IsSet(key)
+}
+
+func isVersionCmd() bool {
+	args := os.Args
+	return len(args) > 1 && (args[1] == "version" || args[1] == "v")
+}
+
+// PrintViperConfigUsed informs users when Zarf has detected a config file.
+func PrintViperConfigUsed(ctx context.Context) error {
+	l := logger.From(ctx)
+
+	// Only print config info if viper is initialized.
+	vInitialized := v != nil
+	if !vInitialized {
+		return nil
+	}
+	var notFoundErr viper.ConfigFileNotFoundError
+	if errors.As(vConfigError, &notFoundErr) {
+		return nil
+	}
+	if vConfigError != nil {
+		return fmt.Errorf("unable to load config file: %w", vConfigError)
+	}
+	// Zarf skips loading the config file for version and tool commands, this avoids output in those cases
+	if cfgFile := v.ConfigFileUsed(); cfgFile != "" {
+		l.Info("using config file", "location", cfgFile)
+		ext := filepath.Ext(cfgFile)
+		switch ext {
+		case ".yml", ".yaml":
+			return nil
+		case ".toml":
+			return nil
+		default:
+			l.Warn("configuration file types other than yaml and toml are deprecated and will be removed in a future release",
+				"fileType", strings.TrimPrefix(ext, "."))
+			return nil
+		}
+	}
+	return nil
+}
+
+func setDefaults(v *viper.Viper) {
+	// Root defaults that are non-zero values
+	v.SetDefault(VLogLevel, "info")
+	v.SetDefault(VLogFormat, string(logger.FormatConsole))
+
+	// Package defaults that are non-zero values
+	v.SetDefault(VPkgOCIConcurrency, zoci.DefaultConcurrency)
+	v.SetDefault(VPkgRetries, config.ZarfDefaultRetries)
+
+	// Deploy opts that are non-zero values
+	v.SetDefault(VPkgDeployTimeout, config.ZarfDefaultTimeout)
+
+	// Package publish opts that are non-zero values
+	v.SetDefault(VPkgPublishRetries, 1)
+
+	// Package sign keyless defaults
+	v.SetDefault(VPkgSignFulcioURL, "https://fulcio.sigstore.dev")
+	v.SetDefault(VPkgSignOIDCIssuer, "https://oauth2.sigstore.dev/auth")
+	v.SetDefault(VPkgSignOIDCClientID, "sigstore")
+	v.SetDefault(VPkgSignRekorURL, "https://rekor.sigstore.dev")
+
+	// Dev deploy defaults
+	v.SetDefault(VDevDeployConnected, true)
+
+	// Init defaults that are non-zero values
+	v.SetDefault(VInitAgentMutationPolicy, string(state.MutationPolicyAll))
+}
+
+// GetStringSlice returns a string slice from viper
+// it consistently returns expected results across flags and environment variables
+// https://github.com/spf13/viper/issues/380
+func GetStringSlice(v *viper.Viper, key string) []string {
+	var result []string
+	if err := v.UnmarshalKey(key, &result); err != nil {
+		return nil
+	}
+	return result
+}

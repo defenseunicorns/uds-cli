@@ -5,31 +5,31 @@ local checks = new Mapping<String, Step> {
     ["check-added-large-files"] {
         check = "hk util check-added-large-files --maxkb=1024 {{files}}"
         glob = List("**/*")
-        exclude = List("build/**")
+        exclude = List("build/**", "vendor/**")
     }
     ["check-merge-conflict"] {
         check = "hk util check-merge-conflict {{files}}"
         glob = List("**/*")
-        exclude = List("build/**")
+        exclude = List("build/**", "vendor/**")
     }
     ["detect-private-key"] {
         check = "hk util detect-private-key {{files}}"
         glob = List("**/*")
-        exclude = List("build/**")
+        exclude = List("build/**", "vendor/**")
     }
     ["detect-secrets"] {
         check = "gitleaks detect --source . --no-git --redact --no-banner --exit-code 1"
         glob = List("**/*")
-        exclude = List("build/**")
+        exclude = List("build/**", "vendor/**")
     }
     ["end-of-file-fixer"] = (Builtins.newlines) {
-        exclude = List("docs/reference/commands/**", "build/**")
+        exclude = List("docs/reference/commands/**", "build/**", "vendor/**")
     }
     ["fix-byte-order-marker"] = (Builtins.byte_order_marker) {
-        exclude = List("build/**")
+        exclude = List("build/**", "vendor/**")
     }
     ["trailing-whitespace"] = (Builtins.trailing_whitespace) {
-        exclude = List("build/**", "design-docs/template.md", "docs/adr/0004-tui.md")
+        exclude = List("build/**", "vendor/**", "design-docs/template.md", "docs/adr/0004-tui.md")
     }
     ["golangci-lint"] {
         check = "golangci-lint run ./..."
@@ -46,10 +46,10 @@ local checks = new Mapping<String, Step> {
         glob = List("cmd/**/*.go", "internal/**/*.go", "pkg/**/*.go", "hack/generate-schema.sh", "tasks/schema.yaml")
     }
     ["license-check"] {
-        check = "uds run lint:license"
+        check = "scan_dir=$(mktemp -d) && trap 'rm -rf \"$scan_dir\"' EXIT && git archive --format=tar HEAD -- . ':(exclude)vendor' | tar -x -C \"$scan_dir\" && cd \"$scan_dir\" && uds run lint:license"
         fix = "uds run lint:fix-license"
         glob = List("**/*")
-        exclude = List("build/**")
+        exclude = List("build/**", "vendor/**")
     }
 }
 

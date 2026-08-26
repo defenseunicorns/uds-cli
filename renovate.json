@@ -7,7 +7,8 @@
   "prConcurrentLimit": 0,
   "prHourlyLimit": 0,
   "separateMajorMinor": false,
-  "postUpdateOptions": ["gomodTidy"],
+  "ignorePaths": ["**/vendor/**"],
+  "postUpdateOptions": ["gomodTidy", "gomodVendor"],
   "packageRules": [
     {
       "matchFileNames": ["go.mod", "go.sum"],
@@ -69,6 +70,15 @@
       ],
       "datasourceTemplate": "docker",
       "versioningTemplate": "regex:^v?(?<major>\\d+)(\\.(?<minor>\\d+))?(\\.(?<patch>\\d+))?(-uds\\.(?<build>\\d+))?(-(?<compatibility>\\w+)?)?(.*?)?$"
+    },
+    {
+      "customType": "regex",
+      "description": "Matches inline Renovate comments for UDS Core version pins.",
+      "managerFilePatterns": ["/(^|/)(tests|docs|tasks|\\.github)/.*$/"],
+      "matchStrings": [
+        "// renovate: datasource=(?<datasource>docker|github-tags) depName=(?<depName>defenseunicorns/uds-core|ghcr\\.io/defenseunicorns/packages/uds/core)(?: extractVersion=(?<extractVersion>\\S+))? versioning=(?<versioning>\\S+)\\s+(?:version\\s+=|assert\\.Contains\\(t, bundleDefinition,)\\s+\"(?<currentValue>[^\"]+)\""
+      ],
+      "extractVersionTemplate": "{{#if extractVersion}}{{{extractVersion}}}{{/if}}"
     }
   ]
 }
