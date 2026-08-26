@@ -30,7 +30,7 @@ include:
   # Add Work Type Classification labels to merge requests,
   # see https://gitlab.com/gitlab-com/gl-infra/common-ci-tasks/-/blob/main/autolabels.md
   - project: "gitlab-com/gl-infra/common-ci-tasks"
-    ref: v2.93.0
+    ref: v5.4.1
     file: "autolabels.yml"
     inputs:
       stage: lint
@@ -39,7 +39,7 @@ include:
   # Add Work Type Classification labels to merge requests,
   # see https://gitlab.com/gitlab-com/gl-infra/common-ci-tasks/-/blob/main/autolabels.md
   - project: "gitlab-com/gl-infra/common-ci-tasks"
-    ref: v2.93.0
+    ref: v5.4.1
     file: "autolabels.yml"
     inputs:
       stage: lint
@@ -47,10 +47,10 @@ include:
   # Analyze commits to determine whether to cut a release
   # see https://gitlab.com/gitlab-com/gl-infra/common-ci-tasks/-/blob/main/semantic-release.md
   - project: "gitlab-com/gl-infra/common-ci-tasks"
-    ref: v2.93.0
+    ref: v5.4.1
     file: "semantic-release.yml"
   - project: "gitlab-com/gl-infra/common-ci-tasks"
-    ref: v2.93.0
+    ref: v5.4.1
     file: "semantic-release.yml"
     inputs:
       stage: deploy
