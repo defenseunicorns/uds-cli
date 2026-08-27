@@ -1,0 +1,56 @@
+---
+title: Choose a deployment tool
+description: Choose the UDS tool that matches what you need to build, deploy, or manage.
+sidebar:
+  order: 3.600
+---
+
+Start with the thing you need to manage. A package, a bundle, and a fleet use different tools.
+
+## Choose a tool
+
+Choose the option that matches your work:
+
+- **Build or deploy a Bundles Next artifact:** UDS CLI in Next mode.
+- **Manage package installs in an OpenTofu plan:** OpenTofu provider.
+- **Choose packages for many remote clusters:** Fleet Command.
+- **Install a package on an edge cluster:** UDS Connect with Remote Agent.
+- **Keep an existing `uds-bundle.yaml` workflow:** Legacy UDS CLI.
+
+## Common workflows
+
+### Bundles Next
+
+Use bundles in Next mode when your deliverable is an HCL-based bundle. Author `bundle.uds.hcl`, then deploy directly while developing:
+
+```bash
+CLI_FEATURES=NextMode=true uds bundle dev deploy .
+```
+
+Use `uds bundle create` and `uds bundle deploy` when you need a versioned artifact for CI, a registry, or offline delivery.
+
+Reference [UDS CLI Next Mode](/cli/reference/next-mode/) for the current artifact layout, signing behavior, and command support.
+
+### Packages in infrastructure
+
+Use the [OpenTofu provider](https://github.com/defenseunicorns/terraform-provider-uds) when package lifecycle belongs in an OpenTofu plan and state. Its `uds_package` resource manages an individual package and its settings. It does not create Bundles Next artifacts.
+
+### Fleet and edge clusters
+
+Use Fleet Command when you need central enrollment, package availability, and observability across remote clusters. Fleet Command selects which clusters can see a published Zarf package. UDS Connect, through the applicable Remote Agent, performs the installation on the cluster.
+
+The Remote Agent mode controls its services. `single-node` is the default and provides cluster/package and host/system services. `manager` provides cluster/package and Fleet services. `node` provides host/system services for one node. Fleet enrollment and heartbeat reporting require `features.fleet.enabled`.
+
+Fleet's package workflow and bundles in Next mode are separate paths. Confirm that the deployed release supports the artifact type before combining Fleet with bundles in Next mode.
+
+### Existing bundles
+
+Use Legacy UDS CLI mode for an existing `uds-bundle.yaml` workflow. Legacy remains the default while Next is in alpha.
+
+## Related documentation
+
+- [UDS CLI Next Mode](/cli/reference/next-mode/) - current Next mode status, Bundles Next format, and command capabilities.
+- [UDS CLI overview](/cli/) - installation and command navigation.
+- [OpenTofu documentation](https://opentofu.org/docs/) - configuration, plans, applies, and state.
+- [UDS Fleet Command](https://github.com/defenseunicorns/uds-fleet-command) - fleet enrollment, package availability, and observability.
+- [UDS Remote Agent](https://github.com/defenseunicorns/uds-remote-agent) - edge-cluster services and package operations.
