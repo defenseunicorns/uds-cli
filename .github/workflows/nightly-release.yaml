@@ -176,7 +176,7 @@ jobs:
           chmod +x "$binary"
           "$binary" version | tee verify/legacy-version.txt
           "$binary" --features=NextMode=true version | tee verify/next-version.txt
-          grep -F "uds version $TAG_NAME" verify/legacy-version.txt
+          grep -Fx "$TAG_NAME" verify/legacy-version.txt
           grep -F "uds version $TAG_NAME" verify/next-version.txt
 
   cleanup-nightlies:

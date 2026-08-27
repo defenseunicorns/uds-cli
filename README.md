@@ -16,6 +16,12 @@ brew trust --formula defenseunicorns/tap/uds && brew tap defenseunicorns/tap && 
 ```
 UDS CLI binaries are also included with each [Github Release](https://github.com/defenseunicorns/uds-cli/releases)
 
+### Nightly prereleases
+
+The `Unstable Release` workflow runs daily at 03:00 UTC against `main`. Successful runs publish a GitHub prerelease tagged `vX.Y.Z-nightly+YYYYMMDDHHMMSS-XXXXXXXX`, where `vX.Y.Z` is the latest stable tag and `XXXXXXXX` is the source commit's eight-character SHA. Each prerelease contains Linux and macOS binaries for amd64 and arm64, Linux DEB/RPM packages, SHA-256 checksums, and per-binary SBOMs.
+
+Nightlies do not update Homebrew or become the latest release. Scheduled cleanup retains the newest three nightly prereleases and their tags.
+
 ## Official Documentation
 Official documentation is located at [docs.defenseunicorns.com/cli/](https://docs.defenseunicorns.com/cli/)
 

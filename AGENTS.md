@@ -71,6 +71,12 @@ Keep user, contributor, and design docs synchronized with code changes.
 - If you change generated docs, run the corresponding docs generation or docs test task when practical.
 - If you make a significant design decision, add a new ADR.
 
+## Release workflows
+
+- Ask before dispatching `.github/workflows/nightly-release.yaml`. It writes to GHCR during validation and uses repository/package write permissions plus the `release-nightly` environment to create remote tags and prereleases.
+- Preserve immutable unstable tags: `vX.Y.Z-(nightly|adhoc)+YYYYMMDDHHMMSS-XXXXXXXX`. Never reuse, move, or force-update them. Keep both formats excluded from `.github/workflows/release.yaml`.
+- Scheduled cleanup removes nightly releases and tags beyond the newest three. It must not remove ad hoc releases. Keep `README.md`, `CONTRIBUTING.md`, and `AGENTS.md` synchronized with release workflow changes.
+
 ## Tooling and safety
 
 - Lint: `uds run lint` or `hk check --all`
