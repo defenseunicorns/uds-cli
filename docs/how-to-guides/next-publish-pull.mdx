@@ -1,0 +1,105 @@
+---
+title: "Publish and pull a bundle in Next mode"
+description: Publish artifacts for bundles in Next mode to an OCI registry and pull them for deployment or offline workflows.
+sidebar:
+  order: 3.700
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Artifacts for bundles in Next mode use OCI layouts. Use `bundle push` to publish a local `.tar.zst` file and `bundle pull` to retrieve it into a local directory.
+
+## What you'll accomplish
+
+Publish a signed artifact, pull it into a local directory, and prepare it for deployment.
+
+## Prerequisites
+
+- [UDS CLI installed](/cli/getting-started/installation/)
+- A bundle directory containing `bundle.uds.hcl` and its referenced files, or an existing `.tar.zst` bundle artifact
+- OCI access to each package source and any public keys referenced by `bundle.uds.hcl` when creating an artifact
+- A signing key or keyless identity for the create step. The example uses `./cosign.key`.
+- A matching public key or keyless certificate constraints for pull and deploy. The example uses `./cosign.pub`.
+- Authentication and write access to the destination OCI registry
+- Read access to the registry when pulling the artifact
+
+## Steps
+
+<Steps>
+
+1. **Publish an artifact**
+
+   Create and sign an artifact before publishing it:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle create . --signing-key ./cosign.key
+   CLI_FEATURES=NextMode=true uds bundle push ./uds-bundle-my-app-amd64-1.0.0.tar.zst oci://registry.example.com/my-org/my-app:1.0.0
+   ```
+
+    The command needs a local `.tar.zst` path and a destination OCI reference. It preserves signature evidence when present, but does not require a signature. Use signed artifacts for trusted release workflows.
+
+2. **Pull an artifact**
+
+   Pull a signed artifact into an existing directory:
+
+   ```bash
+   mkdir -p ./downloads
+   CLI_FEATURES=NextMode=true uds bundle pull oci://registry.example.com/my-org/my-app:1.0.0 \
+     --public-key ./cosign.pub \
+     --output-dir ./downloads
+   ```
+
+    Pull verifies the bundle signature by default. For a keyless signature, provide its certificate constraints:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle pull oci://registry.example.com/my-org/my-app:1.0.0 \
+     --certificate-identity-regexp 'https://github\.com/my-org/.*/\.github/workflows/release\.yml@refs/heads/main' \
+     --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+     --output-dir ./downloads
+   ```
+
+   For an intentionally unsigned alpha artifact, explicitly skip verification:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle pull oci://registry.example.com/my-org/my-app:1.0.0 \
+     --skip-signature-verification \
+     --output-dir ./downloads
+   ```
+
+    Skipping verification is insecure. Do not use it for trusted release workflows.
+
+3. **Deploy the pulled artifact**
+
+    Use the downloaded `.tar.zst` path from the pull result:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle deploy ./downloads/uds-bundle-my-app-amd64-1.0.0.tar.zst --public-key ./cosign.pub
+   ```
+
+   Use [the deployment workflow](/cli/how-to-guides/next-deploy-a-bundle/) for source deploys, partial package selection, and unsigned local workflows.
+
+</Steps>
+
+## Verification
+
+Inspect the pulled artifact before deployment:
+
+```bash
+CLI_FEATURES=NextMode=true uds bundle inspect ./downloads/uds-bundle-my-app-amd64-1.0.0.tar.zst
+```
+
+The output filename includes the bundle name, architecture, and version. Use the path printed by `bundle pull` when those values differ.
+
+## Troubleshooting
+
+### Problem: The registry rejects the push
+
+**Symptom:** `bundle push` cannot authenticate or write the destination artifact.
+
+**Solution:** Authenticate to the registry, confirm that the repository exists or that your account can create it, and retry the push.
+
+## Related documentation
+
+- [Create a bundle in Next mode](/cli/how-to-guides/next-create-a-bundle/) - Create a signed bundle artifact.
+- [Reconfigure a bundle in Next mode](/cli/how-to-guides/next-reconfigure-a-bundle/) - Create an environment-specific derivative.
+- [Inspect and verify a bundle in Next mode](/cli/how-to-guides/next-inspect-verify/) - Inspect metadata and verify signatures.

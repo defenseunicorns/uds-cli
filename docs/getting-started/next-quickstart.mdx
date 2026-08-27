@@ -1,0 +1,128 @@
+---
+title: Next mode Quickstart
+description: Create and deploy a bundle in Next mode with the Bundles Next HCL format and artifact workflow.
+prev: true
+sidebar:
+  order: 2.300
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Next mode is an alpha preview of UDS CLI enabled with the `NextMode=true` feature flag. Bundles in Next mode use `bundle.uds.hcl` and the `uds bundle` command group. Legacy mode remains the default, so each command in this guide sets the feature flag.
+
+## What you'll accomplish
+
+Create and deploy a small bundle in Next mode on a local k3d cluster from its definition and from an unsigned artifact.
+
+- Create a bundle definition with HCL
+- Deploy directly from the definition during development
+- Create an unsigned local bundle artifact
+- Deploy the artifact to a Kubernetes cluster
+
+## Prerequisites
+
+- [UDS CLI installed](/cli/getting-started/installation/)
+- Docker installed and running
+- k3d 5.7.1 or newer installed
+
+> [!WARNING]
+> This quickstart uses `uds-k3d:0.20.2`. Its required `destroy-cluster` component deletes the cluster named `uds` before creating it. Do not run this quickstart against a cluster you need to preserve.
+
+## Steps
+
+<Steps>
+
+1. **Create a bundle definition**
+
+   Create a directory with a file named `bundle.uds.hcl`:
+
+   ```hcl title="bundle.uds.hcl"
+   uds {
+     bundle_api_version = "uds.dev/v1alpha1"
+   }
+
+   metadata {
+     name        = "next-quickstart"
+     description = "Next mode quickstart bundle"
+     version     = "0.1.0"
+   }
+
+   package "uds_k3d_dev" {
+     source = "oci://ghcr.io/defenseunicorns/packages/uds-k3d:0.20.2"
+     signature_verification { verify = false }
+   }
+
+   package "init" {
+     source = "oci://ghcr.io/zarf-dev/packages/init:v0.83.0"
+     signature_verification {
+       keyless {
+         certificate_identity_regexp = "https://github\\.com/zarf-dev/zarf/\\.github/workflows/release\\.yml@refs/tags/v\\d+\\.\\d+\\.\\d+"
+         certificate_oidc_issuer      = "https://token.actions.githubusercontent.com"
+       }
+     }
+     depends_on = [package.uds_k3d_dev]
+   }
+
+   package "podinfo" {
+     source = "oci://ghcr.io/defenseunicorns/uds-cli/podinfo:0.0.2"
+     signature_verification { verify = false }
+     depends_on = [package.init]
+   }
+   ```
+
+   Each package needs a signature verification policy. Use `verify = false` only for local alpha workflows. See [Create a bundle in Next mode](/cli/how-to-guides/next-create-a-bundle/) for signed artifacts.
+
+2. **Deploy from the definition**
+
+   Deploy directly while developing the bundle:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle dev deploy .
+   ```
+
+   Direct deployment does not create an artifact or verify the bundle signature. Use it while authoring the bundle.
+
+3. **Create a local artifact**
+
+   Create an unsigned artifact for this quickstart:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle create --unsigned .
+   ```
+
+   The command writes a `.tar.zst` artifact to the current directory.
+
+4. **Deploy the artifact**
+
+   Deploy the unsigned artifact and explicitly skip bundle-signature verification:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle deploy ./uds-bundle-next-quickstart-<ARCH>-0.1.0.tar.zst --skip-signature-verification
+   ```
+
+   Replace `<ARCH>` with the artifact architecture, such as `amd64` or `arm64`.
+
+</Steps>
+
+## Verification
+
+Confirm that the packages are running:
+
+```bash
+CLI_FEATURES=NextMode=true uds zarf tools kubectl get pods -A
+```
+
+## Troubleshooting
+
+### Problem: The quickstart cannot reach Docker
+
+**Symptom:** k3d or the `uds_k3d_dev` package cannot start the local cluster.
+
+**Solution:** Start Docker, confirm that the Docker daemon is reachable, and rerun the deployment step.
+
+## Related documentation
+
+- [Create a bundle in Next mode](/cli/how-to-guides/next-create-a-bundle/) - Define bundles in Next mode and create signed or unsigned artifacts.
+- [Deploy a bundle in Next mode](/cli/how-to-guides/next-deploy-a-bundle/) - Deploy bundle definitions and created artifacts.
+- [Publish and pull a bundle in Next mode](/cli/how-to-guides/next-publish-pull/) - Move bundle artifacts through an OCI registry.
+- [Next mode reference](/cli/reference/next-mode/) - Review the bundle format, commands, and artifact behavior.
