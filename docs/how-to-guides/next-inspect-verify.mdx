@@ -7,11 +7,13 @@ sidebar:
 
 import { Steps } from '@astrojs/starlight/components';
 
-Use `bundle inspect` to read metadata and `bundle verify` to check the bundle signature. Both commands accept local `.tar.zst` files and OCI references. Neither accepts a source directory or standalone `bundle.uds.hcl` file.
+Use `bundle inspect` for metadata and `bundle verify` for bundle signatures. Both commands accept local `.tar.zst` files and OCI references, not source directories or standalone `bundle.uds.hcl` files.
 
 ## What you'll accomplish
 
-Inspect metadata, verify a signature with a public key or keyless constraints, and emit JSON or YAML for automation.
+- Inspect bundle metadata.
+- Verify a signature with a public key or keyless constraints.
+- Emit JSON or YAML for automation.
 
 ## Prerequisites
 

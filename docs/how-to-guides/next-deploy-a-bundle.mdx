@@ -7,16 +7,18 @@ sidebar:
 
 import { Steps } from '@astrojs/starlight/components';
 
-Next mode separates source development deploys from artifact deploys.
+Use `bundle dev deploy` for a definition and `bundle deploy` for a created artifact.
 
 ## What you'll accomplish
 
-Deploy from a definition or a local or OCI artifact. Select packages when a partial deployment is intentional.
+- Deploy from a bundle definition.
+- Deploy a local or OCI artifact.
+- Select packages for an intentional partial deployment.
 
 ## Prerequisites
 
 - [UDS CLI installed](/cli/getting-started/installation/)
-- A `bundle.uds.hcl` directory or a created `.tar.zst` artifact
+- A directory containing `bundle.uds.hcl`, or a created `.tar.zst` artifact
 - A matching bundle public key such as `./cosign.pub` for signed artifact examples
 - Access to the target Kubernetes cluster
 - Registry access when deploying an OCI artifact
@@ -79,7 +81,7 @@ Deploy from a definition or a local or OCI artifact. Select packages when a part
    CLI_FEATURES=NextMode=true uds bundle deploy ./unsigned-bundle.tar.zst --skip-signature-verification
    ```
 
-   Do not use `--skip-signature-verification` for artifacts that must be trusted.
+    Do not use `--skip-signature-verification` for signed release or registry artifacts.
 
 3. **Select packages**
 

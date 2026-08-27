@@ -7,11 +7,13 @@ sidebar:
 
 import { Steps } from '@astrojs/starlight/components';
 
-Use `bundle reconfigure` when an environment needs different default variables but the package content stays the same. It reuses the package layers.
+Use `bundle reconfigure` to replace environment defaults without rebuilding package content.
 
 ## What you'll accomplish
 
-Replace an artifact's defaults and create a derivative for a local directory or OCI registry. The package content stays unchanged.
+- Replace an artifact's defaults.
+- Create a derivative in a local directory or OCI registry.
+- Keep the package content unchanged.
 
 ## Prerequisites
 
@@ -81,7 +83,7 @@ Replace an artifact's defaults and create a derivative for a local directory or 
      --signing-key ./cosign.key
    ```
 
-    Reconfigure verifies the source bundle signature by default. Use `--skip-signature-verification` only for an intentionally unsigned or untrusted source. Sign the new artifact, or use `--unsigned` for local alpha work.
+     Reconfigure verifies the source bundle signature by default. Use `--skip-signature-verification` only for a locally controlled unsigned alpha source. Do not use it to bypass verification for registry-backed artifacts. Sign the new artifact, or use `--unsigned` for local alpha work.
 
 </Steps>
 

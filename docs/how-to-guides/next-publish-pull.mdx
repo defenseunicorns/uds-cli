@@ -7,11 +7,13 @@ sidebar:
 
 import { Steps } from '@astrojs/starlight/components';
 
-Artifacts for bundles in Next mode use OCI layouts. Use `bundle push` to publish a local `.tar.zst` file and `bundle pull` to retrieve it into a local directory.
+Use `bundle push` to publish a local `.tar.zst` artifact and `bundle pull` to retrieve it into a local directory.
 
 ## What you'll accomplish
 
-Publish a signed artifact, pull it into a local directory, and prepare it for deployment.
+- Publish a signed artifact.
+- Pull it into a local directory.
+- Deploy the pulled artifact.
 
 ## Prerequisites
 
@@ -64,15 +66,7 @@ Publish a signed artifact, pull it into a local directory, and prepare it for de
      --output-dir ./downloads
    ```
 
-   For an intentionally unsigned alpha artifact, explicitly skip verification:
-
-   ```bash
-   CLI_FEATURES=NextMode=true uds bundle pull oci://registry.example.com/my-org/my-app:1.0.0 \
-     --skip-signature-verification \
-     --output-dir ./downloads
-   ```
-
-    Skipping verification is insecure. Do not use it for trusted release workflows.
+    Do not use `--skip-signature-verification` when pulling registry artifacts for a trusted workflow. Use the signed pull commands above, or keep unsigned testing to a locally created artifact and follow the unsigned local workflow in [Deploy a bundle in Next mode](/cli/how-to-guides/next-deploy-a-bundle/).
 
 3. **Deploy the pulled artifact**
 
