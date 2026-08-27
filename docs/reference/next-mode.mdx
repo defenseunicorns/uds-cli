@@ -8,7 +8,7 @@ sidebar:
 UDS CLI Next is the next-generation implementation of UDS CLI. It is available as an alpha preview behind the `NextMode` feature flag while Legacy mode remains the default.
 
 > [!NOTE]
-> More task-focused UDS CLI Next documentation will be added as the mode matures. For now, treat this page as a reference for why Next exists and what it can currently do.
+> Use the task-focused guides for [creating a bundle](/cli/how-to-guides/next-create-a-bundle/), [deploying a bundle](/cli/how-to-guides/next-deploy-a-bundle/), [publishing and pulling artifacts](/cli/how-to-guides/next-publish-pull/), [reconfiguring a bundle](/cli/how-to-guides/next-reconfigure-a-bundle/), and [inspecting and verifying artifacts](/cli/how-to-guides/next-inspect-verify/). This page covers the format, design, and current capabilities.
 
 ## Why Next Mode Exists
 
@@ -85,6 +85,9 @@ Next mode currently supports the core bundle flows needed to exercise HCL bundle
 | Development deployment | Deploy directly from a bundle definition with `uds bundle dev deploy` |
 | Bundle artifact creation | Create local bundle artifacts with `uds bundle create` |
 | Bundle artifact deployment | Deploy created local artifacts or OCI references with `uds bundle deploy` |
+| Bundle artifact publishing and retrieval | Publish and pull artifacts with `uds bundle push` and `uds bundle pull` |
+| Bundle reconfiguration | Replace artifact defaults with `uds bundle reconfigure` |
+| Bundle inspection and verification | Inspect metadata and verify bundle signatures with `uds bundle inspect` and `uds bundle verify` |
 | Package verification | Verify package signatures when configured by the bundle definition |
 | Bundle signing | Create signed bundles when signing options are configured, or unsigned bundles for local alpha workflows |
 | Bundle signature verification | Verify signed bundle artifacts during deploy, with an explicit skip flag available for unsigned local artifacts |
