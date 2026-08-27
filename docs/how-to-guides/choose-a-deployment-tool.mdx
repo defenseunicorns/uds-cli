@@ -5,43 +5,83 @@ sidebar:
   order: 3.600
 ---
 
-Start with the thing you need to manage. A package, a bundle, and a fleet use different tools.
+Start with the unit you need to deploy and where its lifecycle state belongs. An individual package, a multi-package bundle, and a fleet use different tools.
 
 ## Choose a tool
 
 Choose the option that matches your work:
 
-- **Build or deploy a Bundles Next artifact:** UDS CLI in Next mode.
-- **Manage package installs in an OpenTofu plan:** OpenTofu provider.
-- **Choose packages for many remote clusters:** Fleet Command.
-- **Install a package on an edge cluster:** UDS Connect with Remote Agent.
+- **Author or deliver a multi-package Next bundle artifact:** UDS CLI in Next mode. Next is currently an alpha preview.
+- **Manage individual package lifecycles in an OpenTofu plan and state:** OpenTofu provider.
+- **Make individual Zarf package artifacts available to many remote clusters:** Fleet Command with UDS Remote Agent and UDS Connect.
+- **Install an individual package on one edge cluster:** UDS Connect backed by UDS Remote Agent.
 - **Keep an existing `uds-bundle.yaml` workflow:** Legacy UDS CLI.
+
+The tools operate at different boundaries:
+
+- A Next bundle artifact is one self-contained, multi-package OCI artifact.
+- The OpenTofu provider manages individual `uds_package` resources on an infrastructure-managed target.
+- Fleet Command controls availability and visibility of individual Zarf package artifacts. It does not install packages on a cluster.
+- UDS Connect is the edge operator interface. The Remote Agent performs package operations on the edge cluster.
 
 ## Common workflows
 
 ### Bundles Next
 
-Use bundles in Next mode when your deliverable is an HCL-based bundle. Author `bundle.uds.hcl`, then deploy directly while developing:
+Use Next mode when your deliverable is an HCL-based, multi-package bundle and you want one artifact with package content and dependency information. Next mode is an alpha preview, so confirm that its current behavior is appropriate for your release process.
+
+During authoring, deploy the mutable bundle definition directly:
 
 ```bash
 CLI_FEATURES=NextMode=true uds bundle dev deploy .
 ```
 
-Use `uds bundle create` and `uds bundle deploy` when you need a versioned artifact for CI, a registry, or offline delivery.
+For CI, registry, offline, or direct artifact delivery, create a bundle artifact first. Every `create` invocation needs a signing mode. Use signing in normal delivery workflows:
+
+```bash
+CLI_FEATURES=NextMode=true uds bundle create --keyless .
+```
+
+For a local alpha-only workflow, an unsigned artifact is also possible:
+
+```bash
+CLI_FEATURES=NextMode=true uds bundle create --unsigned .
+```
+
+Publish a created artifact explicitly when using a registry:
+
+```bash
+CLI_FEATURES=NextMode=true uds bundle push ./uds-bundle-<name>-<arch>-<version>.tar.zst oci://registry.example.com/my-org/my-app:1.0.0
+```
+
+Deploy a local or OCI artifact with the appropriate signature verification options. The following bypass is only for an intentionally unsigned local alpha artifact:
+
+```bash
+CLI_FEATURES=NextMode=true uds bundle deploy ./uds-bundle-<name>-<arch>-<version>.tar.zst --skip-signature-verification
+CLI_FEATURES=NextMode=true uds bundle deploy oci://registry.example.com/my-org/my-app:1.0.0 --skip-signature-verification
+```
+
+Created local and OCI artifacts can be used for production deployment when external state management or fleet coordination is not required. The mutable `dev deploy` path has no bundle artifact provenance or bundle-signature verification.
 
 Reference [UDS CLI Next Mode](/cli/reference/next-mode/) for the current artifact layout, signing behavior, and command support.
 
 ### Packages in infrastructure
 
-Use the [OpenTofu provider](https://github.com/defenseunicorns/terraform-provider-uds) when package lifecycle belongs in an OpenTofu plan and state. Its `uds_package` resource manages an individual package and its settings. It does not create Bundles Next artifacts.
+Use the [OpenTofu provider](https://github.com/defenseunicorns/terraform-provider-uds) when each package should be independently represented in an OpenTofu plan and state for an infrastructure-managed target. Its [`uds_package` resource](https://github.com/defenseunicorns/terraform-provider-uds/blob/main/docs/resources/package.md) manages one Zarf package, its values, variables, dependencies, and signature policy. It does not create or deploy Bundles Next artifacts, and it does not provide Fleet-wide package availability.
 
 ### Fleet and edge clusters
 
-Use Fleet Command when you need central enrollment, package availability, and observability across remote clusters. Fleet Command selects which clusters can see a published Zarf package. UDS Connect, through the applicable Remote Agent, performs the installation on the cluster.
+Use Fleet Command when a central operator needs enrollment, package-artifact availability, and observability across remote clusters. Fleet evaluates each published Zarf package artifact, including its version, flavor, architecture, and label rules, to decide which clusters can see it. UDS Connect, through the applicable Remote Agent, performs the download and installation on the edge cluster.
 
-The Remote Agent mode controls its services. `single-node` is the default and provides cluster/package and host/system services. `manager` provides cluster/package and Fleet services. `node` provides host/system services for one node. Fleet enrollment and heartbeat reporting require `features.fleet.enabled`.
+The Remote Agent mode controls which services can run:
 
-Fleet's package workflow and bundles in Next mode are separate paths. Confirm that the deployed release supports the artifact type before combining Fleet with bundles in Next mode.
+- `single-node` is the default and provides cluster/package and host/system services.
+- `manager` provides cluster/package and Fleet services for a multi-node cluster, but no host services.
+- `node` provides host/system services for one node and cannot provide package or Fleet operations.
+
+Fleet enrollment, heartbeats, and Fleet catalog integration require `features.fleet.enabled`, a Fleet Command address, and enrollment credentials. Enabling the feature does not enroll the agent.
+
+The current Fleet path is for individual Zarf package artifacts, not Bundles Next artifacts. Do not publish a Next bundle artifact to Fleet expecting Fleet or UDS Connect to deploy it. Use UDS CLI Next when the deliverable is an atomic bundle artifact; publish the individual Zarf packages through Fleet when the fleet needs package-level availability and edge installation.
 
 ### Existing bundles
 
@@ -52,5 +92,5 @@ Use Legacy UDS CLI mode for an existing `uds-bundle.yaml` workflow. Legacy remai
 - [UDS CLI Next Mode](/cli/reference/next-mode/) - current Next mode status, Bundles Next format, and command capabilities.
 - [UDS CLI overview](/cli/) - installation and command navigation.
 - [OpenTofu documentation](https://opentofu.org/docs/) - configuration, plans, applies, and state.
-- [UDS Fleet Command](https://github.com/defenseunicorns/uds-fleet-command) - fleet enrollment, package availability, and observability.
-- [UDS Remote Agent](https://github.com/defenseunicorns/uds-remote-agent) - edge-cluster services and package operations.
+
+Fleet Command and UDS Connect deployment instructions are deployment-specific. Use the operator documentation provided with your Fleet Command and Remote Agent deployment.
