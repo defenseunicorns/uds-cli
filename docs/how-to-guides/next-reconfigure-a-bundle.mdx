@@ -87,13 +87,19 @@ Replace an artifact's defaults and create a derivative for a local directory or 
 
 ## Verification
 
-Inspect the derivative and verify its bundle signature:
+If you created a signed derivative, inspect it and verify its bundle signature:
 
 ```bash
 CLI_FEATURES=NextMode=true uds bundle inspect ./dist/uds-bundle-my-app-production-amd64-1.0.0.tar.zst
 CLI_FEATURES=NextMode=true uds bundle verify \
   ./dist/uds-bundle-my-app-production-amd64-1.0.0.tar.zst \
   --public-key ./cosign.pub
+```
+
+If you created an unsigned local alpha derivative, inspect it without running `bundle verify`. It has no bundle signature, so its integrity and origin are not established.
+
+```bash
+CLI_FEATURES=NextMode=true uds bundle inspect ./dist/uds-bundle-my-app-production-amd64-1.0.0.tar.zst
 ```
 
 The output filename includes the configured suffix. Use the path printed by `bundle reconfigure` when the architecture or version differs.

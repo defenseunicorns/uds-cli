@@ -29,6 +29,8 @@ Define package sources and dependencies, add values files, and create a signed o
 
    Create `bundle.uds.hcl`:
 
+   The `my-org`, package names, package references, key paths, and signer identity below are placeholders. Replace them with package sources and trust material available in your environment.
+
    ```hcl title="bundle.uds.hcl"
    uds {
      bundle_api_version = "uds.dev/v1alpha1"
@@ -66,7 +68,7 @@ Define package sources and dependencies, add values files, and create a signed o
 
    ```yaml title="values/api.yaml"
    # Replace this example with values supported by the API package.
-   replicaCount: 2
+   replicaCount: {{ .vars.replica_count }}
    ```
 
     The package ID is the label after `package`. Use `depends_on` to control deployment order. Independent packages deploy in parallel.

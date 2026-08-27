@@ -34,7 +34,7 @@ Inspect metadata, verify a signature with a public key or keyless constraints, a
    CLI_FEATURES=NextMode=true uds bundle inspect oci://registry.example.com/my-org/my-app:1.0.0
    ```
 
-    Inspect displays bundle metadata, package sources, and dependencies. Its package status reflects checks from bundle creation. Inspect does not verify the bundle signature.
+    Inspect displays bundle metadata, package sources, and dependencies. Its package status reflects checks from bundle creation. Without a verification policy, inspect does not verify the bundle signature. When you provide a public key, keyless constraints, or a configured policy, it verifies the bundle before displaying metadata.
 
 2. **Verify a signature**
 

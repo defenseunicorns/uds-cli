@@ -38,6 +38,12 @@ Publish a signed artifact, pull it into a local directory, and prepare it for de
 
     The command needs a local `.tar.zst` path and a destination OCI reference. It preserves signature evidence when present, but does not require a signature. Use signed artifacts for trusted release workflows.
 
+   If you already have a signed artifact, skip the create command and push the existing file:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle push ./existing-bundle.tar.zst oci://registry.example.com/my-org/my-app:1.0.0
+   ```
+
 2. **Pull an artifact**
 
    Pull a signed artifact into an existing directory:
