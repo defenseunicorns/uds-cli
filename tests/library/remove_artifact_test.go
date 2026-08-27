@@ -64,25 +64,11 @@ func assertArtifactReferenceReachesRemove(t *testing.T, ref string, config *bund
 		Config:                    config,
 		Packages:                  []string{"not-in-bundle"},
 		SkipSignatureVerification: true,
-		ExpectedArtifactDigest:    inspected.ArtifactDigest,
 		Force:                     true,
 	})
 	require.ErrorContains(t, err, "unknown packages")
 	assert.Nil(t, result)
 	assert.NotContains(t, err.Error(), "failed to parse bundle")
-}
-
-func TestRemoveLocalArtifactSource_RejectsChangedArtifact(t *testing.T) {
-	artifact := createRemoveArtifact(t)
-	result, err := bundle.Remove(t.Context(), &bundle.DeploySource{BundlePath: artifact}, bundle.RemoveOptions{
-		Config:                    removeArtifactConfig(t),
-		Packages:                  []string{"not-in-bundle"},
-		SkipSignatureVerification: true,
-		ExpectedArtifactDigest:    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		Force:                     true,
-	})
-	require.ErrorContains(t, err, "artifact changed after confirmation")
-	assert.Nil(t, result)
 }
 
 func TestRemoveHCLSourceWithoutArtifactDigest(t *testing.T) {

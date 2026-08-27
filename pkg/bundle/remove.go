@@ -5,8 +5,8 @@ package bundle
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"os"
 
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
@@ -15,6 +15,7 @@ import (
 	internalzarf "github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"oras.land/oras-go/v2/content"
 )
 
 // RemoveOptions contains options for removing an entire bundle.
@@ -49,6 +50,13 @@ type RemovePackageResult struct {
 	Status RemovePackageStatus `json:"status" yaml:"status" text:"Status"`
 }
 
+type removeMetadataSource struct {
+	index          []byte
+	artifactDigest string
+	fetcher        content.Fetcher
+	fetchSignature func(context.Context) ([]byte, error)
+}
+
 // RemovePackageStatus describes whether a package was removed or was already absent.
 type RemovePackageStatus string
 
@@ -74,75 +82,16 @@ func Remove(ctx context.Context, source *DeploySource, opts RemoveOptions) (*Rem
 
 	switch {
 	case udsoci.IsOCIReference(source.BundlePath):
-		workspace, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-remove-*")
+		prepared, err := prepareRemoteRemoveSource(ctx, source.BundlePath, opts, s)
 		if err != nil {
-			return nil, fmt.Errorf("%w %q: creating workspace: %w", ErrRemoveBundle, source.BundlePath, err)
+			return nil, fmt.Errorf("%w %q: preparing remote artifact: %w", ErrRemoveBundle, source.BundlePath, err)
 		}
-		defer func() { _ = os.RemoveAll(workspace) }()
-		policy := opts.Verification
-		if !policy.configured() && opts.Config.SignatureVerification != nil {
-			policy = *opts.Config.SignatureVerification
-		}
-		pulled, err := Pull(ctx, source.BundlePath, workspace, PullOptions{
-			Config:                    opts.Config,
-			Verification:              policy,
-			SkipSignatureVerification: opts.SkipSignatureVerification,
-			Streams:                   s,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("%w %q: %w", ErrRemoveBundle, source.BundlePath, err)
-		}
-
-		prepared, err := PrepareDeploySource(
-			ctx,
-			s,
-			pulled.OutputPath,
-			opts.Config.Options.TmpDir,
-			opts.Config.Options.Architecture,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("%w %q: preparing pulled artifact: %w", ErrRemoveBundle, source.BundlePath, err)
-		}
-		defer func() { _ = prepared.Close() }()
 		source = prepared
 	case artifact.IsTarZst(source.BundlePath):
-		var err error
-
-		if !opts.SkipSignatureVerification {
-			policy := opts.Verification
-			if !policy.configured() && opts.Config.SignatureVerification != nil {
-				policy = *opts.Config.SignatureVerification
-			}
-
-			verifiedPath, cleanup, err := stageInspectSource(ctx, InspectOptions{
-				Source:       source.BundlePath,
-				Config:       opts.Config,
-				Verification: policy,
-				Streams:      s,
-			}, policy, s)
-			if err != nil {
-				return nil, fmt.Errorf(
-					"%w %q: verifying artifact: %w",
-					ErrRemoveBundle,
-					source.BundlePath,
-					err,
-				)
-			}
-			defer cleanup()
-			source.BundlePath = verifiedPath
-		}
-
-		prepared, err := PrepareDeploySource(
-			ctx,
-			s,
-			source.BundlePath,
-			opts.Config.Options.TmpDir,
-			opts.Config.Options.Architecture,
-		)
+		prepared, err := prepareLocalRemoveSource(ctx, source.BundlePath, opts, s)
 		if err != nil {
-			return nil, fmt.Errorf("%w %q: preparing artifact: %w", ErrRemoveBundle, source.BundlePath, err)
+			return nil, fmt.Errorf("%w %q: preparing local artifact: %w", ErrRemoveBundle, source.BundlePath, err)
 		}
-		defer func() { _ = prepared.Close() }()
 		source = prepared
 	}
 
@@ -190,6 +139,81 @@ func Remove(ctx context.Context, source *DeploySource, opts RemoveOptions) (*Rem
 	removed, skipped := countRemovalResults(result.Packages)
 	s.Info("bundle removal complete", "name", result.BundleName, "removed", removed, "skipped", skipped)
 	return result, nil
+}
+
+func prepareLocalRemoveSource(ctx context.Context, source string, opts RemoveOptions, streams iostreams.IOStreams) (*DeploySource, error) {
+	local, err := artifact.OpenLocalArchiveMetadataSource(ctx, source)
+	if err != nil {
+		return nil, err
+	}
+	return prepareArtifactRemoveSource(ctx, removeMetadataSource{
+		index:          local.Index,
+		artifactDigest: local.ArtifactDigest,
+		fetcher:        local.Fetcher,
+		fetchSignature: func(context.Context) ([]byte, error) {
+			if !local.SignatureFound {
+				return nil, udsoci.ErrBundleSignatureNotFound
+			}
+			return local.SignatureEvidence, nil
+		},
+	}, opts, streams)
+}
+
+func prepareRemoteRemoveSource(ctx context.Context, ref string, opts RemoveOptions, streams iostreams.IOStreams) (*DeploySource, error) {
+	target, err := udsoci.NewRemoteRepository(ctx, udsoci.TrimScheme(ref), *toInternalConfig(opts.Config).Options)
+	if err != nil {
+		return nil, err
+	}
+	reference, err := udsoci.ReferenceIdentifier(ref)
+	if err != nil {
+		return nil, err
+	}
+	childDesc, indexBytes, err := udsoci.ResolveBundleChild(ctx, target, reference, opts.Config.Options.Architecture)
+	if err != nil {
+		return nil, err
+	}
+	return prepareArtifactRemoveSource(ctx, removeMetadataSource{
+		index:          indexBytes,
+		artifactDigest: childDesc.Digest.String(),
+		fetcher:        target,
+		fetchSignature: func(ctx context.Context) ([]byte, error) {
+			return udsoci.FetchBundleSignature(ctx, target, childDesc)
+		},
+	}, opts, streams)
+}
+
+func prepareArtifactRemoveSource(ctx context.Context, source removeMetadataSource, opts RemoveOptions, streams iostreams.IOStreams) (*DeploySource, error) {
+	if !opts.SkipSignatureVerification {
+		policy := opts.Verification
+		if !policy.configured() && opts.Config.SignatureVerification != nil {
+			policy = *opts.Config.SignatureVerification
+		}
+		if err := policy.Validate(); err != nil {
+			return nil, err
+		}
+		evidence, err := source.fetchSignature(ctx)
+		if err != nil {
+			if errors.Is(err, udsoci.ErrBundleSignatureNotFound) {
+				return nil, fmt.Errorf("%w: %w", ErrBundleNotSigned, err)
+			}
+			return nil, fmt.Errorf("fetching bundle signature evidence: %w", err)
+		}
+		if policy.configured() {
+			if err := verifySignature(ctx, source.index, evidence, policy, opts.Config.Options.TmpDir); err != nil {
+				return nil, fmt.Errorf("verifying bundle signature: %w", err)
+			}
+		}
+	}
+
+	metadata, err := artifact.InspectBundleIndex(ctx, streams, source.index, source.artifactDigest, source.fetcher, opts.Packages...)
+	if err != nil {
+		return nil, err
+	}
+	return &DeploySource{
+		Bundle:           metadata.Bundle,
+		ArtifactDigest:   metadata.ArtifactDigest,
+		packageZarfNames: metadata.PackageZarfNames,
+	}, nil
 }
 
 func artifactPackageNames(source *DeploySource, b *spec.UDSBundle, packages []string) (map[string]string, error) {

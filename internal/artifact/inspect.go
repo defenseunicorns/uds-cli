@@ -34,6 +34,7 @@ type InspectResult struct {
 	ArtifactDigest    string
 	ReconfiguredFrom  string
 	PackageSignatures map[string]PackageSignatureSummary
+	PackageZarfNames  map[string]string
 }
 
 // PackageSignatureSummary contains package signing and verification metadata.
@@ -91,7 +92,7 @@ func inspectLocalArtifact(ctx context.Context, opts InspectOptions) (*InspectRes
 	if err != nil {
 		return nil, err
 	}
-	return inspectBundleIndex(ctx, opts.Streams, indexBytes, digest.FromBytes(indexBytes).String(), store)
+	return InspectBundleIndex(ctx, opts.Streams, indexBytes, digest.FromBytes(indexBytes).String(), store)
 }
 
 func inspectOCIReference(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
@@ -108,10 +109,15 @@ func inspectOCIReference(ctx context.Context, opts InspectOptions) (*InspectResu
 		return nil, ResolvingBundleSourceError{Source: opts.Source, Err: err}
 	}
 
-	return inspectBundleIndex(ctx, opts.Streams, indexBytes, childDesc.Digest.String(), target)
+	return InspectBundleIndex(ctx, opts.Streams, indexBytes, childDesc.Digest.String(), target)
 }
 
-func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexBytes []byte, artifactDigest string, fetcher content.Fetcher) (*InspectResult, error) {
+// InspectBundleIndex reads bundle metadata from an already-resolved OCI index.
+// The fetcher may be backed by a local OCI layout or a remote registry; only
+// the definition manifest, bundle HCL, and selected package manifests and
+// zarf.yaml layers are fetched. When packageNames is empty, all packages are
+// inspected.
+func InspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexBytes []byte, artifactDigest string, fetcher content.Fetcher, packageNames ...string) (*InspectResult, error) {
 	var idx ocispec.Index
 	if err := json.Unmarshal(indexBytes, &idx); err != nil {
 		return nil, fmt.Errorf("%w %s: %w", ErrParsingBundleIndex, artifactDigest, err)
@@ -190,13 +196,35 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 		ArtifactDigest:    artifactDigest,
 		ReconfiguredFrom:  definition.Annotations[udsoci.AnnotationReconfiguredFrom],
 		PackageSignatures: make(map[string]PackageSignatureSummary, len(b.Packages)),
+		PackageZarfNames:  make(map[string]string, len(b.Packages)),
+	}
+	selected := make(map[string]struct{}, len(packageNames))
+	for _, name := range packageNames {
+		selected[name] = struct{}{}
 	}
 	for _, pkg := range b.Packages {
+		if len(selected) > 0 {
+			if _, ok := selected[pkg.Name]; !ok {
+				continue
+			}
+		}
 		summary, err := inspectPackageSignature(ctx, idx, pkg, fetcher)
 		if err != nil {
 			return nil, InspectingPackageSignatureError{Package: pkg.Name, Err: err}
 		}
 		result.PackageSignatures[pkg.Name] = *summary
+
+		entry, err := findPackageManifest(idx, pkg)
+		if err != nil {
+			return nil, err
+		}
+		zarfPkg, found, err := fetchZarfPackage(ctx, pkg.Name, *entry, fetcher)
+		if err != nil {
+			return nil, err
+		}
+		if found && zarfPkg.Metadata.Name != "" {
+			result.PackageZarfNames[pkg.Name] = zarfPkg.Metadata.Name
+		}
 	}
 
 	return result, nil

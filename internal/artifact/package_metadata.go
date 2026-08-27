@@ -50,6 +50,8 @@ func readPackageZarfNames(ctx context.Context, manifests map[string]ocispec.Desc
 	return zarfNames, nil
 }
 
+// fetchZarfPackage fetches and parses the embedded zarf.yaml into a ZarfPackage.
+// The boolean reports whether the package manifest contained a zarf.yaml layer.
 func fetchZarfPackage(ctx context.Context, packageName string, entry ocispec.Descriptor, fetcher content.Fetcher) (v1alpha1.ZarfPackage, bool, error) {
 	manifestBytes, err := udsoci.FetchBytes(ctx, fetcher, entry)
 	if err != nil {
