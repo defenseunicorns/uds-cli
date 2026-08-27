@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 # This bundle is a spec-compliant example that uses ONLY the attributes
-# defined in the Better Bundles Technical Design (docs/specs/1_Better_Bundles.md).
+# defined in the Bundles Next Technical Design (docs/adr/0001-bundles-next-spec.md).
 # It serves as the baseline for testing HCL parsing and the inspect command.
 #
 # This example demonstrates:
