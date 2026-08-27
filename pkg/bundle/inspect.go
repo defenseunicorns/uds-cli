@@ -141,6 +141,7 @@ func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 		Packages:         make([]PackageSummary, len(internalResult.Packages)),
 		Bundle:           internalResult.Bundle,
 	}
+
 	for i, pkg := range internalResult.Packages {
 		summary, ok := internalResult.PackageSignatures[pkg.Name]
 		if !ok {

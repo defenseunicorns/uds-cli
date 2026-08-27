@@ -16,6 +16,7 @@ import (
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 )
@@ -173,6 +174,9 @@ func ValidateArtifactReference(ref string) error {
 		return fmt.Errorf("bundle artifact is required: %w", ErrInvalidArgument)
 	}
 	if strings.HasPrefix(ref, "oci://") {
+		if _, err := udsoci.ReferenceIdentifier(ref); err != nil {
+			return err
+		}
 		return nil
 	}
 	info, err := os.Stat(ref)
@@ -253,4 +257,43 @@ func ValidateDir(path string) error {
 		return fmt.Errorf("path is not a directory: %s: %w", path, ErrInvalidPath)
 	}
 	return nil
+}
+
+// toInternalConfig converts public configuration to the internal HCL representation.
+func toInternalConfig(cfg *bundle.UDSBundleConfig) *bundleinternal.UDSBundleConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	var options *bundleinternal.ConfigOptions
+	if cfg.Options != nil {
+		options = &bundleinternal.ConfigOptions{
+			LogLevel:      cfg.Options.LogLevel,
+			Architecture:  cfg.Options.Architecture,
+			PlainHTTP:     cfg.Options.PlainHTTP,
+			SkipTLSVerify: cfg.Options.SkipTLSVerify,
+			TmpDir:        cfg.Options.TmpDir,
+			Concurrency:   cfg.Options.Concurrency,
+		}
+	}
+	return &bundleinternal.UDSBundleConfig{
+		Options:               options,
+		SignatureVerification: toInternalVerificationPolicy(cfg.SignatureVerification),
+		Variables:             toInternalVariables(cfg.Variables),
+	}
+}
+
+func toInternalVerificationPolicy(policy *bundle.VerificationPolicy) *bundleinternal.SignatureVerification {
+	if policy == nil {
+		return nil
+	}
+	result := &bundleinternal.SignatureVerification{PublicKey: policy.PublicKey}
+	if policy.Keyless != nil {
+		result.Keyless = &bundleinternal.KeylessVerification{
+			CertificateIdentity: policy.Keyless.CertificateIdentity, CertificateIdentityRegexp: policy.Keyless.CertificateIdentityRegexp,
+			CertificateOIDCIssuer: policy.Keyless.CertificateOIDCIssuer, CertificateOIDCIssuerRegexp: policy.Keyless.CertificateOIDCIssuerRegexp,
+			TrustedRoot: policy.Keyless.TrustedRoot,
+		}
+	}
+	return result
 }

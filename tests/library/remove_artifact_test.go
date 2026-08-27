@@ -14,6 +14,7 @@ import (
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/defenseunicorns/uds-cli/tests/testutil"
 	"github.com/stretchr/testify/assert"
@@ -24,6 +25,24 @@ func TestRemoveLocalArtifactSource(t *testing.T) {
 	artifact := createRemoveArtifact(t)
 	assertArtifactReferenceReachesRemove(t, artifact, removeArtifactConfig(t))
 }
+
+func TestRemoveArtifactUsesResolvedBundleDefinition(t *testing.T) {
+	artifactPath := createRemoveArtifact(t)
+	forged := &spec.UDSBundle{
+		Metadata: spec.Metadata{Name: "forged"},
+		Packages: []spec.Package{{Name: "forged", Source: "forged"}},
+	}
+
+	result, err := bundle.Remove(t.Context(), &bundle.DeploySource{BundlePath: artifactPath, Bundle: forged}, bundle.RemoveOptions{
+		Config:                    removeArtifactConfig(t),
+		Packages:                  []string{"forged"},
+		SkipSignatureVerification: true,
+		Force:                     true,
+	})
+	require.ErrorContains(t, err, "unknown packages")
+	assert.Nil(t, result)
+}
+
 func TestRemoveOCIArtifactSource(t *testing.T) {
 	artifact := createRemoveArtifact(t)
 	registryHost := testutil.StartLocalRegistry(t)

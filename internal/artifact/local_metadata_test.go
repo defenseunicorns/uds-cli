@@ -31,19 +31,15 @@ package "unselected" {
 		{Name: "unselected", Source: "unselected"},
 	})
 
-	source, err := OpenLocalArchiveMetadataSource(t.Context(), artifactPath)
+	local, err := OpenLocalArchiveMetadataSource(t.Context(), artifactPath)
 	require.NoError(t, err)
-	metadata, err := InspectBundleIndex(
-		t.Context(),
-		iostreams.IOStreams{},
-		source.Index,
-		source.ArtifactDigest,
-		source.Fetcher,
-		"selected",
-	)
+	source := &MetadataSource{IndexBytes: local.Index, ArtifactDigest: local.ArtifactDigest, Fetcher: local.Fetcher}
+	metadata, err := ReadBundleDefinition(t.Context(), source, iostreams.IOStreams{})
 	require.NoError(t, err)
 	assert.Equal(t, "test-bundle", metadata.Bundle.Metadata.Name)
-	assert.Equal(t, map[string]string{"selected": "selected"}, metadata.PackageZarfNames)
-	assert.NotEmpty(t, source.Index)
-	assert.False(t, source.SignatureFound)
+	zarfNames, err := ReadZarfPackageNames(t.Context(), source, metadata.Bundle, "selected")
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"selected": "selected"}, zarfNames)
+	assert.NotEmpty(t, source.IndexBytes)
+	assert.False(t, local.SignatureFound)
 }

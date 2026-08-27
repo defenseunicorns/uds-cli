@@ -99,8 +99,6 @@ type DeploySource struct {
 	Bundle *spec.UDSBundle
 	// Loader overrides how package layouts are obtained; nil means use the default source loader.
 	Loader ZarfPackageLayoutLoader
-	// ArtifactDigest contains the digest of the artifact
-	ArtifactDigest string
 
 	packageZarfNames map[string]string
 	close            func() error
@@ -460,7 +458,6 @@ func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path,
 		Loader: &extractedArtifactPackageLayoutLoader{loader: &internalzarf.ExtractedArtifactPackageLayoutLoader{
 			OCIDir: extracted.OCIDir, PackageManifests: extracted.PackageManifests,
 		}},
-		ArtifactDigest:   extracted.ArtifactDigest,
 		packageZarfNames: extracted.PackageZarfNames,
 		close:            cleanup,
 	}
