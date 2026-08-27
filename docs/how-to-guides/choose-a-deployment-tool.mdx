@@ -58,7 +58,6 @@ Deploy a local or OCI artifact with the appropriate signature verification optio
 
 ```bash
 CLI_FEATURES=NextMode=true uds bundle deploy ./uds-bundle-<name>-<arch>-<version>.tar.zst --skip-signature-verification
-CLI_FEATURES=NextMode=true uds bundle deploy oci://registry.example.com/my-org/my-app:1.0.0 --skip-signature-verification
 ```
 
 Created local and OCI artifacts can be used for production deployment when external state management or fleet coordination is not required. The mutable `dev deploy` path has no bundle artifact provenance or bundle-signature verification.
