@@ -237,7 +237,6 @@ func (o *RemoveOptions) Run(ctx context.Context) error {
 		Packages:                  o.Packages,
 		Verification:              policy,
 		SkipSignatureVerification: o.Verification.SkipSignatureVerification,
-		ExpectedArtifactDigest:    o.artifactDigest,
 		Force:                     o.Force,
 		Streams:                   o.IOStreams,
 	}

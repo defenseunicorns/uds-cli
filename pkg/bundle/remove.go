@@ -23,9 +23,6 @@ type RemoveOptions struct {
 	Packages                  []string
 	Verification              VerificationPolicy
 	SkipSignatureVerification bool
-	// ExpectedArtifactDigest, when set, requires the artifact used for removal
-	// to match the artifact previously inspected by the caller.
-	ExpectedArtifactDigest string
 	// Force bypasses the removal-safety check for a selected package subset. It
 	// can remove packages still required by remaining bundle packages, leaving
 	// deployed dependents broken.
@@ -147,23 +144,6 @@ func Remove(ctx context.Context, source *DeploySource, opts RemoveOptions) (*Rem
 		}
 		defer func() { _ = prepared.Close() }()
 		source = prepared
-	}
-
-	if opts.ExpectedArtifactDigest != "" {
-		if source.ArtifactDigest == "" {
-			return nil, fmt.Errorf(
-				"%w: unable to confirm artifact identity",
-				ErrRemoveBundle,
-			)
-		}
-		if source.ArtifactDigest != opts.ExpectedArtifactDigest {
-			return nil, fmt.Errorf(
-				"%w: artifact changed after confirmation: expected %s, got %s",
-				ErrRemoveBundle,
-				opts.ExpectedArtifactDigest,
-				source.ArtifactDigest,
-			)
-		}
 	}
 
 	b := source.Bundle
