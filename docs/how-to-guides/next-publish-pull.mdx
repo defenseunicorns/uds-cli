@@ -35,8 +35,10 @@ Use `bundle push` to publish a local `.tar.zst` artifact and `bundle pull` to re
 
    ```bash
    CLI_FEATURES=NextMode=true uds bundle create . --signing-key ./cosign.key
-   CLI_FEATURES=NextMode=true uds bundle push ./uds-bundle-my-app-amd64-1.0.0.tar.zst oci://registry.example.com/my-org/my-app:1.0.0
+   CLI_FEATURES=NextMode=true uds bundle push ./uds-bundle-my-app-<ARCH>-1.0.0.tar.zst oci://registry.example.com/my-org/my-app:1.0.0
    ```
+
+   Replace `<ARCH>` with the architecture in the output path printed by `bundle create`, such as `amd64` or `arm64`.
 
     The command needs a local `.tar.zst` path and a destination OCI reference. It preserves signature evidence when present, but does not require a signature. Use signed artifacts for trusted release workflows.
 
@@ -73,7 +75,7 @@ Use `bundle push` to publish a local `.tar.zst` artifact and `bundle pull` to re
     Use the downloaded `.tar.zst` path from the pull result:
 
    ```bash
-   CLI_FEATURES=NextMode=true uds bundle deploy ./downloads/uds-bundle-my-app-amd64-1.0.0.tar.zst --public-key ./cosign.pub
+   CLI_FEATURES=NextMode=true uds bundle deploy ./downloads/uds-bundle-my-app-<ARCH>-1.0.0.tar.zst --public-key ./cosign.pub
    ```
 
    Use [the deployment workflow](/cli/how-to-guides/next-deploy-a-bundle/) for source deploys, partial package selection, and unsigned local workflows.
@@ -85,10 +87,10 @@ Use `bundle push` to publish a local `.tar.zst` artifact and `bundle pull` to re
 Inspect the pulled artifact before deployment:
 
 ```bash
-CLI_FEATURES=NextMode=true uds bundle inspect ./downloads/uds-bundle-my-app-amd64-1.0.0.tar.zst
+CLI_FEATURES=NextMode=true uds bundle inspect ./downloads/uds-bundle-my-app-<ARCH>-1.0.0.tar.zst
 ```
 
-The output filename includes the bundle name, architecture, and version. Use the path printed by `bundle pull` when those values differ.
+Replace `<ARCH>` with the architecture in the path printed by `bundle pull`, such as `amd64` or `arm64`. The output filename includes the bundle name, architecture, and version.
 
 ## Troubleshooting
 
