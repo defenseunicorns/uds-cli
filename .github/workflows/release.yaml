@@ -1,4 +1,4 @@
-# Copyright 2024 Defense Unicorns
+# Copyright 2024-2026 Defense Unicorns
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 name: Release UDS-CLI on Tag
@@ -13,6 +13,7 @@ on:
 
 jobs:
   test:
+    if: ${{ !contains(github.ref_name, '-nightly+') && !contains(github.ref_name, '-adhoc+') }}
     uses: ./.github/workflows/test-release.yaml
     permissions:
       contents: read
@@ -20,62 +21,16 @@ jobs:
       packages: write
     secrets: inherit
 
-  push:
-    runs-on: uds-ubuntu-big-boy-16-core
-    environment: release
+  publish:
+    if: ${{ !contains(github.ref_name, '-nightly+') && !contains(github.ref_name, '-adhoc+') }}
     needs: test
+    uses: ./.github/workflows/release-publish.yaml
     permissions:
       contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-
-      - name: Free up disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache
-          sudo docker image prune --all --force
-
-      - name: Setup development tools
-        uses: ./.github/actions/mise
-
-      - name: Install tools
-        uses: ./.github/actions/install-tools
-
-      - name: Setup release ENV vars
-        run: |
-          K8S_MODULES_VER=$(go list -f '{{.Version}}' -m k8s.io/client-go | sed 's/v//; s/\./ /g')
-          echo K8S_MODULES_MAJOR_VER=$(expr $(echo "$K8S_MODULES_VER" | cut -d " " -f 1) + 1) >> $GITHUB_ENV
-          echo K8S_MODULES_MINOR_VER=$(echo "$K8S_MODULES_VER" | cut -d " " -f 2) >> $GITHUB_ENV
-          echo K8S_MODULES_PATCH_VER=$(echo "$K8S_MODULES_VER" | cut -d " " -f 3) >> $GITHUB_ENV
-
-          echo K9S_VERSION=$(go list -f '{{.Version}}' -m github.com/derailed/k9s) >> $GITHUB_ENV
-          echo CRANE_VERSION=$(go list -f '{{.Version}}' -m github.com/google/go-containerregistry) >> $GITHUB_ENV
-          echo SYFT_VERSION=$(go list -f '{{.Version}}' -m github.com/anchore/syft) >> $GITHUB_ENV
-          echo ARCHIVES_VERSION=$(go list -f '{{.Version}}' -m github.com/mholt/archives) >> $GITHUB_ENV
-          echo HELM_VERSION=$(go list -f '{{.Version}}' -m helm.sh/helm/v4) >> $GITHUB_ENV
-          echo ZARF_VERSION=$(go list -f '{{.Version}}' -m github.com/zarf-dev/zarf) >> $GITHUB_ENV
-
-      - name: Get Brew tap repo token
-        id: brew-tap-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          app-id: ${{ secrets.HOMEBREW_TAP_WORKFLOW_GITHUB_APP_ID }}
-          private-key: ${{ secrets.HOMEBREW_TAP_WORKFLOW_GITHUB_APP_SECRET }}
-          owner: defenseunicorns
-          repositories: homebrew-tap
-
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
-        with:
-          distribution: goreleaser
-          # renovate: datasource=github-releases depName=goreleaser/goreleaser
-          version: v2.17.1
-          args: release --clean --verbose --config .goreleaser.yaml
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN}}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.brew-tap-token.outputs.token }}
+      packages: write
+    with:
+      tag_name: ${{ github.ref_name }}
+      goreleaser_config: .goreleaser.yaml
+      environment: release
+      homebrew: true
+    secrets: inherit

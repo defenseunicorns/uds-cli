@@ -5,6 +5,10 @@ name: Release Tests
 
 on:
   workflow_call:
+    inputs:
+      ref:
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -20,3 +24,4 @@ jobs:
     with:
       include_ghcr_write: true
       include_uds_core_smoke: true
+      ref: ${{ inputs.ref }}
