@@ -1,4 +1,0 @@
-- [x] Implement immutable nightly/ad-hoc release orchestration.
-- [x] Share stable/unstable publishing and isolate unstable tags.
-- [x] Preserve release tests and artifacts; add SBOM and published-binary verification.
-- [ ] Add focused release-path validation and run checks.

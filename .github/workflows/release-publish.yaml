@@ -106,8 +106,9 @@ jobs:
           mkdir verify
           gh release download "$TAG_NAME" --dir verify --pattern '*Linux*' --pattern 'checksums.txt'
           (cd verify && sha256sum --ignore-missing -c checksums.txt)
-          binary=$(find verify -type f -name '*Linux*' ! -name '*.sbom' ! -name '*.deb' ! -name '*.rpm' | head -n 1)
-          test -n "$binary"
+          binary_count=$(find verify -maxdepth 1 -type f -name '*_Linux_amd64' ! -name '*.sbom' | wc -l)
+          test "$binary_count" -eq 1
+          binary=$(find verify -maxdepth 1 -type f -name '*_Linux_amd64' ! -name '*.sbom')
           chmod +x "$binary"
           "$binary" version | tee verify/legacy-version.txt
           "$binary" --features=NextMode=true version | tee verify/next-version.txt

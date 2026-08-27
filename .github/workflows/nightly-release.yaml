@@ -53,6 +53,12 @@ jobs:
             exit 1
           fi
 
+          # Fail before tagging so historical refs without the release config cannot leave orphaned tags.
+          if ! git cat-file -e HEAD:.goreleaser.unstable.yaml; then
+            echo "selected ref does not contain .goreleaser.unstable.yaml" >&2
+            exit 1
+          fi
+
           stable_tag=
           while read -r candidate; do
             if [[ "$candidate" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
