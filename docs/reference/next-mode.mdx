@@ -8,11 +8,7 @@ sidebar:
 UDS CLI Next is the next-generation implementation of UDS CLI. It is available as an alpha preview behind the `NextMode` feature flag while Legacy mode remains the default.
 
 > [!NOTE]
-> Use the task-focused guides for [creating a bundle](/cli/how-to-guides/next-create-a-bundle/), [deploying a bundle](/cli/how-to-guides/next-deploy-a-bundle/), [publishing and pulling artifacts](/cli/how-to-guides/next-publish-pull/), [reconfiguring a bundle](/cli/how-to-guides/next-reconfigure-a-bundle/), and [inspecting and verifying artifacts](/cli/how-to-guides/next-inspect-verify/). This page covers the format, design, and current capabilities.
-
-## When to use Next mode
-
-Use Next mode when your deliverable is a multi-package bundle artifact that should carry package content, dependencies, and environment defaults through registry-backed or offline workflows. Keep an existing `uds-bundle.yaml` workflow in Legacy mode while Next remains an alpha preview.
+> More task-focused UDS CLI Next documentation will be added as the mode matures. For now, treat this page as a reference for why Next exists and what it can currently do.
 
 ## Why Next Mode Exists
 
@@ -89,9 +85,6 @@ Next mode currently supports the core bundle flows needed to exercise HCL bundle
 | Development deployment | Deploy directly from a bundle definition with `uds bundle dev deploy` |
 | Bundle artifact creation | Create local bundle artifacts with `uds bundle create` |
 | Bundle artifact deployment | Deploy created local artifacts or OCI references with `uds bundle deploy` |
-| Bundle artifact publishing and retrieval | Publish and pull artifacts with `uds bundle push` and `uds bundle pull` |
-| Bundle reconfiguration | Replace artifact defaults with `uds bundle reconfigure` |
-| Bundle inspection and verification | Inspect metadata and verify bundle signatures with `uds bundle inspect` and `uds bundle verify` |
 | Package verification | Verify package signatures when configured by the bundle definition |
 | Bundle signing | Create signed bundles when signing options are configured, or unsigned bundles for local alpha workflows |
 | Bundle signature verification | Verify signed bundle artifacts during deploy, with an explicit skip flag available for unsigned local artifacts |
@@ -344,11 +337,11 @@ Use `uds bundle deploy` to deploy a created artifact.
 # Deploy a local unsigned artifact
 CLI_FEATURES=NextMode=true uds bundle deploy uds-bundle-my-app-amd64-1.0.0.tar.zst --skip-signature-verification
 
-# Deploy a signed OCI artifact
-CLI_FEATURES=NextMode=true uds bundle deploy oci://registry.example.com/my-org/my-app:1.0.0 --public-key ./cosign.pub
+# Pull and deploy a tagged unsigned OCI artifact
+CLI_FEATURES=NextMode=true uds bundle deploy oci://registry.example.com/my-org/my-app:1.0.0 --skip-signature-verification
 
-# Deploy a signed digest-pinned OCI artifact
-CLI_FEATURES=NextMode=true uds bundle deploy oci://registry.example.com/my-org/my-app@sha256:<digest> --public-key ./cosign.pub
+# Deploy a digest-pinned unsigned OCI artifact
+CLI_FEATURES=NextMode=true uds bundle deploy oci://registry.example.com/my-org/my-app@sha256:<digest> --skip-signature-verification
 ```
 
 Deploy-specific flags:
@@ -445,9 +438,18 @@ CLI_FEATURES=NextMode=true uds bundle reconfigure ./uds-bundle-my-app-amd64-1.0.
   --defaults ./defaults.prod.uds.hcl \
   --skip-signature-verification \
   --unsigned
+
+# Reconfigure from an unsigned OCI bundle reference.
+# Efficient: use an existing published artifact as the source for a new environment-specific derivative.
+# OCI reconfigure publishes a derivative tag based on --suffix, so --output-dir is not used.
+CLI_FEATURES=NextMode=true uds bundle reconfigure oci://registry.example.com/my-org/my-app:1.0.0 \
+  --defaults ./defaults.prod.uds.hcl \
+  --skip-signature-verification \
+  --suffix -prod \
+  --unsigned
 ```
 
-By default, reconfigure verifies the source bundle signature before creating the derivative artifact. Use `--skip-signature-verification` only for a locally controlled unsigned alpha source. Do not use it to bypass verification for registry-backed artifacts. The new artifact must also be signed, or created with `--unsigned` for local alpha workflows.
+By default, reconfigure verifies the source bundle signature before creating the derivative artifact. Use `--skip-signature-verification` only when intentionally working with an unsigned or untrusted artifact. The new artifact must also be signed, or created with `--unsigned` for local alpha workflows.
 
 Reconfigure-specific flags:
 
@@ -489,15 +491,15 @@ Use `uds bundle push` to publish a local bundle artifact to an OCI registry, and
 # Publish to a registry
 CLI_FEATURES=NextMode=true uds bundle push ./uds-bundle-my-app-amd64-1.0.0.tar.zst oci://registry.example.com/my-org/my-app:1.0.0
 
-# Pull a signed artifact to the current directory
-CLI_FEATURES=NextMode=true uds bundle pull oci://registry.example.com/my-org/my-app:1.0.0 --public-key ./cosign.pub
+# Pull an unsigned artifact to the current directory
+CLI_FEATURES=NextMode=true uds bundle pull oci://registry.example.com/my-org/my-app:1.0.0 --skip-signature-verification
 
-# Pull a signed artifact to a specific existing directory
+# Pull an unsigned artifact to a specific existing directory
 mkdir -p ./downloads
-CLI_FEATURES=NextMode=true uds bundle pull oci://registry.example.com/my-org/my-app:1.0.0 -d ./downloads --public-key ./cosign.pub
+CLI_FEATURES=NextMode=true uds bundle pull oci://registry.example.com/my-org/my-app:1.0.0 -d ./downloads --skip-signature-verification
 ```
 
-By default, pull verifies the bundle signature. Do not use `--skip-signature-verification` for registry artifacts in a trusted workflow. Keep unsigned testing to locally created artifacts instead.
+By default, pull verifies the bundle signature. Use `--skip-signature-verification` only when intentionally pulling an unsigned or untrusted artifact.
 
 ## Inspecting a Bundle
 
