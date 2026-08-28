@@ -9,18 +9,18 @@ metadata {
   name        = "k3d-core-demo"
   description = "A UDS bundle for deploying the standard UDS Core package on a development cluster"
   // renovate: datasource=github-tags depName=defenseunicorns/uds-core extractVersion=^v?(?<version>.*)$ versioning=semver
-  version     = "1.9.0"
+  version     = "1.11.1"
 }
 
 locals {
   uds_repo      = "ghcr.io/defenseunicorns/packages/uds"
   k3d_repo      = "ghcr.io/defenseunicorns/packages"
   // renovate: datasource=docker depName=ghcr.io/defenseunicorns/packages/uds/core versioning=docker
-  core_version  = "1.9.0-upstream"
+  core_version  = "1.11.1-upstream"
   // renovate: datasource=docker depName=ghcr.io/defenseunicorns/packages/uds-k3d versioning=docker
   k3d_version   = "0.20.2-airgap"
   // renovate: datasource=docker depName=ghcr.io/zarf-dev/packages/init versioning=docker
-  init_version  = "v0.83.0"
+  init_version  = "v0.84.0"
 }
 
 package "uds_k3d_dev" {

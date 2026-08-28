@@ -10,52 +10,33 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
-// ZarfPackageLayout is the supported public subset of
-// github.com/zarf-dev/zarf/src/pkg/packager/layout.PackageLayout exposed during
-// bundle deploy. Fields not exposed here are preserved by the adapter.
+// ZarfPackageLayout exposes the native Zarf package definition during bundle
+// deploy. Keeping the schema-aware definition intact lets hooks mutate fields
+// specific to the package API version in use.
 type ZarfPackageLayout struct {
-	Directory string
-	// IsPartial indicates that the layout may omit files referenced by its checksums.
-	IsPartial      bool
-	Pkg            ZarfPackage
-	registryDigest string
+	dirPath           string
+	PackageDefinition api.PackageDefinition
+	digest            string
 }
 
 // SetDeployedDigest records the registry-resolved manifest digest that Zarf
 // should store as the deployed package identity.
 func (p *ZarfPackageLayout) SetDeployedDigest(digest string) {
 	if p != nil {
-		p.registryDigest = digest
+		p.digest = digest
 	}
 }
 
-// ZarfPackage is the supported public subset of
-// github.com/zarf-dev/zarf/src/api/v1alpha1.ZarfPackage exposed through
-// ZarfPackageLayout.
-type ZarfPackage struct {
-	Components []ZarfPackageComponent
+func (p *ZarfPackageLayout) DirPath() string {
+	return p.dirPath
 }
 
-// ZarfPackageComponent is the supported public subset of
-// github.com/zarf-dev/zarf/src/api/v1alpha1.ZarfComponent exposed to bundle
-// deploy hooks.
-type ZarfPackageComponent struct {
-	Name          string
-	Images        []string
-	ImageArchives []ZarfPackageImageArchive
-	privateID     string
-}
-
-// ZarfPackageImageArchive is the supported public subset of
-// github.com/zarf-dev/zarf/src/api/v1alpha1.ImageArchive exposed through
-// ZarfPackageComponent.
-type ZarfPackageImageArchive struct {
-	Path   string
-	Images []string
+func (p *ZarfPackageLayout) Digest() string {
+	return p.digest
 }
 
 type extractedArtifactPackageLayoutLoader struct {
@@ -69,14 +50,15 @@ type PackageStagingRootProvider interface {
 	PackageStagingRoot(context.Context) string
 }
 
-func (l *extractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts ZarfPackageLayoutLoadOptions) (*ZarfPackageLayout, error) {
-	pkgLayout, isPartial, err := l.loader.LoadPackageLayout(ctx, pkg, dstDir, zarf.LoadOptions{Streams: opts.Streams, IsPartial: opts.IsPartial})
+func (l *extractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts ZarfPackageLayoutLoadOptions) (*ZarfPackageLayoutLoadResult, error) {
+	result, err := l.loader.LoadPackageLayout(ctx, pkg, dstDir, zarf.LoadOptions{Streams: opts.Streams, IsPartial: opts.IsPartial})
 	if err != nil {
 		return nil, err
 	}
-	result := fromZarfPackageLayout(pkgLayout)
-	result.IsPartial = isPartial
-	return result, nil
+	return &ZarfPackageLayoutLoadResult{
+		Layout:    *fromZarfPackageLayout(&result.Layout),
+		IsPartial: result.IsPartial,
+	}, nil
 }
 
 // PackageStagingRoot returns the parent of OCIDir so package staging can share
@@ -94,33 +76,32 @@ type packageLayoutLoaderAdapter struct {
 }
 
 // LoadPackageLayout delegates package loading through the public loader contract.
-func (a packageLayoutLoaderAdapter) LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts zarf.LoadOptions) (*layout.PackageLayout, bool, error) {
-	publicLayout, err := a.loader.LoadPackageLayout(ctx, pkg, dstDir, ZarfPackageLayoutLoadOptions{Streams: opts.Streams, IsPartial: opts.IsPartial})
+func (a packageLayoutLoaderAdapter) LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts zarf.LoadOptions) (*zarf.PackageLayoutLoadResult, error) {
+	publicResult, err := a.loader.LoadPackageLayout(ctx, pkg, dstDir, ZarfPackageLayoutLoadOptions{Streams: opts.Streams, IsPartial: opts.IsPartial})
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
-	if publicLayout == nil {
-		return nil, false, fmt.Errorf("package layout loader returned a nil layout")
+	if publicResult == nil {
+		return nil, fmt.Errorf("package layout loader returned a nil result")
 	}
-	publicLayout.IsPartial = publicLayout.IsPartial || opts.IsPartial
-	if publicLayout.Directory != "" {
-		cleanDst, err := filepath.Abs(filepath.Clean(dstDir))
-		if err != nil {
-			return nil, false, err
-		}
-		cleanLayout, err := filepath.Abs(filepath.Clean(publicLayout.Directory))
-		if err != nil {
-			return nil, false, err
-		}
-		if cleanLayout != cleanDst {
-			return nil, false, fmt.Errorf("package layout directory %q must be the supplied staging directory %q", publicLayout.Directory, dstDir)
-		}
-	}
-	internalLayout, err := toZarfPackageLayout(ctx, publicLayout, publicLayout.IsPartial)
+
+	publicLayout := &publicResult.Layout
+	isPartial := publicResult.IsPartial || opts.IsPartial
+	stagedDir, err := filepath.Abs(filepath.Clean(dstDir))
 	if err != nil {
-		return nil, false, err
+		return nil, fmt.Errorf("resolving package staging directory %q: %w", dstDir, err)
 	}
-	return internalLayout, publicLayout.IsPartial, nil
+	// The adapter owns the staging directory. Public loaders populate dstDir but
+	// cannot and should not set layout-private path state.
+	publicLayout.dirPath = stagedDir
+	internalLayout, err := toZarfPackageLayout(ctx, publicLayout, isPartial)
+	if err != nil {
+		return nil, fmt.Errorf("loading package layout staged in %q: %w", stagedDir, err)
+	}
+	return &zarf.PackageLayoutLoadResult{
+		Layout:    *internalLayout,
+		IsPartial: isPartial,
+	}, nil
 }
 
 // PackageStagingRoot forwards an optional staging preference. An empty result
@@ -137,25 +118,11 @@ func fromZarfPackageLayout(pkgLayout *layout.PackageLayout) *ZarfPackageLayout {
 		return nil
 	}
 	result := &ZarfPackageLayout{
-		Directory: pkgLayout.DirPath(),
-		Pkg:       ZarfPackage{Components: make([]ZarfPackageComponent, len(pkgLayout.Pkg.Components))},
+		dirPath:           pkgLayout.DirPath(),
+		PackageDefinition: pkgLayout.PackageDefinition,
 	}
 	if !pkgLayout.IsPushable() && pkgLayout.Digest() != "" {
-		result.registryDigest = pkgLayout.Digest()
-	}
-	for i, component := range pkgLayout.Pkg.Components {
-		result.Pkg.Components[i] = ZarfPackageComponent{
-			Name:          component.Name,
-			Images:        append([]string(nil), component.Images...),
-			ImageArchives: make([]ZarfPackageImageArchive, len(component.ImageArchives)),
-			privateID:     component.Name,
-		}
-		for j, archive := range component.ImageArchives {
-			result.Pkg.Components[i].ImageArchives[j] = ZarfPackageImageArchive{
-				Path:   archive.Path,
-				Images: append([]string(nil), archive.Images...),
-			}
-		}
+		result.digest = pkgLayout.Digest()
 	}
 	return result
 }
@@ -164,8 +131,8 @@ func toZarfPackageLayout(ctx context.Context, pkgLayout *ZarfPackageLayout, isPa
 	if pkgLayout == nil {
 		return nil, nil
 	}
-	if pkgLayout.Directory != "" {
-		result, err := layout.LoadFromDir(ctx, pkgLayout.Directory, layout.PackageLayoutOptions{
+	if pkgLayout.dirPath != "" {
+		result, err := layout.LoadFromDir(ctx, pkgLayout.dirPath, layout.PackageLayoutOptions{
 			IsPartial:            isPartial,
 			VerificationStrategy: layout.VerifyNever,
 		})
@@ -185,9 +152,7 @@ func toZarfPackageLayoutForDeploy(pkgLayout *ZarfPackageLayout) (*layout.Package
 		return nil, nil
 	}
 	result := &layout.PackageLayout{}
-	if err := applyPublicPackageLayout(result, pkgLayout); err != nil {
-		return nil, err
-	}
+	result.PackageDefinition = pkgLayout.PackageDefinition
 	return result, nil
 }
 
@@ -195,52 +160,9 @@ func applyPublicPackageLayout(dst *layout.PackageLayout, src *ZarfPackageLayout)
 	if dst == nil || src == nil {
 		return nil
 	}
-	original := make(map[string]v1alpha1.ZarfComponent, len(dst.Pkg.Components))
-	for _, component := range dst.Pkg.Components {
-		original[component.Name] = component
-	}
-	names := make(map[string]struct{}, len(src.Pkg.Components))
-	used := make(map[string]struct{}, len(src.Pkg.Components))
-	components := make([]v1alpha1.ZarfComponent, len(src.Pkg.Components))
-	for i, component := range src.Pkg.Components {
-		if _, ok := names[component.Name]; ok {
-			return fmt.Errorf("component name %q appears more than once", component.Name)
-		}
-		names[component.Name] = struct{}{}
-		private := v1alpha1.ZarfComponent{}
-		identity := component.privateID
-		if identity == "" {
-			identity = component.Name
-		}
-		if component.privateID != "" {
-			var ok bool
-			private, ok = original[identity]
-			if !ok && len(dst.Pkg.Components) > 0 {
-				return fmt.Errorf("component %q cannot be reconciled with its original deployment data", component.Name)
-			}
-		} else if matched, ok := original[identity]; ok {
-			private = matched
-		} else if len(dst.Pkg.Components) > 0 {
-			return fmt.Errorf("component %q cannot be reconciled after public layout mutation", component.Name)
-		}
-		if _, ok := used[identity]; ok && len(dst.Pkg.Components) > 0 {
-			return fmt.Errorf("component identity %q was used more than once", identity)
-		}
-		used[identity] = struct{}{}
-		private.Name = component.Name
-		private.Images = append([]string(nil), component.Images...)
-		private.ImageArchives = make([]v1alpha1.ImageArchive, len(component.ImageArchives))
-		for j, archive := range component.ImageArchives {
-			private.ImageArchives[j] = v1alpha1.ImageArchive{
-				Path:   archive.Path,
-				Images: append([]string(nil), archive.Images...),
-			}
-		}
-		components[i] = private
-	}
-	dst.Pkg.Components = components
-	if src.registryDigest != "" {
-		dst.SetRegistryDigest(src.registryDigest)
+	dst.PackageDefinition = src.PackageDefinition
+	if src.digest != "" {
+		dst.SetRegistryDigest(src.digest)
 	}
 	return nil
 }

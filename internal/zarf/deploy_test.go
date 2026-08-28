@@ -20,8 +20,9 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 )
 
 type stagingRetryLoader struct {
@@ -35,13 +36,13 @@ func (l *stagingRetryLoader) PackageStagingRoot(context.Context) string {
 	return l.stagingRoot
 }
 
-func (l *stagingRetryLoader) LoadPackageLayout(_ context.Context, _ *spec.Package, dstDir string, _ LoadOptions) (*layout.PackageLayout, bool, error) {
+func (l *stagingRetryLoader) LoadPackageLayout(_ context.Context, _ *spec.Package, dstDir string, _ LoadOptions) (*PackageLayoutLoadResult, error) {
 	l.stagedDirs = append(l.stagedDirs, dstDir)
 	if len(l.stagedDirs) == 2 {
 		_, err := os.Stat(l.stagedDirs[0])
 		l.firstRemovedBeforeRetry = os.IsNotExist(err)
 	}
-	return nil, false, l.errs[len(l.stagedDirs)-1]
+	return nil, l.errs[len(l.stagedDirs)-1]
 }
 
 func TestIsRetryableStagingError(t *testing.T) {
@@ -628,13 +629,13 @@ func TestBuildComponentFilter(t *testing.T) {
 				Components: tt.zarfComponents,
 			}
 
-			selected, err := filter.Apply(pkg)
+			selectedDefinition, err := filters.Apply(api.NewPackageDefinitionFromV1alpha1(pkg), filter)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantNames, componentNames(selected))
+			assert.Equal(t, tt.wantNames, componentNames(selectedDefinition.AsV1alpha1().Components))
 		})
 	}
 }

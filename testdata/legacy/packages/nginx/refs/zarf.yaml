@@ -25,4 +25,4 @@ components:
                 namespace: nginx
                 condition: available
     images:
-      - nginx:1.31.3 # use shorthand for nginx!
+      - nginx:1.31.4 # use shorthand for nginx!

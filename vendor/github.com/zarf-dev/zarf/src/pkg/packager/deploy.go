@@ -1,0 +1,957 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2021-Present The Zarf Authors
+
+package packager
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/defenseunicorns/pkg/helpers/v2"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/config"
+	"github.com/zarf-dev/zarf/src/config/lang"
+	"github.com/zarf-dev/zarf/src/internal/healthchecks"
+	"github.com/zarf-dev/zarf/src/internal/packager/helm"
+	"github.com/zarf-dev/zarf/src/internal/packager/requirements"
+	ptmpl "github.com/zarf-dev/zarf/src/internal/packager/template"
+	"github.com/zarf-dev/zarf/src/pkg/cluster"
+	"github.com/zarf-dev/zarf/src/pkg/feature"
+	"github.com/zarf-dev/zarf/src/pkg/images"
+	"github.com/zarf-dev/zarf/src/pkg/logger"
+	"github.com/zarf-dev/zarf/src/pkg/packager/actions"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/pki"
+	"github.com/zarf-dev/zarf/src/pkg/state"
+	"github.com/zarf-dev/zarf/src/pkg/template"
+	"github.com/zarf-dev/zarf/src/pkg/transform"
+	"github.com/zarf-dev/zarf/src/pkg/utils"
+	"github.com/zarf-dev/zarf/src/pkg/value"
+	"github.com/zarf-dev/zarf/src/pkg/variables"
+	"github.com/zarf-dev/zarf/src/types"
+	"golang.org/x/sync/errgroup"
+	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+// DeployOptions are optional parameters to packager.Deploy
+type DeployOptions struct {
+	// Deploy time set variables
+	SetVariables map[string]string
+	// Values are values passed in at deploy time. They can come from the CLI, user configuration, or set directly by
+	// API callers.
+	value.Values
+	// TakeOwnership adopts any pre-existing K8s resources into the Helm charts managed by Zarf
+	TakeOwnership bool
+	// AdoptExistingResources adopts any pre-existing K8s resources into the Helm charts managed by Zarf.
+	//
+	// Deprecated: use TakeOwnership instead.
+	AdoptExistingResources bool
+	// Connected deploys without mirroring images/repos and labels resources to bypass the Zarf agent
+	Connected bool
+	// Force Helm to take ownership of conflicting fields during Server-Side Apply operations
+	ForceConflicts bool
+	// Timeout for Helm operations
+	Timeout time.Duration
+	// Retries to preform for operations like git and image pushes
+	Retries int
+	// Number of layers to push concurrently per image
+	OCIConcurrency int
+	// Namespace is an optional namespace override for package deployment
+	NamespaceOverride string
+	// Remote Options for image pushes
+	types.RemoteOptions
+	// How to configure Zarf state if it's not already been configured
+	GitServer      state.GitServerInfo
+	RegistryInfo   state.RegistryInfo
+	ArtifactServer state.ArtifactServerInfo
+	StorageClass   string
+	InjectorPort   int
+	InjectorImage  string
+	// AgentTLS allows providing user-managed TLS certificates for the agent. When nil, certs are auto-generated.
+	AgentTLS *pki.GeneratedPKI
+	// AgentMutationPolicy controls whether the agent mutates by default (default-mutate) or only on explicit label (default-ignore).
+	AgentMutationPolicy state.MutationPolicy
+
+	// [Library Only] A map of component names to chart names containing Helm Chart values to override values on deploy
+	ValuesOverridesMap ValuesOverrides
+	// IsInteractive decides if Zarf can interactively prompt users through the CLI
+	IsInteractive bool
+	// SkipValuesSchemaValidation skips validation of the merged package values against the package schema.
+	SkipValuesSchemaValidation bool
+	// SkipVersionCheck skips version requirement validation
+	SkipVersionCheck bool
+}
+
+// deployer tracks mutable fields across deployments. Because components can create a cluster and create state
+// any of these fields are subject to change from one component to the next
+type deployer struct {
+	s    *state.State
+	c    *cluster.Cluster
+	vc   *variables.VariableConfig
+	vals value.Values
+}
+
+// DeployResult is the result of a successful deploy
+type DeployResult struct {
+	DeployedComponents []state.DeployedComponent
+	VariableConfig     *variables.VariableConfig
+	Values             value.Values
+}
+
+// Deploy takes a reference to a `layout.PackageLayout` and deploys the package. If successful, returns a list of components that were successfully deployed and the associated variable config.
+func Deploy(ctx context.Context, pkgLayout *layout.PackageLayout, opts DeployOptions) (DeployResult, error) {
+	start := time.Now()
+	pkg := pkgLayout.AsV1alpha1()
+	if opts.Connected && pkg.IsInitConfig() {
+		return DeployResult{}, fmt.Errorf("--connected is not supported for init packages")
+	}
+
+	// Validate operational requirements before proceeding
+	if !opts.SkipVersionCheck {
+		if err := requirements.ValidateVersionRequirements(pkg); err != nil {
+			return DeployResult{}, fmt.Errorf("%w If you cannot upgrade Zarf you may skip this check with --skip-version-check. Unexpected behavior or errors may occur", err)
+		}
+	}
+
+	if !feature.IsEnabled(feature.RegistryProxy) && opts.RegistryInfo.RegistryMode == state.RegistryModeProxy {
+		return DeployResult{}, fmt.Errorf("the registry proxy feature gate is not enabled")
+	}
+
+	l := logger.From(ctx)
+	l.Info("starting deploy", "package", pkg.Metadata.Name)
+
+	if opts.InjectorPort == 0 && opts.RegistryInfo.RegistryMode == state.RegistryModeProxy {
+		opts.InjectorPort = state.ZarfInjectorDefaultHostPort
+	}
+
+	if pkg.Metadata.YOLO {
+		opts.Connected = true
+	}
+
+	if opts.NamespaceOverride != "" {
+		if err := pkgLayout.PackageDefinition.OverrideNamespace(opts.NamespaceOverride); err != nil {
+			return DeployResult{}, err
+		}
+		pkg = pkgLayout.AsV1alpha1()
+	}
+
+	if opts.Retries == 0 {
+		opts.Retries = config.ZarfDefaultRetries
+	}
+	if opts.Timeout == 0 {
+		opts.Timeout = config.ZarfDefaultTimeout
+	}
+
+	var err error
+	definition, err := filters.Apply(pkgLayout.PackageDefinition, filters.ByLocalOS(runtime.GOOS))
+	if err != nil {
+		return DeployResult{}, err
+	}
+	pkgLayout.PackageDefinition = definition
+	pkg = pkgLayout.AsV1alpha1()
+
+	variableConfig, err := getPopulatedVariableConfig(ctx, pkg, opts.SetVariables, opts.IsInteractive)
+	if err != nil {
+		return DeployResult{}, err
+	}
+
+	vals, err := loadDeploymentValues(ctx, pkgLayout, opts.Values, opts.SkipValuesSchemaValidation)
+	if err != nil {
+		return DeployResult{}, err
+	}
+
+	d := deployer{
+		vc:   variableConfig,
+		vals: vals,
+	}
+
+	l.Debug("variables populated", "time", time.Since(start))
+
+	// Fail before deploying anything if a templated action, manifest, file, or chart value mapping references a value without a key
+	if err := validateTemplateRefs(ctx, pkgLayout, vals); err != nil {
+		return DeployResult{}, fmt.Errorf("package references values that cannot be resolved (value templates must be explicitly defined, even if empty): %w", err)
+	}
+
+	deployedComponents, err := d.deployComponents(ctx, pkgLayout, opts)
+	if err != nil {
+		return DeployResult{}, err
+	}
+	if len(deployedComponents) == 0 {
+		l.Warn("no components were selected for deployment. Inspect the package to view the available components and select components interactively or by name with \"--components\"")
+	}
+	l.Debug("deployment complete", "duration", time.Since(start))
+
+	// assemble the result
+	deployResult := DeployResult{
+		DeployedComponents: deployedComponents,
+		VariableConfig:     d.vc,
+		Values:             d.vals,
+	}
+	return deployResult, nil
+}
+
+// loadDeploymentValues loads a package's assembled values, applies deploy-time overrides, and validates the result.
+func loadDeploymentValues(ctx context.Context, pkgLayout *layout.PackageLayout, overrides value.Values, skipSchemaValidation bool) (value.Values, error) {
+	pkg := pkgLayout.AsV1alpha1()
+	if !feature.IsEnabled(feature.Values) && (len(pkg.Values.Files) > 0 || len(overrides) > 0) {
+		return nil, fmt.Errorf("package-level values passed in but \"%s\" feature is not enabled."+
+			" Run again with --features=\"%s=true\"", feature.Values, feature.Values)
+	}
+
+	valuesPath := filepath.Join(pkgLayout.DirPath(), layout.ValuesYAML)
+	vals, err := value.ParseLocalFile(ctx, valuesPath)
+	if err != nil {
+		return nil, err
+	}
+	vals.DeepMerge(overrides)
+
+	if pkgLayout.HasValuesSchema() && !skipSchemaValidation {
+		schemaPath := filepath.Join(pkgLayout.DirPath(), layout.ValuesSchema)
+		if err := vals.Validate(ctx, schemaPath, value.ValidateOptions{}); err != nil {
+			return nil, fmt.Errorf("values validation failed: %w", err)
+		}
+		logger.From(ctx).Debug("values validated against schema", "schemaPath", schemaPath)
+	}
+
+	return vals, nil
+}
+
+func (d *deployer) isConnectedToCluster() bool {
+	return d.c != nil
+}
+
+func (d *deployer) deployComponents(ctx context.Context, pkgLayout *layout.PackageLayout, opts DeployOptions) ([]state.DeployedComponent, error) {
+	l := logger.From(ctx)
+	pkg := pkgLayout.AsV1alpha1()
+	deployedComponents := []state.DeployedComponent{}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get working directory: %w", err)
+	}
+
+	for _, component := range pkg.Components {
+		packageGeneration := 1
+		// Connect to cluster if a component requires it.
+		if component.RequiresCluster() {
+			if !d.isConnectedToCluster() {
+				timeout := cluster.DefaultTimeout
+				if pkg.IsInitConfig() {
+					timeout = 5 * time.Minute
+				}
+				connectCtx, cancel := context.WithTimeout(ctx, timeout)
+				defer cancel()
+				var err error
+				d.c, err = cluster.NewWithWait(connectCtx)
+				if err != nil {
+					return nil, fmt.Errorf("unable to connect to the Kubernetes cluster: %w", err)
+				}
+				if err := d.verifyPackageIsDeployable(ctx, pkgLayout); err != nil {
+					return nil, fmt.Errorf("package is not deployable to this system: %w", err)
+				}
+			}
+			// If this package has been deployed before, increment the package generation within the secret
+			//nolint: errcheck // this may be the first time deploying the package therefore it will not exist
+			if existingDeployedPackage, _ := d.c.GetDeployedPackage(ctx, pkg.Metadata.Name, state.WithPackageNamespaceOverride(opts.NamespaceOverride)); existingDeployedPackage != nil {
+				packageGeneration = existingDeployedPackage.Generation + 1
+			}
+		}
+
+		deployedComponent := state.DeployedComponent{
+			Name:               component.Name,
+			Status:             state.ComponentStatusDeploying,
+			ObservedGeneration: packageGeneration,
+		}
+
+		// Ensure we don't overwrite any installedCharts data when updating the package secret
+		if d.isConnectedToCluster() {
+			installedCharts, err := d.c.GetInstalledChartsForComponent(ctx, pkg.Metadata.Name, component, state.WithPackageNamespaceOverride(opts.NamespaceOverride))
+			if err != nil {
+				l.Debug("unable to fetch installed Helm charts", "component", component.Name, "error", err.Error())
+			}
+			deployedComponent.InstalledCharts = installedCharts
+		}
+
+		deployedComponents = append(deployedComponents, deployedComponent)
+		idx := len(deployedComponents) - 1
+		if d.isConnectedToCluster() {
+			if _, err := d.c.RecordPackageDeployment(ctx, pkg, pkgLayout.Digest(), deployedComponents, packageGeneration, state.WithPackageConnectivity(opts.Connected), state.WithPackageNamespaceOverride(opts.NamespaceOverride)); err != nil {
+				l.Debug("unable to record package deployment", "component", component.Name, "error", err.Error())
+			}
+		}
+		var charts []state.InstalledChart
+		var deployErr error
+		if pkg.IsInitConfig() {
+			charts, deployErr = d.deployInitComponent(ctx, pkgLayout, component, opts)
+		} else {
+			charts, deployErr = d.deployComponent(ctx, pkgLayout, component, false, false, opts)
+		}
+
+		onDeploy := component.Actions.OnDeploy
+
+		onFailure := func() {
+			if err := actions.Run(ctx, cwd, onDeploy.Defaults, onDeploy.OnFailure, d.vc, d.vals, template.StateAccess{State: d.s, AccessKeys: component.StateAccess}); err != nil {
+				l.Debug("unable to run component failure action", "error", err.Error())
+			}
+		}
+
+		if deployErr != nil {
+			cleanup := func(ctx context.Context) {
+				onFailure()
+				l.Debug("component deployment failed", "component", component.Name, "error", deployErr.Error())
+				deployedComponents[idx].Status = state.ComponentStatusFailed
+				deployedComponents[idx].InstalledCharts = state.MergeInstalledChartsForComponent(deployedComponents[idx].InstalledCharts, charts, true)
+				if d.isConnectedToCluster() {
+					if _, err := d.c.RecordPackageDeployment(ctx, pkg, pkgLayout.Digest(), deployedComponents, packageGeneration, state.WithPackageConnectivity(opts.Connected), state.WithPackageNamespaceOverride(opts.NamespaceOverride)); err != nil {
+						l.Debug("unable to record package deployment", "component", component.Name, "error", err.Error())
+					}
+				}
+			}
+			select {
+			case <-ctx.Done():
+				// Use background context here in order to ensure the cleanup logic can run when the context is cancelled
+				cleanup(context.Background())
+				return nil, fmt.Errorf("context cancelled while deploying component %q: %w", component.Name, deployErr)
+			default:
+				cleanup(ctx)
+				return nil, fmt.Errorf("unable to deploy component %q: %w", component.Name, deployErr)
+			}
+		}
+
+		// Update the package secret to indicate that we successfully deployed this component
+		deployedComponents[idx].InstalledCharts = state.MergeInstalledChartsForComponent(deployedComponents[idx].InstalledCharts, charts, false)
+		deployedComponents[idx].Status = state.ComponentStatusSucceeded
+		if d.isConnectedToCluster() {
+			if _, err := d.c.RecordPackageDeployment(ctx, pkg, pkgLayout.Digest(), deployedComponents, packageGeneration, state.WithPackageConnectivity(opts.Connected), state.WithPackageNamespaceOverride(opts.NamespaceOverride)); err != nil {
+				l.Debug("unable to record package deployment", "component", component.Name, "error", err.Error())
+			}
+		}
+
+		if err := actions.Run(ctx, cwd, onDeploy.Defaults, onDeploy.OnSuccess, d.vc, d.vals, template.StateAccess{State: d.s, AccessKeys: component.StateAccess}); err != nil {
+			onFailure()
+			return nil, fmt.Errorf("unable to run component success action: %w", err)
+		}
+	}
+
+	return deployedComponents, nil
+}
+
+// internalServicesFor returns the state services Zarf will deploy internally in this init run.
+func internalServicesFor(components []v1alpha1.ZarfComponent, opts DeployOptions) state.ServiceSet {
+	services := state.NewServiceSet()
+	registryExternal := opts.RegistryInfo.Address != ""
+	for _, c := range components {
+		switch c.Name {
+		case "git-server":
+			services.Add(state.GitKey)
+			services.Add(state.ArtifactKey)
+		case "zarf-registry", "zarf-seed-registry", "zarf-injector":
+			if !registryExternal {
+				services.Add(state.RegistryKey)
+			}
+		case "zarf-agent":
+			services.Add(state.AgentKey)
+		}
+	}
+	return services
+}
+
+func (d *deployer) deployInitComponent(ctx context.Context, pkgLayout *layout.PackageLayout, component v1alpha1.ZarfComponent, opts DeployOptions) ([]state.InstalledChart, error) {
+	l := logger.From(ctx)
+	pkg := pkgLayout.AsV1alpha1()
+	isSeedRegistry := component.Name == "zarf-seed-registry"
+	isRegistry := component.Name == "zarf-registry"
+	isInjector := component.Name == "zarf-injector"
+	isAgent := component.Name == "zarf-agent"
+
+	// Always init the state before the first component that requires the cluster (on most deployments, the zarf-seed-registry)
+	if component.RequiresCluster() && d.s == nil {
+		applianceMode := false
+		for _, component := range pkg.Components {
+			if component.Name == "k3s" {
+				applianceMode = true
+			}
+		}
+		var err error
+		d.s, err = d.c.InitState(ctx, cluster.InitStateOptions{
+			GitServer:           opts.GitServer,
+			RegistryInfo:        opts.RegistryInfo,
+			ArtifactServer:      opts.ArtifactServer,
+			ApplianceMode:       applianceMode,
+			StorageClass:        opts.StorageClass,
+			InjectorPort:        opts.InjectorPort,
+			AgentTLS:            opts.AgentTLS,
+			AgentMutationPolicy: opts.AgentMutationPolicy,
+			InternalServices:    internalServicesFor(pkg.Components, opts),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("unable to initialize Zarf state: %w", err)
+		}
+	}
+
+	if d.s != nil {
+		if !d.s.RegistryInfo.IsInternal() && (isSeedRegistry || isInjector || isRegistry) {
+			l.Info("skipping init package component since external registry information was provided", "component", component.Name)
+			return nil, nil
+		}
+	}
+
+	// Before deploying the seed registry, start the injector
+	if isSeedRegistry {
+		switch d.s.RegistryInfo.RegistryMode {
+		case state.RegistryModeProxy:
+			injectorImage, err := injectorDaemonsetImage(ctx, d.c, opts.InjectorImage)
+			if err != nil {
+				return nil, err
+			}
+			d.s.InjectorInfo.Image = injectorImage
+
+			payloadCMs, shasum, err := d.c.CreateInjectorConfigMaps(ctx, pkgLayout.DirPath(), pkgLayout.GetImageDirPath(), component.GetImages(), pkg.Metadata.Name)
+			if err != nil {
+				return nil, err
+			}
+			d.s.InjectorInfo.PayLoadConfigMapAmount = len(payloadCMs)
+			d.s.InjectorInfo.PayLoadShaSum = shasum
+		case state.RegistryModeNodePort:
+			seedImage, seedPort, err := d.c.StartInjection(ctx, pkgLayout.DirPath(), pkgLayout.GetImageDirPath(), component.GetImages(), pkg.Metadata.Name, pkg.Metadata.Architecture, cluster.ZarfInjectorOptions{
+				InjectorNodePort: uint16(d.s.InjectorInfo.Port),
+				RegistryNodePort: uint16(d.s.RegistryInfo.Port),
+				IPFamily:         d.s.IPFamily,
+				Image:            opts.InjectorImage,
+			})
+			if err != nil {
+				return nil, err
+			}
+			d.s.InjectorInfo.Image = seedImage
+			d.s.InjectorInfo.Port = seedPort
+		}
+		// Save the injector updates to state
+		if err := d.c.SaveState(ctx, d.s); err != nil {
+			return nil, err
+		}
+	}
+
+	// Skip image checksum if component is agent.
+	// Skip image push if component is seed registry.
+	charts, err := d.deployComponent(ctx, pkgLayout, component, isAgent, isSeedRegistry, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Do cleanup for when we inject the seed registry during initialization
+	if isSeedRegistry && d.s.RegistryInfo.RegistryMode == state.RegistryModeNodePort {
+		if err := d.c.StopInjection(ctx); err != nil {
+			return nil, fmt.Errorf("failed to delete injector resources: %w", err)
+		}
+	}
+
+	return charts, nil
+}
+
+func injectorDaemonsetImage(ctx context.Context, c *cluster.Cluster, requestedImage string) (string, error) {
+	if requestedImage != "" {
+		return requestedImage, nil
+	}
+	return c.GetInjectorDaemonsetImage(ctx)
+}
+
+func (d *deployer) deployComponent(ctx context.Context, pkgLayout *layout.PackageLayout, component v1alpha1.ZarfComponent, noImgChecksum bool, noImgPush bool, opts DeployOptions) (_ []state.InstalledChart, err error) {
+	l := logger.From(ctx)
+	start := time.Now()
+
+	l.Info("deploying component", "name", component.Name)
+
+	hasImages := len(component.GetImages()) > 0 && !noImgPush && !opts.Connected
+	hasCharts := len(component.Charts) > 0
+	hasManifests := len(component.Manifests) > 0
+	hasRepos := len(component.Repos) > 0 && !opts.Connected
+	hasFiles := len(component.Files) > 0
+
+	onDeploy := component.Actions.OnDeploy
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get working directory: %w", err)
+	}
+
+	if component.RequiresCluster() {
+		// Setup the state in the config
+		if d.s == nil {
+			var err error
+			d.s, err = setupState(ctx, d.c, opts.Connected)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	applicationTemplates, err := ptmpl.GetZarfTemplates(ctx, component.Name, d.s)
+	if err != nil {
+		return nil, err
+	}
+	d.vc.SetApplicationTemplates(applicationTemplates)
+
+	// Populate objects available to templates in before actions
+	if err := actions.Run(ctx, cwd, onDeploy.Defaults, onDeploy.Before, d.vc, d.vals, template.StateAccess{State: d.s, AccessKeys: component.StateAccess}); err != nil {
+		return nil, fmt.Errorf("unable to run component before action: %w", err)
+	}
+
+	if hasFiles {
+		if err := processComponentFiles(ctx, pkgLayout, component, d.vc, d.vals, template.StateAccess{State: d.s, AccessKeys: component.StateAccess}); err != nil {
+			return nil, fmt.Errorf("unable to process the component files: %w", err)
+		}
+	}
+
+	if hasImages {
+		refs := []transform.Image{}
+		for _, img := range component.GetImages() {
+			ref, err := transform.ParseImageRef(img)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create ref for image %s: %w", img, err)
+			}
+			refs = append(refs, ref)
+		}
+		pushOpts := images.PushOptions{
+			OCIConcurrency:        opts.OCIConcurrency,
+			PlainHTTP:             opts.PlainHTTP,
+			NoChecksum:            noImgChecksum,
+			Retries:               opts.Retries,
+			InsecureSkipTLSVerify: opts.InsecureSkipTLSVerify,
+			Cluster:               d.c,
+		}
+		err := images.Push(ctx, refs, pkgLayout.GetImageDirPath(), d.s.RegistryInfo, pushOpts)
+		if err != nil {
+			return nil, fmt.Errorf("unable to push images to the registry: %w", err)
+		}
+	}
+
+	if hasRepos {
+		if err := pushComponentReposToRegistry(ctx, component, pkgLayout, d.s.GitServer, d.c, opts.Retries); err != nil {
+			return nil, fmt.Errorf("unable to push the repos to the repository: %w", err)
+		}
+	}
+
+	g, gCtx := errgroup.WithContext(ctx)
+	for idx, data := range component.DataInjections {
+		tmpDir, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
+		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			err = errors.Join(err, os.RemoveAll(tmpDir))
+		}()
+		dataInjectionsPath, err := pkgLayout.GetComponentDir(ctx, tmpDir, component.Name, layout.DataComponentDir)
+		if err != nil {
+			return nil, err
+		}
+		g.Go(func() error {
+			return d.c.HandleDataInjection(gCtx, data, dataInjectionsPath, idx)
+		})
+	}
+
+	charts := []state.InstalledChart{}
+	if hasCharts {
+		helmCharts, err := d.installCharts(ctx, pkgLayout, component, opts)
+		charts = append(charts, helmCharts...)
+		if err != nil {
+			return charts, err
+		}
+	}
+
+	if hasManifests {
+		chartsFromManifests, err := d.installManifests(ctx, pkgLayout, component, opts)
+		charts = append(charts, chartsFromManifests...)
+		if err != nil {
+			return charts, err
+		}
+	}
+
+	// Populate objects available to templates in after actions
+	if err := actions.Run(ctx, cwd, onDeploy.Defaults, onDeploy.After, d.vc, d.vals, template.StateAccess{State: d.s, AccessKeys: component.StateAccess}); err != nil {
+		return charts, fmt.Errorf("unable to run component after action: %w", err)
+	}
+
+	if len(component.HealthChecks) > 0 {
+		healthCheckContext, cancel := context.WithTimeout(ctx, opts.Timeout)
+		defer cancel()
+		l.Info("running health checks")
+		if err := healthchecks.Run(healthCheckContext, d.c.Watcher, component.HealthChecks); err != nil {
+			return charts, fmt.Errorf("health checks failed: %w", err)
+		}
+	}
+
+	if err := g.Wait(); err != nil {
+		return charts, err
+	}
+	l.Debug("done deploying component", "name", component.Name, "duration", time.Since(start))
+	return charts, nil
+}
+
+func (d *deployer) installCharts(ctx context.Context, pkgLayout *layout.PackageLayout, component v1alpha1.ZarfComponent, opts DeployOptions) (_ []state.InstalledChart, err error) {
+	l := logger.From(ctx)
+	pkg := pkgLayout.AsV1alpha1()
+	installedCharts := []state.InstalledChart{}
+
+	tmpDir, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err = errors.Join(err, os.RemoveAll(tmpDir))
+	}()
+
+	chartDir, err := pkgLayout.GetComponentDir(ctx, tmpDir, component.Name, layout.ChartsComponentDir)
+	if err != nil {
+		return nil, err
+	}
+	valuesDir, err := pkgLayout.GetComponentDir(ctx, tmpDir, component.Name, layout.ValuesComponentDir)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("failed to get values: %w", err)
+	}
+
+	for _, chart := range component.Charts {
+		// Do not wait for the chart to be ready if data injections are present.
+		if len(component.DataInjections) > 0 {
+			chart.NoWait = true
+		}
+
+		if err := templateValuesFiles(ctx, chart, valuesDir, templateValuesFilesOpts{
+			variableConfig: d.vc,
+			pkg:            pkg,
+			vals:           d.vals,
+			s:              d.s,
+			stateAccess:    component.StateAccess,
+		}); err != nil {
+			return installedCharts, err
+		}
+
+		valuesOverrides, err := generateValuesOverrides(ctx, chart, component.Name, overrideOpts{
+			variableConfig:     d.vc,
+			values:             d.vals,
+			valuesOverridesMap: opts.ValuesOverridesMap,
+		})
+		if err != nil {
+			return installedCharts, err
+		}
+
+		helmOpts := helm.InstallUpgradeOptions{
+			TakeOwnership:     opts.TakeOwnership || opts.AdoptExistingResources,
+			ForceConflicts:    opts.ForceConflicts,
+			VariableConfig:    d.vc,
+			State:             d.s,
+			Cluster:           d.c,
+			ConnectedDeploy:   opts.Connected,
+			Timeout:           opts.Timeout,
+			PkgName:           pkg.Metadata.Name,
+			NamespaceOverride: opts.NamespaceOverride,
+			IsInteractive:     opts.IsInteractive,
+		}
+		helmChart, values, err := helm.LoadChartData(chart, layout.ChartPaths{ChartsDir: chartDir, ValuesDir: valuesDir}, valuesOverrides)
+		if err != nil {
+			return installedCharts, fmt.Errorf("failed to load chart data: %w", err)
+		}
+		l.Debug("loaded chart", "metadata", helmChart.Metadata, "chartValues", helmChart.Values)
+
+		connectStrings, installedChartName, err := helm.InstallOrUpgradeChart(ctx, chart, helmChart, values, helmOpts)
+		if err != nil {
+			installedCharts = append(installedCharts, state.InstalledChart{Namespace: chart.Namespace, ChartName: installedChartName, ConnectStrings: connectStrings, Status: state.ChartStatusFailed})
+			return installedCharts, err
+		}
+		installedCharts = append(installedCharts, state.InstalledChart{Namespace: chart.Namespace, ChartName: installedChartName, ConnectStrings: connectStrings, Status: state.ChartStatusSucceeded})
+	}
+
+	return installedCharts, nil
+}
+
+func (d *deployer) installManifests(ctx context.Context, pkgLayout *layout.PackageLayout, component v1alpha1.ZarfComponent, opts DeployOptions) (_ []state.InstalledChart, err error) {
+	l := logger.From(ctx)
+	pkg := pkgLayout.AsV1alpha1()
+	tmpDir, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err = errors.Join(err, os.RemoveAll(tmpDir))
+	}()
+	manifestDir, err := pkgLayout.GetComponentDir(ctx, tmpDir, component.Name, layout.ManifestsComponentDir)
+	if err != nil {
+		return nil, err
+	}
+
+	installedCharts := []state.InstalledChart{}
+	for _, manifest := range component.Manifests {
+		for idx := range manifest.Files {
+			manifest.Files[idx] = layout.ManifestFileName(manifest.Name, idx)
+			path := filepath.Join(manifestDir, manifest.Files[idx])
+			if helpers.InvalidPath(path) {
+				return installedCharts, fmt.Errorf("unable to find manifest file %s", manifest.Files[idx])
+			}
+			// Apply ###ZARF_VAR_*### substitution before Helm sees the file.
+			if err := d.vc.ReplaceTextTemplate(path); err != nil {
+				return installedCharts, fmt.Errorf("error templating manifest %s: %w", path, err)
+			}
+			if manifest.IsTemplate() {
+				l.Debug("start manifest template", "manifest", manifest.Name, "path", path)
+				objs, err := template.NewObjects(d.vals).
+					WithPackage(pkg).
+					WithVariables(d.vc.GetSetVariableMap()).
+					WithConstants(d.vc.GetConstants()).
+					WithState(template.StateAccess{State: d.s, AccessKeys: component.StateAccess})
+				if err != nil {
+					return nil, err
+				}
+				if err := template.ApplyToFile(ctx, path, path, objs); err != nil {
+					return nil, err
+				}
+			}
+		}
+		// Move kustomizations to files now, applying ###ZARF_VAR_*### substitution as well.
+		for idx := range manifest.Kustomizations {
+			kustomization := layout.KustomizationFileName(manifest.Name, idx)
+			manifest.Files = append(manifest.Files, kustomization)
+			path := filepath.Join(manifestDir, kustomization)
+			if err := d.vc.ReplaceTextTemplate(path); err != nil {
+				return installedCharts, fmt.Errorf("error templating kustomization %s: %w", path, err)
+			}
+		}
+
+		if manifest.Namespace == "" {
+			// Helm gets sad when you don't provide a namespace even though we aren't using helm templating
+			manifest.Namespace = corev1.NamespaceDefault
+		}
+
+		// Create a helmChart and helm cfg from a given Zarf Manifest.
+		chart, helmChart, err := helm.ChartFromZarfManifest(manifest, manifestDir, pkg.Metadata.Name, component.Name)
+		if err != nil {
+			return installedCharts, err
+		}
+		helmOpts := helm.InstallUpgradeOptions{
+			TakeOwnership:     opts.TakeOwnership || opts.AdoptExistingResources,
+			ForceConflicts:    opts.ForceConflicts,
+			VariableConfig:    d.vc,
+			State:             d.s,
+			Cluster:           d.c,
+			ConnectedDeploy:   opts.Connected,
+			Timeout:           opts.Timeout,
+			PkgName:           pkg.Metadata.Name,
+			NamespaceOverride: opts.NamespaceOverride,
+			IsInteractive:     opts.IsInteractive,
+		}
+
+		// Install the chart.
+		connectStrings, installedChartName, err := helm.InstallOrUpgradeChart(ctx, chart, helmChart, nil, helmOpts)
+		if err != nil {
+			installedCharts = append(installedCharts, state.InstalledChart{Namespace: manifest.Namespace, ChartName: installedChartName, ConnectStrings: connectStrings, Status: state.ChartStatusFailed})
+			return installedCharts, err
+		}
+		installedCharts = append(installedCharts, state.InstalledChart{Namespace: manifest.Namespace, ChartName: installedChartName, ConnectStrings: connectStrings, Status: state.ChartStatusSucceeded})
+	}
+
+	return installedCharts, nil
+}
+
+func (d *deployer) verifyPackageIsDeployable(ctx context.Context, pkgLayout *layout.PackageLayout) error {
+	if err := verifyClusterCompatibility(ctx, d.c, pkgLayout); err != nil {
+		if errors.Is(err, lang.ErrUnableToCheckArch) {
+			logger.From(ctx).Warn("unable to validate package architecture", "error", err)
+		} else {
+			return err
+		}
+	}
+
+	s, err := d.c.LoadState(ctx)
+	if err != nil {
+		// don't return the err here as state may not yet be setup
+		return nil
+	}
+	if !s.AgentIsConfigured() {
+		return nil
+	}
+	return pki.CheckForExpiredCert(ctx, s.AgentTLS)
+}
+
+func setupState(ctx context.Context, c *cluster.Cluster, connected bool) (*state.State, error) {
+	l := logger.From(ctx)
+	// If we are touching K8s, make sure we can talk to it once per deployment
+	l.Debug("loading the Zarf State from the Kubernetes cluster")
+
+	s, err := c.LoadState(ctx)
+	if err != nil {
+		// We ignore not found errors in connected mode and initialize a temporary, ephemeral state
+		if !connected || !kerrors.IsNotFound(err) {
+			return nil, err
+		}
+		s = &state.State{}
+
+		l.Info("creating the Zarf namespace")
+		zarfNamespace := cluster.NewZarfManagedApplyNamespace(state.ZarfNamespaceName)
+		_, err = c.Clientset.CoreV1().Namespaces().Apply(ctx, zarfNamespace, metav1.ApplyOptions{Force: true, FieldManager: cluster.FieldManagerName})
+		if err != nil {
+			return nil, fmt.Errorf("unable to apply the Zarf namespace: %w", err)
+		}
+		l.Info("This is a connected or YOLO deploy, but the cluster was already initialized with 'zarf init'. " +
+			"Zarf will automatically add the label `zarf.dev/agent: ignore' to relevant resources, but resources deployed indirectly, " +
+			"for instance through gitops, should set this label")
+	}
+	return s, nil
+}
+
+func verifyClusterCompatibility(ctx context.Context, c *cluster.Cluster, pkgLayout *layout.PackageLayout) error {
+	pkg := pkgLayout.AsV1alpha1()
+	// Ignore this check if the package contains no images
+	if !pkg.HasImages() {
+		return nil
+	}
+
+	hasImageIndex, err := pkgLayout.HasImageIndex()
+	if err != nil {
+		return fmt.Errorf("failed to inspect package image layout: %w", err)
+	}
+	if hasImageIndex {
+		return nil
+	}
+
+	// Get node architectures
+	nodeList, err := c.Clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return lang.ErrUnableToCheckArch
+	}
+	if len(nodeList.Items) == 0 {
+		return lang.ErrUnableToCheckArch
+	}
+	archMap := map[string]bool{}
+	for _, node := range nodeList.Items {
+		archMap[node.Status.NodeInfo.Architecture] = true
+	}
+	architectures := []string{}
+	for arch := range archMap {
+		architectures = append(architectures, arch)
+	}
+
+	// Check if the package architecture and the cluster architecture are the same.
+	if !slices.Contains(architectures, pkg.Metadata.Architecture) {
+		return fmt.Errorf(lang.CmdPackageDeployValidateArchitectureErr, pkg.Metadata.Architecture, strings.Join(architectures, ", "))
+	}
+
+	return nil
+}
+
+func processComponentFiles(ctx context.Context, pkgLayout *layout.PackageLayout, component v1alpha1.ZarfComponent, variableConfig *variables.VariableConfig, values value.Values, stateAccess template.StateAccess) (err error) {
+	l := logger.From(ctx)
+	pkg := pkgLayout.AsV1alpha1()
+	start := time.Now()
+	l.Info("copying files", "count", len(component.Files))
+
+	tmpdir, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err = errors.Join(err, os.RemoveAll(tmpdir))
+	}()
+
+	filesDir, err := pkgLayout.GetComponentDir(ctx, tmpdir, component.Name, layout.FilesComponentDir)
+	if err != nil {
+		return err
+	}
+
+	for fileIdx, file := range component.Files {
+		l.Info("loading file", "name", file.Target)
+
+		fileLocation := filepath.Join(filesDir, layout.ComponentFileRelPath(fileIdx, file.Target))
+
+		// If a shasum is specified check it again on deployment as well
+		if file.Shasum != "" {
+			l.Debug("Validating SHASUM", "file", file.Target)
+			if err := helpers.SHAsMatch(fileLocation, file.Shasum); err != nil {
+				return err
+			}
+		}
+
+		// Replace temp target directory and home directory
+		target, err := config.GetAbsHomePath(strings.Replace(file.Target, "###ZARF_TEMP###", pkgLayout.DirPath(), 1))
+		if err != nil {
+			return err
+		}
+		file.Target = target
+
+		fileList := []string{}
+		if helpers.IsDir(fileLocation) {
+			files, err := helpers.RecursiveFileList(fileLocation, nil, false)
+			if err != nil {
+				return err
+			}
+			fileList = append(fileList, files...)
+		} else {
+			fileList = append(fileList, fileLocation)
+		}
+
+		for _, subFile := range fileList {
+			// Check if the file looks like a text file
+			isText, err := helpers.IsTextFile(subFile)
+			if err != nil {
+				return err
+			}
+
+			// If the file is a text file, template it
+			if isText {
+				l.Debug("template file", "name", file.Target)
+				if err := variableConfig.ReplaceTextTemplate(subFile); err != nil {
+					return fmt.Errorf("unable to template file %s: %w", subFile, err)
+				}
+			}
+			// If the file has go-templating enabled, apply templates.
+			if file.IsTemplate() {
+				l.Debug("templates enabled, processing file", "name", file.Target)
+				objs, err := template.NewObjects(values).
+					WithPackage(pkg).
+					WithVariables(variableConfig.GetSetVariableMap()).
+					WithConstants(variableConfig.GetConstants()).
+					WithState(stateAccess)
+				if err != nil {
+					return err
+				}
+				err = template.ApplyToFile(ctx, subFile, subFile, objs)
+				if err != nil {
+					return err
+				}
+			}
+		}
+
+		// Copy the file to the destination
+		l.Debug("saving file", "name", file.Target)
+		err = helpers.CreatePathAndCopy(fileLocation, file.Target)
+		if err != nil {
+			return fmt.Errorf("unable to copy file %s to %s: %w", fileLocation, file.Target, err)
+		}
+
+		// Loop over all symlinks and create them
+		for _, link := range file.Symlinks {
+			// Try to remove the filepath if it exists
+			if err := os.RemoveAll(link); err != nil {
+				return fmt.Errorf("failed to existing file at symlink location %s: %w", link, err)
+			}
+			// Make sure the parent directory exists
+			if err := helpers.CreateParentDirectory(link); err != nil {
+				return fmt.Errorf("failed to create parent directory for %s: %w", link, err)
+			}
+			// Create the symlink
+			err := os.Symlink(file.Target, link)
+			if err != nil {
+				return fmt.Errorf("unable to create symlink %s->%s: %w", link, file.Target, err)
+			}
+		}
+	}
+
+	l.Debug("done copying files", "duration", time.Since(start))
+
+	return nil
+}

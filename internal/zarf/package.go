@@ -25,7 +25,7 @@ func copySelectedPackage(ctx context.Context, pkgLayout *layout.PackageLayout, s
 }
 
 func packageManifest(ctx context.Context, pkgLayout *layout.PackageLayout) (ocispec.Descriptor, ocispec.Manifest, error) {
-	packageName := pkgLayout.Pkg.Metadata.Name
+	packageName := pkgLayout.AsV1alpha1().Metadata.Name
 	root, err := pkgLayout.Resolve(ctx, packageName)
 	if err != nil {
 		return ocispec.Descriptor{}, ocispec.Manifest{}, fmt.Errorf("%w for package %q: %w", ErrResolvePackageManifest, packageName, err)

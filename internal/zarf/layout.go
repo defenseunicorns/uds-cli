@@ -33,7 +33,13 @@ type LoadOptions struct {
 
 // PackageLayoutLoader loads a package into a deployable Zarf layout.
 type PackageLayoutLoader interface {
-	LoadPackageLayout(context.Context, *spec.Package, string, LoadOptions) (*layout.PackageLayout, bool, error)
+	LoadPackageLayout(context.Context, *spec.Package, string, LoadOptions) (*PackageLayoutLoadResult, error)
+}
+
+// PackageLayoutLoadResult is the return type of LoadPackageLayout
+type PackageLayoutLoadResult struct {
+	Layout    layout.PackageLayout
+	IsPartial bool
 }
 
 // ExtractedArtifactPackageLayoutLoader reads package OCI blobs from an extracted bundle artifact.
@@ -65,7 +71,7 @@ func (l *ExtractedArtifactPackageLayoutLoader) PackageStagingRoot(_ context.Cont
 }
 
 // LoadPackageLayout stages indexed OCI layers into dstDir.
-func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts LoadOptions) (*layout.PackageLayout, bool, error) {
+func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts LoadOptions) (*PackageLayoutLoadResult, error) {
 	s := opts.Streams
 	s.Debug("loading package layout", "name", pkg.Name, "dir", dstDir)
 	key := pkg.Name
@@ -75,62 +81,62 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 		for k := range l.PackageManifests {
 			keys = append(keys, k)
 		}
-		return nil, false, fmt.Errorf("package %q (source %q) not found in bundle artifact index; available: %v: %w", pkg.Name, pkg.Source, keys, ErrPackageNotFoundInArtifact)
+		return nil, fmt.Errorf("package %q (source %q) not found in bundle artifact index; available: %v: %w", pkg.Name, pkg.Source, keys, ErrPackageNotFoundInArtifact)
 	}
 
 	cleanOCIDir, err := filepath.Abs(filepath.Clean(l.OCIDir))
 	if err != nil {
-		return nil, false, fmt.Errorf("resolving artifact OCI directory: %w", err)
+		return nil, fmt.Errorf("resolving artifact OCI directory: %w", err)
 	}
 	blobDir := filepath.Join(cleanOCIDir, "blobs", "sha256")
 	store, err := udsoci.OpenReadOnlyStore(cleanOCIDir)
 	if err != nil {
-		return nil, false, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrOpenOCILayout, err)
+		return nil, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrOpenOCILayout, err)
 	}
 	manifestData, err := udsoci.FetchBytes(ctx, store, descriptor)
 	if err != nil {
-		return nil, false, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrReadPackageManifest, err)
+		return nil, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrReadPackageManifest, err)
 	}
 	var manifest ocispec.Manifest
 	if err := json.Unmarshal(manifestData, &manifest); err != nil {
-		return nil, false, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrReadPackageManifest, err)
+		return nil, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrReadPackageManifest, err)
 	}
 
 	cleanDstDir, err := filepath.Abs(filepath.Clean(dstDir))
 	if err != nil {
-		return nil, false, fmt.Errorf("%w %q for package %q: %w", ErrResolveDestinationDirectory, dstDir, pkg.Name, err)
+		return nil, fmt.Errorf("%w %q for package %q: %w", ErrResolveDestinationDirectory, dstDir, pkg.Name, err)
 	}
 	dstRoot, err := os.OpenRoot(cleanDstDir)
 	if err != nil {
-		return nil, false, fmt.Errorf("opening package destination directory: %w", err)
+		return nil, fmt.Errorf("opening package destination directory: %w", err)
 	}
 	defer func() { _ = dstRoot.Close() }()
 	workspaceDir := filepath.Dir(cleanOCIDir)
 	workspaceRoot, err := os.OpenRoot(workspaceDir)
 	if err != nil {
-		return nil, false, fmt.Errorf("opening artifact workspace directory: %w", err)
+		return nil, fmt.Errorf("opening artifact workspace directory: %w", err)
 	}
 	defer func() { _ = workspaceRoot.Close() }()
 	for _, layer := range manifest.Layers {
 		title := layer.Annotations[ocispec.AnnotationTitle]
 		if title == "" {
-			return nil, false, fmt.Errorf("manifest for package %q missing title annotation on layer with digest %q: %w", pkg.Name, layer.Digest, ErrMissingLayerTitle)
+			return nil, fmt.Errorf("manifest for package %q missing title annotation on layer with digest %q: %w", pkg.Name, layer.Digest, ErrMissingLayerTitle)
 		}
 		src := filepath.Join(blobDir, layer.Digest.Hex())
 		relSrc, err := filepath.Rel(workspaceDir, src)
 		if err != nil {
-			return nil, false, fmt.Errorf("resolving layer %q relative to artifact workspace: %w", title, err)
+			return nil, fmt.Errorf("resolving layer %q relative to artifact workspace: %w", title, err)
 		}
 		dst, err := safeLayerDestinationPath(cleanDstDir, cleanDstDir, title)
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
 		relDst, err := filepath.Rel(cleanDstDir, dst)
 		if err != nil {
-			return nil, false, fmt.Errorf("resolving layer %q relative to package destination: %w", title, err)
+			return nil, fmt.Errorf("resolving layer %q relative to package destination: %w", title, err)
 		}
 		if err := dstRoot.MkdirAll(filepath.Dir(relDst), filesystem.PrivateDirectoryMode); err != nil {
-			return nil, false, fmt.Errorf("layer %q: %w: %w", title, ErrCreateLayerDirectory, err)
+			return nil, fmt.Errorf("layer %q: %w: %w", title, ErrCreateLayerDirectory, err)
 		}
 		workspaceDst, err := filepath.Rel(workspaceDir, dst)
 		stageRoot := dstRoot
@@ -143,7 +149,7 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 			stageDst = workspaceDst
 		}
 		if err := stageArtifactPackageLayer(ctx, workspaceRoot, relSrc, stageRoot, stageDst, title, canLink); err != nil {
-			return nil, false, fmt.Errorf("layer %q for package %q: %w: %w", title, pkg.Name, ErrStagePackageLayer, err)
+			return nil, fmt.Errorf("layer %q for package %q: %w: %w", title, pkg.Name, ErrStagePackageLayer, err)
 		}
 	}
 
@@ -152,9 +158,9 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 	// layers ingested at create time; checksums.txt may reference filtered-out blobs.
 	pkgLayout, err := layout.LoadFromDir(ctx, dstDir, artifactPackageLayoutOptions(filter, true))
 	if err != nil {
-		return nil, false, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrLoadPackage, err)
+		return nil, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrLoadPackage, err)
 	}
-	return pkgLayout, true, nil
+	return &PackageLayoutLoadResult{Layout: *pkgLayout, IsPartial: true}, nil
 }
 
 // stageArtifactPackageLayer links regular immutable blobs inside one workspace
@@ -197,7 +203,7 @@ func artifactPackageLayoutOptions(filter filters.ComponentFilterStrategy, isPart
 var _ PackageLayoutLoader = (*SourcePackageLayoutLoader)(nil)
 
 // LoadPackageLayout pulls a package source into a deployable layout.
-func (l *SourcePackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts LoadOptions) (*layout.PackageLayout, bool, error) {
+func (l *SourcePackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts LoadOptions) (*PackageLayoutLoadResult, error) {
 	s := opts.Streams
 	s.Info("pulling package", "source", pkg.Source)
 	source := NewPackageSource(pkg.Source, l.configOpts, l.bundleDir, opts.Streams)
@@ -208,10 +214,10 @@ func (l *SourcePackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *
 		VerificationStrategy: layout.VerifyNever,
 	})
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to load package %q from %s: %w: %w", pkg.Name, pkg.Source, ErrLoadPackage, err)
+		return nil, fmt.Errorf("failed to load package %q from %s: %w: %w", pkg.Name, pkg.Source, ErrLoadPackage, err)
 	}
 	advisoryVerifyPackage(ctx, pkgLayout, pkg, l.configOpts.TmpDir, s)
-	return pkgLayout, opts.IsPartial, nil
+	return &PackageLayoutLoadResult{Layout: *pkgLayout, IsPartial: opts.IsPartial}, nil
 }
 
 // copyFileContentsBetweenRoots copies src atomically between rooted

@@ -242,5 +242,6 @@ func TestCreate_UDSCoreStandardBundle(t *testing.T) {
 	for _, component := range []string{"istio-passthrough-gateway", "istio-egress-gateway", "envoy-gateway", "envoy-default-gateway"} {
 		assert.Contains(t, bundleDefinition, component, "standard should preserve upstream optional components")
 	}
-	assert.Contains(t, bundleDefinition, "1.9.0-upstream", "standard should target the released core package tag")
+	// renovate: datasource=docker depName=ghcr.io/defenseunicorns/packages/uds/core versioning=docker
+	assert.Contains(t, bundleDefinition, "1.11.1-upstream", "standard should target the released core package tag")
 }

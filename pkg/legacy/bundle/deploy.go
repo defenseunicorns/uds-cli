@@ -132,10 +132,11 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		if err != nil {
 			return err
 		}
+		zarfPkg := pkgLayout.AsV1alpha1()
 
 		isConnectedDeploy := config.Dev
-		registryInfo := newRegistryInfo(pkgVars, pkgLayout.Pkg.Kind)
-		if !isConnectedDeploy && !pkgLayout.Pkg.IsInitConfig() && pkgLayout.Pkg.HasImages() {
+		registryInfo := newRegistryInfo(pkgVars, zarfPkg.Kind)
+		if !isConnectedDeploy && !zarfPkg.IsInitConfig() && zarfPkg.HasImages() {
 			if stateRegistryInfo == nil {
 				c, err := cluster.New(ctx)
 				if err != nil {
@@ -150,19 +151,19 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			registryInfo = *stateRegistryInfo
 		}
 
-		deployOpts, err := b.newDeployOptions(ctx, pkg, pkgVars, valuesOverrides, pkgLayout.Pkg.Kind, registryInfo)
+		deployOpts, err := b.newDeployOptions(ctx, pkg, pkgVars, valuesOverrides, zarfPkg.Kind, registryInfo)
 		if err != nil {
 			return err
 		}
 
 		// Merge package annotations with bundle annotations; bundle annotations take precedence
 		bundleAnnotations := make(map[string]string)
-		maps.Copy(bundleAnnotations, pkgLayout.Pkg.Metadata.Annotations)
+		maps.Copy(bundleAnnotations, zarfPkg.Metadata.Annotations)
 		bundleAnnotations[AnnotationBundleName] = b.bundle.Metadata.Name
 		bundleAnnotations[AnnotationBundleVersion] = b.bundle.Metadata.Version
 
 		// Set the merged annotations back on the package
-		pkgLayout.Pkg.Metadata.Annotations = bundleAnnotations
+		pkgLayout.PackageDefinition.SetAnnotations(bundleAnnotations)
 
 		result, err := packager.Deploy(ctx, pkgLayout, deployOpts)
 		if err != nil {
@@ -186,7 +187,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		}
 		bundleExportedVars[pkg.Name] = pkgExportedVars
 
-		if !pkgLayout.Pkg.IsInitConfig() {
+		if !zarfPkg.IsInitConfig() {
 			connectStrings := state.ConnectStrings{}
 			for _, comp := range result.DeployedComponents {
 				for _, chart := range comp.InstalledCharts {
@@ -217,21 +218,21 @@ func (b *Bundle) newDeployOptions(ctx context.Context, pkg types.Package, pkgVar
 	}
 
 	return packager.DeployOptions{
-		ForceConflicts:         b.cfg.DeployOpts.ForceConflicts,
-		Timeout:                timeout,
-		SetVariables:           pkgVars,
-		ValuesOverridesMap:     valuesOverrides,
-		Retries:                b.cfg.DeployOpts.Retries,
-		NamespaceOverride:      pkg.Namespace,
-		RemoteOptions:          remoteOpts,
-		AdoptExistingResources: false,
-		Connected:              config.Dev,
-		OCIConcurrency:         config.CommonOptions.OCIConcurrency,
-		GitServer:              newGitServerInfo(pkgVars, pkgKind),
-		RegistryInfo:           registryInfo,
-		ArtifactServer:         newArtifactServerInfo(pkgVars, pkgKind),
-		StorageClass:           newStorageClass(pkgVars, pkgKind),
-		IsInteractive:          !config.CommonOptions.Confirm,
+		ForceConflicts:     b.cfg.DeployOpts.ForceConflicts,
+		Timeout:            timeout,
+		SetVariables:       pkgVars,
+		ValuesOverridesMap: valuesOverrides,
+		Retries:            b.cfg.DeployOpts.Retries,
+		NamespaceOverride:  pkg.Namespace,
+		RemoteOptions:      remoteOpts,
+		TakeOwnership:      false,
+		Connected:          config.Dev,
+		OCIConcurrency:     config.CommonOptions.OCIConcurrency,
+		GitServer:          newGitServerInfo(pkgVars, pkgKind),
+		RegistryInfo:       registryInfo,
+		ArtifactServer:     newArtifactServerInfo(pkgVars, pkgKind),
+		StorageClass:       newStorageClass(pkgVars, pkgKind),
+		IsInteractive:      !config.CommonOptions.Confirm,
 	}, nil
 }
 

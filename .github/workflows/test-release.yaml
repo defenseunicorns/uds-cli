@@ -5,12 +5,6 @@ name: Release Tests
 
 on:
   workflow_call:
-    inputs:
-      fetch_zarf:
-        description: Build the test binary with zarf@main
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -24,6 +18,5 @@ jobs:
       packages: write
     secrets: inherit
     with:
-      fetch_zarf: ${{ inputs.fetch_zarf }}
       include_ghcr_write: true
       include_uds_core_smoke: true

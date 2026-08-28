@@ -9,23 +9,17 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	"github.com/opencontainers/go-digest"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
-// addNamespaceOverrides checks if pkg components have charts with namespace overrides and adds them
-func addNamespaceOverrides(pkg *v1alpha1.ZarfPackage, nsOverrides NamespaceOverrideMap) {
-	if len(nsOverrides) == 0 {
-		return
-	}
-	for i, comp := range pkg.Components {
-		if _, exists := nsOverrides[comp.Name]; exists {
-			for j, chart := range comp.Charts {
-				if _, exists = nsOverrides[comp.Name][chart.Name]; exists {
-					pkg.Components[i].Charts[j].Namespace = nsOverrides[comp.Name][comp.Charts[j].Name]
-				}
-			}
+// addNamespaceOverrides applies chart namespace overrides to a package definition.
+func addNamespaceOverrides(definition *api.PackageDefinition, nsOverrides NamespaceOverrideMap) {
+	for componentName, chartOverrides := range nsOverrides {
+		for chartName, namespace := range chartOverrides {
+			definition.SetChartNamespace(componentName, chartName, namespace)
 		}
 	}
 }
@@ -50,9 +44,10 @@ type PackageSource interface {
 // handleFilter filters components and checks if a package is a partial package by checking its number of components
 func handleFilter(pkg v1alpha1.ZarfPackage, filter filters.ComponentFilterStrategy) ([]v1alpha1.ZarfComponent, bool, error) {
 	numComponents := len(pkg.Components)
-	filteredComps, err := filter.Apply(pkg)
+	filteredDefinition, err := filters.Apply(api.NewPackageDefinitionFromV1alpha1(pkg), filter)
 	if err != nil {
 		return nil, false, err
 	}
+	filteredComps := filteredDefinition.AsV1alpha1().Components
 	return filteredComps, numComponents > len(filteredComps), nil
 }
