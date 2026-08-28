@@ -26,20 +26,20 @@ func TestRemoveLocalArtifactSource(t *testing.T) {
 	assertArtifactReferenceReachesRemove(t, artifact, removeArtifactConfig(t))
 }
 
-func TestRemoveArtifactUsesResolvedBundleDefinition(t *testing.T) {
+func TestRemoveArtifactUsesProvidedBundleDefinition(t *testing.T) {
 	artifactPath := createRemoveArtifact(t)
-	forged := &spec.UDSBundle{
-		Metadata: spec.Metadata{Name: "forged"},
-		Packages: []spec.Package{{Name: "forged", Source: "forged"}},
+	provided := &spec.UDSBundle{
+		Metadata: spec.Metadata{Name: "provided"},
+		Packages: []spec.Package{{Name: "provided", Source: "provided"}},
 	}
 
-	result, err := bundle.Remove(t.Context(), &bundle.DeploySource{BundlePath: artifactPath, Bundle: forged}, bundle.RemoveOptions{
+	result, err := bundle.Remove(t.Context(), &bundle.DeploySource{BundlePath: artifactPath, Bundle: provided}, bundle.RemoveOptions{
 		Config:                    removeArtifactConfig(t),
-		Packages:                  []string{"forged"},
+		Packages:                  []string{"provided"},
 		SkipSignatureVerification: true,
 		Force:                     true,
 	})
-	require.ErrorContains(t, err, "unknown packages")
+	require.ErrorContains(t, err, `package "provided" with source "provided" was not found in bundle index`)
 	assert.Nil(t, result)
 }
 

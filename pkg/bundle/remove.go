@@ -77,7 +77,7 @@ func Remove(ctx context.Context, source *DeploySource, opts RemoveOptions) (*Rem
 		if err != nil {
 			return nil, fmt.Errorf("%w %q: opening artifact metadata: %w", ErrRemoveBundle, source.BundlePath, err)
 		}
-		prepared, err := prepareArtifactRemoveSource(ctx, metadata, opts, s)
+		prepared, err := prepareArtifactRemoveSource(ctx, metadata, source.Bundle, opts, s)
 		if err != nil {
 			return nil, fmt.Errorf("%w %q: preparing artifact: %w", ErrRemoveBundle, source.BundlePath, err)
 		}
@@ -131,7 +131,7 @@ func Remove(ctx context.Context, source *DeploySource, opts RemoveOptions) (*Rem
 	return result, nil
 }
 
-func prepareArtifactRemoveSource(ctx context.Context, source *artifact.MetadataSource, opts RemoveOptions, streams iostreams.IOStreams) (*DeploySource, error) {
+func prepareArtifactRemoveSource(ctx context.Context, source *artifact.MetadataSource, b *spec.UDSBundle, opts RemoveOptions, streams iostreams.IOStreams) (*DeploySource, error) {
 	if !opts.SkipSignatureVerification {
 		policy := opts.Verification
 		if !policy.configured() && opts.Config.SignatureVerification != nil {
@@ -154,15 +154,20 @@ func prepareArtifactRemoveSource(ctx context.Context, source *artifact.MetadataS
 		}
 	}
 
-	metadata, err := artifact.ReadBundleDefinition(ctx, source, streams)
+	if b == nil {
+		metadata, err := artifact.ReadBundleDefinition(ctx, source, streams)
+		if err != nil {
+			return nil, err
+		}
+		b = metadata.Bundle
+	}
+
+	zarfNames, err := artifact.ReadZarfPackageNames(ctx, source, b, opts.Packages...)
 	if err != nil {
 		return nil, err
 	}
-	zarfNames, err := artifact.ReadZarfPackageNames(ctx, source, metadata.Bundle, opts.Packages...)
-	if err != nil {
-		return nil, err
-	}
-	return &DeploySource{Bundle: metadata.Bundle, packageZarfNames: zarfNames}, nil
+
+	return &DeploySource{Bundle: b, packageZarfNames: zarfNames}, nil
 }
 
 func artifactPackageNames(source *DeploySource, b *spec.UDSBundle, packages []string) (map[string]string, error) {
