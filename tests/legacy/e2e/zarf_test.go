@@ -92,12 +92,8 @@ func TestZarfFeatureBootstrap(t *testing.T) {
 }
 
 func TestZarfToolsIgnoreCLIFeatures(t *testing.T) {
-	for _, features := range []string{"values=true", "NextMode=true,values=true"} {
-		t.Run(features, func(t *testing.T) {
-			t.Setenv("CLI_FEATURES", features)
-			stdout, stderr, err := e2e.UDS("zarf", "tools", "kubectl", "version", "--client")
-			require.NoError(t, err, stdout, stderr)
-			require.Contains(t, stdout+stderr, "Client Version")
-		})
-	}
+	t.Setenv("CLI_FEATURES", "values=true")
+	stdout, stderr, err := e2e.UDS("zarf", "tools", "kubectl", "version", "--client")
+	require.NoError(t, err, stdout, stderr)
+	require.Contains(t, stdout+stderr, "Client Version")
 }

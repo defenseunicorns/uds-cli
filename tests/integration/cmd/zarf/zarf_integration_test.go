@@ -1,0 +1,24 @@
+// Copyright 2026 Defense Unicorns
+// SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+//go:build integration
+
+package zarf_test
+
+import (
+	"os/exec"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/defenseunicorns/uds-cli/tests/testutil"
+)
+
+func TestZarfToolsIgnoreCLIFeatures_NextMode(t *testing.T) {
+	uds := testutil.UDSCLIPath(t, "run via 'maru run test:next-integration'")
+	t.Setenv("CLI_FEATURES", "NextMode=true,values=true")
+
+	output, err := exec.Command(uds, "zarf", "tools", "kubectl", "version", "--client").CombinedOutput()
+	require.NoError(t, err, string(output))
+	require.Contains(t, string(output), "Client Version")
+}
