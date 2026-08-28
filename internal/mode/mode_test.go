@@ -28,6 +28,12 @@ func TestResolve(t *testing.T) {
 		{"Zarf alias feature", []string{"z", "--features=values=false", "version"}, "", Legacy, "NextMode=false,values=false", []string{"z", "--features=values=false", "version"}},
 		{"Next tools zarf feature", []string{"tools", "zarf", "version"}, "NextMode=true,values=false", Next, "NextMode=true,values=false", []string{"tools", "zarf", "--features=values=false", "version"}},
 		{"Next tools zarf feature after root flag", []string{"tools", "--log-level", "debug", "zarf", "version"}, "NextMode=true,values=false", Next, "NextMode=true,values=false", []string{"tools", "--log-level", "debug", "zarf", "--features=values=false", "version"}},
+		{"Zarf tool skips features", []string{"zarf", "tools", "kubectl", "version"}, "values=true", Legacy, "NextMode=false,values=true", []string{"zarf", "tools", "kubectl", "version"}},
+		{"Zarf tool skips features after root flag", []string{"zarf", "--log-level", "debug", "tools", "kubectl", "version"}, "values=true", Legacy, "NextMode=false,values=true", []string{"zarf", "--log-level", "debug", "tools", "kubectl", "version"}},
+		{"Zarf tool skips features after root flag equals form", []string{"zarf", "--log-level=debug", "tools", "kubectl", "version"}, "values=true", Legacy, "NextMode=false,values=true", []string{"zarf", "--log-level=debug", "tools", "kubectl", "version"}},
+		{"Zarf alias tool skips features", []string{"z", "tools", "kubectl", "version"}, "values=true", Legacy, "NextMode=false,values=true", []string{"z", "tools", "kubectl", "version"}},
+		{"Zarf non-vendor tool keeps features", []string{"zarf", "tools", "clear-cache"}, "values=true", Legacy, "NextMode=false,values=true", []string{"zarf", "--features=values=true", "tools", "clear-cache"}},
+		{"Next Zarf tool skips features", []string{"zarf", "tools", "kubectl", "version"}, "NextMode=true,values=true", Next, "NextMode=true,values=true", []string{"zarf", "tools", "kubectl", "version"}},
 		{"Zarf feature skips task arguments", []string{"run", "zarf"}, "values=false", Legacy, "NextMode=false,values=false", []string{"run", "zarf"}},
 		{"double dash", []string{"create", "--", "--features=NextMode=true"}, "", Legacy, "NextMode=false", []string{"create", "--", "--features=NextMode=true"}},
 	}
