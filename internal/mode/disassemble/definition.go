@@ -59,6 +59,7 @@ func applyLocalizedComponent(beta *v1beta1.Component, alpha v1alpha1.ZarfCompone
 	}
 
 	beta.Actions.OnCreate = v1beta1.ComponentActionSet{}
+	beta.Selector.Flavor = ""
 	for idx := range beta.Files {
 		beta.Files[idx].Source = alpha.Files[idx].Source
 		beta.Files[idx].ExtractPath = ""

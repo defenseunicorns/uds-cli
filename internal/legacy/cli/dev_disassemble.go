@@ -4,49 +4,72 @@
 package cmd
 
 import (
-	"github.com/defenseunicorns/uds-cli/internal/dev/disassemble"
-	"github.com/defenseunicorns/uds-cli/internal/printer"
-	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
-	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/defenseunicorns/uds-cli/internal/mode/disassemble"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/config"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/message"
 	"github.com/spf13/cobra"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"gopkg.in/yaml.v3"
 )
 
 func newDevDisassembleCommand() *cobra.Command {
 	var output string
 	cmd := &cobra.Command{
 		Use:   "disassemble <source> <output-dir>",
-		Short: "[beta] Convert a Zarf package into local source",
-		Long:  "[beta] Pull a packaged artifact and rewrite it into a re-creatable local source directory. Zarf packages are supported today.",
+		Short: "[beta] Convert a Zarf package into rebuildable offline source",
+		Long:  "[beta] Extract a complete Zarf package and rewrite its packaged resources into a local source directory that can be rebuilt offline. Zarf packages are supported today.",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			format, err := printer.ParseFormat(output)
+			result, err := disassemble.Disassemble(cmd.Context(), legacyDisassembleOptions(args[0], args[1]))
 			if err != nil {
 				return err
 			}
-			resultPrinter, err := printer.NewPrinter(format)
-			if err != nil {
-				return err
-			}
-			streams := iostreams.New(cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr())
-			result, err := disassemble.Disassemble(cmd.Context(), disassemble.Options{
-				Source:    args[0],
-				OutputDir: args[1],
-				Config: bundlepkg.ConfigOptions{
-					Architecture:  config.CLIArch,
-					PlainHTTP:     config.CommonOptions.Insecure,
-					SkipTLSVerify: config.CommonOptions.Insecure,
-					TmpDir:        config.CommonOptions.TempDirectory,
-					Concurrency:   config.CommonOptions.OCIConcurrency,
-				},
-				Streams: streams,
-			})
-			if err != nil {
-				return err
-			}
-			return resultPrinter.PrintObj(result, cmd.OutOrStdout())
+			return printDisassembleResult(cmd, strings.ToLower(output), result)
 		},
 	}
 	cmd.Flags().StringVarP(&output, "output", "o", "text", "output format (text, json, yaml)")
 	return cmd
+}
+
+func legacyDisassembleOptions(source, outputDir string) disassemble.Options {
+	return disassemble.Options{
+		Source:               source,
+		OutputDir:            outputDir,
+		Architecture:         config.CLIArch,
+		PlainHTTP:            config.CommonOptions.Insecure,
+		SkipTLSVerify:        config.CommonOptions.Insecure,
+		TmpDir:               config.CommonOptions.TempDirectory,
+		Concurrency:          config.CommonOptions.OCIConcurrency,
+		VerificationStrategy: legacyDisassembleVerificationStrategy(),
+		Warn: func(msg string, args ...any) {
+			message.Warnf("%s: %v", msg, args)
+		},
+	}
+}
+
+func legacyDisassembleVerificationStrategy() layout.VerificationStrategy {
+	if config.CommonOptions.SkipSignatureValidation {
+		return layout.VerifyNever
+	}
+	return layout.VerifyIfPossible
+}
+
+func printDisassembleResult(cmd *cobra.Command, format string, result *disassemble.Result) error {
+	switch format {
+	case "", "text":
+		_, err := fmt.Fprintf(cmd.OutOrStdout(), "Source:            %s\nOutput Directory:  %s\n", result.Source, result.OutputDir)
+		return err
+	case "json":
+		encoder := json.NewEncoder(cmd.OutOrStdout())
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(result)
+	case "yaml":
+		return yaml.NewEncoder(cmd.OutOrStdout()).Encode(result)
+	default:
+		return fmt.Errorf("unknown output format %q, valid values are: text, json, yaml", format)
+	}
 }

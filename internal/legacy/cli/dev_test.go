@@ -1,15 +1,20 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package cmd contains the CLI commands for UDS.
 package cmd
 
 import (
+	"bytes"
+	"encoding/json"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/internal/mode/disassemble"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/config"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
 func TestNewDevCommandContainsDisassemble(t *testing.T) {
@@ -18,6 +23,27 @@ func TestNewDevCommandContainsDisassemble(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "disassemble", found.Name())
 	assert.Equal(t, "disassemble <source> <output-dir>", found.Use)
+}
+
+func TestLegacyDisassembleOptionsHonorSignatureBypass(t *testing.T) {
+	previous := config.CommonOptions.SkipSignatureValidation
+	t.Cleanup(func() { config.CommonOptions.SkipSignatureValidation = previous })
+
+	config.CommonOptions.SkipSignatureValidation = false
+	assert.Equal(t, layout.VerifyIfPossible, legacyDisassembleOptions("source", "output").VerificationStrategy)
+	config.CommonOptions.SkipSignatureValidation = true
+	assert.Equal(t, layout.VerifyNever, legacyDisassembleOptions("source", "output").VerificationStrategy)
+}
+
+func TestPrintDisassembleResultJSON(t *testing.T) {
+	cmd := newDevDisassembleCommand()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	require.NoError(t, printDisassembleResult(cmd, "json", &disassemble.Result{Source: "package", OutputDir: "source"}))
+	var result disassemble.Result
+	require.NoError(t, json.Unmarshal(output.Bytes(), &result))
+	assert.Equal(t, "package", result.Source)
+	assert.Equal(t, "source", result.OutputDir)
 }
 
 func TestValidateDevDeployFlags(t *testing.T) {

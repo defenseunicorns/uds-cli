@@ -3,17 +3,19 @@
 
 package disassemble
 
-import (
-	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
-	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
-)
+import "github.com/zarf-dev/zarf/src/pkg/packager/layout"
 
 // Options holds inputs for disassembling an artifact into local source.
 type Options struct {
-	Source    string
-	OutputDir string
-	Config    bundlepkg.ConfigOptions
-	Streams   iostreams.IOStreams
+	Source               string
+	OutputDir            string
+	Architecture         string
+	PlainHTTP            bool
+	SkipTLSVerify        bool
+	TmpDir               string
+	Concurrency          int
+	VerificationStrategy layout.VerificationStrategy
+	Warn                 func(string, ...any)
 }
 
 // Result describes source emitted by a successful disassembly.

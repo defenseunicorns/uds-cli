@@ -8,11 +8,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/internal/dev/disassemble"
+	"github.com/defenseunicorns/uds-cli/internal/mode/disassemble"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
 // DevDisassembleOptions holds options for artifact disassembly.
@@ -38,8 +39,8 @@ func NewDevDisassembleCommand(streams iostreams.IOStreams) *cobra.Command {
 	o := NewDevDisassembleOptions(streams)
 	return &cobra.Command{
 		Use:   "disassemble <source> <output-dir>",
-		Short: "Convert a Zarf package into local source",
-		Long:  "Pull a packaged artifact and rewrite it into a re-creatable local source directory. Zarf packages are supported today.",
+		Short: "Convert a Zarf package into rebuildable offline source",
+		Long:  "Extract a complete Zarf package and rewrite its packaged resources into a local source directory that can be rebuilt offline. Zarf packages are supported today.",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := o.Complete(cmd, args); err != nil {
@@ -83,10 +84,15 @@ func (o *DevDisassembleOptions) Validate() error {
 // Run disassembles the source artifact and prints its result.
 func (o *DevDisassembleOptions) Run(ctx context.Context) error {
 	result, err := o.run(ctx, disassemble.Options{
-		Source:    o.Source,
-		OutputDir: o.OutputDir,
-		Config:    *o.Config.Options,
-		Streams:   o.IOStreams,
+		Source:               o.Source,
+		OutputDir:            o.OutputDir,
+		Architecture:         o.Config.Options.Architecture,
+		PlainHTTP:            o.Config.Options.PlainHTTP,
+		SkipTLSVerify:        o.Config.Options.SkipTLSVerify,
+		TmpDir:               o.Config.Options.TmpDir,
+		Concurrency:          o.Config.Options.Concurrency,
+		VerificationStrategy: layout.VerifyIfPossible,
+		Warn:                 o.Warn,
 	})
 	if err != nil {
 		return err

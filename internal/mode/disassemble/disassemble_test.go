@@ -4,24 +4,36 @@
 package disassemble
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
-	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
-	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	packageoci "github.com/defenseunicorns/pkg/oci"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/google/go-containerregistry/pkg/registry"
+	"github.com/opencontainers/image-spec/specs-go"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
+	"github.com/zarf-dev/zarf/src/pkg/archive"
 	"github.com/zarf-dev/zarf/src/pkg/packager/assemble"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/packager/load"
+	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	zarftypes "github.com/zarf-dev/zarf/src/types"
+	"oras.land/oras-go/v2/content"
+	contentoci "oras.land/oras-go/v2/content/oci"
 )
 
 func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
@@ -37,7 +49,7 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	outputDir := filepath.Join(t.TempDir(), "disassembled%source")
 	result, err := Disassemble(t.Context(), Options{
 		Source: pkgLayout.DirPath(), OutputDir: outputDir,
-		Config: bundlepkg.ConfigOptions{Architecture: "amd64", TmpDir: t.TempDir(), Concurrency: 1}, Streams: testStreams(),
+		Architecture: "amd64", TmpDir: t.TempDir(), Concurrency: 1,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, outputDir, result.OutputDir)
@@ -84,6 +96,36 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	assert.Equal(t, "1.2.3-disassembled", reassembled.AsV1alpha1().Metadata.Version)
 }
 
+func TestDisassemblePullsOCIPackage(t *testing.T) {
+	server := httptest.NewServer(registry.New())
+	t.Cleanup(server.Close)
+
+	sourceDir := writeSourcePackage(t)
+	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
+	require.NoError(t, err)
+	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir()})
+	require.NoError(t, err)
+	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
+	ref := strings.TrimPrefix(server.URL, "http://") + "/test/disassemble:1.0.0"
+	remote, err := zoci.NewRemoteWithOptions(t.Context(), ref, ocispec.Platform{Architecture: "amd64", OS: packageoci.MultiOS}, zoci.RemoteClientOptions{
+		RemoteOptions: zarftypes.RemoteOptions{PlainHTTP: true},
+	})
+	require.NoError(t, err)
+	_, err = remote.PushPackage(t.Context(), pkgLayout, zoci.PublishOptions{Retries: 1, OCIConcurrency: 1})
+	require.NoError(t, err)
+
+	outputDir := filepath.Join(t.TempDir(), "output")
+	_, err = Disassemble(t.Context(), Options{
+		Source: "oci://" + ref, OutputDir: outputDir, Architecture: "amd64", PlainHTTP: true, TmpDir: t.TempDir(), Concurrency: 1,
+	})
+	require.NoError(t, err)
+	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
+	require.NoError(t, err)
+	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir()})
+	require.NoError(t, err)
+	defer func() { require.NoError(t, reassembled.Cleanup()) }()
+}
+
 func TestDisassemblePreservesV1beta1Definition(t *testing.T) {
 	sourceDir := t.TempDir()
 	writeFile(t, filepath.Join(sourceDir, "payload.txt"), "payload\n")
@@ -107,7 +149,7 @@ components:
 	outputDir := filepath.Join(t.TempDir(), "beta-output")
 	_, err = Disassemble(t.Context(), Options{
 		Source: pkgLayout.DirPath(), OutputDir: outputDir,
-		Config: bundlepkg.ConfigOptions{Architecture: "amd64", TmpDir: t.TempDir()}, Streams: testStreams(),
+		Architecture: "amd64", TmpDir: t.TempDir(),
 	})
 	require.NoError(t, err)
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
@@ -122,6 +164,82 @@ components:
 	require.NoError(t, err)
 	defer func() { require.NoError(t, reassembled.Cleanup()) }()
 	assert.Equal(t, v1beta1.APIVersion, reassembled.PackageDefinition.OriginalAPIVersion())
+}
+
+func TestDisassembleClearsResolvedFlavorSelectors(t *testing.T) {
+	sourceDir := t.TempDir()
+	writeFile(t, filepath.Join(sourceDir, "payload.txt"), "payload\n")
+	writeFile(t, filepath.Join(sourceDir, layout.ZarfYAML), `kind: ZarfPackageConfig
+metadata:
+  name: flavored
+  version: 1.0.0
+  architecture: amd64
+components:
+  - name: app
+    required: true
+    only:
+      flavor: offline
+    files:
+      - source: payload.txt
+        target: /tmp/payload.txt
+`)
+	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true})
+	require.NoError(t, err)
+	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{Flavor: "offline", SkipSBOM: true})
+	require.NoError(t, err)
+	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
+
+	outputDir := filepath.Join(t.TempDir(), "output")
+	_, err = Disassemble(t.Context(), Options{Source: pkgLayout.DirPath(), OutputDir: outputDir, Architecture: "amd64", TmpDir: t.TempDir()})
+	require.NoError(t, err)
+	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
+	require.NoError(t, err)
+	require.Len(t, generated.PackageDefinition.AsV1alpha1().Components, 1)
+	assert.Empty(t, generated.PackageDefinition.AsV1alpha1().Components[0].Only.Flavor)
+
+	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{SkipSBOM: true})
+	require.NoError(t, err)
+	defer func() { require.NoError(t, reassembled.Cleanup()) }()
+}
+
+func TestDisassembleRoundTripsImagesOffline(t *testing.T) {
+	const image = "registry.invalid/offline/app:v1"
+	sourceDir := t.TempDir()
+	imageArchive := filepath.Join(sourceDir, "images.tar")
+	writeImageArchive(t, imageArchive, image)
+	pkg := v1alpha1.ZarfPackage{
+		APIVersion: v1alpha1.APIVersion,
+		Kind:       v1alpha1.ZarfPackageConfig,
+		Metadata:   v1alpha1.ZarfMetadata{Name: "offline-image", Version: "1.0.0", Architecture: "amd64"},
+		Components: []v1alpha1.ZarfComponent{{
+			Name:          "app",
+			ImageArchives: []v1alpha1.ImageArchive{{Path: "images.tar", Images: []string{image}}},
+		}},
+	}
+	require.NoError(t, layout.WritePackageDefinition(filepath.Join(sourceDir, layout.ZarfYAML), api.NewPackageDefinitionFromV1alpha1(pkg)))
+	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
+	require.NoError(t, err)
+	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{SkipSBOM: true})
+	require.NoError(t, err)
+	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
+
+	outputDir := filepath.Join(t.TempDir(), "output")
+	_, err = Disassemble(t.Context(), Options{Source: pkgLayout.DirPath(), OutputDir: outputDir, Architecture: "amd64", TmpDir: t.TempDir()})
+	require.NoError(t, err)
+	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
+	require.NoError(t, err)
+	require.Len(t, generated.PackageDefinition.AsV1alpha1().Components[0].ImageArchives, 1)
+	assert.Equal(t, []string{image}, generated.PackageDefinition.AsV1alpha1().Components[0].ImageArchives[0].Images)
+
+	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{SkipSBOM: true})
+	require.NoError(t, err)
+	defer func() { require.NoError(t, reassembled.Cleanup()) }()
+	indexBytes, err := os.ReadFile(filepath.Join(reassembled.GetImageDirPath(), ocispec.ImageIndexFile))
+	require.NoError(t, err)
+	var index ocispec.Index
+	require.NoError(t, json.Unmarshal(indexBytes, &index))
+	require.Len(t, index.Manifests, 1)
+	assert.Equal(t, image, index.Manifests[0].Annotations[ocispec.AnnotationRefName])
 }
 
 func TestLocalizedDefinitionPreservesV1beta1OnlyFields(t *testing.T) {
@@ -153,6 +271,7 @@ func TestLocalizedDefinitionPreservesV1beta1OnlyFields(t *testing.T) {
 	assert.False(t, component.Manifests[0].Kustomize.AllowAnyDirectory)
 	assert.False(t, component.Manifests[0].Kustomize.EnablePlugins)
 	assert.True(t, component.Manifests[0].EnableTemplating)
+	assert.Empty(t, component.Selector.Flavor)
 }
 
 func TestDisassembleFailureDoesNotPublishPartialOutput(t *testing.T) {
@@ -160,7 +279,7 @@ func TestDisassembleFailureDoesNotPublishPartialOutput(t *testing.T) {
 	outputDir := filepath.Join(parent, "output")
 	_, err := Disassemble(t.Context(), Options{
 		Source: filepath.Join(parent, "missing.tar.zst"), OutputDir: outputDir,
-		Config: bundlepkg.ConfigOptions{TmpDir: t.TempDir()}, Streams: testStreams(),
+		TmpDir: t.TempDir(),
 	})
 	require.Error(t, err)
 	assert.NoDirExists(t, outputDir)
@@ -264,7 +383,41 @@ func writeFile(t *testing.T, path, contents string) {
 	require.NoError(t, os.WriteFile(path, []byte(contents), 0o600))
 }
 
-func testStreams() iostreams.IOStreams {
-	streams, _, _, _ := iostreams.NewTestIOStreams()
-	return streams
+func writeImageArchive(t *testing.T, archivePath, ref string) {
+	t.Helper()
+	ctx := t.Context()
+	imageDir := t.TempDir()
+	store, err := contentoci.NewWithContext(ctx, imageDir)
+	require.NoError(t, err)
+	push := func(mediaType string, data []byte) ocispec.Descriptor {
+		t.Helper()
+		desc := content.NewDescriptorFromBytes(mediaType, data)
+		require.NoError(t, store.Push(ctx, desc, bytes.NewReader(data)))
+		return desc
+	}
+	layerData := []byte("offline image layer")
+	layer := push(ocispec.MediaTypeImageLayer, layerData)
+	configData := []byte(fmt.Sprintf(`{"architecture":"amd64","os":"linux","rootfs":{"type":"layers","diff_ids":[%q]}}`, layer.Digest.String()))
+	config := push(ocispec.MediaTypeImageConfig, configData)
+	manifestData, err := json.Marshal(ocispec.Manifest{
+		Versioned: specs.Versioned{SchemaVersion: 2},
+		MediaType: ocispec.MediaTypeImageManifest,
+		Config:    config,
+		Layers:    []ocispec.Descriptor{layer},
+	})
+	require.NoError(t, err)
+	manifest := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, manifestData)
+	manifest.Annotations = map[string]string{
+		ocispec.AnnotationRefName:       ref,
+		ocispec.AnnotationBaseImageName: ref,
+	}
+	require.NoError(t, store.Push(ctx, manifest, bytes.NewReader(manifestData)))
+	require.NoError(t, store.Tag(ctx, manifest, ref))
+	entries, err := os.ReadDir(imageDir)
+	require.NoError(t, err)
+	paths := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		paths = append(paths, filepath.Join(imageDir, entry.Name()))
+	}
+	require.NoError(t, archive.Compress(ctx, paths, archivePath, archive.CompressOpts{}))
 }

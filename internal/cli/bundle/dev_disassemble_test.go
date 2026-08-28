@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/defenseunicorns/uds-cli/internal/dev/disassemble"
+	"github.com/defenseunicorns/uds-cli/internal/mode/disassemble"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -32,7 +32,11 @@ func TestDevDisassembleOptionsRunPassesConfigAndPrintsResult(t *testing.T) {
 		},
 	}
 	require.NoError(t, o.Run(t.Context()))
-	assert.Equal(t, *o.Config.Options, got.Config)
+	assert.Equal(t, o.Config.Options.Architecture, got.Architecture)
+	assert.Equal(t, o.Config.Options.PlainHTTP, got.PlainHTTP)
+	assert.Equal(t, o.Config.Options.SkipTLSVerify, got.SkipTLSVerify)
+	assert.Equal(t, o.Config.Options.TmpDir, got.TmpDir)
+	assert.Equal(t, o.Config.Options.Concurrency, got.Concurrency)
 	assert.Contains(t, out.String(), "oci://example.test/package:1.0.0")
 }
 

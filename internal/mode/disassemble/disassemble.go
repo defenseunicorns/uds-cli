@@ -14,9 +14,6 @@ import (
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
-	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
-	internalzarf "github.com/defenseunicorns/uds-cli/internal/zarf"
-	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -40,24 +37,25 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 		return nil, err
 	}
 
-	tmpRoot, err := os.MkdirTemp(opts.Config.TmpDir, "uds-dev-disassemble-*")
+	tmpRoot, err := os.MkdirTemp(opts.TmpDir, "uds-dev-disassemble-*")
 	if err != nil {
 		return nil, fmt.Errorf("creating temporary directory: %w", err)
 	}
-	defer warnRemoveAll(opts.Streams, "temporary directory", tmpRoot)()
+	defer warnRemoveAll(opts.Warn, "temporary directory", tmpRoot)()
 
-	sourceConfig := bundleinternal.ConfigOptions(opts.Config)
-	if sourceConfig.Architecture == "" {
-		sourceConfig.Architecture = runtime.GOARCH
+	if opts.Architecture == "" {
+		opts.Architecture = runtime.GOARCH
 	}
-	source := internalzarf.NewPackageSource(opts.Source, sourceConfig, "", opts.Streams)
-	pkgLayout, err := source.PullFiltered(ctx, tmpRoot, layout.PackageLayoutOptions{Filter: filters.Empty()})
+	pkgLayout, err := loadPackageSource(ctx, tmpRoot, opts, layout.PackageLayoutOptions{
+		Filter:               filters.Empty(),
+		VerificationStrategy: opts.VerificationStrategy,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("loading source package: %w", err)
 	}
 	defer func() {
 		if err := pkgLayout.Cleanup(); err != nil {
-			opts.Streams.Warn("failed to remove package layout", "path", pkgLayout.DirPath(), "error", err)
+			warn(opts.Warn, "failed to remove package layout", "path", pkgLayout.DirPath(), "error", err)
 		}
 	}()
 
@@ -72,6 +70,9 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 	}
 	pkg.Build = v1alpha1.ZarfBuildData{Migrations: pkg.Build.Migrations}
 	normalizeMetadata(&pkg.Metadata)
+	for idx := range pkg.Components {
+		pkg.Components[idx].Only.Flavor = ""
+	}
 
 	stageDir, err := createOutputStage(finalDir)
 	if err != nil {
@@ -79,7 +80,7 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 	}
 	defer func() {
 		if stageDir != "" {
-			warnRemoveAll(opts.Streams, "output staging directory", stageDir)()
+			warnRemoveAll(opts.Warn, "output staging directory", stageDir)()
 		}
 	}()
 
@@ -111,11 +112,17 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 	return &Result{Source: opts.Source, OutputDir: opts.OutputDir}, nil
 }
 
-func warnRemoveAll(streams iostreams.IOStreams, kind, path string) func() {
+func warnRemoveAll(warnFn func(string, ...any), kind, path string) func() {
 	return func() {
 		if err := os.RemoveAll(path); err != nil {
-			streams.Warn("failed to remove "+kind, "path", path, "error", err)
+			warn(warnFn, "failed to remove "+kind, "path", path, "error", err)
 		}
+	}
+}
+
+func warn(warnFn func(string, ...any), msg string, args ...any) {
+	if warnFn != nil {
+		warnFn(msg, args...)
 	}
 }
 
