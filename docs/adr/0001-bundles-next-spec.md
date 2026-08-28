@@ -1,7 +1,7 @@
-# 1. Better Bundles Spec
+# 1. Bundles Next Spec
 
 Date: 2026-01-22
-Updated: 2026-05-05
+Updated: 2026-08-27
 
 ## Changelog
 
@@ -9,6 +9,7 @@ Updated: 2026-05-05
 |------|--------|
 | 2026-01-22 | Initial ADR - HCL bundle definition, `bundle.uds.hcl` and `config.uds.hcl` schemas, OCI layout, custom media types |
 | 2026-05-05 | CLI-136: the `variables` block accepts list, set, and tuple values in addition to scalars and objects. Layer overrides replace collections wholesale (Helm convention). |
+| 2026-08-27 | CLI-318: replace "Better Bundles" with "Bundles Next". |
 
 ## Status
 

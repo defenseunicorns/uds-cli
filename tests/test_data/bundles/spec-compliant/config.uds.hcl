@@ -6,7 +6,7 @@
 # This file demonstrates how to provide deploy-time variables that are used
 # to template values files. Variables use the {{ .vars.* }} syntax in YAML files.
 #
-# Reference: docs/specs/1_Better_Bundles.md
+# Reference: docs/adr/0001-bundles-next-spec.md
 
 # CLI options for bundle deployment
 options {
