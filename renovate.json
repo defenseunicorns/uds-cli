@@ -69,6 +69,16 @@
       ],
       "datasourceTemplate": "docker",
       "versioningTemplate": "regex:^v?(?<major>\\d+)(\\.(?<minor>\\d+))?(\\.(?<patch>\\d+))?(-uds\\.(?<build>\\d+))?(-(?<compatibility>\\w+)?)?(.*?)?$"
+    },
+    {
+      "customType": "regex",
+      "description": "Matches OCI package sources in Next mode HCL examples in Markdown and MDX documentation",
+      "managerFilePatterns": ["/(^|/)(README\\.md|docs/.*\\.mdx?)$/"],
+      "matchStrings": [
+        "(?m)^\\s*source\\s*=\\s*\\\"oci://(?<depName>ghcr\\.io/(?:zarf-dev|defenseunicorns)/[^\\\":\\s]+):(?<currentValue>v?\\d+\\.\\d+\\.\\d+(?:[-+][^\\\"]+)?)\\\""
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "regex:^v?(?<major>\\d+)(\\.(?<minor>\\d+))?(\\.(?<patch>\\d+))?(-uds\\.(?<build>\\d+))?(-(?<compatibility>\\w+)?)?(.*?)?$"
     }
   ]
 }

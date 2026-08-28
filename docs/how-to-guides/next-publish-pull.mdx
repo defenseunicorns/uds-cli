@@ -19,11 +19,9 @@ Use `bundle push` to publish a local `.tar.zst` artifact and `bundle pull` to re
 
 - [UDS CLI installed](/cli/getting-started/installation/)
 - A bundle directory containing `bundle.uds.hcl` and its referenced files, or an existing `.tar.zst` bundle artifact
-- OCI access to each package source and any public keys referenced by `bundle.uds.hcl` when creating an artifact
-- A signing key or keyless identity for the create step. The example uses `./cosign.key`.
-- A matching public key or keyless certificate constraints for pull and deploy. The example uses `./cosign.pub`.
-- Authentication and write access to the destination OCI registry
-- Read access to the registry when pulling the artifact
+- OCI access to each package source when creating an artifact
+- A signing key or keyless identity, and matching public key or keyless certificate constraints for signed workflows
+- Read and write access to the destination OCI registry
 
 ## Steps
 
@@ -91,14 +89,6 @@ CLI_FEATURES=NextMode=true uds bundle inspect ./downloads/uds-bundle-my-app-<ARC
 ```
 
 Replace `<ARCH>` with the architecture in the path printed by `bundle pull`, such as `amd64` or `arm64`. The output filename includes the bundle name, architecture, and version.
-
-## Troubleshooting
-
-### Problem: The registry rejects the push
-
-**Symptom:** `bundle push` cannot authenticate or write the destination artifact.
-
-**Solution:** Authenticate to the registry, confirm that the repository exists or that your account can create it, and retry the push.
 
 ## Related documentation
 

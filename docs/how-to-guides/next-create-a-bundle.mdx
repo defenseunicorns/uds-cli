@@ -66,14 +66,14 @@ Create a self-contained OCI artifact from a `bundle.uds.hcl` definition.
    }
    ```
 
-   Create the values file referenced by the `api` package. Replace the example field with a value supported by the package's charts:
+   Create the values file referenced by the `api` package. Values files support Go templates. The `{{ .vars.* }}` expressions read variables available at deploy time, including values from `defaults.uds.hcl` or `config.uds.hcl`; missing variables cause deployment to fail. Replace the example field with a value supported by the package's charts:
 
    ```yaml title="values/api.yaml"
    # Replace this example with values supported by the API package.
    replicaCount: {{ .vars.replica_count }}
    ```
 
-    The package ID is the label after `package`. Use `depends_on` to control deployment order. Independent packages deploy in parallel.
+    The package ID is the label after `package`. Use it with `depends_on` to control deployment order, for example `depends_on = [package.database]`. Independent packages deploy in parallel.
 
     Each package needs one verification method: `public_key`, `keyless`, or an explicit `signature_verification { verify = false }` bypass. Use the bypass only for local alpha workflows. It produces a warning.
 
@@ -88,7 +88,21 @@ Create a self-contained OCI artifact from a `bundle.uds.hcl` definition.
    }
    ```
 
-    Use `locals` to avoid repeating registry or version values. Use `file(path)` for UTF-8 text files. Paths resolve relative to the HCL file.
+    Use `locals` to avoid repeating registry or version values:
+
+    ```hcl title="bundle.uds.hcl"
+    locals {
+      package_registry = "ghcr.io/my-org/packages"
+      api_version      = "2.0.0"
+    }
+
+    package "api" {
+      source = "oci://${local.package_registry}/my-api:${local.api_version}"
+      signature_verification { verify = false }
+    }
+    ```
+
+    Use `file(path)` for UTF-8 text files. Paths resolve relative to the HCL file.
 
 3. **Create the artifact**
 

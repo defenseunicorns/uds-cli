@@ -19,8 +19,9 @@ Use `bundle dev deploy` for a definition and `bundle deploy` for a created artif
 
 - [UDS CLI installed](/cli/getting-started/installation/)
 - A directory containing `bundle.uds.hcl`, or a created `.tar.zst` artifact
-- A matching bundle public key such as `./cosign.pub` for signed artifact examples
+- A matching bundle public key or keyless certificate constraints for signed artifact examples
 - Access to the target Kubernetes cluster
+- OCI access to each package source when deploying from a definition
 - Registry access when deploying an OCI artifact
 
 ## Steps

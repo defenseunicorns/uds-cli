@@ -18,9 +18,9 @@ Use `bundle reconfigure` to replace environment defaults without rebuilding pack
 ## Prerequisites
 
 - [UDS CLI installed](/cli/getting-started/installation/)
-- A local `.tar.zst` artifact or an OCI bundle reference. Use a signed artifact outside local alpha workflows.
+- A local `.tar.zst` bundle artifact or an OCI bundle reference
 - A `defaults.uds.hcl` file containing the replacement variables
-- A public key or keyless verification policy for the source artifact
+- A matching bundle public key or keyless certificate constraints for the source artifact
 - A signing key or keyless signing identity for a signed derivative
 
 ## Steps
