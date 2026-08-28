@@ -1,0 +1,1079 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2021-Present The Zarf Authors
+
+// Package cmd contains the CLI commands for Zarf.
+package cmd
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/Masterminds/semver/v3"
+	"github.com/defenseunicorns/pkg/helpers/v2"
+	"github.com/sigstore/cosign/v3/pkg/cosign"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
+	goyaml "github.com/goccy/go-yaml"
+	"github.com/zarf-dev/zarf/src/config"
+	"github.com/zarf-dev/zarf/src/config/lang"
+	"github.com/zarf-dev/zarf/src/internal/packager/helm"
+	"github.com/zarf-dev/zarf/src/internal/packager/template"
+	"github.com/zarf-dev/zarf/src/pkg/cluster"
+	"github.com/zarf-dev/zarf/src/pkg/logger"
+	"github.com/zarf-dev/zarf/src/pkg/message"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
+	"github.com/zarf-dev/zarf/src/pkg/pki"
+	"github.com/zarf-dev/zarf/src/pkg/state"
+	"github.com/zarf-dev/zarf/src/pkg/zoci"
+)
+
+const (
+	registryKey     = "registry"
+	registryReadKey = "registry-readonly"
+	gitKey          = "git"
+	gitReadKey      = "git-readonly"
+	artifactKey     = "artifact"
+)
+
+type getCredsOptions struct {
+	outputFormat outputFormat
+	outputWriter io.Writer
+	cluster      *cluster.Cluster
+}
+
+func newGetCredsOptions() *getCredsOptions {
+	return &getCredsOptions{
+		outputFormat: outputTable,
+		// TODO accept output writer as a parameter to the root Zarf command and pass it through here
+		outputWriter: OutputWriter,
+	}
+}
+
+func newGetCredsCommand() *cobra.Command {
+	o := newGetCredsOptions()
+
+	cmd := &cobra.Command{
+		Use:     "get-creds",
+		Short:   lang.CmdToolsGetCredsShort,
+		Long:    lang.CmdToolsGetCredsLong,
+		Example: lang.CmdToolsGetCredsExample,
+		Aliases: []string{"gc"},
+		Args:    cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			err := o.complete(ctx)
+			if err != nil {
+				return err
+			}
+			return o.run(ctx, args)
+		},
+	}
+
+	cmd.Flags().VarP(&o.outputFormat, "output-format", "o", "Prints the output in the specified format. Valid options: table, json, yaml")
+
+	return cmd
+}
+
+func (o *getCredsOptions) complete(ctx context.Context) error {
+	timeoutCtx, cancel := context.WithTimeout(ctx, cluster.DefaultTimeout)
+	defer cancel()
+	c, err := cluster.NewWithWait(timeoutCtx)
+	if err != nil {
+		return err
+	}
+	o.cluster = c
+	return nil
+}
+
+func (o *getCredsOptions) run(ctx context.Context, args []string) error {
+	s, err := o.cluster.LoadState(ctx)
+	if err != nil {
+		return err
+	}
+	// TODO: Determine if this is actually needed.
+	if s.Distro == "" {
+		return errors.New("state.Distro empty, did not load from cluster")
+	}
+
+	if len(args) > 0 {
+		// If a component name is provided, only show that component's credentials
+		// Printing both the pterm output and slogger for now
+		printComponentCredential(ctx, s, args[0], o.outputWriter)
+		return nil
+	}
+
+	if s.ArtifactServer.IsConfigured() {
+		logger.From(ctx).Warn(lang.ArtifactServerDeprecated)
+	}
+	return printCredentialTable(s, o.outputFormat, o.outputWriter)
+}
+
+type credentialInfo struct {
+	Application string `json:"application"`
+	Username    string `json:"username"`
+	Password    string `json:"password"`
+	Connect     string `json:"connect"`
+	GetCredsKey string `json:"getCredsKey"`
+}
+
+// TODO Zarf state should be changed to have empty values when a service is not in use
+// Once this change is in place, this function should check if the git server, artifact server, or registry server
+// information is empty and avoid printing that service if so
+func printCredentialTable(s *state.State, outputFormat outputFormat, out io.Writer) error {
+	var credentials []credentialInfo
+
+	if s.RegistryInfo.IsInternal() {
+		credentials = append(credentials,
+			credentialInfo{
+				Application: "Registry",
+				Username:    s.RegistryInfo.PushUsername,
+				Password:    s.RegistryInfo.PushPassword,
+				Connect:     "zarf connect registry",
+				GetCredsKey: registryKey,
+			},
+			credentialInfo{
+				Application: "Registry (read-only)",
+				Username:    s.RegistryInfo.PullUsername,
+				Password:    s.RegistryInfo.PullPassword,
+				Connect:     "zarf connect registry",
+				GetCredsKey: registryReadKey,
+			},
+		)
+	}
+
+	credentials = append(credentials,
+		credentialInfo{
+			Application: "Git",
+			Username:    s.GitServer.PushUsername,
+			Password:    s.GitServer.PushPassword,
+			Connect:     "zarf connect git",
+			GetCredsKey: gitKey,
+		},
+		credentialInfo{
+			Application: "Git (read-only)",
+			Username:    s.GitServer.PullUsername,
+			Password:    s.GitServer.PullPassword,
+			Connect:     "zarf connect git",
+			GetCredsKey: gitReadKey,
+		},
+		credentialInfo{
+			Application: "Artifact Token",
+			Username:    s.ArtifactServer.PushUsername,
+			Password:    s.ArtifactServer.PushToken,
+			Connect:     "zarf connect git",
+			GetCredsKey: artifactKey,
+		},
+	)
+
+	switch outputFormat {
+	case outputJSON:
+		output, err := json.MarshalIndent(credentials, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(out, string(output))
+	case outputYAML:
+		output, err := goyaml.Marshal(credentials)
+		if err != nil {
+			return err
+		}
+		fmt.Fprint(out, string(output))
+	case outputTable:
+		header := []string{"Application", "Username", "Password", "Connect", "Get-Creds Key"}
+		var tableData [][]string
+		for _, cred := range credentials {
+			tableData = append(tableData, []string{
+				cred.Application, cred.Username, cred.Password, cred.Connect, cred.GetCredsKey,
+			})
+		}
+		message.TableWithWriter(out, header, tableData)
+	default:
+		return fmt.Errorf("unsupported output format: %s", outputFormat)
+	}
+	return nil
+}
+
+func printComponentCredential(ctx context.Context, s *state.State, componentName string, out io.Writer) {
+	l := logger.From(ctx)
+	switch strings.ToLower(componentName) {
+	case gitKey:
+		l.Info("Git server push password", "username", s.GitServer.PushUsername)
+		fmt.Fprintln(out, s.GitServer.PushPassword)
+	case gitReadKey:
+		l.Info("Git server (read-only) password", "username", s.GitServer.PullUsername)
+		fmt.Fprintln(out, s.GitServer.PullPassword)
+	case artifactKey:
+		logger.From(ctx).Warn(lang.ArtifactServerDeprecated)
+		l.Info("artifact server token", "username", s.ArtifactServer.PushUsername)
+		fmt.Fprintln(out, s.ArtifactServer.PushToken)
+	case registryKey:
+		l.Info("image registry password", "username", s.RegistryInfo.PushUsername)
+		fmt.Fprintln(out, s.RegistryInfo.PushPassword)
+	case registryReadKey:
+		l.Info("image registry (read-only) password", "username", s.RegistryInfo.PullUsername)
+		fmt.Fprintln(out, s.RegistryInfo.PullPassword)
+	default:
+		l.Warn("unknown component", "component", componentName)
+	}
+}
+
+type updateCredsOptions struct {
+	confirm          bool
+	forceConflicts   bool
+	gitServer        state.GitServerInfo
+	registryInfo     state.RegistryInfo
+	artifactServer   state.ArtifactServerInfo
+	agentTLSCAPath   string
+	agentTLSCertPath string
+	agentTLSKeyPath  string
+}
+
+func newUpdateCredsCommand(v *viper.Viper) *cobra.Command {
+	o := &updateCredsOptions{}
+
+	cmd := &cobra.Command{
+		Use:     "update-creds",
+		Short:   lang.CmdToolsUpdateCredsShort,
+		Long:    lang.CmdToolsUpdateCredsLong,
+		Example: lang.CmdToolsUpdateCredsExample,
+		Aliases: []string{"uc"},
+		Args:    cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return o.run(cmd, args, v)
+		},
+	}
+
+	// Always require confirm flag (no viper)
+	cmd.Flags().BoolVarP(&o.confirm, "confirm", "c", false, lang.CmdToolsUpdateCredsConfirmFlag)
+	cmd.Flags().BoolVar(&o.forceConflicts, "force-conflicts", false, lang.CmdPackageDeployFlagForceConflicts)
+
+	// Flags for using an external Git server
+	cmd.Flags().StringVar(&o.gitServer.Address, "git-url", v.GetString(VInitGitURL), lang.CmdInitFlagGitURL)
+	cmd.Flags().StringVar(&o.gitServer.PushUsername, "git-push-username", v.GetString(VInitGitPushUser), lang.CmdInitFlagGitPushUser)
+	cmd.Flags().StringVar(&o.gitServer.PushPassword, "git-push-password", v.GetString(VInitGitPushPass), lang.CmdInitFlagGitPushPass)
+	cmd.Flags().StringVar(&o.gitServer.PullUsername, "git-pull-username", v.GetString(VInitGitPullUser), lang.CmdInitFlagGitPullUser)
+	cmd.Flags().StringVar(&o.gitServer.PullPassword, "git-pull-password", v.GetString(VInitGitPullPass), lang.CmdInitFlagGitPullPass)
+
+	// Flags for using an external registry
+	cmd.Flags().StringVar(&o.registryInfo.Address, "registry-url", v.GetString(VInitRegistryURL), lang.CmdInitFlagRegURL)
+	cmd.Flags().StringVar(&o.registryInfo.PushUsername, "registry-push-username", v.GetString(VInitRegistryPushUser), lang.CmdInitFlagRegPushUser)
+	cmd.Flags().StringVar(&o.registryInfo.PushPassword, "registry-push-password", v.GetString(VInitRegistryPushPass), lang.CmdInitFlagRegPushPass)
+	cmd.Flags().StringVar(&o.registryInfo.PullUsername, "registry-pull-username", v.GetString(VInitRegistryPullUser), lang.CmdInitFlagRegPullUser)
+	cmd.Flags().StringVar(&o.registryInfo.PullPassword, "registry-pull-password", v.GetString(VInitRegistryPullPass), lang.CmdInitFlagRegPullPass)
+
+	// Flags for using an external artifact server
+	cmd.Flags().StringVar(&o.artifactServer.Address, "artifact-url", v.GetString(VInitArtifactURL), lang.CmdInitFlagArtifactURL)
+	cmd.Flags().StringVar(&o.artifactServer.PushUsername, "artifact-push-username", v.GetString(VInitArtifactPushUser), lang.CmdInitFlagArtifactPushUser)
+	cmd.Flags().StringVar(&o.artifactServer.PushToken, "artifact-push-token", v.GetString(VInitArtifactPushToken), lang.CmdInitFlagArtifactPushToken)
+	_ = cmd.Flags().MarkDeprecated("artifact-url", lang.ArtifactServerDeprecated)
+	_ = cmd.Flags().MarkDeprecated("artifact-push-username", lang.ArtifactServerDeprecated)
+	_ = cmd.Flags().MarkDeprecated("artifact-push-token", lang.ArtifactServerDeprecated)
+
+	// Flags for providing user-managed agent TLS certificates
+	cmd.Flags().StringVar(&o.agentTLSCAPath, "agent-tls-ca", "", "Path to a PEM-encoded CA certificate for the Zarf agent")
+	cmd.Flags().StringVar(&o.agentTLSCertPath, "agent-tls-cert", "", "Path to a PEM-encoded TLS certificate for the Zarf agent")
+	cmd.Flags().StringVar(&o.agentTLSKeyPath, "agent-tls-key", "", "Path to a PEM-encoded TLS private key for the Zarf agent")
+	cmd.MarkFlagsRequiredTogether("agent-tls-ca", "agent-tls-cert", "agent-tls-key")
+
+	cmd.Flags().SortFlags = true
+
+	cmd.AddCommand(newUpdateRegistryCredsCommand(v))
+	cmd.AddCommand(newUpdateGitCredsCommand(v))
+	cmd.AddCommand(newUpdateAgentCredsCommand(v))
+
+	return cmd
+}
+
+func (o *updateCredsOptions) run(cmd *cobra.Command, args []string, v *viper.Viper) error {
+	ctx := cmd.Context()
+	l := logger.From(ctx)
+	l.Warn(lang.CmdToolsUpdateCredsDeprecated)
+
+	services := state.NewServiceSet(state.AllServiceKeys()...)
+	if len(args) > 0 {
+		parsed, err := state.ParseServiceKey(args[0])
+		if err != nil {
+			cmd.Help()
+			return err
+		}
+		services = state.NewServiceSet(parsed)
+	}
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, cluster.DefaultTimeout)
+	defer cancel()
+	c, err := cluster.NewWithWait(timeoutCtx)
+	if err != nil {
+		return err
+	}
+
+	oldState, err := c.LoadState(ctx)
+	if err != nil {
+		return err
+	}
+	// TODO: Determine if this is actually needed.
+	if oldState.Distro == "" {
+		return errors.New("zarf state secret did not load properly")
+	}
+
+	if services.Has(state.ArtifactKey) && oldState.ArtifactServer.IsConfigured() {
+		l.Warn(lang.ArtifactServerDeprecated)
+	}
+
+	registryURLSet := services.Has(state.RegistryKey) && optionIsExplicitlySet(cmd, v, "registry-url", VInitRegistryURL)
+	registryInfo, err := resolveRegistryUpdate(ctx, c, oldState.RegistryInfo, o.registryInfo, registryURLSet)
+	if err != nil {
+		return err
+	}
+	opts := state.MergeOptions{
+		GitServer:      o.gitServer,
+		RegistryInfo:   registryInfo,
+		ArtifactServer: o.artifactServer,
+		Services:       services,
+	}
+
+	if services.Has(state.AgentKey) {
+		if oldState.AgentTLSUserProvided && o.agentTLSCAPath == "" {
+			return fmt.Errorf("current agent TLS certificates are user-provided; provide --agent-tls-ca, --agent-tls-cert, and --agent-tls-key to update them, or explicitly define service list without `agent`")
+		}
+		if o.agentTLSCAPath != "" {
+			loadedTLS, err := loadAndValidateAgentTLS(o.agentTLSCAPath, o.agentTLSCertPath, o.agentTLSKeyPath)
+			if err != nil {
+				return fmt.Errorf("invalid agent TLS certificates: %w", err)
+			}
+			opts.AgentTLS = &loadedTLS
+		}
+	}
+
+	newState, err := state.Merge(oldState, opts)
+	if err != nil {
+		return fmt.Errorf("unable to update Zarf credentials: %w", err)
+	}
+
+	printCredentialUpdates(ctx, oldState, newState, services)
+
+	confirm := o.confirm
+
+	if !confirm {
+		prompt := &survey.Confirm{
+			Message: lang.CmdToolsUpdateCredsConfirmContinue,
+		}
+		if err := survey.AskOne(prompt, &confirm); err != nil {
+			return fmt.Errorf("confirm selection canceled: %w", err)
+		}
+	}
+
+	if !confirm {
+		return nil
+	}
+
+	// Update registry and git pull secrets
+	if services.Has(state.RegistryKey) {
+		err := c.UpdateZarfManagedImageSecrets(ctx, newState)
+		if err != nil {
+			return err
+		}
+
+		if newState.RegistryInfo.MTLSStrategy == state.MTLSStrategyZarfManaged {
+			err := c.ApplyZarfManagedMTLSSecrets(ctx)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	if services.Has(state.GitKey) {
+		err := c.UpdateZarfManagedGitSecrets(ctx, newState)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Zarf now only configures state with a Git server if a git server is deployed
+	// since there is still old state, we continue to check the cluster if the Git server exists
+	internalGitServerExists, err := c.InternalGitServerExists(cmd.Context())
+	if err != nil {
+		return err
+	}
+
+	// Update artifact token (if internal)
+	if services.Has(state.ArtifactKey) && newState.ArtifactServer.PushToken == "" && newState.ArtifactServer.IsInternal() && internalGitServerExists {
+		newState.ArtifactServer.PushToken, err = c.UpdateInternalArtifactServerToken(ctx, oldState.GitServer)
+		if err != nil {
+			return fmt.Errorf("unable to create the new Gitea artifact token: %w", err)
+		}
+	}
+
+	// Save the final Zarf State
+	err = c.SaveState(ctx, newState)
+	if err != nil {
+		return fmt.Errorf("failed to save the Zarf State to the cluster: %w", err)
+	}
+
+	helmOpts := helm.InstallUpgradeOptions{
+		VariableConfig: template.GetZarfVariableConfig(cmd.Context(), !o.confirm),
+		State:          newState,
+		Cluster:        c,
+		Timeout:        config.ZarfDefaultTimeout,
+		IsInteractive:  !o.confirm,
+		ForceConflicts: o.forceConflicts,
+	}
+
+	// Update Zarf 'init' component Helm releases if present
+	if services.Has(state.RegistryKey) && newState.RegistryInfo.IsInternal() {
+		err = helm.UpdateZarfRegistryValues(ctx, helmOpts)
+		if err != nil {
+			// Warn if we couldn't actually update the registry (it might not be installed and we should try to continue)
+			l.Warn("unable to update Zarf Registry values", "error", err.Error())
+		}
+	}
+	if services.Has(state.GitKey) && newState.GitServer.IsInternal() && internalGitServerExists {
+		err := c.UpdateInternalGitServerSecret(cmd.Context(), oldState.GitServer, newState.GitServer)
+		if err != nil {
+			return fmt.Errorf("unable to update Zarf Git Server values: %w", err)
+		}
+	}
+	if services.Has(state.AgentKey) {
+		err = helm.UpdateZarfAgentValues(ctx, helmOpts)
+		if err != nil {
+			// Warn if we couldn't actually update the agent (it might not be installed and we should try to continue)
+			l.Warn("unable to update Zarf Agent TLS secrets", "error", err.Error())
+		}
+	}
+
+	return nil
+}
+
+func printCredentialUpdates(ctx context.Context, oldState *state.State, newState *state.State, services state.ServiceSet) {
+	// Pause the logfile's output to avoid credentials being printed to the log file
+	l := logger.From(ctx)
+	l.Info("--- printing credential updates. Sensitive values will be redacted ---")
+	if services.Has(state.RegistryKey) {
+		oR := oldState.RegistryInfo
+		nR := newState.RegistryInfo
+		l.Info("registry URL address", "existing", oR.Address, "replacement", nR.Address)
+		l.Info("registry access mode", "existing", oR.RegistryMode, "replacement", nR.RegistryMode)
+		l.Info("registry push username", "existing", oR.PushUsername, "replacement", nR.PushUsername)
+		l.Info("registry push password", "changed", oR.PushPassword != nR.PushPassword)
+		l.Info("registry pull username", "existing", oR.PullUsername, "replacement", nR.PullUsername)
+		l.Info("registry pull password", "changed", oR.PullPassword != nR.PullPassword)
+		if newState.RegistryInfo.MTLSStrategy == state.MTLSStrategyZarfManaged {
+			l.Info("registry mTLS certificate authority", "changed", "true")
+			l.Info("registry mTLS public certificate", "changed", "true")
+			l.Info("registry mTLS private key", "changed", "true")
+		}
+	}
+	if services.Has(state.GitKey) {
+		oG := oldState.GitServer
+		nG := newState.GitServer
+		l.Info("Git server URL address", "existing", oG.Address, "replacement", nG.Address)
+		l.Info("Git server push username", "existing", oG.PushUsername, "replacement", nG.PushUsername)
+		l.Info("Git server push password", "changed", oG.PushPassword != nG.PushPassword)
+		l.Info("Git server pull username", "existing", oG.PullUsername, "replacement", nG.PullUsername)
+		l.Info("Git server pull password", "changed", oG.PullPassword != nG.PullPassword)
+	}
+	if services.Has(state.ArtifactKey) {
+		oA := oldState.ArtifactServer
+		nA := newState.ArtifactServer
+		l.Info("artifact server URL address", "existing", oA.Address, "replacement", nA.Address)
+		l.Info("artifact server push username", "existing", oA.PushUsername, "replacement", nA.PushUsername)
+		l.Info("artifact server push token", "changed", oA.PushToken != nA.PushToken)
+	}
+	if services.Has(state.AgentKey) {
+		oT := oldState.AgentTLS
+		nT := newState.AgentTLS
+		l.Info("agent TLS source", "userProvided", newState.AgentTLSUserProvided)
+		l.Info("agent certificate authority", "changed", string(oT.CA) != string(nT.CA))
+		l.Info("agent public certificate", "changed", string(oT.Cert) != string(nT.Cert))
+		l.Info("agent private key", "changed", string(oT.Key) != string(nT.Key))
+	}
+}
+
+// loadClusterAndState connects to the cluster and returns it alongside the current Zarf state.
+func loadClusterAndState(ctx context.Context) (*cluster.Cluster, *state.State, error) {
+	timeoutCtx, cancel := context.WithTimeout(ctx, cluster.DefaultTimeout)
+	defer cancel()
+	c, err := cluster.NewWithWait(timeoutCtx)
+	if err != nil {
+		return nil, nil, err
+	}
+	s, err := c.LoadState(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	return c, s, nil
+}
+
+// confirmCredentialUpdate prints the pending changes for a single service and prompts for
+// confirmation, returning whether the update should proceed.
+func confirmCredentialUpdate(ctx context.Context, oldState, newState *state.State, service state.ServiceKey, confirm bool) (bool, error) {
+	printCredentialUpdates(ctx, oldState, newState, state.NewServiceSet(service))
+	if confirm {
+		return true, nil
+	}
+	prompt := &survey.Confirm{
+		Message: lang.CmdToolsUpdateCredsConfirmContinue,
+	}
+	if err := survey.AskOne(prompt, &confirm); err != nil {
+		return false, fmt.Errorf("confirm selection canceled: %w", err)
+	}
+	return confirm, nil
+}
+
+// runWithRollback runs forward and, if it fails, attempts rollback to restore the previous credentials
+func runWithRollback(ctx context.Context, service string, forward, rollback func() error) error {
+	if err := forward(); err != nil {
+		logger.From(ctx).Warn(fmt.Sprintf("%s credential update failed; rolling back to the previous credentials", service), "error", err.Error())
+		if rbErr := rollback(); rbErr != nil {
+			return fmt.Errorf("%s credential update failed (%w); rollback also failed (%w); the cluster may be in an inconsistent state", service, err, rbErr)
+		}
+		return fmt.Errorf("%s credential update failed and was rolled back to the previous credentials: %w", service, err)
+	}
+	return nil
+}
+
+// resolveRegistryUpdate resolves, sets and validates registry access fields when the URL changes.
+func resolveRegistryUpdate(ctx context.Context, c *cluster.Cluster, oldRegistryInfo, registryInfo state.RegistryInfo, registryURLSet bool) (state.RegistryInfo, error) {
+	// validate provided options
+	if !registryURLSet {
+		return registryInfo, nil
+	}
+	if registryInfo.Address == "" {
+		return registryInfo, errors.New("--registry-url cannot be explicitly empty")
+	}
+	if strings.Contains(registryInfo.Address, "://") {
+		return registryInfo, errors.New("--registry-url must be a valid OCI registry address without a URL scheme")
+	}
+
+	// Resolve and set registry info
+	mode, port, err := c.ResolveRegistryMode(ctx, registryInfo.Address)
+	if err != nil {
+		return registryInfo, fmt.Errorf("unable to resolve registry update: %w", err)
+	}
+	registryInfo.RegistryMode = mode
+	registryInfo.SetPort(port)
+	registryInfo.MTLSStrategy = state.MTLSStrategyNone
+	if mode == state.RegistryModeProxy {
+		registryInfo.MTLSStrategy = state.MTLSStrategyZarfManaged
+	}
+
+	// validate mode changes and implications
+	if oldRegistryInfo.IsInternal() && mode == state.RegistryModeExternal {
+		if registryInfo.PushUsername == "" || registryInfo.PushPassword == "" {
+			return registryInfo, errors.New("--registry-push-username and --registry-push-password are required when switching to an external registry")
+		}
+		switch {
+		case registryInfo.PullUsername == "" && registryInfo.PullPassword == "":
+			registryInfo.PullUsername = registryInfo.PushUsername
+			registryInfo.PullPassword = registryInfo.PushPassword
+		case registryInfo.PullUsername == "" || registryInfo.PullPassword == "":
+			return registryInfo, errors.New("--registry-pull-username and --registry-pull-password must be provided together")
+		}
+	}
+	return registryInfo, nil
+}
+
+type updateRegistryCredsOptions struct {
+	confirm        bool
+	forceConflicts bool
+	registryInfo   state.RegistryInfo
+}
+
+func newUpdateRegistryCredsCommand(v *viper.Viper) *cobra.Command {
+	o := &updateRegistryCredsOptions{}
+
+	cmd := &cobra.Command{
+		Use:     "registry",
+		Short:   lang.CmdToolsUpdateCredsRegistryShort,
+		Long:    lang.CmdToolsUpdateCredsRegistryLong,
+		Example: lang.CmdToolsUpdateCredsRegistryExample,
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return o.run(cmd, args, v)
+		},
+	}
+
+	cmd.Flags().BoolVarP(&o.confirm, "confirm", "c", false, lang.CmdToolsUpdateCredsConfirmFlag)
+	cmd.Flags().BoolVar(&o.forceConflicts, "force-conflicts", false, lang.CmdPackageDeployFlagForceConflicts)
+	cmd.Flags().StringVar(&o.registryInfo.Address, "registry-url", v.GetString(VInitRegistryURL), lang.CmdInitFlagRegURL)
+	cmd.Flags().StringVar(&o.registryInfo.PushUsername, "registry-push-username", v.GetString(VInitRegistryPushUser), lang.CmdInitFlagRegPushUser)
+	cmd.Flags().StringVar(&o.registryInfo.PushPassword, "registry-push-password", v.GetString(VInitRegistryPushPass), lang.CmdInitFlagRegPushPass)
+	cmd.Flags().StringVar(&o.registryInfo.PullUsername, "registry-pull-username", v.GetString(VInitRegistryPullUser), lang.CmdInitFlagRegPullUser)
+	cmd.Flags().StringVar(&o.registryInfo.PullPassword, "registry-pull-password", v.GetString(VInitRegistryPullPass), lang.CmdInitFlagRegPullPass)
+
+	return cmd
+}
+
+func (o *updateRegistryCredsOptions) run(cmd *cobra.Command, _ []string, v *viper.Viper) error {
+	ctx := cmd.Context()
+	c, oldState, err := loadClusterAndState(ctx)
+	if err != nil {
+		return err
+	}
+
+	if !oldState.RegistryInfo.IsConfigured() {
+		return errors.New("no registry is configured in the Zarf state; nothing to update")
+	}
+
+	registryURLSet := optionIsExplicitlySet(cmd, v, "registry-url", VInitRegistryURL)
+	registryInfo, err := resolveRegistryUpdate(ctx, c, oldState.RegistryInfo, o.registryInfo, registryURLSet)
+	if err != nil {
+		return err
+	}
+
+	newState, err := state.Merge(oldState, state.MergeOptions{
+		RegistryInfo: registryInfo,
+		Services:     state.NewServiceSet(state.RegistryKey),
+	})
+	if err != nil {
+		return fmt.Errorf("unable to update registry credentials: %w", err)
+	}
+
+	confirm, err := confirmCredentialUpdate(ctx, oldState, newState, state.RegistryKey, o.confirm)
+	if err != nil {
+		return err
+	}
+	if !confirm {
+		return nil
+	}
+
+	// mTLS certs are not part of state, and so not part of the rollback
+	if newState.RegistryInfo.MTLSStrategy == state.MTLSStrategyZarfManaged {
+		if err := c.ApplyZarfManagedMTLSSecrets(ctx); err != nil {
+			return err
+		}
+	}
+
+	return runWithRollback(ctx, "registry",
+		func() error { return o.applyState(ctx, c, newState, newState.RegistryInfo.IsInternal()) },
+		func() error {
+			return o.applyState(ctx, c, oldState, oldState.RegistryInfo.IsInternal() && newState.RegistryInfo.IsInternal())
+		},
+	)
+}
+
+// applyState reconciles the cluster to the given registry credentials. The registry deployment is
+// updated first so the old pod keeps matching the not-yet-updated pull secrets throughout
+// the rollout, then the pull secrets are updated, then state is persisted as the final commit.
+func (o *updateRegistryCredsOptions) applyState(ctx context.Context, c *cluster.Cluster, s *state.State, updateRegistry bool) error {
+	if updateRegistry {
+		helmOpts := helm.InstallUpgradeOptions{
+			VariableConfig: template.GetZarfVariableConfig(ctx, !o.confirm),
+			State:          s,
+			Cluster:        c,
+			Timeout:        config.ZarfDefaultTimeout,
+			IsInteractive:  !o.confirm,
+			ForceConflicts: o.forceConflicts,
+		}
+		if err := helm.UpdateZarfRegistryValues(ctx, helmOpts); err != nil {
+			return fmt.Errorf("unable to update Zarf Registry values: %w", err)
+		}
+	}
+	if err := c.UpdateZarfManagedImageSecrets(ctx, s); err != nil {
+		return err
+	}
+	if err := c.SaveState(ctx, s); err != nil {
+		return fmt.Errorf("failed to save the Zarf State to the cluster: %w", err)
+	}
+	return nil
+}
+
+type updateGitCredsOptions struct {
+	confirm   bool
+	gitServer state.GitServerInfo
+}
+
+func newUpdateGitCredsCommand(v *viper.Viper) *cobra.Command {
+	o := &updateGitCredsOptions{}
+
+	cmd := &cobra.Command{
+		Use:     "git",
+		Short:   lang.CmdToolsUpdateCredsGitShort,
+		Long:    lang.CmdToolsUpdateCredsGitLong,
+		Example: lang.CmdToolsUpdateCredsGitExample,
+		Args:    cobra.NoArgs,
+		RunE:    o.run,
+	}
+
+	cmd.Flags().BoolVarP(&o.confirm, "confirm", "c", false, lang.CmdToolsUpdateCredsConfirmFlag)
+	cmd.Flags().StringVar(&o.gitServer.Address, "git-url", v.GetString(VInitGitURL), lang.CmdInitFlagGitURL)
+	cmd.Flags().StringVar(&o.gitServer.PushUsername, "git-push-username", v.GetString(VInitGitPushUser), lang.CmdInitFlagGitPushUser)
+	cmd.Flags().StringVar(&o.gitServer.PushPassword, "git-push-password", v.GetString(VInitGitPushPass), lang.CmdInitFlagGitPushPass)
+	cmd.Flags().StringVar(&o.gitServer.PullUsername, "git-pull-username", v.GetString(VInitGitPullUser), lang.CmdInitFlagGitPullUser)
+	cmd.Flags().StringVar(&o.gitServer.PullPassword, "git-pull-password", v.GetString(VInitGitPullPass), lang.CmdInitFlagGitPullPass)
+
+	return cmd
+}
+
+func (o *updateGitCredsOptions) run(cmd *cobra.Command, _ []string) error {
+	ctx := cmd.Context()
+	c, oldState, err := loadClusterAndState(ctx)
+	if err != nil {
+		return err
+	}
+
+	if !oldState.GitServer.IsConfigured() {
+		return errors.New("no Git server is configured in the Zarf state; nothing to update")
+	}
+
+	newState, err := state.Merge(oldState, state.MergeOptions{
+		GitServer: o.gitServer,
+		Services:  state.NewServiceSet(state.GitKey),
+	})
+	if err != nil {
+		return fmt.Errorf("unable to update Git server credentials: %w", err)
+	}
+
+	confirm, err := confirmCredentialUpdate(ctx, oldState, newState, state.GitKey, o.confirm)
+	if err != nil {
+		return err
+	}
+	if !confirm {
+		return nil
+	}
+
+	return runWithRollback(ctx, "Git server",
+		func() error { return o.applyState(ctx, c, oldState, newState) },
+		func() error { return o.applyState(ctx, c, newState, oldState) },
+	)
+}
+
+func (o *updateGitCredsOptions) applyState(ctx context.Context, c *cluster.Cluster, fromState, toState *state.State) error {
+	if toState.GitServer.IsInternal() {
+		if err := c.UpdateInternalGitServerSecret(ctx, fromState.GitServer, toState.GitServer); err != nil {
+			return fmt.Errorf("unable to update Zarf Git Server values: %w", err)
+		}
+	}
+	if err := c.UpdateZarfManagedGitSecrets(ctx, toState); err != nil {
+		return err
+	}
+	if err := c.SaveState(ctx, toState); err != nil {
+		return fmt.Errorf("failed to save the Zarf State to the cluster: %w", err)
+	}
+	return nil
+}
+
+type updateAgentCredsOptions struct {
+	confirm          bool
+	forceConflicts   bool
+	agentTLSCAPath   string
+	agentTLSCertPath string
+	agentTLSKeyPath  string
+}
+
+func newUpdateAgentCredsCommand(_ *viper.Viper) *cobra.Command {
+	o := &updateAgentCredsOptions{}
+
+	cmd := &cobra.Command{
+		Use:     "agent",
+		Short:   lang.CmdToolsUpdateCredsAgentShort,
+		Long:    lang.CmdToolsUpdateCredsAgentLong,
+		Example: lang.CmdToolsUpdateCredsAgentExample,
+		Args:    cobra.NoArgs,
+		RunE:    o.run,
+	}
+
+	cmd.Flags().BoolVarP(&o.confirm, "confirm", "c", false, lang.CmdToolsUpdateCredsConfirmFlag)
+	cmd.Flags().BoolVar(&o.forceConflicts, "force-conflicts", false, lang.CmdPackageDeployFlagForceConflicts)
+	cmd.Flags().StringVar(&o.agentTLSCAPath, "agent-tls-ca", "", "Path to a PEM-encoded CA certificate for the Zarf agent")
+	cmd.Flags().StringVar(&o.agentTLSCertPath, "agent-tls-cert", "", "Path to a PEM-encoded TLS certificate for the Zarf agent")
+	cmd.Flags().StringVar(&o.agentTLSKeyPath, "agent-tls-key", "", "Path to a PEM-encoded TLS private key for the Zarf agent")
+	cmd.MarkFlagsRequiredTogether("agent-tls-ca", "agent-tls-cert", "agent-tls-key")
+
+	return cmd
+}
+
+func (o *updateAgentCredsOptions) run(cmd *cobra.Command, _ []string) error {
+	ctx := cmd.Context()
+	c, oldState, err := loadClusterAndState(ctx)
+	if err != nil {
+		return err
+	}
+
+	if !oldState.AgentIsConfigured() {
+		return errors.New("no agent is configured in the Zarf state; nothing to update")
+	}
+
+	opts := state.MergeOptions{Services: state.NewServiceSet(state.AgentKey)}
+	if oldState.AgentTLSUserProvided && o.agentTLSCAPath == "" {
+		return fmt.Errorf("current agent TLS certificates are user-provided; provide --agent-tls-ca, --agent-tls-cert, and --agent-tls-key to update them")
+	}
+	if o.agentTLSCAPath != "" {
+		loadedTLS, err := loadAndValidateAgentTLS(o.agentTLSCAPath, o.agentTLSCertPath, o.agentTLSKeyPath)
+		if err != nil {
+			return fmt.Errorf("invalid agent TLS certificates: %w", err)
+		}
+		opts.AgentTLS = &loadedTLS
+	}
+
+	newState, err := state.Merge(oldState, opts)
+	if err != nil {
+		return fmt.Errorf("unable to update agent credentials: %w", err)
+	}
+
+	confirm, err := confirmCredentialUpdate(ctx, oldState, newState, state.AgentKey, o.confirm)
+	if err != nil {
+		return err
+	}
+	if !confirm {
+		return nil
+	}
+
+	return runWithRollback(ctx, "agent",
+		func() error { return o.applyState(ctx, c, newState) },
+		func() error { return o.applyState(ctx, c, oldState) },
+	)
+}
+
+func (o *updateAgentCredsOptions) applyState(ctx context.Context, c *cluster.Cluster, s *state.State) error {
+	helmOpts := helm.InstallUpgradeOptions{
+		VariableConfig: template.GetZarfVariableConfig(ctx, !o.confirm),
+		State:          s,
+		Cluster:        c,
+		Timeout:        config.ZarfDefaultTimeout,
+		IsInteractive:  !o.confirm,
+		ForceConflicts: o.forceConflicts,
+	}
+	if err := helm.UpdateZarfAgentValues(ctx, helmOpts); err != nil {
+		return fmt.Errorf("unable to update Zarf Agent TLS secrets: %w", err)
+	}
+	if err := c.SaveState(ctx, s); err != nil {
+		return fmt.Errorf("failed to save the Zarf State to the cluster: %w", err)
+	}
+	return nil
+}
+
+type clearCacheOptions struct{}
+
+func newClearCacheCommand() *cobra.Command {
+	o := &clearCacheOptions{}
+
+	cmd := &cobra.Command{
+		Use:     "clear-cache",
+		Aliases: []string{"c"},
+		Short:   lang.CmdToolsClearCacheShort,
+		RunE:    o.run,
+	}
+
+	return cmd
+}
+
+func (o *clearCacheOptions) run(cmd *cobra.Command, _ []string) error {
+	ctx := cmd.Context()
+	l := logger.From(ctx)
+	cachePath, err := getCachePath(ctx)
+	if err != nil {
+		return err
+	}
+	l.Info("clearing cache", "path", cachePath)
+	if err := os.RemoveAll(cachePath); err != nil {
+		return fmt.Errorf("unable to clear the cache directory %s: %w", cachePath, err)
+	}
+	l.Info("Successfully cleared the cache", "cachePath", cachePath)
+
+	return nil
+}
+
+type downloadInitOptions struct {
+	version         string
+	outputDirectory string
+}
+
+func newDownloadInitCommand() *cobra.Command {
+	o := &downloadInitOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "download-init",
+		Short: lang.CmdToolsDownloadInitShort,
+		RunE:  o.run,
+	}
+
+	cmd.Flags().StringVarP(&o.outputDirectory, "output-directory", "o", "", lang.CmdToolsDownloadInitFlagOutputDirectory)
+	cmd.Flags().StringVarP(&o.version, "version", "v", o.version, "Specify version to download (defaults to current CLI version)")
+	return cmd
+}
+
+func (o *downloadInitOptions) run(cmd *cobra.Command, _ []string) error {
+	ctx := cmd.Context()
+	var url string
+
+	if o.version == "" {
+		url = zoci.GetInitPackageURL(config.CLIVersion)
+	} else {
+		ver, err := semver.NewVersion(o.version)
+		if err != nil {
+			return fmt.Errorf("unable to parse version %s: %w", o.version, err)
+		}
+
+		url = zoci.GetInitPackageURL(fmt.Sprintf("v%s", ver.String()))
+	}
+
+	// Add the oci:// prefix
+	url = fmt.Sprintf("oci://%s", url)
+
+	if o.outputDirectory == "" {
+		wd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		o.outputDirectory = wd
+	}
+
+	cachePath, err := getCachePath(ctx)
+	if err != nil {
+		return err
+	}
+
+	pullOptions := packager.PullOptions{
+		Architecture: config.GetArch(),
+		CachePath:    cachePath,
+	}
+
+	packagePath, err := packager.Pull(ctx, url, o.outputDirectory, pullOptions)
+	if err != nil {
+		return fmt.Errorf("unable to download the init package: %w", err)
+	}
+	logger.From(ctx).Info("package downloaded successful", "path", packagePath)
+
+	return nil
+}
+
+type genPKIOptions struct {
+	subAltNames []string
+	duration    time.Duration
+}
+
+func newGenPKICommand() *cobra.Command {
+	o := &genPKIOptions{}
+
+	cmd := &cobra.Command{
+		Use:     "gen-pki HOST",
+		Aliases: []string{"pki"},
+		Short:   lang.CmdToolsGenPkiShort,
+		Long: lang.CmdToolsGenPkiShort + "\n\n" +
+			"To generate certificates for the Zarf agent with a 1-year lifetime:\n\n" +
+			"  $ zarf tools gen-pki agent-hook.zarf.svc --duration 8760h\n\n" +
+			"The resulting tls.ca, tls.crt, and tls.key files can then be passed to:\n\n" +
+			"  $ zarf init --agent-tls-ca tls.ca --agent-tls-cert tls.crt --agent-tls-key tls.key",
+		Args: cobra.ExactArgs(1),
+		RunE: o.run,
+	}
+
+	cmd.Flags().StringArrayVar(&o.subAltNames, "sub-alt-name", []string{}, lang.CmdToolsGenPkiFlagAltName)
+	cmd.Flags().DurationVar(&o.duration, "duration", time.Hour*24*375, "Duration for the generated certificates (e.g., 8760h for 1 year, 87600h for ~10 years)")
+
+	return cmd
+}
+
+func (o *genPKIOptions) run(cmd *cobra.Command, args []string) error {
+	pki, err := pki.GeneratePKIWithOptions(args[0], pki.GenerateOptions{
+		Duration: o.duration,
+		DNSNames: o.subAltNames,
+	})
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile("tls.ca", pki.CA, helpers.ReadAllWriteUser); err != nil {
+		return err
+	}
+	if err := os.WriteFile("tls.crt", pki.Cert, helpers.ReadAllWriteUser); err != nil {
+		return err
+	}
+	if err := os.WriteFile("tls.key", pki.Key, helpers.ReadWriteUser); err != nil {
+		return err
+	}
+	logger.From(cmd.Context()).Info("successfully created a chain of trust", "host", args[0])
+
+	return nil
+}
+
+type genKeyOptions struct{}
+
+func newGenKeyCommand() *cobra.Command {
+	o := &genKeyOptions{}
+
+	cmd := &cobra.Command{
+		Use:     "gen-key",
+		Aliases: []string{"key"},
+		Short:   lang.CmdToolsGenKeyShort,
+		RunE:    o.run,
+	}
+
+	return cmd
+}
+
+func (o *genKeyOptions) run(cmd *cobra.Command, _ []string) error {
+	// Utility function to prompt the user for the password to the private key
+	passwordFunc := func(bool) ([]byte, error) {
+		// perform the first prompt
+		var password string
+		prompt := &survey.Password{
+			Message: lang.CmdToolsGenKeyPrompt,
+		}
+		if err := survey.AskOne(prompt, &password); err != nil {
+			return nil, fmt.Errorf(lang.CmdToolsGenKeyErrUnableGetPassword, err)
+		}
+
+		// perform the second prompt
+		var doubleCheck string
+		rePrompt := &survey.Password{
+			Message: lang.CmdToolsGenKeyPromptAgain,
+		}
+		if err := survey.AskOne(rePrompt, &doubleCheck); err != nil {
+			return nil, fmt.Errorf(lang.CmdToolsGenKeyErrUnableGetPassword, err)
+		}
+
+		// check if the passwords match
+		if password != doubleCheck {
+			return nil, fmt.Errorf(lang.CmdToolsGenKeyErrPasswordsNotMatch)
+		}
+
+		return []byte(password), nil
+	}
+
+	// Use cosign to generate the keypair
+	keyBytes, err := cosign.GenerateKeyPair(passwordFunc)
+	if err != nil {
+		return fmt.Errorf("unable to generate key pair: %w", err)
+	}
+
+	prvKeyFileName := "cosign.key"
+	pubKeyFileName := "cosign.pub"
+
+	// Check if we are about to overwrite existing key files
+	_, prvKeyExistsErr := os.Stat(prvKeyFileName)
+	_, pubKeyExistsErr := os.Stat(pubKeyFileName)
+	if prvKeyExistsErr == nil || pubKeyExistsErr == nil {
+		var confirm bool
+		confirmOverwritePrompt := &survey.Confirm{
+			Message: fmt.Sprintf(lang.CmdToolsGenKeyPromptExists, prvKeyFileName),
+		}
+		err := survey.AskOne(confirmOverwritePrompt, &confirm)
+		if err != nil {
+			return err
+		}
+		if !confirm {
+			return errors.New("did not receive confirmation for overwriting key file(s)")
+		}
+	}
+
+	// Write the key file contents to disk
+	if err := os.WriteFile(prvKeyFileName, keyBytes.PrivateBytes, helpers.ReadWriteUser); err != nil {
+		return err
+	}
+	if err := os.WriteFile(pubKeyFileName, keyBytes.PublicBytes, helpers.ReadAllWriteUser); err != nil {
+		return err
+	}
+
+	logger.From(cmd.Context()).Info("Successfully generated key pair",
+		"privateKeyPath", prvKeyFileName,
+		"publicKeyPath", pubKeyFileName)
+
+	return nil
+}
