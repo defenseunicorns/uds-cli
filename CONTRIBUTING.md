@@ -35,7 +35,7 @@ Specifically:
 - We do trunk-based development (`main`) with short-lived feature branches that originate from the trunk, get merged into the trunk, and are deleted after the merge
 - We don't merge code into `main` that isn't releasable
 - We perform automated testing on all changes before they get merged to `main`
-- We create immutable release artifacts
+- We create unique release artifacts
 
 ## Unstable releases
 

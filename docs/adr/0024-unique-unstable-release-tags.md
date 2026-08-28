@@ -1,4 +1,4 @@
-# ADR 0024: Immutable unstable release tags
+# ADR 0024: Unique unstable release tags
 
 - Status: Accepted
 - Date: 2026-08-27
@@ -12,12 +12,12 @@ Unstable releases need to validate the exact source that will be published while
 The unstable release workflow will:
 
 - Validate the selected branch or commit, release configuration, and reusable release tests before creating a tag.
-- Create immutable tags in the form `vX.Y.Z-nightly+YYYYMMDDHHMMSS-XXXXXXXX` for scheduled releases and `vX.Y.Z-adhoc+YYYYMMDDHHMMSS-XXXXXXXX` for manual releases.
+- Create unique tags in the form `vX.Y.Z-nightly+YYYYMMDDHHMMSS-XXXXXXXX` for scheduled releases and `vX.Y.Z-adhoc+YYYYMMDDHHMMSS-XXXXXXXX` for manual releases.
 - Reject collisions and never move or overwrite an unstable tag.
 - Keep unstable tags excluded from the stable release workflow.
 - Retain only the newest three nightly prereleases and their tags. Ad hoc prereleases are retained and are not removed by scheduled cleanup.
 
-The mutable `nightly-unstable` release model is replaced by these immutable, source-addressed tags.
+The mutable `nightly-unstable` release model is replaced by these unique, source-addressed tags.
 
 ## Consequences
 

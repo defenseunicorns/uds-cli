@@ -95,6 +95,7 @@ jobs:
       - prepare
       - test
     runs-on: ubuntu-latest
+    environment: release-nightly
     permissions:
       contents: write
     steps:
