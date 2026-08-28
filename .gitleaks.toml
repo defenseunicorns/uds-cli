@@ -7,7 +7,3 @@ useDefault = true
 [[allowlists]]
 description = "vendored Go dependencies"
 paths = ['''^vendor/''']
-
-[[allowlists]]
-description = "local generated documentation workspace"
-paths = ['''^uds-docs/''']
