@@ -27,6 +27,12 @@ Use this skill for documentation work in this repository.
 
 - Read the relevant source, Cobra help, tests, and current CLI output under `internal/cli/bundle/` and `internal/bundle/`.
 - Match the document type and the conventions in this skill.
+- Start from the matching template in `.agents/skills/documentation-authoring/references/`:
+  - `how-to-guide-template.md` for task-oriented guides.
+  - `reference-page-template.md` for stable command, flag, file-format, or artifact behavior.
+  - `troubleshooting-runbook-template.md` for diagnosing and resolving a single operational failure.
+  - `release-notes-template.md` for version-specific release notes.
+- Treat the templates as structural checklists, not permission to add unsupported sections or claims.
 
 ## Accuracy
 
