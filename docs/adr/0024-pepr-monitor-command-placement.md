@@ -4,19 +4,21 @@ Date: 2026-08-28
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
 [ADR 0003](./0003-cli-command-structuring.md) establishes the UDS CLI Next command pattern as `uds <component> <resource> <action>`, with optional default component and default action positions. One example in that ADR places Pepr monitoring at:
 
 ```bash
-uds core operator monitor
+uds core pepr monitor
 ```
+
+This ADR supersedes that example without changing ADR 0003's general command-structuring decision.
 
 The legacy command is:
 
-```
+```bash
 uds monitor pepr
 ```
 
