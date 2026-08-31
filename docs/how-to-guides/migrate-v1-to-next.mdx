@@ -38,11 +38,13 @@ Migrate a v1 `uds-bundle.yaml` and `uds-config.yaml` workflow to a Next bundle t
    | `uds inspect` | `CLI_FEATURES=NextMode=true uds bundle inspect` |
    | `uds publish` | `CLI_FEATURES=NextMode=true uds bundle push` |
    | `uds pull` | `CLI_FEATURES=NextMode=true uds bundle pull` |
-   | `uds remove` | `CLI_FEATURES=NextMode=true uds bundle remove` |
+   | `uds remove` | `CLI_FEATURES=NextMode=true uds bundle remove ./next` |
    | `uds zarf` | `CLI_FEATURES=NextMode=true uds tools zarf` |
    | `uds run`, `uds monitor`, `uds completion`, `uds version` | unchanged |
 
    Create produces a local `.tar.zst` artifact. The v1 publish workflow becomes a Next create-then-push workflow. Next deploys and inspects local artifacts or OCI references. Development deployment requires a local HCL definition. Pull supports `--output-dir`. Next `--output` selects the response format.
+
+   `bundle remove` requires a local `bundle.uds.hcl` definition or its containing directory. It does not accept `.tar.zst` artifacts or OCI references, so keep the definition available for removal. Vendored tools such as `kubectl` and `helm` still use `uds zarf tools <tool>`, not `uds tools zarf tools <tool>`.
 
    `uds logs`, `uds list`, and the v1 deploy flags `--resume`, `--retries`, and `--force-conflicts` have no Next equivalent. The v1 inspect flags `--sbom`, `--list-images`, and `--list-variables` are also not available in Next. Keep those workflows on v1.
 
@@ -144,9 +146,7 @@ Migrate a v1 `uds-bundle.yaml` and `uds-config.yaml` workflow to a Next bundle t
                targetPath: ".service.type"
    ```
 
-   These mappings connect the values file to the chart. If the package does not define the mappings you need, update and rebuild the Zarf package before migrating the bundle.
-
-   Move any v1 `valuesFiles` into the bundle and list them in `values_files`. Use Zarf mappings when a file needs to target a specific chart.
+   Next values files are package-level inputs. Move any v1 `valuesFiles` into the bundle, list them in `values_files`, and give each chart-specific value a matching Zarf mapping. Update and rebuild the Zarf package if a mapping is missing.
 
    Next sets `namespace` for the whole package, not for individual charts. If charts in one package need different namespaces, update the Zarf package or split the package.
 
@@ -190,8 +190,8 @@ Migrate a v1 `uds-bundle.yaml` and `uds-config.yaml` workflow to a Next bundle t
 
    When moving other settings, use these rules:
 
-   - Keep package variables under the package name. Convert uppercase names to lowercase with underscores, such as `REPLICA_COUNT` to `replica_count`.
-   - v1 shared variables need to be placed where they are used. Put a shared Helm setting in each package's values file. Define a shared Zarf package variable at the top level.
+   - Keep variables used in `values_files` under the package name. Convert uppercase names to lowercase with underscores, such as `REPLICA_COUNT` to `replica_count`.
+   - Zarf package variables must be top-level scalar values and apply to every package. Put shared Helm settings in each package's values file. Use a values file for package-specific settings.
    - Keep `architecture`, `log_level`, and `tmp_dir` in the Next `options` block. Change `oci_concurrency` to `concurrency`. The v1 `--tmpdir` flag becomes `--tmp-dir`.
    - Replace `insecure` with `plain_http` or `skip_tls_verify`, depending on the registry behavior you need. Configure signature verification separately.
    - Next has no equivalents for `uds_cache`, `retries`, `UDS_<NAME>` environment variables, or `--set`. Put required values in the config file passed with `--config` and adjust those workflows.
