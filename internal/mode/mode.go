@@ -8,13 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/spf13/cobra"
 	zarfconfig "github.com/zarf-dev/zarf/src/config"
-	"github.com/zarf-dev/zarf/src/pkg/feature"
 )
 
 const FeaturesEnv = "CLI_FEATURES"
@@ -69,13 +68,17 @@ func Resolve(args []string, lookupEnv func(string) (string, bool)) (Mode, Featur
 		}
 	}
 	remaining := make([]string, 0, len(args))
+	zarfIndex := zarfCommandIndex(args)
 	seenFeatures := false
-	for len(args) > 0 {
-		arg := args[0]
-		args = args[1:]
+	for i := 0; i < len(args); i++ {
+		if zarfIndex >= 0 && i >= zarfIndex {
+			remaining = append(remaining, args[i:]...)
+			break
+		}
+		arg := args[i]
 		if arg == "--" {
 			remaining = append(remaining, arg)
-			remaining = append(remaining, args...)
+			remaining = append(remaining, args[i+1:]...)
 			break
 		}
 		value := ""
@@ -83,11 +86,11 @@ func Resolve(args []string, lookupEnv func(string) (string, bool)) (Mode, Featur
 		case strings.HasPrefix(arg, "--features="):
 			value = strings.TrimPrefix(arg, "--features=")
 		case arg == "--features":
-			if len(args) == 0 {
+			if i+1 >= len(args) {
 				return "", nil, nil, errors.New("--features requires a value")
 			}
-			value = args[0]
-			args = args[1:]
+			i++
+			value = args[i]
 		default:
 			remaining = append(remaining, arg)
 			continue
@@ -104,7 +107,6 @@ func Resolve(args []string, lookupEnv func(string) (string, bool)) (Mode, Featur
 			features[name] = enabled
 		}
 	}
-	remaining = addZarfFeatures(remaining, features)
 	if features["NextMode"] {
 		return Next, features, remaining, nil
 	}
@@ -141,56 +143,7 @@ func parse(value string) (FeatureSet, error) {
 }
 
 func knownFeature(name string) bool {
-	if name == "NextMode" {
-		return true
-	}
-	for _, f := range feature.AllDefault() {
-		if string(f.Name) == name {
-			return true
-		}
-	}
-	return false
-}
-
-func addZarfFeatures(args []string, features FeatureSet) []string {
-	// Mode resolution consumes the shared --features flag before Cobra runs. Restore every
-	// feature other than NextMode after the zarf command so Zarf still receives its features.
-	if zarfVendorTool(args) {
-		return args
-	}
-	zarfFeatures := FeatureSet{}
-	for name, enabled := range features {
-		if name != "NextMode" {
-			zarfFeatures[name] = enabled
-		}
-	}
-	if len(zarfFeatures) == 0 {
-		return args
-	}
-	if index := zarfCommandIndex(args); index >= 0 {
-		return slices.Insert(args, index+1, "--features="+zarfFeatures.String())
-	}
-	return args
-}
-
-func zarfVendorTool(args []string) bool {
-	index := rootZarfToolsCommandIndex(args)
-	if index < 0 {
-		return false
-	}
-	for i := index + 1; i < len(args); i++ {
-		if args[i] == "tools" || args[i] == "t" {
-			if i+1 >= len(args) {
-				return false
-			}
-			switch args[i+1] {
-			case "kubectl", "k", "syft", "sbom", "s", "k9s", "monitor", "m", "wait", "w", "crane", "registry", "r", "helm", "h", "yq":
-				return true
-			}
-			return false
-		}
-	}
-	return false
+	return name == "NextMode"
 }
 
 func zarfCommandIndex(args []string) int {
@@ -236,7 +189,7 @@ func nestedZarfCommandIndex(args []string, start int) int {
 
 func zarfRootFlagTakesValue(name string) bool {
 	switch name {
-	case "log-level", "l", "architecture", "a", "uds-cache", "tmpdir", "oci-concurrency":
+	case "features", "log-level", "l", "architecture", "a", "uds-cache", "tmpdir", "oci-concurrency":
 		return true
 	default:
 		return false
@@ -248,8 +201,12 @@ func prepareBootstrapArgs(args []string) []string {
 }
 
 func stripBootstrapArgs(args []string) []string {
+	zarfIndex := zarfCommandIndex(args)
 	remaining := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
+		if zarfIndex >= 0 && i >= zarfIndex {
+			return append(remaining, args[i:]...)
+		}
 		arg := args[i]
 		if arg == "--" {
 			return append(remaining, args[i:]...)
@@ -290,6 +247,9 @@ func rootZarfToolsCommandIndex(args []string) int {
 			zarfIndex := i
 			for i = zarfIndex + 1; i < len(args); i++ {
 				arg = args[i]
+				if arg == cobra.ShellCompRequestCmd || arg == cobra.ShellCompNoDescRequestCmd {
+					continue
+				}
 				if arg == "tools" || arg == "t" {
 					return zarfIndex
 				}

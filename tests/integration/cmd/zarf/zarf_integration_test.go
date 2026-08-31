@@ -16,7 +16,7 @@ import (
 
 func TestZarfToolsIgnoreCLIFeatures_NextMode(t *testing.T) {
 	uds := testutil.UDSCLIPath(t, "run via 'maru run test:next-integration'")
-	t.Setenv("CLI_FEATURES", "NextMode=true,values=true")
+	t.Setenv("CLI_FEATURES", "NextMode=true")
 
 	output, err := exec.Command(uds, "zarf", "tools", "kubectl", "version", "--client").CombinedOutput()
 	require.NoError(t, err, string(output))

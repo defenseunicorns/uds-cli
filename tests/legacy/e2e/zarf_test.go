@@ -92,7 +92,7 @@ func TestZarfFeatureBootstrap(t *testing.T) {
 }
 
 func TestZarfToolsIgnoreCLIFeatures(t *testing.T) {
-	t.Setenv("CLI_FEATURES", "values=true")
+	t.Setenv("CLI_FEATURES", "NextMode=false")
 	stdout, stderr, err := e2e.UDS("zarf", "tools", "kubectl", "version", "--client")
 	require.NoError(t, err, stdout, stderr)
 	require.Contains(t, stdout+stderr, "Client Version")

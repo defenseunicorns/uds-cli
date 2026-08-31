@@ -24,17 +24,11 @@ func TestResolve(t *testing.T) {
 		{"flag precedence", []string{"create", "--features", "NextMode=false"}, "NextMode=true", Legacy, "NextMode=false", []string{"create"}},
 		{"equals form", []string{"--features=NextMode=true", "create"}, "", Next, "NextMode=true", []string{"create"}},
 		{"implicit true", []string{"--features=NextMode", "create"}, "", Next, "NextMode=true", []string{"create"}},
-		{"Zarf feature", []string{"zarf", "--features=values=false", "version"}, "", Legacy, "NextMode=false,values=false", []string{"zarf", "--features=values=false", "version"}},
-		{"Zarf alias feature", []string{"z", "--features=values=false", "version"}, "", Legacy, "NextMode=false,values=false", []string{"z", "--features=values=false", "version"}},
-		{"Next tools zarf feature", []string{"tools", "zarf", "version"}, "NextMode=true,values=false", Next, "NextMode=true,values=false", []string{"tools", "zarf", "--features=values=false", "version"}},
-		{"Next tools zarf feature after root flag", []string{"tools", "--log-level", "debug", "zarf", "version"}, "NextMode=true,values=false", Next, "NextMode=true,values=false", []string{"tools", "--log-level", "debug", "zarf", "--features=values=false", "version"}},
-		{"Zarf tool skips features", []string{"zarf", "tools", "kubectl", "version"}, "values=true", Legacy, "NextMode=false,values=true", []string{"zarf", "tools", "kubectl", "version"}},
-		{"Zarf tool skips features after root flag", []string{"zarf", "--log-level", "debug", "tools", "kubectl", "version"}, "values=true", Legacy, "NextMode=false,values=true", []string{"zarf", "--log-level", "debug", "tools", "kubectl", "version"}},
-		{"Zarf tool skips features after root flag equals form", []string{"zarf", "--log-level=debug", "tools", "kubectl", "version"}, "values=true", Legacy, "NextMode=false,values=true", []string{"zarf", "--log-level=debug", "tools", "kubectl", "version"}},
-		{"Zarf alias tool skips features", []string{"z", "tools", "kubectl", "version"}, "values=true", Legacy, "NextMode=false,values=true", []string{"z", "tools", "kubectl", "version"}},
-		{"Zarf non-vendor tool keeps features", []string{"zarf", "tools", "clear-cache"}, "values=true", Legacy, "NextMode=false,values=true", []string{"zarf", "--features=values=true", "tools", "clear-cache"}},
-		{"Next Zarf tool skips features", []string{"zarf", "tools", "kubectl", "version"}, "NextMode=true,values=true", Next, "NextMode=true,values=true", []string{"zarf", "tools", "kubectl", "version"}},
-		{"Zarf feature skips task arguments", []string{"run", "zarf"}, "values=false", Legacy, "NextMode=false,values=false", []string{"run", "zarf"}},
+		{"Zarf suffix preserved", []string{"zarf", "--features=values=false", "version"}, "NextMode=true", Next, "NextMode=true", []string{"zarf", "--features=values=false", "version"}},
+		{"Zarf alias suffix preserved", []string{"z", "tools", "future-tool", "--features", "values=false"}, "NextMode=true", Next, "NextMode=true", []string{"z", "tools", "future-tool", "--features", "values=false"}},
+		{"tools zarf suffix preserved", []string{"tools", "zarf", "version", "--features=values=false"}, "NextMode=true", Next, "NextMode=true", []string{"tools", "zarf", "version", "--features=values=false"}},
+		{"root features before Zarf", []string{"--features=NextMode=true", "zarf", "--features", "values=false"}, "", Next, "NextMode=true", []string{"zarf", "--features", "values=false"}},
+		{"UDS feature skips task arguments", []string{"run", "zarf"}, "NextMode=false", Legacy, "NextMode=false", []string{"run", "zarf"}},
 		{"double dash", []string{"create", "--", "--features=NextMode=true"}, "", Legacy, "NextMode=false", []string{"create", "--", "--features=NextMode=true"}},
 	}
 	for _, tt := range tests {
@@ -49,7 +43,7 @@ func TestResolve(t *testing.T) {
 }
 
 func TestResolveRejectsInvalidFlagValues(t *testing.T) {
-	for _, value := range []string{"", "Other=true", "NextMode=yes", "NextMode=true,NextMode=false", "NextMode=", "=true"} {
+	for _, value := range []string{"", "Other=true", "values=true", "NextMode=yes", "NextMode=true,NextMode=false", "NextMode=", "=true"} {
 		t.Run(value, func(t *testing.T) {
 			_, _, _, err := Resolve([]string{"--features=" + value}, func(string) (string, bool) { return "", false })
 			if err == nil {
@@ -60,7 +54,7 @@ func TestResolveRejectsInvalidFlagValues(t *testing.T) {
 }
 
 func TestResolveRejectsInvalidEnvironment(t *testing.T) {
-	for _, value := range []string{"", "Other=true", "NextMode=yes", "NextMode=false,NextMode=false"} {
+	for _, value := range []string{"", "Other=true", "values=true", "NextMode=yes", "NextMode=false,NextMode=false"} {
 		t.Run(value, func(t *testing.T) {
 			_, _, _, err := Resolve(nil, func(string) (string, bool) { return value, true })
 			if err == nil {
@@ -96,12 +90,14 @@ func TestPrepareBootstrapArgs(t *testing.T) {
 		want []string
 	}{
 		{"equals form", []string{"--features=NextMode=false", "zarf", "version"}, []string{"zarf", "version"}},
-		{"value form", []string{"zarf", "--features", "NextMode=false", "version"}, []string{"zarf", "version"}},
+		{"value form after Zarf boundary", []string{"zarf", "--features", "NextMode=false", "version"}, []string{"zarf", "--features", "NextMode=false", "version"}},
 		{"tools zarf root flags preserved", []string{"--log-level", "debug", "tools", "zarf", "version"}, []string{"--log-level", "debug", "tools", "zarf", "version"}},
 		{"root zarf non-tools command preserved", []string{"--log-level", "debug", "zarf", "version"}, []string{"--log-level", "debug", "zarf", "version"}},
 		{"root zarf tools strips leading value flag", []string{"--log-level", "debug", "zarf", "tools", "kubectl", "get", "--help"}, []string{"tools", "kubectl", "get", "--help"}},
 		{"root zarf tools strips leading bool flag", []string{"--prompt", "zarf", "tools", "kubectl", "get", "--help"}, []string{"tools", "kubectl", "get", "--help"}},
 		{"root zarf tools alias strips leading flag", []string{"--log-level", "debug", "zarf", "t", "k", "get", "--help"}, []string{"t", "k", "get", "--help"}},
+		{"completion pseudo command", []string{"zarf", "__complete", "tools", "kubectl"}, []string{"__complete", "tools", "kubectl"}},
+		{"completion no descriptions pseudo command", []string{"z", "__completeNoDesc", "tools", "kubectl"}, []string{"__completeNoDesc", "tools", "kubectl"}},
 		{"double dash", []string{"run", "--", "--features=NextMode=false"}, []string{"run", "--", "--features=NextMode=false"}},
 	}
 	for _, tt := range tests {
