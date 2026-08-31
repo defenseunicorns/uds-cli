@@ -156,3 +156,39 @@ func TestConfigurationPreservesChangedDeployFlags(t *testing.T) {
 		t.Fatalf("retries = %d, want 5", bundleCfg.DeployOpts.Retries)
 	}
 }
+
+func TestConfigurationPreservesChangedDeploySetFlags(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "uds-config.yaml")
+	if err := os.WriteFile(configPath, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("UDS_CONFIG", configPath)
+
+	root := NewRootCommand()
+	root.SetArgs([]string{
+		"deploy",
+		"./bundle-does-not-need-to-exist.tar.zst",
+		"--confirm",
+		"--no-log-file",
+		"--no-progress",
+		"--set", "dependency-operator.OBJECT_STORAGE_PROVIDER=seaweedfs",
+		"--set", "dependency-operator.CI=false",
+	})
+	err := root.Execute()
+	if err == nil || !strings.Contains(err.Error(), "failed to validate bundle: invalid reference") {
+		t.Fatalf("error = %v, want bundle validation error", err)
+	}
+
+	want := map[string]string{
+		"dependency-operator.OBJECT_STORAGE_PROVIDER": "seaweedfs",
+		"dependency-operator.CI":                      "false",
+	}
+	for key, value := range want {
+		if got := bundleCfg.DeployOpts.SetVariables[key]; got != value {
+			t.Fatalf("SetVariables[%q] = %q, want %q", key, got, value)
+		}
+	}
+	if len(bundleCfg.DeployOpts.SetVariables) != len(want) {
+		t.Fatalf("SetVariables = %#v, want %#v", bundleCfg.DeployOpts.SetVariables, want)
+	}
+}
