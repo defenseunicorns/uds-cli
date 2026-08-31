@@ -18,7 +18,7 @@ The original draft of this ADR referenced `--prompt` together with `--concurrenc
 
 ## Context
 
-First-class library support for deploying Better Bundles in UDS Fleet requires amending the `Complete → Validate → Run` pattern (established by [ADR-0002](0002-cli-architecture-patterns.md)) and performing additional validation at the method level for every public interface (located in the `types.go` files).
+First-class library support for deploying Bundles Next in UDS Fleet requires amending the `Complete → Validate → Run` pattern (established by [ADR-0002](0002-cli-architecture-patterns.md)) and performing additional validation at the method level for every public interface (located in the `types.go` files).
 
 This means there are two types of validation performed:
 

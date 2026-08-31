@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-The original Better Bundles design doc introduces the concept of a "reconfigure" operation:
+The original Bundles Next design doc introduces the concept of a "reconfigure" operation:
 
 > Variables could (and should) also include "defaults" at build time, providing a way of both documenting available values, and actually setting default configuration that can be changed later. Any defaults can be overridden at either deploy time OR with a targeted "reconfigure" operation that allows swapping in a new set of defaults as a *build* operation. This reconfiguration would result in a new bundle that could be published/deployed, but would share the majority of the underlying OCI layers.
 
@@ -161,7 +161,7 @@ The annotation value is the source child-index digest: the canonical artifact di
 
 ### Signing considerations
 
-The original Better Bundles design doc explicitly defers signing, SBOMs, and checksums to future work:
+The original Bundles Next design doc explicitly defers signing, SBOMs, and checksums to future work:
 
 > This example does not include signatures, sboms, checksums, or other additional artifacts. Anything of this nature would live at the same level as `bundle.uds.hcl`, but is currently not identified/designed explicitly for here.
 
