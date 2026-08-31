@@ -19,6 +19,8 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
+const componentsDir = "components"
+
 // Disassemble converts one packaged artifact into local source. Package inputs
 // are supported today; the source-shaped API leaves room for bundle inputs.
 func Disassemble(ctx context.Context, opts Options) (*Result, error) {
@@ -41,7 +43,7 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 	if err != nil {
 		return nil, fmt.Errorf("creating temporary directory: %w", err)
 	}
-	defer warnRemoveAll(opts.Warn, "temporary directory", tmpRoot)()
+	defer removeAllWithWarning(opts.Warn, "temporary directory", tmpRoot)
 
 	if opts.Architecture == "" {
 		opts.Architecture = runtime.GOARCH
@@ -78,11 +80,7 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if stageDir != "" {
-			warnRemoveAll(opts.Warn, "output staging directory", stageDir)()
-		}
-	}()
+	defer removeAllWithWarning(opts.Warn, "output staging directory", stageDir)
 
 	if err := copyPackageLevelAssets(ctx, pkgLayout, stageDir, &pkg); err != nil {
 		return nil, err
@@ -107,16 +105,13 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 	if err := publishOutput(stageDir, finalDir); err != nil {
 		return nil, err
 	}
-	stageDir = ""
 
 	return &Result{Source: opts.Source, OutputDir: opts.OutputDir}, nil
 }
 
-func warnRemoveAll(warnFn func(string, ...any), kind, path string) func() {
-	return func() {
-		if err := os.RemoveAll(path); err != nil {
-			warn(warnFn, "failed to remove "+kind, "path", path, "error", err)
-		}
+func removeAllWithWarning(warnFn func(string, ...any), kind, path string) {
+	if err := os.RemoveAll(path); err != nil {
+		warn(warnFn, "failed to remove "+kind, "path", path, "error", err)
 	}
 }
 
@@ -127,7 +122,7 @@ func warn(warnFn func(string, ...any), msg string, args ...any) {
 }
 
 func localizeComponent(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, finalDir, tmpRoot string, component *v1alpha1.ZarfComponent) error {
-	componentOutDir := filepath.Join(outputDir, component.Name)
+	componentOutDir := filepath.Join(outputDir, componentsDir, component.Name)
 	if err := os.MkdirAll(componentOutDir, helpers.ReadWriteExecuteUser); err != nil {
 		return fmt.Errorf("creating component output directory: %w", err)
 	}
@@ -162,6 +157,10 @@ func localizeComponent(ctx context.Context, pkgLayout *layout.PackageLayout, out
 
 	component.Actions.OnCreate = v1alpha1.ZarfComponentActionSet{}
 	return nil
+}
+
+func componentSourcePath(componentName, rel string) string {
+	return filepath.ToSlash(filepath.Join(componentsDir, componentName, rel))
 }
 
 func createOutputStage(finalDir string) (string, error) {

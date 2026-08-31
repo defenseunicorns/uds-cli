@@ -17,8 +17,7 @@ uds dev disassemble <source> <output-dir> [flags]
 ### Options
 
 ```
-  -h, --help            help for disassemble
-  -o, --output string   output format (text, json, yaml) (default "text")
+  -h, --help   help for disassemble
 ```
 
 ### Options inherited from parent commands

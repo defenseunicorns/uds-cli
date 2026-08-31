@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
@@ -29,7 +30,7 @@ func localizeManifests(ctx context.Context, pkgLayout *layout.PackageLayout, out
 			if err := helpers.CreatePathAndCopy(src, filepath.Join(outputDir, rel)); err != nil {
 				return fmt.Errorf("copying manifest %s file %d: %w", manifest.Name, idx, err)
 			}
-			localizedFiles = append(localizedFiles, filepath.ToSlash(filepath.Join(component.Name, rel)))
+			localizedFiles = append(localizedFiles, componentSourcePath(component.Name, rel))
 		}
 		localizedKustomizations := make([]string, 0, len(manifest.Kustomizations))
 		for idx := range manifest.Kustomizations {
@@ -42,7 +43,7 @@ func localizeManifests(ctx context.Context, pkgLayout *layout.PackageLayout, out
 			if err := os.WriteFile(wrapper, []byte("resources:\n  - rendered.yaml\n"), helpers.ReadWriteUser); err != nil {
 				return fmt.Errorf("writing manifest kustomization wrapper %s %d: %w", manifest.Name, idx, err)
 			}
-			localizedKustomizations = append(localizedKustomizations, filepath.ToSlash(filepath.Join(component.Name, rel)))
+			localizedKustomizations = append(localizedKustomizations, componentSourcePath(component.Name, rel))
 		}
 		manifest.Files = localizedFiles
 		manifest.Kustomizations = localizedKustomizations
@@ -70,7 +71,7 @@ func localizeCharts(ctx context.Context, pkgLayout *layout.PackageLayout, output
 		if err := helpers.CreatePathAndCopy(src, filepath.Join(outputDir, rel)); err != nil {
 			return fmt.Errorf("copying chart %s: %w", chart.Name, err)
 		}
-		chart.LocalPath = filepath.ToSlash(filepath.Join(component.Name, rel))
+		chart.LocalPath = componentSourcePath(component.Name, rel)
 		chart.URL = ""
 		chart.RepoName = ""
 		chart.GitPath = ""
@@ -96,10 +97,7 @@ func localizeCharts(ctx context.Context, pkgLayout *layout.PackageLayout, output
 
 func localizeChartValues(valuesDir, outputDir, componentName string, chart v1alpha1.ZarfChart, valueIdx, globalIdx int, original string, templated bool) (string, error) {
 	src := filepath.Join(valuesDir, layout.ChartValuesFileName(chart.Name, chart.Version, globalIdx))
-	base := filepath.Base(original)
-	if base == "" || base == "." || base == string(filepath.Separator) {
-		base = "values.yaml"
-	}
+	base := portableAssetName(original, "values.yaml")
 	prefix := "values"
 	if templated {
 		prefix = "templated-values"
@@ -108,5 +106,38 @@ func localizeChartValues(valuesDir, outputDir, componentName string, chart v1alp
 	if err := helpers.CreatePathAndCopy(src, filepath.Join(outputDir, rel)); err != nil {
 		return "", fmt.Errorf("copying chart values for %s: %w", chart.Name, err)
 	}
-	return filepath.ToSlash(filepath.Join(componentName, rel)), nil
+	return componentSourcePath(componentName, rel), nil
+}
+
+func portableAssetName(source, fallback string) string {
+	name := filepath.Base(source)
+	if helpers.IsURL(source) {
+		if urlName, err := helpers.ExtractBasePathFromURL(source); err == nil {
+			name = urlName
+		}
+	}
+	name = strings.Map(func(r rune) rune {
+		if r < 32 || strings.ContainsRune(`<>:"/\|?*`, r) {
+			return '-'
+		}
+		return r
+	}, name)
+	name = strings.TrimRight(name, ". ")
+	if name == "" || name == "." {
+		return fallback
+	}
+
+	stem := strings.ToUpper(strings.SplitN(name, ".", 2)[0])
+	if isWindowsReservedName(stem) {
+		name = "_" + name
+	}
+	return name
+}
+
+func isWindowsReservedName(stem string) bool {
+	switch stem {
+	case "CON", "PRN", "AUX", "NUL":
+		return true
+	}
+	return len(stem) == 4 && (strings.HasPrefix(stem, "COM") || strings.HasPrefix(stem, "LPT")) && stem[3] >= '1' && stem[3] <= '9'
 }

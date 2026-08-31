@@ -83,6 +83,8 @@ func (o *DevDisassembleOptions) Validate() error {
 
 // Run disassembles the source artifact and prints its result.
 func (o *DevDisassembleOptions) Run(ctx context.Context) error {
+	// Zarf package APIs read their process-global temp setting instead of UDS config.
+	configureZarfTempDir(o.Config.Options.TmpDir)
 	result, err := o.run(ctx, disassemble.Options{
 		Source:               o.Source,
 		OutputDir:            o.OutputDir,

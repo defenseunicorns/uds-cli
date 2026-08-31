@@ -28,7 +28,7 @@ uds dev disassemble \
   ./app-source
 ```
 
-The command writes its result as text by default. Use `--output json` or `--output yaml` for structured output.
+Legacy mode reports successful completion as human-readable CLI output. Next mode writes its result as text by default and supports `--output json` or `--output yaml` for structured output.
 
 ### Rebuild offline
 

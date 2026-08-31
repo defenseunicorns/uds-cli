@@ -5,10 +5,12 @@ package disassemble
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
@@ -32,7 +34,7 @@ func localizeRepos(ctx context.Context, pkgLayout *layout.PackageLayout, outputD
 		}
 		// Zarf currently requires a URL-shaped repo source and does not resolve it
 		// against the package directory, so use the final local path explicitly.
-		component.Repos[idx] = fileURL(filepath.Join(finalDir, component.Name, rel))
+		component.Repos[idx] = fileURL(filepath.Join(finalDir, componentSourcePath(component.Name, rel)))
 	}
 	return nil
 }
@@ -44,6 +46,18 @@ func fileURL(path string) string {
 func findRepoPath(repoDir, ref string) (string, error) {
 	modern, modernErr := transform.GitURLtoFolderName(ref)
 	legacy, legacyErr := transform.GitURLtoRepoName(ref)
+	names := make([]string, 0, 2)
+	mappingErrs := make([]error, 0, 2)
+	if modernErr != nil {
+		mappingErrs = append(mappingErrs, fmt.Errorf("modern repository mapping: %w", modernErr))
+	} else if modern != "" {
+		names = append(names, modern)
+	}
+	if legacyErr != nil {
+		mappingErrs = append(mappingErrs, fmt.Errorf("legacy repository mapping: %w", legacyErr))
+	} else if legacy != "" && legacy != modern {
+		names = append(names, legacy)
+	}
 	for _, name := range []string{modern, legacy} {
 		if name == "" {
 			continue
@@ -55,5 +69,12 @@ func findRepoPath(repoDir, ref string) (string, error) {
 			return "", fmt.Errorf("checking packaged repository %q: %w", ref, err)
 		}
 	}
-	return "", fmt.Errorf("unable to map repository %q to packaged content (modern: %w, legacy: %w)", ref, modernErr, legacyErr)
+	detail := "no candidate names produced"
+	if len(names) > 0 {
+		detail = "tried " + strings.Join(names, ", ")
+	}
+	if err := errors.Join(mappingErrs...); err != nil {
+		return "", fmt.Errorf("unable to map repository %q to packaged content; %s: %w", ref, detail, err)
+	}
+	return "", fmt.Errorf("unable to map repository %q to packaged content; %s", ref, detail)
 }

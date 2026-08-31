@@ -30,7 +30,7 @@ func localizeFiles(ctx context.Context, pkgLayout *layout.PackageLayout, outputD
 		if err := helpers.CreatePathAndCopy(src, filepath.Join(outputDir, rel)); err != nil {
 			return fmt.Errorf("copying component file %d: %w", idx, err)
 		}
-		file.Source = filepath.ToSlash(filepath.Join(component.Name, rel))
+		file.Source = componentSourcePath(component.Name, rel)
 		file.ExtractPath = ""
 	}
 	return nil
@@ -51,7 +51,7 @@ func localizeDataInjections(ctx context.Context, pkgLayout *layout.PackageLayout
 		if err := helpers.CreatePathAndCopy(src, filepath.Join(outputDir, rel)); err != nil {
 			return fmt.Errorf("copying data injection %d: %w", idx, err)
 		}
-		data.Source = filepath.ToSlash(filepath.Join(component.Name, rel))
+		data.Source = componentSourcePath(component.Name, rel)
 	}
 	return nil
 }

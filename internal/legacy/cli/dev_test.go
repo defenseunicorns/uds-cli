@@ -5,15 +5,13 @@
 package cmd
 
 import (
-	"bytes"
-	"encoding/json"
 	"testing"
 
-	"github.com/defenseunicorns/uds-cli/internal/mode/disassemble"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/config"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	zarfconfig "github.com/zarf-dev/zarf/src/config"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
@@ -35,15 +33,17 @@ func TestLegacyDisassembleOptionsHonorSignatureBypass(t *testing.T) {
 	assert.Equal(t, layout.VerifyNever, legacyDisassembleOptions("source", "output").VerificationStrategy)
 }
 
-func TestPrintDisassembleResultJSON(t *testing.T) {
-	cmd := newDevDisassembleCommand()
-	var output bytes.Buffer
-	cmd.SetOut(&output)
-	require.NoError(t, printDisassembleResult(cmd, "json", &disassemble.Result{Source: "package", OutputDir: "source"}))
-	var result disassemble.Result
-	require.NoError(t, json.Unmarshal(output.Bytes(), &result))
-	assert.Equal(t, "package", result.Source)
-	assert.Equal(t, "source", result.OutputDir)
+func TestConfigureZarfUsesLegacyTempDirectory(t *testing.T) {
+	previousZarfOptions := zarfconfig.CommonOptions
+	previousTmpDir := config.CommonOptions.TempDirectory
+	t.Cleanup(func() {
+		zarfconfig.CommonOptions = previousZarfOptions
+		config.CommonOptions.TempDirectory = previousTmpDir
+	})
+
+	config.CommonOptions.TempDirectory = "/tmp/legacy-disassemble"
+	configureZarf()
+	assert.Equal(t, config.CommonOptions.TempDirectory, zarfconfig.CommonOptions.TempDirectory)
 }
 
 func TestValidateDevDeployFlags(t *testing.T) {

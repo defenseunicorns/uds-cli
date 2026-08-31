@@ -1,31 +1,26 @@
 // Copyright 2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
-//go:build integration
-
-package disassemble_test
+package test
 
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
 
-	"github.com/defenseunicorns/uds-cli/tests/testutil"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/pkg/packager/assemble"
 	"github.com/zarf-dev/zarf/src/pkg/packager/load"
 )
 
-func TestDisassembleAndRebuildPackage(t *testing.T) {
-	uds := testutil.UDSCLIPath(t, "run via 'uds run test:next-integration'")
+func TestDevDisassembleAndRebuildPackage(t *testing.T) {
 	sourceDir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "payload.txt"), []byte("offline payload\n"), 0o600))
 	zarfYAML := fmt.Sprintf(`kind: ZarfPackageConfig
 metadata:
-  name: command-roundtrip
+  name: legacy-command-roundtrip
   version: 1.0.0
   architecture: %s
 components:
@@ -40,18 +35,17 @@ components:
 	require.NoError(t, err)
 	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{SkipSBOM: true})
 	require.NoError(t, err)
-	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
+	t.Cleanup(func() { require.NoError(t, pkgLayout.Cleanup()) })
 	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
 	require.NoError(t, err)
 
 	outputDir := filepath.Join(t.TempDir(), "source")
-	cmd := exec.Command(uds, "--features=NextMode=true", "bundle", "dev", "disassemble", archivePath, outputDir)
-	output, err := cmd.CombinedOutput()
-	require.NoErrorf(t, err, "disassemble output:\n%s", output)
+	stdout, stderr, err := e2e.UDS("--features=NextMode=false", "dev", "disassemble", archivePath, outputDir)
+	require.NoErrorf(t, err, "stdout:\n%s\nstderr:\n%s", stdout, stderr)
 
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
 	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{SkipSBOM: true})
 	require.NoError(t, err)
-	require.NoError(t, reassembled.Cleanup())
+	t.Cleanup(func() { require.NoError(t, reassembled.Cleanup()) })
 }
