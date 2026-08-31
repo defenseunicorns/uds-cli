@@ -36,6 +36,12 @@ Specifically:
 - We perform automated testing on all changes before they get merged to `main`
 - We create immutable release artifacts
 
+Release Please runs after merges to `main` and maintains the release pull request. Merging that
+pull request creates the version tag and GitHub release. When that happens, the same workflow
+calls the release workflow to build and attach release artifacts. This avoids relying on a
+tag-triggered workflow, which GitHub intentionally does not start for tags created with the
+workflow `GITHUB_TOKEN`.
+
 ## How to Contribute
 Please ensure there is a GitHub issue for your proposed change, this helps the UDS CLI team to understand the context of the change and to track the progress of the work. If there isn't an issue for your change, please create one before starting work. The recommended workflow for contributing is as follows:
 

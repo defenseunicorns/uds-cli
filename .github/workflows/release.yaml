@@ -1,4 +1,4 @@
-# Copyright 2024 Defense Unicorns
+# Copyright 2024-2026 Defense Unicorns
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 name: Release UDS-CLI on Tag
@@ -10,6 +10,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_call:
+    inputs:
+      release_tag:
+        description: Tag whose release artifacts should be built.
+        required: true
+        type: string
 
 jobs:
   test:
@@ -31,6 +37,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - name: Free up disk space
         run: |
