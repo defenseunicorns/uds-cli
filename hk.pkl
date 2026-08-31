@@ -20,7 +20,7 @@ local checks = new Mapping<String, Step> {
     ["detect-secrets"] {
         check = "gitleaks detect --source . --no-git --redact --no-banner --exit-code 1"
         glob = List("**/*")
-        exclude = List("build/**", "vendor/**")
+        exclude = List("build/**", "vendor/**", "uds-docs/**")
     }
     ["end-of-file-fixer"] = (Builtins.newlines) {
         exclude = List("docs/reference/commands/**", "build/**", "vendor/**")
