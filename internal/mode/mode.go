@@ -69,16 +69,18 @@ func Resolve(args []string, lookupEnv func(string) (string, bool)) (Mode, Featur
 	}
 	remaining := make([]string, 0, len(args))
 	zarfIndex := zarfCommandIndex(args)
+	zarfArgs := []string(nil)
+	if zarfIndex >= 0 {
+		zarfArgs = args[zarfIndex:]
+		args = args[:zarfIndex]
+	}
 	seenFeatures := false
-	for i := 0; i < len(args); i++ {
-		if zarfIndex >= 0 && i >= zarfIndex {
-			remaining = append(remaining, args[i:]...)
-			break
-		}
-		arg := args[i]
+	for len(args) > 0 {
+		arg := args[0]
+		args = args[1:]
 		if arg == "--" {
 			remaining = append(remaining, arg)
-			remaining = append(remaining, args[i+1:]...)
+			remaining = append(remaining, args...)
 			break
 		}
 		value := ""
@@ -86,11 +88,11 @@ func Resolve(args []string, lookupEnv func(string) (string, bool)) (Mode, Featur
 		case strings.HasPrefix(arg, "--features="):
 			value = strings.TrimPrefix(arg, "--features=")
 		case arg == "--features":
-			if i+1 >= len(args) {
+			if len(args) == 0 {
 				return "", nil, nil, errors.New("--features requires a value")
 			}
-			i++
-			value = args[i]
+			value = args[0]
+			args = args[1:]
 		default:
 			remaining = append(remaining, arg)
 			continue
@@ -107,6 +109,7 @@ func Resolve(args []string, lookupEnv func(string) (string, bool)) (Mode, Featur
 			features[name] = enabled
 		}
 	}
+	remaining = append(remaining, zarfArgs...)
 	if features["NextMode"] {
 		return Next, features, remaining, nil
 	}
