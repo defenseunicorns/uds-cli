@@ -53,7 +53,7 @@ jobs:
         with:
           distribution: goreleaser
           # renovate: datasource=github-releases depName=goreleaser/goreleaser
-          version: v2.17.1
+          version: v2.18.0
           args: release --clean --snapshot --skip=homebrew,sbom --config .goreleaser.yaml
 
       - name: Stage release artifacts
