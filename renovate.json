@@ -11,6 +11,16 @@
   "postUpdateOptions": ["gomodTidy", "gomodVendor"],
   "packageRules": [
     {
+      "description": "Keep direct Kubernetes modules compatible with the current Zarf release train.",
+      "matchManagers": ["gomod"],
+      "matchPackageNames": [
+        "k8s.io/api",
+        "k8s.io/apimachinery",
+        "k8s.io/client-go"
+      ],
+      "allowedVersions": "/^v0\\.36\\./"
+    },
+    {
       "matchFileNames": ["go.mod", "go.sum"],
       "groupName": "application-deps",
       "commitMessageTopic": "application dependencies"
