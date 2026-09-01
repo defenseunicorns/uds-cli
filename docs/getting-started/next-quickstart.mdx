@@ -68,7 +68,7 @@ Next mode is an alpha preview of UDS CLI enabled with the `NextMode=true` featur
    }
    ```
 
-   Each package needs a signature verification policy. Use `verify = false` only for local alpha workflows. This bypasses package signature verification, so package origin and integrity are not established. See [Create a bundle in Next mode](/cli/how-to-guides/next-create-a-bundle/) for signed artifacts.
+   Each package needs a signature verification policy. Use `verify = false` only for local alpha workflows. This bypasses package signature verification, so package origin and integrity are not established. See [Create a bundle in Next mode](/cli/how-to-guides/next/create-a-bundle/) for signed artifacts.
 
 2. **Deploy from the definition**
 
@@ -122,7 +122,7 @@ CLI_FEATURES=NextMode=true uds zarf tools kubectl get pods -A
 
 ## Related documentation
 
-- [Create a bundle in Next mode](/cli/how-to-guides/next-create-a-bundle/) - Define bundles in Next mode and create signed or unsigned artifacts.
-- [Deploy a bundle in Next mode](/cli/how-to-guides/next-deploy-a-bundle/) - Deploy bundle definitions and created artifacts.
-- [Publish and pull a bundle in Next mode](/cli/how-to-guides/next-publish-pull/) - Move bundle artifacts through an OCI registry.
+- [Create a bundle in Next mode](/cli/how-to-guides/next/create-a-bundle/) - Define bundles in Next mode and create signed or unsigned artifacts.
+- [Deploy a bundle in Next mode](/cli/how-to-guides/next/deploy-a-bundle/) - Deploy bundle definitions and created artifacts.
+- [Publish and pull a bundle in Next mode](/cli/how-to-guides/next/publish-pull/) - Move bundle artifacts through an OCI registry.
 - [Next mode reference](/cli/reference/next-mode/) - Review the bundle format, commands, and artifact behavior.

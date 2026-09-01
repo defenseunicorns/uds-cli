@@ -2,7 +2,7 @@
 title: "Publish and pull a bundle in Next mode"
 description: Publish artifacts for bundles in Next mode to an OCI registry and pull them for deployment or offline workflows.
 sidebar:
-  order: 3.700
+  order: 4.5
 ---
 
 import { Steps } from '@astrojs/starlight/components';
@@ -66,7 +66,7 @@ Use `bundle push` to publish a local `.tar.zst` artifact and `bundle pull` to re
      --output-dir ./downloads
    ```
 
-    Do not use `--skip-signature-verification` when pulling registry artifacts for a trusted workflow. Use the signed pull commands above, or keep unsigned testing to a locally created artifact and follow the unsigned local workflow in [Deploy a bundle in Next mode](/cli/how-to-guides/next-deploy-a-bundle/).
+    Do not use `--skip-signature-verification` when pulling registry artifacts for a trusted workflow. Use the signed pull commands above, or keep unsigned testing to a locally created artifact and follow the unsigned local workflow in [Deploy a bundle in Next mode](/cli/how-to-guides/next/deploy-a-bundle/).
 
 3. **Deploy the pulled artifact**
 
@@ -76,7 +76,7 @@ Use `bundle push` to publish a local `.tar.zst` artifact and `bundle pull` to re
    CLI_FEATURES=NextMode=true uds bundle deploy ./downloads/uds-bundle-my-app-<ARCH>-1.0.0.tar.zst --public-key ./cosign.pub
    ```
 
-   Use [the deployment workflow](/cli/how-to-guides/next-deploy-a-bundle/) for source deploys, partial package selection, and unsigned local workflows.
+   Use [the deployment workflow](/cli/how-to-guides/next/deploy-a-bundle/) for source deploys, partial package selection, and unsigned local workflows.
 
 </Steps>
 
@@ -92,6 +92,6 @@ Replace `<ARCH>` with the architecture in the path printed by `bundle pull`, suc
 
 ## Related documentation
 
-- [Create a bundle in Next mode](/cli/how-to-guides/next-create-a-bundle/) - Create a signed bundle artifact.
-- [Reconfigure a bundle in Next mode](/cli/how-to-guides/next-reconfigure-a-bundle/) - Create an environment-specific derivative.
-- [Inspect and verify a bundle in Next mode](/cli/how-to-guides/next-inspect-verify/) - Inspect metadata and verify signatures.
+- [Create a bundle in Next mode](/cli/how-to-guides/next/create-a-bundle/) - Create a signed bundle artifact.
+- [Reconfigure a bundle in Next mode](/cli/how-to-guides/next/reconfigure-a-bundle/) - Create an environment-specific derivative.
+- [Inspect and verify a bundle in Next mode](/cli/how-to-guides/next/inspect-verify/) - Inspect metadata and verify signatures.

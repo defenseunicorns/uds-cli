@@ -2,7 +2,7 @@
 title: "Create a bundle in Next mode"
 description: Define a bundle in Next mode with HCL, package dependencies, values files, and signature policies.
 sidebar:
-  order: 3.500
+  order: 4.3
 ---
 
 import { Steps } from '@astrojs/starlight/components';
@@ -66,12 +66,38 @@ Create a self-contained OCI artifact from a `bundle.uds.hcl` definition.
    }
    ```
 
-   Create the values file referenced by the `api` package. Values files support Go templates. The `{{ .vars.* }}` expressions read variables available at deploy time, including values from `defaults.uds.hcl` or `config.uds.hcl`; missing variables cause deployment to fail. Replace the example field with a value supported by the package's charts:
+   Create the values file referenced by the `api` package. Values files support Go templates. The `{{ .vars.* }}` expressions read variables available at deploy time, including values from `defaults.uds.hcl` or `config.uds.hcl`; missing variables cause deployment to fail. In this example, the package maps the `replicas` value to the chart's `replicaCount` value:
 
    ```yaml title="values/api.yaml"
-   # Replace this example with values supported by the API package.
-   replicaCount: {{ .vars.replica_count }}
+   replicas: {{ .vars.replica_count }}
    ```
+
+   The package author defines that mapping in the package's `zarf.yaml`:
+
+   ```yaml title="zarf.yaml"
+   kind: ZarfPackageConfig
+   metadata:
+     name: api
+     version: 1.0.0
+
+   values:
+     files:
+       - values.yaml
+
+   components:
+     - name: api
+       required: true
+       charts:
+         - name: api
+           version: 1.0.0
+           namespace: api
+           url: oci://ghcr.io/my-org/charts/api
+           values:
+             - sourcePath: ".replicas"
+               targetPath: ".replicaCount"
+   ```
+
+   `sourcePath` identifies the key in the Zarf values file, and `targetPath` identifies the corresponding Helm chart value. At deploy time, the `replica_count` bundle variable becomes the Zarf `replicas` value, which Zarf maps to the chart's `replicaCount` value.
 
     The package ID is the label after `package`. Use it with `depends_on` to control deployment order, for example `depends_on = [package.database]`. Independent packages deploy in parallel.
 
@@ -134,5 +160,5 @@ Replace `<ARCH>` with the target architecture, such as `amd64` or `arm64`.
 
 ## Related documentation
 
-- [Deploy a bundle in Next mode](/cli/how-to-guides/next-deploy-a-bundle/) - Deploy a definition or created artifact.
+- [Deploy a bundle in Next mode](/cli/how-to-guides/next/deploy-a-bundle/) - Deploy a definition or created artifact.
 - [Next mode reference](/cli/reference/next-mode/) - Review the complete HCL and command reference.
