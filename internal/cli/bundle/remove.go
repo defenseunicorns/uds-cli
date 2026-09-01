@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
@@ -19,19 +20,13 @@ import (
 
 // RemoveOptions holds options for the remove command.
 type RemoveOptions struct {
-	BundlePath string // Path to bundle file or directory (user input, resolved in Run)
-	Packages   []string
-	Force      bool
-	Prompt     bool
-	Config     *bundle.UDSBundleConfig
-	Printer    printer.ResourcePrinter
-
-	// parsedBundle is populated by Validate() after a successful parse and
-	// is consumed by Run(). Centralizing parsing in Validate() lets the
-	// dependency-safety check (ValidateRemovalSafety) run there without
-	// re-parsing in Run().
-	parsedBundle *spec.UDSBundle
-
+	BundlePath   string // Path to bundle file or directory (user input, resolved in Run)
+	Packages     []string
+	Force        bool
+	Prompt       bool
+	Config       *bundle.UDSBundleConfig
+	Verification VerifyOptions
+	Printer      printer.ResourcePrinter
 	iostreams.IOStreams
 }
 
@@ -54,6 +49,8 @@ func NewRemoveCommand(streams iostreams.IOStreams) *cobra.Command {
 The bundle-path can be:
   - A directory containing bundle.uds.hcl
   - A path to a bundle.uds.hcl file
+  - A tar.zst artifact containing bundle.uds.hcl
+  - An oci artifact containing bundle.uds.hcl file
   - If omitted, uses the bundle.uds.hcl file in current directory
 
 Packages are removed in reverse order (last deployed first) to respect
@@ -66,11 +63,14 @@ The CLI is non-interactive by default (suitable for CI/CD pipelines).
 Use --prompt to enable interactive confirmation before removal.
 
 Examples:
-  # Remove all packages in current directory bundle
+  # Remove all packages located in current directory bundle
   uds bundle remove
 
-  # Remove bundle from specific directory
+  # Remove packages with a bundle in a specific directory
   uds bundle remove ./my-bundle
+
+  # Remove packages with a bundle in an oci repository
+  uds bundle remove oci://my-bundle
 
   # Remove only specific packages
   uds bundle remove --packages nginx,podinfo
@@ -79,7 +79,10 @@ Examples:
   uds bundle remove --packages core --force
 
   # Remove with interactive confirmation prompt
-  uds bundle remove --prompt`,
+  uds bundle remove --prompt
+
+  # Remove without verifying bundle signature
+  uds bundle remove --skip-signature-verification`,
 		Args: cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			util.CheckErr(o.Complete(cmd, args))
@@ -90,6 +93,7 @@ Examples:
 
 	cmd.Flags().StringSliceVarP(&o.Packages, "packages", "p", nil, "specific packages to remove (comma-separated)")
 	cmd.Flags().BoolVarP(&o.Force, "force", "f", false, "remove packages even if other bundle packages depend on them")
+	addVerificationFlags(cmd, &o.Verification, true)
 
 	return cmd
 }
@@ -113,6 +117,7 @@ func (o *RemoveOptions) Complete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	o.Config = cfg
+	o.Verification.Config = cfg
 
 	p, err := ResolvePrinter(cmd)
 	if err != nil {
@@ -123,30 +128,48 @@ func (o *RemoveOptions) Complete(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// Validate validates the options. It parses the bundle and runs the package
-// selection checks (ValidatePackageNames and, unless --force, dependency
-// safety) before Run() so invalid input fails fast even when the operator
-// declines the prompt. The library layer (RemoveBundle) re-validates as the
-// authoritative gate for direct callers. The parsed bundle is cached on
-// o.parsedBundle for Run() to consume.
+// Validate checks argument shape, local source existence, and verification
+// policy without parsing bundle content or contacting a registry.
 func (o *RemoveOptions) Validate() error {
-	if err := ValidateBundlePath(o.BundlePath); err != nil {
+	if err := ValidateBundlePath(o.BundlePath, AllowArtifactBundlePath(), AllowOCIReferenceBundlePath()); err != nil {
 		return err
 	}
-
-	// Bind a logger so the parse + safety-check diagnostics below honor --log-level
-	// and Streams.ErrOut, consistent with the rest of the CLI.
-	ctx := context.Background()
-	s := logger.Bind(o.IOStreams, o.Config.Options.LogLevel)
-	bundlePath := resolveBundlePath(o.BundlePath)
-	parsedBundle, err := bundleinternal.NewHCLParser(o.Config.Options.Architecture, s).ParseBundleFile(ctx, bundlePath)
-	if err != nil {
-		return fmt.Errorf("%w %q: %w", ErrParseBundle, bundlePath, err)
+	if !o.Verification.SkipSignatureVerification && (isOCIReference(o.BundlePath) || isTarZst(o.BundlePath)) {
+		_, err := o.Verification.policy()
+		return err
 	}
-	if err := parsedBundle.Validate(); err != nil {
+	return nil
+}
+
+// Run performs the metadata-only bundle preflight, prompts the user, and then
+// delegates authoritative verification and removal to the library.
+func (o *RemoveOptions) Run(ctx context.Context) error {
+	bundlePath := resolveBundlePath(o.BundlePath)
+	s := logger.Bind(o.IOStreams, o.Config.Options.LogLevel)
+
+	var parsedBundle *spec.UDSBundle
+	var err error
+	if isOCIReference(o.BundlePath) || isTarZst(o.BundlePath) {
+		inspection, err := artifact.InspectBundleDefinition(ctx, artifact.InspectOptions{
+			Source:  o.BundlePath,
+			Config:  toInternalConfig(o.Config),
+			Streams: s,
+		})
+		if err != nil {
+			return fmt.Errorf("%w %q: %w", ErrParseBundle, o.BundlePath, err)
+		}
+		parsedBundle = inspection.Bundle
+	} else {
+		parsedBundle, err = bundleinternal.NewHCLParser(o.Config.Options.Architecture, s).ParseBundleFile(ctx, bundlePath)
+		if err != nil {
+			return fmt.Errorf("%w %q: %w", ErrParseBundle, bundlePath, err)
+		}
+	}
+
+	if err = parsedBundle.Validate(); err != nil {
 		return fmt.Errorf("%w %q: %w", ErrInvalidBundle, parsedBundle.Metadata.Name, err)
 	}
-	if err := bundleinternal.ValidatePackageNames(o.Packages, parsedBundle.Packages); err != nil {
+	if err = bundleinternal.ValidatePackageNames(o.Packages, parsedBundle.Packages); err != nil {
 		return err
 	}
 	if !o.Force {
@@ -159,17 +182,7 @@ func (o *RemoveOptions) Validate() error {
 		}
 	}
 
-	o.parsedBundle = parsedBundle
-	return nil
-}
-
-// Run executes the remove command. Validate() must have populated
-// o.parsedBundle.
-func (o *RemoveOptions) Run(ctx context.Context) error {
-	bundlePath := resolveBundlePath(o.BundlePath)
-	s := logger.Bind(o.IOStreams, o.Config.Options.LogLevel)
-
-	s.Info("bundle to remove", "name", o.parsedBundle.Metadata.Name, "packages", len(o.parsedBundle.Packages))
+	s.Info("bundle to remove", "name", parsedBundle.Metadata.Name, "packages", len(parsedBundle.Packages))
 
 	if o.Prompt {
 		confirmed, err := PromptConfirmation(o.IOStreams, "Remove this bundle?")
@@ -184,18 +197,28 @@ func (o *RemoveOptions) Run(ctx context.Context) error {
 	s.Info("removing bundle", "source", bundlePath)
 	s.Debug("removing bundle", "path", bundlePath, "prompt", o.Prompt)
 
+	policy := bundle.VerificationPolicy{}
+	if !o.Verification.SkipSignatureVerification && (isOCIReference(o.BundlePath) || isTarZst(o.BundlePath)) {
+		var err error
+		policy, err = o.Verification.policy()
+		if err != nil {
+			return err
+		}
+	}
 	removeOpts := bundle.RemoveOptions{
-		Config:   o.Config,
-		Packages: o.Packages,
-		Force:    o.Force,
-		Streams:  o.IOStreams,
+		Config:                    o.Config,
+		Packages:                  o.Packages,
+		Verification:              policy,
+		SkipSignatureVerification: o.Verification.SkipSignatureVerification,
+		Force:                     o.Force,
+		Streams:                   o.IOStreams,
 	}
 
 	// Zarf package APIs read their process-global temp setting instead of UDS config.
 	configureZarfTempDir(o.Config.Options.TmpDir)
 	result, err := bundle.Remove(ctx, &bundle.DeploySource{
 		BundlePath: bundlePath,
-		Bundle:     o.parsedBundle,
+		Bundle:     parsedBundle,
 	}, removeOpts)
 	if err != nil {
 		return err

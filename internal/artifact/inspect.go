@@ -17,16 +17,8 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"gopkg.in/yaml.v3"
+	"oras.land/oras-go/v2/content"
 )
-
-type inspectBlobFetcher func(context.Context, ocispec.Descriptor) ([]byte, error)
-
-type packageSigningMetadata struct {
-	Build struct {
-		Signed *bool `yaml:"signed"`
-	} `yaml:"build"`
-}
 
 // InspectOptions contains the internal inputs for built bundle inspection.
 type InspectOptions struct {
@@ -68,67 +60,131 @@ const (
 	PackageVerificationStatusSkipped
 )
 
-// Inspect reads a built local or OCI bundle.
-// It reads metadata only and does not verify package content or signatures.
-func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
-	if udsoci.IsOCIReference(opts.Source) {
-		return inspectOCIReference(ctx, opts)
-	}
-	return inspectLocalArtifact(ctx, opts)
+// MetadataSource is a resolved OCI bundle metadata source.
+type MetadataSource struct {
+	IndexBytes     []byte
+	ArtifactDigest string
+	Fetcher        content.Fetcher
+	fetchSignature func(context.Context) ([]byte, error)
 }
 
-func inspectLocalArtifact(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
+// OpenMetadataSource resolves a local archive or remote OCI reference without
+// pulling or extracting package payloads.
+func OpenMetadataSource(ctx context.Context, source string, config *bundleinternal.UDSBundleConfig) (*MetadataSource, error) {
+	if udsoci.IsOCIReference(source) {
+		target, err := udsoci.NewRemoteRepository(ctx, udsoci.TrimScheme(source), *config.Options)
+		if err != nil {
+			return nil, ResolvingInspectSourceError{Source: source, Err: err}
+		}
+		reference, err := udsoci.ReferenceIdentifier(source)
+		if err != nil {
+			return nil, err
+		}
+		child, indexBytes, err := udsoci.ResolveBundleChild(ctx, target, reference, config.Options.Architecture)
+		if err != nil {
+			return nil, ResolvingBundleSourceError{Source: source, Err: err}
+		}
+		return &MetadataSource{
+			IndexBytes:     indexBytes,
+			ArtifactDigest: child.Digest.String(),
+			Fetcher:        target,
+			fetchSignature: func(ctx context.Context) ([]byte, error) {
+				return udsoci.FetchBundleSignature(ctx, target, child)
+			},
+		}, nil
+	}
+
+	local, err := OpenLocalArchiveMetadataSource(ctx, source)
+	if err != nil {
+		return nil, err
+	}
+	return &MetadataSource{
+		IndexBytes:     local.Index,
+		ArtifactDigest: local.ArtifactDigest,
+		Fetcher:        local.Fetcher,
+		fetchSignature: func(context.Context) ([]byte, error) {
+			if !local.SignatureFound {
+				return nil, udsoci.ErrBundleSignatureNotFound
+			}
+			return local.SignatureEvidence, nil
+		},
+	}, nil
+}
+
+// FetchSignatureEvidence fetches the signature evidence for the resolved index.
+func (s *MetadataSource) FetchSignatureEvidence(ctx context.Context) ([]byte, error) {
+	return s.fetchSignature(ctx)
+}
+
+// Inspect reads bundle definition and package signature metadata.
+func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
+	var source *MetadataSource
+	var cleanup func()
+	var err error
+	if udsoci.IsOCIReference(opts.Source) {
+		source, err = OpenMetadataSource(ctx, opts.Source, opts.Config)
+	} else {
+		source, cleanup, err = openExtractedLocalMetadataSource(ctx, opts)
+		if cleanup != nil {
+			defer cleanup()
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	result, err := ReadBundleDefinition(ctx, source, opts.Streams)
+	if err != nil {
+		return nil, err
+	}
+	result.PackageSignatures, err = ReadPackageSignatures(ctx, source, result.Bundle)
+	return result, err
+}
+
+func openExtractedLocalMetadataSource(ctx context.Context, opts InspectOptions) (*MetadataSource, func(), error) {
 	workspace, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-inspect-*")
 	if err != nil {
-		return nil, fmt.Errorf("%w under %q: %w", ErrCreatingInspectionWorkspace, opts.Config.Options.TmpDir, err)
+		return nil, nil, fmt.Errorf("%w under %q: %w", ErrCreatingInspectionWorkspace, opts.Config.Options.TmpDir, err)
 	}
-	defer func() { _ = os.RemoveAll(workspace) }()
+	cleanup := func() { _ = os.RemoveAll(workspace) }
 
 	if err := ExtractTarZst(ctx, opts.Streams, opts.Source, workspace); err != nil {
-		return nil, fmt.Errorf("%w %q to %q: %w", ErrExtractingBundleArtifact, opts.Source, workspace, err)
+		cleanup()
+		return nil, nil, fmt.Errorf("%w %q to %q: %w", ErrExtractingBundleArtifact, opts.Source, workspace, err)
 	}
 
 	ociDir := filepath.Join(workspace, "oci")
 	indexPath := filepath.Join(ociDir, "index.json")
 	indexBytes, err := os.ReadFile(indexPath)
 	if err != nil {
-		return nil, fmt.Errorf("%w %q: %w", ErrReadingBundleIndex, indexPath, err)
+		cleanup()
+		return nil, nil, fmt.Errorf("%w %q: %w", ErrReadingBundleIndex, indexPath, err)
 	}
-
 	store, err := udsoci.OpenReadOnlyStore(ociDir)
 	if err != nil {
-		return nil, err
+		cleanup()
+		return nil, nil, err
 	}
-	fetch := func(ctx context.Context, desc ocispec.Descriptor) ([]byte, error) {
-		return udsoci.FetchBytes(ctx, store, desc)
-	}
-	return inspectBundleIndex(ctx, opts.Streams, indexBytes, digest.FromBytes(indexBytes).String(), fetch)
+	return &MetadataSource{
+		IndexBytes:     indexBytes,
+		ArtifactDigest: digest.FromBytes(indexBytes).String(),
+		Fetcher:        store,
+	}, cleanup, nil
 }
 
-func inspectOCIReference(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
-	target, err := udsoci.NewRemoteRepository(ctx, udsoci.TrimScheme(opts.Source), *opts.Config.Options)
-	if err != nil {
-		return nil, ResolvingInspectSourceError{Source: opts.Source, Err: err}
-	}
-	reference, err := udsoci.ReferenceIdentifier(opts.Source)
+// InspectBundleDefinition reads bundle definition metadata without package metadata.
+func InspectBundleDefinition(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
+	source, err := OpenMetadataSource(ctx, opts.Source, opts.Config)
 	if err != nil {
 		return nil, err
 	}
-	childDesc, indexBytes, err := udsoci.ResolveBundleChild(ctx, target, reference, opts.Config.Options.Architecture)
-	if err != nil {
-		return nil, ResolvingBundleSourceError{Source: opts.Source, Err: err}
-	}
-
-	fetch := func(ctx context.Context, desc ocispec.Descriptor) ([]byte, error) {
-		return udsoci.FetchBytes(ctx, target, desc)
-	}
-	return inspectBundleIndex(ctx, opts.Streams, indexBytes, childDesc.Digest.String(), fetch)
+	return ReadBundleDefinition(ctx, source, opts.Streams)
 }
 
-func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexBytes []byte, artifactDigest string, fetch inspectBlobFetcher) (*InspectResult, error) {
+// ReadBundleDefinition reads the bundle definition from a resolved metadata source.
+func ReadBundleDefinition(ctx context.Context, source *MetadataSource, streams iostreams.IOStreams) (*InspectResult, error) {
 	var idx ocispec.Index
-	if err := json.Unmarshal(indexBytes, &idx); err != nil {
-		return nil, fmt.Errorf("%w %s: %w", ErrParsingBundleIndex, artifactDigest, err)
+	if err := json.Unmarshal(source.IndexBytes, &idx); err != nil {
+		return nil, fmt.Errorf("%w %s: %w", ErrParsingBundleIndex, source.ArtifactDigest, err)
 	}
 	if !udsoci.IsBundleIndex(idx) {
 		return nil, InvalidBundleIndexError{Source: "artifact", ArtifactType: udsoci.MediaTypeBundle}
@@ -156,7 +212,7 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 	if !udsoci.IsImageManifestMediaType(definitionEntry.MediaType) {
 		return nil, UnsupportedMediaTypeError{Artifact: "bundle definition entry", MediaType: definitionEntry.MediaType}
 	}
-	definitionBytes, err := fetch(ctx, definitionEntry)
+	definitionBytes, err := udsoci.FetchBytes(ctx, source.Fetcher, definitionEntry)
 	if err != nil {
 		return nil, fmt.Errorf("%w %s: %w", ErrFetchingBundleDefinitionManifest, definitionEntry.Digest, err)
 	}
@@ -178,7 +234,7 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 	if hclDesc.MediaType != udsoci.MediaTypeBundleHCL {
 		return nil, UnsupportedMediaTypeError{Artifact: "bundle definition HCL layer", MediaType: hclDesc.MediaType}
 	}
-	hclBytes, err := fetch(ctx, hclDesc)
+	hclBytes, err := udsoci.FetchBytes(ctx, source.Fetcher, hclDesc)
 	if err != nil {
 		return nil, fmt.Errorf("%w %s: %w", ErrFetchingBundleDefinitionHCL, hclDesc.Digest, err)
 	}
@@ -188,7 +244,7 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 		return nil, err
 	}
 	if err := b.Validate(); err != nil {
-		return nil, fmt.Errorf("%w %s: %w", ErrInvalidBundle, artifactDigest, err)
+		return nil, fmt.Errorf("%w %s: %w", ErrInvalidBundle, source.ArtifactDigest, err)
 	}
 	dag, err := bundleinternal.BuildDependencyGraph(ctx, streams, b)
 	if err != nil {
@@ -201,22 +257,64 @@ func inspectBundleIndex(ctx context.Context, streams iostreams.IOStreams, indexB
 	result := &InspectResult{
 		Bundle:            b,
 		Packages:          packages,
-		ArtifactDigest:    artifactDigest,
+		ArtifactDigest:    source.ArtifactDigest,
 		ReconfiguredFrom:  definition.Annotations[udsoci.AnnotationReconfiguredFrom],
-		PackageSignatures: make(map[string]PackageSignatureSummary, len(b.Packages)),
-	}
-	for _, pkg := range b.Packages {
-		summary, err := inspectPackageSignature(ctx, idx, pkg, fetch)
-		if err != nil {
-			return nil, InspectingPackageSignatureError{Package: pkg.Name, Err: err}
-		}
-		result.PackageSignatures[pkg.Name] = *summary
+		PackageSignatures: make(map[string]PackageSignatureSummary),
 	}
 
 	return result, nil
 }
 
-func inspectPackageSignature(ctx context.Context, idx ocispec.Index, pkg spec.Package, fetch inspectBlobFetcher) (*PackageSignatureSummary, error) {
+// ReadZarfPackageNames reads selected deployed Zarf names from a resolved source.
+func ReadZarfPackageNames(ctx context.Context, source *MetadataSource, b *spec.UDSBundle, packageNames ...string) (map[string]string, error) {
+	var idx ocispec.Index
+	if err := json.Unmarshal(source.IndexBytes, &idx); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrParsingBundleIndex, err)
+	}
+	selected := make(map[string]struct{}, len(packageNames))
+	for _, name := range packageNames {
+		selected[name] = struct{}{}
+	}
+	zarfNames := make(map[string]string, len(b.Packages))
+	for _, pkg := range b.Packages {
+		if len(selected) > 0 {
+			if _, ok := selected[pkg.Name]; !ok {
+				continue
+			}
+		}
+		entry, err := findPackageManifest(idx, pkg)
+		if err != nil {
+			return nil, err
+		}
+		zarfPkg, found, err := fetchZarfPackage(ctx, pkg.Name, *entry, source.Fetcher)
+		if err != nil {
+			return nil, err
+		}
+		if found && zarfPkg.Metadata.Name != "" {
+			zarfNames[pkg.Name] = zarfPkg.Metadata.Name
+		}
+	}
+	return zarfNames, nil
+}
+
+// ReadPackageSignatures reads package signature summaries from a resolved source.
+func ReadPackageSignatures(ctx context.Context, source *MetadataSource, b *spec.UDSBundle) (map[string]PackageSignatureSummary, error) {
+	var idx ocispec.Index
+	if err := json.Unmarshal(source.IndexBytes, &idx); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrParsingBundleIndex, err)
+	}
+	summaries := make(map[string]PackageSignatureSummary, len(b.Packages))
+	for _, pkg := range b.Packages {
+		summary, err := inspectPackageSignature(ctx, idx, pkg, source.Fetcher)
+		if err != nil {
+			return nil, InspectingPackageSignatureError{Package: pkg.Name, Err: err}
+		}
+		summaries[pkg.Name] = *summary
+	}
+	return summaries, nil
+}
+
+func inspectPackageSignature(ctx context.Context, idx ocispec.Index, pkg spec.Package, fetcher content.Fetcher) (*PackageSignatureSummary, error) {
 	entry, err := findPackageManifest(idx, pkg)
 	if err != nil {
 		return nil, err
@@ -225,39 +323,22 @@ func inspectPackageSignature(ctx context.Context, idx ocispec.Index, pkg spec.Pa
 		Signed:       PackageSigningStatusUnknown,
 		Verification: packageVerificationStatus(pkg.SignatureVerification, entry),
 	}
-	manifestBytes, err := fetch(ctx, *entry)
+	zarfPkg, found, err := fetchZarfPackage(ctx, pkg.Name, *entry, fetcher)
 	if err != nil {
-		return nil, fmt.Errorf("%w %s for package %q: %w", ErrFetchingPackageManifest, entry.Digest, pkg.Name, err)
+		return nil, err
 	}
-	var manifest ocispec.Manifest
-	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
-		return nil, fmt.Errorf("%w %s for package %q: %w", ErrParsingPackageManifest, entry.Digest, pkg.Name, err)
-	}
-	if manifest.SchemaVersion != 2 {
-		return nil, UnsupportedSchemaVersionError{Artifact: "package manifest", Version: manifest.SchemaVersion}
-	}
-	if manifest.MediaType != "" && !udsoci.IsImageManifestMediaType(manifest.MediaType) {
-		return nil, UnsupportedMediaTypeError{Artifact: "package manifest", MediaType: manifest.MediaType}
+	if !found {
+		return summary, nil
 	}
 
-	zarfLayer, ok := findLayerByTitleOptional(manifest, "zarf.yaml")
-	if ok {
-		zarfBytes, err := fetch(ctx, zarfLayer)
-		if err != nil {
-			return nil, fmt.Errorf("%w %s for package %q: %w", ErrFetchingZarfYAML, zarfLayer.Digest, pkg.Name, err)
-		}
-		var metadata packageSigningMetadata
-		if err := yaml.Unmarshal(zarfBytes, &metadata); err != nil {
-			return nil, fmt.Errorf("%w %s for package %q: %w", ErrParsingZarfYAML, zarfLayer.Digest, pkg.Name, err)
-		}
-		if metadata.Build.Signed != nil {
-			if *metadata.Build.Signed {
-				summary.Signed = PackageSigningStatusSigned
-			} else {
-				summary.Signed = PackageSigningStatusUnsigned
-			}
+	if zarfPkg.Build.Signed != nil {
+		if *zarfPkg.Build.Signed {
+			summary.Signed = PackageSigningStatusSigned
+		} else {
+			summary.Signed = PackageSigningStatusUnsigned
 		}
 	}
+
 	return summary, nil
 }
 
@@ -296,15 +377,6 @@ func findLayerByTitle(manifest ocispec.Manifest, title string) (ocispec.Descript
 		}
 	}
 	return ocispec.Descriptor{}, LayerNotFoundError{Title: title}
-}
-
-func findLayerByTitleOptional(manifest ocispec.Manifest, title string) (ocispec.Descriptor, bool) {
-	for _, layer := range manifest.Layers {
-		if layer.Annotations[ocispec.AnnotationTitle] == title {
-			return layer, true
-		}
-	}
-	return ocispec.Descriptor{}, false
 }
 
 func packageVerificationStatus(verification *spec.PackageSignatureVerification, manifest *ocispec.Descriptor) PackageVerificationStatus {
