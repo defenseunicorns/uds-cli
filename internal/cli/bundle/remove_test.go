@@ -105,14 +105,9 @@ package "pkg1" {
 			wantErr:    "bundle file path is required",
 		},
 		{
-			name:       "OCI reference with scheme",
-			bundlePath: "oci://ghcr.io/test/bundle:v1",
-			wantErr:    "OCI bundle references not yet supported",
-		},
-		{
-			name:       "tar.zst archive",
-			bundlePath: tarZstFile,
-			wantErr:    "tar.zst bundles are not supported",
+			name:       "empty OCI reference",
+			bundlePath: "oci://",
+			wantErr:    "invalid reference: missing registry or repository",
 		},
 		{
 			name:       "HCL file that does not exist",
@@ -130,9 +125,10 @@ package "pkg1" {
 		t.Run(tt.name, func(t *testing.T) {
 			streams, _, _, _ := iostreams.NewTestIOStreams()
 			o := &RemoveOptions{
-				BundlePath: tt.bundlePath,
-				Config:     &bundle.UDSBundleConfig{Options: &defaults},
-				IOStreams:  streams,
+				BundlePath:   tt.bundlePath,
+				Config:       &bundle.UDSBundleConfig{Options: &defaults},
+				IOStreams:    streams,
+				Verification: VerifyOptions{SkipSignatureVerification: true},
 			}
 
 			err := o.Validate()
@@ -183,7 +179,6 @@ func TestRemoveOptions_Run_PromptDecline(t *testing.T) {
 				IOStreams:  streams,
 			}
 
-			// Validate() populates o.parsedBundle, which Run() consumes.
 			require.NoError(t, o.Validate())
 			err := o.Run(t.Context())
 			require.NoError(t, err)
@@ -265,19 +260,22 @@ func TestRemoveOptions_Validate_DependencyCheck(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			streams, _, _, _ := iostreams.NewTestIOStreams()
+			streams, in, _, _ := iostreams.NewTestIOStreams()
+			in.WriteString("n\n")
 			o := &RemoveOptions{
-				BundlePath: bundlePath,
-				Packages:   tt.packages,
-				Force:      tt.force,
-				Config:     &bundle.UDSBundleConfig{Options: &defaults},
-				IOStreams:  streams,
+				BundlePath:   bundlePath,
+				Packages:     tt.packages,
+				Force:        tt.force,
+				Prompt:       true,
+				Config:       &bundle.UDSBundleConfig{Options: &defaults},
+				IOStreams:    streams,
+				Verification: VerifyOptions{SkipSignatureVerification: true},
 			}
 
-			err := o.Validate()
+			require.NoError(t, o.Validate())
+			err := o.Run(t.Context())
 			if tt.wantErr == "" {
 				require.NoError(t, err)
-				assert.NotNil(t, o.parsedBundle, "Validate() should cache the parsed bundle for Run()")
 				return
 			}
 			require.ErrorContains(t, err, tt.wantErr)
