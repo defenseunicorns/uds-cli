@@ -14,6 +14,8 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
 )
 
+// TODO: (@wstarr) - we should work with Zarf to better handle these conversions upstream rather than having bespoke logic here
+
 func writeV1beta1Definition(path string, definition v1beta1.Package) error {
 	contents, err := goyaml.Marshal(definition)
 	if err != nil {
