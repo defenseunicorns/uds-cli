@@ -41,11 +41,12 @@ type PatchOperation struct {
 
 // Event is a display-oriented Pepr event.
 type Event struct {
-	Kind     EventKind
-	Resource string
-	Repeated int
-	Message  string
-	Patch    []PatchOperation
+	Kind      EventKind
+	Resource  string
+	Timestamp string
+	Repeated  int
+	Message   string
+	Patch     []PatchOperation
 }
 
 // Formatter renders Pepr events as structured terminal text.
@@ -53,7 +54,7 @@ type Formatter struct {
 	NoColor bool
 }
 
-// WriteEvents writes Pepr events in the proposed Next monitor format.
+// WriteEvents writes Pepr events in the Next monitor format.
 func (f Formatter) WriteEvents(w io.Writer, events []Event) error {
 	for i, event := range events {
 		if i > 0 {
@@ -69,8 +70,13 @@ func (f Formatter) WriteEvents(w io.Writer, events []Event) error {
 	return nil
 }
 
-// WriteEvent writes one Pepr event in the proposed Next monitor format.
+// WriteEvent writes one Pepr event in the Next monitor format.
 func (f Formatter) WriteEvent(w io.Writer, event Event) error {
+	if event.Timestamp != "" {
+		if _, err := fmt.Fprintf(w, "%s  ", event.Timestamp); err != nil {
+			return err
+		}
+	}
 	if _, err := fmt.Fprintf(w, "%s%s resource=%s", f.token(event.Kind), tokenPadding(event.Kind), event.Resource); err != nil {
 		return err
 	}
@@ -104,33 +110,36 @@ func (f Formatter) WriteEvent(w io.Writer, event Event) error {
 	return nil
 }
 
+func (f Formatter) writeEventOpen(w io.Writer, event Event) error {
+	var rendered strings.Builder
+	if err := f.WriteEvent(&rendered, event); err != nil {
+		return err
+	}
+	_, err := io.WriteString(w, strings.TrimSuffix(rendered.String(), "\n"))
+	return err
+}
+
 func (f Formatter) token(kind EventKind) string {
 	if f.NoColor {
 		return string(kind)
 	}
-
+	color := ""
 	switch kind {
 	case EventAllowed:
-		return colorize(ansiGreen, string(kind))
+		color = ansiGreen
 	case EventDenied:
-		return colorize(ansiRed, string(kind))
+		color = ansiRed
 	case EventMutated:
-		return colorize(ansiCyan, string(kind))
+		color = ansiCyan
 	case EventOperator:
-		return colorize(ansiYellow, string(kind))
-	default:
+		color = ansiYellow
+	}
+	if color == "" {
 		return string(kind)
 	}
-}
-
-func colorize(color, text string) string {
-	return color + text + ansiReset
+	return color + string(kind) + ansiReset
 }
 
 func tokenPadding(kind EventKind) string {
-	padding := 8 - len(kind)
-	if padding < 0 {
-		return ""
-	}
-	return strings.Repeat(" ", padding)
+	return strings.Repeat(" ", max(0, 8-len(kind)))
 }

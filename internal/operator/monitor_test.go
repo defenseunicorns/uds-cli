@@ -1,0 +1,305 @@
+// Copyright 2026 Defense Unicorns
+// SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+package operator
+
+import (
+	"bytes"
+	"context"
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"io"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/defenseunicorns/uds-cli/internal/logger"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+type fakePodLogSource struct {
+	pods    []corev1.Pod
+	logs    map[string]string
+	errors  map[string]error
+	options map[string]corev1.PodLogOptions
+	mu      sync.Mutex
+}
+
+func (f *fakePodLogSource) ListPods(context.Context) ([]corev1.Pod, error) {
+	return f.pods, nil
+}
+
+func (f *fakePodLogSource) StreamLogs(_ context.Context, pod string, opts *corev1.PodLogOptions) (io.ReadCloser, error) {
+	f.mu.Lock()
+	f.options[pod] = *opts
+	f.mu.Unlock()
+	if err := f.errors[pod]; err != nil {
+		return nil, err
+	}
+	logs := f.logs[pod]
+	if opts.Timestamps {
+		lines := strings.Split(logs, "\n")
+		for i := range lines {
+			lines[i] = "2026-08-31T12:00:00Z " + lines[i]
+		}
+		logs = strings.Join(lines, "\n")
+	}
+	return io.NopCloser(bytes.NewBufferString(logs)), nil
+}
+
+type partialFollowSource struct{}
+
+func (partialFollowSource) ListPods(context.Context) ([]corev1.Pod, error) {
+	return testPods(), nil
+}
+
+func (partialFollowSource) StreamLogs(ctx context.Context, pod string, _ *corev1.PodLogOptions) (io.ReadCloser, error) {
+	if pod == "watcher" {
+		return nil, errors.New("forbidden")
+	}
+	reader, writer := io.Pipe()
+	go func() {
+		<-ctx.Done()
+		_ = writer.Close()
+	}()
+	return reader, nil
+}
+
+type lockedBuffer struct {
+	bytes.Buffer
+	mu sync.Mutex
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.Buffer.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.Buffer.String()
+}
+
+type errorWriter struct {
+	err error
+}
+
+func (w errorWriter) Write([]byte) (int, error) {
+	return 0, w.err
+}
+
+func TestSelectContainers(t *testing.T) {
+	pods := testPods()
+
+	assert.Equal(t, []podContainer{{pod: "admission", container: "server"}, {pod: "watcher", container: "watcher"}}, selectContainers(pods, StreamAll))
+	assert.Equal(t, []podContainer{{pod: "admission", container: "server"}}, selectContainers(pods, StreamPolicies))
+	assert.Equal(t, []podContainer{{pod: "watcher", container: "watcher"}}, selectContainers(pods, StreamOperator))
+}
+
+func TestMonitor(t *testing.T) {
+	source := &fakePodLogSource{
+		pods:    testPods(),
+		logs:    map[string]string{"admission": allowedLog("tenant"), "watcher": operatorLog("tenant")},
+		errors:  map[string]error{},
+		options: map[string]corev1.PodLogOptions{},
+	}
+	streams, _, out, _ := iostreams.NewTestIOStreams()
+
+	err := Monitor(context.Background(), streams, MonitorOptions{
+		source:     source,
+		Follow:     true,
+		Timestamps: true,
+		Since:      1500 * time.Millisecond,
+		NoColor:    true,
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, out.String(), "ALLOWED")
+	assert.Contains(t, out.String(), "OPERATOR")
+	for _, opts := range source.options {
+		assert.True(t, opts.Follow)
+		assert.True(t, opts.Timestamps)
+		require.NotNil(t, opts.SinceSeconds)
+		assert.Equal(t, int64(2), *opts.SinceSeconds)
+	}
+	assert.Equal(t, "server", source.options["admission"].Container)
+	assert.Equal(t, "watcher", source.options["watcher"].Container)
+}
+
+func TestMonitorErrors(t *testing.T) {
+	streamErr := errors.New("forbidden")
+	tests := []struct {
+		name        string
+		source      *fakePodLogSource
+		out         io.Writer
+		wantErr     string
+		wantWarning string
+	}{
+		{
+			name: "all streams fail",
+			source: &fakePodLogSource{
+				pods: testPods(), errors: map[string]error{"admission": streamErr, "watcher": streamErr}, options: map[string]corev1.PodLogOptions{},
+			},
+			wantErr: "forbidden",
+		},
+		{
+			name: "partial stream failure warns",
+			source: &fakePodLogSource{
+				pods: testPods(), logs: map[string]string{"admission": allowedLog("tenant")}, errors: map[string]error{"watcher": streamErr}, options: map[string]corev1.PodLogOptions{},
+			},
+			wantWarning: "stream logs for pod watcher: forbidden",
+		},
+		{
+			name: "output failure",
+			source: &fakePodLogSource{
+				pods: testPods()[:1], logs: map[string]string{"admission": allowedLog("tenant")}, errors: map[string]error{}, options: map[string]corev1.PodLogOptions{},
+			},
+			out:     errorWriter{err: errors.New("broken pipe")},
+			wantErr: "broken pipe",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out bytes.Buffer
+			if tt.out == nil {
+				tt.out = &out
+			}
+			var errOut bytes.Buffer
+			streams := iostreams.New(nil, tt.out, &errOut)
+			err := Monitor(context.Background(), streams, MonitorOptions{source: tt.source, NoColor: true})
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Contains(t, errOut.String(), tt.wantWarning)
+		})
+	}
+}
+
+func TestMonitorFollowWarnsWhenOneStreamFails(t *testing.T) {
+	var errOut lockedBuffer
+	streams := iostreams.New(nil, io.Discard, &errOut)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- Monitor(ctx, streams, MonitorOptions{source: partialFollowSource{}, Follow: true})
+	}()
+
+	require.Eventually(t, func() bool {
+		return strings.Contains(errOut.String(), "stream logs for pod watcher: forbidden")
+	}, time.Second, 10*time.Millisecond)
+	cancel()
+	require.NoError(t, <-done)
+}
+
+func TestLogProcessor(t *testing.T) {
+	patch := base64.StdEncoding.EncodeToString([]byte(`[{"op":"add","path":"/spec/securityContext/runAsNonRoot","value":true}]`))
+	logs := fmt.Sprintf(`{"namespace":"tenant","name":"/pod","res":{"allowed":true},"msg":"Check response"}
+{"namespace":"other","name":"/pod","res":{"allowed":false,"status":{"message":"denied"}},"msg":"Check response"}
+{"namespace":"tenant","name":"/pod","res":{"allowed":true,"patchType":"JSONPatch","patch":%q},"msg":"Check response"}`, patch)
+	processor := logProcessor{formatter: Formatter{NoColor: true}, stream: StreamPolicies, namespace: "tenant"}
+	var out bytes.Buffer
+
+	require.NoError(t, processor.process(&out, bytes.NewBufferString(logs)))
+	require.NoError(t, processor.flush(&out))
+	assert.Contains(t, out.String(), "ALLOWED  resource=tenant/pod")
+	assert.Contains(t, out.String(), "MUTATED  resource=tenant/pod")
+	assert.Contains(t, out.String(), "ADDED path=/spec/securityContext/runAsNonRoot value=true")
+	assert.NotContains(t, out.String(), "DENIED")
+}
+
+func TestLogProcessorCollapsesRepeatedEvents(t *testing.T) {
+	processor := logProcessor{formatter: Formatter{NoColor: true}, stream: StreamAllowed}
+	var out bytes.Buffer
+	logs := allowedLog("tenant") + "\n" + allowedLog("tenant") + "\n" + allowedLog("tenant")
+
+	require.NoError(t, processor.process(&out, bytes.NewBufferString(logs)))
+	require.NoError(t, processor.flush(&out))
+	assert.Equal(t, 1, bytes.Count(out.Bytes(), []byte("ALLOWED")))
+	assert.Contains(t, out.String(), "repeated=2")
+}
+
+func TestLogProcessorRepeatedEventStaysSingleAcrossFlushes(t *testing.T) {
+	processor := logProcessor{formatter: Formatter{NoColor: true}, stream: StreamAllowed}
+	var out bytes.Buffer
+
+	require.NoError(t, processor.processLine(&out, allowedLog("tenant")))
+	assert.Equal(t, 1, bytes.Count(out.Bytes(), []byte("ALLOWED")))
+	require.NoError(t, processor.flushRepeated(&out))
+
+	require.NoError(t, processor.processLine(&out, allowedLog("tenant")))
+	assert.Equal(t, 1, bytes.Count(out.Bytes(), []byte("ALLOWED")))
+	require.NoError(t, processor.flushRepeated(&out))
+	assert.Equal(t, 1, bytes.Count(out.Bytes(), []byte("ALLOWED")))
+	assert.Contains(t, out.String(), "repeated=1")
+}
+
+func TestLogProcessorShowsFirstEventDuringContinuousRepeats(t *testing.T) {
+	processor := logProcessor{formatter: Formatter{NoColor: true}, stream: StreamDenied}
+	var out bytes.Buffer
+	line := `{"namespace":"tenant","name":"/pod","res":{"allowed":false},"msg":"Check response"}`
+
+	require.NoError(t, processor.processLine(&out, line))
+	for range 10 {
+		require.NoError(t, processor.processLine(&out, line))
+	}
+	assert.Contains(t, out.String(), "DENIED")
+	assert.Equal(t, 1, bytes.Count(out.Bytes(), []byte("DENIED")))
+
+	require.NoError(t, processor.flushRepeated(&out))
+	assert.Contains(t, out.String(), "repeated=10")
+}
+
+func TestLogProcessorWarnsForMalformedEvents(t *testing.T) {
+	var errOut bytes.Buffer
+	streams := logger.Bind(iostreams.New(nil, nil, &errOut), "info")
+	processor := logProcessor{stream: StreamAllowed, streams: streams}
+
+	require.NoError(t, processor.processLine(io.Discard, `{"msg":"Check response"`))
+	assert.Contains(t, errOut.String(), "parse Pepr event")
+}
+
+func TestLogProcessor_JSONTimestamp(t *testing.T) {
+	processor := logProcessor{stream: StreamAllowed, json: true, timestamps: true}
+	var out bytes.Buffer
+	line := `2026-08-31T12:00:00Z {"namespace":"tenant","name":"/pod","res":{"allowed":true},"msg":"Check response"}`
+
+	require.NoError(t, processor.processLine(&out, line))
+	assert.JSONEq(t, `{"namespace":"tenant","name":"/pod","res":{"allowed":true},"msg":"Check response","ts":"2026-08-31T12:00:00Z"}`, out.String())
+}
+
+func TestClassifyEvent_Failed(t *testing.T) {
+	entry := logEntry{Namespace: "tenant", Name: "package", Msg: "Updating status to Failed"}
+	event, ok, err := classifyEvent(entry, StreamFailed)
+
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, EventOperator, event.Kind)
+	assert.Equal(t, "tenant/package", event.Resource)
+}
+
+func testPods() []corev1.Pod {
+	return []corev1.Pod{
+		{ObjectMeta: metav1.ObjectMeta{Name: "admission", Labels: map[string]string{"pepr.dev/controller": "admission"}}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "watcher", Labels: map[string]string{"pepr.dev/controller": "watcher"}}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "other", Labels: map[string]string{"app": "other"}}},
+	}
+}
+
+func allowedLog(namespace string) string {
+	return fmt.Sprintf(`{"namespace":%q,"name":"/pod","res":{"allowed":true},"msg":"Check response"}`, namespace)
+}
+
+func operatorLog(namespace string) string {
+	return fmt.Sprintf(`{"namespace":%q,"name":"package","msg":"Updating status to Ready"}`, namespace)
+}
