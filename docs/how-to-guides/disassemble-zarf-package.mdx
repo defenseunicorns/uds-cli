@@ -11,17 +11,18 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 Package disassembly recovers the assets and `zarf.yaml` from a complete Zarf package. The command writes packaged charts, manifests, files, images, and repositories to local paths and rewrites `zarf.yaml` to use them.
 
-By the end of this guide, you'll have source that can rebuild the package without pulling its declared resources from remote sources.
+Disassembly supports rapid development and debugging when a fix must be tested against a created package, especially in a disconnected environment. The recovered tree is a temporary working copy rather than a new source of truth. Keeping fixes only in that tree separates them from upstream and leaves future packages without potentially critical fixes and makes debugging more difficult across environments. Lasting fixes therefore belong in the original upstream source, with final packages published from that canonical source. This temporary role is why the command lives under `dev`.
+
+By the end of this guide, you'll have temporary source that can rebuild the package without pulling its declared resources from remote sources.
+
+> [!CAUTION]
+> Disassembly and rebuilding change the package, so its original signature no longer applies. Environments that require signed packages need a new signature and corresponding verification material for the rebuilt artifact.
 
 ## Prerequisites
 
 - [UDS CLI installed](/getting-started/installation/)
-- A complete Zarf package archive, split archive, HTTP(S) package URL, or OCI package reference
+- A valid local or remote Zarf package source
 - Registry or network access when the source is remote
-
-## Before you begin
-
-Choose an output directory that does not exist or is empty.
 
 ## Steps
 
@@ -29,7 +30,7 @@ Choose an output directory that does not exist or is empty.
 
 1. **Choose the package source and output directory**
 
-   Use a `.tar`, `.tar.zst`, or `.part000` package path, an HTTP(S) package URL, or an OCI reference with an explicit `oci://` scheme. This example uses a local archive and writes source to `./app-source`.
+   This example uses a local package and writes source to `./app-source`. The output directory must either not exist or be empty.
 
 2. **Disassemble the package**
 
@@ -60,7 +61,10 @@ Choose an output directory that does not exist or is empty.
 
 3. **Review the generated source**
 
-   Confirm that `app-source/zarf.yaml` references assets beneath `app-source` and that the package version ends in `-disassembled`.
+   The generated `app-source/zarf.yaml` references assets beneath `app-source`, and the package version ends in `-disassembled`.
+
+   > [!CAUTION]
+   > Removing the automatically added `-disassembled` suffix makes offline debugging and support harder because a locally rebuilt package can be mistaken for the unchanged upstream artifact. The suffix preserves that modification context in the package version which is easy to see in views that list installed packages across Zarf and UDS.
 
 4. **Rebuild the package offline**
 
@@ -74,7 +78,7 @@ Choose an output directory that does not exist or is empty.
 
 ## Verification
 
-Confirm that the create command writes a complete package beneath `./build` whose version ends in `-disassembled`.
+A package archive beneath `./build` confirms that the generated source is buildable. It does not confirm deployment behavior; the rebuilt artifact still needs validation against its intended environment.
 
 ## Troubleshooting
 
@@ -88,15 +92,17 @@ Confirm that the create command writes a complete package beneath `./build` whos
 
 **Symptom:** Disassembly reports that the package does not contain complete recreatable source.
 
-**Solution:** A differential package is created from an already-created package and new source, and contains only the pieces that changed. It does not contain the unchanged assets needed to recover complete source, so disassemble the complete created package instead.
+**Solution:** A differential package is created from a previously created package and new source and contains only the pieces that changed. It cannot reconstruct complete source by itself; recovery requires both the complete created package and the source used to produce the differential.
 
-A skeleton package is a published, uncreated package intended for reuse and composition across package repositories. Use the skeleton directly as source; because it has never been created, it has no packaged assets to recover through disassembly.
+A skeleton package is a published, uncreated package intended for reuse and composition across package repositories. It already represents reusable source input and has no created package assets to recover through disassembly.
 
 ### Problem: A repository-bearing output directory was moved
 
 **Symptom:** Rebuilding fails to locate a repository after the generated source directory was moved.
 
-**Solution:** Return the directory to its original location before rebuilding. Zarf currently uses one repository URL for both source acquisition and repository identity, so disassembly emits absolute `file://` repository URLs. The rebuilt package remains portable because Zarf rewrites the repository URL for its in-cluster Git service during deployment. Repeated disassembly and rebuild cycles from different absolute paths are not path-idempotent because Zarf derives the packaged repository suffix from that URL.
+**Solution:** Moving the generated source breaks its absolute `file://` repository URL. Rebuilding succeeds again when the directory is returned to its original location.
+
+Zarf currently uses one repository URL for both source acquisition and repository identity. The rebuilt package remains portable because Zarf rewrites that URL for its in-cluster Git service during deployment. Repeated disassembly and rebuild cycles from different absolute paths are not path-idempotent however because Zarf derives the packaged repository suffix from the URL.
 
 ### Problem: The source is a UDS Bundle
 
