@@ -107,19 +107,54 @@ func WriteTarZst(ctx context.Context, streams iostreams.IOStreams, dst, srcDir s
 
 // CountTarZstEntries returns the number of archive entries that extract to name.
 func CountTarZstEntries(ctx context.Context, src, name string) (count int, retErr error) {
-	f, err := os.Open(src)
+	err := walkTarZst(ctx, src, func(header *tar.Header, _ io.Reader) error {
+		if path.Clean(header.Name) == name {
+			count++
+		}
+		return nil
+	})
+	return count, err
+}
+
+func readTarZstEntries(ctx context.Context, source string, wanted map[string]struct{}) (map[string][]byte, error) {
+	entries := make(map[string][]byte, len(wanted))
+	err := walkTarZst(ctx, source, func(header *tar.Header, reader io.Reader) error {
+		name := path.Clean(header.Name)
+		if _, ok := wanted[name]; !ok {
+			return nil
+		}
+		if _, duplicate := entries[name]; duplicate {
+			return fmt.Errorf("archive contains duplicate entry %q", name)
+		}
+		if header.Size < 0 || header.Size > oci.MaxFetchBytesSize {
+			return fmt.Errorf("archive entry %q is %d bytes, larger than the %d byte buffered read limit", name, header.Size, oci.MaxFetchBytesSize)
+		}
+		data, err := io.ReadAll(io.LimitReader(reader, oci.MaxFetchBytesSize+1))
+		if err != nil {
+			return fmt.Errorf("reading archive entry %q: %w", name, err)
+		}
+		if int64(len(data)) != header.Size {
+			return fmt.Errorf("reading archive entry %q: expected %d bytes, got %d", name, header.Size, len(data))
+		}
+		entries[name] = data
+		return nil
+	})
+	return entries, err
+}
+
+func walkTarZst(ctx context.Context, source string, visit func(*tar.Header, io.Reader) error) (retErr error) {
+	file, err := os.Open(source)
 	if err != nil {
-		return 0, fmt.Errorf("opening archive: %w", err)
+		return fmt.Errorf("opening archive: %w", err)
 	}
 	defer func() {
-		if err := f.Close(); err != nil && retErr == nil {
+		if err := file.Close(); err != nil && retErr == nil {
 			retErr = fmt.Errorf("closing archive: %w", err)
 		}
 	}()
-
-	zr, err := (archives.Zstd{}).OpenReader(f)
+	zr, err := (archives.Zstd{}).OpenReader(file)
 	if err != nil {
-		return 0, fmt.Errorf("opening zstd archive: %w", err)
+		return fmt.Errorf("opening zstd archive: %w", err)
 	}
 	defer func() {
 		if err := zr.Close(); err != nil && retErr == nil {
@@ -127,20 +162,20 @@ func CountTarZstEntries(ctx context.Context, src, name string) (count int, retEr
 		}
 	}()
 
-	tr := tar.NewReader(zr)
+	reader := tar.NewReader(zr)
 	for {
 		if err := ctx.Err(); err != nil {
-			return 0, err
+			return err
 		}
-		hdr, err := tr.Next()
+		header, err := reader.Next()
 		if err == io.EOF {
-			return count, nil
+			return nil
 		}
 		if err != nil {
-			return 0, fmt.Errorf("reading tar archive: %w", err)
+			return fmt.Errorf("reading tar archive: %w", err)
 		}
-		if path.Clean(hdr.Name) == name {
-			count++
+		if err := visit(header, reader); err != nil {
+			return err
 		}
 	}
 }

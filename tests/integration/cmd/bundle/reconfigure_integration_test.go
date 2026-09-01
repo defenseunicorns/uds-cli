@@ -212,7 +212,7 @@ func TestReconfigure_InsertsDefaultsWhenOriginalHadNone(t *testing.T) {
 }
 
 func TestReconfigure_OCI(t *testing.T) {
-	hostPort := startLocalRegistry(t)
+	hostPort := testutil.StartLocalRegistry(t)
 
 	// Create a bundle and push it to the local registry.
 	outPath := testutil.CreateBundleFromTestData(t, "bundles/create/init-with-defaults", runtime.GOARCH)
