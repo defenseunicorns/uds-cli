@@ -4,8 +4,6 @@
 package zarf
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	packageoci "github.com/defenseunicorns/pkg/oci"
@@ -120,19 +118,4 @@ func TestNewPackageSource_Local(t *testing.T) {
 			assert.Equal(t, "/bundle/dir", local.bundleDir)
 		})
 	}
-}
-
-func TestNewPackageSourcePrefersExistingDottedRelativePath(t *testing.T) {
-	bundleDir := t.TempDir()
-	path := filepath.Join(bundleDir, "packages", "app.v1")
-	require.NoError(t, os.MkdirAll(path, 0o700))
-
-	src := NewPackageSource("packages/app.v1", bundleinternal.ConfigOptions{}, bundleDir, iostreams.IOStreams{})
-	local, ok := src.(*localSource)
-	require.True(t, ok, "expected existing dotted path to remain local")
-	assert.Equal(t, path, local.resolvedPath())
-
-	src = NewPackageSource("oci://packages/app.v1", bundleinternal.ConfigOptions{}, bundleDir, iostreams.IOStreams{})
-	_, ok = src.(*remoteSource)
-	assert.True(t, ok, "expected explicit OCI source to remain remote")
 }

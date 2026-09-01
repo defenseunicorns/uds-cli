@@ -5,6 +5,8 @@ package disassemble
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,10 +14,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/defenseunicorns/pkg/helpers/v2"
 	packageoci "github.com/defenseunicorns/pkg/oci"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -24,7 +29,6 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/pkg/archive"
@@ -38,7 +42,7 @@ import (
 )
 
 func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
-	sourceDir := writeSourcePackage(t)
+	sourceDir := prepareRoundTripFixture(t)
 	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
 	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{
@@ -46,10 +50,12 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	})
 	require.NoError(t, err)
 	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
+	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
+	require.NoError(t, err)
 
 	outputDir := filepath.Join(t.TempDir(), "disassembled%source")
 	result, err := Disassemble(t.Context(), Options{
-		Source: pkgLayout.DirPath(), OutputDir: outputDir,
+		Source: archivePath, OutputDir: outputDir,
 		Architecture: "amd64", TmpDir: t.TempDir(), Concurrency: 1,
 	})
 	require.NoError(t, err)
@@ -69,8 +75,8 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	assert.Contains(t, chart.LocalPath, "app-1.0.0.tgz")
 	require.FileExists(t, filepath.Join(outputDir, chart.LocalPath))
 	require.Len(t, chart.ValuesFiles, 2)
-	assert.Contains(t, chart.ValuesFiles[0], filepath.ToSlash("components/app/values/app/values-0-chart.yaml"))
-	assert.Contains(t, chart.ValuesFiles[1], filepath.ToSlash("components/app/values/app/values-1-production-values.yaml"))
+	assert.Contains(t, chart.ValuesFiles[0], filepath.ToSlash("components/app/values/app/0-chart.yaml"))
+	assert.Contains(t, chart.ValuesFiles[1], filepath.ToSlash("components/app/values/app/1-production-values.yaml"))
 	assert.Len(t, chart.TemplatedValuesFiles, 1)
 	require.Len(t, pkg.Components[0].Manifests, 1)
 	manifest := pkg.Components[0].Manifests[0]
@@ -103,7 +109,7 @@ func TestDisassemblePullsOCIPackage(t *testing.T) {
 	server := httptest.NewServer(registry.New())
 	t.Cleanup(server.Close)
 
-	sourceDir := writeSourcePackage(t)
+	sourceDir := prepareRoundTripFixture(t)
 	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
 	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir()})
@@ -117,45 +123,31 @@ func TestDisassemblePullsOCIPackage(t *testing.T) {
 	_, err = remote.PushPackage(t.Context(), pkgLayout, zoci.PublishOptions{Retries: 1, OCIConcurrency: 1})
 	require.NoError(t, err)
 
-	for _, source := range []string{"oci://" + ref, ref} {
-		t.Run(source, func(t *testing.T) {
-			outputDir := filepath.Join(t.TempDir(), "output")
-			_, err := Disassemble(t.Context(), Options{
-				Source: source, OutputDir: outputDir, Architecture: "amd64", PlainHTTP: true, TmpDir: t.TempDir(), Concurrency: 1,
-			})
-			require.NoError(t, err)
-			generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
-			require.NoError(t, err)
-			reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir()})
-			require.NoError(t, err)
-			t.Cleanup(func() { require.NoError(t, reassembled.Cleanup()) })
-		})
-	}
+	outputDir := filepath.Join(t.TempDir(), "output")
+	_, err = Disassemble(t.Context(), Options{
+		Source: "oci://" + ref, OutputDir: outputDir, Architecture: "amd64", PlainHTTP: true, TmpDir: t.TempDir(), Concurrency: 1,
+	})
+	require.NoError(t, err)
+	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
+	require.NoError(t, err)
+	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, reassembled.Cleanup()) })
 }
 
 func TestDisassemblePreservesV1beta1Definition(t *testing.T) {
-	sourceDir := t.TempDir()
-	writeFile(t, filepath.Join(sourceDir, "payload.txt"), "payload\n")
-	writeFile(t, filepath.Join(sourceDir, layout.ZarfYAML), `apiVersion: zarf.dev/v1beta1
-kind: ZarfPackageConfig
-metadata:
-  name: beta-roundtrip
-  version: 2.0.0
-components:
-  - name: app
-    files:
-      - source: payload.txt
-        destination: /tmp/payload.txt
-`)
-	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
+	sourceDir := copyFixture(t, "v1beta1")
+	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true})
 	require.NoError(t, err)
-	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{SkipSBOM: true})
+	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{Flavor: "offline", SkipSBOM: true})
 	require.NoError(t, err)
 	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
+	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
+	require.NoError(t, err)
 
 	outputDir := filepath.Join(t.TempDir(), "beta-output")
 	_, err = Disassemble(t.Context(), Options{
-		Source: pkgLayout.DirPath(), OutputDir: outputDir,
+		Source: archivePath, OutputDir: outputDir,
 		Architecture: "amd64", TmpDir: t.TempDir(),
 	})
 	require.NoError(t, err)
@@ -166,6 +158,16 @@ components:
 	assert.Equal(t, v1beta1.APIVersion, generated.PackageDefinition.OriginalAPIVersion())
 	generatedBeta := generated.PackageDefinition.AsV1beta1()
 	assert.Equal(t, "2.0.0-disassembled", generatedBeta.Metadata.Version)
+	require.Len(t, generatedBeta.Components, 1)
+	component := generatedBeta.Components[0]
+	assert.Equal(t, v1beta1.ServiceAgent, component.Service)
+	require.Len(t, component.Manifests, 1)
+	require.NotNil(t, component.Manifests[0].Kustomize)
+	assert.Contains(t, component.Manifests[0].Kustomize.Files[0], "components/app/manifests/raw/kustomization-0")
+	assert.False(t, component.Manifests[0].Kustomize.AllowAnyDirectory)
+	assert.False(t, component.Manifests[0].Kustomize.EnablePlugins)
+	assert.True(t, component.Manifests[0].EnableTemplating)
+	assert.Empty(t, component.Selector.Flavor)
 
 	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{SkipSBOM: true})
 	require.NoError(t, err)
@@ -173,31 +175,37 @@ components:
 	assert.Equal(t, v1beta1.APIVersion, reassembled.PackageDefinition.OriginalAPIVersion())
 }
 
+func TestPackageSchemaCoverage(t *testing.T) {
+	tests := []struct {
+		name string
+		root any
+		want string
+	}{
+		{name: "v1alpha1", root: v1alpha1.ZarfPackage{}, want: "0b3a1780c165390f19447f240f37efa8acebeebc06b1eb0eff76dd49ca53b59e"},
+		{name: "v1beta1", root: v1beta1.Package{}, want: "48baec36260af523cf9e39588c159d3bd9d1d3aad14e2fdccdeb39a017b100fb"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			digest, fields := packageSchemaDigest(tc.root)
+			if digest != tc.want {
+				t.Fatalf("package schema changed: review each new or modified field for preservation or localization, then update the digest to %s:\n%s", digest, strings.Join(fields, "\n"))
+			}
+		})
+	}
+}
+
 func TestDisassembleClearsResolvedFlavorSelectors(t *testing.T) {
-	sourceDir := t.TempDir()
-	writeFile(t, filepath.Join(sourceDir, "payload.txt"), "payload\n")
-	writeFile(t, filepath.Join(sourceDir, layout.ZarfYAML), `kind: ZarfPackageConfig
-metadata:
-  name: flavored
-  version: 1.0.0
-  architecture: amd64
-components:
-  - name: app
-    required: true
-    only:
-      flavor: offline
-    files:
-      - source: payload.txt
-        target: /tmp/payload.txt
-`)
+	sourceDir := copyFixture(t, "flavored")
 	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true})
 	require.NoError(t, err)
 	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{Flavor: "offline", SkipSBOM: true})
 	require.NoError(t, err)
 	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
+	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
+	require.NoError(t, err)
 
 	outputDir := filepath.Join(t.TempDir(), "output")
-	_, err = Disassemble(t.Context(), Options{Source: pkgLayout.DirPath(), OutputDir: outputDir, Architecture: "amd64", TmpDir: t.TempDir()})
+	_, err = Disassemble(t.Context(), Options{Source: archivePath, OutputDir: outputDir, Architecture: "amd64", TmpDir: t.TempDir()})
 	require.NoError(t, err)
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
@@ -211,27 +219,19 @@ components:
 
 func TestDisassembleRoundTripsImagesOffline(t *testing.T) {
 	const image = "registry.invalid/offline/app:v1"
-	sourceDir := t.TempDir()
+	sourceDir := copyFixture(t, "offline-image")
 	imageArchive := filepath.Join(sourceDir, "images.tar")
 	writeImageArchive(t, imageArchive, image)
-	pkg := v1alpha1.ZarfPackage{
-		APIVersion: v1alpha1.APIVersion,
-		Kind:       v1alpha1.ZarfPackageConfig,
-		Metadata:   v1alpha1.ZarfMetadata{Name: "offline-image", Version: "1.0.0", Architecture: "amd64"},
-		Components: []v1alpha1.ZarfComponent{{
-			Name:          "app",
-			ImageArchives: []v1alpha1.ImageArchive{{Path: "images.tar", Images: []string{image}}},
-		}},
-	}
-	require.NoError(t, layout.WritePackageDefinition(filepath.Join(sourceDir, layout.ZarfYAML), api.NewPackageDefinitionFromV1alpha1(pkg)))
 	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
 	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{SkipSBOM: true})
 	require.NoError(t, err)
 	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
+	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
+	require.NoError(t, err)
 
 	outputDir := filepath.Join(t.TempDir(), "output")
-	_, err = Disassemble(t.Context(), Options{Source: pkgLayout.DirPath(), OutputDir: outputDir, Architecture: "amd64", TmpDir: t.TempDir()})
+	_, err = Disassemble(t.Context(), Options{Source: archivePath, OutputDir: outputDir, Architecture: "amd64", TmpDir: t.TempDir()})
 	require.NoError(t, err)
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
@@ -249,38 +249,6 @@ func TestDisassembleRoundTripsImagesOffline(t *testing.T) {
 	assert.Equal(t, image, index.Manifests[0].Annotations[ocispec.AnnotationRefName])
 }
 
-func TestLocalizedDefinitionPreservesV1beta1OnlyFields(t *testing.T) {
-	original := api.NewPackageDefinitionFromV1beta1(v1beta1.Package{
-		APIVersion: v1beta1.APIVersion,
-		Kind:       v1beta1.ZarfPackageConfig,
-		Metadata:   v1beta1.PackageMetadata{Name: "beta", Version: "1.0.0"},
-		Components: []v1beta1.Component{{
-			Name: "agent", ComponentSpec: v1beta1.ComponentSpec{
-				Service: v1beta1.ServiceAgent,
-				Manifests: []v1beta1.Manifest{{
-					Name: "app", EnableTemplating: true,
-					Kustomize: &v1beta1.KustomizeManifest{Files: []string{"original"}, AllowAnyDirectory: true, EnablePlugins: true},
-				}},
-			},
-		}},
-	})
-	localized := original.AsV1alpha1()
-	localized.Metadata.Version = "1.0.0-disassembled"
-	localized.Components[0].Manifests[0].Kustomizations = []string{"agent/manifests/app/kustomization-0"}
-
-	definition, err := localizedDefinition(original, localized)
-	require.NoError(t, err)
-	assert.Equal(t, v1beta1.APIVersion, definition.OriginalAPIVersion())
-	component := definition.AsV1beta1().Components[0]
-	assert.Equal(t, v1beta1.ServiceAgent, component.Service)
-	require.NotNil(t, component.Manifests[0].Kustomize)
-	assert.Equal(t, []string{"agent/manifests/app/kustomization-0"}, component.Manifests[0].Kustomize.Files)
-	assert.False(t, component.Manifests[0].Kustomize.AllowAnyDirectory)
-	assert.False(t, component.Manifests[0].Kustomize.EnablePlugins)
-	assert.True(t, component.Manifests[0].EnableTemplating)
-	assert.Empty(t, component.Selector.Flavor)
-}
-
 func TestDisassembleFailureDoesNotPublishPartialOutput(t *testing.T) {
 	parent := t.TempDir()
 	outputDir := filepath.Join(parent, "output")
@@ -296,28 +264,17 @@ func TestDisassembleFailureDoesNotPublishPartialOutput(t *testing.T) {
 }
 
 func TestDisassembleSeparatesPackageDocumentationFromComponentAssets(t *testing.T) {
-	sourceDir := t.TempDir()
-	writeFile(t, filepath.Join(sourceDir, "docs", "files"), "documentation\n")
-	writeFile(t, filepath.Join(sourceDir, "payload.txt"), "payload\n")
-	pkg := v1alpha1.ZarfPackage{
-		APIVersion:    v1alpha1.APIVersion,
-		Kind:          v1alpha1.ZarfPackageConfig,
-		Metadata:      v1alpha1.ZarfMetadata{Name: "namespace-collision", Version: "1.0.0", Architecture: "amd64"},
-		Documentation: map[string]string{"guide": "docs/files"},
-		Components: []v1alpha1.ZarfComponent{{
-			Name:  "documentation",
-			Files: []v1alpha1.ZarfFile{{Source: "payload.txt", Target: "/tmp/payload.txt"}},
-		}},
-	}
-	require.NoError(t, layout.WritePackageDefinition(filepath.Join(sourceDir, layout.ZarfYAML), api.NewPackageDefinitionFromV1alpha1(pkg)))
+	sourceDir := copyFixture(t, "namespace-collision")
 	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
 	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{SkipSBOM: true})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, pkgLayout.Cleanup()) })
+	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
+	require.NoError(t, err)
 
 	outputDir := filepath.Join(t.TempDir(), "output")
-	_, err = Disassemble(t.Context(), Options{Source: pkgLayout.DirPath(), OutputDir: outputDir, Architecture: "amd64", TmpDir: t.TempDir()})
+	_, err = Disassemble(t.Context(), Options{Source: archivePath, OutputDir: outputDir, Architecture: "amd64", TmpDir: t.TempDir()})
 	require.NoError(t, err)
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
@@ -328,22 +285,6 @@ func TestDisassembleSeparatesPackageDocumentationFromComponentAssets(t *testing.
 	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{SkipSBOM: true})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, reassembled.Cleanup()) })
-}
-
-func TestPortableAssetName(t *testing.T) {
-	tests := []struct {
-		source string
-		want   string
-	}{
-		{source: "https://example.test/production-values.yaml?token=secret", want: "production-values.yaml"},
-		{source: "https://example.test/CON", want: "_CON"},
-		{source: `bad<name>?.yaml`, want: "bad-name--.yaml"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.source, func(t *testing.T) {
-			assert.Equal(t, tc.want, portableAssetName(tc.source, "values.yaml"))
-		})
-	}
 }
 
 func TestFindRepoPathReportsAttemptedMappings(t *testing.T) {
@@ -371,7 +312,7 @@ func TestValidateOutputDirRejectsContent(t *testing.T) {
 	require.ErrorContains(t, validateOutputDir(dir), "must be empty")
 }
 
-func writeSourcePackage(t *testing.T) string {
+func prepareRoundTripFixture(t *testing.T) string {
 	t.Helper()
 	valuesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if _, err := w.Write([]byte("remote: true\n")); err != nil {
@@ -379,64 +320,24 @@ func writeSourcePackage(t *testing.T) string {
 		}
 	}))
 	t.Cleanup(valuesServer.Close)
-	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "values", "package.yaml"), "message: hello\n")
-	writeFile(t, filepath.Join(dir, "values", "package.schema.json"), `{"type":"object","properties":{"message":{"type":"string"}}}`)
-	writeFile(t, filepath.Join(dir, "values", "chart.yaml"), "replicaCount: 1\n")
-	writeFile(t, filepath.Join(dir, "values", "chart-templated.yaml"), "message: '###ZARF_PKG_TMPL_MESSAGE###'\n")
-	writeFile(t, filepath.Join(dir, "inputs", "one", "config.yaml"), "source: one\n")
-	writeFile(t, filepath.Join(dir, "inputs", "two", "config.yaml"), "source: two\n")
-	writeFile(t, filepath.Join(dir, "data", "one", "payload.txt"), "source: one\n")
-	writeFile(t, filepath.Join(dir, "data", "two", "payload.txt"), "source: two\n")
-	writeFile(t, filepath.Join(dir, "manifests", "configmap.yaml"), "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: raw\n")
-	writeFile(t, filepath.Join(dir, "kustomize", "kustomization.yaml"), "resources:\n  - configmap.yaml\n")
-	writeFile(t, filepath.Join(dir, "kustomize", "configmap.yaml"), "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: rendered\ndata:\n  query: '{{ $labels.instance }}'\n")
-	writeFile(t, filepath.Join(dir, "docs", "guide.md"), "# Guide\n")
-	writeFile(t, filepath.Join(dir, "chart", "Chart.yaml"), "apiVersion: v2\nname: upstream-app\nversion: 1.0.0\n")
-	writeFile(t, filepath.Join(dir, "chart", "templates", "configmap.yaml"), "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: app\n")
-	repoURL := writeGitRepository(t, filepath.Join(dir, "repository"))
-
-	required := true
-	template := true
-	pkg := v1alpha1.ZarfPackage{
-		APIVersion: v1alpha1.APIVersion,
-		Kind:       v1alpha1.ZarfPackageConfig,
-		Metadata: v1alpha1.ZarfMetadata{
-			Name: "roundtrip", Version: "1.2.3", Architecture: "amd64",
-		},
-		Values: v1alpha1.ZarfValues{
-			Files: []string{"values/package.yaml"}, Schema: "values/package.schema.json",
-		},
-		Documentation: map[string]string{"guide": "docs/guide.md"},
-		Components: []v1alpha1.ZarfComponent{{
-			Name: "app", Required: &required,
-			Charts: []v1alpha1.ZarfChart{{
-				Name: "app", Version: "1.0.0", Namespace: "app", LocalPath: "chart",
-				ValuesFiles: []string{"values/chart.yaml", valuesServer.URL + "/production-values.yaml?token=secret"}, TemplatedValuesFiles: []string{"values/chart-templated.yaml"},
-			}},
-			Files: []v1alpha1.ZarfFile{
-				{Source: "inputs/one/config.yaml", Target: "/etc/one/config.yaml"},
-				{Source: "inputs/two/config.yaml", Target: "/etc/two/config.yaml"},
-			},
-			DataInjections: []v1alpha1.ZarfDataInjection{
-				{Source: "data/one/payload.txt", Target: v1alpha1.ZarfContainerTarget{Namespace: "app", Selector: "app=one", Container: "app", Path: "/tmp/payload.txt"}},
-				{Source: "data/two/payload.txt", Target: v1alpha1.ZarfContainerTarget{Namespace: "app", Selector: "app=two", Container: "app", Path: "/opt/payload.txt"}},
-			},
-			Manifests: []v1alpha1.ZarfManifest{{
-				Name: "raw", Files: []string{"manifests/configmap.yaml"}, Kustomizations: []string{"kustomize"}, Template: &template,
-			}},
-			Repos: []string{repoURL},
-		}},
-	}
-	require.NoError(t, layout.WritePackageDefinition(filepath.Join(dir, layout.ZarfYAML), api.NewPackageDefinitionFromV1alpha1(pkg)))
+	dir := copyFixture(t, "roundtrip")
+	repoURL := initGitRepository(t, filepath.Join(dir, "repository"))
+	template, err := os.ReadFile(filepath.Join(dir, "zarf.yaml.tmpl"))
+	require.NoError(t, err)
+	definition := strings.NewReplacer(
+		"__REMOTE_VALUES_URL__", valuesServer.URL+"/production-values.yaml?token=secret",
+		"__REPOSITORY_URL__", repoURL,
+	).Replace(string(template))
+	// dir is a test-owned path beneath t.TempDir.
+	//nolint:gosec // G703 reports the parameterized fixture path as tainted.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, layout.ZarfYAML), []byte(definition), 0o600))
 	return dir
 }
 
-func writeGitRepository(t *testing.T, path string) string {
+func initGitRepository(t *testing.T, path string) string {
 	t.Helper()
 	repo, err := git.PlainInit(path, false)
 	require.NoError(t, err)
-	writeFile(t, filepath.Join(path, "README.md"), "offline repository\n")
 	worktree, err := repo.Worktree()
 	require.NoError(t, err)
 	_, err = worktree.Add("README.md")
@@ -448,10 +349,54 @@ func writeGitRepository(t *testing.T, path string) string {
 	return "file://" + filepath.ToSlash(path)
 }
 
-func writeFile(t *testing.T, path, contents string) {
+func copyFixture(t *testing.T, name string) string {
 	t.Helper()
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
-	require.NoError(t, os.WriteFile(path, []byte(contents), 0o600))
+	dir := t.TempDir()
+	require.NoError(t, helpers.CreatePathAndCopy(filepath.Join("testdata", name), dir))
+	return dir
+}
+
+func packageSchemaDigest(root any) (string, []string) {
+	rootType := reflect.TypeOf(root)
+	packagePath := rootType.PkgPath()
+	seen := map[reflect.Type]bool{}
+	fields := []string{}
+
+	var visit func(reflect.Type)
+	visit = func(fieldType reflect.Type) {
+		switch fieldType.Kind() {
+		case reflect.Pointer, reflect.Slice, reflect.Array:
+			visit(fieldType.Elem())
+			return
+		case reflect.Map:
+			visit(fieldType.Elem())
+			return
+		case reflect.Struct:
+		default:
+			return
+		}
+		if fieldType.PkgPath() != packagePath && fieldType.Name() != "" {
+			return
+		}
+		if seen[fieldType] {
+			return
+		}
+		seen[fieldType] = true
+
+		for idx := range fieldType.NumField() {
+			field := fieldType.Field(idx)
+			if !field.IsExported() || field.Tag.Get("json") == "-" {
+				continue
+			}
+			fields = append(fields, fmt.Sprintf("%s.%s %s json:%s", fieldType.Name(), field.Name, field.Type, field.Tag.Get("json")))
+			visit(field.Type)
+		}
+	}
+
+	visit(rootType)
+	sort.Strings(fields)
+	digest := sha256.Sum256([]byte(strings.Join(fields, "\n")))
+	return hex.EncodeToString(digest[:]), fields
 }
 
 func writeImageArchive(t *testing.T, archivePath, ref string) {

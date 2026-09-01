@@ -1,0 +1,12 @@
+kind: ZarfPackageConfig
+metadata:
+  name: namespace-collision
+  version: 1.0.0
+  architecture: amd64
+documentation:
+  guide: docs/files
+components:
+  - name: documentation
+    files:
+      - source: payload.txt
+        target: /tmp/payload.txt

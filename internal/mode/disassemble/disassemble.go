@@ -14,8 +14,9 @@ import (
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
@@ -48,10 +49,7 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 	if opts.Architecture == "" {
 		opts.Architecture = runtime.GOARCH
 	}
-	pkgLayout, err := loadPackageSource(ctx, tmpRoot, opts, layout.PackageLayoutOptions{
-		Filter:               filters.Empty(),
-		VerificationStrategy: opts.VerificationStrategy,
-	})
+	pkgLayout, err := loadPackageSource(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("loading source package: %w", err)
 	}
@@ -61,8 +59,8 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 		}
 	}()
 
-	// Zarf's generic definition provides one alpha working view for asset localization;
-	// localizedDefinition maps those changes back onto the package's native API version.
+	// Zarf's generic definition provides one alpha working view for asset localization.
+	// Native v1beta1 packages are mapped back only when the source used that API.
 	pkg := pkgLayout.AsV1alpha1()
 	if pkg.Build.Differential {
 		return nil, errors.New("differential Zarf packages do not contain complete recreatable source")
@@ -95,11 +93,16 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 		}
 	}
 
-	definition, err := localizedDefinition(pkgLayout.PackageDefinition, pkg)
-	if err != nil {
-		return nil, err
-	}
-	if err := writeSourceDefinition(filepath.Join(stageDir, layout.ZarfYAML), definition); err != nil {
+	definitionPath := filepath.Join(stageDir, layout.ZarfYAML)
+	if pkgLayout.PackageDefinition.OriginalAPIVersion() == v1beta1.APIVersion {
+		beta, err := localizedV1beta1Definition(pkgLayout.PackageDefinition.AsV1beta1(), pkg)
+		if err != nil {
+			return nil, err
+		}
+		if err := writeV1beta1Definition(definitionPath, beta); err != nil {
+			return nil, fmt.Errorf("writing zarf.yaml: %w", err)
+		}
+	} else if err := layout.WritePackageDefinition(definitionPath, api.NewPackageDefinitionFromV1alpha1(pkg)); err != nil {
 		return nil, fmt.Errorf("writing zarf.yaml: %w", err)
 	}
 	if err := publishOutput(stageDir, finalDir); err != nil {

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
@@ -77,7 +76,7 @@ func localizeCharts(ctx context.Context, pkgLayout *layout.PackageLayout, output
 		chart.GitPath = ""
 
 		for valueIdx := range chart.ValuesFiles {
-			localized, err := localizeChartValues(valuesDir, outputDir, component.Name, *chart, valueIdx, valueIdx, chart.ValuesFiles[valueIdx], false)
+			localized, err := localizeChartValues(valuesDir, outputDir, component.Name, *chart, valueIdx, chart.ValuesFiles[valueIdx])
 			if err != nil {
 				return err
 			}
@@ -85,7 +84,7 @@ func localizeCharts(ctx context.Context, pkgLayout *layout.PackageLayout, output
 		}
 		for valueIdx := range chart.TemplatedValuesFiles {
 			globalIdx := len(chart.ValuesFiles) + valueIdx
-			localized, err := localizeChartValues(valuesDir, outputDir, component.Name, *chart, valueIdx, globalIdx, chart.TemplatedValuesFiles[valueIdx], true)
+			localized, err := localizeChartValues(valuesDir, outputDir, component.Name, *chart, globalIdx, chart.TemplatedValuesFiles[valueIdx])
 			if err != nil {
 				return err
 			}
@@ -95,49 +94,22 @@ func localizeCharts(ctx context.Context, pkgLayout *layout.PackageLayout, output
 	return nil
 }
 
-func localizeChartValues(valuesDir, outputDir, componentName string, chart v1alpha1.ZarfChart, valueIdx, globalIdx int, original string, templated bool) (string, error) {
-	src := filepath.Join(valuesDir, layout.ChartValuesFileName(chart.Name, chart.Version, globalIdx))
-	base := portableAssetName(original, "values.yaml")
-	prefix := "values"
-	if templated {
-		prefix = "templated-values"
+func localizeChartValues(valuesDir, outputDir, componentName string, chart v1alpha1.ZarfChart, idx int, original string) (string, error) {
+	src := filepath.Join(valuesDir, layout.ChartValuesFileName(chart.Name, chart.Version, idx))
+	base := filepath.Base(original)
+	if helpers.IsURL(original) {
+		var err error
+		base, err = helpers.ExtractBasePathFromURL(original)
+		if err != nil {
+			return "", fmt.Errorf("resolving chart values name for %s: %w", chart.Name, err)
+		}
 	}
-	rel := filepath.ToSlash(filepath.Join("values", chart.Name, fmt.Sprintf("%s-%d-%s", prefix, valueIdx, base)))
+	if base == "" || base == "." {
+		base = "values.yaml"
+	}
+	rel := filepath.ToSlash(filepath.Join("values", chart.Name, fmt.Sprintf("%d-%s", idx, base)))
 	if err := helpers.CreatePathAndCopy(src, filepath.Join(outputDir, rel)); err != nil {
 		return "", fmt.Errorf("copying chart values for %s: %w", chart.Name, err)
 	}
 	return componentSourcePath(componentName, rel), nil
-}
-
-func portableAssetName(source, fallback string) string {
-	name := filepath.Base(source)
-	if helpers.IsURL(source) {
-		if urlName, err := helpers.ExtractBasePathFromURL(source); err == nil {
-			name = urlName
-		}
-	}
-	name = strings.Map(func(r rune) rune {
-		if r < 32 || strings.ContainsRune(`<>:"/\|?*`, r) {
-			return '-'
-		}
-		return r
-	}, name)
-	name = strings.TrimRight(name, ". ")
-	if name == "" || name == "." {
-		return fallback
-	}
-
-	stem := strings.ToUpper(strings.SplitN(name, ".", 2)[0])
-	if isWindowsReservedName(stem) {
-		name = "_" + name
-	}
-	return name
-}
-
-func isWindowsReservedName(stem string) bool {
-	switch stem {
-	case "CON", "PRN", "AUX", "NUL":
-		return true
-	}
-	return len(stem) == 4 && (strings.HasPrefix(stem, "COM") || strings.HasPrefix(stem, "LPT")) && stem[3] >= '1' && stem[3] <= '9'
 }

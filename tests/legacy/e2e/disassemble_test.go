@@ -4,10 +4,7 @@
 package test
 
 import (
-	"fmt"
-	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,21 +13,7 @@ import (
 )
 
 func TestDevDisassembleAndRebuildPackage(t *testing.T) {
-	sourceDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "payload.txt"), []byte("offline payload\n"), 0o600))
-	zarfYAML := fmt.Sprintf(`kind: ZarfPackageConfig
-metadata:
-  name: legacy-command-roundtrip
-  version: 1.0.0
-  architecture: %s
-components:
-  - name: app
-    required: true
-    files:
-      - source: payload.txt
-        target: /tmp/payload.txt
-`, runtime.GOARCH)
-	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "zarf.yaml"), []byte(zarfYAML), 0o600))
+	sourceDir := filepath.Join("testdata", "legacy", "packages", "disassemble")
 	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
 	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{SkipSBOM: true})

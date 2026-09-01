@@ -10,31 +10,21 @@ import (
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	goyaml "github.com/goccy/go-yaml"
-	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
-	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
-func writeSourceDefinition(path string, definition api.PackageDefinition) error {
-	if definition.OriginalAPIVersion() != v1beta1.APIVersion {
-		return layout.WritePackageDefinition(path, definition)
-	}
-	contents, err := goyaml.Marshal(definition.AsV1beta1())
+func writeV1beta1Definition(path string, definition v1beta1.Package) error {
+	contents, err := goyaml.Marshal(definition)
 	if err != nil {
 		return fmt.Errorf("marshaling v1beta1 package definition: %w", err)
 	}
 	return os.WriteFile(path, contents, helpers.ReadWriteUser)
 }
 
-func localizedDefinition(original api.PackageDefinition, alpha v1alpha1.ZarfPackage) (api.PackageDefinition, error) {
-	if original.OriginalAPIVersion() != v1beta1.APIVersion {
-		return api.NewPackageDefinitionFromV1alpha1(alpha), nil
-	}
-
-	beta := original.AsV1beta1()
+func localizedV1beta1Definition(beta v1beta1.Package, alpha v1alpha1.ZarfPackage) (v1beta1.Package, error) {
 	if len(beta.Components) != len(alpha.Components) {
-		return api.PackageDefinition{}, fmt.Errorf("converted package component count changed from %d to %d", len(beta.Components), len(alpha.Components))
+		return v1beta1.Package{}, fmt.Errorf("converted package component count changed from %d to %d", len(beta.Components), len(alpha.Components))
 	}
 	beta.Metadata.Version = alpha.Metadata.Version
 	beta.Build = v1beta1.BuildData{Migrations: beta.Build.Migrations}
@@ -44,10 +34,10 @@ func localizedDefinition(original api.PackageDefinition, alpha v1alpha1.ZarfPack
 
 	for idx := range beta.Components {
 		if err := applyLocalizedComponent(&beta.Components[idx], alpha.Components[idx]); err != nil {
-			return api.PackageDefinition{}, fmt.Errorf("localizing v1beta1 component %q: %w", beta.Components[idx].Name, err)
+			return v1beta1.Package{}, fmt.Errorf("localizing v1beta1 component %q: %w", beta.Components[idx].Name, err)
 		}
 	}
-	return api.NewPackageDefinitionFromV1beta1(beta), nil
+	return beta, nil
 }
 
 func applyLocalizedComponent(beta *v1beta1.Component, alpha v1alpha1.ZarfComponent) error {

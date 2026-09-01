@@ -15,26 +15,22 @@ import (
 )
 
 func copyPackageLevelAssets(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir string, pkg *v1alpha1.ZarfPackage) error {
-	valuesPath := filepath.Join(pkgLayout.DirPath(), layout.ValuesYAML)
-	if _, err := os.Stat(valuesPath); err == nil {
-		if err := helpers.CreatePathAndCopy(valuesPath, filepath.Join(outputDir, layout.ValuesYAML)); err != nil {
-			return fmt.Errorf("copying %s: %w", layout.ValuesYAML, err)
-		}
+	hasValues, err := copyOptionalPackageAsset(pkgLayout.DirPath(), outputDir, layout.ValuesYAML)
+	if err != nil {
+		return err
+	}
+	if hasValues {
 		pkg.Values.Files = []string{layout.ValuesYAML}
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("checking %s: %w", layout.ValuesYAML, err)
 	} else {
 		pkg.Values.Files = nil
 	}
 
-	schemaPath := filepath.Join(pkgLayout.DirPath(), layout.ValuesSchema)
-	if _, err := os.Stat(schemaPath); err == nil {
-		if err := helpers.CreatePathAndCopy(schemaPath, filepath.Join(outputDir, layout.ValuesSchema)); err != nil {
-			return fmt.Errorf("copying %s: %w", layout.ValuesSchema, err)
-		}
+	hasSchema, err := copyOptionalPackageAsset(pkgLayout.DirPath(), outputDir, layout.ValuesSchema)
+	if err != nil {
+		return err
+	}
+	if hasSchema {
 		pkg.Values.Schema = layout.ValuesSchema
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("checking %s: %w", layout.ValuesSchema, err)
 	} else {
 		pkg.Values.Schema = ""
 	}
@@ -56,4 +52,18 @@ func copyPackageLevelAssets(ctx context.Context, pkgLayout *layout.PackageLayout
 	}
 	pkg.Documentation = localized
 	return nil
+}
+
+func copyOptionalPackageAsset(packageDir, outputDir, name string) (bool, error) {
+	source := filepath.Join(packageDir, name)
+	if _, err := os.Stat(source); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("checking %s: %w", name, err)
+	}
+	if err := helpers.CreatePathAndCopy(source, filepath.Join(outputDir, name)); err != nil {
+		return false, fmt.Errorf("copying %s: %w", name, err)
+	}
+	return true, nil
 }

@@ -1,0 +1,10 @@
+kind: ZarfPackageConfig
+metadata:
+  name: command-roundtrip
+  version: 1.0.0
+components:
+  - name: app
+    required: true
+    files:
+      - source: payload.txt
+        target: /tmp/payload.txt

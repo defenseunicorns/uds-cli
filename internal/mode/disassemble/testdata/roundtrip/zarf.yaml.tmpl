@@ -1,0 +1,51 @@
+kind: ZarfPackageConfig
+metadata:
+  name: roundtrip
+  version: 1.2.3
+  architecture: amd64
+values:
+  files:
+    - values/package.yaml
+  schema: values/package.schema.json
+documentation:
+  guide: docs/guide.md
+components:
+  - name: app
+    required: true
+    charts:
+      - name: app
+        version: 1.0.0
+        namespace: app
+        localPath: chart
+        valuesFiles:
+          - values/chart.yaml
+          - __REMOTE_VALUES_URL__
+        templatedValuesFiles:
+          - values/chart-templated.yaml
+    files:
+      - source: inputs/one/config.yaml
+        target: /etc/one/config.yaml
+      - source: inputs/two/config.yaml
+        target: /etc/two/config.yaml
+    dataInjections:
+      - source: data/one/payload.txt
+        target:
+          namespace: app
+          selector: app=one
+          container: app
+          path: /tmp/payload.txt
+      - source: data/two/payload.txt
+        target:
+          namespace: app
+          selector: app=two
+          container: app
+          path: /opt/payload.txt
+    manifests:
+      - name: raw
+        files:
+          - manifests/configmap.yaml
+        kustomizations:
+          - kustomize
+        template: true
+    repos:
+      - __REPOSITORY_URL__

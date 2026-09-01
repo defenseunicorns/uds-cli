@@ -22,6 +22,8 @@ func TestIsPackageArchive(t *testing.T) {
 	t.Parallel()
 	assert.True(t, isPackageArchive("package.tar.zst"))
 	assert.True(t, isPackageArchive("package.tar"))
+	assert.True(t, isPackageArchive("package.tar.zst.part000"))
+	assert.False(t, isPackageArchive("package.tar.zst.part001"))
 	assert.False(t, isPackageArchive("package.zip"))
 }
 
@@ -29,7 +31,7 @@ const emptySHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b785
 
 func writeMinimalZarfPackage(t *testing.T, dir, name string) {
 	t.Helper()
-	zarfYAML := "kind: ZarfPackageConfig\nmetadata:\n  name: " + name + "\n  version: 1.0.0\n  aggregateChecksum: " + emptySHA256 + "\ncomponents: []\n"
+	zarfYAML := "kind: ZarfPackageConfig\nmetadata:\n  name: " + name + "\n  version: 1.0.0\n  architecture: amd64\n  aggregateChecksum: " + emptySHA256 + "\nbuild:\n  architecture: amd64\n  version: test\ncomponents: []\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, layout.ZarfYAML), []byte(zarfYAML), filesystem.PrivateFileMode))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, layout.Checksums), nil, filesystem.PrivateFileMode))
 }
@@ -145,6 +147,35 @@ func TestLocalSourcePullFilteredUncompressedArchiveUsesZarfLoader(t *testing.T) 
 	require.NoError(t, err)
 	assert.Contains(t, pkgLayout.DirPath(), workspace)
 	require.NoError(t, pkgLayout.Cleanup())
+}
+
+func TestLocalSourcePullFilteredSplitArchivePreservesSourceParts(t *testing.T) {
+	pkgDir := t.TempDir()
+	writeMinimalZarfPackage(t, pkgDir, "split")
+	archivePath := filepath.Join(t.TempDir(), "zarf-package-split-amd64-1.0.0.tar.zst")
+	require.NoError(t, writeTestTarZst(t, archivePath, pkgDir))
+	archive, err := os.ReadFile(archivePath)
+	require.NoError(t, err)
+	part000 := archivePath + ".part000"
+	part001 := archivePath + ".part001"
+	require.NoError(t, os.WriteFile(part000, []byte(`{"Count":1}`), filesystem.PrivateFileMode))
+	// part001 is a test-owned path beneath t.TempDir.
+	//nolint:gosec // G703 reports the derived archive path as tainted.
+	require.NoError(t, os.WriteFile(part001, archive, filesystem.PrivateFileMode))
+	require.NoError(t, os.Remove(archivePath))
+
+	workspace := filepath.Join(t.TempDir(), "workspace")
+	require.NoError(t, os.MkdirAll(workspace, filesystem.PrivateDirectoryMode))
+	source := &localSource{path: part000, arch: "amd64", streams: iostreams.IOStreams{}}
+	pkgLayout, err := source.PullFiltered(t.Context(), workspace, layout.PackageLayoutOptions{
+		Filter:               filters.Empty(),
+		VerificationStrategy: layout.VerifyNever,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, pkgLayout.Cleanup()) })
+	assert.FileExists(t, part000)
+	assert.FileExists(t, part001)
+	assert.Equal(t, "split", pkgLayout.AsV1alpha1().Metadata.Name)
 }
 
 func writeTestTarZst(t *testing.T, archivePath, srcDir string) error {

@@ -5,12 +5,10 @@ package disassemble
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
@@ -44,37 +42,15 @@ func fileURL(path string) string {
 }
 
 func findRepoPath(repoDir, ref string) (string, error) {
-	modern, modernErr := transform.GitURLtoFolderName(ref)
-	legacy, legacyErr := transform.GitURLtoRepoName(ref)
-	names := make([]string, 0, 2)
-	mappingErrs := make([]error, 0, 2)
-	if modernErr != nil {
-		mappingErrs = append(mappingErrs, fmt.Errorf("modern repository mapping: %w", modernErr))
-	} else if modern != "" {
-		names = append(names, modern)
+	name, err := transform.GitURLtoFolderName(ref)
+	if err != nil {
+		return "", fmt.Errorf("mapping repository %q to packaged content: %w", ref, err)
 	}
-	if legacyErr != nil {
-		mappingErrs = append(mappingErrs, fmt.Errorf("legacy repository mapping: %w", legacyErr))
-	} else if legacy != "" && legacy != modern {
-		names = append(names, legacy)
+	path := filepath.Join(repoDir, name)
+	if _, err := os.Stat(path); err == nil {
+		return path, nil
+	} else if !os.IsNotExist(err) {
+		return "", fmt.Errorf("checking packaged repository %q: %w", ref, err)
 	}
-	for _, name := range []string{modern, legacy} {
-		if name == "" {
-			continue
-		}
-		path := filepath.Join(repoDir, name)
-		if _, err := os.Stat(path); err == nil {
-			return path, nil
-		} else if !os.IsNotExist(err) {
-			return "", fmt.Errorf("checking packaged repository %q: %w", ref, err)
-		}
-	}
-	detail := "no candidate names produced"
-	if len(names) > 0 {
-		detail = "tried " + strings.Join(names, ", ")
-	}
-	if err := errors.Join(mappingErrs...); err != nil {
-		return "", fmt.Errorf("unable to map repository %q to packaged content; %s: %w", ref, detail, err)
-	}
-	return "", fmt.Errorf("unable to map repository %q to packaged content; %s", ref, detail)
+	return "", fmt.Errorf("unable to map repository %q to packaged content; tried %s", ref, name)
 }

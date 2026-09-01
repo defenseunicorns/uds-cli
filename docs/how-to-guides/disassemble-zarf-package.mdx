@@ -1,0 +1,111 @@
+---
+title: Disassemble a Zarf package
+description: Convert a complete Zarf package into local source that can be rebuilt without remote source access.
+sidebar:
+  order: 3.6
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+## What you'll accomplish
+
+Package disassembly recovers the assets and `zarf.yaml` from a complete Zarf package. The command writes packaged charts, manifests, files, images, and repositories to local paths and rewrites `zarf.yaml` to use them.
+
+By the end of this guide, you'll have source that can rebuild the package without pulling its declared resources from remote sources.
+
+## Prerequisites
+
+- [UDS CLI installed](/getting-started/installation/)
+- A complete Zarf package archive, split archive, HTTP(S) package URL, or OCI package reference
+- Registry or network access when the source is remote
+
+## Before you begin
+
+Choose an output directory that does not exist or is empty.
+
+## Steps
+
+<Steps>
+
+1. **Choose the package source and output directory**
+
+   Use a `.tar`, `.tar.zst`, or `.part000` package path, an HTTP(S) package URL, or an OCI reference with an explicit `oci://` scheme. This example uses a local archive and writes source to `./app-source`.
+
+2. **Disassemble the package**
+
+   <Tabs>
+     <TabItem label="Legacy">
+
+       ```bash
+       uds dev disassemble \
+         zarf-package-app-amd64-1.0.0.tar.zst \
+         ./app-source
+       ```
+
+       Legacy mode reports successful completion as human-readable CLI output.
+
+     </TabItem>
+     <TabItem label="Next">
+
+       ```bash
+       uds --features=NextMode=true bundle dev disassemble \
+         zarf-package-app-amd64-1.0.0.tar.zst \
+         ./app-source
+       ```
+
+       Next mode writes text by default and supports `--output json` or `--output yaml` for structured output.
+
+     </TabItem>
+   </Tabs>
+
+3. **Review the generated source**
+
+   Confirm that `app-source/zarf.yaml` references assets beneath `app-source` and that the package version ends in `-disassembled`.
+
+4. **Rebuild the package offline**
+
+   ```bash
+   uds zarf package create ./app-source --confirm --output ./build
+   ```
+
+   The rebuild uses the local assets emitted under `app-source` and does not pull images or other declared package resources from remote sources.
+
+</Steps>
+
+## Verification
+
+Confirm that the create command writes a complete package beneath `./build` whose version ends in `-disassembled`.
+
+## Troubleshooting
+
+### Problem: The output directory contains files
+
+**Symptom:** Disassembly reports that the output directory must be empty.
+
+**Solution:** Choose a directory that does not exist or remove its contents before running the command.
+
+### Problem: The package is differential or skeleton
+
+**Symptom:** Disassembly reports that the package does not contain complete recreatable source.
+
+**Solution:** A differential package is created from an already-created package and new source, and contains only the pieces that changed. It does not contain the unchanged assets needed to recover complete source, so disassemble the complete created package instead.
+
+A skeleton package is a published, uncreated package intended for reuse and composition across package repositories. Use the skeleton directly as source; because it has never been created, it has no packaged assets to recover through disassembly.
+
+### Problem: A repository-bearing output directory was moved
+
+**Symptom:** Rebuilding fails to locate a repository after the generated source directory was moved.
+
+**Solution:** Return the directory to its original location before rebuilding. Zarf currently uses one repository URL for both source acquisition and repository identity, so disassembly emits absolute `file://` repository URLs. The rebuilt package remains portable because Zarf rewrites the repository URL for its in-cluster Git service during deployment. Repeated disassembly and rebuild cycles from different absolute paths are not path-idempotent because Zarf derives the packaged repository suffix from that URL.
+
+### Problem: The source is a UDS Bundle
+
+**Symptom:** Disassembly cannot load the source as a Zarf package.
+
+**Solution:** Select a complete Zarf package. Bundle disassembly is not supported.
+
+## See also
+
+- [Legacy `uds dev disassemble` command reference](/cli/reference/commands/uds_dev_disassemble/)
+- [Next mode](/cli/reference/next-mode/)
+- [Create a Zarf package](https://docs.zarf.dev/commands/zarf_package_create/)

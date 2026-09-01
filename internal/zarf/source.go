@@ -5,7 +5,6 @@ package zarf
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -57,21 +56,11 @@ type layerIdentity struct {
 }
 
 // NewPackageSource returns a PackageSource for the given source string.
-// Explicit OCI references use zoci.NewRemote. Existing filesystem paths take
-// precedence over heuristic OCI detection and are resolved against bundleDir.
+// OCI references use zoci.NewRemote; everything else is treated as a local
+// path resolved against bundleDir.
 // streams carries the leveled logger used for ingest/pull diagnostics.
 func NewPackageSource(source string, opts bundleinternal.ConfigOptions, bundleDir string, streams iostreams.IOStreams) PackageSource {
-	isRemote := strings.HasPrefix(source, "oci://")
-	if !isRemote {
-		path := source
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(bundleDir, path)
-		}
-		_, err := os.Stat(path)
-		isLocal := err == nil || !errors.Is(err, os.ErrNotExist)
-		isRemote = !isLocal && udsoci.IsOCIReference(source)
-	}
-	if isRemote {
+	if udsoci.IsOCIReference(source) {
 		return &remoteSource{
 			ref:     udsoci.TrimScheme(source),
 			arch:    opts.Architecture,

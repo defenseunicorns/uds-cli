@@ -16,42 +16,37 @@ import (
 )
 
 func localizeFiles(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, tmpRoot string, component *v1alpha1.ZarfComponent) error {
-	filesDir, err := pkgLayout.GetComponentDir(ctx, tmpRoot, component.Name, layout.FilesComponentDir)
-	if err != nil {
-		return fmt.Errorf("reading file assets for component %s: %w", component.Name, err)
-	}
-	for idx := range component.Files {
-		file := &component.Files[idx]
-		src, err := sourceFromIndexedDir(filesDir, idx, file.Target)
-		if err != nil {
-			return err
-		}
-		rel := indexedAssetPath("files", idx, file.Target, "file")
-		if err := helpers.CreatePathAndCopy(src, filepath.Join(outputDir, rel)); err != nil {
-			return fmt.Errorf("copying component file %d: %w", idx, err)
-		}
-		file.Source = componentSourcePath(component.Name, rel)
-		file.ExtractPath = ""
-	}
-	return nil
+	return localizeIndexedAssets(ctx, pkgLayout, outputDir, tmpRoot, component.Name, layout.FilesComponentDir, "files", "file", component.Files,
+		func(file *v1alpha1.ZarfFile) string { return file.Target },
+		func(file *v1alpha1.ZarfFile, source string) {
+			file.Source = source
+			file.ExtractPath = ""
+		})
 }
 
 func localizeDataInjections(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, tmpRoot string, component *v1alpha1.ZarfComponent) error {
-	dataDir, err := pkgLayout.GetComponentDir(ctx, tmpRoot, component.Name, layout.DataComponentDir)
+	return localizeIndexedAssets(ctx, pkgLayout, outputDir, tmpRoot, component.Name, layout.DataComponentDir, "data", "data", component.DataInjections,
+		func(data *v1alpha1.ZarfDataInjection) string { return data.Target.Path },
+		func(data *v1alpha1.ZarfDataInjection, source string) { data.Source = source })
+}
+
+func localizeIndexedAssets[T any](ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, tmpRoot, componentName string, componentDir layout.ComponentDir, kind, fallback string, assets []T, target func(*T) string, update func(*T, string)) error {
+	assetDir, err := pkgLayout.GetComponentDir(ctx, tmpRoot, componentName, componentDir)
 	if err != nil {
-		return fmt.Errorf("reading data assets for component %s: %w", component.Name, err)
+		return fmt.Errorf("reading %s assets for component %s: %w", kind, componentName, err)
 	}
-	for idx := range component.DataInjections {
-		data := &component.DataInjections[idx]
-		src, err := sourceFromIndexedDir(dataDir, idx, data.Target.Path)
+	for idx := range assets {
+		asset := &assets[idx]
+		targetPath := target(asset)
+		src, err := sourceFromIndexedDir(assetDir, idx, targetPath)
 		if err != nil {
 			return err
 		}
-		rel := indexedAssetPath("data", idx, data.Target.Path, "data")
+		rel := indexedAssetPath(kind, idx, targetPath, fallback)
 		if err := helpers.CreatePathAndCopy(src, filepath.Join(outputDir, rel)); err != nil {
-			return fmt.Errorf("copying data injection %d: %w", idx, err)
+			return fmt.Errorf("copying component %s %d: %w", kind, idx, err)
 		}
-		data.Source = componentSourcePath(component.Name, rel)
+		update(asset, componentSourcePath(componentName, rel))
 	}
 	return nil
 }

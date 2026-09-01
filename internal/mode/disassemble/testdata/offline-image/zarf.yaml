@@ -1,0 +1,11 @@
+kind: ZarfPackageConfig
+metadata:
+  name: offline-image
+  version: 1.0.0
+  architecture: amd64
+components:
+  - name: app
+    imageArchives:
+      - path: images.tar
+        images:
+          - registry.invalid/offline/app:v1
