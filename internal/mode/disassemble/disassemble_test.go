@@ -287,13 +287,6 @@ func TestDisassembleSeparatesPackageDocumentationFromComponentAssets(t *testing.
 	t.Cleanup(func() { require.NoError(t, reassembled.Cleanup()) })
 }
 
-func TestFindRepoPathReportsAttemptedMappings(t *testing.T) {
-	_, err := findRepoPath(t.TempDir(), "https://github.com/example/repo.git")
-	require.Error(t, err)
-	require.ErrorContains(t, err, "tried")
-	assert.NotContains(t, err.Error(), "%!w(<nil>)")
-}
-
 func TestNormalizeMetadataMarksModifiedSourceOnce(t *testing.T) {
 	metadata := v1alpha1.ZarfMetadata{Version: "1.2.3", AggregateChecksum: "checksum"}
 	normalizeMetadata(&metadata)

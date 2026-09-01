@@ -23,15 +23,12 @@ type DevDisassembleOptions struct {
 	Config    *bundlepkg.UDSBundleConfig
 	Printer   printer.ResourcePrinter
 
-	run disassembleRunner
 	iostreams.IOStreams
 }
 
-type disassembleRunner func(context.Context, disassemble.Options) (*disassemble.Result, error)
-
 // NewDevDisassembleOptions returns development disassembly options.
 func NewDevDisassembleOptions(streams iostreams.IOStreams) *DevDisassembleOptions {
-	return &DevDisassembleOptions{IOStreams: streams, run: disassemble.Disassemble}
+	return &DevDisassembleOptions{IOStreams: streams}
 }
 
 // NewDevDisassembleCommand creates the bundle development disassemble command.
@@ -85,7 +82,7 @@ func (o *DevDisassembleOptions) Validate() error {
 func (o *DevDisassembleOptions) Run(ctx context.Context) error {
 	// Zarf package APIs read their process-global temp setting instead of UDS config.
 	configureZarfTempDir(o.Config.Options.TmpDir)
-	result, err := o.run(ctx, disassemble.Options{
+	result, err := disassemble.Disassemble(ctx, disassemble.Options{
 		Source:               o.Source,
 		OutputDir:            o.OutputDir,
 		Architecture:         o.Config.Options.Architecture,

@@ -5,7 +5,6 @@ package zarf
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,7 +14,6 @@ import (
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/archive"
-	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
@@ -122,7 +120,7 @@ func (s *localSource) IngestFiltered(ctx context.Context, filter filters.Compone
 }
 
 func isPackageArchive(path string) bool {
-	return strings.HasSuffix(path, ".tar.zst") || strings.HasSuffix(path, ".tar") || strings.Contains(path, ".part000")
+	return strings.HasSuffix(path, ".tar.zst") || strings.HasSuffix(path, ".tar")
 }
 
 func rejectSymlinks(root string) error {
@@ -138,9 +136,6 @@ func rejectSymlinks(root string) error {
 }
 
 func loadPackageArchive(ctx context.Context, path, tmpDir string, loadOptions layout.PackageLayoutOptions) (*layout.PackageLayout, error) {
-	if strings.Contains(path, ".part000") {
-		return loadSplitPackageArchive(ctx, path, tmpDir, loadOptions)
-	}
 	stageDir, err := os.MkdirTemp(tmpDir, "zarf-pkg-*")
 	if err != nil {
 		return nil, fmt.Errorf("creating package archive workspace: %w: %w", ErrCreatePackageWorkspace, err)
@@ -159,43 +154,6 @@ func loadPackageArchive(ctx context.Context, path, tmpDir string, loadOptions la
 		return nil, fmt.Errorf("loading local package archive %q: %w: %w", path, ErrLoadPackage, err)
 	}
 	cleanup = false
-	return pkgLayout, nil
-}
-
-func loadSplitPackageArchive(ctx context.Context, path, tmpDir string, loadOptions layout.PackageLayoutOptions) (_ *layout.PackageLayout, err error) {
-	// Zarf owns split reassembly, but its loader removes consumed parts. Stage
-	// copies so loading a bundle source never mutates the caller's package files.
-	stageDir, err := os.MkdirTemp(tmpDir, "zarf-split-*")
-	if err != nil {
-		return nil, fmt.Errorf("creating split package workspace: %w: %w", ErrCreatePackageWorkspace, err)
-	}
-	defer func() {
-		err = errors.Join(err, os.RemoveAll(stageDir))
-	}()
-
-	pattern := strings.Replace(path, ".part000", ".part*", 1)
-	parts, err := filepath.Glob(pattern)
-	if err != nil {
-		return nil, fmt.Errorf("finding split package parts: %w", err)
-	}
-	if len(parts) == 0 {
-		return nil, fmt.Errorf("no split package parts match %q", pattern)
-	}
-	for _, part := range parts {
-		if err := helpers.CreatePathAndCopy(part, filepath.Join(stageDir, filepath.Base(part))); err != nil {
-			return nil, fmt.Errorf("copying split package part %q: %w", part, err)
-		}
-	}
-
-	stagedSource := filepath.Join(stageDir, filepath.Base(path))
-	pkgLayout, err := packager.LoadPackage(ctx, stagedSource, packager.LoadOptions{
-		Filter:               loadOptions.Filter,
-		VerifyBlobOptions:    loadOptions.VerifyBlobOptions,
-		VerificationStrategy: loadOptions.VerificationStrategy,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("loading staged split package %q: %w", path, err)
-	}
 	return pkgLayout, nil
 }
 

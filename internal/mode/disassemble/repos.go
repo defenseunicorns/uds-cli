@@ -32,6 +32,7 @@ func localizeRepos(ctx context.Context, pkgLayout *layout.PackageLayout, outputD
 		}
 		// Zarf currently requires a URL-shaped repo source and does not resolve it
 		// against the package directory, so use the final local path explicitly.
+		// TODO: (@wstarr) - this should be addressed upstream so that local repos can be better handled
 		component.Repos[idx] = fileURL(filepath.Join(finalDir, componentSourcePath(component.Name, rel)))
 	}
 	return nil
