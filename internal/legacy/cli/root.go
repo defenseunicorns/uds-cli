@@ -226,14 +226,13 @@ func loadViperConfig() error {
 		return err
 	}
 
-	// Preserve parsed --set values because pflag retains its changed state when flags are restored.
-	setVariables := bundleCfg.DeployOpts.SetVariables
+	hadSetVariables := bundleCfg.DeployOpts.SetVariables != nil
 	err = unmarshalAndValidateConfig(configFile, &bundleCfg)
 	if err != nil {
 		return err
 	}
-	if setVariables != nil {
-		bundleCfg.DeployOpts.SetVariables = setVariables
+	if hadSetVariables && bundleCfg.DeployOpts.SetVariables == nil {
+		bundleCfg.DeployOpts.SetVariables = map[string]string{}
 	}
 
 	// ensure the DeployOpts.Variables pkg vars are uppercase

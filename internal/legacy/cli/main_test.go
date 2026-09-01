@@ -192,3 +192,42 @@ func TestConfigurationPreservesChangedDeploySetFlags(t *testing.T) {
 		t.Fatalf("SetVariables = %#v, want %#v", bundleCfg.DeployOpts.SetVariables, want)
 	}
 }
+
+func TestConfigurationMergesDeploySetFlagsWithConfigSetVariables(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "uds-config.yaml")
+	contents := []byte(`setVariables:
+  from_config: yes
+  cli: config
+`)
+	if err := os.WriteFile(configPath, contents, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("UDS_CONFIG", configPath)
+
+	root := NewRootCommand()
+	root.SetArgs([]string{
+		"deploy",
+		"./bundle-does-not-need-to-exist.tar.zst",
+		"--confirm",
+		"--no-log-file",
+		"--no-progress",
+		"--set", "cli=flag",
+	})
+	err := root.Execute()
+	if err == nil || !strings.Contains(err.Error(), "failed to validate bundle: invalid reference") {
+		t.Fatalf("error = %v, want bundle validation error", err)
+	}
+
+	want := map[string]string{
+		"from_config": "yes",
+		"cli":         "flag",
+	}
+	for key, value := range want {
+		if got := bundleCfg.DeployOpts.SetVariables[key]; got != value {
+			t.Fatalf("SetVariables[%q] = %q, want %q", key, got, value)
+		}
+	}
+	if len(bundleCfg.DeployOpts.SetVariables) != len(want) {
+		t.Fatalf("SetVariables = %#v, want %#v", bundleCfg.DeployOpts.SetVariables, want)
+	}
+}
