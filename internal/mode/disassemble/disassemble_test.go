@@ -6,7 +6,6 @@ package disassemble
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,8 +13,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -35,6 +32,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/assemble"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/packager/load"
+	zarfschema "github.com/zarf-dev/zarf/src/pkg/schema"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	zarftypes "github.com/zarf-dev/zarf/src/types"
 	"oras.land/oras-go/v2/content"
@@ -175,20 +173,24 @@ func TestDisassemblePreservesV1beta1Definition(t *testing.T) {
 	assert.Equal(t, v1beta1.APIVersion, reassembled.PackageDefinition.OriginalAPIVersion())
 }
 
-func TestPackageSchemaCoverage(t *testing.T) {
+// Disassembly selectively rewrites package source fields instead of round-tripping
+// definitions wholesale. Fingerprinting Zarf's source schemas makes every change
+// require an explicit preservation or localization review. Post-create provenance
+// files and Zarf's internal package layout are intentionally outside this boundary.
+func TestZarfPackageSchemaChangesRequireDisassemblyReview(t *testing.T) {
 	tests := []struct {
-		name string
-		root any
-		want string
+		name   string
+		schema []byte
+		want   string
 	}{
-		{name: "v1alpha1", root: v1alpha1.ZarfPackage{}, want: "0b3a1780c165390f19447f240f37efa8acebeebc06b1eb0eff76dd49ca53b59e"},
-		{name: "v1beta1", root: v1beta1.Package{}, want: "48baec36260af523cf9e39588c159d3bd9d1d3aad14e2fdccdeb39a017b100fb"},
+		{name: "v1alpha1", schema: zarfschema.GetV1Alpha1Schema(), want: "e46b466b366ba42fa171de0cf27302ced24c3b3416bcbaa8a1da93c2383dfd1b"},
+		{name: "v1beta1", schema: zarfschema.GetV1Beta1Schema(), want: "ff49e63d52cbce0f2c795537e418d747541a5081d97af65ab6f131331cbfec50"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			digest, fields := packageSchemaDigest(tc.root)
-			if digest != tc.want {
-				t.Fatalf("package schema changed: review each new or modified field for preservation or localization, then update the digest to %s:\n%s", digest, strings.Join(fields, "\n"))
+			digest := canonicalSchemaDigest(t, tc.schema)
+			if tc.want != digest {
+				t.Fatalf("Zarf %s package source schema changed: review each new or modified field for preservation or localization before updating the fingerprint to %s", tc.name, digest)
 			}
 		})
 	}
@@ -349,47 +351,13 @@ func copyFixture(t *testing.T, name string) string {
 	return dir
 }
 
-func packageSchemaDigest(root any) (string, []string) {
-	rootType := reflect.TypeOf(root)
-	packagePath := rootType.PkgPath()
-	seen := map[reflect.Type]bool{}
-	fields := []string{}
-
-	var visit func(reflect.Type)
-	visit = func(fieldType reflect.Type) {
-		switch fieldType.Kind() {
-		case reflect.Pointer, reflect.Slice, reflect.Array:
-			visit(fieldType.Elem())
-			return
-		case reflect.Map:
-			visit(fieldType.Elem())
-			return
-		case reflect.Struct:
-		default:
-			return
-		}
-		if fieldType.PkgPath() != packagePath && fieldType.Name() != "" {
-			return
-		}
-		if seen[fieldType] {
-			return
-		}
-		seen[fieldType] = true
-
-		for idx := range fieldType.NumField() {
-			field := fieldType.Field(idx)
-			if !field.IsExported() || field.Tag.Get("json") == "-" {
-				continue
-			}
-			fields = append(fields, fmt.Sprintf("%s.%s %s json:%s", fieldType.Name(), field.Name, field.Type, field.Tag.Get("json")))
-			visit(field.Type)
-		}
-	}
-
-	visit(rootType)
-	sort.Strings(fields)
-	digest := sha256.Sum256([]byte(strings.Join(fields, "\n")))
-	return hex.EncodeToString(digest[:]), fields
+func canonicalSchemaDigest(t *testing.T, schema []byte) string {
+	t.Helper()
+	var document any
+	require.NoError(t, json.Unmarshal(schema, &document))
+	canonical, err := json.Marshal(document)
+	require.NoError(t, err)
+	return fmt.Sprintf("%x", sha256.Sum256(canonical))
 }
 
 func writeImageArchive(t *testing.T, archivePath, ref string) {
