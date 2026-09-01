@@ -36,4 +36,6 @@ jobs:
       packages: write
     with:
       release_tag: ${{ needs.release-please.outputs.tag_name }}
-    secrets: inherit
+    secrets:
+      HOMEBREW_TAP_WORKFLOW_GITHUB_APP_ID: ${{ secrets.HOMEBREW_TAP_WORKFLOW_GITHUB_APP_ID }}
+      HOMEBREW_TAP_WORKFLOW_GITHUB_APP_SECRET: ${{ secrets.HOMEBREW_TAP_WORKFLOW_GITHUB_APP_SECRET }}

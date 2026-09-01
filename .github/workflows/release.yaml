@@ -16,6 +16,11 @@ on:
         description: Tag whose release artifacts should be built.
         required: true
         type: string
+    secrets:
+      HOMEBREW_TAP_WORKFLOW_GITHUB_APP_ID:
+        required: true
+      HOMEBREW_TAP_WORKFLOW_GITHUB_APP_SECRET:
+        required: true
 
 jobs:
   test:
@@ -24,7 +29,6 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    secrets: inherit
 
   push:
     runs-on: uds-ubuntu-big-boy-16-core
