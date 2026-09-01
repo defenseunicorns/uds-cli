@@ -39,8 +39,8 @@ func NewDevDisassembleCommand(streams iostreams.IOStreams) *cobra.Command {
 	o := NewDevDisassembleOptions(streams)
 	return &cobra.Command{
 		Use:   "disassemble <source> <output-dir>",
-		Short: "Convert a Zarf package into rebuildable offline source",
-		Long:  "Extract a complete Zarf package and rewrite its packaged resources into a local source directory that can be rebuilt offline. Zarf packages are supported today.",
+		Short: "[beta] Convert a Zarf package into rebuildable offline source",
+		Long:  "[beta] Extract a complete Zarf package and rewrite its packaged resources into a local source directory that can be rebuilt offline. Zarf packages are supported today.",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := o.Complete(cmd, args); err != nil {

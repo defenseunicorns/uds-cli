@@ -1,1 +1,1 @@
-message: '###ZARF_PKG_TMPL_MESSAGE###'
+message: "{{ .Values.message }}"

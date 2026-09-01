@@ -15,24 +15,16 @@ import (
 )
 
 func copyPackageLevelAssets(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir string, pkg *v1alpha1.ZarfPackage) error {
-	hasValues, err := copyOptionalPackageAsset(pkgLayout.DirPath(), outputDir, layout.ValuesYAML)
-	if err != nil {
+	if err := localizeOptionalPackageAsset(pkgLayout.DirPath(), outputDir, layout.ValuesYAML, []string{layout.ValuesYAML}, func(files []string) {
+		pkg.Values.Files = files
+	}); err != nil {
 		return err
-	}
-	if hasValues {
-		pkg.Values.Files = []string{layout.ValuesYAML}
-	} else {
-		pkg.Values.Files = nil
 	}
 
-	hasSchema, err := copyOptionalPackageAsset(pkgLayout.DirPath(), outputDir, layout.ValuesSchema)
-	if err != nil {
+	if err := localizeOptionalPackageAsset(pkgLayout.DirPath(), outputDir, layout.ValuesSchema, layout.ValuesSchema, func(schema string) {
+		pkg.Values.Schema = schema
+	}); err != nil {
 		return err
-	}
-	if hasSchema {
-		pkg.Values.Schema = layout.ValuesSchema
-	} else {
-		pkg.Values.Schema = ""
 	}
 
 	if len(pkg.Documentation) == 0 {
@@ -54,16 +46,19 @@ func copyPackageLevelAssets(ctx context.Context, pkgLayout *layout.PackageLayout
 	return nil
 }
 
-func copyOptionalPackageAsset(packageDir, outputDir, name string) (bool, error) {
+func localizeOptionalPackageAsset[T any](packageDir, outputDir, name string, localized T, update func(T)) error {
 	source := filepath.Join(packageDir, name)
 	if _, err := os.Stat(source); err != nil {
 		if os.IsNotExist(err) {
-			return false, nil
+			var zero T
+			update(zero)
+			return nil
 		}
-		return false, fmt.Errorf("checking %s: %w", name, err)
+		return fmt.Errorf("checking %s: %w", name, err)
 	}
 	if err := helpers.CreatePathAndCopy(source, filepath.Join(outputDir, name)); err != nil {
-		return false, fmt.Errorf("copying %s: %w", name, err)
+		return fmt.Errorf("copying %s: %w", name, err)
 	}
-	return true, nil
+	update(localized)
+	return nil
 }

@@ -21,6 +21,8 @@ func TestNewDevCommandContainsDisassemble(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "disassemble", found.Name())
 	assert.Equal(t, "disassemble <source> <output-dir>", found.Use)
+	assert.Equal(t, "[beta] Convert a Zarf package into rebuildable offline source", found.Short)
+	assert.Equal(t, "[beta] Extract a complete Zarf package and rewrite its packaged resources into a local source directory that can be rebuilt offline. Zarf packages are supported today.", found.Long)
 }
 
 func TestLegacyDisassembleOptionsHonorSignatureBypass(t *testing.T) {
