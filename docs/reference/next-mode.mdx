@@ -14,7 +14,7 @@ UDS CLI Next is the next-generation implementation of UDS CLI. It is available a
 
 UDS CLI Next is designed to support the next phase of UDS bundle workflows:
 
-- [Better Bundles design](#better-bundles-design)
+- [Bundles Next design](#bundles-next-design)
   - next-generation bundle authoring and artifact structure
   - self-contained OCI artifacts for registry-backed and offline workflows
 - HCL-based bundle definitions with `bundle.uds.hcl`
@@ -26,11 +26,11 @@ UDS CLI Next is designed to support the next phase of UDS bundle workflows:
 - a library-first design that other UDS tools can consume directly
 - stronger artifact integrity, signing, and verification paths
 
-## Better Bundles Design
+## Bundles Next Design
 
-UDS CLI Next implements the Better Bundles design for the next generation of UDS bundles. The previous bundle design fell short as UDS workflows matured: bundle configuration relied on bespoke `overrides`, package contents were hidden behind indirect OCI blob references, bundles did not have a distinct media type for registries to identify, and the artifact shape was harder for downstream tools to parse consistently.
+UDS CLI Next implements the Bundles Next design for the next generation of UDS bundles. The previous bundle design fell short as UDS workflows matured: bundle configuration relied on bespoke `overrides`, package contents were hidden behind indirect OCI blob references, bundles did not have a distinct media type for registries to identify, and the artifact shape was harder for downstream tools to parse consistently.
 
-Better Bundles focuses on making bundle artifacts easier for humans, registries, and downstream deployment tools to reason about. Beyond the HCL authoring model above, it defines:
+Bundles Next focuses on making bundle artifacts easier for humans, registries, and downstream deployment tools to reason about. Beyond the HCL authoring model above, it defines:
 
 - a bundle-specific OCI media type so registries and tooling can identify UDS bundles directly
 - an artifact layout where package manifests and layers are represented explicitly instead of hidden behind generic blob indirection

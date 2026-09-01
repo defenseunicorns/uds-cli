@@ -172,7 +172,7 @@ tasks:
       - description: "Clone the docs repo and symlink the reference docs"
         cmd: |
           git clone https://github.com/defenseunicorns/uds-docs.git uds-docs
-          mkdir -p uds-docs/src/content/docs/cli
+          mkdir -p uds-docs/src/content/docs/cli/main
           # LikeC4 Vite plugin requires at least one .c4 file or it crashes on startup
           mkdir -p uds-docs/src/content/docs/.c4
           printf 'specification {}\n' > uds-docs/src/content/docs/.c4/placeholder.c4
@@ -181,10 +181,10 @@ tasks:
           allowed=$(./uds zarf tools yq -r '.sidebarOrder[] | (.dir // .)' docs/docs.config.json)
           for dir in $(pwd)/docs/*/; do
             name="$(basename "$dir")"
-            echo "$allowed" | grep -qx "$name" && ln -s "$dir" uds-docs/src/content/docs/cli/
+            echo "$allowed" | grep -qx "$name" && ln -s "$dir" uds-docs/src/content/docs/cli/main/
           done
           # Also symlink the top-level index page if present
-          [ -f "$(pwd)/docs/index.mdx" ] && ln -s "$(pwd)/docs/index.mdx" uds-docs/src/content/docs/cli/
+          [ -f "$(pwd)/docs/index.mdx" ] && ln -s "$(pwd)/docs/index.mdx" uds-docs/src/content/docs/cli/main/
       - description: "Create product config for dev server"
         cmd: |
           mkdir -p uds-docs/.product-configs
