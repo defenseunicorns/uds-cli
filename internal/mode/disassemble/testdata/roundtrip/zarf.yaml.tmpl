@@ -28,13 +28,13 @@ components:
       - source: inputs/two/config.yaml
         target: /etc/two/config.yaml
     dataInjections:
-      - source: data/one/payload.txt
+      - source: injections/one/payload.txt
         target:
           namespace: app
           selector: app=one
           container: app
           path: /tmp/payload.txt
-      - source: data/two/payload.txt
+      - source: injections/two/payload.txt
         target:
           namespace: app
           selector: app=two
