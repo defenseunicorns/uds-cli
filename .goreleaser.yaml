@@ -139,6 +139,4 @@ git:
   #
   # Templates: allowed.
   ignore_tags:
-    - nightly-unstable
-    - v*-nightly*
-    - v*-adhoc*
+    - v*-snapshot*

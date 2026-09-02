@@ -73,9 +73,9 @@ Keep user, contributor, and design docs synchronized with code changes.
 
 ## Release workflows
 
-- Ask before dispatching `.github/workflows/unstable-release.yaml`. It writes to GHCR during validation and uses repository/package write permissions plus the `release-nightly` environment to create remote tags and prereleases.
-- Preserve unique unstable tags: `vX.Y.Z-(nightly|adhoc)+YYYYMMDDHHMMSS-XXXXXXXX`. Never reuse, move, or force-update them. Keep both formats excluded from `.github/workflows/release.yaml`.
-- Scheduled cleanup removes nightly releases and tags beyond the newest three. It must not remove ad hoc releases. Keep `README.md`, `CONTRIBUTING.md`, and `AGENTS.md` synchronized with release workflow changes.
+- Ask before dispatching `.github/workflows/snapshot-release.yaml`. It writes to GHCR during validation and uses repository/package write permissions plus the `release-snapshot` environment to create remote tags and prereleases.
+- Preserve unique snapshot tags: `vX.Y.Z-snapshot+YYYYMMDDHHMMSS-XXXXXXXX`. Never reuse, move, or force-update them. Keep this format excluded from `.github/workflows/release.yaml`.
+- Scheduled cleanup removes snapshot releases and tags beyond the newest three. Keep `README.md`, `CONTRIBUTING.md`, and `AGENTS.md` synchronized with release workflow changes.
 
 ## Tooling and safety
 

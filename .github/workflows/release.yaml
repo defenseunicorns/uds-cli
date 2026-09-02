@@ -10,8 +10,7 @@ on:
   push:
     tags:
       - "v*"
-      - "!v*-nightly*"
-      - "!v*-adhoc*"
+      - "!v*-snapshot*"
 
 jobs:
   test:

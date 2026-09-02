@@ -76,4 +76,4 @@ release:
   prerelease: true
   make_latest: false
   mode: append
-  name_template: "Unstable {{ .Tag }}"
+  name_template: "Snapshot {{ .Tag }}"

@@ -1,21 +1,15 @@
 # Copyright 2024-2026 Defense Unicorns
 # SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
-name: Unstable Release
+name: Snapshot Release
 
 on:
   schedule:
-    - cron: "0 3 * * *" # nightly at 3am UTC
+    - cron: "0 3 * * *" # daily at 3am UTC
   workflow_dispatch:
-    inputs:
-      ref:
-        description: "Branch or commit SHA to release"
-        required: false
-        default: main
-        type: string
 
 concurrency:
-  group: unstable-release-${{ github.event_name == 'schedule' && 'nightly' || github.event.inputs.ref || 'main' }}
+  group: snapshot-release
   cancel-in-progress: false
 
 permissions:
@@ -30,34 +24,20 @@ jobs:
       source_sha: ${{ steps.prepare.outputs.source_sha }}
       tag_name: ${{ steps.prepare.outputs.tag_name }}
     steps:
-      - name: Checkout requested ref
+      - name: Checkout main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.inputs.ref || 'main' }}
+          ref: main
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Prepare unstable release
+      - name: Prepare snapshot release
         id: prepare
         env:
-          RELEASE_REF: ${{ github.event.inputs.ref || 'main' }}
-          RELEASE_TYPE: ${{ github.event_name == 'schedule' && 'nightly' || 'adhoc' }}
+          RELEASE_TYPE: snapshot
         shell: bash
         run: |
           set -euo pipefail
-
-          if [[ "$RELEASE_REF" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
-            git rev-parse --verify "$RELEASE_REF^{commit}" >/dev/null
-          elif ! git ls-remote --exit-code --heads origin "refs/heads/$RELEASE_REF" >/dev/null 2>&1; then
-            echo "ref must be an existing branch or commit SHA: $RELEASE_REF" >&2
-            exit 1
-          fi
-
-          # Fail before tagging so historical refs without the release config cannot leave orphaned tags.
-          if ! git cat-file -e HEAD:.goreleaser.unstable.yaml; then
-            echo "selected ref does not contain .goreleaser.unstable.yaml" >&2
-            exit 1
-          fi
 
           stable_tag=
           while read -r candidate; do
@@ -83,7 +63,7 @@ jobs:
     needs: prepare
     uses: ./.github/workflows/test-release.yaml
     with:
-      ref: ${{ needs.prepare.outputs.source_sha }}
+      ref: main
     permissions:
       contents: read
       id-token: write
@@ -95,17 +75,17 @@ jobs:
       - prepare
       - test
     runs-on: ubuntu-latest
-    environment: release-nightly
+    environment: release-snapshot
     permissions:
       contents: write
     steps:
-      - name: Checkout source commit
+      - name: Checkout main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.prepare.outputs.source_sha }}
           fetch-depth: 0
           fetch-tags: true
-      - name: Push unstable tag
+      - name: Push snapshot tag
         env:
           TAG_NAME: ${{ needs.prepare.outputs.tag_name }}
         run: |
@@ -117,7 +97,7 @@ jobs:
       - prepare
       - tag
     runs-on: ubuntu-latest
-    environment: release-nightly
+    environment: release-snapshot
     permissions:
       contents: write
       packages: write
@@ -156,7 +136,7 @@ jobs:
           distribution: goreleaser
           # renovate: datasource=github-releases depName=goreleaser/goreleaser
           version: v2.17.1
-          args: release --clean --verbose --config .goreleaser.unstable.yaml
+          args: release --clean --verbose --config .goreleaser.snapshot.yaml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ needs.prepare.outputs.tag_name }}
@@ -180,7 +160,7 @@ jobs:
           grep -Fx "$TAG_NAME" verify/legacy-version.txt
           grep -F "uds version $TAG_NAME" verify/next-version.txt
 
-  cleanup-nightlies:
+  cleanup-snapshots:
     needs:
       - prepare
       - publish
@@ -189,13 +169,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Remove older nightly releases
+      - name: Remove older snapshot releases
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t nightly_tags < <(gh release list --limit 100 --order desc --json tagName,isPrerelease --jq '.[] | select(.isPrerelease and (.tagName | test("^v[0-9]+\\.[0-9]+\\.[0-9]+-nightly\\+"))) | .tagName')
-          for tag_name in "${nightly_tags[@]:3}"; do
+          mapfile -t snapshot_tags < <(gh release list --limit 100 --order desc --json tagName,isPrerelease --jq '.[] | select(.isPrerelease and (.tagName | test("^v[0-9]+\\.[0-9]+\\.[0-9]+-snapshot\\+"))) | .tagName')
+          for tag_name in "${snapshot_tags[@]:3}"; do
             gh release delete "$tag_name" --cleanup-tag --yes
           done
