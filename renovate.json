@@ -2,6 +2,8 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "github>defenseunicorns/uds-common//config/renovate.json5"
+    ":semanticCommits",
+    ":semanticCommitTypeAll(chore)"
   ],
   "branchConcurrentLimit": 0,
   "prConcurrentLimit": 0,
