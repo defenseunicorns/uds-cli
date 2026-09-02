@@ -19,7 +19,7 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     outputs:
       source_sha: ${{ steps.prepare.outputs.source_sha }}
       tag_name: ${{ steps.prepare.outputs.tag_name }}
@@ -63,7 +63,7 @@ jobs:
     needs: prepare
     uses: ./.github/workflows/test-release.yaml
     with:
-      ref: main
+      ref: ${{ needs.prepare.outputs.source_sha }}
     permissions:
       contents: read
       id-token: write
