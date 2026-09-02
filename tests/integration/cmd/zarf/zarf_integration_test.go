@@ -22,3 +22,11 @@ func TestZarfToolsIgnoreCLIFeatures_NextMode(t *testing.T) {
 	require.NoError(t, err, string(output))
 	require.Contains(t, string(output), "Client Version")
 }
+
+func TestZarfToolsPreserveZarfFeatures_NextMode(t *testing.T) {
+	uds := testutil.UDSCLIPath(t, "run via 'maru run test:next-integration'")
+
+	output, err := exec.Command(uds, "--features=NextMode", "zarf", "--features=values=true", "tools", "kubectl", "version", "--client").CombinedOutput()
+	require.NoError(t, err, string(output))
+	require.Contains(t, string(output), "Client Version")
+}
