@@ -160,6 +160,27 @@ jobs:
           grep -Fx "$TAG_NAME" verify/legacy-version.txt
           grep -F "uds version $TAG_NAME" verify/next-version.txt
 
+  cleanup-failed-snapshot:
+    needs:
+      - prepare
+      - tag
+      - publish
+    if: ${{ always() && needs.tag.result == 'success' && needs.publish.result == 'failure' }}
+    runs-on: ubuntu-latest
+    environment: release-snapshot
+    permissions:
+      contents: write
+    steps:
+      - name: Remove failed snapshot release and tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ needs.prepare.outputs.tag_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release delete "$TAG_NAME" --yes || true
+          git push origin --delete "refs/tags/$TAG_NAME"
+
   cleanup-snapshots:
     needs:
       - prepare
@@ -171,6 +192,7 @@ jobs:
     steps:
       - name: Remove older snapshot releases
         env:
+          GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
