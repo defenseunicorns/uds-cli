@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 package cmd
@@ -221,9 +221,13 @@ func loadViperConfig() error {
 		return err
 	}
 
+	hadSetVariables := bundleCfg.DeployOpts.SetVariables != nil
 	err = unmarshalAndValidateConfig(configFile, &bundleCfg)
 	if err != nil {
 		return err
+	}
+	if hadSetVariables && bundleCfg.DeployOpts.SetVariables == nil {
+		bundleCfg.DeployOpts.SetVariables = map[string]string{}
 	}
 
 	// ensure the DeployOpts.Variables pkg vars are uppercase
