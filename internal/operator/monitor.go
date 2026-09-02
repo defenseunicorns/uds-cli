@@ -26,8 +26,9 @@ import (
 )
 
 const (
-	peprNamespace = "pepr-system"
-	flushInterval = time.Second
+	peprNamespace        = "pepr-system"
+	flushInterval        = time.Second
+	streamReconnectDelay = time.Second
 )
 
 // StreamKind identifies the operator events included in a monitor stream.
@@ -166,6 +167,10 @@ func Monitor(ctx context.Context, streams iostreams.IOStreams, opts MonitorOptio
 		streams:    streams,
 	}
 
+	if len(targets) == 0 {
+		return ErrNoTargetsFound
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	results := make(chan streamResult, len(targets)+2)
@@ -183,19 +188,52 @@ func Monitor(ctx context.Context, streams iostreams.IOStreams, opts MonitorOptio
 				logOpts.SinceSeconds = &seconds
 			}
 
-			logStream, err := source.StreamLogs(ctx, target.pod, logOpts)
-			if err != nil {
-				started <- streamResult{err: fmt.Errorf("stream logs for pod %s: %w", target.pod, err)}
-				return
+			opened := false
+			warnedEnded := false
+			for {
+				logStream, err := source.StreamLogs(ctx, target.pod, logOpts)
+				if err != nil {
+					streamErr := fmt.Errorf("stream logs for pod %s: %w", target.pod, err)
+					if !opened {
+						started <- streamResult{err: streamErr}
+						return
+					}
+					if ctx.Err() != nil {
+						results <- streamResult{opened: true}
+						return
+					}
+					streams.Warn("unable to reconnect Pepr pod logs", "error", streamErr)
+					if !waitForReconnect(ctx) {
+						results <- streamResult{opened: true}
+						return
+					}
+					continue
+				}
+				if !opened {
+					started <- streamResult{opened: true}
+					opened = true
+				}
+
+				processErr := processor.process(streams.Out(), logStream)
+				_ = logStream.Close()
+				if processErr != nil {
+					results <- streamResult{opened: true, fatal: true, err: fmt.Errorf("process logs for pod %s: %w", target.pod, processErr)}
+					cancel()
+					return
+				}
+				if !opts.Follow || ctx.Err() != nil {
+					results <- streamResult{opened: true}
+					return
+				}
+				if !warnedEnded {
+					streams.Warn("Pepr pod log stream ended; reconnecting", "pod", target.pod)
+					warnedEnded = true
+				}
+				if !waitForReconnect(ctx) {
+					results <- streamResult{opened: true}
+					return
+				}
 			}
-			started <- streamResult{opened: true}
-			defer func() { _ = logStream.Close() }()
-			if err := processor.process(streams.Out(), logStream); err != nil {
-				results <- streamResult{opened: true, fatal: true, err: fmt.Errorf("process logs for pod %s: %w", target.pod, err)}
-				cancel()
-				return
-			}
-			results <- streamResult{opened: true}
 		})
 	}
 
@@ -263,6 +301,17 @@ func monitorResult(results <-chan streamResult) error {
 		}
 	}
 	return errors.Join(fatalErrors...)
+}
+
+func waitForReconnect(ctx context.Context) bool {
+	timer := time.NewTimer(streamReconnectDelay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
 }
 
 func selectContainers(pods []corev1.Pod, stream StreamKind) []podContainer {

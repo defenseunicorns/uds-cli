@@ -63,12 +63,49 @@ func (partialFollowSource) StreamLogs(ctx context.Context, pod string, _ *corev1
 	if pod == "watcher" {
 		return nil, errors.New("forbidden")
 	}
+	return blockingLogStream(ctx, ""), nil
+}
+
+type recoveringFollowSource struct {
+	mu             sync.Mutex
+	admissionCalls int
+}
+
+func (s *recoveringFollowSource) ListPods(context.Context) ([]corev1.Pod, error) {
+	return testPods(), nil
+}
+
+func (s *recoveringFollowSource) StreamLogs(ctx context.Context, pod string, _ *corev1.PodLogOptions) (io.ReadCloser, error) {
+	if pod == "watcher" {
+		return blockingLogStream(ctx, ""), nil
+	}
+
+	s.mu.Lock()
+	s.admissionCalls++
+	calls := s.admissionCalls
+	s.mu.Unlock()
+	if calls == 1 {
+		return io.NopCloser(strings.NewReader(allowedLog("tenant"))), nil
+	}
+	return blockingLogStream(ctx, deniedLog("tenant")), nil
+}
+
+func (s *recoveringFollowSource) calls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.admissionCalls
+}
+
+func blockingLogStream(ctx context.Context, logs string) io.ReadCloser {
 	reader, writer := io.Pipe()
 	go func() {
+		if logs != "" {
+			_, _ = io.WriteString(writer, logs+"\n")
+		}
 		<-ctx.Done()
 		_ = writer.Close()
 	}()
-	return reader, nil
+	return reader
 }
 
 type lockedBuffer struct {
@@ -115,7 +152,6 @@ func TestMonitor(t *testing.T) {
 
 	err := Monitor(context.Background(), streams, MonitorOptions{
 		source:     source,
-		Follow:     true,
 		Timestamps: true,
 		Since:      1500 * time.Millisecond,
 		NoColor:    true,
@@ -125,7 +161,7 @@ func TestMonitor(t *testing.T) {
 	assert.Contains(t, out.String(), "ALLOWED")
 	assert.Contains(t, out.String(), "OPERATOR")
 	for _, opts := range source.options {
-		assert.True(t, opts.Follow)
+		assert.False(t, opts.Follow)
 		assert.True(t, opts.Timestamps)
 		require.NotNil(t, opts.SinceSeconds)
 		assert.Equal(t, int64(2), *opts.SinceSeconds)
@@ -198,6 +234,24 @@ func TestMonitorFollowWarnsWhenOneStreamFails(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return strings.Contains(errOut.String(), "stream logs for pod watcher: forbidden")
 	}, time.Second, 10*time.Millisecond)
+	cancel()
+	require.NoError(t, <-done)
+}
+
+func TestMonitorFollowReconnectsEndedStream(t *testing.T) {
+	source := &recoveringFollowSource{}
+	var out lockedBuffer
+	streams := iostreams.New(nil, &out, io.Discard)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- Monitor(ctx, streams, MonitorOptions{source: source, Follow: true, NoColor: true})
+	}()
+
+	require.Eventually(t, func() bool {
+		return source.calls() >= 2 && strings.Contains(out.String(), "DENIED")
+	}, 3*time.Second, 10*time.Millisecond)
+	assert.Contains(t, out.String(), "ALLOWED")
 	cancel()
 	require.NoError(t, <-done)
 }
@@ -298,6 +352,10 @@ func testPods() []corev1.Pod {
 
 func allowedLog(namespace string) string {
 	return fmt.Sprintf(`{"namespace":%q,"name":"/pod","res":{"allowed":true},"msg":"Check response"}`, namespace)
+}
+
+func deniedLog(namespace string) string {
+	return fmt.Sprintf(`{"namespace":%q,"name":"/pod","res":{"allowed":false},"msg":"Check response"}`, namespace)
 }
 
 func operatorLog(namespace string) string {
