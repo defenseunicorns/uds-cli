@@ -1,0 +1,20 @@
+---
+kind: ZarfPackageConfig
+metadata:
+  name: uds-cli-operator-monitor
+  version: 0.1.0
+  description: Synthetic Pepr logs for operator monitor cluster tests
+
+components:
+  - name: monitor-pods
+    required: true
+    images:
+      # yamllint disable rule:line-length
+      # renovate: datasource=docker depName=registry.k8s.io/e2e-test-images/busybox
+      # yamllint enable rule:line-length
+      - registry.k8s.io/e2e-test-images/busybox:1.29-4
+    manifests:
+      - name: monitor-pods
+        namespace: pepr-system
+        files:
+          - pods.yaml
