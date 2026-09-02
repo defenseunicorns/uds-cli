@@ -20,7 +20,7 @@ components:
       # random helm chart that isn't important; just used to test that it doesn't get bundled
       - name: prometheus-node-exporter
         url: https://prometheus-community.github.io/helm-charts
-        version: 4.56.1
+        version: 4.56.3
         namespace: prometheus
     images:
       # again, not bundled, we just need a unique name to test that it doesn't get bundled
@@ -30,5 +30,5 @@ components:
     charts:
       - name: prometheus-node-exporter
         url: https://prometheus-community.github.io/helm-charts
-        version: 4.56.1
+        version: 4.56.3
         namespace: prometheus
