@@ -89,7 +89,7 @@ func buildBundleArtifactInner(t *testing.T, bundleHCL, defaultsHCL string, value
 		Digest: writeBlob(definitionData), Size: int64(len(definitionData)),
 	}}
 	for _, pkg := range pkgs {
-		packageData := []byte("fake package: " + pkg.Source)
+		packageData := fmt.Appendf(nil, "metadata:\n  name: %s\nsource: %s\n", pkg.Name, pkg.Source)
 		packageManifest := ocispec.Manifest{
 			Versioned: specs.Versioned{SchemaVersion: 2},
 			Config:    ocispec.Descriptor{Digest: emptyDigest, Size: int64(len(emptyConfig))},
