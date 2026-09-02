@@ -12,7 +12,7 @@ require (
 	github.com/defenseunicorns/pkg/oci v1.3.2
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/goccy/go-yaml v1.19.2
-	github.com/google/go-containerregistry v0.21.9
+	github.com/google/go-containerregistry v0.22.0
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/mholt/archives v0.1.5
 	github.com/opencontainers/go-digest v1.0.0
@@ -30,8 +30,8 @@ require (
 	golang.org/x/sync v0.22.0
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v4 v4.2.4
-	k8s.io/api v0.36.4
-	k8s.io/apimachinery v0.36.4
+	k8s.io/api v0.37.0
+	k8s.io/apimachinery v0.37.0
 	k8s.io/client-go v0.36.4
 	oras.land/oras-go/v2 v2.6.2
 )
