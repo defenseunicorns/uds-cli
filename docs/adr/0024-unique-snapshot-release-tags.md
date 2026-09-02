@@ -5,7 +5,7 @@
 
 ## Context
 
-Snapshot releases build the current `main` commit while remaining distinguishable from stable releases. The former `nightly-unstable` tag was mutable, which made a tag insufficient to identify the source and could cause consumers to receive changing artifacts.
+Snapshot releases build the current `main` commit while remaining distinguishable from stable releases. The former mutable release tag was insufficient to identify the source and could cause consumers to receive changing artifacts.
 
 ## Decision
 
@@ -17,7 +17,7 @@ The snapshot release workflow will:
 - Keep snapshot tags excluded from the stable release workflow.
 - Retain only the newest three snapshot prereleases and their tags.
 
-The mutable `nightly-unstable` release model is replaced by these unique, source-addressed snapshot tags.
+The mutable release model is replaced by these unique, source-addressed snapshot tags.
 
 ## Consequences
 
