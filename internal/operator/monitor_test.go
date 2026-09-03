@@ -54,17 +54,34 @@ func (f *fakePodLogSource) StreamLogs(_ context.Context, pod string, opts *corev
 	return io.NopCloser(bytes.NewBufferString(logs)), nil
 }
 
-type partialFollowSource struct{}
+// partialFollowSource fails the watcher's initial open, then serves events when reconciliation retries it.
+type partialFollowSource struct {
+	mu           sync.Mutex
+	watcherCalls int
+}
 
-func (partialFollowSource) ListPods(context.Context) ([]corev1.Pod, error) {
+func (*partialFollowSource) ListPods(context.Context) ([]corev1.Pod, error) {
 	return testPods(), nil
 }
 
-func (partialFollowSource) StreamLogs(ctx context.Context, pod string, _ *corev1.PodLogOptions) (io.ReadCloser, error) {
-	if pod == "watcher" {
+func (s *partialFollowSource) StreamLogs(ctx context.Context, pod string, _ *corev1.PodLogOptions) (io.ReadCloser, error) {
+	if pod != "watcher" {
+		return blockingLogStream(ctx, ""), nil
+	}
+	s.mu.Lock()
+	s.watcherCalls++
+	calls := s.watcherCalls
+	s.mu.Unlock()
+	if calls == 1 {
 		return nil, errors.New("forbidden")
 	}
-	return blockingLogStream(ctx, ""), nil
+	return blockingLogStream(ctx, "2026-08-31T12:00:00Z "+operatorLog("tenant")), nil
+}
+
+func (s *partialFollowSource) calls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.watcherCalls
 }
 
 type recoveringFollowSource struct {
@@ -433,18 +450,25 @@ func TestMonitorFollowReturnsWhenAllStreamsFailToOpen(t *testing.T) {
 	require.ErrorIs(t, err, ErrStreamPodLogs)
 }
 
-func TestMonitorFollowWarnsWhenOneStreamFails(t *testing.T) {
-	var errOut lockedBuffer
-	streams := iostreams.New(nil, io.Discard, &errOut)
+func TestMonitorFollowRetriesInitiallyFailedStream(t *testing.T) {
+	source := &partialFollowSource{}
+	var out, errOut lockedBuffer
+	streams := iostreams.New(nil, &out, &errOut)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		done <- Monitor(ctx, streams, MonitorOptions{source: partialFollowSource{}, Follow: true})
+		done <- Monitor(ctx, streams, MonitorOptions{
+			source:          source,
+			Follow:          true,
+			NoColor:         true,
+			refreshInterval: 10 * time.Millisecond,
+		})
 	}()
 
 	require.Eventually(t, func() bool {
-		return strings.Contains(errOut.String(), "streaming logs for pod watcher: forbidden")
+		return source.calls() >= 2 && strings.Contains(out.String(), "OPERATOR")
 	}, time.Second, 10*time.Millisecond)
+	assert.Contains(t, errOut.String(), "streaming logs for pod watcher: forbidden")
 	cancel()
 	require.NoError(t, <-done)
 }
