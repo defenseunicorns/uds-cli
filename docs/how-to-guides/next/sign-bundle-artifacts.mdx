@@ -39,7 +39,7 @@ Every UDS CLI command in this guide enables Next mode with `CLI_FEATURES=NextMod
 
    ```bash
    umask 077
-   zarf tools gen-key
+   uds zarf tools gen-key
    ```
 
    The command creates `cosign.key`, the private signing key, and `cosign.pub`, the public verification key. Store `cosign.key` in a secret manager or another access-controlled location. Do not commit or share it. Distribute `cosign.pub` to artifact verifiers.
