@@ -5,7 +5,6 @@
       "release-type": "go",
       "package-name": "uds-cli",
       "bump-minor-pre-major": true,
-      "versioning": "always-bump-minor",
       "include-v-in-tag": true,
       "changelog-path": "CHANGELOG.md",
       "changelog-sections": [
