@@ -98,7 +98,7 @@ signature_verification {
 }
 ```
 
-For `inspect`, `verify`, `pull`, `deploy`, and `reconfigure`, CLI verification flags override matching configured fields. Exact and regular-expression identity or issuer forms must not be mixed between the CLI and this block; use the same form in both places or omit the conflicting configured field. `--skip-signature-verification` is an explicit insecure bypass where the command supports it. `bundle create` and `bundle sign` use signing flags instead of this consumer trust policy.
+For `inspect`, `verify`, `pull`, `deploy`, `reconfigure`, and artifact-based `remove`, CLI verification flags override matching configured fields. Exact and regular-expression identity or issuer forms must not be mixed between the CLI and this block; use the same form in both places or omit the conflicting configured field. `--skip-signature-verification` is an explicit insecure bypass where the command supports it. `bundle create` and `bundle sign` use signing flags instead of this consumer trust policy.
 
 ## `variables`
 
@@ -164,7 +164,7 @@ These settings apply to the following bundle commands.
 |---|---|---|
 | `options` | All `uds bundle` commands that resolve common options | Sets logging, architecture, registry transport, temporary directory, and concurrency behavior. |
 | `variables` | `bundle dev deploy`, `bundle deploy` | Renders package values files and supplies supported top-level scalar Zarf variables. |
-| `signature_verification` | `bundle inspect`, `bundle verify`, `bundle pull`, `bundle deploy`, `bundle reconfigure` | Supplies the default consumer policy for bundle artifact signature verification. |
+| `signature_verification` | `bundle inspect`, `bundle verify`, `bundle pull`, `bundle deploy`, `bundle reconfigure`, `bundle remove` (artifact sources only) | Supplies the default consumer policy for bundle artifact signature verification. |
 
 `bundle create` uses package verification settings from each package block and signing flags from the command line. `bundle sign` uses signing flags and operation options only; it does not use package verification settings.
 

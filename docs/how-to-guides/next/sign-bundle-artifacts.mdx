@@ -92,6 +92,8 @@ Every UDS CLI command in this guide enables Next mode with `CLI_FEATURES=NextMod
 
    Use this step for an existing unsigned artifact. If you completed step 2 or 3, skip to step 5. `bundle sign` adds evidence to an existing local artifact or OCI bundle reference. For a local artifact, it updates the archive in place. Add `--overwrite` when replacing an existing signature.
 
+   For a multi-architecture OCI tag, `bundle sign` signs only the child selected by `--architecture`, which defaults to the host architecture. Run the command once per architecture, or sign a single-architecture reference.
+
    ```bash
    COSIGN_PASSWORD="$PRIVATE_KEY_PASSWORD" \
    CLI_FEATURES=NextMode=true uds bundle sign ./my-bundle/uds-bundle-my-app-amd64-1.0.0.tar.zst \
