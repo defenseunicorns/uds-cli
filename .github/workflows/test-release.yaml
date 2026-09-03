@@ -16,7 +16,6 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    secrets: inherit
     with:
       include_ghcr_write: true
       include_uds_core_smoke: true
