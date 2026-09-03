@@ -1,15 +1,23 @@
 ---
-title: uds dev
-description: UDS CLI command reference for <code>uds dev</code>.
+title: uds dev disassemble
+description: UDS CLI command reference for <code>uds dev disassemble</code>.
 ---
-## uds dev
+## uds dev disassemble
 
-[beta] Commands useful for developing bundles
+[beta] Convert a Zarf package into rebuildable offline source
+
+### Synopsis
+
+[beta] Extract a complete Zarf package and rewrite its packaged resources into a local source directory that can be rebuilt offline. Zarf packages are supported today.
+
+```
+uds dev disassemble <source> <output-dir> [flags]
+```
 
 ### Options
 
 ```
-  -h, --help   help for dev
+  -h, --help   help for disassemble
 ```
 
 ### Options inherited from parent commands
@@ -30,7 +38,5 @@ description: UDS CLI command reference for <code>uds dev</code>.
 
 ### SEE ALSO
 
-* [uds](/reference/commands/uds/)	 - CLI for UDS Bundles
-* [uds dev deploy](/reference/commands/uds_dev_deploy/)	 - [beta] Creates and deploys a UDS bundle in dev mode
-* [uds dev disassemble](/reference/commands/uds_dev_disassemble/)	 - [beta] Convert a Zarf package into rebuildable offline source
+* [uds dev](/reference/commands/uds_dev/)	 - [beta] Commands useful for developing bundles
 

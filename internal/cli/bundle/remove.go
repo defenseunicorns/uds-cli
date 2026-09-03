@@ -214,6 +214,8 @@ func (o *RemoveOptions) Run(ctx context.Context) error {
 		Streams:                   o.IOStreams,
 	}
 
+	// Zarf package APIs read their process-global temp setting instead of UDS config.
+	configureZarfTempDir(o.Config.Options.TmpDir)
 	result, err := bundle.Remove(ctx, &bundle.DeploySource{
 		BundlePath: bundlePath,
 		Bundle:     parsedBundle,

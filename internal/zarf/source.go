@@ -56,8 +56,8 @@ type layerIdentity struct {
 }
 
 // NewPackageSource returns a PackageSource for the given source string.
-// OCI references (detected by IsOCIReference) use zoci.NewRemote;
-// everything else is treated as a local path resolved against bundleDir.
+// OCI references use zoci.NewRemote; everything else is treated as a local
+// path resolved against bundleDir.
 // streams carries the leveled logger used for ingest/pull diagnostics.
 func NewPackageSource(source string, opts bundleinternal.ConfigOptions, bundleDir string, streams iostreams.IOStreams) PackageSource {
 	if udsoci.IsOCIReference(source) {

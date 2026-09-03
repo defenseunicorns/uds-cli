@@ -1,13 +1,13 @@
 ---
 title: How-to Guides
-description: Guides for common UDS CLI operations including bundle overrides, the UDS Runner task system, and cluster monitoring.
+description: Guides for common UDS CLI operations including bundle overrides, package disassembly, the UDS Runner task system, and cluster monitoring.
 sidebar:
   order: 3.1
 ---
 
 import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-Task-oriented guides for common UDS CLI operations. Each guide assumes you have [UDS CLI installed](/getting-started/installation/) and a working cluster.
+Task-oriented guides for common UDS CLI operations. Prerequisites vary by guide, but each assumes you have [UDS CLI installed](/getting-started/installation/).
 
 <CardGrid>
   <LinkCard
@@ -29,5 +29,10 @@ Task-oriented guides for common UDS CLI operations. Each guide assumes you have 
     title="Verify Keyless Package Signatures"
     description="Configure Sigstore keyless verification for signed Zarf packages in a UDS bundle."
     href="/cli/how-to-guides/verify-keyless-package-signatures/"
+  />
+  <LinkCard
+    title="Disassemble a Zarf Package"
+    description="Recover a complete Zarf package as local source that can be rebuilt without remote source access."
+    href="/cli/how-to-guides/disassemble-zarf-package/"
   />
 </CardGrid>

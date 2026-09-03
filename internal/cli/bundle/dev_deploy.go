@@ -104,6 +104,8 @@ func (o *DevDeployOptions) Run(ctx context.Context) error {
 	o.Config = baseConfig
 	o.IOStreams = logger.Bind(o.IOStreams, baseConfig.Options.LogLevel)
 
+	// Zarf package APIs read their process-global temp setting instead of UDS config.
+	configureZarfTempDir(baseConfig.Options.TmpDir)
 	if _, err := fmt.Fprintln(o.ErrOut(), bundleDefinitionDiagnostic); err != nil {
 		return fmt.Errorf("%w for bundle definition diagnostic: %w", ErrWriteDefinitionNotice, err)
 	}

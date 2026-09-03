@@ -135,6 +135,9 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 		o.Verification.Config = baseConfig
 	}
 	o.IOStreams = logger.Bind(o.IOStreams, baseConfig.Options.LogLevel)
+
+	// Zarf package APIs read their process-global temp setting instead of UDS config.
+	configureZarfTempDir(baseConfig.Options.TmpDir)
 	o.Info("preparing bundle for deployment", "source", o.BundlePath)
 	policy := bundle.VerificationPolicy{}
 	if !o.Verification.SkipSignatureVerification {

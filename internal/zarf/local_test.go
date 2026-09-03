@@ -18,11 +18,20 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
+func TestIsPackageArchive(t *testing.T) {
+	t.Parallel()
+	assert.True(t, isPackageArchive("package.tar.zst"))
+	assert.True(t, isPackageArchive("package.tar"))
+	assert.False(t, isPackageArchive("package.tar.zst.part000"))
+	assert.False(t, isPackageArchive("package.tar.zst.part001"))
+	assert.False(t, isPackageArchive("package.zip"))
+}
+
 const emptySHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
 func writeMinimalZarfPackage(t *testing.T, dir, name string) {
 	t.Helper()
-	zarfYAML := "kind: ZarfPackageConfig\nmetadata:\n  name: " + name + "\n  version: 1.0.0\n  aggregateChecksum: " + emptySHA256 + "\ncomponents: []\n"
+	zarfYAML := "kind: ZarfPackageConfig\nmetadata:\n  name: " + name + "\n  version: 1.0.0\n  architecture: amd64\n  aggregateChecksum: " + emptySHA256 + "\nbuild:\n  architecture: amd64\n  version: test\ncomponents: []\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, layout.ZarfYAML), []byte(zarfYAML), filesystem.PrivateFileMode))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, layout.Checksums), nil, filesystem.PrivateFileMode))
 }
@@ -122,6 +131,24 @@ func TestLocalSourcePullFilteredArchiveUsesZarfLoader(t *testing.T) {
 	require.NoError(t, pkgLayout.Cleanup())
 }
 
+func TestLocalSourcePullFilteredUncompressedArchiveUsesZarfLoader(t *testing.T) {
+	pkgDir := t.TempDir()
+	writeMinimalZarfPackage(t, pkgDir, "archive")
+	archivePath := filepath.Join(t.TempDir(), "zarf-package-archive-amd64-1.0.0.tar")
+	require.NoError(t, writeTestTar(t, archivePath, pkgDir))
+
+	workspace := filepath.Join(t.TempDir(), "workspace")
+	require.NoError(t, os.MkdirAll(workspace, filesystem.PrivateDirectoryMode))
+	source := &localSource{path: archivePath, arch: "amd64", streams: iostreams.IOStreams{}}
+	pkgLayout, err := source.PullFiltered(t.Context(), workspace, layout.PackageLayoutOptions{
+		Filter:               filters.Empty(),
+		VerificationStrategy: layout.VerifyNever,
+	})
+	require.NoError(t, err)
+	assert.Contains(t, pkgLayout.DirPath(), workspace)
+	require.NoError(t, pkgLayout.Cleanup())
+}
+
 func writeTestTarZst(t *testing.T, archivePath, srcDir string) error {
 	t.Helper()
 	files, err := archives.FilesFromDisk(t.Context(), nil, map[string]string{srcDir + string(filepath.Separator): ""})
@@ -134,6 +161,23 @@ func writeTestTarZst(t *testing.T, archivePath, srcDir string) error {
 	}
 	archive := archives.CompressedArchive{Archival: archives.Tar{}, Compression: archives.Zstd{}}
 	if err := archive.Archive(t.Context(), f, files); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+func writeTestTar(t *testing.T, archivePath, srcDir string) error {
+	t.Helper()
+	files, err := archives.FilesFromDisk(t.Context(), nil, map[string]string{srcDir + string(filepath.Separator): ""})
+	if err != nil {
+		return err
+	}
+	f, err := os.Create(archivePath)
+	if err != nil {
+		return err
+	}
+	if err := (archives.Tar{}).Archive(t.Context(), f, files); err != nil {
 		_ = f.Close()
 		return err
 	}
