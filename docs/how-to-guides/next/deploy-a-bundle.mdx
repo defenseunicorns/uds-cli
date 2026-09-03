@@ -1,0 +1,121 @@
+---
+title: "Deploy a bundle in Next mode"
+description: Deploy a bundle in Next mode from its HCL definition or a local or OCI artifact.
+sidebar:
+  order: 4.4
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Use `bundle dev deploy` for a definition and `bundle deploy` for a created artifact.
+
+## What you'll accomplish
+
+- Deploy from a bundle definition.
+- Deploy a local or OCI artifact.
+- Select packages for an intentional partial deployment.
+
+## Prerequisites
+
+- [UDS CLI installed](/cli/getting-started/installation/)
+- A directory containing `bundle.uds.hcl`, or a created `.tar.zst` artifact
+- A matching bundle public key or keyless certificate constraints for signed artifact examples
+- Access to the target Kubernetes cluster
+- OCI access to each package source when deploying from a definition
+- Registry access when deploying an OCI artifact
+
+## Steps
+
+<Steps>
+
+1. **Deploy from the definition**
+
+   Use `bundle dev deploy` while authoring a bundle:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle dev deploy ./my-bundle
+   ```
+
+    The directory must contain `bundle.uds.hcl`. Direct deployment does not create an artifact or verify the bundle signature.
+
+   Use these options when needed:
+
+   ```bash
+   # Enable an interactive confirmation prompt
+   CLI_FEATURES=NextMode=true uds bundle dev deploy ./my-bundle --prompt
+
+   # Deploy serially
+   CLI_FEATURES=NextMode=true uds bundle dev deploy ./my-bundle --concurrency 1
+
+   # Supply deploy-time variables and options
+   CLI_FEATURES=NextMode=true uds bundle dev deploy ./my-bundle --config ./config.uds.hcl
+
+   # Deploy selected packages
+   CLI_FEATURES=NextMode=true uds bundle dev deploy ./my-bundle --packages api,database
+   ```
+
+   The `--config` example expects a file with the following shape:
+
+   ```hcl title="config.uds.hcl"
+   variables = {
+     environment = "development"
+   }
+   ```
+
+2. **Deploy an artifact**
+
+   Use `bundle deploy` for a created local artifact or an OCI reference:
+
+   ```bash
+   # Local artifact
+   CLI_FEATURES=NextMode=true uds bundle deploy ./uds-bundle-my-app-amd64-1.0.0.tar.zst --public-key ./cosign.pub
+
+   # OCI artifact
+   CLI_FEATURES=NextMode=true uds bundle deploy oci://registry.example.com/my-org/my-app:1.0.0 --public-key ./cosign.pub
+   ```
+
+    The command verifies artifact integrity before deployment. Provide `--public-key` or the keyless certificate and issuer flags when the trust policy is not embedded in the command configuration.
+
+   For an intentionally unsigned local alpha artifact, explicitly bypass verification:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle deploy ./unsigned-bundle.tar.zst --skip-signature-verification
+   ```
+
+    Do not use `--skip-signature-verification` for signed release or registry artifacts.
+
+3. **Select packages**
+
+   Deploy all packages by default, or select a subset:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle deploy ./my-bundle.tar.zst --packages api,database
+   ```
+
+   Replace the artifact path and package IDs with values from your bundle.
+
+    The command rejects a selection that omits its dependencies. Use `--force` only when intentionally deploying out of dependency order.
+
+</Steps>
+
+## Verification
+
+Confirm that the deployed packages are ready:
+
+```bash
+CLI_FEATURES=NextMode=true uds zarf tools kubectl get pods -A
+```
+
+## Troubleshooting
+
+### Problem: The deployment rejects a selected package
+
+**Symptom:** The command reports that a selected package depends on a package that was not selected.
+
+**Solution:** Include the dependency in `--packages`. Use `--force` only when you intentionally accept the dependency-order risk.
+
+## Related documentation
+
+- [Create a bundle in Next mode](/cli/how-to-guides/next/create-a-bundle/) - Define and package a bundle artifact.
+- [Publish and pull a bundle in Next mode](/cli/how-to-guides/next/publish-pull/) - Move artifacts through an OCI registry.
+- [Inspect and verify a bundle in Next mode](/cli/how-to-guides/next/inspect-verify/) - Inspect metadata and verify bundle signatures.
