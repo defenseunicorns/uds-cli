@@ -10,7 +10,6 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/internal/operator"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,35 +34,48 @@ func TestOperatorMonitorCommand_Run(t *testing.T) {
 	})
 
 	require.NoError(t, cmd.Execute())
-	assert.Equal(t, operator.StreamDenied, received.Stream)
-	assert.Equal(t, "tenant", received.Namespace)
-	assert.True(t, received.Follow)
-	assert.True(t, received.Timestamps)
-	assert.Equal(t, 5*time.Minute, received.Since)
-	assert.True(t, received.JSON)
-	assert.True(t, received.NoColor)
-	assert.Equal(t, "error", received.LogLevel)
+	require.Equal(t, operator.StreamDenied, received.Stream)
+	require.Equal(t, "tenant", received.Namespace)
+	require.True(t, received.Follow)
+	require.True(t, received.Timestamps)
+	require.Equal(t, 5*time.Minute, received.Since)
+	require.True(t, received.JSON)
+	require.True(t, received.NoColor)
+	require.Equal(t, "error", received.LogLevel)
 }
 
 func TestOperatorMonitorOptions_Validate(t *testing.T) {
 	tests := []struct {
-		name    string
-		options OperatorMonitorOptions
-		wantErr string
+		name       string
+		options    OperatorMonitorOptions
+		wantErr    error
+		wantErrMsg string
 	}{
 		{name: "valid", options: OperatorMonitorOptions{Stream: operator.StreamPolicies}},
-		{name: "invalid stream", options: OperatorMonitorOptions{Stream: "unknown"}, wantErr: "invalid stream kind: unknown"},
-		{name: "negative since", options: OperatorMonitorOptions{Since: -time.Second}, wantErr: "since must not be negative"},
+		{
+			name:       "invalid stream",
+			options:    OperatorMonitorOptions{Stream: "unknown"},
+			wantErr:    ErrInvalidStreamKind,
+			wantErrMsg: "invalid stream kind: unknown",
+		},
+		{
+			name:       "negative since",
+			options:    OperatorMonitorOptions{Since: -time.Second},
+			wantErr:    ErrInvalidSince,
+			wantErrMsg: "since must not be negative",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.options.Validate()
-			if tt.wantErr == "" {
+			if tt.wantErr == nil {
 				require.NoError(t, err)
 				return
 			}
-			require.EqualError(t, err, tt.wantErr)
+			require.Error(t, err)
+			require.ErrorIs(t, err, tt.wantErr)
+			require.Equal(t, tt.wantErrMsg, err.Error())
 		})
 	}
 }

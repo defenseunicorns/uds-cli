@@ -87,7 +87,7 @@ func (o *OperatorMonitorOptions) Complete(cmd *cobra.Command, args []string) err
 	if cmd.Root().PersistentFlags().Lookup("log-level") != nil {
 		logLevel, err := cmd.Root().PersistentFlags().GetString("log-level")
 		if err != nil {
-			return fmt.Errorf("read log-level flag: %w", err)
+			return fmt.Errorf("%w: %w", ErrReadLogLevel, err)
 		}
 		o.LogLevel = logLevel
 	}
@@ -100,10 +100,10 @@ func (o *OperatorMonitorOptions) Validate() error {
 	case operator.StreamAll, operator.StreamPolicies, operator.StreamOperator, operator.StreamAllowed,
 		operator.StreamDenied, operator.StreamFailed, operator.StreamMutated:
 	default:
-		return fmt.Errorf("invalid stream kind: %s", o.Stream)
+		return fmt.Errorf("%w: %s", ErrInvalidStreamKind, o.Stream)
 	}
 	if o.Since < 0 {
-		return fmt.Errorf("since must not be negative")
+		return ErrInvalidSince
 	}
 	return nil
 }

@@ -129,7 +129,7 @@ func (s kubernetesPodLogSource) ListPods(ctx context.Context) ([]corev1.Pod, err
 func (s kubernetesPodLogSource) StreamLogs(ctx context.Context, pod string, opts *corev1.PodLogOptions) (io.ReadCloser, error) {
 	stream, err := s.client.CoreV1().Pods(peprNamespace).GetLogs(pod, opts).Stream(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("open log stream: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrOpenLogStream, err)
 	}
 	return stream, nil
 }
@@ -144,18 +144,18 @@ func Monitor(ctx context.Context, streams iostreams.IOStreams, opts MonitorOptio
 			&clientcmd.ConfigOverrides{},
 		).ClientConfig()
 		if err != nil {
-			return fmt.Errorf("connect to cluster: %w", err)
+			return fmt.Errorf("%w: %w", ErrConnectCluster, err)
 		}
 		client, err := kubernetes.NewForConfig(config)
 		if err != nil {
-			return fmt.Errorf("create Kubernetes client: %w", err)
+			return fmt.Errorf("%w: %w", ErrCreateKubernetesClient, err)
 		}
 		source = kubernetesPodLogSource{client: client}
 	}
 
 	pods, err := source.ListPods(ctx)
 	if err != nil {
-		return fmt.Errorf("list Pepr pods: %w", err)
+		return fmt.Errorf("%w: %w", ErrListPeprPods, err)
 	}
 	targets := selectContainers(pods, opts.Stream)
 	processor := &logProcessor{
@@ -193,7 +193,7 @@ func Monitor(ctx context.Context, streams iostreams.IOStreams, opts MonitorOptio
 			for {
 				logStream, err := source.StreamLogs(ctx, target.pod, logOpts)
 				if err != nil {
-					streamErr := fmt.Errorf("stream logs for pod %s: %w", target.pod, err)
+					streamErr := fmt.Errorf("%w %s: %w", ErrStreamPodLogs, target.pod, err)
 					if !opened {
 						started <- streamResult{err: streamErr}
 						return
@@ -217,7 +217,7 @@ func Monitor(ctx context.Context, streams iostreams.IOStreams, opts MonitorOptio
 				processErr := processor.process(streams.Out(), logStream)
 				_ = logStream.Close()
 				if processErr != nil {
-					results <- streamResult{opened: true, fatal: true, err: fmt.Errorf("process logs for pod %s: %w", target.pod, processErr)}
+					results <- streamResult{opened: true, fatal: true, err: fmt.Errorf("%w %s: %w", ErrProcessPodLogs, target.pod, processErr)}
 					cancel()
 					return
 				}
@@ -249,7 +249,7 @@ func Monitor(ctx context.Context, streams iostreams.IOStreams, opts MonitorOptio
 					return
 				case <-ticker.C:
 					if err := processor.flushRepeated(streams.Out()); err != nil {
-						results <- streamResult{fatal: true, err: fmt.Errorf("flush monitor output: %w", err)}
+						results <- streamResult{fatal: true, err: fmt.Errorf("%w: %w", ErrFlushMonitorOutput, err)}
 						cancel()
 						return
 					}
@@ -287,7 +287,7 @@ func Monitor(ctx context.Context, streams iostreams.IOStreams, opts MonitorOptio
 	close(stopFlush)
 	flushWorker.Wait()
 	if err := processor.flush(streams.Out()); err != nil {
-		results <- streamResult{fatal: true, err: fmt.Errorf("flush monitor output: %w", err)}
+		results <- streamResult{fatal: true, err: fmt.Errorf("%w: %w", ErrFlushMonitorOutput, err)}
 	}
 	close(results)
 	return monitorResult(results)
@@ -522,11 +522,11 @@ func resourceName(namespace, name string) string {
 
 func decodePatch(encoded *string) ([]PatchOperation, error) {
 	if encoded == nil {
-		return nil, errors.New("mutation patch is missing")
+		return nil, ErrMutationPatchMissing
 	}
 	decoded, err := base64.StdEncoding.DecodeString(*encoded)
 	if err != nil {
-		return nil, fmt.Errorf("decode mutation patch: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrDecodeMutationPatch, err)
 	}
 	var operations []struct {
 		Kind  string          `json:"op"`
@@ -534,7 +534,7 @@ func decodePatch(encoded *string) ([]PatchOperation, error) {
 		Value json.RawMessage `json:"value"`
 	}
 	if err := json.Unmarshal(decoded, &operations); err != nil {
-		return nil, fmt.Errorf("parse mutation patch: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrParseMutationPatch, err)
 	}
 	patches := make([]PatchOperation, 0, len(operations))
 	for _, operation := range operations {

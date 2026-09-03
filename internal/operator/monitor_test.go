@@ -177,6 +177,7 @@ func TestMonitorErrors(t *testing.T) {
 		source      *fakePodLogSource
 		out         io.Writer
 		wantErr     string
+		wantTarget  error
 		wantWarning string
 	}{
 		{
@@ -184,22 +185,24 @@ func TestMonitorErrors(t *testing.T) {
 			source: &fakePodLogSource{
 				pods: testPods(), errors: map[string]error{"admission": streamErr, "watcher": streamErr}, options: map[string]corev1.PodLogOptions{},
 			},
-			wantErr: "forbidden",
+			wantErr:    "forbidden",
+			wantTarget: ErrStreamPodLogs,
 		},
 		{
 			name: "partial stream failure warns",
 			source: &fakePodLogSource{
 				pods: testPods(), logs: map[string]string{"admission": allowedLog("tenant")}, errors: map[string]error{"watcher": streamErr}, options: map[string]corev1.PodLogOptions{},
 			},
-			wantWarning: "stream logs for pod watcher: forbidden",
+			wantWarning: "streaming logs for pod watcher: forbidden",
 		},
 		{
 			name: "output failure",
 			source: &fakePodLogSource{
 				pods: testPods()[:1], logs: map[string]string{"admission": allowedLog("tenant")}, errors: map[string]error{}, options: map[string]corev1.PodLogOptions{},
 			},
-			out:     errorWriter{err: errors.New("broken pipe")},
-			wantErr: "broken pipe",
+			out:        errorWriter{err: errors.New("broken pipe")},
+			wantErr:    "broken pipe",
+			wantTarget: ErrProcessPodLogs,
 		},
 	}
 
@@ -214,6 +217,7 @@ func TestMonitorErrors(t *testing.T) {
 			err := Monitor(context.Background(), streams, MonitorOptions{source: tt.source, NoColor: true})
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
+				assert.ErrorIs(t, err, tt.wantTarget)
 			} else {
 				require.NoError(t, err)
 			}
@@ -232,7 +236,7 @@ func TestMonitorFollowWarnsWhenOneStreamFails(t *testing.T) {
 	}()
 
 	require.Eventually(t, func() bool {
-		return strings.Contains(errOut.String(), "stream logs for pod watcher: forbidden")
+		return strings.Contains(errOut.String(), "streaming logs for pod watcher: forbidden")
 	}, time.Second, 10*time.Millisecond)
 	cancel()
 	require.NoError(t, <-done)
