@@ -181,7 +181,7 @@ func Monitor(ctx context.Context, streams iostreams.IOStreams, opts MonitorOptio
 			logOpts := &corev1.PodLogOptions{
 				Container:  target.container,
 				Follow:     opts.Follow,
-				Timestamps: opts.Timestamps,
+				Timestamps: opts.Timestamps || opts.Follow,
 			}
 			if opts.Since > 0 {
 				seconds := int64(math.Ceil(opts.Since.Seconds()))
@@ -190,7 +190,13 @@ func Monitor(ctx context.Context, streams iostreams.IOStreams, opts MonitorOptio
 
 			opened := false
 			warnedEnded := false
+			var lastTimestamp time.Time
 			for {
+				if !lastTimestamp.IsZero() {
+					sinceTime := metav1.NewTime(lastTimestamp)
+					logOpts.SinceSeconds = nil
+					logOpts.SinceTime = &sinceTime
+				}
 				logStream, err := source.StreamLogs(ctx, target.pod, logOpts)
 				if err != nil {
 					streamErr := fmt.Errorf("%w %s: %w", ErrStreamPodLogs, target.pod, err)
@@ -214,8 +220,11 @@ func Monitor(ctx context.Context, streams iostreams.IOStreams, opts MonitorOptio
 					opened = true
 				}
 
-				processErr := processor.process(streams.Out(), logStream)
+				streamTimestamp, processErr := processor.processStream(streams.Out(), logStream, logOpts.Timestamps)
 				_ = logStream.Close()
+				if streamTimestamp.After(lastTimestamp) {
+					lastTimestamp = streamTimestamp
+				}
 				if processErr != nil {
 					results <- streamResult{opened: true, fatal: true, err: fmt.Errorf("%w %s: %w", ErrProcessPodLogs, target.pod, processErr)}
 					cancel()
@@ -334,18 +343,35 @@ func selectContainers(pods []corev1.Pod, stream StreamKind) []podContainer {
 }
 
 func (p *logProcessor) process(w io.Writer, r io.Reader) error {
+	_, err := p.processStream(w, r, p.timestamps)
+	return err
+}
+
+func (p *logProcessor) processStream(w io.Writer, r io.Reader, inputTimestamps bool) (time.Time, error) {
+	var lastTimestamp time.Time
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 64*1024), 5*1024*1024)
 	for scanner.Scan() {
-		if err := p.processLine(w, scanner.Text()); err != nil {
-			return err
+		timestamp, payload := splitLogLine(scanner.Text(), inputTimestamps)
+		if timestamp != "" {
+			parsed, err := time.Parse(time.RFC3339Nano, timestamp)
+			if err == nil && parsed.After(lastTimestamp) {
+				lastTimestamp = parsed
+			}
+		}
+		if err := p.processPayload(w, timestamp, payload); err != nil {
+			return lastTimestamp, err
 		}
 	}
-	return scanner.Err()
+	return lastTimestamp, scanner.Err()
 }
 
 func (p *logProcessor) processLine(w io.Writer, line string) error {
 	timestamp, payload := splitLogLine(line, p.timestamps)
+	return p.processPayload(w, timestamp, payload)
+}
+
+func (p *logProcessor) processPayload(w io.Writer, timestamp, payload string) error {
 	var entry logEntry
 	if err := json.Unmarshal([]byte(payload), &entry); err != nil {
 		if isRelevantLog(payload) {
@@ -362,7 +388,9 @@ func (p *logProcessor) processLine(w io.Writer, line string) error {
 	if !ok || p.skipResource(entry) {
 		return nil
 	}
-	event.Timestamp = timestamp
+	if p.timestamps {
+		event.Timestamp = timestamp
+	}
 
 	p.mu.Lock()
 	defer p.mu.Unlock()

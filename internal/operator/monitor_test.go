@@ -69,13 +69,14 @@ func (partialFollowSource) StreamLogs(ctx context.Context, pod string, _ *corev1
 type recoveringFollowSource struct {
 	mu             sync.Mutex
 	admissionCalls int
+	options        []corev1.PodLogOptions
 }
 
 func (s *recoveringFollowSource) ListPods(context.Context) ([]corev1.Pod, error) {
 	return testPods(), nil
 }
 
-func (s *recoveringFollowSource) StreamLogs(ctx context.Context, pod string, _ *corev1.PodLogOptions) (io.ReadCloser, error) {
+func (s *recoveringFollowSource) StreamLogs(ctx context.Context, pod string, opts *corev1.PodLogOptions) (io.ReadCloser, error) {
 	if pod == "watcher" {
 		return blockingLogStream(ctx, ""), nil
 	}
@@ -83,17 +84,28 @@ func (s *recoveringFollowSource) StreamLogs(ctx context.Context, pod string, _ *
 	s.mu.Lock()
 	s.admissionCalls++
 	calls := s.admissionCalls
+	s.options = append(s.options, *opts)
 	s.mu.Unlock()
 	if calls == 1 {
-		return io.NopCloser(strings.NewReader(allowedLog("tenant"))), nil
+		return io.NopCloser(strings.NewReader("2026-08-31T12:00:00Z " + allowedLog("tenant"))), nil
 	}
-	return blockingLogStream(ctx, deniedLog("tenant")), nil
+	logs := "2026-08-31T12:00:01Z " + deniedLog("tenant")
+	if opts.SinceTime == nil {
+		logs = "2026-08-31T12:00:00Z " + allowedLog("tenant") + "\n" + logs
+	}
+	return blockingLogStream(ctx, logs), nil
 }
 
 func (s *recoveringFollowSource) calls() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.admissionCalls
+}
+
+func (s *recoveringFollowSource) streamOptions() []corev1.PodLogOptions {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]corev1.PodLogOptions(nil), s.options...)
 }
 
 func blockingLogStream(ctx context.Context, logs string) io.ReadCloser {
@@ -255,9 +267,17 @@ func TestMonitorFollowReconnectsEndedStream(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return source.calls() >= 2 && strings.Contains(out.String(), "DENIED")
 	}, 3*time.Second, 10*time.Millisecond)
-	assert.Contains(t, out.String(), "ALLOWED")
+	assert.Equal(t, 1, strings.Count(out.String(), "ALLOWED"))
+	assert.NotContains(t, out.String(), "repeated=")
+	assert.NotContains(t, out.String(), "2026-08-31")
 	cancel()
 	require.NoError(t, <-done)
+
+	options := source.streamOptions()
+	require.Len(t, options, 2)
+	assert.True(t, options[0].Timestamps)
+	require.NotNil(t, options[1].SinceTime)
+	assert.Equal(t, "2026-08-31T12:00:00Z", options[1].SinceTime.Format(time.RFC3339))
 }
 
 func TestLogProcessor(t *testing.T) {
