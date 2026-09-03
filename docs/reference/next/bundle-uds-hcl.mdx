@@ -1,0 +1,213 @@
+---
+title: bundle.uds.hcl
+description: Define UDS CLI Next bundles with this reference for package sources, dependencies, values, and signature policies.
+sidebar:
+  order: 4.400
+---
+
+`bundle.uds.hcl` is the source definition for a UDS CLI Next bundle. It declares the bundle identity and the Zarf packages that become part of the bundle artifact or are deployed directly in development mode.
+
+The file must be named exactly `bundle.uds.hcl`. It is distinct from `defaults.uds.hcl`, which supplies bundle-level default variables, and `config.uds.hcl`, which supplies consumer-owned deploy-time settings.
+
+## Top-level structure
+
+The top-level blocks identify the bundle and declare its packages.
+
+| Block or attribute | Type | Required | Description |
+|---|---|---:|---|
+| `uds` | block | Yes | Declares the bundle API version. |
+| `metadata` | block | Yes | Declares the bundle name and optional descriptive metadata. |
+| `locals` | block | No | Defines reusable HCL expressions. |
+| `package` | block | At least one | Declares a Zarf package included in the bundle. Every package block is included. |
+
+Minimal definition:
+
+```hcl title="bundle.uds.hcl"
+uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+
+metadata {
+  name = "my-bundle"
+}
+
+package "app" {
+  source = "oci://registry.example.com/my-org/app:1.0.0"
+
+  signature_verification {
+    verify = false
+  }
+}
+```
+
+`verify = false` is an explicit package signature bypass for local development. For a trusted create workflow, configure `public_key` or `keyless`.
+
+## `uds`
+
+The `uds` block has one supported attribute:
+
+| Attribute | Type | Required | Valid value |
+|---|---|---:|---|
+| `bundle_api_version` | string | Yes | Exactly `"uds.dev/v1alpha1"` |
+
+The field is required even when the bundle is deployed directly from its definition. Other API versions are rejected as unsupported.
+
+## `metadata`
+
+The `metadata` block identifies the bundle and provides its descriptive information.
+
+| Attribute | Type | Required | Description |
+|---|---|---:|---|
+| `name` | string | Yes | Bundle name. It identifies the bundle in command output and artifact metadata. |
+| `description` | string | No | Human-readable description. Defaults to an empty string. |
+| `version` | string | No | Bundle version. Defaults to an empty string and is used when naming versioned artifacts. |
+
+Bundle validation requires `name` to be non-empty. The parser requires the attribute to be present, and `description` and `version` must be strings when present. The current schema does not apply additional format validation to those two optional fields.
+
+## `locals`
+
+Use `locals` for values shared by metadata and package expressions. Local values are evaluated in dependency order, so one local can reference another with `local.<name>`:
+
+```hcl
+locals {
+  registry   = "ghcr.io/my-org"
+  version    = "1.0.0"
+  app_source = "oci://${local.registry}/app:${local.version}"
+}
+
+metadata {
+  name    = "my-app"
+  version = local.version
+}
+
+package "app" {
+  source = local.app_source
+  signature_verification { verify = false }
+}
+```
+
+The built-in `sys.arch` value contains the effective target architecture. It can be used to select a local package archive:
+
+```hcl
+package "app" {
+  source = "./packages/app-${sys.arch}.tar.zst"
+  signature_verification { verify = false }
+}
+```
+
+Local names must be unique. References to an undefined local and cyclic local dependencies fail during parsing. The `file(path)` function is also available in a file-backed bundle definition. Relative paths are resolved from the directory containing `bundle.uds.hcl`; absolute paths are used as-is. The function returns regular UTF-8 file contents.
+
+## `package "<id>"`
+
+The package label is the package identifier used in dependency references and bundle output.
+
+| Attribute or block | Type | Required | Default | Description |
+|---|---|---:|---|---|
+| `<id>` | label | Yes | None | Must be unique. It cannot contain `/` or `\\`, and cannot be `.` or `..`. |
+| `source` | string | Yes | None | OCI reference or local Zarf package source. |
+| `namespace` | string | No | Empty | Namespace override for the Zarf package. |
+| `depends_on` | list of package references | No | Empty | Packages that must deploy before this package. |
+| `values_files` | list of strings | No | Empty | Package values files, resolved relative to the bundle definition directory. |
+| `optional_components` | list of strings | No | Empty | Optional Zarf components to include or exclude. |
+| `signature_verification` | block | Required for `bundle create` | None | Package signature policy applied when the package enters the bundle. |
+
+### `source`
+
+Sources can be OCI package references or local Zarf package paths:
+
+```hcl
+package "remote" {
+  source = "oci://registry.example.com/my-org/remote:1.0.0"
+  signature_verification { verify = false }
+}
+
+package "local" {
+  source = "./packages/local-${sys.arch}.tar.zst"
+  signature_verification { verify = false }
+}
+```
+
+Relative local paths are resolved from the directory containing `bundle.uds.hcl`. A local source must be a Zarf package directory or a `.tar.zst` package archive.
+
+### `depends_on`
+
+Dependencies use static package references, not quoted strings:
+
+```hcl
+depends_on = [package.database, package.platform]
+```
+
+Each element must be exactly a `package.<id>` traversal. A dependency must refer to a package declared in the same bundle and cannot refer to its own package. Independent packages can be deployed in parallel, subject to the configured concurrency limit.
+
+### `values_files`
+
+List package values files in the order they should be applied:
+
+```hcl
+values_files = [
+  "values/base.yaml",
+  "values/staging.yaml",
+]
+```
+
+Relative paths are resolved from the directory containing `bundle.uds.hcl`. Source-directory operations must be able to read the files. During bundle creation, the files are stored in the artifact under `values/<package-id>/`, and artifact deployments use those embedded copies. These are [Zarf package values](https://docs.zarf.dev/ref/package-values/) files. During deployment, Go templates can read deploy-time variables through `.vars`. Deploy-time variables and their precedence are configured in `config.uds.hcl`.
+
+### `optional_components`
+
+When the list is empty, the package's required and default Zarf components are selected. Listing a component selects it alongside required components. Prefix a component with `-` to explicitly exclude it:
+
+```hcl
+optional_components = [
+  "metrics",
+  "-debug-shell",
+]
+```
+
+Component names must not be empty or repeated. Component selection is not a deploy-time bundle variable.
+
+## `signature_verification`
+
+Each package passed to `uds bundle create` must declare its signature posture. Verification is enabled by default when `verify` is omitted. Configure exactly one verification method when enabled, or use `verify = false` without a method for an explicit bypass.
+
+| Attribute or block | Type | Required | Description |
+|---|---|---:|---|
+| `verify` | boolean | No | Defaults to `true`. Set to `false` to skip package signature verification. It cannot be combined with `public_key` or `keyless`. |
+| `public_key` | string | One method when verifying | Public key contents. Use `file("keys/package-signer.pub")` to load a key file. |
+| `keyless` | block | One method when verifying | Keyless certificate and issuer constraints. |
+
+Keyless verification supports the following fields:
+
+| Attribute | Type | Required | Description |
+|---|---|---:|---|
+| `certificate_identity` | string | One identity | Exact certificate identity. |
+| `certificate_identity_regexp` | string | One identity | Regular expression for certificate identities. |
+| `certificate_oidc_issuer` | string | One issuer | Exact OIDC issuer. |
+| `certificate_oidc_issuer_regexp` | string | One issuer | Regular expression for OIDC issuers. |
+| `trusted_root` | string | No | Sigstore trusted-root JSON contents. The embedded Sigstore root is used when omitted. |
+| `insecure_ignore_tlog` | boolean | No | Defaults to `false`. Disables transparency-log verification. |
+| `insecure_ignore_sct` | boolean | No | Defaults to `false`. Disables certificate SCT verification. |
+| `use_signed_timestamps` | boolean | No | Defaults to `false`. Enables signed-timestamp verification when applicable. |
+
+Use exactly one identity form and exactly one issuer form. Regular expressions must compile. The insecure options reduce verification protections and should be reserved for an intentional, documented trust decision.
+
+Example keyless package policy:
+
+```hcl
+package "app" {
+  source = "oci://registry.example.com/my-org/app:1.0.0"
+
+  signature_verification {
+    keyless {
+      certificate_identity_regexp = "https://github\\.com/my-org/.*/.github/workflows/release\\.yml@refs/heads/main"
+      certificate_oidc_issuer      = "https://token.actions.githubusercontent.com"
+    }
+  }
+}
+```
+
+Direct development deployment attempts package verification and warns instead of stopping when the policy would fail `bundle create`. Artifact deployment does not reverify contained package signatures. Bundle artifact signing and verification are separate controls.
+
+## Related documentation
+
+- [Next mode reference](/cli/reference/next-mode/) - Overview of Next mode behavior and commands.
+- [Sign and verify a bundle in Next mode](/cli/how-to-guides/next/sign-bundle-artifacts/) - Task-oriented workflow for signing, verifying, publishing, and deploying bundle artifacts.

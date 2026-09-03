@@ -1,8 +1,8 @@
 ---
-title: UDS CLI Next Mode
-description: Reference for the UDS CLI Next alpha mode, why it exists, and what it currently supports.
+title: UDS CLI Next mode
+description: Explore the UDS CLI Next alpha mode, its purpose, and its current capabilities.
 sidebar:
-  order: 4.2
+  order: 4.200
 ---
 
 UDS CLI Next is the next-generation implementation of UDS CLI. It is available as an alpha preview behind the `NextMode` feature flag while Legacy mode remains the default.
@@ -10,7 +10,7 @@ UDS CLI Next is the next-generation implementation of UDS CLI. It is available a
 > [!NOTE]
 > More task-focused UDS CLI Next documentation will be added as the mode matures. For now, treat this page as a reference for why Next exists and what it can currently do.
 
-## Why Next Mode Exists
+## Why Next mode exists
 
 UDS CLI Next is designed to support the next phase of UDS bundle workflows:
 
@@ -26,7 +26,7 @@ UDS CLI Next is designed to support the next phase of UDS bundle workflows:
 - a library-first design that other UDS tools can consume directly
 - stronger artifact integrity, signing, and verification paths
 
-## Bundles Next Design
+## Bundles Next design
 
 UDS CLI Next implements the Bundles Next design for the next generation of UDS bundles. The previous bundle design fell short as UDS workflows matured: bundle configuration relied on bespoke `overrides`, package contents were hidden behind indirect OCI blob references, bundles did not have a distinct media type for registries to identify, and the artifact shape was harder for downstream tools to parse consistently.
 
@@ -66,7 +66,7 @@ oci://registry.example.com/my-org/my-app:1.0.0
 
 This layout makes package content explicit and inspectable while keeping the bundle self-contained for registry-backed and offline workflows. Tags can point at multiple architecture-specific child indexes, while digest-pinned references can address a single child index directly. Registry-backed packages and local Zarf packages are normalized into the same internal OCI layout, so downstream tooling can consume one consistent artifact shape.
 
-## Mode Status
+## Mode status
 
 | Mode | Status | Notes |
 |---|---|---|
@@ -75,7 +75,7 @@ This layout makes package content explicit and inspectable while keeping the bun
 
 Next mode is planned to become the default in beta. Legacy mode will be removed after the beta migration window.
 
-## Current Capabilities
+## Current capabilities
 
 Next mode currently supports the core bundle flows needed to exercise HCL bundles and artifact-based deployment:
 
@@ -90,7 +90,7 @@ Next mode currently supports the core bundle flows needed to exercise HCL bundle
 | Bundle signature verification | Verify signed bundle artifacts during deploy, with an explicit skip flag available for unsigned local artifacts |
 | Retained Legacy commands | Non-bundle commands that are still needed during migration remain available in Next mode |
 
-## Enabling Next Mode
+## Enabling Next mode
 
 Next mode can be enabled per command with the `NextMode` feature flag:
 
@@ -101,7 +101,7 @@ CLI_FEATURES=NextMode=true uds version
 
 All UDS CLI Next bundle definition files must be named `bundle.uds.hcl`.
 
-## Bundle Quick Start
+## Bundle quick start
 
 This quickstart creates a local k3d cluster with the UDS k3d package, initializes Zarf, and deploys podinfo.
 
@@ -160,113 +160,19 @@ Replace `ARCH` with the bundle architecture, such as `amd64` or `arm64`.
 
 The `--unsigned` flag is required here because this quickstart does not configure bundle signing. Deploying the unsigned artifact requires `--skip-signature-verification`.
 
-## Bundle File Structure
+## Bundle file structure
 
-```hcl title="bundle.uds.hcl"
-uds {
-  bundle_api_version = "uds.dev/v1alpha1"  # Required
-}
+`bundle.uds.hcl` defines the bundle metadata and package membership. Package membership is implicit: every `package "<id>"` block is part of the bundle. See the [`bundle.uds.hcl` reference](/cli/reference/next/bundle-uds-hcl/) for the schema and package signature policy.
 
-metadata {
-  name        = "my-bundle"    # Required
-  description = "Description"  # Optional
-  version     = "1.0.0"        # Optional
-}
+For the end-to-end artifact signing and verification workflow, see [Sign and verify a bundle in Next mode](/cli/how-to-guides/next/sign-bundle-artifacts/).
 
-package "package_id" {
-  source              = "oci://registry/package:tag"      # Required
-  namespace           = "custom-namespace"                # Optional
-  depends_on          = [package.other_package]           # Optional
-  values_files        = ["values/config.yaml"]            # Optional
-  optional_components = ["component-name"]                # Optional
+## HCL helpers
 
-  signature_verification {                                # Required
-    verify = false                                        # Explicit bypass
-  }
-}
-```
+Next mode supports `locals` and `file(path)` in its HCL files. See the [`bundle.uds.hcl` reference](/cli/reference/next/bundle-uds-hcl/) and [`config.uds.hcl` reference](/cli/reference/next/config-uds-hcl/) for syntax, supported files, and path resolution.
 
-Package membership is implicit. Every `package "<id>"` block in `bundle.uds.hcl` is part of the bundle.
+## CLI commands
 
-### Package Signature Verification
-
-Every package passed to `uds bundle create` must declare its verification posture. Configure exactly one `public_key` or `keyless` verification method, or explicitly bypass verification with `verify = false`. A bypass creates the bundle with a prominent warning.
-
-Keyless verification requires one certificate identity constraint and one OIDC issuer constraint. Exact and regular-expression variants are mutually exclusive. `trusted_root` is optional. When it is omitted, verification uses Zarf's embedded Sigstore trusted root.
-
-```hcl title="bundle.uds.hcl"
-signature_verification {
-  keyless {
-    # Choose exactly one certificate identity constraint:
-    certificate_identity = "https://github.com/my-org/api/.github/workflows/release.yml@refs/heads/main"
-    # certificate_identity_regexp = "https://github.com/my-org/.*/.github/workflows/release.yml@refs/heads/main"
-
-    # Choose exactly one OIDC issuer constraint:
-    certificate_oidc_issuer = "https://token.actions.githubusercontent.com"
-    # certificate_oidc_issuer_regexp = "https://.*token.actions.githubusercontent.com"
-
-    # Optional Sigstore trusted-root JSON. If omitted, use the embedded public Sigstore root.
-    # trusted_root = file("keys/trusted-root.json")
-
-    # Transparency-log and SCT checks are enabled by default. These settings
-    # are available for explicitly opting into reduced verification protections.
-    # insecure_ignore_tlog = true
-    # insecure_ignore_sct  = true
-
-    # Enable RFC 3161 signed-timestamp verification when applicable.
-    # use_signed_timestamps = true
-  }
-}
-```
-
-Transparency-log and SCT verification are enabled by default. Enable `insecure_ignore_tlog` or `insecure_ignore_sct` only when reduced verification protection is intentional.
-
-Direct development deploys from a bundle directory or `bundle.uds.hcl` attempt the configured package verification and warn instead of stopping when the same policy would fail `uds bundle create`. Deploying an already-built bundle artifact does not reverify its contained packages.
-
-## HCL Helpers
-
-### Using Locals
-
-Use `locals` to reduce duplication:
-
-```hcl title="bundle.uds.hcl"
-locals {
-  repo    = "ghcr.io/my-org"
-  version = "1.0.0"
-}
-
-package "app" {
-  source = "oci://${local.repo}/my-app:${local.version}"
-  signature_verification { verify = false }
-}
-```
-
-### Reading Values from Files
-
-Use `file(path)` to read the contents of a regular UTF-8 text file into an HCL expression. It is available in `bundle.uds.hcl`, `defaults.uds.hcl`, and `config.uds.hcl`. Relative paths are resolved from the directory containing the HCL file.
-
-```hcl title="bundle.uds.hcl"
-locals {
-  description = file("metadata/description.txt")
-}
-
-metadata {
-  name        = "my-bundle"
-  description = local.description
-}
-```
-
-The function can also be used directly in variable values and templates:
-
-```hcl title="config.uds.hcl"
-variables = {
-  tls_cert = file("my_tls_cert_file")
-}
-```
-
-When `uds bundle create` and `uds bundle reconfigure` build an artifact, they replace `file()` expressions in `bundle.uds.hcl` and `defaults.uds.hcl` with their evaluated values. File paths are evaluated relative to the HCL file itself. Any `file()` calls in `config.uds.hcl` are evaluated when the config is read.
-
-## CLI Commands
+Use these commands to create, inspect, transfer, deploy, and manage Next-mode bundle artifacts.
 
 | Command | Description |
 |---|---|
@@ -281,7 +187,7 @@ When `uds bundle create` and `uds bundle reconfigure` build an artifact, they re
 | `uds bundle verify <bundle-artifact>` | Verify a created bundle artifact signature. |
 | `uds bundle reconfigure <source> --defaults <defaults-file>` | Reconfigure bundle defaults from a local artifact or OCI reference and produce a derivative artifact. |
 
-### Global Bundle Flags
+### Global bundle flags
 
 These flags apply to all `uds bundle` subcommands:
 
@@ -299,7 +205,7 @@ These flags apply to all `uds bundle` subcommands:
 > [!NOTE]
 > `--plain-http` does not force HTTP. It allows HTTP only after confirming a registry does not support HTTPS.
 
-## Deploying a Bundle
+## Deploying a bundle
 
 Both deploy commands are non-interactive by default and deploy packages within a dependency level in parallel. Levels run sequentially: level N must finish before level N+1 starts.
 
@@ -352,7 +258,7 @@ Deploy-specific flags:
 | `-p`, `--packages` | all | Comma-separated list of specific packages to deploy. When a selected package's dependencies are not also selected, the deploy is rejected. |
 | `-f`, `--force` | `false` | Deploy packages even if their dependencies are not selected. Use with caution. |
 
-## Removing a Bundle
+## Removing a bundle
 
 ```bash
 # Remove all packages in current directory bundle
@@ -377,53 +283,19 @@ Remove-specific flags:
 | `-p`, `--packages` | all | Comma-separated list of specific packages to remove. |
 | `-f`, `--force` | `false` | Remove packages even if other bundle packages depend on them. |
 
-## Deploy-Time Configuration
+## Deploy-time configuration
 
-A `config.uds.hcl` file lets you provide variables for Helm value templating and Zarf package variable substitution without modifying the bundle itself. Pass it with `--config`:
+Pass a `config.uds.hcl` file with `--config` to provide deploy-time variables and operation options without modifying the bundle. See the [`config.uds.hcl` reference](/cli/reference/next/config-uds-hcl/) for supported fields, signature trust, and precedence rules.
 
 ```bash
 CLI_FEATURES=NextMode=true uds bundle dev deploy --config ./config.uds.hcl
 ```
 
-Example `config.uds.hcl`:
+## Bundle-level variable defaults
 
-```hcl title="config.uds.hcl"
-variables = {
-  cluster_name   = "my-production-cluster"
-  replica_count  = 3
-  enable_metrics = true
-}
-```
+`defaults.uds.hcl` is auto-discovered beside `bundle.uds.hcl` and provides bundle-provided default variables. It travels with created artifacts and is overridden by consumer values in `config.uds.hcl`. See the [`config.uds.hcl` reference](/cli/reference/next/config-uds-hcl/) for the supported defaults schema and precedence rules.
 
-Variables are available in `values_files` through Go template syntax:
-
-```yaml title="values/app.yaml"
-clusterName: {{ .vars.cluster_name }}
-replicaCount: {{ .vars.replica_count }}
-```
-
-Top-level scalar variables are also passed to Zarf as `###ZARF_PKG_VAR_<NAME>###` substitutions. Variable names are automatically uppercased.
-
-## Bundle-Level Variable Defaults
-
-A `defaults.uds.hcl` file placed alongside `bundle.uds.hcl` provides the lowest-priority layer of variable configuration. It is auto-discovered when a bundle is created. No flag is required. When present in the same directory, `uds bundle create` adds `defaults.uds.hcl` to the bundle artifact so those defaults travel with the artifact.
-
-At deploy time, defaults stored in the artifact are applied first, then overridden by values in `config.uds.hcl` or future variable sources.
-
-Example `defaults.uds.hcl`:
-
-```hcl title="defaults.uds.hcl"
-variables = {
-  cluster_name   = "my-default-cluster"
-  replica_count  = 1
-  enable_metrics = false
-}
-```
-
-> [!NOTE]
-> Only the `variables` block is supported in `defaults.uds.hcl`. The `options` block is not allowed and will produce an error. Use `config.uds.hcl` with `--config` to set options such as architecture or log level.
-
-## Reconfiguring a Bundle
+## Reconfiguring a bundle
 
 Use `uds bundle reconfigure` to replace the defaults in an existing bundle artifact and produce a new derivative artifact. This is useful when the package content stays the same, but environment-specific defaults need to change before publishing or deploying.
 
@@ -461,47 +333,17 @@ Reconfigure-specific flags:
 | `--unsigned` | `false` | Create an unsigned reconfigured bundle. |
 | `--skip-signature-verification` | `false` | Skip verification of the source bundle signature. |
 
-## Signing and Verifying Bundle Artifacts
+## Signing and verifying bundle artifacts
 
-Use `uds bundle sign` to add signature evidence to a created bundle artifact, and `uds bundle verify` to verify that signature evidence before trusting an artifact.
+Use `uds bundle sign` to add signature evidence to an artifact and `uds bundle verify` to check it before distribution. `uds bundle create` can sign during creation or create an unsigned artifact with `--unsigned`.
 
-```bash
-# Sign with keyless identity
-CLI_FEATURES=NextMode=true uds bundle sign ./uds-bundle-my-app-amd64-1.0.0.tar.zst --keyless
+For the complete signing, verification, publishing, and deployment workflow, see [Sign and verify a bundle in Next mode](/cli/how-to-guides/next/sign-bundle-artifacts/).
 
-# Sign with a local key or KMS URI
-CLI_FEATURES=NextMode=true uds bundle sign ./uds-bundle-my-app-amd64-1.0.0.tar.zst --signing-key ./cosign.key
+## Publishing and pulling bundle artifacts
 
-# Verify with a public key
-CLI_FEATURES=NextMode=true uds bundle verify ./uds-bundle-my-app-amd64-1.0.0.tar.zst --public-key ./cosign.pub
+Use `uds bundle push` to publish a local bundle artifact and `uds bundle pull` to retrieve one. Pull requires an explicit signature verification policy through `--public-key`, keyless identity and issuer options, or `--config`. Use `--skip-signature-verification` only when intentionally retrieving an unsigned artifact. For the signed artifact workflow, including publishing and pulling, see [Sign and verify a bundle in Next mode](/cli/how-to-guides/next/sign-bundle-artifacts/).
 
-# Verify with keyless certificate constraints
-CLI_FEATURES=NextMode=true uds bundle verify ./uds-bundle-my-app-amd64-1.0.0.tar.zst \
-  --certificate-identity-regexp 'https://github\.com/my-org/.*/.github/workflows/release\.yml@refs/heads/main' \
-  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com'
-```
-
-`uds bundle create` can also sign during creation when signing flags are provided, or create an unsigned artifact with `--unsigned`.
-
-## Publishing and Pulling Bundle Artifacts
-
-Use `uds bundle push` to publish a local bundle artifact to an OCI registry, and `uds bundle pull` to retrieve one.
-
-```bash
-# Publish to a registry
-CLI_FEATURES=NextMode=true uds bundle push ./uds-bundle-my-app-amd64-1.0.0.tar.zst oci://registry.example.com/my-org/my-app:1.0.0
-
-# Pull an unsigned artifact to the current directory
-CLI_FEATURES=NextMode=true uds bundle pull oci://registry.example.com/my-org/my-app:1.0.0 --skip-signature-verification
-
-# Pull an unsigned artifact to a specific existing directory
-mkdir -p ./downloads
-CLI_FEATURES=NextMode=true uds bundle pull oci://registry.example.com/my-org/my-app:1.0.0 -d ./downloads --skip-signature-verification
-```
-
-By default, pull verifies the bundle signature. Use `--skip-signature-verification` only when intentionally pulling an unsigned or untrusted artifact.
-
-## Inspecting a Bundle
+## Inspecting a bundle
 
 The `inspect` command shows metadata from a built bundle artifact. Provide a local `.tar.zst` artifact or an OCI bundle reference. Source directories and standalone `bundle.uds.hcl` files are not accepted.
 
@@ -530,7 +372,7 @@ Packages (2)
   DependsOn: database
 ```
 
-## Structured Output
+## Structured output
 
 Bundle commands that emit result objects support structured output through `--output` or `-o`, including `create`, `inspect`, `pull`, and `reconfigure`:
 
@@ -552,3 +394,9 @@ CLI_FEATURES=NextMode=true uds bundle create --unsigned -o yaml
 ```
 
 Logs always go to stderr. Structured output always goes to stdout. Use `2>/dev/null` to suppress logs when piping stdout.
+
+## Related documentation
+
+- [bundle.uds.hcl](/cli/reference/next/bundle-uds-hcl/) - Schema for bundle definitions, package sources, dependencies, values, and package signature policies.
+- [config.uds.hcl](/cli/reference/next/config-uds-hcl/) - Schema for deploy-time options, variables, signature trust, and precedence.
+- [Sign and verify a bundle in Next mode](/cli/how-to-guides/next/sign-bundle-artifacts/) - Task-oriented workflow for signing, verifying, publishing, and deploying bundle artifacts.

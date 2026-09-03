@@ -1,0 +1,195 @@
+---
+title: Sign and verify a bundle in Next mode
+description: Sign, verify, publish, and deploy UDS CLI Next bundle artifacts with key-based or keyless signing.
+sidebar:
+  order: 4.800
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Use bundle artifact signatures to verify an artifact's origin and integrity against a trusted key or identity.
+
+## What you'll accomplish
+
+Use this guide to create, verify, and distribute signed UDS CLI Next bundle artifacts. It covers key-based and OpenID Connect (OIDC) signing, plus unsigned local development workflows.
+
+- Generate Cosign-compatible signing material with Zarf.
+- Create or sign a bundle artifact with a key or an OpenID Connect (OIDC) identity.
+- Verify, publish, pull, and deploy a signed artifact.
+- Create and deploy an unsigned artifact for local alpha testing.
+
+## Prerequisites
+
+- [UDS CLI installed](/cli/getting-started/installation/)
+- [Zarf installed](https://docs.zarf.dev/ref/install/)
+- A valid Next mode bundle directory containing `bundle.uds.hcl`
+- Access to the package sources and, for publishing, an OCI registry
+- A configured OIDC provider for keyless signing, or permission to create and protect a signing key
+- A Kubernetes cluster and deployment configuration when deploying
+
+Every UDS CLI command in this guide enables Next mode with `CLI_FEATURES=NextMode=true`.
+
+## Steps
+
+<Steps>
+
+1. **Prepare signing and package verification material**
+
+   Generate a Cosign key pair with Zarf. Run this command from a protected directory, not from a source repository:
+
+   ```bash
+   umask 077
+   zarf tools gen-key
+   ```
+
+   The command creates `cosign.key`, the private signing key, and `cosign.pub`, the public verification key. Store `cosign.key` in a secret manager or another access-controlled location. Do not commit or share it. Distribute `cosign.pub` to artifact verifiers.
+
+   Bundle artifact signing and package signature verification are separate controls. Before `uds bundle create`, each package in `bundle.uds.hcl` must either trust its package signer or explicitly opt out for local testing. For a key-based package signature, use the public key that signed the package:
+
+   ```hcl title="bundle.uds.hcl"
+   package "app" {
+     source = "oci://registry.example.com/my-org/app:1.0.0"
+
+     signature_verification {
+       public_key = file("keys/package-signer.pub")
+     }
+   }
+   ```
+
+   For a keyless package signature, configure one certificate identity constraint and one OIDC issuer constraint instead.
+
+2. **Create a signed artifact with a private key**
+
+   Use this step or step 3 to sign during creation. If the key is password-protected, set `PRIVATE_KEY_PASSWORD` from a secret manager and pass it through `COSIGN_PASSWORD`, not a command-line argument:
+
+   ```bash
+   COSIGN_PASSWORD="$PRIVATE_KEY_PASSWORD" \
+   CLI_FEATURES=NextMode=true uds bundle create ./my-bundle \
+     --signing-key ./cosign.key
+   ```
+
+   The command writes a signed `.tar.zst` artifact beside `bundle.uds.hcl`, for example `./my-bundle/uds-bundle-my-app-amd64-1.0.0.tar.zst`. The signature covers the bundle definition, defaults, values, package manifests, and package content.
+
+3. **Create a signed artifact with keyless signing**
+
+   Use keyless signing when the build environment can obtain an OIDC identity token:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle create ./my-bundle --keyless
+   ```
+
+   In CI, provide the workflow's OIDC token:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle create ./my-bundle \
+     --keyless \
+     --identity-token "$OIDC_IDENTITY_TOKEN"
+   ```
+
+   Record the certificate identity and issuer so deployers can configure matching verification constraints.
+
+4. **Sign an existing artifact**
+
+   Use this step for an existing unsigned artifact. If you completed step 2 or 3, skip to step 5. `bundle sign` adds evidence to an existing local artifact or OCI bundle reference. For a local artifact, it updates the archive in place. Add `--overwrite` when replacing an existing signature.
+
+   ```bash
+   COSIGN_PASSWORD="$PRIVATE_KEY_PASSWORD" \
+   CLI_FEATURES=NextMode=true uds bundle sign ./my-bundle/uds-bundle-my-app-amd64-1.0.0.tar.zst \
+     --signing-key ./cosign.key
+   ```
+
+   To replace an existing key-based signature:
+
+   ```bash
+   COSIGN_PASSWORD="$PRIVATE_KEY_PASSWORD" \
+   CLI_FEATURES=NextMode=true uds bundle sign ./my-bundle/uds-bundle-my-app-amd64-1.0.0.tar.zst \
+     --signing-key ./cosign.key \
+     --overwrite
+   ```
+
+   Use `--keyless` for keyless signing:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle sign ./my-bundle/uds-bundle-my-app-amd64-1.0.0.tar.zst --keyless
+   ```
+
+5. **Verify the artifact before distribution**
+
+   Verify a key-signed artifact with the matching public key:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle verify ./my-bundle/uds-bundle-my-app-amd64-1.0.0.tar.zst \
+     --public-key ./cosign.pub
+   ```
+
+   Verify a keyless artifact by constraining both the certificate identity and OIDC issuer. Use the exact identity issued by your provider:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle verify ./my-bundle/uds-bundle-my-app-amd64-1.0.0.tar.zst \
+     --certificate-identity 'https://github.com/my-org/my-repo/.github/workflows/release.yml@refs/heads/main' \
+     --certificate-oidc-issuer 'https://token.actions.githubusercontent.com'
+   ```
+
+   Use the regexp variants when the trusted identity or issuer has a controlled pattern. Keyless verification checks transparency-log inclusion and certificate SCT evidence by default. Use `--trusted-root` to select a specific Sigstore trusted-root JSON file.
+
+   Verification checks the bundle signature and complete OCI graph. Changes to the bundle definition, package manifests, or package layers cause it to fail.
+
+6. **Publish, pull, and deploy the signed artifact**
+
+   Push the signed artifact to an OCI registry. Its signature evidence is carried with the bundle:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle push \
+     ./my-bundle/uds-bundle-my-app-amd64-1.0.0.tar.zst \
+     oci://registry.example.com/my-org/my-app:1.0.0
+   ```
+
+   Pull it with the same verification policy:
+
+   ```bash
+   mkdir -p ./pulled
+   CLI_FEATURES=NextMode=true uds bundle pull \
+     oci://registry.example.com/my-org/my-app:1.0.0 \
+     --output-dir ./pulled \
+     --public-key ./cosign.pub
+   ```
+
+   Deploy the OCI reference with signature verification enabled:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle deploy \
+     oci://registry.example.com/my-org/my-app:1.0.0 \
+     --public-key ./cosign.pub \
+     --config ./config.uds.hcl
+   ```
+
+   For a keyless artifact, use the identity and issuer flags shown above.
+
+7. **Use unsigned artifacts only for local alpha testing**
+
+   `--unsigned` is intended for local development when no trusted artifact distribution is involved:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle create ./my-bundle --unsigned
+   CLI_FEATURES=NextMode=true uds bundle deploy \
+     ./my-bundle/uds-bundle-my-app-amd64-1.0.0.tar.zst \
+     --skip-signature-verification
+   ```
+
+   Unsigned artifacts have no bundle-level proof of origin or integrity. Use them only for local alpha testing. `--skip-signature-verification` is an insecure bypass, not a substitute for signing.
+
+</Steps>
+
+## Verification
+
+Before distributing an artifact, confirm that:
+
+- `uds bundle verify` succeeds with the public key or keyless constraints used by deployers.
+- The artifact was signed after its final `bundle.uds.hcl`, defaults, values, and package content were assembled.
+- The published OCI reference points to that verified artifact, and deployers have the required key or keyless constraints.
+
+## Related documentation
+
+- [Next mode reference](/cli/reference/next-mode/) - Overview of Next mode behavior and commands.
+- [bundle.uds.hcl](/cli/reference/next/bundle-uds-hcl/) - Configure package signature verification for Next-mode bundle packages.
+- [Zarf package signing](https://docs.zarf.dev/ref/package-signing/) - Zarf's package signing and verification reference.
