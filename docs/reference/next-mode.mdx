@@ -102,6 +102,11 @@ uds --features=NextMode=true version
 CLI_FEATURES=NextMode=true uds version
 ```
 
+`CLI_FEATURES` and `--features` configure UDS only when they appear before a
+Zarf command. Arguments after `uds zarf`/`uds z` or `uds tools zarf`/`uds
+tools z` are passed to Zarf unchanged, including Zarf's own `--features` and
+`ZARF_FEATURES` settings.
+
 All UDS CLI Next bundle definition files must be named `bundle.uds.hcl`.
 
 ## Bundle Quick Start

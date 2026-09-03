@@ -78,8 +78,8 @@ func TestZarfFeatureBootstrap(t *testing.T) {
 		wantOutput string
 	}{
 		{"equals form before Zarf", []string{"--features=NextMode=false", "zarf", "version"}, strings.TrimSpace(zarfVersion)},
-		{"value form inside Zarf", []string{"zarf", "--features", "NextMode=false", "tools", "yq", "--version"}, "yq"},
-		{"equals form inside tool", []string{"zarf", "tools", "kubectl", "--features=NextMode=false", "version", "--client"}, "Client Version"},
+		{"value form before Zarf", []string{"--features", "NextMode=false", "zarf", "tools", "yq", "--version"}, "yq"},
+		{"equals form before tool", []string{"--features=NextMode=false", "zarf", "tools", "kubectl", "version", "--client"}, "Client Version"},
 		{"Zarf feature", []string{"zarf", "--features=values=false", "version"}, strings.TrimSpace(zarfVersion)},
 	}
 	for _, tt := range tests {
@@ -89,4 +89,11 @@ func TestZarfFeatureBootstrap(t *testing.T) {
 			require.Contains(t, stdout+stderr, tt.wantOutput)
 		})
 	}
+}
+
+func TestZarfToolsIgnoreCLIFeatures(t *testing.T) {
+	t.Setenv("CLI_FEATURES", "NextMode=false")
+	stdout, stderr, err := e2e.UDS("zarf", "tools", "kubectl", "version", "--client")
+	require.NoError(t, err, stdout, stderr)
+	require.Contains(t, stdout+stderr, "Client Version")
 }
