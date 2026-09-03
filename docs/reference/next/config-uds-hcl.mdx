@@ -98,7 +98,7 @@ signature_verification {
 }
 ```
 
-For `inspect`, `verify`, `pull`, `deploy`, and `reconfigure`, CLI verification flags take precedence over this block. `--skip-signature-verification` is an explicit insecure bypass where the command supports it. `bundle create` and `bundle sign` use signing flags instead of this consumer trust policy.
+For `inspect`, `verify`, `pull`, `deploy`, and `reconfigure`, CLI verification flags override matching configured fields. Exact and regular-expression identity or issuer forms must not be mixed between the CLI and this block; use the same form in both places or omit the conflicting configured field. `--skip-signature-verification` is an explicit insecure bypass where the command supports it. `bundle create` and `bundle sign` use signing flags instead of this consumer trust policy.
 
 ## `variables`
 
