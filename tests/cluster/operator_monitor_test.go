@@ -31,6 +31,8 @@ const (
 
 func TestOperatorMonitor(t *testing.T) {
 	k8s := testutil.NewK8sClientOrFail(t)
+	// Register namespace cleanup before package cleanup so LIFO teardown removes the package while its
+	// Pepr namespace still exists. A pre-existing namespace is always preserved.
 	registerMonitorNamespaceCleanup(t, k8s)
 	deployMonitorPackage(t)
 	waitForMonitorPod(t, k8s, "uds-cli-monitor-admission")
@@ -114,6 +116,8 @@ func TestOperatorMonitor(t *testing.T) {
 	})
 }
 
+// deployMonitorPackage installs synthetic admission and watcher pods whose fixed logs exercise every stream
+// classification without depending on a full UDS Core installation.
 func deployMonitorPackage(t *testing.T) {
 	t.Helper()
 
@@ -131,6 +135,8 @@ func deployMonitorPackage(t *testing.T) {
 	})
 }
 
+// registerMonitorNamespaceCleanup removes pepr-system only when this test created it. Cluster suites may reuse
+// an existing Zarf or UDS installation, whose namespace must survive the test.
 func registerMonitorNamespaceCleanup(t *testing.T, k8s *testutil.K8sClient) {
 	t.Helper()
 
@@ -150,6 +156,8 @@ func registerMonitorNamespaceCleanup(t *testing.T, k8s *testutil.K8sClient) {
 	})
 }
 
+// waitForMonitorPod requires readiness rather than mere existence so the subsequent finite log request sees
+// the complete synthetic event set.
 func waitForMonitorPod(t *testing.T, k8s *testutil.K8sClient, name string) {
 	t.Helper()
 

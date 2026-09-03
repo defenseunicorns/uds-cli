@@ -5,6 +5,7 @@ package core
 
 import "errors"
 
+// These sentinels let command tests and callers classify completion and validation failures with errors.Is.
 var (
 	ErrReadLogLevel      = errors.New("reading log-level flag")
 	ErrInvalidStreamKind = errors.New("invalid stream kind")

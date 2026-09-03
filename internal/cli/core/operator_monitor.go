@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// monitorFunc isolates Cobra wiring from cluster access so command tests can capture the completed options.
 type monitorFunc func(context.Context, iostreams.IOStreams, operator.MonitorOptions) error
 
 // OperatorMonitorOptions holds options for the core operator monitor command.
@@ -42,9 +43,8 @@ func NewOperatorMonitorCommand(streams iostreams.IOStreams) *cobra.Command {
 	return newOperatorMonitorCommand(streams, operator.Monitor)
 }
 
-// newOperatorMonitorCommand is the underlying implementation of NewOperatorMonitorCommand.
-// They are separate functions for the sake of testing, as being able to specify the monitorFunc allows tests
-// to skip connecting to kubernetes
+// newOperatorMonitorCommand accepts the monitor operation as a dependency so command tests exercise parsing
+// and validation without requiring Kubernetes connectivity.
 func newOperatorMonitorCommand(streams iostreams.IOStreams, monitor monitorFunc) *cobra.Command {
 	o := NewOperatorMonitorOptions(streams)
 	o.monitor = monitor
@@ -79,7 +79,8 @@ func newOperatorMonitorCommand(streams iostreams.IOStreams, monitor monitorFunc)
 	return cmd
 }
 
-// Complete fills in options from command line args.
+// Complete resolves the optional stream argument and inherits the root log level when the command is attached
+// to the full CLI. Standalone command tests may omit that persistent flag.
 func (o *OperatorMonitorOptions) Complete(cmd *cobra.Command, args []string) error {
 	if len(args) == 1 {
 		o.Stream = operator.StreamKind(args[0])
@@ -94,7 +95,7 @@ func (o *OperatorMonitorOptions) Complete(cmd *cobra.Command, args []string) err
 	return nil
 }
 
-// Validate validates the options.
+// Validate accepts an empty stream as the all-events default and rejects negative lookback durations.
 func (o *OperatorMonitorOptions) Validate() error {
 	switch o.Stream {
 	case operator.StreamAll, operator.StreamPolicies, operator.StreamOperator, operator.StreamAllowed,
@@ -108,7 +109,7 @@ func (o *OperatorMonitorOptions) Validate() error {
 	return nil
 }
 
-// Run executes operator monitoring.
+// Run translates command-facing options into the operator package without retaining Cobra state.
 func (o *OperatorMonitorOptions) Run(ctx context.Context) error {
 	return o.monitor(ctx, o.IOStreams, operator.MonitorOptions{
 		Stream:     o.Stream,

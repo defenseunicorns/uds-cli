@@ -5,6 +5,7 @@ package operator
 
 import "errors"
 
+// These sentinels classify monitor failure stages for errors.Is without coupling callers to Kubernetes errors.
 var (
 	ErrNoTargetsFound         = errors.New("no potential targets for monitoring found")
 	ErrConnectCluster         = errors.New("connecting to cluster")

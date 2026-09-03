@@ -54,7 +54,7 @@ type Formatter struct {
 	NoColor bool
 }
 
-// WriteEvents writes Pepr events in the Next monitor format.
+// WriteEvents writes complete events separated by blank lines. Each event owns its terminating newline.
 func (f Formatter) WriteEvents(w io.Writer, events []Event) error {
 	for i, event := range events {
 		if i > 0 {
@@ -70,7 +70,8 @@ func (f Formatter) WriteEvents(w io.Writer, events []Event) error {
 	return nil
 }
 
-// WriteEvent writes one Pepr event in the Next monitor format.
+// WriteEvent writes one self-contained event. Patch values remain JSON-encoded so their scalar and object
+// representations are preserved instead of being reformatted as terminal text.
 func (f Formatter) WriteEvent(w io.Writer, event Event) error {
 	if event.Timestamp != "" {
 		if _, err := fmt.Fprintf(w, "%s  ", event.Timestamp); err != nil {
@@ -110,6 +111,8 @@ func (f Formatter) WriteEvent(w io.Writer, event Event) error {
 	return nil
 }
 
+// writeEventOpen omits the final newline so a following duplicate count can be appended to the same event.
+// The processor eventually closes the event through flushLocked.
 func (f Formatter) writeEventOpen(w io.Writer, event Event) error {
 	var rendered strings.Builder
 	if err := f.WriteEvent(&rendered, event); err != nil {
@@ -119,6 +122,7 @@ func (f Formatter) writeEventOpen(w io.Writer, event Event) error {
 	return err
 }
 
+// token applies color only to recognized event kinds; unknown kinds remain readable and uncolored.
 func (f Formatter) token(kind EventKind) string {
 	if f.NoColor {
 		return string(kind)
@@ -140,6 +144,7 @@ func (f Formatter) token(kind EventKind) string {
 	return color + string(kind) + ansiReset
 }
 
+// tokenPadding aligns resource fields to the widest built-in event token without counting ANSI escapes.
 func tokenPadding(kind EventKind) string {
 	return strings.Repeat(" ", max(0, 8-len(kind)))
 }
