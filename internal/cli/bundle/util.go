@@ -16,13 +16,15 @@ import (
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 )
 
 // validateBundlePathConfig holds options for ValidateBundlePath.
 type validateBundlePathConfig struct {
-	allowArtifactBundlePath bool
+	allowArtifactBundlePath     bool
+	allowOCIReferenceBundlePath bool
 }
 
 func isOCIReference(s string) bool {
@@ -44,6 +46,12 @@ type ValidateBundlePathOption func(*validateBundlePathConfig)
 // Pass this to commands that support artifact deployment (e.g. deploy).
 func AllowArtifactBundlePath() ValidateBundlePathOption {
 	return func(c *validateBundlePathConfig) { c.allowArtifactBundlePath = true }
+}
+
+// AllowOCIReferenceBundlePath enables oci:// artifact paths in ValidateBundlePath.
+// Pass this to commands that support artifact deployment (e.g. deploy).
+func AllowOCIReferenceBundlePath() ValidateBundlePathOption {
+	return func(c *validateBundlePathConfig) { c.allowOCIReferenceBundlePath = true }
 }
 
 // ValidateBundlePath checks if a user-provided bundle reference is valid.
@@ -69,6 +77,17 @@ func ValidateBundlePath(ref string, opts ...ValidateBundlePathOption) error {
 		return fmt.Errorf("bundle file path is required: %w", ErrInvalidArgument)
 	}
 
+	// Check for OCI reference (before filesystem checks)
+	if isOCIReference(ref) {
+		if !cfg.allowOCIReferenceBundlePath {
+			return fmt.Errorf("%w: %w", ErrOCINotSupported, ErrUnsupportedSource)
+		}
+		if err := ValidateArtifactReference(ref); err != nil {
+			return fmt.Errorf("invalid OCI bundle reference %q: %w", ref, err)
+		}
+		return nil
+	}
+
 	// Check for tar.zst archive (before filesystem checks)
 	if isTarZst(ref) {
 		if !cfg.allowArtifactBundlePath {
@@ -85,11 +104,6 @@ func ValidateBundlePath(ref string, opts ...ValidateBundlePathOption) error {
 			return fmt.Errorf("bundle artifact path is a directory: %s: %w", ref, ErrInvalidPath)
 		}
 		return nil
-	}
-
-	// Check for OCI reference (before filesystem checks)
-	if isOCIReference(ref) {
-		return fmt.Errorf("OCI bundle references not yet supported, use a local .hcl file path or directory: %w", ErrUnsupportedSource)
 	}
 
 	// Check if the path exists
@@ -160,6 +174,9 @@ func ValidateArtifactReference(ref string) error {
 		return fmt.Errorf("bundle artifact is required: %w", ErrInvalidArgument)
 	}
 	if strings.HasPrefix(ref, "oci://") {
+		if _, err := udsoci.ReferenceIdentifier(ref); err != nil {
+			return err
+		}
 		return nil
 	}
 	info, err := os.Stat(ref)
@@ -181,14 +198,14 @@ func ValidateArtifactReference(ref string) error {
 	if !os.IsNotExist(err) {
 		return fmt.Errorf("cannot access bundle artifact %s: %w: %w", ref, ErrInvalidPath, err)
 	}
+	if isOCIReference(ref) {
+		return nil
+	}
 	if isTarZst(ref) {
 		return fmt.Errorf("bundle artifact not found: %s: %w: %w", ref, ErrPathNotFound, err)
 	}
 	if filepath.Base(ref) == bundleFileName {
 		return fmt.Errorf("bundle definitions must be deployed with 'uds bundle dev deploy <bundle-definition>': %w", ErrUnsupportedSource)
-	}
-	if isOCIReference(ref) {
-		return nil
 	}
 	return fmt.Errorf("expected a local .tar.zst bundle artifact or OCI reference, got: %s: %w", ref, ErrUnsupportedSource)
 }
@@ -240,4 +257,43 @@ func ValidateDir(path string) error {
 		return fmt.Errorf("path is not a directory: %s: %w", path, ErrInvalidPath)
 	}
 	return nil
+}
+
+// toInternalConfig converts public configuration to the internal HCL representation.
+func toInternalConfig(cfg *bundle.UDSBundleConfig) *bundleinternal.UDSBundleConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	var options *bundleinternal.ConfigOptions
+	if cfg.Options != nil {
+		options = &bundleinternal.ConfigOptions{
+			LogLevel:      cfg.Options.LogLevel,
+			Architecture:  cfg.Options.Architecture,
+			PlainHTTP:     cfg.Options.PlainHTTP,
+			SkipTLSVerify: cfg.Options.SkipTLSVerify,
+			TmpDir:        cfg.Options.TmpDir,
+			Concurrency:   cfg.Options.Concurrency,
+		}
+	}
+	return &bundleinternal.UDSBundleConfig{
+		Options:               options,
+		SignatureVerification: toInternalVerificationPolicy(cfg.SignatureVerification),
+		Variables:             toInternalVariables(cfg.Variables),
+	}
+}
+
+func toInternalVerificationPolicy(policy *bundle.VerificationPolicy) *bundleinternal.SignatureVerification {
+	if policy == nil {
+		return nil
+	}
+	result := &bundleinternal.SignatureVerification{PublicKey: policy.PublicKey}
+	if policy.Keyless != nil {
+		result.Keyless = &bundleinternal.KeylessVerification{
+			CertificateIdentity: policy.Keyless.CertificateIdentity, CertificateIdentityRegexp: policy.Keyless.CertificateIdentityRegexp,
+			CertificateOIDCIssuer: policy.Keyless.CertificateOIDCIssuer, CertificateOIDCIssuerRegexp: policy.Keyless.CertificateOIDCIssuerRegexp,
+			TrustedRoot: policy.Keyless.TrustedRoot,
+		}
+	}
+	return result
 }

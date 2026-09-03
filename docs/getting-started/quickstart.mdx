@@ -1,9 +1,9 @@
 ---
-title: Quickstart
+title: Legacy mode quickstart
 description: Write a uds-bundle.yaml, create a bundle from Zarf packages, and deploy it in a complete end-to-end walkthrough.
 prev: true
 sidebar:
-  order: 2.3
+  order: 2.4
 ---
 
 import { Steps } from '@astrojs/starlight/components';
@@ -20,7 +20,7 @@ To understand how bundles fit into the UDS ecosystem, see [Bundles](/core/concep
 
 ## Prerequisites
 
-- [UDS CLI installed](/getting-started/installation/)
+- [UDS CLI installed](/cli/getting-started/installation/)
 - Access to a Kubernetes cluster
 
 ## Steps
@@ -132,8 +132,8 @@ uds zarf tools kubectl get pods -A
 
 **Solution:** Set `timeout` on the package in `uds-bundle.yaml` (e.g., `timeout: 10m`). To retrieve logs from the most recent operation, run `uds logs`.
 
-## Related Documentation
+## Related documentation
 
-- [Use Bundle Overrides](/how-to-guides/use-bundle-overrides/): Customize package configuration at deploy time without modifying the bundle.
-- [Use UDS Runner](/how-to-guides/use-uds-runner/): Automate tasks with UDS Runner's built-in task execution.
-- [Monitor a Cluster](/how-to-guides/monitor-cluster/): Inspect running workloads and Pepr events from the CLI.
+- [Use Bundle Overrides](/cli/how-to-guides/use-bundle-overrides/): Customize package configuration at deploy time without modifying the bundle.
+- [Use UDS Runner](/cli/how-to-guides/use-uds-runner/): Automate tasks with UDS Runner's built-in task execution.
+- [Monitor a Cluster](/cli/how-to-guides/monitor-cluster/): Inspect running workloads and Pepr events from the CLI.

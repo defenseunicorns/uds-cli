@@ -17,6 +17,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	"github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -33,8 +34,14 @@ type ExtractedBundle struct {
 	// BundleDefPath is the absolute path to the materialized bundle definition.
 	BundleDefPath string
 
-	// PackageManifests maps each package ref.name to its OCI manifest descriptor.
+	// PackageManifests maps each bundle package name to its OCI manifest descriptor.
 	PackageManifests map[string]ocispec.Descriptor
+
+	// PackageZarfNames maps each bundle package name to metadata.name from its embedded zarf.yaml.
+	PackageZarfNames map[string]string
+
+	// ArtifactDigest contains the digest of the artifact that was extracted.
+	ArtifactDigest string
 }
 
 // ExtractArtifact extracts a .tar.zst bundle artifact into dstDir, verifies
@@ -61,6 +68,7 @@ func ExtractArtifact(ctx context.Context, streams iostreams.IOStreams, tarPath, 
 	if err != nil {
 		return nil, fmt.Errorf("%w %q: %w", ErrReadingBundleIndex, indexPath, err)
 	}
+	artifactDigest := digest.FromBytes(idxBytes).String()
 	var idx ocispec.Index
 	if err := json.Unmarshal(idxBytes, &idx); err != nil {
 		return nil, fmt.Errorf("%w %q: %w", ErrParsingBundleIndex, indexPath, err)
@@ -98,6 +106,10 @@ func ExtractArtifact(ctx context.Context, streams iostreams.IOStreams, tarPath, 
 	if err != nil {
 		return nil, err
 	}
+	packageZarfNames, err := readPackageZarfNames(ctx, packageManifests, store)
+	if err != nil {
+		return nil, err
+	}
 
 	streams.Debug("bundle artifact extracted", "output", dstDir, "packages", len(packageManifests))
 	return &ExtractedBundle{
@@ -105,6 +117,8 @@ func ExtractArtifact(ctx context.Context, streams iostreams.IOStreams, tarPath, 
 		OCIDir:           ociDir,
 		BundleDefPath:    bundleDefPath,
 		PackageManifests: packageManifests,
+		PackageZarfNames: packageZarfNames,
+		ArtifactDigest:   artifactDigest,
 	}, nil
 }
 
