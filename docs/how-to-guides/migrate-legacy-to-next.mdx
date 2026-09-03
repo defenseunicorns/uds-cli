@@ -1,0 +1,249 @@
+---
+title: Migrate a legacy bundle to UDS CLI Next
+description: Convert a legacy uds-bundle.yaml and uds-config.yaml workflow into a UDS CLI Next bundle.
+sidebar:
+  order: 3.400
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+> [!NOTE]
+> UDS CLI Next is an alpha preview. Enable it with `CLI_FEATURES=NextMode=true` for every Next command in this guide.
+
+## What you'll accomplish
+
+Migrate a legacy `uds-bundle.yaml` and `uds-config.yaml` workflow to a Next bundle that you can test, create, and deploy.
+
+## Prerequisites
+
+- [UDS CLI installed](/cli/getting-started/installation/).
+- A legacy bundle source directory containing `uds-bundle.yaml`.
+- Access to each source package and a non-production cluster with `kubectl` configured for testing.
+- Package trust material and bundle signing credentials for your environment.
+
+> [!WARNING]
+> The package references, registry, and key paths in this guide are placeholders. Replace them with sources and trust material that your organization controls. The key files referenced below must exist.
+
+## Steps
+
+<Steps>
+
+1. **Update your command invocations**
+
+   | legacy command | Next command |
+   |---|---|
+   | `uds create` | `CLI_FEATURES=NextMode=true uds bundle create` |
+   | `uds deploy` | `CLI_FEATURES=NextMode=true uds bundle deploy` |
+   | `uds dev deploy` | `CLI_FEATURES=NextMode=true uds bundle dev deploy` |
+   | `uds inspect` | `CLI_FEATURES=NextMode=true uds bundle inspect` |
+   | `uds publish` | `CLI_FEATURES=NextMode=true uds bundle push` |
+   | `uds pull` | `CLI_FEATURES=NextMode=true uds bundle pull` |
+   | `uds remove` | `CLI_FEATURES=NextMode=true uds bundle remove` |
+   | `uds zarf` | `CLI_FEATURES=NextMode=true uds tools zarf` |
+   | `uds run`, `uds monitor`, `uds completion`, `uds version` | unchanged |
+
+   Vendored tools such as `kubectl` and `helm` still use `uds zarf tools <tool>`, not `uds tools zarf tools <tool>`.
+
+   `uds logs`, `uds list`, and the legacy deploy flags `--resume`, `--retries`, and `--force-conflicts` have no Next equivalent at the moment. The legacy inspect flags `--sbom`, `--list-images`, and `--list-variables` are also not available in Next at the moment.
+
+   Next runs non-interactively by default. Use `--prompt` for confirmation.
+
+2. **Convert the bundle definition**
+
+   ```yaml title="legacy/uds-bundle.yaml"
+   kind: UDSBundle
+   metadata:
+     name: podinfo
+     description: Podinfo example
+     version: 0.1.0
+
+   packages:
+     - name: podinfo
+       repository: registry.example.com/acme/podinfo
+       ref: 1.2.3
+       namespace: podinfo
+       optionalComponents:
+         - ingress
+       publicKey: "replace-with-your-package-public-key"
+   ```
+
+   Create `next/bundle.uds.hcl`:
+
+   ```hcl title="next/bundle.uds.hcl"
+   uds {
+     bundle_api_version = "uds.dev/v1alpha1"
+   }
+
+   metadata {
+     name        = "podinfo"
+     description = "Podinfo example"
+     version     = "0.1.0"
+   }
+
+   package "podinfo" {
+     source              = "oci://registry.example.com/acme/podinfo:1.2.3"
+     namespace           = "podinfo"
+     optional_components = ["ingress"]
+     values_files        = ["values/podinfo.yaml"]
+
+     signature_verification {
+       public_key = file("keys/package.pub")
+     }
+   }
+   ```
+
+   The main changes are:
+
+   - Remove `kind` and `build`. The `uds` block identifies the Next bundle schema, and Next creates the artifact metadata during artifact creation.
+   - Keep the bundle name, description, and version in the `metadata` block. Turn each legacy package entry into a `package "<name>"` block.
+   - Combine `repository` and `ref` into `source`, or set `source` to a local Zarf package directory or archive.
+   - Rename `optionalComponents` to `optional_components`.
+   - Move package signing settings into `signature_verification`. For keyless verification, use `signature_verification.keyless` with the same certificate identity and OIDC issuer constraints.
+   - Set architecture with `options.architecture` in `config.uds.hcl` or the `--architecture` flag. It is not a `metadata` setting in Next.
+   - Next artifacts use `.tar.zst`. Fields such as `metadata.uncompressed`, package `description`, `timeout`, `flavor`, `imports`, and `exports` have no direct Next equivalent.
+
+3. **Replace component overrides with values files**
+
+   Legacy `overrides` set Helm values inside a component. Next uses [Zarf package values](https://docs.zarf.dev/ref/package-values/) files, referenced with `values_files`. The package's Zarf mappings connect the file to the chart.
+
+   ```yaml title="legacy/uds-bundle.yaml"
+   packages:
+     - name: podinfo
+       overrides:
+         podinfo-component:
+           unicorn-podinfo:
+             variables:
+               - name: REPLICA_COUNT
+                 path: podinfo.replicaCount
+                 default: 1
+             values:
+               - path: podinfo.service.type
+                 value: ClusterIP
+   ```
+
+   Create the values file named in `values_files`:
+
+   ```yaml title="next/values/podinfo.yaml"
+   podinfo:
+     service:
+       type: ClusterIP
+     replicaCount: {{ .vars.podinfo.replica_count }}
+   ```
+
+   The target package must define Zarf mappings for the values you set. For this example, its `zarf.yaml` needs mappings like these:
+
+   ```yaml title="zarf.yaml"
+   components:
+     - name: podinfo-component
+       charts:
+         - name: unicorn-podinfo
+           values:
+             - sourcePath: ".podinfo.replicaCount"
+               targetPath: ".replicaCount"
+             - sourcePath: ".podinfo.service.type"
+               targetPath: ".service.type"
+   ```
+
+   Next values files are package-level inputs. Move any legacy `valuesFiles` into the bundle, list them in `values_files`, and give each chart-specific value a matching Zarf mapping. Update and rebuild the Zarf package if a mapping is missing.
+
+   Next sets `namespace` for the whole package, not for individual charts. If charts in one package need different namespaces, update the Zarf package or split the package.
+
+4. **Move configuration into HCL**
+
+   This legacy `uds-config.yaml` sets values for the `podinfo` package and two CLI options:
+
+   ```yaml title="legacy/uds-config.yaml"
+   variables:
+     podinfo:
+       REPLICA_COUNT: 2
+   options:
+     architecture: amd64
+     oci_concurrency: 1
+   ```
+
+   Put `defaults.uds.hcl` next to `bundle.uds.hcl`. It provides build-time default values and is included in the bundle artifact.
+
+   ```hcl title="next/defaults.uds.hcl"
+   variables = {
+     podinfo = {
+       replica_count = 1
+     }
+   }
+   ```
+
+   `config.uds.hcl` holds the environment-specific values from `uds-config.yaml`. Pass it with `--config`.
+
+   ```hcl title="next/config.uds.hcl"
+   options {
+     architecture = "amd64"
+     concurrency  = 1
+   }
+
+   variables = {
+     podinfo = {
+       replica_count = 2
+     }
+   }
+   ```
+
+   When moving other settings, use these rules:
+
+   - Keep variables used in `values_files` under the package name. Convert uppercase names to lowercase with underscores, such as `REPLICA_COUNT` to `replica_count`.
+   - Zarf package variables must be top-level scalar values and apply to every package. Put shared Helm settings in each package's values file. Use a values file for package-specific settings.
+   - Keep `architecture`, `log_level`, and `tmp_dir` in the Next `options` block. Change `oci_concurrency` to `concurrency`. The legacy `--tmpdir` flag becomes `--tmp-dir`.
+   - Replace `insecure` with `plain_http` or `skip_tls_verify`, depending on the registry behavior you need. Configure signature verification separately.
+   - Next has no equivalents for `uds_cache`, `retries`, `UDS_<NAME>` environment variables, or `--set`. Put required values in the config file passed with `--config` and adjust those workflows.
+
+   Next applies built-in defaults, then `config.uds.hcl` values, then explicit command-line flags. `config.uds.hcl` overrides matching values in the adjacent `defaults.uds.hcl`.
+
+5. **Test, create, and deploy the Next artifact**
+
+   Test the definition in a non-production cluster first.
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle dev deploy ./next --config ./next/config.uds.hcl
+   ```
+
+   Create and sign the artifact after the development deployment succeeds:
+
+   ```bash
+   cd next
+   CLI_FEATURES=NextMode=true uds bundle create . --architecture amd64 --signing-key ./keys/bundle-signing.key
+   ```
+
+   Push and deploy the signed artifact:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle push \
+     ./uds-bundle-podinfo-amd64-0.1.0.tar.zst \
+     oci://registry.example.com/acme/podinfo:0.1.0
+
+   CLI_FEATURES=NextMode=true uds bundle deploy \
+     oci://registry.example.com/acme/podinfo:0.1.0 \
+     --config ./config.uds.hcl \
+     --public-key ./keys/bundle-signing.pub
+   ```
+
+</Steps>
+
+## Verification
+
+Confirm the migrated workload is healthy in the target cluster before removing the legacy deployment:
+
+```bash
+kubectl get pods -n podinfo
+```
+
+Continue when the workload is Ready.
+
+## Known differences and gaps
+
+- Registry transport and signature verification are separate in Next. Use `--plain-http` or `--skip-tls-verify` for registry transport, configure package verification in each package's `signature_verification` block, and use `--skip-signature-verification` only for local alpha testing because it leaves bundle integrity unverified.
+- Next cannot use legacy definitions or artifacts. Next has no automatic conversion. Convert the source to HCL, then create a Next artifact.
+- Legacy package-to-package variable passing through `imports` and `exports` is not supported in Next. Provide those values through `config.uds.hcl` or package values files.
+- Development deployment uses the source definition directly. It does not create an artifact or provide bundle-signature verification. Use the create-then-deploy artifact workflow when you need signed bundle verification.
+
+## Related documentation
+
+- [Next mode reference](/cli/reference/next-mode/) - exact Next commands, flags, and configuration behavior
+- [Bundle overrides](/cli/how-to-guides/use-bundle-overrides/) - Legacy override behavior used in the migration example
