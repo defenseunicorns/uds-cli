@@ -217,11 +217,11 @@ func TestMonitorErrors(t *testing.T) {
 			err := Monitor(context.Background(), streams, MonitorOptions{source: tt.source, NoColor: true})
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
-				assert.ErrorIs(t, err, tt.wantTarget)
+				require.ErrorIs(t, err, tt.wantTarget)
 			} else {
 				require.NoError(t, err)
 			}
-			assert.Contains(t, errOut.String(), tt.wantWarning)
+			require.Contains(t, errOut.String(), tt.wantWarning)
 		})
 	}
 }
