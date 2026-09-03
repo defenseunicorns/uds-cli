@@ -1,5 +1,5 @@
 ---
-title: How-to Guides
+title: How-to guides
 description: Guides for common UDS CLI operations including bundle overrides, the UDS Runner task system, and cluster monitoring.
 sidebar:
   order: 3.1
@@ -7,13 +7,43 @@ sidebar:
 
 import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-Task-oriented guides for common UDS CLI operations. Each guide assumes you have [UDS CLI installed](/getting-started/installation/) and a working cluster.
+Task-oriented guides for common UDS CLI operations. Each guide assumes you have [UDS CLI installed](/cli/getting-started/installation/) and lists any cluster or registry prerequisites it needs.
 
 <CardGrid>
   <LinkCard
     title="Use Bundle Overrides"
     description="Customize Helm chart values, variables, and namespaces in deployed Zarf packages, including uds-config.yaml and variable precedence rules."
     href="/cli/how-to-guides/use-bundle-overrides/"
+  />
+  <LinkCard
+    title="Verify Keyless Package Signatures"
+    description="Configure Sigstore keyless verification for signed Zarf packages in a UDS bundle."
+    href="/cli/how-to-guides/verify-keyless-package-signatures/"
+  />
+  <LinkCard
+    title="Create a bundle in Next mode"
+    description="Define a Next mode bundle in HCL and create a signed or unsigned OCI artifact."
+    href="/cli/how-to-guides/next/create-a-bundle/"
+  />
+  <LinkCard
+    title="Deploy a bundle in Next mode"
+    description="Deploy a Next mode bundle from its definition or from a local or OCI artifact."
+    href="/cli/how-to-guides/next/deploy-a-bundle/"
+  />
+  <LinkCard
+    title="Publish and pull a bundle in Next mode"
+    description="Publish a Next mode artifact to an OCI registry and pull it for deployment."
+    href="/cli/how-to-guides/next/publish-pull/"
+  />
+  <LinkCard
+    title="Reconfigure a bundle in Next mode"
+    description="Replace environment-specific defaults without rebuilding package content."
+    href="/cli/how-to-guides/next/reconfigure-a-bundle/"
+  />
+  <LinkCard
+    title="Inspect and verify a bundle in Next mode"
+    description="Inspect bundle metadata and verify artifact signatures with structured output."
+    href="/cli/how-to-guides/next/inspect-verify/"
   />
   <LinkCard
     title="Use UDS Runner"
@@ -24,10 +54,5 @@ Task-oriented guides for common UDS CLI operations. Each guide assumes you have 
     title="Monitor a Cluster"
     description="Stream real-time Pepr admission and operator logs from a running UDS cluster to observe policy decisions, package processing, and errors."
     href="/cli/how-to-guides/monitor-cluster/"
-  />
-  <LinkCard
-    title="Verify Keyless Package Signatures"
-    description="Configure Sigstore keyless verification for signed Zarf packages in a UDS bundle."
-    href="/cli/how-to-guides/verify-keyless-package-signatures/"
   />
 </CardGrid>
