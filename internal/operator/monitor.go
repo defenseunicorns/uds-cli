@@ -21,6 +21,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -63,6 +64,8 @@ type MonitorOptions struct {
 	LogLevel   string
 
 	source podLogSource
+	// refreshInterval is overridden by tests to exercise reconciliation without waiting on the production delay.
+	refreshInterval time.Duration
 }
 
 type logEntry struct {
@@ -101,6 +104,7 @@ type logProcessor struct {
 type podContainer struct {
 	pod       string
 	container string
+	uid       types.UID
 }
 
 type podLogSource interface {
@@ -112,10 +116,47 @@ type kubernetesPodLogSource struct {
 	client kubernetes.Interface
 }
 
-type streamResult struct {
-	err    error
-	fatal  bool
-	opened bool
+type targetResult struct {
+	target        podContainer
+	workerID      uint64
+	lastTimestamp time.Time
+	err           error
+	fatal         bool
+	opened        bool
+	canceled      bool
+}
+
+type followWorker struct {
+	id     uint64
+	cancel context.CancelFunc
+}
+
+// targetMonitor holds the immutable dependencies shared by one-shot and follow workers.
+type targetMonitor struct {
+	streams   iostreams.IOStreams
+	source    podLogSource
+	processor *logProcessor
+	opts      MonitorOptions
+}
+
+// followMonitor owns reconciliation state. Only its supervisor goroutine mutates the maps below;
+// workers report state transitions through started and results.
+type followMonitor struct {
+	targetMonitor
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	results chan targetResult
+	started chan targetResult
+
+	active map[podContainer]followWorker
+	// retiring prevents a replacement worker for the same pod UID from starting before its cursor is captured.
+	retiring map[podContainer]struct{}
+	cursors  map[podContainer]time.Time
+	// desired is the latest successful Kubernetes pod-list snapshot.
+	desired map[podContainer]struct{}
+	workers sync.WaitGroup
+	nextID  uint64
 }
 
 func (s kubernetesPodLogSource) ListPods(ctx context.Context) ([]corev1.Pod, error) {
@@ -170,159 +211,324 @@ func Monitor(ctx context.Context, streams iostreams.IOStreams, opts MonitorOptio
 	if len(targets) == 0 {
 		return ErrNoTargetsFound
 	}
+	runner := targetMonitor{streams: streams, source: source, processor: processor, opts: opts}
+	if opts.Follow {
+		return monitorFollowing(ctx, runner, targets)
+	}
+	return monitorOnce(ctx, runner, targets)
+}
 
+// monitorOnce makes one request per target. It tolerates individual stream-open failures when at least one
+// target succeeds, but cancels sibling requests when output processing fails.
+func monitorOnce(ctx context.Context, runner targetMonitor, targets []podContainer) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	results := make(chan streamResult, len(targets)+2)
-	started := make(chan streamResult, len(targets))
+	results := make(chan targetResult, len(targets))
 	var workers sync.WaitGroup
 	for _, target := range targets {
 		workers.Go(func() {
-			logOpts := &corev1.PodLogOptions{
-				Container:  target.container,
-				Follow:     opts.Follow,
-				Timestamps: opts.Timestamps || opts.Follow,
-			}
-			if opts.Since > 0 {
-				seconds := int64(math.Ceil(opts.Since.Seconds()))
-				logOpts.SinceSeconds = &seconds
-			}
-
-			opened := false
-			warnedEnded := false
-			var lastTimestamp time.Time
-			for {
-				if !lastTimestamp.IsZero() {
-					sinceTime := metav1.NewTime(lastTimestamp)
-					logOpts.SinceSeconds = nil
-					logOpts.SinceTime = &sinceTime
-				}
-				logStream, err := source.StreamLogs(ctx, target.pod, logOpts)
-				if err != nil {
-					streamErr := fmt.Errorf("%w %s: %w", ErrStreamPodLogs, target.pod, err)
-					if !opened {
-						started <- streamResult{err: streamErr}
-						return
-					}
-					if ctx.Err() != nil {
-						results <- streamResult{opened: true}
-						return
-					}
-					streams.Warn("unable to reconnect Pepr pod logs", "error", streamErr)
-					if !waitForReconnect(ctx) {
-						results <- streamResult{opened: true}
-						return
-					}
-					continue
-				}
-				if !opened {
-					started <- streamResult{opened: true}
-					opened = true
-				}
-
-				streamTimestamp, processErr := processor.processStream(streams.Out(), logStream, logOpts.Timestamps)
-				_ = logStream.Close()
-				if streamTimestamp.After(lastTimestamp) {
-					lastTimestamp = streamTimestamp
-				}
-				if processErr != nil {
-					results <- streamResult{opened: true, fatal: true, err: fmt.Errorf("%w %s: %w", ErrProcessPodLogs, target.pod, processErr)}
-					cancel()
-					return
-				}
-				if !opts.Follow || ctx.Err() != nil {
-					results <- streamResult{opened: true}
-					return
-				}
-				if !warnedEnded {
-					streams.Warn("Pepr pod log stream ended; reconnecting", "pod", target.pod)
-					warnedEnded = true
-				}
-				if !waitForReconnect(ctx) {
-					results <- streamResult{opened: true}
-					return
-				}
-			}
-		})
-	}
-
-	stopFlush := make(chan struct{})
-	var flushWorker sync.WaitGroup
-	if opts.Follow && !opts.JSON {
-		flushWorker.Go(func() {
-			ticker := time.NewTicker(flushInterval)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-stopFlush:
-					return
-				case <-ticker.C:
-					if err := processor.flushRepeated(streams.Out()); err != nil {
-						results <- streamResult{fatal: true, err: fmt.Errorf("%w: %w", ErrFlushMonitorOutput, err)}
-						cancel()
-						return
-					}
-				}
-			}
+			results <- runner.runTarget(ctx, target, time.Time{}, nil)
 		})
 	}
 
 	var streamErrors []error
+	var fatalErrors []error
 	opened := 0
 	for range targets {
-		result := <-started
+		result := <-results
+		if result.fatal {
+			cancel()
+		}
 		if result.opened {
-			if opened == 0 {
-				for _, err := range streamErrors {
-					streams.Warn("unable to stream Pepr pod logs", "error", err)
-				}
-				streamErrors = nil
-			}
 			opened++
-		} else if opened > 0 {
-			streams.Warn("unable to stream Pepr pod logs", "error", result.err)
-		} else {
+		}
+		if result.fatal {
+			fatalErrors = append(fatalErrors, result.err)
+		} else if result.err != nil {
 			streamErrors = append(streamErrors, result.err)
 		}
 	}
-	if opened == 0 && len(targets) > 0 {
-		close(stopFlush)
-		flushWorker.Wait()
-		workers.Wait()
+	workers.Wait()
+	close(results)
+
+	if opened == 0 {
 		return errors.Join(streamErrors...)
 	}
-
-	workers.Wait()
-	close(stopFlush)
-	flushWorker.Wait()
-	if err := processor.flush(streams.Out()); err != nil {
-		results <- streamResult{fatal: true, err: fmt.Errorf("%w: %w", ErrFlushMonitorOutput, err)}
+	for _, err := range streamErrors {
+		runner.streams.Warn("unable to stream Pepr pod logs", "error", err)
 	}
-	close(results)
-	return monitorResult(results)
-}
-
-func monitorResult(results <-chan streamResult) error {
-	var fatalErrors []error
-	for result := range results {
-		if result.fatal && result.err != nil {
-			fatalErrors = append(fatalErrors, result.err)
-		}
+	if err := runner.processor.flush(runner.streams.Out()); err != nil {
+		fatalErrors = append(fatalErrors, fmt.Errorf("%w: %w", ErrFlushMonitorOutput, err))
 	}
 	return errors.Join(fatalErrors...)
 }
 
-func waitForReconnect(ctx context.Context) bool {
-	timer := time.NewTimer(streamReconnectDelay)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return false
-	case <-timer.C:
-		return true
+// runTarget owns exactly one log-stream lifecycle. It reports the last observed timestamp but leaves retry
+// and replacement decisions to the calling monitor mode.
+func (m targetMonitor) runTarget(
+	ctx context.Context,
+	target podContainer,
+	lastTimestamp time.Time,
+	onStart func(targetResult),
+) targetResult {
+	result := targetResult{target: target}
+	logOpts := &corev1.PodLogOptions{
+		Container: target.container,
+		Follow:    m.opts.Follow,
+		// Follow mode always requests timestamps so reconnects can resume without exposing them unless requested.
+		Timestamps: m.opts.Timestamps || m.opts.Follow,
+	}
+	// SinceSeconds applies only to the first connection. Subsequent connections use the last observed log timestamp.
+	if lastTimestamp.IsZero() && m.opts.Since > 0 {
+		seconds := int64(math.Ceil(m.opts.Since.Seconds()))
+		logOpts.SinceSeconds = &seconds
+	} else if !lastTimestamp.IsZero() {
+		sinceTime := metav1.NewTime(lastTimestamp)
+		logOpts.SinceTime = &sinceTime
+	}
+
+	logStream, err := m.source.StreamLogs(ctx, target.pod, logOpts)
+	if err != nil {
+		result.canceled = ctx.Err() != nil
+		if !result.canceled {
+			result.err = fmt.Errorf("%w %s: %w", ErrStreamPodLogs, target.pod, err)
+		}
+		if onStart != nil {
+			onStart(result)
+		}
+		return result
+	}
+	result.opened = true
+	if onStart != nil {
+		onStart(result)
+	}
+	result.lastTimestamp, err = m.processor.processStream(m.streams.Out(), logStream, logOpts.Timestamps)
+	_ = logStream.Close()
+	if err != nil {
+		result.canceled = ctx.Err() != nil
+		if !result.canceled {
+			result.err = fmt.Errorf("%w %s: %w", ErrProcessPodLogs, target.pod, err)
+			result.fatal = true
+		}
+	}
+	return result
+}
+
+// monitorFollowing supervises long-lived workers, periodically reconciling them against the current pod list.
+// Healthy workers remain connected while removed or completed workers are replaced independently.
+func monitorFollowing(ctx context.Context, runner targetMonitor, targets []podContainer) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	m := &followMonitor{
+		targetMonitor: runner,
+		ctx:           ctx,
+		cancel:        cancel,
+		results:       make(chan targetResult, max(4, len(targets)*2)),
+		started:       make(chan targetResult, len(targets)),
+		active:        map[podContainer]followWorker{},
+		retiring:      map[podContainer]struct{}{},
+		cursors:       map[podContainer]time.Time{},
+		desired:       make(map[podContainer]struct{}, len(targets)),
+	}
+	for _, target := range targets {
+		m.desired[target] = struct{}{}
+	}
+	ready, err := m.startInitialWorkers(targets)
+	if !ready {
+		return err
+	}
+
+	refreshInterval := m.opts.refreshInterval
+	if refreshInterval <= 0 {
+		refreshInterval = streamReconnectDelay
+	}
+	refreshTicker := time.NewTicker(refreshInterval)
+	defer refreshTicker.Stop()
+	flushTicker := time.NewTicker(flushInterval)
+	defer flushTicker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			m.stopWorkers()
+			if err := m.processor.flush(m.streams.Out()); err != nil {
+				return fmt.Errorf("%w: %w", ErrFlushMonitorOutput, err)
+			}
+			return nil
+		case result := <-m.results:
+			if err := m.handleResult(result); err != nil {
+				return err
+			}
+		case <-refreshTicker.C:
+			pods, err := m.source.ListPods(ctx)
+			if err != nil {
+				m.streams.Warn("unable to refresh Pepr pods", "error", fmt.Errorf("%w: %w", ErrListPeprPods, err))
+				continue
+			}
+			m.reconcile(selectContainers(pods, m.opts.Stream))
+		case <-flushTicker.C:
+			if m.opts.JSON {
+				continue
+			}
+			if err := m.processor.flushRepeated(m.streams.Out()); err != nil {
+				cancel()
+				m.stopWorkers()
+				return fmt.Errorf("%w: %w", ErrFlushMonitorOutput, err)
+			}
+		}
 	}
 }
 
+// startWorker launches a uniquely identified worker generation so delayed results cannot mutate newer state.
+// reportStart is used only during initial readiness evaluation.
+func (m *followMonitor) startWorker(target podContainer, reportStart bool) {
+	workerCtx, workerCancel := context.WithCancel(m.ctx)
+	m.nextID++
+	workerID := m.nextID
+	m.active[target] = followWorker{id: workerID, cancel: workerCancel}
+	lastTimestamp := m.cursors[target]
+	m.workers.Go(func() {
+		var onStart func(targetResult)
+		if reportStart {
+			onStart = func(result targetResult) {
+				select {
+				case m.started <- result:
+				case <-m.ctx.Done():
+				}
+			}
+		}
+		result := m.runTarget(workerCtx, target, lastTimestamp, onStart)
+		result.workerID = workerID
+		select {
+		case m.results <- result:
+		case <-m.ctx.Done():
+		}
+	})
+}
+
+// startInitialWorkers requires at least one stream to open before reconciliation begins. This prevents
+// permanent startup failures, such as missing log permissions, from becoming an endless retry loop.
+func (m *followMonitor) startInitialWorkers(targets []podContainer) (bool, error) {
+	for _, target := range targets {
+		m.startWorker(target, true)
+	}
+	var startErrors []error
+	var earlyResults []targetResult
+	opened := 0
+	for pending := len(targets); pending > 0; {
+		select {
+		case <-m.ctx.Done():
+			m.stopWorkers()
+			return false, nil
+		case result := <-m.started:
+			pending--
+			if result.opened {
+				opened++
+			} else if result.err != nil {
+				startErrors = append(startErrors, result.err)
+			}
+		case result := <-m.results:
+			// A worker can finish immediately after reporting that it opened. Drain these results during startup
+			// so workers cannot block and fatal output errors are returned without waiting for every open attempt.
+			if result.fatal {
+				m.cancel()
+				m.stopWorkers()
+				return false, result.err
+			}
+			earlyResults = append(earlyResults, result)
+		}
+	}
+	if opened == 0 {
+		m.cancel()
+		m.stopWorkers()
+		return false, errors.Join(startErrors...)
+	}
+	for _, result := range earlyResults {
+		m.results <- result
+	}
+	return true, nil
+}
+
+// reconcile treats a successful pod list as authoritative. Missing workers enter retirement until their
+// cursors are captured, preventing overlapping generations and replay when a pod UID reappears.
+func (m *followMonitor) reconcile(discovered []podContainer) {
+	m.desired = make(map[podContainer]struct{}, len(discovered))
+	for _, target := range discovered {
+		m.desired[target] = struct{}{}
+		if _, stopping := m.retiring[target]; stopping {
+			continue
+		}
+		if _, running := m.active[target]; !running {
+			m.startWorker(target, false)
+		}
+	}
+	for target, worker := range m.active {
+		if _, found := m.desired[target]; !found {
+			worker.cancel()
+			delete(m.active, target)
+			m.retiring[target] = struct{}{}
+		}
+	}
+	pruneInactiveCursors(m.cursors, m.desired, m.active, m.retiring)
+}
+
+// handleResult applies cursor progress before lifecycle changes so stale workers cannot unregister a newer
+// generation while still preserving events they emitted before cancellation.
+func (m *followMonitor) handleResult(result targetResult) error {
+	if result.lastTimestamp.After(m.cursors[result.target]) {
+		m.cursors[result.target] = result.lastTimestamp
+	}
+	worker, current := m.active[result.target]
+	if !current || worker.id != result.workerID {
+		delete(m.retiring, result.target)
+		pruneInactiveCursors(m.cursors, m.desired, m.active, m.retiring)
+		return nil
+	}
+	delete(m.active, result.target)
+	pruneInactiveCursors(m.cursors, m.desired, m.active, m.retiring)
+	if result.canceled {
+		return nil
+	}
+	if result.fatal {
+		m.cancel()
+		m.stopWorkers()
+		return result.err
+	}
+	if result.err != nil {
+		m.streams.Warn("unable to stream Pepr pod logs", "error", result.err)
+	} else {
+		m.streams.Warn("Pepr pod log stream ended; waiting to reconnect", "pod", result.target.pod)
+	}
+	return nil
+}
+
+// stopWorkers cancels every tracked worker and waits until no worker can write further output.
+func (m *followMonitor) stopWorkers() {
+	for _, worker := range m.active {
+		worker.cancel()
+	}
+	m.workers.Wait()
+}
+
+// pruneInactiveCursors bounds cursor state after pod churn while retaining cursors needed by active,
+// desired, or not-yet-finished workers.
+func pruneInactiveCursors(
+	cursors map[podContainer]time.Time,
+	desired map[podContainer]struct{},
+	active map[podContainer]followWorker,
+	retiring map[podContainer]struct{},
+) {
+	for target := range cursors {
+		_, isDesired := desired[target]
+		_, isActive := active[target]
+		_, isRetiring := retiring[target]
+		if !isDesired && !isActive && !isRetiring {
+			delete(cursors, target)
+		}
+	}
+}
+
+// selectContainers maps Pepr controller labels to their fixed log-producing container names.
 func selectContainers(pods []corev1.Pod, stream StreamKind) []podContainer {
 	includeAdmission := stream != StreamOperator
 	includeWatcher := stream == StreamAll || stream == StreamOperator || stream == StreamFailed
@@ -331,22 +537,19 @@ func selectContainers(pods []corev1.Pod, stream StreamKind) []podContainer {
 		switch pod.Labels["pepr.dev/controller"] {
 		case "admission":
 			if includeAdmission {
-				targets = append(targets, podContainer{pod: pod.Name, container: "server"})
+				targets = append(targets, podContainer{pod: pod.Name, container: "server", uid: pod.UID})
 			}
 		case "watcher":
 			if includeWatcher {
-				targets = append(targets, podContainer{pod: pod.Name, container: "watcher"})
+				targets = append(targets, podContainer{pod: pod.Name, container: "watcher", uid: pod.UID})
 			}
 		}
 	}
 	return targets
 }
 
-func (p *logProcessor) process(w io.Writer, r io.Reader) error {
-	_, err := p.processStream(w, r, p.timestamps)
-	return err
-}
-
+// processStream records the latest source timestamp independently from whether timestamps are rendered.
+// Follow mode relies on the returned cursor to resume subsequent Kubernetes log requests.
 func (p *logProcessor) processStream(w io.Writer, r io.Reader, inputTimestamps bool) (time.Time, error) {
 	var lastTimestamp time.Time
 	scanner := bufio.NewScanner(r)
@@ -366,23 +569,20 @@ func (p *logProcessor) processStream(w io.Writer, r io.Reader, inputTimestamps b
 	return lastTimestamp, scanner.Err()
 }
 
-func (p *logProcessor) processLine(w io.Writer, line string) error {
-	timestamp, payload := splitLogLine(line, p.timestamps)
-	return p.processPayload(w, timestamp, payload)
-}
-
+// processPayload parses and filters one Pepr log payload, serializing writes and repeat detection shared by
+// concurrent admission and watcher streams.
 func (p *logProcessor) processPayload(w io.Writer, timestamp, payload string) error {
 	var entry logEntry
 	if err := json.Unmarshal([]byte(payload), &entry); err != nil {
 		if isRelevantLog(payload) {
-			p.warn("parse Pepr event", err)
+			p.streams.Warn("parse Pepr event", "error", err)
 		}
 		return nil
 	}
 
 	event, ok, err := classifyEvent(entry, p.stream)
 	if err != nil {
-		p.warn("parse Pepr event", err)
+		p.streams.Warn("parse Pepr event", "error", err)
 		return nil
 	}
 	if !ok || p.skipResource(entry) {
@@ -455,10 +655,6 @@ func (p *logProcessor) flushLocked(w io.Writer) error {
 	p.pending = nil
 	p.repeated = 0
 	return nil
-}
-
-func (p *logProcessor) warn(message string, err error) {
-	p.streams.Warn(message, "error", err)
 }
 
 func eventsEqual(a, b Event) bool {
