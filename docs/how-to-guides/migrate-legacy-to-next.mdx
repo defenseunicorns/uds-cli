@@ -21,6 +21,8 @@ Migrate a legacy `uds-bundle.yaml` and `uds-config.yaml` workflow to a Next bund
 - Access to each source package and a non-production cluster with `kubectl` configured for testing.
 - Package trust material and bundle signing credentials for your environment.
 
+For an AI-assisted first pass, use the repository's [Legacy-to-Next migration skill](https://github.com/defenseunicorns/uds-cli/blob/main/.agents/skills/migrate-legacy-bundle-to-next/SKILL.md). It generates proposed HCL and a migration report; you must still review package verification and Zarf value mappings before deployment.
+
 > [!WARNING]
 > The package references, registry, and key paths in this guide are placeholders. Replace them with sources and trust material that your organization controls. The key files referenced below must exist.
 
