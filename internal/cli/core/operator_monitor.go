@@ -51,8 +51,8 @@ func newOperatorMonitorCommand(streams iostreams.IOStreams, monitor monitorFunc)
 
 	cmd := &cobra.Command{
 		Use:   "monitor [policies | operator | allowed | denied | failed | mutated]",
-		Short: "Observe UDS Core operator activity",
-		Long:  "Stream UDS Core operator activity and related Pepr policy decisions from the cluster.",
+		Short: "[alpha] Observe UDS Core operator activity",
+		Long:  "[alpha] Stream UDS Core operator activity and related Pepr policy decisions from the cluster.",
 		Example: `  # Stream all operator and policy events
   uds core operator monitor
 
