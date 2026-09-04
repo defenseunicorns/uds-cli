@@ -20,7 +20,7 @@ UDS CLI binaries are also included with each [Github Release](https://github.com
 
 The `Snapshot Release` workflow runs daily at 03:00 UTC against `main`; manual dispatches also build only `main`. Successful runs publish a GitHub prerelease tagged `vX.Y.Z-snapshot+YYYYMMDDHHMMSS-XXXXXXXX`, where `vX.Y.Z` is the latest stable tag and `XXXXXXXX` is the source commit's eight-character SHA. Each prerelease contains Linux and macOS binaries for amd64 and arm64, Linux DEB/RPM packages, SHA-256 checksums, and per-binary SBOMs.
 
-Snapshots do not update Homebrew or become the latest release. Scheduled cleanup retains the newest three snapshot prereleases and their tags.
+Snapshots do not update Homebrew or become the latest release. Scheduled cleanup retains the newest three snapshot prereleases and preserves their tags.
 
 ## Official Documentation
 Official documentation is located at [docs.defenseunicorns.com/cli/](https://docs.defenseunicorns.com/cli/)

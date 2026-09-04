@@ -199,5 +199,5 @@ jobs:
           set -euo pipefail
           mapfile -t snapshot_tags < <(gh release list --limit 100 --order desc --json tagName,isPrerelease --jq '.[] | select(.isPrerelease and (.tagName | test("^v[0-9]+\\.[0-9]+\\.[0-9]+-snapshot\\+"))) | .tagName')
           for tag_name in "${snapshot_tags[@]:3}"; do
-            gh release delete "$tag_name" --cleanup-tag --yes
+            gh release delete "$tag_name" --yes
           done

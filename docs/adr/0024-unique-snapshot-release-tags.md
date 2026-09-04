@@ -15,10 +15,10 @@ The snapshot release workflow will:
 - Create unique tags in the form `vX.Y.Z-snapshot+YYYYMMDDHHMMSS-XXXXXXXX` for scheduled and manual releases.
 - Reject collisions and never move or overwrite a snapshot tag.
 - Keep snapshot tags excluded from the stable release workflow.
-- Retain only the newest three snapshot prereleases and their tags.
+- Retain only the newest three snapshot prereleases while preserving their tags.
 
 The mutable release model is replaced by these unique, source-addressed snapshot tags.
 
 ## Consequences
 
-Every snapshot artifact can be traced to an exact `main` commit, and validation failures cannot leave an orphaned release tag. Consumers and maintainers must use the generated tag when referring to a snapshot release. Scheduled cleanup limits snapshot-release storage.
+Every snapshot artifact can be traced to an exact `main` commit, and validation failures cannot leave an orphaned release tag. Consumers and maintainers must use the generated tag when referring to a snapshot release. Scheduled cleanup limits snapshot-release artifact storage while preserving tag traceability.

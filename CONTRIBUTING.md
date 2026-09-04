@@ -43,7 +43,7 @@ The `Snapshot Release` workflow runs daily at 03:00 UTC against `main`. Manual d
 
 Before tagging, the workflow rejects tag collisions and runs the reusable release test suite against `main`. That suite includes authenticated GHCR-write tests and Legacy and Next UDS Core smoke tests. After publishing, the workflow verifies the Linux amd64 checksum and confirms both CLI modes report the release tag. The stable release workflow excludes snapshot tags.
 
-Do not dispatch this workflow without maintainer approval. Its tests and publishing jobs use repository and package write permissions, and successful runs create remote tags, GitHub prereleases, and package state through the `release-snapshot` environment. Scheduled cleanup retains three snapshots.
+Do not dispatch this workflow without maintainer approval. Its tests and publishing jobs use repository and package write permissions, and successful runs create remote tags, GitHub prereleases, and package state through the `release-snapshot` environment. Scheduled cleanup retains three snapshot prereleases and preserves their tags.
 
 ## How to Contribute
 Please ensure there is a GitHub issue for your proposed change, this helps the UDS CLI team to understand the context of the change and to track the progress of the work. If there isn't an issue for your change, please create one before starting work. The recommended workflow for contributing is as follows:
