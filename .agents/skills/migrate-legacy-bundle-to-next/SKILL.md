@@ -59,9 +59,43 @@ are passed through to Zarf package-variable substitutions.
 
 Every Next package must declare one verification posture. Preserve a legacy public-key
 or keyless configuration. If the legacy package has neither, do not silently disable
-verification: emit an unresolved `signature_verification` TODO and list it as a
-blocking manual decision. Offer `verify = false` only as an explicitly labelled,
-security-reducing local-alpha option.
+verification: emit an unresolved `signature_verification` TODO, using this commented
+selection template, and list it as a blocking manual decision:
+
+```hcl
+signature_verification {
+  # Choose exactly one option. Uncomment only the line(s) explicitly identified below; leave all other comments unchanged.
+  # Package verification and bundle-artifact signing are independent decisions.
+
+  # Option 1: key-based verification. Uncomment only the following line to select this option.
+  # public_key = file("keys/<package>.pub")
+  # To sign the created artifact with a private key or KMS URI, run:
+  # CLI_FEATURES=NextMode=true uds bundle create <bundle-directory> --signing-key <private-key-or-kms-uri>
+
+  # Option 2: keyless verification. Uncomment the following four lines to select this option.
+  # keyless {
+  #   certificate_identity_regexp = "https://..."
+  #   certificate_oidc_issuer     = "https://token.actions.githubusercontent.com"
+  # }
+  # To sign the created artifact with an OIDC identity, run:
+  # CLI_FEATURES=NextMode=true uds bundle create <bundle-directory> --keyless
+
+  # Option 3: local-alpha only; disables package verification. Uncomment only the following line to select this option.
+  # verify = false
+  # To create an unsigned artifact, run:
+  # CLI_FEATURES=NextMode=true uds bundle create <bundle-directory> --unsigned
+}
+```
+
+State that the options are mutually exclusive: enabled verification requires exactly
+one `public_key` or `keyless` configuration, and keyless verification requires one
+certificate identity constraint and one OIDC issuer constraint. The all-commented
+template intentionally fails create-time validation until the user chooses a trust
+posture. `verify = false` is an explicitly labelled, security-reducing local-alpha
+option only. Independently, every `uds bundle create` invocation must select exactly
+one artifact-signing mode: `--signing-key <private-key-or-kms-uri>`, `--keyless`, or
+`--unsigned`; the commands beside the template options are common companion choices,
+not required verification-to-signing pairings.
 
 ## Override review
 

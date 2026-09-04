@@ -4,6 +4,7 @@
 .env.*
 .idea/
 .image-cache/
+/.next/
 .release-downloads/
 .scratch/
 .vscode/
