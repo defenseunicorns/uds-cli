@@ -12,6 +12,7 @@ When modifying a file that already has a copyright header, preserve its starting
 
 - [.agents/skills/go-development/SKILL.md](.agents/skills/go-development/SKILL.md), Go coding rules
 - [.agents/skills/testing/SKILL.md](.agents/skills/testing/SKILL.md), testing strategy
+- [.agents/skills/documentation-authoring/SKILL.md](.agents/skills/documentation-authoring/SKILL.md), documentation authoring rules
 
 ## Legacy and Next separation
 
