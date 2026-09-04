@@ -10,6 +10,7 @@ on:
   push:
     tags:
       - "v*"
+      - "!v*-snapshot*"
   workflow_call:
     inputs:
       release_tag:

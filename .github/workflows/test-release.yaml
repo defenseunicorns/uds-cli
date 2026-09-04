@@ -5,6 +5,12 @@ name: Release Tests
 
 on:
   workflow_call:
+    inputs:
+      ref:
+        description: Git ref to validate in the release test workflow
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -17,5 +23,6 @@ jobs:
       id-token: write
       packages: write
     with:
+      ref: ${{ inputs.ref }}
       include_ghcr_write: true
       include_uds_core_smoke: true
