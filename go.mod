@@ -24,7 +24,7 @@ require (
 	github.com/spf13/pflag v1.0.10
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1
-	github.com/zarf-dev/zarf v0.84.0
+	github.com/zarf-dev/zarf v0.85.0
 	github.com/zclconf/go-cty v1.19.0
 	golang.org/x/mod v0.40.0
 	golang.org/x/sync v0.22.0
@@ -400,7 +400,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.24 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/miekg/pkcs11 v1.1.2 // indirect
-	github.com/mikefarah/yq/v4 v4.53.3 // indirect
+	github.com/mikefarah/yq/v4 v4.53.6 // indirect
 	github.com/mikelolasagasti/xz v1.0.1 // indirect
 	github.com/minio/minlz v1.0.1 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -501,7 +501,7 @@ require (
 	github.com/sigstore/sigstore/pkg/signature/kms/gcp v1.10.9 // indirect
 	github.com/sigstore/sigstore/pkg/signature/kms/hashivault v1.10.9 // indirect
 	github.com/sigstore/timestamp-authority/v2 v2.1.3 // indirect
-	github.com/sirupsen/logrus v1.9.4 // indirect
+	github.com/sirupsen/logrus v1.10.2 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/smallnest/ringbuffer v0.0.0-20241116012123-461381446e3d // indirect
 	github.com/sorairolake/lzip-go v0.3.8 // indirect
@@ -568,7 +568,7 @@ require (
 	go.uber.org/zap v1.28.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	go.yaml.in/yaml/v4 v4.0.0-rc.4 // indirect
+	go.yaml.in/yaml/v4 v4.0.0-rc.6 // indirect
 	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/exp v0.0.0-20260727155853-b88d891fe743 // indirect
@@ -596,15 +596,15 @@ require (
 	howett.net/plist v1.0.1 // indirect
 	k8s.io/apiextensions-apiserver v0.36.2 // indirect
 	k8s.io/apiserver v0.36.2 // indirect
-	k8s.io/cli-runtime v0.36.3 // indirect
-	k8s.io/component-base v0.36.3 // indirect
-	k8s.io/component-helpers v0.36.3 // indirect
+	k8s.io/cli-runtime v0.36.4 // indirect
+	k8s.io/component-base v0.36.4 // indirect
+	k8s.io/component-helpers v0.36.4 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260603220949-865597e52e25 // indirect
-	k8s.io/kubectl v0.36.3 // indirect
-	k8s.io/metrics v0.36.3 // indirect
-	k8s.io/streaming v0.36.4 // indirect
-	k8s.io/utils v0.0.0-20260507154919-ff6756f316d2 // indirect
+	k8s.io/kubectl v0.36.4 // indirect
+	k8s.io/metrics v0.36.4 // indirect
+	k8s.io/streaming v0.37.0 // indirect
+	k8s.io/utils v0.0.0-20260626114624-be93311217bd // indirect
 	modernc.org/libc v1.74.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
