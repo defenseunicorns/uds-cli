@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/defenseunicorns/uds-cli/internal/cli/bundle"
+	"github.com/defenseunicorns/uds-cli/internal/cli/core"
 	"github.com/defenseunicorns/uds-cli/internal/cli/tools"
 	cmdversion "github.com/defenseunicorns/uds-cli/internal/cli/version"
 	cmdzarf "github.com/defenseunicorns/uds-cli/internal/cli/zarf"
@@ -50,6 +51,7 @@ func NewRootCommand(streams iostreams.IOStreams) *cobra.Command {
 
 	rootCmd.AddCommand(cmdversion.NewVersionCommand(streams))
 	rootCmd.AddCommand(bundle.NewBundleCommand(streams))
+	rootCmd.AddCommand(core.NewCoreCommand(streams))
 	rootCmd.AddCommand(tools.NewToolsCommand())
 	// Hidden root-level zarf command for internal Zarf callbacks.
 	// Zarf's ActionsCommandZarfPrefix is set to "zarf" (single word) at build time,
