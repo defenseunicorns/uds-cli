@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 package bundle
@@ -299,8 +299,8 @@ func TestPrefetchPackageMetadata(t *testing.T) {
 func TestDeployPrefetchReusesMetadataDuringPreview(t *testing.T) {
 	ctx := context.Background()
 	// Build valid package metadata containing both sensitive and non-sensitive variables.
-	pkgLayout, err := assemble.AssembleSkeleton(ctx, load.ResolvedPackage{
-		PackageDefinition: api.NewPackageDefinitionFromV1alpha1(v1alpha1.ZarfPackage{
+	pkgLayout, err := assemble.AssembleSkeleton(ctx, &load.ResolvedPackage{
+		Definition: api.NewPackageDefinitionFromV1alpha1(v1alpha1.ZarfPackage{
 			Kind: v1alpha1.ZarfPackageConfig,
 			Metadata: v1alpha1.ZarfMetadata{
 				Name:    "internal-package",
@@ -318,7 +318,8 @@ func TestDeployPrefetchReusesMetadataDuringPreview(t *testing.T) {
 				},
 			},
 		}),
-	}, t.TempDir(), assemble.AssembleSkeletonOptions{})
+		Resources: load.NewResourceSet(t.TempDir()),
+	}, assemble.AssembleSkeletonOptions{})
 	require.NoError(t, err)
 
 	pkgYAML, err := os.ReadFile(filepath.Join(pkgLayout.DirPath(), layout.ZarfYAML))
