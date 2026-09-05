@@ -1,0 +1,174 @@
+---
+title: config.uds.hcl
+description: Use this reference to configure UDS CLI Next deploy-time options, signature trust, variables, and precedence.
+sidebar:
+  order: 4.500
+---
+
+`config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
+
+This file is distinct from `bundle.uds.hcl`, which defines the bundle, and `defaults.uds.hcl`, which stores bundle-provided default variables.
+
+## Supported top-level attributes
+
+The file supports these top-level attributes and blocks.
+
+| Attribute or block | Type | Required | Default | Purpose |
+|---|---|---:|---|---|
+| `options` | block | No | Operation defaults | Configure CLI operation options. |
+| `signature_verification` | block | No | No policy | Configure trust for bundle artifact signatures. |
+| `variables` | object | No | Omitted | Supply deploy-time values to the bundle. |
+
+Minimal example:
+
+```hcl title="config.uds.hcl"
+variables = {
+  environment = "development"
+}
+
+signature_verification {
+  public_key = file("keys/cosign.pub")
+}
+```
+
+Use the file with `--config`:
+
+```bash
+CLI_FEATURES=NextMode=true uds bundle deploy \
+  ./uds-bundle-my-app-amd64-1.0.0.tar.zst \
+  --config ./config.uds.hcl
+```
+
+## `options`
+
+The `options` block configures operation-wide behavior. Config values override built-in defaults and yield to explicit CLI flags.
+
+| Attribute | Type | Effective default | Validation and behavior |
+|---|---|---|---|
+| `log_level` | string | `"info"` | Accepts `debug`, `info`, `warn`, or `error`. `warning` is accepted as an alias for `warn`. |
+| `architecture` | string | The current runtime architecture | Selects the target architecture for architecture-aware bundle and package operations. |
+| `plain_http` | boolean | `false` | Allows registry communication over plain HTTP. Use only with a registry that intentionally does not provide TLS. |
+| `skip_tls_verify` | boolean | `false` | Disables TLS certificate verification for registry communication. This reduces transport security. |
+| `tmp_dir` | string | The operating system temporary directory | Must name an existing directory when set. |
+| `concurrency` | integer | `10` | Values from `1` to `25` are accepted. `0` is treated as unset and uses the default of `10`. |
+
+Example:
+
+```hcl title="config.uds.hcl"
+options {
+  log_level       = "debug"
+  architecture    = "amd64"
+  concurrency     = 5
+}
+```
+
+The `tmp_dir` directory must already exist before running the command. Legacy settings such as `uds_cache` are not supported.
+
+## `signature_verification`
+
+This block defines the consumer's trust policy for a bundle artifact. It is separate from the package signature policy in each `package` block of `bundle.uds.hcl`, and it is separate from the signing options used by `bundle create` and `bundle sign`.
+
+Configure exactly one verification method:
+
+```hcl title="config.uds.hcl"
+signature_verification {
+  public_key = file("keys/cosign.pub")
+}
+```
+
+| Attribute or block | Type | Required | Description |
+|---|---|---:|---|
+| `public_key` | string | One method | Public key contents used to verify a key-signed bundle. Use `file()` when the key is stored in a file. |
+| `keyless` | block | One method | Constraints for a keyless certificate and its OIDC issuer. |
+| `keyless.certificate_identity` | string | One identity | Exact certificate identity to trust. |
+| `keyless.certificate_identity_regexp` | string | One identity | Regular expression for certificate identities to trust. |
+| `keyless.certificate_oidc_issuer` | string | One issuer | Exact OIDC issuer to trust. |
+| `keyless.certificate_oidc_issuer_regexp` | string | One issuer | Regular expression for OIDC issuers to trust. |
+| `keyless.trusted_root` | string | No | Sigstore trusted-root JSON contents. If omitted, the embedded Sigstore root is used. |
+
+Exact and regular-expression forms are mutually exclusive for both identity and issuer. A keyless policy must contain exactly one identity form and exactly one issuer form:
+
+```hcl title="config.uds.hcl"
+signature_verification {
+  keyless {
+    certificate_identity_regexp = "https://github\\.com/my-org/my-repo/.github/workflows/release\\.yml@refs/heads/main"
+    certificate_oidc_issuer      = "https://token.actions.githubusercontent.com"
+    trusted_root                 = file("keys/trusted-root.json")
+  }
+}
+```
+
+For `inspect`, `verify`, `pull`, `deploy`, `reconfigure`, and artifact-based `remove`, CLI verification flags override matching configured fields. Exact and regular-expression identity or issuer forms must not be mixed between the CLI and this block; use the same form in both places or omit the conflicting configured field. `--skip-signature-verification` is an explicit insecure bypass where the command supports it. `bundle create` and `bundle sign` use signing flags instead of this consumer trust policy.
+
+## `variables`
+
+`variables` must be an HCL object. Values can be strings, numbers, booleans, nested objects, or lists and tuples of supported values.
+
+```hcl title="config.uds.hcl"
+variables = {
+  environment     = "staging"
+  replica_count   = 3
+  features = {
+    audit_logs = true
+  }
+  allowed_regions = ["us-east-1", "us-west-2"]
+}
+```
+
+Variables are used by `bundle dev deploy` and `bundle deploy`. Top-level scalar values are also exposed to Zarf as uppercase variable names. Nested objects and collection values are intended for [Zarf package values](https://docs.zarf.dev/ref/package-values/) file templates.
+
+A package values file can read variables with Go template expressions:
+
+```yaml title="values/app.yaml"
+replicas: {{ .vars.replica_count }}
+environment: "{{ .vars.environment }}"
+auditLogs: {{ .vars.features.audit_logs }}
+```
+
+When the resolved configuration contains variables, the values file is rendered at deployment time. A referenced variable that is missing from the merged variable set causes deployment to fail. Values files pass through without UDS variable templating only when every configuration layer omits the `variables` attribute. An explicit empty object (`variables = {}`) still renders values files.
+
+Config variables do not change the bundle definition, package sources, package signature policies, or the set of packages in the artifact.
+
+## Precedence and timing
+
+The two configuration categories resolve independently:
+
+| Category | Lowest precedence | Higher precedence | Highest precedence |
+|---|---|---|---|
+| Operation options | Built-in defaults | `config.uds.hcl` `options` | Explicit CLI flags |
+| Bundle variables | Adjacent or embedded `defaults.uds.hcl` | `config.uds.hcl` `variables` | No CLI variable layer |
+
+For variables, nested objects are deep-merged. A scalar or collection in `config.uds.hcl` replaces the corresponding value from `defaults.uds.hcl` as a whole. For an artifact deployment, defaults embedded in the artifact are the base layer. For `bundle dev deploy`, the adjacent `defaults.uds.hcl` file is the base layer.
+
+`defaults.uds.hcl` has a narrower schema. It may contain only a top-level `variables` attribute and cannot contain `options` or `signature_verification` blocks. Options and bundle signature trust remain consumer settings in `config.uds.hcl`.
+
+The config file is evaluated when the command reads it. It is not embedded into a created artifact, so provide it again when a later deployment needs its options or variables.
+
+## `file()`
+
+`file(path)` reads a regular UTF-8 file. Relative paths are resolved from the directory containing `config.uds.hcl`; absolute paths are used as-is. It returns the contents as a string and is useful for public keys and trusted-root JSON:
+
+```hcl
+signature_verification {
+  public_key = file("keys/cosign.pub")
+}
+```
+
+The path must identify an existing regular UTF-8 file. Missing files, directories, and invalid UTF-8 cause config evaluation to fail.
+
+## Command consumers
+
+These settings apply to the following bundle commands.
+
+| Config content | Commands that consume it | Effect |
+|---|---|---|
+| `options` | All `uds bundle` commands that resolve common options | Sets logging, architecture, registry transport, temporary directory, and concurrency behavior. |
+| `variables` | `bundle dev deploy`, `bundle deploy` | Renders package values files and supplies supported top-level scalar Zarf variables. |
+| `signature_verification` | `bundle inspect`, `bundle verify`, `bundle pull`, `bundle deploy`, `bundle reconfigure`, `bundle remove` (artifact sources only) | Supplies the default consumer policy for bundle artifact signature verification. |
+
+`bundle create` uses package verification settings from each package block and signing flags from the command line. `bundle sign` uses signing flags and operation options only; it does not use package verification settings.
+
+## Related documentation
+
+- [Next mode reference](/cli/reference/next-mode/) - Overview of Next mode behavior and commands.
+- [Sign and verify a bundle in Next mode](/cli/how-to-guides/next/sign-bundle-artifacts/) - Task-oriented workflow for signing, verifying, publishing, and deploying bundle artifacts.
