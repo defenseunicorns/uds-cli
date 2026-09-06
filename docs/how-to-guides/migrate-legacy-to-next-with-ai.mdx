@@ -81,17 +81,59 @@ optionally deploy to a non-production cluster.
    every Legacy field. In particular, resolve any package
    `signature_verification` TODO. Do not accept `verify = false` merely to make a
    bundle create command succeed; it is a reduced-security bypass suitable only for
-   an intentional local alpha workflow.
+   an intentional local alpha workflow. The agent must leave every verification
+   template unselected until you explicitly choose a posture; `--unsigned` controls
+   artifact signing and does not select `verify = false`.
 
-3. **Validate the converted source with UDS CLI**
+3. **Prepare a separate validation copy when needed**
+
+   Next can use a local Zarf package archive or a canonical package directory with
+   generated metadata such as `checksums.txt`. A source directory containing only
+   authoring files such as `zarf.yaml` must be packaged before Next can create a
+   bundle from it. Review every local `source` in `bundle.uds.hcl` and every
+   **needs local package preparation** item in the migration report.
+
+   Do not rewrite the canonical migration merely to make it testable. If you
+   explicitly want a local validation that requires a prepared archive or a
+   test-only source substitution, copy the migration first. The validation copy is
+   non-equivalent to the canonical migration and must say so in its report:
+
+   ```bash
+   cp -R .next .next-validation
+   mkdir -p .next-validation/packages
+   CLI_FEATURES=NextMode=true uds tools zarf package create \
+     <legacy-local-package-path> \
+     --output .next-validation/packages \
+     --confirm
+   ```
+
+   Replace `<legacy-local-package-path>` with the package directory named in the
+   report. Update only `.next-validation/bundle.uds.hcl` to the archive that command
+   produced. Use its actual filename; its architecture segment depends on the package
+   build:
+
+   ```hcl title=".next-validation/bundle.uds.hcl"
+   package "example" {
+     source = "packages/zarf-package-<name>-<architecture>-<version>.tar.zst"
+   }
+   ```
+
+   Do not add the archive to the Legacy source directory. Do not automatically replace
+   an OCI package reference with a fixture, local archive, or different registry.
+   If you explicitly authorize such a test-only substitution, record it in the
+   validation copy's report as non-equivalent. Keep unresolved source and trust-policy
+   blockers in the canonical migration report.
+
+4. **Validate the converted source with UDS CLI**
 
    Ask the agent to list the files it generated and reconcile them with its
    migration report. Resolve every blocking item first: inaccessible package
    sources, missing trust material, and missing Zarf values mappings prevent a
    meaningful bundle validation.
 
-   After the review, create an unsigned local alpha artifact from the generated
-   directory:
+   After the review, create an unsigned local alpha artifact from the canonical
+   directory only when its original package sources are accessible and you have
+   explicitly selected every required package-verification posture:
 
    ```bash
    CLI_FEATURES=NextMode=true uds bundle create ./.next --unsigned
@@ -103,11 +145,18 @@ optionally deploy to a non-production cluster.
    Package verification remains controlled by each package's
    `signature_verification` block.
 
+   To validate an explicitly authorized test adaptation, use the separate copy
+   instead:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle create ./.next-validation --unsigned
+   ```
+
    If the command fails, have the agent explain the failure from the UDS output and
    update only the generated Next files. Do not change the Legacy source to silence
    a conversion warning.
 
-4. **Test on a non-production cluster**
+5. **Test on a non-production cluster**
 
    A source-based deployment changes the target cluster. Before asking the agent
    to run it, confirm the target cluster meets each package's Zarf deployment
@@ -159,6 +208,16 @@ contents into the conversation.
 **Solution:** Inspect the target package's `zarf.yaml`. Add or correct the package
 values mapping before deploying; a bundle values file alone does not connect a value
 to a Helm chart.
+
+### Problem: Bundle creation reports a missing `checksums.txt`
+
+**Symptom:** `uds bundle create` fails while loading a local package with an error
+such as `stat .../checksums.txt: no such file or directory`.
+
+**Solution:** The local source is an authoring directory, not a canonical Zarf
+package. Follow step 3 to create a `.tar.zst` archive under
+`.next-validation/packages`, update only the validation copy's package `source`, and
+record the non-equivalent adaptation before retrying bundle creation.
 
 ## Related documentation
 

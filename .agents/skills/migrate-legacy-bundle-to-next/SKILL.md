@@ -14,6 +14,11 @@ until it calls out every source construct that has no safe Next equivalent.
 Ask for the legacy bundle and optional config contents or paths. If the bundle uses
 `overrides`, also ask for each referenced package's `zarf.yaml` when it is available;
 the package mappings determine whether a generated values file is usable.
+For every local package `path`, inspect the target when it is available. Determine
+whether it is a canonical Zarf package source: either a `.tar.zst` archive or a
+package directory that includes the generated `checksums.txt`. A directory containing
+only authoring inputs such as `zarf.yaml` needs package preparation before Next can
+create a bundle from it.
 
 Return all of the following:
 
@@ -70,7 +75,7 @@ Apply these mappings when the source has the required values:
 | `metadata.name`, `description`, `version` | `metadata` block fields |
 | package `name` | `package "<name>"` label |
 | `repository` plus `ref` | `source = "oci://<repository>:<ref>"` |
-| local package `path` | `source = "<path>"`; retain `ref` only in the report because it has no separate Next field |
+| canonical local package `path` | `source = "<path>"`, adjusted relative to the generated bundle directory so it resolves to the same package; retain `ref` only in the report because it has no separate Next field |
 | `namespace` | package `namespace` |
 | `optionalComponents` | `optional_components` |
 | `publicKey` | `signature_verification { public_key = file("...") }` when the value is a path; preserve literal key content as an HCL string only when it is clearly intended as content |
@@ -90,6 +95,11 @@ Every Next package must declare one verification posture. Preserve a legacy publ
 or keyless configuration. If the legacy package has neither, do not silently disable
 verification: emit an unresolved `signature_verification` TODO, using this commented
 selection template, and list it as a blocking manual decision:
+
+Never select, uncomment, or replace any option in this template on the user's behalf,
+including for a local test. Bundle artifact signing with `--unsigned` does not
+authorize `verify = false`; they are independent decisions. Ask the user to choose a
+package-verification posture before a validation that requires one.
 
 When materializing the template, use `uds bundle create .` and state that the command
 must be run from the generated bundle directory. This keeps the command executable
@@ -131,6 +141,41 @@ option only. Independently, every `uds bundle create` invocation must select exa
 one artifact-signing mode: `--signing-key <private-key-or-kms-uri>`, `--keyless`, or
 `--unsigned`; the commands beside the template options are common companion choices,
 not required verification-to-signing pairings.
+
+### Local package preparation
+
+A local Legacy path is not automatically a usable Next source just because it
+contains `zarf.yaml`. Next loads local packages through Zarf's canonical package
+layout, which requires a generated `checksums.txt` in a directory source; a generated
+`.tar.zst` archive is also accepted. Do not claim that a bare authoring directory was
+validated.
+
+When the supplied local source is not canonical, retain the faithful proposed source
+only when the path is otherwise unambiguous and mark it as a blocking **needs local
+package preparation** item. Include the exact source path and an executable
+preparation command in the migration report. Do not create the package or replace
+the canonical migrated source unless the user explicitly asks for a separate local
+validation copy. A validation copy must be clearly labelled as non-equivalent and
+must leave the canonical migrated files unchanged.
+
+For an explicitly authorized validation copy, use an output directory outside the
+canonical migration directory so the Legacy input and migration output remain
+untouched, for example:
+
+```sh
+mkdir -p .next-validation/packages
+CLI_FEATURES=NextMode=true uds tools zarf package create <legacy-local-package-path> --output .next-validation/packages --confirm
+```
+
+After the command produces an archive, update only the validation copy's
+corresponding package `source` to the actual archive filename, such as
+`packages/zarf-package-<name>-<architecture>-<version>.tar.zst`. Do not invent the
+architecture or generated filename. Record the source replacement and its
+non-equivalence in the validation copy's report. Never replace a Legacy OCI
+`repository`/`ref` source with a local package, registry, or fixture automatically;
+an explicitly authorized validation substitution must be isolated and reported as
+non-equivalent. Package creation does not itself require a cluster, although the
+package's own build inputs can require network access or other prerequisites.
 
 ## Override review
 
@@ -181,3 +226,10 @@ creating and signing the artifact. Next artifacts use `.tar.zst`; source definit
 and artifacts are not backward compatible. Point the user to
 `docs/how-to-guides/migrate-legacy-to-next.mdx` in this repository (or the published
 Migration guide) for the maintained human walkthrough.
+
+Before declaring the canonical migration ready for review, reconcile its report with
+every user-confirmed manual edit while preserving every unresolved blocker the user
+has not chosen to resolve. Do not record a validation-copy source substitution or a
+test-only `verify = false` selection as a conversion of the canonical migration. A
+deliberately selected `verify = false` remains explicitly labelled as local-alpha and
+security-reducing in the validation copy's report.
