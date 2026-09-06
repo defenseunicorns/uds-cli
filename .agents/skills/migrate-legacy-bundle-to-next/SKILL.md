@@ -32,6 +32,35 @@ Use fenced blocks titled with their filenames. Do not claim that generated files
 validated or that an override will work unless the required Zarf mapping was supplied
 and checked.
 
+## Source attribution
+
+Make every migration reviewable against its Legacy input. Count source lines from the
+input file exactly as provided and use one-based `path:line` or `path:start-end`
+references. Do not guess a location when an input is incomplete or generated; say so
+in the migration report instead.
+
+Add concise comments immediately before generated semantic blocks, not every
+attribute. Attribute each `metadata`, `package`, `signature_verification`, `options`,
+and package values section that came from a distinct Legacy source range. For example:
+
+```hcl
+# Migrated from uds-bundle.yaml:12-18
+package "podinfo" {
+  source = "oci://registry.example.com/acme/podinfo:1.2.3"
+}
+```
+
+Use `# Migrated from ...` comments in HCL and YAML. Keep the original
+component/chart location in the comment or nearby migration report entry for a
+generated values section. Comments must not conceal manual decisions or make an
+unverified Zarf mapping appear validated.
+
+Include a source-attribution table in the migration report with a row for every
+converted block and every warning or unsupported field. Each row must contain the
+Legacy location, generated file and section (when any), disposition (`converted`,
+`needs review`, or `not converted`), and a concise reason. This table is the complete
+trace; generated-file comments are navigational aids.
+
 ## Safe mappings
 
 Apply these mappings when the source has the required values:
@@ -62,6 +91,12 @@ or keyless configuration. If the legacy package has neither, do not silently dis
 verification: emit an unresolved `signature_verification` TODO, using this commented
 selection template, and list it as a blocking manual decision:
 
+When materializing the template, use `uds bundle create .` and state that the command
+must be run from the generated bundle directory. This keeps the command executable
+without a synthetic `<bundle-directory>` placeholder. In the migration report, also
+give the equivalent command from the user's current directory using the actual output
+directory path (for example, `./.next`).
+
 ```hcl
 signature_verification {
   # Choose exactly one option. Uncomment only the line(s) explicitly identified below; leave all other comments unchanged.
@@ -69,21 +104,21 @@ signature_verification {
 
   # Option 1: key-based verification. Uncomment only the following line to select this option.
   # public_key = file("keys/<package>.pub")
-  # To sign the created artifact with a private key or KMS URI, run:
-  # CLI_FEATURES=NextMode=true uds bundle create <bundle-directory> --signing-key <private-key-or-kms-uri>
+  # From this bundle directory, sign the created artifact with a private key or KMS URI:
+  # CLI_FEATURES=NextMode=true uds bundle create . --signing-key <private-key-or-kms-uri>
 
   # Option 2: keyless verification. Uncomment the following four lines to select this option.
   # keyless {
   #   certificate_identity_regexp = "https://..."
   #   certificate_oidc_issuer     = "https://token.actions.githubusercontent.com"
   # }
-  # To sign the created artifact with an OIDC identity, run:
-  # CLI_FEATURES=NextMode=true uds bundle create <bundle-directory> --keyless
+  # From this bundle directory, sign the created artifact with an OIDC identity:
+  # CLI_FEATURES=NextMode=true uds bundle create . --keyless
 
   # Option 3: local-alpha only; disables package verification. Uncomment only the following line to select this option.
   # verify = false
-  # To create an unsigned artifact, run:
-  # CLI_FEATURES=NextMode=true uds bundle create <bundle-directory> --unsigned
+  # From this bundle directory, create an unsigned artifact:
+  # CLI_FEATURES=NextMode=true uds bundle create . --unsigned
 }
 ```
 

@@ -75,10 +75,13 @@ optionally deploy to a non-production cluster.
    Do not run UDS commands or perform a cluster operation yet.
    ```
 
-   Review the resulting files before continuing. In particular, resolve any
-   package `signature_verification` TODO. Do not accept `verify = false` merely to
-   make a bundle create command succeed; it is a reduced-security bypass suitable
-   only for an intentional local alpha workflow.
+   Review the resulting files before continuing. Generated HCL and values sections
+   include `# Migrated from <file>:<line>` comments, and the migration report has a
+   complete source-attribution table. Use them to compare the proposed output with
+   every Legacy field. In particular, resolve any package
+   `signature_verification` TODO. Do not accept `verify = false` merely to make a
+   bundle create command succeed; it is a reduced-security bypass suitable only for
+   an intentional local alpha workflow.
 
 3. **Validate the converted source with UDS CLI**
 
