@@ -96,11 +96,6 @@ func NewMonitorCommand() *cobra.Command {
 	return monitor.NewCommand()
 }
 
-// NewNonBundleCommands constructs the Legacy commands retained by Next mode.
-func NewNonBundleCommands() []*cobra.Command {
-	return []*cobra.Command{NewRunCommand(), NewMonitorCommand()}
-}
-
 func legacyPreRun(cmd *cobra.Command) error {
 	// Don't add the logo to the help command.
 	if cmd.Parent() == nil {

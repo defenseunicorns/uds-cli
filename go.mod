@@ -12,7 +12,7 @@ require (
 	github.com/defenseunicorns/pkg/oci v1.3.2
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/goccy/go-yaml v1.19.2
-	github.com/google/go-containerregistry v0.21.9
+	github.com/google/go-containerregistry v0.22.0
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/mholt/archives v0.1.5
 	github.com/opencontainers/go-digest v1.0.0
@@ -370,7 +370,7 @@ require (
 	github.com/kastenhq/goversion v0.0.0-20230811215019-93b2f8823953 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
-	github.com/klauspost/compress v1.19.1 // indirect
+	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/klauspost/pgzip v1.2.6 // indirect
 	github.com/knqyf263/go-apk-version v0.0.0-20200609155635-041fdbb8563f // indirect
