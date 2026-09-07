@@ -173,13 +173,14 @@ jobs:
     steps:
       - name: Remove failed snapshot release and tag
         env:
+          GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ needs.prepare.outputs.tag_name }}
         shell: bash
         run: |
           set -euo pipefail
           gh release delete "$TAG_NAME" --yes || true
-          git push origin --delete "refs/tags/$TAG_NAME"
+          gh api --method DELETE "repos/$GH_REPO/git/refs/tags/$TAG_NAME"
 
   cleanup-snapshots:
     needs:
