@@ -14,6 +14,13 @@ until it calls out every source construct that has no safe Next equivalent.
 Ask for the legacy bundle and optional config contents or paths. If the bundle uses
 `overrides`, also ask for each referenced package's `zarf.yaml` when it is available;
 the package mappings determine whether a generated values file is usable.
+
+Before writing any output, check whether the requested output directory already
+exists. If it does, stop without reading, merging, changing, or deleting anything in
+that directory. Ask the user to remove or move the existing directory, then wait for
+confirmation that the requested output directory is absent. Do not select a different
+output directory or overwrite a prior migration automatically.
+
 For every local package `path`, inspect the target when it is available. Determine
 whether it is a canonical Zarf package source: either a `.tar.zst` archive or a
 package directory that includes the generated `checksums.txt`. A directory containing
