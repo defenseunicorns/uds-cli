@@ -171,16 +171,18 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Remove failed snapshot release and tag
         env:
-          GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ needs.prepare.outputs.tag_name }}
         shell: bash
         run: |
           set -euo pipefail
           gh release delete "$TAG_NAME" --yes || true
-          gh api --method DELETE "repos/$GH_REPO/git/refs/tags/$TAG_NAME"
+          git push origin --delete "refs/tags/$TAG_NAME"
 
   cleanup-snapshots:
     needs:
