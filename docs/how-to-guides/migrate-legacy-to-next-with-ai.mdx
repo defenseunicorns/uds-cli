@@ -98,6 +98,10 @@ optionally deploy to a non-production cluster.
    test-only source substitution, copy the migration first. The validation copy is
    non-equivalent to the canonical migration and must say so in its report:
 
+   Before copying, ensure `.next-validation` does not exist. If it does, stop and
+   move or remove that prior validation directory, then confirm it is absent. Do not
+   merge a new validation copy into an existing one.
+
    ```bash
    cp -R .next .next-validation
    mkdir -p .next-validation/packages
