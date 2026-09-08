@@ -238,14 +238,14 @@ func pushBundleArtifact(t *testing.T, tarball, ref string, cfg *bundlepkg.UDSBun
 }
 
 func TestRemoveCommand_Integration(t *testing.T) {
-	bundlePath := testutil.TestDataPath("bundles/deploy/init")
+	artifact := createInspectArtifact(t)
 
 	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	// Simulate user declining the removal via --prompt
 	in.WriteString("n\n")
 
 	root := cli.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "remove", bundlePath, "--skip-signature-verification", "--prompt"})
+	root.SetArgs([]string{"bundle", "remove", artifact, "--skip-signature-verification", "--prompt"})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -254,14 +254,14 @@ func TestRemoveCommand_Integration(t *testing.T) {
 	assert.Contains(t, errOutput, "Remove this bundle?")
 }
 
-func TestRemoveCommand_WithBundleFile_Integration(t *testing.T) {
+func TestDevRemoveCommand_WithBundleFile_Integration(t *testing.T) {
 	bundlePath := testutil.TestDataPath("bundles/deploy/init/bundle.uds.hcl")
 
 	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	in.WriteString("n\n")
 
 	root := cli.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "remove", bundlePath, "--prompt"})
+	root.SetArgs([]string{"bundle", "dev", "remove", bundlePath, "--prompt"})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -271,13 +271,29 @@ func TestRemoveCommand_WithBundleFile_Integration(t *testing.T) {
 }
 
 func TestRemoveCommand_PackagesFlag_Integration(t *testing.T) {
+	artifact := createInspectArtifact(t)
+
+	streams, in, _, errOut := iostreams.NewTestIOStreams()
+	in.WriteString("n\n")
+
+	root := cli.NewRootCommand(streams)
+	root.SetArgs([]string{"bundle", "remove", artifact, "--packages", "pkg", "--skip-signature-verification", "--prompt"})
+
+	err := root.Execute()
+	require.NoError(t, err)
+
+	errOutput := errOut.String()
+	assert.Contains(t, errOutput, "Remove this bundle?")
+}
+
+func TestDevRemoveCommand_PackagesFlag_Integration(t *testing.T) {
 	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
 	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	in.WriteString("n\n")
 
 	root := cli.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "remove", bundlePath, "--packages", "init", "--prompt"})
+	root.SetArgs([]string{"bundle", "dev", "remove", bundlePath, "--packages", "init", "--prompt"})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -305,14 +321,14 @@ func TestRemoveCommand_HelpOutput_Integration(t *testing.T) {
 	assert.Contains(t, output, "Remove a UDS bundle from a Kubernetes cluster")
 }
 
-func TestRemoveCommand_CustomDirWithPackages_Integration(t *testing.T) {
+func TestDevRemoveCommand_CustomDirWithPackages_Integration(t *testing.T) {
 	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
 	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	in.WriteString("n\n")
 
 	root := cli.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "remove", bundlePath, "--packages", "init,uds_k3d_dev", "--prompt"})
+	root.SetArgs([]string{"bundle", "dev", "remove", bundlePath, "--packages", "init,uds_k3d_dev", "--prompt"})
 
 	err := root.Execute()
 	require.NoError(t, err)

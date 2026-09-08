@@ -419,6 +419,7 @@ func bundleRemoveCommand(ctx context.Context, udsPath, bundlePath string, extraA
 	target := bundlePath
 	workingDir := ""
 
+	args := []string{"bundle"}
 	if !strings.HasPrefix(bundlePath, "oci://") {
 		info, err := os.Stat(bundlePath)
 		if err != nil {
@@ -428,10 +429,12 @@ func bundleRemoveCommand(ctx context.Context, udsPath, bundlePath string, extraA
 		if info.IsDir() {
 			target = "."
 			workingDir = bundlePath
+			args = append(args, "dev")
 		}
 	}
 
-	args := []string{"bundle", "remove", target, "-o", "json"}
+	remove := []string{"remove", target, "-o", "json"}
+	args = append(args, remove...)
 	args = append(args, extraArgs...)
 	cmd := exec.CommandContext(ctx, udsPath, args...)
 	cmd.Dir = workingDir
