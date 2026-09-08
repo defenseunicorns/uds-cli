@@ -101,6 +101,20 @@ Normalize legacy override variable names to lowercase snake case (for example,
 Use package-scoped variables for values-file templates. Only top-level scalar values
 are passed through to Zarf package-variable substitutions.
 
+### Package-scoped template access
+
+Use dot access only when both the package label and normalized variable name are
+valid Go-template identifiers. When either key contains a hyphen or another
+non-identifier character, use `index` with the exact generated configuration keys:
+
+```text
+{{ index (index .vars "package-name-1") "replica_count" }}
+```
+
+In particular, repeated-package labels ending in `-1`, `-2`, and so on always
+require this form. Do not substitute a separately normalized package key unless the
+corresponding `config.uds.hcl` key and every template reference are changed together.
+
 ### Direct Zarf package variables
 
 Inspect the supplied package's `zarf.yaml` for direct Zarf package-variable inputs
@@ -124,7 +138,7 @@ the complete value of a known string scalar, render a YAML double-quoted string 
 Go template formatting, for example:
 
 ```yaml
-host: {{ printf "%q" .vars.package.host }}
+host: {{ printf "%q" (index (index .vars "package-name-1") "host") }}
 ```
 
 This preserves strings containing YAML-sensitive content such as `:`, `#`, newlines,
@@ -167,7 +181,8 @@ Next configuration value, replace it with:
 Keep the replacement in the same scalar, list item, or object property so the
 generated YAML preserves the surrounding value shape. Add the variable to the
 package-scoped `config.uds.hcl` values and cite both the static override location and
-the variable source in the migration report.
+the variable source in the migration report. Apply **Package-scoped template access**
+when either generated key is not a Go-template identifier.
 
 Do not translate a placeholder whose variable is absent, complex, file-backed, or
 whose use in a YAML key or mixed-type value makes the resulting YAML ambiguous. Mark
@@ -213,7 +228,9 @@ path, package-scoped variables, `depends_on` references, and any generated repor
 references. If a Legacy package-scoped configuration applies to every repeated
 instance, duplicate it for each generated instance label; preserve distinct Legacy
 overrides with their corresponding instance. Do not use the duplicate Legacy name as
-a Next label or emit an invalid bundle with duplicate blocks.
+a Next label or emit an invalid bundle with duplicate blocks. Use the `index` form
+from **Package-scoped template access** for every values-file reference to an
+instance's package-scoped variable.
 
 Add a source-attribution-table row for every renamed instance. State the original
 Legacy package name, generated instance label, and source-order reason. Retain the
