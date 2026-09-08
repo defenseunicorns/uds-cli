@@ -469,8 +469,13 @@ identity that satisfies the retained certificate and issuer constraints:
 
 ```sh
 mkdir -p .next-validation/signed-packages
-CLI_FEATURES=NextMode=true uds tools zarf package sign .next-validation/packages/<unsigned-archive>.tar.zst --keyless --architecture <effective-legacy-architecture> --output .next-validation/signed-packages --confirm
+CLI_FEATURES=NextMode=true uds tools zarf package sign .next-validation/packages/<unsigned-archive>.tar.zst --keyless --architecture <effective-legacy-architecture> --tsa-server-url <rfc3161-timestamp-authority-url> --output .next-validation/signed-packages --confirm
 ```
+
+When the retained Legacy `keylessVerification.useSignedTimestamps` is `true`, require
+a suitable `--tsa-server-url` and replace the placeholder. Otherwise omit that flag.
+If the required TSA is unavailable, mark validation as blocked rather than producing
+a signature that cannot satisfy the retained verification policy.
 
 If compatible signing material is unavailable, do not change the canonical migration.
 Only when the user explicitly selects it, change `verify = false` in the validation
