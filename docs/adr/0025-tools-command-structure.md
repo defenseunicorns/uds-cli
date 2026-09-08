@@ -9,7 +9,7 @@ Accepted
 ## Context
 
 As of today, the command `uds tools` ships only one tool - Zarf.
-The current recommented path to use Zarf-vendored tools requires a long invocation such as `uds tools zarf tools `.
+The current recommended path to use Zarf-vendored tools requires a long invocation such as `uds tools zarf tools `.
 However, Zarf is also exposed as `uds zarf`, which is required when invoking certain commands in tools Zarf vendors, such as kubectl or monitor.
 
 ## Decision
