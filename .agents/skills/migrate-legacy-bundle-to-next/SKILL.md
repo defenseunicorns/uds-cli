@@ -80,7 +80,8 @@ Apply these mappings when the source has the required values:
 | Legacy | Next |
 | --- | --- |
 | `metadata.name`, `description`, `version` | `metadata` block fields |
-| package `name` | `package "<name>"` label |
+| unique package `name` | `package "<name>"` label |
+| repeated package `name` | unique instance labels `<name>-1`, `<name>-2`, in Legacy source order; see **Repeated package names** |
 | `repository` plus `ref` | `source = "oci://<repository>:<ref>"` |
 | local package `path` ending in `.tar.zst` | `source = "<path>"`, adjusted relative to the generated bundle directory so it resolves to the same archive |
 | local package directory `path` | resolve the Legacy package archive path, then use that archive as `source`; see **Local package preparation** |
@@ -108,6 +109,29 @@ review** in the migration report. Generate an explicit `range`/`with` YAML templ
 only when the supplied value shape and desired YAML representation are unambiguous;
 otherwise require the user to provide the values-file structure or file-content
 configuration. Preserve the Legacy variable type and source location in the report.
+
+### Repeated package names
+
+Before generating package blocks, count Legacy package names. Next package labels
+must be unique, while Legacy permits repeated names for separate instances. For every
+repeated Legacy name, generate stable instance labels by source order:
+
+```text
+<legacy-name>-1
+<legacy-name>-2
+```
+
+Use the generated instance label consistently for the Next package block, values-file
+path, package-scoped variables, `depends_on` references, and any generated report
+references. If a Legacy package-scoped configuration applies to every repeated
+instance, duplicate it for each generated instance label; preserve distinct Legacy
+overrides with their corresponding instance. Do not use the duplicate Legacy name as
+a Next label or emit an invalid bundle with duplicate blocks.
+
+Add a source-attribution-table row for every renamed instance. State the original
+Legacy package name, generated instance label, and source-order reason. Retain the
+original package name in nearby comments or the report so a reviewer can distinguish
+the Next instance identity from the package artifact's own metadata.
 
 Every Next package must declare one verification posture. Preserve a legacy public-key
 or keyless configuration. If the legacy package has neither, do not silently disable
