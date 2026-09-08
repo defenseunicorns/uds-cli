@@ -1,0 +1,79 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+version: 2
+
+universal_binaries:
+  - replace: false
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    ldflags:
+      - -s -w
+      - -X 'github.com/defenseunicorns/uds-cli/pkg/legacy/config.CLIVersion={{.Tag}}'
+      - -X 'github.com/defenseunicorns/uds-cli/internal/version.Version={{.Tag}}'
+      - -X 'github.com/defenseunicorns/uds-cli/internal/version.GitCommit={{.FullCommit}}'
+      - -X 'github.com/defenseunicorns/uds-cli/internal/version.BuildDate={{.Date}}'
+      - -X 'github.com/zarf-dev/zarf/src/config.ActionsCommandZarfPrefix=zarf'
+      - -X 'github.com/zarf-dev/zarf/src/config.CLIVersion={{.Env.ZARF_VERSION}}'
+      - -X 'k8s.io/component-base/version.gitVersion=v{{.Env.K8S_MODULES_MAJOR_VER}}.{{.Env.K8S_MODULES_MINOR_VER}}.{{.Env.K8S_MODULES_PATCH_VER}}'
+      - -X 'k8s.io/component-base/version.gitCommit={{.FullCommit}}'
+      - -X 'k8s.io/component-base/version.buildDate={{.Date}}'
+      - -X 'helm.sh/helm/v3/pkg/chartutil.k8sVersionMajor={{.Env.K8S_MODULES_MAJOR_VER}}'
+      - -X 'helm.sh/helm/v3/pkg/chartutil.k8sVersionMinor={{.Env.K8S_MODULES_MINOR_VER}}'
+      - -X 'github.com/derailed/k9s/cmd.version={{.Env.K9S_VERSION}}'
+      - -X 'github.com/google/go-containerregistry/cmd/crane/cmd.Version={{.Env.CRANE_VERSION}}'
+      - -X 'github.com/zarf-dev/zarf/src/cmd.syftVersion={{.Env.SYFT_VERSION}}'
+      - -X 'github.com/zarf-dev/zarf/src/cmd.archivesVersion={{.Env.ARCHIVES_VERSION}}'
+      - -X 'helm.sh/helm/v4/internal/version.version={{.Env.HELM_VERSION}}'
+    goarch:
+      - amd64
+      - arm64
+    binary: uds
+    main: ./cmd/uds
+
+nfpms:
+  - id: linux-packages
+    package_name: uds-cli
+    file_name_template: "{{ .PackageName }}-{{ .Tag }}-{{ .Arch }}"
+    vendor: Defense Unicorns
+    homepage: https://github.com/defenseunicorns/uds-cli
+    maintainer: Defense Unicorns <support@defenseunicorns.com>
+    description: CLI for creating, publishing, and deploying UDS bundles.
+    license: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    section: utils
+    release: 1
+    mtime: "{{ .CommitDate }}"
+
+archives:
+  - formats: binary
+    name_template: "{{ .ProjectName }}_{{ .Tag }}_{{- title .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+sboms:
+  - artifacts: binary
+    documents:
+      - "sbom_{{ .ProjectName }}_{{ .Tag }}_{{- title .Os }}_{{ .Arch }}.sbom"
+
+changelog:
+  use: github-native
+
+release:
+  github:
+    owner: defenseunicorns
+    name: uds-cli
+  prerelease: true
+  make_latest: false
+  mode: append
+  name_template: "Snapshot {{ .Tag }}"

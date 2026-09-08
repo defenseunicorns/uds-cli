@@ -72,6 +72,12 @@ Keep user, contributor, and design docs synchronized with code changes.
 - If you change generated docs, run the corresponding docs generation or docs test task when practical.
 - If you make a significant design decision, add a new ADR.
 
+## Release workflows
+
+- Ask before dispatching `.github/workflows/snapshot-release.yaml`. It writes to GHCR during validation and uses repository/package write permissions plus the `release-snapshot` environment to create remote tags and prereleases.
+- Preserve unique snapshot tags: `vX.Y.Z-snapshot+YYYYMMDDHHMMSS-XXXXXXXX`. Never reuse, move, or force-update them. Keep this format excluded from `.github/workflows/release.yaml`.
+- Scheduled cleanup removes snapshot prereleases beyond the newest three and preserves their tags. Keep `README.md`, `CONTRIBUTING.md`, and `AGENTS.md` synchronized with release workflow changes.
+
 ## Tooling and safety
 
 - Lint: `uds run lint` or `hk check --all`
