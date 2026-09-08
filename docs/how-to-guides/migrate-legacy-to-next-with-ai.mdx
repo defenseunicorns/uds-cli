@@ -154,8 +154,11 @@ optionally deploy to a non-production cluster.
    instead:
 
    ```bash
-   CLI_FEATURES=NextMode=true uds bundle create ./.next-validation --config ./.next-validation/config.uds.hcl --unsigned
+   CLI_FEATURES=NextMode=true uds bundle create ./.next-validation --unsigned
    ```
+
+   Append `--config ./.next-validation/config.uds.hcl` when the migration generated
+   `config.uds.hcl`; otherwise that file does not exist in the validation copy.
 
    If the command fails, have the agent explain the failure from the UDS output and
    update only the generated Next files. Do not change the Legacy source to silence
