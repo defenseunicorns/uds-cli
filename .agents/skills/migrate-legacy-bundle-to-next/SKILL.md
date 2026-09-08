@@ -91,7 +91,7 @@ Apply these mappings when the source has the required values:
 | `keylessVerification` | `signature_verification { keyless { ... } }`, changing camelCase keys to the documented snake_case keys |
 | static override `values` without Legacy `${NAME}` placeholders | nested YAML at the Zarf-mapped source path for each override target path; see **Override path mapping** |
 | static override `values` containing Legacy `${NAME}` placeholders | translate each resolvable scalar placeholder to `{{ .vars.<package>.<normalized_name> }}` at the Zarf-mapped source path; see **Legacy placeholder translation** and **Override path mapping** |
-| scalar, non-file override `variables` | nested YAML at the Zarf-mapped source path using `{{ .vars.<package>.<normalized_name> }}`; put defaults/config values under that package in HCL |
+| scalar, non-file override `variables` with a configured value or Legacy default | nested YAML at the Zarf-mapped source path using `{{ .vars.<package>.<normalized_name> }}`; put defaults/config values under that package in HCL |
 | `options.architecture`, `log_level`, `tmp_dir` | same-name fields in `config.uds.hcl` `options` |
 | `options.oci_concurrency` | `options.concurrency` |
 | legacy `insecure` | manual decision between `plain_http` and `skip_tls_verify`; do not choose automatically |
@@ -100,6 +100,13 @@ Normalize legacy override variable names to lowercase snake case (for example,
 `REPLICA_COUNT` becomes `replica_count`) consistently in values files and HCL.
 Use package-scoped variables for values-file templates. Only top-level scalar values
 are passed through to Zarf package-variable substitutions.
+
+When a scalar Legacy override variable has neither a configured value nor a Legacy
+default, omit its generated values entry so the chart default remains in effect.
+Record it as **preserved unset override** in the migration report. Do not emit an
+unconditional `{{ .vars... }}` reference: Next renders values templates with missing
+keys as errors. If the user needs an optional Next configuration value instead,
+mark that behavior **needs optional-value design** rather than choosing a fallback.
 
 Do not apply direct `{{ .vars... }}` interpolation to a list, object, or a Legacy
 chart variable with `type: file`. Legacy sends lists and objects through Helm's JSON
