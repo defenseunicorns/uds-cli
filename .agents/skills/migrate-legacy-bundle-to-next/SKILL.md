@@ -101,6 +101,22 @@ Normalize legacy override variable names to lowercase snake case (for example,
 Use package-scoped variables for values-file templates. Only top-level scalar values
 are passed through to Zarf package-variable substitutions.
 
+### Direct Zarf package variables
+
+Inspect the supplied package's `zarf.yaml` for direct Zarf package-variable inputs
+(for example, `###ZARF_PKG_VAR_NAME###`). A Legacy package-scoped config value used
+only by a generated values-file template remains under its package object. A scalar
+value consumed directly by Zarf must instead be a collision-free top-level
+`variables` entry in `config.uds.hcl`, because Next forwards only top-level scalars
+to Zarf's package-variable map.
+
+Before lifting a value, verify that its normalized name, uppercase Zarf name, and
+value do not conflict with another direct Zarf variable. Retain the package-scoped
+entry as well only when generated values-file templates also need it. If `zarf.yaml`
+cannot be inspected, the input is non-scalar, or lifting would change the scope or
+collide with another package value, mark it **needs Zarf variable-scope review** in
+the migration report; do not silently leave it nested or choose a renamed fallback.
+
 When a scalar Legacy override variable has neither a configured value nor a Legacy
 default, omit its generated values entry so the chart default remains in effect.
 Record it as **preserved unset override** in the migration report. Do not emit an
