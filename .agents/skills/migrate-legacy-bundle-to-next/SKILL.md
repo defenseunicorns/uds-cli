@@ -89,7 +89,8 @@ Apply these mappings when the source has the required values:
 | `optionalComponents` | `optional_components` |
 | `publicKey` | `signature_verification { public_key = file("...") }` when the value is a path; preserve literal key content as an HCL string only when it is clearly intended as content |
 | `keylessVerification` | `signature_verification { keyless { ... } }`, changing camelCase keys to the documented snake_case keys |
-| static override `values` | nested YAML at each override `path` |
+| static override `values` without Legacy `${NAME}` placeholders | nested YAML at each override `path` |
+| static override `values` containing Legacy `${NAME}` placeholders | translate each resolvable scalar placeholder to `{{ .vars.<package>.<normalized_name> }}`; see **Legacy placeholder translation** |
 | scalar, non-file override `variables` | nested YAML at each `path` using `{{ .vars.<package>.<normalized_name> }}`; put defaults/config values under that package in HCL |
 | `options.architecture`, `log_level`, `tmp_dir` | same-name fields in `config.uds.hcl` `options` |
 | `options.oci_concurrency` | `options.concurrency` |
@@ -109,6 +110,29 @@ review** in the migration report. Generate an explicit `range`/`with` YAML templ
 only when the supplied value shape and desired YAML representation are unambiguous;
 otherwise require the user to provide the values-file structure or file-content
 configuration. Preserve the Legacy variable type and source location in the report.
+
+### Legacy placeholder translation
+
+Legacy expands `${NAME}` placeholders inside static override values before passing
+scalars, lists, and objects to Helm. Next values files render Go-template expressions
+instead. Scan every static override value recursively for `${NAME}` and, when the
+corresponding Legacy variable is a known scalar with an unambiguous package-scoped
+Next configuration value, replace it with:
+
+```text
+{{ .vars.<package>.<normalized_name> }}
+```
+
+Keep the replacement in the same scalar, list item, or object property so the
+generated YAML preserves the surrounding value shape. Add the variable to the
+package-scoped `config.uds.hcl` values and cite both the static override location and
+the variable source in the migration report.
+
+Do not translate a placeholder whose variable is absent, complex, file-backed, or
+whose use in a YAML key or mixed-type value makes the resulting YAML ambiguous. Mark
+it **needs Legacy placeholder review** and retain the literal source text only in the
+report or a clearly labelled comment; do not present a literal `${NAME}` as a working
+Next values-file value.
 
 ### Repeated package names
 
