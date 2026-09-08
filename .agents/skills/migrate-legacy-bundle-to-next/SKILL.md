@@ -409,11 +409,12 @@ For an explicitly authorized validation copy, use an output directory outside th
 canonical migration directory so the Legacy input and migration output remain
 untouched. When the effective Legacy architecture is known, pass it to Zarf so the
 prepared archive has the same architecture as the canonical migrated package; for
-example:
+example. When the Legacy package entry specifies a flavor, also pass that exact
+flavor with `--flavor <legacy-flavor>`; otherwise omit the flag:
 
 ```sh
 mkdir -p .next-validation/packages
-CLI_FEATURES=NextMode=true uds tools zarf package create <legacy-local-package-path> --architecture <effective-legacy-architecture> --output .next-validation/packages --confirm
+CLI_FEATURES=NextMode=true uds tools zarf package create <legacy-local-package-path> --architecture <effective-legacy-architecture> --flavor <legacy-flavor> --output .next-validation/packages --confirm
 ```
 
 After the command produces an archive, update only the validation copy's
