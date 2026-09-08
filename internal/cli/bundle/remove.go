@@ -47,8 +47,8 @@ func NewRemoveCommand(streams iostreams.IOStreams) *cobra.Command {
 		Long: `Remove a UDS bundle from a Kubernetes cluster.
 
 The bundle-path can be:
-  - A tar.zst artifact containing bundle.uds.hcl
-  - An oci artifact containing bundle.uds.hcl file
+  - A .tar.zst artifact containing bundle.uds.hcl
+  - An OCI artifact containing bundle.uds.hcl
 
 Packages are removed in reverse order (last deployed first) to respect
 dependency ordering. Use --packages to remove only specific packages.
@@ -60,20 +60,20 @@ The CLI is non-interactive by default (suitable for CI/CD pipelines).
 Use --prompt to enable interactive confirmation before removal.
 
 Examples:
-  # Remove packages with a bundle in an oci repository
-  uds bundle remove oci://my-bundle
+  # Remove packages using a bundle in an OCI repository
+  uds bundle remove oci://registry.example.com/my-org/my-bundle:1.0.0
 
-  # Remove only specific packages
-  uds bundle remove --packages nginx,podinfo
+  # Remove only specific packages from a local artifact
+  uds bundle remove ./my-bundle.tar.zst --packages nginx,podinfo
 
   # Force-remove a package even if other packages depend on it
-  uds bundle remove --packages core --force
+  uds bundle remove ./my-bundle.tar.zst --packages core --force
 
-  # Remove with interactive confirmation prompt
-  uds bundle remove --prompt
+  # Remove with an interactive confirmation prompt
+  uds bundle remove ./my-bundle.tar.zst --prompt
 
-  # Remove without verifying bundle signature
-  uds bundle remove --skip-signature-verification`,
+  # Remove using an unsigned local alpha artifact
+  uds bundle remove ./my-bundle.tar.zst --skip-signature-verification`,
 		Args: cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			util.CheckErr(o.Complete(cmd, args))

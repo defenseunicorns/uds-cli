@@ -86,8 +86,10 @@ Next mode currently supports the core bundle flows needed to exercise HCL bundle
 |---|---|
 | Bundle definition format | `bundle.uds.hcl` using the Next HCL bundle schema |
 | Development deployment | Deploy directly from a bundle definition with `uds bundle dev deploy` |
+| Development removal | Remove directly from a bundle definition with `uds bundle dev remove` |
 | Bundle artifact creation | Create local bundle artifacts with `uds bundle create` |
 | Bundle artifact deployment | Deploy created local artifacts or OCI references with `uds bundle deploy` |
+| Bundle artifact removal | Remove using created local artifacts or OCI references with `uds bundle remove` |
 | Package verification | Verify package signatures when configured by the bundle definition |
 | Bundle signing | Create signed bundles when signing options are configured, or unsigned bundles for local alpha workflows |
 | Bundle signature verification | Verify signed bundle artifacts during deploy, with an explicit skip flag available for unsigned local artifacts |
@@ -284,7 +286,8 @@ When `uds bundle create` and `uds bundle reconfigure` build an artifact, they re
 | `uds bundle pull <ref>` | Pull a bundle artifact from an OCI registry. |
 | `uds bundle dev deploy [path]` | Deploy directly from a bundle definition or its directory. Defaults to the current directory. |
 | `uds bundle deploy <artifact>` | Deploy a created local `.tar.zst` or OCI bundle artifact. |
-| `uds bundle remove [bundle-definition]` | Remove a bundle from Kubernetes. Defaults to the current directory. |
+| `uds bundle dev remove [path]` | Remove directly from a bundle definition or its directory. Defaults to the current directory. |
+| `uds bundle remove <artifact>` | Remove using a created local `.tar.zst` or OCI bundle artifact. |
 | `uds bundle sign <bundle-artifact>` | Sign a created bundle artifact. |
 | `uds bundle verify <bundle-artifact>` | Verify a created bundle artifact signature. |
 | `uds bundle reconfigure <source> --defaults <defaults-file>` | Reconfigure bundle defaults from a local artifact or OCI reference and produce a derivative artifact. |
@@ -362,21 +365,37 @@ Deploy-specific flags:
 
 ## Removing a Bundle
 
+Use `CLI_FEATURES=NextMode=true uds bundle dev remove` with a bundle definition while developing locally:
+
 ```bash
-# Remove all packages in current directory bundle
-CLI_FEATURES=NextMode=true uds bundle remove
+# Remove using bundle.uds.hcl from the current directory
+CLI_FEATURES=NextMode=true uds bundle dev remove
 
-# Remove bundle from a specific directory
-CLI_FEATURES=NextMode=true uds bundle remove ./my-bundle
+# Remove using a bundle definition in a specific directory
+CLI_FEATURES=NextMode=true uds bundle dev remove ./my-bundle
 
-# Remove only specific packages
-CLI_FEATURES=NextMode=true uds bundle remove --packages uds_k3d_dev,init
-
-# Remove with an interactive confirmation prompt
-CLI_FEATURES=NextMode=true uds bundle remove --prompt
+# Remove selected packages defined by the bundle
+CLI_FEATURES=NextMode=true uds bundle dev remove ./my-bundle --packages uds_k3d_dev,init
 ```
 
-Packages are removed in reverse order to respect dependency ordering. Packages not currently deployed on the cluster are skipped with a warning.
+Definition-based removal cannot verify bundle provenance or a bundle signature. The command prints a warning before removal. Use artifact-based removal for release and registry workflows.
+
+Use `CLI_FEATURES=NextMode=true uds bundle remove` with a created local `.tar.zst` artifact or OCI reference:
+
+```bash
+# Remove using a signed local artifact
+CLI_FEATURES=NextMode=true uds bundle remove ./uds-bundle-my-app-amd64-1.0.0.tar.zst --public-key ./cosign.pub
+
+# Remove using a signed OCI artifact
+CLI_FEATURES=NextMode=true uds bundle remove oci://registry.example.com/my-org/my-app:1.0.0 --public-key ./cosign.pub
+
+# Enable an interactive confirmation prompt
+CLI_FEATURES=NextMode=true uds bundle remove ./uds-bundle-my-app-amd64-1.0.0.tar.zst --public-key ./cosign.pub --prompt
+```
+
+Artifact removal verifies the bundle signature before removing packages. For an intentionally unsigned local alpha artifact, use `--skip-signature-verification`; this bypasses bundle-integrity verification and is not appropriate for signed release or registry artifacts.
+
+Both commands remove packages in reverse dependency order. A partial removal that would leave another bundle package depending on a removed package is rejected unless you pass `--force`. Packages not currently deployed on the cluster are skipped with a warning.
 
 Remove-specific flags:
 
@@ -384,6 +403,8 @@ Remove-specific flags:
 |---|---|---|
 | `-p`, `--packages` | all | Comma-separated list of specific packages to remove. |
 | `-f`, `--force` | `false` | Remove packages even if other bundle packages depend on them. |
+| `--prompt` | `false` | Enable interactive confirmation before removal begins. |
+| `--skip-signature-verification` | `false` | Artifact removal only. Skip bundle-signature verification for an intentionally unsigned or untrusted artifact. |
 
 ## Deploy-Time Configuration
 
