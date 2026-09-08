@@ -305,7 +305,7 @@ containing `-`, including a generated `foo-1`, cannot be referenced there; `inde
 syntax is available for values-file templates but not for `depends_on`. Do not emit
 an invalid `package.foo-1` reference.
 
-When a migration must generate or preserve a dependency involving such an instance,
+When a migration must generate or preserve a dependency involving such a package,
 allocate a collision-free identifier-safe package label instead, such as `foo_1`.
 Reserve all original and allocated labels, propagate that replacement to the package
 block, values-file path, package-scoped variables, templates, and every dependency
@@ -476,6 +476,26 @@ Flag rather than drop any occurrence of:
 must instead be supplied through `config.uds.hcl` or values files; do not translate
 them to `depends_on` unless the user independently establishes an ordering dependency.
 
+## Package deployment order
+
+Legacy deploys packages sequentially in source order. Next deploys independent
+packages concurrently, so source-list position does not preserve a required order.
+Review every ordering-sensitive relationship before generating a deployment command,
+including an init package before standard packages that require an initialized
+cluster, explicit user-provided ordering, and package-manifest requirements.
+
+When the required relationship is established and its source and target packages are
+unambiguous, emit an identifier-safe `depends_on` edge on the dependent package; for
+example, `depends_on = [package.init]`. Use **Dependency-safe package labels** when
+either package label cannot be referenced as `package.<identifier>`. Do not serialize
+the whole Legacy list merely because it was sequential.
+
+If required ordering cannot be established from the supplied inputs, record **needs
+package-ordering review** as a blocking migration-report item. Do not recommend a
+source-based or artifact deployment until the user either confirms the required
+dependencies or establishes that the cluster is already initialized and no package
+ordering is required.
+
 ## Commands and final review
 
 Use these command changes in the report:
@@ -489,9 +509,10 @@ Use these command changes in the report:
 | `uds publish` / `uds pull` / `uds remove` | `uds bundle push` / `uds bundle pull` / `uds bundle remove`, each with `CLI_FEATURES=NextMode=true` |
 | `uds zarf` | `CLI_FEATURES=NextMode=true uds tools zarf` (except vendored tools remain `uds zarf tools <tool>`) |
 
-Recommend a non-production development deployment before creating and signing the
-artifact. The report must name the actual generated output directory rather than
-relying on the current directory, for example:
+After resolving every **needs package-ordering review** blocker, recommend a
+non-production development deployment before creating and signing the artifact. The
+report must name the actual generated output directory rather than relying on the
+current directory, for example:
 
 ```sh
 CLI_FEATURES=NextMode=true uds bundle dev deploy <output-dir> --config <output-dir>/config.uds.hcl
