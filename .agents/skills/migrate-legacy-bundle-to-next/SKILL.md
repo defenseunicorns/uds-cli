@@ -89,9 +89,9 @@ Apply these mappings when the source has the required values:
 | `optionalComponents` | `optional_components` |
 | `publicKey` | `signature_verification { public_key = file("...") }` when the value is a path; preserve literal key content as an HCL string only when it is clearly intended as content |
 | `keylessVerification` | `signature_verification { keyless { ... } }`, changing camelCase keys to the documented snake_case keys |
-| static override `values` without Legacy `${NAME}` placeholders | nested YAML at each override `path` |
-| static override `values` containing Legacy `${NAME}` placeholders | translate each resolvable scalar placeholder to `{{ .vars.<package>.<normalized_name> }}`; see **Legacy placeholder translation** |
-| scalar, non-file override `variables` | nested YAML at each `path` using `{{ .vars.<package>.<normalized_name> }}`; put defaults/config values under that package in HCL |
+| static override `values` without Legacy `${NAME}` placeholders | nested YAML at the Zarf-mapped source path for each override target path; see **Override path mapping** |
+| static override `values` containing Legacy `${NAME}` placeholders | translate each resolvable scalar placeholder to `{{ .vars.<package>.<normalized_name> }}` at the Zarf-mapped source path; see **Legacy placeholder translation** and **Override path mapping** |
+| scalar, non-file override `variables` | nested YAML at the Zarf-mapped source path using `{{ .vars.<package>.<normalized_name> }}`; put defaults/config values under that package in HCL |
 | `options.architecture`, `log_level`, `tmp_dir` | same-name fields in `config.uds.hcl` `options` |
 | `options.oci_concurrency` | `options.concurrency` |
 | legacy `insecure` | manual decision between `plain_http` and `skip_tls_verify`; do not choose automatically |
@@ -133,6 +133,28 @@ whose use in a YAML key or mixed-type value makes the resulting YAML ambiguous. 
 it **needs Legacy placeholder review** and retain the literal source text only in the
 report or a clearly labelled comment; do not present a literal `${NAME}` as a working
 Next values-file value.
+
+### Override path mapping
+
+Legacy override paths address the Helm chart value target. For each override, inspect
+the corresponding component and chart `values` mapping in the supplied `zarf.yaml`.
+Zarf extracts package values from `sourcePath` and writes them to `targetPath`; the
+generated package values file must therefore contain the value at the mapped source,
+not blindly at the Legacy override path.
+
+Match the Legacy override path against the mapping's `targetPath`. When the target
+path is an ancestor, append the remaining path segments to its `sourcePath`; for
+example, target `.distribution` and source `.registry` map Legacy
+`.distribution.host` to generated `.registry.host`. Prefer the longest matching
+target-path prefix. Generate the nested YAML at that resolved source path, while
+retaining the Legacy component, chart, target path, source path, and mapping rule in
+the migration report.
+
+If the component/chart cannot be inspected, no target-path mapping matches, multiple
+mappings have the same most-specific match, or a mapping cannot preserve the override
+shape, mark the override **needs Zarf source-path mapping review**. Do not generate a
+values entry at the Legacy target path unless that is also the verified Zarf source
+path.
 
 ### Repeated package names
 
@@ -268,13 +290,14 @@ package's own build inputs can require network access or other prerequisites.
 ## Override review
 
 Legacy overrides target a component and chart; Next values files are package-level.
-For each override, retain the legacy component/chart location in the migration report.
-Check that the target package's `zarf.yaml` maps every generated values-file path to
-the intended chart value. If `zarf.yaml` is absent, a mapping is missing, two charts
-write conflicting paths, a legacy `valuesFiles` path cannot be inspected, or an
-override sets a chart-specific namespace, generate the proposed file only when its
-content is unambiguous and mark it **needs Zarf mapping review**. Never say it is
-equivalent until that review passes.
+For each override, retain the Legacy component/chart location, original target path,
+and resolved Zarf source path in the migration report. Check that the target
+package's `zarf.yaml` maps every generated values-file entry from that source path to
+the intended chart target path. If `zarf.yaml` is absent, a target-path mapping is
+missing or ambiguous, two charts write conflicting paths, a Legacy `valuesFiles`
+path cannot be inspected, or an override sets a chart-specific namespace, generate
+the proposed file only when its content is unambiguous and mark it **needs Zarf
+source-path mapping review**. Never say it is equivalent until that review passes.
 
 ## Always report these gaps
 
