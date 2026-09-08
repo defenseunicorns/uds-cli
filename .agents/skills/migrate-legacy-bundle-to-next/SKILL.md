@@ -96,10 +96,11 @@ Apply these mappings when the source has the required values:
 | `options.oci_concurrency` | `options.concurrency` |
 | legacy `insecure` | manual decision between `plain_http` and `skip_tls_verify`; do not choose automatically |
 
-Normalize legacy override variable names to lowercase snake case (for example,
-`REPLICA_COUNT` becomes `replica_count`) consistently in values files and HCL.
-Use package-scoped variables for values-file templates. Only top-level scalar values
-are passed through to Zarf package-variable substitutions.
+Normalize Legacy override variable names to lowercase snake case (for example,
+`REPLICA_COUNT` becomes `replica_count`) for package-scoped values-file templates.
+Only top-level scalar values are passed through to Zarf package-variable
+substitutions; direct Zarf inputs retain their Legacy uppercase identity as described
+in **Direct Zarf package variables**.
 
 Before generating variables for each package, detect distinct Legacy names that
 normalize to the same key. Allocate stable, distinct template keys for every such
@@ -135,12 +136,16 @@ value consumed directly by Zarf must instead be a collision-free top-level
 `variables` entry in `config.uds.hcl`, because Next forwards only top-level scalars
 to Zarf's package-variable map.
 
-Before lifting a value, verify that its normalized name, uppercase Zarf name, and
-value do not conflict with another direct Zarf variable. Retain the package-scoped
-entry as well only when generated values-file templates also need it. If `zarf.yaml`
-cannot be inspected, the input is non-scalar, or lifting would change the scope or
-collide with another package value, mark it **needs Zarf variable-scope review** in
-the migration report; do not silently leave it nested or choose a renamed fallback.
+For each direct token, use a top-level key whose uppercase form exactly equals the
+token name. Preserve the Legacy variable spelling for that key when it provides the
+required identity: for example, Legacy `fooBar` consumed by
+`###ZARF_PKG_VAR_FOOBAR###` becomes top-level `fooBar`, not normalized `foo_bar`.
+Retain a separately normalized package-scoped entry only when generated values-file
+templates also need it. If `zarf.yaml` cannot be inspected, the input is non-scalar,
+the Legacy uppercase name does not match the token, lifting would change the scope,
+or a direct token collides with another top-level value, mark it **needs Zarf
+variable-scope review** in the migration report; do not silently leave it nested or
+choose a renamed fallback.
 
 ### YAML scalar rendering
 
