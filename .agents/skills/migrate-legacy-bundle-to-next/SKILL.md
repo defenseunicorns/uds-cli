@@ -91,7 +91,7 @@ Apply these mappings when the source has the required values:
 | `keylessVerification` | `signature_verification { keyless { ... } }`, changing camelCase keys to the documented snake_case keys |
 | static override `values` without Legacy `${NAME}` placeholders | nested YAML at the Zarf-mapped source path for each override target path; see **Override path mapping** |
 | static override `values` containing Legacy `${NAME}` placeholders | translate each resolvable scalar placeholder to `{{ .vars.<package>.<normalized_name> }}` at the Zarf-mapped source path; see **Legacy placeholder translation** and **Override path mapping** |
-| scalar, non-file override `variables` with a configured value or Legacy default | nested YAML at the Zarf-mapped source path using `{{ .vars.<package>.<normalized_name> }}`; put defaults/config values under that package in HCL |
+| scalar, non-file override `variables` with a configured value or Legacy default | nested YAML at the Zarf-mapped source path using a type-aware `{{ .vars.<package>.<normalized_name> }}` template; put defaults/config values under that package in HCL; see **YAML scalar rendering** |
 | `options.architecture`, `log_level`, `tmp_dir` | same-name fields in `config.uds.hcl` `options` |
 | `options.oci_concurrency` | `options.concurrency` |
 | legacy `insecure` | manual decision between `plain_http` and `skip_tls_verify`; do not choose automatically |
@@ -116,6 +116,24 @@ entry as well only when generated values-file templates also need it. If `zarf.y
 cannot be inspected, the input is non-scalar, or lifting would change the scope or
 collide with another package value, mark it **needs Zarf variable-scope review** in
 the migration report; do not silently leave it nested or choose a renamed fallback.
+
+### YAML scalar rendering
+
+Values files are rendered before Next parses them as YAML. For a template that is
+the complete value of a known string scalar, render a YAML double-quoted string with
+Go template formatting, for example:
+
+```yaml
+host: {{ printf "%q" .vars.package.host }}
+```
+
+This preserves strings containing YAML-sensitive content such as `:`, `#`, newlines,
+or alias-like prefixes. Render known numeric and boolean scalars unquoted so their
+YAML types remain numeric and boolean. For a template embedded in a larger string,
+quote the complete rendered scalar with an equivalent explicit template expression;
+do not quote only the interpolated portion. If the Legacy type is unknown, a value
+cannot be represented safely by this form, or quoting would change its intended YAML
+type, mark it **needs YAML scalar rendering review** in the migration report.
 
 When a scalar Legacy override variable has neither a configured value nor a Legacy
 default, omit its generated values entry so the chart default remains in effect.
