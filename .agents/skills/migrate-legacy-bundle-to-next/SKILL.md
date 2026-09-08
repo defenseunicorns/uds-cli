@@ -89,7 +89,7 @@ Apply these mappings when the source has the required values:
 | `publicKey` | `signature_verification { public_key = file("...") }` when the value is a path; preserve literal key content as an HCL string only when it is clearly intended as content |
 | `keylessVerification` | `signature_verification { keyless { ... } }`, changing camelCase keys to the documented snake_case keys |
 | static override `values` | nested YAML at each override `path` |
-| override `variables` | nested YAML at each `path` using `{{ .vars.<package>.<normalized_name> }}`; put defaults/config values under that package in HCL |
+| scalar, non-file override `variables` | nested YAML at each `path` using `{{ .vars.<package>.<normalized_name> }}`; put defaults/config values under that package in HCL |
 | `options.architecture`, `log_level`, `tmp_dir` | same-name fields in `config.uds.hcl` `options` |
 | `options.oci_concurrency` | `options.concurrency` |
 | legacy `insecure` | manual decision between `plain_http` and `skip_tls_verify`; do not choose automatically |
@@ -98,6 +98,16 @@ Normalize legacy override variable names to lowercase snake case (for example,
 `REPLICA_COUNT` becomes `replica_count`) consistently in values files and HCL.
 Use package-scoped variables for values-file templates. Only top-level scalar values
 are passed through to Zarf package-variable substitutions.
+
+Do not apply direct `{{ .vars... }}` interpolation to a list, object, or a Legacy
+chart variable with `type: file`. Legacy sends lists and objects through Helm's JSON
+value handling and resolves file variables as file content; rendering those values as
+a scalar template can produce Go representations such as `map[...]` or a file path
+rather than the intended YAML. Mark each such variable **needs type-aware values
+review** in the migration report. Generate an explicit `range`/`with` YAML template
+only when the supplied value shape and desired YAML representation are unambiguous;
+otherwise require the user to provide the values-file structure or file-content
+configuration. Preserve the Legacy variable type and source location in the report.
 
 Every Next package must declare one verification posture. Preserve a legacy public-key
 or keyless configuration. If the legacy package has neither, do not silently disable
