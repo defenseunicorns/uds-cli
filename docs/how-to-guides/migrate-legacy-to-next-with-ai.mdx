@@ -176,14 +176,17 @@ optionally deploy to a non-production cluster.
    directory only when its original package sources are accessible and you have
    explicitly selected every required package-verification posture. When the
    migration generated `config.uds.hcl`, pass it explicitly so its architecture,
-   registry transport, and other configuration are applied:
+   registry transport, and other configuration are applied. If that configuration
+   does not set `options.architecture`, also pass the effective Legacy architecture
+   from the migration report:
 
    ```bash
-   CLI_FEATURES=NextMode=true uds bundle create ./.next --config ./.next/config.uds.hcl --unsigned
+   CLI_FEATURES=NextMode=true uds bundle create ./.next --architecture <effective-legacy-architecture> --config ./.next/config.uds.hcl --unsigned
    ```
 
    Omit `--config ./.next/config.uds.hcl` only when no `config.uds.hcl` was
-   generated.
+   generated. Omit `--architecture <effective-legacy-architecture>` only when the
+   generated config already sets that architecture.
 
    This reads and validates `bundle.uds.hcl`, resolves package sources, and writes
    a local `.tar.zst` artifact. `--unsigned` skips bundle signing, so use this only
@@ -195,11 +198,13 @@ optionally deploy to a non-production cluster.
    instead:
 
    ```bash
-   CLI_FEATURES=NextMode=true uds bundle create ./.next-validation --unsigned
+   CLI_FEATURES=NextMode=true uds bundle create ./.next-validation --architecture <effective-legacy-architecture> --unsigned
    ```
 
    Append `--config ./.next-validation/config.uds.hcl` when the migration generated
-   `config.uds.hcl`; otherwise that file does not exist in the validation copy.
+   `config.uds.hcl`; otherwise that file does not exist in the validation copy. Apply
+   the same architecture rule: omit the flag only when that generated config sets
+   `options.architecture`.
 
    If the command fails, have the agent explain the failure from the UDS output and
    update only the generated Next files. Do not change the Legacy source to silence
