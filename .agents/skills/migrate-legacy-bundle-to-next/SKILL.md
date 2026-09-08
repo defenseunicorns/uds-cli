@@ -62,9 +62,10 @@ Return all of the following:
 2. A package-level `values/<package>.yaml` for each safely transcribed legacy override,
    plus the corresponding `values_files` entry. Preserve YAML value types and render
    legacy override variables as `{{ .vars.<package>.<variable> }}`.
-3. `config.uds.hcl` for deploy-time variables and options. Generate
-   `defaults.uds.hcl` only for values the user identifies as portable build-time
-   defaults; it may contain only `variables`, never `options`.
+3. `config.uds.hcl` for explicitly configured deploy-time variables and options.
+   Generate `defaults.uds.hcl` for every safely representable Legacy override
+   variable default, plus any user-identified portable build-time defaults; it may
+   contain only `variables`, never `options`.
 4. A migration report listing converted fields, manual work, unsupported features,
    and the exact Next commands to use.
 
@@ -119,7 +120,7 @@ Apply these mappings when the source has the required values:
 | `keylessVerification` | `signature_verification { keyless { ... } }`, changing camelCase keys to the documented snake_case keys; see **HCL-safe strings** |
 | static override `values` without Legacy `${NAME}` placeholders | nested YAML at the Zarf-mapped source path for each override target path; see **Literal Go-template delimiters** and **Override path mapping** |
 | static override `values` containing Legacy `${NAME}` placeholders | translate each resolvable scalar placeholder to `{{ .vars.<package>.<normalized_name> }}` at the Zarf-mapped source path, using its collision-safe key when needed; see **Legacy placeholder translation** and **Override path mapping** |
-| scalar, non-file override `variables` with a configured value or Legacy default | nested YAML at the Zarf-mapped source path using a type-aware `{{ .vars.<package>.<normalized_name> }}` template and collision-safe key when needed; put defaults/config values under that package in HCL; see **YAML scalar rendering** |
+| scalar, non-file override `variables` with a configured value or Legacy default | nested YAML at the Zarf-mapped source path using a type-aware `{{ .vars.<package>.<normalized_name> }}` template and collision-safe key when needed; put Legacy defaults in `defaults.uds.hcl` and configured values in `config.uds.hcl` at the mapped scope; see **YAML scalar rendering** |
 | `options.architecture`, `log_level`, `tmp_dir` | same-name fields in `config.uds.hcl` `options` |
 | `options.oci_concurrency` | **needs concurrency-semantics review**; do not map automatically to `options.concurrency` |
 | legacy `insecure` | manual decision between `plain_http` and `skip_tls_verify`; do not choose automatically |
@@ -244,6 +245,15 @@ Record it as **preserved unset override** in the migration report. Do not emit a
 unconditional `{{ .vars... }}` reference: Next renders values templates with missing
 keys as errors. If the user needs an optional Next configuration value instead,
 mark that behavior **needs optional-value design** rather than choosing a fallback.
+
+For every safely representable Legacy override default, write the mapped variable and
+its default value to `defaults.uds.hcl` so the created artifact retains Legacy
+fallback behavior. When the Legacy config also supplies a value, write that value at
+the same mapped scope in `config.uds.hcl`, where it overrides the artifact default.
+Do not omit or relocate a Legacy default merely because the user has not separately
+identified it as portable; require an explicit user decision to change that behavior.
+Record the default, configured value (when any), and their precedence in the migration
+report. Apply sensitive-value handling before writing a sensitive default.
 
 Do not apply direct `{{ .vars... }}` interpolation to a list, object, or a Legacy
 chart variable with `type: file`. Legacy sends lists and objects through Helm's JSON
