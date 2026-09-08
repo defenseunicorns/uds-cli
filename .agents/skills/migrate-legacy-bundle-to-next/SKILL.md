@@ -367,11 +367,12 @@ package's own build inputs can require network access or other prerequisites.
 
 For every component/chart override with `valuesFiles`, inspect every referenced file
 and preserve the Legacy merge result before generating a Next package values file.
-Process files in their declared list order, deep-merging their YAML mappings so later
-files win at overlapping paths while unrelated nested values remain. Then deep-merge
-the inline Legacy `values` entries last; inline values have the highest precedence.
-Generate the Next values entry only from that final result, preserving YAML value
-types, and record the ordered source files and any overwritten paths in the migration
+Process files in their declared list order. Legacy treats every file as one value per
+top-level key: when a later file repeats a top-level key, replace the entire earlier
+value at that key rather than deep-merging nested mappings. Then apply inline Legacy
+`values` entries last; they have highest precedence for matching value paths. Generate
+the Next values entry only from that final result, preserving YAML value types, and
+record the ordered source files and any replaced keys or paths in the migration
 report.
 
 If a values file cannot be read, its YAML cannot be merged without changing a value
