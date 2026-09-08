@@ -15,11 +15,20 @@ Ask for the legacy bundle and optional config contents or paths. If the bundle u
 `overrides`, also ask for each referenced package's `zarf.yaml` when it is available;
 the package mappings determine whether a generated values file is usable.
 
-Before writing any output, check whether the requested output directory already
-exists. If it does, stop without reading, merging, changing, or deleting anything in
-that directory. Ask the user to remove or move the existing directory, then wait for
-confirmation that the requested output directory is absent. Do not select a different
-output directory or overwrite a prior migration automatically.
+For a new migration, check whether the requested output directory already exists
+before writing any output. If it does, stop without reading, merging, changing, or
+deleting anything in that directory. Ask the user to remove or move the existing
+directory, then wait for confirmation that the requested output directory is absent.
+Do not select a different output directory or overwrite a prior migration
+automatically.
+
+This guard does not apply when the user explicitly asks to continue, correct, or
+reconcile a named active migration output after review or validation. In that case,
+inspect the existing generated files and migration report, then change only the
+generated Next files needed for the requested correction. Do not delete or wholesale
+replace the output directory, merge an unrelated prior migration, or modify Legacy
+inputs. If the user does not explicitly authorize a continuation, treat an existing
+directory as a new-migration conflict.
 
 For every local package `path`, inspect the target when it is available. Determine
 whether it is a canonical Zarf package source: either a `.tar.zst` archive or a
