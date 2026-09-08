@@ -61,6 +61,17 @@ optionally deploy to a non-production cluster.
    the corresponding Zarf package `zarf.yaml` files. The mappings in `zarf.yaml`
    determine whether a values file can be used by the target package.
 
+   > [!CAUTION]
+   > Treat passwords, API or bearer tokens, registry or cloud credentials,
+   > kubeconfigs, private keys, client-key material, secret-manager credentials, and
+   > connection strings containing credentials as sensitive. Do not provide them to
+   > an agent or chat service unless that handling is approved. The migration skill
+   > reports a sensitive value's location without echoing it and asks whether you
+   > authorize a local-only, untracked copy or prefer a redacted migration that
+   > requires manual secret injection. Package references, namespaces, public keys,
+   > keyless certificate identities, and public Sigstore trusted roots are not
+   > sensitive by default.
+
    Give the agent this prompt, replacing the placeholder paths:
 
    ```text

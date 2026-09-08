@@ -27,6 +27,25 @@ package directory that includes the generated `checksums.txt`. A directory conta
 only authoring inputs such as `zarf.yaml` needs package preparation before Next can
 create a bundle from it.
 
+## Sensitive values
+
+Treat a value as sensitive when disclosing it could grant access, enable
+impersonation or decryption, or expose protected data. This includes passwords, API
+and bearer tokens, registry or cloud credentials, kubeconfigs, private keys,
+client-key material, secret-manager credentials, and connection strings containing
+credentials. Also honor any user or organization classification. Package references,
+namespaces, public keys, keyless certificate identities, and public Sigstore trusted
+roots are not sensitive by default.
+
+When a source contains a sensitive value, never echo it in chat, report prose, or a
+generated-file comment. Report only its source location and **needs sensitive-value
+handling**. Stop before copying it into generated output and ask the user to choose
+one of these paths: explicitly authorize a local-only copy into a specified untracked
+configuration file, or generate a redacted migration that requires manual secret
+injection. Preserve the Legacy input in either case. Do not silently substitute a
+placeholder, claim a redacted result is equivalent, or choose a secret-storage
+mechanism on the user's behalf.
+
 Return all of the following:
 
 1. `bundle.uds.hcl`, with `uds { bundle_api_version = "uds.dev/v1alpha1" }`, metadata,
