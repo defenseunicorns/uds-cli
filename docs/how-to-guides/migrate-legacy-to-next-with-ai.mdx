@@ -133,11 +133,16 @@ optionally deploy to a non-production cluster.
 
    After the review, create an unsigned local alpha artifact from the canonical
    directory only when its original package sources are accessible and you have
-   explicitly selected every required package-verification posture:
+   explicitly selected every required package-verification posture. When the
+   migration generated `config.uds.hcl`, pass it explicitly so its architecture,
+   registry transport, and other configuration are applied:
 
    ```bash
-   CLI_FEATURES=NextMode=true uds bundle create ./.next --unsigned
+   CLI_FEATURES=NextMode=true uds bundle create ./.next --config ./.next/config.uds.hcl --unsigned
    ```
+
+   Omit `--config ./.next/config.uds.hcl` only when no `config.uds.hcl` was
+   generated.
 
    This reads and validates `bundle.uds.hcl`, resolves package sources, and writes
    a local `.tar.zst` artifact. `--unsigned` skips bundle signing, so use this only
@@ -149,7 +154,7 @@ optionally deploy to a non-production cluster.
    instead:
 
    ```bash
-   CLI_FEATURES=NextMode=true uds bundle create ./.next-validation --unsigned
+   CLI_FEATURES=NextMode=true uds bundle create ./.next-validation --config ./.next-validation/config.uds.hcl --unsigned
    ```
 
    If the command fails, have the agent explain the failure from the UDS output and
