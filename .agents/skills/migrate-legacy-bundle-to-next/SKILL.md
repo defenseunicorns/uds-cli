@@ -87,14 +87,28 @@ Apply these mappings when the source has the required values:
 | local package directory `path` | resolve the Legacy package archive path, then use that archive as `source`; see **Local package preparation** |
 | `namespace` | package `namespace` |
 | `optionalComponents` | `optional_components` |
-| `publicKey` | `signature_verification { public_key = file("...") }` when the value is a path; preserve literal key content as an HCL string only when it is clearly intended as content |
-| `keylessVerification` | `signature_verification { keyless { ... } }`, changing camelCase keys to the documented snake_case keys |
+| `publicKey` | `signature_verification { public_key = file("...") }` when the value is a path; preserve literal multiline key content with an HCL heredoc when it is clearly intended as content; see **HCL-safe verification values** |
+| `keylessVerification` | `signature_verification { keyless { ... } }`, changing camelCase keys to the documented snake_case keys; see **HCL-safe verification values** |
 | static override `values` without Legacy `${NAME}` placeholders | nested YAML at the Zarf-mapped source path for each override target path; see **Override path mapping** |
 | static override `values` containing Legacy `${NAME}` placeholders | translate each resolvable scalar placeholder to `{{ .vars.<package>.<normalized_name> }}` at the Zarf-mapped source path, using its collision-safe key when needed; see **Legacy placeholder translation** and **Override path mapping** |
 | scalar, non-file override `variables` with a configured value or Legacy default | nested YAML at the Zarf-mapped source path using a type-aware `{{ .vars.<package>.<normalized_name> }}` template and collision-safe key when needed; put defaults/config values under that package in HCL; see **YAML scalar rendering** |
 | `options.architecture`, `log_level`, `tmp_dir` | same-name fields in `config.uds.hcl` `options` |
 | `options.oci_concurrency` | `options.concurrency` |
 | legacy `insecure` | manual decision between `plain_http` and `skip_tls_verify`; do not choose automatically |
+
+### HCL-safe verification values
+
+HCL quoted strings interpret backslashes. Escape each literal regex backslash when
+emitting `certificate_identity_regexp` or `certificate_oidc_issuer_regexp`; for
+example, Legacy `https://github\.com/...` becomes
+`"https://github\\.com/..."` in HCL. Preserve the intended regular expression, not
+the raw YAML spelling.
+
+For multiline PEM public keys, `trusted_root` JSON, and other multiline verification
+content, use `file("<path>")` when the supplied material is available as a retained
+file, or an HCL heredoc when the Legacy input embeds the content. Do not place
+multiline content in a quoted HCL string or invent a file path. Record the chosen
+representation and source location in the migration report.
 
 Normalize Legacy override variable names to lowercase snake case (for example,
 `REPLICA_COUNT` becomes `replica_count`) for package-scoped values-file templates.
