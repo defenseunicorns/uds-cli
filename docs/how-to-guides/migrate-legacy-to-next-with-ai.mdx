@@ -169,8 +169,10 @@ optionally deploy to a non-production cluster.
    A source-based deployment changes the target cluster. Before asking the agent
    to run it, confirm the target cluster meets each package's Zarf deployment
    requirements. Standard packages need Zarf initialization. A brand-new cluster
-   is suitable when the migrated bundle includes the Zarf `init` package before
-   packages that require it; connected and cluster-less packages may have different
+   is suitable only when you initialize it before deployment or the migrated bundle
+   includes an init package and every package requiring initialization declares
+   `depends_on = [package.init]`. Package order in `bundle.uds.hcl` does not impose
+   deployment order. Connected and cluster-less packages may have different
    requirements. Then review the exact command, package sources, namespace,
    configuration, and verification policy.
 
