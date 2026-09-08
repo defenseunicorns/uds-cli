@@ -112,7 +112,7 @@ Apply these mappings when the source has the required values:
 | static override `values` containing Legacy `${NAME}` placeholders | translate each resolvable scalar placeholder to `{{ .vars.<package>.<normalized_name> }}` at the Zarf-mapped source path, using its collision-safe key when needed; see **Legacy placeholder translation** and **Override path mapping** |
 | scalar, non-file override `variables` with a configured value or Legacy default | nested YAML at the Zarf-mapped source path using a type-aware `{{ .vars.<package>.<normalized_name> }}` template and collision-safe key when needed; put defaults/config values under that package in HCL; see **YAML scalar rendering** |
 | `options.architecture`, `log_level`, `tmp_dir` | same-name fields in `config.uds.hcl` `options` |
-| `options.oci_concurrency` | `options.concurrency` |
+| `options.oci_concurrency` | **needs concurrency-semantics review**; do not map automatically to `options.concurrency` |
 | legacy `insecure` | manual decision between `plain_http` and `skip_tls_verify`; do not choose automatically |
 
 ### HCL-safe verification values
@@ -128,6 +128,13 @@ content, use `file("<path>")` when the supplied material is available as a retai
 file, or an HCL heredoc when the Legacy input embeds the content. Do not place
 multiline content in a quoted HCL string or invent a file path. Record the chosen
 representation and source location in the migration report.
+
+Legacy `oci_concurrency` limits remote OCI layer operations and defaults to `3`.
+Next `options.concurrency` instead controls concurrent package deployment within a
+dependency level and is limited to `1` through `25`. Report Legacy
+`oci_concurrency` as **needs concurrency-semantics review** and write a Next
+`concurrency` value only when the user explicitly selects the intended package
+deployment parallelism.
 
 Normalize Legacy override variable names to lowercase snake case (for example,
 `REPLICA_COUNT` becomes `replica_count`) for package-scoped values-file templates.
