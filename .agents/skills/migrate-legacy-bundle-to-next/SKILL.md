@@ -450,15 +450,34 @@ mkdir -p .next-validation/packages
 CLI_FEATURES=NextMode=true uds tools zarf package create <legacy-local-package-path> --architecture <effective-legacy-architecture> --flavor <legacy-flavor> --output .next-validation/packages --confirm
 ```
 
-After the command produces an archive, update only the validation copy's
+When the canonical migration retains `public_key` verification, require the user to
+provide a private key or KMS URI compatible with that public key, then append
+`--signing-key <package-private-key-or-kms-uri>` to the preparation command. Never
+copy signing material into the migration report or generated files. When it retains
+keyless verification, create the package first, then sign its actual archive with an
+identity that satisfies the retained certificate and issuer constraints:
+
+```sh
+mkdir -p .next-validation/signed-packages
+CLI_FEATURES=NextMode=true uds tools zarf package sign .next-validation/packages/<unsigned-archive>.tar.zst --keyless --architecture <effective-legacy-architecture> --output .next-validation/signed-packages --confirm
+```
+
+If compatible signing material is unavailable, do not change the canonical migration.
+Only when the user explicitly selects it, change `verify = false` in the validation
+copy as a local-alpha, security-reducing test adaptation and record its
+non-equivalence in that copy's report. Otherwise mark validation as blocked by the
+retained package-verification policy.
+
+After the selected path produces its final archive, update only the validation copy's
 corresponding package `source` to the actual archive filename, such as
-`packages/zarf-package-<name>-<architecture>-<version>.tar.zst`. Do not invent the
-architecture or generated filename. Record the source replacement and its
-non-equivalence in the validation copy's report. Never replace a Legacy OCI
-`repository`/`ref` source with a local package, registry, or fixture automatically;
-an explicitly authorized validation substitution must be isolated and reported as
-non-equivalent. Package creation does not itself require a cluster, although the
-package's own build inputs can require network access or other prerequisites.
+`packages/zarf-package-<name>-<architecture>-<version>.tar.zst` or
+`signed-packages/<actual-signed-archive>.tar.zst`. Do not invent the architecture or
+generated filename. Record the source replacement and its non-equivalence in the
+validation copy's report. Never replace a Legacy OCI `repository`/`ref` source with a
+local package, registry, or fixture automatically; an explicitly authorized
+validation substitution must be isolated and reported as non-equivalent. Package
+creation does not itself require a cluster, although the package's own build inputs
+can require network access or other prerequisites.
 
 ## Legacy values-files precedence
 
