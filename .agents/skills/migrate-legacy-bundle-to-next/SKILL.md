@@ -90,8 +90,8 @@ Apply these mappings when the source has the required values:
 | `publicKey` | `signature_verification { public_key = file("...") }` when the value is a path; preserve literal key content as an HCL string only when it is clearly intended as content |
 | `keylessVerification` | `signature_verification { keyless { ... } }`, changing camelCase keys to the documented snake_case keys |
 | static override `values` without Legacy `${NAME}` placeholders | nested YAML at the Zarf-mapped source path for each override target path; see **Override path mapping** |
-| static override `values` containing Legacy `${NAME}` placeholders | translate each resolvable scalar placeholder to `{{ .vars.<package>.<normalized_name> }}` at the Zarf-mapped source path; see **Legacy placeholder translation** and **Override path mapping** |
-| scalar, non-file override `variables` with a configured value or Legacy default | nested YAML at the Zarf-mapped source path using a type-aware `{{ .vars.<package>.<normalized_name> }}` template; put defaults/config values under that package in HCL; see **YAML scalar rendering** |
+| static override `values` containing Legacy `${NAME}` placeholders | translate each resolvable scalar placeholder to `{{ .vars.<package>.<normalized_name> }}` at the Zarf-mapped source path, using its collision-safe key when needed; see **Legacy placeholder translation** and **Override path mapping** |
+| scalar, non-file override `variables` with a configured value or Legacy default | nested YAML at the Zarf-mapped source path using a type-aware `{{ .vars.<package>.<normalized_name> }}` template and collision-safe key when needed; put defaults/config values under that package in HCL; see **YAML scalar rendering** |
 | `options.architecture`, `log_level`, `tmp_dir` | same-name fields in `config.uds.hcl` `options` |
 | `options.oci_concurrency` | `options.concurrency` |
 | legacy `insecure` | manual decision between `plain_http` and `skip_tls_verify`; do not choose automatically |
@@ -100,6 +100,17 @@ Normalize legacy override variable names to lowercase snake case (for example,
 `REPLICA_COUNT` becomes `replica_count`) consistently in values files and HCL.
 Use package-scoped variables for values-file templates. Only top-level scalar values
 are passed through to Zarf package-variable substitutions.
+
+Before generating variables for each package, detect distinct Legacy names that
+normalize to the same key. Allocate stable, distinct template keys for every such
+collision in Legacy source order by appending `_1`, `_2`, and so on, skipping keys
+already used by a non-colliding variable or an earlier allocation. For example,
+`fooBar` and `foo_bar` become `foo_bar_1` and `foo_bar_2`. Use each allocated key
+consistently in `config.uds.hcl`, values-file templates, and report references, and
+record the original-to-generated mapping in the source-attribution table. If a
+colliding name is consumed directly by Zarf, or a stable allocation cannot preserve
+the required variable semantics, mark it **needs variable-normalization review**
+rather than merging the values or choosing a silent fallback.
 
 ### Package-scoped template access
 
@@ -182,7 +193,8 @@ Keep the replacement in the same scalar, list item, or object property so the
 generated YAML preserves the surrounding value shape. Add the variable to the
 package-scoped `config.uds.hcl` values and cite both the static override location and
 the variable source in the migration report. Apply **Package-scoped template access**
-when either generated key is not a Go-template identifier.
+when either generated key is not a Go-template identifier. Use the collision-safe key
+allocated for that Legacy variable, when applicable.
 
 Do not translate a placeholder whose variable is absent, complex, file-backed, or
 whose use in a YAML key or mixed-type value makes the resulting YAML ambiguous. Mark
