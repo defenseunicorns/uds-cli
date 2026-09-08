@@ -118,14 +118,15 @@ optionally deploy to a non-production cluster.
    mkdir -p .next-validation/packages
    CLI_FEATURES=NextMode=true uds tools zarf package create \
      <legacy-local-package-path> \
+     --architecture <effective-legacy-architecture> \
      --output .next-validation/packages \
      --confirm
    ```
 
-   Replace `<legacy-local-package-path>` with the package directory named in the
-   report. Update only `.next-validation/bundle.uds.hcl` to the archive that command
-   produced. Use its actual filename; its architecture segment depends on the package
-   build:
+   Replace `<legacy-local-package-path>` and `<effective-legacy-architecture>` with
+   the package directory and architecture reported by the migration. Update only
+   `.next-validation/bundle.uds.hcl` to the archive that command produced. Use its
+   actual filename:
 
    ```hcl title=".next-validation/bundle.uds.hcl"
    package "example" {
