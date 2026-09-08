@@ -363,6 +363,22 @@ an explicitly authorized validation substitution must be isolated and reported a
 non-equivalent. Package creation does not itself require a cluster, although the
 package's own build inputs can require network access or other prerequisites.
 
+## Legacy values-files precedence
+
+For every component/chart override with `valuesFiles`, inspect every referenced file
+and preserve the Legacy merge result before generating a Next package values file.
+Process files in their declared list order, deep-merging their YAML mappings so later
+files win at overlapping paths while unrelated nested values remain. Then deep-merge
+the inline Legacy `values` entries last; inline values have the highest precedence.
+Generate the Next values entry only from that final result, preserving YAML value
+types, and record the ordered source files and any overwritten paths in the migration
+report.
+
+If a values file cannot be read, its YAML cannot be merged without changing a value
+shape, the chart mapping cannot be verified, or the original precedence is ambiguous,
+mark the override **needs Legacy values-files merge review**. Do not report an
+arbitrary fold or a reordered list as converted.
+
 ## Override review
 
 Legacy overrides target a component and chart; Next values files are package-level.
@@ -383,8 +399,8 @@ Flag rather than drop any occurrence of:
 - metadata `architecture` (move it to `config.uds.hcl`), `uncompressed`, URL,
   authors, documentation, source, vendor, or aggregate checksum;
 - package `description`, `timeout`, `flavor`, `imports`, and `exports`;
-- legacy `valuesFiles` that cannot be folded into a package values file and verified
-  against Zarf mappings;
+- legacy `valuesFiles` that cannot be folded with their Legacy precedence into a
+  package values file and verified against Zarf mappings;
 - `shared` configuration, `uds_cache`, `retries`, `UDS_<NAME>` environment variables,
   and `--set` workflows;
 - legacy command/flag behavior without a Next equivalent, including `uds logs`,
