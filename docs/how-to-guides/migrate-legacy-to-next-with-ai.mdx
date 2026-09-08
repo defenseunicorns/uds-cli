@@ -144,9 +144,16 @@ optionally deploy to a non-production cluster.
      .next-validation/packages/<unsigned-archive>.tar.zst \
      --keyless \
      --architecture <effective-legacy-architecture> \
+     --tsa-server-url <rfc3161-timestamp-authority-url> \
      --output .next-validation/signed-packages \
      --confirm
    ```
+
+   When the retained Legacy `keylessVerification.useSignedTimestamps` is `true`,
+   replace `<rfc3161-timestamp-authority-url>` with a suitable TSA URL. Otherwise
+   omit the `--tsa-server-url` line. If a required TSA is unavailable, report
+   validation as blocked rather than producing a signature that cannot meet the
+   retained verification policy.
 
    If you cannot provide compatible signing material, do not change the canonical
    migration. You may explicitly authorize `verify = false` in the validation copy
