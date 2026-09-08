@@ -390,9 +390,17 @@ Use these command changes in the report:
 | `uds publish` / `uds pull` / `uds remove` | `uds bundle push` / `uds bundle pull` / `uds bundle remove`, each with `CLI_FEATURES=NextMode=true` |
 | `uds zarf` | `CLI_FEATURES=NextMode=true uds tools zarf` (except vendored tools remain `uds zarf tools <tool>`) |
 
-Recommend a non-production `CLI_FEATURES=NextMode=true uds bundle dev deploy` before
-creating and signing the artifact. Next artifacts use `.tar.zst`; source definitions
-and artifacts are not backward compatible. Point the user to
+Recommend a non-production development deployment before creating and signing the
+artifact. The report must name the actual generated output directory rather than
+relying on the current directory, for example:
+
+```sh
+CLI_FEATURES=NextMode=true uds bundle dev deploy <output-dir> --config <output-dir>/config.uds.hcl
+```
+
+Append the `--config` argument whenever the migration generated `config.uds.hcl`;
+omit it only when that file was not generated. Next artifacts use `.tar.zst`; source
+definitions and artifacts are not backward compatible. Point the user to
 `docs/how-to-guides/migrate-legacy-to-next.mdx` in this repository (or the published
 Migration guide) for the maintained human walkthrough.
 
