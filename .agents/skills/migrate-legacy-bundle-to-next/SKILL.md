@@ -115,8 +115,8 @@ Apply these mappings when the source has the required values:
 | local package directory `path` | resolve the Legacy package archive path, then use that archive as `source`; see **Local package preparation** |
 | `namespace` | package `namespace` |
 | `optionalComponents` | `optional_components` |
-| `publicKey` | `signature_verification { public_key = file("...") }` when the value is a path; preserve literal multiline key content with an HCL heredoc when it is clearly intended as content; see **HCL-safe verification values** |
-| `keylessVerification` | `signature_verification { keyless { ... } }`, changing camelCase keys to the documented snake_case keys; see **HCL-safe verification values** |
+| `publicKey` | `signature_verification { public_key = file("...") }` when the value is a path; preserve literal multiline key content with an HCL heredoc when it is clearly intended as content; see **HCL-safe strings** |
+| `keylessVerification` | `signature_verification { keyless { ... } }`, changing camelCase keys to the documented snake_case keys; see **HCL-safe strings** |
 | static override `values` without Legacy `${NAME}` placeholders | nested YAML at the Zarf-mapped source path for each override target path; see **Override path mapping** |
 | static override `values` containing Legacy `${NAME}` placeholders | translate each resolvable scalar placeholder to `{{ .vars.<package>.<normalized_name> }}` at the Zarf-mapped source path, using its collision-safe key when needed; see **Legacy placeholder translation** and **Override path mapping** |
 | scalar, non-file override `variables` with a configured value or Legacy default | nested YAML at the Zarf-mapped source path using a type-aware `{{ .vars.<package>.<normalized_name> }}` template and collision-safe key when needed; put defaults/config values under that package in HCL; see **YAML scalar rendering** |
@@ -124,7 +124,16 @@ Apply these mappings when the source has the required values:
 | `options.oci_concurrency` | **needs concurrency-semantics review**; do not map automatically to `options.concurrency` |
 | legacy `insecure` | manual decision between `plain_http` and `skip_tls_verify`; do not choose automatically |
 
-### HCL-safe verification values
+### HCL-safe strings
+
+Encode every migrated literal string as HCL before emitting it, including metadata,
+package sources, verification fields, options, and configuration values. In quoted
+strings, escape HCL-special characters and replace literal `${` with `$${` and `%{`
+with `%%{`; do this in addition to normal backslash and quote escaping. Preserve
+intentional HCL expressions such as `file("...")` as expressions rather than quoting
+them. For multiline content, use a heredoc such as `<<-MIGRATED_VALUE` only when its
+delimiter does not occur on a line by itself in the value; otherwise choose a unique
+delimiter. Apply the same `$${` and `%%{` escapes inside the heredoc.
 
 HCL quoted strings interpret backslashes. Escape each literal regex backslash when
 emitting `certificate_identity_regexp` or `certificate_oidc_issuer_regexp`; for
