@@ -82,7 +82,8 @@ Apply these mappings when the source has the required values:
 | `metadata.name`, `description`, `version` | `metadata` block fields |
 | package `name` | `package "<name>"` label |
 | `repository` plus `ref` | `source = "oci://<repository>:<ref>"` |
-| canonical local package `path` | `source = "<path>"`, adjusted relative to the generated bundle directory so it resolves to the same package; retain `ref` only in the report because it has no separate Next field |
+| local package `path` ending in `.tar.zst` | `source = "<path>"`, adjusted relative to the generated bundle directory so it resolves to the same archive |
+| local package directory `path` | resolve the Legacy package archive path, then use that archive as `source`; see **Local package preparation** |
 | `namespace` | package `namespace` |
 | `optionalComponents` | `optional_components` |
 | `publicKey` | `signature_verification { public_key = file("...") }` when the value is a path; preserve literal key content as an HCL string only when it is clearly intended as content |
@@ -157,13 +158,35 @@ layout, which requires a generated `checksums.txt` in a directory source; a gene
 `.tar.zst` archive is also accepted. Do not claim that a bare authoring directory was
 validated.
 
-When the supplied local source is not canonical, retain the faithful proposed source
-only when the path is otherwise unambiguous and mark it as a blocking **needs local
-package preparation** item. Include the exact source path and an executable
-preparation command in the migration report. Do not create the package or replace
-the canonical migrated source unless the user explicitly asks for a separate local
-validation copy. A validation copy must be clearly labelled as non-equivalent and
-must leave the canonical migrated files unchanged.
+Legacy resolves a directory path relative to the Legacy bundle manifest, then expects
+a generated archive in that directory. Derive the archive name from the effective
+Legacy architecture, package name, `ref`, and optional `flavor`:
+
+```text
+zarf-package-<name>-<architecture>-<ref>[-<flavor>].tar.zst
+```
+
+For a package named `init`, Legacy uses:
+
+```text
+zarf-init-<architecture>-<ref>[-<flavor>].tar.zst
+```
+
+The effective Legacy architecture follows its precedence: explicit CLI architecture,
+bundle metadata architecture, bundle build architecture, then the runtime host
+architecture. When the supplied inputs do not establish that value, do not guess or
+emit a directory source. Mark the package **needs local package preparation** and
+report the directory plus the archive-name template that requires the user's target
+architecture. When the architecture is known, emit the resolved archive path as the
+canonical Next `source`, even when the archive is not present; mark the missing
+artifact as blocking manual work. The legacy `ref` has no separate Next field, but is
+preserved as part of the derived archive filename and must be cited in the report.
+
+Include the exact resolved archive path and an executable preparation command in the
+migration report. Do not create the package or replace the canonical migrated source
+unless the user explicitly asks for a separate local validation copy. A validation
+copy must be clearly labelled as non-equivalent and must leave the canonical migrated
+files unchanged.
 
 For an explicitly authorized validation copy, use an output directory outside the
 canonical migration directory so the Legacy input and migration output remain
