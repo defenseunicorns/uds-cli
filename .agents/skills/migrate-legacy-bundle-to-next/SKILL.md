@@ -215,19 +215,23 @@ Zarf extracts package values from `sourcePath` and writes them to `targetPath`; 
 generated package values file must therefore contain the value at the mapped source,
 not blindly at the Legacy override path.
 
-Match the Legacy override path against the mapping's `targetPath`. When the target
-path is an ancestor, append the remaining path segments to its `sourcePath`; for
-example, target `.distribution` and source `.registry` map Legacy
-`.distribution.host` to generated `.registry.host`. Prefer the longest matching
-target-path prefix. Generate the nested YAML at that resolved source path, while
-retaining the Legacy component, chart, target path, source path, and mapping rule in
-the migration report.
+Match the Legacy override path against both sides of each mapping. When `targetPath`
+is an ancestor, replace that prefix with `sourcePath`; for example, target
+`.distribution` and source `.registry` map Legacy `.distribution.host` to generated
+`.registry.host`. Also accept a Legacy path that already matches `sourcePath`, which
+needs no prefix replacement; for example, Legacy `.podinfo.replicaCount` maps to
+source `.podinfo.replicaCount` when its chart target is `.replicaCount`. Prefer the
+longest matching prefix within each form. If target-path and source-path matches
+produce different generated paths, treat the mapping as ambiguous rather than
+choosing one. Generate the nested YAML at the resolved source path, while retaining
+the Legacy component, chart, target path, source path, and mapping rule in the
+migration report.
 
-If the component/chart cannot be inspected, no target-path mapping matches, multiple
-mappings have the same most-specific match, or a mapping cannot preserve the override
-shape, mark the override **needs Zarf source-path mapping review**. Do not generate a
-values entry at the Legacy target path unless that is also the verified Zarf source
-path.
+If the component/chart cannot be inspected, no target-path or source-path mapping
+matches, multiple mappings have the same most-specific match, or a mapping cannot
+preserve the override shape, mark the override **needs Zarf source-path mapping
+review**. Do not generate a values entry at the Legacy target path unless that is
+also the verified Zarf source path.
 
 ### Repeated package names
 
