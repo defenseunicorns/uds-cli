@@ -194,15 +194,23 @@ optionally deploy to a non-production cluster.
    requirements. Then review the exact command, package sources, namespace,
    configuration, and verification policy.
 
-   When you are ready, explicitly authorize this non-production deployment:
+   When you are ready, explicitly authorize a non-production deployment from the
+   directory you selected for validation. Deploy the canonical migration when you
+   did not prepare a validation copy:
 
    ```bash
    CLI_FEATURES=NextMode=true uds bundle dev deploy ./.next --config ./.next/config.uds.hcl
    ```
 
-   Omit `--config` only when the migration produced no deploy-time configuration.
-   Confirm the workload is healthy with the package-specific Kubernetes checks
-   before retiring the Legacy workflow.
+   Otherwise, deploy the prepared validation copy:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle dev deploy ./.next-validation --config ./.next-validation/config.uds.hcl
+   ```
+
+   Omit `--config` only when the selected directory has no generated deploy-time
+   configuration. Confirm the workload is healthy with the package-specific
+   Kubernetes checks before retiring the Legacy workflow.
 
 </Steps>
 
