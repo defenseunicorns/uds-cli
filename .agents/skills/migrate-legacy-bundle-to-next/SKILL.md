@@ -264,13 +264,28 @@ with `api`, `api`, and `api-1`, preserve `api-1` and assign the two `api` instan
 ```
 
 Use the generated instance label consistently for the Next package block, values-file
-path, package-scoped variables, `depends_on` references, and any generated report
-references. If a Legacy package-scoped configuration applies to every repeated
-instance, duplicate it for each generated instance label; preserve distinct Legacy
-overrides with their corresponding instance. Do not use the duplicate Legacy name as
-a Next label or emit an invalid bundle with duplicate blocks. Use the `index` form
-from **Package-scoped template access** for every values-file reference to an
-instance's package-scoped variable.
+path, package-scoped variables, and any generated report references. If a Legacy
+package-scoped configuration applies to every repeated instance, duplicate it for
+each generated instance label; preserve distinct Legacy overrides with their
+corresponding instance. Do not use the duplicate Legacy name as a Next label or emit
+an invalid bundle with duplicate blocks. Use the `index` form from
+**Package-scoped template access** for every values-file reference to an instance's
+package-scoped variable.
+
+### Dependency-safe package labels
+
+Next accepts `depends_on` references only in `package.<identifier>` form. A label
+containing `-`, including a generated `foo-1`, cannot be referenced there; `index`
+syntax is available for values-file templates but not for `depends_on`. Do not emit
+an invalid `package.foo-1` reference.
+
+When a migration must generate or preserve a dependency involving such an instance,
+allocate a collision-free identifier-safe package label instead, such as `foo_1`.
+Reserve all original and allocated labels, propagate that replacement to the package
+block, values-file path, package-scoped variables, templates, and every dependency
+reference, and record it in the migration report. If the Legacy input cannot identify
+which repeated instance is the dependency target, or relabelling would be ambiguous,
+mark it **needs repeated-package dependency review** rather than guessing.
 
 Add a source-attribution-table row for every renamed instance. State the original
 Legacy package name, generated instance label, source-order reason, and any reserved
