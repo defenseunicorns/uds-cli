@@ -130,6 +130,29 @@ optionally deploy to a non-production cluster.
    `--flavor` line. Update only `.next-validation/bundle.uds.hcl` to the archive that
    command produced. Use its actual filename:
 
+   If the canonical package retains `public_key` verification, append a compatible
+   private key or KMS URI to the preparation command. The key must correspond to the
+   retained public key: `--signing-key <package-private-key-or-kms-uri>`.
+
+   If it retains keyless verification, sign the prepared archive separately with an
+   identity that satisfies the retained certificate and issuer constraints, then point
+   the validation copy at `signed-packages/<actual-signed-archive>.tar.zst`:
+
+   ```bash
+   mkdir -p .next-validation/signed-packages
+   CLI_FEATURES=NextMode=true uds tools zarf package sign \
+     .next-validation/packages/<unsigned-archive>.tar.zst \
+     --keyless \
+     --architecture <effective-legacy-architecture> \
+     --output .next-validation/signed-packages \
+     --confirm
+   ```
+
+   If you cannot provide compatible signing material, do not change the canonical
+   migration. You may explicitly authorize `verify = false` in the validation copy
+   only as a local-alpha, security-reducing test adaptation; record that choice and
+   its non-equivalence in the validation report.
+
    ```hcl title=".next-validation/bundle.uds.hcl"
    package "example" {
      source = "packages/zarf-package-<name>-<architecture>-<version>.tar.zst"
