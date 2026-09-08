@@ -81,7 +81,7 @@ Apply these mappings when the source has the required values:
 | --- | --- |
 | `metadata.name`, `description`, `version` | `metadata` block fields |
 | unique package `name` | `package "<name>"` label |
-| repeated package `name` | unique instance labels `<name>-1`, `<name>-2`, in Legacy source order; see **Repeated package names** |
+| repeated package `name` | unique collision-free instance labels, allocated in Legacy source order; see **Repeated package names** |
 | `repository` plus `ref` | `source = "oci://<repository>:<ref>"` |
 | local package `path` ending in `.tar.zst` | `source = "<path>"`, adjusted relative to the generated bundle directory so it resolves to the same archive |
 | local package directory `path` | resolve the Legacy package archive path, then use that archive as `source`; see **Local package preparation** |
@@ -215,12 +215,17 @@ path.
 ### Repeated package names
 
 Before generating package blocks, count Legacy package names. Next package labels
-must be unique, while Legacy permits repeated names for separate instances. For every
-repeated Legacy name, generate stable instance labels by source order:
+must be unique, while Legacy permits repeated names for separate instances. First
+reserve every original source package name, including names that are unique and names
+such as `api-1` that could otherwise be mistaken for an instance label. Then, for
+each repeated Legacy name in source order, allocate the lowest positive suffix whose
+`<legacy-name>-<n>` label is neither reserved nor already allocated. For example,
+with `api`, `api`, and `api-1`, preserve `api-1` and assign the two `api` instances
+`api-2` and `api-3`:
 
 ```text
-<legacy-name>-1
-<legacy-name>-2
+<legacy-name>-<first-available-n>
+<legacy-name>-<next-available-n>
 ```
 
 Use the generated instance label consistently for the Next package block, values-file
@@ -233,9 +238,10 @@ from **Package-scoped template access** for every values-file reference to an
 instance's package-scoped variable.
 
 Add a source-attribution-table row for every renamed instance. State the original
-Legacy package name, generated instance label, and source-order reason. Retain the
-original package name in nearby comments or the report so a reviewer can distinguish
-the Next instance identity from the package artifact's own metadata.
+Legacy package name, generated instance label, source-order reason, and any reserved
+or previously allocated labels skipped during suffix selection. Retain the original
+package name in nearby comments or the report so a reviewer can distinguish the Next
+instance identity from the package artifact's own metadata.
 
 Every Next package must declare one verification posture. Preserve a legacy public-key
 or keyless configuration. If the legacy package has neither, do not silently disable
