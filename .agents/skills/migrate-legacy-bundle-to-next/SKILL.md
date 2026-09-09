@@ -109,7 +109,8 @@ Apply these mappings when the source has the required values:
 | Legacy | Next |
 | --- | --- |
 | `metadata.name`, `description`, `version` | `metadata` block fields |
-| unique package `name` | `package "<name>"` label |
+| unique package `name` valid in Next | `package "<name>"` label |
+| package `name` containing `/` or `\\`, or equal to `.` or `..` | collision-free identifier-safe Next label; see **Next package-label validation** |
 | repeated package `name` | unique collision-free instance labels, allocated in Legacy source order; see **Repeated package names** |
 | `repository` plus `ref` | `source = "oci://<repository>:<ref>"` |
 | local package `path` ending in `.tar.zst` | `source = "<path>"`, adjusted relative to the generated bundle directory so it resolves to the same archive |
@@ -329,16 +330,32 @@ most-specific match, or a mapping cannot preserve the override shape, mark the
 override **needs Zarf source-path mapping review**. Do not generate a values entry at
 the Legacy target path unless that is also the verified Zarf source path.
 
+### Next package-label validation
+
+Before emitting package blocks, validate every Legacy name as a Next package label.
+Next rejects names containing `/` or `\\` and the exact names `.` and `..`. For each
+such name, allocate a collision-free identifier-safe label in Legacy source order:
+start with `package_`, replace every slash or backslash with `_`, map `.` to
+`package_current` and `..` to `package_parent`, then append `_1`, `_2`, and so on as
+needed to avoid every valid original label and earlier allocation. For example,
+`team/api` becomes `package_team_api` unless that label is already reserved. Do not
+use the Legacy name as a generated directory, values-file path, configuration key, or
+dependency reference. Preserve it for package-source semantics, such as the resolved
+Legacy archive filename, and record the original-to-generated label mapping in the
+migration report. If a stable collision-free label cannot be allocated, mark the
+package **needs package-label review** rather than emitting an invalid bundle.
+
 ### Repeated package names
 
 Before generating package blocks, count Legacy package names. Next package labels
 must be unique, while Legacy permits repeated names for separate instances. First
-reserve every original source package name, including names that are unique and names
-such as `api-1` that could otherwise be mistaken for an instance label. Then, for
-each repeated Legacy name in source order, allocate the lowest positive suffix whose
-`<legacy-name>-<n>` label is neither reserved nor already allocated. For example,
-with `api`, `api`, and `api-1`, preserve `api-1` and assign the two `api` instances
-`api-2` and `api-3`:
+allocate labels for invalid names under **Next package-label validation**, then reserve
+every remaining valid original source name and every allocated label, including names
+such as `api-1` that could otherwise be mistaken for an instance label. For each
+remaining repeated valid Legacy name in source order, allocate the lowest positive
+suffix whose `<legacy-name>-<n>` label is neither reserved nor already allocated. For
+example, with `api`, `api`, and `api-1`, preserve `api-1` and assign the two `api`
+instances `api-2` and `api-3`:
 
 ```text
 <legacy-name>-<first-available-n>
