@@ -397,6 +397,18 @@ or keyless configuration. If the legacy package has neither, do not silently dis
 verification: emit an unresolved `signature_verification` TODO, using this commented
 selection template, and list it as a blocking manual decision:
 
+If the optional Legacy `uds-config.yaml` sets
+`options.skip_signature_validation: true`, it bypasses verification for every Legacy
+package, including packages that declare public-key or keyless constraints. Next has
+no equivalent bundle-wide setting. Do not report retained verification blocks as an
+equivalent migration or silently add `verify = false`. For each affected package,
+require the user to make and record an explicit security-labelled choice: retain its
+verification posture (a behavior change), set `verify = false` as a local-alpha,
+security-reducing adaptation, or leave the canonical migration blocked pending
+review. Propagate only a user-selected `verify = false` to that package's
+`signature_verification` block and record the Legacy global bypass and each selected
+per-package posture in the migration report.
+
 Never select, uncomment, or replace any option in this template on the user's behalf,
 including for a local test. Bundle artifact signing with `--unsigned` does not
 authorize `verify = false`; they are independent decisions. Ask the user to choose a
