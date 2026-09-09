@@ -202,7 +202,18 @@ Only top-level scalar values are passed through to Zarf package-variable
 substitutions; direct Zarf inputs retain their Legacy uppercase identity as described
 in **Direct Zarf package variables**.
 
-Before generating variables for each package, detect distinct Legacy names that
+Before snake-case allocation, group each package's Legacy override variable names by
+their uppercase identity. Names such as `foo` and `FOO` are aliases in Legacy and
+must not receive independent Next inputs. When the aliases have one effective scalar
+configured value, map every alias to one shared Next key and value. When they have no
+configured value, do the same only if their defaults are all absent or semantically
+identical. If aliases have differing defaults, a non-scalar or file value, direct
+Zarf consumption, or another ambiguous source, mark the group **needs
+case-alias-variable review** rather than splitting or silently choosing a value.
+Record every Legacy alias and its shared key or review disposition in the
+source-attribution table.
+
+After resolving uppercase aliases, detect distinct remaining Legacy identities that
 normalize to the same key. Allocate stable, distinct template keys for every such
 collision in Legacy source order by appending `_1`, `_2`, and so on, skipping keys
 already used by a non-colliding variable or an earlier allocation. For example,
