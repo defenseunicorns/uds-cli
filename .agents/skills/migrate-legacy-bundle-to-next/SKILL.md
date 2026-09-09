@@ -585,12 +585,14 @@ report must name the actual generated output directory rather than relying on th
 current directory, for example:
 
 ```sh
-CLI_FEATURES=NextMode=true uds bundle dev deploy <output-dir> --config <output-dir>/config.uds.hcl
+CLI_FEATURES=NextMode=true uds bundle dev deploy <output-dir> --architecture <effective-legacy-architecture> --config <output-dir>/config.uds.hcl
 ```
 
 Append the `--config` argument whenever the migration generated `config.uds.hcl`;
-omit it only when that file was not generated. Next artifacts use `.tar.zst`; source
-definitions and artifacts are not backward compatible. Point the user to
+omit it only when that file was not generated. If the generated config does not set
+`options.architecture`, append `--architecture <effective-legacy-architecture>`;
+otherwise omit that flag. Next artifacts use `.tar.zst`; source definitions and
+artifacts are not backward compatible. Point the user to
 `docs/how-to-guides/migrate-legacy-to-next.mdx` in this repository (or the published
 Migration guide) for the maintained human walkthrough.
 
