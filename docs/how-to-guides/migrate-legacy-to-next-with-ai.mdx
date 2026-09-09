@@ -239,8 +239,13 @@ optionally deploy to a non-production cluster.
    configuration, and verification policy.
 
    When you are ready, explicitly authorize a non-production deployment from the
-   directory you selected for validation. Deploy the canonical migration when you
-   did not prepare a validation copy:
+   directory you selected for validation. A direct `dev deploy` does not load that
+   directory's `defaults.uds.hcl`. Use the direct-deployment commands below only when
+   the selected directory has no defaults file, or its `config.uds.hcl` explicitly
+   supplies every variable needed at deployment. Otherwise, use the artifact created
+   in step 4 with [`uds bundle deploy`](/cli/how-to-guides/next/deploy-a-bundle/),
+   which preserves the artifact's defaults and verification workflow. Deploy the
+   canonical migration directly only when you did not prepare a validation copy:
 
    ```bash
    CLI_FEATURES=NextMode=true uds bundle dev deploy ./.next --architecture <effective-legacy-architecture> --config ./.next/config.uds.hcl
