@@ -683,17 +683,13 @@ verification policy. Do not recommend `dev deploy` while a package-verification 
 is unresolved or after a failed verification; it can continue despite an invalid
 package signature. When the user explicitly selected `verify = false` for a
 validation copy, label its development deployment as an unverified, local-alpha,
-security-reducing workflow rather than validation of the canonical migration. A
-source `dev deploy` does not load a sibling `defaults.uds.hcl`. When the migration
-generated defaults, do not recommend direct deployment unless the user supplies a
-complete `config.uds.hcl` that explicitly provides every values-template variable;
-instead recommend deployment of the artifact created from that same output, which
-contains the resolved defaults. Do not recommend deployment of an unsigned artifact
-unless the user explicitly authorizes the local-alpha, security-reducing
+security-reducing workflow rather than validation of the canonical migration. Source
+`dev deploy` discovers an adjacent `defaults.uds.hcl` and merges it beneath explicit
+`config.uds.hcl` values. Do not recommend deployment of an unsigned artifact unless
+the user explicitly authorizes the local-alpha, security-reducing
 `--skip-signature-verification` bypass; otherwise require a signed artifact and its
-appropriate verification inputs. Only when direct source deployment is eligible, the
-report must name the actual generated output directory rather than relying on the
-current directory, for example:
+appropriate verification inputs. The report must name the actual generated output
+directory rather than relying on the current directory, for example:
 
 ```sh
 CLI_FEATURES=NextMode=true uds bundle dev deploy <output-dir> --architecture <effective-legacy-architecture> --config <output-dir>/config.uds.hcl
