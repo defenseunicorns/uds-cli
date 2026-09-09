@@ -537,6 +537,9 @@ can require network access or other prerequisites.
 
 For every component/chart override with `valuesFiles`, inspect every referenced file
 and preserve the Legacy merge result before generating a Next package values file.
+Resolve an absolute entry as written and every relative entry against the Legacy
+bundle's source directory, not the agent's current working directory or the generated
+Next directory. Use and record the resolved Legacy path before reading or merging it.
 Process files in their declared list order. Legacy treats every file as one value per
 top-level key: when a later file repeats a top-level key, replace the entire earlier
 value at that key rather than deep-merging nested mappings. Then apply inline Legacy
