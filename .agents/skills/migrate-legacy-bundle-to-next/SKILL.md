@@ -69,8 +69,8 @@ Return all of the following:
 1. `bundle.uds.hcl`, with `uds { bundle_api_version = "uds.dev/v1alpha1" }`, metadata,
    package blocks, and package verification posture.
 2. A package-level `values/<package>.yaml` for each safely transcribed legacy override,
-   plus the corresponding `values_files` entry. Preserve YAML value types and render
-   legacy override variables as `{{ .vars.<package>.<variable> }}`.
+   plus the corresponding `values_files` entry. Preserve effective Legacy Helm value
+   types and render legacy override variables as `{{ .vars.<package>.<variable> }}`.
 3. `config.uds.hcl` for explicitly configured deploy-time variables and options.
    Generate `defaults.uds.hcl` for every safely representable Legacy override
    variable default, plus any user-identified portable build-time defaults; it may
@@ -128,9 +128,9 @@ Apply these mappings when the source has the required values:
 | `optionalComponents` | `optional_components`, after removing exact duplicate entries while preserving first-occurrence order |
 | `publicKey` | `signature_verification { public_key = ... }` with the Legacy key content encoded as an HCL string or heredoc; Legacy treats this field as content, not a path; see **HCL-safe strings** |
 | `keylessVerification` | `signature_verification { keyless { ... } }`, changing camelCase keys to the documented snake_case keys; see **HCL-safe strings** |
-| static override `values` without Legacy `${NAME}` placeholders | nested YAML at the Zarf-mapped source path for each override target path; see **Literal Go-template delimiters** and **Override path mapping** |
-| static override `values` containing Legacy `${NAME}` placeholders | translate each resolvable scalar placeholder to `{{ .vars.<package>.<normalized_name> }}` at the Zarf-mapped source path, using its collision-safe key when needed; see **Legacy placeholder translation** and **Override path mapping** |
-| scalar, non-file override `variables` with a configured value or Legacy default | nested YAML at the Zarf-mapped source path using a type-aware `{{ .vars.<package>.<normalized_name> }}` template and collision-safe key when needed; put Legacy defaults in `defaults.uds.hcl` and configured values in `config.uds.hcl` at the mapped scope; see **YAML scalar rendering** |
+| static override `values` without Legacy `${NAME}` placeholders | nested YAML with the effective Legacy Helm scalar type at the Zarf-mapped source path for each override target path; see **Legacy Helm scalar coercion**, **Literal Go-template delimiters**, and **Override path mapping** |
+| static override `values` containing Legacy `${NAME}` placeholders | translate each resolvable scalar placeholder to `{{ .vars.<package>.<normalized_name> }}` with the effective Legacy Helm scalar type at the Zarf-mapped source path, using its collision-safe key when needed; see **Legacy Helm scalar coercion**, **Legacy placeholder translation**, and **Override path mapping** |
+| scalar, non-file override `variables` with a configured value or Legacy default | nested YAML at the Zarf-mapped source path using a type-aware `{{ .vars.<package>.<normalized_name> }}` template and collision-safe key when needed; put Legacy defaults in `defaults.uds.hcl` and configured values in `config.uds.hcl` at the mapped scope; see **Legacy Helm scalar coercion** and **YAML scalar rendering** |
 | `options.architecture`, `log_level`, `tmp_dir` | same-name fields in `config.uds.hcl` `options` |
 | `options.oci_concurrency` | **needs concurrency-semantics review**; do not map automatically to `options.concurrency` |
 | legacy `insecure` | manual decision between `plain_http` and `skip_tls_verify`; do not choose automatically |
@@ -273,11 +273,26 @@ consumed variable, lifting would change the scope, or a direct variable collides
 another top-level value, mark it **needs Zarf variable-scope review** in the migration
 report; do not silently leave it nested or choose a renamed fallback.
 
+### Legacy Helm scalar coercion
+
+Legacy sends scalar overrides to Helm as `path=value` and Helm applies its `strvals`
+coercion after Legacy YAML parsing and placeholder substitution. Before writing a
+static scalar or a scalar override variable/default to Next HCL or YAML, derive that
+effective Helm type rather than preserving YAML quotation alone. For example, a Legacy
+quoted string `"true"`, `"false"`, `"null"`, or `"42"` becomes the boolean, null, or
+integer Helm value and must be emitted as that YAML/HCL type in the Next output.
+
+Apply this conversion before **YAML scalar rendering**. Preserve a string only when
+the equivalent Legacy `strvals` input remains a string. If escaping, an unsupported
+scalar form, a template result, or an uncertain `strvals` outcome prevents an exact
+derivation, mark the override **needs Helm scalar-coercion review** rather than
+assuming the source YAML type is equivalent.
+
 ### YAML scalar rendering
 
-Values files are rendered before Next parses them as YAML. For a template that is
-the complete value of a known string scalar, render a YAML double-quoted string with
-Go template formatting, for example:
+Values files are rendered before Next parses them as YAML. After applying **Legacy
+Helm scalar coercion**, for a template that is the complete value of a known string
+scalar, render a YAML double-quoted string with Go template formatting, for example:
 
 ```yaml
 host: {{ printf "%q" (index (index .vars "package-name-1") "host") }}
