@@ -11,12 +11,11 @@ Use bundle artifact signatures to verify an artifact's origin and integrity agai
 
 ## What you'll accomplish
 
-Use this guide to create, verify, and distribute signed UDS CLI Next bundle artifacts. It covers key-based and OpenID Connect (OIDC) signing, plus unsigned local development workflows.
+Use this guide to create, verify, and distribute signed UDS CLI Next bundle artifacts. It covers key-based and OpenID Connect (OIDC) signing.
 
 - Generate Cosign-compatible signing material with Zarf.
 - Create or sign a bundle artifact with a key or an OpenID Connect (OIDC) identity.
 - Verify, publish, pull, and deploy a signed artifact.
-- Create and deploy an unsigned artifact for local alpha testing.
 
 ## Prerequisites
 
@@ -166,19 +165,6 @@ Every UDS CLI command in this guide enables Next mode with `CLI_FEATURES=NextMod
    ```
 
    For a keyless artifact, use the identity and issuer flags shown above.
-
-7. **Use unsigned artifacts only for local alpha testing**
-
-   `--unsigned` is intended for local development when no trusted artifact distribution is involved:
-
-   ```bash
-   CLI_FEATURES=NextMode=true uds bundle create ./my-bundle --unsigned
-   CLI_FEATURES=NextMode=true uds bundle deploy \
-     ./my-bundle/uds-bundle-my-app-amd64-1.0.0.tar.zst \
-     --skip-signature-verification
-   ```
-
-   Unsigned artifacts have no bundle-level proof of origin or integrity. Use them only for local alpha testing. `--skip-signature-verification` is an insecure bypass, not a substitute for signing.
 
 </Steps>
 

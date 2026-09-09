@@ -207,81 +207,11 @@ These flags apply to all `uds bundle` subcommands:
 
 ## Deploying a bundle
 
-Both deploy commands are non-interactive by default and deploy packages within a dependency level in parallel. Levels run sequentially: level N must finish before level N+1 starts.
-
-Use `uds bundle dev deploy` to deploy directly from a bundle definition while authoring a bundle. It does not create an intermediate artifact, so bundle provenance and bundle-signature verification are unavailable.
-
-```bash
-# Deploy from the bundle definition in the current directory
-CLI_FEATURES=NextMode=true uds bundle dev deploy
-
-# Deploy from a bundle definition in a specific directory
-CLI_FEATURES=NextMode=true uds bundle dev deploy ./my-bundle
-
-# Deploy with an interactive confirmation prompt
-CLI_FEATURES=NextMode=true uds bundle dev deploy ./my-bundle --prompt
-
-# Deploy serially without a prompt
-CLI_FEATURES=NextMode=true uds bundle dev deploy ./my-bundle --concurrency 1
-
-# Deploy with deploy-time configuration
-CLI_FEATURES=NextMode=true uds bundle dev deploy ./my-bundle --config config.uds.hcl
-
-# Deploy with custom package-registry settings
-CLI_FEATURES=NextMode=true uds bundle dev deploy ./my-bundle --architecture amd64 --plain-http --concurrency 5
-
-# Deploy only a subset of packages
-CLI_FEATURES=NextMode=true uds bundle dev deploy ./my-bundle --packages nginx,podinfo
-
-# Deploy a package out of dependency order. Use with caution.
-CLI_FEATURES=NextMode=true uds bundle dev deploy ./my-bundle --packages podinfo --force
-```
-
-Use `uds bundle deploy` to deploy a created artifact.
-
-```bash
-# Deploy a local unsigned artifact
-CLI_FEATURES=NextMode=true uds bundle deploy uds-bundle-my-app-amd64-1.0.0.tar.zst --skip-signature-verification
-
-# Pull and deploy a tagged unsigned OCI artifact
-CLI_FEATURES=NextMode=true uds bundle deploy oci://registry.example.com/my-org/my-app:1.0.0 --skip-signature-verification
-
-# Deploy a digest-pinned unsigned OCI artifact
-CLI_FEATURES=NextMode=true uds bundle deploy oci://registry.example.com/my-org/my-app@sha256:<digest> --skip-signature-verification
-```
-
-Deploy-specific flags:
-
-| Flag | Default | Description |
-|---|---|---|
-| `--prompt` | `false` | Enable interactive confirmation before package deployment begins. |
-| `-p`, `--packages` | all | Comma-separated list of specific packages to deploy. When a selected package's dependencies are not also selected, the deploy is rejected. |
-| `-f`, `--force` | `false` | Deploy packages even if their dependencies are not selected. Use with caution. |
+Use `uds bundle dev deploy` to deploy directly from a bundle definition while authoring a bundle. Use `uds bundle deploy` for a created local or OCI artifact. Both commands are non-interactive by default and deploy packages within dependency levels in parallel. See [Deploy a bundle in Next mode](/cli/how-to-guides/next/deploy-a-bundle/) for the procedure, flags, and verification steps.
 
 ## Removing a bundle
 
-```bash
-# Remove all packages in current directory bundle
-CLI_FEATURES=NextMode=true uds bundle remove
-
-# Remove bundle from a specific directory
-CLI_FEATURES=NextMode=true uds bundle remove ./my-bundle
-
-# Remove only specific packages
-CLI_FEATURES=NextMode=true uds bundle remove --packages uds_k3d_dev,init
-
-# Remove with an interactive confirmation prompt
-CLI_FEATURES=NextMode=true uds bundle remove --prompt
-```
-
-Packages are removed in reverse order to respect dependency ordering. Packages not currently deployed on the cluster are skipped with a warning.
-
-Remove-specific flags:
-
-| Flag | Default | Description |
-|---|---|---|
-| `-p`, `--packages` | all | Comma-separated list of specific packages to remove. |
-| `-f`, `--force` | `false` | Remove packages even if other bundle packages depend on them. |
+Use `uds bundle remove` to remove packages from a Kubernetes cluster using a bundle definition or artifact. Packages are removed in reverse dependency order, and removal of a package with dependents is blocked unless `--force` is supplied. See [Remove a bundle in Next mode](/cli/how-to-guides/next/remove-a-bundle/) for the procedure and flags.
 
 ## Deploy-time configuration
 
@@ -297,41 +227,7 @@ CLI_FEATURES=NextMode=true uds bundle dev deploy --config ./config.uds.hcl
 
 ## Reconfiguring a bundle
 
-Use `uds bundle reconfigure` to replace the defaults in an existing bundle artifact and produce a new derivative artifact. This is useful when the package content stays the same, but environment-specific defaults need to change before publishing or deploying.
-
-Reconfigure is efficient because it updates bundle defaults without rebuilding package content. The derivative artifact can reuse the existing package blobs and only change the bundle metadata/defaults layers that need to change.
-
-Reconfigure requires a source bundle artifact or OCI reference and a new `defaults.uds.hcl` file:
-
-```bash
-# Create an unsigned derivative artifact from a local unsigned bundle.
-# Efficient: package content is reused; only the defaults-bearing bundle layers change.
-CLI_FEATURES=NextMode=true uds bundle reconfigure ./uds-bundle-my-app-amd64-1.0.0.tar.zst \
-  --defaults ./defaults.prod.uds.hcl \
-  --skip-signature-verification \
-  --unsigned
-
-# Reconfigure from an unsigned OCI bundle reference.
-# Efficient: use an existing published artifact as the source for a new environment-specific derivative.
-# OCI reconfigure publishes a derivative tag based on --suffix, so --output-dir is not used.
-CLI_FEATURES=NextMode=true uds bundle reconfigure oci://registry.example.com/my-org/my-app:1.0.0 \
-  --defaults ./defaults.prod.uds.hcl \
-  --skip-signature-verification \
-  --suffix -prod \
-  --unsigned
-```
-
-By default, reconfigure verifies the source bundle signature before creating the derivative artifact. Use `--skip-signature-verification` only when intentionally working with an unsigned or untrusted artifact. The new artifact must also be signed, or created with `--unsigned` for local alpha workflows.
-
-Reconfigure-specific flags:
-
-| Flag | Default | Description |
-|---|---|---|
-| `--defaults` | required | Path to the replacement `defaults.uds.hcl` file. |
-| `--output-dir` | current directory | Directory for the reconfigured local tarball. |
-| `--suffix` | `-reconfigured` | Suffix for the output artifact name. |
-| `--unsigned` | `false` | Create an unsigned reconfigured bundle. |
-| `--skip-signature-verification` | `false` | Skip verification of the source bundle signature. |
+Use `uds bundle reconfigure` to replace environment-specific defaults in an existing bundle artifact without rebuilding package content. See [Reconfigure a bundle in Next mode](/cli/how-to-guides/next/reconfigure-a-bundle/) for the procedure and flags.
 
 ## Signing and verifying bundle artifacts
 
@@ -345,32 +241,7 @@ Use `uds bundle push` to publish a local bundle artifact and `uds bundle pull` t
 
 ## Inspecting a bundle
 
-The `inspect` command shows metadata from a built bundle artifact. Provide a local `.tar.zst` artifact or an OCI bundle reference. Source directories and standalone `bundle.uds.hcl` files are not accepted.
-
-```bash
-# Inspect a local bundle artifact
-CLI_FEATURES=NextMode=true uds bundle inspect ./my-bundle.tar.zst
-
-# Inspect an OCI bundle artifact
-CLI_FEATURES=NextMode=true uds bundle inspect oci://registry.example.com/my-bundle:1.0.0
-```
-
-Package verification status describes verification performed during bundle creation. Inspect output does not replace bundle signature verification for integrity decisions.
-
-Example output:
-
-```text
-Name:        my-app
-Version:     1.0.0
-
-Packages (2)
-  Name:      database
-  Source:    oci://ghcr.io/my-org/packages/postgres:15.0.0
-
-  Name:      api
-  Source:    oci://ghcr.io/my-org/packages/my-api:2.0.0
-  DependsOn: database
-```
+The `inspect` command shows metadata from a local `.tar.zst` artifact or an OCI bundle reference. It does not replace bundle signature verification for integrity decisions. See [Inspect and verify a bundle in Next mode](/cli/how-to-guides/next/inspect-verify/) for the procedure and structured-output examples.
 
 ## Structured output
 
