@@ -485,20 +485,22 @@ is not the public Sigstore default: `--fulcio-url`, `--oidc-issuer`, and, when R
 is used, `--rekor-url`. Do not derive those endpoints from `trustedRoot` or from a
 certificate-issuer verification constraint. Record unavailable endpoint or identity
 inputs as **needs keyless signing-profile review** and block validation rather than
-silently contacting public services:
+silently contacting public services. Append every user-provided signing-profile flag
+to this command:
 
 ```sh
 mkdir -p .next-validation/signed-packages
-CLI_FEATURES=NextMode=true uds tools zarf package sign .next-validation/packages/<unsigned-archive>.tar.zst --keyless --architecture <effective-legacy-architecture> --tsa-server-url <rfc3161-timestamp-authority-url> --output .next-validation/signed-packages --confirm
+CLI_FEATURES=NextMode=true uds tools zarf package sign .next-validation/packages/<unsigned-archive>.tar.zst --keyless --architecture <effective-legacy-architecture> --output .next-validation/signed-packages --confirm
 ```
 
 When the retained Legacy `keylessVerification.useSignedTimestamps` is `true`, require
-a suitable `--tsa-server-url` and replace the placeholder. Ask whether the retained
-profile is timestamp-only because Rekor is unavailable; if so, also append
-`--tlog-upload=false` so Zarf does not auto-enable Rekor upload for `--keyless`.
-Otherwise retain the user's confirmed Rekor decision. If the required TSA, private
-endpoint, or identity input is unavailable, mark validation as blocked rather than
-producing a signature that cannot satisfy the retained verification policy.
+a suitable `--tsa-server-url <rfc3161-timestamp-authority-url>` and append it to the
+command. Otherwise omit that flag. Ask whether the retained profile is timestamp-only
+because Rekor is unavailable; if so, also append `--tlog-upload=false` so Zarf does
+not auto-enable Rekor upload for `--keyless`. Otherwise retain the user's confirmed
+Rekor decision. If the required TSA, private endpoint, or identity input is
+unavailable, mark validation as blocked rather than producing a signature that cannot
+satisfy the retained verification policy.
 
 If compatible signing material is unavailable, do not change the canonical migration.
 Only when the user explicitly selects it, change `verify = false` in the validation
