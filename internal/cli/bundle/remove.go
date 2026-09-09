@@ -127,7 +127,7 @@ func (o *RemoveOptions) Validate() error {
 	}
 
 	if !isOCIReference(o.BundlePath) && !isTarZst(o.BundlePath) {
-		return fmt.Errorf("bundle path %q is not a valid oci reference or .tar.zst \nUse \"uds bundle dev\" remove if the bundle path is an hcl file or directory", o.BundlePath)
+		return fmt.Errorf("bundle path %q is not a valid oci reference or .tar.zst \nUse \"uds bundle dev remove\" if the bundle path is an hcl file or directory", o.BundlePath)
 	}
 
 	if !o.Verification.SkipSignatureVerification && (isOCIReference(o.BundlePath) || isTarZst(o.BundlePath)) {
