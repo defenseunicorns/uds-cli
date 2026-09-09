@@ -381,7 +381,7 @@ func (d *ZarfDeployer) prepareValuesAndVariables(ctx context.Context, streams io
 		loadedFileCount = len(filesToParse)
 	}
 
-	// Flatten top-level scalar variables for Zarf deploy-variable substitution.
+	// Flatten top-level scalar variables for Zarf ###ZARF_PKG_VAR_*### substitution.
 	// Non-scalars are skipped here and flow through values_files instead.
 	setVars = configVars.Flatten()
 
