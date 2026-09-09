@@ -280,9 +280,13 @@ configuration. Preserve the Legacy variable type and source location in the repo
 
 Legacy expands `${NAME}` placeholders inside static override values before passing
 scalars, lists, and objects to Helm. Next values files render Go-template expressions
-instead. Scan every static override value recursively for `${NAME}` and, when the
-corresponding Legacy variable is a known scalar with an unambiguous package-scoped
-Next configuration value, replace it with:
+instead. Scan every static override value recursively for `${NAME}` and replace it
+only when the corresponding name has an actual Legacy effective substitution input
+(imported, shared, configured, environment, or CLI value) that has an unambiguous
+package-scoped Next configuration representation. A chart variable `default` is not a
+substitution input: Legacy applies that default only when processing the variable's
+own override, after static-placeholder expansion. Do not use a default alone to
+resolve a static placeholder. For an eligible input, replace it with:
 
 ```text
 {{ .vars.<package>.<normalized_name> }}
@@ -295,11 +299,12 @@ the variable source in the migration report. Apply **Package-scoped template acc
 when either generated key is not a Go-template identifier. Use the collision-safe key
 allocated for that Legacy variable, when applicable.
 
-Do not translate a placeholder whose variable is absent, complex, file-backed, or
-whose use in a YAML key or mixed-type value makes the resulting YAML ambiguous. Mark
-it **needs Legacy placeholder review** and retain the literal source text only in the
-report or a clearly labelled comment; do not present a literal `${NAME}` as a working
-Next values-file value.
+Do not translate a placeholder whose variable is absent from the effective Legacy
+substitution inputs, exists only as a chart-variable default, is complex or file-backed,
+or whose use in a YAML key or mixed-type value makes the resulting YAML ambiguous.
+Mark it **needs Legacy placeholder review** and retain the literal source text only in
+the report or a clearly labelled comment; do not present a literal `${NAME}` as a
+working Next values-file value.
 
 ### Override path mapping
 
