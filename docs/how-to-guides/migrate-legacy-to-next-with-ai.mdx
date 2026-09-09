@@ -244,8 +244,19 @@ optionally deploy to a non-production cluster.
    the selected directory has no defaults file, or its `config.uds.hcl` explicitly
    supplies every variable needed at deployment. Otherwise, use the artifact created
    in step 4 with [`uds bundle deploy`](/cli/how-to-guides/next/deploy-a-bundle/),
-   which preserves the artifact's defaults and verification workflow. Deploy the
-   canonical migration directly only when you did not prepare a validation copy:
+   which retains the resolved defaults. Step 4 creates an unsigned local-alpha
+   artifact. Either create a signed artifact and provide its verification inputs, or
+   explicitly authorize this local-alpha command:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle deploy <created-artifact>.tar.zst --skip-signature-verification
+   ```
+
+   `--skip-signature-verification` bypasses bundle-artifact integrity verification;
+   do not use it for a release or a registry artifact. Append `--config
+   <selected-directory>/config.uds.hcl` when the selected migration generated
+   deploy-time configuration. Deploy the canonical migration directly only when you
+   did not prepare a validation copy:
 
    ```bash
    CLI_FEATURES=NextMode=true uds bundle dev deploy ./.next --architecture <effective-legacy-architecture> --config ./.next/config.uds.hcl
