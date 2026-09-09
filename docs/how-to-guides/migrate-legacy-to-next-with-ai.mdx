@@ -135,8 +135,14 @@ optionally deploy to a non-production cluster.
    retained public key: `--signing-key <package-private-key-or-kms-uri>`.
 
    If it retains keyless verification, sign the prepared archive separately with an
-   identity that satisfies the retained certificate and issuer constraints, then point
-   the validation copy at `signed-packages/<actual-signed-archive>.tar.zst`:
+   identity that satisfies the retained certificate and issuer constraints. Legacy
+   verification fields do not identify the Fulcio, signing OIDC, Rekor, or TSA
+   services. Do not infer them from `trustedRoot` or a certificate-issuer constraint.
+   For a private Sigstore deployment, obtain the applicable
+   `--fulcio-url`, `--oidc-issuer`, and, when Rekor is used, `--rekor-url` values
+   from the signing-profile owner. If those inputs are unavailable, report validation
+   as blocked. Then point the validation copy at
+   `signed-packages/<actual-signed-archive>.tar.zst`:
 
    ```bash
    mkdir -p .next-validation/signed-packages
@@ -150,10 +156,13 @@ optionally deploy to a non-production cluster.
    ```
 
    When the retained Legacy `keylessVerification.useSignedTimestamps` is `true`,
-   replace `<rfc3161-timestamp-authority-url>` with a suitable TSA URL. Otherwise
-   omit the `--tsa-server-url` line. If a required TSA is unavailable, report
-   validation as blocked rather than producing a signature that cannot meet the
-   retained verification policy.
+   replace `<rfc3161-timestamp-authority-url>` with a suitable TSA URL. Ask whether
+   the retained profile is timestamp-only because Rekor is unavailable; if so, append
+   `--tlog-upload=false` to prevent Zarf from auto-enabling Rekor upload for keyless
+   signing. Otherwise use the signing-profile owner's confirmed Rekor settings. If a
+   required TSA, endpoint, or identity input is unavailable, report validation as
+   blocked rather than producing a signature that cannot meet the retained
+   verification policy.
 
    If you cannot provide compatible signing material, do not change the canonical
    migration. You may explicitly authorize `verify = false` in the validation copy

@@ -380,6 +380,15 @@ otherwise omit that flag. Never name a nonexistent config file. In the migration
 report, also give the equivalent command from the user's current directory using the
 actual output directory path (for example, `./.next`) and the same conditional flags.
 
+Keyless verification constraints are not a signing-service profile. Legacy package
+fields do not identify Fulcio, signing OIDC, Rekor, or TSA endpoints, and a
+`trustedRoot` does not safely determine them. Do not infer those settings. For a
+private keyless artifact-signing profile, require user-provided `--fulcio-url`,
+`--oidc-issuer`, and, when Rekor is used, `--rekor-url` values. `uds bundle create`
+does not expose `--tlog-upload`; if the user requires timestamp-only bundle signing
+without Rekor, report that workflow as **needs artifact keyless-signing review**
+rather than presenting the `--keyless` example as equivalent.
+
 ```hcl
 signature_verification {
   # Choose exactly one option. Uncomment only the line(s) explicitly identified below; leave all other comments unchanged.
@@ -470,7 +479,13 @@ provide a private key or KMS URI compatible with that public key, then append
 `--signing-key <package-private-key-or-kms-uri>` to the preparation command. Never
 copy signing material into the migration report or generated files. When it retains
 keyless verification, create the package first, then sign its actual archive with an
-identity that satisfies the retained certificate and issuer constraints:
+identity that satisfies the retained certificate and issuer constraints. Before
+giving this command, require the user to provide the signing-service profile when it
+is not the public Sigstore default: `--fulcio-url`, `--oidc-issuer`, and, when Rekor
+is used, `--rekor-url`. Do not derive those endpoints from `trustedRoot` or from a
+certificate-issuer verification constraint. Record unavailable endpoint or identity
+inputs as **needs keyless signing-profile review** and block validation rather than
+silently contacting public services:
 
 ```sh
 mkdir -p .next-validation/signed-packages
@@ -478,9 +493,12 @@ CLI_FEATURES=NextMode=true uds tools zarf package sign .next-validation/packages
 ```
 
 When the retained Legacy `keylessVerification.useSignedTimestamps` is `true`, require
-a suitable `--tsa-server-url` and replace the placeholder. Otherwise omit that flag.
-If the required TSA is unavailable, mark validation as blocked rather than producing
-a signature that cannot satisfy the retained verification policy.
+a suitable `--tsa-server-url` and replace the placeholder. Ask whether the retained
+profile is timestamp-only because Rekor is unavailable; if so, also append
+`--tlog-upload=false` so Zarf does not auto-enable Rekor upload for `--keyless`.
+Otherwise retain the user's confirmed Rekor decision. If the required TSA, private
+endpoint, or identity input is unavailable, mark validation as blocked rather than
+producing a signature that cannot satisfy the retained verification policy.
 
 If compatible signing material is unavailable, do not change the canonical migration.
 Only when the user explicitly selects it, change `verify = false` in the validation
