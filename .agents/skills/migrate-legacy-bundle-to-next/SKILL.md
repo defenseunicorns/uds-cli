@@ -391,6 +391,16 @@ deletes the migrated value before extracting `sourcePath`; mark the override **n
 Zarf source-path mapping review** and do not emit it at that path. A target-path match
 alone is not sufficient when its migrated source value is excluded.
 
+Before emitting a resolved source path, inspect the `values` mappings for every chart
+selected in the package, not only the Legacy override's component/chart. A package
+values file is shared across those charts. Treat a mapping whose `sourcePath` equals,
+is an ancestor of, or is contained by the emitted source path as an overlapping
+consumer. If another chart can consume that value, do not assume the fan-out is
+equivalent: record every consumer and its target path, and mark the override **needs
+cross-chart values mapping review** unless the supplied Legacy inputs establish the
+same override for every consumer with equivalent target behavior. Do not emit an
+automatic value for an ambiguous cross-chart mapping.
+
 If the component/chart cannot be inspected, no target-path mapping matches, a
 source-only mapping would redirect the Helm key, multiple mappings have the same
 most-specific match, a mapped source value is excluded, or a mapping cannot preserve
