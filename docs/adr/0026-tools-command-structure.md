@@ -1,4 +1,4 @@
-# 25. Tool Command Structure
+# 26. Tool Command Structure
 
 Date: 2026-09-03
 
@@ -17,12 +17,13 @@ However, Zarf is also exposed as `uds zarf`, which is required when invoking cer
 Remove `uds tools zarf` in favor of just having `uds zarf`.
 Tools will still exist as a subcommand to expose tools and utilities to improve DevX when interacting with the UDS ecosystem.
 
-Potential examples of tools that would fit this namespace include:
+We will curate a list of tools based off of the criteria of user experience and quality of life improvements, but will not encompass all existing underlying vendored tools.
+
+Examples of tools to include:
 ```
 uds tools kubectl
-uds tools helm
 uds tools gen-key
-uds tools tofu
+uds tools yq
 ```
 
 If the tool is directly part of the UDS ecosystem it should not live in tools. Some examples of this are `uds core` and `uds bundle`.
