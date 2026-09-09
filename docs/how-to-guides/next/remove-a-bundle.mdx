@@ -1,0 +1,76 @@
+---
+title: Remove a bundle in Next mode
+description: Remove packages from a Kubernetes cluster using a Next mode bundle definition or artifact.
+sidebar:
+  order: 4.550
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Use `bundle dev remove` with a bundle definition while developing locally. Use `bundle remove` with a local artifact or OCI reference.
+
+## What you'll accomplish
+
+- Remove all packages in a bundle.
+- Remove selected packages when their dependencies allow it.
+- Require confirmation before removal.
+
+## Prerequisites
+
+- [UDS CLI installed](/cli/getting-started/installation/)
+- A bundle directory containing `bundle.uds.hcl`, a local `.tar.zst` artifact, or an OCI bundle reference
+- Access to the target Kubernetes cluster
+- A matching bundle public key or keyless certificate constraints when removing an artifact
+
+## Steps
+
+<Steps>
+
+1. **Choose the removal command**
+
+   Remove all packages defined by `bundle.uds.hcl` in the current directory during local development:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle dev remove
+   ```
+
+   To remove packages using a created artifact, provide its local path or OCI reference. Artifact removal requires a verification policy unless you explicitly skip verification for an unsigned local alpha workflow:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle remove ./my-bundle.tar.zst --public-key ./cosign.pub
+   CLI_FEATURES=NextMode=true uds bundle remove oci://registry.example.com/my-org/my-app:1.0.0 --public-key ./cosign.pub
+   ```
+
+2. **Remove selected packages**
+
+   Pass package IDs with `--packages`:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle dev remove ./my-bundle --packages api,frontend
+   ```
+
+   The command blocks removal when another bundle package depends on a selected package. Add `--force` only when you accept that dependency risk:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle dev remove ./my-bundle --packages database --force
+   ```
+
+3. **Confirm before removal**
+
+   Use `--prompt` to require interactive confirmation:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle dev remove ./my-bundle --prompt
+   ```
+
+</Steps>
+
+## Verification
+
+The command reports the bundle and packages selected for removal before it removes them. Use your cluster's normal health checks to confirm that the package resources are gone.
+
+## Related documentation
+
+- [Deploy a bundle in Next mode](/cli/how-to-guides/next/deploy-a-bundle/) - Deploy bundle definitions and artifacts.
+- [Inspect and verify a bundle in Next mode](/cli/how-to-guides/next/inspect-verify/) - Inspect artifact metadata and verify signatures.
+- [config.uds.hcl](/cli/reference/next/config-uds-hcl/) - Configure artifact trust and deploy-time options.
