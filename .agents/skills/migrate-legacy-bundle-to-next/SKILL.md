@@ -13,7 +13,10 @@ until it calls out every source construct that has no safe Next equivalent.
 
 Ask for the legacy bundle and optional config contents or paths. If the bundle uses
 `overrides`, also ask for each referenced package's `zarf.yaml` when it is available;
-the package mappings determine whether a generated values file is usable.
+the package mappings determine whether a generated values file is usable. Also ask
+whether the Legacy workflow used `uds dev deploy --ref <package>=<ref>` and, for each
+such remote package, its effective resolved ref including the platform-specific digest
+when Legacy resolved one.
 
 For a new migration, check whether the requested output directory already exists
 before writing any output. If it does, stop without reading, merging, changing, or
@@ -112,7 +115,7 @@ Apply these mappings when the source has the required values:
 | unique package `name` valid in Next | `package "<name>"` label |
 | package `name` containing `/` or `\\`, or equal to `.` or `..` | collision-free identifier-safe Next label; see **Next package-label validation** |
 | repeated package `name` | unique collision-free instance labels, allocated in Legacy source order; see **Repeated package names** |
-| `repository` plus `ref` | `source = "oci://<repository>:<ref>"` |
+| `repository` plus effective `ref` | `source = "oci://<repository>:<ref>"`; see **Development ref overrides** |
 | local package `path` ending in `.tar.zst` | `source = "<path>"`, adjusted relative to the generated bundle directory so it resolves to the same archive |
 | local package directory `path` | resolve the Legacy package archive path, then use that archive as `source`; see **Local package preparation** |
 | `namespace` | package `namespace` |
@@ -132,6 +135,18 @@ remove later identical entries. Record removed duplicates in the migration repor
 the Next output remains reviewable while preserving Legacy's effective component
 selection. If an entry cannot be read as a component name, mark that package **needs
 optional-components review** rather than emitting invalid HCL.
+
+### Development ref overrides
+
+For a Legacy `uds dev deploy --ref <package>=<ref>` override, use the effective ref
+instead of the package manifest's `ref` when translating that remote package source.
+Legacy resolves a tag override for its effective architecture and uses the resulting
+`<ref>@sha256:<digest>` value; preserve that resolved value in the Next OCI source
+when supplied. If the override was supplied but its resolved digest is unavailable,
+mark the package **needs development-ref source review** rather than silently using
+the manifest ref. A Legacy ref override for a local package is invalid; report it as
+such and do not invent a Next source. Record each override and the selected effective
+ref in the migration report and source-attribution table.
 
 ### HCL-safe strings
 
