@@ -116,7 +116,7 @@ Apply these mappings when the source has the required values:
 | local package `path` ending in `.tar.zst` | `source = "<path>"`, adjusted relative to the generated bundle directory so it resolves to the same archive |
 | local package directory `path` | resolve the Legacy package archive path, then use that archive as `source`; see **Local package preparation** |
 | `namespace` | package `namespace` |
-| `optionalComponents` | `optional_components` |
+| `optionalComponents` | `optional_components`, after removing exact duplicate entries while preserving first-occurrence order |
 | `publicKey` | `signature_verification { public_key = ... }` with the Legacy key content encoded as an HCL string or heredoc; Legacy treats this field as content, not a path; see **HCL-safe strings** |
 | `keylessVerification` | `signature_verification { keyless { ... } }`, changing camelCase keys to the documented snake_case keys; see **HCL-safe strings** |
 | static override `values` without Legacy `${NAME}` placeholders | nested YAML at the Zarf-mapped source path for each override target path; see **Literal Go-template delimiters** and **Override path mapping** |
@@ -125,6 +125,13 @@ Apply these mappings when the source has the required values:
 | `options.architecture`, `log_level`, `tmp_dir` | same-name fields in `config.uds.hcl` `options` |
 | `options.oci_concurrency` | **needs concurrency-semantics review**; do not map automatically to `options.concurrency` |
 | legacy `insecure` | manual decision between `plain_http` and `skip_tls_verify`; do not choose automatically |
+
+For each package, stable-deduplicate Legacy `optionalComponents` before emitting
+`optional_components`: retain the first occurrence of each exact component name and
+remove later identical entries. Record removed duplicates in the migration report so
+the Next output remains reviewable while preserving Legacy's effective component
+selection. If an entry cannot be read as a component name, mark that package **needs
+optional-components review** rather than emitting invalid HCL.
 
 ### HCL-safe strings
 
