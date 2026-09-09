@@ -381,17 +381,18 @@ package-scoped variable.
 ### Dependency-safe package labels
 
 Next accepts `depends_on` references only in `package.<identifier>` form. A label
-containing `-`, including a generated `foo-1`, cannot be referenced there; `index`
-syntax is available for values-file templates but not for `depends_on`. Do not emit
-an invalid `package.foo-1` reference.
+may contain a hyphen after its first character, so `package.foo-1` is valid. Preserve
+such labels in package blocks and dependency references; `index` remains necessary
+only for values-file template access to a package-scoped variable.
 
-When a migration must generate or preserve a dependency involving such a package,
-allocate a collision-free identifier-safe package label instead, such as `foo_1`.
-Reserve all original and allocated labels, propagate that replacement to the package
-block, values-file path, package-scoped variables, templates, and every dependency
-reference, and record it in the migration report. If the Legacy input cannot identify
-which repeated instance is the dependency target, or relabelling would be ambiguous,
-mark it **needs repeated-package dependency review** rather than guessing.
+When a migration must generate or preserve a dependency involving a label that does
+not parse as an HCL identifier, allocate a collision-free identifier-safe package
+label instead. Reserve all original and allocated labels, propagate that replacement
+to the package block, values-file path, package-scoped variables, templates, and
+every dependency reference, and record it in the migration report. If the Legacy
+input cannot identify which repeated instance is the dependency target, or relabelling
+would be ambiguous, mark it **needs repeated-package dependency review** rather than
+guessing.
 
 Add a source-attribution-table row for every renamed instance. State the original
 Legacy package name, generated instance label, source-order reason, and any reserved
