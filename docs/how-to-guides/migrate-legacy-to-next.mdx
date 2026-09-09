@@ -148,9 +148,9 @@ For an AI-assisted first pass, follow [Migrate a legacy bundle with an AI coding
          - name: unicorn-podinfo
            values:
              - sourcePath: ".podinfo.replicaCount"
-               targetPath: ".podinfo.replicaCount"
+               targetPath: ".replicaCount"
              - sourcePath: ".podinfo.service.type"
-               targetPath: ".podinfo.service.type"
+               targetPath: ".service.type"
    ```
 
    Next values files are package-level inputs. Move any legacy `valuesFiles` into the bundle, list them in `values_files`, and give each chart-specific value a matching Zarf mapping. Update and rebuild the Zarf package if a mapping is missing.
