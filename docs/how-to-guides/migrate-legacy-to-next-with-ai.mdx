@@ -26,9 +26,12 @@ optionally deploy to a non-production cluster.
   deployment mode; connected and cluster-less packages have different requirements.
 
 > [!WARNING]
-> The agent generates a first-pass migration, not an attestation that the result is
-> safe or equivalent. Review package signature verification, generated values
-> files, and every item in the migration report before running a deployment.
+> This AI-assisted migration workflow is experimental. The agent generates a
+> first-pass proposal, not an attestation that the result is safe or equivalent.
+> Review generated files, package sources, variable behavior, Zarf mappings, package
+> signature verification, and every item in the migration report before using the
+> result in any environment. A successful artifact build does not prove deployment
+> equivalence.
 
 ## Steps
 

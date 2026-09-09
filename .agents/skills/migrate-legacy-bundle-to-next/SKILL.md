@@ -9,6 +9,12 @@ Produce a reviewable first-pass migration from `uds-bundle.yaml` and, when suppl
 `uds-config.yaml`. Keep the source files unchanged. The deliverable is not complete
 until it calls out every source construct that has no safe Next equivalent.
 
+This AI-assisted workflow is experimental. It produces a proposed migration, not a
+compatibility guarantee. Begin the migration report with an **Experimental migration
+warning** that requires review of generated files, package sources, variable behavior,
+Zarf mappings, and verification settings before use in any environment. State that a
+successful artifact build does not prove deployment equivalence.
+
 ## Inputs and output
 
 Ask for the legacy bundle and optional config contents or paths. If the bundle uses
