@@ -288,6 +288,13 @@ scalar form, a template result, or an uncertain `strvals` outcome prevents an ex
 derivation, mark the override **needs Helm scalar-coercion review** rather than
 assuming the source YAML type is equivalent.
 
+Next converts numeric HCL variables to `float64` before rendering values files. For
+an effective Legacy integer outside the universally exact `float64` range from
+`-2^53` through `2^53`, do not place it in `config.uds.hcl` or `defaults.uds.hcl` as
+an HCL number and do not claim the numeric type is retained. Mark it **needs
+large-integer review** unless a verified representation preserves the exact integer
+and the intended YAML numeric type.
+
 ### YAML scalar rendering
 
 Values files are rendered before Next parses them as YAML. After applying **Legacy
