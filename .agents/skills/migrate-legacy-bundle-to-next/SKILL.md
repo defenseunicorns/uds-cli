@@ -655,8 +655,13 @@ Use these command changes in the report:
 | `uds publish` / `uds pull` / `uds remove` | `uds bundle push` / `uds bundle pull` / `uds bundle remove`, each with `CLI_FEATURES=NextMode=true` |
 | `uds zarf` | `CLI_FEATURES=NextMode=true uds tools zarf` (except vendored tools remain `uds zarf tools <tool>`) |
 
-After resolving every **needs package-ordering review** blocker, recommend a
-non-production development deployment before creating and signing the artifact. The
+Recommend a non-production development deployment only after a successful
+`uds bundle create` of the same output directory has enforced every retained package
+verification policy. Do not recommend `dev deploy` while a package-verification TODO
+is unresolved or after a failed verification; it can continue despite an invalid
+package signature. When the user explicitly selected `verify = false` for a
+validation copy, label its development deployment as an unverified, local-alpha,
+security-reducing workflow rather than validation of the canonical migration. The
 report must name the actual generated output directory rather than relying on the
 current directory, for example:
 
