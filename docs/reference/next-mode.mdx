@@ -10,9 +10,9 @@ UDS CLI Next is the next-generation implementation of UDS CLI. It is available a
 > [!NOTE]
 > More task-focused UDS CLI Next documentation will be added as the mode matures. For now, treat this page as a reference for why Next exists and what it can currently do.
 
-## Why Next mode exists
+## Why UDS CLI Next mode exists
 
-UDS CLI Next is designed to support the next phase of UDS bundle workflows:
+UDS CLI Next mode is designed to support the next phase of UDS bundle workflows:
 
 - [Bundles Next design](#bundles-next-design)
   - next-generation bundle authoring and artifact structure
@@ -73,11 +73,11 @@ This layout makes package content explicit and inspectable while keeping the bun
 | Legacy | Default | Existing `uds-bundle.yaml` workflows continue to work. |
 | Next | Alpha preview | Enabled with `NextMode`; command coverage is still expanding. |
 
-Next mode is planned to become the default in beta. Legacy mode will be removed after the beta migration window.
+UDS CLI Next mode is planned to become the default in beta. Legacy mode will be removed after the beta migration window.
 
 ## Current capabilities
 
-Next mode currently supports the core bundle flows needed to exercise HCL bundles and artifact-based deployment:
+UDS CLI Next mode currently supports the core bundle flows needed to exercise HCL bundles and artifact-based deployment:
 
 | Capability | Current support |
 |---|---|
@@ -90,9 +90,9 @@ Next mode currently supports the core bundle flows needed to exercise HCL bundle
 | Bundle signature verification | Verify signed bundle artifacts during deploy, with an explicit skip flag available for unsigned local artifacts |
 | Retained Legacy commands | Non-bundle commands that are still needed during migration remain available in Next mode |
 
-## Enabling Next mode
+## Enabling UDS CLI Next mode
 
-Next mode can be enabled per command with the `NextMode` feature flag:
+UDS CLI Next mode can be enabled per command with the `NextMode` feature flag:
 
 ```bash
 uds --features=NextMode=true version
@@ -116,7 +116,7 @@ uds {
 
 metadata {
   name        = "next-quickstart"
-  description = "Next mode quickstart bundle"
+  description = "UDS CLI Next mode quickstart bundle"
   version     = "0.1.0"
 }
 
