@@ -89,7 +89,9 @@ For an AI-assisted first pass, follow [Migrate a legacy bundle with an AI coding
      values_files        = ["values/podinfo.yaml"]
 
      signature_verification {
-       public_key = file("keys/package.pub")
+       public_key = <<-PACKAGE_PUBLIC_KEY
+       replace-with-your-package-public-key
+       PACKAGE_PUBLIC_KEY
      }
    }
    ```
@@ -98,9 +100,14 @@ For an AI-assisted first pass, follow [Migrate a legacy bundle with an AI coding
 
    - Remove `kind` and `build`. The `uds` block identifies the Next bundle schema, and Next creates the artifact metadata during artifact creation.
    - Keep the bundle name, description, and version in the `metadata` block. Turn each legacy package entry into a `package "<name>"` block.
-   - Combine `repository` and `ref` into `source`, or set `source` to a local Zarf package directory or archive.
+   - Combine `repository` and `ref` into `source`. For a local Legacy `path`, resolve
+     the Legacy archive path; use a Next package directory only when it has generated
+     package metadata such as `checksums.txt`.
    - Rename `optionalComponents` to `optional_components`.
-   - Move package signing settings into `signature_verification`. For keyless verification, use `signature_verification.keyless` with the same certificate identity and OIDC issuer constraints.
+   - Move package signing settings into `signature_verification`. Legacy `publicKey`
+     is inline key content, not a path; preserve it as an HCL string or heredoc. For
+     keyless verification, use `signature_verification.keyless` with the same
+     certificate identity and OIDC issuer constraints.
    - Set architecture with `options.architecture` in `config.uds.hcl` or the `--architecture` flag. It is not a `metadata` setting in Next.
    - Next artifacts use `.tar.zst`. Fields such as `metadata.uncompressed`, package `description`, `timeout`, `flavor`, `imports`, and `exports` have no direct Next equivalent.
 
@@ -196,7 +203,9 @@ For an AI-assisted first pass, follow [Migrate a legacy bundle with an AI coding
    - Replace `insecure` with `plain_http` or `skip_tls_verify`, depending on the registry behavior you need. Configure signature verification separately.
    - Next has no equivalents for `uds_cache`, `retries`, `UDS_<NAME>` environment variables, or `--set`. Put required values in the config file passed with `--config` and adjust those workflows.
 
-   Next applies built-in defaults, then `config.uds.hcl` values, then explicit command-line flags. `config.uds.hcl` overrides matching values in the adjacent `defaults.uds.hcl`.
+   Next applies built-in defaults, then adjacent `defaults.uds.hcl`, then
+   `config.uds.hcl`, then explicit command-line flags. `config.uds.hcl` overrides
+   matching values in `defaults.uds.hcl`.
 
 5. **Test, create, and deploy the Next artifact**
 
@@ -210,7 +219,7 @@ For an AI-assisted first pass, follow [Migrate a legacy bundle with an AI coding
 
    ```bash
    cd next
-   CLI_FEATURES=NextMode=true uds bundle create . --architecture amd64 --signing-key ./keys/bundle-signing.key
+   CLI_FEATURES=NextMode=true uds bundle create . --config ./config.uds.hcl --signing-key ./keys/bundle-signing.key
    ```
 
    Push and deploy the signed artifact:

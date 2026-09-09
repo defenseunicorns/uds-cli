@@ -116,7 +116,7 @@ Apply these mappings when the source has the required values:
 | local package directory `path` | resolve the Legacy package archive path, then use that archive as `source`; see **Local package preparation** |
 | `namespace` | package `namespace` |
 | `optionalComponents` | `optional_components` |
-| `publicKey` | `signature_verification { public_key = file("...") }` when the value is a path; preserve literal multiline key content with an HCL heredoc when it is clearly intended as content; see **HCL-safe strings** |
+| `publicKey` | `signature_verification { public_key = ... }` with the Legacy key content encoded as an HCL string or heredoc; Legacy treats this field as content, not a path; see **HCL-safe strings** |
 | `keylessVerification` | `signature_verification { keyless { ... } }`, changing camelCase keys to the documented snake_case keys; see **HCL-safe strings** |
 | static override `values` without Legacy `${NAME}` placeholders | nested YAML at the Zarf-mapped source path for each override target path; see **Literal Go-template delimiters** and **Override path mapping** |
 | static override `values` containing Legacy `${NAME}` placeholders | translate each resolvable scalar placeholder to `{{ .vars.<package>.<normalized_name> }}` at the Zarf-mapped source path, using its collision-safe key when needed; see **Legacy placeholder translation** and **Override path mapping** |
@@ -142,11 +142,13 @@ example, Legacy `https://github\.com/...` becomes
 `"https://github\\.com/..."` in HCL. Preserve the intended regular expression, not
 the raw YAML spelling.
 
-For multiline PEM public keys, `trusted_root` JSON, and other multiline verification
-content, use `file("<path>")` when the supplied material is available as a retained
-file, or an HCL heredoc when the Legacy input embeds the content. Do not place
-multiline content in a quoted HCL string or invent a file path. Record the chosen
-representation and source location in the migration report.
+Legacy `publicKey` and `keylessVerification.trustedRoot` values are inline content:
+Legacy writes their literal strings to temporary verification files. Preserve that
+content as an HCL string or, for multiline PEM keys, TrustedRoot JSON, and other
+multiline values, an HCL heredoc. Do not interpret a Legacy value as a file path or
+invent one. A `file("...")` expression is appropriate only when the user separately
+provides and authorizes a generated-output file containing the same material. Record
+the representation and source location in the migration report.
 
 ### Literal Go-template delimiters
 
