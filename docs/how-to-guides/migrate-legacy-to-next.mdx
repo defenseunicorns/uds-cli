@@ -197,7 +197,14 @@ For an AI-assisted first pass, follow [Migrate a legacy bundle with an AI coding
    When moving other settings, use these rules:
 
    - Keep variables used in `values_files` under the package name. Convert uppercase names to lowercase with underscores, such as `REPLICA_COUNT` to `replica_count`.
-   - Zarf package variables must be top-level scalar values and apply to every package. Put shared Helm settings in each package's values file. Use a values file for package-specific settings.
+   - Inspect package `variables`, chart `variables` mappings, and deploy-time
+     `###ZARF_VAR_<NAME>###` usages. A matching Legacy value for a Zarf variable must
+     be a top-level scalar, because it applies to every package; retain a nested copy
+     only when a values-file template also needs it. Resolve the shared scope manually
+     if another package requires a different value, a Zarf default, or a prompt for
+     the same variable. Do not use `###ZARF_PKG_VAR_*###` for this check: it is a
+     package-creation template prefix. Put other package-specific Helm settings in a
+     values file.
    - Keep `architecture`, `log_level`, and `tmp_dir` in the Next `options` block. The legacy `--tmpdir` flag becomes `--tmp-dir`.
    - Do not automatically change `oci_concurrency` to `concurrency`. Legacy `oci_concurrency` limits remote OCI layer operations; Next `concurrency` controls concurrent package deployments within a dependency level and accepts values from `1` through `25`. Select a Next concurrency value only after deciding the intended deployment parallelism.
    - Replace `insecure` with `plain_http` or `skip_tls_verify`, depending on the registry behavior you need. Configure signature verification separately.

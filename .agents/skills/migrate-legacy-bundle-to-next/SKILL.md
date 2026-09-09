@@ -205,23 +205,32 @@ corresponding `config.uds.hcl` key and every template reference are changed toge
 
 ### Direct Zarf package variables
 
-Inspect the supplied package's `zarf.yaml` for direct Zarf package-variable inputs
-(for example, `###ZARF_PKG_VAR_NAME###`). A Legacy package-scoped config value used
-only by a generated values-file template remains under its package object. A scalar
-value consumed directly by Zarf must instead be a collision-free top-level
-`variables` entry in `config.uds.hcl`, because Next forwards only top-level scalars
-to Zarf's package-variable map.
+Inspect the supplied package's `zarf.yaml` and available package layout for deploy-time
+Zarf variable consumers: package-level `variables` declarations, chart `variables`
+mappings, and `###ZARF_VAR_NAME###` usages in manifests, templates, actions, or other
+deploy inputs. Do not use `###ZARF_PKG_VAR_*###` as this check: it is a package
+creation-time template prefix, not the deploy-variable syntax. A Legacy package-scoped
+config value used only by a generated values-file template remains under its package
+object. A configured scalar whose uppercase Legacy name matches a declared or consumed
+deploy-time Zarf variable must also be a collision-free top-level `variables` entry in
+`config.uds.hcl`, because Next forwards only top-level scalars to Zarf's
+package-variable map.
 
-For each direct token, use a top-level key whose uppercase form exactly equals the
-token name. Preserve the Legacy variable spelling for that key when it provides the
-required identity: for example, Legacy `fooBar` consumed by
-`###ZARF_PKG_VAR_FOOBAR###` becomes top-level `fooBar`, not normalized `foo_bar`.
-Retain a separately normalized package-scoped entry only when generated values-file
-templates also need it. If `zarf.yaml` cannot be inspected, the input is non-scalar,
-the Legacy uppercase name does not match the token, lifting would change the scope,
-or a direct token collides with another top-level value, mark it **needs Zarf
-variable-scope review** in the migration report; do not silently leave it nested or
-choose a renamed fallback.
+For each direct deploy variable, use a top-level key whose uppercase form exactly
+equals the Zarf variable name. Preserve the Legacy variable spelling for that key when
+it provides the required identity: for example, Legacy `fooBar` consumed by
+`###ZARF_VAR_FOOBAR###` or a chart variable named `FOOBAR` becomes top-level `fooBar`,
+not normalized `foo_bar`. Retain a separately normalized package-scoped entry only
+when generated values-file templates also need it. Before lifting, compare every
+migrated package that declares or consumes the same Zarf variable. Lift automatically
+only when it is the sole consumer or every consumer has the same explicitly configured
+scalar Legacy value. If another package has a different value or relies on its Zarf
+default or prompt, do not choose one or rename either value: mark the shared scope as
+**needs Zarf variable-scope review**. Likewise, if `zarf.yaml` cannot be inspected,
+the input is non-scalar, the Legacy uppercase name does not match the declared or
+consumed variable, lifting would change the scope, or a direct variable collides with
+another top-level value, mark it **needs Zarf variable-scope review** in the migration
+report; do not silently leave it nested or choose a renamed fallback.
 
 ### YAML scalar rendering
 
