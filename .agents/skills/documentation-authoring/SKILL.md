@@ -43,6 +43,7 @@ Use this skill for documentation work in this repository.
 - Mark unsigned or skipped-verification workflows as local alpha workflows and explain the security consequence.
 - Every copy-paste example must include its required files, directories, variables, credentials, and trust-policy inputs, or explicitly identify placeholders.
 - Do not invent command flags, output formats, artifact names, registry behavior, or future support.
+- Keep the Next reference pages synchronized with the implementation. When adding, removing, or changing fields in `bundle.uds.hcl`, `defaults.uds.hcl`, or `config.uds.hcl`, compare the reference tables and examples with the parser, validation, and command consumers, then update affected how-to guides.
 
 ## Language
 
