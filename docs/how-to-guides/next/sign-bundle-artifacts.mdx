@@ -77,14 +77,6 @@ Every UDS CLI command in this guide enables Next mode with `CLI_FEATURES=NextMod
    CLI_FEATURES=NextMode=true uds bundle create ./my-bundle --keyless
    ```
 
-   In CI, provide the workflow's OIDC token:
-
-   ```bash
-   CLI_FEATURES=NextMode=true uds bundle create ./my-bundle \
-     --keyless \
-     --identity-token "$OIDC_IDENTITY_TOKEN"
-   ```
-
    Record the certificate identity and issuer so deployers can configure matching verification constraints.
 
 4. **Sign an existing artifact**
