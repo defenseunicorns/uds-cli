@@ -249,14 +249,14 @@ optionally deploy to a non-production cluster.
    explicitly authorize this local-alpha command:
 
    ```bash
-   CLI_FEATURES=NextMode=true uds bundle deploy <created-artifact>.tar.zst --skip-signature-verification
+   CLI_FEATURES=NextMode=true uds bundle deploy <created-artifact>.tar.zst --config <selected-directory>/config.uds.hcl --skip-signature-verification
    ```
 
    `--skip-signature-verification` bypasses bundle-artifact integrity verification;
-   do not use it for a release or a registry artifact. Append `--config
-   <selected-directory>/config.uds.hcl` when the selected migration generated
-   deploy-time configuration. Deploy the canonical migration directly only when you
-   did not prepare a validation copy:
+   do not use it for a release or a registry artifact. Use the shown `--config` form
+   when the selected migration generated deploy-time configuration; otherwise omit
+   that flag and its path. Deploy the canonical migration directly only when you did
+   not prepare a validation copy:
 
    ```bash
    CLI_FEATURES=NextMode=true uds bundle dev deploy ./.next --architecture <effective-legacy-architecture> --config ./.next/config.uds.hcl
