@@ -345,12 +345,18 @@ matches only `sourcePath` is not equivalent: Zarf will write that value to the
 different `targetPath`, changing the Helm key. Generate the nested YAML at the
 resolved source path only after a target-path match, while retaining the Legacy
 component, chart, target path, source path, and mapping rule in the migration report.
+Inspect the selected mapping's `excludePaths` before classifying it as usable. If an
+excluded path equals the resolved generated source path or is its ancestor, Zarf
+deletes the migrated value before extracting `sourcePath`; mark the override **needs
+Zarf source-path mapping review** and do not emit it at that path. A target-path match
+alone is not sufficient when its migrated source value is excluded.
 
 If the component/chart cannot be inspected, no target-path mapping matches, a
 source-only mapping would redirect the Helm key, multiple mappings have the same
-most-specific match, or a mapping cannot preserve the override shape, mark the
-override **needs Zarf source-path mapping review**. Do not generate a values entry at
-the Legacy target path unless that is also the verified Zarf source path.
+most-specific match, a mapped source value is excluded, or a mapping cannot preserve
+the override shape, mark the override **needs Zarf source-path mapping review**. Do
+not generate a values entry at the Legacy target path unless that is also the verified
+Zarf source path.
 
 ### Next package-label validation
 
