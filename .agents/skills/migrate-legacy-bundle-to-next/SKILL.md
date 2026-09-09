@@ -189,11 +189,12 @@ shape, mark it **needs literal-template review** instead of classifying the over
 as safely transcribed.
 
 Legacy `oci_concurrency` limits remote OCI layer operations and defaults to `3`.
-Next `options.concurrency` instead controls concurrent package deployment within a
-dependency level and is limited to `1` through `25`. Report Legacy
-`oci_concurrency` as **needs concurrency-semantics review** and write a Next
-`concurrency` value only when the user explicitly selects the intended package
-deployment parallelism.
+Next `options.concurrency` is limited to `1` through `25` and controls both remote
+OCI package pulls during bundle creation and source deployment, and concurrent package
+deployment within a dependency level. It is therefore not an OCI-only equivalent.
+Report Legacy `oci_concurrency` as **needs concurrency-semantics review** and write a
+Next `concurrency` value only when the user explicitly selects the intended balance
+between remote-pull and package-deployment parallelism.
 
 Normalize Legacy override variable names to lowercase snake case (for example,
 `REPLICA_COUNT` becomes `replica_count`) for package-scoped values-file templates.
