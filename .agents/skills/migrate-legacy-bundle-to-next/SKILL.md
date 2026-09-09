@@ -371,9 +371,12 @@ package-verification posture before a validation that requires one.
 
 When materializing the template, use `uds bundle create .` and state that the command
 must be run from the generated bundle directory. This keeps the command executable
-without a synthetic `<bundle-directory>` placeholder. In the migration report, also
-give the equivalent command from the user's current directory using the actual output
-directory path (for example, `./.next`).
+without a synthetic `<bundle-directory>` placeholder. For each of the three commands,
+append `--config config.uds.hcl` whenever that file was generated. If it does not set
+`options.architecture`, also append `--architecture <effective-legacy-architecture>`;
+otherwise omit that flag. Never name a nonexistent config file. In the migration
+report, also give the equivalent command from the user's current directory using the
+actual output directory path (for example, `./.next`) and the same conditional flags.
 
 ```hcl
 signature_verification {
@@ -383,7 +386,7 @@ signature_verification {
   # Option 1: key-based verification. Uncomment only the following line to select this option.
   # public_key = file("keys/<package>.pub")
   # From this bundle directory, sign the created artifact with a private key or KMS URI:
-  # CLI_FEATURES=NextMode=true uds bundle create . --signing-key <private-key-or-kms-uri>
+  # CLI_FEATURES=NextMode=true uds bundle create . --config config.uds.hcl --architecture <effective-legacy-architecture> --signing-key <private-key-or-kms-uri>
 
   # Option 2: keyless verification. Uncomment the following four lines to select this option.
   # keyless {
@@ -391,12 +394,12 @@ signature_verification {
   #   certificate_oidc_issuer     = "https://token.actions.githubusercontent.com"
   # }
   # From this bundle directory, sign the created artifact with an OIDC identity:
-  # CLI_FEATURES=NextMode=true uds bundle create . --keyless
+  # CLI_FEATURES=NextMode=true uds bundle create . --config config.uds.hcl --architecture <effective-legacy-architecture> --keyless
 
   # Option 3: local-alpha only; disables package verification. Uncomment only the following line to select this option.
   # verify = false
   # From this bundle directory, create an unsigned artifact:
-  # CLI_FEATURES=NextMode=true uds bundle create . --unsigned
+  # CLI_FEATURES=NextMode=true uds bundle create . --config config.uds.hcl --architecture <effective-legacy-architecture> --unsigned
 }
 ```
 
