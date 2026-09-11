@@ -1,0 +1,95 @@
+---
+title: "Inspect and verify a bundle in Next mode"
+description: Inspect metadata from bundles in Next mode, verify their signatures, and produce structured output for automation.
+sidebar:
+  order: 4.7
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Use `bundle inspect` for metadata and `bundle verify` for bundle signatures. Both commands accept local `.tar.zst` files and OCI references, not source directories or standalone `bundle.uds.hcl` files.
+
+## What you'll accomplish
+
+- Inspect bundle metadata.
+- Verify a signature with a public key or keyless constraints.
+- Emit JSON or YAML for automation.
+
+## Prerequisites
+
+- [UDS CLI installed](/cli/getting-started/installation/)
+- A local `.tar.zst` bundle artifact or an OCI bundle reference
+- A matching bundle public key or keyless certificate constraints for a signed artifact
+- `jq` installed for the JSON pipeline example
+
+## Steps
+
+<Steps>
+
+1. **Inspect an artifact**
+
+   ```bash
+   # Local artifact
+   CLI_FEATURES=NextMode=true uds bundle inspect ./uds-bundle-my-app-amd64-1.0.0.tar.zst
+
+   # OCI artifact
+   CLI_FEATURES=NextMode=true uds bundle inspect oci://registry.example.com/my-org/my-app:1.0.0
+   ```
+
+    Inspect displays bundle metadata, package sources, and dependencies. Its package status reflects checks from bundle creation. Without a verification policy, inspect does not verify the bundle signature. When you provide a public key, keyless constraints, or a configured policy, it verifies the bundle before displaying metadata.
+
+2. **Verify a signature**
+
+   Verify with a public key:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle verify \
+     ./uds-bundle-my-app-amd64-1.0.0.tar.zst \
+     --public-key ./cosign.pub
+   ```
+
+   Verify a keyless signature with certificate constraints:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle verify \
+     ./uds-bundle-my-app-amd64-1.0.0.tar.zst \
+     --certificate-identity-regexp 'https://github\.com/my-org/.*/\.github/workflows/release\.yml@refs/heads/main' \
+     --certificate-oidc-issuer 'https://token.actions.githubusercontent.com'
+   ```
+
+    The policy must identify the signer you trust. Package verification during creation does not prove bundle integrity.
+
+3. **Use structured output**
+
+    `create`, `inspect`, `pull`, and `reconfigure` support `text`, `json`, and `yaml` output:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle inspect ./my-bundle.tar.zst -o json | jq '.packages[].name'
+   CLI_FEATURES=NextMode=true uds bundle inspect ./my-bundle.tar.zst -o yaml
+   ```
+
+    Logs go to stderr. Structured output goes to stdout. Redirect stderr when a pipeline needs only JSON or YAML:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle inspect ./my-bundle.tar.zst -o json 2>/dev/null
+   ```
+
+</Steps>
+
+## Verification
+
+Treat inspection and signature verification as separate checks. A successful `bundle verify` confirms the bundle signature under the supplied policy. It does not verify package signatures again.
+
+## Troubleshooting
+
+### Problem: Verification fails for a signed artifact
+
+**Symptom:** `bundle verify` cannot validate the signature.
+
+**Solution:** Confirm that the key or keyless constraints match the signer. Confirm that the artifact was not changed after signing.
+
+## Related documentation
+
+- [Create a bundle in Next mode](/cli/how-to-guides/next/create-a-bundle/) - Create a bundle artifact to inspect.
+- [Deploy a bundle in Next mode](/cli/how-to-guides/next/deploy-a-bundle/) - Deploy verified artifacts.
+- [Next mode reference](/cli/reference/next-mode/) - Review the bundle format and supported commands.

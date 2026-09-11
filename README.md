@@ -16,6 +16,12 @@ brew trust --formula defenseunicorns/tap/uds && brew tap defenseunicorns/tap && 
 ```
 UDS CLI binaries are also included with each [Github Release](https://github.com/defenseunicorns/uds-cli/releases)
 
+### Snapshot prereleases
+
+The `Snapshot Release` workflow runs daily at 03:00 UTC against `main`; manual dispatches also build only `main`. Successful runs publish a GitHub prerelease tagged `vX.Y.Z-snapshot+YYYYMMDDHHMMSS-XXXXXXXX`, where `vX.Y.Z` is the latest stable tag and `XXXXXXXX` is the source commit's eight-character SHA. Each prerelease contains Linux and macOS binaries for amd64 and arm64, Linux DEB/RPM packages, SHA-256 checksums, and per-binary SBOMs.
+
+Snapshots do not update Homebrew or become the latest release. Scheduled cleanup retains the newest three snapshot prereleases and preserves their tags.
+
 ## Official Documentation
 Official documentation is located at [docs.defenseunicorns.com/cli/](https://docs.defenseunicorns.com/cli/)
 
@@ -39,12 +45,12 @@ metadata {
 }
 
 package "uds_k3d_dev" {
-  source = "oci://ghcr.io/defenseunicorns/packages/uds-k3d:0.20.2"
+  source = "oci://ghcr.io/defenseunicorns/packages/uds-k3d:0.20.3"
   signature_verification { verify = false }
 }
 
 package "init" {
-  source = "oci://ghcr.io/zarf-dev/packages/init:v0.83.0"
+  source = "oci://ghcr.io/zarf-dev/packages/init:v0.85.0"
   signature_verification {
     keyless {
       certificate_identity_regexp = "https://github\\.com/zarf-dev/zarf/\\.github/workflows/release\\.yml@refs/tags/v\\d+\\.\\d+\\.\\d+"
@@ -104,7 +110,7 @@ metadata:
 packages:
   - name: init
     repository: ghcr.io/zarf-dev/packages/init
-    ref: v0.84.0
+    ref: v0.85.0
     keylessVerification:
       certificateIdentityRegexp: https://github\.com/zarf-dev/zarf/\.github/workflows/release\.yml@refs/tags/v\d+\.\d+\.\d+
       certificateOIDCIssuer: https://token.actions.githubusercontent.com

@@ -5,6 +5,7 @@ Below are some notes on our core software design philosophies that should help g
 
 ## Table of Contents
 1. [Code Quality and Standards](#code-quality-and-standards)
+1. [Snapshot releases](#snapshot-releases)
 1. [How to Contribute](#how-to-contribute)
     - [Set up the development environment](#set-up-the-development-environment)
     - [Building the app](#building-the-app)
@@ -34,7 +35,15 @@ Specifically:
 - We do trunk-based development (`main`) with short-lived feature branches that originate from the trunk, get merged into the trunk, and are deleted after the merge
 - We don't merge code into `main` that isn't releasable
 - We perform automated testing on all changes before they get merged to `main`
-- We create immutable release artifacts
+- We create unique release artifacts
+
+## Snapshot releases
+
+The `Snapshot Release` workflow runs daily at 03:00 UTC against `main`. Manual dispatches also build only `main`. Tags use `vX.Y.Z-snapshot+YYYYMMDDHHMMSS-XXXXXXXX`, containing the latest stable version prefix, UTC timestamp, and exact source commit. They are never overwritten.
+
+Before tagging, the workflow rejects tag collisions and runs the reusable release test suite against `main`. That suite includes authenticated GHCR-write tests and Legacy and Next UDS Core smoke tests. After publishing, the workflow verifies the Linux amd64 checksum and confirms both CLI modes report the release tag. The stable release workflow excludes snapshot tags.
+
+Do not dispatch this workflow without maintainer approval. Its tests and publishing jobs use repository and package write permissions, and successful runs create remote tags, GitHub prereleases, and package state through the `release-snapshot` environment. Scheduled cleanup retains three snapshot prereleases and preserves their tags.
 
 ## How to Contribute
 Please ensure there is a GitHub issue for your proposed change, this helps the UDS CLI team to understand the context of the change and to track the progress of the work. If there isn't an issue for your change, please create one before starting work. The recommended workflow for contributing is as follows:

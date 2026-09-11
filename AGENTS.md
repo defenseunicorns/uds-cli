@@ -12,6 +12,7 @@ When modifying a file that already has a copyright header, preserve its starting
 
 - [.agents/skills/go-development/SKILL.md](.agents/skills/go-development/SKILL.md), Go coding rules
 - [.agents/skills/testing/SKILL.md](.agents/skills/testing/SKILL.md), testing strategy
+- [.agents/skills/documentation-authoring/SKILL.md](.agents/skills/documentation-authoring/SKILL.md), documentation authoring rules
 
 ## Legacy and Next separation
 
@@ -70,6 +71,12 @@ Keep user, contributor, and design docs synchronized with code changes.
 - If you change setup, tasks, hooks, tests, release flow, or another contributor workflow, update `CONTRIBUTING.md` and/or `README.md`.
 - If you change generated docs, run the corresponding docs generation or docs test task when practical.
 - If you make a significant design decision, add a new ADR.
+
+## Release workflows
+
+- Ask before dispatching `.github/workflows/snapshot-release.yaml`. It writes to GHCR during validation and uses repository/package write permissions plus the `release-snapshot` environment to create remote tags and prereleases.
+- Preserve unique snapshot tags: `vX.Y.Z-snapshot+YYYYMMDDHHMMSS-XXXXXXXX`. Never reuse, move, or force-update them. Keep this format excluded from `.github/workflows/release.yaml`.
+- Scheduled cleanup removes snapshot prereleases beyond the newest three and preserves their tags. Keep `README.md`, `CONTRIBUTING.md`, and `AGENTS.md` synchronized with release workflow changes.
 
 ## Tooling and safety
 
