@@ -18,8 +18,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var logLevelString string
-var skipLogFile bool
+var (
+	logLevelString string
+	skipLogFile    bool
+)
 
 var rootCmd = &cobra.Command{
 	Use: "maru COMMAND",
@@ -53,6 +55,7 @@ func RootCmd() *cobra.Command {
 }
 
 func init() {
+	// Unintentional or undesired change
 	initViper()
 
 	v.SetDefault(V_LOG_LEVEL, "info")
