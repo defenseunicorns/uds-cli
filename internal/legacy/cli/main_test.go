@@ -112,19 +112,6 @@ func TestCommandLineOverridesConfiguration(t *testing.T) {
 	}
 }
 
-func TestEmptyArchitectureFlagFails(t *testing.T) {
-	t.Setenv("UDS_CONFIG", "")
-	t.Chdir(t.TempDir())
-
-	root := NewRootCommand()
-	root.SetArgs([]string{"version", "--architecture="})
-
-	err := root.Execute()
-	if err == nil || !strings.Contains(err.Error(), "--architecture must not be empty") {
-		t.Fatalf("error = %v, want empty architecture error", err)
-	}
-}
-
 func TestInvalidConfigurationFailsDuringExecution(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "uds-config.yaml")
 	if err := os.WriteFile(configPath, []byte("invalid: true\n"), 0o600); err != nil {

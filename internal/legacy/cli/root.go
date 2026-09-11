@@ -96,20 +96,7 @@ func NewMonitorCommand() *cobra.Command {
 	return monitor.NewCommand()
 }
 
-func validateArchitectureFlag(cmd *cobra.Command) error {
-	flag := cmd.Flags().Lookup("architecture")
-	if flag == nil || !flag.Changed || flag.Value.String() != "" {
-		return nil
-	}
-
-	return errors.New("--architecture must not be empty")
-}
-
 func legacyPreRun(cmd *cobra.Command) error {
-	if err := validateArchitectureFlag(cmd); err != nil {
-		return err
-	}
-
 	// Don't add the logo to the help command.
 	if cmd.Parent() == nil {
 		if err := cmd.Root().PersistentFlags().Set("no-log-file", "true"); err != nil {
