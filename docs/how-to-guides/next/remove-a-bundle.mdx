@@ -7,7 +7,7 @@ sidebar:
 
 import { Steps } from '@astrojs/starlight/components';
 
-Use `bundle remove` to remove packages from a Kubernetes cluster. The command accepts a bundle definition, local artifact, or OCI reference.
+Use `bundle dev remove` with a bundle definition while developing locally. Use `bundle remove` with a local artifact or OCI reference.
 
 ## What you'll accomplish
 
@@ -26,18 +26,17 @@ Use `bundle remove` to remove packages from a Kubernetes cluster. The command ac
 
 <Steps>
 
-1. **Remove the bundle**
+1. **Choose the removal command**
 
-   Remove all packages from the current directory's bundle definition:
+   Remove all packages defined by `bundle.uds.hcl` in the current directory during local development:
 
    ```bash
-   CLI_FEATURES=NextMode=true uds bundle remove
+   CLI_FEATURES=NextMode=true uds bundle dev remove
    ```
 
-   To remove a bundle from another source, provide its path or OCI reference. Artifact sources require a verification policy unless you explicitly skip verification for a local alpha workflow:
+   To remove packages using a created artifact, provide its local path or OCI reference. Artifact removal requires a verification policy unless you explicitly skip verification for an unsigned local alpha workflow:
 
    ```bash
-   CLI_FEATURES=NextMode=true uds bundle remove ./my-bundle
    CLI_FEATURES=NextMode=true uds bundle remove ./my-bundle.tar.zst --public-key ./cosign.pub
    CLI_FEATURES=NextMode=true uds bundle remove oci://registry.example.com/my-org/my-app:1.0.0 --public-key ./cosign.pub
    ```
@@ -47,13 +46,13 @@ Use `bundle remove` to remove packages from a Kubernetes cluster. The command ac
    Pass package IDs with `--packages`:
 
    ```bash
-   CLI_FEATURES=NextMode=true uds bundle remove ./my-bundle --packages api,frontend
+   CLI_FEATURES=NextMode=true uds bundle dev remove ./my-bundle --packages api,frontend
    ```
 
    The command blocks removal when another bundle package depends on a selected package. Add `--force` only when you accept that dependency risk:
 
    ```bash
-   CLI_FEATURES=NextMode=true uds bundle remove ./my-bundle --packages database --force
+   CLI_FEATURES=NextMode=true uds bundle dev remove ./my-bundle --packages database --force
    ```
 
 3. **Confirm before removal**
@@ -61,7 +60,7 @@ Use `bundle remove` to remove packages from a Kubernetes cluster. The command ac
    Use `--prompt` to require interactive confirmation:
 
    ```bash
-   CLI_FEATURES=NextMode=true uds bundle remove ./my-bundle --prompt
+   CLI_FEATURES=NextMode=true uds bundle dev remove ./my-bundle --prompt
    ```
 
 </Steps>

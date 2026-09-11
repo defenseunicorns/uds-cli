@@ -54,12 +54,39 @@ func (s *RemoveSuite) TestRemoveCommand_WithPromptFlag() {
 		"help output should document --packages flag")
 }
 
+func (s *RemoveSuite) TestDevRemoveCommand_WithPromptFlag() {
+	cmd := exec.Command(s.uds, "bundle", "dev", "remove", "--help")
+	output, err := cmd.CombinedOutput()
+	require.NoError(s.T(), err, "help should succeed")
+
+	assert.Contains(s.T(), string(output), "--prompt",
+		"help output should document --prompt flag")
+	assert.Contains(s.T(), string(output), "--packages",
+		"help output should document --packages flag")
+}
+
 // TestRemoveCommand_DisplaysPreview verifies that remove command shows bundle preview
 // before prompting for confirmation when --prompt is used.
 func (s *RemoveSuite) TestRemoveCommand_DisplaysPreview() {
+	artifact := createInspectArtifact(s.T())
+
+	cmd := exec.Command(s.uds, "bundle", "remove", artifact, "--skip-signature-verification", "--prompt")
+	cmd.Stdin = strings.NewReader("n\n")
+	output, err := cmd.CombinedOutput()
+	require.NoError(s.T(), err)
+
+	outputStr := string(output)
+
+	assert.Contains(s.T(), outputStr, "bundle to remove")
+	assert.Contains(s.T(), outputStr, "inspect-integration")
+	assert.Contains(s.T(), outputStr, "Remove this bundle?")
+	assert.Contains(s.T(), outputStr, "removal cancelled")
+}
+
+func (s *RemoveSuite) TestDevRemoveCommand_DisplaysPreview() {
 	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
-	cmd := exec.Command(s.uds, "bundle", "remove", bundlePath, "--prompt")
+	cmd := exec.Command(s.uds, "bundle", "dev", "remove", bundlePath, "--prompt")
 	cmd.Stdin = strings.NewReader("n\n")
 	output, err := cmd.CombinedOutput()
 	require.NoError(s.T(), err)
@@ -75,9 +102,23 @@ func (s *RemoveSuite) TestRemoveCommand_DisplaysPreview() {
 // TestRemoveCommand_CancellationDoesNotRemove verifies that declining the confirmation
 // prompt prevents the removal from starting when --prompt is used.
 func (s *RemoveSuite) TestRemoveCommand_CancellationDoesNotRemove() {
+	artifact := createInspectArtifact(s.T())
+
+	cmd := exec.Command(s.uds, "bundle", "remove", artifact, "--skip-signature-verification", "--prompt")
+	cmd.Stdin = strings.NewReader("n\n")
+	output, err := cmd.CombinedOutput()
+	require.NoError(s.T(), err)
+
+	outputStr := string(output)
+
+	assert.Contains(s.T(), outputStr, "removal cancelled")
+	assert.NotContains(s.T(), outputStr, "removing package")
+}
+
+func (s *RemoveSuite) TestDevRemoveCommand_CancellationDoesNotRemove() {
 	bundlePath := testutil.TestDataPath("bundles/deploy/init")
 
-	cmd := exec.Command(s.uds, "bundle", "remove", bundlePath, "--prompt")
+	cmd := exec.Command(s.uds, "bundle", "dev", "remove", bundlePath, "--prompt")
 	cmd.Stdin = strings.NewReader("n\n")
 	output, err := cmd.CombinedOutput()
 	require.NoError(s.T(), err)
@@ -139,7 +180,7 @@ func (s *RemoveSuite) TestRemoveCommand_UnavailableArtifactReferences() {
 	}{
 		{
 			name: "local tarball",
-			args: []string{"bundle", "remove", filepath.Join(s.T().TempDir(), "missing.tar.zst", "--skip-signature-verification")},
+			args: []string{"bundle", "remove", filepath.Join(s.T().TempDir(), "missing.tar.zst"), "--skip-signature-verification"},
 		},
 		{
 			name: "OCI artifact",
@@ -159,12 +200,23 @@ func (s *RemoveSuite) TestRemoveCommand_UnavailableArtifactReferences() {
 // TestRemoveCommand_InvalidPackagesFlag verifies that specifying a non-existent
 // package name via --packages fails with a clear error.
 func (s *RemoveSuite) TestRemoveCommand_InvalidPackagesFlag() {
-	bundlePath := testutil.TestDataPath("bundles/deploy/init")
+	artifact := createInspectArtifact(s.T())
 
-	cmd := exec.Command(s.uds, "bundle", "remove", bundlePath, "--packages", "nonexistent")
+	cmd := exec.Command(s.uds, "bundle", "remove", artifact, "--packages", "nonexistent", "--skip-signature-verification")
 	output, err := cmd.CombinedOutput()
 
 	assert.Error(s.T(), err, "remove with invalid packages should fail")
+	assert.Contains(s.T(), string(output), "unknown packages",
+		"error should mention the unknown package")
+}
+
+func (s *RemoveSuite) TestDevRemoveCommand_InvalidPackagesFlag() {
+	bundlePath := testutil.TestDataPath("bundles/deploy/init")
+
+	cmd := exec.Command(s.uds, "bundle", "dev", "remove", bundlePath, "--packages", "nonexistent")
+	output, err := cmd.CombinedOutput()
+
+	assert.Error(s.T(), err, "dev remove with invalid packages should fail")
 	assert.Contains(s.T(), string(output), "unknown packages",
 		"error should mention the unknown package")
 }

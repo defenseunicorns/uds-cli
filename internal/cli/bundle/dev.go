@@ -17,6 +17,7 @@ func NewDevCommand(streams iostreams.IOStreams) *cobra.Command {
 	}
 
 	cmd.AddCommand(NewDevDeployCommand(streams))
+	cmd.AddCommand(NewDevRemoveCommand(streams))
 
 	return cmd
 }

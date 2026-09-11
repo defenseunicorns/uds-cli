@@ -72,7 +72,7 @@ This layout makes package content explicit and inspectable while keeping the bun
 ## Mode status
 
 | Mode | Status | Notes |
-|---|---|---|
+| --- | --- | --- |
 | Legacy | Default | Existing `uds-bundle.yaml` workflows continue to work. |
 | Next | Alpha preview | Enabled with `NextMode`; command coverage is still expanding. |
 
@@ -83,11 +83,13 @@ UDS CLI Next mode is planned to become the default in beta. Legacy mode will be 
 UDS CLI Next mode currently supports the core bundle flows needed to exercise HCL bundles and artifact-based deployment:
 
 | Capability | Current support |
-|---|---|
+| --- | --- |
 | Bundle definition format | `bundle.uds.hcl` using the Next HCL bundle schema |
 | Development deployment | Deploy directly from a bundle definition with `uds bundle dev deploy` |
+| Development removal | Remove directly from a bundle definition with `uds bundle dev remove` |
 | Bundle artifact creation | Create local bundle artifacts with `uds bundle create` |
 | Bundle artifact deployment | Deploy created local artifacts or OCI references with `uds bundle deploy` |
+| Bundle artifact removal | Remove using created local artifacts or OCI references with `uds bundle remove` |
 | Package verification | Verify package signatures when configured by the bundle definition |
 | Bundle signing | Create signed bundles when signing options are configured, or unsigned bundles for local alpha workflows |
 | Bundle signature verification | Verify signed bundle artifacts during deploy, with an explicit skip flag available for unsigned local artifacts |
@@ -183,14 +185,15 @@ Next mode supports `locals` and `file(path)` in its HCL files. See the [`bundle.
 Use these commands to create, inspect, transfer, deploy, and manage Next-mode bundle artifacts.
 
 | Command | Description |
-|---|---|
+| --- | --- |
 | `uds bundle create [directory]` | Create a bundle artifact from a directory containing `bundle.uds.hcl`. |
 | `uds bundle inspect <bundle-reference>` | Display metadata and packages from a local `.tar.zst` or OCI bundle artifact. |
 | `uds bundle push <bundle-tarball> <oci-reference>` | Push a bundle artifact to an OCI registry. |
 | `uds bundle pull <ref>` | Pull a bundle artifact from an OCI registry. |
 | `uds bundle dev deploy [path]` | Deploy directly from a bundle definition or its directory. Defaults to the current directory. |
 | `uds bundle deploy <artifact>` | Deploy a created local `.tar.zst` or OCI bundle artifact. |
-| `uds bundle remove [bundle-definition]` | Remove a bundle from Kubernetes. Defaults to the current directory. |
+| `uds bundle dev remove [path]` | Remove directly from a bundle definition or its directory. Defaults to the current directory. |
+| `uds bundle remove <artifact>` | Remove using a created local `.tar.zst` or OCI bundle artifact. |
 | `uds bundle sign <bundle-artifact>` | Sign a created bundle artifact. |
 | `uds bundle verify <bundle-artifact>` | Verify a created bundle artifact signature. |
 | `uds bundle reconfigure <source> --defaults <defaults-file>` | Reconfigure bundle defaults from a local artifact or OCI reference and produce a derivative artifact. |
@@ -200,7 +203,7 @@ Use these commands to create, inspect, transfer, deploy, and manage Next-mode bu
 These flags apply to all `uds bundle` subcommands:
 
 | Flag | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `-a`, `--architecture` | host arch | Target CPU architecture, such as `amd64` or `arm64`. |
 | `-o`, `--output` | `text` | Output format: `text`, `json`, or `yaml`. |
 | `--plain-http` | `false` | Allow plain HTTP for a registry only when HTTPS is unavailable. |
@@ -219,7 +222,7 @@ Use `uds bundle dev deploy` to deploy directly from a bundle definition while au
 
 ## Removing a bundle
 
-Use `uds bundle remove` to remove packages from a Kubernetes cluster using a bundle definition or artifact. Packages are removed in reverse dependency order, and removal of a package with dependents is blocked unless `--force` is supplied. See [Remove a bundle in Next mode](/cli/how-to-guides/next/remove-a-bundle/) for the procedure and flags.
+Use `uds bundle dev remove` to remove packages from a bundle definition while developing locally. Use `uds bundle remove` for a created local or OCI artifact. Packages are removed in reverse dependency order, and removal of a package with dependents is blocked unless `--force` is supplied. See [Remove a bundle in Next mode](/cli/how-to-guides/next/remove-a-bundle/) for the procedure, flags, and signature-verification behavior.
 
 ## Deploy-time configuration
 
@@ -256,7 +259,7 @@ The `inspect` command shows metadata from a local `.tar.zst` artifact or an OCI 
 Bundle commands that emit result objects support structured output through `--output` or `-o`, including `create`, `inspect`, `pull`, and `reconfigure`:
 
 | Format | Flag | Description |
-|---|---|---|
+| --- | --- | --- |
 | `text` | `-o text` | Human-readable output. |
 | `json` | `-o json` | JSON for scripting and pipelines. |
 | `yaml` | `-o yaml` | YAML for configuration tooling. |
