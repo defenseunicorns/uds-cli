@@ -114,6 +114,35 @@ func deployZarfInit(t *testing.T) {
 		// Deploy
 		runCmd(t, fmt.Sprintf("deploy %s --confirm -l=debug", bundlePath))
 	}
+
+	stabilizeZarfRegistry(t)
+}
+
+func stabilizeZarfRegistry(t *testing.T) {
+	t.Helper()
+
+	_, _, err := e2e.UDS(
+		"zarf", "tools", "kubectl", "patch", "hpa", "zarf-docker-registry",
+		"--namespace", "zarf",
+		"--type", "merge",
+		"--patch", `{"spec":{"minReplicas":1,"maxReplicas":1}}`,
+	)
+	require.NoError(t, err)
+
+	_, _, err = e2e.UDS(
+		"zarf", "tools", "kubectl", "scale", "deployment/zarf-docker-registry",
+		"--namespace", "zarf",
+		"--replicas=1",
+	)
+	require.NoError(t, err)
+
+	_, _, err = e2e.UDS(
+		"zarf", "tools", "kubectl", "rollout", "status",
+		"deployment/zarf-docker-registry",
+		"--namespace", "zarf",
+		"--timeout=120s",
+	)
+	require.NoError(t, err)
 }
 
 func zarfInitDeployed() bool {
