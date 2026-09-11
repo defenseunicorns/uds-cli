@@ -4,6 +4,8 @@
 .env.*
 .idea/
 .image-cache/
+/.next/
+/.next-validation/
 .release-downloads/
 .scratch/
 .vscode/
