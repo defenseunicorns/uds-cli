@@ -32,4 +32,20 @@ runs:
       run: |
         k3d cluster delete || true
         k3d cluster create
-        kubectl wait --for=condition=Ready nodes --all --timeout=120s
+        deadline=$((SECONDS + 120))
+        cluster_ready=false
+
+        while (( SECONDS < deadline )); do
+          remaining=$((deadline - SECONDS))
+          if kubectl wait --for=condition=Ready nodes --all --timeout="${remaining}s"; then
+            cluster_ready=true
+            break
+          fi
+
+          sleep 2
+        done
+
+        if [[ "$cluster_ready" != true ]]; then
+          echo "Timed out waiting for k3d cluster nodes to become ready"
+          exit 1
+        fi
