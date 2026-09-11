@@ -430,6 +430,10 @@ func bundleRemoveCommand(ctx context.Context, udsPath, bundlePath string, extraA
 			target = "."
 			workingDir = bundlePath
 			args = append(args, "dev")
+		} else if filepath.Base(bundlePath) == "bundle.uds.hcl" {
+			target = filepath.Base(bundlePath)
+			workingDir = filepath.Dir(bundlePath)
+			args = append(args, "dev")
 		}
 	}
 
