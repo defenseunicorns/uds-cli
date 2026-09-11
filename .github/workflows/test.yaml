@@ -40,6 +40,20 @@ jobs:
       - name: Lint the repository
         run: uds run lint
 
+      - name: Verify vendored dependencies
+        shell: bash
+        run: |
+          go mod vendor
+
+          changes="$(git status --short -- vendor/)"
+          if [[ -n "$changes" ]]; then
+            echo "::error::Vendored dependencies are not generated cleanly from go.mod and go.sum."
+            echo "Run 'go mod vendor', review the resulting vendor/ changes, and commit them."
+            echo
+            echo "$changes"
+            exit 1
+          fi
+
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
