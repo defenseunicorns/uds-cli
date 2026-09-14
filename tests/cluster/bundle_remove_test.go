@@ -6,6 +6,7 @@
 package cluster_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
@@ -24,7 +25,8 @@ func TestDeployAndRemoveBundle(t *testing.T) {
 	firstNamespace, firstK8s := testutil.AllocateTestNamespace(t, sharedClusterName, namespaceCleanupTimeout)
 	secondNamespace, secondK8s := testutil.AllocateTestNamespace(t, sharedClusterName, namespaceCleanupTimeout)
 	bundleDir := testutil.PrepareTwoPodinfoBundle(t, testEnv.podinfoPackagePath, firstNamespace, secondNamespace)
-	markBundleRemoved := testutil.RegisterBundleCleanup(t, testEnv.udsPath, bundleDir, namespaceCleanupTimeout)
+	bundleFile := filepath.Join(bundleDir, "bundle.uds.hcl")
+	markBundleRemoved := testutil.RegisterBundleCleanup(t, testEnv.udsPath, bundleFile, namespaceCleanupTimeout)
 
 	testutil.RequireUDSCommand(t, testEnv.udsPath,
 		"bundle", "dev", "deploy", bundleDir,
@@ -37,7 +39,7 @@ func TestDeployAndRemoveBundle(t *testing.T) {
 	firstK8s.AssertSecretExists("zarf", firstStateSecret)
 	secondK8s.AssertSecretExists("zarf", secondStateSecret)
 
-	result := testutil.RemoveBundle(t, testEnv.udsPath, bundleDir)
+	result := testutil.RemoveBundle(t, testEnv.udsPath, bundleFile)
 	markBundleRemoved()
 	assert.Equal(t, "k3d-core-init", result.BundleName)
 	assert.ElementsMatch(t, []bundle.RemovePackageResult{
