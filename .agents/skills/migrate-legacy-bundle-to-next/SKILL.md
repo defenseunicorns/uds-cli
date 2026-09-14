@@ -17,12 +17,10 @@ successful artifact build does not prove deployment equivalence.
 
 ## Inputs and output
 
-Ask for the legacy bundle and optional config contents or paths. If the bundle uses
-`overrides`, also ask for each referenced package's `zarf.yaml` when it is available;
-the package mappings determine whether a generated values file is usable. Also ask
-whether the Legacy workflow used `uds dev deploy --ref <package>=<ref>` and, for each
-such remote package, its effective resolved ref including the platform-specific digest
-when Legacy resolved one.
+Ask for the legacy bundle and optional config contents or paths. Also ask whether the
+Legacy workflow used `uds dev deploy --ref <package>=<ref>` and, for each such remote
+package, its effective resolved ref including the platform-specific digest when Legacy
+resolved one.
 
 For a new migration, check whether the requested output directory already exists
 before writing any output. If it does, stop without reading, merging, changing, or
@@ -44,6 +42,22 @@ whether it is a canonical Zarf package source: either a `.tar.zst` archive or a
 package directory that includes the generated `checksums.txt`. A directory containing
 only authoring inputs such as `zarf.yaml` needs package preparation before Next can
 create a bundle from it.
+
+For every package with Legacy `overrides`, discover its Zarf values mappings before
+asking the user to supply `zarf.yaml`. Read the definition from an available local
+package layout or, for an OCI package, inspect its definition with the read-only
+command:
+
+```sh
+CLI_FEATURES=NextMode=true uds tools zarf package inspect definition 'oci://<repository>:<effective-ref>'
+```
+
+This may use the user's existing registry credentials but must not write to a registry
+or perform a cluster operation. Respect an explicit instruction not to run UDS
+commands or access the network. If the package cannot be inspected because access is
+unavailable or prohibited, record its mappings as unverified and ask for the relevant
+`zarf.yaml` only when it is needed to resolve an override; do not make copy/paste the
+normal discovery path. Apply **Sensitive values** to inspected content.
 
 ## Sensitive values
 
@@ -79,8 +93,8 @@ Return all of the following:
    and the exact Next commands to use.
 
 Use fenced blocks titled with their filenames. Do not claim that generated files were
-validated or that an override will work unless the required Zarf mapping was supplied
-and checked.
+validated or that an override will work unless the required Zarf mapping was obtained
+or supplied and checked.
 
 ## Source attribution
 
@@ -673,12 +687,13 @@ arbitrary fold or a reordered list as converted.
 Legacy overrides target a component and chart; Next values files are package-level.
 For each override, retain the Legacy component/chart location, original target path,
 and resolved Zarf source path in the migration report. Check that the target
-package's `zarf.yaml` maps every generated values-file entry from that source path to
-the intended chart target path. If `zarf.yaml` is absent, a target-path mapping is
-missing or ambiguous, two charts write conflicting paths, a Legacy `valuesFiles`
-path cannot be inspected, or an override sets a chart-specific namespace, generate
-the proposed file only when its content is unambiguous and mark it **needs Zarf
-source-path mapping review**. Never say it is equivalent until that review passes.
+package's inspected or supplied Zarf definition maps every generated values-file entry
+from that source path to the intended chart target path. If the definition is
+unavailable, a target-path mapping is missing or ambiguous, two charts write
+conflicting paths, a Legacy `valuesFiles` path cannot be inspected, or an override
+sets a chart-specific namespace, generate the proposed file only when its content is
+unambiguous and mark it **needs Zarf source-path mapping review**. Never say it is
+equivalent until that review passes.
 
 ## Always report these gaps
 
