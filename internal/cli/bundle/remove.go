@@ -20,7 +20,7 @@ import (
 
 // RemoveOptions holds options for the remove command.
 type RemoveOptions struct {
-	BundlePath   string // Path to bundle file or directory (user input, resolved in Run)
+	BundlePath   string
 	Packages     []string
 	Force        bool
 	Prompt       bool
@@ -157,14 +157,18 @@ func (o *RemoveOptions) Run(ctx context.Context) error {
 	}
 	parsedBundle = inspection.Bundle
 
-	if err = parsedBundle.Validate(); err != nil {
+	return runRemove(ctx, s, o.Printer, o.Config, bundlePath, parsedBundle, o.Packages, o.Force, o.Prompt, o.Verification)
+}
+
+func runRemove(ctx context.Context, s iostreams.IOStreams, printer printer.ResourcePrinter, cfg *bundle.UDSBundleConfig, bundlePath string, parsedBundle *spec.UDSBundle, packages []string, force bool, prompt bool, verification VerifyOptions) error {
+	if err := parsedBundle.Validate(); err != nil {
 		return fmt.Errorf("%w %q: %w", ErrInvalidBundle, parsedBundle.Metadata.Name, err)
 	}
-	if err = bundleinternal.ValidatePackageNames(o.Packages, parsedBundle.Packages); err != nil {
+	if err := bundleinternal.ValidatePackageNames(packages, parsedBundle.Packages); err != nil {
 		return err
 	}
-	if !o.Force {
-		violations, err := bundleinternal.RemovalViolations(ctx, s, parsedBundle, o.Packages)
+	if !force {
+		violations, err := bundleinternal.RemovalViolations(ctx, s, parsedBundle, packages)
 		if err != nil {
 			return err
 		}
@@ -175,8 +179,8 @@ func (o *RemoveOptions) Run(ctx context.Context) error {
 
 	s.Info("bundle to remove", "name", parsedBundle.Metadata.Name, "packages", len(parsedBundle.Packages))
 
-	if o.Prompt {
-		confirmed, err := PromptConfirmation(o.IOStreams, "Remove this bundle?")
+	if prompt {
+		confirmed, err := PromptConfirmation(s, "Remove this bundle?")
 		if err != nil {
 			return err
 		}
@@ -186,23 +190,23 @@ func (o *RemoveOptions) Run(ctx context.Context) error {
 		}
 	}
 	s.Info("removing bundle", "source", bundlePath)
-	s.Debug("removing bundle", "path", bundlePath, "prompt", o.Prompt)
+	s.Debug("removing bundle", "path", bundlePath, "prompt", prompt)
 
 	policy := bundle.VerificationPolicy{}
-	if !o.Verification.SkipSignatureVerification && (isOCIReference(o.BundlePath) || isTarZst(o.BundlePath)) {
+	if !verification.SkipSignatureVerification && (isOCIReference(bundlePath) || isTarZst(bundlePath)) {
 		var err error
-		policy, err = o.Verification.policy()
+		policy, err = verification.policy()
 		if err != nil {
 			return err
 		}
 	}
 	removeOpts := bundle.RemoveOptions{
-		Config:                    o.Config,
-		Packages:                  o.Packages,
+		Config:                    cfg,
+		Packages:                  packages,
 		Verification:              policy,
-		SkipSignatureVerification: o.Verification.SkipSignatureVerification,
-		Force:                     o.Force,
-		Streams:                   o.IOStreams,
+		SkipSignatureVerification: verification.SkipSignatureVerification,
+		Force:                     force,
+		Streams:                   s,
 	}
 
 	result, err := bundle.Remove(ctx, &bundle.DeploySource{
@@ -213,5 +217,5 @@ func (o *RemoveOptions) Run(ctx context.Context) error {
 		return err
 	}
 
-	return o.Printer.PrintObj(result, o.Out())
+	return printer.PrintObj(result, s.Out())
 }

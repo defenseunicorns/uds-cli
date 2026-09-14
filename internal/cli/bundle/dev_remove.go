@@ -144,54 +144,5 @@ func (o *DevRemoveOptions) Run(ctx context.Context) error {
 		return fmt.Errorf("%w %q: %w", ErrParseBundle, bundlePath, err)
 	}
 
-	if err = parsedBundle.Validate(); err != nil {
-		return fmt.Errorf("%w %q: %w", ErrInvalidBundle, parsedBundle.Metadata.Name, err)
-	}
-	if err = bundleinternal.ValidatePackageNames(o.Packages, parsedBundle.Packages); err != nil {
-		return err
-	}
-	if !o.Force {
-		violations, err := bundleinternal.RemovalViolations(ctx, s, parsedBundle, o.Packages)
-		if err != nil {
-			return err
-		}
-		if len(violations) > 0 {
-			return fmt.Errorf("%w\nre-run with --force to override: %w", formatDependencyError("cannot remove package(s) with bundle dependents", "is required by", violations), ErrForceRequired)
-		}
-	}
-
-	s.Info("bundle to remove", "name", parsedBundle.Metadata.Name, "packages", len(parsedBundle.Packages))
-
-	if o.Prompt {
-		confirmed, err := PromptConfirmation(o.IOStreams, "Remove this bundle?")
-		if err != nil {
-			return err
-		}
-		if !confirmed {
-			s.Info("removal cancelled")
-			return nil
-		}
-	}
-	s.Info("removing bundle", "source", bundlePath)
-	s.Debug("removing bundle", "path", bundlePath, "prompt", o.Prompt)
-
-	policy := bundle.VerificationPolicy{}
-	removeOpts := bundle.RemoveOptions{
-		Config:                    o.Config,
-		Packages:                  o.Packages,
-		Verification:              policy,
-		SkipSignatureVerification: true,
-		Force:                     o.Force,
-		Streams:                   o.IOStreams,
-	}
-
-	result, err := bundle.Remove(ctx, &bundle.DeploySource{
-		BundlePath: bundlePath,
-		Bundle:     parsedBundle,
-	}, removeOpts)
-	if err != nil {
-		return err
-	}
-
-	return o.Printer.PrintObj(result, o.Out())
+	return runRemove(ctx, s, o.Printer, o.Config, bundlePath, parsedBundle, o.Packages, o.Force, o.Prompt, VerifyOptions{SkipSignatureVerification: true})
 }
