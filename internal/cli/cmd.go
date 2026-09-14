@@ -5,6 +5,7 @@
 package cli
 
 import (
+	"errors"
 	"log/slog"
 	"os"
 
@@ -28,6 +29,9 @@ func NewRootCommand(streams iostreams.IOStreams) *cobra.Command {
 		Short: "UDS CLI - The entrypoint to the Defense Unicorns ecosystem",
 		Long:  `UDS CLI is a command-line tool for managing UDS Bundles and interacting with the Defense Unicorns ecosystem.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateArchitectureFlag(cmd); err != nil {
+				return err
+			}
 			level, err := logger.ParseLevel(logLevel)
 			if err != nil {
 				return err
@@ -59,4 +63,13 @@ func NewRootCommand(streams iostreams.IOStreams) *cobra.Command {
 	rootCmd.AddCommand(cmdzarf.NewInternalZarfCommand())
 
 	return rootCmd
+}
+
+func validateArchitectureFlag(cmd *cobra.Command) error {
+	flag := cmd.Flags().Lookup("architecture")
+	if flag == nil || !flag.Changed || flag.Value.String() != "" {
+		return nil
+	}
+
+	return errors.New("--architecture must not be empty")
 }

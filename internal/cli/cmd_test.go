@@ -38,3 +38,12 @@ func TestRootCommand_LogLevelFlag(t *testing.T) {
 		})
 	}
 }
+
+func TestRootCommand_EmptyArchitectureFlagFails(t *testing.T) {
+	streams, _, _, _ := iostreams.NewTestIOStreams()
+	root := NewRootCommand(streams)
+	root.SetArgs([]string{"bundle", "create", "--architecture=", "--unsigned"})
+
+	err := root.Execute()
+	require.ErrorContains(t, err, "--architecture must not be empty")
+}
