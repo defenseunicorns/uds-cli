@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
-	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -68,10 +67,11 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 	if pkg.Metadata.Architecture == v1alpha1.SkeletonArch {
 		return nil, errors.New("skeleton Zarf packages do not contain complete recreatable source")
 	}
-	pkg.Build = v1alpha1.ZarfBuildData{Migrations: pkg.Build.Migrations}
+	pkg.Build = v1alpha1.ZarfBuildData{}
 	normalizeMetadata(&pkg.Metadata)
 	for idx := range pkg.Components {
 		pkg.Components[idx].Only.Flavor = ""
+		clearDeprecatedMigrationFields(&pkg.Components[idx])
 	}
 
 	stageDir, err := createOutputStage(finalDir)
@@ -99,10 +99,10 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := writeV1beta1Definition(definitionPath, beta); err != nil {
+		if err := writeSourceDefinition(definitionPath, beta); err != nil {
 			return nil, fmt.Errorf("writing zarf.yaml: %w", err)
 		}
-	} else if err := layout.WritePackageDefinition(definitionPath, api.NewPackageDefinitionFromV1alpha1(pkg)); err != nil {
+	} else if err := writeSourceDefinition(definitionPath, pkg); err != nil {
 		return nil, fmt.Errorf("writing zarf.yaml: %w", err)
 	}
 	if err := publishOutput(stageDir, finalDir); err != nil {
@@ -164,6 +164,29 @@ func localizeComponent(ctx context.Context, pkgLayout *layout.PackageLayout, out
 
 func componentSourcePath(componentName, rel string) string {
 	return filepath.ToSlash(filepath.Join(componentsDir, componentName, rel))
+}
+
+func clearDeprecatedMigrationFields(component *v1alpha1.ZarfComponent) {
+	component.DeprecatedScripts = v1alpha1.DeprecatedZarfComponentScripts{}
+	actionGroups := []*[]v1alpha1.ZarfComponentAction{
+		&component.Actions.OnCreate.Before,
+		&component.Actions.OnCreate.After,
+		&component.Actions.OnCreate.OnSuccess,
+		&component.Actions.OnCreate.OnFailure,
+		&component.Actions.OnDeploy.Before,
+		&component.Actions.OnDeploy.After,
+		&component.Actions.OnDeploy.OnSuccess,
+		&component.Actions.OnDeploy.OnFailure,
+		&component.Actions.OnRemove.Before,
+		&component.Actions.OnRemove.After,
+		&component.Actions.OnRemove.OnSuccess,
+		&component.Actions.OnRemove.OnFailure,
+	}
+	for _, actions := range actionGroups {
+		for idx := range *actions {
+			(*actions)[idx].DeprecatedSetVariable = ""
+		}
+	}
 }
 
 func createOutputStage(finalDir string) (string, error) {

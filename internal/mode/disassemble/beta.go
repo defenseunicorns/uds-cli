@@ -6,30 +6,19 @@ package disassemble
 import (
 	"errors"
 	"fmt"
-	"os"
 
-	"github.com/defenseunicorns/pkg/helpers/v2"
-	goyaml "github.com/goccy/go-yaml"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
 )
 
 // TODO: (@wstarr) - we should work with Zarf to better handle these conversions upstream rather than having bespoke logic here
 
-func writeV1beta1Definition(path string, definition v1beta1.Package) error {
-	contents, err := goyaml.Marshal(definition)
-	if err != nil {
-		return fmt.Errorf("marshaling v1beta1 package definition: %w", err)
-	}
-	return os.WriteFile(path, contents, helpers.ReadWriteUser)
-}
-
 func localizedV1beta1Definition(beta v1beta1.Package, alpha v1alpha1.ZarfPackage) (v1beta1.Package, error) {
 	if len(beta.Components) != len(alpha.Components) {
 		return v1beta1.Package{}, fmt.Errorf("converted package component count changed from %d to %d", len(beta.Components), len(alpha.Components))
 	}
 	beta.Metadata.Version = alpha.Metadata.Version
-	beta.Build = v1beta1.BuildData{Migrations: beta.Build.Migrations}
+	beta.Build = v1beta1.BuildData{}
 	beta.Values.Files = alpha.Values.Files
 	beta.Values.Schema = alpha.Values.Schema
 	beta.Documentation = alpha.Documentation

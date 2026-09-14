@@ -35,6 +35,7 @@ import (
 	zarfschema "github.com/zarf-dev/zarf/src/pkg/schema"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	zarftypes "github.com/zarf-dev/zarf/src/types"
+	chartloader "helm.sh/helm/v3/pkg/chart/loader"
 	"oras.land/oras-go/v2/content"
 	contentoci "oras.land/oras-go/v2/content/oci"
 )
@@ -70,15 +71,26 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	assert.Equal(t, "app", chart.Name)
 	assert.Equal(t, "1.0.0", chart.Version)
 	assert.Empty(t, chart.URL)
-	assert.Contains(t, chart.LocalPath, "app-1.0.0.tgz")
-	require.FileExists(t, filepath.Join(outputDir, chart.LocalPath))
+	assert.Contains(t, chart.LocalPath, filepath.ToSlash("components/app/charts/0-app-1.0.0"))
+	require.DirExists(t, filepath.Join(outputDir, chart.LocalPath))
+	require.FileExists(t, filepath.Join(outputDir, chart.LocalPath, "Chart.yaml"))
+	require.FileExists(t, filepath.Join(outputDir, chart.LocalPath, "templates", "configmap.yaml"))
+	require.NoFileExists(t, filepath.Join(outputDir, chart.LocalPath, "Chart.lock"))
+	require.FileExists(t, filepath.Join(outputDir, chart.LocalPath, "charts", "child", "Chart.yaml"))
+	expandedChart, err := chartloader.Load(filepath.Join(outputDir, chart.LocalPath))
+	require.NoError(t, err)
+	require.Len(t, expandedChart.Metadata.Dependencies, 1)
+	assert.Empty(t, expandedChart.Metadata.Dependencies[0].Repository)
+	assert.Equal(t, "renamed-child", expandedChart.Metadata.Dependencies[0].Alias)
 	require.Len(t, chart.ValuesFiles, 2)
 	assert.Contains(t, chart.ValuesFiles[0], filepath.ToSlash("components/app/values/app/0-chart.yaml"))
 	assert.Contains(t, chart.ValuesFiles[1], filepath.ToSlash("components/app/values/app/1-production-values.yaml"))
 	assert.Len(t, chart.TemplatedValuesFiles, 1)
 	require.Len(t, pkg.Components[0].Manifests, 1)
 	manifest := pkg.Components[0].Manifests[0]
-	assert.Len(t, manifest.Files, 1)
+	require.Len(t, manifest.Files, 2)
+	assert.Contains(t, manifest.Files[0], filepath.ToSlash("manifests/raw/0-configmap.yaml"))
+	assert.Contains(t, manifest.Files[1], filepath.ToSlash("manifests/raw/1-experimental-install.yaml"))
 	require.Len(t, manifest.Kustomizations, 1)
 	assert.True(t, manifest.IsTemplate())
 	rendered, err := os.ReadFile(filepath.Join(outputDir, manifest.Kustomizations[0], "rendered.yaml"))
@@ -93,6 +105,10 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	assert.Equal(t, []string{layout.ValuesYAML}, pkg.Values.Files)
 	assert.Equal(t, layout.ValuesSchema, pkg.Values.Schema)
 	assert.Equal(t, "documentation/guide.md", pkg.Documentation["guide"])
+	generatedYAML, err := os.ReadFile(filepath.Join(outputDir, layout.ZarfYAML))
+	require.NoError(t, err)
+	assert.NotContains(t, string(generatedYAML), "\nbuild:")
+	assert.Contains(t, string(generatedYAML), "\ncomponents:\n  - name: app\n")
 
 	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{
 		SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir(),
@@ -161,16 +177,61 @@ func TestDisassemblePreservesV1beta1Definition(t *testing.T) {
 	assert.Equal(t, v1beta1.ServiceAgent, component.Service)
 	require.Len(t, component.Manifests, 1)
 	require.NotNil(t, component.Manifests[0].Kustomize)
-	assert.Contains(t, component.Manifests[0].Kustomize.Files[0], "components/app/manifests/raw/kustomization-0")
+	assert.Contains(t, component.Manifests[0].Kustomize.Files[0], "components/app/manifests/raw/0-kustomize")
 	assert.False(t, component.Manifests[0].Kustomize.AllowAnyDirectory)
 	assert.False(t, component.Manifests[0].Kustomize.EnablePlugins)
 	assert.True(t, component.Manifests[0].EnableTemplating)
 	assert.Empty(t, component.Selector.Flavor)
+	assert.NotContains(t, string(generatedYAML), "\nbuild:")
+	assert.Contains(t, string(generatedYAML), "\ncomponents:\n  - name: app\n")
 
 	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{SkipSBOM: true})
 	require.NoError(t, err)
 	defer func() { require.NoError(t, reassembled.Cleanup()) }()
 	assert.Equal(t, v1beta1.APIVersion, reassembled.PackageDefinition.OriginalAPIVersion())
+}
+
+func TestDisassembleRemovesDeprecatedMigrationFields(t *testing.T) {
+	sourceDir := copyFixture(t, "deprecated")
+	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
+	require.NoError(t, err)
+	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{SkipSBOM: true})
+	require.NoError(t, err)
+	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
+
+	// Recreate an older package definition that predates migration markers and
+	// stores only the deprecated representation.
+	pkg := pkgLayout.AsV1alpha1()
+	pkg.Build.Migrations = nil
+	pkg.Components[0].DeprecatedScripts = v1alpha1.DeprecatedZarfComponentScripts{
+		Prepare: []string{"echo legacy-create"},
+		Before:  []string{"echo legacy-deploy"},
+	}
+	pkg.Components[0].Actions.OnCreate.Before = nil
+	pkg.Components[0].Actions.OnDeploy.Before = nil
+	pkg.Components[0].Actions.OnDeploy.After[0].DeprecatedSetVariable = "RESULT"
+	pkg.Components[0].Actions.OnDeploy.After[0].SetVariables = nil
+	require.NoError(t, writeSourceDefinition(filepath.Join(pkgLayout.DirPath(), layout.ZarfYAML), pkg))
+	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
+	require.NoError(t, err)
+
+	outputDir := filepath.Join(t.TempDir(), "output")
+	_, err = Disassemble(t.Context(), Options{Source: archivePath, OutputDir: outputDir, Architecture: "amd64", TmpDir: t.TempDir()})
+	require.NoError(t, err)
+	generatedYAML, err := os.ReadFile(filepath.Join(outputDir, layout.ZarfYAML))
+	require.NoError(t, err)
+	assert.NotContains(t, string(generatedYAML), "\nscripts:")
+	assert.NotContains(t, string(generatedYAML), "setVariable:")
+
+	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
+	require.NoError(t, err)
+	component := generated.PackageDefinition.AsV1alpha1().Components[0]
+	assert.Empty(t, component.Actions.OnCreate)
+	require.Len(t, component.Actions.OnDeploy.Before, 1)
+	assert.Equal(t, "echo legacy-deploy", component.Actions.OnDeploy.Before[0].Cmd)
+	require.Len(t, component.Actions.OnDeploy.After, 1)
+	require.Len(t, component.Actions.OnDeploy.After[0].SetVariables, 1)
+	assert.Equal(t, "RESULT", component.Actions.OnDeploy.After[0].SetVariables[0].Name)
 }
 
 // Disassembly selectively rewrites package source fields instead of round-tripping
@@ -309,18 +370,23 @@ func TestValidateOutputDirRejectsContent(t *testing.T) {
 
 func prepareRoundTripFixture(t *testing.T) string {
 	t.Helper()
-	valuesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		if _, err := w.Write([]byte("remote: true\n")); err != nil {
-			t.Errorf("write remote values response: %v", err)
+	assetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		content := "remote: true\n"
+		if strings.HasSuffix(r.URL.Path, "/experimental-install.yaml") {
+			content = "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: remote\n"
+		}
+		if _, err := w.Write([]byte(content)); err != nil {
+			t.Errorf("write remote asset response: %v", err)
 		}
 	}))
-	t.Cleanup(valuesServer.Close)
+	t.Cleanup(assetServer.Close)
 	dir := copyFixture(t, "roundtrip")
 	repoURL := initGitRepository(t, filepath.Join(dir, "repository"))
 	template, err := os.ReadFile(filepath.Join(dir, "zarf.yaml.tmpl"))
 	require.NoError(t, err)
 	definition := strings.NewReplacer(
-		"__REMOTE_VALUES_URL__", valuesServer.URL+"/production-values.yaml?token=secret",
+		"__REMOTE_VALUES_URL__", assetServer.URL+"/production-values.yaml?token=secret",
+		"__REMOTE_MANIFEST_URL__", assetServer.URL+"/experimental-install.yaml?token=secret",
 		"__REPOSITORY_URL__", repoURL,
 	).Replace(string(template))
 	// dir is a test-owned path beneath t.TempDir.

@@ -9,9 +9,9 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 ## What you'll accomplish
 
-Package disassembly recovers the assets and `zarf.yaml` from a complete Zarf package. The command writes packaged charts, manifests, files, images, and repositories to local paths and rewrites `zarf.yaml` to use them.
+Package disassembly recovers the assets and `zarf.yaml` from a complete Zarf package. The command expands packaged charts into editable directories, writes the remaining packaged resources to local paths, and rewrites `zarf.yaml` as a human-readable source definition without package build metadata.
 
-Disassembly supports rapid development and debugging when a fix must be tested against a created package, especially in a disconnected environment. The recovered tree is a temporary working copy rather than a new source of truth. Keeping fixes only in that tree separates them from upstream and leaves future packages without potentially critical fixes and makes debugging more difficult across environments. Lasting fixes therefore belong in the original upstream source, with final packages published from that canonical source. This temporary role is why the command lives under `dev`.
+Disassembly supports rapid development and debugging when a fix must be tested against a created package, especially inside the airgap. The recovered tree is a temporary working copy rather than a new source of truth. Keeping fixes only in that tree separates them from upstream and leaves future packages without potentially critical fixes and makes debugging more difficult across environments. Lasting fixes therefore belong in the original upstream source, with final packages published from that canonical source. This temporary role is why the command lives under `dev`.
 
 By the end of this guide, you'll have temporary source that can rebuild the package without pulling its declared resources from remote sources.
 
@@ -61,7 +61,7 @@ By the end of this guide, you'll have temporary source that can rebuild the pack
 
 3. **Review the generated source**
 
-   The generated `app-source/zarf.yaml` references assets beneath `app-source`, and the package version ends in `-disassembled`.
+   The generated `app-source/zarf.yaml` references assets beneath `app-source`, charts are editable directories, and the package version ends in `-disassembled`.
 
    > [!CAUTION]
    > Removing the automatically added `-disassembled` suffix makes offline debugging and support harder because a locally rebuilt package can be mistaken for the unchanged upstream artifact. The suffix preserves that modification context in the package version which is easy to see in views that list installed packages across Zarf and UDS.

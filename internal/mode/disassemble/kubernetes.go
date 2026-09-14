@@ -9,10 +9,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
+	goyaml "github.com/goccy/go-yaml"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	chartv3 "helm.sh/helm/v3/pkg/chart"
+	chartloader "helm.sh/helm/v3/pkg/chart/loader"
 )
 
 func localizeManifests(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, tmpRoot string, component *v1alpha1.ZarfComponent) error {
@@ -24,8 +28,12 @@ func localizeManifests(ctx context.Context, pkgLayout *layout.PackageLayout, out
 		manifest := &component.Manifests[mIdx]
 		localizedFiles := make([]string, 0, len(manifest.Files))
 		for idx := range manifest.Files {
+			name, err := sourceBaseName(manifest.Files[idx], "manifest.yaml")
+			if err != nil {
+				return fmt.Errorf("resolving manifest %s file %d name: %w", manifest.Name, idx, err)
+			}
 			src := filepath.Join(manifestDir, layout.ManifestFileName(manifest.Name, idx))
-			rel := filepath.ToSlash(filepath.Join("manifests", manifest.Name, fmt.Sprintf("file-%d.yaml", idx)))
+			rel := filepath.ToSlash(filepath.Join("manifests", manifest.Name, fmt.Sprintf("%d-%s", idx, name)))
 			if err := helpers.CreatePathAndCopy(src, filepath.Join(outputDir, rel)); err != nil {
 				return fmt.Errorf("copying manifest %s file %d: %w", manifest.Name, idx, err)
 			}
@@ -33,8 +41,12 @@ func localizeManifests(ctx context.Context, pkgLayout *layout.PackageLayout, out
 		}
 		localizedKustomizations := make([]string, 0, len(manifest.Kustomizations))
 		for idx := range manifest.Kustomizations {
+			name, err := sourceBaseName(manifest.Kustomizations[idx], "kustomization")
+			if err != nil {
+				return fmt.Errorf("resolving manifest %s kustomization %d name: %w", manifest.Name, idx, err)
+			}
 			src := filepath.Join(manifestDir, layout.KustomizationFileName(manifest.Name, idx))
-			rel := filepath.ToSlash(filepath.Join("manifests", manifest.Name, fmt.Sprintf("kustomization-%d", idx)))
+			rel := filepath.ToSlash(filepath.Join("manifests", manifest.Name, fmt.Sprintf("%d-%s", idx, name)))
 			if err := helpers.CreatePathAndCopy(src, filepath.Join(outputDir, rel, "rendered.yaml")); err != nil {
 				return fmt.Errorf("copying manifest kustomization %s %d: %w", manifest.Name, idx, err)
 			}
@@ -66,9 +78,9 @@ func localizeCharts(ctx context.Context, pkgLayout *layout.PackageLayout, output
 		chart := &component.Charts[idx]
 		archiveName := layout.ChartArchiveName(chart.Name, chart.Version)
 		src := filepath.Join(chartDir, archiveName)
-		rel := filepath.ToSlash(filepath.Join("charts", fmt.Sprintf("%d-%s", idx, archiveName)))
-		if err := helpers.CreatePathAndCopy(src, filepath.Join(outputDir, rel)); err != nil {
-			return fmt.Errorf("copying chart %s: %w", chart.Name, err)
+		rel := filepath.ToSlash(filepath.Join("charts", fmt.Sprintf("%d-%s", idx, strings.TrimSuffix(archiveName, ".tgz"))))
+		if err := extractChartArchive(src, filepath.Join(outputDir, rel)); err != nil {
+			return fmt.Errorf("extracting chart %s: %w", chart.Name, err)
 		}
 		chart.LocalPath = componentSourcePath(component.Name, rel)
 		chart.URL = ""
@@ -96,20 +108,126 @@ func localizeCharts(ctx context.Context, pkgLayout *layout.PackageLayout, output
 
 func localizeChartValues(valuesDir, outputDir, componentName string, chart v1alpha1.ZarfChart, idx int, original string) (string, error) {
 	src := filepath.Join(valuesDir, layout.ChartValuesFileName(chart.Name, chart.Version, idx))
-	base := filepath.Base(original)
-	if helpers.IsURL(original) {
-		var err error
-		base, err = helpers.ExtractBasePathFromURL(original)
-		if err != nil {
-			return "", fmt.Errorf("resolving chart values name for %s: %w", chart.Name, err)
-		}
-	}
-	if base == "" || base == "." {
-		base = "values.yaml"
+	base, err := sourceBaseName(original, "values.yaml")
+	if err != nil {
+		return "", fmt.Errorf("resolving chart values name for %s: %w", chart.Name, err)
 	}
 	rel := filepath.ToSlash(filepath.Join("values", chart.Name, fmt.Sprintf("%d-%s", idx, base)))
 	if err := helpers.CreatePathAndCopy(src, filepath.Join(outputDir, rel)); err != nil {
 		return "", fmt.Errorf("copying chart values for %s: %w", chart.Name, err)
 	}
 	return componentSourcePath(componentName, rel), nil
+}
+
+func extractChartArchive(source, destination string) (err error) {
+	archiveFile, err := os.Open(source)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err = errors.Join(err, archiveFile.Close())
+	}()
+
+	files, err := chartloader.LoadArchiveFiles(archiveFile)
+	if err != nil {
+		return err
+	}
+	for _, file := range files {
+		rel := filepath.FromSlash(file.Name)
+		if !filepath.IsLocal(rel) {
+			return fmt.Errorf("chart contains invalid path %q", file.Name)
+		}
+		data := file.Data
+		if name, ok := chartRootMetadata(file.Name); ok {
+			if name == "Chart.lock" || name == "requirements.lock" {
+				continue
+			}
+			data, err = localizeChartDependencies(name, data)
+			if err != nil {
+				return err
+			}
+		}
+		path := filepath.Join(destination, rel)
+		if err := os.MkdirAll(filepath.Dir(path), helpers.ReadWriteExecuteUser); err != nil {
+			return fmt.Errorf("creating chart directory for %s: %w", file.Name, err)
+		}
+		if err := os.WriteFile(path, data, helpers.ReadWriteUser); err != nil {
+			return fmt.Errorf("writing chart file %s: %w", file.Name, err)
+		}
+	}
+	return nil
+}
+
+func chartRootMetadata(name string) (string, bool) {
+	parts := strings.Split(name, "/")
+	metadata := parts[len(parts)-1]
+	switch metadata {
+	case "Chart.yaml", "Chart.lock", "requirements.yaml", "requirements.lock":
+	default:
+		return "", false
+	}
+
+	directories := parts[:len(parts)-1]
+	if len(directories)%2 != 0 {
+		return "", false
+	}
+	for idx := 0; idx < len(directories); idx += 2 {
+		if directories[idx] != "charts" || directories[idx+1] == "" {
+			return "", false
+		}
+	}
+	return metadata, true
+}
+
+type chartRequirements struct {
+	Dependencies []*chartv3.Dependency `yaml:"dependencies,omitempty"`
+}
+
+func localizeChartDependencies(name string, data []byte) ([]byte, error) {
+	var definition any
+	switch name {
+	case "Chart.yaml":
+		definition = &chartv3.Metadata{}
+	case "requirements.yaml":
+		definition = &chartRequirements{}
+	default:
+		return data, nil
+	}
+	if err := goyaml.Unmarshal(data, definition); err != nil {
+		return nil, fmt.Errorf("reading %s: %w", name, err)
+	}
+
+	var dependencies []*chartv3.Dependency
+	switch typed := definition.(type) {
+	case *chartv3.Metadata:
+		dependencies = typed.Dependencies
+	case *chartRequirements:
+		dependencies = typed.Dependencies
+	}
+	if len(dependencies) == 0 {
+		return data, nil
+	}
+	for _, dependency := range dependencies {
+		dependency.Repository = ""
+	}
+	contents, err := goyaml.MarshalWithOptions(definition, goyaml.IndentSequence(true))
+	if err != nil {
+		return nil, fmt.Errorf("writing %s: %w", name, err)
+	}
+	return contents, nil
+}
+
+func sourceBaseName(source, fallback string) (string, error) {
+	base := filepath.Base(source)
+	if helpers.IsURL(source) {
+		var err error
+		base, err = helpers.ExtractBasePathFromURL(source)
+		if err != nil {
+			return "", err
+		}
+	}
+	if base == "" || base == "." || base == string(filepath.Separator) {
+		return fallback, nil
+	}
+	return base, nil
 }

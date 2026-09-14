@@ -4,3 +4,8 @@
 apiVersion: v2
 name: upstream-app
 version: 1.0.0
+dependencies:
+  - name: child
+    version: 1.x
+    repository: file://../chart-dependency
+    alias: renamed-child
