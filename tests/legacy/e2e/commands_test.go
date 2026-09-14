@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package test provides e2e tests for UDS.
@@ -192,10 +192,14 @@ func queryIndex(t *testing.T, registryURL, bundlePath string) (ocispec.Index, er
 }
 
 func removeZarfInit() {
+	zarfInitMu.Lock()
+	defer zarfInitMu.Unlock()
+
 	_, _, err := runCmdWithErr("zarf tools kubectl delete namespace zarf")
 	message.WarnErr(err, "Failed to delete zarf namespace")
 	_, _, err = runCmdWithErr("zarf tools kubectl delete mutatingwebhookconfiguration.admissionregistration.k8s.io/zarf")
 	message.WarnErr(err, "Failed to delete zarf webhook")
+	zarfInitReady = false
 }
 
 type falsePositiveBlobProxy struct {

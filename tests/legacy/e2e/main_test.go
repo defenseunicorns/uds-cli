@@ -22,8 +22,9 @@ import (
 )
 
 var (
-	e2e          test.UDSE2ETest //nolint:gochecknoglobals
-	zarfInitOnce sync.Once       //nolint:gochecknoglobals // E2E init is shared across the suite.
+	e2e           test.UDSE2ETest //nolint:gochecknoglobals
+	zarfInitMu    sync.Mutex      //nolint:gochecknoglobals // E2E init is shared across the suite.
+	zarfInitReady bool            //nolint:gochecknoglobals // E2E init is shared across the suite.
 )
 
 const (
@@ -93,34 +94,41 @@ func doAllTheThings(m *testing.M) (int, error) {
 // deployZarfInit deploys Zarf init (from a bundle!) if it hasn't already been deployed.
 func deployZarfInit(t *testing.T) {
 	t.Helper()
-	zarfInitOnce.Do(func() {
-		if zarfInitDeployed() {
-			stabilizeZarfRegistry(t)
-			return
+	zarfInitMu.Lock()
+	defer zarfInitMu.Unlock()
+
+	if zarfInitReady {
+		return
+	}
+
+	if zarfInitDeployed() {
+		stabilizeZarfRegistry(t)
+		zarfInitReady = true
+		return
+	}
+
+	// get Zarf version from go.mod
+	b, err := os.ReadFile("go.mod")
+	require.NoError(t, err)
+	f, err := modfile.Parse("go.mod", b, nil)
+	require.NoError(t, err)
+	var zarfVersion string
+	for _, r := range f.Require {
+		if r.Mod.Path == "github.com/zarf-dev/zarf" {
+			zarfVersion = r.Mod.Version
 		}
+	}
+	e2e.DownloadZarfInitPkg(t, zarfVersion)
 
-		// get Zarf version from go.mod
-		b, err := os.ReadFile("go.mod")
-		require.NoError(t, err)
-		f, err := modfile.Parse("go.mod", b, nil)
-		require.NoError(t, err)
-		var zarfVersion string
-		for _, r := range f.Require {
-			if r.Mod.Path == "github.com/zarf-dev/zarf" {
-				zarfVersion = r.Mod.Version
-			}
-		}
-		e2e.DownloadZarfInitPkg(t, zarfVersion)
+	bundleDir := "testdata/legacy/bundles/04-init"
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-all-the-inits-%s-0.0.1.tar.zst", e2e.Arch))
 
-		bundleDir := "testdata/legacy/bundles/04-init"
-		bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-all-the-inits-%s-0.0.1.tar.zst", e2e.Arch))
+	// Create
+	runCmd(t, fmt.Sprintf("create %s --confirm --insecure", bundleDir))
 
-		// Create
-		runCmd(t, fmt.Sprintf("create %s --confirm --insecure", bundleDir))
-
-		// Deploy
-		runCmd(t, fmt.Sprintf("deploy %s --confirm -l=debug --set REGISTRY_HPA_MAX=1", bundlePath))
-	})
+	// Deploy
+	runCmd(t, fmt.Sprintf("deploy %s --confirm -l=debug --set REGISTRY_HPA_MAX=1", bundlePath))
+	zarfInitReady = true
 }
 
 func stabilizeZarfRegistry(t *testing.T) {
