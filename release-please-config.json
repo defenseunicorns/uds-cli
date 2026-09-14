@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "release-type": "go",
+      "package-name": "uds-cli",
+      "bump-minor-pre-major": true,
+      "include-v-in-tag": true,
+      "changelog-path": "CHANGELOG.md",
+      "changelog-sections": [
+        { "type": "feat", "section": "Features" },
+        { "type": "fix", "section": "Bug Fixes" },
+        { "type": "deps", "section": "Dependencies" },
+        { "type": "perf", "section": "Performance Improvements" },
+        { "type": "refactor", "section": "Refactoring" },
+        { "type": "chore", "section": "Miscellaneous" },
+        { "type": "docs", "section": "Documentation", "hidden": true },
+        { "type": "test", "section": "Tests", "hidden": true },
+        { "type": "ci", "section": "CI/CD", "hidden": true },
+        { "type": "build", "section": "Build", "hidden": true }
+      ]
+    }
+  },
+  "include-component-in-tag": false
+}

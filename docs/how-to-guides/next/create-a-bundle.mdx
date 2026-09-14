@@ -1,0 +1,164 @@
+---
+title: "Create a bundle in Next mode"
+description: Define a bundle in Next mode with HCL, package dependencies, values files, and signature policies.
+sidebar:
+  order: 4.3
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Create a self-contained OCI artifact from a `bundle.uds.hcl` definition.
+
+## What you'll accomplish
+
+- Define package sources and dependencies.
+- Add package values and bundle defaults.
+- Create a signed artifact or an unsigned local test artifact.
+
+## Prerequisites
+
+- [UDS CLI installed](/cli/getting-started/installation/)
+- A directory containing the bundle definition
+- OCI access to each package source
+- Public key files referenced by package verification policies
+- A Cosign signing key or an OIDC identity when creating a signed artifact
+
+## Steps
+
+<Steps>
+
+1. **Define the bundle**
+
+   Create `bundle.uds.hcl`:
+
+   The `my-org`, package names, package references, key paths, and signer identity below are placeholders. Replace them with package sources and trust material available in your environment.
+
+   ```hcl title="bundle.uds.hcl"
+   uds {
+     bundle_api_version = "uds.dev/v1alpha1"
+   }
+
+   metadata {
+     name        = "my-app"
+     description = "My application bundle"
+     version     = "1.0.0"
+   }
+
+   package "database" {
+     source = "oci://ghcr.io/my-org/packages/postgres:15.0.0"
+
+     signature_verification {
+       public_key = file("keys/my-org.pub")
+     }
+   }
+
+   package "api" {
+     source       = "oci://ghcr.io/my-org/packages/my-api:2.0.0"
+     depends_on   = [package.database]
+     values_files = ["values/api.yaml"]
+
+     signature_verification {
+       keyless {
+         certificate_identity    = "https://github.com/my-org/api/.github/workflows/release.yml@refs/heads/main"
+         certificate_oidc_issuer = "https://token.actions.githubusercontent.com"
+       }
+     }
+   }
+   ```
+
+   Create the values file referenced by the `api` package. Values files support Go templates. The `{{ .vars.* }}` expressions read variables available at deploy time, including values from `defaults.uds.hcl` or `config.uds.hcl`; missing variables cause deployment to fail. In this example, the package maps the `replicas` value to the chart's `replicaCount` value:
+
+   ```yaml title="values/api.yaml"
+   replicas: {{ .vars.replica_count }}
+   ```
+
+   The package author defines that mapping in the package's `zarf.yaml`:
+
+   ```yaml title="zarf.yaml"
+   kind: ZarfPackageConfig
+   metadata:
+     name: api
+     version: 1.0.0
+
+   values:
+     files:
+       - values.yaml
+
+   components:
+     - name: api
+       required: true
+       charts:
+         - name: api
+           version: 1.0.0
+           namespace: api
+           url: oci://ghcr.io/my-org/charts/api
+           values:
+             - sourcePath: ".replicas"
+               targetPath: ".replicaCount"
+   ```
+
+   `sourcePath` identifies the key in the Zarf values file, and `targetPath` identifies the corresponding Helm chart value. At deploy time, the `replica_count` bundle variable becomes the Zarf `replicas` value, which Zarf maps to the chart's `replicaCount` value.
+
+    The package ID is the label after `package`. Use it with `depends_on` to control deployment order, for example `depends_on = [package.database]`. Independent packages deploy in parallel.
+
+    Each package needs one verification method: `public_key`, `keyless`, or an explicit `signature_verification { verify = false }` bypass. Use the bypass only for local alpha workflows. It produces a warning.
+
+2. **Use defaults and locals**
+
+   Put environment-independent defaults in `defaults.uds.hcl` next to the bundle definition:
+
+   ```hcl title="defaults.uds.hcl"
+   variables = {
+     cluster_name  = "development"
+     replica_count = 1
+   }
+   ```
+
+    Use `locals` to avoid repeating registry or version values:
+
+    ```hcl title="bundle.uds.hcl"
+    locals {
+      package_registry = "ghcr.io/my-org/packages"
+      api_version      = "2.0.0"
+    }
+
+    package "api" {
+      source = "oci://${local.package_registry}/my-api:${local.api_version}"
+      signature_verification { verify = false }
+    }
+    ```
+
+    Use `file(path)` for UTF-8 text files. Paths resolve relative to the HCL file.
+
+3. **Create the artifact**
+
+   Create a signed artifact using a local Cosign key:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle create . --signing-key ./cosign.key
+   ```
+
+   For a local unsigned test artifact:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle create . --unsigned
+   ```
+
+    Use `--keyless` to sign through an OIDC identity. The command writes a local `.tar.zst` containing the definition, defaults, values, and package content.
+
+</Steps>
+
+## Verification
+
+Confirm that the artifact exists and contains the bundle metadata:
+
+```bash
+CLI_FEATURES=NextMode=true uds bundle inspect ./uds-bundle-my-app-<ARCH>-1.0.0.tar.zst
+```
+
+Replace `<ARCH>` with the target architecture, such as `amd64` or `arm64`.
+
+## Related documentation
+
+- [Deploy a bundle in Next mode](/cli/how-to-guides/next/deploy-a-bundle/) - Deploy a definition or created artifact.
+- [Next mode reference](/cli/reference/next-mode/) - Review the complete HCL and command reference.

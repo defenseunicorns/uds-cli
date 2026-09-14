@@ -40,6 +40,7 @@ type suiteEnvironment struct {
 	udsPath            string
 	kubeconfigPath     string
 	podinfoPackagePath string
+	monitorPackagePath string
 	tempDir            string
 	previousKubeconfig string
 	hadKubeconfig      bool
@@ -195,6 +196,23 @@ func setupSuite(ctx context.Context) (_ *suiteEnvironment, retErr error) {
 	)
 	if _, err := os.Stat(env.podinfoPackagePath); err != nil {
 		return nil, fmt.Errorf("locate shared podinfo package: %w", err)
+	}
+
+	fmt.Fprintln(os.Stderr, "Building operator monitor test package...")
+	if err := testutil.RunCommand(ctx, os.Environ(), udsPath,
+		"zarf", "package", "create", testutil.TestDataPath("packages/operator-monitor"),
+		"--output", packageDir,
+		"--architecture", runtime.GOARCH,
+		"--confirm",
+	); err != nil {
+		return nil, fmt.Errorf("build operator monitor test package: %w", err)
+	}
+	env.monitorPackagePath = filepath.Join(
+		packageDir,
+		fmt.Sprintf("zarf-package-uds-cli-operator-monitor-%s-0.1.0.tar.zst", runtime.GOARCH),
+	)
+	if _, err := os.Stat(env.monitorPackagePath); err != nil {
+		return nil, fmt.Errorf("locate operator monitor test package: %w", err)
 	}
 
 	fmt.Fprintf(os.Stderr, "Shared cluster %q is ready.\n", sharedClusterName)

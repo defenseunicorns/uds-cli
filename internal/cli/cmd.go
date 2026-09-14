@@ -5,10 +5,12 @@
 package cli
 
 import (
+	"errors"
 	"log/slog"
 	"os"
 
 	"github.com/defenseunicorns/uds-cli/internal/cli/bundle"
+	"github.com/defenseunicorns/uds-cli/internal/cli/core"
 	"github.com/defenseunicorns/uds-cli/internal/cli/tools"
 	cmdversion "github.com/defenseunicorns/uds-cli/internal/cli/version"
 	cmdzarf "github.com/defenseunicorns/uds-cli/internal/cli/zarf"
@@ -27,6 +29,9 @@ func NewRootCommand(streams iostreams.IOStreams) *cobra.Command {
 		Short: "UDS CLI - The entrypoint to the Defense Unicorns ecosystem",
 		Long:  `UDS CLI is a command-line tool for managing UDS Bundles and interacting with the Defense Unicorns ecosystem.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateArchitectureFlag(cmd); err != nil {
+				return err
+			}
 			level, err := logger.ParseLevel(logLevel)
 			if err != nil {
 				return err
@@ -50,6 +55,7 @@ func NewRootCommand(streams iostreams.IOStreams) *cobra.Command {
 
 	rootCmd.AddCommand(cmdversion.NewVersionCommand(streams))
 	rootCmd.AddCommand(bundle.NewBundleCommand(streams))
+	rootCmd.AddCommand(core.NewCoreCommand(streams))
 	rootCmd.AddCommand(tools.NewToolsCommand())
 	// Hidden root-level zarf command for internal Zarf callbacks.
 	// Zarf's ActionsCommandZarfPrefix is set to "zarf" (single word) at build time,
@@ -57,4 +63,13 @@ func NewRootCommand(streams iostreams.IOStreams) *cobra.Command {
 	rootCmd.AddCommand(cmdzarf.NewInternalZarfCommand())
 
 	return rootCmd
+}
+
+func validateArchitectureFlag(cmd *cobra.Command) error {
+	flag := cmd.Flags().Lookup("architecture")
+	if flag == nil || !flag.Changed || flag.Value.String() != "" {
+		return nil
+	}
+
+	return errors.New("--architecture must not be empty")
 }

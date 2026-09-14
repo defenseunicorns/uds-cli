@@ -78,8 +78,9 @@ import (
 //	uds tools zarf package list
 func NewZarfCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "zarf",
-		Short: "Vendored Zarf CLI (non-vendored-tool commands)",
+		Use:     "zarf",
+		Aliases: []string{"z"},
+		Short:   "Vendored Zarf CLI (non-vendored-tool commands)",
 		Long: `Wraps the vendored Zarf CLI, providing access to Zarf commands.
 
 NOTE: Zarf's vendored tool commands (kubectl, helm, etc.) do NOT work through
@@ -116,9 +117,10 @@ This path is suitable for all other Zarf commands:
 // init time and expects the prefix ("zarf") to be at os.Args[1].
 func NewInternalZarfCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:    "zarf",
-		Short:  "Vendored Zarf CLI (internal)",
-		Hidden: true,
+		Use:     "zarf",
+		Aliases: []string{"z"},
+		Short:   "Vendored Zarf CLI (internal)",
+		Hidden:  true,
 		Run: func(_ *cobra.Command, args []string) {
 			os.Args = append([]string{"zarf"}, args...)
 			util.CheckErr(zarfCLI.Execute(context.Background()))
