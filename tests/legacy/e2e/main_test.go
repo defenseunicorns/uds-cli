@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package test provides e2e tests for UDS.
@@ -10,6 +10,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	test "github.com/defenseunicorns/uds-cli/internal/legacy/testutil"
@@ -21,7 +22,8 @@ import (
 )
 
 var (
-	e2e test.UDSE2ETest //nolint:gochecknoglobals
+	e2e          test.UDSE2ETest //nolint:gochecknoglobals
+	zarfInitOnce sync.Once       //nolint:gochecknoglobals // E2E init is shared across the suite.
 )
 
 const (
@@ -91,7 +93,12 @@ func doAllTheThings(m *testing.M) (int, error) {
 // deployZarfInit deploys Zarf init (from a bundle!) if it hasn't already been deployed.
 func deployZarfInit(t *testing.T) {
 	t.Helper()
-	if !zarfInitDeployed() {
+	zarfInitOnce.Do(func() {
+		if zarfInitDeployed() {
+			stabilizeZarfRegistry(t)
+			return
+		}
+
 		// get Zarf version from go.mod
 		b, err := os.ReadFile("go.mod")
 		require.NoError(t, err)
@@ -112,10 +119,8 @@ func deployZarfInit(t *testing.T) {
 		runCmd(t, fmt.Sprintf("create %s --confirm --insecure", bundleDir))
 
 		// Deploy
-		runCmd(t, fmt.Sprintf("deploy %s --confirm -l=debug", bundlePath))
-	}
-
-	stabilizeZarfRegistry(t)
+		runCmd(t, fmt.Sprintf("deploy %s --confirm -l=debug --set REGISTRY_HPA_MAX=1", bundlePath))
+	})
 }
 
 func stabilizeZarfRegistry(t *testing.T) {
