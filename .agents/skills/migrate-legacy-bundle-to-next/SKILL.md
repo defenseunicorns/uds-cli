@@ -584,6 +584,13 @@ unless the user explicitly asks for a separate local validation copy. A validati
 copy must be clearly labelled as non-equivalent and must leave the canonical migrated
 files unchanged.
 
+Encode every substituted command value as one POSIX-shell argument before placing it
+in a generated `sh` block. This includes every Legacy-controlled path, ref, flavor,
+and architecture, plus user-provided signing inputs. Use single quotes, replacing an
+embedded apostrophe with `'"'"'`; quote simple-looking values too. Never insert a raw
+value from a manifest, configuration, or user input into shell syntax. In the
+templates below, each angle-bracketed value represents one such shell-quoted argument.
+
 For an explicitly authorized validation copy, use an output directory outside the
 canonical migration directory so the Legacy input and migration output remain
 untouched. When the effective Legacy architecture is known, pass it to Zarf so the
@@ -593,7 +600,7 @@ flavor with `--flavor <legacy-flavor>`; otherwise omit the flag:
 
 ```sh
 mkdir -p .next-validation/packages
-CLI_FEATURES=NextMode=true uds tools zarf package create <legacy-local-package-path> --architecture <effective-legacy-architecture> --flavor <legacy-flavor> --output .next-validation/packages --confirm
+CLI_FEATURES=NextMode=true uds tools zarf package create '<legacy-local-package-path>' --architecture '<effective-legacy-architecture>' --flavor '<legacy-flavor>' --output .next-validation/packages --confirm
 ```
 
 When the canonical migration retains `public_key` verification, require the user to
@@ -612,7 +619,7 @@ to this command:
 
 ```sh
 mkdir -p .next-validation/signed-packages
-CLI_FEATURES=NextMode=true uds tools zarf package sign .next-validation/packages/<unsigned-archive>.tar.zst --keyless --architecture <effective-legacy-architecture> --output .next-validation/signed-packages --confirm
+CLI_FEATURES=NextMode=true uds tools zarf package sign '.next-validation/packages/<unsigned-archive>.tar.zst' --keyless --architecture '<effective-legacy-architecture>' --output .next-validation/signed-packages --confirm
 ```
 
 When the retained Legacy `keylessVerification.useSignedTimestamps` is `true`, require
