@@ -75,18 +75,11 @@ optionally deploy to a non-production cluster.
    > keyless certificate identities, and public Sigstore trusted roots are not
    > sensitive by default.
 
-   Give the agent this prompt, replacing the placeholder paths:
+   Print the canonical prompt, then paste it into the agent and replace the
+   placeholder paths:
 
-   ```text
-   Read and follow the repository's Legacy-to-Next migration skill at
-   .agents/skills/migrate-legacy-bundle-to-next/SKILL.md. Then migrate
-   ./legacy/uds-bundle.yaml and, if it exists, ./legacy/uds-config.yaml.
-
-   Write only the proposed Next files under ./.next. Do not modify the Legacy files.
-   For package overrides, inspect the supplied package zarf.yaml files and report
-   every missing or unverified values mapping. Produce bundle.uds.hcl, the required
-   values files, config.uds.hcl and/or defaults.uds.hcl, and a migration report.
-   Do not run UDS commands or perform a cluster operation yet.
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle migrate prompt
    ```
 
    Review the resulting files before continuing. Generated HCL and values sections
