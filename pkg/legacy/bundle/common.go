@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package bundle contains functions for interacting with, managing and deploying UDS packages
@@ -44,15 +44,11 @@ type Bundle struct {
 
 // New creates a new Bundle
 func New(cfg *types.BundleConfig) (*Bundle, error) {
-	jsonValue, err := utils.JSONValue(cfg)
-	if err != nil {
-		return nil, err
-	}
-	message.Debugf("bundler.New(%s)", jsonValue)
-
 	if cfg == nil {
 		return nil, errors.New("bundler.New() called with nil config")
 	}
+
+	message.Debug("bundler.New", "deploySource", cfg.DeployOpts.Source, "createSource", cfg.CreateOpts.SourceDirectory, "deployPackages", len(cfg.DeployOpts.Packages), "retries", cfg.DeployOpts.Retries)
 
 	var (
 		bundle = &Bundle{
