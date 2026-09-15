@@ -75,7 +75,7 @@ injection. Preserve the Legacy input in either case. Do not silently substitute 
 placeholder, claim a redacted result is equivalent, or choose a secret-storage
 mechanism on the user's behalf.
 
-Return all of the following:
+Write all of the following under the requested output directory:
 
 1. `bundle.uds.hcl`, with `uds { bundle_api_version = "uds.dev/v1alpha1" }`, metadata,
    package blocks, and package verification posture.
@@ -89,9 +89,11 @@ Return all of the following:
 4. A migration report listing converted fields, manual work, unsupported features,
    and the exact Next commands to use.
 
-Use fenced blocks titled with their filenames. Do not claim that generated files were
-validated or that an override will work unless the required Zarf mapping was obtained
-or supplied and checked.
+Create required subdirectories and files directly; do not use fenced response blocks
+as a substitute for writing the files. In the final response, list the generated paths
+and unresolved blockers without duplicating the file contents. Do not claim that
+generated files were validated or that an override will work unless the required Zarf
+mapping was obtained or supplied and checked.
 
 ## Source attribution
 
