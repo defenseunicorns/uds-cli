@@ -10,7 +10,7 @@ import { Steps } from '@astrojs/starlight/components';
 ## What you'll accomplish
 
 Use an AI coding agent to make a reviewable first-pass migration from a Legacy
-`uds-bundle.yaml` and optional `uds-config.yaml` to UDS CLI Next HCL files. You
+`uds-bundle.yaml` to UDS CLI Next HCL files. You
 will review the generated migration report, validate the files with UDS CLI, and
 optionally deploy to a non-production cluster.
 
@@ -18,7 +18,7 @@ optionally deploy to a non-production cluster.
 
 - [UDS CLI installed](/cli/getting-started/installation/).
 - A clone of this repository containing `.agents/skills/migrate-legacy-bundle-to-next/`.
-- A Legacy bundle source directory containing `uds-bundle.yaml`, and `uds-config.yaml` when used.
+- A Legacy bundle source directory containing `uds-bundle.yaml`.
 - Access to the source packages and their trust material for bundle creation.
 - A non-production cluster only when you are ready to test a deployment. Standard
   Zarf packages require an initialized cluster, or a migrated bundle that includes
@@ -187,9 +187,8 @@ optionally deploy to a non-production cluster.
    CLI_FEATURES=NextMode=true uds bundle create ./.next --architecture <effective-legacy-architecture> --unsigned
    ```
 
-   Do not add a generated `--config` argument: the migration places bundle-specific
-   values in `defaults.uds.hcl`, not runtime deployment configuration. If the report
-   cannot establish an effective architecture, resolve that runtime option before
+   The migration only creates bundle definition artifacts and defaults. If the report
+   cannot establish an effective architecture, resolve that manual decision before
    creating the artifact.
 
    This reads and validates `bundle.uds.hcl`, resolves package sources, and writes
@@ -205,8 +204,7 @@ optionally deploy to a non-production cluster.
    CLI_FEATURES=NextMode=true uds bundle create ./.next-validation --architecture <effective-legacy-architecture> --unsigned
    ```
 
-   Apply the same architecture rule to the validation copy. It also contains no
-   generated runtime configuration.
+   Apply the same architecture rule to the validation copy.
 
    If the command fails, have the agent explain the failure from the UDS output and
    update only the generated Next files. Do not change the Legacy source to silence
@@ -239,10 +237,8 @@ optionally deploy to a non-production cluster.
    CLI_FEATURES=NextMode=true uds bundle dev deploy ./.next-validation --architecture <effective-legacy-architecture>
    ```
 
-   The migration does not generate runtime deployment configuration. If you separately
-   supply one, add its `--config` argument to the command. Confirm the workload is
-   healthy with the package-specific Kubernetes checks before retiring the Legacy
-   workflow.
+   Confirm the workload is healthy with the package-specific Kubernetes checks before
+   retiring the Legacy workflow.
 
    If you choose to deploy the artifact from step 4 instead, it is unsigned and
    suitable only for local-alpha use. Either create a signed artifact and provide its
@@ -253,8 +249,7 @@ optionally deploy to a non-production cluster.
    ```
 
    `--skip-signature-verification` bypasses bundle-artifact integrity verification;
-   do not use it for a release or a registry artifact. If you separately supply
-   runtime deployment configuration, add its `--config` argument. See [Deploy a bundle in Next
+   do not use it for a release or a registry artifact. See [Deploy a bundle in Next
    mode](/cli/how-to-guides/next/deploy-a-bundle/) for the artifact workflow.
 
 </Steps>

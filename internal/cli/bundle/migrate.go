@@ -12,13 +12,13 @@ import (
 
 const migrationPrompt = `Read and follow the repository's Legacy-to-Next migration skill at
 .agents/skills/migrate-legacy-bundle-to-next/SKILL.md. Then migrate
-./legacy/uds-bundle.yaml and, if it exists, ./legacy/uds-config.yaml.
+./legacy/uds-bundle.yaml.
 
 Write only the proposed Next files under ./.next. Do not modify the Legacy files.
 For package overrides, inspect package definitions and report every missing or
 unverified values mapping. Produce bundle.uds.hcl, the required values files,
-defaults.uds.hcl when needed, and a migration report. Do not generate
-config.uds.hcl; report runtime deployment configuration as manual work.
+defaults.uds.hcl when needed, and a migration report. Report all deployment-time
+values and settings as not converted.
 Do not run UDS commands or perform a cluster operation yet.`
 
 // NewMigrateCommand creates commands that assist with Legacy bundle migration.

@@ -1,13 +1,13 @@
 ---
 name: migrate-legacy-bundle-to-next
-description: Convert a Legacy UDS CLI uds-bundle.yaml and optional uds-config.yaml into reviewed UDS CLI Next HCL files. Use when migrating a bundle authoring workflow; do not use for arbitrary YAML-to-HCL conversion.
+description: Convert a Legacy UDS CLI uds-bundle.yaml into reviewed UDS CLI Next HCL files. Use when migrating a bundle authoring workflow; do not use for arbitrary YAML-to-HCL conversion.
 ---
 
 # Migrate a Legacy bundle to UDS CLI Next
 
-Produce a reviewable first-pass migration from `uds-bundle.yaml` and, when supplied,
-`uds-config.yaml`. Keep the source files unchanged. The deliverable is not complete
-until it calls out every source construct that has no safe Next equivalent.
+Produce a reviewable first-pass migration from `uds-bundle.yaml`. Keep the source file
+unchanged. The deliverable is not complete until it calls out every source construct
+that has no safe Next equivalent.
 
 This AI-assisted workflow is experimental. It produces a proposed migration, not a
 compatibility guarantee. Begin the migration report with an **Experimental migration
@@ -17,7 +17,7 @@ successful artifact build does not prove deployment equivalence.
 
 ## Inputs and output
 
-Ask for the legacy bundle and optional config contents or paths.
+Ask for the legacy bundle contents or path.
 
 For a new migration, check whether the requested output directory already exists
 before writing any output. If it does, stop without reading, merging, changing, or
@@ -70,8 +70,8 @@ When a source contains a sensitive value, never echo it in chat, report prose, o
 generated-file comment. Report only its source location and **needs sensitive-value
 handling**. Stop before copying it into generated output and ask the user to choose
 one of these paths: explicitly authorize a local-only copy into a specified untracked
-configuration file, or generate a redacted migration that requires manual secret
-injection. Preserve the Legacy input in either case. Do not silently substitute a
+file, or generate a redacted migration that requires manual secret injection. Preserve
+the Legacy input in either case. Do not silently substitute a
 placeholder, claim a redacted result is equivalent, or choose a secret-storage
 mechanism on the user's behalf.
 
@@ -82,10 +82,9 @@ Write all of the following under the requested output directory:
 2. A package-level `values/<package>.yaml` for each safely transcribed legacy override,
    plus the corresponding `values_files` entry. Preserve effective Legacy Helm value
    types and render legacy override variables as `{{ .vars.<package>.<variable> }}`.
-3. `defaults.uds.hcl` for every safely representable Legacy override value or default
+3. `defaults.uds.hcl` for every safely representable Legacy override variable default
    that belongs to this migrated bundle. It may contain only `variables`, never
-   `options`. Do not generate `config.uds.hcl`: it is runtime deployment input, not
-   part of a migrated bundle definition.
+   `options`. Do not translate deployment-time values or settings.
 4. A migration report listing converted fields, manual work, unsupported features,
    and the exact Next commands to use.
 
@@ -103,8 +102,8 @@ references. Do not guess a location when an input is incomplete or generated; sa
 in the migration report instead.
 
 Add concise comments immediately before generated semantic blocks, not every
-attribute. Attribute each `metadata`, `package`, `signature_verification`, `options`,
-and package values section that came from a distinct Legacy source range. For example:
+attribute. Attribute each `metadata`, `package`, `signature_verification`, and package
+values section that came from a distinct Legacy source range. For example:
 
 ```hcl
 # Migrated from uds-bundle.yaml:12-18
@@ -142,11 +141,9 @@ Apply these mappings when the source has the required values:
 | `publicKey` | `signature_verification { public_key = ... }` with the Legacy key content encoded as an HCL string or heredoc; Legacy treats this field as content, not a path; see **HCL-safe strings** |
 | `keylessVerification` | `signature_verification { keyless { ... } }`, changing camelCase keys to the documented snake_case keys; see **HCL-safe strings** |
 | static override `values` without Legacy `${NAME}` placeholders | nested YAML with the effective Legacy Helm scalar type at the Zarf-mapped source path for each override target path; see **Legacy Helm scalar coercion**, **Literal Go-template delimiters**, and **Override path mapping** |
-| static override `values` containing Legacy `${NAME}` placeholders | translate each resolvable scalar placeholder to `{{ .vars.<package>.<normalized_name> }}` with the effective Legacy Helm scalar type at the Zarf-mapped source path, using its collision-safe key when needed; see **Legacy Helm scalar coercion**, **Legacy placeholder translation**, and **Override path mapping** |
-| scalar, non-file override `variables` with a configured value or Legacy default | nested YAML at the Zarf-mapped source path using a type-aware `{{ .vars.<package>.<normalized_name> }}` template and collision-safe key when needed; write the effective Legacy value to `defaults.uds.hcl`; see **Legacy Helm scalar coercion** and **YAML scalar rendering** |
-| `options.architecture`, `log_level`, `tmp_dir` | **needs runtime-options review**; do not generate a `config.uds.hcl` |
-| `options.oci_concurrency` | **needs concurrency-semantics review**; do not map automatically to `options.concurrency` |
-| legacy `insecure` | manual decision between `plain_http` and `skip_tls_verify`; do not choose automatically |
+| static override `values` containing Legacy `${NAME}` placeholders | **not converted**; report for manual review |
+| scalar, non-file override `variables` with a Legacy default | nested YAML at the Zarf-mapped source path using a type-aware `{{ .vars.<package>.<normalized_name> }}` template and collision-safe key when needed; write the default to `defaults.uds.hcl`; see **Legacy Helm scalar coercion** and **YAML scalar rendering** |
+| Legacy configured override values, `options`, or `insecure` | **not converted**; report for manual handling |
 
 For each package, stable-deduplicate Legacy `optionalComponents` before emitting
 `optional_components`: retain the first occurrence of each exact component name and
@@ -158,7 +155,7 @@ optional-components review** rather than emitting invalid HCL.
 ### HCL-safe strings
 
 Encode every migrated literal string as HCL before emitting it, including metadata,
-package sources, verification fields, options, and configuration values. In quoted
+package sources, and verification fields. In quoted
 strings, escape HCL-special characters and replace literal `${` with `$${` and `%{`
 with `%%{`; do this in addition to normal backslash and quote escaping. Preserve
 intentional HCL expressions such as `file("...")` as expressions rather than quoting
@@ -183,9 +180,9 @@ the representation and source location in the migration report.
 ### Literal Go-template delimiters
 
 Next parses generated values files with Go `text/template` only when the effective
-Next configuration supplies a non-nil variables map; an options-only configuration
-does not trigger rendering. Determine that map before changing static values. When it
-is nil, preserve literal `{{` and `}}` unchanged. Only when it is known to be non-nil,
+bundle defaults supply a non-nil variables map. Determine that map before changing
+static values. When it is nil, preserve literal `{{` and `}}` unchanged. Only when it
+is known to be non-nil,
 scan every static Legacy override scalar, list element, and object value for those
 delimiters and emit `{{"{{"}}` and `{{"}}"}}`, respectively, so rendering produces the
 original delimiter rather than evaluating it. Do not escape intentional Next
@@ -195,28 +192,15 @@ is literal or intended for Next rendering, or escaping cannot preserve the YAML 
 shape, mark it **needs literal-template review** instead of classifying the override
 as safely transcribed.
 
-Legacy `oci_concurrency` limits remote OCI layer operations and defaults to `3`.
-Next `options.concurrency` is limited to `1` through `25` and controls both remote
-OCI package pulls during bundle creation and source deployment, and concurrent package
-deployment within a dependency level. It is therefore not an OCI-only equivalent.
-Report Legacy `oci_concurrency` as **needs concurrency-semantics review** and write a
-Next `concurrency` value only when the user explicitly selects the intended balance
-between remote-pull and package-deployment parallelism.
-
 Normalize Legacy override variable names to lowercase snake case (for example,
 `REPLICA_COUNT` becomes `replica_count`) for package-scoped values-file templates.
-Only top-level scalar values are passed through to Zarf package-variable
-substitutions; direct Zarf inputs retain their Legacy uppercase identity as described
-in **Direct Zarf package variables**.
 
 Before snake-case allocation, group each package's Legacy override variable names by
 their uppercase identity. Names such as `foo` and `FOO` are aliases in Legacy and
-must not receive independent Next inputs. When the aliases have one effective scalar
-configured value, map every alias to one shared Next key and value. When they have no
-configured value, do the same only if their defaults are all absent or semantically
-identical. If aliases have differing defaults, a non-scalar or file value, direct
-Zarf consumption, or another ambiguous source, mark the group **needs
-case-alias-variable review** rather than splitting or silently choosing a value.
+must not receive independent Next inputs. Map aliases to one shared Next key only if
+their defaults are all absent or semantically identical. If aliases have differing
+defaults, a non-scalar or file value, or another ambiguous source, mark the group
+**needs case-alias-variable review** rather than splitting or silently choosing a value.
 Record every Legacy alias and its shared key or review disposition in the
 source-attribution table.
 
@@ -226,16 +210,16 @@ collision in Legacy source order by appending `_1`, `_2`, and so on, skipping ke
 already used by a non-colliding variable or an earlier allocation. For example,
 `fooBar` and `foo_bar` become `foo_bar_1` and `foo_bar_2`. Use each allocated key
 consistently in `defaults.uds.hcl`, values-file templates, and report references, and
-record the original-to-generated mapping in the source-attribution table. If a
-colliding name is consumed directly by Zarf, or a stable allocation cannot preserve
-the required variable semantics, mark it **needs variable-normalization review**
-rather than merging the values or choosing a silent fallback.
+record the original-to-generated mapping in the source-attribution table. If a stable
+allocation cannot preserve the required variable semantics, mark it **needs
+variable-normalization review** rather than merging the values or choosing a silent
+fallback.
 
 ### Package-scoped template access
 
 Use dot access only when both the package label and normalized variable name are
 valid Go-template identifiers. When either key contains a hyphen or another
-non-identifier character, use `index` with the exact generated configuration keys:
+non-identifier character, use `index` with the exact generated variable keys:
 
 ```text
 {{ index (index .vars "package-name-1") "replica_count" }}
@@ -244,35 +228,6 @@ non-identifier character, use `index` with the exact generated configuration key
 In particular, repeated-package labels ending in `-1`, `-2`, and so on always
 require this form. Do not substitute a separately normalized package key unless the
 corresponding `defaults.uds.hcl` key and every template reference are changed together.
-
-### Direct Zarf package variables
-
-Inspect the discovered package definition and available package layout for deploy-time
-Zarf variable consumers: package-level `variables` declarations, chart `variables`
-mappings, and `###ZARF_VAR_NAME###` usages in manifests, templates, actions, or other
-deploy inputs. Do not use `###ZARF_PKG_VAR_*###` as this check: it is a package
-creation-time template prefix, not the deploy-variable syntax. A Legacy package-scoped
-value used only by a generated values-file template remains under its package object.
-A configured scalar whose uppercase Legacy name matches a declared or consumed
-deploy-time Zarf variable must also be a collision-free top-level `variables` entry in
-`defaults.uds.hcl`, because Next forwards only top-level scalars to Zarf's
-package-variable map.
-
-For each direct deploy variable, use a top-level key whose uppercase form exactly
-equals the Zarf variable name. Preserve the Legacy variable spelling for that key when
-it provides the required identity: for example, Legacy `fooBar` consumed by
-`###ZARF_VAR_FOOBAR###` or a chart variable named `FOOBAR` becomes top-level `fooBar`,
-not normalized `foo_bar`. Retain a separately normalized package-scoped entry only
-when generated values-file templates also need it. Before lifting, compare every
-migrated package that declares or consumes the same Zarf variable. Lift automatically
-only when it is the sole consumer or every consumer has the same explicitly configured
-scalar Legacy value. If another package has a different value or relies on its Zarf
-default or prompt, do not choose one or rename either value: mark the shared scope as
-**needs Zarf variable-scope review**. Likewise, if `zarf.yaml` cannot be inspected,
-the input is non-scalar, the Legacy uppercase name does not match the declared or
-consumed variable, lifting would change the scope, or a direct variable collides with
-another top-level value, mark it **needs Zarf variable-scope review** in the migration
-report; do not silently leave it nested or choose a renamed fallback.
 
 ### Legacy Helm scalar coercion
 
@@ -314,22 +269,19 @@ do not quote only the interpolated portion. If the Legacy type is unknown, a val
 cannot be represented safely by this form, or quoting would change its intended YAML
 type, mark it **needs YAML scalar rendering review** in the migration report.
 
-When a scalar Legacy override variable has neither a configured value nor a Legacy
-default, omit its generated values entry so the chart default remains in effect.
+When a scalar Legacy override variable has no Legacy default, omit its generated
+values entry so the chart default remains in effect.
 Record it as **preserved unset override** in the migration report. Do not emit an
 unconditional `{{ .vars... }}` reference: Next renders values templates with missing
-keys as errors. If the user needs an optional Next configuration value instead,
-mark that behavior **needs optional-value design** rather than choosing a fallback.
+keys as errors. Mark an optional value as **not converted** rather than choosing a
+fallback.
 
 For every safely representable Legacy override default, write the mapped variable and
 its default value to `defaults.uds.hcl` so the created artifact retains Legacy
-fallback behavior. When the Legacy config also supplies a value, write that effective
-value at the same mapped scope in `defaults.uds.hcl`; it becomes the bundle's default,
-not generated runtime deployment configuration. Do not omit or relocate a Legacy
-default merely because the user has not separately identified it as portable; require
-an explicit user decision to change that behavior. Record the default, configured
-value (when any), and their precedence in the migration report. Apply sensitive-value
-handling before writing a sensitive default.
+fallback behavior. Do not omit or relocate a Legacy default merely because the user
+has not separately identified it as portable; require an explicit user decision to
+change that behavior. Record the default and its source in the migration report. Apply
+sensitive-value handling before writing a sensitive default.
 
 Do not apply direct `{{ .vars... }}` interpolation to a list, object, or a Legacy
 chart variable with `type: file`. Legacy sends lists and objects through Helm's JSON
@@ -338,38 +290,8 @@ a scalar template can produce Go representations such as `map[...]` or a file pa
 rather than the intended YAML. Mark each such variable **needs type-aware values
 review** in the migration report. Generate an explicit `range`/`with` YAML template
 only when the supplied value shape and desired YAML representation are unambiguous;
-otherwise require the user to provide the values-file structure or file-content
-configuration. Preserve the Legacy variable type and source location in the report.
-
-### Legacy placeholder translation
-
-Legacy expands `${NAME}` placeholders inside static override values before passing
-scalars, lists, and objects to Helm. Next values files render Go-template expressions
-instead. Scan every static override value recursively for `${NAME}` and replace it
-only when the corresponding name has an actual Legacy effective substitution input
-(imported, shared, configured, environment, or CLI value) that has an unambiguous
-package-scoped Next configuration representation. A chart variable `default` is not a
-substitution input: Legacy applies that default only when processing the variable's
-own override, after static-placeholder expansion. Do not use a default alone to
-resolve a static placeholder. For an eligible input, replace it with:
-
-```text
-{{ .vars.<package>.<normalized_name> }}
-```
-
-Keep the replacement in the same scalar, list item, or object property so the
-generated YAML preserves the surrounding value shape. Add the variable to the
-package-scoped `defaults.uds.hcl` values and cite both the static override location and
-the variable source in the migration report. Apply **Package-scoped template access**
-when either generated key is not a Go-template identifier. Use the collision-safe key
-allocated for that Legacy variable, when applicable.
-
-Do not translate a placeholder whose variable is absent from the effective Legacy
-substitution inputs, exists only as a chart-variable default, is complex or file-backed,
-or whose use in a YAML key or mixed-type value makes the resulting YAML ambiguous.
-Mark it **needs Legacy placeholder review** and retain the literal source text only in
-the report or a clearly labelled comment; do not present a literal `${NAME}` as a
-working Next values-file value.
+otherwise require the user to provide the values-file structure or file-content input.
+Preserve the Legacy variable type and source location in the report.
 
 ### Override path mapping
 
@@ -419,7 +341,7 @@ start with `package_`, replace every slash or backslash with `_`, map `.` to
 `package_current` and `..` to `package_parent`, then append `_1`, `_2`, and so on as
 needed to avoid every valid original label and earlier allocation. For example,
 `team/api` becomes `package_team_api` unless that label is already reserved. Do not
-use the Legacy name as a generated directory, values-file path, configuration key, or
+use the Legacy name as a generated directory, values-file path, variable key, or
 dependency reference. Preserve it for package-source semantics, such as the resolved
 Legacy archive filename, and record the original-to-generated label mapping in the
 migration report. If a stable collision-free label cannot be allocated, mark the
@@ -444,8 +366,8 @@ instances `api-2` and `api-3`:
 
 Use the generated instance label consistently for the Next package block, values-file
 path, package-scoped variables, and any generated report references. If a Legacy
-package-scoped configuration applies to every repeated instance, duplicate it for
-each generated instance label; preserve distinct Legacy overrides with their
+package-scoped default applies to every repeated instance, duplicate it for each
+generated instance label; preserve distinct Legacy overrides with their
 corresponding instance. Do not use the duplicate Legacy name as a Next label or emit
 an invalid bundle with duplicate blocks. Use the `index` form from
 **Package-scoped template access** for every values-file reference to an instance's
@@ -478,18 +400,6 @@ or keyless configuration. If the legacy package has neither, do not silently dis
 verification: emit an unresolved `signature_verification` TODO, using this commented
 selection template, and list it as a blocking manual decision:
 
-If the optional Legacy `uds-config.yaml` sets
-`options.skip_signature_validation: true`, it bypasses verification for every Legacy
-package, including packages that declare public-key or keyless constraints. Next has
-no equivalent bundle-wide setting. Do not report retained verification blocks as an
-equivalent migration or silently add `verify = false`. For each affected package,
-require the user to make and record an explicit security-labelled choice: retain its
-verification posture (a behavior change), set `verify = false` as a local-alpha,
-security-reducing adaptation, or leave the canonical migration blocked pending
-review. Propagate only a user-selected `verify = false` to that package's
-`signature_verification` block and record the Legacy global bypass and each selected
-per-package posture in the migration report.
-
 Never select, uncomment, or replace any option in this template on the user's behalf,
 including for a local test. Bundle artifact signing with `--unsigned` does not
 authorize `verify = false`; they are independent decisions. Ask the user to choose a
@@ -497,10 +407,10 @@ package-verification posture before a validation that requires one.
 
 When materializing the template, use `uds bundle create .` and state that the command
 must be run from the generated bundle directory. This keeps the command executable
-without a synthetic `<bundle-directory>` placeholder. Do not append a generated
-`--config` argument. When the effective Legacy architecture is known, append
+without a synthetic `<bundle-directory>` placeholder. When the effective Legacy
+architecture is known, append
 `--architecture <effective-legacy-architecture>`; otherwise report architecture as a
-runtime-options decision. In the migration report, also give the equivalent command
+manual decision. In the migration report, also give the equivalent command
 from the user's current directory using the actual output directory path (for example,
 `./.next`) and the same architecture rule.
 
@@ -688,19 +598,18 @@ equivalent until that review passes.
 Flag rather than drop any occurrence of:
 
 - bundle `kind` and `build` metadata;
-- metadata `architecture` (record as a runtime architecture decision), `uncompressed`, URL,
+- metadata `architecture` (record as a manual architecture decision), `uncompressed`, URL,
   authors, documentation, source, vendor, or aggregate checksum;
 - package `description`, `timeout`, `flavor`, `imports`, and `exports`;
 - legacy `valuesFiles` that cannot be folded with their Legacy precedence into a
   package values file and verified against Zarf mappings;
-- `shared` configuration, `uds_cache`, `retries`, `UDS_<NAME>` environment variables,
-  and `--set` workflows;
+- `shared` values, `uds_cache`, `retries`, `UDS_<NAME>` environment variables, and
+  `--set` workflows;
 - legacy command/flag behavior without a Next equivalent, including `uds logs`,
   `uds list`, deploy `--resume`, `--retries`, `--force-conflicts`, and inspect
   `--sbom`, `--list-images`, and `--list-variables`.
 
-`imports` and `exports` have no direct Next equivalent. Explain the affected values
-must instead be supplied through user-managed runtime configuration or values files;
+`imports` and `exports` have no direct Next equivalent. Report them as not converted;
 do not translate them to `depends_on` unless the user independently establishes an
 ordering dependency.
 
@@ -754,9 +663,8 @@ directory rather than relying on the current directory, for example:
 CLI_FEATURES=NextMode=true uds bundle dev deploy <output-dir> --architecture <effective-legacy-architecture>
 ```
 
-The migration does not generate runtime configuration. If the user separately supplies
-one for deployment, they must add its `--config` argument themselves. When the
-effective Legacy architecture is known, append
+The migration does not cover deployment-time settings. When the effective Legacy
+architecture is known, append
 `--architecture <effective-legacy-architecture>`; otherwise record that selection as
 manual work. Next artifacts use `.tar.zst`; source definitions and artifacts are not
 backward compatible. Point the user to
