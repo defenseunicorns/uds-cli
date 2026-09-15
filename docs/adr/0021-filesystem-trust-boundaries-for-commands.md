@@ -85,7 +85,7 @@ These commands treat local source input as trusted authoring material:
 - `uds bundle create [directory]`.
 - `uds bundle dev deploy [bundle-definition]`.
 - Source-based operations that parse local `bundle.uds.hcl`, such as
-  `uds bundle remove`.
+  `uds bundle dev remove`.
 
 Trusted authoring commands may read files outside the current working directory
 or outside the bundle directory when the user or bundle author names those paths.
