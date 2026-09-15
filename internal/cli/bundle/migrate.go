@@ -15,9 +15,10 @@ const migrationPrompt = `Read and follow the repository's Legacy-to-Next migrati
 ./legacy/uds-bundle.yaml and, if it exists, ./legacy/uds-config.yaml.
 
 Write only the proposed Next files under ./.next. Do not modify the Legacy files.
-For package overrides, inspect the supplied package zarf.yaml files and report
-every missing or unverified values mapping. Produce bundle.uds.hcl, the required
-values files, config.uds.hcl and/or defaults.uds.hcl, and a migration report.
+For package overrides, inspect package definitions and report every missing or
+unverified values mapping. Produce bundle.uds.hcl, the required values files,
+defaults.uds.hcl when needed, and a migration report. Do not generate
+config.uds.hcl; report runtime deployment configuration as manual work.
 Do not run UDS commands or perform a cluster operation yet.`
 
 // NewMigrateCommand creates commands that assist with Legacy bundle migration.

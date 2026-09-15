@@ -180,19 +180,17 @@ optionally deploy to a non-production cluster.
 
    After the review, create an unsigned local alpha artifact from the canonical
    directory only when its original package sources are accessible and you have
-   explicitly selected every required package-verification posture. When the
-   migration generated `config.uds.hcl`, pass it explicitly so its architecture,
-   registry transport, and other configuration are applied. If that configuration
-   does not set `options.architecture`, also pass the effective Legacy architecture
-   from the migration report:
+   explicitly selected every required package-verification posture. When the migration
+   report establishes an effective Legacy architecture, pass it explicitly:
 
    ```bash
-   CLI_FEATURES=NextMode=true uds bundle create ./.next --architecture <effective-legacy-architecture> --config ./.next/config.uds.hcl --unsigned
+   CLI_FEATURES=NextMode=true uds bundle create ./.next --architecture <effective-legacy-architecture> --unsigned
    ```
 
-   Omit `--config ./.next/config.uds.hcl` only when no `config.uds.hcl` was
-   generated. Omit `--architecture <effective-legacy-architecture>` only when the
-   generated config already sets that architecture.
+   Do not add a generated `--config` argument: the migration places bundle-specific
+   values in `defaults.uds.hcl`, not runtime deployment configuration. If the report
+   cannot establish an effective architecture, resolve that runtime option before
+   creating the artifact.
 
    This reads and validates `bundle.uds.hcl`, resolves package sources, and writes
    a local `.tar.zst` artifact. `--unsigned` skips bundle signing, so use this only
@@ -207,10 +205,8 @@ optionally deploy to a non-production cluster.
    CLI_FEATURES=NextMode=true uds bundle create ./.next-validation --architecture <effective-legacy-architecture> --unsigned
    ```
 
-   Append `--config ./.next-validation/config.uds.hcl` when the migration generated
-   `config.uds.hcl`; otherwise that file does not exist in the validation copy. Apply
-   the same architecture rule: omit the flag only when that generated config sets
-   `options.architecture`.
+   Apply the same architecture rule to the validation copy. It also contains no
+   generated runtime configuration.
 
    If the command fails, have the agent explain the failure from the UDS output and
    update only the generated Next files. Do not change the Legacy source to silence
@@ -230,37 +226,35 @@ optionally deploy to a non-production cluster.
 
    When you are ready, explicitly authorize a non-production deployment from the
    directory you selected for validation. Direct `dev deploy` discovers an adjacent
-   `defaults.uds.hcl` and merges its values beneath `config.uds.hcl`. Deploy the
-   canonical migration when you did not prepare a validation copy:
+   `defaults.uds.hcl`. Deploy the canonical migration when you did not prepare a
+   validation copy:
 
    ```bash
-   CLI_FEATURES=NextMode=true uds bundle dev deploy ./.next --architecture <effective-legacy-architecture> --config ./.next/config.uds.hcl
+   CLI_FEATURES=NextMode=true uds bundle dev deploy ./.next --architecture <effective-legacy-architecture>
    ```
 
    Otherwise, deploy the prepared validation copy:
 
    ```bash
-   CLI_FEATURES=NextMode=true uds bundle dev deploy ./.next-validation --architecture <effective-legacy-architecture> --config ./.next-validation/config.uds.hcl
+   CLI_FEATURES=NextMode=true uds bundle dev deploy ./.next-validation --architecture <effective-legacy-architecture>
    ```
 
-   Omit `--config` only when the selected directory has no generated deploy-time
-   configuration. Omit `--architecture <effective-legacy-architecture>` only when
-   the selected directory's generated config sets `options.architecture`. Confirm the
-   workload is healthy with the package-specific Kubernetes checks before retiring
-   the Legacy workflow.
+   The migration does not generate runtime deployment configuration. If you separately
+   supply one, add its `--config` argument to the command. Confirm the workload is
+   healthy with the package-specific Kubernetes checks before retiring the Legacy
+   workflow.
 
    If you choose to deploy the artifact from step 4 instead, it is unsigned and
    suitable only for local-alpha use. Either create a signed artifact and provide its
    verification inputs, or explicitly authorize this bypass:
 
    ```bash
-   CLI_FEATURES=NextMode=true uds bundle deploy <created-artifact>.tar.zst --config <selected-directory>/config.uds.hcl --skip-signature-verification
+   CLI_FEATURES=NextMode=true uds bundle deploy <created-artifact>.tar.zst --skip-signature-verification
    ```
 
    `--skip-signature-verification` bypasses bundle-artifact integrity verification;
-   do not use it for a release or a registry artifact. Use the shown `--config` form
-   when the selected migration generated deploy-time configuration; otherwise omit
-   that flag and its path. See [Deploy a bundle in Next
+   do not use it for a release or a registry artifact. If you separately supply
+   runtime deployment configuration, add its `--config` argument. See [Deploy a bundle in Next
    mode](/cli/how-to-guides/next/deploy-a-bundle/) for the artifact workflow.
 
 </Steps>
@@ -269,7 +263,7 @@ optionally deploy to a non-production cluster.
 
 The migration is ready for review when all of the following are true:
 
-- The generated `bundle.uds.hcl` and any configuration files are accepted by the
+- The generated `bundle.uds.hcl` and any `defaults.uds.hcl` file are accepted by the
   `uds bundle create` workflow.
 - The migration report has no unresolved package-verification or Zarf-mapping
   items.
