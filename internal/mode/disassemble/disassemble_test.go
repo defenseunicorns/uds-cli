@@ -42,12 +42,9 @@ import (
 
 func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	sourceDir := prepareRoundTripFixture(t)
-	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
-	require.NoError(t, err)
-	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{
+	pkgLayout := assembleSourcePackage(t, sourceDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{
 		SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir(),
 	})
-	require.NoError(t, err)
 	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
 	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
 	require.NoError(t, err)
@@ -62,7 +59,7 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
-	pkg := generated.PackageDefinition.AsV1alpha1()
+	pkg := generated.AsV1alpha1()
 	assert.Equal(t, "roundtrip", pkg.Metadata.Name)
 	assert.Equal(t, "1.2.3-disassembled", pkg.Metadata.Version)
 	require.Len(t, pkg.Components, 1)
@@ -110,10 +107,9 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	assert.NotContains(t, string(generatedYAML), "\nbuild:")
 	assert.Contains(t, string(generatedYAML), "\ncomponents:\n  - name: app\n")
 
-	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{
+	reassembled := assembleSourcePackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{
 		SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir(),
 	})
-	require.NoError(t, err)
 	defer func() { require.NoError(t, reassembled.Cleanup()) }()
 	assert.Equal(t, "roundtrip", reassembled.AsV1alpha1().Metadata.Name)
 	assert.Equal(t, "1.2.3-disassembled", reassembled.AsV1alpha1().Metadata.Version)
@@ -124,10 +120,7 @@ func TestDisassemblePullsOCIPackage(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	sourceDir := prepareRoundTripFixture(t)
-	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
-	require.NoError(t, err)
-	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir()})
-	require.NoError(t, err)
+	pkgLayout := assembleSourcePackage(t, sourceDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir()})
 	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
 	ref := strings.TrimPrefix(server.URL, "http://") + "/test/disassemble:1.0.0"
 	remote, err := zoci.NewRemoteWithOptions(t.Context(), ref, ocispec.Platform{Architecture: "amd64", OS: packageoci.MultiOS}, zoci.RemoteClientOptions{
@@ -142,19 +135,13 @@ func TestDisassemblePullsOCIPackage(t *testing.T) {
 		Source: "oci://" + ref, OutputDir: outputDir, Architecture: "amd64", PlainHTTP: true, TmpDir: t.TempDir(), Concurrency: 1,
 	})
 	require.NoError(t, err)
-	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
-	require.NoError(t, err)
-	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir()})
-	require.NoError(t, err)
+	reassembled := assembleSourcePackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir()})
 	t.Cleanup(func() { require.NoError(t, reassembled.Cleanup()) })
 }
 
 func TestDisassemblePreservesV1beta1Definition(t *testing.T) {
 	sourceDir := copyFixture(t, "v1beta1")
-	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true})
-	require.NoError(t, err)
-	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{Flavor: "offline", SkipSBOM: true})
-	require.NoError(t, err)
+	pkgLayout := assembleSourcePackage(t, sourceDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true}, assemble.AssembleOptions{Flavor: "offline", SkipSBOM: true})
 	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
 	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
 	require.NoError(t, err)
@@ -169,8 +156,8 @@ func TestDisassemblePreservesV1beta1Definition(t *testing.T) {
 	generatedYAML, readErr := os.ReadFile(filepath.Join(outputDir, layout.ZarfYAML))
 	require.NoError(t, readErr)
 	require.NoErrorf(t, err, "generated zarf.yaml:\n%s", generatedYAML)
-	assert.Equal(t, v1beta1.APIVersion, generated.PackageDefinition.OriginalAPIVersion())
-	generatedBeta := generated.PackageDefinition.AsV1beta1()
+	assert.Equal(t, v1beta1.APIVersion, generated.OriginalAPIVersion())
+	generatedBeta := generated.AsV1beta1()
 	assert.Equal(t, "2.0.0-disassembled", generatedBeta.Metadata.Version)
 	require.Len(t, generatedBeta.Components, 1)
 	component := generatedBeta.Components[0]
@@ -185,18 +172,14 @@ func TestDisassemblePreservesV1beta1Definition(t *testing.T) {
 	assert.NotContains(t, string(generatedYAML), "\nbuild:")
 	assert.Contains(t, string(generatedYAML), "\ncomponents:\n  - name: app\n")
 
-	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{SkipSBOM: true})
-	require.NoError(t, err)
+	reassembled := assembleSourcePackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
 	defer func() { require.NoError(t, reassembled.Cleanup()) }()
 	assert.Equal(t, v1beta1.APIVersion, reassembled.PackageDefinition.OriginalAPIVersion())
 }
 
 func TestDisassembleRemovesDeprecatedMigrationFields(t *testing.T) {
 	sourceDir := copyFixture(t, "deprecated")
-	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
-	require.NoError(t, err)
-	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{SkipSBOM: true})
-	require.NoError(t, err)
+	pkgLayout := assembleSourcePackage(t, sourceDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
 	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
 
 	// Recreate an older package definition that predates migration markers and
@@ -225,7 +208,7 @@ func TestDisassembleRemovesDeprecatedMigrationFields(t *testing.T) {
 
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
-	component := generated.PackageDefinition.AsV1alpha1().Components[0]
+	component := generated.AsV1alpha1().Components[0]
 	assert.Empty(t, component.Actions.OnCreate)
 	require.Len(t, component.Actions.OnDeploy.Before, 1)
 	assert.Equal(t, "echo legacy-deploy", component.Actions.OnDeploy.Before[0].Cmd)
@@ -245,7 +228,7 @@ func TestZarfPackageSchemaChangesRequireDisassemblyReview(t *testing.T) {
 		want   string
 	}{
 		{name: "v1alpha1", schema: zarfschema.GetV1Alpha1Schema(), want: "e46b466b366ba42fa171de0cf27302ced24c3b3416bcbaa8a1da93c2383dfd1b"},
-		{name: "v1beta1", schema: zarfschema.GetV1Beta1Schema(), want: "ff49e63d52cbce0f2c795537e418d747541a5081d97af65ab6f131331cbfec50"},
+		{name: "v1beta1", schema: zarfschema.GetV1Beta1Schema(), want: "ae2c2b0069c7634afe2a87456a58e8601a8ee626bba087d25e26610410254a2d"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -259,10 +242,7 @@ func TestZarfPackageSchemaChangesRequireDisassemblyReview(t *testing.T) {
 
 func TestDisassembleClearsResolvedFlavorSelectors(t *testing.T) {
 	sourceDir := copyFixture(t, "flavored")
-	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true})
-	require.NoError(t, err)
-	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{Flavor: "offline", SkipSBOM: true})
-	require.NoError(t, err)
+	pkgLayout := assembleSourcePackage(t, sourceDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true}, assemble.AssembleOptions{Flavor: "offline", SkipSBOM: true})
 	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
 	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
 	require.NoError(t, err)
@@ -272,11 +252,10 @@ func TestDisassembleClearsResolvedFlavorSelectors(t *testing.T) {
 	require.NoError(t, err)
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
-	require.Len(t, generated.PackageDefinition.AsV1alpha1().Components, 1)
-	assert.Empty(t, generated.PackageDefinition.AsV1alpha1().Components[0].Only.Flavor)
+	require.Len(t, generated.AsV1alpha1().Components, 1)
+	assert.Empty(t, generated.AsV1alpha1().Components[0].Only.Flavor)
 
-	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{SkipSBOM: true})
-	require.NoError(t, err)
+	reassembled := assembleSourcePackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
 	defer func() { require.NoError(t, reassembled.Cleanup()) }()
 }
 
@@ -285,10 +264,7 @@ func TestDisassembleRoundTripsImagesOffline(t *testing.T) {
 	sourceDir := copyFixture(t, "offline-image")
 	imageArchive := filepath.Join(sourceDir, "images.tar")
 	writeImageArchive(t, imageArchive, image)
-	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
-	require.NoError(t, err)
-	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{SkipSBOM: true})
-	require.NoError(t, err)
+	pkgLayout := assembleSourcePackage(t, sourceDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
 	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
 	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
 	require.NoError(t, err)
@@ -298,11 +274,10 @@ func TestDisassembleRoundTripsImagesOffline(t *testing.T) {
 	require.NoError(t, err)
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
-	require.Len(t, generated.PackageDefinition.AsV1alpha1().Components[0].ImageArchives, 1)
-	assert.Equal(t, []string{image}, generated.PackageDefinition.AsV1alpha1().Components[0].ImageArchives[0].Images)
+	require.Len(t, generated.AsV1alpha1().Components[0].ImageArchives, 1)
+	assert.Equal(t, []string{image}, generated.AsV1alpha1().Components[0].ImageArchives[0].Images)
 
-	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{SkipSBOM: true})
-	require.NoError(t, err)
+	reassembled := assembleSourcePackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
 	defer func() { require.NoError(t, reassembled.Cleanup()) }()
 	indexBytes, err := os.ReadFile(filepath.Join(reassembled.GetImageDirPath(), ocispec.ImageIndexFile))
 	require.NoError(t, err)
@@ -328,10 +303,7 @@ func TestDisassembleFailureDoesNotPublishPartialOutput(t *testing.T) {
 
 func TestDisassembleSeparatesPackageDocumentationFromComponentAssets(t *testing.T) {
 	sourceDir := copyFixture(t, "namespace-collision")
-	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
-	require.NoError(t, err)
-	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{SkipSBOM: true})
-	require.NoError(t, err)
+	pkgLayout := assembleSourcePackage(t, sourceDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
 	t.Cleanup(func() { require.NoError(t, pkgLayout.Cleanup()) })
 	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
 	require.NoError(t, err)
@@ -341,12 +313,11 @@ func TestDisassembleSeparatesPackageDocumentationFromComponentAssets(t *testing.
 	require.NoError(t, err)
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
-	generatedPkg := generated.PackageDefinition.AsV1alpha1()
+	generatedPkg := generated.AsV1alpha1()
 	assert.Equal(t, "documentation/files", generatedPkg.Documentation["guide"])
 	assert.Contains(t, generatedPkg.Components[0].Files[0].Source, "components/documentation/files/")
 
-	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{SkipSBOM: true})
-	require.NoError(t, err)
+	reassembled := assembleSourcePackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
 	t.Cleanup(func() { require.NoError(t, reassembled.Cleanup()) })
 }
 
@@ -366,6 +337,15 @@ func TestValidateOutputDirRejectsContent(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "existing"), []byte("data"), 0o600))
 	require.ErrorContains(t, validateOutputDir(dir), "must be empty")
+}
+
+func assembleSourcePackage(t *testing.T, sourceDir string, definitionOptions load.DefinitionOptions, assembleOptions assemble.AssembleOptions) *layout.PackageLayout {
+	t.Helper()
+	resolved, err := load.Package(t.Context(), sourceDir, load.PackageOptions{DefinitionOptions: definitionOptions})
+	require.NoError(t, err)
+	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, assembleOptions)
+	require.NoError(t, err)
+	return pkgLayout
 }
 
 func prepareRoundTripFixture(t *testing.T) string {
