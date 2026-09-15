@@ -142,7 +142,8 @@ Apply these mappings when the source has the required values:
 | `keylessVerification` | `signature_verification { keyless { ... } }`, changing camelCase keys to the documented snake_case keys; see **HCL-safe strings** |
 | static override `values` without Legacy `${NAME}` placeholders | nested YAML with the effective Legacy Helm scalar type at the Zarf-mapped source path for each override target path; see **Legacy Helm scalar coercion**, **Literal Go-template delimiters**, and **Override path mapping** |
 | static override `values` containing Legacy `${NAME}` placeholders | **not converted**; report for manual review |
-| scalar, non-file override `variables` with a Legacy default | nested YAML at the Zarf-mapped source path using a type-aware `{{ .vars.<package>.<normalized_name> }}` template and collision-safe key when needed; write the default to `defaults.uds.hcl`; see **Legacy Helm scalar coercion** and **YAML scalar rendering** |
+| scalar, non-file override `variables` with a non-null Legacy default | nested YAML at the Zarf-mapped source path using a type-aware `{{ .vars.<package>.<normalized_name> }}` template and collision-safe key when needed; write the default to `defaults.uds.hcl`; see **Legacy Helm scalar coercion** and **YAML scalar rendering** |
+| scalar override `variables` with an effective Legacy null default | **not converted**; Next configuration variables do not accept null; see **Legacy Helm scalar coercion** |
 | Legacy configured override values, `options`, or `insecure` | **not converted**; report for manual handling |
 
 For each package, stable-deduplicate Legacy `optionalComponents` before emitting
@@ -236,7 +237,11 @@ coercion after Legacy YAML parsing and placeholder substitution. Before writing 
 static scalar or a scalar override variable/default to Next HCL or YAML, derive that
 effective Helm type rather than preserving YAML quotation alone. For example, a Legacy
 quoted string `"true"`, `"false"`, `"null"`, or `"42"` becomes the boolean, null, or
-integer Helm value and must be emitted as that YAML/HCL type in the Next output.
+integer Helm value. Emit static effective nulls as YAML `null`; they are valid static
+Helm values. Do not write an effective null into `defaults.uds.hcl` or another Next
+configuration variable: Next rejects null configuration values. Mark a configurable
+null **needs null-variable representation review** and block that override until a
+verified equivalent is selected.
 
 Apply this conversion before **YAML scalar rendering**. Preserve a string only when
 the equivalent Legacy `strvals` input remains a string. If escaping, an unsupported
@@ -276,12 +281,15 @@ unconditional `{{ .vars... }}` reference: Next renders values templates with mis
 keys as errors. Mark an optional value as **not converted** rather than choosing a
 fallback.
 
-For every safely representable Legacy override default, write the mapped variable and
-its default value to `defaults.uds.hcl` so the created artifact retains Legacy
-fallback behavior. Do not omit or relocate a Legacy default merely because the user
-has not separately identified it as portable; require an explicit user decision to
-change that behavior. Record the default and its source in the migration report. Apply
-sensitive-value handling before writing a sensitive default.
+For every safely representable, non-null Legacy override default, write the mapped
+variable and its default value to `defaults.uds.hcl` so the created artifact retains
+Legacy fallback behavior. Do not omit or relocate a Legacy default merely because the
+user has not separately identified it as portable; require an explicit user decision
+to change that behavior. For an effective null default, keep any static null at its
+YAML path but do not generate its variable/template or HCL default; record **needs
+null-variable representation review** as a blocking item. Record each default and
+its source in the migration report. Apply sensitive-value handling before writing a
+sensitive default.
 
 Do not apply direct `{{ .vars... }}` interpolation to a list, object, or a Legacy
 chart variable with `type: file`. Legacy sends lists and objects through Helm's JSON
@@ -603,6 +611,9 @@ Flag rather than drop any occurrence of:
 - package `description`, `timeout`, `flavor`, `imports`, and `exports`;
 - legacy `valuesFiles` that cannot be folded with their Legacy precedence into a
   package values file and verified against Zarf mappings;
+- an override variable or default whose effective Legacy value is null; verify a Next
+  representation before converting it, because null is not accepted in Next
+  configuration variables;
 - `shared` values, `uds_cache`, `retries`, `UDS_<NAME>` environment variables, and
   `--set` workflows;
 - legacy command/flag behavior without a Next equivalent, including `uds logs`,
@@ -673,7 +684,10 @@ Migration guide) for the maintained human walkthrough.
 
 Before declaring the canonical migration ready for review, reconcile its report with
 every user-confirmed manual edit while preserving every unresolved blocker the user
-has not chosen to resolve. Do not record a validation-copy source substitution or a
-test-only `verify = false` selection as a conversion of the canonical migration. A
-deliberately selected `verify = false` remains explicitly labelled as local-alpha and
-security-reducing in the validation copy's report.
+has not chosen to resolve. Before `uds bundle create`, check that generated
+`defaults.uds.hcl` and other Next configuration variables contain no null values;
+static YAML nulls remain valid and must not be changed solely for that check. Do not
+record a validation-copy source substitution or a test-only `verify = false` selection
+as a conversion of the canonical migration. A deliberately selected `verify = false`
+remains explicitly labelled as local-alpha and security-reducing in the validation
+copy's report.
