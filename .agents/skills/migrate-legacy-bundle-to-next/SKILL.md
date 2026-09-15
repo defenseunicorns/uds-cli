@@ -657,18 +657,27 @@ Use these command changes in the report:
 | `uds publish` / `uds pull` / `uds remove` | `uds bundle push` / `uds bundle pull` / `uds bundle remove`, each with `CLI_FEATURES=NextMode=true` |
 | `uds zarf` | `CLI_FEATURES=NextMode=true uds tools zarf` (except vendored tools remain `uds zarf tools <tool>`) |
 
-Recommend a non-production development deployment only after a successful
-`uds bundle create` of the same output directory has enforced every retained package
-verification policy. Do not recommend `dev deploy` while a package-verification TODO
-is unresolved or after a failed verification; it can continue despite an invalid
-package signature. When the user explicitly selected `verify = false` for a
-validation copy, label its development deployment as an unverified, local-alpha,
-security-reducing workflow rather than validation of the canonical migration. Source
-`dev deploy` discovers an adjacent `defaults.uds.hcl`. Do not recommend deployment of an unsigned artifact unless
-the user explicitly authorizes the local-alpha, security-reducing
-`--skip-signature-verification` bypass; otherwise require a signed artifact and its
-appropriate verification inputs. The report must name the actual generated output
-directory rather than relying on the current directory, for example:
+For verification-sensitive validation, prefer deploying the exact artifact produced
+by a successful `uds bundle create`. Record its exact local path (or immutable OCI
+reference after publication) in the report and use `uds bundle deploy` so artifact
+integrity verification occurs before package deployment. Do not recommend deploying
+an unsigned artifact unless the user explicitly authorizes the local-alpha,
+security-reducing `--skip-signature-verification` bypass; otherwise require a signed
+artifact and its appropriate verification inputs.
+
+```sh
+CLI_FEATURES=NextMode=true uds bundle deploy '<created-artifact>.tar.zst'
+```
+
+Treat source `dev deploy` as a separate, non-production development workflow, not as
+validation of the created artifact. It reloads package sources, so a mutable OCI tag
+can resolve to bytes different from those verified during `bundle create`, and it can
+continue after package-signature failures. Do not recommend it while a
+package-verification TODO is unresolved or after a failed verification. When the user
+explicitly selected `verify = false` for a validation copy, label its source
+deployment as an unverified, local-alpha, security-reducing workflow. Source `dev
+deploy` discovers an adjacent `defaults.uds.hcl`. The report must name the actual
+generated output directory rather than relying on the current directory, for example:
 
 ```sh
 CLI_FEATURES=NextMode=true uds bundle dev deploy <output-dir> --architecture <effective-legacy-architecture>
