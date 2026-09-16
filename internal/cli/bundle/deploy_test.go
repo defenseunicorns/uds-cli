@@ -77,7 +77,7 @@ func TestDeployOptions_Validate(t *testing.T) {
 		{name: "source file", ref: sourceFile, wantErr: "uds bundle dev deploy"},
 		{name: "other file", ref: otherFile, wantErr: "local .tar.zst bundle artifact or OCI reference"},
 		{name: "special file", ref: specialFile, wantErr: "regular file"},
-		{name: "unsigned bundle requires explicit verification bypass", ref: artifact, verify: true, wantErr: "to deploy an unsigned bundle, re-run with --skip-signature-verification"},
+		{name: "missing verification policy gives conditional unsigned guidance", ref: artifact, verify: true, wantErr: "bundle signature verification is enabled but no public key or keyless verification policy is configured; configure one to verify this bundle, or if the bundle is unsigned, re-run with --skip-signature-verification"},
 	}
 
 	for _, tt := range tests {

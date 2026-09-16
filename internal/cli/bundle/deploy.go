@@ -129,7 +129,7 @@ func (o *DeployOptions) policyForArtifactDeploy() (bundle.VerificationPolicy, er
 		return policy, err
 	}
 
-	return bundle.VerificationPolicy{}, errors.New("to deploy an unsigned bundle, re-run with --skip-signature-verification")
+	return bundle.VerificationPolicy{}, errors.New("bundle signature verification is enabled but no public key or keyless verification policy is configured; configure one to verify this bundle, or if the bundle is unsigned, re-run with --skip-signature-verification")
 }
 
 // Run executes local or OCI artifact deployment.
