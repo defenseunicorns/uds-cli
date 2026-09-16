@@ -16,6 +16,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
+	"oras.land/oras-go/v2/registry"
 )
 
 var _ PackageSource = &remoteSource{}
@@ -43,7 +44,23 @@ func (s *remoteSource) LoadPackageSpec(ctx context.Context, filter filters.Compo
 }
 
 func (s *remoteSource) newZociRemote(ctx context.Context) (*zoci.Remote, error) {
-	return s.newZociRemoteForRef(ctx, s.ref)
+	ref, err := s.resolvedReference()
+	if err != nil {
+		return nil, err
+	}
+	return s.newZociRemoteForRef(ctx, ref)
+}
+
+func (s *remoteSource) resolvedReference() (string, error) {
+	if s.resolvedRoot == nil {
+		return s.ref, nil
+	}
+	ref, err := registry.ParseReference(s.ref)
+	if err != nil {
+		return "", err
+	}
+	ref.Reference = s.resolvedRoot.Digest.String()
+	return ref.String(), nil
 }
 
 func (s *remoteSource) newZociRemoteForRef(ctx context.Context, ref string) (*zoci.Remote, error) {

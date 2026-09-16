@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/defenseunicorns/pkg/oci"
@@ -178,7 +179,8 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageSpec(ctx context.Conte
 	if err != nil {
 		return nil, err
 	}
-	definition, _, err := filteredPackageDefinition(ctx, manifest, store, BuildComponentFilter(pkg.OptionalComponents))
+	filter := filters.Combine(BuildComponentFilter(pkg.OptionalComponents), filters.ByLocalOS(runtime.GOOS))
+	definition, _, err := filteredPackageDefinition(ctx, manifest, store, filter)
 	if err != nil {
 		return nil, fmt.Errorf("package %q: %w", pkg.Name, err)
 	}
@@ -270,7 +272,8 @@ func (l *SourcePackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *
 // LoadPackageSpec loads a source package without staging its deployable layers.
 func (l *SourcePackageLayoutLoader) LoadPackageSpec(ctx context.Context, pkg *spec.Package) (*PackageSpec, error) {
 	source := NewPackageSource(pkg.Source, l.configOpts, l.bundleDir, iostreams.IOStreams{})
-	result, err := source.LoadPackageSpec(ctx, BuildComponentFilter(pkg.OptionalComponents))
+	filter := filters.Combine(BuildComponentFilter(pkg.OptionalComponents), filters.ByLocalOS(runtime.GOOS))
+	result, err := source.LoadPackageSpec(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
