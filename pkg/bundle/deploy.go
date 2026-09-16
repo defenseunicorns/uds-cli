@@ -101,6 +101,7 @@ type DeploySource struct {
 	// Loader overrides how package layouts are obtained; nil means use the default source loader.
 	Loader ZarfPackageLayoutLoader
 	// SpecLoader optionally loads package identities for resume without deployment.
+	// Resume requires Loader when SpecLoader is set so both use the same source.
 	SpecLoader PackageSpecLoader
 
 	packageZarfNames map[string]string
@@ -151,6 +152,9 @@ func Deploy(ctx context.Context, source *DeploySource, opts DeployOptions) (*Dep
 	}
 	if source == nil {
 		return nil, fmt.Errorf("source is required: %w", ErrSourceRequired)
+	}
+	if opts.Resume && source.SpecLoader != nil && source.Loader == nil {
+		return nil, fmt.Errorf("resume requires source.Loader when source.SpecLoader is set")
 	}
 	if source.BundlePath == "" && source.Bundle == nil {
 		return nil, fmt.Errorf("source must provide BundlePath or Bundle: %w", ErrBundleInputRequired)

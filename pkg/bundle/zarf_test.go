@@ -91,6 +91,40 @@ func TestDeployWithSourceChecksDependencySafetyBeforeResume(t *testing.T) {
 	assert.Zero(t, stateReads)
 }
 
+func TestDeployWithSourceRejectsResumeSpecLoaderWithoutLoader(t *testing.T) {
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "bundle"},
+		Packages: []spec.Package{{Name: "pkg", Source: "oci://example.com/pkg:v1"}},
+	}
+	stateReads := 0
+	specReads := 0
+	_, err := Deploy(t.Context(), &DeploySource{
+		Bundle: b,
+		SpecLoader: packageSpecLoaderFunc(func(context.Context, *spec.Package) (*PackageSpec, error) {
+			specReads++
+			return nil, errors.New("unexpected package spec read")
+		}),
+	}, DeployOptions{
+		Config: validValidationConfig(),
+		Resume: true,
+		DeployedPackagesFn: func(context.Context) ([]state.DeployedPackage, error) {
+			stateReads++
+			return nil, errors.New("unexpected deployed-state read")
+		},
+	})
+
+	require.ErrorContains(t, err, "resume requires source.Loader when source.SpecLoader is set")
+	assert.Zero(t, stateReads)
+	assert.Zero(t, specReads)
+}
+
+type packageSpecLoaderFunc func(context.Context, *spec.Package) (*PackageSpec, error)
+
+func (f packageSpecLoaderFunc) LoadPackageSpec(ctx context.Context, pkg *spec.Package) (*PackageSpec, error) {
+	return f(ctx, pkg)
+}
+
 func TestPackageDeployHookReceivesBundleDirectory(t *testing.T) {
 	var gotDir string
 	hookErr := errors.New("stop after hook")
