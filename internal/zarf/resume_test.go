@@ -12,6 +12,8 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/state"
 )
 
@@ -168,4 +170,53 @@ func TestDeployBundleResume_AllSkippedRunsHooks(t *testing.T) {
 	assert.Equal(t, 1, pre)
 	assert.Equal(t, 1, post)
 	assert.Zero(t, deployed)
+}
+
+func TestDeployBundleResumeRejectsPackagePreDeployHooks(t *testing.T) {
+	bundle := &spec.UDSBundle{UDS: spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"}, Metadata: spec.Metadata{Name: "bundle"}, Packages: []spec.Package{{Name: "pkg", Source: "oci://example.com/pkg:v1"}}}
+	for _, tt := range []struct {
+		name    string
+		install func(*DeployOptions)
+	}{
+		{
+			name: "direct",
+			install: func(opts *DeployOptions) {
+				opts.PackageDeployHooks.PreDeploy = func(context.Context, *spec.Package, *layout.PackageLayout, *packager.DeployOptions, *DeployPackageOptions) error {
+					return nil
+				}
+			},
+		},
+		{
+			name: "bundle pre-deploy",
+			install: func(opts *DeployOptions) {
+				opts.BundleDeployHooks.PreDeploy = func(_ context.Context, _ *spec.UDSBundle, opts *DeployOptions) error {
+					opts.PackageDeployHooks.PreDeploy = func(context.Context, *spec.Package, *layout.PackageLayout, *packager.DeployOptions, *DeployPackageOptions) error {
+						return nil
+					}
+					return nil
+				}
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			stateReads, specReads, deploys := 0, 0, 0
+			opts := DeployOptions{
+				Config: newDeployTestConfig(1),
+				Resume: true,
+				SpecLoader: packageSpecLoaderFunc(func(context.Context, *spec.Package) (*PackageSpec, error) {
+					specReads++
+					return &PackageSpec{Name: "pkg", Digest: "sha256:one"}, nil
+				}),
+				DeployedPackagesFn: func(context.Context) ([]state.DeployedPackage, error) { stateReads++; return nil, nil },
+				PackageDeployFn:    func(context.Context, *spec.Package, DeployPackageOptions) error { deploys++; return nil },
+			}
+			tt.install(&opts)
+
+			_, err := NewZarfDeployer(iostreams.IOStreams{}, nil).DeployBundle(t.Context(), bundle, opts)
+			require.ErrorIs(t, err, ErrResumePackagePreDeployHook)
+			assert.Equal(t, 1, stateReads)
+			assert.Equal(t, 1, specReads)
+			assert.Zero(t, deploys)
+		})
+	}
 }

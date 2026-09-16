@@ -16,7 +16,7 @@ Next-mode `uds bundle deploy` and `uds bundle dev deploy` accept `--resume` (`-r
 
 Resume identifies a package by Zarf `metadata.name` and the bundle namespace override, never the HCL package label. It skips only one unambiguous deployed record whose digest is non-empty and equal to the intended digest, whose component-name set exactly matches the intended post-filter set, and whose components all have `Succeeded` status. Missing state and every mismatch redeploy. Duplicate package records or component names are mismatches.
 
-The deployment component filter is also the resume filter. A state read, intended definition read, or intended digest read error aborts before bundle hooks and package deployment. When all selected packages match, hooks still run and the result has an empty package list. With resume disabled, deploy performs no state or intended-spec reads.
+The deployment component filter is also the resume filter. A state read, intended definition read, or intended digest read error aborts before bundle hooks and package deployment. When all selected packages match, hooks still run and the result has an empty package list. Resume rejects package pre-deploy hooks, including hooks installed by a bundle pre-deploy hook, because they can change the package identity after the resume decision. With resume disabled, deploy performs no state or intended-spec reads.
 
 Intended identity loading is metadata-only:
 

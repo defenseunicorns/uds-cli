@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/state"
 )
 
 func mkStaticLoader(pkg *bundle.ZarfPackageLayout, err error) bundle.ZarfPackageLayoutLoader {
@@ -30,6 +31,12 @@ func mkStaticLoader(pkg *bundle.ZarfPackageLayout, err error) bundle.ZarfPackage
 type staticLoaderImpl struct {
 	pkg *bundle.ZarfPackageLayout
 	err error
+}
+
+type packageSpecLoaderFunc func(context.Context, *spec.Package) (*bundle.PackageSpec, error)
+
+func (f packageSpecLoaderFunc) LoadPackageSpec(ctx context.Context, pkg *spec.Package) (*bundle.PackageSpec, error) {
+	return f(ctx, pkg)
 }
 
 func (l *staticLoaderImpl) LoadPackageLayout(_ context.Context, _ *spec.Package, dstDir string, _ bundle.ZarfPackageLayoutLoadOptions) (*bundle.ZarfPackageLayoutLoadResult, error) {
@@ -170,6 +177,36 @@ func TestBundleHooks_PreDeployCanInstallPackageHook(t *testing.T) {
 
 	require.ErrorIs(t, err, hookErr)
 	assert.True(t, invoked)
+}
+
+func TestResumeRejectsBundleInstalledPackageHook(t *testing.T) {
+	stateReads, specReads := 0, 0
+	source := deploySource(singlePkgBundle())
+	source.SpecLoader = packageSpecLoaderFunc(func(context.Context, *spec.Package) (*bundle.PackageSpec, error) {
+		specReads++
+		return &bundle.PackageSpec{Name: "test", Digest: "sha256:one"}, nil
+	})
+	_, err := bundle.Deploy(t.Context(), source, bundle.DeployOptions{
+		Config: newTestConfig(),
+		Resume: true,
+		DeployedPackagesFn: func(context.Context) ([]state.DeployedPackage, error) {
+			stateReads++
+			return nil, nil
+		},
+		BundleDeployHooks: bundle.BundleDeployHooks{
+			PreDeploy: func(_ context.Context, _ *spec.UDSBundle, opts *bundle.DeployOptions) error {
+				opts.PackageDeployHooks.PreDeploy = func(context.Context, *spec.Package, *bundle.ZarfPackageLayout, *bundle.DeployPackageOptions) error {
+					return nil
+				}
+				return nil
+			},
+		},
+	})
+
+	require.ErrorIs(t, err, bundle.ErrDeployBundle)
+	require.ErrorContains(t, err, "resume does not support package pre-deploy hooks")
+	assert.Equal(t, 1, stateReads)
+	assert.Equal(t, 1, specReads)
 }
 
 func TestDeployValidatesOptionsBeforeHooks(t *testing.T) {

@@ -207,6 +207,9 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *spec.UDSBundle, opts
 	if opts.Config == nil || opts.Config.Options == nil {
 		return nil, fmt.Errorf("bundle pre-deploy hook left config invalid: %w", ErrBundleHook)
 	}
+	if opts.Resume && opts.PackageDeployHooks.PreDeploy != nil {
+		return nil, ErrResumePackagePreDeployHook
+	}
 	s = logger.Bind(d.streams, opts.Config.Options.LogLevel)
 
 	concurrency := opts.Config.Options.Concurrency

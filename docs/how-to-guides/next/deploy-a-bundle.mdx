@@ -104,7 +104,7 @@ Use `bundle dev deploy` for a definition and `bundle deploy` for a created artif
    CLI_FEATURES=NextMode=true uds bundle deploy ./my-bundle.tar.zst --resume
    ```
 
-   State or package-read failures stop the deployment before hooks or packages run. Resume does not detect values-file or deploy-time configuration-only changes. The same limitation applies to `bundle dev deploy`.
+   State or package-read failures stop the deployment before hooks or packages run. Resume does not support package pre-deploy hooks, including hooks added by a bundle pre-deploy hook. Resume also does not detect values-file or deploy-time configuration-only changes. The same limitation applies to `bundle dev deploy`.
 
 </Steps>
 
