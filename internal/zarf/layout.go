@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/defenseunicorns/pkg/oci"
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
@@ -21,6 +22,7 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"oras.land/oras-go/v2/content"
 )
 
 // LoadOptions carries options for package layout loading.
@@ -50,8 +52,14 @@ type ExtractedArtifactPackageLayoutLoader struct {
 
 // SourcePackageLayoutLoader loads packages from their declared local or OCI sources.
 type SourcePackageLayoutLoader struct {
-	configOpts bundleinternal.ConfigOptions
-	bundleDir  string
+	configOpts    bundleinternal.ConfigOptions
+	bundleDir     string
+	resolvedRoots map[string]ocispec.Descriptor
+}
+
+// NewSourcePackageLayoutLoader returns a source-backed loader that retains resolved OCI digests.
+func NewSourcePackageLayoutLoader(configOpts bundleinternal.ConfigOptions, bundleDir string) *SourcePackageLayoutLoader {
+	return &SourcePackageLayoutLoader{configOpts: configOpts, bundleDir: bundleDir, resolvedRoots: map[string]ocispec.Descriptor{}}
 }
 
 type ctxReader struct {
@@ -160,7 +168,41 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 	if err != nil {
 		return nil, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrLoadPackage, err)
 	}
+	pkgLayout.SetRegistryDigest(descriptor.Digest.String())
 	return &PackageLayoutLoadResult{Layout: *pkgLayout, IsPartial: true}, nil
+}
+
+// LoadPackageSpec loads only the package manifest and zarf.yaml from the extracted artifact.
+func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageSpec(ctx context.Context, pkg *spec.Package) (*PackageSpec, error) {
+	descriptor, manifest, store, err := l.packageManifest(ctx, pkg)
+	if err != nil {
+		return nil, err
+	}
+	definition, _, err := filteredPackageDefinition(ctx, manifest, store, BuildComponentFilter(pkg.OptionalComponents))
+	if err != nil {
+		return nil, fmt.Errorf("package %q: %w", pkg.Name, err)
+	}
+	return packageSpecFromDefinition(definition, descriptor.Digest.String()), nil
+}
+
+func (l *ExtractedArtifactPackageLayoutLoader) packageManifest(ctx context.Context, pkg *spec.Package) (ocispec.Descriptor, *oci.Manifest, content.Fetcher, error) {
+	descriptor, ok := l.PackageManifests[pkg.Name]
+	if !ok {
+		return ocispec.Descriptor{}, nil, nil, fmt.Errorf("package %q not found in bundle artifact index: %w", pkg.Name, ErrPackageNotFoundInArtifact)
+	}
+	store, err := udsoci.OpenReadOnlyStore(filepath.Clean(l.OCIDir))
+	if err != nil {
+		return ocispec.Descriptor{}, nil, nil, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrOpenOCILayout, err)
+	}
+	manifestData, err := udsoci.FetchBytes(ctx, store, descriptor)
+	if err != nil {
+		return ocispec.Descriptor{}, nil, nil, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrReadPackageManifest, err)
+	}
+	var manifest oci.Manifest
+	if err := json.Unmarshal(manifestData, &manifest); err != nil {
+		return ocispec.Descriptor{}, nil, nil, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrReadPackageManifest, err)
+	}
+	return descriptor, &manifest, store, nil
 }
 
 // stageArtifactPackageLayer links regular immutable blobs inside one workspace
@@ -207,6 +249,11 @@ func (l *SourcePackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *
 	s := opts.Streams
 	s.Info("pulling package", "source", pkg.Source)
 	source := NewPackageSource(pkg.Source, l.configOpts, l.bundleDir, opts.Streams)
+	if remote, ok := source.(*remoteSource); ok && l.resolvedRoots != nil {
+		if resolved, ok := l.resolvedRoots[pkg.Name]; ok {
+			remote.resolvedRoot = &resolved
+		}
+	}
 	filter := BuildComponentFilter(pkg.OptionalComponents)
 	pkgLayout, err := source.PullFiltered(ctx, dstDir, layout.PackageLayoutOptions{
 		Filter:               filter,
@@ -218,6 +265,26 @@ func (l *SourcePackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *
 	}
 	advisoryVerifyPackage(ctx, pkgLayout, pkg, l.configOpts.TmpDir, s)
 	return &PackageLayoutLoadResult{Layout: *pkgLayout, IsPartial: opts.IsPartial}, nil
+}
+
+// LoadPackageSpec loads a source package without staging its deployable layers.
+func (l *SourcePackageLayoutLoader) LoadPackageSpec(ctx context.Context, pkg *spec.Package) (*PackageSpec, error) {
+	source := NewPackageSource(pkg.Source, l.configOpts, l.bundleDir, iostreams.IOStreams{})
+	result, err := source.LoadPackageSpec(ctx, BuildComponentFilter(pkg.OptionalComponents))
+	if err != nil {
+		return nil, err
+	}
+	if remote, ok := source.(*remoteSource); ok && remote.resolvedRoot != nil {
+		if l.resolvedRoots == nil {
+			l.resolvedRoots = map[string]ocispec.Descriptor{}
+		}
+		l.resolvedRoots[pkg.Name] = *remote.resolvedRoot
+	}
+	return result, nil
+}
+
+func packageSpecFromLayout(pkgLayout *layout.PackageLayout) *PackageSpec {
+	return packageSpecFromDefinition(pkgLayout.PackageDefinition, pkgLayout.Digest())
 }
 
 // copyFileContentsBetweenRoots copies src atomically between rooted

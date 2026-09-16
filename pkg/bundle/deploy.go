@@ -18,6 +18,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/state"
 )
 
 // DeployPackageOptions contains package deployment context passed to hooks.
@@ -99,6 +100,8 @@ type DeploySource struct {
 	Bundle *spec.UDSBundle
 	// Loader overrides how package layouts are obtained; nil means use the default source loader.
 	Loader ZarfPackageLayoutLoader
+	// SpecLoader optionally loads package identities for resume without deployment.
+	SpecLoader PackageSpecLoader
 
 	packageZarfNames map[string]string
 	close            func() error
@@ -118,7 +121,11 @@ type DeployOptions struct {
 	Packages []string
 	// Force bypasses ValidateDeploySafety, allowing selected packages to deploy
 	// even when required dependencies are absent.
-	Force              bool
+	Force bool
+	// Resume skips packages already recorded by Zarf as the exact intended deployment.
+	Resume bool
+	// DeployedPackagesFn overrides the one batch Zarf state read for resume.
+	DeployedPackagesFn DeployedPackagesFn
 	BundleDeployHooks  BundleDeployHooks
 	PackageDeployHooks PackageDeployHooks
 	Streams            iostreams.IOStreams
@@ -219,7 +226,13 @@ func (d *zarfDeployer) deployBundle(ctx context.Context, b *spec.UDSBundle, opts
 			return nil, err
 		}
 	}
-	result, err := d.deployer.DeployBundle(ctx, b, toZarfDeployOptions(opts, source))
+	internalOpts := toZarfDeployOptions(opts, source)
+	if opts.Resume && internalOpts.SpecLoader == nil && source != nil && source.Loader == nil {
+		loader := internalzarf.NewSourcePackageLayoutLoader(*toZarfConfig(opts.Config).Options, filepath.Dir(source.BundlePath))
+		d.deployer.Loader = loader
+		internalOpts.SpecLoader = loader
+	}
+	result, err := d.deployer.DeployBundle(ctx, b, internalOpts)
 	if result == nil {
 		return nil, err
 	}
@@ -332,7 +345,16 @@ func toZarfDeployOptions(opts DeployOptions, source *DeploySource) internalzarf.
 		BundlePath:         bundlePath,
 		BundleDir:          bundleDir,
 		Packages:           opts.Packages,
+		Resume:             opts.Resume,
 		PackageDeployHooks: toZarfPackageHooks(opts.PackageDeployHooks),
+	}
+	if source != nil && source.SpecLoader != nil {
+		internal.SpecLoader = packageSpecLoaderAdapter{loader: source.SpecLoader}
+	}
+	if opts.DeployedPackagesFn != nil {
+		internal.DeployedPackagesFn = func(ctx context.Context) ([]state.DeployedPackage, error) {
+			return opts.DeployedPackagesFn(ctx)
+		}
 	}
 	if opts.BundleDeployHooks.PreDeploy != nil {
 		internal.BundleDeployHooks.PreDeploy = func(ctx context.Context, b *spec.UDSBundle, internalOpts *internalzarf.DeployOptions) error {
@@ -452,12 +474,14 @@ func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path,
 		return nil, fmt.Errorf("%w from %q: %w", ErrPrepareDeploySource, path, err)
 	}
 
+	artifactLoader := &extractedArtifactPackageLayoutLoader{loader: &internalzarf.ExtractedArtifactPackageLayoutLoader{
+		OCIDir: extracted.OCIDir, PackageManifests: extracted.PackageManifests,
+	}}
 	source := &DeploySource{
-		BundlePath: extracted.BundleDefPath,
-		Bundle:     preparedBundle,
-		Loader: &extractedArtifactPackageLayoutLoader{loader: &internalzarf.ExtractedArtifactPackageLayoutLoader{
-			OCIDir: extracted.OCIDir, PackageManifests: extracted.PackageManifests,
-		}},
+		BundlePath:       extracted.BundleDefPath,
+		Bundle:           preparedBundle,
+		Loader:           artifactLoader,
+		SpecLoader:       artifactLoader,
 		packageZarfNames: extracted.PackageZarfNames,
 		close:            cleanup,
 	}

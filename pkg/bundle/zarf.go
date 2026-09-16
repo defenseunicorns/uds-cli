@@ -12,6 +12,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/state"
 )
 
 // ZarfPackageLayout exposes the native Zarf package definition during bundle
@@ -22,6 +23,20 @@ type ZarfPackageLayout struct {
 	PackageDefinition api.PackageDefinition
 	digest            string
 }
+
+// PackageSpec is the identity used to decide whether a package can resume.
+type PackageSpec struct {
+	Name, Digest string
+	Components   []string
+}
+
+// PackageSpecLoader loads a filtered package definition without deploying it.
+type PackageSpecLoader interface {
+	LoadPackageSpec(context.Context, *spec.Package) (*PackageSpec, error)
+}
+
+// DeployedPackagesFn reads the Zarf deployment state once for a resume operation.
+type DeployedPackagesFn func(context.Context) ([]state.DeployedPackage, error)
 
 // SetDeployedDigest records the registry-resolved manifest digest that Zarf
 // should store as the deployed package identity.
@@ -61,6 +76,17 @@ func (l *extractedArtifactPackageLayoutLoader) LoadPackageLayout(ctx context.Con
 	}, nil
 }
 
+func (l *extractedArtifactPackageLayoutLoader) LoadPackageSpec(ctx context.Context, pkg *spec.Package) (*PackageSpec, error) {
+	result, err := l.loader.LoadPackageSpec(ctx, pkg)
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return nil, fmt.Errorf("package spec loader returned a nil result")
+	}
+	return &PackageSpec{Name: result.Name, Digest: result.Digest, Components: result.Components}, nil
+}
+
 // PackageStagingRoot returns the parent of OCIDir so package staging can share
 // the artifact workspace and hard-link immutable OCI blobs.
 func (l *extractedArtifactPackageLayoutLoader) PackageStagingRoot(_ context.Context) string {
@@ -73,6 +99,16 @@ func (l *extractedArtifactPackageLayoutLoader) PackageStagingRoot(_ context.Cont
 // packageLayoutLoaderAdapter converts internal loader options for a public loader.
 type packageLayoutLoaderAdapter struct {
 	loader ZarfPackageLayoutLoader
+}
+
+type packageSpecLoaderAdapter struct{ loader PackageSpecLoader }
+
+func (a packageSpecLoaderAdapter) LoadPackageSpec(ctx context.Context, pkg *spec.Package) (*zarf.PackageSpec, error) {
+	result, err := a.loader.LoadPackageSpec(ctx, pkg)
+	if err != nil || result == nil {
+		return nil, err
+	}
+	return &zarf.PackageSpec{Name: result.Name, Digest: result.Digest, Components: result.Components}, nil
 }
 
 // LoadPackageLayout delegates package loading through the public loader contract.

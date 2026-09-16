@@ -169,7 +169,7 @@ func TestDeployOptions_Run_OCIWorkspaceAndOutputLifecycle(t *testing.T) {
 				},
 			}
 			runnerCalls := 0
-			runner := func(_ context.Context, _ iostreams.IOStreams, _ *bundle.UDSBundleConfig, bundlePath string, _ []string, _, _ bool) (*bundle.DeployResult, error) {
+			runner := func(_ context.Context, _ iostreams.IOStreams, _ *bundle.UDSBundleConfig, bundlePath string, _ []string, _, _, _ bool) (*bundle.DeployResult, error) {
 				runnerCalls++
 				assert.FileExists(t, bundlePath)
 				return tt.result, nil
@@ -284,7 +284,7 @@ func TestDeployOptions_Run_RejectsUnsafePulledArtifacts(t *testing.T) {
 					return &bundle.PullResult{OCIReference: ref, OutputPath: tt.outputPath(targetDir)}, nil
 				},
 			}).PullBundle
-			o.runDeploy = func(context.Context, iostreams.IOStreams, *bundle.UDSBundleConfig, string, []string, bool, bool) (*bundle.DeployResult, error) {
+			o.runDeploy = func(context.Context, iostreams.IOStreams, *bundle.UDSBundleConfig, string, []string, bool, bool, bool) (*bundle.DeployResult, error) {
 				runnerCalled = true
 				return nil, nil
 			}
@@ -307,6 +307,8 @@ func TestDeployCommands_Flags(t *testing.T) {
 		assert.Equal(t, "p", cmd.Flags().Lookup("packages").Shorthand)
 		require.NotNil(t, cmd.Flags().Lookup("force"))
 		assert.Equal(t, "f", cmd.Flags().Lookup("force").Shorthand)
+		require.NotNil(t, cmd.Flags().Lookup("resume"))
+		assert.Equal(t, "r", cmd.Flags().Lookup("resume").Shorthand)
 		if len(path) == 1 {
 			require.NotNil(t, cmd.Flags().Lookup("public-key"))
 			require.NotNil(t, cmd.Flags().Lookup("skip-signature-verification"))

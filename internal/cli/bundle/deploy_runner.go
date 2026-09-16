@@ -22,6 +22,7 @@ type deployRunnerFunc func(
 	bundlePath string,
 	packages []string,
 	force bool,
+	resume bool,
 	prompt bool,
 ) (*bundlepkg.DeployResult, error)
 
@@ -47,9 +48,10 @@ func runDeploy(
 	bundlePath string,
 	packages []string,
 	force bool,
+	resume bool,
 	prompt bool,
 ) (*bundlepkg.DeployResult, error) {
-	return runDeployWith(ctx, streams, baseConfig, bundlePath, packages, force, prompt, deployRunnerDependencies{
+	return runDeployWith(ctx, streams, baseConfig, bundlePath, packages, force, resume, prompt, deployRunnerDependencies{
 		prepare: prepareDeploySource,
 		deploy:  bundlepkg.Deploy,
 	})
@@ -62,6 +64,7 @@ func runDeployWith(
 	bundlePath string,
 	packages []string,
 	force bool,
+	resume bool,
 	prompt bool,
 	deps deployRunnerDependencies,
 ) (*bundlepkg.DeployResult, error) {
@@ -119,6 +122,7 @@ func runDeployWith(
 		Config:   config,
 		Packages: packages,
 		Force:    force,
+		Resume:   resume,
 		Streams:  streams,
 	})
 	if err != nil {

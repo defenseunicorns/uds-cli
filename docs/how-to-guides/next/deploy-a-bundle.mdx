@@ -96,6 +96,16 @@ Use `bundle dev deploy` for a definition and `bundle deploy` for a created artif
 
     The command rejects a selection that omits its dependencies. Use `--force` only when intentionally deploying out of dependency order.
 
+4. **Resume an unchanged deployment**
+
+   Re-run a deployment with `--resume` to skip packages Zarf recorded with the same package digest, namespace override, filtered component names, and successful component status:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle deploy ./my-bundle.tar.zst --resume
+   ```
+
+   State or package-read failures stop the deployment before hooks or packages run. Resume does not detect values-file or deploy-time configuration-only changes. The same limitation applies to `bundle dev deploy`.
+
 </Steps>
 
 ## Verification

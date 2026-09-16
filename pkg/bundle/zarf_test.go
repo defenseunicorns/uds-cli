@@ -20,6 +20,7 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/state"
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
@@ -65,6 +66,29 @@ func TestDeployWithSourceEnforcesDependencySafety(t *testing.T) {
 	})
 
 	require.ErrorContains(t, err, "unselected dependencies")
+}
+
+func TestDeployWithSourceChecksDependencySafetyBeforeResume(t *testing.T) {
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "bundle"},
+		Packages: []spec.Package{
+			{Name: "core", Source: "oci://example.com/core:v1"},
+			{Name: "app", Source: "oci://example.com/app:v1", DependsOn: []spec.PackageRef{{Name: "core"}}},
+		},
+	}
+	stateReads := 0
+	_, err := Deploy(t.Context(), &DeploySource{Bundle: b}, DeployOptions{
+		Config:   validValidationConfig(),
+		Resume:   true,
+		Packages: []string{"app"},
+		DeployedPackagesFn: func(context.Context) ([]state.DeployedPackage, error) {
+			stateReads++
+			return nil, errors.New("unexpected state read")
+		},
+	})
+	require.ErrorContains(t, err, "unselected dependencies")
+	assert.Zero(t, stateReads)
 }
 
 func TestPackageDeployHookReceivesBundleDirectory(t *testing.T) {
@@ -254,6 +278,23 @@ func TestBundlePreDeployCopiesConfigMutations(t *testing.T) {
 	require.NoError(t, internal.BundleDeployHooks.PreDeploy(t.Context(), &spec.UDSBundle{}, &internal))
 	assert.Equal(t, "debug", internal.Config.Options.LogLevel)
 	assert.Equal(t, 4, internal.Config.Options.Concurrency)
+}
+
+func TestDeployOptions_AdaptsBatchDeployedState(t *testing.T) {
+	calls := 0
+	internal := toZarfDeployOptions(DeployOptions{
+		Config: validValidationConfig(),
+		Resume: true,
+		DeployedPackagesFn: func(context.Context) ([]state.DeployedPackage, error) {
+			calls++
+			return []state.DeployedPackage{{Name: "zarf-name"}}, nil
+		},
+	}, nil)
+	require.NotNil(t, internal.DeployedPackagesFn)
+	deployed, err := internal.DeployedPackagesFn(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 1, calls)
+	assert.Equal(t, []state.DeployedPackage{{Name: "zarf-name"}}, deployed)
 }
 
 func TestPackagePreDeployRejectsNilConfig(t *testing.T) {

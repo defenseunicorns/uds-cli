@@ -334,8 +334,11 @@ func TestExtractedArtifactPackageLayoutLoader_RejectsUnindexedLocalSource(t *tes
 
 		_, err := loader.LoadPackageLayout(t.Context(), pkg, dstDir, LoadOptions{})
 		require.Error(t, err)
+		_, specErr := loader.LoadPackageSpec(t.Context(), pkg)
+		require.Error(t, specErr)
 
 		assert.Contains(t, err.Error(), "not found in bundle artifact index")
+		assert.Contains(t, specErr.Error(), "not found in bundle artifact index")
 		assert.NoFileExists(t, filepath.Join(dstDir, "zarf.yaml"))
 		assert.NoDirExists(t, filepath.Join(dstDir, "components"))
 
@@ -352,6 +355,31 @@ func TestExtractedArtifactPackageLayoutLoader_RejectsUnindexedLocalSource(t *tes
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found in bundle artifact index")
 	})
+}
+
+func TestExtractedArtifactPackageLayoutLoader_LoadPackageSpec(t *testing.T) {
+	loader, wantDigest := newArtifactSpecLoader(t)
+	loaded, err := loader.LoadPackageSpec(t.Context(), &spec.Package{Name: "hcl-label", Source: "oci://unreachable.example/package:v1", OptionalComponents: []string{"optional"}})
+	require.NoError(t, err)
+	assert.Equal(t, "zarf-name", loaded.Name)
+	assert.Equal(t, wantDigest, loaded.Digest)
+	assert.Equal(t, []string{"required", "optional"}, loaded.Components)
+}
+
+func newArtifactSpecLoader(t *testing.T) (*ExtractedArtifactPackageLayoutLoader, string) {
+	t.Helper()
+	ociDir := t.TempDir()
+	_, err := udsoci.CreateStore(ociDir)
+	require.NoError(t, err)
+	blobDir := filepath.Join(ociDir, "blobs", "sha256")
+	zarfYAML := []byte("kind: ZarfPackageConfig\nmetadata:\n  name: zarf-name\n  version: 1.0.0\ncomponents:\n  - name: required\n    required: true\n  - name: optional\n")
+	yamlDigest := digest.FromBytes(zarfYAML)
+	require.NoError(t, os.WriteFile(filepath.Join(blobDir, yamlDigest.Encoded()), zarfYAML, 0o600))
+	manifestData, err := json.Marshal(ocispec.Manifest{Layers: []ocispec.Descriptor{{Digest: yamlDigest, Size: int64(len(zarfYAML)), Annotations: map[string]string{ocispec.AnnotationTitle: "zarf.yaml"}}}})
+	require.NoError(t, err)
+	manifestDigest := digest.FromBytes(manifestData)
+	require.NoError(t, os.WriteFile(filepath.Join(blobDir, manifestDigest.Encoded()), manifestData, 0o600))
+	return &ExtractedArtifactPackageLayoutLoader{OCIDir: ociDir, PackageManifests: map[string]ocispec.Descriptor{"hcl-label": {Digest: manifestDigest, Size: int64(len(manifestData))}}}, manifestDigest.String()
 }
 
 // newArtifactPackageLayoutLoader creates an extracted-artifact loader fixture.
