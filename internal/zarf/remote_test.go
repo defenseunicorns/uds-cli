@@ -51,14 +51,14 @@ func TestRemoteSourceVerifyAndIngestFilteredRegistryPackage(t *testing.T) {
 	}
 	rootDesc, err := remote.ResolveRoot(t.Context())
 	require.NoError(t, err)
-	loaded, err := source.LoadPackageSpec(t.Context(), filters.Combine(filters.ForDeploy("included", false)))
-	require.NoError(t, err)
-	assert.Equal(t, rootDesc.Digest.String(), loaded.Digest)
-	assert.Equal(t, []string{"included"}, loaded.Components)
 	resolved, err := source.resolveFilteredLayers(t.Context(), filters.Combine(filters.ForDeploy("included", false)))
 	require.NoError(t, err)
 	assert.Equal(t, rootDesc.Digest.String(), resolved.remote.Repo().Reference.Reference)
 	assert.Equal(t, strings.TrimSuffix(ref, ":1.0.0")+"@"+rootDesc.Digest.String(), resolved.remote.Repo().Reference.String())
+	loaded, err := source.LoadPackageSpec(t.Context(), filters.Combine(filters.ForDeploy("included", false)))
+	require.NoError(t, err)
+	assert.Equal(t, rootDesc.Digest.String(), loaded.Digest)
+	assert.Equal(t, []string{"included"}, loaded.Components)
 	loader := NewSourcePackageLayoutLoader(bundleinternal.ConfigOptions{Architecture: "amd64", PlainHTTP: true, TmpDir: t.TempDir(), Concurrency: 1}, t.TempDir())
 	pkg := &spec.Package{Name: "pkg", Source: "oci://" + ref, OptionalComponents: []string{"included"}}
 	intended, err := loader.LoadPackageSpec(t.Context(), pkg)

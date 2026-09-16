@@ -89,6 +89,11 @@ func (s *remoteSource) resolveFilteredLayers(ctx context.Context, filter filters
 			return nil, fmt.Errorf("resolving root manifest for %q: %w: %w", s.ref, ErrResolveRootManifest, err)
 		}
 	}
+	s.resolvedRoot = &rootDesc
+	remote, err = s.newZociRemote(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("creating pinned OCI remote for %q: %w: %w", s.ref, ErrCreateOCIRemote, err)
+	}
 	root, err := remote.FetchManifest(ctx, rootDesc)
 	if err != nil {
 		return nil, fmt.Errorf("fetching root manifest for %q: %w: %w", s.ref, ErrFetchRootManifest, err)
