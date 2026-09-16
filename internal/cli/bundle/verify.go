@@ -131,7 +131,7 @@ func (o *VerifyOptions) policy() (bundlepkg.VerificationPolicy, error) {
 		policy.Keyless = &keyless
 	}
 	if err := policy.Validate(); err != nil {
-		return bundlepkg.VerificationPolicy{}, err
+		return policy, err
 	}
 	return policy, nil
 }

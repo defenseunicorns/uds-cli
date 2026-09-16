@@ -5,6 +5,7 @@ package bundle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -115,11 +116,20 @@ func (o *DeployOptions) Validate() error {
 		return err
 	}
 	if !o.Verification.SkipSignatureVerification {
-		if _, err := o.Verification.policy(); err != nil {
+		if _, err := o.policyForArtifactDeploy(); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (o *DeployOptions) policyForArtifactDeploy() (bundle.VerificationPolicy, error) {
+	policy, err := o.Verification.policy()
+	if err == nil || !errors.Is(err, bundle.ErrInvalidVerificationPolicy) || strings.TrimSpace(policy.PublicKey) != "" || policy.Keyless != nil {
+		return policy, err
+	}
+
+	return bundle.VerificationPolicy{}, errors.New("to deploy an unsigned bundle, re-run with --skip-signature-verification")
 }
 
 // Run executes local or OCI artifact deployment.
@@ -138,7 +148,7 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 	o.Info("preparing bundle for deployment", "source", o.BundlePath)
 	policy := bundle.VerificationPolicy{}
 	if !o.Verification.SkipSignatureVerification {
-		policy, err = o.Verification.policy()
+		policy, err = o.policyForArtifactDeploy()
 		if err != nil {
 			return err
 		}

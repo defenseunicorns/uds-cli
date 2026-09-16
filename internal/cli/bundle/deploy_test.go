@@ -64,6 +64,7 @@ func TestDeployOptions_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
 		ref     string
+		verify  bool
 		wantErr string
 	}{
 		{name: "local artifact", ref: artifact},
@@ -76,6 +77,7 @@ func TestDeployOptions_Validate(t *testing.T) {
 		{name: "source file", ref: sourceFile, wantErr: "uds bundle dev deploy"},
 		{name: "other file", ref: otherFile, wantErr: "local .tar.zst bundle artifact or OCI reference"},
 		{name: "special file", ref: specialFile, wantErr: "regular file"},
+		{name: "unsigned bundle requires explicit verification bypass", ref: artifact, verify: true, wantErr: "to deploy an unsigned bundle, re-run with --skip-signature-verification"},
 	}
 
 	for _, tt := range tests {
@@ -85,7 +87,7 @@ func TestDeployOptions_Validate(t *testing.T) {
 			}
 			o := &DeployOptions{
 				BundlePath:   tt.ref,
-				Verification: VerifyOptions{SkipSignatureVerification: true},
+				Verification: VerifyOptions{SkipSignatureVerification: !tt.verify},
 			}
 			err := o.Validate()
 			if tt.wantErr == "" {
