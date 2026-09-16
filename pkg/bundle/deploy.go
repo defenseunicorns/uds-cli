@@ -78,11 +78,10 @@ type PackageDeployHooks struct {
 
 // BundleDeployHooks provides deployment process extensibility at the bundle scope.
 type BundleDeployHooks struct {
-	// PreDeploy runs once after package selection and before resume filtering or
-	// package deployment. Package selection and source preparation have already
-	// been consumed. Mutations to Config and PackageDeployHooks affect the
-	// remaining deploy pipeline. A returned error prevents package deployment and
-	// skips PostDeploy.
+	// PreDeploy runs once before package deployment. Only mutations to
+	// PackageDeployHooks are honored: package selection, source preparation, and
+	// bundle hooks have already been consumed. A returned error prevents package
+	// deployment and skips PostDeploy.
 	PreDeploy func(ctx context.Context, b *spec.UDSBundle, opts *DeployOptions) error
 	// PostDeploy runs once after every selected package deploys successfully.
 	PostDeploy func(ctx context.Context, b *spec.UDSBundle) error
@@ -228,6 +227,11 @@ func (d *zarfDeployer) deployBundle(ctx context.Context, b *spec.UDSBundle, opts
 		}
 	}
 	internalOpts := toZarfDeployOptions(opts, source)
+	if opts.Resume && internalOpts.SpecLoader == nil && source != nil && source.Loader == nil {
+		loader := internalzarf.NewSourcePackageLayoutLoader(*toZarfConfig(opts.Config).Options, filepath.Dir(source.BundlePath))
+		d.deployer.Loader = loader
+		internalOpts.SpecLoader = loader
+	}
 	result, err := d.deployer.DeployBundle(ctx, b, internalOpts)
 	if result == nil {
 		return nil, err

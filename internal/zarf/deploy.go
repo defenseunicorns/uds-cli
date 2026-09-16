@@ -186,6 +186,19 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *spec.UDSBundle, opts
 	if levels, err = bundleinternal.FilterLevels(levels, opts.Packages); err != nil {
 		return nil, err
 	}
+	if opts.Resume {
+		levels, err = filterResumeLevels(ctx, levels, opts, d.streams)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Count the packages actually scheduled for deploy (the filtered set), which
+	// may be a subset of b.Packages when --packages is used.
+	deployCount := 0
+	for _, level := range levels {
+		deployCount += len(level)
+	}
 
 	bhooks := opts.BundleDeployHooks.withDefaults()
 	if err := bhooks.PreDeploy(ctx, b, &opts); err != nil {
@@ -201,36 +214,6 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *spec.UDSBundle, opts
 	if opts.BundleDir != "" {
 		bundleDir = opts.BundleDir
 	}
-	restoreLoader := d.Loader
-	defer func() {
-		d.Loader = restoreLoader
-	}()
-	if opts.Resume {
-		if opts.PackageDeployHooks.PreDeploy != nil {
-			return nil, ErrResumeWithPackageHook
-		}
-		if opts.SpecLoader == nil {
-			if specLoader, ok := d.Loader.(PackageSpecLoader); ok {
-				opts.SpecLoader = specLoader
-			} else if d.Loader == nil {
-				loader := NewSourcePackageLayoutLoader(*opts.Config.Options, bundleDir)
-				d.Loader = loader
-				opts.SpecLoader = loader
-			}
-		}
-		levels, err = filterResumeLevels(ctx, levels, opts, d.streams)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// Count the packages actually scheduled for deploy (the filtered set), which
-	// may be a subset of b.Packages when --packages is used.
-	deployCount := 0
-	for _, level := range levels {
-		deployCount += len(level)
-	}
-
 	pkgOpts := DeployPackageOptions{
 		Config:             opts.Config,
 		BundleDir:          bundleDir,

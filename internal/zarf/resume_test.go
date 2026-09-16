@@ -12,8 +12,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/zarf-dev/zarf/src/pkg/packager"
-	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/state"
 )
 
@@ -127,78 +125,6 @@ func TestDeployBundleResumeOrderAndFailures(t *testing.T) {
 		assert.Equal(t, []string{"app"}, loaded)
 	})
 
-	t.Run("bundle pre-deploy config mutations feed resume loader", func(t *testing.T) {
-		pkgDir := t.TempDir()
-		writeMinimalZarfPackage(t, pkgDir, "core")
-		deployer := NewZarfDeployer(iostreams.IOStreams{}, nil)
-		stateCalls, deployCalls := 0, 0
-		localBundle := &spec.UDSBundle{
-			UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
-			Metadata: spec.Metadata{Name: "bundle"},
-			Packages: []spec.Package{{Name: "core", Source: pkgDir}},
-		}
-		result, err := deployer.DeployBundle(t.Context(), localBundle, DeployOptions{
-			Config:     newDeployTestConfig(1),
-			Resume:     true,
-			BundlePath: "/tmp/bundle/bundle.uds.hcl",
-			BundleDeployHooks: BundleDeployHooks{
-				PreDeploy: func(_ context.Context, _ *spec.UDSBundle, opts *DeployOptions) error {
-					opts.Config.Options.Architecture = "arm64"
-					opts.Config.Options.PlainHTTP = true
-					return nil
-				},
-			},
-			DeployedPackagesFn: func(context.Context) ([]state.DeployedPackage, error) {
-				stateCalls++
-				return nil, nil
-			},
-			PackageDeployFn: func(context.Context, *spec.Package, DeployPackageOptions) error {
-				deployCalls++
-				loader, ok := deployer.Loader.(*SourcePackageLayoutLoader)
-				require.True(t, ok)
-				assert.Equal(t, "arm64", loader.configOpts.Architecture)
-				assert.True(t, loader.configOpts.PlainHTTP)
-				return nil
-			},
-		})
-		require.NoError(t, err)
-		assert.Equal(t, 1, stateCalls)
-		assert.Equal(t, 1, deployCalls)
-		assert.Len(t, result.Packages, 1)
-	})
-
-	t.Run("resume rejects package pre-deploy hooks after bundle pre-deploy", func(t *testing.T) {
-		hookCalls, stateCalls, deployCalls := 0, 0, 0
-		_, err := NewZarfDeployer(iostreams.IOStreams{}, nil).DeployBundle(t.Context(), bundle, DeployOptions{
-			Config:     newDeployTestConfig(1),
-			Resume:     true,
-			BundlePath: "/tmp/bundle/bundle.uds.hcl",
-			BundleDeployHooks: BundleDeployHooks{
-				PreDeploy: func(context.Context, *spec.UDSBundle, *DeployOptions) error {
-					hookCalls++
-					return nil
-				},
-			},
-			PackageDeployHooks: PackageDeployHooks{
-				PreDeploy: func(context.Context, *spec.Package, *layout.PackageLayout, *packager.DeployOptions, *DeployPackageOptions) error {
-					return nil
-				},
-			},
-			DeployedPackagesFn: func(context.Context) ([]state.DeployedPackage, error) {
-				stateCalls++
-				return nil, nil
-			},
-			PackageDeployFn: func(context.Context, *spec.Package, DeployPackageOptions) error {
-				deployCalls++
-				return nil
-			},
-		})
-		require.ErrorIs(t, err, ErrResumeWithPackageHook)
-		assert.Equal(t, 1, hookCalls)
-		assert.Zero(t, stateCalls)
-		assert.Zero(t, deployCalls)
-	})
-
 	for _, tt := range []struct {
 		name string
 		opts DeployOptions
@@ -210,13 +136,12 @@ func TestDeployBundleResumeOrderAndFailures(t *testing.T) {
 		t.Run(tt.name+" aborts before hooks and deploy", func(t *testing.T) {
 			hookCalls, deployCalls := 0, 0
 			tt.opts.Config = newDeployTestConfig(1)
-			tt.opts.BundlePath = "/tmp/bundle/bundle.uds.hcl"
 			tt.opts.Resume = true
 			tt.opts.BundleDeployHooks.PreDeploy = func(context.Context, *spec.UDSBundle, *DeployOptions) error { hookCalls++; return nil }
 			tt.opts.PackageDeployFn = func(context.Context, *spec.Package, DeployPackageOptions) error { deployCalls++; return nil }
 			_, err := NewZarfDeployer(iostreams.IOStreams{}, nil).DeployBundle(t.Context(), bundle, tt.opts)
 			require.Error(t, err)
-			assert.Equal(t, 1, hookCalls)
+			assert.Zero(t, hookCalls)
 			assert.Zero(t, deployCalls)
 		})
 	}

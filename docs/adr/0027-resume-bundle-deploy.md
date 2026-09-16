@@ -12,11 +12,11 @@ An interrupted or repeated deployment should avoid redeploying packages that Zar
 
 ## Decision
 
-Next-mode `uds bundle deploy` and `uds bundle dev deploy` accept `--resume` (`-r`). Package selection and dependency-safety validation run first. Bundle `PreDeploy` hooks then finalize config and package hooks. Resume reads Zarf deployed-package state once, filters the selected DAG in memory, and runs the normal orchestration.
+Next-mode `uds bundle deploy` and `uds bundle dev deploy` accept `--resume` (`-r`). Package selection and dependency-safety validation run first. Resume then reads Zarf deployed-package state once, filters the selected DAG in memory, and runs the normal bundle hooks and orchestration.
 
 Resume identifies a package by Zarf `metadata.name` and the bundle namespace override, never the HCL package label. It skips only one unambiguous deployed record whose digest is non-empty and equal to the intended digest, whose component-name set exactly matches the intended post-filter set, and whose components all have `Succeeded` status. Missing state and every mismatch redeploy. Duplicate package records or component names are mismatches.
 
-The deployment component filter is also the resume filter. A state read, intended definition read, or intended digest read error aborts after bundle `PreDeploy` and before package deployment. Resume rejects package `PreDeploy` hooks because they can mutate the effective deployment after the skip decision. When all selected packages match, hooks still run and the result has an empty package list. With resume disabled, deploy performs no state or intended-spec reads.
+The deployment component filter is also the resume filter. A state read, intended definition read, or intended digest read error aborts before bundle hooks and package deployment. When all selected packages match, hooks still run and the result has an empty package list. With resume disabled, deploy performs no state or intended-spec reads.
 
 Intended identity loading is metadata-only:
 
@@ -35,8 +35,7 @@ Intended identity loading is metadata-only:
 
 ### Negative
 
-- Resume needs cluster read access and can fail after bundle `PreDeploy` if state or metadata cannot be read.
-- Resume cannot be combined with package `PreDeploy` hooks.
+- Resume needs cluster read access and can fail before hooks if state or metadata cannot be read.
 - Values-file, deploy-time configuration, and rendered-values changes are not represented in the match.
 - Mutable development sources may change after the decision; resume does not snapshot them.
 
