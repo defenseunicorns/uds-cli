@@ -24,6 +24,7 @@ type DeployOptions struct {
 	BundlePath   string
 	Packages     []string
 	Force        bool
+	Variables    []string
 	Config       *bundle.UDSBundleConfig
 	Verification VerifyOptions
 	Printer      printer.ResourcePrinter
@@ -74,15 +75,16 @@ inputs and must use uds bundle dev deploy instead.`,
 		},
 	}
 
-	addDeployFlags(cmd, &o.Packages, &o.Force)
+	addDeployFlags(cmd, &o.Packages, &o.Force, &o.Variables)
 	addVerificationFlags(cmd, &o.Verification, true)
 
 	return cmd
 }
 
-func addDeployFlags(cmd *cobra.Command, packages *[]string, force *bool) {
+func addDeployFlags(cmd *cobra.Command, packages *[]string, force *bool, variables *[]string) {
 	cmd.Flags().StringSliceVarP(packages, "packages", "p", nil, "specific packages to deploy (comma-separated)")
 	cmd.Flags().BoolVarP(force, "force", "f", false, "deploy packages even if their dependencies are not selected")
+	cmd.Flags().StringArrayVarP(variables, "set", "s", nil, "set a deploy-time variable using key=value")
 }
 
 // Complete fills artifact deploy options from command-line arguments.
@@ -138,6 +140,9 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 
 	baseConfig, _, err := NewConfigResolver().resolveBase(ctx, o.IOStreams, o.flags)
 	if err != nil {
+		return err
+	}
+	if err := applySetVariables(baseConfig, o.Variables); err != nil {
 		return err
 	}
 	o.Config = baseConfig

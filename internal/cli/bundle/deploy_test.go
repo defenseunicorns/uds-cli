@@ -313,6 +313,8 @@ func TestDeployCommands_Flags(t *testing.T) {
 		assert.Equal(t, "p", cmd.Flags().Lookup("packages").Shorthand)
 		require.NotNil(t, cmd.Flags().Lookup("force"))
 		assert.Equal(t, "f", cmd.Flags().Lookup("force").Shorthand)
+		require.NotNil(t, cmd.Flags().Lookup("set"))
+		assert.Equal(t, "s", cmd.Flags().Lookup("set").Shorthand)
 		if len(path) == 1 {
 			require.NotNil(t, cmd.Flags().Lookup("public-key"))
 			require.NotNil(t, cmd.Flags().Lookup("skip-signature-verification"))

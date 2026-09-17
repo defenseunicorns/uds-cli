@@ -10,6 +10,56 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestParseSetVariables(t *testing.T) {
+	tests := []struct {
+		name    string
+		entries []string
+		want    Variables
+		wantErr string
+	}{
+		{
+			name:    "infers supported values",
+			entries: []string{"domain=example.com", "replicas=3", "enabled=true", `ports=[8080, 8443]`, `database={ host = "db.example", port = 5432 }`},
+			want: Variables{
+				"domain":   "example.com",
+				"replicas": float64(3),
+				"enabled":  true,
+				"ports":    []any{float64(8080), float64(8443)},
+				"database": Variables{"host": "db.example", "port": float64(5432)},
+			},
+		},
+		{
+			name:    "quoted ambiguous values remain strings",
+			entries: []string{`enabled="true"`, `replicas="3"`},
+			want:    Variables{"enabled": "true", "replicas": "3"},
+		},
+		{
+			// The shell passes --set release=\"beta\" to the process as release="beta".
+			name:    "shell escaped quotes preserve string value",
+			entries: []string{`release="beta"`},
+			want:    Variables{"release": "beta"},
+		},
+		{name: "duplicate key uses last value", entries: []string{"replicas=2", "replicas=3"}, want: Variables{"replicas": float64(3)}},
+		{name: "missing separator", entries: []string{"domain"}, wantErr: "expected key=value"},
+		{name: "empty key", entries: []string{"=value"}, wantErr: "expected key=value"},
+		{name: "empty value", entries: []string{"domain="}, wantErr: "expected key=value"},
+		{name: "malformed collection", entries: []string{"ports=[8080,"}, wantErr: `parsing --set variable "ports"`},
+		{name: "null value", entries: []string{"domain=null"}, wantErr: "null values are not supported"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseSetVariables(tt.entries)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestVariables_Flatten(t *testing.T) {
 	tests := []struct {
 		name string

@@ -28,6 +28,21 @@ func TestDefaults(t *testing.T) {
 	require.Equal(t, os.TempDir(), opts.TmpDir)
 }
 
+func TestApplySetVariables(t *testing.T) {
+	config := &bundle.UDSBundleConfig{Variables: bundle.Variables{
+		"domain":   "from-config.example",
+		"existing": true,
+	}}
+
+	err := applySetVariables(config, []string{"domain=from-cli.example", "replicas=3"})
+	require.NoError(t, err)
+	assert.Equal(t, bundle.Variables{
+		"domain":   "from-cli.example",
+		"existing": true,
+		"replicas": float64(3),
+	}, config.Variables)
+}
+
 func TestMergeHCL_NilPointer(t *testing.T) {
 	r := NewConfigResolver()
 	base := bundle.ConfigOptions{

@@ -203,6 +203,55 @@ func ctyValueToGo(val cty.Value) (any, error) {
 	}
 }
 
+// ParseSetVariables parses key=value CLI entries into deploy-time variables.
+// Booleans, numbers, lists, objects, and explicitly quoted strings use HCL
+// syntax; all other values are treated as unquoted strings.
+func ParseSetVariables(entries []string) (Variables, error) {
+	variables := make(Variables, len(entries))
+	for _, entry := range entries {
+		key, rawValue, found := strings.Cut(entry, "=")
+		key = strings.TrimSpace(key)
+		rawValue = strings.TrimSpace(rawValue)
+		if !found || key == "" || rawValue == "" {
+			return nil, fmt.Errorf("invalid --set value %q; expected key=value", entry)
+		}
+
+		value, err := parseSetValue(rawValue)
+		if err != nil {
+			return nil, fmt.Errorf("parsing --set variable %q: %w", key, err)
+		}
+		variables[key] = value
+	}
+	return variables, nil
+}
+
+func parseSetValue(raw string) (any, error) {
+	requiresHCL := raw == "true" || raw == "false" || raw == "null" ||
+		strings.HasPrefix(raw, `"`) || strings.HasPrefix(raw, "[") || strings.HasPrefix(raw, "{")
+	if !requiresHCL {
+		if _, err := strconv.ParseFloat(raw, 64); err == nil {
+			requiresHCL = true
+		}
+	}
+	if !requiresHCL {
+		return raw, nil
+	}
+
+	expr, diags := hclsyntax.ParseExpression([]byte(raw), "--set", hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return nil, fmt.Errorf("parsing HCL value: %w", diags)
+	}
+	value, diags := expr.Value(&hcl.EvalContext{})
+	if diags.HasErrors() {
+		return nil, fmt.Errorf("evaluating HCL value: %w", diags)
+	}
+	converted, err := ctyValueToGo(value)
+	if err != nil {
+		return nil, fmt.Errorf("converting HCL value: %w", err)
+	}
+	return converted, nil
+}
+
 // ParseDefaults reads a defaults file from disk and validates it.
 // A valid defaults file contains at most one top-level attribute named "variables"
 // and no blocks. Returns the parsed Variables, or nil if the file has no variables.
