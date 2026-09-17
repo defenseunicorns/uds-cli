@@ -55,6 +55,8 @@ func TestDeployOptions_Validate(t *testing.T) {
 	require.NoError(t, os.WriteFile(sourceFile, []byte("test"), 0o600))
 	otherFile := filepath.Join(tempDir, "bundle.txt")
 	require.NoError(t, os.WriteFile(otherFile, []byte("test"), 0o600))
+	emptyPublicKey := filepath.Join(tempDir, "empty-public-key.pem")
+	require.NoError(t, os.WriteFile(emptyPublicKey, nil, 0o600))
 	specialFile := filepath.Join(tempDir, "device.tar.zst")
 	if err := os.Symlink(os.DevNull, specialFile); err != nil {
 		t.Logf("special-file validation case unavailable: %v", err)
@@ -62,9 +64,11 @@ func TestDeployOptions_Validate(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
-		ref     string
-		wantErr string
+		name      string
+		ref       string
+		publicKey string
+		verify    bool
+		wantErr   string
 	}{
 		{name: "local artifact", ref: artifact},
 		{name: "OCI reference", ref: "oci://ghcr.io/example/bundle:1.0.0"},
@@ -76,6 +80,8 @@ func TestDeployOptions_Validate(t *testing.T) {
 		{name: "source file", ref: sourceFile, wantErr: "uds bundle dev deploy"},
 		{name: "other file", ref: otherFile, wantErr: "local .tar.zst bundle artifact or OCI reference"},
 		{name: "special file", ref: specialFile, wantErr: "regular file"},
+		{name: "missing verification policy gives conditional unsigned guidance", ref: artifact, verify: true, wantErr: "bundle signature verification is enabled but no public key or keyless verification policy is configured; configure one to verify this bundle, or if the bundle is unsigned, re-run with --skip-signature-verification"},
+		{name: "empty public key is an invalid policy", ref: artifact, publicKey: emptyPublicKey, verify: true, wantErr: "signature verification must configure exactly one of public key or keyless"},
 	}
 
 	for _, tt := range tests {
@@ -85,7 +91,7 @@ func TestDeployOptions_Validate(t *testing.T) {
 			}
 			o := &DeployOptions{
 				BundlePath:   tt.ref,
-				Verification: VerifyOptions{SkipSignatureVerification: true},
+				Verification: VerifyOptions{PublicKey: tt.publicKey, SkipSignatureVerification: !tt.verify},
 			}
 			err := o.Validate()
 			if tt.wantErr == "" {
