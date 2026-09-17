@@ -101,7 +101,6 @@ type DeploySource struct {
 	Loader ZarfPackageLayoutLoader
 
 	packageZarfNames map[string]string
-	resumeLoader     internalzarf.PackageSpecLoader
 	resumePrepared   bool
 	close            func() error
 }
@@ -227,10 +226,15 @@ func (d *zarfDeployer) deployBundle(ctx context.Context, b *spec.UDSBundle, opts
 		}
 	}
 	internalOpts := toZarfDeployOptions(opts, source)
-	if opts.Resume && internalOpts.SpecLoader == nil && source != nil && source.Loader == nil {
-		loader := internalzarf.NewSourcePackageLayoutLoader(*toZarfConfig(opts.Config).Options, filepath.Dir(source.BundlePath))
-		d.deployer.Loader = loader
-		internalOpts.SpecLoader = loader
+	if opts.Resume && source != nil {
+		switch loader := source.Loader.(type) {
+		case nil:
+			sourceLoader := internalzarf.NewSourcePackageLayoutLoader(*toZarfConfig(opts.Config).Options, filepath.Dir(source.BundlePath))
+			d.deployer.Loader = sourceLoader
+			internalOpts.SpecLoader = sourceLoader
+		case *extractedArtifactPackageLayoutLoader:
+			internalOpts.SpecLoader = loader.loader
+		}
 	}
 	result, err := d.deployer.DeployBundle(ctx, b, internalOpts)
 	if result == nil {
@@ -347,9 +351,6 @@ func toZarfDeployOptions(opts DeployOptions, source *DeploySource) internalzarf.
 		Packages:           opts.Packages,
 		Resume:             opts.Resume,
 		PackageDeployHooks: toZarfPackageHooks(opts.PackageDeployHooks),
-	}
-	if source != nil {
-		internal.SpecLoader = source.resumeLoader
 	}
 	if opts.BundleDeployHooks.PreDeploy != nil {
 		internal.BundleDeployHooks.PreDeploy = func(ctx context.Context, b *spec.UDSBundle, internalOpts *internalzarf.DeployOptions) error {
@@ -477,7 +478,6 @@ func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path,
 		Bundle:           preparedBundle,
 		Loader:           artifactLoader,
 		packageZarfNames: extracted.PackageZarfNames,
-		resumeLoader:     artifactLoader.loader,
 		resumePrepared:   true,
 		close:            cleanup,
 	}
