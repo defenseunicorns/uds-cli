@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/go-containerregistry/pkg/registry"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 
@@ -33,6 +34,10 @@ func TestDeployVariablesBundleWithPodinfo(t *testing.T) {
 		"bundle", "dev", "deploy", bundleDir,
 		"--config", testutil.TestDataPath("bundles/deploy/variables/full-config.uds.hcl"),
 	)
+	result := testutil.DeployBundle(t, testEnv.udsPath, bundleDir,
+		"--resume", "--config", testutil.TestDataPath("bundles/deploy/variables/full-config.uds.hcl"),
+	)
+	assert.Empty(t, result.Packages)
 
 	assertPodinfoConfiguration(t, k8s, namespace)
 }
@@ -53,6 +58,10 @@ func TestDeployFromArtifact(t *testing.T) {
 		"bundle", "deploy", "--skip-signature-verification", deployArtifact,
 		"--config", testutil.TestDataPath("bundles/deploy/variables/config.uds.hcl"),
 	)
+	result := testutil.DeployBundle(t, testEnv.udsPath, deployArtifact,
+		"--skip-signature-verification", "--resume", "--config", testutil.TestDataPath("bundles/deploy/variables/config.uds.hcl"),
+	)
+	assert.Empty(t, result.Packages)
 
 	assertPodinfoConfiguration(t, k8s, namespace)
 }
@@ -74,7 +83,6 @@ func TestDeploySignedArtifact(t *testing.T) {
 		"--public-key", publicKey,
 		"--config", testutil.TestDataPath("bundles/deploy/variables/config.uds.hcl"),
 	)
-
 	assertPodinfoConfiguration(t, k8s, namespace)
 }
 
@@ -97,6 +105,10 @@ func TestDeployFromOCI(t *testing.T) {
 		"bundle", "deploy", "--skip-signature-verification", "oci://"+ref,
 		"--plain-http", "--config", configPath,
 	)
+	result := testutil.DeployBundle(t, testEnv.udsPath, "oci://"+ref,
+		"--plain-http", "--skip-signature-verification", "--resume", "--config", configPath,
+	)
+	assert.Empty(t, result.Packages)
 
 	assertPodinfoConfiguration(t, k8s, namespace)
 }

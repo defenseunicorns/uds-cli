@@ -139,18 +139,39 @@ func TestDevDeployOptions_Run_ResolvesTarZstDirectoryAsSource(t *testing.T) {
 	require.NoError(t, err)
 
 	var gotPath string
+	var gotResume bool
 	o := &DevDeployOptions{
 		BundlePath: sourceDir,
+		Resume:     true,
 		Printer:    textPrinter,
 		IOStreams:  streams,
-		runDeploy: func(_ context.Context, _ iostreams.IOStreams, _ *bundlepkg.UDSBundleConfig, path string, _ []string, _, _ bool) (*bundlepkg.DeployResult, error) {
+		runDeploy: func(_ context.Context, _ iostreams.IOStreams, _ *bundlepkg.UDSBundleConfig, path string, _ []string, _, resume, _ bool) (*bundlepkg.DeployResult, error) {
 			gotPath = path
+			gotResume = resume
 			return nil, nil
 		},
 	}
 
 	require.NoError(t, o.Run(t.Context()))
 	assert.Equal(t, bundlePath, gotPath)
+	assert.True(t, gotResume)
+}
+
+func TestDevDeployOptions_Run_ResumeWarning(t *testing.T) {
+	streams, _, _, errOut := iostreams.NewTestIOStreams()
+	textPrinter, err := printer.NewPrinter(printer.FormatText)
+	require.NoError(t, err)
+	o := &DevDeployOptions{
+		BundlePath: filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundleFileName),
+		Resume:     true,
+		Printer:    textPrinter,
+		IOStreams:  streams,
+		runDeploy: func(context.Context, iostreams.IOStreams, *bundlepkg.UDSBundleConfig, string, []string, bool, bool, bool) (*bundlepkg.DeployResult, error) {
+			return nil, nil
+		},
+	}
+	require.NoError(t, o.Run(t.Context()))
+	assert.Contains(t, errOut.String(), "--resume does not detect values or config-only changes")
 }
 
 func TestNewDevCommand_ContainsDeploy(t *testing.T) {

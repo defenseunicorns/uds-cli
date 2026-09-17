@@ -355,6 +355,43 @@ func RemoveBundle(t *testing.T, udsPath, bundlePath string, args ...string) bund
 	return result
 }
 
+// DeployBundle deploys a bundle and returns its structured result.
+func DeployBundle(t *testing.T, udsPath, bundlePath string, extraArgs ...string) bundle.DeployResult {
+	t.Helper()
+	target := bundlePath
+	workingDir := ""
+	args := []string{"bundle"}
+	if !strings.HasPrefix(bundlePath, "oci://") {
+		info, err := os.Stat(bundlePath)
+		require.NoError(t, err)
+		if info.IsDir() {
+			target = "."
+			workingDir = bundlePath
+			args = append(args, "dev")
+		} else if filepath.Base(bundlePath) == "bundle.uds.hcl" {
+			target = filepath.Base(bundlePath)
+			workingDir = filepath.Dir(bundlePath)
+			args = append(args, "dev")
+		}
+	}
+	args = append(args, "deploy", target, "-o", "json")
+	args = append(args, extraArgs...)
+	cmd := exec.CommandContext(t.Context(), udsPath, args...)
+	cmd.Dir = workingDir
+	cmd.Env = os.Environ()
+	var stdout, stderr strings.Builder
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil {
+		t.Logf("uds bundle deploy output:\nstdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
+	}
+	require.NoError(t, err, "uds bundle deploy %q failed", bundlePath)
+	var result bundle.DeployResult
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &result), "deploy output should be valid JSON: %s", stdout.String())
+	return result
+}
+
 func commandOutput(ctx context.Context, env []string, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Env = env

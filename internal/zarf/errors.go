@@ -26,6 +26,7 @@ var (
 	ErrBundleHook                   = errors.New("bundle hook failed")
 	ErrConnectCluster               = errors.New("connecting to cluster")
 	ErrReadDeployedPackages         = errors.New("reading deployed packages")
+	ErrResumePackagePreDeployHook   = errors.New("resume does not support package pre-deploy hooks")
 	ErrResolvePackageManifest       = errors.New("resolving package manifest")
 	ErrReadPackageManifest          = errors.New("reading package manifest")
 	ErrWritePackageManifest         = errors.New("writing package manifest")

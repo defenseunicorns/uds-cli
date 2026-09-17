@@ -22,6 +22,7 @@ type DevDeployOptions struct {
 	BundlePath string
 	Packages   []string
 	Force      bool
+	Resume     bool
 	Config     *bundlepkg.UDSBundleConfig
 	Printer    printer.ResourcePrinter
 
@@ -67,7 +68,7 @@ local and OCI bundle artifacts must use uds bundle deploy instead.`,
 		},
 	}
 
-	addDeployFlags(cmd, &o.Packages, &o.Force)
+	addDeployFlags(cmd, &o.Packages, &o.Force, &o.Resume)
 
 	return cmd
 }
@@ -107,12 +108,17 @@ func (o *DevDeployOptions) Run(ctx context.Context) error {
 	if _, err := fmt.Fprintln(o.ErrOut(), bundleDefinitionDeployDiagnostic); err != nil {
 		return fmt.Errorf("%w for bundle definition diagnostic: %w", ErrWriteDefinitionNotice, err)
 	}
+	if o.Resume {
+		if _, err := fmt.Fprintln(o.ErrOut(), "WARNING: --resume does not detect values or config-only changes"); err != nil {
+			return fmt.Errorf("%w for resume warning: %w", ErrWriteDefinitionNotice, err)
+		}
+	}
 
 	runner := o.runDeploy
 	if runner == nil {
 		runner = runDeploy
 	}
-	result, err := runner(ctx, o.IOStreams, baseConfig, resolveBundlePath(o.BundlePath), o.Packages, o.Force, o.flags.Prompt)
+	result, err := runner(ctx, o.IOStreams, baseConfig, resolveBundlePath(o.BundlePath), o.Packages, o.Force, o.Resume, o.flags.Prompt)
 	if err != nil {
 		return err
 	}
