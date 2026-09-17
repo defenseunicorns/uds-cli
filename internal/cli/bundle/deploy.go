@@ -125,7 +125,7 @@ func (o *DeployOptions) Validate() error {
 
 func (o *DeployOptions) policyForArtifactDeploy() (bundle.VerificationPolicy, error) {
 	policy, err := o.Verification.policy()
-	if err == nil || !errors.Is(err, bundle.ErrInvalidVerificationPolicy) || strings.TrimSpace(policy.PublicKey) != "" || policy.Keyless != nil {
+	if err == nil || !errors.Is(err, bundle.ErrInvalidVerificationPolicy) || o.Verification.PublicKey != "" || strings.TrimSpace(policy.PublicKey) != "" || policy.Keyless != nil {
 		return policy, err
 	}
 
