@@ -18,7 +18,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
-	"github.com/zarf-dev/zarf/src/pkg/state"
 )
 
 // DeployPackageOptions contains package deployment context passed to hooks.
@@ -100,11 +99,10 @@ type DeploySource struct {
 	Bundle *spec.UDSBundle
 	// Loader overrides how package layouts are obtained; nil means use the default source loader.
 	Loader ZarfPackageLayoutLoader
-	// SpecLoader optionally loads package identities for resume without deployment.
-	// Resume requires Loader when SpecLoader is set so both use the same source.
-	SpecLoader PackageSpecLoader
 
 	packageZarfNames map[string]string
+	resumeLoader     internalzarf.PackageSpecLoader
+	resumePrepared   bool
 	close            func() error
 }
 
@@ -124,9 +122,7 @@ type DeployOptions struct {
 	// even when required dependencies are absent.
 	Force bool
 	// Resume skips packages already recorded by Zarf as the exact intended deployment.
-	Resume bool
-	// DeployedPackagesFn overrides the one batch Zarf state read for resume.
-	DeployedPackagesFn DeployedPackagesFn
+	Resume             bool
 	BundleDeployHooks  BundleDeployHooks
 	PackageDeployHooks PackageDeployHooks
 	Streams            iostreams.IOStreams
@@ -152,9 +148,6 @@ func Deploy(ctx context.Context, source *DeploySource, opts DeployOptions) (*Dep
 	}
 	if source == nil {
 		return nil, fmt.Errorf("source is required: %w", ErrSourceRequired)
-	}
-	if opts.Resume && source.SpecLoader != nil && source.Loader == nil {
-		return nil, fmt.Errorf("resume requires source.Loader when source.SpecLoader is set")
 	}
 	if source.BundlePath == "" && source.Bundle == nil {
 		return nil, fmt.Errorf("source must provide BundlePath or Bundle: %w", ErrBundleInputRequired)
@@ -194,6 +187,9 @@ func Deploy(ctx context.Context, source *DeploySource, opts DeployOptions) (*Dep
 		if err := validateDeploySafety(ctx, s, b, opts.Packages); err != nil {
 			return nil, fmt.Errorf("%w: unable to deploy safely: %w", ErrDeployBundle, err)
 		}
+	}
+	if opts.Resume && !source.resumePrepared {
+		return nil, fmt.Errorf("%w: call PrepareDeploySource before deploying with resume", ErrResumeSourceNotPrepared)
 	}
 
 	deployer := newZarfDeployer(s, source.Loader)
@@ -352,13 +348,8 @@ func toZarfDeployOptions(opts DeployOptions, source *DeploySource) internalzarf.
 		Resume:             opts.Resume,
 		PackageDeployHooks: toZarfPackageHooks(opts.PackageDeployHooks),
 	}
-	if source != nil && source.SpecLoader != nil {
-		internal.SpecLoader = packageSpecLoaderAdapter{loader: source.SpecLoader}
-	}
-	if opts.DeployedPackagesFn != nil {
-		internal.DeployedPackagesFn = func(ctx context.Context) ([]state.DeployedPackage, error) {
-			return opts.DeployedPackagesFn(ctx)
-		}
+	if source != nil {
+		internal.SpecLoader = source.resumeLoader
 	}
 	if opts.BundleDeployHooks.PreDeploy != nil {
 		internal.BundleDeployHooks.PreDeploy = func(ctx context.Context, b *spec.UDSBundle, internalOpts *internalzarf.DeployOptions) error {
@@ -444,7 +435,7 @@ func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path,
 		if err != nil {
 			return nil, fmt.Errorf("%w: discovering adjacent defaults: %w", ErrPrepareDeploySource, err)
 		}
-		return &DeploySource{BundlePath: bundlePath, DefaultsPath: defaultsPath}, nil
+		return &DeploySource{BundlePath: bundlePath, DefaultsPath: defaultsPath, resumePrepared: true}, nil
 	}
 
 	workspaceDir, err := os.MkdirTemp(tmpDir, "uds-bundle-deploy-*")
@@ -485,8 +476,9 @@ func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path,
 		BundlePath:       extracted.BundleDefPath,
 		Bundle:           preparedBundle,
 		Loader:           artifactLoader,
-		SpecLoader:       artifactLoader,
 		packageZarfNames: extracted.PackageZarfNames,
+		resumeLoader:     artifactLoader.loader,
+		resumePrepared:   true,
 		close:            cleanup,
 	}
 	source.DefaultsPath, err = bundleinternal.AdjacentDefaultsPath(filepath.Dir(extracted.BundleDefPath))

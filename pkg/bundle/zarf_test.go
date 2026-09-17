@@ -20,7 +20,6 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
-	"github.com/zarf-dev/zarf/src/pkg/state"
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
@@ -77,52 +76,26 @@ func TestDeployWithSourceChecksDependencySafetyBeforeResume(t *testing.T) {
 			{Name: "app", Source: "oci://example.com/app:v1", DependsOn: []spec.PackageRef{{Name: "core"}}},
 		},
 	}
-	stateReads := 0
 	_, err := Deploy(t.Context(), &DeploySource{Bundle: b}, DeployOptions{
 		Config:   validValidationConfig(),
 		Resume:   true,
 		Packages: []string{"app"},
-		DeployedPackagesFn: func(context.Context) ([]state.DeployedPackage, error) {
-			stateReads++
-			return nil, errors.New("unexpected state read")
-		},
 	})
 	require.ErrorContains(t, err, "unselected dependencies")
-	assert.Zero(t, stateReads)
 }
 
-func TestDeployWithSourceRejectsResumeSpecLoaderWithoutLoader(t *testing.T) {
+func TestDeployWithSourceRejectsResumeWithoutPreparedSource(t *testing.T) {
 	b := &spec.UDSBundle{
 		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
 		Metadata: spec.Metadata{Name: "bundle"},
 		Packages: []spec.Package{{Name: "pkg", Source: "oci://example.com/pkg:v1"}},
 	}
-	stateReads := 0
-	specReads := 0
-	_, err := Deploy(t.Context(), &DeploySource{
-		Bundle: b,
-		SpecLoader: packageSpecLoaderFunc(func(context.Context, *spec.Package) (*PackageSpec, error) {
-			specReads++
-			return nil, errors.New("unexpected package spec read")
-		}),
-	}, DeployOptions{
+	_, err := Deploy(t.Context(), &DeploySource{Bundle: b, Loader: staticPackageLayoutLoader{layout: &ZarfPackageLayout{}}}, DeployOptions{
 		Config: validValidationConfig(),
 		Resume: true,
-		DeployedPackagesFn: func(context.Context) ([]state.DeployedPackage, error) {
-			stateReads++
-			return nil, errors.New("unexpected deployed-state read")
-		},
 	})
 
-	require.ErrorContains(t, err, "resume requires source.Loader when source.SpecLoader is set")
-	assert.Zero(t, stateReads)
-	assert.Zero(t, specReads)
-}
-
-type packageSpecLoaderFunc func(context.Context, *spec.Package) (*PackageSpec, error)
-
-func (f packageSpecLoaderFunc) LoadPackageSpec(ctx context.Context, pkg *spec.Package) (*PackageSpec, error) {
-	return f(ctx, pkg)
+	require.ErrorIs(t, err, ErrResumeSourceNotPrepared)
 }
 
 func TestPackageDeployHookReceivesBundleDirectory(t *testing.T) {
@@ -249,6 +222,7 @@ func TestPrepareDeploySourceFindsAdjacentDefaults(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, source.Close())
 	assert.Equal(t, defaultsPath, source.DefaultsPath)
+	assert.True(t, source.resumePrepared)
 }
 
 func TestAdjacentDefaultsPathPropagatesStatErrors(t *testing.T) {
@@ -312,23 +286,6 @@ func TestBundlePreDeployCopiesConfigMutations(t *testing.T) {
 	require.NoError(t, internal.BundleDeployHooks.PreDeploy(t.Context(), &spec.UDSBundle{}, &internal))
 	assert.Equal(t, "debug", internal.Config.Options.LogLevel)
 	assert.Equal(t, 4, internal.Config.Options.Concurrency)
-}
-
-func TestDeployOptions_AdaptsBatchDeployedState(t *testing.T) {
-	calls := 0
-	internal := toZarfDeployOptions(DeployOptions{
-		Config: validValidationConfig(),
-		Resume: true,
-		DeployedPackagesFn: func(context.Context) ([]state.DeployedPackage, error) {
-			calls++
-			return []state.DeployedPackage{{Name: "zarf-name"}}, nil
-		},
-	}, nil)
-	require.NotNil(t, internal.DeployedPackagesFn)
-	deployed, err := internal.DeployedPackagesFn(t.Context())
-	require.NoError(t, err)
-	assert.Equal(t, 1, calls)
-	assert.Equal(t, []state.DeployedPackage{{Name: "zarf-name"}}, deployed)
 }
 
 func TestPackagePreDeployRejectsNilConfig(t *testing.T) {
