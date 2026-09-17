@@ -120,7 +120,7 @@ func (o *DeployOptions) Validate() error {
 	}
 	if !o.Verification.SkipSignatureVerification {
 		policy, err := o.Verification.policy()
-		if err != nil && !isMissingVerificationPolicy(policy, err, o.Verification.PublicKey) {
+		if err != nil && !o.Verification.isMissingPolicy(policy, err) {
 			return err
 		}
 	}
@@ -129,7 +129,7 @@ func (o *DeployOptions) Validate() error {
 
 func (o *DeployOptions) policyForArtifactDeploy(ctx context.Context) (bundle.VerificationPolicy, error) {
 	policy, err := o.Verification.policy()
-	if err == nil || !isMissingVerificationPolicy(policy, err, o.Verification.PublicKey) {
+	if err == nil || !o.Verification.isMissingPolicy(policy, err) {
 		return policy, err
 	}
 
@@ -138,15 +138,14 @@ func (o *DeployOptions) policyForArtifactDeploy(ctx context.Context) (bundle.Ver
 		isUnsigned = artifactIsUnsigned
 	}
 	unsigned, detectErr := isUnsigned(ctx, o.BundlePath, o.Config)
-	if detectErr != nil || !unsigned {
+	if detectErr != nil {
+		return policy, fmt.Errorf("checking bundle signature: %w", detectErr)
+	}
+	if !unsigned {
 		return policy, err
 	}
 
 	return bundle.VerificationPolicy{}, errors.New("bundle is not signed, if you wish to deploy this unsigned bundle, re-run with --skip-signature-verification")
-}
-
-func isMissingVerificationPolicy(policy bundle.VerificationPolicy, err error, publicKeyPath string) bool {
-	return errors.Is(err, bundle.ErrInvalidVerificationPolicy) && publicKeyPath == "" && strings.TrimSpace(policy.PublicKey) == "" && policy.Keyless == nil
 }
 
 func artifactIsUnsigned(ctx context.Context, source string, config *bundle.UDSBundleConfig) (bool, error) {

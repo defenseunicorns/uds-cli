@@ -6,6 +6,7 @@ package bundle
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -111,6 +112,7 @@ func TestDeployOptions_Run_MissingVerificationPolicy(t *testing.T) {
 	tests := []struct {
 		name       string
 		isUnsigned bool
+		detectErr  error
 		wantErr    string
 	}{
 		{
@@ -123,6 +125,11 @@ func TestDeployOptions_Run_MissingVerificationPolicy(t *testing.T) {
 			isUnsigned: false,
 			wantErr:    "signature verification must configure exactly one of public key or keyless",
 		},
+		{
+			name:      "signature inspection failure is preserved",
+			detectErr: errors.New("registry unavailable"),
+			wantErr:   "checking bundle signature: registry unavailable",
+		},
 	}
 
 	for _, tt := range tests {
@@ -130,7 +137,7 @@ func TestDeployOptions_Run_MissingVerificationPolicy(t *testing.T) {
 			o := NewDeployOptions(streams)
 			o.BundlePath = "bundle.tar.zst"
 			o.isUnsigned = func(context.Context, string, *bundle.UDSBundleConfig) (bool, error) {
-				return tt.isUnsigned, nil
+				return tt.isUnsigned, tt.detectErr
 			}
 
 			err := o.Run(t.Context())
