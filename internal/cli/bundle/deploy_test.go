@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/internal/artifact"
+	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -80,7 +82,7 @@ func TestDeployOptions_Validate(t *testing.T) {
 		{name: "source file", ref: sourceFile, wantErr: "uds bundle dev deploy"},
 		{name: "other file", ref: otherFile, wantErr: "local .tar.zst bundle artifact or OCI reference"},
 		{name: "special file", ref: specialFile, wantErr: "regular file"},
-		{name: "missing verification policy gives conditional unsigned guidance", ref: artifact, verify: true, wantErr: "bundle is not signed, if you wish to deploy this unsigned bundle, re-run with --skip-signature-verification"},
+		{name: "missing verification policy defers source-specific guidance", ref: artifact, verify: true},
 		{name: "empty public key is an invalid policy", ref: artifact, publicKey: emptyPublicKey, verify: true, wantErr: "signature verification must configure exactly one of public key or keyless"},
 	}
 
@@ -99,6 +101,68 @@ func TestDeployOptions_Validate(t *testing.T) {
 				return
 			}
 			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestDeployOptions_Run_MissingVerificationPolicy(t *testing.T) {
+	streams, _, _, _ := iostreams.NewTestIOStreams()
+
+	tests := []struct {
+		name       string
+		isUnsigned bool
+		wantErr    string
+	}{
+		{
+			name:       "unsigned artifact gives skip guidance",
+			isUnsigned: true,
+			wantErr:    "bundle is not signed, if you wish to deploy this unsigned bundle, re-run with --skip-signature-verification",
+		},
+		{
+			name:       "signed artifact preserves missing policy error",
+			isUnsigned: false,
+			wantErr:    "signature verification must configure exactly one of public key or keyless",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			o := NewDeployOptions(streams)
+			o.BundlePath = "bundle.tar.zst"
+			o.isUnsigned = func(context.Context, string, *bundle.UDSBundleConfig) (bool, error) {
+				return tt.isUnsigned, nil
+			}
+
+			err := o.Run(t.Context())
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestArtifactIsUnsigned(t *testing.T) {
+	tests := []struct {
+		name      string
+		signature bool
+		want      bool
+	}{
+		{name: "unsigned archive", want: true},
+		{name: "signed archive", signature: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bundleDir := t.TempDir()
+			require.NoError(t, os.MkdirAll(filepath.Join(bundleDir, "oci"), 0o700))
+			require.NoError(t, os.WriteFile(filepath.Join(bundleDir, "oci", "index.json"), []byte("{}"), 0o600))
+			if tt.signature {
+				require.NoError(t, os.WriteFile(filepath.Join(bundleDir, udsoci.BundleSignatureFileName), []byte("signature"), 0o600))
+			}
+			archivePath := filepath.Join(t.TempDir(), "bundle.tar.zst")
+			require.NoError(t, artifact.WriteTarZst(t.Context(), iostreams.IOStreams{}, archivePath, bundleDir))
+
+			got, err := artifactIsUnsigned(t.Context(), archivePath, nil)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

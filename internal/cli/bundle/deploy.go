@@ -11,8 +11,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -31,6 +33,7 @@ type DeployOptions struct {
 	flags      CLIFlags
 	pullBundle func(context.Context, string, string, bundle.PullOptions) (*bundle.PullResult, error)
 	runDeploy  deployRunnerFunc
+	isUnsigned func(context.Context, string, *bundle.UDSBundleConfig) (bool, error)
 
 	iostreams.IOStreams
 }
@@ -116,20 +119,46 @@ func (o *DeployOptions) Validate() error {
 		return err
 	}
 	if !o.Verification.SkipSignatureVerification {
-		if _, err := o.policyForArtifactDeploy(); err != nil {
+		policy, err := o.Verification.policy()
+		if err != nil && !isMissingVerificationPolicy(policy, err, o.Verification.PublicKey) {
 			return err
 		}
 	}
 	return nil
 }
 
-func (o *DeployOptions) policyForArtifactDeploy() (bundle.VerificationPolicy, error) {
+func (o *DeployOptions) policyForArtifactDeploy(ctx context.Context) (bundle.VerificationPolicy, error) {
 	policy, err := o.Verification.policy()
-	if err == nil || !errors.Is(err, bundle.ErrInvalidVerificationPolicy) || o.Verification.PublicKey != "" || strings.TrimSpace(policy.PublicKey) != "" || policy.Keyless != nil {
+	if err == nil || !isMissingVerificationPolicy(policy, err, o.Verification.PublicKey) {
+		return policy, err
+	}
+
+	isUnsigned := o.isUnsigned
+	if isUnsigned == nil {
+		isUnsigned = artifactIsUnsigned
+	}
+	unsigned, detectErr := isUnsigned(ctx, o.BundlePath, o.Config)
+	if detectErr != nil || !unsigned {
 		return policy, err
 	}
 
 	return bundle.VerificationPolicy{}, errors.New("bundle is not signed, if you wish to deploy this unsigned bundle, re-run with --skip-signature-verification")
+}
+
+func isMissingVerificationPolicy(policy bundle.VerificationPolicy, err error, publicKeyPath string) bool {
+	return errors.Is(err, bundle.ErrInvalidVerificationPolicy) && publicKeyPath == "" && strings.TrimSpace(policy.PublicKey) == "" && policy.Keyless == nil
+}
+
+func artifactIsUnsigned(ctx context.Context, source string, config *bundle.UDSBundleConfig) (bool, error) {
+	metadata, err := artifact.OpenMetadataSource(ctx, source, toInternalConfig(config))
+	if err != nil {
+		return false, err
+	}
+	_, err = metadata.FetchSignatureEvidence(ctx)
+	if errors.Is(err, udsoci.ErrBundleSignatureNotFound) {
+		return true, nil
+	}
+	return false, err
 }
 
 // Run executes local or OCI artifact deployment.
@@ -148,7 +177,7 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 	o.Info("preparing bundle for deployment", "source", o.BundlePath)
 	policy := bundle.VerificationPolicy{}
 	if !o.Verification.SkipSignatureVerification {
-		policy, err = o.policyForArtifactDeploy()
+		policy, err = o.policyForArtifactDeploy(ctx)
 		if err != nil {
 			return err
 		}
