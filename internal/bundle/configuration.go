@@ -227,25 +227,26 @@ func ParseSetVariables(entries []string) (Variables, error) {
 
 func parseSetValue(raw string) (any, error) {
 	requiresHCL := raw == "true" || raw == "false" || raw == "null" ||
-		raw == "NaN" || raw == "-NaN" || raw == "Inf" || raw == "-Inf" ||
 		strings.HasPrefix(raw, `"`) || strings.HasPrefix(raw, "[") || strings.HasPrefix(raw, "{")
-	if !requiresHCL {
-		if _, err := strconv.ParseFloat(raw, 64); err == nil {
-			requiresHCL = true
-		}
-	}
-	if !requiresHCL {
-		return raw, nil
-	}
 
 	expr, diags := hclsyntax.ParseExpression([]byte(raw), "--set", hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
+		if !requiresHCL {
+			return raw, nil
+		}
 		return nil, fmt.Errorf("parsing HCL value: %w", diags)
 	}
 	value, diags := expr.Value(&hcl.EvalContext{})
 	if diags.HasErrors() {
+		if !requiresHCL {
+			return raw, nil
+		}
 		return nil, fmt.Errorf("evaluating HCL value: %w", diags)
 	}
+	if !requiresHCL && value.Type() != cty.Number {
+		return raw, nil
+	}
+
 	converted, err := ctyValueToGo(value)
 	if err != nil {
 		return nil, fmt.Errorf("converting HCL value: %w", err)

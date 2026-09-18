@@ -60,12 +60,12 @@ func TestParseSetVariables(t *testing.T) {
 	}
 }
 
-func TestParseSetValue_RejectsNonFiniteNumbers(t *testing.T) {
-	for _, raw := range []string{"NaN", "-NaN", "Inf", "-Inf"} {
+func TestParseSetValue_NonFiniteSpellingsRemainStrings(t *testing.T) {
+	for _, raw := range []string{"NaN", "-NaN", "+NaN", "Inf", "+Inf", "-Inf", "Infinity", "+Infinity", "-Infinity"} {
 		t.Run(raw, func(t *testing.T) {
 			value, err := parseSetValue(raw)
-			require.Error(t, err)
-			assert.Nil(t, value)
+			require.NoError(t, err)
+			assert.Equal(t, raw, value)
 		})
 	}
 }
