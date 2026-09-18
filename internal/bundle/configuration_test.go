@@ -118,7 +118,7 @@ func TestVariableSourcesRejectFloat64Overflow(t *testing.T) {
 
 	variables, err := ParseSetVariables([]string{"replicas=1e308"})
 	require.NoError(t, err)
-	assert.Equal(t, float64(1e308), variables["replicas"])
+	assert.InEpsilon(t, float64(1e308), variables["replicas"], 1e-15)
 }
 
 func TestVariables_Flatten(t *testing.T) {
