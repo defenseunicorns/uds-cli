@@ -4,8 +4,12 @@
 package bundle
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -68,6 +72,53 @@ func TestParseSetValue_NonFiniteSpellingsRemainStrings(t *testing.T) {
 			assert.Equal(t, raw, value)
 		})
 	}
+}
+
+func TestVariableSourcesRejectFloat64Overflow(t *testing.T) {
+	tests := []struct {
+		name  string
+		parse func(*testing.T, string) error
+	}{
+		{
+			name: "set variables",
+			parse: func(_ *testing.T, value string) error {
+				_, err := ParseSetVariables([]string{"replicas=" + value})
+				return err
+			},
+		},
+		{
+			name: "defaults HCL",
+			parse: func(t *testing.T, value string) error {
+				t.Helper()
+				_, err := ParseDefaultsBytes(t.Context(), fmt.Appendf(nil, "variables = { replicas = %s }", value))
+				return err
+			},
+		},
+		{
+			name: "config HCL",
+			parse: func(t *testing.T, value string) error {
+				t.Helper()
+				path := filepath.Join(t.TempDir(), "config.uds.hcl")
+				require.NoError(t, os.WriteFile(path, fmt.Appendf(nil, "variables = { replicas = %s }", value), 0o600))
+				_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleConfig(t.Context(), path)
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		for _, value := range []string{"1e400", "-1e400"} {
+			t.Run(tt.name+"/"+value, func(t *testing.T) {
+				err := tt.parse(t, value)
+				require.ErrorIs(t, err, ErrInvalidVariables)
+				require.ErrorContains(t, err, "outside the supported float64 range")
+			})
+		}
+	}
+
+	variables, err := ParseSetVariables([]string{"replicas=1e308"})
+	require.NoError(t, err)
+	assert.Equal(t, float64(1e308), variables["replicas"])
 }
 
 func TestVariables_Flatten(t *testing.T) {

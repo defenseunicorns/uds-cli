@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"math"
 	"os"
 	"slices"
 	"strconv"
@@ -167,6 +168,9 @@ func ctyValueToGo(val cty.Value) (any, error) {
 		return val.AsString(), nil
 	case ty == cty.Number:
 		f, _ := val.AsBigFloat().Float64()
+		if math.IsInf(f, 0) || math.IsNaN(f) {
+			return nil, fmt.Errorf("number is outside the supported float64 range: %w", ErrInvalidVariables)
+		}
 		return f, nil
 	case ty == cty.Bool:
 		return val.True(), nil
