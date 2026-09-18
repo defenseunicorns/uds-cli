@@ -227,6 +227,7 @@ func ParseSetVariables(entries []string) (Variables, error) {
 
 func parseSetValue(raw string) (any, error) {
 	requiresHCL := raw == "true" || raw == "false" || raw == "null" ||
+		raw == "NaN" || raw == "-NaN" || raw == "Inf" || raw == "-Inf" ||
 		strings.HasPrefix(raw, `"`) || strings.HasPrefix(raw, "[") || strings.HasPrefix(raw, "{")
 	if !requiresHCL {
 		if _, err := strconv.ParseFloat(raw, 64); err == nil {

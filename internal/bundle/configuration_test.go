@@ -60,6 +60,16 @@ func TestParseSetVariables(t *testing.T) {
 	}
 }
 
+func TestParseSetValue_RejectsNonFiniteNumbers(t *testing.T) {
+	for _, raw := range []string{"NaN", "-NaN", "Inf", "-Inf"} {
+		t.Run(raw, func(t *testing.T) {
+			value, err := parseSetValue(raw)
+			require.Error(t, err)
+			assert.Nil(t, value)
+		})
+	}
+}
+
 func TestVariables_Flatten(t *testing.T) {
 	tests := []struct {
 		name string
