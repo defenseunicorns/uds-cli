@@ -43,6 +43,15 @@ func TestApplySetVariables(t *testing.T) {
 	}, config.Variables)
 }
 
+func TestApplySetVariables_NoEntriesPreservesNilVariables(t *testing.T) {
+	config := &bundle.UDSBundleConfig{}
+
+	err := applySetVariables(config, nil)
+
+	require.NoError(t, err)
+	assert.Nil(t, config.Variables)
+}
+
 func TestMergeHCL_NilPointer(t *testing.T) {
 	r := NewConfigResolver()
 	base := bundle.ConfigOptions{

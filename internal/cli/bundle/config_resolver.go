@@ -282,6 +282,9 @@ func mergeVariables(base, overrides bundle.Variables) bundle.Variables {
 }
 
 func applySetVariables(config *bundle.UDSBundleConfig, entries []string) error {
+	if len(entries) == 0 {
+		return nil
+	}
 	variables, err := bundleinternal.ParseSetVariables(entries)
 	if err != nil {
 		return err

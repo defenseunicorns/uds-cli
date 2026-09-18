@@ -148,8 +148,8 @@ CLI_FEATURES=NextMode=true uds bundle dev deploy ./my-bundle \
   --set replicas=3 \
   --set enabled=true \
   --set 'ports=[8080, 8443]' \
-  --set 'release=\"3\"' \
-  --set database={ host = "db.example", port = 5432 }
+  --set release=\"3\" \
+  --set 'database={ host = "db.example", port = 5432 }'
 ```
 
 `defaults.uds.hcl` has a narrower schema. It may contain only a top-level `variables` attribute and cannot contain `options` or `signature_verification` blocks. Options and bundle signature trust remain consumer settings in `config.uds.hcl`.
