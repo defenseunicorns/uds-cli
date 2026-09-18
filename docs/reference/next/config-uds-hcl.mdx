@@ -136,9 +136,21 @@ The two configuration categories resolve independently:
 | Category | Lowest precedence | Higher precedence | Highest precedence |
 |---|---|---|---|
 | Operation options | Built-in defaults | `config.uds.hcl` `options` | Explicit CLI flags |
-| Bundle variables | Adjacent or embedded `defaults.uds.hcl` | `config.uds.hcl` `variables` | No CLI variable layer |
+| Bundle variables | Adjacent or embedded `defaults.uds.hcl` | `config.uds.hcl` `variables` | Deploy `--set` flags |
 
-For variables, nested objects are deep-merged. A scalar or collection in `config.uds.hcl` replaces the corresponding value from `defaults.uds.hcl` as a whole. For an artifact deployment, defaults embedded in the artifact are the base layer. For `bundle dev deploy`, the adjacent `defaults.uds.hcl` file is the base layer.
+For variables, nested objects are deep-merged. A scalar or collection in a higher-precedence layer replaces the corresponding lower-precedence value as a whole. For an artifact deployment, defaults embedded in the artifact are the base layer. For `bundle dev deploy`, the adjacent `defaults.uds.hcl` file is the base layer.
+
+Both `bundle deploy` and `bundle dev deploy` accept repeatable `--set key=value` flags. Plain values are strings, while booleans, numbers, HCL lists, and HCL objects retain their types. Quote ambiguous values to force strings:
+
+```bash
+CLI_FEATURES=NextMode=true uds bundle dev deploy ./my-bundle \
+  --set domain=example.com \
+  --set replicas=3 \
+  --set enabled=true \
+  --set 'ports=[8080, 8443]' \
+  --set 'release=\"3\"' \
+  --set database={ host = "db.example", port = 5432 }
+```
 
 `defaults.uds.hcl` has a narrower schema. It may contain only a top-level `variables` attribute and cannot contain `options` or `signature_verification` blocks. Options and bundle signature trust remain consumer settings in `config.uds.hcl`.
 
