@@ -5,8 +5,10 @@ package bundle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
@@ -134,4 +136,8 @@ func (o *VerifyOptions) policy() (bundlepkg.VerificationPolicy, error) {
 		return policy, err
 	}
 	return policy, nil
+}
+
+func (o *VerifyOptions) isMissingPolicy(policy bundlepkg.VerificationPolicy, err error) bool {
+	return errors.Is(err, bundlepkg.ErrInvalidVerificationPolicy) && o.PublicKey == "" && strings.TrimSpace(policy.PublicKey) == "" && policy.Keyless == nil
 }
