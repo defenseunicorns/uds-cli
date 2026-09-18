@@ -50,7 +50,7 @@ package "uds_k3d_dev" {
 }
 
 package "init" {
-  source = "oci://ghcr.io/zarf-dev/packages/init:v0.85.0"
+  source = "oci://ghcr.io/zarf-dev/packages/init:v0.86.0"
   signature_verification {
     keyless {
       certificate_identity_regexp = "https://github\\.com/zarf-dev/zarf/\\.github/workflows/release\\.yml@refs/tags/v\\d+\\.\\d+\\.\\d+"
@@ -110,7 +110,7 @@ metadata:
 packages:
   - name: init
     repository: ghcr.io/zarf-dev/packages/init
-    ref: v0.85.0
+    ref: v0.86.0
     keylessVerification:
       certificateIdentityRegexp: https://github\.com/zarf-dev/zarf/\.github/workflows/release\.yml@refs/tags/v\d+\.\d+\.\d+
       certificateOIDCIssuer: https://token.actions.githubusercontent.com
