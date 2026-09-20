@@ -1,13 +1,14 @@
 // Copyright 2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
-//go:build integration
+//go:build cli
 
 package bundle_test
 
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"testing"
 
@@ -113,7 +114,7 @@ func TestInspectOCICommand_Integration(t *testing.T) {
 // because CheckErr calls os.Exit(1) which would terminate the test process.
 
 func TestDeployCommand_Integration(t *testing.T) {
-	bundlePath := testutil.TestDataPath("bundles/deploy/init")
+	bundlePath := createDefaultsBundleSource(t)
 
 	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	// Simulate user declining the deployment via --prompt
@@ -132,7 +133,7 @@ func TestDeployCommand_Integration(t *testing.T) {
 }
 
 func TestDeployCommand_WithBundleFile_Integration(t *testing.T) {
-	bundlePath := testutil.TestDataPath("bundles/deploy/init/bundle.uds.hcl")
+	bundlePath := filepath.Join(createDefaultsBundleSource(t), "bundle.uds.hcl")
 
 	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	// Simulate user declining the deployment via --prompt
@@ -152,7 +153,7 @@ func TestDeployCommand_WithBundleFile_Integration(t *testing.T) {
 
 func TestPullCommand_Integration(t *testing.T) {
 	// Push a bundle programmatically so we can test the pull cobra wiring.
-	bundlePath := testutil.CreateBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
+	bundlePath := createInspectArtifact(t)
 	registryHost := testutil.StartLocalRegistry(t)
 	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
 
@@ -173,7 +174,7 @@ func TestPullCommand_Integration(t *testing.T) {
 }
 
 func TestPushCommand_Integration(t *testing.T) {
-	bundlePath := testutil.CreateBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
+	bundlePath := createInspectArtifact(t)
 	registryHost := testutil.StartLocalRegistry(t)
 	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
 
@@ -188,7 +189,7 @@ func TestPushCommand_Integration(t *testing.T) {
 }
 
 func TestPushCommand_Integration_PlainHTTPAllowsTLS(t *testing.T) {
-	bundlePath := testutil.CreateBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
+	bundlePath := createInspectArtifact(t)
 	registryHost := startLocalTLSRegistry(t)
 	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
 
@@ -198,37 +199,6 @@ func TestPushCommand_Integration_PlainHTTPAllowsTLS(t *testing.T) {
 
 	require.NoError(t, root.Execute())
 	assert.Contains(t, out.String(), "OCI Reference:")
-}
-
-// TestPushPull_RoundTrip verifies that a bundle produced by Create can be pushed
-// to a local OCI registry and pulled back, and that the pulled tarball contains
-// exactly the same set of blob digests as the original.
-func TestPushPull_RoundTrip(t *testing.T) {
-	arch := runtime.GOARCH
-	registryHost := testutil.StartLocalRegistry(t)
-	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
-
-	// create the bundle from test data.
-	originalPath := testutil.CreateBundleFromTestData(t, "bundles/create/init", arch)
-	assertValidBundleStructure(t, originalPath)
-
-	// push the bundle to the local registry.
-	pushBundleArtifact(t, originalPath, ref, &bundlepkg.UDSBundleConfig{
-		Options: &bundlepkg.ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true, Concurrency: 10},
-	})
-
-	// pull the bundle from the local registry.
-	outDir := t.TempDir()
-	pullResult, err := bundlepkg.Pull(t.Context(), ref, outDir, bundlepkg.PullOptions{
-		Config: &bundlepkg.UDSBundleConfig{
-			Options: &bundlepkg.ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true, Architecture: arch, Concurrency: 10},
-		},
-		SkipSignatureVerification: true,
-	})
-	require.NoError(t, err, "Pull should succeed against local registry")
-
-	assertValidBundleStructure(t, pullResult.OutputPath)
-	assertBundleTarballsEqual(t, originalPath, pullResult.OutputPath)
 }
 
 func pushBundleArtifact(t *testing.T, tarball, ref string, cfg *bundlepkg.UDSBundleConfig) {
@@ -255,7 +225,7 @@ func TestRemoveCommand_Integration(t *testing.T) {
 }
 
 func TestDevRemoveCommand_WithBundleFile_Integration(t *testing.T) {
-	bundlePath := testutil.TestDataPath("bundles/deploy/init/bundle.uds.hcl")
+	bundlePath := filepath.Join(createDefaultsBundleSource(t), "bundle.uds.hcl")
 
 	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	in.WriteString("n\n")
@@ -287,7 +257,7 @@ func TestRemoveCommand_PackagesFlag_Integration(t *testing.T) {
 }
 
 func TestDevRemoveCommand_PackagesFlag_Integration(t *testing.T) {
-	bundlePath := testutil.TestDataPath("bundles/deploy/init")
+	bundlePath := createDefaultsBundleSource(t)
 
 	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	in.WriteString("n\n")
@@ -322,7 +292,7 @@ func TestRemoveCommand_HelpOutput_Integration(t *testing.T) {
 }
 
 func TestDevRemoveCommand_CustomDirWithPackages_Integration(t *testing.T) {
-	bundlePath := testutil.TestDataPath("bundles/deploy/init")
+	bundlePath := createDefaultsBundleSourceWithUDSK3DDev(t)
 
 	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	in.WriteString("n\n")

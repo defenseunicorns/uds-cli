@@ -16,7 +16,7 @@ Below are some notes on our core software design philosophies that should help g
 ## Code Quality and Standards
 Fundamentally, software engineering is a communication problem; we write code for each other, not a computer. When working on this project (or any project!) keep your fellow humans in mind and write clearly and concisely. Below are some general guidelines for code quality and standards that make UDS CLI :sparkles:
 
-- **Write tests that give confidence**: Unless there is a technical blocker, every new feature and bug fix should be tested in the project's automated test suite. Although many of our tests are E2E, unit and integration-style tests are also welcomed. Unit tests can live in a `*_test.go` file alongside the source code. Legacy E2E tests live in `tests/legacy/e2e`, and Next integration tests live under `tests/integration`, `tests/library`, `tests/cluster`, and `tests/smoke`.
+- **Write tests that give confidence**: Unless there is a technical blocker, every new feature and bug fix should be tested in the project's automated test suite. Although many of our tests are E2E, unit and integration-style tests are also welcomed. Unit tests can live in a `*_test.go` file alongside the source code. Legacy E2E tests live in `tests/legacy/e2e`, and Next tests live under `tests/cli`, `tests/library`, and `tests/cluster`.
 
 
 - **Prefer readability over being clever**: We have a strong preference for code readability in UDS CLI. Specifically, this means things like: naming variables appropriately, keeping functions to a reasonable size and avoiding complicated solutions when simple ones exist.
@@ -41,7 +41,7 @@ Specifically:
 
 The `Snapshot Release` workflow runs daily at 03:00 UTC against `main`. Manual dispatches also build only `main`. Tags use `vX.Y.Z-snapshot+YYYYMMDDHHMMSS-XXXXXXXX`, containing the latest stable version prefix, UTC timestamp, and exact source commit. They are never overwritten.
 
-Before tagging, the workflow rejects tag collisions and runs the reusable release test suite against `main`. That suite includes authenticated GHCR-write tests and Legacy and Next UDS Core smoke tests. After publishing, the workflow verifies the Linux amd64 checksum and confirms both CLI modes report the release tag. The stable release workflow excludes snapshot tags.
+Before tagging, the workflow rejects tag collisions and runs the reusable release test suite against `main`. That suite includes authenticated GHCR-write tests and UDS Core smoke tests. After publishing, the workflow verifies the Linux amd64 checksum and confirms both CLI modes report the release tag. The stable release workflow excludes snapshot tags.
 
 Do not dispatch this workflow without maintainer approval. Its tests and publishing jobs use repository and package write permissions, and successful runs create remote tags, GitHub prereleases, and package state through the `release-snapshot` environment. Scheduled cleanup retains three snapshot prereleases and preserves their tags.
 
@@ -98,7 +98,7 @@ New feature work should target the canonical Next packages unless a maintainer e
 - Legacy E2E tests and fixtures: `tests/legacy/e2e` and `testdata/legacy`
 - Next command wiring and implementation: canonical `internal/...` packages that are not under `internal/legacy`
 - Next public packages: `pkg/bundle/...` and `pkg/iostreams`
-- Next tests: `tests/integration`, `tests/library`, `tests/cluster`, and `tests/smoke`
+- Next tests: `tests/cli`, `tests/library`, and `tests/cluster`
 
 ### Testing
 
@@ -110,15 +110,40 @@ Unit tests reside alongside the source code in a `*_test.go` file. These tests s
 #### Legacy E2E Tests
 Legacy E2E tests reside in the `tests/legacy/e2e` directory. They use bundles and packages under `testdata/legacy`. Feel free to add new fixtures where appropriate. It's encouraged to write comments or metadata in new fixtures to explain what they are testing.
 
-#### Next Integration Tests
-Next tests are split into the following tiers:
+#### Next tests
 
-- `uds run test:next-integration` runs cluster-free CLI integration tests with `-tags=integration`.
-- `uds run test:next-integration-library` runs public library integration tests with `-tags=library`.
-- `uds run test:next-cluster` runs k3d-backed cluster integration tests with `-tags=cluster_integration`.
-- `uds run test:next-smoke-uds-core` runs UDS Core smoke coverage with `-tags=uds_core_smoke`. This is intended for release and nightly validation, not normal PR checks.
+Use the lowest layer that proves the behavior. Library tests and their helpers
+exercise UDS only through `pkg/bundle`, `pkg/bundle/spec`, and `pkg/iostreams`.
+CLI tests execute Cobra directly. A minimal primary-binary check covers process
+startup and routing. Core E2E belongs to the CLI layer.
 
-Use the lowest tier that proves the behavior. Build `build/uds` before running binary-driven Next integration, cluster, or smoke tests.
+| Layer | Starting condition | Task |
+| --- | --- | --- |
+| Unit | No cluster | `test:next-unit` |
+| Library / non-cluster | Local fixtures | `test:next-library-non-cluster` |
+| Library / non-cluster | Creates an isolated cluster | `test:next-library-non-cluster-lifecycle` |
+| Library / in-cluster | Supplied Zarf-initialized cluster | `test:next-library-in-cluster` |
+| CLI / non-cluster | Local fixtures | `test:next-cli-non-cluster` |
+| CLI / non-cluster | Creates an isolated cluster | `test:next-cli-non-cluster-lifecycle` |
+| CLI / in-cluster | Supplied Zarf-initialized cluster | `test:next-cli-in-cluster` |
+
+Run a task with `uds run <task>`. Build `build/uds` with `uds run build` before
+the minimal binary checks in `test:next-cli-non-cluster`. Other CLI tasks and all
+library tests need no built UDS binary. Owned-cluster and Core
+tasks use `mise exec` to install and activate Zarf matching `go.mod` for package
+action callbacks.
+The remote-package verification subset is
+`test:next-library-non-cluster-package-verification`.
+`test:next-library-non-cluster-keyless` requires GitHub Actions OIDC and fails
+without it.
+
+In-cluster tasks require `KUBECONFIG` and `UDS_TEST_KUBECONFIG` to name the same
+explicit kubeconfig file. They never create or delete the supplied cluster.
+CI uses `hack/test-cluster.sh setup <isolated-directory>` before these tasks and
+`cleanup <isolated-directory>` afterward. The helper uses the pinned Zarf
+tool to prepare infrastructure. Public API bootstrap is
+covered separately by the library lifecycle test. Owned-cluster tests use unique
+names and clean up only their own clusters.
 
 #### Assertions
 We prefer to use Testify's [require](https://github.com/stretchr/testify/tree/master/require) package for assertions in tests. This package provides a rich set of assertion functions that make tests more readable and easier to debug. See other tests in this repo for examples.
@@ -130,4 +155,4 @@ We prefer to use Testify's [require](https://github.com/stretchr/testify/tree/ma
 - **Legacy E2E Tests**: Build UDS CLI with `uds run build` before running E2E tasks; rebuild after source changes because the tests use `build/uds`. Run the focused E2E tasks listed by `uds run --list-all` (for example, `uds run test:bundle`). The `test:e2e-ghcr` task writes to GHCR and is intended for CI only.
 
 
-- **Next Tests**: Build UDS CLI with `uds run build` before binary-driven tests, then run the focused Next task for the tier you need. For example, run `uds run test:next-integration` for cluster-free command coverage or `uds run test:next-cluster` for live k3d coverage.
+- **Next Tests**: Build UDS CLI with `uds run build` before binary-driven tests, then run the focused Next task for the tier you need. For example, run `uds run test:next-cli-non-cluster` for local command coverage or `uds run test:next-cli-non-cluster-lifecycle` for an isolated cluster lifecycle.

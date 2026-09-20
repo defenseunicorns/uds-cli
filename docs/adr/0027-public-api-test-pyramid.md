@@ -10,8 +10,6 @@ or changes. `tests/smoke/` is outside this ADR and remains unchanged.
 
 Proposed. Testing architecture for [CLI-302](https://linear.app/defense-unicorns/issue/CLI-302/cement-library-api-with-tests).
 
-Implementation details: [plan.md](../../plan.md).
-
 If accepted, this supersedes the test-layer classification in
 [ADR-0002](0002-cli-architecture-patterns.md),
 [ADR-0009](0009-bundle-deploy-from-artifact.md), and
@@ -34,7 +32,7 @@ counts, and scope.
 | --- | --- | --- | --- |
 | Unit tests | Next packages under `cmd/`, `internal/`, and `pkg/` | 496 (+1 example) | <ul><li>Parse and validate inputs.</li><li>Exercise private adapters.</li><li>Use files and local registries.</li><li>Check Cobra wiring.</li></ul> |
 | Library tests | `tests/library/` | 25 | <ul><li>Call public bundle APIs.</li><li>Check errors, selection, and hooks.</li><li>Create, push, and inspect artifacts.</li><li>Stop before cluster deployment/removal.</li><li>Still use internal helpers.</li></ul> |
-| Mixed integration | `tests/integration/` | 60 | <ul><li>Execute Cobra and the CLI binary.</li><li>Also call public APIs directly.</li><li>Check artifacts, registries, and signing.</li><li>Use some external fixtures.</li></ul> |
+| CLI tests | `tests/cli/` | 60 | <ul><li>Execute Cobra and the CLI binary.</li><li>Check artifacts, registries, and signing.</li><li>Use some external fixtures.</li></ul> |
 | Cluster E2E | `tests/cluster/` | 9 | <ul><li>Bootstrap a Zarf-initialized cluster.</li><li>Deploy and remove through the CLI.</li><li>Check signing and configuration.</li><li>Observe resources and operator events.</li></ul> |
 
 The coverage table compares all Next code with its public API subset, per group
@@ -44,7 +42,7 @@ and cumulatively. Each cell reports covered statements and their percentage.
 | --- | --- | --- | --- | --- |
 | Unit tests | 4,447 (74.34%) | 4,447 (74.34%) | 744 (56.88%) | 744 (56.88%) |
 | Library tests | 1,445 (24.16%) | 4,517 (75.51%) | 390 (29.82%) | 799 (61.09%) |
-| Mixed integration | 3,140 (52.49%) | 4,826 (80.68%) | 633 (48.39%) | 938 (71.71%) |
+| CLI tests | 3,140 (52.49%) | 4,826 (80.68%) | 633 (48.39%) | 938 (71.71%) |
 | Cluster E2E | 3,094 (51.72%) | 4,953 (82.80%) | 465 (35.55%) | 983 (75.15%) |
 
 The graph shows how coverage grows as each group is added, counting overlapping
@@ -56,13 +54,13 @@ CUMULATIVE STATEMENT COVERAGE                Each # ~= 2 percentage points
 Next production (5,982 statements)
 Unit tests          |#####################################.............| 74.34%
 + Library tests     |######################################............| 75.51%
-+ Mixed integration |########################################..........| 80.68%
++ CLI tests         |########################################..........| 80.68%
 + Cluster E2E       |#########################################.........| 82.80%
 
 Public API packages (1,308 statements)
 Unit tests          |############################......................| 56.88%
 + Library tests     |###############################...................| 61.09%
-+ Mixed integration |####################################..............| 71.71%
++ CLI tests         |####################################..............| 71.71%
 + Cluster E2E       |######################################............| 75.15%
 
 Bars span 0-100%; dots mean uncovered in the measured groups.
@@ -157,6 +155,13 @@ production denominator reflects the added source paths.
 | All pyramid layers | 4,953 / 5,982 (82.80%) | 5,022 / 6,019 (83.44%) | +69 statements; +0.64 points |
 | Public API | 983 / 1,308 (75.15%) | 1,044 / 1,315 (79.39%) | +61 statements; +4.24 points |
 
+The CLI measurement isolates every CLI subcategory: direct Cobra tests,
+owned-cluster tests, in-cluster tests, and the minimal process check.
+
+| Test layer | CLI production | Public API |
+| --- | --- | --- |
+| CLI tests | 3,815 / 6,015 (63.42%) | 762 / 1,315 (57.95%) |
+
 ```text
 CUMULATIVE STATEMENT COVERAGE                Each # ~= 2 percentage points
 
@@ -164,6 +169,13 @@ All pyramid layers before |#########################################.........| 8
                     after  |##########################################........| 83.44%
 Public API       before |######################################............| 75.15%
                  after  |########################################..........| 79.39%
+```
+
+```text
+CLI TEST STATEMENT COVERAGE                  Each # ~= 2 percentage points
+
+CLI production   |################################............| 63.42%
+Public API        |#############################...............| 57.95%
 ```
 
 The scenario inventory is 485 unit, 70 library, and 67 CLI cases. Credentialed

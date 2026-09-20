@@ -10,7 +10,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
@@ -38,10 +37,14 @@ func NewVerifyCommand(streams iostreams.IOStreams) *cobra.Command {
 		Use:   "verify <bundle-artifact>",
 		Short: "Verify a created bundle artifact",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			util.CheckErr(o.Complete(cmd, args))
-			util.CheckErr(o.Validate())
-			util.CheckErr(o.Run(cmd.Context()))
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := o.Complete(cmd, args); err != nil {
+				return err
+			}
+			if err := o.Validate(); err != nil {
+				return err
+			}
+			return o.Run(cmd.Context())
 		},
 	}
 	addVerificationFlags(cmd, o, false)

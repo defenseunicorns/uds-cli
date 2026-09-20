@@ -7,7 +7,6 @@ package cli
 import (
 	"errors"
 	"log/slog"
-	"os"
 
 	"github.com/defenseunicorns/uds-cli/internal/cli/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/cli/core"
@@ -25,9 +24,11 @@ func NewRootCommand(streams iostreams.IOStreams) *cobra.Command {
 	var logLevel string
 
 	rootCmd := &cobra.Command{
-		Use:   "uds",
-		Short: "UDS CLI - The entrypoint to the Defense Unicorns ecosystem",
-		Long:  `UDS CLI is a command-line tool for managing UDS Bundles and interacting with the Defense Unicorns ecosystem.`,
+		Use:           "uds",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		Short:         "UDS CLI - The entrypoint to the Defense Unicorns ecosystem",
+		Long:          `UDS CLI is a command-line tool for managing UDS Bundles and interacting with the Defense Unicorns ecosystem.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := validateArchitectureFlag(cmd); err != nil {
 				return err
@@ -36,7 +37,7 @@ func NewRootCommand(streams iostreams.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			slog.SetDefault(logger.New(os.Stderr, level))
+			slog.SetDefault(logger.New(streams.ErrOut(), level))
 			cmd.SetContext(ocischeme.WithNegotiator(cmd.Context(), ocischeme.New(ocischeme.Options{})))
 			return nil
 		},
