@@ -136,7 +136,7 @@ func TestCreate_UDSCoreStandardBundle(t *testing.T) {
 		assert.Contains(t, bundleDefinition, component, "standard should preserve upstream optional components")
 	}
 	// renovate: datasource=docker depName=ghcr.io/defenseunicorns/packages/uds/core versioning=docker
-	assert.Contains(t, bundleDefinition, "1.13.0-upstream", "standard should target the released core package tag")
+	assert.Contains(t, bundleDefinition, "1.13.1-upstream", "standard should target the released core package tag")
 }
 
 func createDefaultsBundleSource(t *testing.T) string {

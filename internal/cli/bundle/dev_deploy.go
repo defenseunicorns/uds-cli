@@ -21,6 +21,7 @@ type DevDeployOptions struct {
 	BundlePath string
 	Packages   []string
 	Force      bool
+	Variables  []string
 	Config     *bundlepkg.UDSBundleConfig
 	Printer    printer.ResourcePrinter
 
@@ -70,7 +71,7 @@ local and OCI bundle artifacts must use uds bundle deploy instead.`,
 		},
 	}
 
-	addDeployFlags(cmd, &o.Packages, &o.Force)
+	addDeployFlags(cmd, &o.Packages, &o.Force, &o.Variables)
 
 	return cmd
 }
@@ -102,6 +103,9 @@ func (o *DevDeployOptions) Run(ctx context.Context) error {
 
 	baseConfig, _, err := NewConfigResolver().resolveBase(ctx, o.IOStreams, o.flags)
 	if err != nil {
+		return err
+	}
+	if err := applySetVariables(baseConfig, o.Variables); err != nil {
 		return err
 	}
 	o.Config = baseConfig
