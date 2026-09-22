@@ -266,6 +266,46 @@ func (s *DeploySuite) TestDevDeployCommand_ListVariableTemplating() {
 		"deploy should stop at package loading before any cluster interaction")
 }
 
+// TestDevDeployCommand_SetVariables verifies that repeatable --set flags supply
+// inferred scalar types and HCL objects to values-file templating without requiring
+// cluster access.
+func (s *DeploySuite) TestDevDeployCommand_SetVariables() {
+	bundlePath := prepareClusterFreeVariablesBundle(s.T())
+	configPath := testutil.TestDataPath("bundles/deploy/variables/config.uds.hcl")
+	valuesPath := filepath.Join(bundlePath, "values", "podinfo.yaml")
+	values, err := os.ReadFile(valuesPath)
+	s.Require().NoError(err)
+	values = append(values, []byte(`
+cliString: {{ printf "%q" .vars.cli_string }}
+cliNumber: {{ .vars.cli_number }}
+cliBoolean: {{ .vars.cli_boolean }}
+cliObject: {{ printf "%q" .vars.cli_object.name }}
+`)...)
+	s.Require().NoError(os.WriteFile(valuesPath, values, 0o600))
+
+	cmd := exec.Command(
+		s.uds,
+		"bundle", "dev", "deploy", bundlePath,
+		"--config", configPath,
+		"--set", "cli_string=cli-test",
+		"--set", "cli_number=2",
+		"--set", "cli_boolean=false",
+		"--set", `cli_object={ name = "cli" }`,
+		"--set", `log_level="debug"`,
+		"--packages", "podinfo",
+		"--force",
+	)
+	output, err := cmd.CombinedOutput()
+	outputStr := string(output)
+
+	assert.Error(s.T(), err, "deploy should stop when loading the intentionally missing package")
+	assert.NotContains(s.T(), outputStr, "parsing --set variable")
+	assert.NotContains(s.T(), outputStr, "failed to template values files")
+	assert.NotContains(s.T(), outputStr, "map has no entry for key")
+	assert.Contains(s.T(), outputStr, "starting deployment level")
+	assert.Contains(s.T(), outputStr, "missing-podinfo-package")
+}
+
 // TestDevDeployCommand_MissingTemplateVariable verifies that a values_files template
 // referencing an undefined variable fails with missingkey=error before any registry
 // or cluster access is attempted.
