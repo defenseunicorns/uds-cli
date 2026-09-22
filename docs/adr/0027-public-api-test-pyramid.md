@@ -8,7 +8,7 @@ or changes. `tests/smoke/` is outside this ADR and remains unchanged.
 
 ## Status
 
-Proposed. Testing architecture for [CLI-302](https://linear.app/defense-unicorns/issue/CLI-302/cement-library-api-with-tests).
+Proposed.
 
 If accepted, this supersedes the test-layer classification in
 [ADR-0002](0002-cli-architecture-patterns.md),

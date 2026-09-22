@@ -39,6 +39,11 @@ func CreateBundleFromTestDataExpectError(t *testing.T, testDataRelPath, arch str
 	return internaltestutil.CreateBundleFromTestDataExpectError(t, testDataRelPath, arch)
 }
 
+// CreateBundleFromTestDataCLIWithBinary creates a bundle through udsPath.
+func CreateBundleFromTestDataCLIWithBinary(t *testing.T, udsPath, testDataRelPath, arch string) string {
+	return internaltestutil.CreateBundleFromTestDataCLIWithBinary(t, udsPath, testDataRelPath, arch)
+}
+
 // CreateBundleFromTestDataCobra creates a bundle through Cobra command wiring.
 func CreateBundleFromTestDataCobra(t *testing.T, testDataRelPath, arch string) string {
 	return internaltestutil.CreateBundleFromTestDataCobra(t, testDataRelPath, arch)
@@ -57,4 +62,9 @@ func CheckDockerRunning(t *testing.T, reason string) {
 // DeleteK3dCluster deletes a test cluster if it exists.
 func DeleteK3dCluster(t *testing.T, clusterName string) {
 	internaltestutil.DeleteK3dCluster(t, clusterName)
+}
+
+// RunBundleDeploy runs bundle deploy through the supplied CLI binary.
+func RunBundleDeploy(t *testing.T, udsPath, artifactPath string) {
+	internaltestutil.RunBundleDeploy(t, udsPath, artifactPath)
 }

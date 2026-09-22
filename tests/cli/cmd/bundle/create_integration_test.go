@@ -19,6 +19,7 @@ import (
 
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/defenseunicorns/uds-cli/tests/testutil"
 )
 
 // assertValidBundleStructure checks that the bundle archive contains the
@@ -97,6 +98,45 @@ func TestCreate_DefaultsConfig_Applied(t *testing.T) {
 	storedBundle := extractLayerFromBundle(t, small, bundleinternal.BundleFileName)
 	assert.NotContains(t, string(storedBundle), "file(")
 	assert.Contains(t, string(storedBundle), "description from file")
+}
+
+func TestCreate_UDSCoreStandardBundle(t *testing.T) {
+	outPath := testutil.CreateBundleFromTestDataCobra(t, "bundles/uds-core/standard", runtime.GOARCH)
+
+	allPaths, small := assertValidBundleStructure(t, outPath)
+	for _, layer := range []string{
+		"defaults.uds.hcl",
+		"values/core_base/0.yaml",
+		"values/core_identity_authorization/0.yaml",
+		"values/core_logging/0.yaml",
+		"values/core_monitoring/0.yaml",
+		"values/core_runtime_security/0.yaml",
+		"values/core_backup_restore/0.yaml",
+	} {
+		assert.True(t, bundleDefinitionContainsLayerTitle(t, allPaths, small, layer), "%s should be included in the bundle definition manifest", layer)
+	}
+
+	bundleDefinition := string(extractLayerFromBundle(t, small, "bundle.uds.hcl"))
+	for _, packageID := range []string{
+		"package \"uds_k3d_dev\"",
+		"package \"init\"",
+		"package \"core_base\"",
+		"package \"core_identity_authorization\"",
+		"package \"core_logging\"",
+		"package \"core_monitoring\"",
+		"package \"core_runtime_security\"",
+		"package \"core_backup_restore\"",
+		"package \"core_portal\"",
+		"package \"core_metrics_server\"",
+	} {
+		assert.Contains(t, bundleDefinition, packageID, "standard should preserve upstream package composition")
+	}
+	assert.NotContains(t, bundleDefinition, "package \"core\"", "standard should not collapse the release back to the monolithic core package")
+	for _, component := range []string{"istio-passthrough-gateway", "istio-egress-gateway", "envoy-gateway", "envoy-default-gateway"} {
+		assert.Contains(t, bundleDefinition, component, "standard should preserve upstream optional components")
+	}
+	// renovate: datasource=docker depName=ghcr.io/defenseunicorns/packages/uds/core versioning=docker
+	assert.Contains(t, bundleDefinition, "1.13.0-upstream", "standard should target the released core package tag")
 }
 
 func createDefaultsBundleSource(t *testing.T) string {
