@@ -50,6 +50,9 @@ Use `bundle dev deploy` for a definition and `bundle deploy` for a created artif
    # Supply deploy-time variables and options
    CLI_FEATURES=NextMode=true uds bundle dev deploy ./my-bundle --config ./config.uds.hcl
 
+   # Override deploy-time variables from the command line
+   CLI_FEATURES=NextMode=true uds bundle dev deploy ./my-bundle --set environment=development --set replicas=2
+
    # Deploy selected packages
    CLI_FEATURES=NextMode=true uds bundle dev deploy ./my-bundle --packages api,database
    ```
@@ -96,7 +99,20 @@ Use `bundle dev deploy` for a definition and `bundle deploy` for a created artif
 
     The command rejects a selection that omits its dependencies. Use `--force` only when intentionally deploying out of dependency order.
 
-4. **Resume an unchanged deployment**
+4. **Override variables**
+
+   Override deploy-time variables with repeatable `--set key=value` flags when you do not need a separate config file:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle deploy ./my-bundle.tar.zst \
+     --public-key ./cosign.pub \
+     --set environment=production \
+     --set replicas=3
+   ```
+
+   Unquoted values are strings unless they are booleans, numbers, lists, or objects. Quote ambiguous values to keep them as strings, for example `--set 'replicas="3"'`. CLI variables override values from `config.uds.hcl` and `defaults.uds.hcl`.
+
+5. **Resume an unchanged deployment**
 
    Re-run a deployment with `--resume` to skip packages Zarf recorded with the same package digest, namespace override, filtered component names, and successful component status:
 

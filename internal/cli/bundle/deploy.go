@@ -5,13 +5,16 @@ package bundle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -24,6 +27,7 @@ type DeployOptions struct {
 	Packages     []string
 	Force        bool
 	Resume       bool
+	Variables    []string
 	Config       *bundle.UDSBundleConfig
 	Verification VerifyOptions
 	Printer      printer.ResourcePrinter
@@ -31,6 +35,7 @@ type DeployOptions struct {
 	flags      CLIFlags
 	pullBundle func(context.Context, string, string, bundle.PullOptions) (*bundle.PullResult, error)
 	runDeploy  deployRunnerFunc
+	isUnsigned func(context.Context, string, *bundle.UDSBundleConfig) (bool, error)
 
 	iostreams.IOStreams
 }
@@ -74,16 +79,17 @@ inputs and must use uds bundle dev deploy instead.`,
 		},
 	}
 
-	addDeployFlags(cmd, &o.Packages, &o.Force, &o.Resume)
+	addDeployFlags(cmd, &o.Packages, &o.Force, &o.Resume, &o.Variables)
 	addVerificationFlags(cmd, &o.Verification, true)
 
 	return cmd
 }
 
-func addDeployFlags(cmd *cobra.Command, packages *[]string, force *bool, resume *bool) {
+func addDeployFlags(cmd *cobra.Command, packages *[]string, force *bool, resume *bool, variables *[]string) {
 	cmd.Flags().StringSliceVarP(packages, "packages", "p", nil, "specific packages to deploy (comma-separated)")
 	cmd.Flags().BoolVarP(force, "force", "f", false, "deploy packages even if their dependencies are not selected")
 	cmd.Flags().BoolVarP(resume, "resume", "r", false, "skip packages already deployed successfully")
+	cmd.Flags().StringArrayVarP(variables, "set", "s", nil, "set a deploy-time variable using key=value")
 }
 
 // Complete fills artifact deploy options from command-line arguments.
@@ -117,11 +123,45 @@ func (o *DeployOptions) Validate() error {
 		return err
 	}
 	if !o.Verification.SkipSignatureVerification {
-		if _, err := o.Verification.policy(); err != nil {
+		policy, err := o.Verification.policy()
+		if err != nil && !o.Verification.isMissingPolicy(policy, err) {
 			return err
 		}
 	}
 	return nil
+}
+
+func (o *DeployOptions) policyForArtifactDeploy(ctx context.Context) (bundle.VerificationPolicy, error) {
+	policy, err := o.Verification.policy()
+	if err == nil || !o.Verification.isMissingPolicy(policy, err) {
+		return policy, err
+	}
+
+	isUnsigned := o.isUnsigned
+	if isUnsigned == nil {
+		isUnsigned = artifactIsUnsigned
+	}
+	unsigned, detectErr := isUnsigned(ctx, o.BundlePath, o.Config)
+	if detectErr != nil {
+		return policy, fmt.Errorf("checking bundle signature: %w", detectErr)
+	}
+	if !unsigned {
+		return policy, err
+	}
+
+	return bundle.VerificationPolicy{}, errors.New("bundle is not signed, if you wish to deploy this unsigned bundle, re-run with --skip-signature-verification")
+}
+
+func artifactIsUnsigned(ctx context.Context, source string, config *bundle.UDSBundleConfig) (bool, error) {
+	metadata, err := artifact.OpenMetadataSource(ctx, source, toInternalConfig(config))
+	if err != nil {
+		return false, err
+	}
+	_, err = metadata.FetchSignatureEvidence(ctx)
+	if errors.Is(err, udsoci.ErrBundleSignatureNotFound) {
+		return true, nil
+	}
+	return false, err
 }
 
 // Run executes local or OCI artifact deployment.
@@ -132,6 +172,9 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if err := applySetVariables(baseConfig, o.Variables); err != nil {
+		return err
+	}
 	o.Config = baseConfig
 	if o.Verification.Config == nil {
 		o.Verification.Config = baseConfig
@@ -140,7 +183,7 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 	o.Info("preparing bundle for deployment", "source", o.BundlePath)
 	policy := bundle.VerificationPolicy{}
 	if !o.Verification.SkipSignatureVerification {
-		policy, err = o.Verification.policy()
+		policy, err = o.policyForArtifactDeploy(ctx)
 		if err != nil {
 			return err
 		}

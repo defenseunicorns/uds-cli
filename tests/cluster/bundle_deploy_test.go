@@ -42,6 +42,35 @@ func TestDeployVariablesBundleWithPodinfo(t *testing.T) {
 	assertPodinfoConfiguration(t, k8s, namespace)
 }
 
+func TestDeployVariablesBundleWithSet(t *testing.T) {
+	t.Parallel()
+
+	namespace, k8s := testutil.AllocateTestNamespace(t, sharedClusterName, namespaceCleanupTimeout)
+	bundleDir := testutil.PreparePodinfoBundle(t, testEnv.podinfoPackagePath, "podinfo-set", namespace)
+	testutil.RegisterBundleCleanup(t, testEnv.udsPath, bundleDir, namespaceCleanupTimeout)
+
+	testutil.RequireUDSCommand(t, testEnv.udsPath,
+		"bundle", "dev", "deploy", bundleDir,
+		"--config", testutil.TestDataPath("bundles/deploy/variables/config.uds.hcl"),
+		"--set", "replica_count=2",
+		"--set", `log_level="info"`,
+		"--set", `annotations={ team = "cli" }`,
+	)
+
+	k8s.WaitForDeploymentReady(namespace, "podinfo", podinfoReadyTimeout)
+	k8s.AssertDeploymentReplicas(namespace, "podinfo", 2)
+	k8s.AssertServiceNotExists(namespace, "podinfo")
+	k8s.AssertDeploymentPodAnnotation(namespace, "podinfo", "app.kubernetes.io/managed-by", "uds")
+	k8s.AssertDeploymentPodAnnotation(namespace, "podinfo", "team", "cli")
+	k8s.AssertDeploymentPodToleration(
+		namespace,
+		"podinfo",
+		"node.kubernetes.io/not-ready",
+		corev1.TolerationOpExists,
+		corev1.TaintEffectNoExecute,
+	)
+}
+
 func TestDeployFromArtifact(t *testing.T) {
 	t.Parallel()
 

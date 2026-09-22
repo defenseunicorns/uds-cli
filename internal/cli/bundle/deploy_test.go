@@ -6,12 +6,15 @@ package bundle
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/internal/artifact"
+	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -55,6 +58,8 @@ func TestDeployOptions_Validate(t *testing.T) {
 	require.NoError(t, os.WriteFile(sourceFile, []byte("test"), 0o600))
 	otherFile := filepath.Join(tempDir, "bundle.txt")
 	require.NoError(t, os.WriteFile(otherFile, []byte("test"), 0o600))
+	emptyPublicKey := filepath.Join(tempDir, "empty-public-key.pem")
+	require.NoError(t, os.WriteFile(emptyPublicKey, nil, 0o600))
 	specialFile := filepath.Join(tempDir, "device.tar.zst")
 	if err := os.Symlink(os.DevNull, specialFile); err != nil {
 		t.Logf("special-file validation case unavailable: %v", err)
@@ -62,9 +67,11 @@ func TestDeployOptions_Validate(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
-		ref     string
-		wantErr string
+		name      string
+		ref       string
+		publicKey string
+		verify    bool
+		wantErr   string
 	}{
 		{name: "local artifact", ref: artifact},
 		{name: "OCI reference", ref: "oci://ghcr.io/example/bundle:1.0.0"},
@@ -76,6 +83,8 @@ func TestDeployOptions_Validate(t *testing.T) {
 		{name: "source file", ref: sourceFile, wantErr: "uds bundle dev deploy"},
 		{name: "other file", ref: otherFile, wantErr: "local .tar.zst bundle artifact or OCI reference"},
 		{name: "special file", ref: specialFile, wantErr: "regular file"},
+		{name: "missing verification policy defers source-specific guidance", ref: artifact, verify: true},
+		{name: "empty public key is an invalid policy", ref: artifact, publicKey: emptyPublicKey, verify: true, wantErr: "signature verification must configure exactly one of public key or keyless"},
 	}
 
 	for _, tt := range tests {
@@ -85,7 +94,7 @@ func TestDeployOptions_Validate(t *testing.T) {
 			}
 			o := &DeployOptions{
 				BundlePath:   tt.ref,
-				Verification: VerifyOptions{SkipSignatureVerification: true},
+				Verification: VerifyOptions{PublicKey: tt.publicKey, SkipSignatureVerification: !tt.verify},
 			}
 			err := o.Validate()
 			if tt.wantErr == "" {
@@ -93,6 +102,74 @@ func TestDeployOptions_Validate(t *testing.T) {
 				return
 			}
 			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestDeployOptions_Run_MissingVerificationPolicy(t *testing.T) {
+	streams, _, _, _ := iostreams.NewTestIOStreams()
+
+	tests := []struct {
+		name       string
+		isUnsigned bool
+		detectErr  error
+		wantErr    string
+	}{
+		{
+			name:       "unsigned artifact gives skip guidance",
+			isUnsigned: true,
+			wantErr:    "bundle is not signed, if you wish to deploy this unsigned bundle, re-run with --skip-signature-verification",
+		},
+		{
+			name:       "signed artifact preserves missing policy error",
+			isUnsigned: false,
+			wantErr:    "signature verification must configure exactly one of public key or keyless",
+		},
+		{
+			name:      "signature inspection failure is preserved",
+			detectErr: errors.New("registry unavailable"),
+			wantErr:   "checking bundle signature: registry unavailable",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			o := NewDeployOptions(streams)
+			o.BundlePath = "bundle.tar.zst"
+			o.isUnsigned = func(context.Context, string, *bundle.UDSBundleConfig) (bool, error) {
+				return tt.isUnsigned, tt.detectErr
+			}
+
+			err := o.Run(t.Context())
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestArtifactIsUnsigned(t *testing.T) {
+	tests := []struct {
+		name      string
+		signature bool
+		want      bool
+	}{
+		{name: "unsigned archive", want: true},
+		{name: "signed archive", signature: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bundleDir := t.TempDir()
+			require.NoError(t, os.MkdirAll(filepath.Join(bundleDir, "oci"), 0o700))
+			require.NoError(t, os.WriteFile(filepath.Join(bundleDir, "oci", "index.json"), []byte("{}"), 0o600))
+			if tt.signature {
+				require.NoError(t, os.WriteFile(filepath.Join(bundleDir, udsoci.BundleSignatureFileName), []byte("signature"), 0o600))
+			}
+			archivePath := filepath.Join(t.TempDir(), "bundle.tar.zst")
+			require.NoError(t, artifact.WriteTarZst(t.Context(), iostreams.IOStreams{}, archivePath, bundleDir))
+
+			got, err := artifactIsUnsigned(t.Context(), archivePath, nil)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -309,6 +386,8 @@ func TestDeployCommands_Flags(t *testing.T) {
 		assert.Equal(t, "f", cmd.Flags().Lookup("force").Shorthand)
 		require.NotNil(t, cmd.Flags().Lookup("resume"))
 		assert.Equal(t, "r", cmd.Flags().Lookup("resume").Shorthand)
+		require.NotNil(t, cmd.Flags().Lookup("set"))
+		assert.Equal(t, "s", cmd.Flags().Lookup("set").Shorthand)
 		if len(path) == 1 {
 			require.NotNil(t, cmd.Flags().Lookup("public-key"))
 			require.NotNil(t, cmd.Flags().Lookup("skip-signature-verification"))
