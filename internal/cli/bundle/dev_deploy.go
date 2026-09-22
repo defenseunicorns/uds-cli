@@ -122,7 +122,13 @@ func (o *DevDeployOptions) Run(ctx context.Context) error {
 	if runner == nil {
 		runner = runDeploy
 	}
-	result, err := runner(ctx, o.IOStreams, baseConfig, resolveBundlePath(o.BundlePath), o.Packages, o.Force, o.Resume, o.flags.Prompt)
+	result, err := runner(ctx, o.IOStreams, baseConfig, deployOptions{
+		bundlePath: resolveBundlePath(o.BundlePath),
+		packages:   o.Packages,
+		force:      o.Force,
+		resume:     o.Resume,
+		prompt:     o.flags.Prompt,
+	})
 	if err != nil {
 		return err
 	}

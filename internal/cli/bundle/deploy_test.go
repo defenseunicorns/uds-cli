@@ -246,9 +246,9 @@ func TestDeployOptions_Run_OCIWorkspaceAndOutputLifecycle(t *testing.T) {
 				},
 			}
 			runnerCalls := 0
-			runner := func(_ context.Context, _ iostreams.IOStreams, _ *bundle.UDSBundleConfig, bundlePath string, _ []string, _, _, _ bool) (*bundle.DeployResult, error) {
+			runner := func(_ context.Context, _ iostreams.IOStreams, _ *bundle.UDSBundleConfig, opts deployOptions) (*bundle.DeployResult, error) {
 				runnerCalls++
-				assert.FileExists(t, bundlePath)
+				assert.FileExists(t, opts.bundlePath)
 				return tt.result, nil
 			}
 
@@ -361,7 +361,7 @@ func TestDeployOptions_Run_RejectsUnsafePulledArtifacts(t *testing.T) {
 					return &bundle.PullResult{OCIReference: ref, OutputPath: tt.outputPath(targetDir)}, nil
 				},
 			}).PullBundle
-			o.runDeploy = func(context.Context, iostreams.IOStreams, *bundle.UDSBundleConfig, string, []string, bool, bool, bool) (*bundle.DeployResult, error) {
+			o.runDeploy = func(context.Context, iostreams.IOStreams, *bundle.UDSBundleConfig, deployOptions) (*bundle.DeployResult, error) {
 				runnerCalled = true
 				return nil, nil
 			}

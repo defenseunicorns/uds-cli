@@ -25,7 +25,12 @@ func TestRunDeployWith_PropagatesConfigAndClosesSource(t *testing.T) {
 	}}
 	deployCalls := 0
 
-	result, err := runDeployWith(t.Context(), streams, baseConfig, bundlePath, []string{"init"}, true, true, false, deployRunnerDependencies{
+	result, err := runDeployWith(t.Context(), streams, baseConfig, deployOptions{
+		bundlePath: bundlePath,
+		packages:   []string{"init"},
+		force:      true,
+		resume:     true,
+	}, deployRunnerDependencies{
 		prepare: func(_ context.Context, _ iostreams.IOStreams, gotPath, tmpDir, architecture string) (*preparedDeploySource, error) {
 			assert.Equal(t, bundlePath, gotPath)
 			assert.Equal(t, baseConfig.Options.TmpDir, tmpDir)
@@ -70,7 +75,11 @@ func TestRunDeployWith_ForceOnlyBypassesDependencySafety(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			closeCalls := 0
 			deployCalls := 0
-			_, err := runDeployWith(t.Context(), streams, testDeployBaseConfig(3), bundlePath, tt.packages, tt.force, false, false, deployRunnerDependencies{
+			_, err := runDeployWith(t.Context(), streams, testDeployBaseConfig(3), deployOptions{
+				bundlePath: bundlePath,
+				packages:   tt.packages,
+				force:      tt.force,
+			}, deployRunnerDependencies{
 				prepare: func(context.Context, iostreams.IOStreams, string, string, string) (*preparedDeploySource, error) {
 					return &preparedDeploySource{source: &bundlepkg.DeploySource{BundlePath: bundlePath}, close: func() error { closeCalls++; return nil }}, nil
 				},
@@ -95,7 +104,9 @@ func TestRunDeployWith_ClosesSourceOnDeployError(t *testing.T) {
 	bundlePath := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundleFileName)
 	closeCalls := 0
 
-	_, err := runDeployWith(t.Context(), streams, testDeployBaseConfig(2), bundlePath, nil, false, false, false, deployRunnerDependencies{
+	_, err := runDeployWith(t.Context(), streams, testDeployBaseConfig(2), deployOptions{
+		bundlePath: bundlePath,
+	}, deployRunnerDependencies{
 		prepare: func(context.Context, iostreams.IOStreams, string, string, string) (*preparedDeploySource, error) {
 			return &preparedDeploySource{source: &bundlepkg.DeploySource{BundlePath: bundlePath}, close: func() error { closeCalls++; return nil }}, nil
 		},

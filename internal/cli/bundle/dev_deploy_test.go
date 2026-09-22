@@ -145,9 +145,9 @@ func TestDevDeployOptions_Run_ResolvesTarZstDirectoryAsSource(t *testing.T) {
 		Resume:     true,
 		Printer:    textPrinter,
 		IOStreams:  streams,
-		runDeploy: func(_ context.Context, _ iostreams.IOStreams, _ *bundlepkg.UDSBundleConfig, path string, _ []string, _, resume, _ bool) (*bundlepkg.DeployResult, error) {
-			gotPath = path
-			gotResume = resume
+		runDeploy: func(_ context.Context, _ iostreams.IOStreams, _ *bundlepkg.UDSBundleConfig, opts deployOptions) (*bundlepkg.DeployResult, error) {
+			gotPath = opts.bundlePath
+			gotResume = opts.resume
 			return nil, nil
 		},
 	}
@@ -166,7 +166,7 @@ func TestDevDeployOptions_Run_ResumeWarning(t *testing.T) {
 		Resume:     true,
 		Printer:    textPrinter,
 		IOStreams:  streams,
-		runDeploy: func(context.Context, iostreams.IOStreams, *bundlepkg.UDSBundleConfig, string, []string, bool, bool, bool) (*bundlepkg.DeployResult, error) {
+		runDeploy: func(context.Context, iostreams.IOStreams, *bundlepkg.UDSBundleConfig, deployOptions) (*bundlepkg.DeployResult, error) {
 			return nil, nil
 		},
 	}

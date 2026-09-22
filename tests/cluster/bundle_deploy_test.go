@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/google/go-containerregistry/pkg/registry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,6 +21,23 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/tests/testutil"
 )
+
+func TestDeployBundleResumeAfterPartialDeploy(t *testing.T) {
+	t.Parallel()
+
+	firstNamespace, firstK8s := testutil.AllocateTestNamespace(t, sharedClusterName, namespaceCleanupTimeout)
+	secondNamespace, secondK8s := testutil.AllocateTestNamespace(t, sharedClusterName, namespaceCleanupTimeout)
+	bundleDir := testutil.PrepareTwoPodinfoBundle(t, testEnv.podinfoPackagePath, firstNamespace, secondNamespace)
+	testutil.RegisterBundleCleanup(t, testEnv.udsPath, bundleDir, namespaceCleanupTimeout)
+
+	partial := testutil.DeployBundle(t, testEnv.udsPath, bundleDir, "--packages", "pod_info_primary")
+	assert.Equal(t, bundle.DeployResult{BundleName: "k3d-core-init", Packages: []bundle.DeployPackageResult{{Name: "pod_info_primary"}}}, partial)
+
+	resumed := testutil.DeployBundle(t, testEnv.udsPath, bundleDir, "--resume")
+	assert.Equal(t, bundle.DeployResult{BundleName: "k3d-core-init", Packages: []bundle.DeployPackageResult{{Name: "pod_info_secondary"}}}, resumed)
+	firstK8s.WaitForDeploymentReady(firstNamespace, "podinfo", podinfoReadyTimeout)
+	secondK8s.WaitForDeploymentReady(secondNamespace, "podinfo", podinfoReadyTimeout)
+}
 
 const podinfoReadyTimeout = 5 * time.Minute
 

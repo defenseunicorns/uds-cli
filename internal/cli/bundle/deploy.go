@@ -209,7 +209,13 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 				return err
 			}
 		}
-		result, err = runner(ctx, o.IOStreams, baseConfig, o.BundlePath, o.Packages, o.Force, o.Resume, o.flags.Prompt)
+		result, err = runner(ctx, o.IOStreams, baseConfig, deployOptions{
+			bundlePath: o.BundlePath,
+			packages:   o.Packages,
+			force:      o.Force,
+			resume:     o.Resume,
+			prompt:     o.flags.Prompt,
+		})
 	}
 	if err != nil {
 		return err
@@ -256,7 +262,13 @@ func (o *DeployOptions) runOCIArtifact(ctx context.Context, runner deployRunnerF
 		return nil, fmt.Errorf("%w %q into %q: %w", ErrPullBundle, o.BundlePath, outputDir, err)
 	}
 
-	return runner(ctx, o.IOStreams, o.Config, artifactPath, o.Packages, o.Force, o.Resume, o.flags.Prompt)
+	return runner(ctx, o.IOStreams, o.Config, deployOptions{
+		bundlePath: artifactPath,
+		packages:   o.Packages,
+		force:      o.Force,
+		resume:     o.Resume,
+		prompt:     o.flags.Prompt,
+	})
 }
 
 func validatePulledArtifact(workspace, outputPath string) (string, error) {
