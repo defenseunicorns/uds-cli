@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"testing"
 
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
@@ -19,12 +20,15 @@ import (
 func TestDefaults(t *testing.T) {
 	r := NewConfigResolver()
 	opts := r.Defaults()
+	homeDir, err := os.UserHomeDir()
+	require.NoError(t, err)
 
 	require.Equal(t, "info", opts.LogLevel)
 	require.Equal(t, runtime.GOARCH, opts.Architecture)
 	require.False(t, opts.PlainHTTP)
 	require.False(t, opts.SkipTLSVerify)
 	require.Equal(t, 10, opts.Concurrency)
+	require.Equal(t, filepath.Join(homeDir, bundleinternal.UDSCacheDirName), opts.CacheDir)
 	require.Equal(t, os.TempDir(), opts.TmpDir)
 }
 

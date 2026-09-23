@@ -22,6 +22,8 @@ import (
 const (
 	// BundleDefaultsFileName is the name of the optional bundle-level defaults file.
 	BundleDefaultsFileName = "defaults.uds.hcl"
+	// UDSCacheDirName is the name of the directory containing cached UDS layers.
+	UDSCacheDirName = ".uds-cache"
 	// MaxConcurrency is the upper bound for parallel package deploys within a level.
 	MaxConcurrency = 25
 )

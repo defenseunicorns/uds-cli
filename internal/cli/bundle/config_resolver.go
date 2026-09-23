@@ -68,9 +68,11 @@ func NewConfigResolver() *ConfigResolver {
 
 // Defaults returns ConfigOptions with sensible defaults per ADR-0006.
 func (r *ConfigResolver) Defaults() bundle.ConfigOptions {
+	homeDir, _ := os.UserHomeDir()
 	return bundle.ConfigOptions{
 		LogLevel:     "info",
 		Architecture: runtime.GOARCH,
+		CacheDir:     filepath.Join(homeDir, bundleinternal.UDSCacheDirName),
 		TmpDir:       os.TempDir(),
 		Concurrency:  10,
 	}
