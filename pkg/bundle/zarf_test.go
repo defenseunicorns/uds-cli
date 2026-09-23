@@ -239,12 +239,13 @@ func TestApplyPublicPackageLayoutUsesHookDefinition(t *testing.T) {
 }
 
 func TestBundlePreDeployCopiesConfigMutations(t *testing.T) {
-	config := &UDSBundleConfig{Options: &ConfigOptions{LogLevel: "info", Concurrency: 2}}
+	config := &UDSBundleConfig{Options: &ConfigOptions{LogLevel: "info", CacheDir: "/cache", Concurrency: 2}}
 	internal := toZarfDeployOptions(DeployOptions{
 		Config: config,
 		BundleDeployHooks: BundleDeployHooks{
 			PreDeploy: func(_ context.Context, _ *spec.UDSBundle, opts *DeployOptions) error {
 				opts.Config.Options.LogLevel = "debug"
+				opts.Config.Options.CacheDir = "/updated-cache"
 				opts.Config.Options.Concurrency = 4
 				return nil
 			},
@@ -253,6 +254,7 @@ func TestBundlePreDeployCopiesConfigMutations(t *testing.T) {
 
 	require.NoError(t, internal.BundleDeployHooks.PreDeploy(t.Context(), &spec.UDSBundle{}, &internal))
 	assert.Equal(t, "debug", internal.Config.Options.LogLevel)
+	assert.Equal(t, "/updated-cache", internal.Config.Options.CacheDir)
 	assert.Equal(t, 4, internal.Config.Options.Concurrency)
 }
 

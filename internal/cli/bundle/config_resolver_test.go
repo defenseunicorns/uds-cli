@@ -112,6 +112,18 @@ func TestMergeHCL(t *testing.T) {
 			},
 		},
 		{
+			name: "HCL overrides cache directory",
+			base: bundle.ConfigOptions{
+				CacheDir: "/default-cache",
+			},
+			hcl: &bundle.ConfigOptions{
+				CacheDir: "/configured-cache",
+			},
+			expected: bundle.ConfigOptions{
+				CacheDir: "/configured-cache",
+			},
+		},
+		{
 			name: "HCL overrides concurrency only",
 			base: bundle.ConfigOptions{
 				LogLevel:     "info",
@@ -159,6 +171,7 @@ func TestMergeHCL(t *testing.T) {
 				Architecture:  "arm64",
 				PlainHTTP:     true,
 				SkipTLSVerify: true,
+				CacheDir:      "/custom-cache",
 				TmpDir:        "/custom-tmp",
 				Concurrency:   20,
 			},
@@ -167,6 +180,7 @@ func TestMergeHCL(t *testing.T) {
 				Architecture:  "arm64",
 				PlainHTTP:     true,
 				SkipTLSVerify: true,
+				CacheDir:      "/custom-cache",
 				TmpDir:        "/custom-tmp",
 				Concurrency:   20,
 			},
@@ -595,6 +609,7 @@ func TestResolve_WithHCLConfig(t *testing.T) {
 options {
   architecture = "arm64"
   concurrency  = 5
+  UDSCacheDir  = "/configured-cache"
 }
 
 variables = {
@@ -613,6 +628,7 @@ variables = {
 	assert.Equal(t, "info", resolved.Options.LogLevel)
 	assert.Equal(t, "arm64", resolved.Options.Architecture)
 	assert.Equal(t, 5, resolved.Options.Concurrency)
+	assert.Equal(t, "/configured-cache", resolved.Options.CacheDir)
 	assert.Equal(t, os.TempDir(), resolved.Options.TmpDir, "unset HCL fields should preserve defaults")
 	assert.Equal(t, configPath, resolvedConfigPath)
 	assert.Equal(t, "test-cluster", resolved.Variables["cluster_name"])

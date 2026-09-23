@@ -63,6 +63,7 @@ type ConfigOptions struct {
 	Architecture  string `hcl:"architecture,optional"`
 	PlainHTTP     bool   `hcl:"plain_http,optional"`
 	SkipTLSVerify bool   `hcl:"skip_tls_verify,optional"`
+	CacheDir      string `hcl:"UDSCacheDir,optional"`
 	TmpDir        string `hcl:"tmp_dir,optional"`
 	Concurrency   int    `hcl:"concurrency,optional"`
 }

@@ -103,6 +103,9 @@ func (r *ConfigResolver) MergeHCL(base bundle.ConfigOptions, hcl *bundle.ConfigO
 	if hcl.SkipTLSVerify {
 		base.SkipTLSVerify = hcl.SkipTLSVerify
 	}
+	if hcl.CacheDir != "" {
+		base.CacheDir = hcl.CacheDir
+	}
 	if hcl.TmpDir != "" {
 		base.TmpDir = hcl.TmpDir
 	}
@@ -341,7 +344,8 @@ func fromInternalOptions(options *bundleinternal.ConfigOptions) *bundle.ConfigOp
 	return &bundle.ConfigOptions{
 		LogLevel: options.LogLevel, Architecture: options.Architecture,
 		PlainHTTP: options.PlainHTTP, SkipTLSVerify: options.SkipTLSVerify,
-		TmpDir: options.TmpDir, Concurrency: options.Concurrency,
+		CacheDir: options.CacheDir,
+		TmpDir:   options.TmpDir, Concurrency: options.Concurrency,
 	}
 }
 
