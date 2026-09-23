@@ -30,6 +30,8 @@ type CLIFlags struct {
 	PlainHTTPChanged     bool
 	SkipTLSVerify        bool
 	SkipTLSVerifyChanged bool
+	CacheDir             string
+	CacheDirChanged      bool
 	TmpDir               string
 	TmpDirChanged        bool
 	Concurrency          int
@@ -49,6 +51,8 @@ func SnapshotFlags(cmd *cobra.Command) CLIFlags {
 	f.PlainHTTPChanged = cmd.Flags().Changed("plain-http")
 	f.SkipTLSVerify, _ = cmd.Flags().GetBool("skip-tls-verify")
 	f.SkipTLSVerifyChanged = cmd.Flags().Changed("skip-tls-verify")
+	f.CacheDir, _ = cmd.Flags().GetString("uds-cache")
+	f.CacheDirChanged = cmd.Flags().Changed("uds-cache")
 	f.TmpDir, _ = cmd.Flags().GetString("tmp-dir")
 	f.TmpDirChanged = cmd.Flags().Changed("tmp-dir")
 	f.Concurrency, _ = cmd.Flags().GetInt("concurrency")
@@ -131,6 +135,9 @@ func (r *ConfigResolver) OverlayCLI(flags CLIFlags, base bundle.ConfigOptions) b
 	}
 	if flags.SkipTLSVerifyChanged {
 		base.SkipTLSVerify = flags.SkipTLSVerify
+	}
+	if flags.CacheDirChanged {
+		base.CacheDir = flags.CacheDir
 	}
 	if flags.TmpDirChanged {
 		base.TmpDir = flags.TmpDir

@@ -390,7 +390,7 @@ func TestDeployCommands_Flags(t *testing.T) {
 			require.NotNil(t, cmd.Flags().Lookup("public-key"))
 			require.NotNil(t, cmd.Flags().Lookup("skip-signature-verification"))
 		}
-		for _, inherited := range []string{"architecture", "plain-http", "skip-tls-verify", "tmp-dir", "concurrency", "config", "output"} {
+		for _, inherited := range []string{"architecture", "plain-http", "skip-tls-verify", "uds-cache", "tmp-dir", "concurrency", "config", "output"} {
 			require.NotNil(t, cmd.InheritedFlags().Lookup(inherited), "%s should inherit --%s", cmd.CommandPath(), inherited)
 		}
 	}
