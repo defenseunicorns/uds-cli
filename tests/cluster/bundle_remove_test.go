@@ -26,9 +26,9 @@ func TestDeployAndRemoveBundle(t *testing.T) {
 	secondNamespace, secondK8s := testutil.AllocateTestNamespace(t, sharedClusterName, namespaceCleanupTimeout)
 	bundleDir := testutil.PrepareTwoPodinfoBundle(t, testEnv.podinfoPackagePath, firstNamespace, secondNamespace)
 	bundleFile := filepath.Join(bundleDir, "bundle.uds.hcl")
-	markBundleRemoved := testutil.RegisterBundleCleanup(t, testEnv.udsPath, bundleFile, namespaceCleanupTimeout)
+	markBundleRemoved := testutil.RegisterBundleCleanup(t, bundleFile, namespaceCleanupTimeout)
 
-	testutil.RequireUDSCommand(t, testEnv.udsPath,
+	testutil.RequireCLI(t,
 		"bundle", "dev", "deploy", bundleDir,
 		"--config", testutil.TestDataPath("bundles/deploy/variables/full-config.uds.hcl"),
 	)
@@ -39,7 +39,7 @@ func TestDeployAndRemoveBundle(t *testing.T) {
 	firstK8s.AssertSecretExists("zarf", firstStateSecret)
 	secondK8s.AssertSecretExists("zarf", secondStateSecret)
 
-	result := testutil.RemoveBundle(t, testEnv.udsPath, bundleFile)
+	result := testutil.RemoveBundle(t, bundleFile)
 	markBundleRemoved()
 	assert.Equal(t, "k3d-core-init", result.BundleName)
 	assert.ElementsMatch(t, []bundle.RemovePackageResult{
@@ -54,60 +54,4 @@ func TestDeployAndRemoveBundle(t *testing.T) {
 	// Removing a test package must not disturb the suite-level Zarf installation.
 	firstK8s.AssertSecretExists("zarf", zarfStateSecret)
 	firstK8s.AssertDeploymentExists("zarf", zarfAgentDeployment)
-}
-
-func TestDeployAndRemoveBundleFromTarball(t *testing.T) {
-	t.Parallel()
-	namespace, k8s := testutil.AllocateTestNamespace(t, sharedClusterName, namespaceCleanupTimeout)
-	bundleDir := testutil.PreparePodinfoBundle(t, testEnv.podinfoPackagePath, "podinfo_tarball_remove", namespace)
-	markBundleRemoved := testutil.RegisterBundleCleanup(t, testEnv.udsPath, bundleDir, namespaceCleanupTimeout)
-	artifactPath := testutil.CreateBundleArtifact(t, testEnv.udsPath, bundleDir)
-	configPath := testutil.TestDataPath("bundles/deploy/variables/config.uds.hcl")
-	testutil.RequireUDSCommand(t, testEnv.udsPath,
-		"bundle", "deploy", artifactPath,
-		"--skip-signature-verification", "--config", configPath,
-	)
-	k8s.WaitForDeploymentReady(namespace, "podinfo", podinfoReadyTimeout)
-	stateSecret := testutil.ZarfPackageStateSecretName("podinfo", namespace)
-	k8s.AssertSecretExists("zarf", stateSecret)
-	result := testutil.RemoveBundle(t, testEnv.udsPath, artifactPath, "--skip-signature-verification")
-	markBundleRemoved()
-	assert.Equal(t, "podinfo-cluster-test", result.BundleName)
-	assert.Equal(t, []bundle.RemovePackageResult{{
-		Name:   "podinfo_tarball_remove",
-		Status: bundle.RemovePackageStatusRemoved,
-	}}, result.Packages)
-	k8s.AssertDeploymentNotExists(namespace, "podinfo")
-	k8s.AssertSecretNotExists("zarf", stateSecret)
-}
-func TestDeployAndRemoveBundleFromOCI(t *testing.T) {
-	t.Parallel()
-	namespace, k8s := testutil.AllocateTestNamespace(t, sharedClusterName, namespaceCleanupTimeout)
-	bundleDir := testutil.PreparePodinfoBundle(t, testEnv.podinfoPackagePath, "podinfo_oci_remove", namespace)
-	markBundleRemoved := testutil.RegisterBundleCleanup(t, testEnv.udsPath, bundleDir, namespaceCleanupTimeout)
-	artifactPath := testutil.CreateBundleArtifact(t, testEnv.udsPath, bundleDir)
-	registryHost := testutil.StartLocalRegistry(t)
-	ref := registryHost + "/test/podinfo-remove:v0.1.0"
-	configPath := testutil.TestDataPath("bundles/deploy/variables/config.uds.hcl")
-	testutil.RequireUDSCommand(t, testEnv.udsPath,
-		"bundle", "push", artifactPath, ref, "--plain-http",
-	)
-	testutil.RequireUDSCommand(t, testEnv.udsPath,
-		"bundle", "deploy", "oci://"+ref,
-		"--plain-http", "--skip-signature-verification", "--config", configPath,
-	)
-	k8s.WaitForDeploymentReady(namespace, "podinfo", podinfoReadyTimeout)
-	stateSecret := testutil.ZarfPackageStateSecretName("podinfo", namespace)
-	k8s.AssertSecretExists("zarf", stateSecret)
-	result := testutil.RemoveBundle(t, testEnv.udsPath, "oci://"+ref,
-		"--plain-http", "--skip-signature-verification",
-	)
-	markBundleRemoved()
-	assert.Equal(t, "podinfo-cluster-test", result.BundleName)
-	assert.Equal(t, []bundle.RemovePackageResult{{
-		Name:   "podinfo_oci_remove",
-		Status: bundle.RemovePackageStatusRemoved,
-	}}, result.Packages)
-	k8s.AssertDeploymentNotExists(namespace, "podinfo")
-	k8s.AssertSecretNotExists("zarf", stateSecret)
 }

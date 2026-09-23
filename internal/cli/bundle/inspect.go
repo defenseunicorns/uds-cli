@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
@@ -44,11 +43,15 @@ func NewInspectCommand(streams iostreams.IOStreams) *cobra.Command {
 		Short: "Inspect a UDS bundle",
 		Long:  "Inspect a built UDS bundle from a local .tar.zst artifact or OCI reference, displaying metadata and package details.",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			util.CheckErr(o.Complete(cmd, args))
-			util.CheckErr(o.Validate())
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := o.Complete(cmd, args); err != nil {
+				return err
+			}
+			if err := o.Validate(); err != nil {
+				return err
+			}
 			ctx := cmd.Context()
-			util.CheckErr(o.Run(ctx))
+			return o.Run(ctx)
 		},
 	}
 	addVerificationFlags(cmd, &o.Verification, true)
