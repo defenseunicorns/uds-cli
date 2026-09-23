@@ -82,6 +82,22 @@ jobs:
         with:
           suffix: unit
 
+  next-unit-tests:
+    name: Unit Tests / Next
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
+
+      - name: Setup development tools
+        uses: ./.github/actions/mise
+
+      - name: Run Next unit tests
+        run: uds run test:next-unit
+
   docs-link-check:
     name: Docs Link Check
     runs-on: ubuntu-latest
@@ -122,14 +138,20 @@ jobs:
           path: build/uds
           retention-days: 1
 
-  next-integration-tests:
-    name: Next / Integration
+  next-cli-tests:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
     needs: build
     permissions:
       contents: read
       id-token: write
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: CLI Tests / non-cluster
+            task: next-cli-non-cluster
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -142,22 +164,46 @@ jobs:
         with:
           create-cluster: "false"
 
-      - name: Run Next integration tests
+      - name: Run Next tests
         shell: bash
         run: |
           set -o pipefail
-          build/uds run test:next-integration 2>&1 | tee "${RUNNER_TEMP}/uds-command-next-integration.log"
+          build/uds run test:${{ matrix.task }} 2>&1 | tee "${RUNNER_TEMP}/uds-command-${{ matrix.task }}.log"
 
       - name: Save diagnostics
         if: always()
         uses: ./.github/actions/save-logs
         with:
-          suffix: next-integration
+          suffix: ${{ matrix.task }}
 
-  next-integration-library-tests:
-    name: Next / Integration Library
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+  next-library-tests:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Library Tests / non-cluster (local)
+            task: next-library-non-cluster
+            runner: ubuntu-latest
+            timeout: 15
+            supplied: false
+          - name: Library Tests / non-cluster (package verification)
+            task: next-library-non-cluster-package-verification
+            runner: ubuntu-latest
+            timeout: 15
+            supplied: false
+          - name: Library Tests / non-cluster (cluster lifecycle)
+            task: next-library-non-cluster-lifecycle
+            runner: uds-ubuntu-big-boy-4-core
+            timeout: 55
+            supplied: false
+          - name: Library Tests / in-cluster
+            task: next-library-in-cluster
+            runner: uds-ubuntu-big-boy-4-core
+            timeout: 55
+            supplied: true
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -167,23 +213,82 @@ jobs:
       - name: Setup development tools
         uses: ./.github/actions/mise
 
-      - name: Run Next library integration tests
+      - name: Select the matching Zarf tool
+        if: matrix.supplied
+        id: zarf-version
+        shell: bash
+        run: echo "version=$(go list -m -json github.com/zarf-dev/zarf | jq -r '.Version | ltrimstr("v")')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the Next test Zarf tool
+        if: matrix.supplied
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: 2026.9.11
+          install_args: zarf@${{ steps.zarf-version.outputs.version }}
+          cache: true
+
+      - name: Supply a Zarf-initialized test cluster
+        if: matrix.supplied
+        shell: bash
+        run: |
+          cluster_dir=$(mktemp -d "${RUNNER_TEMP}/uds-next-XXXXXXXX")
+          echo "UDS_TEST_CLUSTER_DIR=$cluster_dir" >> "$GITHUB_ENV"
+          echo "KUBECONFIG=$cluster_dir/kubeconfig.yaml" >> "$GITHUB_ENV"
+          echo "UDS_TEST_KUBECONFIG=$cluster_dir/kubeconfig.yaml" >> "$GITHUB_ENV"
+          mise exec "zarf@${{ steps.zarf-version.outputs.version }}" -- bash hack/test-cluster.sh setup "$cluster_dir"
+
+      - name: Run Next library tests
         shell: bash
         run: |
           set -o pipefail
-          uds run test:next-integration-library 2>&1 | tee "${RUNNER_TEMP}/uds-command-next-integration-library.log"
+          uds run test:${{ matrix.task }} 2>&1 | tee "${RUNNER_TEMP}/uds-command-${{ matrix.task }}.log"
 
       - name: Save diagnostics
         if: always()
         uses: ./.github/actions/save-logs
         with:
-          suffix: next-integration-library
+          suffix: ${{ matrix.task }}
+
+      - name: Clean up the supplied test cluster
+        if: always() && matrix.supplied && env.UDS_TEST_CLUSTER_DIR != ''
+        shell: bash
+        run: bash hack/test-cluster.sh cleanup "$UDS_TEST_CLUSTER_DIR"
+
+  next-library-keyless-tests:
+    name: Library Tests / non-cluster (keyless signing)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
+
+      - name: Setup development tools
+        uses: ./.github/actions/mise
+
+      - name: Run public keyless signing contract
+        run: uds run test:next-library-non-cluster-keyless
 
   next-cluster-tests:
-    name: Next / Cluster
+    name: ${{ matrix.name }}
     runs-on: uds-ubuntu-big-boy-4-core
-    needs: build
-    timeout-minutes: 55
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: CLI Tests / non-cluster (cluster lifecycle)
+            task: next-cli-non-cluster-lifecycle
+            supplied: false
+            timeout: 55
+          - name: CLI Tests / in-cluster
+            task: next-cli-in-cluster
+            supplied: true
+            timeout: 70
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -191,23 +296,47 @@ jobs:
           ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
           fetch-depth: 0
 
-      - name: Setup e2e job
-        uses: ./.github/actions/setup-uds-e2e
-        with:
-          # Next cluster integration tests create and clean up their own k3d cluster.
-          create-cluster: "false"
+      - name: Setup development tools
+        uses: ./.github/actions/mise
 
-      - name: Run Next cluster tests
+      - name: Select the matching Zarf tool
+        id: zarf-version
+        shell: bash
+        run: echo "version=$(go list -m -json github.com/zarf-dev/zarf | jq -r '.Version | ltrimstr("v")')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the Next test Zarf tool
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: 2026.9.11
+          install_args: zarf@${{ steps.zarf-version.outputs.version }}
+          cache: true
+
+      - name: Supply a Zarf-initialized test cluster
+        if: matrix.supplied
+        shell: bash
+        run: |
+          cluster_dir=$(mktemp -d "${RUNNER_TEMP}/uds-next-XXXXXXXX")
+          echo "UDS_TEST_CLUSTER_DIR=$cluster_dir" >> "$GITHUB_ENV"
+          echo "KUBECONFIG=$cluster_dir/kubeconfig.yaml" >> "$GITHUB_ENV"
+          echo "UDS_TEST_KUBECONFIG=$cluster_dir/kubeconfig.yaml" >> "$GITHUB_ENV"
+          mise exec "zarf@${{ steps.zarf-version.outputs.version }}" -- bash hack/test-cluster.sh setup "$cluster_dir"
+
+      - name: Run Next CLI cluster tests
         shell: bash
         run: |
           set -o pipefail
-          build/uds run test:next-cluster 2>&1 | tee "${RUNNER_TEMP}/uds-command-next-cluster.log"
+          uds run test:${{ matrix.task }} 2>&1 | tee "${RUNNER_TEMP}/uds-command-${{ matrix.task }}.log"
 
       - name: Save diagnostics
         if: always()
         uses: ./.github/actions/save-logs
         with:
-          suffix: next-cluster
+          suffix: ${{ matrix.task }}
+
+      - name: Clean up the supplied test cluster
+        if: always() && matrix.supplied && env.UDS_TEST_CLUSTER_DIR != ''
+        shell: bash
+        run: bash hack/test-cluster.sh cleanup "$UDS_TEST_CLUSTER_DIR"
 
   e2e-bundle-tests:
     name: Legacy / E2E ${{ matrix.name }}
@@ -370,10 +499,12 @@ jobs:
     needs:
       - lint
       - unit-tests
+      - next-unit-tests
       - docs-link-check
       - build
-      - next-integration-tests
-      - next-integration-library-tests
+      - next-library-keyless-tests
+      - next-cli-tests
+      - next-library-tests
       - next-cluster-tests
       - e2e-bundle-tests
       - e2e-single-tests

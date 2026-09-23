@@ -75,6 +75,9 @@ func TestDeploySubset_SubsetInOrder(t *testing.T) {
 func TestDeploySubset_LeafWithoutDepBlocked(t *testing.T) {
 	deployed, err := runSubsetDeploy(t, []string{"leaf"}, false)
 	require.ErrorContains(t, err, "requires")
+	var violation *bundle.DependencyViolationError
+	require.ErrorAs(t, err, &violation)
+	assert.Equal(t, map[string][]string{"leaf": {"middle"}}, violation.Violations)
 	assert.Empty(t, deployed)
 }
 

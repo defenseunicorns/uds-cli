@@ -39,11 +39,6 @@ func CreateBundleFromTestDataExpectError(t *testing.T, testDataRelPath, arch str
 	return internaltestutil.CreateBundleFromTestDataExpectError(t, testDataRelPath, arch)
 }
 
-// CreateBundleFromTestDataCLI creates a bundle through the configured CLI binary.
-func CreateBundleFromTestDataCLI(t *testing.T, testDataRelPath, arch string) string {
-	return internaltestutil.CreateBundleFromTestDataCLI(t, testDataRelPath, arch)
-}
-
 // CreateBundleFromTestDataCLIWithBinary creates a bundle through udsPath.
 func CreateBundleFromTestDataCLIWithBinary(t *testing.T, udsPath, testDataRelPath, arch string) string {
 	return internaltestutil.CreateBundleFromTestDataCLIWithBinary(t, udsPath, testDataRelPath, arch)

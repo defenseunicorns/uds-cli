@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,29 +22,25 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/defenseunicorns/uds-cli/tests/testutil"
+	"github.com/zarf-dev/zarf/src/pkg/feature"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
 )
 
 const (
 	clusterSetupTimeout     = 20 * time.Minute
-	clusterCleanupTimeout   = 5 * time.Minute
 	namespaceCleanupTimeout = 3 * time.Minute
+	suppliedKubeconfigEnv   = "UDS_TEST_KUBECONFIG"
 	sharedClusterName       = "uds-cli-integration"
-	clusterCleanupEnvVar    = "UDS_TEST_CLUSTER_CLEANUP"
 	zarfRegistryDeployment  = "zarf-docker-registry"
 	zarfAgentDeployment     = "agent-hook"
 	zarfStateSecret         = "zarf-state"
 )
 
-// suiteEnvironment owns the shared state and resources created by TestMain.
 type suiteEnvironment struct {
-	udsPath            string
 	kubeconfigPath     string
 	podinfoPackagePath string
 	monitorPackagePath string
 	tempDir            string
-	previousKubeconfig string
-	hadKubeconfig      bool
-	deleteCluster      bool
 }
 
 var testEnv *suiteEnvironment
@@ -55,202 +51,84 @@ func TestMain(m *testing.M) {
 
 func runTestSuite(m *testing.M) int {
 	setupCtx, cancelSetup := context.WithTimeout(context.Background(), clusterSetupTimeout)
-	defer cancelSetup()
-
 	env, err := setupSuite(setupCtx)
+	cancelSetup()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "cluster integration setup failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, "supplied cluster integration setup failed: %v\n", err)
 		return 1
 	}
 	testEnv = env
 
 	testCode := m.Run()
-
-	cleanupCtx, cancelCleanup := context.WithTimeout(context.Background(), clusterCleanupTimeout)
-	defer cancelCleanup()
-	if err := env.cleanup(cleanupCtx); err != nil {
+	if err := env.cleanup(); err != nil {
 		fmt.Fprintf(os.Stderr, "cluster integration cleanup failed: %v\n", err)
 		if testCode == 0 {
 			return 1
 		}
 	}
-
 	return testCode
 }
 
 func setupSuite(ctx context.Context) (_ *suiteEnvironment, retErr error) {
-	udsPath, err := testutil.ResolveUDSCLIPath()
-	if err != nil {
-		return nil, err
+	kubeconfigPath := strings.TrimSpace(os.Getenv(suppliedKubeconfigEnv))
+	if kubeconfigPath == "" {
+		return nil, fmt.Errorf("%s must name the supplied test kubeconfig", suppliedKubeconfigEnv)
 	}
-	if err := testutil.CheckClusterPrerequisites(ctx); err != nil {
-		return nil, err
+	if strings.TrimSpace(os.Getenv("KUBECONFIG")) != kubeconfigPath {
+		return nil, fmt.Errorf("KUBECONFIG must equal %s", suppliedKubeconfigEnv)
+	}
+	info, err := os.Stat(kubeconfigPath) //nolint:gosec // kubeconfig is the explicitly required test path
+	if err != nil {
+		return nil, fmt.Errorf("inspect supplied kubeconfig %q: %w", kubeconfigPath, err)
+	}
+	if info.IsDir() {
+		return nil, fmt.Errorf("supplied kubeconfig %q is a directory", kubeconfigPath)
+	}
+
+	if err := waitForZarfReady(ctx, kubeconfigPath); err != nil {
+		return nil, fmt.Errorf("verify supplied Zarf readiness: %w", err)
 	}
 
 	tempDir, err := os.MkdirTemp("", "uds-cli-cluster-integration")
 	if err != nil {
 		return nil, fmt.Errorf("create cluster integration temp directory: %w", err)
 	}
-
-	deleteCluster, err := testutil.CleanupEnabled(clusterCleanupEnvVar)
-	if err != nil {
-		_ = os.RemoveAll(tempDir)
-		return nil, err
-	}
-
 	env := &suiteEnvironment{
-		udsPath:        udsPath,
-		kubeconfigPath: filepath.Join(tempDir, "kubeconfig.yaml"),
+		kubeconfigPath: kubeconfigPath,
 		tempDir:        tempDir,
-		deleteCluster:  deleteCluster,
 	}
-	env.previousKubeconfig, env.hadKubeconfig = os.LookupEnv("KUBECONFIG")
-
 	defer func() {
-		if retErr == nil {
-			return
+		if retErr != nil {
+			if cleanupErr := env.cleanup(); cleanupErr != nil {
+				retErr = errors.Join(retErr, cleanupErr)
+			}
 		}
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), clusterCleanupTimeout)
-		defer cancel()
-		retErr = errors.Join(retErr, env.cleanup(cleanupCtx))
 	}()
-
-	clusterExists, clusterRunning, err := testutil.K3dClusterStatus(ctx, sharedClusterName)
-	if err != nil {
-		return nil, fmt.Errorf("inspect k3d cluster %q: %w", sharedClusterName, err)
-	}
-
-	if clusterExists {
-		if !clusterRunning {
-			fmt.Fprintf(os.Stderr, "Starting retained cluster %q...\n", sharedClusterName)
-			if err := testutil.RunCommand(ctx, os.Environ(), "k3d", "cluster", "start", sharedClusterName); err != nil {
-				return nil, fmt.Errorf("start retained cluster %q: %w", sharedClusterName, err)
-			}
-		}
-		fmt.Fprintf(os.Stderr, "Reusing shared cluster %q...\n", sharedClusterName)
-		if err := testutil.WriteK3dKubeconfig(ctx, sharedClusterName, env.kubeconfigPath); err != nil {
-			return nil, err
-		}
-		if err := waitForKubernetesAPI(ctx, env.kubeconfigPath); err != nil {
-			return nil, err
-		}
-		initialized, err := zarfInitialized(ctx, env.kubeconfigPath)
-		if err != nil {
-			return nil, fmt.Errorf("check Zarf initialization: %w", err)
-		}
-		if !initialized {
-			fmt.Fprintln(os.Stderr, "Zarf init is missing or incomplete; installing it...")
-			initBundle := testutil.TestDataPath("bundles/create/init-no-k3s")
-			if err := testutil.RunCommand(ctx, os.Environ(), udsPath, "bundle", "dev", "deploy", initBundle); err != nil {
-				return nil, fmt.Errorf("deploy Zarf init bundle: %w", err)
-			}
-		} else {
-			fmt.Fprintln(os.Stderr, "Reusing existing Zarf init installation.")
-		}
-	} else {
-		if err := os.Setenv("KUBECONFIG", env.kubeconfigPath); err != nil {
-			return nil, fmt.Errorf("set suite kubeconfig: %w", err)
-		}
-
-		apiPort, err := testutil.AvailableTCPPort()
-		if err != nil {
-			return nil, err
-		}
-		configPath := filepath.Join(tempDir, "config.uds.hcl")
-		if err := testutil.WriteBootstrapConfig(configPath, sharedClusterName, apiPort); err != nil {
-			return nil, err
-		}
-
-		bootstrapBundle := testutil.TestDataPath("bundles/deploy/init")
-		fmt.Fprintf(os.Stderr, "Creating shared cluster %q and installing Zarf init...\n", sharedClusterName)
-		if err := testutil.RunCommand(ctx, os.Environ(), udsPath, "bundle", "dev", "deploy", bootstrapBundle, "--config", configPath); err != nil {
-			return nil, fmt.Errorf("deploy cluster bootstrap bundle: %w", err)
-		}
-		if err := testutil.WriteK3dKubeconfig(ctx, sharedClusterName, env.kubeconfigPath); err != nil {
-			return nil, err
-		}
-	}
-
-	if err := waitForZarfReady(ctx, env.kubeconfigPath); err != nil {
-		return nil, err
-	}
 
 	packageDir := filepath.Join(tempDir, "packages")
 	if err := os.MkdirAll(packageDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create suite package directory: %w", err)
 	}
-	fmt.Fprintln(os.Stderr, "Building shared podinfo package...")
-	if err := testutil.RunCommand(ctx, os.Environ(), udsPath,
-		"zarf", "package", "create", testutil.TestDataPath("packages/podinfo"),
-		"--output", packageDir,
-		"--architecture", runtime.GOARCH,
-		"--features", "values=true",
-		"--confirm",
-	); err != nil {
+	if err := feature.Set([]feature.Feature{{Name: feature.Values, Enabled: true, Stage: feature.Alpha}}); err != nil {
+		return nil, fmt.Errorf("enable Zarf values: %w", err)
+	}
+	env.podinfoPackagePath, err = packager.Create(ctx, testutil.TestDataPath("packages/podinfo"), packageDir, packager.CreateOptions{})
+	if err != nil {
 		return nil, fmt.Errorf("build shared podinfo package: %w", err)
 	}
-
-	env.podinfoPackagePath = filepath.Join(
-		packageDir,
-		fmt.Sprintf("zarf-package-podinfo-%s-0.1.0.tar.zst", runtime.GOARCH),
-	)
-	if _, err := os.Stat(env.podinfoPackagePath); err != nil {
-		return nil, fmt.Errorf("locate shared podinfo package: %w", err)
-	}
-
-	fmt.Fprintln(os.Stderr, "Building operator monitor test package...")
-	if err := testutil.RunCommand(ctx, os.Environ(), udsPath,
-		"zarf", "package", "create", testutil.TestDataPath("packages/operator-monitor"),
-		"--output", packageDir,
-		"--architecture", runtime.GOARCH,
-		"--confirm",
-	); err != nil {
+	env.monitorPackagePath, err = packager.Create(ctx, testutil.TestDataPath("packages/operator-monitor"), packageDir, packager.CreateOptions{})
+	if err != nil {
 		return nil, fmt.Errorf("build operator monitor test package: %w", err)
 	}
-	env.monitorPackagePath = filepath.Join(
-		packageDir,
-		fmt.Sprintf("zarf-package-uds-cli-operator-monitor-%s-0.1.0.tar.zst", runtime.GOARCH),
-	)
-	if _, err := os.Stat(env.monitorPackagePath); err != nil {
-		return nil, fmt.Errorf("locate operator monitor test package: %w", err)
-	}
 
-	fmt.Fprintf(os.Stderr, "Shared cluster %q is ready.\n", sharedClusterName)
 	return env, nil
 }
 
-func (e *suiteEnvironment) cleanup(ctx context.Context) error {
-	var errs []error
-
-	if e.deleteCluster {
-		fmt.Fprintf(os.Stderr, "Deleting shared cluster %q...\n", sharedClusterName)
-		if err := testutil.DeleteK3dClusterContext(ctx, sharedClusterName); err != nil {
-			errs = append(errs, err)
-		}
-	} else {
-		fmt.Fprintf(
-			os.Stderr,
-			"Retaining shared cluster %q for reuse. Delete it with: k3d cluster delete %s\n",
-			sharedClusterName,
-			sharedClusterName,
-		)
+func (e *suiteEnvironment) cleanup() error {
+	if e.tempDir == "" {
+		return nil
 	}
-
-	if e.hadKubeconfig {
-		if err := os.Setenv("KUBECONFIG", e.previousKubeconfig); err != nil {
-			errs = append(errs, fmt.Errorf("restore KUBECONFIG: %w", err))
-		}
-	} else if err := os.Unsetenv("KUBECONFIG"); err != nil {
-		errs = append(errs, fmt.Errorf("unset KUBECONFIG: %w", err))
-	}
-
-	if e.tempDir != "" {
-		if err := os.RemoveAll(e.tempDir); err != nil {
-			errs = append(errs, fmt.Errorf("remove suite temp directory: %w", err))
-		}
-	}
-
-	return errors.Join(errs...)
+	return os.RemoveAll(e.tempDir)
 }
 
 func kubernetesClient(kubeconfigPath string) (*kubernetes.Clientset, error) {
@@ -265,50 +143,6 @@ func kubernetesClient(kubeconfigPath string) (*kubernetes.Clientset, error) {
 	return client, nil
 }
 
-func zarfInitialized(ctx context.Context, kubeconfigPath string) (bool, error) {
-	client, err := kubernetesClient(kubeconfigPath)
-	if err != nil {
-		return false, err
-	}
-	_, err = client.CoreV1().Secrets("zarf").Get(ctx, zarfStateSecret, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("get zarf/%s secret: %w", zarfStateSecret, err)
-	}
-
-	for _, name := range []string{zarfRegistryDeployment, zarfAgentDeployment} {
-		_, err := client.AppsV1().Deployments("zarf").Get(ctx, name, metav1.GetOptions{})
-		if apierrors.IsNotFound(err) {
-			return false, nil
-		}
-		if err != nil {
-			return false, fmt.Errorf("get zarf/%s deployment: %w", name, err)
-		}
-	}
-	return true, nil
-}
-
-func waitForKubernetesAPI(ctx context.Context, kubeconfigPath string) error {
-	client, err := kubernetesClient(kubeconfigPath)
-	if err != nil {
-		return err
-	}
-
-	err = wait.PollUntilContextCancel(ctx, time.Second, true, func(ctx context.Context) (bool, error) {
-		_, err := client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{Limit: 1})
-		if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) {
-			return false, err
-		}
-		return err == nil, nil
-	})
-	if err != nil {
-		return fmt.Errorf("wait for Kubernetes API to become ready: %w", err)
-	}
-	return nil
-}
-
 func waitForZarfReady(ctx context.Context, kubeconfigPath string) error {
 	client, err := kubernetesClient(kubeconfigPath)
 	if err != nil {
@@ -316,21 +150,26 @@ func waitForZarfReady(ctx context.Context, kubeconfigPath string) error {
 	}
 
 	err = wait.PollUntilContextCancel(ctx, time.Second, true, func(ctx context.Context) (bool, error) {
+		if _, err := client.CoreV1().Secrets("zarf").Get(ctx, zarfStateSecret, metav1.GetOptions{}); err != nil {
+			if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) {
+				return false, err
+			}
+			return false, nil
+		}
 		for _, name := range []string{zarfRegistryDeployment, zarfAgentDeployment} {
 			deployment, err := client.AppsV1().Deployments("zarf").Get(ctx, name, metav1.GetOptions{})
-			if apierrors.IsNotFound(err) {
-				return false, nil
-			}
 			if err != nil {
 				if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) {
 					return false, fmt.Errorf("get zarf/%s deployment: %w", name, err)
 				}
 				return false, nil
 			}
-
 			desiredReplicas := int32(1)
 			if deployment.Spec.Replicas != nil {
 				desiredReplicas = *deployment.Spec.Replicas
+			}
+			if desiredReplicas <= 0 {
+				return false, fmt.Errorf("deployment %q has invalid desired replicas %d", name, desiredReplicas)
 			}
 			if deployment.Status.ObservedGeneration < deployment.Generation ||
 				deployment.Status.AvailableReplicas < desiredReplicas {
@@ -340,7 +179,7 @@ func waitForZarfReady(ctx context.Context, kubeconfigPath string) error {
 		return true, nil
 	})
 	if err != nil {
-		return fmt.Errorf("wait for Zarf deployments to become ready: %w", err)
+		return fmt.Errorf("wait for Zarf state, registry, and agent readiness: %w", err)
 	}
 	return nil
 }

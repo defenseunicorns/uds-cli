@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
@@ -61,10 +60,14 @@ local and OCI bundle artifacts must use uds bundle deploy instead.`,
   # Deploy selected packages with confirmation
   uds bundle dev deploy ./my-bundle --packages nginx,podinfo --prompt`,
 		Args: cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			util.CheckErr(o.Complete(cmd, args))
-			util.CheckErr(o.Validate())
-			util.CheckErr(o.Run(cmd.Context()))
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := o.Complete(cmd, args); err != nil {
+				return err
+			}
+			if err := o.Validate(); err != nil {
+				return err
+			}
+			return o.Run(cmd.Context())
 		},
 	}
 

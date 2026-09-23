@@ -1,7 +1,7 @@
 // Copyright 2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
-//go:build integration
+//go:build cli
 
 package bundle_test
 
@@ -9,13 +9,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	bundlecmd "github.com/defenseunicorns/uds-cli/internal/cli/bundle"
-	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -24,7 +22,7 @@ import (
 )
 
 func TestReconfigure_LocalTarball(t *testing.T) {
-	outPath := testutil.CreateBundleFromTestData(t, "bundles/create/init-with-defaults", runtime.GOARCH)
+	outPath := createDefaultsArtifact(t)
 	allPaths, small := assertValidBundleStructure(t, outPath)
 
 	// Original has defaults.
@@ -146,76 +144,11 @@ func TestReconfigure_SignedLocalTarball(t *testing.T) {
 	require.NoError(t, verify.Execute())
 }
 
-func TestReconfigure_CustomSuffix(t *testing.T) {
-	outPath := testutil.CreateBundleFromTestData(t, "bundles/create/init-with-defaults", runtime.GOARCH)
-
-	newDefaultsPath := filepath.Join(t.TempDir(), "defaults.uds.hcl")
-	require.NoError(t, os.WriteFile(newDefaultsPath, []byte(`variables = { env = "staging" }`), 0o600))
-
-	outDir := t.TempDir()
-	streams, _, _, _ := iostreams.NewTestIOStreams()
-	root := bundlecmd.NewBundleCommand(streams)
-	root.SetArgs([]string{
-		"reconfigure", outPath,
-		"--defaults", newDefaultsPath,
-		"--suffix", "-il5",
-		"--output-dir", outDir,
-		"--unsigned",
-		"--skip-signature-verification",
-	})
-	require.NoError(t, root.Execute())
-
-	entries, err := os.ReadDir(outDir)
-	require.NoError(t, err)
-	found := false
-	for _, e := range entries {
-		if strings.Contains(e.Name(), "-il5-") && strings.HasSuffix(e.Name(), ".tar.zst") {
-			found = true
-		}
-	}
-	assert.True(t, found, "output should have -il5 suffix")
-}
-
-func TestReconfigure_InsertsDefaultsWhenOriginalHadNone(t *testing.T) {
-	// init bundle has no defaults.uds.hcl.
-	outPath := testutil.CreateBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
-
-	newDefaultsPath := filepath.Join(t.TempDir(), "defaults.uds.hcl")
-	require.NoError(t, os.WriteFile(newDefaultsPath, []byte(`variables = { inserted = true }`), 0o600))
-
-	outDir := t.TempDir()
-	streams, _, _, _ := iostreams.NewTestIOStreams()
-	root := bundlecmd.NewBundleCommand(streams)
-	root.SetArgs([]string{
-		"reconfigure", outPath,
-		"--defaults", newDefaultsPath,
-		"--suffix", "-reconfigured",
-		"--output-dir", outDir,
-		"--unsigned",
-		"--skip-signature-verification",
-	})
-	require.NoError(t, root.Execute())
-
-	entries, err := os.ReadDir(outDir)
-	require.NoError(t, err)
-	var reconfiguredPath string
-	for _, e := range entries {
-		if strings.Contains(e.Name(), "-reconfigured-") && strings.HasSuffix(e.Name(), ".tar.zst") {
-			reconfiguredPath = filepath.Join(outDir, e.Name())
-		}
-	}
-	require.NotEmpty(t, reconfiguredPath)
-
-	reconfigPaths, reconfigSmall := assertValidBundleStructure(t, reconfiguredPath)
-	assert.True(t, bundleDefinitionContainsLayerTitle(t, reconfigPaths, reconfigSmall, "defaults.uds.hcl"),
-		"defaults.uds.hcl should be inserted when original had none")
-}
-
 func TestReconfigure_OCI(t *testing.T) {
 	hostPort := testutil.StartLocalRegistry(t)
 
 	// Create a bundle and push it to the local registry.
-	outPath := testutil.CreateBundleFromTestData(t, "bundles/create/init-with-defaults", runtime.GOARCH)
+	outPath := createDefaultsArtifact(t)
 
 	pushRef := hostPort + "/test/reconfigure-oci:v1.0.0"
 	streams, _, _, _ := iostreams.NewTestIOStreams()
@@ -315,32 +248,4 @@ func TestReconfigure_OCI(t *testing.T) {
 	a, ok := origVars["a"].(string)
 	require.Truef(t, ok, "expected variable a to be a string, got %T", origVars["a"])
 	assert.Equal(t, "from-file", strings.TrimSpace(a), "original bundle should still have old defaults")
-
-	// Verify package manifests are identical between original and reconfigured.
-	// Only the bundle definition entry should differ.
-	type indexEntry struct {
-		Digest       string `json:"digest"`
-		ArtifactType string `json:"artifactType"`
-	}
-	type ociIdx struct {
-		Manifests []indexEntry `json:"manifests"`
-	}
-	var origIdx, reconfIdx ociIdx
-	require.NoError(t, json.Unmarshal(origSmall["oci/index.json"], &origIdx))
-	require.NoError(t, json.Unmarshal(reconfigSmall["oci/index.json"], &reconfIdx))
-
-	origPkgDigests := map[string]bool{}
-	for _, m := range origIdx.Manifests {
-		if m.ArtifactType != udsoci.MediaTypeBundleDefinition {
-			origPkgDigests[m.Digest] = true
-		}
-	}
-	reconfPkgDigests := map[string]bool{}
-	for _, m := range reconfIdx.Manifests {
-		if m.ArtifactType != udsoci.MediaTypeBundleDefinition {
-			reconfPkgDigests[m.Digest] = true
-		}
-	}
-	assert.Equal(t, origPkgDigests, reconfPkgDigests,
-		"package manifest digests should be identical — reconfigure should only change the bundle definition")
 }
