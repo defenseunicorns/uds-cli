@@ -44,7 +44,7 @@ Migrate a legacy `uds-bundle.yaml` and `uds-config.yaml` workflow to a Next bund
 
    Vendored tools such as `kubectl` and `helm` still use `uds zarf tools <tool>`, not `uds tools zarf tools <tool>`.
 
-   `uds logs`, `uds list`, and the legacy deploy flags `--resume`, `--retries`, and `--force-conflicts` have no Next equivalent at the moment. The legacy inspect flags `--sbom`, `--list-images`, and `--list-variables` are also not available in Next at the moment.
+   `uds logs`, `uds list`, and the legacy deploy flags `--retries` and `--force-conflicts` have no Next equivalent at the moment. Next supports `--resume`. The legacy inspect flags `--sbom`, `--list-images`, and `--list-variables` are also not available in Next at the moment.
 
    Next runs non-interactively by default. Use `--prompt` for confirmation.
 

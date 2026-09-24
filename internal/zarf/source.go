@@ -24,6 +24,8 @@ import (
 
 // PackageSource abstracts local and OCI package retrieval.
 type PackageSource interface {
+	// LoadPackageSpec reads only the package identity needed for resume.
+	LoadPackageSpec(context.Context, filters.ComponentFilterStrategy) (*PackageSpec, error)
 	// PullFiltered retrieves a deployable layout using the supplied filter.
 	PullFiltered(context.Context, string, layout.PackageLayoutOptions) (*layout.PackageLayout, error)
 	// IngestFiltered copies filtered package content into an OCI store.
@@ -40,14 +42,16 @@ type localSource struct {
 	streams   iostreams.IOStreams
 }
 type remoteSource struct {
-	ref     string
-	arch    string
-	opts    bundleinternal.ConfigOptions
-	streams iostreams.IOStreams
+	ref          string
+	arch         string
+	opts         bundleinternal.ConfigOptions
+	streams      iostreams.IOStreams
+	resolvedRoot *ocispec.Descriptor
 }
 type resolvedLayers struct {
 	remote    *zoci.Remote
 	root      *oci.Manifest
+	rootDesc  ocispec.Descriptor
 	layers    []ocispec.Descriptor
 	isPartial bool
 }
@@ -88,20 +92,39 @@ func isZarfPackage(dir string) bool {
 // selectZarfLayers asks Zarf to select the complete package graph for the
 // requested components before any package content is copied.
 func selectZarfLayers(ctx context.Context, root *oci.Manifest, fetcher content.Fetcher, filter filters.ComponentFilterStrategy) ([]ocispec.Descriptor, bool, error) {
-	pkg, err := zoci.FetchZarfYAML(ctx, root, fetcher)
+	filteredPackage, componentCount, err := filteredPackageDefinition(ctx, root, fetcher, filter)
 	if err != nil {
-		return nil, false, fmt.Errorf("fetching zarf.yaml: %w: %w", ErrFetchPackageMetadata, err)
+		return nil, false, err
 	}
-	filteredPackage, err := filters.Apply(api.NewPackageDefinitionFromV1alpha1(pkg), filter)
-	if err != nil {
-		return nil, false, fmt.Errorf("%w for package %q: %w", ErrApplyComponentFilter, pkg.Metadata.Name, err)
-	}
-	components := filteredPackage.AsV1alpha1().Components
+	pkg := filteredPackage.AsV1alpha1()
+	components := pkg.Components
 	layers, err := zoci.AssembleLayers(ctx, root, fetcher, components)
 	if err != nil {
 		return nil, false, fmt.Errorf("%w for package %q: %w", ErrAssemblePackageLayers, pkg.Metadata.Name, err)
 	}
-	return layers, len(components) < len(pkg.Components), nil
+	return layers, len(components) < componentCount, nil
+}
+
+// filteredPackageDefinition reads only zarf.yaml and applies the deployment component filter.
+func filteredPackageDefinition(ctx context.Context, root *oci.Manifest, fetcher content.Fetcher, filter filters.ComponentFilterStrategy) (api.PackageDefinition, int, error) {
+	pkg, err := zoci.FetchZarfYAML(ctx, root, fetcher)
+	if err != nil {
+		return api.PackageDefinition{}, 0, fmt.Errorf("fetching zarf.yaml: %w: %w", ErrFetchPackageMetadata, err)
+	}
+	filtered, err := filters.Apply(api.NewPackageDefinitionFromV1alpha1(pkg), filter)
+	if err != nil {
+		return api.PackageDefinition{}, 0, fmt.Errorf("%w for package %q: %w", ErrApplyComponentFilter, pkg.Metadata.Name, err)
+	}
+	return filtered, len(pkg.Components), nil
+}
+
+func packageSpecFromDefinition(definition api.PackageDefinition, digest string) *PackageSpec {
+	pkg := definition.AsV1alpha1()
+	components := make([]string, len(pkg.Components))
+	for i, component := range pkg.Components {
+		components[i] = component.Name
+	}
+	return &PackageSpec{Name: pkg.Metadata.Name, Digest: digest, Components: components}
 }
 
 // BuildComponentFilter creates a component filter strategy from optional component names.

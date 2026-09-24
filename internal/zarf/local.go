@@ -14,11 +14,65 @@ import (
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/archive"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
 var _ PackageSource = &localSource{}
+
+// LoadPackageSpec loads a local package definition without staging it for deployment.
+func (s *localSource) LoadPackageSpec(ctx context.Context, filter filters.ComponentFilterStrategy) (*PackageSpec, error) {
+	if strings.TrimSpace(s.path) == "" {
+		return nil, ErrLocalSourcePathRequired
+	}
+	path := s.resolvedPath()
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("stat %q: %w: %w", path, ErrStatLocalPackage, err)
+	}
+	if info.IsDir() {
+		if !isZarfPackage(path) {
+			return nil, fmt.Errorf("unsupported local package source %q: not a Zarf package directory or .tar.zst archive: %w", s.path, ErrInvalidLocalPackageSource)
+		}
+		if err := rejectSymlinks(path); err != nil {
+			return nil, err
+		}
+		pkgLayout, err := layout.LoadFromDir(ctx, path, layout.PackageLayoutOptions{Filter: filter, VerificationStrategy: layout.VerifyNever})
+		if err != nil {
+			return nil, fmt.Errorf("loading local package %q: %w: %w", s.path, ErrLoadPackage, err)
+		}
+		return packageSpecFromLayout(pkgLayout), nil
+	} else if strings.HasSuffix(path, ".tar.zst") {
+		return s.loadArchivePackageSpec(ctx, path, filter)
+	} else {
+		return nil, fmt.Errorf("unsupported local package source %q: not a Zarf package directory or .tar.zst archive: %w", s.path, ErrInvalidLocalPackageSource)
+	}
+}
+
+func (s *localSource) loadArchivePackageSpec(ctx context.Context, path string, filter filters.ComponentFilterStrategy) (*PackageSpec, error) {
+	digest, err := packager.PackageDigest(ctx, path, packager.PackageDigestOptions{Architecture: s.arch})
+	if err != nil {
+		return nil, fmt.Errorf("calculating local package digest %q: %w: %w", s.path, ErrLoadPackage, err)
+	}
+	stageDir, err := os.MkdirTemp(s.tmpDir, "zarf-pkg-metadata-*")
+	if err != nil {
+		return nil, fmt.Errorf("creating package archive workspace: %w: %w", ErrCreatePackageWorkspace, err)
+	}
+	defer func() { _ = os.RemoveAll(stageDir) }()
+	if err := archive.Decompress(ctx, path, stageDir, archive.DecompressOpts{Files: []string{layout.ZarfYAML, layout.Checksums}}); err != nil {
+		return nil, fmt.Errorf("extracting local package archive %q: %w: %w", path, ErrExtractLocalPackage, err)
+	}
+	pkgLayout, err := layout.LoadFromDir(ctx, stageDir, layout.PackageLayoutOptions{
+		Filter:               filter,
+		IsPartial:            true,
+		VerificationStrategy: layout.VerifyNever,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("loading local package %q: %w: %w", s.path, ErrLoadPackage, err)
+	}
+	return packageSpecFromDefinition(pkgLayout.PackageDefinition, digest), nil
+}
 
 func (s *localSource) resolvedPath() string {
 	if filepath.IsAbs(s.path) {

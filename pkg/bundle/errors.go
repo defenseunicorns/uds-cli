@@ -43,6 +43,8 @@ var (
 	ErrInspectBundle = errors.New("inspecting bundle")
 	// ErrPrepareDeploySource occurs when an artifact cannot be prepared for deployment.
 	ErrPrepareDeploySource = errors.New("preparing deploy source")
+	// ErrResumeSourceNotPrepared occurs when resume is requested for a source that cannot provide private resume metadata.
+	ErrResumeSourceNotPrepared = errors.New("resume requires a prepared deployment source")
 	// ErrRemoveBundle occurs when bundle parsing or removal fails.
 	ErrRemoveBundle = errors.New("removing bundle")
 	// ErrPullBundle occurs when a bundle cannot be pulled from OCI storage.

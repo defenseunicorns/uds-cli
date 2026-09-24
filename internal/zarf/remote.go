@@ -16,12 +16,51 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
+	"oras.land/oras-go/v2/registry"
 )
 
 var _ PackageSource = &remoteSource{}
 
+// LoadPackageSpec resolves only the OCI root manifest and filtered zarf.yaml.
+func (s *remoteSource) LoadPackageSpec(ctx context.Context, filter filters.ComponentFilterStrategy) (*PackageSpec, error) {
+	remote, err := s.newZociRemote(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("creating OCI remote for %q: %w: %w", s.ref, ErrCreateOCIRemote, err)
+	}
+	rootDesc, err := remote.ResolveRoot(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("resolving root manifest for %q: %w: %w", s.ref, ErrResolveRootManifest, err)
+	}
+	s.resolvedRoot = &rootDesc
+	root, err := remote.FetchManifest(ctx, rootDesc)
+	if err != nil {
+		return nil, fmt.Errorf("fetching root manifest for %q: %w: %w", s.ref, ErrFetchRootManifest, err)
+	}
+	definition, _, err := filteredPackageDefinition(ctx, root, remote, filter)
+	if err != nil {
+		return nil, fmt.Errorf("loading package specification for %q: %w", s.ref, err)
+	}
+	return packageSpecFromDefinition(definition, rootDesc.Digest.String()), nil
+}
+
 func (s *remoteSource) newZociRemote(ctx context.Context) (*zoci.Remote, error) {
-	return s.newZociRemoteForRef(ctx, s.ref)
+	ref, err := s.resolvedReference()
+	if err != nil {
+		return nil, err
+	}
+	return s.newZociRemoteForRef(ctx, ref)
+}
+
+func (s *remoteSource) resolvedReference() (string, error) {
+	if s.resolvedRoot == nil {
+		return s.ref, nil
+	}
+	ref, err := registry.ParseReference(s.ref)
+	if err != nil {
+		return "", err
+	}
+	ref.Reference = s.resolvedRoot.Digest.String()
+	return ref.String(), nil
 }
 
 func (s *remoteSource) newZociRemoteForRef(ctx context.Context, ref string) (*zoci.Remote, error) {
@@ -41,18 +80,23 @@ func (s *remoteSource) resolveFilteredLayers(ctx context.Context, filter filters
 	if err != nil {
 		return nil, fmt.Errorf("creating OCI remote for %q: %w: %w", s.ref, ErrCreateOCIRemote, err)
 	}
-	rootDesc, err := remote.ResolveRoot(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("resolving root manifest for %q: %w: %w", s.ref, ErrResolveRootManifest, err)
+	var rootDesc ocispec.Descriptor
+	if s.resolvedRoot != nil {
+		rootDesc = *s.resolvedRoot
+	} else {
+		rootDesc, err = remote.ResolveRoot(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("resolving root manifest for %q: %w: %w", s.ref, ErrResolveRootManifest, err)
+		}
 	}
-	pinnedRef := pinnedRemoteReference(remote, rootDesc)
-	remote, err = s.newZociRemoteForRef(ctx, pinnedRef)
+	s.resolvedRoot = &rootDesc
+	remote, err = s.newZociRemote(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("creating pinned OCI remote for %q: %w: %w", pinnedRef, ErrCreateOCIRemote, err)
+		return nil, fmt.Errorf("creating pinned OCI remote for %q: %w: %w", s.ref, ErrCreateOCIRemote, err)
 	}
 	root, err := remote.FetchManifest(ctx, rootDesc)
 	if err != nil {
-		return nil, fmt.Errorf("fetching root manifest for %q: %w: %w", pinnedRef, ErrFetchRootManifest, err)
+		return nil, fmt.Errorf("fetching root manifest for %q: %w: %w", s.ref, ErrFetchRootManifest, err)
 	}
 
 	layers := root.Layers
@@ -64,12 +108,7 @@ func (s *remoteSource) resolveFilteredLayers(ctx context.Context, filter filters
 		}
 	}
 	s.streams.Debug("resolved package layers", "ref", s.ref, "layers", len(layers), "partial", isPartial)
-	return &resolvedLayers{remote: remote, root: root, layers: layers, isPartial: isPartial}, nil
-}
-
-func pinnedRemoteReference(remote *zoci.Remote, desc ocispec.Descriptor) string {
-	ref := remote.Repo().Reference
-	return fmt.Sprintf("%s/%s@%s", ref.Registry, ref.Repository, desc.Digest)
+	return &resolvedLayers{remote: remote, root: root, rootDesc: rootDesc, layers: layers, isPartial: isPartial}, nil
 }
 
 func (s *remoteSource) concurrency() int {
@@ -81,30 +120,33 @@ func (s *remoteSource) concurrency() int {
 
 // PullFiltered pulls only the Zarf layers selected for the requested components.
 func (s *remoteSource) PullFiltered(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions) (*layout.PackageLayout, error) {
-	pkgLayout, _, err := s.pullFilteredWithSelection(ctx, tmpDir, loadOptions)
+	pkgLayout, _, digest, err := s.pullFilteredWithSelection(ctx, tmpDir, loadOptions)
+	if err == nil {
+		pkgLayout.SetRegistryDigest(digest)
+	}
 	return pkgLayout, err
 }
 
-func (s *remoteSource) pullFilteredWithSelection(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions) (*layout.PackageLayout, []ocispec.Descriptor, error) {
+func (s *remoteSource) pullFilteredWithSelection(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions) (*layout.PackageLayout, []ocispec.Descriptor, string, error) {
 	resolved, err := s.resolveFilteredLayers(ctx, loadOptions.Filter)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 	if _, err := resolved.remote.PullPackage(ctx, tmpDir, s.concurrency(), resolved.layers...); err != nil {
-		return nil, nil, fmt.Errorf("pulling package %q: %w: %w", s.ref, ErrPullPackage, err)
+		return nil, nil, "", fmt.Errorf("pulling package %q: %w: %w", s.ref, ErrPullPackage, err)
 	}
 	loadOptions.IsPartial = resolved.isPartial
 	pkgLayout, err := layout.LoadFromDir(ctx, tmpDir, loadOptions)
 	if err != nil {
-		return nil, nil, fmt.Errorf("loading package layout for %q: %w: %w", s.ref, ErrLoadPackage, err)
+		return nil, nil, "", fmt.Errorf("loading package layout for %q: %w: %w", s.ref, ErrLoadPackage, err)
 	}
-	return pkgLayout, resolved.layers, nil
+	return pkgLayout, resolved.layers, resolved.rootDesc.Digest.String(), nil
 }
 
 // VerifyAndIngestFiltered verifies one downloaded layout and copies those exact
 // bytes into the bundle's ORAS content store.
 func (s *remoteSource) VerifyAndIngestFiltered(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions, store *udsoci.Store) ([]ocispec.Descriptor, error) {
-	pkgLayout, selectedLayers, err := s.pullFilteredWithSelection(ctx, tmpDir, loadOptions)
+	pkgLayout, selectedLayers, _, err := s.pullFilteredWithSelection(ctx, tmpDir, loadOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +169,7 @@ func (s *remoteSource) IngestFiltered(ctx context.Context, filter filters.Compon
 	if err != nil {
 		return nil, fmt.Errorf("creating package ingest workspace: %w: %w", ErrCreatePackageWorkspace, err)
 	}
-	pkgLayout, selectedLayers, err := s.pullFilteredWithSelection(ctx, tmpDir, layout.PackageLayoutOptions{
+	pkgLayout, selectedLayers, _, err := s.pullFilteredWithSelection(ctx, tmpDir, layout.PackageLayoutOptions{
 		Filter:               filter,
 		VerificationStrategy: layout.VerifyNever,
 	})
