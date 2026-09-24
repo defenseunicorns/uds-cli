@@ -25,6 +25,7 @@ type DeployOptions struct {
 	BundlePath   string
 	Packages     []string
 	Force        bool
+	Resume       bool
 	Variables    []string
 	Config       *bundle.UDSBundleConfig
 	Verification VerifyOptions
@@ -81,15 +82,16 @@ inputs and must use uds bundle dev deploy instead.`,
 		},
 	}
 
-	addDeployFlags(cmd, &o.Packages, &o.Force, &o.Variables)
+	addDeployFlags(cmd, &o.Packages, &o.Force, &o.Resume, &o.Variables)
 	addVerificationFlags(cmd, &o.Verification, true)
 
 	return cmd
 }
 
-func addDeployFlags(cmd *cobra.Command, packages *[]string, force *bool, variables *[]string) {
+func addDeployFlags(cmd *cobra.Command, packages *[]string, force *bool, resume *bool, variables *[]string) {
 	cmd.Flags().StringSliceVarP(packages, "packages", "p", nil, "specific packages to deploy (comma-separated)")
 	cmd.Flags().BoolVarP(force, "force", "f", false, "deploy packages even if their dependencies are not selected")
+	cmd.Flags().BoolVarP(resume, "resume", "r", false, "skip packages already deployed successfully")
 	cmd.Flags().StringArrayVarP(variables, "set", "s", nil, "set a deploy-time variable using key=value")
 }
 
@@ -210,7 +212,13 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 				return err
 			}
 		}
-		result, err = runner(ctx, o.IOStreams, baseConfig, o.BundlePath, o.Packages, o.Force, o.flags.Prompt)
+		result, err = runner(ctx, o.IOStreams, baseConfig, deployOptions{
+			bundlePath: o.BundlePath,
+			packages:   o.Packages,
+			force:      o.Force,
+			resume:     o.Resume,
+			prompt:     o.flags.Prompt,
+		})
 	}
 	if err != nil {
 		return err
@@ -257,7 +265,13 @@ func (o *DeployOptions) runOCIArtifact(ctx context.Context, runner deployRunnerF
 		return nil, fmt.Errorf("%w %q into %q: %w", ErrPullBundle, o.BundlePath, outputDir, err)
 	}
 
-	return runner(ctx, o.IOStreams, o.Config, artifactPath, o.Packages, o.Force, o.flags.Prompt)
+	return runner(ctx, o.IOStreams, o.Config, deployOptions{
+		bundlePath: artifactPath,
+		packages:   o.Packages,
+		force:      o.Force,
+		resume:     o.Resume,
+		prompt:     o.flags.Prompt,
+	})
 }
 
 func validatePulledArtifact(workspace, outputPath string) (string, error) {

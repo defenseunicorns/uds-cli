@@ -37,6 +37,7 @@ func (s *DeploySuite) TestDeployCommand_PackagesFlagInHelp() {
 	s.Require().NoError(err, "help should succeed")
 	s.Contains(output, "--packages", "help output should document --packages flag")
 	s.Contains(output, "--force", "help output should document --force flag")
+	s.Contains(output, "--resume", "help output should document --resume flag")
 }
 
 func (s *DeploySuite) TestDevDeployCommand_HelpAndRouting() {
@@ -45,6 +46,7 @@ func (s *DeploySuite) TestDevDeployCommand_HelpAndRouting() {
 	s.Contains(output, "bundle definition")
 	s.Contains(output, "--packages")
 	s.Contains(output, "--force")
+	s.Contains(output, "--resume")
 	s.Contains(output, "--concurrency")
 	s.Contains(output, "--prompt")
 
