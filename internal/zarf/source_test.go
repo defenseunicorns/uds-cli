@@ -109,13 +109,14 @@ func TestNewPackageSource_Local(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			opts := bundleinternal.ConfigOptions{Architecture: "arm64", TmpDir: "/custom/tmp"}
+			opts := bundleinternal.ConfigOptions{Architecture: "arm64", TmpDir: "/custom/tmp", CacheDir: "/custom/cache"}
 			src := NewPackageSource(tt.source, opts, "/bundle/dir", iostreams.IOStreams{})
 			local, ok := src.(*localSource)
 			require.True(t, ok, "expected *localSource")
 			assert.Equal(t, tt.source, local.path)
 			assert.Equal(t, "arm64", local.arch)
 			assert.Equal(t, "/bundle/dir", local.bundleDir)
+			assert.Equal(t, "/custom/cache", local.cacheDir)
 		})
 	}
 }

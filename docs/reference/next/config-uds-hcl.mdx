@@ -65,6 +65,8 @@ options {
 
 The `tmp_dir` directory must already exist before running the command.
 
+During `bundle create`, Next writes selected Zarf image blobs to `<UDSCacheDir>/layers/<sha256-digest>`. It creates the cache's `layers` directory when the first image blob is written. Other package files are not cached, and Next does not yet read these cached layers.
+
 ## `signature_verification`
 
 This block defines the consumer's trust policy for a bundle artifact. It is separate from the package signature policy in each `package` block of `bundle.uds.hcl`, and it is separate from the signing options used by `bundle create` and `bundle sign`.
