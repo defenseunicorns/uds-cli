@@ -40,7 +40,6 @@ var (
 	ErrPushingBundleHCL                  = errors.New("pushing bundle HCL")
 	ErrPushingDefaultsHCL                = errors.New("pushing defaults HCL")
 	ErrPackingBundleDefinitionManifest   = errors.New("packing bundle definition manifest")
-	ErrCreatingInspectionWorkspace       = errors.New("creating inspection workspace")
 	ErrFetchingBundleDefinitionManifest  = errors.New("fetching bundle definition manifest")
 	ErrFetchingBundleDefinitionHCL       = errors.New("fetching bundle definition HCL")
 	ErrInvalidBundle                     = errors.New("invalid bundle")

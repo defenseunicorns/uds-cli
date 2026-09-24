@@ -31,23 +31,28 @@ const (
 // buildBundleArtifact creates a test bundle artifact without defaults.
 func buildBundleArtifact(t *testing.T, bundleHCL string, valuesFiles map[string][]string, pkgs []spec.Package) string {
 	t.Helper()
-	return buildBundleArtifactInner(t, bundleHCL, "", valuesFiles, pkgs, BundleFileName, "zarf.yaml")
+	return buildBundleArtifactInner(t, bundleHCL, "", valuesFiles, pkgs, BundleFileName, "zarf.yaml", nil)
 }
 
 // buildBundleArtifactWithDefaults creates a test artifact containing defaults HCL.
 func buildBundleArtifactWithDefaults(t *testing.T, bundleHCL, defaultsHCL string, valuesFiles map[string][]string, pkgs []spec.Package) string {
 	t.Helper()
-	return buildBundleArtifactInner(t, bundleHCL, defaultsHCL, valuesFiles, pkgs, BundleFileName, "zarf.yaml")
+	return buildBundleArtifactInner(t, bundleHCL, defaultsHCL, valuesFiles, pkgs, BundleFileName, "zarf.yaml", nil)
 }
 
 // buildBundleArtifactWithTitles creates a test artifact with custom layer titles.
 func buildBundleArtifactWithTitles(t *testing.T, bundleHCL string, valuesFiles map[string][]string, pkgs []spec.Package, bundleTitle, packageLayerTitle string) string {
 	t.Helper()
-	return buildBundleArtifactInner(t, bundleHCL, "", valuesFiles, pkgs, bundleTitle, packageLayerTitle)
+	return buildBundleArtifactInner(t, bundleHCL, "", valuesFiles, pkgs, bundleTitle, packageLayerTitle, nil)
+}
+
+func buildBundleArtifactWithZarfYAML(t *testing.T, bundleHCL string, pkgs []spec.Package, packageYAML map[string][]byte) string {
+	t.Helper()
+	return buildBundleArtifactInner(t, bundleHCL, "", nil, pkgs, BundleFileName, "zarf.yaml", packageYAML)
 }
 
 // buildBundleArtifactInner assembles the OCI layout shared by artifact test builders.
-func buildBundleArtifactInner(t *testing.T, bundleHCL, defaultsHCL string, valuesFiles map[string][]string, pkgs []spec.Package, bundleTitle, packageLayerTitle string) string {
+func buildBundleArtifactInner(t *testing.T, bundleHCL, defaultsHCL string, valuesFiles map[string][]string, pkgs []spec.Package, bundleTitle, packageLayerTitle string, packageYAML map[string][]byte) string {
 	t.Helper()
 	root := t.TempDir()
 	ociDir := filepath.Join(root, "oci")
@@ -89,7 +94,10 @@ func buildBundleArtifactInner(t *testing.T, bundleHCL, defaultsHCL string, value
 		Digest: writeBlob(definitionData), Size: int64(len(definitionData)),
 	}}
 	for _, pkg := range pkgs {
-		packageData := fmt.Appendf(nil, "metadata:\n  name: %s\nsource: %s\n", pkg.Name, pkg.Source)
+		packageData := packageYAML[pkg.Name]
+		if len(packageData) == 0 {
+			packageData = fmt.Appendf(nil, "metadata:\n  name: %s\nsource: %s\n", pkg.Name, pkg.Source)
+		}
 		packageManifest := ocispec.Manifest{
 			Versioned: specs.Versioned{SchemaVersion: 2},
 			Config:    ocispec.Descriptor{Digest: emptyDigest, Size: int64(len(emptyConfig))},

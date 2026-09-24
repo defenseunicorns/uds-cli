@@ -7,15 +7,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
-	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2/content"
 )
@@ -118,17 +115,7 @@ func (s *MetadataSource) FetchSignatureEvidence(ctx context.Context) ([]byte, er
 
 // Inspect reads bundle definition and package signature metadata.
 func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
-	var source *MetadataSource
-	var cleanup func()
-	var err error
-	if udsoci.IsOCIReference(opts.Source) {
-		source, err = OpenMetadataSource(ctx, opts.Source, opts.Config)
-	} else {
-		source, cleanup, err = openExtractedLocalMetadataSource(ctx, opts)
-		if cleanup != nil {
-			defer cleanup()
-		}
-	}
+	source, err := OpenMetadataSource(ctx, opts.Source, opts.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -137,38 +124,10 @@ func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 		return nil, err
 	}
 	result.PackageSignatures, err = ReadPackageSignatures(ctx, source, result.Bundle)
-	return result, err
-}
-
-func openExtractedLocalMetadataSource(ctx context.Context, opts InspectOptions) (*MetadataSource, func(), error) {
-	workspace, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-inspect-*")
 	if err != nil {
-		return nil, nil, fmt.Errorf("%w under %q: %w", ErrCreatingInspectionWorkspace, opts.Config.Options.TmpDir, err)
+		return result, err
 	}
-	cleanup := func() { _ = os.RemoveAll(workspace) }
-
-	if err := ExtractTarZst(ctx, opts.Streams, opts.Source, workspace); err != nil {
-		cleanup()
-		return nil, nil, fmt.Errorf("%w %q to %q: %w", ErrExtractingBundleArtifact, opts.Source, workspace, err)
-	}
-
-	ociDir := filepath.Join(workspace, "oci")
-	indexPath := filepath.Join(ociDir, "index.json")
-	indexBytes, err := os.ReadFile(indexPath)
-	if err != nil {
-		cleanup()
-		return nil, nil, fmt.Errorf("%w %q: %w", ErrReadingBundleIndex, indexPath, err)
-	}
-	store, err := udsoci.OpenReadOnlyStore(ociDir)
-	if err != nil {
-		cleanup()
-		return nil, nil, err
-	}
-	return &MetadataSource{
-		IndexBytes:     indexBytes,
-		ArtifactDigest: digest.FromBytes(indexBytes).String(),
-		Fetcher:        store,
-	}, cleanup, nil
+	return result, nil
 }
 
 // InspectBundleDefinition reads bundle definition metadata without package metadata.
