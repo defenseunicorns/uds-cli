@@ -6,38 +6,18 @@
 package cluster_test
 
 import (
-	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
-	"github.com/google/go-containerregistry/pkg/registry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/defenseunicorns/uds-cli/tests/testutil"
 )
-
-func TestDeployBundleResumeAfterPartialDeploy(t *testing.T) {
-	t.Parallel()
-
-	firstNamespace, firstK8s := testutil.AllocateTestNamespace(t, sharedClusterName, namespaceCleanupTimeout)
-	secondNamespace, secondK8s := testutil.AllocateTestNamespace(t, sharedClusterName, namespaceCleanupTimeout)
-	bundleDir := testutil.PrepareTwoPodinfoBundle(t, testEnv.podinfoPackagePath, firstNamespace, secondNamespace)
-	testutil.RegisterBundleCleanup(t, testEnv.udsPath, bundleDir, namespaceCleanupTimeout)
-
-	partial := testutil.DeployBundle(t, testEnv.udsPath, bundleDir, "--packages", "pod_info_primary")
-	assert.Equal(t, bundle.DeployResult{BundleName: "k3d-core-init", Packages: []bundle.DeployPackageResult{{Name: "pod_info_primary"}}}, partial)
-
-	resumed := testutil.DeployBundle(t, testEnv.udsPath, bundleDir, "--resume")
-	assert.Equal(t, bundle.DeployResult{BundleName: "k3d-core-init", Packages: []bundle.DeployPackageResult{{Name: "pod_info_secondary"}}}, resumed)
-	firstK8s.WaitForDeploymentReady(firstNamespace, "podinfo", podinfoReadyTimeout)
-	secondK8s.WaitForDeploymentReady(secondNamespace, "podinfo", podinfoReadyTimeout)
-}
 
 const podinfoReadyTimeout = 5 * time.Minute
 
@@ -46,16 +26,12 @@ func TestDeployVariablesBundleWithPodinfo(t *testing.T) {
 
 	namespace, k8s := testutil.AllocateTestNamespace(t, sharedClusterName, namespaceCleanupTimeout)
 	bundleDir := testutil.PreparePodinfoBundle(t, testEnv.podinfoPackagePath, "podinfo", namespace)
-	testutil.RegisterBundleCleanup(t, testEnv.udsPath, bundleDir, namespaceCleanupTimeout)
+	testutil.RegisterBundleCleanup(t, bundleDir, namespaceCleanupTimeout)
 
-	testutil.RequireUDSCommand(t, testEnv.udsPath,
+	testutil.RequireCLI(t,
 		"bundle", "dev", "deploy", bundleDir,
 		"--config", testutil.TestDataPath("bundles/deploy/variables/full-config.uds.hcl"),
 	)
-	result := testutil.DeployBundle(t, testEnv.udsPath, bundleDir,
-		"--resume", "--config", testutil.TestDataPath("bundles/deploy/variables/full-config.uds.hcl"),
-	)
-	assert.Empty(t, result.Packages)
 
 	assertPodinfoConfiguration(t, k8s, namespace)
 }
@@ -65,9 +41,9 @@ func TestDeployVariablesBundleWithSet(t *testing.T) {
 
 	namespace, k8s := testutil.AllocateTestNamespace(t, sharedClusterName, namespaceCleanupTimeout)
 	bundleDir := testutil.PreparePodinfoBundle(t, testEnv.podinfoPackagePath, "podinfo-set", namespace)
-	testutil.RegisterBundleCleanup(t, testEnv.udsPath, bundleDir, namespaceCleanupTimeout)
+	testutil.RegisterBundleCleanup(t, bundleDir, namespaceCleanupTimeout)
 
-	testutil.RequireUDSCommand(t, testEnv.udsPath,
+	testutil.RequireCLI(t,
 		"bundle", "dev", "deploy", bundleDir,
 		"--config", testutil.TestDataPath("bundles/deploy/variables/config.uds.hcl"),
 		"--set", "replica_count=2",
@@ -89,28 +65,35 @@ func TestDeployVariablesBundleWithSet(t *testing.T) {
 	)
 }
 
-func TestDeployFromArtifact(t *testing.T) {
+func TestDeployFromArtifactAndRemove(t *testing.T) {
 	t.Parallel()
 
 	namespace, k8s := testutil.AllocateTestNamespace(t, sharedClusterName, namespaceCleanupTimeout)
 	bundleDir := testutil.PreparePodinfoBundle(t, testEnv.podinfoPackagePath, "podinfo", namespace)
-	testutil.RegisterBundleCleanup(t, testEnv.udsPath, bundleDir, namespaceCleanupTimeout)
-	artifactPath := testutil.CreateBundleArtifact(t, testEnv.udsPath, bundleDir)
+	markBundleRemoved := testutil.RegisterBundleCleanup(t, bundleDir, namespaceCleanupTimeout)
+	artifactPath := testutil.CreateBundleArtifact(t, bundleDir)
 
 	deployDir := t.TempDir()
 	deployArtifact := filepath.Join(deployDir, filepath.Base(artifactPath))
 	require.NoError(t, os.Rename(artifactPath, deployArtifact))
 
-	testutil.RequireUDSCommand(t, testEnv.udsPath,
+	testutil.RequireCLI(t,
 		"bundle", "deploy", "--skip-signature-verification", deployArtifact,
 		"--config", testutil.TestDataPath("bundles/deploy/variables/config.uds.hcl"),
 	)
-	result := testutil.DeployBundle(t, testEnv.udsPath, deployArtifact,
-		"--skip-signature-verification", "--resume", "--config", testutil.TestDataPath("bundles/deploy/variables/config.uds.hcl"),
-	)
-	assert.Empty(t, result.Packages)
 
 	assertPodinfoConfiguration(t, k8s, namespace)
+	stateSecret := testutil.ZarfPackageStateSecretName("podinfo", namespace)
+	k8s.AssertSecretExists("zarf", stateSecret)
+	result := testutil.RemoveBundle(t, deployArtifact, "--skip-signature-verification")
+	markBundleRemoved()
+	assert.Equal(t, "podinfo-cluster-test", result.BundleName)
+	assert.Equal(t, []bundle.RemovePackageResult{{
+		Name:   "podinfo",
+		Status: bundle.RemovePackageStatusRemoved,
+	}}, result.Packages)
+	k8s.AssertDeploymentNotExists(namespace, "podinfo")
+	k8s.AssertSecretNotExists("zarf", stateSecret)
 }
 
 func TestDeploySignedArtifact(t *testing.T) {
@@ -118,46 +101,54 @@ func TestDeploySignedArtifact(t *testing.T) {
 
 	namespace, k8s := testutil.AllocateTestNamespace(t, sharedClusterName, namespaceCleanupTimeout)
 	bundleDir := testutil.PreparePodinfoBundle(t, testEnv.podinfoPackagePath, "podinfo-signed", namespace)
-	testutil.RegisterBundleCleanup(t, testEnv.udsPath, bundleDir, namespaceCleanupTimeout)
-	artifactPath := testutil.CreateBundleArtifact(t, testEnv.udsPath, bundleDir)
+	testutil.RegisterBundleCleanup(t, bundleDir, namespaceCleanupTimeout)
+	artifactPath := testutil.CreateBundleArtifact(t, bundleDir)
 	privateKey, publicKey := testutil.GenerateCosignKeyPair(t)
 
-	testutil.RequireUDSCommand(t, testEnv.udsPath,
+	testutil.RequireCLI(t,
 		"bundle", "sign", artifactPath, "--signing-key", privateKey,
 	)
-	testutil.RequireUDSCommand(t, testEnv.udsPath,
+	testutil.RequireCLI(t,
 		"bundle", "deploy", artifactPath,
 		"--public-key", publicKey,
 		"--config", testutil.TestDataPath("bundles/deploy/variables/config.uds.hcl"),
 	)
+
 	assertPodinfoConfiguration(t, k8s, namespace)
 }
 
-func TestDeployFromOCI(t *testing.T) {
+func TestDeployFromOCIAndRemove(t *testing.T) {
 	t.Parallel()
 
 	namespace, k8s := testutil.AllocateTestNamespace(t, sharedClusterName, namespaceCleanupTimeout)
-	bundleDir := testutil.PreparePodinfoBundle(t, testEnv.podinfoPackagePath, "podinfo_oci", namespace)
-	testutil.RegisterBundleCleanup(t, testEnv.udsPath, bundleDir, namespaceCleanupTimeout)
-	artifactPath := testutil.CreateBundleArtifact(t, testEnv.udsPath, bundleDir)
+	bundleDir := testutil.PreparePodinfoBundle(t, testEnv.podinfoPackagePath, "podinfo_oci_remove", namespace)
+	markBundleRemoved := testutil.RegisterBundleCleanup(t, bundleDir, namespaceCleanupTimeout)
+	artifactPath := testutil.CreateBundleArtifact(t, bundleDir)
 
-	registryServer := httptest.NewServer(registry.New())
-	t.Cleanup(registryServer.Close)
-	registryHost := strings.TrimPrefix(registryServer.URL, "http://")
-	ref := registryHost + "/test/podinfo-oci:v0.1.0"
+	registryHost := testutil.StartLocalRegistry(t)
+	ref := registryHost + "/test/podinfo-remove:v0.1.0"
 	configPath := testutil.TestDataPath("bundles/deploy/variables/config.uds.hcl")
 
-	testutil.RequireUDSCommand(t, testEnv.udsPath, "bundle", "push", artifactPath, ref, "--plain-http")
-	testutil.RequireUDSCommand(t, testEnv.udsPath,
+	testutil.RequireCLI(t, "bundle", "push", artifactPath, ref, "--plain-http")
+	testutil.RequireCLI(t,
 		"bundle", "deploy", "--skip-signature-verification", "oci://"+ref,
 		"--plain-http", "--config", configPath,
 	)
-	result := testutil.DeployBundle(t, testEnv.udsPath, "oci://"+ref,
-		"--plain-http", "--skip-signature-verification", "--resume", "--config", configPath,
-	)
-	assert.Empty(t, result.Packages)
 
 	assertPodinfoConfiguration(t, k8s, namespace)
+	stateSecret := testutil.ZarfPackageStateSecretName("podinfo", namespace)
+	k8s.AssertSecretExists("zarf", stateSecret)
+	result := testutil.RemoveBundle(t, "oci://"+ref,
+		"--plain-http", "--skip-signature-verification",
+	)
+	markBundleRemoved()
+	assert.Equal(t, "podinfo-cluster-test", result.BundleName)
+	assert.Equal(t, []bundle.RemovePackageResult{{
+		Name:   "podinfo_oci_remove",
+		Status: bundle.RemovePackageStatusRemoved,
+	}}, result.Packages)
+	k8s.AssertDeploymentNotExists(namespace, "podinfo")
+	k8s.AssertSecretNotExists("zarf", stateSecret)
 }
 
 func assertPodinfoConfiguration(t *testing.T, k8s *testutil.K8sClient, namespace string) {

@@ -1,14 +1,12 @@
 // Copyright 2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
-//go:build integration
+//go:build cli
 
 package bundle_test
 
 import (
-	"context"
 	"encoding/json"
-	"io"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -17,14 +15,26 @@ import (
 	"testing"
 
 	"github.com/google/go-containerregistry/pkg/registry"
-	"github.com/mholt/archives"
 	"github.com/stretchr/testify/require"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	fixtureartifact "github.com/defenseunicorns/uds-cli/tests/fixtures/artifact"
+	"github.com/defenseunicorns/uds-cli/tests/testutil"
 )
+
+func executeCLI(t *testing.T, input string, args ...string) (string, error) {
+	t.Helper()
+	streams, in, out, errOut := iostreams.NewTestIOStreams()
+	if input != "" {
+		_, err := in.WriteString(input)
+		require.NoError(t, err)
+	}
+	err := testutil.ExecuteCLI(t.Context(), streams, args...)
+	return out.String() + errOut.String(), err
+}
 
 type inspectResult struct {
 	Name             string                  `json:"name" yaml:"name"`
@@ -87,88 +97,11 @@ package "pkg" {
 	return result.OutputPath
 }
 
-// readBundleEntries reads a bundle tar.zst and returns:
-//   - allPaths: set of every file path in the archive
-//   - small: content of files smaller than 1 MiB (suitable for OCI index / manifest blobs)
-//
-// Large blobs (layer data) are tracked in allPaths only, avoiding loading multi-hundred-MB
-// layer files into memory during tests.
 func readBundleEntries(t *testing.T, tarPath string) (allPaths map[string]bool, small map[string][]byte) {
 	t.Helper()
-	allPaths = map[string]bool{}
-	small = map[string][]byte{}
-
-	f, err := os.Open(tarPath)
+	entries, err := fixtureartifact.Read(t.Context(), tarPath)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = f.Close() })
-
-	ca := archives.CompressedArchive{
-		Extraction:  archives.Tar{},
-		Compression: archives.Zstd{},
-	}
-	err = ca.Extract(t.Context(), f, func(_ context.Context, info archives.FileInfo) error {
-		if info.IsDir() {
-			return nil
-		}
-		allPaths[info.NameInArchive] = true
-		const maxSmall = 1 << 20 // 1 MiB
-		if info.Size() < maxSmall {
-			rc, openErr := info.Open()
-			if openErr != nil {
-				return openErr
-			}
-			defer rc.Close()
-			b, readErr := io.ReadAll(rc)
-			if readErr != nil {
-				return readErr
-			}
-			small[info.NameInArchive] = b
-		}
-		return nil
-	})
-	require.NoError(t, err)
-	return allPaths, small
-}
-
-// bundleContainsLayerTitle reports whether the given bundle entries contain:
-//  1. a layer in any manifest whose org.opencontainers.image.title == title, AND
-//  2. the corresponding blob present in allPaths.
-func bundleContainsLayerTitle(t *testing.T, allPaths map[string]bool, small map[string][]byte, title string) bool {
-	t.Helper()
-
-	idxBytes, ok := small["oci/index.json"]
-	require.True(t, ok, "oci/index.json not found in bundle")
-
-	var idx struct {
-		Manifests []struct {
-			Digest string `json:"digest"`
-		} `json:"manifests"`
-	}
-	require.NoError(t, json.Unmarshal(idxBytes, &idx))
-
-	for _, m := range idx.Manifests {
-		hex := strings.TrimPrefix(m.Digest, "sha256:")
-		manifestBytes, hasManifest := small["oci/blobs/sha256/"+hex]
-		if !hasManifest {
-			continue
-		}
-		var im struct {
-			Layers []struct {
-				Digest      string            `json:"digest"`
-				Annotations map[string]string `json:"annotations"`
-			} `json:"layers"`
-		}
-		if err := json.Unmarshal(manifestBytes, &im); err != nil {
-			continue
-		}
-		for _, l := range im.Layers {
-			if l.Annotations["org.opencontainers.image.title"] == title {
-				layerHex := strings.TrimPrefix(l.Digest, "sha256:")
-				return allPaths["oci/blobs/sha256/"+layerHex]
-			}
-		}
-	}
-	return false
+	return entries.Paths, entries.Small
 }
 
 // bundleDefinitionContainsLayerTitle reports whether the bundle definition manifest
@@ -176,42 +109,9 @@ func bundleContainsLayerTitle(t *testing.T, allPaths map[string]bool, small map[
 // the given org.opencontainers.image.title AND the corresponding blob is present.
 func bundleDefinitionContainsLayerTitle(t *testing.T, allPaths map[string]bool, small map[string][]byte, title string) bool {
 	t.Helper()
-
-	idxBytes, ok := small["oci/index.json"]
-	require.True(t, ok, "oci/index.json not found in bundle")
-
-	var idx struct {
-		Manifests []struct {
-			Digest       string `json:"digest"`
-			ArtifactType string `json:"artifactType"`
-		} `json:"manifests"`
-	}
-	require.NoError(t, json.Unmarshal(idxBytes, &idx))
-
-	for _, m := range idx.Manifests {
-		if m.ArtifactType != udsoci.MediaTypeBundleDefinition {
-			continue
-		}
-		hex := strings.TrimPrefix(m.Digest, "sha256:")
-		manifestBytes, ok := small["oci/blobs/sha256/"+hex]
-		if !ok {
-			continue
-		}
-		var im struct {
-			Layers []struct {
-				Digest      string            `json:"digest"`
-				Annotations map[string]string `json:"annotations"`
-			} `json:"layers"`
-		}
-		require.NoError(t, json.Unmarshal(manifestBytes, &im))
-		for _, l := range im.Layers {
-			if l.Annotations["org.opencontainers.image.title"] == title {
-				layerHex := strings.TrimPrefix(l.Digest, "sha256:")
-				return allPaths["oci/blobs/sha256/"+layerHex]
-			}
-		}
-	}
-	return false
+	hasLayer, err := fixtureartifact.Entries{Paths: allPaths, Small: small}.HasLayerInArtifact(title, udsoci.MediaTypeBundleDefinition)
+	require.NoError(t, err)
+	return hasLayer
 }
 
 // startLocalTLSRegistry starts an in-memory OCI registry with a self-signed TLS certificate.
@@ -225,45 +125,9 @@ func startLocalTLSRegistry(t *testing.T) string {
 // extractLayerFromBundle extracts a layer's blob content by title from the bundle definition manifest.
 func extractLayerFromBundle(t *testing.T, small map[string][]byte, title string) []byte {
 	t.Helper()
-
-	idxBytes, ok := small["oci/index.json"]
-	require.True(t, ok)
-
-	var idx struct {
-		Manifests []struct {
-			Digest       string `json:"digest"`
-			ArtifactType string `json:"artifactType"`
-		} `json:"manifests"`
-	}
-	require.NoError(t, json.Unmarshal(idxBytes, &idx))
-
-	for _, m := range idx.Manifests {
-		if m.ArtifactType != udsoci.MediaTypeBundleDefinition {
-			continue
-		}
-		hex := strings.TrimPrefix(m.Digest, "sha256:")
-		manifestBytes, ok := small["oci/blobs/sha256/"+hex]
-		if !ok {
-			continue
-		}
-		var manifest struct {
-			Layers []struct {
-				Digest      string            `json:"digest"`
-				Annotations map[string]string `json:"annotations"`
-			} `json:"layers"`
-		}
-		require.NoError(t, json.Unmarshal(manifestBytes, &manifest))
-		for _, l := range manifest.Layers {
-			if l.Annotations["org.opencontainers.image.title"] == title {
-				layerHex := strings.TrimPrefix(l.Digest, "sha256:")
-				data, ok := small["oci/blobs/sha256/"+layerHex]
-				require.True(t, ok, "%s blob not found", title)
-				return data
-			}
-		}
-	}
-	t.Fatalf("%s layer not found in bundle definition manifest", title)
-	return nil
+	contents, err := fixtureartifact.Entries{Small: small}.LayerInArtifact(title, udsoci.MediaTypeBundleDefinition)
+	require.NoError(t, err)
+	return contents
 }
 
 // assertHasReconfiguredAnnotation verifies the bundle definition manifest has the provenance annotation.

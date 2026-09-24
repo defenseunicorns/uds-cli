@@ -9,7 +9,6 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
-	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
@@ -75,10 +74,14 @@ Examples:
   # Remove using an unsigned local alpha artifact
   uds bundle remove ./my-bundle.tar.zst --skip-signature-verification`,
 		Args: cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			util.CheckErr(o.Complete(cmd, args))
-			util.CheckErr(o.Validate())
-			util.CheckErr(o.Run(cmd.Context()))
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := o.Complete(cmd, args); err != nil {
+				return err
+			}
+			if err := o.Validate(); err != nil {
+				return err
+			}
+			return o.Run(cmd.Context())
 		},
 	}
 

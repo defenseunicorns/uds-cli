@@ -431,7 +431,10 @@ func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path,
 		return nil, fmt.Errorf("path must not be empty: %w", ErrSourceRequired)
 	}
 	if !artifact.IsTarZst(path) {
-		bundlePath := bundleinternal.ResolveBundlePath(path)
+		bundlePath, err := filepath.Abs(bundleinternal.ResolveBundlePath(path))
+		if err != nil {
+			return nil, fmt.Errorf("%w: resolving bundle path: %w", ErrPrepareDeploySource, err)
+		}
 		defaultsPath, err := bundleinternal.AdjacentDefaultsPath(filepath.Dir(bundlePath))
 		if err != nil {
 			return nil, fmt.Errorf("%w: discovering adjacent defaults: %w", ErrPrepareDeploySource, err)
@@ -439,6 +442,13 @@ func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path,
 		return &DeploySource{BundlePath: bundlePath, DefaultsPath: defaultsPath, resumePrepared: true}, nil
 	}
 
+	if tmpDir == "" {
+		tmpDir = os.TempDir()
+	}
+	tmpDir, err := filepath.Abs(tmpDir)
+	if err != nil {
+		return nil, fmt.Errorf("%w: resolving temporary directory: %w", ErrPrepareDeploySource, err)
+	}
 	workspaceDir, err := os.MkdirTemp(tmpDir, "uds-bundle-deploy-*")
 	if err != nil {
 		return nil, fmt.Errorf("%w: creating workspace for bundle artifact: %w", ErrPrepareDeploySource, err)

@@ -8,7 +8,6 @@ package cluster_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +20,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/defenseunicorns/uds-cli/tests/testutil"
+	"github.com/zarf-dev/zarf/src/pkg/cluster"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
 )
 
 const (
@@ -39,7 +40,7 @@ func TestOperatorMonitor(t *testing.T) {
 	waitForMonitorPod(t, k8s, "uds-cli-monitor-watcher")
 
 	t.Run("streams operator and policy events", func(t *testing.T) {
-		output := testutil.RequireUDSCommand(t, testEnv.udsPath,
+		output := testutil.RequireCLI(t,
 			"core", "operator", "monitor",
 			"--namespace", monitorResourceNamespace,
 			"--no-color",
@@ -85,7 +86,7 @@ func TestOperatorMonitor(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				output := testutil.RequireUDSCommand(t, testEnv.udsPath,
+				output := testutil.RequireCLI(t,
 					"core", "operator", "monitor", tt.stream,
 					"--namespace", monitorResourceNamespace,
 					"--no-color",
@@ -101,7 +102,7 @@ func TestOperatorMonitor(t *testing.T) {
 	})
 
 	t.Run("emits timestamped JSON", func(t *testing.T) {
-		output := testutil.RequireUDSCommand(t, testEnv.udsPath,
+		output := testutil.RequireCLI(t,
 			"core", "operator", "monitor", "allowed",
 			"--namespace", monitorResourceNamespace,
 			"--json",
@@ -121,18 +122,23 @@ func TestOperatorMonitor(t *testing.T) {
 func deployMonitorPackage(t *testing.T) {
 	t.Helper()
 
-	testutil.RequireUDSCommand(t, testEnv.udsPath,
-		"zarf", "package", "deploy", testEnv.monitorPackagePath, "--confirm",
-	)
+	layout, err := packager.LoadPackage(t.Context(), testEnv.monitorPackagePath, packager.LoadOptions{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, layout.Cleanup()) })
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), namespaceCleanupTimeout)
 		defer cancel()
-		if err := testutil.RunCommand(ctx, os.Environ(), testEnv.udsPath,
-			"zarf", "package", "remove", testEnv.monitorPackagePath, "--confirm",
-		); err != nil {
+		client, err := cluster.New(ctx)
+		if err != nil {
+			t.Errorf("connect for monitor package cleanup: %v", err)
+			return
+		}
+		if err := packager.Remove(ctx, layout.PackageDefinition, packager.RemoveOptions{Cluster: client}); err != nil {
 			t.Errorf("remove operator monitor test package: %v", err)
 		}
 	})
+	_, err = packager.Deploy(t.Context(), layout, packager.DeployOptions{})
+	require.NoError(t, err)
 }
 
 // registerMonitorNamespaceCleanup removes pepr-system only when this test created it. Cluster suites may reuse

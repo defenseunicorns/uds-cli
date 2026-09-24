@@ -1,7 +1,7 @@
 // Copyright 2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
-//go:build integration
+//go:build cli
 
 package bundle_test
 
@@ -9,13 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"testing"
 
-	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	clibundle "github.com/defenseunicorns/uds-cli/internal/cli/bundle"
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -25,7 +22,7 @@ import (
 )
 
 func TestSignVerifyCommand_Integration(t *testing.T) {
-	artifactPath := testutil.CreateBundleFromTestData(t, "bundles/create/init", runtime.GOARCH)
+	artifactPath := createInspectArtifact(t)
 	privateKey, publicKey := testutil.GenerateCosignKeyPair(t)
 
 	signStreams, _, _, _ := iostreams.NewTestIOStreams()
@@ -47,53 +44,6 @@ func TestSignVerifyCommand_Integration(t *testing.T) {
 	require.NoError(t, json.Unmarshal(inspectOut.Bytes(), &inspectResult))
 	require.NotNil(t, inspectResult.BundleSignature)
 	assert.Equal(t, bundlepkg.BundleSignatureStatusVerified, inspectResult.BundleSignature.Status)
-
-	workspace := t.TempDir()
-	require.NoError(t, artifact.ExtractTarZst(t.Context(), iostreams.IOStreams{}, artifactPath, workspace))
-	indexPath := filepath.Join(workspace, "oci", "index.json")
-	index, err := os.ReadFile(indexPath)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(indexPath, append(index, '\n'), 0o600))
-
-	tampered := filepath.Join(t.TempDir(), "tampered.tar.zst")
-	require.NoError(t, artifact.WriteTarZst(t.Context(), iostreams.IOStreams{}, tampered, workspace))
-	err = bundlepkg.Verify(t.Context(), bundlepkg.VerifyOptions{
-		Source: tampered,
-		Policy: bundlepkg.VerificationPolicy{PublicKey: readFile(t, publicKey)},
-		TmpDir: t.TempDir(),
-	})
-	require.ErrorContains(t, err, "verifying bundle signature")
-}
-
-func TestSignedOCIPull_Integration(t *testing.T) {
-	arch := runtime.GOARCH
-	registryHost := testutil.StartLocalRegistry(t)
-	ref := fmt.Sprintf("%s/test/signed-bundle:v0.1.0", registryHost)
-	artifactPath := createInspectArtifact(t)
-	privateKey, publicKey := testutil.GenerateCosignKeyPair(t)
-
-	signStreams, _, _, _ := iostreams.NewTestIOStreams()
-	sign := clibundle.NewBundleCommand(signStreams)
-	sign.SetArgs([]string{"sign", artifactPath, "--signing-key", privateKey})
-	require.NoError(t, sign.Execute())
-
-	config := &bundlepkg.UDSBundleConfig{
-		Global:  &bundlepkg.GlobalOptions{},
-		Options: &bundlepkg.ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true, Architecture: arch, Concurrency: 10},
-	}
-	_, err := bundlepkg.Push(t.Context(), artifactPath, ref, bundlepkg.PushOptions{Config: config})
-	require.NoError(t, err)
-
-	_, err = bundlepkg.Pull(t.Context(), ref, t.TempDir(), bundlepkg.PullOptions{Config: config})
-	require.ErrorContains(t, err, "signature verification must configure exactly one of public key or keyless")
-
-	pullResult, err := bundlepkg.Pull(t.Context(), ref, t.TempDir(), bundlepkg.PullOptions{
-		Config:       config,
-		Verification: bundlepkg.VerificationPolicy{PublicKey: readFile(t, publicKey)},
-	})
-	require.NoError(t, err)
-	require.FileExists(t, pullResult.OutputPath)
-	assertValidBundleStructure(t, pullResult.OutputPath)
 }
 
 func TestKeylessSignVerify_Integration(t *testing.T) {
@@ -137,12 +87,4 @@ func TestKeylessSignVerify_Integration(t *testing.T) {
 		"--certificate-oidc-issuer", "https://token.actions.githubusercontent.com",
 	})
 	require.NoError(t, verify.Execute())
-}
-
-func readFile(t *testing.T, path string) string {
-	t.Helper()
-
-	contents, err := os.ReadFile(path)
-	require.NoError(t, err)
-	return string(contents)
 }

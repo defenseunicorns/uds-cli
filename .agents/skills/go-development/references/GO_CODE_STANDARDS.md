@@ -31,11 +31,11 @@ These rules are self-contained. Do not fetch external sources at runtime.
 - Follow relevant ADRs in `docs/adr/` before designing or changing code.
 - `pkg/` contains supported public library packages.
 - `internal/` contains repository-private implementation packages.
-- Cobra command wiring belongs in `internal/cli`; business logic belongs in `pkg/` or sibling `internal/` packages.
+- Cobra command wiring belongs in `internal/cli`; business logic belongs in `pkg/` or sibling `internal/` packages. Next command handlers use `RunE` to return errors; the executable reports errors and exits.
 - Do not expose `internal/logger`, `internal/printer`, `internal/version`, or private implementation types in exported `pkg/` signatures.
 - Keep Legacy and Next boundaries separate:
   - Legacy: `internal/legacy/...`, `pkg/legacy/...`, `tests/legacy/e2e`, `testdata/legacy`.
-  - Next: canonical `internal/...` excluding `internal/legacy`, `pkg/bundle/...`, `pkg/iostreams`, `tests/integration`, `tests/library`, `tests/cluster`, `tests/smoke`.
+  - Next: canonical `internal/...` excluding `internal/legacy`, `pkg/bundle/...`, `pkg/iostreams`, `tests/cli`, `tests/library`, and `tests/cluster`.
 - New feature work targets Next unless a maintainer explicitly scopes the change to Legacy.
 - Do not make Legacy packages depend on canonical Next packages.
 
@@ -75,6 +75,10 @@ Examples:
 - Need to read or write the UDS bundle root index? Use `internal/oci`.
 - Need to fetch bundle HCL or bundle signature layers? Use `internal/oci` or the bundle package that wraps it.
 - Need command behavior that deploys packages? Use `internal/zarf` and upstream Zarf APIs; keep cobra wiring in `internal/cli`.
+
+Direct Cobra tests that trigger Zarf package-action callbacks require the
+standalone Zarf tool version to match the `go.mod` dependency. Use the
+mise-managed tool; do not route callbacks through another UDS binary.
 
 ## 4. Declarations
 

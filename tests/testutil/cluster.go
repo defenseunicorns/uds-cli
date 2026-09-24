@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
 var invalidDNSLabelChars = regexp.MustCompile(`[^a-z0-9-]+`)
@@ -279,12 +280,13 @@ package "pod_info_secondary" {
 	return dir
 }
 
-// RequireUDSCommand runs the CLI and fails the test when the command fails.
-func RequireUDSCommand(t *testing.T, udsPath string, args ...string) []byte {
+// RequireCLI executes a Next Cobra command and returns its standard output.
+func RequireCLI(t *testing.T, args ...string) []byte {
 	t.Helper()
-	output, err := runUDSCommand(t.Context(), t, udsPath, args...)
-	require.NoError(t, err, "uds %s failed", strings.Join(args, " "))
-	return output
+	var stdout, stderr strings.Builder
+	err := ExecuteCLI(t.Context(), iostreams.New(nil, &stdout, &stderr), args...)
+	require.NoError(t, err, "uds %s failed: %s", strings.Join(args, " "), stderr.String())
+	return []byte(stdout.String())
 }
 
 // GenerateCosignKeyPair writes a passwordless Cosign key pair for a test.
@@ -302,9 +304,9 @@ func GenerateCosignKeyPair(t *testing.T) (string, string) {
 }
 
 // CreateBundleArtifact creates and locates an unsigned bundle artifact in bundleDir.
-func CreateBundleArtifact(t *testing.T, udsPath, bundleDir string) string {
+func CreateBundleArtifact(t *testing.T, bundleDir string) string {
 	t.Helper()
-	RequireUDSCommand(t, udsPath, "bundle", "create", "--unsigned", "--architecture", runtime.GOARCH, bundleDir)
+	RequireCLI(t, "bundle", "create", "--unsigned", "--architecture", runtime.GOARCH, bundleDir)
 	matches, err := filepath.Glob(filepath.Join(bundleDir, "uds-bundle-*.tar.zst"))
 	require.NoError(t, err)
 	require.Len(t, matches, 1, "expected exactly one bundle artifact in %s", bundleDir)
@@ -312,7 +314,7 @@ func CreateBundleArtifact(t *testing.T, udsPath, bundleDir string) string {
 }
 
 // RegisterBundleCleanup registers fallback removal of a deployed bundle.
-func RegisterBundleCleanup(t *testing.T, udsPath, bundlePath string, cleanupTimeout time.Duration) func() {
+func RegisterBundleCleanup(t *testing.T, bundlePath string, cleanupTimeout time.Duration) func() {
 	t.Helper()
 	removed := false
 	t.Cleanup(func() {
@@ -321,14 +323,15 @@ func RegisterBundleCleanup(t *testing.T, udsPath, bundlePath string, cleanupTime
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), cleanupTimeout)
 		defer cancel()
-		cmd, err := bundleRemoveCommand(ctx, udsPath, bundlePath)
+		args, directory, err := bundleRemoveArgs(bundlePath)
 		if err != nil {
 			t.Errorf("prepare cleanup for bundle %q: %v", bundlePath, err)
 			return
 		}
-		output, err := cmd.CombinedOutput()
+		var stdout, stderr strings.Builder
+		err = executeCLI(ctx, iostreams.New(nil, &stdout, &stderr), directory, args...)
 		if err != nil {
-			t.Errorf("cleanup bundle %q: %v\n%s", bundlePath, err, output)
+			t.Errorf("cleanup bundle %q: %v\n%s", bundlePath, err, stdout.String()+stderr.String())
 		}
 	})
 	return func() {
@@ -337,14 +340,12 @@ func RegisterBundleCleanup(t *testing.T, udsPath, bundlePath string, cleanupTime
 }
 
 // RemoveBundle removes a bundle with the CLI and returns its structured result.
-func RemoveBundle(t *testing.T, udsPath, bundlePath string, args ...string) bundle.RemoveResult {
+func RemoveBundle(t *testing.T, bundlePath string, args ...string) bundle.RemoveResult {
 	t.Helper()
-	cmd, err := bundleRemoveCommand(t.Context(), udsPath, bundlePath, args...)
+	commandArgs, directory, err := bundleRemoveArgs(bundlePath, args...)
 	require.NoError(t, err)
 	var stdout, stderr strings.Builder
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err = cmd.Run()
+	err = executeCLI(t.Context(), iostreams.New(nil, &stdout, &stderr), directory, commandArgs...)
 	if err != nil {
 		t.Logf("uds bundle remove output:\nstdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
 	}
@@ -352,43 +353,6 @@ func RemoveBundle(t *testing.T, udsPath, bundlePath string, args ...string) bund
 
 	var result bundle.RemoveResult
 	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &result), "remove output should be valid JSON: %s", stdout.String())
-	return result
-}
-
-// DeployBundle deploys a bundle and returns its structured result.
-func DeployBundle(t *testing.T, udsPath, bundlePath string, extraArgs ...string) bundle.DeployResult {
-	t.Helper()
-	target := bundlePath
-	workingDir := ""
-	args := []string{"bundle"}
-	if !strings.HasPrefix(bundlePath, "oci://") {
-		info, err := os.Stat(bundlePath)
-		require.NoError(t, err)
-		if info.IsDir() {
-			target = "."
-			workingDir = bundlePath
-			args = append(args, "dev")
-		} else if filepath.Base(bundlePath) == "bundle.uds.hcl" {
-			target = filepath.Base(bundlePath)
-			workingDir = filepath.Dir(bundlePath)
-			args = append(args, "dev")
-		}
-	}
-	args = append(args, "deploy", target, "-o", "json")
-	args = append(args, extraArgs...)
-	cmd := exec.CommandContext(t.Context(), udsPath, args...)
-	cmd.Dir = workingDir
-	cmd.Env = os.Environ()
-	var stdout, stderr strings.Builder
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	if err != nil {
-		t.Logf("uds bundle deploy output:\nstdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
-	}
-	require.NoError(t, err, "uds bundle deploy %q failed", bundlePath)
-	var result bundle.DeployResult
-	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &result), "deploy output should be valid JSON: %s", stdout.String())
 	return result
 }
 
@@ -441,44 +405,23 @@ func copyFile(source, destination string) (err error) {
 	return nil
 }
 
-func runUDSCommand(ctx context.Context, t *testing.T, udsPath string, args ...string) ([]byte, error) {
-	t.Helper()
-	cmd := exec.CommandContext(ctx, udsPath, args...)
-	cmd.Env = os.Environ()
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Logf("uds %s output:\n%s", strings.Join(args, " "), output)
-	}
-	return output, err
-}
-
-func bundleRemoveCommand(ctx context.Context, udsPath, bundlePath string, extraArgs ...string) (*exec.Cmd, error) {
-	target := bundlePath
-	workingDir := ""
-
+func bundleRemoveArgs(bundlePath string, extraArgs ...string) ([]string, string, error) {
+	directory := ""
 	args := []string{"bundle"}
 	if !strings.HasPrefix(bundlePath, "oci://") {
 		info, err := os.Stat(bundlePath)
 		if err != nil {
-			return nil, fmt.Errorf("inspect bundle path %q: %w", bundlePath, err)
+			return nil, "", fmt.Errorf("inspect bundle path %q: %w", bundlePath, err)
 		}
-
-		if info.IsDir() {
-			target = "."
-			workingDir = bundlePath
+		if info.IsDir() || filepath.Base(bundlePath) == "bundle.uds.hcl" {
 			args = append(args, "dev")
-		} else if filepath.Base(bundlePath) == "bundle.uds.hcl" {
-			target = filepath.Base(bundlePath)
-			workingDir = filepath.Dir(bundlePath)
-			args = append(args, "dev")
+			if info.IsDir() {
+				directory = bundlePath
+			} else {
+				directory = filepath.Dir(bundlePath)
+			}
 		}
 	}
-
-	remove := []string{"remove", target, "-o", "json"}
-	args = append(args, remove...)
-	args = append(args, extraArgs...)
-	cmd := exec.CommandContext(ctx, udsPath, args...)
-	cmd.Dir = workingDir
-	cmd.Env = os.Environ()
-	return cmd, nil
+	args = append(args, "remove", bundlePath, "-o", "json")
+	return append(args, extraArgs...), directory, nil
 }

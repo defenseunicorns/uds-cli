@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
-	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
@@ -72,10 +71,14 @@ inputs and must use uds bundle dev deploy instead.`,
   # Deploy selected packages with confirmation
   uds bundle deploy bundle.tar.zst --packages nginx,podinfo --prompt`,
 		Args: cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			util.CheckErr(o.Complete(cmd, args))
-			util.CheckErr(o.Validate())
-			util.CheckErr(o.Run(cmd.Context()))
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := o.Complete(cmd, args); err != nil {
+				return err
+			}
+			if err := o.Validate(); err != nil {
+				return err
+			}
+			return o.Run(cmd.Context())
 		},
 	}
 
