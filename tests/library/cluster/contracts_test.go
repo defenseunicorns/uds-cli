@@ -75,6 +75,29 @@ func TestInClusterDeploySourceAndRemove(t *testing.T) {
 	assertClusterConfigMapsAbsent(t.Context(), t, client, fixture)
 }
 
+func TestInClusterResumeAfterPartialDeploy(t *testing.T) {
+	client := suppliedCluster(t)
+	fixture := createClusterBundleFixture(t)
+	createClusterNamespace(t, client, fixture.Namespace)
+	registerClusterFixtureCleanup(t, client, fixture)
+	source := prepareClusterDeploySource(t, fixture.Root, fixture.Config)
+
+	partial, err := bundle.Deploy(t.Context(), source, bundle.DeployOptions{
+		Config:   fixture.Config,
+		Packages: []string{fixture.BasePackage},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []bundle.DeployPackageResult{{Name: fixture.BasePackage}}, partial.Packages)
+
+	resumed, err := bundle.Deploy(t.Context(), source, bundle.DeployOptions{Config: fixture.Config, Resume: true})
+	require.NoError(t, err)
+	assert.Equal(t, []bundle.DeployPackageResult{{Name: fixture.AppPackage}}, resumed.Packages)
+	assertClusterDeployment(t, client, fixture, &bundle.DeployResult{
+		BundleName: resumed.BundleName,
+		Packages:   append(partial.Packages, resumed.Packages...),
+	})
+}
+
 func TestInClusterDeployArtifactWithCustomLoaderAndRemove(t *testing.T) {
 	client := suppliedCluster(t)
 	fixture := createClusterBundleFixture(t)

@@ -172,6 +172,15 @@ func TestBundleHooks_PreDeployCanInstallPackageHook(t *testing.T) {
 	assert.True(t, invoked)
 }
 
+func TestResumeRejectsCustomLoader(t *testing.T) {
+	_, err := bundle.Deploy(t.Context(), deploySource(singlePkgBundle()), bundle.DeployOptions{
+		Config: newTestConfig(),
+		Resume: true,
+	})
+
+	require.ErrorIs(t, err, bundle.ErrResumeSourceNotPrepared)
+}
+
 func TestDeployValidatesOptionsBeforeHooks(t *testing.T) {
 	var invoked bool
 	_, err := bundle.Deploy(t.Context(), deploySource(singlePkgBundle()), bundle.DeployOptions{
