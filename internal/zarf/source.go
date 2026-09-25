@@ -38,6 +38,7 @@ type localSource struct {
 	arch      string
 	bundleDir string
 	tmpDir    string
+	cacheDir  string
 	streams   iostreams.IOStreams
 }
 type remoteSource struct {
@@ -77,6 +78,7 @@ func NewPackageSource(source string, opts bundleinternal.ConfigOptions, bundleDi
 		arch:      opts.Architecture,
 		bundleDir: bundleDir,
 		tmpDir:    opts.TmpDir,
+		cacheDir:  opts.CacheDir,
 		streams:   streams,
 	}
 }
