@@ -50,6 +50,111 @@ func TestReadPackageZarfNamesRequiresMetadataName(t *testing.T) {
 	})
 }
 
+type blobBatchFetcher struct {
+	blobs map[digest.Digest][]byte
+}
+
+func (f blobBatchFetcher) Fetch(_ context.Context, descriptor ocispec.Descriptor) (io.ReadCloser, error) {
+	return readerForDescriptor(f.blobs, descriptor)
+}
+
+func (f blobBatchFetcher) FetchBatch(_ context.Context, descriptors []ocispec.Descriptor, visit func(ocispec.Descriptor, []byte) error) error {
+	for _, descriptor := range descriptors {
+		data, ok := f.blobs[descriptor.Digest]
+		if !ok {
+			return fmt.Errorf("blob %s not found", descriptor.Digest)
+		}
+		if err := visit(descriptor, data); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func TestZarfPackageMetadataBatchMatchesOrdinaryParsingErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		zarfYAML    []byte
+		alterRoot   func(*ocispec.Manifest)
+		rootBytes   []byte
+		assertError func(*testing.T, error)
+	}{
+		{
+			name:      "malformed package root manifest",
+			zarfYAML:  []byte("metadata:\n  name: test\n"),
+			rootBytes: []byte("{"),
+			assertError: func(t *testing.T, err error) {
+				t.Helper()
+				require.ErrorIs(t, err, ErrParsingPackageManifest)
+			},
+		},
+		{
+			name:      "unsupported package root schema",
+			zarfYAML:  []byte("metadata:\n  name: test\n"),
+			alterRoot: func(root *ocispec.Manifest) { root.SchemaVersion = 1 },
+			assertError: func(t *testing.T, err error) {
+				t.Helper()
+				var target UnsupportedSchemaVersionError
+				require.ErrorAs(t, err, &target)
+				assert.Equal(t, "package manifest", target.Artifact)
+				assert.Equal(t, 1, target.Version)
+			},
+		},
+		{
+			name:      "unsupported package root media type",
+			zarfYAML:  []byte("metadata:\n  name: test\n"),
+			alterRoot: func(root *ocispec.Manifest) { root.MediaType = "application/unsupported" },
+			assertError: func(t *testing.T, err error) {
+				t.Helper()
+				var target UnsupportedMediaTypeError
+				require.ErrorAs(t, err, &target)
+				assert.Equal(t, "package manifest", target.Artifact)
+				assert.Equal(t, "application/unsupported", target.MediaType)
+			},
+		},
+		{
+			name:     "malformed zarf metadata",
+			zarfYAML: []byte("metadata:\n  name: [\n"),
+			assertError: func(t *testing.T, err error) {
+				t.Helper()
+				require.ErrorIs(t, err, ErrParsingZarfYAML)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			const packageName = "bundle-label"
+			manifests, blobs, _ := packageMetadataFixture(t, packageName, tt.zarfYAML, true, 0)
+			if tt.rootBytes != nil || tt.alterRoot != nil {
+				manifestDescriptor := manifests[packageName]
+				manifestBytes := tt.rootBytes
+				if manifestBytes == nil {
+					var root ocispec.Manifest
+					require.NoError(t, json.Unmarshal(blobs[manifestDescriptor.Digest], &root))
+					tt.alterRoot(&root)
+					var err error
+					manifestBytes, err = json.Marshal(root)
+					require.NoError(t, err)
+				}
+				delete(blobs, manifestDescriptor.Digest)
+				manifestDescriptor.Digest = digest.FromBytes(manifestBytes)
+				manifestDescriptor.Size = int64(len(manifestBytes))
+				manifests[packageName] = manifestDescriptor
+				blobs[manifestDescriptor.Digest] = manifestBytes
+			}
+
+			fetcher := blobBatchFetcher{blobs: blobs}
+			_, _, ordinaryErr := fetchZarfPackage(t.Context(), packageName, manifests[packageName], fetcher)
+			tt.assertError(t, ordinaryErr)
+
+			metadata, batched := readZarfPackageMetadataBatch(t.Context(), []string{packageName}, manifests, fetcher)
+			require.True(t, batched)
+			tt.assertError(t, metadata[packageName].err)
+		})
+	}
+}
+
 func TestFetchZarfPackageClassifiesMalformedYAML(t *testing.T) {
 	manifests, blobs, _ := packageMetadataFixture(t, "bundle-label", []byte("metadata:\n  name: [\n"), true, 0)
 
