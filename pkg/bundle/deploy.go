@@ -266,7 +266,8 @@ func toZarfConfig(cfg *UDSBundleConfig) *internalzarf.UDSBundleConfig {
 		options = &bundleinternal.ConfigOptions{
 			LogLevel: cfg.Options.LogLevel, Architecture: cfg.Options.Architecture,
 			PlainHTTP: cfg.Options.PlainHTTP, SkipTLSVerify: cfg.Options.SkipTLSVerify,
-			TmpDir: cfg.Options.TmpDir, Concurrency: cfg.Options.Concurrency,
+			CacheDir: cfg.Options.CacheDir,
+			TmpDir:   cfg.Options.TmpDir, Concurrency: cfg.Options.Concurrency,
 		}
 	}
 	return &internalzarf.UDSBundleConfig{Options: options, Variables: bundleinternal.Variables(cfg.Variables)}
@@ -281,7 +282,8 @@ func fromZarfConfig(cfg *internalzarf.UDSBundleConfig) *UDSBundleConfig {
 		options = &ConfigOptions{
 			LogLevel: cfg.Options.LogLevel, Architecture: cfg.Options.Architecture,
 			PlainHTTP: cfg.Options.PlainHTTP, SkipTLSVerify: cfg.Options.SkipTLSVerify,
-			TmpDir: cfg.Options.TmpDir, Concurrency: cfg.Options.Concurrency,
+			CacheDir: cfg.Options.CacheDir,
+			TmpDir:   cfg.Options.TmpDir, Concurrency: cfg.Options.Concurrency,
 		}
 	}
 	return &UDSBundleConfig{Options: options, Variables: Variables(cfg.Variables)}

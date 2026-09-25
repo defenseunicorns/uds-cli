@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"testing"
 
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
@@ -19,12 +20,15 @@ import (
 func TestDefaults(t *testing.T) {
 	r := NewConfigResolver()
 	opts := r.Defaults()
+	homeDir, err := os.UserHomeDir()
+	require.NoError(t, err)
 
 	require.Equal(t, "info", opts.LogLevel)
 	require.Equal(t, runtime.GOARCH, opts.Architecture)
 	require.False(t, opts.PlainHTTP)
 	require.False(t, opts.SkipTLSVerify)
 	require.Equal(t, 10, opts.Concurrency)
+	require.Equal(t, filepath.Join(homeDir, bundleinternal.UDSCacheDirName), opts.CacheDir)
 	require.Equal(t, os.TempDir(), opts.TmpDir)
 }
 
@@ -108,6 +112,18 @@ func TestMergeHCL(t *testing.T) {
 			},
 		},
 		{
+			name: "HCL overrides cache directory",
+			base: bundle.ConfigOptions{
+				CacheDir: "/default-cache",
+			},
+			hcl: &bundle.ConfigOptions{
+				CacheDir: "/configured-cache",
+			},
+			expected: bundle.ConfigOptions{
+				CacheDir: "/configured-cache",
+			},
+		},
+		{
 			name: "HCL overrides concurrency only",
 			base: bundle.ConfigOptions{
 				LogLevel:     "info",
@@ -155,6 +171,7 @@ func TestMergeHCL(t *testing.T) {
 				Architecture:  "arm64",
 				PlainHTTP:     true,
 				SkipTLSVerify: true,
+				CacheDir:      "/custom-cache",
 				TmpDir:        "/custom-tmp",
 				Concurrency:   20,
 			},
@@ -163,6 +180,7 @@ func TestMergeHCL(t *testing.T) {
 				Architecture:  "arm64",
 				PlainHTTP:     true,
 				SkipTLSVerify: true,
+				CacheDir:      "/custom-cache",
 				TmpDir:        "/custom-tmp",
 				Concurrency:   20,
 			},
@@ -214,6 +232,7 @@ func registerTestFlags(cmd *cobra.Command) {
 	cmd.Flags().StringP("architecture", "a", defaults.Architecture, "target architecture")
 	cmd.Flags().Bool("plain-http", defaults.PlainHTTP, "use plain HTTP")
 	cmd.Flags().Bool("skip-tls-verify", defaults.SkipTLSVerify, "skip TLS verification")
+	cmd.Flags().String("uds-cache", defaults.CacheDir, "cache directory")
 	cmd.Flags().String("tmp-dir", defaults.TmpDir, "temp directory")
 	cmd.Flags().Int("concurrency", defaults.Concurrency, "concurrency")
 }
@@ -226,6 +245,7 @@ func TestOverlayCLI_NoFlagsChanged(t *testing.T) {
 	base := bundle.ConfigOptions{
 		LogLevel:     "debug",
 		Architecture: "arm64",
+		CacheDir:     "/hcl-cache",
 		Concurrency:  5,
 		TmpDir:       "/custom",
 	}
@@ -243,12 +263,14 @@ func TestOverlayCLI_AllFlagsChanged(t *testing.T) {
 	require.NoError(t, cmd.Flags().Set("architecture", "s390x"))
 	require.NoError(t, cmd.Flags().Set("plain-http", "true"))
 	require.NoError(t, cmd.Flags().Set("skip-tls-verify", "true"))
+	require.NoError(t, cmd.Flags().Set("uds-cache", "/cli-cache"))
 	require.NoError(t, cmd.Flags().Set("tmp-dir", "/cli-tmp"))
 	require.NoError(t, cmd.Flags().Set("concurrency", "42"))
 
 	base := bundle.ConfigOptions{
 		LogLevel:     "info",
 		Architecture: "arm64",
+		CacheDir:     "/hcl-cache",
 		Concurrency:  5,
 		TmpDir:       "/hcl-tmp",
 	}
@@ -259,6 +281,7 @@ func TestOverlayCLI_AllFlagsChanged(t *testing.T) {
 	assert.Equal(t, "s390x", result.Architecture)
 	assert.True(t, result.PlainHTTP)
 	assert.True(t, result.SkipTLSVerify)
+	assert.Equal(t, "/cli-cache", result.CacheDir)
 	assert.Equal(t, "/cli-tmp", result.TmpDir)
 	assert.Equal(t, 42, result.Concurrency)
 }
@@ -273,6 +296,7 @@ func TestOverlayCLI_PartialFlags(t *testing.T) {
 	base := bundle.ConfigOptions{
 		LogLevel:     "info",
 		Architecture: "amd64",
+		CacheDir:     "/hcl-cache",
 		Concurrency:  5,
 		TmpDir:       "/hcl-tmp",
 		PlainHTTP:    true,
@@ -283,6 +307,7 @@ func TestOverlayCLI_PartialFlags(t *testing.T) {
 	assert.Equal(t, "info", result.LogLevel, "unchanged flag should preserve base")
 	assert.Equal(t, "arm64", result.Architecture, "CLI flag should override")
 	assert.Equal(t, 5, result.Concurrency, "unchanged flag should preserve base")
+	assert.Equal(t, "/hcl-cache", result.CacheDir, "unchanged flag should preserve base")
 	assert.Equal(t, "/hcl-tmp", result.TmpDir, "unchanged flag should preserve base")
 	assert.True(t, result.PlainHTTP, "unchanged flag should preserve base")
 }
@@ -293,15 +318,18 @@ func TestOverlayCLI_CLIOverridesHCL(t *testing.T) {
 	registerTestFlags(cmd)
 
 	require.NoError(t, cmd.Flags().Set("architecture", "s390x"))
+	require.NoError(t, cmd.Flags().Set("uds-cache", "/cli-cache"))
 
-	// Simulate HCL having set architecture to arm64
+	// Simulate HCL having set architecture and cache directory.
 	base := bundle.ConfigOptions{
 		Architecture: "arm64",
+		CacheDir:     "/hcl-cache",
 		Concurrency:  10,
 	}
 
 	result := r.OverlayCLI(SnapshotFlags(cmd), base)
 	assert.Equal(t, "s390x", result.Architecture, "CLI should override HCL")
+	assert.Equal(t, "/cli-cache", result.CacheDir, "CLI should override HCL")
 }
 
 func TestOverlayCLI_CLISetsZeroishValue(t *testing.T) {
@@ -591,6 +619,7 @@ func TestResolve_WithHCLConfig(t *testing.T) {
 options {
   architecture = "arm64"
   concurrency  = 5
+  UDSCacheDir  = "/configured-cache"
 }
 
 variables = {
@@ -609,9 +638,30 @@ variables = {
 	assert.Equal(t, "info", resolved.Options.LogLevel)
 	assert.Equal(t, "arm64", resolved.Options.Architecture)
 	assert.Equal(t, 5, resolved.Options.Concurrency)
+	assert.Equal(t, "/configured-cache", resolved.Options.CacheDir)
 	assert.Equal(t, os.TempDir(), resolved.Options.TmpDir, "unset HCL fields should preserve defaults")
 	assert.Equal(t, configPath, resolvedConfigPath)
 	assert.Equal(t, "test-cluster", resolved.Variables["cluster_name"])
+}
+
+func TestResolve_UDSCacheFlagOverridesHCL(t *testing.T) {
+	r := NewConfigResolver()
+	configPath := filepath.Join(t.TempDir(), "config.uds.hcl")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+options {
+  UDSCacheDir = "/configured-cache"
+}
+`), 0o600))
+
+	cmd := &cobra.Command{}
+	registerTestFlags(cmd)
+	cmd.Flags().String("config", "", "config path")
+	require.NoError(t, cmd.Flags().Set("config", configPath))
+	require.NoError(t, cmd.Flags().Set("uds-cache", "/cli-cache"))
+
+	resolved, _, err := r.Resolve(t.Context(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
+	require.NoError(t, err)
+	assert.Equal(t, "/cli-cache", resolved.Options.CacheDir)
 }
 
 func TestResolveBaseAndApplyBundleDefaults(t *testing.T) {
@@ -922,6 +972,7 @@ func TestSnapshotFlags_NoFlagsChanged(t *testing.T) {
 	assert.False(t, f.ArchitectureChanged)
 	assert.False(t, f.PlainHTTPChanged)
 	assert.False(t, f.SkipTLSVerifyChanged)
+	assert.False(t, f.CacheDirChanged)
 	assert.False(t, f.TmpDirChanged)
 	assert.False(t, f.ConcurrencyChanged)
 	assert.Empty(t, f.ConfigPath)
@@ -936,6 +987,7 @@ func TestSnapshotFlags_AllFlagsChanged(t *testing.T) {
 	require.NoError(t, cmd.Flags().Set("architecture", "arm64"))
 	require.NoError(t, cmd.Flags().Set("plain-http", "true"))
 	require.NoError(t, cmd.Flags().Set("skip-tls-verify", "true"))
+	require.NoError(t, cmd.Flags().Set("uds-cache", "/custom-cache"))
 	require.NoError(t, cmd.Flags().Set("tmp-dir", "/custom"))
 	require.NoError(t, cmd.Flags().Set("concurrency", "5"))
 	require.NoError(t, cmd.Flags().Set("prompt", "true"))
@@ -951,6 +1003,8 @@ func TestSnapshotFlags_AllFlagsChanged(t *testing.T) {
 	assert.True(t, f.PlainHTTP)
 	assert.True(t, f.SkipTLSVerifyChanged)
 	assert.True(t, f.SkipTLSVerify)
+	assert.True(t, f.CacheDirChanged)
+	assert.Equal(t, "/custom-cache", f.CacheDir)
 	assert.True(t, f.TmpDirChanged)
 	assert.Equal(t, "/custom", f.TmpDir)
 	assert.True(t, f.ConcurrencyChanged)

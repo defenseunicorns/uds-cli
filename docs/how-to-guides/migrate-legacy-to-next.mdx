@@ -190,9 +190,9 @@ Migrate a legacy `uds-bundle.yaml` and `uds-config.yaml` workflow to a Next bund
 
    - Keep variables used in `values_files` under the package name. Convert uppercase names to lowercase with underscores, such as `REPLICA_COUNT` to `replica_count`.
    - Zarf package variables must be top-level scalar values and apply to every package. Put shared Helm settings in each package's values file. Use a values file for package-specific settings.
-   - Keep `architecture`, `log_level`, and `tmp_dir` in the Next `options` block. Change `oci_concurrency` to `concurrency`. The legacy `--tmpdir` flag becomes `--tmp-dir`.
+   - Keep `architecture`, `log_level`, `tmp_dir`, and `UDSCacheDir` in the Next `options` block. Change `oci_concurrency` to `concurrency`. The legacy `--tmpdir` flag becomes `--tmp-dir`; `--uds-cache` keeps its name.
    - Replace `insecure` with `plain_http` or `skip_tls_verify`, depending on the registry behavior you need. Configure signature verification separately.
-   - Next has no equivalents for `uds_cache`, `retries`, or `UDS_<NAME>` environment variables.
+   - Next has no equivalents for `retries` or `UDS_<NAME>` environment variables.
 
    Next applies built-in defaults, then `config.uds.hcl` values, then explicit command-line flags. `config.uds.hcl` overrides matching values in the adjacent `defaults.uds.hcl`, then command-line flags override `config.uds.hcl`.
 
