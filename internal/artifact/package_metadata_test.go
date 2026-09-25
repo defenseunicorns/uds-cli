@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"testing"
 
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
@@ -54,21 +55,87 @@ type blobBatchFetcher struct {
 	blobs map[digest.Digest][]byte
 }
 
+type failingBatchFetcher struct {
+	err        error
+	fetches    int
+	batchReads int
+}
+
+type descriptorFailingBatchFetcher struct {
+	blobBatchFetcher
+	failingDigest digest.Digest
+	err           error
+}
+
+type postVisitFailingBatchFetcher struct {
+	blobBatchFetcher
+	failingDigest digest.Digest
+	err           error
+	failed        bool
+}
+
+func (f *failingBatchFetcher) Fetch(context.Context, ocispec.Descriptor) (io.ReadCloser, error) {
+	f.fetches++
+	return nil, f.err
+}
+
+func (f *failingBatchFetcher) FetchBatch(context.Context, []ocispec.Descriptor, func(ocispec.Descriptor, []byte, error) error) error {
+	f.batchReads++
+	return f.err
+}
+
 func (f blobBatchFetcher) Fetch(_ context.Context, descriptor ocispec.Descriptor) (io.ReadCloser, error) {
 	return readerForDescriptor(f.blobs, descriptor)
 }
 
-func (f blobBatchFetcher) FetchBatch(_ context.Context, descriptors []ocispec.Descriptor, visit func(ocispec.Descriptor, []byte) error) error {
+func (f descriptorFailingBatchFetcher) FetchBatch(ctx context.Context, descriptors []ocispec.Descriptor, visit func(ocispec.Descriptor, []byte, error) error) error {
+	return f.blobBatchFetcher.FetchBatch(ctx, descriptors, func(descriptor ocispec.Descriptor, data []byte, fetchErr error) error {
+		if descriptor.Digest == f.failingDigest {
+			return visit(descriptor, nil, f.err)
+		}
+		return visit(descriptor, data, fetchErr)
+	})
+}
+
+func (f *postVisitFailingBatchFetcher) FetchBatch(ctx context.Context, descriptors []ocispec.Descriptor, visit func(ocispec.Descriptor, []byte, error) error) error {
+	if err := f.blobBatchFetcher.FetchBatch(ctx, descriptors, visit); err != nil {
+		return err
+	}
+	if !f.failed {
+		for _, descriptor := range descriptors {
+			if descriptor.Digest == f.failingDigest {
+				f.failed = true
+				return f.err
+			}
+		}
+	}
+	return nil
+}
+
+func (f blobBatchFetcher) FetchBatch(_ context.Context, descriptors []ocispec.Descriptor, visit func(ocispec.Descriptor, []byte, error) error) error {
 	for _, descriptor := range descriptors {
 		data, ok := f.blobs[descriptor.Digest]
 		if !ok {
-			return fmt.Errorf("blob %s not found", descriptor.Digest)
+			err := fmt.Errorf("blob %s not found", descriptor.Digest)
+			if err := visit(descriptor, nil, err); err != nil {
+				return err
+			}
+			continue
 		}
-		if err := visit(descriptor, data); err != nil {
+		if err := visit(descriptor, data, nil); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func readZarfPackageMetadataFixture(ctx context.Context, packageNames []string, manifests map[string]ocispec.Descriptor, fetcher content.Fetcher) (map[string]zarfPackageMetadata, bool, error) {
+	states := make([]bundlePackageMetadataState, 0, len(packageNames))
+	for _, packageName := range packageNames {
+		descriptor := manifests[packageName]
+		states = append(states, bundlePackageMetadataState{packageName: packageName, manifest: &descriptor})
+	}
+	return readZarfPackageMetadataBatch(ctx, states, fetcher)
 }
 
 func TestZarfPackageMetadataBatchMatchesOrdinaryParsingErrors(t *testing.T) {
@@ -148,11 +215,333 @@ func TestZarfPackageMetadataBatchMatchesOrdinaryParsingErrors(t *testing.T) {
 			_, _, ordinaryErr := fetchZarfPackage(t.Context(), packageName, manifests[packageName], fetcher)
 			tt.assertError(t, ordinaryErr)
 
-			metadata, batched := readZarfPackageMetadataBatch(t.Context(), []string{packageName}, manifests, fetcher)
+			_, batched, err := readZarfPackageMetadataFixture(t.Context(), []string{packageName}, manifests, fetcher)
 			require.True(t, batched)
-			tt.assertError(t, metadata[packageName].err)
+			var packageErr packageMetadataError
+			require.ErrorAs(t, err, &packageErr)
+			assert.Equal(t, packageName, packageErr.Package)
+			tt.assertError(t, packageErr.Err)
 		})
 	}
+}
+
+func TestZarfPackageMetadataBatchRetainsMissingDescriptorErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		removeBlob  func(map[string]ocispec.Descriptor, map[digest.Digest][]byte, ocispec.Descriptor)
+		assertError func(*testing.T, error)
+	}{
+		{
+			name: "package root manifest",
+			removeBlob: func(manifests map[string]ocispec.Descriptor, blobs map[digest.Digest][]byte, _ ocispec.Descriptor) {
+				delete(blobs, manifests["bundle-label"].Digest)
+			},
+			assertError: func(t *testing.T, err error) {
+				t.Helper()
+				require.ErrorIs(t, err, ErrFetchingPackageManifest)
+			},
+		},
+		{
+			name: "zarf yaml",
+			removeBlob: func(_ map[string]ocispec.Descriptor, blobs map[digest.Digest][]byte, zarfDescriptor ocispec.Descriptor) {
+				delete(blobs, zarfDescriptor.Digest)
+			},
+			assertError: func(t *testing.T, err error) {
+				t.Helper()
+				require.ErrorIs(t, err, ErrFetchingZarfYAML)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			const packageName = "bundle-label"
+			manifests, blobs, zarfDescriptor := packageMetadataFixture(t, packageName, []byte("metadata:\n  name: test\n"), true, 0)
+			tt.removeBlob(manifests, blobs, zarfDescriptor)
+
+			_, batched, err := readZarfPackageMetadataFixture(t.Context(), []string{packageName}, manifests, blobBatchFetcher{blobs: blobs})
+			require.True(t, batched)
+			var packageErr packageMetadataError
+			require.ErrorAs(t, err, &packageErr)
+			assert.Equal(t, packageName, packageErr.Package)
+			tt.assertError(t, packageErr.Err)
+		})
+	}
+}
+
+func TestZarfPackageMetadataBatchReportsMissingManifestInPackageOrder(t *testing.T) {
+	availableManifests, availableBlobs, _ := packageMetadataFixture(t, "available", []byte("metadata:\n  name: available-zarf\n"), true, 0)
+	missingManifests, missingBlobs, _ := packageMetadataFixture(t, "missing", []byte("metadata:\n  name: missing-zarf\n"), true, 0)
+	manifests := map[string]ocispec.Descriptor{
+		"available": availableManifests["available"],
+		"missing":   missingManifests["missing"],
+	}
+	maps.Copy(availableBlobs, missingBlobs)
+	delete(availableBlobs, manifests["missing"].Digest)
+
+	_, batched, err := readZarfPackageMetadataFixture(t.Context(), []string{"available", "missing"}, manifests, blobBatchFetcher{blobs: availableBlobs})
+	require.True(t, batched)
+	var packageErr packageMetadataError
+	require.ErrorAs(t, err, &packageErr)
+	assert.Equal(t, "missing", packageErr.Package)
+	require.ErrorIs(t, packageErr.Err, ErrFetchingPackageManifest)
+}
+
+func TestZarfPackageMetadataBatchReportsEachMissingDescriptorToItsPackage(t *testing.T) {
+	tests := []struct {
+		name          string
+		removeBlobs   func(map[string]ocispec.Descriptor, map[digest.Digest][]byte, ocispec.Descriptor, ocispec.Descriptor) ocispec.Descriptor
+		expectedError error
+	}{
+		{
+			name: "package root manifests",
+			removeBlobs: func(manifests map[string]ocispec.Descriptor, blobs map[digest.Digest][]byte, _, _ ocispec.Descriptor) ocispec.Descriptor {
+				delete(blobs, manifests["first"].Digest)
+				delete(blobs, manifests["second"].Digest)
+				return manifests["first"]
+			},
+			expectedError: ErrFetchingPackageManifest,
+		},
+		{
+			name: "zarf yaml layers",
+			removeBlobs: func(_ map[string]ocispec.Descriptor, blobs map[digest.Digest][]byte, first, second ocispec.Descriptor) ocispec.Descriptor {
+				delete(blobs, first.Digest)
+				delete(blobs, second.Digest)
+				return first
+			},
+			expectedError: ErrFetchingZarfYAML,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			firstManifests, blobs, firstZarfDescriptor := packageMetadataFixture(t, "first", []byte("metadata:\n  name: first-zarf\n"), true, 0)
+			secondManifests, secondBlobs, secondZarfDescriptor := packageMetadataFixture(t, "second", []byte("metadata:\n  name: second-zarf\n"), true, 0)
+			maps.Copy(blobs, secondBlobs)
+			manifests := map[string]ocispec.Descriptor{
+				"first":  firstManifests["first"],
+				"second": secondManifests["second"],
+			}
+			expectedDescriptor := tt.removeBlobs(manifests, blobs, firstZarfDescriptor, secondZarfDescriptor)
+
+			_, batched, err := readZarfPackageMetadataFixture(t.Context(), []string{"first", "second"}, manifests, blobBatchFetcher{blobs: blobs})
+			require.True(t, batched)
+			var packageErr packageMetadataError
+			require.ErrorAs(t, err, &packageErr)
+			assert.Equal(t, "first", packageErr.Package)
+			require.ErrorIs(t, packageErr.Err, tt.expectedError)
+			assert.ErrorContains(t, packageErr.Err, expectedDescriptor.Digest.String())
+		})
+	}
+}
+
+func TestZarfPackageMetadataBatchPreservesPackageOrderAheadOfLaterInvalidDescriptor(t *testing.T) {
+	t.Run("package root manifest", func(t *testing.T) {
+		firstManifests, blobs, _ := packageMetadataFixture(t, "first", []byte("metadata:\n  name: first-zarf\n"), true, 0)
+		secondManifests, secondBlobs, _ := packageMetadataFixture(t, "second", []byte("metadata:\n  name: second-zarf\n"), true, 0)
+		maps.Copy(blobs, secondBlobs)
+
+		firstDescriptor := firstManifests["first"]
+		delete(blobs, firstDescriptor.Digest)
+		malformedRoot := []byte("{")
+		firstDescriptor.Digest = digest.FromBytes(malformedRoot)
+		firstDescriptor.Size = int64(len(malformedRoot))
+		firstManifests["first"] = firstDescriptor
+		blobs[firstDescriptor.Digest] = malformedRoot
+
+		secondDescriptor := secondManifests["second"]
+		secondDescriptor.Size = -1
+		manifests := map[string]ocispec.Descriptor{
+			"first":  firstDescriptor,
+			"second": secondDescriptor,
+		}
+
+		_, batched, err := readZarfPackageMetadataFixture(t.Context(), []string{"first", "second"}, manifests, blobBatchFetcher{blobs: blobs})
+		require.True(t, batched)
+		var packageErr packageMetadataError
+		require.ErrorAs(t, err, &packageErr)
+		assert.Equal(t, "first", packageErr.Package)
+		require.ErrorIs(t, packageErr.Err, ErrParsingPackageManifest)
+	})
+
+	t.Run("zarf yaml", func(t *testing.T) {
+		firstManifests, blobs, _ := packageMetadataFixture(t, "first", []byte("metadata:\n  name: [\n"), true, 0)
+		secondManifests, secondBlobs, secondZarfDescriptor := packageMetadataFixture(t, "second", []byte("metadata:\n  name: second-zarf\n"), true, 0)
+		maps.Copy(blobs, secondBlobs)
+
+		secondRootDescriptor := secondManifests["second"]
+		var secondRoot ocispec.Manifest
+		require.NoError(t, json.Unmarshal(blobs[secondRootDescriptor.Digest], &secondRoot))
+		for idx, layer := range secondRoot.Layers {
+			if layer.Digest == secondZarfDescriptor.Digest {
+				secondRoot.Layers[idx].Size = -1
+			}
+		}
+		secondRootBytes, err := json.Marshal(secondRoot)
+		require.NoError(t, err)
+		delete(blobs, secondRootDescriptor.Digest)
+		secondRootDescriptor.Digest = digest.FromBytes(secondRootBytes)
+		secondRootDescriptor.Size = int64(len(secondRootBytes))
+		secondManifests["second"] = secondRootDescriptor
+		blobs[secondRootDescriptor.Digest] = secondRootBytes
+
+		manifests := map[string]ocispec.Descriptor{
+			"first":  firstManifests["first"],
+			"second": secondRootDescriptor,
+		}
+		_, batched, err := readZarfPackageMetadataFixture(t.Context(), []string{"first", "second"}, manifests, blobBatchFetcher{blobs: blobs})
+		require.True(t, batched)
+		var packageErr packageMetadataError
+		require.ErrorAs(t, err, &packageErr)
+		assert.Equal(t, "first", packageErr.Package)
+		require.ErrorIs(t, packageErr.Err, ErrParsingZarfYAML)
+	})
+
+	t.Run("zarf yaml before invalid package root manifest", func(t *testing.T) {
+		firstManifests, blobs, _ := packageMetadataFixture(t, "first", []byte("metadata:\n  name: [\n"), true, 0)
+		secondManifests, secondBlobs, _ := packageMetadataFixture(t, "second", []byte("metadata:\n  name: second-zarf\n"), true, 0)
+		maps.Copy(blobs, secondBlobs)
+
+		secondDescriptor := secondManifests["second"]
+		secondDescriptor.Size = -1
+		manifests := map[string]ocispec.Descriptor{
+			"first":  firstManifests["first"],
+			"second": secondDescriptor,
+		}
+
+		_, batched, err := readZarfPackageMetadataFixture(t.Context(), []string{"first", "second"}, manifests, blobBatchFetcher{blobs: blobs})
+		require.True(t, batched)
+		var packageErr packageMetadataError
+		require.ErrorAs(t, err, &packageErr)
+		assert.Equal(t, "first", packageErr.Package)
+		require.ErrorIs(t, packageErr.Err, ErrParsingZarfYAML)
+	})
+
+	t.Run("missing zarf yaml before missing package root manifest", func(t *testing.T) {
+		firstManifests, blobs, firstZarfDescriptor := packageMetadataFixture(t, "first", []byte("metadata:\n  name: first-zarf\n"), true, 0)
+		secondManifests, secondBlobs, _ := packageMetadataFixture(t, "second", []byte("metadata:\n  name: second-zarf\n"), true, 0)
+		maps.Copy(blobs, secondBlobs)
+		delete(blobs, firstZarfDescriptor.Digest)
+		delete(blobs, secondManifests["second"].Digest)
+
+		manifests := map[string]ocispec.Descriptor{
+			"first":  firstManifests["first"],
+			"second": secondManifests["second"],
+		}
+		_, batched, err := readZarfPackageMetadataFixture(t.Context(), []string{"first", "second"}, manifests, blobBatchFetcher{blobs: blobs})
+		require.True(t, batched)
+		var packageErr packageMetadataError
+		require.ErrorAs(t, err, &packageErr)
+		assert.Equal(t, "first", packageErr.Package)
+		require.ErrorIs(t, packageErr.Err, ErrFetchingZarfYAML)
+		assert.ErrorContains(t, packageErr.Err, firstZarfDescriptor.Digest.String())
+	})
+}
+
+func TestZarfPackageMetadataBatchRetainsManifestFailureAfterVisit(t *testing.T) {
+	const packageName = "bundle-label"
+	manifests, blobs, _ := packageMetadataFixture(t, packageName, []byte("metadata:\n  name: test\n"), true, 0)
+	fetchErr := errors.New("manifest batch failed after visit")
+	fetcher := &postVisitFailingBatchFetcher{
+		blobBatchFetcher: blobBatchFetcher{blobs: blobs},
+		failingDigest:    manifests[packageName].Digest,
+		err:              fetchErr,
+	}
+
+	_, batched, err := readZarfPackageMetadataFixture(t.Context(), []string{packageName}, manifests, fetcher)
+	require.True(t, batched)
+	var packageErr packageMetadataError
+	require.ErrorAs(t, err, &packageErr)
+	assert.Equal(t, packageName, packageErr.Package)
+	require.ErrorIs(t, packageErr.Err, ErrFetchingPackageManifest)
+	require.ErrorIs(t, packageErr.Err, fetchErr)
+}
+
+func TestZarfPackageMetadataBatchReportsDescriptorFailureForOwningPackage(t *testing.T) {
+	firstManifests, blobs, _ := packageMetadataFixture(t, "first", []byte("metadata:\n  name: first-zarf\n"), true, 0)
+	secondManifests, secondBlobs, secondZarfDescriptor := packageMetadataFixture(t, "second", []byte("metadata:\n  name: second-zarf\n"), true, 0)
+	maps.Copy(blobs, secondBlobs)
+	manifests := map[string]ocispec.Descriptor{
+		"first":  firstManifests["first"],
+		"second": secondManifests["second"],
+	}
+
+	tests := []struct {
+		name          string
+		descriptor    ocispec.Descriptor
+		expectedError error
+	}{
+		{
+			name:          "package root manifest",
+			descriptor:    manifests["second"],
+			expectedError: ErrFetchingPackageManifest,
+		},
+		{
+			name:          "zarf yaml",
+			descriptor:    secondZarfDescriptor,
+			expectedError: ErrFetchingZarfYAML,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fetchErr := errors.New("descriptor read failed")
+			fetcher := descriptorFailingBatchFetcher{
+				blobBatchFetcher: blobBatchFetcher{blobs: blobs},
+				failingDigest:    tt.descriptor.Digest,
+				err:              fetchErr,
+			}
+
+			_, batched, err := readZarfPackageMetadataFixture(t.Context(), []string{"first", "second"}, manifests, fetcher)
+			require.True(t, batched)
+			var packageErr packageMetadataError
+			require.ErrorAs(t, err, &packageErr)
+			assert.Equal(t, "second", packageErr.Package)
+			require.ErrorIs(t, packageErr.Err, tt.expectedError)
+			require.ErrorIs(t, packageErr.Err, fetchErr)
+		})
+	}
+}
+
+func TestReadBundleZarfMetadataBatchPreservesOrderAcrossIndexLookup(t *testing.T) {
+	firstManifests, blobs, _ := packageMetadataFixture(t, "first", []byte("metadata:\n  name: [\n"), true, 0)
+	firstManifest := firstManifests["first"]
+	firstManifest.Annotations = map[string]string{udsoci.AnnotationPackageName: "first"}
+	idx := ocispec.Index{Manifests: []ocispec.Descriptor{firstManifest}}
+	bundle := &spec.UDSBundle{Packages: []spec.Package{{Name: "first"}, {Name: "missing"}}}
+
+	_, batched, err := readBundleZarfMetadataBatch(t.Context(), idx, bundle, nil, blobBatchFetcher{blobs: blobs})
+	require.True(t, batched)
+	var packageErr packageMetadataError
+	require.ErrorAs(t, err, &packageErr)
+	assert.Equal(t, "first", packageErr.Package)
+	require.ErrorIs(t, packageErr.Err, ErrParsingZarfYAML)
+}
+
+func TestReadPackageSignaturesDoesNotRetryBatchWideFailure(t *testing.T) {
+	const packageName = "bundle-label"
+	batchErr := errors.New("archive unavailable")
+	fetcher := &failingBatchFetcher{err: batchErr}
+	manifest := ocispec.Descriptor{
+		MediaType: ocispec.MediaTypeImageManifest,
+		Digest:    digest.FromString("manifest"),
+		Size:      1,
+		Annotations: map[string]string{
+			udsoci.AnnotationPackageName: packageName,
+		},
+	}
+	indexBytes, err := json.Marshal(ocispec.Index{Manifests: []ocispec.Descriptor{manifest}})
+	require.NoError(t, err)
+	source := &MetadataSource{IndexBytes: indexBytes, Fetcher: fetcher}
+	bundle := &spec.UDSBundle{Packages: []spec.Package{{Name: packageName}}}
+
+	_, err = ReadPackageSignatures(t.Context(), source, bundle)
+	require.ErrorIs(t, err, batchErr)
+	var target InspectingPackageSignatureError
+	require.ErrorAs(t, err, &target)
+	assert.Equal(t, packageName, target.Package)
+	assert.Equal(t, 1, fetcher.batchReads)
+	assert.Zero(t, fetcher.fetches)
 }
 
 func TestFetchZarfPackageClassifiesMalformedYAML(t *testing.T) {
