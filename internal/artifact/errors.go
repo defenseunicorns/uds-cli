@@ -266,6 +266,19 @@ func (e ResolvingBundleSourceError) Error() string {
 }
 func (e ResolvingBundleSourceError) Unwrap() error { return e.Err }
 
+type packageMetadataError struct {
+	Package string
+	Err     error
+}
+
+func (e packageMetadataError) Error() string {
+	return e.Err.Error()
+}
+
+func (e packageMetadataError) Unwrap() error {
+	return e.Err
+}
+
 type UnsupportedSchemaVersionError struct {
 	Artifact string
 	Version  int

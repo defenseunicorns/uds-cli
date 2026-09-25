@@ -25,14 +25,23 @@ import (
 // descriptorBatchFetcher is an optional capability implemented by fetchers
 // that can retrieve several descriptor bodies without repeating source setup.
 type descriptorBatchFetcher interface {
-	FetchBatch(context.Context, []ocispec.Descriptor, func(ocispec.Descriptor, []byte) error) error
+	FetchBatch(context.Context, []ocispec.Descriptor, func(ocispec.Descriptor, []byte, error) error) error
 }
 
+// zarfPackageMetadata contains the final metadata extracted from a package's zarf.yaml.
 type zarfPackageMetadata struct {
-	name   string
-	signed *bool
-	found  bool
-	err    error
+	zarfName string
+	signed   *bool
+	found    bool
+}
+
+// bundlePackageMetadataState tracks one bundle package through batched metadata parsing.
+type bundlePackageMetadataState struct {
+	packageName string
+	manifest    *ocispec.Descriptor
+	root        *oci.Manifest
+	result      zarfPackageMetadata
+	err         error
 }
 
 type zarfLayerReader struct{ io.ReadCloser }
@@ -65,85 +74,122 @@ func readPackageZarfNames(ctx context.Context, manifests map[string]ocispec.Desc
 	return zarfNames, nil
 }
 
-// readZarfPackageMetadataBatch parses zarf manifests in a batch, to minimize occurrences artifact decompression.
-//
-// Package-specific errors are retained in the result map so callers can report them in bundle order.
-// The boolean is false when batching is unavailable or fails and the caller should use the ordinary fetch path.
-func readZarfPackageMetadataBatch(ctx context.Context, packageNames []string, manifests map[string]ocispec.Descriptor, fetcher content.Fetcher) (map[string]zarfPackageMetadata, bool) {
+// readZarfPackageMetadataBatch parses zarf manifests in a batch to minimize artifact decompression.
+// The boolean is false only when batching is unavailable and the caller should use the ordinary fetch path.
+func readZarfPackageMetadataBatch(ctx context.Context, states []bundlePackageMetadataState, fetcher content.Fetcher) (map[string]zarfPackageMetadata, bool, error) {
 	batchFetcher, ok := fetcher.(descriptorBatchFetcher)
 	if !ok {
-		return nil, false
+		return nil, false, nil
 	}
 
-	results := make(map[string]zarfPackageMetadata, len(packageNames))
-	if len(packageNames) == 0 {
-		return results, true
-	}
-	// Group package manifests by digest so shared content is fetched only once.
-	roots := make(map[string]oci.Manifest, len(packageNames))
-	manifestPackages := make(map[digest.Digest][]string, len(packageNames))
-	manifestDescriptors := make([]ocispec.Descriptor, 0, len(packageNames))
-	for _, packageName := range packageNames {
-		descriptor := manifests[packageName]
-		if len(manifestPackages[descriptor.Digest]) == 0 {
+	manifestStates := make(map[digest.Digest][]*bundlePackageMetadataState, len(states))
+	manifestDescriptors := make([]ocispec.Descriptor, 0, len(states))
+	for idx := range states {
+		state := &states[idx]
+		if state.manifest == nil || state.err != nil {
+			continue
+		}
+		descriptor := *state.manifest
+		if err := validateMetadataDescriptor(descriptor); err != nil {
+			state.err = wrapBatchPackageManifestFetchError(state.packageName, descriptor, err)
+			continue
+		}
+		if len(manifestStates[descriptor.Digest]) == 0 {
 			manifestDescriptors = append(manifestDescriptors, descriptor)
 		}
-		manifestPackages[descriptor.Digest] = append(manifestPackages[descriptor.Digest], packageName)
-	}
-	// verify and parse every package root manifest, to later locate its zarf.yaml layer.
-	if err := batchFetcher.FetchBatch(ctx, manifestDescriptors, func(descriptor ocispec.Descriptor, data []byte) error {
-		for _, packageName := range manifestPackages[descriptor.Digest] {
-			entry := manifests[packageName]
-			root, err := fetchPackageRootManifest(ctx, packageName, entry, descriptorBytesFetcher(entry, data))
-			if err != nil {
-				results[packageName] = zarfPackageMetadata{err: err}
-				continue
-			}
-			zarfLayer := root.Locate(zarflayout.ZarfYAML)
-			if oci.IsEmptyDescriptor(zarfLayer) {
-				results[packageName] = zarfPackageMetadata{}
-				continue
-			}
-			root.Manifest = ocispec.Manifest{Layers: []ocispec.Descriptor{zarfLayer}}
-			roots[packageName] = root
-		}
-		return nil
-	}); err != nil {
-		return nil, false
+		manifestStates[descriptor.Digest] = append(manifestStates[descriptor.Digest], state)
 	}
 
-	// Group the discovered zarf.yaml layers by digest as multiple package manifests may reference the same layer.
-	zarfPackages := make(map[digest.Digest][]string, len(roots))
-	zarfDescriptors := make([]ocispec.Descriptor, 0, len(roots))
-	for packageName, root := range roots {
-		descriptor := root.Locate(zarflayout.ZarfYAML)
-		if len(zarfPackages[descriptor.Digest]) == 0 {
+	if len(manifestDescriptors) > 0 {
+		err := batchFetcher.FetchBatch(ctx, manifestDescriptors, func(descriptor ocispec.Descriptor, data []byte, fetchErr error) error {
+			for _, state := range manifestStates[descriptor.Digest] {
+				entry := *state.manifest
+				if fetchErr != nil {
+					state.err = wrapBatchPackageManifestFetchError(state.packageName, entry, fetchErr)
+					continue
+				}
+				root, err := fetchPackageRootManifest(ctx, state.packageName, entry, descriptorBytesFetcher(entry, data))
+				if err != nil {
+					state.err = err
+					continue
+				}
+				zarfLayer := root.Locate(zarflayout.ZarfYAML)
+				if oci.IsEmptyDescriptor(zarfLayer) {
+					continue
+				}
+				root.Manifest = ocispec.Manifest{Layers: []ocispec.Descriptor{zarfLayer}}
+				state.root = &root
+			}
+			return nil
+		})
+		if err != nil {
+			state := manifestStates[manifestDescriptors[0].Digest][0]
+			state.err = wrapBatchPackageManifestFetchError(state.packageName, *state.manifest, err)
+			return finishZarfPackageMetadataBatch(states, true)
+		}
+	}
+
+	zarfStates := make(map[digest.Digest][]*bundlePackageMetadataState, len(states))
+	zarfDescriptors := make([]ocispec.Descriptor, 0, len(states))
+	for idx := range states {
+		state := &states[idx]
+		if state.root == nil || state.err != nil {
+			continue
+		}
+		descriptor := state.root.Locate(zarflayout.ZarfYAML)
+		if err := validateMetadataDescriptor(descriptor); err != nil {
+			state.result.found = true
+			state.err = wrapZarfYAMLFetchError(state.packageName, descriptor, err)
+			continue
+		}
+		if len(zarfStates[descriptor.Digest]) == 0 {
 			zarfDescriptors = append(zarfDescriptors, descriptor)
 		}
-		zarfPackages[descriptor.Digest] = append(zarfPackages[descriptor.Digest], packageName)
+		zarfStates[descriptor.Digest] = append(zarfStates[descriptor.Digest], state)
 	}
-	if len(zarfDescriptors) == 0 {
-		return results, true
-	}
-	// parse each zarf.yaml through the Zarf parser
-	if err := batchFetcher.FetchBatch(ctx, zarfDescriptors, func(descriptor ocispec.Descriptor, data []byte) error {
-		for _, packageName := range zarfPackages[descriptor.Digest] {
-			pkg, found, err := fetchZarfPackageFromManifest(ctx, packageName, roots[packageName], descriptorBytesFetcher(descriptor, data))
-			metadata := zarfPackageMetadata{found: found, err: err}
-			if err == nil && found {
-				metadata.name = pkg.Metadata.Name
-				if pkg.Build.Signed != nil {
-					signed := *pkg.Build.Signed
-					metadata.signed = &signed
+
+	if len(zarfDescriptors) > 0 {
+		err := batchFetcher.FetchBatch(ctx, zarfDescriptors, func(descriptor ocispec.Descriptor, data []byte, fetchErr error) error {
+			for _, state := range zarfStates[descriptor.Digest] {
+				if fetchErr != nil {
+					state.result.found = true
+					state.err = wrapZarfYAMLFetchError(state.packageName, descriptor, fetchErr)
+					continue
 				}
+				pkg, found, err := fetchZarfPackageFromManifest(ctx, state.packageName, *state.root, descriptorBytesFetcher(descriptor, data))
+				metadata := zarfPackageMetadata{found: found}
+				state.err = err
+				if err == nil && found {
+					metadata.zarfName = pkg.Metadata.Name
+					if pkg.Build.Signed != nil {
+						signed := *pkg.Build.Signed
+						metadata.signed = &signed
+					}
+				}
+				state.result = metadata
 			}
-			results[packageName] = metadata
+			return nil
+		})
+		if err != nil {
+			state := zarfStates[zarfDescriptors[0].Digest][0]
+			descriptor := state.root.Locate(zarflayout.ZarfYAML)
+			state.result.found = true
+			state.err = wrapZarfYAMLFetchError(state.packageName, descriptor, err)
 		}
-		return nil
-	}); err != nil {
-		return nil, false
 	}
-	return results, true
+
+	return finishZarfPackageMetadataBatch(states, true)
+}
+
+func finishZarfPackageMetadataBatch(states []bundlePackageMetadataState, batched bool) (map[string]zarfPackageMetadata, bool, error) {
+	results := make(map[string]zarfPackageMetadata, len(states))
+	for _, state := range states {
+		if state.err != nil {
+			return nil, batched, packageMetadataError{Package: state.packageName, Err: state.err}
+		}
+		results[state.packageName] = state.result
+	}
+	return results, batched, nil
 }
 
 // fetchZarfPackage fetches and parses the embedded zarf.yaml into a ZarfPackage.
@@ -159,7 +205,7 @@ func fetchZarfPackage(ctx context.Context, packageName string, entry ocispec.Des
 func fetchPackageRootManifest(ctx context.Context, packageName string, entry ocispec.Descriptor, fetcher content.Fetcher) (oci.Manifest, error) {
 	manifestBytes, err := udsoci.FetchBytes(ctx, fetcher, entry)
 	if err != nil {
-		return oci.Manifest{}, fmt.Errorf("%w %s for package %q: %w", ErrFetchingPackageManifest, entry.Digest, packageName, err)
+		return oci.Manifest{}, wrapPackageManifestFetchError(packageName, entry, err)
 	}
 	var root oci.Manifest
 	if err := json.Unmarshal(manifestBytes, &root); err != nil {
@@ -207,6 +253,20 @@ func fetchZarfPackageFromManifest(ctx context.Context, packageName string, root 
 		return v1alpha1.ZarfPackage{}, true, fmt.Errorf("%w %s for package %q: %w", ErrParsingZarfYAML, zarfLayer.Digest, packageName, err)
 	}
 	return pkg, true, nil
+}
+
+func wrapPackageManifestFetchError(packageName string, entry ocispec.Descriptor, err error) error {
+	return fmt.Errorf("%w %s for package %q: %w", ErrFetchingPackageManifest, entry.Digest, packageName, err)
+}
+
+func wrapBatchPackageManifestFetchError(packageName string, entry ocispec.Descriptor, err error) error {
+	fetchErr := fmt.Errorf("fetching %s: %w: %w", entry.Digest, udsoci.ErrFetchContent, err)
+	return wrapPackageManifestFetchError(packageName, entry, fetchErr)
+}
+
+func wrapZarfYAMLFetchError(packageName string, descriptor ocispec.Descriptor, err error) error {
+	layerErr := fmt.Errorf("%w: %w", ErrFetchingZarfLayer, err)
+	return fmt.Errorf("%w %s for package %q: %w", ErrFetchingZarfYAML, descriptor.Digest, packageName, layerErr)
 }
 
 func descriptorBytesFetcher(descriptor ocispec.Descriptor, data []byte) content.Fetcher {

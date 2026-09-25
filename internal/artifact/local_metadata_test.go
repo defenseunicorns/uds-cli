@@ -11,9 +11,11 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"oras.land/oras-go/v2/content"
 )
 
 type countingBatchFetcher struct {
@@ -27,9 +29,28 @@ func (f *countingBatchFetcher) Fetch(ctx context.Context, descriptor ocispec.Des
 	return f.archive.Fetch(ctx, descriptor)
 }
 
-func (f *countingBatchFetcher) FetchBatch(ctx context.Context, descriptors []ocispec.Descriptor, visit func(ocispec.Descriptor, []byte) error) error {
+func (f *countingBatchFetcher) FetchBatch(ctx context.Context, descriptors []ocispec.Descriptor, visit func(ocispec.Descriptor, []byte, error) error) error {
 	f.batchReads++
 	return f.archive.FetchBatch(ctx, descriptors, visit)
+}
+
+func TestArchiveContentFetcherBatchAttributesValidationFailure(t *testing.T) {
+	descriptors := []ocispec.Descriptor{
+		{Digest: digest.FromString("invalid"), Size: -1},
+	}
+
+	var failedDescriptor ocispec.Descriptor
+	var descriptorErr error
+	err := (archiveContentFetcher{}).FetchBatch(t.Context(), descriptors, func(descriptor ocispec.Descriptor, _ []byte, fetchErr error) error {
+		if fetchErr != nil {
+			failedDescriptor = descriptor
+			descriptorErr = fetchErr
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, descriptors[0], failedDescriptor)
+	require.ErrorIs(t, descriptorErr, content.ErrInvalidDescriptorSize)
 }
 
 func TestLocalArchiveMetadataSourceReadsSelectedMetadata(t *testing.T) {
