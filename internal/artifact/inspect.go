@@ -234,12 +234,23 @@ func ReadZarfPackageNames(ctx context.Context, source *MetadataSource, b *spec.U
 	for _, name := range packageNames {
 		selected[name] = struct{}{}
 	}
+	metadata, batched := readBundleZarfMetadataBatch(ctx, idx, b, selected, source.Fetcher)
 	zarfNames := make(map[string]string, len(b.Packages))
 	for _, pkg := range b.Packages {
 		if len(selected) > 0 {
 			if _, ok := selected[pkg.Name]; !ok {
 				continue
 			}
+		}
+		if batched {
+			packageMetadata := metadata[pkg.Name]
+			if packageMetadata.err != nil {
+				return nil, packageMetadata.err
+			}
+			if packageMetadata.found && packageMetadata.name != "" {
+				zarfNames[pkg.Name] = packageMetadata.name
+			}
+			continue
 		}
 		entry, err := findPackageManifest(idx, pkg)
 		if err != nil {
@@ -262,8 +273,32 @@ func ReadPackageSignatures(ctx context.Context, source *MetadataSource, b *spec.
 	if err := json.Unmarshal(source.IndexBytes, &idx); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrParsingBundleIndex, err)
 	}
+	metadata, batched := readBundleZarfMetadataBatch(ctx, idx, b, nil, source.Fetcher)
 	summaries := make(map[string]PackageSignatureSummary, len(b.Packages))
 	for _, pkg := range b.Packages {
+		if batched {
+			entry, err := findPackageManifest(idx, pkg)
+			if err != nil {
+				return nil, InspectingPackageSignatureError{Package: pkg.Name, Err: err}
+			}
+			packageMetadata := metadata[pkg.Name]
+			if packageMetadata.err != nil {
+				return nil, InspectingPackageSignatureError{Package: pkg.Name, Err: packageMetadata.err}
+			}
+			summary := PackageSignatureSummary{
+				Signed:       PackageSigningStatusUnknown,
+				Verification: packageVerificationStatus(pkg.SignatureVerification, entry),
+			}
+			if packageMetadata.signed != nil {
+				if *packageMetadata.signed {
+					summary.Signed = PackageSigningStatusSigned
+				} else {
+					summary.Signed = PackageSigningStatusUnsigned
+				}
+			}
+			summaries[pkg.Name] = summary
+			continue
+		}
 		summary, err := inspectPackageSignature(ctx, idx, pkg, source.Fetcher)
 		if err != nil {
 			return nil, InspectingPackageSignatureError{Package: pkg.Name, Err: err}
@@ -271,6 +306,25 @@ func ReadPackageSignatures(ctx context.Context, source *MetadataSource, b *spec.
 		summaries[pkg.Name] = *summary
 	}
 	return summaries, nil
+}
+
+func readBundleZarfMetadataBatch(ctx context.Context, idx ocispec.Index, b *spec.UDSBundle, selected map[string]struct{}, fetcher content.Fetcher) (map[string]zarfPackageMetadata, bool) {
+	packageNames := make([]string, 0, len(b.Packages))
+	manifests := make(map[string]ocispec.Descriptor, len(b.Packages))
+	for _, pkg := range b.Packages {
+		if len(selected) > 0 {
+			if _, ok := selected[pkg.Name]; !ok {
+				continue
+			}
+		}
+		entry, err := findPackageManifest(idx, pkg)
+		if err != nil {
+			return nil, false
+		}
+		packageNames = append(packageNames, pkg.Name)
+		manifests[pkg.Name] = *entry
+	}
+	return readZarfPackageMetadataBatch(ctx, packageNames, manifests, fetcher)
 }
 
 func inspectPackageSignature(ctx context.Context, idx ocispec.Index, pkg spec.Package, fetcher content.Fetcher) (*PackageSignatureSummary, error) {
