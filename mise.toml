@@ -5,7 +5,7 @@ min_version = "2026.9.11"
 
 [tools]
 go = "1.27.1"
-hk = "2.0.1"
+hk = "2.1.0"
 jq = "1.8.2"
 golangci-lint = "2.13.2"
 "github:goreleaser/goreleaser" = "2.18.2"
