@@ -1,0 +1,150 @@
+// Copyright 2026 Defense Unicorns
+// SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+// Package operator contains UDS Core operator monitoring logic for UDS CLI Next.
+package operator
+
+import (
+	"fmt"
+	"io"
+	"strings"
+)
+
+const (
+	ansiReset  = "\x1b[0m"
+	ansiRed    = "\x1b[31m"
+	ansiGreen  = "\x1b[32m"
+	ansiYellow = "\x1b[33m"
+	ansiCyan   = "\x1b[36m"
+)
+
+// EventKind identifies the high-level Pepr event shown to users.
+type EventKind string
+
+const (
+	// EventAllowed represents an allowed Pepr policy decision.
+	EventAllowed EventKind = "ALLOWED"
+	// EventDenied represents a denied Pepr policy decision.
+	EventDenied EventKind = "DENIED"
+	// EventMutated represents a Pepr mutation.
+	EventMutated EventKind = "MUTATED"
+	// EventOperator represents a UDS operator event from Pepr.
+	EventOperator EventKind = "OPERATOR"
+)
+
+// PatchOperation describes one rendered JSON patch operation.
+type PatchOperation struct {
+	Kind  string
+	Path  string
+	Value string
+}
+
+// Event is a display-oriented Pepr event.
+type Event struct {
+	Kind      EventKind
+	Resource  string
+	Timestamp string
+	Repeated  int
+	Message   string
+	Patch     []PatchOperation
+}
+
+// Formatter renders Pepr events as structured terminal text.
+type Formatter struct {
+	NoColor bool
+}
+
+// WriteEvents writes complete events separated by blank lines. Each event owns its terminating newline.
+func (f Formatter) WriteEvents(w io.Writer, events []Event) error {
+	for i, event := range events {
+		if i > 0 {
+			if _, err := fmt.Fprintln(w); err != nil {
+				return err
+			}
+		}
+		if err := f.WriteEvent(w, event); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// WriteEvent writes one self-contained event. Patch values remain JSON-encoded so their scalar and object
+// representations are preserved instead of being reformatted as terminal text.
+func (f Formatter) WriteEvent(w io.Writer, event Event) error {
+	if event.Timestamp != "" {
+		if _, err := fmt.Fprintf(w, "%s  ", event.Timestamp); err != nil {
+			return err
+		}
+	}
+	if _, err := fmt.Fprintf(w, "%s%s resource=%s", f.token(event.Kind), tokenPadding(event.Kind), event.Resource); err != nil {
+		return err
+	}
+	if event.Repeated > 0 {
+		if _, err := fmt.Fprintf(w, " repeated=%d", event.Repeated); err != nil {
+			return err
+		}
+	}
+	if _, err := fmt.Fprintln(w); err != nil {
+		return err
+	}
+
+	if event.Message != "" {
+		if _, err := fmt.Fprintf(w, "  message=%q\n", event.Message); err != nil {
+			return err
+		}
+	}
+
+	for _, patch := range event.Patch {
+		if patch.Value == "" {
+			if _, err := fmt.Fprintf(w, "  %s path=%s\n", patch.Kind, patch.Path); err != nil {
+				return err
+			}
+			continue
+		}
+		if _, err := fmt.Fprintf(w, "  %s path=%s value=%s\n", patch.Kind, patch.Path, patch.Value); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// writeEventOpen omits the final newline so a following duplicate count can be appended to the same event.
+// The processor eventually closes the event through flushLocked.
+func (f Formatter) writeEventOpen(w io.Writer, event Event) error {
+	var rendered strings.Builder
+	if err := f.WriteEvent(&rendered, event); err != nil {
+		return err
+	}
+	_, err := io.WriteString(w, strings.TrimSuffix(rendered.String(), "\n"))
+	return err
+}
+
+// token applies color only to recognized event kinds; unknown kinds remain readable and uncolored.
+func (f Formatter) token(kind EventKind) string {
+	if f.NoColor {
+		return string(kind)
+	}
+	color := ""
+	switch kind {
+	case EventAllowed:
+		color = ansiGreen
+	case EventDenied:
+		color = ansiRed
+	case EventMutated:
+		color = ansiCyan
+	case EventOperator:
+		color = ansiYellow
+	}
+	if color == "" {
+		return string(kind)
+	}
+	return color + string(kind) + ansiReset
+}
+
+// tokenPadding aligns resource fields to the widest built-in event token without counting ANSI escapes.
+func tokenPadding(kind EventKind) string {
+	return strings.Repeat(" ", max(0, 8-len(kind)))
+}

@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package test contains e2e tests for UDS
@@ -32,7 +32,7 @@ type UDSE2ETest struct {
 	CommandLog        []string
 }
 
-var logRegex = regexp.MustCompile(`Saving log file to (?P<logFile>.*?\.log)`)
+var logRegex = regexp.MustCompile(`(?s)Saving log file to.*?(?P<logFile>/[^\s\x1b]*uds-[^\s\x1b]*\.log)`)
 
 // UDS executes a UDS command.
 func (e2e *UDSE2ETest) UDS(args ...string) (string, string, error) {

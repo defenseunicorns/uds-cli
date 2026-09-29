@@ -37,6 +37,7 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/config"
 	"github.com/zarf-dev/zarf/src/pkg/archive"
+	"github.com/zarf-dev/zarf/src/pkg/feature"
 	"github.com/zarf-dev/zarf/src/pkg/images"
 	"github.com/zarf-dev/zarf/src/pkg/logger"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -60,10 +61,13 @@ func generateSBOM(ctx context.Context, pkg v1alpha1.ZarfPackage, buildPath strin
 		err = errors.Join(err, os.RemoveAll(outputPath))
 	}()
 
+	sbomViewerEnabled := feature.IsEnabled(feature.SBOMViewer)
 	componentSBOMs := []string{}
-	for _, comp := range pkg.Components {
-		if len(comp.Files) > 0 || len(comp.DataInjections) > 0 {
-			componentSBOMs = append(componentSBOMs, comp.Name)
+	if sbomViewerEnabled {
+		for _, comp := range pkg.Components {
+			if len(comp.Files) > 0 || len(comp.DataInjections) > 0 {
+				componentSBOMs = append(componentSBOMs, comp.Name)
+			}
 		}
 	}
 	type imageSBOMTarget struct {
@@ -88,28 +92,33 @@ func generateSBOM(ctx context.Context, pkg v1alpha1.ZarfPackage, buildPath strin
 		}
 	}
 
-	identifiers := make([]string, 0, len(targets))
-	for _, t := range targets {
-		identifiers = append(identifiers, t.identifier)
-	}
-	jsonList, err := generateJSONList(componentSBOMs, identifiers)
-	if err != nil {
-		return err
-	}
-
-	for _, t := range targets {
-		l.Info("creating image SBOM", "reference", t.identifier)
-		b, err := createImageSBOM(ctx, cachePath, outputPath, t.img, t.identifier)
-		if err != nil {
-			return fmt.Errorf("failed to create image sbom: %w", err)
+	var jsonList []byte
+	if sbomViewerEnabled {
+		identifiers := make([]string, 0, len(targets))
+		for _, t := range targets {
+			identifiers = append(identifiers, t.identifier)
 		}
-		err = createSBOMViewerAsset(outputPath, t.identifier, b, jsonList)
+		jsonList, err = generateJSONList(componentSBOMs, identifiers)
 		if err != nil {
 			return err
 		}
 	}
 
-	// Generate SBOM for each component
+	for index, t := range targets {
+		l.Info("creating image SBOM", "reference", t.identifier, "count", fmt.Sprintf("%d/%d", index+1, len(targets)))
+		b, err := createImageSBOM(ctx, cachePath, outputPath, t.img, t.identifier)
+		if err != nil {
+			return fmt.Errorf("failed to create image sbom: %w", err)
+		}
+		if sbomViewerEnabled {
+			err = createSBOMViewerAsset(outputPath, t.identifier, b, jsonList)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// Generate SBOM for each component.
 	for _, comp := range pkg.Components {
 		if len(comp.DataInjections) == 0 && len(comp.Files) == 0 {
 			continue
@@ -118,9 +127,11 @@ func generateSBOM(ctx context.Context, pkg v1alpha1.ZarfPackage, buildPath strin
 		if err != nil {
 			return err
 		}
-		err = createSBOMViewerAsset(outputPath, fmt.Sprintf("%s%s", componentPrefix, comp.Name), jsonData, jsonList)
-		if err != nil {
-			return err
+		if sbomViewerEnabled {
+			err = createSBOMViewerAsset(outputPath, fmt.Sprintf("%s%s", componentPrefix, comp.Name), jsonData, jsonList)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -215,8 +226,8 @@ func createFileSBOM(ctx context.Context, component v1alpha1.ZarfComponent, outpu
 	}
 	catalog := pkg.NewCollection()
 	relationships := []artifact.Relationship{}
-	for _, sbomFile := range sbomFiles {
-		l.Info("creating file SBOMs", "file", sbomFile)
+	for index, sbomFile := range sbomFiles {
+		l.Info("creating file SBOMs", "file", sbomFile, "count", fmt.Sprintf("%d/%d", index+1, len(sbomFiles)))
 		fileSrc, err := filesource.NewFromPath(sbomFile)
 		if err != nil {
 			return nil, err

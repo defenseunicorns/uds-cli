@@ -40,7 +40,6 @@ var (
 	ErrPushingBundleHCL                  = errors.New("pushing bundle HCL")
 	ErrPushingDefaultsHCL                = errors.New("pushing defaults HCL")
 	ErrPackingBundleDefinitionManifest   = errors.New("packing bundle definition manifest")
-	ErrCreatingInspectionWorkspace       = errors.New("creating inspection workspace")
 	ErrFetchingBundleDefinitionManifest  = errors.New("fetching bundle definition manifest")
 	ErrFetchingBundleDefinitionHCL       = errors.New("fetching bundle definition HCL")
 	ErrInvalidBundle                     = errors.New("invalid bundle")
@@ -266,6 +265,19 @@ func (e ResolvingBundleSourceError) Error() string {
 	return fmt.Sprintf("resolving bundle from %s: %v", e.Source, e.Err)
 }
 func (e ResolvingBundleSourceError) Unwrap() error { return e.Err }
+
+type packageMetadataError struct {
+	Package string
+	Err     error
+}
+
+func (e packageMetadataError) Error() string {
+	return e.Err.Error()
+}
+
+func (e packageMetadataError) Unwrap() error {
+	return e.Err
+}
 
 type UnsupportedSchemaVersionError struct {
 	Artifact string

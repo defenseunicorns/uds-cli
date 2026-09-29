@@ -1,0 +1,78 @@
+# Changelog
+
+## [0.38.0](https://github.com/defenseunicorns/uds-cli/compare/v0.37.0...v0.38.0) (2026-09-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **next:** split remove into 2 commands ([#1545](https://github.com/defenseunicorns/uds-cli/issues/1545))
+
+### Features
+
+* **next:** split remove into 2 commands ([#1545](https://github.com/defenseunicorns/uds-cli/issues/1545)) ([6160987](https://github.com/defenseunicorns/uds-cli/commit/6160987e1c0005bc6816b739fe02520dbdb316e1))
+
+
+### Bug Fixes
+
+* improve error for missing unsigned pkg deploy flag ([#1560](https://github.com/defenseunicorns/uds-cli/issues/1560)) ([cf4cde1](https://github.com/defenseunicorns/uds-cli/commit/cf4cde12805fe4e6bb7daec7a61615e275a57474))
+* **legacy:** don't print full bundle config in debug log message ([#1557](https://github.com/defenseunicorns/uds-cli/issues/1557)) ([f594cde](https://github.com/defenseunicorns/uds-cli/commit/f594cde78395eb5793795ba871dd317dd85d09c4))
+* narrow error check and message to only unsigned bundles ([#1563](https://github.com/defenseunicorns/uds-cli/issues/1563)) ([a507542](https://github.com/defenseunicorns/uds-cli/commit/a5075425b7f0c4cace658b9a451d67bfdac06486))
+* require --architecture to be non-empty ([#1552](https://github.com/defenseunicorns/uds-cli/issues/1552)) ([4609795](https://github.com/defenseunicorns/uds-cli/commit/4609795f2c47959624c31d507d9ca4d4baa4ba27))
+
+
+### Miscellaneous
+
+* **ci:** add check to verify vendored dependencies ([#1551](https://github.com/defenseunicorns/uds-cli/issues/1551)) ([37bdfa2](https://github.com/defenseunicorns/uds-cli/commit/37bdfa23c8e27302bbe272e12b546d7f095b357d))
+* **deps:** update application-deps ([#1542](https://github.com/defenseunicorns/uds-cli/issues/1542)) ([91302e7](https://github.com/defenseunicorns/uds-cli/commit/91302e7387adbe67fe2c0f6b7128561b7708fcb2))
+* **deps:** update support dependencies to v1.28.2 ([#1548](https://github.com/defenseunicorns/uds-cli/issues/1548)) ([909542c](https://github.com/defenseunicorns/uds-cli/commit/909542cce09d549b44ef928771b4e74fb7eda46e))
+* **deps:** update support dependencies to v2026.9.10 ([#1561](https://github.com/defenseunicorns/uds-cli/issues/1561)) ([932bf1a](https://github.com/defenseunicorns/uds-cli/commit/932bf1a207c4c490f5cabcc1a05ce6bbb46b3a0f))
+* **deps:** update support dependencies to v2026.9.5 ([#1550](https://github.com/defenseunicorns/uds-cli/issues/1550)) ([e18db51](https://github.com/defenseunicorns/uds-cli/commit/e18db515521792961b4ec76baf44ec3cb56b6313))
+* **deps:** update support dependencies to v2026.9.9 ([#1556](https://github.com/defenseunicorns/uds-cli/issues/1556)) ([c64fdbc](https://github.com/defenseunicorns/uds-cli/commit/c64fdbc434e4a472520ea8f3212adf916e84009d))
+* **deps:** update support dependencies to v4.4.0 ([#1566](https://github.com/defenseunicorns/uds-cli/issues/1566)) ([f941dd7](https://github.com/defenseunicorns/uds-cli/commit/f941dd7a8bc677f2e742ecf41452127c174a973f))
+* **deps:** update support-deps ([#1543](https://github.com/defenseunicorns/uds-cli/issues/1543)) ([a021015](https://github.com/defenseunicorns/uds-cli/commit/a021015dc998e50ba2bedb9325b133e4335e0c81))
+* **deps:** update support-deps ([#1547](https://github.com/defenseunicorns/uds-cli/issues/1547)) ([7c5ee3c](https://github.com/defenseunicorns/uds-cli/commit/7c5ee3cf0f71f29b2e9ff82762e46547304dc044))
+* **deps:** update support-deps ([#1549](https://github.com/defenseunicorns/uds-cli/issues/1549)) ([41da334](https://github.com/defenseunicorns/uds-cli/commit/41da334ae3dff6524270fabadc61108056ef6235))
+* **deps:** update support-deps ([#1554](https://github.com/defenseunicorns/uds-cli/issues/1554)) ([4679fc1](https://github.com/defenseunicorns/uds-cli/commit/4679fc175e4b7044a1d51ffab49503f30bc00c7a))
+* **deps:** update support-deps ([#1558](https://github.com/defenseunicorns/uds-cli/issues/1558)) ([f5fdfd9](https://github.com/defenseunicorns/uds-cli/commit/f5fdfd975dd037373d3ab2f62b2dc155738841d8))
+* **deps:** update support-deps ([#1565](https://github.com/defenseunicorns/uds-cli/issues/1565)) ([d98b9df](https://github.com/defenseunicorns/uds-cli/commit/d98b9df974621848f3f7fc92912c57eb2755b09e))
+* **deps:** update support-deps to v1.13.0 ([#1562](https://github.com/defenseunicorns/uds-cli/issues/1562)) ([3ac25f6](https://github.com/defenseunicorns/uds-cli/commit/3ac25f69ccdf32fd1fbd965474c581ff5b31806f))
+* **next:** adr about the implementation of uds tools ([#1541](https://github.com/defenseunicorns/uds-cli/issues/1541)) ([e6498cb](https://github.com/defenseunicorns/uds-cli/commit/e6498cbd22d71790983de84c0e53b12eebbf340e))
+
+## [0.37.0](https://github.com/defenseunicorns/uds-cli/compare/v0.36.0...v0.37.0) (2026-09-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* **next:** operator monitor command ([#1528](https://github.com/defenseunicorns/uds-cli/issues/1528))
+* keep CLI features out of Zarf tools ([#1525](https://github.com/defenseunicorns/uds-cli/issues/1525))
+* **next:** artifact support for remove ([#1477](https://github.com/defenseunicorns/uds-cli/issues/1477))
+
+### Features
+
+* add release-please ([#1536](https://github.com/defenseunicorns/uds-cli/issues/1536)) ([14e8260](https://github.com/defenseunicorns/uds-cli/commit/14e82604cd0289d86a63704d1e326d142ecdf868))
+* **next:** artifact support for remove ([#1477](https://github.com/defenseunicorns/uds-cli/issues/1477)) ([6293c41](https://github.com/defenseunicorns/uds-cli/commit/6293c41c07f3731b9e59fa76bbb98e30e5776c38))
+* **next:** operator monitor command ([#1528](https://github.com/defenseunicorns/uds-cli/issues/1528)) ([9b8a6b0](https://github.com/defenseunicorns/uds-cli/commit/9b8a6b06ce66bb2b3cff78b1d0e4d94cb161bb4e))
+* **release:** align snapshot releases with CLI Next ([#1521](https://github.com/defenseunicorns/uds-cli/issues/1521)) ([762b914](https://github.com/defenseunicorns/uds-cli/commit/762b9142cbf44c8a77a6cddbba7bb813752a8bba))
+
+
+### Bug Fixes
+
+* **deps:** update application-deps ([#1529](https://github.com/defenseunicorns/uds-cli/issues/1529)) ([ebe08bc](https://github.com/defenseunicorns/uds-cli/commit/ebe08bc3d08356ea16100b0dbddd98903e0ef15d))
+* fixing dev-docs paths ([#1526](https://github.com/defenseunicorns/uds-cli/issues/1526)) ([f3c2903](https://github.com/defenseunicorns/uds-cli/commit/f3c29038e3cdb9c1a3344ff71dfd5ad88ced432f))
+* gitleaks shall ignore uds-docs ([#1527](https://github.com/defenseunicorns/uds-cli/issues/1527)) ([fb6677c](https://github.com/defenseunicorns/uds-cli/commit/fb6677c5b48b5de911bcb551c2402af3d37a6fc2))
+* keep CLI features out of Zarf tools ([#1525](https://github.com/defenseunicorns/uds-cli/issues/1525)) ([54f47d3](https://github.com/defenseunicorns/uds-cli/commit/54f47d3e7b3b8c446497b98b456c69b7a2400203))
+* **legacy:** preserve --set overrides after config reload ([#1533](https://github.com/defenseunicorns/uds-cli/issues/1533)) ([7e12795](https://github.com/defenseunicorns/uds-cli/commit/7e12795a84384a51b619be3b07992550ad8803cc))
+
+
+### Miscellaneous
+
+* configure Renovate for vendored dependencies ([#1499](https://github.com/defenseunicorns/uds-cli/issues/1499)) ([caa08ea](https://github.com/defenseunicorns/uds-cli/commit/caa08eaaad5611e7949aedb7df1fdd06cbfa14d4))
+* **deps:** update support dependencies to v2026.9.1 ([#1534](https://github.com/defenseunicorns/uds-cli/issues/1534)) ([d788c8a](https://github.com/defenseunicorns/uds-cli/commit/d788c8a8fb1c3faab006aee168079569d03d31b4))
+* **deps:** update support-deps ([#1452](https://github.com/defenseunicorns/uds-cli/issues/1452)) ([bdb5643](https://github.com/defenseunicorns/uds-cli/commit/bdb56435ab9c0611890b80e7a0296346390a9c70))
+* **deps:** update support-deps ([#1532](https://github.com/defenseunicorns/uds-cli/issues/1532)) ([06cdc3b](https://github.com/defenseunicorns/uds-cli/commit/06cdc3bcb275f76baaf771d8aa21c84b3eccaea7))
+* **deps:** update support-deps ([#1537](https://github.com/defenseunicorns/uds-cli/issues/1537)) ([c283fdd](https://github.com/defenseunicorns/uds-cli/commit/c283fdd8a98d5a6fa2403737cdafd9e81b9ef91d))
+* **deps:** update zarf to v0.84.0 ([#1475](https://github.com/defenseunicorns/uds-cli/issues/1475)) ([c6c38ed](https://github.com/defenseunicorns/uds-cli/commit/c6c38edc3edb5e4371356106c6af3f3c446cfd9b))
+* **deps:** update zarf to v0.85.0 ([#1538](https://github.com/defenseunicorns/uds-cli/issues/1538)) ([3c6b085](https://github.com/defenseunicorns/uds-cli/commit/3c6b085cbd30df5f330a55a47f28780f20646c04))
+* **docs:** add ai guidance ([#1471](https://github.com/defenseunicorns/uds-cli/issues/1471)) ([4eb05e5](https://github.com/defenseunicorns/uds-cli/commit/4eb05e5299c592daa263017eebd9e7f5b09920ec))
+* **docs:** add cli next docs how to guides ([#1523](https://github.com/defenseunicorns/uds-cli/issues/1523)) ([6365ecc](https://github.com/defenseunicorns/uds-cli/commit/6365ecc3122a754b2836891444dbd77fc1d98323))
+* **docs:** choosing a deployment tool doc ([#1522](https://github.com/defenseunicorns/uds-cli/issues/1522)) ([04d27f7](https://github.com/defenseunicorns/uds-cli/commit/04d27f734a7305834fc4ec1c39c4174befd78ee7))

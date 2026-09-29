@@ -281,6 +281,18 @@ func mergeVariables(base, overrides bundle.Variables) bundle.Variables {
 	return fromInternalVariables(bundleinternal.MergeVariables(toInternalVariables(base), toInternalVariables(overrides)))
 }
 
+func applySetVariables(config *bundle.UDSBundleConfig, entries []string) error {
+	if len(entries) == 0 {
+		return nil
+	}
+	variables, err := bundleinternal.ParseSetVariables(entries)
+	if err != nil {
+		return err
+	}
+	config.Variables = mergeVariables(config.Variables, fromInternalVariables(variables))
+	return nil
+}
+
 func toInternalVariables(variables bundle.Variables) bundleinternal.Variables {
 	if variables == nil {
 		return nil

@@ -39,4 +39,3 @@ uds dev disassemble <source> <output-dir> [flags]
 ### SEE ALSO
 
 * [uds dev](/reference/commands/uds_dev/)	 - [beta] Commands useful for developing bundles
-

@@ -1,0 +1,97 @@
+---
+title: "Publish and pull a bundle in Next mode"
+description: Publish artifacts for bundles in Next mode to an OCI registry and pull them for deployment or offline workflows.
+sidebar:
+  order: 4.5
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Use `bundle push` to publish a local `.tar.zst` artifact and `bundle pull` to retrieve it into a local directory.
+
+## What you'll accomplish
+
+- Publish a signed artifact.
+- Pull it into a local directory.
+- Deploy the pulled artifact.
+
+## Prerequisites
+
+- [UDS CLI installed](/cli/getting-started/installation/)
+- A bundle directory containing `bundle.uds.hcl` and its referenced files, or an existing `.tar.zst` bundle artifact
+- OCI access to each package source when creating an artifact
+- A signing key or keyless identity, and matching public key or keyless certificate constraints for signed workflows
+- Read and write access to the destination OCI registry
+
+## Steps
+
+<Steps>
+
+1. **Publish an artifact**
+
+   Create and sign an artifact before publishing it:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle create . --signing-key ./cosign.key
+   CLI_FEATURES=NextMode=true uds bundle push ./uds-bundle-my-app-<ARCH>-1.0.0.tar.zst oci://registry.example.com/my-org/my-app:1.0.0
+   ```
+
+   Replace `<ARCH>` with the architecture in the output path printed by `bundle create`, such as `amd64` or `arm64`.
+
+    The command needs a local `.tar.zst` path and a destination OCI reference. It preserves signature evidence when present, but does not require a signature. Use signed artifacts for trusted release workflows.
+
+   If you already have a signed artifact, skip the create command and push the existing file:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle push ./existing-bundle.tar.zst oci://registry.example.com/my-org/my-app:1.0.0
+   ```
+
+2. **Pull an artifact**
+
+   Pull a signed artifact into an existing directory:
+
+   ```bash
+   mkdir -p ./downloads
+   CLI_FEATURES=NextMode=true uds bundle pull oci://registry.example.com/my-org/my-app:1.0.0 \
+     --public-key ./cosign.pub \
+     --output-dir ./downloads
+   ```
+
+    Pull verifies the bundle signature by default. For a keyless signature, provide its certificate constraints:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle pull oci://registry.example.com/my-org/my-app:1.0.0 \
+     --certificate-identity-regexp 'https://github\.com/my-org/.*/\.github/workflows/release\.yml@refs/heads/main' \
+     --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+     --output-dir ./downloads
+   ```
+
+    Do not use `--skip-signature-verification` when pulling registry artifacts for a trusted workflow. Use the signed pull commands above, or keep unsigned testing to a locally created artifact and follow the unsigned local workflow in [Deploy a bundle in Next mode](/cli/how-to-guides/next/deploy-a-bundle/).
+
+3. **Deploy the pulled artifact**
+
+    Use the downloaded `.tar.zst` path from the pull result:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle deploy ./downloads/uds-bundle-my-app-<ARCH>-1.0.0.tar.zst --public-key ./cosign.pub
+   ```
+
+   Use [the deployment workflow](/cli/how-to-guides/next/deploy-a-bundle/) for source deploys, partial package selection, and unsigned local workflows.
+
+</Steps>
+
+## Verification
+
+Inspect the pulled artifact before deployment:
+
+```bash
+CLI_FEATURES=NextMode=true uds bundle inspect ./downloads/uds-bundle-my-app-<ARCH>-1.0.0.tar.zst
+```
+
+Replace `<ARCH>` with the architecture in the path printed by `bundle pull`, such as `amd64` or `arm64`. The output filename includes the bundle name, architecture, and version.
+
+## Related documentation
+
+- [Create a bundle in Next mode](/cli/how-to-guides/next/create-a-bundle/) - Create a signed bundle artifact.
+- [Reconfigure a bundle in Next mode](/cli/how-to-guides/next/reconfigure-a-bundle/) - Create an environment-specific derivative.
+- [Inspect and verify a bundle in Next mode](/cli/how-to-guides/next/inspect-verify/) - Inspect metadata and verify signatures.

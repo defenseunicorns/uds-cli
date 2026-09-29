@@ -1,0 +1,58 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: uds-cli-monitor-admission
+  labels:
+    pepr.dev/controller: admission
+spec:
+  containers:
+    - name: server
+      image: registry.k8s.io/e2e-test-images/busybox:1.29-4
+      command: ["sh", "-c"]
+      args:
+        - |
+          printf '%s%s%s\n' \
+            '{"namespace":"uds-cli-monitor",' \
+            '"name":"/allowed-pod","res":{"allowed":true},' \
+            '"msg":"Check response"}'
+          printf '%s%s%s%s\n' \
+            '{"namespace":"uds-cli-monitor",' \
+            '"name":"/denied-pod","res":{"allowed":false,' \
+            '"status":{"message":"policy denied"}},' \
+            '"msg":"Check response"}'
+          printf '%s%s%s%s%s\n' \
+            '{"namespace":"uds-cli-monitor",' \
+            '"name":"/mutated-pod","res":{"allowed":true,' \
+            '"patchType":"JSONPatch","patch":"W3sib3AiOiJhZGQiLCJwYXRo' \
+            'IjoiL21ldGFkYXRhL2xhYmVscy9tb25pdG9yZWQiLCJ2YWx1ZSI6InRydW' \
+            'UifV0="},"msg":"Check response"}'
+          printf '%s%s%s\n' \
+            '{"namespace":"other-namespace",' \
+            '"name":"/filtered-pod","res":{"allowed":true},' \
+            '"msg":"Check response"}'
+          sleep 600
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: uds-cli-monitor-watcher
+  labels:
+    pepr.dev/controller: watcher
+spec:
+  containers:
+    - name: watcher
+      image: registry.k8s.io/e2e-test-images/busybox:1.29-4
+      command: ["sh", "-c"]
+      args:
+        - |
+          printf '%s%s\n' \
+            '{"namespace":"uds-cli-monitor","name":"package",' \
+            '"msg":"Updating status to Ready"}'
+          printf '%s%s\n' \
+            '{"namespace":"uds-cli-monitor","name":"failed-package",' \
+            '"msg":"Updating status to Failed"}'
+          sleep 600

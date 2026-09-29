@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
@@ -42,11 +41,15 @@ func NewCreateCommand(streams iostreams.IOStreams) *cobra.Command {
 		Short: "Create a new UDS bundle",
 		Long:  "Create a new UDS bundle from an HCL configuration file",
 		Args:  cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			util.CheckErr(o.Complete(cmd, args))
-			util.CheckErr(o.Validate())
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := o.Complete(cmd, args); err != nil {
+				return err
+			}
+			if err := o.Validate(); err != nil {
+				return err
+			}
 			ctx := cmd.Context()
-			util.CheckErr(o.Run(ctx))
+			return o.Run(ctx)
 		},
 	}
 	addSigningFlags(cmd, &o.Signing)

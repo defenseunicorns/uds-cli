@@ -4,10 +4,16 @@ UDS CLI testing strategy. For generic Go testing rules, see [the Go development 
 
 ## Principles
 
+- [ADR-0027](../../../../docs/adr/0027-public-api-test-pyramid.md) defines three
+  layers: unit, public library, and CLI. Cluster ownership is an execution
+  purpose, not an extra layer.
+- Maintain a healthy testing pyramid: many unit tests, fewer Library tests,
+  and the fewest CLI tests. Push each behavior to the lowest layer that can
+  prove it: unit tests for underlying logic, Library tests for public API
+  contracts, and CLI tests for command-line behavior. Do not add or move tests
+  merely to change counts.
 - Reproduce bugs as close to the end-user experience as practical before fixing.
-- Use the lowest test tier that proves the behavior.
 - Prefer fast unit tests for pure logic and validation.
-- Use integration tests for wiring, public API behavior, or binary behavior that unit tests cannot prove.
 - Ask before running cluster tests, GHCR-writing tests, destructive tests, or tests that mutate shared state.
 - Keep Legacy and Next tests in their own lanes.
 
@@ -23,6 +29,7 @@ UDS CLI testing strategy. For generic Go testing rules, see [the Go development 
 
 ```bash
 uds run test:unit
+uds run test:next-unit
 uds run test
 ```
 
@@ -46,60 +53,77 @@ uds run test:architecture
 - Prefer focused Legacy E2E tasks from `uds run --list-all` and run only the task needed for the behavior under test.
 - Ask for explicit approval before running any GHCR-writing task.
 
-### Next command integration tests
+### Next CLI tests
 
-- Location: `tests/integration/...`.
-- Build tag: `integration`.
-- Scope: cluster-free CLI command wiring and binary behavior.
+- Location: `tests/cli/...`.
+- Build tag: `cli`.
+- Scope: command-line arguments, flags, aliases, config precedence, prompts,
+  and user-facing output.
+- Execute commands through a fresh Cobra root and `iostreams`. Next handlers
+  return errors with `RunE`; command tests assert the returned error rather than
+  a process exit.
+- Keep primary `cmd/uds` execution to the minimal process-only checks: Zarf
+  passthrough, Next-mode routing, and error/exit behavior. Do not duplicate
+  library contracts through the binary.
 - These tests should not own deep business logic coverage when unit or library tests can cover it.
-- Build `build/uds` first because tests use `UDS_CLI_PATH`.
 - Run with:
 
 ```bash
 uds run build
-uds run test:next-integration
+uds run test:next-cli-non-cluster
 ```
 
-### Next library integration tests
+### Next Library tests
 
 - Location: `tests/library/...`.
 - Build tag: `library`.
-- Scope: public library behavior, especially `pkg/bundle` APIs, hooks, options, results, and public error contracts.
-- No cluster, registry, or CLI binary should be required unless the test clearly documents why.
+- Scope: public library behavior, especially `pkg/bundle`, `pkg/bundle/spec`, and `pkg/iostreams` APIs, hooks, options, results, and public error contracts.
+- Library tests and every fixture or assertion helper they transitively import
+  must use only those public UDS packages. Do not call internal UDS packages,
+  Cobra, or a UDS CLI binary.
 - Run with:
 
 ```bash
-uds run test:next-integration-library
+uds run test:next-library-non-cluster
 ```
 
-### Next cluster integration tests
-
-- Location: `tests/cluster/...`.
-- Build tag: `cluster_integration`.
-- Scope: Next behavior against k3d or a live Kubernetes cluster.
-- Build `build/uds` first.
-- Ask for approval before running because these tests create and mutate cluster resources.
-- Run with:
+The credentialed subsets use `library,signing_integration`:
 
 ```bash
-uds run build
-uds run test:next-cluster
+uds run test:next-library-non-cluster-package-verification
+uds run test:next-library-non-cluster-keyless
 ```
 
-### Next UDS Core smoke tests
+The first verifies signed remote packages. The second requires GitHub Actions
+OIDC credentials and must fail when they are unavailable.
 
-- Location: `tests/smoke/...`.
-- Build tag: `uds_core_smoke`.
-- Scope: live-cluster UDS Core smoke coverage for Next.
-- Intended for release, nightly, or explicit validation rather than normal local loops.
-- Build `build/uds` first.
-- Ask for approval before running.
-- Run with:
+### Cluster execution
+
+Both Library and CLI tests have two subcategories: in-cluster and non-cluster.
+These describe cluster requirements; they do not add layers to the pyramid.
+
+#### In-cluster
+
+- Library and CLI in-cluster tests require `KUBECONFIG` and
+  `UDS_TEST_KUBECONFIG` to name the same explicit Zarf-ready kubeconfig.
+- Provision that cluster outside the suite with `hack/test-cluster.sh`. The
+  suite never adopts, creates, initializes, or deletes the supplied cluster;
+  it cleans up only its test-owned resources.
+- Run with the nearest task selector:
 
 ```bash
-uds run build
-uds run test:next-smoke-uds-core
+uds run test:next-library-in-cluster
+uds run test:next-cli-in-cluster
 ```
+
+#### Non-cluster
+
+- Tests start with no supplied cluster and may create a uniquely named,
+  isolated cluster. They use an isolated kubeconfig and remove only resources
+  and clusters created by that execution.
+- Library lifecycle setup still uses public UDS APIs; infrastructure creation
+  never changes a library test into a Cobra test.
+- Ask before running tests that create or mutate a cluster.
 
 ## IOStreams pattern
 
@@ -112,6 +136,10 @@ _ = errOut
 
 // Pass streams into options, commands, or public APIs that accept IOStreams.
 ```
+
+When a direct Cobra test triggers a Zarf package-action callback, use the
+mise-managed standalone Zarf version matching `go.mod`; do not substitute a UDS
+binary.
 
 ## Assertions
 
@@ -134,8 +162,8 @@ _ = errOut
 
 ## Avoid
 
-- Testing cobra parsing in unit tests when a command integration test is more appropriate.
-- Testing deep business logic only through CLI integration tests.
+- Testing Cobra parsing in unit tests when a CLI test is more appropriate.
+- Testing deep business logic only through CLI tests.
 - Mixing Legacy and Next fixtures or assertions without a migration-specific reason.
 - Running cluster, GHCR, or destructive tests without approval.
 - Leaving generated artifacts, bundles, or cluster resources behind.

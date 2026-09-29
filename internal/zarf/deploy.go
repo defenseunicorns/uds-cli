@@ -51,7 +51,11 @@ type DeployOptions struct {
 	// BundleDir resolves package-relative paths.
 	BundleDir string
 	// Packages restricts deployment when non-empty.
-	Packages           []string
+	Packages []string
+	// Resume skips packages already recorded by Zarf as the exact intended deployment.
+	Resume             bool
+	SpecLoader         PackageSpecLoader
+	DeployedPackagesFn DeployedPackagesFn
 	BundleDeployHooks  BundleDeployHooks
 	PackageDeployHooks PackageDeployHooks
 	// PackageDeployFn replaces the complete per-package deployment path when non-nil.
@@ -182,6 +186,12 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *spec.UDSBundle, opts
 	if levels, err = bundleinternal.FilterLevels(levels, opts.Packages); err != nil {
 		return nil, err
 	}
+	if opts.Resume {
+		levels, err = filterResumeLevels(ctx, levels, opts, d.streams)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// Count the packages actually scheduled for deploy (the filtered set), which
 	// may be a subset of b.Packages when --packages is used.
@@ -196,6 +206,9 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *spec.UDSBundle, opts
 	}
 	if opts.Config == nil || opts.Config.Options == nil {
 		return nil, fmt.Errorf("bundle pre-deploy hook left config invalid: %w", ErrBundleHook)
+	}
+	if opts.Resume && opts.PackageDeployHooks.PreDeploy != nil {
+		return nil, ErrResumePackagePreDeployHook
 	}
 	s = logger.Bind(d.streams, opts.Config.Options.LogLevel)
 
@@ -221,6 +234,9 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *spec.UDSBundle, opts
 		return nil, err
 	}
 	deployed := orch.DeployedPackages()
+	if deployed == nil {
+		deployed = []string{}
+	}
 
 	result := &DeployResult{
 		BundleName: b.Metadata.Name,

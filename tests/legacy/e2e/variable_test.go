@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package test provides e2e tests for UDS.
@@ -13,6 +13,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
+const sensitiveVariableValue = "e2e-sensitive-zarf-value"
 
 func TestBundleVariables(t *testing.T) {
 	e2e.CreateZarfPkg(t, "testdata/legacy/packages/no-cluster/output-var", false)
@@ -49,27 +51,40 @@ func TestBundleVariables(t *testing.T) {
 func bundleVariablesTestChecks(t *testing.T, stdout, stderr, bundleTarballPath string) {
 	require.NotContains(t, stderr, "CLIVersion is set to 'unset' which can cause issues with package creation and deployment")
 	require.Contains(t, stdout, `SENSITIVE_VAR: "****"`)
-	require.NotContains(t, stdout, "e2e-sensitive-zarf-value")
+	assertSensitiveValueNotLoggedOrPrinted(t, stdout, stderr)
 	require.Contains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
 	require.Contains(t, stderr, "This fun-fact demonstrates precedence: The Red Dragon is the national symbol of Wales")
 	require.Contains(t, stderr, "shared var in output-var pkg: burning.boats")
 	require.Contains(t, stderr, "shared var in receive-var pkg: burning.boats")
 
-	_, stderr = runCmd(t, "deploy "+bundleTarballPath+" --set ANIMAL=Longhorns --set COUNTRY=Texas --confirm -l=debug")
+	stdout, stderr = runCmd(t, "deploy "+bundleTarballPath+" --set ANIMAL=Longhorns --set COUNTRY=Texas --confirm -l=debug")
+	assertSensitiveValueNotLoggedOrPrinted(t, stdout, stderr)
 	require.Contains(t, stderr, "This fun-fact was imported: Longhorns are the national animal of Texas")
 	require.NotContains(t, stderr, "This fun-fact was imported: Unicorns are the national animal of Scotland")
 
-	_, stderr = runCmd(t, "deploy "+bundleTarballPath+" --set output-var.SPECIFIC_PKG_VAR=output-var-set --confirm -l=debug")
+	stdout, stderr = runCmd(t, "deploy "+bundleTarballPath+" --set output-var.SPECIFIC_PKG_VAR=output-var-set --confirm -l=debug")
+	assertSensitiveValueNotLoggedOrPrinted(t, stdout, stderr)
 	require.Contains(t, stderr, "output-var SPECIFIC_PKG_VAR = output-var-set")
 	require.Contains(t, stderr, "receive-var SPECIFIC_PKG_VAR = not-set")
 
-	_, stderr = runCmd(t, "deploy "+bundleTarballPath+" --set output-var.specific_pkg_var=output --set receive-var.SPECIFIC_PKG_VAR=receive --confirm -l=debug")
+	stdout, stderr = runCmd(t, "deploy "+bundleTarballPath+" --set output-var.specific_pkg_var=output --set receive-var.SPECIFIC_PKG_VAR=receive --confirm -l=debug")
+	assertSensitiveValueNotLoggedOrPrinted(t, stdout, stderr)
 	require.Contains(t, stderr, "output-var SPECIFIC_PKG_VAR = output")
 	require.Contains(t, stderr, "receive-var SPECIFIC_PKG_VAR = receive")
 
-	_, stderr = runCmd(t, "deploy "+bundleTarballPath+" --set SPECIFIC_PKG_VAR=errbody --confirm -l=debug")
+	stdout, stderr = runCmd(t, "deploy "+bundleTarballPath+" --set SPECIFIC_PKG_VAR=errbody --confirm -l=debug")
+	assertSensitiveValueNotLoggedOrPrinted(t, stdout, stderr)
 	require.Contains(t, stderr, "output-var SPECIFIC_PKG_VAR = errbody")
 	require.Contains(t, stderr, "receive-var SPECIFIC_PKG_VAR = errbody")
+}
+
+func assertSensitiveValueNotLoggedOrPrinted(t *testing.T, stdout, stderr string) {
+	t.Helper()
+
+	require.NotContains(t, stdout, sensitiveVariableValue)
+	require.NotContains(t, stderr, sensitiveVariableValue)
+	logContents := e2e.GetLogFileContents(t, stderr)
+	require.NotContains(t, logContents, sensitiveVariableValue)
 }
 
 func TestBundleWithHelmOverrides(t *testing.T) {
@@ -260,7 +275,7 @@ func TestBundleWithEnvVarHelmOverrides(t *testing.T) {
 	e2e.HelmDepUpdate(t, "testdata/legacy/packages/helm/unicorn-podinfo")
 	e2e.CreateZarfPkg(t, "testdata/legacy/packages/helm", false)
 	color := "purple"
-	b64Secret := "dGhhdCBhaW50IG15IHRydWNrCg=="
+	b64Secret := base64.StdEncoding.EncodeToString([]byte("that aint my truck\n"))
 	err := os.Setenv("UDS_CONFIG", filepath.Join("testdata/legacy/bundles/07-helm-overrides", "uds-config.yaml"))
 	require.NoError(t, err)
 	err = os.Setenv("UDS_UI_COLOR", color)

@@ -5,10 +5,11 @@ package bundle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 
-	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
@@ -36,10 +37,14 @@ func NewVerifyCommand(streams iostreams.IOStreams) *cobra.Command {
 		Use:   "verify <bundle-artifact>",
 		Short: "Verify a created bundle artifact",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			util.CheckErr(o.Complete(cmd, args))
-			util.CheckErr(o.Validate())
-			util.CheckErr(o.Run(cmd.Context()))
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := o.Complete(cmd, args); err != nil {
+				return err
+			}
+			if err := o.Validate(); err != nil {
+				return err
+			}
+			return o.Run(cmd.Context())
 		},
 	}
 	addVerificationFlags(cmd, o, false)
@@ -131,7 +136,11 @@ func (o *VerifyOptions) policy() (bundlepkg.VerificationPolicy, error) {
 		policy.Keyless = &keyless
 	}
 	if err := policy.Validate(); err != nil {
-		return bundlepkg.VerificationPolicy{}, err
+		return policy, err
 	}
 	return policy, nil
+}
+
+func (o *VerifyOptions) isMissingPolicy(policy bundlepkg.VerificationPolicy, err error) bool {
+	return errors.Is(err, bundlepkg.ErrInvalidVerificationPolicy) && o.PublicKey == "" && strings.TrimSpace(policy.PublicKey) == "" && policy.Keyless == nil
 }

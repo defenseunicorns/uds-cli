@@ -8,13 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/spf13/cobra"
 	zarfconfig "github.com/zarf-dev/zarf/src/config"
-	"github.com/zarf-dev/zarf/src/pkg/feature"
 )
 
 const FeaturesEnv = "CLI_FEATURES"
@@ -69,6 +68,12 @@ func Resolve(args []string, lookupEnv func(string) (string, bool)) (Mode, Featur
 		}
 	}
 	remaining := make([]string, 0, len(args))
+	zarfIndex := zarfCommandIndex(args)
+	zarfArgs := []string(nil)
+	if zarfIndex >= 0 {
+		zarfArgs = args[zarfIndex:]
+		args = args[:zarfIndex]
+	}
 	seenFeatures := false
 	for len(args) > 0 {
 		arg := args[0]
@@ -104,7 +109,7 @@ func Resolve(args []string, lookupEnv func(string) (string, bool)) (Mode, Featur
 			features[name] = enabled
 		}
 	}
-	remaining = addZarfFeatures(remaining, features)
+	remaining = append(remaining, zarfArgs...)
 	if features["NextMode"] {
 		return Next, features, remaining, nil
 	}
@@ -141,33 +146,7 @@ func parse(value string) (FeatureSet, error) {
 }
 
 func knownFeature(name string) bool {
-	if name == "NextMode" {
-		return true
-	}
-	for _, f := range feature.AllDefault() {
-		if string(f.Name) == name {
-			return true
-		}
-	}
-	return false
-}
-
-func addZarfFeatures(args []string, features FeatureSet) []string {
-	// Mode resolution consumes the shared --features flag before Cobra runs. Restore every
-	// feature other than NextMode after the zarf command so Zarf still receives its features.
-	zarfFeatures := FeatureSet{}
-	for name, enabled := range features {
-		if name != "NextMode" {
-			zarfFeatures[name] = enabled
-		}
-	}
-	if len(zarfFeatures) == 0 {
-		return args
-	}
-	if index := zarfCommandIndex(args); index >= 0 {
-		return slices.Insert(args, index+1, "--features="+zarfFeatures.String())
-	}
-	return args
+	return name == "NextMode"
 }
 
 func zarfCommandIndex(args []string) int {
@@ -198,7 +177,7 @@ func nestedZarfCommandIndex(args []string, start int) int {
 		if arg == "--" {
 			return -1
 		}
-		if arg == "zarf" {
+		if arg == "zarf" || arg == "z" {
 			return i
 		}
 		if !strings.HasPrefix(arg, "-") {
@@ -213,7 +192,7 @@ func nestedZarfCommandIndex(args []string, start int) int {
 
 func zarfRootFlagTakesValue(name string) bool {
 	switch name {
-	case "log-level", "l", "architecture", "a", "uds-cache", "tmpdir", "oci-concurrency":
+	case "features", "log-level", "l", "architecture", "a", "uds-cache", "tmpdir", "oci-concurrency":
 		return true
 	default:
 		return false
@@ -225,8 +204,12 @@ func prepareBootstrapArgs(args []string) []string {
 }
 
 func stripBootstrapArgs(args []string) []string {
+	zarfIndex := zarfCommandIndex(args)
 	remaining := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
+		if zarfIndex >= 0 && i >= zarfIndex {
+			return append(remaining, args[i:]...)
+		}
 		arg := args[i]
 		if arg == "--" {
 			return append(remaining, args[i:]...)
@@ -263,9 +246,22 @@ func rootZarfToolsCommandIndex(args []string) int {
 		if arg == "--" {
 			return -1
 		}
-		if arg == "zarf" {
-			if i+1 < len(args) && (args[i+1] == "tools" || args[i+1] == "t") {
-				return i
+		if arg == "zarf" || arg == "z" {
+			zarfIndex := i
+			for i = zarfIndex + 1; i < len(args); i++ {
+				arg = args[i]
+				if arg == cobra.ShellCompRequestCmd || arg == cobra.ShellCompNoDescRequestCmd {
+					continue
+				}
+				if arg == "tools" || arg == "t" {
+					return zarfIndex
+				}
+				if arg == "--" || !strings.HasPrefix(arg, "-") {
+					return -1
+				}
+				if !strings.Contains(arg, "=") && zarfRootFlagTakesValue(strings.TrimLeft(arg, "-")) {
+					i++
+				}
 			}
 			return -1
 		}

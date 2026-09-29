@@ -1,0 +1,121 @@
+---
+title: "Reconfigure a bundle in Next mode"
+description: Replace environment-specific defaults in bundles in Next mode without rebuilding package content.
+sidebar:
+  order: 4.6
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Use `bundle reconfigure` to replace environment defaults without rebuilding package content.
+
+## What you'll accomplish
+
+- Replace an artifact's defaults.
+- Create a derivative in a local directory or OCI registry.
+- Keep the package content unchanged.
+
+## Prerequisites
+
+- [UDS CLI installed](/cli/getting-started/installation/)
+- A local `.tar.zst` bundle artifact or an OCI bundle reference
+- A `defaults.uds.hcl` file containing the replacement variables
+- A matching bundle public key or keyless certificate constraints for the source artifact
+- A signing key or keyless signing identity for a signed derivative
+
+## Steps
+
+<Steps>
+
+1. **Create a defaults file**
+
+   Create a replacement file such as `defaults.production.uds.hcl`:
+
+   ```hcl title="defaults.production.uds.hcl"
+   variables = {
+     cluster_name   = "production"
+     replica_count  = 3
+     enable_metrics = true
+   }
+   ```
+
+    A `defaults.uds.hcl` file supports only the `variables` attribute. Use `config.uds.hcl` with `--config` for deploy-time options such as architecture or log level.
+
+2. **Reconfigure a local artifact**
+
+   Create an unsigned derivative for a local alpha workflow:
+
+   ```bash
+   mkdir -p ./dist
+   CLI_FEATURES=NextMode=true uds bundle reconfigure \
+      ./uds-bundle-my-app-amd64-1.0.0.tar.zst \
+      --defaults ./defaults.production.uds.hcl \
+      --suffix -production \
+      --output-dir ./dist \
+      --skip-signature-verification \
+     --unsigned
+   ```
+
+   For a signed derivative, omit the unsigned flags and provide a signing key or use keyless signing:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle reconfigure \
+      ./uds-bundle-my-app-amd64-1.0.0.tar.zst \
+      --defaults ./defaults.production.uds.hcl \
+      --suffix -production \
+      --public-key ./cosign.pub \
+     --signing-key ./cosign.key \
+     --output-dir ./dist
+   ```
+
+   The local output defaults to the current directory. `--output-dir` lets you choose another directory.
+
+3. **Reconfigure an OCI artifact**
+
+   Use an OCI source to publish a derivative tag. OCI sources do not support `--output-dir`:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle reconfigure \
+     oci://registry.example.com/my-org/my-app:1.0.0 \
+     --defaults ./defaults.production.uds.hcl \
+     --suffix -production \
+     --public-key ./cosign.pub \
+     --signing-key ./cosign.key
+   ```
+
+     Reconfigure verifies the source bundle signature by default. Use `--skip-signature-verification` only for a locally controlled unsigned alpha source. Do not use it to bypass verification for registry-backed artifacts. Sign the new artifact, or use `--unsigned` for local alpha work.
+
+</Steps>
+
+## Verification
+
+If you created a signed derivative, inspect it and verify its bundle signature:
+
+```bash
+CLI_FEATURES=NextMode=true uds bundle inspect ./dist/uds-bundle-my-app-production-amd64-1.0.0.tar.zst
+CLI_FEATURES=NextMode=true uds bundle verify \
+  ./dist/uds-bundle-my-app-production-amd64-1.0.0.tar.zst \
+  --public-key ./cosign.pub
+```
+
+If you created an unsigned local alpha derivative, inspect it without running `bundle verify`. It has no bundle signature, so its integrity and origin are not established.
+
+```bash
+CLI_FEATURES=NextMode=true uds bundle inspect ./dist/uds-bundle-my-app-production-amd64-1.0.0.tar.zst
+```
+
+The output filename includes the configured suffix. Use the path printed by `bundle reconfigure` when the architecture or version differs.
+
+## Troubleshooting
+
+### Problem: The command rejects the defaults file
+
+**Symptom:** The command reports an unsupported block or attribute in the replacement defaults file.
+
+**Solution:** Keep the file to a `variables` attribute. Put deploy-time options in `config.uds.hcl` and pass it with `--config` during deployment.
+
+## Related documentation
+
+- [Create a bundle in Next mode](/cli/how-to-guides/next/create-a-bundle/) - Create the source bundle artifact.
+- [Publish and pull a bundle in Next mode](/cli/how-to-guides/next/publish-pull/) - Publish and retrieve OCI artifacts.
+- [Next mode reference](/cli/reference/next-mode/) - Review defaults, configuration, and artifact behavior.

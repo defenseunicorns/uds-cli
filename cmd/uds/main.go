@@ -57,7 +57,7 @@ func newRootCommand(selected mode.Mode) (*cobra.Command, error) {
 	case mode.Next:
 		streams := iostreams.New(os.Stdin, os.Stdout, os.Stderr)
 		root := cli.NewRootCommand(streams)
-		root.AddCommand(legacycli.NewNonBundleCommands()...)
+		root.AddCommand(legacycli.NewRunCommand())
 		return root, nil
 	default:
 		return nil, fmt.Errorf("unsupported CLI mode %q", selected)

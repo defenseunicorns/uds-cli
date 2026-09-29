@@ -1,6 +1,6 @@
 ---
-title: Getting Started
-description: Choose between installation and a quickstart to begin using UDS CLI for creating and deploying UDS Bundles.
+title: Getting started
+description: Choose between installation, Legacy mode, and Next mode quickstarts for UDS CLI.
 sidebar:
   order: 2.1
 ---
@@ -20,23 +20,33 @@ Choose your path based on your goal.
     <LinkCard title="Install UDS CLI" href="/cli/getting-started/installation/" />
   </Card>
 
-  <Card title="Quickstart" icon="open-book">
-    Write a `uds-bundle.yaml`, create a bundle, and deploy it to a cluster end-to-end.
+  <Card title="Next mode quickstart" icon="rocket">
+    Create and deploy a Next mode bundle on a local k3d cluster.
 
     - **Time:** ~10 minutes
-    - **Needs:** UDS CLI installed, a running Kubernetes cluster
-    - **Result:** A deployed UDS Bundle
+    - **Needs:** UDS CLI installed, Docker, and k3d 5.7.1+
+    - **Result:** A deployed Next mode bundle
 
-    <LinkCard title="Run the Quickstart" href="/cli/getting-started/quickstart/" />
+    <LinkCard title="Run the Next quickstart" href="/cli/getting-started/next-quickstart/" />
+  </Card>
+
+  <Card title="Legacy mode quickstart" icon="open-book">
+    Create and deploy a Legacy bundle on a Kubernetes cluster.
+
+    - **Time:** ~10 minutes
+    - **Needs:** UDS CLI installed and a running Kubernetes cluster
+    - **Result:** A deployed Legacy bundle
+
+    <LinkCard title="Run the Legacy quickstart" href="/cli/getting-started/quickstart/" />
   </Card>
 </CardGrid>
 
 ---
 
-## Related Documentation
+## Related documentation
 
 Once you have the CLI installed and have deployed a basic bundle, explore the how-to guides:
 
-- [Use Bundle Overrides](/how-to-guides/use-bundle-overrides/): customize Helm chart values at deploy time
-- [Use UDS Runner](/how-to-guides/use-uds-runner/): automate bundle workflows with `tasks.yaml`
-- [Monitor a Cluster](/how-to-guides/monitor-cluster/): stream real-time Pepr logs from a running cluster
+- [Use Bundle Overrides](/cli/how-to-guides/use-bundle-overrides/): customize Helm chart values at deploy time
+- [Use UDS Runner](/cli/how-to-guides/use-uds-runner/): automate bundle workflows with `tasks.yaml`
+- [Monitor a Cluster](/cli/how-to-guides/monitor-cluster/): stream real-time Pepr logs from a running cluster
