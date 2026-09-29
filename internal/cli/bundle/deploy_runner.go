@@ -19,11 +19,16 @@ type deployRunnerFunc func(
 	ctx context.Context,
 	streams iostreams.IOStreams,
 	config *bundlepkg.UDSBundleConfig,
-	bundlePath string,
-	packages []string,
-	force bool,
-	prompt bool,
+	opts deployOptions,
 ) (*bundlepkg.DeployResult, error)
+
+type deployOptions struct {
+	bundlePath string
+	packages   []string
+	force      bool
+	resume     bool
+	prompt     bool
+}
 
 type prepareDeploySourceFunc func(
 	ctx context.Context,
@@ -44,12 +49,9 @@ func runDeploy(
 	ctx context.Context,
 	streams iostreams.IOStreams,
 	baseConfig *bundlepkg.UDSBundleConfig,
-	bundlePath string,
-	packages []string,
-	force bool,
-	prompt bool,
+	opts deployOptions,
 ) (*bundlepkg.DeployResult, error) {
-	return runDeployWith(ctx, streams, baseConfig, bundlePath, packages, force, prompt, deployRunnerDependencies{
+	return runDeployWith(ctx, streams, baseConfig, opts, deployRunnerDependencies{
 		prepare: prepareDeploySource,
 		deploy:  bundlepkg.Deploy,
 	})
@@ -59,13 +61,10 @@ func runDeployWith(
 	ctx context.Context,
 	streams iostreams.IOStreams,
 	baseConfig *bundlepkg.UDSBundleConfig,
-	bundlePath string,
-	packages []string,
-	force bool,
-	prompt bool,
+	opts deployOptions,
 	deps deployRunnerDependencies,
 ) (*bundlepkg.DeployResult, error) {
-	prepared, err := deps.prepare(ctx, streams, bundlePath, baseConfig.Options.TmpDir, baseConfig.Options.Architecture)
+	prepared, err := deps.prepare(ctx, streams, opts.bundlePath, baseConfig.Options.TmpDir, baseConfig.Options.Architecture)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +77,7 @@ func runDeployWith(
 
 	config := baseConfig
 	streams = logger.Bind(streams, config.Options.LogLevel)
-	streams.Debug("prepared bundle deployment source", "path", deploySrc.BundlePath, "prompt", prompt)
+	streams.Debug("prepared bundle deployment source", "path", deploySrc.BundlePath, "prompt", opts.prompt)
 
 	parsedBundle, err := parseDeployBundle(ctx, streams, config.Options.Architecture, deploySrc)
 	if err != nil {
@@ -91,11 +90,11 @@ func runDeployWith(
 
 	streams.Info("bundle to deploy", "name", parsedBundle.Metadata.Name, "packages", len(parsedBundle.Packages))
 
-	if err := bundleinternal.ValidatePackageNames(packages, parsedBundle.Packages); err != nil {
+	if err := bundleinternal.ValidatePackageNames(opts.packages, parsedBundle.Packages); err != nil {
 		return nil, err
 	}
-	if !force {
-		violations, err := bundleinternal.DeployViolations(ctx, streams, parsedBundle, packages)
+	if !opts.force {
+		violations, err := bundleinternal.DeployViolations(ctx, streams, parsedBundle, opts.packages)
 		if err != nil {
 			return nil, err
 		}
@@ -104,7 +103,7 @@ func runDeployWith(
 		}
 	}
 
-	if prompt {
+	if opts.prompt {
 		confirmed, err := PromptConfirmation(streams, "Deploy this bundle?")
 		if err != nil {
 			return nil, err
@@ -117,8 +116,9 @@ func runDeployWith(
 
 	result, err := deps.deploy(ctx, deploySrc, bundlepkg.DeployOptions{
 		Config:   config,
-		Packages: packages,
-		Force:    force,
+		Packages: opts.packages,
+		Force:    opts.force,
+		Resume:   opts.resume,
 		Streams:  streams,
 	})
 	if err != nil {

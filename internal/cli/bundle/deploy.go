@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
-	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
@@ -26,6 +25,8 @@ type DeployOptions struct {
 	BundlePath   string
 	Packages     []string
 	Force        bool
+	Resume       bool
+	Variables    []string
 	Config       *bundle.UDSBundleConfig
 	Verification VerifyOptions
 	Printer      printer.ResourcePrinter
@@ -70,22 +71,28 @@ inputs and must use uds bundle dev deploy instead.`,
   # Deploy selected packages with confirmation
   uds bundle deploy bundle.tar.zst --packages nginx,podinfo --prompt`,
 		Args: cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			util.CheckErr(o.Complete(cmd, args))
-			util.CheckErr(o.Validate())
-			util.CheckErr(o.Run(cmd.Context()))
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := o.Complete(cmd, args); err != nil {
+				return err
+			}
+			if err := o.Validate(); err != nil {
+				return err
+			}
+			return o.Run(cmd.Context())
 		},
 	}
 
-	addDeployFlags(cmd, &o.Packages, &o.Force)
+	addDeployFlags(cmd, &o.Packages, &o.Force, &o.Resume, &o.Variables)
 	addVerificationFlags(cmd, &o.Verification, true)
 
 	return cmd
 }
 
-func addDeployFlags(cmd *cobra.Command, packages *[]string, force *bool) {
+func addDeployFlags(cmd *cobra.Command, packages *[]string, force *bool, resume *bool, variables *[]string) {
 	cmd.Flags().StringSliceVarP(packages, "packages", "p", nil, "specific packages to deploy (comma-separated)")
 	cmd.Flags().BoolVarP(force, "force", "f", false, "deploy packages even if their dependencies are not selected")
+	cmd.Flags().BoolVarP(resume, "resume", "r", false, "skip packages already deployed successfully")
+	cmd.Flags().StringArrayVarP(variables, "set", "s", nil, "set a deploy-time variable using key=value")
 }
 
 // Complete fills artifact deploy options from command-line arguments.
@@ -168,6 +175,9 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if err := applySetVariables(baseConfig, o.Variables); err != nil {
+		return err
+	}
 	o.Config = baseConfig
 	if o.Verification.Config == nil {
 		o.Verification.Config = baseConfig
@@ -202,7 +212,13 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 				return err
 			}
 		}
-		result, err = runner(ctx, o.IOStreams, baseConfig, o.BundlePath, o.Packages, o.Force, o.flags.Prompt)
+		result, err = runner(ctx, o.IOStreams, baseConfig, deployOptions{
+			bundlePath: o.BundlePath,
+			packages:   o.Packages,
+			force:      o.Force,
+			resume:     o.Resume,
+			prompt:     o.flags.Prompt,
+		})
 	}
 	if err != nil {
 		return err
@@ -249,7 +265,13 @@ func (o *DeployOptions) runOCIArtifact(ctx context.Context, runner deployRunnerF
 		return nil, fmt.Errorf("%w %q into %q: %w", ErrPullBundle, o.BundlePath, outputDir, err)
 	}
 
-	return runner(ctx, o.IOStreams, o.Config, artifactPath, o.Packages, o.Force, o.flags.Prompt)
+	return runner(ctx, o.IOStreams, o.Config, deployOptions{
+		bundlePath: artifactPath,
+		packages:   o.Packages,
+		force:      o.Force,
+		resume:     o.Resume,
+		prompt:     o.flags.Prompt,
+	})
 }
 
 func validatePulledArtifact(workspace, outputPath string) (string, error) {

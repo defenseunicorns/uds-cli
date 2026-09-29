@@ -57,7 +57,6 @@ import (
 	"context"
 	"os"
 
-	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/spf13/cobra"
 	zarfCLI "github.com/zarf-dev/zarf/src/cmd"
 )
@@ -98,9 +97,9 @@ This path is suitable for all other Zarf commands:
 
   uds tools zarf version
   uds tools zarf package list`,
-		Run: func(_ *cobra.Command, args []string) {
+		RunE: func(_ *cobra.Command, args []string) error {
 			os.Args = append([]string{"zarf"}, args...)
-			util.CheckErr(zarfCLI.Execute(context.Background()))
+			return zarfCLI.Execute(context.Background())
 		},
 		// Disable flag parsing so all flags are passed to Zarf
 		DisableFlagParsing: true,
@@ -121,9 +120,9 @@ func NewInternalZarfCommand() *cobra.Command {
 		Aliases: []string{"z"},
 		Short:   "Vendored Zarf CLI (internal)",
 		Hidden:  true,
-		Run: func(_ *cobra.Command, args []string) {
+		RunE: func(_ *cobra.Command, args []string) error {
 			os.Args = append([]string{"zarf"}, args...)
-			util.CheckErr(zarfCLI.Execute(context.Background()))
+			return zarfCLI.Execute(context.Background())
 		},
 		DisableFlagParsing: true,
 	}

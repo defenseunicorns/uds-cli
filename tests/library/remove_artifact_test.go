@@ -12,22 +12,20 @@ import (
 	"runtime"
 	"testing"
 
-	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
-	"github.com/defenseunicorns/uds-cli/tests/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRemoveLocalArtifactSource(t *testing.T) {
-	artifact := createRemoveArtifact(t)
+	artifact := createLibraryArtifact(t)
 	assertArtifactReferenceReachesRemove(t, artifact, removeArtifactConfig(t))
 }
 
 func TestRemoveArtifactUsesProvidedBundleDefinition(t *testing.T) {
-	artifactPath := createRemoveArtifact(t)
+	artifactPath := createLibraryArtifact(t)
 	provided := &spec.UDSBundle{
 		Metadata: spec.Metadata{Name: "provided"},
 		Packages: []spec.Package{{Name: "provided", Source: "provided"}},
@@ -44,8 +42,8 @@ func TestRemoveArtifactUsesProvidedBundleDefinition(t *testing.T) {
 }
 
 func TestRemoveOCIArtifactSource(t *testing.T) {
-	artifact := createRemoveArtifact(t)
-	registryHost := testutil.StartLocalRegistry(t)
+	artifact := createLibraryArtifact(t)
+	registryHost := startLibraryRegistry(t)
 	config := removeArtifactConfig(t)
 	config.Options.PlainHTTP = true
 	ref := fmt.Sprintf("%s/test/remove:v1.0.0", registryHost)
@@ -56,8 +54,8 @@ func TestRemoveOCIArtifactSource(t *testing.T) {
 }
 
 func TestRemoveOCIArtifactSourceWithTarZstSuffix(t *testing.T) {
-	artifact := createRemoveArtifact(t)
-	registryHost := testutil.StartLocalRegistry(t)
+	artifact := createLibraryArtifact(t)
+	registryHost := startLibraryRegistry(t)
 	config := removeArtifactConfig(t)
 	config.Options.PlainHTTP = true
 	ref := fmt.Sprintf("%s/test/remove:v1.tar.zst", registryHost)
@@ -92,7 +90,7 @@ func assertArtifactReferenceReachesRemove(t *testing.T, ref string, config *bund
 
 func TestRemoveHCLSourceWithoutArtifactDigest(t *testing.T) {
 	root := t.TempDir()
-	bundlePath := filepath.Join(root, bundleinternal.BundleFileName)
+	bundlePath := filepath.Join(root, libraryBundleFileName)
 	require.NoError(t, os.WriteFile(bundlePath, []byte(`uds {
   bundle_api_version = "uds.dev/v1alpha1"
 }
@@ -121,43 +119,7 @@ func TestRemoveLocalArtifactSource_UnavailableReference(t *testing.T) {
 	require.ErrorContains(t, err, "extracting bundle artifact")
 	assert.Nil(t, source)
 }
-func createRemoveArtifact(t *testing.T) string {
-	t.Helper()
-	root := t.TempDir()
-	rootFS, err := os.OpenRoot(root)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, rootFS.Close()) })
-	require.NoError(t, rootFS.Mkdir("pkg", 0o755))
-	require.NoError(t, rootFS.WriteFile("pkg/zarf.yaml", []byte("build:\n  signed: true\nmetadata:\n  name: test\n  version: 1.0.0\n  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\n"), 0o644))
-	require.NoError(t, rootFS.WriteFile("pkg/checksums.txt", nil, 0o644))
-	bundleFile := filepath.Join(root, bundleinternal.BundleFileName)
-	require.NoError(t, rootFS.WriteFile(bundleinternal.BundleFileName, []byte(`uds {
-  bundle_api_version = "uds.dev/v1alpha1"
-}
-metadata {
-  name    = "remove-integration"
-  version = "1.0.0"
-}
-package "pkg" {
-  source = "pkg"
-  signature_verification { verify = false }
-}
-`), 0o644))
-	result, err := bundle.Create(t.Context(), bundleFile, bundle.CreateOptions{
-		Config:  removeArtifactConfig(t),
-		Signing: bundle.SigningOptions{Mode: bundle.SigningModeUnsigned},
-		Streams: iostreams.IOStreams{},
-	})
-	require.NoError(t, err)
-	return result.OutputPath
-}
 func removeArtifactConfig(t *testing.T) *bundle.UDSBundleConfig {
 	t.Helper()
-	return &bundle.UDSBundleConfig{
-		Options: &bundle.ConfigOptions{
-			Architecture: runtime.GOARCH,
-			Concurrency:  10,
-			TmpDir:       t.TempDir(),
-		},
-	}
+	return libraryFixtureConfig(t)
 }

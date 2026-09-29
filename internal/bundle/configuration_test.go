@@ -4,11 +4,122 @@
 package bundle
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestParseSetVariables(t *testing.T) {
+	tests := []struct {
+		name    string
+		entries []string
+		want    Variables
+		wantErr string
+	}{
+		{
+			name:    "infers supported values",
+			entries: []string{"domain=example.com", "replicas=3", "enabled=true", `ports=[8080, 8443]`, `database={ host = "db.example", port = 5432 }`},
+			want: Variables{
+				"domain":   "example.com",
+				"replicas": float64(3),
+				"enabled":  true,
+				"ports":    []any{float64(8080), float64(8443)},
+				"database": Variables{"host": "db.example", "port": float64(5432)},
+			},
+		},
+		{
+			name:    "quoted ambiguous values remain strings",
+			entries: []string{`enabled="true"`, `replicas="3"`},
+			want:    Variables{"enabled": "true", "replicas": "3"},
+		},
+		{
+			// The shell passes --set release=\"beta\" to the process as release="beta".
+			name:    "shell escaped quotes preserve string value",
+			entries: []string{`release="beta"`},
+			want:    Variables{"release": "beta"},
+		},
+		{name: "duplicate key uses last value", entries: []string{"replicas=2", "replicas=3"}, want: Variables{"replicas": float64(3)}},
+		{name: "missing separator", entries: []string{"domain"}, wantErr: "expected key=value"},
+		{name: "empty key", entries: []string{"=value"}, wantErr: "expected key=value"},
+		{name: "empty value", entries: []string{"domain="}, wantErr: "expected key=value"},
+		{name: "malformed collection", entries: []string{"ports=[8080,"}, wantErr: `parsing --set variable "ports"`},
+		{name: "null value", entries: []string{"domain=null"}, wantErr: "null values are not supported"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseSetVariables(tt.entries)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestParseSetValue_NonFiniteSpellingsRemainStrings(t *testing.T) {
+	for _, raw := range []string{"NaN", "-NaN", "+NaN", "Inf", "+Inf", "-Inf", "Infinity", "+Infinity", "-Infinity"} {
+		t.Run(raw, func(t *testing.T) {
+			value, err := parseSetValue(raw)
+			require.NoError(t, err)
+			assert.Equal(t, raw, value)
+		})
+	}
+}
+
+func TestVariableSourcesRejectFloat64Overflow(t *testing.T) {
+	tests := []struct {
+		name  string
+		parse func(*testing.T, string) error
+	}{
+		{
+			name: "set variables",
+			parse: func(_ *testing.T, value string) error {
+				_, err := ParseSetVariables([]string{"replicas=" + value})
+				return err
+			},
+		},
+		{
+			name: "defaults HCL",
+			parse: func(t *testing.T, value string) error {
+				t.Helper()
+				_, err := ParseDefaultsBytes(t.Context(), fmt.Appendf(nil, "variables = { replicas = %s }", value))
+				return err
+			},
+		},
+		{
+			name: "config HCL",
+			parse: func(t *testing.T, value string) error {
+				t.Helper()
+				path := filepath.Join(t.TempDir(), "config.uds.hcl")
+				require.NoError(t, os.WriteFile(path, fmt.Appendf(nil, "variables = { replicas = %s }", value), 0o600))
+				_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleConfig(t.Context(), path)
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		for _, value := range []string{"1e400", "-1e400"} {
+			t.Run(tt.name+"/"+value, func(t *testing.T) {
+				err := tt.parse(t, value)
+				require.ErrorIs(t, err, ErrInvalidVariables)
+				require.ErrorContains(t, err, "outside the supported float64 range")
+			})
+		}
+	}
+
+	variables, err := ParseSetVariables([]string{"replicas=1e308"})
+	require.NoError(t, err)
+	assert.InEpsilon(t, float64(1e308), variables["replicas"], 1e-15)
+}
 
 func TestVariables_Flatten(t *testing.T) {
 	tests := []struct {

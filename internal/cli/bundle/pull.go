@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
@@ -43,11 +42,15 @@ func NewPullCommand(streams iostreams.IOStreams) *cobra.Command {
 		Short: "Pull a bundle from an OCI registry",
 		Long:  "Pull a UDS bundle from an OCI registry using the provided OCI reference",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			util.CheckErr(o.Complete(cmd, args))
-			util.CheckErr(o.Validate())
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := o.Complete(cmd, args); err != nil {
+				return err
+			}
+			if err := o.Validate(); err != nil {
+				return err
+			}
 			ctx := cmd.Context()
-			util.CheckErr(o.Run(ctx))
+			return o.Run(ctx)
 		},
 	}
 

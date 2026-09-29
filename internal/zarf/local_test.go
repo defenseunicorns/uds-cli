@@ -122,6 +122,41 @@ func TestLocalSourcePullFilteredArchiveUsesZarfLoader(t *testing.T) {
 	require.NoError(t, pkgLayout.Cleanup())
 }
 
+func TestLocalSourceLoadPackageSpecUsesSchemaAwareMetadataPath(t *testing.T) {
+	pkgDir := t.TempDir()
+	writeMinimalZarfPackage(t, pkgDir, "local-zarf-name")
+	workspace := t.TempDir()
+	source := &localSource{path: pkgDir, arch: "amd64", tmpDir: workspace}
+
+	loaded, err := source.LoadPackageSpec(t.Context(), filters.Empty())
+	require.NoError(t, err)
+	assert.Equal(t, "local-zarf-name", loaded.Name)
+	assert.NotEmpty(t, loaded.Digest)
+	entries, err := os.ReadDir(workspace)
+	require.NoError(t, err)
+	assert.Empty(t, entries, "directory metadata loading must not stage package layers")
+}
+
+func TestLocalSourceLoadPackageSpecArchiveCleansWorkspace(t *testing.T) {
+	pkgDir := t.TempDir()
+	writeMinimalZarfPackage(t, pkgDir, "archive-zarf-name")
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, layout.ZarfYAML), []byte("build:\n  signed: true\nkind: ZarfPackageConfig\nmetadata:\n  name: archive-zarf-name\n  version: 1.0.0\n  aggregateChecksum: "+emptySHA256+"\ncomponents:\n  - name: metadata-only\n"), filesystem.PrivateFileMode))
+	archivePath := filepath.Join(t.TempDir(), "zarf-package-archive-amd64-1.0.0.tar.zst")
+	require.NoError(t, writeTestTarZst(t, archivePath, pkgDir))
+	workspace := t.TempDir()
+
+	loaded, err := (&localSource{path: archivePath, arch: "amd64", tmpDir: workspace}).LoadPackageSpec(t.Context(), filters.Empty())
+	require.NoError(t, err)
+	assert.Equal(t, "archive-zarf-name", loaded.Name)
+	pkgLayout, err := loadPackageArchive(t.Context(), archivePath, workspace, layout.PackageLayoutOptions{Filter: filters.Empty(), VerificationStrategy: layout.VerifyNever})
+	require.NoError(t, err)
+	assert.Equal(t, pkgLayout.Digest(), loaded.Digest)
+	require.NoError(t, pkgLayout.Cleanup())
+	entries, err := os.ReadDir(workspace)
+	require.NoError(t, err)
+	assert.Empty(t, entries)
+}
+
 func writeTestTarZst(t *testing.T, archivePath, srcDir string) error {
 	t.Helper()
 	files, err := archives.FilesFromDisk(t.Context(), nil, map[string]string{srcDir + string(filepath.Separator): ""})

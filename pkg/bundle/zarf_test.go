@@ -67,6 +67,37 @@ func TestDeployWithSourceEnforcesDependencySafety(t *testing.T) {
 	require.ErrorContains(t, err, "unselected dependencies")
 }
 
+func TestDeployWithSourceChecksDependencySafetyBeforeResume(t *testing.T) {
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "bundle"},
+		Packages: []spec.Package{
+			{Name: "core", Source: "oci://example.com/core:v1"},
+			{Name: "app", Source: "oci://example.com/app:v1", DependsOn: []spec.PackageRef{{Name: "core"}}},
+		},
+	}
+	_, err := Deploy(t.Context(), &DeploySource{Bundle: b}, DeployOptions{
+		Config:   validValidationConfig(),
+		Resume:   true,
+		Packages: []string{"app"},
+	})
+	require.ErrorContains(t, err, "unselected dependencies")
+}
+
+func TestDeployWithSourceRejectsResumeWithoutPreparedSource(t *testing.T) {
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "bundle"},
+		Packages: []spec.Package{{Name: "pkg", Source: "oci://example.com/pkg:v1"}},
+	}
+	_, err := Deploy(t.Context(), &DeploySource{Bundle: b, Loader: staticPackageLayoutLoader{layout: &ZarfPackageLayout{}}}, DeployOptions{
+		Config: validValidationConfig(),
+		Resume: true,
+	})
+
+	require.ErrorIs(t, err, ErrResumeSourceNotPrepared)
+}
+
 func TestPackageDeployHookReceivesBundleDirectory(t *testing.T) {
 	var gotDir string
 	hookErr := errors.New("stop after hook")
@@ -191,6 +222,7 @@ func TestPrepareDeploySourceFindsAdjacentDefaults(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, source.Close())
 	assert.Equal(t, defaultsPath, source.DefaultsPath)
+	assert.True(t, source.resumePrepared)
 }
 
 func TestAdjacentDefaultsPathPropagatesStatErrors(t *testing.T) {

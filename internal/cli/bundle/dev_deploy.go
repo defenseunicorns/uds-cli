@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
@@ -22,6 +21,8 @@ type DevDeployOptions struct {
 	BundlePath string
 	Packages   []string
 	Force      bool
+	Resume     bool
+	Variables  []string
 	Config     *bundlepkg.UDSBundleConfig
 	Printer    printer.ResourcePrinter
 
@@ -60,14 +61,18 @@ local and OCI bundle artifacts must use uds bundle deploy instead.`,
   # Deploy selected packages with confirmation
   uds bundle dev deploy ./my-bundle --packages nginx,podinfo --prompt`,
 		Args: cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			util.CheckErr(o.Complete(cmd, args))
-			util.CheckErr(o.Validate())
-			util.CheckErr(o.Run(cmd.Context()))
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := o.Complete(cmd, args); err != nil {
+				return err
+			}
+			if err := o.Validate(); err != nil {
+				return err
+			}
+			return o.Run(cmd.Context())
 		},
 	}
 
-	addDeployFlags(cmd, &o.Packages, &o.Force)
+	addDeployFlags(cmd, &o.Packages, &o.Force, &o.Resume, &o.Variables)
 
 	return cmd
 }
@@ -101,18 +106,32 @@ func (o *DevDeployOptions) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if err := applySetVariables(baseConfig, o.Variables); err != nil {
+		return err
+	}
 	o.Config = baseConfig
 	o.IOStreams = logger.Bind(o.IOStreams, baseConfig.Options.LogLevel)
 
 	if _, err := fmt.Fprintln(o.ErrOut(), bundleDefinitionDeployDiagnostic); err != nil {
 		return fmt.Errorf("%w for bundle definition diagnostic: %w", ErrWriteDefinitionNotice, err)
 	}
+	if o.Resume {
+		if _, err := fmt.Fprintln(o.ErrOut(), "WARNING: --resume does not detect values or config-only changes"); err != nil {
+			return fmt.Errorf("%w for resume warning: %w", ErrWriteDefinitionNotice, err)
+		}
+	}
 
 	runner := o.runDeploy
 	if runner == nil {
 		runner = runDeploy
 	}
-	result, err := runner(ctx, o.IOStreams, baseConfig, resolveBundlePath(o.BundlePath), o.Packages, o.Force, o.flags.Prompt)
+	result, err := runner(ctx, o.IOStreams, baseConfig, deployOptions{
+		bundlePath: resolveBundlePath(o.BundlePath),
+		packages:   o.Packages,
+		force:      o.Force,
+		resume:     o.Resume,
+		prompt:     o.flags.Prompt,
+	})
 	if err != nil {
 		return err
 	}

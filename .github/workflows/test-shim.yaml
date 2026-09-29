@@ -39,23 +39,21 @@ jobs:
       - name: Skipped
         run: echo "skipped"
 
-  next-integration-tests:
-    name: Next / Integration
+  next-pyramid-tests:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
-    steps:
-      - name: Skipped
-        run: echo "skipped"
-
-  next-integration-library-tests:
-    name: Next / Integration Library
-    runs-on: ubuntu-latest
-    steps:
-      - name: Skipped
-        run: echo "skipped"
-
-  next-cluster-tests:
-    name: Next / Cluster
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        name:
+          - Unit Tests / Next
+          - CLI Tests / non-cluster
+          - CLI Tests / non-cluster (cluster lifecycle)
+          - CLI Tests / in-cluster
+          - Library Tests / non-cluster (local)
+          - Library Tests / non-cluster (package verification)
+          - Library Tests / non-cluster (keyless signing)
+          - Library Tests / non-cluster (cluster lifecycle)
+          - Library Tests / in-cluster
     steps:
       - name: Skipped
         run: echo "skipped"

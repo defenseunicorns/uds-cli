@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/defenseunicorns/uds-cli/internal/cli/util"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
@@ -44,11 +43,15 @@ func NewPushCommand(streams iostreams.IOStreams) *cobra.Command {
 		Short: "Push a bundle to an OCI registry",
 		Long:  "Push a UDS bundle tarball to a remote OCI registry",
 		Args:  cobra.ExactArgs(2),
-		Run: func(cmd *cobra.Command, args []string) {
-			util.CheckErr(o.Complete(cmd, args))
-			util.CheckErr(o.Validate())
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := o.Complete(cmd, args); err != nil {
+				return err
+			}
+			if err := o.Validate(); err != nil {
+				return err
+			}
 			ctx := cmd.Context()
-			util.CheckErr(o.Run(ctx))
+			return o.Run(ctx)
 		},
 	}
 

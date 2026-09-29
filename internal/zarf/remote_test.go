@@ -13,8 +13,9 @@ import (
 	packageoci "github.com/defenseunicorns/pkg/oci"
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
+	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/google/go-containerregistry/pkg/registry"
-	godigest "github.com/opencontainers/go-digest"
+	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,15 +25,6 @@ import (
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"oras.land/oras-go/v2/errdef"
 )
-
-func TestPinnedRemoteReferenceUsesResolvedDigest(t *testing.T) {
-	source := &remoteSource{ref: "registry.example/test/package:v1", arch: "amd64"}
-	remote, err := source.newZociRemote(t.Context())
-	require.NoError(t, err)
-	desc := ocispec.Descriptor{Digest: godigest.FromString("manifest")}
-
-	assert.Equal(t, "registry.example/test/package@"+desc.Digest.String(), pinnedRemoteReference(remote, desc))
-}
 
 func TestRemoteSourceVerifyAndIngestFilteredRegistryPackage(t *testing.T) {
 	server := httptest.NewServer(registry.New())
@@ -57,6 +49,25 @@ func TestRemoteSourceVerifyAndIngestFilteredRegistryPackage(t *testing.T) {
 		arch: "amd64",
 		opts: bundleinternal.ConfigOptions{PlainHTTP: true, TmpDir: t.TempDir(), Concurrency: 1},
 	}
+	rootDesc, err := remote.ResolveRoot(t.Context())
+	require.NoError(t, err)
+	resolved, err := source.resolveFilteredLayers(t.Context(), filters.Combine(filters.ForDeploy("included", false)))
+	require.NoError(t, err)
+	assert.Equal(t, rootDesc.Digest.String(), resolved.remote.Repo().Reference.Reference)
+	assert.Equal(t, strings.TrimSuffix(ref, ":1.0.0")+"@"+rootDesc.Digest.String(), resolved.remote.Repo().Reference.String())
+	loaded, err := source.LoadPackageSpec(t.Context(), filters.Combine(filters.ForDeploy("included", false)))
+	require.NoError(t, err)
+	assert.Equal(t, rootDesc.Digest.String(), loaded.Digest)
+	assert.Equal(t, []string{"included"}, loaded.Components)
+	loader := NewSourcePackageLayoutLoader(bundleinternal.ConfigOptions{Architecture: "amd64", PlainHTTP: true, TmpDir: t.TempDir(), Concurrency: 1}, t.TempDir())
+	pkg := &spec.Package{Name: "pkg", Source: "oci://" + ref, OptionalComponents: []string{"included"}}
+	intended, err := loader.LoadPackageSpec(t.Context(), pkg)
+	require.NoError(t, err)
+	assert.Equal(t, rootDesc, loader.resolvedRoots[pkg.Name])
+	deploymentLayout, err := loader.LoadPackageLayout(t.Context(), pkg, t.TempDir(), LoadOptions{IsPartial: true})
+	require.NoError(t, err)
+	assert.Equal(t, intended.Digest, deploymentLayout.Layout.Digest())
+	require.NoError(t, deploymentLayout.Layout.Cleanup())
 
 	descs, err := source.VerifyAndIngestFiltered(t.Context(), t.TempDir(), layout.PackageLayoutOptions{
 		Filter:               filters.Combine(filters.ForDeploy("included", false)),
@@ -91,4 +102,22 @@ func TestRemoteSourceNewZociRemote_RegistrySchemeNegotiation(t *testing.T) {
 	assert.False(t, remote.Repo().PlainHTTP)
 	_, err = remote.Repo().Resolve(t.Context(), "missing")
 	require.ErrorIs(t, err, errdef.ErrNotFound, "expected registry response, got: %v", err)
+}
+
+func TestRemoteSourceResolvedReference(t *testing.T) {
+	root := ocispec.Descriptor{Digest: digest.FromString("resolved")}
+	tests := []struct {
+		name string
+		ref  string
+	}{
+		{name: "tag", ref: "registry.example.com/team/package:latest"},
+		{name: "digest", ref: "registry.example.com/team/package@" + root.Digest.String()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := (&remoteSource{ref: tt.ref, resolvedRoot: &root}).resolvedReference()
+			require.NoError(t, err)
+			assert.Equal(t, "registry.example.com/team/package@"+root.Digest.String(), got)
+		})
+	}
 }

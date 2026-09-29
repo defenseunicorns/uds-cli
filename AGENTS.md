@@ -30,7 +30,7 @@ Next:
 - Primary built CLI entrypoint: `cmd/uds`, with Next enabled by feature flag
 - Private implementation: canonical `internal/...` packages outside `internal/legacy`
 - Public packages: `pkg/bundle/...`, `pkg/iostreams`
-- Tests: `tests/integration`, `tests/library`, `tests/cluster`, `tests/smoke`
+- Tests: `tests/cli`, `tests/library`, `tests/cluster`
 - ADRs: `docs/adr/...`
 
 Rules:
@@ -38,9 +38,47 @@ Rules:
 - New feature work targets Next unless a maintainer explicitly scopes it to Legacy.
 - Preserve Legacy behavior unless the work intentionally changes Legacy.
 - Do not make Legacy packages depend on canonical Next packages.
-- Validate Next behavior through the primary `cmd/uds` binary with `CLI_FEATURES=NextMode=true` or `--features=NextMode=true`.
-- Keep cobra wiring out of business logic. Next cobra wiring belongs in `internal/cli`.
+- Keep Cobra wiring out of business logic. Next Cobra wiring belongs in `internal/cli`.
+- Next command handlers return errors through `RunE`; only the executable reports errors and exits.
+- Use a fresh Cobra root and `iostreams` for CLI tests. Reserve the primary `cmd/uds` binary for the minimal process checks: Zarf passthrough, Next-mode routing, and process error/exit behavior.
 - For Zarf package and OCI implementation choices, follow the Go skill's Zarf and OCI operation ownership guidance.
+
+## Next testing
+
+[ADR-0027](docs/adr/0027-public-api-test-pyramid.md) defines three test layers:
+unit, public library, and CLI. Preserve the large colocated unit-test investment;
+do not move or add cases merely to change layer counts. Cluster ownership is an
+execution purpose, not a layer. `tests/smoke/` is outside the Next structure.
+
+| CI division | Location / selector | Task |
+| --- | --- | --- |
+| Lint | repository checks | `lint` |
+| Unit tests | colocated Next packages | `test:next-unit` |
+| Library tests / non-cluster | `tests/library`; `library` and eligible `owned_cluster` or signing selectors | `test:next-library-non-cluster`, `test:next-library-non-cluster-lifecycle` |
+| Library tests / in-cluster | `tests/library/cluster`; `library,cluster_integration` | `test:next-library-in-cluster` |
+| CLI tests / non-cluster | `tests/cli`, `tests/cluster/lifecycle` | `test:next-cli-non-cluster`, `test:next-cli-non-cluster-lifecycle` |
+| CLI tests / in-cluster | `tests/cluster`; `cluster_integration` | `test:next-cli-in-cluster` |
+
+Keep the existing workflow build sharing, caches, dependencies, triggers,
+permissions, and release conditions. Do not add sequencing between divisions.
+
+Library tests and all their fixture or assertion helpers use only the public
+UDS packages `pkg/bundle`, `pkg/bundle/spec`, and `pkg/iostreams`. They do not
+invoke Cobra, internal UDS packages, or a UDS CLI binary, including indirectly
+through their helpers. In-cluster library and CLI executions require
+`KUBECONFIG` and `UDS_TEST_KUBECONFIG` to name the same explicit, Zarf-ready
+kubeconfig provisioned externally with `hack/test-cluster.sh`. They clean up
+test resources and preserve the cluster. Non-cluster tests may create an
+isolated cluster with exact cleanup.
+
+Credentialed library subsets use `library,signing_integration`:
+`test:next-library-non-cluster-package-verification` verifies signed remote
+packages, and `test:next-library-non-cluster-keyless` requires GitHub Actions
+OIDC credentials.
+
+Direct Cobra package-action callbacks require a standalone Zarf tool matching
+the version in `go.mod`; use the mise-managed tool rather than another UDS
+binary.
 
 ## Next errors
 

@@ -17,27 +17,56 @@ tasks:
     actions:
       - cmd: go test ./tests/legacy/e2e -failfast -v -timeout 60m
 
-  - name: next-integration
-    description: run cluster-free Next command integration tests
+  - name: next-unit
+    description: run only Next package unit tests
+    actions:
+      - cmd: |
+          go list ./cmd/... ./internal/... ./pkg/... | \
+          grep -Ev '/(legacy|testutil)(/|$)' | \
+          xargs go test -v -count=1 -timeout 5m
+
+  - name: next-cli-non-cluster
+    description: run Next CLI tests without a supplied cluster
     actions:
       - cmd: |
           CLI_FEATURES=NextMode=true \
           UDS_CLI_PATH="$(pwd)/build/uds" \
-          go test -v -count=1 -timeout 25m -tags=integration ./tests/integration/...
+          go test -v -count=1 -timeout 25m -tags=cli ./tests/cli/... ./tests/testutil
 
-  - name: next-integration-library
-    description: run Next library integration tests
+  - name: next-library-non-cluster
+    description: run local public API contracts without a cluster
     actions:
-      - cmd: go test -v -timeout 5m -tags=library ./tests/library/...
+      - cmd: go test -v -count=1 -timeout 5m -tags=library ./tests/library/...
 
-  - name: next-cluster
-    description: run Next cluster integration tests
+  - name: next-library-non-cluster-package-verification
+    description: verify signed remote packages through the public API
     actions:
-      - cmd: |
-          CLI_FEATURES=NextMode=true \
-          UDS_TEST_CLUSTER_CLEANUP=true \
-          UDS_CLI_PATH="$(pwd)/build/uds" \
-          go test -v -count=1 -timeout 50m -parallel=4 -tags=cluster_integration ./tests/cluster
+      - cmd: go test -v -count=1 -timeout 10m -tags=library,signing_integration -run '^TestKeylessPackageVerification$' ./tests/library
+
+  - name: next-library-non-cluster-keyless
+    description: require GitHub OIDC for public keyless signing contracts
+    actions:
+      - cmd: go test -v -count=1 -timeout 10m -tags=library,signing_integration -run '^TestKeylessBundleSigning$' ./tests/library
+
+  - name: next-library-non-cluster-lifecycle
+    description: create and clean up an isolated cluster through the public API
+    actions:
+      - cmd: mise exec "zarf@$(go list -m -json github.com/zarf-dev/zarf | jq -r '.Version | ltrimstr("v")')" -- go test -v -count=1 -timeout 50m -tags=library,cluster_integration,owned_cluster ./tests/library/cluster
+
+  - name: next-library-in-cluster
+    description: run public API contracts against an explicitly supplied Zarf-ready cluster
+    actions:
+      - cmd: go test -v -count=1 -timeout 20m -tags=library,cluster_integration ./tests/library/cluster
+
+  - name: next-cli-non-cluster-lifecycle
+    description: run the Next CLI cluster creation and cleanup contract
+    actions:
+      - cmd: mise exec "zarf@$(go list -m -json github.com/zarf-dev/zarf | jq -r '.Version | ltrimstr("v")')" -- go test -v -count=1 -timeout 50m -tags=cluster_integration ./tests/cluster/lifecycle
+
+  - name: next-cli-in-cluster
+    description: run Next CLI tests against an explicitly supplied Zarf-ready cluster
+    actions:
+      - cmd: go test -v -count=1 -timeout 40m -parallel=4 -tags=cluster_integration ./tests/cluster
 
   - name: next-smoke-uds-core
     description: run Next UDS Core smoke tests
