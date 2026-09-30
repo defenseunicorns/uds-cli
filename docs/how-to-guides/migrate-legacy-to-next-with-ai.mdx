@@ -116,20 +116,13 @@ optionally deploy to a non-production cluster.
    [Sign and verify a bundle in Next mode](/cli/how-to-guides/next/sign-bundle-artifacts/)
    as a separate task.
 
-   This reads the HCL, validates package policies, and retrieves package content.
-   It may access registries, but it does not deploy to a cluster. If you need a
-   specific target architecture, add `--architecture amd64` or `--architecture arm64`.
+   This checks the definition and package policies, then retrieves packages.
+   It may access registries but does not use a cluster. Success writes a
+   `.tar.zst` artifact beside `bundle.uds.hcl`.
 
-   A failure can still give useful feedback. If the command reaches `ingesting
-   package`, the definition passed parsing and create-time validation. A later
-   registry connection or package-loading error does not mean the HCL is invalid,
-   but you still need to resolve it before creating an artifact. A local authoring
-   directory may need to be built into a Zarf package archive first.
-
-   Share the output with the agent and ask it to explain the failure and the next
-   step. Record any testing changes in the migration report. A successful create
-   writes a `.tar.zst` artifact beside `bundle.uds.hcl`; this local test artifact
-   is unsigned.
+   If creation fails, share the output with the agent to identify the next step.
+   Registry access or unbuilt local packages may block creation even when the
+   HCL is valid.
 
 </Steps>
 
