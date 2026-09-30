@@ -142,7 +142,8 @@ you understand each unresolved item in the report. Reaching package ingestion
 confirms the HCL and package policies passed validation; completing creation
 also confirms the package sources could be assembled into an artifact.
 
-When you are ready to test workload behavior, follow
+The migration skill stops at artifact creation and does not perform cluster
+operations. When you are ready to test workload behavior as a separate task, follow
 [Deploy a bundle in Next mode](/cli/how-to-guides/next/deploy-a-bundle/) using a
 non-production cluster. Review package dependencies and cluster initialization
 first: package list order does not establish deployment order. If an agent will

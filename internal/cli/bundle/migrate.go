@@ -24,7 +24,8 @@ For package overrides, inspect package definitions and report every missing or
 unverified values mapping. Produce bundle.uds.hcl, the required values files,
 defaults.uds.hcl when needed, and a migration report. Report all deployment-time
 values and settings as not converted.
-Do not run UDS commands or perform a cluster operation yet.`
+Do not run UDS commands yet. Do not deploy a bundle or perform cluster operations
+as part of this migration.`
 
 // NewMigrateCommand creates commands that assist with Legacy bundle migration.
 func NewMigrateCommand(streams iostreams.IOStreams) *cobra.Command {
@@ -70,13 +71,8 @@ Test the generated directory:
   Registry access or local package preparation can still fail afterward.
   Local authoring directories may need to be built into Zarf package archives.
   A successful build does not establish deployment equivalence.
-
-Deployment:
-  Use a non-production cluster that meets the packages' requirements, including
-  Zarf initialization for standard packages. Package list order does not set
-  dependencies. Signed bundle artifacts need matching verification inputs.
-  Deploying an unsigned local alpha artifact requires the explicit
-  --skip-signature-verification bypass for bundle integrity verification.`,
+  Migration validation ends at artifact creation; the skill does not deploy
+  bundles or perform cluster operations.`,
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			_, err := fmt.Fprintln(streams.Out(), migrationPrompt)

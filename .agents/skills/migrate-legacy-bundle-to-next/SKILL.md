@@ -25,7 +25,6 @@ documents relevant to the migration at hand:
 | Next bundle schema, package labels, sources, values files, and package verification | `docs/reference/next/bundle-uds-hcl.mdx` |
 | Bundle defaults versus consumer deploy-time configuration | `docs/reference/next/config-uds-hcl.mdx` |
 | Create workflow and dependency behavior | `docs/how-to-guides/next/create-a-bundle.mdx` |
-| Source development deployment versus artifact deployment | `docs/how-to-guides/next/deploy-a-bundle.mdx` |
 | Package keyless verification and bundle artifact signing | `docs/how-to-guides/verify-keyless-package-signatures.mdx` and `docs/how-to-guides/next/sign-bundle-artifacts.mdx` |
 
 If the documentation does not establish an exact, safe conversion, do not infer one:
@@ -118,13 +117,6 @@ Do not treat Legacy package list order as a Next dependency graph. Add `depends_
 only when the user or source clearly establishes the dependency and the resulting
 package references are valid. Otherwise report **needs package-ordering review**.
 
-For verification-sensitive validation, prefer deploying the exact artifact created
-from the migrated directory. Record the resulting local artifact path, or an immutable
-published OCI reference, in the report and use `uds bundle deploy` with the appropriate
-artifact verification inputs. Source `uds bundle dev deploy` is a separate,
-non-production authoring workflow: it can reload mutable package sources and does not
-validate the created artifact.
-
 ## Migration report and validation
 
 Include a concise source-attribution table with the Legacy location, generated file
@@ -141,7 +133,9 @@ Before reporting the migration as ready for review:
 - list unavailable local sources, missing mappings, sensitive values, trust choices, and
   deployment-time settings as blockers rather than claiming equivalence.
 
-When commands are authorized, follow the linked create and signing guides to validate
-the generated directory. Do not run a cluster operation without explicit user
-approval. Never recommend artifact deployment with signature verification bypassed
-unless the user explicitly selects the documented local-alpha exception.
+When commands are authorized, validate the generated directory with
+`CLI_FEATURES=NextMode=true uds bundle create <output-directory>` and exactly one
+artifact-signing mode: `--signing-key <private-key-or-kms-uri>`, `--keyless`, or
+`--unsigned` for local alpha testing. Record the result and any created artifact
+path in the report. Stop validation at artifact creation; do not deploy a bundle
+or perform cluster operations as part of this migration skill.
