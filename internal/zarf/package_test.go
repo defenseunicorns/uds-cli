@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/internal/cache"
 	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	godigest "github.com/opencontainers/go-digest"
@@ -61,7 +63,7 @@ func TestCopySelectedPackageWritesFilteredManifest(t *testing.T) {
 
 	store, err := udsoci.CreateStore(t.TempDir())
 	require.NoError(t, err)
-	desc, err := copySelectedPackage(t.Context(), pkgLayout, selected, store)
+	desc, err := copySelectedPackage(t.Context(), pkgLayout, selected, store, "")
 	require.NoError(t, err)
 
 	manifestBytes, err := udsoci.FetchBytes(t.Context(), store, desc)
@@ -73,6 +75,51 @@ func TestCopySelectedPackageWritesFilteredManifest(t *testing.T) {
 	assert.Contains(t, layerTitles(manifest.Layers), layout.Checksums)
 	assert.Contains(t, layerTitles(manifest.Layers), filepath.ToSlash(filepath.Join(layout.ComponentsDir, "included.tar")))
 	assert.NotContains(t, layerTitles(manifest.Layers), filepath.ToSlash(filepath.Join(layout.ComponentsDir, "excluded.tar")))
+}
+
+func TestCopyPackageManifestCachesOnlySelectedImageBlobs(t *testing.T) {
+	pkgDir := t.TempDir()
+	included := []byte("included image layer")
+	excluded := []byte("excluded image layer")
+	other := []byte("not an image layer")
+	files := map[string][]byte{
+		filepath.ToSlash(filepath.Join(layout.ImagesBlobsDir, godigest.FromBytes(included).Encoded())): included,
+		filepath.ToSlash(filepath.Join(layout.ImagesBlobsDir, godigest.FromBytes(excluded).Encoded())): excluded,
+		"other.txt": other,
+	}
+	var checksums bytes.Buffer
+	for path, data := range files {
+		fullPath := filepath.Join(pkgDir, filepath.FromSlash(path))
+		require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), filesystem.PrivateDirectoryMode))
+		require.NoError(t, os.WriteFile(fullPath, data, filesystem.PrivateFileMode))
+		_, err := fmt.Fprintf(&checksums, "%s %s\n", godigest.FromBytes(data).Encoded(), path)
+		require.NoError(t, err)
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, layout.Checksums), checksums.Bytes(), filesystem.PrivateFileMode))
+	zarfYAML := fmt.Sprintf("kind: ZarfPackageConfig\nmetadata:\n  name: image-cache\n  version: 1.0.0\n  aggregateChecksum: %s\n", godigest.FromBytes(checksums.Bytes()).Encoded())
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, layout.ZarfYAML), []byte(zarfYAML), filesystem.PrivateFileMode))
+
+	pkgLayout, err := layout.LoadFromDir(t.Context(), pkgDir, layout.PackageLayoutOptions{VerificationStrategy: layout.VerifyNever})
+	require.NoError(t, err)
+	root, manifest, err := packageManifest(t.Context(), pkgLayout)
+	require.NoError(t, err)
+	excludedDigest := godigest.FromBytes(excluded)
+	manifest.Layers = slices.DeleteFunc(manifest.Layers, func(layer ocispec.Descriptor) bool {
+		return layer.Digest == excludedDigest
+	})
+	store, err := udsoci.CreateStore(t.TempDir())
+	require.NoError(t, err)
+	cacheDir := t.TempDir()
+
+	_, err = copyPackageManifest(t.Context(), pkgLayout, store, root, manifest, cacheDir)
+	require.NoError(t, err)
+	actual, err := os.ReadFile(filepath.Join(cacheDir, cache.LayersDirName, godigest.FromBytes(included).Encoded()))
+	require.NoError(t, err)
+	assert.Equal(t, included, actual)
+	_, err = os.Stat(filepath.Join(cacheDir, cache.LayersDirName, excludedDigest.Encoded()))
+	require.ErrorIs(t, err, os.ErrNotExist)
+	_, err = os.Stat(filepath.Join(cacheDir, cache.LayersDirName, godigest.FromBytes(other).Encoded()))
+	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func layerTitles(layers []ocispec.Descriptor) []string {

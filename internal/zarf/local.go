@@ -216,7 +216,7 @@ func (s *localSource) ingestPackageLayout(ctx context.Context, pkgLayout *layout
 	if err != nil {
 		return nil, fmt.Errorf("selecting layers for %q: %w: %w", s.path, ErrResolvePackageLayers, err)
 	}
-	desc, err := copySelectedPackage(ctx, pkgLayout, layers, store)
+	desc, err := copySelectedPackage(ctx, pkgLayout, layers, store, s.cacheDir)
 	if err != nil {
 		return nil, fmt.Errorf("ingesting package %q: %w: %w", s.path, ErrIngestPackage, err)
 	}
