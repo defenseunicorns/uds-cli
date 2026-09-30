@@ -130,6 +130,11 @@ or report section, disposition (`converted`, `needs review`, or `not converted`)
 reason for every converted block and blocker. Keep generated comments brief and use
 them only to identify source ranges; do not make an unverified mapping look approved.
 
+Keep the report self-contained for a user with only the UDS binary and local inputs.
+Do not refer the reader to repository documentation, skill files, or web links.
+Inline essential explanations and next steps; omit optional detail. Retain paths
+to supplied inputs and generated files for source attribution.
+
 Before reporting the migration as ready for review:
 
 - check each generated HCL file against the Next schema;

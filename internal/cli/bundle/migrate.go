@@ -99,6 +99,10 @@ Helm overrides and defaults:
 Report and validation:
 - Account for every Legacy field in a source-attribution table: source location,
   generated file or report section, converted/needs review/not converted, reason.
+  Keep the report self-contained for a user with only the UDS binary and local
+  inputs. Do not refer the reader to repository documentation, skill files, or
+  web links. Inline essential explanations and next steps; omit optional detail.
+  Retain paths to supplied inputs and generated files for source attribution.
   Report unsupported fields, including kind/build, extra metadata, package
   description/timeout/flavor, imports/exports, and deployment-time settings.
   Imports/exports have no direct equivalent; do not turn them into dependencies.
