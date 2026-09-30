@@ -83,13 +83,13 @@ representation is unambiguous; otherwise report the item instead of guessing.
 | `metadata.name`, `description`, `version` | Convert to the `metadata` block. |
 | `repository` and `ref` | Convert to `source = "oci://<repository>:<ref>"`. |
 | local `.tar.zst` path | Use the equivalent path relative to the generated bundle. |
-| local directory path | Use only its resolved Legacy archive path. If the archive or target architecture is unavailable, report **needs local package preparation**; do not use a bare authoring directory. |
+| local directory path | Resolve it against the Legacy bundle directory and emit the equivalent path relative to the generated bundle when it identifies an available Zarf package directory. Retain it as a local directory source; report **needs local package preparation and validation** rather than replacing it with an archive or omitting it. If it cannot be resolved or is unavailable, report **needs local source review**. |
 | unique valid package name | Use as the package label. |
 | invalid or repeated package name | Report **needs package-label review**; do not silently rename it. |
 | `namespace` | Convert to package `namespace`. |
 | `optionalComponents` | Convert to `optional_components`, removing exact duplicates while preserving order. |
 | `publicKey` or `keylessVerification` | Preserve the package verification posture using the Next reference. Never silently add `verify = false`. |
-| no Legacy package verification posture | Add an all-commented, user-choice `signature_verification` block with key-based, keyless, and explicitly local-alpha `verify = false` options. Do not uncomment a choice. |
+| no Legacy package verification posture | Add an all-commented, user-choice `signature_verification` block with key-based, keyless, and explicitly local-alpha `verify = false` options. Render the local-alpha option as a label comment followed by a separate `# verify = false` line so the user can uncomment only that setting. Do not uncomment a choice. |
 | static override value with a verified, unambiguous Zarf mapping | Write the mapped YAML value and add `values_files`. Static YAML `null` remains YAML `null`. |
 | simple scalar override default with a verified mapping and valid Next representation | Write a values-file template and the bundle default in `defaults.uds.hcl`. Do not write null configuration variables. |
 | anything else | Do not convert it; report why and what information or decision is required. |
@@ -110,8 +110,9 @@ configuration remains outside this first-pass migration.
 Keep package verification and bundle-artifact signing as separate user decisions.
 When verification material or a signing identity is unavailable, preserve the
 verification requirement and report validation as blocked. A local-alpha
-`verify = false` change is allowed only after explicit user authorization, only in a
-separate validation copy, and must be labelled security-reducing and non-equivalent.
+`verify = false` change is allowed only after explicit user authorization. It may
+be made in the generated bundle for local testing; record it in the migration
+report as a security-reducing, non-equivalent test choice.
 
 Do not treat Legacy package list order as a Next dependency graph. Add `depends_on`
 only when the user or source clearly establishes the dependency and the resulting
@@ -137,7 +138,7 @@ Before reporting the migration as ready for review:
 - ensure `defaults.uds.hcl` contains only valid non-null variables;
 - ensure each generated values path has an inspected or supplied Zarf mapping;
 - ensure every package has an explicit, user-reviewed verification posture; and
-- list unavailable archives, missing mappings, sensitive values, trust choices, and
+- list unavailable local sources, missing mappings, sensitive values, trust choices, and
   deployment-time settings as blockers rather than claiming equivalence.
 
 When commands are authorized, follow the linked create and signing guides to validate

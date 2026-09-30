@@ -51,252 +51,96 @@ optionally deploy to a non-production cluster.
    file directly in the agent's supported way. The skill is plain Markdown, so you
    can also paste its contents into the conversation.
 
-2. **Request a conversion**
+2. **Generate the Next files**
 
-   Copy the Legacy inputs to a working directory if you do not want the agent to
-   read from the original location. When the bundle has `overrides`, also provide
-   the corresponding Zarf package `zarf.yaml` files. The mappings in `zarf.yaml`
-   determine whether a values file can be used by the target package.
-
-   > [!CAUTION]
-   > Treat passwords, API or bearer tokens, registry or cloud credentials,
-   > kubeconfigs, private keys, client-key material, secret-manager credentials, and
-   > connection strings containing credentials as sensitive. Do not provide them to
-   > an agent or chat service unless that handling is approved. The migration skill
-   > reports a sensitive value's location without echoing it and asks whether you
-   > authorize a local-only, untracked copy or prefer a redacted migration that
-   > requires manual secret injection. Package references, namespaces, public keys,
-   > keyless certificate identities, and public Sigstore trusted roots are not
-   > sensitive by default.
-
-   Print the canonical prompt, then paste it into the agent and replace the
-   placeholder paths:
+   Print the migration prompt:
 
    ```bash
    CLI_FEATURES=NextMode=true uds bundle migrate prompt
    ```
 
-   Review the resulting files before continuing. Generated HCL and values sections
-   include `# Migrated from <file>:<line>` comments, and the migration report has a
-   complete source-attribution table. Use them to compare the proposed output with
-   every Legacy field. In particular, resolve any package
-   `signature_verification` TODO. Do not accept `verify = false` merely to make a
-   bundle create command succeed; it is a reduced-security bypass suitable only for
-   an intentional local alpha workflow. The agent must leave every verification
-   template unselected until you explicitly choose a posture; `--unsigned` controls
-   artifact signing and does not select `verify = false`.
+   Paste it into your agent, replacing `./legacy/uds-bundle.yaml` with your Legacy
+   bundle path. The prompt writes the proposed files to `./.next`. Use a new output
+   directory for each migration; move an existing `.next` directory before starting.
 
-3. **Prepare a separate validation copy when needed**
+   Expect `bundle.uds.hcl` and `migration-report.md`. The agent also generates
+   values files and `defaults.uds.hcl` when needed. Deployment settings from
+   `uds-config.yaml` remain a separate task.
 
-   Next can use a local Zarf package archive or a canonical package directory with
-   generated metadata such as `checksums.txt`. A source directory containing only
-   authoring files such as `zarf.yaml` must be packaged before Next can create a
-   bundle from it. Review every local `source` in `bundle.uds.hcl` and every
-   **needs local package preparation** item in the migration report.
+   Compare the generated packages with the Legacy bundle and read the report.
+   Ask the agent to explain anything marked for review. If your bundle uses
+   overrides, the agent may need the packages' `zarf.yaml` files to check their
+   values mappings. Keep private keys and credentials out of the prompt.
 
-   Do not rewrite the canonical migration merely to make it testable. If you
-   explicitly want a local validation that requires a prepared archive or a
-   test-only source substitution, copy the migration first. The validation copy is
-   non-equivalent to the canonical migration and must say so in its report:
+3. **Choose verification and signing settings**
 
-   Before copying, ensure `.next-validation` does not exist. If it does, stop and
-   move or remove that prior validation directory, then confirm it is absent. Do not
-   merge a new validation copy into an existing one.
+   There are two decisions:
+
+   - **Package verification:** Each package's `signature_verification` block
+     controls whether you trust the package being included. Keep any migrated
+     public-key or keyless settings. If the agent left a commented choice, select
+     a public key or keyless identity that matches the package signer.
+   - **Bundle signing:** The create command signs the finished bundle with
+     `--signing-key` or `--keyless`. For a local alpha test, `--unsigned` creates
+     an artifact without a bundle signature.
+
+   For packages without trust material, you can explicitly choose to skip package
+   verification for a local alpha test by uncommenting this setting:
+
+   ```hcl
+   # Local-alpha only, security-reducing:
+   # verify = false
+   ```
+
+   This permits an unverified package into the bundle. Choose only one option per
+   package; `verify = false` cannot be combined with public-key or keyless settings.
+   `--unsigned` does not change package verification.
+
+   See [Sign and verify a bundle in Next mode](/cli/how-to-guides/next/sign-bundle-artifacts/)
+   when you are ready to create a signed artifact.
+
+4. **Try creating the bundle**
+
+   From the repository root, run this local alpha check against the generated
+   directory:
 
    ```bash
-   cp -R .next .next-validation
-   mkdir -p .next-validation/packages
-   CLI_FEATURES=NextMode=true uds tools zarf package create \
-     <legacy-local-package-path> \
-     --architecture <effective-legacy-architecture> \
-     --flavor <legacy-flavor> \
-     --output .next-validation/packages \
-     --confirm
+   CLI_FEATURES=NextMode=true uds bundle create ./.next --unsigned
    ```
 
-   Replace `<legacy-local-package-path>` and `<effective-legacy-architecture>` with
-   the package directory and architecture reported by the migration. When the Legacy
-   package specifies a flavor, replace `<legacy-flavor>` with it; otherwise omit the
-   `--flavor` line. Update only `.next-validation/bundle.uds.hcl` to the archive that
-   command produced. Use its actual filename:
+   This reads the HCL, validates package policies, and retrieves package content.
+   It may access registries, but it does not deploy to a cluster. If you need a
+   specific target architecture, add `--architecture amd64` or `--architecture arm64`.
 
-   If the canonical package retains `public_key` verification, append a compatible
-   private key or KMS URI to the preparation command. The key must correspond to the
-   retained public key: `--signing-key <package-private-key-or-kms-uri>`.
+   A failure can still give useful feedback. If the command reaches `ingesting
+   package`, the definition passed parsing and create-time validation. A later
+   registry connection or package-loading error does not mean the HCL is invalid,
+   but you still need to resolve it before creating an artifact. A local authoring
+   directory may need to be built into a Zarf package archive first.
 
-   If it retains keyless verification, sign the prepared archive separately with an
-   identity that satisfies the retained certificate and issuer constraints. Legacy
-   verification fields do not identify the Fulcio, signing OIDC, Rekor, or TSA
-   services. Do not infer them from `trustedRoot` or a certificate-issuer constraint.
-   For a private Sigstore deployment, obtain the applicable
-   `--fulcio-url`, `--oidc-issuer`, and, when Rekor is used, `--rekor-url` values
-   from the signing-profile owner. If those inputs are unavailable, report validation
-   as blocked. Append the supplied flags to the signing command, then point the
-   validation copy at
-   `signed-packages/<actual-signed-archive>.tar.zst`:
-
-   ```bash
-   mkdir -p .next-validation/signed-packages
-   CLI_FEATURES=NextMode=true uds tools zarf package sign \
-     .next-validation/packages/<unsigned-archive>.tar.zst \
-     --keyless \
-     --architecture <effective-legacy-architecture> \
-     --output .next-validation/signed-packages \
-     --confirm
-   ```
-
-   When the retained Legacy `keylessVerification.useSignedTimestamps` is `true`,
-   append `--tsa-server-url <rfc3161-timestamp-authority-url>` with a suitable TSA
-   URL. Otherwise omit that flag. Ask whether the retained profile is timestamp-only
-   because Rekor is unavailable; if so, append `--tlog-upload=false` to prevent Zarf
-   from auto-enabling Rekor upload for keyless signing. Otherwise use the
-   signing-profile owner's confirmed Rekor settings. If a required TSA, endpoint, or
-   identity input is unavailable, report validation as blocked rather than producing
-   a signature that cannot meet the retained verification policy.
-
-   If you cannot provide compatible signing material, do not change the canonical
-   migration. You may explicitly authorize `verify = false` in the validation copy
-   only as a local-alpha, security-reducing test adaptation; record that choice and
-   its non-equivalence in the validation report.
-
-   ```hcl title=".next-validation/bundle.uds.hcl"
-   package "example" {
-     source = "<relative-path-to-final-archive>.tar.zst"
-   }
-   ```
-
-   Do not add the archive to the Legacy source directory. Do not automatically replace
-   an OCI package reference with a fixture, local archive, or different registry.
-   If you explicitly authorize such a test-only substitution, record it in the
-   validation copy's report as non-equivalent. Keep unresolved source and trust-policy
-   blockers in the canonical migration report.
-
-4. **Validate the converted source with UDS CLI**
-
-   Ask the agent to list the files it generated and reconcile them with its
-   migration report. Resolve every blocking item first: inaccessible package
-   sources, missing trust material, and missing Zarf values mappings prevent a
-   meaningful bundle validation.
-
-   After the review, create an unsigned local alpha artifact from the canonical
-   directory only when its original package sources are accessible and you have
-   explicitly selected every required package-verification posture. When the migration
-   report establishes an effective Legacy architecture, pass it explicitly:
-
-   ```bash
-   CLI_FEATURES=NextMode=true uds bundle create ./.next --architecture <effective-legacy-architecture> --unsigned
-   ```
-
-   The migration only creates bundle definition artifacts and defaults. If the report
-   cannot establish an effective architecture, resolve that manual decision before
-   creating the artifact.
-
-   This reads and validates `bundle.uds.hcl`, resolves package sources, and writes
-   a local `.tar.zst` artifact. `--unsigned` skips bundle signing, so use this only
-   for local alpha validation; it does not provide bundle integrity verification.
-   Package verification remains controlled by each package's
-   `signature_verification` block.
-
-   To validate an explicitly authorized test adaptation, use the separate copy
-   instead:
-
-   ```bash
-   CLI_FEATURES=NextMode=true uds bundle create ./.next-validation --architecture <effective-legacy-architecture> --unsigned
-   ```
-
-   Apply the same architecture rule to the validation copy.
-
-   If the command fails, have the agent explain the failure from the UDS output and
-   update only the generated Next files. Do not change the Legacy source to silence
-   a conversion warning.
-
-5. **Test on a non-production cluster**
-
-   A source-based deployment changes the target cluster. Before asking the agent
-   to run it, confirm the target cluster meets each package's Zarf deployment
-   requirements. Standard packages need Zarf initialization. A brand-new cluster
-   is suitable only when you initialize it before deployment or the migrated bundle
-   includes an init package and every package requiring initialization declares
-   `depends_on = [package.init]`. Package order in `bundle.uds.hcl` does not impose
-   deployment order. Connected and cluster-less packages may have different
-   requirements. Then review the exact command, package sources, namespace,
-   configuration, and verification policy.
-
-   When you are ready, explicitly authorize a non-production deployment from the
-   directory you selected for validation. Direct `dev deploy` discovers an adjacent
-   `defaults.uds.hcl`. Deploy the canonical migration when you did not prepare a
-   validation copy:
-
-   ```bash
-   CLI_FEATURES=NextMode=true uds bundle dev deploy ./.next --architecture <effective-legacy-architecture>
-   ```
-
-   Otherwise, deploy the prepared validation copy:
-
-   ```bash
-   CLI_FEATURES=NextMode=true uds bundle dev deploy ./.next-validation --architecture <effective-legacy-architecture>
-   ```
-
-   Confirm the workload is healthy with the package-specific Kubernetes checks before
-   retiring the Legacy workflow.
-
-   If you choose to deploy the artifact from step 4 instead, it is unsigned and
-   suitable only for local-alpha use. Either create a signed artifact and provide its
-   verification inputs, or explicitly authorize this bypass:
-
-   ```bash
-   CLI_FEATURES=NextMode=true uds bundle deploy <created-artifact>.tar.zst --skip-signature-verification
-   ```
-
-   `--skip-signature-verification` bypasses bundle-artifact integrity verification;
-   do not use it for a release or a registry artifact. See [Deploy a bundle in Next
-   mode](/cli/how-to-guides/next/deploy-a-bundle/) for the artifact workflow.
+   Share the output with the agent and ask it to explain the failure and the next
+   step. Record any testing changes in the migration report. A successful create
+   writes a `.tar.zst` artifact beside `bundle.uds.hcl`; this local test artifact
+   is unsigned.
 
 </Steps>
 
 ## Verification
 
-The migration is ready for review when all of the following are true:
+Confirm that the generated definition accounts for the Legacy packages and that
+you understand each unresolved item in the report. Reaching package ingestion
+confirms the HCL and package policies passed validation; completing creation
+also confirms the package sources could be assembled into an artifact.
 
-- The generated `bundle.uds.hcl` and any `defaults.uds.hcl` file are accepted by the
-  `uds bundle create` workflow.
-- The migration report has no unresolved package-verification or Zarf-mapping
-  items.
-- The generated artifact and source files remain separate from the Legacy input.
-- If you performed a non-production deployment, the migrated workloads are Ready
-  and their expected package-specific checks pass.
-
-## Troubleshooting
-
-### Problem: The agent cannot find the migration skill
-
-**Symptom:** The agent says `migrate-legacy-bundle-to-next` is unavailable.
-
-**Solution:** Confirm the agent started from the repository root and that
-`.agents/skills/migrate-legacy-bundle-to-next/SKILL.md` exists. If the agent does
-not support repository-local skills, provide that file directly or paste its
-contents into the conversation.
-
-### Problem: The migration report says a values mapping needs review
-
-**Symptom:** A Legacy override produced a values file but is marked as unverified.
-
-**Solution:** Inspect the target package's `zarf.yaml`. Add or correct the package
-values mapping before deploying; a bundle values file alone does not connect a value
-to a Helm chart.
-
-### Problem: Bundle creation reports a missing `checksums.txt`
-
-**Symptom:** `uds bundle create` fails while loading a local package with an error
-such as `stat .../checksums.txt: no such file or directory`.
-
-**Solution:** The local source is an authoring directory, not a canonical Zarf
-package. Follow step 3 to create a `.tar.zst` archive under
-`.next-validation/packages`, update only the validation copy's package `source`, and
-record the non-equivalent adaptation before retrying bundle creation.
+When you are ready to test workload behavior, follow
+[Deploy a bundle in Next mode](/cli/how-to-guides/next/deploy-a-bundle/) using a
+non-production cluster. Review package dependencies and cluster initialization
+first: package list order does not establish deployment order. If an agent will
+run the deployment, explicitly authorize that cluster operation.
 
 ## Related documentation
 
-- [Migrate a legacy bundle to UDS CLI Next](/cli/how-to-guides/migrate-legacy-to-next/) - human migration mappings and known Next differences
-- [Create a bundle in Next mode](/cli/how-to-guides/next/create-a-bundle/) - package verification and artifact creation requirements
-- [Next mode reference](/cli/reference/next-mode/) - exact HCL schema, commands, and configuration behavior
+- [Migrate a legacy bundle to UDS CLI Next](/cli/how-to-guides/migrate-legacy-to-next/) - manual migration mappings and known Next differences.
+- [Create a bundle in Next mode](/cli/how-to-guides/next/create-a-bundle/) - package preparation and artifact creation.
+- [Sign and verify a bundle in Next mode](/cli/how-to-guides/next/sign-bundle-artifacts/) - signing choices and artifact verification.
+- [Next mode reference](/cli/reference/next-mode/) - exact HCL schema, commands, and configuration behavior.
