@@ -89,25 +89,17 @@ optionally deploy to a non-production cluster.
    overrides, the agent may need the packages' `zarf.yaml` files to check their
    values mappings. Keep private keys and credentials out of the prompt.
 
-3. **Review package verification and choose bundle signing**
+3. **Review package verification**
 
-   Package verification and bundle signing serve different purposes:
+   Each package's `signature_verification` block controls how its signature is
+   verified before inclusion in the bundle. The agent carries over the Legacy
+   public-key or keyless policy without adding alternative options. If the Legacy
+   package has no policy, the agent omits the block and reports it as a blocker
+   for bundle creation.
 
-   - **Package verification:** Each package's `signature_verification` block
-     controls whether you trust the package being included. Keep any migrated
-     public-key or keyless settings. The agent carries over the Legacy policy
-     without adding alternative options. If the Legacy package has no policy,
-     the agent omits the block and reports it as a blocker for bundle creation.
-   - **Bundle signing:** The create command signs the finished bundle with
-     `--signing-key` or `--keyless`. For a local alpha test, `--unsigned` creates
-     an artifact without a bundle signature.
-
-   Next requires a verification policy for every package at create time. Resolve
-   missing policies with the package owner before testing; the migration does not
-   choose one for you. `--unsigned` does not change package verification.
-
-   See [Sign and verify a bundle in Next mode](/cli/how-to-guides/next/sign-bundle-artifacts/)
-   when you are ready to create a signed artifact.
+   Next requires a verification policy for every package at create time. Keep
+   migrated policies and resolve missing ones with the package owner before
+   testing; the migration does not choose a policy for you.
 
 4. **Try creating the bundle**
 
@@ -117,6 +109,12 @@ optionally deploy to a non-production cluster.
    ```bash
    CLI_FEATURES=NextMode=true uds bundle create . --unsigned
    ```
+
+   `--unsigned` leaves the new bundle artifact unsigned, so its integrity and
+   origin are not established by a bundle signature. It does not disable package
+   verification. For production signing, follow
+   [Sign and verify a bundle in Next mode](/cli/how-to-guides/next/sign-bundle-artifacts/)
+   as a separate task.
 
    This reads the HCL, validates package policies, and retrieves package content.
    It may access registries, but it does not deploy to a cluster. If you need a
