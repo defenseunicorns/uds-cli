@@ -137,6 +137,16 @@ The printed prompt includes the migration instructions; no repository checkout,
 skill file, or web access is required to read them. Supply local package definitions
 when needed to review overrides. Review generated files and migration-report.md.
 
+Example request to your coding agent:
+  Replace <path-to-legacy-bundle>/uds-bundle.yaml with your local bundle path.
+
+  Run the command "CLI_FEATURES=NextMode=true uds bundle migrate prompt" and use its
+  printed instructions to migrate <path-to-legacy-bundle>/uds-bundle.yaml.
+
+  Write the migrated files and migration report in the current working
+  directory. Preserve the Legacy input. Do not run any other UDS commands
+  or use a cluster.
+
 Package verification:
   Each package's signature_verification block controls trust in that package.
   The migration preserves Legacy public-key or keyless settings and does not

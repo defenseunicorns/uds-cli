@@ -60,10 +60,22 @@ optionally deploy to a non-production cluster.
    CLI_FEATURES=NextMode=true uds bundle migrate prompt --help
    ```
 
-   Paste it into your agent, replacing `uds-bundle.yaml` with your Legacy
+   Paste the migration prompt into your agent, replacing `uds-bundle.yaml` with your Legacy
    bundle path. The agent writes the proposed files in your current working
    directory. Move any existing migration output files before starting, or choose
    another output location in the prompt.
+
+   Alternatively, ask the agent to run the prompt command and follow its output.
+   Replace `<path-to-legacy-bundle>/uds-bundle.yaml` with your local bundle path:
+
+   ```text title="Agent request"
+   Run the command "CLI_FEATURES=NextMode=true uds bundle migrate prompt" and use its
+   printed instructions to migrate <path-to-legacy-bundle>/uds-bundle.yaml.
+
+   Write the migrated files and migration report in the current working
+   directory. Preserve the Legacy input. Do not run any other UDS commands
+   or use a cluster.
+   ```
 
    Expect `bundle.uds.hcl` and `migration-report.md`. The agent also generates
    values files and `defaults.uds.hcl` when needed. Deployment settings from
