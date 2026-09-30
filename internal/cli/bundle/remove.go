@@ -212,6 +212,8 @@ func runRemove(ctx context.Context, s iostreams.IOStreams, printer printer.Resou
 		Streams:                   s,
 	}
 
+	// Zarf package APIs read their process-global temp setting instead of UDS config.
+	configureZarfTempDir(cfg.Options.TmpDir)
 	result, err := bundle.Remove(ctx, &bundle.DeploySource{
 		BundlePath: bundlePath,
 		Bundle:     parsedBundle,

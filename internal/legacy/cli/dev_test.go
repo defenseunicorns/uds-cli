@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package cmd contains the CLI commands for UDS.
@@ -7,9 +7,46 @@ package cmd
 import (
 	"testing"
 
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/config"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	zarfconfig "github.com/zarf-dev/zarf/src/config"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
+
+func TestNewDevCommandContainsDisassemble(t *testing.T) {
+	cmd := newDevCommand()
+	found, _, err := cmd.Find([]string{"disassemble"})
+	require.NoError(t, err)
+	assert.Equal(t, "disassemble", found.Name())
+	assert.Equal(t, "disassemble <source> <output-dir>", found.Use)
+	assert.Equal(t, "[beta] Convert a Zarf package into rebuildable offline source", found.Short)
+	assert.Equal(t, "[beta] Extract a complete Zarf package and rewrite its packaged resources into a local source directory that can be rebuilt offline. Zarf packages are supported today.", found.Long)
+}
+
+func TestLegacyDisassembleOptionsHonorSignatureBypass(t *testing.T) {
+	previous := config.CommonOptions.SkipSignatureValidation
+	t.Cleanup(func() { config.CommonOptions.SkipSignatureValidation = previous })
+
+	config.CommonOptions.SkipSignatureValidation = false
+	assert.Equal(t, layout.VerifyIfPossible, legacyDisassembleOptions("source", "output").VerificationStrategy)
+	config.CommonOptions.SkipSignatureValidation = true
+	assert.Equal(t, layout.VerifyNever, legacyDisassembleOptions("source", "output").VerificationStrategy)
+}
+
+func TestConfigureZarfUsesLegacyTempDirectory(t *testing.T) {
+	previousZarfOptions := zarfconfig.CommonOptions
+	previousTmpDir := config.CommonOptions.TempDirectory
+	t.Cleanup(func() {
+		zarfconfig.CommonOptions = previousZarfOptions
+		config.CommonOptions.TempDirectory = previousTmpDir
+	})
+
+	config.CommonOptions.TempDirectory = "/tmp/legacy-disassemble"
+	configureZarf()
+	assert.Equal(t, config.CommonOptions.TempDirectory, zarfconfig.CommonOptions.TempDirectory)
+}
 
 func TestValidateDevDeployFlags(t *testing.T) {
 	testCases := []struct {

@@ -1,0 +1,53 @@
+// Copyright 2026 Defense Unicorns
+// SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+package cmd
+
+import (
+	"github.com/defenseunicorns/uds-cli/internal/mode/disassemble"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/config"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/message"
+	"github.com/spf13/cobra"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+)
+
+func newDevDisassembleCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "disassemble <source> <output-dir>",
+		Short: "[beta] Convert a Zarf package into rebuildable offline source",
+		Long:  "[beta] Extract a complete Zarf package and rewrite its packaged resources into a local source directory that can be rebuilt offline. Zarf packages are supported today.",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			configureZarf()
+			result, err := disassemble.Disassemble(cmd.Context(), legacyDisassembleOptions(args[0], args[1]))
+			if err != nil {
+				return err
+			}
+			message.Successf("Disassembled %s to %s", result.Source, result.OutputDir)
+			return nil
+		},
+	}
+}
+
+func legacyDisassembleOptions(source, outputDir string) disassemble.Options {
+	return disassemble.Options{
+		Source:               source,
+		OutputDir:            outputDir,
+		Architecture:         config.CLIArch,
+		PlainHTTP:            config.CommonOptions.Insecure,
+		SkipTLSVerify:        config.CommonOptions.Insecure,
+		TmpDir:               config.CommonOptions.TempDirectory,
+		Concurrency:          config.CommonOptions.OCIConcurrency,
+		VerificationStrategy: legacyDisassembleVerificationStrategy(),
+		Warn: func(msg string, args ...any) {
+			message.Warnf("%s: %v", msg, args)
+		},
+	}
+}
+
+func legacyDisassembleVerificationStrategy() layout.VerificationStrategy {
+	if config.CommonOptions.SkipSignatureValidation {
+		return layout.VerifyNever
+	}
+	return layout.VerifyIfPossible
+}

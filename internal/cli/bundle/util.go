@@ -19,6 +19,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
+	zarfconfig "github.com/zarf-dev/zarf/src/config"
 )
 
 // validateBundlePathConfig holds options for ValidateBundlePath.
@@ -222,6 +223,12 @@ func ResolvePrinter(cmd *cobra.Command) (printer.ResourcePrinter, error) {
 		return nil, err
 	}
 	return printer.NewPrinter(format)
+}
+
+// configureZarfTempDir bridges the CLI's resolved temp directory into Zarf APIs
+// that still read process-global configuration.
+func configureZarfTempDir(tmpDir string) {
+	zarfconfig.CommonOptions.TempDirectory = tmpDir
 }
 
 // PromptConfirmation writes message + " [y/N]: " to streams.ErrOut, reads one
