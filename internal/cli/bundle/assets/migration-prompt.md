@@ -1,8 +1,3 @@
----
-name: migrate-legacy-bundle-to-next
-description: Convert a Legacy UDS CLI uds-bundle.yaml into reviewed UDS CLI Next HCL files. Use when migrating a bundle authoring workflow; do not use for arbitrary YAML-to-HCL conversion.
----
-
 Migrate uds-bundle.yaml from Legacy UDS CLI to a reviewable first-pass
 UDS CLI Next bundle using the instructions below. These instructions are
 self-contained; do not fetch a skill, repository, or documentation from the web.

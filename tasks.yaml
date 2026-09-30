@@ -7,6 +7,7 @@ includes:
   - docs: tasks/docs.yaml
   - dev: tasks/dev.yaml
   - lint: tasks/lint.yaml
+  - generate: tasks/generate.yaml
 
 tasks:
   - name: default

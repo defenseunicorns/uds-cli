@@ -1,0 +1,11 @@
+tasks:
+  - name: migration-prompt
+    description: generate the embedded migration prompt from the canonical skill
+    actions:
+      - cmd: go run ./hack/migrationprompt
+
+  - name: check-migration-prompt
+    description: check the embedded migration prompt for drift without modifying files
+    actions:
+      - cmd: go test ./hack/migrationprompt
+      - cmd: go run ./hack/migrationprompt --check

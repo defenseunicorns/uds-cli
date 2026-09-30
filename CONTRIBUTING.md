@@ -82,6 +82,22 @@ To build a local binary, run `uds run build`. This creates `build/uds`. Use `uds
 
 Commits run hk automatically. To run the complete repository check suite manually, use `uds run lint` (or `hk check --all`). CI runs this same hk configuration.
 
+The canonical migration instructions are in
+`.agents/skills/migrate-legacy-bundle-to-next/SKILL.md`. After changing the skill,
+or updating it to reflect documentation changes, run:
+
+```bash
+uds run generate:migration-prompt
+```
+
+Commit the generated `internal/cli/bundle/assets/migration-prompt.md` alongside
+the source changes; do not edit the asset directly. The generator removes skill
+frontmatter and embeds the self-contained body in the binary. The skill currently
+has no documentation references to append. Keep essential migration rules in
+the skill when changing the relevant docs so binary-only users receive them.
+`uds run generate:check-migration-prompt` checks for drift without rewriting files;
+hk and the existing CI lint job run this check too.
+
 ### CLI modes
 
 UDS CLI currently contains both Legacy and Next implementations.
