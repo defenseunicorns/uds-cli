@@ -36,8 +36,9 @@ func NewMigrationPromptCommand(streams iostreams.IOStreams) *cobra.Command {
 Legacy-to-Next bundle migration. Replace uds-bundle.yaml with your
 bundle path. The agent writes the proposed files in the current working directory
 and checks for existing output files before writing.
-The printed prompt includes the migration instructions; no repository checkout,
-skill file, or web access is required to read them. Supply local package definitions
+The printed prompt includes the canonical skill and its maintained documentation;
+no repository checkout, skill file, or web access is required to read them.
+Supply local package definitions
 when needed to review overrides. Review generated files and migration-report.md.
 
 Example request to your coding agent:

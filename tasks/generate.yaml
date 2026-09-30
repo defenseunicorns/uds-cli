@@ -3,7 +3,7 @@
 
 tasks:
   - name: migration-prompt
-    description: generate the embedded migration prompt from the canonical skill
+    description: generate the embedded migration prompt from the skill and its referenced docs
     actions:
       - cmd: go run ./hack/migrationprompt
 
