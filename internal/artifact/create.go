@@ -117,6 +117,7 @@ func ingestSource(ctx context.Context, pkg *spec.Package, config *bundleinternal
 		Architecture:  config.Options.Architecture,
 		PlainHTTP:     config.Options.PlainHTTP,
 		SkipTLSVerify: config.Options.SkipTLSVerify,
+		CacheDir:      config.Options.CacheDir,
 		TmpDir:        config.Options.TmpDir,
 		Concurrency:   config.Options.Concurrency,
 	}

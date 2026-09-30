@@ -49,6 +49,7 @@ The `options` block configures operation-wide behavior. Config values override b
 | `architecture` | string | The current runtime architecture | Selects the target architecture for architecture-aware bundle and package operations. |
 | `plain_http` | boolean | `false` | Allows registry communication over plain HTTP. Use only with a registry that intentionally does not provide TLS. |
 | `skip_tls_verify` | boolean | `false` | Disables TLS certificate verification for registry communication. This reduces transport security. |
+| `UDSCacheDir` | string | `~/.uds-cache` | Sets the cache directory. An explicit `--uds-cache` flag overrides this value. |
 | `tmp_dir` | string | The operating system temporary directory | Must name an existing directory when set. |
 | `concurrency` | integer | `10` | Values from `1` to `25` are accepted. `0` is treated as unset and uses the default of `10`. |
 
