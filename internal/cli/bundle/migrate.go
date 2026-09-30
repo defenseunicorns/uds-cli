@@ -19,7 +19,8 @@ it is not available locally. If required guidance cannot be read, ask me to supp
 it before proceeding. Then migrate
 uds-bundle.yaml.
 
-Write only the proposed Next files under ./.next. Do not modify the Legacy files.
+Write the proposed Next files in the current working directory. Do not overwrite
+existing output files or modify the Legacy files.
 For package overrides, inspect package definitions and report every missing or
 unverified values mapping. Produce bundle.uds.hcl, the required values files,
 defaults.uds.hcl when needed, and a migration report. Report all deployment-time
@@ -48,7 +49,8 @@ func NewMigrationPromptCommand(streams iostreams.IOStreams) *cobra.Command {
 		Short: "Print the Legacy-to-Next migration prompt",
 		Long: `Print a prompt to paste into an AI coding agent for an experimental
 Legacy-to-Next bundle migration. Replace uds-bundle.yaml with your
-bundle path and use a new output directory (the prompt defaults to ./.next).
+bundle path. The agent writes the proposed files in the current working directory
+and checks for existing output files before writing.
 The agent reads the migration skill locally or from its upstream URL; a full
 repository checkout is not required. Supply the skill file if network access
 is unavailable. Review the generated files and migration-report.md before use.
@@ -67,7 +69,7 @@ Bundle artifact signing:
   Keep private keys and credentials out of the agent prompt.
 
 Test the generated directory:
-  CLI_FEATURES=NextMode=true uds bundle create ./.next --unsigned
+  CLI_FEATURES=NextMode=true uds bundle create . --unsigned
   This validates HCL and package policies, retrieves packages, and writes a
   local artifact if successful. It may access registries but does not deploy.
   Reaching package ingestion confirms parsing and create-time validation passed.

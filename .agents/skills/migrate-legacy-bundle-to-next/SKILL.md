@@ -32,10 +32,12 @@ leave that item unconverted and report it.
 
 ## Inputs, discovery, and output safety
 
-Ask for the Legacy bundle path or contents and the output directory. For a new
-migration, stop if that output directory already exists; ask the user to move or
-remove it. Only edit an existing output when the user explicitly authorizes a named
-continuation. Never merge an unrelated prior migration or modify Legacy files.
+Use the current working directory for output unless the user specifies another
+location. Ask for the Legacy bundle path or contents when not supplied. Before
+writing, check the exact output files for collisions. If any already exists, ask
+the user to move it or choose another location; do not overwrite it. Only edit
+existing output when the user explicitly authorizes a named continuation. Never
+merge an unrelated prior migration or modify Legacy files.
 
 For a package with overrides, inspect its available local definition. For an OCI
 package, inspect its definition when commands and network access are permitted:
