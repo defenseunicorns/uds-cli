@@ -24,6 +24,9 @@ For package overrides, inspect package definitions and report every missing or
 unverified values mapping. Produce bundle.uds.hcl, the required values files,
 defaults.uds.hcl when needed, and a migration report. Report all deployment-time
 values and settings as not converted.
+Preserve only package-verification policies supplied by the Legacy bundle. Do not
+generate commented verification options or infer a policy for packages without one;
+report missing policies as blockers for bundle create.
 Do not run UDS commands yet. Do not deploy a bundle or perform cluster operations
 as part of this migration.`
 
@@ -52,10 +55,10 @@ is unavailable. Review the generated files and migration-report.md before use.
 
 Package verification:
   Each package's signature_verification block controls trust in that package.
-  Preserve migrated public_key or keyless settings. For an unresolved choice,
-  select the package signer's public key or keyless identity and OIDC issuer.
-  For local alpha testing only, you may explicitly select verify = false;
-  this includes an unverified package. Do not combine it with a trust method.
+  The migration preserves Legacy public-key or keyless settings and does not
+  generate alternative policies. If Legacy supplies no policy, the block is
+  omitted and the report flags a blocker. Next requires a policy for every
+  package at create time; resolve missing policies before testing.
 
 Bundle artifact signing:
   Choose exactly one create mode: --signing-key <private-key-or-kms-uri>,

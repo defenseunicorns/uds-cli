@@ -88,7 +88,7 @@ representation is unambiguous; otherwise report the item instead of guessing.
 | `namespace` | Convert to package `namespace`. |
 | `optionalComponents` | Convert to `optional_components`, removing exact duplicates while preserving order. |
 | `publicKey` or `keylessVerification` | Preserve the package verification posture using the Next reference. Never silently add `verify = false`. |
-| no Legacy package verification posture | Add an all-commented, user-choice `signature_verification` block with key-based, keyless, and explicitly local-alpha `verify = false` options. Render the local-alpha option as a label comment followed by a separate `# verify = false` line so the user can uncomment only that setting. Do not uncomment a choice. |
+| no Legacy package verification posture | Omit `signature_verification` and report **needs package-verification policy** as a create-time blocker. Do not generate an empty block, commented alternatives, placeholder trust material, or `verify = false`. |
 | static override value with a verified, unambiguous Zarf mapping | Write the mapped YAML value and add `values_files`. Static YAML `null` remains YAML `null`. |
 | simple scalar override default with a verified mapping and valid Next representation | Write a values-file template and the bundle default in `defaults.uds.hcl`. Do not write null configuration variables. |
 | anything else | Do not convert it; report why and what information or decision is required. |
@@ -106,12 +106,16 @@ configuration remains outside this first-pass migration.
 
 ## Trust, sources, and dependencies
 
-Keep package verification and bundle-artifact signing as separate user decisions.
-When verification material or a signing identity is unavailable, preserve the
-verification requirement and report validation as blocked. A local-alpha
-`verify = false` change is allowed only after explicit user authorization. It may
-be made in the generated bundle for local testing; record it in the migration
-report as a security-reducing, non-equivalent test choice.
+Migrate only the package-verification policy present in the Legacy bundle; do not
+offer alternative policies in generated files. Preserve public-key contents or
+resolve key-file paths relative to the Legacy bundle, and map keyless fields using
+the Next reference. Report invalid or ambiguous policies instead of guessing.
+
+Keep package verification and bundle-artifact signing separate. A missing Legacy
+policy does not authorize disabling verification: Next requires a policy for every
+package at create time. Report the gap for the user to resolve before validation.
+Bundle artifact signing is selected separately when running create; do not infer
+a signing mode from a package's verification policy.
 
 Do not treat Legacy package list order as a Next dependency graph. Add `depends_on`
 only when the user or source clearly establishes the dependency and the resulting
@@ -129,7 +133,8 @@ Before reporting the migration as ready for review:
 - check each generated HCL file against the Next schema;
 - ensure `defaults.uds.hcl` contains only valid non-null variables;
 - ensure each generated values path has an inspected or supplied Zarf mapping;
-- ensure every package has an explicit, user-reviewed verification posture; and
+- ensure supplied Legacy verification policies are preserved and missing policies
+  are reported as create-time blockers; and
 - list unavailable local sources, missing mappings, sensitive values, trust choices, and
   deployment-time settings as blockers rather than claiming equivalence.
 

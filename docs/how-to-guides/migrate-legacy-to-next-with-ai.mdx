@@ -82,29 +82,22 @@ optionally deploy to a non-production cluster.
    overrides, the agent may need the packages' `zarf.yaml` files to check their
    values mappings. Keep private keys and credentials out of the prompt.
 
-3. **Choose verification and signing settings**
+3. **Review package verification and choose bundle signing**
 
-   There are two decisions:
+   Package verification and bundle signing serve different purposes:
 
    - **Package verification:** Each package's `signature_verification` block
      controls whether you trust the package being included. Keep any migrated
-     public-key or keyless settings. If the agent left a commented choice, select
-     a public key or keyless identity that matches the package signer.
+     public-key or keyless settings. The agent carries over the Legacy policy
+     without adding alternative options. If the Legacy package has no policy,
+     the agent omits the block and reports it as a blocker for bundle creation.
    - **Bundle signing:** The create command signs the finished bundle with
      `--signing-key` or `--keyless`. For a local alpha test, `--unsigned` creates
      an artifact without a bundle signature.
 
-   For packages without trust material, you can explicitly choose to skip package
-   verification for a local alpha test by uncommenting this setting:
-
-   ```hcl
-   # Local-alpha only, security-reducing:
-   # verify = false
-   ```
-
-   This permits an unverified package into the bundle. Choose only one option per
-   package; `verify = false` cannot be combined with public-key or keyless settings.
-   `--unsigned` does not change package verification.
+   Next requires a verification policy for every package at create time. Resolve
+   missing policies with the package owner before testing; the migration does not
+   choose one for you. `--unsigned` does not change package verification.
 
    See [Sign and verify a bundle in Next mode](/cli/how-to-guides/next/sign-bundle-artifacts/)
    when you are ready to create a signed artifact.
