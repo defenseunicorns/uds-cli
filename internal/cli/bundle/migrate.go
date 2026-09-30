@@ -17,7 +17,7 @@ https://raw.githubusercontent.com/defenseunicorns/uds-cli/main/.agents/skills/mi
 Read referenced repository documentation from the same upstream repository when
 it is not available locally. If required guidance cannot be read, ask me to supply
 it before proceeding. Then migrate
-./legacy/uds-bundle.yaml.
+uds-bundle.yaml.
 
 Write only the proposed Next files under ./.next. Do not modify the Legacy files.
 For package overrides, inspect package definitions and report every missing or
@@ -47,7 +47,7 @@ func NewMigrationPromptCommand(streams iostreams.IOStreams) *cobra.Command {
 		Use:   "prompt",
 		Short: "Print the Legacy-to-Next migration prompt",
 		Long: `Print a prompt to paste into an AI coding agent for an experimental
-Legacy-to-Next bundle migration. Replace ./legacy/uds-bundle.yaml with your
+Legacy-to-Next bundle migration. Replace uds-bundle.yaml with your
 bundle path and use a new output directory (the prompt defaults to ./.next).
 The agent reads the migration skill locally or from its upstream URL; a full
 repository checkout is not required. Supply the skill file if network access
