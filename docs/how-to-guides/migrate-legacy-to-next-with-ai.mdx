@@ -17,7 +17,8 @@ optionally deploy to a non-production cluster.
 ## Prerequisites
 
 - [UDS CLI installed](/cli/getting-started/installation/).
-- A clone of this repository containing `.agents/skills/migrate-legacy-bundle-to-next/`.
+- An AI coding agent that can read the migration skill from this repository or
+  its upstream URL. You can also supply the skill file directly.
 - A Legacy bundle source directory containing `uds-bundle.yaml`.
 - Access to the source packages and their trust material for bundle creation.
 - A non-production cluster only when you are ready to test a deployment. Standard
@@ -39,10 +40,12 @@ optionally deploy to a non-production cluster.
 
 1. **Start the agent and confirm the skill**
 
-   Start your coding agent from the repository root.
+   Start your coding agent from your working directory. If you have a repository
+   checkout, start from its root.
 
    Ask the agent to read
-   `.agents/skills/migrate-legacy-bundle-to-next/SKILL.md`, state its name, and
+   `.agents/skills/migrate-legacy-bundle-to-next/SKILL.md` or the upstream URL
+   included in the printed prompt, state its name, and
    summarize its required output without changing files. It should identify the
    `migrate-legacy-bundle-to-next` skill and say it produces proposed HCL files
    and a migration report.
@@ -57,6 +60,13 @@ optionally deploy to a non-production cluster.
 
    ```bash
    CLI_FEATURES=NextMode=true uds bundle migrate prompt
+   ```
+
+   For a short explanation of verification, signing, and testing without opening
+   this guide, run:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle migrate prompt --help
    ```
 
    Paste it into your agent, replacing `./legacy/uds-bundle.yaml` with your Legacy
@@ -101,7 +111,7 @@ optionally deploy to a non-production cluster.
 
 4. **Try creating the bundle**
 
-   From the repository root, run this local alpha check against the generated
+   From your working directory, run this local alpha check against the generated
    directory:
 
    ```bash
