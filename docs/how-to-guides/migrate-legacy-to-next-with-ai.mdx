@@ -1,6 +1,6 @@
 ---
 title: Migrate a legacy bundle with an AI coding agent
-description: Use the Legacy-to-Next migration skill to create and verify a reviewable UDS CLI Next bundle.
+description: Use the self-contained migration prompt to create and verify a reviewable UDS CLI Next bundle.
 sidebar:
   order: 3.410
 ---
@@ -17,8 +17,7 @@ optionally deploy to a non-production cluster.
 ## Prerequisites
 
 - [UDS CLI installed](/cli/getting-started/installation/).
-- An AI coding agent that can read the migration skill from this repository or
-  its upstream URL. You can also supply the skill file directly.
+- An AI coding agent that can read your local bundle and package definitions.
 - A Legacy bundle source directory containing `uds-bundle.yaml`.
 - Access to the source packages and their trust material for bundle creation.
 - A non-production cluster only when you are ready to test a deployment. Standard
@@ -38,29 +37,21 @@ optionally deploy to a non-production cluster.
 
 <Steps>
 
-1. **Start the agent and confirm the skill**
+1. **Print the migration prompt**
 
-   Start your coding agent from your working directory. If you have a repository
-   checkout, start from its root.
-
-   Ask the agent to read
-   `.agents/skills/migrate-legacy-bundle-to-next/SKILL.md` or the upstream URL
-   included in the printed prompt, state its name, and
-   summarize its required output without changing files. It should identify the
-   `migrate-legacy-bundle-to-next` skill and say it produces proposed HCL files
-   and a migration report.
-
-   If your agent does not discover repository-local skills, provide that `SKILL.md`
-   file directly in the agent's supported way. The skill is plain Markdown, so you
-   can also paste its contents into the conversation.
-
-2. **Generate the Next files**
-
-   Print the migration prompt:
+   From your working directory, print the complete instructions:
 
    ```bash
    CLI_FEATURES=NextMode=true uds bundle migrate prompt
    ```
+
+   The prompt includes the migration rules and essential Next HCL structure.
+   You do not need a repository checkout, a separate skill file, or web access
+   to obtain the instructions. The command only prints text.
+
+2. **Generate the Next files**
+
+   Start your coding agent in the same working directory.
 
    For a short explanation of verification, signing, and testing without opening
    this guide, run:
@@ -136,7 +127,7 @@ you understand each unresolved item in the report. Reaching package ingestion
 confirms the HCL and package policies passed validation; completing creation
 also confirms the package sources could be assembled into an artifact.
 
-The migration skill stops at artifact creation and does not perform cluster
+The migration workflow stops at artifact creation and does not perform cluster
 operations. When you are ready to test workload behavior as a separate task, follow
 [Deploy a bundle in Next mode](/cli/how-to-guides/next/deploy-a-bundle/) using a
 non-production cluster. Review package dependencies and cluster initialization
