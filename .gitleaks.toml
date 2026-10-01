@@ -9,5 +9,5 @@ description = "vendored Go dependencies"
 paths = ['''^vendor/''']
 
 [[allowlists]]
-description = "external documentation workspace excluded from lint hooks"
-paths = ['''^uds-docs/''']
+description = "generated files in the local documentation workspace"
+paths = ['''^uds-docs/(node_modules|dist|\.astro)/''']
