@@ -3209,7 +3209,7 @@ github.com/yuin/gopher-lua/pm
 ## explicit; go 1.18
 github.com/zalando/go-keyring
 github.com/zalando/go-keyring/secret_service
-# github.com/zarf-dev/zarf v0.86.0
+# github.com/zarf-dev/zarf v0.87.0
 ## explicit; go 1.26.6
 github.com/zarf-dev/zarf/src/api
 github.com/zarf-dev/zarf/src/api/convert
@@ -3223,7 +3223,6 @@ github.com/zarf-dev/zarf/src/internal/agent/hooks
 github.com/zarf-dev/zarf/src/internal/agent/http
 github.com/zarf-dev/zarf/src/internal/agent/http/admission
 github.com/zarf-dev/zarf/src/internal/agent/operations
-github.com/zarf-dev/zarf/src/internal/api/types
 github.com/zarf-dev/zarf/src/internal/api/v1alpha1
 github.com/zarf-dev/zarf/src/internal/api/v1beta1
 github.com/zarf-dev/zarf/src/internal/dns
@@ -3240,11 +3239,14 @@ github.com/zarf-dev/zarf/src/pkg/archive
 github.com/zarf-dev/zarf/src/pkg/cluster
 github.com/zarf-dev/zarf/src/pkg/component
 github.com/zarf-dev/zarf/src/pkg/feature
+github.com/zarf-dev/zarf/src/pkg/helpers
 github.com/zarf-dev/zarf/src/pkg/images
 github.com/zarf-dev/zarf/src/pkg/interactive
 github.com/zarf-dev/zarf/src/pkg/lint
 github.com/zarf-dev/zarf/src/pkg/logger
 github.com/zarf-dev/zarf/src/pkg/message
+github.com/zarf-dev/zarf/src/pkg/oci
+github.com/zarf-dev/zarf/src/pkg/oci/cache
 github.com/zarf-dev/zarf/src/pkg/ocischeme
 github.com/zarf-dev/zarf/src/pkg/packager
 github.com/zarf-dev/zarf/src/pkg/packager/actions
