@@ -1,0 +1,14 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+tasks:
+  - name: migration-prompt
+    description: generate the embedded migration prompt from the skill and its referenced docs
+    actions:
+      - cmd: go run ./hack/migrationprompt
+
+  - name: check-migration-prompt
+    description: check the embedded migration prompt for drift without modifying files
+    actions:
+      - cmd: go test ./hack/migrationprompt
+      - cmd: go run ./hack/migrationprompt --check
