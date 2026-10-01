@@ -9,17 +9,17 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	"github.com/opencontainers/go-digest"
-	"github.com/zarf-dev/zarf/src/api"
+	"github.com/zarf-dev/zarf/src/api/convert"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
 // addNamespaceOverrides applies chart namespace overrides to a package definition.
-func addNamespaceOverrides(definition *api.PackageDefinition, nsOverrides NamespaceOverrideMap) {
+func addNamespaceOverrides(pkgLayout *layout.PackageLayout, nsOverrides NamespaceOverrideMap) {
 	for componentName, chartOverrides := range nsOverrides {
 		for chartName, namespace := range chartOverrides {
-			definition.SetChartNamespace(componentName, chartName, namespace)
+			pkgLayout.SetChartNamespace(componentName, chartName, namespace)
 		}
 	}
 }
@@ -44,10 +44,10 @@ type PackageSource interface {
 // handleFilter filters components and checks if a package is a partial package by checking its number of components
 func handleFilter(pkg v1alpha1.ZarfPackage, filter filters.ComponentFilterStrategy) ([]v1alpha1.ZarfComponent, bool, error) {
 	numComponents := len(pkg.Components)
-	filteredDefinition, err := filters.Apply(api.NewPackageDefinitionFromV1alpha1(pkg), filter)
+	filteredDefinition, err := filters.Apply(convert.PackageFromV1alpha1(pkg), filter)
 	if err != nil {
 		return nil, false, err
 	}
-	filteredComps := filteredDefinition.AsV1alpha1().Components
+	filteredComps := convert.PackageToV1alpha1(filteredDefinition).Components
 	return filteredComps, numComponents > len(filteredComps), nil
 }

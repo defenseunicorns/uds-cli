@@ -104,7 +104,7 @@ func (r *RemoteBundle) create(ctx context.Context, signature []byte) error {
 	if err != nil {
 		return err
 	}
-	bundleYamlDesc, err := bundleRemote.PushLayer(ctx, bundleYamlBytes, layout.ZarfLayerMediaTypeBlob)
+	bundleYamlDesc, err := boci.PushLayer(ctx, bundleRemote.OrasRemote, bundleYamlBytes, layout.ZarfLayerMediaTypeBlob)
 	if err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func (r *RemoteBundle) create(ctx context.Context, signature []byte) error {
 
 	// push the bundle's signature
 	if len(signature) > 0 {
-		bundleYamlSigDesc, err := bundleRemote.PushLayer(ctx, signature, layout.ZarfLayerMediaTypeBlob)
+		bundleYamlSigDesc, err := boci.PushLayer(ctx, bundleRemote.OrasRemote, signature, layout.ZarfLayerMediaTypeBlob)
 		if err != nil {
 			return err
 		}

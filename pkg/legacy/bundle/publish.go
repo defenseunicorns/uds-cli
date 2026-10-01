@@ -69,11 +69,11 @@ func (b *Bundle) Publish() error {
 		Architecture: config.GetArch(),
 		OS:           oci.MultiOS,
 	}
-	remote, err := fetcher.NewZarfOCIRemote(context.TODO(), fmt.Sprintf("%s/%s:%s", ociURL, bundleName, bundleTag), platform)
+	remote, err := fetcher.NewBundleOCIRemote(context.TODO(), fmt.Sprintf("%s/%s:%s", ociURL, bundleName, bundleTag), platform)
 	if err != nil {
 		return err
 	}
-	err = provider.PublishBundle(b.bundle, remote.OrasRemote)
+	err = provider.PublishBundle(b.bundle, remote)
 	if err != nil {
 		return err
 	}

@@ -17,7 +17,9 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils/boci"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/api/convert"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -30,7 +32,7 @@ import (
 type remoteFetcher struct {
 	pkg             types.Package
 	cfg             Config
-	pkgRootManifest *oci.Manifest
+	pkgRootManifest *zarfoci.Manifest
 	remote          *zoci.Remote
 }
 
@@ -178,5 +180,6 @@ func (f *remoteFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
 		return v1alpha1.ZarfPackage{}, err
 	}
 
-	return remote.FetchZarfYAML(ctx)
+	pkg, err := remote.FetchZarfYAML(ctx)
+	return convert.PackageToV1alpha1(pkg), err
 }

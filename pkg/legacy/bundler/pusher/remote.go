@@ -9,15 +9,16 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/config"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/message"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils/boci"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	"golang.org/x/sync/errgroup"
 )
 
 // RemotePusher contains methods for pulling remote Zarf packages into a bundle
@@ -28,7 +29,7 @@ type RemotePusher struct {
 
 // Config contains the configuration for the remote pusher
 type Config struct {
-	PkgRootManifest *oci.Manifest
+	PkgRootManifest *zarfoci.Manifest
 	RemoteSrc       zoci.Remote
 	RemoteDst       zoci.Remote
 	PkgIter         int
@@ -90,19 +91,29 @@ func (p *RemotePusher) remoteToRemote(layersToCopy []ocispec.Descriptor) error {
 	// stream copy if different registry
 	if srcRef.Registry != dstRef.Registry {
 		message.Debugf("Streaming layers from %s --> %s", srcRef, dstRef)
-		// filterLayers returns true if the layer is in the list of layers to copy, this allows for
-		// copying only the layers that are required by the required + specified optional components
-		filterLayers := func(d ocispec.Descriptor) bool {
-			for _, layer := range layersToCopy {
-				if layer.Digest == d.Digest {
-					return true
-				}
+		layers := append(layersToCopy, p.cfg.PkgRootManifest.Config)
+		group, groupCtx := errgroup.WithContext(ctx)
+		group.SetLimit(max(1, config.CommonOptions.OCIConcurrency))
+		seen := make(map[string]struct{}, len(layers))
+		for _, layer := range layers {
+			if _, ok := seen[layer.Digest.String()]; ok {
+				continue
 			}
-			return false
+			seen[layer.Digest.String()] = struct{}{}
+			group.Go(func() error {
+				exists, err := p.cfg.RemoteDst.Repo().Exists(groupCtx, layer)
+				if err != nil || exists {
+					return err
+				}
+				r, err := p.cfg.RemoteSrc.Repo().Fetch(groupCtx, layer)
+				if err != nil {
+					return err
+				}
+				defer r.Close()
+				return p.cfg.RemoteDst.Repo().Push(groupCtx, layer, r)
+			})
 		}
-		if err := oci.Copy(ctx, p.cfg.RemoteSrc.OrasRemote, p.cfg.RemoteDst.OrasRemote, filterLayers, config.CommonOptions.OCIConcurrency, nil); err != nil {
-			return err
-		}
+		return group.Wait()
 	} else {
 		// blob mount if same registry
 		message.Debugf("Performing a cross repository blob mount on %s from %s --> %s", dstRef, dstRef.Repository, dstRef.Repository)

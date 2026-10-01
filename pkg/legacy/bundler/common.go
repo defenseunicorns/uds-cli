@@ -17,6 +17,7 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"oras.land/oras-go/v2/registry"
+	orasremote "oras.land/oras-go/v2/registry/remote"
 )
 
 // copied from: https://github.com/zarf-dev/zarf/blob/main/src/pkg/oci/push.go
@@ -45,7 +46,7 @@ func manifestAnnotationsFromMetadata(metadata *types.UDSMetadata) map[string]str
 }
 
 // copied from: https://github.com/zarf-dev/zarf/blob/main/src/pkg/oci/push.go
-func pushManifestConfigFromMetadata(r *oci.OrasRemote, metadata *types.UDSMetadata, build *types.UDSBuildData) (ocispec.Descriptor, error) {
+func pushManifestConfigFromMetadata(r interface{ Repo() *orasremote.Repository }, metadata *types.UDSMetadata, build *types.UDSBuildData) (ocispec.Descriptor, error) {
 	annotations := map[string]string{
 		ocispec.AnnotationTitle:       metadata.Name,
 		ocispec.AnnotationDescription: metadata.Description,

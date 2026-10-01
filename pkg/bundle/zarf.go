@@ -19,7 +19,7 @@ import (
 // specific to the package API version in use.
 type ZarfPackageLayout struct {
 	dirPath           string
-	PackageDefinition api.PackageDefinition
+	PackageDefinition api.Package
 	digest            string
 }
 
@@ -119,7 +119,7 @@ func fromZarfPackageLayout(pkgLayout *layout.PackageLayout) *ZarfPackageLayout {
 	}
 	result := &ZarfPackageLayout{
 		dirPath:           pkgLayout.DirPath(),
-		PackageDefinition: pkgLayout.PackageDefinition,
+		PackageDefinition: pkgLayout.Definition(),
 	}
 	if !pkgLayout.IsPushable() && pkgLayout.Digest() != "" {
 		result.digest = pkgLayout.Digest()
@@ -152,7 +152,7 @@ func toZarfPackageLayoutForDeploy(pkgLayout *ZarfPackageLayout) (*layout.Package
 		return nil, nil
 	}
 	result := &layout.PackageLayout{}
-	result.PackageDefinition = pkgLayout.PackageDefinition
+	result.SetDefinition(pkgLayout.PackageDefinition)
 	return result, nil
 }
 
@@ -160,7 +160,7 @@ func applyPublicPackageLayout(dst *layout.PackageLayout, src *ZarfPackageLayout)
 	if dst == nil || src == nil {
 		return nil
 	}
-	dst.PackageDefinition = src.PackageDefinition
+	dst.SetDefinition(src.PackageDefinition)
 	if src.digest != "" {
 		dst.SetRegistryDigest(src.digest)
 	}

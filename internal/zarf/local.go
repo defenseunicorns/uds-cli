@@ -71,7 +71,7 @@ func (s *localSource) loadArchivePackageSpec(ctx context.Context, path string, f
 	if err != nil {
 		return nil, fmt.Errorf("loading local package %q: %w: %w", s.path, ErrLoadPackage, err)
 	}
-	return packageSpecFromDefinition(pkgLayout.PackageDefinition, digest), nil
+	return packageSpecFromDefinition(pkgLayout.Definition(), digest), nil
 }
 
 func (s *localSource) resolvedPath() string {

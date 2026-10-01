@@ -7,3 +7,7 @@ useDefault = true
 [[allowlists]]
 description = "vendored Go dependencies"
 paths = ['''^vendor/''']
+
+[[allowlists]]
+description = "external documentation workspace excluded from lint hooks"
+paths = ['''^uds-docs/''']

@@ -74,11 +74,11 @@ func NewBundleProviderWithOptions(source, destination string, opts ProviderOptio
 			OS:           oci.MultiOS,
 		}
 		// get remote client
-		remote, err := fetcher.NewZarfOCIRemote(ctx, source, platform)
+		remote, err := fetcher.NewBundleOCIRemote(ctx, source, platform)
 		if err != nil {
 			return nil, err
 		}
-		op.OrasRemote = remote.OrasRemote
+		op.OrasRemote = remote
 
 		// get root manifest
 		root, err := op.FetchRoot(ctx)

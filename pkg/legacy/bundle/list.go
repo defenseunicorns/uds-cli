@@ -57,8 +57,12 @@ func mapPackagesToBundles(deployedPackages []state.DeployedPackage) []Deployment
 	bundleMap := make(map[string]*Deployment)
 
 	for _, pkg := range deployedPackages {
+		definition, err := pkg.Definition()
+		if err != nil {
+			continue
+		}
 		// Check if package has bundle annotations
-		annotations := pkg.Data.Metadata.Annotations
+		annotations := definition.Metadata.Annotations
 		if annotations == nil {
 			continue
 		}
@@ -72,7 +76,7 @@ func mapPackagesToBundles(deployedPackages []state.DeployedPackage) []Deployment
 		}
 
 		bundleKey := fmt.Sprintf("%s:%s", bundleName, bundleVersion)
-		pkgIdentifier := fmt.Sprintf("%s:%s", pkg.Name, pkg.Data.Metadata.Version)
+		pkgIdentifier := fmt.Sprintf("%s:%s", pkg.Name, definition.Metadata.Version)
 
 		if bundle, exists := bundleMap[bundleKey]; exists {
 			bundle.Packages = append(bundle.Packages, pkgIdentifier)

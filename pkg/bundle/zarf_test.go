@@ -15,7 +15,7 @@ import (
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	internalzarf "github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
-	"github.com/zarf-dev/zarf/src/api"
+	"github.com/zarf-dev/zarf/src/api/convert"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
@@ -27,11 +27,14 @@ import (
 )
 
 func newPackageLayout(pkg v1alpha1.ZarfPackage) *layout.PackageLayout {
-	return &layout.PackageLayout{PackageDefinition: api.NewPackageDefinitionFromV1alpha1(pkg)}
+	result := &layout.PackageLayout{}
+	result.SetDefinition(convert.PackageFromV1alpha1(pkg))
+	return result
 }
 
 func newV1beta1PackageLayout() *layout.PackageLayout {
-	return &layout.PackageLayout{PackageDefinition: api.NewPackageDefinitionFromV1beta1(v1beta1.Package{
+	result := &layout.PackageLayout{}
+	result.SetDefinition(convert.PackageFromV1beta1(v1beta1.Package{
 		APIVersion: v1beta1.APIVersion,
 		Kind:       v1beta1.ZarfPackageConfig,
 		Metadata:   v1beta1.PackageMetadata{Name: "beta-package"},
@@ -46,7 +49,8 @@ func newV1beta1PackageLayout() *layout.PackageLayout {
 				Service: v1beta1.ServiceRegistry,
 			},
 		}},
-	})}
+	}))
+	return result
 }
 
 func TestDeployWithSourceEnforcesDependencySafety(t *testing.T) {
@@ -182,9 +186,9 @@ func TestPublicPackageHookConvertsLayoutMutations(t *testing.T) {
 
 func TestPublicPackageHookPreservesV1beta1Fields(t *testing.T) {
 	hooks := toZarfPackageHooks(PackageDeployHooks{PreDeploy: func(_ context.Context, _ *spec.Package, pkgLayout *ZarfPackageLayout, _ *DeployPackageOptions) error {
-		pkg := pkgLayout.PackageDefinition.AsV1beta1()
+		pkg := convert.PackageToV1beta1(pkgLayout.PackageDefinition)
 		pkg.Components[0].Images[0].Name = "updated/image:v1"
-		pkgLayout.PackageDefinition = api.NewPackageDefinitionFromV1beta1(pkg)
+		pkgLayout.PackageDefinition = convert.PackageFromV1beta1(pkg)
 		return nil
 	}})
 	zarfLayout := newV1beta1PackageLayout()
@@ -261,9 +265,9 @@ func TestApplyPublicPackageLayoutUsesHookDefinition(t *testing.T) {
 		Charts:    []v1alpha1.ZarfChart{{Name: "chart"}},
 	}}})
 	src := fromZarfPackageLayout(dst)
-	pkg := src.PackageDefinition.AsV1alpha1()
+	pkg := convert.PackageToV1alpha1(src.PackageDefinition)
 	pkg.Components = pkg.Components[:0]
-	src.PackageDefinition = api.NewPackageDefinitionFromV1alpha1(pkg)
+	src.PackageDefinition = convert.PackageFromV1alpha1(pkg)
 
 	require.NoError(t, applyPublicPackageLayout(dst, src))
 
@@ -330,9 +334,9 @@ func TestPublicPreDeployPreservesRename(t *testing.T) {
 	internalOpts := toZarfDeployPackageOptions(DeployPackageOptions{Config: validValidationConfig(), BundleDir: t.TempDir()})
 	internalOpts.PackageDeployHooks = toZarfPackageHooks(PackageDeployHooks{
 		PreDeploy: func(_ context.Context, _ *spec.Package, pkgLayout *ZarfPackageLayout, _ *DeployPackageOptions) error {
-			pkg := pkgLayout.PackageDefinition.AsV1alpha1()
+			pkg := convert.PackageToV1alpha1(pkgLayout.PackageDefinition)
 			pkg.Components[0].Name = "renamed"
-			pkgLayout.PackageDefinition = api.NewPackageDefinitionFromV1alpha1(pkg)
+			pkgLayout.PackageDefinition = convert.PackageFromV1alpha1(pkg)
 			return nil
 		},
 	})
@@ -374,7 +378,7 @@ components:
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "checksums.txt"), nil, 0o600))
 
 	loader := packageLayoutLoaderAdapter{loader: staticPackageLayoutLoader{
-		layout: &ZarfPackageLayout{PackageDefinition: api.NewPackageDefinitionFromV1alpha1(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
+		layout: &ZarfPackageLayout{PackageDefinition: convert.PackageFromV1alpha1(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
 			Name:      "main",
 			Charts:    []v1alpha1.ZarfChart{{Name: "chart", Version: "1.0.0", URL: "https://example.com/charts"}},
 			Manifests: []v1alpha1.ZarfManifest{{Name: "manifests", Files: []string{"manifest.yaml"}}},

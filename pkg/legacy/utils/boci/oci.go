@@ -20,7 +20,10 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/api"
+	"github.com/zarf-dev/zarf/src/api/convert"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/transform"
@@ -49,7 +52,7 @@ func ToOCIStore(t any, mediaType string, store *ocistore.Store) (ocispec.Descrip
 }
 
 // ToOCIRemote takes an arbitrary type, typically a struct, marshals it into JSON and store it in a remote OCI store
-func ToOCIRemote(t any, mediaType string, remote *oci.OrasRemote) (*ocispec.Descriptor, error) {
+func ToOCIRemote(t any, mediaType string, destination interface{ Repo() *remote.Repository }) (*ocispec.Descriptor, error) {
 	ctx := context.TODO()
 	b, err := json.Marshal(t)
 	if err != nil {
@@ -61,18 +64,29 @@ func ToOCIRemote(t any, mediaType string, remote *oci.OrasRemote) (*ocispec.Desc
 	if mediaType == ocispec.MediaTypeImageManifest {
 		descriptorFromBytes := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, b)
 		layerDesc = &descriptorFromBytes
-		if err := remote.Repo().Manifests().PushReference(ctx, descriptorFromBytes, bytes.NewReader(b), remote.Repo().Reference.String()); err != nil {
+		if err := destination.Repo().Manifests().PushReference(ctx, descriptorFromBytes, bytes.NewReader(b), destination.Repo().Reference.String()); err != nil {
 			return &ocispec.Descriptor{}, fmt.Errorf("failed to push manifest: %w", err)
 		}
 	} else {
-		layerDesc, err = remote.PushLayer(ctx, b, mediaType)
+		desc := content.NewDescriptorFromBytes(mediaType, b)
+		layerDesc = &desc
+		err = destination.Repo().Push(ctx, desc, bytes.NewReader(b))
 		if err != nil {
 			return &ocispec.Descriptor{}, err
 		}
 	}
 
-	message.Successf("Published %s [%s]", remote.Repo().Reference.String(), layerDesc.MediaType)
+	message.Successf("Published %s [%s]", destination.Repo().Reference.String(), layerDesc.MediaType)
 	return layerDesc, nil
+}
+
+// PushLayer pushes raw layer bytes to a registry.
+func PushLayer(ctx context.Context, destination interface{ Repo() *remote.Repository }, data []byte, mediaType string) (*ocispec.Descriptor, error) {
+	desc := content.NewDescriptorFromBytes(mediaType, data)
+	if err := destination.Repo().Push(ctx, desc, bytes.NewReader(data)); err != nil {
+		return nil, err
+	}
+	return &desc, nil
 }
 
 // CreateCopyOpts creates the ORAS CopyOpts struct to use when copying OCI artifacts
@@ -185,7 +199,7 @@ func addToIndex(index *ocispec.Index, bundle *types.UDSBundle, newManifestDesc o
 	return index
 }
 
-func pushIndex(index *ocispec.Index, remote *oci.OrasRemote, ref string) error {
+func pushIndex(index *ocispec.Index, remote interface{ Repo() *remote.Repository }, ref string) error {
 	indexBytes, err := json.Marshal(index)
 	if err != nil {
 		return err
@@ -199,7 +213,7 @@ func pushIndex(index *ocispec.Index, remote *oci.OrasRemote, ref string) error {
 }
 
 // UpdateIndex updates or creates a new OCI index based on the index arg, then pushes to the remote OCI repo
-func UpdateIndex(index *ocispec.Index, remote *oci.OrasRemote, bundle *types.UDSBundle, newManifestDesc ocispec.Descriptor) error {
+func UpdateIndex(index *ocispec.Index, remote interface{ Repo() *remote.Repository }, bundle *types.UDSBundle, newManifestDesc ocispec.Descriptor) error {
 	var newIndex *ocispec.Index
 	ref := bundle.Metadata.Version
 	if index == nil {
@@ -215,7 +229,7 @@ func UpdateIndex(index *ocispec.Index, remote *oci.OrasRemote, bundle *types.UDS
 }
 
 // GetIndex gets the OCI index from a remote repository if the index exists, otherwise returns a
-func GetIndex(remote *oci.OrasRemote, ref string) (*ocispec.Index, error) {
+func GetIndex(remote interface{ Repo() *remote.Repository }, ref string) (*ocispec.Index, error) {
 	ctx := context.TODO()
 	var index *ocispec.Index
 	existingRootDesc, err := remote.Repo().Resolve(ctx, ref)
@@ -254,7 +268,7 @@ func EnsureOCIPrefix(source string) string {
 }
 
 // FindPkgLayers finds the necessary Zarf pkg layers from a remote OCI registry
-func FindPkgLayers(remote zoci.Remote, pkgRootManifest *oci.Manifest, optionalComponents []string) ([]ocispec.Descriptor, error) {
+func FindPkgLayers(remote zoci.Remote, pkgRootManifest *zarfoci.Manifest, optionalComponents []string) ([]ocispec.Descriptor, error) {
 	ctx := context.TODO()
 	zarfPkg, err := remote.FetchZarfYAML(ctx)
 	if err != nil {
@@ -262,9 +276,9 @@ func FindPkgLayers(remote zoci.Remote, pkgRootManifest *oci.Manifest, optionalCo
 	}
 
 	// ensure we're only pulling required components and optional components and images
-	var components []v1alpha1.ZarfComponent
+	var components []api.Component
 	for _, c := range zarfPkg.Components {
-		if c.Required != nil || slices.Contains(optionalComponents, c.Name) {
+		if !c.Optional || slices.Contains(optionalComponents, c.Name) {
 			components = append(components, c)
 		}
 	}
@@ -327,7 +341,12 @@ func FilterImageIndex(components []v1alpha1.ZarfComponent, imgIndex ocispec.Inde
 }
 
 // FindBundledPkgLayers finds the necessary Zarf pkg layers from a remote bundle
-func FindBundledPkgLayers(ctx context.Context, pkg types.Package, rootManifest *oci.Manifest, remote *oci.OrasRemote) ([]ocispec.Descriptor, int64, error) {
+func FindBundledPkgLayers(ctx context.Context, pkg types.Package, rootManifest interface {
+	Locate(string) ocispec.Descriptor
+}, remote interface {
+	FetchLayer(context.Context, ocispec.Descriptor) ([]byte, error)
+	Repo() *remote.Repository
+}) ([]ocispec.Descriptor, int64, error) {
 	var layersToPull []ocispec.Descriptor
 	estPkgBytes := int64(0)
 
@@ -481,7 +500,9 @@ func collectImageDescriptors(ctx context.Context, fetcher content.Fetcher, desc 
 	return descriptors, nil
 }
 
-func handleImgIndex(ctx context.Context, remote *oci.OrasRemote, desc ocispec.Descriptor) (ocispec.Index, error) {
+func handleImgIndex(ctx context.Context, remote interface {
+	FetchLayer(context.Context, ocispec.Descriptor) ([]byte, error)
+}, desc ocispec.Descriptor) (ocispec.Index, error) {
 	indexBytes, err := remote.FetchLayer(ctx, desc)
 	if err != nil {
 		return ocispec.Index{}, err
@@ -494,7 +515,9 @@ func handleImgIndex(ctx context.Context, remote *oci.OrasRemote, desc ocispec.De
 	return index, nil
 }
 
-func getFilteredComponents(ctx context.Context, remote *oci.OrasRemote, manifest oci.Manifest, optionalComponents []string) ([]v1alpha1.ZarfComponent, error) {
+func getFilteredComponents(ctx context.Context, remote interface {
+	FetchLayer(context.Context, ocispec.Descriptor) ([]byte, error)
+}, manifest oci.Manifest, optionalComponents []string) ([]v1alpha1.ZarfComponent, error) {
 	// get Zarf pkg from manifest
 	for _, desc := range manifest.Layers {
 		if desc.Annotations[ocispec.AnnotationTitle] == config.ZarfYAML {
@@ -513,28 +536,9 @@ func getFilteredComponents(ctx context.Context, remote *oci.OrasRemote, manifest
 }
 
 func filterComponents(zarfPkg v1alpha1.ZarfPackage, optionalComponents []string) ([]v1alpha1.ZarfComponent, error) {
-	componentViews := make([]filters.ComponentView, 0, len(zarfPkg.Components))
-	for _, component := range zarfPkg.Components {
-		componentViews = append(componentViews, filters.ComponentView{
-			Name:        component.Name,
-			Description: component.Description,
-			Optional:    !component.IsRequired(),
-			Default:     component.Default,
-			Group:       component.DeprecatedGroup,
-			OnlyLocalOS: component.Only.LocalOS,
-			Definition:  component,
-		})
-	}
-
-	componentIndices, err := filters.ForDeploy(strings.Join(optionalComponents, ","), false).Apply(filters.PackageView{
-		Components: componentViews,
-	})
+	filtered, err := filters.Apply(convert.PackageFromV1alpha1(zarfPkg), filters.ForDeploy(strings.Join(optionalComponents, ","), false))
 	if err != nil {
 		return nil, err
 	}
-	filteredComponents := make([]v1alpha1.ZarfComponent, 0, len(componentIndices))
-	for _, index := range componentIndices {
-		filteredComponents = append(filteredComponents, zarfPkg.Components[index])
-	}
-	return filteredComponents, nil
+	return convert.PackageToV1alpha1(filtered).Components, nil
 }

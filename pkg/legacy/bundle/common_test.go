@@ -314,7 +314,7 @@ func Test_deployedPackageIsSuccessful(t *testing.T) {
 			description: "returns true when all deployed components succeeded and required components are present",
 			pkg: state.DeployedPackage{
 				Name: "test",
-				Data: v1alpha1.ZarfPackage{
+				Data: v1alpha1.ZarfPackage{ //nolint:staticcheck // Verify compatibility with legacy stored package state.
 					Components: []v1alpha1.ZarfComponent{
 						{Name: "component-a", Required: boolPtr(true)},
 						{Name: "component-b"},
@@ -332,7 +332,7 @@ func Test_deployedPackageIsSuccessful(t *testing.T) {
 			description: "returns false when a required component is missing from deployed components",
 			pkg: state.DeployedPackage{
 				Name: "test",
-				Data: v1alpha1.ZarfPackage{
+				Data: v1alpha1.ZarfPackage{ //nolint:staticcheck // Verify compatibility with legacy stored package state.
 					Components: []v1alpha1.ZarfComponent{
 						{Name: "component-a", Required: boolPtr(true)},
 						{Name: "component-b"},
@@ -349,7 +349,7 @@ func Test_deployedPackageIsSuccessful(t *testing.T) {
 			description: "returns false when any deployed component is not succeeded",
 			pkg: state.DeployedPackage{
 				Name: "test",
-				Data: v1alpha1.ZarfPackage{
+				Data: v1alpha1.ZarfPackage{ //nolint:staticcheck // Verify compatibility with legacy stored package state.
 					Components: []v1alpha1.ZarfComponent{
 						{Name: "component-a", Required: boolPtr(true)},
 					},

@@ -163,7 +163,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		bundleAnnotations[AnnotationBundleVersion] = b.bundle.Metadata.Version
 
 		// Set the merged annotations back on the package
-		pkgLayout.PackageDefinition.SetAnnotations(bundleAnnotations)
+		pkgLayout.SetAnnotations(bundleAnnotations)
 
 		result, err := packager.Deploy(ctx, pkgLayout, deployOpts)
 		if err != nil {

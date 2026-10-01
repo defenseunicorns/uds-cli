@@ -21,6 +21,7 @@ import (
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/signing"
@@ -33,7 +34,7 @@ type RemoteBundle struct {
 	PkgManifestDigest       digest.Digest
 	TmpDir                  string
 	VerifyBlobOptions       *signing.VerifyBlobOptions
-	Remote                  *oci.OrasRemote
+	Remote                  *zarfoci.OrasRemote
 	nsOverrides             NamespaceOverrideMap
 	bundleCfg               types.BundleConfig
 	SkipSignatureValidation bool
@@ -95,10 +96,10 @@ func (r *RemoteBundle) LoadPackage(ctx context.Context, filter filters.Component
 		return nil, nil, err
 	}
 
-	addNamespaceOverrides(&pkgLayout.PackageDefinition, r.nsOverrides)
+	addNamespaceOverrides(pkgLayout, r.nsOverrides)
 
 	// ensure we're using the correct package name as specified by the bundle
-	pkgLayout.PackageDefinition.SetName(r.Pkg.Name)
+	pkgLayout.SetName(r.Pkg.Name)
 	return pkgLayout, nil, err
 }
 
