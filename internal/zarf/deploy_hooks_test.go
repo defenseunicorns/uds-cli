@@ -10,11 +10,18 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/convert"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
+
+type testComponentSelection []api.Component
+
+func (selection testComponentSelection) Apply(api.Package) ([]api.Component, error) {
+	return selection, nil
+}
 
 func TestPackageDeployHooks_WithDefaults_NilFuncs(t *testing.T) {
 	h := PackageDeployHooks{}
@@ -92,7 +99,7 @@ func TestBundleDeployHooks_DefaultsAreNoOps(t *testing.T) {
 // in isolation: zeroing Images and ImageArchives on an in-memory PackageLayout.
 func TestImageZeroingMutation(t *testing.T) {
 	pkgLayout := &layout.PackageLayout{}
-	pkgLayout.SetDefinition(convert.PackageFromV1alpha1(v1alpha1.ZarfPackage{
+	definition := convert.PackageFromV1alpha1(v1alpha1.ZarfPackage{
 		Components: []v1alpha1.ZarfComponent{
 			{
 				Name:   "main",
@@ -106,7 +113,8 @@ func TestImageZeroingMutation(t *testing.T) {
 				Images: []string{"ghcr.io/example/other:v1"},
 			},
 		},
-	}))
+	})
+	require.NoError(t, pkgLayout.Filter(testComponentSelection(definition.Components)))
 	zarfPkg := pkgLayout.AsV1alpha1()
 
 	// Precondition: components have images before mutation.
@@ -119,7 +127,8 @@ func TestImageZeroingMutation(t *testing.T) {
 		zarfPkg.Components[i].Images = []string{}
 		zarfPkg.Components[i].ImageArchives = []v1alpha1.ImageArchive{}
 	}
-	pkgLayout.SetDefinition(convert.PackageFromV1alpha1(zarfPkg))
+	updated := convert.PackageFromV1alpha1(zarfPkg)
+	require.NoError(t, pkgLayout.Filter(testComponentSelection(updated.Components)))
 
 	for _, c := range pkgLayout.AsV1alpha1().Components {
 		assert.Empty(t, c.Images, "component %q: Images should be empty after mutation", c.Name)

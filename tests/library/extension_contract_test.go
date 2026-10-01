@@ -91,7 +91,7 @@ func TestCustomLoaderStagingAndCleanup(t *testing.T) {
 				Config: config, Streams: streams,
 				PackageDeployHooks: bundle.PackageDeployHooks{PreDeploy: func(_ context.Context, _ *spec.Package, layout *bundle.ZarfPackageLayout, opts *bundle.DeployPackageOptions) error {
 					hookPath, hookDigest, hookPartial = layout.DirPath(), layout.Digest(), opts.IsPartial
-					hookName = layout.PackageDefinition.AsV1alpha1().Metadata.Name
+					hookName = layout.PackageDefinition.Metadata.Name
 					return stop
 				}},
 			})

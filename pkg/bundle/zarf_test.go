@@ -28,13 +28,17 @@ import (
 
 func newPackageLayout(pkg v1alpha1.ZarfPackage) *layout.PackageLayout {
 	result := &layout.PackageLayout{}
-	result.SetDefinition(convert.PackageFromV1alpha1(pkg))
+	definition := convert.PackageFromV1alpha1(pkg)
+	result.SetName(definition.Metadata.Name)
+	if err := result.Filter(packageComponentSelection(definition.Components)); err != nil {
+		panic(err)
+	}
 	return result
 }
 
 func newV1beta1PackageLayout() *layout.PackageLayout {
 	result := &layout.PackageLayout{}
-	result.SetDefinition(convert.PackageFromV1beta1(v1beta1.Package{
+	definition := convert.PackageFromV1beta1(v1beta1.Package{
 		APIVersion: v1beta1.APIVersion,
 		Kind:       v1beta1.ZarfPackageConfig,
 		Metadata:   v1beta1.PackageMetadata{Name: "beta-package"},
@@ -49,7 +53,11 @@ func newV1beta1PackageLayout() *layout.PackageLayout {
 				Service: v1beta1.ServiceRegistry,
 			},
 		}},
-	}))
+	})
+	result.SetName(definition.Metadata.Name)
+	if err := result.Filter(packageComponentSelection(definition.Components)); err != nil {
+		panic(err)
+	}
 	return result
 }
 

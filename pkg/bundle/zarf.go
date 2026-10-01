@@ -15,8 +15,7 @@ import (
 )
 
 // ZarfPackageLayout exposes the native Zarf package definition during bundle
-// deploy. Keeping the schema-aware definition intact lets hooks mutate fields
-// specific to the package API version in use.
+// deploy. Hooks can inspect its version-specific fields and mutate components.
 type ZarfPackageLayout struct {
 	dirPath           string
 	PackageDefinition api.Package
@@ -152,15 +151,27 @@ func toZarfPackageLayoutForDeploy(pkgLayout *ZarfPackageLayout) (*layout.Package
 		return nil, nil
 	}
 	result := &layout.PackageLayout{}
-	result.SetDefinition(pkgLayout.PackageDefinition)
+	if err := applyPublicPackageLayout(result, pkgLayout); err != nil {
+		return nil, err
+	}
 	return result, nil
+}
+
+type packageComponentSelection []api.Component
+
+func (selection packageComponentSelection) Apply(api.Package) ([]api.Component, error) {
+	return selection, nil
 }
 
 func applyPublicPackageLayout(dst *layout.PackageLayout, src *ZarfPackageLayout) error {
 	if dst == nil || src == nil {
 		return nil
 	}
-	dst.SetDefinition(src.PackageDefinition)
+	dst.SetName(src.PackageDefinition.Metadata.Name)
+	dst.SetAnnotations(src.PackageDefinition.Metadata.Annotations)
+	if err := dst.Filter(packageComponentSelection(src.PackageDefinition.Components)); err != nil {
+		return err
+	}
 	if src.digest != "" {
 		dst.SetRegistryDigest(src.digest)
 	}

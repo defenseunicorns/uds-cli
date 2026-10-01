@@ -45,11 +45,6 @@ func (p *PackageLayout) Definition() api.Package {
 	return p.pkg
 }
 
-// SetDefinition replaces the in-memory package definition for a staged layout.
-func (p *PackageLayout) SetDefinition(definition api.Package) {
-	p.pkg = definition
-}
-
 // SetName updates the package metadata name.
 func (p *PackageLayout) SetName(name string) {
 	p.pkg.Metadata.Name = name
