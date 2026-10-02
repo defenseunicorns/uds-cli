@@ -52,7 +52,7 @@ func ToOCIStore(t any, mediaType string, store *ocistore.Store) (ocispec.Descrip
 }
 
 // ToOCIRemote takes an arbitrary type, typically a struct, marshals it into JSON and store it in a remote OCI store
-func ToOCIRemote(t any, mediaType string, destination interface{ Repo() *remote.Repository }) (*ocispec.Descriptor, error) {
+func ToOCIRemote(t any, mediaType string, destination RepositoryProvider) (*ocispec.Descriptor, error) {
 	ctx := context.TODO()
 	b, err := json.Marshal(t)
 	if err != nil {
@@ -81,7 +81,7 @@ func ToOCIRemote(t any, mediaType string, destination interface{ Repo() *remote.
 }
 
 // PushLayer pushes raw layer bytes to a registry.
-func PushLayer(ctx context.Context, destination interface{ Repo() *remote.Repository }, data []byte, mediaType string) (*ocispec.Descriptor, error) {
+func PushLayer(ctx context.Context, destination RepositoryProvider, data []byte, mediaType string) (*ocispec.Descriptor, error) {
 	desc := content.NewDescriptorFromBytes(mediaType, data)
 	if err := destination.Repo().Push(ctx, desc, bytes.NewReader(data)); err != nil {
 		return nil, err
@@ -199,7 +199,7 @@ func addToIndex(index *ocispec.Index, bundle *types.UDSBundle, newManifestDesc o
 	return index
 }
 
-func pushIndex(index *ocispec.Index, remote interface{ Repo() *remote.Repository }, ref string) error {
+func pushIndex(index *ocispec.Index, remote RepositoryProvider, ref string) error {
 	indexBytes, err := json.Marshal(index)
 	if err != nil {
 		return err
@@ -213,7 +213,7 @@ func pushIndex(index *ocispec.Index, remote interface{ Repo() *remote.Repository
 }
 
 // UpdateIndex updates or creates a new OCI index based on the index arg, then pushes to the remote OCI repo
-func UpdateIndex(index *ocispec.Index, remote interface{ Repo() *remote.Repository }, bundle *types.UDSBundle, newManifestDesc ocispec.Descriptor) error {
+func UpdateIndex(index *ocispec.Index, remote RepositoryProvider, bundle *types.UDSBundle, newManifestDesc ocispec.Descriptor) error {
 	var newIndex *ocispec.Index
 	ref := bundle.Metadata.Version
 	if index == nil {
@@ -229,7 +229,7 @@ func UpdateIndex(index *ocispec.Index, remote interface{ Repo() *remote.Reposito
 }
 
 // GetIndex gets the OCI index from a remote repository if the index exists, otherwise returns a
-func GetIndex(remote interface{ Repo() *remote.Repository }, ref string) (*ocispec.Index, error) {
+func GetIndex(remote RepositoryProvider, ref string) (*ocispec.Index, error) {
 	ctx := context.TODO()
 	var index *ocispec.Index
 	existingRootDesc, err := remote.Repo().Resolve(ctx, ref)
@@ -350,10 +350,15 @@ type BundleLayerFetcher interface {
 	FetchLayer(context.Context, ocispec.Descriptor) ([]byte, error)
 }
 
+// RepositoryProvider exposes the underlying remote OCI repository.
+type RepositoryProvider interface {
+	Repo() *remote.Repository
+}
+
 // BundleRemote fetches layers and exposes the remote bundle repository.
 type BundleRemote interface {
 	BundleLayerFetcher
-	Repo() *remote.Repository
+	RepositoryProvider
 }
 
 // FindBundledPkgLayers finds the necessary Zarf pkg layers from a remote bundle
