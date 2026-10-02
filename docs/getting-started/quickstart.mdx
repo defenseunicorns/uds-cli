@@ -110,7 +110,7 @@ uds zarf tools kubectl get pods -A
 ```
 
 > [!NOTE]
-> A UDS Bundle is an OCI artifact containing one or more Zarf packages and a `uds-bundle.yaml` manifest. The manifest is entirely declarative; UDS CLI will not prompt for optional Zarf components at deploy time. To include an optional component, list it explicitly with `optionalComponents`.
+> A UDS Bundle is an OCI artifact containing one or more Zarf packages and a `uds-bundle.yaml` manifest. The manifest is entirely declarative; UDS CLI will not prompt for optional Zarf components at deploy time. Optional components with `default: true` are included by default. List other optional components in `optionalComponents`.
 
 ## Troubleshooting
 
