@@ -26,17 +26,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newPackageLayout(pkg v1alpha1.ZarfPackage) *layout.PackageLayout {
+func newPackageLayout(t *testing.T, pkg v1alpha1.ZarfPackage) *layout.PackageLayout {
+	t.Helper()
 	result := &layout.PackageLayout{}
 	definition := convert.PackageFromV1alpha1(pkg)
 	result.SetName(definition.Metadata.Name)
-	if err := result.Filter(packageComponentSelection(definition.Components)); err != nil {
-		panic(err)
-	}
+	require.NoError(t, result.Filter(packageComponentSelection(definition.Components)))
 	return result
 }
 
-func newV1beta1PackageLayout() *layout.PackageLayout {
+func newV1beta1PackageLayout(t *testing.T) *layout.PackageLayout {
+	t.Helper()
 	result := &layout.PackageLayout{}
 	definition := convert.PackageFromV1beta1(v1beta1.Package{
 		APIVersion: v1beta1.APIVersion,
@@ -55,9 +55,7 @@ func newV1beta1PackageLayout() *layout.PackageLayout {
 		}},
 	})
 	result.SetName(definition.Metadata.Name)
-	if err := result.Filter(packageComponentSelection(definition.Components)); err != nil {
-		panic(err)
-	}
+	require.NoError(t, result.Filter(packageComponentSelection(definition.Components)))
 	return result
 }
 
@@ -179,7 +177,7 @@ func TestPublicPackageHookConvertsLayoutMutations(t *testing.T) {
 		pkgLayout.SetDeployedDigest("sha256:registry")
 		return nil
 	}})
-	zarfLayout := newPackageLayout(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
+	zarfLayout := newPackageLayout(t, v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
 		Name:          "main",
 		Images:        []string{"example/image:v1"},
 		ImageArchives: []v1alpha1.ImageArchive{{Path: "images.tar", Images: []string{"example/image:v1"}}},
@@ -199,7 +197,7 @@ func TestPublicPackageHookPreservesV1beta1Fields(t *testing.T) {
 		pkgLayout.PackageDefinition = convert.PackageFromV1beta1(pkg)
 		return nil
 	}})
-	zarfLayout := newV1beta1PackageLayout()
+	zarfLayout := newV1beta1PackageLayout(t)
 	internalOpts := toZarfDeployPackageOptions(DeployPackageOptions{Config: validValidationConfig(), BundleDir: t.TempDir()})
 
 	require.NoError(t, hooks.PreDeploy(t.Context(), &spec.Package{}, zarfLayout, &packager.DeployOptions{}, &internalOpts))
@@ -213,7 +211,7 @@ func TestPublicPackageHookPreservesV1beta1Fields(t *testing.T) {
 }
 
 func TestPublicPackageLayoutLoaderPreservesV1beta1Fields(t *testing.T) {
-	publicLayout := fromZarfPackageLayout(newV1beta1PackageLayout())
+	publicLayout := fromZarfPackageLayout(newV1beta1PackageLayout(t))
 	converted, err := toZarfPackageLayoutForDeploy(publicLayout)
 	require.NoError(t, err)
 
@@ -267,7 +265,7 @@ func TestPublicPackageHookPreservesPartialMetadata(t *testing.T) {
 
 func TestApplyPublicPackageLayoutUsesHookDefinition(t *testing.T) {
 	manifests := []v1alpha1.ZarfManifest{{Name: "manifest.yaml"}}
-	dst := newPackageLayout(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
+	dst := newPackageLayout(t, v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
 		Name:      "main",
 		Manifests: manifests,
 		Charts:    []v1alpha1.ZarfChart{{Name: "chart"}},
@@ -348,7 +346,7 @@ func TestPublicPreDeployPreservesRename(t *testing.T) {
 			return nil
 		},
 	})
-	internalLayout := newPackageLayout(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{
+	internalLayout := newPackageLayout(t, v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{
 		{Name: "original", Manifests: []v1alpha1.ZarfManifest{{Name: "manifest.yaml"}}},
 	}})
 
