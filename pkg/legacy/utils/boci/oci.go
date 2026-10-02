@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package boci (bundle OCI) provides OCI utility functions for bundles
@@ -340,13 +340,19 @@ func FilterImageIndex(components []v1alpha1.ZarfComponent, imgIndex ocispec.Inde
 	return manifestsToInclude, nil
 }
 
-// FindBundledPkgLayers finds the necessary Zarf pkg layers from a remote bundle
-func FindBundledPkgLayers(ctx context.Context, pkg types.Package, rootManifest interface {
+// BundleRootManifest locates descriptors in a bundle's root manifest.
+type BundleRootManifest interface {
 	Locate(string) ocispec.Descriptor
-}, remote interface {
+}
+
+// BundleRemote fetches layers and exposes the remote bundle repository.
+type BundleRemote interface {
 	FetchLayer(context.Context, ocispec.Descriptor) ([]byte, error)
 	Repo() *remote.Repository
-}) ([]ocispec.Descriptor, int64, error) {
+}
+
+// FindBundledPkgLayers finds the necessary Zarf pkg layers from a remote bundle
+func FindBundledPkgLayers(ctx context.Context, pkg types.Package, rootManifest BundleRootManifest, remote BundleRemote) ([]ocispec.Descriptor, int64, error) {
 	var layersToPull []ocispec.Descriptor
 	estPkgBytes := int64(0)
 
