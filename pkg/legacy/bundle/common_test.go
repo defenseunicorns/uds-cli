@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package bundle contains functions for interacting with, managing and deploying UDS packages
@@ -10,6 +10,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/api/convert"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/state"
 )
@@ -304,59 +305,51 @@ func Test_deployedPackageIsSuccessful(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		description string
-		pkg         state.DeployedPackage
-		want        bool
+		name               string
+		description        string
+		definition         v1alpha1.ZarfPackage
+		deployedComponents []state.DeployedComponent
+		want               bool
 	}{
 		{
 			name:        "SuccessAllSucceededRequiredPresent",
 			description: "returns true when all deployed components succeeded and required components are present",
-			pkg: state.DeployedPackage{
-				Name: "test",
-				Data: v1alpha1.ZarfPackage{ //nolint:staticcheck // Verify compatibility with legacy stored package state.
-					Components: []v1alpha1.ZarfComponent{
-						{Name: "component-a", Required: boolPtr(true)},
-						{Name: "component-b"},
-					},
+			definition: v1alpha1.ZarfPackage{
+				Components: []v1alpha1.ZarfComponent{
+					{Name: "component-a", Required: boolPtr(true)},
+					{Name: "component-b"},
 				},
-				DeployedComponents: []state.DeployedComponent{
-					{Name: "component-a", Status: state.ComponentStatusSucceeded},
-					{Name: "component-b", Status: state.ComponentStatusSucceeded},
-				},
+			},
+			deployedComponents: []state.DeployedComponent{
+				{Name: "component-a", Status: state.ComponentStatusSucceeded},
+				{Name: "component-b", Status: state.ComponentStatusSucceeded},
 			},
 			want: true,
 		},
 		{
 			name:        "FailRequiredMissing",
 			description: "returns false when a required component is missing from deployed components",
-			pkg: state.DeployedPackage{
-				Name: "test",
-				Data: v1alpha1.ZarfPackage{ //nolint:staticcheck // Verify compatibility with legacy stored package state.
-					Components: []v1alpha1.ZarfComponent{
-						{Name: "component-a", Required: boolPtr(true)},
-						{Name: "component-b"},
-					},
+			definition: v1alpha1.ZarfPackage{
+				Components: []v1alpha1.ZarfComponent{
+					{Name: "component-a", Required: boolPtr(true)},
+					{Name: "component-b"},
 				},
-				DeployedComponents: []state.DeployedComponent{
-					{Name: "component-b", Status: state.ComponentStatusSucceeded},
-				},
+			},
+			deployedComponents: []state.DeployedComponent{
+				{Name: "component-b", Status: state.ComponentStatusSucceeded},
 			},
 			want: false,
 		},
 		{
 			name:        "FailDeployedComponentNotSucceeded",
 			description: "returns false when any deployed component is not succeeded",
-			pkg: state.DeployedPackage{
-				Name: "test",
-				Data: v1alpha1.ZarfPackage{ //nolint:staticcheck // Verify compatibility with legacy stored package state.
-					Components: []v1alpha1.ZarfComponent{
-						{Name: "component-a", Required: boolPtr(true)},
-					},
+			definition: v1alpha1.ZarfPackage{
+				Components: []v1alpha1.ZarfComponent{
+					{Name: "component-a", Required: boolPtr(true)},
 				},
-				DeployedComponents: []state.DeployedComponent{
-					{Name: "component-a", Status: state.ComponentStatusFailed},
-				},
+			},
+			deployedComponents: []state.DeployedComponent{
+				{Name: "component-a", Status: state.ComponentStatusFailed},
 			},
 			want: false,
 		},
@@ -364,8 +357,17 @@ func Test_deployedPackageIsSuccessful(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := deployedPackageIsSuccessful(tt.pkg)
-			require.Equal(t, tt.want, got)
+			t.Run("legacy Data", func(t *testing.T) {
+				pkg := state.DeployedPackage{Name: "test", DeployedComponents: tt.deployedComponents}
+				pkg.Data = tt.definition //nolint:staticcheck // Exercise Definition's fallback for state saved before PackageData existed.
+				require.Equal(t, tt.want, deployedPackageIsSuccessful(pkg))
+			})
+			t.Run("current PackageData", func(t *testing.T) {
+				pkg := state.DeployedPackage{Name: "test", DeployedComponents: tt.deployedComponents}
+				require.NoError(t, pkg.SetPackageDefinition(convert.PackageFromV1alpha1(tt.definition)))
+				require.NotEmpty(t, pkg.PackageData)
+				require.Equal(t, tt.want, deployedPackageIsSuccessful(pkg))
+			})
 		})
 	}
 }
