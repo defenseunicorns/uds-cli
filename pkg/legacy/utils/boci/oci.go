@@ -345,9 +345,14 @@ type BundleRootManifest interface {
 	Locate(string) ocispec.Descriptor
 }
 
+// BundleLayerFetcher fetches layers by descriptor from a remote bundle.
+type BundleLayerFetcher interface {
+	FetchLayer(context.Context, ocispec.Descriptor) ([]byte, error)
+}
+
 // BundleRemote fetches layers and exposes the remote bundle repository.
 type BundleRemote interface {
-	FetchLayer(context.Context, ocispec.Descriptor) ([]byte, error)
+	BundleLayerFetcher
 	Repo() *remote.Repository
 }
 
@@ -506,10 +511,8 @@ func collectImageDescriptors(ctx context.Context, fetcher content.Fetcher, desc 
 	return descriptors, nil
 }
 
-func handleImgIndex(ctx context.Context, remote interface {
-	FetchLayer(context.Context, ocispec.Descriptor) ([]byte, error)
-}, desc ocispec.Descriptor) (ocispec.Index, error) {
-	indexBytes, err := remote.FetchLayer(ctx, desc)
+func handleImgIndex(ctx context.Context, fetcher BundleLayerFetcher, desc ocispec.Descriptor) (ocispec.Index, error) {
+	indexBytes, err := fetcher.FetchLayer(ctx, desc)
 	if err != nil {
 		return ocispec.Index{}, err
 	}
@@ -521,13 +524,11 @@ func handleImgIndex(ctx context.Context, remote interface {
 	return index, nil
 }
 
-func getFilteredComponents(ctx context.Context, remote interface {
-	FetchLayer(context.Context, ocispec.Descriptor) ([]byte, error)
-}, manifest oci.Manifest, optionalComponents []string) ([]v1alpha1.ZarfComponent, error) {
+func getFilteredComponents(ctx context.Context, fetcher BundleLayerFetcher, manifest oci.Manifest, optionalComponents []string) ([]v1alpha1.ZarfComponent, error) {
 	// get Zarf pkg from manifest
 	for _, desc := range manifest.Layers {
 		if desc.Annotations[ocispec.AnnotationTitle] == config.ZarfYAML {
-			zarfYAMLBytes, err := remote.FetchLayer(ctx, desc)
+			zarfYAMLBytes, err := fetcher.FetchLayer(ctx, desc)
 			if err != nil {
 				return nil, err
 			}
