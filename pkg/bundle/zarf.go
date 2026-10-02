@@ -15,7 +15,10 @@ import (
 )
 
 // ZarfPackageLayout exposes the native Zarf package definition during bundle
-// deploy. Hooks can inspect its version-specific fields and mutate components.
+// deploy. Hooks can inspect its version-specific fields. Changes to
+// PackageDefinition.Metadata.Name, PackageDefinition.Metadata.Annotations, and
+// PackageDefinition.Components are copied to the loaded Zarf layout before
+// deployment. Changes to other definition fields are unsupported.
 type ZarfPackageLayout struct {
 	dirPath           string
 	PackageDefinition api.Package
