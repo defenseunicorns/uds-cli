@@ -190,6 +190,25 @@ func TestPublicPackageHookConvertsLayoutMutations(t *testing.T) {
 	assert.Equal(t, "sha256:registry", zarfLayout.Digest())
 }
 
+func TestPublicPackageHookCannotChangeDefinitionVariables(t *testing.T) {
+	dir := t.TempDir()
+	const zarfYAML = "metadata:\n  name: test\n  version: 0.0.1\n  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\nvariables:\n  - name: GREETING\n    default: original\ncomponents: []\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte(zarfYAML), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "checksums.txt"), nil, 0o600))
+	zarfLayout, err := layout.LoadFromDir(t.Context(), dir, layout.PackageLayoutOptions{IsPartial: true, VerificationStrategy: layout.VerifyNever})
+	require.NoError(t, err)
+	require.Len(t, zarfLayout.Definition().Variables, 1)
+
+	hooks := toZarfPackageHooks(PackageDeployHooks{PreDeploy: func(_ context.Context, _ *spec.Package, pkgLayout *ZarfPackageLayout, _ *DeployPackageOptions) error {
+		pkgLayout.PackageDefinition.Variables[0].Default = "changed"
+		return nil
+	}})
+	internalOpts := toZarfDeployPackageOptions(DeployPackageOptions{Config: validValidationConfig(), BundleDir: t.TempDir()})
+
+	require.NoError(t, hooks.PreDeploy(t.Context(), &spec.Package{}, zarfLayout, &packager.DeployOptions{}, &internalOpts))
+	assert.Equal(t, "original", zarfLayout.Definition().Variables[0].Default)
+}
+
 func TestPublicPackageHookPreservesV1beta1Fields(t *testing.T) {
 	hooks := toZarfPackageHooks(PackageDeployHooks{PreDeploy: func(_ context.Context, _ *spec.Package, pkgLayout *ZarfPackageLayout, _ *DeployPackageOptions) error {
 		pkg := convert.PackageToV1beta1(pkgLayout.PackageDefinition)

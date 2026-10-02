@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 
 	"github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
@@ -119,9 +120,11 @@ func fromZarfPackageLayout(pkgLayout *layout.PackageLayout) *ZarfPackageLayout {
 	if pkgLayout == nil {
 		return nil
 	}
+	definition := pkgLayout.Definition()
+	definition.Variables = slices.Clone(definition.Variables)
 	result := &ZarfPackageLayout{
 		dirPath:           pkgLayout.DirPath(),
-		PackageDefinition: pkgLayout.Definition(),
+		PackageDefinition: definition,
 	}
 	if !pkgLayout.IsPushable() && pkgLayout.Digest() != "" {
 		result.digest = pkgLayout.Digest()
