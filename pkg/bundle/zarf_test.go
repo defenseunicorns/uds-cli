@@ -190,23 +190,72 @@ func TestPublicPackageHookConvertsLayoutMutations(t *testing.T) {
 	assert.Equal(t, "sha256:registry", zarfLayout.Digest())
 }
 
-func TestPublicPackageHookCannotChangeDefinitionVariables(t *testing.T) {
+func TestPublicPackageHookCannotChangeUnsupportedDefinitionFields(t *testing.T) {
 	dir := t.TempDir()
-	const zarfYAML = "metadata:\n  name: test\n  version: 0.0.1\n  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\nvariables:\n  - name: GREETING\n    default: original\ncomponents: []\n"
+	const zarfYAML = `metadata:
+  name: test
+  version: 0.0.1
+  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+build:
+  migrations: [original]
+  registryOverrides:
+    registry.example: original
+  versionRequirements:
+    - version: 0.87.0
+      reason: original
+  provenanceFiles: [original.sig]
+  differentialMissing: [original-component]
+  signed: true
+values:
+  files: [original.yaml]
+documentation:
+  guide: original.md
+variables:
+  - name: GREETING
+    default: original
+constants:
+  - name: CONSTANT
+    value: original
+components: []
+`
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte(zarfYAML), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "checksums.txt"), nil, 0o600))
 	zarfLayout, err := layout.LoadFromDir(t.Context(), dir, layout.PackageLayoutOptions{IsPartial: true, VerificationStrategy: layout.VerifyNever})
 	require.NoError(t, err)
-	require.Len(t, zarfLayout.Definition().Variables, 1)
+	definition := zarfLayout.Definition()
+	require.Len(t, definition.Variables, 1)
+	require.Len(t, definition.Constants, 1)
+	require.NotEmpty(t, definition.Build.Migrations)
+	require.NotNil(t, definition.Build.Signed)
+	originalMigration := definition.Build.Migrations[0]
 
 	hooks := toZarfPackageHooks(PackageDeployHooks{PreDeploy: func(_ context.Context, _ *spec.Package, pkgLayout *ZarfPackageLayout, _ *DeployPackageOptions) error {
 		pkgLayout.PackageDefinition.Variables[0].Default = "changed"
+		pkgLayout.PackageDefinition.Constants[0].Value = "changed"
+		pkgLayout.PackageDefinition.Values.Files[0] = "changed.yaml"
+		pkgLayout.PackageDefinition.Documentation["guide"] = "changed.md"
+		pkgLayout.PackageDefinition.Build.Migrations[0] = "changed"
+		pkgLayout.PackageDefinition.Build.RegistryOverrides["registry.example"] = "changed"
+		pkgLayout.PackageDefinition.Build.VersionRequirements[0].Reason = "changed"
+		pkgLayout.PackageDefinition.Build.ProvenanceFiles[0] = "changed.sig"
+		pkgLayout.PackageDefinition.Build.DifferentialMissing[0] = "changed-component"
+		*pkgLayout.PackageDefinition.Build.Signed = false
 		return nil
 	}})
 	internalOpts := toZarfDeployPackageOptions(DeployPackageOptions{Config: validValidationConfig(), BundleDir: t.TempDir()})
 
 	require.NoError(t, hooks.PreDeploy(t.Context(), &spec.Package{}, zarfLayout, &packager.DeployOptions{}, &internalOpts))
-	assert.Equal(t, "original", zarfLayout.Definition().Variables[0].Default)
+	definition = zarfLayout.Definition()
+	assert.Equal(t, "original", definition.Variables[0].Default)
+	assert.Equal(t, "original", definition.Constants[0].Value)
+	assert.Equal(t, "original.yaml", definition.Values.Files[0])
+	assert.Equal(t, "original.md", definition.Documentation["guide"])
+	assert.Equal(t, originalMigration, definition.Build.Migrations[0])
+	assert.Equal(t, "original", definition.Build.RegistryOverrides["registry.example"])
+	assert.Equal(t, "original", definition.Build.VersionRequirements[0].Reason)
+	assert.Equal(t, "original.sig", definition.Build.ProvenanceFiles[0])
+	assert.Equal(t, "original-component", definition.Build.DifferentialMissing[0])
+	assert.True(t, *definition.Build.Signed)
 }
 
 func TestPublicPackageHookPreservesV1beta1Fields(t *testing.T) {

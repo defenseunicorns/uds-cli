@@ -6,6 +6,7 @@ package bundle
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 
@@ -121,7 +122,21 @@ func fromZarfPackageLayout(pkgLayout *layout.PackageLayout) *ZarfPackageLayout {
 		return nil
 	}
 	definition := pkgLayout.Definition()
+	// The hook can only write back name, annotations, and components. Isolate
+	// other reference-backed fields so edits cannot reach the loaded layout.
+	definition.Build.Migrations = slices.Clone(definition.Build.Migrations)
+	definition.Build.RegistryOverrides = maps.Clone(definition.Build.RegistryOverrides)
+	definition.Build.VersionRequirements = slices.Clone(definition.Build.VersionRequirements)
+	definition.Build.ProvenanceFiles = slices.Clone(definition.Build.ProvenanceFiles)
+	definition.Build.DifferentialMissing = slices.Clone(definition.Build.DifferentialMissing)
+	if definition.Build.Signed != nil {
+		signed := *definition.Build.Signed
+		definition.Build.Signed = &signed
+	}
+	definition.Values.Files = slices.Clone(definition.Values.Files)
+	definition.Documentation = maps.Clone(definition.Documentation)
 	definition.Variables = slices.Clone(definition.Variables)
+	definition.Constants = slices.Clone(definition.Constants)
 	result := &ZarfPackageLayout{
 		dirPath:           pkgLayout.DirPath(),
 		PackageDefinition: definition,
