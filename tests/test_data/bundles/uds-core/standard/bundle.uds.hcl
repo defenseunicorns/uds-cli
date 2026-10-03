@@ -20,7 +20,7 @@ locals {
   // renovate: datasource=docker depName=ghcr.io/defenseunicorns/packages/uds-k3d versioning=docker
   k3d_version   = "0.21.0-airgap"
   // renovate: datasource=docker depName=ghcr.io/zarf-dev/packages/init versioning=docker
-  init_version  = "v0.86.0"
+  init_version  = "v0.87.0"
 }
 
 package "uds_k3d_dev" {

@@ -16,7 +16,9 @@ import (
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/api/convert"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	zarflayout "github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"oras.land/oras-go/v2/content"
@@ -245,14 +247,14 @@ func fetchZarfPackageFromManifest(ctx context.Context, packageName string, root 
 		}
 		return zarfLayerReader{ReadCloser: r}, nil
 	})
-	pkg, err := zoci.FetchZarfYAML(ctx, &root, boundedFetcher)
+	pkg, err := zoci.FetchZarfYAML(ctx, &zarfoci.Manifest{Manifest: root.Manifest}, boundedFetcher)
 	if err != nil {
 		if isZarfLayerReadError(err) {
 			return v1alpha1.ZarfPackage{}, true, fmt.Errorf("%w %s for package %q: %w", ErrFetchingZarfYAML, zarfLayer.Digest, packageName, err)
 		}
 		return v1alpha1.ZarfPackage{}, true, fmt.Errorf("%w %s for package %q: %w", ErrParsingZarfYAML, zarfLayer.Digest, packageName, err)
 	}
-	return pkg, true, nil
+	return convert.PackageToV1alpha1(pkg), true, nil
 }
 
 func wrapPackageManifestFetchError(packageName string, entry ocispec.Descriptor, err error) error {

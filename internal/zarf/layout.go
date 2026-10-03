@@ -21,6 +21,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"oras.land/oras-go/v2/content"
@@ -180,7 +181,7 @@ func (l *ExtractedArtifactPackageLayoutLoader) LoadPackageSpec(ctx context.Conte
 		return nil, err
 	}
 	filter := filters.Combine(BuildComponentFilter(pkg.OptionalComponents), filters.ByLocalOS(runtime.GOOS))
-	definition, _, err := filteredPackageDefinition(ctx, manifest, store, filter)
+	definition, _, err := filteredPackageDefinition(ctx, &zarfoci.Manifest{Manifest: manifest.Manifest}, store, filter)
 	if err != nil {
 		return nil, fmt.Errorf("package %q: %w", pkg.Name, err)
 	}
@@ -287,7 +288,7 @@ func (l *SourcePackageLayoutLoader) LoadPackageSpec(ctx context.Context, pkg *sp
 }
 
 func packageSpecFromLayout(pkgLayout *layout.PackageLayout) *PackageSpec {
-	return packageSpecFromDefinition(pkgLayout.PackageDefinition, pkgLayout.Digest())
+	return packageSpecFromDefinition(pkgLayout.Definition(), pkgLayout.Digest())
 }
 
 // copyFileContentsBetweenRoots copies src atomically between rooted

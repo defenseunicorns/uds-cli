@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package bundler defines behavior for bundling packages
@@ -45,7 +45,7 @@ func manifestAnnotationsFromMetadata(metadata *types.UDSMetadata) map[string]str
 }
 
 // copied from: https://github.com/zarf-dev/zarf/blob/main/src/pkg/oci/push.go
-func pushManifestConfigFromMetadata(r *oci.OrasRemote, metadata *types.UDSMetadata, build *types.UDSBuildData) (ocispec.Descriptor, error) {
+func pushManifestConfigFromMetadata(r boci.RepositoryProvider, metadata *types.UDSMetadata, build *types.UDSBuildData) (ocispec.Descriptor, error) {
 	annotations := map[string]string{
 		ocispec.AnnotationTitle:       metadata.Name,
 		ocispec.AnnotationDescription: metadata.Description,

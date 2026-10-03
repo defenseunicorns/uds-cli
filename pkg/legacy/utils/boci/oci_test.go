@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 package boci
@@ -16,10 +16,47 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/api/convert"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/content/memory"
 )
+
+func TestSelectPackageComponentsHonorsDefaults(t *testing.T) {
+	optional := false
+	required := true
+	pkg := convert.PackageFromV1alpha1(v1alpha1.ZarfPackage{
+		Components: []v1alpha1.ZarfComponent{
+			{Name: "required", Required: &required},
+			{Name: "default", Required: &optional, Default: true},
+			{Name: "opt-in", Required: &optional},
+			{Name: "choice-default", Required: &optional, Default: true, DeprecatedGroup: "choice"},
+			{Name: "choice-alt", Required: &optional, DeprecatedGroup: "choice"},
+		},
+	})
+
+	tests := []struct {
+		name               string
+		optionalComponents []string
+		want               []string
+	}{
+		{name: "defaults", want: []string{"required", "default", "choice-default"}},
+		{name: "group alternative", optionalComponents: []string{"choice-alt"}, want: []string{"required", "default", "choice-alt"}},
+		{name: "explicit opt out", optionalComponents: []string{"-default"}, want: []string{"required", "choice-default"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			components, err := selectPackageComponents(pkg, tt.optionalComponents)
+			require.NoError(t, err)
+			names := make([]string, 0, len(components))
+			for _, component := range components {
+				names = append(names, component.Name)
+			}
+			assert.Equal(t, tt.want, names)
+		})
+	}
+}
 
 func TestFilterComponentsConvertsV1beta1RequiredAndOptional(t *testing.T) {
 	pkg, err := utils.ReadPackageYAMLBytes([]byte(`
