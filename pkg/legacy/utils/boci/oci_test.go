@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 package boci
@@ -7,9 +7,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/config"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	"github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/specs-go"
@@ -17,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/content/memory"
 )
@@ -197,6 +203,87 @@ func TestCollectImageDescriptors(t *testing.T) {
 		_, err := collectImageDescriptors(ctx, store, ocispec.Descriptor{MediaType: ocispec.MediaTypeImageManifest}, map[string]struct{}{})
 		require.EqualError(t, err, `image descriptor with media type "application/vnd.oci.image.manifest.v1+json" has an empty digest`)
 	})
+}
+
+func TestFindBundledPkgLayersFetchesImageManifestsFromManifestEndpoint(t *testing.T) {
+	ctx := context.Background()
+	store := memory.New()
+	objects := map[string]ocispec.Descriptor{}
+	addBlob := func(mediaType string, data []byte) ocispec.Descriptor {
+		desc := pushTestBlob(t, ctx, store, mediaType, data)
+		objects[desc.Digest.String()] = desc
+		return desc
+	}
+	addJSON := func(mediaType string, value any) ocispec.Descriptor {
+		data, err := json.Marshal(value)
+		require.NoError(t, err)
+		return addBlob(mediaType, data)
+	}
+
+	imageName := "example.com/test:1"
+	configDesc := addBlob(ocispec.MediaTypeImageConfig, []byte(`{"architecture":"amd64","os":"linux"}`))
+	layerDesc := addBlob(ocispec.MediaTypeImageLayer, []byte("image layer"))
+	imageManifestDesc := addJSON(ocispec.MediaTypeImageManifest, ocispec.Manifest{
+		Versioned: specs.Versioned{SchemaVersion: 2},
+		MediaType: ocispec.MediaTypeImageManifest,
+		Config:    configDesc,
+		Layers:    []ocispec.Descriptor{layerDesc},
+	})
+	imageIndexDesc := addJSON(ocispec.MediaTypeImageIndex, ocispec.Index{
+		Versioned: specs.Versioned{SchemaVersion: 2},
+		MediaType: ocispec.MediaTypeImageIndex,
+		Manifests: []ocispec.Descriptor{imageManifestDesc},
+	})
+	imageIndexDesc.Annotations = map[string]string{ocispec.AnnotationBaseImageName: imageName}
+	imagesIndexDesc := addJSON(ocispec.MediaTypeImageIndex, ocispec.Index{
+		Versioned: specs.Versioned{SchemaVersion: 2},
+		MediaType: ocispec.MediaTypeImageIndex,
+		Manifests: []ocispec.Descriptor{imageIndexDesc},
+	})
+	imagesIndexDesc.Annotations = map[string]string{ocispec.AnnotationTitle: "images/index.json"}
+	zarfYAMLDesc := addBlob("application/octet-stream", []byte("kind: ZarfPackageConfig\nmetadata:\n  name: test\n  version: 0.0.1\ncomponents:\n  - name: test\n    required: true\n    images:\n      - "+imageName+"\n"))
+	zarfYAMLDesc.Annotations = map[string]string{ocispec.AnnotationTitle: config.ZarfYAML}
+	pkgManifestDesc := addJSON(layout.ZarfLayerMediaTypeBlob, oci.Manifest{Manifest: ocispec.Manifest{
+		Versioned: specs.Versioned{SchemaVersion: 2},
+		Layers:    []ocispec.Descriptor{zarfYAMLDesc, imagesIndexDesc},
+	}})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/v2/repo/")
+		endpoint, digestString, ok := strings.Cut(path, "/")
+		if !ok || r.Method != http.MethodGet {
+			http.NotFound(w, r)
+			return
+		}
+		desc, exists := objects[digestString]
+		expectedEndpoint := "blobs"
+		if desc.MediaType == ocispec.MediaTypeImageManifest || desc.MediaType == ocispec.MediaTypeImageIndex {
+			expectedEndpoint = "manifests"
+		}
+		if !exists || endpoint != expectedEndpoint {
+			http.NotFound(w, r)
+			return
+		}
+		data, err := content.FetchAll(ctx, store, desc)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", desc.MediaType)
+		_, _ = w.Write(data)
+	}))
+	t.Cleanup(srv.Close)
+	remote, err := oci.NewOrasRemote(strings.TrimPrefix(srv.URL, "http://")+"/repo:bundle", ocispec.Platform{}, oci.WithPlainHTTP(true))
+	require.NoError(t, err)
+
+	rootManifest := &oci.Manifest{Manifest: ocispec.Manifest{Layers: []ocispec.Descriptor{pkgManifestDesc}}}
+	pkg := types.Package{Ref: "repo@" + pkgManifestDesc.Digest.String()}
+	layers, _, err := FindBundledPkgLayers(ctx, pkg, rootManifest, remote)
+	require.NoError(t, err)
+	require.ElementsMatch(t,
+		[]digest.Digest{pkgManifestDesc.Digest, zarfYAMLDesc.Digest, imagesIndexDesc.Digest, imageIndexDesc.Digest, imageManifestDesc.Digest, configDesc.Digest, layerDesc.Digest},
+		descriptorDigests(layers),
+	)
 }
 
 func TestCreateCopyOptsImageIndexes(t *testing.T) {

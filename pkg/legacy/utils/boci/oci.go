@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package boci (bundle OCI) provides OCI utility functions for bundles
@@ -397,7 +397,7 @@ func FindBundledPkgLayers(ctx context.Context, pkg types.Package, rootManifest *
 	// either image manifests or nested multi-platform image indexes.
 	seenImageDescriptors := map[string]struct{}{}
 	for _, desc := range manifestsToInclude {
-		imageDescriptors, err := collectImageDescriptors(ctx, remote.Repo().Blobs(), desc, seenImageDescriptors)
+		imageDescriptors, err := collectImageDescriptors(ctx, remote.Repo(), desc, seenImageDescriptors)
 		if err != nil {
 			return nil, 0, err
 		}
