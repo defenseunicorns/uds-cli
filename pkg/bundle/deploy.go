@@ -43,6 +43,7 @@ type ZarfPackageLayoutLoadOptions struct {
 // from pkg.Source, copy from an extracted bundle artifact, or populate dstDir
 // from another source. The adapter loads the staged package to preserve Zarf's
 // private deployment state before applying supported public layout mutations.
+// An empty Layout.PackageDefinition.Metadata.Name leaves the staged name intact.
 type ZarfPackageLayoutLoader interface {
 	LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts ZarfPackageLayoutLoadOptions) (*ZarfPackageLayoutLoadResult, error)
 }

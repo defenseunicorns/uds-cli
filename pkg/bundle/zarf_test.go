@@ -282,6 +282,7 @@ func TestPublicPackageLayoutLoaderPreservesV1beta1Fields(t *testing.T) {
 	publicLayout := fromZarfPackageLayout(newV1beta1PackageLayout(t))
 	converted, err := toZarfPackageLayoutForDeploy(publicLayout)
 	require.NoError(t, err)
+	assert.Equal(t, "beta-package", converted.Definition().Metadata.Name)
 
 	component := converted.AsV1beta1().Components[0]
 	assert.Equal(t, "daemon", component.Images[0].Source)
@@ -461,6 +462,7 @@ components:
 	}}
 	result, err := loader.LoadPackageLayout(t.Context(), &spec.Package{Name: "test"}, dir, internalzarf.LoadOptions{IsPartial: true})
 	require.NoError(t, err)
+	assert.Equal(t, "test", result.Layout.Definition().Metadata.Name)
 	components := result.Layout.AsV1alpha1().Components
 	require.Len(t, components, 1)
 	component := components[0]

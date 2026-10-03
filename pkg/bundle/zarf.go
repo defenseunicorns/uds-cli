@@ -188,7 +188,9 @@ func applyPublicPackageLayout(dst *layout.PackageLayout, src *ZarfPackageLayout)
 	if dst == nil || src == nil {
 		return nil
 	}
-	dst.SetName(src.PackageDefinition.Metadata.Name)
+	if name := src.PackageDefinition.Metadata.Name; name != "" {
+		dst.SetName(name)
+	}
 	dst.SetAnnotations(src.PackageDefinition.Metadata.Annotations)
 	if err := dst.Filter(packageComponentSelection(src.PackageDefinition.Components)); err != nil {
 		return err
