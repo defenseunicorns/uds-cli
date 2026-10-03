@@ -15,12 +15,10 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils/boci"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/pkg/images"
 	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	"golang.org/x/sync/errgroup"
-	"oras.land/oras-go/v2/content"
 )
 
 // RemotePusher contains methods for pulling remote Zarf packages into a bundle
@@ -97,70 +95,25 @@ func (p *RemotePusher) remoteToRemote(layersToCopy []ocispec.Descriptor) error {
 		group, groupCtx := errgroup.WithContext(ctx)
 		group.SetLimit(max(1, config.CommonOptions.OCIConcurrency))
 		seen := make(map[string]struct{}, len(layers))
-		var manifests []ocispec.Descriptor
-		manifestByDigest := make(map[string]ocispec.Descriptor)
-		copyLayer := func(ctx context.Context, layer ocispec.Descriptor) error {
-			exists, err := p.cfg.RemoteDst.Repo().Exists(ctx, layer)
-			if err != nil || exists {
-				return err
-			}
-			r, err := p.cfg.RemoteSrc.Repo().Fetch(ctx, layer)
-			if err != nil {
-				return err
-			}
-			defer r.Close()
-			return p.cfg.RemoteDst.Repo().Push(ctx, layer, r)
-		}
 		for _, layer := range layers {
 			if _, ok := seen[layer.Digest.String()]; ok {
 				continue
 			}
 			seen[layer.Digest.String()] = struct{}{}
-			if images.IsIndex(layer.MediaType) || images.IsManifest(layer.MediaType) {
-				manifests = append(manifests, layer)
-				manifestByDigest[layer.Digest.String()] = layer
-				continue
-			}
 			group.Go(func() error {
-				return copyLayer(groupCtx, layer)
+				exists, err := p.cfg.RemoteDst.Repo().Exists(groupCtx, layer)
+				if err != nil || exists {
+					return err
+				}
+				r, err := p.cfg.RemoteSrc.Repo().Fetch(groupCtx, layer)
+				if err != nil {
+					return err
+				}
+				defer r.Close()
+				return p.cfg.RemoteDst.Repo().Push(groupCtx, layer, r)
 			})
 		}
-		if err := group.Wait(); err != nil {
-			return err
-		}
-		// Registries may reject manifests that reference children not yet present.
-		// Walk the selected graph so shared children are also pushed first.
-		copied := make(map[string]struct{}, len(manifests))
-		var copyManifest func(ocispec.Descriptor) error
-		copyManifest = func(manifest ocispec.Descriptor) error {
-			if _, ok := copied[manifest.Digest.String()]; ok {
-				return nil
-			}
-			successors, err := content.Successors(ctx, p.cfg.RemoteSrc.Repo(), manifest)
-			if err != nil {
-				return fmt.Errorf("reading image manifest %s: %w", manifest.Digest, err)
-			}
-			for _, successor := range successors {
-				if child, ok := manifestByDigest[successor.Digest.String()]; ok {
-					if err := copyManifest(child); err != nil {
-						return err
-					}
-				} else if images.IsIndex(successor.MediaType) || images.IsManifest(successor.MediaType) {
-					return fmt.Errorf("image manifest %s references uncopied manifest %s", manifest.Digest, successor.Digest)
-				}
-			}
-			if err := copyLayer(ctx, manifest); err != nil {
-				return err
-			}
-			copied[manifest.Digest.String()] = struct{}{}
-			return nil
-		}
-		for _, manifest := range manifests {
-			if err := copyManifest(manifest); err != nil {
-				return err
-			}
-		}
-		return nil
+		return group.Wait()
 	} else {
 		// blob mount if same registry
 		message.Debugf("Performing a cross repository blob mount on %s from %s --> %s", dstRef, dstRef.Repository, dstRef.Repository)
