@@ -27,7 +27,6 @@ tasks:
     description: run repository lint checks
     actions:
       - cmd: hk check --all
-      - cmd: uds run -f tasks/lint.yaml common:renovate
 
   - name: fix
     description: fix lint findings where supported
