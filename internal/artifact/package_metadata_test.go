@@ -612,6 +612,27 @@ components:
 	require.Equal(t, "echo migrated", pkg.Components[0].Actions.OnDeploy.Before[0].Cmd)
 }
 
+func TestFetchZarfPackagePreservesV1beta1Metadata(t *testing.T) {
+	zarfYAML := []byte(`apiVersion: zarf.dev/v1beta1
+kind: ZarfPackageConfig
+metadata:
+  name: beta-package
+build:
+  signed: true
+components:
+  - name: example
+`)
+	manifests, blobs, _ := packageMetadataFixture(t, "bundle-label", zarfYAML, true, 0)
+
+	pkg, found, err := fetchZarfPackage(t.Context(), "bundle-label", manifests["bundle-label"], blobFetcher(blobs, nil))
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, "zarf.dev/v1beta1", pkg.GetAPIVersion())
+	require.Equal(t, "beta-package", pkg.Metadata.Name)
+	require.NotNil(t, pkg.Build.Signed)
+	require.True(t, *pkg.Build.Signed)
+}
+
 func TestInspectPackageSignatureUsesZarfMetadata(t *testing.T) {
 	t.Run("signed package", func(t *testing.T) {
 		manifests, blobs, _ := packageMetadataFixture(t, "bundle-label", []byte("metadata:\n  name: test\nbuild:\n  signed: true\n"), true, 0)

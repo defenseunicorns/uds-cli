@@ -16,8 +16,7 @@ import (
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/api/convert"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	zarflayout "github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
@@ -194,12 +193,12 @@ func finishZarfPackageMetadataBatch(states []bundlePackageMetadataState, batched
 	return results, batched, nil
 }
 
-// fetchZarfPackage fetches and parses the embedded zarf.yaml into a ZarfPackage.
+// fetchZarfPackage fetches and parses the embedded zarf.yaml into Zarf's version-neutral package type.
 // The boolean reports whether the package manifest contained a zarf.yaml layer.
-func fetchZarfPackage(ctx context.Context, packageName string, entry ocispec.Descriptor, fetcher content.Fetcher) (v1alpha1.ZarfPackage, bool, error) {
+func fetchZarfPackage(ctx context.Context, packageName string, entry ocispec.Descriptor, fetcher content.Fetcher) (api.Package, bool, error) {
 	root, err := fetchPackageRootManifest(ctx, packageName, entry, fetcher)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, false, err
+		return api.Package{}, false, err
 	}
 	return fetchZarfPackageFromManifest(ctx, packageName, root, fetcher)
 }
@@ -222,10 +221,10 @@ func fetchPackageRootManifest(ctx context.Context, packageName string, entry oci
 	return root, nil
 }
 
-func fetchZarfPackageFromManifest(ctx context.Context, packageName string, root oci.Manifest, fetcher content.Fetcher) (v1alpha1.ZarfPackage, bool, error) {
+func fetchZarfPackageFromManifest(ctx context.Context, packageName string, root oci.Manifest, fetcher content.Fetcher) (api.Package, bool, error) {
 	zarfLayer := root.Locate(zarflayout.ZarfYAML)
 	if oci.IsEmptyDescriptor(zarfLayer) {
-		return v1alpha1.ZarfPackage{}, false, nil
+		return api.Package{}, false, nil
 	}
 
 	// FetchZarfYAML uses content.FetchAll internally. Reject oversized metadata
@@ -250,11 +249,11 @@ func fetchZarfPackageFromManifest(ctx context.Context, packageName string, root 
 	pkg, err := zoci.FetchZarfYAML(ctx, &zarfoci.Manifest{Manifest: root.Manifest}, boundedFetcher)
 	if err != nil {
 		if isZarfLayerReadError(err) {
-			return v1alpha1.ZarfPackage{}, true, fmt.Errorf("%w %s for package %q: %w", ErrFetchingZarfYAML, zarfLayer.Digest, packageName, err)
+			return api.Package{}, true, fmt.Errorf("%w %s for package %q: %w", ErrFetchingZarfYAML, zarfLayer.Digest, packageName, err)
 		}
-		return v1alpha1.ZarfPackage{}, true, fmt.Errorf("%w %s for package %q: %w", ErrParsingZarfYAML, zarfLayer.Digest, packageName, err)
+		return api.Package{}, true, fmt.Errorf("%w %s for package %q: %w", ErrParsingZarfYAML, zarfLayer.Digest, packageName, err)
 	}
-	return convert.PackageToV1alpha1(pkg), true, nil
+	return pkg, true, nil
 }
 
 func wrapPackageManifestFetchError(packageName string, entry ocispec.Descriptor, err error) error {
