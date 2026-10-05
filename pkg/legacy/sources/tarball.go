@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package sources contains Zarf packager sources
@@ -83,11 +83,11 @@ func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.Componen
 		return nil, nil, err
 	}
 
-	addNamespaceOverrides(&pkgLayout.PackageDefinition, t.nsOverrides)
+	addNamespaceOverrides(pkgLayout, t.nsOverrides)
 
 	packageSpinner.Successf("Loaded bundled Zarf package: %s", t.Pkg.Name)
 	// ensure we're using the correct package name as specified by the bundle
-	pkgLayout.PackageDefinition.SetName(t.Pkg.Name)
+	pkgLayout.SetName(t.Pkg.Name)
 	return pkgLayout, nil, err
 }
 

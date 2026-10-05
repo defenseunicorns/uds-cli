@@ -52,7 +52,7 @@ func TestLibraryDeploy_Showcase(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Equal(t, "test-bundle", startedBundle)
 	require.NotNil(t, captured)
-	assert.Empty(t, captured.PackageDefinition.AsV1alpha1().Components[0].Images)
-	assert.Empty(t, captured.PackageDefinition.AsV1alpha1().Components[0].ImageArchives)
+	assert.Empty(t, captured.PackageDefinition.Components[0].Images)
+	assert.Empty(t, captured.PackageDefinition.Components[0].ImageArchives)
 	assert.Contains(t, logs.String(), "deploying bundle")
 }

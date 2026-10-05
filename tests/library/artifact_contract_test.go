@@ -295,7 +295,7 @@ func libraryPackageComponents(t *testing.T, fixture libraryBundleFixture, packag
 
 	loaded, err := source.Loader.LoadPackageLayout(t.Context(), &source.Bundle.Packages[packageIndex], t.TempDir(), bundle.ZarfPackageLayoutLoadOptions{})
 	require.NoError(t, err)
-	definition := loaded.Layout.PackageDefinition.AsV1alpha1()
+	definition := loaded.Layout.PackageDefinition
 	assert.Equal(t, runtime.GOARCH, definition.Metadata.Architecture)
 	components := make([]string, len(definition.Components))
 	for i, component := range definition.Components {
@@ -314,7 +314,7 @@ func libraryPackageArchitecture(t *testing.T, artifactPath, architecture string)
 
 	loaded, err := source.Loader.LoadPackageLayout(t.Context(), &source.Bundle.Packages[0], t.TempDir(), bundle.ZarfPackageLayoutLoadOptions{})
 	require.NoError(t, err)
-	return loaded.Layout.PackageDefinition.AsV1alpha1().Metadata.Architecture
+	return loaded.Layout.PackageDefinition.Metadata.Architecture
 }
 
 func rewriteUnknownPackageMetadata(t *testing.T, root string) {

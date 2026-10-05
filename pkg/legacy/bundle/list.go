@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 package bundle
@@ -48,17 +48,21 @@ func ListDeployedBundles(ctx context.Context) ([]Deployment, error) {
 		return nil, fmt.Errorf("failed to get deployed packages: %w", err)
 	}
 
-	return mapPackagesToBundles(deployedPackages), nil
+	return mapPackagesToBundles(deployedPackages)
 }
 
 // mapPackagesToBundles maps deployed packages to bundles based on annotations
-func mapPackagesToBundles(deployedPackages []state.DeployedPackage) []Deployment {
+func mapPackagesToBundles(deployedPackages []state.DeployedPackage) ([]Deployment, error) {
 	// Map packages to bundles based on annotations
 	bundleMap := make(map[string]*Deployment)
 
 	for _, pkg := range deployedPackages {
+		definition, err := pkg.Definition()
+		if err != nil {
+			return nil, fmt.Errorf("read deployed package %q definition: %w", pkg.Name, err)
+		}
 		// Check if package has bundle annotations
-		annotations := pkg.Data.Metadata.Annotations
+		annotations := definition.Metadata.Annotations
 		if annotations == nil {
 			continue
 		}
@@ -66,13 +70,16 @@ func mapPackagesToBundles(deployedPackages []state.DeployedPackage) []Deployment
 		bundleName, hasBundleName := annotations[AnnotationBundleName]
 		bundleVersion, hasBundleVersion := annotations[AnnotationBundleVersion]
 
-		// Only include packages that have both bundle name and version annotations
-		if !hasBundleName || !hasBundleVersion {
+		// Packages without bundle annotations may be standalone Zarf packages.
+		if !hasBundleName && !hasBundleVersion {
 			continue
+		}
+		if !hasBundleName || !hasBundleVersion || bundleName == "" || bundleVersion == "" {
+			return nil, fmt.Errorf("deployed package %q has incomplete bundle annotations: both %q and %q must be nonempty", pkg.Name, AnnotationBundleName, AnnotationBundleVersion)
 		}
 
 		bundleKey := fmt.Sprintf("%s:%s", bundleName, bundleVersion)
-		pkgIdentifier := fmt.Sprintf("%s:%s", pkg.Name, pkg.Data.Metadata.Version)
+		pkgIdentifier := fmt.Sprintf("%s:%s", pkg.Name, definition.Metadata.Version)
 
 		if bundle, exists := bundleMap[bundleKey]; exists {
 			bundle.Packages = append(bundle.Packages, pkgIdentifier)
@@ -101,7 +108,7 @@ func mapPackagesToBundles(deployedPackages []state.DeployedPackage) []Deployment
 		return bundles[i].Version < bundles[j].Version
 	})
 
-	return bundles
+	return bundles, nil
 }
 
 // PrintBundleList prints the deployed bundles in a formatted table to stdout
