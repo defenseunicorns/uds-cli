@@ -37,6 +37,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/packager/load"
 	zarfschema "github.com/zarf-dev/zarf/src/pkg/schema"
+	"github.com/zarf-dev/zarf/src/pkg/transform"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	zarftypes "github.com/zarf-dev/zarf/src/types"
 	chartloader "helm.sh/helm/v3/pkg/chart/loader"
@@ -118,6 +119,17 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	repoSource, err := url.Parse(pkg.Components[0].Repositories[0].URL)
 	require.NoError(t, err)
 	assert.Contains(t, repoSource.Path, filepath.ToSlash(outputDir))
+	repo, err := git.PlainOpen(repoSource.Path)
+	require.NoError(t, err)
+	worktree, err := repo.Worktree()
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(repoSource.Path, "README.md"), []byte("edited offline repository\n"), 0o600))
+	_, err = worktree.Add("README.md")
+	require.NoError(t, err)
+	_, err = worktree.Commit("edit offline repository", &git.CommitOptions{Author: &object.Signature{
+		Name: "UDS Test", Email: "test@example.com", When: time.Unix(2, 0),
+	}})
+	require.NoError(t, err)
 	assert.Equal(t, []string{layout.ValuesYAML}, pkg.Values.Files)
 	assert.Equal(t, layout.ValuesSchema, pkg.Values.Schema)
 	assert.Equal(t, "documentation/guide.md", pkg.Documentation["guide"])
@@ -133,6 +145,13 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 		SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir(),
 	})
 	defer func() { require.NoError(t, reassembled.Cleanup()) }()
+	reassembledRepositoryRoot, err := reassembled.GetComponentDir(t.Context(), t.TempDir(), pkg.Components[0].Name, layout.RepoComponentDir)
+	require.NoError(t, err)
+	reassembledRepositoryName, err := transform.GitURLtoFolderName(pkg.Components[0].Repositories[0].URL)
+	require.NoError(t, err)
+	reassembledREADME, err := os.ReadFile(filepath.Join(reassembledRepositoryRoot, reassembledRepositoryName, "README.md"))
+	require.NoError(t, err)
+	assert.Equal(t, "edited offline repository\n", string(reassembledREADME))
 	assert.Equal(t, "roundtrip", reassembled.AsV1alpha1().Metadata.Name)
 	assert.Equal(t, "1.2.3-disassembled", reassembled.AsV1alpha1().Metadata.Version)
 	assert.Equal(t, packageArchitecture, reassembled.AsV1alpha1().Build.Architecture)

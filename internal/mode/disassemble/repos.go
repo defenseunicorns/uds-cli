@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/transform"
@@ -32,8 +34,12 @@ func localizeRepos(ctx context.Context, pkgLayout *layout.PackageLayout, outputD
 			return err
 		}
 		rel := filepath.Join("repos", fmt.Sprintf("%d-%s", idx, filepath.Base(repoPath)))
-		if err := helpers.CreatePathAndCopy(repoPath, filepath.Join(outputDir, rel)); err != nil {
+		localizedPath := filepath.Join(outputDir, rel)
+		if err := helpers.CreatePathAndCopy(repoPath, localizedPath); err != nil {
 			return fmt.Errorf("copying repository %q: %w", ref, err)
+		}
+		if err := removeRemoteTrackingRefs(localizedPath); err != nil {
+			return fmt.Errorf("preparing repository %q for editing: %w", ref, err)
 		}
 		// Zarf currently requires a URL-shaped repo source and does not resolve it
 		// against the package directory, so use the final local path explicitly.
@@ -42,6 +48,32 @@ func localizeRepos(ctx context.Context, pkgLayout *layout.PackageLayout, outputD
 		repository.URL = localizedURL
 		repository.Ref = nil
 		repository.LegacyURL = localizedURL
+	}
+	return nil
+}
+
+func removeRemoteTrackingRefs(path string) error {
+	repository, err := git.PlainOpen(path)
+	if err != nil {
+		return fmt.Errorf("opening repository: %w", err)
+	}
+	references, err := repository.References()
+	if err != nil {
+		return fmt.Errorf("listing references: %w", err)
+	}
+	var remoteRefs []plumbing.ReferenceName
+	if err := references.ForEach(func(reference *plumbing.Reference) error {
+		if reference.Name().IsRemote() {
+			remoteRefs = append(remoteRefs, reference.Name())
+		}
+		return nil
+	}); err != nil {
+		return fmt.Errorf("reading references: %w", err)
+	}
+	for _, name := range remoteRefs {
+		if err := repository.Storer.RemoveReference(name); err != nil {
+			return fmt.Errorf("removing remote-tracking reference %s: %w", name, err)
+		}
 	}
 	return nil
 }
