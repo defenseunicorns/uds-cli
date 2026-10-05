@@ -18,6 +18,7 @@ func localizedV1beta1Definition(beta v1beta1.Package, alpha v1alpha1.ZarfPackage
 		return v1beta1.Package{}, fmt.Errorf("converted package component count changed from %d to %d", len(beta.Components), len(alpha.Components))
 	}
 	beta.Metadata.Version = alpha.Metadata.Version
+	beta.Metadata.Architecture = alpha.Metadata.Architecture
 	beta.Build = v1beta1.BuildData{}
 	beta.Values.Files = alpha.Values.Files
 	beta.Values.Schema = alpha.Values.Schema
@@ -40,7 +41,6 @@ func applyLocalizedComponent(beta *v1beta1.Component, alpha v1alpha1.ZarfCompone
 	}
 
 	beta.Actions.OnCreate = v1beta1.ComponentActionSet{}
-	beta.Selector.Flavor = ""
 	for idx := range beta.Files {
 		beta.Files[idx].Source = alpha.Files[idx].Source
 		beta.Files[idx].ExtractPath = ""

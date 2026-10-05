@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -42,29 +43,40 @@ import (
 
 func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	sourceDir := prepareRoundTripFixture(t)
-	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
-	require.NoError(t, err)
-	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{
+	packageArchitecture := "arm64"
+	if runtime.GOARCH == packageArchitecture {
+		packageArchitecture = "amd64"
+	}
+	setPackageArchitecture(t, sourceDir, packageArchitecture)
+
+	pkgLayout := assembleTestPackage(t, sourceDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{
 		SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir(),
 	})
-	require.NoError(t, err)
 	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
 	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
 	require.NoError(t, err)
 
 	outputDir := filepath.Join(t.TempDir(), "disassembled%source")
+	var warnings []string
 	result, err := Disassemble(t.Context(), Options{
 		Source: archivePath, OutputDir: outputDir,
-		Architecture: "amd64", TmpDir: t.TempDir(), Concurrency: 1,
+		TmpDir: t.TempDir(), Concurrency: 1,
+		Warn: func(msg string, _ ...any) {
+			warnings = append(warnings, msg)
+		},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, outputDir, result.OutputDir)
+	require.Len(t, warnings, 1)
+	assert.Contains(t, warnings[0], "last resort")
+	assert.Contains(t, warnings[0], "upstream source")
 
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
-	pkg := generated.PackageDefinition.AsV1alpha1()
+	pkg := generated.AsV1alpha1()
 	assert.Equal(t, "roundtrip", pkg.Metadata.Name)
 	assert.Equal(t, "1.2.3-disassembled", pkg.Metadata.Version)
+	assert.Equal(t, packageArchitecture, pkg.Metadata.Architecture)
 	require.Len(t, pkg.Components, 1)
 	require.Len(t, pkg.Components[0].Charts, 1)
 	chart := pkg.Components[0].Charts[0]
@@ -109,14 +121,17 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, string(generatedYAML), "\nbuild:")
 	assert.Contains(t, string(generatedYAML), "\ncomponents:\n  - name: app\n")
+	disassemblyJSON, err := os.ReadFile(filepath.Join(outputDir, disassemblyMetadataDir, disassemblyMetadataFile))
+	require.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("{\n  \"formatVersion\": \"v1alpha1\",\n  \"architecture\": %q,\n  \"flavor\": \"\"\n}\n", packageArchitecture), string(disassemblyJSON))
 
-	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{
+	reassembled := assembleTestPackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{
 		SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir(),
 	})
-	require.NoError(t, err)
 	defer func() { require.NoError(t, reassembled.Cleanup()) }()
 	assert.Equal(t, "roundtrip", reassembled.AsV1alpha1().Metadata.Name)
 	assert.Equal(t, "1.2.3-disassembled", reassembled.AsV1alpha1().Metadata.Version)
+	assert.Equal(t, packageArchitecture, reassembled.AsV1alpha1().Build.Architecture)
 }
 
 func TestDisassemblePullsOCIPackage(t *testing.T) {
@@ -124,13 +139,11 @@ func TestDisassemblePullsOCIPackage(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	sourceDir := prepareRoundTripFixture(t)
-	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
-	require.NoError(t, err)
-	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir()})
-	require.NoError(t, err)
+	setPackageArchitecture(t, sourceDir, runtime.GOARCH)
+	pkgLayout := assembleTestPackage(t, sourceDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir()})
 	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
 	ref := strings.TrimPrefix(server.URL, "http://") + "/test/disassemble:1.0.0"
-	remote, err := zoci.NewRemoteWithOptions(t.Context(), ref, ocispec.Platform{Architecture: "amd64", OS: packageoci.MultiOS}, zoci.RemoteClientOptions{
+	remote, err := zoci.NewRemoteWithOptions(t.Context(), ref, ocispec.Platform{Architecture: runtime.GOARCH, OS: packageoci.MultiOS}, zoci.RemoteClientOptions{
 		RemoteOptions: zarftypes.RemoteOptions{PlainHTTP: true},
 	})
 	require.NoError(t, err)
@@ -139,22 +152,16 @@ func TestDisassemblePullsOCIPackage(t *testing.T) {
 
 	outputDir := filepath.Join(t.TempDir(), "output")
 	_, err = Disassemble(t.Context(), Options{
-		Source: "oci://" + ref, OutputDir: outputDir, Architecture: "amd64", PlainHTTP: true, TmpDir: t.TempDir(), Concurrency: 1,
+		Source: "oci://" + ref, OutputDir: outputDir, PlainHTTP: true, TmpDir: t.TempDir(), Concurrency: 1,
 	})
 	require.NoError(t, err)
-	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
-	require.NoError(t, err)
-	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir()})
-	require.NoError(t, err)
+	reassembled := assembleTestPackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir()})
 	t.Cleanup(func() { require.NoError(t, reassembled.Cleanup()) })
 }
 
 func TestDisassemblePreservesV1beta1Definition(t *testing.T) {
 	sourceDir := copyFixture(t, "v1beta1")
-	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true})
-	require.NoError(t, err)
-	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{Flavor: "offline", SkipSBOM: true})
-	require.NoError(t, err)
+	pkgLayout := assembleTestPackage(t, sourceDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true}, assemble.AssembleOptions{Flavor: "offline", SkipSBOM: true})
 	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
 	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
 	require.NoError(t, err)
@@ -162,16 +169,17 @@ func TestDisassemblePreservesV1beta1Definition(t *testing.T) {
 	outputDir := filepath.Join(t.TempDir(), "beta-output")
 	_, err = Disassemble(t.Context(), Options{
 		Source: archivePath, OutputDir: outputDir,
-		Architecture: "amd64", TmpDir: t.TempDir(),
+		TmpDir: t.TempDir(),
 	})
 	require.NoError(t, err)
-	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
+	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true})
 	generatedYAML, readErr := os.ReadFile(filepath.Join(outputDir, layout.ZarfYAML))
 	require.NoError(t, readErr)
 	require.NoErrorf(t, err, "generated zarf.yaml:\n%s", generatedYAML)
-	assert.Equal(t, v1beta1.APIVersion, generated.PackageDefinition.OriginalAPIVersion())
-	generatedBeta := generated.PackageDefinition.AsV1beta1()
+	assert.Equal(t, v1beta1.APIVersion, generated.OriginalAPIVersion())
+	generatedBeta := generated.AsV1beta1()
 	assert.Equal(t, "2.0.0-disassembled", generatedBeta.Metadata.Version)
+	assert.Equal(t, "amd64", generatedBeta.Metadata.Architecture)
 	require.Len(t, generatedBeta.Components, 1)
 	component := generatedBeta.Components[0]
 	assert.Equal(t, v1beta1.ServiceAgent, component.Service)
@@ -181,22 +189,18 @@ func TestDisassemblePreservesV1beta1Definition(t *testing.T) {
 	assert.False(t, component.Manifests[0].Kustomize.AllowAnyDirectory)
 	assert.False(t, component.Manifests[0].Kustomize.EnablePlugins)
 	assert.True(t, component.Manifests[0].EnableTemplating)
-	assert.Empty(t, component.Selector.Flavor)
+	assert.Equal(t, "offline", component.Selector.Flavor)
 	assert.NotContains(t, string(generatedYAML), "\nbuild:")
 	assert.Contains(t, string(generatedYAML), "\ncomponents:\n  - name: app\n")
 
-	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{SkipSBOM: true})
-	require.NoError(t, err)
+	reassembled := assembleTestPackage(t, outputDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true}, assemble.AssembleOptions{Flavor: "offline", SkipSBOM: true})
 	defer func() { require.NoError(t, reassembled.Cleanup()) }()
 	assert.Equal(t, v1beta1.APIVersion, reassembled.PackageDefinition.OriginalAPIVersion())
 }
 
 func TestDisassembleRemovesDeprecatedMigrationFields(t *testing.T) {
 	sourceDir := copyFixture(t, "deprecated")
-	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
-	require.NoError(t, err)
-	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{SkipSBOM: true})
-	require.NoError(t, err)
+	pkgLayout := assembleTestPackage(t, sourceDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
 	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
 
 	// Recreate an older package definition that predates migration markers and
@@ -216,7 +220,7 @@ func TestDisassembleRemovesDeprecatedMigrationFields(t *testing.T) {
 	require.NoError(t, err)
 
 	outputDir := filepath.Join(t.TempDir(), "output")
-	_, err = Disassemble(t.Context(), Options{Source: archivePath, OutputDir: outputDir, Architecture: "amd64", TmpDir: t.TempDir()})
+	_, err = Disassemble(t.Context(), Options{Source: archivePath, OutputDir: outputDir, TmpDir: t.TempDir()})
 	require.NoError(t, err)
 	generatedYAML, err := os.ReadFile(filepath.Join(outputDir, layout.ZarfYAML))
 	require.NoError(t, err)
@@ -225,7 +229,7 @@ func TestDisassembleRemovesDeprecatedMigrationFields(t *testing.T) {
 
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
-	component := generated.PackageDefinition.AsV1alpha1().Components[0]
+	component := generated.AsV1alpha1().Components[0]
 	assert.Empty(t, component.Actions.OnCreate)
 	require.Len(t, component.Actions.OnDeploy.Before, 1)
 	assert.Equal(t, "echo legacy-deploy", component.Actions.OnDeploy.Before[0].Cmd)
@@ -245,7 +249,7 @@ func TestZarfPackageSchemaChangesRequireDisassemblyReview(t *testing.T) {
 		want   string
 	}{
 		{name: "v1alpha1", schema: zarfschema.GetV1Alpha1Schema(), want: "e46b466b366ba42fa171de0cf27302ced24c3b3416bcbaa8a1da93c2383dfd1b"},
-		{name: "v1beta1", schema: zarfschema.GetV1Beta1Schema(), want: "ff49e63d52cbce0f2c795537e418d747541a5081d97af65ab6f131331cbfec50"},
+		{name: "v1beta1", schema: zarfschema.GetV1Beta1Schema(), want: "ae2c2b0069c7634afe2a87456a58e8601a8ee626bba087d25e26610410254a2d"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -257,27 +261,93 @@ func TestZarfPackageSchemaChangesRequireDisassemblyReview(t *testing.T) {
 	}
 }
 
-func TestDisassembleClearsResolvedFlavorSelectors(t *testing.T) {
+func TestDisassemblePreservesFlavorSelectors(t *testing.T) {
 	sourceDir := copyFixture(t, "flavored")
-	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true})
+	definitionPath := filepath.Join(sourceDir, layout.ZarfYAML)
+	contents, err := os.ReadFile(definitionPath)
 	require.NoError(t, err)
-	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{Flavor: "offline", SkipSBOM: true})
-	require.NoError(t, err)
+	contents = bytes.Replace(contents, []byte("    files:\n      - source: payload.txt\n        target: /tmp/payload.txt\n"), nil, 1)
+	require.NoError(t, os.WriteFile(definitionPath, contents, helpers.ReadWriteUser))
+	pkgLayout := assembleTestPackage(t, sourceDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true}, assemble.AssembleOptions{Flavor: "offline", SkipSBOM: true})
 	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
 	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
 	require.NoError(t, err)
 
 	outputDir := filepath.Join(t.TempDir(), "output")
-	_, err = Disassemble(t.Context(), Options{Source: archivePath, OutputDir: outputDir, Architecture: "amd64", TmpDir: t.TempDir()})
+	_, err = Disassemble(t.Context(), Options{Source: archivePath, OutputDir: outputDir, TmpDir: t.TempDir()})
 	require.NoError(t, err)
-	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
+	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true})
 	require.NoError(t, err)
-	require.Len(t, generated.PackageDefinition.AsV1alpha1().Components, 1)
-	assert.Empty(t, generated.PackageDefinition.AsV1alpha1().Components[0].Only.Flavor)
+	require.Len(t, generated.AsV1alpha1().Components, 1)
+	assert.Equal(t, "offline", generated.AsV1alpha1().Components[0].Only.Flavor)
 
-	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{SkipSBOM: true})
+	metadata, err := readDisassemblyMetadata(outputDir)
 	require.NoError(t, err)
-	defer func() { require.NoError(t, reassembled.Cleanup()) }()
+	assert.Equal(t, disassemblyMetadata{FormatVersion: "v1alpha1", Architecture: "amd64", Flavor: "offline"}, metadata)
+
+	result, err := Reassemble(t.Context(), ReassembleOptions{SourceDir: outputDir, Output: t.TempDir(), Concurrency: 1})
+	require.NoError(t, err)
+	assert.Equal(t, outputDir, result.SourceDir)
+	require.FileExists(t, result.OutputPath)
+	reassembled, err := loadPackageSource(t.Context(), Options{Source: result.OutputPath, Concurrency: 1})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, reassembled.Cleanup()) })
+	assert.Equal(t, "offline", reassembled.AsV1alpha1().Build.Flavor)
+	assert.Equal(t, "amd64", reassembled.AsV1alpha1().Build.Architecture)
+}
+
+func TestReassembleRejectsInvalidDisassembledSource(t *testing.T) {
+	tests := []struct {
+		name      string
+		prepare   func(t *testing.T) string
+		wantError string
+	}{
+		{
+			name: "version suffix",
+			prepare: func(t *testing.T) string {
+				sourceDir := copyFixture(t, "flavored")
+				require.NoError(t, writeDisassemblyMetadata(sourceDir, "amd64", "offline"))
+				return sourceDir
+			},
+			wantError: `must end with "-disassembled"`,
+		},
+		{
+			name: "architecture mismatch",
+			prepare: func(t *testing.T) string {
+				sourceDir := copyFixture(t, "flavored")
+				definitionPath := filepath.Join(sourceDir, layout.ZarfYAML)
+				contents, err := os.ReadFile(definitionPath)
+				require.NoError(t, err)
+				contents = bytes.Replace(contents, []byte("version: 1.0.0"), []byte("version: 1.0.0-disassembled"), 1)
+				require.NoError(t, os.WriteFile(definitionPath, contents, helpers.ReadWriteUser))
+				require.NoError(t, writeDisassemblyMetadata(sourceDir, "arm64", "offline"))
+				return sourceDir
+			},
+			wantError: `package architecture "amd64" does not match disassembly metadata architecture "arm64"`,
+		},
+		{
+			name: "unsupported metadata version",
+			prepare: func(t *testing.T) string {
+				sourceDir := copyFixture(t, "flavored")
+				metadataDir := filepath.Join(sourceDir, disassemblyMetadataDir)
+				require.NoError(t, os.MkdirAll(metadataDir, helpers.ReadWriteExecuteUser))
+				require.NoError(t, os.WriteFile(
+					filepath.Join(metadataDir, disassemblyMetadataFile),
+					[]byte("{\"formatVersion\":\"v2\",\"architecture\":\"amd64\",\"flavor\":\"offline\"}\n"),
+					helpers.ReadWriteUser,
+				))
+				return sourceDir
+			},
+			wantError: `unsupported disassembly metadata format version "v2"`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Reassemble(t.Context(), ReassembleOptions{SourceDir: tc.prepare(t), Output: t.TempDir(), Concurrency: 1})
+			require.ErrorContains(t, err, tc.wantError)
+		})
+	}
 }
 
 func TestDisassembleRoundTripsImagesOffline(t *testing.T) {
@@ -285,24 +355,20 @@ func TestDisassembleRoundTripsImagesOffline(t *testing.T) {
 	sourceDir := copyFixture(t, "offline-image")
 	imageArchive := filepath.Join(sourceDir, "images.tar")
 	writeImageArchive(t, imageArchive, image)
-	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
-	require.NoError(t, err)
-	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{SkipSBOM: true})
-	require.NoError(t, err)
+	pkgLayout := assembleTestPackage(t, sourceDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
 	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
 	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
 	require.NoError(t, err)
 
 	outputDir := filepath.Join(t.TempDir(), "output")
-	_, err = Disassemble(t.Context(), Options{Source: archivePath, OutputDir: outputDir, Architecture: "amd64", TmpDir: t.TempDir()})
+	_, err = Disassemble(t.Context(), Options{Source: archivePath, OutputDir: outputDir, TmpDir: t.TempDir()})
 	require.NoError(t, err)
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
-	require.Len(t, generated.PackageDefinition.AsV1alpha1().Components[0].ImageArchives, 1)
-	assert.Equal(t, []string{image}, generated.PackageDefinition.AsV1alpha1().Components[0].ImageArchives[0].Images)
+	require.Len(t, generated.AsV1alpha1().Components[0].ImageArchives, 1)
+	assert.Equal(t, []string{image}, generated.AsV1alpha1().Components[0].ImageArchives[0].Images)
 
-	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{SkipSBOM: true})
-	require.NoError(t, err)
+	reassembled := assembleTestPackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
 	defer func() { require.NoError(t, reassembled.Cleanup()) }()
 	indexBytes, err := os.ReadFile(filepath.Join(reassembled.GetImageDirPath(), ocispec.ImageIndexFile))
 	require.NoError(t, err)
@@ -315,12 +381,16 @@ func TestDisassembleRoundTripsImagesOffline(t *testing.T) {
 func TestDisassembleFailureDoesNotPublishPartialOutput(t *testing.T) {
 	parent := t.TempDir()
 	outputDir := filepath.Join(parent, "output")
+	var warnings []string
 	_, err := Disassemble(t.Context(), Options{
 		Source: filepath.Join(parent, "missing.tar.zst"), OutputDir: outputDir,
-		TmpDir: t.TempDir(),
+		TmpDir: t.TempDir(), Warn: func(msg string, _ ...any) {
+			warnings = append(warnings, msg)
+		},
 	})
 	require.Error(t, err)
 	assert.NoDirExists(t, outputDir)
+	assert.Empty(t, warnings)
 	entries, readErr := os.ReadDir(parent)
 	require.NoError(t, readErr)
 	assert.Empty(t, entries)
@@ -328,25 +398,21 @@ func TestDisassembleFailureDoesNotPublishPartialOutput(t *testing.T) {
 
 func TestDisassembleSeparatesPackageDocumentationFromComponentAssets(t *testing.T) {
 	sourceDir := copyFixture(t, "namespace-collision")
-	resolved, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
-	require.NoError(t, err)
-	pkgLayout, err := assemble.AssemblePackage(t.Context(), resolved, sourceDir, assemble.AssembleOptions{SkipSBOM: true})
-	require.NoError(t, err)
+	pkgLayout := assembleTestPackage(t, sourceDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
 	t.Cleanup(func() { require.NoError(t, pkgLayout.Cleanup()) })
 	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
 	require.NoError(t, err)
 
 	outputDir := filepath.Join(t.TempDir(), "output")
-	_, err = Disassemble(t.Context(), Options{Source: archivePath, OutputDir: outputDir, Architecture: "amd64", TmpDir: t.TempDir()})
+	_, err = Disassemble(t.Context(), Options{Source: archivePath, OutputDir: outputDir, TmpDir: t.TempDir()})
 	require.NoError(t, err)
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
-	generatedPkg := generated.PackageDefinition.AsV1alpha1()
+	generatedPkg := generated.AsV1alpha1()
 	assert.Equal(t, "documentation/files", generatedPkg.Documentation["guide"])
 	assert.Contains(t, generatedPkg.Components[0].Files[0].Source, "components/documentation/files/")
 
-	reassembled, err := assemble.AssemblePackage(t.Context(), generated, outputDir, assemble.AssembleOptions{SkipSBOM: true})
-	require.NoError(t, err)
+	reassembled := assembleTestPackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
 	t.Cleanup(func() { require.NoError(t, reassembled.Cleanup()) })
 }
 
@@ -395,6 +461,15 @@ func prepareRoundTripFixture(t *testing.T) string {
 	return dir
 }
 
+func setPackageArchitecture(t *testing.T, sourceDir, architecture string) {
+	t.Helper()
+	definitionPath := filepath.Join(sourceDir, layout.ZarfYAML)
+	definition, err := os.ReadFile(definitionPath)
+	require.NoError(t, err)
+	definition = bytes.Replace(definition, []byte("architecture: amd64"), []byte("architecture: "+architecture), 1)
+	require.NoError(t, os.WriteFile(definitionPath, definition, 0o600))
+}
+
 func initGitRepository(t *testing.T, path string) string {
 	t.Helper()
 	repo, err := git.PlainInit(path, false)
@@ -415,6 +490,16 @@ func copyFixture(t *testing.T, name string) string {
 	dir := t.TempDir()
 	require.NoError(t, helpers.CreatePathAndCopy(filepath.Join("testdata", name), dir))
 	return dir
+}
+
+func assembleTestPackage(t *testing.T, sourceDir string, definitionOpts load.DefinitionOptions, assembleOpts assemble.AssembleOptions) *layout.PackageLayout {
+	t.Helper()
+	loaded, err := load.Package(t.Context(), sourceDir, load.PackageOptions{DefinitionOptions: definitionOpts})
+	require.NoError(t, err)
+	defer func() { require.NoError(t, loaded.Close()) }()
+	pkgLayout, err := assemble.AssemblePackage(t.Context(), loaded, assembleOpts)
+	require.NoError(t, err)
+	return pkgLayout
 }
 
 func canonicalSchemaDigest(t *testing.T, schema []byte) string {

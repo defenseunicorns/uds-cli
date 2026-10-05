@@ -15,6 +15,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
+	"github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
@@ -185,7 +186,7 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 	o.IOStreams = logger.Bind(o.IOStreams, baseConfig.Options.LogLevel)
 
 	// Zarf package APIs read their process-global temp setting instead of UDS config.
-	configureZarfTempDir(baseConfig.Options.TmpDir)
+	zarf.ConfigureTempDir(baseConfig.Options.TmpDir)
 	o.Info("preparing bundle for deployment", "source", o.BundlePath)
 	policy := bundle.VerificationPolicy{}
 	if !o.Verification.SkipSignatureVerification {

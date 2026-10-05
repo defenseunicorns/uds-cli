@@ -9,6 +9,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
+	"github.com/defenseunicorns/uds-cli/internal/zarf"
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
@@ -113,7 +114,7 @@ func (o *DevDeployOptions) Run(ctx context.Context) error {
 	o.IOStreams = logger.Bind(o.IOStreams, baseConfig.Options.LogLevel)
 
 	// Zarf package APIs read their process-global temp setting instead of UDS config.
-	configureZarfTempDir(baseConfig.Options.TmpDir)
+	zarf.ConfigureTempDir(baseConfig.Options.TmpDir)
 	if _, err := fmt.Fprintln(o.ErrOut(), bundleDefinitionDeployDiagnostic); err != nil {
 		return fmt.Errorf("%w for bundle definition diagnostic: %w", ErrWriteDefinitionNotice, err)
 	}

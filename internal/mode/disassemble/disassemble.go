@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
@@ -45,9 +44,6 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 	}
 	defer removeAllWithWarning(opts.Warn, "temporary directory", tmpRoot)
 
-	if opts.Architecture == "" {
-		opts.Architecture = runtime.GOARCH
-	}
 	pkgLayout, err := loadPackageSource(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("loading source package: %w", err)
@@ -67,10 +63,15 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 	if pkg.Metadata.Architecture == v1alpha1.SkeletonArch {
 		return nil, errors.New("skeleton Zarf packages do not contain complete recreatable source")
 	}
+	buildArchitecture := pkg.Build.Architecture
+	buildFlavor := pkg.Build.Flavor
+	if strings.TrimSpace(buildArchitecture) == "" {
+		return nil, errors.New("complete Zarf package build architecture is required")
+	}
 	pkg.Build = v1alpha1.ZarfBuildData{}
 	normalizeMetadata(&pkg.Metadata)
+	pkg.Metadata.Architecture = buildArchitecture
 	for idx := range pkg.Components {
-		pkg.Components[idx].Only.Flavor = ""
 		clearDeprecatedMigrationFields(&pkg.Components[idx])
 	}
 
@@ -105,9 +106,13 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 	} else if err := writeSourceDefinition(definitionPath, pkg); err != nil {
 		return nil, fmt.Errorf("writing zarf.yaml: %w", err)
 	}
+	if err := writeDisassemblyMetadata(stageDir, buildArchitecture, buildFlavor); err != nil {
+		return nil, err
+	}
 	if err := publishOutput(stageDir, finalDir); err != nil {
 		return nil, err
 	}
+	warn(opts.Warn, "use disassembled source only as a last resort; port all edits to the upstream source as soon as possible")
 
 	return &Result{Source: opts.Source, OutputDir: opts.OutputDir}, nil
 }

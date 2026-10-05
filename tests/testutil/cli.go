@@ -20,6 +20,7 @@ import (
 	"helm.sh/helm/v4/pkg/kube"
 
 	"github.com/defenseunicorns/uds-cli/internal/cli"
+	"github.com/defenseunicorns/uds-cli/internal/mode"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
@@ -50,7 +51,7 @@ func executeCLI(ctx context.Context, streams iostreams.IOStreams, directory stri
 	defer func() { kube.ManagedFieldsManager = fieldManager }()
 	logger := slog.Default()
 	defer slog.SetDefault(logger)
-	root := cli.NewRootCommand(streams)
+	root := cli.NewRootCommand(streams, mode.FeatureSet{mode.FeatureNextMode: true})
 	root.SetArgs(args)
 	return root.ExecuteContext(ctx)
 }
