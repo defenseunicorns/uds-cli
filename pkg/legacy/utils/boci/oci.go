@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
@@ -274,9 +275,12 @@ func FindPkgLayers(remote zoci.Remote, pkgRootManifest *zarfoci.Manifest, option
 		return nil, err
 	}
 
-	components, err := selectPackageComponents(zarfPkg, optionalComponents)
-	if err != nil {
-		return nil, err
+	// ensure we're only pulling required components and optional components and images
+	var components []api.Component
+	for _, c := range zarfPkg.Components {
+		if !c.Optional || slices.Contains(optionalComponents, c.Name) {
+			components = append(components, c)
+		}
 	}
 
 	// Get all the layers for relevant components, exclude images if it's a skeleton package
@@ -302,10 +306,6 @@ func FindPkgLayers(remote zoci.Remote, pkgRootManifest *zarfoci.Manifest, option
 	layersToCopy := append(layersFromComponents, metadataLayers...)
 	layersToCopy = append(layersToCopy, pkgRootManifest.Config)
 	return layersToCopy, err
-}
-
-func selectPackageComponents(pkg api.Package, optionalComponents []string) ([]api.Component, error) {
-	return filters.ForDeploy(strings.Join(optionalComponents, ","), false).Apply(pkg)
 }
 
 // FilterImageIndex filters out optional components from the images index
