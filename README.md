@@ -45,7 +45,7 @@ metadata {
 }
 
 package "uds_k3d_dev" {
-  source = "oci://ghcr.io/defenseunicorns/packages/uds-k3d:0.21.0"
+  source = "oci://ghcr.io/defenseunicorns/packages/uds-k3d:0.21.1"
   signature_verification { verify = false }
 }
 
