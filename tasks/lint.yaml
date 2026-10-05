@@ -14,8 +14,3 @@ tasks:
     description: add SPDX license headers to source files
     actions:
       - task: common:fix-license
-
-  - name: renovate
-    description: validate Renovate configuration
-    actions:
-      - task: common:renovate
