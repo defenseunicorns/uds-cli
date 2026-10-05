@@ -11,23 +11,23 @@ import (
 	"strconv"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
-func localizeFiles(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, tmpRoot string, component *v1alpha1.ZarfComponent) error {
+func localizeFiles(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, tmpRoot string, component *api.Component) error {
 	return localizeIndexedAssets(ctx, pkgLayout, outputDir, tmpRoot, component.Name, layout.FilesComponentDir, "files", "file", component.Files,
-		func(file *v1alpha1.ZarfFile) string { return file.Target },
-		func(file *v1alpha1.ZarfFile, source string) {
+		func(file *api.File) string { return file.Destination },
+		func(file *api.File, source string) {
 			file.Source = source
 			file.ExtractPath = ""
 		})
 }
 
-func localizeDataInjections(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, tmpRoot string, component *v1alpha1.ZarfComponent) error {
+func localizeDataInjections(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, tmpRoot string, component *api.Component) error {
 	return localizeIndexedAssets(ctx, pkgLayout, outputDir, tmpRoot, component.Name, layout.DataComponentDir, "data", "data", component.DataInjections,
-		func(data *v1alpha1.ZarfDataInjection) string { return data.Target.Path },
-		func(data *v1alpha1.ZarfDataInjection, source string) { data.Source = source })
+		func(data *api.ZarfDataInjection) string { return data.Target.Path },
+		func(data *api.ZarfDataInjection, source string) { data.Source = source })
 }
 
 func localizeIndexedAssets[T any](ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, tmpRoot, componentName string, componentDir layout.ComponentDir, kind, fallback string, assets []T, target func(*T) string, update func(*T, string)) error {

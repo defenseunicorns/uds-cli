@@ -22,11 +22,14 @@ import (
 	packageoci "github.com/defenseunicorns/pkg/oci"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	goyaml "github.com/goccy/go-yaml"
 	"github.com/google/go-containerregistry/pkg/registry"
 	"github.com/opencontainers/image-spec/specs-go"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/api"
+	"github.com/zarf-dev/zarf/src/api/convert"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/pkg/archive"
@@ -73,7 +76,7 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
-	pkg := generated.AsV1alpha1()
+	pkg := generated
 	assert.Equal(t, "roundtrip", pkg.Metadata.Name)
 	assert.Equal(t, "1.2.3-disassembled", pkg.Metadata.Version)
 	assert.Equal(t, packageArchitecture, pkg.Metadata.Architecture)
@@ -81,37 +84,38 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	require.Len(t, pkg.Components[0].Charts, 1)
 	chart := pkg.Components[0].Charts[0]
 	assert.Equal(t, "app", chart.Name)
-	assert.Equal(t, "1.0.0", chart.Version)
-	assert.Empty(t, chart.URL)
-	assert.Contains(t, chart.LocalPath, filepath.ToSlash("components/app/charts/0-app-1.0.0"))
-	require.DirExists(t, filepath.Join(outputDir, chart.LocalPath))
-	require.FileExists(t, filepath.Join(outputDir, chart.LocalPath, "Chart.yaml"))
-	require.FileExists(t, filepath.Join(outputDir, chart.LocalPath, "templates", "configmap.yaml"))
-	require.NoFileExists(t, filepath.Join(outputDir, chart.LocalPath, "Chart.lock"))
-	require.FileExists(t, filepath.Join(outputDir, chart.LocalPath, "charts", "child", "Chart.yaml"))
-	expandedChart, err := chartloader.Load(filepath.Join(outputDir, chart.LocalPath))
+	assert.Equal(t, "1.0.0", chart.LegacyVersion)
+	require.NotNil(t, chart.Local)
+	assert.Nil(t, chart.HelmRepository)
+	assert.Contains(t, chart.Local.Path, filepath.ToSlash("components/app/charts/0-app-1.0.0"))
+	require.DirExists(t, filepath.Join(outputDir, chart.Local.Path))
+	require.FileExists(t, filepath.Join(outputDir, chart.Local.Path, "Chart.yaml"))
+	require.FileExists(t, filepath.Join(outputDir, chart.Local.Path, "templates", "configmap.yaml"))
+	require.NoFileExists(t, filepath.Join(outputDir, chart.Local.Path, "Chart.lock"))
+	require.FileExists(t, filepath.Join(outputDir, chart.Local.Path, "charts", "child", "Chart.yaml"))
+	expandedChart, err := chartloader.Load(filepath.Join(outputDir, chart.Local.Path))
 	require.NoError(t, err)
 	require.Len(t, expandedChart.Metadata.Dependencies, 1)
 	assert.Empty(t, expandedChart.Metadata.Dependencies[0].Repository)
 	assert.Equal(t, "renamed-child", expandedChart.Metadata.Dependencies[0].Alias)
-	require.Len(t, chart.ValuesFiles, 2)
-	assert.Contains(t, chart.ValuesFiles[0], filepath.ToSlash("components/app/values/app/0-chart.yaml"))
-	assert.Contains(t, chart.ValuesFiles[1], filepath.ToSlash("components/app/values/app/1-production-values.yaml"))
-	assert.Len(t, chart.TemplatedValuesFiles, 1)
+	require.Len(t, chart.ValuesFiles, 3)
+	assert.Contains(t, chart.ValuesFiles[0].Path, filepath.ToSlash("components/app/values/app/0-chart.yaml"))
+	assert.Contains(t, chart.ValuesFiles[1].Path, filepath.ToSlash("components/app/values/app/1-production-values.yaml"))
+	assert.True(t, chart.ValuesFiles[2].EnableTemplating)
 	require.Len(t, pkg.Components[0].Manifests, 1)
 	manifest := pkg.Components[0].Manifests[0]
 	require.Len(t, manifest.Files, 2)
 	assert.Contains(t, manifest.Files[0], filepath.ToSlash("manifests/raw/0-configmap.yaml"))
 	assert.Contains(t, manifest.Files[1], filepath.ToSlash("manifests/raw/1-experimental-install.yaml"))
-	require.Len(t, manifest.Kustomizations, 1)
-	assert.True(t, manifest.IsTemplate())
-	rendered, err := os.ReadFile(filepath.Join(outputDir, manifest.Kustomizations[0], "rendered.yaml"))
+	require.Len(t, manifest.Kustomize.Files, 1)
+	assert.True(t, manifest.EnableTemplating)
+	rendered, err := os.ReadFile(filepath.Join(outputDir, manifest.Kustomize.Files[0], "rendered.yaml"))
 	require.NoError(t, err)
 	assert.Contains(t, string(rendered), "{{ $labels.instance }}")
 	assert.NotEqual(t, pkg.Components[0].Files[0].Source, pkg.Components[0].Files[1].Source)
 	assert.NotEqual(t, pkg.Components[0].DataInjections[0].Source, pkg.Components[0].DataInjections[1].Source)
-	require.Len(t, pkg.Components[0].Repos, 1)
-	repoSource, err := url.Parse(pkg.Components[0].Repos[0])
+	require.Len(t, pkg.Components[0].Repositories, 1)
+	repoSource, err := url.Parse(pkg.Components[0].Repositories[0].URL)
 	require.NoError(t, err)
 	assert.Contains(t, repoSource.Path, filepath.ToSlash(outputDir))
 	assert.Equal(t, []string{layout.ValuesYAML}, pkg.Values.Files)
@@ -176,15 +180,14 @@ func TestDisassemblePreservesV1beta1Definition(t *testing.T) {
 	generatedYAML, readErr := os.ReadFile(filepath.Join(outputDir, layout.ZarfYAML))
 	require.NoError(t, readErr)
 	require.NoErrorf(t, err, "generated zarf.yaml:\n%s", generatedYAML)
-	assert.Equal(t, v1beta1.APIVersion, generated.OriginalAPIVersion())
-	generatedBeta := generated.AsV1beta1()
+	assert.Equal(t, v1beta1.APIVersion, generated.GetAPIVersion())
+	generatedBeta := convert.PackageToV1beta1(generated)
 	assert.Equal(t, "2.0.0-disassembled", generatedBeta.Metadata.Version)
 	assert.Equal(t, "amd64", generatedBeta.Metadata.Architecture)
 	require.Len(t, generatedBeta.Components, 1)
 	component := generatedBeta.Components[0]
 	assert.Equal(t, v1beta1.ServiceAgent, component.Service)
 	require.Len(t, component.Manifests, 1)
-	require.NotNil(t, component.Manifests[0].Kustomize)
 	assert.Contains(t, component.Manifests[0].Kustomize.Files[0], "components/app/manifests/raw/0-kustomize")
 	assert.False(t, component.Manifests[0].Kustomize.AllowAnyDirectory)
 	assert.False(t, component.Manifests[0].Kustomize.EnablePlugins)
@@ -195,7 +198,7 @@ func TestDisassemblePreservesV1beta1Definition(t *testing.T) {
 
 	reassembled := assembleTestPackage(t, outputDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true}, assemble.AssembleOptions{Flavor: "offline", SkipSBOM: true})
 	defer func() { require.NoError(t, reassembled.Cleanup()) }()
-	assert.Equal(t, v1beta1.APIVersion, reassembled.PackageDefinition.OriginalAPIVersion())
+	assert.Equal(t, v1beta1.APIVersion, reassembled.Definition().GetAPIVersion())
 }
 
 func TestDisassembleRemovesDeprecatedMigrationFields(t *testing.T) {
@@ -215,7 +218,9 @@ func TestDisassembleRemovesDeprecatedMigrationFields(t *testing.T) {
 	pkg.Components[0].Actions.OnDeploy.Before = nil
 	pkg.Components[0].Actions.OnDeploy.After[0].DeprecatedSetVariable = "RESULT"
 	pkg.Components[0].Actions.OnDeploy.After[0].SetVariables = nil
-	require.NoError(t, writeSourceDefinition(filepath.Join(pkgLayout.DirPath(), layout.ZarfYAML), pkg))
+	contents, err := goyaml.MarshalWithOptions(pkg, goyaml.IndentSequence(true), goyaml.UseLiteralStyleIfMultiline(true))
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(pkgLayout.DirPath(), layout.ZarfYAML), contents, helpers.ReadWriteUser))
 	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
 	require.NoError(t, err)
 
@@ -229,7 +234,7 @@ func TestDisassembleRemovesDeprecatedMigrationFields(t *testing.T) {
 
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
-	component := generated.AsV1alpha1().Components[0]
+	component := generated.Components[0]
 	assert.Empty(t, component.Actions.OnCreate)
 	require.Len(t, component.Actions.OnDeploy.Before, 1)
 	assert.Equal(t, "echo legacy-deploy", component.Actions.OnDeploy.Before[0].Cmd)
@@ -278,8 +283,8 @@ func TestDisassemblePreservesFlavorSelectors(t *testing.T) {
 	require.NoError(t, err)
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true})
 	require.NoError(t, err)
-	require.Len(t, generated.AsV1alpha1().Components, 1)
-	assert.Equal(t, "offline", generated.AsV1alpha1().Components[0].Only.Flavor)
+	require.Len(t, generated.Components, 1)
+	assert.Equal(t, "offline", generated.Components[0].Selector.Flavor)
 
 	metadata, err := readDisassemblyMetadata(outputDir)
 	require.NoError(t, err)
@@ -365,8 +370,8 @@ func TestDisassembleRoundTripsImagesOffline(t *testing.T) {
 	require.NoError(t, err)
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
-	require.Len(t, generated.AsV1alpha1().Components[0].ImageArchives, 1)
-	assert.Equal(t, []string{image}, generated.AsV1alpha1().Components[0].ImageArchives[0].Images)
+	require.Len(t, generated.Components[0].ImageArchives, 1)
+	assert.Equal(t, []string{image}, generated.Components[0].ImageArchives[0].Images)
 
 	reassembled := assembleTestPackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
 	defer func() { require.NoError(t, reassembled.Cleanup()) }()
@@ -408,7 +413,7 @@ func TestDisassembleSeparatesPackageDocumentationFromComponentAssets(t *testing.
 	require.NoError(t, err)
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
-	generatedPkg := generated.AsV1alpha1()
+	generatedPkg := generated
 	assert.Equal(t, "documentation/files", generatedPkg.Documentation["guide"])
 	assert.Contains(t, generatedPkg.Components[0].Files[0].Source, "components/documentation/files/")
 
@@ -417,13 +422,12 @@ func TestDisassembleSeparatesPackageDocumentationFromComponentAssets(t *testing.
 }
 
 func TestNormalizeMetadataMarksModifiedSourceOnce(t *testing.T) {
-	metadata := v1alpha1.ZarfMetadata{Version: "1.2.3", AggregateChecksum: "checksum"}
+	metadata := api.PackageMetadata{Version: "1.2.3"}
 	normalizeMetadata(&metadata)
 	normalizeMetadata(&metadata)
 	assert.Equal(t, "1.2.3-disassembled", metadata.Version)
-	assert.Empty(t, metadata.AggregateChecksum)
 
-	empty := v1alpha1.ZarfMetadata{}
+	empty := api.PackageMetadata{}
 	normalizeMetadata(&empty)
 	assert.Equal(t, "disassembled", empty.Version)
 }

@@ -11,17 +11,22 @@ import (
 	"path/filepath"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/transform"
 )
 
-func localizeRepos(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, finalDir, tmpRoot string, component *v1alpha1.ZarfComponent) error {
+func localizeRepos(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, finalDir, tmpRoot string, component *api.Component) error {
 	repoDir, err := pkgLayout.GetComponentDir(ctx, tmpRoot, component.Name, layout.RepoComponentDir)
 	if err != nil {
 		return fmt.Errorf("reading repository assets for component %s: %w", component.Name, err)
 	}
-	for idx, ref := range component.Repos {
+	for idx := range component.Repositories {
+		repository := &component.Repositories[idx]
+		ref, err := repositoryLayoutReference(*repository)
+		if err != nil {
+			return fmt.Errorf("resolving repository %q: %w", repository.URL, err)
+		}
 		repoPath, err := findRepoPath(repoDir, ref)
 		if err != nil {
 			return err
@@ -33,9 +38,35 @@ func localizeRepos(ctx context.Context, pkgLayout *layout.PackageLayout, outputD
 		// Zarf currently requires a URL-shaped repo source and does not resolve it
 		// against the package directory, so use the final local path explicitly.
 		// TODO: (@wstarr) - this should be addressed upstream so that local repos can be better handled
-		component.Repos[idx] = fileURL(filepath.Join(finalDir, componentSourcePath(component.Name, rel)))
+		localizedURL := fileURL(filepath.Join(finalDir, componentSourcePath(component.Name, rel)))
+		repository.URL = localizedURL
+		repository.Ref = nil
+		repository.LegacyURL = localizedURL
 	}
 	return nil
+}
+
+func repositoryLayoutReference(repository api.Repository) (string, error) {
+	if repository.LegacyURL != "" {
+		return repository.LegacyURL, nil
+	}
+	if repository.Ref == nil {
+		return repository.URL, nil
+	}
+	base, _, err := transform.GitURLSplitRef(repository.URL)
+	if err != nil {
+		return "", err
+	}
+	switch {
+	case repository.Ref.Tag != "":
+		return base + "@" + repository.Ref.Tag, nil
+	case repository.Ref.Branch != "":
+		return base + "@refs/heads/" + repository.Ref.Branch, nil
+	case repository.Ref.Commit != "":
+		return base + "@" + repository.Ref.Commit, nil
+	default:
+		return base, nil
+	}
 }
 
 func fileURL(path string) string {

@@ -13,8 +13,8 @@ import (
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
@@ -54,9 +54,7 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 		}
 	}()
 
-	// Zarf's generic definition provides one alpha working view for asset localization.
-	// Native v1beta1 packages are mapped back only when the source used that API.
-	pkg := pkgLayout.AsV1alpha1()
+	pkg := pkgLayout.Definition()
 	if pkg.Build.Differential {
 		return nil, errors.New("differential Zarf packages do not contain complete recreatable source")
 	}
@@ -68,12 +66,9 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 	if strings.TrimSpace(buildArchitecture) == "" {
 		return nil, errors.New("complete Zarf package build architecture is required")
 	}
-	pkg.Build = v1alpha1.ZarfBuildData{}
+	pkg.Build = api.BuildData{}
 	normalizeMetadata(&pkg.Metadata)
 	pkg.Metadata.Architecture = buildArchitecture
-	for idx := range pkg.Components {
-		clearDeprecatedMigrationFields(&pkg.Components[idx])
-	}
 
 	stageDir, err := createOutputStage(finalDir)
 	if err != nil {
@@ -95,15 +90,7 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 	}
 
 	definitionPath := filepath.Join(stageDir, layout.ZarfYAML)
-	if pkgLayout.PackageDefinition.OriginalAPIVersion() == v1beta1.APIVersion {
-		beta, err := localizedV1beta1Definition(pkgLayout.PackageDefinition.AsV1beta1(), pkg)
-		if err != nil {
-			return nil, err
-		}
-		if err := writeSourceDefinition(definitionPath, beta); err != nil {
-			return nil, fmt.Errorf("writing zarf.yaml: %w", err)
-		}
-	} else if err := writeSourceDefinition(definitionPath, pkg); err != nil {
+	if err := writeSourceDefinition(definitionPath, pkg); err != nil {
 		return nil, fmt.Errorf("writing zarf.yaml: %w", err)
 	}
 	if err := writeDisassemblyMetadata(stageDir, buildArchitecture, buildFlavor); err != nil {
@@ -129,7 +116,7 @@ func warn(warnFn func(string, ...any), msg string, args ...any) {
 	}
 }
 
-func localizeComponent(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, finalDir, tmpRoot string, component *v1alpha1.ZarfComponent) error {
+func localizeComponent(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, finalDir, tmpRoot string, component *api.Component) error {
 	componentOutDir := filepath.Join(outputDir, componentsDir, component.Name)
 	if err := os.MkdirAll(componentOutDir, helpers.ReadWriteExecuteUser); err != nil {
 		return fmt.Errorf("creating component output directory: %w", err)
@@ -149,7 +136,7 @@ func localizeComponent(ctx context.Context, pkgLayout *layout.PackageLayout, out
 			return err
 		}
 	}
-	if len(component.Repos) > 0 {
+	if len(component.Repositories) > 0 {
 		if err := localizeRepos(ctx, pkgLayout, componentOutDir, finalDir, tmpRoot, component); err != nil {
 			return err
 		}
@@ -163,35 +150,12 @@ func localizeComponent(ctx context.Context, pkgLayout *layout.PackageLayout, out
 		return err
 	}
 
-	component.Actions.OnCreate = v1alpha1.ZarfComponentActionSet{}
+	component.Actions.OnCreate = api.ActionSet{}
 	return nil
 }
 
 func componentSourcePath(componentName, rel string) string {
 	return filepath.ToSlash(filepath.Join(componentsDir, componentName, rel))
-}
-
-func clearDeprecatedMigrationFields(component *v1alpha1.ZarfComponent) {
-	component.DeprecatedScripts = v1alpha1.DeprecatedZarfComponentScripts{}
-	actionGroups := []*[]v1alpha1.ZarfComponentAction{
-		&component.Actions.OnCreate.Before,
-		&component.Actions.OnCreate.After,
-		&component.Actions.OnCreate.OnSuccess,
-		&component.Actions.OnCreate.OnFailure,
-		&component.Actions.OnDeploy.Before,
-		&component.Actions.OnDeploy.After,
-		&component.Actions.OnDeploy.OnSuccess,
-		&component.Actions.OnDeploy.OnFailure,
-		&component.Actions.OnRemove.Before,
-		&component.Actions.OnRemove.After,
-		&component.Actions.OnRemove.OnSuccess,
-		&component.Actions.OnRemove.OnFailure,
-	}
-	for _, actions := range actionGroups {
-		for idx := range *actions {
-			(*actions)[idx].DeprecatedSetVariable = ""
-		}
-	}
 }
 
 func createOutputStage(finalDir string) (string, error) {

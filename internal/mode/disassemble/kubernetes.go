@@ -13,13 +13,13 @@ import (
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	goyaml "github.com/goccy/go-yaml"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	chartv3 "helm.sh/helm/v3/pkg/chart"
 	chartloader "helm.sh/helm/v3/pkg/chart/loader"
 )
 
-func localizeManifests(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, tmpRoot string, component *v1alpha1.ZarfComponent) error {
+func localizeManifests(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, tmpRoot string, component *api.Component) error {
 	manifestDir, err := pkgLayout.GetComponentDir(ctx, tmpRoot, component.Name, layout.ManifestsComponentDir)
 	if err != nil {
 		return fmt.Errorf("reading manifest assets for component %s: %w", component.Name, err)
@@ -39,9 +39,9 @@ func localizeManifests(ctx context.Context, pkgLayout *layout.PackageLayout, out
 			}
 			localizedFiles = append(localizedFiles, componentSourcePath(component.Name, rel))
 		}
-		localizedKustomizations := make([]string, 0, len(manifest.Kustomizations))
-		for idx := range manifest.Kustomizations {
-			name, err := sourceBaseName(manifest.Kustomizations[idx], "kustomization")
+		localizedKustomizations := make([]string, 0, len(manifest.Kustomize.Files))
+		for idx := range manifest.Kustomize.Files {
+			name, err := sourceBaseName(manifest.Kustomize.Files[idx], "kustomization")
 			if err != nil {
 				return fmt.Errorf("resolving manifest %s kustomization %d name: %w", manifest.Name, idx, err)
 			}
@@ -57,14 +57,14 @@ func localizeManifests(ctx context.Context, pkgLayout *layout.PackageLayout, out
 			localizedKustomizations = append(localizedKustomizations, componentSourcePath(component.Name, rel))
 		}
 		manifest.Files = localizedFiles
-		manifest.Kustomizations = localizedKustomizations
-		manifest.KustomizeAllowAnyDirectory = false
-		manifest.EnableKustomizePlugins = false
+		manifest.Kustomize.Files = localizedKustomizations
+		manifest.Kustomize.AllowAnyDirectory = false
+		manifest.Kustomize.EnablePlugins = false
 	}
 	return nil
 }
 
-func localizeCharts(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, tmpRoot string, component *v1alpha1.ZarfComponent) error {
+func localizeCharts(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, tmpRoot string, component *api.Component) error {
 	chartDir, err := pkgLayout.GetComponentDir(ctx, tmpRoot, component.Name, layout.ChartsComponentDir)
 	if err != nil {
 		return fmt.Errorf("reading chart assets for component %s: %w", component.Name, err)
@@ -76,38 +76,30 @@ func localizeCharts(ctx context.Context, pkgLayout *layout.PackageLayout, output
 
 	for idx := range component.Charts {
 		chart := &component.Charts[idx]
-		archiveName := layout.ChartArchiveName(chart.Name, chart.Version)
+		archiveName := layout.ChartArchiveName(chart.Name, chart.LegacyVersion)
 		src := filepath.Join(chartDir, archiveName)
 		rel := filepath.ToSlash(filepath.Join("charts", fmt.Sprintf("%d-%s", idx, strings.TrimSuffix(archiveName, ".tgz"))))
 		if err := extractChartArchive(src, filepath.Join(outputDir, rel)); err != nil {
 			return fmt.Errorf("extracting chart %s: %w", chart.Name, err)
 		}
-		chart.LocalPath = componentSourcePath(component.Name, rel)
-		chart.URL = ""
-		chart.RepoName = ""
-		chart.GitPath = ""
+		chart.HelmRepository = nil
+		chart.Git = nil
+		chart.OCI = nil
+		chart.Local = &api.LocalSource{Path: componentSourcePath(component.Name, rel)}
 
 		for valueIdx := range chart.ValuesFiles {
-			localized, err := localizeChartValues(valuesDir, outputDir, component.Name, *chart, valueIdx, chart.ValuesFiles[valueIdx])
+			localized, err := localizeChartValues(valuesDir, outputDir, component.Name, *chart, valueIdx, chart.ValuesFiles[valueIdx].Path)
 			if err != nil {
 				return err
 			}
-			chart.ValuesFiles[valueIdx] = localized
-		}
-		for valueIdx := range chart.TemplatedValuesFiles {
-			globalIdx := len(chart.ValuesFiles) + valueIdx
-			localized, err := localizeChartValues(valuesDir, outputDir, component.Name, *chart, globalIdx, chart.TemplatedValuesFiles[valueIdx])
-			if err != nil {
-				return err
-			}
-			chart.TemplatedValuesFiles[valueIdx] = localized
+			chart.ValuesFiles[valueIdx].Path = localized
 		}
 	}
 	return nil
 }
 
-func localizeChartValues(valuesDir, outputDir, componentName string, chart v1alpha1.ZarfChart, idx int, original string) (string, error) {
-	src := filepath.Join(valuesDir, layout.ChartValuesFileName(chart.Name, chart.Version, idx))
+func localizeChartValues(valuesDir, outputDir, componentName string, chart api.Chart, idx int, original string) (string, error) {
+	src := filepath.Join(valuesDir, layout.ChartValuesFileName(chart.Name, chart.LegacyVersion, idx))
 	base, err := sourceBaseName(original, "values.yaml")
 	if err != nil {
 		return "", fmt.Errorf("resolving chart values name for %s: %w", chart.Name, err)

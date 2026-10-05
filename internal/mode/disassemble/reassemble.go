@@ -35,12 +35,11 @@ func Reassemble(ctx context.Context, opts ReassembleOptions) (*ReassembleResult,
 	if err != nil {
 		return nil, fmt.Errorf("loading disassembled package definition: %w", err)
 	}
-	pkg := definition.AsV1alpha1()
-	if !strings.HasSuffix(pkg.Metadata.Version, disassembleVersionSuffix) {
-		return nil, fmt.Errorf("package version %q must end with %q", pkg.Metadata.Version, disassembleVersionSuffix)
+	if !strings.HasSuffix(definition.Metadata.Version, disassembleVersionSuffix) {
+		return nil, fmt.Errorf("package version %q must end with %q", definition.Metadata.Version, disassembleVersionSuffix)
 	}
-	if pkg.Metadata.Architecture != metadata.Architecture {
-		return nil, fmt.Errorf("package architecture %q does not match disassembly metadata architecture %q", pkg.Metadata.Architecture, metadata.Architecture)
+	if definition.Metadata.Architecture != metadata.Architecture {
+		return nil, fmt.Errorf("package architecture %q does not match disassembly metadata architecture %q", definition.Metadata.Architecture, metadata.Architecture)
 	}
 
 	created, err := packager.Create(ctx, opts.SourceDir, opts.Output, packager.CreateOptions{

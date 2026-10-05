@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 )
 
 const (
@@ -30,8 +30,7 @@ type disassemblyMetadata struct {
 	Flavor        string `json:"flavor"`
 }
 
-func normalizeMetadata(metadata *v1alpha1.ZarfMetadata) {
-	metadata.AggregateChecksum = ""
+func normalizeMetadata(metadata *api.PackageMetadata) {
 	if metadata.Version == "" {
 		metadata.Version = strings.TrimPrefix(disassembleVersionSuffix, "-")
 	} else if !strings.HasSuffix(metadata.Version, disassembleVersionSuffix) {

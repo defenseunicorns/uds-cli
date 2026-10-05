@@ -10,11 +10,11 @@ import (
 	"path/filepath"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
-func localizePackageLevelAssets(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir string, pkg *v1alpha1.ZarfPackage) error {
+func localizePackageLevelAssets(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir string, pkg *api.Package) error {
 	if err := localizeOptionalPackageAsset(pkgLayout.DirPath(), outputDir, layout.ValuesYAML, []string{layout.ValuesYAML}, func(files []string) {
 		pkg.Values.Files = files
 	}); err != nil {

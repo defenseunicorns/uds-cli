@@ -10,14 +10,14 @@ import (
 	"path/filepath"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/archive"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
 const sharedImageArchiveRelPath = "oci-layout.tar"
 
-func localizeImages(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir string, component *v1alpha1.ZarfComponent) error {
+func localizeImages(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir string, component *api.Component) error {
 	images := component.GetImages()
 	if len(images) == 0 {
 		component.Images = nil
@@ -29,7 +29,7 @@ func localizeImages(ctx context.Context, pkgLayout *layout.PackageLayout, output
 		return err
 	}
 	component.Images = nil
-	component.ImageArchives = []v1alpha1.ImageArchive{{Path: archiveRel, Images: images}}
+	component.ImageArchives = []api.ImageArchive{{Path: archiveRel, Images: images}}
 	return nil
 }
 
