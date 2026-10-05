@@ -6,6 +6,10 @@ description: UDS CLI command reference for <code>uds list</code>.
 
 [alpha] List deployed bundles in the cluster
 
+### Synopsis
+
+List deployed bundles in the cluster. If a deployed package cannot be read or has incomplete bundle annotations, the command reports an error instead of showing an incomplete list.
+
 ```
 uds list [flags]
 ```

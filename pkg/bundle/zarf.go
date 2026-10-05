@@ -6,7 +6,9 @@ package bundle
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
+	"slices"
 
 	"github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
@@ -15,11 +17,13 @@ import (
 )
 
 // ZarfPackageLayout exposes the native Zarf package definition during bundle
-// deploy. Keeping the schema-aware definition intact lets hooks mutate fields
-// specific to the package API version in use.
+// deploy. Hooks can inspect its version-specific fields. Changes to
+// PackageDefinition.Metadata.Name, PackageDefinition.Metadata.Annotations, and
+// PackageDefinition.Components are copied to the loaded Zarf layout before
+// deployment. Changes to other definition fields are unsupported.
 type ZarfPackageLayout struct {
 	dirPath           string
-	PackageDefinition api.PackageDefinition
+	PackageDefinition api.Package
 	digest            string
 }
 
@@ -117,9 +121,25 @@ func fromZarfPackageLayout(pkgLayout *layout.PackageLayout) *ZarfPackageLayout {
 	if pkgLayout == nil {
 		return nil
 	}
+	definition := pkgLayout.Definition()
+	// The hook can only write back name, annotations, and components. Isolate
+	// other reference-backed fields so edits cannot reach the loaded layout.
+	definition.Build.Migrations = slices.Clone(definition.Build.Migrations)
+	definition.Build.RegistryOverrides = maps.Clone(definition.Build.RegistryOverrides)
+	definition.Build.VersionRequirements = slices.Clone(definition.Build.VersionRequirements)
+	definition.Build.ProvenanceFiles = slices.Clone(definition.Build.ProvenanceFiles)
+	definition.Build.DifferentialMissing = slices.Clone(definition.Build.DifferentialMissing)
+	if definition.Build.Signed != nil {
+		signed := *definition.Build.Signed
+		definition.Build.Signed = &signed
+	}
+	definition.Values.Files = slices.Clone(definition.Values.Files)
+	definition.Documentation = maps.Clone(definition.Documentation)
+	definition.Variables = slices.Clone(definition.Variables)
+	definition.Constants = slices.Clone(definition.Constants)
 	result := &ZarfPackageLayout{
 		dirPath:           pkgLayout.DirPath(),
-		PackageDefinition: pkgLayout.PackageDefinition,
+		PackageDefinition: definition,
 	}
 	if !pkgLayout.IsPushable() && pkgLayout.Digest() != "" {
 		result.digest = pkgLayout.Digest()
@@ -152,15 +172,29 @@ func toZarfPackageLayoutForDeploy(pkgLayout *ZarfPackageLayout) (*layout.Package
 		return nil, nil
 	}
 	result := &layout.PackageLayout{}
-	result.PackageDefinition = pkgLayout.PackageDefinition
+	if err := applyPublicPackageLayout(result, pkgLayout); err != nil {
+		return nil, err
+	}
 	return result, nil
+}
+
+type packageComponentSelection []api.Component
+
+func (selection packageComponentSelection) Apply(api.Package) ([]api.Component, error) {
+	return selection, nil
 }
 
 func applyPublicPackageLayout(dst *layout.PackageLayout, src *ZarfPackageLayout) error {
 	if dst == nil || src == nil {
 		return nil
 	}
-	dst.PackageDefinition = src.PackageDefinition
+	if name := src.PackageDefinition.Metadata.Name; name != "" {
+		dst.SetName(name)
+	}
+	dst.SetAnnotations(src.PackageDefinition.Metadata.Annotations)
+	if err := dst.Filter(packageComponentSelection(src.PackageDefinition.Components)); err != nil {
+		return err
+	}
 	if src.digest != "" {
 		dst.SetRegistryDigest(src.digest)
 	}

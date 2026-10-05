@@ -15,7 +15,7 @@ import (
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	internalzarf "github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
-	"github.com/zarf-dev/zarf/src/api"
+	"github.com/zarf-dev/zarf/src/api/convert"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
@@ -26,12 +26,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newPackageLayout(pkg v1alpha1.ZarfPackage) *layout.PackageLayout {
-	return &layout.PackageLayout{PackageDefinition: api.NewPackageDefinitionFromV1alpha1(pkg)}
+func newPackageLayout(t *testing.T, pkg v1alpha1.ZarfPackage) *layout.PackageLayout {
+	t.Helper()
+	result := &layout.PackageLayout{}
+	definition := convert.PackageFromV1alpha1(pkg)
+	result.SetName(definition.Metadata.Name)
+	require.NoError(t, result.Filter(packageComponentSelection(definition.Components)))
+	return result
 }
 
-func newV1beta1PackageLayout() *layout.PackageLayout {
-	return &layout.PackageLayout{PackageDefinition: api.NewPackageDefinitionFromV1beta1(v1beta1.Package{
+func newV1beta1PackageLayout(t *testing.T) *layout.PackageLayout {
+	t.Helper()
+	result := &layout.PackageLayout{}
+	definition := convert.PackageFromV1beta1(v1beta1.Package{
 		APIVersion: v1beta1.APIVersion,
 		Kind:       v1beta1.ZarfPackageConfig,
 		Metadata:   v1beta1.PackageMetadata{Name: "beta-package"},
@@ -46,7 +53,10 @@ func newV1beta1PackageLayout() *layout.PackageLayout {
 				Service: v1beta1.ServiceRegistry,
 			},
 		}},
-	})}
+	})
+	result.SetName(definition.Metadata.Name)
+	require.NoError(t, result.Filter(packageComponentSelection(definition.Components)))
+	return result
 }
 
 func TestDeployWithSourceEnforcesDependencySafety(t *testing.T) {
@@ -167,7 +177,7 @@ func TestPublicPackageHookConvertsLayoutMutations(t *testing.T) {
 		pkgLayout.SetDeployedDigest("sha256:registry")
 		return nil
 	}})
-	zarfLayout := newPackageLayout(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
+	zarfLayout := newPackageLayout(t, v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
 		Name:          "main",
 		Images:        []string{"example/image:v1"},
 		ImageArchives: []v1alpha1.ImageArchive{{Path: "images.tar", Images: []string{"example/image:v1"}}},
@@ -180,14 +190,82 @@ func TestPublicPackageHookConvertsLayoutMutations(t *testing.T) {
 	assert.Equal(t, "sha256:registry", zarfLayout.Digest())
 }
 
-func TestPublicPackageHookPreservesV1beta1Fields(t *testing.T) {
+func TestPublicPackageHookCannotChangeUnsupportedDefinitionFields(t *testing.T) {
+	dir := t.TempDir()
+	const zarfYAML = `metadata:
+  name: test
+  version: 0.0.1
+  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+build:
+  migrations: [original]
+  registryOverrides:
+    registry.example: original
+  versionRequirements:
+    - version: 0.87.0
+      reason: original
+  provenanceFiles: [original.sig]
+  differentialMissing: [original-component]
+  signed: true
+values:
+  files: [original.yaml]
+documentation:
+  guide: original.md
+variables:
+  - name: GREETING
+    default: original
+constants:
+  - name: CONSTANT
+    value: original
+components: []
+`
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte(zarfYAML), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "checksums.txt"), nil, 0o600))
+	zarfLayout, err := layout.LoadFromDir(t.Context(), dir, layout.PackageLayoutOptions{IsPartial: true, VerificationStrategy: layout.VerifyNever})
+	require.NoError(t, err)
+	definition := zarfLayout.Definition()
+	require.Len(t, definition.Variables, 1)
+	require.Len(t, definition.Constants, 1)
+	require.NotEmpty(t, definition.Build.Migrations)
+	require.NotNil(t, definition.Build.Signed)
+	originalMigration := definition.Build.Migrations[0]
+
 	hooks := toZarfPackageHooks(PackageDeployHooks{PreDeploy: func(_ context.Context, _ *spec.Package, pkgLayout *ZarfPackageLayout, _ *DeployPackageOptions) error {
-		pkg := pkgLayout.PackageDefinition.AsV1beta1()
-		pkg.Components[0].Images[0].Name = "updated/image:v1"
-		pkgLayout.PackageDefinition = api.NewPackageDefinitionFromV1beta1(pkg)
+		pkgLayout.PackageDefinition.Variables[0].Default = "changed"
+		pkgLayout.PackageDefinition.Constants[0].Value = "changed"
+		pkgLayout.PackageDefinition.Values.Files[0] = "changed.yaml"
+		pkgLayout.PackageDefinition.Documentation["guide"] = "changed.md"
+		pkgLayout.PackageDefinition.Build.Migrations[0] = "changed"
+		pkgLayout.PackageDefinition.Build.RegistryOverrides["registry.example"] = "changed"
+		pkgLayout.PackageDefinition.Build.VersionRequirements[0].Reason = "changed"
+		pkgLayout.PackageDefinition.Build.ProvenanceFiles[0] = "changed.sig"
+		pkgLayout.PackageDefinition.Build.DifferentialMissing[0] = "changed-component"
+		*pkgLayout.PackageDefinition.Build.Signed = false
 		return nil
 	}})
-	zarfLayout := newV1beta1PackageLayout()
+	internalOpts := toZarfDeployPackageOptions(DeployPackageOptions{Config: validValidationConfig(), BundleDir: t.TempDir()})
+
+	require.NoError(t, hooks.PreDeploy(t.Context(), &spec.Package{}, zarfLayout, &packager.DeployOptions{}, &internalOpts))
+	definition = zarfLayout.Definition()
+	assert.Equal(t, "original", definition.Variables[0].Default)
+	assert.Equal(t, "original", definition.Constants[0].Value)
+	assert.Equal(t, "original.yaml", definition.Values.Files[0])
+	assert.Equal(t, "original.md", definition.Documentation["guide"])
+	assert.Equal(t, originalMigration, definition.Build.Migrations[0])
+	assert.Equal(t, "original", definition.Build.RegistryOverrides["registry.example"])
+	assert.Equal(t, "original", definition.Build.VersionRequirements[0].Reason)
+	assert.Equal(t, "original.sig", definition.Build.ProvenanceFiles[0])
+	assert.Equal(t, "original-component", definition.Build.DifferentialMissing[0])
+	assert.True(t, *definition.Build.Signed)
+}
+
+func TestPublicPackageHookPreservesV1beta1Fields(t *testing.T) {
+	hooks := toZarfPackageHooks(PackageDeployHooks{PreDeploy: func(_ context.Context, _ *spec.Package, pkgLayout *ZarfPackageLayout, _ *DeployPackageOptions) error {
+		pkg := convert.PackageToV1beta1(pkgLayout.PackageDefinition)
+		pkg.Components[0].Images[0].Name = "updated/image:v1"
+		pkgLayout.PackageDefinition = convert.PackageFromV1beta1(pkg)
+		return nil
+	}})
+	zarfLayout := newV1beta1PackageLayout(t)
 	internalOpts := toZarfDeployPackageOptions(DeployPackageOptions{Config: validValidationConfig(), BundleDir: t.TempDir()})
 
 	require.NoError(t, hooks.PreDeploy(t.Context(), &spec.Package{}, zarfLayout, &packager.DeployOptions{}, &internalOpts))
@@ -201,9 +279,10 @@ func TestPublicPackageHookPreservesV1beta1Fields(t *testing.T) {
 }
 
 func TestPublicPackageLayoutLoaderPreservesV1beta1Fields(t *testing.T) {
-	publicLayout := fromZarfPackageLayout(newV1beta1PackageLayout())
+	publicLayout := fromZarfPackageLayout(newV1beta1PackageLayout(t))
 	converted, err := toZarfPackageLayoutForDeploy(publicLayout)
 	require.NoError(t, err)
+	assert.Equal(t, "beta-package", converted.Definition().Metadata.Name)
 
 	component := converted.AsV1beta1().Components[0]
 	assert.Equal(t, "daemon", component.Images[0].Source)
@@ -255,15 +334,15 @@ func TestPublicPackageHookPreservesPartialMetadata(t *testing.T) {
 
 func TestApplyPublicPackageLayoutUsesHookDefinition(t *testing.T) {
 	manifests := []v1alpha1.ZarfManifest{{Name: "manifest.yaml"}}
-	dst := newPackageLayout(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
+	dst := newPackageLayout(t, v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
 		Name:      "main",
 		Manifests: manifests,
 		Charts:    []v1alpha1.ZarfChart{{Name: "chart"}},
 	}}})
 	src := fromZarfPackageLayout(dst)
-	pkg := src.PackageDefinition.AsV1alpha1()
+	pkg := convert.PackageToV1alpha1(src.PackageDefinition)
 	pkg.Components = pkg.Components[:0]
-	src.PackageDefinition = api.NewPackageDefinitionFromV1alpha1(pkg)
+	src.PackageDefinition = convert.PackageFromV1alpha1(pkg)
 
 	require.NoError(t, applyPublicPackageLayout(dst, src))
 
@@ -330,13 +409,13 @@ func TestPublicPreDeployPreservesRename(t *testing.T) {
 	internalOpts := toZarfDeployPackageOptions(DeployPackageOptions{Config: validValidationConfig(), BundleDir: t.TempDir()})
 	internalOpts.PackageDeployHooks = toZarfPackageHooks(PackageDeployHooks{
 		PreDeploy: func(_ context.Context, _ *spec.Package, pkgLayout *ZarfPackageLayout, _ *DeployPackageOptions) error {
-			pkg := pkgLayout.PackageDefinition.AsV1alpha1()
+			pkg := convert.PackageToV1alpha1(pkgLayout.PackageDefinition)
 			pkg.Components[0].Name = "renamed"
-			pkgLayout.PackageDefinition = api.NewPackageDefinitionFromV1alpha1(pkg)
+			pkgLayout.PackageDefinition = convert.PackageFromV1alpha1(pkg)
 			return nil
 		},
 	})
-	internalLayout := newPackageLayout(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{
+	internalLayout := newPackageLayout(t, v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{
 		{Name: "original", Manifests: []v1alpha1.ZarfManifest{{Name: "manifest.yaml"}}},
 	}})
 
@@ -374,7 +453,7 @@ components:
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "checksums.txt"), nil, 0o600))
 
 	loader := packageLayoutLoaderAdapter{loader: staticPackageLayoutLoader{
-		layout: &ZarfPackageLayout{PackageDefinition: api.NewPackageDefinitionFromV1alpha1(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
+		layout: &ZarfPackageLayout{PackageDefinition: convert.PackageFromV1alpha1(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
 			Name:      "main",
 			Charts:    []v1alpha1.ZarfChart{{Name: "chart", Version: "1.0.0", URL: "https://example.com/charts"}},
 			Manifests: []v1alpha1.ZarfManifest{{Name: "manifests", Files: []string{"manifest.yaml"}}},
@@ -383,6 +462,7 @@ components:
 	}}
 	result, err := loader.LoadPackageLayout(t.Context(), &spec.Package{Name: "test"}, dir, internalzarf.LoadOptions{IsPartial: true})
 	require.NoError(t, err)
+	assert.Equal(t, "test", result.Layout.Definition().Metadata.Name)
 	components := result.Layout.AsV1alpha1().Components
 	require.Len(t, components, 1)
 	component := components[0]

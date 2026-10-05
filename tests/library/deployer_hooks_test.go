@@ -19,7 +19,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/zarf-dev/zarf/src/api"
+	"github.com/zarf-dev/zarf/src/api/convert"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 )
 
@@ -48,7 +48,7 @@ func (l *staticLoaderImpl) LoadPackageLayout(_ context.Context, _ *spec.Package,
 
 func imageLayoutLib() *bundle.ZarfPackageLayout {
 	return &bundle.ZarfPackageLayout{
-		PackageDefinition: api.NewPackageDefinitionFromV1alpha1(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
+		PackageDefinition: convert.PackageFromV1alpha1(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
 			Name:          "main",
 			Images:        []string{"ghcr.io/example/image:v1"},
 			ImageArchives: []v1alpha1.ImageArchive{{Path: "archive.tar", Images: []string{"ghcr.io/example/image:v1"}}},
@@ -105,8 +105,8 @@ func TestPackageHooks_PreDeployImageSkip(t *testing.T) {
 
 	require.ErrorIs(t, err, hookErr)
 	require.NotNil(t, captured)
-	assert.Empty(t, captured.PackageDefinition.AsV1alpha1().Components[0].Images)
-	assert.Empty(t, captured.PackageDefinition.AsV1alpha1().Components[0].ImageArchives)
+	assert.Empty(t, convert.PackageToV1alpha1(captured.PackageDefinition).Components[0].Images)
+	assert.Empty(t, convert.PackageToV1alpha1(captured.PackageDefinition).Components[0].ImageArchives)
 }
 
 func TestPackageHooks_PreDeployErrorAbortsBeforeClusterDeploy(t *testing.T) {

@@ -1,9 +1,10 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 package bundle
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -42,7 +43,8 @@ func TestMapPackagesToBundles(t *testing.T) {
 			},
 		}
 
-		bundles := mapPackagesToBundles(deployedPackages)
+		bundles, err := mapPackagesToBundles(deployedPackages)
+		require.NoError(t, err)
 
 		require.Equal(t, 1, len(bundles))
 		require.Equal(t, "demo-bundle", bundles[0].Name)
@@ -79,7 +81,8 @@ func TestMapPackagesToBundles(t *testing.T) {
 			},
 		}
 
-		bundles := mapPackagesToBundles(deployedPackages)
+		bundles, err := mapPackagesToBundles(deployedPackages)
+		require.NoError(t, err)
 
 		require.Equal(t, 1, len(bundles))
 		require.Equal(t, "demo-bundle", bundles[0].Name)
@@ -116,7 +119,8 @@ func TestMapPackagesToBundles(t *testing.T) {
 			},
 		}
 
-		bundles := mapPackagesToBundles(deployedPackages)
+		bundles, err := mapPackagesToBundles(deployedPackages)
+		require.NoError(t, err)
 
 		require.Equal(t, 2, len(bundles))
 		// Bundles should be sorted alphabetically by name
@@ -154,7 +158,8 @@ func TestMapPackagesToBundles(t *testing.T) {
 			},
 		}
 
-		bundles := mapPackagesToBundles(deployedPackages)
+		bundles, err := mapPackagesToBundles(deployedPackages)
+		require.NoError(t, err)
 
 		require.Equal(t, 2, len(bundles))
 		// Should be sorted by version within the same bundle name
@@ -164,60 +169,36 @@ func TestMapPackagesToBundles(t *testing.T) {
 		require.Equal(t, 1, len(bundles[1].Packages))
 	})
 
-	t.Run("filters packages with incomplete annotations", func(t *testing.T) {
-		deployedPackages := []state.DeployedPackage{
-			{
-				Name: "pkg-no-version",
-				Data: v1alpha1.ZarfPackage{
-					Metadata: v1alpha1.ZarfMetadata{
-						Name:    "pkg-no-version",
-						Version: "1.0.0",
-						Annotations: map[string]string{
-							AnnotationBundleName: "incomplete-bundle",
-							// Missing bundle version
-						},
-					},
-				},
-			},
-			{
-				Name: "pkg-no-name",
-				Data: v1alpha1.ZarfPackage{
-					Metadata: v1alpha1.ZarfMetadata{
-						Name:    "pkg-no-name",
-						Version: "1.0.0",
-						Annotations: map[string]string{
-							AnnotationBundleVersion: "1.0.0",
-							// Missing bundle name
-						},
-					},
-				},
-			},
-			{
-				Name: "pkg-complete",
-				Data: v1alpha1.ZarfPackage{
-					Metadata: v1alpha1.ZarfMetadata{
-						Name:    "pkg-complete",
-						Version: "1.0.0",
-						Annotations: map[string]string{
-							AnnotationBundleName:    "complete-bundle",
-							AnnotationBundleVersion: "1.0.0",
-						},
-					},
-				},
-			},
+	t.Run("rejects incomplete annotations", func(t *testing.T) {
+		cases := []struct {
+			name        string
+			annotations map[string]string
+		}{
+			{name: "missing version", annotations: map[string]string{AnnotationBundleName: "bundle"}},
+			{name: "missing name", annotations: map[string]string{AnnotationBundleVersion: "1.0.0"}},
+			{name: "empty version", annotations: map[string]string{AnnotationBundleName: "bundle", AnnotationBundleVersion: ""}},
+			{name: "empty name", annotations: map[string]string{AnnotationBundleName: "", AnnotationBundleVersion: "1.0.0"}},
 		}
-
-		bundles := mapPackagesToBundles(deployedPackages)
-
-		require.Equal(t, 1, len(bundles))
-		require.Equal(t, "complete-bundle", bundles[0].Name)
-		require.Equal(t, 1, len(bundles[0].Packages))
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				deployedPackages := []state.DeployedPackage{{
+					Name: "incomplete",
+					Data: v1alpha1.ZarfPackage{Metadata: v1alpha1.ZarfMetadata{
+						Annotations: tc.annotations,
+					}},
+				}}
+				bundles, err := mapPackagesToBundles(deployedPackages)
+				require.Nil(t, bundles)
+				require.ErrorContains(t, err, `deployed package "incomplete" has incomplete bundle annotations`)
+			})
+		}
 	})
 
 	t.Run("handles empty package list", func(t *testing.T) {
 		deployedPackages := []state.DeployedPackage{}
 
-		bundles := mapPackagesToBundles(deployedPackages)
+		bundles, err := mapPackagesToBundles(deployedPackages)
+		require.NoError(t, err)
 
 		require.Equal(t, 0, len(bundles))
 	})
@@ -236,7 +217,8 @@ func TestMapPackagesToBundles(t *testing.T) {
 			},
 		}
 
-		bundles := mapPackagesToBundles(deployedPackages)
+		bundles, err := mapPackagesToBundles(deployedPackages)
+		require.NoError(t, err)
 
 		require.Equal(t, 0, len(bundles))
 	})
@@ -284,7 +266,8 @@ func TestMapPackagesToBundles(t *testing.T) {
 			},
 		}
 
-		bundles := mapPackagesToBundles(deployedPackages)
+		bundles, err := mapPackagesToBundles(deployedPackages)
+		require.NoError(t, err)
 
 		require.Equal(t, 1, len(bundles))
 		require.Equal(t, 3, len(bundles[0].Packages))
@@ -363,7 +346,8 @@ func TestMapPackagesToBundles(t *testing.T) {
 			},
 		}
 
-		bundles := mapPackagesToBundles(deployedPackages)
+		bundles, err := mapPackagesToBundles(deployedPackages)
+		require.NoError(t, err)
 
 		require.Equal(t, 3, len(bundles))
 
@@ -380,6 +364,30 @@ func TestMapPackagesToBundles(t *testing.T) {
 		require.Equal(t, "1.0.0", bundles[2].Version)
 		require.Equal(t, 1, len(bundles[2].Packages))
 	})
+}
+
+func TestMapPackagesToBundlesReportsInvalidDefinition(t *testing.T) {
+	deployedPackages := []state.DeployedPackage{
+		{
+			Name: "valid",
+			Data: v1alpha1.ZarfPackage{Metadata: v1alpha1.ZarfMetadata{
+				Name: "valid",
+				Annotations: map[string]string{
+					AnnotationBundleName:    "demo-bundle",
+					AnnotationBundleVersion: "1.0.0",
+				},
+			}},
+		},
+		{
+			Name:        "broken",
+			PackageData: map[string]json.RawMessage{v1alpha1.APIVersion: []byte("{")},
+		},
+	}
+
+	bundles, err := mapPackagesToBundles(deployedPackages)
+	require.Nil(t, bundles)
+	require.ErrorContains(t, err, `read deployed package "broken" definition`)
+	require.ErrorContains(t, err, "unmarshal")
 }
 
 func TestPrintBundleList(t *testing.T) {

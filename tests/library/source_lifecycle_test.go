@@ -109,7 +109,7 @@ func TestPrepareArtifactOwnsExtractedResources(t *testing.T) {
 	loaded, err := source.Loader.LoadPackageLayout(t.Context(), &source.Bundle.Packages[0], t.TempDir(), bundle.ZarfPackageLayoutLoadOptions{})
 	require.NoError(t, err)
 	require.NotNil(t, loaded)
-	assert.Equal(t, "base", loaded.Layout.PackageDefinition.AsV1alpha1().Metadata.Name)
+	assert.Equal(t, "base", loaded.Layout.PackageDefinition.Metadata.Name)
 	assert.True(t, loaded.IsPartial) // Bundle artifacts contain selected package layers.
 
 	require.NoError(t, source.Close())
