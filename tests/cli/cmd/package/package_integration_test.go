@@ -97,10 +97,14 @@ func TestPackageModDisassembleAndReassemble(t *testing.T) {
 	privateKey, _ := testutil.GenerateCosignKeyPair(t)
 	t.Setenv("USER", "reassembly-test")
 	t.Setenv("USERNAME", "reassembly-test")
-	streams, _, out, _ := iostreams.NewTestIOStreams()
+	streams, _, out, errOut := iostreams.NewTestIOStreams()
 	root = cli.NewRootCommand(streams, features)
 	root.SetArgs([]string{"package", "mod", "reassemble", worktree, "--output", outputDir, "--tmp-dir", tmpDir, "--cache", cacheDir, "--concurrency", "1", "--signing-key", privateKey, "--with-build-machine-info"})
 	require.NoError(t, root.ExecuteContext(t.Context()))
+	for _, message := range []string{"assembling package", "package signed successfully", "writing package to disk"} {
+		assert.Contains(t, errOut.String(), message)
+		assert.NotContains(t, out.String(), message)
+	}
 
 	matches, err := filepath.Glob(filepath.Join(outputDir, "zarf-package-*.tar.zst"))
 	require.NoError(t, err)

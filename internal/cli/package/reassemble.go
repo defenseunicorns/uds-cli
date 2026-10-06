@@ -11,6 +11,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/zarf/modify"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
+	zarflogger "github.com/zarf-dev/zarf/src/pkg/logger"
 )
 
 // ReassembleOptions holds options for package reassembly.
@@ -87,6 +88,7 @@ func (o *ReassembleOptions) Complete(cmd *cobra.Command, args []string) error {
 // Run reassembles the source directory and prints its result as text.
 func (o *ReassembleOptions) Run(ctx context.Context) error {
 	o.IOStreams = logger.Bind(o.IOStreams, o.LogLevelName)
+	ctx = zarflogger.WithContext(ctx, o.Logger())
 	outputPath, err := modify.Reassemble(ctx, o.ReassembleOptions)
 	if err != nil {
 		return err
